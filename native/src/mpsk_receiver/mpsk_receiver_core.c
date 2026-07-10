@@ -7,6 +7,20 @@
 /* Numerical guard on the symbol magnitude in the decision discriminator. */
 #define MPSK_RX_EPS 1e-12
 
+/* Two-way handover rule (see mpsk_receiver_create's lock_thresh doc).
+ * Declare fast / drop reluctantly: 8 straight above-threshold symbols hand
+ * the carrier to the decision-directed discriminator; 32 straight below
+ * the 0.8x drop threshold fall back to the NDA acquisition steer. The
+ * asymmetry reflects the cost asymmetry — a premature declare on a bad
+ * lock derails the NCO (decision errors feed back), while a late drop
+ * merely keeps a noisier discriminator a few symbols longer. The lock
+ * EMA (CARRIER_NDA_LOCK_ALPHA = 1/64) moves slowly, so consecutive-symbol
+ * counts this size are windows of genuinely fresh evidence, validated
+ * against the BER regression gate. */
+#define MPSK_RX_HANDOVER_DOWN 0.8
+#define MPSK_RX_HANDOVER_N_UP 8u
+#define MPSK_RX_HANDOVER_N_DOWN 32u
+
 /* Build the matched-filter taps for the selected pulse shape into a freshly
  * allocated array; *ntaps receives the length.  Returns NULL on bad args /
  * allocation failure.  I&D is a unit-DC boxcar (1/sps each), the matched
@@ -72,17 +86,25 @@ mpsk_receiver_create (int m, size_t sps, int n, int pulse, double rrc_beta,
   carrier_nda_init (&rx->car, bn_carrier, zeta, init_norm_freq, sps, n, m);
   symsync_init (&rx->sync, sps, bn_timing, zeta, FARROW_CUBIC,
                 SYMSYNC_TED_GARDNER);
-  rx->mf            = mf;
-  rx->mf_taps       = taps;
-  rx->m             = m;
-  rx->sps           = sps;
-  rx->n             = n;
-  rx->pulse         = pulse;
-  rx->rrc_beta      = rrc_beta;
-  rx->rrc_span      = rrc_span;
-  rx->acq_to_track  = acq_to_track ? 1 : 0;
-  rx->lock_thresh   = lock_thresh;
-  rx->warmup_syms   = warmup_syms;
+  rx->mf           = mf;
+  rx->mf_taps      = taps;
+  rx->m            = m;
+  rx->sps          = sps;
+  rx->n            = n;
+  rx->pulse        = pulse;
+  rx->rrc_beta     = rrc_beta;
+  rx->rrc_span     = rrc_span;
+  rx->acq_to_track = acq_to_track ? 1 : 0;
+  rx->lock_thresh  = lock_thresh;
+  rx->warmup_syms  = warmup_syms;
+  /* Two-way handover rule on the carrier lock EMA: declare fast (8 straight
+   * above-threshold symbols), drop reluctantly (32 straight below the
+   * 0.8x drop threshold) — level + time hysteresis so metric wobble at the
+   * threshold cannot chatter the discriminator choice. */
+  lockdet_init (&rx->handover, lock_thresh,
+                MPSK_RX_HANDOVER_DOWN * lock_thresh, MPSK_RX_HANDOVER_N_UP,
+                MPSK_RX_HANDOVER_N_DOWN);
+  lockdet_reset (&rx->handover);
   rx->tracking      = 0;
   rx->sym_count     = 0;
   rx->differential  = differential ? 1 : 0;
@@ -117,6 +139,7 @@ mpsk_receiver_reset (mpsk_receiver_state_t *state)
   carrier_nda_reset (&state->car);
   symsync_reset (&state->sync);
   fir_reset (state->mf);
+  lockdet_reset (&state->handover);
   state->tracking      = 0;
   state->sym_count     = 0;
   state->have_prev_idx = 0;
@@ -131,7 +154,7 @@ mpsk_receiver_state_bytes (const mpsk_receiver_state_t *s)
 {
   return sizeof (dp_state_hdr_t) + carrier_nda_state_bytes (&s->car)
          + symsync_state_bytes (&s->sync) + fir_state_bytes (s->mf)
-         + sizeof (uint64_t) + 3 * sizeof (uint32_t) + sizeof (float _Complex);
+         + sizeof (uint64_t) + 5 * sizeof (uint32_t) + sizeof (float _Complex);
 }
 
 void
@@ -146,6 +169,10 @@ mpsk_receiver_get_state (const mpsk_receiver_state_t *s, void *blob)
   dp_w_u64 (&_w, s->sym_count);
   dp_w_u32 (&_w, (uint32_t)s->have_prev_idx);
   dp_w_u32 (&_w, s->prev_idx);
+  /* handover lockdet: running fields only (thresholds/counts are config,
+   * restored by create). */
+  dp_w_u32 (&_w, s->handover.cnt);
+  dp_w_u32 (&_w, (uint32_t)s->handover.locked);
   dp_w_cf32 (&_w, &s->sym_rot, 1);
 }
 
@@ -157,10 +184,12 @@ mpsk_receiver_set_state (mpsk_receiver_state_t *s, const void *blob)
   DP_R_CHILD (&_r, carrier_nda, &s->car);
   DP_R_CHILD (&_r, symsync, &s->sync);
   DP_R_CHILD (&_r, fir, s->mf);
-  s->tracking      = (int)dp_r_u32 (&_r);
-  s->sym_count     = (size_t)dp_r_u64 (&_r);
-  s->have_prev_idx = (int)dp_r_u32 (&_r);
-  s->prev_idx      = dp_r_u32 (&_r);
+  s->tracking        = (int)dp_r_u32 (&_r);
+  s->sym_count       = (size_t)dp_r_u64 (&_r);
+  s->have_prev_idx   = (int)dp_r_u32 (&_r);
+  s->prev_idx        = dp_r_u32 (&_r);
+  s->handover.cnt    = dp_r_u32 (&_r);
+  s->handover.locked = (int)dp_r_u32 (&_r);
   dp_r_cf32 (&_r, &s->sym_rot, 1);
   return DP_OK;
 }
@@ -224,11 +253,14 @@ process_sample (mpsk_receiver_state_t *rx, float complex x, float complex *sym)
       carrier_nda_steer (&rx->car, e);
     }
   rx->sym_count++;
-  /* opt-in handover: after a timing/carrier warmup and a confident lock, hand
-   * the carrier from NDA acquisition to decision-directed tracking. */
-  if (rx->acq_to_track && !rx->tracking && rx->sym_count >= rx->warmup_syms
-      && rx->car.lock > rx->lock_thresh)
-    rx->tracking = 1;
+  /* opt-in two-way handover: after the timing/carrier warmup, step the
+   * verify-counted lock detector on the carrier lock EMA once per symbol.
+   * Its flag IS the discriminator choice — declare hands the carrier from
+   * NDA acquisition to decision-directed tracking; a sustained lock loss
+   * drops back to the NDA steer (which needs no data/timing), the shared
+   * NCO carrying the frequency estimate through both directions. */
+  if (rx->acq_to_track && rx->sym_count >= rx->warmup_syms)
+    rx->tracking = lockdet_step (&rx->handover, rx->car.lock);
   *sym = y;
   return 1;
 }

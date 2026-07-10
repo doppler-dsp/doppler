@@ -12,6 +12,7 @@ depends_on = [
   { name = "dll", link = true },
   { name = "lo", link = true },
   { name = "loop_filter", link = true },
+  { name = "lockdet", link = true },
   { name = "telemetry", link = true },
   { name = "detection", link = true },
 ]

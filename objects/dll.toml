@@ -7,6 +7,7 @@ no_step = "true"
 class_name = "Dll"
 depends_on = [
   { name = "loop_filter", link = true },
+  { name = "lockdet", link = true },
   { name = "detection", link = true },
   { name = "telemetry", link = true },
 ]
@@ -80,7 +81,7 @@ params = [{ name = "bn", type = "double" }, { name = "zeta", type = "double" }]
 
 [[dll.methods]]
 name = "configure_lock"
-doc = "Tune the always-on code-lock detector to a target (pfa, n_looks). The detector reuses acquisition's non-coherent statistic R = sqrt(2*sum|P|^2 / E|O|^2), where the prompt powers of n_looks consecutive looks are summed and E|O|^2 is an EMA of a random off-peak (noise) correlation re-drawn each epoch; it declares lock when R exceeds det_threshold_noncoherent(pfa, n_looks). Size n_looks with detection.det_n_noncoh(snr, ...) for your operating C/N0. The EMA bandwidth is sized probabilistically (detection.det_ema_alpha): ref_snr_db sets the noise reference's estimator SNR (mean^2/variance of the EMA output); the default 0.0 derives it from n_looks so the reference's std stays an eighth of the statistic's intrinsic H0 spread, floored at ~33 dB. The default config is pfa=1e-3 over 20 looks. Raises ValueError for pfa outside (0, 1). Read the result from the locked / lock_stat / noise_est properties."
+doc = "Tune the always-on code-lock detector to a target (pfa, n_looks). The detector reuses acquisition's non-coherent statistic R = sqrt(2*sum|P|^2 / E|O|^2), where the prompt powers of n_looks consecutive looks are summed and E|O|^2 is an EMA of a random off-peak (noise) correlation re-drawn each epoch; a decision compares R against det_threshold_noncoherent(pfa, n_looks). Size n_looks with detection.det_n_noncoh(snr, ...) for your operating C/N0. The EMA bandwidth is sized probabilistically (detection.det_ema_alpha): ref_snr_db sets the noise reference's estimator SNR (mean^2/variance of the EMA output); the default 0.0 derives it from n_looks so the reference's std stays an eighth of the statistic's intrinsic H0 spread, floored at ~33 dB. Decisions feed a verify-counted lock detector rather than a single-comparison latch: locked flips up only after det_verify_count(pfa, pfa*1e-3) consecutive above-threshold decisions (2 for the default pfa=1e-3, compounding the false-declare rate three decades under pfa) and drops only after 2 consecutive below-threshold decisions, so a statistic grazing the threshold cannot chatter the flag. The default config is pfa=1e-3 over 20 looks. Raises ValueError for pfa outside (0, 1). Read the result from the locked / lock_stat / noise_est properties."
 arg_type = "void"
 return_type = "int"
 status_return = true
@@ -120,7 +121,7 @@ type = "size_t"
 [[dll.properties]]
 name = "locked"
 type = "bool"
-doc = "True when the code-lock detector's statistic exceeds its CFAR threshold (latched at each n_looks-look decision; see configure_lock)."
+doc = "Current lock decision: True after the verify count of consecutive above-threshold N-look decisions, False again after the drop count of consecutive below-threshold ones (see configure_lock)."
 
 [[dll.properties]]
 name = "lock_stat"

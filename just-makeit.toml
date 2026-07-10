@@ -1235,7 +1235,7 @@ type = "double"
 name = "sb"
 type = "double"
 [module.detection]
-objects = []
+objects = ["lockdet"]
 
 [[module.detection.functions]]
 name = "marcum_q"
@@ -1336,6 +1336,30 @@ type = "double"
 [[module.detection.functions.params]]
 name = "snr_out_db"
 type = "double"
+
+[[module.detection.functions]]
+name = "det_verify_count"
+return_type = "int"
+
+[[module.detection.functions.params]]
+name = "p_look"
+type = "double"
+
+[[module.detection.functions.params]]
+name = "p_target"
+type = "double"
+
+[[module.detection.functions]]
+name = "det_verify_delay"
+return_type = "double"
+
+[[module.detection.functions.params]]
+name = "p_look"
+type = "double"
+
+[[module.detection.functions.params]]
+name = "n"
+type = "int"
 
 [[module.detection.functions]]
 name = "det_pd_noncoherent"

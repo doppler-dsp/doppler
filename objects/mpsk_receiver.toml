@@ -15,6 +15,7 @@ depends_on = [
   { name = "fir", link = true },
   { name = "lo", link = true },
   { name = "loop_filter", link = true },
+  { name = "lockdet", link = true },
   { name = "farrow", link = true },
   { name = "telemetry", link = true },
   { name = "agc", link = true },
@@ -110,7 +111,7 @@ params = [
 
 [[mpsk_receiver.methods]]
 name = "steps"
-doc = "Demodulate a cf32 block and return the recovered M-PSK symbols (one cf32 per recovered symbol period, ~ len(x)/sps outputs). Per sample the receiver de-rotates with the integer-NCO carrier (predetection wipe-off), accumulates a non-data-aided M-th-power I/Q arm at n dumps/symbol to acquire the carrier with no data and no symbol timing, matched-filters the de-rotated stream (integrate-and-dump or RRC), and runs a Gardner symbol-timing loop. With acq_to_track enabled it switches to a lower-jitter decision-directed carrier loop once locked. The loop locks to one of m phases (M-fold ambiguity); resolve it with bits(differential) or a sync word. Read norm_freq for the tracked carrier and lock for the carrier lock metric."
+doc = "Demodulate a cf32 block and return the recovered M-PSK symbols (one cf32 per recovered symbol period, ~ len(x)/sps outputs). Per sample the receiver de-rotates with the integer-NCO carrier (predetection wipe-off), accumulates a non-data-aided M-th-power I/Q arm at n dumps/symbol to acquire the carrier with no data and no symbol timing, matched-filters the de-rotated stream (integrate-and-dump or RRC), and runs a Gardner symbol-timing loop. With acq_to_track enabled a verify-counted two-way handover steps on the carrier lock metric each symbol: it switches to a lower-jitter decision-directed carrier loop after 8 consecutive above-lock_thresh symbols, and on a sustained lock loss (32 consecutive symbols below 0.8*lock_thresh) drops back to the NDA acquisition steer, the shared NCO carrying the frequency estimate both ways. The loop locks to one of m phases (M-fold ambiguity); resolve it with bits(differential) or a sync word. Read norm_freq for the tracked carrier and lock for the carrier lock metric."
 arg_type = "void"
 return_type = "float _Complex"
 variable_output = true

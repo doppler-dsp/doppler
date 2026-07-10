@@ -100,6 +100,46 @@ assert det_ema_alpha(6.0, 3.0) == 1.0
 
 ______________________________________________________________________
 
+## Lock verification
+
+A loop that computes a lock statistic still needs a *decision rule*: when is
+the statistic high enough, long enough, to declare lock — and low enough,
+long enough, to drop it? `LockDet` is that rule factored out once: separate
+declare/drop thresholds (level hysteresis) plus consecutive-look verify
+counts (time hysteresis). Consecutive looks compound probabilistically —
+`n` looks at per-look probability `p` reach `p^n` — so the verify counts are
+*derived*, not guessed: `det_verify_count` sizes them from a per-look rate
+and a compound budget, and `det_verify_delay` predicts the declare latency
+they cost. The DLL's code-lock latch and the M-PSK receiver's two-way
+acquisition↔tracking handover both run on an embedded C `lockdet`.
+
+```python
+from doppler.detection import LockDet, det_verify_count, det_verify_delay
+
+# declare side: per-decision pfa 1e-3, false-declare budget 1e-9 -> 3 straight
+n_up = det_verify_count(1e-3, 1e-9)
+assert n_up == 3
+
+# drop side: per-look miss rate 1-pd = 0.2, false-drop budget 1e-4 -> 6
+n_down = det_verify_count(0.2, 1e-4)
+assert n_down == 6
+
+# the price in latency: mean looks to a declare at pd = 0.9
+assert round(det_verify_delay(0.9, n_up), 2) == 3.72
+
+d = LockDet(up_thresh=8.5, down_thresh=7.0, n_up=n_up, n_down=n_down)
+assert [d.step(9.0), d.step(9.0), d.step(9.0)] == [0, 0, 1]  # 3rd hit locks
+assert d.step(7.5) == 1  # inside the hysteresis band: sticky
+```
+
+::: doppler.detection.det_verify_count
+
+::: doppler.detection.det_verify_delay
+
+::: doppler.detection.LockDet
+
+______________________________________________________________________
+
 ## Power-SNR (linear)
 
 ::: doppler.detection.det_threshold_power

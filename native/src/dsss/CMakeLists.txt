@@ -16,6 +16,7 @@ target_link_libraries(dsss PRIVATE
     loop_filter_core
     telemetry_core
     dll_core
+    lockdet_core
     detection_core
     corr2d_core
     fft2d_core

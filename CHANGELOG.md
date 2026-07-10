@@ -15,6 +15,27 @@ ______________________________________________________________________
 
 ### Added
 
+- **`lockdet` — a portable lock detector, and `detection.LockDet`.** The
+    decision rule every loop needs, factored out once as an embeddable
+    C leaf (`lockdet_core.h`: pointer-free POD, force-inline step):
+    separate declare/drop thresholds (level hysteresis) plus
+    consecutive-look verify counters (time hysteresis) — `n_up` straight
+    hits above `up_thresh` declare, `n_down` straight misses below
+    `down_thresh` drop, and a metric inside the band is sticky both
+    ways, so a statistic grazing a threshold cannot chatter the flag.
+    Exposed as `detection.LockDet` (serializable; truth-table tested in
+    both harnesses).
+
+- **`detection.det_verify_count` / `detection.det_verify_delay`** —
+    verify-count sizing: consecutive looks compound (`p^n`), so
+    `det_verify_count(p_look, p_target)` returns the smallest run length
+    meeting a compound budget (one function serves both sides: declare
+    from the per-look pfa, drop from the per-look miss rate), and
+    `det_verify_delay(p_look, n)` prices it — the mean looks to the
+    first length-`n` run. Together with `det_threshold_*`, `det_pd_*`
+    and `det_ema_alpha`, the full chain C/N0 → thresholds, verify
+    counts, and smoothing bandwidth is now derived, not guessed.
+
 - **`detection.det_ema_alpha(snr_in_db, snr_out_db)`** — probabilistic
     EMA sizing: treat the smoothed quantity as a DC level in noise with a
     per-sample estimator SNR (mean²/variance), request the output SNR the
@@ -23,6 +44,28 @@ ______________________________________________________________________
     lock-metric smoother to a target decision SNR.
 
 ### Changed
+
+- **The DLL's code-lock latch is verify-counted (state blob v3).**
+    `Dll.locked` now runs through an embedded `lockdet`: it flips up only
+    after `det_verify_count(pfa, pfa·1e-3)` consecutive above-threshold
+    N-look decisions (2 for the default pfa = 1e-3 — the false-declare
+    rate compounds three decades under the per-decision pfa) and drops
+    only after 2 consecutive below-threshold ones. `configure_lock`'s
+    signature is unchanged (the counts derive from `pfa`); the C-only
+    `dll_configure_lock_raw` grows the full lockdet geometry
+    (`up/down_thresh`, `n_up/n_down`). `DLL_STATE_VERSION` 2 → 3 and
+    `DESPREADER_STATE_VERSION` 2 → 3 (the embedded struct grew; old
+    blobs are rejected, per the unreleased-format policy).
+
+- **The M-PSK receiver's handover is two-way (state blob v4).** With
+    `acq_to_track` enabled, a verify-counted `lockdet` steps on the
+    carrier lock metric each recovered symbol: 8 consecutive
+    above-`lock_thresh` symbols hand the carrier to the decision-directed
+    discriminator (was: a single comparison, latched forever), and 32
+    consecutive symbols below the 0.8× drop threshold now fall **back**
+    to the NDA acquisition steer — the shared NCO carries the frequency
+    estimate both ways, so a drop-back is a discriminator swap, not a
+    cold restart. `MPSK_RECEIVER_STATE_VERSION` 3 → 4.
 
 - **`Dll.configure_lock` is C-first and probabilistic.** The pfa→CFAR
     threshold policy moved from the hand-owned Python binding into

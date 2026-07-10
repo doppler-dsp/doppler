@@ -34,6 +34,7 @@
 #include "clib_common.h"
 #include "dp_state.h"
 #include "jm_perf.h"
+#include "lockdet/lockdet_core.h"
 #include "loop_filter/loop_filter_core.h"
 #include "telemetry/telemetry.h"
 #include <complex.h>
@@ -100,10 +101,10 @@ typedef struct {
     double lock_sum;         /**< running sum|P_k|^2 over the current window. */
     size_t lock_count;       /**< looks accumulated in the current window.    */
     size_t n_looks;          /**< non-coherent integration depth N.          */
-    double lock_thresh;      /**< CFAR threshold eta on R (det_threshold_nc). */
     double lock_stat;        /**< last statistic R = sqrt(2 sum|P|^2/E|O|^2). */
     size_t lock_nz;          /**< noise looks folded in (cumulative-mean boot).*/
-    int locked;              /**< last lock decision (R > eta).               */
+    lockdet_state_t lock;    /**< decision rule: thresholds + verify counters
+                                  stepped on R at each N-look decision.       */
     int owns_code;           /**< 1 if dll_destroy() frees `code`.         */
     dll_tlm_t tlm;           /**< live telemetry attachment; zeroed in blobs */
 } dll_state_t;
@@ -299,6 +300,16 @@ size_t dll_get_segments(const dll_state_t *state);
  * at ~33 dB — which reproduces the classic `1/alpha = max(1024, 32*N)`
  * sizing exactly, now as a consequence instead of a constant.
  *
+ * The decision itself runs through an embedded lock detector
+ * (lockdet_core.h) rather than a single-comparison latch: `locked` flips up
+ * only after det_verify_count(pfa, pfa*1e-3) CONSECUTIVE above-threshold
+ * decisions (the false-declare budget held three decades under the
+ * per-decision @p pfa — 2 straight for the default 1e-3), and drops only
+ * after 2 straight below-threshold decisions, so a statistic grazing the
+ * threshold cannot chatter the flag. Full control of the verify counts and
+ * a split declare/drop threshold pair is C-only via
+ * dll_configure_lock_raw().
+ *
  * @param state       DLL state.  Must be non-NULL.
  * @param pfa         Per-decision false-alarm probability, in (0, 1).
  * @param n_looks     Non-coherent integration depth N (looks); clamped >= 1.
@@ -323,22 +334,34 @@ size_t dll_get_segments(const dll_state_t *state);
 int dll_configure_lock(dll_state_t *state, double pfa, size_t n_looks, double ref_snr_db);
 
 /**
- * @brief Set the lock detector's raw (threshold, n_looks, alpha) directly.
+ * @brief Set the lock detector's raw geometry directly.
  *
  * The escape hatch under dll_configure_lock() for a composing C caller that
- * derives its own threshold/EMA geometry. Re-tuning clears the in-flight
- * statistic so the next decision uses only looks gathered under the new
+ * derives its own threshold/EMA/hysteresis geometry — the full lockdet
+ * decision rule is exposed: a split declare/drop threshold pair (level
+ * hysteresis) and both verify counts (time hysteresis; size them with
+ * det_verify_count()). Re-tuning clears the in-flight statistic and drops
+ * the lock so the next decision uses only looks gathered under the new
  * config.
  *
- * @param state      DLL state.  Must be non-NULL.
- * @param threshold  CFAR threshold eta on the statistic R.
- * @param n_looks    Non-coherent integration depth N (looks); clamped to >= 1.
- * @param alpha      EMA coefficient for the noise reference, in (0, 1].
+ * @param state        DLL state.  Must be non-NULL.
+ * @param up_thresh    Declare threshold on the statistic R (e.g. the CFAR
+ *                     eta from det_threshold_noncoherent()).
+ * @param down_thresh  Drop threshold on R; choose <= up_thresh for level
+ *                     hysteresis.
+ * @param n_looks      Non-coherent integration depth N (looks); clamped >= 1.
+ * @param alpha        EMA coefficient for the noise reference, in (0, 1].
+ * @param n_up         Consecutive above-threshold decisions to declare
+ *                     lock; clamped to >= 1.
+ * @param n_down       Consecutive below-threshold decisions to drop it;
+ *                     clamped to >= 1.
  */
-void dll_configure_lock_raw(dll_state_t *state, double threshold,
-                            size_t n_looks, double alpha);
+void dll_configure_lock_raw(dll_state_t *state, double up_thresh,
+                            double down_thresh, size_t n_looks, double alpha,
+                            uint32_t n_up, uint32_t n_down);
 
-/** @brief Last lock decision (1 = locked, 0 = not). */
+/** @brief Current lock decision (1 = locked, 0 = not), with the configured
+ *         verify-count / hysteresis rule applied (see dll_configure_lock). */
 int dll_get_locked(const dll_state_t *state);
 
 /** @brief Last lock test statistic R (compare against the configured eta). */
@@ -408,7 +431,7 @@ int dll_set_telemetry(dll_state_t *state, dp_tlm_t * tlm, const char * prefix, u
  * composition+field-wise: loop_filter child (POD-embedded) + running
  * correlators/loop/lock state; borrowed `code` pointer restored by create. */
 #define DLL_STATE_MAGIC DP_FOURCC ('D','L','L',' ')
-#define DLL_STATE_VERSION 2u /* v2: telemetry attachment (zeroed) */
+#define DLL_STATE_VERSION 3u /* v3: lockdet decision rule (verify counters) */
 size_t dll_state_bytes (const dll_state_t *state);
 void dll_get_state (const dll_state_t *state, void *blob);
 int dll_set_state (dll_state_t *state, const void *blob);

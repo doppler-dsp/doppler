@@ -325,11 +325,25 @@ main (void)
     CHECK (dll_get_lock_stat (dn) > 3.0); /* near sqrt(40), not degenerate */
     CHECK (dll_get_noise_est (dn) > 0.0);
     /* configure_lock retunes the threshold; an unreachable one never locks. */
-    dll_configure_lock_raw (dn, 1e9, 20, 1.0 / 1024.0);
+    dll_configure_lock_raw (dn, 1e9, 1e9, 20, 1.0 / 1024.0, 1, 1);
     CHECK (dll_get_lock_stat (dn) == 0.0); /* retune clears the statistic */
     dll_steps (dn, rx, te * nper, out, te * nper);
     CHECK (dll_get_locked (dn) == 0);
     dll_destroy (dn);
+
+    /* Verify-counted declare: the default config (pfa=1e-3 -> n_up=2)
+       needs two CONSECUTIVE above-threshold decisions. K=4 partials per
+       period x 5 periods = 20 looks = exactly one decision window, so one
+       window of strong signal leaves the loop unlocked with the verify
+       run in flight; the second window declares. */
+    size_t       nv = make_signal (rx, code, sf, sps, 0.0, 5, 9u, 1);
+    dll_state_t *dv = dll_create (code, sf, sps, 0.0, 0.002, 0.707, 0.5, K);
+    dll_steps (dv, rx, nv, out, nv);
+    CHECK (dv->lock.cnt == 1);
+    CHECK (dll_get_locked (dv) == 0);
+    dll_steps (dv, rx, nv, out, nv);
+    CHECK (dll_get_locked (dv) == 1);
+    dll_destroy (dv);
     free (rx);
     free (out);
     free (code);
@@ -366,8 +380,13 @@ main (void)
       code[i] = (uint8_t)(i & 1);
     dll_state_t *d = dll_create (code, 31, 2, 0.0, 0.01, 0.707, 0.5, 1);
     CHECK (d != NULL);
-    /* create-time default == the exact caller-path config */
-    CHECK (d->lock_thresh == det_threshold_noncoherent (1e-3, 20));
+    /* create-time default == the exact caller-path config; both lockdet
+     * thresholds carry the CFAR eta (no level hysteresis by default) and
+     * the declare verify count derives from the pfa:
+     * det_verify_count(1e-3, 1e-6) = 2. */
+    CHECK (d->lock.up_thresh == det_threshold_noncoherent (1e-3, 20));
+    CHECK (d->lock.down_thresh == d->lock.up_thresh);
+    CHECK (d->lock.n_up == 2 && d->lock.n_down == 2);
     CHECK (fabs (d->lock_alpha - 1.0 / 1024.0) < 1e-15); /* auto floor */
 
     /* auto derivation follows 1/alpha = max(32*N, 1024) */
@@ -378,14 +397,14 @@ main (void)
     /* explicit reference SNR overrides the auto sizing */
     CHECK (dll_configure_lock (d, 1e-2, 20, 20.0) == DP_OK);
     CHECK (fabs (d->lock_alpha - 2.0 / 101.0) < 1e-15);
-    CHECK (d->lock_thresh == det_threshold_noncoherent (1e-2, 20));
+    CHECK (d->lock.up_thresh == det_threshold_noncoherent (1e-2, 20));
 
     /* bad pfa: rejected whole, live config untouched */
-    double thr = d->lock_thresh, alp = d->lock_alpha;
+    double thr = d->lock.up_thresh, alp = d->lock_alpha;
     CHECK (dll_configure_lock (d, 0.0, 20, 0.0) == DP_ERR_INVALID);
     CHECK (dll_configure_lock (d, 1.0, 20, 0.0) == DP_ERR_INVALID);
     CHECK (dll_configure_lock (d, -1.0, 20, 0.0) == DP_ERR_INVALID);
-    CHECK (d->lock_thresh == thr && d->lock_alpha == alp);
+    CHECK (d->lock.up_thresh == thr && d->lock_alpha == alp);
 
     /* n_looks = 0 clamps to 1 (auto floor still applies) */
     CHECK (dll_configure_lock (d, 1e-3, 0, 0.0) == DP_OK);

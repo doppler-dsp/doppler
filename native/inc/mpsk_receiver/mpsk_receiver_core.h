@@ -26,8 +26,15 @@
  *     symbols (lower jitter, naturally lower loop bandwidth at symbol rate).
  *     The same NCO/loop filter carries the frequency estimate across the
  *     switch.
- * The acquisition-to-tracking switch is **opt-in** (`acq_to_track`, default
- * off): by default the receiver stays in robust NDA tracking the whole time.
+ * The handover is **opt-in** (`acq_to_track`, default off — the receiver
+ * then stays in robust NDA tracking the whole time) and **two-way**: an
+ * embedded lock detector (lockdet_core.h) steps on the carrier lock metric
+ * once per recovered symbol, declaring tracking after a verify count of
+ * consecutive above-threshold symbols and — on a sustained lock loss —
+ * dropping back to the NDA acquisition steer, which re-pulls the carrier
+ * with no data/timing assumptions. The shared NCO carries the frequency
+ * estimate through both directions, so a drop-back is a discriminator
+ * swap, not a re-acquisition from cold.
  *
  * The loop locks to one of M phases — an **M-fold ambiguity** on absolute phase.
  * Resolve it with differential demapping (`bits(..., differential=1)`) or a sync
@@ -55,6 +62,7 @@
 #include "dp_state.h"
 #include "fir/fir_core.h"
 #include "jm_perf.h"
+#include "lockdet/lockdet_core.h"
 #include "mpsk/mpsk_core.h"
 #include "symsync/symsync_core.h"
 #include <complex.h>
@@ -95,9 +103,13 @@ extern "C"
     int                 pulse;       /**< MPSK_RX_PULSE_IANDD / _RRC.        */
     double              rrc_beta;    /**< RRC roll-off (pulse == RRC).       */
     int                 rrc_span;    /**< RRC one-sided span, symbols.       */
-    int                 acq_to_track; /**< opt-in NDA->decision switch.      */
-    double              lock_thresh; /**< acq-to-track lock-metric threshold.*/
+    int                 acq_to_track; /**< opt-in NDA<->decision handover.   */
+    double              lock_thresh; /**< handover declare threshold on the
+                                          carrier lock metric.               */
     size_t              warmup_syms; /**< symbols before the switch allowed. */
+    lockdet_state_t     handover;   /**< two-way handover rule: verify-counted
+                                         declare/drop on `car.lock`, stepped
+                                         once per recovered symbol.          */
     int                 tracking;    /**< 0 = NDA acquire, 1 = decision.     */
     size_t              sym_count;   /**< symbols emitted (warmup counter).  */
     int                 differential;  /**< bits(): differential demap.      */
@@ -125,9 +137,12 @@ extern "C"
    * @param bn_carrier     Carrier loop noise bandwidth (default 0.01).
    * @param zeta           Damping factor for both loops (default 0.707).
    * @param bn_timing      Symbol-timing loop noise bandwidth (default 0.01).
-   * @param acq_to_track   Enable NDA->decision-directed tracking (default 0).
-   * @param lock_thresh    Lock metric required to switch to tracking
-   *                        (default 0.5).
+   * @param acq_to_track   Enable the two-way NDA<->decision-directed
+   *                        handover (default 0).
+   * @param lock_thresh    Handover declare threshold on the carrier lock
+   *                        metric (default 0.5); the drop threshold sits at
+   *                        0.8x for level hysteresis, and both directions
+   *                        are verify-counted (8 symbols up / 32 down).
    * @param init_norm_freq Seed carrier frequency, cycles/sample (default 0.0).
    * @param warmup_syms    Symbols before the acq-to-track switch is allowed
    *                        (default 100).
@@ -251,7 +266,7 @@ int mpsk_receiver_set_telemetry(mpsk_receiver_state_t *state, dp_tlm_t * tlm, co
  * composition: carrier_nda + symsync + matched-filter children +
  * running tracking/handover state; MF taps restored by create. */
 #define MPSK_RECEIVER_STATE_MAGIC DP_FOURCC ('M','P','S','K')
-#define MPSK_RECEIVER_STATE_VERSION 3u /* v3: carrier_nda child blob grew */
+#define MPSK_RECEIVER_STATE_VERSION 4u /* v4: handover lockdet counters */
 size_t mpsk_receiver_state_bytes (const mpsk_receiver_state_t *state);
 void mpsk_receiver_get_state (const mpsk_receiver_state_t *state, void *blob);
 int mpsk_receiver_set_state (mpsk_receiver_state_t *state, const void *blob);

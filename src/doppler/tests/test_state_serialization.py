@@ -44,6 +44,7 @@ from doppler.arith import AccQ8, AccQ15
 from doppler.cvt import ADC, F32ToI16, F32ToI16U32, F32ToI16U64, F32ToUQ15
 from doppler.ddc import DDC, Ddcr
 from doppler.delay import DelayCf64
+from doppler.detection import LockDet
 from doppler.dsss import BurstDespreader, Despreader
 from doppler.filter import FIR, MovingAverage
 from doppler.resample import (
@@ -310,6 +311,12 @@ CASES: dict[str, tuple[Callable[[], Any], _Feed]] = {
     ),
     "LoopFilter": (
         lambda: LoopFilter(0.01, 0.707, 1.0),
+        lambda o, seg: np.array(o.steps(seg.real.astype(np.float64))),
+    ),
+    # Lock detector — a real metric stream wobbling across the hysteresis
+    # band exercises both state-machine sides and the in-flight verify run.
+    "LockDet": (
+        lambda: LockDet(up_thresh=0.5, down_thresh=0.3, n_up=3, n_down=4),
         lambda o, seg: np.array(o.steps(seg.real.astype(np.float64))),
     ),
     # Detectors / correlators — running accumulator (or whole-struct), with the

@@ -20,6 +20,7 @@ typedef struct
   void                     **_steps_retired; /* gh-219 deferred free */
   size_t                     _steps_retired_n;
   size_t                     _steps_retired_cap;
+  PyObject                  *_steps_view_ref; /* gh-437 last returned view */
 } DllObject;
 
 static void
@@ -31,6 +32,7 @@ DllObj_dealloc (DllObject *self)
   for (size_t _i = 0; _i < self->_steps_retired_n; _i++)
     free (self->_steps_retired[_i]);
   free (self->_steps_retired);
+  Py_XDECREF (self->_steps_view_ref);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -192,8 +194,22 @@ DllObj_steps (DllObject *self, PyObject *args, PyObject *kwds)
       PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
       return _oview;
     }
-  size_t _need = (size_t)PyArray_SIZE (x_arr);
-  if (!self->_steps_buf || self->_steps_buf_cap < _need)
+  size_t _need      = (size_t)PyArray_SIZE (x_arr);
+  int    _view_live = 0;
+  if (self->_steps_view_ref)
+    {
+#if PY_VERSION_HEX >= 0x030D0000
+      PyObject *_lv = NULL;
+      if (PyWeakref_GetRef (self->_steps_view_ref, &_lv) == 1)
+        {
+          Py_DECREF (_lv);
+          _view_live = 1;
+        }
+#else
+      _view_live = PyWeakref_GetObject (self->_steps_view_ref) != Py_None;
+#endif
+    }
+  if (!self->_steps_buf || self->_steps_buf_cap < _need || _view_live)
     {
       size_t _max = dll_steps_max_out (self->handle);
       if (!_max || _max < _need)
@@ -236,20 +252,22 @@ DllObj_steps (DllObject *self, PyObject *args, PyObject *kwds)
     n_out = dll_steps (self->handle, _ng0, _ng1, self->_steps_buf,
                        self->_steps_buf_cap);
   Py_END_ALLOW_THREADS
-  /* NumPy owns the output: an independent array per call, copied from the
-   * grow-on-demand buffer. Returning a view of _steps_buf would alias across
-   * calls (a same-size next steps() overwrites it in place — a streaming
-   * despreader keeps every block) and dangle on a later grow — the gh-219
-   * hazard; copy out instead (matches MpskReceiver/ddc/lo/nco). */
   npy_intp  dim = (npy_intp)n_out;
-  PyObject *arr = PyArray_SimpleNew (1, &dim, NPY_COMPLEX64);
+  PyObject *arr
+      = PyArray_SimpleNewFromData (1, &dim, NPY_COMPLEX64, self->_steps_buf);
   if (!arr)
+    return NULL;
+  PyArray_SetBaseObject ((PyArrayObject *)arr, (PyObject *)self);
+  Py_INCREF (self);
+  /* gh-437: remember this view — while the caller holds it the next
+   * call retires the buffer instead of reusing it in place. */
+  Py_XDECREF (self->_steps_view_ref);
+  self->_steps_view_ref = PyWeakref_NewRef (arr, NULL);
+  if (!self->_steps_view_ref)
     {
-      Py_DECREF (x_arr);
+      Py_DECREF (arr);
       return NULL;
     }
-  memcpy (PyArray_DATA ((PyArrayObject *)arr), self->_steps_buf,
-          (size_t)n_out * sizeof (float complex));
   Py_DECREF (x_arr);
   return arr;
 }
@@ -567,8 +585,9 @@ static PyMethodDef DllObj_methods[] = {
     "outputs samples. The non-coherent loop is carrier-blind, so it tracks "
     "with a residual carrier still on the input; carrier recovery (Costas) "
     "and symbol-timing recovery (SymbolSync) are downstream stages fed from "
-    "the partial output. The output is an independent array per call "
-    "(block-size invariant).\n"
+    "the partial output. Returned blocks are safe to keep across calls "
+    "(block-size invariant): a block whose array is still referenced is never "
+    "overwritten by a later call (jm gh-437).\n"
     "\n"
     "    >>> import numpy as np\n"
     "    >>> from doppler import Dll\n"

@@ -488,15 +488,20 @@ check-version:
 	 fi
 
 # ── release-branch ────────────────────────────────────────────────────────────
-# Start a release: branch off main, bump the version. Then edit CHANGELOG.md,
-# commit, push, open a PR, and let CI gate it — main is never pushed to directly.
+# Start a release: branch off origin/main, bump the version. Then edit
+# CHANGELOG.md, commit, push, open a PR, and let CI gate it — main is never
+# pushed to directly.  The explicit origin/main start point matters: a bare
+# `checkout -b` forks from whatever HEAD the invoker happens to be on (a
+# feature branch, a stale main), silently building the release on the wrong
+# base — the bump then misses anything merged since.
 #   make release-branch VERSION=0.2.0
 release-branch:
 ifndef VERSION
 	@echo "usage: make release-branch VERSION=<x.y.z>"
 	@exit 1
 endif
-	git checkout -b chore/release-$(VERSION)
+	git fetch origin main
+	git checkout -b chore/release-$(VERSION) origin/main
 	$(MAKE) bump-version VERSION=$(VERSION)
 	@echo ""
 	@echo "Now:"

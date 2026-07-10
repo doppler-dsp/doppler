@@ -24,6 +24,7 @@ The Python modules are thin CPython extensions over the C ABI — no reimplement
 | `doppler.agc` — automatic gain control                     | [Python: AGC](python-agc.md)                          |
 | `doppler.streaming` — NATS streaming                       | [Python: Streaming](python-streaming.md)              |
 | `doppler.buffer` — ring buffers                            | [Python: Buffer](python-buffer.md)                    |
+| `doppler.telemetry` — scalar telemetry taps                | [Python: Telemetry](python-telemetry.md)              |
 | `doppler.delay` — delay line                               | [Python: Delay](python-delay.md)                      |
 | `doppler.accumulator` — accumulators                       | [Python: Accumulator](python-accumulator.md)          |
 | `doppler.cvt` — type converters & ADC                      | [Python: Type Converters](python-cvt.md)              |

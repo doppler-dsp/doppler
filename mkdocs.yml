@@ -208,6 +208,7 @@ nav:
       - "Python: DSSS": api/python-dsss.md
       - "Python: Streaming": api/python-streaming.md
       - "Python: Buffer": api/python-buffer.md
+      - "Python: Telemetry": api/python-telemetry.md
       - "Python: Delay": api/python-delay.md
       - "Python: Accumulator": api/python-accumulator.md
       - "Python: Type Converters": api/python-cvt.md

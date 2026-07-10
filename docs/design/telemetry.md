@@ -203,11 +203,14 @@ for (size_t i = 0; i < n; i++)
           (unsigned long long) recs[i].n, (double) recs[i].value);
 ```
 
-The planned Python face (hand-owned `no_generate` module, like `buffer` and
-`stream`) reads the same ring as a numpy structured array
-(`dtype: n u8 | value f4 | probe u2 | flags u2`) — one `read()` returning
-everything since the last drain, plus the probe-name map and the dropped
-counter:
+The Python face — `doppler.telemetry.Telemetry`, a hand-owned `no_generate`
+module like `buffer` and `stream` — reads the same ring as a numpy
+structured array (`dtype: n u8 | value f4 | probe u2 | flags u2`): one
+`read()` returning everything since the last drain, plus the probe-name map
+(`probe_names()`), per-probe `emitted()` and the `dropped` counter. Its
+`_capsule` property exposes the `dp_tlm_t *` for instrumented objects'
+`set_telemetry` bindings to attach to (object instrumentation lands with
+the AGC follow-up):
 
 ```text
 tlm = Telemetry(1 << 14)

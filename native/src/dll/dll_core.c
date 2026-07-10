@@ -5,16 +5,13 @@
 #include <string.h>
 
 /* Default always-on lock config, applied at create/init so the detector works
- * out of the box: pfa = 1e-3 over N = 20 non-coherent looks.  DLL_LOCK_DEFAULT
- * _THRESH is det_threshold_noncoherent(1e-3, 20) baked as a constant so the
- * core links only -lm; the Python binding recomputes the threshold for a
- * caller-supplied pfa (it already links the detection module).  The EMA noise
- * reference averages 1/alpha cells, kept >> N so its variance does not inflate
- * Pfa. */
+ * out of the box: pfa = 1e-3 over N = 20 non-coherent looks, EMA bandwidth
+ * auto-derived (see dll_configure_lock).  Computed through the same
+ * detection-module path a caller-supplied config takes, so the C and Python
+ * defaults are identical by construction (this used to be a baked-constant
+ * approximation the Python binding silently overrode). */
+#define DLL_LOCK_DEFAULT_PFA 1e-3
 #define DLL_LOCK_DEFAULT_N 20
-#define DLL_LOCK_DEFAULT_THRESH                                               \
-  8.567494 /* det_threshold_noncoherent(1e-3,20) */
-#define DLL_LOCK_DEFAULT_ALPHA (1.0 / 1024.0)
 
 /* xorshift32 — a tiny, deterministic PRNG for the lock-detector noise tap's
  * random offset.  Reproducible from a fixed seed so tests/benches are stable.
@@ -133,8 +130,8 @@ configure_geometry (dll_state_t *s, size_t code_len, size_t sps,
   loop_filter_init (&s->lf, bn, zeta, 1.0); /* updates once per period */
   set_segments (s,
                 1); /* default: coherent full-epoch (dll_create overrides) */
-  dll_configure_lock (s, DLL_LOCK_DEFAULT_THRESH, DLL_LOCK_DEFAULT_N,
-                      DLL_LOCK_DEFAULT_ALPHA);
+  (void)dll_configure_lock (s, DLL_LOCK_DEFAULT_PFA, DLL_LOCK_DEFAULT_N,
+                            0.0 /* auto EMA bandwidth */);
 }
 
 void
@@ -440,9 +437,35 @@ dll_get_segments (const dll_state_t *state)
   return state->segments;
 }
 
+int
+dll_configure_lock (dll_state_t *state, double pfa, size_t n_looks,
+                    double ref_snr_db)
+{
+  if (!(pfa > 0.0 && pfa < 1.0))
+    return DP_ERR_INVALID;
+  size_t n = n_looks ? n_looks : 1;
+  /* Noise-reference EMA bandwidth from the estimator-SNR contract: the
+   * signal-free |O|^2 samples are exponential — a DC level (the noise
+   * power) in fluctuation of equal power, i.e. 0 dB estimator SNR per
+   * sample — and det_ema_alpha sizes the EMA for the requested output
+   * SNR. The auto derivation (ref_snr_db <= 0) holds the reference's
+   * relative std to an eighth of the statistic's intrinsic H0 spread
+   * (1/sqrt(N)), floored at ~33 dB: SNR_out = max(64*N, 2048) - 1,
+   * which lands the classic 1/alpha = max(32*N, 1024) sizing as a
+   * consequence rather than a constant. */
+  double snr_out_db
+      = ref_snr_db > 0.0
+            ? ref_snr_db
+            : 10.0 * log10 (fmax (64.0 * (double)n, 2048.0) - 1.0);
+  double alpha = det_ema_alpha (0.0, snr_out_db);
+  dll_configure_lock_raw (state, det_threshold_noncoherent (pfa, (int)n), n,
+                          alpha);
+  return DP_OK;
+}
+
 void
-dll_configure_lock (dll_state_t *state, double threshold, size_t n_looks,
-                    double alpha)
+dll_configure_lock_raw (dll_state_t *state, double threshold, size_t n_looks,
+                        double alpha)
 {
   state->lock_thresh = threshold;
   state->n_looks     = n_looks ? n_looks : 1;

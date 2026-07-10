@@ -71,6 +71,35 @@ drive the `doppler.dsss.Acquisition` engine's coherent/non-coherent split.
 
 ______________________________________________________________________
 
+## Estimator smoothing
+
+`det_ema_alpha` sizes a first-order EMA probabilistically: treat the
+quantity being smoothed as a DC level in noise with a per-sample
+estimator SNR (mean² / variance), pick the output SNR the decision
+needs, and the coefficient follows from the EMA's variance reduction
+`(2 − α)/α`. It is how the DLL's code-lock detector sizes its CFAR
+noise-reference bandwidth (`Dll.configure_lock(..., ref_snr_db=...)`),
+and the same call sizes any lock-metric smoother when the per-look SNR
+is known from C/N0:
+
+```python
+from doppler.detection import det_ema_alpha
+
+# signal-free power reference: exponential samples = 0 dB per sample;
+# a 20 dB estimator SNR needs an ~50-look EMA
+assert round(1 / det_ema_alpha(0.0, 20.0), 1) == 50.5
+
+# only the requested gain matters, not where the pair sits in dB
+assert abs(det_ema_alpha(10.0, 30.0) - det_ema_alpha(0.0, 20.0)) < 1e-15
+
+# already good enough -> no averaging
+assert det_ema_alpha(6.0, 3.0) == 1.0
+```
+
+::: doppler.detection.det_ema_alpha
+
+______________________________________________________________________
+
 ## Power-SNR (linear)
 
 ::: doppler.detection.det_threshold_power

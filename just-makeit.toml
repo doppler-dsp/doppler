@@ -1326,6 +1326,18 @@ name = "n_noncoh"
 type = "int"
 
 [[module.detection.functions]]
+name = "det_ema_alpha"
+return_type = "double"
+
+[[module.detection.functions.params]]
+name = "snr_in_db"
+type = "double"
+
+[[module.detection.functions.params]]
+name = "snr_out_db"
+type = "double"
+
+[[module.detection.functions]]
 name = "det_pd_noncoherent"
 return_type = "double"
 

@@ -13,7 +13,32 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+### Added
+
+- **`detection.det_ema_alpha(snr_in_db, snr_out_db)`** — probabilistic
+    EMA sizing: treat the smoothed quantity as a DC level in noise with a
+    per-sample estimator SNR (mean²/variance), request the output SNR the
+    decision needs, and the coefficient follows from the EMA's variance
+    reduction `(2−α)/α`. Given C/N0 (hence per-look SNR), this sizes any
+    lock-metric smoother to a target decision SNR.
+
 ### Changed
+
+- **`Dll.configure_lock` is C-first and probabilistic.** The pfa→CFAR
+    threshold policy moved from the hand-owned Python binding into
+    `dll_configure_lock()` in the C core (the old raw form remains as
+    `dll_configure_lock_raw()`), fixing a C/Python asymmetry — C
+    composers can now configure by `(pfa, n_looks)` — and collapsing two
+    defaults into one: the create-time default now computes the precise
+    `det_threshold_noncoherent(1e-3, 20)` instead of a baked constant the
+    Python constructor silently overrode. The noise-reference EMA
+    bandwidth is sized via `det_ema_alpha` with a new `ref_snr_db`
+    parameter (default 0 = auto, which reproduces the classic
+    `1/α = max(1024, 32·N)` heuristic exactly — now as a consequence of
+    holding the reference's std to an eighth of the statistic's intrinsic
+    H0 spread, floored at ~33 dB). `track_ext_dll.c` is now 100%
+    jm-generated — the last hand-owned binding logic in the repo's
+    generated fragments is gone.
 
 - **jm pin 0.28.0 → 0.28.1; the hand copy-out exceptions are retired.**
     jm gh-437 (just-makeit#438) makes the generated `variable_output`

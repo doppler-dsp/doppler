@@ -39,6 +39,7 @@
 #include "lo/lo_core.h"
 #include "loop_filter/loop_filter_core.h"
 #include "telemetry/telemetry.h"
+#include "detection/detection_core.h"
 #ifdef __cplusplus
 extern "C" {
 #endif

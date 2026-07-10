@@ -78,4 +78,4 @@ repos:
         language: system
         types_or: [c]
         exclude: '^native/inc/|_ext\.c$'
-        stages: [push]
+        stages: [pre-push]

@@ -45,15 +45,15 @@ per symbol:  e = TED(mid, on_time, prev_on_time)   # ted="gardner" or "dttl"
 Two detectors are available via `ted`:
 
 - **`"gardner"`** (default) — `e = Re{ conj(mid) * (on_time - prev_on_time) }`.
-  Blind (non-data-aided): works for any constellation and at any SNR, at the
-  cost of a non-transition-symbol self-noise floor.
+    Blind (non-data-aided): works for any constellation and at any SNR, at the
+    cost of a non-transition-symbol self-noise floor.
 - **`"dttl"`** — the sign-sign Data Transition Tracking Loop (M.K. Simon):
-  `e` is nonzero only when a hard decision on `on_time` actually flips
-  relative to `prev_on_time`, gated by the same transition-gate sample
-  Gardner uses. Decision-directed, so it's valid only for **BPSK/QPSK**
-  (independent, rectangular I/Q decision boundaries — not 8PSK/QAM), and
-  degrades faster than Gardner at low SNR (wrong decisions corrupt the
-  gating).
+    `e` is nonzero only when a hard decision on `on_time` actually flips
+    relative to `prev_on_time`, gated by the same transition-gate sample
+    Gardner uses. Decision-directed, so it's valid only for **BPSK/QPSK**
+    (independent, rectangular I/Q decision boundaries — not 8PSK/QAM), and
+    degrades faster than Gardner at low SNR (wrong decisions corrupt the
+    gating).
 
 Steering the NCO through its **frequency** (folding the proportional term into
 the rate rather than nudging the phase) keeps the strobe count smooth — a direct

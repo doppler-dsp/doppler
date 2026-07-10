@@ -17,6 +17,7 @@ target_link_libraries(track PRIVATE
     detection_core
     nco_core
     farrow_core
+    telemetry_core
     boxcar_core
     wfm_dsp_core
     fir_core

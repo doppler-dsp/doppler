@@ -15,6 +15,22 @@ ______________________________________________________________________
 
 ### Added
 
+- **SymbolSync + MpskReceiver telemetry instrumentation** — the timing
+    loop registers `"<prefix>.e"` / `"<prefix>.freq"` / `"<prefix>.rate"`
+    (TED error, NCO rate control, tracked samples/symbol), and the MPSK
+    receiver adds its own `"<prefix>.lock"` plus a forwarded attach to the
+    embedded timing loop (`"<prefix>.sync.*"`) — one record set per
+    recovered symbol, `decim`-thinned, fully jm-declarative
+    (`set_telemetry(tlm, prefix, decim=1)`). Serialization stays safe
+    (`DP_DEFINE_POD_STATE_TLM`; symsync blob v3, mpsk_receiver v2 — the
+    embedded child grew). **Detached cost is benchmarked at parity with
+    the untouched baseline**: emission lives in out-of-line flush
+    functions behind attachment checks hoisted to block-loop entry, so the
+    per-sample hot loops carry no telemetry call sites at all (an extern
+    call inside the loop forces the compiler to spill the register-cached
+    loop state — measured ~20% slower even when never taken; the pattern
+    is documented in docs/design/telemetry.md).
+
 - **`track.SymbolSync` gains a second, selectable timing-error detector**:
     `ted="gardner"` (default, unchanged behavior) or `ted="dttl"` — a
     decision-directed sign-sign Data Transition Tracking Loop (M.K. Simon).

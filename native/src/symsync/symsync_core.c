@@ -70,11 +70,50 @@ symsync_reset (symsync_state_t *state)
   seed (state);
 }
 
+int
+symsync_set_telemetry (symsync_state_t *state, dp_tlm_t *tlm,
+                       const char *prefix, uint32_t decim)
+{
+  if (!tlm) /* detach: probe sites revert to the single-branch cost */
+    {
+      state->tlm.ctx = NULL;
+      return DP_OK;
+    }
+  const char *p = prefix ? prefix : "sync";
+  char        name[DP_TLM_NAME_MAX];
+  (void)snprintf (name, sizeof (name), "%s.e", p);
+  int id_e = dp_tlm_probe (tlm, name, decim);
+  (void)snprintf (name, sizeof (name), "%s.freq", p);
+  int id_freq = dp_tlm_probe (tlm, name, decim);
+  (void)snprintf (name, sizeof (name), "%s.rate", p);
+  int id_rate = dp_tlm_probe (tlm, name, decim);
+  if (id_e < 0 || id_freq < 0 || id_rate < 0)
+    return DP_ERR_INVALID; /* table full / bad prefix: attach fails whole */
+  state->tlm.id_e    = id_e;
+  state->tlm.id_freq = id_freq;
+  state->tlm.id_rate = id_rate;
+  state->tlm.ctx     = tlm; /* set last: emit sites gate on ctx */
+  return DP_OK;
+}
+
+void
+symsync_tlm_flush (const symsync_state_t *s)
+{
+  /* The loop control isn't retained per symbol; reconstruct it from the
+   * NCO increment it steered (float32 records — the uint32 rounding is
+   * far below record precision). */
+  double control = (double)s->timing.phase_inc / (double)s->base_inc - 1.0;
+  dp_tlm_emit (s->tlm.ctx, s->tlm.id_e, s->last_error);
+  dp_tlm_emit (s->tlm.ctx, s->tlm.id_freq, control);
+  dp_tlm_emit (s->tlm.ctx, s->tlm.id_rate, s->rate_est);
+}
+
 /* Serializable state — pointer-free composition (nco + farrow + loop_filter
- * embedded by value, all POD) + scalar timing state: a whole-struct snapshot
- * (see DP_DEFINE_POD_STATE in dp_state.h). */
-DP_DEFINE_POD_STATE (symsync, symsync_state_t, SYMSYNC_STATE_MAGIC,
-                     SYMSYNC_STATE_VERSION)
+ * embedded by value, all POD) + scalar timing state: a whole-struct snapshot,
+ * with the telemetry attachment zeroed in blobs and kept live across restore
+ * (see DP_DEFINE_POD_STATE_TLM in dp_state.h). */
+DP_DEFINE_POD_STATE_TLM (symsync, symsync_state_t, SYMSYNC_STATE_MAGIC,
+                         SYMSYNC_STATE_VERSION, tlm)
 
 void
 symsync_configure (symsync_state_t *state, double bn, double zeta)
@@ -102,19 +141,48 @@ symsync_steps (symsync_state_t *state, const float complex *x, size_t x_len,
    * specialised loop body carries exactly one TED. The runtime `s->ted`
    * branch inside the loop kept both detector bodies live across the
    * per-sample path and measured ~30% slower at 64k blocks. */
-  if (state->ted == SYMSYNC_TED_DTTL)
+  /* The telemetry check is hoisted to loop entry (attach is setup-time
+   * only — SPSC contract), so the detached loops contain NO call site:
+   * an extern call inside the loop forces the compiler to assume every
+   * state field is clobbered per iteration, spilling the register-cached
+   * NCO/Farrow hot state (measured ~20% slower detached even though the
+   * call never executed). */
+  if (!state->tlm.ctx)
+    {
+      if (state->ted == SYMSYNC_TED_DTTL)
+        {
+          for (size_t n = 0; n < x_len; n++)
+            if (symsync_step_ted (state, x[n], &y, SYMSYNC_TED_DTTL)
+                && emitted < max_out)
+              out[emitted++] = y;
+        }
+      else
+        {
+          for (size_t n = 0; n < x_len; n++)
+            if (symsync_step_ted (state, x[n], &y, SYMSYNC_TED_GARDNER)
+                && emitted < max_out)
+              out[emitted++] = y;
+        }
+    }
+  else if (state->ted == SYMSYNC_TED_DTTL)
     {
       for (size_t n = 0; n < x_len; n++)
-        if (symsync_step_ted (state, x[n], &y, SYMSYNC_TED_DTTL)
-            && emitted < max_out)
-          out[emitted++] = y;
+        if (symsync_step_ted (state, x[n], &y, SYMSYNC_TED_DTTL))
+          {
+            if (emitted < max_out)
+              out[emitted++] = y;
+            symsync_tlm_flush (state);
+          }
     }
   else
     {
       for (size_t n = 0; n < x_len; n++)
-        if (symsync_step_ted (state, x[n], &y, SYMSYNC_TED_GARDNER)
-            && emitted < max_out)
-          out[emitted++] = y;
+        if (symsync_step_ted (state, x[n], &y, SYMSYNC_TED_GARDNER))
+          {
+            if (emitted < max_out)
+              out[emitted++] = y;
+            symsync_tlm_flush (state);
+          }
     }
   return emitted;
 }

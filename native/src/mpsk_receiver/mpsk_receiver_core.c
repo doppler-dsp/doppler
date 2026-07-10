@@ -165,6 +165,19 @@ mpsk_receiver_set_state (mpsk_receiver_state_t *s, const void *blob)
   return DP_OK;
 }
 
+/* Emit the receiver's telemetry for the symbol just recovered: the carrier
+ * lock EMA plus the embedded timing loop's probes (mpsk calls the
+ * literal-TED step directly, so symsync's own wrapper flush never runs
+ * here). Out-of-line on purpose — inlined emit machinery in the per-sample
+ * loop measured ~20% slower detached from body growth alone; callers gate
+ * on tlm_ctx so the detached cost is one branch per symbol. */
+static void
+mpsk_receiver_tlm_flush_ (const mpsk_receiver_state_t *rx)
+{
+  dp_tlm_emit (rx->tlm_ctx, rx->tlm_id_lock, rx->car.lock);
+  symsync_tlm_flush (&rx->sync);
+}
+
 /* Process one input sample. On a recovered symbol boundary, write the symbol
  * to *sym and return 1; else return 0.
  *
@@ -191,6 +204,10 @@ process_sample (mpsk_receiver_state_t *rx, float complex x, float complex *sym)
    * as symsync_steps' specialised loops). */
   if (!symsync_step_ted (&rx->sync, mf, &y, SYMSYNC_TED_GARDNER))
     return 0;
+  /* Telemetry is flushed by the block loops (steps/bits), not here: a
+   * call site in this per-sample path would force the compiler to spill
+   * the register-cached loop state every iteration (see the hoisted
+   * split in mpsk_receiver_steps). */
 
   if (rx->tracking)
     {
@@ -226,11 +243,31 @@ mpsk_receiver_steps (mpsk_receiver_state_t *state, const float complex *x,
                      size_t x_len, float complex *out, size_t max_out)
 {
   size_t emitted = 0;
-  for (size_t i = 0; i < x_len; i++)
+  /* Telemetry hoisted to loop entry (attach is setup-time only): the
+   * detached loop carries no call site, so the compiler keeps the hot
+   * loop state in registers (an extern call per iteration forces
+   * everything to memory — measured ~20% slower detached). */
+  if (!state->tlm_ctx)
     {
-      float complex y;
-      if (process_sample (state, x[i], &y) && emitted < max_out)
-        out[emitted++] = y;
+      for (size_t i = 0; i < x_len; i++)
+        {
+          float complex y;
+          if (process_sample (state, x[i], &y) && emitted < max_out)
+            out[emitted++] = y;
+        }
+    }
+  else
+    {
+      for (size_t i = 0; i < x_len; i++)
+        {
+          float complex y;
+          if (process_sample (state, x[i], &y))
+            {
+              if (emitted < max_out)
+                out[emitted++] = y;
+              mpsk_receiver_tlm_flush_ (state);
+            }
+        }
     }
   return emitted;
 }
@@ -274,11 +311,16 @@ mpsk_receiver_bits (mpsk_receiver_state_t *state, const float complex *x,
                     size_t x_len, uint8_t *out, size_t max_out)
 {
   size_t emitted = 0;
+  /* Guarded in-loop flush (not the steps() split): this loop already
+   * makes per-symbol calls (symbol_to_bits), so there is no pristine
+   * register-resident fast path to protect. */
   for (size_t i = 0; i < x_len; i++)
     {
       float complex y;
       if (!process_sample (state, x[i], &y))
         continue;
+      if (state->tlm_ctx)
+        mpsk_receiver_tlm_flush_ (state);
       uint8_t bits[3];
       int     nb = symbol_to_bits (state, y, bits);
       for (int b = 0; b < nb && emitted < max_out; b++)
@@ -303,6 +345,33 @@ double
 mpsk_receiver_get_lock (const mpsk_receiver_state_t *state)
 {
   return state->car.lock;
+}
+
+int
+mpsk_receiver_set_telemetry (mpsk_receiver_state_t *state, dp_tlm_t *tlm,
+                             const char *prefix, uint32_t decim)
+{
+  if (!tlm) /* detach the receiver AND the embedded timing loop */
+    {
+      state->tlm_ctx = NULL;
+      (void)symsync_set_telemetry (&state->sync, NULL, prefix, decim);
+      return DP_OK;
+    }
+  const char *p = prefix ? prefix : "rx";
+  char        name[DP_TLM_NAME_MAX];
+  (void)snprintf (name, sizeof (name), "%s.lock", p);
+  int id_lock = dp_tlm_probe (tlm, name, decim);
+  if (id_lock < 0)
+    return DP_ERR_INVALID;
+  /* Forward to the timing loop under "<prefix>.sync"; if ITS registration
+   * fails the whole attach fails and the receiver stays detached too. */
+  (void)snprintf (name, sizeof (name), "%s.sync", p);
+  int rc = symsync_set_telemetry (&state->sync, tlm, name, decim);
+  if (rc != DP_OK)
+    return rc;
+  state->tlm_id_lock = id_lock;
+  state->tlm_ctx     = tlm; /* set last: the emit site gates on ctx */
+  return DP_OK;
 }
 
 double

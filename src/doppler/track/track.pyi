@@ -388,6 +388,36 @@ class SymbolSync:
     def steps_max_out(self) -> int:
         """Max output length steps() can produce for the current state."""
 
+    def set_telemetry(self, tlm: object | None, prefix: Any, decim: int = 1) -> None:
+        """Attach (or detach) a telemetry context and register the timing loop's probes on it. Registers three probes, emitted once per recovered symbol and further thinned by decim: "<prefix>.e" (the normalised TED error — the loop stress), "<prefix>.freq" (the loop-filter control steering the timing NCO, fractional rate offset) and "<prefix>.rate" (the smoothed tracked samples/symbol).  Passing NULL detaches.  Setup path, never hot: call before the producer thread starts stepping; the context is borrowed and must outlive the attachment (SPSC rules in telemetry/telemetry.h).
+
+        Parameters
+        ----------
+        tlm : object | None
+            Telemetry context to attach, or NULL to detach.
+        prefix : Any
+            Probe-name prefix, e.g. "sync" or "rx.sync".
+        decim : int
+            Emit every decim-th symbol; >= 1.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.track import SymbolSync
+        >>> from doppler.telemetry import Telemetry
+        >>> tlm = Telemetry(1 << 12)
+        >>> ss = SymbolSync(sps=4, bn=0.01, zeta=0.707)
+        >>> ss.set_telemetry(tlm, "sync")
+        >>> sorted(tlm.probe_names())
+        ['sync.e', 'sync.freq', 'sync.rate']
+        >>> x = np.repeat([1 + 1j, -1 - 1j], 4 * 64).astype(np.complex64)
+        >>> _ = ss.steps(x)
+        >>> recs = tlm.read()   # three records per recovered symbol
+        >>> len(recs) > 0 and len(recs) % 3 == 0
+        True
+
+        """
+
     def configure(self, bn: float, zeta: float) -> None:
         """Recompute the loop gains for a new (bn, zeta); preserve the timing estimate.
 
@@ -673,6 +703,38 @@ class MpskReceiver:
 
     """
     def __init__(self, m: int = ..., sps: int = ..., n: int = ..., pulse: Literal["iandd", "rrc"] = "iandd", rrc_beta: float = ..., rrc_span: int = ..., bn_carrier: float = ..., zeta: float = ..., bn_timing: float = ..., acq_to_track: int = ..., lock_thresh: float = ..., init_norm_freq: float = ..., warmup_syms: int = ..., differential: int = ...) -> None: ...
+
+    def set_telemetry(self, tlm: object | None, prefix: Any, decim: int = 1) -> None:
+        """Attach (or detach) a telemetry context across the receiver. Registers the receiver's own "<prefix>.lock" probe (the carrier lock EMA, one record per emitted symbol) and forwards the attach to the embedded symbol-timing loop, which registers "<prefix>.sync.e" / "<prefix>.sync.freq" / "<prefix>.sync.rate" — four probes total, all thinned by decim.  Passing NULL detaches the receiver and the timing loop.  Setup path, never hot; the context is borrowed and must outlive the attachment (SPSC rules in telemetry/telemetry.h).
+
+        Parameters
+        ----------
+        tlm : object | None
+            Telemetry context to attach, or NULL to detach.
+        prefix : Any
+            Probe-name prefix, e.g. "rx".
+        decim : int
+            Emit every decim-th symbol; >= 1.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.track import MpskReceiver
+        >>> from doppler.telemetry import Telemetry
+        >>> tlm = Telemetry(1 << 12)
+        >>> rx = MpskReceiver(m=4, sps=4)
+        >>> rx.set_telemetry(tlm, "rx")
+        >>> sorted(tlm.probe_names())
+        ['rx.lock', 'rx.sync.e', 'rx.sync.freq', 'rx.sync.rate']
+        >>> rng = np.random.default_rng(7)
+        >>> syms = (1 - 2 * rng.integers(0, 2, 512)).astype(np.complex64)
+        >>> x = np.repeat(syms, 4)
+        >>> _ = rx.steps(x)
+        >>> recs = tlm.read()   # four records per emitted symbol
+        >>> len(recs) > 0 and len(recs) % 4 == 0
+        True
+
+        """
 
     def steps(self, x: NDArray[np.complex64], out: NDArray[np.complex64] | None = None) -> NDArray[np.complex64]:
         """Demodulate a cf32 block and return the recovered M-PSK symbols (one cf32 per recovered symbol period, ~ len(x)/sps outputs). Per sample the receiver de-rotates with the integer-NCO carrier (predetection wipe-off), accumulates a non-data-aided M-th-power I/Q arm at n dumps/symbol to acquire the carrier with no data and no symbol timing, matched-filters the de-rotated stream (integrate-and-dump or RRC), and runs a Gardner symbol-timing loop. With acq_to_track enabled it switches to a lower-jitter decision-directed carrier loop once locked. The loop locks to one of m phases (M-fold ambiguity); resolve it with bits(differential) or a sync word. Read norm_freq for the tracked carrier and lock for the carrier lock metric.

@@ -20,6 +20,7 @@
 #include "jm_perf.h"
 #include "loop_filter/loop_filter_core.h"
 #include "nco/nco_core.h"
+#include "telemetry/telemetry.h"
 #ifdef __cplusplus
 extern "C"
 {
@@ -31,6 +32,22 @@ extern "C"
     SYMSYNC_TED_GARDNER = 0, /**< blind Gardner TED (mid * conj diff).    */
     SYMSYNC_TED_DTTL = 1     /**< decision-directed sign-sign DTTL.       */
   };
+
+  /**
+   * @brief Telemetry attachment: a borrowed context + this object's probe
+   *        ids.  NULL ctx (the default) means detached — every probe site
+   *        is then a single predicted-not-taken branch per recovered
+   *        symbol.  Zeroed in state blobs and preserved across set_state
+   *        (DP_DEFINE_POD_STATE_TLM).
+   */
+  typedef struct
+  {
+    dp_tlm_t *ctx;     /**< NULL = detached                   */
+    int32_t   id_e;    /**< "<prefix>.e"    — TED error       */
+    int32_t   id_freq; /**< "<prefix>.freq" — loop control    */
+    int32_t   id_rate; /**< "<prefix>.rate" — rate estimate   */
+    int32_t   _pad;
+  } symsync_tlm_t;
 
   /**
    * @brief SymbolSync state.
@@ -55,6 +72,7 @@ extern "C"
     double        last_error;   /**< last TED timing error.                 */
     double        rate_est;     /**< smoothed tracked samples/symbol.       */
     double        pwr_avg;      /**< running symbol power (TED normaliser).  */
+    symsync_tlm_t tlm; /**< live telemetry attachment; zeroed in blobs      */
   } symsync_state_t;
 
   /**
@@ -191,12 +209,30 @@ extern "C"
   }
 
   /**
+   * @brief Emit the timing loop's telemetry records for the symbol just
+   * recovered.
+   *
+   * Out-of-line on purpose: the emit machinery must not inline into the
+   * per-sample hot loops (three inlined ring-write expansions measured
+   * ~20% slower detached, from sheer body growth). Callers gate on
+   * `s->tlm.ctx` and call this once per emitted symbol — the detached
+   * cost stays one predicted-not-taken branch per symbol, outside the
+   * force-inlined step. Records "<prefix>.e" (last TED error),
+   * "<prefix>.freq" (the NCO rate control, reconstructed as
+   * phase_inc/base_inc - 1) and "<prefix>.rate" (tracked samples/symbol).
+   *
+   * @param s  State with a non-NULL tlm.ctx (caller-checked).
+   */
+  void symsync_tlm_flush (const symsync_state_t *s);
+
+  /**
    * @brief Per-sample symbol-timing step (the inline composition API).
    *
    * The public form of symsync_step_ted(): dispatches on the state's
-   * configured detector (`s->ted`). symsync_steps() is this in a loop
-   * (with the TED specialised per detector); a tracking channel inlines
-   * it to drive a downstream carrier loop on the recovered symbols.
+   * configured detector (`s->ted`) and flushes telemetry when attached.
+   * symsync_steps() is this in a loop (with the TED specialised per
+   * detector); a tracking channel inlines it to drive a downstream
+   * carrier loop on the recovered symbols.
    *
    * @param s      State.  Must be non-NULL.
    * @param x      One input sample.
@@ -206,7 +242,10 @@ extern "C"
   JM_FORCEINLINE JM_HOT int
   symsync_step (symsync_state_t *s, float complex x, float complex *y_out)
   {
-    return symsync_step_ted (s, x, y_out, s->ted);
+    int r = symsync_step_ted (s, x, y_out, s->ted);
+    if (r && s->tlm.ctx)
+      symsync_tlm_flush (s);
+    return r;
   }
 
   /**
@@ -262,11 +301,47 @@ extern "C"
   void   symsync_set_bn (symsync_state_t *state, double val);
   double symsync_get_timing_error (const symsync_state_t *state);
   double symsync_get_rate (const symsync_state_t *state);
+
+  /**
+   * @brief Attach (or detach) a telemetry context and register the timing
+   * loop's probes on it.
+   * Registers three probes, emitted once per recovered symbol and further
+   * thinned by decim: "<prefix>.e" (the normalised TED error — the loop
+   * stress), "<prefix>.freq" (the loop-filter control steering the timing
+   * NCO, fractional rate offset) and "<prefix>.rate" (the smoothed tracked
+   * samples/symbol).  Passing NULL detaches.  Setup path, never hot: call
+   * before the producer thread starts stepping; the context is borrowed
+   * and must outlive the attachment (SPSC rules in telemetry/telemetry.h).
+   * @param state  Must be non-NULL.
+   * @param tlm    Telemetry context to attach, or NULL to detach.
+   * @param prefix Probe-name prefix, e.g. "sync" or "rx.sync".
+   * @param decim  Emit every decim-th symbol; >= 1.
+   * @return DP_OK, or DP_ERR_INVALID when the probe table cannot take all
+   *         three probes (the attach fails whole; the object stays
+   *         detached).
+   * @code
+   * >>> import numpy as np
+   * >>> from doppler.track import SymbolSync
+   * >>> from doppler.telemetry import Telemetry
+   * >>> tlm = Telemetry(1 << 12)
+   * >>> ss = SymbolSync(sps=4, bn=0.01, zeta=0.707)
+   * >>> ss.set_telemetry(tlm, "sync")
+   * >>> sorted(tlm.probe_names())
+   * ['sync.e', 'sync.freq', 'sync.rate']
+   * >>> x = np.repeat([1 + 1j, -1 - 1j], 4 * 64).astype(np.complex64)
+   * >>> _ = ss.steps(x)
+   * >>> recs = tlm.read()   # three records per recovered symbol
+   * >>> len(recs) > 0 and len(recs) % 3 == 0
+   * True
+   *
+   * @endcode
+   */
+int symsync_set_telemetry(symsync_state_t *state, dp_tlm_t * tlm, const char * prefix, uint32_t decim);
 /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
  * pointer-free composition: nco + farrow + loop_filter embedded by value
  * (all POD) + scalar timing state — a whole-struct snapshot. */
 #define SYMSYNC_STATE_MAGIC DP_FOURCC ('S','Y','N','C')
-#define SYMSYNC_STATE_VERSION 2u /* v2: ted */
+#define SYMSYNC_STATE_VERSION 3u /* v3: telemetry attachment (zeroed) */
 size_t symsync_state_bytes (const symsync_state_t *state);
 void symsync_get_state (const symsync_state_t *state, void *blob);
 int symsync_set_state (symsync_state_t *state, const void *blob);

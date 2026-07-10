@@ -22,16 +22,29 @@ If any two diverge, that is a genuine engine bug — the assertion is the
 test, not just documentation.
 
 **Reception** — the same capture run through three doppler receiver objects,
-each demonstrated on its own before they are chained:
+each demonstrated on its own before they are chained. Every downstream stage
+is seeded from what :class:`~doppler.dsss.Acquisition` actually *finds*, not
+from ground truth:
 
-  1. :class:`doppler.dsss.Acquisition` alone, on each burst's preamble
-     window: Doppler bin + code phase + CFAR test statistic.
-  2. :class:`doppler.dsss.BurstDespreader` alone, seeded from the
-     acquisition hit: tracks the loops through the preamble (``set_acq``)
-     then despreads the frame to soft symbols / hard bits.
+  1. :class:`doppler.dsss.Acquisition` alone: ONE instance, blindly and
+     continuously sweeping the *entire* capture (silence, noise, and all 5
+     bursts) with overlapping dwells, no prior knowledge of burst timing.
+     Reports Doppler bin + absolute sample position + CFAR test statistic
+     for every threshold crossing, deduplicated to one detection per
+     cluster.
+  2. :class:`doppler.dsss.BurstDespreader` alone, seeded from each
+     discovered hit: tracks the loops through the preamble (``set_acq``)
+     then despreads the frame to soft symbols, scored by a data-aided
+     Es/N0 (dB) estimate (not the object's own ``snr_est`` — see 'Rough
+     edges found').
   3. :class:`doppler.dsss.BurstDemod`, the one-shot feedforward path: seeded
-     with ``set_preamble``/``set_sync``/``set_prior``, ``demod()`` recovers
-     the payload and checks the CRC-16 trailer in one call.
+     with ``set_preamble``/``set_sync``/``set_prior`` (from the same
+     discovered hit), ``demod()`` recovers the payload and checks the
+     CRC-16 trailer in one call.
+
+A blind sweep across real noise will occasionally false-alarm; the
+downstream stages correctly reject those (garbage lock/Es/N0, failed CRC)
+rather than the pipeline assuming every detection is real.
 
 Run::
 
@@ -51,6 +64,43 @@ write-up):
 * There is no dedicated "N discrete bursts, jittered spacing" primitive —
   build it as N segments with distinct (or ranged, ``[lo, hi]``)
   ``off_samples``.
+* **How** :meth:`~doppler.dsss.Acquisition.push` **actually buffers/frames
+  samples** (walked through in full since it changed how this demo drives
+  Acquisition — see ``native/src/acq/acq_core.c:322-410``):
+
+  - It's a ring-buffer FIFO, not an accumulate-then-process call. Each call
+    writes as many input samples as currently fit, drains every complete
+    ``n = doppler_bins * code_bins``-sample frame available (one 2-D FFT +
+    PN correlate + CFAR test per frame), and loops write/drain until the
+    input is consumed — so one call can hand it far more than the ring's
+    own capacity.
+  - Leftover samples short of a full frame stay buffered in the ring
+    *across calls* — unless a single call already hit the **hardcoded,
+    non-configurable 64-result cap** (``dsss_ext_acq.c:148``, not exposed
+    as a parameter), in which case the remaining input for that call is
+    genuinely dropped, not buffered. Not a concern at realistic CFAR
+    settings, but a real edge case for a pathologically long or
+    under-thresholded single call.
+  - Framing is strictly sequential and **non-overlapping**: one dwell is
+    always exactly one frame's worth of samples, in order, with no
+    sliding/search built in. A real burst's start is essentially arbitrary
+    relative to a fixed dwell grid, so non-overlapping dwells *will*
+    occasionally split a preamble across two dwells and miss it entirely.
+    Achieving overlap (the way any real acquisition system searches with a
+    coherent-integration primitive that doesn't overlap on its own) is the
+    caller's job: ``reset()`` between dwells at a hop smaller than one
+    dwell (this demo uses 1/4, 75% overlap).
+* Sweeping many overlapping dwells produced **more false alarms than the
+  naive ``pfa * n_dwells`` estimate**: 3 observed vs. ~0.47 expected across
+  a 471-dwell sweep at the default ``pfa=1e-3``. ``pfa``/``pfa_cell`` are
+  sized to control ONE dwell's search; a blind multi-dwell sweep tests many
+  more (Doppler, code-phase) hypotheses in aggregate, and it's not yet clear
+  whether the gap is normal single-run Poisson variance or a real
+  calibration/composability question — filed as
+  `doppler#394 <https://github.com/doppler-dsp/doppler/issues/394>`_ for a
+  proper Monte-Carlo follow-up rather than reading too much into one run.
+  Not a correctness bug either way: the downstream stages correctly
+  rejected all 3 false alarms.
 * :class:`~doppler.dsss.BurstDespreader` has no absolute phase reference —
   the Costas loop locks to a line, not a point — so its raw hard bits can
   come out globally inverted. Resolving that sign is exactly what the
@@ -150,9 +200,48 @@ SYNC = np.array(
 GAPS = [20_000, 35_000, 15_000, 40_000, 25_000]
 
 FRAME_LEN = len(SYNC) + PAYLOAD + 16  # sync + payload + CRC-16, in symbols
-PRE_LEN = REPS * ACQ_SF * SPC  # preamble span, in samples
+PRE_LEN = REPS * ACQ_SF * SPC  # preamble span, in samples = one acq dwell
 BURST_CHIPS = REPS * ACQ_SF + FRAME_LEN * DATA_SF
 BURST_LEN = BURST_CHIPS * SPC  # one burst's active span, in samples
+TSYM = DATA_SF * SPC  # samples per despread data symbol
+ACQ_HOP = PRE_LEN // 4  # blind-sweep dwell hop -> 75% overlap between dwells
+
+ESN0_WINDOW = 51  # sliding-window length (symbols) for the Es/N0(dB) trace
+
+
+def _esn0_db(z):
+    """Data-aided Es/N0 (dB) of a modulation-stripped symbol segment.
+
+    ``z`` is despread symbols with the *known* transmitted sign already
+    multiplied in (``z = soft * sign``): with the carrier phase locked, z
+    sits near a constant amplitude ``a`` (real, but its sign is whatever
+    BurstDespreader's absolute-phase ambiguity happens to land on) plus
+    complex noise. Es (signal energy) = a**2, N0 (noise power per complex
+    sample) = mean(|z - a|**2) -- the same "energy over complex noise
+    variance" convention as wfm_awgn_amplitude / the add_noise() helpers
+    elsewhere in this repo. Scale-invariant (correct regardless of how
+    BurstDespreader normalizes its symbol amplitude) *and*
+    polarity-invariant (a**2 is the same whether a is + or -), so this
+    needs no resolution of the sign ambiguity noted in the module
+    docstring.
+    """
+    a = z.real.mean()
+    noise_pow = np.mean(np.abs(z - a) ** 2)
+    return 10.0 * np.log10((a * a) / noise_pow) if noise_pow > 0 else np.nan
+
+
+def symbol_esn0_db_series(soft, sign_bits, window=ESN0_WINDOW):
+    """Sliding-window Es/N0 (dB) vs symbol index, for visualizing drift."""
+    n = min(len(soft), len(sign_bits))
+    sign = np.where(np.asarray(sign_bits[:n]) & 1, -1.0, 1.0)
+    z = soft[:n] * sign
+    half = window // 2
+    return np.array(
+        [
+            _esn0_db(z[max(0, i - half) : min(n, i + half + 1)])
+            for i in range(n)
+        ]
+    )
 
 
 def _crc16(bits):
@@ -310,112 +399,167 @@ def generate_waveform(tmp_dir):
     return rx_cli, acq_code, data_code, payload_bits, frame_bits
 
 
-def demo_acquisition(rx, starts, acq_code):
-    """Acquisition alone: one fresh instance per burst, fed exactly that
-    burst's preamble window."""
-    print("\n== Acquisition (alone) ==")
+def demo_acquisition(rx, acq_code, *, cn0_dbhz=40.0):
+    """Acquisition, run the way it's actually meant to run: ONE instance,
+    completely blind to where -- or whether -- a burst is anywhere in the
+    stream. No pre-cut, burst-aligned window: handing a CFAR detector the
+    answer to the question it exists to answer isn't a test of it. See
+    module docstring's "Rough edges found" for how push() actually
+    buffers/frames samples and why this function drives its own
+    overlapping sweep instead of one call per known burst."""
+    print("\n== Acquisition (alone, continuous blind sweep) ==")
+    acq = Acquisition(
+        acq_code, reps=REPS, spc=SPC, chip_rate=CHIP_RATE, cn0_dbhz=cn0_dbhz
+    )
+    raw = []
+    n_dwells = (len(rx) - PRE_LEN) // ACQ_HOP + 1
+    for pos in range(0, len(rx) - PRE_LEN + 1, ACQ_HOP):
+        # reset() clears the ring + coherent accumulator: each dwell must
+        # start clean, since push()'s own framing has no "restart here"
+        # concept (see the walkthrough in the module docstring).
+        acq.reset()
+        for dop, cp, _peak, _noise, test_stat, snr in acq.push(
+            rx[pos : pos + PRE_LEN]
+        ):
+            raw.append((pos + cp, dop, test_stat, snr))
     print(
-        f"  {'burst':<5} {'dop bin':>7} {'code phase':>10} {'test stat':>9} "
+        f"  swept {n_dwells} overlapping dwells ({ACQ_HOP}-sample hop, "
+        f"{PRE_LEN}-sample dwell) over {len(rx)} samples: "
+        f"{len(raw)} raw threshold crossings"
+    )
+
+    # A real burst gets caught by several overlapping dwells as the window
+    # slides through it (test stat rises then falls) -- cluster raw
+    # crossings within one dwell-width of each other and keep the
+    # strongest per cluster, so the report is one line per actual burst.
+    raw.sort()
+    hits = []
+    for abs_pos, dop, test_stat, snr in raw:
+        if hits and abs_pos - hits[-1]["abs_pos"] <= PRE_LEN:
+            if test_stat > hits[-1]["test_stat"]:
+                hits[-1].update(
+                    abs_pos=abs_pos, dop=dop, test_stat=test_stat, snr=snr
+                )
+        else:
+            hits.append(
+                {
+                    "abs_pos": abs_pos,
+                    "dop": dop,
+                    "test_stat": test_stat,
+                    "snr": snr,
+                }
+            )
+
+    print(
+        f"  {'#':<3} {'abs. sample':>12} {'dop bin':>7} {'test stat':>9} "
         f"{'threshold':>9} {'snr_est(lin)':>12}"
     )
-    results = []
-    for k, start in enumerate(starts):
-        window = rx[start : start + PRE_LEN]
-        acq = Acquisition(
-            acq_code, reps=REPS, spc=SPC, chip_rate=CHIP_RATE, cn0_dbhz=40.0
-        )
-        hits = acq.push(window)
-        if not hits:
-            print(f"  {k:<5} no hit")
-            results.append(None)
-            continue
-        dop, cp, _peak, _noise, test_stat, snr = max(hits, key=lambda h: h[4])
+    for i, h in enumerate(hits):
         # snr_est is a *linear per-sample amplitude* ratio (acq_core.h),
         # NOT dB, and NOT the post-integration detection stat — it's
         # expected to look small/flat for a spread-spectrum signal since
         # it backs the coherent gain back out of test_stat. See module
         # docstring's "Rough edges found".
         print(
-            f"  {k:<5} {dop:>7d} {cp:>10d} {test_stat:>9.1f} "
-            f"{acq.threshold:>9.1f} {snr:>12.3f}"
+            f"  {i:<3} {h['abs_pos']:>12} {h['dop']:>7d} "
+            f"{h['test_stat']:>9.1f} {acq.threshold:>9.1f} "
+            f"{h['snr']:>12.3f}"
         )
-        results.append((dop, cp, acq))
-    return results
+    return hits, acq
 
 
-def demo_despreader(rx, starts, acq_results, acq_code, data_code, frame_bits):
-    """BurstDespreader alone: seeded from the matching Acquisition hit, ran
-    across the preamble (loop pull-in via set_acq) then the frame (soft
-    symbols / hard bits). Reports both bit-polarity hypotheses, since a
-    Costas loop alone cannot resolve the absolute sign — see module
-    docstring."""
+def demo_despreader(rx, hits, acq, acq_code, data_code, frame_bits):
+    """BurstDespreader alone: seeded from each Acquisition hit *discovered
+    by the blind sweep above* (not ground truth), ran across the preamble
+    (loop pull-in via set_acq) then the frame (soft symbols). Bit errors are
+    scored against both polarity hypotheses, since a Costas loop alone
+    cannot resolve the absolute sign — see module docstring — but the
+    reported Es/N0 needs no such resolution: it's invariant to a global sign
+    flip (see ``_esn0_db``), so it's reported once, not per polarity. This
+    *replaces* the object's own ``snr_est`` (not dB, not reliable once
+    locked — see 'Rough edges found') with a calibrated, data-aided Es/N0
+    (dB) computed against the known frame bits."""
     print("\n== BurstDespreader (alone) ==")
     print(
-        f"  {'burst':<5} {'symbols':>7} {'errs(as-is)':>11} "
-        f"{'errs(inv)':>9} {'lock':>5} {'snr_est(pwr)':>12}"
+        f"  {'#':<3} {'symbols':>7} {'errs(as-is)':>11} "
+        f"{'errs(inv)':>9} {'lock':>5} {'Es/N0(dB)':>9}"
     )
     results = []
-    for k, (start, hit) in enumerate(zip(starts, acq_results)):
-        if hit is None:
-            print(f"  {k:<5} skipped (no acquisition hit)")
-            results.append(None)
-            continue
-        dop, cp, acq = hit
+    for k, hit in enumerate(hits):
+        start = hit["abs_pos"]
+        dop = hit["dop"]
         f0 = dop * acq.doppler_res_hz
         if dop >= acq.doppler_bins / 2:
             f0 -= acq.doppler_bins * acq.doppler_res_hz
         norm_freq = f0 / FS
-        chip_phase = cp / SPC
-
+        # abs_pos already IS the discovered code-phase-zero sample (the
+        # sweep resolved code phase into an absolute position, not a
+        # residual) -- feeding a window that starts exactly there leaves
+        # ~0 chip phase for the DLL to seed from.
         d = BurstDespreader(
             data_code,
             sf=DATA_SF,
             sps=SPC,
             init_norm_freq=norm_freq,
-            init_chip_phase=chip_phase,
+            init_chip_phase=0.0,
         )
         d.set_acq(acq_code, REPS)
         pre_win = rx[start : start + PRE_LEN]
         frame_win = rx[start + PRE_LEN : start + BURST_LEN]
         d.steps(pre_win)  # preamble: loops pull in, no symbols emitted
-        hard = d.bits(frame_win)
+        soft = d.steps(frame_win)  # complex prompt symbols, one per period
+        hard = (soft.real < 0).astype(np.uint8)
         # At Es/N0=10dB the DLL's code-tracking jitter can slip the
         # integrate-and-dump boundary by one symbol over a 1000+ symbol
-        # frame, so len(hard) is not always exactly len(frame_bits) — an
-        # authentic tracking-loop effect, not a bug. Compare over the
-        # common prefix and flag it rather than assume exact alignment.
+        # frame, so len(soft) is not always exactly len(frame_bits) — an
+        # authentic tracking-loop effect, not a bug. Compare/estimate over
+        # the common prefix rather than assume exact alignment.
         n = min(len(hard), len(frame_bits))
         errs_as_is = int(np.sum(hard[:n] != frame_bits[:n]))
         errs_inv = int(np.sum(hard[:n] != (1 - frame_bits[:n])))
+        esn0_db = _esn0_db(soft[:n] * np.where(frame_bits[:n] & 1, -1.0, 1.0))
         slip = (
-            f" (slipped {len(frame_bits) - len(hard):+d})"
+            f" (slipped {len(frame_bits) - len(soft):+d})"
             if n != len(frame_bits)
             else ""
         )
         print(
-            f"  {k:<5} {len(hard):>7} {errs_as_is:>11} {errs_inv:>9} "
-            f"{d.lock_metric:>5.2f} {d.snr_est:>12.3g}{slip}"
+            f"  {k:<3} {len(soft):>7} {errs_as_is:>11} {errs_inv:>9} "
+            f"{d.lock_metric:>5.2f} {esn0_db:>9.2f}{slip}"
         )
-        results.append((min(errs_as_is, errs_inv), d.lock_metric, d.snr_est))
+        results.append(
+            {
+                "errs": min(errs_as_is, errs_inv),
+                "lock_metric": d.lock_metric,
+                "esn0_db": esn0_db,
+                "symbols": soft,
+                "esn0_series": symbol_esn0_db_series(soft[:n], frame_bits[:n]),
+            }
+        )
     return results
 
 
-def demo_burst_demod(rx, starts, acq_code, data_code, payload_bits):
+def demo_burst_demod(rx, hits, acq, acq_code, data_code, payload_bits):
     """BurstDemod, one-shot per burst: set_preamble/set_sync configure the
-    frame once; set_prior + demod() run the feedforward chain (dechirp,
+    frame once; set_prior (seeded from each *discovered* Acquisition hit,
+    not ground truth) + demod() run the feedforward chain (dechirp,
     despread, frame-sync, CRC check) per burst."""
     print("\n== BurstDemod (full pipeline) ==")
     print(
-        f"  {'burst':<5} {'CRC':<5} {'errs':>4} {'est freq(Hz)':>12} "
+        f"  {'#':<3} {'CRC':<5} {'errs':>4} {'est freq(Hz)':>12} "
         f"{'est snr(dB)':>11} {'frame off':>9}"
     )
     d = BurstDemod(data_code, SPC, CHIP_RATE, 0.0, 0.0, PAYLOAD, 10)
     d.set_preamble(acq_code, REPS)
     d.set_sync(SYNC)
     results = []
-    for k, start in enumerate(starts):
+    for k, hit in enumerate(hits):
+        start, dop = hit["abs_pos"], hit["dop"]
         window = rx[start : start + BURST_LEN]
-        d.set_prior(0.0, 0)  # no injected Doppler in this scene
+        f0 = dop * acq.doppler_res_hz
+        if dop >= acq.doppler_bins / 2:
+            f0 -= acq.doppler_bins * acq.doppler_res_hz
+        d.set_prior(f0 / FS, 0)  # abs_pos already IS the preamble start
         bits_hat = d.demod(window)
         valid = bool(d.frame_valid)
         errs = (
@@ -424,7 +568,7 @@ def demo_burst_demod(rx, starts, acq_code, data_code, payload_bits):
             else PAYLOAD
         )
         print(
-            f"  {k:<5} {'ok' if valid else 'FAIL':<5} {errs:>4} "
+            f"  {k:<3} {'ok' if valid else 'FAIL':<5} {errs:>4} "
             f"{d.est_freq_hz:>12.1f} {d.est_snr_db:>11.1f} "
             f"{d.frame_offset:>9d}"
         )
@@ -433,34 +577,120 @@ def demo_burst_demod(rx, starts, acq_code, data_code, payload_bits):
     return results
 
 
+def plot_esn0_drift(
+    despreader_results, out_path="dsss_burst_pipeline_demo.png"
+):
+    """Plot the sliding-window Es/N0 (dB) trace vs symbol time, one line per
+    burst, against the configured payload Es/N0 -- the visualization the
+    console table's single scalar can't show: tracking-loop settling right
+    after the preamble hand-off, and any mid-frame dip (e.g. the DLL
+    boundary slip noted in 'Rough edges found')."""
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    fig, ax = plt.subplots(figsize=(9, 5))
+    for k, r in enumerate(despreader_results):
+        if r is None:
+            continue
+        series = r["esn0_series"]
+        t_ms = np.arange(len(series)) * TSYM / FS * 1000.0
+        ax.plot(t_ms, series, lw=1.1, label=f"burst {k}")
+    ax.axhline(
+        ESN0_DB,
+        color="0.3",
+        ls="--",
+        lw=1.2,
+        label=f"configured Es/N0 = {ESN0_DB:.0f} dB",
+    )
+    ax.set_xlabel("time into frame (ms)")
+    ax.set_ylabel(f"Es/N0 (dB), {ESN0_WINDOW}-symbol sliding window")
+    ax.set_title(
+        "BurstDespreader payload Es/N0 vs time — 5 bursts, data-aided"
+    )
+    ax.set_ylim(-40, 20)
+    ax.grid(True, lw=0.5, alpha=0.5)
+    ax.legend(fontsize=8, ncol=3, loc="lower center")
+    fig.tight_layout()
+    fig.savefig(out_path, dpi=120)
+    plt.close(fig)
+    return out_path
+
+
+def _label_hits(hits, starts, tol=SPC):
+    """Ground-truth labels, for REPORTING ONLY -- never fed back into the
+    pipeline (demo_despreader/demo_burst_demod treat every hit identically,
+    real or false). True where a hit lands within tol samples of an actual
+    burst start, the same way you'd score a real detector's output against
+    a controlled test injection."""
+    return [any(abs(h["abs_pos"] - s) <= tol for s in starts) for h in hits]
+
+
 def main():
     print("generating a 5-burst DSSS capture through all 3 wfmgen faces...")
     with tempfile.TemporaryDirectory() as tmp:
         rx, acq_code, data_code, payload_bits, frame_bits = generate_waveform(
             tmp
         )
-    starts = burst_starts()
+    starts = burst_starts()  # ground truth -- used only to label below
     print(
         f"  {N_BURSTS} bursts, {BURST_LEN} active samples/burst, "
         f"gaps={GAPS} samples"
     )
 
-    acq_results = demo_acquisition(rx, starts, acq_code)
-    demo_despreader(rx, starts, acq_results, acq_code, data_code, frame_bits)
-    demod_results = demo_burst_demod(
-        rx, starts, acq_code, data_code, payload_bits
+    hits, acq = demo_acquisition(rx, acq_code)
+    is_real = _label_hits(hits, starts)
+    n_dwells = (len(rx) - PRE_LEN) // ACQ_HOP + 1
+    n_real_found, n_false = sum(is_real), len(hits) - sum(is_real)
+    print(
+        f"  ground-truth check (labels for reporting only, not fed back "
+        f"into the pipeline): {n_real_found}/{N_BURSTS} true bursts found, "
+        f"{n_false} false alarm(s) -- naive pfa*dwells expectation was "
+        f"~{n_dwells * 1e-3:.2f} (see 'Rough edges' on why overlapping "
+        "dwells make that a loose bound)"
     )
 
-    n_ok = sum(1 for valid, _ in demod_results if valid)
-    print(f"\nsummary: {n_ok}/{N_BURSTS} bursts decoded with a valid CRC")
-    if n_ok < N_BURSTS:
+    despreader_results = demo_despreader(
+        rx, hits, acq, acq_code, data_code, frame_bits
+    )
+    demod_results = demo_burst_demod(
+        rx, hits, acq, acq_code, data_code, payload_bits
+    )
+
+    real_ok = sum(
+        valid for (valid, _), real in zip(demod_results, is_real) if real
+    )
+    false_rejected = sum(
+        not valid
+        for (valid, _), real in zip(demod_results, is_real)
+        if not real
+    )
+    print(
+        f"\nsummary: {real_ok}/{n_real_found} real bursts decoded with a "
+        f"valid CRC; {false_rejected}/{n_false} false alarms correctly "
+        "rejected (failed CRC, as they should)"
+    )
+    if real_ok < n_real_found:
         print(
             "  (a regression: BurstDemod's payload-domain frequency "
             "refinement — see 'Rough edges' in the module docstring —\n"
-            "  should make this 5/5 reliably at this scale. If it isn't, "
-            "check native/src/burst_demod/burst_demod_core.c for a\n"
-            "  reverted or broken fix.)"
+            "  should make every REAL burst decode reliably at this "
+            "scale. If it isn't, check\n"
+            "  native/src/burst_demod/burst_demod_core.c for a reverted "
+            "or broken fix.)"
         )
+    if false_rejected < n_false:
+        print(
+            "  (notable: a false alarm passed CRC-16 -- a 1/65536 "
+            "coincidence per attempt, worth a second look if reproducible)"
+        )
+
+    out_path = plot_esn0_drift(despreader_results)
+    print(
+        f"\nwrote {out_path} (Es/N0 vs time, {len(despreader_results)} "
+        "detections)"
+    )
 
 
 if __name__ == "__main__":

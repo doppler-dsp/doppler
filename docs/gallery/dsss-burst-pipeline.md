@@ -1,12 +1,16 @@
 # A 5-Burst DSSS Link — wfmgen's Three Faces, the Full Receiver Chain
 
+![Es/N0 vs time, all 5 bursts](../assets/dsss_burst_pipeline_demo.png)
+
 Two things in one example: exercise every way `wfmgen` can produce a
 waveform against the *same* declarative scene, then run the resulting
 capture through all three DSSS receiver objects — `Acquisition`,
 `BurstDespreader`, `BurstDemod` — each demonstrated on its own before
-they're chained. The goal driving the geometry choices below wasn't a clean
-demo; it was finding rough edges and real failure modes in the API, which
-it did (see [Rough edges found](#rough-edges-found)).
+they're chained, with every downstream stage seeded from what `Acquisition`
+actually *finds*, not from ground truth. The goal driving the geometry
+choices below wasn't a clean demo; it was finding rough edges and real
+failure modes in the API, which it did (see
+[Rough edges found](#rough-edges-found)).
 
 ## The scenario
 
@@ -44,59 +48,115 @@ len(rx), len(starts)
 value means the CLI, `Composer.from_file`, and `Composer([Segment(...)])`
 all agree, bit for bit, on this multi-segment DSSS scene.
 
-## Acquisition — alone
+## Acquisition — alone, and actually blind
 
-A fresh `Acquisition` instance per burst, fed exactly that burst's preamble
-window (`5 x 512 x 4 = 10240` samples — one full coherent frame):
+The first draft of this example fed `Acquisition` a pre-cut window aligned
+exactly to each known burst's start — which hands a CFAR detector the
+answer to the only question it exists to answer. `Acquisition`'s real job
+is running continuously against a channel that's mostly silence and noise,
+finding a signal (or not) with zero prior knowledge of its timing. So this
+section runs it that way: ONE instance, swept blindly across the *entire*
+capture:
 
 ```python
 from doppler.examples.dsss_burst_pipeline_demo import demo_acquisition
 
-hits = demo_acquisition(rx, starts, acq_code)
-all(hit is not None for hit in hits)
+hits, acq = demo_acquisition(rx, acq_code)
+len(hits)
 ```
 
-Every burst is detected at Doppler bin 0 (no Doppler was injected in this
-scene) with a test statistic well clear of the CFAR threshold — the coherent
-gain from stacking 5 x 512 = 2560 chips is large even though the payload
-itself sits at a modest 10 dB Es/N0.
+Every one of the 5 real bursts is discovered at Doppler bin 0 (no Doppler
+was injected in this scene), at exactly its true sample position, purely
+from CFAR threshold crossings — no ground truth passed in. A handful of
+false alarms in the noise-only regions typically also show up; see
+[Rough edges found](#rough-edges-found) for why, and how the pipeline
+handles them.
+
+### How `push()` actually buffers and frames samples
+
+Worth walking through in full, since it's *why* the sweep above is written
+the way it is (`native/src/acq/acq_core.c:322-410`):
+
+- It's a **ring-buffer FIFO**, not an accumulate-then-process call. Each
+    call writes as many input samples as currently fit, drains every
+    complete `n = doppler_bins * code_bins`-sample frame available (one 2-D
+    FFT + PN correlate + CFAR test per frame), and loops write/drain until
+    the input is consumed — so one call can hand it far more than the
+    ring's own capacity.
+- **Leftover samples short of a full frame stay buffered across calls** —
+    unless a single call already hit the **hardcoded, non-configurable
+    64-result cap** (`native/src/dsss/dsss_ext_acq.c:148`, not exposed as a
+    Python parameter), in which case the remaining input for that call is
+    genuinely *dropped*, not buffered. Not a concern at realistic CFAR
+    settings, but a real edge case worth knowing about.
+- **Framing is strictly sequential and non-overlapping**: one dwell is
+    always exactly one frame's worth of samples, in order, with no
+    sliding/search built into the primitive. A real burst's start is
+    essentially arbitrary relative to a fixed dwell grid, so
+    non-overlapping dwells *will* occasionally split a preamble across two
+    dwells and miss it. Overlap is the **caller's** job — this demo
+    `reset()`s the ring + accumulator between dwells at a hop 1/4 of a
+    dwell width (75% overlap), since `push()` has no "restart the search
+    here instead" concept of its own.
 
 ## BurstDespreader — alone
 
-Seeded from the matching acquisition hit (Doppler bin -> Hz via
-`doppler_res_hz`, code phase in samples -> chips), `set_acq` pulls the
-Costas/DLL loops in across the preamble, then `bits()` despreads the frame:
+Seeded from the matching *discovered* hit (Doppler bin → Hz via
+`doppler_res_hz`; the absolute sample position already resolved the code
+phase, so `init_chip_phase=0.0`), `set_acq` pulls the Costas/DLL loops in
+across the preamble, then `steps()` despreads the frame to soft symbols:
 
 ```python
 from doppler.examples.dsss_burst_pipeline_demo import demo_despreader
 
-results = demo_despreader(
-    rx, starts, hits, acq_code, data_code, frame_bits
-)
-[r[0] for r in results]  # bit errors per burst, best of two polarities
+results = demo_despreader(rx, hits, acq, acq_code, data_code, frame_bits)
+[r["esn0_db"] for r in results]  # data-aided Es/N0 (dB), per detection
 ```
 
-Bit errors land near zero on every burst — the tracking loop follows the
-carrier and code phase continuously across all 1029 frame symbols, so a
-10 dB Es/N0 payload after 50x spreading gain is comfortable.
+Bit errors land near zero and the measured Es/N0 lands within a couple dB
+of the configured 10 dB on every *real* burst — the tracking loop follows
+the carrier and code phase continuously across all 1029 frame symbols. Any
+false alarms score wildly wrong Es/N0 and near-zero lock, exactly as they
+should.
+
+### Es/N0 (dB), not `snr_est` — and why it's plotted vs time
+
+`BurstDespreader`'s own `snr_est` isn't useful here (see
+[Rough edges found](#rough-edges-found)), so this demo reports a
+**data-aided Es/N0 (dB)** instead: strip the known modulation
+(`z = soft * sign`), and Es/N0 (linear) = signal energy over complex noise
+variance = `a**2 / mean(|z - a|**2)` where `a = mean(Re(z))` — the same
+convention `wfm_awgn_amplitude`/`add_noise()` use elsewhere in this repo.
+It's scale-invariant (works regardless of `BurstDespreader`'s internal
+symbol normalization) *and* polarity-invariant (`a**2` doesn't care whether
+`a` is + or −), so unlike the bit-error count it needs no resolution of the
+sign ambiguity.
+
+A single scalar per burst hides the interesting part, though: a sliding
+51-symbol window of the same estimate, plotted against time into the
+frame, is the hero image above. It shows what a table can't — tracking-loop
+settling right after the preamble hand-off, and any mid-frame dip (the DLL
+boundary slip noted below shows up as exactly that on burst 0).
 
 ## BurstDemod — full pipeline
 
 `BurstDemod` is a **one-shot feedforward** design: estimate `(freq, rate)`,
-dechirp once, despread, frame-sync, check the CRC-16. No tracking loop:
+dechirp once, despread, frame-sync, check the CRC-16. No tracking loop —
+also seeded from the *discovered* hit, not ground truth:
 
 ```python
 from doppler.examples.dsss_burst_pipeline_demo import demo_burst_demod
 
 demod_results = demo_burst_demod(
-    rx, starts, acq_code, data_code, payload_bits
+    rx, hits, acq, acq_code, data_code, payload_bits
 )
 sum(1 for valid, _errs in demod_results if valid), len(demod_results)
 ```
 
-All 5 bursts decode. That wasn't true when this example was first written —
-at this scale it failed the CRC on more than half the bursts, which led to a
-real bug fix in the C core. See below.
+Every real burst decodes; any false alarms correctly fail the CRC. That
+"every real burst decodes" result wasn't true when this example was first
+written — at this scale it failed the CRC on more than half the real
+bursts, which led to a real bug fix in the C core. See below.
 
 ## Rough edges found
 
@@ -116,6 +176,27 @@ inconvenience:
 - **No "N discrete bursts, jittered spacing" primitive** — build it as N
     segments with distinct (or ranged, `[lo, hi]`) `off_samples` per segment.
 
+- **`Acquisition.push()`'s buffering/framing** is a ring-buffer FIFO with
+    non-overlapping frames and a hardcoded 64-result-per-call cap — see
+    [How `push()` actually buffers and frames samples](#how-push-actually-buffers-and-frames-samples)
+    above for the full walkthrough. The short version: leftover samples
+    persist across calls (good), but a call that hits the 64-result cap
+    drops its remaining input (edge case), and achieving search overlap
+    across dwells is entirely the caller's responsibility (not a knob on
+    the object).
+
+- **Sweeping many overlapping dwells produced more false alarms than the
+    naive `pfa * n_dwells` estimate** — 3 observed vs. ~0.47 expected
+    across a 471-dwell sweep at the default `pfa=1e-3`. `pfa`/`pfa_cell`
+    are sized to control *one* dwell's search; a blind multi-dwell sweep
+    tests many more (Doppler, code-phase) hypotheses in aggregate, and
+    it's not yet clear whether the gap is normal single-run Poisson
+    variance or a real calibration/composability question. Filed as
+    [doppler#394](https://github.com/doppler-dsp/doppler/issues/394) for a
+    proper Monte-Carlo follow-up rather than reading too much into one run
+    — not a correctness bug either way, since the downstream stages
+    correctly rejected all 3 false alarms.
+
 - **`BurstDespreader` has no absolute phase reference.** The Costas loop
     locks to a line, not a point, so its raw hard bits can come out globally
     inverted. Resolving that sign is exactly what `BurstDemod`'s sync-word
@@ -131,20 +212,23 @@ inconvenience:
 
 - **Neither DSSS `snr_est` field is actually in dB.** `Acquisition.push()`'s
     6th tuple element is documented as "estimated *per-sample amplitude*
-    SNR" (`acq_core.h`) — a linear ratio, `test_stat / sqrt(2*pi) /   sqrt(2*n)`. It's *supposed* to look small and flat (~0.2 here) even when
-    `test_stat` is large and healthy (~24): it backs the coherent-integration
-    gain back out of `test_stat` to recover the raw per-sample SNR, a
-    different, correctly-related quantity — not a broken one. First draft of
-    this demo printed it as `snr(dB)` and that was simply wrong.
+    SNR" (`acq_core.h`) — a linear ratio,
+    `test_stat / sqrt(2*pi) / sqrt(2*n)`. It's *supposed* to look small and
+    flat (~0.2 here) even when `test_stat` is large and healthy (~24): it
+    backs the coherent-integration gain back out of `test_stat` to recover
+    the raw per-sample SNR, a different, correctly-related quantity — not a
+    broken one. First draft of this demo printed it as `snr(dB)` and that
+    was simply wrong.
 
 - **`BurstDespreader.snr_est` is numerically unstable once the Costas loop
     is well locked on BPSK**, and isn't dB either — an EMA of
     `Re(prompt)^2 / Im(prompt)^2`. A locked BPSK prompt has `Im -> 0`, so the
     ratio can spike to absurd values — this demo observed everything from
-    single digits up to `6.9e6` across otherwise-healthy bursts. Treat it as
-    a rough lock-quality signal, not a calibrated SNR. Neither field is
-    suffixed `_db` even though `BurstDemod.est_snr_db` is — a naming
-    inconsistency worth fixing upstream so "not dB" is visible from the name.
+    single digits up to `6.9e6` across otherwise-healthy bursts. Neither
+    field is suffixed `_db` even though `BurstDemod.est_snr_db` is — a
+    naming inconsistency worth fixing upstream. This demo now reports a
+    proper [data-aided Es/N0 (dB)](#esn0-db-not-snr_est-and-why-its-plotted-vs-time)
+    instead.
 
 - **Found and fixed a real bug in `BurstDemod`**
     (`native/src/burst_demod/burst_demod_core.c`). At this demo's original
@@ -169,8 +253,8 @@ inconvenience:
     so the rate term is already a no-op when `max_rate=0`).
 
     Verified: 10/10 valid in an isolated numpy repro (residual frequency
-    error dropped from a few-to-17 Hz down to sub-Hz) and 5/5 in this
-    demo's actual wfmgen capture, with the existing 89-test
+    error dropped from a few-to-17 Hz down to sub-Hz) and every real burst
+    in this demo's actual wfmgen capture, with the existing 89-test
     `test_burst_demod.py` / `test_realtime_file_demod.py` / `test_ppe.py`
     suites still green. `BurstDespreader`'s continuous tracking loop never
     had this ceiling — it doesn't need a good feedforward estimate, it

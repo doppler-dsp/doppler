@@ -9,6 +9,7 @@ depends_on = [
   { name = "nco", link = true },
   { name = "farrow", link = true },
   { name = "loop_filter", link = true },
+  { name = "telemetry", link = true },
 ]
 serializable = "true"
 
@@ -47,6 +48,21 @@ variable_output = true
 pass_capacity = true
 nogil = true
 params = [{ name = "x", type = "float _Complex[]" }]
+
+# Telemetry attach (jm gh-432; mirrors objects/agc.toml): registers
+# "<prefix>.e" / "<prefix>.freq" / "<prefix>.rate", emitted once per
+# recovered symbol. None detaches; the int status binds -> None with
+# ValueError on failure.
+[[symsync.methods]]
+name = "set_telemetry"
+arg_type = "void"
+return_type = "int"
+status_return = true
+params = [
+  { name = "tlm", type = "dp_tlm_t *", capsule = "doppler.telemetry.dp_tlm", header = "telemetry/telemetry.h" },
+  { name = "prefix", type = "const char *" },
+  { name = "decim", type = "uint32_t", default = "1" },
+]
 
 [[symsync.methods]]
 name = "configure"

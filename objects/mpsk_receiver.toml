@@ -16,6 +16,7 @@ depends_on = [
   { name = "lo", link = true },
   { name = "loop_filter", link = true },
   { name = "farrow", link = true },
+  { name = "telemetry", link = true },
 ]
 extra_link_libs = ["wfm_dsp_core"]
 serializable = "true"
@@ -89,6 +90,21 @@ default = "100"
 name = "differential"
 type = "int"
 default = "0"
+
+# Telemetry attach (jm gh-432; mirrors objects/agc.toml): registers the
+# receiver's "<prefix>.lock" probe and forwards to the embedded timing loop
+# ("<prefix>.sync.e" / ".freq" / ".rate") — four probes per attach. None
+# detaches everything; the int status binds -> None / ValueError.
+[[mpsk_receiver.methods]]
+name = "set_telemetry"
+arg_type = "void"
+return_type = "int"
+status_return = true
+params = [
+  { name = "tlm", type = "dp_tlm_t *", capsule = "doppler.telemetry.dp_tlm", header = "telemetry/telemetry.h" },
+  { name = "prefix", type = "const char *" },
+  { name = "decim", type = "uint32_t", default = "1" },
+]
 
 [[mpsk_receiver.methods]]
 name = "steps"

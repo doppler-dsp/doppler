@@ -237,12 +237,9 @@ main (void)
   free (tx);
   free (idx);
   free (out);
-  if (_fails)
-    {
-      fprintf (stderr, "test_mpsk_receiver_core FAILED (%d)\n", _fails);
-      return 1;
-    }
-  /* serializable state — carrier_nda + symsync + MF children resume. */
+  /* serializable state — carrier_nda + symsync + MF children resume.
+   * (Moved above the final _fails check: this block used to sit after it,
+   * so its own failures could never fail the test.) */
   {
     float complex tx[256], out[32];
     for (int i = 0; i < 256; i++)
@@ -262,6 +259,66 @@ main (void)
     mpsk_receiver_destroy (a);
     mpsk_receiver_destroy (b);
   }
+
+  /* telemetry attach — the receiver's lock probe + the forwarded symsync
+   * probes: four records per emitted symbol; detach cascades. */
+  {
+    float complex tx[512], out[80];
+    for (int i = 0; i < 512; i++)
+      tx[i] = ((i / 8) % 2 ? 1.0f : -1.0f) + 0.0f * I; /* BPSK, sps=8 */
+    dp_tlm_t              *tlm = dp_tlm_create (4096);
+    mpsk_receiver_state_t *a
+        = mpsk_receiver_create (2, 8, 4, MPSK_RX_PULSE_IANDD, 0.35, 8, 0.01,
+                                0.707, 0.01, 0, 0.5, 0.0, 100, 0);
+    CHECK (tlm != NULL && a != NULL);
+    CHECK (mpsk_receiver_set_telemetry (a, tlm, "rx", 1) == DP_OK);
+    CHECK (dp_tlm_lookup (tlm, "rx.lock") == a->tlm_id_lock);
+    CHECK (dp_tlm_lookup (tlm, "rx.sync.e") == a->sync.tlm.id_e);
+    CHECK (dp_tlm_probe_count (tlm) == 4);
+
+    size_t n_sym = mpsk_receiver_steps (a, tx, 512, out, 80);
+    CHECK (n_sym > 0);
+    dp_tlm_rec_t recs[1024];
+    size_t       n_rec = dp_tlm_read (tlm, recs, 1024);
+    CHECK (n_rec == 4 * n_sym); /* lock + e + freq + rate per symbol */
+
+    /* Detach cascades to the embedded timing loop. */
+    CHECK (mpsk_receiver_set_telemetry (a, NULL, "rx", 1) == DP_OK);
+    CHECK (a->tlm_ctx == NULL && a->sync.tlm.ctx == NULL);
+    (void)mpsk_receiver_steps (a, tx, 512, out, 80);
+    CHECK (dp_tlm_read (tlm, recs, 1024) == 0);
+
+    /* bits() flushes telemetry too (the guarded in-loop path). */
+    CHECK (mpsk_receiver_set_telemetry (a, tlm, "rx2", 1) == DP_OK);
+    uint8_t bit_out[128];
+    size_t  n_bits = mpsk_receiver_bits (a, tx, 512, bit_out, 128);
+    CHECK (n_bits > 0);
+    CHECK (dp_tlm_read (tlm, recs, 1024) > 0);
+
+    /* A full probe table fails the attach whole (receiver detached). */
+    char pname[DP_TLM_NAME_MAX];
+    for (size_t i = 0; dp_tlm_probe_count (tlm) < DP_TLM_MAX_PROBES; i++)
+      {
+        (void)snprintf (pname, sizeof (pname), "fill%zu", i);
+        (void)dp_tlm_probe (tlm, pname, 1);
+      }
+    mpsk_receiver_state_t *b
+        = mpsk_receiver_create (2, 8, 4, MPSK_RX_PULSE_IANDD, 0.35, 8, 0.01,
+                                0.707, 0.01, 0, 0.5, 0.0, 100, 0);
+    CHECK (b != NULL);
+    CHECK (mpsk_receiver_set_telemetry (b, tlm, "full", 1) == DP_ERR_INVALID);
+    CHECK (b->tlm_ctx == NULL);
+
+    mpsk_receiver_destroy (b);
+    mpsk_receiver_destroy (a);
+    dp_tlm_destroy (tlm);
+  }
+
+  if (_fails)
+    {
+      fprintf (stderr, "test_mpsk_receiver_core FAILED (%d)\n", _fails);
+      return 1;
+    }
 
   printf ("test_mpsk_receiver_core PASSED\n");
   return 0;

@@ -161,6 +161,38 @@ agc_set_telemetry (agc_state_t *s, dp_tlm_t *t, const char *prefix,
 DP_TLM (state->tlm.ctx, state->tlm.id_gain, state->gain_db);
 ```
 
+The inline `DP_TLM` form is right when the event site is already outside
+the per-sample inner loop (the AGC's gain update is amortised by
+`gain_update_period`). **When the event fires inside a force-inlined
+per-sample step — a symbol sync emitting per recovered symbol — do NOT
+put emits (or any call site) in the step body.** Two compiler effects,
+both measured at ~20-30% detached slowdown on the 64k-block bench even
+though no telemetry code ever executed:
+
+- *Inlined emit bloat*: each `dp_tlm_emit` expansion enlarges the inlined
+    step body; several of them spill the register-cached loop state.
+- *Extern-call aliasing poison*: any extern call site inside the block
+    loop forces the compiler to assume every state field may be clobbered
+    per iteration, reloading the NCO/interpolator hot state from memory
+    each sample — even when the call is behind a never-taken branch.
+
+The pattern that benchmarks at parity with the untouched baseline
+(symsync/mpsk_receiver): an **out-of-line flush function** per object
+(`symsync_tlm_flush` — reads the state fields, emits every probe) and an
+**attachment check hoisted to block-loop entry**, so the detached loops
+contain no call site at all:
+
+```c
+if (!state->tlm.ctx)
+  { /* pristine specialised loops — the pre-telemetry code, verbatim */ }
+else
+  { /* instrumented loops: ... if (step (...)) symsync_tlm_flush (state); */ }
+```
+
+Hoisting the check is legal because attach/detach is setup-path-only on
+the producer thread (the SPSC contract): `tlm.ctx` cannot change inside a
+block.
+
 **4. Serialization** — swap the POD-state macro for the TLM-aware variant and
 bump the object's state version (the struct grew):
 

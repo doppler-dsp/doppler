@@ -54,18 +54,15 @@ MpskReceiverObj_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 static int
 MpskReceiverObj_init (MpskReceiverObject *self, PyObject *args, PyObject *kwds)
 {
-  static char       *kwlist[]        = { "pulse",       "m",
-                                         "sps",         "n",
-                                         "rrc_beta",    "rrc_span",
-                                         "bn_carrier",  "zeta",
-                                         "bn_timing",   "acq_to_track",
-                                         "lock_thresh", "init_norm_freq",
-                                         "warmup_syms", "differential",
-                                         NULL };
-  const char        *pulse_str       = "iandd";
+  static char *kwlist[]
+      = { "m",           "sps",          "n",           "pulse",
+          "rrc_beta",    "rrc_span",     "bn_carrier",  "zeta",
+          "bn_timing",   "acq_to_track", "lock_thresh", "init_norm_freq",
+          "warmup_syms", "differential", NULL };
   int                m               = 4;
   unsigned long long sps_raw         = 8;
   int                n               = 4;
+  const char        *pulse_str       = "iandd";
   double             rrc_beta        = 0.35;
   int                rrc_span        = 8;
   double             bn_carrier      = 0.01;
@@ -78,11 +75,12 @@ MpskReceiverObj_init (MpskReceiverObject *self, PyObject *args, PyObject *kwds)
   int                differential    = 0;
 
   if (!PyArg_ParseTupleAndKeywords (
-          args, kwds, "|siKididddiddKi", kwlist, &pulse_str, &m, &sps_raw, &n,
+          args, kwds, "|iKisdidddiddKi", kwlist, &m, &sps_raw, &n, &pulse_str,
           &rrc_beta, &rrc_span, &bn_carrier, &zeta, &bn_timing, &acq_to_track,
           &lock_thresh, &init_norm_freq, &warmup_syms_raw, &differential))
     return -1;
-  int pulse = 0;
+  size_t sps   = (size_t)sps_raw;
+  int    pulse = 0;
   if (strcmp (pulse_str, "iandd") == 0)
     pulse = 0;
   else if (strcmp (pulse_str, "rrc") == 0)
@@ -94,7 +92,6 @@ MpskReceiverObj_init (MpskReceiverObject *self, PyObject *args, PyObject *kwds)
                     pulse_str);
       return -1;
     }
-  size_t sps         = (size_t)sps_raw;
   size_t warmup_syms = (size_t)warmup_syms_raw;
   self->handle       = mpsk_receiver_create (
       m, sps, n, pulse, rrc_beta, rrc_span, bn_carrier, zeta, bn_timing,
@@ -135,21 +132,127 @@ MpskReceiverObj_init (MpskReceiverObject *self, PyObject *args, PyObject *kwds)
 }
 
 static PyObject *
-MpskReceiverObj_steps (MpskReceiverObject *self, PyObject *args)
+MpskReceiverObj_set_telemetry (MpskReceiverObject *self, PyObject *args,
+                               PyObject *kwds)
 {
   if (!self->handle)
     {
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  PyObject      *x_obj = NULL;
-  PyArrayObject *x_arr = NULL;
-  if (!PyArg_ParseTuple (args, "O", &x_obj))
+  static char  *_kwlist[] = { "tlm", "prefix", "decim", NULL };
+  PyObject     *tlm_obj   = Py_None;
+  const char   *prefix    = NULL;
+  unsigned long decim_raw = 1;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "Os|k", _kwlist, &tlm_obj,
+                                    &prefix, &decim_raw))
+    return NULL;
+  dp_tlm_t *tlm = NULL;
+  if (tlm_obj != Py_None)
+    {
+      PyObject *tlm_cap = tlm_obj;
+      Py_INCREF (tlm_cap);
+      if (!PyCapsule_CheckExact (tlm_cap))
+        {
+          Py_DECREF (tlm_cap);
+          tlm_cap = PyObject_GetAttrString (tlm_obj, "_capsule");
+          if (!tlm_cap)
+            return NULL;
+        }
+      tlm = (dp_tlm_t *)PyCapsule_GetPointer (tlm_cap,
+                                              "doppler.telemetry.dp_tlm");
+      Py_DECREF (tlm_cap);
+      if (!tlm)
+        return NULL;
+    }
+  uint32_t decim = (uint32_t)decim_raw;
+  int _rc = mpsk_receiver_set_telemetry (self->handle, tlm, prefix, decim);
+  if (_rc != 0)
+    {
+      PyErr_Format (PyExc_ValueError, "set_telemetry failed (rc=%d)", _rc);
+      return NULL;
+    }
+  Py_RETURN_NONE;
+}
+
+static PyObject *
+MpskReceiverObj_steps_max_out (MpskReceiverObject *self,
+                               PyObject           *Py_UNUSED (ignored))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromSize_t (mpsk_receiver_steps_max_out (self->handle));
+}
+
+static PyObject *
+MpskReceiverObj_steps (MpskReceiverObject *self, PyObject *args,
+                       PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char   *_kwlist[] = { "x", "out", NULL };
+  PyObject      *x_obj     = NULL;
+  PyArrayObject *x_arr     = NULL;
+  PyObject      *out_obj   = NULL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|O", _kwlist, &x_obj,
+                                    &out_obj))
     return NULL;
   x_arr = (PyArrayObject *)PyArray_FROM_OTF (x_obj, NPY_COMPLEX64,
                                              NPY_ARRAY_C_CONTIGUOUS);
   if (!x_arr)
     return NULL;
+  if (out_obj && out_obj != Py_None)
+    {
+      PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
+          out_obj, NPY_COMPLEX64,
+          NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
+      if (!out_arr)
+        {
+          Py_DECREF (x_arr);
+          return NULL;
+        }
+      size_t _cap     = (size_t)PyArray_SIZE (out_arr);
+      size_t _omax    = mpsk_receiver_steps_max_out (self->handle);
+      size_t _min_cap = _omax > (size_t)PyArray_SIZE (x_arr)
+                            ? _omax
+                            : ((size_t)PyArray_SIZE (x_arr));
+      if (_cap < _min_cap)
+        {
+          PyErr_Format (PyExc_ValueError, "out has %zu elements, need >= %zu",
+                        _cap, _min_cap);
+          Py_DECREF (out_arr);
+          Py_DECREF (x_arr);
+          return NULL;
+        }
+      /* nogil: GIL released across the pure-C kernel — sound only when
+       * this object is not shared across threads concurrently (one
+       * object per stream); the kernel touches only this object's
+       * state/buffers and the caller's input. */
+      const float complex *_ng0 = (const float complex *)PyArray_DATA (x_arr);
+      size_t               _ng1 = (size_t)PyArray_SIZE (x_arr);
+      float complex       *_ng2 = (float complex *)PyArray_DATA (out_arr);
+      size_t               n_out;
+      Py_BEGIN_ALLOW_THREADS
+        n_out = mpsk_receiver_steps (self->handle, _ng0, _ng1, _ng2, _cap);
+      Py_END_ALLOW_THREADS
+      Py_DECREF (x_arr);
+      npy_intp  _odim  = (npy_intp)n_out;
+      PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_COMPLEX64,
+                                                    PyArray_DATA (out_arr));
+      if (!_oview)
+        {
+          Py_DECREF (out_arr);
+          return NULL;
+        }
+      PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
+      return _oview;
+    }
   size_t _need = (size_t)PyArray_SIZE (x_arr);
   if (!self->_steps_buf || self->_steps_buf_cap < _need)
     {
@@ -212,21 +315,81 @@ MpskReceiverObj_steps (MpskReceiverObject *self, PyObject *args)
 }
 
 static PyObject *
-MpskReceiverObj_bits (MpskReceiverObject *self, PyObject *args)
+MpskReceiverObj_bits_max_out (MpskReceiverObject *self,
+                              PyObject           *Py_UNUSED (ignored))
 {
   if (!self->handle)
     {
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  PyObject      *x_obj = NULL;
-  PyArrayObject *x_arr = NULL;
-  if (!PyArg_ParseTuple (args, "O", &x_obj))
+  return PyLong_FromSize_t (mpsk_receiver_bits_max_out (self->handle));
+}
+
+static PyObject *
+MpskReceiverObj_bits (MpskReceiverObject *self, PyObject *args, PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char   *_kwlist[] = { "x", "out", NULL };
+  PyObject      *x_obj     = NULL;
+  PyArrayObject *x_arr     = NULL;
+  PyObject      *out_obj   = NULL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|O", _kwlist, &x_obj,
+                                    &out_obj))
     return NULL;
   x_arr = (PyArrayObject *)PyArray_FROM_OTF (x_obj, NPY_COMPLEX64,
                                              NPY_ARRAY_C_CONTIGUOUS);
   if (!x_arr)
     return NULL;
+  if (out_obj && out_obj != Py_None)
+    {
+      PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
+          out_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
+      if (!out_arr)
+        {
+          Py_DECREF (x_arr);
+          return NULL;
+        }
+      size_t _cap     = (size_t)PyArray_SIZE (out_arr);
+      size_t _omax    = mpsk_receiver_bits_max_out (self->handle);
+      size_t _min_cap = _omax > (size_t)PyArray_SIZE (x_arr)
+                            ? _omax
+                            : ((size_t)PyArray_SIZE (x_arr));
+      if (_cap < _min_cap)
+        {
+          PyErr_Format (PyExc_ValueError, "out has %zu elements, need >= %zu",
+                        _cap, _min_cap);
+          Py_DECREF (out_arr);
+          Py_DECREF (x_arr);
+          return NULL;
+        }
+      /* nogil: GIL released across the pure-C kernel — sound only when
+       * this object is not shared across threads concurrently (one
+       * object per stream); the kernel touches only this object's
+       * state/buffers and the caller's input. */
+      const float complex *_ng0 = (const float complex *)PyArray_DATA (x_arr);
+      size_t               _ng1 = (size_t)PyArray_SIZE (x_arr);
+      uint8_t             *_ng2 = (uint8_t *)PyArray_DATA (out_arr);
+      size_t               n_out;
+      Py_BEGIN_ALLOW_THREADS
+        n_out = mpsk_receiver_bits (self->handle, _ng0, _ng1, _ng2, _cap);
+      Py_END_ALLOW_THREADS
+      Py_DECREF (x_arr);
+      npy_intp  _odim  = (npy_intp)n_out;
+      PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_UINT8,
+                                                    PyArray_DATA (out_arr));
+      if (!_oview)
+        {
+          Py_DECREF (out_arr);
+          return NULL;
+        }
+      PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
+      return _oview;
+    }
   size_t _need = (size_t)PyArray_SIZE (x_arr);
   if (!self->_bits_buf || self->_bits_buf_cap < _need)
     {
@@ -270,7 +433,7 @@ MpskReceiverObj_bits (MpskReceiverObject *self, PyObject *args)
     n_out = mpsk_receiver_bits (self->handle, _ng0, _ng1, self->_bits_buf,
                                 self->_bits_buf_cap);
   Py_END_ALLOW_THREADS
-  /* independent numpy-owned array per call (see steps(); gh-219). */
+  /* Independent per-call copy — same aliasing rationale as steps(). */
   npy_intp  dim = (npy_intp)n_out;
   PyObject *arr = PyArray_SimpleNew (1, &dim, NPY_UINT8);
   if (!arr)
@@ -278,8 +441,7 @@ MpskReceiverObj_bits (MpskReceiverObject *self, PyObject *args)
       Py_DECREF (x_arr);
       return NULL;
     }
-  memcpy (PyArray_DATA ((PyArrayObject *)arr), self->_bits_buf,
-          (size_t)n_out * sizeof (uint8_t));
+  memcpy (PyArray_DATA ((PyArrayObject *)arr), self->_bits_buf, (size_t)n_out);
   Py_DECREF (x_arr);
   return arr;
 }
@@ -293,6 +455,62 @@ MpskReceiverObj_reset (MpskReceiverObject *self, PyObject *Py_UNUSED (ignored))
       return NULL;
     }
   mpsk_receiver_reset (self->handle);
+  Py_RETURN_NONE;
+}
+
+static PyObject *
+MpskReceiverObj_state_bytes (MpskReceiverObject *self,
+                             PyObject           *Py_UNUSED (ignored))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromSize_t (mpsk_receiver_state_bytes (self->handle));
+}
+
+static PyObject *
+MpskReceiverObj_get_state (MpskReceiverObject *self,
+                           PyObject           *Py_UNUSED (ignored))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  size_t    _n = mpsk_receiver_state_bytes (self->handle);
+  PyObject *_b = PyBytes_FromStringAndSize (NULL, (Py_ssize_t)_n);
+  if (!_b)
+    return NULL;
+  mpsk_receiver_get_state (self->handle, PyBytes_AS_STRING (_b));
+  return _b;
+}
+
+static PyObject *
+MpskReceiverObj_set_state (MpskReceiverObject *self, PyObject *arg)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  if (!PyBytes_Check (arg))
+    {
+      PyErr_SetString (PyExc_TypeError, "set_state expects bytes");
+      return NULL;
+    }
+  if ((size_t)PyBytes_GET_SIZE (arg)
+      != mpsk_receiver_state_bytes (self->handle))
+    {
+      PyErr_SetString (PyExc_ValueError, "state blob size mismatch");
+      return NULL;
+    }
+  if (mpsk_receiver_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
+    {
+      PyErr_SetString (PyExc_ValueError, "set_state rejected the blob");
+      return NULL;
+    }
   Py_RETURN_NONE;
 }
 static PyObject *
@@ -436,65 +654,28 @@ MpskReceiverObj_exit (MpskReceiverObject *self, PyObject *args)
   Py_RETURN_NONE;
 }
 
-static PyObject *
-MpskReceiverObj_state_bytes (MpskReceiverObject *self,
-                             PyObject           *Py_UNUSED (ignored))
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  return PyLong_FromSize_t (mpsk_receiver_state_bytes (self->handle));
-}
-
-static PyObject *
-MpskReceiverObj_get_state (MpskReceiverObject *self,
-                           PyObject           *Py_UNUSED (ignored))
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  size_t    _n = mpsk_receiver_state_bytes (self->handle);
-  PyObject *_b = PyBytes_FromStringAndSize (NULL, (Py_ssize_t)_n);
-  if (!_b)
-    return NULL;
-  mpsk_receiver_get_state (self->handle, PyBytes_AS_STRING (_b));
-  return _b;
-}
-
-static PyObject *
-MpskReceiverObj_set_state (MpskReceiverObject *self, PyObject *arg)
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  if (!PyBytes_Check (arg))
-    {
-      PyErr_SetString (PyExc_TypeError, "set_state expects bytes");
-      return NULL;
-    }
-  if ((size_t)PyBytes_GET_SIZE (arg)
-      != mpsk_receiver_state_bytes (self->handle))
-    {
-      PyErr_SetString (PyExc_ValueError, "state blob size mismatch");
-      return NULL;
-    }
-  if (mpsk_receiver_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
-    {
-      PyErr_SetString (PyExc_ValueError, "set_state rejected the blob");
-      return NULL;
-    }
-  Py_RETURN_NONE;
-}
-
 static PyMethodDef MpskReceiverObj_methods[] = {
 
-  { "steps", (PyCFunction)MpskReceiverObj_steps, METH_VARARGS,
+  { "set_telemetry", (PyCFunction)(void *)MpskReceiverObj_set_telemetry,
+    METH_VARARGS | METH_KEYWORDS,
+    "set_telemetry(tlm, prefix, decim) -> int\n"
+    "\n"
+    "Attach (or detach) a telemetry context across the receiver. Registers "
+    "the receiver's own \"<prefix>.lock\" probe (the carrier lock EMA, one "
+    "record per emitted symbol) and forwards the attach to the embedded "
+    "symbol-timing loop, which registers \"<prefix>.sync.e\" / "
+    "\"<prefix>.sync.freq\" / \"<prefix>.sync.rate\" — four probes total, all "
+    "thinned by decim.  Passing NULL detaches the receiver and the timing "
+    "loop.  Setup path, never hot; the context is borrowed and must outlive "
+    "the attachment (SPSC rules in telemetry/telemetry.h).\n"
+    "\n"
+    "    >>> import numpy as np\n"
+    "    >>> from doppler import MpskReceiver\n"
+    "    >>> obj = MpskReceiver(4, 8, 4, \"iandd\", 0.35, 8, 0.01, 0.707, "
+    "0.01, 0, 0.5, 0.0, 100, 0)\n"
+    "    >>> obj.set_telemetry(0, 0, 0)\n"
+    "    0\n" },
+  { "steps", (PyCFunction)MpskReceiverObj_steps, METH_VARARGS | METH_KEYWORDS,
     "steps(x) -> ndarray\n"
     "\n"
     "Demodulate a cf32 block and return the recovered M-PSK symbols (one cf32 "
@@ -503,20 +684,23 @@ static PyMethodDef MpskReceiverObj_methods[] = {
     "wipe-off), accumulates a non-data-aided M-th-power I/Q arm at n "
     "dumps/symbol to acquire the carrier with no data and no symbol timing, "
     "matched-filters the de-rotated stream (integrate-and-dump or RRC), and "
-    "runs a Gardner symbol-timing loop. With acq_to_track enabled it "
-    "switches to a lower-jitter decision-directed carrier loop once locked. "
-    "The loop locks to one of m phases (M-fold ambiguity); resolve it with "
+    "runs a Gardner symbol-timing loop. With acq_to_track enabled it switches "
+    "to a lower-jitter decision-directed carrier loop once locked. The loop "
+    "locks to one of m phases (M-fold ambiguity); resolve it with "
     "bits(differential) or a sync word. Read norm_freq for the tracked "
     "carrier and lock for the carrier lock metric.\n"
     "\n"
     "    >>> import numpy as np\n"
     "    >>> from doppler import MpskReceiver\n"
-    "    >>> obj = MpskReceiver(\"iandd\", 4, 8, 4, 0.35, 8, 0.01, 0.707, "
+    "    >>> obj = MpskReceiver(4, 8, 4, \"iandd\", 0.35, 8, 0.01, 0.707, "
     "0.01, 0, 0.5, 0.0, 100, 0)\n"
     "    >>> y = obj.steps(np.zeros(4))\n"
     "    >>> y.dtype\n"
     "    dtype('complex64')\n" },
-  { "bits", (PyCFunction)MpskReceiverObj_bits, METH_VARARGS,
+  { "steps_max_out", (PyCFunction)MpskReceiverObj_steps_max_out, METH_NOARGS,
+    "steps_max_out() -> int\n\nMax output length steps() can produce for the "
+    "current state.\nUse to size the ``out=`` buffer." },
+  { "bits", (PyCFunction)MpskReceiverObj_bits, METH_VARARGS | METH_KEYWORDS,
     "bits(x) -> ndarray\n"
     "\n"
     "Demodulate a cf32 block and return hard Gray-coded bits (log2(m) bytes "
@@ -528,11 +712,14 @@ static PyMethodDef MpskReceiverObj_methods[] = {
     "\n"
     "    >>> import numpy as np\n"
     "    >>> from doppler import MpskReceiver\n"
-    "    >>> obj = MpskReceiver(\"iandd\", 4, 8, 4, 0.35, 8, 0.01, 0.707, "
+    "    >>> obj = MpskReceiver(4, 8, 4, \"iandd\", 0.35, 8, 0.01, 0.707, "
     "0.01, 0, 0.5, 0.0, 100, 0)\n"
     "    >>> y = obj.bits(np.zeros(4))\n"
     "    >>> y.dtype\n"
     "    dtype('uint8')\n" },
+  { "bits_max_out", (PyCFunction)MpskReceiverObj_bits_max_out, METH_NOARGS,
+    "bits_max_out() -> int\n\nMax output length bits() can produce for the "
+    "current state.\nUse to size the ``out=`` buffer." },
   { "reset", (PyCFunction)MpskReceiverObj_reset, METH_NOARGS,
     "reset() -> None\n"
     "\n"
@@ -540,19 +727,19 @@ static PyMethodDef MpskReceiverObj_methods[] = {
     "preserve configuration.\n"
     "\n"
     "    >>> from doppler import MpskReceiver\n"
-    "    >>> obj = MpskReceiver(\"iandd\", 4, 8, 4, 0.35, 8, 0.01, 0.707, "
+    "    >>> obj = MpskReceiver(4, 8, 4, \"iandd\", 0.35, 8, 0.01, 0.707, "
     "0.01, 0, 0.5, 0.0, 100, 0)\n"
     "    >>> obj.reset()\n" },
-  { "destroy", (PyCFunction)MpskReceiverObj_destroy, METH_NOARGS,
-    "Release resources." },
-  { "__enter__", (PyCFunction)MpskReceiverObj_enter, METH_NOARGS, NULL },
-  { "__exit__", (PyCFunction)MpskReceiverObj_exit, METH_VARARGS, NULL },
   { "state_bytes", (PyCFunction)MpskReceiverObj_state_bytes, METH_NOARGS,
     "Serialized state size in bytes." },
   { "get_state", (PyCFunction)MpskReceiverObj_get_state, METH_NOARGS,
     "Serialize the engine's mutable state to bytes." },
   { "set_state", (PyCFunction)MpskReceiverObj_set_state, METH_O,
     "Restore mutable state from a get_state() blob." },
+  { "destroy", (PyCFunction)MpskReceiverObj_destroy, METH_NOARGS,
+    "Release resources." },
+  { "__enter__", (PyCFunction)MpskReceiverObj_enter, METH_NOARGS, NULL },
+  { "__exit__", (PyCFunction)MpskReceiverObj_exit, METH_VARARGS, NULL },
   { NULL }
 };
 

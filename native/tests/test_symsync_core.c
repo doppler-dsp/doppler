@@ -225,12 +225,9 @@ main (void)
   free (rx);
   free (bits);
   free (sym);
-  if (_fails)
-    {
-      fprintf (stderr, "test_symsync_core FAILED (%d)\n", _fails);
-      return 1;
-    }
-  /* serializable state — pointer-free composition resumes whole-struct. */
+  /* serializable state — pointer-free composition resumes whole-struct.
+   * (Moved above the final _fails check: this block used to sit after it,
+   * so its own failures could never fail the test.) */
   {
     float complex rx[256], sym[32];
     for (int i = 0; i < 256; i++)
@@ -248,6 +245,118 @@ main (void)
     symsync_destroy (a);
     symsync_destroy (b);
   }
+
+  /* telemetry attach — three probes per recovered symbol; blobs stay
+   * deterministic (attachment zeroed); a live attachment survives
+   * set_state; detach reverts to the no-op path. */
+  {
+    float complex trx[512], tsym[160];
+    for (int i = 0; i < 512; i++)
+      trx[i] = ((i / 4) % 2 ? 1.0f : -1.0f) + 0.0f * I; /* BPSK, sps=4 */
+    dp_tlm_t        *tlm = dp_tlm_create (1024);
+    symsync_state_t *a
+        = symsync_create (4, 0.01, 0.707, FARROW_CUBIC, SYMSYNC_TED_GARDNER);
+    CHECK (tlm != NULL && a != NULL);
+    CHECK (symsync_set_telemetry (a, tlm, "sync", 1) == DP_OK);
+    CHECK (dp_tlm_lookup (tlm, "sync.e") == a->tlm.id_e);
+    CHECK (dp_tlm_lookup (tlm, "sync.freq") == a->tlm.id_freq);
+    CHECK (dp_tlm_lookup (tlm, "sync.rate") == a->tlm.id_rate);
+
+    size_t n_sym = symsync_steps (a, trx, 512, tsym, 160);
+    CHECK (n_sym > 0);
+    dp_tlm_rec_t recs[512];
+    size_t       n_rec = dp_tlm_read (tlm, recs, 512);
+    CHECK (n_rec == 3 * n_sym); /* e + freq + rate per symbol */
+    CHECK (recs[n_rec - 1].probe == (uint16_t)a->tlm.id_rate);
+    CHECK (recs[n_rec - 1].value == (float)a->rate_est);
+
+    /* Blob determinism: attached vs detached serialize identically. */
+    symsync_state_t *d
+        = symsync_create (4, 0.01, 0.707, FARROW_CUBIC, SYMSYNC_TED_GARDNER);
+    CHECK (d != NULL);
+    *d          = *a;
+    d->tlm.ctx  = NULL;
+    d->tlm.id_e = d->tlm.id_freq = d->tlm.id_rate = 0;
+    uint8_t blob_a[sizeof (dp_state_hdr_t) + sizeof (symsync_state_t)];
+    uint8_t blob_d[sizeof (blob_a)];
+    CHECK (symsync_state_bytes (a) == sizeof (blob_a));
+    symsync_get_state (a, blob_a);
+    symsync_get_state (d, blob_d);
+    CHECK (memcmp (blob_a, blob_d, sizeof (blob_a)) == 0);
+
+    /* Restore into an attached instance keeps the live attachment. */
+    dp_tlm_t        *tlm2 = dp_tlm_create (1024);
+    symsync_state_t *b
+        = symsync_create (4, 0.01, 0.707, FARROW_CUBIC, SYMSYNC_TED_GARDNER);
+    CHECK (tlm2 != NULL && b != NULL);
+    CHECK (symsync_set_telemetry (b, tlm2, "rx.sync", 1) == DP_OK);
+    CHECK (symsync_set_state (b, blob_a) == DP_OK);
+    CHECK (b->rate_est == a->rate_est);
+    CHECK (b->tlm.ctx == tlm2);
+
+    /* Detach: no further records. */
+    CHECK (symsync_set_telemetry (a, NULL, "sync", 1) == DP_OK);
+    (void)symsync_steps (a, trx, 512, tsym, 160);
+    CHECK (dp_tlm_read (tlm, recs, 512) == 0);
+
+    symsync_destroy (d);
+    symsync_destroy (b);
+    symsync_destroy (a);
+    dp_tlm_destroy (tlm2);
+    dp_tlm_destroy (tlm);
+  }
+
+  /* telemetry edge paths: the public per-sample step flushes when
+   * attached; the attached-DTTL block loop emits; a full probe table
+   * fails the attach whole. */
+  {
+    float complex trx2[64], tsym2[32];
+    for (int i = 0; i < 64; i++)
+      trx2[i] = ((i / 4) % 2 ? 1.0f : -1.0f) + 0.0f * I;
+    dp_tlm_t        *tlm = dp_tlm_create (1024);
+    symsync_state_t *a
+        = symsync_create (4, 0.01, 0.707, FARROW_CUBIC, SYMSYNC_TED_DTTL);
+    CHECK (tlm != NULL && a != NULL);
+    CHECK (symsync_set_telemetry (a, tlm, "s", 1) == DP_OK);
+
+    /* Attached DTTL block loop. */
+    size_t       n_sym = symsync_steps (a, trx2, 64, tsym2, 32);
+    dp_tlm_rec_t recs[256];
+    CHECK (dp_tlm_read (tlm, recs, 256) == 3 * n_sym);
+
+    /* Public single-sample step (dispatches + flushes when attached). */
+    float complex y;
+    size_t        n_step_sym = 0;
+    for (int i = 0; i < 64; i++)
+      if (symsync_step (a, trx2[i], &y))
+        n_step_sym++;
+    CHECK (n_step_sym > 0);
+    CHECK (dp_tlm_read (tlm, recs, 256) == 3 * n_step_sym);
+
+    /* Fill the probe table; a fresh attach must fail whole and leave the
+     * object detached. */
+    char pname[DP_TLM_NAME_MAX];
+    for (size_t i = 0; dp_tlm_probe_count (tlm) < DP_TLM_MAX_PROBES; i++)
+      {
+        (void)snprintf (pname, sizeof (pname), "fill%zu", i);
+        (void)dp_tlm_probe (tlm, pname, 1);
+      }
+    symsync_state_t *c
+        = symsync_create (4, 0.01, 0.707, FARROW_CUBIC, SYMSYNC_TED_GARDNER);
+    CHECK (c != NULL);
+    CHECK (symsync_set_telemetry (c, tlm, "full", 1) == DP_ERR_INVALID);
+    CHECK (c->tlm.ctx == NULL);
+
+    symsync_destroy (c);
+    symsync_destroy (a);
+    dp_tlm_destroy (tlm);
+  }
+
+  if (_fails)
+    {
+      fprintf (stderr, "test_symsync_core FAILED (%d)\n", _fails);
+      return 1;
+    }
 
   printf ("test_symsync_core PASSED\n");
   return 0;

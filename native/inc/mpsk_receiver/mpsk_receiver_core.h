@@ -61,6 +61,7 @@
 #include "lo/lo_core.h"
 #include "loop_filter/loop_filter_core.h"
 #include "farrow/farrow_core.h"
+#include "telemetry/telemetry.h"
 #ifdef __cplusplus
 extern "C"
 {
@@ -102,6 +103,13 @@ extern "C"
     int                 have_prev_idx; /**< differential: prev_idx valid.    */
     unsigned            prev_idx;      /**< differential: prev sliced index. */
     float complex       sym_rot;       /**< exp(j*phi0): NDA-grid -> slicer.  */
+    /* Telemetry attachment (the receiver's own "lock" probe; the timing
+     * probes ride the embedded symsync's attachment via the forwarded
+     * attach). NULL ctx = detached. Never serialized: the hand-written
+     * triplet packs children + running fields only. */
+    dp_tlm_t *tlm_ctx;     /**< NULL = detached                    */
+    int32_t   tlm_id_lock; /**< "<prefix>.lock" — carrier lock EMA */
+    int32_t   tlm_pad;
   } mpsk_receiver_state_t;
 
   /**
@@ -190,6 +198,42 @@ extern "C"
   double mpsk_receiver_get_norm_freq (const mpsk_receiver_state_t *state);
   void   mpsk_receiver_set_norm_freq (mpsk_receiver_state_t *state, double val);
   double mpsk_receiver_get_lock (const mpsk_receiver_state_t *state);
+
+  /**
+   * @brief Attach (or detach) a telemetry context across the receiver.
+   * Registers the receiver's own "<prefix>.lock" probe (the carrier lock
+   * EMA, one record per emitted symbol) and forwards the attach to the
+   * embedded symbol-timing loop, which registers "<prefix>.sync.e" /
+   * "<prefix>.sync.freq" / "<prefix>.sync.rate" — four probes total, all
+   * thinned by @p decim.  Passing NULL detaches the receiver and the
+   * timing loop.  Setup path, never hot; the context is borrowed and must
+   * outlive the attachment (SPSC rules in telemetry/telemetry.h).
+   * @param state  Must be non-NULL.
+   * @param tlm    Telemetry context to attach, or NULL to detach.
+   * @param prefix Probe-name prefix, e.g. "rx".
+   * @param decim  Emit every decim-th symbol; >= 1.
+   * @return DP_OK, or DP_ERR_INVALID when the probe table cannot take the
+   *         four probes (the attach fails whole; everything detached).
+   * @code
+   * >>> import numpy as np
+   * >>> from doppler.track import MpskReceiver
+   * >>> from doppler.telemetry import Telemetry
+   * >>> tlm = Telemetry(1 << 12)
+   * >>> rx = MpskReceiver(m=4, sps=4)
+   * >>> rx.set_telemetry(tlm, "rx")
+   * >>> sorted(tlm.probe_names())
+   * ['rx.lock', 'rx.sync.e', 'rx.sync.freq', 'rx.sync.rate']
+   * >>> rng = np.random.default_rng(7)
+   * >>> syms = (1 - 2 * rng.integers(0, 2, 512)).astype(np.complex64)
+   * >>> x = np.repeat(syms, 4)
+   * >>> _ = rx.steps(x)
+   * >>> recs = tlm.read()   # four records per emitted symbol
+   * >>> len(recs) > 0 and len(recs) % 4 == 0
+   * True
+   *
+   * @endcode
+   */
+int mpsk_receiver_set_telemetry(mpsk_receiver_state_t *state, dp_tlm_t * tlm, const char * prefix, uint32_t decim);
   double mpsk_receiver_get_timing_rate (const mpsk_receiver_state_t *state);
   int    mpsk_receiver_get_tracking (const mpsk_receiver_state_t *state);
   int    mpsk_receiver_get_m (const mpsk_receiver_state_t *state);
@@ -199,7 +243,7 @@ extern "C"
  * composition: carrier_nda + symsync + matched-filter children +
  * running tracking/handover state; MF taps restored by create. */
 #define MPSK_RECEIVER_STATE_MAGIC DP_FOURCC ('M','P','S','K')
-#define MPSK_RECEIVER_STATE_VERSION 1u
+#define MPSK_RECEIVER_STATE_VERSION 2u /* v2: symsync child blob grew (tlm) */
 size_t mpsk_receiver_state_bytes (const mpsk_receiver_state_t *state);
 void mpsk_receiver_get_state (const mpsk_receiver_state_t *state, void *blob);
 int mpsk_receiver_set_state (mpsk_receiver_state_t *state, const void *blob);

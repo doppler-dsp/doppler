@@ -238,6 +238,50 @@ SymbolSyncObj_steps (SymbolSyncObject *self, PyObject *args, PyObject *kwds)
 }
 
 static PyObject *
+SymbolSyncObj_set_telemetry (SymbolSyncObject *self, PyObject *args,
+                             PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char  *_kwlist[] = { "tlm", "prefix", "decim", NULL };
+  PyObject     *tlm_obj   = Py_None;
+  const char   *prefix    = NULL;
+  unsigned long decim_raw = 1;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "Os|k", _kwlist, &tlm_obj,
+                                    &prefix, &decim_raw))
+    return NULL;
+  dp_tlm_t *tlm = NULL;
+  if (tlm_obj != Py_None)
+    {
+      PyObject *tlm_cap = tlm_obj;
+      Py_INCREF (tlm_cap);
+      if (!PyCapsule_CheckExact (tlm_cap))
+        {
+          Py_DECREF (tlm_cap);
+          tlm_cap = PyObject_GetAttrString (tlm_obj, "_capsule");
+          if (!tlm_cap)
+            return NULL;
+        }
+      tlm = (dp_tlm_t *)PyCapsule_GetPointer (tlm_cap,
+                                              "doppler.telemetry.dp_tlm");
+      Py_DECREF (tlm_cap);
+      if (!tlm)
+        return NULL;
+    }
+  uint32_t decim = (uint32_t)decim_raw;
+  int      _rc   = symsync_set_telemetry (self->handle, tlm, prefix, decim);
+  if (_rc != 0)
+    {
+      PyErr_Format (PyExc_ValueError, "set_telemetry failed (rc=%d)", _rc);
+      return NULL;
+    }
+  Py_RETURN_NONE;
+}
+
+static PyObject *
 SymbolSyncObj_configure (SymbolSyncObject *self, PyObject *args,
                          PyObject *kwds)
 {
@@ -428,6 +472,25 @@ static PyMethodDef SymbolSyncObj_methods[] = {
   { "steps_max_out", (PyCFunction)SymbolSyncObj_steps_max_out, METH_NOARGS,
     "steps_max_out() -> int\n\nMax output length steps() can produce for the "
     "current state.\nUse to size the ``out=`` buffer." },
+  { "set_telemetry", (PyCFunction)(void *)SymbolSyncObj_set_telemetry,
+    METH_VARARGS | METH_KEYWORDS,
+    "set_telemetry(tlm, prefix, decim) -> int\n"
+    "\n"
+    "Attach (or detach) a telemetry context and register the timing loop's "
+    "probes on it. Registers three probes, emitted once per recovered symbol "
+    "and further thinned by decim: \"<prefix>.e\" (the normalised TED error — "
+    "the loop stress), \"<prefix>.freq\" (the loop-filter control steering "
+    "the timing NCO, fractional rate offset) and \"<prefix>.rate\" (the "
+    "smoothed tracked samples/symbol).  Passing NULL detaches.  Setup path, "
+    "never hot: call before the producer thread starts stepping; the context "
+    "is borrowed and must outlive the attachment (SPSC rules in "
+    "telemetry/telemetry.h).\n"
+    "\n"
+    "    >>> import numpy as np\n"
+    "    >>> from doppler import SymbolSync\n"
+    "    >>> obj = SymbolSync(4, 0.01, 0.707, \"cubic\", \"gardner\")\n"
+    "    >>> obj.set_telemetry(0, 0, 0)\n"
+    "    0\n" },
   { "configure", (PyCFunction)(void *)SymbolSyncObj_configure,
     METH_VARARGS | METH_KEYWORDS,
     "configure(bn, zeta) -> None\n"

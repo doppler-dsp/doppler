@@ -201,6 +201,40 @@ double det_snr(int dwell, double pd_min, double pfa);
 double det_threshold_noncoherent(double pfa, int n_noncoh);
 
 /**
+ * @brief EMA coefficient for a target estimator SNR (DC level in noise).
+ *
+ * Sizes a first-order EMA `y = (1-alpha)*y + alpha*x` that estimates a DC
+ * level from noisy i.i.d. measurements x. Per sample the estimator SNR
+ * (mean^2 / variance) is `snr_in`; the EMA improves it by its variance
+ * reduction `(2-alpha)/alpha`, so the output SNR is
+ * `snr_out = snr_in * (2-alpha)/alpha`. Solving for the coefficient:
+ *
+ *   alpha = 2 * snr_in / (snr_in + snr_out)      (SNRs linear)
+ *
+ * Returns 1.0 (no averaging) when snr_out_db <= snr_in_db. Typical inputs:
+ * a signal-free power reference |n|^2 is exponential (0 dB per sample); a
+ * lock signal at known C/N0 has per-look SNR from its coherent integration
+ * (minus squaring loss), and this picks the smoothing bandwidth that makes
+ * the lock decision variable meet a chosen decision SNR.
+ *
+ * @param snr_in_db   Per-sample estimator SNR, dB (mean^2 / variance).
+ * @param snr_out_db  Desired EMA-output estimator SNR, dB.
+ * @return            EMA coefficient alpha in (0, 1].
+ *
+ * @code
+ * >>> from doppler.detection import det_ema_alpha
+ * >>> det_ema_alpha(0.0, 0.0)      # no gain requested -> no averaging
+ * 1.0
+ * >>> round(1 / det_ema_alpha(0.0, 20.0), 1)   # 20 dB gain ~ 50 looks
+ * 50.5
+ * >>> round(1 / det_ema_alpha(10.0, 30.0), 1)  # same 20 dB gain, shifted
+ * 50.5
+ *
+ * @endcode
+ */
+double det_ema_alpha(double snr_in_db, double snr_out_db);
+
+/**
  * @brief Detection probability for n_noncoh non-coherent looks.
  *
  * Computes Pd = Q_{n_noncoh}(a, threshold) with the non-centrality

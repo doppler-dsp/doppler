@@ -325,7 +325,7 @@ main (void)
     CHECK (dll_get_lock_stat (dn) > 3.0); /* near sqrt(40), not degenerate */
     CHECK (dll_get_noise_est (dn) > 0.0);
     /* configure_lock retunes the threshold; an unreachable one never locks. */
-    dll_configure_lock (dn, 1e9, 20, 1.0 / 1024.0);
+    dll_configure_lock_raw (dn, 1e9, 20, 1.0 / 1024.0);
     CHECK (dll_get_lock_stat (dn) == 0.0); /* retune clears the statistic */
     dll_steps (dn, rx, te * nper, out, te * nper);
     CHECK (dll_get_locked (dn) == 0);
@@ -354,6 +354,44 @@ main (void)
     CHECK (b->code != NULL && b->code != a->code); /* code preserved */
     dll_destroy (a);
     dll_destroy (b);
+  }
+
+  /* lock config — pfa face is C-first now: the create-time default is the
+   * precise detection-module threshold (no baked constant), the EMA alpha
+   * comes from the det_ema_alpha estimator-SNR contract, and bad pfa is
+   * rejected without touching the live config. */
+  {
+    uint8_t code[31];
+    for (int i = 0; i < 31; i++)
+      code[i] = (uint8_t)(i & 1);
+    dll_state_t *d = dll_create (code, 31, 2, 0.0, 0.01, 0.707, 0.5, 1);
+    CHECK (d != NULL);
+    /* create-time default == the exact caller-path config */
+    CHECK (d->lock_thresh == det_threshold_noncoherent (1e-3, 20));
+    CHECK (fabs (d->lock_alpha - 1.0 / 1024.0) < 1e-15); /* auto floor */
+
+    /* auto derivation follows 1/alpha = max(32*N, 1024) */
+    CHECK (dll_configure_lock (d, 1e-3, 64, 0.0) == DP_OK);
+    CHECK (fabs (d->lock_alpha - 1.0 / 2048.0) < 1e-15);
+    CHECK (d->n_looks == 64);
+
+    /* explicit reference SNR overrides the auto sizing */
+    CHECK (dll_configure_lock (d, 1e-2, 20, 20.0) == DP_OK);
+    CHECK (fabs (d->lock_alpha - 2.0 / 101.0) < 1e-15);
+    CHECK (d->lock_thresh == det_threshold_noncoherent (1e-2, 20));
+
+    /* bad pfa: rejected whole, live config untouched */
+    double thr = d->lock_thresh, alp = d->lock_alpha;
+    CHECK (dll_configure_lock (d, 0.0, 20, 0.0) == DP_ERR_INVALID);
+    CHECK (dll_configure_lock (d, 1.0, 20, 0.0) == DP_ERR_INVALID);
+    CHECK (dll_configure_lock (d, -1.0, 20, 0.0) == DP_ERR_INVALID);
+    CHECK (d->lock_thresh == thr && d->lock_alpha == alp);
+
+    /* n_looks = 0 clamps to 1 (auto floor still applies) */
+    CHECK (dll_configure_lock (d, 1e-3, 0, 0.0) == DP_OK);
+    CHECK (d->n_looks == 1);
+    CHECK (fabs (d->lock_alpha - 1.0 / 1024.0) < 1e-15);
+    dll_destroy (d);
   }
 
   /* telemetry attach — three records per code epoch in both the coherent

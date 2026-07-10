@@ -197,6 +197,24 @@ main (void)
     CHECK (CLOSE (sp4, sa4 * sa4, 1e-8));
   }
 
+  /* ── det_ema_alpha ───────────────────────────────────────────────── */
+  {
+    /* No gain requested (or possible): no averaging. */
+    CHECK (det_ema_alpha (0.0, 0.0) == 1.0);
+    CHECK (det_ema_alpha (10.0, 5.0) == 1.0);
+
+    /* alpha = 2*gin/(gin+gout): 20 dB gain -> 1/alpha = 50.5 regardless
+       of where the pair sits on the dB axis (only the gain matters). */
+    double a20 = det_ema_alpha (0.0, 20.0);
+    CHECK (CLOSE (1.0 / a20, 50.5, 1e-9));
+    CHECK (CLOSE (det_ema_alpha (10.0, 30.0), a20, 1e-12));
+
+    /* The forward relation holds: SNR_out = SNR_in * (2 - a) / a. */
+    double a    = det_ema_alpha (3.0, 27.0);
+    double gain = (2.0 - a) / a;
+    CHECK (CLOSE (10.0 * log10 (gain), 24.0, 1e-9));
+  }
+
   if (_fails)
     {
       fprintf (stderr, "test_detection_core FAILED (%d)\n", _fails);

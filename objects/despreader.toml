@@ -5,12 +5,15 @@ mutable = "false"
 no_state = "true"
 no_step = "true"
 class_name = "Despreader"
+# detection: dll_core's configure_lock now derives the CFAR threshold via
+# det_threshold_noncoherent, so anything linking dll_core links detection_core.
 depends_on = [
   { name = "costas", link = true },
   { name = "dll", link = true },
   { name = "lo", link = true },
   { name = "loop_filter", link = true },
   { name = "telemetry", link = true },
+  { name = "detection", link = true },
 ]
 serializable = "true"
 

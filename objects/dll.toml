@@ -80,10 +80,15 @@ params = [{ name = "bn", type = "double" }, { name = "zeta", type = "double" }]
 
 [[dll.methods]]
 name = "configure_lock"
-doc = "Tune the always-on code-lock detector to a target (pfa, n_looks). The detector reuses acquisition's non-coherent statistic R = sqrt(2*sum|P|^2 / E|O|^2), where the prompt powers of n_looks consecutive looks are summed and E|O|^2 is an EMA of a random off-peak (noise) correlation re-drawn each epoch; it declares lock when R exceeds det_threshold_noncoherent(pfa, n_looks). Size n_looks with detection.det_n_noncoh(snr, ...) for your operating C/N0. The default is pfa=1e-3 over 20 looks. Read the result from the locked / lock_stat / noise_est properties."
+doc = "Tune the always-on code-lock detector to a target (pfa, n_looks). The detector reuses acquisition's non-coherent statistic R = sqrt(2*sum|P|^2 / E|O|^2), where the prompt powers of n_looks consecutive looks are summed and E|O|^2 is an EMA of a random off-peak (noise) correlation re-drawn each epoch; it declares lock when R exceeds det_threshold_noncoherent(pfa, n_looks). Size n_looks with detection.det_n_noncoh(snr, ...) for your operating C/N0. The EMA bandwidth is sized probabilistically (detection.det_ema_alpha): ref_snr_db sets the noise reference's estimator SNR (mean^2/variance of the EMA output); the default 0.0 derives it from n_looks so the reference's std stays an eighth of the statistic's intrinsic H0 spread, floored at ~33 dB. The default config is pfa=1e-3 over 20 looks. Raises ValueError for pfa outside (0, 1). Read the result from the locked / lock_stat / noise_est properties."
 arg_type = "void"
-return_type = "void"
-params = [{ name = "pfa", type = "double" }, { name = "n_looks", type = "size_t" }]
+return_type = "int"
+status_return = true
+params = [
+  { name = "pfa", type = "double" },
+  { name = "n_looks", type = "size_t" },
+  { name = "ref_snr_db", type = "double", default = "0.0" },
+]
 
 [[dll.methods]]
 name = "reset"

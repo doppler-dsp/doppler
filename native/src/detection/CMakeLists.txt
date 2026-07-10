@@ -1,4 +1,4 @@
-add_library(detection_core OBJECT detection_core.c marcum_q.c det_threshold.c det_pd.c det_dwell.c det_snr.c det_threshold_noncoherent.c det_pd_noncoherent.c det_n_noncoh.c det_threshold_power.c det_pd_power.c det_dwell_power.c det_snr_power.c)
+add_library(detection_core OBJECT detection_core.c marcum_q.c det_threshold.c det_pd.c det_dwell.c det_snr.c det_threshold_noncoherent.c det_ema_alpha.c det_pd_noncoherent.c det_n_noncoh.c det_threshold_power.c det_pd_power.c det_dwell_power.c det_snr_power.c)
 target_include_directories(detection_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc)
 
 if(BUILD_PYTHON)

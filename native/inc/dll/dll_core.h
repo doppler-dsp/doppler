@@ -274,7 +274,7 @@ double dll_get_last_error(const dll_state_t *state);
 size_t dll_get_segments(const dll_state_t *state);
 
 /**
- * @brief Configure the always-on code-lock detector.
+ * @brief Tune the always-on code-lock detector to a target (pfa, n_looks).
  *
  * The DLL carries a lock detector that reuses acquisition's non-coherent test
  * statistic. Every emitted look (a partial in segments mode, or the full-epoch
@@ -285,24 +285,58 @@ size_t dll_get_segments(const dll_state_t *state);
  * `E|O|^2`; the prompt powers of @p n_looks consecutive looks are summed into
  * `S = sum|P_k|^2`, and the detector declares lock when
  *
- *   R = sqrt(2 * S / E|O|^2)  >  @p threshold
+ *   R = sqrt(2 * S / E|O|^2)  >  det_threshold_noncoherent(pfa, n_looks)
  *
- * which under H0 has `P(R > threshold) = marcum_q(n_looks, 0, threshold)` — so a
- * caller sizes @p threshold = det_threshold_noncoherent(pfa, n_looks) and
- * @p n_looks = det_n_noncoh(snr, ...) to meet a target (Pfa, Pd). The threshold
- * is passed in (not derived) so the core stays dependency-free; the Python
- * binding converts a `pfa` via the detection module. The EMA must average many
- * more cells than the test integrates (`1/alpha >> n_looks`) or the noise
- * estimate's own variance inflates Pfa; the binding defaults `1/alpha` to
- * `max(1024, 32*n_looks)`.
+ * which under H0 has `P(R > eta) = marcum_q(n_looks, 0, eta)`. Size
+ * @p n_looks with det_n_noncoh(snr, ...) for the operating C/N0.
+ *
+ * The noise-reference EMA bandwidth is sized probabilistically via
+ * det_ema_alpha(): the signal-free `|O|^2` samples are exponential (0 dB
+ * estimator SNR per sample — a DC level in fluctuation of equal power), and
+ * @p ref_snr_db chooses the EMA output's estimator SNR (mean^2/variance).
+ * Passing 0 derives it from @p n_looks: the reference's relative std is held
+ * to an eighth of the statistic's intrinsic H0 spread (`1/sqrt(N)`), floored
+ * at ~33 dB — which reproduces the classic `1/alpha = max(1024, 32*N)`
+ * sizing exactly, now as a consequence instead of a constant.
+ *
+ * @param state       DLL state.  Must be non-NULL.
+ * @param pfa         Per-decision false-alarm probability, in (0, 1).
+ * @param n_looks     Non-coherent integration depth N (looks); clamped >= 1.
+ * @param ref_snr_db  Noise-reference estimator SNR in dB (> 0), or 0 to
+ *                    derive from @p n_looks as above.
+ * @return DP_OK, or DP_ERR_INVALID when @p pfa is outside (0, 1).
+ * @code
+ * >>> import numpy as np
+ * >>> from doppler.track import Dll
+ * >>> d = Dll(code=np.zeros(31, dtype=np.uint8), sps=2)
+ * >>> d.configure_lock(1e-3, 20)
+ * >>> d.locked
+ * False
+ * >>> d.configure_lock(1e-3, 20, ref_snr_db=20.0)   # ~50-look reference
+ * >>> d.configure_lock(2.0, 20)
+ * Traceback (most recent call last):
+ *     ...
+ * ValueError: configure_lock failed (rc=-4)
+ *
+ * @endcode
+ */
+int dll_configure_lock(dll_state_t *state, double pfa, size_t n_looks, double ref_snr_db);
+
+/**
+ * @brief Set the lock detector's raw (threshold, n_looks, alpha) directly.
+ *
+ * The escape hatch under dll_configure_lock() for a composing C caller that
+ * derives its own threshold/EMA geometry. Re-tuning clears the in-flight
+ * statistic so the next decision uses only looks gathered under the new
+ * config.
  *
  * @param state      DLL state.  Must be non-NULL.
  * @param threshold  CFAR threshold eta on the statistic R.
  * @param n_looks    Non-coherent integration depth N (looks); clamped to >= 1.
  * @param alpha      EMA coefficient for the noise reference, in (0, 1].
  */
-void dll_configure_lock(dll_state_t *state, double threshold, size_t n_looks,
-                        double alpha);
+void dll_configure_lock_raw(dll_state_t *state, double threshold,
+                            size_t n_looks, double alpha);
 
 /** @brief Last lock decision (1 = locked, 0 = not). */
 int dll_get_locked(const dll_state_t *state);

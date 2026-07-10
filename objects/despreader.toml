@@ -10,6 +10,7 @@ depends_on = [
   { name = "dll", link = true },
   { name = "lo", link = true },
   { name = "loop_filter", link = true },
+  { name = "telemetry", link = true },
 ]
 serializable = "true"
 
@@ -81,6 +82,22 @@ variable_output = true
 pass_capacity = true
 nogil = true
 params = [{ name = "x", type = "float _Complex[]" }]
+
+# Telemetry attach (jm gh-432; mirrors objects/mpsk_receiver.toml): a pure
+# forwarder to the embedded loops — "<prefix>.car.lock/.e/.freq" (Costas) +
+# "<prefix>.code.e/.rate/.lock" (DLL), six probes emitted once per code
+# period. None detaches everything; the int status binds -> None with
+# ValueError on failure.
+[[despreader.methods]]
+name = "set_telemetry"
+arg_type = "void"
+return_type = "int"
+status_return = true
+params = [
+  { name = "tlm", type = "dp_tlm_t *", capsule = "doppler.telemetry.dp_tlm", header = "telemetry/telemetry.h" },
+  { name = "prefix", type = "const char *" },
+  { name = "decim", type = "uint32_t", default = "1" },
+]
 
 [[despreader.methods]]
 name = "reset"

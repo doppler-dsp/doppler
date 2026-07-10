@@ -16,6 +16,7 @@
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #define CHECK(cond)                                                           \
   do                                                                          \
@@ -317,6 +318,70 @@ main (void)
     free (rx);
     free (outA);
     free (outB);
+  }
+
+  /* telemetry attach — three records per dumped symbol; blobs stay
+   * attachment-independent and a live attachment survives set_state. */
+  {
+    enum
+    {
+      TS = 16,
+      NS = 64,
+      L  = TS * NS
+    };
+    float complex rx[L], out[NS];
+    dp_tlm_rec_t  recs[512];
+    for (int i = 0; i < L; i++)
+      rx[i] = ((i / (TS * 4)) % 2 ? -1.0f : 1.0f) + 0.0f * I;
+    dp_tlm_t       *tlm = dp_tlm_create (4096);
+    costas_state_t *c   = costas_create (0.05, 0.707, 0.0, TS, 0.0);
+    CHECK (tlm != NULL && c != NULL);
+    CHECK (costas_set_telemetry (c, tlm, "car", 1) == DP_OK);
+    CHECK (dp_tlm_lookup (tlm, "car.lock") == c->tlm.id_lock);
+    CHECK (dp_tlm_lookup (tlm, "car.e") == c->tlm.id_e);
+    CHECK (dp_tlm_lookup (tlm, "car.freq") == c->tlm.id_freq);
+
+    size_t k = costas_steps (c, rx, L, out, NS);
+    CHECK (k == NS);
+    size_t n_rec = dp_tlm_read (tlm, recs, 512);
+    CHECK (n_rec == 3 * NS); /* lock + e + freq per dumped symbol */
+    /* The last freq record mirrors the tracked NCO frequency. */
+    CHECK (recs[n_rec - 1].value == (float)c->nco.norm_freq);
+
+    /* Blobs zero the attachment (deterministic) and set_state into an
+     * attached instance preserves that instance's live attachment. */
+    size_t sb = costas_state_bytes (c);
+    void  *b1 = malloc (sb), *b2 = malloc (sb);
+    costas_get_state (c, b1);
+    costas_state_t *d = costas_create (0.05, 0.707, 0.0, TS, 0.0);
+    CHECK (d != NULL);
+    CHECK (costas_set_telemetry (d, tlm, "car2", 2) == DP_OK);
+    CHECK (costas_set_state (d, b1) == DP_OK);
+    CHECK (d->tlm.ctx == tlm);
+    CHECK (d->tlm.id_e == dp_tlm_lookup (tlm, "car2.e"));
+    costas_get_state (d, b2);
+    CHECK (memcmp (b1, b2, sb) == 0); /* attachment-independent bytes */
+    free (b1);
+    free (b2);
+    costas_destroy (d);
+
+    /* Detach: probe sites revert to the single-branch cost. */
+    CHECK (costas_set_telemetry (c, NULL, "car", 1) == DP_OK);
+    CHECK (c->tlm.ctx == NULL);
+    (void)costas_steps (c, rx, L, out, NS);
+    CHECK (dp_tlm_read (tlm, recs, 512) == 0);
+
+    /* A full probe table fails the attach whole. */
+    char pname[DP_TLM_NAME_MAX];
+    for (size_t i = 0; dp_tlm_probe_count (tlm) < DP_TLM_MAX_PROBES; i++)
+      {
+        (void)snprintf (pname, sizeof (pname), "fill%zu", i);
+        (void)dp_tlm_probe (tlm, pname, 1);
+      }
+    CHECK (costas_set_telemetry (c, tlm, "nope", 1) == DP_ERR_INVALID);
+    CHECK (c->tlm.ctx == NULL);
+    costas_destroy (c);
+    dp_tlm_destroy (tlm);
   }
 
   if (_fails)

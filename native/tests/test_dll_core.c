@@ -15,6 +15,7 @@
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #define CHECK(cond)                                                           \
   do                                                                          \
@@ -334,13 +335,10 @@ main (void)
     free (code);
   }
 
-  if (_fails)
-    {
-      fprintf (stderr, "test_dll_core FAILED (%d)\n", _fails);
-      return 1;
-    }
   /* serializable state — loop_filter child + correlators resume; the borrowed
-   * code pointer is this instance's, preserved across set_state. */
+   * code pointer is this instance's, preserved across set_state.
+   * (Moved above the final _fails check: this block used to sit after it,
+   * so its own failures could never fail the test.) */
   {
     uint8_t code[31];
     for (int i = 0; i < 31; i++)
@@ -357,6 +355,92 @@ main (void)
     dll_destroy (a);
     dll_destroy (b);
   }
+
+  /* telemetry attach — three records per code epoch in both the coherent
+   * (segments == 1) and partial-correlation (segments > 1) loops; blobs
+   * stay attachment-independent; a live attachment survives set_state. */
+  {
+    uint8_t code[31];
+    for (int i = 0; i < 31; i++)
+      code[i] = (uint8_t)(i & 1);
+    enum
+    {
+      EP  = 62,
+      NEP = 20,
+      L   = EP * NEP
+    };
+    float complex rx[L], out[256];
+    dp_tlm_rec_t  recs[512];
+    for (int i = 0; i < L; i++)
+      rx[i] = (code[(size_t)(i / 2) % 31] & 1u) ? -1.0f : 1.0f;
+    dp_tlm_t    *tlm = dp_tlm_create (4096);
+    dll_state_t *d   = dll_create (code, 31, 2, 0.0, 0.01, 0.707, 0.5, 1);
+    CHECK (tlm != NULL && d != NULL);
+    CHECK (dll_set_telemetry (d, tlm, "code", 1) == DP_OK);
+    CHECK (dp_tlm_lookup (tlm, "code.e") == d->tlm.id_e);
+    CHECK (dp_tlm_lookup (tlm, "code.rate") == d->tlm.id_rate);
+    CHECK (dp_tlm_lookup (tlm, "code.lock") == d->tlm.id_lock);
+
+    size_t k     = dll_steps (d, rx, L, out, 256);
+    size_t n_rec = dp_tlm_read (tlm, recs, 512);
+    CHECK (k > 0 && n_rec == 3 * k); /* e + rate + lock per epoch */
+    /* The final epoch's rate/lock records mirror the tracked state
+     * (flush order per epoch: e, rate, lock). */
+    CHECK (recs[n_rec - 2].value == (float)d->code_rate);
+    CHECK (recs[n_rec - 1].value == (float)d->lock_stat);
+
+    /* segments > 1: the partial loop flushes once per epoch (an epoch is
+     * `segments` emitted partials), through the same literal-tlm split. */
+    dll_state_t *s2 = dll_create (code, 31, 2, 0.0, 0.01, 0.707, 0.5, 2);
+    CHECK (s2 != NULL);
+    CHECK (dll_set_telemetry (s2, tlm, "code2", 1) == DP_OK);
+    size_t k2 = dll_steps (s2, rx, L, out, 256);
+    size_t n2 = dp_tlm_read (tlm, recs, 512);
+    CHECK (k2 > 0 && n2 > 0 && n2 % 3 == 0);
+    CHECK (n2 <= 3 * (k2 / 2 + 1)); /* one flush per epoch, not per partial */
+    dll_destroy (s2);
+
+    /* Blobs zero the attachment (deterministic) and set_state into an
+     * attached instance preserves that instance's live attachment. */
+    size_t sb = dll_state_bytes (d);
+    void  *b1 = malloc (sb), *b2 = malloc (sb);
+    dll_get_state (d, b1);
+    dll_state_t *d3 = dll_create (code, 31, 2, 0.0, 0.01, 0.707, 0.5, 1);
+    CHECK (d3 != NULL);
+    CHECK (dll_set_telemetry (d3, tlm, "code3", 2) == DP_OK);
+    CHECK (dll_set_state (d3, b1) == DP_OK);
+    CHECK (d3->tlm.ctx == tlm);
+    CHECK (d3->tlm.id_e == dp_tlm_lookup (tlm, "code3.e"));
+    dll_get_state (d3, b2);
+    CHECK (memcmp (b1, b2, sb) == 0); /* attachment-independent bytes */
+    free (b1);
+    free (b2);
+    dll_destroy (d3);
+
+    /* Detach: probe sites revert to the single-branch cost. */
+    CHECK (dll_set_telemetry (d, NULL, "code", 1) == DP_OK);
+    CHECK (d->tlm.ctx == NULL);
+    (void)dll_steps (d, rx, L, out, 256);
+    CHECK (dp_tlm_read (tlm, recs, 512) == 0);
+
+    /* A full probe table fails the attach whole. */
+    char pname[DP_TLM_NAME_MAX];
+    for (size_t i = 0; dp_tlm_probe_count (tlm) < DP_TLM_MAX_PROBES; i++)
+      {
+        (void)snprintf (pname, sizeof (pname), "fill%zu", i);
+        (void)dp_tlm_probe (tlm, pname, 1);
+      }
+    CHECK (dll_set_telemetry (d, tlm, "nope", 1) == DP_ERR_INVALID);
+    CHECK (d->tlm.ctx == NULL);
+    dll_destroy (d);
+    dp_tlm_destroy (tlm);
+  }
+
+  if (_fails)
+    {
+      fprintf (stderr, "test_dll_core FAILED (%d)\n", _fails);
+      return 1;
+    }
 
   printf ("test_dll_core PASSED\n");
   return 0;

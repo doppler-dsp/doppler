@@ -28,6 +28,7 @@ despreader_init (despreader_state_t *ch, const uint8_t *code, size_t code_len,
   costas_init (&ch->car, bn_carrier, zeta, init_norm_freq, tsamps, bn_fll);
   dll_init (&ch->code, code, code_len, sps, init_chip, bn_code, zeta, spacing);
   ch->code_copy       = NULL;
+  ch->tlm_ctx         = NULL; /* start detached (stack-embed safe) */
   ch->periods_per_bit = periods_per_bit ? periods_per_bit : 1;
   ch->flip_hist       = NULL;
   if (ch->periods_per_bit > 1)
@@ -76,6 +77,46 @@ despreader_reset (despreader_state_t *state)
   costas_reset (&state->car);
   dll_reset (&state->code);
   bitsync_reset (state);
+}
+
+int
+despreader_set_telemetry (despreader_state_t *state, dp_tlm_t *tlm,
+                          const char *prefix, uint32_t decim)
+{
+  if (!tlm) /* detach both embedded loops */
+    {
+      state->tlm_ctx = NULL;
+      (void)costas_set_telemetry (&state->car, NULL, prefix, decim);
+      (void)dll_set_telemetry (&state->code, NULL, prefix, decim);
+      return DP_OK;
+    }
+  const char *p = prefix ? prefix : "ch";
+  char        name[DP_TLM_NAME_MAX];
+  /* Pure forwarder: the carrier loop under "<prefix>.car", the code loop
+   * under "<prefix>.code"; if the second registration fails the first is
+   * unwound so nothing is left half-armed. */
+  (void)snprintf (name, sizeof (name), "%s.car", p);
+  int rc = costas_set_telemetry (&state->car, tlm, name, decim);
+  if (rc != DP_OK)
+    return rc;
+  (void)snprintf (name, sizeof (name), "%s.code", p);
+  rc = dll_set_telemetry (&state->code, tlm, name, decim);
+  if (rc != DP_OK)
+    {
+      (void)costas_set_telemetry (&state->car, NULL, p, decim);
+      return rc;
+    }
+  state->tlm_ctx = tlm; /* the block loops gate on this */
+  return DP_OK;
+}
+
+/* Emit both loops' telemetry for the code period just closed. Out-of-line
+ * on purpose (see the hoisted split in despreader_steps). */
+static void
+despreader_tlm_flush_ (const despreader_state_t *ch)
+{
+  costas_tlm_flush (&ch->car);
+  dll_tlm_flush (&ch->code);
 }
 
 /* Serializable state — costas + dll children as nested sub-blobs, then the
@@ -155,11 +196,33 @@ despreader_steps (despreader_state_t *state, const float complex *x,
                   size_t x_len, float complex *out, size_t max_out)
 {
   size_t emitted = 0;
-  for (size_t n = 0; n < x_len; n++)
+  /* The telemetry check is hoisted to loop entry (attach is setup-time
+   * only — SPSC contract), so the detached loop contains NO call site:
+   * an extern call inside the loop forces the compiler to assume every
+   * state field is clobbered per iteration, spilling the register-cached
+   * correlator/NCO hot state (measured ~20% slower detached on the
+   * symsync loops even though the call never executed). */
+  if (!state->tlm_ctx)
     {
-      float complex prompt;
-      if (process_sample (state, x[n], &prompt) && emitted < max_out)
-        out[emitted++] = prompt;
+      for (size_t n = 0; n < x_len; n++)
+        {
+          float complex prompt;
+          if (process_sample (state, x[n], &prompt) && emitted < max_out)
+            out[emitted++] = prompt;
+        }
+    }
+  else
+    {
+      for (size_t n = 0; n < x_len; n++)
+        {
+          float complex prompt;
+          if (process_sample (state, x[n], &prompt))
+            {
+              if (emitted < max_out)
+                out[emitted++] = prompt;
+              despreader_tlm_flush_ (state);
+            }
+        }
     }
   return emitted;
 }
@@ -223,11 +286,16 @@ despreader_bits (despreader_state_t *state, const float complex *x,
                  size_t x_len, uint8_t *out, size_t max_out)
 {
   size_t emitted = 0;
+  /* Guarded in-loop flush (not the steps() split): this loop already
+   * makes a per-period call (bit_sync), so there is no pristine
+   * register-resident fast path to protect. */
   for (size_t n = 0; n < x_len; n++)
     {
       float complex prompt;
       if (!process_sample (state, x[n], &prompt))
         continue;
+      if (state->tlm_ctx)
+        despreader_tlm_flush_ (state);
       uint8_t bit;
       if (bit_sync (state, prompt, &bit) && emitted < max_out)
         out[emitted++] = bit;

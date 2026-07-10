@@ -9,6 +9,7 @@ serializable = "true"
 depends_on = [
   { name = "lo", link = true },
   { name = "loop_filter", link = true },
+  { name = "telemetry", link = true },
 ]
 
 [[costas.init_params]]
@@ -45,6 +46,21 @@ variable_output = true
 pass_capacity = true
 nogil = true
 params = [{ name = "x", type = "float _Complex[]" }]
+
+# Telemetry attach (jm gh-432; mirrors objects/symsync.toml): registers
+# "<prefix>.lock" / "<prefix>.e" / "<prefix>.freq", emitted once per dumped
+# symbol. None detaches; the int status binds -> None with ValueError on
+# failure.
+[[costas.methods]]
+name = "set_telemetry"
+arg_type = "void"
+return_type = "int"
+status_return = true
+params = [
+  { name = "tlm", type = "dp_tlm_t *", capsule = "doppler.telemetry.dp_tlm", header = "telemetry/telemetry.h" },
+  { name = "prefix", type = "const char *" },
+  { name = "decim", type = "uint32_t", default = "1" },
+]
 
 [[costas.methods]]
 name = "configure"

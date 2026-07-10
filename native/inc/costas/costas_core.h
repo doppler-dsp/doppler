@@ -38,6 +38,7 @@
 #include "jm_perf.h"
 #include "lo/lo_core.h"
 #include "loop_filter/loop_filter_core.h"
+#include "telemetry/telemetry.h"
 #include <math.h>
 #ifdef __cplusplus
 extern "C" {
@@ -47,6 +48,21 @@ extern "C" {
 #define COSTAS_EPS 1e-12f
 /* EMA smoothing for the |Re P|/|P| lock metric (status diagnostic). */
 #define COSTAS_LOCK_ALPHA 0.1
+
+/**
+ * @brief Telemetry attachment: a borrowed context + this object's probe
+ *        ids.  NULL ctx (the default) means detached — every probe site
+ *        is then a single predicted-not-taken branch per symbol.  Zeroed
+ *        in state blobs and preserved across set_state
+ *        (DP_DEFINE_POD_STATE_TLM).
+ */
+typedef struct {
+    dp_tlm_t *ctx;     /**< NULL = detached                        */
+    int32_t id_lock;   /**< "<prefix>.lock" — lock-metric EMA      */
+    int32_t id_e;      /**< "<prefix>.e"    — PLL discriminator    */
+    int32_t id_freq;   /**< "<prefix>.freq" — tracked NCO freq     */
+    int32_t _pad;
+} costas_tlm_t;
 
 /**
  * @brief Costas loop state.
@@ -71,6 +87,7 @@ typedef struct {
     int have_prev;           /**< prev valid (skip FLL on the 1st symbol). */
     double lock_metric;      /**< EMA of |Re P|/|P| (1 = locked).          */
     double last_error;       /**< last PLL discriminator (loop stress).    */
+    costas_tlm_t tlm;        /**< live telemetry attachment; zeroed in blobs */
 } costas_state_t;
 
 /**
@@ -181,11 +198,29 @@ void costas_destroy(costas_state_t *state);
  */
 void costas_reset(costas_state_t *state);
 
+/**
+ * @brief Emit the carrier loop's telemetry records for the symbol just
+ * dumped.
+ *
+ * Out-of-line on purpose: the emit machinery must not inline into a
+ * per-sample hot loop (inlined ring-write expansions bloat the loop body
+ * and an extern call site forces per-iteration state reloads — both
+ * measured ~20% slower detached on other loops). Callers gate on
+ * `s->tlm.ctx` and call this once per dumped symbol. Records
+ * "<prefix>.lock" (the |Re P|/|P| lock-metric EMA), "<prefix>.e" (the
+ * last PLL discriminator — the loop stress) and "<prefix>.freq" (the
+ * tracked NCO frequency, cycles/sample). A composing tracking channel
+ * (the DSSS despreader) calls this from its own per-epoch update.
+ *
+ * @param s  State with a non-NULL tlm.ctx (caller-checked).
+ */
+void costas_tlm_flush(const costas_state_t *s);
+
 /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
  * Pointer-free POD struct (embedded NCO + loop filter + I&D accumulators), so
  * a whole-struct snapshot resumes the loop exactly. */
 #define COSTAS_STATE_MAGIC DP_FOURCC('C', 'S', 'T', 'S')
-#define COSTAS_STATE_VERSION 1u
+#define COSTAS_STATE_VERSION 2u /* v2: telemetry attachment (zeroed) */
 
 /** @brief Serialized-state byte size. */
 size_t costas_state_bytes(const costas_state_t *state);
@@ -205,6 +240,42 @@ double costas_get_lock_metric(const costas_state_t *state);
 double costas_get_last_error(const costas_state_t *state);
 double costas_get_bn_fll(const costas_state_t *state);
 void costas_set_bn_fll(costas_state_t *state, double val);
+
+/**
+ * @brief Attach (or detach) a telemetry context and register the carrier
+ * loop's probes on it.
+ * Registers three probes, emitted once per dumped symbol and further
+ * thinned by decim: "<prefix>.lock" (the |Re P|/|P| lock-metric EMA, 1 =
+ * phase-locked), "<prefix>.e" (the PLL discriminator output — the loop
+ * stress) and "<prefix>.freq" (the tracked NCO frequency, cycles/sample).
+ * Passing NULL detaches.  Setup path, never hot: call before the producer
+ * thread starts stepping; the context is borrowed and must outlive the
+ * attachment (SPSC rules in telemetry/telemetry.h).
+ * @param state  Must be non-NULL.
+ * @param tlm    Telemetry context to attach, or NULL to detach.
+ * @param prefix Probe-name prefix, e.g. "car" or "ch0.car".
+ * @param decim  Emit every decim-th symbol; >= 1.
+ * @return DP_OK, or DP_ERR_INVALID when the probe table cannot take all
+ *         three probes (the attach fails whole; the object stays
+ *         detached).
+ * @code
+ * >>> import numpy as np
+ * >>> from doppler.track import Costas
+ * >>> from doppler.telemetry import Telemetry
+ * >>> tlm = Telemetry(1 << 12)
+ * >>> c = Costas(bn=0.05, zeta=0.707, tsamps=64)
+ * >>> c.set_telemetry(tlm, "car")
+ * >>> sorted(tlm.probe_names())
+ * ['car.e', 'car.freq', 'car.lock']
+ * >>> x = np.ones(64 * 100, dtype=np.complex64)
+ * >>> _ = c.steps(x)
+ * >>> recs = tlm.read()   # three records per dumped symbol
+ * >>> len(recs) == 3 * 100
+ * True
+ *
+ * @endcode
+ */
+int costas_set_telemetry(costas_state_t *state, dp_tlm_t * tlm, const char * prefix, uint32_t decim);
 #ifdef __cplusplus
 }
 #endif

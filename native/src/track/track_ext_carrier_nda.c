@@ -213,6 +213,50 @@ CarrierNdaObj_steps (CarrierNdaObject *self, PyObject *args, PyObject *kwds)
 }
 
 static PyObject *
+CarrierNdaObj_set_telemetry (CarrierNdaObject *self, PyObject *args,
+                             PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char  *_kwlist[] = { "tlm", "prefix", "decim", NULL };
+  PyObject     *tlm_obj   = Py_None;
+  const char   *prefix    = NULL;
+  unsigned long decim_raw = 1;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "Os|k", _kwlist, &tlm_obj,
+                                    &prefix, &decim_raw))
+    return NULL;
+  dp_tlm_t *tlm = NULL;
+  if (tlm_obj != Py_None)
+    {
+      PyObject *tlm_cap = tlm_obj;
+      Py_INCREF (tlm_cap);
+      if (!PyCapsule_CheckExact (tlm_cap))
+        {
+          Py_DECREF (tlm_cap);
+          tlm_cap = PyObject_GetAttrString (tlm_obj, "_capsule");
+          if (!tlm_cap)
+            return NULL;
+        }
+      tlm = (dp_tlm_t *)PyCapsule_GetPointer (tlm_cap,
+                                              "doppler.telemetry.dp_tlm");
+      Py_DECREF (tlm_cap);
+      if (!tlm)
+        return NULL;
+    }
+  uint32_t decim = (uint32_t)decim_raw;
+  int      _rc = carrier_nda_set_telemetry (self->handle, tlm, prefix, decim);
+  if (_rc != 0)
+    {
+      PyErr_Format (PyExc_ValueError, "set_telemetry failed (rc=%d)", _rc);
+      return NULL;
+    }
+  Py_RETURN_NONE;
+}
+
+static PyObject *
 CarrierNdaObj_reset (CarrierNdaObject *self, PyObject *Py_UNUSED (ignored))
 {
   if (!self->handle)
@@ -454,6 +498,28 @@ static PyMethodDef CarrierNdaObj_methods[] = {
   { "steps_max_out", (PyCFunction)CarrierNdaObj_steps_max_out, METH_NOARGS,
     "steps_max_out() -> int\n\nMax output length steps() can produce for the "
     "current state.\nUse to size the ``out=`` buffer." },
+  { "set_telemetry", (PyCFunction)(void *)CarrierNdaObj_set_telemetry,
+    METH_VARARGS | METH_KEYWORDS,
+    "set_telemetry(tlm, prefix, decim) -> int\n"
+    "\n"
+    "Attach (or detach) a telemetry context and register the carrier loop's "
+    "probes on it — including the embedded arm AGC's. Registers three probes "
+    "of its own, emitted once per input sample (this is a sample-rate loop — "
+    "use decim to thin the stream) plus the embedded AGC's "
+    "\"<prefix>.agc.gain_db\" (emitted at the AGC's own amortized gain-update "
+    "rate): \"<prefix>.lock\" (the lock-signal EMA, ~1 when phase-locked), "
+    "\"<prefix>.e\" (the M-th-power phase discriminator — the loop stress) "
+    "and \"<prefix>.freq\" (the tracked carrier frequency, cycles/sample).  "
+    "Passing NULL detaches the loop and the embedded AGC. Setup path, never "
+    "hot: call before the producer thread starts stepping; the context is "
+    "borrowed and must outlive the attachment (SPSC rules in "
+    "telemetry/telemetry.h).\n"
+    "\n"
+    "    >>> import numpy as np\n"
+    "    >>> from doppler import CarrierNda\n"
+    "    >>> obj = CarrierNda(0.01, 0.707, 0.0, 8, 4, 4)\n"
+    "    >>> obj.set_telemetry(0, 0, 0)\n"
+    "    0\n" },
   { "reset", (PyCFunction)CarrierNdaObj_reset, METH_NOARGS,
     "reset() -> None\n"
     "\n"

@@ -14,6 +14,7 @@ target_link_libraries(dsss PRIVATE
     costas_core
     lo_core
     loop_filter_core
+    telemetry_core
     dll_core
     detection_core
     corr2d_core

@@ -17,6 +17,7 @@
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #define CHECK(cond)                                                           \
   do                                                                          \
@@ -270,13 +271,10 @@ main (void)
     free (code);
   }
 
-  if (_fails)
-    {
-      fprintf (stderr, "test_despreader_core FAILED (%d)\n", _fails);
-      return 1;
-    }
   /* serializable state — costas + dll children resume; dll borrows this
-   * despreader's own code copy after restore. */
+   * despreader's own code copy after restore.
+   * (Moved above the final _fails check: this block used to sit after it,
+   * so its own failures could never fail the test.) */
   {
     uint8_t code[31];
     for (int i = 0; i < 31; i++)
@@ -298,6 +296,72 @@ main (void)
     despreader_destroy (a);
     despreader_destroy (b);
   }
+
+  /* telemetry attach — a pure forward to both embedded loops: six records
+   * per code period from steps(), the guarded flush from bits(); detach
+   * and partial-failure unwind cascade through both children. */
+  {
+    uint8_t code[31];
+    for (int i = 0; i < 31; i++)
+      code[i] = (uint8_t)(i & 1);
+    enum
+    {
+      EP  = 62,
+      NEP = 20,
+      L   = EP * NEP
+    };
+    float complex rx[L], sym[64];
+    dp_tlm_rec_t  recs[512];
+    for (int i = 0; i < L; i++)
+      rx[i] = (code[(size_t)(i / 2) % 31] & 1u) ? -1.0f : 1.0f;
+    dp_tlm_t           *tlm = dp_tlm_create (4096);
+    despreader_state_t *ch  = despreader_create (code, 31, 2, 0.0, 0.0, 0.05,
+                                                 0.005, 0.0, 0.707, 0.5, 1);
+    CHECK (tlm != NULL && ch != NULL);
+    CHECK (despreader_set_telemetry (ch, tlm, "ch0", 1) == DP_OK);
+    CHECK (dp_tlm_lookup (tlm, "ch0.car.lock") == ch->car.tlm.id_lock);
+    CHECK (dp_tlm_lookup (tlm, "ch0.code.e") == ch->code.tlm.id_e);
+    CHECK (ch->tlm_ctx == tlm && ch->car.tlm.ctx == tlm
+           && ch->code.tlm.ctx == tlm);
+
+    size_t k     = despreader_steps (ch, rx, L, sym, 64);
+    size_t n_rec = dp_tlm_read (tlm, recs, 512);
+    CHECK (k > 0 && n_rec == 6 * k); /* both loops flush per period */
+
+    /* bits() flushes telemetry too (the guarded in-loop path). */
+    uint8_t bit_out[64];
+    (void)despreader_bits (ch, rx, L, bit_out, 64);
+    CHECK (dp_tlm_read (tlm, recs, 512) > 0);
+
+    /* Detach cascades to both children. */
+    CHECK (despreader_set_telemetry (ch, NULL, "ch0", 1) == DP_OK);
+    CHECK (ch->tlm_ctx == NULL && ch->car.tlm.ctx == NULL
+           && ch->code.tlm.ctx == NULL);
+    (void)despreader_steps (ch, rx, L, sym, 64);
+    CHECK (dp_tlm_read (tlm, recs, 512) == 0);
+
+    /* Partial registration failure unwinds: leave exactly three free
+     * slots — the carrier attach succeeds, the code attach cannot fit,
+     * and the whole attach fails with the carrier detached again. */
+    char pname[DP_TLM_NAME_MAX];
+    for (size_t i = 0;
+         dp_tlm_probe_count (tlm) < (size_t)(DP_TLM_MAX_PROBES - 3); i++)
+      {
+        (void)snprintf (pname, sizeof (pname), "fill%zu", i);
+        (void)dp_tlm_probe (tlm, pname, 1);
+      }
+    CHECK (despreader_set_telemetry (ch, tlm, "nope", 1) == DP_ERR_INVALID);
+    CHECK (ch->tlm_ctx == NULL && ch->car.tlm.ctx == NULL
+           && ch->code.tlm.ctx == NULL);
+    despreader_destroy (ch);
+    dp_tlm_destroy (tlm);
+  }
+
+  if (_fails)
+    {
+      fprintf (stderr, "test_despreader_core FAILED (%d)\n", _fails);
+      return 1;
+    }
 
   printf ("test_despreader_core PASSED\n");
   return 0;

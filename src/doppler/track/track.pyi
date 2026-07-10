@@ -155,6 +155,36 @@ class Costas:
     def steps_max_out(self) -> int:
         """Max output length steps() can produce for the current state."""
 
+    def set_telemetry(self, tlm: object | None, prefix: Any, decim: int = 1) -> None:
+        """Attach (or detach) a telemetry context and register the carrier loop's probes on it. Registers three probes, emitted once per dumped symbol and further thinned by decim: "<prefix>.lock" (the |Re P|/|P| lock-metric EMA, 1 = phase-locked), "<prefix>.e" (the PLL discriminator output — the loop stress) and "<prefix>.freq" (the tracked NCO frequency, cycles/sample). Passing NULL detaches.  Setup path, never hot: call before the producer thread starts stepping; the context is borrowed and must outlive the attachment (SPSC rules in telemetry/telemetry.h).
+
+        Parameters
+        ----------
+        tlm : object | None
+            Telemetry context to attach, or NULL to detach.
+        prefix : Any
+            Probe-name prefix, e.g. "car" or "ch0.car".
+        decim : int
+            Emit every decim-th symbol; >= 1.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.track import Costas
+        >>> from doppler.telemetry import Telemetry
+        >>> tlm = Telemetry(1 << 12)
+        >>> c = Costas(bn=0.05, zeta=0.707, tsamps=64)
+        >>> c.set_telemetry(tlm, "car")
+        >>> sorted(tlm.probe_names())
+        ['car.e', 'car.freq', 'car.lock']
+        >>> x = np.ones(64 * 100, dtype=np.complex64)
+        >>> _ = c.steps(x)
+        >>> recs = tlm.read()   # three records per dumped symbol
+        >>> len(recs) == 3 * 100
+        True
+
+        """
+
     def configure(self, bn: float, zeta: float) -> None:
         """Recompute the loop gains for a new (bn, zeta); preserves the frequency/phase estimate.
 
@@ -249,6 +279,37 @@ class Dll:
 
     def steps_max_out(self) -> int:
         """Max output length steps() can produce for the current state."""
+
+    def set_telemetry(self, tlm: object | None, prefix: Any, decim: int = 1) -> None:
+        """Attach (or detach) a telemetry context and register the code loop's probes on it. Registers three probes, emitted once per code epoch (period) and further thinned by decim: "<prefix>.e" (the early-minus-late envelope discriminator — the loop stress), "<prefix>.rate" (the tracked code rate, chips advanced per nominal chip, ~1.0 at lock) and "<prefix>.lock" (the CFAR lock statistic R; compare against the configured threshold).  Passing NULL detaches.  Setup path, never hot: call before the producer thread starts stepping; the context is borrowed and must outlive the attachment (SPSC rules in telemetry/telemetry.h).
+
+        Parameters
+        ----------
+        tlm : object | None
+            Telemetry context to attach, or NULL to detach.
+        prefix : Any
+            Probe-name prefix, e.g. "code" or "ch0.code".
+        decim : int
+            Emit every decim-th epoch; >= 1.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.track import Dll
+        >>> from doppler.telemetry import Telemetry
+        >>> tlm = Telemetry(1 << 12)
+        >>> code = np.zeros(31, dtype=np.uint8)
+        >>> d = Dll(code=code, sps=2)
+        >>> d.set_telemetry(tlm, "code")
+        >>> sorted(tlm.probe_names())
+        ['code.e', 'code.lock', 'code.rate']
+        >>> x = np.ones(31 * 2 * 50, dtype=np.complex64)
+        >>> _ = d.steps(x)
+        >>> recs = tlm.read()   # three records per code epoch
+        >>> len(recs) > 0 and len(recs) % 3 == 0
+        True
+
+        """
 
     def configure(self, bn: float, zeta: float) -> None:
         """Recompute the loop gains for a new (bn, zeta); preserves the code phase/rate.
@@ -610,6 +671,36 @@ class CarrierNda:
     def steps_max_out(self) -> int:
         """Max output length steps() can produce for the current state."""
 
+    def set_telemetry(self, tlm: object | None, prefix: Any, decim: int = 1) -> None:
+        """Attach (or detach) a telemetry context and register the carrier loop's probes on it — including the embedded arm AGC's. Registers three probes of its own, emitted once per input sample (this is a sample-rate loop — use decim to thin the stream) plus the embedded AGC's "<prefix>.agc.gain_db" (emitted at the AGC's own amortized gain-update rate): "<prefix>.lock" (the lock-signal EMA, ~1 when phase-locked), "<prefix>.e" (the M-th-power phase discriminator — the loop stress) and "<prefix>.freq" (the tracked carrier frequency, cycles/sample).  Passing NULL detaches the loop and the embedded AGC. Setup path, never hot: call before the producer thread starts stepping; the context is borrowed and must outlive the attachment (SPSC rules in telemetry/telemetry.h).
+
+        Parameters
+        ----------
+        tlm : object | None
+            Telemetry context to attach, or NULL to detach.
+        prefix : Any
+            Probe-name prefix, e.g. "car" or "rx.car".
+        decim : int
+            Emit every decim-th sample; >= 1.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.track import CarrierNda
+        >>> from doppler.telemetry import Telemetry
+        >>> tlm = Telemetry(1 << 14)
+        >>> c = CarrierNda(bn=0.01, sps=8, n=4, m=4)
+        >>> c.set_telemetry(tlm, "car", decim=8)
+        >>> sorted(tlm.probe_names())
+        ['car.agc.gain_db', 'car.e', 'car.freq', 'car.lock']
+        >>> x = np.exp(2j * np.pi * 0.005 * np.arange(4096)).astype(np.complex64)
+        >>> _ = c.steps(x)
+        >>> recs = tlm.read()
+        >>> len(recs[recs["probe"] == tlm.probe_id("car.e")]) == 4096 // 8
+        True
+
+        """
+
     def reset(self) -> None:
         """Re-seed the loop to the create-time frequency/phase; preserve config.
         """
@@ -705,7 +796,7 @@ class MpskReceiver:
     def __init__(self, m: int = ..., sps: int = ..., n: int = ..., pulse: Literal["iandd", "rrc"] = "iandd", rrc_beta: float = ..., rrc_span: int = ..., bn_carrier: float = ..., zeta: float = ..., bn_timing: float = ..., acq_to_track: int = ..., lock_thresh: float = ..., init_norm_freq: float = ..., warmup_syms: int = ..., differential: int = ...) -> None: ...
 
     def set_telemetry(self, tlm: object | None, prefix: Any, decim: int = 1) -> None:
-        """Attach (or detach) a telemetry context across the receiver. Registers the receiver's own "<prefix>.lock" probe (the carrier lock EMA, one record per emitted symbol) and forwards the attach to the embedded symbol-timing loop, which registers "<prefix>.sync.e" / "<prefix>.sync.freq" / "<prefix>.sync.rate" — four probes total, all thinned by decim.  Passing NULL detaches the receiver and the timing loop.  Setup path, never hot; the context is borrowed and must outlive the attachment (SPSC rules in telemetry/telemetry.h).
+        """Attach (or detach) a telemetry context across the receiver. Registers the receiver's own "<prefix>.lock" probe (the carrier lock EMA) and forwards the attach to both embedded loops: the carrier loop registers "<prefix>.car.lock" / ".e" / ".freq" (plus its arm AGC's "<prefix>.car.agc.gain_db") and the symbol-timing loop registers "<prefix>.sync.e" / ".freq" / ".rate" — eight probes total, all thinned by decim.  Every probe except the AGC's emits once per recovered symbol (the receiver flushes both loops at the symbol strobe, not at the carrier loop's sample rate); the AGC's emits at its own amortized gain-update rate.  Passing NULL detaches the receiver and both loops.  Setup path, never hot; the context is borrowed and must outlive the attachment (SPSC rules in telemetry/telemetry.h).
 
         Parameters
         ----------
@@ -724,14 +815,16 @@ class MpskReceiver:
         >>> tlm = Telemetry(1 << 12)
         >>> rx = MpskReceiver(m=4, sps=4)
         >>> rx.set_telemetry(tlm, "rx")
-        >>> sorted(tlm.probe_names())
-        ['rx.lock', 'rx.sync.e', 'rx.sync.freq', 'rx.sync.rate']
+        >>> len(tlm.probe_names())
+        8
         >>> rng = np.random.default_rng(7)
         >>> syms = (1 - 2 * rng.integers(0, 2, 512)).astype(np.complex64)
         >>> x = np.repeat(syms, 4)
         >>> _ = rx.steps(x)
-        >>> recs = tlm.read()   # four records per emitted symbol
-        >>> len(recs) > 0 and len(recs) % 4 == 0
+        >>> recs = tlm.read()   # seven records per emitted symbol + AGC
+        >>> n_sync = len(recs[recs["probe"] == tlm.probe_id("rx.sync.e")])
+        >>> n_car = len(recs[recs["probe"] == tlm.probe_id("rx.car.e")])
+        >>> n_sync > 0 and n_sync == n_car
         True
 
         """

@@ -260,8 +260,9 @@ main (void)
     mpsk_receiver_destroy (b);
   }
 
-  /* telemetry attach — the receiver's lock probe + the forwarded symsync
-   * probes: four records per emitted symbol; detach cascades. */
+  /* telemetry attach — the receiver's lock probe + the forwarded carrier
+   * (incl. its arm AGC) and symsync probes: seven records per emitted
+   * symbol plus the AGC's amortized gain records; detach cascades. */
   {
     float complex tx[512], out[80];
     for (int i = 0; i < 512; i++)
@@ -273,18 +274,25 @@ main (void)
     CHECK (tlm != NULL && a != NULL);
     CHECK (mpsk_receiver_set_telemetry (a, tlm, "rx", 1) == DP_OK);
     CHECK (dp_tlm_lookup (tlm, "rx.lock") == a->tlm_id_lock);
+    CHECK (dp_tlm_lookup (tlm, "rx.car.lock") == a->car.tlm.id_lock);
+    CHECK (dp_tlm_lookup (tlm, "rx.car.agc.gain_db")
+           == a->car.agc.tlm.id_gain);
     CHECK (dp_tlm_lookup (tlm, "rx.sync.e") == a->sync.tlm.id_e);
-    CHECK (dp_tlm_probe_count (tlm) == 4);
+    CHECK (dp_tlm_probe_count (tlm) == 8);
 
     size_t n_sym = mpsk_receiver_steps (a, tx, 512, out, 80);
     CHECK (n_sym > 0);
     dp_tlm_rec_t recs[1024];
     size_t       n_rec = dp_tlm_read (tlm, recs, 1024);
-    CHECK (n_rec == 4 * n_sym); /* lock + e + freq + rate per symbol */
+    /* lock + car(lock,e,freq) + sync(e,freq,rate) per symbol, plus one
+     * AGC gain record per amortized update (the arm AGC runs per sample
+     * inside the receiver's hot loop). */
+    CHECK (n_rec == 7 * n_sym + 512 / AGC_DECIM_DEFAULT);
 
-    /* Detach cascades to the embedded timing loop. */
+    /* Detach cascades to both embedded loops (and the AGC). */
     CHECK (mpsk_receiver_set_telemetry (a, NULL, "rx", 1) == DP_OK);
     CHECK (a->tlm_ctx == NULL && a->sync.tlm.ctx == NULL);
+    CHECK (a->car.tlm.ctx == NULL && a->car.agc.tlm.ctx == NULL);
     (void)mpsk_receiver_steps (a, tx, 512, out, 80);
     CHECK (dp_tlm_read (tlm, recs, 1024) == 0);
 
@@ -308,6 +316,23 @@ main (void)
     CHECK (b != NULL);
     CHECK (mpsk_receiver_set_telemetry (b, tlm, "full", 1) == DP_ERR_INVALID);
     CHECK (b->tlm_ctx == NULL);
+
+    /* Partial registration failure unwinds: leave exactly five slots —
+     * the lock probe (1) + carrier forward (4) fit, the timing forward
+     * cannot, and the whole attach fails with the carrier (and its AGC)
+     * detached again. */
+    dp_tlm_t *tlm2 = dp_tlm_create (256);
+    CHECK (tlm2 != NULL);
+    for (size_t i = 0;
+         dp_tlm_probe_count (tlm2) < (size_t)(DP_TLM_MAX_PROBES - 5); i++)
+      {
+        (void)snprintf (pname, sizeof (pname), "fill%zu", i);
+        (void)dp_tlm_probe (tlm2, pname, 1);
+      }
+    CHECK (mpsk_receiver_set_telemetry (b, tlm2, "uw", 1) == DP_ERR_INVALID);
+    CHECK (b->tlm_ctx == NULL && b->car.tlm.ctx == NULL
+           && b->car.agc.tlm.ctx == NULL && b->sync.tlm.ctx == NULL);
+    dp_tlm_destroy (tlm2);
 
     mpsk_receiver_destroy (b);
     mpsk_receiver_destroy (a);

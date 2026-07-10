@@ -15,6 +15,24 @@ ______________________________________________________________________
 
 ### Added
 
+- **Costas + DLL + CarrierNda + Despreader telemetry instrumentation** —
+    every tracking loop now speaks `set_telemetry(tlm, prefix, decim=1)`:
+    Costas registers `"<prefix>.lock"` / `.e` / `.freq` (per dumped
+    symbol), the DLL `"<prefix>.e"` / `.rate` / `.lock` (per code epoch,
+    in both the coherent and partial-correlation loops), CarrierNda
+    `"<prefix>.lock"` / `.e` / `.freq` **plus a forwarded attach to its
+    embedded arm AGC** (`"<prefix>.agc.gain_db"`) — a sample-rate loop, so
+    `decim` is the throttle — and the DSSS Despreader forwards to both of
+    its loops (`"<prefix>.car.*"`, `"<prefix>.code.*"`, per code period).
+    MpskReceiver's forward now also reaches its embedded carrier loop
+    (`"<prefix>.car.*"` incl. the arm AGC — eight probes per attach).
+    Detached cost stays benchmarked at parity via the hoisted-split /
+    literal-parameter patterns (docs/design/telemetry.md §Instrumenting).
+    Blob versions bump (costas v2, dll v2, carrier_nda v3, despreader v2,
+    mpsk_receiver v3): telemetry attachments are zeroed in blobs —
+    including the embedded-AGC attachment inside carrier_nda snapshots —
+    and live attachments survive `set_state`.
+
 - **SymbolSync + MpskReceiver telemetry instrumentation** — the timing
     loop registers `"<prefix>.e"` / `"<prefix>.freq"` / `"<prefix>.rate"`
     (TED error, NCO rate control, tracked samples/symbol), and the MPSK

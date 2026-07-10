@@ -38,6 +38,7 @@
 #include <complex.h>
 #include "lo/lo_core.h"
 #include "loop_filter/loop_filter_core.h"
+#include "telemetry/telemetry.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -62,6 +63,10 @@ typedef struct {
     double bit_acc;       /**< running sum of Re(prompt) over the bit.    */
     int prev_sign;        /**< previous prompt sign (+1/-1).              */
     int have_prev;        /**< prev_sign valid.                           */
+    dp_tlm_t *tlm_ctx;    /**< telemetry gate: non-NULL when the embedded
+                               loops are attached (despreader_set_telemetry);
+                               the probes live on car.tlm / code.tlm. Not
+                               serialized (field-wise triplet skips it).   */
 } despreader_state_t;
 
 /**
@@ -124,11 +129,48 @@ double despreader_get_bn_carrier(const despreader_state_t *state);
 void despreader_set_bn_carrier(despreader_state_t *state, double val);
 double despreader_get_bn_code(const despreader_state_t *state);
 void despreader_set_bn_code(despreader_state_t *state, double val);
+
+/**
+ * @brief Attach (or detach) a telemetry context across the despreader.
+ * Pure forwarder — the despreader registers no probes of its own: the
+ * carrier loop registers "<prefix>.car.lock" / ".e" / ".freq" and the
+ * code loop registers "<prefix>.code.e" / ".rate" / ".lock" — six
+ * probes, all thinned by @p decim and emitted once per code period (the
+ * despreader flushes both loops at its per-period update).  Passing NULL
+ * detaches both loops.  Setup path, never hot; the context is borrowed
+ * and must outlive the attachment (SPSC rules in telemetry/telemetry.h).
+ * @param state  Must be non-NULL.
+ * @param tlm    Telemetry context to attach, or NULL to detach.
+ * @param prefix Probe-name prefix, e.g. "ch0".
+ * @param decim  Emit every decim-th code period; >= 1.
+ * @return DP_OK, or DP_ERR_INVALID when the probe table cannot take all
+ *         six probes (the attach fails whole; everything detached).
+ * @code
+ * >>> import numpy as np
+ * >>> from doppler.dsss import Despreader
+ * >>> from doppler.telemetry import Telemetry
+ * >>> tlm = Telemetry(1 << 12)
+ * >>> code = (np.arange(31) % 2).astype(np.uint8)
+ * >>> ch = Despreader(code=code, sps=4)
+ * >>> ch.set_telemetry(tlm, "ch0")
+ * >>> sorted(tlm.probe_names())
+ * ['ch0.car.e', 'ch0.car.freq', 'ch0.car.lock', 'ch0.code.e', 'ch0.code.lock', 'ch0.code.rate']
+ * >>> chips = 1.0 - 2.0 * (np.arange(31) % 2)
+ * >>> x = np.tile(np.repeat(chips, 4), 40).astype(np.complex64)
+ * >>> _ = ch.steps(x)
+ * >>> recs = tlm.read()   # six records per code period
+ * >>> len(recs) > 0 and len(recs) % 6 == 0
+ * True
+ *
+ * @endcode
+ */
+int despreader_set_telemetry(despreader_state_t *state, dp_tlm_t * tlm, const char * prefix, uint32_t decim);
+
 /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
  * composition: costas + dll children + running bit-sync histogram/state;
  * the owned code copy is restored by create. */
 #define DESPREADER_STATE_MAGIC DP_FOURCC ('D','S','P','R')
-#define DESPREADER_STATE_VERSION 1u
+#define DESPREADER_STATE_VERSION 2u /* v2: child blobs grew (tlm) */
 size_t despreader_state_bytes (const despreader_state_t *state);
 void despreader_get_state (const despreader_state_t *state, void *blob);
 int despreader_set_state (despreader_state_t *state, const void *blob);

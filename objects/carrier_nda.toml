@@ -6,11 +6,15 @@ no_state = "true"
 no_step = "true"
 class_name = "CarrierNda"
 serializable = "true"
+# agc gained link=true with the telemetry attach: agc_set_telemetry is the
+# first EXTERN agc symbol this core references (agc_step is header-inline),
+# so the standalone C test/bench and the .so now need agc_core linked.
 depends_on = [
   { name = "lo", link = true },
   { name = "loop_filter", link = true },
   { name = "boxcar", link = true },
-  { name = "agc" },
+  { name = "agc", link = true },
+  { name = "telemetry", link = true },
 ]
 
 [[carrier_nda.init_params]]
@@ -52,6 +56,22 @@ variable_output = true
 pass_capacity = true
 nogil = true
 params = [{ name = "x", type = "float _Complex[]" }]
+
+# Telemetry attach (jm gh-432; mirrors objects/symsync.toml): registers
+# "<prefix>.lock" / "<prefix>.e" / "<prefix>.freq" plus the embedded arm
+# AGC's "<prefix>.agc.gain_db". This is a sample-rate loop — the probes emit
+# once per input sample; decim is the throttle. None detaches everything;
+# the int status binds -> None with ValueError on failure.
+[[carrier_nda.methods]]
+name = "set_telemetry"
+arg_type = "void"
+return_type = "int"
+status_return = true
+params = [
+  { name = "tlm", type = "dp_tlm_t *", capsule = "doppler.telemetry.dp_tlm", header = "telemetry/telemetry.h" },
+  { name = "prefix", type = "const char *" },
+  { name = "decim", type = "uint32_t", default = "1" },
+]
 
 [[carrier_nda.methods]]
 name = "reset"

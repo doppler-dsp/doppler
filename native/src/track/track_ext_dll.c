@@ -15,9 +15,24 @@
 typedef struct
 {
   PyObject_HEAD dll_state_t *handle;
-  float complex             *_steps_buf;     /* internal scratch for steps */
+  float complex             *_steps_buf; /* pre-allocated output for steps */
   size_t                     _steps_buf_cap; /* allocated capacity for steps */
+  void                     **_steps_retired; /* gh-219 deferred free */
+  size_t                     _steps_retired_n;
+  size_t                     _steps_retired_cap;
 } DllObject;
+
+static void
+DllObj_dealloc (DllObject *self)
+{
+  if (self->handle)
+    dll_destroy (self->handle);
+  free (self->_steps_buf);
+  for (size_t _i = 0; _i < self->_steps_retired_n; _i++)
+    free (self->_steps_retired[_i]);
+  free (self->_steps_retired);
+  Py_TYPE (self)->tp_free ((PyObject *)self);
+}
 
 /* Convert a (pfa, n_looks) target into the core's (threshold, n_looks, alpha)
  * lock config.  The pfa->threshold map is the detection module's non-coherent
@@ -35,15 +50,6 @@ dll_apply_lock_pfa (dll_state_t *handle, double pfa, size_t n_looks)
   if (leff < 1024.0)
     leff = 1024.0;
   dll_configure_lock (handle, thr, n_looks, 1.0 / leff);
-}
-
-static void
-DllObj_dealloc (DllObject *self)
-{
-  if (self->handle)
-    dll_destroy (self->handle);
-  free (self->_steps_buf);
-  Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
 static PyObject *
@@ -111,38 +117,111 @@ DllObj_init (DllObject *self, PyObject *args, PyObject *kwds)
 }
 
 static PyObject *
-DllObj_steps (DllObject *self, PyObject *args)
+DllObj_steps_max_out (DllObject *self, PyObject *Py_UNUSED (ignored))
 {
   if (!self->handle)
     {
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  PyObject      *x_obj = NULL;
-  PyArrayObject *x_arr = NULL;
-  if (!PyArg_ParseTuple (args, "O", &x_obj))
+  return PyLong_FromSize_t (dll_steps_max_out (self->handle));
+}
+
+static PyObject *
+DllObj_steps (DllObject *self, PyObject *args, PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char   *_kwlist[] = { "x", "out", NULL };
+  PyObject      *x_obj     = NULL;
+  PyArrayObject *x_arr     = NULL;
+  PyObject      *out_obj   = NULL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|O", _kwlist, &x_obj,
+                                    &out_obj))
     return NULL;
   x_arr = (PyArrayObject *)PyArray_FROM_OTF (x_obj, NPY_COMPLEX64,
                                              NPY_ARRAY_C_CONTIGUOUS);
   if (!x_arr)
     return NULL;
+  if (out_obj && out_obj != Py_None)
+    {
+      PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
+          out_obj, NPY_COMPLEX64,
+          NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
+      if (!out_arr)
+        {
+          Py_DECREF (x_arr);
+          return NULL;
+        }
+      size_t _cap     = (size_t)PyArray_SIZE (out_arr);
+      size_t _omax    = dll_steps_max_out (self->handle);
+      size_t _min_cap = _omax > (size_t)PyArray_SIZE (x_arr)
+                            ? _omax
+                            : ((size_t)PyArray_SIZE (x_arr));
+      if (_cap < _min_cap)
+        {
+          PyErr_Format (PyExc_ValueError, "out has %zu elements, need >= %zu",
+                        _cap, _min_cap);
+          Py_DECREF (out_arr);
+          Py_DECREF (x_arr);
+          return NULL;
+        }
+      /* nogil: GIL released across the pure-C kernel — sound only when
+       * this object is not shared across threads concurrently (one
+       * object per stream); the kernel touches only this object's
+       * state/buffers and the caller's input. */
+      const float complex *_ng0 = (const float complex *)PyArray_DATA (x_arr);
+      size_t               _ng1 = (size_t)PyArray_SIZE (x_arr);
+      float complex       *_ng2 = (float complex *)PyArray_DATA (out_arr);
+      size_t               n_out;
+      Py_BEGIN_ALLOW_THREADS
+        n_out = dll_steps (self->handle, _ng0, _ng1, _ng2, _cap);
+      Py_END_ALLOW_THREADS
+      Py_DECREF (x_arr);
+      npy_intp  _odim  = (npy_intp)n_out;
+      PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_COMPLEX64,
+                                                    PyArray_DATA (out_arr));
+      if (!_oview)
+        {
+          Py_DECREF (out_arr);
+          return NULL;
+        }
+      PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
+      return _oview;
+    }
   size_t _need = (size_t)PyArray_SIZE (x_arr);
   if (!self->_steps_buf || self->_steps_buf_cap < _need)
     {
-      /* Grow-on-demand internal scratch. The returned array is an independent
-       * copy (below), so no view ever aliases this buffer — a plain realloc is
-       * safe; the old contents are not needed after the kernel runs. */
       size_t _max = dll_steps_max_out (self->handle);
       if (!_max || _max < _need)
         _max = _need;
-      float complex *_tmp
-          = realloc (self->_steps_buf, _max * sizeof (float complex));
+      if (self->_steps_buf
+          && self->_steps_retired_n == self->_steps_retired_cap)
+        {
+          size_t _rcap
+              = self->_steps_retired_cap ? self->_steps_retired_cap * 2 : 4;
+          void **_rt = realloc (self->_steps_retired, _rcap * sizeof (void *));
+          if (!_rt)
+            {
+              Py_DECREF (x_arr);
+              PyErr_NoMemory ();
+              return NULL;
+            }
+          self->_steps_retired     = _rt;
+          self->_steps_retired_cap = _rcap;
+        }
+      float complex *_tmp = malloc (_max * sizeof (float complex));
       if (!_tmp)
         {
           Py_DECREF (x_arr);
           PyErr_NoMemory ();
           return NULL;
         }
+      if (self->_steps_buf)
+        self->_steps_retired[self->_steps_retired_n++] = self->_steps_buf;
       self->_steps_buf     = _tmp;
       self->_steps_buf_cap = _max;
     }
@@ -158,9 +237,10 @@ DllObj_steps (DllObject *self, PyObject *args)
                        self->_steps_buf_cap);
   Py_END_ALLOW_THREADS
   /* NumPy owns the output: an independent array per call, copied from the
-   * internal scratch. A reused/grown scratch buffer must never be exposed as a
-   * view — successive steps() calls would alias the same memory (a streaming
-   * despreader keeps every block), and a realloc would dangle prior views. */
+   * grow-on-demand buffer. Returning a view of _steps_buf would alias across
+   * calls (a same-size next steps() overwrites it in place — a streaming
+   * despreader keeps every block) and dangle on a later grow — the gh-219
+   * hazard; copy out instead (matches MpskReceiver/ddc/lo/nco). */
   npy_intp  dim = (npy_intp)n_out;
   PyObject *arr = PyArray_SimpleNew (1, &dim, NPY_COMPLEX64);
   if (!arr)
@@ -172,6 +252,49 @@ DllObj_steps (DllObject *self, PyObject *args)
           (size_t)n_out * sizeof (float complex));
   Py_DECREF (x_arr);
   return arr;
+}
+
+static PyObject *
+DllObj_set_telemetry (DllObject *self, PyObject *args, PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char  *_kwlist[] = { "tlm", "prefix", "decim", NULL };
+  PyObject     *tlm_obj   = Py_None;
+  const char   *prefix    = NULL;
+  unsigned long decim_raw = 1;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "Os|k", _kwlist, &tlm_obj,
+                                    &prefix, &decim_raw))
+    return NULL;
+  dp_tlm_t *tlm = NULL;
+  if (tlm_obj != Py_None)
+    {
+      PyObject *tlm_cap = tlm_obj;
+      Py_INCREF (tlm_cap);
+      if (!PyCapsule_CheckExact (tlm_cap))
+        {
+          Py_DECREF (tlm_cap);
+          tlm_cap = PyObject_GetAttrString (tlm_obj, "_capsule");
+          if (!tlm_cap)
+            return NULL;
+        }
+      tlm = (dp_tlm_t *)PyCapsule_GetPointer (tlm_cap,
+                                              "doppler.telemetry.dp_tlm");
+      Py_DECREF (tlm_cap);
+      if (!tlm)
+        return NULL;
+    }
+  uint32_t decim = (uint32_t)decim_raw;
+  int      _rc   = dll_set_telemetry (self->handle, tlm, prefix, decim);
+  if (_rc != 0)
+    {
+      PyErr_Format (PyExc_ValueError, "set_telemetry failed (rc=%d)", _rc);
+      return NULL;
+    }
+  Py_RETURN_NONE;
 }
 
 static PyObject *
@@ -222,156 +345,6 @@ DllObj_reset (DllObject *self, PyObject *Py_UNUSED (ignored))
       return NULL;
     }
   dll_reset (self->handle);
-  Py_RETURN_NONE;
-}
-static PyObject *
-Dll_getprop_bn (DllObject *self, void *Py_UNUSED (closure))
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyFloat_FromDouble (dll_get_bn (self->handle));
-}
-static int
-Dll_setprop_bn (DllObject *self, PyObject *value, void *Py_UNUSED (closure))
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return -1;
-    }
-  double v = 0.0;
-  if (!PyArg_Parse (value, "d", &v))
-    return -1;
-  dll_set_bn (self->handle, v);
-  return 0;
-}
-static PyObject *
-Dll_getprop_code_phase (DllObject *self, void *Py_UNUSED (closure))
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyFloat_FromDouble (dll_get_code_phase (self->handle));
-}
-static PyObject *
-Dll_getprop_code_rate (DllObject *self, void *Py_UNUSED (closure))
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyFloat_FromDouble (dll_get_code_rate (self->handle));
-}
-static PyObject *
-Dll_getprop_last_error (DllObject *self, void *Py_UNUSED (closure))
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyFloat_FromDouble (dll_get_last_error (self->handle));
-}
-static PyObject *
-Dll_getprop_segments (DllObject *self, void *Py_UNUSED (closure))
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyLong_FromUnsignedLongLong (
-      (unsigned long long)dll_get_segments (self->handle));
-}
-
-static PyObject *
-Dll_getprop_locked (DllObject *self, void *Py_UNUSED (closure))
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  return PyBool_FromLong (dll_get_locked (self->handle));
-}
-static PyObject *
-Dll_getprop_lock_stat (DllObject *self, void *Py_UNUSED (closure))
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  return PyFloat_FromDouble (dll_get_lock_stat (self->handle));
-}
-static PyObject *
-Dll_getprop_noise_est (DllObject *self, void *Py_UNUSED (closure))
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  return PyFloat_FromDouble (dll_get_noise_est (self->handle));
-}
-
-static PyGetSetDef Dll_getset[] = {
-  { "bn", (getter)Dll_getprop_bn, (setter)Dll_setprop_bn, "Bn.\n", NULL },
-  { "code_phase", (getter)Dll_getprop_code_phase, NULL, "Code phase.\n",
-    NULL },
-  { "code_rate", (getter)Dll_getprop_code_rate, NULL, "Code rate.\n", NULL },
-  { "last_error", (getter)Dll_getprop_last_error, NULL, "Last error.\n",
-    NULL },
-  { "segments", (getter)Dll_getprop_segments, NULL, "Segments.\n", NULL },
-  { "locked", (getter)Dll_getprop_locked, NULL,
-    "True when the code-lock detector's statistic exceeds its CFAR "
-    "threshold.\n",
-    NULL },
-  { "lock_stat", (getter)Dll_getprop_lock_stat, NULL,
-    "Last code-lock test statistic R.\n", NULL },
-  { "noise_est", (getter)Dll_getprop_noise_est, NULL,
-    "CFAR noise-power estimate from the off-peak tap EMA.\n", NULL },
-  { NULL }
-};
-
-static PyObject *
-DllObj_destroy (DllObject *self, PyObject *Py_UNUSED (ignored))
-{
-  if (self->handle)
-    {
-      dll_destroy (self->handle);
-      self->handle = NULL;
-    }
-  Py_RETURN_NONE;
-}
-
-static PyObject *
-DllObj_enter (DllObject *self, PyObject *Py_UNUSED (ignored))
-{
-  Py_INCREF (self);
-  return (PyObject *)self;
-}
-
-static PyObject *
-DllObj_exit (DllObject *self, PyObject *args)
-{
-  (void)args;
-  if (self->handle)
-    {
-      dll_destroy (self->handle);
-      self->handle = NULL;
-    }
   Py_RETURN_NONE;
 }
 
@@ -427,23 +400,175 @@ DllObj_set_state (DllObject *self, PyObject *arg)
     }
   Py_RETURN_NONE;
 }
+static PyObject *
+Dll_getprop_bn (DllObject *self, void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyFloat_FromDouble (dll_get_bn (self->handle));
+}
+static int
+Dll_setprop_bn (DllObject *self, PyObject *value, void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return -1;
+    }
+  double v = 0.0;
+  if (!PyArg_Parse (value, "d", &v))
+    return -1;
+  dll_set_bn (self->handle, v);
+  return 0;
+}
+static PyObject *
+Dll_getprop_code_phase (DllObject *self, void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyFloat_FromDouble (dll_get_code_phase (self->handle));
+}
+static PyObject *
+Dll_getprop_code_rate (DllObject *self, void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyFloat_FromDouble (dll_get_code_rate (self->handle));
+}
+static PyObject *
+Dll_getprop_last_error (DllObject *self, void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyFloat_FromDouble (dll_get_last_error (self->handle));
+}
+static PyObject *
+Dll_getprop_segments (DllObject *self, void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromUnsignedLongLong (
+      (unsigned long long)dll_get_segments (self->handle));
+}
+static PyObject *
+Dll_getprop_locked (DllObject *self, void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyBool_FromLong ((long)(dll_get_locked (self->handle)));
+}
+static PyObject *
+Dll_getprop_lock_stat (DllObject *self, void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyFloat_FromDouble (dll_get_lock_stat (self->handle));
+}
+static PyObject *
+Dll_getprop_noise_est (DllObject *self, void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyFloat_FromDouble (dll_get_noise_est (self->handle));
+}
+
+static PyGetSetDef Dll_getset[] = {
+  { "bn", (getter)Dll_getprop_bn, (setter)Dll_setprop_bn, "Bn.\n", NULL },
+  { "code_phase", (getter)Dll_getprop_code_phase, NULL, "Code phase.\n",
+    NULL },
+  { "code_rate", (getter)Dll_getprop_code_rate, NULL, "Code rate.\n", NULL },
+  { "last_error", (getter)Dll_getprop_last_error, NULL, "Last error.\n",
+    NULL },
+  { "segments", (getter)Dll_getprop_segments, NULL, "Segments.\n", NULL },
+  { "locked", (getter)Dll_getprop_locked, NULL,
+    "True when the code-lock detector's statistic exceeds its CFAR threshold "
+    "(latched at each n_looks-look decision; see configure_lock).\n",
+    NULL },
+  { "lock_stat", (getter)Dll_getprop_lock_stat, NULL,
+    "Last code-lock test statistic R = sqrt(2*sum|P|^2 / E|O|^2); compare "
+    "against det_threshold_noncoherent(pfa, n_looks).\n",
+    NULL },
+  { "noise_est", (getter)Dll_getprop_noise_est, NULL,
+    "Current CFAR noise-power estimate E|O|^2 from the off-peak (noise) tap "
+    "EMA.\n",
+    NULL },
+  { NULL }
+};
+
+static PyObject *
+DllObj_destroy (DllObject *self, PyObject *Py_UNUSED (ignored))
+{
+  if (self->handle)
+    {
+      dll_destroy (self->handle);
+      self->handle = NULL;
+    }
+  Py_RETURN_NONE;
+}
+
+static PyObject *
+DllObj_enter (DllObject *self, PyObject *Py_UNUSED (ignored))
+{
+  Py_INCREF (self);
+  return (PyObject *)self;
+}
+
+static PyObject *
+DllObj_exit (DllObject *self, PyObject *args)
+{
+  (void)args;
+  if (self->handle)
+    {
+      dll_destroy (self->handle);
+      self->handle = NULL;
+    }
+  Py_RETURN_NONE;
+}
 
 static PyMethodDef DllObj_methods[] = {
 
-  { "steps", (PyCFunction)DllObj_steps, METH_VARARGS,
+  { "steps", (PyCFunction)DllObj_steps, METH_VARARGS | METH_KEYWORDS,
     "steps(x) -> ndarray\n"
     "\n"
-    "Correlate a carrier-wiped cf32 block against the local code with "
-    "early/prompt/late taps and steer the code NCO each code period on the "
-    "non-coherent (sum|E|-sum|L|)/(sum|E|+sum|L|) discriminator. With "
-    "segments=1 (default) this is a coherent full-epoch integrate-and-dump: "
-    "one prompt symbol per period. With segments>1 each epoch is split into "
-    "that many sub-epoch partial correlations: it emits that many partial "
-    "prompts per period (a stream at ~segments samples/symbol when the symbol "
-    "rate is near the code rate, for a downstream symbol matched filter + "
-    "SymbolSync) and tracks the code non-coherently across the partials, "
-    "which a data flip cannot collapse (robust to an asynchronous data-symbol "
-    "clock).\n"
+    "Correlate a cf32 block against the local code with early/prompt/late "
+    "taps and steer the code NCO each code period on the non-coherent "
+    "(sum|E|-sum|L|)/(sum|E|+sum|L|) discriminator. With segments=1 (default) "
+    "this is a coherent full-epoch integrate-and-dump: one prompt symbol per "
+    "period. With segments>1 each epoch is split into that many sub-epoch "
+    "partial correlations: it emits that many partial prompts per period (a "
+    "stream at ~segments samples/symbol when the symbol rate is near the code "
+    "rate) and tracks the code non-coherently across the partials, which a "
+    "data flip cannot collapse (robust to an asynchronous data-symbol clock). "
+    "segments>1 is the streaming despreader: it removes the PN code and "
+    "outputs samples. The non-coherent loop is carrier-blind, so it tracks "
+    "with a residual carrier still on the input; carrier recovery (Costas) "
+    "and symbol-timing recovery (SymbolSync) are downstream stages fed from "
+    "the partial output. The output is an independent array per call "
+    "(block-size invariant).\n"
     "\n"
     "    >>> import numpy as np\n"
     "    >>> from doppler import Dll\n"
@@ -452,6 +577,30 @@ static PyMethodDef DllObj_methods[] = {
     "    >>> y = obj.steps(np.zeros(4))\n"
     "    >>> y.dtype\n"
     "    dtype('complex64')\n" },
+  { "steps_max_out", (PyCFunction)DllObj_steps_max_out, METH_NOARGS,
+    "steps_max_out() -> int\n\nMax output length steps() can produce for the "
+    "current state.\nUse to size the ``out=`` buffer." },
+  { "set_telemetry", (PyCFunction)(void *)DllObj_set_telemetry,
+    METH_VARARGS | METH_KEYWORDS,
+    "set_telemetry(tlm, prefix, decim) -> int\n"
+    "\n"
+    "Attach (or detach) a telemetry context and register the code loop's "
+    "probes on it. Registers three probes, emitted once per code epoch "
+    "(period) and further thinned by decim: \"<prefix>.e\" (the "
+    "early-minus-late envelope discriminator — the loop stress), "
+    "\"<prefix>.rate\" (the tracked code rate, chips advanced per nominal "
+    "chip, ~1.0 at lock) and \"<prefix>.lock\" (the CFAR lock statistic R; "
+    "compare against the configured threshold).  Passing NULL detaches.  "
+    "Setup path, never hot: call before the producer thread starts stepping; "
+    "the context is borrowed and must outlive the attachment (SPSC rules in "
+    "telemetry/telemetry.h).\n"
+    "\n"
+    "    >>> import numpy as np\n"
+    "    >>> from doppler import Dll\n"
+    "    >>> obj = Dll(np.zeros(1, dtype=np.uint8), 2, 0.0, 0.01, 0.707, 0.5, "
+    "1)\n"
+    "    >>> obj.set_telemetry(0, 0, 0)\n"
+    "    0\n" },
   { "configure", (PyCFunction)(void *)DllObj_configure,
     METH_VARARGS | METH_KEYWORDS,
     "configure(bn, zeta) -> None\n"
@@ -469,14 +618,14 @@ static PyMethodDef DllObj_methods[] = {
     "configure_lock(pfa, n_looks) -> None\n"
     "\n"
     "Tune the always-on code-lock detector to a target (pfa, n_looks). The "
-    "detector reuses acquisition's non-coherent statistic "
-    "R = sqrt(2*sum|P|^2 / E|O|^2): the prompt powers of n_looks consecutive "
-    "looks are summed and E|O|^2 is an EMA of a random off-peak (noise) "
-    "correlation re-drawn each epoch; it declares lock when R exceeds "
+    "detector reuses acquisition's non-coherent statistic R = sqrt(2*sum|P|^2 "
+    "/ E|O|^2), where the prompt powers of n_looks consecutive looks are "
+    "summed and E|O|^2 is an EMA of a random off-peak (noise) correlation "
+    "re-drawn each epoch; it declares lock when R exceeds "
     "det_threshold_noncoherent(pfa, n_looks). Size n_looks with "
     "detection.det_n_noncoh(snr, ...) for your operating C/N0. The default is "
-    "pfa=1e-3 over 20 looks. Read the result from locked / lock_stat / "
-    "noise_est.\n"
+    "pfa=1e-3 over 20 looks. Read the result from the locked / lock_stat / "
+    "noise_est properties.\n"
     "\n"
     "    >>> import numpy as np\n"
     "    >>> from doppler import Dll\n"
@@ -494,16 +643,16 @@ static PyMethodDef DllObj_methods[] = {
     "    >>> obj = Dll(np.zeros(1, dtype=np.uint8), 2, 0.0, 0.01, 0.707, 0.5, "
     "1)\n"
     "    >>> obj.reset()\n" },
-  { "destroy", (PyCFunction)DllObj_destroy, METH_NOARGS,
-    "Release resources." },
-  { "__enter__", (PyCFunction)DllObj_enter, METH_NOARGS, NULL },
-  { "__exit__", (PyCFunction)DllObj_exit, METH_VARARGS, NULL },
   { "state_bytes", (PyCFunction)DllObj_state_bytes, METH_NOARGS,
     "Serialized state size in bytes." },
   { "get_state", (PyCFunction)DllObj_get_state, METH_NOARGS,
     "Serialize the engine's mutable state to bytes." },
   { "set_state", (PyCFunction)DllObj_set_state, METH_O,
     "Restore mutable state from a get_state() blob." },
+  { "destroy", (PyCFunction)DllObj_destroy, METH_NOARGS,
+    "Release resources." },
+  { "__enter__", (PyCFunction)DllObj_enter, METH_NOARGS, NULL },
+  { "__exit__", (PyCFunction)DllObj_exit, METH_VARARGS, NULL },
   { NULL }
 };
 

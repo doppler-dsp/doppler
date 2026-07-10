@@ -13,6 +13,8 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+## [0.31.0] — 2026-07-10
+
 ### Added
 
 - **`lockdet` — a portable lock detector, and `detection.LockDet`.** The

@@ -73,6 +73,9 @@ main (void)
   CHECK (sub != NULL);
   usleep (SETTLE_US);
 
+  /* A malformed endpoint fails the open cleanly. */
+  CHECK (dp_tlm_sink_open ("not-a-nats-url") == NULL);
+
   dp_tlm_sink_t *sink = dp_tlm_sink_open (ep);
   CHECK (sink != NULL);
   usleep (SETTLE_US);

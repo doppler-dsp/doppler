@@ -32,11 +32,15 @@ Every socket is a **context manager** and releases the GIL while blocked
 waiting on NATS, so receive loops thread cleanly. The sender's
 `sample_type` fixes the NumPy dtype on both ends:
 
-| Constant | dtype               | layout                       |
-| -------- | ------------------- | ---------------------------- |
-| `CF64`   | `numpy.complex128`  | complex I/Q                  |
-| `CF128`  | `numpy.clongdouble` | extended-precision complex   |
-| `CI32`   | `numpy.int32`       | interleaved I/Q, length `2n` |
+| Constant | dtype               | layout                                                        |
+| -------- | ------------------- | ------------------------------------------------------------- |
+| `CF32`   | `numpy.complex64`   | complex I/Q                                                   |
+| `CF64`   | `numpy.complex128`  | complex I/Q                                                   |
+| `CF128`  | `numpy.clongdouble` | extended-precision complex                                    |
+| `CI8`    | `numpy.int8`        | interleaved I/Q, length `2n`                                  |
+| `CI16`   | `numpy.int16`       | interleaved I/Q, length `2n`                                  |
+| `CI32`   | `numpy.int32`       | interleaved I/Q, length `2n`                                  |
+| `TLM16`  | structured rows     | telemetry records, not I/Q ([Telemetry](python-telemetry.md)) |
 
 `recv()` returns `(samples, header)` where `header` is a dict of the decoded
 `dp_header_t` fields (`sample_rate`, `center_freq`, `sample_type`,

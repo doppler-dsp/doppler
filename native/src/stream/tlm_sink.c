@@ -25,16 +25,15 @@ struct dp_tlm_sink
 dp_tlm_sink_t *
 dp_tlm_sink_open (const char *endpoint)
 {
-  dp_pub_t *pub = dp_pub_create (endpoint, TLM16);
-  if (!pub)
-    return NULL;
   dp_tlm_sink_t *s = calloc (1, sizeof (*s));
   if (!s)
+    return NULL;
+  s->pub = dp_pub_create (endpoint, TLM16);
+  if (!s->pub)
     {
-      dp_pub_destroy (pub);
+      free (s); /* bad endpoint / connect failure */
       return NULL;
     }
-  s->pub = pub;
   return s;
 }
 

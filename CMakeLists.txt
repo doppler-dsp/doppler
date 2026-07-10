@@ -474,6 +474,16 @@ install(EXPORT doppler-targets
     NAMESPACE doppler::
     DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/doppler)
 
+# Build-tree export (#380): doppler-config.cmake is generated into the build
+# tree below and includes doppler-targets.cmake from its own directory, but
+# install(EXPORT) only materialises that file at install time — leaving the
+# build tree a false-positive package prefix (config present, targets
+# missing; any find_package pointed at build/ failed at configure). Emit the
+# same export at generate time so `-DDoppler_DIR=<build>` works uninstalled.
+export(EXPORT doppler-targets
+    FILE "${CMAKE_CURRENT_BINARY_DIR}/doppler-targets.cmake"
+    NAMESPACE doppler::)
+
 configure_package_config_file(
     cmake/doppler-config.cmake.in
     "${CMAKE_CURRENT_BINARY_DIR}/doppler-config.cmake"

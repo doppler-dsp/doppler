@@ -41,6 +41,17 @@ ______________________________________________________________________
     instrumentation (AGC first) and the Python `Telemetry` module land in
     follow-up PRs.
 
+### Fixed
+
+- **The build tree is now a valid CMake package prefix** (#380).
+    `doppler-config.cmake` was generated into `build/` but
+    `doppler-targets.cmake` only materialised at install time — so pointing
+    `doppler_DIR` (or `CMAKE_PREFIX_PATH`) at a raw build tree found the
+    config and then failed at configure on the missing targets include. An
+    `export(EXPORT doppler-targets ...)` now emits the same targets file
+    into the build tree at generate time, so
+    `find_package(doppler)` against an uninstalled `build/` works.
+
 ## [0.28.1] — 2026-07-09
 
 ### Added

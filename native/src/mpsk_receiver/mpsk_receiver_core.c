@@ -186,7 +186,10 @@ process_sample (mpsk_receiver_state_t *rx, float complex x, float complex *sym)
     }
   float complex mf = fir_step (rx->mf, d * rx->sym_rot); /* matched filter */
   float complex y;
-  if (!symsync_step (&rx->sync, mf, &y)) /* Gardner symbol timing */
+  /* Literal-Gardner form: the receiver is Gardner-only by design, and the
+   * constant folds the TED branch out of this per-sample path (same hoist
+   * as symsync_steps' specialised loops). */
+  if (!symsync_step_ted (&rx->sync, mf, &y, SYMSYNC_TED_GARDNER))
     return 0;
 
   if (rx->tracking)

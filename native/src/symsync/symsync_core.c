@@ -97,9 +97,25 @@ symsync_steps (symsync_state_t *state, const float complex *x, size_t x_len,
 {
   size_t        emitted = 0;
   float complex y;
-  for (size_t n = 0; n < x_len; n++)
-    if (symsync_step (state, x[n], &y) && emitted < max_out)
-      out[emitted++] = y;
+  /* The TED selection is hoisted out of the hot loop: a literal ted lets
+   * the force-inlined step constant-fold the detector branch, so each
+   * specialised loop body carries exactly one TED. The runtime `s->ted`
+   * branch inside the loop kept both detector bodies live across the
+   * per-sample path and measured ~30% slower at 64k blocks. */
+  if (state->ted == SYMSYNC_TED_DTTL)
+    {
+      for (size_t n = 0; n < x_len; n++)
+        if (symsync_step_ted (state, x[n], &y, SYMSYNC_TED_DTTL)
+            && emitted < max_out)
+          out[emitted++] = y;
+    }
+  else
+    {
+      for (size_t n = 0; n < x_len; n++)
+        if (symsync_step_ted (state, x[n], &y, SYMSYNC_TED_GARDNER)
+            && emitted < max_out)
+          out[emitted++] = y;
+    }
   return emitted;
 }
 

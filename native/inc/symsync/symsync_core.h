@@ -121,8 +121,20 @@ extern "C"
    * @param y_out  Receives the symbol when the return is 1.
    * @return 1 if a symbol was emitted (into @p y_out), 0 otherwise.
    */
+  /**
+   * @brief symsync_step with the TED selection as a parameter.
+   *
+   * The workhorse behind symsync_step()/symsync_steps(). Passing a literal
+   * @p ted (SYMSYNC_TED_GARDNER / SYMSYNC_TED_DTTL) lets the force-inlined
+   * body constant-fold the detector branch away, so a specialised block
+   * loop carries exactly one TED — the runtime `s->ted` branch inside the
+   * 64k-block loop measured ~30% slower (both TED bodies kept live across
+   * the per-sample path). Compositions that hardcode a detector (the MPSK
+   * receiver is Gardner-only) call this directly with the literal.
+   */
   JM_FORCEINLINE JM_HOT int
-  symsync_step (symsync_state_t *s, float complex x, float complex *y_out)
+  symsync_step_ted (symsync_state_t *s, float complex x,
+                    float complex *y_out, int ted)
   {
     const uint32_t HALF = 0x80000000u;
     farrow_push (&s->farrow, x);
@@ -148,7 +160,7 @@ extern "C"
     if (s->have_ontime)
       {
         double num;
-        if (s->ted == SYMSYNC_TED_DTTL)
+        if (ted == SYMSYNC_TED_DTTL)
           num = dttl_ted (s->mid, y, s->prev_ontime);
         else
           {
@@ -177,6 +189,14 @@ extern "C"
       s->have_ontime = 1;
     s->prev_ontime = y;
     return emit;
+  }
+
+  /* Doc comment above ("Per-sample symbol-timing step") describes this
+   * public form; it dispatches on the state's configured detector. */
+  JM_FORCEINLINE JM_HOT int
+  symsync_step (symsync_state_t *s, float complex x, float complex *y_out)
+  {
+    return symsync_step_ted (s, x, y_out, s->ted);
   }
 
   /**

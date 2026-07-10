@@ -19,11 +19,13 @@ typedef struct
   void         **_steps_retired; /* gh-219 deferred free */
   size_t         _steps_retired_n;
   size_t         _steps_retired_cap;
-  uint8_t       *_bits_buf;     /* pre-allocated output for bits */
-  size_t         _bits_buf_cap; /* allocated capacity for bits */
-  void         **_bits_retired; /* gh-219 deferred free */
+  PyObject      *_steps_view_ref; /* gh-437 last returned view */
+  uint8_t       *_bits_buf;       /* pre-allocated output for bits */
+  size_t         _bits_buf_cap;   /* allocated capacity for bits */
+  void         **_bits_retired;   /* gh-219 deferred free */
   size_t         _bits_retired_n;
   size_t         _bits_retired_cap;
+  PyObject      *_bits_view_ref; /* gh-437 last returned view */
 } MpskReceiverObject;
 
 static void
@@ -35,10 +37,12 @@ MpskReceiverObj_dealloc (MpskReceiverObject *self)
   for (size_t _i = 0; _i < self->_steps_retired_n; _i++)
     free (self->_steps_retired[_i]);
   free (self->_steps_retired);
+  Py_XDECREF (self->_steps_view_ref);
   free (self->_bits_buf);
   for (size_t _i = 0; _i < self->_bits_retired_n; _i++)
     free (self->_bits_retired[_i]);
   free (self->_bits_retired);
+  Py_XDECREF (self->_bits_view_ref);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -253,8 +257,22 @@ MpskReceiverObj_steps (MpskReceiverObject *self, PyObject *args,
       PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
       return _oview;
     }
-  size_t _need = (size_t)PyArray_SIZE (x_arr);
-  if (!self->_steps_buf || self->_steps_buf_cap < _need)
+  size_t _need      = (size_t)PyArray_SIZE (x_arr);
+  int    _view_live = 0;
+  if (self->_steps_view_ref)
+    {
+#if PY_VERSION_HEX >= 0x030D0000
+      PyObject *_lv = NULL;
+      if (PyWeakref_GetRef (self->_steps_view_ref, &_lv) == 1)
+        {
+          Py_DECREF (_lv);
+          _view_live = 1;
+        }
+#else
+      _view_live = PyWeakref_GetObject (self->_steps_view_ref) != Py_None;
+#endif
+    }
+  if (!self->_steps_buf || self->_steps_buf_cap < _need || _view_live)
     {
       size_t _max = mpsk_receiver_steps_max_out (self->handle);
       if (!_max || _max < _need)
@@ -297,19 +315,22 @@ MpskReceiverObj_steps (MpskReceiverObject *self, PyObject *args,
     n_out = mpsk_receiver_steps (self->handle, _ng0, _ng1, self->_steps_buf,
                                  self->_steps_buf_cap);
   Py_END_ALLOW_THREADS
-  /* NumPy owns the output: an independent array per call, copied from the
-   * grow-on-demand buffer. Returning a view of _steps_buf would alias across
-   * calls (a same-size next steps() overwrites it in place) and dangle on a
-   * later grow — the gh-219 hazard; copy out instead (matches ddc/lo/nco). */
   npy_intp  dim = (npy_intp)n_out;
-  PyObject *arr = PyArray_SimpleNew (1, &dim, NPY_COMPLEX64);
+  PyObject *arr
+      = PyArray_SimpleNewFromData (1, &dim, NPY_COMPLEX64, self->_steps_buf);
   if (!arr)
+    return NULL;
+  PyArray_SetBaseObject ((PyArrayObject *)arr, (PyObject *)self);
+  Py_INCREF (self);
+  /* gh-437: remember this view — while the caller holds it the next
+   * call retires the buffer instead of reusing it in place. */
+  Py_XDECREF (self->_steps_view_ref);
+  self->_steps_view_ref = PyWeakref_NewRef (arr, NULL);
+  if (!self->_steps_view_ref)
     {
-      Py_DECREF (x_arr);
+      Py_DECREF (arr);
       return NULL;
     }
-  memcpy (PyArray_DATA ((PyArrayObject *)arr), self->_steps_buf,
-          (size_t)n_out * sizeof (float complex));
   Py_DECREF (x_arr);
   return arr;
 }
@@ -390,8 +411,22 @@ MpskReceiverObj_bits (MpskReceiverObject *self, PyObject *args, PyObject *kwds)
       PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
       return _oview;
     }
-  size_t _need = (size_t)PyArray_SIZE (x_arr);
-  if (!self->_bits_buf || self->_bits_buf_cap < _need)
+  size_t _need      = (size_t)PyArray_SIZE (x_arr);
+  int    _view_live = 0;
+  if (self->_bits_view_ref)
+    {
+#if PY_VERSION_HEX >= 0x030D0000
+      PyObject *_lv = NULL;
+      if (PyWeakref_GetRef (self->_bits_view_ref, &_lv) == 1)
+        {
+          Py_DECREF (_lv);
+          _view_live = 1;
+        }
+#else
+      _view_live = PyWeakref_GetObject (self->_bits_view_ref) != Py_None;
+#endif
+    }
+  if (!self->_bits_buf || self->_bits_buf_cap < _need || _view_live)
     {
       size_t _max = mpsk_receiver_bits_max_out (self->handle);
       if (!_max || _max < _need)
@@ -433,15 +468,22 @@ MpskReceiverObj_bits (MpskReceiverObject *self, PyObject *args, PyObject *kwds)
     n_out = mpsk_receiver_bits (self->handle, _ng0, _ng1, self->_bits_buf,
                                 self->_bits_buf_cap);
   Py_END_ALLOW_THREADS
-  /* Independent per-call copy — same aliasing rationale as steps(). */
   npy_intp  dim = (npy_intp)n_out;
-  PyObject *arr = PyArray_SimpleNew (1, &dim, NPY_UINT8);
+  PyObject *arr
+      = PyArray_SimpleNewFromData (1, &dim, NPY_UINT8, self->_bits_buf);
   if (!arr)
+    return NULL;
+  PyArray_SetBaseObject ((PyArrayObject *)arr, (PyObject *)self);
+  Py_INCREF (self);
+  /* gh-437: remember this view — while the caller holds it the next
+   * call retires the buffer instead of reusing it in place. */
+  Py_XDECREF (self->_bits_view_ref);
+  self->_bits_view_ref = PyWeakref_NewRef (arr, NULL);
+  if (!self->_bits_view_ref)
     {
-      Py_DECREF (x_arr);
+      Py_DECREF (arr);
       return NULL;
     }
-  memcpy (PyArray_DATA ((PyArrayObject *)arr), self->_bits_buf, (size_t)n_out);
   Py_DECREF (x_arr);
   return arr;
 }
@@ -522,7 +564,6 @@ MpskReceiver_getprop_norm_freq (MpskReceiverObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyFloat_FromDouble (mpsk_receiver_get_norm_freq (self->handle));
 }
 static int
@@ -548,7 +589,6 @@ MpskReceiver_getprop_lock (MpskReceiverObject *self, void *Py_UNUSED (closure))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyFloat_FromDouble (mpsk_receiver_get_lock (self->handle));
 }
 static PyObject *
@@ -560,7 +600,6 @@ MpskReceiver_getprop_timing_rate (MpskReceiverObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyFloat_FromDouble (mpsk_receiver_get_timing_rate (self->handle));
 }
 static PyObject *
@@ -572,7 +611,6 @@ MpskReceiver_getprop_tracking (MpskReceiverObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromLong ((long)mpsk_receiver_get_tracking (self->handle));
 }
 static PyObject *
@@ -583,7 +621,6 @@ MpskReceiver_getprop_m (MpskReceiverObject *self, void *Py_UNUSED (closure))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromLong ((long)mpsk_receiver_get_m (self->handle));
 }
 static PyObject *
@@ -594,7 +631,6 @@ MpskReceiver_getprop_sps (MpskReceiverObject *self, void *Py_UNUSED (closure))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromUnsignedLongLong (
       (unsigned long long)mpsk_receiver_get_sps (self->handle));
 }
@@ -606,7 +642,6 @@ MpskReceiver_getprop_n (MpskReceiverObject *self, void *Py_UNUSED (closure))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromLong ((long)mpsk_receiver_get_n (self->handle));
 }
 
@@ -661,13 +696,17 @@ static PyMethodDef MpskReceiverObj_methods[] = {
     "set_telemetry(tlm, prefix, decim) -> int\n"
     "\n"
     "Attach (or detach) a telemetry context across the receiver. Registers "
-    "the receiver's own \"<prefix>.lock\" probe (the carrier lock EMA, one "
-    "record per emitted symbol) and forwards the attach to the embedded "
-    "symbol-timing loop, which registers \"<prefix>.sync.e\" / "
-    "\"<prefix>.sync.freq\" / \"<prefix>.sync.rate\" — four probes total, all "
-    "thinned by decim.  Passing NULL detaches the receiver and the timing "
-    "loop.  Setup path, never hot; the context is borrowed and must outlive "
-    "the attachment (SPSC rules in telemetry/telemetry.h).\n"
+    "the receiver's own \"<prefix>.lock\" probe (the carrier lock EMA) and "
+    "forwards the attach to both embedded loops: the carrier loop registers "
+    "\"<prefix>.car.lock\" / \".e\" / \".freq\" (plus its arm AGC's "
+    "\"<prefix>.car.agc.gain_db\") and the symbol-timing loop registers "
+    "\"<prefix>.sync.e\" / \".freq\" / \".rate\" — eight probes total, all "
+    "thinned by decim.  Every probe except the AGC's emits once per recovered "
+    "symbol (the receiver flushes both loops at the symbol strobe, not at the "
+    "carrier loop's sample rate); the AGC's emits at its own amortized "
+    "gain-update rate.  Passing NULL detaches the receiver and both loops.  "
+    "Setup path, never hot; the context is borrowed and must outlive the "
+    "attachment (SPSC rules in telemetry/telemetry.h).\n"
     "\n"
     "    >>> import numpy as np\n"
     "    >>> from doppler import MpskReceiver\n"

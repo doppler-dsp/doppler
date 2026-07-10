@@ -13,6 +13,19 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+### Changed
+
+- **jm pin 0.28.0 → 0.28.1; the hand copy-out exceptions are retired.**
+    jm gh-437 (just-makeit#438) makes the generated `variable_output`
+    view default safe across same-size calls (a still-referenced buffer
+    is retired, never reused in place), so `MpskReceiver.steps`/`bits`
+    and `Dll.steps` regenerate to the declarative default — no
+    hand-patched `PyArray_SimpleNew` + memcpy, and accumulate-chunks
+    callers now get zero-copy views instead of copies. Verified:
+    `test_block_size_invariance` plus explicit accumulated-views ==
+    per-call-copies checks on both objects; the drain-immediately fast
+    path still reuses the buffer in place.
+
 ## [0.30.0] — 2026-07-10
 
 ### Added

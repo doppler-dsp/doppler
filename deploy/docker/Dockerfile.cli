@@ -28,9 +28,22 @@ FROM python:3.12-slim
 ARG DOPPLER_VERSION
 ARG TARGETARCH
 
+# The amd64 install retries with backoff: release.yml's "wait for PyPI"
+# guard polls from the RUNNER, but this pip runs inside the buildx
+# container on a potentially different (not-yet-purged) CDN edge — the
+# v0.29.0 release hit exactly that: the runner saw the version, the
+# build's simple-index shard still ended at the previous release.
 RUN --mount=type=bind,from=source,source=/src,target=/src,rw=true \
     if [ "${TARGETARCH}" = "amd64" ]; then \
-        pip install --no-cache-dir "doppler-dsp[cli,specan-web]==${DOPPLER_VERSION}"; \
+        ok=""; \
+        for i in 1 2 3 4 5 6; do \
+            pip install --no-cache-dir \
+                "doppler-dsp[cli,specan-web]==${DOPPLER_VERSION}" \
+                && { ok=1; break; }; \
+            echo "PyPI index not caught up (attempt $i/6); retrying..."; \
+            sleep 30; \
+        done; \
+        [ -n "$ok" ]; \
     else \
         apt-get update && apt-get install -y --no-install-recommends \
             curl ca-certificates sudo bash \

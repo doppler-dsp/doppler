@@ -30,6 +30,7 @@ if(NOT WIN32)
         target_link_libraries(${_ex} PRIVATE
             doppler_lib_static
             $<TARGET_OBJECTS:stream_core_obj>
+            telemetry_core
             nats_vendor_static
             Threads::Threads m)
         set_target_properties(${_ex} PROPERTIES

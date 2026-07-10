@@ -15,6 +15,20 @@ ______________________________________________________________________
 
 ### Added
 
+- **NATS telemetry egress (`tlm_sink` + `TLM16` wire frames)** — the
+    `dp_tlm_sink_*` helper (`telemetry/tlm_sink.h`, in the optional
+    `libdoppler_stream` component) drains a `dp_tlm_t` ring and publishes
+    the records on a NATS subject as `TLM16` frames — a new
+    `dp_sample_type_t` (appended, wire value 6) whose payload is packed
+    16-byte `dp_tlm_rec_t` rows. `doppler.stream.Subscriber.recv()`
+    decodes a TLM16 frame into the exact structured array
+    `Telemetry.read()` returns, and `Publisher(ep, TLM16).send(recs)`
+    publishes one from Python. The stream package also now re-exports the
+    full sample-type constant set (`CI8`/`CI16`/`CF32` were missing).
+    telemetry_core stays dependency-free; the pump runs on the ring's
+    consumer thread and the path is lossy end-to-end by design. See
+    docs/design/telemetry.md §Egress.
+
 - **Costas + DLL + CarrierNda + Despreader telemetry instrumentation** —
     every tracking loop now speaks `set_telemetry(tlm, prefix, decim=1)`:
     Costas registers `"<prefix>.lock"` / `.e` / `.freq` (per dumped

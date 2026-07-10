@@ -89,6 +89,29 @@ assert gain[-1] > gain[0]  # commanded gain rises toward the reference
 assert tlm.dropped == 0
 ```
 
+## Over the wire — TLM16 frames
+
+Telemetry crosses processes as `TLM16` frames on the NATS wire layer: a
+C pipeline drains its ring with the `dp_tlm_sink_*` helper
+(`telemetry/tlm_sink.h`, in the optional `libdoppler_stream`
+component), and a Python producer publishes `read()` output directly.
+Either way, `Subscriber.recv()` decodes the frame back into the exact
+`read()` dtype:
+
+<!-- docs-snippet: skip=needs a live nats-server on 127.0.0.1:4222 -->
+
+```python
+from doppler.stream import Publisher, Subscriber, TLM16
+
+pub = Publisher("nats://127.0.0.1:4222/tlm", TLM16)
+sub = Subscriber("nats://127.0.0.1:4222/tlm")
+
+pub.send(tlm.read())  # the structured array, verbatim
+recs, hdr = sub.recv(timeout_ms=2000)
+assert hdr["sample_type"] == TLM16
+assert recs.dtype.names == ("n", "value", "probe", "flags")
+```
+
 ## Example — probes, records, decimation
 
 Python-side producers emit named probes through the same ring:

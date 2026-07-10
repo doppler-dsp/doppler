@@ -7,6 +7,7 @@ Python3_add_library(wfm_sink MODULE WITH_SOABI wfm_sink_ext.c)
 target_link_libraries(wfm_sink PRIVATE
     wfm_sink_core
     $<TARGET_OBJECTS:stream_core_obj>
+    telemetry_core
     nats_vendor_static
     Threads::Threads
     m

@@ -15,6 +15,7 @@
 #include <numpy/arrayobject.h>
 
 #include "stream/stream.h"
+#include "telemetry/telemetry.h" /* dp_tlm_rec_t (TLM16 frames) */
 
 /* =========================================================================
  * dpMsgObject — prevents premature dp_msg_free via NumPy base object
@@ -43,6 +44,11 @@ static PyTypeObject dpMsgType = {
   .tp_flags = Py_TPFLAGS_DEFAULT,
   .tp_doc = "Internal dp_msg_t wrapper for zero-copy recv",
 };
+
+/* Structured dtype for TLM16 telemetry frames — the exact dp_tlm_rec_t
+ * layout, matching doppler.telemetry.Telemetry.read(). Built once at
+ * module init. */
+static PyArray_Descr *tlm16_descr = NULL;
 
 /* =========================================================================
  * Shared helpers
@@ -95,6 +101,14 @@ build_recv_result (dp_msg_t *msg, const dp_header_t *hdr)
       dims[0] = (npy_intp)dp_msg_num_samples (msg);
       typenum = NPY_COMPLEX64;
     }
+  else if (st == TLM16)
+    {
+      /* telemetry records: structured rows (n u8 | value f4 | probe u2 |
+       * flags u2), decoded below via the shared descr instead of a plain
+       * typenum. */
+      dims[0] = (npy_intp)dp_msg_num_samples (msg);
+      typenum = -1;
+    }
   else
     {
       Py_DECREF (msg_obj);
@@ -102,8 +116,15 @@ build_recv_result (dp_msg_t *msg, const dp_header_t *hdr)
       return NULL;
     }
 
-  PyObject *arr
-      = PyArray_SimpleNewFromData (1, dims, typenum, dp_msg_data (msg));
+  PyObject *arr;
+  if (st == TLM16)
+    {
+      Py_INCREF (tlm16_descr); /* NewFromDescr steals a reference */
+      arr = PyArray_NewFromDescr (&PyArray_Type, tlm16_descr, 1, dims, NULL,
+                                  dp_msg_data (msg), NPY_ARRAY_DEFAULT, NULL);
+    }
+  else
+    arr = PyArray_SimpleNewFromData (1, dims, typenum, dp_msg_data (msg));
   if (!arr)
     {
       Py_DECREF (msg_obj);
@@ -295,7 +316,7 @@ Publisher_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
                                     &sample_type))
     return NULL;
 
-  if (sample_type < CI32 || sample_type > CF32)
+  if (sample_type < CI32 || sample_type > TLM16)
     {
       PyErr_SetString (PyExc_ValueError, "Invalid sample_type");
       return NULL;
@@ -322,6 +343,42 @@ Publisher_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 static PyObject *
 Publisher_send (PublisherObject *self, PyObject *args, PyObject *kwds)
 {
+  if (self->sample_type == TLM16)
+    {
+      /* Telemetry frames: a structured array of 16-byte records (the
+       * dtype Telemetry.read() returns) published verbatim. PUB-only —
+       * do_send's typed sample dispatch doesn't apply. */
+      PyArrayObject *arr;
+      double         sample_rate = 0.0;
+      double         center_freq = 0.0;
+      static char *kwlist[] = { "samples", "sample_rate", "center_freq",
+                                NULL };
+      if (!PyArg_ParseTupleAndKeywords (args, kwds, "O!|dd", kwlist,
+                                        &PyArray_Type, &arr, &sample_rate,
+                                        &center_freq))
+        return NULL;
+      if (!PyArray_IS_C_CONTIGUOUS (arr)
+          || PyArray_ITEMSIZE (arr) != (npy_intp)sizeof (dp_tlm_rec_t))
+        {
+          PyErr_SetString (PyExc_TypeError,
+                           "samples must be a C-contiguous array of 16-byte "
+                           "telemetry records (Telemetry.read() output)");
+          return NULL;
+        }
+      size_t      n    = (size_t)PyArray_SIZE (arr);
+      const void *data = PyArray_DATA (arr);
+      int         rc;
+      Py_BEGIN_ALLOW_THREADS;
+      rc = dp_pub_send_tlm16 (self->ctx, data, n, sample_rate, center_freq);
+      Py_END_ALLOW_THREADS;
+      if (rc != DP_OK)
+        {
+          PyErr_Format (PyExc_RuntimeError, "send failed: %s",
+                        dp_strerror (rc));
+          return NULL;
+        }
+      Py_RETURN_NONE;
+    }
   return do_send (self->ctx, self->sample_type, (send_ci32_fn)dp_pub_send_ci32,
                   (send_cf64_fn)dp_pub_send_cf64,
                   (send_cf128_fn)dp_pub_send_cf128,
@@ -982,6 +1039,18 @@ PyInit_stream (void)
 {
   import_array ();
 
+  /* TLM16 record dtype: 16 bytes packed, the exact dp_tlm_rec_t layout
+   * (mirrors doppler.telemetry's read() dtype). */
+  PyObject *spec
+      = Py_BuildValue ("[(ss)(ss)(ss)(ss)]", "n", "<u8", "value", "<f4",
+                       "probe", "<u2", "flags", "<u2");
+  if (!spec)
+    return NULL;
+  int descr_ok = PyArray_DescrConverter (spec, &tlm16_descr);
+  Py_DECREF (spec);
+  if (!descr_ok)
+    return NULL;
+
   if (PyType_Ready (&dpMsgType) < 0)
     return NULL;
   if (PyType_Ready (&PublisherType) < 0)
@@ -1020,6 +1089,7 @@ PyInit_stream (void)
   PyModule_AddIntConstant (m, "CI8", CI8);
   PyModule_AddIntConstant (m, "CI16", CI16);
   PyModule_AddIntConstant (m, "CF32", CF32);
+  PyModule_AddIntConstant (m, "TLM16", TLM16);
 
   return m;
 }

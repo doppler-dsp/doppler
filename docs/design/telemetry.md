@@ -275,13 +275,35 @@ assert gain[-1] > gain[0]  # quiet input: commanded gain rises
 assert tlm.dropped == 0
 ```
 
+## Egress — NATS `tlm_sink`
+
+Cross-process consumers read the same records over NATS via the
+`dp_tlm_sink_*` helper (`telemetry/tlm_sink.h`) — the exact `wfm_sink`
+split: the implementation lives in the **optional `libdoppler_stream`
+component** (it publishes through the vendored nats.c), and
+`telemetry_core` itself stays dependency-free. Each pump drains the ring
+and publishes the records as **`TLM16`** frames (a `dp_sample_type_t`
+appended for the purpose: SIGS header, `num_samples` counts records,
+payload is packed `dp_tlm_rec_t`):
+
+```c
+dp_tlm_sink_t *sink = dp_tlm_sink_open ("nats://127.0.0.1:4222/tlm");
+int n = dp_tlm_sink_pump (sink, tlm);  /* consumer thread, non-blocking */
+dp_tlm_sink_close (sink);
+```
+
+The pump is a *consumer* of the SPSC ring — run it on the (single)
+consumer thread, never the DSP thread — and the path stays lossy
+end-to-end by design: ring overruns are counted, a failed publish drops
+that batch and returns the error. On the receive side any `dp_sub_*`
+reader gets the frames; the Python `Subscriber` decodes a TLM16 frame
+directly into the same structured array `Telemetry.read()` returns (and
+a Python producer can symmetrically publish `read()` output through
+`Publisher(ep, TLM16)`). File dump still falls out of Python for free
+(`recs.tofile(...)`).
+
 ## Future work (deliberately out of v1)
 
-- **NATS egress**: a `tlm_sink` helper that drains a context into the
-    existing `dp_pub_*` wire layer on a telemetry subject — the exact
-    `wfm_sink` split (optional stream component; telemetry_core itself stays
-    dependency-free). File dump falls out of Python for free
-    (`recs.tofile(...)`).
 - **Wide records** (`flags`-tagged f64 or vector payloads) if a use case
     ever outgrows f32 scalars.
 - **Per-thread ring aggregation** if a multi-threaded producer pipeline ever

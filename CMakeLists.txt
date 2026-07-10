@@ -417,8 +417,14 @@ if(NOT WIN32)
     endforeach()
     set_target_properties(doppler_stream        PROPERTIES EXPORT_NAME stream)
     set_target_properties(doppler_stream_static PROPERTIES EXPORT_NAME stream-static)
+    # tlm_sink.c (in stream_core_obj) calls dp_tlm_read from the core's
+    # telemetry_core — the component's one cross-lib symbol. Linking the
+    # core keeps the SHARED form self-consistent (Mach-O's ld64 rejects
+    # undefined dylib symbols); consumers already link both per the
+    # contract above. The STATIC archive needs nothing (archives don't
+    # resolve at ar time).
     target_link_libraries(doppler_stream
-        PRIVATE nats_vendor_static
+        PRIVATE nats_vendor_static doppler_lib
         PUBLIC  Threads::Threads m)
     target_link_libraries(doppler_stream_static PUBLIC Threads::Threads m)
     # The static form can't embed an archive through link rules, so fold the

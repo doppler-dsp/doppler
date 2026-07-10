@@ -159,6 +159,7 @@ nav:
           - Correlation: gallery/corr.md
           - Detection Curves: gallery/detection-curves.md
           - Monte Carlo: gallery/detection-sim.md
+          - "Lock Detection: Verify Counts": gallery/lockdet.md
           - 2-D Acquisition: gallery/detection2d.md
           - DSSS Acquisition & Despreading: gallery/dsss-despread.md
           - "DSSS Acquisition: Pd/Pfa": gallery/dsss-acq-characterization.md

@@ -144,6 +144,49 @@ AGC_steps (AGCObject *self, PyObject *args, PyObject *kwds)
 }
 
 static PyObject *
+AGCObj_set_telemetry (AGCObject *self, PyObject *args, PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char  *_kwlist[] = { "tlm", "prefix", "decim", NULL };
+  PyObject     *tlm_obj   = Py_None;
+  const char   *prefix    = NULL;
+  unsigned long decim_raw = 1;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "Os|k", _kwlist, &tlm_obj,
+                                    &prefix, &decim_raw))
+    return NULL;
+  dp_tlm_t *tlm = NULL;
+  if (tlm_obj != Py_None)
+    {
+      PyObject *tlm_cap = tlm_obj;
+      Py_INCREF (tlm_cap);
+      if (!PyCapsule_CheckExact (tlm_cap))
+        {
+          Py_DECREF (tlm_cap);
+          tlm_cap = PyObject_GetAttrString (tlm_obj, "_capsule");
+          if (!tlm_cap)
+            return NULL;
+        }
+      tlm = (dp_tlm_t *)PyCapsule_GetPointer (tlm_cap,
+                                              "doppler.telemetry.dp_tlm");
+      Py_DECREF (tlm_cap);
+      if (!tlm)
+        return NULL;
+    }
+  uint32_t decim = (uint32_t)decim_raw;
+  int      _rc   = agc_set_telemetry (self->handle, tlm, prefix, decim);
+  if (_rc != 0)
+    {
+      PyErr_Format (PyExc_ValueError, "set_telemetry failed (rc=%d)", _rc);
+      return NULL;
+    }
+  Py_RETURN_NONE;
+}
+
+static PyObject *
 AGCObj_state_bytes (AGCObject *self, PyObject *Py_UNUSED (ignored))
 {
   if (!self->handle)
@@ -470,6 +513,26 @@ static PyMethodDef AGCObj_methods[] = {
     "    >>> y.dtype\n"
     "    dtype('complex64')\n" },
 
+  { "set_telemetry", (PyCFunction)(void *)AGCObj_set_telemetry,
+    METH_VARARGS | METH_KEYWORDS,
+    "set_telemetry(tlm, prefix, decim) -> int\n"
+    "\n"
+    "Attach (or detach) a telemetry context and register the AGC's probes on "
+    "it. Registers one probe, \"<prefix>.gain_db\" — the loop-filter "
+    "integrator (the commanded gain in dB), recorded once per gain-update "
+    "event and further thinned by decim.  Passing NULL detaches (probe sites "
+    "revert to their single-branch disabled cost); re-attaching after a reset "
+    "is idempotent (same name -> same probe id).  Setup path, never hot: call "
+    "before the producer thread starts stepping, and keep every object "
+    "attached to one context on that one thread (the ring is SPSC — see "
+    "telemetry/telemetry.h).  The context is borrowed, not owned: it must "
+    "outlive the attachment.\n"
+    "\n"
+    "    >>> import numpy as np\n"
+    "    >>> from doppler import AGC\n"
+    "    >>> obj = AGC(0.0, 0.0025, 0.05)\n"
+    "    >>> obj.set_telemetry(0, 0, 0)\n"
+    "    0\n" },
   { "state_bytes", (PyCFunction)AGCObj_state_bytes, METH_NOARGS,
     "Serialized state size in bytes." },
   { "get_state", (PyCFunction)AGCObj_get_state, METH_NOARGS,

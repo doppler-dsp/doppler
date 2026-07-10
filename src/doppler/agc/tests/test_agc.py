@@ -210,3 +210,92 @@ def test_destroy():
     obj.destroy()
     with pytest.raises(RuntimeError, match="destroyed"):
         obj.step(1.0 + 0.0j)
+
+
+# ── telemetry attach (dp_tlm; see docs/design/telemetry.md) ─────────────
+
+
+def test_set_telemetry_records_gain_series():
+    from doppler.telemetry import Telemetry
+
+    tlm = Telemetry(1 << 12)
+    obj = AGC(0.0, 0.0025, 0.05)
+    obj.set_telemetry(tlm, "agc")  # returns None; raises on failure
+    x = np.full(4096, 0.125 + 0j, dtype=np.complex64)
+    obj.steps(x)
+
+    recs = tlm.read()
+    # one record per decim-chunk control update
+    assert len(recs) == 4096 // obj.decim
+    gains = recs["value"]
+    # quiet input, 0 dB reference: the commanded gain rises monotonically
+    # toward +18 dB (10*log10(1/0.125^2)) without overshooting wildly
+    assert gains[-1] > gains[0]
+    assert gains[-1] == pytest.approx(20.0 * np.log10(1 / 0.125), abs=3.0)
+    # the last record equals the live property exactly (float32 narrow)
+    assert gains[-1] == pytest.approx(obj.gain_db, abs=1e-4)
+
+
+def test_set_telemetry_accepts_capsule_and_none():
+    from doppler.telemetry import Telemetry
+
+    tlm = Telemetry(1 << 10)
+    obj = AGC(0.0, 0.0025, 0.05)
+    # the raw capsule is the documented attach point too
+    obj.set_telemetry(tlm._capsule, "agc")
+    obj.steps(np.ones(64, dtype=np.complex64))
+    assert len(tlm.read()) > 0
+
+    # None detaches; further steps emit nothing
+    obj.set_telemetry(None, "agc")
+    obj.steps(np.ones(64, dtype=np.complex64))
+    assert len(tlm.read()) == 0
+
+
+def test_set_telemetry_failure_raises():
+    from doppler.telemetry import Telemetry
+
+    tlm = Telemetry(1 << 10)
+    obj = AGC(0.0, 0.0025, 0.05)
+    # fill the probe table; the attach must then fail whole -> ValueError
+    for i in range(64):
+        tlm.probe(f"p{i}")
+    with pytest.raises(ValueError):
+        obj.set_telemetry(tlm, "agc")
+    # failed attach leaves the object detached
+    obj.steps(np.ones(64, dtype=np.complex64))
+    assert len(tlm.read()) == 0
+
+
+def test_set_telemetry_wrong_capsule_rejected():
+    from doppler.telemetry import Telemetry  # noqa: F401
+
+    obj = AGC(0.0, 0.0025, 0.05)
+    with pytest.raises((ValueError, AttributeError)):
+        obj.set_telemetry(object(), "agc")
+
+
+def test_state_roundtrip_with_attachment():
+    from doppler.telemetry import Telemetry
+
+    tlm = Telemetry(1 << 10)
+    a = AGC(0.0, 0.0025, 0.05)
+    a.set_telemetry(tlm, "agc")
+    a.steps(np.full(256, 0.5 + 0j, dtype=np.complex64))
+
+    # blob is attachment-independent: restoring into a detached twin
+    # reproduces the exact gain state
+    b = AGC(0.0, 0.0025, 0.05)
+    b.set_state(a.get_state())
+    assert b.gain_db == a.gain_db
+
+    # a receiver with its own live attachment keeps it across restore
+    tlm2 = Telemetry(1 << 10)
+    c = AGC(0.0, 0.0025, 0.05)
+    c.set_telemetry(tlm2, "rx.agc")
+    c.set_state(a.get_state())
+    assert c.gain_db == a.gain_db
+    drained = tlm2.read()  # clear anything pre-restore
+    del drained
+    c.steps(np.full(64, 0.5 + 0j, dtype=np.complex64))
+    assert len(tlm2.read()) > 0  # attachment survived the restore

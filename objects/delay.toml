@@ -45,3 +45,10 @@ field = true
 name = "capacity"
 type = "size_t"
 field = true
+
+# gh-428 manual_stub: push_ptr_max_out is a hand-written .pyi symbol (the
+# hand-maintained out=/max_out shape this file's status_allow entry covers);
+# manifest presence stops the gh-426 DROPPED gate from flagging it.
+[[delay.methods]]
+name = "push_ptr_max_out"
+manual_stub = true

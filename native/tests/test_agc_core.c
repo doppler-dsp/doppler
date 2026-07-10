@@ -229,12 +229,9 @@ main (void)
 
   agc_destroy (NULL); /* must be a no-op */
 
-  if (_fails)
-    {
-      fprintf (stderr, "test_agc_core FAILED (%d)\n", _fails);
-      return 1;
-    }
-  /* serializable state — POD snapshot round-trips + rejects a bad envelope. */
+  /* serializable state — POD snapshot round-trips + rejects a bad envelope.
+   * (Moved above the final _fails check: this block used to sit after it,
+   * so its own failures could never fail the test.) */
   {
     agc_state_t *a = agc_create (0.0, 0.0025, 0.05);
     agc_state_t *b = agc_create (0.0, 0.0025, 0.05);
@@ -246,6 +243,68 @@ main (void)
     agc_destroy (a);
     agc_destroy (b);
   }
+
+  /* telemetry attach — records track the gain trajectory; blobs stay
+   * deterministic (attachment zeroed); a live attachment survives
+   * set_state; detach reverts to the no-op path. */
+  {
+    dp_tlm_t    *tlm = dp_tlm_create (256);
+    agc_state_t *a   = agc_create (0.0, 0.0025, 0.05);
+    CHECK (tlm != NULL && a != NULL);
+    CHECK (agc_set_telemetry (a, tlm, "agc", 1) == DP_OK);
+    CHECK (dp_tlm_lookup (tlm, "agc.gain_db") == a->tlm.id_gain);
+
+    /* One record per gain update (default period 1 -> per sample); the
+     * last record is the current integrator value exactly. */
+    for (int i = 0; i < 32; i++)
+      (void)agc_step (a, 0.5f + 0.0f * I);
+    dp_tlm_rec_t recs[64];
+    size_t       n = dp_tlm_read (tlm, recs, 64);
+    CHECK (n == 32);
+    CHECK (recs[n - 1].value == (float)a->gain_db);
+
+    /* Blob determinism: an attached and a detached instance with the
+     * same running state serialize byte-identically. */
+    agc_state_t *d = agc_create (0.0, 0.0025, 0.05);
+    CHECK (d != NULL);
+    *d             = *a;
+    d->tlm.ctx     = NULL;
+    d->tlm.id_gain = 0;
+    uint8_t blob_a[sizeof (dp_state_hdr_t) + sizeof (agc_state_t)];
+    uint8_t blob_d[sizeof (blob_a)];
+    CHECK (agc_state_bytes (a) == sizeof (blob_a));
+    agc_get_state (a, blob_a);
+    agc_get_state (d, blob_d);
+    CHECK (memcmp (blob_a, blob_d, sizeof (blob_a)) == 0);
+
+    /* Restore into an attached instance: running state comes from the
+     * blob, the receiver's own live attachment survives. */
+    dp_tlm_t    *tlm2 = dp_tlm_create (256);
+    agc_state_t *b    = agc_create (0.0, 0.0025, 0.05);
+    CHECK (tlm2 != NULL && b != NULL);
+    CHECK (agc_set_telemetry (b, tlm2, "rx.agc", 1) == DP_OK);
+    CHECK (agc_set_state (b, blob_a) == DP_OK);
+    CHECK (b->gain_db == a->gain_db);
+    CHECK (b->tlm.ctx == tlm2);
+
+    /* Detach: emit sites revert to the single-branch no-op. */
+    CHECK (agc_set_telemetry (a, NULL, "agc", 1) == DP_OK);
+    CHECK (a->tlm.ctx == NULL);
+    (void)agc_step (a, 0.5f + 0.0f * I);
+    CHECK (dp_tlm_read (tlm, recs, 64) == 0);
+
+    agc_destroy (d);
+    agc_destroy (b);
+    agc_destroy (a);
+    dp_tlm_destroy (tlm2);
+    dp_tlm_destroy (tlm);
+  }
+
+  if (_fails)
+    {
+      fprintf (stderr, "test_agc_core FAILED (%d)\n", _fails);
+      return 1;
+    }
 
   printf ("test_agc_core PASSED\n");
   return 0;

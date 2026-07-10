@@ -31,3 +31,8 @@ return_type = "void"
 [[farrow.properties]]
 name = "group_delay"
 type = "size_t"
+
+# gh-428 manual_stub: hand-written .pyi symbol (see status_allow rationale).
+[[farrow.methods]]
+name = "delay_max_out"
+manual_stub = true

@@ -15,6 +15,18 @@ ______________________________________________________________________
 
 ### Added
 
+- **AGC telemetry instrumentation** — the first `dp_tlm`-instrumented
+    object: `AGC.set_telemetry(tlm, "agc", decim=1)` (fully jm-declarative
+    via the new capsule-param + status-return binding, jm gh-432) registers
+    an `"<prefix>.gain_db"` probe recording the loop-filter integrator once
+    per gain-update event in both `step()` and the decimated `steps()`
+    paths. Detached cost is one predicted-not-taken branch per event;
+    blobs stay deterministic (attachment zeroed) and a live attachment
+    survives `set_state` (`DP_DEFINE_POD_STATE_TLM`; AGC state blob v3).
+    The jm pin moves to **0.28.0**; the five hand-written `.pyi` symbols
+    (`FFT.execute_ci16`/`execute_ci8` and the three hand-added `*_max_out`
+    siblings) gain `manual_stub = true` manifest presence so the new
+    gh-426 DROPPED gate passes.
 - **`dp_tlm` telemetry taps** (`native/inc/telemetry/telemetry.h`) — a
     lightweight C99 primitive for observing scalar internals of running DSP
     objects (tracking-loop stress, AGC gain, lock metrics) as time series.

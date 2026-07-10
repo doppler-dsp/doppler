@@ -3,11 +3,14 @@ add_library(agc_core OBJECT agc_core.c)
 target_include_directories(
   agc_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc
                             ${CMAKE_SOURCE_DIR}/native/inc/agc)
+target_link_libraries(agc_core PUBLIC
+    telemetry_core)
 
 add_executable(test_agc_core
                ${CMAKE_SOURCE_DIR}/native/tests/test_agc_core.c)
 target_link_libraries(test_agc_core
-                      PRIVATE agc_core m)
+                      PRIVATE agc_core telemetry_core
+    m)
 target_include_directories(test_agc_core
                            PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
 add_test(NAME test_agc_core COMMAND test_agc_core)
@@ -16,7 +19,8 @@ add_executable(
   bench_agc_core
   ${CMAKE_SOURCE_DIR}/native/benchmarks/bench_agc_core.c)
 target_link_libraries(bench_agc_core
-                      PRIVATE agc_core m)
+                      PRIVATE agc_core telemetry_core
+    m)
 target_include_directories(
   bench_agc_core PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
                                    ${CMAKE_SOURCE_DIR}/native/benchmarks)
@@ -25,6 +29,7 @@ if(BUILD_PYTHON)
 Python3_add_library(agc MODULE WITH_SOABI agc_ext.c)
 target_link_libraries(agc PRIVATE
     agc_core
+    telemetry_core
     Python3::NumPy)
 target_include_directories(agc PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
 set_target_properties(agc PROPERTIES

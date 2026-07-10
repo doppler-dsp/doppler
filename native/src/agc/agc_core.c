@@ -40,9 +40,30 @@ agc_reset (agc_state_t *state)
   state->p_avg      = pow (10.0, state->ref_db * 0.1);
 }
 
-/* Serializable state — whole-struct POD snapshot, pointer-free (see
- * DP_DEFINE_POD_STATE in dp_state.h). */
-DP_DEFINE_POD_STATE (agc, agc_state_t, AGC_STATE_MAGIC, AGC_STATE_VERSION)
+int
+agc_set_telemetry (agc_state_t *state, dp_tlm_t *tlm, const char *prefix,
+                   uint32_t decim)
+{
+  if (!tlm) /* detach: probe sites revert to the single-branch cost */
+    {
+      state->tlm.ctx = NULL;
+      return DP_OK;
+    }
+  char name[DP_TLM_NAME_MAX];
+  (void)snprintf (name, sizeof (name), "%s.gain_db", prefix ? prefix : "agc");
+  int id = dp_tlm_probe (tlm, name, decim);
+  if (id < 0)
+    return id; /* full table / overlong name: attach fails whole */
+  state->tlm.id_gain = id;
+  state->tlm.ctx     = tlm; /* set last: emit sites gate on ctx */
+  return DP_OK;
+}
+
+/* Serializable state — whole-struct POD snapshot, pointer-free except the
+ * telemetry attachment, which the TLM variant zeroes in blobs and keeps
+ * live across restore (see DP_DEFINE_POD_STATE_TLM in dp_state.h). */
+DP_DEFINE_POD_STATE_TLM (agc, agc_state_t, AGC_STATE_MAGIC, AGC_STATE_VERSION,
+                         tlm)
 
 double
 agc_get_applied_gain_db (const agc_state_t *state)
@@ -123,6 +144,8 @@ agc_steps (agc_state_t *state, const float complex *input,
       state->p_avg += alpha_c * (p_mean - state->p_avg);
       double meas_db = 10.0 * agc_log10_ (state->p_avg + AGC_POWER_FLOOR);
       state->gain_db += k_c * (state->ref_db - meas_db);
+      /* Telemetry tap — per chunk update (event rate, not sample rate). */
+      DP_TLM (state->tlm.ctx, state->tlm.id_gain, state->gain_db);
     }
   state->g_last = g_prev; /* persist for the next agc_steps() call */
 }

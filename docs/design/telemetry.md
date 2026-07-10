@@ -208,16 +208,29 @@ module like `buffer` and `stream` — reads the same ring as a numpy
 structured array (`dtype: n u8 | value f4 | probe u2 | flags u2`): one
 `read()` returning everything since the last drain, plus the probe-name map
 (`probe_names()`), per-probe `emitted()` and the `dropped` counter. Its
-`_capsule` property exposes the `dp_tlm_t *` for instrumented objects'
-`set_telemetry` bindings to attach to (object instrumentation lands with
-the AGC follow-up):
+`_capsule` property exposes the `dp_tlm_t *` that instrumented objects'
+jm-generated `set_telemetry` bindings unwrap (they also accept the
+`Telemetry` object itself, duck-typed through `_capsule` — jm gh-432).
+The AGC is the first instrumented object:
 
-```text
+```python
+import numpy as np
+
+from doppler.agc import AGC
+from doppler.telemetry import Telemetry
+
 tlm = Telemetry(1 << 14)
+agc = AGC(ref_db=0.0, loop_bw=0.0025, alpha=0.05)
 agc.set_telemetry(tlm, "agc", decim=1)
+
+x = np.full(4096, 0.125 + 0j, dtype=np.complex64)
 agc.steps(x)
+
 recs = tlm.read()
 gain = recs[recs["probe"] == tlm.probe_id("agc.gain_db")]["value"]
+assert len(gain) == 4096 // agc.decim  # one record per control update
+assert gain[-1] > gain[0]  # quiet input: commanded gain rises
+assert tlm.dropped == 0
 ```
 
 ## Future work (deliberately out of v1)

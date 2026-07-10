@@ -10,6 +10,7 @@ target_link_libraries(mpsk_receiver_core PUBLIC
     loop_filter_core
     boxcar_core
     agc_core
+    telemetry_core
     symsync_core
     nco_core
     farrow_core
@@ -24,6 +25,7 @@ target_link_libraries(test_mpsk_receiver_core
     loop_filter_core
     boxcar_core
     agc_core
+    telemetry_core
     symsync_core
     nco_core
     farrow_core
@@ -43,6 +45,7 @@ target_link_libraries(bench_mpsk_receiver_core
     loop_filter_core
     boxcar_core
     agc_core
+    telemetry_core
     symsync_core
     nco_core
     farrow_core

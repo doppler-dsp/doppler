@@ -100,6 +100,38 @@ class AGC:
 
         """
 
+    def set_telemetry(self, tlm: object | None, prefix: Any, decim: int = 1) -> None:
+        """Attach (or detach) a telemetry context and register the AGC's probes on it. Registers one probe, "<prefix>.gain_db" — the loop-filter integrator (the commanded gain in dB), recorded once per gain-update event and further thinned by decim.  Passing NULL detaches (probe sites revert to their single-branch disabled cost); re-attaching after a reset is idempotent (same name -> same probe id).  Setup path, never hot: call before the producer thread starts stepping, and keep every object attached to one context on that one thread (the ring is SPSC — see telemetry/telemetry.h).  The context is borrowed, not owned: it must outlive the attachment.
+
+        Parameters
+        ----------
+        tlm : object | None
+            Telemetry context to attach, or NULL to detach.
+        prefix : Any
+            Probe-name prefix, e.g. "agc" or "rx.agc".
+        decim : int
+            Emit every decim-th gain update; >= 1.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.agc import AGC
+        >>> from doppler.telemetry import Telemetry
+        >>> tlm = Telemetry(1 << 12)
+        >>> agc = AGC(ref_db=0.0, loop_bw=0.0025, alpha=0.05)
+        >>> agc.set_telemetry(tlm, "agc")
+        >>> tlm.probe_names()
+        {'agc.gain_db': 0}
+        >>> x = (0.5 + 0j) * np.ones(256, dtype=np.complex64)
+        >>> _ = agc.steps(x)
+        >>> recs = tlm.read()          # one record per decim-chunk update
+        >>> len(recs) == 256 // agc.decim
+        True
+        >>> bool(recs["value"][-1] > recs["value"][0])  # gain rising toward ref
+        True
+
+        """
+
     def state_bytes(self) -> int:
         """Serialized state size in bytes."""
     def get_state(self) -> bytes:

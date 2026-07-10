@@ -81,6 +81,7 @@
 #include "clib_common.h"
 #include "jm_perf.h"
 #include "dp_state.h"
+#include "telemetry/telemetry.h"
 #include "util/util_core.h"
 #include <math.h>
 
@@ -189,6 +190,20 @@ extern "C"
   }
 
   /**
+   * @brief Telemetry attachment: a borrowed context + this object's probe
+   *        ids.  NULL ctx (the default) means detached — every probe site
+   *        is then a single predicted-not-taken branch.  Zeroed in state
+   *        blobs and preserved across set_state (DP_DEFINE_POD_STATE_TLM);
+   *        telemetry is observation, not DSP state that migrates.
+   */
+  typedef struct
+  {
+    dp_tlm_t *ctx;     /* NULL = detached                   */
+    int32_t   id_gain; /* probe id from a successful attach */
+    int32_t   _pad;
+  } agc_tlm_t;
+
+  /**
    * @brief AGC state.
    *
    * Allocate with agc_create().  @c ref_db, @c loop_bw, @c alpha,
@@ -215,6 +230,7 @@ extern "C"
     double g_last;  /* current linear gain held across the period      */
     size_t gain_phase; /* agc_step() position in the update period     */
     float  clip_lin;   /* cached 10^(clip_db/20), refreshed per period */
+    agc_tlm_t tlm; /* live telemetry attachment; zeroed in blobs        */
   } agc_state_t;
 
   /**
@@ -356,6 +372,9 @@ void agc_reset(agc_state_t *state);
                * (state->ref_db - meas_db);
         state->clip_lin = (float)agc_exp10_ (state->clip_db * 0.05);
         state->gain_phase = 0;
+        /* Telemetry tap — per gain-update event (already amortised by the
+         * period), one branch when detached. */
+        DP_TLM (state->tlm.ctx, state->tlm.id_gain, state->gain_db);
       }
 
     /* Output clip — square clip (I and Q independent) to the cached level,
@@ -420,11 +439,52 @@ void agc_reset(agc_state_t *state);
    */
 double agc_get_applied_gain_db(const agc_state_t *state);
 
+  /**
+   * @brief Attach (or detach) a telemetry context and register the AGC's
+   * probes on it.
+   * Registers one probe, "<prefix>.gain_db" — the loop-filter integrator
+   * (the commanded gain in dB), recorded once per gain-update event and
+   * further thinned by decim.  Passing NULL detaches (probe sites revert
+   * to their single-branch disabled cost); re-attaching after a reset is
+   * idempotent (same name -> same probe id).  Setup path, never hot: call
+   * before the producer thread starts stepping, and keep every object
+   * attached to one context on that one thread (the ring is SPSC — see
+   * telemetry/telemetry.h).  The context is borrowed, not owned: it must
+   * outlive the attachment.
+   * @param state  Must be non-NULL.
+   * @param tlm    Telemetry context to attach, or NULL to detach.
+   * @param prefix Probe-name prefix, e.g. "agc" or "rx.agc".
+   * @param decim  Emit every decim-th gain update; >= 1.
+   * @return DP_OK, or DP_ERR_INVALID when the probe table is full or the
+   *         prefixed name is invalid (the attach fails whole; the object
+   *         stays detached).
+   * @code
+   * >>> import numpy as np
+   * >>> from doppler.agc import AGC
+   * >>> from doppler.telemetry import Telemetry
+   * >>> tlm = Telemetry(1 << 12)
+   * >>> agc = AGC(ref_db=0.0, loop_bw=0.0025, alpha=0.05)
+   * >>> agc.set_telemetry(tlm, "agc")
+   * >>> tlm.probe_names()
+   * {'agc.gain_db': 0}
+   * >>> x = (0.5 + 0j) * np.ones(256, dtype=np.complex64)
+   * >>> _ = agc.steps(x)
+   * >>> recs = tlm.read()          # one record per decim-chunk update
+   * >>> len(recs) == 256 // agc.decim
+   * True
+   * >>> bool(recs["value"][-1] > recs["value"][0])  # gain rising toward ref
+   * True
+   *
+   * @endcode
+   */
+int agc_set_telemetry(agc_state_t *state, dp_tlm_t * tlm, const char * prefix, uint32_t decim);
+
   /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
    * Whole-struct POD snapshot (pointer-free); the loop integrator, detector EMA, and ramp memory resume exactly into an
-   * identically-built instance. */
+   * identically-built instance.  The telemetry attachment is zeroed in
+   * blobs and preserved across restore (DP_DEFINE_POD_STATE_TLM). */
 #define AGC_STATE_MAGIC DP_FOURCC ('A', 'G', 'C', ' ')
-#define AGC_STATE_VERSION 2u /* v2: gain_update_period + gain_phase/clip_lin */
+#define AGC_STATE_VERSION 3u /* v3: telemetry attachment (zeroed in blob) */
   size_t agc_state_bytes (const agc_state_t *state);
   void    agc_get_state (const agc_state_t *state, void *blob);
   int     agc_set_state (agc_state_t *state, const void *blob);

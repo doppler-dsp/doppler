@@ -43,6 +43,19 @@ ______________________________________________________________________
     reduction `(2−α)/α`. Given C/N0 (hence per-look SNR), this sizes any
     lock-metric smoother to a target decision SNR.
 
+- **The lock decisions are telemetry probes.** `Dll.set_telemetry` now
+    registers `"<prefix>.locked"` (the verify-counted lockdet decision,
+    0/1) alongside the `.lock` CFAR statistic — four records per code
+    epoch — and `MpskReceiver.set_telemetry` registers
+    `"<prefix>.tracking"` (the two-way handover state) alongside the
+    `.lock` carrier metric — nine probes per attach. `Despreader`
+    forwards the DLL's new probe as `"<prefix>.code.locked"` (seven per
+    period). Statistic and decision stream side by side, so a consumer
+    sees exactly where the declare/drop rule fired without re-deriving
+    thresholds. No new hot-path cost (the emits ride the existing
+    out-of-line per-epoch/per-symbol flushes) and no blob change (the
+    ids fill the attachment structs' padding).
+
 ### Changed
 
 - **The DLL's code-lock latch is verify-counted (state blob v3).**

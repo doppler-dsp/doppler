@@ -40,7 +40,7 @@ class NCO:
 
         """
 
-    def steps_u32(self) -> NDArray[np.uint32]:
+    def steps_u32(self, out: NDArray[np.uint32] | None = None) -> NDArray[np.uint32]:
         """Advance n samples; write raw uint32 accumulator values. Each element is the phase value BEFORE the increment fires, so `out[0]` is the phase at the moment of the call.  The accumulator wraps silently at 2^32, giving the full-resolution integer ramp that the scaled and carry variants derive from.  Returns n.
 
         Returns
@@ -60,7 +60,10 @@ class NCO:
 
         """
 
-    def steps_u32_scaled(self) -> NDArray[np.uint32]:
+    def steps_u32_max_out(self) -> int:
+        """Max output length steps_u32() can produce for the current state."""
+
+    def steps_u32_scaled(self, out: NDArray[np.uint32] | None = None) -> NDArray[np.uint32]:
         """Advance n samples; values scaled to `[0, nmax)`. Uses the branchless fixed-point identity `out[i]` = (uint64_t)phase * nmax >> 32 to map the full accumulator range uniformly onto [0, nmax) without a modulo operation.  When nmax == 0 falls back to the raw accumulator (identical to nco_steps_u32).  Useful for polyphase filter bank indexing and direct LUT addressing.  Returns n.
 
         Returns
@@ -79,6 +82,9 @@ class NCO:
         [0, 1, 2, 3]
 
         """
+
+    def steps_u32_scaled_max_out(self) -> int:
+        """Max output length steps_u32_scaled() can produce for the current state."""
 
     def steps_u32_ovf(self) -> tuple[NDArray[np.uint32], NDArray[np.uint8]]:
         """Advance n samples; write raw phase values and per-sample carry. Identical to nco_steps_u32 for the phase array, but simultaneously fills a parallel uint8 carry buffer: `out1[i]` is 1 if the add that produced `out[i]`'s post-increment phase wrapped past 2^32, else 0. The carry marks the exact boundary of one input period and is the primitive for polyphase sample-clock and rational resampling engines. Returns n.
@@ -168,7 +174,7 @@ class LO:
 
         """
 
-    def steps(self) -> NDArray[np.complex64]:
+    def steps(self, out: NDArray[np.complex64] | None = None) -> NDArray[np.complex64]:
         """Generate n CF32 phasors at the current norm_freq. Each sample is cos(θ) + j·sin(θ) where θ is the phase BEFORE the accumulator is advanced, giving a unit-magnitude complex sinusoid via the 65536-entry LUT.  SFDR ≈ 96 dBc.  Returns n.
 
         Returns
@@ -190,22 +196,16 @@ class LO:
 
         """
 
-    def steps_ctrl(
-        self, ctrl: NDArray[np.float32], out: NDArray[np.complex64] | None = ...
-    ) -> NDArray[np.complex64]:
-        """Generate CF32 phasors with per-sample FM deviation. For each sample i, `ctrl[i]`'s fractional part is converted to a delta phase-increment (delta = floor(frac(`ctrl[i]`) × 2^32)) that is added on top of the base phase_inc for that one step only.  The base norm_freq and phase_inc are NOT modified; the deviation is transient per sample, making this the natural API for FM synthesis and frequency-hopping.  Output length equals ctrl_len.  Returns ctrl_len.
+    def steps_max_out(self) -> int:
+        """Max output length steps() can produce for the current state."""
 
-        Without out=, the returned array is a view into a buffer reused on
-        the next call (see steps_ctrl_max_out() to size an out= buffer for
-        an independent, alias-free result).
+    def steps_ctrl(self, ctrl: NDArray[np.float32], out: NDArray[np.complex64] | None = None) -> NDArray[np.complex64]:
+        """Generate CF32 phasors with per-sample FM deviation. For each sample i, `ctrl[i]`'s fractional part is converted to a delta phase-increment (delta = floor(frac(`ctrl[i]`) × 2^32)) that is added on top of the base phase_inc for that one step only.  The base norm_freq and phase_inc are NOT modified; the deviation is transient per sample, making this the natural API for FM synthesis and frequency-hopping.  Output length equals ctrl_len.  Returns ctrl_len.
 
         Parameters
         ----------
         ctrl : NDArray[np.float32]
             Float32 array of per-sample normalised-frequency deviations.  Only the fractional part of each element contributes.
-        out : NDArray[np.complex64], optional
-            Caller-provided output buffer, at least
-            max(steps_ctrl_max_out(), len(ctrl)) elements.
 
         Returns
         -------
@@ -229,7 +229,7 @@ class LO:
         """
 
     def steps_ctrl_max_out(self) -> int:
-        """Max output length steps_ctrl() can produce for the current state. Use to size the ``out=`` buffer."""
+        """Max output length steps_ctrl() can produce for the current state."""
 
     def state_bytes(self) -> int:
         """Serialized state size in bytes."""
@@ -297,7 +297,7 @@ class AWGN:
 
         """
 
-    def generate(self) -> NDArray[np.complex64]:
+    def generate(self, out: NDArray[np.complex64] | None = None) -> NDArray[np.complex64]:
         """Generate n complex CF32 AWGN samples. Uses Box-Muller with xoshiro256++ to fill `out` with independent complex Gaussians: Re and Im each have zero mean and standard deviation `amplitude`.  Total complex power = 2 × amplitude². The AVX2 path processes 8 samples in parallel when available.
 
         Returns
@@ -321,6 +321,9 @@ class AWGN:
         1.0
 
         """
+
+    def generate_max_out(self) -> int:
+        """Max output length generate() can produce for the current state."""
 
     def reseed(self, seed: int) -> complex:
         """Reseed the RNG and reset all xoshiro256++ state. Equivalent to calling awgn_destroy() and awgn_create(seed, amplitude) but reuses the existing allocation.  amplitude is unchanged.

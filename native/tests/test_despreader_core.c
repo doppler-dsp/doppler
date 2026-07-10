@@ -297,9 +297,9 @@ main (void)
     despreader_destroy (b);
   }
 
-  /* telemetry attach — a pure forward to both embedded loops: six records
-   * per code period from steps(), the guarded flush from bits(); detach
-   * and partial-failure unwind cascade through both children. */
+  /* telemetry attach — a pure forward to both embedded loops: seven
+   * records per code period from steps(), the guarded flush from bits();
+   * detach and partial-failure unwind cascade through both children. */
   {
     uint8_t code[31];
     for (int i = 0; i < 31; i++)
@@ -326,7 +326,7 @@ main (void)
 
     size_t k     = despreader_steps (ch, rx, L, sym, 64);
     size_t n_rec = dp_tlm_read (tlm, recs, 512);
-    CHECK (k > 0 && n_rec == 6 * k); /* both loops flush per period */
+    CHECK (k > 0 && n_rec == 7 * k); /* both loops flush per period */
 
     /* bits() flushes telemetry too (the guarded in-loop path). */
     uint8_t bit_out[64];

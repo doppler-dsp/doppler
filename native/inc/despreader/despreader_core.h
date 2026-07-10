@@ -136,17 +136,19 @@ void despreader_set_bn_code(despreader_state_t *state, double val);
  * @brief Attach (or detach) a telemetry context across the despreader.
  * Pure forwarder — the despreader registers no probes of its own: the
  * carrier loop registers "<prefix>.car.lock" / ".e" / ".freq" and the
- * code loop registers "<prefix>.code.e" / ".rate" / ".lock" — six
- * probes, all thinned by @p decim and emitted once per code period (the
- * despreader flushes both loops at its per-period update).  Passing NULL
- * detaches both loops.  Setup path, never hot; the context is borrowed
- * and must outlive the attachment (SPSC rules in telemetry/telemetry.h).
+ * code loop registers "<prefix>.code.e" / ".rate" / ".lock" /
+ * ".locked" (the last is the verify-counted lockdet decision, 0/1) —
+ * seven probes, all thinned by @p decim and emitted once per code
+ * period (the despreader flushes both loops at its per-period update).
+ * Passing NULL detaches both loops.  Setup path, never hot; the context
+ * is borrowed and must outlive the attachment (SPSC rules in
+ * telemetry/telemetry.h).
  * @param state  Must be non-NULL.
  * @param tlm    Telemetry context to attach, or NULL to detach.
  * @param prefix Probe-name prefix, e.g. "ch0".
  * @param decim  Emit every decim-th code period; >= 1.
  * @return DP_OK, or DP_ERR_INVALID when the probe table cannot take all
- *         six probes (the attach fails whole; everything detached).
+ *         seven probes (the attach fails whole; everything detached).
  * @code
  * >>> import numpy as np
  * >>> from doppler.dsss import Despreader
@@ -156,12 +158,12 @@ void despreader_set_bn_code(despreader_state_t *state, double val);
  * >>> ch = Despreader(code=code, sps=4)
  * >>> ch.set_telemetry(tlm, "ch0")
  * >>> sorted(tlm.probe_names())
- * ['ch0.car.e', 'ch0.car.freq', 'ch0.car.lock', 'ch0.code.e', 'ch0.code.lock', 'ch0.code.rate']
+ * ['ch0.car.e', 'ch0.car.freq', 'ch0.car.lock', 'ch0.code.e', 'ch0.code.lock', 'ch0.code.locked', 'ch0.code.rate']
  * >>> chips = 1.0 - 2.0 * (np.arange(31) % 2)
  * >>> x = np.tile(np.repeat(chips, 4), 40).astype(np.complex64)
  * >>> _ = ch.steps(x)
- * >>> recs = tlm.read()   # six records per code period
- * >>> len(recs) > 0 and len(recs) % 6 == 0
+ * >>> recs = tlm.read()   # seven records per code period
+ * >>> len(recs) > 0 and len(recs) % 7 == 0
  * True
  *
  * @endcode

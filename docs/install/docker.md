@@ -19,10 +19,9 @@ Pin a specific release instead of `latest`:
 docker run --rm ghcr.io/doppler-dsp/doppler:0.28.1 doppler --help
 ```
 
-`linux/amd64` installs the exact wheel published to PyPI for that release
-(built once, smoke-tested by the release workflow, never rebuilt).
-`linux/arm64` has no manylinux wheel to install yet, so that platform
-builds from source at image-build time instead — see
+Both platforms install the exact wheel published to PyPI for that
+release — manylinux wheels are built for x86_64 and aarch64 alike,
+smoke-tested by the release workflow, and never rebuilt — see
 [`deploy/docker/Dockerfile.cli`](https://github.com/doppler-dsp/doppler/blob/main/deploy/docker/Dockerfile.cli).
 
 To drive a streaming pipeline from the container, point it at a reachable

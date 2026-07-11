@@ -128,13 +128,21 @@ jobs:
   # The sdist is built once on the host runner.
   # ------------------------------------------------------------------
   build-python:
-    name: Build wheels (manylinux_2_28 x86_64)
+    name: Build wheels (manylinux_2_28 ${{ matrix.arch.tag }})
     needs: verify-version
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.arch.runner }}
     strategy:
       fail-fast: false
       matrix:
         python: [cp39, cp310, cp311, cp312, cp313, cp314]
+        # aarch64 wheels build NATIVELY on GitHub's arm64 runners (free
+        # for public repos) — same manylinux flow as x86_64, no QEMU or
+        # cross-toolchain anywhere. Publishing the aarch64 wheel is also
+        # what lets Dockerfile.cli pip-install on linux/arm64 instead of
+        # compiling the whole tree under emulation (~19 min/release).
+        arch:
+          - { tag: x86_64, runner: ubuntu-latest }
+          - { tag: aarch64, runner: ubuntu-24.04-arm }
     steps:
       - uses: actions/checkout@v4
 
@@ -143,7 +151,7 @@ jobs:
           docker run --rm \
             -v "${{ github.workspace }}:/project" \
             -w /project \
-            quay.io/pypa/manylinux_2_28_x86_64 \
+            quay.io/pypa/manylinux_2_28_${{ matrix.arch.tag }} \
             bash -euxc "
               dnf install -y cmake pkg-config
               PYTHON=/opt/python/${{ matrix.python }}-${{ matrix.python }}/bin/python
@@ -154,6 +162,7 @@ jobs:
             "
 
       - name: Verify wheel is portable (no -march=native AVX2/AVX-512)
+        if: matrix.arch.tag == 'x86_64'
         run: |
           # Defense in depth: a distributed wheel must run on any x86-64 CPU.
           # -march=native on the build host would spray AVX2 (%ymm) / AVX-512
@@ -201,10 +210,45 @@ jobs:
           fi
           echo "Portable: wide SIMD only in runtime-dispatched *avx512* functions."
 
+      - name: Verify wheel is portable (no -mcpu=native SVE)
+        if: matrix.arch.tag == 'aarch64'
+        run: |
+          # The aarch64 analogue of the AVX check above. Baseline for the
+          # wheel is ARMv8.0 — NEON is architecturally guaranteed, so it
+          # needs no scan. What -mcpu=native on a Neoverse build host
+          # would leak is SVE/SVE2 (z vector registers, p predicate
+          # registers), which SIGILLs on non-SVE cores (Raspberry Pi,
+          # Apple Silicon under Docker). doppler has no SVE runtime
+          # dispatch today, so any SVE instruction is a leak; the *sve*
+          # function-name allowance mirrors *avx512* for when it grows
+          # one. Same scan surface: our own extensions + bundled wfmgen.
+          fail=0
+          tmp="$(mktemp -d)"
+          for whl in dist/*.whl; do
+            unzip -q -o "$whl" -d "$tmp/extract"
+            while IFS= read -r so; do
+              bad=$(objdump -d "$so" 2>/dev/null | awk '
+                /^[0-9a-f]+ <.*>:/ { fn=$2; gsub(/[<>:]/, "", fn) }
+                /[ ,](z[0-9]+\.[bhsdq]|p[0-9]+\/[mz])/ { if (fn !~ /sve/) { print fn; exit } }
+              ')
+              if [ -n "$bad" ]; then
+                echo "::error::$(basename "$whl"): $(basename "$so") has SVE in non-dispatched function '${bad}' — non-portable (built with -mcpu=native?)"
+                fail=1
+              fi
+            done < <(find "$tmp/extract" \( -name '*.cpython-*.so' -o -path '*/wfm/_bin/wfmgen' \))
+            rm -rf "$tmp/extract"
+          done
+          rm -rf "$tmp"
+          if [ "$fail" -ne 0 ]; then
+            echo "Refusing to publish a non-portable wheel. Build the wheel WITHOUT -DDOPPLER_NATIVE." >&2
+            exit 1
+          fi
+          echo "Portable: no SVE outside runtime-dispatched *sve* functions."
+
       - name: Upload wheel (${{ matrix.python }})
         uses: actions/upload-artifact@v4
         with:
-          name: python-dist-${{ matrix.python }}
+          name: python-dist-${{ matrix.python }}-${{ matrix.arch.tag }}
           path: dist/*.whl
 
   # ------------------------------------------------------------------
@@ -366,9 +410,15 @@ jobs:
   # actual artifact, not the source tree, before it goes to PyPI.
   # ------------------------------------------------------------------
   smoke-wheel:
-    name: Smoke-test the built wheel
+    name: Smoke-test the built wheel (${{ matrix.arch.tag }})
     needs: build-python
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.arch.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        arch:
+          - { tag: x86_64, runner: ubuntu-latest }
+          - { tag: aarch64, runner: ubuntu-24.04-arm }
     steps:
       - uses: actions/checkout@v4
 
@@ -379,7 +429,7 @@ jobs:
       - name: Download the cp312 wheel
         uses: actions/download-artifact@v4
         with:
-          name: python-dist-cp312
+          name: python-dist-cp312-${{ matrix.arch.tag }}
           path: dist/
 
       - name: Install the built wheel + run the e2e from a clean dir
@@ -412,12 +462,13 @@ jobs:
 
   # ------------------------------------------------------------------
   # Publish a "pull and run" container: ghcr.io/doppler-dsp/doppler:X.Y.Z
-  # (+ :latest). Installs the just-published PyPI wheel rather than
-  # rebuilding from source — the manylinux wheel already bundles its
-  # shared-lib deps via auditwheel repair, so the image needs no build
-  # toolchain, and it guarantees the container runs the exact artifact
-  # smoke-wheel already tested, not an independent rebuild that could
-  # drift from it. See deploy/docker/Dockerfile.cli.
+  # (+ :latest). BOTH architectures install the just-published PyPI wheel
+  # rather than rebuilding from source — the manylinux wheels (x86_64 +
+  # aarch64) already bundle their shared-lib deps via auditwheel repair,
+  # so the image needs no build toolchain, and it guarantees the
+  # container runs the exact artifact smoke-wheel already tested, not an
+  # independent rebuild that could drift from it. See
+  # deploy/docker/Dockerfile.cli.
   # ------------------------------------------------------------------
   publish-container:
     name: Publish container image
@@ -448,10 +499,11 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # linux/arm64 has no manylinux wheel to pip-install (see
-      # Dockerfile.cli) and builds doppler from source under QEMU
-      # emulation instead -- register the emulator so buildx can target it
-      # from this x86_64 runner.
+      # The emulator only ever executes `pip install <wheel>` for the
+      # linux/arm64 image layer and the arm64 smoke `docker run` below —
+      # never a compiler (the aarch64 wheel is built natively by
+      # build-python). Emulated pip is a ~1 min cost, vs the ~19 min
+      # emulated source build this job carried before v0.32.0.
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
         with:

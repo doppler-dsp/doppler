@@ -55,23 +55,20 @@ wfm_compose_spans (const wfm_segment_t *segs, size_t n_segs, wfm_span_t *out,
         {
           /* Identical draw keys to the streaming composer (epoch 0): the
            * replayed spans are the rendered spans, sample for sample. */
-          size_t on = (g->ranged & WFM_RANGE_NUM_SAMPLES)
-                          ? wfm_draw_samples (dseed, 0, inst, i,
-                                              WFM_RANGE_NUM_SAMPLES,
-                                              g->num_samples,
-                                              g->num_samples_hi)
-                          : g->num_samples;
+          size_t on  = (g->ranged & WFM_RANGE_NUM_SAMPLES)
+                           ? wfm_draw_samples (
+                                 dseed, 0, inst, i, WFM_RANGE_NUM_SAMPLES,
+                                 g->num_samples, g->num_samples_hi)
+                           : g->num_samples;
           size_t off = (g->ranged & WFM_RANGE_OFF_SAMPLES)
-                           ? wfm_draw_samples (dseed, 0, inst, i,
-                                               WFM_RANGE_OFF_SAMPLES,
-                                               g->off_samples,
-                                               g->off_samples_hi)
+                           ? wfm_draw_samples (
+                                 dseed, 0, inst, i, WFM_RANGE_OFF_SAMPLES,
+                                 g->off_samples, g->off_samples_hi)
                            : g->off_samples;
           size_t dly = (g->ranged & WFM_RANGE_DELAY_SAMPLES)
-                           ? wfm_draw_samples (dseed, 0, inst, i,
-                                               WFM_RANGE_DELAY_SAMPLES,
-                                               g->delay_samples,
-                                               g->delay_samples_hi)
+                           ? wfm_draw_samples (
+                                 dseed, 0, inst, i, WFM_RANGE_DELAY_SAMPLES,
+                                 g->delay_samples, g->delay_samples_hi)
                            : g->delay_samples;
           if (out && total < cap)
             out[total] = (wfm_span_t){ .seg      = i,

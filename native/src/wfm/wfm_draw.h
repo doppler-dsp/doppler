@@ -19,11 +19,11 @@
  * indices, and the field id, so every ranged field draws an independent yet
  * reproducible sequence across repeats and instances. Instance 0 contributes
  * nothing to the key — a repeats-less scene draws exactly as before. */
-double wfm_draw_range(uint32_t seed, unsigned epoch, size_t inst, size_t seg,
-                      size_t src, unsigned field, double lo, double hi);
+double wfm_draw_range (uint32_t seed, unsigned epoch, size_t inst, size_t seg,
+                       size_t src, unsigned field, double lo, double hi);
 
 /* Round a non-negative ranged draw to a sample count. */
-size_t wfm_draw_samples(uint32_t seed, unsigned epoch, size_t inst,
-                        size_t seg, unsigned field, size_t lo, size_t hi);
+size_t wfm_draw_samples (uint32_t seed, unsigned epoch, size_t inst,
+                         size_t seg, unsigned field, size_t lo, size_t hi);
 
 #endif /* WFM_DRAW_H */

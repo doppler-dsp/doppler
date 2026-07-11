@@ -32,6 +32,7 @@ class Despreader:
     """
     def __init__(self, code: NDArray[np.uint8] = ..., sps: int = ..., init_norm_freq: float = ..., init_chip: float = ..., bn_carrier: float = ..., bn_code: float = ..., bn_fll: float = ..., zeta: float = ..., spacing: float = ..., periods_per_bit: int = ...) -> None: ...
 
+    # jm:hand
     def steps(
         self,
         x: NDArray[np.complex64],
@@ -57,9 +58,11 @@ class Despreader:
             Output.
         """
 
+    # jm:hand
     def steps_max_out(self) -> int:
         """Max output length steps() can produce for the current state. Use to size the ``out=`` buffer."""
 
+    # jm:hand
     def bits(
         self, x: NDArray[np.complex64], out: NDArray[np.uint8] | None = ...
     ) -> NDArray[np.uint8]:
@@ -83,19 +86,18 @@ class Despreader:
             Output.
         """
 
+    # jm:hand
     def bits_max_out(self) -> int:
         """Max output length bits() can produce for the current state. Use to size the ``out=`` buffer."""
 
-    def set_telemetry(
-        self, tlm: object | None, prefix: str, decim: int = 1
-    ) -> None:
-        """Attach (or detach) a telemetry context across the despreader. Pure forwarder — the despreader registers no probes of its own: the carrier loop registers "<prefix>.car.lock" / ".e" / ".freq" / ".locked" and the code loop registers "<prefix>.code.e" / ".rate" / ".lock" / ".locked" (the ".locked" pair are the loops' verify-counted lockdet decisions, 0/1) — eight probes, all thinned by decim and emitted once per code period (the despreader flushes both loops at its per-period update).  Passing NULL detaches both loops.  Setup path, never hot; the context is borrowed and must outlive the attachment (SPSC rules in telemetry/telemetry.h).
+    def set_telemetry(self, tlm: object | None, prefix: Any, decim: int = 1) -> None:
+        """Attach (or detach) a telemetry context across the despreader. Pure forwarder — the despreader registers no probes of its own: the carrier loop registers "<prefix>.car.lock" / ".e" / ".freq" / ".locked" and the code loop registers "<prefix>.code.e" / ".rate" / ".lock" / ".locked" (the ".locked" pair are the loops' verify-counted lockdet decisions, 0/1) — eight probes, all thinned by decim and emitted once per code period (the despreader flushes both loops at its per-period update). Passing NULL detaches both loops.  Setup path, never hot; the context is borrowed and must outlive the attachment (SPSC rules in telemetry/telemetry.h).
 
         Parameters
         ----------
         tlm : object | None
             Telemetry context to attach, or NULL to detach.
-        prefix : str
+        prefix : Any
             Probe-name prefix, e.g. "ch0".
         decim : int
             Emit every decim-th code period; >= 1.
@@ -181,28 +183,29 @@ class Despreader:
     def __exit__(self, *args: object) -> None: ...
 
 class BurstDespreader:
-    """BurstDespreader component.
+    """Create a burst despreader instance.
 
     Parameters
     ----------
     code : NDArray[np.uint8], default ...
-        code constructor parameter.
+        Data spreading code (0/1 chips), length code_len; copied.
     sf : int, default 1
-        sf constructor parameter.
+        Spreading factor: chips integrated per prompt symbol (default: 1).
     sps : int, default 2
-        sps constructor parameter.
+        Samples per chip (default: 2).
     init_norm_freq : float, default 0.0
-        init_norm_freq constructor parameter.
+        Seed carrier frequency, cycles/sample — the acquisition estimate (default: 0.0).
     init_chip_phase : float, default 0.0
-        init_chip_phase constructor parameter.
+        Seed code phase, chips (default: 0.0).
     bn_carrier : float, default 0.05
-        bn_carrier constructor parameter.
+        Carrier loop noise bandwidth (default: 0.05).
     bn_code : float, default 0.01
-        bn_code constructor parameter.
+        Code loop noise bandwidth (default: 0.01).
 
     """
     def __init__(self, code: NDArray[np.uint8] = ..., sf: int = ..., sps: int = ..., init_norm_freq: float = ..., init_chip_phase: float = ..., bn_carrier: float = ..., bn_code: float = ...) -> None: ...
 
+    # jm:hand
     def steps(
         self,
         x: NDArray[np.complex64],
@@ -244,9 +247,11 @@ class BurstDespreader:
 
         """
 
+    # jm:hand
     def steps_max_out(self) -> int:
         """Max output length steps() can produce for the current state. Use to size the ``out=`` buffer."""
 
+    # jm:hand
     def bits(
         self, x: NDArray[np.complex64], out: NDArray[np.uint8] | None = ...
     ) -> NDArray[np.uint8]:
@@ -273,6 +278,7 @@ class BurstDespreader:
             Number of bits written.
         """
 
+    # jm:hand
     def bits_max_out(self) -> int:
         """Max output length bits() can produce for the current state. Use to size the ``out=`` buffer."""
 
@@ -284,7 +290,9 @@ class BurstDespreader:
         in even a wide residual) before switching to the data code for the
         payload. Call before feeding the burst; the acq mode clears
         automatically once the preamble is consumed, and re-arms on
-        burst_despreader_reset().
+        burst_despreader_reset(). NB: set_acq re-arms the PREAMBLE only — the
+        cumulative burst statistics (lock_metric / snr_est / lock_stat / stat_n)
+        are re-armed by burst_despreader_reset(); call it between bursts.
 
         Parameters
         ----------
@@ -624,6 +632,7 @@ class BurstDemod:
             Input.
         """
 
+    # jm:hand
     def demod(
         self, x: NDArray[np.complex64], out: NDArray[np.uint8] | None = ...
     ) -> NDArray[np.uint8]:
@@ -647,6 +656,7 @@ class BurstDemod:
             Number of bits written (0 on failure / too-short burst). The read-back fields (frame_valid, est_*, frame_offset) are updated.
         """
 
+    # jm:hand
     def demod_max_out(self) -> int:
         """Max output length demod() can produce for the current state. Use to size the ``out=`` buffer."""
 

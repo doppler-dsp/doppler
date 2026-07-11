@@ -223,6 +223,17 @@ DDCObj_exit (DDCObject *self, PyObject *args)
  * The matching PyMethodDef rows are below. */
 DP_PY_STATE_METHODS (DDCObj, DDCObject, self->handle, ddc)
 
+static PyObject *
+DDCObj_execute_max_out (DDCObject *self, PyObject *Py_UNUSED (ignored))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromSize_t (ddc_execute_max_out (self->handle));
+}
+
 static PyMethodDef DDCObj_methods[] = {
 
   { "execute", (PyCFunction)DDCObj_execute, METH_VARARGS,
@@ -254,6 +265,9 @@ static PyMethodDef DDCObj_methods[] = {
     "Release resources." },
   { "__enter__", (PyCFunction)DDCObj_enter, METH_NOARGS, NULL },
   { "__exit__", (PyCFunction)DDCObj_exit, METH_VARARGS, NULL },
+  { "execute_max_out", (PyCFunction)DDCObj_execute_max_out, METH_NOARGS,
+    "execute_max_out() -> int\n\nMax output length execute() can produce for "
+    "the current state.\nUse to size the ``out=`` buffer." },
   { NULL }
 };
 

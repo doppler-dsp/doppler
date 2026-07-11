@@ -198,6 +198,18 @@ HalfbandDecimatorObj_exit (HalfbandDecimatorObject *self, PyObject *args)
 DP_PY_STATE_METHODS (HalfbandDecimatorObj, HalfbandDecimatorObject,
                      self->handle, HalfbandDecimator)
 
+static PyObject *
+HalfbandDecimatorObj_execute_max_out (HalfbandDecimatorObject *self,
+                                      PyObject *Py_UNUSED (ignored))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromSize_t (HalfbandDecimator_execute_max_out (self->handle));
+}
+
 static PyMethodDef HalfbandDecimatorObj_methods[] = {
 
   { "execute", (PyCFunction)HalfbandDecimatorObj_execute, METH_VARARGS,
@@ -229,6 +241,10 @@ static PyMethodDef HalfbandDecimatorObj_methods[] = {
     "Release resources." },
   { "__enter__", (PyCFunction)HalfbandDecimatorObj_enter, METH_NOARGS, NULL },
   { "__exit__", (PyCFunction)HalfbandDecimatorObj_exit, METH_VARARGS, NULL },
+  { "execute_max_out", (PyCFunction)HalfbandDecimatorObj_execute_max_out,
+    METH_NOARGS,
+    "execute_max_out() -> int\n\nMax output length execute() can produce for "
+    "the current state.\nUse to size the ``out=`` buffer." },
   { NULL }
 };
 

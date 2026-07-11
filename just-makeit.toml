@@ -1,7 +1,7 @@
 include = ["objects/*.toml"]
 
 [project]
-jm_version = "0.28.2"
+jm_version = "0.28.3"
 name = "doppler"
 version = "0.1.0"
 build = "cmake"
@@ -14,18 +14,27 @@ pytest = "true"
 pytest_benchmark = "true"
 schema = "7"
 c_deps = ["hbdecim", "resamp", "wfmcompose"]
+# dsss.pyi came OFF this list in jm 0.28.3 (gh-428): its ten hand-maintained
+# has_params-single-array-param members (despreader.steps/bits,
+# burst_despreader.steps/bits, burst_demod.demod, + each *_max_out()) are now
+# individually marked `# jm:hand` in the stub itself, and `jm apply`'s
+# member-level merge preserves exactly those spans byte-for-byte while
+# regenerating everything else — so new manifest-derived API (docstrings,
+# properties) flows into the file again instead of silently rotting behind
+# the old whole-file skip. Verified on the 0.28.3 pin bump: 10/10 marked
+# members survived; unmarked content picked up real accumulated doc updates.
+# The same migration is a good follow-up for the remaining files below —
+# not yet done, they still use the coarser whole-file skip.
+#
 # measure.pyi's analyze() methods are jm-generated (single=true, gh-244) but
 # spectrum_dbfs() is hand-maintained: jm's stub aggregator didn't reconcile
 # out=/spectrum_dbfs_max_out() for this has_params-single-array-param method
 # even after the sacred fragments freshly regenerated with the new binding —
-# the same gap dsss.pyi/analyzer.pyi/delay.pyi hit below.
-# dsss.pyi/analyzer.pyi are hand-maintained for despreader.steps/bits,
-# burst_despreader.steps/bits,
-# burst_demod.demod, specan.execute: jm's stub aggregator didn't reconcile
-# out=/<name>_max_out() for these has_params-single-array-param methods even
-# after their sacred fragments freshly regenerated with the new binding (a
-# separate, pre-existing jm gap from the has_params predicate fixed in
-# gh-219's follow-up — the .c binding is correct, only the .pyi stub lagged).
+# the same gap analyzer.pyi/delay.pyi hit below.
+# analyzer.pyi is hand-maintained for the same has_params-single-array-param
+# stub-lag (a separate, pre-existing jm gap from the has_params predicate
+# fixed in gh-219's follow-up — the .c binding is correct, only the .pyi
+# stub lagged).
 # delay.pyi is hand-maintained for ptr()/push_ptr(): jm's stub generator drops
 # the implicit "count"/out= params for this has_params=False shape (the .c
 # binding gets them correctly; the .pyi generator doesn't) — a separate,
@@ -43,7 +52,6 @@ c_deps = ["hbdecim", "resamp", "wfmcompose"]
 # upstream.
 status_allow = [
     "zensical.toml",
-    "src/doppler/dsss/dsss.pyi",
     "src/doppler/analyzer/analyzer.pyi",
     "src/doppler/delay/delay.pyi",
     "src/doppler/measure/measure.pyi",

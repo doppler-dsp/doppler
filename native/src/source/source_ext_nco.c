@@ -274,55 +274,86 @@ NCOObj_exit (NCOObject *self, PyObject *args)
  * The matching PyMethodDef rows are below. */
 DP_PY_STATE_METHODS (NCOObj, NCOObject, self->handle, nco)
 
-static PyMethodDef NCOObj_methods[]
-    = { { "reset", (PyCFunction)NCOObj_reset, METH_NOARGS,
-          "Reset state to post-create defaults." },
+static PyObject *
+NCOObj_steps_u32_max_out (NCOObject *self, PyObject *Py_UNUSED (ignored))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromSize_t (nco_steps_u32_max_out (self->handle));
+}
 
-        { "steps_u32", (PyCFunction)NCOObj_steps_u32, METH_VARARGS,
-          "steps_u32(n=1) -> ndarray\n"
-          "\n"
-          "Advance n samples; write raw uint32 accumulator values.\n"
-          "\n"
-          "    >>> import numpy as np\n"
-          "    >>> from doppler import NCO\n"
-          "    >>> obj = NCO(0.0, 0)\n"
-          "    >>> y = obj.steps_u32(4)\n"
-          "    >>> y.dtype\n"
-          "    dtype('uint32')\n" },
-        { "steps_u32_scaled", (PyCFunction)NCOObj_steps_u32_scaled,
-          METH_VARARGS,
-          "steps_u32_scaled(n=1) -> ndarray\n"
-          "\n"
-          "Advance n samples; values scaled to [0, nmax).\n"
-          "\n"
-          "    >>> import numpy as np\n"
-          "    >>> from doppler import NCO\n"
-          "    >>> obj = NCO(0.0, 0)\n"
-          "    >>> y = obj.steps_u32_scaled(4)\n"
-          "    >>> y.dtype\n"
-          "    dtype('uint32')\n" },
-        { "steps_u32_ovf", (PyCFunction)NCOObj_steps_u32_ovf, METH_VARARGS,
-          "steps_u32_ovf(n=1) -> tuple[ndarray, ndarray]\n"
-          "\n"
-          "Advance n samples; write raw phase values and per-sample carry.\n"
-          "\n"
-          "    >>> import numpy as np\n"
-          "    >>> from doppler import NCO\n"
-          "    >>> obj = NCO(0.0, 0)\n"
-          "    >>> y = obj.steps_u32_ovf(4)\n"
-          "    >>> y[0].dtype\n"
-          "    dtype('uint32')\n" },
-        { "state_bytes", (PyCFunction)NCOObj_state_bytes, METH_NOARGS,
-          "Serialized state size in bytes." },
-        { "get_state", (PyCFunction)NCOObj_get_state, METH_NOARGS,
-          "Serialize the phase accumulator to bytes." },
-        { "set_state", (PyCFunction)NCOObj_set_state, METH_O,
-          "Restore phase from a get_state() blob." },
-        { "destroy", (PyCFunction)NCOObj_destroy, METH_NOARGS,
-          "Release resources." },
-        { "__enter__", (PyCFunction)NCOObj_enter, METH_NOARGS, NULL },
-        { "__exit__", (PyCFunction)NCOObj_exit, METH_VARARGS, NULL },
-        { NULL } };
+static PyObject *
+NCOObj_steps_u32_scaled_max_out (NCOObject *self,
+                                 PyObject  *Py_UNUSED (ignored))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromSize_t (nco_steps_u32_scaled_max_out (self->handle));
+}
+
+static PyMethodDef NCOObj_methods[] = {
+  { "reset", (PyCFunction)NCOObj_reset, METH_NOARGS,
+    "Reset state to post-create defaults." },
+
+  { "steps_u32", (PyCFunction)NCOObj_steps_u32, METH_VARARGS,
+    "steps_u32(n=1) -> ndarray\n"
+    "\n"
+    "Advance n samples; write raw uint32 accumulator values.\n"
+    "\n"
+    "    >>> import numpy as np\n"
+    "    >>> from doppler import NCO\n"
+    "    >>> obj = NCO(0.0, 0)\n"
+    "    >>> y = obj.steps_u32(4)\n"
+    "    >>> y.dtype\n"
+    "    dtype('uint32')\n" },
+  { "steps_u32_scaled", (PyCFunction)NCOObj_steps_u32_scaled, METH_VARARGS,
+    "steps_u32_scaled(n=1) -> ndarray\n"
+    "\n"
+    "Advance n samples; values scaled to [0, nmax).\n"
+    "\n"
+    "    >>> import numpy as np\n"
+    "    >>> from doppler import NCO\n"
+    "    >>> obj = NCO(0.0, 0)\n"
+    "    >>> y = obj.steps_u32_scaled(4)\n"
+    "    >>> y.dtype\n"
+    "    dtype('uint32')\n" },
+  { "steps_u32_ovf", (PyCFunction)NCOObj_steps_u32_ovf, METH_VARARGS,
+    "steps_u32_ovf(n=1) -> tuple[ndarray, ndarray]\n"
+    "\n"
+    "Advance n samples; write raw phase values and per-sample carry.\n"
+    "\n"
+    "    >>> import numpy as np\n"
+    "    >>> from doppler import NCO\n"
+    "    >>> obj = NCO(0.0, 0)\n"
+    "    >>> y = obj.steps_u32_ovf(4)\n"
+    "    >>> y[0].dtype\n"
+    "    dtype('uint32')\n" },
+  { "state_bytes", (PyCFunction)NCOObj_state_bytes, METH_NOARGS,
+    "Serialized state size in bytes." },
+  { "get_state", (PyCFunction)NCOObj_get_state, METH_NOARGS,
+    "Serialize the phase accumulator to bytes." },
+  { "set_state", (PyCFunction)NCOObj_set_state, METH_O,
+    "Restore phase from a get_state() blob." },
+  { "destroy", (PyCFunction)NCOObj_destroy, METH_NOARGS,
+    "Release resources." },
+  { "__enter__", (PyCFunction)NCOObj_enter, METH_NOARGS, NULL },
+  { "__exit__", (PyCFunction)NCOObj_exit, METH_VARARGS, NULL },
+  { "steps_u32_max_out", (PyCFunction)NCOObj_steps_u32_max_out, METH_NOARGS,
+    "steps_u32_max_out() -> int\n\nMax output length steps_u32() can produce "
+    "for the current state.\nUse to size the ``out=`` buffer." },
+  { "steps_u32_scaled_max_out", (PyCFunction)NCOObj_steps_u32_scaled_max_out,
+    METH_NOARGS,
+    "steps_u32_scaled_max_out() -> int\n\nMax output length "
+    "steps_u32_scaled() can produce for the current state.\nUse to size the "
+    "``out=`` buffer." },
+  { NULL }
+};
 
 static PyTypeObject NCOObjType = {
   PyVarObject_HEAD_INIT (NULL, 0).tp_name = "source.NCO",

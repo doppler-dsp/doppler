@@ -13,6 +13,8 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+## [0.32.0] — 2026-07-11
+
 ### Added
 
 - **Linux aarch64 wheels on PyPI.** The release workflow now builds
@@ -77,7 +79,29 @@ ______________________________________________________________________
     doppler's 8-file post-apply restore drill (verified: a bare apply
     now leaves the hand-maintained `.pyi` stubs untouched).
 
+- **jm pin 0.28.2 → 0.28.3.** jm#428's `# jm:hand` member-level `.pyi`
+    merge retires most of the hand-merge toil the 0.28.2 bump left
+    behind: `dsss.pyi`'s ten hand-maintained members (despreader/
+    burst_despreader `steps`/`bits` + their `*_max_out()`,
+    `burst_demod.demod` + `demod_max_out()`) are now individually
+    marked, and the file is off `status_allow` entirely — `jm apply`
+    preserves the marked spans and refreshes everything else, so new
+    generated API no longer silently rots behind the old whole-file
+    skip. jm#440's additive fragment splice also landed: a
+    manifest-derived method/property missing from a sacred fragment
+    now gets spliced in without disturbing existing hand content (see
+    Fixed, below).
+
 ### Fixed
+
+- **`execute_max_out()`/`generate_max_out()`/`steps_u32*_max_out()` now
+    actually exist on `DDC`, `HalfbandDecimator`, `HalfbandDecimatorQ15`,
+    `AWGN`, and `NCO`.** Their `.pyi` stubs promised these `out=`
+    sizing-helper methods, but the C binding was never generated (jm's
+    delete-to-adopt fragment mechanic meant adding one meant losing
+    unrelated hand content, so it kept getting deferred) — calling any
+    of them raised `AttributeError`. Fixed by the jm 0.28.3 bump above:
+    the additive splice fills in exactly the missing binding.
 
 - **The DLL lock detector now runs in composition.** The
     `dll_accumulate`/`dll_update` inline composition helpers never fed

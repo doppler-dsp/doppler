@@ -1066,6 +1066,38 @@ class MpskReceiver:
     def bits_max_out(self) -> int:
         """Max output length bits() can produce for the current state."""
 
+    def configure_lock(self, up_thresh: float, down_thresh: float, n_up: int, n_down: int) -> None:
+        """Re-tune the acquisition<->tracking handover detector: hands the carrier to the decision-directed discriminator after n_up consecutive symbols with the carrier lock EMA above up_thresh, and falls back to NDA acquisition after n_down consecutive symbols below down_thresh (level + time hysteresis; see detection.LockDet). Previously only settable at construction (lock_thresh, with fixed 0.8x drop / 8-up / 32-down constants) -- this is the post-construction re-tune Dll and Costas both already have. A live handover survives the re-tune; the in-flight verify run restarts.
+
+        Full lockdet control over `handover`, mirroring costas_configure_lock():
+        a split declare/drop threshold pair on the carrier lock EMA (level
+        hysteresis) and both verify counts (time hysteresis). Previously only
+        settable at construction (`lock_thresh`, with `MPSK_RX_HANDOVER_DOWN`/
+        `_N_UP`/`_N_DOWN` fixed compile-time constants) -- this is the
+        post-construction re-tune Dll and Costas both already have. A live
+        handover survives the re-tune; the in-flight verify run restarts.
+
+        Parameters
+        ----------
+        up_thresh : float
+            Declare threshold on the carrier lock EMA.
+        down_thresh : float
+            Drop threshold; choose <= up_thresh for level hysteresis.
+        n_up : int
+            Consecutive above-threshold symbols to hand over to the decision-directed discriminator; clamped >= 1.
+        n_down : int
+            Consecutive below-threshold symbols to fall back to NDA acquisition; clamped >= 1.
+
+        Examples
+        --------
+        >>> from doppler.track import MpskReceiver
+        >>> rx = MpskReceiver(m=4, sps=4, acq_to_track=1)
+        >>> rx.tracking
+        0
+        >>> rx.configure_lock(0.9, 0.72, 4, 16)   # tighter declare, faster drop
+
+        """
+
     def reset(self) -> None:
         """Re-seed the carrier and symbol-timing loops to their create-time state; preserve configuration.
         """

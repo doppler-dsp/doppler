@@ -351,6 +351,21 @@ despreader_get_code_locked (const despreader_state_t *state)
   return state->code.lock.locked;
 }
 
+void
+despreader_configure_carrier_lock (despreader_state_t *state, double up_thresh,
+                                   double down_thresh, uint32_t n_up,
+                                   uint32_t n_down)
+{
+  costas_configure_lock (&state->car, up_thresh, down_thresh, n_up, n_down);
+}
+
+int
+despreader_configure_code_lock (despreader_state_t *state, double pfa,
+                                size_t n_looks, double ref_snr_db)
+{
+  return dll_configure_lock (&state->code, pfa, n_looks, ref_snr_db);
+}
+
 size_t
 despreader_get_bit_phase (const despreader_state_t *state)
 {

@@ -207,6 +207,41 @@ def test_acq_to_track_two_way():
     assert rx.tracking == 1  # re-declared
 
 
+def test_configure_lock_unreachable_threshold_never_engages():
+    tx, _ = _signal(4, foff=0.0008, snr_db=25, seed=4)
+    rx = MpskReceiver(
+        m=4,
+        sps=8,
+        n=4,
+        init_norm_freq=0.0008,
+        acq_to_track=1,
+        warmup_syms=200,
+        bn_carrier=0.03,
+    )
+    rx.configure_lock(up_thresh=2.0, down_thresh=1.9, n_up=1, n_down=1)
+    rx.steps(tx)
+    assert rx.tracking == 0
+
+
+def test_configure_lock_low_threshold_engages_fast():
+    # n_up=1 with an easily-reachable threshold hands over on the first
+    # above-threshold symbol once warmup has elapsed.
+    tx, idx = _signal(4, foff=0.0008, snr_db=25, seed=4)
+    rx = MpskReceiver(
+        m=4,
+        sps=8,
+        n=4,
+        init_norm_freq=0.0008,
+        acq_to_track=1,
+        warmup_syms=200,
+        bn_carrier=0.03,
+    )
+    rx.configure_lock(up_thresh=0.1, down_thresh=0.05, n_up=1, n_down=32)
+    out = rx.steps(tx)
+    assert rx.tracking == 1
+    assert _ser(out, idx, 4) < 0.02
+
+
 @pytest.mark.parametrize("m", [2, 4, 8])
 def test_bits_differential_rotation_invariant(m):
     """Differential bits survive an arbitrary fixed carrier-phase rotation."""

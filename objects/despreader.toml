@@ -105,6 +105,30 @@ params = [
 ]
 
 [[despreader.methods]]
+name = "configure_carrier_lock"
+doc = "Re-tune the embedded carrier loop's lock detector directly: forwards to the Costas loop's configure_lock (locked flips up after n_up consecutive symbols with the lock-metric EMA above up_thresh, and drops after n_down consecutive symbols below down_thresh; see Costas.configure_lock). Symmetric with the carrier_locked state property: state is readable, so config should be writable too, rather than forcing a caller who needs this control to drop to raw Dll+Costas composition."
+arg_type = "void"
+return_type = "void"
+params = [
+  { name = "up_thresh", type = "double" },
+  { name = "down_thresh", type = "double" },
+  { name = "n_up", type = "uint32_t" },
+  { name = "n_down", type = "uint32_t" },
+]
+
+[[despreader.methods]]
+name = "configure_code_lock"
+doc = "Re-tune the embedded code loop's lock detector: forwards to the DLL's configure_lock (see Dll.configure_lock) -- the derived (pfa-style) entry point, matching Despreader's role as the easy composed API (Dll's raw escape hatch, configure_lock_raw, stays a Dll-only control for a caller that composes Dll+Costas directly). Raises ValueError for pfa outside (0, 1)."
+arg_type = "void"
+return_type = "int"
+status_return = true
+params = [
+  { name = "pfa", type = "double" },
+  { name = "n_looks", type = "size_t" },
+  { name = "ref_snr_db", type = "double", default = "0.0" },
+]
+
+[[despreader.methods]]
 name = "reset"
 doc = "Re-seed both loops to the create-time frequency/phase; preserve config."
 arg_type = "void"

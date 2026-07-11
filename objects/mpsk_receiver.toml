@@ -132,6 +132,18 @@ nogil = true
 params = [{ name = "x", type = "float _Complex[]" }]
 
 [[mpsk_receiver.methods]]
+name = "configure_lock"
+doc = "Re-tune the acquisition<->tracking handover detector: hands the carrier to the decision-directed discriminator after n_up consecutive symbols with the carrier lock EMA above up_thresh, and falls back to NDA acquisition after n_down consecutive symbols below down_thresh (level + time hysteresis; see detection.LockDet). Previously only settable at construction (lock_thresh, with fixed 0.8x drop / 8-up / 32-down constants) -- this is the post-construction re-tune Dll and Costas both already have. A live handover survives the re-tune; the in-flight verify run restarts."
+arg_type = "void"
+return_type = "void"
+params = [
+  { name = "up_thresh", type = "double" },
+  { name = "down_thresh", type = "double" },
+  { name = "n_up", type = "uint32_t" },
+  { name = "n_down", type = "uint32_t" },
+]
+
+[[mpsk_receiver.methods]]
 name = "reset"
 doc = "Re-seed the carrier and symbol-timing loops to their create-time state; preserve configuration."
 arg_type = "void"

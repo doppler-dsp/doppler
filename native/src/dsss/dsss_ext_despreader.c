@@ -756,6 +756,59 @@ DespreaderObj_exit (DespreaderObject *self, PyObject *args)
   Py_RETURN_NONE;
 }
 
+static PyObject *
+DespreaderObj_configure_carrier_lock (DespreaderObject *self, PyObject *args,
+                                      PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char *_kwlist[]
+      = { "up_thresh", "down_thresh", "n_up", "n_down", NULL };
+  double        up_thresh   = 0.0;
+  double        down_thresh = 0.0;
+  unsigned long n_up_raw    = 0UL;
+  unsigned long n_down_raw  = 0UL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "ddkk", _kwlist, &up_thresh,
+                                    &down_thresh, &n_up_raw, &n_down_raw))
+    return NULL;
+  uint32_t n_up   = (uint32_t)n_up_raw;
+  uint32_t n_down = (uint32_t)n_down_raw;
+  despreader_configure_carrier_lock (self->handle, up_thresh, down_thresh,
+                                     n_up, n_down);
+  Py_RETURN_NONE;
+}
+
+static PyObject *
+DespreaderObj_configure_code_lock (DespreaderObject *self, PyObject *args,
+                                   PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char       *_kwlist[]   = { "pfa", "n_looks", "ref_snr_db", NULL };
+  double             pfa         = 0.0;
+  unsigned long long n_looks_raw = 0ULL;
+  double             ref_snr_db  = 0.0;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "dK|d", _kwlist, &pfa,
+                                    &n_looks_raw, &ref_snr_db))
+    return NULL;
+  size_t n_looks = (size_t)n_looks_raw;
+  int    _rc     = despreader_configure_code_lock (self->handle, pfa, n_looks,
+                                                   ref_snr_db);
+  if (_rc != 0)
+    {
+      PyErr_Format (PyExc_ValueError, "configure_code_lock failed (rc=%d)",
+                    _rc);
+      return NULL;
+    }
+  Py_RETURN_NONE;
+}
+
 static PyMethodDef DespreaderObj_methods[] = {
 
   { "steps", (PyCFunction)DespreaderObj_steps, METH_VARARGS | METH_KEYWORDS,
@@ -834,6 +887,42 @@ static PyMethodDef DespreaderObj_methods[] = {
     "Release resources." },
   { "__enter__", (PyCFunction)DespreaderObj_enter, METH_NOARGS, NULL },
   { "__exit__", (PyCFunction)DespreaderObj_exit, METH_VARARGS, NULL },
+  { "configure_carrier_lock",
+    (PyCFunction)(void *)DespreaderObj_configure_carrier_lock,
+    METH_VARARGS | METH_KEYWORDS,
+    "configure_carrier_lock(up_thresh, down_thresh, n_up, n_down) -> None\n"
+    "\n"
+    "Re-tune the embedded carrier loop's lock detector directly: forwards to "
+    "the Costas loop's configure_lock (locked flips up after n_up consecutive "
+    "symbols with the lock-metric EMA above up_thresh, and drops after n_down "
+    "consecutive symbols below down_thresh; see Costas.configure_lock). "
+    "Symmetric with the carrier_locked state property: state is readable, so "
+    "config should be writable too, rather than forcing a caller who needs "
+    "this control to drop to raw Dll+Costas composition.\n"
+    "\n"
+    "    >>> import numpy as np\n"
+    "    >>> from doppler import Despreader\n"
+    "    >>> obj = Despreader(np.zeros(1, dtype=np.uint8), 4, 0.0, 0.0, 0.05, "
+    "0.005, 0.0, 0.707, 0.5, 1)\n"
+    "    >>> obj.configure_carrier_lock(0.0, 0.0, 0, 0)\n" },
+  { "configure_code_lock",
+    (PyCFunction)(void *)DespreaderObj_configure_code_lock,
+    METH_VARARGS | METH_KEYWORDS,
+    "configure_code_lock(pfa, n_looks, ref_snr_db) -> int\n"
+    "\n"
+    "Re-tune the embedded code loop's lock detector: forwards to the DLL's "
+    "configure_lock (see Dll.configure_lock) -- the derived (pfa-style) entry "
+    "point, matching Despreader's role as the easy composed API (Dll's raw "
+    "escape hatch, configure_lock_raw, stays a Dll-only control for a caller "
+    "that composes Dll+Costas directly). Raises ValueError for pfa outside "
+    "(0, 1).\n"
+    "\n"
+    "    >>> import numpy as np\n"
+    "    >>> from doppler import Despreader\n"
+    "    >>> obj = Despreader(np.zeros(1, dtype=np.uint8), 4, 0.0, 0.0, 0.05, "
+    "0.005, 0.0, 0.707, 0.5, 1)\n"
+    "    >>> obj.configure_code_lock(0.0, 0, 0.0)\n"
+    "    0\n" },
   { NULL }
 };
 

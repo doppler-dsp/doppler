@@ -382,6 +382,14 @@ mpsk_receiver_get_lock (const mpsk_receiver_state_t *state)
   return state->car.lock;
 }
 
+void
+mpsk_receiver_configure_lock (mpsk_receiver_state_t *state, double up_thresh,
+                              double down_thresh, uint32_t n_up,
+                              uint32_t n_down)
+{
+  lockdet_configure (&state->handover, up_thresh, down_thresh, n_up, n_down);
+}
+
 int
 mpsk_receiver_set_telemetry (mpsk_receiver_state_t *state, dp_tlm_t *tlm,
                              const char *prefix, uint32_t decim)

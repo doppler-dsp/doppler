@@ -489,6 +489,31 @@ MpskReceiverObj_bits (MpskReceiverObject *self, PyObject *args, PyObject *kwds)
 }
 
 static PyObject *
+MpskReceiverObj_configure_lock (MpskReceiverObject *self, PyObject *args,
+                                PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char *_kwlist[]
+      = { "up_thresh", "down_thresh", "n_up", "n_down", NULL };
+  double        up_thresh   = 0.0;
+  double        down_thresh = 0.0;
+  unsigned long n_up_raw    = 0UL;
+  unsigned long n_down_raw  = 0UL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "ddkk", _kwlist, &up_thresh,
+                                    &down_thresh, &n_up_raw, &n_down_raw))
+    return NULL;
+  uint32_t n_up   = (uint32_t)n_up_raw;
+  uint32_t n_down = (uint32_t)n_down_raw;
+  mpsk_receiver_configure_lock (self->handle, up_thresh, down_thresh, n_up,
+                                n_down);
+  Py_RETURN_NONE;
+}
+
+static PyObject *
 MpskReceiverObj_reset (MpskReceiverObject *self, PyObject *Py_UNUSED (ignored))
 {
   if (!self->handle)
@@ -564,6 +589,7 @@ MpskReceiver_getprop_norm_freq (MpskReceiverObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
+  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyFloat_FromDouble (mpsk_receiver_get_norm_freq (self->handle));
 }
 static int
@@ -589,6 +615,7 @@ MpskReceiver_getprop_lock (MpskReceiverObject *self, void *Py_UNUSED (closure))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
+  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyFloat_FromDouble (mpsk_receiver_get_lock (self->handle));
 }
 static PyObject *
@@ -600,6 +627,7 @@ MpskReceiver_getprop_timing_rate (MpskReceiverObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
+  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyFloat_FromDouble (mpsk_receiver_get_timing_rate (self->handle));
 }
 static PyObject *
@@ -611,6 +639,7 @@ MpskReceiver_getprop_tracking (MpskReceiverObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
+  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromLong ((long)mpsk_receiver_get_tracking (self->handle));
 }
 static PyObject *
@@ -621,6 +650,7 @@ MpskReceiver_getprop_m (MpskReceiverObject *self, void *Py_UNUSED (closure))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
+  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromLong ((long)mpsk_receiver_get_m (self->handle));
 }
 static PyObject *
@@ -631,6 +661,7 @@ MpskReceiver_getprop_sps (MpskReceiverObject *self, void *Py_UNUSED (closure))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
+  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromUnsignedLongLong (
       (unsigned long long)mpsk_receiver_get_sps (self->handle));
 }
@@ -642,6 +673,7 @@ MpskReceiver_getprop_n (MpskReceiverObject *self, void *Py_UNUSED (closure))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
+  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromLong ((long)mpsk_receiver_get_n (self->handle));
 }
 
@@ -697,10 +729,13 @@ static PyMethodDef MpskReceiverObj_methods[] = {
     "\n"
     "Attach (or detach) a telemetry context across the receiver. Registers "
     "the receiver's own \"<prefix>.lock\" probe (the carrier lock EMA) and "
-    "forwards the attach to both embedded loops: the carrier loop registers "
+    "\"<prefix>.tracking\" (the two-way handover decision, 0/1 — the lockdet "
+    "output, so a consumer sees exactly when the carrier was handed to the "
+    "decision-directed discriminator or dropped back to NDA), then forwards "
+    "the attach to both embedded loops: the carrier loop registers "
     "\"<prefix>.car.lock\" / \".e\" / \".freq\" (plus its arm AGC's "
     "\"<prefix>.car.agc.gain_db\") and the symbol-timing loop registers "
-    "\"<prefix>.sync.e\" / \".freq\" / \".rate\" — eight probes total, all "
+    "\"<prefix>.sync.e\" / \".freq\" / \".rate\" — nine probes total, all "
     "thinned by decim.  Every probe except the AGC's emits once per recovered "
     "symbol (the receiver flushes both loops at the symbol strobe, not at the "
     "carrier loop's sample rate); the AGC's emits at its own amortized "
@@ -723,11 +758,15 @@ static PyMethodDef MpskReceiverObj_methods[] = {
     "wipe-off), accumulates a non-data-aided M-th-power I/Q arm at n "
     "dumps/symbol to acquire the carrier with no data and no symbol timing, "
     "matched-filters the de-rotated stream (integrate-and-dump or RRC), and "
-    "runs a Gardner symbol-timing loop. With acq_to_track enabled it switches "
-    "to a lower-jitter decision-directed carrier loop once locked. The loop "
-    "locks to one of m phases (M-fold ambiguity); resolve it with "
-    "bits(differential) or a sync word. Read norm_freq for the tracked "
-    "carrier and lock for the carrier lock metric.\n"
+    "runs a Gardner symbol-timing loop. With acq_to_track enabled a "
+    "verify-counted two-way handover steps on the carrier lock metric each "
+    "symbol: it switches to a lower-jitter decision-directed carrier loop "
+    "after 8 consecutive above-lock_thresh symbols, and on a sustained lock "
+    "loss (32 consecutive symbols below 0.8*lock_thresh) drops back to the "
+    "NDA acquisition steer, the shared NCO carrying the frequency estimate "
+    "both ways. The loop locks to one of m phases (M-fold ambiguity); resolve "
+    "it with bits(differential) or a sync word. Read norm_freq for the "
+    "tracked carrier and lock for the carrier lock metric.\n"
     "\n"
     "    >>> import numpy as np\n"
     "    >>> from doppler import MpskReceiver\n"
@@ -759,6 +798,25 @@ static PyMethodDef MpskReceiverObj_methods[] = {
   { "bits_max_out", (PyCFunction)MpskReceiverObj_bits_max_out, METH_NOARGS,
     "bits_max_out() -> int\n\nMax output length bits() can produce for the "
     "current state.\nUse to size the ``out=`` buffer." },
+  { "configure_lock", (PyCFunction)(void *)MpskReceiverObj_configure_lock,
+    METH_VARARGS | METH_KEYWORDS,
+    "configure_lock(up_thresh, down_thresh, n_up, n_down) -> None\n"
+    "\n"
+    "Re-tune the acquisition<->tracking handover detector: hands the carrier "
+    "to the decision-directed discriminator after n_up consecutive symbols "
+    "with the carrier lock EMA above up_thresh, and falls back to NDA "
+    "acquisition after n_down consecutive symbols below down_thresh (level + "
+    "time hysteresis; see detection.LockDet). Previously only settable at "
+    "construction (lock_thresh, with fixed 0.8x drop / 8-up / 32-down "
+    "constants) -- this is the post-construction re-tune Dll and Costas both "
+    "already have. A live handover survives the re-tune; the in-flight verify "
+    "run restarts.\n"
+    "\n"
+    "    >>> import numpy as np\n"
+    "    >>> from doppler import MpskReceiver\n"
+    "    >>> obj = MpskReceiver(4, 8, 4, \"iandd\", 0.35, 8, 0.01, 0.707, "
+    "0.01, 0, 0.5, 0.0, 100, 0)\n"
+    "    >>> obj.configure_lock(0.0, 0.0, 0, 0)\n" },
   { "reset", (PyCFunction)MpskReceiverObj_reset, METH_NOARGS,
     "reset() -> None\n"
     "\n"

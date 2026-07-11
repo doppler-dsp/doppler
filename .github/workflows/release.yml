@@ -586,10 +586,14 @@ jobs:
 
             **C library:** download the pre-built tarballs from the assets below.
 
-            **Container:**
+            **Container** (`linux/amd64` + `linux/arm64`, `cli`/`specan-web`
+            extras pre-installed):
             ```sh
+            docker pull ghcr.io/${{ github.repository }}:${{ needs.verify-version.outputs.version }}
             docker run --rm ghcr.io/${{ github.repository }}:${{ needs.verify-version.outputs.version }} doppler --help
+            docker run --rm ghcr.io/${{ github.repository }}:${{ needs.verify-version.outputs.version }} wfmgen --help
             ```
+            See [Docker](https://doppler-dsp.github.io/doppler/install/docker/#published-container) for details.
 
             See [CHANGELOG.md](CHANGELOG.md) for details.
 

@@ -9,7 +9,7 @@ target_link_libraries(source PRIVATE
     nco_core
     lo_core
     awgn_core
-    $<$<PLATFORM_ID:Linux>:mvec>
+    $<$<AND:$<PLATFORM_ID:Linux>,$<STREQUAL:${CMAKE_SYSTEM_PROCESSOR},x86_64>>:mvec>
     Python3::NumPy)
 target_include_directories(source PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
 set_target_properties(source PROPERTIES

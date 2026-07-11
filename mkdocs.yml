@@ -166,6 +166,7 @@ nav:
           - 5-Burst DSSS Link (wfmgen's 3 Faces): gallery/dsss-burst-pipeline.md
           - Streaming Async Despreader: gallery/async-despread.md
           - Despreader (full continuous receiver): gallery/despreader.md
+          - Full-Chain Lock-Up: gallery/receiver-lock.md
       - Synchronization Loops:
           - Carrier Loop Stress: gallery/costas.md
           - Costas Loop (theory): gallery/costas-theory.md
@@ -226,6 +227,7 @@ nav:
   - Guides:
       - Guides: guide/index.md
       - DSSS Burst Acquisition: guide/dsss-acquisition.md
+      - Lock Detection Across doppler.track: guide/lock-detection.md
       - Power Spectra & Measurements: guide/spectral-psd.md
       - Real-Time Pacing & Timestamping: guide/timing.md
       - Fixed-Point Arithmetic: guide/fixed-point.md

@@ -3,6 +3,32 @@
 #include <stdlib.h>
 #include <string.h>
 
+/* Default carrier lock-detector rule (see carrier_nda_configure_lock's
+ * header doc). up_thresh/down_thresh (0.5/0.4) start from MpskReceiver's
+ * own pre-existing acquisition<->tracking handover thresholds
+ * (MPSK_RX_HANDOVER_DOWN in mpsk_receiver_core.c), which steps a lockdet
+ * on this exact `lock` statistic. n_up was NOT safe to inherit alongside
+ * them, though: MpskReceiver's handover verify count (8) assumes
+ * consecutive looks compound independently (p^n_up), but `lock` is a
+ * fast per-sample EMA (CARRIER_NDA_LOCK_ALPHA, ~20-sample memory) --
+ * consecutive samples are highly autocorrelated, so that assumption does
+ * not hold (the same independence violation flagged, and designed
+ * around, for the DLL's lock statistic and Dll's tumbling vs. sliding
+ * window discussion). Direct Monte Carlo against the real object (noise-
+ * only, no carrier) confirmed the risk empirically before shipping:
+ *   n_up=8  (MpskReceiver's value): 4/30 trials falsely locked
+ *   n_up=16:                        7/100 trials falsely locked
+ *   n_up=32:                        1/100 trials falsely locked
+ *   n_up=64:                        0/300 trials falsely locked
+ * n_up=64 is the shipped default (real carrier still locks reliably,
+ * 20/20 trials at ~15 dB) -- 64 samples is a small fraction of a
+ * typical acquisition window, so this buys reliability at negligible
+ * latency cost. */
+#define CARRIER_NDA_LOCK_DEFAULT_UP 0.5
+#define CARRIER_NDA_LOCK_DEFAULT_DOWN 0.4
+#define CARRIER_NDA_LOCK_DEFAULT_N_UP 64u
+#define CARRIER_NDA_LOCK_DEFAULT_N_DOWN 32u
+
 /* Per-M lock-signal scale: normalizes the lock metric across constellations
  * (see docs/design/mpsk.md §2.3). */
 static double
@@ -34,6 +60,7 @@ seed (carrier_nda_state_t *s, double init_norm_freq)
   boxcar_init (&s->arm, s->arm_len, 1.0);
   s->lock       = 0.0;
   s->last_error = 0.0;
+  lockdet_reset (&s->lockdet); /* drop the lock; keep the configured rule */
   /* Embed the log-domain AGC by value (no agc_create): config + reset its loop
    * memory to the post-create condition (gain 0 dB, p_avg pre-seeded to the
    * unit reference power so the first on-target dump produces no transient).
@@ -99,6 +126,9 @@ carrier_nda_init (carrier_nda_state_t *s, double bn, double zeta,
   memset (&s->tlm, 0, sizeof s->tlm);
   memset (&s->agc.tlm, 0, sizeof s->agc.tlm);
   config_loop (s);
+  lockdet_init (&s->lockdet, CARRIER_NDA_LOCK_DEFAULT_UP,
+                CARRIER_NDA_LOCK_DEFAULT_DOWN, CARRIER_NDA_LOCK_DEFAULT_N_UP,
+                CARRIER_NDA_LOCK_DEFAULT_N_DOWN);
   seed (s, init_norm_freq);
 }
 
@@ -150,7 +180,9 @@ carrier_nda_set_telemetry (carrier_nda_state_t *state, dp_tlm_t *tlm,
   int id_e = dp_tlm_probe (tlm, name, decim);
   (void)snprintf (name, sizeof (name), "%s.freq", p);
   int id_freq = dp_tlm_probe (tlm, name, decim);
-  if (id_lock < 0 || id_e < 0 || id_freq < 0)
+  (void)snprintf (name, sizeof (name), "%s.locked", p);
+  int id_locked = dp_tlm_probe (tlm, name, decim);
+  if (id_lock < 0 || id_e < 0 || id_freq < 0 || id_locked < 0)
     return DP_ERR_INVALID; /* table full / bad prefix: attach fails whole */
   /* Forward to the embedded arm AGC under "<prefix>.agc"; if ITS
    * registration fails the whole attach fails and this loop stays
@@ -160,10 +192,11 @@ carrier_nda_set_telemetry (carrier_nda_state_t *state, dp_tlm_t *tlm,
   int rc = agc_set_telemetry (&state->agc, tlm, name, decim);
   if (rc != DP_OK)
     return rc;
-  state->tlm.id_lock = id_lock;
-  state->tlm.id_e    = id_e;
-  state->tlm.id_freq = id_freq;
-  state->tlm.ctx     = tlm; /* set last: emit sites gate on ctx */
+  state->tlm.id_lock   = id_lock;
+  state->tlm.id_e      = id_e;
+  state->tlm.id_freq   = id_freq;
+  state->tlm.id_locked = id_locked;
+  state->tlm.ctx       = tlm; /* set last: emit sites gate on ctx */
   return DP_OK;
 }
 
@@ -175,6 +208,7 @@ carrier_nda_tlm_flush (const carrier_nda_state_t *s)
   /* Tracked carrier = NCO centre + the loop's integrated correction
    * (cycles/sample) — the same reconstruction as get_norm_freq. */
   dp_tlm_emit (s->tlm.ctx, s->tlm.id_freq, s->nco.norm_freq + s->lf.integ);
+  dp_tlm_emit (s->tlm.ctx, s->tlm.id_locked, (double)s->lockdet.locked);
 }
 
 /* Serializable state — pointer-free POD whole-struct snapshot, with the
@@ -249,6 +283,7 @@ carrier_nda_steps (carrier_nda_state_t *state, const float complex *x,
           if (carrier_nda_arm_step (state, d, &pe, &lk))
             {
               state->lock += CARRIER_NDA_LOCK_ALPHA * (lk - state->lock);
+              (void)lockdet_step (&state->lockdet, state->lock);
               carrier_nda_steer (state, pe);
             }
           if (emitted < max_out)
@@ -264,6 +299,7 @@ carrier_nda_steps (carrier_nda_state_t *state, const float complex *x,
           if (carrier_nda_arm_step (state, d, &pe, &lk))
             {
               state->lock += CARRIER_NDA_LOCK_ALPHA * (lk - state->lock);
+              (void)lockdet_step (&state->lockdet, state->lock);
               carrier_nda_steer (state, pe);
             }
           if (emitted < max_out)
@@ -335,4 +371,17 @@ size_t
 carrier_nda_get_sps (const carrier_nda_state_t *state)
 {
   return state->sps;
+}
+
+void
+carrier_nda_configure_lock (carrier_nda_state_t *state, double up_thresh,
+                            double down_thresh, uint32_t n_up, uint32_t n_down)
+{
+  lockdet_configure (&state->lockdet, up_thresh, down_thresh, n_up, n_down);
+}
+
+int
+carrier_nda_get_locked (const carrier_nda_state_t *state)
+{
+  return state->lockdet.locked;
 }

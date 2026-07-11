@@ -96,9 +96,9 @@ default = "0"
 # Telemetry attach (jm gh-432; mirrors objects/agc.toml): registers the
 # receiver's "<prefix>.lock" + "<prefix>.tracking" probes (the latter is
 # the two-way handover lockdet decision, 0/1) and forwards to both embedded
-# loops — "<prefix>.car.lock/.e/.freq" + "<prefix>.car.agc.gain_db"
+# loops — "<prefix>.car.lock/.e/.freq/.locked" + "<prefix>.car.agc.gain_db"
 # (carrier) and "<prefix>.sync.e/.freq/.rate/.lock/.locked" (timing) —
-# eleven probes per attach. None detaches everything; the int status
+# twelve probes per attach. None detaches everything; the int status
 # binds -> None / ValueError.
 [[mpsk_receiver.methods]]
 name = "set_telemetry"

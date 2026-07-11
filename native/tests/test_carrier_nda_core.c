@@ -390,7 +390,7 @@ main (void)
       N = 1024
     };
     float complex rx[N], out[N];
-    dp_tlm_rec_t  recs[4096];
+    dp_tlm_rec_t  recs[8192];
     for (int i = 0; i < N; i++)
       rx[i] = (float complex)cexp (I * TWOPI * 0.005 * (double)i);
     dp_tlm_t            *tlm = dp_tlm_create (1 << 13);
@@ -400,16 +400,20 @@ main (void)
     CHECK (dp_tlm_lookup (tlm, "car.lock") == c->tlm.id_lock);
     CHECK (dp_tlm_lookup (tlm, "car.e") == c->tlm.id_e);
     CHECK (dp_tlm_lookup (tlm, "car.freq") == c->tlm.id_freq);
+    CHECK (dp_tlm_lookup (tlm, "car.locked") == c->tlm.id_locked);
     CHECK (dp_tlm_lookup (tlm, "car.agc.gain_db") == c->agc.tlm.id_gain);
     CHECK (c->agc.tlm.ctx == tlm); /* forwarded attach armed the AGC */
 
     size_t k = carrier_nda_steps (c, rx, N, out, N);
     CHECK (k == N);
-    size_t n_rec = dp_tlm_read (tlm, recs, 4096);
-    /* three per sample + one AGC record per amortized gain update */
-    CHECK (n_rec == 3 * N + N / AGC_DECIM_DEFAULT);
-    /* The last freq record mirrors the tracked carrier. */
-    CHECK (recs[n_rec - 1].value == (float)(c->nco.norm_freq + c->lf.integ));
+    size_t n_rec = dp_tlm_read (tlm, recs, 8192);
+    /* four per sample + one AGC record per amortized gain update */
+    CHECK (n_rec == 4 * N + N / AGC_DECIM_DEFAULT);
+    /* Per-sample emit order is lock, e, freq, locked -- the last record is
+     * the lockdet decision; the one before it mirrors the tracked carrier. */
+    CHECK (recs[n_rec - 1].probe == (uint16_t)c->tlm.id_locked);
+    CHECK (recs[n_rec - 1].value == (float)c->lockdet.locked);
+    CHECK (recs[n_rec - 2].value == (float)(c->nco.norm_freq + c->lf.integ));
 
     /* Blobs zero BOTH attachments (deterministic) and set_state into an
      * attached instance preserves that instance's live attachments. */
@@ -432,7 +436,7 @@ main (void)
     CHECK (carrier_nda_set_telemetry (c, NULL, "car", 1) == DP_OK);
     CHECK (c->tlm.ctx == NULL && c->agc.tlm.ctx == NULL);
     (void)carrier_nda_steps (c, rx, N, out, N);
-    CHECK (dp_tlm_read (tlm, recs, 4096) == 0);
+    CHECK (dp_tlm_read (tlm, recs, 8192) == 0);
 
     /* A full probe table fails the attach whole (AGC included). */
     char pname[DP_TLM_NAME_MAX];

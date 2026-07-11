@@ -126,6 +126,50 @@ def test_reset_reproducible():
     assert c.norm_freq == f1 and c.lock == l1
 
 
+# -------------------------------------------------------------------- #
+# Lock detector (thresholds on the `lock` EMA already tested above)    #
+# -------------------------------------------------------------------- #
+def test_lock_defaults_unlocked():
+    c = CarrierNda(m=4)
+    assert c.locked is False
+
+
+def test_lock_acquires_on_clean_carrier():
+    c = CarrierNda(bn=0.01, zeta=0.707, init_norm_freq=0.0, sps=SPS, n=N, m=4)
+    c.steps(_unmod(0.001, 40000))
+    assert c.locked is True
+
+
+def test_lock_stays_low_on_noise():
+    # pure noise, no carrier at all -- the default n_up=64 verify count is
+    # sized (by direct Monte Carlo, see carrier_nda_core.c) to reject the
+    # false declares a naively-small verify count would let through on
+    # this fast, autocorrelated EMA statistic.
+    rng = np.random.default_rng(11)
+    n = 20000
+    x = ((rng.standard_normal(n) + 1j * rng.standard_normal(n)) * 0.3).astype(
+        np.complex64
+    )
+    c = CarrierNda(bn=0.01, zeta=0.707, sps=SPS, n=N, m=4)
+    c.steps(x)
+    assert c.locked is False
+
+
+def test_configure_lock_unreachable_threshold_never_locks():
+    c = CarrierNda(bn=0.01, zeta=0.707, init_norm_freq=0.0, sps=SPS, n=N, m=4)
+    c.configure_lock(up_thresh=2.0, down_thresh=1.9, n_up=1, n_down=1)
+    c.steps(_unmod(0.001, 40000))
+    assert c.locked is False
+
+
+def test_lock_reset_clears():
+    c = CarrierNda(bn=0.01, zeta=0.707, init_norm_freq=0.0, sps=SPS, n=N, m=4)
+    c.steps(_unmod(0.001, 40000))
+    assert c.locked is True
+    c.reset()
+    assert c.locked is False
+
+
 def test_empty_input():
     c = CarrierNda(m=4)
     y = c.steps(np.zeros(0, dtype=np.complex64))

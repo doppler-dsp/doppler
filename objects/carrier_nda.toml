@@ -14,6 +14,7 @@ depends_on = [
   { name = "loop_filter", link = true },
   { name = "boxcar", link = true },
   { name = "agc", link = true },
+  { name = "lockdet", link = true },
   { name = "telemetry", link = true },
 ]
 
@@ -58,10 +59,11 @@ nogil = true
 params = [{ name = "x", type = "float _Complex[]" }]
 
 # Telemetry attach (jm gh-432; mirrors objects/symsync.toml): registers
-# "<prefix>.lock" / "<prefix>.e" / "<prefix>.freq" plus the embedded arm
-# AGC's "<prefix>.agc.gain_db". This is a sample-rate loop — the probes emit
-# once per input sample; decim is the throttle. None detaches everything;
-# the int status binds -> None with ValueError on failure.
+# "<prefix>.lock" / "<prefix>.e" / "<prefix>.freq" / "<prefix>.locked"
+# (the last is the verify-counted lockdet decision, 0/1) plus the embedded
+# arm AGC's "<prefix>.agc.gain_db". This is a sample-rate loop — the probes
+# emit once per input sample; decim is the throttle. None detaches
+# everything; the int status binds -> None with ValueError on failure.
 [[carrier_nda.methods]]
 name = "set_telemetry"
 arg_type = "void"
@@ -71,6 +73,18 @@ params = [
   { name = "tlm", type = "dp_tlm_t *", capsule = "doppler.telemetry.dp_tlm", header = "telemetry/telemetry.h" },
   { name = "prefix", type = "const char *" },
   { name = "decim", type = "uint32_t", default = "1" },
+]
+
+[[carrier_nda.methods]]
+name = "configure_lock"
+doc = "Re-tune the carrier lock detector: locked flips up after n_up consecutive samples with the lock-signal EMA above up_thresh, and drops after n_down consecutive samples below down_thresh (level + time hysteresis; see detection.LockDet). Defaults (0.5/0.4, 8 up / 32 down) mirror MpskReceiver's own pre-existing acquisition<->tracking handover, which already steps a lockdet on this exact statistic and is validated by that receiver's BER regression gate. A live lock survives the re-tune; the in-flight verify run restarts."
+arg_type = "void"
+return_type = "void"
+params = [
+  { name = "up_thresh", type = "double" },
+  { name = "down_thresh", type = "double" },
+  { name = "n_up", type = "uint32_t" },
+  { name = "n_down", type = "uint32_t" },
 ]
 
 [[carrier_nda.methods]]
@@ -87,6 +101,11 @@ writable = true
 [[carrier_nda.properties]]
 name = "lock"
 type = "double"
+
+[[carrier_nda.properties]]
+name = "locked"
+type = "bool"
+doc = "Current lock decision: True after the verify count of consecutive above-threshold samples, False again after the drop count of consecutive below-threshold ones (see configure_lock)."
 
 [[carrier_nda.properties]]
 name = "last_error"

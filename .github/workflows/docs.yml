@@ -3,8 +3,9 @@ name: Docs
 on:
   push:
     branches: [main]
+  # Unfiltered so stacked PRs (non-main base) build docs too; the deploy job
+  # is already gated on push-to-main.
   pull_request:
-    branches: [main]
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true

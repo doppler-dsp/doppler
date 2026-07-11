@@ -3,8 +3,17 @@ name: CI
 on:
   push:
     branches: [ main, develop ]
+  # No base-branch filter: a stacked PR (base = another feature branch) must
+  # get the same CI as one targeting main — an unfiltered pull_request event
+  # runs on every PR, while the push trigger above keeps post-merge runs
+  # scoped to the long-lived branches (no double-run for feature pushes).
   pull_request:
-    branches: [ main, develop ]
+
+# A force-push to a PR (routine while a stacked branch rebases) supersedes
+# the in-flight run — cancel it. Pushes to main/develop never cancel.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true

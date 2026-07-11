@@ -383,6 +383,20 @@ void wfm_synth_reset(wfm_synth_state_t *state);
 void wfm_synth_reseed_noise(wfm_synth_state_t *state, uint32_t seed);
 
 /**
+ * @brief Generate n noise-only samples — the synth's additive-AWGN term with
+ * no signal — continuing the same noise RNG stream wfm_synth_steps() draws
+ * from (no reseed, identical chunked awgn call pattern, so a gap rendered
+ * here is the seamless continuation of the on-time noise). Writes exact
+ * zeros and advances nothing for a clean synth (no AWGN child). Used by the
+ * composer to carry a segment's noise floor through its off-time gap.
+ * @param state   Synth state (may be NULL — no-op).
+ * @param output  n complex samples out.
+ * @param n       Sample count.
+ */
+void wfm_synth_noise_steps(wfm_synth_state_t *state, float complex *output,
+                           size_t n);
+
+/**
  * @brief Generate one output sample from internal state.
  * Advances the PN LFSR (modulated types only, on symbol boundaries), the
  * LO phase accumulator, and the AWGN engine, then returns the mixed

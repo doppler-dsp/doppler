@@ -696,6 +696,36 @@ wfm_synth_steps (wfm_synth_state_t *state, float complex *output, size_t n)
   state->sym_read_idx = sidx;
 }
 
+void
+wfm_synth_noise_steps (wfm_synth_state_t *state, float complex *output,
+                       size_t n)
+{
+  if (!state || !output || n == 0)
+    return;
+  if (!state->awgn)
+    {
+      /* Clean synth: no AWGN child exists, so the noise term is exactly
+       * zero and there is no RNG stream to advance. */
+      memset (output, 0, n * sizeof *output);
+      return;
+    }
+  /* Chunk exactly like wfm_synth_steps() (CH-sized awgn_generate calls) so
+   * a gap rendered here consumes the identical AWGN sub-sequences the
+   * on-time path would — the vectorized awgn path is not block-boundary
+   * invariant, so matching the call pattern is what keeps a composed
+   * stream reproducible across faces. */
+  enum
+  {
+    CH = 2048
+  };
+  for (size_t done = 0; done < n;)
+    {
+      size_t m = (n - done < (size_t)CH) ? (n - done) : (size_t)CH;
+      awgn_generate (state->awgn, m, output + done);
+      done += m;
+    }
+}
+
 int
 wfm_synth_get_wtype (const wfm_synth_state_t *state)
 {

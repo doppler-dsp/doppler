@@ -8,6 +8,7 @@ Writer↔read_iq round-trip per sample type, segment timing, and the DSP helpers
 """
 
 import hashlib
+import json
 import os
 import pathlib
 import random
@@ -274,14 +275,29 @@ def test_writer_readback_roundtrip(tmp_path, stype):
 
 
 def test_segment_timing():
-    """Composed length = sum of on-time + trailing gaps; off-time is zeros."""
+    """Composed length = sum of on-time + trailing gaps. A noisy segment's
+    gap carries its noise floor by default (gh-409) — the AWGN keeps
+    running while the signal stops; ``gap_noise="off"`` restores hard
+    zeros, and a clean segment's gap was zeros all along."""
     spec = [
         Segment("noise", num_samples=100, off_samples=50),
         Segment("tone", num_samples=200),
     ]
     x = Composer(spec).compose()
     assert len(x) == 100 + 50 + 200
-    assert np.all(x[100:150] == 0)  # the gap
+    assert np.all(x[100:150] != 0)  # the gap keeps the noise floor
+    off = [
+        Segment("noise", num_samples=100, off_samples=50, gap_noise="off"),
+        Segment("tone", num_samples=200),
+    ]
+    y = Composer(off).compose()
+    assert np.all(y[100:150] == 0)  # escape hatch: hard zeros
+    clean = [
+        Segment("tone", num_samples=100, off_samples=50),
+        Segment("tone", num_samples=200),
+    ]
+    z = Composer(clean).compose()
+    assert np.all(z[100:150] == 0)  # clean scene: gaps unchanged
 
 
 def test_streaming_matches_compose():
@@ -1267,3 +1283,40 @@ def test_symbols_no_stream_cannot_generate():
     (lazily, at first steps()), matching a pattern-less bits Synth."""
     with pytest.raises(RuntimeError):
         Synth(type="symbols").steps(4)
+
+
+def test_sigmf_annotations_per_instance():
+    """The SigMF sidecar emits one annotation per rendered instance at the
+    exact drawn position — repeats and ranged delay/gap draws replayed via
+    wfm_compose_spans — with real type labels (the writer's stale private
+    name table used to drop symbols/dsss and mis-place ranged scenes)."""
+    seg = Segment(
+        "bpsk",
+        sps=4,
+        seed=9,
+        snr=8.0,
+        num_samples=300,
+        off_samples=(50, 150),
+        delay_samples=(20, 80),
+        repeats=3,
+        gap_noise="off",
+    )
+    comp = Composer([seg])
+    meta = json.loads(comp.to_sigmf(sample_type="cf32", fs=1e6))
+    anns = meta["annotations"]
+    assert len(anns) == 3
+    assert all(a["core:label"] == "bpsk" for a in anns)
+    x = comp.compose()
+    nz = np.flatnonzero(x != 0)
+    edges = np.where(np.diff(nz) > 1)[0]
+    starts = [int(nz[0])] + [int(nz[e + 1]) for e in edges]
+    assert [int(a["core:sample_start"]) for a in anns] == starts
+    assert all(int(a["core:sample_count"]) == 300 for a in anns)
+
+    sym = np.exp(1j * np.linspace(0, np.pi, 8)).astype(np.complex64)
+    m2 = json.loads(
+        Composer(
+            [Segment("symbols", symbols=sym, sps=4, num_samples=64)]
+        ).to_sigmf(sample_type="cf32", fs=1e6)
+    )
+    assert m2["annotations"][0]["core:label"] == "symbols"

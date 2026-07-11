@@ -199,6 +199,7 @@ def test_five_bursts_decode_through_burst_demod():
             **{
                 **_seg_kwargs(k + 1, 0, acq, dat, pay),
                 "off_samples": (min_gap, max_gap),
+                "gap_noise": "off",  # zero-run walk needs silent gaps
             }
         )
         for k in range(5)
@@ -267,6 +268,7 @@ def test_repeats_burst_train_decodes():
     kw = _seg_kwargs(1, 0, acq, dat, pay)
     kw["off_samples"] = (min_gap, max_gap)
     kw["repeats"] = 5
+    kw["gap_noise"] = "off"  # zero-run walk needs silent gaps
     x = Composer([Segment(**kw)]).compose()
     assert len(x) >= 5 * (BURST_LEN + min_gap)
 
@@ -297,3 +299,64 @@ def test_repeats_burst_train_decodes():
         if bd.frame_valid and np.array_equal(bits, pay):
             n_valid += 1
     assert n_valid == 5
+
+
+def test_gap_noise_default_floor_and_decode():
+    """By default (gh-409) the inter-burst gaps carry the segment's noise
+    floor — the same power the in-burst AWGN has over fs — instead of
+    digital silence, and the SigMF sidecar's per-instance annotations give
+    the exact burst positions, so every burst still decodes from the
+    noisy-gap capture. The gap draws are identical in both gap_noise
+    modes (same hash), pinning the two renders to the same timeline."""
+    import json
+
+    acq, dat, pay = _codes()
+    kw = _seg_kwargs(1, 0, acq, dat, pay)
+    kw["off_samples"] = (4000, 12000)
+    kw["repeats"] = 5
+    comp = Composer([Segment(**kw)])
+    x = comp.compose()
+    off = Composer([Segment(**{**kw, "gap_noise": "off"})]).compose()
+    assert len(x) == len(off)  # same draws → same timeline in both modes
+
+    anns = json.loads(comp.to_sigmf(sample_type="cf32", fs=FS))["annotations"]
+    assert len(anns) == 5
+    starts = [int(a["core:sample_start"]) for a in anns]
+    assert all(int(a["core:sample_count"]) == BURST_LEN for a in anns)
+
+    # gap noise power == the esno-resolved floor (10 dB over sf*sps -> -10
+    # dB fs -> power 10); use the tail gap after the last burst.
+    gap = x[starts[-1] + BURST_LEN :]
+    floor = 10 ** (-(10.0 - 10 * math.log10(DATA_SF * SPC)) / 10)
+    assert len(gap) >= 4000 and np.all(gap != 0)
+    power = float(np.mean(np.abs(gap) ** 2))
+    assert power == pytest.approx(floor, rel=0.15)
+    # ... while the burst region carries signal + that same floor
+    burst_p = float(np.mean(np.abs(x[starts[0] : starts[0] + BURST_LEN]) ** 2))
+    assert burst_p == pytest.approx(floor + 1.0, rel=0.15)
+
+    n_valid = 0
+    for s in starts:
+        bd = BurstDemod(dat, spc=SPC, chip_rate=FS / SPC, payload_len=PAYLOAD)
+        bd.set_preamble(acq, REPS)
+        bd.set_sync(SYNC)
+        bd.set_prior(0.0, 0)
+        bits = bd.demod(x[s : s + BURST_LEN])
+        if bd.frame_valid and np.array_equal(bits, pay):
+            n_valid += 1
+    assert n_valid == 5
+
+
+def test_delay_samples_arrival_jitter():
+    """delay_samples places the burst after a leading gap: the delayed
+    render is the delay-less render shifted (clean case), a ranged delay
+    re-draws per instance, and the CLI records/replays it byte-exactly."""
+    acq, dat, pay = _codes()
+    kw = _seg_kwargs(3, 0, acq, dat, pay)
+    kw.pop("off_samples")
+    kw["gap_noise"] = "off"
+    x0 = Composer([Segment(**kw)]).compose()
+    xd = Composer([Segment(**{**kw, "delay_samples": 500})]).compose()
+    assert len(xd) == len(x0) + 500
+    assert np.all(xd[:500] == 0)
+    assert np.array_equal(xd[500:], x0)

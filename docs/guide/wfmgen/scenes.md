@@ -16,7 +16,9 @@ C engine, so their output is **byte-identical** for the same parameters.
 | `--headroom DB`         | back the output off to `−DB` dBFS so peaks fit (SNR-invariant; default 0)                |
 | `--clip-report`         | print the clipped fraction + peak; `--clip-error` exits non-zero on a clip               |
 | `--fc HZ`               | capture center frequency, written into BLUE/SigMF metadata                               |
-| `--off N`               | trailing off-time (zeros) after the segment                                              |
+| `--off N`               | trailing gap after the segment (carries the noise floor; see below)                      |
+| `--delay N`             | leading gap before the segment — arrival delay / jitter                                  |
+| `--gap-noise M`         | `auto` (default: gaps carry the segment's noise floor) / `off` (hard zeros)              |
 | `--repeat`              | loop the whole sequence                                                                  |
 | `--continuous`          | never stop (implies repeat) — for streaming                                              |
 | `--seed-advance A`      | `none` (default) / `noise` / `all`: how the seed advances per repeat                     |
@@ -65,9 +67,14 @@ trailing off-time — and can repeat or run forever.
     ```
 
 `type` and `snr_mode` are strings in JSON; every other field is numeric and
-**falls back to the engine default** if omitted. `num_samples` is the on-time;
-`off_samples` is a trailing gap of zeros. `repeat` loops the sequence;
-`continuous` never finishes (for streaming).
+**falls back to the engine default** if omitted. A segment's shape is
+`delay | on | off`: `delay_samples` is a leading gap (arrival delay),
+`num_samples` the on-time, `off_samples` a trailing gap — use `off` for
+inter-burst *spacing* and `delay` for arrival *jitter*. Gaps are not
+silence by default: a noisy segment's AWGN keeps running through its
+delay and trailing gap (the channel's noise floor — gh-409), while a clean
+scene's gaps stay exact zeros; `gap_noise: "off"` forces hard zeros.
+`repeat` loops the sequence; `continuous` never finishes (for streaming).
 
 Rather than write the JSON schema from memory, dump a ready-to-edit example with
 **`wfmgen json-template`** and edit it down:
@@ -197,7 +204,8 @@ ______________________________________________________________________
 ## Burst trains (`repeats`)
 
 A segment can play itself `repeats` times back-to-back — each **instance** is
-one on-time plus its trailing gap — before the timeline advances. That turns
+`delay | on | off` (arrival delay, burst, trailing gap) — before the
+timeline advances. That turns
 "N bursts, randomly placed with a minimum gap" into **one declaration**
 instead of N copy-pasted segments:
 
@@ -213,8 +221,9 @@ instead of N copy-pasted segments:
 Instance semantics are exactly what a burst train wants:
 
 - **Ranged fields re-draw per instance** — with `off_samples: [lo, hi]` every
-    gap is a fresh draw (and `lo` is the guaranteed minimum gap). The draw key
-    extends the ranged hash with the instance index, so instance 0 renders
+    gap is a fresh draw (`lo` = the guaranteed minimum gap), and a ranged
+    `delay_samples` jitters each burst's arrival. The draw key extends the
+    ranged hash with the instance index, so instance 0 renders
     **byte-identically** to a repeats-less segment and old scenes are
     unchanged.
 - **The AWGN is always fresh per instance** — two instances never share a

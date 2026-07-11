@@ -6,6 +6,7 @@ if(BUILD_PYTHON)
 Python3_add_library(wfm_writer MODULE WITH_SOABI wfm_writer_ext.c)
 target_link_libraries(wfm_writer PRIVATE
     wfm_writer_core
+    wfm_draw_core
     wfm_cjson
     m
     Python3::NumPy)

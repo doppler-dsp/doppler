@@ -133,7 +133,12 @@ class Segment:
     off_samples : int | tuple[int, int], default 0
         Trailing off-time gap in samples (zeros) appended after the segment.
     repeats : int, default 1
-        Play the segment this many times back-to-back (each instance = on-time + trailing gap) before advancing. Ranged fields re-draw and the AWGN is fresh per instance; the signal (codes, payload, PN phase) stays fixed.
+        Play the segment this many times back-to-back (each instance = delay + on-time + trailing gap) before advancing. Ranged fields re-draw and the AWGN is fresh per instance; the signal (codes, payload, PN phase) stays fixed.
+    delay_samples : int | tuple[int, int], default 0
+        Leading gap before the on-time (samples) — the burst arrives after this delay. Ranged like off_samples and re-drawn per repeats instance, so a (lo, hi) delay is per-burst arrival jitter. Use off_samples for inter-burst spacing, delay_samples for arrival jitter.
+    gap_noise : str, default ``"auto"``
+        Gap policy for this segment's delay and trailing gap. auto (default): gaps carry the segment's noise floor — the sources' AWGN keeps running while the signal stops (clean scenes still get exact-zero gaps). off: gaps are hard zeros.
+        One of ``"auto"``, ``"off"``.
     """
     sources: list[Synth]
     type: str
@@ -158,9 +163,9 @@ class Segment:
     data_code: bytes | None
     sync: bytes | None
     crc: str
-    def __init__(self, type: str = ..., freq: float | tuple[float, float] = ..., snr: float | tuple[float, float] = ..., snr_mode: str = ..., seed: int = ..., sps: int = ..., pn_length: int = ..., pn_poly: int = ..., lfsr: str = ..., level: float | tuple[float, float] = ..., f_end: float | tuple[float, float] = ..., bits: bytes | None = ..., modulation: str = ..., pulse: str = ..., rrc_beta: float = ..., rrc_span: int = ..., symbols: NDArray[np.complex64] | None = ..., acq_code: bytes | None = ..., acq_reps: int = ..., data_code: bytes | None = ..., sync: bytes | None = ..., crc: str = ..., fs: float = ..., num_samples: int | tuple[int, int] = ..., off_samples: int | tuple[int, int] = ..., repeats: int = ...) -> None: ...
+    def __init__(self, type: str = ..., freq: float | tuple[float, float] = ..., snr: float | tuple[float, float] = ..., snr_mode: str = ..., seed: int = ..., sps: int = ..., pn_length: int = ..., pn_poly: int = ..., lfsr: str = ..., level: float | tuple[float, float] = ..., f_end: float | tuple[float, float] = ..., bits: bytes | None = ..., modulation: str = ..., pulse: str = ..., rrc_beta: float = ..., rrc_span: int = ..., symbols: NDArray[np.complex64] | None = ..., acq_code: bytes | None = ..., acq_reps: int = ..., data_code: bytes | None = ..., sync: bytes | None = ..., crc: str = ..., fs: float = ..., num_samples: int | tuple[int, int] = ..., off_samples: int | tuple[int, int] = ..., repeats: int = ..., delay_samples: int | tuple[int, int] = ..., gap_noise: str = ...) -> None: ...
     @classmethod
-    def sum(cls, *sources: Synth, fs: float = ..., num_samples: int | tuple[int, int] = ..., off_samples: int | tuple[int, int] = ..., repeats: int = ...) -> Segment:
+    def sum(cls, *sources: Synth, fs: float = ..., num_samples: int | tuple[int, int] = ..., off_samples: int | tuple[int, int] = ..., repeats: int = ..., delay_samples: int | tuple[int, int] = ..., gap_noise: str = ...) -> Segment:
         """Combine *sources* into a single Segment."""
     def add(self, *others: Segment) -> Timeline:
         """Append segments; return a Timeline."""

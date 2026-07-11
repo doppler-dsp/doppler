@@ -95,18 +95,12 @@ BPSK/PN, 2 for QPSK). (`--type noise` always generates AWGN.) Likewise
 **`--freq 0` skips the LO** — the carrier is a constant 1 — so a clean baseband
 waveform is pure signal generation.
 
-!!! note "What counts as *the symbol*: `bits` chips vs `dsss` data symbols"
+!!! note "`dsss`: the symbol is the outer *data* symbol"
 
-    For a `bits` waveform every pattern entry **is** an output symbol, so
-    `esno` refers to one `sps`-sample chip — spreading a code by hand as a
-    `bits` pattern and asking for `--snr 10 --snr-mode esno` gives 10 dB
-    per *chip*, not per data symbol. The `dsss` type fixes the reference:
-    its symbol is the outer **data** symbol (`len(data_code)` chips ×
-    `sps` samples), so `esno` converts as
-    `snr_fs = esno − 10·log10(sf·sps)` internally and
-    `Segment(type="dsss", snr=10, snr_mode="esno")` is 10 dB Es/N0 exactly
-    as a despreader's data-aided estimator will measure it. (The `dsss`
-    payload is BPSK, so `ebno` and `esno` coincide.)
+    For `type="dsss"` the Es/N0 reference is the outer data symbol
+    (`len(data_code)` chips × `sps` samples) — what a despreader's
+    data-aided estimator measures — not the chip a hand-spread `bits`
+    pattern would get. Full semantics: [DSSS bursts](dsss-bursts.md).
 
 !!! example "Same QPSK at three references"
 

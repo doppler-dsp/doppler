@@ -12,6 +12,7 @@ target_link_libraries(wfm_plan PRIVATE
     awgn_core
     pn_core
     fir_core
+    wfm_draw_core
     wfm_cjson
     m
     Python3::NumPy)

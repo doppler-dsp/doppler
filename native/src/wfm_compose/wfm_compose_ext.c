@@ -75,6 +75,12 @@ static const char *const _enum_crc[] = {
     NULL,
 };
 
+static const char *const _enum_gap_noise[] = {
+    "auto",
+    "off",
+    NULL,
+};
+
 static const char *const _enum_stype[] = {
     "cf32",
     "cf64",
@@ -1091,9 +1097,12 @@ typedef struct {
     size_t num_samples;
     size_t off_samples;
     size_t repeats;
+    size_t delay_samples;
+    int gap_noise;
     unsigned ranged;
     size_t num_samples_hi;
     size_t off_samples_hi;
+    size_t delay_samples_hi;
 } SegmentObject;
 
 static void
@@ -1110,9 +1119,12 @@ Segment_init(SegmentObject *self, PyObject *args, PyObject *kwds)
     self->num_samples = 1024;
     self->off_samples = 0;
     self->repeats = 1;
+    self->delay_samples = 0;
+    self->gap_noise = 0;
     self->ranged = 0;
     self->num_samples_hi = 0;
     self->off_samples_hi = 0;
+    self->delay_samples_hi = 0;
     PyObject *kw = kwds ? PyDict_Copy(kwds) : PyDict_New();
     if (!kw)
         return -1;
@@ -1156,6 +1168,34 @@ Segment_init(SegmentObject *self, PyObject *args, PyObject *kwds)
             self->repeats = (size_t)PyLong_AsSize_t(_o);
             if (PyErr_Occurred()) goto fail;
         if (PyDict_DelItemString(kw, "repeats") < 0) goto fail;
+        }
+    }
+    {
+        PyObject *_o = PyDict_GetItemString(kw, "delay_samples");
+        if (_o) {
+            double _lo, _hi;
+            int    _r;
+            if (!_jm_parse_range(_o, &_lo, &_hi, &_r))
+                goto fail;
+            self->delay_samples = (size_t)_lo;
+            if (_r) { self->delay_samples_hi = (size_t)_hi; self->ranged |= WFM_RANGE_DELAY_SAMPLES; }
+            else { self->ranged &= ~(unsigned)WFM_RANGE_DELAY_SAMPLES; }
+        if (PyDict_DelItemString(kw, "delay_samples") < 0) goto fail;
+        }
+    }
+    {
+        PyObject *_o = PyDict_GetItemString(kw, "gap_noise");
+        if (_o) {
+            const char *_s = PyUnicode_AsUTF8(_o);
+            if (!_s) goto fail;
+            int _i = _enum_index(_enum_gap_noise, _s);
+            if (_i < 0) {
+                PyErr_Format(PyExc_ValueError,
+                             "invalid gap_noise '%s'", _s);
+                goto fail;
+            }
+            self->gap_noise = _i;
+        if (PyDict_DelItemString(kw, "gap_noise") < 0) goto fail;
         }
     }
     PyObject *one = PyObject_Call((PyObject *)&SynthType, args, kw);
@@ -1209,9 +1249,12 @@ Segment_sum(PyObject *cls, PyObject *args, PyObject *kwds)
     self->num_samples = 1024;
     self->off_samples = 0;
     self->repeats = 1;
+    self->delay_samples = 0;
+    self->gap_noise = 0;
     self->ranged = 0;
     self->num_samples_hi = 0;
     self->off_samples_hi = 0;
+    self->delay_samples_hi = 0;
     PyObject *kw = kwds; /* borrowed; read-only */
     if (kw) {
     {
@@ -1250,6 +1293,32 @@ Segment_sum(PyObject *cls, PyObject *args, PyObject *kwds)
         if (_o) {
             self->repeats = (size_t)PyLong_AsSize_t(_o);
             if (PyErr_Occurred()) goto fail;
+        }
+    }
+    {
+        PyObject *_o = PyDict_GetItemString(kw, "delay_samples");
+        if (_o) {
+            double _lo, _hi;
+            int    _r;
+            if (!_jm_parse_range(_o, &_lo, &_hi, &_r))
+                goto fail;
+            self->delay_samples = (size_t)_lo;
+            if (_r) { self->delay_samples_hi = (size_t)_hi; self->ranged |= WFM_RANGE_DELAY_SAMPLES; }
+            else { self->ranged &= ~(unsigned)WFM_RANGE_DELAY_SAMPLES; }
+        }
+    }
+    {
+        PyObject *_o = PyDict_GetItemString(kw, "gap_noise");
+        if (_o) {
+            const char *_s = PyUnicode_AsUTF8(_o);
+            if (!_s) goto fail;
+            int _i = _enum_index(_enum_gap_noise, _s);
+            if (_i < 0) {
+                PyErr_Format(PyExc_ValueError,
+                             "invalid gap_noise '%s'", _s);
+                goto fail;
+            }
+            self->gap_noise = _i;
         }
     }
     }
@@ -1344,6 +1413,52 @@ Segment_set_repeats(SegmentObject *self, PyObject *value, void *closure)
     (void)closure;
     self->repeats = (size_t)PyLong_AsSize_t(value);
     if (PyErr_Occurred()) return -1;
+    return 0;
+}
+static PyObject *
+Segment_get_delay_samples(SegmentObject *self, void *closure)
+{
+    (void)closure;
+    if (self->ranged & WFM_RANGE_DELAY_SAMPLES)
+        return Py_BuildValue("(nn)", (Py_ssize_t)self->delay_samples,
+                             (Py_ssize_t)self->delay_samples_hi);
+    return PyLong_FromSize_t((size_t)self->delay_samples);
+}
+static int
+Segment_set_delay_samples(SegmentObject *self, PyObject *value, void *closure)
+{
+    (void)closure;
+    double _lo, _hi;
+    int    _r;
+    if (!_jm_parse_range(value, &_lo, &_hi, &_r))
+        return -1;
+    self->delay_samples = (size_t)_lo;
+    if (_r) {
+        self->delay_samples_hi = (size_t)_hi;
+        self->ranged |= WFM_RANGE_DELAY_SAMPLES;
+    } else {
+        self->ranged &= ~(unsigned)WFM_RANGE_DELAY_SAMPLES;
+    }
+    return 0;
+}
+static PyObject *
+Segment_get_gap_noise(SegmentObject *self, void *closure)
+{
+    (void)closure;
+    return PyUnicode_FromString(_enum_gap_noise[self->gap_noise]);
+}
+static int
+Segment_set_gap_noise(SegmentObject *self, PyObject *value, void *closure)
+{
+    (void)closure;
+    const char *s = PyUnicode_AsUTF8(value);
+    if (!s) return -1;
+    int _i = _enum_index(_enum_gap_noise, s);
+    if (_i < 0) {
+        PyErr_Format(PyExc_ValueError, "invalid gap_noise '%s'", s);
+        return -1;
+    }
+    self->gap_noise = _i;
     return 0;
 }
 static PyObject *
@@ -1616,6 +1731,8 @@ static PyGetSetDef Segment_getset[] = {
     {"num_samples", (getter)Segment_get_num_samples, (setter)Segment_set_num_samples, NULL, NULL},
     {"off_samples", (getter)Segment_get_off_samples, (setter)Segment_set_off_samples, NULL, NULL},
     {"repeats", (getter)Segment_get_repeats, (setter)Segment_set_repeats, NULL, NULL},
+    {"delay_samples", (getter)Segment_get_delay_samples, (setter)Segment_set_delay_samples, NULL, NULL},
+    {"gap_noise", (getter)Segment_get_gap_noise, (setter)Segment_set_gap_noise, NULL, NULL},
     {"type", (getter)Segment_flat_type, NULL, NULL, NULL},
     {"freq", (getter)Segment_flat_freq, NULL, NULL, NULL},
     {"snr", (getter)Segment_flat_snr, NULL, NULL, NULL},
@@ -1801,9 +1918,12 @@ _build_wfm_compose_segments(PyObject *seglist, size_t *n_out)
         segs[i].num_samples = seg->num_samples;
         segs[i].off_samples = seg->off_samples;
         segs[i].repeats = seg->repeats;
+        segs[i].delay_samples = seg->delay_samples;
+        segs[i].gap_noise = seg->gap_noise;
         segs[i].ranged = seg->ranged;
         segs[i].num_samples_hi = seg->num_samples_hi;
         segs[i].off_samples_hi = seg->off_samples_hi;
+        segs[i].delay_samples_hi = seg->delay_samples_hi;
     }
     *n_out = (size_t)nseg;
     return segs;
@@ -1866,9 +1986,12 @@ _wfm_compose_segments_to_list(const wfm_segment_t *src, size_t n)
         sg->num_samples = src[i].num_samples;
         sg->off_samples = src[i].off_samples;
         sg->repeats = src[i].repeats;
+        sg->delay_samples = src[i].delay_samples;
+        sg->gap_noise = src[i].gap_noise;
         sg->ranged = src[i].ranged;
         sg->num_samples_hi = src[i].num_samples_hi;
         sg->off_samples_hi = src[i].off_samples_hi;
+        sg->delay_samples_hi = src[i].delay_samples_hi;
         PyList_SET_ITEM(list, (Py_ssize_t)i, (PyObject *)sg);
     }
     return list;
@@ -2356,7 +2479,7 @@ _Composer_obj_to_dict(PyObject *o, const char *const *keys)
     return d;
 }
 
-static const char *const _Composer_seg_keys[] = { "fs", "num_samples", "off_samples", "repeats", NULL };
+static const char *const _Composer_seg_keys[] = { "fs", "num_samples", "off_samples", "repeats", "delay_samples", "gap_noise", NULL };
 static const char *const _Composer_src_keys[] = { "type", "freq", "snr", "snr_mode", "seed", "sps", "pn_length", "pn_poly", "lfsr", "level", "f_end", "bits", "modulation", "pulse", "rrc_beta", "rrc_span", "symbols", "acq_code", "acq_reps", "data_code", "sync", "crc", NULL };
 
 static PyObject *

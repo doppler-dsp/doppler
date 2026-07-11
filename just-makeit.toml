@@ -168,7 +168,7 @@ type_name       = "Plan"
 context_manager = true
 close_fn        = "wfm_plan_destroy"
 create_fn       = "wfm_plan_prepare"
-extra_link_libs = ["wfm_cjson", "m"]
+extra_link_libs = ["wfm_draw_core", "wfm_cjson", "m"]
 
 [[module.wfm_plan.create_args]]
 name = "spec_json"
@@ -316,7 +316,7 @@ context_manager = true
 close_fn        = "wfm_writer_close"
 close_returns   = "int"
 create_fn       = "wfm_writer_open_path"
-extra_link_libs = ["wfm_cjson", "m"]
+extra_link_libs = ["wfm_draw_core", "wfm_cjson", "m"]
 
 [[module.wfm_writer.create_args]]
 name = "path"
@@ -634,7 +634,7 @@ sample_type  = true
 # wfm_dsp (DSSS/RRC taps), and the synth chain wfm_synth/lo/awgn/pn/fir. The
 # vendored cJSON OBJECT lib (wfm_cjson) + libm go in extra_link_libs. This mirrors
 # native/src/wfmcompose/CMakeLists.txt's test_wfm_compose link line.
-extra_link_libs = ["wfm_cjson", "m"]
+extra_link_libs = ["wfm_draw_core", "wfm_cjson", "m"]
 
 # The source type wraps wfm_source_t field-for-field (struct order); enum fields
 # cross as validated strings via the SSOT, `bits` as an owned bytes buffer.
@@ -845,6 +845,7 @@ flat_sources = true
 ranged = [
     { name = "num_samples", flag = "WFM_RANGE_NUM_SAMPLES" },
     { name = "off_samples", flag = "WFM_RANGE_OFF_SAMPLES" },
+    { name = "delay_samples", flag = "WFM_RANGE_DELAY_SAMPLES" },
 ]
 
 [[module.wfm_compose.segment.fields]]
@@ -869,7 +870,20 @@ doc = "Trailing off-time gap in samples (zeros) appended after the segment."
 name = "repeats"
 type = "size_t"
 default = "1"
-doc = "Play the segment this many times back-to-back (each instance = on-time + trailing gap) before advancing. Ranged fields re-draw and the AWGN is fresh per instance; the signal (codes, payload, PN phase) stays fixed."
+doc = "Play the segment this many times back-to-back (each instance = delay + on-time + trailing gap) before advancing. Ranged fields re-draw and the AWGN is fresh per instance; the signal (codes, payload, PN phase) stays fixed."
+
+[[module.wfm_compose.segment.fields]]
+name = "delay_samples"
+type = "size_t"
+default = "0"
+doc = "Leading gap before the on-time (samples) — the burst arrives after this delay. Ranged like off_samples and re-drawn per repeats instance, so a (lo, hi) delay is per-burst arrival jitter. Use off_samples for inter-burst spacing, delay_samples for arrival jitter."
+
+[[module.wfm_compose.segment.fields]]
+name = "gap_noise"
+type = "int"
+enum = "gap_noise"
+default = "auto"
+doc = "Gap policy for this segment's delay and trailing gap. auto (default): gaps carry the segment's noise floor — the sources' AWGN keeps running while the signal stops (clean scenes still get exact-zero gaps). off: gaps are hard zeros."
 
 [module.wfm_compose.timeline]
 type_name = "Timeline"
@@ -1877,6 +1891,10 @@ values = ["tone", "noise", "pn", "bpsk", "qpsk", "chirp", "bits", "symbols", "ds
 [[enum]]
 name = "crc"
 values = ["none", "crc16"]
+
+[[enum]]
+name = "gap_noise"
+values = ["auto", "off"]
 
 [[enum]]
 name = "snr_mode"

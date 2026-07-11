@@ -177,6 +177,17 @@ AWGNObj_exit (AWGNObject *self, PyObject *args)
  * The matching PyMethodDef rows are below. */
 DP_PY_STATE_METHODS (AWGNObj, AWGNObject, self->handle, awgn)
 
+static PyObject *
+AWGNObj_generate_max_out (AWGNObject *self, PyObject *Py_UNUSED (ignored))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromSize_t (awgn_generate_max_out (self->handle));
+}
+
 static PyMethodDef AWGNObj_methods[]
     = { { "reset", (PyCFunction)AWGNObj_reset, METH_NOARGS,
           "Reset state to post-create defaults." },
@@ -212,6 +223,10 @@ static PyMethodDef AWGNObj_methods[]
           "Release resources." },
         { "__enter__", (PyCFunction)AWGNObj_enter, METH_NOARGS, NULL },
         { "__exit__", (PyCFunction)AWGNObj_exit, METH_VARARGS, NULL },
+        { "generate_max_out", (PyCFunction)AWGNObj_generate_max_out,
+          METH_NOARGS,
+          "generate_max_out() -> int\n\nMax output length generate() can "
+          "produce for the current state.\nUse to size the ``out=`` buffer." },
         { NULL } };
 
 static PyTypeObject AWGNObjType = {

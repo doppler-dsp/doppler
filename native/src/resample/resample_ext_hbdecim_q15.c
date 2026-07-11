@@ -269,6 +269,18 @@ HalfbandDecimatorQ15Obj_set_state (HalfbandDecimatorQ15Object *self,
   Py_RETURN_NONE;
 }
 
+static PyObject *
+HalfbandDecimatorQ15Obj_execute_max_out (HalfbandDecimatorQ15Object *self,
+                                         PyObject *Py_UNUSED (ignored))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromSize_t (hbdecim_q15_execute_max_out (self->handle));
+}
+
 static PyMethodDef HalfbandDecimatorQ15Obj_methods[] = {
 
   { "execute", (PyCFunction)HalfbandDecimatorQ15Obj_execute, METH_VARARGS,
@@ -302,6 +314,10 @@ static PyMethodDef HalfbandDecimatorQ15Obj_methods[] = {
     "Serialize the engine's mutable state to bytes." },
   { "set_state", (PyCFunction)HalfbandDecimatorQ15Obj_set_state, METH_O,
     "Restore mutable state from a get_state() blob." },
+  { "execute_max_out", (PyCFunction)HalfbandDecimatorQ15Obj_execute_max_out,
+    METH_NOARGS,
+    "execute_max_out() -> int\n\nMax output length execute() can produce for "
+    "the current state.\nUse to size the ``out=`` buffer." },
   { NULL }
 };
 

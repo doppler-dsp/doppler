@@ -320,7 +320,66 @@ main (void)
     free (outB);
   }
 
-  /* telemetry attach — three records per dumped symbol; blobs stay
+  /* verify-counted carrier lock decision: a phase-locked BPSK stream
+   * declares after the default 8-symbol verify run; noise-only input
+   * never does; reset drops the lock and keeps the configured rule. */
+  {
+    enum
+    {
+      TS = 16,
+      NS = 256
+    };
+    float complex rx[TS * NS], out[NS];
+    /* constant BPSK at a locked phase: metric EMA -> 1 quickly */
+    for (int i = 0; i < TS * NS; i++)
+      rx[i] = ((i / (TS * 4)) % 2 ? -1.0f : 1.0f) + 0.0f * I;
+    costas_state_t *c = costas_create (0.05, 0.707, 0.0, TS, 0.0);
+    CHECK (c != NULL);
+    CHECK (costas_get_locked (c) == 0); /* fresh: unlocked */
+    CHECK (c->lock.up_thresh == 0.85 && c->lock.down_thresh == 0.78);
+    CHECK (c->lock.n_up == 8 && c->lock.n_down == 32);
+    (void)costas_steps (c, rx, TS * NS, out, NS);
+    CHECK (costas_get_locked (c) == 1);
+    CHECK (costas_get_lock_metric (c) > 0.85);
+
+    /* reset drops the decision but keeps the rule */
+    costas_reset (c);
+    CHECK (costas_get_locked (c) == 0);
+    CHECK (c->lock.n_down == 32);
+
+    /* configure_lock re-tunes; an unreachable declare threshold never
+     * locks even on the clean stream */
+    costas_configure_lock (c, 2.0, 1.9, 8, 32);
+    (void)costas_steps (c, rx, TS * NS, out, NS);
+    CHECK (costas_get_locked (c) == 0);
+    costas_destroy (c);
+
+    /* noise only: |cos(theta)| EMA hovers near 2/pi ~ 0.64, well under
+     * the 0.85 declare threshold -> never declares */
+    uint32_t        st = 77u;
+    costas_state_t *n  = costas_create (0.05, 0.707, 0.0, TS, 0.0);
+    CHECK (n != NULL);
+    for (int i = 0; i < TS * NS; i++)
+      {
+        st ^= st << 13;
+        st ^= st >> 17;
+        st ^= st << 5;
+        double u1 = ((double)st + 1.0) / 4294967297.0;
+        st ^= st << 13;
+        st ^= st >> 17;
+        st ^= st << 5;
+        double u2 = ((double)st + 1.0) / 4294967297.0;
+        double m  = sqrt (-2.0 * log (u1));
+        rx[i]     = (float complex) (m * cos (2.0 * M_PI * u2)
+                                     + m * sin (2.0 * M_PI * u2) * I);
+      }
+    (void)costas_steps (n, rx, TS * NS, out, NS);
+    CHECK (costas_get_locked (n) == 0);
+    CHECK (costas_get_lock_metric (n) < 0.85);
+    costas_destroy (n);
+  }
+
+  /* telemetry attach — four records per dumped symbol; blobs stay
    * attachment-independent and a live attachment survives set_state. */
   {
     enum
@@ -340,13 +399,16 @@ main (void)
     CHECK (dp_tlm_lookup (tlm, "car.lock") == c->tlm.id_lock);
     CHECK (dp_tlm_lookup (tlm, "car.e") == c->tlm.id_e);
     CHECK (dp_tlm_lookup (tlm, "car.freq") == c->tlm.id_freq);
+    CHECK (dp_tlm_lookup (tlm, "car.locked") == c->tlm.id_locked);
 
     size_t k = costas_steps (c, rx, L, out, NS);
     CHECK (k == NS);
     size_t n_rec = dp_tlm_read (tlm, recs, 512);
-    CHECK (n_rec == 3 * NS); /* lock + e + freq per dumped symbol */
-    /* The last freq record mirrors the tracked NCO frequency. */
-    CHECK (recs[n_rec - 1].value == (float)c->nco.norm_freq);
+    CHECK (n_rec == 4 * NS); /* lock + e + freq + locked per symbol */
+    /* The last records mirror the tracked state (flush order:
+     * lock, e, freq, locked). */
+    CHECK (recs[n_rec - 2].value == (float)c->nco.norm_freq);
+    CHECK (recs[n_rec - 1].value == (float)costas_get_locked (c));
 
     /* Blobs zero the attachment (deterministic) and set_state into an
      * attached instance preserves that instance's live attachment. */

@@ -2,6 +2,18 @@
 
 #include <string.h>
 
+/* Default carrier lock-detector rule (see costas_configure_lock's header
+ * doc for the full derivation). Under H0 the |Re P|/|P| metric is
+ * |cos(theta)| for uniform theta: mean 2/pi (~0.637), per-symbol std
+ * ~0.31, reduced to ~0.071 by the COSTAS_LOCK_ALPHA = 0.1 EMA — so the
+ * declare threshold sits ~3 sigma above the no-carrier mean and the drop
+ * threshold ~2 sigma, with declare-fast / drop-reluctant verify counts
+ * (the EMA correlates adjacent looks; the counts guard band-edge dwell). */
+#define COSTAS_LOCK_DEFAULT_UP 0.85
+#define COSTAS_LOCK_DEFAULT_DOWN 0.78
+#define COSTAS_LOCK_DEFAULT_N_UP 8u
+#define COSTAS_LOCK_DEFAULT_N_DOWN 32u
+
 /* Seed the loop integrator so the per-symbol frequency estimate
  * (lf.integ / tsamps, rad/sample) matches the requested carrier offset,
  * and point the NCO at the same frequency — de-rotation is correct from
@@ -17,6 +29,7 @@ seed (costas_state_t *s, double init_norm_freq)
   s->have_prev   = 0;
   s->lock_metric = 0.0;
   s->last_error  = 0.0;
+  lockdet_reset (&s->lock); /* drop the lock; keep the configured rule */
 }
 
 void
@@ -34,6 +47,8 @@ costas_init (costas_state_t *s, double bn, double zeta, double init_norm_freq,
    * garbage telemetry pointer into the emit gates. */
   memset (&s->tlm, 0, sizeof s->tlm);
   loop_filter_init (&s->lf, bn, zeta, 1.0); /* updates once per symbol */
+  lockdet_init (&s->lock, COSTAS_LOCK_DEFAULT_UP, COSTAS_LOCK_DEFAULT_DOWN,
+                COSTAS_LOCK_DEFAULT_N_UP, COSTAS_LOCK_DEFAULT_N_DOWN);
   seed (s, init_norm_freq);
 }
 
@@ -78,12 +93,15 @@ costas_set_telemetry (costas_state_t *state, dp_tlm_t *tlm, const char *prefix,
   int id_e = dp_tlm_probe (tlm, name, decim);
   (void)snprintf (name, sizeof (name), "%s.freq", p);
   int id_freq = dp_tlm_probe (tlm, name, decim);
-  if (id_lock < 0 || id_e < 0 || id_freq < 0)
+  (void)snprintf (name, sizeof (name), "%s.locked", p);
+  int id_locked = dp_tlm_probe (tlm, name, decim);
+  if (id_lock < 0 || id_e < 0 || id_freq < 0 || id_locked < 0)
     return DP_ERR_INVALID; /* table full / bad prefix: attach fails whole */
-  state->tlm.id_lock = id_lock;
-  state->tlm.id_e    = id_e;
-  state->tlm.id_freq = id_freq;
-  state->tlm.ctx     = tlm; /* set last: emit sites gate on ctx */
+  state->tlm.id_lock   = id_lock;
+  state->tlm.id_e      = id_e;
+  state->tlm.id_freq   = id_freq;
+  state->tlm.id_locked = id_locked;
+  state->tlm.ctx       = tlm; /* set last: emit sites gate on ctx */
   return DP_OK;
 }
 
@@ -93,6 +111,7 @@ costas_tlm_flush (const costas_state_t *s)
   dp_tlm_emit (s->tlm.ctx, s->tlm.id_lock, s->lock_metric);
   dp_tlm_emit (s->tlm.ctx, s->tlm.id_e, s->last_error);
   dp_tlm_emit (s->tlm.ctx, s->tlm.id_freq, s->nco.norm_freq);
+  dp_tlm_emit (s->tlm.ctx, s->tlm.id_locked, (double)s->lock.locked);
 }
 
 /* Serializable state — pointer-free POD whole-struct snapshot, with the
@@ -194,6 +213,19 @@ double
 costas_get_lock_metric (const costas_state_t *state)
 {
   return state->lock_metric;
+}
+
+void
+costas_configure_lock (costas_state_t *state, double up_thresh,
+                       double down_thresh, uint32_t n_up, uint32_t n_down)
+{
+  lockdet_configure (&state->lock, up_thresh, down_thresh, n_up, n_down);
+}
+
+int
+costas_get_locked (const costas_state_t *state)
+{
+  return state->lock.locked;
 }
 
 double

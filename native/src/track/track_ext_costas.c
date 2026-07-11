@@ -19,6 +19,7 @@ typedef struct
   void         **_steps_retired; /* gh-219 deferred free */
   size_t         _steps_retired_n;
   size_t         _steps_retired_cap;
+  PyObject      *_steps_view_ref; /* gh-437 last returned view */
 } CostasObject;
 
 static void
@@ -30,6 +31,7 @@ CostasObj_dealloc (CostasObject *self)
   for (size_t _i = 0; _i < self->_steps_retired_n; _i++)
     free (self->_steps_retired[_i]);
   free (self->_steps_retired);
+  Py_XDECREF (self->_steps_view_ref);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -155,8 +157,22 @@ CostasObj_steps (CostasObject *self, PyObject *args, PyObject *kwds)
       PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
       return _oview;
     }
-  size_t _need = (size_t)PyArray_SIZE (x_arr);
-  if (!self->_steps_buf || self->_steps_buf_cap < _need)
+  size_t _need      = (size_t)PyArray_SIZE (x_arr);
+  int    _view_live = 0;
+  if (self->_steps_view_ref)
+    {
+#if PY_VERSION_HEX >= 0x030D0000
+      PyObject *_lv = NULL;
+      if (PyWeakref_GetRef (self->_steps_view_ref, &_lv) == 1)
+        {
+          Py_DECREF (_lv);
+          _view_live = 1;
+        }
+#else
+      _view_live = PyWeakref_GetObject (self->_steps_view_ref) != Py_None;
+#endif
+    }
+  if (!self->_steps_buf || self->_steps_buf_cap < _need || _view_live)
     {
       size_t _max = costas_steps_max_out (self->handle);
       if (!_max || _max < _need)
@@ -206,6 +222,15 @@ CostasObj_steps (CostasObject *self, PyObject *args, PyObject *kwds)
     return NULL;
   PyArray_SetBaseObject ((PyArrayObject *)arr, (PyObject *)self);
   Py_INCREF (self);
+  /* gh-437: remember this view — while the caller holds it the next
+   * call retires the buffer instead of reusing it in place. */
+  Py_XDECREF (self->_steps_view_ref);
+  self->_steps_view_ref = PyWeakref_NewRef (arr, NULL);
+  if (!self->_steps_view_ref)
+    {
+      Py_DECREF (arr);
+      return NULL;
+    }
   Py_DECREF (x_arr);
   return arr;
 }
@@ -267,6 +292,29 @@ CostasObj_configure (CostasObject *self, PyObject *args, PyObject *kwds)
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "dd", _kwlist, &bn, &zeta))
     return NULL;
   costas_configure (self->handle, bn, zeta);
+  Py_RETURN_NONE;
+}
+
+static PyObject *
+CostasObj_configure_lock (CostasObject *self, PyObject *args, PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char *_kwlist[]
+      = { "up_thresh", "down_thresh", "n_up", "n_down", NULL };
+  double        up_thresh   = 0.0;
+  double        down_thresh = 0.0;
+  unsigned long n_up_raw    = 0UL;
+  unsigned long n_down_raw  = 0UL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "ddkk", _kwlist, &up_thresh,
+                                    &down_thresh, &n_up_raw, &n_down_raw))
+    return NULL;
+  uint32_t n_up   = (uint32_t)n_up_raw;
+  uint32_t n_down = (uint32_t)n_down_raw;
+  costas_configure_lock (self->handle, up_thresh, down_thresh, n_up, n_down);
   Py_RETURN_NONE;
 }
 
@@ -398,6 +446,17 @@ Costas_getprop_lock_metric (CostasObject *self, void *Py_UNUSED (closure))
   return PyFloat_FromDouble (costas_get_lock_metric (self->handle));
 }
 static PyObject *
+Costas_getprop_locked (CostasObject *self, void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  /* <<IMPLEMENT: return the computed or stored value>> */
+  return PyBool_FromLong ((long)(costas_get_locked (self->handle)));
+}
+static PyObject *
 Costas_getprop_last_error (CostasObject *self, void *Py_UNUSED (closure))
 {
   if (!self->handle)
@@ -442,6 +501,11 @@ static PyGetSetDef Costas_getset[]
           (setter)Costas_setprop_norm_freq, "Norm freq.\n", NULL },
         { "lock_metric", (getter)Costas_getprop_lock_metric, NULL,
           "Lock metric.\n", NULL },
+        { "locked", (getter)Costas_getprop_locked, NULL,
+          "Current carrier lock decision: True after the verify count of "
+          "consecutive above-threshold symbols, False again after the drop "
+          "count of consecutive below-threshold ones (see configure_lock).\n",
+          NULL },
         { "last_error", (getter)Costas_getprop_last_error, NULL,
           "Last error.\n", NULL },
         { "bn_fll", (getter)Costas_getprop_bn_fll,
@@ -501,13 +565,15 @@ static PyMethodDef CostasObj_methods[] = {
     "set_telemetry(tlm, prefix, decim) -> int\n"
     "\n"
     "Attach (or detach) a telemetry context and register the carrier loop's "
-    "probes on it. Registers three probes, emitted once per dumped symbol and "
+    "probes on it. Registers four probes, emitted once per dumped symbol and "
     "further thinned by decim: \"<prefix>.lock\" (the |Re P|/|P| lock-metric "
     "EMA, 1 = phase-locked), \"<prefix>.e\" (the PLL discriminator output — "
-    "the loop stress) and \"<prefix>.freq\" (the tracked NCO frequency, "
-    "cycles/sample). Passing NULL detaches.  Setup path, never hot: call "
-    "before the producer thread starts stepping; the context is borrowed and "
-    "must outlive the attachment (SPSC rules in telemetry/telemetry.h).\n"
+    "the loop stress), \"<prefix>.freq\" (the tracked NCO frequency, "
+    "cycles/sample) and \"<prefix>.locked\" (the verify-counted lock "
+    "decision, 0/1 — see costas_configure_lock). Passing NULL detaches.  "
+    "Setup path, never hot: call before the producer thread starts stepping; "
+    "the context is borrowed and must outlive the attachment (SPSC rules in "
+    "telemetry/telemetry.h).\n"
     "\n"
     "    >>> import numpy as np\n"
     "    >>> from doppler import Costas\n"
@@ -525,6 +591,23 @@ static PyMethodDef CostasObj_methods[] = {
     "    >>> from doppler import Costas\n"
     "    >>> obj = Costas(0.05, 0.707, 0.0, 64, 0.0)\n"
     "    >>> obj.configure(0.0, 0.0)\n" },
+  { "configure_lock", (PyCFunction)(void *)CostasObj_configure_lock,
+    METH_VARARGS | METH_KEYWORDS,
+    "configure_lock(up_thresh, down_thresh, n_up, n_down) -> None\n"
+    "\n"
+    "Re-tune the carrier lock detector: locked flips up after n_up "
+    "consecutive dumped symbols with the lock-metric EMA above up_thresh, and "
+    "drops after n_down consecutive symbols below down_thresh (level + time "
+    "hysteresis; see detection.LockDet). The defaults (0.85/0.78, 8 up / 32 "
+    "down) derive from the metric's no-carrier statistics: |Re P|/|P| "
+    "averages 2/pi (~0.64) under H0 with an EMA-smoothed std of ~0.07, so the "
+    "declare threshold sits ~3 sigma above the no-carrier mean. A live lock "
+    "survives the re-tune; the in-flight verify run restarts.\n"
+    "\n"
+    "    >>> import numpy as np\n"
+    "    >>> from doppler import Costas\n"
+    "    >>> obj = Costas(0.05, 0.707, 0.0, 64, 0.0)\n"
+    "    >>> obj.configure_lock(0.0, 0.0, 0, 0)\n" },
   { "reset", (PyCFunction)CostasObj_reset, METH_NOARGS,
     "reset() -> None\n"
     "\n"

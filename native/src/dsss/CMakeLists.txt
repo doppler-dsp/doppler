@@ -13,10 +13,10 @@ target_link_libraries(dsss PRIVATE
     burst_demod_core
     costas_core
     lo_core
+    lockdet_core
     loop_filter_core
     telemetry_core
     dll_core
-    lockdet_core
     detection_core
     corr2d_core
     fft2d_core

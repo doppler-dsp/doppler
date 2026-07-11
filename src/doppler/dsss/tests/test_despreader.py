@@ -97,8 +97,19 @@ def test_full_receiver_locks_and_despreads():
     sym = c.steps(rx)
     assert c.norm_freq == pytest.approx(5e-5, abs=1e-5)
     assert c.lock_metric > 0.9
+    # both embedded verify-counted lock decisions are live in composition
+    # (the carrier detector on the Costas metric EMA, and the DLL's
+    # always-on CFAR detector fed by the composition-path noise tap)
+    assert c.carrier_locked is True
+    assert c.code_locked is True
     dec = np.where(sym[len(sym) // 2 :].real >= 0, 1, -1)
     assert _amb_ber(dec, data[len(sym) // 2 : len(sym)]) == 0.0
+
+
+def test_fresh_receiver_is_unlocked():
+    c = Despreader(_code(), SPS, 0.0, 0.0, 0.05, 0.005, 0.0, 0.707, 0.5, 1)
+    assert c.carrier_locked is False
+    assert c.code_locked is False
 
 
 def test_fll_assist_widens_pull_in():
@@ -109,6 +120,7 @@ def test_fll_assist_widens_pull_in():
     pll = Despreader(code, SPS, 0.0, 0.0, 0.05, 0.005, 0.0, 0.707, 0.5, 1)
     pll.steps(rx)
     assert pll.lock_metric < 0.8
+    assert pll.carrier_locked is False  # the decision agrees
 
     fll = Despreader(code, SPS, 0.0, 0.0, 0.05, 0.005, 0.03, 0.707, 0.5, 1)
     sym = fll.steps(rx)

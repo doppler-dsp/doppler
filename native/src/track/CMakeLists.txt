@@ -14,8 +14,8 @@ target_link_libraries(track PRIVATE
     carrier_nda_core
     mpsk_receiver_core
     lo_core
-    telemetry_core
     lockdet_core
+    telemetry_core
     detection_core
     nco_core
     farrow_core

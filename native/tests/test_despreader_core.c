@@ -145,6 +145,13 @@ main (void)
     size_t              k   = despreader_steps (c, rx, n, sym, nper);
     CHECK (fabs (despreader_get_norm_freq (c) - 5e-5) < 1e-5);
     CHECK (despreader_get_lock_metric (c) > 0.9);
+    /* both embedded lock detectors are live in composition: the carrier
+     * decision (verify-counted on the Costas metric EMA) and the code
+     * decision (the DLL's always-on CFAR detector, fed by the offset
+     * noise tap the composition path now accumulates). */
+    CHECK (despreader_get_carrier_locked (c) == 1);
+    CHECK (despreader_get_code_locked (c) == 1);
+    CHECK (c->code.lock_stat > 0.0 && c->code.noise_ema > 0.0);
     int *dec = malloc (k * sizeof (int));
     for (size_t i = 0; i < k; i++)
       dec[i] = (crealf (sym[i]) >= 0.0f) ? 1 : -1;
@@ -171,7 +178,8 @@ main (void)
                                                  0.005, 0.0, 0.707, 0.5, 1);
     float complex      *sym = malloc (nper * sizeof (*sym));
     despreader_steps (pll, rx, n, sym, nper);
-    CHECK (despreader_get_lock_metric (pll) < 0.8); /* bare PLL misses it */
+    CHECK (despreader_get_lock_metric (pll) < 0.8);   /* bare PLL misses it */
+    CHECK (despreader_get_carrier_locked (pll) == 0); /* decision agrees */
     despreader_destroy (pll);
 
     despreader_state_t *fll = despreader_create (code, sf, sps, 0.0, 0.0, 0.05,
@@ -326,7 +334,7 @@ main (void)
 
     size_t k     = despreader_steps (ch, rx, L, sym, 64);
     size_t n_rec = dp_tlm_read (tlm, recs, 512);
-    CHECK (k > 0 && n_rec == 7 * k); /* both loops flush per period */
+    CHECK (k > 0 && n_rec == 8 * k); /* both loops flush per period */
 
     /* bits() flushes telemetry too (the guarded in-loop path). */
     uint8_t bit_out[64];
@@ -340,12 +348,13 @@ main (void)
     (void)despreader_steps (ch, rx, L, sym, 64);
     CHECK (dp_tlm_read (tlm, recs, 512) == 0);
 
-    /* Partial registration failure unwinds: leave exactly three free
-     * slots — the carrier attach succeeds, the code attach cannot fit,
-     * and the whole attach fails with the carrier detached again. */
+    /* Partial registration failure unwinds: leave exactly four free
+     * slots — the carrier attach succeeds (4 probes), the code attach
+     * cannot fit its 4, and the whole attach fails with the carrier
+     * detached again. */
     char pname[DP_TLM_NAME_MAX];
     for (size_t i = 0;
-         dp_tlm_probe_count (tlm) < (size_t)(DP_TLM_MAX_PROBES - 3); i++)
+         dp_tlm_probe_count (tlm) < (size_t)(DP_TLM_MAX_PROBES - 4); i++)
       {
         (void)snprintf (pname, sizeof (pname), "fill%zu", i);
         (void)dp_tlm_probe (tlm, pname, 1);

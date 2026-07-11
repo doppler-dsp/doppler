@@ -47,7 +47,7 @@ everything the attach armed.
 | Object               | Probes under `<prefix>`                                            | Event rate                  |
 | -------------------- | ------------------------------------------------------------------ | --------------------------- |
 | `agc.AGC`            | `.gain_db`                                                         | per gain update (amortized) |
-| `track.Costas`       | `.lock`, `.e`, `.freq`                                             | per dumped symbol           |
+| `track.Costas`       | `.lock`, `.e`, `.freq`, `.locked`                                  | per dumped symbol           |
 | `track.Dll`          | `.e`, `.rate`, `.lock`, `.locked`                                  | per code epoch              |
 | `track.CarrierNda`   | `.lock`, `.e`, `.freq` + `.agc.gain_db`                            | per sample — use `decim`    |
 | `track.SymbolSync`   | `.e`, `.freq`, `.rate`                                             | per recovered symbol        |

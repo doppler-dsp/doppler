@@ -126,6 +126,18 @@ void despreader_set_norm_freq(despreader_state_t *state, double val);
 double despreader_get_code_phase(const despreader_state_t *state);
 double despreader_get_code_rate(const despreader_state_t *state);
 double despreader_get_lock_metric(const despreader_state_t *state);
+
+/** @brief Carrier lock decision (1 = locked): the embedded Costas loop's
+ *         verify-counted detector on its lock-metric EMA (see
+ *         costas_configure_lock). */
+int despreader_get_carrier_locked(const despreader_state_t *state);
+
+/** @brief Code lock decision (1 = locked): the embedded DLL's
+ *         verify-counted CFAR detector (see dll_configure_lock); live in
+ *         composition — the despreader runs the same always-on detector
+ *         dll_steps does. */
+int despreader_get_code_locked(const despreader_state_t *state);
+
 size_t despreader_get_bit_phase(const despreader_state_t *state);
 double despreader_get_bn_carrier(const despreader_state_t *state);
 void despreader_set_bn_carrier(despreader_state_t *state, double val);
@@ -135,20 +147,20 @@ void despreader_set_bn_code(despreader_state_t *state, double val);
 /**
  * @brief Attach (or detach) a telemetry context across the despreader.
  * Pure forwarder — the despreader registers no probes of its own: the
- * carrier loop registers "<prefix>.car.lock" / ".e" / ".freq" and the
- * code loop registers "<prefix>.code.e" / ".rate" / ".lock" /
- * ".locked" (the last is the verify-counted lockdet decision, 0/1) —
- * seven probes, all thinned by @p decim and emitted once per code
- * period (the despreader flushes both loops at its per-period update).
- * Passing NULL detaches both loops.  Setup path, never hot; the context
- * is borrowed and must outlive the attachment (SPSC rules in
- * telemetry/telemetry.h).
+ * carrier loop registers "<prefix>.car.lock" / ".e" / ".freq" /
+ * ".locked" and the code loop registers "<prefix>.code.e" / ".rate" /
+ * ".lock" / ".locked" (the ".locked" pair are the loops' verify-counted
+ * lockdet decisions, 0/1) — eight probes, all thinned by @p decim and
+ * emitted once per code period (the despreader flushes both loops at
+ * its per-period update). Passing NULL detaches both loops.  Setup
+ * path, never hot; the context is borrowed and must outlive the
+ * attachment (SPSC rules in telemetry/telemetry.h).
  * @param state  Must be non-NULL.
  * @param tlm    Telemetry context to attach, or NULL to detach.
  * @param prefix Probe-name prefix, e.g. "ch0".
  * @param decim  Emit every decim-th code period; >= 1.
  * @return DP_OK, or DP_ERR_INVALID when the probe table cannot take all
- *         seven probes (the attach fails whole; everything detached).
+ *         eight probes (the attach fails whole; everything detached).
  * @code
  * >>> import numpy as np
  * >>> from doppler.dsss import Despreader
@@ -158,12 +170,12 @@ void despreader_set_bn_code(despreader_state_t *state, double val);
  * >>> ch = Despreader(code=code, sps=4)
  * >>> ch.set_telemetry(tlm, "ch0")
  * >>> sorted(tlm.probe_names())
- * ['ch0.car.e', 'ch0.car.freq', 'ch0.car.lock', 'ch0.code.e', 'ch0.code.lock', 'ch0.code.locked', 'ch0.code.rate']
+ * ['ch0.car.e', 'ch0.car.freq', 'ch0.car.lock', 'ch0.car.locked', 'ch0.code.e', 'ch0.code.lock', 'ch0.code.locked', 'ch0.code.rate']
  * >>> chips = 1.0 - 2.0 * (np.arange(31) % 2)
  * >>> x = np.tile(np.repeat(chips, 4), 40).astype(np.complex64)
  * >>> _ = ch.steps(x)
- * >>> recs = tlm.read()   # seven records per code period
- * >>> len(recs) > 0 and len(recs) % 7 == 0
+ * >>> recs = tlm.read()   # eight records per code period
+ * >>> len(recs) > 0 and len(recs) % 8 == 0
  * True
  *
  * @endcode
@@ -174,7 +186,7 @@ int despreader_set_telemetry(despreader_state_t *state, dp_tlm_t * tlm, const ch
  * composition: costas + dll children + running bit-sync histogram/state;
  * the owned code copy is restored by create. */
 #define DESPREADER_STATE_MAGIC DP_FOURCC ('D','S','P','R')
-#define DESPREADER_STATE_VERSION 3u /* v3: dll child grew (lockdet rule) */
+#define DESPREADER_STATE_VERSION 4u /* v4: costas child grew (lockdet rule) */
 size_t despreader_state_bytes (const despreader_state_t *state);
 void despreader_get_state (const despreader_state_t *state, void *blob);
 int despreader_set_state (despreader_state_t *state, const void *blob);

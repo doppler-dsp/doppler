@@ -156,7 +156,7 @@ class Costas:
         """Max output length steps() can produce for the current state."""
 
     def set_telemetry(self, tlm: object | None, prefix: Any, decim: int = 1) -> None:
-        """Attach (or detach) a telemetry context and register the carrier loop's probes on it. Registers three probes, emitted once per dumped symbol and further thinned by decim: "<prefix>.lock" (the |Re P|/|P| lock-metric EMA, 1 = phase-locked), "<prefix>.e" (the PLL discriminator output — the loop stress) and "<prefix>.freq" (the tracked NCO frequency, cycles/sample). Passing NULL detaches.  Setup path, never hot: call before the producer thread starts stepping; the context is borrowed and must outlive the attachment (SPSC rules in telemetry/telemetry.h).
+        """Attach (or detach) a telemetry context and register the carrier loop's probes on it. Registers four probes, emitted once per dumped symbol and further thinned by decim: "<prefix>.lock" (the |Re P|/|P| lock-metric EMA, 1 = phase-locked), "<prefix>.e" (the PLL discriminator output — the loop stress), "<prefix>.freq" (the tracked NCO frequency, cycles/sample) and "<prefix>.locked" (the verify-counted lock decision, 0/1 — see costas_configure_lock). Passing NULL detaches.  Setup path, never hot: call before the producer thread starts stepping; the context is borrowed and must outlive the attachment (SPSC rules in telemetry/telemetry.h).
 
         Parameters
         ----------
@@ -176,11 +176,11 @@ class Costas:
         >>> c = Costas(bn=0.05, zeta=0.707, tsamps=64)
         >>> c.set_telemetry(tlm, "car")
         >>> sorted(tlm.probe_names())
-        ['car.e', 'car.freq', 'car.lock']
+        ['car.e', 'car.freq', 'car.lock', 'car.locked']
         >>> x = np.ones(64 * 100, dtype=np.complex64)
         >>> _ = c.steps(x)
-        >>> recs = tlm.read()   # three records per dumped symbol
-        >>> len(recs) == 3 * 100
+        >>> recs = tlm.read()   # four records per dumped symbol
+        >>> len(recs) == 4 * 100
         True
 
         """
@@ -194,6 +194,45 @@ class Costas:
             Input.
         zeta : float
             Input.
+        """
+
+    def configure_lock(self, up_thresh: float, down_thresh: float, n_up: int, n_down: int) -> None:
+        """Re-tune the carrier lock detector: locked flips up after n_up consecutive dumped symbols with the lock-metric EMA above up_thresh, and drops after n_down consecutive symbols below down_thresh (level + time hysteresis; see detection.LockDet). The defaults (0.85/0.78, 8 up / 32 down) derive from the metric's no-carrier statistics: |Re P|/|P| averages 2/pi (~0.64) under H0 with an EMA-smoothed std of ~0.07, so the declare threshold sits ~3 sigma above the no-carrier mean. A live lock survives the re-tune; the in-flight verify run restarts.
+
+        The always-on lock decision steps a verify-counted detector
+        (lockdet_core.h) on the |Re P|/|P| lock-metric EMA once per dumped
+        symbol: `locked` flips up after n_up consecutive symbols with the metric
+        above up_thresh and drops after n_down consecutive symbols below
+        down_thresh. The defaults derive from the metric's own H0 statistics —
+        with no carrier, |Re P|/|P| = |cos(theta)| for a uniform theta, whose
+        mean is 2/pi (~0.637) and per-symbol std ~0.31; the COSTAS_LOCK_ALPHA =
+        0.1 EMA reduces that to ~0.071, so the default declare threshold 0.85
+        sits ~3 sigma above the no-carrier mean, with the drop threshold at 0.78
+        for level hysteresis and 8-up/32-down verify counts for time hysteresis
+        (declare fast, drop reluctantly — the EMA already correlates adjacent
+        looks, so the counts guard against band-edge dwell rather than
+        compounding i.i.d. probabilities). A live lock survives the re-tune; the
+        in-flight verify run restarts.
+
+        Parameters
+        ----------
+        up_thresh : float
+            Declare threshold on the lock-metric EMA.
+        down_thresh : float
+            Drop threshold (<= up_thresh for level hysteresis).
+        n_up : int
+            Consecutive above-threshold symbols to declare; clamped to >= 1.
+        n_down : int
+            Consecutive below-threshold symbols to drop; clamped to >= 1.
+
+        Examples
+        --------
+        >>> from doppler.track import Costas
+        >>> c = Costas(bn=0.05, zeta=0.707, tsamps=64)
+        >>> c.locked
+        False
+        >>> c.configure_lock(0.9, 0.8, 4, 16)   # tighter declare, faster drop
+
         """
 
     def reset(self) -> None:
@@ -222,6 +261,10 @@ class Costas:
     @property
     def lock_metric(self) -> float:
         """Lock metric."""
+
+    @property
+    def locked(self) -> bool:
+        """Current carrier lock decision: True after the verify count of consecutive above-threshold symbols, False again after the drop count of consecutive below-threshold ones (see configure_lock)."""
 
     @property
     def last_error(self) -> float:
@@ -348,6 +391,13 @@ class Dll:
         to an eighth of the statistic's intrinsic H0 spread (`1/sqrt(N)`),
         floored at ~33 dB — which reproduces the classic `1/alpha = max(1024,
         32*N)` sizing exactly, now as a consequence instead of a constant.
+
+        The detector needs an off-peak code phase to sample noise from: with a
+        very short code (fewer than ~2*(spacing+2)+1 chips, i.e. sf <= 6 at the
+        default spacing) no offset clears the prompt/early/late lobe, the noise
+        tap aliases the prompt, and the statistic pins below threshold — locked
+        stays 0 (fail-closed) no matter the signal. Use a code of >= 7 chips
+        (real spreading codes are far longer) for a meaningful lock decision.
 
         The decision itself runs through an embedded lock detector
         (lockdet_core.h) rather than a single-comparison latch: `locked` flips

@@ -110,6 +110,27 @@ lock_look (dll_state_t *s, float complex prompt, float complex offset)
     }
 }
 
+/* Composition faces of the lock detector (dll_core.h): thin extern
+ * wrappers over the statics above so a composing channel (the DSSS
+ * despreader) runs the same always-on detector. The block kernel below
+ * does NOT call these: an extern call site inside its sample loop — even
+ * one taken only at epoch rate — forces the compiler to assume the
+ * register-cached correlator/code-phase state is clobbered and spill it
+ * per iteration (measured ~5% on steps(); same mechanism as the ~20%
+ * telemetry-flush lesson). The kernel uses the statics directly. */
+void
+dll_lock_look (dll_state_t *s, double norm)
+{
+  lock_look (s, s->acc_p / (float)norm, s->acc_o / (float)norm);
+  s->acc_o = 0.0f;
+}
+
+void
+dll_lock_epoch (dll_state_t *s)
+{
+  draw_offset (s);
+}
+
 /* Set the partial-correlation count and its derived geometry (>= 1). */
 static void
 set_segments (dll_state_t *s, size_t segments)
@@ -319,15 +340,9 @@ dll_steps_impl (dll_state_t *state, const float complex *x, size_t x_len,
       double tsamps = (double)(state->sf * state->sps);
       for (size_t n = 0; n < x_len; n++)
         {
-          /* Off-peak (noise) tap at chip_pos + off_chips, evaluated on the
-             same pre-advance phase as the prompt; accumulates over the same
-             epoch. */
-          double co = state->chip_pos + state->off_chips;
-          if (co >= (double)state->sf)
-            co -= (double)state->sf;
-          state->acc_o
-              += x[n]
-                 * dll_replica (state, co, state->code_rate * state->inv_sps);
+          /* Off-peak (noise) tap on the same pre-advance phase as the
+             prompt; accumulates over the same epoch. */
+          dll_lock_accumulate (state, x[n]);
           dll_accumulate (state, x[n]);
           if (state->chip_pos < (double)state->sf)
             continue;
@@ -356,11 +371,7 @@ dll_steps_impl (dll_state_t *state, const float complex *x, size_t x_len,
       /* Off-peak (noise) tap, accumulated per sample like the prompt and
          dumped per partial; gives one signal-free noise sample per emitted
          look. */
-      double co = state->chip_pos + state->off_chips;
-      if (co >= (double)state->sf)
-        co -= (double)state->sf;
-      state->acc_o
-          += x[n] * dll_replica (state, co, state->code_rate * state->inv_sps);
+      dll_lock_accumulate (state, x[n]);
       dll_accumulate (state, x[n]);
       while (state->seg_idx < state->segments
              && state->chip_pos

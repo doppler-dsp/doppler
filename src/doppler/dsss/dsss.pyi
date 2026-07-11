@@ -89,7 +89,7 @@ class Despreader:
     def set_telemetry(
         self, tlm: object | None, prefix: str, decim: int = 1
     ) -> None:
-        """Attach (or detach) a telemetry context across the despreader. Pure forwarder — the despreader registers no probes of its own: the carrier loop registers "<prefix>.car.lock" / ".e" / ".freq" and the code loop registers "<prefix>.code.e" / ".rate" / ".lock" / ".locked" (the last is the verify-counted lockdet decision, 0/1) — seven probes, all thinned by decim and emitted once per code period (the despreader flushes both loops at its per-period update).  Passing NULL detaches both loops.  Setup path, never hot; the context is borrowed and must outlive the attachment (SPSC rules in telemetry/telemetry.h).
+        """Attach (or detach) a telemetry context across the despreader. Pure forwarder — the despreader registers no probes of its own: the carrier loop registers "<prefix>.car.lock" / ".e" / ".freq" / ".locked" and the code loop registers "<prefix>.code.e" / ".rate" / ".lock" / ".locked" (the ".locked" pair are the loops' verify-counted lockdet decisions, 0/1) — eight probes, all thinned by decim and emitted once per code period (the despreader flushes both loops at its per-period update).  Passing NULL detaches both loops.  Setup path, never hot; the context is borrowed and must outlive the attachment (SPSC rules in telemetry/telemetry.h).
 
         Parameters
         ----------
@@ -110,12 +110,12 @@ class Despreader:
         >>> ch = Despreader(code=code, sps=4)
         >>> ch.set_telemetry(tlm, "ch0")
         >>> sorted(tlm.probe_names())
-        ['ch0.car.e', 'ch0.car.freq', 'ch0.car.lock', 'ch0.code.e', 'ch0.code.lock', 'ch0.code.locked', 'ch0.code.rate']
+        ['ch0.car.e', 'ch0.car.freq', 'ch0.car.lock', 'ch0.car.locked', 'ch0.code.e', 'ch0.code.lock', 'ch0.code.locked', 'ch0.code.rate']
         >>> chips = 1.0 - 2.0 * (np.arange(31) % 2)
         >>> x = np.tile(np.repeat(chips, 4), 40).astype(np.complex64)
         >>> _ = ch.steps(x)
-        >>> recs = tlm.read()   # seven records per code period
-        >>> len(recs) > 0 and len(recs) % 7 == 0
+        >>> recs = tlm.read()   # eight records per code period
+        >>> len(recs) > 0 and len(recs) % 8 == 0
         True
 
         """
@@ -148,6 +148,14 @@ class Despreader:
     @property
     def lock_metric(self) -> float:
         """Lock metric."""
+
+    @property
+    def carrier_locked(self) -> bool:
+        """Carrier lock decision: the embedded Costas loop's verify-counted detector on its lock-metric EMA (True = locked; see Costas.configure_lock)."""
+
+    @property
+    def code_locked(self) -> bool:
+        """Code lock decision: the embedded DLL's verify-counted CFAR detector (True = locked; see Dll.configure_lock). Live in composition — the despreader runs the same always-on detector Dll.steps does."""
 
     @property
     def bit_phase(self) -> int:

@@ -13,6 +13,52 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+### Fixed
+
+- **The DLL lock detector now runs in composition.** The
+    `dll_accumulate`/`dll_update` inline composition helpers never fed
+    the always-on code-lock detector (no offset noise tap, no looks), so
+    a `Despreader`'s `code.lock` / `code.locked` / `noise_est` — getters
+    *and* telemetry probes — were dead zeros. New composition faces
+    `dll_lock_accumulate()` (per-sample offset tap, force-inline) and
+    `dll_lock_look()` / `dll_lock_epoch()` (per-look/per-epoch, out of
+    line) are shared by `dll_steps` (bit-exact refactor — its loops now
+    call the same helpers) and the despreader, so the CFAR detector is
+    genuinely always-on everywhere. **Throughput note:** the fix adds
+    the fourth (noise) correlator tap to the despreader's per-sample
+    loop — `Despreader.steps()` measures ~25% lower throughput
+    (order-alternated interleaved bench, ~141 → ~106 MSa/s on the dev
+    machine). This is parity, not regression: `Dll.steps` has carried
+    the identical always-on cost since the detector shipped, and the
+    tap cannot be decimated without breaking the CFAR calibration (the
+    noise reference must integrate the same sample count as the
+    prompt). `dll_steps` itself is unchanged within noise (~1%).
+
+### Added
+
+- **Verify-counted carrier lock on the Costas loop (blob v3;
+    despreader v4).** `Costas` embeds a `lockdet` stepped on the
+    |Re P|/|P| lock-metric EMA each dumped symbol: `locked` property,
+    `configure_lock(up_thresh, down_thresh, n_up, n_down)`, and a
+    `"<prefix>.locked"` telemetry probe beside `.lock` (four records per
+    symbol). The default rule (0.85 / 0.78, 8 up / 32 down) derives from
+    the metric's no-carrier statistics: under H0 the metric is
+    |cos θ| — mean 2/π ≈ 0.637, EMA-smoothed std ≈ 0.071 — so the
+    declare threshold sits ~3σ above the no-carrier mean.
+    `Despreader` exposes both decisions (`carrier_locked`,
+    `code_locked`) and forwards `"<prefix>.car.locked"` (eight probes
+    per attach). `COSTAS_STATE_VERSION` 2 → 3,
+    `DESPREADER_STATE_VERSION` 3 → 4.
+
+- **Not adopted (by design): burst objects and acquisition.**
+    `BurstDespreader` / `burst_demod` are burst-scoped — a verify-counted
+    latch would spend most of a short burst warming up; the decision
+    belongs to the caller (use `detection.LockDet` standalone).
+    `Acquisition` emits one-shot per-dwell CFAR detections at a
+    configured (pfa, pd); a verify-across-dwells confirm needs
+    cell-association across dwells and is deferred to an acquisition-
+    strategy design.
+
 ## [0.31.0] — 2026-07-10
 
 ### Added

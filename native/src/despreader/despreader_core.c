@@ -172,14 +172,20 @@ static int
 process_sample (despreader_state_t *ch, float complex x, float complex *prompt)
 {
   float complex d = costas_wipeoff (&ch->car, x); /* carrier wipe-off */
-  dll_accumulate (&ch->code, d);                  /* E/P/L correlate */
+  dll_lock_accumulate (&ch->code, d); /* off-peak noise tap (lock det) */
+  dll_accumulate (&ch->code, d);      /* E/P/L correlate */
   if (ch->code.chip_pos < (double)ch->code.sf)
     return 0;
   /* code-period boundary */
   float complex P = ch->code.acc_p;
   dll_update (&ch->code);      /* code loop on the early/late envelopes */
   costas_update (&ch->car, P); /* carrier loop on the prompt symbol */
+  /* Fold this period into the code-lock detector (full-epoch look) and
+   * re-draw the noise offset — the same always-on CFAR detector dll_steps
+   * runs, so `code.locked` / `code.lock_stat` are live in composition. */
+  dll_lock_look (&ch->code, (double)(ch->code.sf * ch->code.sps));
   ch->code.acc_e = ch->code.acc_p = ch->code.acc_l = 0.0f;
+  dll_lock_epoch (&ch->code);
   *prompt = P / (float)(ch->code.sf * ch->code.sps);
   return 1;
 }
@@ -331,6 +337,18 @@ double
 despreader_get_lock_metric (const despreader_state_t *state)
 {
   return state->car.lock_metric;
+}
+
+int
+despreader_get_carrier_locked (const despreader_state_t *state)
+{
+  return state->car.lock.locked;
+}
+
+int
+despreader_get_code_locked (const despreader_state_t *state)
+{
+  return state->code.lock.locked;
 }
 
 size_t

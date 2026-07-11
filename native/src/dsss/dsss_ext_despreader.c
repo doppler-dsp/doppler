@@ -19,11 +19,13 @@ typedef struct
   void         **_steps_retired; /* gh-219 deferred free */
   size_t         _steps_retired_n;
   size_t         _steps_retired_cap;
-  uint8_t       *_bits_buf;     /* pre-allocated output for bits */
-  size_t         _bits_buf_cap; /* allocated capacity for bits */
-  void         **_bits_retired; /* gh-219 deferred free */
+  PyObject      *_steps_view_ref; /* gh-437 last returned view */
+  uint8_t       *_bits_buf;       /* pre-allocated output for bits */
+  size_t         _bits_buf_cap;   /* allocated capacity for bits */
+  void         **_bits_retired;   /* gh-219 deferred free */
   size_t         _bits_retired_n;
   size_t         _bits_retired_cap;
+  PyObject      *_bits_view_ref; /* gh-437 last returned view */
 } DespreaderObject;
 
 static void
@@ -35,10 +37,12 @@ DespreaderObj_dealloc (DespreaderObject *self)
   for (size_t _i = 0; _i < self->_steps_retired_n; _i++)
     free (self->_steps_retired[_i]);
   free (self->_steps_retired);
+  Py_XDECREF (self->_steps_view_ref);
   free (self->_bits_buf);
   for (size_t _i = 0; _i < self->_bits_retired_n; _i++)
     free (self->_bits_retired[_i]);
   free (self->_bits_retired);
+  Py_XDECREF (self->_bits_view_ref);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -199,8 +203,22 @@ DespreaderObj_steps (DespreaderObject *self, PyObject *args, PyObject *kwds)
       PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
       return _oview;
     }
-  size_t _need = (size_t)PyArray_SIZE (x_arr);
-  if (!self->_steps_buf || self->_steps_buf_cap < _need)
+  size_t _need      = (size_t)PyArray_SIZE (x_arr);
+  int    _view_live = 0;
+  if (self->_steps_view_ref)
+    {
+#if PY_VERSION_HEX >= 0x030D0000
+      PyObject *_lv = NULL;
+      if (PyWeakref_GetRef (self->_steps_view_ref, &_lv) == 1)
+        {
+          Py_DECREF (_lv);
+          _view_live = 1;
+        }
+#else
+      _view_live = PyWeakref_GetObject (self->_steps_view_ref) != Py_None;
+#endif
+    }
+  if (!self->_steps_buf || self->_steps_buf_cap < _need || _view_live)
     {
       size_t _max = despreader_steps_max_out (self->handle);
       if (!_max || _max < _need)
@@ -250,6 +268,15 @@ DespreaderObj_steps (DespreaderObject *self, PyObject *args, PyObject *kwds)
     return NULL;
   PyArray_SetBaseObject ((PyArrayObject *)arr, (PyObject *)self);
   Py_INCREF (self);
+  /* gh-437: remember this view — while the caller holds it the next
+   * call retires the buffer instead of reusing it in place. */
+  Py_XDECREF (self->_steps_view_ref);
+  self->_steps_view_ref = PyWeakref_NewRef (arr, NULL);
+  if (!self->_steps_view_ref)
+    {
+      Py_DECREF (arr);
+      return NULL;
+    }
   Py_DECREF (x_arr);
   return arr;
 }
@@ -330,8 +357,22 @@ DespreaderObj_bits (DespreaderObject *self, PyObject *args, PyObject *kwds)
       PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
       return _oview;
     }
-  size_t _need = (size_t)PyArray_SIZE (x_arr);
-  if (!self->_bits_buf || self->_bits_buf_cap < _need)
+  size_t _need      = (size_t)PyArray_SIZE (x_arr);
+  int    _view_live = 0;
+  if (self->_bits_view_ref)
+    {
+#if PY_VERSION_HEX >= 0x030D0000
+      PyObject *_lv = NULL;
+      if (PyWeakref_GetRef (self->_bits_view_ref, &_lv) == 1)
+        {
+          Py_DECREF (_lv);
+          _view_live = 1;
+        }
+#else
+      _view_live = PyWeakref_GetObject (self->_bits_view_ref) != Py_None;
+#endif
+    }
+  if (!self->_bits_buf || self->_bits_buf_cap < _need || _view_live)
     {
       size_t _max = despreader_bits_max_out (self->handle);
       if (!_max || _max < _need)
@@ -380,6 +421,15 @@ DespreaderObj_bits (DespreaderObject *self, PyObject *args, PyObject *kwds)
     return NULL;
   PyArray_SetBaseObject ((PyArrayObject *)arr, (PyObject *)self);
   Py_INCREF (self);
+  /* gh-437: remember this view — while the caller holds it the next
+   * call retires the buffer instead of reusing it in place. */
+  Py_XDECREF (self->_bits_view_ref);
+  self->_bits_view_ref = PyWeakref_NewRef (arr, NULL);
+  if (!self->_bits_view_ref)
+    {
+      Py_DECREF (arr);
+      return NULL;
+    }
   Py_DECREF (x_arr);
   return arr;
 }
@@ -557,6 +607,31 @@ Despreader_getprop_lock_metric (DespreaderObject *self,
   return PyFloat_FromDouble (despreader_get_lock_metric (self->handle));
 }
 static PyObject *
+Despreader_getprop_carrier_locked (DespreaderObject *self,
+                                   void             *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  /* <<IMPLEMENT: return the computed or stored value>> */
+  return PyBool_FromLong (
+      (long)(despreader_get_carrier_locked (self->handle)));
+}
+static PyObject *
+Despreader_getprop_code_locked (DespreaderObject *self,
+                                void             *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  /* <<IMPLEMENT: return the computed or stored value>> */
+  return PyBool_FromLong ((long)(despreader_get_code_locked (self->handle)));
+}
+static PyObject *
 Despreader_getprop_bit_phase (DespreaderObject *self,
                               void             *Py_UNUSED (closure))
 {
@@ -623,22 +698,33 @@ Despreader_setprop_bn_code (DespreaderObject *self, PyObject *value,
   return 0;
 }
 
-static PyGetSetDef Despreader_getset[]
-    = { { "norm_freq", (getter)Despreader_getprop_norm_freq,
-          (setter)Despreader_setprop_norm_freq, "Norm freq.\n", NULL },
-        { "code_phase", (getter)Despreader_getprop_code_phase, NULL,
-          "Code phase.\n", NULL },
-        { "code_rate", (getter)Despreader_getprop_code_rate, NULL,
-          "Code rate.\n", NULL },
-        { "lock_metric", (getter)Despreader_getprop_lock_metric, NULL,
-          "Lock metric.\n", NULL },
-        { "bit_phase", (getter)Despreader_getprop_bit_phase, NULL,
-          "Bit phase.\n", NULL },
-        { "bn_carrier", (getter)Despreader_getprop_bn_carrier,
-          (setter)Despreader_setprop_bn_carrier, "Bn carrier.\n", NULL },
-        { "bn_code", (getter)Despreader_getprop_bn_code,
-          (setter)Despreader_setprop_bn_code, "Bn code.\n", NULL },
-        { NULL } };
+static PyGetSetDef Despreader_getset[] = {
+  { "norm_freq", (getter)Despreader_getprop_norm_freq,
+    (setter)Despreader_setprop_norm_freq, "Norm freq.\n", NULL },
+  { "code_phase", (getter)Despreader_getprop_code_phase, NULL, "Code phase.\n",
+    NULL },
+  { "code_rate", (getter)Despreader_getprop_code_rate, NULL, "Code rate.\n",
+    NULL },
+  { "lock_metric", (getter)Despreader_getprop_lock_metric, NULL,
+    "Lock metric.\n", NULL },
+  { "carrier_locked", (getter)Despreader_getprop_carrier_locked, NULL,
+    "Carrier lock decision: the embedded Costas loop's verify-counted "
+    "detector on its lock-metric EMA (True = locked; see "
+    "Costas.configure_lock).\n",
+    NULL },
+  { "code_locked", (getter)Despreader_getprop_code_locked, NULL,
+    "Code lock decision: the embedded DLL's verify-counted CFAR detector "
+    "(True = locked; see Dll.configure_lock). Live in composition — the "
+    "despreader runs the same always-on detector Dll.steps does.\n",
+    NULL },
+  { "bit_phase", (getter)Despreader_getprop_bit_phase, NULL, "Bit phase.\n",
+    NULL },
+  { "bn_carrier", (getter)Despreader_getprop_bn_carrier,
+    (setter)Despreader_setprop_bn_carrier, "Bn carrier.\n", NULL },
+  { "bn_code", (getter)Despreader_getprop_bn_code,
+    (setter)Despreader_setprop_bn_code, "Bn code.\n", NULL },
+  { NULL }
+};
 
 static PyObject *
 DespreaderObj_destroy (DespreaderObject *self, PyObject *Py_UNUSED (ignored))
@@ -714,12 +800,14 @@ static PyMethodDef DespreaderObj_methods[] = {
     "\n"
     "Attach (or detach) a telemetry context across the despreader. Pure "
     "forwarder — the despreader registers no probes of its own: the carrier "
-    "loop registers \"<prefix>.car.lock\" / \".e\" / \".freq\" and the code "
-    "loop registers \"<prefix>.code.e\" / \".rate\" / \".lock\" — six probes, "
-    "all thinned by decim and emitted once per code period (the despreader "
-    "flushes both loops at its per-period update).  Passing NULL detaches "
-    "both loops.  Setup path, never hot; the context is borrowed and must "
-    "outlive the attachment (SPSC rules in telemetry/telemetry.h).\n"
+    "loop registers \"<prefix>.car.lock\" / \".e\" / \".freq\" / \".locked\" "
+    "and the code loop registers \"<prefix>.code.e\" / \".rate\" / \".lock\" "
+    "/ \".locked\" (the \".locked\" pair are the loops' verify-counted "
+    "lockdet decisions, 0/1) — eight probes, all thinned by decim and emitted "
+    "once per code period (the despreader flushes both loops at its "
+    "per-period update). Passing NULL detaches both loops.  Setup path, never "
+    "hot; the context is borrowed and must outlive the attachment (SPSC rules "
+    "in telemetry/telemetry.h).\n"
     "\n"
     "    >>> import numpy as np\n"
     "    >>> from doppler import Despreader\n"

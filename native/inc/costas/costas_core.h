@@ -37,6 +37,7 @@
 #include "dp_state.h"
 #include "jm_perf.h"
 #include "lo/lo_core.h"
+#include "lockdet/lockdet_core.h"
 #include "loop_filter/loop_filter_core.h"
 #include "telemetry/telemetry.h"
 #include <math.h>
@@ -61,7 +62,7 @@ typedef struct {
     int32_t id_lock;   /**< "<prefix>.lock" — lock-metric EMA      */
     int32_t id_e;      /**< "<prefix>.e"    — PLL discriminator    */
     int32_t id_freq;   /**< "<prefix>.freq" — tracked NCO freq     */
-    int32_t _pad;
+    int32_t id_locked; /**< "<prefix>.locked" — lockdet flag 0/1   */
 } costas_tlm_t;
 
 /**
@@ -86,6 +87,8 @@ typedef struct {
     float complex prev;      /**< previous symbol's prompt (FLL cross).    */
     int have_prev;           /**< prev valid (skip FLL on the 1st symbol). */
     double lock_metric;      /**< EMA of |Re P|/|P| (1 = locked).          */
+    lockdet_state_t lock;    /**< decision rule on lock_metric: thresholds
+                                  + verify counters, stepped per symbol.   */
     double last_error;       /**< last PLL discriminator (loop stress).    */
     costas_tlm_t tlm;        /**< live telemetry attachment; zeroed in blobs */
 } costas_state_t;
@@ -171,6 +174,10 @@ costas_update(costas_state_t *s, float complex P)
     /* lock metric: |Re|/|P| EMA (1 = phase-locked BPSK, ~0 = no carrier) */
     double inst = (double)(fabsf(reP) / aP);
     s->lock_metric += COSTAS_LOCK_ALPHA * (inst - s->lock_metric);
+    /* verify-counted decision on the smoothed metric (lockdet_core.h):
+     * hysteresis keeps a metric grazing the threshold from chattering
+     * `locked`. Inline POD step — no call, one branch per symbol. */
+    (void)lockdet_step(&s->lock, s->lock_metric);
 }
 
 /**
@@ -220,7 +227,7 @@ void costas_tlm_flush(const costas_state_t *s);
  * Pointer-free POD struct (embedded NCO + loop filter + I&D accumulators), so
  * a whole-struct snapshot resumes the loop exactly. */
 #define COSTAS_STATE_MAGIC DP_FOURCC('C', 'S', 'T', 'S')
-#define COSTAS_STATE_VERSION 2u /* v2: telemetry attachment (zeroed) */
+#define COSTAS_STATE_VERSION 3u /* v3: lockdet decision rule */
 
 /** @brief Serialized-state byte size. */
 size_t costas_state_bytes(const costas_state_t *state);
@@ -242,21 +249,66 @@ double costas_get_bn_fll(const costas_state_t *state);
 void costas_set_bn_fll(costas_state_t *state, double val);
 
 /**
+ * @brief Re-tune the carrier lock detector's thresholds and verify counts.
+ *
+ * The always-on lock decision steps a verify-counted detector
+ * (lockdet_core.h) on the |Re P|/|P| lock-metric EMA once per dumped
+ * symbol: `locked` flips up after @p n_up consecutive symbols with the
+ * metric above @p up_thresh and drops after @p n_down consecutive symbols
+ * below @p down_thresh. The defaults derive from the metric's own H0
+ * statistics — with no carrier, |Re P|/|P| = |cos(theta)| for a uniform
+ * theta, whose mean is 2/pi (~0.637) and per-symbol std ~0.31; the
+ * COSTAS_LOCK_ALPHA = 0.1 EMA reduces that to ~0.071, so the default
+ * declare threshold 0.85 sits ~3 sigma above the no-carrier mean, with
+ * the drop threshold at 0.78 for level hysteresis and 8-up/32-down verify
+ * counts for time hysteresis (declare fast, drop reluctantly — the EMA
+ * already correlates adjacent looks, so the counts guard against
+ * band-edge dwell rather than compounding i.i.d. probabilities). A live
+ * lock survives the re-tune; the in-flight verify run restarts.
+ *
+ * @param state        Costas state.  Must be non-NULL.
+ * @param up_thresh    Declare threshold on the lock-metric EMA.
+ * @param down_thresh  Drop threshold (<= up_thresh for level hysteresis).
+ * @param n_up         Consecutive above-threshold symbols to declare;
+ *                     clamped to >= 1.
+ * @param n_down       Consecutive below-threshold symbols to drop;
+ *                     clamped to >= 1.
+ * @code
+ * >>> from doppler.track import Costas
+ * >>> c = Costas(bn=0.05, zeta=0.707, tsamps=64)
+ * >>> c.locked
+ * False
+ * >>> c.configure_lock(0.9, 0.8, 4, 16)   # tighter declare, faster drop
+ *
+ * @endcode
+ */
+void costas_configure_lock(costas_state_t *state, double up_thresh,
+                           double down_thresh, uint32_t n_up,
+                           uint32_t n_down);
+
+/** @brief Current carrier lock decision (1 = locked, 0 = not), from the
+ *         verify-counted detector on the lock-metric EMA (see
+ *         costas_configure_lock). */
+int costas_get_locked(const costas_state_t *state);
+
+/**
  * @brief Attach (or detach) a telemetry context and register the carrier
  * loop's probes on it.
- * Registers three probes, emitted once per dumped symbol and further
+ * Registers four probes, emitted once per dumped symbol and further
  * thinned by decim: "<prefix>.lock" (the |Re P|/|P| lock-metric EMA, 1 =
  * phase-locked), "<prefix>.e" (the PLL discriminator output — the loop
- * stress) and "<prefix>.freq" (the tracked NCO frequency, cycles/sample).
- * Passing NULL detaches.  Setup path, never hot: call before the producer
- * thread starts stepping; the context is borrowed and must outlive the
- * attachment (SPSC rules in telemetry/telemetry.h).
+ * stress), "<prefix>.freq" (the tracked NCO frequency, cycles/sample) and
+ * "<prefix>.locked" (the verify-counted lock decision, 0/1 — see
+ * costas_configure_lock). Passing NULL detaches.  Setup path, never hot:
+ * call before the producer thread starts stepping; the context is
+ * borrowed and must outlive the attachment (SPSC rules in
+ * telemetry/telemetry.h).
  * @param state  Must be non-NULL.
  * @param tlm    Telemetry context to attach, or NULL to detach.
  * @param prefix Probe-name prefix, e.g. "car" or "ch0.car".
  * @param decim  Emit every decim-th symbol; >= 1.
  * @return DP_OK, or DP_ERR_INVALID when the probe table cannot take all
- *         three probes (the attach fails whole; the object stays
+ *         four probes (the attach fails whole; the object stays
  *         detached).
  * @code
  * >>> import numpy as np
@@ -266,11 +318,11 @@ void costas_set_bn_fll(costas_state_t *state, double val);
  * >>> c = Costas(bn=0.05, zeta=0.707, tsamps=64)
  * >>> c.set_telemetry(tlm, "car")
  * >>> sorted(tlm.probe_names())
- * ['car.e', 'car.freq', 'car.lock']
+ * ['car.e', 'car.freq', 'car.lock', 'car.locked']
  * >>> x = np.ones(64 * 100, dtype=np.complex64)
  * >>> _ = c.steps(x)
- * >>> recs = tlm.read()   # three records per dumped symbol
- * >>> len(recs) == 3 * 100
+ * >>> recs = tlm.read()   # four records per dumped symbol
+ * >>> len(recs) == 4 * 100
  * True
  *
  * @endcode

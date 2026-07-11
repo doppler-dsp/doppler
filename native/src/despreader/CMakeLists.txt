@@ -6,10 +6,10 @@ target_include_directories(
 target_link_libraries(despreader_core PUBLIC
     costas_core
     lo_core
+    lockdet_core
     loop_filter_core
     telemetry_core
     dll_core
-    lockdet_core
     detection_core)
 
 add_executable(test_despreader_core
@@ -17,10 +17,10 @@ add_executable(test_despreader_core
 target_link_libraries(test_despreader_core
                       PRIVATE despreader_core costas_core
     lo_core
+    lockdet_core
     loop_filter_core
     telemetry_core
     dll_core
-    lockdet_core
     detection_core
     m)
 target_include_directories(test_despreader_core
@@ -33,10 +33,10 @@ add_executable(
 target_link_libraries(bench_despreader_core
                       PRIVATE despreader_core costas_core
     lo_core
+    lockdet_core
     loop_filter_core
     telemetry_core
     dll_core
-    lockdet_core
     detection_core
     m)
 target_include_directories(

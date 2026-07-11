@@ -208,6 +208,54 @@ dll_accumulate(dll_state_t *s, float complex d)
 }
 
 /**
+ * @brief Per-sample offset (noise) tap for the always-on lock detector.
+ *
+ * The composition sibling of dll_accumulate(): correlates the input against
+ * the code at this epoch's random off-peak offset, feeding the CFAR noise
+ * reference. Call it on the same sample stream as dll_accumulate() and
+ * BEFORE it (both taps evaluate the pre-advance chip phase). A composer
+ * that skips this (and dll_lock_look()/dll_lock_epoch()) simply leaves the
+ * lock detector idle — locked stays 0, lock_stat/noise_est stay 0.
+ *
+ * @param s  DLL state.  Must be non-NULL.
+ * @param d  One carrier-wiped input sample (same sample as dll_accumulate).
+ */
+JM_FORCEINLINE JM_HOT void
+dll_lock_accumulate(dll_state_t *s, float complex d)
+{
+    double co = s->chip_pos + s->off_chips;
+    if (co >= (double)s->sf)
+        co -= (double)s->sf;
+    s->acc_o += d * dll_replica(s, co, s->code_rate * s->inv_sps);
+}
+
+/**
+ * @brief Fold one look into the lock detector; clear the offset tap.
+ *
+ * Normalises the prompt and offset accumulators by @p norm (the number of
+ * samples integrated into them — one full period for a full-epoch composer),
+ * folds the offset power into the CFAR noise reference and the prompt power
+ * into the running N-look sum, and — at every n_looks-th look — forms the
+ * statistic R and steps the verify-counted lock detector. Call at each look
+ * boundary BEFORE zeroing the correlator accumulators (it reads acc_p and
+ * acc_o; acc_o is cleared here). Out of line: per-look rate, never hot.
+ *
+ * @param s     DLL state.  Must be non-NULL.
+ * @param norm  Samples integrated into acc_p/acc_o this look (> 0).
+ */
+void dll_lock_look(dll_state_t *s, double norm);
+
+/**
+ * @brief Per-epoch lock-detector housekeeping: re-draw the noise offset.
+ *
+ * Call once per code epoch (after the period's dll_lock_look()) so the next
+ * epoch's noise tap lands at a fresh random off-peak code phase.
+ *
+ * @param s  DLL state.  Must be non-NULL.
+ */
+void dll_lock_epoch(dll_state_t *s);
+
+/**
  * @brief Per-period code discriminator + loop update + phase wrap.
  *
  * Runs the non-coherent early-minus-late envelope discriminator on the dumped
@@ -299,6 +347,13 @@ size_t dll_get_segments(const dll_state_t *state);
  * to an eighth of the statistic's intrinsic H0 spread (`1/sqrt(N)`), floored
  * at ~33 dB — which reproduces the classic `1/alpha = max(1024, 32*N)`
  * sizing exactly, now as a consequence instead of a constant.
+ *
+ * The detector needs an off-peak code phase to sample noise from: with a
+ * very short code (fewer than ~2*(spacing+2)+1 chips, i.e. sf <= 6 at the
+ * default spacing) no offset clears the prompt/early/late lobe, the noise
+ * tap aliases the prompt, and the statistic pins below threshold — locked
+ * stays 0 (fail-closed) no matter the signal. Use a code of >= 7 chips
+ * (real spreading codes are far longer) for a meaningful lock decision.
  *
  * The decision itself runs through an embedded lock detector
  * (lockdet_core.h) rather than a single-comparison latch: `locked` flips up

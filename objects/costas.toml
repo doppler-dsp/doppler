@@ -8,6 +8,7 @@ class_name = "Costas"
 serializable = "true"
 depends_on = [
   { name = "lo", link = true },
+  { name = "lockdet", link = true },
   { name = "loop_filter", link = true },
   { name = "telemetry", link = true },
 ]
@@ -48,9 +49,10 @@ nogil = true
 params = [{ name = "x", type = "float _Complex[]" }]
 
 # Telemetry attach (jm gh-432; mirrors objects/symsync.toml): registers
-# "<prefix>.lock" / "<prefix>.e" / "<prefix>.freq", emitted once per dumped
-# symbol. None detaches; the int status binds -> None with ValueError on
-# failure.
+# "<prefix>.lock" / "<prefix>.e" / "<prefix>.freq" / "<prefix>.locked"
+# (the last is the verify-counted lockdet decision, 0/1), emitted once per
+# dumped symbol. None detaches; the int status binds -> None with
+# ValueError on failure.
 [[costas.methods]]
 name = "set_telemetry"
 arg_type = "void"
@@ -68,6 +70,18 @@ doc = "Recompute the loop gains for a new (bn, zeta); preserves the frequency/ph
 arg_type = "void"
 return_type = "void"
 params = [{ name = "bn", type = "double" }, { name = "zeta", type = "double" }]
+
+[[costas.methods]]
+name = "configure_lock"
+doc = "Re-tune the carrier lock detector: locked flips up after n_up consecutive dumped symbols with the lock-metric EMA above up_thresh, and drops after n_down consecutive symbols below down_thresh (level + time hysteresis; see detection.LockDet). The defaults (0.85/0.78, 8 up / 32 down) derive from the metric's no-carrier statistics: |Re P|/|P| averages 2/pi (~0.64) under H0 with an EMA-smoothed std of ~0.07, so the declare threshold sits ~3 sigma above the no-carrier mean. A live lock survives the re-tune; the in-flight verify run restarts."
+arg_type = "void"
+return_type = "void"
+params = [
+  { name = "up_thresh", type = "double" },
+  { name = "down_thresh", type = "double" },
+  { name = "n_up", type = "uint32_t" },
+  { name = "n_down", type = "uint32_t" },
+]
 
 [[costas.methods]]
 name = "reset"
@@ -88,6 +102,11 @@ writable = true
 [[costas.properties]]
 name = "lock_metric"
 type = "double"
+
+[[costas.properties]]
+name = "locked"
+type = "bool"
+doc = "Current carrier lock decision: True after the verify count of consecutive above-threshold symbols, False again after the drop count of consecutive below-threshold ones (see configure_lock)."
 
 [[costas.properties]]
 name = "last_error"

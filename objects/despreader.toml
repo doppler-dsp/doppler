@@ -88,11 +88,11 @@ nogil = true
 params = [{ name = "x", type = "float _Complex[]" }]
 
 # Telemetry attach (jm gh-432; mirrors objects/mpsk_receiver.toml): a pure
-# forwarder to the embedded loops — "<prefix>.car.lock/.e/.freq" (Costas) +
-# "<prefix>.code.e/.rate/.lock/.locked" (DLL; .locked is the verify-counted
-# lockdet decision), seven probes emitted once per code period. None
-# detaches everything; the int status binds -> None with ValueError on
-# failure.
+# forwarder to the embedded loops — "<prefix>.car.lock/.e/.freq/.locked"
+# (Costas) + "<prefix>.code.e/.rate/.lock/.locked" (DLL; the .locked pair
+# are the loops' verify-counted lockdet decisions), eight probes emitted
+# once per code period. None detaches everything; the int status binds ->
+# None with ValueError on failure.
 [[despreader.methods]]
 name = "set_telemetry"
 arg_type = "void"
@@ -126,6 +126,16 @@ type = "double"
 [[despreader.properties]]
 name = "lock_metric"
 type = "double"
+
+[[despreader.properties]]
+name = "carrier_locked"
+type = "bool"
+doc = "Carrier lock decision: the embedded Costas loop's verify-counted detector on its lock-metric EMA (True = locked; see Costas.configure_lock)."
+
+[[despreader.properties]]
+name = "code_locked"
+type = "bool"
+doc = "Code lock decision: the embedded DLL's verify-counted CFAR detector (True = locked; see Dll.configure_lock). Live in composition — the despreader runs the same always-on detector Dll.steps does."
 
 [[despreader.properties]]
 name = "bit_phase"

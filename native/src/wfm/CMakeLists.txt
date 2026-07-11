@@ -1,4 +1,4 @@
-add_library(wfm_core OBJECT wfm_core.c bpsk_map.c qpsk_map.c wfm_awgn_amplitude.c wfm_ebno_to_snr_db.c mls_poly.c rrc_taps.c dsss_spread.c)
+add_library(wfm_core OBJECT wfm_core.c bpsk_map.c qpsk_map.c wfm_awgn_amplitude.c wfm_ebno_to_snr_db.c mls_poly.c crc16.c rrc_taps.c dsss_spread.c)
 target_include_directories(wfm_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc)
 
 if(BUILD_PYTHON)

@@ -101,6 +101,24 @@ _bind_mls_poly(PyObject *self, PyObject *args, PyObject *kwds)
 }
 
 static PyObject *
+_bind_crc16(PyObject *self, PyObject *args, PyObject *kwds)
+{
+    (void)self;
+    static char *_kwlist[] = {"bits", NULL};
+    PyObject *bits_obj = NULL;
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "O",
+            _kwlist, &bits_obj))
+        return NULL;
+    PyArrayObject *bits_arr = (PyArrayObject *)PyArray_FROM_OTF(
+        bits_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS);
+    if (!bits_arr) { return NULL; }
+    const uint8_t *bits = (const uint8_t *)PyArray_DATA(bits_arr);
+    size_t bits_len = (size_t)PyArray_SIZE(bits_arr);
+    Py_DECREF(bits_arr);
+    return PyLong_FromUnsignedLong((unsigned long)crc16(bits, bits_len));
+}
+
+static PyObject *
 _bind_rrc_taps(PyObject *self, PyObject *args, PyObject *kwds)
 {
     (void)self;
@@ -159,6 +177,7 @@ static PyMethodDef wfm_module_methods[] = {
     {"wfm_awgn_amplitude", (PyCFunction)(void *)_bind_wfm_awgn_amplitude, METH_VARARGS | METH_KEYWORDS, "AWGN amplitude for a target SNR (dB, over fs) given signal power."},
     {"wfm_ebno_to_snr_db", (PyCFunction)(void *)_bind_wfm_ebno_to_snr_db, METH_VARARGS | METH_KEYWORDS, "Convert Eb/No (dB) to SNR (dB over fs)."},
     {"mls_poly", (PyCFunction)(void *)_bind_mls_poly, METH_VARARGS | METH_KEYWORDS, "Maximal-length-sequence primitive polynomial for an LFSR of length n."},
+    {"crc16", (PyCFunction)(void *)_bind_crc16, METH_VARARGS | METH_KEYWORDS, "CRC-16-CCITT (poly 0x1021, init 0xFFFF) over an unpacked 0/1 bit array, MSB-first — the DSSS burst frame trailer wfmgen appends and BurstDemod validates."},
     {"rrc_taps", (PyCFunction)(void *)_bind_rrc_taps, METH_VARARGS | METH_KEYWORDS, "Root-raised-cosine pulse-shaping taps (2*span*sps+1 unit-energy cf32 taps)."},
     {"dsss_spread", (PyCFunction)(void *)_bind_dsss_spread, METH_VARARGS | METH_KEYWORDS, "Direct-sequence spread syms by the ±1 chip code; yields len(syms)*sf chips."},
     {NULL, NULL, 0, NULL}

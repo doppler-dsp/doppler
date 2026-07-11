@@ -420,6 +420,70 @@ main (void)
     wfm_synth_destroy (b);
   }
 
+  /* dsss: set_dsss assembles the two-code burst (preamble + spread frame)
+   * into the bits machinery, a mid-burst split resumes bit-exact (noisy, so
+   * the AWGN child state is exercised too), and bad geometry is rejected. */
+  {
+    const uint8_t acq[8]   = { 1, 0, 1, 1, 0, 0, 1, 0 };
+    const uint8_t dcode[4] = { 0, 1, 1, 0 };
+    const uint8_t sync[2]  = { 1, 0 };
+    const uint8_t pay[5]   = { 1, 0, 0, 1, 1 };
+    /* 8*3 + (2+5+16)*4 = 116 chips × sps 2 = 232 samples per burst pass */
+    float complex      ref[232], part[100], cont[132];
+    wfm_synth_state_t *a = wfm_synth_create (WFM_SYNTH_DSSS, 1e6, 0.0, 3.0, 1,
+                                             9, 2, 7, 0, 0, 0.0);
+    wfm_synth_state_t *b = wfm_synth_create (WFM_SYNTH_DSSS, 1e6, 0.0, 3.0, 1,
+                                             9, 2, 7, 0, 0, 0.0);
+    CHECK (a != NULL && b != NULL);
+    CHECK (wfm_synth_set_dsss (a, acq, 8, 3, dcode, 4, sync, 2, pay, 5, 1)
+           == 0);
+    CHECK (wfm_synth_set_dsss (b, acq, 8, 3, dcode, 4, sync, 2, pay, 5, 1)
+           == 0);
+    CHECK (a->n_bits == 116 && a->bit_mod == 1);
+    /* the head of the pattern is the unmodulated tiled preamble */
+    for (int i = 0; i < 8; i++)
+      CHECK (a->bits[i] == acq[i] && a->bits[8 + i] == acq[i]);
+    wfm_synth_steps (a, ref, 232);
+    wfm_synth_reset (a);
+    wfm_synth_steps (a, part, 100); /* split mid-burst */
+    size_t nb   = wfm_synth_state_bytes (a);
+    void  *blob = malloc (nb);
+    wfm_synth_get_state (a, blob);
+    CHECK (wfm_synth_set_state (b, blob) == 0);
+    wfm_synth_steps (b, cont, 132);
+    int ok = 1;
+    for (int i = 0; i < 100; i++)
+      if (part[i] != ref[i])
+        ok = 0;
+    for (int i = 0; i < 132; i++)
+      if (cont[i] != ref[100 + i])
+        ok = 0;
+    CHECK (ok); /* part ++ cont == ref across the split, noise included */
+    ((uint8_t *)blob)[0] ^= 0xFFu; /* envelope reject */
+    CHECK (wfm_synth_set_state (b, blob) == DP_ERR_INVALID);
+    free (blob);
+    /* geometry rejects: frame bits without a data code; empty burst;
+     * no-op on a non-dsss synth. */
+    CHECK (wfm_synth_set_dsss (a, acq, 8, 3, NULL, 0, sync, 2, pay, 5, 1)
+           == -1);
+    CHECK (wfm_synth_set_dsss (a, NULL, 0, 0, dcode, 4, NULL, 0, NULL, 0, 0)
+           == -1);
+    wfm_synth_state_t *tn = wfm_synth_create (WFM_SYNTH_TONE, 1e6, 0.0, 100.0,
+                                              0, 1, 1, 7, 0, 0, 0.0);
+    CHECK (wfm_synth_set_dsss (tn, acq, 8, 3, dcode, 4, sync, 2, pay, 5, 1)
+           == 0); /* no-op for other types */
+    wfm_synth_destroy (tn);
+    wfm_synth_destroy (a);
+    wfm_synth_destroy (b);
+  }
+
+  /* the serialization sections above also count via CHECK — fail if any
+   * tripped (the early _fails gate only covered the pre-state sections). */
+  if (_fails)
+    {
+      fprintf (stderr, "test_wfm_synth_core FAILED (%d)\n", _fails);
+      return 1;
+    }
   printf ("test_wfm_synth_core PASSED\n");
   return 0;
 }

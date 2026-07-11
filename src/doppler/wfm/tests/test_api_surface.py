@@ -56,6 +56,7 @@ COVERAGE: dict[str, str] = {
     "wfm_awgn_amplitude": "TestModuleFunctions",
     "wfm_ebno_to_snr_db": "TestModuleFunctions",
     "mls_poly": "TestModuleFunctions",
+    "crc16": "TestModuleFunctions",
     "rrc_taps": "TestModuleFunctions",
     "dsss_spread": "TestModuleFunctions",
     "write_blue_header": "TestModuleFunctions",
@@ -230,6 +231,12 @@ class TestModuleFunctions:
         assert w.wfm_ebno_to_snr_db(10.0, 1, 8.0) == pytest.approx(
             10.0 - 10.0 * np.log10(8.0), abs=1e-4
         )
+
+    def test_crc16(self) -> None:
+        # the standard CRC-16-CCITT check vector, "123456789" as MSB-first
+        # bits — the same kernel burst_demod validates on receive
+        bits = np.unpackbits(np.frombuffer(b"123456789", np.uint8))
+        assert w.crc16(bits) == 0x29B1
 
     @pytest.mark.parametrize("n", [3, 5, 7, 9, 15])
     def test_mls_poly_gives_maximal_sequence(self, n: int) -> None:

@@ -79,12 +79,12 @@ ______________________________________________________________________
 
 `--snr` is applied as AWGN; `--snr-mode` chooses the reference:
 
-| Mode   | `--snr` means                                               | Use for              |
-| ------ | ----------------------------------------------------------- | -------------------- |
-| `fs`   | SNR over the full sample rate (in-band power / noise power) | tones, wideband      |
-| `esno` | **Es/No** — energy per *symbol* over noise PSD              | modulated (`*psk`)   |
-| `ebno` | **Eb/No** — energy per *bit* over noise PSD                 | link-budget work     |
-| `auto` | `fs` for `tone`/`noise`/`pn`, `esno` for `bpsk`/`qpsk`      | the sensible default |
+| Mode   | `--snr` means                                                 | Use for              |
+| ------ | ------------------------------------------------------------- | -------------------- |
+| `fs`   | SNR over the full sample rate (in-band power / noise power)   | tones, wideband      |
+| `esno` | **Es/No** — energy per *symbol* over noise PSD                | modulated (`*psk`)   |
+| `ebno` | **Eb/No** — energy per *bit* over noise PSD                   | link-budget work     |
+| `auto` | `fs` for `tone`/`noise`/`pn`, `esno` for `bpsk`/`qpsk`/`dsss` | the sensible default |
 
 **`--snr 100` (the default) is *clean*** — `snr ≥ 100 dB` generates **no AWGN at
 all**, so a clean waveform pays no noise cost. Lower `--snr` to add noise; the
@@ -94,6 +94,19 @@ an over-`fs` SNR using `10·log10(sps)` (and, for Eb/No, the bits/symbol: 1 for
 BPSK/PN, 2 for QPSK). (`--type noise` always generates AWGN.) Likewise
 **`--freq 0` skips the LO** — the carrier is a constant 1 — so a clean baseband
 waveform is pure signal generation.
+
+!!! note "What counts as *the symbol*: `bits` chips vs `dsss` data symbols"
+
+    For a `bits` waveform every pattern entry **is** an output symbol, so
+    `esno` refers to one `sps`-sample chip — spreading a code by hand as a
+    `bits` pattern and asking for `--snr 10 --snr-mode esno` gives 10 dB
+    per *chip*, not per data symbol. The `dsss` type fixes the reference:
+    its symbol is the outer **data** symbol (`len(data_code)` chips ×
+    `sps` samples), so `esno` converts as
+    `snr_fs = esno − 10·log10(sf·sps)` internally and
+    `Segment(type="dsss", snr=10, snr_mode="esno")` is 10 dB Es/N0 exactly
+    as a despreader's data-aided estimator will measure it. (The `dsss`
+    payload is BPSK, so `ebno` and `esno` coincide.)
 
 !!! example "Same QPSK at three references"
 

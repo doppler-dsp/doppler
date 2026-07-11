@@ -1,7 +1,7 @@
 include = ["objects/*.toml"]
 
 [project]
-jm_version = "0.28.5"
+jm_version = "0.28.6"
 name = "doppler"
 version = "0.1.0"
 build = "cmake"
@@ -577,6 +577,15 @@ name = "n"
 type = "uint32_t"
 
 [[module.wfm.functions]]
+name = "crc16"
+doc = "CRC-16-CCITT (poly 0x1021, init 0xFFFF) over an unpacked 0/1 bit array, MSB-first — the DSSS burst frame trailer wfmgen appends and BurstDemod validates."
+return_type = "uint16_t"
+
+[[module.wfm.functions.params]]
+name = "bits"
+type = "uint8_t[]"
+
+[[module.wfm.functions]]
 name = "rrc_taps"
 doc = "Root-raised-cosine pulse-shaping taps (2*span*sps+1 unit-energy cf32 taps)."
 out_type = "float"
@@ -752,9 +761,9 @@ doc = "Chirp end frequency in Hz; ignored by non-chirp types."
 name = "bits"
 type = "uint8_t*"
 bytes = true
-aliases = ["pattern"]
+aliases = ["pattern", "payload"]
 coerce = "bit_pattern"
-doc = "For type=bits: the 0/1 pattern, oversampled by sps and cycled to fill the request."
+doc = "For type=bits: the 0/1 pattern, oversampled by sps and cycled to fill the request. For type=dsss (as `payload`): the payload bits of the burst frame."
 
 [[module.wfm_compose.source.fields]]
 name = "modulation"
@@ -787,6 +796,40 @@ name = "symbols"
 type = "float _Complex*"
 complex = true
 doc = "For type=symbols: a complex64 constellation stream — each element is the output point itself, oversampled by sps, cycled, and RRC-shaped with pulse=rrc. Generalises any modulation (pi/4-QPSK, QAM, ...)."
+
+[[module.wfm_compose.source.fields]]
+name = "acq_code"
+type = "uint8_t*"
+bytes = true
+coerce = "bit_pattern"
+doc = "For type=dsss: the acquisition/preamble code (0/1 chips), repeated acq_reps times unmodulated at the head of the burst — the coherent pull-in target BurstDespreader.set_acq/BurstDemod.set_preamble lock to."
+
+[[module.wfm_compose.source.fields]]
+name = "acq_reps"
+type = "size_t"
+default = "1"
+doc = "For type=dsss: preamble repetitions (periods of acq_code before the frame)."
+
+[[module.wfm_compose.source.fields]]
+name = "data_code"
+type = "uint8_t*"
+bytes = true
+coerce = "bit_pattern"
+doc = "For type=dsss: the payload spreading code (0/1 chips) — a second code, distinct from acq_code; every frame bit (sync | payload | crc) is XOR-spread across its full length, so len(data_code) is the spreading factor."
+
+[[module.wfm_compose.source.fields]]
+name = "sync"
+type = "uint8_t*"
+bytes = true
+coerce = "bit_pattern"
+doc = "For type=dsss: the frame-sync word bits (e.g. Barker-13) between the preamble and the payload — what BurstDemod.set_sync correlates to resolve frame position and BPSK polarity. Optional."
+
+[[module.wfm_compose.source.fields]]
+name = "crc"
+type = "int"
+enum = "crc"
+default = "crc16"
+doc = "For type=dsss: the frame trailer — crc16 appends a CRC-16-CCITT over the payload bits (what BurstDemod validates as frame_valid); none omits it."
 
 [module.wfm_compose.source.generates]
 generator = "wfm_synth"
@@ -1823,7 +1866,11 @@ type = "int"
 
 [[enum]]
 name = "wfm_type"
-values = ["tone", "noise", "pn", "bpsk", "qpsk", "chirp", "bits", "symbols"]
+values = ["tone", "noise", "pn", "bpsk", "qpsk", "chirp", "bits", "symbols", "dsss"]
+
+[[enum]]
+name = "crc"
+values = ["none", "crc16"]
 
 [[enum]]
 name = "snr_mode"

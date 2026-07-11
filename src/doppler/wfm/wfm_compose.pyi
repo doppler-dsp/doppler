@@ -11,7 +11,7 @@ class Synth:
     ----------
     type : str, default ``"tone"``
         Waveform type.
-        One of ``"tone"``, ``"noise"``, ``"pn"``, ``"bpsk"``, ``"qpsk"``, ``"chirp"``, ``"bits"``, ``"symbols"``.
+        One of ``"tone"``, ``"noise"``, ``"pn"``, ``"bpsk"``, ``"qpsk"``, ``"chirp"``, ``"bits"``, ``"symbols"``, ``"dsss"``.
     freq : float | tuple[float, float], default 0.0
         Carrier/offset frequency in Hz (normalised cycles/sample when fs=1); for chirp it is the start frequency.
     snr : float | tuple[float, float], default 100.0
@@ -35,7 +35,7 @@ class Synth:
     f_end : float | tuple[float, float], default 0.0
         Chirp end frequency in Hz; ignored by non-chirp types.
     bits : bytes | None, default None
-        For type=bits: the 0/1 pattern, oversampled by sps and cycled to fill the request.
+        For type=bits: the 0/1 pattern, oversampled by sps and cycled to fill the request. For type=dsss (as `payload`): the payload bits of the burst frame.
     modulation : str, default ``"bpsk"``
         For type=bits: symbol mapping of the pattern (none=0/1 amplitude, bpsk, qpsk).
         One of ``"none"``, ``"bpsk"``, ``"qpsk"``.
@@ -48,10 +48,21 @@ class Synth:
         RRC filter span in symbols when pulse=rrc (taps = 2*span*sps + 1).
     symbols : NDArray[np.complex64] | None, default None
         For type=symbols: a complex64 constellation stream — each element is the output point itself, oversampled by sps, cycled, and RRC-shaped with pulse=rrc. Generalises any modulation (pi/4-QPSK, QAM, ...).
+    acq_code : bytes | None, default None
+        For type=dsss: the acquisition/preamble code (0/1 chips), repeated acq_reps times unmodulated at the head of the burst — the coherent pull-in target BurstDespreader.set_acq/BurstDemod.set_preamble lock to.
+    acq_reps : int, default 1
+        For type=dsss: preamble repetitions (periods of acq_code before the frame).
+    data_code : bytes | None, default None
+        For type=dsss: the payload spreading code (0/1 chips) — a second code, distinct from acq_code; every frame bit (sync | payload | crc) is XOR-spread across its full length, so len(data_code) is the spreading factor.
+    sync : bytes | None, default None
+        For type=dsss: the frame-sync word bits (e.g. Barker-13) between the preamble and the payload — what BurstDemod.set_sync correlates to resolve frame position and BPSK polarity. Optional.
+    crc : str, default ``"crc16"``
+        For type=dsss: the frame trailer — crc16 appends a CRC-16-CCITT over the payload bits (what BurstDemod validates as frame_valid); none omits it.
+        One of ``"none"``, ``"crc16"``.
     fs : float, default 1.0
         Sample rate in Hz — one per segment (all sources share it).
     """
-    def __init__(self, type: str = ..., freq: float | tuple[float, float] = ..., snr: float | tuple[float, float] = ..., snr_mode: str = ..., seed: int = ..., sps: int = ..., pn_length: int = ..., pn_poly: int = ..., lfsr: str = ..., level: float | tuple[float, float] = ..., f_end: float | tuple[float, float] = ..., bits: bytes | None = ..., modulation: str = ..., pulse: str = ..., rrc_beta: float = ..., rrc_span: int = ..., symbols: NDArray[np.complex64] | None = ..., fs: float = ...) -> None: ...
+    def __init__(self, type: str = ..., freq: float | tuple[float, float] = ..., snr: float | tuple[float, float] = ..., snr_mode: str = ..., seed: int = ..., sps: int = ..., pn_length: int = ..., pn_poly: int = ..., lfsr: str = ..., level: float | tuple[float, float] = ..., f_end: float | tuple[float, float] = ..., bits: bytes | None = ..., modulation: str = ..., pulse: str = ..., rrc_beta: float = ..., rrc_span: int = ..., symbols: NDArray[np.complex64] | None = ..., acq_code: bytes | None = ..., acq_reps: int = ..., data_code: bytes | None = ..., sync: bytes | None = ..., crc: str = ..., fs: float = ...) -> None: ...
     def __getattr__(self, name: str) -> Any: ...
     def steps(self, n: int) -> NDArray[np.complex64]:
         """Generate *n* complex samples."""
@@ -67,7 +78,7 @@ class Segment:
     ----------
     type : str, default ``"tone"``
         Waveform type.
-        One of ``"tone"``, ``"noise"``, ``"pn"``, ``"bpsk"``, ``"qpsk"``, ``"chirp"``, ``"bits"``, ``"symbols"``.
+        One of ``"tone"``, ``"noise"``, ``"pn"``, ``"bpsk"``, ``"qpsk"``, ``"chirp"``, ``"bits"``, ``"symbols"``, ``"dsss"``.
     freq : float | tuple[float, float], default 0.0
         Carrier/offset frequency in Hz (normalised cycles/sample when fs=1); for chirp it is the start frequency.
     snr : float | tuple[float, float], default 100.0
@@ -91,7 +102,7 @@ class Segment:
     f_end : float | tuple[float, float], default 0.0
         Chirp end frequency in Hz; ignored by non-chirp types.
     bits : bytes | None, default None
-        For type=bits: the 0/1 pattern, oversampled by sps and cycled to fill the request.
+        For type=bits: the 0/1 pattern, oversampled by sps and cycled to fill the request. For type=dsss (as `payload`): the payload bits of the burst frame.
     modulation : str, default ``"bpsk"``
         For type=bits: symbol mapping of the pattern (none=0/1 amplitude, bpsk, qpsk).
         One of ``"none"``, ``"bpsk"``, ``"qpsk"``.
@@ -104,6 +115,17 @@ class Segment:
         RRC filter span in symbols when pulse=rrc (taps = 2*span*sps + 1).
     symbols : NDArray[np.complex64] | None, default None
         For type=symbols: a complex64 constellation stream — each element is the output point itself, oversampled by sps, cycled, and RRC-shaped with pulse=rrc. Generalises any modulation (pi/4-QPSK, QAM, ...).
+    acq_code : bytes | None, default None
+        For type=dsss: the acquisition/preamble code (0/1 chips), repeated acq_reps times unmodulated at the head of the burst — the coherent pull-in target BurstDespreader.set_acq/BurstDemod.set_preamble lock to.
+    acq_reps : int, default 1
+        For type=dsss: preamble repetitions (periods of acq_code before the frame).
+    data_code : bytes | None, default None
+        For type=dsss: the payload spreading code (0/1 chips) — a second code, distinct from acq_code; every frame bit (sync | payload | crc) is XOR-spread across its full length, so len(data_code) is the spreading factor.
+    sync : bytes | None, default None
+        For type=dsss: the frame-sync word bits (e.g. Barker-13) between the preamble and the payload — what BurstDemod.set_sync correlates to resolve frame position and BPSK polarity. Optional.
+    crc : str, default ``"crc16"``
+        For type=dsss: the frame trailer — crc16 appends a CRC-16-CCITT over the payload bits (what BurstDemod validates as frame_valid); none omits it.
+        One of ``"none"``, ``"crc16"``.
     fs : float, default 1.0
         Sample rate in Hz — one per segment (all sources share it).
     num_samples : int | tuple[int, int], default 1024
@@ -129,7 +151,12 @@ class Segment:
     rrc_beta: float
     rrc_span: int
     symbols: NDArray[np.complex64] | None
-    def __init__(self, type: str = ..., freq: float | tuple[float, float] = ..., snr: float | tuple[float, float] = ..., snr_mode: str = ..., seed: int = ..., sps: int = ..., pn_length: int = ..., pn_poly: int = ..., lfsr: str = ..., level: float | tuple[float, float] = ..., f_end: float | tuple[float, float] = ..., bits: bytes | None = ..., modulation: str = ..., pulse: str = ..., rrc_beta: float = ..., rrc_span: int = ..., symbols: NDArray[np.complex64] | None = ..., fs: float = ..., num_samples: int | tuple[int, int] = ..., off_samples: int | tuple[int, int] = ...) -> None: ...
+    acq_code: bytes | None
+    acq_reps: int
+    data_code: bytes | None
+    sync: bytes | None
+    crc: str
+    def __init__(self, type: str = ..., freq: float | tuple[float, float] = ..., snr: float | tuple[float, float] = ..., snr_mode: str = ..., seed: int = ..., sps: int = ..., pn_length: int = ..., pn_poly: int = ..., lfsr: str = ..., level: float | tuple[float, float] = ..., f_end: float | tuple[float, float] = ..., bits: bytes | None = ..., modulation: str = ..., pulse: str = ..., rrc_beta: float = ..., rrc_span: int = ..., symbols: NDArray[np.complex64] | None = ..., acq_code: bytes | None = ..., acq_reps: int = ..., data_code: bytes | None = ..., sync: bytes | None = ..., crc: str = ..., fs: float = ..., num_samples: int | tuple[int, int] = ..., off_samples: int | tuple[int, int] = ...) -> None: ...
     @classmethod
     def sum(cls, *sources: Synth, fs: float = ..., num_samples: int | tuple[int, int] = ..., off_samples: int | tuple[int, int] = ...) -> Segment:
         """Combine *sources* into a single Segment."""

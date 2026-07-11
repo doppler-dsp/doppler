@@ -182,6 +182,25 @@ def _make_symbols_engine() -> Any:
     return e
 
 
+def _make_dsss_engine() -> Any:
+    """A type=dsss synth with a two-code burst attached (noisy, so the AWGN
+    child rides the blob too). The chip pattern is config (rebuilt by
+    set_dsss); bit_idx/sym_pos are the running fields the round-trip must
+    carry across a mid-burst split."""
+    e = _SynthEngine(
+        type="dsss", fs=1.0, freq=0.0, snr=-3.0, snr_mode="fs", seed=5, sps=2
+    )
+    rng = np.random.default_rng(3)
+    e.set_dsss(
+        acq_code=rng.integers(0, 2, 32, dtype=np.uint8),
+        acq_reps=3,
+        data_code=rng.integers(0, 2, 8, dtype=np.uint8),
+        payload=rng.integers(0, 2, 40, dtype=np.uint8),
+        sync=np.array([1, 1, 1, 0, 0, 1, 0], np.uint8),
+    )
+    return e
+
+
 CASES: dict[str, tuple[Callable[[], Any], _Feed]] = {
     "LO": (lambda: LO(0.05), lambda o, seg: np.array(o.steps(len(seg)))),
     "CIC": (lambda: CIC(4), lambda o, seg: np.array(o.decimate(seg))),
@@ -356,6 +375,10 @@ CASES: dict[str, tuple[Callable[[], Any], _Feed]] = {
     ),
     "_SynthEngine[symbols]": (
         _make_symbols_engine,
+        _blob_after(lambda o, seg: o.steps(len(seg))),
+    ),
+    "_SynthEngine[dsss]": (
+        _make_dsss_engine,
         _blob_after(lambda o, seg: o.steps(len(seg))),
     ),
 }

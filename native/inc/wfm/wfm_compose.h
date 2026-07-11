@@ -98,6 +98,16 @@ typedef struct {
     double snr_hi;     /* upper bound when WFM_RANGE_SNR is set */
     double level_hi;   /* upper bound when WFM_RANGE_LEVEL is set */
     double f_end_hi;   /* upper bound when WFM_RANGE_FEND is set */
+    /* type=dsss: the two-code burst geometry (wfm_frame_dsss_chips). The
+       payload bits ride the shared `bits` field above (alias "payload"). */
+    uint8_t *acq_code;   /* preamble code (0/1), owned; NULL = no preamble */
+    size_t n_acq_code;   /* preamble code length in chips */
+    size_t acq_reps;     /* preamble repetitions */
+    uint8_t *data_code;  /* payload spreading code (0/1), owned */
+    size_t n_data_code;  /* chips per frame symbol (spreading factor) */
+    uint8_t *sync;       /* frame-sync word bits (0/1), owned; NULL = none */
+    size_t n_sync;       /* sync word length in bits */
+    int crc;             /* frame trailer: 0 none, 1 crc16 (dp_crc16.h) */
 } wfm_source_t;
 
 /**
@@ -145,13 +155,40 @@ int wfm_resolve_noise(wfm_segment_t *segs, size_t n);
  * the Plan stimulus engine reuses it to recompute the floor at an arbitrary
  * swept SNR — so both agree to the bit.
  *
+ * For `type=dsss` the symbol is the outer *data* symbol, which spans
+ * `sf * sps` samples (sf chips, sps samples per chip): `auto` picks esno, and
+ * esno/ebno convert as `snr − 10·log10(sf·sps)` (BPSK payload, so the two
+ * coincide). Every other type ignores `sf`.
+ *
  * @param snr_mode 0 auto, 1 fs, 2 ebno, 3 esno.
  * @param type     A WFM_SYNTH_* waveform type (selects the auto convention).
  * @param sps      Samples per symbol/chip (≥1; <1 treated as 1).
+ * @param sf       Spreading factor — chips per data symbol (dsss only; ≥1,
+ *                 <1 treated as 1).
  * @param snr      The declared SNR in dB.
  * @return SNR over fs in dB.
  */
-double wfm_snr_over_fs(int snr_mode, int type, int sps, double snr);
+double wfm_snr_over_fs(int snr_mode, int type, int sps, size_t sf, double snr);
+
+/**
+ * @brief Resolve a source's (snr, snr_mode) into the pair to hand to
+ * `wfm_synth_create()`.
+ *
+ * `wfm_synth_create()` runs before a dsss source's codes are attached, so it
+ * cannot know the spreading factor its own esno would need. This helper — the
+ * one create-time entry point shared by the composer (`wfm_compose_build_synth`)
+ * and the standalone-Synth bridge (`wfm_source_to_synth`), so every face agrees
+ * to the bit — converts a dsss source's SNR to the over-fs reference
+ * (via `wfm_snr_over_fs` with `sf = n_data_code`) and returns `snr_mode=fs`;
+ * every other type passes through unchanged.
+ *
+ * @param src      The source (supplies type/sps/snr_mode/n_data_code).
+ * @param snr      The declared SNR in dB, already ranged-resolved.
+ * @param snr_mode Receives the snr_mode for create.
+ * @return The SNR in dB for create.
+ */
+double wfm_source_create_snr(const wfm_source_t *src, double snr,
+                             int *snr_mode);
 
 /**
  * @brief Construct + configure the synth for one resolved source.

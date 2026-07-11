@@ -38,6 +38,7 @@ struct wfm_plan
   /* anchor meta, so a swept SNR recomputes floor = level − snr_over_fs. */
   double anchor_level;
   int    anchor_type, anchor_mode, anchor_sps;
+  size_t anchor_sf; /* dsss anchor: chips per data symbol (else 1) */
 };
 
 /* Accumulate one source into out: real·complex when φ==0 (exactly the
@@ -69,7 +70,7 @@ noise_gain (const wfm_plan_t *p, double snr, int snr_given)
   if (snr_given && !p->explicit_floor)
     fdb = p->anchor_level
           - wfm_snr_over_fs (p->anchor_mode, p->anchor_type, p->anchor_sps,
-                             snr);
+                             p->anchor_sf, snr);
   return (float)pow (10.0, fdb / 20.0);
 }
 
@@ -201,6 +202,7 @@ wfm_plan_prepare (const char *spec_json)
                 p->anchor_type    = g->sources[j].type;
                 p->anchor_mode    = g->sources[j].snr_mode;
                 p->anchor_sps     = g->sources[j].sps;
+                p->anchor_sf      = g->sources[j].n_data_code;
                 break;
               }
           continue;

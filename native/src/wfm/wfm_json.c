@@ -15,12 +15,14 @@
 #include "cJSON.h"
 
 static const char *const TYPE_NAMES[]
-    = { "tone", "noise", "pn", "bpsk", "qpsk", "chirp", "bits", "symbols" };
-#define N_TYPES 8
+    = { "tone",  "noise", "pn",      "bpsk", "qpsk",
+        "chirp", "bits",  "symbols", "dsss" };
+#define N_TYPES 9
 static const char *const MODE_NAMES[]   = { "auto", "fs", "ebno", "esno" };
 static const char *const LFSR_NAMES[]   = { "galois", "fibonacci" };
 static const char *const BITMOD_NAMES[] = { "none", "bpsk", "qpsk" };
 static const char *const PULSE_NAMES[]  = { "rect", "rrc" };
+static const char *const CRC_NAMES[]    = { "none", "crc16" };
 /* Ordered to match wfm_seed_advance_t (NONE=0, NOISE=1, ALL=2). */
 static const char *const SEED_ADVANCE_NAMES[] = { "none", "noise", "all" };
 
@@ -76,8 +78,8 @@ string_to_bits (const char *s, size_t *n)
   return b;
 }
 
-/* Free the per-source heap arrays (bits pattern + symbols stream) of `ns`
- * sources (then the caller frees the array). */
+/* Free the per-source heap arrays (bits/symbols/dsss codes) of `ns` sources
+ * (then the caller frees the array). */
 static void
 free_src_bits (wfm_source_t *srcs, size_t ns)
 {
@@ -86,6 +88,9 @@ free_src_bits (wfm_source_t *srcs, size_t ns)
       {
         free (srcs[k].bits);
         free (srcs[k].symbols);
+        free (srcs[k].acq_code);
+        free (srcs[k].data_code);
+        free (srcs[k].sync);
       }
 }
 
@@ -106,6 +111,35 @@ add_bits_fields (cJSON *o, const wfm_source_t *src)
           free (bs);
         }
     }
+}
+
+/* Emit a "0/1" string field from a bit array (no-op when empty/OOM). */
+static void
+add_bit_string (cJSON *o, const char *key, const uint8_t *bits, size_t n)
+{
+  if (!bits || !n)
+    return;
+  char *s = bits_to_string (bits, n);
+  if (s)
+    {
+      cJSON_AddStringToObject (o, key, s);
+      free (s);
+    }
+}
+
+/* Emit a dsss source's burst geometry: the two codes, preamble repetitions,
+ * sync word, payload bits, and CRC choice (no-op for other types). */
+static void
+add_dsss_fields (cJSON *o, const wfm_source_t *src)
+{
+  if (src->type != WFM_SYNTH_DSSS)
+    return;
+  add_bit_string (o, "acq_code", src->acq_code, src->n_acq_code);
+  cJSON_AddNumberToObject (o, "acq_reps", (double)src->acq_reps);
+  add_bit_string (o, "data_code", src->data_code, src->n_data_code);
+  add_bit_string (o, "sync", src->sync, src->n_sync);
+  add_bit_string (o, "payload", src->bits, src->n_bits);
+  cJSON_AddStringToObject (o, "crc", CRC_NAMES[src->crc ? 1 : 0]);
 }
 
 /* Emit a symbols source's complex constellation as a flat interleaved
@@ -203,6 +237,7 @@ add_source_obj (cJSON *so, const wfm_source_t *src)
                       src->ranged & WFM_RANGE_LEVEL);
   add_bits_fields (so, src);
   add_symbols_fields (so, src);
+  add_dsss_fields (so, src);
   add_pulse_fields (so, src);
 }
 
@@ -264,6 +299,55 @@ parse_source_obj (const cJSON *so, wfm_source_t *out)
           if (!out->bits)
             return -1;
         }
+    }
+  if (t == WFM_SYNTH_DSSS)
+    {
+      /* Burst geometry: codes/sync as "0/1" strings, payload under "payload"
+       * (or the bits type's "pattern" — same field), crc none|crc16
+       * (default crc16: the burst_demod frame contract carries a trailer). */
+      const struct
+      {
+        const char *key;
+        uint8_t   **arr;
+        size_t     *len;
+      } bitkeys[] = {
+        { "acq_code", &out->acq_code, &out->n_acq_code },
+        { "data_code", &out->data_code, &out->n_data_code },
+        { "sync", &out->sync, &out->n_sync },
+      };
+      for (size_t i = 0; i < 3; i++)
+        {
+          const char *v = cJSON_GetStringValue (
+              cJSON_GetObjectItemCaseSensitive (so, bitkeys[i].key));
+          if (v)
+            {
+              *bitkeys[i].arr = string_to_bits (v, bitkeys[i].len);
+              if (!*bitkeys[i].arr)
+                {
+                  free_src_bits (out, 1); /* drop this source's partials */
+                  return -1;
+                }
+            }
+        }
+      const char *pay = cJSON_GetStringValue (
+          cJSON_GetObjectItemCaseSensitive (so, "payload"));
+      if (!pay)
+        pay = cJSON_GetStringValue (
+            cJSON_GetObjectItemCaseSensitive (so, "pattern"));
+      if (pay)
+        {
+          out->bits = string_to_bits (pay, &out->n_bits);
+          if (!out->bits)
+            {
+              free_src_bits (out, 1); /* drop this source's partials */
+              return -1;
+            }
+        }
+      out->acq_reps = (size_t)num (so, "acq_reps", 1);
+      int c         = name_index (
+          cJSON_GetStringValue (cJSON_GetObjectItemCaseSensitive (so, "crc")),
+          CRC_NAMES, 2);
+      out->crc = (c < 0) ? 1 : c;
     }
   if (t == WFM_SYNTH_SYMBOLS)
     {
@@ -351,6 +435,7 @@ wfm_spec_to_json (const wfm_segment_t *segs, size_t n_segs, int repeat,
                               src->ranged & WFM_RANGE_LEVEL);
           add_bits_fields (s, src);
           add_symbols_fields (s, src);
+          add_dsss_fields (s, src);
           add_pulse_fields (s, src);
         }
       else

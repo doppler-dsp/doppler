@@ -85,8 +85,8 @@ class _SynthEngine:
 
     Parameters
     ----------
-    type : Literal["tone", "noise", "pn", "bpsk", "qpsk", "chirp", "bits", "symbols"], default "tone"
-        Waveform type: 0=tone, 1=noise, 2=pn, 3=bpsk, 4=qpsk, 5=chirp, 6=bits, 7=symbols.  The Python binding accepts strings "tone"|"noise"|"pn"|"bpsk"|"qpsk"|"chirp"|"bits"|"symbols".  For "bits" attach the pattern with wfm_synth_set_bits(); for "symbols" attach the complex stream with wfm_synth_set_symbols() after create().
+    type : Literal["tone", "noise", "pn", "bpsk", "qpsk", "chirp", "bits", "symbols", "dsss"], default "tone"
+        Waveform type: 0=tone, 1=noise, 2=pn, 3=bpsk, 4=qpsk, 5=chirp, 6=bits, 7=symbols, 8=dsss.  The Python binding accepts strings "tone"|"noise"|"pn"|"bpsk"|"qpsk"|"chirp"|"bits"|"symbols"|"dsss".  For "bits" attach the pattern with wfm_synth_set_bits(); for "symbols" attach the complex stream with wfm_synth_set_symbols(); for "dsss" attach the burst with wfm_synth_set_dsss() after create().
     fs : float, default 1000000.0
         Sample rate in Hz.  Sets the carrier frequency normalisation and the noise bandwidth.  Default 1 000 000.0.
     freq : float, default 0.0
@@ -315,6 +315,31 @@ def mls_poly(n: int) -> int:
     >>> from doppler.wfm import mls_poly
     >>> hex(mls_poly(7))
     '0x41'
+
+    """
+
+def crc16(bits: NDArray[np.uint8]) -> int:
+    """CRC-16-CCITT (poly 0x1021, init 0xFFFF) over an unpacked 0/1 bit
+    array, MSB-first — the DSSS burst frame trailer wfmgen appends and
+    BurstDemod validates (one shared C kernel, dp_crc16.h).
+
+    Parameters
+    ----------
+    bits : NDArray[np.uint8]
+        Array of 0/1 bit values (one per byte).
+
+    Returns
+    -------
+    int
+        The 16-bit CRC; transmit it MSB-first.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from doppler.wfm import crc16
+    >>> ascii_bits = np.unpackbits(np.frombuffer(b"123456789", np.uint8))
+    >>> hex(crc16(ascii_bits))   # the standard CCITT check vector
+    '0x29b1'
 
     """
 

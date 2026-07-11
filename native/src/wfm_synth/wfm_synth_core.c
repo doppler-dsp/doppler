@@ -1,5 +1,7 @@
 #include "wfm_synth/wfm_synth_core.h"
 
+#include "wfm/wfm_dsp.h" /* wfm_frame_dsss_chips — the DSSS burst builder */
+
 wfm_synth_state_t *
 wfm_synth_create (int type, double fs, double freq, double snr, int snr_mode,
                   uint32_t seed, int sps, int pn_length, uint64_t pn_poly,
@@ -117,9 +119,11 @@ int
 wfm_synth_set_rrc (wfm_synth_state_t *state, const float *taps, size_t ntaps)
 {
   /* Pulse shaping applies to the symbol carriers: pn/bpsk/qpsk, the user
-   * bit-pattern source (bits), and the complex-symbol stream (symbols). */
+   * bit-pattern source (bits), the complex-symbol stream (symbols), and the
+   * dsss chip stream (chip-rate shaping). */
   if ((state->wtype < WFM_SYNTH_PN || state->wtype > WFM_SYNTH_QPSK)
-      && state->wtype != WFM_SYNTH_BITS && state->wtype != WFM_SYNTH_SYMBOLS)
+      && state->wtype != WFM_SYNTH_BITS && state->wtype != WFM_SYNTH_SYMBOLS
+      && state->wtype != WFM_SYNTH_DSSS)
     return 0;
   if (!taps || ntaps == 0)
     return -1;
@@ -161,6 +165,32 @@ wfm_synth_set_bits (wfm_synth_state_t *state, const uint8_t *bits, size_t n,
   state->n_bits  = n;
   state->bit_idx = 0;
   state->bit_mod = modulation;
+  return 0;
+}
+
+int
+wfm_synth_set_dsss (wfm_synth_state_t *state, const uint8_t *acq_code,
+                    size_t acq_len, size_t acq_reps, const uint8_t *data_code,
+                    size_t data_len, const uint8_t *sync, size_t sync_len,
+                    const uint8_t *payload, size_t payload_len, int crc)
+{
+  if (state->wtype != WFM_SYNTH_DSSS)
+    return 0; /* no-op for every other type */
+  size_t n = wfm_frame_dsss_nchips (acq_len, acq_reps, data_len, sync_len,
+                                    payload_len, crc);
+  if (n == 0)
+    return -1; /* frame bits with no data code, or an empty burst */
+  uint8_t *chips = malloc (n);
+  if (!chips)
+    return -1;
+  (void)wfm_frame_dsss_chips (acq_code, acq_len, acq_reps, data_code, data_len,
+                              sync, sync_len, payload, payload_len, crc,
+                              chips);
+  free (state->bits);
+  state->bits    = chips;
+  state->n_bits  = n;
+  state->bit_idx = 0;
+  state->bit_mod = 1; /* chips are always BPSK (0 → +1, 1 → −1) */
   return 0;
 }
 
@@ -344,12 +374,13 @@ wfm_synth_steps (wfm_synth_state_t *state, float complex *output, size_t n)
   float complex carrier[CH];   /* 16 KiB */
   float complex noise[CH];     /* 16 KiB */
   uint8_t       chips[2 * CH]; /* up to 2 chips/sample (qpsk at sps 1) */
-  const int     has_lo     = state->lo != NULL;
-  const int     has_awgn   = state->awgn != NULL;
-  const int     is_bits    = state->wtype == WFM_SYNTH_BITS;
-  const int     is_symbols = state->wtype == WFM_SYNTH_SYMBOLS;
-  const int     is_chirp   = state->wtype == WFM_SYNTH_CHIRP;
-  const int     modulated
+  const int     has_lo   = state->lo != NULL;
+  const int     has_awgn = state->awgn != NULL;
+  const int     is_bits
+      = state->wtype == WFM_SYNTH_BITS || state->wtype == WFM_SYNTH_DSSS;
+  const int is_symbols = state->wtype == WFM_SYNTH_SYMBOLS;
+  const int is_chirp   = state->wtype == WFM_SYNTH_CHIRP;
+  const int modulated
       = state->wtype >= WFM_SYNTH_PN && state->wtype <= WFM_SYNTH_QPSK;
   const int   qpsk    = state->wtype == WFM_SYNTH_QPSK;
   const int   nsps    = state->nsps;

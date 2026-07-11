@@ -3,13 +3,14 @@ arg_type = "void"
 return_type = "float _Complex"
 mutable = "true"
 class_name = "_SynthEngine"
-depends_on = [{ name = "lo", link = true }, { name = "awgn", link = true }, "pn", { name = "fir", link = true }]
+depends_on = [{ name = "lo", link = true }, { name = "awgn", link = true }, "pn", { name = "fir", link = true }, "wfm_dsp"]
 impl = """
 float complex sym;
-if (state->wtype == WFM_SYNTH_BITS) {
+if (state->wtype == WFM_SYNTH_BITS || state->wtype == WFM_SYNTH_DSSS) {
     /* User bit pattern, oversampled sps and cycled to fill the request. The
      * symbol latch mirrors the PN path but sources bits from bits[bit_idx]
-     * instead of the LFSR; bit_mod picks the mapping. */
+     * instead of the LFSR; bit_mod picks the mapping. A dsss burst is the
+     * same machinery over the chip pattern set_dsss() assembled. */
     if (state->sym_pos == 0 && state->bits && state->n_bits) {
         if (state->bit_mod == 2) { /* qpsk: 2 bits/symbol, Gray-mapped */
             uint8_t b0 = state->bits[state->bit_idx];
@@ -355,7 +356,7 @@ opaque = true
 
 [[wfm_synth.init_params]]
 name = "type"
-type = "string_enum:tone,noise,pn,bpsk,qpsk,chirp,bits,symbols"
+type = "string_enum:tone,noise,pn,bpsk,qpsk,chirp,bits,symbols,dsss"
 default = "tone"
 
 [[wfm_synth.init_params]]

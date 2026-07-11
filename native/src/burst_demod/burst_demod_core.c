@@ -1,5 +1,7 @@
 #include "burst_demod/burst_demod_core.h"
 
+#include "dp_crc16.h" /* the shared TX/RX frame CRC (wfmgen appends it) */
+
 #include <complex.h>
 #include <math.h>
 #include <stdlib.h>
@@ -20,20 +22,6 @@ static inline double
 wrap_pi (double ph)
 {
   return ph - 2.0 * M_PI * round (ph / (2.0 * M_PI));
-}
-
-/* CRC-16-CCITT (poly 0x1021, init 0xFFFF) over a bit stream, MSB-first. */
-static uint16_t
-crc16_ccitt (const uint8_t *bits, size_t n)
-{
-  uint16_t crc = 0xFFFFu;
-  for (size_t i = 0; i < n; i++)
-    {
-      crc ^= (uint16_t)((bits[i] & 1u) << 15);
-      crc = (crc & 0x8000u) ? (uint16_t)((crc << 1) ^ 0x1021u)
-                            : (uint16_t)(crc << 1);
-    }
-  return crc;
 }
 
 burst_demod_state_t *
@@ -354,7 +342,8 @@ burst_demod_demod (burst_demod_state_t *s, const float complex *x,
           uint16_t b = (crealf (sym[cstart + j] * derot) < 0.0f) ? 1u : 0u;
           rx_crc |= (uint16_t)(b << (BURST_DEMOD_CRC_BITS - 1 - j));
         }
-      s->frame_valid = (crc16_ccitt (pbits, s->payload_len) == rx_crc) ? 1 : 0;
+      s->frame_valid
+          = (dp_crc16_ccitt (pbits, s->payload_len) == rx_crc) ? 1 : 0;
       free (pbits);
     }
 

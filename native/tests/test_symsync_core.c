@@ -42,6 +42,27 @@ prbs (uint32_t *st)
   return (x & 1u) ? -1 : 1;
 }
 
+/* Unit-variance complex Gaussian (Box-Muller from xorshift); 0.5 variance per
+ * component so E|z|^2 = 1 — a noise-only stream for the lock detector
+ * (mirrors test_dll_core.c's cgauss). */
+static float complex
+cgauss (uint32_t *st)
+{
+  *st ^= *st << 13;
+  *st ^= *st >> 17;
+  *st ^= *st << 5;
+  uint32_t a = *st;
+  *st ^= *st << 13;
+  *st ^= *st >> 17;
+  *st ^= *st << 5;
+  uint32_t b   = *st;
+  double   u1  = ((double)a + 1.0) / 4294967297.0;
+  double   u2  = ((double)b + 1.0) / 4294967297.0;
+  double   mag = sqrt (-log (u1));
+  double   th  = 6.283185307179586 * u2;
+  return (float)(mag * cos (th)) + (float)(mag * sin (th)) * I;
+}
+
 /* Nyquist raised-cosine pulse (matched-filtered), unit symbol period T. */
 static double
 rc (double t, double beta, double T)
@@ -246,7 +267,7 @@ main (void)
     symsync_destroy (b);
   }
 
-  /* telemetry attach — three probes per recovered symbol; blobs stay
+  /* telemetry attach — five probes per recovered symbol; blobs stay
    * deterministic (attachment zeroed); a live attachment survives
    * set_state; detach reverts to the no-op path. */
   {
@@ -261,14 +282,16 @@ main (void)
     CHECK (dp_tlm_lookup (tlm, "sync.e") == a->tlm.id_e);
     CHECK (dp_tlm_lookup (tlm, "sync.freq") == a->tlm.id_freq);
     CHECK (dp_tlm_lookup (tlm, "sync.rate") == a->tlm.id_rate);
+    CHECK (dp_tlm_lookup (tlm, "sync.lock") == a->tlm.id_lock);
+    CHECK (dp_tlm_lookup (tlm, "sync.locked") == a->tlm.id_locked);
 
     size_t n_sym = symsync_steps (a, trx, 512, tsym, 160);
     CHECK (n_sym > 0);
-    dp_tlm_rec_t recs[512];
-    size_t       n_rec = dp_tlm_read (tlm, recs, 512);
-    CHECK (n_rec == 3 * n_sym); /* e + freq + rate per symbol */
-    CHECK (recs[n_rec - 1].probe == (uint16_t)a->tlm.id_rate);
-    CHECK (recs[n_rec - 1].value == (float)a->rate_est);
+    dp_tlm_rec_t recs[1024];
+    size_t       n_rec = dp_tlm_read (tlm, recs, 1024);
+    CHECK (n_rec == 5 * n_sym); /* e + freq + rate + lock + locked */
+    CHECK (recs[n_rec - 1].probe == (uint16_t)a->tlm.id_locked);
+    CHECK (recs[n_rec - 1].value == (float)a->lock.locked);
 
     /* Blob determinism: attached vs detached serialize identically. */
     symsync_state_t *d
@@ -276,7 +299,8 @@ main (void)
     CHECK (d != NULL);
     *d          = *a;
     d->tlm.ctx  = NULL;
-    d->tlm.id_e = d->tlm.id_freq = d->tlm.id_rate = 0;
+    d->tlm.id_e = d->tlm.id_freq = d->tlm.id_rate = d->tlm.id_lock
+        = d->tlm.id_locked                        = 0;
     uint8_t blob_a[sizeof (dp_state_hdr_t) + sizeof (symsync_state_t)];
     uint8_t blob_d[sizeof (blob_a)];
     CHECK (symsync_state_bytes (a) == sizeof (blob_a));
@@ -297,7 +321,7 @@ main (void)
     /* Detach: no further records. */
     CHECK (symsync_set_telemetry (a, NULL, "sync", 1) == DP_OK);
     (void)symsync_steps (a, trx, 512, tsym, 160);
-    CHECK (dp_tlm_read (tlm, recs, 512) == 0);
+    CHECK (dp_tlm_read (tlm, recs, 1024) == 0);
 
     symsync_destroy (d);
     symsync_destroy (b);
@@ -322,7 +346,7 @@ main (void)
     /* Attached DTTL block loop. */
     size_t       n_sym = symsync_steps (a, trx2, 64, tsym2, 32);
     dp_tlm_rec_t recs[256];
-    CHECK (dp_tlm_read (tlm, recs, 256) == 3 * n_sym);
+    CHECK (dp_tlm_read (tlm, recs, 256) == 5 * n_sym);
 
     /* Public single-sample step (dispatches + flushes when attached). */
     float complex y;
@@ -331,7 +355,7 @@ main (void)
       if (symsync_step (a, trx2[i], &y))
         n_step_sym++;
     CHECK (n_step_sym > 0);
-    CHECK (dp_tlm_read (tlm, recs, 256) == 3 * n_step_sym);
+    CHECK (dp_tlm_read (tlm, recs, 256) == 5 * n_step_sym);
 
     /* Fill the probe table; a fresh attach must fail whole and leave the
      * object detached. */
@@ -350,6 +374,37 @@ main (void)
     symsync_destroy (c);
     symsync_destroy (a);
     dp_tlm_destroy (tlm);
+  }
+
+  /* 6. Lock detector: locks on a clean matched-filtered eye, does not
+   * false-lock on noise (the eye-concentration ratio's H0 mean is 0.5;
+   * a real eye pushes it well above the default 0.62 declare threshold). */
+  {
+    size_t         nsym  = 4000;
+    float complex *lrx   = malloc (nsym * SPS * sizeof (*lrx));
+    int           *lbits = malloc (nsym * sizeof (*lbits));
+    float complex *lsym  = malloc (nsym * sizeof (*lsym));
+
+    make_signal (lrx, lbits, nsym, 1.3, 1.0, 13u);
+    symsync_state_t *s
+        = symsync_create (SPS, 0.01, 0.707, FARROW_CUBIC, SYMSYNC_TED_GARDNER);
+    (void)symsync_steps (s, lrx, nsym * SPS, lsym, nsym);
+    CHECK (symsync_get_locked (s) == 1);
+    CHECK (symsync_get_lock_metric (s) > 0.7); /* noise ceiling: ~0.33 */
+    symsync_destroy (s);
+
+    uint32_t st = 9090u;
+    for (size_t i = 0; i < nsym * SPS; i++)
+      lrx[i] = cgauss (&st);
+    symsync_state_t *n
+        = symsync_create (SPS, 0.01, 0.707, FARROW_CUBIC, SYMSYNC_TED_GARDNER);
+    (void)symsync_steps (n, lrx, nsym * SPS, lsym, nsym);
+    CHECK (symsync_get_locked (n) == 0);
+    symsync_destroy (n);
+
+    free (lrx);
+    free (lbits);
+    free (lsym);
   }
 
   if (_fails)

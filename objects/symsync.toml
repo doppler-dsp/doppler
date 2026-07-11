@@ -9,6 +9,7 @@ depends_on = [
   { name = "nco", link = true },
   { name = "farrow", link = true },
   { name = "loop_filter", link = true },
+  { name = "lockdet", link = true },
   { name = "telemetry", link = true },
 ]
 serializable = "true"
@@ -49,10 +50,11 @@ pass_capacity = true
 nogil = true
 params = [{ name = "x", type = "float _Complex[]" }]
 
-# Telemetry attach (jm gh-432; mirrors objects/agc.toml): registers
-# "<prefix>.e" / "<prefix>.freq" / "<prefix>.rate", emitted once per
-# recovered symbol. None detaches; the int status binds -> None with
-# ValueError on failure.
+# Telemetry attach (jm gh-432; mirrors objects/dll.toml): registers
+# "<prefix>.e" / "<prefix>.freq" / "<prefix>.rate" / "<prefix>.lock" /
+# "<prefix>.locked" (the last is the verify-counted lockdet decision, 0/1),
+# emitted once per recovered symbol. None detaches; the int status binds ->
+# None with ValueError on failure.
 [[symsync.methods]]
 name = "set_telemetry"
 arg_type = "void"
@@ -72,6 +74,18 @@ return_type = "void"
 params = [{ name = "bn", type = "double" }, { name = "zeta", type = "double" }]
 
 [[symsync.methods]]
+name = "configure_lock"
+doc = "Re-tune the timing lock detector: locked flips up after n_up consecutive recovered symbols with the lock-metric EMA above up_thresh, and drops after n_down consecutive symbols below down_thresh (level + time hysteresis; see detection.LockDet). The metric is the eye-concentration ratio q = |on-time|^2 / (|on-time|^2 + |mid-symbol|^2): at correct timing the on-time interpolant sits at the eye's peak and the mid-symbol (transition-gate) interpolant sits closer to a zero crossing, so q rises above its H0 mean of 0.5 (symmetric energy split when no eye is established). A live lock survives the re-tune; the in-flight verify run restarts."
+arg_type = "void"
+return_type = "void"
+params = [
+  { name = "up_thresh", type = "double" },
+  { name = "down_thresh", type = "double" },
+  { name = "n_up", type = "uint32_t" },
+  { name = "n_down", type = "uint32_t" },
+]
+
+[[symsync.methods]]
 name = "reset"
 doc = "Re-seed the timing loop to its nominal rate and zero phase."
 arg_type = "void"
@@ -89,3 +103,13 @@ type = "double"
 [[symsync.properties]]
 name = "rate"
 type = "double"
+
+[[symsync.properties]]
+name = "lock_metric"
+type = "double"
+doc = "Last timing-lock statistic: the eye-concentration ratio EMA q = |on-time|^2/(|on-time|^2+|mid-symbol|^2); compare against the configured thresholds (see configure_lock)."
+
+[[symsync.properties]]
+name = "locked"
+type = "bool"
+doc = "Current timing-lock decision: True after the verify count of consecutive above-threshold symbols, False again after the drop count of consecutive below-threshold ones (see configure_lock)."

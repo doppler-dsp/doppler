@@ -4,6 +4,34 @@
 #include <stdlib.h>
 #include <string.h>
 
+/* Default timing-lock-detector rule (see symsync_configure_lock's header
+ * doc). Calibrated by direct Monte-Carlo against the real object (not a
+ * numpy stand-in), sweeping both pulse shapes doppler ships (raised-
+ * cosine matched-filter and rectangular NRZ/I&D) and 40 independent
+ * noise-only seeds at SYMSYNC_LOCK_ALPHA = 0.01:
+ *   noise-only lock_metric:  max 0.33, mean 0.07  (40 seeds, 4000 syms)
+ *   RC-shaped BPSK, 0 dB SNR (worst signal case tested): 0.52
+ *   RC-shaped BPSK, 4-20 dB SNR:                         0.73-0.93
+ *   rectangular NRZ, noiseless:                          1.00 (exact)
+ * up/down sit with real margin above the noise ceiling and below every
+ * signal case tested, including the extreme 0 dB SNR point. A first
+ * design (an eye-concentration ratio keyed to the mid-symbol sample)
+ * was rejected after calibration surfaced a pulse-shape-dependent sign
+ * flip (locked pushed the statistic up for rectangular pulses, down for
+ * raised-cosine); a second design (this metric's EMA fed through a
+ * 1/(1+x) reciprocal) was rejected after calibration showed Jensen's
+ * inequality biases that EMA upward under noise, nearly erasing the
+ * H0/H1 gap. This is the third design: EMA the normalized on-time power
+ * deviation directly (unbiased), then map through a bounded linear
+ * clamp -- see symsync_step_ted()'s lock-metric comment. The slow alpha
+ * (vs. Costas's 0.1) is needed because the underlying per-symbol
+ * statistic is far heavier-tailed than Costas's bounded phase ratio; the
+ * verify counts mirror Costas's declare-fast/drop-reluctant shape. */
+#define SYMSYNC_LOCK_DEFAULT_UP 0.45
+#define SYMSYNC_LOCK_DEFAULT_DOWN 0.40
+#define SYMSYNC_LOCK_DEFAULT_N_UP 8u
+#define SYMSYNC_LOCK_DEFAULT_N_DOWN 32u
+
 /* Nominal NCO increment: the accumulator advances by 1/sps of full scale per
  * input sample, wrapping once per symbol.  The on-time strobe is the wrap and
  * the mid-symbol strobe is the half-scale crossing, giving the Gardner
@@ -26,6 +54,9 @@ seed (symsync_state_t *s)
   s->last_error       = 0.0;
   s->rate_est         = (double)s->sps;
   s->pwr_avg          = 1.0;
+  s->nvar_ema         = 1.0; /* pessimistic seed: consistency derives to 0 */
+  s->lock_metric      = 0.0;
+  lockdet_reset (&s->lock); /* drop the lock; keep the configured rule */
   farrow_reset (&s->farrow);
 }
 
@@ -44,6 +75,8 @@ symsync_init (symsync_state_t *s, size_t sps, double bn, double zeta,
   s->ted      = ted;
   farrow_init (&s->farrow, order);
   loop_filter_init (&s->lf, bn, zeta, 1.0); /* one update per symbol */
+  lockdet_init (&s->lock, SYMSYNC_LOCK_DEFAULT_UP, SYMSYNC_LOCK_DEFAULT_DOWN,
+                SYMSYNC_LOCK_DEFAULT_N_UP, SYMSYNC_LOCK_DEFAULT_N_DOWN);
   seed (s);
 }
 
@@ -87,12 +120,18 @@ symsync_set_telemetry (symsync_state_t *state, dp_tlm_t *tlm,
   int id_freq = dp_tlm_probe (tlm, name, decim);
   (void)snprintf (name, sizeof (name), "%s.rate", p);
   int id_rate = dp_tlm_probe (tlm, name, decim);
-  if (id_e < 0 || id_freq < 0 || id_rate < 0)
+  (void)snprintf (name, sizeof (name), "%s.lock", p);
+  int id_lock = dp_tlm_probe (tlm, name, decim);
+  (void)snprintf (name, sizeof (name), "%s.locked", p);
+  int id_locked = dp_tlm_probe (tlm, name, decim);
+  if (id_e < 0 || id_freq < 0 || id_rate < 0 || id_lock < 0 || id_locked < 0)
     return DP_ERR_INVALID; /* table full / bad prefix: attach fails whole */
-  state->tlm.id_e    = id_e;
-  state->tlm.id_freq = id_freq;
-  state->tlm.id_rate = id_rate;
-  state->tlm.ctx     = tlm; /* set last: emit sites gate on ctx */
+  state->tlm.id_e      = id_e;
+  state->tlm.id_freq   = id_freq;
+  state->tlm.id_rate   = id_rate;
+  state->tlm.id_lock   = id_lock;
+  state->tlm.id_locked = id_locked;
+  state->tlm.ctx       = tlm; /* set last: emit sites gate on ctx */
   return DP_OK;
 }
 
@@ -106,6 +145,8 @@ symsync_tlm_flush (const symsync_state_t *s)
   dp_tlm_emit (s->tlm.ctx, s->tlm.id_e, s->last_error);
   dp_tlm_emit (s->tlm.ctx, s->tlm.id_freq, control);
   dp_tlm_emit (s->tlm.ctx, s->tlm.id_rate, s->rate_est);
+  dp_tlm_emit (s->tlm.ctx, s->tlm.id_lock, s->lock_metric);
+  dp_tlm_emit (s->tlm.ctx, s->tlm.id_locked, (double)s->lock.locked);
 }
 
 /* Serializable state — pointer-free composition (nco + farrow + loop_filter
@@ -211,4 +252,23 @@ symsync_get_rate (const symsync_state_t *state)
   /* effective samples/symbol the loop is tracking (EMA of the instantaneous
    * strobe rate) */
   return state->rate_est;
+}
+
+double
+symsync_get_lock_metric (const symsync_state_t *state)
+{
+  return state->lock_metric;
+}
+
+int
+symsync_get_locked (const symsync_state_t *state)
+{
+  return state->lock.locked;
+}
+
+void
+symsync_configure_lock (symsync_state_t *state, double up_thresh,
+                        double down_thresh, uint32_t n_up, uint32_t n_down)
+{
+  lockdet_configure (&state->lock, up_thresh, down_thresh, n_up, n_down);
 }

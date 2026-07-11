@@ -141,3 +141,60 @@ def test_steps_out_undersized_raises():
     s = SymbolSync(sps=SPS, bn=0.01, zeta=0.707, order="cubic")
     with pytest.raises(ValueError):
         s.steps(x, out=np.zeros(1, dtype=np.complex64))
+
+
+def test_lock_defaults_unlocked():
+    s = SymbolSync(sps=SPS, bn=0.01, zeta=0.707, order="cubic")
+    assert s.locked is False
+    assert s.lock_metric == 0.0
+
+
+def test_lock_acquires_on_clean_signal():
+    # envelope-consistency statistic: RC-shaped BPSK at high SNR settles
+    # well above the default 0.45 declare threshold (calibrated against
+    # a noise-only ceiling of ~0.33 -- see symsync_core.c).
+    x, _ = _signal(3000, offset=1.3, snr=20, seed=7)
+    s = SymbolSync(sps=SPS, bn=0.01, zeta=0.707, order="cubic")
+    s.steps(x)
+    assert s.locked is True
+    assert s.lock_metric > 0.7
+
+
+def test_lock_stays_low_on_noise():
+    rng = np.random.default_rng(8)
+    n = 3000 * SPS
+    x = (rng.standard_normal(n) + 1j * rng.standard_normal(n)).astype(
+        np.complex64
+    )
+    s = SymbolSync(sps=SPS, bn=0.01, zeta=0.707, order="cubic")
+    s.steps(x)
+    assert s.locked is False
+    assert s.lock_metric < 0.4
+
+
+def test_configure_lock_unreachable_threshold_never_locks():
+    x, _ = _signal(3000, offset=1.3, snr=20, seed=7)
+    s = SymbolSync(sps=SPS, bn=0.01, zeta=0.707, order="cubic")
+    s.configure_lock(up_thresh=2.0, down_thresh=1.9, n_up=1, n_down=1)
+    s.steps(x)
+    assert s.locked is False
+
+
+def test_configure_lock_low_threshold_locks_fast():
+    # n_up=1 with an easily-reachable threshold declares on the first
+    # above-threshold symbol once the loop has acquired.
+    x, _ = _signal(3000, offset=1.3, snr=20, seed=7)
+    s = SymbolSync(sps=SPS, bn=0.01, zeta=0.707, order="cubic")
+    s.configure_lock(up_thresh=0.1, down_thresh=0.05, n_up=1, n_down=32)
+    s.steps(x)
+    assert s.locked is True
+
+
+def test_lock_reset_clears():
+    x, _ = _signal(3000, offset=1.3, snr=20, seed=7)
+    s = SymbolSync(sps=SPS, bn=0.01, zeta=0.707, order="cubic")
+    s.steps(x)
+    assert s.locked is True
+    s.reset()
+    assert s.locked is False
+    assert s.lock_metric == 0.0

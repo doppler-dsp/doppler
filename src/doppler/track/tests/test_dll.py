@@ -331,3 +331,63 @@ def test_lock_reset_clears():
     assert d.locked is False
     assert d.lock_stat == 0.0
     assert d.noise_est == 0.0
+
+
+def test_configure_lock_raw_sets_geometry_directly():
+    # configure_lock() only ever derives a symmetric threshold and fixes
+    # n_down=2; configure_lock_raw() is the escape hatch -- an unreachable
+    # declare threshold never locks even on a strong signal.
+    code = _code(11)
+    rx, _, _ = _carrier_async_signal(
+        code, 1500, 3e-3, 0.37 * TE, f0=1e-3, seed=3
+    )
+    d = Dll(code, SPS, 0.0, 0.002, 0.707, 0.5, segments=4)
+    d.configure_lock_raw(
+        up_thresh=1e9,
+        down_thresh=1e9,
+        n_looks=20,
+        alpha=1.0 / 1024.0,
+        n_up=1,
+        n_down=1,
+    )
+    d.steps(rx)
+    assert d.locked is False
+
+
+def test_configure_lock_raw_clears_statistic():
+    code = _code(11)
+    d = Dll(code, SPS, 0.0, 0.002, 0.707, 0.5, segments=4)
+    d.steps(
+        _carrier_async_signal(code, 1500, 3e-3, 0.37 * TE, f0=1e-3, seed=3)[0]
+    )
+    assert d.lock_stat > 0.0
+    d.configure_lock_raw(
+        up_thresh=3.0,
+        down_thresh=2.5,
+        n_looks=20,
+        alpha=1.0 / 1024.0,
+        n_up=2,
+        n_down=2,
+    )
+    assert d.lock_stat == 0.0  # retune clears the in-flight statistic
+
+
+def test_configure_lock_raw_independent_verify_counts():
+    # n_up=1 declares on the very first above-threshold decision; a much
+    # larger n_down means the lock survives a single noisy decision that
+    # configure_lock()'s fixed n_down=2 would have dropped.
+    code = _code(11)
+    rx, _, _ = _carrier_async_signal(
+        code, 1500, 3e-3, 0.37 * TE, f0=1e-3, seed=3
+    )
+    d = Dll(code, SPS, 0.0, 0.002, 0.707, 0.5, segments=4)
+    d.configure_lock_raw(
+        up_thresh=3.0,
+        down_thresh=2.5,
+        n_looks=20,
+        alpha=1.0 / 1024.0,
+        n_up=1,
+        n_down=10,
+    )
+    d.steps(rx[: TE * 20])  # one n_looks-window's worth: a single decision
+    assert d.locked is True

@@ -414,12 +414,47 @@ SymbolSync_getprop_rate (SymbolSyncObject *self, void *Py_UNUSED (closure))
   return PyFloat_FromDouble (symsync_get_rate (self->handle));
 }
 
+static PyObject *
+SymbolSync_getprop_lock_metric (SymbolSyncObject *self,
+                                void             *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  /* <<IMPLEMENT: return the computed or stored value>> */
+  return PyFloat_FromDouble (symsync_get_lock_metric (self->handle));
+}
+
+static PyObject *
+SymbolSync_getprop_locked (SymbolSyncObject *self, void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  /* <<IMPLEMENT: return the computed or stored value>> */
+  return PyBool_FromLong ((long)(symsync_get_locked (self->handle)));
+}
+
 static PyGetSetDef SymbolSync_getset[]
     = { { "bn", (getter)SymbolSync_getprop_bn, (setter)SymbolSync_setprop_bn,
           "Bn.\n", NULL },
         { "timing_error", (getter)SymbolSync_getprop_timing_error, NULL,
           "Timing error.\n", NULL },
         { "rate", (getter)SymbolSync_getprop_rate, NULL, "Rate.\n", NULL },
+        { "lock_metric", (getter)SymbolSync_getprop_lock_metric, NULL,
+          "Last timing-lock statistic: the eye-concentration ratio EMA q = "
+          "|on-time|^2/(|on-time|^2+|mid-symbol|^2); compare against the "
+          "configured thresholds (see configure_lock).\n",
+          NULL },
+        { "locked", (getter)SymbolSync_getprop_locked, NULL,
+          "Current timing-lock decision: True after the verify count of "
+          "consecutive above-threshold symbols, False again after the drop "
+          "count of consecutive below-threshold ones (see configure_lock).\n",
+          NULL },
         { NULL } };
 
 static PyObject *
@@ -449,6 +484,30 @@ SymbolSyncObj_exit (SymbolSyncObject *self, PyObject *args)
       symsync_destroy (self->handle);
       self->handle = NULL;
     }
+  Py_RETURN_NONE;
+}
+
+static PyObject *
+SymbolSyncObj_configure_lock (SymbolSyncObject *self, PyObject *args,
+                              PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char *_kwlist[]
+      = { "up_thresh", "down_thresh", "n_up", "n_down", NULL };
+  double        up_thresh   = 0.0;
+  double        down_thresh = 0.0;
+  unsigned long n_up_raw    = 0UL;
+  unsigned long n_down_raw  = 0UL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "ddkk", _kwlist, &up_thresh,
+                                    &down_thresh, &n_up_raw, &n_down_raw))
+    return NULL;
+  uint32_t n_up   = (uint32_t)n_up_raw;
+  uint32_t n_down = (uint32_t)n_down_raw;
+  symsync_configure_lock (self->handle, up_thresh, down_thresh, n_up, n_down);
   Py_RETURN_NONE;
 }
 
@@ -520,6 +579,25 @@ static PyMethodDef SymbolSyncObj_methods[] = {
     "Release resources." },
   { "__enter__", (PyCFunction)SymbolSyncObj_enter, METH_NOARGS, NULL },
   { "__exit__", (PyCFunction)SymbolSyncObj_exit, METH_VARARGS, NULL },
+  { "configure_lock", (PyCFunction)(void *)SymbolSyncObj_configure_lock,
+    METH_VARARGS | METH_KEYWORDS,
+    "configure_lock(up_thresh, down_thresh, n_up, n_down) -> None\n"
+    "\n"
+    "Re-tune the timing lock detector: locked flips up after n_up consecutive "
+    "recovered symbols with the lock-metric EMA above up_thresh, and drops "
+    "after n_down consecutive symbols below down_thresh (level + time "
+    "hysteresis; see detection.LockDet). The metric is the eye-concentration "
+    "ratio q = |on-time|^2 / (|on-time|^2 + |mid-symbol|^2): at correct "
+    "timing the on-time interpolant sits at the eye's peak and the mid-symbol "
+    "(transition-gate) interpolant sits closer to a zero crossing, so q rises "
+    "above its H0 mean of 0.5 (symmetric energy split when no eye is "
+    "established). A live lock survives the re-tune; the in-flight verify run "
+    "restarts.\n"
+    "\n"
+    "    >>> import numpy as np\n"
+    "    >>> from doppler import SymbolSync\n"
+    "    >>> obj = SymbolSync(4, 0.01, 0.707, \"cubic\", \"gardner\")\n"
+    "    >>> obj.configure_lock(0.0, 0.0, 0, 0)\n" },
   { NULL }
 };
 

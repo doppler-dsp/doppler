@@ -97,9 +97,9 @@ default = "0"
 # receiver's "<prefix>.lock" + "<prefix>.tracking" probes (the latter is
 # the two-way handover lockdet decision, 0/1) and forwards to both embedded
 # loops — "<prefix>.car.lock/.e/.freq" + "<prefix>.car.agc.gain_db"
-# (carrier) and "<prefix>.sync.e/.freq/.rate" (timing) — nine probes per
-# attach. None detaches everything; the int status binds -> None /
-# ValueError.
+# (carrier) and "<prefix>.sync.e/.freq/.rate/.lock/.locked" (timing) —
+# eleven probes per attach. None detaches everything; the int status
+# binds -> None / ValueError.
 [[mpsk_receiver.methods]]
 name = "set_telemetry"
 arg_type = "void"

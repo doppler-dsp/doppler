@@ -434,6 +434,33 @@ class Dll:
 
         """
 
+    def configure_lock_raw(self, up_thresh: float, down_thresh: float, n_looks: int, alpha: float, n_up: int, n_down: int) -> None:
+        """Escape hatch under configure_lock() for direct control of the lock detector's geometry: a split declare/drop threshold pair on the statistic R (level hysteresis), the noise-EMA coefficient alpha, and both verify counts n_up/n_down (time hysteresis) independently -- configure_lock() only ever derives a symmetric threshold (up_thresh == down_thresh) and a fixed n_down=2. Re-tuning clears the in-flight statistic and drops the lock so the next decision uses only looks gathered under the new config. Size up_thresh/down_thresh with detection.det_threshold_noncoherent(pfa, n_looks), alpha with detection.det_ema_alpha, and n_up/n_down with detection.det_verify_count. Read the result from the locked / lock_stat / noise_est properties.
+
+        The escape hatch under dll_configure_lock() for a composing C caller
+        that derives its own threshold/EMA/hysteresis geometry — the full
+        lockdet decision rule is exposed: a split declare/drop threshold pair
+        (level hysteresis) and both verify counts (time hysteresis; size them
+        with det_verify_count()). Re-tuning clears the in-flight statistic and
+        drops the lock so the next decision uses only looks gathered under the
+        new config.
+
+        Parameters
+        ----------
+        up_thresh : float
+            Declare threshold on the statistic R (e.g. the CFAR eta from det_threshold_noncoherent()).
+        down_thresh : float
+            Drop threshold on R; choose <= up_thresh for level hysteresis.
+        n_looks : int
+            Non-coherent integration depth N (looks); clamped >= 1.
+        alpha : float
+            EMA coefficient for the noise reference, in (0, 1].
+        n_up : int
+            Consecutive above-threshold decisions to declare lock; clamped to >= 1.
+        n_down : int
+            Consecutive below-threshold decisions to drop it; clamped to >= 1.
+        """
+
     def reset(self) -> None:
         """Re-seed the loop to the create-time code phase; preserve config.
         """
@@ -530,7 +557,7 @@ class SymbolSync:
         """Max output length steps() can produce for the current state."""
 
     def set_telemetry(self, tlm: object | None, prefix: str, decim: int = 1) -> None:
-        """Attach (or detach) a telemetry context and register the timing loop's probes on it. Registers three probes, emitted once per recovered symbol and further thinned by decim: "<prefix>.e" (the normalised TED error — the loop stress), "<prefix>.freq" (the loop-filter control steering the timing NCO, fractional rate offset) and "<prefix>.rate" (the smoothed tracked samples/symbol).  Passing NULL detaches.  Setup path, never hot: call before the producer thread starts stepping; the context is borrowed and must outlive the attachment (SPSC rules in telemetry/telemetry.h).
+        """Attach (or detach) a telemetry context and register the timing loop's probes on it. Registers five probes, emitted once per recovered symbol and further thinned by decim: "<prefix>.e" (the normalised TED error — the loop stress), "<prefix>.freq" (the loop-filter control steering the timing NCO, fractional rate offset), "<prefix>.rate" (the smoothed tracked samples/symbol), "<prefix>.lock" (the envelope-consistency lock-metric EMA) and "<prefix>.locked" (the verify-counted lockdet decision, 0/1). Passing NULL detaches.  Setup path, never hot: call before the producer thread starts stepping; the context is borrowed and must outlive the attachment (SPSC rules in telemetry/telemetry.h).
 
         Parameters
         ----------
@@ -550,11 +577,11 @@ class SymbolSync:
         >>> ss = SymbolSync(sps=4, bn=0.01, zeta=0.707)
         >>> ss.set_telemetry(tlm, "sync")
         >>> sorted(tlm.probe_names())
-        ['sync.e', 'sync.freq', 'sync.rate']
+        ['sync.e', 'sync.freq', 'sync.lock', 'sync.locked', 'sync.rate']
         >>> x = np.repeat([1 + 1j, -1 - 1j], 4 * 64).astype(np.complex64)
         >>> _ = ss.steps(x)
-        >>> recs = tlm.read()   # three records per recovered symbol
-        >>> len(recs) > 0 and len(recs) % 3 == 0
+        >>> recs = tlm.read()   # five records per recovered symbol
+        >>> len(recs) > 0 and len(recs) % 5 == 0
         True
 
         """
@@ -568,6 +595,26 @@ class SymbolSync:
             Input.
         zeta : float
             Input.
+        """
+
+    def configure_lock(self, up_thresh: float, down_thresh: float, n_up: int, n_down: int) -> None:
+        """Re-tune the timing lock detector: locked flips up after n_up consecutive recovered symbols with the lock-metric EMA above up_thresh, and drops after n_down consecutive symbols below down_thresh (level + time hysteresis; see detection.LockDet). The metric is the eye-concentration ratio q = |on-time|^2 / (|on-time|^2 + |mid-symbol|^2): at correct timing the on-time interpolant sits at the eye's peak and the mid-symbol (transition-gate) interpolant sits closer to a zero crossing, so q rises above its H0 mean of 0.5 (symmetric energy split when no eye is established). A live lock survives the re-tune; the in-flight verify run restarts.
+
+        Full lockdet control, mirroring costas_configure_lock(): a split
+        declare/drop threshold pair on lock_metric (level hysteresis) and both
+        verify counts (time hysteresis). A live lock survives the re-tune; the
+        in-flight verify run restarts.
+
+        Parameters
+        ----------
+        up_thresh : float
+            Declare threshold on lock_metric.
+        down_thresh : float
+            Drop threshold; choose <= up_thresh.
+        n_up : int
+            Consecutive above-threshold symbols to declare; clamped >= 1.
+        n_down : int
+            Consecutive below-threshold symbols to drop; clamped >= 1.
         """
 
     def reset(self) -> None:
@@ -594,6 +641,14 @@ class SymbolSync:
     @property
     def rate(self) -> float:
         """Rate."""
+
+    @property
+    def lock_metric(self) -> float:
+        """Last timing-lock statistic: the eye-concentration ratio EMA q = |on-time|^2/(|on-time|^2+|mid-symbol|^2); compare against the configured thresholds (see configure_lock)."""
+
+    @property
+    def locked(self) -> bool:
+        """Current timing-lock decision: True after the verify count of consecutive above-threshold symbols, False again after the drop count of consecutive below-threshold ones (see configure_lock)."""
 
     def destroy(self) -> None:
         """Release C resources immediately."""
@@ -876,7 +931,7 @@ class MpskReceiver:
     def __init__(self, m: int = ..., sps: int = ..., n: int = ..., pulse: Literal["iandd", "rrc"] = "iandd", rrc_beta: float = ..., rrc_span: int = ..., bn_carrier: float = ..., zeta: float = ..., bn_timing: float = ..., acq_to_track: int = ..., lock_thresh: float = ..., init_norm_freq: float = ..., warmup_syms: int = ..., differential: int = ...) -> None: ...
 
     def set_telemetry(self, tlm: object | None, prefix: str, decim: int = 1) -> None:
-        """Attach (or detach) a telemetry context across the receiver. Registers the receiver's own "<prefix>.lock" probe (the carrier lock EMA) and "<prefix>.tracking" (the two-way handover decision, 0/1 — the lockdet output, so a consumer sees exactly when the carrier was handed to the decision-directed discriminator or dropped back to NDA), then forwards the attach to both embedded loops: the carrier loop registers "<prefix>.car.lock" / ".e" / ".freq" (plus its arm AGC's "<prefix>.car.agc.gain_db") and the symbol-timing loop registers "<prefix>.sync.e" / ".freq" / ".rate" — nine probes total, all thinned by decim.  Every probe except the AGC's emits once per recovered symbol (the receiver flushes both loops at the symbol strobe, not at the carrier loop's sample rate); the AGC's emits at its own amortized gain-update rate.  Passing NULL detaches the receiver and both loops.  Setup path, never hot; the context is borrowed and must outlive the attachment (SPSC rules in telemetry/telemetry.h).
+        """Attach (or detach) a telemetry context across the receiver. Registers the receiver's own "<prefix>.lock" probe (the carrier lock EMA) and "<prefix>.tracking" (the two-way handover decision, 0/1 — the lockdet output, so a consumer sees exactly when the carrier was handed to the decision-directed discriminator or dropped back to NDA), then forwards the attach to both embedded loops: the carrier loop registers "<prefix>.car.lock" / ".e" / ".freq" (plus its arm AGC's "<prefix>.car.agc.gain_db") and the symbol-timing loop registers "<prefix>.sync.e" / ".freq" / ".rate" / ".lock" / ".locked" — eleven probes total, all thinned by decim.  Every probe except the AGC's emits once per recovered symbol (the receiver flushes both loops at the symbol strobe, not at the carrier loop's sample rate); the AGC's emits at its own amortized gain-update rate.  Passing NULL detaches the receiver and both loops.  Setup path, never hot; the context is borrowed and must outlive the attachment (SPSC rules in telemetry/telemetry.h).
 
         Parameters
         ----------
@@ -896,12 +951,12 @@ class MpskReceiver:
         >>> rx = MpskReceiver(m=4, sps=4)
         >>> rx.set_telemetry(tlm, "rx")
         >>> len(tlm.probe_names())
-        9
+        11
         >>> rng = np.random.default_rng(7)
         >>> syms = (1 - 2 * rng.integers(0, 2, 512)).astype(np.complex64)
         >>> x = np.repeat(syms, 4)
         >>> _ = rx.steps(x)
-        >>> recs = tlm.read()   # eight records per emitted symbol + AGC
+        >>> recs = tlm.read()   # ten records per emitted symbol + AGC
         >>> n_sync = len(recs[recs["probe"] == tlm.probe_id("rx.sync.e")])
         >>> n_car = len(recs[recs["probe"] == tlm.probe_id("rx.car.e")])
         >>> n_sync > 0 and n_sync == n_car

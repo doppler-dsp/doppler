@@ -607,19 +607,22 @@ class SymbolSync:
         the classic N = variance*((Q^-1(pfa)-Q^-1(pd))/mean)^2 / threshold =
         Q^-1(pfa)*mean/(Q^-1(pfa)-Q^-1(pd)) derivation, implemented directly
         from a formula supplied by a doppler user (not re-derived against a
-        primary source). Empirically validated at the default operating point (0
-        false declares over 500,000 independent noise-only blocks against a
-        nominal pfa=1e-3; 500/500 true declares at the esno_min design SNR
-        against a nominal pd=0.9): both targets are met with large margin in the
-        safe direction, because the formula's "8" variance-role scale factor is
-        ~6x larger than this statistic's real measured per-look variance (~1.33)
-        -- see symsync_core.c's SYMSYNC_LOCK_DEFAULT_* comment for the full
-        validation. The consequence is pure declare latency (avgs comes out ~6x
-        larger than strictly needed to hit the stated targets), not reduced
-        reliability. No level hysteresis by default (up = down = threshold,
-        matching dll_configure_lock's shape); the raw escape hatch
-        (symsync_configure_lock_raw) exposes split thresholds, an explicit avgs,
-        and independent n_up/n_down.
+        primary source), with "variance" set from a direct measurement of
+        lock_signal's real per-look variance under noise (~1.343,
+        5,000,000-sample Monte Carlo) rather than the placeholder "8" this API
+        originally shipped with -- see symsync_core.c's
+        SYMSYNC_LOCK_STAT_VARIANCE comment for the full derivation (a
+        factor-of-2 correction for the erfcinv-vs-Q^-1 convention applies on top
+        of the measured variance; the two hypotheses were empirically compared
+        before picking one). Empirically validated at the default operating
+        point (avgs=133, threshold=0.311): 429 false declares over 500,000
+        independent noise-only blocks against a nominal pfa=1e-3 (8.58e-4,
+        correctly sized with safe margin, not accidentally oversized); 2000/2000
+        true declares at the esno_min design SNR against a nominal pd=0.9 -- see
+        native/validation/symsync_lock.c for the harness. No level hysteresis by
+        default (up = down = threshold, matching dll_configure_lock's shape);
+        the raw escape hatch (symsync_configure_lock_raw) exposes split
+        thresholds, an explicit avgs, and independent n_up/n_down.
 
         Parameters
         ----------

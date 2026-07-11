@@ -37,41 +37,35 @@
  * and the classic Gaussian test-statistic sizing gives the non-coherent
  * block size (avgs) and declare threshold:
  *
- *   avgs      = 8*((erfcinv(2*pfa)-erfcinv(2*pd))/mean)^2
+ *   avgs      = 2*var*((erfcinv(2*pfa)-erfcinv(2*pd))/mean)^2
  *   threshold = erfcinv(2*pfa)*mean/(erfcinv(2*pfa)-erfcinv(2*pd))
  *
  * erfcinv used directly (not the sqrt(2)*erfcinv(2p) == Q^-1(p)
  * conversion a Gaussian Q-function derivation would normally use) --
  * both formulas were supplied directly by a doppler user, not
- * re-derived against a primary source, implemented literally as given.
+ * re-derived against a primary source, implemented literally as given,
+ * with one correction: the source formula's avgs used a bare "8" in
+ * var's place, which this file originally kept unmodified. That "8"
+ * turned out to be an uncalibrated placeholder, not a derived
+ * constant -- see SYMSYNC_LOCK_STAT_VARIANCE below for the replacement
+ * and the empirical work that picked it.
+ *
+ * threshold is scale-independent (var cancels out of the ratio), so it
+ * is unaffected by this correction; only avgs -- and the resulting
+ * declare latency -- changes.
  *
  * Empirically validated against the real object at the defaults below
- * (rolloff=0.35, esno_min=10dB, pfa=1e-3, pd=0.9 -> avgs=395,
+ * (rolloff=0.35, esno_min=10dB, pfa=1e-3, pd=0.9 -> avgs=133,
  * threshold=0.311):
- *   - Pfa: 0 exceedances over 500,000 independent noise-only avgs-blocks
- *     (nominal pfa=1e-3 would predict ~500). The real per-symbol
- *     lock_signal variance under noise is ~1.33 (measured directly),
- *     but the "8" scale factor below (playing the role of variance in
- *     the classic N = variance*(...)^2 sizing formula) is ~6x too
- *     large for that measured variance -- so avgs comes out ~6x
- *     oversized and the real declare threshold sits at ~5.4 real
- *     standard deviations above the noise mean, not the ~3.09 a true
- *     pfa=1e-3 needs.
- *   - Pd: 500/500 exceedances over 500 independent RC-shaped-BPSK
+ *   - Pfa: 429 exceedances over 500,000 independent noise-only
+ *     avgs-blocks (8.58e-4, right at the nominal pfa=1e-3 target with
+ *     safe margin).
+ *   - Pd: 2000/2000 exceedances over 2,000 independent RC-shaped-BPSK
  *     avgs-blocks at exactly the esno_min=10dB design point (nominal
- *     pd=0.9).
- * Net effect: both the false-alarm and detection-probability targets
- * are met with large margin in the safe direction (far fewer false
- * declares, far more reliable true declares than the nominal numbers
- * promise) -- the "8" mismatch costs pure declare *latency* (avgs is
- * ~6x larger than a variance constant calibrated to this statistic's
- * real ~1.33 would need), not reliability. Left as given rather than
- * replacing "8" with the measured 1.33, since a doppler user has
- * explicitly prioritized reliability over latency for lock detection
- * elsewhere in this codebase's history (see Dll's lock-detector
- * design); revisit if declare latency ever becomes the binding
- * constraint (a "1.33"-ish scale factor here would cut avgs roughly
- * 6x while keeping the same real pfa/pd this validation measured).
+ *     pd=0.9, met with large margin).
+ * Both land correctly sized rather than accidentally oversized: see
+ * SYMSYNC_LOCK_STAT_VARIANCE's comment for the factor-of-2 derivation
+ * and the empirical elimination of a naive-but-wrong alternative.
  *
  * No down_thresh or n_up/n_down derivation is implied by the source
  * formula, so those default to the same shape dll_configure_lock uses:
@@ -84,8 +78,33 @@
  * hysteresis, not derived from the source formula, so a single noisy
  * block doesn't drop a live lock -- the raw escape hatch,
  * symsync_configure_lock_raw, exposes every knob for a caller that
- * wants to size these independently). */
-#define SYMSYNC_LOCK_VARIANCE_SCALE 8.0
+ * wants to size these independently).
+ *
+ * SYMSYNC_LOCK_STAT_VARIANCE: the real per-look variance of
+ * lock_signal under noise-only input, measured directly (5,000,000
+ * samples, mean ~0 confirming the symmetry argument above, variance
+ * ~1.343) rather than assumed. It is NOT avgs's scale factor by
+ * itself, though -- the (avgs, threshold) formulas above use
+ * erfcinv(2p) directly rather than the standard Gaussian
+ * Q^-1(p) = sqrt(2)*erfcinv(2p); the sqrt(2) factors cancel in
+ * threshold (identical either way) but not in avgs, which needs an
+ * extra factor of 2 to match the classic
+ * N = variance*((Q^-1(pfa)-Q^-1(pd))/mean)^2 sizing once rewritten in
+ * terms of the erfcinv-based denom instead of the Q^-1-based one.
+ * Both hypotheses were tried against native/validation/symsync_lock.c
+ * before picking one: the measured variance alone (scale=1.343, no
+ * factor of 2) blows past the pfa target by ~13x (empirical
+ * 1.31e-2 vs nominal 1e-3) -- undersized avgs, not enough averaging to
+ * suppress noise variance at that threshold. The factor-of-2-corrected
+ * scale (2*1.343=2.686) lands right at the target (see the validation
+ * numbers above). This is the reason SYMSYNC_LOCK_STAT_VARIANCE is
+ * defined here as the bare measured variance, with the formula itself
+ * spelling out "2*var" rather than folding the 2 into the constant --
+ * collapsing them back into one opaque number is exactly the kind of
+ * mismatched-units bug (an unnamed "8" standing in for an
+ * undocumented combination of variance and a derivation-specific
+ * factor) this fix exists to prevent recurring. */
+#define SYMSYNC_LOCK_STAT_VARIANCE 1.343
 #define SYMSYNC_LOCK_DEFAULT_ROLLOFF 0.35
 #define SYMSYNC_LOCK_DEFAULT_ESNO_MIN_DB 10.0
 #define SYMSYNC_LOCK_DEFAULT_PFA 1e-3
@@ -366,12 +385,15 @@ symsync_configure_lock (symsync_state_t *state, double rolloff,
                 * (1.0 - exp (-0.275 * pow (10.0, esno_min_db / 10.0)));
   /* erfcinv used directly, matching the source formula literally -- no
    * sqrt(2) Q-function conversion applied (see this file's top-of-block
-   * comment: implemented as given, not re-derived). */
+   * comment: implemented as given, not re-derived). The leading 2.0
+   * corrects for that same missing sqrt(2): it is not part of the
+   * variance and must not be folded into SYMSYNC_LOCK_STAT_VARIANCE
+   * (see that constant's comment). */
   double qi_pfa = erfcinv_ (2.0 * pfa);
   double qi_pd  = erfcinv_ (2.0 * pd);
   double denom  = qi_pfa - qi_pd;
   double avgs_f
-      = SYMSYNC_LOCK_VARIANCE_SCALE * (denom / mean) * (denom / mean);
+      = 2.0 * SYMSYNC_LOCK_STAT_VARIANCE * (denom / mean) * (denom / mean);
   size_t avgs = (size_t)ceil (avgs_f);
   if (avgs < 1)
     avgs = 1;

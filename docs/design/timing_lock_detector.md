@@ -43,7 +43,7 @@ mean_lock_detect = (0.6 * rolloff + 0.26) * (
     1 - exp(-0.275 * 10 ** (esno_min / 10))
 )
 
-avgs = 8 * ((erfcinv(2 * pfa) - erfcinv(2 * pd)) / mean_lock_detect) ** 2
+avgs = 2 * var * ((erfcinv(2 * pfa) - erfcinv(2 * pd)) / mean_lock_detect) ** 2
 threshold = erfcinv(2 * pfa) * mean_lock_detect / (
     erfcinv(2 * pfa) - erfcinv(2 * pd)
 )
@@ -57,11 +57,24 @@ matched-filter rolloff and the minimum operating Es/N0; the classic Gaussian
 test-statistic sizing (`N = variance * ((Q⁻¹(pfa) - Q⁻¹(pd)) / mean)²`,
 `threshold = Q⁻¹(pfa) * mean / (Q⁻¹(pfa) - Q⁻¹(pd))`) gives `avgs` and the
 declare threshold. `erfcinv` is used directly (not the `√2·erfcinv(2p) = Q⁻¹(p)` conversion a Gaussian Q-function derivation would normally use) —
-implemented literally as given. No down-threshold or verify-count
+implemented literally as given, with one correction: the source formula's
+`avgs` used a bare `8` in `var`'s place, an uncalibrated placeholder rather
+than a derived constant. `var` is now `SYMSYNC_LOCK_STAT_VARIANCE`, the real
+per-look variance of `lock_signal` under noise-only input, measured directly
+(5,000,000-sample Monte Carlo: mean ≈0, variance ≈1.343) rather than assumed.
+The leading `2` is *not* part of that variance — because `erfcinv` is used
+directly instead of `Q⁻¹`, the √2 factors cancel in `threshold` (identical
+either way) but not in `avgs`, which needs an explicit factor of 2 to match
+the classic `N = variance * ((Q⁻¹(pfa) - Q⁻¹(pd)) / mean)²` derivation once
+rewritten in terms of the `erfcinv`-based denominator. Both hypotheses were
+tried empirically before picking one (see the validation section below): the
+measured variance alone, without the factor of 2, undersizes `avgs` and
+blows past the pfa target by ~13×. No down-threshold or verify-count
 derivation is implied by the source formula, so those default to the same
 shape `Dll.configure_lock` uses (see
 [`native/src/symsync/symsync_core.c`](https://github.com/doppler-dsp/doppler/blob/main/native/src/symsync/symsync_core.c)'s
-`SYMSYNC_LOCK_DEFAULT_*` comment for the exact defaults).
+`SYMSYNC_LOCK_STAT_VARIANCE` comment for the exact defaults and full
+derivation).
 
 No standard C library function computes `erfcinv`; `symsync_core.c` carries
 a private Winitzki-initial-guess-plus-Newton-refinement implementation
@@ -74,24 +87,21 @@ Since the formula wasn't derived here, it was validated by direct Monte
 Carlo against the real object rather than trusted on faith
 (`native/validation/symsync_lock.c`, gated in CI via `ctest -R validate_symsync_lock`):
 
-| Check                 | Method                                                                           | Nominal target             | Measured                 |
-| --------------------- | -------------------------------------------------------------------------------- | -------------------------- | ------------------------ |
-| False-alarm rate      | 500,000 independent noise-only `avgs`-symbol blocks                              | pfa = 1e-3 (~500 expected) | **0** false declares     |
-| Detection probability | 2,000 independent raised-cosine BPSK blocks at exactly the `esno_min` design SNR | pd = 0.9                   | **1.0000** true declares |
+| Check                 | Method                                                                           | Nominal target             | Measured                         |
+| --------------------- | -------------------------------------------------------------------------------- | -------------------------- | -------------------------------- |
+| False-alarm rate      | 500,000 independent noise-only `avgs`-symbol blocks                              | pfa = 1e-3 (~500 expected) | **429** false declares (8.58e-4) |
+| Detection probability | 2,000 independent raised-cosine BPSK blocks at exactly the `esno_min` design SNR | pd = 0.9                   | **1.0000** true declares         |
 
-Both targets are met with large margin in the safe direction. The reason:
-the formula's `8` scale factor (playing the role of per-look variance in
-the classic sizing formula) is roughly **6× larger** than this statistic's
-real measured per-look variance under noise (≈1.33) — so `avgs` comes out
-oversized, and the real declare threshold sits at roughly 5.4 true standard
-deviations above the noise mean rather than the ~3.09 a true pfa=1e-3
-needs. The consequence is pure declare *latency* (an `avgs`-symbol block
-takes about 6× longer to form than strictly necessary to hit the stated
-targets), not reduced reliability — left as given rather than replacing `8`
-with the measured 1.33, since reliability has consistently been prioritized
-over latency for lock detection elsewhere in this codebase (see `Dll`'s
-lock-detector design). Revisit if declare latency ever becomes the binding
-constraint.
+At the default operating point (rolloff=0.35, esno_min=10dB, pfa=1e-3,
+pd=0.9) this gives `avgs=133`, `threshold=0.311` (`threshold` is
+`var`-independent, so unchanged from the original placeholder). Both targets
+land correctly sized rather than accidentally oversized: `avgs` shrank from
+395 (under the original bare `8`) to 133 — about 3×, not the ~6× a naive
+"replace 8 with the measured 1.343" substitution would give. That naive
+substitution was tried first and rejected: it undersizes `avgs` (drops the
+implicit factor of 2 from the `erfcinv`-vs-`Q⁻¹` convention) and blows past
+the pfa target by ~13× (empirical 1.31e-2 against a 1e-3 nominal) —
+confirming the factor-of-2 correction above is required, not optional.
 
 ## Usage
 

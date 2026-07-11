@@ -15,6 +15,16 @@ ______________________________________________________________________
 
 ### Added
 
+- **Linux aarch64 wheels on PyPI.** The release workflow now builds
+    manylinux_2_28 **aarch64** wheels (cp39–cp314) natively on GitHub's
+    arm64 runners, alongside the existing x86_64 set — `pip install   doppler-dsp` works out of the box on Graviton, Raspberry Pi, and
+    Docker-on-Apple-Silicon Linux. The published container installs
+    these wheels on **both** architectures, retiring the ~19-minute
+    QEMU-emulated source build the `linux/arm64` image layer needed
+    before (release wall-clock drops from ~30 min to ~10). An SVE
+    portability gate (the aarch64 analogue of the AVX2/AVX-512 scan)
+    guards the new wheels against `-mcpu=native` leaks.
+
 - **Acquisition sizing is straddle-aware — and averages Pd, not
     amplitude.** `Acquisition` now sizes the search grid and reports
     `pd_predicted` as the **average Pd over the straddle priors**

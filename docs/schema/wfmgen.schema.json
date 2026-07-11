@@ -263,6 +263,12 @@
             { "$ref": "#/$defs/count_range" }
           ]
         },
+        "repeats": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 1,
+          "description": "Play the segment this many times back-to-back (each instance = on-time + trailing gap). Ranged fields re-draw and the AWGN is fresh per instance; the signal (codes, payload, PN phase) stays fixed."
+        },
         "level":      { "$ref": "#/$defs/source/properties/level" },
         "modulation": { "$ref": "#/$defs/source/properties/modulation" },
         "pattern":    { "$ref": "#/$defs/source/properties/pattern" },
@@ -306,6 +312,7 @@
             { "$ref": "#/$defs/count_range" }
           ]
         },
+        "repeats": { "$ref": "#/$defs/inline_segment/properties/repeats" },
         "sum": {
           "type": "array",
           "minItems": 1,

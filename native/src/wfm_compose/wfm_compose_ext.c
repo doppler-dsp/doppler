@@ -1090,6 +1090,7 @@ typedef struct {
     double fs;
     size_t num_samples;
     size_t off_samples;
+    size_t repeats;
     unsigned ranged;
     size_t num_samples_hi;
     size_t off_samples_hi;
@@ -1108,6 +1109,7 @@ Segment_init(SegmentObject *self, PyObject *args, PyObject *kwds)
     self->fs = 1.0;
     self->num_samples = 1024;
     self->off_samples = 0;
+    self->repeats = 1;
     self->ranged = 0;
     self->num_samples_hi = 0;
     self->off_samples_hi = 0;
@@ -1146,6 +1148,14 @@ Segment_init(SegmentObject *self, PyObject *args, PyObject *kwds)
             if (_r) { self->off_samples_hi = (size_t)_hi; self->ranged |= WFM_RANGE_OFF_SAMPLES; }
             else { self->ranged &= ~(unsigned)WFM_RANGE_OFF_SAMPLES; }
         if (PyDict_DelItemString(kw, "off_samples") < 0) goto fail;
+        }
+    }
+    {
+        PyObject *_o = PyDict_GetItemString(kw, "repeats");
+        if (_o) {
+            self->repeats = (size_t)PyLong_AsSize_t(_o);
+            if (PyErr_Occurred()) goto fail;
+        if (PyDict_DelItemString(kw, "repeats") < 0) goto fail;
         }
     }
     PyObject *one = PyObject_Call((PyObject *)&SynthType, args, kw);
@@ -1198,6 +1208,7 @@ Segment_sum(PyObject *cls, PyObject *args, PyObject *kwds)
     self->fs = 1.0;
     self->num_samples = 1024;
     self->off_samples = 0;
+    self->repeats = 1;
     self->ranged = 0;
     self->num_samples_hi = 0;
     self->off_samples_hi = 0;
@@ -1232,6 +1243,13 @@ Segment_sum(PyObject *cls, PyObject *args, PyObject *kwds)
             self->off_samples = (size_t)_lo;
             if (_r) { self->off_samples_hi = (size_t)_hi; self->ranged |= WFM_RANGE_OFF_SAMPLES; }
             else { self->ranged &= ~(unsigned)WFM_RANGE_OFF_SAMPLES; }
+        }
+    }
+    {
+        PyObject *_o = PyDict_GetItemString(kw, "repeats");
+        if (_o) {
+            self->repeats = (size_t)PyLong_AsSize_t(_o);
+            if (PyErr_Occurred()) goto fail;
         }
     }
     }
@@ -1312,6 +1330,20 @@ Segment_set_off_samples(SegmentObject *self, PyObject *value, void *closure)
     } else {
         self->ranged &= ~(unsigned)WFM_RANGE_OFF_SAMPLES;
     }
+    return 0;
+}
+static PyObject *
+Segment_get_repeats(SegmentObject *self, void *closure)
+{
+    (void)closure;
+    return PyLong_FromSize_t((size_t)self->repeats);
+}
+static int
+Segment_set_repeats(SegmentObject *self, PyObject *value, void *closure)
+{
+    (void)closure;
+    self->repeats = (size_t)PyLong_AsSize_t(value);
+    if (PyErr_Occurred()) return -1;
     return 0;
 }
 static PyObject *
@@ -1583,6 +1615,7 @@ static PyGetSetDef Segment_getset[] = {
     {"fs", (getter)Segment_get_fs, (setter)Segment_set_fs, NULL, NULL},
     {"num_samples", (getter)Segment_get_num_samples, (setter)Segment_set_num_samples, NULL, NULL},
     {"off_samples", (getter)Segment_get_off_samples, (setter)Segment_set_off_samples, NULL, NULL},
+    {"repeats", (getter)Segment_get_repeats, (setter)Segment_set_repeats, NULL, NULL},
     {"type", (getter)Segment_flat_type, NULL, NULL, NULL},
     {"freq", (getter)Segment_flat_freq, NULL, NULL, NULL},
     {"snr", (getter)Segment_flat_snr, NULL, NULL, NULL},
@@ -1767,6 +1800,7 @@ _build_wfm_compose_segments(PyObject *seglist, size_t *n_out)
         segs[i].fs = seg->fs;
         segs[i].num_samples = seg->num_samples;
         segs[i].off_samples = seg->off_samples;
+        segs[i].repeats = seg->repeats;
         segs[i].ranged = seg->ranged;
         segs[i].num_samples_hi = seg->num_samples_hi;
         segs[i].off_samples_hi = seg->off_samples_hi;
@@ -1831,6 +1865,7 @@ _wfm_compose_segments_to_list(const wfm_segment_t *src, size_t n)
         sg->fs = src[i].fs;
         sg->num_samples = src[i].num_samples;
         sg->off_samples = src[i].off_samples;
+        sg->repeats = src[i].repeats;
         sg->ranged = src[i].ranged;
         sg->num_samples_hi = src[i].num_samples_hi;
         sg->off_samples_hi = src[i].off_samples_hi;
@@ -2321,7 +2356,7 @@ _Composer_obj_to_dict(PyObject *o, const char *const *keys)
     return d;
 }
 
-static const char *const _Composer_seg_keys[] = { "fs", "num_samples", "off_samples", NULL };
+static const char *const _Composer_seg_keys[] = { "fs", "num_samples", "off_samples", "repeats", NULL };
 static const char *const _Composer_src_keys[] = { "type", "freq", "snr", "snr_mode", "seed", "sps", "pn_length", "pn_poly", "lfsr", "level", "f_end", "bits", "modulation", "pulse", "rrc_beta", "rrc_span", "symbols", "acq_code", "acq_reps", "data_code", "sync", "crc", NULL };
 
 static PyObject *

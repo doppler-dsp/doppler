@@ -102,7 +102,7 @@ materialize (const wfm_plan_t *p, const double *gains_db, const double *phases,
       ns.seed         = (uint32_t)seed;
       wfm_synth_state_t *syn
           = wfm_compose_build_synth (&ns, p->fs, len, ns.freq, ns.snr,
-                                     ns.f_end, 0, WFM_SEED_ADVANCE_NONE);
+                                     ns.f_end, 0, WFM_SEED_ADVANCE_NONE, 0);
       if (syn)
         {
           float _Complex *tmp = malloc (len * sizeof *tmp);
@@ -138,8 +138,9 @@ wfm_plan_prepare (const char *spec_json)
   if (!segs || n_segs != 1 || repeat || cont)
     goto done;
   const wfm_segment_t *g = &segs[0];
-  if (g->off_samples != 0 || g->num_samples == 0 || g->ranged)
-    goto done; /* no OFF gap / ranged segment in v1 */
+  if (g->off_samples != 0 || g->num_samples == 0 || g->ranged
+      || g->repeats > 1)
+    goto done; /* no OFF gap / ranged / repeated segment in v1 (gh-410) */
   for (size_t k = 0; k < g->n_sources; k++)
     if (g->sources[k].ranged)
       goto done; /* a ranged source is ambiguous for a static Plan */
@@ -210,7 +211,7 @@ wfm_plan_prepare (const char *spec_json)
       /* Signal source: render once through the SSOT and cache at gain 1. */
       wfm_synth_state_t *syn
           = wfm_compose_build_synth (src, g->fs, p->len, src->freq, src->snr,
-                                     src->f_end, 0, WFM_SEED_ADVANCE_NONE);
+                                     src->f_end, 0, WFM_SEED_ADVANCE_NONE, 0);
       float _Complex *buf = syn ? malloc (p->len * sizeof *buf) : NULL;
       if (!syn || !buf)
         {

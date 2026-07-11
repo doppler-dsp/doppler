@@ -429,6 +429,8 @@ wfm_spec_to_json (const wfm_segment_t *segs, size_t n_segs, int repeat,
           add_num_or_range (s, "off_samples", (double)g->off_samples,
                             (double)g->off_samples_hi,
                             g->ranged & WFM_RANGE_OFF_SAMPLES);
+          if (g->repeats > 1) /* omit at 1 so old specs are unchanged */
+            cJSON_AddNumberToObject (s, "repeats", (double)g->repeats);
           if (src->level != 0.0 /* omit at 0 dBFS so old specs are unchanged */
               || (src->ranged & WFM_RANGE_LEVEL))
             add_num_or_range (s, "level", src->level, src->level_hi,
@@ -448,6 +450,8 @@ wfm_spec_to_json (const wfm_segment_t *segs, size_t n_segs, int repeat,
           add_num_or_range (s, "off_samples", (double)g->off_samples,
                             (double)g->off_samples_hi,
                             g->ranged & WFM_RANGE_OFF_SAMPLES);
+          if (g->repeats > 1) /* omit at 1 so old specs are unchanged */
+            cJSON_AddNumberToObject (s, "repeats", (double)g->repeats);
           cJSON *sum = cJSON_AddArrayToObject (s, "sum");
           for (size_t k = 0; k < g->n_sources; k++)
             {
@@ -624,6 +628,7 @@ wfm_compose_from_json (const char *json)
                                    | (ro ? WFM_RANGE_OFF_SAMPLES : 0)),
       .num_samples_hi = (size_t)num_hi,
       .off_samples_hi = (size_t)off_hi,
+      .repeats        = (size_t)num (s, "repeats", 1),
     };
     i++;
     continue;

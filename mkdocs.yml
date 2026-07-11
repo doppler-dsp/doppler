@@ -251,6 +251,7 @@ nav:
       - Levels & SNR: guide/wfmgen/levels.md
       - Output & Containers: guide/wfmgen/output.md
       - Scenes: guide/wfmgen/scenes.md
+      - DSSS Bursts: guide/wfmgen/dsss-bursts.md
       - Streaming: guide/wfmgen/streaming.md
       - Python API: guide/wfmgen/python.md
       - Prepare Once, Sweep Many (Plan): guide/wfmgen/plan.md

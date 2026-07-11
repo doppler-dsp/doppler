@@ -253,3 +253,47 @@ def test_invalid_geometry_raises_or_degrades():
     s = Synth(**kw)
     with pytest.raises(RuntimeError):
         s.steps(64)
+
+
+def test_repeats_burst_train_decodes():
+    """One declaration is the whole burst train: ``repeats=5`` with a
+    ranged gap renders five bursts whose gaps are all >= the range's lo
+    bound and are drawn independently per instance, the first instance is
+    byte-identical to a repeats-less segment (back-compat), and every
+    burst decodes through ``BurstDemod`` CRC-valid with the exact
+    payload."""
+    acq, dat, pay = _codes()
+    min_gap, max_gap = 4000, 12000
+    kw = _seg_kwargs(1, 0, acq, dat, pay)
+    kw["off_samples"] = (min_gap, max_gap)
+    kw["repeats"] = 5
+    x = Composer([Segment(**kw)]).compose()
+    assert len(x) >= 5 * (BURST_LEN + min_gap)
+
+    one = dict(kw)
+    one.pop("repeats")
+    x1 = Composer([Segment(**one)]).compose()
+    assert np.array_equal(x[: len(x1)], x1)  # instance 0 back-compat
+
+    # bursts are BURST_LEN long; gaps are the zero runs between them
+    starts, gaps, pos = [], [], 0
+    for _ in range(5):
+        starts.append(pos)
+        pos += BURST_LEN
+        nz = np.flatnonzero(x[pos:] != 0)
+        gap = int(nz[0]) if len(nz) else len(x) - pos
+        gaps.append(gap)
+        pos += gap
+    assert all(g >= min_gap for g in gaps)
+    assert len(set(gaps)) > 1  # per-instance gap draws are distinct
+
+    n_valid = 0
+    for s in starts:
+        bd = BurstDemod(dat, spc=SPC, chip_rate=FS / SPC, payload_len=PAYLOAD)
+        bd.set_preamble(acq, REPS)
+        bd.set_sync(SYNC)
+        bd.set_prior(0.0, 0)
+        bits = bd.demod(x[s : s + BURST_LEN])
+        if bd.frame_valid and np.array_equal(bits, pay):
+            n_valid += 1
+    assert n_valid == 5

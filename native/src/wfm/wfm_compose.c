@@ -123,6 +123,8 @@ struct wfm_compose_state
                                   whole seed (code+data+noise) */
   unsigned epoch;              /* repeat counter (0 on the first pass) — drives
                                   per-repeat seed advance + ranged-field draws */
+  size_t instance;             /* current segment's repeats counter (0-based) —
+                                  folds into ranged draws + the AWGN reseed */
   size_t cur;                  /* current segment index */
   int    phase;                /* PHASE_ON / PHASE_OFF / PHASE_DONE */
   size_t left;                 /* samples remaining in the current phase */
@@ -166,25 +168,28 @@ draw_u01 (uint64_t key)
 }
 
 /* Draw a ranged field uniformly in [lo, hi]. The key folds the source seed,
- * the repeat epoch, the segment and source indices, and the field id, so every
- * ranged field draws an independent yet reproducible sequence across repeats.
- */
+ * the repeat epoch, the segment `repeats` instance, the segment and source
+ * indices, and the field id, so every ranged field draws an independent yet
+ * reproducible sequence across repeats and instances. Instance 0 contributes
+ * nothing to the key — a repeats-less scene draws exactly as before. */
 static double
-draw_range (uint32_t seed, unsigned epoch, size_t seg, size_t src,
+draw_range (uint32_t seed, unsigned epoch, size_t inst, size_t seg, size_t src,
             unsigned field, double lo, double hi)
 {
   uint64_t key = (uint64_t)seed * 0xD1B54A32D192ED03ull
-                 ^ ((uint64_t)epoch << 32) ^ ((uint64_t)seg << 40)
-                 ^ ((uint64_t)src << 16) ^ ((uint64_t)field << 8);
+                 ^ ((uint64_t)epoch << 32) ^ ((uint64_t)inst << 48)
+                 ^ ((uint64_t)seg << 40) ^ ((uint64_t)src << 16)
+                 ^ ((uint64_t)field << 8);
   return lo + (hi - lo) * draw_u01 (key);
 }
 
 /* Round a non-negative ranged draw to a sample count. */
 static size_t
-draw_samples (uint32_t seed, unsigned epoch, size_t seg, unsigned field,
-              size_t lo, size_t hi)
+draw_samples (uint32_t seed, unsigned epoch, size_t inst, size_t seg,
+              unsigned field, size_t lo, size_t hi)
 {
-  double v = draw_range (seed, epoch, seg, 0, field, (double)lo, (double)hi);
+  double v
+      = draw_range (seed, epoch, inst, seg, 0, field, (double)lo, (double)hi);
   return (size_t)(v + 0.5);
 }
 
@@ -195,11 +200,12 @@ draw_samples (uint32_t seed, unsigned epoch, size_t seg, unsigned field,
  * render is byte-identical to the composed one. freq/snr/f_end are passed
  * already ranged-resolved by the caller; on_len pins a chirp's sweep to the
  * on-time; epoch/seed_advance drive the per-repeat seed policy (epoch 0 → the
- * unmodified seed). Returns NULL only on synth-create failure. */
+ * unmodified seed); a non-zero `repeats` instance always freshens the AWGN
+ * (signal fixed). Returns NULL only on synth-create failure. */
 wfm_synth_state_t *
 wfm_compose_build_synth (const wfm_source_t *src, double fs, size_t on_len,
                          double freq, double snr, double f_end, unsigned epoch,
-                         int seed_advance)
+                         int seed_advance, size_t instance)
 {
   /* seed_advance == ALL bumps the whole seed by the repeat epoch (PN LFSR +
    * AWGN both advance); NONE/NOISE create from the fixed seed. */
@@ -247,11 +253,21 @@ wfm_compose_build_synth (const wfm_source_t *src, double fs, size_t on_len,
           free (taps);
         }
     }
-  /* Fresh noise per repeat (NOISE mode): advance ONLY the AWGN seed, leaving
-   * the signal bit-identical. (ALL already advanced the whole seed; NONE
-   * nothing.) */
-  if (seed_advance == WFM_SEED_ADVANCE_NOISE && epoch)
-    wfm_synth_reseed_noise (syn, (uint32_t)(src->seed + epoch));
+  /* Fresh noise per repeat (NOISE mode) and per `repeats` instance: advance
+   * ONLY the AWGN seed, leaving the signal bit-identical. (ALL already
+   * advanced the whole seed per epoch; NONE nothing.) A non-zero instance
+   * always freshens the noise — two instances of one burst declaration must
+   * never share an AWGN realization — while instance 0 keeps the historical
+   * seeds exactly (byte-compat). The golden-ratio fold keeps distinct
+   * (epoch, instance) pairs from colliding on nearby seeds. */
+  if ((seed_advance == WFM_SEED_ADVANCE_NOISE && epoch) || instance)
+    {
+      uint32_t nseed = (seed_advance == WFM_SEED_ADVANCE_NOISE)
+                           ? (uint32_t)(src->seed + epoch)
+                           : seed;
+      nseed ^= (uint32_t)(instance * 0x9E3779B9u);
+      wfm_synth_reseed_noise (syn, nseed);
+    }
   return syn;
 }
 
@@ -263,40 +279,41 @@ start_segment (wfm_compose_state_t *s)
    * cur_num, the trailing gap uses cur_off. A fixed segment (ranged == 0) just
    * copies the scalars, so a non-ranged scene is byte-identical to before. */
   uint32_t dseed = g->n_sources ? g->sources[0].seed : 1u;
-  s->cur_num
-      = (g->ranged & WFM_RANGE_NUM_SAMPLES)
-            ? draw_samples (dseed, s->epoch, s->cur, WFM_RANGE_NUM_SAMPLES,
-                            g->num_samples, g->num_samples_hi)
-            : g->num_samples;
-  s->cur_off
-      = (g->ranged & WFM_RANGE_OFF_SAMPLES)
-            ? draw_samples (dseed, s->epoch, s->cur, WFM_RANGE_OFF_SAMPLES,
-                            g->off_samples, g->off_samples_hi)
-            : g->off_samples;
-  int ok   = (s->cur_num > 0 && g->n_sources > 0);
-  s->n_syn = 0;
+  s->cur_num     = (g->ranged & WFM_RANGE_NUM_SAMPLES)
+                       ? draw_samples (dseed, s->epoch, s->instance, s->cur,
+                                       WFM_RANGE_NUM_SAMPLES, g->num_samples,
+                                       g->num_samples_hi)
+                       : g->num_samples;
+  s->cur_off     = (g->ranged & WFM_RANGE_OFF_SAMPLES)
+                       ? draw_samples (dseed, s->epoch, s->instance, s->cur,
+                                       WFM_RANGE_OFF_SAMPLES, g->off_samples,
+                                       g->off_samples_hi)
+                       : g->off_samples;
+  int ok         = (s->cur_num > 0 && g->n_sources > 0);
+  s->n_syn       = 0;
   for (size_t k = 0; k < g->n_sources && ok; k++)
     {
       const wfm_source_t *src = &g->sources[k];
       /* Draw this epoch's ranged source fields (freq/snr/level/f_end); a fixed
        * field passes its scalar through unchanged. */
-      double freq = (src->ranged & WFM_RANGE_FREQ)
-                        ? draw_range (src->seed, s->epoch, s->cur, k,
-                                      WFM_RANGE_FREQ, src->freq, src->freq_hi)
-                        : src->freq;
-      double snr  = (src->ranged & WFM_RANGE_SNR)
-                        ? draw_range (src->seed, s->epoch, s->cur, k,
-                                      WFM_RANGE_SNR, src->snr, src->snr_hi)
-                        : src->snr;
+      double freq
+          = (src->ranged & WFM_RANGE_FREQ)
+                ? draw_range (src->seed, s->epoch, s->instance, s->cur, k,
+                              WFM_RANGE_FREQ, src->freq, src->freq_hi)
+                : src->freq;
+      double snr = (src->ranged & WFM_RANGE_SNR)
+                       ? draw_range (src->seed, s->epoch, s->instance, s->cur,
+                                     k, WFM_RANGE_SNR, src->snr, src->snr_hi)
+                       : src->snr;
       double level
           = (src->ranged & WFM_RANGE_LEVEL)
-                ? draw_range (src->seed, s->epoch, s->cur, k, WFM_RANGE_LEVEL,
-                              src->level, src->level_hi)
+                ? draw_range (src->seed, s->epoch, s->instance, s->cur, k,
+                              WFM_RANGE_LEVEL, src->level, src->level_hi)
                 : src->level;
       double f_end
           = (src->ranged & WFM_RANGE_FEND)
-                ? draw_range (src->seed, s->epoch, s->cur, k, WFM_RANGE_FEND,
-                              src->f_end, src->f_end_hi)
+                ? draw_range (src->seed, s->epoch, s->instance, s->cur, k,
+                              WFM_RANGE_FEND, src->f_end, src->f_end_hi)
                 : src->f_end;
       s->gain[k] = (float)pow (10.0, level / 20.0); /* level → gain */
       /* Construct the synth through the shared SSOT (wfm_compose_build_synth):
@@ -305,8 +322,9 @@ start_segment (wfm_compose_state_t *s)
        * render is byte-identical to this composed one. freq/snr/f_end are
        * already ranged-resolved above; epoch/seed_advance drive the per-repeat
        * seed. */
-      s->syn[k] = wfm_compose_build_synth (src, g->fs, s->cur_num, freq, snr,
-                                           f_end, s->epoch, s->seed_advance);
+      s->syn[k]
+          = wfm_compose_build_synth (src, g->fs, s->cur_num, freq, snr, f_end,
+                                     s->epoch, s->seed_advance, s->instance);
       if (!s->syn[k])
         ok = 0;
       else
@@ -325,10 +343,21 @@ start_segment (wfm_compose_state_t *s)
     }
 }
 
-/* Move to the next segment, looping or finishing at the end. */
+/* Move to the next segment, looping or finishing at the end. A `repeats=N`
+ * segment first re-enters itself N times (fresh instance: new ranged draws,
+ * fresh AWGN, fixed signal); 0 and 1 both mean a single instance. */
 static void
 advance (wfm_compose_state_t *s)
 {
+  const wfm_segment_t *g    = &s->segs[s->cur];
+  size_t               reps = g->repeats ? g->repeats : 1;
+  s->instance++;
+  if (s->instance < reps)
+    {
+      start_segment (s);
+      return;
+    }
+  s->instance = 0;
   s->cur++;
   if (s->cur >= s->n_segs)
     {

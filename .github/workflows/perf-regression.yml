@@ -14,9 +14,15 @@ name: Perf regression (advisory)
 # A committed baseline is deliberately NOT used: snapshots in benchmarks/history
 # drift across releases/implementations and produce meaningless deltas.
 
+# Unfiltered so stacked PRs (non-main base) get the perf gate too.
 on:
   pull_request:
-    branches: [main, develop]
+
+# A force-push supersedes the in-flight run — cancel it (bench runs are the
+# most expensive minutes in the repo).
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read

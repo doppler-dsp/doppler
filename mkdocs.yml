@@ -163,6 +163,7 @@ nav:
           - 2-D Acquisition: gallery/detection2d.md
           - DSSS Acquisition & Despreading: gallery/dsss-despread.md
           - "DSSS Acquisition: Pd/Pfa": gallery/dsss-acq-characterization.md
+          - 5-Burst DSSS Link (wfmgen's 3 Faces): gallery/dsss-burst-pipeline.md
           - Streaming Async Despreader: gallery/async-despread.md
           - Despreader (full continuous receiver): gallery/despreader.md
       - Synchronization Loops:
@@ -209,6 +210,7 @@ nav:
       - "Python: AGC": api/python-agc.md
       - "Python: Loop Filter (track)": api/python-track.md
       - "Python: DSSS": api/python-dsss.md
+      - "Python: SNR": api/python-snr.md
       - "Python: Streaming": api/python-streaming.md
       - "Python: Buffer": api/python-buffer.md
       - "Python: Telemetry": api/python-telemetry.md

@@ -160,13 +160,16 @@ extern "C"
    * caller who needs this control to drop to raw Dll+Costas composition
    * instead of Despreader. See costas_configure_lock() for the parameter
    * semantics.
-   * @param state  Must be non-NULL.
+   * @param state        Must be non-NULL.
+   * @param up_thresh    Declare threshold on the lock-metric EMA.
+   * @param down_thresh  Drop threshold (<= up_thresh for level hysteresis).
+   * @param n_up         Consecutive above-threshold symbols to declare.
+   * @param n_down       Consecutive below-threshold symbols to drop.
    * @code
    * >>> import numpy as np
    * >>> from doppler.dsss import Despreader
    * >>> d = Despreader(code=np.zeros(31, dtype=np.uint8), sps=2)
-   * >>> d.configure_carrier_lock(0.9, 0.8, 4, 16)   # tighter declare, faster
-   * drop
+   * >>> d.configure_carrier_lock(0.9, 0.8, 4, 16)  # tighter declare/drop
    *
    * @endcode
    */
@@ -182,7 +185,12 @@ extern "C"
    * API (Dll's raw escape hatch, dll_configure_lock_raw(), stays a Dll-only
    * control for a caller that composes Dll+Costas directly). See
    * dll_configure_lock() for the parameter semantics.
-   * @param state  Must be non-NULL.
+   * @param state       Must be non-NULL.
+   * @param pfa         Per-decision false-alarm probability, in (0, 1).
+   * @param n_looks     Non-coherent integration depth N (looks); clamped
+   *                    >= 1.
+   * @param ref_snr_db  Noise-reference estimator SNR in dB (> 0), or 0 to
+   *                    derive from @p n_looks (see dll_configure_lock()).
    * @return DP_OK, or DP_ERR_INVALID when @p pfa is outside (0, 1).
    * @code
    * >>> import numpy as np
@@ -232,9 +240,11 @@ extern "C"
    * >>> code = (np.arange(31) % 2).astype(np.uint8)
    * >>> ch = Despreader(code=code, sps=4)
    * >>> ch.set_telemetry(tlm, "ch0")
-   * >>> sorted(tlm.probe_names())
-   * ['ch0.car.e', 'ch0.car.freq', 'ch0.car.lock', 'ch0.car.locked',
-   * 'ch0.code.e', 'ch0.code.lock', 'ch0.code.locked', 'ch0.code.rate']
+   * >>> names = sorted(tlm.probe_names())
+   * >>> names[:4]
+   * ['ch0.car.e', 'ch0.car.freq', 'ch0.car.lock', 'ch0.car.locked']
+   * >>> names[4:]
+   * ['ch0.code.e', 'ch0.code.lock', 'ch0.code.locked', 'ch0.code.rate']
    * >>> chips = 1.0 - 2.0 * (np.arange(31) % 2)
    * >>> x = np.tile(np.repeat(chips, 4), 40).astype(np.complex64)
    * >>> _ = ch.steps(x)

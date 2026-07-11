@@ -111,9 +111,11 @@ class Despreader:
         >>> code = (np.arange(31) % 2).astype(np.uint8)
         >>> ch = Despreader(code=code, sps=4)
         >>> ch.set_telemetry(tlm, "ch0")
-        >>> sorted(tlm.probe_names())
-        ['ch0.car.e', 'ch0.car.freq', 'ch0.car.lock', 'ch0.car.locked',
-        'ch0.code.e', 'ch0.code.lock', 'ch0.code.locked', 'ch0.code.rate']
+        >>> names = sorted(tlm.probe_names())
+        >>> names[:4]
+        ['ch0.car.e', 'ch0.car.freq', 'ch0.car.lock', 'ch0.car.locked']
+        >>> names[4:]
+        ['ch0.code.e', 'ch0.code.lock', 'ch0.code.locked', 'ch0.code.rate']
         >>> chips = 1.0 - 2.0 * (np.arange(31) % 2)
         >>> x = np.tile(np.repeat(chips, 4), 40).astype(np.complex64)
         >>> _ = ch.steps(x)
@@ -136,21 +138,20 @@ class Despreader:
         Parameters
         ----------
         up_thresh : float
-            Input.
+            Declare threshold on the lock-metric EMA.
         down_thresh : float
-            Input.
+            Drop threshold (<= up_thresh for level hysteresis).
         n_up : int
-            Input.
+            Consecutive above-threshold symbols to declare.
         n_down : int
-            Input.
+            Consecutive below-threshold symbols to drop.
 
         Examples
         --------
         >>> import numpy as np
         >>> from doppler.dsss import Despreader
         >>> d = Despreader(code=np.zeros(31, dtype=np.uint8), sps=2)
-        >>> d.configure_carrier_lock(0.9, 0.8, 4, 16)   # tighter declare, faster
-        drop
+        >>> d.configure_carrier_lock(0.9, 0.8, 4, 16)  # tighter declare/drop
 
         """
 
@@ -166,11 +167,11 @@ class Despreader:
         Parameters
         ----------
         pfa : float
-            Input.
+            Per-decision false-alarm probability, in (0, 1).
         n_looks : int
-            Input.
+            Non-coherent integration depth N (looks); clamped >= 1.
         ref_snr_db : float
-            Input.
+            Noise-reference estimator SNR in dB (> 0), or 0 to derive from n_looks (see dll_configure_lock()).
 
         Examples
         --------

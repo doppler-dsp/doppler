@@ -13,6 +13,60 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+### Added
+
+- **Acquisition sizing is straddle-aware — and averages Pd, not
+    amplitude.** `Acquisition` now sizes the search grid and reports
+    `pd_predicted` as the **average Pd over the straddle priors**
+    (slow-time Doppler scalloping, uncompensated intra-segment rotation —
+    the band-edge `sinc(1/2)` = −3.9 dB effect, clamped to a tight
+    `doppler_uncertainty` — and code-phase sample offset), computed by
+    quadrature at setup. Previously both used the on-grid best case, so
+    an engine sized near threshold silently missed its `pd` in operation
+    (the gap the Monte-Carlo characterization has always measured); and
+    Pd at the *mean amplitude* would still overstate the true average by
+    ~0.11 at a marginal design point (Jensen — caught in review). The
+    non-coherent look count escalates on the same averaged criterion.
+    The new `straddle_loss` property exposes the mean amplitude derating
+    as a diagnostic.
+
+- **Calibrated whole-burst lock test + `detection.det_threshold_f`.**
+    `BurstDespreader` gains `lock_stat` — `R = sqrt(stat_n · ΣRe² /   ΣIm²)`, the one-shot analog of the tracking loops' verify-counted
+    detectors. Because the noise reference is estimated from as many
+    samples as the signal sum, the exact H0 law is `R² = stat_n ·   F(stat_n, stat_n)` — a chi-square gate would realize **25–41× the
+    priced pfa** (caught in review). The new `det_threshold_f(pfa, n)`
+    helper (regularized-incomplete-beta quantile of F(n, n), exact for
+    every n, odd included) prices the gate:
+    `R > sqrt(stat_n · det_threshold_f(pfa, stat_n))`. Only payload
+    prompts fold into the statistics (preamble prompts have a different
+    code length and pull-in transients — mixing them would break both
+    the H0 law and the SNR calibration). Plus `stat_n`, and a CI-tested
+    H1/H0 gate check at an honest 1e-3.
+
+- **Acquisition-handoff verify/reject recipe.** A false acquisition cell
+    no longer means a tracker spinning on noise: the despreader's live
+    `code_locked` plus `det_verify_delay` give a bounded-time
+    accept/reject window with every constant derived from (pfa, pd)
+    budgets — documented in the DSSS guide/gallery and CI-tested
+    (true cell accepts, false cell rejects inside the window).
+
+### Changed
+
+- **Burst statistics are cumulative, not EMA (burst blob v2).** A burst
+    is one-shot, and the old fixed-α=0.1 EMAs were warmup-dominated for
+    an entire ~20-period burst. `lock_metric` is now the mean of
+    |Re P|/|P| over every prompt; `snr_est` is accumulate-then-ratio
+    `(ΣRe² − ΣIm²)/ΣIm²` — replacing the heavy-tailed per-symbol
+    `Re²/Im²` EMA (a reciprocal chi-square, biased high with enormous
+    variance). `snr_est` reads as the **effective post-loop SNR**
+    (residual tracking jitter included) — the quantity that predicts
+    demodulation performance. `BURST_DESPREADER_STATE_VERSION` 1 → 2.
+
+- **jm pin 0.28.1 → 0.28.2.** jm#441's `status_allow` fix: `jm apply` /
+    `regenerate` no longer regenerate allowlisted files, retiring
+    doppler's 8-file post-apply restore drill (verified: a bare apply
+    now leaves the hand-maintained `.pyi` stubs untouched).
+
 ### Fixed
 
 - **The DLL lock detector now runs in composition.** The

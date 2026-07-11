@@ -329,11 +329,19 @@ class BurstDespreader:
 
     @property
     def lock_metric(self) -> float:
-        """Lock indicator in [0,1] (EMA of |Re prompt|/|prompt|; ~1 = locked)."""
+        """Lock indicator in [0,1]: the mean of |Re prompt|/|prompt| over every prompt of the burst (cumulative, not EMA). ~1 when phase-locked; ~2/pi (0.637) with no carrier."""
 
     @property
     def snr_est(self) -> float:
-        """Post-despread SNR estimate (EMA of (Re prompt)^2 / (Im prompt)^2)."""
+        """Post-despread SNR estimate over the burst, accumulate-then-ratio: (sum Re^2 - sum Im^2)/sum Im^2, clamped >= 0. This is the effective post-loop SNR (residual tracking jitter included) - the quantity that predicts demodulation performance; it converges to the AWGN-only A^2/sigma^2 as the loop bandwidths shrink."""
+
+    @property
+    def lock_stat(self) -> float:
+        """Calibrated whole-burst lock statistic R = sqrt(stat_n * sum Re^2 / sum Im^2) — the one-shot analog of the tracking loops' verify-counted detectors. Because the noise reference is estimated from as many samples as the signal sum, the exact H0 law is R^2 = stat_n * F(stat_n, stat_n): gate with R > sqrt(stat_n * det_threshold_f(pfa, stat_n)) — exact for every stat_n (a chi-square gate would realize tens of times the priced pfa). Payload prompts only; reset() re-arms."""
+
+    @property
+    def stat_n(self) -> int:
+        """Number of prompts folded into the burst statistics so far."""
 
     def destroy(self) -> None:
         """Release C resources immediately."""
@@ -456,7 +464,11 @@ class Acquisition:
 
     @property
     def pd_predicted(self) -> float:
-        """Predicted Pd at cn0_dbhz and the chosen grid."""
+        """Predicted Pd at cn0_dbhz and the chosen grid: the average Pd over the straddle priors (slow-time scalloping, intra-segment rotation, code-phase sample offset - quadrature over uniform priors), matching what the Monte-Carlo characterization measures rather than the on-grid best case."""
+
+    @property
+    def straddle_loss(self) -> float:
+        """Mean amplitude derating of the correlation peak from grid straddle (slow-time Doppler scalloping x intra-segment rotation x code-phase sample offset, each averaged over a uniform prior) - a diagnostic summary; 20*log10(straddle_loss) is the loss in dB. Sizing and pd_predicted average Pd itself over the priors (Pd at this mean amplitude would overstate the mean Pd)."""
 
     @property
     def fs(self) -> float:

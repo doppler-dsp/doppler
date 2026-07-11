@@ -36,12 +36,11 @@ AcquisitionObj_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 static int
 AcquisitionObj_init (AcquisitionObject *self, PyObject *args, PyObject *kwds)
 {
-  static char *kwlist[]
-      = { "code",     "noise_mode",          "reps", "spc", "chip_rate",
-          "cn0_dbhz", "doppler_uncertainty", "pfa",  "pd",  "max_noncoh",
-          NULL };
-  PyObject          *code_obj            = NULL;
-  const char        *noise_mode_str      = "mean";
+  static char *kwlist[] = { "code",       "reps",     "spc",
+                            "chip_rate",  "cn0_dbhz", "doppler_uncertainty",
+                            "pfa",        "pd",       "noise_mode",
+                            "max_noncoh", NULL };
+  PyObject    *code_obj = NULL;
   unsigned long long reps_raw            = 1;
   unsigned long long spc_raw             = 4;
   double             chip_rate           = 1000000.0;
@@ -49,14 +48,17 @@ AcquisitionObj_init (AcquisitionObject *self, PyObject *args, PyObject *kwds)
   double             doppler_uncertainty = 0.0;
   double             pfa                 = 1e-3;
   double             pd                  = 0.9;
+  const char        *noise_mode_str      = "mean";
   unsigned long long max_noncoh_raw      = 1;
 
-  if (!PyArg_ParseTupleAndKeywords (
-          args, kwds, "O|sKKdddddK", kwlist, &code_obj, &noise_mode_str,
-          &reps_raw, &spc_raw, &chip_rate, &cn0_dbhz, &doppler_uncertainty,
-          &pfa, &pd, &max_noncoh_raw))
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|KKdddddsK", kwlist,
+                                    &code_obj, &reps_raw, &spc_raw, &chip_rate,
+                                    &cn0_dbhz, &doppler_uncertainty, &pfa, &pd,
+                                    &noise_mode_str, &max_noncoh_raw))
     return -1;
-  int noise_mode = 0;
+  size_t reps       = (size_t)reps_raw;
+  size_t spc        = (size_t)spc_raw;
+  int    noise_mode = 0;
   if (strcmp (noise_mode_str, "mean") == 0)
     noise_mode = 0;
   else if (strcmp (noise_mode_str, "median") == 0)
@@ -73,8 +75,6 @@ AcquisitionObj_init (AcquisitionObject *self, PyObject *args, PyObject *kwds)
                     noise_mode_str);
       return -1;
     }
-  size_t         reps       = (size_t)reps_raw;
-  size_t         spc        = (size_t)spc_raw;
   size_t         max_noncoh = (size_t)max_noncoh_raw;
   PyArrayObject *code_arr   = (PyArrayObject *)PyArray_FROM_OTF (
       code_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS);
@@ -377,6 +377,17 @@ Acquisition_getprop_pd_predicted (AcquisitionObject *self,
   return PyFloat_FromDouble (self->handle->pd_predicted);
 }
 static PyObject *
+Acquisition_getprop_straddle_loss (AcquisitionObject *self,
+                                   void              *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyFloat_FromDouble (self->handle->straddle_loss);
+}
+static PyObject *
 Acquisition_getprop_fs (AcquisitionObject *self, void *Py_UNUSED (closure))
 {
   if (!self->handle)
@@ -483,7 +494,17 @@ static PyGetSetDef Acquisition_getset[] = {
     "Bonferroni per-cell false-alarm probability over the searched cells.\n",
     NULL },
   { "pd_predicted", (getter)Acquisition_getprop_pd_predicted, NULL,
-    "Predicted Pd at cn0_dbhz and the chosen grid.\n", NULL },
+    "Predicted Pd at cn0_dbhz and the chosen grid, at the straddle-derated "
+    "operating SNR (the average over random Doppler/code phase the "
+    "Monte-Carlo characterization measures - not the on-grid best case).\n",
+    NULL },
+  { "straddle_loss", (getter)Acquisition_getprop_straddle_loss, NULL,
+    "Mean amplitude derating of the correlation peak from grid straddle "
+    "(slow-time Doppler scalloping x intra-segment rotation x code-phase "
+    "sample offset, each averaged over a uniform prior). Sizing and "
+    "pd_predicted both use snr*straddle_loss; 20*log10(straddle_loss) is the "
+    "loss in dB.\n",
+    NULL },
   { "fs", (getter)Acquisition_getprop_fs, NULL,
     "Sample rate (Hz) = chip_rate * spc.\n", NULL },
   { "chip_rate", (getter)Acquisition_getprop_chip_rate, NULL,
@@ -545,8 +566,8 @@ static PyMethodDef AcquisitionObj_methods[]
           "\n"
           "    >>> import numpy as np\n"
           "    >>> from doppler import Acquisition\n"
-          "    >>> obj = Acquisition(np.zeros(1, dtype=np.uint8), \"mean\", "
-          "1, 4, 1000000.0, 50.0, 0.0, 1e-3, 0.9, 1)\n"
+          "    >>> obj = Acquisition(np.zeros(1, dtype=np.uint8), 1, 4, "
+          "1000000.0, 50.0, 0.0, 1e-3, 0.9, \"mean\", 1)\n"
           "    >>> results = obj.push(np.zeros(4, dtype=np.complex64))\n"
           "    >>> isinstance(results, list)\n"
           "    True\n" },

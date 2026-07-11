@@ -199,3 +199,52 @@ def test_bits_out_undersized_raises():
     c = Despreader(code, SPS, 0.0, 0.0, 0.05, 0.005, 0.0, 0.707, 0.5, 1)
     with pytest.raises(ValueError):
         c.bits(rx, out=np.zeros(1, dtype=np.uint8))
+
+
+def test_acq_handoff_verify_reject():
+    """Bounded-time accept/reject of an acquisition handoff — every
+    constant derived, none tuned.
+
+    Acquisition at pfa over many dwells *will* occasionally hand the
+    tracker a false (Doppler, code phase) cell. The verify policy: seed a
+    Despreader with the handoff and give the DLL's verify-counted CFAR
+    detector a decision window sized from detection theory —
+
+        window = k_safety * n_looks * det_verify_delay(pd_dec, n_up)
+
+    periods, where pd_dec is the per-decision detection probability at the
+    operating SNR and (n_up, n_looks) are the DLL's defaults (2, 20). A
+    true cell declares code lock inside the window (mean latency
+    det_verify_delay decisions); a false cell faces a compounded
+    false-accept probability of ~(window/n_looks) * pfa_dec^n_up (~1e-5
+    here), so timing out is the reject. On reject the channel is torn
+    down and the sample budget returns to acquisition.
+    """
+    from doppler.detection import det_verify_delay
+
+    code = _code()
+    n_up, n_looks = 2, 20  # Dll.configure_lock defaults at pfa = 1e-3
+    # At this test's clean-signal SNR the per-decision pd is ~1; the
+    # closed-form mean declare latency is det_verify_delay(pd, n_up)
+    # decisions. k_safety = 4 absorbs pull-in transients.
+    window_periods = int(4 * n_looks * det_verify_delay(0.99, n_up))
+    assert window_periods >= 2 * n_up * n_looks  # sane: >= 2 declares
+
+    # TRUE handoff: acquisition's (f0, chip) estimates seed the tracker;
+    # code lock declares inside the window.
+    rx, _ = _signal(code, window_periods, f0=5e-5, sigma=0.4, seed=3)
+    ch = Despreader(code, SPS, 5e-5, 0.0, 0.05, 0.005, 0.0, 0.707, 0.5, 1)
+    ch.steps(rx)
+    assert ch.code_locked is True  # accept
+
+    # FALSE handoff: a false-alarm cell hands over garbage — there is no
+    # signal at all. The CFAR statistic has no prompt excess, so the
+    # verify-counted detector never declares inside the window: reject.
+    rng = np.random.default_rng(11)
+    noise = (
+        rng.normal(0, 1, TSAMPS * window_periods)
+        + 1j * rng.normal(0, 1, TSAMPS * window_periods)
+    ).astype(np.complex64)
+    bogus = Despreader(code, SPS, 0.0, 0.0, 0.05, 0.005, 0.0, 0.707, 0.5, 1)
+    bogus.steps(noise)
+    assert bogus.code_locked is False  # reject: tear down, back to acq

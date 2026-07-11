@@ -63,6 +63,17 @@ amb_ber (const uint8_t *rx, const uint8_t *tx, size_t start, size_t nsym)
   return b < 1.0 - b ? b : 1.0 - b;
 }
 
+/* xorshift + Box-Muller unit-variance Gaussian (per component). */
+static float
+gauss2 (uint32_t *st)
+{
+  uint32_t a  = (*st ^= *st << 13, *st ^= *st >> 17, *st ^= *st << 5, *st);
+  uint32_t b  = (*st ^= *st << 13, *st ^= *st >> 17, *st ^= *st << 5, *st);
+  double   r1 = ((double)a + 1.0) / 4294967297.0;
+  double   r2 = ((double)b + 1.0) / 4294967297.0;
+  return (float)(sqrt (-2.0 * log (r1)) * cos (2.0 * M_PI * r2));
+}
+
 int
 main (void)
 {
@@ -129,6 +140,42 @@ main (void)
   burst_despreader_destroy (d);
   free (burst);
   free (rx2);
+
+  /* (6) cumulative burst statistics: every prompt weighted equally,
+   * snr_est calibrated against the known post-despread SNR, lock_stat
+   * far above any gate on a live burst, and reset() re-arms. */
+  {
+    uint32_t st    = 42u;
+    float    sigma = 1.0f; /* per-component input noise std (A = 1) */
+    burst          = make_burst (code, sf, sps, nsym, 0.0, tx, &blen);
+    for (size_t i = 0; i < blen; i++)
+      burst[i] += CMPLXF (sigma * gauss2 (&st), sigma * gauss2 (&st));
+    /* Narrow loops: snr_est measures the EFFECTIVE post-loop SNR — the
+     * tracking loops' residual phase jitter rotates signal energy into
+     * Im, so the estimate sits below the AWGN-only value by the jitter
+     * term A^2*sigma_phi^2 and converges to it as bn -> 0 (at bn = 0.05
+     * the gap is ~6 dB; at 0.005, ~2 dB). That is the BER-relevant
+     * quantity a consumer wants; the window below brackets it. */
+    d = burst_despreader_create (code, sf, sf, sps, 0.0, 0.0, 0.005, 0.005);
+    CHECK (burst_despreader_get_stat_n (d) == 0);
+    CHECK (burst_despreader_get_lock_stat (d) == 0.0);
+    (void)burst_despreader_bits (d, burst, blen, rx, nsym);
+    CHECK (burst_despreader_get_stat_n (d) == nsym);
+    CHECK (burst_despreader_get_lock_metric (d) > 0.85);
+    /* AWGN-only post-despread per-component SNR = tsamps = sf*sps at
+     * A = sigma = 1; the effective estimate lands under it by the
+     * seed-dependent jitter term (bounds sized off a 200-seed sweep). */
+    double snr_true = (double)(sf * sps);
+    double snr_hat  = burst_despreader_get_snr_est (d);
+    CHECK (snr_hat > 0.3 * snr_true && snr_hat < 1.3 * snr_true);
+    CHECK (burst_despreader_get_lock_stat (d) > 30.0);
+    burst_despreader_reset (d);
+    CHECK (burst_despreader_get_stat_n (d) == 0);
+    CHECK (burst_despreader_get_lock_stat (d) == 0.0);
+    CHECK (burst_despreader_get_snr_est (d) == 0.0);
+    burst_despreader_destroy (d);
+    free (burst);
+  }
 
   free (tx);
   free (rx);

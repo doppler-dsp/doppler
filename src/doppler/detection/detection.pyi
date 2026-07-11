@@ -458,6 +458,44 @@ def det_verify_delay(p_look: float, n: int) -> float:
 
     """
 
+def det_threshold_f(pfa: float, n: int) -> float:
+    """Upper quantile of F(n, n) — the exact H0 law for a ratio test whose noise reference is estimated from as many samples as the signal sum.
+
+    A chi-square threshold (det_threshold_noncoherent) prices a statistic
+    normalised by a KNOWN noise power. When the noise power is instead
+    estimated from n same-burst samples (the BurstDespreader lock test: sum
+    Re^2 against sum Im^2), the ratio's tail fattens to F(n, n) and the
+    chi-square gate realizes tens of times the priced pfa (41x at n = 16,
+    pfa = 1e-3). This helper returns the exact gate: P(chi2_n / chi2_n > g)
+    = I_{1/(1+g)}(n/2, n/2) = pfa, solved on the regularized incomplete beta
+    — valid for every n >= 1, odd included. As n grows the estimate hardens
+    and g approaches the known-noise value. Threshold a BurstDespreader as
+    `lock_stat > sqrt(stat_n * det_threshold_f(pfa, stat_n))`.
+
+    Parameters
+    ----------
+    pfa : float
+        Tail probability budget, in (0, 1).
+    n : int
+        Degrees of freedom on each side (>= 1).
+
+    Returns
+    -------
+    float
+        The F(n, n) upper-pfa quantile; 0 on invalid input.
+
+    Examples
+    --------
+    >>> from doppler.detection import det_threshold_f
+    >>> round(det_threshold_f(1e-3, 2), 6)  # exact: (1 - pfa)/pfa
+    999.0
+    >>> round(det_threshold_f(1e-3, 4), 4)
+    53.4358
+    >>> round(det_threshold_f(1e-3, 64), 4)  # hardens toward known-noise
+    2.1931
+
+    """
+
 def det_pd_noncoherent(snr: float, n_coh: int, n_noncoh: int, threshold: float) -> float:
     """Detection probability for n_noncoh non-coherent looks.
 

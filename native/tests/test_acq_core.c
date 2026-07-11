@@ -138,7 +138,10 @@ main (void)
     return 1;
   CHECK (a->sf == 7);
   CHECK (a->code_bins == nx);
-  CHECK (a->doppler_bins == 1); /* 65 dB-Hz is detected in a single rep */
+  /* Sizing averages Pd over the straddle priors (Jensen-honest): with a
+   * 7-chip code the loss tail is heavy enough that one rep's AVERAGE Pd
+   * falls short of 0.9 even at 65 dB-Hz, so the engine buys a second. */
+  CHECK (a->doppler_bins == 2);
   CHECK (a->n == a->doppler_bins * nx);
   CHECK (!a->underpowered && a->pd_predicted >= 0.9);
   CHECK (a->noise_lo == 0 && a->noise_hi == a->n - 1);

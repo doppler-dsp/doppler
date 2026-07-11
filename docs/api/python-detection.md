@@ -136,6 +136,24 @@ assert d.step(7.5) == 1  # inside the hysteresis band: sticky
 
 ::: doppler.detection.det_verify_delay
 
+One-shot (burst) decisions use the same machinery with one twist: when
+the noise reference is *estimated from as many samples as the signal
+sum* (the `BurstDespreader` lock test), the exact H0 law is F(n, n),
+not chi-square — `det_threshold_f` prices that gate exactly, for every
+`n`:
+
+```python
+from doppler.detection import det_threshold_f
+
+# F(2,2) tail is 1/(1+g): the quantile is exactly (1-pfa)/pfa
+assert round(det_threshold_f(1e-3, 2), 6) == 999.0
+
+# the estimate hardens with dof: the gate approaches the known-noise one
+assert det_threshold_f(1e-3, 16) > det_threshold_f(1e-3, 64) > 1.0
+```
+
+::: doppler.detection.det_threshold_f
+
 ::: doppler.detection.LockDet
 
 ______________________________________________________________________

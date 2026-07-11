@@ -183,8 +183,13 @@ def _full_frames(l_pre):
 # ── Physics auto-config math ─────────────────────────────────────────────────
 
 
+# Expected depths are sized at the AVERAGE Pd over the straddle priors
+# (Doppler scalloping, intra-segment rotation, code sample offset), so
+# the engine buys enough coherent depth to meet pd in operation — not on
+# the grid's best case, and not at the mean amplitude (which Jensen
+# makes optimistic).
 @pytest.mark.parametrize(
-    "cn0_dbhz, want_db", [(65.0, 1), (57.0, 2), (53.0, 4)]
+    "cn0_dbhz, want_db", [(65.0, 1), (57.0, 4), (53.0, 9)]
 )
 def test_config_physics(cn0_dbhz, want_db):
     """C/N0 → snr, smallest coherent depth meeting Pd, and grid math."""
@@ -218,12 +223,28 @@ def test_config_physics(cn0_dbhz, want_db):
     assert a.eta == pytest.approx(eta, rel=1e-5)
     assert a.threshold == pytest.approx(eta * SQRT_2_OVER_PI, rel=1e-5)
 
-    # Boundary: db meets Pd; db-1 (at its own threshold) does not.
-    assert det_pd(snr, db * nx, eta) >= PD
+    # Boundary/minimality through the engine itself: capping reps at
+    # db - 1 forces the next-smaller grid, which cannot meet pd (the
+    # sizing quadrature lives in C; replicating it here would just be a
+    # copy). Sanity-bracket pd_predicted instead of recomputing it: it is
+    # the straddle-AVERAGED Pd, so it sits at or above pd and strictly
+    # below the on-grid best case.
+    assert PD <= a.pd_predicted < det_pd(snr, db * nx, eta)
+    assert 0.0 < a.straddle_loss < 1.0
     if db > 1:
-        pc = 1.0 - (1.0 - PFA) ** (1.0 / ((db - 1) * nx))
-        assert det_pd(snr, (db - 1) * nx, det_threshold(pc)) < PD
-    assert a.pd_predicted == pytest.approx(det_pd(snr, db * nx, eta), rel=1e-5)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", UserWarning)
+            smaller = Acquisition(
+                CODE,
+                reps=db - 1,
+                spc=SPS,
+                chip_rate=CHIP_RATE,
+                cn0_dbhz=cn0_dbhz,
+                pfa=PFA,
+                pd=PD,
+            )
+        assert smaller.underpowered
+        assert smaller.pd_predicted < PD
 
 
 def test_d_selection_monotone():
@@ -458,7 +479,11 @@ def test_config_strong_stays_coherent():
 
 # Sizing that yields doppler_bins == NY with a small auto-split look count
 # (n_noncoh == 2), so the burst's frames complete several non-coherent dumps.
-NC_CN0 = 45.0
+# 46 dB-Hz: the weakest point where nc <= 4 non-coherent looks meet
+# pd = 0.9 at the straddle-AVERAGED Pd (45 dB-Hz needs nc = 5; the old
+# mean-amplitude sizing called 45/nc=4 powered when its true average Pd
+# was 0.849 — the honest criterion moved the boundary, not the physics).
+NC_CN0 = 46.0
 NC_MAX_NONCOH = 4
 
 

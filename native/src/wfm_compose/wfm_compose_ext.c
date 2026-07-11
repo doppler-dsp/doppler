@@ -38,6 +38,7 @@ static const char *const _enum_wfm_type[] = {
     "chirp",
     "bits",
     "symbols",
+    "dsss",
     NULL,
 };
 
@@ -65,6 +66,12 @@ static const char *const _enum_bitmod[] = {
 static const char *const _enum_wfm_pulse[] = {
     "rect",
     "rrc",
+    NULL,
+};
+
+static const char *const _enum_crc[] = {
+    "none",
+    "crc16",
     NULL,
 };
 
@@ -129,6 +136,9 @@ Synth_dealloc(SynthObject *self)
     if (self->_gen) wfm_synth_destroy(self->_gen);
     free(self->src.bits);
     free(self->src.symbols);
+    free(self->src.acq_code);
+    free(self->src.data_code);
+    free(self->src.sync);
     Py_TYPE(self)->tp_free((PyObject *)self);
 }
 
@@ -157,13 +167,14 @@ _attach_symbols(wfm_source_t *src, PyObject *obj)
     return 1;
 }
 
-/* Coerce a 0/1 pattern (bytes | binary/hex str | int sequence) (owned). */
+/* Coerce a 0/1 pattern (bytes | binary/hex str | int sequence) into an owned *dst/*n_dst (one shared
+ * coercer; each bytes field passes its own struct destination). */
 static int
-_attach_bytes(wfm_source_t *src, PyObject *obj)
+_attach_bytes(uint8_t **dst, size_t *n_dst, PyObject *obj)
 {
-    free(src->bits);
-    src->bits   = NULL;
-    src->n_bits = 0;
+    free(*dst);
+    *dst   = NULL;
+    *n_dst = 0;
     if (!obj || obj == Py_None)
         return 1;
     if (PyBytes_Check(obj)) {
@@ -173,8 +184,8 @@ _attach_bytes(wfm_source_t *src, PyObject *obj)
         uint8_t *buf = (uint8_t *)malloc((size_t)nb);
         if (!buf) { PyErr_NoMemory(); return 0; }
         memcpy(buf, PyBytes_AS_STRING(obj), (size_t)nb);
-    src->bits   = buf;
-    src->n_bits = (size_t)nb;
+    *dst   = buf;
+    *n_dst = (size_t)nb;
     return 1;
     }
     if (PyUnicode_Check(obj)) {
@@ -200,8 +211,8 @@ _attach_bytes(wfm_source_t *src, PyObject *obj)
                 for (int b = 0; b < 4; b++)
                     buf[i * 4 + b] = (uint8_t)((v >> (3 - b)) & 1);
             }
-    src->bits   = buf;
-    src->n_bits = (size_t)nb;
+    *dst   = buf;
+    *n_dst = (size_t)nb;
     return 1;
         }
         uint8_t *buf = (uint8_t *)malloc(slen ? (size_t)slen : 1);
@@ -216,8 +227,8 @@ _attach_bytes(wfm_source_t *src, PyObject *obj)
             buf[i] = (uint8_t)(s[i] - '0');
         }
         Py_ssize_t nb = slen;
-    src->bits   = buf;
-    src->n_bits = (size_t)nb;
+    *dst   = buf;
+    *n_dst = (size_t)nb;
     return 1;
     }
     {
@@ -238,8 +249,8 @@ _attach_bytes(wfm_source_t *src, PyObject *obj)
             buf[i] = (uint8_t)(v != 0);
         }
         Py_DECREF(seq);
-    src->bits   = buf;
-    src->n_bits = (size_t)nb;
+    *dst   = buf;
+    *n_dst = (size_t)nb;
     return 1;
     }
 }
@@ -247,7 +258,7 @@ _attach_bytes(wfm_source_t *src, PyObject *obj)
 static int
 Synth_init(SynthObject *self, PyObject *args, PyObject *kwds)
 {
-    static char *kwlist[] = {"type", "freq", "snr", "snr_mode", "seed", "sps", "pn_length", "pn_poly", "lfsr", "level", "f_end", "bits", "modulation", "pulse", "rrc_beta", "rrc_span", "symbols", "fs", NULL};
+    static char *kwlist[] = {"type", "freq", "snr", "snr_mode", "seed", "sps", "pn_length", "pn_poly", "lfsr", "level", "f_end", "bits", "modulation", "pulse", "rrc_beta", "rrc_span", "symbols", "acq_code", "acq_reps", "data_code", "sync", "crc", "fs", NULL};
     const char *type = "tone";
     PyObject *freq = NULL;
     PyObject *snr = NULL;
@@ -265,6 +276,11 @@ Synth_init(SynthObject *self, PyObject *args, PyObject *kwds)
     double rrc_beta = 0.35;
     int rrc_span = 8;
     PyObject *symbols = NULL;
+    PyObject *acq_code = NULL;
+    size_t acq_reps = 1;
+    PyObject *data_code = NULL;
+    PyObject *sync = NULL;
+    const char *crc = "crc16";
     double fs = 1e6;
     PyObject *_kw = kwds;
     int _kw_owned = 0;
@@ -311,9 +327,30 @@ Synth_init(SynthObject *self, PyObject *args, PyObject *kwds)
                 }
             }
         }
+        {
+            PyObject *_a = PyDict_GetItemString(kwds, "payload");
+            if (_a) {
+                if (!_kw_owned) {
+                    _kw = PyDict_Copy(kwds);
+                    if (!_kw) return -1;
+                    _kw_owned = 1;
+                }
+                if (PyDict_GetItemString(_kw, "bits")) {
+                    PyErr_SetString(PyExc_TypeError,
+                        "bits and payload are aliases — pass only one");
+                    Py_DECREF(_kw);
+                    return -1;
+                }
+                if (PyDict_SetItemString(_kw, "bits", _a) < 0
+                    || PyDict_DelItemString(_kw, "payload") < 0) {
+                    Py_DECREF(_kw);
+                    return -1;
+                }
+            }
+        }
     }
-    if (!PyArg_ParseTupleAndKeywords(args, _kw, "|sOOsIiiKsOOOssdiOd", kwlist,
-            &type, &freq, &snr, &snr_mode, &seed, &sps, &pn_length, &pn_poly, &lfsr, &level, &f_end, &bits, &modulation, &pulse, &rrc_beta, &rrc_span, &symbols, &fs)) {
+    if (!PyArg_ParseTupleAndKeywords(args, _kw, "|sOOsIiiKsOOOssdiOOnOOsd", kwlist,
+            &type, &freq, &snr, &snr_mode, &seed, &sps, &pn_length, &pn_poly, &lfsr, &level, &f_end, &bits, &modulation, &pulse, &rrc_beta, &rrc_span, &symbols, &acq_code, &acq_reps, &data_code, &sync, &crc, &fs)) {
         if (_kw_owned) Py_DECREF(_kw);
         return -1;
     }
@@ -411,7 +448,7 @@ Synth_init(SynthObject *self, PyObject *args, PyObject *kwds)
     } else {
         self->src.f_end = (double)0.0;
     }
-    if (!_attach_bytes(&self->src, bits))
+    if (!_attach_bytes(&self->src.bits, &self->src.n_bits, bits))
         return -1;
     {
         int _i = _enum_index(_enum_bitmod, modulation);
@@ -435,6 +472,22 @@ Synth_init(SynthObject *self, PyObject *args, PyObject *kwds)
     self->src.rrc_span = rrc_span;
     if (!_attach_symbols(&self->src, symbols))
         return -1;
+    if (!_attach_bytes(&self->src.acq_code, &self->src.n_acq_code, acq_code))
+        return -1;
+    self->src.acq_reps = acq_reps;
+    if (!_attach_bytes(&self->src.data_code, &self->src.n_data_code, data_code))
+        return -1;
+    if (!_attach_bytes(&self->src.sync, &self->src.n_sync, sync))
+        return -1;
+    {
+        int _i = _enum_index(_enum_crc, crc);
+        if (_i < 0) {
+            PyErr_Format(PyExc_ValueError,
+                         "invalid crc '%s'", crc);
+            return -1;
+        }
+        self->src.crc = _i;
+    }
     return 0;
 }
 
@@ -671,7 +724,7 @@ static int
 Synth_set_bits(SynthObject *self, PyObject *value, void *closure)
 {
     (void)closure;
-    return _attach_bytes(&self->src, value) ? 0 : -1;
+    return _attach_bytes(&self->src.bits, &self->src.n_bits, value) ? 0 : -1;
 }
 static PyObject *
 Synth_get_modulation(SynthObject *self, void *closure)
@@ -762,6 +815,85 @@ Synth_set_symbols(SynthObject *self, PyObject *value, void *closure)
     return _attach_symbols(&self->src, value) ? 0 : -1;
 }
 static PyObject *
+Synth_get_acq_code(SynthObject *self, void *closure)
+{
+    (void)closure;
+    if (self->src.acq_code && self->src.n_acq_code)
+        return PyBytes_FromStringAndSize(
+            (const char *)self->src.acq_code, (Py_ssize_t)self->src.n_acq_code);
+    Py_RETURN_NONE;
+}
+static int
+Synth_set_acq_code(SynthObject *self, PyObject *value, void *closure)
+{
+    (void)closure;
+    return _attach_bytes(&self->src.acq_code, &self->src.n_acq_code, value) ? 0 : -1;
+}
+static PyObject *
+Synth_get_acq_reps(SynthObject *self, void *closure)
+{
+    (void)closure;
+    return PyLong_FromSize_t((size_t)self->src.acq_reps);
+}
+static int
+Synth_set_acq_reps(SynthObject *self, PyObject *value, void *closure)
+{
+    (void)closure;
+    self->src.acq_reps = (size_t)PyLong_AsLong(value);
+    if (PyErr_Occurred()) return -1;
+    return 0;
+}
+static PyObject *
+Synth_get_data_code(SynthObject *self, void *closure)
+{
+    (void)closure;
+    if (self->src.data_code && self->src.n_data_code)
+        return PyBytes_FromStringAndSize(
+            (const char *)self->src.data_code, (Py_ssize_t)self->src.n_data_code);
+    Py_RETURN_NONE;
+}
+static int
+Synth_set_data_code(SynthObject *self, PyObject *value, void *closure)
+{
+    (void)closure;
+    return _attach_bytes(&self->src.data_code, &self->src.n_data_code, value) ? 0 : -1;
+}
+static PyObject *
+Synth_get_sync(SynthObject *self, void *closure)
+{
+    (void)closure;
+    if (self->src.sync && self->src.n_sync)
+        return PyBytes_FromStringAndSize(
+            (const char *)self->src.sync, (Py_ssize_t)self->src.n_sync);
+    Py_RETURN_NONE;
+}
+static int
+Synth_set_sync(SynthObject *self, PyObject *value, void *closure)
+{
+    (void)closure;
+    return _attach_bytes(&self->src.sync, &self->src.n_sync, value) ? 0 : -1;
+}
+static PyObject *
+Synth_get_crc(SynthObject *self, void *closure)
+{
+    (void)closure;
+    return PyUnicode_FromString(_enum_crc[self->src.crc]);
+}
+static int
+Synth_set_crc(SynthObject *self, PyObject *value, void *closure)
+{
+    (void)closure;
+    const char *s = PyUnicode_AsUTF8(value);
+    if (!s) return -1;
+    int _i = _enum_index(_enum_crc, s);
+    if (_i < 0) {
+        PyErr_Format(PyExc_ValueError, "invalid crc '%s'", s);
+        return -1;
+    }
+    self->src.crc = _i;
+    return 0;
+}
+static PyObject *
 Synth_get_fs(SynthObject *self, void *closure)
 {
     (void)closure;
@@ -794,6 +926,11 @@ static PyGetSetDef Synth_getset[] = {
     {"rrc_beta", (getter)Synth_get_rrc_beta, (setter)Synth_set_rrc_beta, NULL, NULL},
     {"rrc_span", (getter)Synth_get_rrc_span, (setter)Synth_set_rrc_span, NULL, NULL},
     {"symbols", (getter)Synth_get_symbols, (setter)Synth_set_symbols, NULL, NULL},
+    {"acq_code", (getter)Synth_get_acq_code, (setter)Synth_set_acq_code, NULL, NULL},
+    {"acq_reps", (getter)Synth_get_acq_reps, (setter)Synth_set_acq_reps, NULL, NULL},
+    {"data_code", (getter)Synth_get_data_code, (setter)Synth_set_data_code, NULL, NULL},
+    {"sync", (getter)Synth_get_sync, (setter)Synth_set_sync, NULL, NULL},
+    {"crc", (getter)Synth_get_crc, (setter)Synth_set_crc, NULL, NULL},
     {"fs", (getter)Synth_get_fs, (setter)Synth_set_fs, NULL, NULL},
     {NULL, NULL, NULL, NULL, NULL}
 };
@@ -1364,6 +1501,61 @@ Segment_flat_symbols(SegmentObject *self, void *closure)
     }
     return PyObject_GetAttrString(PyList_GET_ITEM(self->sources, 0), "symbols");
 }
+static PyObject *
+Segment_flat_acq_code(SegmentObject *self, void *closure)
+{
+    (void)closure;
+    if (PyList_GET_SIZE(self->sources) != 1) {
+        PyErr_SetString(PyExc_AttributeError,
+                        "acq_code is only on a single-source Segment");
+        return NULL;
+    }
+    return PyObject_GetAttrString(PyList_GET_ITEM(self->sources, 0), "acq_code");
+}
+static PyObject *
+Segment_flat_acq_reps(SegmentObject *self, void *closure)
+{
+    (void)closure;
+    if (PyList_GET_SIZE(self->sources) != 1) {
+        PyErr_SetString(PyExc_AttributeError,
+                        "acq_reps is only on a single-source Segment");
+        return NULL;
+    }
+    return PyObject_GetAttrString(PyList_GET_ITEM(self->sources, 0), "acq_reps");
+}
+static PyObject *
+Segment_flat_data_code(SegmentObject *self, void *closure)
+{
+    (void)closure;
+    if (PyList_GET_SIZE(self->sources) != 1) {
+        PyErr_SetString(PyExc_AttributeError,
+                        "data_code is only on a single-source Segment");
+        return NULL;
+    }
+    return PyObject_GetAttrString(PyList_GET_ITEM(self->sources, 0), "data_code");
+}
+static PyObject *
+Segment_flat_sync(SegmentObject *self, void *closure)
+{
+    (void)closure;
+    if (PyList_GET_SIZE(self->sources) != 1) {
+        PyErr_SetString(PyExc_AttributeError,
+                        "sync is only on a single-source Segment");
+        return NULL;
+    }
+    return PyObject_GetAttrString(PyList_GET_ITEM(self->sources, 0), "sync");
+}
+static PyObject *
+Segment_flat_crc(SegmentObject *self, void *closure)
+{
+    (void)closure;
+    if (PyList_GET_SIZE(self->sources) != 1) {
+        PyErr_SetString(PyExc_AttributeError,
+                        "crc is only on a single-source Segment");
+        return NULL;
+    }
+    return PyObject_GetAttrString(PyList_GET_ITEM(self->sources, 0), "crc");
+}
 
 static PyObject *
 Segment_add(SegmentObject *self, PyObject *args)
@@ -1408,6 +1600,11 @@ static PyGetSetDef Segment_getset[] = {
     {"rrc_beta", (getter)Segment_flat_rrc_beta, NULL, NULL, NULL},
     {"rrc_span", (getter)Segment_flat_rrc_span, NULL, NULL, NULL},
     {"symbols", (getter)Segment_flat_symbols, NULL, NULL, NULL},
+    {"acq_code", (getter)Segment_flat_acq_code, NULL, NULL, NULL},
+    {"acq_reps", (getter)Segment_flat_acq_reps, NULL, NULL, NULL},
+    {"data_code", (getter)Segment_flat_data_code, NULL, NULL, NULL},
+    {"sync", (getter)Segment_flat_sync, NULL, NULL, NULL},
+    {"crc", (getter)Segment_flat_crc, NULL, NULL, NULL},
     {NULL, NULL, NULL, NULL, NULL}
 };
 
@@ -2125,7 +2322,7 @@ _Composer_obj_to_dict(PyObject *o, const char *const *keys)
 }
 
 static const char *const _Composer_seg_keys[] = { "fs", "num_samples", "off_samples", NULL };
-static const char *const _Composer_src_keys[] = { "type", "freq", "snr", "snr_mode", "seed", "sps", "pn_length", "pn_poly", "lfsr", "level", "f_end", "bits", "modulation", "pulse", "rrc_beta", "rrc_span", "symbols", NULL };
+static const char *const _Composer_src_keys[] = { "type", "freq", "snr", "snr_mode", "seed", "sps", "pn_length", "pn_poly", "lfsr", "level", "f_end", "bits", "modulation", "pulse", "rrc_beta", "rrc_span", "symbols", "acq_code", "acq_reps", "data_code", "sync", "crc", NULL };
 
 static PyObject *
 Composer_to_dict(ComposerObject *self, PyObject *Py_UNUSED(ignored))

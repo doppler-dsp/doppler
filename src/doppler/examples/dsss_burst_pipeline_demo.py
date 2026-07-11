@@ -15,8 +15,16 @@ scene**, cross-checked byte-identical:
   2. :meth:`doppler.wfm.Composer.from_file` — the same JSON, loaded straight
      into the Python binding;
   3. :class:`doppler.wfm.Composer`/:class:`doppler.wfm.Segment` built as
-     Python objects, no JSON at all (the ``pattern=`` list sugar instead of
-     the JSON string form).
+     Python objects, no JSON at all.
+
+Each burst is one declarative ``Segment(type="dsss", acq_code=..., acq_reps=5,
+data_code=..., sync=..., payload=...)`` — the engine assembles the repeated
+preamble, XOR-spreads the ``sync | payload | CRC-16`` frame with the second
+code, sizes the segment to exactly one burst, and interprets
+``snr_mode="esno"`` as the payload DATA-symbol Es/N0. (This example
+originally hand-rolled all of that as a pre-spread ``type="bits"`` pattern
+with a hand-converted over-fs SNR; the ``dsss`` source type grew out of
+exactly that friction — see 'Rough edges found'.)
 
 If any two diverge, that is a genuine engine bug — the assertion is the
 test, not just documentation.
@@ -57,17 +65,20 @@ Run::
 Rough edges found while building this (see the gallery page for the full
 write-up):
 
-* ``wfmgen``'s ``snr_mode="esno"``/``"auto"`` treats the modulated *symbol*
-  of a ``type="bits"`` segment as one output chip, not the outer DSSS data
-  symbol — hitting a target *data-symbol* Es/N0 needs a hand conversion
-  (``snr_db_fs = esn0_db - 10*log10(sf*sps)``) and an explicit
-  ``snr_mode="fs"``. There is no dedicated "Es/N0 for a spread symbol" knob.
-* ``type="pn"`` codes are capped to Mersenne periods (``2**n - 1`` chips);
-  an exact chip count like 512 or 50 needs a hand-built ``bits`` pattern
-  instead.
+* **(since fixed — this demo drove the fix)** ``wfmgen`` originally had no
+  DSSS primitive at all: the two-code burst had to be hand-spread into a
+  ``type="bits"`` pattern, whose ``snr_mode="esno"`` then referred to one
+  output *chip*, so a target data-symbol Es/N0 needed the hand conversion
+  ``snr_db_fs = esn0_db - 10*log10(sf*sps)`` with ``snr_mode="fs"``, plus a
+  Python CRC-16 and manual sync insertion. All of that is now the
+  first-class ``type="dsss"`` source used above (codes as explicit arrays —
+  no ``2**n - 1`` MLS length cap — engine-built frame + CRC via the shared
+  :func:`doppler.wfm.crc16` kernel, data-symbol ``esno``, intrinsic burst
+  length).
 * There is no dedicated "N discrete bursts, jittered spacing" primitive —
   build it as N segments with distinct (or ranged, ``[lo, hi]``)
-  ``off_samples``.
+  ``off_samples``. (A ``repeats=N`` segment field with per-instance ranged
+  redraws is the planned follow-up.)
 * **How** :meth:`~doppler.dsss.Acquisition.push` **actually buffers/frames
   samples** (walked through in full since it changed how this demo drives
   Acquisition — see ``native/src/acq/acq_core.c:322-410``):
@@ -191,7 +202,6 @@ write-up):
 from __future__ import annotations
 
 import json
-import math
 import shutil
 import subprocess
 import tempfile
@@ -201,7 +211,7 @@ import numpy as np
 
 from doppler.dsss import Acquisition, BurstDemod, BurstDespreader
 from doppler.snr import snr_data_aided_db, snr_data_aided_db_series
-from doppler.wfm import Composer, Segment
+from doppler.wfm import Composer, Segment, crc16
 
 # ── waveform geometry ────────────────────────────────────────────────────────
 ACQ_SF, REPS, DATA_SF, SPC = 512, 5, 50, 4
@@ -231,38 +241,20 @@ ACQ_HOP = PRE_LEN // 4  # blind-sweep dwell hop -> 75% overlap between dwells
 ESN0_WINDOW = 51  # sliding-window length (symbols) for the Es/N0(dB) trace
 
 
-def _crc16(bits):
-    """CRC-16-CCITT (poly 0x1021, init 0xFFFF), MSB-first — matches the C
-    kernel in burst_demod_core.c bit-for-bit."""
-    c = 0xFFFF
-    for b in bits:
-        c ^= (int(b) & 1) << 15
-        c = ((c << 1) ^ 0x1021) & 0xFFFF if c & 0x8000 else (c << 1) & 0xFFFF
-    return c
-
-
 def _build_codes_and_frame():
-    """Two independent codes (long acq preamble, short data code) and the
-    frame bit sequence (sync | payload | CRC-16) they will spread."""
+    """Two independent codes (long acq preamble, short data code), and the
+    RX ground-truth frame bit sequence (sync | payload | CRC-16) the
+    despreader's output is scored against. The CRC comes from
+    :func:`doppler.wfm.crc16` — the same C kernel the ``dsss`` source
+    appends on transmit and BurstDemod validates on receive."""
     rng = np.random.default_rng(0)
     acq_code = rng.integers(0, 2, ACQ_SF).astype(np.uint8)
     data_code = rng.integers(0, 2, DATA_SF).astype(np.uint8)
     payload_bits = rng.integers(0, 2, PAYLOAD).astype(np.uint8)
-    crc = _crc16(payload_bits)
-    crc_bits = np.array([(crc >> (15 - j)) & 1 for j in range(16)], np.uint8)
+    c = crc16(payload_bits)
+    crc_bits = np.array([(c >> (15 - j)) & 1 for j in range(16)], np.uint8)
     frame_bits = np.concatenate([SYNC, payload_bits, crc_bits])
     return acq_code, data_code, payload_bits, frame_bits
-
-
-def _chip_pattern(acq_code, data_code, frame_bits):
-    """Unmodulated preamble (REPS periods of acq_code) followed by the frame,
-    each symbol XOR-spread by data_code -> one flat 0/1 chip pattern, fed to
-    wfmgen as a single ``type=bits`` / ``modulation=bpsk`` segment."""
-    preamble = np.tile(acq_code, REPS)
-    frame_chips = np.bitwise_xor(
-        data_code[None, :], frame_bits[:, None]
-    ).astype(np.uint8)
-    return np.concatenate([preamble, frame_chips.reshape(-1)])
 
 
 def burst_starts():
@@ -301,23 +293,28 @@ def _wfmgen_exe():
 def build_scene():
     """The 5-burst scene as both the ``Segment`` kwarg dicts (face 3, object
     composition) and the equivalent JSON scene dict (faces 1-2, CLI/from_file)
-    — the exact same geometry expressed two ways."""
+    — the exact same geometry expressed two ways.
+
+    Each burst is ONE declarative ``type="dsss"`` segment: the engine tiles
+    the preamble, XOR-spreads ``sync | payload | CRC-16`` by the data code,
+    sizes the on-time to exactly one burst, and — because a dsss source's
+    ``snr_mode="esno"`` refers to the outer DATA symbol — hits the target
+    payload Es/N0 with no hand conversion."""
     acq_code, data_code, payload_bits, frame_bits = _build_codes_and_frame()
-    chips = _chip_pattern(acq_code, data_code, frame_bits)
-    assert len(chips) == BURST_CHIPS
-    snr_fs_db = ESN0_DB - 10.0 * math.log10(DATA_SF * SPC)
     segment_kwargs = [
         {
-            "type": "bits",
+            "type": "dsss",
             "fs": FS,
             "freq": 0.0,
-            "snr": snr_fs_db,
-            "snr_mode": "fs",  # NOT "auto"/"esno" — see module docstring
+            "snr": ESN0_DB,
+            "snr_mode": "esno",  # Es/N0 of the DATA_SF-chip data symbol
             "seed": k + 1,
-            "sps": SPC,
-            "modulation": "bpsk",
-            "pattern": chips.tolist(),
-            "num_samples": BURST_LEN,
+            "sps": SPC,  # samples per CHIP
+            "acq_code": acq_code.tobytes(),
+            "acq_reps": REPS,
+            "data_code": data_code.tobytes(),
+            "sync": SYNC.tobytes(),
+            "payload": payload_bits.tobytes(),  # CRC-16 auto-appended
             "off_samples": GAPS[k],
         }
         for k in range(N_BURSTS)
@@ -326,12 +323,13 @@ def build_scene():
 
 
 def _scene_json(segment_kwargs):
-    """The JSON-wire form of segment_kwargs (``pattern`` as a char string,
-    not a Python list) — what ``--from-file``/``Composer.from_file`` expect."""
+    """The JSON-wire form of segment_kwargs (bit arrays as "0/1" strings) —
+    what ``--from-file``/``Composer.from_file`` expect."""
     segments = []
     for kw in segment_kwargs:
         d = dict(kw)
-        d["pattern"] = "".join(str(b) for b in d["pattern"])
+        for key in ("acq_code", "data_code", "sync", "payload"):
+            d[key] = "".join(str(b) for b in d[key])
         segments.append(d)
     return {
         "version": 1,

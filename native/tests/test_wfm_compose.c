@@ -6,6 +6,7 @@
  */
 #define _GNU_SOURCE
 #include "wfm/wfm_compose.h"
+#include "wfm/wfm_dsp.h" /* wfm_frame_dsss_* for the dsss burst section */
 
 #include <complex.h>
 #include <math.h>
@@ -620,8 +621,208 @@ main (void)
     wfm_compose_destroy (c);
   }
 
+  /* ── dsss: a two-code burst source, byte-identical to the pre-spread
+   * bits path it replaces, with intrinsic on-time and a JSON round-trip ── */
+  {
+    /* small geometry: 8-chip acq ×3, 4-chip data code, 5 payload bits,
+     * 2-bit sync, crc16 — sps 2, data-symbol Es/N0 6 dB. */
+    uint8_t acq[8]   = { 1, 0, 1, 1, 0, 0, 1, 0 };
+    uint8_t dcode[4] = { 0, 1, 1, 0 };
+    uint8_t sync[2]  = { 1, 0 };
+    uint8_t pay[5]   = { 1, 0, 0, 1, 1 };
+
+    wfm_source_t dsss = { .type        = WFM_SYNTH_DSSS,
+                          .snr         = 6.0,
+                          .snr_mode    = 3, /* esno: outer data symbol */
+                          .seed        = 7,
+                          .sps         = 2,
+                          .pn_length   = 7,
+                          .acq_code    = acq,
+                          .n_acq_code  = 8,
+                          .acq_reps    = 3,
+                          .data_code   = dcode,
+                          .n_data_code = 4,
+                          .sync        = sync,
+                          .n_sync      = 2,
+                          .bits        = pay, /* payload */
+                          .n_bits      = 5,
+                          .crc         = 1 };
+    /* deliberately wrong num_samples: the intrinsic on-time must win */
+    wfm_segment_t g = { .sources     = &dsss,
+                        .n_sources   = 1,
+                        .fs          = 1e6,
+                        .num_samples = 17,
+                        .off_samples = 10 };
+
+    size_t nchips = wfm_frame_dsss_nchips (8, 3, 4, 2, 5, 1);
+    CHECK (nchips == 8 * 3 + (2 + 5 + 16) * 4, "burst chip count");
+    size_t on = nchips * 2;
+
+    wfm_compose_state_t *c = wfm_compose_create (&g, 1, 0, 0);
+    CHECK (c, "dsss create");
+    size_t               nseg = 0;
+    const wfm_segment_t *gg   = wfm_compose_segments (c, &nseg, NULL, NULL);
+    CHECK (gg[0].num_samples == on, "dsss on-time is intrinsic");
+    static float complex dall[1024];
+    size_t               dt = 0;
+    while ((n = wfm_compose_execute (c, buf, 777)) > 0)
+      {
+        for (size_t i = 0; i < n; i++)
+          dall[dt + i] = buf[i];
+        dt += n;
+      }
+    CHECK (dt == on + 10, "dsss burst + gap length");
+    /* (c stays alive: gg borrows its segments for the JSON emit below.) */
+
+    /* equivalent hand-spread bits segment at the hand-converted fs SNR (the
+     * exact conversion the demo used: esno − 10log10(sf·sps), mode fs). */
+    static uint8_t chips[512];
+    CHECK (
+        wfm_frame_dsss_chips (acq, 8, 3, dcode, 4, sync, 2, pay, 5, 1, chips)
+            == nchips,
+        "hand chips");
+    wfm_source_t         bits = { .type       = WFM_SYNTH_BITS,
+                                  .snr        = 6.0 - 10.0 * log10 (4.0 * 2.0),
+                                  .snr_mode   = 1, /* fs */
+                                  .seed       = 7,
+                                  .sps        = 2,
+                                  .pn_length  = 7,
+                                  .bits       = chips,
+                                  .n_bits     = nchips,
+                                  .modulation = 1 };
+    wfm_segment_t        gb   = { .sources     = &bits,
+                                  .n_sources   = 1,
+                                  .fs          = 1e6,
+                                  .num_samples = on,
+                                  .off_samples = 10 };
+    wfm_compose_state_t *cb   = wfm_compose_create (&gb, 1, 0, 0);
+    CHECK (cb, "bits create");
+    static float complex ball[1024];
+    size_t               bt = 0;
+    while ((n = wfm_compose_execute (cb, buf, 777)) > 0)
+      {
+        for (size_t i = 0; i < n; i++)
+          ball[bt + i] = buf[i];
+        bt += n;
+      }
+    wfm_compose_destroy (cb);
+    CHECK (bt == dt, "dsss vs bits length");
+    CHECK (memcmp (dall, ball, dt * sizeof (float complex)) == 0,
+           "dsss segment byte-identical to pre-spread bits at converted snr");
+
+    /* JSON round-trip: geometry keys emitted, parse back, same bytes, and
+     * the recorded num_samples is the resolved intrinsic on-time. */
+    char *js = wfm_spec_to_json (gg, 1, 0, 0, 0.0);
+    wfm_compose_destroy (c); /* json built; the borrow ends here */
+    CHECK (js && strstr (js, "\"dsss\""), "dsss type name");
+    CHECK (strstr (js, "acq_code") && strstr (js, "data_code")
+               && strstr (js, "\"payload\"") && strstr (js, "\"crc\""),
+           "dsss geometry keys");
+    wfm_compose_state_t *jc2 = wfm_compose_from_json (js);
+    CHECK (jc2, "dsss from_json");
+    static float complex j2[1024];
+    size_t               jt = 0;
+    while ((n = wfm_compose_execute (jc2, buf, 777)) > 0)
+      {
+        for (size_t i = 0; i < n; i++)
+          j2[jt + i] = buf[i];
+        jt += n;
+      }
+    CHECK (jt == dt && memcmp (dall, j2, dt * sizeof (float complex)) == 0,
+           "dsss json round-trip byte-identical");
+    wfm_compose_destroy (jc2);
+
+    /* "pattern" is accepted as an alias for "payload" on parse: rename the
+     * emitted key in place (same length) and re-parse — same bytes. */
+    char *pat = strstr (js, "\"payload\"");
+    CHECK (pat, "payload key present");
+    memcpy (pat, "\"pattern\"", 9);
+    wfm_compose_state_t *jp = wfm_compose_from_json (js);
+    CHECK (jp, "pattern alias parses");
+    static float complex jp2[1024];
+    size_t               pt = 0;
+    while ((n = wfm_compose_execute (jp, buf, 777)) > 0)
+      {
+        for (size_t i = 0; i < n; i++)
+          jp2[pt + i] = buf[i];
+        pt += n;
+      }
+    CHECK (pt == dt && memcmp (dall, jp2, dt * sizeof (float complex)) == 0,
+           "pattern alias byte-identical to payload");
+    wfm_compose_destroy (jp);
+    free (js);
+
+    /* ebno on a dsss burst is esno (BPSK payload, 1 bit/symbol): same
+     * bytes as the esno render above. */
+    wfm_source_t  eb        = dsss;
+    wfm_segment_t ge        = g;
+    ge.sources              = &eb;
+    eb.snr_mode             = 2; /* ebno */
+    wfm_compose_state_t *ce = wfm_compose_create (&ge, 1, 0, 0);
+    CHECK (ce, "ebno dsss create");
+    static float complex eall[1024];
+    size_t               et = 0;
+    while ((n = wfm_compose_execute (ce, buf, 777)) > 0)
+      {
+        for (size_t i = 0; i < n; i++)
+          eall[et + i] = buf[i];
+        et += n;
+      }
+    wfm_compose_destroy (ce);
+    CHECK (et == dt && memcmp (dall, eall, dt * sizeof (float complex)) == 0,
+           "dsss ebno == esno (BPSK payload)");
+
+    /* an absent optional code is simply not emitted (no empty "" keys) */
+    wfm_source_t  nos       = dsss;
+    wfm_segment_t gnos      = g;
+    gnos.sources            = &nos;
+    nos.sync                = NULL;
+    nos.n_sync              = 0;
+    wfm_compose_state_t *cn = wfm_compose_create (&gnos, 1, 0, 0);
+    CHECK (cn, "no-sync dsss create");
+    size_t               nn  = 0;
+    const wfm_segment_t *ggn = wfm_compose_segments (cn, &nn, NULL, NULL);
+    char                *jn  = wfm_spec_to_json (ggn, 1, 0, 0, 0.0);
+    wfm_compose_destroy (cn);
+    CHECK (jn && !strstr (jn, "\"sync\""), "absent sync key not emitted");
+    free (jn);
+
+    /* invalid geometry (payload but no data code) fails the segment into a
+     * silent gap rather than wedging the stream. */
+    wfm_source_t bad = dsss;
+    bad.data_code    = NULL;
+    bad.n_data_code  = 0;
+    wfm_segment_t gbad
+        = { .sources = &bad, .n_sources = 1, .fs = 1e6, .off_samples = 4 };
+    wfm_compose_state_t *cbad = wfm_compose_create (&gbad, 1, 0, 0);
+    CHECK (cbad, "bad dsss still creates");
+    size_t got = wfm_compose_execute (cbad, buf, 64);
+    CHECK (got == 4, "bad dsss segment degrades to its gap");
+    for (size_t i = 0; i < got; i++)
+      CHECK (buf[i] == 0.0f, "bad dsss gap is zeros");
+    wfm_compose_destroy (cbad);
+
+    /* in a multi-source sum the on-time is explicit, so the build itself
+     * hits the invalid geometry (set_dsss fails) — the whole segment still
+     * degrades to its silent gap rather than wedging the stream. */
+    wfm_source_t  mix[2] = { { .type = WFM_SYNTH_TONE, .freq = 0.1 }, bad };
+    wfm_segment_t gsum   = { .sources     = mix,
+                             .n_sources   = 2,
+                             .fs          = 1e6,
+                             .num_samples = 16,
+                             .off_samples = 4 };
+    wfm_compose_state_t *csum = wfm_compose_create (&gsum, 1, 0, 0);
+    CHECK (csum, "sum with bad dsss still creates");
+    got = wfm_compose_execute (csum, buf, 64);
+    CHECK (got == 4, "sum with bad dsss degrades to its gap");
+    for (size_t i = 0; i < got; i++)
+      CHECK (buf[i] == 0.0f, "sum bad-dsss gap is zeros");
+    wfm_compose_destroy (csum);
+  }
+
   printf ("test_wfm_compose: OK (total=%zu, json round-trip, level, sum, "
-          "resolve, sum-json, headroom, seed_advance, ranged fields)\n",
+          "resolve, sum-json, headroom, seed_advance, ranged fields, "
+          "dsss burst)\n",
           total);
   return 0;
 }

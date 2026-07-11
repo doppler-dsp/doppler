@@ -66,15 +66,15 @@
 
     "source_type": {
       "type": "string",
-      "enum": ["tone", "noise", "pn", "bpsk", "qpsk", "chirp", "bits"],
-      "description": "Waveform type. tone: complex sinusoid. noise: AWGN. pn: PN sequence (LFSR). bpsk/qpsk: PN-driven modulation. chirp: linear-FM sweep. bits: user-supplied bit pattern with selectable modulation."
+      "enum": ["tone", "noise", "pn", "bpsk", "qpsk", "chirp", "bits", "symbols", "dsss"],
+      "description": "Waveform type. tone: complex sinusoid. noise: AWGN. pn: PN sequence (LFSR). bpsk/qpsk: PN-driven modulation. chirp: linear-FM sweep. bits: user-supplied bit pattern with selectable modulation. symbols: user-supplied complex constellation stream. dsss: two-code spread-spectrum burst (repeated preamble + data-code-spread frame)."
     },
 
     "snr_mode": {
       "type": "string",
       "enum": ["auto", "fs", "ebno", "esno"],
       "default": "auto",
-      "description": "SNR reference convention. auto: over full-scale for tone/noise/pn/chirp, Es/N0 for bpsk/qpsk/bits. fs: dB relative to full scale. ebno: Eb/N0 (per-bit). esno: Es/N0 (per-symbol)."
+      "description": "SNR reference convention. auto: over full-scale for tone/noise/pn/chirp, Es/N0 for bpsk/qpsk/bits/dsss. fs: dB relative to full scale. ebno: Eb/N0 (per-bit). esno: Es/N0 (per-symbol; for dsss the outer data symbol of len(data_code) chips x sps samples)."
     },
 
     "source": {
@@ -165,11 +165,50 @@
           "description": "Bit pattern for type=bits: a string of '0' and '1' characters. Repeats cyclically to fill num_samples. Required for type=bits when used via --from-file; omitted by --record (the pattern is regenerated from seed/pn_length/pn_poly at playback)."
         },
 
+        "symbols": {
+          "type": "array",
+          "items": { "type": "number" },
+          "description": "Complex constellation stream for type=symbols, flat interleaved [re, im, re, im, ...]. Each pair is one output point, oversampled by sps and cycled."
+        },
+
+        "acq_code": {
+          "type": "string",
+          "pattern": "^[01]+$",
+          "description": "type=dsss: the acquisition/preamble code as a '0'/'1' string, repeated acq_reps times unmodulated at the head of the burst — the coherent pull-in target the receiver's acquisition locks to."
+        },
+        "acq_reps": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 1,
+          "description": "type=dsss: preamble repetitions (periods of acq_code before the frame)."
+        },
+        "data_code": {
+          "type": "string",
+          "pattern": "^[01]+$",
+          "description": "type=dsss: the payload spreading code as a '0'/'1' string — a second code, distinct from acq_code; every frame bit (sync | payload | crc) is XOR-spread across its full length, so its length is the spreading factor."
+        },
+        "sync": {
+          "type": "string",
+          "pattern": "^[01]+$",
+          "description": "type=dsss: the frame-sync word bits (e.g. Barker-13) between the preamble and the payload. Optional."
+        },
+        "payload": {
+          "type": "string",
+          "pattern": "^[01]+$",
+          "description": "type=dsss: the payload bits of the burst frame ('pattern' is accepted as an alias on input; --record emits 'payload')."
+        },
+        "crc": {
+          "type": "string",
+          "enum": ["none", "crc16"],
+          "default": "crc16",
+          "description": "type=dsss: frame trailer — crc16 appends a CRC-16-CCITT over the payload bits (what BurstDemod validates as frame_valid); none omits it."
+        },
+
         "pulse": {
           "type": "string",
           "enum": ["rect", "rrc"],
           "default": "rect",
-          "description": "Pulse shape applied per symbol/chip for pn/bpsk/qpsk/bits types. rect: rectangular (no ISI filtering). rrc: root-raised cosine; see rrc_beta and rrc_span. Omitted in the round-trip record when rect to keep default specs compact."
+          "description": "Pulse shape applied per symbol/chip for pn/bpsk/qpsk/bits/symbols/dsss types. rect: rectangular (no ISI filtering). rrc: root-raised cosine; see rrc_beta and rrc_span. Omitted in the round-trip record when rect to keep default specs compact."
         },
         "rrc_beta": {
           "type": "number",
@@ -227,6 +266,13 @@
         "level":      { "$ref": "#/$defs/source/properties/level" },
         "modulation": { "$ref": "#/$defs/source/properties/modulation" },
         "pattern":    { "$ref": "#/$defs/source/properties/pattern" },
+        "symbols":    { "$ref": "#/$defs/source/properties/symbols" },
+        "acq_code":   { "$ref": "#/$defs/source/properties/acq_code" },
+        "acq_reps":   { "$ref": "#/$defs/source/properties/acq_reps" },
+        "data_code":  { "$ref": "#/$defs/source/properties/data_code" },
+        "sync":       { "$ref": "#/$defs/source/properties/sync" },
+        "payload":    { "$ref": "#/$defs/source/properties/payload" },
+        "crc":        { "$ref": "#/$defs/source/properties/crc" },
         "pulse":      { "$ref": "#/$defs/source/properties/pulse" },
         "rrc_beta":   { "$ref": "#/$defs/source/properties/rrc_beta" },
         "rrc_span":   { "$ref": "#/$defs/source/properties/rrc_span" }

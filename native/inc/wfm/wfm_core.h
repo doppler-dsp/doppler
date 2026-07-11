@@ -119,6 +119,28 @@ float wfm_ebno_to_snr_db(float ebno_db, int bits_per_symbol, float samples_per_s
  * @endcode
  */
 uint64_t mls_poly(uint32_t n);
+
+/**
+ * @brief CRC-16-CCITT (poly 0x1021, init 0xFFFF) over a bit stream,
+ * MSB-first. The one frame CRC doppler's DSSS burst convention uses: the
+ * `dsss` waveform appends it over the payload bits on transmit and
+ * `BurstDemod` validates it as `frame_valid` on receive (both call the same
+ * C kernel, dp_crc16.h). Each input byte carries one bit (0/1) in its LSB —
+ * an unpacked bit array, not a packed byte-stream CRC. Transmit the result
+ * MSB-first.
+ *
+ * @param bits      Array of 0/1 bit values (one per byte).
+ * @param bits_len  Number of bits in @p bits.
+ * @return The 16-bit CRC.
+ * @code
+ * >>> import numpy as np
+ * >>> from doppler.wfm import crc16
+ * >>> ascii_bits = np.unpackbits(np.frombuffer(b"123456789", np.uint8))
+ * >>> hex(crc16(ascii_bits))   # the standard CCITT check vector
+ * '0x29b1'
+ * @endcode
+ */
+uint16_t crc16(const uint8_t *bits, size_t bits_len);
 void rrc_taps(double beta, int sps, int span, float *out);
 void dsss_spread(const float complex *syms, size_t syms_len, const uint8_t *code, size_t code_len, int sf, float complex *out);
 #ifdef __cplusplus

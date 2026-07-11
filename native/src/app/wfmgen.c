@@ -31,8 +31,10 @@
 #define BLK 4096
 
 static const char *const TYPES[]
-    = { "tone", "noise", "pn", "bpsk", "qpsk", "chirp", "bits", "symbols" };
+    = { "tone",  "noise", "pn",      "bpsk", "qpsk",
+        "chirp", "bits",  "symbols", "dsss" };
 static const char *const MODES[]   = { "auto", "fs", "ebno", "esno" };
+static const char *const CRCS[]    = { "none", "crc16" };
 static const char *const BITMODS[] = { "none", "bpsk", "qpsk" };
 static const char *const STYPES[]  = { "cf32", "cf64", "ci32", "ci16", "ci8" };
 static const char *const FTYPES[]  = { "raw", "csv", "blue", "sigmf" };
@@ -248,7 +250,7 @@ static const char USAGE[]
       "\n"
       "WAVEFORM TYPE\n"
       "  --type TYPE     tone | noise | pn | bpsk | qpsk | chirp | bits |\n"
-      "                    symbols\n"
+      "                    symbols | dsss\n"
       "                    tone  - pure CW carrier at --freq\n"
       "                    noise - Gaussian white noise\n"
       "                    pn    - pseudo-random MLS sequence\n"
@@ -258,6 +260,7 @@ static const char USAGE[]
       "                    bits  - custom bit pattern (see BITS INPUT)\n"
       "                    symbols - custom complex constellation (see "
       "SYMBOLS INPUT)\n"
+      "                    dsss  - two-code DSSS burst (see DSSS BURST)\n"
       "\n"
       "SIGNAL PARAMETERS\n"
       "  (LO:HI on --freq/--f-end/--snr/--level/--count/--off draws that "
@@ -300,6 +303,21 @@ static const char USAGE[]
       "                    sample is one constellation point. Oversampled by\n"
       "                    --sps, cycled, and RRC-shaped with --pulse rrc.\n"
       "                    Generalises any modulation (pi/4-QPSK, QAM, ...).\n"
+      "\n"
+      "DSSS BURST  (--type dsss)\n"
+      "  One burst = an unmodulated repeated preamble (code A) followed by\n"
+      "  the frame [sync | payload | CRC-16], every frame bit spread by a\n"
+      "  second code B. The payload bits come from --bits/--bits-hex/\n"
+      "  --bits-file; --sps is samples per CHIP; --count is derived (one\n"
+      "  burst = n_chips * sps samples) and ignored; --snr-mode esno is the\n"
+      "  Es/N0 of the outer DATA symbol (code-B chips x sps samples).\n"
+      "  --acq-code BITS      Preamble code as a 0/1 string\n"
+      "  --acq-code-hex HEX   Preamble code as hex (MSB-first)\n"
+      "  --acq-reps N         Preamble repetitions (default 1)\n"
+      "  --data-code BITS     Payload spreading code as a 0/1 string\n"
+      "  --data-code-hex HEX  Payload spreading code as hex (MSB-first)\n"
+      "  --sync BITS          Frame-sync word, e.g. Barker-13 (default none)\n"
+      "  --crc C              none | crc16 payload trailer (default crc16)\n"
       "\n"
       "PN SEQUENCE  (--type pn)\n"
       "  --pn-length N   Register length; period = 2^N - 1 (default 15)\n"
@@ -433,7 +451,9 @@ doppler_wfmgen (int   argc, /* NOLINT(readability-function-size) */
                            .pn_poly    = 0,
                            .modulation = 1, /* bits: default bpsk */
                            .rrc_beta   = 0.35,
-                           .rrc_span   = 8 };
+                           .rrc_span   = 8,
+                           .acq_reps   = 1, /* dsss: one preamble period */
+                           .crc        = 1 /* dsss: crc16 trailer */ };
   wfm_segment_t seg    = { .sources     = &src,
                            .n_sources   = 1,
                            .fs          = 1.0,
@@ -572,6 +592,74 @@ doppler_wfmgen (int   argc, /* NOLINT(readability-function-size) */
                              "error: --bits-file must contain a 0/1 string\n");
               return 2;
             }
+        }
+      else if (!strcmp (a, "--acq-code"))
+        {
+          REQVAL (v);
+          free (src.acq_code);
+          src.acq_code = parse_bit_string (v, &src.n_acq_code);
+          if (!src.acq_code)
+            {
+              (void)fprintf (stderr,
+                             "error: --acq-code expects a 0/1 string\n");
+              return 2;
+            }
+        }
+      else if (!strcmp (a, "--acq-code-hex"))
+        {
+          REQVAL (v);
+          free (src.acq_code);
+          src.acq_code = parse_hex_string (v, &src.n_acq_code);
+          if (!src.acq_code)
+            {
+              (void)fprintf (stderr,
+                             "error: --acq-code-hex expects a hex string\n");
+              return 2;
+            }
+        }
+      else if (!strcmp (a, "--acq-reps"))
+        {
+          REQVAL (v);
+          src.acq_reps = (size_t)strtoull (v, NULL, 10);
+        }
+      else if (!strcmp (a, "--data-code"))
+        {
+          REQVAL (v);
+          free (src.data_code);
+          src.data_code = parse_bit_string (v, &src.n_data_code);
+          if (!src.data_code)
+            {
+              (void)fprintf (stderr,
+                             "error: --data-code expects a 0/1 string\n");
+              return 2;
+            }
+        }
+      else if (!strcmp (a, "--data-code-hex"))
+        {
+          REQVAL (v);
+          free (src.data_code);
+          src.data_code = parse_hex_string (v, &src.n_data_code);
+          if (!src.data_code)
+            {
+              (void)fprintf (stderr,
+                             "error: --data-code-hex expects a hex string\n");
+              return 2;
+            }
+        }
+      else if (!strcmp (a, "--sync"))
+        {
+          REQVAL (v);
+          free (src.sync);
+          src.sync = parse_bit_string (v, &src.n_sync);
+          if (!src.sync)
+            {
+              (void)fprintf (stderr, "error: --sync expects a 0/1 string\n");
+              return 2;
+            }
+        }
+      else if (!strcmp (a, "--crc"))
+        {
+          CHOICE (src.crc, CRCS);
         }
       else if (!strcmp (a, "--symbols-file"))
         {
@@ -1006,5 +1094,8 @@ doppler_wfmgen (int   argc, /* NOLINT(readability-function-size) */
   wfm_compose_destroy (comp);
   free (src.bits); /* the composer deep-copied it; free our CLI-owned copy */
   free (src.symbols); /* same: the bridge copied it; free our CLI-owned copy */
+  free (src.acq_code); /* same for the dsss burst geometry arrays */
+  free (src.data_code);
+  free (src.sync);
   return rc;
 }

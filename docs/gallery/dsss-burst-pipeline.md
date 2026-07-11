@@ -24,9 +24,14 @@ distinct from the preamble code — the same frame layout
 
 `wfmgen` is one C engine reachable three ways: the CLI binary, the
 `Composer.from_file` Python binding loading the identical JSON scene, and
-the `Composer`/`Segment` object API built with no JSON at all. All three
-should produce byte-identical samples for the same scene — and here that's
-not just documentation, it's an assertion:
+the `Composer`/`Segment` object API built with no JSON at all. Each burst is
+**one declarative `type="dsss"` segment** — the engine tiles the preamble,
+XOR-spreads the `sync | payload | CRC-16` frame with the second code, sizes
+the segment to exactly one burst, and interprets `snr_mode="esno"` as the
+payload *data-symbol* Es/N0 (see the
+[waveforms guide](../guide/wfmgen/waveforms.md#dsss-two-code-spread-spectrum-bursts)).
+All three faces should produce byte-identical samples for the same scene —
+and here that's not just documentation, it's an assertion:
 
 ```python
 import tempfile
@@ -173,18 +178,25 @@ bursts, which led to a real bug fix in the C core. See below.
 Finding these was the point of building this example, not an
 inconvenience:
 
-- **`wfmgen`'s `snr_mode="esno"`/`"auto"`** treats the modulated *symbol* of
-    a `type="bits"` segment as one output chip, not the outer DSSS data
-    symbol. Hitting a target *data-symbol* Es/N0 needs a hand conversion
-    (`snr_db_fs = esn0_db - 10*log10(sf*sps)`) plus an explicit
-    `snr_mode="fs"`. There's no "Es/N0 for a spread symbol" knob.
-
-- **`type="pn"` codes are capped to Mersenne periods** (`2**n - 1` chips) —
-    an exact chip count like 512 or 50 needs a hand-built `bits` pattern
-    instead of the built-in PN generator.
+- **(since fixed — this example drove the fix)** `wfmgen` originally had
+    **no DSSS primitive at all**: the two-code burst had to be hand-spread
+    into a `type="bits"` pattern (`np.tile` + XOR in numpy), whose
+    `snr_mode="esno"` then referred to one output *chip* — so a target
+    *data-symbol* Es/N0 needed the hand conversion
+    `snr_db_fs = esn0_db - 10*log10(sf*sps)` plus an explicit
+    `snr_mode="fs"` — with a Python CRC-16 copy and manual sync insertion on
+    top, and the built-in PN generator couldn't even make the codes (it's
+    capped to Mersenne `2**n - 1` periods; 512 and 50 aren't). All of that
+    is now the first-class
+    [`type="dsss"` source](../guide/wfmgen/waveforms.md#dsss-two-code-spread-spectrum-bursts)
+    this page uses: explicit any-length code arrays, engine-built frame with
+    the shared `doppler.wfm.crc16` kernel (the same C the demod validates),
+    data-symbol `esno`, and intrinsic burst length.
 
 - **No "N discrete bursts, jittered spacing" primitive** — build it as N
     segments with distinct (or ranged, `[lo, hi]`) `off_samples` per segment.
+    (A `repeats=N` segment field with per-instance ranged redraws is the
+    planned follow-up.)
 
 - **`Acquisition.push()`'s buffering/framing** is a ring-buffer FIFO with
     non-overlapping frames and a hardcoded 64-result-per-call cap — see

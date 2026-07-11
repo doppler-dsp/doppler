@@ -35,17 +35,25 @@
  * recomputes floor(snr) at an arbitrary swept SNR using the identical formula
  * (single source of truth — no drift). */
 double
-wfm_snr_over_fs (int snr_mode, int type, int sps, double snr)
+wfm_snr_over_fs (int snr_mode, int type, int sps, size_t sf, double snr)
 {
   int mode = snr_mode;
-  if (mode == 0) /* auto: *psk → Es/No, tone/noise/pn/chirp/bits → over-fs */
-    mode = (type == WFM_SYNTH_BPSK || type == WFM_SYNTH_QPSK) ? 3 : 1;
+  if (mode == 0) /* auto: *psk/dsss → Es/No, tone/noise/pn/chirp/bits → fs */
+    mode = (type == WFM_SYNTH_BPSK || type == WFM_SYNTH_QPSK
+            || type == WFM_SYNTH_DSSS)
+               ? 3
+               : 1;
   int nsps = (sps < 1) ? 1 : sps;
   int bps  = (type == WFM_SYNTH_QPSK) ? 2 : 1;
+  /* dsss: the symbol is the outer data symbol — sf chips × sps samples/chip
+   * — so Es spans sf·sps samples. The BPSK payload makes ebno == esno. */
+  double span = (type == WFM_SYNTH_DSSS)
+                    ? (double)nsps * (double)(sf < 1 ? 1 : sf)
+                    : (double)nsps;
   if (mode == 2) /* Eb/No */
-    return snr + 10.0 * log10 ((double)bps) - 10.0 * log10 ((double)nsps);
+    return snr + 10.0 * log10 ((double)bps) - 10.0 * log10 (span);
   if (mode == 3) /* Es/No */
-    return snr - 10.0 * log10 ((double)nsps);
+    return snr - 10.0 * log10 (span);
   return snr; /* over fs */
 }
 
@@ -54,7 +62,24 @@ wfm_snr_over_fs (int snr_mode, int type, int sps, double snr)
 static double
 snr_over_fs (const wfm_source_t *s)
 {
-  return wfm_snr_over_fs (s->snr_mode, s->type, s->sps, s->snr);
+  return wfm_snr_over_fs (s->snr_mode, s->type, s->sps, s->n_data_code,
+                          s->snr);
+}
+
+double
+wfm_source_create_snr (const wfm_source_t *src, double snr, int *snr_mode)
+{
+  *snr_mode = src->snr_mode;
+  /* wfm_synth_create() sees only sps, so a dsss data-symbol Es/N0 must be
+   * pre-referred to fs here (the codes attach after create). Clean sources
+   * pass through so the no-AWGN shortcut still applies. */
+  if (src->type == WFM_SYNTH_DSSS && snr < WFM_SYNTH_SNR_CLEAN)
+    {
+      snr       = wfm_snr_over_fs (src->snr_mode, src->type, src->sps,
+                                   src->n_data_code, snr);
+      *snr_mode = 1; /* fs */
+    }
+  return snr;
 }
 
 int

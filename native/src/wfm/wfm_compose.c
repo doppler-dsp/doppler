@@ -20,7 +20,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* Free a segment's per-source bits patterns and then the sources array. */
+/* Free a segment's per-source owned arrays and then the sources array. */
 static void
 free_segment_sources (wfm_segment_t *seg)
 {
@@ -29,9 +29,71 @@ free_segment_sources (wfm_segment_t *seg)
       {
         free (seg->sources[k].bits);
         free (seg->sources[k].symbols);
+        free (seg->sources[k].acq_code);
+        free (seg->sources[k].data_code);
+        free (seg->sources[k].sync);
       }
   free (seg->sources);
   seg->sources = NULL;
+}
+
+/* malloc+memcpy an owned byte array (NULL for an empty one). */
+static uint8_t *
+dup_u8 (const uint8_t *src, size_t n)
+{
+  if (!src || !n)
+    return NULL;
+  uint8_t *copy = malloc (n);
+  if (copy)
+    memcpy (copy, src, n);
+  return copy;
+}
+
+/* Replace dst's array pointers (struct-assigned from the caller's source)
+ * with owned copies. On failure every pointer is already owned-or-NULL, so
+ * free_segment_sources() on the partially-built list stays safe (it never
+ * frees a caller's buffer). Returns 0, or -1 on allocation failure. */
+static int
+copy_source_arrays (wfm_source_t *dst, const wfm_source_t *src)
+{
+  dst->bits      = NULL;
+  dst->symbols   = NULL;
+  dst->acq_code  = NULL;
+  dst->data_code = NULL;
+  dst->sync      = NULL;
+  if (src->bits && src->n_bits)
+    {
+      dst->bits = dup_u8 (src->bits, src->n_bits);
+      if (!dst->bits)
+        return -1;
+    }
+  if (src->symbols && src->n_symbols)
+    {
+      size_t nbytes = src->n_symbols * sizeof *src->symbols;
+      dst->symbols  = malloc (nbytes);
+      if (!dst->symbols)
+        return -1;
+      memcpy (dst->symbols, src->symbols, nbytes);
+    }
+  if (src->acq_code && src->n_acq_code)
+    {
+      dst->acq_code = dup_u8 (src->acq_code, src->n_acq_code);
+      if (!dst->acq_code)
+        return -1;
+    }
+  if (src->data_code && src->n_data_code)
+    {
+      dst->data_code = dup_u8 (src->data_code, src->n_data_code);
+      if (!dst->data_code)
+        return -1;
+    }
+  if (src->sync && src->n_sync)
+    {
+      dst->sync = dup_u8 (src->sync, src->n_sync);
+      if (!dst->sync)
+        return -1;
+    }
+  return 0;
 }
 
 enum
@@ -144,18 +206,34 @@ wfm_compose_build_synth (const wfm_source_t *src, double fs, size_t on_len,
   uint32_t seed = src->seed;
   if (seed_advance == WFM_SEED_ADVANCE_ALL && epoch)
     seed = (uint32_t)(src->seed + epoch);
-  wfm_synth_state_t *syn = wfm_synth_create (
-      src->type, fs, freq, snr, src->snr_mode, seed, src->sps, src->pn_length,
-      src->pn_poly, src->lfsr, f_end);
+  /* A dsss data-symbol Es/N0 is referred to fs before create (the codes
+   * attach below, after create resolves the noise); identity otherwise. */
+  int                snr_mode = 0;
+  double             snr_c    = wfm_source_create_snr (src, snr, &snr_mode);
+  wfm_synth_state_t *syn
+      = wfm_synth_create (src->type, fs, freq, snr_c, snr_mode, seed, src->sps,
+                          src->pn_length, src->pn_poly, src->lfsr, f_end);
   if (!syn)
     return NULL;
   /* Pin a chirp's sweep to the on-time (no-op for non-chirp). */
   wfm_synth_set_chirp_span (syn, on_len);
-  /* Attach a bits pattern / symbols stream (no-op for other types). */
+  /* Attach a bits pattern / symbols stream / dsss burst (no-op otherwise). */
   if (src->type == WFM_SYNTH_BITS && src->bits)
     wfm_synth_set_bits (syn, src->bits, src->n_bits, src->modulation);
   if (src->type == WFM_SYNTH_SYMBOLS && src->symbols)
     wfm_synth_set_symbols (syn, src->symbols, src->n_symbols);
+  if (src->type == WFM_SYNTH_DSSS
+      && wfm_synth_set_dsss (syn, src->acq_code, src->n_acq_code,
+                             src->acq_reps, src->data_code, src->n_data_code,
+                             src->sync, src->n_sync, src->bits, src->n_bits,
+                             src->crc)
+             != 0)
+    {
+      /* Invalid burst geometry: fail the build (the composer skips the
+       * segment to a silent gap; a standalone Synth raises at first use). */
+      wfm_synth_destroy (syn);
+      return NULL;
+    }
   /* RRC pulse shaping (same wfm_rrc_taps() the standalone face uses; set_rrc
    * scales for unit TX power and no-ops for non-modulated types). */
   if (src->pulse && src->sps > 0 && src->rrc_span > 0)
@@ -300,39 +378,36 @@ wfm_compose_create (const wfm_segment_t *segs, size_t n_segs, int repeat,
         }
       for (size_t k = 0; k < ns; k++)
         {
-          s->segs[i].sources[k] = segs[i].sources[k]; /* scalars + bits ptr */
-          const wfm_source_t *src = &segs[i].sources[k];
-          if (src->bits && src->n_bits)
+          s->segs[i].sources[k] = segs[i].sources[k]; /* scalar fields */
+          if (copy_source_arrays (&s->segs[i].sources[k], &segs[i].sources[k])
+              != 0)
             {
-              uint8_t *copy = malloc (src->n_bits);
-              if (!copy)
-                {
-                  s->segs[i].sources[k].bits = NULL; /* don't free caller's */
-                  for (size_t j = 0; j <= i; j++)
-                    free_segment_sources (&s->segs[j]);
-                  free (s->segs);
-                  free (s);
-                  return NULL;
-                }
-              memcpy (copy, src->bits, src->n_bits);
-              s->segs[i].sources[k].bits = copy;
+              for (size_t j = 0; j <= i; j++)
+                free_segment_sources (&s->segs[j]);
+              free (s->segs);
+              free (s);
+              return NULL;
             }
-          if (src->symbols && src->n_symbols)
+        }
+      /* A lone dsss source's on-time is intrinsic — exactly one burst
+       * (n_chips * sps samples) — so num_samples is derived here, on the
+       * private copy, and any caller-supplied value (or range) is ignored:
+       * every face resolves identically and --record emits the real span.
+       * (A dsss source inside a multi-source sum keeps the segment's
+       * explicit num_samples — the mix's span is the caller's call.) */
+      if (s->segs[i].n_sources == 1
+          && s->segs[i].sources[0].type == WFM_SYNTH_DSSS)
+        {
+          const wfm_source_t *d = &s->segs[i].sources[0];
+          size_t nchips = wfm_frame_dsss_nchips (d->n_acq_code, d->acq_reps,
+                                                 d->n_data_code, d->n_sync,
+                                                 d->n_bits, d->crc);
+          if (nchips)
             {
-              size_t          nbytes = src->n_symbols * sizeof *src->symbols;
-              float _Complex *copy   = malloc (nbytes);
-              if (!copy)
-                {
-                  s->segs[i].sources[k].symbols
-                      = NULL; /* don't free caller's */
-                  for (size_t j = 0; j <= i; j++)
-                    free_segment_sources (&s->segs[j]);
-                  free (s->segs);
-                  free (s);
-                  return NULL;
-                }
-              memcpy (copy, src->symbols, nbytes);
-              s->segs[i].sources[k].symbols = copy;
+              int sps                   = (d->sps < 1) ? 1 : d->sps;
+              s->segs[i].num_samples    = nchips * (size_t)sps;
+              s->segs[i].num_samples_hi = 0;
+              s->segs[i].ranged &= ~(unsigned)WFM_RANGE_NUM_SAMPLES;
             }
         }
     }

@@ -223,13 +223,15 @@ if(NOT WIN32)
     # into libdoppler — they live in the optional libdoppler_stream component
     # (defined in the root CMakeLists), a separate module boundary rather
     # than a C++ isolation concern.
+    # (wfm_dsp_core is NOT folded here: wfm_synth now depends on it, so the
+    # jm-managed root CMakeLists folds its objects in with wfm_synth_core —
+    # a second copy would be a duplicate-symbol link error.)
     foreach(_dt doppler_lib doppler_lib_static)
         target_sources(${_dt} PRIVATE
             $<TARGET_OBJECTS:wfmgen_core>
             $<TARGET_OBJECTS:wfm_sink_stub_core>
             $<TARGET_OBJECTS:wfm_compose_core>
             $<TARGET_OBJECTS:wfm_writer_core>
-            $<TARGET_OBJECTS:wfm_dsp_core>
             $<TARGET_OBJECTS:wfm_cjson>)
     endforeach()
 

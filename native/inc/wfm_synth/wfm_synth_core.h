@@ -36,7 +36,9 @@ enum {
     WFM_SYNTH_CHIRP = 5, /* linear-FM sweep f_start→f_end (no symbols) */
     WFM_SYNTH_BITS = 6,  /* user bit pattern, oversampled + cycled    */
     WFM_SYNTH_SYMBOLS
-    = 7, /* user complex-symbol stream, oversampled + cycled */
+    = 7,                /* user complex-symbol stream, oversampled + cycled */
+    WFM_SYNTH_DSSS = 8, /* two-code DSSS burst: repeated preamble +
+                           spread frame, built by wfm_synth_set_dsss() */
 };
 
 /* snr >= this (dB) means "clean": no AWGN is generated at all (the common case
@@ -163,11 +165,13 @@ typedef struct {
  * for tone/noise/PN.
  *
  * @param type  Waveform type: 0=tone, 1=noise, 2=pn, 3=bpsk, 4=qpsk,
- *              5=chirp, 6=bits, 7=symbols.  The Python binding accepts strings
- *              "tone"|"noise"|"pn"|"bpsk"|"qpsk"|"chirp"|"bits"|"symbols".  For
- *              "bits" attach the pattern with wfm_synth_set_bits(); for
- *              "symbols" attach the complex stream with wfm_synth_set_symbols()
- *              after create().
+ *              5=chirp, 6=bits, 7=symbols, 8=dsss.  The Python binding accepts
+ *              strings
+ *              "tone"|"noise"|"pn"|"bpsk"|"qpsk"|"chirp"|"bits"|"symbols"|"dsss".
+ *              For "bits" attach the pattern with wfm_synth_set_bits(); for
+ *              "symbols" attach the complex stream with wfm_synth_set_symbols();
+ *              for "dsss" attach the burst with wfm_synth_set_dsss() after
+ *              create().
  * @param fs  Sample rate in Hz.  Sets the carrier frequency normalisation
  *              and the noise bandwidth.  Default 1 000 000.0.
  * @param freq  Carrier frequency offset in Hz (−fs/2 … fs/2).  A
@@ -242,6 +246,51 @@ void wfm_synth_set_chirp_span(wfm_synth_state_t *state, size_t span);
  */
 int wfm_synth_set_bits(wfm_synth_state_t *state, const uint8_t *bits, size_t n,
                        int modulation);
+
+/**
+ * @brief Build and attach a two-code DSSS burst to a type=dsss synth (no-op
+ * otherwise).
+ *
+ * Assembles the burst chip pattern through `wfm_frame_dsss_chips()` — an
+ * unmodulated preamble (`acq_code` repeated `acq_reps` times, the coherent
+ * acquisition target) followed by the frame `sync | payload | CRC-16`, each
+ * frame bit XOR-spread by the distinct `data_code` — and installs it as the
+ * synth's BPSK chip stream (each chip held for the create-time `sps`
+ * samples, i.e. `sps` is samples per *chip* here). This is the transmit
+ * side of `BurstDemod`'s frame contract: the same codes, sync word, and
+ * payload length hand to `burst_demod_set_preamble`/`set_sync` on receive.
+ *
+ * One pass of the pattern is one burst (`n_chips * sps` samples); like the
+ * bits pattern it cycles if more samples are requested — the composer sizes
+ * a dsss segment's on-time to exactly one burst. Replaces any previous
+ * pattern; resets the read position.
+ *
+ * NOTE: `snr_mode` semantics — the raw engine's create-time esno refers to
+ * the *chip* (the output symbol). The Segment/Synth faces convert a
+ * data-symbol Es/N0 (`snr_mode="esno"`) to the over-fs value with
+ * `10*log10(sf*sps)` before create; see `wfm_snr_over_fs()`.
+ *
+ * @param state        Must be non-NULL.
+ * @param acq_code     Preamble code (0/1), length @p acq_len; NULL when
+ *                     `acq_len*acq_reps == 0`.
+ * @param acq_len      Preamble code length in chips.
+ * @param acq_reps     Preamble repetitions.
+ * @param data_code    Payload spreading code (0/1), length @p data_len.
+ * @param data_len     Chips per frame symbol (the spreading factor).
+ * @param sync         Frame-sync word bits (0/1); NULL for none.
+ * @param sync_len     Sync word length in bits.
+ * @param payload      Payload bits (0/1); NULL for a preamble-only burst.
+ * @param payload_len  Payload length in bits.
+ * @param crc          Non-zero: append a CRC-16-CCITT trailer (dp_crc16.h)
+ *                     over the payload bits.
+ * @return 0 on success; -1 on invalid geometry (frame bits with no data
+ *         code, or an empty burst) or allocation failure.
+ */
+int wfm_synth_set_dsss(wfm_synth_state_t *state, const uint8_t *acq_code,
+                       size_t acq_len, size_t acq_reps,
+                       const uint8_t *data_code, size_t data_len,
+                       const uint8_t *sync, size_t sync_len,
+                       const uint8_t *payload, size_t payload_len, int crc);
 
 /**
  * @brief Attach a complex-symbol stream to a type=symbols synth (no-op else).
@@ -353,10 +402,11 @@ JM_FORCEINLINE JM_HOT float complex
 wfm_synth_step(wfm_synth_state_t *state)
 {
     float complex sym;
-    if (state->wtype == WFM_SYNTH_BITS) {
+    if (state->wtype == WFM_SYNTH_BITS || state->wtype == WFM_SYNTH_DSSS) {
         /* User bit pattern, oversampled sps and cycled to fill the request. The
          * symbol latch mirrors the PN path but sources bits from bits[bit_idx]
-         * instead of the LFSR; bit_mod picks the mapping. */
+         * instead of the LFSR; bit_mod picks the mapping. A dsss burst is the
+         * same machinery over the chip pattern set_dsss() assembled. */
         if (state->sym_pos == 0 && state->bits && state->n_bits) {
             if (state->bit_mod == 2) { /* qpsk: 2 bits/symbol, Gray-mapped */
                 uint8_t b0 = state->bits[state->bit_idx];

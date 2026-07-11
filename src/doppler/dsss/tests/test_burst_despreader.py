@@ -191,3 +191,49 @@ def test_bits_out_undersized_raises():
     out = np.zeros(1, dtype=np.uint8)
     with pytest.raises(ValueError):
         d.bits(x, out=out)
+
+
+def test_burst_lock_statistic_calibrated():
+    """The whole-burst lock statistic gates H1 vs H0 at a derived threshold.
+
+    R = sqrt(stat_n * sum Re^2 / sum Im^2) has the exact H0 law
+    R^2 = stat_n * F(stat_n, stat_n) — the noise reference is estimated
+    from as many samples as the signal sum, so det_threshold_f (not a
+    chi-square gate, which would realize ~25x the priced pfa here) sets
+    the threshold: a live burst clears it by a wide margin, a noise-only
+    "burst" stays under it at an honest 1e-3, and no caller-invented
+    threshold is involved.
+    """
+    import math
+
+    from doppler.detection import det_threshold_f
+
+    rng = np.random.default_rng(7)
+    code, _syms, x = _burst(rng, 31, 64)
+    x = x + 0.3 * (
+        rng.standard_normal(x.size) + 1j * rng.standard_normal(x.size)
+    ).astype(np.complex64)
+
+    b = BurstDespreader(code=code, sf=31, sps=SPS)
+    b.bits(x)
+    assert b.stat_n == 64
+    eta = math.sqrt(b.stat_n * det_threshold_f(1e-3, b.stat_n))
+    assert b.lock_stat > eta
+    assert b.lock_metric > 0.9
+    assert b.snr_est > 10.0  # ~31 dB AWGN-only; jitter-included estimate
+
+    # H0: pure noise through a fresh instance never clears the gate, and
+    # the lock metric hovers at the no-carrier mean 2/pi.
+    n = BurstDespreader(code=code, sf=31, sps=SPS)
+    noise = (
+        rng.standard_normal(x.size) + 1j * rng.standard_normal(x.size)
+    ).astype(np.complex64)
+    n.bits(noise)
+    eta0 = math.sqrt(n.stat_n * det_threshold_f(1e-3, n.stat_n))
+    assert n.lock_stat < eta0
+    assert 0.45 < n.lock_metric < 0.8
+    assert n.snr_est < 2.0
+
+    # reset() re-arms the one-shot statistics.
+    b.reset()
+    assert b.stat_n == 0 and b.lock_stat == 0.0

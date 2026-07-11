@@ -119,6 +119,103 @@ _searched_bins (size_t D, double du, double span)
   return (sb > D) ? D : sb;
 }
 
+/* Mean of sinc(u) = sin(pi*u)/(pi*u) over u in [0, umax] — equals
+ * Si(pi*umax)/(pi*umax).  64-interval Simpson: setup path, and the
+ * quadrature error (~1e-12 here) is far below the model's own fidelity. */
+static double
+_mean_sinc (double umax)
+{
+  if (umax <= 0.0)
+    return 1.0;
+  const int n = 64;
+  double    h = umax / (double)n;
+  double    s = 1.0; /* sinc(0) */
+  for (int i = 1; i <= n; i++)
+    {
+      double u = h * (double)i;
+      double v = sin (M_PI * u) / (M_PI * u);
+      s += (i == n) ? v : ((i & 1) ? 4.0 : 2.0) * v;
+    }
+  return s * h / (3.0 * umax);
+}
+
+/* Mean amplitude derating of the correlation peak from grid straddle — the
+ * gap between the on-grid best case det_pd() sees and the operating average
+ * the Monte-Carlo characterization measures.  Three independent losses, each
+ * averaged over a uniform prior across its straddle range:
+ *
+ *  - slow-time scalloping: a Doppler off the FFT bin centre by delta in
+ *    [-1/2, 1/2] bins loses the Dirichlet factor, ~ sinc(delta) for the
+ *    depths used here (absent when D == 1: no slow-time FFT, no bins);
+ *  - intra-segment rotation: the slow-time FFT compensates rotation
+ *    BETWEEN segments only; the residual rotation across one segment,
+ *    u = f*code_bins cycles, loses sinc(u).  f spans the searched band, so
+ *    u spans +/- sb/(2*D) — this is the band-edge loss that dominates a
+ *    full-span search (sinc(1/2) = -3.9 dB at the edge);
+ *  - code-phase straddle: the true code phase lands up to half a sample
+ *    off the grid, 1/(2*spc) chips, losing the triangular-autocorrelation
+ *    factor (1 - delta_chip); mean = 1 - 1/(4*spc).
+ */
+/* Intra-segment rotation range: the residual u = f*code_bins spans the
+ * TIGHTER of the searched band (sb bins of width 2*span/D) and the
+ * doppler_uncertainty prior itself — _searched_bins rounds the bin count
+ * up (and clamps at D >= sb >= 1), so sb/D alone over-states the range
+ * whenever the prior is tighter than the grid, structurally so at D == 1
+ * where sb is pinned to 1 (up to ~1.2 dB of phantom loss otherwise). */
+static double
+_intra_umax (size_t D, size_t sb, double du, double span)
+{
+  double frac = (du > 0.0 && du < span) ? du / span : 1.0;
+  double grid = (double)sb / (double)D;
+  return 0.5 * (frac < grid ? frac : grid);
+}
+
+static double
+_straddle_loss (size_t D, size_t sb, size_t spc, double du, double span)
+{
+  double l_scallop = (D > 1) ? _mean_sinc (0.5) : 1.0;
+  double l_intra   = _mean_sinc (_intra_umax (D, sb, du, span));
+  double l_code    = 1.0 - 1.0 / (4.0 * (double)spc);
+  return l_scallop * l_intra * l_code;
+}
+
+static double
+_sinc (double u)
+{
+  return (u == 0.0) ? 1.0 : sin (M_PI * u) / (M_PI * u);
+}
+
+/* Average Pd over the straddle priors — Pd(snr) is concave over the loss
+ * range, so Pd at the MEAN amplitude overstates the mean Pd (Jensen; ~0.11
+ * at a marginal design point). Midpoint quadrature over the three
+ * independent uniform factors (8 x 8 x 4 = 256 det_pd evaluations, setup
+ * path only; each factor is symmetric, so half-ranges suffice). nc == 1
+ * evaluates the coherent path, nc > 1 the non-coherent one. */
+static double
+_mean_pd (double snr, size_t D, double umax, size_t spc, int n, double eta,
+          int nc)
+{
+  const int nd = 8, nu = 8, nk = 4;
+  double    acc = 0.0;
+  for (int i = 0; i < nd; i++)
+    {
+      double ls = (D > 1) ? _sinc (0.5 * ((double)i + 0.5) / (double)nd) : 1.0;
+      for (int j = 0; j < nu; j++)
+        {
+          double li = _sinc (umax * ((double)j + 0.5) / (double)nu);
+          for (int k = 0; k < nk; k++)
+            {
+              double lc
+                  = 1.0 - (0.5 / (double)spc) * ((double)k + 0.5) / (double)nk;
+              double se = snr * ls * li * lc;
+              acc += (nc > 1) ? det_pd_noncoherent (se, n, nc, eta)
+                              : det_pd (se, n, eta);
+            }
+        }
+    }
+  return acc / (double)(nd * nu * nk);
+}
+
 /* Size the search grid from the physics.  Picks the smallest coherent depth
  * doppler_bins in [1, reps] whose doppler_bins*code_bins coherent samples meet
  * Pd at the (doppler_uncertainty-shrunk) Bonferroni threshold; if the full
@@ -131,16 +228,21 @@ _auto_config (acq_state_t *st, double pfa, double pd, double snr, double du)
   const size_t cb   = st->code_bins;
   const double span = st->doppler_span_hz;
 
-  /* Smallest coherent depth D meeting Pd (minimum latency for strong signals);
-   * Bonferroni uses only the cells actually scanned at that depth. */
+  /* Smallest coherent depth D meeting Pd (minimum latency for strong
+   * signals); Bonferroni uses only the cells actually scanned at that
+   * depth.  Sizing and prediction both use the straddle-derated SNR: the
+   * on-grid best case would under-size the search (real Pd, averaged over
+   * random Doppler/code phase, would miss the target — the gap the
+   * Monte-Carlo characterization measures). */
   size_t best_d    = st->reps;
   int    coh_meets = 0;
   for (size_t D = 1; D <= st->reps; D++)
     {
-      size_t sb  = _searched_bins (D, du, span);
-      double pc  = 1.0 - pow (1.0 - pfa, 1.0 / (double)(sb * cb));
-      double eta = det_threshold (pc);
-      if (det_pd (snr, (int)(D * cb), eta) >= pd)
+      size_t sb   = _searched_bins (D, du, span);
+      double umax = _intra_umax (D, sb, du, span);
+      double pc   = 1.0 - pow (1.0 - pfa, 1.0 / (double)(sb * cb));
+      double eta  = det_threshold (pc);
+      if (_mean_pd (snr, D, umax, st->spc, (int)(D * cb), eta, 1) >= pd)
         {
           best_d    = D;
           coh_meets = 1;
@@ -154,15 +256,30 @@ _auto_config (acq_state_t *st, double pfa, double pd, double snr, double du)
   st->doppler_res_hz = st->chip_rate / ((double)st->sf * (double)best_d);
   st->pfa_cell = 1.0 - pow (1.0 - pfa, 1.0 / (double)(st->searched_bins * cb));
   st->eta      = (float)det_threshold (st->pfa_cell);
+  double umax_best = _intra_umax (best_d, st->searched_bins, du, span);
+  st->straddle_loss
+      = _straddle_loss (best_d, st->searched_bins, st->spc, du, span);
 
-  /* Non-coherent looks only if the coherent ceiling fell short and the caller
-   * raised the cap above 1 (best effort if even max_noncoh is infeasible). */
+  /* Non-coherent looks only if the coherent ceiling fell short and the
+   * caller raised the cap above 1 (best effort if even max_noncoh is
+   * infeasible). det_n_noncoh sizes at the mean straddle amplitude — a
+   * fast initializer that Jensen makes slightly optimistic — then the
+   * count escalates until the AVERAGED Pd meets the target. */
   size_t nc = 1;
   if (!coh_meets && st->max_noncoh > 1)
     {
-      int k = det_n_noncoh (snr, (int)st->n, pd, st->pfa_cell,
-                            (int)st->max_noncoh);
+      int k = det_n_noncoh (snr * st->straddle_loss, (int)st->n, pd,
+                            st->pfa_cell, (int)st->max_noncoh);
       nc    = (k > 0) ? (size_t)k : st->max_noncoh;
+      while (nc < st->max_noncoh)
+        {
+          double e = det_threshold_noncoherent (st->pfa_cell, (int)nc);
+          if (_mean_pd (snr, best_d, umax_best, st->spc, (int)st->n, e,
+                        (int)nc)
+              >= pd)
+            break;
+          nc++;
+        }
     }
   st->n_noncoh = nc;
 
@@ -171,13 +288,15 @@ _auto_config (acq_state_t *st, double pfa, double pd, double snr, double du)
       double e      = det_threshold_noncoherent (st->pfa_cell, (int)nc);
       st->eta_nc    = (float)e;
       st->threshold = 0.0f; /* coherent gate unused on the non-coherent path */
-      st->pd_predicted = det_pd_noncoherent (snr, (int)st->n, (int)nc, e);
+      st->pd_predicted
+          = _mean_pd (snr, best_d, umax_best, st->spc, (int)st->n, e, (int)nc);
     }
   else
     {
-      st->eta_nc       = 0.0f;
-      st->threshold    = st->eta * ACQ_SQRT_2_OVER_PI;
-      st->pd_predicted = det_pd (snr, (int)st->n, st->eta);
+      st->eta_nc    = 0.0f;
+      st->threshold = st->eta * ACQ_SQRT_2_OVER_PI;
+      st->pd_predicted
+          = _mean_pd (snr, best_d, umax_best, st->spc, (int)st->n, st->eta, 1);
     }
 
   st->underpowered = (uint8_t)(st->pd_predicted < pd);

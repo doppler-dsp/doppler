@@ -244,6 +244,30 @@ main (void)
     CHECK (CLOSE (det_verify_delay (0.5, 0), 2.0, 1e-12));
   }
 
+  /* ── det_threshold_f ─────────────────────────────────────────────── */
+  {
+    /* Exact special cases: F(2,2) tail is 1/(1+g), so the quantile is
+     * (1-pfa)/pfa; F(4,4) reduces to the cubic I_x(2,2) = x^2(3-2x). */
+    CHECK (CLOSE (det_threshold_f (1e-3, 2), 999.0, 1e-6));
+    CHECK (CLOSE (det_threshold_f (1e-3, 4), 53.4358291, 1e-4));
+    CHECK (CLOSE (det_threshold_f (1e-3, 16), 5.2048, 5e-4));
+    CHECK (CLOSE (det_threshold_f (1e-3, 64), 2.1931, 5e-4));
+
+    /* Monotone: more DOF hardens the estimate (smaller quantile); a
+     * looser pfa lowers the gate. */
+    CHECK (det_threshold_f (1e-3, 8) > det_threshold_f (1e-3, 9));
+    CHECK (det_threshold_f (1e-2, 16) < det_threshold_f (1e-3, 16));
+
+    /* Odd n is first-class (no even-n restriction). */
+    double g15 = det_threshold_f (1e-3, 15), g16 = det_threshold_f (1e-3, 16);
+    CHECK (g15 > g16 && g16 > 1.0);
+
+    /* Invalid inputs fail closed. */
+    CHECK (det_threshold_f (0.0, 16) == 0.0);
+    CHECK (det_threshold_f (1.0, 16) == 0.0);
+    CHECK (det_threshold_f (1e-3, 0) == 0.0);
+  }
+
   if (_fails)
     {
       fprintf (stderr, "test_detection_core FAILED (%d)\n", _fails);

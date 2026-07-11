@@ -64,4 +64,45 @@ The despreader is seeded by acquisition and is transport-agnostic: its cf32
 symbol output chains over the `stream` module's `dp_header_t` framing like any
 other DSP block.
 
+## Verifying the handoff — bounded-time accept/reject
+
+Acquisition at `pfa` over many dwells *will* occasionally hand the tracker
+a false `(Doppler, code phase)` cell. The continuous `Despreader` closes
+the loop: its embedded DLL runs a verify-counted CFAR lock detector, so a
+handoff is accepted or rejected inside a window **derived from detection
+theory** — no tuned timeout:
+
+```python
+import numpy as np
+
+from doppler.detection import det_verify_delay
+from doppler.dsss import Despreader
+
+rng = np.random.default_rng(11)
+code = rng.integers(0, 2, 127).astype(np.uint8)
+
+# The DLL's default lock rule: pfa = 1e-3 decisions over n_looks = 20
+# periods, n_up = 2 consecutive to declare. The verify window prices the
+# mean declare latency at the operating pd, with margin for pull-in:
+n_up, n_looks = 2, 20
+window = int(4 * n_looks * det_verify_delay(0.99, n_up))  # periods
+
+# A FALSE cell hands over garbage — no signal at this phase. Inside the
+# window the compounded false-accept probability is
+# ~ (window / n_looks) * (1e-3)**n_up ~ 1e-5, so a timeout IS the reject:
+noise = (
+    rng.normal(0, 1, 127 * 4 * window)
+    + 1j * rng.normal(0, 1, 127 * 4 * window)
+).astype(np.complex64)
+ch = Despreader(code, 4)
+ch.steps(noise)
+assert ch.code_locked is False  # reject: tear down, back to acquisition
+```
+
+A true cell declares `code_locked` within the same window (mean latency
+`det_verify_delay(pd, n_up)` decisions), and the carrier side reports
+independently through `carrier_locked`. Every constant in the policy —
+threshold, verify counts, window — traces back to `(pfa, pd)` budgets via
+the [detection helpers](../api/python-detection.md#lock-verification).
+
 Source: `src/doppler/examples/dsss_despread_demo.py`.

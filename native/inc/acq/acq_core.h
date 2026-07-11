@@ -125,7 +125,18 @@ extern "C"
     float  eta_nc;    /**< Non-coherent CFAR threshold (order-N_nc Marcum).  */
     double pfa_cell;  /**< Bonferroni per-cell false-alarm probability.     */
     double pd;        /**< Target detection probability.                    */
-    double pd_predicted;  /**< Predicted Pd at cn0_dbhz and the chosen grid.  */
+    double pd_predicted;  /**< Predicted Pd at cn0_dbhz and the chosen
+                               grid: the AVERAGE Pd over the straddle
+                               priors (slow-time scalloping, intra-segment
+                               rotation, code sample offset — quadrature
+                               over uniform priors), not the on-grid best
+                               case, and not Pd at the mean amplitude
+                               (which Jensen makes optimistic). */
+    double straddle_loss; /**< Mean AMPLITUDE derating from grid straddle —
+                               a diagnostic summary (~20*log10 of it in dB);
+                               sizing and pd_predicted average Pd itself
+                               over the priors. Derived config, recomputed
+                               by create(). */
     uint8_t underpowered; /**< 1 when pd_predicted < pd. */
 
     uint64_t

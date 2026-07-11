@@ -31,6 +31,10 @@ burst_despreader_seed (burst_despreader_state_t *s)
   s->acc_e = s->acc_p = s->acc_l = 0.0f;
   s->lock_metric                 = 0.0;
   s->snr_est                     = 0.0;
+  s->sum_lock                    = 0.0;
+  s->sum_re2                     = 0.0;
+  s->sum_im2                     = 0.0;
+  s->stat_n                      = 0;
   s->preamble_left = s->acq_reps; /* re-arm preamble-aided pull-in */
 }
 
@@ -230,11 +234,30 @@ despread_run (burst_despreader_state_t *s, const float complex *x,
           = s->lf_car.integ / (double)cur_tsamps; /* per-symbol -> /sample */
       s->car_phase += s->lf_car.kp * e_cos;       /* phase nudge (rad) */
 
-      /* Status read-backs (EMA). */
-      double inst_lock = (double)fabsf (reP) / (double)aP;
-      s->lock_metric += 0.1 * (inst_lock - s->lock_metric);
-      double inst_snr = (double)(reP * reP) / ((double)(imP * imP) + 1e-12);
-      s->snr_est += 0.1 * (inst_snr - s->snr_est);
+      /* Status read-backs — cumulative over the burst, not EMA: a burst
+       * is one-shot, and a fixed-alpha smoother is warmup-dominated for
+       * its entire length (alpha = 0.1 is a ~19-symbol memory). Cumulative
+       * sums weight every prompt equally and feed the calibrated
+       * whole-burst lock statistic (burst_despreader_get_lock_stat).
+       * PAYLOAD prompts only: a preamble prompt integrates a different
+       * code length (acq_sf vs sf — mixed variance scales would break
+       * both the F(n,n) H0 law and the SNR calibration) and carries
+       * pull-in transients that bias snr_est low. */
+      if (!preamble)
+        {
+          double inst_lock = (double)fabsf (reP) / (double)aP;
+          s->sum_lock += inst_lock;
+          s->sum_re2 += (double)reP * (double)reP;
+          s->sum_im2 += (double)imP * (double)imP;
+          s->stat_n++;
+          s->lock_metric = s->sum_lock / (double)s->stat_n;
+          /* Accumulate-then-ratio SNR: E[Re^2] = A^2 + sigma^2, E[Im^2]
+           * = sigma^2, so (sum Re^2 - sum Im^2)/sum Im^2 estimates
+           * A^2/sigma^2 directly; clamp noise-only negative excursions. */
+          double diff = s->sum_re2 - s->sum_im2;
+          s->snr_est
+              = (diff > 0.0 && s->sum_im2 > 0.0) ? diff / s->sum_im2 : 0.0;
+        }
 
       s->acc_e = s->acc_p = s->acc_l = 0.0f;
 
@@ -332,4 +355,18 @@ double
 burst_despreader_get_snr_est (const burst_despreader_state_t *s)
 {
   return s->snr_est;
+}
+
+double
+burst_despreader_get_lock_stat (const burst_despreader_state_t *s)
+{
+  if (s->stat_n == 0 || s->sum_im2 <= 0.0)
+    return 0.0;
+  return sqrt ((double)s->stat_n * s->sum_re2 / s->sum_im2);
+}
+
+size_t
+burst_despreader_get_stat_n (const burst_despreader_state_t *s)
+{
+  return s->stat_n;
 }

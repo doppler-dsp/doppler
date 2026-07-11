@@ -19,11 +19,13 @@ typedef struct
   void         **_steps_retired; /* gh-219 deferred free */
   size_t         _steps_retired_n;
   size_t         _steps_retired_cap;
-  uint8_t       *_bits_buf;     /* pre-allocated output for bits */
-  size_t         _bits_buf_cap; /* allocated capacity for bits */
-  void         **_bits_retired; /* gh-219 deferred free */
+  PyObject      *_steps_view_ref; /* gh-437 last returned view */
+  uint8_t       *_bits_buf;       /* pre-allocated output for bits */
+  size_t         _bits_buf_cap;   /* allocated capacity for bits */
+  void         **_bits_retired;   /* gh-219 deferred free */
   size_t         _bits_retired_n;
   size_t         _bits_retired_cap;
+  PyObject      *_bits_view_ref; /* gh-437 last returned view */
 } BurstDespreaderObject;
 
 static void
@@ -35,10 +37,12 @@ BurstDespreaderObj_dealloc (BurstDespreaderObject *self)
   for (size_t _i = 0; _i < self->_steps_retired_n; _i++)
     free (self->_steps_retired[_i]);
   free (self->_steps_retired);
+  Py_XDECREF (self->_steps_view_ref);
   free (self->_bits_buf);
   for (size_t _i = 0; _i < self->_bits_retired_n; _i++)
     free (self->_bits_retired[_i]);
   free (self->_bits_retired);
+  Py_XDECREF (self->_bits_view_ref);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -197,8 +201,22 @@ BurstDespreaderObj_steps (BurstDespreaderObject *self, PyObject *args,
       PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
       return _oview;
     }
-  size_t _need = (size_t)PyArray_SIZE (x_arr);
-  if (!self->_steps_buf || self->_steps_buf_cap < _need)
+  size_t _need      = (size_t)PyArray_SIZE (x_arr);
+  int    _view_live = 0;
+  if (self->_steps_view_ref)
+    {
+#if PY_VERSION_HEX >= 0x030D0000
+      PyObject *_lv = NULL;
+      if (PyWeakref_GetRef (self->_steps_view_ref, &_lv) == 1)
+        {
+          Py_DECREF (_lv);
+          _view_live = 1;
+        }
+#else
+      _view_live = PyWeakref_GetObject (self->_steps_view_ref) != Py_None;
+#endif
+    }
+  if (!self->_steps_buf || self->_steps_buf_cap < _need || _view_live)
     {
       size_t _max = burst_despreader_steps_max_out (self->handle);
       if (!_max || _max < _need)
@@ -248,6 +266,15 @@ BurstDespreaderObj_steps (BurstDespreaderObject *self, PyObject *args,
     return NULL;
   PyArray_SetBaseObject ((PyArrayObject *)arr, (PyObject *)self);
   Py_INCREF (self);
+  /* gh-437: remember this view — while the caller holds it the next
+   * call retires the buffer instead of reusing it in place. */
+  Py_XDECREF (self->_steps_view_ref);
+  self->_steps_view_ref = PyWeakref_NewRef (arr, NULL);
+  if (!self->_steps_view_ref)
+    {
+      Py_DECREF (arr);
+      return NULL;
+    }
   Py_DECREF (x_arr);
   return arr;
 }
@@ -329,8 +356,22 @@ BurstDespreaderObj_bits (BurstDespreaderObject *self, PyObject *args,
       PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
       return _oview;
     }
-  size_t _need = (size_t)PyArray_SIZE (x_arr);
-  if (!self->_bits_buf || self->_bits_buf_cap < _need)
+  size_t _need      = (size_t)PyArray_SIZE (x_arr);
+  int    _view_live = 0;
+  if (self->_bits_view_ref)
+    {
+#if PY_VERSION_HEX >= 0x030D0000
+      PyObject *_lv = NULL;
+      if (PyWeakref_GetRef (self->_bits_view_ref, &_lv) == 1)
+        {
+          Py_DECREF (_lv);
+          _view_live = 1;
+        }
+#else
+      _view_live = PyWeakref_GetObject (self->_bits_view_ref) != Py_None;
+#endif
+    }
+  if (!self->_bits_buf || self->_bits_buf_cap < _need || _view_live)
     {
       size_t _max = burst_despreader_bits_max_out (self->handle);
       if (!_max || _max < _need)
@@ -379,6 +420,15 @@ BurstDespreaderObj_bits (BurstDespreaderObject *self, PyObject *args,
     return NULL;
   PyArray_SetBaseObject ((PyArrayObject *)arr, (PyObject *)self);
   Py_INCREF (self);
+  /* gh-437: remember this view — while the caller holds it the next
+   * call retires the buffer instead of reusing it in place. */
+  Py_XDECREF (self->_bits_view_ref);
+  self->_bits_view_ref = PyWeakref_NewRef (arr, NULL);
+  if (!self->_bits_view_ref)
+    {
+      Py_DECREF (arr);
+      return NULL;
+    }
   Py_DECREF (x_arr);
   return arr;
 }
@@ -597,6 +647,31 @@ BurstDespreader_getprop_snr_est (BurstDespreaderObject *self,
   /* <<IMPLEMENT: return the computed or stored value>> */
   return PyFloat_FromDouble (burst_despreader_get_snr_est (self->handle));
 }
+static PyObject *
+BurstDespreader_getprop_lock_stat (BurstDespreaderObject *self,
+                                   void                  *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  /* <<IMPLEMENT: return the computed or stored value>> */
+  return PyFloat_FromDouble (burst_despreader_get_lock_stat (self->handle));
+}
+static PyObject *
+BurstDespreader_getprop_stat_n (BurstDespreaderObject *self,
+                                void                  *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  /* <<IMPLEMENT: return the computed or stored value>> */
+  return PyLong_FromUnsignedLongLong (
+      (unsigned long long)burst_despreader_get_stat_n (self->handle));
+}
 
 static PyGetSetDef BurstDespreader_getset[] = {
   { "bn_carrier", (getter)BurstDespreader_getprop_bn_carrier,
@@ -613,11 +688,26 @@ static PyGetSetDef BurstDespreader_getset[] = {
   { "code_phase", (getter)BurstDespreader_getprop_code_phase, NULL,
     "Current tracked code phase within the symbol, chips.\n", NULL },
   { "lock_metric", (getter)BurstDespreader_getprop_lock_metric, NULL,
-    "Lock indicator in [0,1] (EMA of |Re prompt|/|prompt|; ~1 = locked).\n",
+    "Lock indicator in [0,1]: the mean of |Re prompt|/|prompt| over every "
+    "prompt of the burst (cumulative, not EMA). ~1 when phase-locked; ~2/pi "
+    "(0.637) with no carrier.\n",
     NULL },
   { "snr_est", (getter)BurstDespreader_getprop_snr_est, NULL,
-    "Post-despread SNR estimate (EMA of (Re prompt)^2 / (Im prompt)^2).\n",
+    "Post-despread SNR estimate over the burst, accumulate-then-ratio: (sum "
+    "Re^2 - sum Im^2)/sum Im^2, clamped >= 0. This is the effective post-loop "
+    "SNR (residual tracking jitter included) - the quantity that predicts "
+    "demodulation performance; it converges to the AWGN-only A^2/sigma^2 as "
+    "the loop bandwidths shrink.\n",
     NULL },
+  { "lock_stat", (getter)BurstDespreader_getprop_lock_stat, NULL,
+    "Calibrated whole-burst lock statistic R = sqrt(stat_n * sum Re^2 / sum "
+    "Im^2) — the one-shot analog of the tracking loops' verify-counted "
+    "detectors, in the same family as the DLL/acquisition CFAR tests. Gate "
+    "with R > det_threshold_noncoherent(pfa, stat_n // 2); approximations are "
+    "mild for stat_n >= 16.\n",
+    NULL },
+  { "stat_n", (getter)BurstDespreader_getprop_stat_n, NULL,
+    "Number of prompts folded into the burst statistics so far.\n", NULL },
   { NULL }
 };
 
@@ -664,8 +754,7 @@ static PyMethodDef BurstDespreaderObj_methods[] = {
     "    >>> import numpy as np\n"
     "    >>> from doppler import BurstDespreader\n"
     "    >>> obj = BurstDespreader(np.zeros(1, dtype=np.uint8), 1, 2, 0.0, "
-    "0.0, "
-    "0.05, 0.01)\n"
+    "0.0, 0.05, 0.01)\n"
     "    >>> y = obj.steps(np.zeros(4))\n"
     "    >>> y.dtype\n"
     "    dtype('complex64')\n" },
@@ -681,8 +770,7 @@ static PyMethodDef BurstDespreaderObj_methods[] = {
     "    >>> import numpy as np\n"
     "    >>> from doppler import BurstDespreader\n"
     "    >>> obj = BurstDespreader(np.zeros(1, dtype=np.uint8), 1, 2, 0.0, "
-    "0.0, "
-    "0.05, 0.01)\n"
+    "0.0, 0.05, 0.01)\n"
     "    >>> y = obj.bits(np.zeros(4))\n"
     "    >>> y.dtype\n"
     "    dtype('uint8')\n" },
@@ -700,8 +788,7 @@ static PyMethodDef BurstDespreaderObj_methods[] = {
     "    >>> import numpy as np\n"
     "    >>> from doppler import BurstDespreader\n"
     "    >>> obj = BurstDespreader(np.zeros(1, dtype=np.uint8), 1, 2, 0.0, "
-    "0.0, "
-    "0.05, 0.01)\n"
+    "0.0, 0.05, 0.01)\n"
     "    >>> obj.set_acq(np.zeros(4, dtype=np.uint8), 0)\n" },
   { "reset", (PyCFunction)BurstDespreaderObj_reset, METH_NOARGS,
     "reset() -> None\n"
@@ -710,8 +797,7 @@ static PyMethodDef BurstDespreaderObj_methods[] = {
     "\n"
     "    >>> from doppler import BurstDespreader\n"
     "    >>> obj = BurstDespreader(np.zeros(1, dtype=np.uint8), 1, 2, 0.0, "
-    "0.0, "
-    "0.05, 0.01)\n"
+    "0.0, 0.05, 0.01)\n"
     "    >>> obj.reset()\n" },
   { "state_bytes", (PyCFunction)BurstDespreaderObj_state_bytes, METH_NOARGS,
     "Serialized state size in bytes." },

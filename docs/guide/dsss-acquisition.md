@@ -34,10 +34,13 @@ This is the usage walk-through. For the matched-filter surface it builds on, see
         reps=16,               # up to 16 coherent code repetitions
         spc=4,                 # samples per chip (fs = chip_rate · spc)
         chip_rate=1.023e6,     # Hz
-        cn0_dbhz=48,           # sensitivity (carrier-to-noise density, dB-Hz)
+        cn0_dbhz=52,           # sensitivity (carrier-to-noise density, dB-Hz)
         pfa=1e-3, pd=0.9,      # target false-alarm / detection rates
     )
     # The engine sized the grid: doppler_bins=12, code_bins=124, res≈2750 Hz.
+    # Sizing is honest: pd_predicted is the AVERAGE Pd over the straddle
+    # priors (random Doppler / code phase across the grid), not the
+    # on-grid best case — see acq.straddle_loss for the mean derating.
     assert acq.pd_predicted >= acq.pd          # confirm it can meet the target
 
     # demo capture: a real 31-chip DSSS burst in light noise, split into
@@ -147,7 +150,8 @@ for D in 1 .. reps:
     cells     = searched_bins(D) · code_bins      # Bonferroni population
     pfa_cell  = 1 - (1 - pfa)**(1/cells)
     eta       = det_threshold(pfa_cell)           # √(-2 ln pfa_cell)
-    if det_pd(snr, D·code_bins, eta) ≥ pd: break  # accept this depth
+    if mean_pd(snr, D, eta) ≥ pd: break  # Pd AVERAGED over the straddle
+                                         # priors (quadrature), not on-grid
 doppler_bins = D
 threshold    = eta · √(2/π)                        # eta in mean-CFAR units
 ```
@@ -155,7 +159,7 @@ threshold    = eta · √(2/π)                        # eta in mean-CFAR units
 The chosen grid is exposed as **read-only** properties:
 
 ```python
-acq = Acquisition(code, reps=16, spc=4, chip_rate=1.023e6, cn0_dbhz=48,
+acq = Acquisition(code, reps=16, spc=4, chip_rate=1.023e6, cn0_dbhz=52,
                   pfa=1e-3, pd=0.9)
 
 acq.doppler_bins, acq.code_bins   # 12, 124   — the grid the engine chose
@@ -188,11 +192,16 @@ to engage non-coherent integration.
 dB-Hz, independent of sample rate. A stronger `cn0_dbhz` lets the engine reach
 `pd` with fewer repetitions (lower latency, coarser Doppler):
 
+Depths are sized at the **average Pd over the straddle priors** (random
+Doppler and code phase across the grid — see `acq.straddle_loss` for the
+mean amplitude derating), so the engine buys enough integration to meet
+`pd` in operation, not just on-grid:
+
 | `cn0_dbhz` | chosen `doppler_bins` (reps=16) | `pd_predicted` |
 | ---------- | ------------------------------- | -------------- |
-| 54         | 3                               | 0.96           |
-| 50         | 7                               | 0.92           |
-| 48         | 12                              | 0.94           |
+| 56         | 5                               | 0.94           |
+| 54         | 7                               | 0.91           |
+| 52         | 12                              | 0.92           |
 
 `noise_mode` selects the CFAR estimator (`"mean"` by default, which is what the
 analytic `threshold` assumes; `"median"` is more robust but is not analytically
@@ -277,7 +286,7 @@ default. The smallest robust call is:
 acq = Acquisition(
     code,                 # the PN replica; sf = len(code) is inferred
     chip_rate=1.023e6,    # waveform chip rate (Hz)
-    cn0_dbhz=60,          # your link-budget sensitivity (dB-Hz)
+    cn0_dbhz=61,          # your link-budget sensitivity (dB-Hz)
 )
 assert acq.pd_predicted >= acq.pd   # confirm the search can meet the target
 ```

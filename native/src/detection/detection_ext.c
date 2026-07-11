@@ -137,6 +137,19 @@ _bind_det_verify_delay(PyObject *self, PyObject *args, PyObject *kwds)
 }
 
 static PyObject *
+_bind_det_threshold_f(PyObject *self, PyObject *args, PyObject *kwds)
+{
+    (void)self;
+    static char *_kwlist[] = {"pfa", "n", NULL};
+    double pfa = 0.0;
+    int n = 0;
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "di",
+            _kwlist, &pfa, &n))
+        return NULL;
+    return PyFloat_FromDouble(det_threshold_f(pfa, n));
+}
+
+static PyObject *
 _bind_det_pd_noncoherent(PyObject *self, PyObject *args, PyObject *kwds)
 {
     (void)self;
@@ -237,6 +250,7 @@ static PyMethodDef detection_module_methods[] = {
     {"det_ema_alpha", (PyCFunction)(void *)_bind_det_ema_alpha, METH_VARARGS | METH_KEYWORDS, "det_ema_alpha."},
     {"det_verify_count", (PyCFunction)(void *)_bind_det_verify_count, METH_VARARGS | METH_KEYWORDS, "det_verify_count."},
     {"det_verify_delay", (PyCFunction)(void *)_bind_det_verify_delay, METH_VARARGS | METH_KEYWORDS, "det_verify_delay."},
+    {"det_threshold_f", (PyCFunction)(void *)_bind_det_threshold_f, METH_VARARGS | METH_KEYWORDS, "det_threshold_f."},
     {"det_pd_noncoherent", (PyCFunction)(void *)_bind_det_pd_noncoherent, METH_VARARGS | METH_KEYWORDS, "det_pd_noncoherent."},
     {"det_n_noncoh", (PyCFunction)(void *)_bind_det_n_noncoh, METH_VARARGS | METH_KEYWORDS, "det_n_noncoh."},
     {"det_threshold_power", (PyCFunction)(void *)_bind_det_threshold_power, METH_VARARGS | METH_KEYWORDS, "det_threshold_power."},

@@ -97,7 +97,19 @@ type = "double"
 [[burst_despreader.properties]]
 name = "lock_metric"
 type = "double"
+doc = "Lock indicator in [0,1]: the mean of |Re prompt|/|prompt| over every prompt of the burst (cumulative, not EMA). ~1 when phase-locked; ~2/pi (0.637) with no carrier."
 
 [[burst_despreader.properties]]
 name = "snr_est"
 type = "double"
+doc = "Post-despread SNR estimate over the burst, accumulate-then-ratio: (sum Re^2 - sum Im^2)/sum Im^2, clamped >= 0. This is the effective post-loop SNR (residual tracking jitter included) - the quantity that predicts demodulation performance; it converges to the AWGN-only A^2/sigma^2 as the loop bandwidths shrink."
+
+[[burst_despreader.properties]]
+name = "lock_stat"
+type = "double"
+doc = "Calibrated whole-burst lock statistic R = sqrt(stat_n * sum Re^2 / sum Im^2) — the one-shot analog of the tracking loops' verify-counted detectors. Because the noise reference is estimated from as many samples as the signal sum, the exact H0 law is R^2 = stat_n * F(stat_n, stat_n): gate with R > sqrt(stat_n * det_threshold_f(pfa, stat_n)) — exact for every stat_n (a chi-square gate would realize tens of times the priced pfa). Payload prompts only; reset() re-arms."
+
+[[burst_despreader.properties]]
+name = "stat_n"
+type = "size_t"
+doc = "Number of prompts folded into the burst statistics so far."

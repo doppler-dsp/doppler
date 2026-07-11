@@ -58,9 +58,15 @@ typedef struct
   float complex acc_p;     /**< prompt correlator accumulator.        */
   float complex acc_l;     /**< late correlator accumulator.          */
 
-  /* ── status read-backs ── */
-  double lock_metric; /**< EMA of |Re P|/|P|, ~1 when phase-locked.   */
-  double snr_est;     /**< EMA SNR estimate from the prompt symbols.  */
+  /* ── status read-backs: cumulative over the burst (reset re-arms) ── */
+  double lock_metric; /**< mean of |Re P|/|P| over the burst (~1 locked,
+                           ~2/pi with no carrier).                     */
+  double snr_est;     /**< accumulate-then-ratio post-despread SNR:
+                           (sum Re^2 - sum Im^2)/sum Im^2, clamped >= 0. */
+  double sum_lock;    /**< running sum of |Re P|/|P|.                  */
+  double sum_re2;     /**< running sum of Re(P)^2.                     */
+  double sum_im2;     /**< running sum of Im(P)^2.                     */
+  size_t stat_n;      /**< prompts folded into the burst statistics.   */
 } burst_despreader_state_t;
 
 /**
@@ -89,6 +95,9 @@ burst_despreader_state_t *burst_despreader_create(const uint8_t *code, size_t co
  * pull in even a wide residual) before switching to the data code for the
  * payload. Call before feeding the burst; the acq mode clears automatically
  * once the preamble is consumed, and re-arms on burst_despreader_reset().
+ * NB: set_acq re-arms the PREAMBLE only — the cumulative burst statistics
+ * (lock_metric / snr_est / lock_stat / stat_n) are re-armed by
+ * burst_despreader_reset(); call it between bursts.
  *
  * @param state         Must be non-NULL.
  * @param acq_code      Acquisition code (0/1), length acq_code_len; copied.
@@ -184,15 +193,66 @@ double burst_despreader_get_norm_freq (const burst_despreader_state_t *state);
 void burst_despreader_set_norm_freq (burst_despreader_state_t *state, double val);
 /** @brief Current tracked code phase within the symbol, chips. */
 double burst_despreader_get_code_phase (const burst_despreader_state_t *state);
-/** @brief Lock indicator in [0,1] (EMA of |Re prompt|/|prompt|; ~1 = locked). */
+/** @brief Lock indicator in [0,1]: the mean of |Re prompt|/|prompt| over
+ *          every prompt of the burst (cumulative, not EMA — a one-shot
+ *          burst gives each prompt equal weight instead of spending the
+ *          whole burst warming a smoother up). ~1 when phase-locked;
+ *          ~2/pi (0.637) with no carrier (|cos theta|, uniform theta). */
 double burst_despreader_get_lock_metric (const burst_despreader_state_t *state);
-/** @brief Post-despread SNR estimate (EMA of (Re prompt)^2 / (Im prompt)^2). */
+/** @brief Post-despread SNR estimate over the burst, accumulate-then-ratio:
+ *          (sum Re^2 - sum Im^2) / sum Im^2, clamped >= 0.  For BPSK the
+ *          signal lives in Re and the noise splits evenly, so this estimates
+ *          A^2/sigma^2 (per-component) directly — unlike a per-symbol
+ *          Re^2/Im^2 ratio, whose heavy-tailed reciprocal chi-square makes
+ *          the estimate biased high with enormous variance.  This is the
+ *          EFFECTIVE post-loop SNR: residual tracking-loop phase jitter
+ *          rotates signal energy into Im, so the estimate sits below the
+ *          AWGN-only value by the jitter term (converging as bn -> 0) —
+ *          the quantity that actually predicts demodulation performance. */
 double burst_despreader_get_snr_est (const burst_despreader_state_t *state);
+
+/**
+ * @brief Calibrated whole-burst lock statistic (the one-shot analog of the
+ *        tracking loops' verify-counted detectors).
+ *
+ * R = sqrt(stat_n * sum Re^2 / sum Im^2): the burst's coherent (in-phase)
+ * energy normalised by the noise power estimated from the quadrature arm.
+ * Because the noise reference is estimated from the SAME number of samples
+ * as the signal sum, the exact H0 law is R^2 = stat_n * F(stat_n, stat_n)
+ * — NOT chi-square (a chi-square gate assumes a known noise power and
+ * realizes tens of times the priced pfa here).  The closed-form gate is
+ *
+ *   locked_burst = R > sqrt(stat_n * det_threshold_f(pfa, stat_n))
+ *
+ * exact for every stat_n (odd included).  Only payload prompts fold into
+ * the statistics — preamble prompts (different code length, pull-in
+ * transients) are excluded so the H0 law and the SNR calibration hold.
+ * Returns 0 before any payload prompt has been folded.
+ *
+ * @code
+ * >>> import numpy as np
+ * >>> from doppler.dsss import BurstDespreader
+ * >>> from doppler.detection import det_threshold_f
+ * >>> code = (np.arange(31) % 2).astype(np.uint8)
+ * >>> b = BurstDespreader(code=code, sf=31, sps=2)
+ * >>> chips = 1.0 - 2.0 * (code % 2)
+ * >>> x = np.tile(np.repeat(chips, 2), 64).astype(np.complex64)
+ * >>> _ = b.steps(x)
+ * >>> eta = np.sqrt(b.stat_n * det_threshold_f(1e-3, b.stat_n))
+ * >>> bool(b.lock_stat > eta)   # a clean burst passes the pfa=1e-3 gate
+ * True
+ *
+ * @endcode
+ */
+double burst_despreader_get_lock_stat (const burst_despreader_state_t *state);
+
+/** @brief Number of prompts folded into the burst statistics so far. */
+size_t burst_despreader_get_stat_n (const burst_despreader_state_t *state);
 /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
  * whole-struct snapshot (loop_filter children POD-embedded);
  * the owned code + acq_code pointers are config, restored by create. */
 #define BURST_DESPREADER_STATE_MAGIC DP_FOURCC ('B','D','S','P')
-#define BURST_DESPREADER_STATE_VERSION 1u
+#define BURST_DESPREADER_STATE_VERSION 2u /* v2: cumulative burst statistics */
 size_t burst_despreader_state_bytes (const burst_despreader_state_t *state);
 void burst_despreader_get_state (const burst_despreader_state_t *state, void *blob);
 int burst_despreader_set_state (burst_despreader_state_t *state, const void *blob);

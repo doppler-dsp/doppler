@@ -1,7 +1,7 @@
 include = ["objects/*.toml"]
 
 [project]
-jm_version = "0.28.1"
+jm_version = "0.28.2"
 name = "doppler"
 version = "0.1.0"
 build = "cmake"
@@ -1355,6 +1355,18 @@ return_type = "double"
 
 [[module.detection.functions.params]]
 name = "p_look"
+type = "double"
+
+[[module.detection.functions.params]]
+name = "n"
+type = "int"
+
+[[module.detection.functions]]
+name = "det_threshold_f"
+return_type = "double"
+
+[[module.detection.functions.params]]
+name = "pfa"
 type = "double"
 
 [[module.detection.functions.params]]

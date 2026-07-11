@@ -167,7 +167,13 @@ doc = "Bonferroni per-cell false-alarm probability over the searched cells."
 name = "pd_predicted"
 type = "double"
 field = true
-doc = "Predicted Pd at cn0_dbhz and the chosen grid."
+doc = "Predicted Pd at cn0_dbhz and the chosen grid: the average Pd over the straddle priors (slow-time scalloping, intra-segment rotation, code-phase sample offset - quadrature over uniform priors), matching what the Monte-Carlo characterization measures rather than the on-grid best case."
+
+[[acq.properties]]
+name = "straddle_loss"
+type = "double"
+field = true
+doc = "Mean amplitude derating of the correlation peak from grid straddle (slow-time Doppler scalloping x intra-segment rotation x code-phase sample offset, each averaged over a uniform prior) - a diagnostic summary; 20*log10(straddle_loss) is the loss in dB. Sizing and pd_predicted average Pd itself over the priors (Pd at this mean amplitude would overstate the mean Pd)."
 
 [[acq.properties]]
 name = "fs"

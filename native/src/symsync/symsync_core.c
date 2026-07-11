@@ -4,33 +4,119 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* Default timing-lock-detector rule (see symsync_configure_lock's header
- * doc). Calibrated by direct Monte-Carlo against the real object (not a
- * numpy stand-in), sweeping both pulse shapes doppler ships (raised-
- * cosine matched-filter and rectangular NRZ/I&D) and 40 independent
- * noise-only seeds at SYMSYNC_LOCK_ALPHA = 0.01:
- *   noise-only lock_metric:  max 0.33, mean 0.07  (40 seeds, 4000 syms)
- *   RC-shaped BPSK, 0 dB SNR (worst signal case tested): 0.52
- *   RC-shaped BPSK, 4-20 dB SNR:                         0.73-0.93
- *   rectangular NRZ, noiseless:                          1.00 (exact)
- * up/down sit with real margin above the noise ceiling and below every
- * signal case tested, including the extreme 0 dB SNR point. A first
- * design (an eye-concentration ratio keyed to the mid-symbol sample)
- * was rejected after calibration surfaced a pulse-shape-dependent sign
- * flip (locked pushed the statistic up for rectangular pulses, down for
- * raised-cosine); a second design (this metric's EMA fed through a
- * 1/(1+x) reciprocal) was rejected after calibration showed Jensen's
- * inequality biases that EMA upward under noise, nearly erasing the
- * H0/H1 gap. This is the third design: EMA the normalized on-time power
- * deviation directly (unbiased), then map through a bounded linear
- * clamp -- see symsync_step_ted()'s lock-metric comment. The slow alpha
- * (vs. Costas's 0.1) is needed because the underlying per-symbol
- * statistic is far heavier-tailed than Costas's bounded phase ratio; the
- * verify counts mirror Costas's declare-fast/drop-reluctant shape. */
-#define SYMSYNC_LOCK_DEFAULT_UP 0.45
-#define SYMSYNC_LOCK_DEFAULT_DOWN 0.40
-#define SYMSYNC_LOCK_DEFAULT_N_UP 8u
-#define SYMSYNC_LOCK_DEFAULT_N_DOWN 32u
+/* Timing-lock statistic and sizing.
+ *
+ * History: two earlier designs (an EMA'd eye-concentration ratio, then
+ * that ratio's EMA fed through a 1/(1+x) reciprocal) were built and
+ * calibrated this same session and both looked wrong under Monte Carlo --
+ * but the miscalibration turned out to be in the *test harness* (a
+ * signal-generator truncation artifact that silenced the last ~30
+ * symbols of every "clean" trial), not the statistics themselves. Once
+ * that bug was found, a doppler user supplied the design actually
+ * shipped here -- a formula they already use operationally -- which is
+ * algebraically the same eye-concentration family (see below) but
+ * block-averaged and sized from a closed-form (pfa, pd) derivation
+ * instead of Monte-Carlo-tuned constants.
+ *
+ * lock_signal = 2*(|on-time|^2 - |mid|^2) / (|on-time|^2 + |mid|^2)
+ *
+ * -- a Gardner-style eye-opening ratio: at correct timing the on-time
+ * sample sits at the eye's peak and the mid-symbol (transition-gate)
+ * sample sits closer to a zero crossing, so lock_signal is positive and
+ * grows with rolloff/Es-N0; under noise or wrong timing it hovers near
+ * zero (confirmed against the real object for both raised-cosine and
+ * rectangular pulses -- no sign flip once the test harness bug was
+ * fixed, unlike what an earlier, buggy measurement this session
+ * suggested).
+ *
+ * Sizing (symsync_configure_lock): a per-look mean is estimated from the
+ * pulse rolloff and the minimum operating Es/N0,
+ *
+ *   mean = (0.6*rolloff+0.26)*(1 - exp(-0.275*10^(esno_min_db/10)))
+ *
+ * and the classic Gaussian test-statistic sizing gives the non-coherent
+ * block size (avgs) and declare threshold:
+ *
+ *   avgs      = 8*((erfcinv(2*pfa)-erfcinv(2*pd))/mean)^2
+ *   threshold = erfcinv(2*pfa)*mean/(erfcinv(2*pfa)-erfcinv(2*pd))
+ *
+ * erfcinv used directly (not the sqrt(2)*erfcinv(2p) == Q^-1(p)
+ * conversion a Gaussian Q-function derivation would normally use) --
+ * both formulas were supplied directly by a doppler user, not
+ * re-derived against a primary source, implemented literally as given.
+ *
+ * Empirically validated against the real object at the defaults below
+ * (rolloff=0.35, esno_min=10dB, pfa=1e-3, pd=0.9 -> avgs=395,
+ * threshold=0.311):
+ *   - Pfa: 0 exceedances over 500,000 independent noise-only avgs-blocks
+ *     (nominal pfa=1e-3 would predict ~500). The real per-symbol
+ *     lock_signal variance under noise is ~1.33 (measured directly),
+ *     but the "8" scale factor below (playing the role of variance in
+ *     the classic N = variance*(...)^2 sizing formula) is ~6x too
+ *     large for that measured variance -- so avgs comes out ~6x
+ *     oversized and the real declare threshold sits at ~5.4 real
+ *     standard deviations above the noise mean, not the ~3.09 a true
+ *     pfa=1e-3 needs.
+ *   - Pd: 500/500 exceedances over 500 independent RC-shaped-BPSK
+ *     avgs-blocks at exactly the esno_min=10dB design point (nominal
+ *     pd=0.9).
+ * Net effect: both the false-alarm and detection-probability targets
+ * are met with large margin in the safe direction (far fewer false
+ * declares, far more reliable true declares than the nominal numbers
+ * promise) -- the "8" mismatch costs pure declare *latency* (avgs is
+ * ~6x larger than a variance constant calibrated to this statistic's
+ * real ~1.33 would need), not reliability. Left as given rather than
+ * replacing "8" with the measured 1.33, since a doppler user has
+ * explicitly prioritized reliability over latency for lock detection
+ * elsewhere in this codebase's history (see Dll's lock-detector
+ * design); revisit if declare latency ever becomes the binding
+ * constraint (a "1.33"-ish scale factor here would cut avgs roughly
+ * 6x while keeping the same real pfa/pd this validation measured).
+ *
+ * No down_thresh or n_up/n_down derivation is implied by the source
+ * formula, so those default to the same shape dll_configure_lock uses:
+ * up = down = threshold (no level hysteresis by default -- splitting
+ * them needs an SNR-dependent detection probability the derivation
+ * doesn't supply), n_up = 1 (declare on the very first above-threshold
+ * avgs-block; the (pfa, pd) sizing already targets the desired
+ * per-decision operating point, unlike Dll's default which additionally
+ * compounds pfa further via a verify count), n_down = 8 (a modest time
+ * hysteresis, not derived from the source formula, so a single noisy
+ * block doesn't drop a live lock -- the raw escape hatch,
+ * symsync_configure_lock_raw, exposes every knob for a caller that
+ * wants to size these independently). */
+#define SYMSYNC_LOCK_VARIANCE_SCALE 8.0
+#define SYMSYNC_LOCK_DEFAULT_ROLLOFF 0.35
+#define SYMSYNC_LOCK_DEFAULT_ESNO_MIN_DB 10.0
+#define SYMSYNC_LOCK_DEFAULT_PFA 1e-3
+#define SYMSYNC_LOCK_DEFAULT_PD 0.9
+#define SYMSYNC_LOCK_DEFAULT_N_UP 1u
+#define SYMSYNC_LOCK_DEFAULT_N_DOWN 8u
+
+/* Inverse complementary error function via a Winitzki (2008) rational
+ * initial guess refined to ~machine precision by Newton's method on
+ * erfc(x) - y = 0 (erfc() is standard C99). No house primitive for this
+ * existed (detection_core.h's det_threshold() is a different, Rayleigh
+ * -law statistic, not Gaussian) -- kept private to this file pending a
+ * second consumer, at which point it belongs in the detection module. */
+static double
+erfcinv_ (double y)
+{
+  double x      = 1.0 - y; /* erfcinv(y) == erfinv(1 - y) */
+  double ln1mx2 = log (1.0 - x * x);
+  double a      = 0.147;
+  double t1     = 2.0 / (M_PI * a) + ln1mx2 / 2.0;
+  double inner  = t1 * t1 - ln1mx2 / a;
+  double r      = sqrt (fmax (inner, 0.0)) - t1;
+  double guess  = copysign (sqrt (fmax (r, 0.0)), x);
+  for (int i = 0; i < 4; i++)
+    {
+      double fx  = erfc (guess) - y;
+      double dfx = -2.0 / sqrt (M_PI) * exp (-guess * guess);
+      guess -= fx / dfx;
+    }
+  return guess;
+}
 
 /* Nominal NCO increment: the accumulator advances by 1/sps of full scale per
  * input sample, wrapping once per symbol.  The on-time strobe is the wrap and
@@ -54,8 +140,9 @@ seed (symsync_state_t *s)
   s->last_error       = 0.0;
   s->rate_est         = (double)s->sps;
   s->pwr_avg          = 1.0;
-  s->nvar_ema         = 1.0; /* pessimistic seed: consistency derives to 0 */
-  s->lock_metric      = 0.0;
+  s->lock_sum         = 0.0;
+  s->lock_count       = 0;
+  s->lock_stat        = 0.0;
   lockdet_reset (&s->lock); /* drop the lock; keep the configured rule */
   farrow_reset (&s->farrow);
 }
@@ -75,8 +162,9 @@ symsync_init (symsync_state_t *s, size_t sps, double bn, double zeta,
   s->ted      = ted;
   farrow_init (&s->farrow, order);
   loop_filter_init (&s->lf, bn, zeta, 1.0); /* one update per symbol */
-  lockdet_init (&s->lock, SYMSYNC_LOCK_DEFAULT_UP, SYMSYNC_LOCK_DEFAULT_DOWN,
-                SYMSYNC_LOCK_DEFAULT_N_UP, SYMSYNC_LOCK_DEFAULT_N_DOWN);
+  (void)symsync_configure_lock (
+      s, SYMSYNC_LOCK_DEFAULT_ROLLOFF, SYMSYNC_LOCK_DEFAULT_ESNO_MIN_DB,
+      SYMSYNC_LOCK_DEFAULT_PFA, SYMSYNC_LOCK_DEFAULT_PD);
   seed (s);
 }
 
@@ -145,7 +233,7 @@ symsync_tlm_flush (const symsync_state_t *s)
   dp_tlm_emit (s->tlm.ctx, s->tlm.id_e, s->last_error);
   dp_tlm_emit (s->tlm.ctx, s->tlm.id_freq, control);
   dp_tlm_emit (s->tlm.ctx, s->tlm.id_rate, s->rate_est);
-  dp_tlm_emit (s->tlm.ctx, s->tlm.id_lock, s->lock_metric);
+  dp_tlm_emit (s->tlm.ctx, s->tlm.id_lock, s->lock_stat);
   dp_tlm_emit (s->tlm.ctx, s->tlm.id_locked, (double)s->lock.locked);
 }
 
@@ -255,9 +343,9 @@ symsync_get_rate (const symsync_state_t *state)
 }
 
 double
-symsync_get_lock_metric (const symsync_state_t *state)
+symsync_get_lock_stat (const symsync_state_t *state)
 {
-  return state->lock_metric;
+  return state->lock_stat;
 }
 
 int
@@ -266,9 +354,41 @@ symsync_get_locked (const symsync_state_t *state)
   return state->lock.locked;
 }
 
-void
-symsync_configure_lock (symsync_state_t *state, double up_thresh,
-                        double down_thresh, uint32_t n_up, uint32_t n_down)
+int
+symsync_configure_lock (symsync_state_t *state, double rolloff,
+                        double esno_min_db, double pfa, double pd)
 {
+  if (!(pfa > 0.0 && pfa < 1.0))
+    return DP_ERR_INVALID;
+  if (!(pd > 0.0 && pd < 1.0 && pd > pfa))
+    return DP_ERR_INVALID;
+  double mean = (0.6 * rolloff + 0.26)
+                * (1.0 - exp (-0.275 * pow (10.0, esno_min_db / 10.0)));
+  /* erfcinv used directly, matching the source formula literally -- no
+   * sqrt(2) Q-function conversion applied (see this file's top-of-block
+   * comment: implemented as given, not re-derived). */
+  double qi_pfa = erfcinv_ (2.0 * pfa);
+  double qi_pd  = erfcinv_ (2.0 * pd);
+  double denom  = qi_pfa - qi_pd;
+  double avgs_f
+      = SYMSYNC_LOCK_VARIANCE_SCALE * (denom / mean) * (denom / mean);
+  size_t avgs = (size_t)ceil (avgs_f);
+  if (avgs < 1)
+    avgs = 1;
+  double threshold = qi_pfa * mean / denom;
+  symsync_configure_lock_raw (state, avgs, threshold, threshold,
+                              SYMSYNC_LOCK_DEFAULT_N_UP,
+                              SYMSYNC_LOCK_DEFAULT_N_DOWN);
+  return DP_OK;
+}
+
+void
+symsync_configure_lock_raw (symsync_state_t *state, size_t avgs,
+                            double up_thresh, double down_thresh,
+                            uint32_t n_up, uint32_t n_down)
+{
+  state->avgs       = avgs ? avgs : 1;
+  state->lock_sum   = 0.0;
+  state->lock_count = 0;
   lockdet_configure (&state->lock, up_thresh, down_thresh, n_up, n_down);
 }

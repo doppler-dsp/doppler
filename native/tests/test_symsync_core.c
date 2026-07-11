@@ -377,10 +377,16 @@ main (void)
   }
 
   /* 6. Lock detector: locks on a clean matched-filtered eye, does not
-   * false-lock on noise (the eye-concentration ratio's H0 mean is 0.5;
-   * a real eye pushes it well above the default 0.62 declare threshold). */
+   * false-lock on noise. make_signal()'s pulse is truncated near the very
+   * end of its buffer (no room left for the tail once c+span >= n), so
+   * -- like tail_ber() above -- only feed a prefix well clear of that
+   * truncated region; reading final state after processing the whole
+   * (partly-silent) buffer would read a corrupted, not steady-state,
+   * value. */
   {
-    size_t         nsym  = 4000;
+    size_t nsym    = 4000;
+    size_t measure = nsym - 100; /* well clear of the ~8-symbol
+                                     (span/SPS) truncated tail */
     float complex *lrx   = malloc (nsym * SPS * sizeof (*lrx));
     int           *lbits = malloc (nsym * sizeof (*lbits));
     float complex *lsym  = malloc (nsym * sizeof (*lsym));
@@ -388,9 +394,9 @@ main (void)
     make_signal (lrx, lbits, nsym, 1.3, 1.0, 13u);
     symsync_state_t *s
         = symsync_create (SPS, 0.01, 0.707, FARROW_CUBIC, SYMSYNC_TED_GARDNER);
-    (void)symsync_steps (s, lrx, nsym * SPS, lsym, nsym);
+    (void)symsync_steps (s, lrx, measure * SPS, lsym, nsym);
     CHECK (symsync_get_locked (s) == 1);
-    CHECK (symsync_get_lock_metric (s) > 0.7); /* noise ceiling: ~0.33 */
+    CHECK (symsync_get_lock_stat (s) > 0.5); /* default threshold ~0.24 */
     symsync_destroy (s);
 
     uint32_t st = 9090u;
@@ -402,6 +408,35 @@ main (void)
     CHECK (symsync_get_locked (n) == 0);
     symsync_destroy (n);
 
+    free (lrx);
+    free (lbits);
+    free (lsym);
+  }
+
+  /* 7. configure_lock() derives (avgs, threshold) from (rolloff, esno_min,
+   * pfa, pd); configure_lock_raw() is the escape hatch for direct control;
+   * bad pfa/pd are rejected. */
+  {
+    symsync_state_t *s
+        = symsync_create (SPS, 0.01, 0.707, FARROW_CUBIC, SYMSYNC_TED_GARDNER);
+    CHECK (symsync_configure_lock (s, 0.35, 10.0, 1e-3, 0.9) == DP_OK);
+    CHECK (s->avgs > 0);
+    CHECK (symsync_configure_lock (s, 0.35, 10.0, 0.0, 0.9) == DP_ERR_INVALID);
+    CHECK (symsync_configure_lock (s, 0.35, 10.0, 1.0, 0.9) == DP_ERR_INVALID);
+    CHECK (symsync_configure_lock (s, 0.35, 10.0, 0.9, 0.9)
+           == DP_ERR_INVALID); /* pd must exceed pfa */
+
+    /* raw: an unreachable threshold never locks even on a strong signal. */
+    size_t         nsym  = 4000;
+    float complex *lrx   = malloc (nsym * SPS * sizeof (*lrx));
+    int           *lbits = malloc (nsym * sizeof (*lbits));
+    float complex *lsym  = malloc (nsym * sizeof (*lsym));
+    make_signal (lrx, lbits, nsym, 1.3, 1.0, 13u);
+    symsync_configure_lock_raw (s, 20, 100.0, 100.0, 1, 1);
+    CHECK (s->avgs == 20);
+    (void)symsync_steps (s, lrx, (nsym - 100) * SPS, lsym, nsym);
+    CHECK (symsync_get_locked (s) == 0);
+    symsync_destroy (s);
     free (lrx);
     free (lbits);
     free (lsym);

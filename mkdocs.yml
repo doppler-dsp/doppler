@@ -238,6 +238,7 @@ nav:
       - Telemetry: design/telemetry.md
       - DSSS Acquisition: design/dsss-acquisition.md
       - Async Symbol Despreader: design/async-symbol-despreader.md
+      - Timing Lock Detector: design/timing_lock_detector.md
       - MPSK Receiver: design/mpsk.md
       - Corr2D Interpolated Inverse: design/corr2d-interpolated-inverse.md
       - Spectral & Measurement API Map: design/spectral-api-map.md

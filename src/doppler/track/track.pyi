@@ -557,7 +557,7 @@ class SymbolSync:
         """Max output length steps() can produce for the current state."""
 
     def set_telemetry(self, tlm: object | None, prefix: str, decim: int = 1) -> None:
-        """Attach (or detach) a telemetry context and register the timing loop's probes on it. Registers five probes, emitted once per recovered symbol and further thinned by decim: "<prefix>.e" (the normalised TED error — the loop stress), "<prefix>.freq" (the loop-filter control steering the timing NCO, fractional rate offset), "<prefix>.rate" (the smoothed tracked samples/symbol), "<prefix>.lock" (the envelope-consistency lock-metric EMA) and "<prefix>.locked" (the verify-counted lockdet decision, 0/1). Passing NULL detaches.  Setup path, never hot: call before the producer thread starts stepping; the context is borrowed and must outlive the attachment (SPSC rules in telemetry/telemetry.h).
+        """Attach (or detach) a telemetry context and register the timing loop's probes on it. Registers five probes, emitted once per recovered symbol and further thinned by decim: "<prefix>.e" (the normalised TED error — the loop stress), "<prefix>.freq" (the loop-filter control steering the timing NCO, fractional rate offset), "<prefix>.rate" (the smoothed tracked samples/symbol), "<prefix>.lock" (the last block-averaged lock_signal, held between avgs-look updates) and "<prefix>.locked" (the verify-counted lockdet decision, 0/1). Passing NULL detaches.  Setup path, never hot: call before the producer thread starts stepping; the context is borrowed and must outlive the attachment (SPSC rules in telemetry/telemetry.h).
 
         Parameters
         ----------
@@ -597,24 +597,77 @@ class SymbolSync:
             Input.
         """
 
-    def configure_lock(self, up_thresh: float, down_thresh: float, n_up: int, n_down: int) -> None:
-        """Re-tune the timing lock detector: locked flips up after n_up consecutive recovered symbols with the lock-metric EMA above up_thresh, and drops after n_down consecutive symbols below down_thresh (level + time hysteresis; see detection.LockDet). The metric is the eye-concentration ratio q = |on-time|^2 / (|on-time|^2 + |mid-symbol|^2): at correct timing the on-time interpolant sits at the eye's peak and the mid-symbol (transition-gate) interpolant sits closer to a zero crossing, so q rises above its H0 mean of 0.5 (symmetric energy split when no eye is established). A live lock survives the re-tune; the in-flight verify run restarts.
+    def configure_lock(self, rolloff: float, esno_min_db: float, pfa: float, pd: float) -> None:
+        """Tune the always-on timing-lock detector to a target (pfa, pd) at a given link operating point. The statistic is a Gardner-style eye-opening ratio, lock_signal = 2*(|on-time|^2-|mid-symbol|^2)/(|on-time|^2+|mid-symbol|^2), non-coherently block-averaged over avgs looks before each decision (mirroring Dll's tumbling-window CFAR pattern). avgs and the declare threshold are sized from a Gaussian approximation: a per-look mean is estimated from rolloff and esno_min_db, then the classic N = variance*((Q^-1(pfa)-Q^-1(pd))/mean)^2 / threshold = Q^-1(pfa)*mean/(Q^-1(pfa)-Q^-1(pd)) derivation gives (avgs, threshold). No level hysteresis by default (up=down=threshold, matching Dll.configure_lock's shape); n_up=1, n_down=8. Raises ValueError if pfa/pd are outside (0, 1) or pd does not exceed pfa. Read the result from the locked / lock_stat properties.
 
-        Full lockdet control, mirroring costas_configure_lock(): a split
-        declare/drop threshold pair on lock_metric (level hysteresis) and both
-        verify counts (time hysteresis). A live lock survives the re-tune; the
-        in-flight verify run restarts.
+        Sizes the non-coherent block size (avgs) and declare threshold from a
+        Gaussian sizing of the eye-opening statistic lock_signal =
+        2*(|on-time|^2-|mid|^2)/(|on-time|^2+|mid|^2): a per-look mean
+        (mean_lock_detect, from rolloff and the minimum operating Es/N0) drives
+        the classic N = variance*((Q^-1(pfa)-Q^-1(pd))/mean)^2 / threshold =
+        Q^-1(pfa)*mean/(Q^-1(pfa)-Q^-1(pd)) derivation, implemented directly
+        from a formula supplied by a doppler user (not re-derived against a
+        primary source). Empirically validated at the default operating point (0
+        false declares over 500,000 independent noise-only blocks against a
+        nominal pfa=1e-3; 500/500 true declares at the esno_min design SNR
+        against a nominal pd=0.9): both targets are met with large margin in the
+        safe direction, because the formula's "8" variance-role scale factor is
+        ~6x larger than this statistic's real measured per-look variance (~1.33)
+        -- see symsync_core.c's SYMSYNC_LOCK_DEFAULT_* comment for the full
+        validation. The consequence is pure declare latency (avgs comes out ~6x
+        larger than strictly needed to hit the stated targets), not reduced
+        reliability. No level hysteresis by default (up = down = threshold,
+        matching dll_configure_lock's shape); the raw escape hatch
+        (symsync_configure_lock_raw) exposes split thresholds, an explicit avgs,
+        and independent n_up/n_down.
 
         Parameters
         ----------
+        rolloff : float
+            Matched-filter excess bandwidth (e.g. 0.35 for a typical RRC system).
+        esno_min_db : float
+            Minimum operating Es/N0, dB -- the worst-case link point the detector must still declare lock at.
+        pfa : float
+            Target false-alarm probability per decision, in (0, 1).
+        pd : float
+            Target detection probability per decision, in (0, 1); must exceed pfa.
+
+        Examples
+        --------
+        >>> from doppler.track import SymbolSync
+        >>> ss = SymbolSync(sps=4, bn=0.01, zeta=0.707)
+        >>> ss.configure_lock(rolloff=0.35, esno_min_db=10.0, pfa=1e-3, pd=0.9)
+        >>> ss.locked
+        False
+        >>> ss.configure_lock(rolloff=0.35, esno_min_db=10.0, pfa=0.9, pd=0.9)
+        Traceback (most recent call last):
+            ...
+        ValueError: configure_lock failed (rc=-4)
+
+        """
+
+    def configure_lock_raw(self, avgs: int, up_thresh: float, down_thresh: float, n_up: int, n_down: int) -> None:
+        """Escape hatch under configure_lock() for direct control of the lock detector's geometry: an explicit non-coherent block size (avgs), a split declare/drop threshold pair on lock_stat (level hysteresis), and both verify counts (time hysteresis) independently. Re-tuning clears the in-flight block sum and drops the lock so the next decision uses only looks gathered under the new config.
+
+        The escape hatch under symsync_configure_lock() for a caller that
+        derives its own averaging/threshold geometry: the block size (avgs), a
+        split declare/drop threshold pair on lock_stat (level hysteresis), and
+        both verify counts (time hysteresis). Re-tuning clears the in-flight
+        block sum and drops the lock so the next decision uses only looks
+        gathered under the new config.
+
+        Parameters
+        ----------
+        avgs : int
+            Non-coherent block size (looks/decision); clamped >= 1.
         up_thresh : float
-            Declare threshold on lock_metric.
+            Declare threshold on lock_stat.
         down_thresh : float
-            Drop threshold; choose <= up_thresh.
+            Drop threshold; choose <= up_thresh for level hysteresis.
         n_up : int
-            Consecutive above-threshold symbols to declare; clamped >= 1.
+            Consecutive above-threshold decisions to declare; clamped >= 1.
         n_down : int
-            Consecutive below-threshold symbols to drop; clamped >= 1.
+            Consecutive below-threshold decisions to drop; clamped >= 1.
         """
 
     def reset(self) -> None:
@@ -643,12 +696,12 @@ class SymbolSync:
         """Rate."""
 
     @property
-    def lock_metric(self) -> float:
-        """Last timing-lock statistic: the eye-concentration ratio EMA q = |on-time|^2/(|on-time|^2+|mid-symbol|^2); compare against the configured thresholds (see configure_lock)."""
+    def lock_stat(self) -> float:
+        """Last block-averaged lock statistic: mean(2*(|on-time|^2-|mid-symbol|^2)/(|on-time|^2+|mid-symbol|^2)) over the configured avgs looks; compare against the configured threshold (see configure_lock)."""
 
     @property
     def locked(self) -> bool:
-        """Current timing-lock decision: True after the verify count of consecutive above-threshold symbols, False again after the drop count of consecutive below-threshold ones (see configure_lock)."""
+        """Current timing-lock decision: True after the verify count of consecutive above-threshold decisions, False again after the drop count of consecutive below-threshold ones (see configure_lock)."""
 
     def destroy(self) -> None:
         """Release C resources immediately."""

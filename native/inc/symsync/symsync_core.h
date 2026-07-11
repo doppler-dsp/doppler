@@ -35,17 +35,8 @@ extern "C"
   };
 
 /* Numerical guard on the on-time+mid-symbol energy sum feeding the lock
- * metric (not tunable). */
+ * statistic (not tunable). */
 #define SYMSYNC_LOCK_EPS 1e-12
-
-/* Lock-metric EMA coefficient. Much slower than Costas's COSTAS_LOCK_ALPHA
- * (0.1): Costas's ratio is a bounded, low-variance cosine of a phase, but
- * this loop's normalized power-deviation statistic is heavy-tailed
- * (squared exponential-ish under noise), so 0.1 gave noise-floor
- * lock_metric values ranging 0.0-0.52 across seeds (one falsely locked);
- * 0.01 tightens that to 0.0-0.33 -- see symsync_core.c's default-threshold
- * comment for the full calibration. */
-#define SYMSYNC_LOCK_ALPHA 0.01
 
   /**
    * @brief Telemetry attachment: a borrowed context + this object's probe
@@ -60,7 +51,7 @@ extern "C"
     int32_t   id_e;      /**< "<prefix>.e"      — TED error       */
     int32_t   id_freq;   /**< "<prefix>.freq"   — loop control    */
     int32_t   id_rate;   /**< "<prefix>.rate"   — rate estimate   */
-    int32_t   id_lock;   /**< "<prefix>.lock"   — consistency EMA */
+    int32_t   id_lock;   /**< "<prefix>.lock"   — lock_signal mean */
     int32_t   id_locked; /**< "<prefix>.locked" — lockdet flag    */
   } symsync_tlm_t;
 
@@ -87,14 +78,19 @@ extern "C"
     double        last_error;   /**< last TED timing error.                 */
     double        rate_est;     /**< smoothed tracked samples/symbol.       */
     double        pwr_avg;      /**< running symbol power (TED normaliser).  */
-    double        nvar_ema;     /**< EMA of normalized on-time power
-                                      deviation (unbounded, lower=steadier);
-                                      internal -- lock_metric is derived
-                                      from it, not this raw value.        */
-    double lock_metric;         /**< envelope-consistency: 1-clamp(nvar_ema,
-                                      0,1) in [0,1]; 1=perfectly steady.  */
+    /* ── lock detector (always on): tumbling-window block average ────── */
+    double lock_sum;      /**< running sum of lock_signal over the current
+                                avgs-symbol block (mirrors dll_state_t's
+                                lock_sum/lock_count/n_looks pattern).         */
+    size_t lock_count;    /**< looks accumulated in the current block.       */
+    size_t avgs;          /**< non-coherent block size (looks/decision).     */
+    double lock_stat;     /**< last block-averaged lock_signal
+                                = mean(2*(|on-time|^2-|mid|^2)
+                                        /(|on-time|^2+|mid|^2)) over avgs
+                                looks; compare against the configured
+                                threshold (see symsync_configure_lock).      */
     lockdet_state_t lock; /**< decision rule: thresholds + verify counters
-                                stepped on lock_metric each symbol.        */
+                                stepped on lock_stat each avgs-look block. */
     symsync_tlm_t tlm; /**< live telemetry attachment; zeroed in blobs      */
   } symsync_state_t;
 
@@ -222,37 +218,30 @@ extern "C"
         else if (inst > hi_r)
           inst = hi_r;
         s->rate_est += 0.02 * (inst - s->rate_est);
-        /* Lock metric: envelope-consistency, 1 - EMA(normalized on-time
-         * power deviation), clamped to [0, 1]. At the correct sampling
-         * instant a Nyquist (ISI-free) pulse's on-time sample depends only
-         * on the current symbol, so a constant-modulus modulation
-         * (BPSK/QPSK/M-PSK) gives a near-constant |y|^2 symbol to symbol
-         * (low deviation, metric near 1); at any other sampling phase
-         * neighbouring symbols leak in and |y|^2 is modulated by the
-         * (random) data pattern regardless of pulse shape (deviation near
-         * or above 1, metric pulled toward 0) -- unlike an
-         * eye-concentration statistic keyed to a specific pulse shape's
-         * mid-symbol value (verified empirically to invert sign between
-         * raised-cosine and rectangular pulses), this direction is
-         * pulse-shape invariant by the Nyquist criterion itself. The EMA
-         * (nvar_ema) runs on the deviation ratio directly, not on a
-         * reciprocal transform of it: for H0 (noise) inst_pwr is
-         * exponentially distributed, so EMA'ing 1/(1+nvar) is biased
-         * upward by Jensen's inequality (convexity) and nearly erases the
-         * H0/H1 gap (verified empirically); EMA'ing nvar itself is
-         * unbiased (E[EMA] = E[nvar]) and only then mapped through the
-         * bounded, order-preserving 1-clamp(nvar_ema,0,1) into
-         * lock_metric -- the value configure_lock's thresholds and the
-         * telemetry ".lock" probe both read. */
-        double dev = inst_pwr - s->pwr_avg;
-        double nvar
-            = (dev * dev) / (s->pwr_avg * s->pwr_avg + SYMSYNC_LOCK_EPS);
-        s->nvar_ema += SYMSYNC_LOCK_ALPHA * (nvar - s->nvar_ema);
-        double consistency = 1.0 - s->nvar_ema;
-        if (consistency < 0.0)
-          consistency = 0.0;
-        s->lock_metric = consistency;
-        (void)lockdet_step (&s->lock, s->lock_metric);
+        /* Lock statistic: lock_signal = 2*(|on-time|^2-|mid|^2)
+         * /(|on-time|^2+|mid|^2), a Gardner-style eye-opening ratio (the
+         * on-time sample vs. the mid-symbol/transition-gate sample already
+         * used by the TED, reusing inst_pwr from above). Non-coherently
+         * block-averaged over `avgs` looks before the decision, mirroring
+         * dll_state_t's lock_sum/lock_count/n_looks tumbling window (a
+         * sliding window would break the verify-count independence
+         * assumption the same way it would for the DLL -- see
+         * dll_configure_lock's derivation). See symsync_configure_lock()
+         * for how avgs/threshold are sized from (rolloff, esno_min, pfa,
+         * pd). */
+        float complex md = s->mid;
+        double        mid_pwr
+            = (double)(crealf (md) * crealf (md) + cimagf (md) * cimagf (md));
+        double lock_signal = 2.0 * (inst_pwr - mid_pwr)
+                             / (inst_pwr + mid_pwr + SYMSYNC_LOCK_EPS);
+        s->lock_sum += lock_signal;
+        if (++s->lock_count >= s->avgs)
+          {
+            s->lock_stat = s->lock_sum / (double)s->avgs;
+            (void)lockdet_step (&s->lock, s->lock_stat);
+            s->lock_sum   = 0.0;
+            s->lock_count = 0;
+          }
         *y_out = y;
         emit   = 1;
       }
@@ -274,8 +263,9 @@ extern "C"
    * force-inlined step. Records "<prefix>.e" (last TED error),
    * "<prefix>.freq" (the NCO rate control, reconstructed as
    * phase_inc/base_inc - 1), "<prefix>.rate" (tracked samples/symbol),
-   * "<prefix>.lock" (the envelope-consistency lock-metric EMA) and
-   * "<prefix>.locked" (the verify-counted lockdet decision, 0/1).
+   * "<prefix>.lock" (the last block-averaged lock_signal, refreshed every
+   * avgs looks) and "<prefix>.locked" (the verify-counted lockdet
+   * decision, 0/1).
    *
    * @param s  State with a non-NULL tlm.ctx (caller-checked).
    */
@@ -358,37 +348,92 @@ extern "C"
   double symsync_get_timing_error (const symsync_state_t *state);
   double symsync_get_rate (const symsync_state_t *state);
 
-  /** @brief Last lock-metric look: envelope-consistency EMA
-   *         1/(1+normalized on-time power deviation from its running
-   *         mean); compare against the configured thresholds (see
-   *         symsync_configure_lock). 1 = perfectly steady envelope
-   *         (locked, constant-modulus modulation); pulled toward 0 when
-   *         residual ISI modulates the on-time sample's power. */
-  double symsync_get_lock_metric (const symsync_state_t *state);
+  /** @brief Last block-averaged lock statistic:
+   *         mean(2*(|on-time|^2-|mid|^2)/(|on-time|^2+|mid|^2)) over the
+   *         configured avgs looks; compare against the configured
+   *         threshold (see symsync_configure_lock). */
+  double symsync_get_lock_stat (const symsync_state_t *state);
 
   /** @brief Current lock decision (1 = locked, 0 = not), with the
    *         configured verify-count / hysteresis rule applied. */
   int symsync_get_locked (const symsync_state_t *state);
 
   /**
-   * @brief Re-tune the timing-lock detector's geometry directly.
+   * @brief Tune the always-on timing-lock detector to a target (pfa, pd)
+   * at a given link operating point.
    *
-   * Full lockdet control, mirroring costas_configure_lock(): a split
-   * declare/drop threshold pair on lock_metric (level hysteresis) and both
-   * verify counts (time hysteresis). A live lock survives the re-tune; the
-   * in-flight verify run restarts.
+   * Sizes the non-coherent block size (avgs) and declare threshold from a
+   * Gaussian sizing of the eye-opening statistic lock_signal =
+   * 2*(|on-time|^2-|mid|^2)/(|on-time|^2+|mid|^2): a per-look mean
+   * (mean_lock_detect, from rolloff and the minimum operating Es/N0) drives
+   * the classic N = variance*((Q^-1(pfa)-Q^-1(pd))/mean)^2 /
+   * threshold = Q^-1(pfa)*mean/(Q^-1(pfa)-Q^-1(pd)) derivation, implemented
+   * directly from a formula supplied by a doppler user (not re-derived
+   * against a primary source). Empirically validated at the default
+   * operating point (0 false declares over 500,000 independent noise-only
+   * blocks against a nominal pfa=1e-3; 500/500 true declares at the
+   * esno_min design SNR against a nominal pd=0.9): both targets are met
+   * with large margin in the safe direction, because the formula's "8"
+   * variance-role scale factor is ~6x larger than this statistic's real
+   * measured per-look variance (~1.33) -- see symsync_core.c's
+   * SYMSYNC_LOCK_DEFAULT_* comment for the full validation. The
+   * consequence is pure declare latency (avgs comes out ~6x larger than
+   * strictly needed to hit the stated targets), not reduced reliability.
+   * No level hysteresis by default (up = down = threshold, matching
+   * dll_configure_lock's shape); the raw escape hatch
+   * (symsync_configure_lock_raw) exposes split thresholds, an explicit
+   * avgs, and independent n_up/n_down.
    *
    * @param state        Must be non-NULL.
-   * @param up_thresh    Declare threshold on lock_metric.
-   * @param down_thresh  Drop threshold; choose <= up_thresh.
-   * @param n_up         Consecutive above-threshold symbols to declare;
+   * @param rolloff      Matched-filter excess bandwidth (e.g. 0.35 for a
+   *                      typical RRC system).
+   * @param esno_min_db  Minimum operating Es/N0, dB -- the worst-case link
+   *                      point the detector must still declare lock at.
+   * @param pfa          Target false-alarm probability per decision, in
+   *                      (0, 1).
+   * @param pd           Target detection probability per decision, in
+   *                      (0, 1); must exceed pfa.
+   * @return DP_OK, or DP_ERR_INVALID if pfa/pd are out of range or pd <= pfa.
+   * @code
+   * >>> from doppler.track import SymbolSync
+   * >>> ss = SymbolSync(sps=4, bn=0.01, zeta=0.707)
+   * >>> ss.configure_lock(rolloff=0.35, esno_min_db=10.0, pfa=1e-3, pd=0.9)
+   * >>> ss.locked
+   * False
+   * >>> ss.configure_lock(rolloff=0.35, esno_min_db=10.0, pfa=0.9, pd=0.9)
+   * Traceback (most recent call last):
+   *     ...
+   * ValueError: configure_lock failed (rc=-4)
+   *
+   * @endcode
+   */
+  int symsync_configure_lock (symsync_state_t *state, double rolloff,
+                              double esno_min_db, double pfa, double pd);
+
+  /**
+   * @brief Set the lock detector's raw geometry directly.
+   *
+   * The escape hatch under symsync_configure_lock() for a caller that
+   * derives its own averaging/threshold geometry: the block size (avgs), a
+   * split declare/drop threshold pair on lock_stat (level hysteresis), and
+   * both verify counts (time hysteresis). Re-tuning clears the in-flight
+   * block sum and drops the lock so the next decision uses only looks
+   * gathered under the new config.
+   *
+   * @param state        Must be non-NULL.
+   * @param avgs         Non-coherent block size (looks/decision); clamped
+   *                     >= 1.
+   * @param up_thresh    Declare threshold on lock_stat.
+   * @param down_thresh  Drop threshold; choose <= up_thresh for level
+   *                     hysteresis.
+   * @param n_up         Consecutive above-threshold decisions to declare;
    *                     clamped >= 1.
-   * @param n_down       Consecutive below-threshold symbols to drop;
+   * @param n_down       Consecutive below-threshold decisions to drop;
    *                     clamped >= 1.
    */
-  void symsync_configure_lock (symsync_state_t *state, double up_thresh,
-                               double down_thresh, uint32_t n_up,
-                               uint32_t n_down);
+  void symsync_configure_lock_raw (symsync_state_t *state, size_t avgs,
+                                   double up_thresh, double down_thresh,
+                                   uint32_t n_up, uint32_t n_down);
 
   /**
    * @brief Attach (or detach) a telemetry context and register the timing
@@ -397,8 +442,9 @@ extern "C"
    * thinned by decim: "<prefix>.e" (the normalised TED error — the loop
    * stress), "<prefix>.freq" (the loop-filter control steering the timing
    * NCO, fractional rate offset), "<prefix>.rate" (the smoothed tracked
-   * samples/symbol), "<prefix>.lock" (the envelope-consistency lock-metric
-   * EMA) and "<prefix>.locked" (the verify-counted lockdet decision, 0/1).
+   * samples/symbol), "<prefix>.lock" (the last block-averaged lock_signal,
+   * held between avgs-look updates) and "<prefix>.locked" (the
+   * verify-counted lockdet decision, 0/1).
    * Passing NULL detaches.  Setup path, never hot: call before the
    * producer thread starts stepping; the context is borrowed and must
    * outlive the attachment (SPSC rules in telemetry/telemetry.h).
@@ -433,7 +479,8 @@ extern "C"
  * (all POD) + scalar timing state — a whole-struct snapshot. */
 #define SYMSYNC_STATE_MAGIC DP_FOURCC ('S', 'Y', 'N', 'C')
 #define SYMSYNC_STATE_VERSION                                                 \
-  4u /* v4: lockdet decision rule (verify counters) */
+  5u /* v5: block-averaged lock_signal statistic (avgs/lock_sum/lock_count)   \
+      */
   size_t symsync_state_bytes (const symsync_state_t *state);
   void   symsync_get_state (const symsync_state_t *state, void *blob);
   int    symsync_set_state (symsync_state_t *state, const void *blob);

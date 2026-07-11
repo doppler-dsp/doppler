@@ -86,3 +86,12 @@ target_link_libraries(validate_mpsk_receiver_ber PRIVATE doppler_lib_static m)
 target_compile_options(validate_mpsk_receiver_ber PRIVATE -O3 -funroll-loops)
 add_test(NAME validate_mpsk_receiver_ber
          COMMAND validate_mpsk_receiver_ber --check)
+
+add_executable(validate_symsync_lock
+               ${CMAKE_CURRENT_SOURCE_DIR}/symsync_lock.c)
+target_include_directories(validate_symsync_lock
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
+target_link_libraries(validate_symsync_lock PRIVATE doppler_lib_static m)
+target_compile_options(validate_symsync_lock PRIVATE -O3 -funroll-loops)
+add_test(NAME validate_symsync_lock
+         COMMAND validate_symsync_lock --check)

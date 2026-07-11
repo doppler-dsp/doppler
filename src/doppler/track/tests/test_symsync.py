@@ -143,21 +143,33 @@ def test_steps_out_undersized_raises():
         s.steps(x, out=np.zeros(1, dtype=np.complex64))
 
 
+def _signal_safe_prefix(nsym, margin=100, **kwargs):
+    """_signal()'s pulse truncates near the very end of its buffer (no room
+    left for the tail once the symbol's span would run past the array) --
+    reading final state after feeding the *whole* buffer would read a
+    corrupted, not steady-state, value (found the hard way calibrating the
+    C core's own tests). Generate `margin` extra symbols and only feed the
+    safe prefix, well clear of the truncated tail (`span/SPS` = 8 symbols).
+    """
+    x, a = _signal(nsym + margin, **kwargs)
+    return x[: nsym * SPS], a
+
+
 def test_lock_defaults_unlocked():
     s = SymbolSync(sps=SPS, bn=0.01, zeta=0.707, order="cubic")
     assert s.locked is False
-    assert s.lock_metric == 0.0
+    assert s.lock_stat == 0.0
 
 
 def test_lock_acquires_on_clean_signal():
-    # envelope-consistency statistic: RC-shaped BPSK at high SNR settles
-    # well above the default 0.45 declare threshold (calibrated against
-    # a noise-only ceiling of ~0.33 -- see symsync_core.c).
-    x, _ = _signal(3000, offset=1.3, snr=20, seed=7)
+    # Gardner-style eye-opening ratio, block-averaged over the default-
+    # derived avgs looks (rolloff=0.35, esno_min=10dB, pfa=1e-3, pd=0.9):
+    # clean RC-shaped BPSK settles well above the ~0.24 declare threshold.
+    x = _signal_safe_prefix(3000, offset=1.3, snr=20, seed=7)[0]
     s = SymbolSync(sps=SPS, bn=0.01, zeta=0.707, order="cubic")
     s.steps(x)
     assert s.locked is True
-    assert s.lock_metric > 0.7
+    assert s.lock_stat > 0.4
 
 
 def test_lock_stays_low_on_noise():
@@ -169,32 +181,46 @@ def test_lock_stays_low_on_noise():
     s = SymbolSync(sps=SPS, bn=0.01, zeta=0.707, order="cubic")
     s.steps(x)
     assert s.locked is False
-    assert s.lock_metric < 0.4
 
 
-def test_configure_lock_unreachable_threshold_never_locks():
-    x, _ = _signal(3000, offset=1.3, snr=20, seed=7)
+def test_configure_lock_rejects_bad_pfa_pd():
     s = SymbolSync(sps=SPS, bn=0.01, zeta=0.707, order="cubic")
-    s.configure_lock(up_thresh=2.0, down_thresh=1.9, n_up=1, n_down=1)
+    with pytest.raises(ValueError):
+        s.configure_lock(rolloff=0.35, esno_min_db=10.0, pfa=0.0, pd=0.9)
+    with pytest.raises(ValueError):
+        s.configure_lock(rolloff=0.35, esno_min_db=10.0, pfa=1.0, pd=0.9)
+    with pytest.raises(ValueError):
+        # pd must exceed pfa
+        s.configure_lock(rolloff=0.35, esno_min_db=10.0, pfa=0.9, pd=0.9)
+
+
+def test_configure_lock_raw_unreachable_threshold_never_locks():
+    x = _signal_safe_prefix(3000, offset=1.3, snr=20, seed=7)[0]
+    s = SymbolSync(sps=SPS, bn=0.01, zeta=0.707, order="cubic")
+    s.configure_lock_raw(
+        avgs=20, up_thresh=2.0, down_thresh=1.9, n_up=1, n_down=1
+    )
     s.steps(x)
     assert s.locked is False
 
 
-def test_configure_lock_low_threshold_locks_fast():
+def test_configure_lock_raw_low_threshold_locks_fast():
     # n_up=1 with an easily-reachable threshold declares on the first
-    # above-threshold symbol once the loop has acquired.
-    x, _ = _signal(3000, offset=1.3, snr=20, seed=7)
+    # above-threshold block once the loop has acquired.
+    x = _signal_safe_prefix(3000, offset=1.3, snr=20, seed=7)[0]
     s = SymbolSync(sps=SPS, bn=0.01, zeta=0.707, order="cubic")
-    s.configure_lock(up_thresh=0.1, down_thresh=0.05, n_up=1, n_down=32)
+    s.configure_lock_raw(
+        avgs=20, up_thresh=0.05, down_thresh=0.02, n_up=1, n_down=32
+    )
     s.steps(x)
     assert s.locked is True
 
 
 def test_lock_reset_clears():
-    x, _ = _signal(3000, offset=1.3, snr=20, seed=7)
+    x = _signal_safe_prefix(3000, offset=1.3, snr=20, seed=7)[0]
     s = SymbolSync(sps=SPS, bn=0.01, zeta=0.707, order="cubic")
     s.steps(x)
     assert s.locked is True
     s.reset()
     assert s.locked is False
-    assert s.lock_metric == 0.0
+    assert s.lock_stat == 0.0

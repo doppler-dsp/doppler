@@ -75,10 +75,24 @@ params = [{ name = "bn", type = "double" }, { name = "zeta", type = "double" }]
 
 [[symsync.methods]]
 name = "configure_lock"
-doc = "Re-tune the timing lock detector: locked flips up after n_up consecutive recovered symbols with the lock-metric EMA above up_thresh, and drops after n_down consecutive symbols below down_thresh (level + time hysteresis; see detection.LockDet). The metric is the eye-concentration ratio q = |on-time|^2 / (|on-time|^2 + |mid-symbol|^2): at correct timing the on-time interpolant sits at the eye's peak and the mid-symbol (transition-gate) interpolant sits closer to a zero crossing, so q rises above its H0 mean of 0.5 (symmetric energy split when no eye is established). A live lock survives the re-tune; the in-flight verify run restarts."
+doc = "Tune the always-on timing-lock detector to a target (pfa, pd) at a given link operating point. The statistic is a Gardner-style eye-opening ratio, lock_signal = 2*(|on-time|^2-|mid-symbol|^2)/(|on-time|^2+|mid-symbol|^2), non-coherently block-averaged over avgs looks before each decision (mirroring Dll's tumbling-window CFAR pattern). avgs and the declare threshold are sized from a Gaussian approximation: a per-look mean is estimated from rolloff and esno_min_db, then the classic N = variance*((Q^-1(pfa)-Q^-1(pd))/mean)^2 / threshold = Q^-1(pfa)*mean/(Q^-1(pfa)-Q^-1(pd)) derivation gives (avgs, threshold). No level hysteresis by default (up=down=threshold, matching Dll.configure_lock's shape); n_up=1, n_down=8. Raises ValueError if pfa/pd are outside (0, 1) or pd does not exceed pfa. Read the result from the locked / lock_stat properties."
+arg_type = "void"
+return_type = "int"
+status_return = true
+params = [
+  { name = "rolloff", type = "double" },
+  { name = "esno_min_db", type = "double" },
+  { name = "pfa", type = "double" },
+  { name = "pd", type = "double" },
+]
+
+[[symsync.methods]]
+name = "configure_lock_raw"
+doc = "Escape hatch under configure_lock() for direct control of the lock detector's geometry: an explicit non-coherent block size (avgs), a split declare/drop threshold pair on lock_stat (level hysteresis), and both verify counts (time hysteresis) independently. Re-tuning clears the in-flight block sum and drops the lock so the next decision uses only looks gathered under the new config."
 arg_type = "void"
 return_type = "void"
 params = [
+  { name = "avgs", type = "size_t" },
   { name = "up_thresh", type = "double" },
   { name = "down_thresh", type = "double" },
   { name = "n_up", type = "uint32_t" },
@@ -105,11 +119,11 @@ name = "rate"
 type = "double"
 
 [[symsync.properties]]
-name = "lock_metric"
+name = "lock_stat"
 type = "double"
-doc = "Last timing-lock statistic: the eye-concentration ratio EMA q = |on-time|^2/(|on-time|^2+|mid-symbol|^2); compare against the configured thresholds (see configure_lock)."
+doc = "Last block-averaged lock statistic: mean(2*(|on-time|^2-|mid-symbol|^2)/(|on-time|^2+|mid-symbol|^2)) over the configured avgs looks; compare against the configured threshold (see configure_lock)."
 
 [[symsync.properties]]
 name = "locked"
 type = "bool"
-doc = "Current timing-lock decision: True after the verify count of consecutive above-threshold symbols, False again after the drop count of consecutive below-threshold ones (see configure_lock)."
+doc = "Current timing-lock decision: True after the verify count of consecutive above-threshold decisions, False again after the drop count of consecutive below-threshold ones (see configure_lock)."

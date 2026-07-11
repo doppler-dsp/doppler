@@ -6,7 +6,7 @@
  *
  * Example:
  * @code
- * burst_despreader_state_t *obj = burst_despreader_create(NULL, 0, 1, 2, 0.0, 0.0, 0.01, 0.002);
+ * burst_despreader_state_t *obj = burst_despreader_create(NULL, 0, 1, 2, 0.0, 0.0, 0.05, 0.01);
  * float complex y = burst_despreader_step(obj, 0.0f + 0.0f * I);
  * burst_despreader_destroy(obj);
  * @endcode
@@ -80,8 +80,10 @@ typedef struct
  * @param init_norm_freq  Seed carrier frequency, cycles/sample — the
  *            acquisition estimate (default: 0.0).
  * @param init_chip_phase  Seed code phase, chips (default: 0.0).
- * @param bn_carrier  Carrier loop noise bandwidth (default: 0.05).
- * @param bn_code  Code loop noise bandwidth (default: 0.01).
+ * @param bn_carrier  Carrier (Costas) loop noise bandwidth, normalized to
+ *              the symbol rate (default: 0.05).
+ * @param bn_code  Code (DLL) loop noise bandwidth, normalized to the
+ *              symbol rate (default: 0.01).
  * @return Heap-allocated state, or NULL on allocation failure.
  * @note Caller must call burst_despreader_destroy() when done.
  */

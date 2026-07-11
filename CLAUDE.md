@@ -515,6 +515,44 @@ is hand-owned end to end, so `nogil` does not apply). `doppler.ddc` re-exports
 the `ddcr_*` names via the `reexports` key above. See the gallery walkthrough
 (`docs/gallery/ddc-fn.md`) for the streaming/threading model.
 
+### 0.28.2 adoptions — `jm apply` now honors `status_allow` (jm#441, pin: 0.28.2)
+
+The CI drift gate now pins **0.28.2** (`ci.yml` + `perf-regression.yml`);
+`jm_version` is stamped 0.28.2. **Drive doppler with
+`uvx --from 'just-makeit==0.28.2' just-makeit …`.**
+
+doppler-filed [jm#441](https://github.com/just-buildit/just-makeit/issues/441):
+a bare `jm apply` was blindly regenerating every glue file, including
+`.pyi` stubs, with **no awareness of `[project] status_allow` at all** — that
+list was previously consulted only by `jm status --check`. Fixed in jm's
+`_apply.py`: writes now skip any file whose project-relative path matches a
+`status_allow` entry (exact or glob), the same matching `_status.py` already
+used; `jm status --check`'s internal replay keeps computing the genuine diff
+(`honor_status_allow=False`) so allowed drift is still correctly classified
+as `ALLOWED` rather than looking spuriously up to date. **This retires
+doppler's most-repeated manual drill**: previously, any bare `jm apply` (e.g.
+while adding an unrelated new module elsewhere in the manifest) would clobber
+the 9 hand-maintained `status_allow` `.pyi` files (`dsss.pyi`, `measure.pyi`,
+`analyzer.pyi`, `delay.pyi`, and others gated on the `out=`/`_max_out()`
+reconciliation gaps noted throughout this doc) and required a `git checkout`
+restore afterward — `jm apply` now leaves those files' bytes untouched,
+full stop.
+
+Investigating the jm#441 report also surfaced a **doppler-side** bug (not a
+jm bug): `native/inc/burst_despreader/burst_despreader_core.h`'s hand-written
+`@param bn_carrier`/`@param bn_code` doxygen text carried stale
+`(default: 0.01)`/`(default: 0.002)` annotations that had drifted 5x out of
+sync with `objects/burst_despreader.toml`'s actual `init_params` defaults
+(`0.05`/`0.01`) — evidently retuned once in the manifest and never mirrored
+into the header prose. jm's docstring-transplant machinery faithfully
+juxtaposed both sources (the numpy signature line from the manifest, the body
+text from the header), which read as a corrupted 5x-scaled value until traced
+to its root. Fixed by correcting the header text to match the manifest.
+Filed [jm#442](https://github.com/just-buildit/just-makeit/issues/442) for a
+lint idea: warn during `jm apply` when a header `@param`'s `(default: X)`
+annotation contradicts the manifest default, so this class of doc rot is
+caught automatically instead of by manual diff review.
+
 ______________________________________________________________________
 
 ## State serialization

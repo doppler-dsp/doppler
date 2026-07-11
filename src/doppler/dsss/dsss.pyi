@@ -198,9 +198,9 @@ class BurstDespreader:
     init_chip_phase : float, default 0.0
         Seed code phase, chips (default: 0.0).
     bn_carrier : float, default 0.05
-        Carrier loop noise bandwidth (default: 0.05).
+        Carrier (Costas) loop noise bandwidth, normalized to the symbol rate (default: 0.05).
     bn_code : float, default 0.01
-        Code loop noise bandwidth (default: 0.01).
+        Code (DLL) loop noise bandwidth, normalized to the symbol rate (default: 0.01).
 
     """
     def __init__(self, code: NDArray[np.uint8] = ..., sf: int = ..., sps: int = ..., init_norm_freq: float = ..., init_chip_phase: float = ..., bn_carrier: float = ..., bn_code: float = ...) -> None: ...

@@ -51,6 +51,9 @@ print(iq)
 # [ 1.+0.j  0.+1.j -1.+0.j  0.-1.j ...]
 ```
 
+For modulated waveforms, multi-segment scenes, and file/stream output, see
+[Waveform Generator (wfmgen)](#waveform-generator-wfmgen) below.
+
 ### FFT
 
 ```python
@@ -139,6 +142,27 @@ while True:
     print(f"seq={msg.seq}  samples={len(msg.samples)}")
 EOF
 ```
+
+______________________________________________________________________
+
+## Waveform Generator (wfmgen)
+
+!!! tip "No extra required"
+
+    `wfmgen` ships in the base `pip install doppler-dsp` wheel — no optional
+    extra needed.
+
+One engine generates a single waveform, a multi-segment JSON scene, or a live
+stream — the CLI and the Python API produce byte-identical output:
+
+```sh
+wfmgen --type qpsk --snr 12 --count 100000 -o capture.cf32              # a single waveform
+wfmgen --from-file scenario.json -o scenario.cf32                       # a multi-segment scene
+wfmgen --type qpsk --continuous --realtime --output zmq://tcp://*:5555  # stream to ZMQ
+```
+
+See [Waveform Generator (wfmgen)](guide/wfmgen/index.md) for scenes,
+BLUE/SigMF, streaming, and the `Plan` bit-exact sweep cache.
 
 ______________________________________________________________________
 
@@ -257,5 +281,7 @@ ______________________________________________________________________
 - [Architecture](architecture.md) — design overview and layer diagram
 - [Examples](examples/index.md): [C](examples/c.md) · [Streaming](examples/streaming.md)
 - [API reference](c-api/files.md) — full C and Python API docs
+- [Waveform Generator (wfmgen)](guide/wfmgen/index.md) — scenes, BLUE/SigMF,
+    ZMQ streaming, and the Plan sweep cache
 - [Spectrum Analyzer](specan/index.md) — specan configuration
 - [CLI & Pipelines](cli/index.md) — compose and Dopplerfile

@@ -117,3 +117,10 @@ python src/doppler/examples/wfm_realtime_stream.py  # paced NATS publish + recv 
 
 See the [Python composer API](../api/python-wfmgen.md#compose-multi-segment-composition-writers-and-a-nats-sink)
 for the full `Writer` / `Reader` / `read_iq` surface.
+
+## See also
+
+- [Guide: Output & containers](../guide/wfmgen/output.md#containers) — the
+    flag/parameter reference for the four containers shown here.
+- [Guide: Streaming](../guide/wfmgen/streaming.md) — real-time pacing for the
+    ZMQ sink used above.

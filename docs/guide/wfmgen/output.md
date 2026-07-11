@@ -139,3 +139,12 @@ with Reader("capture.blue") as r:                 # container auto-detected
 `generate → read_iq` is bit-faithful. See
 [Type System → Reading interleaved I/Q](../../types.md#reading-interleaved-iq-in-python)
 and the [Python API](python.md) page.
+
+______________________________________________________________________
+
+## See also
+
+- [Gallery: Waveform I/O](../../gallery/wfm-io.md) — round-tripping one capture
+    through all four containers, visually confirmed lossless.
+- [Gallery: Waveform Write](../../gallery/wfm-write.md) — a minimal
+    Composer → Writer → Reader walkthrough.

@@ -210,3 +210,12 @@ The recorded `--headroom` is reapplied on replay; an explicit `--headroom` on th
 `--from-file` run overrides it. Use `--record` to document a capture next to its
 data, or to pin an exact scenario in a test. The resolved spec also round-trips
 through JSON in Python — `Composer.from_json(c.to_json())` reproduces the stream.
+
+______________________________________________________________________
+
+## See also
+
+- [Gallery: Composing a Scene](../../gallery/wfm-composition.md) — a visual
+    `sum`/`add` demo (spectrum/spectrogram) built from this page's spec shape.
+- [Gallery: Waveform JSON Round-Trip](../../gallery/wfm-json.md) — a full scene
+    reconstructed purely from a `--record`-style JSON spec.

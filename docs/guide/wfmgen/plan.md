@@ -1,4 +1,4 @@
-# Parameter Sweeps — the `Plan` engine
+# Prepare Once, Sweep Many — the `Plan` engine
 
 Evaluating a system — a detector, a demodulator, a synchroniser — means feeding
 it the **same scene at many operating points**: a detection or BER curve is a

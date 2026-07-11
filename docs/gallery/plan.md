@@ -1,4 +1,4 @@
-# Prepare Once, Materialize Many — the `Plan` stimulus engine
+# Prepare Once, Sweep Many — the `Plan` stimulus engine
 
 ![SNR-sweep detection curve and Monte-Carlo cloud from one Plan](../assets/plan_demo.png)
 

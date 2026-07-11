@@ -88,3 +88,8 @@ against it automatically.
 ```bash
 python src/doppler/examples/wfm_json_demo.py   # → wfm_json_demo.png
 ```
+
+## See also
+
+- [Guide: Scenes → Reproducible runs (`--record`)](../guide/wfmgen/scenes.md#reproducible-runs-record) —
+    the full `--record`/`--from-file` reference this demo is built on.

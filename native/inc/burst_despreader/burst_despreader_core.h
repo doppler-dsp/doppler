@@ -68,12 +68,14 @@ typedef struct
  *
  * @param code  Data spreading code (0/1 chips), length @p code_len; copied.
  * @param code_len  Length of @p code in chips (>= sf).
- * @param sf  sf (default: 1).
- * @param sps  sps (default: 2).
- * @param init_norm_freq  init_norm_freq (default: 0.0).
- * @param init_chip_phase  init_chip_phase (default: 0.0).
- * @param bn_carrier  bn_carrier (default: 0.01).
- * @param bn_code  bn_code (default: 0.002).
+ * @param sf  Spreading factor: chips integrated per prompt symbol
+ *            (default: 1).
+ * @param sps  Samples per chip (default: 2).
+ * @param init_norm_freq  Seed carrier frequency, cycles/sample — the
+ *            acquisition estimate (default: 0.0).
+ * @param init_chip_phase  Seed code phase, chips (default: 0.0).
+ * @param bn_carrier  Carrier loop noise bandwidth (default: 0.05).
+ * @param bn_code  Code loop noise bandwidth (default: 0.01).
  * @return Heap-allocated state, or NULL on allocation failure.
  * @note Caller must call burst_despreader_destroy() when done.
  */

@@ -820,9 +820,139 @@ main (void)
     wfm_compose_destroy (csum);
   }
 
+  /* ── repeats: bounded per-segment instancing — N instances back-to-back,
+   * instance 0 byte-compatible, fresh AWGN + fresh ranged draws per
+   * instance, fixed signal, JSON round-trip ── */
+  {
+    wfm_source_t bpsk = { .type      = WFM_SYNTH_BPSK,
+                          .snr       = 3.0,
+                          .snr_mode  = 3,
+                          .seed      = 11,
+                          .sps       = 2,
+                          .pn_length = 7 };
+
+    /* fixed durations: total = repeats * (on + off), and the clean signal
+     * repeats byte-identically while a noisy one gets fresh AWGN. */
+    wfm_segment_t g3 = { .sources     = &bpsk,
+                         .n_sources   = 1,
+                         .fs          = 1e6,
+                         .num_samples = 100,
+                         .off_samples = 20,
+                         .repeats     = 3 };
+
+    wfm_compose_state_t *c = wfm_compose_create (&g3, 1, 0, 0);
+    CHECK (c, "repeats create");
+    static float complex rall[512];
+    size_t               rt = 0;
+    while ((n = wfm_compose_execute (c, buf, 777)) > 0)
+      {
+        for (size_t i = 0; i < n; i++)
+          rall[rt + i] = buf[i];
+        rt += n;
+      }
+    wfm_compose_destroy (c);
+    CHECK (rt == 3 * (100 + 20), "repeats=3 total = 3*(on+off)");
+
+    /* instance 0 == a repeats-less segment (byte-compat). */
+    wfm_segment_t g1        = g3;
+    g1.repeats              = 0; /* 0 and 1 both mean one instance */
+    wfm_compose_state_t *c1 = wfm_compose_create (&g1, 1, 0, 0);
+    CHECK (c1, "repeats-less create");
+    static float complex r1[256];
+    size_t               t1 = 0;
+    while ((n = wfm_compose_execute (c1, buf, 777)) > 0)
+      {
+        for (size_t i = 0; i < n; i++)
+          r1[t1 + i] = buf[i];
+        t1 += n;
+      }
+    wfm_compose_destroy (c1);
+    CHECK (t1 == 120, "repeats-less length");
+    CHECK (memcmp (rall, r1, 120 * sizeof (float complex)) == 0,
+           "instance 0 byte-identical to a repeats-less segment");
+
+    /* noisy instances never share an AWGN realization ... */
+    CHECK (memcmp (rall, rall + 120, 100 * sizeof (float complex)) != 0,
+           "fresh noise per instance");
+    /* ... while the underlying signal is fixed: clean instances repeat
+     * byte-identically. */
+    wfm_source_t cb         = bpsk;
+    cb.snr                  = 100.0; /* clean: no AWGN at all */
+    wfm_segment_t gc        = g3;
+    gc.sources              = &cb;
+    wfm_compose_state_t *cc = wfm_compose_create (&gc, 1, 0, 0);
+    CHECK (cc, "clean repeats create");
+    static float complex rc[512];
+    size_t               tc = 0;
+    while ((n = wfm_compose_execute (cc, buf, 777)) > 0)
+      {
+        for (size_t i = 0; i < n; i++)
+          rc[tc + i] = buf[i];
+        tc += n;
+      }
+    wfm_compose_destroy (cc);
+    CHECK (tc == 360
+               && memcmp (rc, rc + 120, 120 * sizeof (float complex)) == 0
+               && memcmp (rc, rc + 240, 120 * sizeof (float complex)) == 0,
+           "signal fixed: clean instances byte-identical");
+
+    /* ranged off_samples re-draws per instance (a jittered burst train)
+     * and the instance-0 draw matches the repeats-less draw. */
+    wfm_segment_t gr        = g3;
+    gr.off_samples          = 10;
+    gr.off_samples_hi       = 200;
+    gr.ranged               = WFM_RANGE_OFF_SAMPLES;
+    wfm_compose_state_t *cr = wfm_compose_create (&gr, 1, 0, 0);
+    CHECK (cr, "ranged repeats create");
+    size_t rtot = 0;
+    while ((n = wfm_compose_execute (cr, buf, 777)) > 0)
+      rtot += n;
+    wfm_compose_destroy (cr);
+    CHECK (rtot >= 3 * 110 && rtot <= 3 * 300, "ranged gaps within bounds");
+    wfm_segment_t gr1         = gr;
+    gr1.repeats               = 1;
+    wfm_compose_state_t *cs   = wfm_compose_create (&gr1, 1, 0, 0);
+    size_t               stot = 0;
+    while ((n = wfm_compose_execute (cs, buf, 777)) > 0)
+      stot += n;
+    wfm_compose_destroy (cs);
+    CHECK (rtot != 3 * stot,
+           "per-instance gap draws are distinct (not 3x the first)");
+
+    /* JSON: repeats emitted (and only when > 1), round-trip byte-identical */
+    wfm_compose_state_t *cj = wfm_compose_create (&g3, 1, 0, 0);
+    size_t               nj = 0;
+    const wfm_segment_t *gj = wfm_compose_segments (cj, &nj, NULL, NULL);
+    char                *js = wfm_spec_to_json (gj, 1, 0, 0, 0.0);
+    wfm_compose_destroy (cj);
+    CHECK (js && strstr (js, "\"repeats\""), "repeats key emitted");
+    wfm_compose_state_t *jr = wfm_compose_from_json (js);
+    free (js);
+    CHECK (jr, "repeats from_json");
+    static float complex jall2[512];
+    size_t               jt2 = 0;
+    while ((n = wfm_compose_execute (jr, buf, 777)) > 0)
+      {
+        for (size_t i = 0; i < n; i++)
+          jall2[jt2 + i] = buf[i];
+        jt2 += n;
+      }
+    wfm_compose_destroy (jr);
+    CHECK (jt2 == rt && memcmp (rall, jall2, rt * sizeof (float complex)) == 0,
+           "repeats json round-trip byte-identical");
+    wfm_compose_state_t *c1j = wfm_compose_create (&g1, 1, 0, 0);
+    size_t               n1j = 0;
+    const wfm_segment_t *g1j = wfm_compose_segments (c1j, &n1j, NULL, NULL);
+    char                *j1  = wfm_spec_to_json (g1j, 1, 0, 0, 0.0);
+    wfm_compose_destroy (c1j);
+    CHECK (j1 && !strstr (j1, "\"repeats\""),
+           "repeats omitted at 1 (old specs unchanged)");
+    free (j1);
+  }
+
   printf ("test_wfm_compose: OK (total=%zu, json round-trip, level, sum, "
           "resolve, sum-json, headroom, seed_advance, ranged fields, "
-          "dsss burst)\n",
+          "dsss burst, repeats)\n",
           total);
   return 0;
 }

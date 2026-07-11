@@ -274,6 +274,10 @@ static const char USAGE[]
       "  --fc HZ         Centre frequency stored in SigMF metadata only\n"
       "  --count N[:N]   Samples to generate (default 1024)\n"
       "  --off N[:N]     Trailing gap of zeros after the segment\n"
+      "  --repeats N     Play the segment N times back-to-back (ranged"
+      " fields\n"
+      "                  re-draw and noise is fresh per instance; signal"
+      " fixed)\n"
       "  --seed N        PRNG seed (default 0; deterministic — vary it for"
       " run-to-run change)\n"
       "  --sps N         Samples per symbol for PSK / PN (default 1)\n"
@@ -748,6 +752,11 @@ doppler_wfmgen (int   argc, /* NOLINT(readability-function-size) */
           seg.off_samples_hi = (size_t)hi;
           seg.ranged         = ro ? (seg.ranged | WFM_RANGE_OFF_SAMPLES)
                                   : (seg.ranged & ~WFM_RANGE_OFF_SAMPLES);
+        }
+      else if (!strcmp (a, "--repeats"))
+        {
+          REQVAL (v);
+          seg.repeats = (size_t)strtoull (v, NULL, 10);
         }
       else if (!strcmp (a, "--repeat"))
         {

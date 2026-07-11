@@ -194,6 +194,46 @@ wfmgen --type bpsk --fs 1e6 --sps 8 --pn-length 7 \
 
 ______________________________________________________________________
 
+## Burst trains (`repeats`)
+
+A segment can play itself `repeats` times back-to-back — each **instance** is
+one on-time plus its trailing gap — before the timeline advances. That turns
+"N bursts, randomly placed with a minimum gap" into **one declaration**
+instead of N copy-pasted segments:
+
+```jsonc
+{ "type": "dsss", "fs": 4e6, "sps": 4,
+  "snr": 10.0, "snr_mode": "esno",
+  "acq_code": "…", "acq_reps": 5, "data_code": "…",
+  "payload": "…",
+  "off_samples": [15000, 40000],   // jittered gap, min 15k — per instance
+  "repeats": 5 }                    // → a 5-burst train
+```
+
+Instance semantics are exactly what a burst train wants:
+
+- **Ranged fields re-draw per instance** — with `off_samples: [lo, hi]` every
+    gap is a fresh draw (and `lo` is the guaranteed minimum gap). The draw key
+    extends the ranged hash with the instance index, so instance 0 renders
+    **byte-identically** to a repeats-less segment and old scenes are
+    unchanged.
+- **The AWGN is always fresh per instance** — two instances never share a
+    noise realization, regardless of `--seed-advance`.
+- **The signal is fixed** — codes, payload, PN phase, and every non-ranged
+    parameter repeat exactly. (To vary the signal too, that is what
+    `--seed-advance all` on a looped timeline is for.)
+
+`repeats` is per-segment instancing; `--repeat` loops the **whole timeline**
+(advancing the epoch seed). They compose: a two-segment spec with
+`"repeats": 5` on the first plays 5 bursts, then the second segment, then —
+under `--repeat` — the whole thing again with the next epoch's draws.
+
+On the CLI the single-segment face is `--repeats N`; in Python it is
+`Segment(..., repeats=5)`. See [DSSS bursts](dsss-bursts.md) for the worked
+burst-train walkthrough.
+
+______________________________________________________________________
+
 ## Reproducible runs (`--record`)
 
 `--record run.json` writes the **fully-resolved** spec — every value *after*

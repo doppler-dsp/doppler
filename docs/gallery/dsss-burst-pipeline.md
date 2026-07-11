@@ -193,10 +193,14 @@ inconvenience:
     the shared `doppler.wfm.crc16` kernel (the same C the demod validates),
     data-symbol `esno`, and intrinsic burst length.
 
-- **No "N discrete bursts, jittered spacing" primitive** — build it as N
-    segments with distinct (or ranged, `[lo, hi]`) `off_samples` per segment.
-    (A `repeats=N` segment field with per-instance ranged redraws is the
-    planned follow-up.)
+- **(since fixed — this example drove the fix)** There was no "N discrete
+    bursts, jittered spacing" primitive — the train had to be N copy-pasted
+    segments. The `repeats=N` segment field now plays one declaration N
+    times with per-instance ranged gap redraws and fresh per-instance noise
+    (fixed signal) — see
+    [DSSS bursts](../guide/wfmgen/dsss-bursts.md). This page keeps its five
+    explicit fixed-gap segments as reproducible ground truth (each burst's
+    seed and position pinned independently).
 
 - **`Acquisition.push()`'s buffering/framing** is a ring-buffer FIFO with
     non-overlapping frames and a hardcoded 64-result-per-call cap — see

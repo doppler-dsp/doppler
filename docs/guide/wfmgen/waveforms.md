@@ -101,6 +101,7 @@ burst = Segment(
     sync=np.array([1,1,1,1,1,0,0,1,1,0,1,0,1], np.uint8),  # Barker-13
     payload=rng.integers(0, 2, 1000, dtype=np.uint8),  # CRC-16 auto-appended
     off_samples=(15_000, 40_000),              # trailing gap: min 15k, jittered
+    repeats=5,                                 # → a 5-burst train
 )
 x = Composer([burst]).compose()
 ```
@@ -122,8 +123,12 @@ Everything about the burst geometry is explicit — codes are plain 0/1 arrays
 On the CLI the same burst is `--type dsss --acq-code`/`--acq-code-hex`,
 `--acq-reps`, `--data-code`/`--data-code-hex`, `--sync`, `--crc none|crc16`,
 with the payload riding the standard `--bits`/`--bits-hex`/`--bits-file`
-flags. See the [DSSS burst pipeline gallery](../../gallery/dsss-burst-pipeline.md)
-for the full 5-burst TX→RX walkthrough.
+flags and the train sugar as `--repeats N` (see
+[Scenes § burst trains](scenes.md#burst-trains-repeats)). The
+[DSSS bursts guide](dsss-bursts.md) unpacks the declaration and decodes the
+train back through `BurstDemod`; the
+[DSSS burst pipeline gallery](../../gallery/dsss-burst-pipeline.md) is the
+full TX→RX walkthrough.
 
 ______________________________________________________________________
 

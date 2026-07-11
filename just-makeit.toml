@@ -865,6 +865,12 @@ type = "size_t"
 default = "0"
 doc = "Trailing off-time gap in samples (zeros) appended after the segment."
 
+[[module.wfm_compose.segment.fields]]
+name = "repeats"
+type = "size_t"
+default = "1"
+doc = "Play the segment this many times back-to-back (each instance = on-time + trailing gap) before advancing. Ranged fields re-draw and the AWGN is fresh per instance; the signal (codes, payload, PN phase) stays fixed."
+
 [module.wfm_compose.timeline]
 type_name = "Timeline"
 loop = ["once", "repeat", "continuous"]

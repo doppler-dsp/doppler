@@ -127,6 +127,14 @@ typedef struct {
     unsigned ranged;       /* WFM_RANGE_{NUM,OFF}_SAMPLES bitmask */
     size_t num_samples_hi; /* upper bound when WFM_RANGE_NUM_SAMPLES is set */
     size_t off_samples_hi; /* upper bound when WFM_RANGE_OFF_SAMPLES is set */
+    /* Bounded instancing: play this segment `repeats` times back-to-back
+       (each instance = on-time + trailing gap) before advancing. Every
+       ranged field re-draws per instance and the AWGN is always fresh per
+       instance, while the signal (codes/payload/PN phase) stays fixed — so
+       `repeats=5` with a ranged off_samples is a 5-burst train with
+       jittered gaps from one declaration. 0 and 1 both mean one instance;
+       instance 0 renders byte-identically to a repeats-less segment. */
+    size_t repeats;
 } wfm_segment_t;
 
 /**
@@ -199,14 +207,18 @@ double wfm_source_create_snr(const wfm_source_t *src, double snr,
  * composed one. `freq/snr/f_end` are passed already ranged-resolved by the
  * caller; `on_len` pins a chirp's sweep to the on-time; `epoch`/`seed_advance`
  * (a ::wfm_seed_advance_t) drive the per-repeat seed policy — `epoch == 0`
- * yields the unmodified seed.
+ * yields the unmodified seed. `instance` is the segment's `repeats` counter
+ * (0-based): a non-zero instance always reseeds the AWGN (fresh noise per
+ * burst instance, signal fixed, regardless of `seed_advance`); instance 0 is
+ * byte-identical to the pre-`repeats` behaviour.
  *
  * @return A heap synth (caller wfm_synth_destroy()s it), or NULL on failure.
  */
 wfm_synth_state_t *wfm_compose_build_synth(const wfm_source_t *src, double fs,
                                            size_t on_len, double freq,
                                            double snr, double f_end,
-                                           unsigned epoch, int seed_advance);
+                                           unsigned epoch, int seed_advance,
+                                           size_t instance);
 
 /**
  * @brief Per-repeat seed policy for a looped/continuous stream.

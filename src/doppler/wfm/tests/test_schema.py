@@ -269,6 +269,27 @@ _LIVE_CASES: list[tuple[str, list[str]]] = [
             "2",
         ],
     ),
+    (
+        "dsss_repeats_train",
+        [
+            "--type",
+            "dsss",
+            "--acq-code",
+            "10110010",
+            "--acq-reps",
+            "3",
+            "--data-code",
+            "0110",
+            "--bits",
+            "10011",
+            "--sps",
+            "2",
+            "--off",
+            "16:64",
+            "--repeats",
+            "4",
+        ],
+    ),
 ]
 
 

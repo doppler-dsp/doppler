@@ -380,6 +380,8 @@ class above.
 
 ::: doppler.wfm.dsss_spread
 
+::: doppler.wfm.crc16
+
 ::: doppler.wfm.mls_poly
 
 ::: doppler.wfm.readback.read_iq

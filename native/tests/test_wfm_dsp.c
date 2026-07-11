@@ -113,6 +113,11 @@ main (void)
     CHECK (wfm_frame_dsss_nchips (0, 0, 2, 0, 0, 0) == 0, "empty burst");
 
     static uint8_t out[64];
+    /* the chips builder mirrors the sizing guard: invalid geometry (frame
+     * bits with no data code) writes nothing and returns 0 */
+    CHECK (wfm_frame_dsss_chips (NULL, 0, 0, NULL, 0, sync, 2, pay, 3, 1, out)
+               == 0,
+           "chips builder rejects invalid geometry");
     CHECK (wfm_frame_dsss_chips (acq, 3, 2, dcode, 2, sync, 2, pay, 3, 1, out)
                == n,
            "chips written == nchips");

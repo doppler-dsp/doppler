@@ -730,8 +730,62 @@ main (void)
       }
     CHECK (jt == dt && memcmp (dall, j2, dt * sizeof (float complex)) == 0,
            "dsss json round-trip byte-identical");
-    free (js);
     wfm_compose_destroy (jc2);
+
+    /* "pattern" is accepted as an alias for "payload" on parse: rename the
+     * emitted key in place (same length) and re-parse — same bytes. */
+    char *pat = strstr (js, "\"payload\"");
+    CHECK (pat, "payload key present");
+    memcpy (pat, "\"pattern\"", 9);
+    wfm_compose_state_t *jp = wfm_compose_from_json (js);
+    CHECK (jp, "pattern alias parses");
+    static float complex jp2[1024];
+    size_t               pt = 0;
+    while ((n = wfm_compose_execute (jp, buf, 777)) > 0)
+      {
+        for (size_t i = 0; i < n; i++)
+          jp2[pt + i] = buf[i];
+        pt += n;
+      }
+    CHECK (pt == dt && memcmp (dall, jp2, dt * sizeof (float complex)) == 0,
+           "pattern alias byte-identical to payload");
+    wfm_compose_destroy (jp);
+    free (js);
+
+    /* ebno on a dsss burst is esno (BPSK payload, 1 bit/symbol): same
+     * bytes as the esno render above. */
+    wfm_source_t  eb        = dsss;
+    wfm_segment_t ge        = g;
+    ge.sources              = &eb;
+    eb.snr_mode             = 2; /* ebno */
+    wfm_compose_state_t *ce = wfm_compose_create (&ge, 1, 0, 0);
+    CHECK (ce, "ebno dsss create");
+    static float complex eall[1024];
+    size_t               et = 0;
+    while ((n = wfm_compose_execute (ce, buf, 777)) > 0)
+      {
+        for (size_t i = 0; i < n; i++)
+          eall[et + i] = buf[i];
+        et += n;
+      }
+    wfm_compose_destroy (ce);
+    CHECK (et == dt && memcmp (dall, eall, dt * sizeof (float complex)) == 0,
+           "dsss ebno == esno (BPSK payload)");
+
+    /* an absent optional code is simply not emitted (no empty "" keys) */
+    wfm_source_t  nos       = dsss;
+    wfm_segment_t gnos      = g;
+    gnos.sources            = &nos;
+    nos.sync                = NULL;
+    nos.n_sync              = 0;
+    wfm_compose_state_t *cn = wfm_compose_create (&gnos, 1, 0, 0);
+    CHECK (cn, "no-sync dsss create");
+    size_t               nn  = 0;
+    const wfm_segment_t *ggn = wfm_compose_segments (cn, &nn, NULL, NULL);
+    char                *jn  = wfm_spec_to_json (ggn, 1, 0, 0, 0.0);
+    wfm_compose_destroy (cn);
+    CHECK (jn && !strstr (jn, "\"sync\""), "absent sync key not emitted");
+    free (jn);
 
     /* invalid geometry (payload but no data code) fails the segment into a
      * silent gap rather than wedging the stream. */
@@ -747,6 +801,23 @@ main (void)
     for (size_t i = 0; i < got; i++)
       CHECK (buf[i] == 0.0f, "bad dsss gap is zeros");
     wfm_compose_destroy (cbad);
+
+    /* in a multi-source sum the on-time is explicit, so the build itself
+     * hits the invalid geometry (set_dsss fails) — the whole segment still
+     * degrades to its silent gap rather than wedging the stream. */
+    wfm_source_t  mix[2] = { { .type = WFM_SYNTH_TONE, .freq = 0.1 }, bad };
+    wfm_segment_t gsum   = { .sources     = mix,
+                             .n_sources   = 2,
+                             .fs          = 1e6,
+                             .num_samples = 16,
+                             .off_samples = 4 };
+    wfm_compose_state_t *csum = wfm_compose_create (&gsum, 1, 0, 0);
+    CHECK (csum, "sum with bad dsss still creates");
+    got = wfm_compose_execute (csum, buf, 64);
+    CHECK (got == 4, "sum with bad dsss degrades to its gap");
+    for (size_t i = 0; i < got; i++)
+      CHECK (buf[i] == 0.0f, "sum bad-dsss gap is zeros");
+    wfm_compose_destroy (csum);
   }
 
   printf ("test_wfm_compose: OK (total=%zu, json round-trip, level, sum, "

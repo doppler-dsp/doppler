@@ -95,8 +95,9 @@ def test_intrinsic_on_time():
 def test_three_faces_byte_identical(tmp_path):
     """kwargs Composer == from_json == CLI --from-file, bit for bit."""
     acq, dat, pay = _codes()
-    kwargs = [_seg_kwargs(k + 1, 3000 + 1000 * k, acq, dat, pay)
-              for k in range(2)]
+    kwargs = [
+        _seg_kwargs(k + 1, 3000 + 1000 * k, acq, dat, pay) for k in range(2)
+    ]
 
     x_obj = Composer([Segment(**kw) for kw in kwargs]).compose()
 
@@ -108,8 +109,13 @@ def test_three_faces_byte_identical(tmp_path):
     scene_path.write_text(scene)
     out = tmp_path / "cli.cf32"
     p = subprocess.run(
-        [cli._runnable(), "--from-file", str(scene_path),
-         "--output", str(out)],
+        [
+            cli._runnable(),
+            "--from-file",
+            str(scene_path),
+            "--output",
+            str(out),
+        ],
         capture_output=True,
     )
     assert p.returncode == 0, p.stderr.decode()
@@ -125,14 +131,33 @@ def test_cli_bare_flags_match_kwargs(tmp_path):
 
     out = tmp_path / "cli.cf32"
     p = subprocess.run(
-        [cli._runnable(), "--type", "dsss", "--fs", str(FS),
-         "--sps", str(SPC), "--seed", "3",
-         "--snr", "10", "--snr-mode", "esno",
-         "--acq-code", "".join(map(str, acq)), "--acq-reps", str(REPS),
-         "--data-code", "".join(map(str, dat)),
-         "--sync", "".join(map(str, SYNC)),
-         "--bits", "".join(map(str, pay)),
-         "--output", str(out)],
+        [
+            cli._runnable(),
+            "--type",
+            "dsss",
+            "--fs",
+            str(FS),
+            "--sps",
+            str(SPC),
+            "--seed",
+            "3",
+            "--snr",
+            "10",
+            "--snr-mode",
+            "esno",
+            "--acq-code",
+            "".join(map(str, acq)),
+            "--acq-reps",
+            str(REPS),
+            "--data-code",
+            "".join(map(str, dat)),
+            "--sync",
+            "".join(map(str, SYNC)),
+            "--bits",
+            "".join(map(str, pay)),
+            "--output",
+            str(out),
+        ],
         capture_output=True,
     )
     assert p.returncode == 0, p.stderr.decode()
@@ -155,7 +180,7 @@ def test_esno_calibration():
     assert noise_power == pytest.approx(expected, rel=0.05)
 
     pre = ACQ_SF * REPS * SPC
-    chips = noisy[pre:pre + PAYLOAD * DATA_SF * SPC]
+    chips = noisy[pre : pre + PAYLOAD * DATA_SF * SPC]
     chips = chips.reshape(PAYLOAD, DATA_SF, SPC)
     signs = np.where(dat[None, :, None] == 1, -1.0, 1.0)
     soft = (chips * signs).mean(axis=(1, 2)) * math.sqrt(DATA_SF * SPC)
@@ -170,8 +195,12 @@ def test_five_bursts_decode_through_burst_demod():
     acq, dat, pay = _codes()
     min_gap, max_gap = 4000, 12000
     segs = [
-        Segment(**{**_seg_kwargs(k + 1, 0, acq, dat, pay),
-                   "off_samples": (min_gap, max_gap)})
+        Segment(
+            **{
+                **_seg_kwargs(k + 1, 0, acq, dat, pay),
+                "off_samples": (min_gap, max_gap),
+            }
+        )
         for k in range(5)
     ]
     comp = Composer(segs)
@@ -190,13 +219,12 @@ def test_five_bursts_decode_through_burst_demod():
     assert len(x) >= 5 * (BURST_LEN + min_gap)
 
     n_valid = 0
-    for k, s in enumerate(starts):
-        bd = BurstDemod(dat, spc=SPC, chip_rate=FS / SPC,
-                        payload_len=PAYLOAD)
+    for _k, s in enumerate(starts):
+        bd = BurstDemod(dat, spc=SPC, chip_rate=FS / SPC, payload_len=PAYLOAD)
         bd.set_preamble(acq, REPS)
         bd.set_sync(SYNC)
         bd.set_prior(0.0, 0)
-        bits = bd.demod(x[s:s + BURST_LEN])
+        bits = bd.demod(x[s : s + BURST_LEN])
         if bd.frame_valid and np.array_equal(bits, pay):
             n_valid += 1
     assert n_valid == 5
@@ -223,5 +251,5 @@ def test_invalid_geometry_raises_or_degrades():
     kw.pop("data_code")
     kw.pop("off_samples")
     s = Synth(**kw)
-    with pytest.raises(Exception):
+    with pytest.raises(RuntimeError):
         s.steps(64)

@@ -129,7 +129,8 @@ uint64_t mls_poly(uint32_t n);
  * an unpacked bit array, not a packed byte-stream CRC. Transmit the result
  * MSB-first.
  *
- * @param bits  Array of 0/1 bit values (one per byte).
+ * @param bits      Array of 0/1 bit values (one per byte).
+ * @param bits_len  Number of bits in @p bits.
  * @return The 16-bit CRC.
  * @code
  * >>> import numpy as np

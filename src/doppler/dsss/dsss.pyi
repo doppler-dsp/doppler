@@ -90,14 +90,14 @@ class Despreader:
     def bits_max_out(self) -> int:
         """Max output length bits() can produce for the current state. Use to size the ``out=`` buffer."""
 
-    def set_telemetry(self, tlm: object | None, prefix: Any, decim: int = 1) -> None:
+    def set_telemetry(self, tlm: object | None, prefix: str, decim: int = 1) -> None:
         """Attach (or detach) a telemetry context across the despreader. Pure forwarder — the despreader registers no probes of its own: the carrier loop registers "<prefix>.car.lock" / ".e" / ".freq" / ".locked" and the code loop registers "<prefix>.code.e" / ".rate" / ".lock" / ".locked" (the ".locked" pair are the loops' verify-counted lockdet decisions, 0/1) — eight probes, all thinned by decim and emitted once per code period (the despreader flushes both loops at its per-period update). Passing NULL detaches both loops.  Setup path, never hot; the context is borrowed and must outlive the attachment (SPSC rules in telemetry/telemetry.h).
 
         Parameters
         ----------
         tlm : object | None
             Telemetry context to attach, or NULL to detach.
-        prefix : Any
+        prefix : str
             Probe-name prefix, e.g. "ch0".
         decim : int
             Emit every decim-th code period; >= 1.

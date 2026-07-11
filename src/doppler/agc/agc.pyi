@@ -100,14 +100,14 @@ class AGC:
 
         """
 
-    def set_telemetry(self, tlm: object | None, prefix: Any, decim: int = 1) -> None:
+    def set_telemetry(self, tlm: object | None, prefix: str, decim: int = 1) -> None:
         """Attach (or detach) a telemetry context and register the AGC's probes on it. Registers one probe, "<prefix>.gain_db" — the loop-filter integrator (the commanded gain in dB), recorded once per gain-update event and further thinned by decim.  Passing NULL detaches (probe sites revert to their single-branch disabled cost); re-attaching after a reset is idempotent (same name -> same probe id).  Setup path, never hot: call before the producer thread starts stepping, and keep every object attached to one context on that one thread (the ring is SPSC — see telemetry/telemetry.h).  The context is borrowed, not owned: it must outlive the attachment.
 
         Parameters
         ----------
         tlm : object | None
             Telemetry context to attach, or NULL to detach.
-        prefix : Any
+        prefix : str
             Probe-name prefix, e.g. "agc" or "rx.agc".
         decim : int
             Emit every decim-th gain update; >= 1.

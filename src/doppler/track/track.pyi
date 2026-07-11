@@ -155,14 +155,14 @@ class Costas:
     def steps_max_out(self) -> int:
         """Max output length steps() can produce for the current state."""
 
-    def set_telemetry(self, tlm: object | None, prefix: Any, decim: int = 1) -> None:
+    def set_telemetry(self, tlm: object | None, prefix: str, decim: int = 1) -> None:
         """Attach (or detach) a telemetry context and register the carrier loop's probes on it. Registers four probes, emitted once per dumped symbol and further thinned by decim: "<prefix>.lock" (the |Re P|/|P| lock-metric EMA, 1 = phase-locked), "<prefix>.e" (the PLL discriminator output — the loop stress), "<prefix>.freq" (the tracked NCO frequency, cycles/sample) and "<prefix>.locked" (the verify-counted lock decision, 0/1 — see costas_configure_lock). Passing NULL detaches.  Setup path, never hot: call before the producer thread starts stepping; the context is borrowed and must outlive the attachment (SPSC rules in telemetry/telemetry.h).
 
         Parameters
         ----------
         tlm : object | None
             Telemetry context to attach, or NULL to detach.
-        prefix : Any
+        prefix : str
             Probe-name prefix, e.g. "car" or "ch0.car".
         decim : int
             Emit every decim-th symbol; >= 1.
@@ -323,14 +323,14 @@ class Dll:
     def steps_max_out(self) -> int:
         """Max output length steps() can produce for the current state."""
 
-    def set_telemetry(self, tlm: object | None, prefix: Any, decim: int = 1) -> None:
+    def set_telemetry(self, tlm: object | None, prefix: str, decim: int = 1) -> None:
         """Attach (or detach) a telemetry context and register the code loop's probes on it. Registers four probes, emitted once per code epoch (period) and further thinned by decim: "<prefix>.e" (the early-minus-late envelope discriminator — the loop stress), "<prefix>.rate" (the tracked code rate, chips advanced per nominal chip, ~1.0 at lock), "<prefix>.lock" (the CFAR lock statistic R; compare against the configured threshold) and "<prefix>.locked" (the verify-counted lock decision, 0/1 — the lockdet output, so a consumer sees where the declare/drop rule fired without re-deriving it from the statistic).  Passing NULL detaches. Setup path, never hot: call before the producer thread starts stepping; the context is borrowed and must outlive the attachment (SPSC rules in telemetry/telemetry.h).
 
         Parameters
         ----------
         tlm : object | None
             Telemetry context to attach, or NULL to detach.
-        prefix : Any
+        prefix : str
             Probe-name prefix, e.g. "code" or "ch0.code".
         decim : int
             Emit every decim-th epoch; >= 1.
@@ -529,14 +529,14 @@ class SymbolSync:
     def steps_max_out(self) -> int:
         """Max output length steps() can produce for the current state."""
 
-    def set_telemetry(self, tlm: object | None, prefix: Any, decim: int = 1) -> None:
+    def set_telemetry(self, tlm: object | None, prefix: str, decim: int = 1) -> None:
         """Attach (or detach) a telemetry context and register the timing loop's probes on it. Registers three probes, emitted once per recovered symbol and further thinned by decim: "<prefix>.e" (the normalised TED error — the loop stress), "<prefix>.freq" (the loop-filter control steering the timing NCO, fractional rate offset) and "<prefix>.rate" (the smoothed tracked samples/symbol).  Passing NULL detaches.  Setup path, never hot: call before the producer thread starts stepping; the context is borrowed and must outlive the attachment (SPSC rules in telemetry/telemetry.h).
 
         Parameters
         ----------
         tlm : object | None
             Telemetry context to attach, or NULL to detach.
-        prefix : Any
+        prefix : str
             Probe-name prefix, e.g. "sync" or "rx.sync".
         decim : int
             Emit every decim-th symbol; >= 1.
@@ -751,14 +751,14 @@ class CarrierNda:
     def steps_max_out(self) -> int:
         """Max output length steps() can produce for the current state."""
 
-    def set_telemetry(self, tlm: object | None, prefix: Any, decim: int = 1) -> None:
+    def set_telemetry(self, tlm: object | None, prefix: str, decim: int = 1) -> None:
         """Attach (or detach) a telemetry context and register the carrier loop's probes on it — including the embedded arm AGC's. Registers three probes of its own, emitted once per input sample (this is a sample-rate loop — use decim to thin the stream) plus the embedded AGC's "<prefix>.agc.gain_db" (emitted at the AGC's own amortized gain-update rate): "<prefix>.lock" (the lock-signal EMA, ~1 when phase-locked), "<prefix>.e" (the M-th-power phase discriminator — the loop stress) and "<prefix>.freq" (the tracked carrier frequency, cycles/sample).  Passing NULL detaches the loop and the embedded AGC. Setup path, never hot: call before the producer thread starts stepping; the context is borrowed and must outlive the attachment (SPSC rules in telemetry/telemetry.h).
 
         Parameters
         ----------
         tlm : object | None
             Telemetry context to attach, or NULL to detach.
-        prefix : Any
+        prefix : str
             Probe-name prefix, e.g. "car" or "rx.car".
         decim : int
             Emit every decim-th sample; >= 1.
@@ -875,14 +875,14 @@ class MpskReceiver:
     """
     def __init__(self, m: int = ..., sps: int = ..., n: int = ..., pulse: Literal["iandd", "rrc"] = "iandd", rrc_beta: float = ..., rrc_span: int = ..., bn_carrier: float = ..., zeta: float = ..., bn_timing: float = ..., acq_to_track: int = ..., lock_thresh: float = ..., init_norm_freq: float = ..., warmup_syms: int = ..., differential: int = ...) -> None: ...
 
-    def set_telemetry(self, tlm: object | None, prefix: Any, decim: int = 1) -> None:
+    def set_telemetry(self, tlm: object | None, prefix: str, decim: int = 1) -> None:
         """Attach (or detach) a telemetry context across the receiver. Registers the receiver's own "<prefix>.lock" probe (the carrier lock EMA) and "<prefix>.tracking" (the two-way handover decision, 0/1 — the lockdet output, so a consumer sees exactly when the carrier was handed to the decision-directed discriminator or dropped back to NDA), then forwards the attach to both embedded loops: the carrier loop registers "<prefix>.car.lock" / ".e" / ".freq" (plus its arm AGC's "<prefix>.car.agc.gain_db") and the symbol-timing loop registers "<prefix>.sync.e" / ".freq" / ".rate" — nine probes total, all thinned by decim.  Every probe except the AGC's emits once per recovered symbol (the receiver flushes both loops at the symbol strobe, not at the carrier loop's sample rate); the AGC's emits at its own amortized gain-update rate.  Passing NULL detaches the receiver and both loops.  Setup path, never hot; the context is borrowed and must outlive the attachment (SPSC rules in telemetry/telemetry.h).
 
         Parameters
         ----------
         tlm : object | None
             Telemetry context to attach, or NULL to detach.
-        prefix : Any
+        prefix : str
             Probe-name prefix, e.g. "rx".
         decim : int
             Emit every decim-th symbol; >= 1.

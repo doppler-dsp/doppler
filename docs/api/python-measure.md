@@ -131,3 +131,13 @@ ______________________________________________________________________
 ::: doppler.measure.measure_proc_gain
 
 ::: doppler.measure.dp_coherent_freq
+
+## Related pages
+
+<!-- related-pages:start -->
+
+**Gallery** — [Gallery](../gallery/index.md), [Measurement Suite — two-tone IMD/TOI & notched-noise NPR](../gallery/measure-imd-npr.md), [Measurement Suite — ADC characterisation](../gallery/measure.md)
+**Guides** — [Power Spectra & Measurements](../guide/spectral-psd.md)
+**Design** — [API taxonomy: the DSP building-block hierarchy and its naming axis](../design/api-taxonomy.md), [Measurement Suite — single-tone ADC / spectral metrics](../design/measurement-suite.md), [Spectral & Measurement API Map](../design/spectral-api-map.md)
+
+<!-- related-pages:end -->

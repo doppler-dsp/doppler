@@ -91,7 +91,7 @@ ifneq ($(filter UCRT64 MINGW64 MINGW32 CLANG64,$(MSYSTEM)),)
 endif
 
 .PHONY: all build test coverage coverage-gate pyext \
-        wheel just-build python-test rust-test test-all lint docs docs-serve gen-c-api doxygen \
+        wheel just-build python-test rust-test test-all lint docs docs-serve docs-relink gen-c-api doxygen \
         specan record-demo gallery \
         bench bench-report bench-publish bench-interleaved bench-docs \
         bench-stream \
@@ -381,6 +381,11 @@ docs-serve:
 	rm -f zensical.toml
 	uv run --group docs zensical serve
 
+# Regenerates the "## Related pages" block on every docs/api/*.md page from
+# gallery/guide/design/dev cross-links (scripts/gen_related_pages.py).
+docs-relink:
+	uv run python scripts/gen_related_pages.py --write
+
 gen-c-api:
 	rm -rf docs/c-api .mkdoxy .capi-site
 	uv run --group docs mkdocs build -f mkdocs-capi.yml
@@ -575,6 +580,7 @@ help:
 	@echo "  make lint          Run pre-commit hooks on all files"
 	@echo "  make docs          Build the docs site (zensical)"
 	@echo "  make docs-serve    Serve the docs site locally (zensical)"
+	@echo "  make docs-relink   Regenerate docs/api/*.md's Related pages blocks"
 	@echo "  make doxygen       Generate C API docs (XML + HTML via Doxygen)"
 	@echo "  make debug         Clean + Debug build"
 	@echo "  make release       Clean + Release build"

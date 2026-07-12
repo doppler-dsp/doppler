@@ -41,3 +41,12 @@ zero-phase reference (the first) is rotation-invariant.
 ## Helpers
 
 ::: doppler.mpsk.mpsk_bits_per_symbol
+
+## Related pages
+
+<!-- related-pages:start -->
+
+**Gallery** — [M-PSK Carrier Loop — Theory Validation](../gallery/carrier-mpsk.md), [M-PSK constellation (Gray-coded map / demap)](../gallery/mpsk.md)
+**Design** — [MPSK Receiver](../design/mpsk.md)
+
+<!-- related-pages:end -->

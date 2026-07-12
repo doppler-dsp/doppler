@@ -116,3 +116,12 @@ ______________________________________________________________________
 ______________________________________________________________________
 
 ::: doppler.accumulator.AccTrace
+
+## Related pages
+
+<!-- related-pages:start -->
+
+**Gallery** — [Gallery](../gallery/index.md), [Four WCDMA Carriers — `PSD`, `band_power`, `AccTrace`](../gallery/wcdma-carriers.md)
+**Design** — [API taxonomy: the DSP building-block hierarchy and its naming axis](../design/api-taxonomy.md), [State Serialization — the standard bytes interface](../design/state-serialization.md)
+
+<!-- related-pages:end -->

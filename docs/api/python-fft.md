@@ -92,3 +92,13 @@ ______________________________________________________________________
 ______________________________________________________________________
 
 ::: doppler.spectral.FFT2D
+
+## Related pages
+
+<!-- related-pages:start -->
+
+**Guides** — [DSSS Burst Acquisition](../guide/dsss-acquisition.md)
+**Design** — [API taxonomy: the DSP building-block hierarchy and its naming axis](../design/api-taxonomy.md), [DSSS acquisition: stateless, parallel, dynamics-capable](../design/dsss-acquisition.md), [Spectral & Measurement API Map](../design/spectral-api-map.md)
+**Contributing** — [DSSS Primary Use Cases for Code Acquisition Design](../dev/dsss-use-cases.md)
+
+<!-- related-pages:end -->

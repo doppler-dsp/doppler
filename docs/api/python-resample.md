@@ -357,3 +357,12 @@ members:
 \- Farrow
 \- kaiser_beta
 \- kaiser_num_taps
+
+## Related pages
+
+<!-- related-pages:start -->
+
+**Gallery** — [CIC Decimation Filter](../gallery/cic.md), [Farrow Interpolator](../gallery/farrow.md), [RateConverter — Automatic Cascade Selection](../gallery/rate-converter.md)
+**Design** — [Quantization Design](../design/QUANTIZATION.md), [API taxonomy: the DSP building-block hierarchy and its naming axis](../design/api-taxonomy.md), [Corr2D: decoupled (interpolated) inverse length](../design/corr2d-interpolated-inverse.md), [Measurement Suite — single-tone ADC / spectral metrics](../design/measurement-suite.md)
+
+<!-- related-pages:end -->

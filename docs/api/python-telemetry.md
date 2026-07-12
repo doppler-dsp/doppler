@@ -137,3 +137,12 @@ recs = tlm.read()
 assert recs["n"].tolist() == [0, 4096, 8192, 12288]
 assert recs["value"].tolist() == [12.0, 13.0, 14.0, 15.0]
 ```
+
+## Related pages
+
+<!-- related-pages:start -->
+
+**Gallery** — [Gallery](../gallery/index.md), [Full-Chain Lock-Up](../gallery/receiver-lock.md), [Telemetry: Many Emitters, One Consumer](../gallery/telemetry-fanin.md)
+**Design** — [Design](../design/index.md), [Telemetry — zero-cost scalar taps for running pipelines](../design/telemetry.md)
+
+<!-- related-pages:end -->

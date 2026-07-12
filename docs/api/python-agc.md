@@ -75,3 +75,12 @@ agc.steps(buf, out=buf)
 ______________________________________________________________________
 
 ::: doppler.agc.AGC
+
+## Related pages
+
+<!-- related-pages:start -->
+
+**Gallery** — [AGC — Step Response](../gallery/agc.md), [Gallery](../gallery/index.md)
+**Design** — [API taxonomy: the DSP building-block hierarchy and its naming axis](../design/api-taxonomy.md), [State Serialization — the standard bytes interface](../design/state-serialization.md)
+
+<!-- related-pages:end -->

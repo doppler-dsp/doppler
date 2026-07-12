@@ -76,3 +76,12 @@ ______________________________________________________________________
 - [Python: DDC](python-ddc.md) — the tuner/decimator front end.
 - [Spectrum Analyzer app](../specan/index.md) — the `doppler.specan` display
     shell built on `Specan`.
+
+## Related pages
+
+<!-- related-pages:start -->
+
+**Guides** — [Power Spectra & Measurements](../guide/spectral-psd.md)
+**Design** — [API taxonomy: the DSP building-block hierarchy and its naming axis](../design/api-taxonomy.md), [Spectral & Measurement API Map](../design/spectral-api-map.md)
+
+<!-- related-pages:end -->

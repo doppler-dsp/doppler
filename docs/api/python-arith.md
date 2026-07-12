@@ -128,3 +128,12 @@ ______________________________________________________________________
 ::: doppler.arith.shl_i64
 
 ::: doppler.arith.shr_i64
+
+## Related pages
+
+<!-- related-pages:start -->
+
+**Guides** — [Getting Started with Fixed-Point Arithmetic](../guide/fixed-point.md)
+**Design** — [API taxonomy: the DSP building-block hierarchy and its naming axis](../design/api-taxonomy.md)
+
+<!-- related-pages:end -->

@@ -82,3 +82,11 @@ with DelayCf64(32) as dl:
 ______________________________________________________________________
 
 ::: doppler.delay.DelayCf64
+
+## Related pages
+
+<!-- related-pages:start -->
+
+**Design** — [API taxonomy: the DSP building-block hierarchy and its naming axis](../design/api-taxonomy.md)
+
+<!-- related-pages:end -->

@@ -1,0 +1,14 @@
+# Manual additions to a page's "## Related pages" block, for a genuinely
+# un-name-matchable editorial link (the source page discusses the concept
+# without naming the class in backticks). Use sparingly -- prefer fixing
+# the source page's prose to name the class instead, when possible.
+#
+# Keyed by docs/api/*.md filename; each entry needs family (one of
+# Gallery / Guides / Design / Contributing, matching scripts/
+# gen_related_pages.py's SCAN_FAMILIES), title, and path (relative to
+# docs/api/, e.g. ../design/some-doc.md).
+#
+# python-snr.md:
+#   - family: Design
+#     title: Some Concept Doc
+#     path: ../design/some-doc.md

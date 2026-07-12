@@ -78,12 +78,14 @@ _Synth component API._ [More...](#detailed-description)
 |  int | [**wfm\_synth\_get\_sym\_pos**](#function-wfm_synth_get_sym_pos) (const [**wfm\_synth\_state\_t**](structwfm__synth__state__t.md) \* state) <br>_Return the current position within the current symbol (0..nsps-1). Reaches nsps and wraps to 0 each time a new symbol is consumed from the PN LFSR. Useful for frame alignment: sym\_pos==0 on a step boundary means the very next sample begins a fresh symbol._  |
 |  int | [**wfm\_synth\_get\_wtype**](#function-wfm_synth_get_wtype) (const [**wfm\_synth\_state\_t**](structwfm__synth__state__t.md) \* state) <br>_Return the active waveform type discriminant. Maps to the WFM\_SYNTH\_\* enum: 0=tone, 1=noise, 2=pn, 3=bpsk, 4=qpsk. Use this to inspect which synthesis path is active at runtime._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) uint64\_t | [**wfm\_synth\_mls\_poly**](#function-wfm_synth_mls_poly) (uint32\_t n) <br>_Maximal-length-sequence (MLS) primitive polynomial for an LFSR of the given register length n, in pn\_core's right-shift Galois convention. Returns 0 for lengths outside 2..64 (caller errors). Generated from verified primitive polynomials (period 2^n-1); the n=2..16 values are unchanged._  |
+|  void | [**wfm\_synth\_noise\_steps**](#function-wfm_synth_noise_steps) ([**wfm\_synth\_state\_t**](structwfm__synth__state__t.md) \* state, float complex \* output, size\_t n) <br>_Generate n noise-only samples — the synth's additive-AWGN term with no signal — continuing the same noise RNG stream_ [_**wfm\_synth\_steps()**_](wfm__synth__core_8h.md#function-wfm_synth_steps) _draws from (no reseed, identical chunked awgn call pattern, so a gap rendered here is the seamless continuation of the on-time noise). Writes exact zeros and advances nothing for a clean synth (no AWGN child). Used by the composer to carry a segment's noise floor through its off-time gap._ |
 |  void | [**wfm\_synth\_reseed\_noise**](#function-wfm_synth_reseed_noise) ([**wfm\_synth\_state\_t**](structwfm__synth__state__t.md) \* state, uint32\_t seed) <br>_Reseed only the additive-noise (AWGN) generator, leaving the signal (LO / PN code / data / pulse shaping) untouched. A no-op for a synth with no noise. Used by the composer to give each repeat a fresh noise realization while the underlying waveform stays bit-identical._  |
 |  void | [**wfm\_synth\_reset**](#function-wfm_synth_reset) ([**wfm\_synth\_state\_t**](structwfm__synth__state__t.md) \* state) <br>_Reset Synth to its post-create state. Resets the LO phase accumulator, AWGN internal state, and PN LFSR register to their initial values so the output sequence is perfectly reproducible from sample 0._  |
 |  int | [**wfm\_synth\_set\_bits**](#function-wfm_synth_set_bits) ([**wfm\_synth\_state\_t**](structwfm__synth__state__t.md) \* state, const uint8\_t \* bits, size\_t n, int modulation) <br>_Attach a user bit pattern to a type=bits synth (no-op otherwise)._  |
 |  void | [**wfm\_synth\_set\_chirp\_span**](#function-wfm_synth_set_chirp_span) ([**wfm\_synth\_state\_t**](structwfm__synth__state__t.md) \* state, size\_t span) <br>_Pin a chirp's sweep span to_ `span` _samples (no-op for non-chirp)._ |
 |  void | [**wfm\_synth\_set\_cur\_im**](#function-wfm_synth_set_cur_im) ([**wfm\_synth\_state\_t**](structwfm__synth__state__t.md) \* state, float val) <br>_Override the held-symbol imaginary (Q) component in-place. Takes effect on the next_ [_**wfm\_synth\_step()**_](wfm__synth__core_8h.md#function-wfm_synth_step) _within the current symbol hold._ |
 |  void | [**wfm\_synth\_set\_cur\_re**](#function-wfm_synth_set_cur_re) ([**wfm\_synth\_state\_t**](structwfm__synth__state__t.md) \* state, float val) <br>_Override the held-symbol real (I) component in-place. Takes effect on the next_ [_**wfm\_synth\_step()**_](wfm__synth__core_8h.md#function-wfm_synth_step) _within the current symbol hold._ |
+|  int | [**wfm\_synth\_set\_dsss**](#function-wfm_synth_set_dsss) ([**wfm\_synth\_state\_t**](structwfm__synth__state__t.md) \* state, const uint8\_t \* acq\_code, size\_t acq\_len, size\_t acq\_reps, const uint8\_t \* data\_code, size\_t data\_len, const uint8\_t \* sync, size\_t sync\_len, const uint8\_t \* payload, size\_t payload\_len, int crc) <br>_Build and attach a two-code DSSS burst to a type=dsss synth (no-op otherwise)._  |
 |  void | [**wfm\_synth\_set\_nsps**](#function-wfm_synth_set_nsps) ([**wfm\_synth\_state\_t**](structwfm__synth__state__t.md) \* state, int val) <br>_Override the samples-per-symbol count in-place. Does not flush the symbol-position counter (sym\_pos); set sym\_pos=0 as well when changing sps mid-stream._  |
 |  int | [**wfm\_synth\_set\_rrc**](#function-wfm_synth_set_rrc) ([**wfm\_synth\_state\_t**](structwfm__synth__state__t.md) \* state, const float \* taps, size\_t ntaps) <br>_Enable RRC pulse shaping on a symbol synth (pn/bpsk/qpsk/bits)._  |
 |  int | [**wfm\_synth\_set\_state**](#function-wfm_synth_set_state) ([**wfm\_synth\_state\_t**](structwfm__synth__state__t.md) \* state, const void \* blob) <br> |
@@ -160,7 +162,8 @@ enum wfm__synth__core_8h_1abd477555e01841805289c5cf8e4e76fb {
     WFM_SYNTH_QPSK = 4,
     WFM_SYNTH_CHIRP = 5,
     WFM_SYNTH_BITS = 6,
-    WFM_SYNTH_SYMBOLS = 7
+    WFM_SYNTH_SYMBOLS = 7,
+    WFM_SYNTH_DSSS = 8
 };
 ```
 
@@ -203,7 +206,7 @@ wfm_synth_state_t * wfm_synth_create (
 **Parameters:**
 
 
-* `type` Waveform type: 0=tone, 1=noise, 2=pn, 3=bpsk, 4=qpsk, 5=chirp, 6=bits, 7=symbols. The Python binding accepts strings "tone"\|"noise"\|"pn"\|"bpsk"\|"qpsk"\|"chirp"\|"bits"\|"symbols". For "bits" attach the pattern with [**wfm\_synth\_set\_bits()**](wfm__synth__core_8h.md#function-wfm_synth_set_bits); for "symbols" attach the complex stream with [**wfm\_synth\_set\_symbols()**](wfm__synth__core_8h.md#function-wfm_synth_set_symbols) after create(). 
+* `type` Waveform type: 0=tone, 1=noise, 2=pn, 3=bpsk, 4=qpsk, 5=chirp, 6=bits, 7=symbols, 8=dsss. The Python binding accepts strings "tone"\|"noise"\|"pn"\|"bpsk"\|"qpsk"\|"chirp"\|"bits"\|"symbols"\|"dsss". For "bits" attach the pattern with [**wfm\_synth\_set\_bits()**](wfm__synth__core_8h.md#function-wfm_synth_set_bits); for "symbols" attach the complex stream with [**wfm\_synth\_set\_symbols()**](wfm__synth__core_8h.md#function-wfm_synth_set_symbols); for "dsss" attach the burst with [**wfm\_synth\_set\_dsss()**](wfm__synth__core_8h.md#function-wfm_synth_set_dsss) after create(). 
 * `fs` Sample rate in Hz. Sets the carrier frequency normalisation and the noise bandwidth. Default 1 000 000.0. 
 * `freq` Carrier frequency offset in Hz (−fs/2 … fs/2). A complex LO is created only when freq != 0. For a chirp this is the start frequency f\_start (the instantaneous frequency at t=0). Default 0.0. 
 * `snr` Target SNR in dB, interpreted per `snr_mode`. Values &gt;= WFM\_SYNTH\_SNR\_CLEAN (100) disable AWGN. Default 100.0. 
@@ -485,6 +488,37 @@ JM_FORCEINLINE uint64_t wfm_synth_mls_poly (
 
 
 
+### function wfm\_synth\_noise\_steps 
+
+_Generate n noise-only samples — the synth's additive-AWGN term with no signal — continuing the same noise RNG stream_ [_**wfm\_synth\_steps()**_](wfm__synth__core_8h.md#function-wfm_synth_steps) _draws from (no reseed, identical chunked awgn call pattern, so a gap rendered here is the seamless continuation of the on-time noise). Writes exact zeros and advances nothing for a clean synth (no AWGN child). Used by the composer to carry a segment's noise floor through its off-time gap._
+```C++
+void wfm_synth_noise_steps (
+    wfm_synth_state_t * state,
+    float complex * output,
+    size_t n
+) 
+```
+
+
+
+
+
+**Parameters:**
+
+
+* `state` Synth state (may be NULL — no-op). 
+* `output` n complex samples out. 
+* `n` Sample count. 
+
+
+
+
+        
+
+<hr>
+
+
+
 ### function wfm\_synth\_reseed\_noise 
 
 _Reseed only the additive-noise (AWGN) generator, leaving the signal (LO / PN code / data / pulse shaping) untouched. A no-op for a synth with no noise. Used by the composer to give each repeat a fresh noise realization while the underlying waveform stays bit-identical._ 
@@ -674,6 +708,69 @@ void wfm_synth_set_cur_re (
 
 * `state` Must be non-NULL. 
 * `val` New cur\_re value. 
+
+
+
+
+        
+
+<hr>
+
+
+
+### function wfm\_synth\_set\_dsss 
+
+_Build and attach a two-code DSSS burst to a type=dsss synth (no-op otherwise)._ 
+```C++
+int wfm_synth_set_dsss (
+    wfm_synth_state_t * state,
+    const uint8_t * acq_code,
+    size_t acq_len,
+    size_t acq_reps,
+    const uint8_t * data_code,
+    size_t data_len,
+    const uint8_t * sync,
+    size_t sync_len,
+    const uint8_t * payload,
+    size_t payload_len,
+    int crc
+) 
+```
+
+
+
+Assembles the burst chip pattern through `wfm_frame_dsss_chips()` — an unmodulated preamble (`acq_code` repeated `acq_reps` times, the coherent acquisition target) followed by the frame `sync | payload | CRC-16`, each frame bit XOR-spread by the distinct `data_code` — and installs it as the synth's BPSK chip stream (each chip held for the create-time `sps` samples, i.e. `sps` is samples per _chip_ here). This is the transmit side of `BurstDemod`'s frame contract: the same codes, sync word, and payload length hand to `burst_demod_set_preamble`/`set_sync` on receive.
+
+
+One pass of the pattern is one burst (`n_chips * sps` samples); like the bits pattern it cycles if more samples are requested — the composer sizes a dsss segment's on-time to exactly one burst. Replaces any previous pattern; resets the read position.
+
+
+NOTE: `snr_mode` semantics — the raw engine's create-time esno refers to the _chip_ (the output symbol). The Segment/Synth faces convert a data-symbol Es/N0 (`snr_mode="esno"`) to the over-fs value with `10*log10(sf*sps)` before create; see `wfm_snr_over_fs()`.
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `acq_code` Preamble code (0/1), length `acq_len`; NULL when `acq_len*acq_reps == 0`. 
+* `acq_len` Preamble code length in chips. 
+* `acq_reps` Preamble repetitions. 
+* `data_code` Payload spreading code (0/1), length `data_len`. 
+* `data_len` Chips per frame symbol (the spreading factor). 
+* `sync` Frame-sync word bits (0/1); NULL for none. 
+* `sync_len` Sync word length in bits. 
+* `payload` Payload bits (0/1); NULL for a preamble-only burst. 
+* `payload_len` Payload length in bits. 
+* `crc` Non-zero: append a CRC-16-CCITT trailer ([**dp\_crc16.h**](dp__crc16_8h.md)) over the payload bits. 
+
+
+
+**Returns:**
+
+0 on success; -1 on invalid geometry (frame bits with no data code, or an empty burst) or allocation failure. 
+
 
 
 

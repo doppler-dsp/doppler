@@ -46,6 +46,7 @@ extern "C"
     CI8 = 3,   
     CI16 = 4,  
     CF32 = 5,  
+    TLM16 = 6, 
   } dp_sample_type_t;
 
   typedef enum
@@ -134,6 +135,10 @@ extern "C"
   int dp_pub_send_cf32 (dp_pub_t *ctx, const float _Complex *samples,
                         size_t num_samples, double sample_rate,
                         double center_freq);
+
+  int dp_pub_send_tlm16 (dp_pub_t *ctx, const void *records,
+                         size_t num_records, double sample_rate,
+                         double center_freq);
 
   void dp_pub_destroy (dp_pub_t *ctx);
 

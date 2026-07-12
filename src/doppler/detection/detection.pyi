@@ -33,8 +33,8 @@ class LockDet:
         n_up-th consecutive hit declares lock; any miss resets the run. Locked:
         a miss (`x < down_thresh`) advances the run and the n_down-th
         consecutive miss drops the lock; any hit (`x >= down_thresh`) resets it.
-        A metric inside the [down_thresh, up_thresh] band is sticky — it neither
-        advances a declare nor a drop.
+        A metric inside the `[down_thresh, up_thresh]` band is sticky — it
+        neither advances a declare nor a drop.
 
         Parameters
         ----------
@@ -428,7 +428,7 @@ def det_verify_delay(p_look: float, n: int) -> float:
     counter implements: at per-look success probability p, the first run of
     n straight successes takes on average
 
-    E[T] = (1 - p^n) / (p^n * (1 - p)) looks,
+    `E[T]` = (1 - p^n) / (p^n * (1 - p)) looks,
 
     which is the declare latency bought by a verify count of n (multiply by
     the look period for time). Limits are handled exactly: p = 1 gives n

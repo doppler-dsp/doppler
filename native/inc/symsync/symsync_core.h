@@ -2,7 +2,7 @@
  * @file symsync_core.h
  * @brief SymbolSync component API.
  *
- * Lifecycle: create -> [step / steps / reset]* -> destroy
+ * Lifecycle: `create -> (step / steps / reset)* -> destroy`
  *
  * Example:
  * @code
@@ -103,7 +103,7 @@ extern "C"
    * decision-directed alternative.
    *
    * @param mid   Mid-symbol (transition-gate) interpolant.
-   * @param diff  on_time[k] - on_time[k-1].
+   * @param diff  `on_time[k] - on_time[k-1]`.
    * @return Raw (pre-AGC-normalized) timing error.
    */
   JM_FORCEINLINE double
@@ -119,7 +119,7 @@ extern "C"
    *
    * Decision-directed (M.K. Simon's Data Transition Tracking Loop, digital
    * point-sample reduction): zero unless a rail's hard decision actually
-   * flips between on_time[k-1] and on_time[k], in which case the error is
+   * flips between `on_time[k-1]` and `on_time[k]`, in which case the error is
    * the transition-gate sample's value on that rail. Valid only for
    * constellations with independent, rectangular I/Q decision boundaries
    * (BPSK, QPSK/OQPSK) -- not 8PSK/QAM. Diff order (current minus previous)
@@ -127,8 +127,8 @@ extern "C"
    * polarity.
    *
    * @param mid   Mid-symbol (transition-gate) interpolant.
-   * @param y     on_time[k].
-   * @param prev  on_time[k-1].
+   * @param y     `on_time[k]`.
+   * @param prev  `on_time[k-1]`.
    * @return Raw (pre-AGC-normalized) timing error.
    */
   JM_FORCEINLINE double

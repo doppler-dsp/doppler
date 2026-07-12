@@ -2,7 +2,7 @@
  * @file burst_despreader_core.h
  * @brief BurstDespreader component API.
  *
- * Lifecycle: create -> [step / steps / reset]* -> destroy
+ * Lifecycle: `create -> (step / steps / reset)* -> destroy`
  *
  * Example:
  * @code
@@ -195,7 +195,7 @@ double burst_despreader_get_norm_freq (const burst_despreader_state_t *state);
 void burst_despreader_set_norm_freq (burst_despreader_state_t *state, double val);
 /** @brief Current tracked code phase within the symbol, chips. */
 double burst_despreader_get_code_phase (const burst_despreader_state_t *state);
-/** @brief Lock indicator in [0,1]: the mean of |Re prompt|/|prompt| over
+/** @brief Lock indicator in `[0,1]`: the mean of |Re prompt|/|prompt| over
  *          every prompt of the burst (cumulative, not EMA — a one-shot
  *          burst gives each prompt equal weight instead of spending the
  *          whole burst warming a smoother up). ~1 when phase-locked;

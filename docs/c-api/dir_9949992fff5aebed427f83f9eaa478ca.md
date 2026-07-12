@@ -21,7 +21,7 @@
 
 | Type | Name |
 | ---: | :--- |
-| file | [**despreader\_core.h**](despreader__core_8h.md) <br>_Despreader component API._  |
+| file | [**despreader\_core.h**](despreader__core_8h.md) <br>_Continuous DSSS despreader — Costas carrier loop + DLL code loop._  |
 
 
 

@@ -59,6 +59,7 @@
 |  int | [**dp\_pub\_send\_ci16**](#function-dp_pub_send_ci16) ([**dp\_pub\_t**](group__types.md#typedef-dp_pub_t) \* ctx, const int16\_t \* samples, size\_t num\_samples, double sample\_rate, double center\_freq) <br>_Send an array of CI16 samples via a Publisher._  |
 |  int | [**dp\_pub\_send\_ci32**](#function-dp_pub_send_ci32) ([**dp\_pub\_t**](group__types.md#typedef-dp_pub_t) \* ctx, const int32\_t \* samples, size\_t num\_samples, double sample\_rate, double center\_freq) <br>_Send an array of CI32 samples via a Publisher._  |
 |  int | [**dp\_pub\_send\_ci8**](#function-dp_pub_send_ci8) ([**dp\_pub\_t**](group__types.md#typedef-dp_pub_t) \* ctx, const int8\_t \* samples, size\_t num\_samples, double sample\_rate, double center\_freq) <br>_Send an array of CI8 samples via a Publisher._  |
+|  int | [**dp\_pub\_send\_tlm16**](#function-dp_pub_send_tlm16) ([**dp\_pub\_t**](group__types.md#typedef-dp_pub_t) \* ctx, const void \* records, size\_t num\_records, double sample\_rate, double center\_freq) <br>_Send an array of 16-byte telemetry records via a Publisher._  |
 |  [**dp\_sub\_t**](group__types.md#typedef-dp_sub_t) \* | [**dp\_sub\_create**](#function-dp_sub_create) (const char \* endpoint) <br>_Create a Subscriber and connect to_ `endpoint` _._ |
 |  void | [**dp\_sub\_destroy**](#function-dp_sub_destroy) ([**dp\_sub\_t**](group__types.md#typedef-dp_sub_t) \* ctx) <br>_Destroy a Subscriber context and release all resources._  |
 |  int | [**dp\_sub\_recv**](#function-dp_sub_recv) ([**dp\_sub\_t**](group__types.md#typedef-dp_sub_t) \* ctx, [**dp\_msg\_t**](group__types.md#typedef-dp_msg_t) \*\* msg, [**dp\_header\_t**](structdp__header__t.md) \* header) <br>_Receive one frame from a Subscriber socket (zero-copy)._  |
@@ -407,6 +408,51 @@ int dp_pub_send_ci8 (
 **Returns:**
 
 DP\_OK (0) on success, negative error code on failure.    
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_pub\_send\_tlm16 
+
+_Send an array of 16-byte telemetry records via a Publisher._ 
+```
+int dp_pub_send_tlm16 (
+    dp_pub_t * ctx,
+    const void * records,
+    size_t num_records,
+    double sample_rate,
+    double center_freq
+) 
+```
+
+
+
+The payload is `num_records` packed [**dp\_tlm\_rec\_t**](structdp__tlm__rec__t.md) (see [**telemetry/telemetry.h**](telemetry_8h.md)) — the header's num\_samples counts records and sample\_type is TLM16. Kept `const void *` so the wire layer stays decoupled from the telemetry component; the dp\_tlm\_sink\_\* helper ([**telemetry/tlm\_sink.h**](tlm__sink_8h.md)) is the intended caller.
+
+
+
+
+**Parameters:**
+
+
+* `ctx` Publisher context. 
+* `records` Packed 16-byte records. 
+* `num_records` Record count. 
+* `sample_rate` Wire-header field; 0.0 if not meaningful. 
+* `center_freq` Wire-header field; 0.0 if not meaningful. 
+
+
+
+**Returns:**
+
+DP\_OK (0) on success, negative error code on failure. 
 
 
 

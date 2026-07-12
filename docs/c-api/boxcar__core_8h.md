@@ -259,7 +259,7 @@ void boxcar_init (
 
 
 * `s` State to initialise. Must be non-NULL. 
-* `len` Window length; clamped to [1, BOXCAR\_MAX\_LEN]. 
+* `len` Window length; clamped to `[1,  BOXCAR_MAX_LEN ]`. 
 * `gain` Output gain (folded into the averaging scale). 
 
 

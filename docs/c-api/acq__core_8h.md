@@ -121,7 +121,7 @@ Pipeline (owned end to end, one object): push(raw cf32) -&gt; ring buffer -&gt; 
 The fast-time axis (code\_bins = sf\*spc columns) is the circular code matched filter; the slow-time axis (doppler\_bins rows, one row per code repetition) is the Doppler search. A carrier offset f (cycles/sample) lands the peak at row = round(f\*code\_bins\*doppler\_bins) mod doppler\_bins, column = code phase.
 
 
-Physics-only construction: the user gives the PN `code`, the front-end geometry (`reps`, `spc`, `chip_rate`), the sensitivity (`cn0_dbhz`), and the detection targets (`pfa`, `pd`, optional `doppler_uncertainty`). The engine converts C/N0 to a per-sample amplitude SNR (snr = sqrt(10^(cn0\_dbhz/10) / (chip\_rate\*spc))) and picks the _smallest_ coherent depth doppler\_bins in [1, reps] whose doppler\_bins\*code\_bins coherent samples meet `pd` (det\_threshold / det\_pd) — minimum latency for a strong signal. A tighter `doppler_uncertainty` shrinks the searched cell count, lowering the Bonferroni threshold (more sensitive).
+Physics-only construction: the user gives the PN `code`, the front-end geometry (`reps`, `spc`, `chip_rate`), the sensitivity (`cn0_dbhz`), and the detection targets (`pfa`, `pd`, optional `doppler_uncertainty`). The engine converts C/N0 to a per-sample amplitude SNR (snr = sqrt(10^(cn0\_dbhz/10) / (chip\_rate\*spc))) and picks the _smallest_ coherent depth doppler\_bins in `[1, reps]` whose doppler\_bins\*code\_bins coherent samples meet `pd` (det\_threshold / det\_pd) — minimum latency for a strong signal. A tighter `doppler_uncertainty` shrinks the searched cell count, lowering the Bonferroni threshold (more sensitive).
 
 
 
@@ -167,7 +167,7 @@ acq_state_t * acq_create (
 
 
 
-Builds the single-row oversampled BPSK reference from `code`, infers sf = `code_len`, converts `cn0_dbhz` to a per-sample amplitude SNR (snr = sqrt(10^(cn0\_dbhz/10) / (chip\_rate\*spc))), and auto-configures the search grid: the smallest coherent depth doppler\_bins in [1, `reps`] whose doppler\_bins\*code\_bins coherent samples meet `pd` at the Bonferroni threshold, plus non-coherent looks (up to `max_noncoh`) if the coherent depth alone falls short. A tighter `doppler_uncertainty` narrows the scanned Doppler band, lowering the per-cell threshold (more sensitive).
+Builds the single-row oversampled BPSK reference from `code`, infers sf = `code_len`, converts `cn0_dbhz` to a per-sample amplitude SNR (snr = sqrt(10^(cn0\_dbhz/10) / (chip\_rate\*spc))), and auto-configures the search grid: the smallest coherent depth doppler\_bins in `[1, reps]` whose doppler\_bins\*code\_bins coherent samples meet `pd` at the Bonferroni threshold, plus non-coherent looks (up to `max_noncoh`) if the coherent depth alone falls short. A tighter `doppler_uncertainty` narrows the scanned Doppler band, lowering the per-cell threshold (more sensitive).
 
 
 

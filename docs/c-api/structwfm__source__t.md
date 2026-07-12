@@ -36,7 +36,11 @@ _One additive source within a segment: a_ `synth` _config + its level._[More...]
 
 | Type | Name |
 | ---: | :--- |
+|  uint8\_t \* | [**acq\_code**](#variable-acq_code)  <br> |
+|  size\_t | [**acq\_reps**](#variable-acq_reps)  <br> |
 |  uint8\_t \* | [**bits**](#variable-bits)  <br> |
+|  int | [**crc**](#variable-crc)  <br> |
+|  uint8\_t \* | [**data\_code**](#variable-data_code)  <br> |
 |  double | [**f\_end**](#variable-f_end)  <br> |
 |  double | [**f\_end\_hi**](#variable-f_end_hi)  <br> |
 |  double | [**freq**](#variable-freq)  <br> |
@@ -45,8 +49,11 @@ _One additive source within a segment: a_ `synth` _config + its level._[More...]
 |  double | [**level\_hi**](#variable-level_hi)  <br> |
 |  int | [**lfsr**](#variable-lfsr)  <br> |
 |  int | [**modulation**](#variable-modulation)  <br> |
+|  size\_t | [**n\_acq\_code**](#variable-n_acq_code)  <br> |
 |  size\_t | [**n\_bits**](#variable-n_bits)  <br> |
+|  size\_t | [**n\_data\_code**](#variable-n_data_code)  <br> |
 |  size\_t | [**n\_symbols**](#variable-n_symbols)  <br> |
+|  size\_t | [**n\_sync**](#variable-n_sync)  <br> |
 |  int | [**pn\_length**](#variable-pn_length)  <br> |
 |  uint64\_t | [**pn\_poly**](#variable-pn_poly)  <br> |
 |  int | [**pulse**](#variable-pulse)  <br> |
@@ -59,6 +66,7 @@ _One additive source within a segment: a_ `synth` _config + its level._[More...]
 |  int | [**snr\_mode**](#variable-snr_mode)  <br> |
 |  int | [**sps**](#variable-sps)  <br> |
 |  float \_Complex \* | [**symbols**](#variable-symbols)  <br> |
+|  uint8\_t \* | [**sync**](#variable-sync)  <br> |
 |  int | [**type**](#variable-type)  <br> |
 
 
@@ -119,10 +127,62 @@ Any of `freq`/`snr`/`level`/`f_end` may be a per-repeat uniform draw: set the ma
 
 
 
+### variable acq\_code 
+
+```C++
+uint8_t* wfm_source_t::acq_code;
+```
+
+
+
+
+<hr>
+
+
+
+### variable acq\_reps 
+
+```C++
+size_t wfm_source_t::acq_reps;
+```
+
+
+
+
+<hr>
+
+
+
 ### variable bits 
 
 ```C++
 uint8_t* wfm_source_t::bits;
+```
+
+
+
+
+<hr>
+
+
+
+### variable crc 
+
+```C++
+int wfm_source_t::crc;
+```
+
+
+
+
+<hr>
+
+
+
+### variable data\_code 
+
+```C++
+uint8_t* wfm_source_t::data_code;
 ```
 
 
@@ -236,6 +296,19 @@ int wfm_source_t::modulation;
 
 
 
+### variable n\_acq\_code 
+
+```C++
+size_t wfm_source_t::n_acq_code;
+```
+
+
+
+
+<hr>
+
+
+
 ### variable n\_bits 
 
 ```C++
@@ -249,10 +322,36 @@ size_t wfm_source_t::n_bits;
 
 
 
+### variable n\_data\_code 
+
+```C++
+size_t wfm_source_t::n_data_code;
+```
+
+
+
+
+<hr>
+
+
+
 ### variable n\_symbols 
 
 ```C++
 size_t wfm_source_t::n_symbols;
+```
+
+
+
+
+<hr>
+
+
+
+### variable n\_sync 
+
+```C++
+size_t wfm_source_t::n_sync;
 ```
 
 
@@ -409,6 +508,19 @@ int wfm_source_t::sps;
 
 ```C++
 float _Complex* wfm_source_t::symbols;
+```
+
+
+
+
+<hr>
+
+
+
+### variable sync 
+
+```C++
+uint8_t* wfm_source_t::sync;
 ```
 
 

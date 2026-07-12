@@ -272,7 +272,7 @@ int det_verify_count(double p_look, double p_target);
  * counter implements: at per-look success probability p, the first run of
  * n straight successes takes on average
  *
- *   E[T] = (1 - p^n) / (p^n * (1 - p))     looks,
+ *   `E[T]` = (1 - p^n) / (p^n * (1 - p))     looks,
  *
  * which is the declare latency bought by a verify count of n (multiply by
  * the look period for time). Limits are handled exactly: p = 1 gives n

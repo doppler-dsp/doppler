@@ -15,6 +15,7 @@
 #include "clib_common.h"
 #include "jm_perf.h"
 #include "dp_state.h"
+#include "telemetry/telemetry.h"
 #include "util/util_core.h"
 #include <math.h>
 
@@ -75,6 +76,13 @@ extern "C"
 
   typedef struct
   {
+    dp_tlm_t *ctx;     /* NULL = detached                   */
+    int32_t   id_gain; /* probe id from a successful attach */
+    int32_t   _pad;
+  } agc_tlm_t;
+
+  typedef struct
+  {
     double ref_db;  /* target output power, dB                        */
     double loop_bw; /* loop noise bandwidth, cycles/sample             */
     double alpha;   /* power-detector EMA coefficient, (0, 1]          */
@@ -92,6 +100,7 @@ extern "C"
     double g_last;  /* current linear gain held across the period      */
     size_t gain_phase; /* agc_step() position in the update period     */
     float  clip_lin;   /* cached 10^(clip_db/20), refreshed per period */
+    agc_tlm_t tlm; /* live telemetry attachment; zeroed in blobs        */
   } agc_state_t;
 
 agc_state_t *agc_create(double ref_db, double loop_bw, double alpha);
@@ -136,6 +145,9 @@ void agc_reset(agc_state_t *state);
                * (state->ref_db - meas_db);
         state->clip_lin = (float)agc_exp10_ (state->clip_db * 0.05);
         state->gain_phase = 0;
+        /* Telemetry tap — per gain-update event (already amortised by the
+         * period), one branch when detached. */
+        DP_TLM (state->tlm.ctx, state->tlm.id_gain, state->gain_db);
       }
 
     /* Output clip — square clip (I and Q independent) to the cached level,
@@ -149,11 +161,14 @@ void agc_reset(agc_state_t *state);
 
 double agc_get_applied_gain_db(const agc_state_t *state);
 
+int agc_set_telemetry(agc_state_t *state, dp_tlm_t * tlm, const char * prefix, uint32_t decim);
+
   /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
    * Whole-struct POD snapshot (pointer-free); the loop integrator, detector EMA, and ramp memory resume exactly into an
-   * identically-built instance. */
+   * identically-built instance.  The telemetry attachment is zeroed in
+   * blobs and preserved across restore (DP_DEFINE_POD_STATE_TLM). */
 #define AGC_STATE_MAGIC DP_FOURCC ('A', 'G', 'C', ' ')
-#define AGC_STATE_VERSION 2u /* v2: gain_update_period + gain_phase/clip_lin */
+#define AGC_STATE_VERSION 3u /* v3: telemetry attachment (zeroed in blob) */
   size_t agc_state_bytes (const agc_state_t *state);
   void    agc_get_state (const agc_state_t *state, void *blob);
   int     agc_set_state (agc_state_t *state, const void *blob);

@@ -8,6 +8,7 @@ Here is a list of all files with brief descriptions:
     * **dir** [**inc**](dir_5029b6cdea6e9b25321183da44d91d43.md)     
         * **file** [**clib\_common.h**](clib__common_8h.md)     
         * **file** [**doppler.h**](doppler_8h.md) 
+        * **file** [**dp\_crc16.h**](dp__crc16_8h.md) _CRC-16-CCITT over a bit stream — the one CRC shared by every doppler frame producer and consumer._     
         * **file** [**dp\_state.h**](dp__state_8h.md)     
         * **file** [**dp\_state\_pyhelp.h**](dp__state__pyhelp_8h.md)     
         * **file** [**jm\_perf.h**](jm__perf_8h.md) _just-makeit performance annotation macros._     
@@ -48,12 +49,12 @@ Here is a list of all files with brief descriptions:
             * **file** [**buffer.h**](buffer_8h.md) _High-performance x86-64 Circular Buffer for RF Streaming._     
         * **dir** [**burst\_demod**](dir_96a22b0098c79a5049df57065c5b8df4.md)     
             * **file** [**burst\_demod\_core.h**](burst__demod__core_8h.md) _Feedforward BPSK DSSS frame demodulator._     
+        * **dir** [**burst\_despreader**](dir_311cad0a77759dd1ff95e00f622e2f49.md)     
+            * **file** [**burst\_despreader\_core.h**](burst__despreader__core_8h.md) _BurstDespreader component API._     
         * **dir** [**carrier\_mpsk**](dir_aac9a6642a6538588e08cd0551821cb3.md)     
             * **file** [**carrier\_mpsk\_core.h**](carrier__mpsk__core_8h.md) _M-PSK carrier-tracking loop (integer-NCO de-rotation + decision PLL)._     
         * **dir** [**carrier\_nda**](dir_425637d1941eacd8ae8cdd8750b207f0.md)     
             * **file** [**carrier\_nda\_core.h**](carrier__nda__core_8h.md) _Non-data-aided (NDA) M-th-power carrier-tracking loop._     
-        * **dir** [**channel**](dir_7cd82dec1dfa46f6b0156d9a972e4575.md)     
-            * **file** [**channel\_core.h**](channel__core_8h.md) _GPS-style tracking channel — Costas carrier loop + DLL code loop._     
         * **dir** [**cic**](dir_cf560077cc62991e7289ea57a3d930a1.md)     
             * **file** [**cic\_core.h**](cic__core_8h.md) _CIC decimation filter — 4-stage, M=1, UQ16 integer pipeline._     
         * **dir** [**corr**](dir_17ecfb211582dadfc5fc9d22d4d97fbd.md)     
@@ -69,7 +70,7 @@ Here is a list of all files with brief descriptions:
         * **dir** [**delay**](dir_01f4b6965a2181d172634d6670b32dc1.md)     
             * **file** [**delay\_core.h**](delay__core_8h.md) _Delay component API._     
         * **dir** [**despreader**](dir_9949992fff5aebed427f83f9eaa478ca.md)     
-            * **file** [**despreader\_core.h**](despreader__core_8h.md) _Despreader component API._     
+            * **file** [**despreader\_core.h**](despreader__core_8h.md) _Continuous DSSS despreader — Costas carrier loop + DLL code loop._     
         * **dir** [**detection**](dir_3a1e0e8c534208cc3745b2f53a028862.md)     
             * **file** [**detection\_core.h**](detection__core_8h.md) _Detection-theory utilities for the amplitude-ratio test statistic._     
         * **dir** [**detector**](dir_f93f7a52d403868792375ffc90a1c1d7.md)     
@@ -118,6 +119,8 @@ Here is a list of all files with brief descriptions:
             * **file** [**imdmeas\_core.h**](imdmeas__core_8h.md) _IMDMeasure — two-tone intermodulation (IMD2/IMD3) and intercept._     
         * **dir** [**lo**](dir_e3bbeba8c021d4d74db794db08bafd77.md)     
             * **file** [**lo\_core.h**](lo__core_8h.md) _Local oscillator: NCO + 2^16 sin/cos LUT → CF32 phasors._     
+        * **dir** [**lockdet**](dir_87531a87e500e672b7d093c5682794b4.md)     
+            * **file** [**lockdet\_core.h**](lockdet__core_8h.md) _Portable lock detector — level + time hysteresis over any scalar lock metric, embeddable in every loop that makes a lock decision._     
         * **dir** [**loop\_filter**](dir_6fa6397534e50a536c96f665c3cf0441.md)     
             * **file** [**loop\_filter\_core.h**](loop__filter__core_8h.md) _Second-order proportional-integral loop filter — the shared engine of every tracking loop (Costas/PLL, DLL, symbol timing)._     
         * **dir** [**measure**](dir_4f61a452d1df39cf8c2e8be27f29f1f2.md)     
@@ -141,6 +144,8 @@ Here is a list of all files with brief descriptions:
             * **file** [**resamp\_impl.h**](resamp__impl_8h.md) _Resamp implementation header._ 
         * **dir** [**resample**](dir_430486ea22038fad478027f2dc6550c6.md)     
             * **file** [**resample\_core.h**](resample__core_8h.md) _Resample module — public C API._     
+        * **dir** [**snr**](dir_a0dc77cb6789ae5cf19b2d0651b00ce2.md)     
+            * **file** [**snr\_core.h**](snr__core_8h.md) _Stateless SNR / Es-N0 estimators, data-aided and non-data-aided._     
         * **dir** [**source**](dir_ce1f95460e483b5f4e7af3e87d9b090c.md)     
             * **file** [**source\_core.h**](source__core_8h.md) _Source module — public C API._ 
         * **dir** [**specan**](dir_6d702d949620e4073485867cfd9038e4.md)     
@@ -152,6 +157,9 @@ Here is a list of all files with brief descriptions:
             * **file** [**stream\_core.h**](stream__core_8h.md) _Stream module — public C API._ 
         * **dir** [**symsync**](dir_bee143323fe2e99a30a6d3a881f82f29.md)     
             * **file** [**symsync\_core.h**](symsync__core_8h.md) _SymbolSync component API._     
+        * **dir** [**telemetry**](dir_d4543964ddc0423cd91d16ab74a4089e.md)     
+            * **file** [**telemetry.h**](telemetry_8h.md) _Lightweight scalar telemetry taps for running DSP objects._     
+            * **file** [**tlm\_sink.h**](tlm__sink_8h.md) _NATS PUB sink for telemetry records._     
         * **dir** [**timing**](dir_0a8cc616bc028a416e339204953e39da.md)     
             * **file** [**timing\_core.h**](timing__core_8h.md)     
         * **dir** [**tonemeas**](dir_78c9bf326243d2be956f1c1b5de2ee56.md)     

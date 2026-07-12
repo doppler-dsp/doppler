@@ -201,10 +201,10 @@ detector2d_state_t * detector2d_create (
 
 Heap-allocated state, or NULL on allocation failure. 
 ```C++
->>> from doppler.spectral import Detector2D
+>>> from doppler.spectral import CorrDetector2D
 >>> import numpy as np
 >>> ref = np.zeros((4, 4), dtype=np.complex64); ref[0, 0] = 1.0
->>> det = Detector2D(ref=ref, dwell=1, noise_lo=1, noise_hi=15,
+>>> det = CorrDetector2D(ref=ref, dwell=1, noise_lo=1, noise_hi=15,
 ...                  noise_mode="mean", threshold=0.0)
 >>> det.ny, det.nx, det.n, det.dwell
 (4, 4, 16, 1)
@@ -296,10 +296,10 @@ size_t detector2d_push (
 
 Number of [**det\_result2d\_t**](structdet__result2d__t.md) entries written to `result`. 
 ```C++
->>> from doppler.spectral import Detector2D
+>>> from doppler.spectral import CorrDetector2D
 >>> import numpy as np
 >>> ref = np.zeros((4, 4), dtype=np.complex64); ref[0, 0] = 1.0
->>> det = Detector2D(ref=ref, dwell=1, noise_lo=1, noise_hi=15,
+>>> det = CorrDetector2D(ref=ref, dwell=1, noise_lo=1, noise_hi=15,
 ...                  noise_mode="mean", threshold=0.0)
 >>> results = det.push(np.ones((4, 4), dtype=np.complex64))
 >>> len(results)
@@ -333,10 +333,10 @@ void detector2d_reset (
 
 
 ```C++
->>> from doppler.spectral import Detector2D
+>>> from doppler.spectral import CorrDetector2D
 >>> import numpy as np
 >>> ref = np.zeros((4, 4), dtype=np.complex64); ref[0, 0] = 1.0
->>> det = Detector2D(ref=ref, dwell=1, noise_lo=1, noise_hi=15,
+>>> det = CorrDetector2D(ref=ref, dwell=1, noise_lo=1, noise_hi=15,
 ...                  noise_mode="mean", threshold=0.0)
 >>> _ = det.push(np.ones((4, 4), dtype=np.complex64))
 >>> det.reset()

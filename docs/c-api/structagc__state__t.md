@@ -47,6 +47,7 @@ _AGC state._ [More...](#detailed-description)
 |  double | [**loop\_bw**](#variable-loop_bw)  <br> |
 |  double | [**p\_avg**](#variable-p_avg)  <br> |
 |  double | [**ref\_db**](#variable-ref_db)  <br> |
+|  [**agc\_tlm\_t**](structagc__tlm__t.md) | [**tlm**](#variable-tlm)  <br> |
 
 
 
@@ -237,6 +238,19 @@ double agc_state_t::p_avg;
 
 ```C++
 double agc_state_t::ref_db;
+```
+
+
+
+
+<hr>
+
+
+
+### variable tlm 
+
+```C++
+agc_tlm_t agc_state_t::tlm;
 ```
 
 

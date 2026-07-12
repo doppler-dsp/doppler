@@ -36,9 +36,10 @@ _M-PSK receiver state._ [More...](#detailed-description)
 
 | Type | Name |
 | ---: | :--- |
-|  int | [**auto\_handover**](#variable-auto_handover)  <br> |
+|  int | [**acq\_to\_track**](#variable-acq_to_track)  <br> |
 |  [**carrier\_nda\_state\_t**](structcarrier__nda__state__t.md) | [**car**](#variable-car)  <br> |
 |  int | [**differential**](#variable-differential)  <br> |
+|  [**lockdet\_state\_t**](structlockdet__state__t.md) | [**handover**](#variable-handover)  <br> |
 |  int | [**have\_prev\_idx**](#variable-have_prev_idx)  <br> |
 |  double | [**lock\_thresh**](#variable-lock_thresh)  <br> |
 |  int | [**m**](#variable-m)  <br> |
@@ -53,6 +54,9 @@ _M-PSK receiver state._ [More...](#detailed-description)
 |  size\_t | [**sym\_count**](#variable-sym_count)  <br> |
 |  float complex | [**sym\_rot**](#variable-sym_rot)  <br> |
 |  [**symsync\_state\_t**](structsymsync__state__t.md) | [**sync**](#variable-sync)  <br> |
+|  [**dp\_tlm\_t**](telemetry_8h.md#typedef-dp_tlm_t) \* | [**tlm\_ctx**](#variable-tlm_ctx)  <br> |
+|  int32\_t | [**tlm\_id\_lock**](#variable-tlm_id_lock)  <br> |
+|  int32\_t | [**tlm\_id\_tracking**](#variable-tlm_id_tracking)  <br> |
 |  int | [**tracking**](#variable-tracking)  <br> |
 |  size\_t | [**warmup\_syms**](#variable-warmup_syms)  <br> |
 
@@ -111,15 +115,15 @@ Allocate with [**mpsk\_receiver\_create()**](mpsk__receiver__core_8h.md#function
 
 
 
-### variable auto\_handover 
+### variable acq\_to\_track 
 
 ```C++
-int mpsk_receiver_state_t::auto_handover;
+int mpsk_receiver_state_t::acq_to_track;
 ```
 
 
 
-opt-in NDA-&gt;decision handover. 
+opt-in NDA&lt;-&gt;decision handover. 
 
 
         
@@ -162,6 +166,23 @@ bits(): differential demap.
 
 
 
+### variable handover 
+
+```C++
+lockdet_state_t mpsk_receiver_state_t::handover;
+```
+
+
+
+two-way handover rule: verify-counted declare/drop on `car.lock`, stepped once per recovered symbol. 
+
+
+        
+
+<hr>
+
+
+
 ### variable have\_prev\_idx 
 
 ```C++
@@ -187,7 +208,7 @@ double mpsk_receiver_state_t::lock_thresh;
 
 
 
-handover lock-metric threshold. 
+handover declare threshold on the carrier lock metric. 
 
 
         
@@ -400,6 +421,57 @@ Gardner symbol-timing loop (by value).
 
 
 
+### variable tlm\_ctx 
+
+```C++
+dp_tlm_t* mpsk_receiver_state_t::tlm_ctx;
+```
+
+
+
+NULL = detached 
+
+
+        
+
+<hr>
+
+
+
+### variable tlm\_id\_lock 
+
+```C++
+int32_t mpsk_receiver_state_t::tlm_id_lock;
+```
+
+
+
+"&lt;prefix&gt;.lock" — carrier lock EMA 
+
+
+        
+
+<hr>
+
+
+
+### variable tlm\_id\_tracking 
+
+```C++
+int32_t mpsk_receiver_state_t::tlm_id_tracking;
+```
+
+
+
+"&lt;prefix&gt;.tracking" — handover 0/1 
+
+
+        
+
+<hr>
+
+
+
 ### variable tracking 
 
 ```C++
@@ -425,7 +497,7 @@ size_t mpsk_receiver_state_t::warmup_syms;
 
 
 
-symbols before handover allowed. 
+symbols before the switch allowed. 
 
 
         

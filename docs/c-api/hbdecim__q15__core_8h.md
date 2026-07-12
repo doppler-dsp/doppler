@@ -135,12 +135,12 @@ hbdecim_q15_state_t * hbdecim_q15_create (
 
 **Returns:**
 
-HBDecimQ15 instance. 
+HalfbandDecimatorQ15 instance. 
 ```C++
 >>> import numpy as np
->>> from doppler.filter import HBDecimQ15
+>>> from doppler.resample import HalfbandDecimatorQ15
 >>> h = np.array([0.25, 0.5, 0.25], dtype=np.float32)
->>> dec = HBDecimQ15(h)
+>>> dec = HalfbandDecimatorQ15(h)
 >>> dec.num_taps
 3
 >>> dec.rate
@@ -172,9 +172,9 @@ void hbdecim_q15_destroy (
 
 ```C++
 >>> import numpy as np
->>> from doppler.filter import HBDecimQ15
+>>> from doppler.resample import HalfbandDecimatorQ15
 >>> h = np.array([0.25, 0.5, 0.25], dtype=np.float32)
->>> with HBDecimQ15(h) as dec:
+>>> with HalfbandDecimatorQ15(h) as dec:
 ...     y = dec.execute(
 ...         np.array([1000, 0, 1000, 0, 1000, 0, 1000, 0],
 ...                  dtype=np.int16))
@@ -223,9 +223,9 @@ size_t hbdecim_q15_execute (
 Number of int16\_t values written to out. 
 ```C++
 >>> import numpy as np
->>> from doppler.filter import HBDecimQ15
+>>> from doppler.resample import HalfbandDecimatorQ15
 >>> h = np.array([0.25, 0.5, 0.25], dtype=np.float32)
->>> dec = HBDecimQ15(h)
+>>> dec = HalfbandDecimatorQ15(h)
 >>> x = np.array([1000, 0, 1000, 0, 1000, 0, 1000, 0], dtype=np.int16)
 >>> y = dec.execute(x)
 >>> y.dtype
@@ -281,9 +281,9 @@ size_t hbdecim_q15_get_num_taps (
 
 ```C++
 >>> import numpy as np
->>> from doppler.filter import HBDecimQ15
+>>> from doppler.resample import HalfbandDecimatorQ15
 >>> h = np.array([0.25, 0.5, 0.25], dtype=np.float32)
->>> HBDecimQ15(h).num_taps
+>>> HalfbandDecimatorQ15(h).num_taps
 3
 ```
  
@@ -309,9 +309,9 @@ double hbdecim_q15_get_rate (
 
 ```C++
 >>> import numpy as np
->>> from doppler.filter import HBDecimQ15
+>>> from doppler.resample import HalfbandDecimatorQ15
 >>> h = np.array([0.25, 0.5, 0.25], dtype=np.float32)
->>> HBDecimQ15(h).rate
+>>> HalfbandDecimatorQ15(h).rate
 0.5
 ```
  
@@ -353,9 +353,9 @@ void hbdecim_q15_reset (
 
 ```C++
 >>> import numpy as np
->>> from doppler.filter import HBDecimQ15
+>>> from doppler.resample import HalfbandDecimatorQ15
 >>> h = np.array([0.25, 0.5, 0.25], dtype=np.float32)
->>> dec = HBDecimQ15(h)
+>>> dec = HalfbandDecimatorQ15(h)
 >>> x = np.array([1000, 0, 1000, 0, 1000, 0, 1000, 0], dtype=np.int16)
 >>> _ = dec.execute(x)
 >>> dec.reset()

@@ -29,6 +29,15 @@ void wfm_rrc_taps(double beta, int sps, int span, float *taps);
 void wfm_dsss_spread(const float _Complex *syms, size_t n_sym,
                      const uint8_t *code, size_t sf, float _Complex *out);
 
+size_t wfm_frame_dsss_nchips(size_t acq_len, size_t acq_reps, size_t data_len,
+                             size_t sync_len, size_t payload_len, int crc);
+
+size_t wfm_frame_dsss_chips(const uint8_t *acq_code, size_t acq_len,
+                            size_t acq_reps, const uint8_t *data_code,
+                            size_t data_len, const uint8_t *sync,
+                            size_t sync_len, const uint8_t *payload,
+                            size_t payload_len, int crc, uint8_t *out);
+
 #ifdef __cplusplus
 }
 #endif

@@ -16,7 +16,9 @@
 #include "dp_state.h"
 #include "jm_perf.h"
 #include "lo/lo_core.h"
+#include "lockdet/lockdet_core.h"
 #include "loop_filter/loop_filter_core.h"
+#include "telemetry/telemetry.h"
 #include <math.h>
 #ifdef __cplusplus
 extern "C" {
@@ -26,6 +28,14 @@ extern "C" {
 #define COSTAS_EPS 1e-12f
 /* EMA smoothing for the |Re P|/|P| lock metric (status diagnostic). */
 #define COSTAS_LOCK_ALPHA 0.1
+
+typedef struct {
+    dp_tlm_t *ctx;     
+    int32_t id_lock;   
+    int32_t id_e;      
+    int32_t id_freq;   
+    int32_t id_locked; 
+} costas_tlm_t;
 
 typedef struct {
     lo_state_t nco;          
@@ -41,7 +51,9 @@ typedef struct {
     float complex prev;      
     int have_prev;           
     double lock_metric;      
+    lockdet_state_t lock;    
     double last_error;       
+    costas_tlm_t tlm;        
 } costas_state_t;
 
 void costas_init(costas_state_t *s, double bn, double zeta,
@@ -89,6 +101,10 @@ costas_update(costas_state_t *s, float complex P)
     /* lock metric: |Re|/|P| EMA (1 = phase-locked BPSK, ~0 = no carrier) */
     double inst = (double)(fabsf(reP) / aP);
     s->lock_metric += COSTAS_LOCK_ALPHA * (inst - s->lock_metric);
+    /* verify-counted decision on the smoothed metric (lockdet_core.h):
+     * hysteresis keeps a metric grazing the threshold from chattering
+     * `locked`. Inline POD step — no call, one branch per symbol. */
+    (void)lockdet_step(&s->lock, s->lock_metric);
 }
 
 costas_state_t *costas_create(double bn, double zeta, double init_norm_freq, size_t tsamps, double bn_fll);
@@ -97,11 +113,13 @@ void costas_destroy(costas_state_t *state);
 
 void costas_reset(costas_state_t *state);
 
+void costas_tlm_flush(const costas_state_t *s);
+
 /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
  * Pointer-free POD struct (embedded NCO + loop filter + I&D accumulators), so
  * a whole-struct snapshot resumes the loop exactly. */
 #define COSTAS_STATE_MAGIC DP_FOURCC('C', 'S', 'T', 'S')
-#define COSTAS_STATE_VERSION 1u
+#define COSTAS_STATE_VERSION 3u /* v3: lockdet decision rule */
 
 size_t costas_state_bytes(const costas_state_t *state);
 void costas_get_state(const costas_state_t *state, void *blob);
@@ -118,6 +136,14 @@ double costas_get_lock_metric(const costas_state_t *state);
 double costas_get_last_error(const costas_state_t *state);
 double costas_get_bn_fll(const costas_state_t *state);
 void costas_set_bn_fll(costas_state_t *state, double val);
+
+void costas_configure_lock(costas_state_t *state, double up_thresh,
+                           double down_thresh, uint32_t n_up,
+                           uint32_t n_down);
+
+int costas_get_locked(const costas_state_t *state);
+
+int costas_set_telemetry(costas_state_t *state, dp_tlm_t * tlm, const char * prefix, uint32_t decim);
 #ifdef __cplusplus
 }
 #endif

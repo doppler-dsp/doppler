@@ -21,7 +21,7 @@ Source:
 [`src/doppler/snr/__init__.py`](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/snr/__init__.py)
 
 See the
-[5-Burst DSSS Link gallery page](../gallery/dsss-burst-pipeline.md#esn0-db-not-snr_est-now-a-standalone-doppler-snr-module)
+[5-Burst DSSS Link gallery page](../gallery/dsss-burst-pipeline.md#esn0-db-not-snr_est-now-a-standalone-dopplersnr-module)
 for both estimators used against a real despread burst, including the
 `_series` sliding-window plot.
 

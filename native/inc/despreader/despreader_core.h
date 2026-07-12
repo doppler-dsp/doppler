@@ -16,8 +16,8 @@
  * frequency + code phase); the loops then track the residual. Set
  * `bn_fll > 0` for FLL-assisted carrier pull-in.
  *
- * Lifecycle: despreader_create -> [steps / bits / reset]* ->
- * despreader_destroy.
+ * Lifecycle: `despreader_create -> (steps / bits / reset)* ->
+ * despreader_destroy`.
  *
  * @code
  * uint8_t code[127] = { ... };  // one code period, 0/1 chips

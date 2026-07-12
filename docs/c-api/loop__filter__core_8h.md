@@ -112,7 +112,7 @@ An error `e` in, a control value out: `control = integ + kp*e`, with the integra
 The state struct is **public** so a tracker can embed it by value (no heap) and drive it with [**loop\_filter\_init()**](loop__filter__core_8h.md#function-loop_filter_init)/loop\_filter\_step() — e.g. a despreader keeps one for the carrier loop and one for the code loop. [**loop\_filter\_create()**](loop__filter__core_8h.md#function-loop_filter_create) is the heap path used by the Python wrapper.
 
 
-Lifecycle: create -&gt; [step / steps / configure / reset]\* -&gt; destroy
+Lifecycle: `create -> (step / steps / configure / reset)* -> destroy`
 
 
 

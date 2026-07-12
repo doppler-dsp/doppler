@@ -47,13 +47,12 @@ _DLL state._ [More...](#detailed-description)
 |  double | [**inv\_sps**](#variable-inv_sps)  <br> |
 |  double | [**last\_error**](#variable-last_error)  <br> |
 |  [**loop\_filter\_state\_t**](structloop__filter__state__t.md) | [**lf**](#variable-lf)  <br> |
+|  [**lockdet\_state\_t**](structlockdet__state__t.md) | [**lock**](#variable-lock)  <br> |
 |  double | [**lock\_alpha**](#variable-lock_alpha)  <br> |
 |  size\_t | [**lock\_count**](#variable-lock_count)  <br> |
 |  size\_t | [**lock\_nz**](#variable-lock_nz)  <br> |
 |  double | [**lock\_stat**](#variable-lock_stat)  <br> |
 |  double | [**lock\_sum**](#variable-lock_sum)  <br> |
-|  double | [**lock\_thresh**](#variable-lock_thresh)  <br> |
-|  int | [**locked**](#variable-locked)  <br> |
 |  size\_t | [**n\_looks**](#variable-n_looks)  <br> |
 |  double | [**noise\_ema**](#variable-noise_ema)  <br> |
 |  double | [**noise\_guard**](#variable-noise_guard)  <br> |
@@ -70,6 +69,7 @@ _DLL state._ [More...](#detailed-description)
 |  size\_t | [**sps**](#variable-sps)  <br> |
 |  double | [**sum\_e**](#variable-sum_e)  <br> |
 |  double | [**sum\_l**](#variable-sum_l)  <br> |
+|  [**dll\_tlm\_t**](structdll__tlm__t.md) | [**tlm**](#variable-tlm)  <br> |
 |  double | [**zeta**](#variable-zeta)  <br> |
 
 
@@ -314,6 +314,23 @@ loop_filter_state_t dll_state_t::lf;
 
 
 
+### variable lock 
+
+```C++
+lockdet_state_t dll_state_t::lock;
+```
+
+
+
+decision rule: thresholds + verify counters stepped on R at each N-look decision. 
+
+
+        
+
+<hr>
+
+
+
 ### variable lock\_alpha 
 
 ```C++
@@ -391,40 +408,6 @@ double dll_state_t::lock_sum;
 
 
 running sum\|P\_k\|^2 over the current window. 
-
-
-        
-
-<hr>
-
-
-
-### variable lock\_thresh 
-
-```C++
-double dll_state_t::lock_thresh;
-```
-
-
-
-CFAR threshold eta on R (det\_threshold\_nc). 
-
-
-        
-
-<hr>
-
-
-
-### variable locked 
-
-```C++
-int dll_state_t::locked;
-```
-
-
-
-last lock decision (R &gt; eta). 
 
 
         
@@ -697,6 +680,23 @@ double dll_state_t::sum_l;
 
 
 non-coherent late sum over the epoch. 
+
+
+        
+
+<hr>
+
+
+
+### variable tlm 
+
+```C++
+dll_tlm_t dll_state_t::tlm;
+```
+
+
+
+live telemetry attachment; zeroed in blobs 
 
 
         

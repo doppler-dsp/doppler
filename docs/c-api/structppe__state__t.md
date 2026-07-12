@@ -8,7 +8,7 @@
 
 
 
-_PolyPhaseEstimator state (FFT plan + rate grid + scratch)._ [More...](#detailed-description)
+_PolynomialPhaseEstimator state (FFT plan + rate grid + scratch)._ [More...](#detailed-description)
 
 * `#include <ppe_core.h>`
 

@@ -4,7 +4,7 @@
  *
  * Estimates the normalized frequency @c f (cycles/sample) and chirp rate @c r
  * (cycles/sample^2) of a complex sequence by a **coherent 2-D matched-filter
- * search**. For each chirp-rate hypothesis @c r_i in [-max_rate, +max_rate] the
+ * search**. For each chirp-rate hypothesis @c r_i in `[-max_rate, +max_rate]` the
  * sequence is dechirped (multiplied by @c exp(-j*pi*r_i*m^2)) and FFT-ed; the
  * resulting (chirp-rate x frequency) surface peaks at the true (r, f), refined
  * sub-bin in both axes by parabolic interpolation. Being fully coherent it is
@@ -88,7 +88,7 @@ extern "C"
    * @brief Estimate (frequency, chirp rate) of @p in via the coherent surface.
    * @param state  Must be non-NULL.
    * @param in     Complex sequence (modulation already stripped by the caller).
-   * @param n_in   Length, in [4, max_len].
+   * @param n_in   Length, in `[4, max_len]`.
    * @return The estimate; zeroed if @p n_in is out of range.
    */
   ppe_result_t ppe_estimate (ppe_state_t *state, const float complex *in,

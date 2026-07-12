@@ -133,7 +133,7 @@ float acq_result_t::noise_est;
 
 
 
-CFAR noise estimate over [noise\_lo, noise\_hi]. 
+CFAR noise estimate over `[noise_lo, noise_hi]`. 
 
 
         
@@ -150,7 +150,7 @@ float acq_result_t::peak_mag;
 
 
 
-max \|R[i,j]\| over the surface (linear). 
+max `|R[i,j]|` over the surface (linear). 
 
 
         

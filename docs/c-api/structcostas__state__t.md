@@ -44,10 +44,12 @@ _Costas loop state._ [More...](#detailed-description)
 |  double | [**k\_fll**](#variable-k_fll)  <br> |
 |  double | [**last\_error**](#variable-last_error)  <br> |
 |  [**loop\_filter\_state\_t**](structloop__filter__state__t.md) | [**lf**](#variable-lf)  <br> |
+|  [**lockdet\_state\_t**](structlockdet__state__t.md) | [**lock**](#variable-lock)  <br> |
 |  double | [**lock\_metric**](#variable-lock_metric)  <br> |
 |  [**lo\_state\_t**](structlo__state__t.md) | [**nco**](#variable-nco)  <br> |
 |  float complex | [**prev**](#variable-prev)  <br> |
 |  double | [**seed\_norm\_freq**](#variable-seed_norm_freq)  <br> |
+|  [**costas\_tlm\_t**](structcostas__tlm__t.md) | [**tlm**](#variable-tlm)  <br> |
 |  size\_t | [**tsamps**](#variable-tsamps)  <br> |
 |  double | [**zeta**](#variable-zeta)  <br> |
 
@@ -242,6 +244,26 @@ loop_filter_state_t costas_state_t::lf;
 
 
 
+### variable lock 
+
+```C++
+lockdet_state_t costas_state_t::lock;
+```
+
+
+
+decision rule on lock\_metric: thresholds
+* verify counters, stepped per symbol. 
+
+
+
+
+        
+
+<hr>
+
+
+
 ### variable lock\_metric 
 
 ```C++
@@ -302,6 +324,23 @@ double costas_state_t::seed_norm_freq;
 
 
 create-time carrier freq, for reset. 
+
+
+        
+
+<hr>
+
+
+
+### variable tlm 
+
+```C++
+costas_tlm_t costas_state_t::tlm;
+```
+
+
+
+live telemetry attachment; zeroed in blobs 
 
 
         

@@ -21,9 +21,9 @@
  *   void   obj_get_state  (const obj_state_t *, void *blob);
  *   int    obj_set_state  (obj_state_t *, const void *blob);  // DP_OK / -err
  *
- * Blob layout, every object:   [ dp_state_hdr_t ] [ module payload ]
+ * Blob layout, every object:   `[ dp_state_hdr_t ] [ module payload ]`
  * Compositions embed children as self-contained sub-blobs (each carries its own
- * header): [ hdr ] [ extra? ] [ child blob ]...  with
+ * header): `[ hdr ] [ extra? ] [ child blob ]`...  with
  * state_bytes = sizeof(hdr) + sizeof(extra) + Σ child_state_bytes.
  *
  * Blobs are native-endian POD for same-machine / same-arch resume (thread,

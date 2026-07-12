@@ -53,6 +53,7 @@ _Detection-theory utilities for the amplitude-ratio test statistic._ [More...](#
 | ---: | :--- |
 |  int | [**det\_dwell**](#function-det_dwell) (double snr, double pd\_min, double pfa, int max\_dwell) <br>_Minimum dwell such that Pd &gt;= pd\_min for the given SNR and Pfa._  |
 |  int | [**det\_dwell\_power**](#function-det_dwell_power) (double snr\_power, double pd\_min, double pfa, int max\_dwell) <br>_Minimum dwell such that Pd &gt;= pd\_min for the power detector._  |
+|  double | [**det\_ema\_alpha**](#function-det_ema_alpha) (double snr\_in\_db, double snr\_out\_db) <br>_EMA coefficient for a target estimator SNR (DC level in noise)._  |
 |  int | [**det\_n\_noncoh**](#function-det_n_noncoh) (double snr, int n\_coh, double pd\_min, double pfa, int max\_n\_noncoh) <br>_Minimum non-coherent looks achieving Pd &gt;= pd\_min at fixed n\_coh._  |
 |  double | [**det\_pd**](#function-det_pd) (double snr, int dwell, double threshold) <br>_Detection probability for given per-sample amplitude SNR and dwell._  |
 |  double | [**det\_pd\_noncoherent**](#function-det_pd_noncoherent) (double snr, int n\_coh, int n\_noncoh, double threshold) <br>_Detection probability for n\_noncoh non-coherent looks._  |
@@ -60,8 +61,11 @@ _Detection-theory utilities for the amplitude-ratio test statistic._ [More...](#
 |  double | [**det\_snr**](#function-det_snr) (int dwell, double pd\_min, double pfa) <br>_Minimum per-sample amplitude SNR achieving Pd &gt;= pd\_min._  |
 |  double | [**det\_snr\_power**](#function-det_snr_power) (int dwell, double pd\_min, double pfa) <br>_Minimum per-sample power SNR achieving Pd &gt;= pd\_min._  |
 |  double | [**det\_threshold**](#function-det_threshold) (double pfa) <br>_Threshold eta for a given false-alarm probability._  |
+|  double | [**det\_threshold\_f**](#function-det_threshold_f) (double pfa, int n) <br>_Upper quantile of F(n, n) — the exact H0 law for a ratio test whose noise reference is estimated from as many samples as the signal sum._  |
 |  double | [**det\_threshold\_noncoherent**](#function-det_threshold_noncoherent) (double pfa, int n\_noncoh) <br>_CFAR threshold eta\_nc for a non-coherent detector of n\_noncoh looks._  |
 |  double | [**det\_threshold\_power**](#function-det_threshold_power) (double pfa) <br>_Power threshold p from Pfa for the power detector._  |
+|  int | [**det\_verify\_count**](#function-det_verify_count) (double p\_look, double p\_target) <br>_Verify count: consecutive looks needed to compound to a budget._  |
+|  double | [**det\_verify\_delay**](#function-det_verify_delay) (double p\_look, int n) <br>_Expected looks until a run of n consecutive successes completes._  |
 |  double | [**marcum\_q**](#function-marcum_q) (int m, double a, double b) <br>_Marcum Q function Q\_M(a, b) for integer M &gt;= 1._  |
 
 
@@ -212,6 +216,61 @@ Minimum dwell &gt;= 1, or -1 if not achievable.
 >>> from doppler.detection import det_dwell_power
 >>> det_dwell_power(snr_power=0.25, pd_min=0.9, pfa=1e-6, max_dwell=256)
 84
+```
+ 
+
+
+        
+
+<hr>
+
+
+
+### function det\_ema\_alpha 
+
+_EMA coefficient for a target estimator SNR (DC level in noise)._ 
+```C++
+double det_ema_alpha (
+    double snr_in_db,
+    double snr_out_db
+) 
+```
+
+
+
+Sizes a first-order EMA `y = (1-alpha)*y + alpha*x` that estimates a DC level from noisy i.i.d. measurements x. Per sample the estimator SNR (mean^2 / variance) is `snr_in`; the EMA improves it by its variance reduction `(2-alpha)/alpha`, so the output SNR is `snr_out = snr_in * (2-alpha)/alpha`. Solving for the coefficient:
+
+
+alpha = 2 \* snr\_in / (snr\_in + snr\_out) (SNRs linear)
+
+
+Returns 1.0 (no averaging) when snr\_out\_db &lt;= snr\_in\_db. Typical inputs: a signal-free power reference \|n\|^2 is exponential (0 dB per sample); a lock signal at known C/N0 has per-look SNR from its coherent integration (minus squaring loss), and this picks the smoothing bandwidth that makes the lock decision variable meet a chosen decision SNR.
+
+
+
+
+**Parameters:**
+
+
+* `snr_in_db` Per-sample estimator SNR, dB (mean^2 / variance). 
+* `snr_out_db` Desired EMA-output estimator SNR, dB. 
+
+
+
+**Returns:**
+
+EMA coefficient alpha in (0, 1].
+
+
+
+```C++
+>>> from doppler.detection import det_ema_alpha
+>>> det_ema_alpha(0.0, 0.0)      # no gain requested -> no averaging
+1.0
+>>> round(1 / det_ema_alpha(0.0, 20.0), 1)   # 20 dB gain ~ 50 looks
+50.5
+>>> round(1 / det_ema_alpha(10.0, 30.0), 1)  # same 20 dB gain, shifted
+50.5
 ```
  
 
@@ -577,6 +636,55 @@ Threshold eta &gt; 0.
 
 
 
+### function det\_threshold\_f 
+
+_Upper quantile of F(n, n) — the exact H0 law for a ratio test whose noise reference is estimated from as many samples as the signal sum._ 
+```C++
+double det_threshold_f (
+    double pfa,
+    int n
+) 
+```
+
+
+
+A chi-square threshold (det\_threshold\_noncoherent) prices a statistic normalised by a KNOWN noise power. When the noise power is instead estimated from n same-burst samples (the BurstDespreader lock test: sum Re^2 against sum Im^2), the ratio's tail fattens to F(n, n) and the chi-square gate realizes tens of times the priced pfa (41x at n = 16, pfa = 1e-3). This helper returns the exact gate: P(chi2\_n / chi2\_n &gt; g) = I\_{1/(1+g)}(n/2, n/2) = pfa, solved on the regularized incomplete beta — valid for every n &gt;= 1, odd included. As n grows the estimate hardens and g approaches the known-noise value. Threshold a BurstDespreader as `lock_stat > sqrt(stat_n * det_threshold_f(pfa, stat_n))`.
+
+
+
+
+**Parameters:**
+
+
+* `pfa` Tail probability budget, in (0, 1). 
+* `n` Degrees of freedom on each side (&gt;= 1). 
+
+
+
+**Returns:**
+
+The F(n, n) upper-pfa quantile; 0 on invalid input.
+
+
+
+```C++
+>>> from doppler.detection import det_threshold_f
+>>> round(det_threshold_f(1e-3, 2), 6)  # exact: (1 - pfa)/pfa
+999.0
+>>> round(det_threshold_f(1e-3, 4), 4)
+53.4358
+>>> round(det_threshold_f(1e-3, 64), 4)  # hardens toward known-noise
+2.1931
+```
+ 
+
+
+        
+
+<hr>
+
+
+
 ### function det\_threshold\_noncoherent 
 
 _CFAR threshold eta\_nc for a non-coherent detector of n\_noncoh looks._ 
@@ -660,6 +768,112 @@ Threshold p &gt; 0.
 >>> from doppler.detection import det_threshold_power
 >>> round(det_threshold_power(pfa=1e-6), 3)   # -ln(1e-6) = 6*ln(10)
 13.816
+```
+ 
+
+
+        
+
+<hr>
+
+
+
+### function det\_verify\_count 
+
+_Verify count: consecutive looks needed to compound to a budget._ 
+```C++
+int det_verify_count (
+    double p_look,
+    double p_target
+) 
+```
+
+
+
+n consecutive independent looks at per-look probability p compound to p^n, so the smallest n with `p_look^n <= p_target` is `ceil(ln p_target / ln p_look)` (clamped to &gt;= 1). One function serves both sides of a lock detector ([**lockdet\_core.h**](lockdet__core_8h.md)): the declare count from (per-look pfa, false-declare budget) and the drop count from (per-look miss rate 1 - pd, false-drop budget). Degenerate inputs resolve naturally: a target already met by one look returns 1; p\_look &gt;= 1 can never compound below a smaller target and returns INT\_MAX.
+
+
+
+
+**Parameters:**
+
+
+* `p_look` Per-look probability (pfa or 1 - pd), in (0, 1). 
+* `p_target` Compound probability budget, in (0, 1). 
+
+
+
+**Returns:**
+
+Smallest verify count n with p\_look^n &lt;= p\_target.
+
+
+
+```C++
+>>> from doppler.detection import det_verify_count
+>>> det_verify_count(1e-3, 1e-6)   # two 1e-3 looks reach 1e-6
+2
+>>> det_verify_count(1e-3, 1e-9)
+3
+>>> det_verify_count(0.5, 1e-3)    # drop side: pd = 0.5 per look
+10
+>>> det_verify_count(1e-3, 0.5)    # budget already met -> 1
+1
+```
+ 
+
+
+        
+
+<hr>
+
+
+
+### function det\_verify\_delay 
+
+_Expected looks until a run of n consecutive successes completes._ 
+```C++
+double det_verify_delay (
+    double p_look,
+    int n
+) 
+```
+
+
+
+The mean waiting time of the consecutive-run process a lockdet verify counter implements: at per-look success probability p, the first run of n straight successes takes on average
+
+
+`E[T]` = (1 - p^n) / (p^n \* (1 - p)) looks,
+
+
+which is the declare latency bought by a verify count of n (multiply by the look period for time). Limits are handled exactly: p = 1 gives n (the run completes immediately), p = 0 gives infinity.
+
+
+
+
+**Parameters:**
+
+
+* `p_look` Per-look success probability (e.g. pd), in &#91;0, 1&#93;. 
+* `n` Run length (the verify count); clamped to &gt;= 1. 
+
+
+
+**Returns:**
+
+Expected number of looks to the first length-n run.
+
+
+
+```C++
+>>> from doppler.detection import det_verify_delay
+>>> det_verify_delay(1.0, 8)             # certain hits: exactly n
+8.0
+>>> round(det_verify_delay(0.5, 2), 6)   # 2 straight coin heads: 6
+6.0
+>>> round(det_verify_delay(0.9, 8), 1)
+13.2
 ```
  
 

@@ -15,7 +15,9 @@
 #include "clib_common.h"
 #include "dp_state.h"
 #include "jm_perf.h"
+#include "lockdet/lockdet_core.h"
 #include "loop_filter/loop_filter_core.h"
+#include "telemetry/telemetry.h"
 #include <complex.h>
 #include "detection/detection_core.h"
 #ifdef __cplusplus
@@ -24,6 +26,14 @@ extern "C" {
 
 /* Numerical guard on the early+late envelope sum (not tunable). */
 #define DLL_EPS 1e-12
+
+typedef struct {
+    dp_tlm_t *ctx;     
+    int32_t id_e;      
+    int32_t id_rate;   
+    int32_t id_lock;   
+    int32_t id_locked; 
+} dll_tlm_t;
 
 typedef struct {
     loop_filter_state_t lf;  
@@ -57,11 +67,11 @@ typedef struct {
     double lock_sum;         
     size_t lock_count;       
     size_t n_looks;          
-    double lock_thresh;      
     double lock_stat;        
     size_t lock_nz;          
-    int locked;              
+    lockdet_state_t lock;    
     int owns_code;           
+    dll_tlm_t tlm;           
 } dll_state_t;
 
 JM_FORCEINLINE float
@@ -114,6 +124,19 @@ dll_accumulate(dll_state_t *s, float complex d)
 }
 
 JM_FORCEINLINE JM_HOT void
+dll_lock_accumulate(dll_state_t *s, float complex d)
+{
+    double co = s->chip_pos + s->off_chips;
+    if (co >= (double)s->sf)
+        co -= (double)s->sf;
+    s->acc_o += d * dll_replica(s, co, s->code_rate * s->inv_sps);
+}
+
+void dll_lock_look(dll_state_t *s, double norm);
+
+void dll_lock_epoch(dll_state_t *s);
+
+JM_FORCEINLINE JM_HOT void
 dll_update(dll_state_t *s)
 {
     float me = cabsf(s->acc_e), ml = cabsf(s->acc_l);
@@ -141,8 +164,11 @@ double dll_get_code_rate(const dll_state_t *state);
 double dll_get_last_error(const dll_state_t *state);
 size_t dll_get_segments(const dll_state_t *state);
 
-void dll_configure_lock(dll_state_t *state, double threshold, size_t n_looks,
-                        double alpha);
+int dll_configure_lock(dll_state_t *state, double pfa, size_t n_looks, double ref_snr_db);
+
+void dll_configure_lock_raw(dll_state_t *state, double up_thresh,
+                            double down_thresh, size_t n_looks, double alpha,
+                            uint32_t n_up, uint32_t n_down);
 
 int dll_get_locked(const dll_state_t *state);
 
@@ -150,11 +176,15 @@ double dll_get_lock_stat(const dll_state_t *state);
 
 double dll_get_noise_est(const dll_state_t *state);
 
+void dll_tlm_flush(const dll_state_t *s);
+
+int dll_set_telemetry(dll_state_t *state, dp_tlm_t * tlm, const char * prefix, uint32_t decim);
+
 /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
  * composition+field-wise: loop_filter child (POD-embedded) + running
  * correlators/loop/lock state; borrowed `code` pointer restored by create. */
 #define DLL_STATE_MAGIC DP_FOURCC ('D','L','L',' ')
-#define DLL_STATE_VERSION 1u
+#define DLL_STATE_VERSION 3u /* v3: lockdet decision rule (verify counters) */
 size_t dll_state_bytes (const dll_state_t *state);
 void dll_get_state (const dll_state_t *state, void *blob);
 int dll_set_state (dll_state_t *state, const void *blob);

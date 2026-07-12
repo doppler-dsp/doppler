@@ -27,7 +27,7 @@
  * heap path used by the Python wrapper. Pointer-free POD: it rides an
  * embedding composer's whole-struct state snapshot with no extra packing.
  *
- * Lifecycle: create -> [step / steps / configure / reset]* -> destroy
+ * Lifecycle: `create -> (step / steps / configure / reset)* -> destroy`
  *
  * @code
  * lockdet_state_t d;
@@ -140,7 +140,7 @@ extern "C"
    * n_up-th consecutive hit declares lock; any miss resets the run. Locked:
    * a miss (`x < down_thresh`) advances the run and the n_down-th
    * consecutive miss drops the lock; any hit (`x >= down_thresh`) resets
-   * it. A metric inside the [down_thresh, up_thresh] band is sticky — it
+   * it. A metric inside the `[down_thresh, up_thresh]` band is sticky — it
    * neither advances a declare nor a drop.
    *
    * @param state  Must be non-NULL.

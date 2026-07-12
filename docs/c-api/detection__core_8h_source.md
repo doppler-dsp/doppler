@@ -37,6 +37,14 @@ double det_snr(int dwell, double pd_min, double pfa);
 
 double det_threshold_noncoherent(double pfa, int n_noncoh);
 
+double det_ema_alpha(double snr_in_db, double snr_out_db);
+
+int det_verify_count(double p_look, double p_target);
+
+double det_verify_delay(double p_look, int n);
+
+double det_threshold_f(double pfa, int n);
+
 double det_pd_noncoherent(double snr, int n_coh, int n_noncoh,
                           double threshold);
 

@@ -36,27 +36,18 @@ _Despreader state._ [More...](#detailed-description)
 
 | Type | Name |
 | ---: | :--- |
-|  float complex | [**acc\_e**](#variable-acc_e)  <br> |
-|  float complex | [**acc\_l**](#variable-acc_l)  <br> |
-|  float complex | [**acc\_p**](#variable-acc_p)  <br> |
-|  uint8\_t \* | [**acq\_code**](#variable-acq_code)  <br> |
-|  size\_t | [**acq\_reps**](#variable-acq_reps)  <br> |
-|  size\_t | [**acq\_sf**](#variable-acq_sf)  <br> |
-|  double | [**car\_phase**](#variable-car_phase)  <br> |
-|  double | [**car\_w**](#variable-car_w)  <br> |
-|  double | [**chip\_pos**](#variable-chip_pos)  <br> |
-|  uint8\_t \* | [**code**](#variable-code)  <br> |
-|  double | [**code\_rate**](#variable-code_rate)  <br> |
-|  [**loop\_filter\_state\_t**](structloop__filter__state__t.md) | [**lf\_car**](#variable-lf_car)  <br> |
-|  [**loop\_filter\_state\_t**](structloop__filter__state__t.md) | [**lf\_code**](#variable-lf_code)  <br> |
-|  double | [**lock\_metric**](#variable-lock_metric)  <br> |
-|  size\_t | [**preamble\_left**](#variable-preamble_left)  <br> |
-|  double | [**seed\_chip**](#variable-seed_chip)  <br> |
-|  double | [**seed\_w**](#variable-seed_w)  <br> |
-|  size\_t | [**sf**](#variable-sf)  <br> |
-|  double | [**snr\_est**](#variable-snr_est)  <br> |
-|  size\_t | [**sps**](#variable-sps)  <br> |
-|  size\_t | [**tsamps**](#variable-tsamps)  <br> |
+|  double | [**bit\_acc**](#variable-bit_acc)  <br> |
+|  size\_t | [**bit\_phase**](#variable-bit_phase)  <br> |
+|  [**costas\_state\_t**](structcostas__state__t.md) | [**car**](#variable-car)  <br> |
+|  [**dll\_state\_t**](structdll__state__t.md) | [**code**](#variable-code)  <br> |
+|  uint8\_t \* | [**code\_copy**](#variable-code_copy)  <br> |
+|  size\_t | [**epoch\_count**](#variable-epoch_count)  <br> |
+|  size\_t | [**epochs\_in\_bit**](#variable-epochs_in_bit)  <br> |
+|  size\_t \* | [**flip\_hist**](#variable-flip_hist)  <br> |
+|  int | [**have\_prev**](#variable-have_prev)  <br> |
+|  size\_t | [**periods\_per\_bit**](#variable-periods_per_bit)  <br> |
+|  int | [**prev\_sign**](#variable-prev_sign)  <br> |
+|  [**dp\_tlm\_t**](telemetry_8h.md#typedef-dp_tlm_t) \* | [**tlm\_ctx**](#variable-tlm_ctx)  <br> |
 
 
 
@@ -104,7 +95,7 @@ _Despreader state._ [More...](#detailed-description)
 ## Detailed Description
 
 
-Allocate with [**despreader\_create()**](despreader__core_8h.md#function-despreader_create). 
+Allocate with [**despreader\_create()**](despreader__core_8h.md#function-despreader_create). Embeds the carrier (`car`) and code (`code`) loops by value; the despreader owns the copied spreading code and the bit-sync histogram. 
 
 
     
@@ -113,15 +104,15 @@ Allocate with [**despreader\_create()**](despreader__core_8h.md#function-desprea
 
 
 
-### variable acc\_e 
+### variable bit\_acc 
 
 ```C++
-float complex despreader_state_t::acc_e;
+double despreader_state_t::bit_acc;
 ```
 
 
 
-early correlator accumulator. 
+running sum of Re(prompt) over the bit. 
 
 
         
@@ -130,15 +121,15 @@ early correlator accumulator.
 
 
 
-### variable acc\_l 
+### variable bit\_phase 
 
 ```C++
-float complex despreader_state_t::acc_l;
+size_t despreader_state_t::bit_phase;
 ```
 
 
 
-late correlator accumulator. 
+detected bit boundary (argmax flip\_hist). 
 
 
         
@@ -147,117 +138,15 @@ late correlator accumulator.
 
 
 
-### variable acc\_p 
+### variable car 
 
 ```C++
-float complex despreader_state_t::acc_p;
+costas_state_t despreader_state_t::car;
 ```
 
 
 
-prompt correlator accumulator. 
-
-
-        
-
-<hr>
-
-
-
-### variable acq\_code 
-
-```C++
-uint8_t* despreader_state_t::acq_code;
-```
-
-
-
-owned acq code, NULL if payload-only. 
-
-
-        
-
-<hr>
-
-
-
-### variable acq\_reps 
-
-```C++
-size_t despreader_state_t::acq_reps;
-```
-
-
-
-preamble periods to track before payload. 
-
-
-        
-
-<hr>
-
-
-
-### variable acq\_sf 
-
-```C++
-size_t despreader_state_t::acq_sf;
-```
-
-
-
-acq code length, chips/period. 
-
-
-        
-
-<hr>
-
-
-
-### variable car\_phase 
-
-```C++
-double despreader_state_t::car_phase;
-```
-
-
-
-current carrier phase, radians. 
-
-
-        
-
-<hr>
-
-
-
-### variable car\_w 
-
-```C++
-double despreader_state_t::car_w;
-```
-
-
-
-current carrier angular freq, rad/sample. 
-
-
-        
-
-<hr>
-
-
-
-### variable chip\_pos 
-
-```C++
-double despreader_state_t::chip_pos;
-```
-
-
-
-prompt code position within symbol, chips. 
+carrier (Costas/FLL-assisted-PLL) loop. 
 
 
         
@@ -269,12 +158,12 @@ prompt code position within symbol, chips.
 ### variable code 
 
 ```C++
-uint8_t* despreader_state_t::code;
+dll_state_t despreader_state_t::code;
 ```
 
 
 
-owned spreading code, 0/1, length sf. 
+code (early/prompt/late DLL) loop. 
 
 
         
@@ -283,15 +172,15 @@ owned spreading code, 0/1, length sf.
 
 
 
-### variable code\_rate 
+### variable code\_copy 
 
 ```C++
-double despreader_state_t::code_rate;
+uint8_t* despreader_state_t::code_copy;
 ```
 
 
 
-chips advanced per nominal chip (~1.0). 
+owned copy of the spreading code. 
 
 
         
@@ -300,15 +189,15 @@ chips advanced per nominal chip (~1.0).
 
 
 
-### variable lf\_car 
+### variable epoch\_count 
 
 ```C++
-loop_filter_state_t despreader_state_t::lf_car;
+size_t despreader_state_t::epoch_count;
 ```
 
 
 
-carrier (Costas) loop. 
+code periods processed so far. 
 
 
         
@@ -317,15 +206,15 @@ carrier (Costas) loop.
 
 
 
-### variable lf\_code 
+### variable epochs\_in\_bit 
 
 ```C++
-loop_filter_state_t despreader_state_t::lf_code;
+size_t despreader_state_t::epochs_in_bit;
 ```
 
 
 
-code (DLL) loop. 
+periods accumulated in the current bit. 
 
 
         
@@ -334,15 +223,15 @@ code (DLL) loop.
 
 
 
-### variable lock\_metric 
+### variable flip\_hist 
 
 ```C++
-double despreader_state_t::lock_metric;
+size_t* despreader_state_t::flip_hist;
 ```
 
 
 
-EMA of \|Re P\|/\|P\|, ~1 when phase-locked. 
+prompt sign-flip histogram, length np. 
 
 
         
@@ -351,15 +240,15 @@ EMA of \|Re P\|/\|P\|, ~1 when phase-locked.
 
 
 
-### variable preamble\_left 
+### variable have\_prev 
 
 ```C++
-size_t despreader_state_t::preamble_left;
+int despreader_state_t::have_prev;
 ```
 
 
 
-preamble periods still to consume. 
+prev\_sign valid. 
 
 
         
@@ -368,15 +257,15 @@ preamble periods still to consume.
 
 
 
-### variable seed\_chip 
+### variable periods\_per\_bit 
 
 ```C++
-double despreader_state_t::seed_chip;
+size_t despreader_state_t::periods_per_bit;
 ```
 
 
 
-create-time code phase, chips, for reset. 
+code periods per data bit (&gt;=1). 
 
 
         
@@ -385,15 +274,15 @@ create-time code phase, chips, for reset.
 
 
 
-### variable seed\_w 
+### variable prev\_sign 
 
 ```C++
-double despreader_state_t::seed_w;
+int despreader_state_t::prev_sign;
 ```
 
 
 
-create-time carrier angular freq, rad/sample. 
+previous prompt sign (+1/-1). 
 
 
         
@@ -402,66 +291,15 @@ create-time carrier angular freq, rad/sample.
 
 
 
-### variable sf 
+### variable tlm\_ctx 
 
 ```C++
-size_t despreader_state_t::sf;
+dp_tlm_t* despreader_state_t::tlm_ctx;
 ```
 
 
 
-spreading factor = code length, chips/symbol. 
-
-
-        
-
-<hr>
-
-
-
-### variable snr\_est 
-
-```C++
-double despreader_state_t::snr_est;
-```
-
-
-
-EMA SNR estimate from the prompt symbols. 
-
-
-        
-
-<hr>
-
-
-
-### variable sps 
-
-```C++
-size_t despreader_state_t::sps;
-```
-
-
-
-samples per chip (&gt;= 2). 
-
-
-        
-
-<hr>
-
-
-
-### variable tsamps 
-
-```C++
-size_t despreader_state_t::tsamps;
-```
-
-
-
-sf\*sps, symbol period in samples. 
+telemetry gate: non-NULL when the embedded loops are attached (despreader\_set\_telemetry); the probes live on car.tlm / code.tlm. Not serialized (field-wise triplet skips it). 
 
 
         

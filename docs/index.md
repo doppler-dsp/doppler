@@ -50,7 +50,8 @@ on your hardware.
 
 ## Quick start
 
-**Python**
+**Python** — `pip install doppler-dsp` (bundles all native deps, no system
+libraries needed); see [Quick Start](quickstart.md) for the full walkthrough.
 
 ```python
 from doppler.spectral import FFT

@@ -96,7 +96,7 @@ endif
         bench bench-report bench-publish bench-interleaved bench-docs \
         bench-stream \
         debug release blazing bump-version check-version tag-release \
-        test-examples test-examples-python setup clean help
+        test-examples test-examples-python install-deps setup clean help
 
 # ── default ──────────────────────────────────────────────────────────────────
 all: build
@@ -295,6 +295,16 @@ test-all: test test-examples python-test test-examples-python
 # ── python-test ───────────────────────────────────────────────────────────────
 python-test:
 	uv run pytest src/ -v
+
+# ── install-deps ─────────────────────────────────────────────────────────────
+# Bootstraps jbx (to $HOME/.local/bin, same as CI) if it isn't already on
+# PATH, then installs system build deps (detects OS/distro). The bootstrap
+# runs `| bash`, not `. <(...)`, so the installed binary persists across
+# make's per-recipe-line subshells; the PATH prefix on the second line
+# covers a jbx that was *just* installed in the first line's own subshell.
+install-deps:
+	@command -v jbx >/dev/null 2>&1 || curl -sSL https://just-buildit.github.io/get-jb.sh | bash
+	PATH="$$HOME/.local/bin:$$PATH" jbx install-deps
 
 # ── setup ─────────────────────────────────────────────────────────────────────
 setup:
@@ -563,6 +573,7 @@ help:
 	@echo "doppler build targets"
 	@echo "====================="
 	@echo ""
+	@echo "  make install-deps  Bootstrap jbx (if missing) + install system build deps"
 	@echo "  make setup         One-time per clone: uv sync + pre-commit install"
 	@echo "  make               Configure + build ($(BUILD_TYPE))"
 	@echo "  make build         Same as above"

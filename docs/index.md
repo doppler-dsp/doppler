@@ -19,11 +19,11 @@
   <a href="https://github.com/astral-sh/ruff"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json" alt="Ruff"></a>
 </p>
 
-doppler is a C99 DSP library: NCO, FIR filter, FFT, polyphase resampler,
-DDC, NATS-based signal streaming, and a scenario-driven waveform generator
-(`wfmgen`) with byte-identical CLI/Python/C parity. Python and Rust wrap the
-same C core — no second implementation, no divergence, full SIMD throughput
-from any language.
+doppler is a C99 DSP library — NCO, FIR, FFT, polyphase resampling, DDC,
+AGC and more — with file, buffer, and NATS-based streaming, and a
+scenario-driven waveform generator (`wfmgen`) with byte-identical
+CLI/Python/C parity. Python and Rust wrap the same C core — no second
+implementation, no divergence, full SIMD throughput from any language.
 
 **New here?** Start with [Start Here](start-here.md) — a one-page map from
 "what are you trying to do" to the right doc.

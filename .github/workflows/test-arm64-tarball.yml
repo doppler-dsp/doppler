@@ -1,0 +1,80 @@
+name: Test ARM64 C tarball (scratch)
+
+# Manual-only, isolated verification harness for build-c-linux-arm64's exact
+# steps -- release.yml only triggers on a version tag push, and we don't
+# want to cut a real release (PyPI publish, GitHub Release, etc.) just to
+# prove the ubuntu-24.04-arm + manylinux_2_28_aarch64 combination actually
+# produces a working tarball. Delete this file once that's confirmed --
+# it's a one-shot validation tool, not permanent CI.
+on:
+  workflow_dispatch:
+
+jobs:
+  build-and-verify:
+    name: Build + verify (manylinux_2_28 aarch64)
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build in manylinux container and install to prefix
+        run: |
+          docker run --rm \
+            -v "${{ github.workspace }}:/project" \
+            -w /project \
+            quay.io/pypa/manylinux_2_28_aarch64 \
+            bash -euxc "
+              dnf install -y cmake pkg-config
+              cmake -B build \
+                -DCMAKE_BUILD_TYPE=Release \
+                -DBUILD_PYTHON=OFF \
+                -DCMAKE_INSTALL_LIBDIR=lib
+              cmake --build build --parallel
+              cmake --install build --prefix /project/install
+            "
+
+      - name: Create tarball
+        run: |
+          mkdir -p dist
+          tar -czf dist/doppler-test-linux-aarch64.tar.gz -C install .
+
+      - name: Verify tarball contents and architecture
+        run: |
+          echo "== tarball listing (first 20 entries) =="
+          tar -tzf dist/doppler-test-linux-aarch64.tar.gz | head -20
+
+          test -f install/lib/libdoppler.a || { echo "FAIL: no libdoppler.a"; exit 1; }
+          test -f install/lib/libdoppler.so || { echo "FAIL: no libdoppler.so"; exit 1; }
+          test -f install/include/doppler.h || { echo "FAIL: no doppler.h"; exit 1; }
+          test -f install/lib/pkgconfig/doppler.pc || { echo "FAIL: no doppler.pc"; exit 1; }
+
+          echo "== libdoppler.so architecture =="
+          file install/lib/libdoppler.so
+          file install/lib/libdoppler.so | grep -q "ARM aarch64" || { echo "FAIL: not an aarch64 binary"; exit 1; }
+
+          echo "== libdoppler.a is C++-free (matches the x86_64 static-link smoke check) =="
+          ! nm install/lib/libdoppler.a 2>/dev/null | grep -qi "GLIBCXX\|_ZN" || { echo "FAIL: C++ symbols leaked in"; exit 1; }
+
+          echo "PASS: valid aarch64 tarball, correct architecture, C++-free static lib"
+
+      - name: Smoke-compile a consumer against the installed prefix
+        run: |
+          cat > /tmp/example.c <<'EOF'
+          #include <complex.h>
+          #include <fft/fft_core.h>
+          int main(void) {
+            float complex in[1024] = { 0 };
+            float complex out[1024];
+            fft_state_t *fft = fft_create(1024, -1, 1);
+            fft_execute_cf32(fft, in, 1024, out);
+            fft_destroy(fft);
+            return 0;
+          }
+          EOF
+          cc /tmp/example.c -I install/include install/lib/libdoppler.a -lm -o /tmp/example
+          /tmp/example && echo "PASS: compiled and ran against the aarch64 tarball"
+
+      - name: Upload tarball for inspection
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-c-dist-linux-arm64
+          path: dist/*.tar.gz

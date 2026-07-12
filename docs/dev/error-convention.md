@@ -19,11 +19,17 @@ The `DP_ERR_*` prefix mirrors the streaming layer (`stream.h`), which uses
 the same namespace for I/O errors (`DP_ERR_SEND`, `DP_ERR_RECV`, etc.).
 
 ```c
-#include "clib_common.h"
+#include <awgn/awgn_core.h>
+#include <complex.h>
 
-float complex out[1024];
-if (awgn(42, 1.0f, 1024, out) != DP_OK) {
-    /* handle OOM */
+int main(void)
+{
+  float complex out[1024];
+  if (awgn(42, 1.0f, 1024, out) != DP_OK) {
+      /* handle OOM */
+      return 1;
+  }
+  return 0;
 }
 ```
 
@@ -40,8 +46,20 @@ internally — malloc errors belong to the `create()` call, not to the
 hot-path execute call.
 
 ```c
-RateConverter_state_t *rc = RateConverter_create(0.5, 0);   /* NULL = OOM */
-size_t n = RateConverter_execute(rc, in, 4096, out, 4096);  /* always succeeds */
+#include <RateConverter/RateConverter_core.h>
+#include <complex.h>
+
+int main(void)
+{
+  float complex in[4096]  = { 0 };
+  float complex out[4096];
+
+  RateConverter_state_t *rc = RateConverter_create(0.5, 0);   /* NULL = OOM */
+  if (!rc) return 1;
+  size_t n = RateConverter_execute(rc, in, 4096, out, 4096);  /* always succeeds */
+  (void) n;
+  return 0;
+}
 ```
 
 One-shot count-returning functions (e.g. `RateConverter_convert`) return
@@ -56,8 +74,15 @@ ______________________________________________________________________
 allocation failure or invalid arguments.
 
 ```c
-awgn_state_t *g = awgn_create(0, 1.0f);
-if (!g) { /* OOM or invalid amplitude */ }
+#include <awgn/awgn_core.h>
+
+int main(void)
+{
+  awgn_state_t *g = awgn_create(0, 1.0f);
+  if (!g) { /* OOM or invalid amplitude */ return 1; }
+  awgn_destroy(g);
+  return 0;
+}
 ```
 
 ______________________________________________________________________

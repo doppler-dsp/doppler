@@ -69,14 +69,31 @@ synth = Synth(type="qpsk", fs=1e6, snr=12.0, snr_mode="esno", sps=8, seed=1)
 iq = synth.steps(4096)   # complex64 ndarray
 ```
 
-**C**
+**C** — the C library isn't part of the `pip install` wheel. Grab a
+[pre-built release tarball](install/c.md#install-from-a-release-tarball)
+(no toolchain needed) or [build from source](quickstart.md#build-from-source);
+either way you get `libdoppler.a`/`libdoppler.so` plus headers — see
+[C Library](install/c.md) for `find_package`/`pkg-config` integration.
 
 ```c
+#include <complex.h>
 #include <fft/fft_core.h>
 
-fft_state_t *fft = fft_create(1024, -1, 1);  /* n, sign, nthreads */
-fft_execute_cf32(fft, in, 1024, out);        /* in,out: float complex[1024] */
-fft_destroy(fft);
+int main(void)
+{
+  float complex in[1024]  = { 0 };   /* fill with your samples */
+  float complex out[1024];
+
+  fft_state_t *fft = fft_create(1024, -1, 1);  /* n, sign, nthreads */
+  fft_execute_cf32(fft, in, 1024, out);        /* in,out: float complex[1024] */
+  fft_destroy(fft);
+  return 0;
+}
+```
+
+```bash
+# after `make` (from source) — see install/c.md for the tarball/pkg-config paths
+cc example.c -Inative/inc -Ibuild/native/inc build/libdoppler.a -lm -o example
 ```
 
 ## Build

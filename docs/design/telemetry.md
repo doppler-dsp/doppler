@@ -18,6 +18,8 @@ ______________________________________________________________________
 An instrumented object holds a `dp_tlm_t *ctx` that is NULL by default. Every
 probe site compiles to:
 
+<!-- docs-snippet: skip=illustrative excerpt (state->tlm is undeclared here), not standalone -->
+
 ```c
 DP_TLM (state->tlm.ctx, state->tlm.id_gain, state->gain_db);
 ```
@@ -49,6 +51,8 @@ ______________________________________________________________________
 
 Sixteen bytes, one ring slot, 8-aligned:
 
+<!-- docs-snippet: skip=struct layout illustration (design spec), not a compilable usage example -->
+
 ```c
 typedef struct
 {
@@ -78,8 +82,16 @@ Probes are registered at **setup time** — never on the hot path — and named
 with dotted paths so a consumer can build a channel map once:
 
 ```c
-dp_tlm_t *tlm = dp_tlm_create (1 << 14);           /* records, pow2 */
-int id = dp_tlm_probe (tlm, "agc.gain_db", 1);     /* decim = 1     */
+#include <telemetry/telemetry.h>
+
+int main(void)
+{
+  dp_tlm_t *tlm = dp_tlm_create (1 << 14);           /* records, pow2 */
+  int id = dp_tlm_probe (tlm, "agc.gain_db", 1);     /* decim = 1     */
+  (void) id;
+  dp_tlm_destroy (tlm);
+  return 0;
+}
 ```
 
 - Registration is **idempotent by name**: re-registering returns the same id
@@ -119,6 +131,8 @@ canonical example:
 **1. Attachment member** — a small POD tail on the state struct
 (`native/inc/agc/agc_core.h`):
 
+<!-- docs-snippet: skip=struct layout illustration (design spec), not a compilable usage example -->
+
 ```c
 typedef struct
 {
@@ -133,6 +147,8 @@ agc_tlm_t tlm; /* live attachment; zeroed in blobs */
 
 **2. Attach function** — registers the object's probes under a caller prefix
 (setup path, in `agc_core.c`):
+
+<!-- docs-snippet: skip=illustrative excerpt from agc_core.c, not standalone (needs the full agc_state_t/agc_core.h context) -->
 
 ```c
 int
@@ -156,6 +172,8 @@ agc_set_telemetry (agc_state_t *s, dp_tlm_t *t, const char *prefix,
 ```
 
 **3. Emit sites** — one line at each event, guarded by the macro:
+
+<!-- docs-snippet: skip=illustrative excerpt (state->tlm is undeclared here), not standalone -->
 
 ```c
 DP_TLM (state->tlm.ctx, state->tlm.id_gain, state->gain_db);
@@ -182,6 +200,8 @@ The pattern that benchmarks at parity with the untouched baseline
 **attachment check hoisted to block-loop entry**, so the detached loops
 contain no call site at all:
 
+<!-- docs-snippet: skip=pseudocode (comment bodies stand in for real code), not compilable -->
+
 ```c
 if (!state->tlm.ctx)
   { /* pristine specialised loops — the pre-telemetry code, verbatim */ }
@@ -203,6 +223,8 @@ selector.
 
 **4. Serialization** — swap the POD-state macro for the TLM-aware variant and
 bump the object's state version (the struct grew):
+
+<!-- docs-snippet: skip=usage excerpt (real macro invocation, but not a standalone compilable program) -->
 
 ```c
 DP_DEFINE_POD_STATE_TLM (agc, agc_state_t, AGC_STATE_MAGIC,
@@ -233,6 +255,8 @@ ______________________________________________________________________
 
 The v1 consumer face is pull-only: `dp_tlm_read` drains into caller storage,
 non-blocking, from any single consumer thread.
+
+<!-- docs-snippet: skip=illustrative excerpt (tlm is undeclared here), not standalone -->
 
 ```c
 dp_tlm_rec_t recs[512];
@@ -285,6 +309,8 @@ component** (it publishes through the vendored nats.c), and
 and publishes the records as **`TLM16`** frames (a `dp_sample_type_t`
 appended for the purpose: SIGS header, `num_samples` counts records,
 payload is packed `dp_tlm_rec_t`):
+
+<!-- docs-snippet: skip=illustrative excerpt (tlm undeclared; needs a live NATS server + the optional libdoppler_stream component) -->
 
 ```c
 dp_tlm_sink_t *sink = dp_tlm_sink_open ("nats://127.0.0.1:4222/tlm");

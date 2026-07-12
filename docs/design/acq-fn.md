@@ -61,6 +61,8 @@ The engine stays one opaque `acq_state_t` (descriptor = config, built by
 `acq_create`; scratch + mutable state live inside it). The pure face is the
 serializable triplet + `acq_run`, mirroring `ddcr`:
 
+<!-- docs-snippet: skip=API signature sketch (design spec), not a compilable usage example -->
+
 ```c
 /* config: build once per pod from the physics descriptor (see acq_create). */
 acq_state_t *acq_create (const uint8_t *code, size_t code_len, size_t reps,

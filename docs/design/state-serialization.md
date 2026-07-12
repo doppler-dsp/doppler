@@ -39,6 +39,8 @@ ______________________________________________________________________
 Every serializable C object exposes exactly three functions (sibling to
 `reset`), plus the optional pure-transducer `run`:
 
+<!-- docs-snippet: skip=API signature sketch (design spec), not a compilable usage example -->
+
 ```c
 size_t obj_state_bytes(const obj_state_t *s);          /* serialized size      */
 void   obj_get_state  (const obj_state_t *s, void *blob); /* serialize          */
@@ -56,6 +58,8 @@ ______________________________________________________________________
 ## The envelope
 
 Every blob begins with a 16-byte self-describing header:
+
+<!-- docs-snippet: skip=struct layout illustration (design spec), not a compilable usage example -->
 
 ```c
 typedef struct
@@ -95,6 +99,8 @@ ______________________________________________________________________
 Hand-packing is a few bounds-checked calls on a writer/reader cursor, not raw
 pointer arithmetic. The cursors use a **sticky-error** model: an overrun sets
 `err` and subsequent operations no-op, so call sites stay flat.
+
+<!-- docs-snippet: skip=illustrative excerpt (param names simplified from the real lo_core.c for exposition), not standalone -->
 
 ```c
 void
@@ -137,6 +143,8 @@ harmless no-op into an identically-built instance. An embedded **POD child**
 (e.g. a `loop_filter_state_t` by value) is captured automatically, so a
 composition of by-value POD members is still one `DP_DEFINE_POD_STATE`.
 
+<!-- docs-snippet: skip=usage excerpt (real macro invocation, but not a standalone compilable program) -->
+
 ```c
 /* native/src/loop_filter/loop_filter_core.c */
 DP_DEFINE_POD_STATE(loop_filter, loop_filter_state_t,
@@ -151,6 +159,8 @@ the envelope and opens a writer `_w`; `DP_SET_OPEN(MAGIC, VER, BYTES)` validates
 and opens a reader `_r` positioned past the header (early-returns
 `DP_ERR_INVALID` on a bad blob). The body is just `dp_w_*`/`dp_r_*` calls. The
 function parameters **must** be named `s` (the state) and `blob`.
+
+<!-- docs-snippet: skip=illustrative excerpt (design pattern), not a standalone compilable program -->
 
 ```c
 size_t delay_state_bytes(const delay_state_t *s)
@@ -187,6 +197,8 @@ the reserve cursors. `child_ptr` may be a pointer member or the address of an
 embedded-by-value member (`&s->lf`). `DP_R_CHILD` returns `DP_ERR_INVALID` from
 the enclosing `set_state` if a child rejects, so a composite restore is
 atomic-by-validation.
+
+<!-- docs-snippet: skip=illustrative excerpt (design pattern), not a standalone compilable program -->
 
 ```c
 size_t mpsk_receiver_state_bytes(const mpsk_receiver_state_t *s)

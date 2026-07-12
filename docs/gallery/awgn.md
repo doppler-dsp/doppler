@@ -89,16 +89,31 @@ rx = LO(0.1).steps(N) + AWGN(seed=0, amplitude=noise_amp).generate(N)
 **C one-shot** (no persistent state):
 
 ```c
-float complex out[1024];
-awgn(0, 1.0f, 1024, out);   /* seed=0, amplitude=1.0; returns 0 on success */
+#include <awgn/awgn_core.h>
+#include <complex.h>
+
+int main(void)
+{
+    float complex out[1024];
+    awgn(0, 1.0f, 1024, out);  /* seed=0, amplitude=1.0; returns 0 on success */
+    return 0;
+}
 ```
 
 **C stateful** (streaming / replay):
 
 ```c
-awgn_state_t *g = awgn_create(42, 1.0f);
-awgn_generate(g, 1024, out);
-awgn_destroy(g);
+#include <awgn/awgn_core.h>
+#include <complex.h>
+
+int main(void)
+{
+    float complex out[1024];
+    awgn_state_t *g = awgn_create(42, 1.0f);
+    awgn_generate(g, 1024, out);
+    awgn_destroy(g);
+    return 0;
+}
 ```
 
 See [`doppler.source.AWGN`](../api/python-nco.md#awgn-additive-white-gaussian-noise)

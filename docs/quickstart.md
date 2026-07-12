@@ -1,12 +1,17 @@
 # Quick Start
 
-## Install
+## Get it!
 
 ```bash
 pip install doppler-dsp
 ```
 
 The wheel bundles all native dependencies — no system libraries required.
+Everything under [Signal processing](#signal-processing) and
+[Streaming](#streaming) below runs against this install alone; the
+[C transmitter](#c-transmitter-python-subscriber) and anything on this page
+using the raw C API additionally need [Build from source](#build-from-source),
+called out at each point it applies.
 
 !!! tip "Optional extras"
 
@@ -130,8 +135,8 @@ Build the C examples once, then mix and match:
 ```bash
 make          # builds ./build/examples/c/transmitter, receiver, etc.
 
-# Terminal 1
-./build/examples/c/transmitter nats://127.0.0.1:4222/iq cf32
+# Terminal 1 (transmitter takes ci32 or cf64 — not cf32)
+./build/examples/c/transmitter nats://127.0.0.1:4222/iq cf64
 
 # Terminal 2 (Python)
 python - <<'EOF'

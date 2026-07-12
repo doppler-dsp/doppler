@@ -19,6 +19,7 @@ typedef struct
   void         **_steps_retired; /* gh-219 deferred free */
   size_t         _steps_retired_n;
   size_t         _steps_retired_cap;
+  PyObject      *_steps_view_ref; /* gh-437 last returned view */
 } CarrierNdaObject;
 
 static void
@@ -30,6 +31,7 @@ CarrierNdaObj_dealloc (CarrierNdaObject *self)
   for (size_t _i = 0; _i < self->_steps_retired_n; _i++)
     free (self->_steps_retired[_i]);
   free (self->_steps_retired);
+  Py_XDECREF (self->_steps_view_ref);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -157,8 +159,22 @@ CarrierNdaObj_steps (CarrierNdaObject *self, PyObject *args, PyObject *kwds)
       PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
       return _oview;
     }
-  size_t _need = (size_t)PyArray_SIZE (x_arr);
-  if (!self->_steps_buf || self->_steps_buf_cap < _need)
+  size_t _need      = (size_t)PyArray_SIZE (x_arr);
+  int    _view_live = 0;
+  if (self->_steps_view_ref)
+    {
+#if PY_VERSION_HEX >= 0x030D0000
+      PyObject *_lv = NULL;
+      if (PyWeakref_GetRef (self->_steps_view_ref, &_lv) == 1)
+        {
+          Py_DECREF (_lv);
+          _view_live = 1;
+        }
+#else
+      _view_live = PyWeakref_GetObject (self->_steps_view_ref) != Py_None;
+#endif
+    }
+  if (!self->_steps_buf || self->_steps_buf_cap < _need || _view_live)
     {
       size_t _max = carrier_nda_steps_max_out (self->handle);
       if (!_max || _max < _need)
@@ -208,6 +224,15 @@ CarrierNdaObj_steps (CarrierNdaObject *self, PyObject *args, PyObject *kwds)
     return NULL;
   PyArray_SetBaseObject ((PyArrayObject *)arr, (PyObject *)self);
   Py_INCREF (self);
+  /* gh-437: remember this view — while the caller holds it the next
+   * call retires the buffer instead of reusing it in place. */
+  Py_XDECREF (self->_steps_view_ref);
+  self->_steps_view_ref = PyWeakref_NewRef (arr, NULL);
+  if (!self->_steps_view_ref)
+    {
+      Py_DECREF (arr);
+      return NULL;
+    }
   Py_DECREF (x_arr);
   return arr;
 }
@@ -253,6 +278,31 @@ CarrierNdaObj_set_telemetry (CarrierNdaObject *self, PyObject *args,
       PyErr_Format (PyExc_ValueError, "set_telemetry failed (rc=%d)", _rc);
       return NULL;
     }
+  Py_RETURN_NONE;
+}
+
+static PyObject *
+CarrierNdaObj_configure_lock (CarrierNdaObject *self, PyObject *args,
+                              PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char *_kwlist[]
+      = { "up_thresh", "down_thresh", "n_up", "n_down", NULL };
+  double        up_thresh   = 0.0;
+  double        down_thresh = 0.0;
+  unsigned long n_up_raw    = 0UL;
+  unsigned long n_down_raw  = 0UL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "ddkk", _kwlist, &up_thresh,
+                                    &down_thresh, &n_up_raw, &n_down_raw))
+    return NULL;
+  uint32_t n_up   = (uint32_t)n_up_raw;
+  uint32_t n_down = (uint32_t)n_down_raw;
+  carrier_nda_configure_lock (self->handle, up_thresh, down_thresh, n_up,
+                              n_down);
   Py_RETURN_NONE;
 }
 
@@ -360,6 +410,17 @@ CarrierNda_getprop_lock (CarrierNdaObject *self, void *Py_UNUSED (closure))
   return PyFloat_FromDouble (carrier_nda_get_lock (self->handle));
 }
 static PyObject *
+CarrierNda_getprop_locked (CarrierNdaObject *self, void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  /* <<IMPLEMENT: return the computed or stored value>> */
+  return PyBool_FromLong ((long)(carrier_nda_get_locked (self->handle)));
+}
+static PyObject *
 CarrierNda_getprop_last_error (CarrierNdaObject *self,
                                void             *Py_UNUSED (closure))
 {
@@ -436,6 +497,11 @@ static PyGetSetDef CarrierNda_getset[]
     = { { "norm_freq", (getter)CarrierNda_getprop_norm_freq,
           (setter)CarrierNda_setprop_norm_freq, "Norm freq.\n", NULL },
         { "lock", (getter)CarrierNda_getprop_lock, NULL, "Lock.\n", NULL },
+        { "locked", (getter)CarrierNda_getprop_locked, NULL,
+          "Current lock decision: True after the verify count of consecutive "
+          "above-threshold samples, False again after the drop count of "
+          "consecutive below-threshold ones (see configure_lock).\n",
+          NULL },
         { "last_error", (getter)CarrierNda_getprop_last_error, NULL,
           "Last error.\n", NULL },
         { "bn", (getter)CarrierNda_getprop_bn, (setter)CarrierNda_setprop_bn,
@@ -503,23 +569,40 @@ static PyMethodDef CarrierNdaObj_methods[] = {
     "set_telemetry(tlm, prefix, decim) -> int\n"
     "\n"
     "Attach (or detach) a telemetry context and register the carrier loop's "
-    "probes on it — including the embedded arm AGC's. Registers three probes "
+    "probes on it — including the embedded arm AGC's. Registers four probes "
     "of its own, emitted once per input sample (this is a sample-rate loop — "
     "use decim to thin the stream) plus the embedded AGC's "
     "\"<prefix>.agc.gain_db\" (emitted at the AGC's own amortized gain-update "
     "rate): \"<prefix>.lock\" (the lock-signal EMA, ~1 when phase-locked), "
-    "\"<prefix>.e\" (the M-th-power phase discriminator — the loop stress) "
-    "and \"<prefix>.freq\" (the tracked carrier frequency, cycles/sample).  "
-    "Passing NULL detaches the loop and the embedded AGC. Setup path, never "
-    "hot: call before the producer thread starts stepping; the context is "
-    "borrowed and must outlive the attachment (SPSC rules in "
-    "telemetry/telemetry.h).\n"
+    "\"<prefix>.e\" (the M-th-power phase discriminator — the loop stress), "
+    "\"<prefix>.freq\" (the tracked carrier frequency, cycles/sample) and "
+    "\"<prefix>.locked\" (the verify-counted lockdet decision, 0/1).  Passing "
+    "NULL detaches the loop and the embedded AGC. Setup path, never hot: call "
+    "before the producer thread starts stepping; the context is borrowed and "
+    "must outlive the attachment (SPSC rules in telemetry/telemetry.h).\n"
     "\n"
     "    >>> import numpy as np\n"
     "    >>> from doppler import CarrierNda\n"
     "    >>> obj = CarrierNda(0.01, 0.707, 0.0, 8, 4, 4)\n"
     "    >>> obj.set_telemetry(0, 0, 0)\n"
     "    0\n" },
+  { "configure_lock", (PyCFunction)(void *)CarrierNdaObj_configure_lock,
+    METH_VARARGS | METH_KEYWORDS,
+    "configure_lock(up_thresh, down_thresh, n_up, n_down) -> None\n"
+    "\n"
+    "Re-tune the carrier lock detector: locked flips up after n_up "
+    "consecutive samples with the lock-signal EMA above up_thresh, and drops "
+    "after n_down consecutive samples below down_thresh (level + time "
+    "hysteresis; see detection.LockDet). Defaults (0.5/0.4, 8 up / 32 down) "
+    "mirror MpskReceiver's own pre-existing acquisition<->tracking handover, "
+    "which already steps a lockdet on this exact statistic and is validated "
+    "by that receiver's BER regression gate. A live lock survives the "
+    "re-tune; the in-flight verify run restarts.\n"
+    "\n"
+    "    >>> import numpy as np\n"
+    "    >>> from doppler import CarrierNda\n"
+    "    >>> obj = CarrierNda(0.01, 0.707, 0.0, 8, 4, 4)\n"
+    "    >>> obj.configure_lock(0.0, 0.0, 0, 0)\n" },
   { "reset", (PyCFunction)CarrierNdaObj_reset, METH_NOARGS,
     "reset() -> None\n"
     "\n"

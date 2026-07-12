@@ -12,7 +12,8 @@
  *     receiver pull in before the matched filter / timing loop have settled.
  *   - a matched filter (@ref fir_state_t, owned) on the de-rotated stream:
  *     either an **integrate-and-dump boxcar** (`MPSK_RX_PULSE_IANDD`, default)
- *     or a **root-raised-cosine** (`MPSK_RX_PULSE_RRC`) for band-limited links.
+ *     or a **root-raised-cosine** (`MPSK_RX_PULSE_RRC`) for band-limited
+ * links.
  *   - @ref symsync_state_t — a carrier-blind Gardner symbol-timing loop on the
  *     matched-filter output, emitting one symbol per recovered symbol period.
  *
@@ -36,10 +37,10 @@
  * estimate through both directions, so a drop-back is a discriminator
  * swap, not a re-acquisition from cold.
  *
- * The loop locks to one of M phases — an **M-fold ambiguity** on absolute phase.
- * Resolve it with differential demapping (`bits(..., differential=1)`) or a sync
- * word downstream. A DSSS-MPSK receiver is `Dll(segments) -> MpskReceiver`:
- * despread to symbol-rate soft chips, then this modem.
+ * The loop locks to one of M phases — an **M-fold ambiguity** on absolute
+ * phase. Resolve it with differential demapping (`bits(..., differential=1)`)
+ * or a sync word downstream. A DSSS-MPSK receiver is `Dll(segments) ->
+ * MpskReceiver`: despread to symbol-rate soft chips, then this modem.
  *
  * Lifecycle: mpsk_receiver_create -> [steps / bits / reset]* -> _destroy.
  *
@@ -57,20 +58,20 @@
 #ifndef MPSK_RECEIVER_CORE_H
 #define MPSK_RECEIVER_CORE_H
 
+#include "agc/agc_core.h"
 #include "carrier_nda/carrier_nda_core.h"
 #include "clib_common.h"
 #include "dp_state.h"
+#include "farrow/farrow_core.h"
 #include "fir/fir_core.h"
 #include "jm_perf.h"
+#include "lo/lo_core.h"
 #include "lockdet/lockdet_core.h"
+#include "loop_filter/loop_filter_core.h"
 #include "mpsk/mpsk_core.h"
 #include "symsync/symsync_core.h"
-#include <complex.h>
-#include "lo/lo_core.h"
-#include "loop_filter/loop_filter_core.h"
-#include "farrow/farrow_core.h"
 #include "telemetry/telemetry.h"
-#include "agc/agc_core.h"
+#include <complex.h>
 #ifdef __cplusplus
 extern "C"
 {
@@ -80,7 +81,7 @@ extern "C"
   enum
   {
     MPSK_RX_PULSE_IANDD = 0, /**< integrate-and-dump boxcar (rectangular). */
-    MPSK_RX_PULSE_RRC = 1    /**< root-raised-cosine (band-limited link).  */
+    MPSK_RX_PULSE_RRC   = 1  /**< root-raised-cosine (band-limited link).  */
   };
 
   /**
@@ -96,33 +97,33 @@ extern "C"
     carrier_nda_state_t car;  /**< carrier loop: wipe NCO + arm I/D + NDA.   */
     symsync_state_t     sync; /**< Gardner symbol-timing loop (by value).    */
     fir_state_t        *mf;   /**< matched filter on the de-rotated stream.  */
-    float              *mf_taps;      /**< owned real MF taps.               */
-    int                 m;           /**< constellation order M (2, 4, 8).   */
-    size_t              sps;         /**< samples per symbol.                */
-    int                 n;           /**< arm dumps per symbol.              */
-    int                 pulse;       /**< MPSK_RX_PULSE_IANDD / _RRC.        */
-    double              rrc_beta;    /**< RRC roll-off (pulse == RRC).       */
-    int                 rrc_span;    /**< RRC one-sided span, symbols.       */
+    float              *mf_taps;  /**< owned real MF taps.               */
+    int                 m;        /**< constellation order M (2, 4, 8).   */
+    size_t              sps;      /**< samples per symbol.                */
+    int                 n;        /**< arm dumps per symbol.              */
+    int                 pulse;    /**< MPSK_RX_PULSE_IANDD / _RRC.        */
+    double              rrc_beta; /**< RRC roll-off (pulse == RRC).       */
+    int                 rrc_span; /**< RRC one-sided span, symbols.       */
     int                 acq_to_track; /**< opt-in NDA<->decision handover.   */
-    double              lock_thresh; /**< handover declare threshold on the
-                                          carrier lock metric.               */
-    size_t              warmup_syms; /**< symbols before the switch allowed. */
-    lockdet_state_t     handover;   /**< two-way handover rule: verify-counted
-                                         declare/drop on `car.lock`, stepped
-                                         once per recovered symbol.          */
-    int                 tracking;    /**< 0 = NDA acquire, 1 = decision.     */
-    size_t              sym_count;   /**< symbols emitted (warmup counter).  */
-    int                 differential;  /**< bits(): differential demap.      */
-    int                 have_prev_idx; /**< differential: prev_idx valid.    */
-    unsigned            prev_idx;      /**< differential: prev sliced index. */
-    float complex       sym_rot;       /**< exp(j*phi0): NDA-grid -> slicer.  */
+    double              lock_thresh;  /**< handover declare threshold on the
+                                           carrier lock metric.               */
+    size_t          warmup_syms; /**< symbols before the switch allowed. */
+    lockdet_state_t handover;    /**< two-way handover rule: verify-counted
+                                      declare/drop on `car.lock`, stepped
+                                      once per recovered symbol.          */
+    int           tracking;      /**< 0 = NDA acquire, 1 = decision.     */
+    size_t        sym_count;     /**< symbols emitted (warmup counter).  */
+    int           differential;  /**< bits(): differential demap.      */
+    int           have_prev_idx; /**< differential: prev_idx valid.    */
+    unsigned      prev_idx;      /**< differential: prev sliced index. */
+    float complex sym_rot;       /**< exp(j*phi0): NDA-grid -> slicer.  */
     /* Telemetry attachment (the receiver's own "lock" probe; the timing
      * probes ride the embedded symsync's attachment via the forwarded
      * attach). NULL ctx = detached. Never serialized: the hand-written
      * triplet packs children + running fields only. */
-    dp_tlm_t *tlm_ctx;     /**< NULL = detached                    */
-    int32_t tlm_id_lock;     /**< "<prefix>.lock" — carrier lock EMA */
-    int32_t tlm_id_tracking; /**< "<prefix>.tracking" — handover 0/1 */
+    dp_tlm_t *tlm_ctx;         /**< NULL = detached                    */
+    int32_t   tlm_id_lock;     /**< "<prefix>.lock" — carrier lock EMA */
+    int32_t   tlm_id_tracking; /**< "<prefix>.tracking" — handover 0/1 */
   } mpsk_receiver_state_t;
 
   /**
@@ -130,7 +131,8 @@ extern "C"
    *
    * @param m              Constellation order M, 2/4/8 (default 4 = QPSK).
    * @param sps            Samples per symbol (default 8).
-   * @param n              Carrier arm dumps per symbol (default 4; sps % n == 0).
+   * @param n              Carrier arm dumps per symbol (default 4; sps % n ==
+   * 0).
    * @param pulse          Matched-filter shape (default MPSK_RX_PULSE_IANDD).
    * @param rrc_beta       RRC roll-off in [0, 1] (default 0.35; RRC only).
    * @param rrc_span       RRC one-sided span in symbols (default 8; RRC only).
@@ -148,14 +150,16 @@ extern "C"
    *                        (default 100).
    * @param differential   bits(): differential (rotation-invariant) demap
    *                        (default 0 = coherent).
-   * @return Heap-allocated state, or NULL on invalid args / allocation failure.
+   * @return Heap-allocated state, or NULL on invalid args / allocation
+   * failure.
    * @note Caller must call mpsk_receiver_destroy() when done.
    */
-  mpsk_receiver_state_t *mpsk_receiver_create (
-      int m, size_t sps, int n, int pulse, double rrc_beta, int rrc_span,
-      double bn_carrier, double zeta, double bn_timing, int acq_to_track,
-      double lock_thresh, double init_norm_freq, size_t warmup_syms,
-      int differential);
+  mpsk_receiver_state_t *
+  mpsk_receiver_create (int m, size_t sps, int n, int pulse, double rrc_beta,
+                        int rrc_span, double bn_carrier, double zeta,
+                        double bn_timing, int acq_to_track, double lock_thresh,
+                        double init_norm_freq, size_t warmup_syms,
+                        int differential);
 
   /**
    * @brief Destroy an M-PSK receiver and release all memory.
@@ -194,11 +198,11 @@ extern "C"
    * @brief Demodulate a cf32 block and emit hard Gray-coded bits.
    *
    * Like mpsk_receiver_steps(), but each recovered symbol is sliced to its
-   * nearest M-PSK point and unpacked to log2(M) hard bits (LSB-first). With the
-   * differential option set at create time, the Gray label is taken from the
-   * phase *difference* between consecutive symbols (rotation-invariant — it
-   * resolves the M-fold carrier ambiguity), else from the absolute (coherent)
-   * decision.
+   * nearest M-PSK point and unpacked to log2(M) hard bits (LSB-first). With
+   * the differential option set at create time, the Gray label is taken from
+   * the phase *difference* between consecutive symbols (rotation-invariant —
+   * it resolves the M-fold carrier ambiguity), else from the absolute
+   * (coherent) decision.
    *
    * @param state    Receiver state.  Must be non-NULL.
    * @param x        Input cf32 samples.
@@ -212,8 +216,41 @@ extern "C"
                              uint8_t *out, size_t max_out);
 
   double mpsk_receiver_get_norm_freq (const mpsk_receiver_state_t *state);
-  void   mpsk_receiver_set_norm_freq (mpsk_receiver_state_t *state, double val);
+  void mpsk_receiver_set_norm_freq (mpsk_receiver_state_t *state, double val);
   double mpsk_receiver_get_lock (const mpsk_receiver_state_t *state);
+
+  /**
+   * @brief Re-tune the acquisition<->tracking handover detector directly.
+   *
+   * Full lockdet control over `handover`, mirroring costas_configure_lock():
+   * a split declare/drop threshold pair on the carrier lock EMA (level
+   * hysteresis) and both verify counts (time hysteresis). Previously only
+   * settable at construction (`lock_thresh`, with `MPSK_RX_HANDOVER_DOWN`/
+   * `_N_UP`/`_N_DOWN` fixed compile-time constants) -- this is the
+   * post-construction re-tune Dll and Costas both already have. A live
+   * handover survives the re-tune; the in-flight verify run restarts.
+   *
+   * @param state        Must be non-NULL.
+   * @param up_thresh    Declare threshold on the carrier lock EMA.
+   * @param down_thresh  Drop threshold; choose <= up_thresh for level
+   *                     hysteresis.
+   * @param n_up         Consecutive above-threshold symbols to hand over
+   *                     to the decision-directed discriminator; clamped
+   *                     >= 1.
+   * @param n_down       Consecutive below-threshold symbols to fall back
+   *                     to NDA acquisition; clamped >= 1.
+   * @code
+   * >>> from doppler.track import MpskReceiver
+   * >>> rx = MpskReceiver(m=4, sps=4, acq_to_track=1)
+   * >>> rx.tracking
+   * 0
+   * >>> rx.configure_lock(0.9, 0.72, 4, 16)   # tighter declare, faster drop
+   *
+   * @endcode
+   */
+  void mpsk_receiver_configure_lock (mpsk_receiver_state_t *state,
+                                     double up_thresh, double down_thresh,
+                                     uint32_t n_up, uint32_t n_down);
 
   /**
    * @brief Attach (or detach) a telemetry context across the receiver.
@@ -222,10 +259,10 @@ extern "C"
    * the lockdet output, so a consumer sees exactly when the carrier was
    * handed to the decision-directed discriminator or dropped back to
    * NDA), then forwards the attach to both embedded loops: the carrier
-   * loop registers "<prefix>.car.lock" / ".e" / ".freq" (plus its arm
-   * AGC's "<prefix>.car.agc.gain_db") and the symbol-timing loop
-   * registers "<prefix>.sync.e" / ".freq" / ".rate" / ".lock" /
-   * ".locked" — eleven probes total, all thinned by @p decim.  Every
+   * loop registers "<prefix>.car.lock" / ".e" / ".freq" / ".locked"
+   * (plus its arm AGC's "<prefix>.car.agc.gain_db") and the symbol-timing
+   * loop registers "<prefix>.sync.e" / ".freq" / ".rate" / ".lock" /
+   * ".locked" -- twelve probes total, all thinned by @p decim.  Every
    * probe except the AGC's emits once per recovered symbol (the
    * receiver flushes both loops at the symbol strobe, not at the
    * carrier loop's sample rate); the AGC's emits at its own amortized
@@ -237,7 +274,7 @@ extern "C"
    * @param prefix Probe-name prefix, e.g. "rx".
    * @param decim  Emit every decim-th symbol; >= 1.
    * @return DP_OK, or DP_ERR_INVALID when the probe table cannot take the
-   *         eleven probes (the attach fails whole; everything detached).
+   *         twelve probes (the attach fails whole; everything detached).
    * @code
    * >>> import numpy as np
    * >>> from doppler.track import MpskReceiver
@@ -246,12 +283,12 @@ extern "C"
    * >>> rx = MpskReceiver(m=4, sps=4)
    * >>> rx.set_telemetry(tlm, "rx")
    * >>> len(tlm.probe_names())
-   * 11
+   * 12
    * >>> rng = np.random.default_rng(7)
    * >>> syms = (1 - 2 * rng.integers(0, 2, 512)).astype(np.complex64)
    * >>> x = np.repeat(syms, 4)
    * >>> _ = rx.steps(x)
-   * >>> recs = tlm.read()   # ten records per emitted symbol + AGC
+   * >>> recs = tlm.read()   # eleven records per emitted symbol + AGC
    * >>> n_sync = len(recs[recs["probe"] == tlm.probe_id("rx.sync.e")])
    * >>> n_car = len(recs[recs["probe"] == tlm.probe_id("rx.car.e")])
    * >>> n_sync > 0 and n_sync == n_car
@@ -259,7 +296,8 @@ extern "C"
    *
    * @endcode
    */
-int mpsk_receiver_set_telemetry(mpsk_receiver_state_t *state, dp_tlm_t * tlm, const char * prefix, uint32_t decim);
+  int mpsk_receiver_set_telemetry (mpsk_receiver_state_t *state, dp_tlm_t *tlm,
+                                   const char *prefix, uint32_t decim);
   double mpsk_receiver_get_timing_rate (const mpsk_receiver_state_t *state);
   int    mpsk_receiver_get_tracking (const mpsk_receiver_state_t *state);
   int    mpsk_receiver_get_m (const mpsk_receiver_state_t *state);
@@ -268,11 +306,12 @@ int mpsk_receiver_set_telemetry(mpsk_receiver_state_t *state, dp_tlm_t * tlm, co
 /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
  * composition: carrier_nda + symsync + matched-filter children +
  * running tracking/handover state; MF taps restored by create. */
-#define MPSK_RECEIVER_STATE_MAGIC DP_FOURCC ('M','P','S','K')
+#define MPSK_RECEIVER_STATE_MAGIC DP_FOURCC ('M', 'P', 'S', 'K')
 #define MPSK_RECEIVER_STATE_VERSION 4u /* v4: handover lockdet counters */
-size_t mpsk_receiver_state_bytes (const mpsk_receiver_state_t *state);
-void mpsk_receiver_get_state (const mpsk_receiver_state_t *state, void *blob);
-int mpsk_receiver_set_state (mpsk_receiver_state_t *state, const void *blob);
+  size_t mpsk_receiver_state_bytes (const mpsk_receiver_state_t *state);
+  void   mpsk_receiver_get_state (const mpsk_receiver_state_t *state,
+                                  void                        *blob);
+  int mpsk_receiver_set_state (mpsk_receiver_state_t *state, const void *blob);
 
 #ifdef __cplusplus
 }

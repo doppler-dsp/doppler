@@ -111,14 +111,80 @@ class Despreader:
         >>> code = (np.arange(31) % 2).astype(np.uint8)
         >>> ch = Despreader(code=code, sps=4)
         >>> ch.set_telemetry(tlm, "ch0")
-        >>> sorted(tlm.probe_names())
-        ['ch0.car.e', 'ch0.car.freq', 'ch0.car.lock', 'ch0.car.locked', 'ch0.code.e', 'ch0.code.lock', 'ch0.code.locked', 'ch0.code.rate']
+        >>> names = sorted(tlm.probe_names())
+        >>> names[:4]
+        ['ch0.car.e', 'ch0.car.freq', 'ch0.car.lock', 'ch0.car.locked']
+        >>> names[4:]
+        ['ch0.code.e', 'ch0.code.lock', 'ch0.code.locked', 'ch0.code.rate']
         >>> chips = 1.0 - 2.0 * (np.arange(31) % 2)
         >>> x = np.tile(np.repeat(chips, 4), 40).astype(np.complex64)
         >>> _ = ch.steps(x)
         >>> recs = tlm.read()   # eight records per code period
         >>> len(recs) > 0 and len(recs) % 8 == 0
         True
+
+        """
+
+    def configure_carrier_lock(self, up_thresh: float, down_thresh: float, n_up: int, n_down: int) -> None:
+        """Re-tune the embedded carrier loop's lock detector directly: forwards to the Costas loop's configure_lock (locked flips up after n_up consecutive symbols with the lock-metric EMA above up_thresh, and drops after n_down consecutive symbols below down_thresh; see Costas.configure_lock). Symmetric with the carrier_locked state property: state is readable, so config should be writable too, rather than forcing a caller who needs this control to drop to raw Dll+Costas composition.
+
+        Thin forwarder to costas_configure_lock() on the embedded Costas loop —
+        symmetric with despreader_get_carrier_locked() exposing its state: state
+        is readable, so config should be writable too, rather than forcing a
+        caller who needs this control to drop to raw Dll+Costas composition
+        instead of Despreader. See costas_configure_lock() for the parameter
+        semantics.
+
+        Parameters
+        ----------
+        up_thresh : float
+            Declare threshold on the lock-metric EMA.
+        down_thresh : float
+            Drop threshold (<= up_thresh for level hysteresis).
+        n_up : int
+            Consecutive above-threshold symbols to declare.
+        n_down : int
+            Consecutive below-threshold symbols to drop.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.dsss import Despreader
+        >>> d = Despreader(code=np.zeros(31, dtype=np.uint8), sps=2)
+        >>> d.configure_carrier_lock(0.9, 0.8, 4, 16)  # tighter declare/drop
+
+        """
+
+    def configure_code_lock(self, pfa: float, n_looks: int, ref_snr_db: float = 0.0) -> None:
+        """Re-tune the embedded code loop's lock detector: forwards to the DLL's configure_lock (see Dll.configure_lock) -- the derived (pfa-style) entry point, matching Despreader's role as the easy composed API (Dll's raw escape hatch, configure_lock_raw, stays a Dll-only control for a caller that composes Dll+Costas directly). Raises ValueError for pfa outside (0, 1).
+
+        Thin forwarder to dll_configure_lock() on the embedded DLL — the derived
+        (pfa-style) entry point, matching Despreader's role as the "easy"
+        composed API (Dll's raw escape hatch, dll_configure_lock_raw(), stays a
+        Dll-only control for a caller that composes Dll+Costas directly). See
+        dll_configure_lock() for the parameter semantics.
+
+        Parameters
+        ----------
+        pfa : float
+            Per-decision false-alarm probability, in (0, 1).
+        n_looks : int
+            Non-coherent integration depth N (looks); clamped >= 1.
+        ref_snr_db : float
+            Noise-reference estimator SNR in dB (> 0), or 0 to derive from n_looks (see dll_configure_lock()).
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.dsss import Despreader
+        >>> d = Despreader(code=np.zeros(31, dtype=np.uint8), sps=2)
+        >>> d.configure_code_lock(1e-3, 20)
+        >>> d.code_locked
+        False
+        >>> d.configure_code_lock(2.0, 20)
+        Traceback (most recent call last):
+            ...
+        ValueError: configure_code_lock failed (rc=-4)
 
         """
 

@@ -863,7 +863,7 @@ class CarrierNda:
         """Max output length steps() can produce for the current state."""
 
     def set_telemetry(self, tlm: object | None, prefix: str, decim: int = 1) -> None:
-        """Attach (or detach) a telemetry context and register the carrier loop's probes on it — including the embedded arm AGC's. Registers three probes of its own, emitted once per input sample (this is a sample-rate loop — use decim to thin the stream) plus the embedded AGC's "<prefix>.agc.gain_db" (emitted at the AGC's own amortized gain-update rate): "<prefix>.lock" (the lock-signal EMA, ~1 when phase-locked), "<prefix>.e" (the M-th-power phase discriminator — the loop stress) and "<prefix>.freq" (the tracked carrier frequency, cycles/sample).  Passing NULL detaches the loop and the embedded AGC. Setup path, never hot: call before the producer thread starts stepping; the context is borrowed and must outlive the attachment (SPSC rules in telemetry/telemetry.h).
+        """Attach (or detach) a telemetry context and register the carrier loop's probes on it — including the embedded arm AGC's. Registers four probes of its own, emitted once per input sample (this is a sample-rate loop — use decim to thin the stream) plus the embedded AGC's "<prefix>.agc.gain_db" (emitted at the AGC's own amortized gain-update rate): "<prefix>.lock" (the lock-signal EMA, ~1 when phase-locked), "<prefix>.e" (the M-th-power phase discriminator — the loop stress), "<prefix>.freq" (the tracked carrier frequency, cycles/sample) and "<prefix>.locked" (the verify-counted lockdet decision, 0/1).  Passing NULL detaches the loop and the embedded AGC. Setup path, never hot: call before the producer thread starts stepping; the context is borrowed and must outlive the attachment (SPSC rules in telemetry/telemetry.h).
 
         Parameters
         ----------
@@ -883,12 +883,50 @@ class CarrierNda:
         >>> c = CarrierNda(bn=0.01, sps=8, n=4, m=4)
         >>> c.set_telemetry(tlm, "car", decim=8)
         >>> sorted(tlm.probe_names())
-        ['car.agc.gain_db', 'car.e', 'car.freq', 'car.lock']
+        ['car.agc.gain_db', 'car.e', 'car.freq', 'car.lock', 'car.locked']
         >>> x = np.exp(2j * np.pi * 0.005 * np.arange(4096)).astype(np.complex64)
         >>> _ = c.steps(x)
         >>> recs = tlm.read()
         >>> len(recs[recs["probe"] == tlm.probe_id("car.e")]) == 4096 // 8
         True
+
+        """
+
+    def configure_lock(self, up_thresh: float, down_thresh: float, n_up: int, n_down: int) -> None:
+        """Re-tune the carrier lock detector: locked flips up after n_up consecutive samples with the lock-signal EMA above up_thresh, and drops after n_down consecutive samples below down_thresh (level + time hysteresis; see detection.LockDet). Defaults (0.5/0.4, 8 up / 32 down) mirror MpskReceiver's own pre-existing acquisition<->tracking handover, which already steps a lockdet on this exact statistic and is validated by that receiver's BER regression gate. A live lock survives the re-tune; the in-flight verify run restarts.
+
+        Full lockdet control, mirroring costas_configure_lock(): a split
+        declare/drop threshold pair on the lock-signal EMA (level hysteresis)
+        and both verify counts (time hysteresis). Defaults (0.5/0.4, 64 up / 32
+        down) start from MpskReceiver's own pre-existing acquisition<-> tracking
+        handover thresholds, but size n_up independently: `lock` is a fast
+        per-sample EMA, so consecutive looks are highly autocorrelated and
+        MpskReceiver's own n_up=8 does not compound the false-declare rate the
+        way it would for independent looks (direct Monte Carlo against a
+        noise-only, no-carrier input found real false locks at n_up=8; n_up=64
+        was the smallest verify count that reliably eliminated them -- see
+        carrier_nda_core.c's CARRIER_NDA_LOCK_DEFAULT_* comment for the exact
+        trial data). A live lock survives the re-tune; the in-flight verify run
+        restarts.
+
+        Parameters
+        ----------
+        up_thresh : float
+            Declare threshold on the lock-signal EMA.
+        down_thresh : float
+            Drop threshold; choose <= up_thresh for level hysteresis.
+        n_up : int
+            Consecutive above-threshold samples to declare; clamped >= 1.
+        n_down : int
+            Consecutive below-threshold samples to drop; clamped >= 1.
+
+        Examples
+        --------
+        >>> from doppler.track import CarrierNda
+        >>> c = CarrierNda(bn=0.01, sps=8, n=4, m=4)
+        >>> c.locked
+        False
+        >>> c.configure_lock(0.6, 0.5, 16, 64)   # tighter declare, slower drop
 
         """
 
@@ -912,6 +950,10 @@ class CarrierNda:
     @property
     def lock(self) -> float:
         """Lock."""
+
+    @property
+    def locked(self) -> bool:
+        """Current lock decision: True after the verify count of consecutive above-threshold samples, False again after the drop count of consecutive below-threshold ones (see configure_lock)."""
 
     @property
     def last_error(self) -> float:
@@ -987,7 +1029,7 @@ class MpskReceiver:
     def __init__(self, m: int = ..., sps: int = ..., n: int = ..., pulse: Literal["iandd", "rrc"] = "iandd", rrc_beta: float = ..., rrc_span: int = ..., bn_carrier: float = ..., zeta: float = ..., bn_timing: float = ..., acq_to_track: int = ..., lock_thresh: float = ..., init_norm_freq: float = ..., warmup_syms: int = ..., differential: int = ...) -> None: ...
 
     def set_telemetry(self, tlm: object | None, prefix: str, decim: int = 1) -> None:
-        """Attach (or detach) a telemetry context across the receiver. Registers the receiver's own "<prefix>.lock" probe (the carrier lock EMA) and "<prefix>.tracking" (the two-way handover decision, 0/1 — the lockdet output, so a consumer sees exactly when the carrier was handed to the decision-directed discriminator or dropped back to NDA), then forwards the attach to both embedded loops: the carrier loop registers "<prefix>.car.lock" / ".e" / ".freq" (plus its arm AGC's "<prefix>.car.agc.gain_db") and the symbol-timing loop registers "<prefix>.sync.e" / ".freq" / ".rate" / ".lock" / ".locked" — eleven probes total, all thinned by decim.  Every probe except the AGC's emits once per recovered symbol (the receiver flushes both loops at the symbol strobe, not at the carrier loop's sample rate); the AGC's emits at its own amortized gain-update rate.  Passing NULL detaches the receiver and both loops.  Setup path, never hot; the context is borrowed and must outlive the attachment (SPSC rules in telemetry/telemetry.h).
+        """Attach (or detach) a telemetry context across the receiver. Registers the receiver's own "<prefix>.lock" probe (the carrier lock EMA) and "<prefix>.tracking" (the two-way handover decision, 0/1 — the lockdet output, so a consumer sees exactly when the carrier was handed to the decision-directed discriminator or dropped back to NDA), then forwards the attach to both embedded loops: the carrier loop registers "<prefix>.car.lock" / ".e" / ".freq" / ".locked" (plus its arm AGC's "<prefix>.car.agc.gain_db") and the symbol-timing loop registers "<prefix>.sync.e" / ".freq" / ".rate" / ".lock" / ".locked" -- twelve probes total, all thinned by decim.  Every probe except the AGC's emits once per recovered symbol (the receiver flushes both loops at the symbol strobe, not at the carrier loop's sample rate); the AGC's emits at its own amortized gain-update rate.  Passing NULL detaches the receiver and both loops.  Setup path, never hot; the context is borrowed and must outlive the attachment (SPSC rules in telemetry/telemetry.h).
 
         Parameters
         ----------
@@ -1007,12 +1049,12 @@ class MpskReceiver:
         >>> rx = MpskReceiver(m=4, sps=4)
         >>> rx.set_telemetry(tlm, "rx")
         >>> len(tlm.probe_names())
-        11
+        12
         >>> rng = np.random.default_rng(7)
         >>> syms = (1 - 2 * rng.integers(0, 2, 512)).astype(np.complex64)
         >>> x = np.repeat(syms, 4)
         >>> _ = rx.steps(x)
-        >>> recs = tlm.read()   # ten records per emitted symbol + AGC
+        >>> recs = tlm.read()   # eleven records per emitted symbol + AGC
         >>> n_sync = len(recs[recs["probe"] == tlm.probe_id("rx.sync.e")])
         >>> n_car = len(recs[recs["probe"] == tlm.probe_id("rx.car.e")])
         >>> n_sync > 0 and n_sync == n_car
@@ -1065,6 +1107,38 @@ class MpskReceiver:
 
     def bits_max_out(self) -> int:
         """Max output length bits() can produce for the current state."""
+
+    def configure_lock(self, up_thresh: float, down_thresh: float, n_up: int, n_down: int) -> None:
+        """Re-tune the acquisition<->tracking handover detector: hands the carrier to the decision-directed discriminator after n_up consecutive symbols with the carrier lock EMA above up_thresh, and falls back to NDA acquisition after n_down consecutive symbols below down_thresh (level + time hysteresis; see detection.LockDet). Previously only settable at construction (lock_thresh, with fixed 0.8x drop / 8-up / 32-down constants) -- this is the post-construction re-tune Dll and Costas both already have. A live handover survives the re-tune; the in-flight verify run restarts.
+
+        Full lockdet control over `handover`, mirroring costas_configure_lock():
+        a split declare/drop threshold pair on the carrier lock EMA (level
+        hysteresis) and both verify counts (time hysteresis). Previously only
+        settable at construction (`lock_thresh`, with `MPSK_RX_HANDOVER_DOWN`/
+        `_N_UP`/`_N_DOWN` fixed compile-time constants) -- this is the
+        post-construction re-tune Dll and Costas both already have. A live
+        handover survives the re-tune; the in-flight verify run restarts.
+
+        Parameters
+        ----------
+        up_thresh : float
+            Declare threshold on the carrier lock EMA.
+        down_thresh : float
+            Drop threshold; choose <= up_thresh for level hysteresis.
+        n_up : int
+            Consecutive above-threshold symbols to hand over to the decision-directed discriminator; clamped >= 1.
+        n_down : int
+            Consecutive below-threshold symbols to fall back to NDA acquisition; clamped >= 1.
+
+        Examples
+        --------
+        >>> from doppler.track import MpskReceiver
+        >>> rx = MpskReceiver(m=4, sps=4, acq_to_track=1)
+        >>> rx.tracking
+        0
+        >>> rx.configure_lock(0.9, 0.72, 4, 16)   # tighter declare, faster drop
+
+        """
 
     def reset(self) -> None:
         """Re-seed the carrier and symbol-timing loops to their create-time state; preserve configuration.

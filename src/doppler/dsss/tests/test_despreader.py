@@ -112,6 +112,42 @@ def test_fresh_receiver_is_unlocked():
     assert c.code_locked is False
 
 
+def test_configure_carrier_lock_unreachable_threshold_never_locks():
+    code = _code()
+    rx, _ = _signal(code, 500, f0=5e-5, seed=3)
+    c = Despreader(code, SPS, 0.0, 0.0, 0.05, 0.005, 0.0, 0.707, 0.5, 1)
+    c.configure_carrier_lock(up_thresh=2.0, down_thresh=1.9, n_up=1, n_down=1)
+    c.steps(rx)
+    assert c.carrier_locked is False
+    # the code loop's own detector is untouched by the carrier reconfigure
+    assert c.code_locked is True
+
+
+def test_configure_code_lock_rejects_bad_pfa():
+    c = Despreader(_code(), SPS, 0.0, 0.0, 0.05, 0.005, 0.0, 0.707, 0.5, 1)
+    with pytest.raises(ValueError):
+        c.configure_code_lock(0.0, 20)
+    with pytest.raises(ValueError):
+        c.configure_code_lock(1.0, 20)
+
+
+def test_configure_code_lock_tighter_pfa_raises_the_bar():
+    # configure_code_lock(pfa, n_looks) forwards straight to the embedded
+    # Dll's configure_lock: det_threshold_noncoherent(pfa, n_looks) grows as
+    # pfa shrinks, so on a marginal (noisy) signal a much tighter pfa can
+    # fail to lock where a looser pfa on the identical stream succeeds.
+    code = _code()
+    rx, _ = _signal(code, 500, f0=5e-5, sigma=12.0, seed=9)
+    tight = Despreader(code, SPS, 0.0, 0.0, 0.05, 0.005, 0.0, 0.707, 0.5, 1)
+    tight.configure_code_lock(1e-30, 20)
+    tight.steps(rx)
+    loose = Despreader(code, SPS, 0.0, 0.0, 0.05, 0.005, 0.0, 0.707, 0.5, 1)
+    loose.configure_code_lock(1e-1, 20)
+    loose.steps(rx)
+    assert loose.code_locked is True
+    assert tight.code_locked is False
+
+
 def test_fll_assist_widens_pull_in():
     code = _code()
     f0 = 0.2 / TSAMPS  # 0.2 cycles/epoch — beyond the bare PLL

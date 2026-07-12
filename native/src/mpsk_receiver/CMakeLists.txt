@@ -11,10 +11,10 @@ target_link_libraries(mpsk_receiver_core PUBLIC
     boxcar_core
     agc_core
     telemetry_core
+    lockdet_core
     symsync_core
     nco_core
     farrow_core
-    lockdet_core
     fir_core)
 
 add_executable(test_mpsk_receiver_core
@@ -27,10 +27,10 @@ target_link_libraries(test_mpsk_receiver_core
     boxcar_core
     agc_core
     telemetry_core
+    lockdet_core
     symsync_core
     nco_core
     farrow_core
-    lockdet_core
     fir_core
     m)
 target_include_directories(test_mpsk_receiver_core
@@ -48,10 +48,10 @@ target_link_libraries(bench_mpsk_receiver_core
     boxcar_core
     agc_core
     telemetry_core
+    lockdet_core
     symsync_core
     nco_core
     farrow_core
-    lockdet_core
     fir_core
     m)
 target_include_directories(

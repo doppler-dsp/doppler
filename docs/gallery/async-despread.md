@@ -108,9 +108,19 @@ d.configure_lock(pfa=1e-3, n_looks=20)   # size n_looks via detection.det_n_nonc
 if d.locked:              # latched each n_looks-look decision
     print(d.lock_stat, d.noise_est)      # statistic R and the CFAR noise ref
 
-# downstream — carrier + symbol recovery on the partials:
+# downstream — carrier + symbol recovery on the partials: a real
+# composition, not a stub. This page's residual carrier is large
+# relative to K=4 partials/symbol, so a run this short does not fully
+# converge (see receiver-lock.md for a full chain, converged and
+# lock-observed via telemetry, at a link budget sized for it):
 from doppler.track import Costas, SymbolSync
-# Costas(...).steps(part) -> SymbolSync(...).steps(...) -> bits
+
+cos = Costas(bn=0.05, zeta=0.707, tsamps=1)
+wiped = cos.steps(part)          # de-rotate the residual carrier
+ss = SymbolSync(sps=4, bn=0.02, zeta=0.707)
+syms = ss.steps(wiped)           # -> one decision per recovered symbol
+bits = np.where(syms.real >= 0, 1, -1)
+assert bits.shape == syms.shape
 ```
 
 A short partial window also makes the despread **carrier-tolerant**: for a
@@ -121,5 +131,9 @@ eroding the despread. `steps()` is block-size invariant and returns an
 independent array per call, so a receiver can stream blocks and keep every one.
 
 Source: `src/doppler/examples/async_despread_demo.py`.
-See also the design note *Async Symbol Despreader* and the carrier-free
-two-clock study `async_despreader_study.py`.
+See also the design note *Async Symbol Despreader*, the carrier-free
+two-clock study `async_despreader_study.py`, the
+[Full-Chain Lock-Up](receiver-lock.md) gallery page for the same
+`Dll -> Costas -> SymbolSync` chain fully converged and lock-observed
+via telemetry, and the [lock-detection guide](../guide/lock-detection.md)
+for how `Dll`'s lock detector here fits alongside every other loop's.

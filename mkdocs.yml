@@ -4,7 +4,7 @@
 #  `mkdocs build -f mkdocs-capi.yml` into docs/c-api/ — see the Makefile.)
 # =============================================================================
 site_name: doppler
-site_description: Dead-simple, ultra-fast digital signal processing
+site_description: Practical, portable, performant digital signal processing
 site_url: https://doppler-dsp.github.io/doppler/
 repo_url: https://github.com/doppler-dsp/doppler
 repo_name: doppler-dsp/doppler

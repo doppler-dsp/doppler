@@ -65,11 +65,16 @@ while [ $# -gt 0 ]; do
 	esac
 done
 
-case "$(uname -s)" in
-Linux) PLAT="linux-x86_64" ;;
-Darwin) PLAT="macos-arm64" ;;
+OS="$(uname -s)"
+ARCH="$(uname -m)"
+
+case "${OS}/${ARCH}" in
+Linux/x86_64) PLAT="linux-x86_64" ;;
+Darwin/arm64) PLAT="macos-arm64" ;;
 *)
-	echo "get-doppler: unsupported platform $(uname -s) -- build from source instead (see quickstart.md#build-from-source)" >&2
+	echo "get-doppler: no pre-built tarball for ${OS}/${ARCH} yet -- available: linux-x86_64, macos-arm64" >&2
+	echo "get-doppler: build from source instead (see quickstart.md#build-from-source), or if you only need" >&2
+	echo "get-doppler: the Python bindings, 'pip install doppler-dsp' ships wheels for more platforms" >&2
 	exit 1
 	;;
 esac

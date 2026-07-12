@@ -224,20 +224,20 @@ extern "C"
    * NDA), then forwards the attach to both embedded loops: the carrier
    * loop registers "<prefix>.car.lock" / ".e" / ".freq" (plus its arm
    * AGC's "<prefix>.car.agc.gain_db") and the symbol-timing loop
-   * registers "<prefix>.sync.e" / ".freq" / ".rate" — nine probes
-   * total, all thinned by @p decim.  Every probe except the AGC's emits
-   * once per recovered symbol (the receiver flushes both loops at the
-   * symbol strobe, not at the carrier loop's sample rate); the AGC's
-   * emits at its own amortized gain-update rate.  Passing NULL detaches
-   * the receiver and both loops.  Setup path, never hot; the context is
-   * borrowed and must outlive the attachment (SPSC rules in
-   * telemetry/telemetry.h).
+   * registers "<prefix>.sync.e" / ".freq" / ".rate" / ".lock" /
+   * ".locked" — eleven probes total, all thinned by @p decim.  Every
+   * probe except the AGC's emits once per recovered symbol (the
+   * receiver flushes both loops at the symbol strobe, not at the
+   * carrier loop's sample rate); the AGC's emits at its own amortized
+   * gain-update rate.  Passing NULL detaches the receiver and both
+   * loops.  Setup path, never hot; the context is borrowed and must
+   * outlive the attachment (SPSC rules in telemetry/telemetry.h).
    * @param state  Must be non-NULL.
    * @param tlm    Telemetry context to attach, or NULL to detach.
    * @param prefix Probe-name prefix, e.g. "rx".
    * @param decim  Emit every decim-th symbol; >= 1.
    * @return DP_OK, or DP_ERR_INVALID when the probe table cannot take the
-   *         nine probes (the attach fails whole; everything detached).
+   *         eleven probes (the attach fails whole; everything detached).
    * @code
    * >>> import numpy as np
    * >>> from doppler.track import MpskReceiver
@@ -246,12 +246,12 @@ extern "C"
    * >>> rx = MpskReceiver(m=4, sps=4)
    * >>> rx.set_telemetry(tlm, "rx")
    * >>> len(tlm.probe_names())
-   * 9
+   * 11
    * >>> rng = np.random.default_rng(7)
    * >>> syms = (1 - 2 * rng.integers(0, 2, 512)).astype(np.complex64)
    * >>> x = np.repeat(syms, 4)
    * >>> _ = rx.steps(x)
-   * >>> recs = tlm.read()   # eight records per emitted symbol + AGC
+   * >>> recs = tlm.read()   # ten records per emitted symbol + AGC
    * >>> n_sync = len(recs[recs["probe"] == tlm.probe_id("rx.sync.e")])
    * >>> n_car = len(recs[recs["probe"] == tlm.probe_id("rx.car.e")])
    * >>> n_sync > 0 and n_sync == n_car

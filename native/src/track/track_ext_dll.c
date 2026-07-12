@@ -555,6 +555,34 @@ DllObj_exit (DllObject *self, PyObject *args)
   Py_RETURN_NONE;
 }
 
+static PyObject *
+DllObj_configure_lock_raw (DllObject *self, PyObject *args, PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char *_kwlist[]   = { "up_thresh", "down_thresh", "n_looks", "alpha",
+                               "n_up",      "n_down",      NULL };
+  double       up_thresh   = 0.0;
+  double       down_thresh = 0.0;
+  unsigned long long n_looks_raw = 0ULL;
+  double             alpha       = 0.0;
+  unsigned long      n_up_raw    = 0UL;
+  unsigned long      n_down_raw  = 0UL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "ddKdkk", _kwlist, &up_thresh,
+                                    &down_thresh, &n_looks_raw, &alpha,
+                                    &n_up_raw, &n_down_raw))
+    return NULL;
+  size_t   n_looks = (size_t)n_looks_raw;
+  uint32_t n_up    = (uint32_t)n_up_raw;
+  uint32_t n_down  = (uint32_t)n_down_raw;
+  dll_configure_lock_raw (self->handle, up_thresh, down_thresh, n_looks, alpha,
+                          n_up, n_down);
+  Py_RETURN_NONE;
+}
+
 static PyMethodDef DllObj_methods[] = {
 
   { "steps", (PyCFunction)DllObj_steps, METH_VARARGS | METH_KEYWORDS,
@@ -664,6 +692,29 @@ static PyMethodDef DllObj_methods[] = {
     "Release resources." },
   { "__enter__", (PyCFunction)DllObj_enter, METH_NOARGS, NULL },
   { "__exit__", (PyCFunction)DllObj_exit, METH_VARARGS, NULL },
+  { "configure_lock_raw", (PyCFunction)(void *)DllObj_configure_lock_raw,
+    METH_VARARGS | METH_KEYWORDS,
+    "configure_lock_raw(up_thresh, down_thresh, n_looks, alpha, n_up, n_down) "
+    "-> None\n"
+    "\n"
+    "Escape hatch under configure_lock() for direct control of the lock "
+    "detector's geometry: a split declare/drop threshold pair on the "
+    "statistic R (level hysteresis), the noise-EMA coefficient alpha, and "
+    "both verify counts n_up/n_down (time hysteresis) independently -- "
+    "configure_lock() only ever derives a symmetric threshold (up_thresh == "
+    "down_thresh) and a fixed n_down=2. Re-tuning clears the in-flight "
+    "statistic and drops the lock so the next decision uses only looks "
+    "gathered under the new config. Size up_thresh/down_thresh with "
+    "detection.det_threshold_noncoherent(pfa, n_looks), alpha with "
+    "detection.det_ema_alpha, and n_up/n_down with "
+    "detection.det_verify_count. Read the result from the locked / lock_stat "
+    "/ noise_est properties.\n"
+    "\n"
+    "    >>> import numpy as np\n"
+    "    >>> from doppler import Dll\n"
+    "    >>> obj = Dll(np.zeros(1, dtype=np.uint8), 2, 0.0, 0.01, 0.707, 0.5, "
+    "1)\n"
+    "    >>> obj.configure_lock_raw(0.0, 0.0, 0, 0.0, 0, 0)\n" },
   { NULL }
 };
 

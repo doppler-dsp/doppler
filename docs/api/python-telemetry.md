@@ -50,7 +50,7 @@ everything the attach armed.
 | `track.Costas`       | `.lock`, `.e`, `.freq`, `.locked`                                  | per dumped symbol           |
 | `track.Dll`          | `.e`, `.rate`, `.lock`, `.locked`                                  | per code epoch              |
 | `track.CarrierNda`   | `.lock`, `.e`, `.freq` + `.agc.gain_db`                            | per sample — use `decim`    |
-| `track.SymbolSync`   | `.e`, `.freq`, `.rate`                                             | per recovered symbol        |
+| `track.SymbolSync`   | `.e`, `.freq`, `.rate`, `.lock`, `.locked`                         | per recovered symbol        |
 | `track.MpskReceiver` | `.lock`, `.tracking` + `.car.*` (+ `.car.agc.gain_db`) + `.sync.*` | per recovered symbol        |
 | `dsss.Despreader`    | `.car.*` (Costas) + `.code.*` (DLL)                                | per code period             |
 

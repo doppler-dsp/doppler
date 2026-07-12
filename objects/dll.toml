@@ -93,6 +93,20 @@ params = [
 ]
 
 [[dll.methods]]
+name = "configure_lock_raw"
+doc = "Escape hatch under configure_lock() for direct control of the lock detector's geometry: a split declare/drop threshold pair on the statistic R (level hysteresis), the noise-EMA coefficient alpha, and both verify counts n_up/n_down (time hysteresis) independently -- configure_lock() only ever derives a symmetric threshold (up_thresh == down_thresh) and a fixed n_down=2. Re-tuning clears the in-flight statistic and drops the lock so the next decision uses only looks gathered under the new config. Size up_thresh/down_thresh with detection.det_threshold_noncoherent(pfa, n_looks), alpha with detection.det_ema_alpha, and n_up/n_down with detection.det_verify_count. Read the result from the locked / lock_stat / noise_est properties."
+arg_type = "void"
+return_type = "void"
+params = [
+  { name = "up_thresh", type = "double" },
+  { name = "down_thresh", type = "double" },
+  { name = "n_looks", type = "size_t" },
+  { name = "alpha", type = "double" },
+  { name = "n_up", type = "uint32_t" },
+  { name = "n_down", type = "uint32_t" },
+]
+
+[[dll.methods]]
 name = "reset"
 doc = "Re-seed the loop to the create-time code phase; preserve config."
 arg_type = "void"

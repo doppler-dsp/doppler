@@ -278,7 +278,7 @@ main (void)
   }
 
   /* telemetry attach — the receiver's lock + tracking probes + the
-   * forwarded carrier (incl. its arm AGC) and symsync probes: eight
+   * forwarded carrier (incl. its arm AGC) and symsync probes: ten
    * records per emitted symbol plus the AGC's amortized gain records;
    * detach cascades. */
   {
@@ -297,16 +297,17 @@ main (void)
     CHECK (dp_tlm_lookup (tlm, "rx.car.agc.gain_db")
            == a->car.agc.tlm.id_gain);
     CHECK (dp_tlm_lookup (tlm, "rx.sync.e") == a->sync.tlm.id_e);
-    CHECK (dp_tlm_probe_count (tlm) == 9);
+    CHECK (dp_tlm_lookup (tlm, "rx.sync.locked") == a->sync.tlm.id_locked);
+    CHECK (dp_tlm_probe_count (tlm) == 11);
 
     size_t n_sym = mpsk_receiver_steps (a, tx, 512, out, 80);
     CHECK (n_sym > 0);
     dp_tlm_rec_t recs[1024];
     size_t       n_rec = dp_tlm_read (tlm, recs, 1024);
-    /* lock + tracking + car(lock,e,freq) + sync(e,freq,rate) per symbol,
-     * plus one AGC gain record per amortized update (the arm AGC runs
-     * per sample inside the receiver's hot loop). */
-    CHECK (n_rec == 8 * n_sym + 512 / AGC_DECIM_DEFAULT);
+    /* lock + tracking + car(lock,e,freq) + sync(e,freq,rate,lock,locked)
+     * per symbol, plus one AGC gain record per amortized update (the arm
+     * AGC runs per sample inside the receiver's hot loop). */
+    CHECK (n_rec == 10 * n_sym + 512 / AGC_DECIM_DEFAULT);
 
     /* Detach cascades to both embedded loops (and the AGC). */
     CHECK (mpsk_receiver_set_telemetry (a, NULL, "rx", 1) == DP_OK);

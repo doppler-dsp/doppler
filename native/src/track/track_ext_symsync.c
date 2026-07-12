@@ -19,6 +19,7 @@ typedef struct
   void         **_steps_retired; /* gh-219 deferred free */
   size_t         _steps_retired_n;
   size_t         _steps_retired_cap;
+  PyObject      *_steps_view_ref; /* gh-437 last returned view */
 } SymbolSyncObject;
 
 static void
@@ -30,6 +31,7 @@ SymbolSyncObj_dealloc (SymbolSyncObject *self)
   for (size_t _i = 0; _i < self->_steps_retired_n; _i++)
     free (self->_steps_retired[_i]);
   free (self->_steps_retired);
+  Py_XDECREF (self->_steps_view_ref);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -182,8 +184,22 @@ SymbolSyncObj_steps (SymbolSyncObject *self, PyObject *args, PyObject *kwds)
       PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
       return _oview;
     }
-  size_t _need = (size_t)PyArray_SIZE (x_arr);
-  if (!self->_steps_buf || self->_steps_buf_cap < _need)
+  size_t _need      = (size_t)PyArray_SIZE (x_arr);
+  int    _view_live = 0;
+  if (self->_steps_view_ref)
+    {
+#if PY_VERSION_HEX >= 0x030D0000
+      PyObject *_lv = NULL;
+      if (PyWeakref_GetRef (self->_steps_view_ref, &_lv) == 1)
+        {
+          Py_DECREF (_lv);
+          _view_live = 1;
+        }
+#else
+      _view_live = PyWeakref_GetObject (self->_steps_view_ref) != Py_None;
+#endif
+    }
+  if (!self->_steps_buf || self->_steps_buf_cap < _need || _view_live)
     {
       size_t _max = symsync_steps_max_out (self->handle);
       if (!_max || _max < _need)
@@ -233,6 +249,15 @@ SymbolSyncObj_steps (SymbolSyncObject *self, PyObject *args, PyObject *kwds)
     return NULL;
   PyArray_SetBaseObject ((PyArrayObject *)arr, (PyObject *)self);
   Py_INCREF (self);
+  /* gh-437: remember this view — while the caller holds it the next
+   * call retires the buffer instead of reusing it in place. */
+  Py_XDECREF (self->_steps_view_ref);
+  self->_steps_view_ref = PyWeakref_NewRef (arr, NULL);
+  if (!self->_steps_view_ref)
+    {
+      Py_DECREF (arr);
+      return NULL;
+    }
   Py_DECREF (x_arr);
   return arr;
 }
@@ -296,6 +321,61 @@ SymbolSyncObj_configure (SymbolSyncObject *self, PyObject *args,
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "dd", _kwlist, &bn, &zeta))
     return NULL;
   symsync_configure (self->handle, bn, zeta);
+  Py_RETURN_NONE;
+}
+
+static PyObject *
+SymbolSyncObj_configure_lock (SymbolSyncObject *self, PyObject *args,
+                              PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char *_kwlist[]   = { "rolloff", "esno_min_db", "pfa", "pd", NULL };
+  double       rolloff     = 0.0;
+  double       esno_min_db = 0.0;
+  double       pfa         = 0.0;
+  double       pd          = 0.0;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "dddd", _kwlist, &rolloff,
+                                    &esno_min_db, &pfa, &pd))
+    return NULL;
+  int _rc
+      = symsync_configure_lock (self->handle, rolloff, esno_min_db, pfa, pd);
+  if (_rc != 0)
+    {
+      PyErr_Format (PyExc_ValueError, "configure_lock failed (rc=%d)", _rc);
+      return NULL;
+    }
+  Py_RETURN_NONE;
+}
+
+static PyObject *
+SymbolSyncObj_configure_lock_raw (SymbolSyncObject *self, PyObject *args,
+                                  PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char *_kwlist[]
+      = { "avgs", "up_thresh", "down_thresh", "n_up", "n_down", NULL };
+  unsigned long long avgs_raw    = 0ULL;
+  double             up_thresh   = 0.0;
+  double             down_thresh = 0.0;
+  unsigned long      n_up_raw    = 0UL;
+  unsigned long      n_down_raw  = 0UL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "Kddkk", _kwlist, &avgs_raw,
+                                    &up_thresh, &down_thresh, &n_up_raw,
+                                    &n_down_raw))
+    return NULL;
+  size_t   avgs   = (size_t)avgs_raw;
+  uint32_t n_up   = (uint32_t)n_up_raw;
+  uint32_t n_down = (uint32_t)n_down_raw;
+  symsync_configure_lock_raw (self->handle, avgs, up_thresh, down_thresh, n_up,
+                              n_down);
   Py_RETURN_NONE;
 }
 
@@ -413,6 +493,29 @@ SymbolSync_getprop_rate (SymbolSyncObject *self, void *Py_UNUSED (closure))
   /* <<IMPLEMENT: return the computed or stored value>> */
   return PyFloat_FromDouble (symsync_get_rate (self->handle));
 }
+static PyObject *
+SymbolSync_getprop_lock_stat (SymbolSyncObject *self,
+                              void             *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  /* <<IMPLEMENT: return the computed or stored value>> */
+  return PyFloat_FromDouble (symsync_get_lock_stat (self->handle));
+}
+static PyObject *
+SymbolSync_getprop_locked (SymbolSyncObject *self, void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  /* <<IMPLEMENT: return the computed or stored value>> */
+  return PyBool_FromLong ((long)(symsync_get_locked (self->handle)));
+}
 
 static PyGetSetDef SymbolSync_getset[]
     = { { "bn", (getter)SymbolSync_getprop_bn, (setter)SymbolSync_setprop_bn,
@@ -420,6 +523,17 @@ static PyGetSetDef SymbolSync_getset[]
         { "timing_error", (getter)SymbolSync_getprop_timing_error, NULL,
           "Timing error.\n", NULL },
         { "rate", (getter)SymbolSync_getprop_rate, NULL, "Rate.\n", NULL },
+        { "lock_stat", (getter)SymbolSync_getprop_lock_stat, NULL,
+          "Last block-averaged lock statistic: "
+          "mean(2*(|on-time|^2-|mid-symbol|^2)/(|on-time|^2+|mid-symbol|^2)) "
+          "over the configured avgs looks; compare against the configured "
+          "threshold (see configure_lock).\n",
+          NULL },
+        { "locked", (getter)SymbolSync_getprop_locked, NULL,
+          "Current timing-lock decision: True after the verify count of "
+          "consecutive above-threshold decisions, False again after the drop "
+          "count of consecutive below-threshold ones (see configure_lock).\n",
+          NULL },
         { NULL } };
 
 static PyObject *
@@ -477,13 +591,15 @@ static PyMethodDef SymbolSyncObj_methods[] = {
     "set_telemetry(tlm, prefix, decim) -> int\n"
     "\n"
     "Attach (or detach) a telemetry context and register the timing loop's "
-    "probes on it. Registers three probes, emitted once per recovered symbol "
+    "probes on it. Registers five probes, emitted once per recovered symbol "
     "and further thinned by decim: \"<prefix>.e\" (the normalised TED error — "
     "the loop stress), \"<prefix>.freq\" (the loop-filter control steering "
-    "the timing NCO, fractional rate offset) and \"<prefix>.rate\" (the "
-    "smoothed tracked samples/symbol).  Passing NULL detaches.  Setup path, "
-    "never hot: call before the producer thread starts stepping; the context "
-    "is borrowed and must outlive the attachment (SPSC rules in "
+    "the timing NCO, fractional rate offset), \"<prefix>.rate\" (the smoothed "
+    "tracked samples/symbol), \"<prefix>.lock\" (the last block-averaged "
+    "lock_signal, held between avgs-look updates) and \"<prefix>.locked\" "
+    "(the verify-counted lockdet decision, 0/1). Passing NULL detaches.  "
+    "Setup path, never hot: call before the producer thread starts stepping; "
+    "the context is borrowed and must outlive the attachment (SPSC rules in "
     "telemetry/telemetry.h).\n"
     "\n"
     "    >>> import numpy as np\n"
@@ -502,6 +618,46 @@ static PyMethodDef SymbolSyncObj_methods[] = {
     "    >>> from doppler import SymbolSync\n"
     "    >>> obj = SymbolSync(4, 0.01, 0.707, \"cubic\", \"gardner\")\n"
     "    >>> obj.configure(0.0, 0.0)\n" },
+  { "configure_lock", (PyCFunction)(void *)SymbolSyncObj_configure_lock,
+    METH_VARARGS | METH_KEYWORDS,
+    "configure_lock(rolloff, esno_min_db, pfa, pd) -> int\n"
+    "\n"
+    "Tune the always-on timing-lock detector to a target (pfa, pd) at a given "
+    "link operating point. The statistic is a Gardner-style eye-opening "
+    "ratio, lock_signal = "
+    "2*(|on-time|^2-|mid-symbol|^2)/(|on-time|^2+|mid-symbol|^2), "
+    "non-coherently block-averaged over avgs looks before each decision "
+    "(mirroring Dll's tumbling-window CFAR pattern). avgs and the declare "
+    "threshold are sized from a Gaussian approximation: a per-look mean is "
+    "estimated from rolloff and esno_min_db, then the classic N = "
+    "variance*((Q^-1(pfa)-Q^-1(pd))/mean)^2 / threshold = "
+    "Q^-1(pfa)*mean/(Q^-1(pfa)-Q^-1(pd)) derivation gives (avgs, threshold). "
+    "No level hysteresis by default (up=down=threshold, matching "
+    "Dll.configure_lock's shape); n_up=1, n_down=8. Raises ValueError if "
+    "pfa/pd are outside (0, 1) or pd does not exceed pfa. Read the result "
+    "from the locked / lock_stat properties.\n"
+    "\n"
+    "    >>> import numpy as np\n"
+    "    >>> from doppler import SymbolSync\n"
+    "    >>> obj = SymbolSync(4, 0.01, 0.707, \"cubic\", \"gardner\")\n"
+    "    >>> obj.configure_lock(0.0, 0.0, 0.0, 0.0)\n"
+    "    0\n" },
+  { "configure_lock_raw",
+    (PyCFunction)(void *)SymbolSyncObj_configure_lock_raw,
+    METH_VARARGS | METH_KEYWORDS,
+    "configure_lock_raw(avgs, up_thresh, down_thresh, n_up, n_down) -> None\n"
+    "\n"
+    "Escape hatch under configure_lock() for direct control of the lock "
+    "detector's geometry: an explicit non-coherent block size (avgs), a split "
+    "declare/drop threshold pair on lock_stat (level hysteresis), and both "
+    "verify counts (time hysteresis) independently. Re-tuning clears the "
+    "in-flight block sum and drops the lock so the next decision uses only "
+    "looks gathered under the new config.\n"
+    "\n"
+    "    >>> import numpy as np\n"
+    "    >>> from doppler import SymbolSync\n"
+    "    >>> obj = SymbolSync(4, 0.01, 0.707, \"cubic\", \"gardner\")\n"
+    "    >>> obj.configure_lock_raw(0, 0.0, 0.0, 0, 0)\n" },
   { "reset", (PyCFunction)SymbolSyncObj_reset, METH_NOARGS,
     "reset() -> None\n"
     "\n"

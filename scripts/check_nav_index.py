@@ -29,11 +29,11 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MKDOCS_YML = os.path.join(ROOT, "mkdocs.yml")
 
 # Section name -> docs subdirectory (relative to ROOT). Excludes ``archive/``
-# subdirectories, which hold deliberately superseded pages. Extend with
-# "gallery" once docs/gallery/index.md exists (docs-unification Phase 2).
+# subdirectories, which hold deliberately superseded pages.
 SECTIONS = {
     "design": "docs/design",
     "dev": "docs/dev",
+    "gallery": "docs/gallery",
 }
 
 NAV_ENTRY_RE = re.compile(r":\s*([\w./-]+\.md)\s*$")
@@ -95,7 +95,7 @@ def main() -> int:
     for section, rel_dir in SECTIONS.items():
         section_dir = os.path.join(ROOT, rel_dir)
         index_md = os.path.join(section_dir, "index.md")
-        should_list = _on_disk_pages(section_dir) | _nav_pages(rel_dir)
+        should_list = _on_disk_pages(section_dir) | _nav_pages(section)
         linked = _linked_pages(index_md)
         gaps = sorted(p for p in should_list if p not in linked)
         if gaps:

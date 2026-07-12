@@ -81,8 +81,13 @@ fft_destroy(fft);
 
 ## Build
 
+!!! tip "Don't have `jbx` yet?"
+
+    `make install-deps` bootstraps it for you. (Or by hand:
+    `. <(curl -sSL https://just-buildit.github.io/get-jb.sh)`.)
+
 ```bash
-jbx install-deps        # install system deps (detects OS/distro)
+make install-deps       # bootstrap jbx (if needed) + install system deps
 make                    # C library
 make pyext              # + Python bindings
 make test               # CTest suite

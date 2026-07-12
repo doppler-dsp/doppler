@@ -72,8 +72,9 @@ iq = synth.steps(4096)   # complex64 ndarray
 
 **C** — the C library isn't part of the `pip install` wheel. Grab a
 [pre-built release tarball](install/c.md#install-from-a-release-tarball) —
-no toolchain, no building doppler itself — and extract it to `$PREFIX`;
-you get `libdoppler.a`/`libdoppler.so` plus headers, ready to link.
+no toolchain, no building doppler itself — and extract it to `$PREFIX`
+(`jbx get-doppler` does exactly this in one command); you get
+`libdoppler.a`/`libdoppler.so` plus headers, ready to link.
 ([Building from source](quickstart.md#build-from-source) instead? See
 that section — it uses `build/` tree paths, not `$PREFIX`.) See
 [C Library](install/c.md) for `find_package`/`pkg-config` integration.

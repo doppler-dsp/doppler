@@ -9,7 +9,23 @@ self-contained static (`libdoppler.a`) library.
 
 Every [GitHub release](https://github.com/doppler-dsp/doppler/releases) ships a
 pre-built C library for Linux (x86_64) and macOS (arm64) — no toolchain or
-build step:
+build step.
+
+!!! tip "One-liner via jbx"
+
+    ```sh
+    jbx get-doppler                          # extracts to $HOME/doppler
+    jbx get-doppler --prefix /opt/doppler    # or a custom prefix
+    jbx get-doppler --version 0.33.1         # pin a specific release
+    ```
+
+    Resolves the latest release, downloads the platform-appropriate tarball,
+    and extracts it — the manual steps below, in one command. Needs
+    [`jbx`](https://just-buildit.github.io/) (`make install-deps` bootstraps
+    it, or by hand: `. <(curl -sSL https://just-buildit.github.io/get-jb.sh)`).
+    Source: [`scripts/get-doppler.sh`](https://github.com/doppler-dsp/doppler/blob/main/scripts/get-doppler.sh).
+
+Or by hand:
 
 ```sh
 # Resolve the latest release tag (or set VERSION=x.y.z to pin a specific one):

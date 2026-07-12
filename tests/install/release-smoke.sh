@@ -33,9 +33,16 @@ PREFIX_DIR="${2:-}"
 CC="${CC:-cc}"
 
 case "$(uname -s)" in
-    Linux)  PLAT="linux-x86_64"; SHEXT="so" ;;
-    Darwin) PLAT="macos-arm64";  SHEXT="dylib" ;;
+    Linux)  SHEXT="so" ;;
+    Darwin) SHEXT="dylib" ;;
     *) echo "release-smoke: unsupported platform $(uname -s)" >&2; exit 2 ;;
+esac
+
+case "$(uname -s)/$(uname -m)" in
+    Linux/x86_64)  PLAT="linux-x86_64" ;;
+    Linux/aarch64) PLAT="linux-aarch64" ;;
+    Darwin/arm64)  PLAT="macos-arm64" ;;
+    *) echo "release-smoke: no published tarball for $(uname -s)/$(uname -m)" >&2; exit 2 ;;
 esac
 
 work="$(mktemp -d)"

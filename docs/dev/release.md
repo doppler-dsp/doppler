@@ -152,12 +152,13 @@ verify-ci       ──  poll the "CI passed" aggregator on the tagged SHA
     │                (the merge to main already ran the full suite — we do
     │                 NOT re-test here, we confirm it was green)
     ▼
-build-python  ──  manylinux_2_28 x86_64 wheels, one docker run per cp3x
-build-macos   ──  macOS arm64 wheels, one `uv venv` per Python version
-build-sdist   ──  source distribution
-build-c-linux ──  C library tarball (linux-x86_64)
-build-c-macos ──  C library tarball (macos-arm64)
-    │  (all five build-* jobs run in parallel, gated only on verify-version)
+build-python         ──  manylinux_2_28 x86_64 + aarch64 wheels, one docker run per cp3x/arch
+build-macos          ──  macOS arm64 wheels, one `uv venv` per Python version
+build-sdist          ──  source distribution
+build-c-linux        ──  C library tarball (linux-x86_64)
+build-c-linux-arm64  ──  C library tarball (linux-aarch64)
+build-c-macos        ──  C library tarball (macos-arm64)
+    │  (all six build-* jobs run in parallel, gated only on verify-version)
     ▼
 smoke-wheel      ──  pip-install the built wheel + run deploy/validation/wfm_e2e.py
     │                 (smoke-tests the ARTIFACT, not the source tree)
@@ -219,7 +220,8 @@ python -c "import doppler; print(doppler.__version__)"
 ```
 
 Check the [GitHub Release page](https://github.com/doppler-dsp/doppler/releases)
-to confirm wheels for both platforms (Linux x86_64, macOS arm64) are attached.
+to confirm wheels for all platforms (Linux x86_64, Linux aarch64, macOS
+arm64) — plus the three C library tarballs — are attached.
 
 ______________________________________________________________________
 

@@ -3,7 +3,9 @@
 # EXECUTABLE: get-doppler.sh                                                 #
 # ############################################################################
 # Downloads and extracts the pre-built doppler C library (headers +
-# libdoppler.a/.so, no toolchain needed) to an install prefix.
+# libdoppler.a/.so, no toolchain needed) to an install prefix. A previous
+# install at the same prefix is moved aside first, restored automatically if
+# the new one fails a sanity check, and restorable on demand with --restore.
 #
 # Usage:
 #   jbx get-doppler [OPTIONS]
@@ -11,6 +13,8 @@
 #
 #   -p, --prefix DIR    Install prefix (default: $HOME/doppler).
 #   -v, --version X.Y.Z Pin a release (default: latest).
+#   -R, --restore        Restore the previous install from its backup and
+#                         exit -- no download.
 #   -h, --help           Show this message.
 #
 #   DOPPLER_PREFIX / DOPPLER_VERSION env vars are equivalent to the flags
@@ -21,6 +25,7 @@ set -euo pipefail
 REPO="doppler-dsp/doppler"
 PREFIX="${DOPPLER_PREFIX:-$HOME/doppler}"
 VERSION="${DOPPLER_VERSION:-}"
+RESTORE=0
 
 read -r -d '' HELP <<-'EOF' || true
 	Usage: get-doppler.sh [OPTIONS]
@@ -30,9 +35,15 @@ read -r -d '' HELP <<-'EOF' || true
 
 	  -p, --prefix DIR     Install prefix (default: $HOME/doppler).
 	  -v, --version X.Y.Z  Pin a release (default: latest).
+	  -R, --restore         Restore the previous install from its backup
+	                         and exit -- no download.
 	  -h, --help            Show this message.
 
 	  DOPPLER_PREFIX / DOPPLER_VERSION env vars work the same as the flags.
+
+	  A previous install at PREFIX is moved aside to PREFIX/.get-doppler-backup
+	  before a new one is extracted, restored automatically if the new install
+	  fails a sanity check, and restorable any time with --restore.
 EOF
 
 while [ $# -gt 0 ]; do
@@ -53,6 +64,10 @@ while [ $# -gt 0 ]; do
 		VERSION="${1#*=}"
 		shift
 		;;
+	-R | --restore)
+		RESTORE=1
+		shift
+		;;
 	-h | --help)
 		printf '%s\n' "$HELP"
 		exit 0
@@ -64,6 +79,33 @@ while [ $# -gt 0 ]; do
 		;;
 	esac
 done
+
+BACKUP_DIR="$PREFIX/.get-doppler-backup"
+
+# Moves current/, PREFIX's doppler-owned dirs into $1 (a fresh empty dir),
+# skipping any that don't exist. Used for both backup and restore.
+_move_doppler_dirs() {
+	local dest="$1" src="$2"
+	for d in include lib bin; do
+		[ -e "$src/$d" ] && mv "$src/$d" "$dest/$d"
+	done
+}
+
+_looks_like_install() {
+	[ -f "$1/lib/libdoppler.a" ] && [ -d "$1/include" ]
+}
+
+if [ "$RESTORE" -eq 1 ]; then
+	if ! _looks_like_install "$BACKUP_DIR"; then
+		echo "get-doppler: no backup found at ${BACKUP_DIR} -- nothing to restore" >&2
+		exit 1
+	fi
+	echo ">> restoring previous install from ${BACKUP_DIR}"
+	rm -rf "${PREFIX:?}/include" "${PREFIX:?}/lib" "${PREFIX:?}/bin"
+	_move_doppler_dirs "$PREFIX" "$BACKUP_DIR"
+	echo "Restored to ${PREFIX}"
+	exit 0
+fi
 
 OS="$(uname -s)"
 ARCH="$(uname -m)"
@@ -101,11 +143,37 @@ if ! curl -fsSL -o "${work}/${TARBALL}" "$URL"; then
 	exit 1
 fi
 
+BACKED_UP=0
+if _looks_like_install "$PREFIX"; then
+	OLD_VERSION=""
+	[ -f "$PREFIX/lib/pkgconfig/doppler.pc" ] &&
+		OLD_VERSION="$(sed -n 's/^Version: //p' "$PREFIX/lib/pkgconfig/doppler.pc")"
+	echo ">> backing up previous install${OLD_VERSION:+ (v${OLD_VERSION})} to ${BACKUP_DIR}"
+	rm -rf "${BACKUP_DIR:?}"
+	mkdir -p "$BACKUP_DIR"
+	_move_doppler_dirs "$BACKUP_DIR" "$PREFIX"
+	BACKED_UP=1
+fi
+
 mkdir -p "$PREFIX"
 tar -xzf "${work}/${TARBALL}" -C "$PREFIX"
 
+if ! _looks_like_install "$PREFIX"; then
+	echo "get-doppler: extracted tarball doesn't look like a valid install (missing lib/libdoppler.a) -- something went wrong" >&2
+	if [ "$BACKED_UP" -eq 1 ]; then
+		echo "get-doppler: rolling back to the previous install" >&2
+		rm -rf "${PREFIX:?}/include" "${PREFIX:?}/lib" "${PREFIX:?}/bin"
+		_move_doppler_dirs "$PREFIX" "$BACKUP_DIR"
+	fi
+	exit 1
+fi
+
 echo ""
 echo "Installed to ${PREFIX}"
+if [ "$BACKED_UP" -eq 1 ]; then
+	echo "Previous install backed up to ${BACKUP_DIR} -- restore it with:"
+	echo "  get-doppler.sh --prefix \"${PREFIX}\" --restore"
+fi
 echo ""
 echo "  CMake:      cmake -B build -DCMAKE_PREFIX_PATH=\"${PREFIX}\""
 echo "  pkg-config: export PKG_CONFIG_PATH=\"${PREFIX}/lib/pkgconfig\""

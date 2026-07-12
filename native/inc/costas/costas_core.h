@@ -15,7 +15,7 @@
  * costas_wipeoff()/costas_update() are the C composition API a despreader /
  * tracking channel inlines into its own sample loop.
  *
- * Lifecycle: costas_create -> [steps / configure / reset]* -> costas_destroy,
+ * Lifecycle: `costas_create -> (steps / configure / reset)* -> costas_destroy`,
  * or embed by value with costas_init().
  *
  * Set `bn_fll > 0` to enable FLL assist (a wide-pull-in frequency-lock loop

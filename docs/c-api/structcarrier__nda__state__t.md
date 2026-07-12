@@ -45,11 +45,13 @@ _NDA M-th-power carrier loop state._ [More...](#detailed-description)
 |  [**loop\_filter\_state\_t**](structloop__filter__state__t.md) | [**lf**](#variable-lf)  <br> |
 |  double | [**lock**](#variable-lock)  <br> |
 |  double | [**lock\_scale**](#variable-lock_scale)  <br> |
+|  [**lockdet\_state\_t**](structlockdet__state__t.md) | [**lockdet**](#variable-lockdet)  <br> |
 |  int | [**m**](#variable-m)  <br> |
 |  int | [**n**](#variable-n)  <br> |
 |  [**lo\_state\_t**](structlo__state__t.md) | [**nco**](#variable-nco)  <br> |
 |  double | [**seed\_norm\_freq**](#variable-seed_norm_freq)  <br> |
 |  size\_t | [**sps**](#variable-sps)  <br> |
+|  [**carrier\_nda\_tlm\_t**](structcarrier__nda__tlm__t.md) | [**tlm**](#variable-tlm)  <br> |
 |  double | [**zeta**](#variable-zeta)  <br> |
 
 
@@ -260,6 +262,23 @@ per-M lock-signal scale (1/0.619/0.412).
 
 
 
+### variable lockdet 
+
+```C++
+lockdet_state_t carrier_nda_state_t::lockdet;
+```
+
+
+
+decision rule: thresholds + verify counters stepped on `lock` each sample (mirrors MpskReceiver's own pre-existing handover step on this same statistic). 
+
+
+        
+
+<hr>
+
+
+
 ### variable m 
 
 ```C++
@@ -337,6 +356,23 @@ size_t carrier_nda_state_t::sps;
 
 
 samples per symbol. 
+
+
+        
+
+<hr>
+
+
+
+### variable tlm 
+
+```C++
+carrier_nda_tlm_t carrier_nda_state_t::tlm;
+```
+
+
+
+live telemetry attachment; zeroed in blobs 
 
 
         

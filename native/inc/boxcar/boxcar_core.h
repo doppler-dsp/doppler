@@ -111,7 +111,7 @@ extern "C"
   /**
    * @brief Initialise a boxcar in place (no allocation).
    * @param s     State to initialise. Must be non-NULL.
-   * @param len   Window length; clamped to [1, BOXCAR_MAX_LEN].
+   * @param len   Window length; clamped to `[1, BOXCAR_MAX_LEN]`.
    * @param gain  Output gain (folded into the averaging scale).
    */
   void boxcar_init (boxcar_state_t *s, size_t len, double gain);

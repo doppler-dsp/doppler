@@ -21,12 +21,13 @@ extern "C" {
 
 enum
 {
-  WFM_RANGE_FREQ        = 1u << 0, /* source.freq  → [freq, freq_hi]   */
-  WFM_RANGE_SNR         = 1u << 1, /* source.snr   → [snr, snr_hi]     */
-  WFM_RANGE_LEVEL       = 1u << 2, /* source.level → [level, level_hi] */
-  WFM_RANGE_FEND        = 1u << 3, /* source.f_end → [f_end, f_end_hi] */
-  WFM_RANGE_NUM_SAMPLES = 1u << 4, /* segment.num_samples span         */
-  WFM_RANGE_OFF_SAMPLES = 1u << 5, /* segment.off_samples span         */
+  WFM_RANGE_FREQ          = 1u << 0, /* source.freq  → [freq, freq_hi]   */
+  WFM_RANGE_SNR           = 1u << 1, /* source.snr   → [snr, snr_hi]     */
+  WFM_RANGE_LEVEL         = 1u << 2, /* source.level → [level, level_hi] */
+  WFM_RANGE_FEND          = 1u << 3, /* source.f_end → [f_end, f_end_hi] */
+  WFM_RANGE_NUM_SAMPLES   = 1u << 4, /* segment.num_samples span         */
+  WFM_RANGE_OFF_SAMPLES   = 1u << 5, /* segment.off_samples span         */
+  WFM_RANGE_DELAY_SAMPLES = 1u << 6, /* segment.delay_samples span       */
 };
 
 typedef struct {
@@ -54,6 +55,16 @@ typedef struct {
     double snr_hi;     /* upper bound when WFM_RANGE_SNR is set */
     double level_hi;   /* upper bound when WFM_RANGE_LEVEL is set */
     double f_end_hi;   /* upper bound when WFM_RANGE_FEND is set */
+    /* type=dsss: the two-code burst geometry (wfm_frame_dsss_chips). The
+       payload bits ride the shared `bits` field above (alias "payload"). */
+    uint8_t *acq_code;   /* preamble code (0/1), owned; NULL = no preamble */
+    size_t n_acq_code;   /* preamble code length in chips */
+    size_t acq_reps;     /* preamble repetitions */
+    uint8_t *data_code;  /* payload spreading code (0/1), owned */
+    size_t n_data_code;  /* chips per frame symbol (spreading factor) */
+    uint8_t *sync;       /* frame-sync word bits (0/1), owned; NULL = none */
+    size_t n_sync;       /* sync word length in bits */
+    int crc;             /* frame trailer: 0 none, 1 crc16 (dp_crc16.h) */
 } wfm_source_t;
 
 typedef struct {
@@ -65,16 +76,53 @@ typedef struct {
     unsigned ranged;       /* WFM_RANGE_{NUM,OFF}_SAMPLES bitmask */
     size_t num_samples_hi; /* upper bound when WFM_RANGE_NUM_SAMPLES is set */
     size_t off_samples_hi; /* upper bound when WFM_RANGE_OFF_SAMPLES is set */
+    /* Bounded instancing: play this segment `repeats` times back-to-back
+       (each instance = delay + on-time + trailing gap) before advancing.
+       Every ranged field re-draws per instance and the AWGN is always fresh
+       per instance, while the signal (codes/payload/PN phase) stays fixed —
+       so `repeats=5` with a ranged off_samples is a 5-burst train with
+       jittered gaps from one declaration. 0 and 1 both mean one instance;
+       instance 0 renders byte-identically to a repeats-less segment. */
+    size_t repeats;
+    /* Leading gap before the on-time (samples) — "the burst arrives after a
+       delay". Ranged like off_samples (WFM_RANGE_DELAY_SAMPLES), re-drawn
+       per repeats instance, so a ranged delay is per-burst arrival jitter.
+       Inter-burst spacing composes as off(k) + delay(k+1). */
+    size_t delay_samples;
+    size_t delay_samples_hi; /* upper bound when WFM_RANGE_DELAY_SAMPLES */
+    /* Gap-noise policy for this segment's delay + trailing gap. 0 (auto,
+       the default): the gaps carry the segment's noise floor — every
+       source's additive-AWGN term keeps running (same stream, same power)
+       while the signal stops, so a noisy scene's inter-burst region is the
+       channel, not digital silence. Clean sources have no AWGN, so a clean
+       scene's gaps remain exact zeros. 1 (off): gaps are hard zeros. */
+    int gap_noise;
 } wfm_segment_t;
+
+typedef struct {
+    size_t seg;      /* segment index in the spec */
+    size_t instance; /* repeats instance, 0-based */
+    size_t start;    /* absolute sample index where the instance begins */
+    size_t delay;    /* leading gap length (samples) */
+    size_t on;       /* on-time length (samples) */
+    size_t off;      /* trailing gap length (samples) */
+} wfm_span_t;
+
+size_t wfm_compose_spans(const wfm_segment_t *segs, size_t n_segs,
+                         wfm_span_t *out, size_t cap);
 
 int wfm_resolve_noise(wfm_segment_t *segs, size_t n);
 
-double wfm_snr_over_fs(int snr_mode, int type, int sps, double snr);
+double wfm_snr_over_fs(int snr_mode, int type, int sps, size_t sf, double snr);
+
+double wfm_source_create_snr(const wfm_source_t *src, double snr,
+                             int *snr_mode);
 
 wfm_synth_state_t *wfm_compose_build_synth(const wfm_source_t *src, double fs,
                                            size_t on_len, double freq,
                                            double snr, double f_end,
-                                           unsigned epoch, int seed_advance);
+                                           unsigned epoch, int seed_advance,
+                                           size_t instance);
 
 typedef enum
 {

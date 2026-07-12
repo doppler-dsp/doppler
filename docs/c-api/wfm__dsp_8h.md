@@ -53,6 +53,8 @@ _DSSS spreading + root-raised-cosine pulse shaping (Phase B)._ [More...](#detail
 | Type | Name |
 | ---: | :--- |
 |  void | [**wfm\_dsss\_spread**](#function-wfm_dsss_spread) (const float \_Complex \* syms, size\_t n\_sym, const uint8\_t \* code, size\_t sf, float \_Complex \* out) <br>_Spread_ `n_sym` _complex data symbols by a binary PN code._ |
+|  size\_t | [**wfm\_frame\_dsss\_chips**](#function-wfm_frame_dsss_chips) (const uint8\_t \* acq\_code, size\_t acq\_len, size\_t acq\_reps, const uint8\_t \* data\_code, size\_t data\_len, const uint8\_t \* sync, size\_t sync\_len, const uint8\_t \* payload, size\_t payload\_len, int crc, uint8\_t \* out) <br>_Build a two-code DSSS burst as one flat 0/1 chip pattern._  |
+|  size\_t | [**wfm\_frame\_dsss\_nchips**](#function-wfm_frame_dsss_nchips) (size\_t acq\_len, size\_t acq\_reps, size\_t data\_len, size\_t sync\_len, size\_t payload\_len, int crc) <br>_Chip count of a DSSS burst frame (sizes_ `wfm_frame_dsss_chips` _)._ |
 |  void | [**wfm\_rrc\_taps**](#function-wfm_rrc_taps) (double beta, int sps, int span, float \* taps) <br>_Fill_ `taps` _with a unit-energy root-raised-cosine impulse response._ |
 
 
@@ -131,6 +133,116 @@ void wfm_dsss_spread (
 * `code` PN chip code (0/1), length `sf`;
 * `sf` spreading factor. 
 * `out` output chips, length `n_sym * sf`. 
+
+
+
+
+        
+
+<hr>
+
+
+
+### function wfm\_frame\_dsss\_chips 
+
+_Build a two-code DSSS burst as one flat 0/1 chip pattern._ 
+```C++
+size_t wfm_frame_dsss_chips (
+    const uint8_t * acq_code,
+    size_t acq_len,
+    size_t acq_reps,
+    const uint8_t * data_code,
+    size_t data_len,
+    const uint8_t * sync,
+    size_t sync_len,
+    const uint8_t * payload,
+    size_t payload_len,
+    int crc,
+    uint8_t * out
+) 
+```
+
+
+
+The transmit side of `burst_demod`'s frame contract, assembled in one place so TX and RX can never drift:
+
+
+`[ acq_code × acq_reps | (sync | payload | crc16(payload)) ⊕ data_code ]`
+
+
+The preamble is the _unmodulated_ repeated acquisition code (no data on it — a pure coherent-integration target). Every frame bit is then spread by the (distinct) data code: chip `j` of frame bit `b` is `b ^ data_code[j]`. The CRC-16-CCITT trailer ([**dp\_crc16.h**](dp__crc16_8h.md)) is computed over the payload bits only and spread MSB-first. Mapping chips to ±1 (BPSK) is the synth's job.
+
+
+
+
+**Parameters:**
+
+
+* `acq_code` preamble code (0/1), length `acq_len`; NULL when `acq_len*acq_reps == 0`. 
+* `acq_len` preamble code length in chips. 
+* `acq_reps` preamble repetitions. 
+* `data_code` payload spreading code (0/1), length `data_len`. 
+* `data_len` chips per frame symbol (the spreading factor). 
+* `sync` frame-sync word bits (0/1), length `sync_len`; NULL ok. 
+* `sync_len` sync word length in bits. 
+* `payload` payload bits (0/1), length `payload_len`; NULL ok. 
+* `payload_len` payload length in bits. 
+* `crc` non-zero: append the CRC-16 trailer after the payload. 
+* `out` output chip array (0/1) of `wfm_frame_dsss_nchips(...)` elements. 
+
+
+
+**Returns:**
+
+Chips written, or 0 on invalid geometry (see `wfm_frame_dsss_nchips`). 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function wfm\_frame\_dsss\_nchips 
+
+_Chip count of a DSSS burst frame (sizes_ `wfm_frame_dsss_chips` _)._
+```C++
+size_t wfm_frame_dsss_nchips (
+    size_t acq_len,
+    size_t acq_reps,
+    size_t data_len,
+    size_t sync_len,
+    size_t payload_len,
+    int crc
+) 
+```
+
+
+
+`acq_len*acq_reps + (sync_len + payload_len + crc_bits) * data_len`, where `crc_bits` is 16 when `crc` is set and there are payload bits, else 0 (a CRC over nothing protects nothing). Returns 0 when the geometry is invalid: frame bits present but no data code, or nothing to transmit at all.
+
+
+
+
+**Parameters:**
+
+
+* `acq_len` preamble code length in chips (0 = no preamble). 
+* `acq_reps` preamble repetitions (0 = no preamble). 
+* `data_len` payload spreading-code length (chips per symbol). 
+* `sync_len` frame-sync word length in bits (0 = none). 
+* `payload_len` payload length in bits. 
+* `crc` non-zero: a CRC-16 trailer follows the payload. 
+
+
+
+**Returns:**
+
+Total burst chips, or 0 if the geometry is invalid/empty. 
+
 
 
 

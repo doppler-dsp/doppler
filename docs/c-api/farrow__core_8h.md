@@ -69,7 +69,7 @@ _Farrow fractional-delay interpolator — linear / parabolic / cubic._ [More...]
 |  size\_t | [**farrow\_delay**](#function-farrow_delay) ([**farrow\_state\_t**](structfarrow__state__t.md) \* state, const float complex \* x, size\_t x\_len, double mu, float complex \* out, size\_t max\_out) <br> |
 |  size\_t | [**farrow\_delay\_max\_out**](#function-farrow_delay_max_out) ([**farrow\_state\_t**](structfarrow__state__t.md) \* state) <br> |
 |  void | [**farrow\_destroy**](#function-farrow_destroy) ([**farrow\_state\_t**](structfarrow__state__t.md) \* state) <br>_Destroy a Farrow interpolator._  |
-|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) float complex | [**farrow\_eval**](#function-farrow_eval) (const [**farrow\_state\_t**](structfarrow__state__t.md) \* s, float mu) <br>_Interpolate at fractional offset_ `mu` _∈ [0,1) between d[1] and d[2]._ |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) float complex | [**farrow\_eval**](#function-farrow_eval) (const [**farrow\_state\_t**](structfarrow__state__t.md) \* s, float mu) <br>_Interpolate at fractional offset_ `mu` _∈_`[0,1)` _between_`d[1]` _and_`d[2]` _._ |
 |  size\_t | [**farrow\_get\_group\_delay**](#function-farrow_get_group_delay) (const [**farrow\_state\_t**](structfarrow__state__t.md) \* state) <br> |
 |  void | [**farrow\_get\_state**](#function-farrow_get_state) (const [**farrow\_state\_t**](structfarrow__state__t.md) \* state, void \* blob) <br> |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) void | [**farrow\_init**](#function-farrow_init) ([**farrow\_state\_t**](structfarrow__state__t.md) \* s, int order) <br>_Initialise in place: set order, clear the delay line._  |
@@ -115,7 +115,7 @@ _Farrow fractional-delay interpolator — linear / parabolic / cubic._ [More...]
 ## Detailed Description
 
 
-A selectable-order Lagrange interpolator in Farrow (Horner-in-µ) form — the lean alternative to a full polyphase resampler when all you need is a fractional-delay tap for a timing loop. All three orders share one 4-tap delay line and interpolate at the SAME point — between the two middle taps — so the **group delay is 2 samples regardless of order**, which keeps a driving symbol-timing loop order-agnostic. Push input samples with [**farrow\_push()**](farrow__core_8h.md#function-farrow_push); evaluate the output at a fractional offset µ ∈ [0,1) with [**farrow\_eval()**](farrow__core_8h.md#function-farrow_eval). The fractional offset is meant to come from an integer timing NCO (the post-wrap accumulator value), so the timing stays drift-free while only the interpolation itself is floating point.
+A selectable-order Lagrange interpolator in Farrow (Horner-in-µ) form — the lean alternative to a full polyphase resampler when all you need is a fractional-delay tap for a timing loop. All three orders share one 4-tap delay line and interpolate at the SAME point — between the two middle taps — so the **group delay is 2 samples regardless of order**, which keeps a driving symbol-timing loop order-agnostic. Push input samples with [**farrow\_push()**](farrow__core_8h.md#function-farrow_push); evaluate the output at a fractional offset µ ∈ `[0,1)` with [**farrow\_eval()**](farrow__core_8h.md#function-farrow_eval). The fractional offset is meant to come from an integer timing NCO (the post-wrap accumulator value), so the timing stays drift-free while only the interpolation itself is floating point.
 
 
 order: 0 = linear (2-tap Lagrange), 1 = parabolic (4-tap symmetric piecewise-parabolic Farrow, α = 0.5), 2 = cubic (4-tap cubic Lagrange). All three are symmetric about the interpolation point, so the phase (delay) response is linear — no timing bias. Linear and cubic are exact for degree 1 and 3 polynomials; the piecewise-parabolic trades exactness for a flatter magnitude response than linear at no delay cost.
@@ -264,7 +264,7 @@ void farrow_destroy (
 
 ### function farrow\_eval 
 
-_Interpolate at fractional offset_ `mu` _∈ [0,1) between d[1] and d[2]._
+_Interpolate at fractional offset_ `mu` _∈_`[0,1)` _between_`d[1]` _and_`d[2]` _._
 ```C++
 JM_FORCEINLINE  JM_HOT float complex farrow_eval (
     const farrow_state_t * s,
@@ -274,7 +274,7 @@ JM_FORCEINLINE  JM_HOT float complex farrow_eval (
 
 
 
-Horner-in-µ evaluation of the order's Lagrange polynomial. µ = 0 returns d[1] (= input at i - 2); µ → 1 returns d[2].
+Horner-in-µ evaluation of the order's Lagrange polynomial. µ = 0 returns `d[1]` (= input at i - 2); µ → 1 returns `d[2]`.
 
 
 
@@ -283,7 +283,7 @@ Horner-in-µ evaluation of the order's Lagrange polynomial. µ = 0 returns d[1] 
 
 
 * `s` State. Must be non-NULL. 
-* `mu` Fractional offset in [0,1). 
+* `mu` Fractional offset in `[0,1)`. 
 
 
 

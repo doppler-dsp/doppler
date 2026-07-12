@@ -14,7 +14,7 @@
  * keeps one for the carrier loop and one for the code loop.
  * loop_filter_create() is the heap path used by the Python wrapper.
  *
- * Lifecycle: create -> [step / steps / configure / reset]* -> destroy
+ * Lifecycle: `create -> (step / steps / configure / reset)* -> destroy`
  *
  * @code
  * loop_filter_state_t *lf = loop_filter_create(0.01, 0.707, 1.0);

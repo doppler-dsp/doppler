@@ -33,6 +33,8 @@
 * **BOXCAR\_MAX\_LEN** ([**boxcar\_core.h**](boxcar__core_8h.md))
 * **BOXCAR\_STATE\_MAGIC** ([**boxcar\_core.h**](boxcar__core_8h.md))
 * **BOXCAR\_STATE\_VERSION** ([**boxcar\_core.h**](boxcar__core_8h.md))
+* **BURST\_DESPREADER\_STATE\_MAGIC** ([**burst\_despreader\_core.h**](burst__despreader__core_8h.md))
+* **BURST\_DESPREADER\_STATE\_VERSION** ([**burst\_despreader\_core.h**](burst__despreader__core_8h.md))
 
 
 ## c
@@ -51,8 +53,6 @@
 * **CARRIER\_NDA\_LOCK\_ALPHA** ([**carrier\_nda\_core.h**](carrier__nda__core_8h.md))
 * **CARRIER\_NDA\_STATE\_MAGIC** ([**carrier\_nda\_core.h**](carrier__nda__core_8h.md))
 * **CARRIER\_NDA\_STATE\_VERSION** ([**carrier\_nda\_core.h**](carrier__nda__core_8h.md))
-* **CHANNEL\_STATE\_MAGIC** ([**channel\_core.h**](channel__core_8h.md))
-* **CHANNEL\_STATE\_VERSION** ([**channel\_core.h**](channel__core_8h.md))
 * **CIC\_N** ([**cic\_core.h**](cic__core_8h.md))
 * **CIC\_STATE\_MAGIC** ([**cic\_core.h**](cic__core_8h.md))
 * **CIC\_STATE\_VERSION** ([**cic\_core.h**](cic__core_8h.md))
@@ -77,6 +77,7 @@
 * **DP\_ERR\_TOO\_LARGE** ([**clib\_common.h**](clib__common_8h.md))
 * **DP\_OK** ([**clib\_common.h**](clib__common_8h.md))
 * **DP\_DEFINE\_POD\_STATE** ([**dp\_state.h**](dp__state_8h.md))
+* **DP\_DEFINE\_POD\_STATE\_TLM** ([**dp\_state.h**](dp__state_8h.md))
 * **DP\_DEFINE\_RUN** ([**dp\_state.h**](dp__state_8h.md))
 * **DP\_FOURCC** ([**dp\_state.h**](dp__state_8h.md))
 * **DP\_GET\_OPEN** ([**dp\_state.h**](dp__state_8h.md))
@@ -106,6 +107,9 @@
 * **DLL\_EPS** ([**dll\_core.h**](dll__core_8h.md))
 * **DLL\_STATE\_MAGIC** ([**dll\_core.h**](dll__core_8h.md))
 * **DLL\_STATE\_VERSION** ([**dll\_core.h**](dll__core_8h.md))
+* **DP\_TLM** ([**telemetry.h**](telemetry_8h.md))
+* **DP\_TLM\_MAX\_PROBES** ([**telemetry.h**](telemetry_8h.md))
+* **DP\_TLM\_NAME\_MAX** ([**telemetry.h**](telemetry_8h.md))
 
 
 ## f
@@ -178,6 +182,8 @@
 * **LO\_LUT\_SIZE** ([**lo\_core.h**](lo__core_8h.md))
 * **LO\_STATE\_MAGIC** ([**lo\_core.h**](lo__core_8h.md))
 * **LO\_STATE\_VERSION** ([**lo\_core.h**](lo__core_8h.md))
+* **LOCKDET\_STATE\_MAGIC** ([**lockdet\_core.h**](lockdet__core_8h.md))
+* **LOCKDET\_STATE\_VERSION** ([**lockdet\_core.h**](lockdet__core_8h.md))
 * **LOOP\_FILTER\_STATE\_MAGIC** ([**loop\_filter\_core.h**](loop__filter__core_8h.md))
 * **LOOP\_FILTER\_STATE\_VERSION** ([**loop\_filter\_core.h**](loop__filter__core_8h.md))
 
@@ -222,6 +228,7 @@
 
 * **SPECAN\_STATE\_MAGIC** ([**specan\_core.h**](specan__core_8h.md))
 * **SPECAN\_STATE\_VERSION** ([**specan\_core.h**](specan__core_8h.md))
+* **SYMSYNC\_LOCK\_EPS** ([**symsync\_core.h**](symsync__core_8h.md))
 * **SYMSYNC\_STATE\_MAGIC** ([**symsync\_core.h**](symsync__core_8h.md))
 * **SYMSYNC\_STATE\_VERSION** ([**symsync\_core.h**](symsync__core_8h.md))
 

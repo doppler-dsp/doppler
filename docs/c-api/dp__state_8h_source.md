@@ -238,6 +238,35 @@ dp_state_validate (const void *blob, size_t expect_bytes, uint32_t magic,
     return DP_OK;                                                             \
   }
 
+#define DP_DEFINE_POD_STATE_TLM(pfx, STATE_T, MAGIC, VERSION, MEMBER)         \
+  size_t pfx##_state_bytes (const STATE_T *s)                                 \
+  {                                                                           \
+    (void)s;                                                                  \
+    return sizeof (dp_state_hdr_t) + sizeof (STATE_T);                        \
+  }                                                                           \
+  void pfx##_get_state (const STATE_T *s, void *blob)                         \
+  {                                                                           \
+    STATE_T _c = *s;                                                          \
+    memset (&_c.MEMBER, 0, sizeof _c.MEMBER);                                 \
+    dp_writer_t _w = dp_writer_init (blob, pfx##_state_bytes (s));            \
+    dp_w_hdr (&_w, (MAGIC), (VERSION), pfx##_state_bytes (s));                \
+    dp_w_bytes (&_w, &_c, sizeof _c);                                         \
+  }                                                                           \
+  int pfx##_set_state (STATE_T *s, const void *blob)                         \
+  {                                                                           \
+    int _rc = dp_state_validate (blob, pfx##_state_bytes (s), (MAGIC),        \
+                                 (VERSION));                                  \
+    if (_rc != DP_OK)                                                         \
+      return _rc;                                                             \
+    STATE_T _c;                                                               \
+    dp_reader_t _r = dp_reader_init (blob, pfx##_state_bytes (s));            \
+    _r.off         = sizeof (dp_state_hdr_t);                                 \
+    dp_r_bytes (&_r, &_c, sizeof _c);                                         \
+    _c.MEMBER = s->MEMBER; /* keep the live attachment */                     \
+    *s = _c;                                                                  \
+    return DP_OK;                                                             \
+  }
+
 /* ── field-wise scaffolding ──────────────────────────────────────────────────
  * For a hand-written triplet that packs a subset of fields (running state only;
  * config restored by create()).  Use inside `<obj>_get_state(s, blob)` /

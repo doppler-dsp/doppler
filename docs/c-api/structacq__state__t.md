@@ -75,6 +75,7 @@ _Streaming acquisition-engine state._ [More...](#detailed-description)
 |  size\_t | [**sf**](#variable-sf)  <br> |
 |  [**fft\_state\_t**](structfft__state__t.md) \* | [**slow\_fft**](#variable-slow_fft)  <br> |
 |  size\_t | [**spc**](#variable-spc)  <br> |
+|  double | [**straddle\_loss**](#variable-straddle_loss)  <br> |
 |  float | [**test\_stat**](#variable-test_stat)  <br> |
 |  float | [**threshold**](#variable-threshold)  <br> |
 |  uint8\_t | [**underpowered**](#variable-underpowered)  <br> |
@@ -564,7 +565,7 @@ double acq_state_t::pd_predicted;
 
 
 
-Predicted Pd at cn0\_dbhz and the chosen grid. 
+Predicted Pd at cn0\_dbhz and the chosen grid: the AVERAGE Pd over the straddle priors (slow-time scalloping, intra-segment rotation, code sample offset — quadrature over uniform priors), not the on-grid best case, and not Pd at the mean amplitude (which Jensen makes optimistic). 
 
 
         
@@ -774,6 +775,23 @@ size_t acq_state_t::spc;
 
 
 Samples per chip (chip-rate oversample factor). 
+
+
+        
+
+<hr>
+
+
+
+### variable straddle\_loss 
+
+```C++
+double acq_state_t::straddle_loss;
+```
+
+
+
+Mean AMPLITUDE derating from grid straddle — a diagnostic summary (~20\*log10 of it in dB); sizing and pd\_predicted average Pd itself over the priors. Derived config, recomputed by create(). 
 
 
         

@@ -60,7 +60,7 @@ typedef struct
 ```
 
 - **`value` is float.** ~7 significant digits is ample for diagnostics
-    (timing error, dB gains, lock metrics in [0, 1]); a double would double
+    (timing error, dB gains, lock metrics in `[0, 1]`); a double would double
     ring bandwidth for no plotting benefit. `flags` reserves room for a future
     wide-record class if one is ever needed.
 - **`n` is caller-maintained.** Whoever owns the pipeline's sample clock

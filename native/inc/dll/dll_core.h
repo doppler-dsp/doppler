@@ -16,8 +16,8 @@
  * JM_FORCEINLINE dll_accumulate()/dll_update() are the C composition API a
  * tracking channel inlines into its own sample loop.
  *
- * Lifecycle: dll_create -> [steps / configure / reset]* -> dll_destroy, or embed
- * by value with dll_init() (which BORROWS the caller-owned code).
+ * Lifecycle: `dll_create -> (steps / configure / reset)* -> dll_destroy`, or
+ * embed by value with dll_init() (which BORROWS the caller-owned code).
  *
  * @code
  * uint8_t code[31] = { ... };  // 0/1 chips, one period

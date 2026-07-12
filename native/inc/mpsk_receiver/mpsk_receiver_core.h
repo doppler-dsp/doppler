@@ -42,7 +42,7 @@
  * or a sync word downstream. A DSSS-MPSK receiver is `Dll(segments) ->
  * MpskReceiver`: despread to symbol-rate soft chips, then this modem.
  *
- * Lifecycle: mpsk_receiver_create -> [steps / bits / reset]* -> _destroy.
+ * Lifecycle: `mpsk_receiver_create -> (steps / bits / reset)* -> _destroy`.
  *
  * @code
  * // QPSK, 8 samples/symbol, I&D matched filter, NDA acquisition
@@ -134,7 +134,7 @@ extern "C"
    * @param n              Carrier arm dumps per symbol (default 4; sps % n ==
    * 0).
    * @param pulse          Matched-filter shape (default MPSK_RX_PULSE_IANDD).
-   * @param rrc_beta       RRC roll-off in [0, 1] (default 0.35; RRC only).
+   * @param rrc_beta       RRC roll-off in `[0, 1]` (default 0.35; RRC only).
    * @param rrc_span       RRC one-sided span in symbols (default 8; RRC only).
    * @param bn_carrier     Carrier loop noise bandwidth (default 0.01).
    * @param zeta           Damping factor for both loops (default 0.707).

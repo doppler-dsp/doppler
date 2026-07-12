@@ -83,6 +83,7 @@ extern "C"
     double pfa_cell;  
     double pd;        
     double pd_predicted;  
+    double straddle_loss; 
     uint8_t underpowered; 
 
     uint64_t

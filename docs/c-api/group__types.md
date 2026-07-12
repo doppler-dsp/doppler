@@ -214,7 +214,8 @@ enum dp_sample_type_t {
     CF128 = 2,
     CI8 = 3,
     CI16 = 4,
-    CF32 = 5
+    CF32 = 5,
+    TLM16 = 6
 };
 ```
 

@@ -35,7 +35,7 @@ _Feedforward polynomial-phase estimator (frequency + chirp rate)._ [More...](#de
 | Type | Name |
 | ---: | :--- |
 | struct | [**ppe\_result\_t**](structppe__result__t.md) <br>_Polynomial-phase estimate (one search)._  |
-| struct | [**ppe\_state\_t**](structppe__state__t.md) <br>_PolyPhaseEstimator state (FFT plan + rate grid + scratch)._  |
+| struct | [**ppe\_state\_t**](structppe__state__t.md) <br>_PolynomialPhaseEstimator state (FFT plan + rate grid + scratch)._  |
 
 
 
@@ -97,7 +97,7 @@ _Feedforward polynomial-phase estimator (frequency + chirp rate)._ [More...](#de
 ## Detailed Description
 
 
-Estimates the normalized frequency `f` (cycles/sample) and chirp rate `r` (cycles/sample^2) of a complex sequence by a **coherent 2-D matched-filter search**. For each chirp-rate hypothesis `r_i` in [-max\_rate, +max\_rate] the sequence is dechirped (multiplied by `exp`(-j\*pi\*r\_i\*m^2)) and FFT-ed; the resulting (chirp-rate x frequency) surface peaks at the true (r, f), refined sub-bin in both axes by parabolic interpolation. Being fully coherent it is the matched-filter-optimal estimator (holds at low SNR), and it collapses to a single FFT — pure Doppler — when `max_rate` = 0. One knob therefore spans near-static Doppler through severe LEO chirp.
+Estimates the normalized frequency `f` (cycles/sample) and chirp rate `r` (cycles/sample^2) of a complex sequence by a **coherent 2-D matched-filter search**. For each chirp-rate hypothesis `r_i` in `[-max_rate, +max_rate]` the sequence is dechirped (multiplied by `exp`(-j\*pi\*r\_i\*m^2)) and FFT-ed; the resulting (chirp-rate x frequency) surface peaks at the true (r, f), refined sub-bin in both axes by parabolic interpolation. Being fully coherent it is the matched-filter-optimal estimator (holds at low SNR), and it collapses to a single FFT — pure Doppler — when `max_rate` = 0. One knob therefore spans near-static Doppler through severe LEO chirp.
 
 
 The caller strips modulation first: data-aided (multiply by conj of the known symbols) keeps full SNR; non-data-aided raises an M-PSK stream to the M-th power (BPSK: square) — which doubles `f` and `r`, so the caller halves them.
@@ -204,7 +204,7 @@ ppe_result_t ppe_estimate (
 
 * `state` Must be non-NULL. 
 * `in` Complex sequence (modulation already stripped by the caller). 
-* `n_in` Length, in [4, max\_len]. 
+* `n_in` Length, in `[4, max_len]`. 
 
 
 

@@ -14,6 +14,7 @@
 * [**acq\_state\_t**](structacq__state__t.md)
 * [**adc\_state\_t**](structadc__state__t.md)
 * [**agc\_state\_t**](structagc__state__t.md)
+* [**agc\_tlm\_t**](structagc__tlm__t.md)
 * [**awgn\_state\_t**](structawgn__state__t.md)
 
 
@@ -21,17 +22,19 @@
 
 * [**boxcar\_state\_t**](structboxcar__state__t.md)
 * [**burst\_demod\_state\_t**](structburst__demod__state__t.md)
+* [**burst\_despreader\_state\_t**](structburst__despreader__state__t.md)
 
 
 ## c
 
 * [**carrier\_mpsk\_state\_t**](structcarrier__mpsk__state__t.md)
 * [**carrier\_nda\_state\_t**](structcarrier__nda__state__t.md)
-* [**channel\_state\_t**](structchannel__state__t.md)
+* [**carrier\_nda\_tlm\_t**](structcarrier__nda__tlm__t.md)
 * [**cic\_state\_t**](structcic__state__t.md)
 * [**corr2d\_state\_t**](structcorr2d__state__t.md)
 * [**corr\_state\_t**](structcorr__state__t.md)
 * [**costas\_state\_t**](structcostas__state__t.md)
+* [**costas\_tlm\_t**](structcostas__tlm__t.md)
 
 
 ## d
@@ -45,11 +48,15 @@
 * [**detector2d\_state\_t**](structdetector2d__state__t.md)
 * [**detector\_state\_t**](structdetector__state__t.md)
 * [**dll\_state\_t**](structdll__state__t.md)
+* [**dll\_tlm\_t**](structdll__tlm__t.md)
 * [**dp\_header\_t**](structdp__header__t.md)
 * [**dp\_peak\_t**](structdp__peak__t.md)
 * [**dp\_reader\_t**](structdp__reader__t.md)
 * [**dp\_sample\_clock\_t**](structdp__sample__clock__t.md)
 * [**dp\_state\_hdr\_t**](structdp__state__hdr__t.md)
+* [**dp\_tlm**](structdp__tlm.md)
+* [**dp\_tlm\_probe\_t**](structdp__tlm__probe__t.md)
+* [**dp\_tlm\_rec\_t**](structdp__tlm__rec__t.md)
 * [**dp\_writer\_t**](structdp__writer__t.md)
 
 
@@ -85,6 +92,7 @@
 ## l
 
 * [**lo\_state\_t**](structlo__state__t.md)
+* [**lockdet\_state\_t**](structlockdet__state__t.md)
 * [**loop\_filter\_state\_t**](structloop__filter__state__t.md)
 
 
@@ -118,6 +126,7 @@
 
 * [**specan\_state\_t**](structspecan__state__t.md)
 * [**symsync\_state\_t**](structsymsync__state__t.md)
+* [**symsync\_tlm\_t**](structsymsync__tlm__t.md)
 
 
 ## t
@@ -137,6 +146,7 @@
 * [**wfm\_reader\_info\_t**](structwfm__reader__info__t.md)
 * [**wfm\_segment\_t**](structwfm__segment__t.md)
 * [**wfm\_source\_t**](structwfm__source__t.md)
+* [**wfm\_span\_t**](structwfm__span__t.md)
 * [**wfm\_synth\_state\_t**](structwfm__synth__state__t.md)
 
 

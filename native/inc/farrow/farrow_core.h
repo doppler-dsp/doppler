@@ -8,7 +8,7 @@
  * delay line and interpolate at the SAME point — between the two middle taps —
  * so the **group delay is 2 samples regardless of order**, which keeps a driving
  * symbol-timing loop order-agnostic. Push input samples with farrow_push();
- * evaluate the output at a fractional offset µ ∈ [0,1) with farrow_eval(). The
+ * evaluate the output at a fractional offset µ ∈ `[0,1)` with farrow_eval(). The
  * fractional offset is meant to come from an integer timing NCO (the post-wrap
  * accumulator value), so the timing stays drift-free while only the
  * interpolation itself is floating point.
@@ -59,7 +59,7 @@ enum {
  * internal (drive it through farrow_push / farrow_eval).
  */
 typedef struct {
-    float complex d[4]; /**< delay line, d[3] newest.                  */
+    float complex d[4]; /**< delay line, `d[3]` newest.                */
     int order;          /**< FARROW_LINEAR / _PARABOLIC / _CUBIC.      */
 } farrow_state_t;
 
@@ -82,13 +82,13 @@ farrow_push (farrow_state_t *s, float complex x)
 }
 
 /**
- * @brief Interpolate at fractional offset @p mu ∈ [0,1) between d[1] and d[2].
+ * @brief Interpolate at fractional offset @p mu ∈ `[0,1)` between `d[1]` and `d[2]`.
  *
  * Horner-in-µ evaluation of the order's Lagrange polynomial. µ = 0 returns
- * d[1] (= input at i - 2); µ → 1 returns d[2].
+ * `d[1]` (= input at i - 2); µ → 1 returns `d[2]`.
  *
  * @param s   State.  Must be non-NULL.
- * @param mu  Fractional offset in [0,1).
+ * @param mu  Fractional offset in `[0,1)`.
  * @return The interpolated sample.
  */
 JM_FORCEINLINE JM_HOT float complex

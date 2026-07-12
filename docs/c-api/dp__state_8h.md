@@ -109,6 +109,7 @@
 | Type | Name |
 | ---: | :--- |
 | define  | [**DP\_DEFINE\_POD\_STATE**](dp__state_8h.md#define-dp_define_pod_state) (pfx, STATE\_T, MAGIC, VERSION) `/* multi line expression */`<br>_Define the whole-struct state triplet for a pointer-free POD object._  |
+| define  | [**DP\_DEFINE\_POD\_STATE\_TLM**](dp__state_8h.md#define-dp_define_pod_state_tlm) (pfx, STATE\_T, MAGIC, VERSION, MEMBER) `/* multi line expression */`<br>_Whole-struct POD triplet for an object carrying a live telemetry attachment (or any other non-state member that must not travel in the blob)._  |
 | define  | [**DP\_DEFINE\_RUN**](dp__state_8h.md#define-dp_define_run) (pfx, STATE\_T, IN\_T, OUT\_T) `/* multi line expression */`<br>_Define the standard_ `<pfx>_run` _pure-transducer wrapper._ |
 | define  | [**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) (a, b, c, d) `/* multi line expression */`<br> |
 | define  | [**DP\_GET\_OPEN**](dp__state_8h.md#define-dp_get_open) (MAGIC, VERSION, BYTES) `/* multi line expression */`<br> |
@@ -470,6 +471,30 @@ Generates `<pfx>_state_bytes/get_state/set_state` that snapshot the entire `STAT
 
 
 
+### define DP\_DEFINE\_POD\_STATE\_TLM 
+
+_Whole-struct POD triplet for an object carrying a live telemetry attachment (or any other non-state member that must not travel in the blob)._ 
+```C++
+#define DP_DEFINE_POD_STATE_TLM (
+    pfx,
+    STATE_T,
+    MAGIC,
+    VERSION,
+    MEMBER
+) `/* multi line expression */`
+```
+
+
+
+Identical to DP\_DEFINE\_POD\_STATE except that `MEMBER` — a struct member holding live pointers/ids (e.g. an object's `tlm` attachment) — is zeroed in the serialized copy (deterministic blobs, no leaked address) and kept live across set\_state (a restore must not clobber the receiving instance's attachment with the sender's stale one). 
+
+
+        
+
+<hr>
+
+
+
 ### define DP\_DEFINE\_RUN 
 
 _Define the standard_ `<pfx>_run` _pure-transducer wrapper._
@@ -528,7 +553,7 @@ The per-object ABI (the contract jm's `serializable` binding and the Rust FFI ca
 size\_t obj\_state\_bytes(const obj\_state\_t \*); void obj\_get\_state (const obj\_state\_t \*, void \*blob); int obj\_set\_state (obj\_state\_t \*, const void \*blob); // DP\_OK / -err
 
 
-Blob layout, every object: [ [**dp\_state\_hdr\_t**](structdp__state__hdr__t.md) ] [ module payload ] Compositions embed children as self-contained sub-blobs (each carries its own header): [ hdr ] [ extra? ] [ child blob ]... with state\_bytes = sizeof(hdr) + sizeof(extra) + Σ child\_state\_bytes.
+Blob layout, every object: `[  dp_state_hdr_t ] [ module payload ]` Compositions embed children as self-contained sub-blobs (each carries its own header): `[ hdr ] [ extra? ] [ child blob ]`... with state\_bytes = sizeof(hdr) + sizeof(extra) + Σ child\_state\_bytes.
 
 
 Blobs are native-endian POD for same-machine / same-arch resume (thread, process, pod). The endian byte is stamped and rejected on mismatch; there is deliberately no cross-endian byte-swap. 

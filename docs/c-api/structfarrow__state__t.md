@@ -102,7 +102,7 @@ float complex farrow_state_t::d[4];
 
 
 
-delay line, d[3] newest. 
+delay line, `d [3]` newest. 
 
 
         

@@ -25,7 +25,7 @@
  * the detection targets (@p pfa, @p pd, optional @p doppler_uncertainty).  The
  * engine converts C/N0 to a per-sample amplitude SNR
  * (snr = sqrt(10^(cn0_dbhz/10) / (chip_rate*spc))) and picks the *smallest*
- * coherent depth doppler_bins in [1, reps] whose doppler_bins*code_bins
+ * coherent depth doppler_bins in `[1, reps]` whose doppler_bins*code_bins
  * coherent samples meet @p pd (det_threshold / det_pd) — minimum latency for a
  * strong signal.  A tighter @p doppler_uncertainty shrinks the searched cell
  * count, lowering the Bonferroni threshold (more sensitive).
@@ -69,8 +69,8 @@ extern "C"
   {
     size_t doppler_bin; /**< Peak row: Doppler bin (0 … doppler_bins-1). */
     size_t code_phase; /**< Peak col: code phase (0 … code_bins-1).          */
-    float  peak_mag;   /**< max |R[i,j]| over the surface (linear).          */
-    float  noise_est;  /**< CFAR noise estimate over [noise_lo, noise_hi].   */
+    float  peak_mag;   /**< max `|R[i,j]|` over the surface (linear).        */
+    float  noise_est;  /**< CFAR noise estimate over `[noise_lo, noise_hi]`. */
     float  test_stat;  /**< peak_mag / noise_est; 0 if noise_est == 0.       */
     float  snr_est;    /**< Estimated per-sample amplitude SNR of the burst. */
   } acq_result_t;
@@ -158,9 +158,9 @@ extern "C"
    * transducer for the elastic fan-out (thread / process / pod).  Standard
    * bytes interface (see dp_state.h); layout, contiguous and flat:
    *
-   *   [ dp_state_hdr_t ] [ acq_extra_t ]
-   *   [ float complex unconsumed[n_unconsumed] ]   (partial frame, < n samples)
-   *   [ float          nc_surface[n] ]             (only when n_noncoh > 1)
+   *   `[ dp_state_hdr_t ] [ acq_extra_t ]`
+   *   `[ float complex unconsumed[n_unconsumed] ]`   (partial frame, < n samples)
+   *   `[ float          nc_surface[n] ]`             (only when n_noncoh > 1)
    *
    * Build the byte buffer with acq_state_bytes(); set_state validates the
    * envelope (magic/version/size) plus n / n_noncoh below, rejecting a mismatch
@@ -168,7 +168,7 @@ extern "C"
    */
   typedef struct
   {
-    uint16_t has_nc;  /**< 1 if nc_surface[n] follows the samples.       */
+    uint16_t has_nc;  /**< 1 if `nc_surface[n]` follows the samples.     */
     uint16_t _pad;
     uint32_t n_noncoh;         /**< Non-coherent looks (consistency).     */
     uint64_t n;                /**< Frame size; must equal engine's n.    */
@@ -186,7 +186,7 @@ extern "C"
    * Builds the single-row oversampled BPSK reference from @p code, infers
    * sf = @p code_len, converts @p cn0_dbhz to a per-sample amplitude SNR
    * (snr = sqrt(10^(cn0_dbhz/10) / (chip_rate*spc))), and auto-configures the
-   * search grid: the smallest coherent depth doppler_bins in [1, @p reps]
+   * search grid: the smallest coherent depth doppler_bins in `[1, reps]`
    * whose doppler_bins*code_bins coherent samples meet @p pd at the Bonferroni
    * threshold, plus non-coherent looks (up to @p max_noncoh) if the coherent
    * depth alone falls short.  A tighter @p doppler_uncertainty narrows the

@@ -33,7 +33,9 @@ enum {
     WFM_SYNTH_CHIRP = 5, /* linear-FM sweep f_start→f_end (no symbols) */
     WFM_SYNTH_BITS = 6,  /* user bit pattern, oversampled + cycled    */
     WFM_SYNTH_SYMBOLS
-    = 7, /* user complex-symbol stream, oversampled + cycled */
+    = 7,                /* user complex-symbol stream, oversampled + cycled */
+    WFM_SYNTH_DSSS = 8, /* two-code DSSS burst: repeated preamble +
+                           spread frame, built by wfm_synth_set_dsss() */
 };
 
 /* snr >= this (dB) means "clean": no AWGN is generated at all (the common case
@@ -145,6 +147,12 @@ void wfm_synth_set_chirp_span(wfm_synth_state_t *state, size_t span);
 int wfm_synth_set_bits(wfm_synth_state_t *state, const uint8_t *bits, size_t n,
                        int modulation);
 
+int wfm_synth_set_dsss(wfm_synth_state_t *state, const uint8_t *acq_code,
+                       size_t acq_len, size_t acq_reps,
+                       const uint8_t *data_code, size_t data_len,
+                       const uint8_t *sync, size_t sync_len,
+                       const uint8_t *payload, size_t payload_len, int crc);
+
 int wfm_synth_set_symbols(wfm_synth_state_t *state,
                           const float _Complex *symbols, size_t n);
 
@@ -157,14 +165,18 @@ void wfm_synth_reset(wfm_synth_state_t *state);
 
 void wfm_synth_reseed_noise(wfm_synth_state_t *state, uint32_t seed);
 
+void wfm_synth_noise_steps(wfm_synth_state_t *state, float complex *output,
+                           size_t n);
+
 JM_FORCEINLINE JM_HOT float complex
 wfm_synth_step(wfm_synth_state_t *state)
 {
     float complex sym;
-    if (state->wtype == WFM_SYNTH_BITS) {
+    if (state->wtype == WFM_SYNTH_BITS || state->wtype == WFM_SYNTH_DSSS) {
         /* User bit pattern, oversampled sps and cycled to fill the request. The
          * symbol latch mirrors the PN path but sources bits from bits[bit_idx]
-         * instead of the LFSR; bit_mod picks the mapping. */
+         * instead of the LFSR; bit_mod picks the mapping. A dsss burst is the
+         * same machinery over the chip pattern set_dsss() assembled. */
         if (state->sym_pos == 0 && state->bits && state->n_bits) {
             if (state->bit_mod == 2) { /* qpsk: 2 bits/symbol, Gray-mapped */
                 uint8_t b0 = state->bits[state->bit_idx];

@@ -264,7 +264,7 @@ inconvenience:
     single digits up to `6.9e6` across otherwise-healthy bursts. Neither
     field is suffixed `_db` even though `BurstDemod.est_snr_db` is — a
     naming inconsistency worth fixing upstream. This demo now reports a
-    proper [data-aided Es/N0 (dB)](#esn0-db-not-snr_est-now-a-standalone-doppler-snr-module)
+    proper [data-aided Es/N0 (dB)](#esn0-db-not-snr_est-now-a-standalone-dopplersnr-module)
     instead.
 
 - **The Es/N0 replacement was first a Python prototype, then ported to

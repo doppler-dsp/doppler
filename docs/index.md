@@ -2,7 +2,7 @@
   <img src="https://raw.githubusercontent.com/doppler-dsp/doppler/main/docs/assets/wordmark.png?v=3" alt="doppler — signal, shifted" width="560">
 </p>
 
-<p align="center"><strong>Dead-simple, ultra-fast digital signal processing.</strong></p>
+<p align="center"><strong>Practical, portable, performant digital signal processing.</strong></p>
 
 <p align="center">
   <a href="https://github.com/doppler-dsp/doppler/actions/workflows/ci.yml"><img src="https://github.com/doppler-dsp/doppler/actions/workflows/ci.yml/badge.svg" alt="CI"></a>

@@ -5,6 +5,7 @@
     algorithm is implemented once, in C
 - [Adding a Module](adding-a-module.md) — step-by-step guide using `jm`
 - [Doc Examples](doc-examples.md) — every docs code snippet is discovered and tested, no opt-in list
+- [Docs Conventions](docs-conventions.md) — what's generated vs. hand-owned under `docs/`, and the nav-index/Related-pages CI gates
 - [Error Convention](error-convention.md) — how errors are returned across the C ABI
 - [wfmgen API](wfmgen/api.md) — user-facing API surface, target, and decisions for the 0.11 cleanup
 - [wfm Validation Findings](wfm-validation-findings.md) — what the exhaustive wfm/wfmgen validation pass uncovered

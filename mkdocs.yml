@@ -270,6 +270,7 @@ nav:
       - Repository Map: dev/repository-map.md
       - Adding a Module: dev/adding-a-module.md
       - Doc Examples (tested): dev/doc-examples.md
+      - Docs Conventions: dev/docs-conventions.md
       - Error Convention: dev/error-convention.md
       - "wfmgen API (0.11 cleanup)": dev/wfmgen/api.md
       - "wfm validation findings": dev/wfm-validation-findings.md

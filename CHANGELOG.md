@@ -13,16 +13,61 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+## [0.33.3] — 2026-07-12
+
 ### Added
 
+- **`jbx get-doppler`** — a one-command installer for the pre-built C
+    library (`scripts/get-doppler.sh`): resolves the latest release,
+    downloads the platform-appropriate tarball, and extracts it to a
+    prefix — no toolchain, no cloning/building doppler itself. Good
+    defaults (`$HOME/doppler`) with `--prefix`/`--version` for advanced
+    users. A previous install at the same prefix is moved aside to
+    `PREFIX/.get-doppler-backup` before a new one is extracted, restored
+    automatically if the new one fails a sanity check, and restorable any
+    time with `--restore`. Documented in `install/c.md` ahead of the
+    existing manual curl/tar steps, which stay as the fallback.
 - **Linux aarch64 C library tarball** (`doppler-X.Y.Z-linux-aarch64.tar.gz`)
     — built natively on `ubuntu-24.04-arm` (the same runner already used for
     the aarch64 Python wheel leg), closing the gap that left arm64 Linux
-    users with no pre-built C library to download: `jbx get-doppler`'s
-    platform detection was already fixed to recognize `Linux/aarch64`, but
-    no tarball existed yet to actually resolve to. `tests/install/release-smoke.sh`
-    gained a matching `Linux/aarch64` case (it had the same OS-only
-    detection bug) and now smoke-tests all three published platforms.
+    users with no pre-built C library to download via `get-doppler`.
+    `tests/install/release-smoke.sh` gained a matching `Linux/aarch64` case
+    (it had the same OS-only detection bug `get-doppler.sh` originally did)
+    and now smoke-tests all three published platforms. Verified against a
+    real build on native ARM64 hardware before merging: a genuine `ARM   aarch64` `libdoppler.so`, all expected files present, C++-free static
+    lib, and a real consumer program compiled and ran against the
+    installed prefix.
+
+### Fixed
+
+- `get-doppler.sh`'s platform detection only checked `uname -s` (OS), never
+    `uname -m` (CPU architecture) — an arm64 Linux box silently downloaded
+    the x86_64 tarball instead of erroring. Now switches on `OS/ARCH` and
+    errors clearly for any combination with no published tarball.
+
+### Docs
+
+- The homepage (`docs/index.md`) had no markdown H1, so mkdocs-material
+    filled the gap with a synthesized heading using the page's title
+    (falling back to the filename, "Index") — visible above the wordmark and
+    in the sticky header-topic bar when scrolled. The wordmark image is now
+    the H1 itself (a common mkdocs-material logo-as-title idiom): the
+    browser title and header-topic resolve cleanly with no visible or
+    duplicate text, and the page shows just the wordmark, tagline, and
+    badges below, as intended.
+
+### Changed
+
+- **jm pin 0.28.9 → 0.28.11.** Picks up gh-468 (filed this cycle): jm's
+    decl-injector had no case for a non-static, header-only, self-defining
+    module function, so it injected a redundant, malformed forward
+    declaration for `square_clip` after it was made non-static (to fix a
+    GCC `-Wstatic-in-inline` warning from a non-static `always_inline`
+    caller referencing a static callee). `native/inc/util/util_core.h`
+    comes off `status_allow` — the underlying gap is fixed, so the
+    workaround is no longer needed.
+- `pre-commit autoupdate`: ruff-pre-commit v0.15.18 → v0.15.21,
+    clang-format v22.1.5 → v22.1.8.
 
 ## [0.33.2] — 2026-07-12
 
@@ -2503,6 +2548,7 @@ ______________________________________________________________________
 [0.33.0]: https://github.com/doppler-dsp/doppler/compare/v0.32.0...v0.33.0
 [0.33.1]: https://github.com/doppler-dsp/doppler/compare/v0.33.0...v0.33.1
 [0.33.2]: https://github.com/doppler-dsp/doppler/compare/v0.33.1...v0.33.2
+[0.33.3]: https://github.com/doppler-dsp/doppler/compare/v0.33.2...v0.33.3
 [0.4.0]: https://github.com/doppler-dsp/doppler/compare/v0.3.7...v0.4.0
 [0.4.1]: https://github.com/doppler-dsp/doppler/compare/v0.4.0...v0.4.1
 [0.5.0]: https://github.com/doppler-dsp/doppler/compare/v0.4.1...v0.5.0

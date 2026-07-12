@@ -13,6 +13,52 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+## [0.33.0] — 2026-07-12
+
+### Added
+
+- **Lock-detector consistency pass across `doppler.track`/`doppler.dsss`.**
+    Every continuous tracking loop now carries the same `lockdet_core.h`
+    verify-counted decision (level + time hysteresis) behind a
+    `configure_lock`-family setter and a `.locked`-family getter:
+    - `SymbolSync` gets its **first-ever lock detector** — a Gardner-style
+        eye-opening ratio (`lock_signal`), block-averaged and sized from a
+        closed-form `(pfa, pd)` derivation (`configure_lock`), plus a raw
+        escape hatch (`configure_lock_raw`) for direct control of the
+        averaging depth, threshold, and verify counts. Empirically validated
+        by a 500,000-trial Monte Carlo harness
+        (`native/validation/symsync_lock.c`, gated in CI).
+    - `Dll` gains `configure_lock_raw()`, exposing the same raw geometry
+        control `Costas` already had, for a caller composing `Dll`+`Costas`
+        directly instead of through a higher-level object.
+    - `CarrierNda` gets `configure_lock()`/`.locked`, wrapping its existing
+        lock-signal EMA in a verify-counted decision (default `n_up=64`,
+        set from direct Monte Carlo against noise-only input — a smaller,
+        seemingly-reasonable default false-locked at a real, measured rate
+        because the underlying EMA is autocorrelated across looks).
+    - `MpskReceiver` gains a post-construction `configure_lock()` to re-tune
+        its acquisition↔tracking handover detector (previously fixed at
+        construction time only).
+    - `Despreader` gains `configure_carrier_lock()`/`configure_code_lock()`,
+        thin forwarders onto its embedded `Costas`/`Dll` loops.
+    - New guide: [Lock Detection Across `doppler.track`](https://doppler-dsp.github.io/doppler/guide/lock-detection/)
+        — the consistency table, which of the two `configure_lock` entry
+        points (derived `pfa`-style vs. raw geometry) to reach for, and two
+        standing lessons this pass surfaced (verify-count independence can
+        silently fail on a fast/correlated statistic; a magic number that
+        lands safe by accident still needs replacing and empirically
+        re-verifying, not trusted on algebra alone).
+    - New gallery page: [Full-Chain Lock-Up](https://doppler-dsp.github.io/doppler/gallery/receiver-lock/)
+        — a real, cold-started `Dll(segments=K) -> Costas -> SymbolSync`
+        chain with one shared `Telemetry` context, plotting all three loops'
+        `.locked` traces on one timeline (the real acquisition cascade:
+        code locks first, then carrier, then symbol timing).
+    - A new end-to-end test suite
+        (`src/doppler/track/tests/test_async_dsss_receiver.py`) proves the
+        `Dll(segments=K) -> Costas -> SymbolSync` composition recovers bits
+        blind (no genie carrier/timing knowledge) at a real GPS-scale link
+        budget (2.046 Mcps chip rate, 1023-chip code, 1800 bps data).
+
 ## [0.32.0] — 2026-07-11
 
 ### Added
@@ -2339,6 +2385,7 @@ ______________________________________________________________________
 [0.3.5]: https://github.com/doppler-dsp/doppler/compare/v0.3.4...v0.3.5
 [0.3.6]: https://github.com/doppler-dsp/doppler/compare/v0.3.5...v0.3.6
 [0.3.7]: https://github.com/doppler-dsp/doppler/compare/v0.3.6...v0.3.7
+[0.33.0]: https://github.com/doppler-dsp/doppler/compare/v0.32.0...v0.33.0
 [0.4.0]: https://github.com/doppler-dsp/doppler/compare/v0.3.7...v0.4.0
 [0.4.1]: https://github.com/doppler-dsp/doppler/compare/v0.4.0...v0.4.1
 [0.5.0]: https://github.com/doppler-dsp/doppler/compare/v0.4.1...v0.5.0
@@ -2351,4 +2398,4 @@ ______________________________________________________________________
 [0.7.0]: https://github.com/doppler-dsp/doppler/compare/v0.6.0...v0.7.0
 [0.8.0]: https://github.com/doppler-dsp/doppler/compare/v0.7.0...v0.8.0
 [0.9.0]: https://github.com/doppler-dsp/doppler/compare/v0.8.0...v0.9.0
-[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.28.1...HEAD
+[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.33.0...HEAD

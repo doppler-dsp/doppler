@@ -998,7 +998,7 @@ class MpskReceiver:
     pulse : Literal["iandd", "rrc"], default "iandd"
         Matched-filter shape (default MPSK_RX_PULSE_IANDD).
     rrc_beta : float, default 0.35
-        RRC roll-off in [0, 1] (default 0.35; RRC only).
+        RRC roll-off in `[0, 1]` (default 0.35; RRC only).
     rrc_span : int, default 8
         RRC one-sided span in symbols (default 8; RRC only).
     bn_carrier : float, default 0.01

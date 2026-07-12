@@ -173,3 +173,13 @@ ______________________________________________________________________
 ## Primitive
 
 ::: doppler.detection.marcum_q
+
+## Related pages
+
+<!-- related-pages:start -->
+
+**Gallery** — [Streaming Async Despreader](../gallery/async-despread.md), [Detection Theory Curves](../gallery/detection-curves.md), [Monte Carlo vs Marcum Q Theory](../gallery/detection-sim.md), [DSSS Acquisition & Despreading](../gallery/dsss-despread.md), [Lock Detection: Verify Counts + Hysteresis](../gallery/lockdet.md)
+**Guides** — [DSSS Burst Acquisition](../guide/dsss-acquisition.md), [Lock Detection Across `doppler.track`](../guide/lock-detection.md)
+**Design** — [Asynchronous symbol/code despreading](../design/async-symbol-despreader.md), [DSSS acquisition: stateless, parallel, dynamics-capable](../design/dsss-acquisition.md)
+
+<!-- related-pages:end -->

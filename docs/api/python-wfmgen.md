@@ -419,3 +419,14 @@ sweep or a Monte-Carlo campaign that re-runs one scene at many operating points
 ::: doppler.wfm.compose.Plan
 
 ::: doppler.wfm.compose.prepare
+
+## Related pages
+
+<!-- related-pages:start -->
+
+**Gallery** — [DSSS Acquisition — Pd / Pfa vs Es/N0](../gallery/dsss-acq-characterization.md), [A 5-Burst DSSS Link — wfmgen's Three Faces, the Full Receiver Chain](../gallery/dsss-burst-pipeline.md), [Gallery](../gallery/index.md), [Prepare Once, Sweep Many — the `Plan` stimulus engine](../gallery/plan.md), [type="symbols" — Bring Your Own Constellation](../gallery/symbols.md), [Composing a Scene — `.sum()`, `.add()`, and Headroom](../gallery/wfm-composition.md), [Waveform I/O — One Capture, Four Containers](../gallery/wfm-io.md), [Waveform Write — Compose, Write, Read Back](../gallery/wfm-write.md), [wfmgen — One Engine, Every Waveform](../gallery/wfmgen.md)
+**Guides** — [Real-Time Pacing & Timestamping](../guide/timing.md), [Concepts — the object model](../guide/wfmgen/concepts.md), [DSSS bursts — a burst train in one declaration](../guide/wfmgen/dsss-bursts.md), [Waveform Generator — `wfmgen`](../guide/wfmgen/index.md), [Levels & SNR](../guide/wfmgen/levels.md), [Output & containers](../guide/wfmgen/output.md), [Prepare Once, Sweep Many — the `Plan` engine](../guide/wfmgen/plan.md), [Python API](../guide/wfmgen/python.md), [Scenes — multi-segment specs](../guide/wfmgen/scenes.md), [Streaming — real-time pacing](../guide/wfmgen/streaming.md), [Waveforms](../guide/wfmgen/waveforms.md)
+**Design** — [API taxonomy: the DSP building-block hierarchy and its naming axis](../design/api-taxonomy.md), [MPSK Receiver](../design/mpsk.md), [State Serialization — the standard bytes interface](../design/state-serialization.md), [Waveform amplitude & composition](../design/wfmgen-composition.md)
+**Contributing** — [Migrate ZMQ transport → resilient NATS JetStream I/Q streaming (k8s + HPA)](../dev/nats-jetstream-transport-migration.md), [Release Checklist](../dev/release.md), [wfm / wfmgen validation findings](../dev/wfm-validation-findings.md), [wfmgen — User API: Surface, Target & Decisions](../dev/wfmgen/api.md)
+
+<!-- related-pages:end -->

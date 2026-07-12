@@ -157,3 +157,13 @@ ______________________________________________________________________
 ## Helpers
 
 ::: doppler.stream.get_timestamp_ns
+
+## Related pages
+
+<!-- related-pages:start -->
+
+**Gallery** — [Waveform I/O — One Capture, Four Containers](../gallery/wfm-io.md)
+**Design** — [Telemetry — zero-cost scalar taps for running pipelines](../design/telemetry.md)
+**Contributing** — [Migrate ZMQ transport → resilient NATS JetStream I/Q streaming (k8s + HPA)](../dev/nats-jetstream-transport-migration.md), [Streaming roadmap: resilient transport for Kubernetes](../dev/streaming-roadmap.md), [wfm / wfmgen validation findings](../dev/wfm-validation-findings.md)
+
+<!-- related-pages:end -->

@@ -108,3 +108,14 @@ g.reseed(999)
 ______________________________________________________________________
 
 ::: doppler.source.AWGN
+
+## Related pages
+
+<!-- related-pages:start -->
+
+**Gallery** — [AWGN Generator](../gallery/awgn.md), [Carrier Loop Stress](../gallery/costas.md), [Gallery](../gallery/index.md)
+**Guides** — [Waveform Generator — `wfmgen`](../guide/wfmgen/index.md), [Recipes](../guide/wfmgen/recipes.md), [Scenes — multi-segment specs](../guide/wfmgen/scenes.md)
+**Design** — [Design — pure-functional acquisition kernel (elastic fleet)](../design/acq-fn.md), [API taxonomy: the DSP building-block hierarchy and its naming axis](../design/api-taxonomy.md), [Spectral & Measurement API Map](../design/spectral-api-map.md), [State Serialization — the standard bytes interface](../design/state-serialization.md)
+**Contributing** — [Doc examples — every snippet is tested](../dev/doc-examples.md), [wfmgen — User API: Surface, Target & Decisions](../dev/wfmgen/api.md)
+
+<!-- related-pages:end -->

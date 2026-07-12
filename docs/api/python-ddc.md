@@ -390,3 +390,13 @@ size_t n_out = ddc_execute(ddc, mid, n_mid, out, num_in);
 hbdecim_cf32_destroy(hb);
 ddc_destroy(ddc);
 ```
+
+## Related pages
+
+<!-- related-pages:start -->
+
+**Gallery** — [Ddcr — Real Passband to Baseband](../gallery/ddc-fn.md)
+**Guides** — [Power Spectra & Measurements](../guide/spectral-psd.md)
+**Design** — [Design — pure-functional acquisition kernel (elastic fleet)](../design/acq-fn.md), [API taxonomy: the DSP building-block hierarchy and its naming axis](../design/api-taxonomy.md), [State Serialization — the standard bytes interface](../design/state-serialization.md)
+
+<!-- related-pages:end -->

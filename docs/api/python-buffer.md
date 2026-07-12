@@ -124,3 +124,11 @@ ______________________________________________________________________
 ______________________________________________________________________
 
 ::: doppler.buffer.I16Buffer
+
+## Related pages
+
+<!-- related-pages:start -->
+
+**Guides** — [Real-Time Pacing & Timestamping](../guide/timing.md)
+
+<!-- related-pages:end -->

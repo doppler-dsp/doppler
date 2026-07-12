@@ -356,11 +356,18 @@ jobs:
       run: uv run python scripts/check_api_docs.py
 
     - name: Check docs nav index coverage
-      # Fails if a page under docs/design/ or docs/dev/ (on disk, or listed
-      # in mkdocs.yml's nav) has no bullet in that section's index.md. Those
-      # index pages are hand-curated and have rotted twice already; this
-      # keeps the backlog at zero going forward.
+      # Fails if a page under docs/design/, docs/dev/, or docs/gallery/ (on
+      # disk, or listed in mkdocs.yml's nav) has no bullet in that section's
+      # index.md. Those index pages are hand-curated and have rotted more
+      # than once already; this keeps the backlog at zero going forward.
       run: uv run python scripts/check_nav_index.py
+
+    - name: Check related-pages drift
+      # Fails if docs/api/*.md's generated "## Related pages" block doesn't
+      # match a fresh scan of docs/gallery|guide|design|dev for a backtick
+      # or link-text mention of that page's symbols. Run
+      # `make docs-relink` locally to regenerate after adding a cross-link.
+      run: uv run python scripts/gen_related_pages.py --check
 
     - name: Check serialization stance
       # Fails if an object declares neither serializable="true" nor is opted

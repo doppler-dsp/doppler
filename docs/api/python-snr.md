@@ -64,3 +64,11 @@ ______________________________________________________________________
 ## `snr_m2m4_db_series` — sliding-window blind Es/N0
 
 ::: doppler.snr.snr_m2m4_db_series
+
+## Related pages
+
+<!-- related-pages:start -->
+
+**Gallery** — [A 5-Burst DSSS Link — wfmgen's Three Faces, the Full Receiver Chain](../gallery/dsss-burst-pipeline.md)
+
+<!-- related-pages:end -->

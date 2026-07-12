@@ -14,6 +14,12 @@ dp_foo_destroy(h);                           /* free                 */
 The master include is `doppler.h`; it pulls in every public header.
 Individual headers live under `native/inc/<module>/`.
 
+Looking for the Python API instead? See the
+[**Python API Reference**](../api/index.md) — C symbol names don't map
+1:1 to Python class names (e.g. `symsync_create`/`symsync_step` here vs.
+`track.SymbolSync` there), so this page doesn't attempt to cross-link
+by name; browse both independently.
+
 ---
 
 ## Browsing the API

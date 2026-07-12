@@ -1,7 +1,7 @@
 include = ["objects/*.toml"]
 
 [project]
-jm_version = "0.28.9"
+jm_version = "0.28.11"
 name = "doppler"
 version = "0.1.0"
 build = "cmake"
@@ -51,17 +51,13 @@ c_deps = ["hbdecim", "resamp", "wfmcompose"]
 # list. Restore these hand-fixes after every `jm apply` until fixed
 # upstream.
 #
-# util_core.h's square_clip is a module-level function (jm-401,
-# [[module.util.functions]]) with no separate _core.c — it's fully defined
-# inline in the header (JM_FORCEINLINE, header-only by design; see the
-# header's own docstring). While it was `static JM_FORCEINLINE`, jm
-# recognized the definition as satisfying the manifest. Making it non-static
-# (to fix a GCC -Wstatic-in-inline warning from a non-static always_inline
-# caller elsewhere referencing a static callee) makes `jm apply` inject a
-# redundant, malformed (wrong indent, wrong clang-format spacing) forward
-# declaration right after the definition it duplicates — the decl-injector
-# has no case for "non-static, header-only, self-defining". Filed upstream:
-# gh-468.
+# util_core.h's square_clip came OFF this list in jm 0.28.11 (gh-468):
+# jm's decl-injector previously had no case for a non-static, header-only,
+# self-defining module function (square_clip was made non-static to fix a
+# GCC -Wstatic-in-inline warning; jm then injected a redundant, malformed
+# forward declaration for it). The gh-133 check now treats `static` as
+# optional before inline/JM_FORCEINLINE, so the existing definition alone
+# satisfies the manifest again.
 status_allow = [
     "zensical.toml",
     "src/doppler/analyzer/analyzer.pyi",
@@ -72,7 +68,6 @@ status_allow = [
     "src/doppler/source/source.pyi",
     "src/doppler/accumulator/accumulator.pyi",
     "src/doppler/resample/resample.pyi",
-    "native/inc/util/util_core.h",
 ]
 
 # Benchmark only the 64k block (jm-gh-390). doppler dropped the small-block

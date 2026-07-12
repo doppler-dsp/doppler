@@ -47,7 +47,8 @@ on your hardware.
 
 ## Quick start
 
-**Python**
+**Python** — `pip install doppler-dsp` (bundles all native deps, no system
+libraries needed); see [Quick Start](quickstart.md) for the full walkthrough.
 
 ```python
 from doppler.spectral import FFT
@@ -67,9 +68,11 @@ iq = synth.steps(4096)   # complex64 ndarray
 ```
 
 **C** — the C library isn't part of the `pip install` wheel. Grab a
-[pre-built release tarball](install/c.md#install-from-a-release-tarball)
-(no toolchain needed) or [build from source](quickstart.md#build-from-source);
-either way you get `libdoppler.a`/`libdoppler.so` plus headers — see
+[pre-built release tarball](install/c.md#install-from-a-release-tarball) —
+no toolchain, no building doppler itself — and extract it to `$PREFIX`;
+you get `libdoppler.a`/`libdoppler.so` plus headers, ready to link.
+([Building from source](quickstart.md#build-from-source) instead? See
+that section — it uses `build/` tree paths, not `$PREFIX`.) See
 [C Library](install/c.md) for `find_package`/`pkg-config` integration.
 
 ```c
@@ -89,8 +92,9 @@ int main(void)
 ```
 
 ```bash
-# after `make` (from source) — see install/c.md for the tarball/pkg-config paths
-cc example.c -Inative/inc -Ibuild/native/inc build/libdoppler.a -lm -o example
+# after extracting the tarball to $PREFIX (install/c.md) --
+# find_package/pkg-config integration there too
+cc example.c -I "$PREFIX/include" "$PREFIX/lib/libdoppler.a" -lm -o example
 ```
 
 ## Build

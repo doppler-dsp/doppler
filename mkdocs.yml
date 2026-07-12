@@ -125,6 +125,7 @@ markdown_extensions:
 
 nav:
   - Home: index.md
+  - Start Here: start-here.md
   - Quick Start: quickstart.md
   - Architecture: architecture.md
   - Install:

@@ -39,9 +39,11 @@ case "$(uname -s)" in
 esac
 
 case "$(uname -s)/$(uname -m)" in
-    Linux/x86_64)  PLAT="linux-x86_64" ;;
-    Linux/aarch64) PLAT="linux-aarch64" ;;
-    Darwin/arm64)  PLAT="macos-arm64" ;;
+    Linux/x86_64)               PLAT="linux-x86_64" ;;
+    # aarch64 is the conventional Linux uname -m for this architecture, but
+    # some environments report arm64 instead -- same physical architecture.
+    Linux/aarch64|Linux/arm64)  PLAT="linux-aarch64" ;;
+    Darwin/arm64)                PLAT="macos-arm64" ;;
     *) echo "release-smoke: no published tarball for $(uname -s)/$(uname -m)" >&2; exit 2 ;;
 esac
 

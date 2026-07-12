@@ -112,7 +112,10 @@ ARCH="$(uname -m)"
 
 case "${OS}/${ARCH}" in
 Linux/x86_64) PLAT="linux-x86_64" ;;
-Linux/aarch64) PLAT="linux-aarch64" ;;
+# aarch64 is the conventional Linux uname -m for this architecture, but
+# some environments (certain distros, emulation layers) report arm64
+# instead -- same physical architecture, so accept both spellings.
+Linux/aarch64 | Linux/arm64) PLAT="linux-aarch64" ;;
 Darwin/arm64) PLAT="macos-arm64" ;;
 *)
 	echo "get-doppler: no pre-built tarball for ${OS}/${ARCH} yet -- available: linux-x86_64, linux-aarch64, macos-arm64" >&2

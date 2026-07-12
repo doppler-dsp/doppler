@@ -75,6 +75,8 @@ Add two **optional** output dimensions to the constructor; `0` means "native"
 
 C:
 
+<!-- docs-snippet: skip=API signature sketch (design spec), not a compilable usage example -->
+
 ```c
 /* ny_out/nx_out: inverse/output size; 0 => use ny/nx. Must be >= ny/nx. */
 corr2d_state_t *corr2d_create(const float complex *ref, size_t ny, size_t nx,

@@ -51,9 +51,17 @@ ______________________________________________________________________
 
 ```c
 #include <complex.h>
+#include <stdio.h>
 
-float _Complex tone = CMPLXF(0.5f, 0.866f);   /* e^{iπ/3} */
-double _Complex dc  = CMPLX(1.0, 0.0);
+int main(void)
+{
+  float _Complex tone = 0.5f + 0.866f * I;   /* e^{iπ/3} */
+  double _Complex dc  = 1.0 + 0.0 * I;
+
+  printf("tone = %.3f%+.3fi\n", crealf(tone), cimagf(tone));
+  printf("dc   = %.3f%+.3fi\n", creal(dc), cimag(dc));
+  return 0;
+}
 ```
 
 ______________________________________________________________________

@@ -64,6 +64,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "jm_perf.h" /* JM_FORCEINLINE */
+
 /* macOS uses MAP_ANON, Linux uses MAP_ANONYMOUS. Normalize to MAP_ANONYMOUS.
  */
 #if !defined(_WIN32) && !defined(MAP_ANONYMOUS) && defined(MAP_ANON)
@@ -413,8 +415,8 @@ dp__buf_free (void *addr, size_t bytes, void *handle)
    * @param n   Number of complex samples to write.                           \
    * @return true if successful, false on buffer overrun (data dropped).      \
    */                                                                         \
-  static inline bool dp_##name##_write (dp_##name##_t *ab, const type *src,   \
-                                        size_t n)                             \
+  JM_FORCEINLINE bool dp_##name##_write (dp_##name##_t *ab,                  \
+                                         const type *src, size_t n)          \
   {                                                                           \
     size_t h = DP_LOAD_RLX (&ab->head);                                       \
     size_t t = DP_LOAD_ACQ (&ab->tail);                                       \

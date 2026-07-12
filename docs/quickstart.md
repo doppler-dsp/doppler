@@ -9,9 +9,11 @@ pip install doppler-dsp
 The wheel bundles all native dependencies — no system libraries required.
 Everything under [Signal processing](#signal-processing) and
 [Streaming](#streaming) below runs against this install alone; the
-[C transmitter](#c-transmitter-python-subscriber) and anything on this page
-using the raw C API additionally need [Build from source](#build-from-source),
-called out at each point it applies.
+[C transmitter](#c-transmitter-python-subscriber) example binary needs
+[Build from source](#build-from-source), called out at each point it
+applies. Just want the C **library** itself (headers + `libdoppler.a`/`.so`,
+no example binaries)? `jbx get-doppler` grabs a pre-built release tarball
+instead — see [C Library](install/c.md#install-from-a-release-tarball).
 
 !!! tip "Optional extras"
 

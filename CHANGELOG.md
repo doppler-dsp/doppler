@@ -13,6 +13,17 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+### Added
+
+- **Linux aarch64 C library tarball** (`doppler-X.Y.Z-linux-aarch64.tar.gz`)
+    — built natively on `ubuntu-24.04-arm` (the same runner already used for
+    the aarch64 Python wheel leg), closing the gap that left arm64 Linux
+    users with no pre-built C library to download: `jbx get-doppler`'s
+    platform detection was already fixed to recognize `Linux/aarch64`, but
+    no tarball existed yet to actually resolve to. `tests/install/release-smoke.sh`
+    gained a matching `Linux/aarch64` case (it had the same OS-only
+    detection bug) and now smoke-tests all three published platforms.
+
 ## [0.33.2] — 2026-07-12
 
 ### Added

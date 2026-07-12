@@ -49,16 +49,17 @@ extern "C" {
  * hash of the source seed, the epoch, the segment/source index, and the field,
  * so `--record` stores the span (not a drawn value) and `--from-file` replays
  * the same sequence byte-for-byte. Bits 0–3 live on `wfm_source_t.ranged`;
- * bits 4–5 on `wfm_segment_t.ranged`.
+ * bits 4–6 on `wfm_segment_t.ranged`.
  */
 enum
 {
-  WFM_RANGE_FREQ        = 1u << 0, /* source.freq  → [freq, freq_hi]   */
-  WFM_RANGE_SNR         = 1u << 1, /* source.snr   → [snr, snr_hi]     */
-  WFM_RANGE_LEVEL       = 1u << 2, /* source.level → [level, level_hi] */
-  WFM_RANGE_FEND        = 1u << 3, /* source.f_end → [f_end, f_end_hi] */
-  WFM_RANGE_NUM_SAMPLES = 1u << 4, /* segment.num_samples span         */
-  WFM_RANGE_OFF_SAMPLES = 1u << 5, /* segment.off_samples span         */
+  WFM_RANGE_FREQ          = 1u << 0, /* source.freq  → [freq, freq_hi]   */
+  WFM_RANGE_SNR           = 1u << 1, /* source.snr   → [snr, snr_hi]     */
+  WFM_RANGE_LEVEL         = 1u << 2, /* source.level → [level, level_hi] */
+  WFM_RANGE_FEND          = 1u << 3, /* source.f_end → [f_end, f_end_hi] */
+  WFM_RANGE_NUM_SAMPLES   = 1u << 4, /* segment.num_samples span         */
+  WFM_RANGE_OFF_SAMPLES   = 1u << 5, /* segment.off_samples span         */
+  WFM_RANGE_DELAY_SAMPLES = 1u << 6, /* segment.delay_samples span       */
 };
 
 /**
@@ -128,14 +129,69 @@ typedef struct {
     size_t num_samples_hi; /* upper bound when WFM_RANGE_NUM_SAMPLES is set */
     size_t off_samples_hi; /* upper bound when WFM_RANGE_OFF_SAMPLES is set */
     /* Bounded instancing: play this segment `repeats` times back-to-back
-       (each instance = on-time + trailing gap) before advancing. Every
-       ranged field re-draws per instance and the AWGN is always fresh per
-       instance, while the signal (codes/payload/PN phase) stays fixed — so
-       `repeats=5` with a ranged off_samples is a 5-burst train with
+       (each instance = delay + on-time + trailing gap) before advancing.
+       Every ranged field re-draws per instance and the AWGN is always fresh
+       per instance, while the signal (codes/payload/PN phase) stays fixed —
+       so `repeats=5` with a ranged off_samples is a 5-burst train with
        jittered gaps from one declaration. 0 and 1 both mean one instance;
        instance 0 renders byte-identically to a repeats-less segment. */
     size_t repeats;
+    /* Leading gap before the on-time (samples) — "the burst arrives after a
+       delay". Ranged like off_samples (WFM_RANGE_DELAY_SAMPLES), re-drawn
+       per repeats instance, so a ranged delay is per-burst arrival jitter.
+       Inter-burst spacing composes as off(k) + delay(k+1). */
+    size_t delay_samples;
+    size_t delay_samples_hi; /* upper bound when WFM_RANGE_DELAY_SAMPLES */
+    /* Gap-noise policy for this segment's delay + trailing gap. 0 (auto,
+       the default): the gaps carry the segment's noise floor — every
+       source's additive-AWGN term keeps running (same stream, same power)
+       while the signal stops, so a noisy scene's inter-burst region is the
+       channel, not digital silence. Clean sources have no AWGN, so a clean
+       scene's gaps remain exact zeros. 1 (off): gaps are hard zeros. */
+    int gap_noise;
 } wfm_segment_t;
+
+/**
+ * @brief One rendered segment instance's exact timing: where it lands in the
+ * composed stream and how its `delay | on | off` spans divide it.
+ *
+ * Produced by wfm_compose_spans() — the deterministic replay of the ranged
+ * draws (same hash, epoch 0), so the reported positions match the rendered
+ * capture sample-for-sample without rendering anything. This is the ground
+ * truth a detector-scoring pipeline or a SigMF annotation needs: the burst
+ * (on-time) of instance k starts at `start + delay` and runs `on` samples.
+ */
+typedef struct {
+    size_t seg;      /* segment index in the spec */
+    size_t instance; /* repeats instance, 0-based */
+    size_t start;    /* absolute sample index where the instance begins */
+    size_t delay;    /* leading gap length (samples) */
+    size_t on;       /* on-time length (samples) */
+    size_t off;      /* trailing gap length (samples) */
+} wfm_span_t;
+
+/**
+ * @brief Replay the (epoch 0) instance timeline of a resolved segment list.
+ *
+ * Walks every segment's `repeats` instances, re-deriving each instance's
+ * drawn delay/on/off exactly as the streaming composer will (identical draw
+ * hash), and fills `out` with up to `cap` spans in stream order. Returns the
+ * TOTAL instance count regardless of `cap` — call once with cap 0 to size,
+ * then again with a buffer. Pass the RESOLVED segments (wfm_compose_segments()
+ * on a live composer) so intrinsic on-times (dsss) are already folded in.
+ *
+ * Assumes every segment builds: a segment that fails at render time (invalid
+ * burst geometry) degrades to its gaps only, so positions after it would
+ * shift relative to this replay.
+ *
+ * @param segs   Resolved segment array.
+ * @param n_segs Segment count.
+ * @param out    Span buffer (may be NULL when cap is 0).
+ * @param cap    Capacity of out in spans.
+ * @return Total number of instances in one pass of the spec.
+ */
+size_t wfm_compose_spans(const wfm_segment_t *segs, size_t n_segs,
+                         wfm_span_t *out, size_t cap);
 
 /**
  * @brief Resolve a segment list's noise model in place (Phase 4b).

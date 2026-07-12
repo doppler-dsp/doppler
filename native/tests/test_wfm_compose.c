@@ -1,8 +1,9 @@
 /*
  * test_wfm_compose.c — multi-segment composer (Phase B).
  *
- * Verifies segment sequencing, off-time gaps (zeros), once-through completion,
- * and repeat looping — all over the reused Phase-A synth engine.
+ * Verifies segment sequencing, gaps (noise-floor by default, zeros when
+ * clean/off), delays, once-through completion, and repeat looping — all
+ * over the reused Phase-A synth engine.
  */
 #define _GNU_SOURCE
 #include "wfm/wfm_compose.h"
@@ -918,6 +919,260 @@ main (void)
     wfm_compose_destroy (cs);
     CHECK (rtot != 3 * stot,
            "per-instance gap draws are distinct (not 3x the first)");
+
+    /* ── gap noise (gh-409): a noisy segment's trailing gap carries its
+     * noise floor — the same AWGN stream, continued — while gap_noise=off
+     * and clean scenes keep exact-zero gaps ── */
+    wfm_source_t         nsy = { .type = WFM_SYNTH_BPSK,
+                                 .snr  = 0.0, /* esno 0 dB, sps 2 → −3 dB fs */
+                                 .snr_mode  = 3,
+                                 .seed      = 21,
+                                 .sps       = 2,
+                                 .pn_length = 7 };
+    wfm_segment_t        gn  = { .sources     = &nsy,
+                                 .n_sources   = 1,
+                                 .fs          = 1e6,
+                                 .num_samples = 200,
+                                 .off_samples = 300 };
+    wfm_compose_state_t *cgn = wfm_compose_create (&gn, 1, 0, 0);
+    CHECK (cgn, "gap-noise create");
+    static float complex gna[512];
+    size_t               gt = 0;
+    while ((n = wfm_compose_execute (cgn, buf, 777)) > 0)
+      {
+        for (size_t i = 0; i < n; i++)
+          gna[gt + i] = buf[i];
+        gt += n;
+      }
+    wfm_compose_destroy (cgn);
+    CHECK (gt == 500, "gap-noise length");
+    int gap_nz = 0;
+    for (size_t i = 200; i < 500; i++)
+      gap_nz += (gna[i] != 0.0f);
+    CHECK (gap_nz > 250, "noisy gap carries noise");
+    double gp = 0;
+    for (size_t i = 200; i < 500; i++)
+      gp += creal (gna[i]) * creal (gna[i]) + cimag (gna[i]) * cimag (gna[i]);
+    gp /= 300.0;
+    double floor_p = pow (10.0, -(0.0 - 10.0 * log10 (2.0)) / 10.0);
+    CHECK (fabs (gp - floor_p) / floor_p < 0.35,
+           "gap noise power is the resolved floor");
+    /* continuity: the gap is the seamless continuation of the on-time
+     * stream — byte-identical to hand-driving the same synth. */
+    wfm_synth_state_t *ref = wfm_compose_build_synth (
+        &nsy, 1e6, 200, nsy.freq, nsy.snr, nsy.f_end, 0, 0, 0);
+    CHECK (ref, "reference synth");
+    static float complex rr[512];
+    wfm_synth_steps (ref, rr, 200);
+    wfm_synth_noise_steps (ref, rr + 200, 300);
+    wfm_synth_destroy (ref);
+    CHECK (memcmp (gna, rr, 500 * sizeof (float complex)) == 0,
+           "gap is the byte-exact continuation of the on-time noise");
+    /* the escape hatch restores hard zeros */
+    wfm_segment_t goff       = gn;
+    goff.gap_noise           = 1;
+    wfm_compose_state_t *cof = wfm_compose_create (&goff, 1, 0, 0);
+    CHECK (cof, "gap-noise off create");
+    size_t ot = 0, zeros = 1;
+    while ((n = wfm_compose_execute (cof, buf, 777)) > 0)
+      {
+        for (size_t i = 0; i < n; i++)
+          if (ot + i >= 200 && buf[i] != 0.0f)
+            zeros = 0;
+        ot += n;
+      }
+    wfm_compose_destroy (cof);
+    CHECK (ot == 500 && zeros, "gap_noise=off gap is exact zeros");
+
+    /* ── delay_samples: a leading gap — clean prefix is zeros and shifts
+     * the burst; a ranged delay re-draws per instance; the span replayer
+     * reports the rendered timeline exactly ── */
+    wfm_source_t  cln = { .type = WFM_SYNTH_TONE, .freq = 1e5, .snr = 100.0 };
+    wfm_segment_t gd  = { .sources       = &cln,
+                          .n_sources     = 1,
+                          .fs            = 1e6,
+                          .num_samples   = 100,
+                          .off_samples   = 40,
+                          .delay_samples = 60 };
+    wfm_compose_state_t *cd = wfm_compose_create (&gd, 1, 0, 0);
+    CHECK (cd, "delay create");
+    static float complex da[256];
+    size_t               dt2 = 0;
+    while ((n = wfm_compose_execute (cd, buf, 777)) > 0)
+      {
+        for (size_t i = 0; i < n; i++)
+          da[dt2 + i] = buf[i];
+        dt2 += n;
+      }
+    wfm_compose_destroy (cd);
+    CHECK (dt2 == 200, "delay + on + off length");
+    for (size_t i = 0; i < 60; i++)
+      CHECK (da[i] == 0.0f, "clean delay is zeros");
+    CHECK (da[60] != 0.0f && da[159] != 0.0f, "burst placed after delay");
+    for (size_t i = 160; i < 200; i++)
+      CHECK (da[i] == 0.0f, "clean trailing gap is zeros");
+    /* delay=0 byte-compat: same segment without delay == da shifted */
+    wfm_segment_t g0        = gd;
+    g0.delay_samples        = 0;
+    wfm_compose_state_t *c0 = wfm_compose_create (&g0, 1, 0, 0);
+    static float complex z0[256];
+    size_t               zt = 0;
+    while ((n = wfm_compose_execute (c0, buf, 777)) > 0)
+      {
+        for (size_t i = 0; i < n; i++)
+          z0[zt + i] = buf[i];
+        zt += n;
+      }
+    wfm_compose_destroy (c0);
+    CHECK (zt == 140
+               && memcmp (da + 60, z0, 140 * sizeof (float complex)) == 0,
+           "delayed burst is the delay-less render, shifted");
+    /* ranged delay × repeats: spans replay the rendered instance timeline */
+    wfm_segment_t gr2    = gd;
+    gr2.delay_samples    = 10;
+    gr2.delay_samples_hi = 90;
+    gr2.ranged           = WFM_RANGE_DELAY_SAMPLES;
+    gr2.repeats          = 3;
+    wfm_span_t spans[8];
+    size_t     nsp = wfm_compose_spans (&gr2, 1, spans, 8);
+    CHECK (nsp == 3, "three instances replayed");
+    CHECK (spans[0].delay != spans[1].delay
+               || spans[1].delay != spans[2].delay,
+           "per-instance delay draws are distinct");
+    wfm_compose_state_t *cr2      = wfm_compose_create (&gr2, 1, 0, 0);
+    size_t               rtot2    = 0;
+    size_t               first_on = 0, seen = 0;
+    while ((n = wfm_compose_execute (cr2, buf, 777)) > 0)
+      {
+        for (size_t i = 0; i < n; i++)
+          if (!seen && buf[i] != 0.0f)
+            {
+              first_on = rtot2 + i;
+              seen     = 1;
+            }
+        rtot2 += n;
+      }
+    wfm_compose_destroy (cr2);
+    size_t expect = 0;
+    for (size_t q = 0; q < 3; q++)
+      expect += spans[q].delay + spans[q].on + spans[q].off;
+    CHECK (rtot2 == expect, "rendered length == replayed span total");
+    CHECK (first_on == spans[0].delay,
+           "first burst lands where the span replay says");
+
+    /* multi-source sum: the gap accumulates every source's noise term (the
+     * resolved floor source keeps running while the cleaned signal sources
+     * contribute zero) — long gap so the SCRATCH_CAP chunking path runs. */
+    wfm_source_t mix2[2]
+        = { { .type = WFM_SYNTH_TONE, .freq = 0.05, .snr = 3.0, .seed = 5 },
+            { .type  = WFM_SYNTH_TONE,
+              .freq  = -0.1,
+              .level = -6.0,
+              .snr   = 100.0,
+              .seed  = 6 } };
+    wfm_segment_t        gsum2 = { .sources       = mix2,
+                                   .n_sources     = 2,
+                                   .fs            = 1e6,
+                                   .num_samples   = 100,
+                                   .off_samples   = 6000, /* > SCRATCH_CAP */
+                                   .delay_samples = 50 };
+    wfm_compose_state_t *cs2   = wfm_compose_create (&gsum2, 1, 0, 0);
+    CHECK (cs2, "sum gap-noise create");
+    size_t st2 = 0, nz2 = 0;
+    double sp2 = 0;
+    while ((n = wfm_compose_execute (cs2, buf, 777)) > 0)
+      {
+        for (size_t i = 0; i < n; i++)
+          {
+            size_t pos = st2 + i;
+            if (pos >= 150 && pos < 6150)
+              {
+                nz2 += (buf[i] != 0.0f);
+                sp2 += creal (buf[i]) * creal (buf[i])
+                       + cimag (buf[i]) * cimag (buf[i]);
+              }
+          }
+        st2 += n;
+      }
+    wfm_compose_destroy (cs2);
+    CHECK (st2 == 50 + 100 + 6000, "sum delay+on+off length");
+    CHECK (nz2 > 5000, "sum gap carries the resolved floor");
+    sp2 /= 6000.0;
+    /* anchor: tone at 3 dB over fs → floor power 10^(-3/10) ≈ 0.501 */
+    CHECK (fabs (sp2 - 0.501) / 0.501 < 0.35, "sum gap power ≈ floor");
+
+    /* the span replayer's ranged num_samples branch */
+    wfm_segment_t gsp  = gd;
+    gsp.num_samples    = 80;
+    gsp.num_samples_hi = 120;
+    gsp.ranged         = WFM_RANGE_NUM_SAMPLES;
+    wfm_span_t sp1[1];
+    CHECK (wfm_compose_spans (&gsp, 1, sp1, 1) == 1 && sp1[0].on >= 80
+               && sp1[0].on <= 120,
+           "spans replay a ranged on-time");
+
+    /* noise_steps guards: NULL state / zero n are no-ops */
+    wfm_synth_noise_steps (NULL, buf, 4);
+    wfm_synth_state_t *g1s = wfm_compose_build_synth (
+        &cln, 1e6, 100, cln.freq, cln.snr, cln.f_end, 0, 0, 0);
+    CHECK (g1s, "guard synth");
+    wfm_synth_noise_steps (g1s, buf, 0);
+    buf[0] = 1.0f;
+    wfm_synth_noise_steps (g1s, buf, 1); /* clean → writes exact zeros */
+    CHECK (buf[0] == 0.0f, "clean noise_steps writes zeros");
+    wfm_synth_destroy (g1s);
+
+    /* sum form emits delay/gap_noise keys too */
+    wfm_segment_t gse        = gsum2;
+    gse.gap_noise            = 1;
+    wfm_compose_state_t *cse = wfm_compose_create (&gse, 1, 0, 0);
+    CHECK (cse, "sum emit create");
+    size_t               nse = 0;
+    const wfm_segment_t *gge = wfm_compose_segments (cse, &nse, NULL, NULL);
+    char                *jse = wfm_spec_to_json (gge, 1, 0, 0, 0.0);
+    wfm_compose_destroy (cse);
+    CHECK (jse && strstr (jse, "\"sum\"") && strstr (jse, "\"delay_samples\"")
+               && strstr (jse, "\"gap_noise\""),
+           "sum form emits delay + gap_noise");
+    wfm_compose_state_t *cre2 = wfm_compose_from_json (jse);
+    free (jse);
+    CHECK (cre2, "sum delay/gap_noise json parses");
+    wfm_compose_destroy (cre2);
+
+    /* JSON: delay + gap_noise round-trip; omitted at defaults */
+    wfm_segment_t gjd        = gd;
+    gjd.gap_noise            = 1;
+    wfm_compose_state_t *cj2 = wfm_compose_create (&gjd, 1, 0, 0);
+    size_t               nj2 = 0;
+    const wfm_segment_t *gg2 = wfm_compose_segments (cj2, &nj2, NULL, NULL);
+    char                *jd  = wfm_spec_to_json (gg2, 1, 0, 0, 0.0);
+    wfm_compose_destroy (cj2);
+    CHECK (jd && strstr (jd, "\"delay_samples\"")
+               && strstr (jd, "\"gap_noise\""),
+           "delay + gap_noise keys emitted");
+    wfm_compose_state_t *jr2 = wfm_compose_from_json (jd);
+    free (jd);
+    CHECK (jr2, "delay json parses");
+    static float complex jda[256];
+    size_t               jdt = 0;
+    while ((n = wfm_compose_execute (jr2, buf, 777)) > 0)
+      {
+        for (size_t i = 0; i < n; i++)
+          jda[jdt + i] = buf[i];
+        jdt += n;
+      }
+    wfm_compose_destroy (jr2);
+    CHECK (jdt == 200 && memcmp (da, jda, 200 * sizeof (float complex)) == 0,
+           "delay json round-trip byte-identical");
+    wfm_compose_state_t *cjd = wfm_compose_create (&g0, 1, 0, 0);
+    size_t               njd = 0;
+    const wfm_segment_t *ggd = wfm_compose_segments (cjd, &njd, NULL, NULL);
+    char                *j0  = wfm_spec_to_json (ggd, 1, 0, 0, 0.0);
+    wfm_compose_destroy (cjd);
+    CHECK (j0 && !strstr (j0, "\"delay_samples\"")
+               && !strstr (j0, "\"gap_noise\""),
+           "delay + gap_noise omitted at defaults");
+    free (j0);
 
     /* JSON: repeats emitted (and only when > 1), round-trip byte-identical */
     wfm_compose_state_t *cj = wfm_compose_create (&g3, 1, 0, 0);

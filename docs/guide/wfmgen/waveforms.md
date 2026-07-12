@@ -77,58 +77,19 @@ ______________________________________________________________________
 
 ## DSSS — two-code spread-spectrum bursts
 
-A `dsss` waveform is a complete **direct-sequence spread-spectrum burst**: an
-unmodulated preamble — `acq_code` repeated `acq_reps` times, the coherent
-pull-in target a receiver's acquisition locks to — followed by the frame
-`sync | payload | CRC-16`, every frame bit spread by a **second, distinct**
-`data_code`. This is the transmit side of the
-[`BurstDemod`/`BurstDespreader`](../../api/python-dsss.md) frame contract:
-the same codes and sync word you hand to `set_preamble()`/`set_acq()` and
-`set_sync()` on receive, and the CRC-16 trailer `frame_valid` checks, are
-assembled here in one declarative source.
+A `dsss` waveform is a complete **direct-sequence spread-spectrum burst** —
+an unmodulated repeated preamble (`acq_code` × `acq_reps`) followed by the
+frame `sync | payload | CRC-16`, every frame bit spread by a second, distinct
+`data_code` — the transmit side of the
+[`BurstDemod`](../../api/python-dsss.md) frame contract. `sps` is samples per
+*chip*, `esno` refers to the outer *data* symbol, the burst length is
+intrinsic, and `repeats`/`delay_samples`/`off_samples` turn one declaration
+into a randomly-placed burst train over a continuous noise floor.
 
-```python
-import numpy as np
-from doppler.wfm import Composer, Segment
-
-rng = np.random.default_rng(0)
-burst = Segment(
-    type="dsss", fs=4e6, sps=4, seed=1,
-    snr=10.0, snr_mode="esno",                 # data-symbol Es/N0 (see below)
-    acq_code=rng.integers(0, 2, 512, dtype=np.uint8),  # preamble: code A
-    acq_reps=5,                                        # ... repeated 5x
-    data_code=rng.integers(0, 2, 50, dtype=np.uint8),  # payload: code B
-    sync=np.array([1,1,1,1,1,0,0,1,1,0,1,0,1], np.uint8),  # Barker-13
-    payload=rng.integers(0, 2, 1000, dtype=np.uint8),  # CRC-16 auto-appended
-    off_samples=(15_000, 40_000),              # trailing gap: min 15k, jittered
-    repeats=5,                                 # → a 5-burst train
-)
-x = Composer([burst]).compose()
-```
-
-Everything about the burst geometry is explicit — codes are plain 0/1 arrays
-(any length, no `2ⁿ−1` restriction), the sync word is optional, and
-`crc="none"` drops the trailer. Three semantics differ from the other types:
-
-- **`sps` is samples per *chip*.** The chips are the transmitted symbols;
-    one outer data symbol spans `len(data_code) × sps` samples.
-- **`esno` means the *data* symbol.** `snr_mode="esno"` (and `auto`) targets
-    the Es/N0 of the outer data symbol — the number a despreader's data-aided
-    estimate recovers — with the `10·log10(sf·sps)` conversion to the channel
-    applied internally. See [Levels & SNR](levels.md#snr-noise).
-- **The on-time is intrinsic.** One segment is exactly one burst
-    (`n_chips × sps` samples); `num_samples` is derived and any supplied value
-    ignored, so `--record`/`to_json()` always carry the real span.
-
-On the CLI the same burst is `--type dsss --acq-code`/`--acq-code-hex`,
-`--acq-reps`, `--data-code`/`--data-code-hex`, `--sync`, `--crc none|crc16`,
-with the payload riding the standard `--bits`/`--bits-hex`/`--bits-file`
-flags and the train sugar as `--repeats N` (see
-[Scenes § burst trains](scenes.md#burst-trains-repeats)). The
-[DSSS bursts guide](dsss-bursts.md) unpacks the declaration and decodes the
-train back through `BurstDemod`; the
-[DSSS burst pipeline gallery](../../gallery/dsss-burst-pipeline.md) is the
-full TX→RX walkthrough.
+**[DSSS bursts](dsss-bursts.md) is the full reference** — anatomy, Es/N0
+semantics, placement, ground-truth SigMF annotations, and a decode-it-back
+walkthrough. CLI flags: `--acq-code[-hex]`, `--acq-reps`,
+`--data-code[-hex]`, `--sync`, `--crc none|crc16`, payload via `--bits*`.
 
 ______________________________________________________________________
 

@@ -257,7 +257,7 @@
         },
         "off_samples": {
           "default": 0,
-          "description": "Trailing zero-gap after the segment (samples). Scalar, or a [lo, hi] pair drawn uniformly per repeat.",
+          "description": "Trailing gap after the segment (samples) — carries the segment's noise floor by default (zeros for clean scenes or gap_noise=off). Scalar, or a [lo, hi] pair drawn uniformly per repeat.",
           "oneOf": [
             { "type": "integer", "minimum": 0 },
             { "$ref": "#/$defs/count_range" }
@@ -267,7 +267,21 @@
           "type": "integer",
           "minimum": 1,
           "default": 1,
-          "description": "Play the segment this many times back-to-back (each instance = on-time + trailing gap). Ranged fields re-draw and the AWGN is fresh per instance; the signal (codes, payload, PN phase) stays fixed."
+          "description": "Play the segment this many times back-to-back (each instance = delay + on-time + trailing gap). Ranged fields re-draw and the AWGN is fresh per instance; the signal (codes, payload, PN phase) stays fixed."
+        },
+        "delay_samples": {
+          "default": 0,
+          "description": "Leading gap before the on-time (samples) — the burst arrives after this delay. Scalar, or a [lo, hi] pair drawn uniformly per instance (arrival jitter). Carries the segment's noise floor like off_samples.",
+          "oneOf": [
+            { "type": "integer", "minimum": 0 },
+            { "$ref": "#/$defs/count_range" }
+          ]
+        },
+        "gap_noise": {
+          "type": "string",
+          "enum": ["auto", "off"],
+          "default": "auto",
+          "description": "Gap policy for the segment's delay and trailing gap. auto (default): gaps carry the segment's noise floor (the sources' AWGN keeps running while the signal stops; clean scenes still get exact-zero gaps). off: gaps are hard zeros."
         },
         "level":      { "$ref": "#/$defs/source/properties/level" },
         "modulation": { "$ref": "#/$defs/source/properties/modulation" },
@@ -306,13 +320,15 @@
         },
         "off_samples": {
           "default": 0,
-          "description": "Trailing zero-gap after the segment (samples). Scalar, or a [lo, hi] pair drawn uniformly per repeat.",
+          "description": "Trailing gap after the segment (samples) — carries the segment's noise floor by default (zeros for clean scenes or gap_noise=off). Scalar, or a [lo, hi] pair drawn uniformly per repeat.",
           "oneOf": [
             { "type": "integer", "minimum": 0 },
             { "$ref": "#/$defs/count_range" }
           ]
         },
         "repeats": { "$ref": "#/$defs/inline_segment/properties/repeats" },
+        "delay_samples": { "$ref": "#/$defs/inline_segment/properties/delay_samples" },
+        "gap_noise": { "$ref": "#/$defs/inline_segment/properties/gap_noise" },
         "sum": {
           "type": "array",
           "minItems": 1,

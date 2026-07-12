@@ -316,6 +316,13 @@ def build_scene():
             "sync": SYNC.tobytes(),
             "payload": payload_bits.tobytes(),  # CRC-16 auto-appended
             "off_samples": GAPS[k],
+            # Pinned silent gaps: this walkthrough's numbers (5/5 decoded,
+            # every false alarm attributable) depend on exactly-known burst
+            # positions. The engine's default since gh-409 is gap_noise=
+            # "auto" — gaps carry the segment's noise floor, the honest
+            # capture for threshold tuning — demonstrated in the guide's
+            # DSSS bursts page.
+            "gap_noise": "off",
         }
         for k in range(N_BURSTS)
     ]

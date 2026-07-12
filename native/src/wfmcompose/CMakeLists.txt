@@ -7,6 +7,14 @@
 add_library(wfm_cjson OBJECT ${CMAKE_SOURCE_DIR}/vendor/cjson/cJSON.c)
 target_include_directories(wfm_cjson PUBLIC ${CMAKE_SOURCE_DIR}/vendor/cjson)
 
+# ── ranged-draw hash + span replayer (no deps — the writer's sidecar and the
+#    composer share one draw definition without the synth chain) ──────────────
+add_library(wfm_draw_core OBJECT
+    ${CMAKE_SOURCE_DIR}/native/src/wfm/wfm_draw.c)
+target_include_directories(wfm_draw_core PUBLIC
+    ${CMAKE_SOURCE_DIR}/native/inc
+    ${CMAKE_SOURCE_DIR}/native/inc/wfm)
+
 # ── composer + JSON spec ─────────────────────────────────────────────────────
 add_library(wfm_compose_core OBJECT
     ${CMAKE_SOURCE_DIR}/native/src/wfm/wfm_compose.c
@@ -29,7 +37,7 @@ add_executable(test_wfm_compose
     ${CMAKE_SOURCE_DIR}/native/tests/test_wfm_compose.c)
 # the composer reuses synth, which pulls in lo/awgn/pn
 target_link_libraries(test_wfm_compose PRIVATE
-    wfm_compose_core wfm_dsp_core wfm_cjson wfm_synth_core lo_core awgn_core
+    wfm_compose_core wfm_draw_core wfm_dsp_core wfm_cjson wfm_synth_core lo_core awgn_core
     pn_core fir_core
     m)
 target_include_directories(test_wfm_compose PRIVATE
@@ -41,7 +49,7 @@ add_test(NAME test_wfm_compose COMMAND test_wfm_compose)
 add_executable(test_wfm_plan
     ${CMAKE_SOURCE_DIR}/native/tests/test_wfm_plan.c)
 target_link_libraries(test_wfm_plan PRIVATE
-    wfm_compose_core wfm_dsp_core wfm_cjson wfm_synth_core lo_core awgn_core
+    wfm_compose_core wfm_draw_core wfm_dsp_core wfm_cjson wfm_synth_core lo_core awgn_core
     pn_core fir_core
     m)
 target_include_directories(test_wfm_plan PRIVATE
@@ -74,7 +82,8 @@ target_link_libraries(wfm_writer_core PUBLIC m)
 
 add_executable(test_wfm_writer
     ${CMAKE_SOURCE_DIR}/native/tests/test_wfm_writer.c)
-target_link_libraries(test_wfm_writer PRIVATE wfm_writer_core wfm_cjson m)
+target_link_libraries(test_wfm_writer PRIVATE
+    wfm_writer_core wfm_draw_core wfm_cjson m)
 target_include_directories(test_wfm_writer PRIVATE
     ${CMAKE_SOURCE_DIR}/native/inc ${CMAKE_SOURCE_DIR}/vendor/cjson)
 add_test(NAME test_wfm_writer COMMAND test_wfm_writer)
@@ -91,7 +100,7 @@ target_link_libraries(wfm_reader_core PUBLIC m)
 add_executable(test_wfm_reader
     ${CMAKE_SOURCE_DIR}/native/tests/test_wfm_reader.c)
 target_link_libraries(test_wfm_reader PRIVATE
-    wfm_reader_core wfm_writer_core wfm_cjson m)
+    wfm_reader_core wfm_writer_core wfm_draw_core wfm_cjson m)
 target_include_directories(test_wfm_reader PRIVATE
     ${CMAKE_SOURCE_DIR}/native/inc ${CMAKE_SOURCE_DIR}/vendor/cjson)
 add_test(NAME test_wfm_reader COMMAND test_wfm_reader)
@@ -139,7 +148,7 @@ if(NOT WIN32)
     add_executable(bench_wfm_writer_core
         ${CMAKE_SOURCE_DIR}/native/benchmarks/bench_wfm_writer_core.c)
     target_link_libraries(bench_wfm_writer_core PRIVATE
-        wfm_writer_core wfm_cjson m)
+        wfm_writer_core wfm_draw_core wfm_cjson m)
     target_include_directories(bench_wfm_writer_core PRIVATE
         ${CMAKE_SOURCE_DIR}/native/inc ${CMAKE_SOURCE_DIR}/native/benchmarks
         ${CMAKE_SOURCE_DIR}/vendor/cjson)
@@ -147,7 +156,7 @@ if(NOT WIN32)
     add_executable(bench_wfm_reader_core
         ${CMAKE_SOURCE_DIR}/native/benchmarks/bench_wfm_reader_core.c)
     target_link_libraries(bench_wfm_reader_core PRIVATE
-        wfm_reader_core wfm_writer_core wfm_cjson m)
+        wfm_reader_core wfm_writer_core wfm_draw_core wfm_cjson m)
     target_include_directories(bench_wfm_reader_core PRIVATE
         ${CMAKE_SOURCE_DIR}/native/inc ${CMAKE_SOURCE_DIR}/native/benchmarks
         ${CMAKE_SOURCE_DIR}/vendor/cjson)
@@ -202,7 +211,7 @@ if(NOT WIN32)
     set_target_properties(wfmgen_cli PROPERTIES OUTPUT_NAME wfmgen)
     target_link_libraries(wfmgen_cli PRIVATE
         wfmgen_core
-        wfm_compose_core wfm_writer_core wfm_sink_core timing_core wfm_cjson
+        wfm_compose_core wfm_draw_core wfm_writer_core wfm_sink_core timing_core wfm_cjson
         wfm_dsp_core wfm_synth_core lo_core awgn_core pn_core fir_core
         $<TARGET_OBJECTS:stream_core_obj>
         telemetry_core
@@ -231,6 +240,7 @@ if(NOT WIN32)
             $<TARGET_OBJECTS:wfmgen_core>
             $<TARGET_OBJECTS:wfm_sink_stub_core>
             $<TARGET_OBJECTS:wfm_compose_core>
+            $<TARGET_OBJECTS:wfm_draw_core>
             $<TARGET_OBJECTS:wfm_writer_core>
             $<TARGET_OBJECTS:wfm_cjson>)
     endforeach()

@@ -14,6 +14,7 @@ target_link_libraries(wfm_compose PRIVATE
     fir_core
     timing_core
     wfm_writer_core
+    wfm_draw_core
     wfm_cjson
     m
     Python3::NumPy)

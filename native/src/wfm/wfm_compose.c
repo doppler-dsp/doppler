@@ -2,9 +2,13 @@
  * wfm_compose.c — multi-segment waveform composer (Phase B + Phase 4a).
  *
  * A small state machine over a copied segment list. At any time the composer
- * is in one segment, in either its ON phase (summing its sources) or its OFF
- * phase (emitting zeros). When OFF drains it advances to the next segment;
- * past the last segment it loops (repeat/continuous) or finishes.
+ * is in one segment, in its DELAY phase (leading gap), ON phase (summing its
+ * sources), or OFF phase (trailing gap). Gaps carry the segment's noise
+ * floor by default (gh-409): each source's additive-AWGN term keeps running
+ * — the same stream that noises the on-time — while the signal stops, so a
+ * clean scene's gaps stay exact zeros and gap_noise=off forces zeros. When
+ * OFF drains it advances to the next segment (or `repeats` instance); past
+ * the last segment it loops (repeat/continuous) or finishes.
  *
  * A segment holds one or more sources summed at the same time. The 1-source
  * case is the original single-synth path, kept VERBATIM so its output stays
@@ -15,6 +19,7 @@
  */
 #include "wfm/wfm_compose.h"
 #include "wfm/wfm_dsp.h" /* wfm_rrc_taps / wfm_rrc_ntaps for pulse shaping */
+#include "wfm_draw.h"    /* the shared ranged-draw hash (one definition) */
 
 #include <math.h>
 #include <stdlib.h>
@@ -98,8 +103,9 @@ copy_source_arrays (wfm_source_t *dst, const wfm_source_t *src)
 
 enum
 {
+  PHASE_DELAY, /* leading gap (delay_samples) — noise floor, no signal */
   PHASE_ON,
-  PHASE_OFF,
+  PHASE_OFF, /* trailing gap (off_samples) — noise floor, no signal */
   PHASE_DONE
 };
 
@@ -130,6 +136,7 @@ struct wfm_compose_state
   size_t left;                 /* samples remaining in the current phase */
   size_t cur_num;            /* this epoch's resolved on-time (ranged/fixed) */
   size_t cur_off;            /* this epoch's resolved off-time gap */
+  size_t cur_delay;          /* this epoch's resolved leading delay */
   wfm_synth_state_t **syn;   /* active segment's synths (one per source) */
   float              *gain;  /* parallel: 10^(level/20) per source */
   size_t              n_syn; /* live synth count while ON (0 otherwise) */
@@ -148,49 +155,6 @@ stop_synths (wfm_compose_state_t *s)
         s->syn[k] = NULL;
       }
   s->n_syn = 0;
-}
-
-/* Start segment `cur` in its ON phase, creating a synth per source. On any
- * synth failure the segment is skipped to OFF (a silent gap) so one bad
- * segment can't wedge the stream. */
-/* Deterministic uniform double in [0,1) from a 64-bit key (splitmix64). The
- * same key always yields the same value, so a ranged scene replays
- * byte-for-byte from --from-file: the draw never consumes RNG state, it hashes
- * (seed, epoch, segment, source, field) afresh each time. */
-static double
-draw_u01 (uint64_t key)
-{
-  key += 0x9E3779B97F4A7C15ull;
-  key = (key ^ (key >> 30)) * 0xBF58476D1CE4E5B9ull;
-  key = (key ^ (key >> 27)) * 0x94D049BB133111EBull;
-  key ^= key >> 31;
-  return (double)(key >> 11) * (1.0 / 9007199254740992.0); /* key/2^53 */
-}
-
-/* Draw a ranged field uniformly in [lo, hi]. The key folds the source seed,
- * the repeat epoch, the segment `repeats` instance, the segment and source
- * indices, and the field id, so every ranged field draws an independent yet
- * reproducible sequence across repeats and instances. Instance 0 contributes
- * nothing to the key — a repeats-less scene draws exactly as before. */
-static double
-draw_range (uint32_t seed, unsigned epoch, size_t inst, size_t seg, size_t src,
-            unsigned field, double lo, double hi)
-{
-  uint64_t key = (uint64_t)seed * 0xD1B54A32D192ED03ull
-                 ^ ((uint64_t)epoch << 32) ^ ((uint64_t)inst << 48)
-                 ^ ((uint64_t)seg << 40) ^ ((uint64_t)src << 16)
-                 ^ ((uint64_t)field << 8);
-  return lo + (hi - lo) * draw_u01 (key);
-}
-
-/* Round a non-negative ranged draw to a sample count. */
-static size_t
-draw_samples (uint32_t seed, unsigned epoch, size_t inst, size_t seg,
-              unsigned field, size_t lo, size_t hi)
-{
-  double v
-      = draw_range (seed, epoch, inst, seg, 0, field, (double)lo, (double)hi);
-  return (size_t)(v + 0.5);
 }
 
 /* Construct + configure the synth for one resolved source: create + chirp-span
@@ -279,18 +243,23 @@ start_segment (wfm_compose_state_t *s)
    * cur_num, the trailing gap uses cur_off. A fixed segment (ranged == 0) just
    * copies the scalars, so a non-ranged scene is byte-identical to before. */
   uint32_t dseed = g->n_sources ? g->sources[0].seed : 1u;
-  s->cur_num     = (g->ranged & WFM_RANGE_NUM_SAMPLES)
-                       ? draw_samples (dseed, s->epoch, s->instance, s->cur,
-                                       WFM_RANGE_NUM_SAMPLES, g->num_samples,
-                                       g->num_samples_hi)
-                       : g->num_samples;
-  s->cur_off     = (g->ranged & WFM_RANGE_OFF_SAMPLES)
-                       ? draw_samples (dseed, s->epoch, s->instance, s->cur,
-                                       WFM_RANGE_OFF_SAMPLES, g->off_samples,
-                                       g->off_samples_hi)
-                       : g->off_samples;
-  int ok         = (s->cur_num > 0 && g->n_sources > 0);
-  s->n_syn       = 0;
+  s->cur_num   = (g->ranged & WFM_RANGE_NUM_SAMPLES)
+                     ? wfm_draw_samples (dseed, s->epoch, s->instance, s->cur,
+                                         WFM_RANGE_NUM_SAMPLES, g->num_samples,
+                                         g->num_samples_hi)
+                     : g->num_samples;
+  s->cur_off   = (g->ranged & WFM_RANGE_OFF_SAMPLES)
+                     ? wfm_draw_samples (dseed, s->epoch, s->instance, s->cur,
+                                         WFM_RANGE_OFF_SAMPLES, g->off_samples,
+                                         g->off_samples_hi)
+                     : g->off_samples;
+  s->cur_delay = (g->ranged & WFM_RANGE_DELAY_SAMPLES)
+                     ? wfm_draw_samples (dseed, s->epoch, s->instance, s->cur,
+                                         WFM_RANGE_DELAY_SAMPLES,
+                                         g->delay_samples, g->delay_samples_hi)
+                     : g->delay_samples;
+  int ok       = (s->cur_num > 0 && g->n_sources > 0);
+  s->n_syn     = 0;
   for (size_t k = 0; k < g->n_sources && ok; k++)
     {
       const wfm_source_t *src = &g->sources[k];
@@ -298,22 +267,23 @@ start_segment (wfm_compose_state_t *s)
        * field passes its scalar through unchanged. */
       double freq
           = (src->ranged & WFM_RANGE_FREQ)
-                ? draw_range (src->seed, s->epoch, s->instance, s->cur, k,
-                              WFM_RANGE_FREQ, src->freq, src->freq_hi)
+                ? wfm_draw_range (src->seed, s->epoch, s->instance, s->cur, k,
+                                  WFM_RANGE_FREQ, src->freq, src->freq_hi)
                 : src->freq;
-      double snr = (src->ranged & WFM_RANGE_SNR)
-                       ? draw_range (src->seed, s->epoch, s->instance, s->cur,
-                                     k, WFM_RANGE_SNR, src->snr, src->snr_hi)
-                       : src->snr;
+      double snr
+          = (src->ranged & WFM_RANGE_SNR)
+                ? wfm_draw_range (src->seed, s->epoch, s->instance, s->cur, k,
+                                  WFM_RANGE_SNR, src->snr, src->snr_hi)
+                : src->snr;
       double level
           = (src->ranged & WFM_RANGE_LEVEL)
-                ? draw_range (src->seed, s->epoch, s->instance, s->cur, k,
-                              WFM_RANGE_LEVEL, src->level, src->level_hi)
+                ? wfm_draw_range (src->seed, s->epoch, s->instance, s->cur, k,
+                                  WFM_RANGE_LEVEL, src->level, src->level_hi)
                 : src->level;
       double f_end
           = (src->ranged & WFM_RANGE_FEND)
-                ? draw_range (src->seed, s->epoch, s->instance, s->cur, k,
-                              WFM_RANGE_FEND, src->f_end, src->f_end_hi)
+                ? wfm_draw_range (src->seed, s->epoch, s->instance, s->cur, k,
+                                  WFM_RANGE_FEND, src->f_end, src->f_end_hi)
                 : src->f_end;
       s->gain[k] = (float)pow (10.0, level / 20.0); /* level → gain */
       /* Construct the synth through the shared SSOT (wfm_compose_build_synth):
@@ -332,23 +302,32 @@ start_segment (wfm_compose_state_t *s)
     }
   if (ok)
     {
-      s->phase = PHASE_ON;
-      s->left  = s->cur_num;
+      /* The synths stay alive through DELAY, ON, and OFF (advance() tears
+       * them down), so the leading and trailing gaps can carry each
+       * source's noise term as a seamless continuation. */
+      s->phase = s->cur_delay ? PHASE_DELAY : PHASE_ON;
+      s->left  = s->cur_delay ? s->cur_delay : s->cur_num;
     }
   else
     {
+      /* Failed segment: no live synths — the whole delay + gap span is
+       * silence (a bad segment degrades quietly, never wedges the stream).
+       */
       stop_synths (s);
       s->phase = PHASE_OFF;
-      s->left  = s->cur_off;
+      s->left  = s->cur_delay + s->cur_off;
     }
 }
 
 /* Move to the next segment, looping or finishing at the end. A `repeats=N`
  * segment first re-enters itself N times (fresh instance: new ranged draws,
- * fresh AWGN, fixed signal); 0 and 1 both mean a single instance. */
+ * fresh AWGN, fixed signal); 0 and 1 both mean a single instance. The
+ * outgoing instance's synths die here — they lived through its trailing gap
+ * so the gap could carry their noise floor. */
 static void
 advance (wfm_compose_state_t *s)
 {
+  stop_synths (s);
   const wfm_segment_t *g    = &s->segs[s->cur];
   size_t               reps = g->repeats ? g->repeats : 1;
   s->instance++;
@@ -478,6 +457,42 @@ wfm_compose_create (const wfm_segment_t *segs, size_t n_segs, int repeat,
   return s;
 }
 
+/* Render k gap samples (leading delay or trailing off-time) at out. The
+ * gap carries the segment's noise floor: every live source contributes only
+ * its additive-AWGN term, at its gain — the same streams that noise the
+ * on-time, continued (gap_noise=auto). With no live synths (failed segment)
+ * or gap_noise=off the gap is exact zeros, as before. Mirrors the ON path's
+ * 1-source / N-source split so face parity holds sample-for-sample. */
+static void
+render_gap (wfm_compose_state_t *s, float complex *out, size_t k)
+{
+  const wfm_segment_t *g = &s->segs[s->cur];
+  if (s->n_syn == 0 || g->gap_noise)
+    {
+      memset (out, 0, k * sizeof *out);
+      return;
+    }
+  if (s->n_syn == 1)
+    {
+      wfm_synth_noise_steps (s->syn[0], out, k);
+      if (s->gain[0] != 1.0f)
+        for (size_t j = 0; j < k; j++)
+          out[j] *= s->gain[0];
+      return;
+    }
+  wfm_synth_noise_steps (s->syn[0], s->scratch, k);
+  float g0 = s->gain[0];
+  for (size_t j = 0; j < k; j++)
+    out[j] = g0 * s->scratch[j];
+  for (size_t sx = 1; sx < s->n_syn; sx++)
+    {
+      wfm_synth_noise_steps (s->syn[sx], s->scratch, k);
+      float gs = s->gain[sx];
+      for (size_t j = 0; j < k; j++)
+        out[j] += gs * s->scratch[j];
+    }
+}
+
 size_t
 wfm_compose_execute (wfm_compose_state_t *state, float complex *out,
                      size_t max)
@@ -491,8 +506,8 @@ wfm_compose_execute (wfm_compose_state_t *state, float complex *out,
         {
           if (state->left == 0)
             {
-              /* ON drained → trailing off-time gap, then advance. */
-              stop_synths (state);
+              /* ON drained → trailing off-time gap (synths stay alive so
+               * the gap carries their noise floor), then advance. */
               state->phase = PHASE_OFF;
               state->left  = state->cur_off;
               continue;
@@ -542,14 +557,27 @@ wfm_compose_execute (wfm_compose_state_t *state, float complex *out,
           state->left -= k;
         }
       else
-        { /* PHASE_OFF */
+        { /* PHASE_DELAY (leading) or PHASE_OFF (trailing) gap */
           if (state->left == 0)
             {
-              advance (state);
+              if (state->phase == PHASE_DELAY)
+                {
+                  /* Delay drained → the burst itself. */
+                  state->phase = PHASE_ON;
+                  state->left  = state->cur_num;
+                }
+              else
+                advance (state);
               continue;
             }
-          out[i++] = 0.0f + 0.0f * I;
-          state->left--;
+          size_t k = max - i;
+          if (k > state->left)
+            k = state->left;
+          if (k > (size_t)SCRATCH_CAP && state->n_syn > 1)
+            k = SCRATCH_CAP; /* N-source gap accumulates via scratch */
+          render_gap (state, out + i, k);
+          i += k;
+          state->left -= k;
         }
     }
   return i;

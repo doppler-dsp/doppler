@@ -202,6 +202,17 @@ inconvenience:
     explicit fixed-gap segments as reproducible ground truth (each burst's
     seed and position pinned independently).
 
+- **(since fixed — this example drove the fix)** Inter-burst gaps were
+    hard zeros — digital silence a CFAR front-end never sees in the field
+    (the demo's blind sweep was correspondingly optimistic). Gaps now carry
+    the segment's noise floor **by default** (gh-409): the AWGN stream
+    keeps running through delay and trailing gaps while the signal stops.
+    This walkthrough pins `gap_noise="off"` so every detection is exactly
+    attributable to a known position; the guide's
+    [DSSS bursts](../guide/wfmgen/dsss-bursts.md) page demonstrates the
+    honest noisy-floor capture (and the SigMF sidecar's per-instance
+    ground-truth annotations that make scoring against it trivial).
+
 - **`Acquisition.push()`'s buffering/framing** is a ring-buffer FIFO with
     non-overlapping frames and a hardcoded 64-result-per-call cap — see
     [How `push()` actually buffers and frames samples](#how-push-actually-buffers-and-frames-samples)

@@ -14,11 +14,8 @@
 
 #include "cJSON.h"
 
-static const char *const TYPE_NAMES[]
-    = { "tone",  "noise", "pn",      "bpsk", "qpsk",
-        "chirp", "bits",  "symbols", "dsss" };
-#define N_TYPES 9
-static const char *const MODE_NAMES[]   = { "auto", "fs", "ebno", "esno" };
+#include "wfm_names.h" /* TYPE_NAMES / N_TYPES / MODE_NAMES (SSOT) */
+
 static const char *const LFSR_NAMES[]   = { "galois", "fibonacci" };
 static const char *const BITMOD_NAMES[] = { "none", "bpsk", "qpsk" };
 static const char *const PULSE_NAMES[]  = { "rect", "rrc" };
@@ -431,6 +428,12 @@ wfm_spec_to_json (const wfm_segment_t *segs, size_t n_segs, int repeat,
                             g->ranged & WFM_RANGE_OFF_SAMPLES);
           if (g->repeats > 1) /* omit at 1 so old specs are unchanged */
             cJSON_AddNumberToObject (s, "repeats", (double)g->repeats);
+          if (g->delay_samples || (g->ranged & WFM_RANGE_DELAY_SAMPLES))
+            add_num_or_range (s, "delay_samples", (double)g->delay_samples,
+                              (double)g->delay_samples_hi,
+                              g->ranged & WFM_RANGE_DELAY_SAMPLES);
+          if (g->gap_noise) /* omit at auto so old specs are unchanged */
+            cJSON_AddStringToObject (s, "gap_noise", "off");
           if (src->level != 0.0 /* omit at 0 dBFS so old specs are unchanged */
               || (src->ranged & WFM_RANGE_LEVEL))
             add_num_or_range (s, "level", src->level, src->level_hi,
@@ -452,6 +455,12 @@ wfm_spec_to_json (const wfm_segment_t *segs, size_t n_segs, int repeat,
                             g->ranged & WFM_RANGE_OFF_SAMPLES);
           if (g->repeats > 1) /* omit at 1 so old specs are unchanged */
             cJSON_AddNumberToObject (s, "repeats", (double)g->repeats);
+          if (g->delay_samples || (g->ranged & WFM_RANGE_DELAY_SAMPLES))
+            add_num_or_range (s, "delay_samples", (double)g->delay_samples,
+                              (double)g->delay_samples_hi,
+                              g->ranged & WFM_RANGE_DELAY_SAMPLES);
+          if (g->gap_noise) /* omit at auto so old specs are unchanged */
+            cJSON_AddStringToObject (s, "gap_noise", "off");
           cJSON *sum = cJSON_AddArrayToObject (s, "sum");
           for (size_t k = 0; k < g->n_sources; k++)
             {
@@ -614,21 +623,28 @@ wfm_compose_from_json (const char *json)
             goto reject;
           }
       }
-    double num_hi = 0, off_hi = 0;
-    int    rn = 0, ro = 0;
-    double n_samp = num_or_range (s, "num_samples", 0, &num_hi, &rn);
-    double o_samp = num_or_range (s, "off_samples", 0, &off_hi, &ro);
-    segs[i]       = (wfm_segment_t){
-      .sources        = srcs,
-      .n_sources      = ns,
-      .fs             = num (s, "fs", 1000000.0),
-      .num_samples    = (size_t)n_samp,
-      .off_samples    = (size_t)o_samp,
-      .ranged         = (unsigned)((rn ? WFM_RANGE_NUM_SAMPLES : 0)
-                                   | (ro ? WFM_RANGE_OFF_SAMPLES : 0)),
-      .num_samples_hi = (size_t)num_hi,
-      .off_samples_hi = (size_t)off_hi,
-      .repeats        = (size_t)num (s, "repeats", 1),
+    double      num_hi = 0, off_hi = 0, dly_hi = 0;
+    int         rn = 0, ro = 0, rd = 0;
+    double      n_samp = num_or_range (s, "num_samples", 0, &num_hi, &rn);
+    double      o_samp = num_or_range (s, "off_samples", 0, &off_hi, &ro);
+    double      d_samp = num_or_range (s, "delay_samples", 0, &dly_hi, &rd);
+    const char *gn     = cJSON_GetStringValue (
+        cJSON_GetObjectItemCaseSensitive (s, "gap_noise"));
+    segs[i] = (wfm_segment_t){
+      .sources          = srcs,
+      .n_sources        = ns,
+      .fs               = num (s, "fs", 1000000.0),
+      .num_samples      = (size_t)n_samp,
+      .off_samples      = (size_t)o_samp,
+      .ranged           = (unsigned)((rn ? WFM_RANGE_NUM_SAMPLES : 0)
+                                     | (ro ? WFM_RANGE_OFF_SAMPLES : 0)
+                                     | (rd ? WFM_RANGE_DELAY_SAMPLES : 0)),
+      .num_samples_hi   = (size_t)num_hi,
+      .off_samples_hi   = (size_t)off_hi,
+      .repeats          = (size_t)num (s, "repeats", 1),
+      .delay_samples    = (size_t)d_samp,
+      .delay_samples_hi = (size_t)dly_hi,
+      .gap_noise        = (gn && strcmp (gn, "off") == 0) ? 1 : 0,
     };
     i++;
     continue;

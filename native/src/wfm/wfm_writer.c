@@ -21,9 +21,7 @@ static const double SCALE[5] = { 0, 0, 2147483647.0, 32767.0, 127.0 };
 static const char   FMTCH[5]
     = { 'F', 'D', 'L', 'I', 'B' }; /* BLUE format char */
 
-static const char *const TYPE_NAMES[8]
-    = { "tone", "noise", "pn", "bpsk", "qpsk", "chirp", "bits", "symbols" };
-static const char *const MODE_NAMES[4] = { "auto", "fs", "ebno", "esno" };
+#include "wfm_names.h" /* TYPE_NAMES / N_TYPES / MODE_NAMES (SSOT) */
 
 struct wfm_writer
 {
@@ -375,20 +373,29 @@ wfm_sigmf_meta_json (int sample_type, int endian, double fs, double fc,
   cJSON_AddNumberToObject (cap0, "core:frequency", fc);
   cJSON_AddItemToArray (caps, cap0);
 
-  cJSON *anns  = cJSON_AddArrayToObject (root, "annotations");
-  size_t start = 0;
-  for (size_t i = 0; i < n_segs; i++)
+  cJSON *anns = cJSON_AddArrayToObject (root, "annotations");
+  /* One annotation per SOURCE per rendered INSTANCE, at the exact drawn
+   * position: wfm_compose_spans() replays the ranged draws (repeats
+   * instancing, jittered delays/gaps, intrinsic dsss on-times), so the
+   * sidecar's sample_start/sample_count are ground truth for the capture —
+   * usable directly to score a detector. (The old walker advanced by the
+   * scalar num+off once per segment: wrong for ranged scenes, blind to
+   * repeats.) */
+  size_t      n_spans = wfm_compose_spans (segs, n_segs, NULL, 0);
+  wfm_span_t *spans   = n_spans ? malloc (n_spans * sizeof *spans) : NULL;
+  if (spans)
+    (void)wfm_compose_spans (segs, n_segs, spans, n_spans);
+  for (size_t sp = 0; spans && sp < n_spans; sp++)
     {
-      const wfm_segment_t *s = &segs[i];
-      /* one annotation per source, all sharing the segment's sample span
-       * (1-source → exactly one, byte-identical to the pre-sum output). */
+      const wfm_segment_t *s     = &segs[spans[sp].seg];
+      size_t               start = spans[sp].start + spans[sp].delay;
       for (size_t k = 0; k < s->n_sources; k++)
         {
           const wfm_source_t *src = &s->sources[k];
           cJSON              *a   = cJSON_CreateObject ();
           cJSON_AddNumberToObject (a, "core:sample_start", (double)start);
           cJSON_AddNumberToObject (a, "core:sample_count",
-                                   (double)s->num_samples);
+                                   (double)spans[sp].on);
           /* Occupied band: a chirp spans f_start..f_end; a modulated source
            * (pn/bpsk/qpsk) is ~fs/sps wide about its centre; tone/noise are a
            * line at the offset. */
@@ -410,7 +417,7 @@ wfm_sigmf_meta_json (int sample_type, int endian, double fs, double fc,
               cJSON_AddNumberToObject (a, "core:freq_upper_edge",
                                        center + bw / 2.0);
             }
-          if (src->type >= 0 && src->type < 7)
+          if (src->type >= 0 && src->type < N_TYPES)
             cJSON_AddStringToObject (a, "core:label", TYPE_NAMES[src->type]);
           cJSON_AddNumberToObject (a, "wfmgen:snr", src->snr);
           if (src->snr_mode >= 0 && src->snr_mode < 4)
@@ -422,8 +429,8 @@ wfm_sigmf_meta_json (int sample_type, int endian, double fs, double fc,
           cJSON_AddNumberToObject (a, "wfmgen:pn_poly", src->pn_poly);
           cJSON_AddItemToArray (anns, a);
         }
-      start += s->num_samples + s->off_samples;
     }
+  free (spans);
 
   char *out = cJSON_PrintUnformatted (root);
   cJSON_Delete (root);

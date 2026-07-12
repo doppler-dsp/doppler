@@ -273,7 +273,14 @@ static const char USAGE[]
       "  --f-end HZ[:HZ] Chirp sweep-end frequency (chirp only)\n"
       "  --fc HZ         Centre frequency stored in SigMF metadata only\n"
       "  --count N[:N]   Samples to generate (default 1024)\n"
-      "  --off N[:N]     Trailing gap of zeros after the segment\n"
+      "  --off N[:N]     Trailing gap after the segment (carries the"
+      " noise\n"
+      "                  floor by default; zeros when clean or --gap-noise"
+      " off)\n"
+      "  --delay N[:N]   Leading gap before the burst (arrival delay /"
+      " jitter)\n"
+      "  --gap-noise M   auto | off — gaps carry the segment's noise floor\n"
+      "                  (auto, default) or stay hard zeros (off)\n"
       "  --repeats N     Play the segment N times back-to-back (ranged"
       " fields\n"
       "                  re-draw and noise is fresh per instance; signal"
@@ -757,6 +764,29 @@ doppler_wfmgen (int   argc, /* NOLINT(readability-function-size) */
         {
           REQVAL (v);
           seg.repeats = (size_t)strtoull (v, NULL, 10);
+        }
+      else if (!strcmp (a, "--delay"))
+        {
+          REQVAL (v);
+          int    rd            = 0;
+          double hi            = 0;
+          seg.delay_samples    = (size_t)parse_range (v, &hi, &rd);
+          seg.delay_samples_hi = (size_t)hi;
+          seg.ranged           = rd ? (seg.ranged | WFM_RANGE_DELAY_SAMPLES)
+                                    : (seg.ranged & ~WFM_RANGE_DELAY_SAMPLES);
+        }
+      else if (!strcmp (a, "--gap-noise"))
+        {
+          REQVAL (v);
+          if (!strcmp (v, "off"))
+            seg.gap_noise = 1;
+          else if (!strcmp (v, "auto"))
+            seg.gap_noise = 0;
+          else
+            {
+              fprintf (stderr, "wfmgen: --gap-noise must be auto|off\n");
+              return 2;
+            }
         }
       else if (!strcmp (a, "--repeat"))
         {

@@ -25,9 +25,12 @@ DDC, NATS-based signal streaming, and a scenario-driven waveform generator
 same C core — no second implementation, no divergence, full SIMD throughput
 from any language.
 
-**Navigate** — [Quick Start](quickstart.md) · [Architecture](architecture.md) · [Examples](examples/index.md) · [Guides](guide/index.md) · [Waveform Generator](guide/wfmgen/index.md)
+**New here?** Start with [Start Here](start-here.md) — a one-page map from
+"what are you trying to do" to the right doc.
 
-**API Reference** — [C API](c-api/files.md) · [Python: FFT](api/python-fft.md) · [Python: Spectral](api/python-spectral.md) · [Python: Waveform](api/python-wfmgen.md) · [Python: Resample](api/python-resample.md) · [Python: Filter](api/python-filter.md) · [Python: Measurement](api/python-measure.md) · [Python: DDC](api/python-ddc.md) · [Python: Accumulator](api/python-accumulator.md)
+**Navigate** — [Quick Start](quickstart.md) · [Architecture](architecture.md) · [Gallery](gallery/index.md) · [Examples](examples/index.md) · [Guides](guide/index.md) · [Waveform Generator](guide/wfmgen/index.md) · [Design](design/index.md) · [Contributing](dev/index.md)
+
+**API Reference** — [Full Python + C API index](api/index.md)
 
 ______________________________________________________________________
 

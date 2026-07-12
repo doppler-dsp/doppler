@@ -1,3 +1,18 @@
+/* ── Homepage wordmark heading ──────────────────────────────────────────── */
+/* docs/index.md's H1 is the wordmark image itself (no visible title text,
+   just the logo) -- center it and cap its width like the old <p align>
+   wrapper it replaced, without relying on the deprecated img align attr. */
+
+.md-typeset h1.md-home-wordmark {
+  text-align: center;
+  margin-bottom: 0.5em;
+}
+
+.md-typeset h1.md-home-wordmark img {
+  width: 560px;
+  max-width: 100%;
+}
+
 /* ── Table captions ─────────────────────────────────────────────────────── */
 
 .md-typeset figure {

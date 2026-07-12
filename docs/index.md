@@ -1,6 +1,4 @@
-<p align="center">
-  <img src="https://raw.githubusercontent.com/doppler-dsp/doppler/main/docs/assets/wordmark.png?v=3" alt="doppler — signal, shifted" width="560">
-</p>
+# ![doppler — signal, shifted](https://raw.githubusercontent.com/doppler-dsp/doppler/main/docs/assets/wordmark.png?v=3) { .md-home-wordmark }
 
 <p align="center"><strong>Practical, portable, performant digital signal processing.</strong></p>
 

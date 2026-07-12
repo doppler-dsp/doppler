@@ -13,6 +13,70 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+## [0.33.2] — 2026-07-12
+
+### Added
+
+- **C snippet testing gate** (`src/doppler/tests/test_c_doc_snippets.py`) —
+    every ```` ```c ```` fence under `docs/` is now compiled and run in CI
+    against `build/libdoppler.a` (+ `build/libdoppler_stream.a` when a
+    snippet needs the NATS wire layer), mirroring the existing Python
+    doc-snippet gate's fail-closed, discovered-not-registered philosophy.
+    Motivated by the homepage's own C "Quick start" snippet sitting broken
+    for a release: missing `#include <complex.h>`, undeclared arrays,
+    top-level statements outside `main()`. Shares include-resolution and
+    marker-parsing logic with the Python gate via a new
+    `_docs_snippet_common.py`.
+- **`jbx get-doppler`** — a one-command installer for the pre-built C
+    library (`scripts/get-doppler.sh`): resolves the latest release,
+    downloads the platform-appropriate tarball, and extracts it to a
+    prefix — no toolchain, no cloning/building doppler itself. Good
+    defaults (`$HOME/doppler`) with `--prefix`/`--version` for advanced
+    users. Documented in `install/c.md` ahead of the existing manual
+    curl/tar steps, which stay as the fallback.
+
+### Fixed
+
+- **`square_clip`/`dp_tlm_emit`/`dp_buffer_write` linkage warnings.**
+    `agc_step()` (non-static, `JM_FORCEINLINE`) called `square_clip()`
+    (`static`), tripping GCC's `-Wstatic-in-inline`; `dp_tlm_emit()` had
+    the same issue with its own callee, `DECLARE_DP_BUFFER`'s generated
+    `write()`. Both now carry `JM_FORCEINLINE`'s `always_inline` guarantee
+    instead of plain non-static `inline` — matching the pattern already
+    used by the codebase's other shared header-only helpers — which also
+    avoids the "needs an out-of-line definition somewhere" C99 pitfall a
+    plain `inline` fix would hit.
+- Running the new C-snippet gate against the real docs surfaced genuine
+    drift beyond the homepage snippet, fixed here: `fir_execute()` called
+    with 5 args (real signature takes 4); `fft_execute_inplace_cf32()`
+    called with 3 args (real signature takes 4, needs a separate output
+    buffer); `docs/api/python-ddc.md` referenced entirely fictional
+    `hbdecim_cf32_*` functions; `docs/dev/error-convention.md`'s `awgn()`
+    example was missing its include; `docs/quickstart.md`'s transmitter
+    command used an unsupported `cf32` sample type (real choices: `ci32`,
+    `cf64`); `examples/c/hbdecim_demo.c` passed an `int` for a `%zu` format
+    specifier.
+
+### Docs
+
+- Homepage/README/quickstart "Quick start" C example reworked so its
+    prose and its actual compile command agree: both now lead with the
+    pre-built tarball (`$PREFIX/include`/`$PREFIX/lib`), with
+    build-from-source called out as the alternative rather than the
+    default — the compile command previously only worked after a full
+    from-source build, exactly the friction the prose was trying to help
+    readers avoid. `README.md` and `docs/index.md` are kept from
+    diverging on "install before use" for both Python and C.
+
+### Changed
+
+- **jm pin 0.28.8 → 0.28.9.** Picks up gh-464
+    (just-buildit/just-makeit#465): `jm bench`'s display table and
+    Δ-vs-prev comparison now qualify Python benchmark names with their
+    component prefix, fixing ambiguous same-named benches colliding
+    across components (verified against a real 7-way collision on
+    `test_bench_steps_64k`).
+
 ## [0.33.1] — 2026-07-12
 
 ### Added
@@ -2427,6 +2491,7 @@ ______________________________________________________________________
 [0.3.7]: https://github.com/doppler-dsp/doppler/compare/v0.3.6...v0.3.7
 [0.33.0]: https://github.com/doppler-dsp/doppler/compare/v0.32.0...v0.33.0
 [0.33.1]: https://github.com/doppler-dsp/doppler/compare/v0.33.0...v0.33.1
+[0.33.2]: https://github.com/doppler-dsp/doppler/compare/v0.33.1...v0.33.2
 [0.4.0]: https://github.com/doppler-dsp/doppler/compare/v0.3.7...v0.4.0
 [0.4.1]: https://github.com/doppler-dsp/doppler/compare/v0.4.0...v0.4.1
 [0.5.0]: https://github.com/doppler-dsp/doppler/compare/v0.4.1...v0.5.0

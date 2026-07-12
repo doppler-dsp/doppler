@@ -5,16 +5,23 @@ Run these steps in order — each one is a gate for the next.
 
 ______________________________________________________________________
 
-## 1. Verify the tree is clean
+## 1. Confirm `main` is green and the tree is clean
+
+`main`'s required CI already ran the full suite (`test-all`'s equivalent)
+plus the docs build on every commit that landed there — step 5's PR merge
+is the real correctness gate (see the callout below), and step 7's
+`verify-ci` explicitly does **not** re-test, only confirms. Re-running
+`make test-all` / `make docs-build` locally here just repeats work CI
+already did on the exact same tree; skip it unless you have a specific
+reason to distrust CI (a suspected environment-specific flake, or extra
+confidence before an unusually disruptive release).
 
 ```sh
-git status          # nothing uncommitted
-make test-all       # C (CTest) + Python (pytest) + Rust (cargo test)
-make docs-build     # docs build clean --strict
+git status                    # nothing uncommitted
+git checkout main && git pull  # sync to the latest green main
+gh pr checks <last-merged-pr>  # spot-check CI was actually green, if in doubt
 just-makeit bench --python-only --tag vX.Y.Z   # local fallback; CI commits automatically on tag push
 ```
-
-All suites must pass. Fix failures before continuing.
 
 ______________________________________________________________________
 

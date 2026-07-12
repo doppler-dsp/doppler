@@ -17,10 +17,14 @@ build step.
     jbx get-doppler                          # extracts to $HOME/doppler
     jbx get-doppler --prefix /opt/doppler    # or a custom prefix
     jbx get-doppler --version 0.33.1         # pin a specific release
+    jbx get-doppler --restore                # roll back to the prior install
     ```
 
     Resolves the latest release, downloads the platform-appropriate tarball,
-    and extracts it — the manual steps below, in one command. Needs
+    and extracts it — the manual steps below, in one command. A previous
+    install at the same prefix is moved aside first, restored automatically
+    if the new one fails a sanity check, and restorable any time with
+    `--restore`. Needs
     [`jbx`](https://just-buildit.github.io/) (`make install-deps` bootstraps
     it, or by hand: `. <(curl -sSL https://just-buildit.github.io/get-jb.sh)`).
     Source: [`scripts/get-doppler.sh`](https://github.com/doppler-dsp/doppler/blob/main/scripts/get-doppler.sh).

@@ -1,21 +1,39 @@
 # Doc examples — every snippet is tested
 
-Every Python code example in the docs is executed in CI. This is not a
-convention you have to remember — it is **enforced by discovery**: a gate scans
-every page under `docs/` and runs its Python fences, so a new page is covered
-the moment it exists. There is no opt-in list. The gate lives in
-`src/doppler/tests/test_doc_snippets.py`; run it locally with:
+Every Python **and C** code example in the docs is executed in CI. This is not
+a convention you have to remember — it is **enforced by discovery**: a gate
+scans every page under `docs/` and runs its fences, so a new page is covered
+the moment it exists. There is no opt-in list. The Python gate lives in
+`src/doppler/tests/test_doc_snippets.py`, the C gate in
+`src/doppler/tests/test_c_doc_snippets.py` (sharing include-resolution and
+marker-parsing logic via `src/doppler/tests/_docs_snippet_common.py`); run
+either locally with:
 
 ```sh
-uv run pytest -m docs_snippets
+uv run pytest -m docs_snippets                            # both gates
+uv run pytest -m docs_snippets test_c_doc_snippets.py      # C only
 ```
+
+The C gate needs the library built first (`make build`) — it compiles each
+```` ```c ```` fence against `build/libdoppler.a` (and
+`build/libdoppler_stream.a`, when a snippet uses the `stream/stream.h` wire
+layer) with `-std=gnu99 -Wall -Wextra -Werror`, then runs the binary and
+requires exit code 0. `-Werror` means a warning is a failure here, same as
+a compile error — this is what caught the homepage's own broken C
+"Quick start" snippet (see below).
 
 ## Why
 
 Doc snippets rot silently. The quickstart once showed `HalfbandDecimator()`;
 the constructor later gained a required argument, the example started raising
 `TypeError`, and nothing noticed for weeks. Prose examples are the first thing a
-new user runs — they must always work.
+new user runs — they must always work. The homepage's own C "Quick start"
+snippet had the same problem in a different language: missing
+`#include <complex.h>`, undeclared arrays, and top-level function calls
+outside `main()` — three separate compile errors — because nothing compiled
+it. "Quick and easy" that silently doesn't compile is worse than not showing
+C at all; the C gate below closes that hole the same way the Python one
+already did.
 
 ## The four states of a fence
 
@@ -120,14 +138,33 @@ marker fails the gate), so every exclusion is reviewed in the diff:
 
 A block can also assert it raises: `<!-- docs-snippet: raises=ValueError -->`.
 
+## C fences
+
+C has no REPL and no doctest notion, so a ```` ```c ```` fence has **three**
+states instead of Python's four — no per-page shared namespace either, since
+each fence is a fully independent compile-and-run:
+
+| State       | How                                                | Proves                                                   | Use for                     |
+| ----------- | -------------------------------------------------- | -------------------------------------------------------- | --------------------------- |
+| **exec**    | plain ```` ```c ```` with its own `int main(void)` | compiles + runs, exit 0                                  | it *builds and runs*        |
+| **include** | `--8<--` from a tested `examples/c/*.c`            | byte-identical to code `make test-examples` already runs | zero drift, by construction |
+| **skip**    | `<!-- docs-snippet: skip=REASON -->`               | nothing (documents *why*)                                | —                           |
+
+The same "runnable-first" bias applies: a fragment missing `main()` or an
+`#include` is usually one edit from genuinely compiling — prefer fixing it
+over skipping. Reach for `skip=` only for what truly can't run headless (a
+blocking `recv()` waiting on a live broker/peer, or a struct-layout /
+signature-only excerpt never meant to stand alone) — same bar as Python's.
+
 ## The burn-down backlog
 
-Pages not yet brought under the gate are listed in
-`docs/.doc-snippet-ignore` — a **temporary** backlog that shrinks to empty, the
-same idiom as `docs/api/.api-coverage-ignore` and `scripts/.serializable-ignore`.
-A **new** page is never added here; it is gated on arrival. Each run prints
-`doc-snippet backlog: N page(s) not yet gated`. To retire a page, make its
-fences pass (or `skip=`-mark them with reasons) and delete its line.
+Pages not yet brought under a gate are listed in an ignore file — a
+**temporary** backlog that shrinks to empty, the same idiom as
+`docs/api/.api-coverage-ignore` and `scripts/.serializable-ignore`:
+`docs/.doc-snippet-ignore` for Python, `docs/.c-doc-snippet-ignore` for C.
+A **new** page is never added to either; it is gated on arrival. Each run
+prints `doc-snippet backlog: N page(s) not yet gated`. To retire a page, make
+its fences pass (or `skip=`-mark them with reasons) and delete its line.
 
 ## Building the docs locally (gotchas)
 

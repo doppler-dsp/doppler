@@ -204,6 +204,16 @@ jobs:
       if: matrix.python-version == '3.12'
       run: uv run python -m pytest -m docs_snippets -q src/doppler/tests/test_doc_snippets.py
 
+    - name: C doc snippet drift gate
+      # Same fail-closed philosophy, for every ```c fence in docs/: compiled
+      # and run against the freshly built build/libdoppler.a (+
+      # libdoppler_stream.a when a snippet needs the NATS wire layer).
+      # Version-independent (C, not Python), so run it once alongside the
+      # Python gate. Backlog: docs/.c-doc-snippet-ignore. See
+      # docs/dev/doc-examples.md.
+      if: matrix.python-version == '3.12'
+      run: uv run python -m pytest -m docs_snippets -q src/doppler/tests/test_c_doc_snippets.py
+
     - name: Test with coverage
       # The doc-snippet gate is version-independent and has its own step above
       # (3.12 only), so exclude it here to avoid running it on all 6 versions

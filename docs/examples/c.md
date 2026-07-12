@@ -176,16 +176,19 @@ int main(void) {
 #include <complex.h>
 #include <math.h>
 
-lo_state_t *lo = lo_create(0.1);   // base freq f_n = 0.1
+int main(void) {
+    lo_state_t *lo = lo_create(0.1);   // base freq f_n = 0.1
 
-float ctrl[1024];
-for (int i = 0; i < 1024; i++)
-    ctrl[i] = 0.002f * sinf(2.0f * (float)M_PI * 0.01f * i);
+    float ctrl[1024];
+    for (int i = 0; i < 1024; i++)
+        ctrl[i] = 0.002f * sinf(2.0f * (float)M_PI * 0.01f * i);
 
-float complex out[1024];
-lo_steps_ctrl(lo, ctrl, 1024, out);
-// base freq unchanged; reset restores clean phase
-lo_destroy(lo);
+    float complex out[1024];
+    lo_steps_ctrl(lo, ctrl, 1024, out);
+    // base freq unchanged; reset restores clean phase
+    lo_destroy(lo);
+    return 0;
+}
 ```
 
 ______________________________________________________________________
@@ -198,8 +201,11 @@ ______________________________________________________________________
 #include <awgn/awgn_core.h>
 #include <complex.h>
 
-float complex out[1024];
-awgn(0, 1.0f, 1024, out);   /* seed=0, amplitude=1.0 — 0 on success, -1 on failure */
+int main(void) {
+    float complex out[1024];
+    awgn(0, 1.0f, 1024, out);   /* seed=0, amplitude=1.0 — 0 on success, -1 on failure */
+    return 0;
+}
 ```
 
 ### Stateful generator (streaming / reproducible replay)
@@ -234,6 +240,7 @@ int main(void) {
 #include <awgn/awgn_core.h>
 #include <lo/lo_core.h>
 #include <complex.h>
+#include <stdio.h>
 
 #define N 4096
 
@@ -246,6 +253,7 @@ int main(void) {
     awgn_generate(noise, N, n);
     for (size_t i = 0; i < N; i++)
         rx[i] = carrier[i] + n[i];
+    printf("rx[0]: %.3f + %.3fi\n", crealf(rx[0]), cimagf(rx[0]));
 
     lo_destroy(lo);
     awgn_destroy(noise);
@@ -265,14 +273,17 @@ a polyphase resampler clock or generating carry events.
 ```c
 #include <nco/nco_core.h>
 
-nco_state_t *nco = nco_create(0.25, 0);  // nmax=0 → raw [0, 2^32)
+int main(void) {
+    nco_state_t *nco = nco_create(0.25, 0);  // nmax=0 → raw [0, 2^32)
 
-uint32_t phase[16];
-uint8_t  carry[16];
-nco_steps_u32_ovf(nco, 16, phase, carry);
-// carry fires at indices 3, 7, 11, 15 (once per full cycle)
+    uint32_t phase[16];
+    uint8_t  carry[16];
+    nco_steps_u32_ovf(nco, 16, phase, carry);
+    // carry fires at indices 3, 7, 11, 15 (once per full cycle)
 
-nco_destroy(nco);
+    nco_destroy(nco);
+    return 0;
+}
 ```
 
 ______________________________________________________________________
@@ -301,7 +312,7 @@ int main(void) {
     fir_state_t *fir = fir_create_real(taps, N_TAPS);
 
     float complex in[1024], out[1024];
-    fir_execute(fir, in, 1024, out, 1024);
+    fir_execute(fir, in, 1024, out);
 
     fir_destroy(fir);
     return 0;
@@ -346,17 +357,20 @@ int main(void) {
 #include <complex.h>
 #include <math.h>
 
-const size_t N = 1024;
-fft_state_t *fft = fft_create(N, -1, 1);
+int main(void) {
+    const size_t N = 1024;
+    fft_state_t *fft = fft_create(N, -1, 1);
 
-float complex in32[N], out32[N];
-for (size_t i = 0; i < N; i++)
-    in32[i] = cosf(2.0f * M_PI * 10.0f * i / N) + 0.0f * I;
+    float complex in32[N], out32[N], out32b[N];
+    for (size_t i = 0; i < N; i++)
+        in32[i] = cosf(2.0f * M_PI * 10.0f * i / N) + 0.0f * I;
 
-fft_execute_cf32(fft, in32, N, out32);    // out-of-place
-fft_execute_inplace_cf32(fft, in32, N);   // in-place
+    fft_execute_cf32(fft, in32, N, out32);           // out-of-place
+    fft_execute_inplace_cf32(fft, in32, N, out32b);  // copy in -> out32b, transform out32b
 
-fft_destroy(fft);
+    fft_destroy(fft);
+    return 0;
+}
 ```
 
 ### 2D FFT
@@ -365,15 +379,18 @@ fft_destroy(fft);
 #include "fft2d/fft2d_core.h"
 #include <complex.h>
 
-fft2d_state_t *fft2d = fft2d_create(64, 64, -1, 1);
+int main(void) {
+    fft2d_state_t *fft2d = fft2d_create(64, 64, -1, 1);
 
-double complex in2d[64 * 64], out2d[64 * 64];
-fft2d_execute_cf64(fft2d, in2d, 64 * 64, out2d);
+    double complex in2d[64 * 64], out2d[64 * 64];
+    fft2d_execute_cf64(fft2d, in2d, 64 * 64, out2d);
 
-float complex in32_2d[64 * 64], out32_2d[64 * 64];
-fft2d_execute_cf32(fft2d, in32_2d, 64 * 64, out32_2d);
+    float complex in32_2d[64 * 64], out32_2d[64 * 64];
+    fft2d_execute_cf32(fft2d, in32_2d, 64 * 64, out32_2d);
 
-fft2d_destroy(fft2d);
+    fft2d_destroy(fft2d);
+    return 0;
+}
 ```
 
 ______________________________________________________________________
@@ -469,6 +486,8 @@ ______________________________________________________________________
 Two threads in-process — producer pushes 100 batches of 1024 CF64
 samples over the NATS JetStream PUSH/PULL work-queue tier; consumer
 receives and prints power.
+
+<!-- docs-snippet: skip=illustrative excerpt (undeclared samples, needs a live NATS broker); see examples/c/pipeline_demo for the tested version -->
 
 ```c
 #include <doppler.h>

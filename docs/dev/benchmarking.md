@@ -105,6 +105,8 @@ Each `bench_<component>_core.c` uses the header-only `jm_bench.h` library
 1. **Write JSON** — `jm_bench_write_json()` computes stats and writes
     `bench_<component>_core.json` to the current working directory.
 
+<!-- docs-snippet: skip=template scaffold (placeholder <component> token), not compilable -->
+
 ```c
 #include "<component>/<component>_core.h"
 #include "jm_bench.h"
@@ -151,6 +153,8 @@ int main(void) {
 
 All functions are `static` (header-only, no link dependency).
 
+<!-- docs-snippet: skip=API signature listing, not a compilable usage example -->
+
 ```c
 /* Record ITERATIONS timing samples for one benchmark entry.
  *   name   — display name, e.g. "step" or "execute[block=1024]"
@@ -178,6 +182,8 @@ so ops still reflects input samples per second.
 For algorithms where block size or rate affects throughput (resampler,
 decimator), the convention is to call `jm_bench_add` once per
 configuration with a bracketed name:
+
+<!-- docs-snippet: skip=illustrative excerpt (bench/times/rate/block undeclared here), not standalone -->
 
 ```c
 /* "execute[rate=1.0001,block=1024]", "execute[rate=0.5000,block=65536]", … */

@@ -62,6 +62,7 @@ In **`native/src/stream/stream_core.c`**:
 
 - Convert `struct dp_ctx` to a **tagged union** (NOT a vtable — only two
     backends, thin-glue ethos):
+    <!-- docs-snippet: skip=historical migration-planning artifact; references dp_zmq_state, since fully removed -->
     ```c
     typedef enum { DP_BACKEND_ZMQ = 0, DP_BACKEND_NATS = 1 } dp_backend_t;
     struct dp_ctx {

@@ -38,19 +38,19 @@ from __future__ import annotations
 import doctest
 import io
 import os
-import re
 import signal
 import sys
 from contextlib import contextmanager
-from pathlib import Path
 
 import pytest
 
+from doppler.tests._docs_snippet_common import DOCS, iter_fences
+from doppler.tests._docs_snippet_common import (
+    resolve_snippets as _resolve_snippets,
+)
+
 os.environ.setdefault("MPLBACKEND", "Agg")  # any plotting block is headless
 
-# repo layout: .../doppler/src/doppler/tests/ -> parents[3] == repo root.
-REPO = Path(__file__).resolve().parents[3]
-DOCS = REPO / "docs"
 IGNORE_FILE = DOCS / ".doc-snippet-ignore"
 
 # Per-block wall-clock budget. Doc snippets are illustrative; anything heavy
@@ -61,46 +61,12 @@ BLOCK_TIMEOUT_S = 30
 _EXCLUDED_PARTS = frozenset({"c-api", "archive"})
 _EXCLUDED_RELPATHS = frozenset({"api.md", "benchmarks.md"})
 
-# A python/pycon fence, indent-aware: fences nested in admonitions/tabs carry a
-# leading indent that must be stripped (captured as `ind`, matched on the
-# closing fence too).
-_FENCE = re.compile(
-    r"^(?P<ind>[ \t]*)```(?P<lang>python|pycon)[^\n]*\n"
-    r"(?P<code>.*?)\n(?P=ind)```",
-    re.DOTALL | re.MULTILINE,
-)
-# A skip=/raises= opt-out, on the line (optional blank line) before a fence.
-_MARKER = re.compile(r"<!--\s*docs-snippet:\s*(.*?)\s*-->")
-
 
 def _iter_fences(text):
-    """Yield ``(marker, code)`` for each python/pycon fence, in document order.
-
-    ``marker`` is the raw ``docs-snippet:`` payload (``"skip=..."`` /
-    ``"raises=..."``) from an HTML comment immediately before the fence, or
-    ``None``. ``code`` is dedented by the fence's own indentation so it
-    compiles/execs as top-level statements.
-    """
-    for m in _FENCE.finditer(text):
-        # Marker detection is whitespace-tolerant: scan the immediately
-        # preceding non-blank line (allowing one blank line before the fence),
-        # so a marker works at column 0 or indented inside a tab block.
-        marker = None
-        for line in reversed(text[: m.start()].splitlines()[-2:]):
-            if not line.strip():
-                continue
-            hit = _MARKER.search(line)
-            if hit:
-                marker = hit.group(1)
-            break
-        ind = m.group("ind")
-        code = m.group("code")
-        if ind:
-            code = "\n".join(
-                line[len(ind) :] if line.startswith(ind) else line
-                for line in code.splitlines()
-            )
-        yield marker, code
+    """Python/pycon fences only — see ``_docs_snippet_common.iter_fences``
+    for the shared marker/dedent logic (identical between the Python and C
+    gates)."""
+    return iter_fences(text, "python|pycon")
 
 
 def _has_fences(path):
@@ -108,48 +74,6 @@ def _has_fences(path):
         return next(_iter_fences(path.read_text()), None) is not None
     except OSError:
         return False
-
-
-# pymdownx.snippets `--8<--` resolution. The docs build inlines these at build
-# time; the gate must inline them too so it runs the SAME code the reader sees
-# (otherwise a `--8<--` line would be exec'd verbatim → SyntaxError). Supports
-# `--8<-- "path"` (whole file) and `--8<-- "path:section"` (the lines between
-# `--8<-- [start:section]` / `[end:section]` markers). Paths are repo-relative
-# (base_path is "." in mkdocs.yml); the gate's cwd is a throwaway dir, so they
-# must resolve against REPO, not the cwd. This is what makes the include state
-# — the gold standard — actually testable, not just build-time sugar.
-_SNIPPET_LINE = re.compile(
-    r'^[ \t]*-{2}8<-{2}[ \t]+"(?P<path>[^":]+)(?::(?P<sec>[^"]+))?"[ \t]*$',
-    re.MULTILINE,
-)
-
-
-def _snippet_section(text, name):
-    tag = re.escape(name)
-    start = re.search(rf"-{{2}}8<-{{2}}[ \t]*\[start:{tag}\]", text)
-    end = re.search(rf"-{{2}}8<-{{2}}[ \t]*\[end:{tag}\]", text)
-    assert start and end, f"snippet region [start/end:{name}] not found"
-    body = text[start.end() : end.start()]
-    # Drop any nested marker lines; trim the blank lines around the region.
-    kept = [ln for ln in body.splitlines() if "--8<--" not in ln]
-    return "\n".join(kept).strip("\n")
-
-
-def _resolve_snippets(code, _seen=frozenset()):
-    """Inline `--8<--` includes so the gate runs the built (inlined) code."""
-    if "--8<--" not in code:
-        return code
-
-    def _repl(m):
-        rel, sec = m.group("path"), m.group("sec")
-        src = REPO / rel
-        assert src.exists(), f"snippet source not found: {rel}"
-        assert (rel, sec) not in _seen, f"recursive include: {rel}:{sec}"
-        text = src.read_text()
-        text = _snippet_section(text, sec) if sec else text
-        return _resolve_snippets(text, _seen | {(rel, sec)})
-
-    return _SNIPPET_LINE.sub(_repl, code)
 
 
 def _discover_pages():

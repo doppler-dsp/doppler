@@ -92,6 +92,8 @@ is `step()` — the scaffold generates `steps()` as an inline loop over
 `step()`, so it comes for free. Any other methods you declared via
 `just-makeit method` also need their bodies filled in.
 
+<!-- docs-snippet: skip=template scaffold (placeholder <name>/<component> tokens), not compilable -->
+
 ```c
 /* native/src/<name>/<component>_core.c */
 #include "<name>/<component>_core.h"
@@ -141,6 +143,8 @@ ______________________________________________________________________
 Open `native/tests/<name>/test_<name>.c` (generated skeleton) and add
 test cases using the [Unity](https://github.com/ThrowTheSwitch/Unity) test
 framework that the project ships:
+
+<!-- docs-snippet: skip=template scaffold (placeholder dp_mytype_* names), not compilable -->
 
 ```c
 void test_execute_passthrough(void) {

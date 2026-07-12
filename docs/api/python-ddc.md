@@ -366,28 +366,42 @@ ______________________________________________________________________
 #### Architecture A — one call
 
 ```c
-ddc_state_t *ddc = ddc_create(-0.1, 0.25);
+#include <ddc/ddc_core.h>
 
-float _Complex out[4096];
-size_t n = ddc_execute(ddc, in, 4096, out, 4096);
+int main(void)
+{
+  float _Complex in[4096]  = { 0 };   /* fill with your samples */
+  float _Complex out[4096];
 
-ddc_destroy(ddc);
+  ddc_state_t *ddc = ddc_create(-0.1, 0.25);
+  size_t n = ddc_execute(ddc, in, 4096, out, 4096);
+  (void)n;
+  ddc_destroy(ddc);
+  return 0;
+}
 ```
 
 #### Architecture B — halfband then DDC
 
+`hbdecim_create` needs real Kaiser-designed halfband taps (see
+`native/src/resample/resample_ext_extra.c` for the reference composition —
+tap design is Python-side, via `kaiser_window`), so this sketch omits that
+step to keep the shape of the composition visible:
+
+<!-- docs-snippet: skip=illustrative composition sketch; hbdecim_create needs Kaiser-designed taps (Python-side), omitted here to keep the composition shape visible -->
+
 ```c
-hbdecim_state_t *hb  = hbdecim_cf32_create();
+hbdecim_state_t *hb  = hbdecim_create(num_taps, h);   /* h: Kaiser-designed taps */
 ddc_state_t     *ddc = ddc_create(norm_freq, rate * 2.0);
 
 float _Complex mid[num_in / 2 + 32];
 float _Complex out[num_in];
 
-size_t n_mid = hbdecim_cf32_execute(hb, in, num_in, mid,
-                                    sizeof mid / sizeof mid[0]);
+size_t n_mid = hbdecim_execute(hb, in, num_in, mid,
+                               sizeof mid / sizeof mid[0]);
 size_t n_out = ddc_execute(ddc, mid, n_mid, out, num_in);
 
-hbdecim_cf32_destroy(hb);
+hbdecim_destroy(hb);
 ddc_destroy(ddc);
 ```
 

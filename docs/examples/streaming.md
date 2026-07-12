@@ -28,6 +28,8 @@ int main(void) {
 
 ### Receiver
 
+<!-- docs-snippet: skip=blocking NATS recv, needs a live transmitter + broker; covered by stream tests -->
+
 ```c
 #include <stream/stream.h>
 #include <stdio.h>
@@ -54,6 +56,8 @@ int main(void) {
 The PUSH/PULL work-queue tier is backed by NATS JetStream, so pushed
 frames survive a restart of the consumer and are load-balanced
 round-robin across every connected `Pull`.
+
+<!-- docs-snippet: skip=illustrative excerpt (undeclared samples/count), needs a live broker; see examples/c/pipeline_demo for the tested version -->
 
 ```c
 #include <stream/stream.h>
@@ -196,6 +200,8 @@ peers of the broker rather than of each other.
 nats-server -js
 ```
 
+<!-- docs-snippet: skip=illustrative fragment (no main, return values discarded); see the Transmitter/Receiver sections above for the tested versions -->
+
 ```c
 // Transmitter and receiver both connect to the local broker
 dp_pub_create("nats://127.0.0.1:4222/iq", CF64);
@@ -253,6 +259,8 @@ nats-server -js -a 0.0.0.0
 NATS is TCP-only — there is no unix-domain-socket transport — so the
 fastest same-machine path is still a loopback connection to a broker on
 `127.0.0.1`:
+
+<!-- docs-snippet: skip=illustrative fragment (no main, return values discarded); see the Transmitter/Receiver sections above for the tested versions -->
 
 ```c
 dp_pub_create("nats://127.0.0.1:4222/iq", CF64);

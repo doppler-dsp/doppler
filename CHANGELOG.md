@@ -13,6 +13,46 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+## [0.33.1] — 2026-07-12
+
+### Added
+
+- **`make install-deps`** bootstraps `jbx` (installs to `$HOME/.local/bin`
+    via the `get-jb.sh` installer, the same mechanism CI uses) if it isn't
+    already on `PATH`, then runs `jbx install-deps`. `README.md` and
+    `docs/index.md`'s Build sections now lead with it.
+
+### Docs
+
+- **Docs navigation/discoverability unification** — five phases plus two
+    follow-ons closing the "how do I find anything" gap: a CI-enforced
+    nav-index coverage gate (`scripts/check_nav_index.py`) for `design/`,
+    `dev/`, and a new `docs/gallery/index.md`; a homepage + new
+    `docs/start-here.md` entry-point fix; a generated `## Related pages`
+    cross-link block on every `docs/api/*.md` page
+    (`scripts/gen_related_pages.py`, backtick/link-text-scoped matching to
+    avoid false positives from class names that double as common English
+    words); a one-line `docs/c-api/index.md` ↔ `api/index.md` link-back;
+    and a new `docs/dev/docs-conventions.md` contributor guide explaining
+    what's generated vs. hand-owned under `docs/`.
+- **All 37 pre-existing `zensical build` warnings fixed** — two dead anchor
+    links, and ~33 `native/inc/*.h` Doxygen comments where bracket syntax
+    (`[a / b / c]*`, range notation, array-index expressions) misparsed as
+    broken markdown links once converted to markdown; fixed by
+    backtick-wrapping, matching the codebase's own already-working
+    convention elsewhere (e.g. `adc_core.h`). Regenerating `docs/c-api/` in
+    the process also caught it had drifted badly out of sync with the
+    actual header set — missing pages for `burst_despreader`, `lockdet`,
+    `telemetry`, `tlm_sink`, `snr`, and `crc16`, plus a stale page for a
+    `channel_core.h` that no longer exists.
+- Tagline refresh: "Dead-simple, ultra-fast" → "Practical, portable,
+    performant" (`README.md`, docs homepage, `pyproject.toml`,
+    `mkdocs.yml`).
+- The release checklist (`docs/dev/release.md`) no longer has step 1
+    re-run the full test suite locally — `main`'s required CI already
+    gates every merge, and the checklist's own later steps already said as
+    much.
+
 ## [0.33.0] — 2026-07-12
 
 ### Added
@@ -2386,6 +2426,7 @@ ______________________________________________________________________
 [0.3.6]: https://github.com/doppler-dsp/doppler/compare/v0.3.5...v0.3.6
 [0.3.7]: https://github.com/doppler-dsp/doppler/compare/v0.3.6...v0.3.7
 [0.33.0]: https://github.com/doppler-dsp/doppler/compare/v0.32.0...v0.33.0
+[0.33.1]: https://github.com/doppler-dsp/doppler/compare/v0.33.0...v0.33.1
 [0.4.0]: https://github.com/doppler-dsp/doppler/compare/v0.3.7...v0.4.0
 [0.4.1]: https://github.com/doppler-dsp/doppler/compare/v0.4.0...v0.4.1
 [0.5.0]: https://github.com/doppler-dsp/doppler/compare/v0.4.1...v0.5.0
@@ -2398,4 +2439,4 @@ ______________________________________________________________________
 [0.7.0]: https://github.com/doppler-dsp/doppler/compare/v0.6.0...v0.7.0
 [0.8.0]: https://github.com/doppler-dsp/doppler/compare/v0.7.0...v0.8.0
 [0.9.0]: https://github.com/doppler-dsp/doppler/compare/v0.8.0...v0.9.0
-[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.33.0...HEAD
+[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.33.1...HEAD

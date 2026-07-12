@@ -50,7 +50,7 @@ main (void)
       return 1;
     }
 
-  printf ("Decimator created: %zu taps, rate=%.1f\n\n", N_TAPS,
+  printf ("Decimator created: %zu taps, rate=%.1f\n\n", (size_t)N_TAPS,
           HalfbandDecimator_get_rate (dec));
 
   /* Complex tone at f_n = 0.125 (eighth rate — well inside passband) */

@@ -7,7 +7,7 @@
 - [Doc Examples](doc-examples.md) — every docs code snippet is discovered and tested, no opt-in list
 - [Docs Conventions](docs-conventions.md) — what's generated vs. hand-owned under `docs/`, and the nav-index/Related-pages CI gates
 - [Error Convention](error-convention.md) — how errors are returned across the C ABI
-- [wfmgen API](wfmgen/api.md) — user-facing API surface, target, and decisions for the 0.11 cleanup
+- [wfmgen API](wfmgen/api.md) — historical decision record for the 0.11.0 API cleanup + 0.23.0 ranged-fields addendum; see the [Waveform Generator guide](../guide/wfmgen/index.md) for the current surface
 - [wfm Validation Findings](wfm-validation-findings.md) — what the exhaustive wfm/wfmgen validation pass uncovered
 - [DSSS Acquisition Use Cases](dsss-use-cases.md) — the two wide-Doppler operating regimes driving the acquisition design
 - [Benchmarking](benchmarking.md) — running and interpreting benchmark results

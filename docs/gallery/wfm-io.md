@@ -123,4 +123,4 @@ for the full `Writer` / `Reader` / `read_iq` surface.
 - [Guide: Output & containers](../guide/wfmgen/output.md#containers) — the
     flag/parameter reference for the four containers shown here.
 - [Guide: Streaming](../guide/wfmgen/streaming.md) — real-time pacing for the
-    ZMQ sink used above.
+    NATS sink used above.

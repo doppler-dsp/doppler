@@ -167,9 +167,9 @@ One engine generates a single waveform, a multi-segment JSON scene, or a live
 stream — the CLI and the Python API produce byte-identical output:
 
 ```sh
-wfmgen --type qpsk --snr 12 --count 100000 -o capture.cf32              # a single waveform
-wfmgen --from-file scenario.json -o scenario.cf32                       # a multi-segment scene
-wfmgen --type qpsk --continuous --realtime --output zmq://tcp://*:5555  # stream to ZMQ
+wfmgen --type qpsk --snr 12 --count 100000 -o capture.cf32                    # a single waveform
+wfmgen --from-file scenario.json -o scenario.cf32                             # a multi-segment scene
+wfmgen --type qpsk --continuous --realtime --output nats://127.0.0.1:4222/iq  # stream to NATS
 ```
 
 See [Waveform Generator (wfmgen)](guide/wfmgen/index.md) for scenes,
@@ -293,6 +293,6 @@ ______________________________________________________________________
 - [Examples](examples/index.md): [C](examples/c.md) · [Streaming](examples/streaming.md)
 - [API reference](c-api/files.md) — full C and Python API docs
 - [Waveform Generator (wfmgen)](guide/wfmgen/index.md) — scenes, BLUE/SigMF,
-    ZMQ streaming, and the Plan sweep cache
+    NATS streaming, and the Plan sweep cache
 - [Spectrum Analyzer](specan/index.md) — specan configuration
 - [CLI & Pipelines](cli/index.md) — compose and Dopplerfile

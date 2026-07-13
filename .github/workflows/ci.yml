@@ -214,12 +214,22 @@ jobs:
       if: matrix.python-version == '3.12'
       run: uv run python -m pytest -m docs_snippets -q src/doppler/tests/test_c_doc_snippets.py
 
+    - name: Shell doc snippet drift gate
+      # Third fence class: documented CLI invocations. Every doppler /
+      # doppler-specan line in a sh/bash/console fence is parsed against
+      # the CLI's real argparse parser (build_parser()), and fences whose
+      # commands are all safe (wfmgen, cat, ...) execute end-to-end under
+      # bash -e in a throwaway cwd -- the #458 compose bugs were exactly
+      # this class. See src/doppler/tests/test_sh_doc_snippets.py.
+      if: matrix.python-version == '3.12'
+      run: uv run python -m pytest -m docs_snippets -q src/doppler/tests/test_sh_doc_snippets.py
+
     - name: Test with coverage
       # The doc-snippet gate is version-independent and has its own step above
       # (3.12 only), so exclude it here to avoid running it on all 6 versions
       # and to keep a slow/hanging snippet out of the coverage matrix.
       run: |
-        uv run pytest src/ -v -m "not docs_snippets" \
+        uv run pytest src/ -v -m "not docs_snippets and not examples" \
           --cov \
           --cov-report=term-missing \
           --cov-report=xml:coverage.xml
@@ -379,12 +389,26 @@ jobs:
       # `make docs-relink` locally to regenerate after adding a cross-link.
       run: uv run python scripts/gen_related_pages.py --check
 
-    - name: Check README quickstart drift
-      # Fails if README.md's marked Quick Start block doesn't match a fresh
-      # regeneration from docs/index.md's "## Quick start" section (the
-      # single source of truth). Run `make docs-relink` locally to
-      # regenerate after editing docs/index.md's Quick Start.
-      run: uv run python scripts/gen_readme_quickstart.py --check
+    - name: Check README sync drift
+      # Fails if README.md's marked body doesn't match a fresh regeneration
+      # from docs/index.md's readme-sync region (the single source of
+      # truth for everything below the badges). Run `make docs-relink`
+      # locally to regenerate after editing docs/index.md.
+      run: uv run python scripts/gen_readme.py --check
+
+    - name: Check install-script drift
+      # Fails if tests/install/build-*-deps.sh (rendered into
+      # docs/install/source.md and docs/quickstart.md via --8<-- includes)
+      # doesn't match a fresh projection of jb.toml's [dev.*] package
+      # lists -- jb.toml is the single source of truth for system deps.
+      # Run `make docs-relink` locally after changing jb.toml.
+      run: uv run python scripts/gen_install_scripts.py --check
+
+    - name: Check version strings in docs
+      # Fails if the current pyproject.toml version is hand-typed anywhere
+      # in README.md or hand-owned docs/ pages -- such a claim goes stale
+      # at the very next release (this rotted once in dev/wfmgen/api.md).
+      run: uv run python scripts/check_version_strings.py
 
     - name: Check serialization stance
       # Fails if an object declares neither serializable="true" nor is opted
@@ -394,7 +418,16 @@ jobs:
       run: uv run python scripts/check_serializable.py
 
     - name: Build docs
-      run: uv run zensical build
+      # --strict: any build warning (unresolved link ref, bad include)
+      # fails the job instead of scrolling past.
+      run: uv run zensical build --strict
+
+    - name: Check site internal links
+      # Walks the freshly built site/: every internal href/src must
+      # resolve to a real file, every #fragment to a real element id.
+      # Generated trees (c-api, doxygen) are linked-into but not
+      # audited. No network -- external URLs are out of scope.
+      run: uv run python scripts/check_site_links.py
 
   # ------------------------------------------------------------------
   # Docker image build + container tests

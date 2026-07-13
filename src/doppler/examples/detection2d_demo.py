@@ -60,19 +60,17 @@ Run::
 Saves detection2d_demo.png.  Runs in ~10 s.
 """
 
-import math
-
 import matplotlib
 
 matplotlib.use("Agg")
 
-import matplotlib.pyplot as plt
+# --8<-- [start:theory]
+import math
+
 import numpy as np
 
 from doppler.detection import det_dwell, det_pd, det_threshold
 from doppler.spectral import Corr2D, CorrDetector2D
-
-# ── Search grid ──────────────────────────────────────────────────────────────
 
 N_DOPPLER = 16  # Doppler search bins  (rows)
 N_CODE_PHASE = 16  # code-phase search bins (columns, = PRN length in chips)
@@ -84,8 +82,6 @@ N = N_DOPPLER * N_CODE_PHASE  # total cells
 DOPPLER_BIN_TRUE = 5  # true Doppler bin
 CODE_PHASE_BIN_TRUE = 11  # true code-phase offset (chips)
 
-# ── Detection parameters ─────────────────────────────────────────────────────
-
 SNR_DB = 3.0  # per-sample amplitude SNR (dB)
 SIGMA = 1.0  # noise std dev per real/imag component
 
@@ -96,8 +92,7 @@ MAX_DWELL = 64  # upper search limit for det_dwell()
 N_TRIALS = 3_000  # MC trials
 RNG = np.random.default_rng(0)
 
-# ── Theory: minimum dwell and CFAR threshold ─────────────────────────────────
-
+# Theory: minimum dwell and CFAR threshold.
 snr_amp = 10.0 ** (SNR_DB / 20.0)
 
 # Bonferroni correction: N cells tested per dwell → per-cell Pfa must be
@@ -128,8 +123,9 @@ print(f"Pfa_sys target  : {PFA:.0e}  →  pfa_cell = {pfa_cell:.2e}")
 print(f"                        →  η = {eta:.4f},  θ = {theta:.4f}")
 print(f"Pd target       : {PD_MIN:.2f}   →  required dwell M = {M}")
 print(f"Theory Pd @ M   : {pd_theory:.4f}  (cell: {pd_cell:.4f})")
+# --8<-- [end:theory]
 
-# ── Reference template ───────────────────────────────────────────────────────
+# --8<-- [start:reference]
 # Build a CAZAC-style (flat-spectrum) reference by assigning a random phase
 # to each 2D FFT bin and synthesizing via IFFT.  Flat spectrum → exactly
 # zero circular autocorrelation outside lag (0,0).  This prevents the
@@ -156,7 +152,7 @@ ref2d = (np.sqrt(N) * np.fft.ifft2(np.exp(1j * phases_spec))).astype(
 # σ / √(2N) per frame.  The amplitude SNR seen by det_pd is therefore:
 #     snr = A · √N / σ   →   A = snr · σ / √N
 A = snr_amp * SIGMA / math.sqrt(N)
-_ns = np.float32(SIGMA / math.sqrt(2.0))  # per-component noise std
+ns = np.float32(SIGMA / math.sqrt(2.0))  # per-component noise std
 
 
 def signal_frame() -> np.ndarray:
@@ -171,8 +167,11 @@ def signal_frame() -> np.ndarray:
     noise = (
         RNG.standard_normal((N_DOPPLER, N_CODE_PHASE))
         + 1j * RNG.standard_normal((N_DOPPLER, N_CODE_PHASE))
-    ).astype(np.complex64) * _ns
+    ).astype(np.complex64) * ns
     return sig + noise
+
+
+# --8<-- [end:reference]
 
 
 def noise_frame() -> np.ndarray:
@@ -180,7 +179,7 @@ def noise_frame() -> np.ndarray:
     return (
         RNG.standard_normal((N_DOPPLER, N_CODE_PHASE))
         + 1j * RNG.standard_normal((N_DOPPLER, N_CODE_PHASE))
-    ).astype(np.complex64) * _ns
+    ).astype(np.complex64) * ns
 
 
 # ── Acquisition surface (one trial, for the heatmap) ─────────────────────────
@@ -195,6 +194,17 @@ with Corr2D(ref2d, dwell=M) as c:
 peak_doppler, peak_code_phase = np.unravel_index(
     surf.argmax(), (N_DOPPLER, N_CODE_PHASE)
 )
+
+print(
+    f"Surface peak    : (D={peak_doppler}, CP={peak_code_phase})  "
+    f"(true ({DOPPLER_BIN_TRUE}, {CODE_PHASE_BIN_TRUE}))"
+)
+# After M coherent integrations the acquisition surface must peak
+# exactly at the injected (Doppler bin, code phase) cell.
+assert (peak_doppler, peak_code_phase) == (
+    DOPPLER_BIN_TRUE,
+    CODE_PHASE_BIN_TRUE,
+), "surface peak not at the injected cell"
 
 # ── Monte Carlo ──────────────────────────────────────────────────────────────
 # threshold=0 → always fire; apply θ in Python to build the ROC.
@@ -232,6 +242,13 @@ pfa_mc = float((noise_stats > theta).mean())
 print(f"\nMC Pd  = {pd_mc:.4f}  (theory {pd_theory:.4f})")
 print(f"MC Pfa = {pfa_mc:.4f}  (target  {PFA:.4f})")
 
+# Monte-Carlo detection probability must match the Marcum-Q system-Pd
+# prediction (MC sigma ≈ 0.005 at 3,000 trials; 0.02 is generous).
+assert abs(pd_mc - pd_theory) < 0.02, "MC Pd disagrees with theory"
+# CFAR design point: only ~3 false alarms are expected in 3,000 noise
+# trials, so allow the Poisson spread but catch a mis-set threshold.
+assert pfa_mc < 4.0 * PFA, "MC Pfa far above the CFAR design point"
+
 # ── Theory curves ────────────────────────────────────────────────────────────
 
 dwell_x = np.arange(1, min(MAX_DWELL, M * 3) + 1, dtype=int)
@@ -266,6 +283,8 @@ roc_pfa = np.array([(noise_stats > t).mean() for t in thresholds])
 roc_pd = np.array([(sig_stats > t).mean() for t in thresholds])
 
 # ── Plot ─────────────────────────────────────────────────────────────────────
+
+import matplotlib.pyplot as plt  # noqa: E402 — after the gated compute
 
 fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(14, 4.5))
 fig.suptitle(

@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import sys
 
+# --8<-- [start:loop]
 import numpy as np
 
 from doppler.track import Dll
@@ -28,20 +29,30 @@ OFFSET = 0.5  # initial replica offset, chips
 DELTA = 2e-4  # code Doppler (chip rate error)
 BN = 0.004  # loop noise bandwidth
 
+# code: 0/1 chips for one period, and its +1/-1 spreading signs.
+code = np.random.default_rng(1).integers(0, 2, SF).astype(np.uint8)
+csign = np.where(code & 1, -1.0, 1.0)
 
-def _signal(code, seed=0):
-    """Carrier-free PN-spread BPSK at code rate (1+DELTA), data per period."""
-    rng = np.random.default_rng(seed)
-    n = SF * SPS * NPER
-    rx = np.empty(n, np.complex64)
-    cph = 0.0
-    for p in range(NPER):
-        data = 1 if rng.integers(0, 2) else -1
-        for i in range(SF * SPS):
-            idx = int(cph % SF)
-            rx[p * SF * SPS + i] = data * (-1.0 if code[idx] & 1 else 1.0)
-            cph += (1 + DELTA) / SPS
-    return rx
+# Carrier-wiped PN-spread BPSK whose chip clock runs (1 + DELTA) fast,
+# with one random BPSK data sign per code period.
+rng = np.random.default_rng(9)
+data = rng.integers(0, 2, NPER) * 2 - 1
+cph = np.arange(SF * SPS * NPER) * (1 + DELTA) / SPS  # running chip phase
+rx = (np.repeat(data, SF * SPS) * csign[(cph % SF).astype(int)]).astype(
+    np.complex64
+)
+
+# The replica starts OFFSET chips off; the loop pulls in, then tracks.
+d = Dll(code, sps=SPS, init_chip=OFFSET, bn=BN, zeta=0.707, spacing=0.5)
+symbols = d.steps(rx)  # one prompt symbol per code period
+rate = d.code_rate  # tracked chip rate (1.0 + code Doppler)
+phase = d.code_phase  # tracked code phase (chips)
+# --8<-- [end:loop]
+
+# The narrative run above must land on the true incoming chip rate —
+# the same physics the per-period sweep asserts in detail in main().
+assert abs(rate - (1.0 + DELTA)) < 0.1 * DELTA, "DLL missed the true rate"
+assert d.locked, "DLL lock detector never declared lock"
 
 
 def main(out_path="dll_demo.png"):
@@ -50,9 +61,9 @@ def main(out_path="dll_demo.png"):
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
-    code = np.random.default_rng(1).integers(0, 2, SF).astype(np.uint8)
-    rx = _signal(code, seed=9)
-    d = Dll(code, SPS, OFFSET, BN, 0.707, 0.5)
+    # A fresh loop over the same signal, sampled once per code period so
+    # the pull-in transient and the locked floor can be plotted.
+    d = Dll(code, sps=SPS, init_chip=OFFSET, bn=BN, zeta=0.707, spacing=0.5)
 
     n_per = SF * SPS
     rate = np.empty(NPER)
@@ -61,6 +72,22 @@ def main(out_path="dll_demo.png"):
         d.steps(rx[p * n_per : (p + 1) * n_per])
         rate[p] = d.code_rate
         stress[p] = d.last_error
+
+    # ── self-validation: the demo's physics, asserted ────────────────────
+    # After pull-in the loop must sit on the true incoming chip rate; the
+    # tail error is a small fraction of the injected code Doppler itself.
+    tail = slice(NPER - 200, None)
+    rate_err = abs(float(np.mean(rate[tail])) - (1.0 + DELTA))
+    print(f"tail code-rate error {rate_err:.2e} (code Doppler {DELTA:.0e})")
+    assert rate_err < 0.1 * DELTA, "DLL did not settle on the true rate"
+    assert d.locked, "DLL lock detector never declared lock"
+    # The half-chip pull-in must show as a large early E-minus-L swing
+    # that decays to a low locked discriminator floor.
+    head_rms = float(np.sqrt(np.mean(stress[:50] ** 2)))
+    tail_rms = float(np.sqrt(np.mean(stress[tail] ** 2)))
+    print(f"discriminator RMS: pull-in {head_rms:.3f} -> floor {tail_rms:.3f}")
+    assert head_rms > 0.3, "no pull-in transient — replica already aligned?"
+    assert tail_rms < 0.12, "locked discriminator floor too high"
 
     t = np.arange(NPER)
     fig, (a, b) = plt.subplots(2, 1, figsize=(9, 6), sharex=True)

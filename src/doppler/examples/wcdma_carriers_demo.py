@@ -32,50 +32,33 @@ import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+
+# --8<-- [start:carrier]
 import numpy as np
 
-from doppler.accumulator import AccTrace
-from doppler.spectral import FFT, PSD, kaiser_window
+from doppler.spectral import PSD
 from doppler.wfm import Composer, Segment, noise, qpsk
 
-# ── scene parameters ────────────────────────────────────────────────────────
-FS = 30.72e6  # 8 x 3.84 Mcps — a standard WCDMA capture rate
-CHIP_RATE = 3.84e6  # WCDMA downlink chip rate
-SPS = round(FS / CHIP_RATE)  # 8 samples/chip
-RRC_BETA = 0.22  # WCDMA root-raised-cosine roll-off
-RRC_SPAN = 8  # RRC support, ±8 symbols
-CH_BW = 5.0e6  # nominal 5 MHz channel spacing
-NFFT = 4096  # FFT / PSD frame size
-N_FRAMES = 96  # frames to average
-KAISER_BETA = 12.0  # ~ -90 dB sidelobes: resolves the -10 dB carrier
-
-# Four carriers: (center frequency Hz, level dBFS).
-CARRIERS = [
-    (-7.5e6, 0.0),
-    (-2.5e6, -3.0),
-    (2.5e6, -6.0),
-    (7.5e6, -10.0),
-]
-FLOOR_DBFS = -70.0  # AWGN floor, well below the weakest (-10 dBFS) carrier
+FS, SPS = 30.72e6, 8  # 8 samples / 3.84 Mcps chip
 
 
-def _rrc_carrier(fc: float, level: float, seed: int, n: int) -> np.ndarray:
+def rrc_carrier(fc, level, seed, n):
     """One RRC-shaped WCDMA carrier at offset ``fc``, scaled to ``level`` dBFS.
 
     Straight from doppler's waveform generator: ``qpsk(pulse="rrc")``
-    band-limits the QPSK chips with a root-raised-cosine pulse (WCDMA
-    roll-off 0.22) — the shaping the default sample-and-hold QPSK does
-    not do — and ``freq=fc`` mixes
-    the carrier to its channel centre, all in the C engine. The RRC taps are
-    unit-transmit-power scaled, so the carrier is already unit power and the
-    ``level`` factor lets ``band_power`` read the level directly.
+    band-limits the QPSK chips with a root-raised-cosine pulse (0.22 is
+    the WCDMA roll-off) — the shaping the default sample-and-hold QPSK
+    does not do — and ``freq=fc`` mixes the carrier to its channel
+    centre, all in the C engine. The RRC taps are unit-transmit-power
+    scaled, so the carrier is already unit power and the ``level``
+    factor lets ``band_power`` read the level directly.
     """
     sig = (
         qpsk(
             sps=SPS,
             pulse="rrc",
-            rrc_beta=RRC_BETA,
-            rrc_span=RRC_SPAN,
+            rrc_beta=0.22,
+            rrc_span=8,
             freq=fc,
             fs=FS,
             seed=seed,
@@ -83,52 +66,62 @@ def _rrc_carrier(fc: float, level: float, seed: int, n: int) -> np.ndarray:
         .steps(n)
         .astype(np.complex64)
     )
-    return (sig * 10.0 ** (level / 20.0)).astype(np.complex64)
+    return sig * 10.0 ** (level / 20.0)  # unit power -> level (dBFS)
 
 
-def build_scene() -> np.ndarray:
-    """Build the 4-carrier scene from doppler's generator + RRC shaping.
+# --8<-- [end:carrier]
 
-    Four RRC-shaped QPSK carriers (see :func:`_rrc_carrier`) summed over a
-    composed AWGN floor. The floor is produced by the same waveform generator
-    (a ``noise`` synth at ``FLOOR_DBFS`` through ``Composer``) so signal and
-    noise share the 0 dBFS = unit-power reference.
-    """
-    n = NFFT * N_FRAMES
-    scene = np.zeros(n, dtype=np.complex64)
-    for i, (fc, lvl) in enumerate(CARRIERS):
-        scene += _rrc_carrier(fc, lvl, 10 + i, n)
+# --8<-- [start:scene]
+NFFT, N_FRAMES = 4096, 96  # PSD frame size x frames to average
+CARRIERS = [  # (channel centre Hz, level dBFS)
+    (-7.5e6, 0.0),
+    (-2.5e6, -3.0),
+    (2.5e6, -6.0),
+    (7.5e6, -10.0),
+]
 
-    floor = Composer(
-        Segment.sum(noise(level=FLOOR_DBFS), num_samples=n, fs=FS)
-    ).compose()
-    return (scene + floor[:n]).astype(np.complex64)
+# Sum the four carriers into one scene, over a composed AWGN floor at
+# -70 dBFS (well below the weakest carrier) so noise_floor()/snr() have
+# a real floor to measure. The noise synth shares the generator's
+# 0 dBFS = unit-power reference.
+n = NFFT * N_FRAMES
+scene = np.zeros(n, dtype=np.complex64)
+for i, (fc, lvl) in enumerate(CARRIERS):
+    scene += rrc_carrier(fc, lvl, 10 + i, n)
+floor = Composer(
+    Segment.sum(noise(level=-70.0), num_samples=n, fs=FS)
+).compose()
+scene = (scene + floor[:n]).astype(np.complex64)
 
+w = PSD(n=NFFT, fs=FS, window="kaiser", beta=12.0, mode="mean")
+w.accumulate(scene)  # folds all 96 frames into the average
 
-def channel_edges() -> np.ndarray:
-    """Flat [lo0, hi0, lo1, hi1, ...] channel edges in Hz for band_power."""
-    edges = []
-    for fc, _ in CARRIERS:
-        edges += [fc - CH_BW / 2, fc + CH_BW / 2]
-    return np.array(edges, dtype=np.float64)
+edges = np.array(  # [lo0, hi0, lo1, hi1, ...] channel edges, Hz
+    [-10e6, -5e6, -5e6, 0, 0, 5e6, 5e6, 10e6], dtype=np.float64
+)
+band_db = np.array(w.band_power(edges))  # per-channel power, dB
+total_db = w.total_band_power(edges)  # whole occupied span, dB
+nf = w.noise_floor()  # median dB level
+snr0 = w.snr(-10e6, -5e6)  # in-channel SNR of carrier 0
+# --8<-- [end:scene]
+
+# The remaining imports serve the figure only; they follow the two
+# narrative blocks above (included verbatim by the gallery page), which
+# must stay self-contained. noqa: E402 — imports not at top, by design.
+from doppler.accumulator import AccTrace  # noqa: E402
+from doppler.spectral import FFT, kaiser_window  # noqa: E402
+
+CH_BW = 5.0e6  # nominal 5 MHz channel spacing (== the edges above)
+KAISER_BETA = 12.0  # ~ -90 dB sidelobes: resolves the -10 dB carrier
 
 
 def main() -> None:
-    x = build_scene()
-
-    # ── PSD: averaged PSD + all measurements ──────────────────────────────
-    w = PSD(n=NFFT, fs=FS, window="kaiser", beta=KAISER_BETA, mode="mean")
-    w.accumulate(x)
+    # ── PSD measurements come from the narrative block above ──────────────
     # psd_db() / band_power() return zero-copy views into PSD's internal
     # buffers, so np.array(...) snapshots them before a later call to the same
     # method (e.g. the ACLR band_power below) reuses that buffer.
     psd = np.array(w.psd_db())
     freqs = (np.arange(NFFT) - NFFT // 2) * (FS / NFFT)  # DC-centred bin freqs
-
-    edges = channel_edges()
-    band_db = np.array(w.band_power(edges))  # per-channel power, dB
-    total_db = w.total_band_power(edges)  # whole occupied span, dB
-    nf = w.noise_floor()  # median dB level
 
     # ── AccTrace directly: raw vs mean vs max-hold (panel 2) ────────────────
     win = np.empty(NFFT, dtype=np.float32)
@@ -139,7 +132,7 @@ def main() -> None:
     acc_max = AccTrace(n=NFFT, mode="maxhold")
     raw0 = None
     for i in range(N_FRAMES):
-        frame = (x[i * NFFT : (i + 1) * NFFT] * win).astype(np.complex64)
+        frame = (scene[i * NFFT : (i + 1) * NFFT] * win).astype(np.complex64)
         p = np.fft.fftshift(np.abs(fft.execute_cf32(frame)) ** 2).astype(
             np.float32
         )
@@ -285,6 +278,41 @@ def main() -> None:
     print(
         f"  total {total_db:.1f} dB | noise floor {nf:.1f} dB"
         f" | ACLR {aclr:.1f} dB"
+    )
+
+    # ── validate: exit 0 must mean measured-and-verified ────────────────────
+    # Per-channel power: band_power over each 5 MHz channel must reproduce
+    # the programmed level steps (0/-3/-6/-10 re. the strongest). The
+    # absolute scale carries a common calibration convention, so the
+    # physically meaningful figure is the relative one — panel 3's claim.
+    rel_err = float(np.max(np.abs(meas_rel - nom_rel)))
+    assert rel_err < 0.1, f"relative channel powers off by {rel_err:.2f} dB"
+    # Carrier placement: the power-weighted centroid of each channel must
+    # sit at its programmed centre — a mis-tuned carrier would drag it off.
+    lin = 10.0 ** (psd / 10.0)
+    for fc, _ in CARRIERS:
+        m = (freqs >= fc - CH_BW / 2) & (freqs <= fc + CH_BW / 2)
+        cen = float(np.sum(freqs[m] * lin[m]) / np.sum(lin[m]))
+        assert abs(cen - fc) < 100e3, (
+            f"carrier at {fc / 1e6:+.1f} MHz measured at {cen / 1e6:+.2f} MHz"
+        )
+    # Panel 2's claim — PSD wraps exactly window → FFT → power → AccTrace —
+    # checked literally: the hand-rolled mean trace must equal psd_db().
+    trace_err = float(np.max(np.abs(mean_db - psd)))
+    assert trace_err < 1e-3, f"AccTrace mean != PSD ({trace_err:.1e} dB)"
+    # RRC confinement: the -7.5 MHz carrier's leakage into the empty guard
+    # channel is bounded by the beta=0.22 stopband + the -70 dBFS floor.
+    assert aclr > 45.0, f"ACLR only {aclr:.1f} dB — carrier not confined"
+    # In-channel SNR must fall with the programmed level (same floor under
+    # every channel, so SNR ordering follows carrier power ordering).
+    snrs = [r["snr"] for r in rows]
+    assert all(a > b for a, b in zip(snrs, snrs[1:])), (
+        f"per-channel SNR not ordered by level: {snrs}"
+    )
+    print(
+        f"validated: rel powers within {rel_err:.2f} dB, centroids on "
+        f"channel centres,\n  AccTrace==PSD ({trace_err:.0e} dB), "
+        f"ACLR {aclr:.1f} dB, SNR ordered by level"
     )
 
 

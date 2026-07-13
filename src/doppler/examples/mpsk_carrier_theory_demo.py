@@ -27,10 +27,32 @@ from __future__ import annotations
 
 import sys
 
+# --8<-- [start:track]
 import numpy as np
 
 from doppler.mpsk import mpsk_map
 from doppler.track import CarrierMpsk
+
+# A QPSK signal at 16 samples/symbol carrying a residual carrier offset.
+F0 = 0.0015  # residual carrier, cycles/sample
+rng = np.random.default_rng(0)
+labels = rng.integers(0, 4, 1500).astype(np.uint8)
+tx = np.repeat(mpsk_map(labels, 4), 16).astype(np.complex64)
+k = np.arange(tx.size)
+rx = (tx * np.exp(2j * np.pi * F0 * k)).astype(np.complex64)
+
+# QPSK carrier loop, 16 samples/symbol, FLL-assisted.
+c = CarrierMpsk(
+    bn=0.05, zeta=0.707, init_norm_freq=0.0, tsamps=16, bn_fll=0.01, m=4
+)
+symbols = c.steps(rx)  # one complex prompt per symbol
+f_est = c.norm_freq  # tracked residual carrier (cycles/sample)
+locked = c.lock_metric  # Re(P·conj â)/|P| EMA, ~1.0 when phase-locked
+# --8<-- [end:track]
+
+# The narrative run above must acquire the offset — the same check the
+# per-M acquisition sweep in main() makes on its tail.
+assert abs(f_est - F0) < 1e-4, "QPSK narrative run failed to acquire"
 
 ORDERS = [
     (2, "BPSK", "#1f77b4"),
@@ -124,6 +146,11 @@ def main(out_path="mpsk_carrier_theory_demo.png"):
     for m, name, col in ORDERS:
         freq = _acquire(m, f0)
         b.plot(freq, color=col, lw=1.2, label=f"{name} (M={m})")
+        # Every order must actually acquire: the FLL-assisted loop's
+        # last-300-symbol mean estimate sits on the injected offset.
+        tail_err = abs(float(np.mean(freq[-300:])) - f0)
+        print(f"{name}: tail freq err {tail_err:.2e} cycles/sample")
+        assert tail_err < 1e-4, f"{name} failed to acquire the carrier"
     b.axhline(f0, color="k", ls="--", lw=1.5, label=f"true f0 = {f0}")
     b.set_xlabel("symbol index")
     b.set_ylabel("tracked freq (cycles/sample)")
@@ -134,6 +161,11 @@ def main(out_path="mpsk_carrier_theory_demo.png"):
     fig.tight_layout()
     fig.savefig(out_path, dpi=120)
     print(f"wrote {out_path}  (S-curve max err vs theory {max_err:.2e})")
+
+    # ── self-validation ───────────────────────────────────────────────────
+    # Off the slicer boundaries the noiseless discriminator must trace the
+    # sawtooth sin(φ wrapped to ±π/M) to float32 round-off, for every M.
+    assert max_err < 1e-5, "S-curve departs from the M-PSK sawtooth"
 
 
 if __name__ == "__main__":

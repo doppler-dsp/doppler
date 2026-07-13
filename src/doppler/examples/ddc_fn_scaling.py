@@ -75,6 +75,19 @@ def main(out_path: str = "ddc_fn_scaling.png") -> None:
     if counts[-1] != ncpu:
         counts.append(ncpu)
 
+    # Sanity-check the kernel the workers hammer: the carrier must park at
+    # DC and the 4× decimation must hold, else the benchmark times noise.
+    ddcr = Ddcr(LO, RATE)
+    out = np.empty(NBLK, dtype=np.complex64)
+    x = np.cos(2.0 * np.pi * F_CARRIER * np.arange(NBLK)).astype(np.float32)
+    y = np.array(ddcr.execute(x, out), copy=True)
+    ddcr.close()
+    assert len(y) == int(NBLK * RATE), (
+        f"{len(y)} outputs from {NBLK} inputs at rate {RATE}"
+    )
+    spec = np.abs(np.fft.fft(y[len(y) // 10 :]))  # drop filter transient
+    assert int(np.argmax(spec)) == 0, "down-converted carrier not at DC"
+
     _throughput(1)  # warm up caches / allocator
     base = _throughput(1)
     print(f"--- thread-per-shard scaling ({ncpu} logical cores) ---")
@@ -85,6 +98,17 @@ def main(out_path: str = "ddc_fn_scaling.png") -> None:
         su = thru / base
         speedups.append(su)
         print(f"  {n:>8} {thru / 1e6:>9.3f} {su:>7.2f}x {su / n * 100:>5.0f}%")
+
+    # The GIL-release claim is the whole demo: with the GIL held across
+    # execute, two threads would aggregate ≈1× base throughput.  Genuine
+    # parallelism must clear that by a wide margin on any 2+ core box
+    # (measured ≈1.9×; the memory-bandwidth ceiling only bites later).
+    if ncpu >= 2 and 2 in counts:
+        su2 = speedups[counts.index(2)]
+        assert su2 > 1.25, (
+            f"2-thread speedup {su2:.2f}x — execute appears GIL-bound"
+        )
+        print(f"  2-thread speedup {su2:.2f}x > 1.25x — GIL released, OK")
 
     # ── plot ────────────────────────────────────────────────────────────────
     fig, ax = plt.subplots(figsize=(9, 5.2), constrained_layout=True)

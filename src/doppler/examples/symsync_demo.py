@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import sys
 
+# --8<-- [start:signal]
 import numpy as np
 
 from doppler.track import SymbolSync
@@ -34,7 +35,8 @@ OFFSET = 1.7  # static fractional-sample timing offset
 SNR_DB = 14.0
 
 
-def _rc(t, beta, T):
+def rc_pulse(t, beta, T):
+    """Raised-cosine pulse shape, evaluated at sample offsets ``t``."""
     t = np.asarray(t, float)
     s = np.sinc(t / T)
     denom = 1 - (2 * beta * t / T) ** 2
@@ -44,7 +46,9 @@ def _rc(t, beta, T):
     return s
 
 
-def _signal(seed=0):
+def make_signal(seed=7):
+    """RC-shaped BPSK whose symbol clock runs CLOCK_RATE fast, offset by
+    OFFSET samples, at SNR_DB — asynchronous to the sample clock."""
     rng = np.random.default_rng(seed)
     a = rng.integers(0, 2, NSYM) * 2 - 1
     n = NSYM * SPS
@@ -55,7 +59,7 @@ def _signal(seed=0):
         if c + span >= n:
             break
         idx = np.arange(max(0, int(c - span)), min(n, int(c + span)))
-        s[idx] += ak * _rc(idx - c, BETA, SPS)
+        s[idx] += ak * rc_pulse(idx - c, BETA, SPS)
     s = s.astype(np.complex64)
     p = np.sqrt(np.mean(np.abs(s) ** 2))
     std = np.sqrt(10 ** (-SNR_DB / 10)) * p
@@ -66,13 +70,16 @@ def _signal(seed=0):
     return s, a
 
 
+# --8<-- [end:signal]
+
+
 def main(out_path="symsync_demo.png"):
     import matplotlib
 
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
-    rx, a = _signal(seed=7)
+    rx, a = make_signal()
 
     # per-symbol trace of the tracked rate
     s = SymbolSync(sps=SPS, bn=0.01, zeta=0.707, order="cubic")
@@ -161,6 +168,25 @@ def main(out_path="symsync_demo.png"):
     fig.tight_layout()
     fig.savefig(out_path, dpi=120)
     print(f"wrote {out_path}  (amb-BER={ber:.3g})")
+
+    # ── validate ────────────────────────────────────────────────────────────
+    # Clock acquisition: the tracked samples/symbol must converge onto the
+    # true 0.4% fast rate and hold it — steady state is the last quarter.
+    tail = np.array(rates[3 * len(rates) // 4 :])
+    target = SPS * CLOCK_RATE
+    rate_err = abs(float(tail.mean()) - target)
+    assert rate_err < 0.004, (
+        f"tracked rate {tail.mean():.4f} != {target:.4f} (0.1% tolerance)"
+    )
+    # ... with low residual jitter (locked, not hunting for the clock).
+    assert float(tail.std()) < 0.01, f"rate jitter {tail.std():.4f}"
+    # Data recovery: at 14 dB SNR a locked Gardner loop decodes the middle
+    # half error-free (per-symbol error rate ~ Q(sqrt(2*Es/No)) ~ 1e-12).
+    assert ber == 0.0, f"amb-BER {ber:.3g} != 0 on the locked segment"
+    print(
+        f"validated: rate {tail.mean():.4f} vs true {target:.4f} "
+        f"(jitter {tail.std():.4f}), amb-BER 0 over {cnt} symbols"
+    )
 
 
 if __name__ == "__main__":

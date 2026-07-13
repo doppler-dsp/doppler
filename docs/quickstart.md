@@ -274,31 +274,31 @@ optional stream component, which vendors `nats.c`, are both pure C99).
     === "Ubuntu / Debian"
 
         ```bash
-        sudo apt-get install build-essential cmake pkg-config python3-dev python3-numpy
+        --8<-- "tests/install/build-apt-deps.sh:install"
         ```
 
     === "Arch"
 
         ```bash
-        sudo pacman -S --needed base-devel cmake python python-numpy
+        --8<-- "tests/install/build-pacman-deps.sh:install"
         ```
 
     === "Fedora / RHEL"
 
         ```bash
-        sudo dnf install gcc make cmake pkgconf-pkg-config python3-devel python3-numpy
+        --8<-- "tests/install/build-dnf-deps.sh:install"
         ```
 
     === "openSUSE"
 
         ```bash
-        sudo zypper install gcc make cmake pkg-config python3-devel python3-numpy
+        --8<-- "tests/install/build-zypper-deps.sh:install"
         ```
 
     === "macOS"
 
         ```bash
-        brew install cmake python numpy
+        --8<-- "tests/install/build-brew-deps.sh:install"
         ```
 
     === "Windows"

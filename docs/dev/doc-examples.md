@@ -1,21 +1,38 @@
 # Doc examples — every snippet is tested
 
-Every Python **and C** code example in the docs is executed in CI. This is not
-a convention you have to remember — it is **enforced by discovery**: a gate
-scans every page under `docs/` and runs its fences, so a new page is covered
-the moment it exists. There is no opt-in list. The Python gate lives in
-`src/doppler/tests/test_doc_snippets.py`, the C gate in
-`src/doppler/tests/test_c_doc_snippets.py` (sharing include-resolution and
-marker-parsing logic via `src/doppler/tests/_docs_snippet_common.py`); run
-either locally with:
+Every Python, C, **and shell** code example in the docs is checked in CI.
+This is not a convention you have to remember — it is **enforced by
+discovery**: a gate scans every page under `docs/` and runs its fences, so a
+new page is covered the moment it exists. There is no opt-in list. The
+Python gate lives in `src/doppler/tests/test_doc_snippets.py`, the C gate in
+`src/doppler/tests/test_c_doc_snippets.py`, and the shell gate in
+`src/doppler/tests/test_sh_doc_snippets.py` (all sharing include-resolution
+and marker-parsing logic via `src/doppler/tests/_docs_snippet_common.py`);
+run any of them locally with:
 
 ```sh
-uv run pytest -m docs_snippets                            # both gates
+uv run pytest -m docs_snippets                            # all gates
 uv run pytest -m docs_snippets test_c_doc_snippets.py      # C only
 ```
 
-The C gate needs the library built first (`make build`) — it compiles each
-```` ```c ```` fence against `build/libdoppler.a` (and
+The shell gate covers the third fence class — documented CLI invocations
+(```` ```sh ````/```` ```bash ````/```` ```console ````): every
+`doppler ...`/`doppler-specan ...` line is parsed against the CLI's real
+argparse parser (`build_parser()` — unknown flags, missing positionals, and
+bad choices all fail), and a fence whose commands are all safe (`wfmgen`,
+`cat`, …) with no live transport **executes end-to-end** under `bash -e` in
+a throwaway per-page cwd. A ```` ```json title="scene.json" ```` fence is
+materialized into that cwd first, so "here is the spec file, here is the
+command that consumes it" runs exactly as shown. This class is where the
+quickstart's `compose` CLI bugs (#458) and two wrong commands on the
+architecture page lived — none of them could ever have worked. A fence
+that depends on context outside shell (a file a Python fence wrote, an
+unbounded `--realtime` stream) takes
+`<!-- docs-snippet: no-exec=REASON -->`: still parse-validated, never
+executed. Reasons are mandatory on every marker, in every gate.
+
+The C gate needs the library built first (`make build`) — it compiles
+each ```` ```c ```` fence against `build/libdoppler.a` (and
 `build/libdoppler_stream.a`, when a snippet uses the `stream/stream.h` wire
 layer) with `-std=gnu99 -Wall -Wextra -Werror`, then runs the binary and
 requires exit code 0. `-Werror` means a warning is a failure here, same as
@@ -98,8 +115,15 @@ or use `+ELLIPSIS` for values with floating-point noise.
 
 ### include — zero drift
 
-The strongest guarantee: show code that is *already* tested. The example
-scripts in `src/doppler/examples/*.py` run in CI (`make test-examples-python`).
+The strongest guarantee: show code that is *already* tested. **Every**
+script in `src/doppler/examples/*.py` runs in CI on arrival — the example
+gate (`src/doppler/tests/test_examples.py`, `make test-examples-python`)
+discovers them by glob, exactly like this gate discovers pages; the only
+way out is a reasoned entry in `src/doppler/examples/.examples-skip`.
+Examples are required to **validate themselves** (assert on a BER
+threshold, a lock flag, a round-trip equality), so exit 0 means
+"demonstrated and checked". Most gallery pages include their code from
+these scripts, so page, script, and committed figure are one artifact.
 Mark a **self-contained** region (imports included) in the tested script:
 
 ```text title="src/doppler/examples/lo_demo.py"
@@ -137,6 +161,16 @@ marker fails the gate), so every exclusion is reviewed in the diff:
 ```
 
 A block can also assert it raises: `<!-- docs-snippet: raises=ValueError -->`.
+
+### broker — conditional, not dead
+
+`<!-- docs-snippet: broker=REASON -->` is for a **single-process** block
+that needs only a live NATS broker: it runs whenever `127.0.0.1:4222` is
+reachable — CI's python-tests job starts a JetStream broker, so it IS
+executed in CI — and skips elsewhere. Same idiom as the stream suite and
+the example gate's `broker:` registry entries. Use `skip=` instead when
+the block needs a *peer process* (a two-terminal demo) or is an
+illustrative fragment whose names come from prose.
 
 ## C fences
 

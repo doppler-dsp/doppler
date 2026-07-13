@@ -1,0 +1,20 @@
+# Examples the smoke gate (src/doppler/tests/test_examples.py) does not
+# run, one "script.py: reason" per line. A reason is mandatory and an
+# entry naming a deleted script fails the meta-test, so this list stays
+# honest. Everything NOT listed here runs in CI on arrival.
+#
+# All six entries are halves of two-process NATS demos: each blocks
+# waiting for its peer (or exits nonzero when 127.0.0.1:4222 is
+# unreachable), so a single-process smoke run can never exercise them.
+# The wire round-trips they demonstrate are covered by the stream suite
+# (src/doppler/stream/tests/, which runs against CI's live broker).
+# A "broker:" reason is conditional: the example runs whenever a NATS
+# broker is reachable on 127.0.0.1:4222 (CI starts one) and self-skips
+# elsewhere -- it needs no peer process, just the broker.
+wfm_realtime_stream.py: broker: single-process realtime stream; TX asserts run against a live broker
+transmitter.py: two-process NATS demo (pair of receiver.py); needs a live peer
+receiver.py: two-process NATS demo (pair of transmitter.py); blocks on recv
+requester.py: two-process NATS REQ demo (pair of replier.py); needs a live peer
+replier.py: two-process NATS REP demo (pair of requester.py); blocks on recv
+pipeline_send.py: two-process compose-pipeline demo (pair of pipeline_recv.py)
+pipeline_recv.py: two-process compose-pipeline demo (pair of pipeline_send.py)

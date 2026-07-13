@@ -77,13 +77,13 @@ Run::
 Saves detection_sim.png.  Runs in ~5 s.
 """
 
-import math
-
 import matplotlib
 
 matplotlib.use("Agg")
 
-import matplotlib.pyplot as plt
+# --8<-- [start:mc]
+import math
+
 import numpy as np
 
 from doppler.detection import (
@@ -93,8 +93,6 @@ from doppler.detection import (
     det_threshold_power,
     marcum_q,
 )
-
-# ── Simulation parameters ────────────────────────────────────────────────────
 
 N = 64  # frame length (complex samples)
 DWELL = 4  # coherent integrations
@@ -111,9 +109,6 @@ THETA = ETA * math.sqrt(2.0 / math.pi)  # env_stat threshold
 P_THRESH = det_threshold_power(PFA)  # pow_stat threshold = -ln(Pfa)
 
 RNG = np.random.default_rng(0)
-
-
-# ── Monte Carlo core ─────────────────────────────────────────────────────────
 
 
 def simulate(snr: float, n_trials: int = N_TRIALS) -> tuple:
@@ -163,6 +158,9 @@ def simulate(snr: float, n_trials: int = N_TRIALS) -> tuple:
     return env_stat, pow_stat
 
 
+# --8<-- [end:mc]
+
+
 # ── Theory survival functions ────────────────────────────────────────────────
 
 
@@ -179,8 +177,7 @@ def pow_sf(snr: float, x: np.ndarray) -> np.ndarray:
     return np.array([det_pd_power(snr**2, DWELL, float(xi)) for xi in x])
 
 
-# ── Run simulations ──────────────────────────────────────────────────────────
-
+# --8<-- [start:sweep]
 print(f"Running H0 ({N_TRIALS:,} trials)…")
 env_h0, pow_h0 = simulate(0.0)
 
@@ -203,7 +200,27 @@ pd_pow_th = np.array(
 
 print("Done.")
 
+# Validate MC against theory.
+# CFAR design point: both detectors' H0 exceedance rates must sit at
+# the Pfa their thresholds were derived for (30k trials → MC sigma
+# ≈ 6e-4, so ±50% of Pfa = 1e-2 is a generous band).
+pfa_env_mc = float((env_h0 > THETA).mean())
+pfa_pow_mc = float((pow_h0 > P_THRESH).mean())
+print(f"Pfa: env = {pfa_env_mc:.4f}, pow = {pfa_pow_mc:.4f} (design {PFA})")
+assert abs(pfa_env_mc - PFA) < 0.5 * PFA, "envelope Pfa off design point"
+assert abs(pfa_pow_mc - PFA) < 0.5 * PFA, "power Pfa off design point"
+
+# Marcum-Q Pd model: the MC sweep must track theory at every SNR.
+err_env = float(np.max(np.abs(pd_env_mc - pd_env_th)))
+err_pow = float(np.max(np.abs(pd_pow_mc - pd_pow_th)))
+print(f"max |MC - theory| Pd: env = {err_env:.4f}, pow = {err_pow:.4f}")
+assert err_env < 0.02, "envelope Pd deviates from Marcum-Q theory"
+assert err_pow < 0.02, "power Pd deviates from Marcum-Q theory"
+# --8<-- [end:sweep]
+
 # ── Plot — 2×2 grid ──────────────────────────────────────────────────────────
+
+import matplotlib.pyplot as plt  # noqa: E402 — after the gated compute
 
 fig, axes = plt.subplots(2, 2, figsize=(14, 9))
 fig.suptitle(

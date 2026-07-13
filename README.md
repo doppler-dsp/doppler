@@ -14,10 +14,12 @@
 
 <p align="center">
   <a href="https://en.wikipedia.org/wiki/C99"><img src="https://img.shields.io/badge/C-C99-blue" alt="C99"></a>
-  <a href="install/rust.md"><img src="https://img.shields.io/badge/Rust-FFI-CE4A00?logo=rust&logoColor=white" alt="Rust"></a>
+  <a href="https://doppler-dsp.github.io/doppler/install/rust/"><img src="https://img.shields.io/badge/Rust-FFI-CE4A00?logo=rust&logoColor=white" alt="Rust"></a>
   <a href="https://github.com/astral-sh/uv"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/uv/main/assets/badge/v0.json" alt="uv"></a>
   <a href="https://github.com/astral-sh/ruff"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json" alt="Ruff"></a>
 </p>
+
+<!-- readme-sync:start -->
 
 doppler is a C99 DSP library — NCO, FIR, FFT, polyphase resampling, DDC,
 AGC and more — with file, buffer, and NATS-based streaming, and a
@@ -25,9 +27,12 @@ scenario-driven waveform generator (`wfmgen`) with byte-identical
 CLI/Python/C parity. Python and Rust wrap the same C core — no second
 implementation, no divergence, full SIMD throughput from any language.
 
-**Navigate** — [Quick Start](quickstart.md) · [Architecture](architecture.md) · [Examples](examples/index.md) · [Guides](guide/index.md) · [Waveform Generator](guide/wfmgen/index.md)
+**New here?** Start with [Start Here](docs/start-here.md) — a one-page map from
+"what are you trying to do" to the right doc.
 
-**API Reference** — [C API](c-api/files.md) · [Python: FFT](api/python-fft.md) · [Python: Spectral](api/python-spectral.md) · [Python: Waveform](api/python-wfmgen.md) · [Python: Resample](api/python-resample.md) · [Python: Filter](api/python-filter.md) · [Python: Measurement](api/python-measure.md) · [Python: DDC](api/python-ddc.md) · [Python: Accumulator](api/python-accumulator.md)
+**Navigate** — [Quick Start](docs/quickstart.md) · [Architecture](docs/architecture.md) · [Gallery](docs/gallery/index.md) · [Examples](docs/examples/index.md) · [Guides](docs/guide/index.md) · [Waveform Generator](docs/guide/wfmgen/index.md) · [Design](docs/design/index.md) · [Contributing](docs/dev/index.md)
+
+**API Reference** — [Full Python + C API index](docs/api/index.md)
 
 ______________________________________________________________________
 
@@ -41,11 +46,9 @@ talks to a Python subscriber without surprises.
 ## Performance
 
 On a Ryzen 7 AI 350 (`-O2`): NCO raw accumulator ~15 GSa/s, LO CF32
-~1.8 GSa/s, FIR CF32 ~900 MSa/s, FFT CF32 (N=4096) ~180 MSa/s,
-polyphase resampler (2× decim) ~70 MSa/s. Run `make bench` to measure
-on your hardware.
-
-<!-- quickstart:start -->
+~1.8 GSa/s, FIR CF32 ~900 MSa/s. The full generated table lives in
+[Benchmarks](docs/benchmarks.md); run
+`make bench` to measure on your hardware.
 
 ## Quick start
 
@@ -143,13 +146,11 @@ hand — no toolchain, no building doppler itself — and extract it to
 See [C Library](docs/install/c.md) for `find_package`/`pkg-config` integration
 and building from source.
 
-<!-- quickstart:end -->
-
 ## Build
 
-> [!TIP]
-> Don't have `jbx` yet? `make install-deps` bootstraps it for you. (Or by
-> hand: `. <(curl -sSL https://just-buildit.github.io/get-jb.sh)`.)
+Building from source gets you the C library, examples, and Rust FFI
+bindings — see [Build from source](docs/quickstart.md#build-from-source) if you
+just want the C library without cloning the repo.
 
 ```bash
 git clone https://github.com/doppler-dsp/doppler
@@ -170,5 +171,8 @@ Full docs: **[doppler-dsp.github.io/doppler](https://doppler-dsp.github.io/doppl
 MIT. The core C library is pure C99 and links only `-lm`. Its FFT uses the
 vendored pocketfft (BSD-3-Clause) for double precision and arbitrary sizes, and
 the vendored PFFFT (Pommier/FFTPACK, BSD) for the native single-precision SIMD
-path. The optional stream component (`libdoppler_stream`) vendors `nats.c`
-(Apache-2.0).
+path. The optional NATS stream component (`libdoppler_stream`) vendors
+`nats.c` (Apache-2.0) — it too is pure C99, so no C++ toolchain is needed
+anywhere in the build.
+
+<!-- readme-sync:end -->

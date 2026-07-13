@@ -22,7 +22,14 @@ def _log(msg: str) -> None:
     print(f"[{ts}] {msg}", flush=True)
 
 
-def main() -> None:
+def build_parser() -> argparse.ArgumentParser:
+    """Build the doppler-specan argument parser.
+
+    Separate from ``main()`` so tooling can validate documented CLI
+    invocations against the real parser without executing anything --
+    the docs shell-fence gate (``test_sh_doc_snippets.py``) parses
+    every ``doppler-specan ...`` line in the docs through this.
+    """
     parser = argparse.ArgumentParser(
         prog="doppler-specan",
         description="Live spectrum analyzer — doppler NCO + FFT",
@@ -150,7 +157,11 @@ def main() -> None:
         help="Start web server without opening a browser window",
     )
 
-    args = parser.parse_args()
+    return parser
+
+
+def main() -> None:
+    args = build_parser().parse_args()
 
     # ----------------------------------------------------------------
     # Build config from yml + CLI overrides

@@ -22,22 +22,7 @@ BLUE without loss. BLUE's 512-byte header stores the sample type, byte order,
 ## Building it
 
 ```python
-from doppler.wfm import Composer, Reader, Segment, Writer
-
-segments = [
-    Segment(type="tone", freq=100e3, sps=1, fs=1e6, snr=30.0,
-            num_samples=256),
-    Segment(type="bpsk", sps=8, fs=1e6, snr=10.0,
-            num_samples=512 * 8, off_samples=256),
-]
-
-burst = Composer(segments).compose()
-
-with Writer("burst.blue", file_type="blue", fs=1e6, fc=915e6) as w:
-    w.write(burst)
-
-with Reader("burst.blue") as r:
-    readback = r.read(len(burst))
+--8<-- "src/doppler/examples/wfm_write_demo.py:burst"
 ```
 
 ## Reproduce

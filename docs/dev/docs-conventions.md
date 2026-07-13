@@ -16,7 +16,8 @@ suspiciously uniform or mechanical:
 | `docs/api/*.md` — page prose                                         | *(hand-written)*                                                          | —                                                   |
 | `docs/api/*.md` — `::: doppler.x.Y` directive output                 | mkdocstrings, from the Python docstring, at build time                    | edit the **docstring**, not the page                |
 | `docs/api/*.md` — `## Related pages` block                           | `scripts/gen_related_pages.py`                                            | `make docs-relink`                                  |
-| `README.md` — `## Quick start` block                                 | `scripts/gen_readme_quickstart.py`, from `docs/index.md`                  | `make docs-relink`                                  |
+| `README.md` — entire body below the badges                           | `scripts/gen_readme.py`, from `docs/index.md`                             | `make docs-relink`                                  |
+| `tests/install/build-*-deps.sh` (rendered into install docs)         | `scripts/gen_install_scripts.py`, from `jb.toml`'s `[dev.*]` lists        | `make docs-relink`                                  |
 | `docs/design/index.md`, `docs/dev/index.md`, `docs/gallery/index.md` | *(hand-written — completeness CI-enforced)*                               | add a bullet by hand; gated by `check_nav_index.py` |
 | `docs/benchmarks.md`                                                 | `make bench-docs`                                                         | `make bench-docs`                                   |
 | `docs/specan/frames.json`                                            | `make record-demo`                                                        | `make record-demo`                                  |
@@ -32,11 +33,11 @@ re-run the command in the table.
 
 ## The CI-enforced completeness gates
 
-Three checks in CI's `docs` job keep the docs tree from rotting the way
+The checks in CI's `docs` job keep the docs tree from rotting the way
 `design/index.md` and `dev/index.md` already had, twice, before the
 nav-index coverage gate below existed: a page gets added, gets forgotten in
 its section's hand-curated index, and nobody notices until someone manually
-audits the tree. All three follow the same
+audits the tree. All follow the same
 house idiom used by [Doc Examples](doc-examples.md) and `check_api_docs.py`
 — **discovered, not registered** — so a new page is covered the moment it
 exists, with no opt-in list to remember.
@@ -46,7 +47,14 @@ exists, with no opt-in list to remember.
 | API docs coverage        | `scripts/check_api_docs.py`        | Every public symbol named somewhere under `docs/api/` |
 | Nav-index coverage       | `scripts/check_nav_index.py`       | Every page linked from its section's `index.md`       |
 | Related-pages generation | `scripts/gen_related_pages.py`     | Nothing — see below                                   |
-| README quickstart sync   | `scripts/gen_readme_quickstart.py` | Nothing — see below                                   |
+| README sync              | `scripts/gen_readme.py`            | Nothing — see below                                   |
+| Install-script sync      | `scripts/gen_install_scripts.py`   | Nothing — edit `jb.toml`, run `make docs-relink`      |
+| Version strings          | `scripts/check_version_strings.py` | Never hand-type the current release version in prose  |
+| Site internal links      | `scripts/check_site_links.py`      | Internal links/anchors resolve in the built site      |
+| Strict build             | `zensical build --strict`          | Zero build warnings (bad refs, includes)              |
+
+(The three fence gates and the example gate live in the `python-tests`
+job — see [Doc Examples](doc-examples.md) for the whole testing story.)
 
 ## Nav-index coverage (`check_nav_index.py`)
 
@@ -120,27 +128,46 @@ A page only qualifies for scanning once it satisfies `check_api_docs.py`
 required to add a new `docs/api/*.md` page — the next `--write` picks it up
 automatically.
 
-## README quickstart sync (`gen_readme_quickstart.py`)
+## README sync (`gen_readme.py`)
 
-`docs/index.md` and `README.md` deliberately show the identical Quick Start
-walkthrough, but the two pages render on different engines —
+`docs/index.md` and `README.md` deliberately show the identical landing
+content, but the two pages render on different engines —
 mkdocs-material admonitions (`!!! tip`) on the docs site, GitHub's native
 alert syntax (`> [!TIP]`) on GitHub — so they can never be byte-identical.
 Keeping them in sync by hand rotted repeatedly (a live tagline edit, a
-missing `git clone` step, a stale quickstart link), so `docs/index.md` is
-the single source of truth: `gen_readme_quickstart.py` extracts its
-`## Quick start` section, rewrites the one admonition into GitHub's alert
-syntax, rewrites relative doc links to their `docs/`-prefixed form
-(`README.md` lives at the repo root, one level shallower than
-`docs/index.md`), and writes the result into `README.md` between
-`<!-- quickstart:start -->` … `<!-- quickstart:end -->` markers — same
-idiom as `gen_related_pages.py`'s block.
+missing `git clone` step, a stale quickstart link — and later a
+Performance/Licensing drift in exactly the sections a first,
+quickstart-only version of the generator didn't cover), so
+`docs/index.md` is the single source of truth: `gen_readme.py` extracts
+everything after its `<!-- readme-sync:source-start -->` marker (tagline,
+navigation, Why, Performance, Quick start, Build, Docs, Licensing —
+through end of file), rewrites admonitions into GitHub's alert syntax,
+rewrites relative doc links to their `docs/`-prefixed form (`README.md`
+lives at the repo root, one level shallower than `docs/index.md`), and
+writes the result into `README.md` between
+`<!-- readme-sync:start -->` … `<!-- readme-sync:end -->` markers — same
+idiom as `gen_related_pages.py`'s block. Only the wordmark + badge header
+above the markers stays hand-owned in each file (the two heads genuinely
+differ: image sizing, glightbox classes, absolute-vs-relative badge
+targets).
 
 **What NOT to do**: never hand-edit the block between the
-`quickstart:start`/`:end` markers in `README.md`. Edit `docs/index.md`'s
-`## Quick start` section instead, then run `make docs-relink` (or
-`python scripts/gen_readme_quickstart.py --write`) and commit the result.
+`readme-sync:start`/`:end` markers in `README.md`. Edit `docs/index.md`
+below its `readme-sync:source-start` marker instead, then run
+`make docs-relink` (or `python scripts/gen_readme.py --write`) and commit
+the result.
 
 **Regenerating locally**: `make docs-relink`, or
-`python scripts/gen_readme_quickstart.py --check` to preview drift without
+`python scripts/gen_readme.py --check` to preview drift without
 writing anything.
+
+## Install-script sync (`gen_install_scripts.py`)
+
+`jb.toml`'s `[dev.*]` package lists are the single source of truth for
+doppler's system dependencies — `make install-deps`, CI, and both
+Dockerfiles read them via just-bashit. The per-distro
+`tests/install/build-*-deps.sh` scripts that the install docs render via
+`--8<--` includes are **generated projections** of those lists (minus
+`patchelf` and `rust`, which only the wheel-repair and Rust-test paths
+need — see the script's docstring). Never edit the scripts: change
+`jb.toml` and run `make docs-relink`; CI fails on any drift.

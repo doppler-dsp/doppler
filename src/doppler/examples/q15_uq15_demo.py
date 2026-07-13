@@ -22,10 +22,24 @@ import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+
+# --8<-- [start:roundtrips]
 import numpy as np
 
-import doppler.cvt as cvt
-from doppler.spectral import blackman_harris_window
+from doppler.cvt import F32ToI16, I16ToF32
+
+# full-scale complex tone at 0.07 cycles/sample (the demo's signal)
+x = np.exp(2j * np.pi * 0.07 * np.arange(65536)).astype(np.complex64)
+
+# Q15 bipolar roundtrip
+enc, dec = F32ToI16(), I16ToF32()
+x_q15 = dec.steps(enc.steps(x.real))  # real channel only
+
+# UQ15 offset-binary roundtrip (numpy — no cvt UQ15 type yet)
+v = np.clip(np.round(x.real * 32768.0), -32768, 32767).astype(np.int16)
+u = (v.astype(np.int32) + 32768).astype(np.uint16)
+x_uq15 = (u.astype(np.float32) - 32768.0) / 32768.0
+# --8<-- [end:roundtrips]
 
 # ---------------------------------------------------------------------------
 # quantizers
@@ -34,9 +48,7 @@ from doppler.spectral import blackman_harris_window
 
 def _q15_roundtrip(x: np.ndarray) -> np.ndarray:
     """Q15 bipolar roundtrip via cvt.F32ToI16 / I16ToF32."""
-    enc = cvt.F32ToI16()
-    dec = cvt.I16ToF32()
-    return dec.steps(enc.steps(x))
+    return I16ToF32().steps(F32ToI16().steps(x))
 
 
 def _uq15_roundtrip(x: np.ndarray) -> np.ndarray:
@@ -97,6 +109,8 @@ def _make_signal(n: int) -> np.ndarray:
 
 
 def _spectrum_db(x: np.ndarray, pad: int = 4) -> tuple[np.ndarray, np.ndarray]:
+    from doppler.spectral import blackman_harris_window
+
     n = len(x)
     w = np.zeros(n, dtype=np.float32)
     blackman_harris_window(w)
@@ -129,6 +143,34 @@ def main(out_path: str = "q15_uq15_demo.png") -> None:
 
     xq_q15 = _cf32_apply(_q15_roundtrip, x)
     xq_uq15 = _cf32_apply(_uq15_roundtrip, x)
+
+    # ── validation ───────────────────────────────────────────────────────────
+    # The +32768 offset must cancel exactly on decode: the two conventions
+    # are the same quantiser, so the decoded streams are bit-identical.
+    assert np.array_equal(xq_q15, xq_uq15), (
+        "Q15 and UQ15 roundtrips differ — offset did not cancel"
+    )
+    # Both realise the int16 quantiser SNR (6.02·16 + 1.76 ≈ 98 dB for a
+    # full-scale tone); the max per-component error is one LSB, reached
+    # only where the +1.0 peak clips to 32767.
+    lsb = 1.0 / 32768.0
+    for name, xq in (("Q15", xq_q15), ("UQ15", xq_uq15)):
+        err = (xq - x).astype(np.complex128)
+        snr = 10.0 * np.log10(
+            float(
+                np.mean(np.abs(x.astype(np.complex128)) ** 2)
+                / np.mean(np.abs(err) ** 2)
+            )
+        )
+        max_err = max(
+            float(np.max(np.abs(err.real))), float(np.max(np.abs(err.imag)))
+        )
+        assert snr > 95.0, f"{name}: SNR {snr:.1f} dB (theory ≈ 98 dB)"
+        assert max_err <= lsb * 1.001, (
+            f"{name}: max error {max_err / lsb:.2f} LSB (expected ≤ 1)"
+        )
+        print(f"  {name}: SNR {snr:.1f} dB, max err {max_err / lsb:.2f} LSB")
+    print("  Q15 == UQ15 bit-exact — OK")
 
     freq, amp_in = _spectrum_db(x)
     _, amp_q15 = _spectrum_db(xq_q15)

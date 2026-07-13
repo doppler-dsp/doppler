@@ -31,10 +31,23 @@ import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+
+# --8<-- [start:cascade]
 import numpy as np
 
 from doppler.resample import RateConverter
-from doppler.spectral import blackman_harris_window
+
+rc = RateConverter(0.1)
+print(rc.stages)  # ['CIC(8)', 'Resampler(0.8)']
+
+x = np.random.default_rng(0).standard_normal(4096).astype(np.complex64)
+y = rc.execute(x)  # len(y) ≈ 410
+print(len(y))
+
+# Change rate — cascade is rebuilt automatically
+rc.rate = 0.25
+print(rc.stages)  # ['HalfbandDecimator', 'HalfbandDecimator']
+# --8<-- [end:cascade]
 
 # ---------------------------------------------------------------------------
 # helpers
@@ -64,6 +77,8 @@ def _spectrum_db(x: np.ndarray, pad: int = 8) -> tuple[np.ndarray, np.ndarray]:
     Amplitude is normalised so a unit-amplitude complex tone reads 0 dBFS.
     Uses a Blackman-Harris window.
     """
+    from doppler.spectral import blackman_harris_window
+
     n = len(x)
     w = np.zeros(n, dtype=np.float32)
     blackman_harris_window(w)
@@ -81,13 +96,26 @@ def _spectrum_db(x: np.ndarray, pad: int = 8) -> tuple[np.ndarray, np.ndarray]:
 
 def demo_stage_selection() -> None:
     print("--- 1. Stage selection ---")
-    rates = [2.0, 0.5, 0.25, 0.125, 0.1, 1.0 / 3.0]
+    # Expected cascade topology per regime (the table in the docstring).
+    rates = [
+        (2.0, ("Resampler",)),
+        (0.5, ("HalfbandDecimator",)),
+        (0.25, ("HalfbandDecimator", "HalfbandDecimator")),
+        (0.125, ("CIC",)),
+        (0.1, ("CIC", "Resampler")),
+        (1.0 / 3.0, ("Resampler",)),
+    ]
     print(f"  {'rate':>10}  {'stages'}")
     print(f"  {'-' * 10}  {'-' * 40}")
-    for rate in rates:
+    for rate, expected in rates:
         rc = RateConverter(rate)
         labels = " → ".join(rc.stages)
         print(f"  {rate:>10.6f}  {labels}")
+        # The whole point of RateConverter is picking the cheapest
+        # cascade — verify each regime lands on its documented topology.
+        assert len(rc.stages) == len(expected) and all(
+            s.startswith(e) for s, e in zip(rc.stages, expected)
+        ), f"rate {rate}: stages {rc.stages}, expected {expected}"
     print()
 
 
@@ -130,6 +158,12 @@ def demo_frequency_check() -> None:
             f"  {rate:>8.4f}  {fn_expected:>12.4f}  "
             f"{peak_fn:>12.4f}  {err_bins:>10.3f}"
         )
+        # The tone must survive conversion and land on the predicted
+        # output frequency — within 2 (padded) FFT bins of fn_in/rate.
+        assert err_bins < 2.0, (
+            f"rate {rate}: tone at fn={peak_fn:.4f}, expected "
+            f"{fn_expected:.4f} ({err_bins:.1f} bins off)"
+        )
     print()
 
 
@@ -154,6 +188,13 @@ def demo_rate_change() -> None:
     rc.rate = 2.0
     y3 = rc.execute(x.copy())
     print(f"  rate=2.00  stages={rc.stages}  n_in={n_in}  n_out={len(y3)}\n")
+
+    # Each set_rate() rebuild must deliver n_in·rate samples (± a couple
+    # for resampler edge handling) — proof the cascade really changed.
+    for rate, y in ((0.5, y1), (0.25, y2), (2.0, y3)):
+        assert abs(len(y) - n_in * rate) <= 2, (
+            f"rate {rate}: {len(y)} samples, expected ≈{n_in * rate:.0f}"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -241,6 +282,13 @@ def demo_spectral_plot(out_path="rate_converter_demo.png") -> None:
         # Expected tone position
         fn_out = fn_in / rate
         if fn_out < 0.5:
+            # Even against broadband noise the tone must remain the
+            # strongest line, at fn_in/rate of the output rate.
+            peak_fn = float(freq_out[int(np.argmax(amp_out))])
+            assert abs(peak_fn - fn_out) < 0.01, (
+                f"{title}: spectral peak at fn={peak_fn:.4f}, "
+                f"expected {fn_out:.4f}"
+            )
             tone_idx = int(np.argmin(np.abs(freq_out - fn_out)))
             tone_amp = float(amp_out[tone_idx])
             ax.axvline(

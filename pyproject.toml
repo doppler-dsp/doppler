@@ -83,6 +83,7 @@ python_files = ["test_*.py", "bench_*.py"]
 testpaths = ["src"]
 markers = [
     "docs_snippets: doc-example drift gate (runs the ```python fences in docs/); CI runs it once on 3.12, excluded from the version matrix via -m 'not docs_snippets'",
+    "examples: example-script smoke gate (runs every example as a subprocess, discovered not registered); excluded from the coverage run via -m 'not examples'",
 ]
 
 [dependency-groups]

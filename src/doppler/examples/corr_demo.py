@@ -20,18 +20,18 @@ import matplotlib
 matplotlib.use("Agg")  # headless: no display required
 
 import matplotlib.pyplot as plt
+
+# --8<-- [start:setup]
 import numpy as np
 
 from doppler.spectral import Corr, Corr2D, CorrDetector, CorrDetector2D
-
-# ── Parameters ───────────────────────────────────────────────────────────────
 
 N, LAG = 64, 17  # 1-D frame length and injected lag
 NY, NX = 8, 8  # 2-D frame dimensions
 ROW, COL = 3, 5  # 2-D shift (row, col)
 SIGMA = 2.0  # noise amplitude; power = SIGMA² = 4  →  SNR ≈ −6 dB
 DWELL = 8  # coherent integration depth
-THRESHOLD = 5.0  # detection gate (for the bar-chart panel)
+THRESHOLD = 5.0  # detection gate
 
 rng = np.random.default_rng(42)
 
@@ -43,8 +43,7 @@ ref2d = rng.choice(
     np.array([-1.0, 1.0], dtype=np.float32), size=(NY, NX)
 ).astype(np.complex64)
 
-
-_noise_scale = np.float32(SIGMA / np.sqrt(2))
+noise_scale = np.float32(SIGMA / np.sqrt(2))
 
 
 def noisy_frame() -> np.ndarray:
@@ -52,7 +51,7 @@ def noisy_frame() -> np.ndarray:
     signal = np.roll(ref1d, LAG)
     noise = (rng.standard_normal(N) + 1j * rng.standard_normal(N)).astype(
         np.complex64
-    ) * _noise_scale
+    ) * noise_scale
     return signal + noise
 
 
@@ -61,13 +60,16 @@ def noise_block(n_frames: int) -> np.ndarray:
     total = N * n_frames
     return (
         rng.standard_normal(total) + 1j * rng.standard_normal(total)
-    ).astype(np.complex64) * _noise_scale
+    ).astype(np.complex64) * noise_scale
 
+
+# --8<-- [end:setup]
 
 print("=== doppler Corr / Corr2D / CorrDetector / CorrDetector2D demo ===\n")
 
-# ── 1. Corr: dwell=1 vs dwell=8 ─────────────────────────────────────────────
-
+# --8<-- [start:integrate]
+# Corr: dwell=1 vs dwell=8 — execute() accumulates frames and returns
+# output only on the dwell-th call; all other calls return None.
 with Corr(ref1d, dwell=1) as c:
     mag_d1 = np.abs(c.execute(noisy_frame()))
 
@@ -83,8 +85,15 @@ print(
     f"  |  dwell={DWELL}  peak/mean={snr_d8:.1f}"
 )
 
-# ── 2. Corr2D: 2-D template match ───────────────────────────────────────────
+# The dwell=8 coherent sum must place the global peak exactly at the
+# injected lag, and integrating 8 frames must sharpen the peak/mean
+# ratio over a single frame (coherent integration gain).
+assert int(np.argmax(mag_d8)) == LAG, "dwell=8 peak not at injected lag"
+assert snr_d8 > snr_d1, "no coherent integration gain at dwell=8"
+# --8<-- [end:integrate]
 
+# --8<-- [start:match2d]
+# Corr2D: recover a (row, col) circular shift in one FFT2 call.
 x2d = np.roll(np.roll(ref2d, ROW, axis=0), COL, axis=1)
 with Corr2D(ref2d, dwell=1) as c:
     surf2d = np.abs(c.execute(x2d)).reshape(NY, NX)
@@ -94,6 +103,11 @@ print(
     f"[Corr2D]    peak at (row={peak_row}, col={peak_col})"
     f"  (expected ({ROW}, {COL}))"
 )
+
+# 2-D template match: the correlation surface must peak exactly at the
+# injected (row, col) circular shift.
+assert (peak_row, peak_col) == (ROW, COL), "2-D peak not at true shift"
+# --8<-- [end:match2d]
 
 # ── 3. CorrDetector: alternating signal / noise-only dwell cycles ───────────
 #
@@ -126,17 +140,28 @@ print(
     f"  (shown threshold={THRESHOLD})"
 )
 
+# The dwell=8 integration separates the hypotheses cleanly: every
+# signal dump must clear the shown gate, every noise-only dump must
+# stay below it (deterministic with the fixed seed).
+assert min(sig_stats) > THRESHOLD, "a signal dwell fell below the gate"
+assert max(noise_stats) < THRESHOLD, "a noise-only dwell crossed the gate"
+
 # ── 4. CorrDetector2D: one-frame sanity check ────────────────────────────────
 
-with CorrDetector2D(ref2d, threshold=0) as det2d:
+# dwell=1 must be explicit: omitting it leaves the detector with an
+# effective dwell of 0 and push() never dumps.
+with CorrDetector2D(ref2d, dwell=1, threshold=0) as det2d:
     hits2d = det2d.push(x2d.ravel())
 
-if hits2d:
-    r, col_hit, *_ = hits2d[0]
-    print(
-        f"[CorrDetector2D] peak at (row={r}, col={col_hit})"
-        f"  (expected ({ROW}, {COL}))"
-    )
+# threshold=0 → the dump always fires, and the reported cell must be
+# the injected (row, col) shift.
+assert hits2d, "CorrDetector2D produced no dump"
+r, col_hit, *_ = hits2d[0]
+print(
+    f"[CorrDetector2D] peak at (row={r}, col={col_hit})"
+    f"  (expected ({ROW}, {COL}))"
+)
+assert (r, col_hit) == (ROW, COL), "detected cell not at true shift"
 
 # ── Figure ───────────────────────────────────────────────────────────────────
 

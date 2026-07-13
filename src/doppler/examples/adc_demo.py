@@ -22,10 +22,36 @@ import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+
+# --8<-- [start:adc]
 import numpy as np
 
 from doppler.cvt import ADC
-from doppler.spectral import blackman_harris_window
+
+# Sinusoid at -10 dBFS
+amplitude = 10 ** (-10.0 / 20.0)  # ≈ 0.316
+N = 8192
+f0 = 0.05  # cycles/sample
+x = (amplitude * np.sin(2 * np.pi * f0 * np.arange(N))).astype(np.float32)
+
+# Quantise at 8 bits, -10 dBFS full-scale reference
+adc = ADC(bits=8, dbfs=-10.0, dithering=0)
+q = adc.steps(x)  # int64, range [-128, 127]
+print(adc.scale)  # ≈ 400.0 (= 2^7 × 10^(10/20))
+print(adc.clipped)  # False — input was at reference level
+
+# Decode back to float for analysis
+x_hat = q.astype(np.float64) / adc.scale
+snr_db = 10 * np.log10(
+    np.mean(x.astype(np.float64) ** 2)
+    / np.mean((x.astype(np.float64) - x_hat) ** 2)
+)
+print(f"Measured SNR: {snr_db:.1f} dB")  # ≈ 49–50 dB
+
+# TPDF dither breaks up harmonic spurs at the cost of a slight noise rise
+adc_d = ADC(bits=8, dbfs=-10.0, dithering=1)
+q_d = adc_d.steps(x)
+# --8<-- [end:adc]
 
 # ── parameters ───────────────────────────────────────────────────────────────
 
@@ -50,6 +76,8 @@ def _spectrum_db(
     x: np.ndarray, pad: int = PAD
 ) -> tuple[np.ndarray, np.ndarray]:
     """One-sided amplitude spectrum, 0 dBFS = unit-amplitude sine."""
+    from doppler.spectral import blackman_harris_window
+
     n = len(x)
     w = np.zeros(n, dtype=np.float32)
     blackman_harris_window(w)
@@ -71,6 +99,8 @@ def _per_bin_floor_db(adc: ADC, n: int, pad: int = PAD) -> float:
 
     where n_fft = n * pad and mean(w²) is the noise power of the window.
     """
+    from doppler.spectral import blackman_harris_window
+
     delta = 1.0 / adc.scale
     noise_power = delta**2 / 12.0
     w = np.zeros(n, dtype=np.float32)
@@ -224,6 +254,39 @@ def main(out_path: str = "adc_demo.png") -> None:
     fig.savefig(out_path, dpi=150, bbox_inches="tight")
     plt.close(fig)
     print(f"Saved → {out_path}")
+
+    # ── validation ───────────────────────────────────────────────────────────
+    # dbfs=-10 makes the -10 dBFS test tone fill the converter exactly, so
+    # each bit depth should realise the classic quantiser SNR of
+    # 6.02·bits + 1.76 dB.  The tone is undithered and exactly 20-sample
+    # periodic, so the error is deterministic (harmonics, not white noise)
+    # and the measured SNR wobbles a few dB around theory — the tolerance
+    # absorbs that while still catching a one-bit scale error (6 dB).
+    print("Validation — SNR vs 6.02·bits + 1.76 dB (tone at full scale):")
+    for bits in BITS:
+        adc = ADC(bits=bits, dbfs=DBFS, dithering=0)
+        x_hat = _decode(adc, adc.steps(x_s))
+        err = x_hat - x_s.astype(np.float64)
+        snr = 10.0 * np.log10(
+            float(np.mean(x_s.astype(np.float64) ** 2) / np.mean(err**2))
+        )
+        theory = 6.02 * bits + 1.76
+        enob = (snr - 1.76) / 6.02
+        print(
+            f"  {bits} bits: measured SNR {snr:5.1f} dB "
+            f"(theory {theory:5.1f}), ENOB {enob:5.2f} — OK"
+        )
+        assert abs(snr - theory) < 5.5, (
+            f"{bits}-bit SNR {snr:.1f} dB vs theory {theory:.1f} dB"
+        )
+        # Round-to-nearest bounds the error at Δ/2; the full-scale positive
+        # peak rounds to 2^(bits-1) and clips to 2^(bits-1)-1, so allow one
+        # full LSB at the top code.
+        delta = 1.0 / adc.scale
+        max_err = float(np.max(np.abs(err)))
+        assert max_err <= delta * 1.001, (
+            f"{bits}-bit max error {max_err:.3e} exceeds 1 LSB {delta:.3e}"
+        )
 
 
 if __name__ == "__main__":

@@ -160,6 +160,8 @@ changes — ideal for a soak test, a live receiver feed, or a rotating-file
 recorder. The first loop is always the unmodified seed for every mode, so a
 finite single-pass run is unaffected and `--record` stays byte-reproducible.
 
+<!-- docs-snippet: no-exec=unbounded --continuous --realtime stream; burst.json is illustrative -->
+
 ```sh
 # A PN preamble + payload, repeating forever, fresh noise each burst:
 wfmgen --from-file burst.json --continuous --realtime --seed-advance noise \

@@ -19,9 +19,31 @@ from __future__ import annotations
 
 import sys
 
+# --8<-- [start:track]
 import numpy as np
 
+from doppler.mpsk import mpsk_map
 from doppler.track import CarrierNda
+
+# A QPSK signal at 8 samples/symbol carrying a residual carrier offset.
+F0 = 0.0015  # residual carrier, cycles/sample
+rng = np.random.default_rng(0)
+labels = rng.integers(0, 4, 2000).astype(np.uint8)
+tx = np.repeat(mpsk_map(labels, 4), 8).astype(np.complex64)
+k = np.arange(tx.size)
+rx = (tx * np.exp(2j * np.pi * F0 * k)).astype(np.complex64)
+
+# QPSK NDA loop: 8 samples/symbol, sps/n = 2-sample boxcar arm; cold
+# start — no data aiding and no symbol timing needed to lock.
+c = CarrierNda(bn=0.01, zeta=0.707, init_norm_freq=0.0, sps=8, n=4, m=4)
+derot = c.steps(rx)  # de-rotated samples (one per input sample)
+f_est = c.norm_freq  # tracked carrier (cycles/sample)
+locked = c.lock  # M-th-power lock metric (-> lock_scale when locked)
+# --8<-- [end:track]
+
+# The narrative run above must acquire on modulated data with no symbol
+# timing — the data-blind M-th power is exactly what buys that.
+assert abs(f_est - F0) < 1e-4, "QPSK NDA narrative run failed to acquire"
 
 ORDERS = [
     (2, "BPSK", "#1f77b4"),
@@ -87,7 +109,13 @@ def main(out_path="mpsk_nda_theory_demo.png"):
 
     f0 = 0.0015
     for m, name, col in ORDERS:
-        b.plot(_acquire(m, f0), color=col, lw=1.2, label=f"{name} (M={m})")
+        freq = _acquire(m, f0)
+        b.plot(freq, color=col, lw=1.2, label=f"{name} (M={m})")
+        # Cold-start acquisition must succeed for every M: the last-300-
+        # symbol mean of the tracked frequency sits on the injected step.
+        tail_err = abs(float(np.mean(freq[-300:])) - f0)
+        print(f"{name}: tail freq err {tail_err:.2e} cycles/sample")
+        assert tail_err < 1e-4, f"{name} failed to acquire the carrier"
     b.axhline(f0, color="k", ls="--", lw=1.5, label=f"true f0 = {f0}")
     b.set_xlabel("symbol index")
     b.set_ylabel("tracked freq (cycles/sample)")
@@ -98,6 +126,12 @@ def main(out_path="mpsk_nda_theory_demo.png"):
     fig.tight_layout()
     fig.savefig(out_path, dpi=120)
     print(f"wrote {out_path}  (S-curve max err vs theory {max_err:.2e})")
+
+    # ── self-validation ───────────────────────────────────────────────────
+    # Off the wrap boundaries the noiseless M-th-power detector must trace
+    # scale·sin(Mφ) to float32 round-off — the M-normalized gain is what
+    # makes one loop bn behave identically across BPSK/QPSK/8PSK.
+    assert max_err < 1e-5, "S-curve departs from scale*sin(Mφ)"
 
 
 if __name__ == "__main__":

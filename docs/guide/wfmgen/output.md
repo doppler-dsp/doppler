@@ -46,6 +46,7 @@ wfmgen --type qpsk --count 200000 --sample-type ci16 --endian be \
        --file-type blue -o capture.blue
 
 # a SigMF pair (capture.sigmf-data + capture.sigmf-meta)
+wfmgen json-template > scenario.json      # or bring your own scene spec
 wfmgen --from-file scenario.json --sample-type ci16 --file-type sigmf -o capture
 ```
 

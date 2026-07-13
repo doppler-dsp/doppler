@@ -106,7 +106,7 @@ component), and a Python producer publishes `read()` output directly.
 Either way, `Subscriber.recv()` decodes the frame back into the exact
 `read()` dtype:
 
-<!-- docs-snippet: skip=needs a live nats-server on 127.0.0.1:4222 -->
+<!-- docs-snippet: skip=illustrative multi-process fragment (names span two pipelines; not runnable in one namespace) -->
 
 ```python
 from doppler.stream import Publisher, Subscriber, TLM16

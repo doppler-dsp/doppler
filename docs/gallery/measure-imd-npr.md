@@ -44,45 +44,25 @@ python src/doppler/examples/measure_imd_npr_demo.py
 ## The measurement objects
 
 ```python
-import numpy as np
+--8<-- "src/doppler/examples/measure_imd_npr_demo.py:setup"
+```
 
-from doppler.cvt import ADC
-from doppler.measure import IMDMeasure, NPRMeasure
-from doppler.source import AWGN, LO
-from doppler.spectral import FFT
-
-fs = 100e6          # sample rate
-n = 1 << 12         # analysis segment (sets the resolution bandwidth)
-m = 8 * n           # capture length — analyze() averages the segments
-
-# A real two-tone capture through a weak polynomial nonlinearity (IM2/IM3):
-f1, f2 = 9.013e6, 9.637e6
-tt = 0.35 * (LO(f1 / fs).steps(m).real + LO(f2 / fs).steps(m).real)
-two_tone_capture = (tt + 0.02 * tt**2 + 0.05 * tt**3).astype(np.float32)
-
-# Band-limited noise with a carved notch, quantised by a 10-bit ADC:
-active_lo, active_hi = 1e6, 49e6
-notch_lo, notch_hi, guard_hz = 24e6, 26e6, 0.5e6
-k = np.arange(m)
-freqs = np.abs(np.where(k < m // 2, k, k - m)) * (fs / m)
-keep = (
-    (freqs >= active_lo)
-    & (freqs <= active_hi)
-    & ~((freqs >= notch_lo) & (freqs <= notch_hi))
-)
-spec = FFT(m, -1).execute_cf32(AWGN(0, 1.0).generate(m)) * keep
-noise = (FFT(m, 1).execute_cf32(spec.astype(np.complex64)) / m).real
-noise *= 10 ** (-12.4 / 20) / np.sqrt(np.mean(noise**2))  # -12.4 dBFS RMS
-codes = ADC(10, 0.0, 0).steps(noise.astype(np.float32)).astype(np.float32)
-
+```python
 # Two-tone IMD / third-order intercept
-imd = IMDMeasure(n=n, fs=fs, dynamic_range_db=90.0)
-r = imd.analyze(two_tone_capture)
+imd = IMDMeasure(n=N, fs=FS, dynamic_range_db=90.0)
+r = imd.analyze(two_tone(9.013e6, 9.637e6, amp=0.35))
 r.imd3_dbc, r.imd2_dbc, r.toi_dbfs        # products + intercept (dBFS)
 r.imd3_lo_freq, r.imd3_hi_freq            # folded 2f₁−f₂, 2f₂−f₁
 
-# Notched-noise NPR — band/notch edges (Hz) + a guard keep-out are call args
-npr = NPRMeasure(n=n, fs=fs, full_scale=2.0**9)
+# Notched-noise NPR — band/notch edges (Hz) + a guard keep-out are call
+# args. The stimulus is quantised by a 10-bit ADC at -12.4 dBFS RMS.
+active_lo, active_hi = 1e6, 49e6
+notch_lo, notch_hi, guard_hz = 24e6, 26e6, 0.5e6
+noise = notched_noise(10 ** (-12.4 / 20), active_lo, active_hi,
+                      notch_lo, notch_hi)
+codes = ADC(10, 0.0, 0).steps(noise).astype(np.float32)
+
+npr = NPRMeasure(n=N, fs=FS, bits=10)
 g = npr.analyze(codes, active_lo, active_hi, notch_lo, notch_hi, guard_hz)
 g.npr_db, g.inband_psd_dbfs, g.notch_psd_dbfs
 ```

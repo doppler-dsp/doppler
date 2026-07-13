@@ -48,7 +48,7 @@ jobs:
           git checkout -- docs/c-api/index.md
 
       - name: Build site
-        run: uv run zensical build
+        run: uv run zensical build --strict
 
       - name: Configure Pages
         if: github.ref == 'refs/heads/main'

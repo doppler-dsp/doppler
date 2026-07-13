@@ -22,11 +22,11 @@ import matplotlib
 matplotlib.use("Agg")  # headless — no display required
 
 import matplotlib.pyplot as plt
+
+# --8<-- [start:theory]
 import numpy as np
 
 from doppler.detection import det_dwell, det_pd, det_threshold
-
-# ── Parameters ───────────────────────────────────────────────────────────────
 
 PFA = 1e-5
 PD_TARGET = 0.9
@@ -35,8 +35,6 @@ MAX_DWELL = 64
 DWELL_X = np.arange(1, MAX_DWELL + 1)
 
 ETA = det_threshold(PFA)  # threshold is Pfa-only; computed once
-
-# ── Compute curves ───────────────────────────────────────────────────────────
 
 # Left panel: Pd vs dwell for each SNR.
 snr_amps = [10 ** (db / 20) for db in SNR_DB]
@@ -48,6 +46,35 @@ snr_amp_sweep = 10 ** (snr_db_sweep / 20)
 min_dwell = [
     det_dwell(float(s), PD_TARGET, PFA, MAX_DWELL) for s in snr_amp_sweep
 ]
+
+# Mask SNRs where det_dwell returned -1 (not achievable within MAX_DWELL).
+valid = np.array(min_dwell)
+mask = valid > 0
+# --8<-- [end:theory]
+
+# --8<-- [start:checks]
+# Self-checks: the theory functions must be internally consistent.
+# Coherent integration only helps: Pd is non-decreasing in dwell.
+for snr_db, pds in zip(SNR_DB, pd_curves):
+    assert np.all(np.diff(pds) >= -1e-12), (
+        f"Pd not monotone in dwell at {snr_db} dB"
+    )
+
+# det_dwell() must return the *minimum* dwell: Pd first crosses the
+# target at M, i.e. Pd(M) >= target and Pd(M-1) < target.
+for snr_db, snr_amp in zip(SNR_DB, snr_amps):
+    m = det_dwell(snr_amp, PD_TARGET, PFA, MAX_DWELL)
+    assert m > 0, f"Pd={PD_TARGET} unreachable at {snr_db} dB"
+    assert det_pd(snr_amp, m, ETA) >= PD_TARGET, "det_dwell undershoots"
+    assert m == 1 or det_pd(snr_amp, m - 1, ETA) < PD_TARGET, (
+        "det_dwell is not minimal"
+    )
+    print(f"SNR {snr_db:+3d} dB: minimum dwell M = {m}")
+
+# Integration gain compensates SNR: a stronger signal never needs a
+# longer dwell, so the right-panel curve is non-increasing.
+assert np.all(np.diff(valid[mask]) <= 0), "min dwell not monotone in SNR"
+# --8<-- [end:checks]
 
 # ── Plot ─────────────────────────────────────────────────────────────────────
 
@@ -106,10 +133,6 @@ ax1.legend(fontsize=9, loc="lower right")
 ax1.grid(True, linestyle=":", linewidth=0.6, alpha=0.8)
 
 # ── Right panel ──────────────────────────────────────────────────────────────
-
-# Mask SNRs where det_dwell returned -1 (not achievable within MAX_DWELL).
-valid = np.array(min_dwell)
-mask = valid > 0
 
 ax2.semilogy(
     snr_db_sweep[mask],

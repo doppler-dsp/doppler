@@ -27,6 +27,8 @@ import matplotlib
 matplotlib.use("Agg")  # headless: render straight to a file, no display
 
 import matplotlib.pyplot as plt
+
+# --8<-- [start:step_response]
 import numpy as np
 
 from doppler.agc import AGC
@@ -35,16 +37,22 @@ N_TOTAL = 6000  # total samples processed
 N_STEP = 3000  # sample index where the input level jumps
 F_TONE = 0.02  # normalised tone frequency (cycles/sample)
 REF_DB = 0.0  # AGC target output power
-LOOP_BW = 0.00125  # loop noise bandwidth, cycles/sample (fixed for all decim)
+LOOP_BW = 0.00125  # loop noise bandwidth (fixed for all decim)
 ALPHA = 0.02  # power-detector EMA coefficient
 LO_DB = -10.0  # input power before the step
 HI_DB = 10.0  # input power after the step
-DECIMS = (1, 8, 16)  # decimation factors compared at one loop bandwidth
 
 # Constant-envelope tone whose power steps LO_DB -> HI_DB at sample N_STEP.
 n = np.arange(N_TOTAL)
 amp = np.where(n < N_STEP, 10.0 ** (LO_DB / 20.0), 10.0 ** (HI_DB / 20.0))
 x = (amp * np.exp(2j * np.pi * F_TONE * n)).astype(np.complex64)
+
+agc = AGC(ref_db=REF_DB, loop_bw=LOOP_BW, alpha=ALPHA)
+agc.decim = 8  # update loop every 8 samples
+y = agc.steps(x)  # normalised output, power → REF_DB
+# --8<-- [end:step_response]
+
+DECIMS = (1, 8, 16)  # decimation factors compared at one loop bandwidth
 
 
 def run(decim):
@@ -82,6 +90,26 @@ for d in DECIMS:
         f"{settle} samples after the step; "
         f"applied_gain_db={agc.applied_gain_db:+.2f} "
         f"(commanded gain_db={agc.gain_db:+.2f})"
+    )
+    # The loop must genuinely converge, and decim must only coarsen the
+    # path — not move the destination.  Once transients die out (well
+    # before the last 1000 samples of each segment) the output power has
+    # to sit on the reference, and the steady-state gain has to cancel
+    # the input level exactly (REF_DB - HI_DB after the step).
+    assert 0 < settle <= 1000, (
+        f"decim {d}: no settling within 1000 samples (settle={settle})"
+    )
+    pre = out_db[N_STEP - 1000 : N_STEP]
+    post = out_db[N_TOTAL - 1000 :]
+    assert np.max(np.abs(pre - REF_DB)) < 1.0, (
+        f"decim {d}: pre-step output not converged to {REF_DB} dB"
+    )
+    assert np.max(np.abs(post - REF_DB)) < 1.0, (
+        f"decim {d}: post-step output not converged to {REF_DB} dB"
+    )
+    assert abs(agc.applied_gain_db - (REF_DB - HI_DB)) < 0.5, (
+        f"decim {d}: steady-state gain {agc.applied_gain_db:+.2f} dB, "
+        f"expected {REF_DB - HI_DB:+.1f} dB"
     )
 
 fig, (ax1, ax2) = plt.subplots(2, 1, sharex=True, figsize=(9, 6))

@@ -44,10 +44,14 @@ TOTAL = 80_000  # ~0.16 s of signal at FS -> a short, bounded demo
 def main() -> None:
     endpoint = f"nats://127.0.0.1:4222/wfm-feed-{random.randint(1, 10**9)}"
     # A two-source scene: a QPSK signal of interest plus a CW interferer.
+    # Seeded so the composed feed is deterministic (validated below); fs
+    # must be set on the sum too — it resolves the scene's rate and the
+    # tone's freq is interpreted against it.
     scene = Segment.sum(
-        qpsk(fs=FS, sps=8, snr=20.0, snr_mode="esno"),
+        qpsk(fs=FS, sps=8, snr=20.0, snr_mode="esno", seed=1),
         tone(fs=FS, freq=1.2e5, level=-12.0),
         num_samples=TOTAL,
+        fs=FS,
     )
     composer = Composer([scene])
 
@@ -64,6 +68,7 @@ def main() -> None:
     time.sleep(0.1)
 
     sent_blocks = recv_blocks = recv_samples = 0
+    sent = []  # copy of every published block, for TX-side validation
     print(f"streaming {TOTAL} samples @ {FS / 1e3:.0f} kHz over {endpoint}")
     print(f"{'block':>5} {'tx_n':>7} {'rx_pwr_dB':>10} {'elapsed_s':>10}")
 
@@ -71,6 +76,7 @@ def main() -> None:
     for i, block in enumerate(composer.stream(block=BLOCK)):
         sink.send(block, FS, FC)
         sent_blocks += 1
+        sent.append(np.array(block))
         clock.pace(len(block))  # block until wall-clock catches up to fs
 
         try:
@@ -100,6 +106,34 @@ def main() -> None:
         f"SampleClock: paced {clock.samples} samples, "
         f"{clock.underruns} underruns, "
         f"max lateness {clock.max_lateness * 1e3:.2f} ms"
+    )
+
+    # ── validate (TX side only — must hold with or without a broker) ───────
+    # The composer streams exactly the requested scene, in ceil(TOTAL/BLOCK)
+    # blocks, and every emitted sample went through the pacer.
+    tx = np.concatenate(sent)
+    assert sent_blocks == -(-TOTAL // BLOCK), f"{sent_blocks} blocks"
+    assert len(tx) == TOTAL, f"streamed {len(tx)} samples, wanted {TOTAL}"
+    assert clock.samples == TOTAL, f"paced {clock.samples} != {TOTAL}"
+    # Feed power: unit-power QPSK + a -12 dBFS tone + the AWGN floor the
+    # composer resolved from 20 dB Es/No at 8 sps (per-sample SNR ~11 dB).
+    snr_fs = 20.0 - 10.0 * np.log10(8.0)  # Es/No -> over-fs SNR at 8 sps
+    exp_db = 10.0 * np.log10(
+        1.0 + 10.0 ** (-12.0 / 10.0) + 10.0 ** (-snr_fs / 10.0)
+    )
+    tx_db = 10.0 * np.log10(float(np.mean(np.abs(tx) ** 2)))
+    assert abs(tx_db - exp_db) < 0.5, f"feed {tx_db:.2f} dB != {exp_db:.2f}"
+    # The CW interferer is the strongest spectral line, at its +120 kHz.
+    spec = np.abs(np.fft.fft(tx * np.hanning(len(tx))))
+    fpk = float(np.fft.fftfreq(len(tx), 1.0 / FS)[int(np.argmax(spec))])
+    assert abs(fpk - 1.2e5) < 100.0, f"tone found at {fpk / 1e3:.2f} kHz"
+    # If a broker relayed frames back, it cannot invent samples.
+    if recv_blocks:
+        assert recv_samples <= TOTAL, f"received {recv_samples} > {TOTAL}"
+    print(
+        f"validated: {len(tx)} samples in {sent_blocks} blocks, "
+        f"feed {tx_db:+.2f} dBFS (exp {exp_db:+.2f}), tone at "
+        f"{fpk / 1e3:.1f} kHz"
     )
     clock.close()
 

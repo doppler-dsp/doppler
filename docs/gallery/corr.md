@@ -26,32 +26,9 @@ estimate.
 `dwell`-th call; all other calls return `None`.
 
 ```python
-from doppler.spectral import Corr
-import numpy as np
+--8<-- "src/doppler/examples/corr_demo.py:setup"
 
-rng = np.random.default_rng(42)
-N, LAG, DWELL = 64, 17, 8
-SNR = 10 ** (-6 / 20)   # −6 dB amplitude SNR
-
-ref = rng.choice(
-    np.array([-1., 1.], dtype=np.float32), size=N
-).astype(np.complex64)
-
-def frame():
-    sig  = np.roll(ref, LAG) * np.float32(SNR)
-    re   = rng.standard_normal(N).astype(np.float32)
-    im   = rng.standard_normal(N).astype(np.float32)
-    return (
-        sig
-        + (re + 1j * im).astype(np.complex64) * np.float32(1 / np.sqrt(2))
-    )
-
-with Corr(ref, dwell=DWELL) as c:
-    output = None
-    for _ in range(DWELL):
-        output = c.execute(frame())
-
-peak_lag = int(np.argmax(np.abs(output)))
+--8<-- "src/doppler/examples/corr_demo.py:integrate"
 ```
 
 `CorrDetector` wraps this loop and applies a CFAR threshold so you get
@@ -72,33 +49,21 @@ see the [2-D Acquisition gallery](detection2d.md) for the details.
 threshold; the noise estimate is taken from lags `[noise_lo, noise_hi]`:
 
 ```python
-from doppler.spectral import CorrDetector
-
 # One coherent-dwell block of the same shifted-PN + noise frames.
-block = np.concatenate([frame() for _ in range(DWELL)])
+block = np.concatenate([noisy_frame() for _ in range(DWELL)])
 
-det = CorrDetector(ref, dwell=DWELL, noise_lo=LAG + 4, noise_hi=N - 1,
-               threshold=5.0)
+det = CorrDetector(ref1d, dwell=DWELL, noise_lo=LAG + 4, noise_hi=N - 1,
+                   threshold=THRESHOLD)
 for lag, peak_mag, noise_est, test_stat in det.push(block):
     print(f"detection  lag={lag}  stat={test_stat:.2f}")
-# detection  lag=17  stat=6.58
-# detection  lag=17  stat=7.90   (stat varies with seed; lag is deterministic)
+# detection  lag=17  stat=7.34   (stat varies with noise; lag is
+#                                 deterministic)
 ```
 
 ### `Corr2D` — standalone 2-D match
 
 ```python
-from doppler.spectral import Corr2D
-import numpy as np
-
-rng = np.random.default_rng(0)
-ref2d = rng.standard_normal((8, 8)).astype(np.complex64)
-sig2d = np.roll(np.roll(ref2d, 3, axis=0), 5, axis=1)   # (row=3, col=5)
-
-with Corr2D(ref2d, dwell=1) as c:
-    surf = np.abs(c.execute(sig2d.ravel())).reshape(8, 8)
-peak = np.unravel_index(surf.argmax(), (8, 8))
-print(f"peak at {peak}  (true=(3, 5))")   # peak at (3, 5)
+--8<-- "src/doppler/examples/corr_demo.py:match2d"
 ```
 
 `CorrDetector2D` wraps `Corr2D` with the same CFAR gating for a full 2-D

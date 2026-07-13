@@ -35,14 +35,16 @@ import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+
+# --8<-- [start:roundtrip]
 import numpy as np
 
 from doppler.wfm import Composer, Segment
 
-# ── scene definition ─────────────────────────────────────────────────────────
-# Three segments at 1 MHz; each is self-contained in the JSON spec.
+# Three self-contained segments at 1 MHz: a tone burst, a QPSK burst,
+# and a chirp sweep — each carries its own timing in the JSON spec.
 FS = 1e6
-TONE = Segment(
+tone_seg = Segment(
     "tone",
     fs=FS,
     freq=1.5e5,  # +150 kHz carrier
@@ -50,7 +52,7 @@ TONE = Segment(
     num_samples=8_000,
     off_samples=2_000,
 )
-QPSK = Segment(
+qpsk_seg = Segment(
     "qpsk",
     fs=FS,
     snr=12.0,
@@ -62,7 +64,7 @@ QPSK = Segment(
     num_samples=16_000,
     off_samples=2_000,
 )
-CHIRP = Segment(
+chirp_seg = Segment(
     "chirp",
     fs=FS,
     freq=-4.0e5,  # sweep −400 kHz → +400 kHz
@@ -71,21 +73,20 @@ CHIRP = Segment(
     num_samples=10_000,
 )
 
-# ── step 1: compose the original scene ───────────────────────────────────────
-composer_a = Composer([TONE, QPSK, CHIRP])
+composer_a = Composer([tone_seg, qpsk_seg, chirp_seg])
 iq_a = np.asarray(composer_a.compose(), dtype=np.complex64)
 
-# ── step 2: serialise to JSON ────────────────────────────────────────────────
-spec_json = composer_a.to_json()
-spec = json.loads(spec_json)
-assert spec["version"] == 1
+spec_json = composer_a.to_json()  # → JSON string (same as --record)
 
-# ── step 3: reload from JSON ─────────────────────────────────────────────────
-composer_b = Composer.from_json(spec_json)
+composer_b = Composer.from_json(spec_json)  # → same as --from-file
 iq_b = np.asarray(composer_b.compose(), dtype=np.complex64)
 
-# ── step 4: verify byte-identity ─────────────────────────────────────────────
 assert np.array_equal(iq_a, iq_b), "round-trip produced different samples"
+# --8<-- [end:roundtrip]
+
+# ── the resolved spec, as a dict for the figure's JSON panel ────────────────
+spec = json.loads(spec_json)
+assert spec["version"] == 1
 
 # ── step 5: visualise ────────────────────────────────────────────────────────
 NFFT = 256

@@ -12,7 +12,7 @@ the loop ticks.
 - **decim=1** — loop updates every sample; fastest per-sample cost.
 - **decim=8** — loop updates every 8 samples; ×8 cheaper, identical
     trajectory.
-- **decim=32** — coarsest timing; still converges within ~350 samples
+- **decim=16** — coarsest timing; still converges within ~350 samples
     of the 20 dB step.
 
 The gain trace is output power in dBFS. All three curves converge to
@@ -26,16 +26,7 @@ after it.
 the detector ticks.
 
 ```python
-from doppler.agc import AGC
-import numpy as np
-
-n = np.arange(6000)
-amp = np.where(n < 3000, 10**(-10/20), 10**(10/20))
-x = (amp * np.exp(2j * np.pi * 0.02 * n)).astype(np.complex64)
-
-agc = AGC(ref_db=0.0, loop_bw=0.00125, alpha=0.02)
-agc.decim = 8          # update loop every 8 samples
-y = agc.steps(x)       # normalised output, power → 0 dBm
+--8<-- "src/doppler/examples/agc_demo.py:step_response"
 ```
 
 `alpha` controls the exponential moving-average window for the power

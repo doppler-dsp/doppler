@@ -142,6 +142,32 @@ def main(out_path: str = "cvt_quantization_demo.png") -> None:
         for fwd, inv, color, label in CONVERTERS
     ]
 
+    # ── validation ───────────────────────────────────────────────────────────
+    # The container width must not change the numbers: all three paths
+    # carry the same Q15 bit pattern, so the decoded streams have to be
+    # bit-identical, the error bounded by half a Q15 step (round to
+    # nearest, no clipping — the multi-tone sum stays under full scale),
+    # and the error RMS on the white Δ/√12 quantisation-noise model.
+    lsb = 1.0 / 32768.0
+    ref = roundtrips[0][2]
+    for label, _color, xq in roundtrips:
+        assert np.array_equal(xq, ref), f"{label}: decoded stream differs"
+        err = (xq - x).astype(np.complex128)
+        max_err = max(
+            float(np.max(np.abs(err.real))), float(np.max(np.abs(err.imag)))
+        )
+        rms = float(np.sqrt(np.mean(err.real**2)))
+        assert max_err <= 0.5 * lsb * 1.01, (
+            f"{label}: max error {max_err:.3e} exceeds Δ/2 = {0.5 * lsb:.3e}"
+        )
+        assert 0.85 < rms / (lsb / np.sqrt(12.0)) < 1.15, (
+            f"{label}: error RMS {rms:.3e} off the Δ/√12 model"
+        )
+        print(
+            f"  {label}: max err {max_err / lsb:.3f} LSB, "
+            f"RMS {rms / (lsb / np.sqrt(12.0)):.3f}·Δ/√12 — OK"
+        )
+
     fig, (ax_in, ax_q, ax_err) = plt.subplots(
         3, 1, figsize=(10, 10), constrained_layout=True
     )

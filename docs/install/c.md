@@ -14,7 +14,7 @@ toolchain or build step.
 !!! tip "One-liner via jbx"
 
     ```sh
-    jbx get-doppler                          # extracts to $HOME/doppler
+    jbx get-doppler                          # extracts to $HOME/.local/doppler
     jbx get-doppler --prefix /opt/doppler    # or a custom prefix
     jbx get-doppler --version 0.33.1         # pin a specific release
     jbx get-doppler --restore                # roll back to the prior install
@@ -39,7 +39,7 @@ VERSION=$(curl -fsSL https://api.github.com/repos/doppler-dsp/doppler/releases/l
 # for macOS arm64 swap it for `macos-arm64`:
 curl -L -o doppler.tar.gz \
   "https://github.com/doppler-dsp/doppler/releases/download/v${VERSION}/doppler-${VERSION}-linux-x86_64.tar.gz"
-mkdir -p "$HOME/doppler" && tar -xzf doppler.tar.gz -C "$HOME/doppler"
+mkdir -p "$HOME/.local/doppler" && tar -xzf doppler.tar.gz -C "$HOME/.local/doppler"
 ```
 
 Point your build at the extracted prefix — CMake via `CMAKE_PREFIX_PATH`, or
@@ -47,8 +47,8 @@ pkg-config via `PKG_CONFIG_PATH` — then use the **find_package** or
 **pkg-config** method shown below:
 
 ```sh
-cmake -B build -DCMAKE_PREFIX_PATH="$HOME/doppler"     # for find_package(doppler)
-export PKG_CONFIG_PATH="$HOME/doppler/lib/pkgconfig"   # for pkg-config doppler
+cmake -B build -DCMAKE_PREFIX_PATH="$HOME/.local/doppler"     # for find_package(doppler)
+export PKG_CONFIG_PATH="$HOME/.local/doppler/lib/pkgconfig"   # for pkg-config doppler
 ```
 
 The core library is pure C and links only `-lm`, so there is no external

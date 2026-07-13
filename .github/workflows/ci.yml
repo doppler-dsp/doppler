@@ -214,6 +214,16 @@ jobs:
       if: matrix.python-version == '3.12'
       run: uv run python -m pytest -m docs_snippets -q src/doppler/tests/test_c_doc_snippets.py
 
+    - name: Shell doc snippet drift gate
+      # Third fence class: documented CLI invocations. Every doppler /
+      # doppler-specan line in a sh/bash/console fence is parsed against
+      # the CLI's real argparse parser (build_parser()), and fences whose
+      # commands are all safe (wfmgen, cat, ...) execute end-to-end under
+      # bash -e in a throwaway cwd -- the #458 compose bugs were exactly
+      # this class. See src/doppler/tests/test_sh_doc_snippets.py.
+      if: matrix.python-version == '3.12'
+      run: uv run python -m pytest -m docs_snippets -q src/doppler/tests/test_sh_doc_snippets.py
+
     - name: Test with coverage
       # The doc-snippet gate is version-independent and has its own step above
       # (3.12 only), so exclude it here to avoid running it on all 6 versions
@@ -408,7 +418,16 @@ jobs:
       run: uv run python scripts/check_serializable.py
 
     - name: Build docs
-      run: uv run zensical build
+      # --strict: any build warning (unresolved link ref, bad include)
+      # fails the job instead of scrolling past.
+      run: uv run zensical build --strict
+
+    - name: Check site internal links
+      # Walks the freshly built site/: every internal href/src must
+      # resolve to a real file, every #fragment to a real element id.
+      # Generated trees (c-api, doxygen) are linked-into but not
+      # audited. No network -- external URLs are out of scope.
+      run: uv run python scripts/check_site_links.py
 
   # ------------------------------------------------------------------
   # Docker image build + container tests

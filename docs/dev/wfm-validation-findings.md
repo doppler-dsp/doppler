@@ -86,6 +86,8 @@ docstring.
 **Observed.** `wfmgen --type tone --count 256 --output -` creates a file
 **literally named `-`** in the cwd (2048 bytes) and writes nothing to stdout.
 
+<!-- docs-snippet: no-exec=historical record of the pre-#196 bug; the fix makes this output obsolete -->
+
 ```console
 $ wfmgen --type tone --count 256 --sample-type cf32 --output - >/dev/null
 $ ls -l ./-          # a stray 2048-byte file appears

@@ -92,7 +92,7 @@ drains its *own* ring to its *own* subject, and a single consumer
 process takes them all in. Probe-id spaces are per-ring, so the subject
 tells the consumer which name map to demux with:
 
-<!-- docs-snippet: skip=needs a live nats-server on 127.0.0.1:4222 -->
+<!-- docs-snippet: skip=illustrative multi-process fragment (names span two pipelines; not runnable in one namespace) -->
 
 ```python
 from doppler.stream import Publisher, Subscriber, TLM16

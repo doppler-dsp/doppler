@@ -159,13 +159,26 @@ def _run_one(blockid, marker, code, ns):
                 f"`<!-- docs-snippet: skip=why it can't run headless -->`"
             )
             return "skipped"
-        if kind == "raises":
+        if kind == "broker":
+            # Conditional, not dead: the fence needs only a live NATS
+            # broker (no peer process), so it RUNS wherever one is
+            # reachable — CI's python-tests job starts one on :4222 —
+            # and skips elsewhere. Same idiom as the stream suite.
+            assert rest, f"{blockid}: broker marker needs a reason"
+            import socket
+
+            try:
+                with socket.create_connection(("127.0.0.1", 4222), 0.5):
+                    pass
+            except OSError:
+                return "skipped"
+        elif kind == "raises":
             assert rest, f"{blockid}: raises marker needs an exception type"
             expect_raises = rest
         else:
             raise AssertionError(
                 f"{blockid}: unknown docs-snippet marker {marker!r} "
-                f"(expected skip= or raises=)"
+                f"(expected skip=, broker=, or raises=)"
             )
 
     code = _resolve_snippets(code)  # inline any --8<-- gold-standard includes

@@ -81,6 +81,23 @@ def main(out_path="despreader_demo.png"):
     ber = min(err, len(dec) - err) / len(dec)
     flip = err > len(dec) - err  # recovered with a global inversion?
 
+    # ── validate: both loops converged, data recovered ───────────────
+    # Carrier loop: the settled NCO frequency must sit on the true
+    # residual, and the lock metric must report lock.
+    f_err = float(np.abs(freq[tail:].mean() - F0))
+    print(f"settled freq err = {f_err:.1e} cyc/sample (F0 = {F0:.1e})")
+    assert f_err < 0.1 * F0, "carrier loop settled off the residual"
+    assert lock[tail:].mean() > 0.9, "lock metric failed to ramp to 1"
+    # Code loop: the chip-rate estimate must track the code Doppler
+    # (error well under the 5e-5 offset being tracked).
+    r_err = float(np.abs(rate[tail:].mean() - (1.0 + CODE_DOPPLER)))
+    print(f"settled code-rate err = {r_err:.1e} (Doppler {CODE_DOPPLER:.0e})")
+    assert r_err < 0.5 * CODE_DOPPLER, "DLL settled off the chip rate"
+    # Despread data: post-despread Es/N0 ≈ SNR + 10·log10(SF·SPS)
+    # ≈ 38 dB, so the converged tail must decode error-free (modulo
+    # the global BPSK sign ambiguity).
+    assert ber == 0.0, f"nonzero tail BER {ber:.3g}"
+
     t = np.arange(NPER)
     fig, (a, b, c) = plt.subplots(3, 1, figsize=(9, 8), sharex=True)
 

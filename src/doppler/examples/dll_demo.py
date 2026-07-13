@@ -62,6 +62,22 @@ def main(out_path="dll_demo.png"):
         rate[p] = d.code_rate
         stress[p] = d.last_error
 
+    # ── self-validation: the demo's physics, asserted ────────────────────
+    # After pull-in the loop must sit on the true incoming chip rate; the
+    # tail error is a small fraction of the injected code Doppler itself.
+    tail = slice(NPER - 200, None)
+    rate_err = abs(float(np.mean(rate[tail])) - (1.0 + DELTA))
+    print(f"tail code-rate error {rate_err:.2e} (code Doppler {DELTA:.0e})")
+    assert rate_err < 0.1 * DELTA, "DLL did not settle on the true rate"
+    assert d.locked, "DLL lock detector never declared lock"
+    # The half-chip pull-in must show as a large early E-minus-L swing
+    # that decays to a low locked discriminator floor.
+    head_rms = float(np.sqrt(np.mean(stress[:50] ** 2)))
+    tail_rms = float(np.sqrt(np.mean(stress[tail] ** 2)))
+    print(f"discriminator RMS: pull-in {head_rms:.3f} -> floor {tail_rms:.3f}")
+    assert head_rms > 0.3, "no pull-in transient — replica already aligned?"
+    assert tail_rms < 0.12, "locked discriminator floor too high"
+
     t = np.arange(NPER)
     fig, (a, b) = plt.subplots(2, 1, figsize=(9, 6), sharex=True)
 

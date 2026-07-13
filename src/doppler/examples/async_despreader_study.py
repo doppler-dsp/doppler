@@ -179,6 +179,31 @@ def main(out_path="async_despreader_study.png"):
     coh = [disc_std(rxd, k)[0] for k in ks]
     ncs = [disc_std(rxd, k)[1] for k in ks]
 
+    # ── validate the three claims ────────────────────────────────────
+    # 1. The per-epoch coherent despread floors (straddle cancellation
+    #    kills symbols regardless of Es/N0) while the partial+MF+
+    #    SymbolSync fix and the genie both ride the BPSK bound (~1e-5
+    #    at 9.6 dB → expect ~0 errors in 15k symbols; allow a few).
+    print(
+        f"BER at {esn0s[-1]} dB: broken {broken[-1]:.1e}, "
+        f"fixed {fixed[-1]:.1e}, genie {gen_ber[-1]:.1e}"
+    )
+    assert min(broken) > 1e-2, "broken baseline did not floor"
+    assert fixed[-1] < 1e-3, "fix does not approach the BPSK bound"
+    assert gen_ber[-1] < 1e-3, "genie despread off the BPSK bound"
+    # 2. The failure fingerprint: the |P| fluctuation spectrum peaks at
+    #    the symbol/code clock offset |delta| (within FFT resolution).
+    fpk = float(freq[np.argmax(spec)])
+    print(f"|P| beat tone at {fpk:.2e} cyc/epoch (|delta| = 3e-3)")
+    assert abs(fpk - 3e-3) < 2.0 / len(mag), "beat tone not at |delta|"
+    # 3. Non-coherent partial combining is the more robust code
+    #    discriminator under async data (K=4 sweet spot).
+    k4 = ks.index(4)
+    print(
+        f"disc std at K=4: coherent {coh[k4]:.3f}, non-coherent {ncs[k4]:.3f}"
+    )
+    assert ncs[k4] < coh[k4], "non-coherent partials not more robust"
+
     fig, ax = plt.subplots(1, 3, figsize=(15, 4.3))
     ax[0].semilogy(esn0s, th, "k--", lw=2, label="BPSK bound")
     ax[0].semilogy(esn0s, gen_ber, "s-", color="#1f77b4", label="genie timing")

@@ -105,6 +105,9 @@ def demo_lifecycle() -> None:
         ddcr.execute(np.zeros(8, np.float32), np.empty(8, np.complex64))
     except RuntimeError:
         print("  use-after-close correctly raises RuntimeError\n")
+    else:
+        # A closed handle must never reach the C kernel.
+        raise AssertionError("execute() after close() did not raise")
 
 
 # ---------------------------------------------------------------------------
@@ -125,9 +128,16 @@ def demo_tuning() -> None:
         y = np.array(ddcr.execute(x, out), copy=True)
         ddcr.close()
         y_settled = y[len(y) // 10 :]  # drop filter transient
+        peak = _peak_fn(y_settled)
         print(
             f"  {f_carrier:>10.3f}  {_lo_for_carrier(f_carrier):>+10.3f}  "
-            f"{_peak_fn(y_settled):>12.4f}"
+            f"{peak:>12.4f}"
+        )
+        # Correct tuning parks the carrier at DC: any residual LO offset
+        # would push the strongest line off zero.
+        assert abs(peak) < 0.005, (
+            f"f_carrier={f_carrier}: output peak at fn={peak:+.4f}, "
+            f"expected DC"
         )
     print("  (output peak ≈ 0 → the carrier is parked at DC)\n")
 
@@ -154,6 +164,12 @@ def demo_streaming() -> None:
         f"  fed {total_in} real samples in 4 blocks → "
         f"{total_out} complex samples  (≈{total_in / total_out:.1f}× "
         f"decimation)\n"
+    )
+    # Streaming must conserve the sample budget: rate=0.25 means one
+    # complex output for every four real inputs across the whole run.
+    assert abs(total_out - total_in * RATE) <= 4, (
+        f"{total_out} outputs from {total_in} inputs — expected "
+        f"≈{total_in * RATE:.0f} at rate {RATE}"
     )
 
 
@@ -185,6 +201,22 @@ def demo_spectral_plot(out_path="ddc_fn_demo.png") -> None:
     d_off.close()
 
     drop = lambda y: y[len(y) // 10 :]  # noqa: E731 — drop transient
+
+    # LO on the carrier parks the tone at DC; retuning the LO 0.04 below
+    # moves it to +0.04 of fs_in = +0.04/rate = +0.16 of fs_out.
+    peak_dc = _peak_fn(drop(y_dc))
+    peak_off = _peak_fn(drop(y_off))
+    assert abs(peak_dc) < 0.005, f"tuned output peak at fn={peak_dc:+.4f}"
+    expected_off = (f_carrier - 0.14) / RATE
+    assert abs(peak_off - expected_off) < 0.005, (
+        f"retuned output peak at fn={peak_off:+.4f}, "
+        f"expected {expected_off:+.4f}"
+    )
+    print(
+        f"    tuned peak fn={peak_dc:+.4f} (DC), retuned "
+        f"fn={peak_off:+.4f} (expect {expected_off:+.4f}) — OK"
+    )
+
     panels = [
         (
             x,

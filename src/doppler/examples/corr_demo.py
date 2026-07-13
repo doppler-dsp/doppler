@@ -83,6 +83,12 @@ print(
     f"  |  dwell={DWELL}  peak/mean={snr_d8:.1f}"
 )
 
+# The dwell=8 coherent sum must place the global peak exactly at the
+# injected lag, and integrating 8 frames must sharpen the peak/mean
+# ratio over a single frame (coherent integration gain).
+assert int(np.argmax(mag_d8)) == LAG, "dwell=8 peak not at injected lag"
+assert snr_d8 > snr_d1, "no coherent integration gain at dwell=8"
+
 # ── 2. Corr2D: 2-D template match ───────────────────────────────────────────
 
 x2d = np.roll(np.roll(ref2d, ROW, axis=0), COL, axis=1)
@@ -94,6 +100,10 @@ print(
     f"[Corr2D]    peak at (row={peak_row}, col={peak_col})"
     f"  (expected ({ROW}, {COL}))"
 )
+
+# 2-D template match: the correlation surface must peak exactly at the
+# injected (row, col) circular shift.
+assert (peak_row, peak_col) == (ROW, COL), "2-D peak not at true shift"
 
 # ── 3. CorrDetector: alternating signal / noise-only dwell cycles ───────────
 #
@@ -126,17 +136,28 @@ print(
     f"  (shown threshold={THRESHOLD})"
 )
 
+# The dwell=8 integration separates the hypotheses cleanly: every
+# signal dump must clear the shown gate, every noise-only dump must
+# stay below it (deterministic with the fixed seed).
+assert min(sig_stats) > THRESHOLD, "a signal dwell fell below the gate"
+assert max(noise_stats) < THRESHOLD, "a noise-only dwell crossed the gate"
+
 # ── 4. CorrDetector2D: one-frame sanity check ────────────────────────────────
 
-with CorrDetector2D(ref2d, threshold=0) as det2d:
+# dwell=1 must be explicit: omitting it leaves the detector with an
+# effective dwell of 0 and push() never dumps.
+with CorrDetector2D(ref2d, dwell=1, threshold=0) as det2d:
     hits2d = det2d.push(x2d.ravel())
 
-if hits2d:
-    r, col_hit, *_ = hits2d[0]
-    print(
-        f"[CorrDetector2D] peak at (row={r}, col={col_hit})"
-        f"  (expected ({ROW}, {COL}))"
-    )
+# threshold=0 → the dump always fires, and the reported cell must be
+# the injected (row, col) shift.
+assert hits2d, "CorrDetector2D produced no dump"
+r, col_hit, *_ = hits2d[0]
+print(
+    f"[CorrDetector2D] peak at (row={r}, col={col_hit})"
+    f"  (expected ({ROW}, {COL}))"
+)
+assert (r, col_hit) == (ROW, COL), "detected cell not at true shift"
 
 # ── Figure ───────────────────────────────────────────────────────────────────
 

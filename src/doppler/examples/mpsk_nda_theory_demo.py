@@ -87,7 +87,13 @@ def main(out_path="mpsk_nda_theory_demo.png"):
 
     f0 = 0.0015
     for m, name, col in ORDERS:
-        b.plot(_acquire(m, f0), color=col, lw=1.2, label=f"{name} (M={m})")
+        freq = _acquire(m, f0)
+        b.plot(freq, color=col, lw=1.2, label=f"{name} (M={m})")
+        # Cold-start acquisition must succeed for every M: the last-300-
+        # symbol mean of the tracked frequency sits on the injected step.
+        tail_err = abs(float(np.mean(freq[-300:])) - f0)
+        print(f"{name}: tail freq err {tail_err:.2e} cycles/sample")
+        assert tail_err < 1e-4, f"{name} failed to acquire the carrier"
     b.axhline(f0, color="k", ls="--", lw=1.5, label=f"true f0 = {f0}")
     b.set_xlabel("symbol index")
     b.set_ylabel("tracked freq (cycles/sample)")
@@ -98,6 +104,12 @@ def main(out_path="mpsk_nda_theory_demo.png"):
     fig.tight_layout()
     fig.savefig(out_path, dpi=120)
     print(f"wrote {out_path}  (S-curve max err vs theory {max_err:.2e})")
+
+    # ── self-validation ───────────────────────────────────────────────────
+    # Off the wrap boundaries the noiseless M-th-power detector must trace
+    # scale·sin(Mφ) to float32 round-off — the M-normalized gain is what
+    # makes one loop bn behave identically across BPSK/QPSK/8PSK.
+    assert max_err < 1e-5, "S-curve departs from scale*sin(Mφ)"
 
 
 if __name__ == "__main__":

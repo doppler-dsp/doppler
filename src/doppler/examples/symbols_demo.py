@@ -174,3 +174,24 @@ a.grid(alpha=0.3)
 fig.tight_layout(rect=(0, 0, 1, 0.96))
 fig.savefig("symbols_demo.png", dpi=110)
 print("wrote symbols_demo.png")
+
+# ── validate ─────────────────────────────────────────────────────────────────
+# Rect pulse + boxcar matched filter is exact: every recovered point must
+# land back on the transmitted constellation symbol (float32 round-off).
+pi4_err = float(np.max(np.abs(matched(pi4) - pi4)))
+qam_err = float(np.max(np.abs(matched(qam) - qam)))
+assert pi4_err < 1e-6, f"pi/4-QPSK symbol recovery off by {pi4_err:.1e}"
+assert qam_err < 1e-6, f"16-QAM symbol recovery off by {qam_err:.1e}"
+# The envelope physics of panel 3: pi/4-QPSK's ±135° phase cap keeps the
+# RRC envelope off the origin (hard floor near 0.15), while plain QPSK's
+# 180° flips drive it clean through zero.
+assert env_pi4.min() > 0.1, f"pi/4 envelope floor {env_pi4.min():.3f}"
+assert env_qpsk.min() < 0.02, f"QPSK envelope min {env_qpsk.min():.3f}"
+# ... which is worth ~0.5 dB of PAPR — the reason the modulation exists.
+papr_gain = papr(env_qpsk) - papr(env_pi4)
+assert papr_gain > 0.3, f"PAPR gain only {papr_gain:.2f} dB"
+print(
+    f"validated: exact recovery (|err| < 1e-6), envelope floors "
+    f"{env_qpsk.min():.3f}/{env_pi4.min():.3f}, "
+    f"PAPR gain {papr_gain:.2f} dB"
+)

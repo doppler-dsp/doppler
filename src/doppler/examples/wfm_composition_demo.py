@@ -76,11 +76,15 @@ def spectrogram_db(x, nfft=256, hop=64):
 # ── the scene: a QPSK SoI under a full-scale CW interferer, one floor ────────
 soi = qpsk(snr=15, snr_mode="esno", sps=8, level=-10.0, seed=1)
 interferer = tone(freq=2.0e5, level=-3.0)  # −3 dBFS CW at +200 kHz
-scene = Segment.sum(soi, interferer, num_samples=N)
+# fs must be set on the sum — it resolves the scene's rate (a source-level
+# fs is overridden), and freq is interpreted against it.
+scene = Segment.sum(soi, interferer, num_samples=N, fs=FS)
 x = Composer([scene]).compose().astype(np.complex128)
 
 # ── the timeline: a preamble tone burst, then the scene ─────────────────────
-preamble = Segment("tone", freq=-3.0e5, num_samples=N // 4, off_samples=N // 8)
+preamble = Segment(
+    "tone", freq=-3.0e5, fs=FS, num_samples=N // 4, off_samples=N // 8
+)
 timeline = preamble.add(scene)
 xt = Composer(timeline).compose()
 
@@ -113,7 +117,8 @@ fig.suptitle(
 
 # A: scene spectrum
 f = np.linspace(-0.5, 0.5, 1024) * FS / 1e3  # kHz
-ax[0, 0].plot(f, psd_db(x), lw=0.8, color="#1f77b4")
+scene_db = psd_db(x)
+ax[0, 0].plot(f, scene_db, lw=0.8, color="#1f77b4")
 ax[0, 0].set_title("Scene spectrum — .sum() of SoI + interferer + floor")
 ax[0, 0].set_xlabel("frequency (kHz)")
 ax[0, 0].set_ylabel("dB (rel. peak)")
@@ -191,4 +196,39 @@ fig.savefig("wfm_composition_demo.png", dpi=110)
 print(
     f"peak {peak_dbfs:+.1f} dBFS, {clip_frac * 100:.1f}% clipped, "
     f"headroom {headroom_db:.0f} dB → wfm_composition_demo.png"
+)
+
+# ── validate ─────────────────────────────────────────────────────────────────
+# Scene power: −3 dBFS tone + −10 dBFS QPSK + the floor the composer
+# resolved from snr=15 Es/No at 8 sps (per-sample SNR is 9 dB lower) —
+# .sum()'s amplitude model is additive in linear power.
+snr_fs = 15.0 - 10.0 * np.log10(8.0)
+exp_db = 10.0 * np.log10(
+    10.0 ** (-3.0 / 10.0) + 0.1 + 0.1 * 10.0 ** (-snr_fs / 10.0)
+)
+x_db = 10.0 * np.log10(float(np.mean(np.abs(x) ** 2)))
+assert abs(x_db - exp_db) < 0.5, f"scene {x_db:.2f} dB != {exp_db:.2f} dB"
+# The −3 dBFS CW interferer is the spectral peak, at its programmed
+# +200 kHz (within a couple of 1024-point PSD bins, ~1 kHz each).
+f_pk = float(f[int(np.argmax(scene_db))]) * 1e3  # Hz
+assert abs(f_pk - 2.0e5) < 2.5e3, f"CW peak at {f_pk / 1e3:.1f} kHz"
+# The .add() timeline is sample-accurate: preamble off (N/8) + on (N/4),
+# then the N-sample scene.
+assert len(xt) == N // 8 + N // 4 + N, f"timeline length {len(xt)}"
+# Headroom: the raw composite really clips an integer capture, and the
+# backed-off copy fits inside ±1.0 full scale with the SNR untouched.
+assert clip_frac > 0.001, "raw composite unexpectedly fits full scale"
+xh_peak = float(np.max(np.abs(np.concatenate([xh.real, xh.imag]))))
+assert xh_peak <= 1.0, f"headroom copy still peaks at {xh_peak:.3f}"
+# The matched-filtered SoI realises its programmed 15 dB Es/No: measure it
+# decision-directed from the constellation cloud (scale fitted, then EVM).
+dec = (np.sign(syms.real) + 1j * np.sign(syms.imag)) / np.sqrt(2)
+scale = float(np.mean(np.abs(syms)) / np.mean(np.abs(dec)))
+evm2 = float(np.mean(np.abs(syms - scale * dec) ** 2))
+esno_meas = 10.0 * np.log10(scale**2 / evm2)
+assert abs(esno_meas - 15.0) < 1.0, f"SoI Es/No {esno_meas:.2f} dB != 15"
+print(
+    f"validated: scene {x_db:+.2f} dBFS (exp {exp_db:+.2f}), CW at "
+    f"{f_pk / 1e3:.0f} kHz,\n  timeline {len(xt)} samples, headroom fits, "
+    f"SoI Es/No {esno_meas:.1f} dB"
 )

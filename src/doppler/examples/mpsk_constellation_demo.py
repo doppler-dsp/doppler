@@ -67,6 +67,15 @@ def main(out_path="mpsk_constellation_demo.png"):
     # --- 1. constellations with Gray labels ---
     for m, name, col in M_LIST:
         pts = mpsk_map(np.arange(m, dtype=np.uint8), m)
+        # self-validation: every point on the unit circle, and walking the
+        # circle in phase order the Gray labels differ by exactly one bit
+        # (a symbol slip to a neighbour costs exactly one bit error).
+        assert np.max(np.abs(np.abs(pts) - 1.0)) < 1e-3, f"{name} off circle"
+        ring = np.arange(m)[np.argsort(np.angle(pts))]
+        flips = ring ^ np.roll(ring, 1)
+        assert all(bin(int(v)).count("1") == 1 for v in flips), (
+            f"{name} labels are not Gray-coded around the circle"
+        )
         a.scatter(pts.real, pts.imag, s=40, color=col, label=name, zorder=3)
         if m == 8:  # annotate the densest one's Gray labels
             for g in range(m):
@@ -106,6 +115,20 @@ def main(out_path="mpsk_constellation_demo.png"):
         sim = [_sim_ber(m, e, rng) for e in sim_db]
         b.semilogy(
             sim_db, sim, "o", color=col, ms=5, mfc="none", label=f"{name} sim"
+        )
+        # self-validation: map -> AWGN -> demap must land on the closed
+        # form. Judge only points with >= 100 expected bit errors, where
+        # the Monte-Carlo spread is a few percent, not order-one.
+        th_s = np.array([_theory_ber(m, 10 ** (e / 10.0)) for e in sim_db])
+        nbits = 300_000 * mpsk_bits_per_symbol(m)
+        well = th_s * nbits >= 100
+        ratio = np.asarray(sim)[well] / th_s[well]
+        print(
+            f"{name}: BER/theory over {int(well.sum())} points: "
+            f"{ratio.min():.3f}..{ratio.max():.3f}"
+        )
+        assert np.all((ratio > 0.7) & (ratio < 1.4)), (
+            f"{name} simulated BER departs from theory"
         )
     b.set_ylim(1e-5, 1)
     b.set_title("BER vs Eb/N0 — simulation on theory", fontsize=9)

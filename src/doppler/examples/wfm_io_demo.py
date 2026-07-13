@@ -146,3 +146,28 @@ for file_type, _, size, meta, err in results:
         f"  |Δ|max={err:.1e}"
     )
 print("→ wfm_io_demo.png")
+
+# ── validate ─────────────────────────────────────────────────────────────────
+metas = {}
+for file_type, y, _size, meta, err in results:
+    # Every container returns the full capture, auto-detected (raw hinted).
+    assert len(y) == N, f"{file_type}: read {len(y)} of {N} samples"
+    assert meta["file_type"] == file_type, f"{file_type} detected as {meta}"
+    if file_type == "csv":
+        # Text container: samples round-trip through their decimal repr —
+        # not bit-exact, but well inside a float32 ulp of full scale.
+        assert err < 1e-6, f"csv round-trip error {err:.1e}"
+    else:
+        # Binary cf32 containers are bit-exact.
+        assert err == 0.0, f"{file_type} round-trip error {err:.1e}"
+    metas[file_type] = meta
+# Self-describing containers recover the tagged sample rate with no hints;
+# SigMF's JSON sidecar also carries the centre frequency. Raw stores no
+# metadata at all — its fs must come back unset (the reader was told).
+assert metas["blue"]["fs"] == FS and metas["sigmf"]["fs"] == FS
+assert metas["sigmf"]["fc"] == FC
+assert not metas["raw"]["fs"], "raw container should carry no fs"
+print(
+    "validated: 4 containers round-trip losslessly, "
+    "blue/sigmf recover fs, sigmf recovers fc"
+)

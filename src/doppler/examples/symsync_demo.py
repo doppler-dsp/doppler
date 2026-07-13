@@ -162,6 +162,25 @@ def main(out_path="symsync_demo.png"):
     fig.savefig(out_path, dpi=120)
     print(f"wrote {out_path}  (amb-BER={ber:.3g})")
 
+    # ── validate ────────────────────────────────────────────────────────────
+    # Clock acquisition: the tracked samples/symbol must converge onto the
+    # true 0.4% fast rate and hold it — steady state is the last quarter.
+    tail = np.array(rates[3 * len(rates) // 4 :])
+    target = SPS * CLOCK_RATE
+    rate_err = abs(float(tail.mean()) - target)
+    assert rate_err < 0.004, (
+        f"tracked rate {tail.mean():.4f} != {target:.4f} (0.1% tolerance)"
+    )
+    # ... with low residual jitter (locked, not hunting for the clock).
+    assert float(tail.std()) < 0.01, f"rate jitter {tail.std():.4f}"
+    # Data recovery: at 14 dB SNR a locked Gardner loop decodes the middle
+    # half error-free (per-symbol error rate ~ Q(sqrt(2*Es/No)) ~ 1e-12).
+    assert ber == 0.0, f"amb-BER {ber:.3g} != 0 on the locked segment"
+    print(
+        f"validated: rate {tail.mean():.4f} vs true {target:.4f} "
+        f"(jitter {tail.std():.4f}), amb-BER 0 over {cnt} symbols"
+    )
+
 
 if __name__ == "__main__":
     main(sys.argv[1] if len(sys.argv) > 1 else "symsync_demo.png")

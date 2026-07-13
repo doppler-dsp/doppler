@@ -81,15 +81,16 @@ def _measure_freq_response_q15(
     n_impulse: int = 32768,
     pad: int = 4,
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Measure HalfbandDecimatorQ15 frequency response via an impulse test.
+    """Measure HalfbandDecimatorQ15 frequency response, two-phase impulse.
 
-    An impulse is injected as interleaved int16 IQ (I=amplitude, Q=0 at
-    sample 0, then zeros).  The output is windowed with Blackman-Harris and
-    FFT'd.  Amplitude is normalised to dBFS referenced to the int16 full
-    scale (32768).
+    One impulse per polyphase branch is injected as interleaved int16 IQ
+    (I=amplitude at sample d ∈ {0, 1}, Q=0 throughout); the two decimated
+    outputs are re-interleaved into the full-rate impulse response, whose
+    FFT is the true response.  Amplitude is normalised so 0 dBFS = unity
+    filter gain.
 
-    The input sample rate is 1.0; the output covers [0, 0.5] of that rate
-    (one-sided, since the input is real-valued IQ with I only).
+    The input sample rate is 1.0; the response covers [0, 0.5) of that
+    rate (one-sided, since the input is real-valued IQ with I only).
 
     Parameters
     ----------
@@ -110,28 +111,35 @@ def _measure_freq_response_q15(
     """
     amplitude = 16384  # half full-scale so headroom avoids int16 clipping
 
-    # Build interleaved int16 IQ impulse: I=amplitude at t=0, Q=0 throughout
-    x_iq = np.zeros(2 * n_impulse, dtype=np.int16)
-    x_iq[0] = amplitude  # I channel impulse
+    # A 2:1 decimator computes y[m] = sum_k h[k] x[2m-k], so an impulse
+    # at input sample d excites exactly one polyphase branch:
+    # y[m] = h[2m-d].  An impulse at d=0 alone returns only the even
+    # taps -- for a halfband that is the pure center-tap delay branch,
+    # which measures as a flat line, not the filter.  Inject at d=0 and
+    # d=1 and re-interleave the two outputs to reconstruct the full tap
+    # set; its FFT is the true response at the *input* rate.
+    phases = []
+    for d in (0, 1):
+        x_iq = np.zeros(2 * n_impulse, dtype=np.int16)
+        x_iq[2 * d] = amplitude  # I-channel impulse at sample d
+        dec = HalfbandDecimatorQ15(h)
+        y_iq = dec.execute(x_iq)
+        dec.destroy()
+        phases.append(
+            y_iq[0::2].astype(np.float64) + 1j * y_iq[1::2].astype(np.float64)
+        )
+    y0, y1 = phases
 
-    dec = HalfbandDecimatorQ15(h)
-    y_iq = dec.execute(x_iq)
-    dec.destroy()
+    # y0[m] = h[2m], y1[m] = h[2m-1]  ->  h[2m+1] = y1[m+1]
+    n_pair = min(len(y0), len(y1)) - 1
+    h_rec = np.empty(2 * n_pair, dtype=np.complex128)
+    h_rec[0::2] = y0[:n_pair]
+    h_rec[1::2] = y1[1 : n_pair + 1]
 
-    # Reconstruct complex from interleaved int16
-    y_c = y_iq[0::2].astype(np.float64) + 1j * y_iq[1::2].astype(np.float64)
-
-    n_out = len(y_c)
-    w = np.zeros(n_out, dtype=np.float32)
-    blackman_harris_window(w)
-    cg = float(w.mean())
-
-    S = np.fft.fft(y_c * w, n_out * pad)
-    # One-sided: [0, 0.5) of output rate = [0, 0.25) of input rate ... but the
-    # output rate is half the input rate, so output freq [0, 0.5) maps to
-    # input freq [0, 0.5).  Take the positive-frequency half only.
-    half = (n_out * pad) // 2
-    mag = np.abs(S[:half]) / (n_out * cg * amplitude / 32768.0)
+    S = np.fft.fft(h_rec, 2 * n_pair * pad)
+    half = (2 * n_pair * pad) // 2
+    # 0 dBFS = unity filter gain (impulse height normalised out)
+    mag = np.abs(S[:half]) / (amplitude / 32768.0) / 32768.0
     mag_db = 20.0 * np.log10(mag + 1e-12)
 
     # Frequency axis in *input* normalised frequency [0, 0.5)
@@ -165,22 +173,27 @@ def _measure_freq_response_float(
     mag_db : np.ndarray
         Log magnitude in dBFS (0 dBFS = unity gain).
     """
-    x_c = np.zeros(n_impulse, dtype=np.complex64)
-    x_c[0] = 1.0 + 0j
+    # Two-phase impulse reconstruction -- see the Q15 twin above for why
+    # a single impulse cannot measure a decimator's response.
+    phases = []
+    for d in (0, 1):
+        x_c = np.zeros(n_impulse, dtype=np.complex64)
+        x_c[d] = 1.0 + 0j
+        dec = HalfbandDecimator(h)
+        y = dec.execute(x_c)
+        dec.destroy()
+        phases.append(y.astype(np.complex128))
+    y0, y1 = phases
 
-    dec = HalfbandDecimator(h)
-    y = dec.execute(x_c)
-    dec.destroy()
+    # y0[m] = h[2m], y1[m] = h[2m-1]  ->  h[2m+1] = y1[m+1]
+    n_pair = min(len(y0), len(y1)) - 1
+    h_rec = np.empty(2 * n_pair, dtype=np.complex128)
+    h_rec[0::2] = y0[:n_pair]
+    h_rec[1::2] = y1[1 : n_pair + 1]
 
-    y = y.astype(np.complex128)
-    n_out = len(y)
-    w = np.zeros(n_out, dtype=np.float32)
-    blackman_harris_window(w)
-    cg = float(w.mean())
-
-    S = np.fft.fft(y * w, n_out * pad)
-    half = (n_out * pad) // 2
-    mag = np.abs(S[:half]) / (n_out * cg)
+    S = np.fft.fft(h_rec, 2 * n_pair * pad)
+    half = (2 * n_pair * pad) // 2
+    mag = np.abs(S[:half])
     mag_db = 20.0 * np.log10(mag + 1e-12)
 
     freq = np.linspace(0.0, 0.5, half, endpoint=False)
@@ -313,6 +326,26 @@ def main(out_path: str = "hbdecim_q15_demo.png") -> None:
     freq_q15, mag_q15 = _measure_freq_response_q15(h)
     freq_f32, mag_f32 = _measure_freq_response_float(h)
 
+    # Validate the measured response is a real halfband shape (a
+    # one-phase impulse measurement degenerates to a flat line -- the
+    # bug this two-phase method replaced): flat passband, deep stopband,
+    # and the Q15 path within quantization distance of the float32
+    # reference across the passband.
+    for tag, f, m in (("q15", freq_q15, mag_q15), ("f32", freq_f32, mag_f32)):
+        pb_dev = float(np.max(np.abs(m[f <= 0.20])))
+        sb_max = float(np.max(m[f >= 0.30]))
+        print(
+            f"  {tag}: passband dev {pb_dev:.3f} dB, "
+            f"stopband max {sb_max:.1f} dB"
+        )
+        assert pb_dev < 0.1, f"{tag} passband not flat: {pb_dev:.3f} dB"
+        assert sb_max < -55.0, f"{tag} stopband only {sb_max:.1f} dB"
+    pb = freq_q15 <= 0.20
+    q15_vs_f32 = float(np.max(np.abs(mag_q15[pb] - mag_f32[pb])))
+    assert q15_vs_f32 < 0.05, (
+        f"Q15 deviates {q15_vs_f32:.3f} dB from float32 in the passband"
+    )
+
     # ── input/output signals ─────────────────────────────────────────────────
     rng = np.random.default_rng(42)
     x_iq = _build_input_signal(n=8192, rng=rng)
@@ -331,6 +364,39 @@ def main(out_path: str = "hbdecim_q15_demo.png") -> None:
     y_c_settled = y_c[settle:]
 
     freq_out, mag_out = _bh_spectrum_db(y_c_settled, full_scale=32768.0)
+
+    # ── validation ───────────────────────────────────────────────────────────
+    # 2:1 decimation: exactly half the complex samples come out.
+    assert len(y_c) == len(x_c) // 2, (
+        f"expected {len(x_c) // 2} output samples, got {len(y_c)}"
+    )
+
+    # The passband tone (f=0.08 in) must dominate the output spectrum at
+    # f=0.16 of the output rate, having crossed the filter at unity gain.
+    tone_in_db = float(mag_in[int(np.argmin(np.abs(freq_in - 0.08)))])
+    tone_out_db = float(mag_out[int(np.argmin(np.abs(freq_out - 0.16)))])
+    peak_f = float(freq_out[int(np.argmax(mag_out))])
+    assert abs(peak_f - 0.16) < 0.005, (
+        f"output peak at f={peak_f:.4f}, expected 0.16"
+    )
+    assert abs(tone_out_db - tone_in_db) < 1.0, (
+        f"passband tone gain {tone_out_db - tone_in_db:+.2f} dB not unity"
+    )
+
+    # The stopband tone entered at the same -15 dBFS as the passband tone;
+    # after the halfband nothing but the noise floor may remain anywhere
+    # else in the output band (>= 40 dB below the surviving tone).
+    elsewhere = (np.abs(freq_out - 0.16) > 0.04) & (freq_out > 0.02)
+    residual_db = float(np.max(mag_out[elsewhere]))
+    suppression = tone_out_db - residual_db
+    assert suppression > 40.0, (
+        f"stopband residual {residual_db:.1f} dBFS — only "
+        f"{suppression:.1f} dB below the passband tone"
+    )
+    print(
+        f"validation: tone {tone_in_db:.1f} → {tone_out_db:.1f} dBFS at "
+        f"f={peak_f:.3f}; worst residual {suppression:.1f} dB down — OK"
+    )
 
     # ── figure layout ────────────────────────────────────────────────────────
     fig = plt.figure(figsize=(14, 12), facecolor=BG_FIG)

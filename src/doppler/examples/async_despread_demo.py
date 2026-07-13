@@ -81,6 +81,20 @@ def main(out_path="async_despread_demo.png"):
         rate[e] = d.code_rate
     part = np.concatenate(chunks)  # K partials per epoch ~ K samples/symbol
 
+    # The non-coherent (|E|-|L|) discriminator is carrier-blind: the
+    # settled code-rate estimate must sit on the true code Doppler with
+    # the residual carrier still on the samples.
+    rate_err = float(np.abs(rate[nep // 2 :].mean() - (1.0 + DCODE)))
+    print(f"settled code-rate err = {rate_err:.1e} (Doppler = {DCODE:.0e})")
+    assert rate_err < 0.25 * DCODE, "DLL settled off the true code rate"
+
+    # Noiseless despread: with the code wiped, partials sit at the unit
+    # signal amplitude except the 1-in-K straddling each async symbol
+    # edge — the settled envelope median must be ~1.
+    env_med = float(np.median(np.abs(part[len(part) // 2 :])))
+    print(f"settled despread envelope median = {env_med:.3f}")
+    assert env_med > 0.9, "despread envelope collapsed"
+
     # Downstream carrier wipe (genie): de-rotate each partial by the residual
     # carrier at its centre sample, then align the BPSK axis to the real axis
     # (this is the job of a downstream Costas loop — shown here for clarity).
@@ -230,6 +244,16 @@ def _lock_figure(code, plt, out_path):
         a.plot(np.arange(nep), R, color=col, lw=1.0, label=label)
         if tag == "mid":
             mid_part = np.concatenate(chunks)
+        # CFAR behaviour: the strong and weak signal runs' settled lock
+        # statistic must sit above the threshold; the noise-only run
+        # must not.  The "very weak" run is deliberately marginal (it
+        # hovers at the gate) and is shown, not asserted.
+        r_med = float(np.median(R[nep // 2 :]))
+        print(f"lock stat median ({label}) = {r_med:.1f} vs eta {thr:.1f}")
+        if label == "noise only":
+            assert r_med < thr, "noise-only lock stat crossed the gate"
+        elif not label.startswith("very weak"):
+            assert r_med > thr, f"lock not declared on the {label} run"
     a.axhline(thr, color="k", ls="--", lw=1.3, label=f"η={thr:.1f} (pfa=1e-3)")
     a.set_ylim(0, None)
     a.set_title(

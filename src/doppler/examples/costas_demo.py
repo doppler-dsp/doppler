@@ -84,6 +84,34 @@ def main(out_path="costas_demo.png"):
     colors = ["#1f77b4", "#ff7f0e", "#2ca02c"]
     runs = {lbl: _track(rx, bn, bf) for lbl, bn, bf in CONFIGS}
 
+    # ── self-validation: the demo's physics, asserted ────────────────────
+    # Tail = the last 1000 symbols, well past the FLL pull-in transient.
+    tail = slice(NSYM - 1000, None)
+    f_fll, s_fll, l_fll = runs["FLL+PLL Bn=0.01"]
+    freq_err = abs(float(np.mean(f_fll[tail])) - F0)
+    lock_fll = float(np.mean(l_fll[tail]))
+    rms_fll = np.degrees(np.sqrt(np.mean(s_fll[tail] ** 2)))
+    print(
+        f"FLL+PLL tail: freq err {freq_err:.2e} cyc/sample, "
+        f"lock {lock_fll:.3f}, RMS phase err {rms_fll:.2f} deg"
+    )
+    # The FLL-assisted loop must pull onto the true residual and lock.
+    assert freq_err < 5e-4, "FLL-assisted loop did not converge on F0"
+    assert lock_fll > 0.95, "FLL-assisted loop did not phase-lock"
+    assert rms_fll < 5.0, "FLL-assisted loop stress did not settle"
+    # Both bare PLLs must stall (the demo's point): the residual sits far
+    # outside the phase discriminator's pull-in range at either bandwidth,
+    # so the estimate stays near zero and the lock metric never rises.
+    for lbl in ("PLL  Bn=0.01", "PLL  Bn=0.10"):
+        f_b, s_b, l_b = runs[lbl]
+        assert abs(float(np.mean(f_b[tail]))) < 0.5 * F0, (
+            f"{lbl} unexpectedly pulled in"
+        )
+        assert float(np.mean(l_b[tail])) < 0.8, f"{lbl} unexpectedly locked"
+        assert np.degrees(np.sqrt(np.mean(s_b[tail] ** 2))) > 20.0, (
+            f"{lbl} stress unexpectedly low for an unlocked loop"
+        )
+
     fig, (a, b, c) = plt.subplots(3, 1, figsize=(9, 8), sharex=True)
 
     a.axhline(F0 * 1e3, color="k", ls="--", lw=1.4, label="true residual")

@@ -83,6 +83,26 @@ for d in DECIMS:
         f"applied_gain_db={agc.applied_gain_db:+.2f} "
         f"(commanded gain_db={agc.gain_db:+.2f})"
     )
+    # The loop must genuinely converge, and decim must only coarsen the
+    # path — not move the destination.  Once transients die out (well
+    # before the last 1000 samples of each segment) the output power has
+    # to sit on the reference, and the steady-state gain has to cancel
+    # the input level exactly (REF_DB - HI_DB after the step).
+    assert 0 < settle <= 1000, (
+        f"decim {d}: no settling within 1000 samples (settle={settle})"
+    )
+    pre = out_db[N_STEP - 1000 : N_STEP]
+    post = out_db[N_TOTAL - 1000 :]
+    assert np.max(np.abs(pre - REF_DB)) < 1.0, (
+        f"decim {d}: pre-step output not converged to {REF_DB} dB"
+    )
+    assert np.max(np.abs(post - REF_DB)) < 1.0, (
+        f"decim {d}: post-step output not converged to {REF_DB} dB"
+    )
+    assert abs(agc.applied_gain_db - (REF_DB - HI_DB)) < 0.5, (
+        f"decim {d}: steady-state gain {agc.applied_gain_db:+.2f} dB, "
+        f"expected {REF_DB - HI_DB:+.1f} dB"
+    )
 
 fig, (ax1, ax2) = plt.subplots(2, 1, sharex=True, figsize=(9, 6))
 

@@ -45,9 +45,11 @@ On a Ryzen 7 AI 350 (`-O2`): NCO raw accumulator ~15 GSa/s, LO CF32
 polyphase resampler (2× decim) ~70 MSa/s. Run `make bench` to measure
 on your hardware.
 
+<!-- quickstart:start -->
+
 ## Quick start
 
-See [Quick Start](quickstart.md) for the full walkthrough.
+See [Quick Start](docs/quickstart.md) for the full walkthrough.
 
 ### Python
 
@@ -123,11 +125,13 @@ cc example.c -I "$HOME/.local/doppler/include" "$HOME/.local/doppler/lib/libdopp
 **Other install methods**
 
 Prefer a custom prefix or no `jbx`? Grab a
-[pre-built release tarball](install/c.md#install-from-a-release-tarball) by
+[pre-built release tarball](docs/install/c.md#install-from-a-release-tarball) by
 hand — no toolchain, no building doppler itself — and extract it to
 `$PREFIX`; you get the same `libdoppler.a`/`libdoppler.so` plus headers.
-See [C Library](install/c.md) for `find_package`/`pkg-config` integration
+See [C Library](docs/install/c.md) for `find_package`/`pkg-config` integration
 and building from source.
+
+<!-- quickstart:end -->
 
 ## Build
 

@@ -14,8 +14,11 @@ comments -- same idiom as ``gen_related_pages.py``'s
 ``<!-- related-pages:start -->``/``:end`` block.
 
 Rewrites applied:
-    - ``!!! tip "TITLE"`` followed by a single-line indented fenced
-      command becomes GitHub's ``> [!TIP]`` blockquote alert.
+    - any mkdocs ``!!! type ["Title"]`` admonition, with its 4-space
+      indented body (prose, code fences, whatever), becomes GitHub's
+      native ``> [!TYPE]`` blockquote alert -- a custom title (when it
+      differs from the type name) is kept as a bold first line, since
+      GitHub alerts have no separate title slot.
     - a relative link to another docs page (``quickstart.md``,
       ``install/c.md#anchor``) is rewritten to ``docs/...`` so it
       resolves from the repo root, where README.md lives -- docs/index.md
@@ -49,12 +52,39 @@ SECTION_RE = re.compile(
     r"^## Quick start\n.*?(?=^## )", re.MULTILINE | re.DOTALL
 )
 
-# !!! tip "TITLE"
-#
-#     ```lang
-#     single line command
-#     ```
-TIP_RE = re.compile(r'!!! tip "([^"]+)"\n\n {4}```\w+\n {4}(.+)\n {4}```\n')
+# !!! type ["Title"]  -- the type is a bare word; the title, if present,
+# must be double-quoted (mkdocs/pymdownx requires this for a multi-word
+# title -- an unquoted title silently fails to parse as an admonition at
+# all, a real bug this caught once already).
+ADMONITION_HEADER_RE = re.compile(r'^!!! (\w+)(?:\s+"([^"]*)")?\s*$')
+
+# GitHub's alert syntax supports exactly these five types (case-sensitive
+# marker, any case in practice but GitHub's own docs use upper). Map each
+# mkdocs-material admonition type doppler might plausibly use onto the
+# closest GitHub equivalent; anything unmapped is a hard error (below)
+# rather than a silent guess.
+GITHUB_ALERT_TYPES = {
+    "note": "NOTE",
+    "info": "NOTE",
+    "abstract": "NOTE",
+    "summary": "NOTE",
+    "tldr": "NOTE",
+    "question": "NOTE",
+    "tip": "TIP",
+    "hint": "TIP",
+    "success": "TIP",
+    "check": "TIP",
+    "done": "TIP",
+    "important": "IMPORTANT",
+    "warning": "WARNING",
+    "caution": "WARNING",
+    "attention": "WARNING",
+    "danger": "CAUTION",
+    "error": "CAUTION",
+    "failure": "CAUTION",
+    "fail": "CAUTION",
+    "bug": "CAUTION",
+}
 
 # A markdown link whose target isn't a full URL, an in-page anchor, or
 # already docs/-prefixed -- e.g. [Quick Start](quickstart.md) or
@@ -75,18 +105,76 @@ def extract_section() -> str:
     return m.group(0)
 
 
-def rewrite_for_readme(section: str) -> str:
-    def tip_sub(m: re.Match[str]) -> str:
-        title, cmd = m.group(1), m.group(2)
-        return f"> [!TIP]\n> {title} `{cmd}`\n"
+def _rewrite_admonitions(section: str) -> str:
+    """Replace every mkdocs ``!!! type "Title"`` block (header + blank
+    line + 4-space-indented body, however long) with GitHub's native
+    ``> [!TYPE]`` blockquote alert."""
+    lines = section.split("\n")
+    out: list[str] = []
+    i = 0
+    n_found = 0
+    while i < len(lines):
+        m = ADMONITION_HEADER_RE.match(lines[i])
+        if not m:
+            out.append(lines[i])
+            i += 1
+            continue
 
-    rewritten, n = TIP_RE.subn(tip_sub, section)
-    if n == 0:
+        kind, title = m.group(1), m.group(2)
+        github_type = GITHUB_ALERT_TYPES.get(kind.lower())
+        if github_type is None:
+            raise SystemExit(
+                f"gen_readme_quickstart: unmapped admonition type "
+                f"'{kind}' in docs/index.md's Quick Start section -- "
+                f"add it to GITHUB_ALERT_TYPES (closest GitHub alert: "
+                f"NOTE/TIP/IMPORTANT/WARNING/CAUTION)."
+            )
+
+        j = i + 1
+        if j < len(lines) and lines[j] == "":
+            j += 1
+        body: list[str] = []
+        while j < len(lines) and (
+            lines[j] == "" or lines[j].startswith("    ")
+        ):
+            body.append(lines[j][4:] if lines[j] else "")
+            j += 1
+        while body and body[-1] == "":
+            body.pop()
+        if not body:
+            raise SystemExit(
+                f"gen_readme_quickstart: '!!! {kind}' at docs/index.md "
+                f"line {i + 1} (within Quick Start) has no 4-space "
+                f"indented body -- nothing to rewrite."
+            )
+
+        out.append(f"> [!{github_type}]")
+        default_title = kind.capitalize()
+        if title and title != default_title:
+            out.append(f"> **{title}**")
+            out.append(">")
+        for body_line in body:
+            out.append(f"> {body_line}" if body_line else ">")
+        # The body-consuming loop above swallows every blank line up to
+        # the next real content (it treats blank-or-indented as "still
+        # inside the admonition"), so put exactly one back -- otherwise
+        # the blockquote runs straight into whatever follows with no
+        # separator.
+        out.append("")
+        i = j
+        n_found += 1
+
+    if n_found == 0:
         raise SystemExit(
-            "gen_readme_quickstart: found no '!!! tip' admonition to "
-            "rewrite in docs/index.md's Quick Start section -- did its "
-            "shape change? Update TIP_RE to match the new form."
+            "gen_readme_quickstart: found no '!!!' admonition to rewrite "
+            "in docs/index.md's Quick Start section -- did it lose its "
+            "last one? (harmless if intentional -- delete this check if so)"
         )
+    return "\n".join(out)
+
+
+def rewrite_for_readme(section: str) -> str:
+    rewritten = _rewrite_admonitions(section)
 
     def link_sub(m: re.Match[str]) -> str:
         return f"[{m.group(1)}](docs/{m.group(2)})"

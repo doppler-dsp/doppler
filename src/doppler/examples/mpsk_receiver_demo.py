@@ -17,9 +17,36 @@ from __future__ import annotations
 
 import sys
 
+# --8<-- [start:receiver]
 import numpy as np
 
 from doppler.track import MpskReceiver
+
+# A QPSK signal at 8 samples/symbol with a residual carrier offset.
+rng = np.random.default_rng(0)
+idx = rng.integers(0, 4, 4000)
+tx = np.exp(1j * (2 * np.pi * idx / 4 + np.pi / 4)).astype(np.complex64)
+tx = np.repeat(tx, 8).astype(np.complex64)
+k = np.arange(tx.size)
+iq = (tx * np.exp(2j * np.pi * 0.0015 * k)).astype(np.complex64)
+
+# Acquire blind (M-th-power NDA), then hand the shared NCO over to
+# low-jitter decision-directed tracking once locked and warmed up.
+rx = MpskReceiver(
+    m=4,
+    sps=8,
+    n=4,
+    pulse="iandd",
+    bn_carrier=0.01,
+    bn_timing=0.01,
+    acq_to_track=1,
+    lock_thresh=0.4,
+    warmup_syms=200,
+)
+sym = rx.steps(iq)  # recovered symbols (~ len(iq) / sps)
+bits = rx.bits(iq)  # hard Gray bits, LSB-first per symbol
+assert rx.tracking == 1  # switched to decision-directed tracking
+# --8<-- [end:receiver]
 
 PHI0 = {2: 0.0, 4: np.pi / 4, 8: 0.0}
 

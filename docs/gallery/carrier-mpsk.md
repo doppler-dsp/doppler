@@ -36,22 +36,7 @@ demapping** ([`mpsk.mpsk_diff_demap`](../api/python-mpsk.md)) or a sync word; th
 carrier loop itself stays modulation-data-agnostic and just emits the prompts.
 
 ```python
-import numpy as np
-from doppler.track import CarrierMpsk
-
-# A QPSK signal at 16 samples/symbol with a residual carrier offset to track.
-rng = np.random.default_rng(0)
-idx = rng.integers(0, 4, 1500)
-tx  = np.exp(1j * (2 * np.pi * idx / 4 + np.pi / 4)).astype(np.complex64)
-tx  = np.repeat(tx, 16).astype(np.complex64)
-k   = np.arange(tx.size)
-rx  = (tx * np.exp(2j * np.pi * 0.0015 * k)).astype(np.complex64)
-
-# QPSK carrier loop, 16 samples/symbol, FLL-assisted; all params keyword-capable
-c = CarrierMpsk(bn=0.05, zeta=0.707, init_norm_freq=0.0, tsamps=16, bn_fll=0.01, m=4)
-symbols = c.steps(rx)          # one complex prompt per symbol
-f_est   = c.norm_freq          # tracked residual carrier (cycles/sample)
-locked  = c.lock_metric        # Re(P conj â)/|P| EMA, ~1.0 when phase-locked
+--8<-- "src/doppler/examples/mpsk_carrier_theory_demo.py:track"
 ```
 
 ## Rigorous bounds

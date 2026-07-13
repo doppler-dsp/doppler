@@ -37,29 +37,7 @@ Internally the filter converts each CF32 sample to offset-binary UQ16
 overflow wraps and cancels exactly across the N stages.
 
 ```python
-from doppler.resample import CIC
-import numpy as np
-
-fs_in    = 2.048e6
-R        = 16
-fs_out   = fs_in / R        # 128 ksps
-
-f_wanted = 15e3             # survives decimation
-f_jammer = 208e3            # alias zone → folds to -48 kHz in output
-
-A_wanted = 0.6
-A_jammer = 0.3              # peak sum 0.9 < 1.0 — no Q15 clipping
-
-N_IN = 8 * R * 48
-
-def _tone(freq_hz, n, fs):
-    return np.exp(2j * np.pi * freq_hz / fs * np.arange(n)).astype(np.complex64)
-
-x = (A_wanted * _tone(f_wanted, N_IN, fs_in)
-   + A_jammer * _tone(f_jammer, N_IN, fs_in))
-
-cic = CIC(R)                # R=16, N=4 (fixed), M=1 (fixed)
-y   = np.array(cic.decimate(x), copy=True)
+--8<-- "src/doppler/examples/cic_demo.py:sdr_pipeline"
 ```
 
 Transient settling takes approximately `CIC_N*(R-1)/R` output samples;

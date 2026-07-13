@@ -4,14 +4,14 @@
 
 ## What you're seeing
 
-**Left — Pd vs SNR** for dwells M = 1, 2, 5, 9, 18 at Pfa = 1e-5.
-Curves shift left as M increases: more coherent integration trades
-dwell count for SNR sensitivity. Below ~−5 dB even M=18 struggles;
-above ~+8 dB a single dwell is already reliable.
+**Left — Pd vs dwell M** at Pfa = 1e-5, for SNR = 0, 3, 6, 10 dB.
+Curves shift left as SNR increases: more per-sample SNR trades
+against coherent integration depth. Filled circles mark where each
+curve first crosses Pd = 0.9 — M = 18, 9, 5, 2.
 
-**Right — Pd vs dwell M** at fixed Pfa = 1e-5, for SNR = 0, 3, 6,
-10 dB. Every 3 dB of extra SNR roughly halves the required dwell.
-At 0 dB you need ~18 dwells for Pd = 0.9; at +6 dB you need only ~5.
+**Right — minimum dwell for Pd ≥ 0.9 vs SNR** at fixed Pfa = 1e-5.
+Every 3 dB of extra SNR roughly halves the required dwell: at 0 dB
+you need 18 dwells for Pd = 0.9; at +6 dB you need only 5.
 
 ## How it works
 
@@ -20,22 +20,9 @@ Marcum Q functions. No simulation is needed to set a threshold or
 predict performance:
 
 ```python
-from doppler.detection import det_pd, det_dwell, det_threshold
+--8<-- "src/doppler/examples/detection_curves.py:theory"
 
-PFA = 1e-5
-eta = det_threshold(PFA)    # CFAR threshold from Pfa alone
-
-# Pd at 0 dB SNR after M coherent integrations
-for M in [2, 5, 9, 18]:
-    snr_amp = 1.0            # 0 dB amplitude SNR
-    pd = det_pd(snr_amp, M, eta)
-    print(f"dwell={M:2d}  Pd={pd:.3f}")
-
-# Minimum dwell to reach Pd ≥ 0.9 at each SNR
-for snr_db in [0, 3, 6, 10]:
-    snr_amp = 10 ** (snr_db / 20)
-    M = det_dwell(snr_amp, 0.9, PFA, 64)
-    print(f"SNR={snr_db:+d} dB  →  min dwell M={M}")
+--8<-- "src/doppler/examples/detection_curves.py:checks"
 ```
 
 `det_threshold` inverts the Rayleigh CDF at `Pfa` to get the CFAR

@@ -30,26 +30,7 @@ forms the non-coherent envelope discriminator, filters it, and steers the code
 rate (and a proportional phase nudge):
 
 ```python
-import numpy as np
-from doppler.track import Dll
-
-# code: 0/1 chips for one period; sps samples per chip
-SF, sps = 127, 8
-rng = np.random.default_rng(1)
-code = rng.integers(0, 2, SF).astype(np.uint8)
-
-# Carrier-wiped PN-spread BPSK: chip 0/1 -> +1/-1, sps samples/chip,
-# a few code periods with a random BPSK data sign per period.
-chips = np.where(code & 1, -1.0, 1.0).astype(np.float32)
-rx = np.concatenate([
-    (sign * np.repeat(chips, sps)).astype(np.complex64)
-    for sign in rng.choice([-1.0, 1.0], size=8)
-])
-
-d = Dll(code, sps=8, init_chip=0.0, bn=0.004, zeta=0.707, spacing=0.5)
-symbols = d.steps(rx)        # one prompt symbol per code period
-rate    = d.code_rate        # tracked chip rate (1.0 + code Doppler)
-phase   = d.code_phase       # tracked code phase (chips)
+--8<-- "src/doppler/examples/dll_demo.py:loop"
 ```
 
 The discriminator works on **envelopes**, so it is insensitive to the BPSK data

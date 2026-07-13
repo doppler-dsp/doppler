@@ -37,20 +37,16 @@ python src/doppler/examples/measure_demo.py
 ## The measurement object
 
 ```python
-import numpy as np
-from doppler.cvt import ADC
-from doppler.measure import ToneMeasure
+--8<-- "src/doppler/examples/measure_demo.py:setup"
+```
 
-fs, n = 100e6, 1 << 14
-tone = 10.017e6                          # non-coherent so quant. noise spreads
-x = 0.999 * np.sin(2 * np.pi * tone * np.arange(n) / fs)
-codes = ADC(12, 0.0, 0).steps(x.astype(np.float32)).astype(np.float32)
-
-m = ToneMeasure(n=n, fs=fs, bits=12, full_scale=2.0**11)
+```python
+codes = adc_capture(bits=12, ftone=10.017e6)  # non-coherent quant. tone
+m = ToneMeasure(n=N, fs=FS, bits=12)
 r = m.analyze(codes)
 print(f"SNR {r.snr:.1f} dB  SINAD {r.sinad:.1f} dB  "
       f"SFDR {r.sfdr_dbc:.1f} dBc  ENOB {r.enob:.2f} bits")
-# SNR 73.9 dB  SINAD 61.0 dB  SFDR 62.0 dBc  ENOB 9.84 bits
+# SNR 73.9 dB  SINAD 73.9 dB  SFDR 94.0 dBc  ENOB 11.98 bits
 ```
 
 `analyze()` returns a named `ToneMetrics` result (attribute access and tuple

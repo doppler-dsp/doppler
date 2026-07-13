@@ -22,14 +22,69 @@ import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+
+# --8<-- [start:usage]
 import numpy as np
 
-from doppler.resample import (
-    HalfbandDecimator,
-    HalfbandDecimatorQ15,
-    _halfband_bank,
+from doppler.resample import HalfbandDecimatorQ15, _halfband_bank
+
+# ── design ─────────────────────────────────────────────────────────────
+bank = _halfband_bank(atten=60.0, pb=0.4, sb=0.6)
+fir_row = int(np.argmin([np.max(np.abs(bank[r])) for r in range(2)]))
+h = bank[fir_row].astype(np.float32)
+
+# ── create ─────────────────────────────────────────────────────────────
+dec = HalfbandDecimatorQ15(h)
+print(f"num_taps={dec.num_taps}, rate={dec.rate}")  # 19, 0.5
+
+# ── generate IQ signal: two tones, interleaved int16 ───────────────────
+fs_in = 1.0  # normalised; 1 sample/cycle
+N = 4096
+t = np.arange(N)
+amp = 20000  # -4 dBFS (int16 full scale = 32767)
+f_pass = 0.05  # in passband (0 → 0.4 × fs_in/2)
+f_stop = 0.35  # in stopband (0.6 × fs_in/2 → fs_in/2)
+
+x_c = amp * np.exp(2j * np.pi * f_pass * t) + amp * 0.1 * np.exp(
+    2j * np.pi * f_stop * t
 )
-from doppler.spectral import blackman_harris_window
+x_iq = np.empty(2 * N, dtype=np.int16)
+x_iq[0::2] = x_c.real.astype(np.int16)
+x_iq[1::2] = x_c.imag.astype(np.int16)
+
+# ── execute ────────────────────────────────────────────────────────────
+# execute() returns a zero-copy view; copy it before the next call
+# overwrites it.
+y_iq = dec.execute(x_iq).copy()
+print(f"output length: {len(y_iq) // 2} complex samples")  # 2048
+
+# ── decode ─────────────────────────────────────────────────────────────
+settle = dec.num_taps
+y_c = y_iq[0::2].astype(np.float64) + 1j * y_iq[1::2].astype(np.float64)
+
+# ── measure passband amplitude after filter settles ────────────────────
+w = np.hanning(len(y_c) - settle)
+S = np.abs(np.fft.fft(y_c[settle:] * w))
+pb_amp = np.max(S) / ((len(y_c) - settle) * w.mean())
+print(f"passband amplitude: {pb_amp / amp:.4f}  (expect ≈ 1.0)")
+assert abs(pb_amp / amp - 1.0) < 0.05
+
+# ── streaming: feed in blocks, copy each result ────────────────────────
+dec.reset()
+chunk = 128  # 64 IQ pairs per call
+results = []
+for i in range(0, len(x_iq), chunk):
+    results.append(dec.execute(x_iq[i : i + chunk]).copy())
+y_stream = np.concatenate(results)
+assert np.array_equal(y_iq, y_stream)  # block-split == one-shot ✓
+
+# ── context manager ────────────────────────────────────────────────────
+with HalfbandDecimatorQ15(h) as d:
+    y2 = d.execute(x_iq).copy()
+
+# ── explicit destroy ───────────────────────────────────────────────────
+dec.destroy()
+# --8<-- [end:usage]
 
 # ---------------------------------------------------------------------------
 # theme constants
@@ -173,6 +228,8 @@ def _measure_freq_response_float(
     mag_db : np.ndarray
         Log magnitude in dBFS (0 dBFS = unity gain).
     """
+    from doppler.resample import HalfbandDecimator
+
     # Two-phase impulse reconstruction -- see the Q15 twin above for why
     # a single impulse cannot measure a decimator's response.
     phases = []
@@ -228,6 +285,8 @@ def _bh_spectrum_db(
     mag_db : np.ndarray
         Magnitude in dBFS.
     """
+    from doppler.spectral import blackman_harris_window
+
     n = len(x_c)
     w = np.zeros(n, dtype=np.float32)
     blackman_harris_window(w)

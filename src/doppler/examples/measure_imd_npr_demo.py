@@ -37,6 +37,8 @@ import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+
+# --8<-- [start:setup]
 import numpy as np
 
 from doppler.cvt import ADC
@@ -48,9 +50,6 @@ FS = 100e6  # 100 MHz sample rate
 N = 1 << 14  # 16384-sample segment (sets the resolution bandwidth)
 NAVG = 8  # segments averaged per measurement (Welch's method)
 M = NAVG * N  # total capture length fed to analyze()
-# matplotlib standard palette (tab10) by role
-ACCENT, FUND, IM3, IM2, FLOOR = "C0", "C2", "C3", "C1", "C7"
-
 
 A2, A3 = 0.02, 0.05  # weak-nonlinearity coefficients (the DUT model)
 
@@ -86,6 +85,12 @@ def notched_noise(rms, active_lo, active_hi, notch_lo, notch_hi, seed=0):
     spec = FFT(M, -1).execute_cf32(white) * keep  # FFT, mask band + notch
     x = (FFT(M, 1).execute_cf32(spec.astype(np.complex64)) / M).real
     return (x / np.sqrt(np.mean(x**2)) * rms).astype(np.float32)
+
+
+# --8<-- [end:setup]
+
+# matplotlib standard palette (tab10) by role
+ACCENT, FUND, IM3, IM2, FLOOR = "C0", "C2", "C3", "C1", "C7"
 
 
 def npr_theory_db(rms_dbfs, bits, b_active, b_nyq):

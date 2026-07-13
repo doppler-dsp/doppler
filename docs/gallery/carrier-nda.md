@@ -40,22 +40,7 @@ constant-modulus signals like DSSS), not a per-sample magnitude limiter. See
 squaring-loss equations.
 
 ```python
-import numpy as np
-from doppler.track import CarrierNda
-
-# A QPSK signal at 8 samples/symbol with a residual carrier offset to track.
-rng = np.random.default_rng(0)
-idx = rng.integers(0, 4, 2000)
-tx  = np.exp(1j * (2 * np.pi * idx / 4 + np.pi / 4)).astype(np.complex64)
-tx  = np.repeat(tx, 8).astype(np.complex64)
-k   = np.arange(tx.size)
-rx  = (tx * np.exp(2j * np.pi * 0.0015 * k)).astype(np.complex64)
-
-# QPSK NDA loop, 8 samples/symbol, sps/n = 2-sample boxcar arm; cold start
-c = CarrierNda(bn=0.01, zeta=0.707, init_norm_freq=0.0, sps=8, n=4, m=4)
-derot = c.steps(rx)        # de-rotated samples (one per input sample)
-f_est = c.norm_freq        # tracked carrier (cycles/sample)
-locked = c.lock            # M-th-power lock metric (→ lock_scale when locked)
+--8<-- "src/doppler/examples/mpsk_nda_theory_demo.py:track"
 ```
 
 ## Rigorous bounds

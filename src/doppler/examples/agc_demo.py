@@ -27,6 +27,8 @@ import matplotlib
 matplotlib.use("Agg")  # headless: render straight to a file, no display
 
 import matplotlib.pyplot as plt
+
+# --8<-- [start:step_response]
 import numpy as np
 
 from doppler.agc import AGC
@@ -35,16 +37,22 @@ N_TOTAL = 6000  # total samples processed
 N_STEP = 3000  # sample index where the input level jumps
 F_TONE = 0.02  # normalised tone frequency (cycles/sample)
 REF_DB = 0.0  # AGC target output power
-LOOP_BW = 0.00125  # loop noise bandwidth, cycles/sample (fixed for all decim)
+LOOP_BW = 0.00125  # loop noise bandwidth (fixed for all decim)
 ALPHA = 0.02  # power-detector EMA coefficient
 LO_DB = -10.0  # input power before the step
 HI_DB = 10.0  # input power after the step
-DECIMS = (1, 8, 16)  # decimation factors compared at one loop bandwidth
 
 # Constant-envelope tone whose power steps LO_DB -> HI_DB at sample N_STEP.
 n = np.arange(N_TOTAL)
 amp = np.where(n < N_STEP, 10.0 ** (LO_DB / 20.0), 10.0 ** (HI_DB / 20.0))
 x = (amp * np.exp(2j * np.pi * F_TONE * n)).astype(np.complex64)
+
+agc = AGC(ref_db=REF_DB, loop_bw=LOOP_BW, alpha=ALPHA)
+agc.decim = 8  # update loop every 8 samples
+y = agc.steps(x)  # normalised output, power → REF_DB
+# --8<-- [end:step_response]
+
+DECIMS = (1, 8, 16)  # decimation factors compared at one loop bandwidth
 
 
 def run(decim):

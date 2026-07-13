@@ -27,6 +27,8 @@ import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+
+# --8<-- [start:setup]
 import numpy as np
 
 from doppler.cvt import ADC
@@ -37,8 +39,6 @@ FS = 100e6  # 100 MHz sample rate
 N = 1 << 14  # 16384-sample segment (sets the resolution bandwidth)
 NAVG = 8  # segments averaged per measurement (Welch's method)
 M = NAVG * N  # total capture length fed to analyze()
-# matplotlib standard palette (tab10) by role
-ACCENT, FUND, HARM, SPUR, FLOOR = "C0", "C2", "C1", "C3", "C7"
 
 
 def real_tone(freq, n, amp):
@@ -58,6 +58,12 @@ def adc_capture(bits, ftone, amp=0.999, harmonics=(), noise=0.0, seed=0):
     if noise:
         x = x + (noise * AWGN(seed, 1.0).generate(M).real).astype(np.float32)
     return ADC(bits, 0.0, 0).steps(x).astype(np.float32)
+
+
+# --8<-- [end:setup]
+
+# matplotlib standard palette (tab10) by role
+ACCENT, FUND, HARM, SPUR, FLOOR = "C0", "C2", "C1", "C3", "C7"
 
 
 def main() -> None:

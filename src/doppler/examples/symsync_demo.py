@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import sys
 
+# --8<-- [start:signal]
 import numpy as np
 
 from doppler.track import SymbolSync
@@ -34,7 +35,8 @@ OFFSET = 1.7  # static fractional-sample timing offset
 SNR_DB = 14.0
 
 
-def _rc(t, beta, T):
+def rc_pulse(t, beta, T):
+    """Raised-cosine pulse shape, evaluated at sample offsets ``t``."""
     t = np.asarray(t, float)
     s = np.sinc(t / T)
     denom = 1 - (2 * beta * t / T) ** 2
@@ -44,7 +46,9 @@ def _rc(t, beta, T):
     return s
 
 
-def _signal(seed=0):
+def make_signal(seed=7):
+    """RC-shaped BPSK whose symbol clock runs CLOCK_RATE fast, offset by
+    OFFSET samples, at SNR_DB — asynchronous to the sample clock."""
     rng = np.random.default_rng(seed)
     a = rng.integers(0, 2, NSYM) * 2 - 1
     n = NSYM * SPS
@@ -55,7 +59,7 @@ def _signal(seed=0):
         if c + span >= n:
             break
         idx = np.arange(max(0, int(c - span)), min(n, int(c + span)))
-        s[idx] += ak * _rc(idx - c, BETA, SPS)
+        s[idx] += ak * rc_pulse(idx - c, BETA, SPS)
     s = s.astype(np.complex64)
     p = np.sqrt(np.mean(np.abs(s) ** 2))
     std = np.sqrt(10 ** (-SNR_DB / 10)) * p
@@ -66,13 +70,16 @@ def _signal(seed=0):
     return s, a
 
 
+# --8<-- [end:signal]
+
+
 def main(out_path="symsync_demo.png"):
     import matplotlib
 
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
-    rx, a = _signal(seed=7)
+    rx, a = make_signal()
 
     # per-symbol trace of the tracked rate
     s = SymbolSync(sps=SPS, bn=0.01, zeta=0.707, order="cubic")

@@ -30,8 +30,8 @@ hand-off in time — the composer simply plays its segment list back-to-back.
 
 **Bottom-left — PAPR and headroom.** A sum of two tones plus noise is **not**
 constant-envelope, so its peak runs past full-scale: here the raw composite
-peaks at **+2.6 dBFS** and an integer capture clips **7 %** of its samples (red).
-`headroom` backs the whole composite off by 3 dB so the peak fits under ±1.0
+peaks at **+3.2 dBFS** and an integer capture clips **7 %** of its samples (red).
+`headroom` backs the whole composite off by 4 dB so the peak fits under ±1.0
 (green). Headroom is a single scale, so it moves the absolute level *without*
 touching any power ratio — the SNR is unchanged.
 
@@ -44,25 +44,7 @@ shared floor was resolved from.
 ## Building it
 
 ```python
-import numpy as np
-from doppler.wfm import Composer, Segment, Writer, qpsk, tone
-
-FS = 1e6                                          # scene sample rate, Hz
-
-# 1. Mix a scene: a QPSK SoI under a CW interferer, over one noise floor.
-#    fs on the sum resolves every absolute freq below — without it the
-#    default fs=1.0 silently aliases the "+200 kHz" tone to DC.
-soi   = qpsk(snr=15, snr_mode="esno", sps=8, level=-10.0, seed=1)
-inter = tone(freq=2e5, level=-3.0)                # −3 dBFS CW at +200 kHz
-scene = Segment.sum(soi, inter, num_samples=1 << 16, fs=FS)
-
-# 2. Sequence it after a preamble (time, not frequency).
-preamble = Segment(
-    "tone", freq=-3e5, fs=FS, num_samples=16384, off_samples=8192
-)
-timeline = preamble.add(scene)
-
-x = Composer(timeline).compose()                  # → complex64
+--8<-- "src/doppler/examples/wfm_composition_demo.py:scene"
 ```
 
 The `snr` on the SoI is all you specify; `Segment.sum` resolves the **anchor**
@@ -78,15 +60,7 @@ The composite has PAPR, so integer captures can clip. The `Writer` always tracks
 the running peak (free), and `headroom` backs the output off so it fits:
 
 ```python
-with Writer("scene.cf32", sample_type="ci16", headroom=3.0) as w:
-    w.write(x)
-    print(f"peak {w.peak_dbfs:+.1f} dBFS, clipped: {w.clipped}")
-
-# Or detect first, then dial in exactly enough headroom:
-with Writer("probe.ci16", sample_type="ci16") as w:
-    w.track_clipping()
-    w.write(x)
-    need = max(0.0, np.ceil(w.peak_dbfs))         # dB to fit under full scale
+--8<-- "src/doppler/examples/wfm_composition_demo.py:writer"
 ```
 
 `headroom` is SNR-invariant — it scales every source together, so the scene's
@@ -105,7 +79,7 @@ assert np.array_equal(Composer.from_json(spec).compose(), x)
 
 ```sh
 # the same, from the CLI — a.cf32 and b.cf32 are byte-identical
-wfmgen --from-file scene.json --headroom 3 --record run.json -o a.cf32
+wfmgen --from-file scene.json --headroom 4 --record run.json -o a.cf32
 wfmgen --from-file run.json                                  -o b.cf32
 ```
 

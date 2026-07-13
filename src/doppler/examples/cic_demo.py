@@ -24,10 +24,32 @@ import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+
+# --8<-- [start:sdr_pipeline]
 import numpy as np
 
 from doppler.resample import CIC
-from doppler.spectral import blackman_harris_window
+
+fs_in = 2.048e6
+R = 16
+fs_out = fs_in / R  # 128 ksps
+
+f_wanted = 15e3  # survives decimation
+f_jammer = 208e3  # alias zone -> folds to -48 kHz in output
+
+A_wanted = 0.6
+A_jammer = 0.3  # peak sum 0.9 < 1.0 -- no Q15 clipping
+
+N_IN = 8 * R * 48
+t = np.arange(N_IN)
+x = (
+    A_wanted * np.exp(2j * np.pi * f_wanted / fs_in * t)
+    + A_jammer * np.exp(2j * np.pi * f_jammer / fs_in * t)
+).astype(np.complex64)
+
+cic = CIC(R)  # R=16, N=4 (fixed), M=1 (fixed)
+y = np.array(cic.decimate(x), copy=True)
+# --8<-- [end:sdr_pipeline]
 
 # ---------------------------------------------------------------------------
 # helpers
@@ -87,6 +109,8 @@ def _spectrum_db(
         If False (default), return only 0…fs/2.
         If True, return the full −fs/2…+fs/2 range (useful for complex IQ).
     """
+    from doppler.spectral import blackman_harris_window
+
     n = len(x)
     w = np.zeros(n, dtype=np.float32)
     blackman_harris_window(w)
@@ -224,27 +248,16 @@ def demo_reconfigure() -> None:
 
 
 def demo_sdr_pipeline():
-    """Simulate a wideband IQ signal and decimate it to a narrowband slice."""
+    """Measure the module-level wideband → CIC → narrowband pipeline.
+
+    The signal, filter, and decimated output (``x``, ``cic``, ``y``) are
+    built once at module level inside the ``sdr_pipeline`` snippet region
+    the gallery page includes; this demo only measures and asserts.
+    """
     print("--- 4. SDR front-end pipeline ---")
-
-    fs_in = 2.048e6
-    R = 16
-    fs_out = fs_in / R
-
-    f_wanted = 15e3
-    f_jammer = 208e3  # first alias zone [fs_out, 2*fs_out); aliases to -48 kHz
 
     fn_wanted = f_wanted / fs_in
     fn_jammer = f_jammer / fs_in
-
-    # Scale so the two-tone sum stays within ±1.0 per component.
-    # Worst-case component amplitude = A_wanted + A_jammer;
-    # use 0.6 + 0.3 = 0.9.
-    A_wanted = 0.6
-    A_jammer = 0.3
-
-    N_IN = 8 * R * 48
-    x = A_wanted * _tone(fn_wanted, N_IN) + A_jammer * _tone(fn_jammer, N_IN)
 
     print(
         f"  Input fs = {fs_in / 1e6:.3f} Msps, R={R}"
@@ -253,8 +266,6 @@ def demo_sdr_pipeline():
     print(f"  Wanted:  {f_wanted / 1e3:.0f} kHz  (fn={fn_wanted:.5f})")
     print(f"  Jammer:  {f_jammer / 1e3:.0f} kHz  (fn={fn_jammer:.5f})")
 
-    cic = CIC(R)
-    y = _decimate(cic, x)
     settled = _settled(y, R)
 
     cic.reset()
@@ -282,7 +293,7 @@ def demo_sdr_pipeline():
         f"(unfiltered would be +{no_filter_excess_db:.1f} dB)"
     )
 
-    return x, settled, fs_in, fs_out, R, f_wanted, f_jammer
+    return settled
 
 
 # ---------------------------------------------------------------------------
@@ -512,7 +523,7 @@ if __name__ == "__main__":
     demo_basic()
     demo_alias_rejection()
     demo_reconfigure()
-    x, y_settled, fs_in, fs_out, R, f_wanted, f_jammer = demo_sdr_pipeline()
+    y_settled = demo_sdr_pipeline()
     demo_spectral_plot(
         x,
         y_settled,

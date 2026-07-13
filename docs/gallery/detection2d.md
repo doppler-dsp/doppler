@@ -36,47 +36,16 @@ zero off-peak, so there is no coherent sidelobe contamination of the
 CFAR noise estimate:
 
 ```python
-from doppler.detection import det_dwell, det_threshold
-from doppler.spectral import CorrDetector2D
-import math, numpy as np
+--8<-- "src/doppler/examples/detection2d_demo.py:theory"
 
-N_DOPPLER, N_CODE_PHASE = 16, 16
-N = N_DOPPLER * N_CODE_PHASE    # 256 cells
+--8<-- "src/doppler/examples/detection2d_demo.py:reference"
+```
 
-SNR_DB, SIGMA, PFA_SYS = 3.0, 1.0, 1e-3
-snr_amp  = 10.0 ** (SNR_DB / 20.0)
+One dwell of frames through the streaming detector, gated against
+`theta`:
 
-# Bonferroni: tight per-cell gate from system Pfa budget
-pfa_cell = 1.0 - (1.0 - PFA_SYS) ** (1.0 / N)
-eta      = det_threshold(pfa_cell)
-theta    = eta * math.sqrt(2.0 / math.pi)
-
-M = det_dwell(snr_amp, 0.90, pfa_cell, max_dwell=64)
-
-# CAZAC reference: zero circular autocorrelation off-peak
-rng  = np.random.default_rng(0)
-spec = np.exp(1j * rng.uniform(0, 2 * np.pi, (N_DOPPLER, N_CODE_PHASE)))
-ref2d = (
-    np.sqrt(N) * np.fft.ifft2(spec)
-).astype(np.complex64)
-
-# Signal amplitude from SNR definition: snr_amp = A * sqrt(N) / SIGMA
-A = snr_amp * SIGMA / math.sqrt(N)
-
-# One dwell of frames: signal at (Doppler=5, code-phase=11) + AWGN.
-ns = np.float32(SIGMA / math.sqrt(2.0))
-
-
-def signal_frame():
-    sig = np.roll(np.roll(ref2d * A, 5, axis=0), 11, axis=1)
-    noise = (
-        rng.standard_normal((N_DOPPLER, N_CODE_PHASE))
-        + 1j * rng.standard_normal((N_DOPPLER, N_CODE_PHASE))
-    ).astype(np.complex64) * ns
-    return (sig + noise).ravel()
-
-
-signal_block = np.concatenate([signal_frame() for _ in range(M)])
+```python
+signal_block = np.concatenate([signal_frame().ravel() for _ in range(M)])
 
 det = CorrDetector2D(
     ref2d, dwell=M, noise_lo=1, noise_hi=N - 1, threshold=0.0

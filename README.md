@@ -41,9 +41,9 @@ talks to a Python subscriber without surprises.
 ## Performance
 
 On a Ryzen 7 AI 350 (`-O2`): NCO raw accumulator ~15 GSa/s, LO CF32
-~1.8 GSa/s, FIR CF32 ~900 MSa/s, FFT CF32 (N=4096) ~180 MSa/s,
-polyphase resampler (2× decim) ~70 MSa/s. Run `make bench` to measure
-on your hardware.
+~1.8 GSa/s, FIR CF32 ~900 MSa/s. The full generated table lives in
+[Benchmarks](https://doppler-dsp.github.io/doppler/benchmarks/); run
+`make bench` to measure on your hardware.
 
 <!-- quickstart:start -->
 
@@ -170,5 +170,6 @@ Full docs: **[doppler-dsp.github.io/doppler](https://doppler-dsp.github.io/doppl
 MIT. The core C library is pure C99 and links only `-lm`. Its FFT uses the
 vendored pocketfft (BSD-3-Clause) for double precision and arbitrary sizes, and
 the vendored PFFFT (Pommier/FFTPACK, BSD) for the native single-precision SIMD
-path. The optional stream component (`libdoppler_stream`) vendors `nats.c`
-(Apache-2.0).
+path. The optional NATS stream component (`libdoppler_stream`) vendors
+`nats.c` (Apache-2.0) — it too is pure C99, so no C++ toolchain is needed
+anywhere in the build.

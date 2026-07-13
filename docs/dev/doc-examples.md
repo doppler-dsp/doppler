@@ -14,8 +14,8 @@ uv run pytest -m docs_snippets                            # both gates
 uv run pytest -m docs_snippets test_c_doc_snippets.py      # C only
 ```
 
-The C gate needs the library built first (`make build`) — it compiles each
-```` ```c ```` fence against `build/libdoppler.a` (and
+The C gate needs the library built first (`make build`) — it compiles
+each ```` ```c ```` fence against `build/libdoppler.a` (and
 `build/libdoppler_stream.a`, when a snippet uses the `stream/stream.h` wire
 layer) with `-std=gnu99 -Wall -Wextra -Werror`, then runs the binary and
 requires exit code 0. `-Werror` means a warning is a failure here, same as

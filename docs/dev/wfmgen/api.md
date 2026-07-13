@@ -6,8 +6,8 @@
     (the `wfm` umbrella rename, the `Synth` unification, one-CLI) and the
     0.23.0 ranged-numeric-fields addendum. Both shipped and both sections
     below are accurate **as history**, but the "Current surface" tables
-    are a snapshot from those releases — current version is 0.33.3, and
-    the surface has grown substantially since (more waveform types,
+    are a snapshot from those releases — the surface has grown
+    substantially in the many releases since (more waveform types,
     DSSS-burst flags, pulse shaping, and more) without this page being
     kept in sync. **For the current CLI/Python API, see the
     [Waveform Generator guide](../../guide/wfmgen/index.md)** — actively

@@ -47,8 +47,17 @@ on your hardware.
 
 ## Quick start
 
-**Python** — `pip install doppler-dsp` (bundles all native deps, no system
-libraries needed); see [Quick Start](quickstart.md) for the full walkthrough.
+See [Quick Start](quickstart.md) for the full walkthrough.
+
+### Python
+
+**Install**
+
+```bash
+pip install doppler-dsp
+```
+
+**Compute FFT**
 
 ```python
 from doppler.spectral import FFT
@@ -58,7 +67,7 @@ x = np.random.randn(1024).astype(np.complex64)
 X = FFT(1024).execute_cf32(x)
 ```
 
-**Waveform**
+**Create a Waveform**
 
 ```python
 from doppler.wfm import Synth
@@ -67,16 +76,24 @@ synth = Synth(type="qpsk", fs=1e6, snr=12.0, snr_mode="esno", sps=8, seed=1)
 iq = synth.steps(4096)   # complex64 ndarray
 ```
 
-**C** — the C library isn't part of the `pip install` wheel. Grab a
-[pre-built release tarball](install/c.md#install-from-a-release-tarball) —
-no toolchain, no building doppler itself — and extract it to `$PREFIX`
-(`jbx get-doppler` does exactly this in one command); you get
-`libdoppler.a`/`libdoppler.so` plus headers, ready to link.
-([Building from source](quickstart.md#build-from-source) instead? See
-that section — it uses `build/` tree paths, not `$PREFIX`.) See
-[C Library](install/c.md) for `find_package`/`pkg-config` integration.
+### C
+
+> [!TIP]
+> Don't have `jbx` yet? `. <(curl -sSL https://just-buildit.github.io/get-jb.sh)`
+
+**Install**
+
+Get `libdoppler.a`/`libdoppler.so` plus headers, ready to link, in one command:
+
+```bash
+jbx get-doppler
+```
+
+**Compute FFT**
 
 ```c
+/* example.c */
+
 #include <complex.h>
 #include <fft/fft_core.h>
 
@@ -92,11 +109,21 @@ int main(void)
 }
 ```
 
+**Compile and run**
+
 ```bash
-# after extracting the tarball to $PREFIX (install/c.md) --
-# find_package/pkg-config integration there too
-cc example.c -I "$PREFIX/include" "$PREFIX/lib/libdoppler.a" -lm -o example
+cc example.c -I "$HOME/.local/doppler/include" "$HOME/.local/doppler/lib/libdoppler.a" -lm -o example
+./example
 ```
+
+**Other install methods**
+
+Prefer a custom prefix or no `jbx`? Grab a
+[pre-built release tarball](install/c.md#install-from-a-release-tarball) by
+hand — no toolchain, no building doppler itself — and extract it to
+`$PREFIX`; you get the same `libdoppler.a`/`libdoppler.so` plus headers.
+See [C Library](install/c.md) for `find_package`/`pkg-config` integration
+and building from source.
 
 ## Build
 
@@ -105,6 +132,8 @@ cc example.c -I "$PREFIX/include" "$PREFIX/lib/libdoppler.a" -lm -o example
 > hand: `. <(curl -sSL https://just-buildit.github.io/get-jb.sh)`.)
 
 ```bash
+git clone https://github.com/doppler-dsp/doppler
+cd doppler
 make install-deps       # bootstrap jbx (if needed) + install system deps
 make                    # C library
 make pyext              # + Python bindings

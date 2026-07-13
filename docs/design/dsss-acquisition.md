@@ -402,8 +402,20 @@ to **P4**.
 meeting `pd`; `doppler_uncertainty` narrows the scanned Doppler band (fewer
 Bonferroni cells → lower gate, with a matching masked argmax); an infeasible
 operating point builds best-effort, flags `underpowered`, and warns.
-**Not yet started:** P0 (stateless kernel), P2 (sub-block), P3
-(Doppler-rate), P4 (orchestration).
+**P0 (stateless kernel) — substantially shipped, via a coarser mechanism
+than specified below.** `acq_run`/`acq_state_bytes`/`acq_get_state`/
+`acq_set_state` (`native/src/acq/acq_core.c`,
+[acq-fn.md](acq-fn.md)) give `Acquisition` the pure-transducer /
+serializable-carry properties P0 asks for, but not via the `acq_caf_tile`
+tile-level kernel extraction this section's table row describes — that
+finer decomposition hasn't been built.
+
+**P4 (orchestration) — shipped.** `src/doppler/dsss/orchestrator.py`
+(`Acquirer`/`CoarseChannel`) implements thread-pool fan-out over
+coarse-Doppler shards with bit-identical `get_state`/`set_state` pod
+hand-off, matching this phase's acceptance criteria.
+
+**Not yet started:** P2 (sub-block), P3 (Doppler-rate).
 
 | Phase                                     | Deliverable                                                                                                                                               | Acceptance criteria                                                                                                                                                                                                               |
 | ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

@@ -1,6 +1,9 @@
 # Corr2D: decoupled (interpolated) inverse length
 
-**Status:** spec / for build
+**Status:** shipped (PR #241) — `ny_out`/`nx_out`, zero-pad interpolation,
+and frequency-domain dwell accumulation are all in
+`native/src/corr2d/corr2d_core.c`. §6 (downstream `detector2d`/`acq` wiring)
+remains a separate, additive follow-up, not yet done.
 **Scope:** add an optional larger, independently-chosen **inverse** transform
 size to `Corr2D` (`native/src/corr2d/corr2d_core.c`) — a pffft-friendly,
 malloc-free inverse plus free band-limited interpolation of the correlation
@@ -109,9 +112,10 @@ ______________________________________________________________________
 
 ## 4. State + algorithm
 
-**Frequency-domain accumulation** (✅ implemented; the larger inverse below is
-the remaining work): accumulate the product `P` over `dwell` frames, then
-(zero-pad +) invert **once per dump** instead of inverting every frame.
+**Frequency-domain accumulation** (✅ implemented) and **the larger,
+decoupled inverse** (✅ also implemented — `ny_out`/`nx_out`): accumulate the
+product `P` over `dwell` frames, then (zero-pad +) invert **once per dump**
+instead of inverting every frame.
 
 **When this is valid.** The deferral relies on the inverse DFT being **linear**,
 `Σₖ IFFT(Pₖ) = IFFT(Σₖ Pₖ)`, with the single `1/n` applied once either way. The

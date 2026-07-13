@@ -8,12 +8,15 @@
 `resamp` core behind `Resampler`/`RateConverter` — see the
 [gallery walkthrough](../gallery/rate-converter.md) and the
 [Python API](../api/python-resample.md)). [Performance Optimizations](#performance-optimizations)
-is **unimplemented future work** — a Day-1 brainstorm, not a description of
-what ships today. In particular, today's Farrow-family interpolator
-(`native/src/farrow/farrow_core.c`, used by the timing loop and
-`Farrow.delay`) is a simple selectable-order Lagrange form (linear /
-piecewise-parabolic / cubic) — **not** the DPMFS structure Idea 1 proposes
-below, which was never built.
+is a Day-1 brainstorm, not a description of what ships today. In particular,
+today's Farrow-family interpolator (`native/src/farrow/farrow_core.c`, used
+by the timing loop and `Farrow.delay`) is a simple selectable-order Lagrange
+form (linear / piecewise-parabolic / cubic) — **not** the DPMFS structure
+Idea 1 proposes below. DPMFS itself *was* built and shipped as
+`doppler.polyphase.ResamplerDpmfs` in v0.2.6, then removed in v0.3.0 (see
+the [Python Polyphase API](../api/python-polyphase.md) removal notice) in
+favor of the simpler, always-sufficient `Resampler` fixed-bank design — so
+Idea 1 below is a tried, shipped, and retired approach, not an untried one.
 
 # Architecture
 
@@ -126,10 +129,11 @@ x[n] ──► push ──► [ delay line, N taps ] ──dot(ptr, h)──► 
 
 # Performance Optimizations
 
-**Status: unimplemented.** Everything below is proposed future work from the
-project's earliest design pass — none of it has been built, and the
-benchmark numbers under "Current numbers" reflect the *shipped* polyphase
-resampler, not any of Ideas 1–5.
+**Status:** proposed future work from the project's earliest design pass.
+The benchmark numbers under "Current numbers" reflect the *shipped*
+polyphase resampler, not any of Ideas 1–5. Idea 1 (DPMFS) is the exception —
+it *was* built and shipped as `ResamplerDpmfs`, then removed in v0.3.0 (see
+the note above); Ideas 2–5 remain untried.
 
 ## Current numbers (cf32, AVX-512, -march=native)
 
@@ -197,15 +201,20 @@ fully L1-resident.
     multiplications + P additions (symmetry folds the tap pairs)
 1. Emit output sample
 
-### Design tool
+### Design tool (shipped, then removed with the rest of `doppler.polyphase`)
 
-`doppler.polyphase` builds the Kaiser prototype. A new
-`to_dpmfs_coeffs()` method would:
+This wasn't hypothetical — `doppler.polyphase` shipped `fit_dpmfs()` and
+`optimize_dpmfs()` (plus a `to_c_header()` coefficient exporter) doing
+exactly this:
 
 1. Design optimal symmetric PBF with J=2 and odd length
 1. Polyphase decompose: c_m(p, j) = d_m(2p + j)
 1. Return two coefficient arrays (j=0, j=1) ready for the C
     runtime
+
+Removed along with `doppler.polyphase` in v0.3.0 (see the note at the top of
+this page) — `ResamplerDpmfs` and its design tooling both went in the same
+cut.
 
 ## Idea 2 — Vectorize across output samples (interpolator)
 

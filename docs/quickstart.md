@@ -70,6 +70,7 @@ import numpy as np
 x = (np.random.randn(1024) + 1j * np.random.randn(1024)).astype(np.complex64)
 fft = FFT(1024)
 X = fft.execute_cf32(x)   # complex64 in → complex64 out (~2× faster than f64)
+print(f"FFT: {X.shape[0]} complex64 bins")
 ```
 
 ### FIR filter
@@ -81,6 +82,7 @@ from scipy.signal import firwin
 taps = firwin(63, cutoff=0.1, window="hamming").astype(np.float32)
 fir = FIR(taps)
 y = fir.execute(x)        # reuses x from the FFT step
+print(f"filtered {len(y)} samples through a {len(taps)}-tap FIR")
 ```
 
 ### Resample
@@ -93,6 +95,7 @@ from doppler.resample import RateConverter
 
 rc = RateConverter(0.5)   # 2:1 decimation → auto-selects a halfband stage
 y = rc.execute(x)         # 1024 → 512 samples
+print(f"resampled {len(x)} -> {len(y)} samples")
 ```
 
 ______________________________________________________________________
@@ -115,6 +118,7 @@ pub = Publisher("nats://127.0.0.1:4222/iq")
 
 samples = np.ones(1024, dtype=np.complex64)
 pub.send(samples, sample_rate=1e6, center_freq=2.4e9)
+print(f"sent {len(samples)} samples")
 ```
 
 ### Subscriber (Python)

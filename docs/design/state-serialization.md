@@ -373,16 +373,18 @@ burn-down list is empty). A CI gate (`scripts/check_serializable.py`, see
 [Enforcement](#enforcement-the-gate-it-cant-rot)) holds the line going forward —
 a new object must declare `serializable = "true"` or opt out as stateless.
 
-Covered: generators + loops (`LO`/`NCO`/`AWGN`/`PN`/`Costas`/`CarrierMpsk`/
-`CarrierNda`/`LoopFilter`), `FIR`/`CIC`/`DDC`/`Ddcr`/`RateConverter`/`Resampler`/
-`HalfbandDecimator`/`MovingAverage`/`Acquisition`, the POD set (`Farrow`/`AGC`/
-`ADC`/the four `acc_*` accumulators/the four `f32_to_*` quantizers), the
-field-wise set (`delay`/`acc_trace`/`hbdecim_q15`), the compositions
-(`Dll`/`SymbolSync`/`Despreader`/`MpskReceiver`/`wfm_synth`), and the
-correlator/detector/analyzer family
-(`corr`/`corr2d`/`detector`/`detector2d`/`burst_despreader`/`psd`/`specan` — opaque
-FFT plans + work buffers rebuilt by `create`; ring/pending buffers zero-padded
-to a fixed capacity so blobs stay canonical).
+The coverage spans every stateful family — generators and tracking loops
+(a phase, an RNG), filters and resamplers (delay lines, integ/comb
+chains), the pointer-free POD set (snapshot whole), the field-wise set
+(structs with pointers pack running fields and skip them), compositions
+(delegate to their children's triplets), and the
+correlator/detector/analyzer family, whose opaque FFT plans and work
+buffers are rebuilt by `create()` while ring/pending buffers are
+zero-padded to a fixed capacity so blobs stay canonical. The
+authoritative per-object roster is the code, not this page: every
+`objects/*.toml` either declares `serializable = "true"` or is listed in
+`scripts/.serializable-stateless` — the gate fails CI on any object that
+does neither.
 
 ### The payoff — elastic pod hand-off
 

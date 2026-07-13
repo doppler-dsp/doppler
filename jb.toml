@@ -55,10 +55,15 @@ packages = [
     "patchelf",
 ]
 
+# python/numpy: the docs' build-from-source path needs a NumPy-equipped
+# Python; CI runners and dev machines that already manage Python another
+# way just get a no-op (brew skips what's installed).
 [dev.brew]
 packages = [
     "cmake",
     "pkg-config",
+    "python",
+    "numpy",
 ]
 
 [dev.dnf]

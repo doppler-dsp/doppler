@@ -9,7 +9,7 @@ running multi-process signal pipeline in a handful of commands.
   <div style="border: 2px solid currentColor; padding: 0.6em 1em; text-align: center; border-bottom: none;">Pipeline CLI — doppler compose (YAML + Dopplerfile)</div>
   <div style="border: 2px solid currentColor; padding: 0.6em 1em; text-align: center; border-bottom: none;">Transport — NATS streaming (PUSH/PULL, PUB/SUB)</div>
   <div style="border: 2px solid currentColor; background: var(--md-primary-fg-color); color: var(--md-primary-bg-color);">
-    <div style="padding: 0.6em 1em; text-align: center; border-bottom: 1px dashed var(--md-primary-bg-color);">DSP Library — C99 core (40 modules: NCO, FIR, FFT, DDC, Resampler, AGC, DSSS, tracking loops, and more)</div>
+    <div style="padding: 0.6em 1em; text-align: center; border-bottom: 1px dashed var(--md-primary-bg-color);">DSP Library — C99 core, dozens of modules (NCO, FIR, FFT, DDC, Resampler, AGC, DSSS, tracking loops, and more)</div>
     <div style="display: flex;">
       <div style="flex: 1; padding: 0.6em 1em; text-align: center; border-right: 1px dashed var(--md-primary-bg-color);">Python (thin ctypes)</div>
       <div style="flex: 1; padding: 0.6em 1em; text-align: center;">Rust FFI (safe wrap)</div>
@@ -22,7 +22,7 @@ ______________________________________________________________________
 ## Layer 1 — DSP Library (C99 core)
 
 The entire algorithm library lives in one portable C99 library, across
-40 modules — NCO, FIR, FFT, DDC, polyphase resampler, ring buffers, AGC,
+dozens of modules — NCO, FIR, FFT, DDC, polyphase resampler, ring buffers, AGC,
 DSSS acquisition/despreading, carrier/symbol tracking loops, and more —
 each implemented once, tested once, and callable from any language
 through the `dp_*` C ABI.

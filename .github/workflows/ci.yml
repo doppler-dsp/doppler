@@ -379,12 +379,26 @@ jobs:
       # `make docs-relink` locally to regenerate after adding a cross-link.
       run: uv run python scripts/gen_related_pages.py --check
 
-    - name: Check README quickstart drift
-      # Fails if README.md's marked Quick Start block doesn't match a fresh
-      # regeneration from docs/index.md's "## Quick start" section (the
-      # single source of truth). Run `make docs-relink` locally to
-      # regenerate after editing docs/index.md's Quick Start.
-      run: uv run python scripts/gen_readme_quickstart.py --check
+    - name: Check README sync drift
+      # Fails if README.md's marked body doesn't match a fresh regeneration
+      # from docs/index.md's readme-sync region (the single source of
+      # truth for everything below the badges). Run `make docs-relink`
+      # locally to regenerate after editing docs/index.md.
+      run: uv run python scripts/gen_readme.py --check
+
+    - name: Check install-script drift
+      # Fails if tests/install/build-*-deps.sh (rendered into
+      # docs/install/source.md and docs/quickstart.md via --8<-- includes)
+      # doesn't match a fresh projection of jb.toml's [dev.*] package
+      # lists -- jb.toml is the single source of truth for system deps.
+      # Run `make docs-relink` locally after changing jb.toml.
+      run: uv run python scripts/gen_install_scripts.py --check
+
+    - name: Check version strings in docs
+      # Fails if the current pyproject.toml version is hand-typed anywhere
+      # in README.md or hand-owned docs/ pages -- such a claim goes stale
+      # at the very next release (this rotted once in dev/wfmgen/api.md).
+      run: uv run python scripts/check_version_strings.py
 
     - name: Check serialization stance
       # Fails if an object declares neither serializable="true" nor is opted

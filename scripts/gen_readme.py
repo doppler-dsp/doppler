@@ -1,17 +1,23 @@
 #!/usr/bin/env python3
-"""Generate README.md's "## Quick start" section from docs/index.md.
+"""Generate README.md's body from docs/index.md.
 
-docs/index.md and README.md deliberately show the identical Quick Start
-walkthrough, but render on two different engines -- mkdocs-material
+docs/index.md and README.md deliberately show the identical landing
+content, but render on two different engines -- mkdocs-material
 admonitions (``!!! tip``) on the docs site, GitHub's native alert syntax
 (``> [!TIP]``) on GitHub -- so the two pages can never be byte-identical.
-Keeping them in sync by hand rotted repeatedly across a single session
-(a live tagline edit, a missing `git clone` step, a stale quickstart link)
-before this generator existed. docs/index.md is now the single source of
-truth: this script extracts its "## Quick start" section, rewrites it for
-GitHub rendering, and writes the result into README.md between marker
-comments -- same idiom as ``gen_related_pages.py``'s
-``<!-- related-pages:start -->``/``:end`` block.
+Keeping them in sync by hand rotted repeatedly (a live tagline edit, a
+missing `git clone` step, a stale quickstart link -- and later a
+Performance/Licensing drift in exactly the sections the first,
+quickstart-only version of this generator didn't cover). docs/index.md
+is the single source of truth: this script extracts everything after
+its ``<!-- readme-sync:source-start -->`` marker (tagline, navigation,
+Why, Performance, Quick start, Build, Docs, Licensing -- through end of
+file), rewrites it for GitHub rendering, and writes the result into
+README.md between marker comments -- same idiom as
+``gen_related_pages.py``'s ``<!-- related-pages:start -->``/``:end``
+block. Only the wordmark + badge header above the markers stays
+hand-owned in each file (the two heads genuinely differ: image sizing,
+glightbox classes, absolute-vs-relative badge targets).
 
 Rewrites applied:
     - any mkdocs ``!!! type ["Title"]`` admonition, with its 4-space
@@ -27,8 +33,8 @@ Rewrites applied:
 
 Usage
 -----
-    python scripts/gen_readme_quickstart.py --write   # regenerate the block
-    python scripts/gen_readme_quickstart.py --check   # exit 1 on any drift
+    python scripts/gen_readme.py --write   # regenerate the block
+    python scripts/gen_readme.py --check   # exit 1 on any drift
 """
 
 from __future__ import annotations
@@ -42,15 +48,11 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 INDEX_MD = os.path.join(ROOT, "docs", "index.md")
 README_MD = os.path.join(ROOT, "README.md")
 
-START_MARKER = "<!-- quickstart:start -->"
-END_MARKER = "<!-- quickstart:end -->"
-
-# From the "## Quick start" heading up to (not including) the next
-# level-2 heading (e.g. "## Build") -- "### Python"/"### C" subheadings
-# don't match ``^## `` so they stay inside the captured section.
-SECTION_RE = re.compile(
-    r"^## Quick start\n.*?(?=^## )", re.MULTILINE | re.DOTALL
-)
+START_MARKER = "<!-- readme-sync:start -->"
+END_MARKER = "<!-- readme-sync:end -->"
+# Everything in docs/index.md after this marker (which sits right after
+# the badge header) is the synced region -- through end of file.
+SOURCE_MARKER = "<!-- readme-sync:source-start -->"
 
 # !!! type ["Title"]  -- the type is a bare word; the title, if present,
 # must be double-quoted (mkdocs/pymdownx requires this for a multi-word
@@ -96,13 +98,19 @@ LINK_RE = re.compile(r"(?<!!)\[([^\]]+)\]\((?!https?://|#|docs/)([^)]+)\)")
 def extract_section() -> str:
     with open(INDEX_MD, encoding="utf-8") as f:
         text = f.read()
-    m = SECTION_RE.search(text)
-    if not m:
+    _, sep, section = text.partition(SOURCE_MARKER)
+    if not sep:
         raise SystemExit(
-            "gen_readme_quickstart: could not find a '## Quick start' "
-            "section in docs/index.md"
+            f"gen_readme: docs/index.md has no {SOURCE_MARKER} marker "
+            "-- it must sit right after the badge header, before the "
+            "tagline paragraph."
         )
-    return m.group(0)
+    if "## Quick start" not in section:
+        raise SystemExit(
+            "gen_readme: the extracted docs/index.md region has no "
+            "'## Quick start' heading -- is the source marker misplaced?"
+        )
+    return section.lstrip("\n")
 
 
 def _rewrite_admonitions(section: str) -> str:
@@ -124,8 +132,8 @@ def _rewrite_admonitions(section: str) -> str:
         github_type = GITHUB_ALERT_TYPES.get(kind.lower())
         if github_type is None:
             raise SystemExit(
-                f"gen_readme_quickstart: unmapped admonition type "
-                f"'{kind}' in docs/index.md's Quick Start section -- "
+                f"gen_readme: unmapped admonition type "
+                f"'{kind}' in docs/index.md's synced region -- "
                 f"add it to GITHUB_ALERT_TYPES (closest GitHub alert: "
                 f"NOTE/TIP/IMPORTANT/WARNING/CAUTION)."
             )
@@ -143,8 +151,8 @@ def _rewrite_admonitions(section: str) -> str:
             body.pop()
         if not body:
             raise SystemExit(
-                f"gen_readme_quickstart: '!!! {kind}' at docs/index.md "
-                f"line {i + 1} (within Quick Start) has no 4-space "
+                f"gen_readme: '!!! {kind}' at docs/index.md "
+                f"line {i + 1} (within the synced region) has no 4-space "
                 f"indented body -- nothing to rewrite."
             )
 
@@ -166,8 +174,8 @@ def _rewrite_admonitions(section: str) -> str:
 
     if n_found == 0:
         raise SystemExit(
-            "gen_readme_quickstart: found no '!!!' admonition to rewrite "
-            "in docs/index.md's Quick Start section -- did it lose its "
+            "gen_readme: found no '!!!' admonition to rewrite "
+            "in docs/index.md's synced region -- did it lose its "
             "last one? (harmless if intentional -- delete this check if so)"
         )
     return "\n".join(out)
@@ -203,9 +211,9 @@ def apply(write: bool) -> bool:
     )
     if not pattern.search(readme):
         raise SystemExit(
-            f"gen_readme_quickstart: no {START_MARKER} .. {END_MARKER} "
-            "block found in README.md -- add the markers around the "
-            "Quick Start section once, then re-run."
+            f"gen_readme: no {START_MARKER} .. {END_MARKER} "
+            "block found in README.md -- add the marker pair after the "
+            "badge header once, then re-run."
         )
 
     # A function replacement, not a string one -- new_block can contain
@@ -238,13 +246,13 @@ def main() -> int:
     if not up_to_date:
         if args.check:
             print(
-                "README.md's Quick Start section is out of sync with "
+                "README.md's synced body is out of sync with "
                 "docs/index.md -- run: "
-                "python scripts/gen_readme_quickstart.py --write",
+                "python scripts/gen_readme.py --write",
                 file=sys.stderr,
             )
             return 1
-        print("README.md's Quick Start section regenerated from docs/index.md")
+        print("README.md's body regenerated from docs/index.md")
     return 0
 
 

@@ -25,6 +25,7 @@ import matplotlib.pyplot as plt
 
 # --8<-- [start:usage]
 import numpy as np
+from typing import Optional
 
 from doppler.resample import HalfbandDecimatorQ15, _halfband_bank
 
@@ -303,7 +304,7 @@ def _bh_spectrum_db(
 
 def _build_input_signal(
     n: int = 8192,
-    rng: np.random.Generator | None = None,
+    rng: Optional[np.random.Generator] = None,
 ) -> np.ndarray:
     """Return interleaved int16 IQ wideband test signal.
 

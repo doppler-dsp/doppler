@@ -454,7 +454,7 @@ ______________________________________________________________________
     `det_pd` / `det_dwell` / `marcum_q` (the order-`M` primitive).
 - [Gallery: 2-D Acquisition](../gallery/detection2d.md) — the `CorrDetector2D`
     matched-filter surface the coherent kernel builds on.
-- [Streaming roadmap](../dev/streaming-roadmap.md) — the transport seam the pod
+- [Streaming roadmap](../dev/archive/streaming-roadmap.md) — the transport seam the pod
     fan-out reuses.
 - [Pure-functional acquisition kernel](acq-fn.md) — the elastic
     `(ddc_fn, acq_fn)` pipeline, config/state/scratch split, and serializable

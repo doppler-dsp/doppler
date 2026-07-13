@@ -266,18 +266,15 @@ nav:
       - Dopplerfile: cli/dopplerfile.md
   - Contributing:
       - Contributing: dev/index.md
-      - Module Layout: dev/module-layout.md
       - Repository Map: dev/repository-map.md
+      - Module Layout: dev/module-layout.md
       - Adding a Module: dev/adding-a-module.md
-      - Doc Examples (tested): dev/doc-examples.md
-      - Docs Conventions: dev/docs-conventions.md
       - Error Convention: dev/error-convention.md
-      - "wfmgen API (0.11 cleanup)": dev/wfmgen/api.md
-      - "wfm validation findings": dev/wfm-validation-findings.md
       - "DSSS acquisition use cases": dev/dsss-use-cases.md
       - Benchmarking: dev/benchmarking.md
-      - Coverage: dev/coverage.md
-      - Streaming Roadmap: dev/streaming-roadmap.md
-      - "NATS JetStream Transport (roadmap)": dev/nats-jetstream-transport-migration.md
-      - Release: dev/release.md
-      - Build Internals: dev/build-internals.md
+      - Doc Examples (tested): dev/doc-examples.md
+      - Docs Conventions: dev/docs-conventions.md
+      - Maintainer internals:
+          - Release: dev/release.md
+          - Build Internals: dev/build-internals.md
+          - Coverage: dev/coverage.md

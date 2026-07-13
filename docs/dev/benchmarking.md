@@ -18,7 +18,11 @@ just-makeit bench --tag v1.2.3   # label the snapshot (default: UTC timestamp)
 ```
 
 Each run prints a stats table per side — with a Δ column versus the most
-recent earlier snapshot — and writes:
+recent earlier snapshot. The Python side also gets a live `throughput`
+summary from pytest's own terminal output (one `module::case: N MSa/s`
+line per benchmark that sets `extra_info["MSa_s"]`, see below) — useful
+for a quick eyeball scan before waiting on the full trimmed-snapshot diff.
+Each run also writes:
 
 ```text
 benchmarks/history/<tag>.json     # Python (pytest-benchmark schema)
@@ -57,7 +61,7 @@ with full summary stats (min, max, mean, stddev, median, IQR, ops).
 ### Writing a Python benchmark
 
 ```text
-"""bench_mymod.py — throughput benchmarks for doppler.mymod."""
+"""Benchmark for MyType."""
 import numpy as np
 import pytest
 from doppler.mymod import MyType
@@ -75,12 +79,23 @@ def x():
     return np.ones(BLOCK, dtype=np.complex64)
 
 
-def test_execute_cf32(benchmark, obj, x):
+def test_bench_execute_cf32(benchmark, obj, x):
     benchmark(obj.execute_cf32, x)
+    if benchmark.stats:
+        benchmark.extra_info["MSa_s"] = BLOCK / benchmark.stats["mean"] / 1e6
 ```
 
-Name each test `test_<module>_<method>` so results are identifiable
-across runs.
+Name each test `test_bench_<case>` — `test_bench_execute_cf32`,
+`test_bench_steps_64k`, etc. Case names are **not** module-qualified (every
+`bench_*.py` draws from the same small vocabulary), so identifiability
+across the full suite comes from the *filename*, not the test name:
+`conftest.py`'s `pytest_terminal_summary` hook and `scripts/bench_report.py`
+both derive a `module::case` label from the pytest fullname (stripping
+`bench_`/`test_bench_` from the file/function names) when printing results,
+so `bench_fir.py::test_bench_execute` shows up as `fir::execute`. Set
+`benchmark.extra_info["MSa_s"]` (samples processed / mean time, in millions)
+when throughput is the metric worth summarizing — it feeds both that
+`module::case` terminal summary and the `docs/benchmarks.md` table.
 
 ______________________________________________________________________
 

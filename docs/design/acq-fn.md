@@ -102,12 +102,14 @@ size_t acq_run (acq_state_t *, const void *state_in, void *state_out,
     (unconsumed ring samples + nc surface + counters) on the existing
     `acq_state_t`; `acq_state_bytes`/`get_state`/`set_state` + `acq_run`.
     **Bit-exact vs an uninterrupted run + state round-trip**, verified in
-    `test_acq_core.c`. (`serializable = true` on `acq.toml` for the `Acquisition`
-    Python triplet is the follow-up flag flip.)
+    `test_acq_core.c`. (`serializable = true` on `acq.toml` for the
+    `Acquisition` Python triplet landed same-day, PR #268.)
 1. **(done — PRs #261, #265)** `ddc_fn` serializable state — `ddcr_run` + the
     heterogeneous leaf serializers (lo/cic/fir/resamp/hbdecim/hbdecim_r2c +
     RateConverter), adopted on `LO`/`CIC`/`FIR` via the `serializable` flag.
-1. **Orchestrator** over the two pure kernels (mixer bank, fan-out, hit dedupe)
-    — the next step.
+1. **(done — PRs #270, #297)** Orchestrator over the two pure kernels —
+    `src/doppler/dsss/orchestrator.py` (`Acquirer`/`CoarseChannel`):
+    thread-pool fan-out over coarse-Doppler shards, bit-identical
+    `get_state`/`set_state` pod hand-off.
 
 The OO objects (`Acquisition`, `Ddc`/`Ddcr`) are preserved at every step.

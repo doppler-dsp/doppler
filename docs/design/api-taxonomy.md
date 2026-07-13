@@ -1,14 +1,16 @@
 # API taxonomy: the DSP building-block hierarchy and its naming axis
 
-**Status:** draft / for discussion
+**Status:** hierarchy + naming axis still live design reference; all 5
+concrete §4 rename proposals have landed
 **Scope:** distill doppler's implicit organizing vision for the DSP building
 blocks in `objects/*.toml` into an explicit hierarchy, so that naming a new
 class — or renaming an existing one — follows from *where it sits*, not from
-whatever felt right at the time. Concrete rename proposals are included; the
-one that motivated this doc has landed
-([`Channel` → `Despreader`](#41-trackchannel-dsssdespreader-continuous-dsssdespreader-dsssburstdespreader),
-[doppler-dsp/doppler#357](https://github.com/doppler-dsp/doppler/issues/357)) —
-the rest are still proposals.
+whatever felt right at the time. All five concrete rename proposals in §4
+(the one that motivated this doc,
+[`Channel` → `Despreader`](#41-trackchannel-dsssdespreader-continuous-dsssdespreader-dsssburstdespreader),
+plus four more surfaced by applying the same hierarchy) have landed — see
+each subsection's `Landed:` link. §4.6 and §5 remain open: flagged overlaps
+and lower-confidence ideas not yet actioned.
 
 ______________________________________________________________________
 
@@ -172,7 +174,7 @@ tracking-mode loop once locked. Same flavor of leak as `nav_period`.
 | --------------- | -------------- |
 | `auto_handover` | `acq_to_track` |
 
-Landed: [doppler-dsp/doppler#361](https://github.com/doppler-dsp/doppler/issues/361).
+**Landed:** [doppler-dsp/doppler#361](https://github.com/doppler-dsp/doppler/issues/361).
 
 ### 4.6 Flagged, no rename proposed yet
 

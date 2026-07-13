@@ -1,5 +1,10 @@
 # wfm / wfmgen validation findings
 
+**Status:** all three bugs found resolved (in #196, individually linked
+below); their `xfail` markers are gone from the suite. The **behaviour
+notes** are not bugs and remain open documentation gaps by design. This
+page is kept as the historical record of the validation pass.
+
 This document records what the exhaustive validation pass
 (`src/doppler/wfm/tests/test_dsp_correctness.py`,
 `src/doppler/wfm/tests/test_api_surface.py`) uncovered. Each **bug** maps 1:1 to

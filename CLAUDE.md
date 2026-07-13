@@ -607,15 +607,35 @@ ______________________________________________________________________
 
 ## Doc examples are tested (fail-closed)
 
-Every ```` ```python ````/```` ```pycon ```` fence under `docs/` is executed (or
-`>>>`-output-checked) by `src/doppler/tests/test_doc_snippets.py` — **discovered,
-not registered**, so a new page is gated the moment it exists. Run locally with
-`uv run pytest -m docs_snippets`. When adding/editing docs, make the code
-**runnable-first**: prefer a `--8<--` include from a CI-tested
-`src/doppler/examples/*.py` (the gate resolves it), else exec-with-real-setup;
-`skip=REASON` only for genuinely-unrunnable blocks (blocking recv, hardware).
-Pseudocode/templates are ```` ```text ````, not `python`. Full policy +
-docs-build gotchas: `docs/dev/doc-examples.md`.
+Every fenced code block under `docs/` is checked in CI — **discovered,
+not registered**, so a new page is gated the moment it exists. Three
+fence gates (all `uv run pytest -m docs_snippets`, in
+`src/doppler/tests/`): **python/pycon** (`test_doc_snippets.py` —
+exec'd or `>>>`-output-checked, page = one shared-namespace notebook),
+**c** (`test_c_doc_snippets.py` — compiled `-Werror` against
+`build/libdoppler.a`, run, exit 0), **sh/bash/console**
+(`test_sh_doc_snippets.py` — `doppler`/`doppler-specan` lines parse
+against the CLIs' real `build_parser()`; safe fences execute under
+`bash -e` in a per-page cwd with ```` ```json title="f.json" ````
+fences materialized as files). Markers, reasons mandatory:
+`skip=`, `raises=`, `broker=` (runs iff a NATS broker is on :4222 —
+CI has one), `no-exec=` (sh only: parse-validate, don't run).
+
+**Examples**: every `src/doppler/examples/*.py` runs via
+`test_examples.py` (glob-discovered; skips in
+`src/doppler/examples/.examples-skip`) and must **self-validate** with
+physical asserts — exit 0 means demonstrated AND checked. Gallery pages
+`--8<--`-include regions of these scripts, so page == tested script ==
+committed PNG.
+
+When adding/editing docs: **runnable-first** — prefer a `--8<--`
+include from a tested example (the gates resolve includes), else
+exec-with-real-setup; pseudocode/templates are ```` ```text ````, not
+`python`. The docs build is `--strict` (zero warnings) and
+`scripts/check_site_links.py` fails CI on any broken internal
+link/anchor in the built site. Full policy + docs-build gotchas:
+`docs/dev/doc-examples.md`; generated-vs-hand-owned map + all drift
+gates: `docs/dev/docs-conventions.md`.
 
 ______________________________________________________________________
 

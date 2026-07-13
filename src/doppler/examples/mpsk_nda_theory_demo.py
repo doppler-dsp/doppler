@@ -19,9 +19,31 @@ from __future__ import annotations
 
 import sys
 
+# --8<-- [start:track]
 import numpy as np
 
+from doppler.mpsk import mpsk_map
 from doppler.track import CarrierNda
+
+# A QPSK signal at 8 samples/symbol carrying a residual carrier offset.
+F0 = 0.0015  # residual carrier, cycles/sample
+rng = np.random.default_rng(0)
+labels = rng.integers(0, 4, 2000).astype(np.uint8)
+tx = np.repeat(mpsk_map(labels, 4), 8).astype(np.complex64)
+k = np.arange(tx.size)
+rx = (tx * np.exp(2j * np.pi * F0 * k)).astype(np.complex64)
+
+# QPSK NDA loop: 8 samples/symbol, sps/n = 2-sample boxcar arm; cold
+# start — no data aiding and no symbol timing needed to lock.
+c = CarrierNda(bn=0.01, zeta=0.707, init_norm_freq=0.0, sps=8, n=4, m=4)
+derot = c.steps(rx)  # de-rotated samples (one per input sample)
+f_est = c.norm_freq  # tracked carrier (cycles/sample)
+locked = c.lock  # M-th-power lock metric (-> lock_scale when locked)
+# --8<-- [end:track]
+
+# The narrative run above must acquire on modulated data with no symbol
+# timing — the data-blind M-th power is exactly what buys that.
+assert abs(f_est - F0) < 1e-4, "QPSK NDA narrative run failed to acquire"
 
 ORDERS = [
     (2, "BPSK", "#1f77b4"),

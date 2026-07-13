@@ -22,11 +22,11 @@ import matplotlib
 matplotlib.use("Agg")  # headless — no display required
 
 import matplotlib.pyplot as plt
+
+# --8<-- [start:theory]
 import numpy as np
 
 from doppler.detection import det_dwell, det_pd, det_threshold
-
-# ── Parameters ───────────────────────────────────────────────────────────────
 
 PFA = 1e-5
 PD_TARGET = 0.9
@@ -35,8 +35,6 @@ MAX_DWELL = 64
 DWELL_X = np.arange(1, MAX_DWELL + 1)
 
 ETA = det_threshold(PFA)  # threshold is Pfa-only; computed once
-
-# ── Compute curves ───────────────────────────────────────────────────────────
 
 # Left panel: Pd vs dwell for each SNR.
 snr_amps = [10 ** (db / 20) for db in SNR_DB]
@@ -52,9 +50,10 @@ min_dwell = [
 # Mask SNRs where det_dwell returned -1 (not achievable within MAX_DWELL).
 valid = np.array(min_dwell)
 mask = valid > 0
+# --8<-- [end:theory]
 
-# ── Self-checks: the theory functions must be internally consistent ──────────
-
+# --8<-- [start:checks]
+# Self-checks: the theory functions must be internally consistent.
 # Coherent integration only helps: Pd is non-decreasing in dwell.
 for snr_db, pds in zip(SNR_DB, pd_curves):
     assert np.all(np.diff(pds) >= -1e-12), (
@@ -75,6 +74,7 @@ for snr_db, snr_amp in zip(SNR_DB, snr_amps):
 # Integration gain compensates SNR: a stronger signal never needs a
 # longer dwell, so the right-panel curve is non-increasing.
 assert np.all(np.diff(valid[mask]) <= 0), "min dwell not monotone in SNR"
+# --8<-- [end:checks]
 
 # ── Plot ─────────────────────────────────────────────────────────────────────
 

@@ -31,10 +31,23 @@ import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+
+# --8<-- [start:cascade]
 import numpy as np
 
 from doppler.resample import RateConverter
-from doppler.spectral import blackman_harris_window
+
+rc = RateConverter(0.1)
+print(rc.stages)  # ['CIC(8)', 'Resampler(0.8)']
+
+x = np.random.default_rng(0).standard_normal(4096).astype(np.complex64)
+y = rc.execute(x)  # len(y) ≈ 410
+print(len(y))
+
+# Change rate — cascade is rebuilt automatically
+rc.rate = 0.25
+print(rc.stages)  # ['HalfbandDecimator', 'HalfbandDecimator']
+# --8<-- [end:cascade]
 
 # ---------------------------------------------------------------------------
 # helpers
@@ -64,6 +77,8 @@ def _spectrum_db(x: np.ndarray, pad: int = 8) -> tuple[np.ndarray, np.ndarray]:
     Amplitude is normalised so a unit-amplitude complex tone reads 0 dBFS.
     Uses a Blackman-Harris window.
     """
+    from doppler.spectral import blackman_harris_window
+
     n = len(x)
     w = np.zeros(n, dtype=np.float32)
     blackman_harris_window(w)

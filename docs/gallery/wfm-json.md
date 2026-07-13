@@ -22,24 +22,7 @@ lives inside `segments`, one object per segment.
 ## The round-trip
 
 ```python
-from doppler.wfm import Composer, Segment
-import numpy as np
-
-# Three self-contained segments: a tone burst, a QPSK burst, a chirp sweep.
-tone_seg = Segment("tone", fs=1e6, freq=1.5e5, snr=100.0, num_samples=8000)
-qpsk_seg = Segment("qpsk", fs=1e6, snr=12.0, snr_mode="esno", sps=8,
-                   pulse="rrc", rrc_beta=0.35, num_samples=16000)
-chirp_seg = Segment("chirp", fs=1e6, freq=-4e5, f_end=4e5, num_samples=10000)
-
-composer_a = Composer([tone_seg, qpsk_seg, chirp_seg])
-iq_a       = np.asarray(composer_a.compose())
-
-spec_json  = composer_a.to_json()          # → JSON string (same as --record)
-
-composer_b = Composer.from_json(spec_json) # → same as --from-file
-iq_b       = np.asarray(composer_b.compose())
-
-assert np.array_equal(iq_a, iq_b)         # byte-identical
+--8<-- "src/doppler/examples/wfm_json_demo.py:roundtrip"
 ```
 
 `to_json()` writes the fully-resolved spec — every default filled in, every

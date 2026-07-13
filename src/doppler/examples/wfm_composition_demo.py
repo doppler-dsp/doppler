@@ -35,18 +35,36 @@ import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+
+# --8<-- [start:scene]
 import numpy as np
 
-from doppler.spectral import PSD
-from doppler.wfm import (
-    Composer,
-    Segment,
-    qpsk,
-    tone,
-)
+from doppler.wfm import Composer, Segment, Writer, qpsk, tone
 
-FS = 1e6
-N = 1 << 16
+FS = 1e6  # scene sample rate, Hz
+
+# 1. Mix a scene: a QPSK SoI under a CW interferer, over one noise
+#    floor. fs on the sum resolves every absolute freq below — without
+#    it the default fs=1.0 silently aliases the "+200 kHz" tone to DC.
+soi = qpsk(snr=15, snr_mode="esno", sps=8, level=-10.0, seed=1)
+inter = tone(freq=2e5, level=-3.0)  # −3 dBFS CW at +200 kHz
+scene = Segment.sum(soi, inter, num_samples=1 << 16, fs=FS)
+
+# 2. Sequence it after a preamble (time, not frequency).
+preamble = Segment(
+    "tone", freq=-3e5, fs=FS, num_samples=16384, off_samples=8192
+)
+timeline = preamble.add(scene)
+
+x = Composer(timeline).compose()  # → complex64
+# --8<-- [end:scene]
+
+# The narrative block above must stay self-contained (the gallery page
+# includes it verbatim), so this import follows it. noqa: E402 — import
+# not at top of file, by design.
+from doppler.spectral import PSD  # noqa: E402
+
+N = 1 << 16  # == the scene's num_samples above
 
 
 def psd_db(x, nfft=1024):
@@ -73,27 +91,33 @@ def spectrogram_db(x, nfft=256, hop=64):
     return s - s.max()
 
 
-# ── the scene: a QPSK SoI under a full-scale CW interferer, one floor ────────
-soi = qpsk(snr=15, snr_mode="esno", sps=8, level=-10.0, seed=1)
-interferer = tone(freq=2.0e5, level=-3.0)  # −3 dBFS CW at +200 kHz
-# fs must be set on the sum — it resolves the scene's rate (a source-level
-# fs is overridden), and freq is interpreted against it.
-scene = Segment.sum(soi, interferer, num_samples=N, fs=FS)
-x = Composer([scene]).compose().astype(np.complex128)
-
-# ── the timeline: a preamble tone burst, then the scene ─────────────────────
-preamble = Segment(
-    "tone", freq=-3.0e5, fs=FS, num_samples=N // 4, off_samples=N // 8
-)
-timeline = preamble.add(scene)
-xt = Composer(timeline).compose()
+# The panels look at the scene and the timeline separately: `x` above is
+# the composed timeline; re-compose the scene alone for the scene-only
+# panels (compose is deterministic — every seed lives in the spec).
+xs = Composer([scene]).compose().astype(np.complex128)
 
 # ── PAPR / clipping: the raw peak vs a headroom-backed version ──────────────
-peak = float(np.max(np.abs(np.concatenate([x.real, x.imag]))))
+peak = float(np.max(np.abs(np.concatenate([xs.real, xs.imag]))))
 peak_dbfs = 20 * np.log10(peak)
 headroom_db = float(np.ceil(peak_dbfs))  # just enough to fit ±1.0
-xh = x * 10 ** (-headroom_db / 20)
-clip_frac = float(np.mean((np.abs(x.real) > 1) | (np.abs(x.imag) > 1)))
+xh = xs * 10 ** (-headroom_db / 20)
+clip_frac = float(np.mean((np.abs(xs.real) > 1) | (np.abs(xs.imag) > 1)))
+
+# ── the writer does the same bookkeeping for free ────────────────────────────
+# --8<-- [start:writer]
+with Writer("scene.cf32", sample_type="ci16", headroom=4.0) as w:
+    w.write(x)
+    print(f"peak {w.peak_dbfs:+.1f} dBFS, clipped: {w.clipped}")
+
+# Or detect first, then dial in exactly enough headroom:
+with Writer("probe.ci16", sample_type="ci16") as w:
+    w.track_clipping()
+    w.write(x)
+    need = max(0.0, np.ceil(w.peak_dbfs))  # dB to fit under full scale
+# --8<-- [end:writer]
+# The probe writer's suggested headroom is exactly what the PAPR panel
+# computed by hand from the raw samples.
+assert need == headroom_db, f"writer wants {need} dB, panel {headroom_db}"
 
 # ── the SoI in isolation, matched-filtered → its Es/No constellation ────────
 SPS = 8
@@ -117,7 +141,7 @@ fig.suptitle(
 
 # A: scene spectrum
 f = np.linspace(-0.5, 0.5, 1024) * FS / 1e3  # kHz
-scene_db = psd_db(x)
+scene_db = psd_db(xs)
 ax[0, 0].plot(f, scene_db, lw=0.8, color="#1f77b4")
 ax[0, 0].set_title("Scene spectrum — .sum() of SoI + interferer + floor")
 ax[0, 0].set_xlabel("frequency (kHz)")
@@ -147,12 +171,12 @@ ax[0, 0].set_ylim(-80, 5)
 ax[0, 0].grid(alpha=0.3)
 
 # B: timeline spectrogram
-s = spectrogram_db(xt)
+s = spectrogram_db(x)
 ax[0, 1].imshow(
     s,
     aspect="auto",
     origin="lower",
-    extent=[0, len(xt) / FS * 1e3, -FS / 2e3, FS / 2e3],
+    extent=[0, len(x) / FS * 1e3, -FS / 2e3, FS / 2e3],
     cmap="magma",
     vmin=-70,
     vmax=0,
@@ -163,7 +187,7 @@ ax[0, 1].set_ylabel("frequency (kHz)")
 
 # C: PAPR / headroom
 t = np.arange(2000) / FS * 1e6  # µs
-mag = np.abs(x[:2000])
+mag = np.abs(xs[:2000])
 magh = np.abs(xh[:2000])
 ax[1, 0].axhline(1.0, color="k", lw=1.0, ls="--", label="full scale ±1.0")
 ax[1, 0].plot(
@@ -206,7 +230,7 @@ snr_fs = 15.0 - 10.0 * np.log10(8.0)
 exp_db = 10.0 * np.log10(
     10.0 ** (-3.0 / 10.0) + 0.1 + 0.1 * 10.0 ** (-snr_fs / 10.0)
 )
-x_db = 10.0 * np.log10(float(np.mean(np.abs(x) ** 2)))
+x_db = 10.0 * np.log10(float(np.mean(np.abs(xs) ** 2)))
 assert abs(x_db - exp_db) < 0.5, f"scene {x_db:.2f} dB != {exp_db:.2f} dB"
 # The −3 dBFS CW interferer is the spectral peak, at its programmed
 # +200 kHz (within a couple of 1024-point PSD bins, ~1 kHz each).
@@ -214,7 +238,7 @@ f_pk = float(f[int(np.argmax(scene_db))]) * 1e3  # Hz
 assert abs(f_pk - 2.0e5) < 2.5e3, f"CW peak at {f_pk / 1e3:.1f} kHz"
 # The .add() timeline is sample-accurate: preamble off (N/8) + on (N/4),
 # then the N-sample scene.
-assert len(xt) == N // 8 + N // 4 + N, f"timeline length {len(xt)}"
+assert len(x) == N // 8 + N // 4 + N, f"timeline length {len(x)}"
 # Headroom: the raw composite really clips an integer capture, and the
 # backed-off copy fits inside ±1.0 full scale with the SNR untouched.
 assert clip_frac > 0.001, "raw composite unexpectedly fits full scale"
@@ -229,6 +253,6 @@ esno_meas = 10.0 * np.log10(scale**2 / evm2)
 assert abs(esno_meas - 15.0) < 1.0, f"SoI Es/No {esno_meas:.2f} dB != 15"
 print(
     f"validated: scene {x_db:+.2f} dBFS (exp {exp_db:+.2f}), CW at "
-    f"{f_pk / 1e3:.0f} kHz,\n  timeline {len(xt)} samples, headroom fits, "
+    f"{f_pk / 1e3:.0f} kHz,\n  timeline {len(x)} samples, headroom fits, "
     f"SoI Es/No {esno_meas:.1f} dB"
 )

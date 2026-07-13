@@ -29,29 +29,14 @@ deterministic and the test statistic is not representative of the
 general case).
 
 ```python
-import numpy as np
-from doppler.detection import det_threshold
+--8<-- "src/doppler/examples/detection_sim.py:mc"
 
-PFA, SIGMA, M = 1e-5, 1.0, 9
-eta   = det_threshold(PFA)
-rng   = np.random.default_rng(0)
-N_MC  = 30_000
-
-for snr_db in [-6, -3, 0, 3, 6]:
-    snr_amp = 10 ** (snr_db / 20)
-    # Rician amplitude: nu = snr_amp * sqrt(M) * sigma
-    nu = snr_amp * np.sqrt(M) * SIGMA
-    # Draw M-integrated envelope directly
-    re = rng.normal(nu, SIGMA, N_MC)
-    im = rng.normal(0,  SIGMA, N_MC)
-    envelope = np.sqrt(re**2 + im**2)
-    pd_mc = np.mean(envelope > eta * SIGMA)
-    print(f"SNR={snr_db:+d} dB  Pd_MC={pd_mc:.3f}")
+--8<-- "src/doppler/examples/detection_sim.py:sweep"
 ```
 
 The Rician draw uses a single non-central Gaussian pair:
-`re ~ N(nu, sigma)`, `im ~ N(0, sigma)`. The envelope is
-`sqrt(re^2 + im^2)`, which is exactly Rician-distributed.
+`re0 ~ N(sig_amp, sigma_ac)`, `im0 ~ N(0, sigma_ac)`. The envelope
+`hypot(re0, im0)` is exactly Rician-distributed.
 
 ```bash
 python src/doppler/examples/detection_sim.py   # → detection_sim.png  (~5 s)

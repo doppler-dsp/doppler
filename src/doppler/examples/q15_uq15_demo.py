@@ -22,10 +22,24 @@ import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+
+# --8<-- [start:roundtrips]
 import numpy as np
 
-import doppler.cvt as cvt
-from doppler.spectral import blackman_harris_window
+from doppler.cvt import F32ToI16, I16ToF32
+
+# full-scale complex tone at 0.07 cycles/sample (the demo's signal)
+x = np.exp(2j * np.pi * 0.07 * np.arange(65536)).astype(np.complex64)
+
+# Q15 bipolar roundtrip
+enc, dec = F32ToI16(), I16ToF32()
+x_q15 = dec.steps(enc.steps(x.real))  # real channel only
+
+# UQ15 offset-binary roundtrip (numpy — no cvt UQ15 type yet)
+v = np.clip(np.round(x.real * 32768.0), -32768, 32767).astype(np.int16)
+u = (v.astype(np.int32) + 32768).astype(np.uint16)
+x_uq15 = (u.astype(np.float32) - 32768.0) / 32768.0
+# --8<-- [end:roundtrips]
 
 # ---------------------------------------------------------------------------
 # quantizers
@@ -34,9 +48,7 @@ from doppler.spectral import blackman_harris_window
 
 def _q15_roundtrip(x: np.ndarray) -> np.ndarray:
     """Q15 bipolar roundtrip via cvt.F32ToI16 / I16ToF32."""
-    enc = cvt.F32ToI16()
-    dec = cvt.I16ToF32()
-    return dec.steps(enc.steps(x))
+    return I16ToF32().steps(F32ToI16().steps(x))
 
 
 def _uq15_roundtrip(x: np.ndarray) -> np.ndarray:
@@ -97,6 +109,8 @@ def _make_signal(n: int) -> np.ndarray:
 
 
 def _spectrum_db(x: np.ndarray, pad: int = 4) -> tuple[np.ndarray, np.ndarray]:
+    from doppler.spectral import blackman_harris_window
+
     n = len(x)
     w = np.zeros(n, dtype=np.float32)
     blackman_harris_window(w)

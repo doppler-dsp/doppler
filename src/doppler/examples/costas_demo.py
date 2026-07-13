@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import sys
 
+# --8<-- [start:loop]
 import numpy as np
 
 from doppler.track import Costas
@@ -35,26 +36,36 @@ TSAMPS = 16  # samples per symbol (integrate-and-dump period)
 NSYM = 4000  # symbols
 F0 = 0.009  # large residual carrier offset, cycles/sample (~0.9 rad/symbol)
 SNR_DB = 15.0  # per-sample SNR
+
+# Continuous BPSK carrying the residual carrier offset F0 + AWGN.
+rng = np.random.default_rng(0)
+bits = rng.integers(0, 2, NSYM) * 2 - 1
+sig = np.repeat(bits.astype(np.complex64), TSAMPS)
+k = np.arange(len(sig))
+rx = sig * np.exp(2j * np.pi * F0 * k)
+sigma = np.sqrt(10.0 ** (-SNR_DB / 10.0) / 2.0)
+rx = rx + (rng.normal(0, sigma, len(rx)) + 1j * rng.normal(0, sigma, len(rx)))
+rx = rx.astype(np.complex64)
+
+# FLL-assisted PLL: the wide cross-product frequency discriminator pulls
+# the loop's integrator onto the large residual; the PLL refines phase.
+c = Costas(bn=0.01, zeta=0.707, init_norm_freq=0.0, tsamps=TSAMPS, bn_fll=0.03)
+symbols = c.steps(rx)  # one complex prompt per symbol
+f_est = c.norm_freq  # tracked residual frequency (cycles/sample)
+locked = c.lock_metric  # |Re P|/|P| EMA, ~1.0 when phase-locked
+# --8<-- [end:loop]
+
+# The narrative run above must itself acquire and lock — the same
+# physics the three-config sweep asserts in detail inside main().
+assert abs(f_est - F0) < 5e-4, "narrative FLL+PLL run did not converge"
+assert locked > 0.95, "narrative FLL+PLL run did not phase-lock"
+
 # (label, bn, bn_fll)
 CONFIGS = [
     ("PLL  Bn=0.01", 0.01, 0.0),
     ("PLL  Bn=0.10", 0.10, 0.0),
     ("FLL+PLL Bn=0.01", 0.01, 0.03),
 ]
-
-
-def _signal(seed=0):
-    """Continuous BPSK with a large fixed carrier residual F0 + AWGN."""
-    rng = np.random.default_rng(seed)
-    bits = rng.integers(0, 2, NSYM) * 2 - 1
-    sig = np.repeat(bits.astype(np.complex64), TSAMPS)
-    k = np.arange(len(sig))
-    rx = sig * np.exp(2j * np.pi * F0 * k)
-    sigma = np.sqrt(10.0 ** (-SNR_DB / 10.0) / 2.0)
-    rx = rx + (
-        rng.normal(0, sigma, len(rx)) + 1j * rng.normal(0, sigma, len(rx))
-    )
-    return rx.astype(np.complex64)
 
 
 def _track(rx, bn, bn_fll):
@@ -79,7 +90,6 @@ def main(out_path="costas_demo.png"):
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
-    rx = _signal()
     t = np.arange(NSYM)
     colors = ["#1f77b4", "#ff7f0e", "#2ca02c"]
     runs = {lbl: _track(rx, bn, bf) for lbl, bn, bf in CONFIGS}

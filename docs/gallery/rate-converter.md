@@ -46,19 +46,7 @@ polyphase Resampler handles any rate but is the most compute-intensive, so
 it is used only when a pure-power-of-two topology cannot be applied.
 
 ```python
-from doppler.resample import RateConverter
-import numpy as np
-
-rc = RateConverter(0.1)
-print(rc.stages)   # ['CIC(8)', 'Resampler(0.8)']
-
-x = np.random.randn(4096).astype(np.complex64)
-y = rc.execute(x)  # len(y) ≈ 410
-print(len(y))
-
-# Change rate — cascade is rebuilt automatically
-rc.rate = 0.25
-print(rc.stages)   # ['HalfbandDecimator', 'HalfbandDecimator']
+--8<-- "src/doppler/examples/rate_converter_demo.py:cascade"
 ```
 
 The execute buffer is grown lazily on the first call and invalidated on every

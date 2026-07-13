@@ -36,6 +36,7 @@ from __future__ import annotations
 
 import sys
 
+# --8<-- [start:signal]
 import numpy as np
 
 from doppler.track import Dll
@@ -49,7 +50,7 @@ PHI = 0.37 * TE  # symbol-clock phase, samples
 NSYM = 1200
 
 
-def _signal(code, seed=9):
+def make_signal(code, seed=9):
     """Async-data PN-spread BPSK with a residual carrier left on it."""
     rng = np.random.default_rng(seed)
     csign = np.where(code & 1, -1.0, 1.0)
@@ -63,6 +64,9 @@ def _signal(code, seed=9):
     return rx.astype(np.complex64), tsym
 
 
+# --8<-- [end:signal]
+
+
 def main(out_path="async_despread_demo.png"):
     import matplotlib
 
@@ -70,7 +74,7 @@ def main(out_path="async_despread_demo.png"):
     import matplotlib.pyplot as plt
 
     code = np.random.default_rng(11).integers(0, 2, SF).astype(np.uint8)
-    rx, tsym = _signal(code)
+    rx, tsym = make_signal(code)
     d = Dll(code, SPS, 0.0, 0.002, 0.707, 0.5, segments=K)
 
     nep = len(rx) // TE
@@ -209,7 +213,7 @@ def _lock_figure(code, plt, out_path):
     """
     from doppler.detection import det_threshold_noncoherent
 
-    rx, _ = _signal(code)
+    rx, _ = make_signal(code)
     nep = len(rx) // TE
     thr = det_threshold_noncoherent(1e-3, 20)  # default lock config
     rng = np.random.default_rng(5)

@@ -40,37 +40,14 @@ the chips in the C engine at unit transmit power, so each carrier is a single
 generator call; `freq=` places it at the channel centre:
 
 ```python
-import numpy as np
-from doppler.wfm import qpsk
-
-FS, SPS = 30.72e6, 8                        # 8 samples / 3.84 Mcps chip
-
-def rrc_carrier(fc, level, seed, n):
-    sig = qpsk(sps=SPS, pulse="rrc", rrc_beta=0.22, rrc_span=8,
-               freq=fc, fs=FS, seed=seed).steps(n).astype(np.complex64)
-    return sig * 10.0 ** (level / 20.0)     # unit power -> level (dBFS)
+--8<-- "src/doppler/examples/wcdma_carriers_demo.py:carrier"
 ```
 
 Sum four of them at 5 MHz spacing over a composed AWGN floor, then measure with
 `PSD`:
 
 ```python
-from doppler.spectral import PSD
-
-# sum the four carriers (rrc_carrier + FS from above) into one scene
-scene = np.zeros(4096 * 4, dtype=np.complex64)
-for i, (fc, lvl) in enumerate([(-7.5e6, 0.0), (-2.5e6, -3.0),
-                               (2.5e6, -6.0), (7.5e6, -10.0)]):
-    scene += rrc_carrier(fc, lvl, 10 + i, len(scene)).astype(np.complex64)
-
-w = PSD(n=4096, fs=FS, window="kaiser", beta=12.0, mode="mean")
-w.accumulate(scene)                        # folds 96 frames into the average
-
-edges = np.array([-10e6, -5e6, -5e6, 0, 0, 5e6, 5e6, 10e6])  # [lo,hi,...]
-band_db = np.array(w.band_power(edges))    # per-channel power, dB
-total_db = w.total_band_power(edges)
-nf = w.noise_floor()
-snr = w.snr(-10e6, -5e6)                   # in-channel SNR of carrier 0
+--8<-- "src/doppler/examples/wcdma_carriers_demo.py:scene"
 ```
 
 !!! note "Snapshot zero-copy results"

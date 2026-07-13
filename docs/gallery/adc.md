@@ -42,32 +42,7 @@ the noise at 7–8 bits.
 full-scale reference and optional TPDF dither.
 
 ```python
-from doppler.cvt import ADC
-import numpy as np
-
-# Sinusoid at -10 dBFS
-amplitude = 10 ** (-10.0 / 20.0)        # ≈ 0.316
-N  = 8192
-f0 = 0.05                               # cycles/sample
-x  = (amplitude * np.sin(2 * np.pi * f0 * np.arange(N))).astype(np.float32)
-
-# Quantise at 8 bits, -10 dBFS full-scale reference
-adc = ADC(bits=8, dbfs=-10.0, dithering=0)
-q   = adc.steps(x)          # int64, range [-128, 127]
-print(adc.scale)             # ≈ 400.0 (= 2^7 × 10^(10/20))
-print(adc.clipped)           # False — input was at reference level
-
-# Decode back to float for analysis
-x_hat = q.astype(np.float64) / adc.scale
-snr_db = 10 * np.log10(
-    np.mean(x.astype(np.float64)**2) /
-    np.mean((x.astype(np.float64) - x_hat)**2)
-)
-print(f"Measured SNR: {snr_db:.1f} dB")  # ≈ 49–50 dB
-
-# TPDF dither breaks up harmonic spurs at the cost of a slight noise rise
-adc_d = ADC(bits=8, dbfs=-10.0, dithering=1)
-q_d   = adc_d.steps(x)
+--8<-- "src/doppler/examples/adc_demo.py:adc"
 ```
 
 ### Parameters

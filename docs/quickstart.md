@@ -44,8 +44,8 @@ ______________________________________________________________________
 ## Signal processing
 
 Every object is a thin, stateful wrapper over the C core: construct it once,
-then stream blocks through it. The examples below build on each other — the
-signal `x` created in the FFT step is reused by the filter and resampler.
+then stream blocks through it. Each example below is self-contained —
+copy-paste any one of them on its own.
 
 ### LO — generate a complex tone
 

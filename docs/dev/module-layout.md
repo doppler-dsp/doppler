@@ -23,10 +23,11 @@ native/inc/<module>/
 └── <component>_core.h     # per-object header (scaffold, one per object)
 
 native/src/<module>/
-├── <module>_core.c        # module-level function implementations (scaffold)
-├── <module>_ext.c         # Python binding — auto-regenerated, do not edit
-├── <component>_core.c     # per-object algorithm (scaffold, fill in)
-└── CMakeLists.txt         # auto-managed by just-makeit
+├── <module>_core.c            # module-level function implementations (scaffold)
+├── <module>_ext.c             # aggregator — jm-regenerated, do not edit
+├── <module>_ext_<component>.c # per-object binding fragment — hand-owned, jm-recreatable
+├── <component>_core.c         # per-object algorithm (scaffold, fill in)
+└── CMakeLists.txt             # auto-managed by just-makeit
 
 native/tests/
 └── test_<component>_core.c  # C unit tests (scaffold, one per object)
@@ -46,6 +47,31 @@ src/doppler/<module>/
 ```
 
 There is **no `__init__.pyi`**. Stubs live in `<module>.pyi`.
+
+______________________________________________________________________
+
+## `<module>_ext_<component>.c` fragments are hand-owned
+
+`jm apply`/`jm status` only regenerate the aggregator `<module>_ext.c`,
+which `#include`s each object's own `<module>_ext_<component>.c` fragment.
+The fragments are sacred, like `<component>_core.c` — bespoke binding logic
+(dtype dispatch, non-trivial argument validation, lazy-alloc buffer growth)
+lives there by design and is not drift. To pick up a jm codegen
+improvement in an already-hand-owned fragment, delete it and re-run
+`jm apply`; it gets recreated from the manifest, `_core.c`/tests/benches
+untouched.
+
+## Serialization is required for stateful objects
+
+If an object carries running state that survives between calls (a phase, a
+delay line, an accumulator), its header **must** declare the ABI triplet —
+`<component>_state_bytes`/`_get_state`/`_set_state` — and its
+`objects/<component>.toml` **must** set `serializable = "true"`. This is
+not optional: elastic resume (checkpoint / migrate / scale across
+processes, pods) depends on every stateful object speaking the same bytes
+interface. See [State Serialization](../design/state-serialization.md) for
+the envelope format and [Adding a Module](adding-a-module.md) for the
+step-by-step.
 
 ______________________________________________________________________
 
@@ -188,7 +214,7 @@ saved as versioned JSON snapshots in `benchmarks/history/` and checked into
 git for regression tracking.
 
 ```python
-"""bench_filter.py — throughput benchmarks for doppler.filter."""
+"""Benchmark for FIR."""
 import numpy as np
 import pytest
 from doppler.filter import FIR
@@ -208,22 +234,30 @@ def x_cf32():
     return np.ones(BLOCK, dtype=np.complex64)
 
 
-def test_fir_execute_cf32(benchmark, fir, x_cf32):
+def test_bench_execute_cf32(benchmark, fir, x_cf32):
     benchmark(fir.execute_cf32, x_cf32)
+    if benchmark.stats:
+        benchmark.extra_info["MSa_s"] = BLOCK / benchmark.stats["mean"] / 1e6
 ```
 
 CI commits a snapshot automatically on every push to `main` and on release
 tags. Run locally when you need an immediate result:
 
 ```sh
-make bench-python                   # saves benchmarks/history/<tag>.json
-make bench-python BENCH_TAG=v1.2.3  # version-tagged snapshot (matches CI on tag push)
+make bench                       # C + Python (delegates to just-makeit bench)
+just-makeit bench --python-only  # Python only
+just-makeit bench --tag v1.2.3   # version-tagged snapshot (matches CI on tag push)
 ```
 
 Rules:
 
 - One file per module: `benchmarks/bench_<module>.py`
-- Name each test `test_<module>_<method>` for readable JSON history
+- Name each test `test_bench_<case>` — **not** module-qualified (every
+    `bench_*.py` draws from the same small vocabulary); identifiability
+    across the full suite comes from the *filename*, via `conftest.py`'s
+    `pytest_terminal_summary` hook and `scripts/bench_report.py`, both of
+    which derive a `module::case` label from the pytest fullname. See
+    [Benchmarking](benchmarking.md) for the full convention.
 - Use `scope="module"` fixtures to avoid re-constructing objects per round
 - Snapshots are always taken on `ubuntu-24.04` + Python 3.12 in CI for
     comparability; local snapshots are for development only

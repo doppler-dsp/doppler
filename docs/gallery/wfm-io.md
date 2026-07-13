@@ -105,7 +105,7 @@ print(clock.samples, clock.underruns, clock.max_lateness)
     `doppler.stream`'s receiver currently decodes only `CI32`/`CF64`/`CF128`,
     so `StreamSink`'s default `cf32` (and `ci16`/`ci8`) frames are not yet
     decodable on the Python side — use `sample_type="cf64"` until the
-    [stream dtype gap](../dev/wfm-validation-findings.md) is fixed. A C
+    [stream dtype gap](../dev/archive/wfm-validation-findings.md) is fixed. A C
     `dp_sub_*` subscriber decodes all six types today.
 
 ## Reproduce

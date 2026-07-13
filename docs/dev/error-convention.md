@@ -1,22 +1,30 @@
 # C Return-Code Convention
 
-doppler uses a two-tier return convention. The tier is determined by the
+doppler uses a three-tier return convention. The tier is determined by the
 **return type**, not by the function name.
 
 ______________________________________________________________________
 
 ## `int`-returning functions — status codes
 
-Functions that return `int` use the named constants from `clib_common.h`:
+Functions that return `int` use the named constants from `clib_common.h`.
+The core DSP algorithm path only ever returns three of these; the rest are
+meaningful to the streaming layer (below):
 
-| Constant         | Value | Meaning                   |
-| ---------------- | ----- | ------------------------- |
-| `DP_OK`          | `0`   | Success                   |
-| `DP_ERR_MEMORY`  | `−1`  | Memory allocation failure |
-| `DP_ERR_INVALID` | `−2`  | Invalid argument          |
+| Constant           | Value | Meaning                                |
+| ------------------ | ----- | -------------------------------------- |
+| `DP_OK`            | `0`   | Success                                |
+| `DP_ERR_INIT`      | `−1`  | Initialisation failed (context/socket) |
+| `DP_ERR_SEND`      | `−2`  | Send failed                            |
+| `DP_ERR_RECV`      | `−3`  | Receive failed or timed out (EAGAIN)   |
+| `DP_ERR_INVALID`   | `−4`  | Invalid argument                       |
+| `DP_ERR_TIMEOUT`   | `−5`  | Operation timed out                    |
+| `DP_ERR_MEMORY`    | `−6`  | Memory allocation failure              |
+| `DP_ERR_TOO_LARGE` | `−7`  | Frame exceeds transport max payload    |
 
-The `DP_ERR_*` prefix mirrors the streaming layer (`stream.h`), which uses
-the same namespace for I/O errors (`DP_ERR_SEND`, `DP_ERR_RECV`, etc.).
+All eight live in one unified enum in `clib_common.h` — `stream.h` doesn't
+define its own codes, it just includes this header, so a value never means
+two things in one TU.
 
 ```c
 #include <awgn/awgn_core.h>
@@ -105,12 +113,10 @@ ______________________________________________________________________
 
 ## Where the constants live
 
-`DP_OK`, `DP_ERR_MEMORY`, and `DP_ERR_INVALID` are defined in
-`native/inc/clib_common.h`, which every `_core.c` and `_core.h` includes
-transitively.
-
-The streaming layer (`native/inc/stream/stream.h`) defines additional
-`DP_ERR_*` codes for network/I/O failures (`DP_ERR_SEND`, `DP_ERR_RECV`,
-`DP_ERR_TIMEOUT`, etc.) that are not relevant to the DSP algorithm layer.
-Both layers share the `DP_ERR_*` prefix and `DP_OK = 0` as the success
-value.
+All eight codes are defined once in `native/inc/clib_common.h`, which every
+`_core.c`/`_core.h` includes transitively. `native/inc/stream/stream.h`
+includes `clib_common.h` for the same codes rather than defining its own —
+one scheme everywhere. The DSP algorithm layer only ever returns
+`DP_OK`/`DP_ERR_MEMORY`/`DP_ERR_INVALID`; the rest
+(`DP_ERR_INIT`/`SEND`/`RECV`/`TIMEOUT`/`TOO_LARGE`) are meaningful to the
+streaming transport.

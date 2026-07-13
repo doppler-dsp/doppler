@@ -77,9 +77,15 @@ print(f"FFT: {X.shape[0]} complex64 bins")
 
 ```python
 from doppler.filter import FIR
-from scipy.signal import firwin
+from doppler.spectral import kaiser_window, kaiser_beta_for_sidelobe
 
-taps = firwin(63, cutoff=0.1, window="hamming").astype(np.float32)
+n_taps, cutoff = 63, 0.05                    # cutoff: fraction of fs
+m = np.arange(n_taps) - (n_taps - 1) / 2
+taps = 2 * cutoff * np.sinc(2 * cutoff * m)  # ideal windowed-sinc lowpass
+w = np.zeros(n_taps, dtype=np.float32)
+kaiser_window(w, kaiser_beta_for_sidelobe(60.0))   # 60 dB sidelobe target
+taps = (taps * w).astype(np.float32)
+
 fir = FIR(taps)
 y = fir.execute(x)        # reuses x from the FFT step
 print(f"filtered {len(y)} samples through a {len(taps)}-tap FIR")

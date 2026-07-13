@@ -1,6 +1,9 @@
 cmake_minimum_required(VERSION 3.13)
 
-project(cnats)
+# doppler local patch: restrict to C so configuring never probes for a C++
+# compiler -- nats.c compiles zero C++ sources, and upstream's bare project()
+# enables C+CXX by default.  Re-apply on any upstream bump.
+project(cnats LANGUAGES C)
 include(CTest)
 include(FindPackageHandleStandardArgs)
 include(CMakePackageConfigHelpers)

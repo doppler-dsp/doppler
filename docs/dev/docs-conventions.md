@@ -16,6 +16,7 @@ suspiciously uniform or mechanical:
 | `docs/api/*.md` — page prose                                         | *(hand-written)*                                                          | —                                                   |
 | `docs/api/*.md` — `::: doppler.x.Y` directive output                 | mkdocstrings, from the Python docstring, at build time                    | edit the **docstring**, not the page                |
 | `docs/api/*.md` — `## Related pages` block                           | `scripts/gen_related_pages.py`                                            | `make docs-relink`                                  |
+| `README.md` — `## Quick start` block                                 | `scripts/gen_readme_quickstart.py`, from `docs/index.md`                  | `make docs-relink`                                  |
 | `docs/design/index.md`, `docs/dev/index.md`, `docs/gallery/index.md` | *(hand-written — completeness CI-enforced)*                               | add a bullet by hand; gated by `check_nav_index.py` |
 | `docs/benchmarks.md`                                                 | `make bench-docs`                                                         | `make bench-docs`                                   |
 | `docs/specan/frames.json`                                            | `make record-demo`                                                        | `make record-demo`                                  |
@@ -40,11 +41,12 @@ house idiom used by [Doc Examples](doc-examples.md) and `check_api_docs.py`
 — **discovered, not registered** — so a new page is covered the moment it
 exists, with no opt-in list to remember.
 
-| Check                    | Script                         | What it needs from you                                |
-| ------------------------ | ------------------------------ | ----------------------------------------------------- |
-| API docs coverage        | `scripts/check_api_docs.py`    | Every public symbol named somewhere under `docs/api/` |
-| Nav-index coverage       | `scripts/check_nav_index.py`   | Every page linked from its section's `index.md`       |
-| Related-pages generation | `scripts/gen_related_pages.py` | Nothing — see below                                   |
+| Check                    | Script                             | What it needs from you                                |
+| ------------------------ | ---------------------------------- | ----------------------------------------------------- |
+| API docs coverage        | `scripts/check_api_docs.py`        | Every public symbol named somewhere under `docs/api/` |
+| Nav-index coverage       | `scripts/check_nav_index.py`       | Every page linked from its section's `index.md`       |
+| Related-pages generation | `scripts/gen_related_pages.py`     | Nothing — see below                                   |
+| README quickstart sync   | `scripts/gen_readme_quickstart.py` | Nothing — see below                                   |
 
 ## Nav-index coverage (`check_nav_index.py`)
 
@@ -117,3 +119,28 @@ A page only qualifies for scanning once it satisfies `check_api_docs.py`
 `` ## `Symbol` `` heading for the rare hand-written page). Nothing else is
 required to add a new `docs/api/*.md` page — the next `--write` picks it up
 automatically.
+
+## README quickstart sync (`gen_readme_quickstart.py`)
+
+`docs/index.md` and `README.md` deliberately show the identical Quick Start
+walkthrough, but the two pages render on different engines —
+mkdocs-material admonitions (`!!! tip`) on the docs site, GitHub's native
+alert syntax (`> [!TIP]`) on GitHub — so they can never be byte-identical.
+Keeping them in sync by hand rotted repeatedly (a live tagline edit, a
+missing `git clone` step, a stale quickstart link), so `docs/index.md` is
+the single source of truth: `gen_readme_quickstart.py` extracts its
+`## Quick start` section, rewrites the one admonition into GitHub's alert
+syntax, rewrites relative doc links to their `docs/`-prefixed form
+(`README.md` lives at the repo root, one level shallower than
+`docs/index.md`), and writes the result into `README.md` between
+`<!-- quickstart:start -->` … `<!-- quickstart:end -->` markers — same
+idiom as `gen_related_pages.py`'s block.
+
+**What NOT to do**: never hand-edit the block between the
+`quickstart:start`/`:end` markers in `README.md`. Edit `docs/index.md`'s
+`## Quick start` section instead, then run `make docs-relink` (or
+`python scripts/gen_readme_quickstart.py --write`) and commit the result.
+
+**Regenerating locally**: `make docs-relink`, or
+`python scripts/gen_readme_quickstart.py --check` to preview drift without
+writing anything.

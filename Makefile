@@ -392,9 +392,11 @@ docs-serve:
 	uv run --group docs zensical serve
 
 # Regenerates the "## Related pages" block on every docs/api/*.md page from
-# gallery/guide/design/dev cross-links (scripts/gen_related_pages.py).
+# gallery/guide/design/dev cross-links (scripts/gen_related_pages.py), and
+# README.md's Quick Start section from docs/index.md's (scripts/gen_readme_quickstart.py).
 docs-relink:
 	uv run python scripts/gen_related_pages.py --write
+	uv run python scripts/gen_readme_quickstart.py --write
 
 gen-c-api:
 	rm -rf docs/c-api .mkdoxy .capi-site

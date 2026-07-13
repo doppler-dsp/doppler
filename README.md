@@ -45,9 +45,11 @@ On a Ryzen 7 AI 350 (`-O2`): NCO raw accumulator ~15 GSa/s, LO CF32
 polyphase resampler (2× decim) ~70 MSa/s. Run `make bench` to measure
 on your hardware.
 
+<!-- quickstart:start -->
+
 ## Quick start
 
-See [Quick Start](quickstart.md) for the full walkthrough.
+See [Quick Start](docs/quickstart.md) for the full walkthrough.
 
 ### Python
 
@@ -65,6 +67,7 @@ import numpy as np
 
 x = np.random.randn(1024).astype(np.complex64)
 X = FFT(1024).execute_cf32(x)
+print(f"FFT: {len(x)} samples in -> {X.shape[0]} complex64 bins out")
 ```
 
 **Create a Waveform**
@@ -74,6 +77,7 @@ from doppler.wfm import Synth
 
 synth = Synth(type="qpsk", fs=1e6, snr=12.0, snr_mode="esno", sps=8, seed=1)
 iq = synth.steps(4096)   # complex64 ndarray
+print(f"generated {len(iq)} QPSK samples")
 ```
 
 ### C
@@ -95,6 +99,7 @@ jbx get-doppler
 /* example.c */
 
 #include <complex.h>
+#include <stdio.h>
 #include <fft/fft_core.h>
 
 int main(void)
@@ -105,6 +110,7 @@ int main(void)
   fft_state_t *fft = fft_create(1024, -1, 1);  /* n, sign, nthreads */
   fft_execute_cf32(fft, in, 1024, out);        /* in,out: float complex[1024] */
   fft_destroy(fft);
+  printf("FFT: 1024 samples in -> 1024 complex bins out\n");
   return 0;
 }
 ```
@@ -119,11 +125,13 @@ cc example.c -I "$HOME/.local/doppler/include" "$HOME/.local/doppler/lib/libdopp
 **Other install methods**
 
 Prefer a custom prefix or no `jbx`? Grab a
-[pre-built release tarball](install/c.md#install-from-a-release-tarball) by
+[pre-built release tarball](docs/install/c.md#install-from-a-release-tarball) by
 hand — no toolchain, no building doppler itself — and extract it to
 `$PREFIX`; you get the same `libdoppler.a`/`libdoppler.so` plus headers.
-See [C Library](install/c.md) for `find_package`/`pkg-config` integration
+See [C Library](docs/install/c.md) for `find_package`/`pkg-config` integration
 and building from source.
+
+<!-- quickstart:end -->
 
 ## Build
 

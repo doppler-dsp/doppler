@@ -379,6 +379,13 @@ jobs:
       # `make docs-relink` locally to regenerate after adding a cross-link.
       run: uv run python scripts/gen_related_pages.py --check
 
+    - name: Check README quickstart drift
+      # Fails if README.md's marked Quick Start block doesn't match a fresh
+      # regeneration from docs/index.md's "## Quick start" section (the
+      # single source of truth). Run `make docs-relink` locally to
+      # regenerate after editing docs/index.md's Quick Start.
+      run: uv run python scripts/gen_readme_quickstart.py --check
+
     - name: Check serialization stance
       # Fails if an object declares neither serializable="true" nor is opted
       # out as stateless (scripts/.serializable-stateless). The rollout set is

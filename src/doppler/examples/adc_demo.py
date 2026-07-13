@@ -225,6 +225,39 @@ def main(out_path: str = "adc_demo.png") -> None:
     plt.close(fig)
     print(f"Saved → {out_path}")
 
+    # ── validation ───────────────────────────────────────────────────────────
+    # dbfs=-10 makes the -10 dBFS test tone fill the converter exactly, so
+    # each bit depth should realise the classic quantiser SNR of
+    # 6.02·bits + 1.76 dB.  The tone is undithered and exactly 20-sample
+    # periodic, so the error is deterministic (harmonics, not white noise)
+    # and the measured SNR wobbles a few dB around theory — the tolerance
+    # absorbs that while still catching a one-bit scale error (6 dB).
+    print("Validation — SNR vs 6.02·bits + 1.76 dB (tone at full scale):")
+    for bits in BITS:
+        adc = ADC(bits=bits, dbfs=DBFS, dithering=0)
+        x_hat = _decode(adc, adc.steps(x_s))
+        err = x_hat - x_s.astype(np.float64)
+        snr = 10.0 * np.log10(
+            float(np.mean(x_s.astype(np.float64) ** 2) / np.mean(err**2))
+        )
+        theory = 6.02 * bits + 1.76
+        enob = (snr - 1.76) / 6.02
+        print(
+            f"  {bits} bits: measured SNR {snr:5.1f} dB "
+            f"(theory {theory:5.1f}), ENOB {enob:5.2f} — OK"
+        )
+        assert abs(snr - theory) < 5.5, (
+            f"{bits}-bit SNR {snr:.1f} dB vs theory {theory:.1f} dB"
+        )
+        # Round-to-nearest bounds the error at Δ/2; the full-scale positive
+        # peak rounds to 2^(bits-1) and clips to 2^(bits-1)-1, so allow one
+        # full LSB at the top code.
+        delta = 1.0 / adc.scale
+        max_err = float(np.max(np.abs(err)))
+        assert max_err <= delta * 1.001, (
+            f"{bits}-bit max error {max_err:.3e} exceeds 1 LSB {delta:.3e}"
+        )
+
 
 if __name__ == "__main__":
     main()

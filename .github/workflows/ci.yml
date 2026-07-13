@@ -219,7 +219,7 @@ jobs:
       # (3.12 only), so exclude it here to avoid running it on all 6 versions
       # and to keep a slow/hanging snippet out of the coverage matrix.
       run: |
-        uv run pytest src/ -v -m "not docs_snippets" \
+        uv run pytest src/ -v -m "not docs_snippets and not examples" \
           --cov \
           --cov-report=term-missing \
           --cov-report=xml:coverage.xml

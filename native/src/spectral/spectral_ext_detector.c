@@ -40,7 +40,7 @@ CorrDetectorObj_init (CorrDetectorObject *self, PyObject *args, PyObject *kwds)
                             "noise_hi", "threshold",  "nthreads", NULL };
   PyObject    *ref_obj  = NULL;
   const char  *noise_mode_str     = "mean";
-  unsigned long long dwell_raw    = 0ULL;
+  unsigned long long dwell_raw    = 1ULL;
   unsigned long long noise_lo_raw = 0ULL;
   unsigned long long noise_hi_raw = (unsigned long long)-1ULL;
   float              threshold    = 0.0f;

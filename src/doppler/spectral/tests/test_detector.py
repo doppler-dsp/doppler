@@ -53,3 +53,13 @@ def test_last_corr_aliases_across_pushes():
     second = obj.last_corr
     assert np.shares_memory(first, second)
     np.testing.assert_array_equal(first, second)
+
+
+def test_dwell_defaults_to_one():
+    # Regression: the binding once initialized an omitted dwell to 0
+    # (contradicting the manifest default of 1), producing a detector
+    # that never int-dumps -- push() could never emit a result.
+    ref = np.ones(4, dtype=np.complex64)
+    obj = CorrDetector(ref, threshold=0.0)
+    assert obj.dwell == 1
+    assert obj.push(ref) is not None

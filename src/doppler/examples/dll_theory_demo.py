@@ -117,6 +117,23 @@ def main(out_path="dll_theory_demo.png"):
         f"antisym_err={asym:.3f}, var.SNR≈{np.mean(var * snr):.2e})"
     )
 
+    # ── self-validation: the demo's theory claims, asserted ──────────────
+    # Stable lock: the discriminator must null exactly at zero code-phase
+    # error and be antisymmetric to round-off (the fractional-boundary
+    # integrate-and-dump leaves no integer-sample staircase bias).
+    assert abs(meas[len(meas) // 2]) < 1e-6, "discriminator not null at 0"
+    assert asym < 1e-4, "S-curve is not antisymmetric"
+    # The measured curve must follow the triangular-autocorrelation E-L
+    # reference across the swept chip range (restoring slope included).
+    scurve_err = np.max(np.abs(meas - ref))
+    print(f"S-curve max err vs triangular reference {scurve_err:.3f}")
+    assert scurve_err < 0.05, "S-curve departs from the triangular model"
+    # At lock the code-error variance is thermal: every swept point must
+    # sit on the 1/SNR line (anchored at 20 dB) to within 1 dB.
+    dev_db = np.abs(10 * np.log10(var / law))
+    print(f"var vs 1/SNR law: max dev {dev_db.max():.2f} dB")
+    assert np.all(dev_db < 1.0), "code-error variance departs from 1/SNR"
+
 
 if __name__ == "__main__":
     main(sys.argv[1] if len(sys.argv) > 1 else "dll_theory_demo.png")

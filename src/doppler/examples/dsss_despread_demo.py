@@ -99,9 +99,10 @@ def run_despreader(rx, pre_len, acq_code, data_code, init_freq, init_chip):
     pay = rx[pre_len:]
     step = DATA_SF * SPS
     for i in range(0, len(pay) - step + 1, step):
+        # A block may dump 0, 1, or 2 symbols as the code NCO drifts;
+        # keep them all so the symbol stream stays aligned to the data.
         s = d.steps(pay[i : i + step])
-        if len(s):
-            soft.append(s[0])
+        soft.extend(s)
         freq.append(d.norm_freq)
         lock.append(d.lock_metric)
     return np.array(freq), np.array(lock), np.array(soft)
@@ -137,6 +138,26 @@ def main(out_path="dsss_despread_demo.png"):
     freq, lock, soft = run_despreader(
         rx, pre_len, acq_code, data_code, init_freq, init_chip
     )
+
+    # ── validate: detection, acquisition cell, recovered data ────────
+    # CFAR: the preamble's peak test statistic must clear the gate.
+    assert peak_ts > theta, "acquisition failed the CFAR gate"
+    # The winning Doppler bin must be within one grid bin of the true
+    # residual, and the burst starts at code phase 0, so the matched-
+    # filter peak must land on the exact transmitted lag.
+    df = float(grid[1] - grid[0])
+    assert abs(init_freq - F0) <= df, "Doppler estimate off by >1 bin"
+    assert lag == 0, f"code-phase peak at lag {lag}, expected 0"
+    # Despread payload: BPSK decisions vs the transmitted symbols
+    # (global 180-deg ambiguity is don't-care). At Es/N0 = 10 dB the
+    # matched-filter BER is ~4e-6, so the payload decodes error-free;
+    # allow a couple of loop-transient slips.
+    n = min(len(soft), len(syms))
+    dec = np.where(soft.real[:n] >= 0, 1.0, -1.0)
+    err = int(np.sum(dec != syms[:n]))
+    ber = min(err, n - err) / n
+    print(f"payload BER = {ber:.4g} over {n} symbols")
+    assert ber < 0.01, "despread payload BER too high"
 
     fig, ax = plt.subplots(3, 1, figsize=(9, 8))
     fig.suptitle(

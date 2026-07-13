@@ -182,6 +182,28 @@ def main(out_path="symsync_theory_demo.png"):
         f"AWGN a={ab[0]:.2f} b={ab[1]:.2f})"
     )
 
+    # ── validate ────────────────────────────────────────────────────────────
+    # The measured TED characteristic must reproduce the semi-analytic
+    # Gardner S-curve — one period per symbol, two zeros a half apart —
+    # measured as shape correlation after the group-delay alignment.
+    assert corr > 0.98, f"S-curve departs from theory (rho={corr:.3f})"
+    # Self-noise floor: the defining Gardner property — var(e) stays finite
+    # at infinite SNR, and every finite-SNR point sits above it.
+    assert 0.0 < floor < var.min(), (
+        f"self-noise floor {floor:.3f} not below measured var {var.min():.3f}"
+    )
+    # AWGN behaviour: var(e) must grow monotonically as SNR drops
+    # (snr_db is descending, so diff(var) > 0) ...
+    assert np.all(np.diff(var) > 0), f"var(e) not monotone in SNR: {var}"
+    # ... and follow the floor + a/SNR + b/SNR^2 signalxnoise / noisexnoise
+    # model within Monte-Carlo spread.
+    fit_err = float(np.max(np.abs(model - var) / var))
+    assert fit_err < 0.15, f"variance model off by {fit_err * 100:.0f}%"
+    print(
+        f"validated: S-curve rho={corr:.3f}, floor<var, var monotone, "
+        f"model fit within {fit_err * 100:.1f}%"
+    )
+
 
 if __name__ == "__main__":
     main(sys.argv[1] if len(sys.argv) > 1 else "symsync_theory_demo.png")

@@ -355,6 +355,11 @@ def main() -> None:
         surf = np.abs(c.execute(y)).reshape(NY, NX)
     peak_row, peak_col = np.unravel_index(surf.argmax(), (NY, NX))
 
+    # At -20 dB per-sample SNR the ~33 dB coherent gain leaves ~+13 dB:
+    # the surface must peak exactly at the injected (Doppler, code) cell.
+    print(f"surface peak (D={peak_row}, CP={peak_col}), true ({dbin}, {col})")
+    assert (peak_row, peak_col) == (dbin, col), "peak not at injected cell"
+
     # ── Panels 2 & 3 data: the SNR sweep ────────────────────────────────────
     snr_grid = np.linspace(-42.0, -15.0, 13)
     n_trials = 1500
@@ -369,6 +374,25 @@ def main() -> None:
     pfa_mc = float((noise_stats > theta).mean())
     print(f"Calibrated gate theta = {theta:.3f}  (target Pfa = {PFA_SYS:.0e})")
     print(f"Empirical Pfa = {pfa_mc:.4f}")
+
+    # CFAR: the gate was calibrated on an independent 1,000-trial noise
+    # run, so the fresh noise-only Pfa must land near the design point
+    # (~15 events expected in 1,500 trials; factor-of-3 Poisson band).
+    assert PFA_SYS / 3.0 < pfa_mc < 3.0 * PFA_SYS, "Pfa off design point"
+
+    # The Pd curve must traverse the detection transition: essentially
+    # blind at -42 dB (near the false-alarm rate), certain detection at
+    # -15 dB — and the high-SNR detections must localize to the true
+    # (Doppler, code-phase) cell (±1 bin).
+    loc = sweep["loc"]
+    print(
+        f"Pd: {pd[0]:.3f} at {snr_grid[0]:.0f} dB -> "
+        f"{pd[-1]:.3f} at {snr_grid[-1]:.0f} dB; "
+        f"localization at top SNR = {loc[-1]:.3f}"
+    )
+    assert pd[0] < 0.1, "Pd at -42 dB should be near the Pfa level"
+    assert pd[-1] > 0.99, "Pd at -15 dB should be ~1"
+    assert loc[-1] > 0.95, "high-SNR detections not at the true cell"
 
     # Marcum-Q theory guide: per-sample amplitude SNR amplified by the coherent
     # gain sqrt(N); Bonferroni per-cell threshold for the N-cell search.

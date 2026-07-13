@@ -124,6 +124,11 @@ def main(out_path="mpsk_carrier_theory_demo.png"):
     for m, name, col in ORDERS:
         freq = _acquire(m, f0)
         b.plot(freq, color=col, lw=1.2, label=f"{name} (M={m})")
+        # Every order must actually acquire: the FLL-assisted loop's
+        # last-300-symbol mean estimate sits on the injected offset.
+        tail_err = abs(float(np.mean(freq[-300:])) - f0)
+        print(f"{name}: tail freq err {tail_err:.2e} cycles/sample")
+        assert tail_err < 1e-4, f"{name} failed to acquire the carrier"
     b.axhline(f0, color="k", ls="--", lw=1.5, label=f"true f0 = {f0}")
     b.set_xlabel("symbol index")
     b.set_ylabel("tracked freq (cycles/sample)")
@@ -134,6 +139,11 @@ def main(out_path="mpsk_carrier_theory_demo.png"):
     fig.tight_layout()
     fig.savefig(out_path, dpi=120)
     print(f"wrote {out_path}  (S-curve max err vs theory {max_err:.2e})")
+
+    # ── self-validation ───────────────────────────────────────────────────
+    # Off the slicer boundaries the noiseless discriminator must trace the
+    # sawtooth sin(φ wrapped to ±π/M) to float32 round-off, for every M.
+    assert max_err < 1e-5, "S-curve departs from the M-PSK sawtooth"
 
 
 if __name__ == "__main__":

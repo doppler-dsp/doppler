@@ -74,6 +74,16 @@ def main() -> None:
         bits=12,
     )
     r = m.analyze(codes)
+    # self-validation: a 0.999-FS tone must read ~0 dBFS; the worst spur
+    # is the injected H2 at -62 dBc; SNR sits on the 12-bit quantisation
+    # floor 6.02*12 + 1.76 = 74.0 dB (harmonics are excluded from noise).
+    print(
+        f"(a) fund {r.fund_dbfs:+.2f} dBFS  SNR {r.snr:.1f} dB  "
+        f"SFDR {r.sfdr_dbc:.1f} dBc  ENOB {r.enob:.2f} bits"
+    )
+    assert abs(r.fund_dbfs) < 0.1, "full-scale tone did not read 0 dBFS"
+    assert abs(r.sfdr_dbc - 62.0) < 2.0, "SFDR missed the injected H2"
+    assert abs(r.snr - 74.0) < 2.0, "SNR off the 12-bit quantisation floor"
     spec = m.spectrum_dbfs(codes)  # DC-centred, length nfft
     half = m.nfft // 2
     freqs = np.arange(half) * FS / m.nfft / 1e6  # MHz, DC..just-below-Nyquist
@@ -148,6 +158,13 @@ def main() -> None:
             n=N, fs=FS, dynamic_range_db=106.0, n_harmonics=10, bits=b
         )
         enobs.append(mb.analyze(codes).enob)
+    # self-validation: an ideal converter recovers ENOB ~= N to a small
+    # fraction of a bit until the analysis noise floor (N=16k segments,
+    # NAVG=8) caps the very top of the sweep; it must stay monotonic.
+    err_b = np.abs(np.array(enobs) - np.array(bits_list))
+    print(f"(b) max |ENOB - N| over 6..13 bits: {err_b[:8].max():.2f}")
+    assert np.all(err_b[:8] < 0.3), "ENOB departs from the ideal N-bit line"
+    assert np.all(np.diff(enobs) > 0), "ENOB not monotonic in resolution"
     ax.plot(bits_list, bits_list, color=FLOOR, ls="-", label="ideal (ENOB=N)")
     ax.plot(bits_list, enobs, "o", color=ACCENT, label="measured")
     ax.set(
@@ -172,6 +189,11 @@ def main() -> None:
         fk = fk if fk <= FS / 2 else FS - fk
         b = round(fk / FS * mc.nfft) + mc.nfft // 2
         levels.append(float(np.max(spec_c[b - 3 : b + 4]) - rc.fund_dbfs))
+    # self-validation: THD must recover the power sum of the injected
+    # harmonic set (the 14-bit quantisation contribution is negligible).
+    thd_inj = 10 * np.log10(sum(10 ** (d / 10) for _, d in inj))
+    print(f"(c) THD {rc.thd:.1f} dBc vs injected power sum {thd_inj:.1f} dBc")
+    assert abs(rc.thd - thd_inj) < 1.5, "THD missed the injected harmonics"
     ax.bar([str(k) for k in ks], levels, color=HARM)
     ax.axhline(
         rc.thd, color=ACCENT, ls="--", label=f"THD (total) {rc.thd:.1f} dBc"
@@ -199,6 +221,16 @@ def main() -> None:
         sfdr.append(rd.sfdr_dbfs)
         enob.append(rd.enob)
         enob_fs.append(rd.enob_fs)
+    # self-validation: raw ENOB falls 1 bit per 6.02 dB of back-off while
+    # the full-scale-corrected ENOB stays pinned at the converter's 12.
+    drop = enob[0] - enob[-1]
+    spread = max(enob_fs) - min(enob_fs)
+    print(
+        f"(d) raw ENOB drop {drop:.2f} bits over {backoffs[-1]} dB, "
+        f"FS-corrected spread {spread:.2f} bits"
+    )
+    assert abs(drop - backoffs[-1] / 6.02) < 0.5, "raw ENOB slope wrong"
+    assert spread < 0.3, "FS-corrected ENOB is not flat with back-off"
     x = -backoffs
     ax.plot(x, snr, "-", color=ACCENT, label="SNR")
     ax.plot(x, sinad, "-", color=FUND, label="SINAD")

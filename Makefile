@@ -223,13 +223,15 @@ just-build: pyext
 	cp -r $(PYEXT_DIR) $(JUST_BUILDIT_OUTPUT_DIR)/doppler
 
 # ── test-examples ─────────────────────────────────────────────────────────────
-# Smoke-test the standalone C examples (DSP only — streaming examples require
-# a live transmitter and are excluded from automated runs).
+# Smoke-test every standalone C example. Excluded (each needs a live
+# NATS peer or terminal interaction, not just a broker): transmitter,
+# receiver, pipeline_demo, spectrum_analyzer.
 EXAMPLE_BIN_DIR := $(BUILD_DIR)/examples/c
 STANDALONE_BUILD_DIR := examples/standalone/build
 test-examples: build
 	@echo "Running C example smoke tests..."
-	@for ex in nco_demo fir_demo hbdecim_demo fft_demo; do \
+	@for ex in nco_demo fir_demo hbdecim_demo fft_demo \
+	           agc_demo cic_demo corr_demo rate_converter_demo; do \
 	    printf "  %-20s" "$$ex"; \
 	    if $(EXAMPLE_BIN_DIR)/$$ex > /dev/null 2>&1; then \
 	        echo "PASS"; \
@@ -251,43 +253,13 @@ test-examples: build
 	fi
 	@echo "All C example smoke tests passed."
 
-PYTHON_EXAMPLE_SCRIPTS := \
-    src/doppler/examples/fir_demo.py \
-    src/doppler/examples/lo_demo.py \
-    src/doppler/examples/nco_demo.py \
-    src/doppler/examples/fft_demo.py \
-    src/doppler/examples/buffers_demo.py \
-    src/doppler/examples/agc_demo.py \
-    src/doppler/examples/corr_demo.py \
-    src/doppler/examples/detection_curves.py \
-    src/doppler/examples/detection_sim.py \
-    src/doppler/examples/detection2d_demo.py \
-    src/doppler/examples/lockdet_demo.py \
-    src/doppler/examples/telemetry_fanin_demo.py \
-    src/doppler/examples/rate_converter_demo.py \
-    src/doppler/examples/awgn_demo.py \
-    src/doppler/examples/wfmgen_demo.py \
-    src/doppler/examples/symbols_demo.py \
-    src/doppler/examples/wfm_composition_demo.py \
-    src/doppler/examples/wfm_io_demo.py \
-    src/doppler/examples/wfm_receiver_ber.py \
-    src/doppler/examples/wfm_rrc_response.py \
-    src/doppler/examples/pn_codes.py \
-    src/doppler/examples/wcdma_carriers_demo.py \
-    src/doppler/examples/dsss_burst_pipeline_demo.py \
-    examples/standalone/example.py
 
+# Fail-closed: every src/doppler/examples/*.py (plus the standalone
+# example) is discovered and run by the pytest gate -- no hand list to
+# rot. Skips live in src/doppler/examples/.examples-skip (reasons
+# mandatory). See src/doppler/tests/test_examples.py.
 test-examples-python:
-	@echo "Running Python example smoke tests..."
-	@for ex in $(PYTHON_EXAMPLE_SCRIPTS); do \
-	    printf "  %-45s" "$$ex"; \
-	    if uv run python $$ex > /dev/null 2>&1; then \
-	        echo "PASS"; \
-	    else \
-	        echo "FAIL"; exit 1; \
-	    fi; \
-	done
-	@echo "All Python example smoke tests passed."
+	uv run pytest -m examples -q src/doppler/tests/test_examples.py
 
 # ── test-all ──────────────────────────────────────────────────────────────────
 test-all: test test-examples python-test test-examples-python

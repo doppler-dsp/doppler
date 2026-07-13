@@ -98,6 +98,19 @@ def main(out_path: str = "mpsk_receiver_demo.png") -> None:
         freqs.append(rx.norm_freq)
         locks.append(rx.lock)
     out = np.concatenate(sym_chunks)
+    # ── self-validation: the front-panel receiver really pulls in ────────
+    # The tracked carrier must land on the injected offset, the lock
+    # metric must rise well off its cold-start value, and the locked tail
+    # must decode the transmitted symbols essentially error-free (the
+    # coherent QPSK SER at Es/N0 = 20 dB is ~1e-23).
+    ser_tail = _ser(out, idx, 4)
+    print(
+        f"QPSK pull-in: freq err {abs(freqs[-1] - foff):.2e} cyc/sample, "
+        f"lock {locks[0]:.2f} -> {locks[-1]:.2f}, tail SER {ser_tail:.2e}"
+    )
+    assert abs(freqs[-1] - foff) < 1e-4, "carrier did not converge on f0"
+    assert locks[-1] > 0.5, "lock metric never rose"
+    assert ser_tail < 5e-4, "locked receiver failed to decode the symbols"
     early = out[:120]
     tail = out[-400:]
     ax_c.scatter(
@@ -135,6 +148,7 @@ def main(out_path: str = "mpsk_receiver_demo.png") -> None:
     db_grid = np.arange(4, 17, 2.0)
     for m, name, col in orders:
         meas = []
+        sers = {}
         for db in db_grid:
             tx2, idx2 = _signal(m, sps, 0.0005, db, nsym=20000, seed=100 + m)
             rxm = MpskReceiver(
@@ -150,8 +164,20 @@ def main(out_path: str = "mpsk_receiver_demo.png") -> None:
             )
             out2 = rxm.steps(tx2)
             ser = _ser(out2, idx2, m)
+            sers[db] = ser
             bps = {2: 1, 4: 2, 8: 3}[m]
             meas.append(max(ser / bps, 1e-6))  # ~BER via Gray
+        # ── self-validation per order ─────────────────────────────────────
+        # At the top of the grid the receiver decodes essentially
+        # error-free; just above its acquisition threshold the measured
+        # SER sits on the coherent bound to within the ~1-2 dB
+        # implementation loss — a factor of a few in probability, never
+        # orders of magnitude.
+        assert sers[db_grid[-1]] < 2e-3, f"{name} did not decode at 16 dB"
+        chk = {2: 6.0, 4: 8.0, 8: 14.0}[m]
+        ratio = sers[chk] / _theory_ser(m, 10 ** (chk / 10))
+        print(f"{name}: SER/theory at Es/N0 {chk:.0f} dB = {ratio:.2f}")
+        assert 0.3 < ratio < 3.0, f"{name} SER departs from the bound"
         th = [
             max(_theory_ser(m, 10 ** (d / 10)) / {2: 1, 4: 2, 8: 3}[m], 1e-12)
             for d in db_grid

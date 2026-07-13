@@ -196,6 +196,17 @@ peak_doppler, peak_code_phase = np.unravel_index(
     surf.argmax(), (N_DOPPLER, N_CODE_PHASE)
 )
 
+print(
+    f"Surface peak    : (D={peak_doppler}, CP={peak_code_phase})  "
+    f"(true ({DOPPLER_BIN_TRUE}, {CODE_PHASE_BIN_TRUE}))"
+)
+# After M coherent integrations the acquisition surface must peak
+# exactly at the injected (Doppler bin, code phase) cell.
+assert (peak_doppler, peak_code_phase) == (
+    DOPPLER_BIN_TRUE,
+    CODE_PHASE_BIN_TRUE,
+), "surface peak not at the injected cell"
+
 # ── Monte Carlo ──────────────────────────────────────────────────────────────
 # threshold=0 → always fire; apply θ in Python to build the ROC.
 #
@@ -231,6 +242,13 @@ pfa_mc = float((noise_stats > theta).mean())
 
 print(f"\nMC Pd  = {pd_mc:.4f}  (theory {pd_theory:.4f})")
 print(f"MC Pfa = {pfa_mc:.4f}  (target  {PFA:.4f})")
+
+# Monte-Carlo detection probability must match the Marcum-Q system-Pd
+# prediction (MC sigma ≈ 0.005 at 3,000 trials; 0.02 is generous).
+assert abs(pd_mc - pd_theory) < 0.02, "MC Pd disagrees with theory"
+# CFAR design point: only ~3 false alarms are expected in 3,000 noise
+# trials, so allow the Poisson spread but catch a mis-set threshold.
+assert pfa_mc < 4.0 * PFA, "MC Pfa far above the CFAR design point"
 
 # ── Theory curves ────────────────────────────────────────────────────────────
 

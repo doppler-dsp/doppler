@@ -121,6 +121,19 @@ def main(out_path="costas_theory_demo.png"):
         f"hi-SNR var ratio {np.mean(mv[hi] / law[hi]):.3f})"
     )
 
+    # ── self-validation: the demo's theory claims, asserted ──────────────
+    # The noiseless S-curve must trace sign(cosφ)·sinφ to float32
+    # round-off — any discriminator bug shows up as an O(1) departure.
+    assert err < 1e-5, "S-curve departs from sign(cosφ)·sinφ"
+    # High-SNR discriminator variance follows the squaring-loss law; the
+    # normalisation makes the measured points sit within 1 dB of it.
+    dev_db = np.abs(10 * np.log10(mv[hi] / law[hi]))
+    print(f"hi-SNR var vs squaring-loss law: max dev {dev_db.max():.2f} dB")
+    assert np.all(dev_db < 1.0), "variance departs from the squaring loss"
+    # The |P|-normalised discriminator is bounded, so at 0 dB the measured
+    # variance must fall BELOW the divergent closed-form law.
+    assert mv[-1] < law[-1], "0 dB variance should sit below the law"
+
 
 if __name__ == "__main__":
     main(sys.argv[1] if len(sys.argv) > 1 else "costas_theory_demo.png")

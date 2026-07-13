@@ -52,7 +52,10 @@ M = NAVG * N  # total capture length fed to analyze()
 ACCENT, FUND, IM3, IM2, FLOOR = "C0", "C2", "C3", "C1", "C7"
 
 
-def two_tone(f1, f2, amp, a2=0.02, a3=0.05):
+A2, A3 = 0.02, 0.05  # weak-nonlinearity coefficients (the DUT model)
+
+
+def two_tone(f1, f2, amp, a2=A2, a3=A3):
     """Two doppler-NCO (`source.LO`) tones through a weak memoryless
     nonlinearity y = x + a2 x^2 + a3 x^3 — the DUT model that creates the
     controlled IM2/IM3 products.  The spectrum backdrop the demo plots comes
@@ -114,9 +117,28 @@ def main() -> None:
     # ── (a) two-tone IMD spectrum ─────────────────────────────────────────
     ax = axes[0, 0]
     f1, f2 = 9.013e6, 9.637e6
-    y = two_tone(f1, f2, amp=0.35)
+    amp0 = 0.35  # per-tone drive for panels (a) and (b)
+    y = two_tone(f1, f2, amp=amp0)
     imd = IMDMeasure(n=N, fs=FS, dynamic_range_db=90.0)
     r = imd.analyze(y)
+    # self-validation: the weak nonlinearity predicts the products in
+    # closed form — per-tone IM3 amplitude (3/4)·a3·A³, IM2 amplitude
+    # a2·A², and TOI = P1 - IMD3/2. The analyzer must recover them all,
+    # at the right (folded) frequencies.
+    imd3_th = 20 * math.log10(0.75 * A3 * amp0**2)
+    imd2_th = 20 * math.log10(A2 * amp0)
+    toi_th = 20 * math.log10(amp0) - imd3_th / 2
+    print(
+        f"(a) IMD3 {r.imd3_dbc:.1f} dBc (theory {imd3_th:.1f}), "
+        f"IMD2 {r.imd2_dbc:.1f} dBc (theory {imd2_th:.1f}), "
+        f"TOI {r.toi_dbfs:+.1f} dBFS (theory {toi_th:+.1f})"
+    )
+    assert abs(r.imd3_dbc - imd3_th) < 2.0, "IMD3 misses injected level"
+    assert abs(r.imd2_dbc - imd2_th) < 2.0, "IMD2 misses injected level"
+    assert abs(r.toi_dbfs - toi_th) < 2.0, "TOI misses the a3 prediction"
+    rbw = FS / imd.nfft
+    assert abs(r.imd3_lo_freq - (2 * f1 - f2)) < 3 * rbw, "IM3 mislocated"
+    assert abs(r.imd2_freq - (f2 - f1)) < 3 * rbw, "IM2 mislocated"
     db = imd.spectrum_dbfs(y)  # the same averaged PSD the metrics use
     half = imd.nfft // 2
     freqs = np.arange(half) * FS / imd.nfft / 1e6  # MHz (one-sided)
@@ -160,7 +182,7 @@ def main() -> None:
     drives = np.arange(-40, -2, 3.0)  # dB relative to the panel-(a) drive
     p_fund, p_im3 = [], []
     for d in drives:
-        amp = 0.35 * 10 ** (d / 20)
+        amp = amp0 * 10 ** (d / 20)
         rd = imd.analyze(two_tone(f1, f2, amp=amp))
         p_fund.append(rd.p1_dbfs)
         p_im3.append(rd.p1_dbfs + rd.imd3_dbc)  # IM3 absolute level (dBFS)
@@ -168,14 +190,27 @@ def main() -> None:
     p_im3 = np.array(p_im3)
     ax.plot(drives, p_fund, "o", color=FUND, ms=4, label="fundamental (1:1)")
     ax.plot(drives, p_im3, "s", color=IM3, ms=4, label="IM3 (3:1)")
-    # fit + extrapolate to the intercept
-    lo = drives < -10  # use the well-behaved low-drive points for the fit
+    # Fit + extrapolate to the intercept, using the clean middle drives:
+    # below ~-32 dB the IM3 product falls under the analysis floor (the
+    # measured points flatten), and the very top drives begin to
+    # compress — either would bias the 3:1 slope.
+    lo = (drives >= -31) & (drives <= -13)
     cf = np.polyfit(drives[lo], p_fund[lo], 1)
     ci = np.polyfit(drives[lo], p_im3[lo], 1)
     xe = np.array([drives[0], (ci[1] - cf[1]) / (cf[0] - ci[0])])
     ax.plot(xe, np.polyval(cf, xe), "-", color=FUND, lw=1, alpha=0.6)
     ax.plot(xe, np.polyval(ci, xe), "-", color=IM3, lw=1, alpha=0.6)
     toi = float(np.polyval(cf, xe[1]))
+    # self-validation: canonical intercept behaviour — the fundamental
+    # rises 1:1, IM3 rises 3:1, and the extrapolated intersection lands
+    # on the TOI the analyzer reported directly in panel (a).
+    print(
+        f"(b) slopes: fund {cf[0]:.2f} (1:1), IM3 {ci[0]:.2f} (3:1); "
+        f"extrapolated TOI {toi:+.1f} dBFS vs reported {r.toi_dbfs:+.1f}"
+    )
+    assert abs(cf[0] - 1.0) < 0.1, "fundamental slope is not 1:1"
+    assert abs(ci[0] - 3.0) < 0.2, "IM3 slope is not 3:1"
+    assert abs(toi - r.toi_dbfs) < 1.5, "extrapolated TOI misses reported"
     ax.plot(xe[1], toi, "*", color="C4", ms=16, label="TOI")
     ax.annotate(
         f"TOI ≈ {r.toi_dbfs:+.1f} dBFS",
@@ -208,6 +243,11 @@ def main() -> None:
     )
     npr = NPRMeasure(n=N, fs=FS, bits=10)  # bits sets the dBFS reference
     g = npr.analyze(codes, alo, ahi, nlo, nhi, guard)
+    # self-validation: at near-optimal loading the measured NPR must sit
+    # on the MT-005 ideal-quantiser value for 10 bits.
+    npr_th = npr_theory_db(load_dbfs, 10, (ahi - alo) - (nhi - nlo), FS / 2.0)
+    print(f"(c) NPR {g.npr_db:.1f} dB vs ideal 10-bit {npr_th:.1f} dB")
+    assert abs(g.npr_db - npr_th) < 2.0, "NPR misses the MT-005 ideal"
     db = npr.spectrum_dbfs(codes)  # the same averaged PSD the metrics use
     half = npr.nfft // 2
     freqs = np.arange(half) * FS / npr.nfft / 1e6  # MHz (one-sided)
@@ -273,6 +313,17 @@ def main() -> None:
         [npr_theory_db(ld, 10, b_active, b_nyq) for ld in loadings]
     )
     kpeak = int(np.argmax(nprs))
+    # self-validation: the measured curve tracks the ideal-quantiser
+    # theory across the whole loading sweep (quantisation-limited rise,
+    # clipping-limited fall) and peaks at the MT-005 sweet spot ~-13
+    # dBFS for 10 bits.
+    dev = float(np.max(np.abs(nprs - theory)))
+    print(
+        f"(d) max |measured - ideal| {dev:.2f} dB, peak "
+        f"{nprs[kpeak]:.1f} dB @ {loadings[kpeak]:.1f} dBFS RMS"
+    )
+    assert dev < 2.5, "NPR departs from the MT-005 ideal curve"
+    assert abs(loadings[kpeak] + 13.0) <= 3.0, "NPR sweet spot mislocated"
     ax.plot(
         loadings,
         theory,

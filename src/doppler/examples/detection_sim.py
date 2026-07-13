@@ -203,6 +203,24 @@ pd_pow_th = np.array(
 
 print("Done.")
 
+# ── Validate MC against theory ───────────────────────────────────────────────
+
+# CFAR design point: both detectors' H0 exceedance rates must sit at
+# the Pfa their thresholds were derived for (30k trials → MC sigma
+# ≈ 6e-4, so ±50% of Pfa = 1e-2 is a generous band).
+pfa_env_mc = float((env_h0 > THETA).mean())
+pfa_pow_mc = float((pow_h0 > P_THRESH).mean())
+print(f"Pfa: env = {pfa_env_mc:.4f}, pow = {pfa_pow_mc:.4f} (design {PFA})")
+assert abs(pfa_env_mc - PFA) < 0.5 * PFA, "envelope Pfa off design point"
+assert abs(pfa_pow_mc - PFA) < 0.5 * PFA, "power Pfa off design point"
+
+# Marcum-Q Pd model: the MC sweep must track theory at every SNR.
+err_env = float(np.max(np.abs(pd_env_mc - pd_env_th)))
+err_pow = float(np.max(np.abs(pd_pow_mc - pd_pow_th)))
+print(f"max |MC - theory| Pd: env = {err_env:.4f}, pow = {err_pow:.4f}")
+assert err_env < 0.02, "envelope Pd deviates from Marcum-Q theory"
+assert err_pow < 0.02, "power Pd deviates from Marcum-Q theory"
+
 # ── Plot — 2×2 grid ──────────────────────────────────────────────────────────
 
 fig, axes = plt.subplots(2, 2, figsize=(14, 9))

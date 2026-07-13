@@ -49,6 +49,33 @@ min_dwell = [
     det_dwell(float(s), PD_TARGET, PFA, MAX_DWELL) for s in snr_amp_sweep
 ]
 
+# Mask SNRs where det_dwell returned -1 (not achievable within MAX_DWELL).
+valid = np.array(min_dwell)
+mask = valid > 0
+
+# ── Self-checks: the theory functions must be internally consistent ──────────
+
+# Coherent integration only helps: Pd is non-decreasing in dwell.
+for snr_db, pds in zip(SNR_DB, pd_curves):
+    assert np.all(np.diff(pds) >= -1e-12), (
+        f"Pd not monotone in dwell at {snr_db} dB"
+    )
+
+# det_dwell() must return the *minimum* dwell: Pd first crosses the
+# target at M, i.e. Pd(M) >= target and Pd(M-1) < target.
+for snr_db, snr_amp in zip(SNR_DB, snr_amps):
+    m = det_dwell(snr_amp, PD_TARGET, PFA, MAX_DWELL)
+    assert m > 0, f"Pd={PD_TARGET} unreachable at {snr_db} dB"
+    assert det_pd(snr_amp, m, ETA) >= PD_TARGET, "det_dwell undershoots"
+    assert m == 1 or det_pd(snr_amp, m - 1, ETA) < PD_TARGET, (
+        "det_dwell is not minimal"
+    )
+    print(f"SNR {snr_db:+3d} dB: minimum dwell M = {m}")
+
+# Integration gain compensates SNR: a stronger signal never needs a
+# longer dwell, so the right-panel curve is non-increasing.
+assert np.all(np.diff(valid[mask]) <= 0), "min dwell not monotone in SNR"
+
 # ── Plot ─────────────────────────────────────────────────────────────────────
 
 COLORS = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728"]
@@ -106,10 +133,6 @@ ax1.legend(fontsize=9, loc="lower right")
 ax1.grid(True, linestyle=":", linewidth=0.6, alpha=0.8)
 
 # ── Right panel ──────────────────────────────────────────────────────────────
-
-# Mask SNRs where det_dwell returned -1 (not achievable within MAX_DWELL).
-valid = np.array(min_dwell)
-mask = valid > 0
 
 ax2.semilogy(
     snr_db_sweep[mask],

@@ -75,6 +75,18 @@ def sweep() -> tuple[np.ndarray, np.ndarray, np.ndarray, float, float]:
 
     # --8<-- [start:sweep]
     plan = prepare(scene)  # render + cache every source ONCE
+    # The cache's contract, asserted: a Plan render is bit-for-bit
+    # identical to a full compose of the same scene.
+    assert np.array_equal(plan.render(), scene.compose()), (
+        "Plan.render() is not bit-identical to Composer.compose()"
+    )
+    # Independent draws: the same operating point re-rendered with
+    # different noise seeds must give distinct realizations.
+    draws = {
+        np.asarray(plan.at(float(SNRS[0]), s)).tobytes()
+        for s in range(1000, 1000 + DRAWS)
+    }
+    assert len(draws) == DRAWS, "noise seeds did not give distinct draws"
     mean = np.empty(SNRS.size)
     std = np.empty(SNRS.size)
     cloud = np.empty((SNRS.size, DRAWS))
@@ -111,6 +123,19 @@ def main(out: str = "plan_demo.png") -> None:
     import matplotlib.pyplot as plt
 
     mean, std, cloud, t_plan, t_recompose = sweep()
+
+    # ── self-validation: the detection curve behaves physically ─────────
+    # The matched-filter peak SNR must rise monotonically with channel
+    # SNR (the cache reproduces the resolver's noise power at every
+    # point) and gain several dB across the 21 dB sweep before the
+    # multi-user interference floor flattens it.
+    print(
+        f"peak SNR: {mean[0]:.2f} dB @ {SNRS[0]:.0f} dB channel SNR -> "
+        f"{mean[-1]:.2f} dB @ {SNRS[-1]:.0f} dB"
+    )
+    assert np.all(np.diff(mean) > 0), "peak SNR must rise with channel SNR"
+    assert mean[-1] - mean[0] > 3.0, "sweep gained implausibly little SNR"
+
     speedup = t_recompose / t_plan if t_plan else float("nan")
     print(
         f"{SNRS.size}x{DRAWS} campaign, {USERS} users: "

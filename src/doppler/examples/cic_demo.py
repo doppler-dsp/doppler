@@ -140,6 +140,11 @@ def demo_basic() -> None:
     dc_rms = float(np.mean(np.abs(settled)))
     print(f"  DC input → settled output magnitude: {dc_rms:.6f} (expect 1.0)")
     print(f"  output samples: {len(y)}  (= {n_in} / {R})\n")
+    # R:1 decimation must emit exactly n_in/R samples, and the shift
+    # normalisation must give unity DC gain (within the UQ16 input
+    # quantisation of the fixed-point path).
+    assert len(y) == n_in // R, f"expected {n_in // R} samples, got {len(y)}"
+    assert abs(dc_rms - 1.0) < 0.01, f"DC gain {dc_rms:.6f} not unity"
 
 
 # ---------------------------------------------------------------------------
@@ -178,6 +183,12 @@ def demo_alias_rejection() -> None:
     print(f"  alias-zone tone f={f_alias:.4f}*fs  → {alias_db:+.1f} dBFS")
     print(f"  alias rejection: {rejection:.1f} dB")
     print(f"  theoretical:     {sinc_atten:.1f} dB\n")
+    # A passband tone passes at unity gain; an alias-zone tone must be
+    # crushed.  The sinc^N theory predicts ~102 dB here, but the UQ16
+    # input quantisation floors the measurement around 90 dB — 80 dB
+    # still proves all four stages are filtering.
+    assert abs(pass_db) < 0.5, f"passband gain {pass_db:+.1f} dB not unity"
+    assert rejection > 80.0, f"alias rejection only {rejection:.1f} dB"
 
 
 # ---------------------------------------------------------------------------
@@ -193,6 +204,7 @@ def demo_reconfigure() -> None:
     x = np.ones(32, dtype=np.complex64)
     y = cic.decimate(x)
     print(f"  32 samples → {len(y)} output (R=4)")
+    assert len(y) == 32 // 4, f"R=4: expected 8 samples, got {len(y)}"
 
     cic.reconfigure(8)
     print(f"  reconfigured R={cic.R}  shift={cic.shift}")
@@ -200,6 +212,10 @@ def demo_reconfigure() -> None:
     x = np.ones(64, dtype=np.complex64)
     y = cic.decimate(x)
     print(f"  64 samples → {len(y)} output (R=8)\n")
+    # reconfigure() must actually rebuild the rate: same 8-sample output
+    # now consumes 64 inputs instead of 32.
+    assert cic.R == 8, f"reconfigure did not take: R={cic.R}"
+    assert len(y) == 64 // 8, f"R=8: expected 8 samples, got {len(y)}"
 
 
 # ---------------------------------------------------------------------------
@@ -257,6 +273,14 @@ def demo_sdr_pipeline():
         f"(would be +{no_filter_excess_db:.1f} dB without CIC filtering)"
     )
     print()
+    # Without the CIC the jammer would add ~1 dB of excess power on top of
+    # the wanted tone; with it, the alias-zone jammer must vanish into the
+    # quantisation floor — no measurable excess.
+    excess_db = combined_db - wanted_db
+    assert excess_db < 0.1, (
+        f"jammer excess {excess_db:+.2f} dB — alias not rejected "
+        f"(unfiltered would be +{no_filter_excess_db:.1f} dB)"
+    )
 
     return x, settled, fs_in, fs_out, R, f_wanted, f_jammer
 

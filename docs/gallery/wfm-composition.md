@@ -47,13 +47,19 @@ shared floor was resolved from.
 import numpy as np
 from doppler.wfm import Composer, Segment, Writer, qpsk, tone
 
+FS = 1e6                                          # scene sample rate, Hz
+
 # 1. Mix a scene: a QPSK SoI under a CW interferer, over one noise floor.
+#    fs on the sum resolves every absolute freq below — without it the
+#    default fs=1.0 silently aliases the "+200 kHz" tone to DC.
 soi   = qpsk(snr=15, snr_mode="esno", sps=8, level=-10.0, seed=1)
 inter = tone(freq=2e5, level=-3.0)                # −3 dBFS CW at +200 kHz
-scene = Segment.sum(soi, inter, num_samples=1 << 16)        # the floor is resolved in C
+scene = Segment.sum(soi, inter, num_samples=1 << 16, fs=FS)
 
 # 2. Sequence it after a preamble (time, not frequency).
-preamble = Segment("tone", freq=-3e5, num_samples=16384, off_samples=8192)
+preamble = Segment(
+    "tone", freq=-3e5, fs=FS, num_samples=16384, off_samples=8192
+)
 timeline = preamble.add(scene)
 
 x = Composer(timeline).compose()                  # → complex64

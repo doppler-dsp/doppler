@@ -37,7 +37,9 @@ from doppler.wfm import Synth
 
 # ── tone: spectrum ──────────────────────────────────────────────────────────
 N = 4096
-tone = np.asarray(Synth(type="tone", fs=1.0, freq=0.10, snr=30.0).steps(N))
+tone = np.asarray(
+    Synth(type="tone", fs=1.0, freq=0.10, snr=30.0, seed=1).steps(N)
+)
 win = np.hanning(N)
 spec = np.fft.fftshift(np.fft.fft(tone * win))
 psd = 20.0 * np.log10(np.abs(spec) + 1e-12)
@@ -48,9 +50,9 @@ peak = fax[np.argmax(psd)]
 # ── PN: periodic autocorrelation of one MLS period (length 7 → 127) ─────────
 period = 127
 chips = np.asarray(
-    Synth(type="pn", fs=1.0, freq=0.0, snr=100.0, sps=1, pn_length=7).steps(
-        period
-    )
+    Synth(
+        type="pn", fs=1.0, freq=0.0, snr=100.0, sps=1, pn_length=7, seed=2
+    ).steps(period)
 ).real
 ac = np.array(
     [np.sum(chips * np.roll(chips, -k)) / period for k in range(period)]
@@ -61,10 +63,16 @@ SPS = 8
 NSYM = 600
 
 
-def symbols(kind: str, snr: float) -> np.ndarray:
+def symbols(kind: str, snr: float, seed: int) -> np.ndarray:
     x = np.asarray(
         Synth(
-            type=kind, fs=1.0, freq=0.0, snr=snr, snr_mode="esno", sps=SPS
+            type=kind,
+            fs=1.0,
+            freq=0.0,
+            snr=snr,
+            snr_mode="esno",
+            sps=SPS,
+            seed=seed,
         ).steps(SPS * NSYM)
     )
     # boxcar matched filter: average each symbol's sps samples. This is the
@@ -73,8 +81,8 @@ def symbols(kind: str, snr: float) -> np.ndarray:
     return x.reshape(NSYM, SPS).mean(axis=1)
 
 
-qpsk = symbols("qpsk", 20.0)
-bpsk = symbols("bpsk", 8.0)
+qpsk = symbols("qpsk", 20.0, seed=3)
+bpsk = symbols("bpsk", 8.0, seed=4)
 
 # ── plot ────────────────────────────────────────────────────────────────────
 fig, ax = plt.subplots(2, 2, figsize=(11, 8))
@@ -119,3 +127,39 @@ for a, data, title in (
 fig.tight_layout(rect=(0, 0, 1, 0.96))
 fig.savefig("wfmgen_demo.png", dpi=110)
 print("wrote wfmgen_demo.png")
+
+# ── validate ─────────────────────────────────────────────────────────────────
+# Determinism: a Synth with a fixed seed is a reproducible capture recipe —
+# the same call must produce the identical sample stream.
+tone2 = np.asarray(
+    Synth(type="tone", fs=1.0, freq=0.10, snr=30.0, seed=1).steps(N)
+)
+assert np.array_equal(tone, tone2), "seeded Synth is not deterministic"
+# The tone's spectral line sits at fn = +0.10 to within one FFT bin (and,
+# being complex baseband, there is no mirror line to steal the argmax).
+assert abs(peak - 0.10) < 1.0 / N, f"tone peak at fn={peak:+.4f}"
+# MLS thumbtack: periodic autocorrelation is exactly 1 at zero lag and a
+# flat -1/127 everywhere else — the spreading/ranging-code property.
+assert abs(ac[0] - 1.0) < 1e-3, f"ac[0] = {ac[0]:.4f}"
+assert np.max(np.abs(ac[1:] + 1.0 / period)) < 1e-3, "MLS floor not -1/127"
+
+
+def esno_meas(pts: np.ndarray, dec: np.ndarray) -> float:
+    """Decision-directed Es/No: constellation power over error-cloud power."""
+    e2 = float(np.mean(np.abs(pts - dec) ** 2))
+    return 10.0 * np.log10(float(np.mean(np.abs(dec) ** 2)) / e2)
+
+
+# The matched-filter constellations realise their programmed Es/No: the
+# noise cloud around the decided points measures back the configured SNR
+# (±0.75 dB covers the Monte-Carlo spread of 600 symbols).
+qpsk_dec = (np.sign(qpsk.real) + 1j * np.sign(qpsk.imag)) / np.sqrt(2.0)
+bpsk_dec = np.sign(bpsk.real).astype(np.complex128)
+qpsk_db = esno_meas(qpsk, qpsk_dec)
+bpsk_db = esno_meas(bpsk, bpsk_dec)
+assert abs(qpsk_db - 20.0) < 0.75, f"QPSK Es/No {qpsk_db:.2f} dB != 20"
+assert abs(bpsk_db - 8.0) < 0.75, f"BPSK Es/No {bpsk_db:.2f} dB != 8"
+print(
+    f"validated: deterministic seed, tone at fn={peak:+.3f}, MLS floor "
+    f"-1/127,\n  Es/No QPSK {qpsk_db:.2f} dB / BPSK {bpsk_db:.2f} dB"
+)

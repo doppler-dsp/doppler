@@ -287,6 +287,41 @@ def main() -> None:
         f" | ACLR {aclr:.1f} dB"
     )
 
+    # ── validate: exit 0 must mean measured-and-verified ────────────────────
+    # Per-channel power: band_power over each 5 MHz channel must reproduce
+    # the programmed level steps (0/-3/-6/-10 re. the strongest). The
+    # absolute scale carries a common calibration convention, so the
+    # physically meaningful figure is the relative one — panel 3's claim.
+    rel_err = float(np.max(np.abs(meas_rel - nom_rel)))
+    assert rel_err < 0.1, f"relative channel powers off by {rel_err:.2f} dB"
+    # Carrier placement: the power-weighted centroid of each channel must
+    # sit at its programmed centre — a mis-tuned carrier would drag it off.
+    lin = 10.0 ** (psd / 10.0)
+    for fc, _ in CARRIERS:
+        m = (freqs >= fc - CH_BW / 2) & (freqs <= fc + CH_BW / 2)
+        cen = float(np.sum(freqs[m] * lin[m]) / np.sum(lin[m]))
+        assert abs(cen - fc) < 100e3, (
+            f"carrier at {fc / 1e6:+.1f} MHz measured at {cen / 1e6:+.2f} MHz"
+        )
+    # Panel 2's claim — PSD wraps exactly window → FFT → power → AccTrace —
+    # checked literally: the hand-rolled mean trace must equal psd_db().
+    trace_err = float(np.max(np.abs(mean_db - psd)))
+    assert trace_err < 1e-3, f"AccTrace mean != PSD ({trace_err:.1e} dB)"
+    # RRC confinement: the -7.5 MHz carrier's leakage into the empty guard
+    # channel is bounded by the beta=0.22 stopband + the -70 dBFS floor.
+    assert aclr > 45.0, f"ACLR only {aclr:.1f} dB — carrier not confined"
+    # In-channel SNR must fall with the programmed level (same floor under
+    # every channel, so SNR ordering follows carrier power ordering).
+    snrs = [r["snr"] for r in rows]
+    assert all(a > b for a, b in zip(snrs, snrs[1:])), (
+        f"per-channel SNR not ordered by level: {snrs}"
+    )
+    print(
+        f"validated: rel powers within {rel_err:.2f} dB, centroids on "
+        f"channel centres,\n  AccTrace==PSD ({trace_err:.0e} dB), "
+        f"ACLR {aclr:.1f} dB, SNR ordered by level"
+    )
+
 
 if __name__ == "__main__":
     main()

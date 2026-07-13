@@ -217,6 +217,23 @@ payload_end = acq_end + N_PAYLOAD_SYM * PERIOD * CHIP_SPS
 xcorr = sliding_xcorr(burst, ref)
 xcorr_t = np.arange(len(xcorr)) * CHIP_SPS / FS * 1e3  # ms
 
+# ── validate: PN peaks at every period boundary in the acq window ────────────
+# The preamble repeats the code ACQ_REPS times from sample 0, so the
+# sliding correlator must peak at chips {0, PERIOD, 2·PERIOD, …} and
+# nowhere else in the acquisition window.
+acq_chips = acq_end // CHIP_SPS
+peaks = np.flatnonzero(xcorr[:acq_chips] > 0.6 * xcorr[:acq_chips].max())
+print(f"acq correlation peaks at chips {peaks.tolist()}")
+assert len(peaks) == ACQ_REPS and np.all(peaks % PERIOD == 0), (
+    "expected one correlation peak per PN period boundary"
+)
+# The payload is data, not the repeated code, so its correlation floor
+# sits well below the acquisition peaks.
+pay_floor = float(np.median(xcorr[acq_chips : payload_end // CHIP_SPS]))
+peak_ratio = float(xcorr[:acq_chips].max() / pay_floor)
+print(f"acq peak / payload floor = {peak_ratio:.1f}")
+assert peak_ratio > 4.0, "acq peaks not distinct from the payload floor"
+
 # ── SNR sweep: detection peak vs input SNR for several acq_reps values ───────
 snr_range = np.arange(-10, 31, 2, dtype=float)
 reps_sweep = [1, 2, 4, 8]
@@ -236,6 +253,25 @@ for snr in snr_range:
         detection_snr[reps].append(
             20.0 * np.log10(peak / (noise_floor + 1e-9))
         )
+
+# ── validate the sweep: monotone despreading gain ────────────────────────────
+# (reps=1 yields a single correlation window — no off-peak cells to
+# estimate a noise floor from — so validate the reps >= 2 curves.)
+for reps in reps_sweep[1:]:
+    d = np.array(detection_snr[reps])
+    # More input SNR → more detection SNR, monotonically.
+    assert np.all(np.diff(d) > 0), f"detection SNR not monotone ({reps} reps)"
+    # Despreading gain: at -10 dB input the correlation peak must stand
+    # >25 dB above the input SNR (>10·log10(PERIOD) ≈ 21 dB code gain).
+    gain = float(d[0] - snr_range[0])
+    assert gain > 25.0, f"processing gain only {gain:.1f} dB ({reps} reps)"
+print(
+    "despreading gain at -10 dB input: "
+    + ", ".join(
+        f"{r} reps -> {detection_snr[r][0] - snr_range[0]:.1f} dB"
+        for r in reps_sweep[1:]
+    )
+)
 
 # ── plot ─────────────────────────────────────────────────────────────────────
 fig, axes = plt.subplots(2, 2, figsize=(13, 9))

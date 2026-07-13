@@ -111,10 +111,10 @@ needs a running `nats-server` (e.g. `nats-server -js`) to connect to.
 <!-- docs-snippet: skip=two-terminal NATS demo, needs a broker; the send/recv round-trip and message fields are gated by doppler/stream/tests/test_stream.py -->
 
 ```python
-from doppler.stream import Publisher
+from doppler.stream import Publisher, CF32
 import numpy as np
 
-pub = Publisher("nats://127.0.0.1:4222/iq")
+pub = Publisher("nats://127.0.0.1:4222/iq", CF32)   # sample_type must match samples' dtype
 
 samples = np.ones(1024, dtype=np.complex64)
 pub.send(samples, sample_rate=1e6, center_freq=2.4e9)
@@ -130,8 +130,8 @@ from doppler.stream import Subscriber
 
 sub = Subscriber("nats://127.0.0.1:4222/iq")
 
-msg = sub.recv()
-print(f"Received {len(msg.samples)} samples @ {msg.sample_rate/1e6:.1f} MHz")
+samples, hdr = sub.recv()   # (ndarray, header dict) -- not an object with attributes
+print(f"Received {len(samples)} samples @ {hdr['sample_rate']/1e6:.1f} MHz")
 ```
 
 ### C transmitter → Python subscriber
@@ -149,8 +149,8 @@ python - <<'EOF'
 from doppler.stream import Subscriber
 sub = Subscriber("nats://127.0.0.1:4222/iq")
 while True:
-    msg = sub.recv()
-    print(f"seq={msg.seq}  samples={len(msg.samples)}")
+    samples, hdr = sub.recv()
+    print(f"seq={hdr['sequence']}  samples={len(samples)}")
 EOF
 ```
 

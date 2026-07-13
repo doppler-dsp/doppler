@@ -25,7 +25,11 @@ a throwaway per-page cwd. A ```` ```json title="scene.json" ```` fence is
 materialized into that cwd first, so "here is the spec file, here is the
 command that consumes it" runs exactly as shown. This class is where the
 quickstart's `compose` CLI bugs (#458) and two wrong commands on the
-architecture page lived — none of them could ever have worked.
+architecture page lived — none of them could ever have worked. A fence
+that depends on context outside shell (a file a Python fence wrote, an
+unbounded `--realtime` stream) takes
+`<!-- docs-snippet: no-exec=REASON -->`: still parse-validated, never
+executed. Reasons are mandatory on every marker, in every gate.
 
 The C gate needs the library built first (`make build`) — it compiles
 each ```` ```c ```` fence against `build/libdoppler.a` (and
@@ -111,8 +115,15 @@ or use `+ELLIPSIS` for values with floating-point noise.
 
 ### include — zero drift
 
-The strongest guarantee: show code that is *already* tested. The example
-scripts in `src/doppler/examples/*.py` run in CI (`make test-examples-python`).
+The strongest guarantee: show code that is *already* tested. **Every**
+script in `src/doppler/examples/*.py` runs in CI on arrival — the example
+gate (`src/doppler/tests/test_examples.py`, `make test-examples-python`)
+discovers them by glob, exactly like this gate discovers pages; the only
+way out is a reasoned entry in `src/doppler/examples/.examples-skip`.
+Examples are required to **validate themselves** (assert on a BER
+threshold, a lock flag, a round-trip equality), so exit 0 means
+"demonstrated and checked". Most gallery pages include their code from
+these scripts, so page, script, and committed figure are one artifact.
 Mark a **self-contained** region (imports included) in the tested script:
 
 ```text title="src/doppler/examples/lo_demo.py"
@@ -150,6 +161,16 @@ marker fails the gate), so every exclusion is reviewed in the diff:
 ```
 
 A block can also assert it raises: `<!-- docs-snippet: raises=ValueError -->`.
+
+### broker — conditional, not dead
+
+`<!-- docs-snippet: broker=REASON -->` is for a **single-process** block
+that needs only a live NATS broker: it runs whenever `127.0.0.1:4222` is
+reachable — CI's python-tests job starts a JetStream broker, so it IS
+executed in CI — and skips elsewhere. Same idiom as the stream suite and
+the example gate's `broker:` registry entries. Use `skip=` instead when
+the block needs a *peer process* (a two-terminal demo) or is an
+illustrative fragment whose names come from prose.
 
 ## C fences
 

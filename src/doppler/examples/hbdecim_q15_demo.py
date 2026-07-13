@@ -21,11 +21,12 @@ Run:
 import matplotlib
 
 matplotlib.use("Agg")
+from typing import Optional
+
 import matplotlib.pyplot as plt
 
 # --8<-- [start:usage]
 import numpy as np
-from typing import Optional
 
 from doppler.resample import HalfbandDecimatorQ15, _halfband_bank
 

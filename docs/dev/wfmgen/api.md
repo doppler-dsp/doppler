@@ -1,14 +1,22 @@
 # wfmgen — User API: Surface, Target & Decisions
 
-!!! note "Status: design note for the 0.11.0 API cleanup"
+!!! warning "Historical decision record — not the current API reference"
 
-    Captures the agreed target so the consolidation PRs execute against one
-    spec. Lands **before** the 0.11.0 composition release. Decisions marked
-    **decided** are ratified; **proposed** awaits sign-off.
+    This page captures the design decisions behind the 0.11.0 API cleanup
+    (the `wfm` umbrella rename, the `Synth` unification, one-CLI) and the
+    0.23.0 ranged-numeric-fields addendum. Both shipped and both sections
+    below are accurate **as history**, but the "Current surface" tables
+    are a snapshot from those releases — current version is 0.33.3, and
+    the surface has grown substantially since (more waveform types,
+    DSSS-burst flags, pulse shaping, and more) without this page being
+    kept in sync. **For the current CLI/Python API, see the
+    [Waveform Generator guide](../../guide/wfmgen/index.md)** — actively
+    maintained, and where `wfmgen --help`/the `.pyi` stubs are the ground
+    truth if anything here and the guide ever disagree.
 
-    **Update:** the surface has since grown ranged numeric fields. See
-    [0.23.0 Status](#0230-status) at the bottom for what shipped beyond this
-    note.
+    Decisions marked **decided** are ratified; **proposed** awaited
+    sign-off (all since resolved one way or the other, per the sections
+    below).
 
 ## The model
 
@@ -69,6 +77,15 @@ sources at the same time (one noise floor); `Segment.add()` sequences segments
 in time. No `+`/`-` operators.
 
 ## Current surface (baseline)
+
+!!! info "This is the 0.11.0 baseline, not today's surface"
+
+    See the banner at the top of the page — this table (and the "Target
+    surface" one below it) is what motivated the decisions, not a living
+    reference. One known-stale entry: `sigmf_meta` (row below) no longer
+    exists as a standalone function — it's the generated
+    `Composer.to_sigmf()` method (see
+    [Output guide](../../guide/wfmgen/output.md)).
 
 ### A · CLI flags (`wavegen`/`wfmgen`)
 

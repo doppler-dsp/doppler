@@ -78,6 +78,9 @@ print(f"FFT: {X.shape[0]} complex64 bins")
 ```python
 from doppler.filter import FIR
 from doppler.spectral import kaiser_window, kaiser_beta_for_sidelobe
+import numpy as np
+
+x = (np.random.randn(1024) + 1j * np.random.randn(1024)).astype(np.complex64)
 
 n_taps, cutoff = 63, 0.05                    # cutoff: fraction of fs
 m = np.arange(n_taps) - (n_taps - 1) / 2
@@ -87,7 +90,7 @@ kaiser_window(w, kaiser_beta_for_sidelobe(60.0))   # 60 dB sidelobe target
 taps = (taps * w).astype(np.float32)
 
 fir = FIR(taps)
-y = fir.execute(x)        # reuses x from the FFT step
+y = fir.execute(x)
 print(f"filtered {len(y)} samples through a {len(taps)}-tap FIR")
 ```
 
@@ -98,7 +101,9 @@ the rate you ask for — no filter design required:
 
 ```python
 from doppler.resample import RateConverter
+import numpy as np
 
+x = (np.random.randn(1024) + 1j * np.random.randn(1024)).astype(np.complex64)
 rc = RateConverter(0.5)   # 2:1 decimation → auto-selects a halfband stage
 y = rc.execute(x)         # 1024 → 512 samples
 print(f"resampled {len(x)} -> {len(y)} samples")

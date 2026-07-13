@@ -13,6 +13,123 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+## [0.33.4] — 2026-07-13
+
+A docs-quality release: no C/Python API changes. Prompted by a hands-on
+pass over the quickstart, README, and the docs/design + docs/dev trees —
+several examples had never actually been run against a live install, and
+a batch of design/contributing docs had drifted behind shipped work.
+
+### Added
+
+- **`scripts/gen_readme_quickstart.py`** — `README.md`'s "Quick start"
+    section is now generated from `docs/index.md`'s, closing the gap that
+    let the two drift apart by hand repeatedly. Rewrites the one
+    mkdocs-specific admonition into GitHub's `> [!TIP]`/`[!NOTE]` alert
+    syntax and rewrites relative doc links to their `docs/`-prefixed form
+    (README lives at the repo root, one level shallower than
+    `docs/index.md`). Wired into `make docs-relink` and a new CI
+    drift-check, same idiom as the existing `gen_related_pages.py` gate.
+    That link-rewriting pass also caught a real, pre-existing 404: the
+    README's Quick Start links to `quickstart.md`/`install/c.md` never
+    had the `docs/` prefix GitHub needs.
+
+### Fixed
+
+Real bugs found by actually running the quickstart/example code against
+live installs, rather than trusting it by inspection:
+
+- **`Publisher`/`Subscriber` streaming example** — `Publisher(endpoint)`
+    with no `sample_type` defaults to `CF64`, but the example sent
+    `complex64` (`CF32`) samples — guaranteed `TypeError` on `.send()`.
+    `Subscriber.recv()` returns a `(samples, header_dict)` tuple, not an
+    object with `.samples`/`.sample_rate`/`.seq` attributes — both the
+    "Subscriber (Python)" and "C transmitter → Python subscriber"
+    sections treated it as the latter. Verified the fix against a real
+    `nats-server`, including building and running the actual C
+    `transmitter` binary end to end.
+- **Pipeline CLI example** — `doppler compose init --name X` was missing
+    the required positional `BLOCK` args; `compose up --file X` doesn't
+    exist (`up` takes a positional `FILE`); `doppler logs` needs a
+    positional chain ID. Verified the corrected sequence against a real
+    running chain.
+- **wfmgen streaming example** — showed `--output zmq://tcp://*:5555`,
+    dead since the ZMQ→NATS transport migration; `--output` only accepts
+    `FILE|-|nats://HOST:PORT/SUBJECT` today. Confirmed the old form
+    fails (`error: cannot open output`) and the `nats://` fix streams
+    cleanly. Also fixed a stale "ZMQ sink" cross-link in
+    `docs/gallery/wfm-io.md` (the actual example already uses NATS).
+- **Bench throughput summary namespacing** (`conftest.py`) — the
+    terminal `pytest_terminal_summary` hook printed the raw
+    pytest-benchmark test name; every `bench_*.py` file draws case names
+    from the same small vocabulary (`test_bench_step`,
+    `test_bench_steps_64k`, ...), so 24 different modules share one name
+    and the summary was full of indistinguishable duplicate lines.
+    Reused `scripts/bench_report.py`'s existing `module::case`
+    disambiguation logic.
+- Quickstart's "FIR filter" and "Resample" sections silently depended on
+    `x` defined three sections earlier (the "page is one notebook" gate
+    convention) — fine for the automated gate, but a `NameError` trap for
+    a reader who jumps straight to either section. Both are now
+    self-contained.
+- The FIR filter example imported `scipy.signal.firwin`, the only
+    non-numpy dependency in an otherwise numpy-only quickstart. Replaced
+    with a windowed-sinc design using doppler's own
+    `doppler.spectral.kaiser_window` + `kaiser_beta_for_sidelobe`.
+- `architecture.md`'s layer diagram and Layer 1 description both listed
+    6 modules (NCO/FIR/FFT/DDC/Resampler/Buffer) as if that were the
+    whole DSP library — it's actually 40 modules.
+- The stale `[unreleased]` compare link at the bottom of this file
+    pointed at `v0.33.1...HEAD` instead of the actual latest tag.
+
+### Docs
+
+A sweep of `docs/design/` (14 pages) and `docs/dev/` (11 pages, `+`
+`wfmgen/api.md`) against actual current code turned up several pages
+whose status/roadmap sections had fallen behind shipped work:
+
+- **`docs/dev/adding-a-module.md`** — rewritten to match the current
+    `jm` workflow: added the `--preset blockwise`/`generator` path (the
+    primary route for the whole block-I/O object class — resampler/FFT/
+    decimator/generator — which wasn't documented at all), the pinned
+    `uvx --from 'just-makeit==0.28.11' jm ...` invocation, the mandatory
+    state-serialization step, and manifest registration. Fixed three
+    nonexistent Makefile targets used throughout (`make bench-python`,
+    `make bench-c`, `make docs-build`) to the real `make bench`/`make docs`.
+- **`docs/dev/wfmgen/api.md`** — reframed as the historical decision
+    record it actually is (the 0.11.0 API cleanup + 0.23.0 addendum),
+    with a banner pointing to the actively-maintained
+    `docs/guide/wfmgen/` for the current surface, instead of
+    hand-maintaining a second, increasingly-stale copy of it.
+- **Five `docs/design/` pages** (`api-taxonomy.md`, `RESAMPLER.md`,
+    `dsss-acquisition.md`, `corr2d-interpolated-inverse.md`, `mpsk.md`,
+    plus `acq-fn.md`) described shipped work as still-proposed,
+    never-built, or open — corrected against git history and current
+    `native/src/`.
+- **`docs/dev/error-convention.md`** — the entire error-code table was
+    wrong (values didn't match `clib_common.h` at all, one code missing
+    entirely) and described a two-header split that no longer exists.
+- **`docs/dev/module-layout.md`** — added the `<module>_ext_<component>.c`
+    hand-owned fragment pattern and the state-serialization requirement,
+    both load-bearing per this repo's conventions but absent from the
+    page entirely.
+- **`docs/dev/benchmarking.md`**, **`docs/dev/release.md`**,
+    **`docs/dev/build-internals.md`** — fixed the same stale bench-naming
+    guidance as the `conftest.py` fix above, and documented the aarch64
+    build leg's SVE portability gate and `publish-container` job, both
+    added to the release pipeline without the docs catching up.
+- **`docs/dev/wfm-validation-findings.md`** — added a status banner
+    (all three findings were already individually resolved) matching its
+    sibling historical-record pages.
+- Restructured the quickstart's "Build from source" section: `jbx   get-doppler` (already covered above, for the C library alone) is now
+    clearly the fast path; this section is scoped to what actually needs
+    a build (examples, Rust FFI, tests, contributing); `make install-deps`
+    replaces the bare per-distro package-manager commands as the primary
+    path, with those preserved in a collapsed "install by hand" block.
+    Also fixed the "No C++ compiler needed" callout, which read as "no
+    compiler needed at all" to anyone unfamiliar with the project's
+    C++-avoidance history.
+
 ## [0.33.3] — 2026-07-12
 
 ### Added
@@ -2549,6 +2666,7 @@ ______________________________________________________________________
 [0.33.1]: https://github.com/doppler-dsp/doppler/compare/v0.33.0...v0.33.1
 [0.33.2]: https://github.com/doppler-dsp/doppler/compare/v0.33.1...v0.33.2
 [0.33.3]: https://github.com/doppler-dsp/doppler/compare/v0.33.2...v0.33.3
+[0.33.4]: https://github.com/doppler-dsp/doppler/compare/v0.33.3...v0.33.4
 [0.4.0]: https://github.com/doppler-dsp/doppler/compare/v0.3.7...v0.4.0
 [0.4.1]: https://github.com/doppler-dsp/doppler/compare/v0.4.0...v0.4.1
 [0.5.0]: https://github.com/doppler-dsp/doppler/compare/v0.4.1...v0.5.0
@@ -2561,4 +2679,4 @@ ______________________________________________________________________
 [0.7.0]: https://github.com/doppler-dsp/doppler/compare/v0.6.0...v0.7.0
 [0.8.0]: https://github.com/doppler-dsp/doppler/compare/v0.7.0...v0.8.0
 [0.9.0]: https://github.com/doppler-dsp/doppler/compare/v0.8.0...v0.9.0
-[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.33.1...HEAD
+[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.33.4...HEAD

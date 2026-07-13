@@ -55,6 +55,14 @@ See [Quick Start](docs/quickstart.md) for the full walkthrough.
 
 **Install**
 
+> [!NOTE]
+> Isolate your install from system python with a virtual environment!
+>
+> ```bash
+> python3 -m venv .venv
+> . .venv/bin/activate
+> ```
+
 ```bash
 pip install doppler-dsp
 ```
@@ -83,7 +91,11 @@ print(f"generated {len(iq)} QPSK samples")
 ### C
 
 > [!TIP]
-> Don't have `jbx` yet? `. <(curl -sSL https://just-buildit.github.io/get-jb.sh)`
+> **Don't have `jbx` yet?**
+>
+> ```bash
+> . <(curl -sSL https://just-buildit.github.io/get-jb.sh)
+> ```
 
 **Install**
 

@@ -90,6 +90,7 @@ Example — build Python extensions against a specific interpreter:
 | `make python-test` | Run pytest                                    |
 | `make test-all`    | CTest + pytest + example smoke tests          |
 | `make rust-test`   | Build C library + run Rust FFI tests          |
+| `make bench`       | Run C + Python benchmarks on this machine     |
 | `make debug`       | Clean + Debug build                           |
 | `make release`     | Clean + Release build                         |
 | `make blazing`     | Clean + Release + `-march=native`             |

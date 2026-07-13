@@ -6,7 +6,7 @@ answers it.
 | You want to...                     | Go to                                                                                                           |
 | ---------------------------------- | --------------------------------------------------------------------------------------------------------------- |
 | Call a specific function or class  | [API Reference](api/index.md) — Python surface, one page per module                                             |
-| See it running, with a plot        | [Gallery](gallery/index.md) — 40+ worked examples grouped by DSP domain                                         |
+| See it running, with a plot        | [Gallery](gallery/index.md) — dozens of worked examples grouped by DSP domain                                   |
 | Accomplish a task end-to-end       | [Guides](guide/index.md) — task-oriented walkthroughs (lock detection, DSSS acquisition, PSD, real-time pacing) |
 | Understand why it's built this way | [Design](design/index.md) — architecture decisions and algorithm rationale                                      |
 | Add a module or contribute         | [Contributing](dev/index.md) — repo layout, module conventions, release process                                 |

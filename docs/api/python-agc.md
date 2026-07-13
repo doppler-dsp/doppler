@@ -81,6 +81,6 @@ ______________________________________________________________________
 <!-- related-pages:start -->
 
 **Gallery** — [AGC — Step Response](../gallery/agc.md), [Gallery](../gallery/index.md)
-**Design** — [API taxonomy: the DSP building-block hierarchy and its naming axis](../design/api-taxonomy.md), [State Serialization — the standard bytes interface](../design/state-serialization.md)
+**Design** — [API taxonomy: the DSP building-block hierarchy and its naming axis](../design/api-taxonomy.md)
 
 <!-- related-pages:end -->

@@ -7,15 +7,17 @@
   <a href="https://doppler-dsp.github.io/doppler/"><img class="off-glb" src="https://img.shields.io/badge/docs-doppler--dsp.github.io-blue" alt="Docs"></a>
   <a href="https://pypi.org/project/doppler-dsp/"><img class="off-glb" src="https://img.shields.io/pypi/v/doppler-dsp" alt="PyPI"></a>
   <a href="https://pypi.org/project/doppler-dsp/"><img class="off-glb" src="https://img.shields.io/badge/python-3.9%20%E2%80%93%203.14-blue" alt="Python"></a>
-  <a href="LICENSE"><img class="off-glb" src="https://img.shields.io/badge/license-MIT-green" alt="License: MIT"></a>
+  <a href="https://github.com/doppler-dsp/doppler/blob/main/LICENSE"><img class="off-glb" src="https://img.shields.io/badge/license-MIT-green" alt="License: MIT"></a>
 </p>
 
 <p align="center">
   <a href="https://en.wikipedia.org/wiki/C99"><img class="off-glb" src="https://img.shields.io/badge/C-C99-blue" alt="C99"></a>
-  <a href="install/rust.md"><img class="off-glb" src="https://img.shields.io/badge/Rust-FFI-CE4A00?logo=rust&logoColor=white" alt="Rust"></a>
+  <a href="install/rust/"><img class="off-glb" src="https://img.shields.io/badge/Rust-FFI-CE4A00?logo=rust&logoColor=white" alt="Rust"></a>
   <a href="https://github.com/astral-sh/uv"><img class="off-glb" src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/uv/main/assets/badge/v0.json" alt="uv"></a>
   <a href="https://github.com/astral-sh/ruff"><img class="off-glb" src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json" alt="Ruff"></a>
 </p>
+
+<!-- readme-sync:source-start -->
 
 doppler is a C99 DSP library — NCO, FIR, FFT, polyphase resampling, DDC,
 AGC and more — with file, buffer, and NATS-based streaming, and a

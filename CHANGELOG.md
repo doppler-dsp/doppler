@@ -15,30 +15,85 @@ ______________________________________________________________________
 
 ## [0.33.4] — 2026-07-13
 
-A docs-quality release: no C/Python API changes. Prompted by a hands-on
-pass over the quickstart, README, and the docs/design + docs/dev trees —
-several examples had never actually been run against a live install, and
-a batch of design/contributing docs had drifted behind shipped work.
+A docs-quality release, culminating in a six-phase campaign
+(#462–#469): every doc surface is now generated-or-gated — single source
+of truth everywhere, every code example executed and self-validating in
+CI. One real API-behavior fix (`CorrDetector`/`CorrDetector2D` `dwell`
+default, below) and one build-requirement fix (no C++ toolchain needed,
+ever) ride along. Prompted by a hands-on pass over the quickstart,
+README, and the docs/design + docs/dev trees — several examples had
+never actually been run against a live install, and a batch of
+design/contributing docs had drifted behind shipped work.
 
 ### Added
 
-- **`scripts/gen_readme_quickstart.py`** — `README.md`'s "Quick start"
-    section is now generated from `docs/index.md`'s, closing the gap that
-    let the two drift apart by hand repeatedly. Rewrites the one
-    mkdocs-specific admonition into GitHub's `> [!TIP]`/`[!NOTE]` alert
-    syntax and rewrites relative doc links to their `docs/`-prefixed form
-    (README lives at the repo root, one level shallower than
-    `docs/index.md`). Wired into `make docs-relink` and a new CI
-    drift-check, same idiom as the existing `gen_related_pages.py` gate.
-    That link-rewriting pass also caught a real, pre-existing 404: the
-    README's Quick Start links to `quickstart.md`/`install/c.md` never
-    had the `docs/` prefix GitHub needs.
+- **Fail-closed doc + example gates** — three fence gates run every
+    python, C, and shell code block under
+    `docs/` (the shell gate parse-validates every documented
+    `doppler`/`doppler-specan` invocation against the CLIs' real argparse
+    parsers and executes safe `wfmgen` fences end-to-end); every
+    `src/doppler/examples/*.py` is glob-discovered and run by
+    `test_examples.py` and must **self-validate** with physical asserts
+    (measured SNR/ENOB vs theory, loop lock, BER thresholds, byte-exact
+    round-trips) — 41 scripts gained them. Escape hatches
+    (`skip=`/`no-exec=`/`broker=`) all require reasons, meta-enforced.
+    The docs build is now `--strict` and `scripts/check_site_links.py`
+    fails CI on any broken internal link/anchor in the built site.
+- **`scripts/gen_readme.py`** — `README.md`'s entire body below the
+    badges is generated from `docs/index.md` (admonitions rewritten to
+    GitHub alert syntax, relative links `docs/`-prefixed). Closed the gap
+    that let the two drift repeatedly — including README nav links that
+    404'd on GitHub and a Performance/Licensing drift that sat exactly
+    outside the first, quickstart-only sync block. Wired into
+    `make docs-relink` + a CI drift-check.
+- **`scripts/gen_install_scripts.py`** — the per-distro
+    `tests/install/build-*-deps.sh` (rendered into the install docs) are
+    generated projections of `jb.toml`'s `[dev.*]` lists, ending the
+    three-copy drift that had the dnf/zypper docs demanding a `gcc-c++`
+    the SSOT never listed. CI drift-check included.
+- **`scripts/check_version_strings.py`** — CI fails if the current
+    release version is hand-typed into README/docs prose (such claims go
+    stale at the very next release; one already had).
 
 ### Fixed
 
 Real bugs found by actually running the quickstart/example code against
 live installs, rather than trusting it by inspection:
 
+- **`CorrDetector`/`CorrDetector2D` ignored their documented `dwell`
+    default** — the binding fragments initialized an omitted `dwell` to 0
+    instead of the manifest's 1, producing a detector that could never
+    int-dump (`push()` never returned a result). Found the moment
+    `corr_demo.py` gained self-validation: its `CorrDetector2D` section
+    had silently never run. Fixed in both fragments + regression tests.
+- **No C++ toolchain is needed anywhere in the build — now actually
+    true.** Vendored `nats.c`'s bare `project(cnats)` enabled CMake's
+    default C+CXX, so configuring the stream component probed for a C++
+    compiler despite compiling zero C++ sources (and `gcc-c++` had crept
+    into the install docs to match). Patched to `LANGUAGES C`; verified
+    with a full build with every C++ compiler removed from PATH.
+- **`hbdecim_q15_demo`'s "frequency response" panel was a flat line** —
+    the impulse landed in the halfband's pure-delay polyphase branch (a
+    2:1 decimator computes `y[m] = h[2m−d]`, so one impulse samples every
+    other tap). Replaced with a two-phase impulse reconstruction; the
+    committed gallery figure now shows the real response (±0.011 dB
+    passband, −58 dB stopband).
+- **Missing `fs=` on `Segment.sum`** in two wfm demos *and* the
+    wfm-composition gallery page silently resolved scenes at the default
+    `fs=1.0`, aliasing their annotated "+200 kHz"/"+120 kHz" tones to DC
+    — the committed composition figure was regenerated from before this
+    class of fix and had shown the interferer at DC.
+- **`dsss_despread_demo` dropped a symbol** whenever a block dumped two
+    (`soft.append(s[0])` → `soft.extend(s)`), desynchronizing the
+    demodulated stream after ~50 symbols.
+- **`measure_imd_npr_demo`'s TOI fit** included below-analysis-floor
+    points, skewing the IM3 slope to 2.8 and the extrapolated intercept
+    by 4.7 dB.
+- **Two `architecture.md` commands that never existed** — `doppler   compose ps` (it's `doppler ps`) and `doppler specan` (the binary is
+    `doppler-specan`) — caught by the new shell-fence gate's first run.
+- **Python 3.9 compatibility** in an example's runtime type hints
+    (PEP 604 `X | None` → `Optional[X]`), caught by the example gate
+    running on the full version matrix (#469).
 - **`Publisher`/`Subscriber` streaming example** — `Publisher(endpoint)`
     with no `sample_type` defaults to `CF64`, but the example sent
     `complex64` (`CF32`) samples — guaranteed `TypeError` on `.send()`.
@@ -81,6 +136,22 @@ live installs, rather than trusting it by inspection:
     whole DSP library — it's actually 40 modules.
 - The stale `[unreleased]` compare link at the bottom of this file
     pointed at `v0.33.1...HEAD` instead of the actual latest tag.
+
+### Changed
+
+- **Gallery pages single-source their code** — 19 gallery pages'
+    substantial code blocks are now `--8<--` includes of marked regions
+    in the CI-run example scripts, so page, tested script, and committed
+    figure are one artifact (the conversion itself surfaced and fixed a
+    half-dozen page-only drift bugs: prose describing figures that don't
+    exist, inline parameters contradicting the committed PNGs).
+- **Contributing docs separated by audience** — maintainer plumbing
+    (release, build-internals, coverage) nests under a labeled
+    "Maintainer internals" nav group; four completed historical records
+    moved to `docs/dev/archive/` (out of nav, banners intact).
+- Hand-maintained counts in prose ("40 modules", "40+ examples") became
+    resilient quantifiers — exact numbers now appear only where something
+    generates or checks them.
 
 ### Docs
 

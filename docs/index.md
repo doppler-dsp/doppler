@@ -130,7 +130,13 @@ and building from source.
 
 ## Build
 
+Building from source gets you the C library, examples, and Rust FFI
+bindings — see [Build from source](quickstart.md#build-from-source) if you
+just want the C library without cloning the repo.
+
 ```bash
+git clone https://github.com/doppler-dsp/doppler
+cd doppler
 make install-deps       # bootstrap jbx (if needed) + install system deps
 make                    # C library
 make pyext              # + Python bindings

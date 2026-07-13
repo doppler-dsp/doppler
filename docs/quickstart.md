@@ -228,10 +228,10 @@ ______________________________________________________________________
 YAML file.
 
 ```bash
-doppler compose init --name my_pipeline
-doppler compose up --file my_pipeline.yaml
+doppler compose init tone fir specan --name my_pipeline --out my_pipeline.yaml
+doppler compose up my_pipeline.yaml
 doppler ps
-doppler logs
+doppler logs my_pipeline
 ```
 
 See [CLI & Pipelines](cli/index.md) and [Dopplerfile](cli/dopplerfile.md)
@@ -241,57 +241,71 @@ ______________________________________________________________________
 
 ## Build from source
 
-If you need the C library, examples, or Rust FFI bindings:
+Only need the C **library** itself (headers + `libdoppler.a`/`.so`, no
+examples, no Rust FFI, no toolchain)? `jbx get-doppler` — see
+[Get it!](#get-it) above — is faster. This section is for the examples,
+the Rust FFI bindings, running the test suite, or contributing.
 
-=== "Ubuntu / Debian"
+!!! tip "Don't have `jbx` yet?"
 
-    ```bash
-    sudo apt-get install build-essential cmake pkg-config python3-dev python3-numpy
-    ```
-
-=== "Arch"
-
-    ```bash
-    sudo pacman -S --needed base-devel cmake python python-numpy
-    ```
-
-=== "Fedora / RHEL"
-
-    ```bash
-    sudo dnf install gcc make cmake pkgconf-pkg-config python3-devel python3-numpy
-    ```
-
-=== "openSUSE"
-
-    ```bash
-    sudo zypper install gcc make cmake pkg-config python3-devel python3-numpy
-    ```
-
-=== "macOS"
-
-    ```bash
-    brew install cmake python numpy
-    ```
-
-!!! info "Windows"
-
-    doppler does not target Windows natively — build under
-    [WSL2](https://learn.microsoft.com/windows/wsl/), a VM, or a container
-    and follow the Ubuntu / Debian steps.
-
-!!! note "No C++ compiler needed"
-
-    The core C library and the optional stream component (`libdoppler_stream`,
-    which vendors `nats.c`) are both pure C99 — no C++ toolchain is required
-    anywhere in the build.
+    `make install-deps` bootstraps it for you (installs system build
+    dependencies too). Or by hand:
+    `. <(curl -sSL https://just-buildit.github.io/get-jb.sh)`.
 
 ```bash
 git clone https://github.com/doppler-dsp/doppler
 cd doppler
-make           # C library + examples
-make pyext     # Python extensions
-make test-all  # C + Python + Rust test suites
+make install-deps  # bootstrap jbx (if needed) + install system deps
+make               # C library + examples
+make pyext         # Python extensions
+make test-all      # C + Python + Rust test suites
 ```
+
+You'll need a C compiler — your system's default one is enough, no C++
+toolchain is required anywhere in the build (the core library and the
+optional stream component, which vendors `nats.c`, are both pure C99).
+
+??? note "Installing system deps by hand instead"
+
+    `make install-deps` reads [`jb.toml`](https://github.com/doppler-dsp/doppler/blob/main/jb.toml),
+    the single source of truth for doppler's system deps, so it stays in
+    sync automatically. To install them yourself instead:
+
+    === "Ubuntu / Debian"
+
+        ```bash
+        sudo apt-get install build-essential cmake pkg-config python3-dev python3-numpy
+        ```
+
+    === "Arch"
+
+        ```bash
+        sudo pacman -S --needed base-devel cmake python python-numpy
+        ```
+
+    === "Fedora / RHEL"
+
+        ```bash
+        sudo dnf install gcc make cmake pkgconf-pkg-config python3-devel python3-numpy
+        ```
+
+    === "openSUSE"
+
+        ```bash
+        sudo zypper install gcc make cmake pkg-config python3-devel python3-numpy
+        ```
+
+    === "macOS"
+
+        ```bash
+        brew install cmake python numpy
+        ```
+
+    === "Windows"
+
+        doppler does not target Windows natively — build under
+        [WSL2](https://learn.microsoft.com/windows/wsl/), a VM, or a
+        container and follow the Ubuntu / Debian steps.
 
 See [Build from Source](install/source.md) for CMake options, Docker, and
 platform-specific notes.

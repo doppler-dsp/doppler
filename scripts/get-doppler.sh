@@ -11,7 +11,7 @@
 #   jbx get-doppler [OPTIONS]
 #   scripts/get-doppler.sh [OPTIONS]
 #
-#   -p, --prefix DIR    Install prefix (default: $HOME/doppler).
+#   -p, --prefix DIR    Install prefix (default: $HOME/.local/doppler).
 #   -v, --version X.Y.Z Pin a release (default: latest).
 #   -R, --restore        Restore the previous install from its backup and
 #                         exit -- no download.
@@ -19,11 +19,16 @@
 #
 #   DOPPLER_PREFIX / DOPPLER_VERSION env vars are equivalent to the flags
 #   above; a flag, when given, wins over the matching env var.
+#
+#   No bare-positional PREFIX form: jbx's own calling convention is
+#   `jbx SPEC [FUNCTION [ARGS...]]` -- a token right after `get-doppler`
+#   would be consumed by jbx itself as a function name to call, never
+#   reaching this script's own argument parsing. Always use --prefix.
 # ############################################################################
 set -euo pipefail
 
 REPO="doppler-dsp/doppler"
-PREFIX="${DOPPLER_PREFIX:-$HOME/doppler}"
+PREFIX="${DOPPLER_PREFIX:-$HOME/.local/doppler}"
 VERSION="${DOPPLER_VERSION:-}"
 RESTORE=0
 
@@ -33,13 +38,16 @@ read -r -d '' HELP <<-'EOF' || true
 	  Downloads and extracts the pre-built doppler C library (headers +
 	  libdoppler.a/.so) to an install prefix -- no toolchain needed.
 
-	  -p, --prefix DIR     Install prefix (default: $HOME/doppler).
+	  -p, --prefix DIR     Install prefix (default: $HOME/.local/doppler).
 	  -v, --version X.Y.Z  Pin a release (default: latest).
 	  -R, --restore         Restore the previous install from its backup
 	                         and exit -- no download.
 	  -h, --help            Show this message.
 
 	  DOPPLER_PREFIX / DOPPLER_VERSION env vars work the same as the flags.
+	  No bare-positional PREFIX form (jbx's own SPEC/FUNCTION/ARGS calling
+	  convention would consume it before this script ever sees it) --
+	  always use --prefix.
 
 	  A previous install at PREFIX is moved aside to PREFIX/.get-doppler-backup
 	  before a new one is extracted, restored automatically if the new install
@@ -94,6 +102,16 @@ _move_doppler_dirs() {
 _looks_like_install() {
 	[ -f "$1/lib/libdoppler.a" ] && [ -d "$1/include" ]
 }
+
+# Refuse a prefix that's a git working tree root and not already a doppler
+# install -- extracting include/lib/bin into an unrelated repo (e.g. a
+# doppler source checkout at the same path the old default used) pollutes
+# it with untracked files instead of erroring cleanly.
+if [ -d "$PREFIX/.git" ] && ! _looks_like_install "$PREFIX"; then
+	echo "get-doppler: refusing to extract into ${PREFIX} -- it looks like a git repository," >&2
+	echo "get-doppler: not a doppler install. Pass a different --prefix." >&2
+	exit 1
+fi
 
 if [ "$RESTORE" -eq 1 ]; then
 	if ! _looks_like_install "$BACKUP_DIR"; then

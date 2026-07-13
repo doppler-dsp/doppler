@@ -160,7 +160,8 @@ build-c-linux-arm64  ──  C library tarball (linux-aarch64)
 build-c-macos        ──  C library tarball (macos-arm64)
     │  (all six build-* jobs run in parallel, gated only on verify-version)
     ▼
-smoke-wheel      ──  pip-install the built wheel + run deploy/validation/wfm_e2e.py
+smoke-wheel      ──  pip-install the cp312 wheel (x86_64 + aarch64, matrixed)
+    │                 + run deploy/validation/wfm_e2e.py
     │                 (smoke-tests the ARTIFACT, not the source tree)
     ▼
 publish-python   ──  PyPI (OIDC trusted publishing, no token needed)
@@ -184,18 +185,24 @@ canonical `release-process` skill.
 **How each wheel is actually built** (no `cibuildwheel` — `just-buildit` is a
 minimal PEP 517 backend driving the whole thing):
 
-1. **Linux** — one `docker run` per `cp3x` inside `quay.io/pypa/manylinux_2_28_x86_64`,
-    installing `cmake`/`pkg-config` (`fftw`/`zeromq` were dropped once the FFT was
-    fully vendored and ZMQ was removed — see CHANGELOG) plus `numpy`/`uv`/`build`/
-    `just-buildit`, then `python -m build --no-isolation --wheel`.
-1. **macOS** — a `uv venv` per Python version on `macos-14`, same
-    `python -m build` invocation, system deps from `jbx just-bashit:install-deps`
-    (reads `jb.toml`, the single source of truth for doppler's system deps).
+1. **Linux (`build-python`)** — one `docker run` per `cp3x` × arch inside
+    `quay.io/pypa/manylinux_2_28_x86_64` or `_aarch64` (arch picked by the job
+    matrix), installing `cmake`/`pkg-config` (`fftw`/`zeromq` were dropped once
+    the FFT was fully vendored and ZMQ was removed — see CHANGELOG) plus
+    `numpy`/`uv`/`build`/`just-buildit`, then `python -m build --no-isolation  --wheel`. The aarch64 leg runs **natively** on a `ubuntu-24.04-arm` runner
+    (free for public repos) — no QEMU or cross-toolchain anywhere.
+1. **macOS (`build-macos`, a separate job)** — a `uv venv` per Python version
+    natively on `macos-14` (arm64), same `python -m build` invocation, system
+    deps from `jbx just-bashit:install-deps` (reads `jb.toml`, the single
+    source of truth for doppler's system deps).
 1. `just-buildit`'s backend (`make just-build` → cmake + pyext) assembles the
     wheel from the build's output dir, detects the platform tag from the `.so`
     suffix, and runs `auditwheel repair` (Linux, via `uvx`) / `delocate-wheel`
     (macOS) to bundle shared-lib deps into the wheel — this is why the
-    published wheel needs zero system packages to `pip install`.
+    published wheel needs zero system packages to `pip install`. Each Linux
+    wheel is then scanned for both a leaked `-march=native` (AVX/AVX-512 on
+    x86_64) and a leaked `-mcpu=native` (SVE/SVE2 on aarch64) — see
+    [Build Internals](build-internals.md#portability-gate) for both scans.
 
 **`verify-version` checks** — the workflow fails immediately if any of these disagree with the tag:
 

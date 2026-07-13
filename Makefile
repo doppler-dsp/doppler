@@ -357,7 +357,7 @@ rust-test: build
 # regeneration when native/inc/ headers change.
 docs:
 	rm -f zensical.toml
-	uv run --group docs zensical build --clean
+	uv run --group docs zensical build --clean --strict
 
 docs-serve:
 	rm -f zensical.toml

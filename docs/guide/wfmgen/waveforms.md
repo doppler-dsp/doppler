@@ -62,6 +62,8 @@ oversampled by `--sps` and cycled. That expresses any modulation an enum doesn't
 — pi/4-QPSK, QAM, APSK — since you compute the constellation yourself and pass
 it. `symbols` honours `--pulse rrc` like the built-in modulations.
 
+<!-- docs-snippet: no-exec=qam16.cf32 is written by the Python fence above -->
+
 ```sh
 wfmgen --type symbols --symbols-file qam16.cf32 --sps 8 --pulse rrc -o qam.cf32
 ```

@@ -33,7 +33,14 @@ except ImportError as _e:
     sys.exit(1)
 
 
-def main() -> None:
+def build_parser() -> argparse.ArgumentParser:
+    """Build the doppler argument parser.
+
+    Separate from ``main()`` so tooling can validate documented CLI
+    invocations against the real parser without executing anything --
+    the docs shell-fence gate (``test_sh_doc_snippets.py``) parses
+    every ``doppler ...`` line in the docs through this.
+    """
     parser = argparse.ArgumentParser(
         prog="doppler",
         description="doppler signal processing pipeline CLI",
@@ -114,6 +121,14 @@ def main() -> None:
     p_down = compose_sub.add_parser("down", help="Stop a running chain")
     p_down.add_argument("id", metavar="ID")
 
+    # main()'s bare `doppler compose` fallback prints this subparser's
+    # help; stash it on the parser so the two stay one object.
+    parser.compose_parser = p_compose  # type: ignore[attr-defined]
+    return parser
+
+
+def main() -> None:
+    parser = build_parser()
     args = parser.parse_args()
 
     # Dispatch
@@ -200,7 +215,7 @@ def main() -> None:
             print(f"stopped chain {args.id}")
 
         else:
-            p_compose.print_help()
+            parser.compose_parser.print_help()
             sys.exit(1)
 
     else:

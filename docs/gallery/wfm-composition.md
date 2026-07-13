@@ -77,6 +77,8 @@ spec = Composer(timeline).to_json()               # the resolved "sum" spec
 assert np.array_equal(Composer.from_json(spec).compose(), x)
 ```
 
+<!-- docs-snippet: no-exec=scene.json is the Python example's to_json() output -->
+
 ```sh
 # the same, from the CLI — a.cf32 and b.cf32 are byte-identical
 wfmgen --from-file scene.json --headroom 4 --record run.json -o a.cf32

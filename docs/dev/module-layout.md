@@ -283,4 +283,4 @@ ______________________________________________________________________
     just-makeit to scaffold a new extension module
 - [just-makeit docs](https://just-buildit.github.io/just-makeit/) — scaffold
     tool that generates compliant layouts automatically
-- [Build & Install](../build/) — how to compile extensions
+- [Build from Source](../install/source.md) — how to compile extensions

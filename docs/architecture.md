@@ -71,7 +71,7 @@ process, and tracks their state.
 ```sh
 doppler compose init tone fir specan --name demo
 doppler compose up demo
-doppler compose ps
+doppler ps
 doppler compose down demo
 ```
 
@@ -100,7 +100,7 @@ running `nats-server` (e.g. `nats-server -js`) to connect to.
 doppler compose init tone specan --name view
 
 # Or wire it into your own pipeline
-doppler specan --source pull --address nats://127.0.0.1:4222/work
+doppler-specan --source pull --address nats://127.0.0.1:4222/work
 ```
 
 See [Spectrum Analyzer](specan/index.md).

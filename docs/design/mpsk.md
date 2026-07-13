@@ -365,8 +365,12 @@ ______________________________________________________________________
     to `0.01·bn`, decimated loop-filter command via `gain_update_period`) + 10 dB
     square clip, not a per-sample limiter (§2.3).
 - **Naming** — `CarrierNda` / flat vs a `Carrier.*` namespace (deferred).
-- **Handover threshold** — on `lock_signal` (+ timing-settled gate); tune in
-    Step 3 validation.
+- **Handover threshold** — *resolved, shipped.* `mpsk_receiver_configure_lock()`
+    exposes it as a real config call: a `lockdet_state_t handover` gate plus
+    `MPSK_RX_HANDOVER_DOWN`/`N_UP`/`N_DOWN` debounce counters
+    (`native/inc/mpsk_receiver/mpsk_receiver_core.h`), landed in the lock-detector
+    consistency pass. `CarrierNda`/`MpskReceiver` also both expose telemetry
+    probes (`.lock`/`.tracking`) from that same pass, not just this threshold.
 - **n default 4** — boxcar arm window divisor (window = `sps/n`); **n-invariant**
     now (`bn` is cycles/sample), so this is purely a pull-in/jitter trade.
 - **Pulse-shaped (RRC) SER** — *open, downstream.* The carrier loop locks on RRC

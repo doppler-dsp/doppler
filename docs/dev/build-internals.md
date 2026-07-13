@@ -15,13 +15,14 @@ flowchart TD
     so["C extensions\n*.cpython-*.so"]
     bin["wfmgen binary\nsrc/doppler/wfm/_bin/wfmgen"]
     jb["just-buildit\nPEP 517 backend"]
-    manylinux["manylinux_2_28\ncontainer (Linux)"]
-    auditwheel["auditwheel repair\nbundle shared deps"]
-    wheel["Wheel\ndoppler_dsp-X.Y.Z-*.whl"]
+    manylinux["manylinux_2_28 x86_64/aarch64\ncontainer (Linux) + native macOS arm64 runner"]
+    auditwheel["auditwheel repair / delocate\nbundle shared deps"]
+    wheel["Wheels\ndoppler_dsp-X.Y.Z-*.whl (6 CPython × 3 platforms)"]
     pypi["PyPI\nOIDC trusted publishing"]
-    ctarball["C library tarball\ndoppler-X.Y.Z-linux.tar.gz"]
+    ghcr["ghcr.io/doppler-dsp/doppler\npip-installs the published wheel"]
+    ctarball["C library tarballs\ndoppler-X.Y.Z-{linux-x86_64,linux-aarch64,macos-arm64}.tar.gz"]
 
-    src --> cmake --> so --> jb --> manylinux --> auditwheel --> wheel --> pypi
+    src --> cmake --> so --> jb --> manylinux --> auditwheel --> wheel --> pypi --> ghcr
     cmake --> bin --> jb
     manylinux --> ctarball
 ```
@@ -139,7 +140,10 @@ macOS wheels are built natively on a `macos-14` (arm64) GitHub runner using
 
 ### Portability gate
 
-Every wheel is scanned for non-dispatched wide-SIMD instructions:
+Every wheel is scanned for non-dispatched wide-SIMD instructions — one gate
+per architecture, both in `build-python`:
+
+**x86_64 — AVX/AVX-512:**
 
 ```bash
 bad=$(objdump -d "$so" | awk '
@@ -151,6 +155,28 @@ bad=$(objdump -d "$so" | awk '
 Runtime-dispatched variants (function names containing `_avx2` or `_avx512`)
 are exempted. Anything else that touches `ymm`/`zmm` registers fails the
 release.
+
+**aarch64 — SVE/SVE2:** doppler has no SVE runtime dispatch today, so any
+SVE instruction at all is a leak (a Neoverse `-mcpu=native` build host would
+otherwise silently emit SVE, which SIGILLs on non-SVE cores — Raspberry Pi,
+Apple Silicon under Docker):
+
+```bash
+bad=$(objdump -d "$so" | awk '
+  /[ ,](z[0-9]+\.[bhsdq]|p[0-9]+\/[mz])/ { if (fn !~ /sve/) { print fn; exit } }
+')
+[ -z "$bad" ] || { echo "SVE leak: $bad"; exit 1; }
+```
+
+Functions with `sve` in the name are exempted the same way `_avx2`/`_avx512`
+are on x86_64. Both gates scan **only** doppler's own compiled extensions
+(`*.cpython-*.so`) and the bundled `wfmgen` binary — deliberately not the
+third-party libraries `auditwheel`/`delocate` vendor into the wheel's
+`.libs`/`.dylibs` bundle dir. Those aren't doppler's to make portable, and
+scanning them is a guaranteed false positive: glibc's `libmvec` ships
+ifunc-dispatched AVX vector-math variants (e.g. `_ZGVcN4v_cos`) that are
+never executed on a baseline CPU — it flagged a real cp39 wheel build
+before the scan was scoped down to exclude vendored libs.
 
 ______________________________________________________________________
 
@@ -177,17 +203,19 @@ ______________________________________________________________________
 `release.yml` triggers on a version tag push (`v*.*.*`). It does **not**
 re-run tests — it trusts that the PR CI gate was green.
 
-| Job                                                       | What it does                                                                                                    | If it fails                                                                              |
-| --------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| `verify-version`                                          | Asserts tag == `pyproject.toml` == `Cargo.toml` == `CMakeLists.txt`                                             | Run `make bump-version VERSION=X.Y.Z` consistently across all three files before tagging |
-| `verify-ci`                                               | Polls for `ci-passed` on the tagged commit SHA                                                                  | The tagged commit must have a green CI run; check GitHub Actions on that SHA directly    |
-| `build-python`                                            | Builds 6 Python × 3 platform wheels (Linux manylinux x86_64/aarch64 + macOS arm64), runs portability gate       | Fix any `-march=native` leak or C compile error; re-tag after fixing                     |
-| `build-sdist`                                             | Source tarball                                                                                                  | Rare; check `pyproject.toml` `[tool.setuptools]` include list                            |
-| `build-c-linux` / `build-c-linux-arm64` / `build-c-macos` | Standalone C library tarballs (`lib/` layout, not `lib64/`)                                                     | CMake install target; check `cmake --install` output                                     |
-| `smoke-wheel`                                             | Pip-installs the cp312 Linux wheel into a clean venv; runs `deploy/validation/wfm_e2e.py` from a temp directory | Python API regression; check what `wfm_e2e.py` exercises                                 |
-| `publish-python`                                          | Uploads all wheels + sdist to PyPI via OIDC                                                                     | Check PyPI trusted publisher config; once published, the version cannot be replaced      |
-| `github-release`                                          | Creates GitHub Release with auto-generated notes; attaches all wheel + C tarball artifacts                      | Permissions; check `GITHUB_TOKEN` has `contents: write`                                  |
-| `smoke-c`                                                 | Downloads the just-published C tarball; runs `cmake find_package` and `pkg-config` smoke tests                  | CMake install layout or `pkg-config` `.pc` file                                          |
+| Job                                                       | What it does                                                                                                     | If it fails                                                                              |
+| --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| `verify-version`                                          | Asserts tag == `pyproject.toml` == `Cargo.toml` == `CMakeLists.txt`                                              | Run `make bump-version VERSION=X.Y.Z` consistently across all three files before tagging |
+| `verify-ci`                                               | Polls for `ci-passed` on the tagged commit SHA                                                                   | The tagged commit must have a green CI run; check GitHub Actions on that SHA directly    |
+| `build-python`                                            | Builds 6 Python × **Linux x86_64/aarch64** wheels (native runners, no QEMU), runs the AVX/SVE portability gates  | Fix any `-march=native`/`-mcpu=native` leak or C compile error; re-tag after fixing      |
+| `build-macos`                                             | Builds 6 Python × **macOS arm64** wheels natively on `macos-14`                                                  | C compile error on macOS; check `delocate` output                                        |
+| `build-sdist`                                             | Source tarball                                                                                                   | Rare; check `pyproject.toml` `[tool.setuptools]` include list                            |
+| `build-c-linux` / `build-c-linux-arm64` / `build-c-macos` | Standalone C library tarballs (`lib/` layout, not `lib64/`)                                                      | CMake install target; check `cmake --install` output                                     |
+| `smoke-wheel`                                             | Pip-installs the cp312 wheel (Linux x86_64 **and** aarch64, matrixed) into a clean venv; runs `wfm_e2e.py`       | Python API regression; check what `wfm_e2e.py` exercises                                 |
+| `publish-python`                                          | Uploads all wheels + sdist to PyPI via OIDC                                                                      | Check PyPI trusted publisher config; once published, the version cannot be replaced      |
+| `publish-container`                                       | Builds `ghcr.io/doppler-dsp/doppler:X.Y.Z` (+ `:latest`) by pip-installing the just-published wheel — no rebuild | Check the Dockerfile and GHCR push permissions                                           |
+| `github-release`                                          | Creates GitHub Release with auto-generated notes; attaches all wheel + C tarball artifacts                       | Permissions; check `GITHUB_TOKEN` has `contents: write`                                  |
+| `smoke-c`                                                 | Downloads the just-published C tarball (all 3 platforms); runs `cmake find_package` and `pkg-config` smoke tests | CMake install layout or `pkg-config` `.pc` file                                          |
 
 ______________________________________________________________________
 

@@ -44,8 +44,8 @@ ______________________________________________________________________
 ## Signal processing
 
 Every object is a thin, stateful wrapper over the C core: construct it once,
-then stream blocks through it. The examples below build on each other — the
-signal `x` created in the FFT step is reused by the filter and resampler.
+then stream blocks through it. Each example below is self-contained —
+copy-paste any one of them on its own.
 
 ### LO — generate a complex tone
 
@@ -77,11 +77,20 @@ print(f"FFT: {X.shape[0]} complex64 bins")
 
 ```python
 from doppler.filter import FIR
-from scipy.signal import firwin
+from doppler.spectral import kaiser_window, kaiser_beta_for_sidelobe
+import numpy as np
 
-taps = firwin(63, cutoff=0.1, window="hamming").astype(np.float32)
+x = (np.random.randn(1024) + 1j * np.random.randn(1024)).astype(np.complex64)
+
+n_taps, cutoff = 63, 0.05                    # cutoff: fraction of fs
+m = np.arange(n_taps) - (n_taps - 1) / 2
+taps = 2 * cutoff * np.sinc(2 * cutoff * m)  # ideal windowed-sinc lowpass
+w = np.zeros(n_taps, dtype=np.float32)
+kaiser_window(w, kaiser_beta_for_sidelobe(60.0))   # 60 dB sidelobe target
+taps = (taps * w).astype(np.float32)
+
 fir = FIR(taps)
-y = fir.execute(x)        # reuses x from the FFT step
+y = fir.execute(x)
 print(f"filtered {len(y)} samples through a {len(taps)}-tap FIR")
 ```
 
@@ -92,7 +101,9 @@ the rate you ask for — no filter design required:
 
 ```python
 from doppler.resample import RateConverter
+import numpy as np
 
+x = (np.random.randn(1024) + 1j * np.random.randn(1024)).astype(np.complex64)
 rc = RateConverter(0.5)   # 2:1 decimation → auto-selects a halfband stage
 y = rc.execute(x)         # 1024 → 512 samples
 print(f"resampled {len(x)} -> {len(y)} samples")

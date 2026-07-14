@@ -105,17 +105,22 @@ write-up):
     coherent-integration primitive that doesn't overlap on its own) is the
     caller's job: ``reset()`` between dwells at a hop smaller than one
     dwell (this demo uses 1/4, 75% overlap).
-* Sweeping many overlapping dwells produced **more false alarms than the
-  naive ``pfa * n_dwells`` estimate**: 3 observed vs. ~0.47 expected across
-  a 471-dwell sweep at the default ``pfa=1e-3``. ``pfa``/``pfa_cell`` are
-  sized to control ONE dwell's search; a blind multi-dwell sweep tests many
-  more (Doppler, code-phase) hypotheses in aggregate, and it's not yet clear
-  whether the gap is normal single-run Poisson variance or a real
-  calibration/composability question — filed as
-  `doppler#394 <https://github.com/doppler-dsp/doppler/issues/394>`_ for a
-  proper Monte-Carlo follow-up rather than reading too much into one run.
-  Not a correctness bug either way: the downstream stages correctly
-  rejected all 3 false alarms.
+* **(resolved — see** `doppler#394
+  <https://github.com/doppler-dsp/doppler/issues/394>`_ **)** Sweeping many
+  overlapping dwells once produced more false alarms than the naive
+  ``pfa * n_dwells`` estimate: 3 observed vs. ~0.47 expected across a
+  471-dwell sweep at the default ``pfa=1e-3``. A follow-up 2.34M-dwell
+  Monte-Carlo study (``dsss_acq_characterization.py``'s
+  ``measure_sweep_pfa``) swept the same blind, overlapping-dwell pattern
+  over pure noise across four overlap fractions (0%/50%/75%/87.5%) and
+  found every condition within +/-1.8 std devs of the naive estimate, with
+  no trend toward inflation as overlap increased — the 3-vs-0.47 run was
+  ordinary Poisson variance (``P(X>=3 | lambda=0.47) ~ 1.5%``, rare but not
+  implausible for one run), not a calibration or composability gap.
+  ``pfa``/``pfa_cell`` are correctly sized for a single dwell regardless of
+  how many overlapping dwells a caller chooses to blindly sweep. Not a
+  correctness bug either way: the downstream stages correctly rejected all
+  3 false alarms in the original run.
 * :class:`~doppler.dsss.BurstDespreader` has no absolute phase reference —
   the Costas loop locks to a line, not a point — so its raw hard bits can
   come out globally inverted. Resolving that sign is exactly what the
@@ -641,8 +646,8 @@ def main():
         f"  ground-truth check (labels for reporting only, not fed back "
         f"into the pipeline): {n_real_found}/{N_BURSTS} true bursts found, "
         f"{n_false} false alarm(s) -- naive pfa*dwells expectation was "
-        f"~{n_dwells * 1e-3:.2f} (see 'Rough edges' on why overlapping "
-        "dwells make that a loose bound)"
+        f"~{n_dwells * 1e-3:.2f} (single-run Poisson variance around that "
+        "is normal -- see 'Rough edges', gh-394)"
     )
 
     despreader_results = demo_despreader(

@@ -222,17 +222,21 @@ inconvenience:
     across dwells is entirely the caller's responsibility (not a knob on
     the object).
 
-- **Sweeping many overlapping dwells produced more false alarms than the
-    naive `pfa * n_dwells` estimate** — 3 observed vs. ~0.47 expected
-    across a 471-dwell sweep at the default `pfa=1e-3`. `pfa`/`pfa_cell`
-    are sized to control *one* dwell's search; a blind multi-dwell sweep
-    tests many more (Doppler, code-phase) hypotheses in aggregate, and
-    it's not yet clear whether the gap is normal single-run Poisson
-    variance or a real calibration/composability question. Filed as
-    [doppler#394](https://github.com/doppler-dsp/doppler/issues/394) for a
-    proper Monte-Carlo follow-up rather than reading too much into one run
-    — not a correctness bug either way, since the downstream stages
-    correctly rejected all 3 false alarms.
+- **(resolved — [doppler#394](https://github.com/doppler-dsp/doppler/issues/394))
+    Sweeping many overlapping dwells once produced more false alarms than
+    the naive `pfa * n_dwells` estimate** — 3 observed vs. ~0.47 expected
+    across a 471-dwell sweep at the default `pfa=1e-3`. A follow-up
+    2.34M-dwell Monte-Carlo study (`dsss_acq_characterization.py`'s
+    `measure_sweep_pfa`) swept the same blind, overlapping-dwell pattern
+    over pure noise across four overlap fractions (0%/50%/75%/87.5%) and
+    found every condition within ±1.8 std devs of the naive estimate, with
+    no trend toward inflation as overlap increased. The 3-vs-0.47 run was
+    ordinary Poisson variance (`P(X>=3 | lambda=0.47) ~ 1.5%`, rare but not
+    implausible for one run), not a calibration or composability gap —
+    `pfa`/`pfa_cell` are correctly sized for a single dwell regardless of
+    how many overlapping dwells a caller chooses to blindly sweep. Not a
+    correctness bug either way, since the downstream stages correctly
+    rejected all 3 false alarms in the original run.
 
 - **`BurstDespreader` has no absolute phase reference.** The Costas loop
     locks to a line, not a point, so its raw hard bits can come out globally

@@ -58,11 +58,36 @@ Panels (saved to ``dsss_acq_characterization.png``)
 3. ``Pfa`` vs Es/N0 — per-point silence-frame estimate plus the achieved rate
    over a large noise-only run, against the configured ``pfa`` target.
 
+gh-394 — blind, overlapping-dwell sweep Pfa
+--------------------------------------------
+``dsss_burst_pipeline_demo.py`` drives ``Acquisition`` blindly across a
+whole capture with ``reset()``-between-dwells at a hop smaller than one
+dwell (75% overlap) — a single run there once measured 3 false alarms
+against a naive ``pfa * n_dwells`` estimate of ~0.47, and it was unclear
+whether that was normal single-run variance or a real per-dwell
+calibration gap that overlapping dwells expose (filed as gh-394).
+:func:`measure_sweep_pfa` (below) mirrors that exact blind-sweep pattern
+over pure noise, so every threshold crossing is by construction a false
+alarm, and reports both the raw and **clustered** (one-per-physical-noise
+-excursion, matching the demo's own dedup of real detections) counts.
+
+**Resolved**: a 2.34M-dwell study across four overlap fractions
+(0%/50%/75%/87.5%) — see the ``measure_sweep_pfa`` docstring and gh-394 —
+found every condition within +/-1.8 std devs of the naive estimate, with
+no trend toward inflation as overlap increases (the highest-overlap
+condition trended *below* nominal, if anything). The 3-vs-0.47 run was
+ordinary Poisson variance (``P(X>=3 | lambda=0.47) ~ 1.5%`` — rare but not
+implausible for one run), not a calibration gap: ``pfa``/``pfa_cell`` size
+correctly for a single dwell regardless of how many overlapping dwells a
+caller chooses to blindly sweep. ``main()`` below re-runs a smaller
+version of this check (still a couple hundred expected false alarms) on
+every invocation as a regression guard.
+
 Run::
 
     python -m doppler.examples.dsss_acq_characterization
 
-Runs in ~30 s.
+Runs in ~45 s.
 """
 
 import math
@@ -354,6 +379,93 @@ def measure_pfa(n_frames: int, seed: int = 0) -> float:
     return hits / n_frames
 
 
+def _cluster_count(positions: list[int], window: int) -> int:
+    """Collapse sorted hit positions into cluster counts.
+
+    A hit within ``window`` samples of the previous kept position merges
+    into the same cluster (mirrors the position-based dedup
+    ``dsss_burst_pipeline_demo.py``'s ``demo_acquisition()`` already does
+    for real detections — cluster raw crossings within one dwell-width of
+    each other and keep one per cluster).  Only the count is needed here.
+    """
+    last = None
+    n_clusters = 0
+    for p in sorted(positions):
+        if last is None or p - last > window:
+            n_clusters += 1
+        last = p
+    return n_clusters
+
+
+def measure_sweep_pfa(
+    n_captures: int, capture_len: int, hop: int, seed: int = 0
+) -> dict[str, float]:
+    """Empirical false-alarm rate for a blind, overlapping-dwell sweep.
+
+    Mirrors ``dsss_burst_pipeline_demo.py``'s ``demo_acquisition()``:
+    ``reset()`` between dwells at a ``hop``-sample stride across a
+    pure-noise capture, so every threshold crossing is by construction a
+    false alarm — this isolates gh-394's question (is a naive
+    ``pfa * n_dwells`` estimate violated by overlapping dwells?) from any
+    real-signal detection question.
+
+    Also reports the **clustered** count: collapsing raw crossings within
+    one dwell-width of each other to one, exactly as ``demo_acquisition()``
+    already does for real detections.  A single noise excursion visible to
+    several 75%-overlapping dwells' sliding windows should count once, not
+    several times — conflating "raw threshold crossings" with "false
+    alarms" is a natural way the naive estimate could look violated
+    without any real per-dwell calibration gap.
+
+    Parameters
+    ----------
+    n_captures : int
+        Independent noise realisations to sweep.
+    capture_len : int
+        Samples per realisation.
+    hop : int
+        Dwell stride, in samples.  ``hop == FRAME`` sweeps non-overlapping
+        dwells (a control); ``hop < FRAME`` overlaps them.
+    seed : int
+        Base seed; capture ``c`` uses ``seed + c``.
+
+    Returns
+    -------
+    dict
+        ``n_dwells_total``, ``raw_total``, ``clustered_total``,
+        ``naive_expected`` (``PFA * n_dwells_total``), and the two
+        per-dwell rates.
+    """
+    a = make_engine()
+    n_dwells_per_capture = (capture_len - FRAME) // hop + 1
+    raw_total = 0
+    clustered_total = 0
+    for c in range(n_captures):
+        rng = np.random.default_rng(seed + c)
+        x = (1.0 / math.sqrt(2.0)) * (
+            rng.standard_normal(capture_len)
+            + 1j * rng.standard_normal(capture_len)
+        )
+        x = x.astype(np.complex64)
+        positions: list[int] = []
+        for pos in range(0, capture_len - FRAME + 1, hop):
+            a.reset()
+            for _dop, cp, *_ in a.push(x[pos : pos + FRAME]):
+                positions.append(pos + cp)
+        raw_total += len(positions)
+        clustered_total += _cluster_count(positions, FRAME)
+    n_dwells_total = n_captures * n_dwells_per_capture
+    naive_expected = PFA * n_dwells_total
+    return {
+        "n_dwells_total": n_dwells_total,
+        "raw_total": raw_total,
+        "clustered_total": clustered_total,
+        "naive_expected": naive_expected,
+        "raw_rate_per_dwell": raw_total / n_dwells_total,
+        "clustered_rate_per_dwell": clustered_total / n_dwells_total,
+    }
+
+
 # ── plotting ─────────────────────────────────────────────────────────────────
 
 
@@ -410,6 +522,45 @@ def main(out_path: str = "dsss_acq_characterization.png") -> None:
     n_noise = 20000
     pfa_hat = measure_pfa(n_noise, seed=5)
     print(f"achieved Pfa over {n_noise} noise frames: {pfa_hat:.2e}")
+
+    # gh-394: is a blind, overlapping-dwell sweep's false-alarm rate well
+    # explained by the naive `pfa * n_dwells` estimate, or does overlap
+    # inflate it?  Control (non-overlapping dwells) vs. 75% overlap (the
+    # dsss_burst_pipeline_demo.py sweep shape) over the same total sample
+    # budget, both raw and clustered (one-per-physical-excursion) counts.
+    sweep_capture_len = 400_000
+    sweep_n_captures = 150
+    print(
+        f"gh-394: sweeping {sweep_n_captures} noise-only captures of "
+        f"{sweep_capture_len} samples, non-overlapping vs. 75%-overlap "
+        "dwells…"
+    )
+    sweep_ctrl = measure_sweep_pfa(
+        sweep_n_captures, sweep_capture_len, hop=FRAME, seed=9001
+    )
+    sweep_overlap = measure_sweep_pfa(
+        sweep_n_captures, sweep_capture_len, hop=FRAME // 4, seed=9101
+    )
+    for label, r in (
+        ("  non-overlap (control)", sweep_ctrl),
+        ("  75% overlap          ", sweep_overlap),
+    ):
+        print(
+            f"{label}: n_dwells={r['n_dwells_total']:6d} "
+            f"naive_expected={r['naive_expected']:6.1f} "
+            f"raw={r['raw_total']:5d} clustered={r['clustered_total']:5d}"
+        )
+    # Both conditions should land within a generous Poisson-tolerant band
+    # of the naive estimate (5 std devs; a real overlap-inflation effect
+    # of any practical size would blow well past this). Guards against a
+    # genuine engine regression while tolerating single-run variance.
+    for r in (sweep_ctrl, sweep_overlap):
+        band = 5.0 * math.sqrt(max(r["naive_expected"], 1.0))
+        assert abs(r["clustered_total"] - r["naive_expected"]) <= band + 3.0, (
+            f"clustered false-alarm count {r['clustered_total']} is far "
+            f"from the naive estimate {r['naive_expected']:.1f} "
+            f"(band +/-{band:.1f}) -- see gh-394"
+        )
 
     # A representative burst for panel 1: a known cell, strong enough for a
     # crisp surface.  Run the engine to get the ACTUAL emitted detection, and

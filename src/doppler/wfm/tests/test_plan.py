@@ -142,6 +142,40 @@ def test_accepts_bundled_single_noisy_source() -> None:
     np.testing.assert_array_equal(plan.render(snr=9.0), ref)
 
 
+def test_accepts_bundled_dsss_source_with_owned_arrays() -> None:
+    # A bundled dsss source carries acq_code/data_code/sync/payload as
+    # owned arrays -- exercises the deep-copy path (not just the scalar
+    # fields) that a plain qpsk/tone bundled source above never touches.
+    rng = np.random.default_rng(0)
+    acq = rng.integers(0, 2, 64, dtype=np.uint8)
+    dat = rng.integers(0, 2, 13, dtype=np.uint8)
+    pay = rng.integers(0, 2, 40, dtype=np.uint8)
+    sync = np.array([1, 1, 1, 1, 1, 0, 0, 1, 1, 0, 1, 0, 1], dtype=np.uint8)
+
+    def _seg(snr: float) -> Segment:
+        return Segment(
+            type="dsss",
+            fs=4e6,
+            sps=4,
+            seed=1,
+            snr=snr,
+            snr_mode="esno",
+            acq_code=acq,
+            acq_reps=4,
+            data_code=dat,
+            sync=sync,
+            payload=pay,
+        )
+
+    scene = Composer(_seg(10.0))
+    plan = prepare(scene)
+    assert plan.n_sources == 1
+    np.testing.assert_array_equal(plan.render(), scene.compose())
+
+    ref = Composer(_seg(6.0)).compose()
+    np.testing.assert_array_equal(plan.render(snr=6.0), ref)
+
+
 def test_rejects_ranged_scene() -> None:
     # a swept (ranged) per-source parameter draws per-epoch → ambiguous for
     # a static Plan's signal cache (still out of scope, unlike ranged gaps)

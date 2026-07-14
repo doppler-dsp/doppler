@@ -190,6 +190,77 @@ main (void)
   CHECK (wfm_plan_prepare (jnum) == NULL, "reject ranged num_samples");
   free (jnum);
 
+  /* zero on-time is rejected. */
+  wfm_segment_t zseg = {
+    .sources = &plain_solo, .n_sources = 1, .fs = 1e6, .num_samples = 0
+  };
+  char *jzero = wfm_spec_to_json (&zseg, 1, 0, 0, 0.0);
+  CHECK (jzero, "zero-num-samples json");
+  CHECK (wfm_plan_prepare (jzero) == NULL, "reject num_samples == 0");
+  free (jzero);
+
+  /* two noise sources in one segment, or a non-trailing noise source, are
+   * both still rejected. */
+  wfm_source_t  noise_a      = { .type = 1 /* WFM_SYNTH_NOISE */, .seed = 5 };
+  wfm_source_t  noise_b      = { .type = 1, .seed = 6 };
+  wfm_source_t  two_noise[2] = { noise_a, noise_b };
+  wfm_segment_t nnseg
+      = { .sources = two_noise, .n_sources = 2, .fs = 1e6, .num_samples = L };
+  char *jnn = wfm_spec_to_json (&nnseg, 1, 0, 0, 0.0);
+  CHECK (jnn, "two-noise json");
+  CHECK (wfm_plan_prepare (jnn) == NULL, "reject two noise sources");
+  free (jnn);
+
+  wfm_source_t  leading_noise[2] = { noise_a, plain_solo };
+  wfm_segment_t lnseg            = {
+    .sources = leading_noise, .n_sources = 2, .fs = 1e6, .num_samples = L
+  };
+  char *jln = wfm_spec_to_json (&lnseg, 1, 0, 0, 0.0);
+  CHECK (jln, "leading-noise json");
+  CHECK (wfm_plan_prepare (jln) == NULL, "reject non-trailing noise source");
+  free (jln);
+
+  /* differing per-segment sample rates are rejected: Plan assumes one
+   * global fs. */
+  wfm_segment_t fsdiff[2] = {
+    { .sources = &plain_solo, .n_sources = 1, .fs = 1e6, .num_samples = L },
+    { .sources = &plain_solo, .n_sources = 1, .fs = 2e6, .num_samples = L },
+  };
+  char *jfsdiff = wfm_spec_to_json (fsdiff, 2, 0, 0, 0.0);
+  CHECK (jfsdiff, "differing-fs json");
+  CHECK (wfm_plan_prepare (jfsdiff) == NULL,
+         "reject differing per-segment fs");
+  free (jfsdiff);
+
+  /* an unbounded repeat/continuous scene has no fixed capacity. */
+  char *jrepeat = wfm_spec_to_json (&nseg, 1, /*repeat=*/1, 0, 0.0);
+  CHECK (jrepeat, "repeat json");
+  CHECK (wfm_plan_prepare (jrepeat) == NULL, "reject repeat=true scene");
+  free (jrepeat);
+  char *jcont = wfm_spec_to_json (&nseg, 1, 0, /*continuous=*/1, 0.0);
+  CHECK (jcont, "continuous json");
+  CHECK (wfm_plan_prepare (jcont) == NULL, "reject continuous=true scene");
+  free (jcont);
+
+  /* anchor_seed: NULL plan, and a fully clean (no-noise) scene, both == 0. */
+  CHECK (wfm_plan_anchor_seed (NULL) == 0, "anchor_seed(NULL) == 0");
+  wfm_source_t  clean_solo = { .type      = 4,
+                               .snr       = 100.0, /* clean: no noise at all */
+                               .seed      = 41,
+                               .sps       = 8,
+                               .pn_length = 7 };
+  wfm_segment_t cseg       = {
+    .sources = &clean_solo, .n_sources = 1, .fs = 1e6, .num_samples = L
+  };
+  char *jclean = wfm_spec_to_json (&cseg, 1, 0, 0, 0.0);
+  CHECK (jclean, "clean json");
+  wfm_plan_t *pclean = wfm_plan_prepare (jclean);
+  CHECK (pclean, "accept clean (no-noise) scene");
+  CHECK (wfm_plan_anchor_seed (pclean) == 0,
+         "anchor_seed == 0 for a no-noise scene");
+  wfm_plan_destroy (pclean);
+  free (jclean);
+
   /* ── bundled: a lone source carrying its own real SNR is now accepted;
    * its AWGN is baked into a per-instance noise-reconstruction synth, not a
    * separable external multiply (see wfm_plan.c's BUNDLED mode). ── */
@@ -219,6 +290,15 @@ main (void)
   CHECK (memcmp (ref, got, bytes) == 0,
          "BUNDLED SNR: render(snr=9) == compose(solo@9)");
   free (jsolo9);
+
+  /* an enable override on a bundled segment drops both its signal AND its
+   * (baked-in) noise -- the whole synth's contribution, exactly like the
+   * composer's own external gain[0] would. */
+  CHECK (wfm_plan_render (psolo, "{\"enable\":[false]}", got) == L,
+         "bundled render disabled");
+  for (size_t i = 0; i < L; i++)
+    CHECK (got[i] == 0.0f, "BUNDLED ENABLE: disabling zeroes the output");
+
   wfm_plan_destroy (psolo);
   free (jsolo);
 
@@ -307,15 +387,18 @@ main (void)
    * override redraws the gap length, changing the materialized length. ── */
   wfm_source_t rgsrc
       = { .type = 4, .snr = 10.0, .seed = 33, .sps = 8, .pn_length = 7 };
-  wfm_segment_t rgseg = { .sources        = &rgsrc,
-                          .n_sources      = 1,
-                          .fs             = 1e6,
-                          .num_samples    = L / 4,
-                          .off_samples    = 32,
-                          .off_samples_hi = 256,
-                          .ranged         = WFM_RANGE_OFF_SAMPLES,
-                          .repeats        = 3 };
-  char         *jrg   = wfm_spec_to_json (&rgseg, 1, 0, 0, 0.0);
+  wfm_segment_t rgseg
+      = { .sources          = &rgsrc,
+          .n_sources        = 1,
+          .fs               = 1e6,
+          .num_samples      = L / 4,
+          .off_samples      = 32,
+          .off_samples_hi   = 256,
+          .delay_samples    = 16,
+          .delay_samples_hi = 128,
+          .ranged           = WFM_RANGE_OFF_SAMPLES | WFM_RANGE_DELAY_SAMPLES,
+          .repeats          = 3 };
+  char *jrg = wfm_spec_to_json (&rgseg, 1, 0, 0, 0.0);
   CHECK (jrg, "ranged-gap json");
   wfm_compose_state_t *rgc = wfm_compose_from_json (jrg);
   CHECK (rgc, "ranged-gap compose parse");

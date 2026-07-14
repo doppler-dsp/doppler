@@ -164,3 +164,6 @@ class MovingAverage:
     def __enter__(self) -> "MovingAverage": ...
 
     def __exit__(self, *args: object) -> None: ...
+
+def design_lowpass(fpass: float = 0.4, fstop: float = 0.6, atten_db: float = 60.0) -> NDArray[np.float32]:
+    """Kaiser-windowed-sinc lowpass FIR taps, auto-sized by kaiser_num_taps (Nyquist-normalised fpass/fstop band edges, unit-DC-gain float32 taps)."""

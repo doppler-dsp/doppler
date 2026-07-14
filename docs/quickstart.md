@@ -100,6 +100,11 @@ y = fir.execute(x)
 print(f"filtered {len(y)} samples through a {len(taps)}-tap FIR")
 ```
 
+The walkthrough above spells out the windowed-sinc method by hand; for real
+use, `doppler.filter.design_lowpass` does the same design in one call —
+`n_taps` sized automatically from the requested band edges/attenuation, no
+`scipy` dependency (see [Filter design helpers](api/python-filter.md#filter-design-helpers)).
+
 ### Resample
 
 `RateConverter` picks the cheapest cascade (halfband / CIC / polyphase) for

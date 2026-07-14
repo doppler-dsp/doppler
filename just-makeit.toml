@@ -493,6 +493,31 @@ objects = ["acc_f32", "acc_cf64", "acc_trace"]
 
 [module.filter]
 objects = ["fir", "boxcar"]
+# resample_core: kaiser_num_taps/kaiser_beta (FIR-design sizing/beta) for
+# design_lowpass. spectral_core: kaiser_window (formula-agnostic generator).
+extra_link_libs = ["spectral_core", "resample_core"]
+
+[[module.filter.functions]]
+name = "design_lowpass"
+doc = "Kaiser-windowed-sinc lowpass FIR taps, auto-sized by kaiser_num_taps (Nyquist-normalised fpass/fstop band edges, unit-DC-gain float32 taps)."
+out_type = "float"
+variable_output = true
+out_size = "kaiser_num_taps(1, atten_db, fpass / 2.0, fstop / 2.0) | 1"
+
+[[module.filter.functions.params]]
+name = "fpass"
+type = "double"
+default = "0.4"
+
+[[module.filter.functions.params]]
+name = "fstop"
+type = "double"
+default = "0.6"
+
+[[module.filter.functions.params]]
+name = "atten_db"
+type = "double"
+default = "60.0"
 
 [module.source]
 objects = ["nco", "lo", "awgn"]

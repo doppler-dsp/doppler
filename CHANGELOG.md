@@ -13,6 +13,47 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+## [0.33.5] — 2026-07-13
+
+Stream-component ergonomics, prompted by a real aarch64 user hitting
+`undefined reference to dp_pub_create` hours after 0.33.4 — the
+two-component core/stream split stays (its rationale held), and the
+remaining friction is gone and gated.
+
+### Added
+
+- **`doppler_stream.pc`** — one pkg-config name for the whole streaming
+    link line: `pkg-config --cflags --libs doppler_stream` emits both
+    libraries in the right order (`Requires: doppler`), relocatable like
+    `doppler.pc`. Ships in the release tarballs and any
+    `cmake --install` tree.
+- **The three consumer faces, CI-verified** — one consumer (the FFT
+    example plus an optional `dp_pub_*` call) is built via bare `cc`
+    (static archives), CMake (`find_package` + `doppler::stream`), and
+    pkg-config, and the three binaries' output is asserted identical —
+    continuously in CI against a fresh install prefix, and in the
+    post-release smoke against the published tarball on linux-x86_64,
+    linux-aarch64, and macos-arm64.
+- **C Quick Start page** (`quickstart-c.md`, top-level nav) — get the
+    library via `jbx get-doppler`, the consumer, and the three faces as
+    tabs; every snippet is included from the tested files, so the shown
+    commands are the smoke commands.
+- **C snippet gate: `no-run=` and `broker=` markers** — a complete
+    program that only can't *run* headless keeps its full `-Werror`
+    compile check (`skip=` used to drop it); `broker=` additionally runs
+    the snippet wherever a NATS broker is reachable (CI provides one).
+
+### Fixed
+
+- The streaming examples page never showed a link command — it now
+    opens with the two-archive link line and names the exact
+    `undefined reference to dp_pub_create` symptom (`dp_pub_*` lives in
+    the optional `libdoppler_stream`, not the core).
+- `install/c.md`'s "System install" led with `cmake --install build`,
+    presupposing a source tree — it now leads with
+    `jbx get-doppler --prefix /usr/local` and keeps the from-source
+    variant second.
+
 ## [0.33.4] — 2026-07-13
 
 A docs-quality release, culminating in a six-phase campaign
@@ -2738,6 +2779,7 @@ ______________________________________________________________________
 [0.33.2]: https://github.com/doppler-dsp/doppler/compare/v0.33.1...v0.33.2
 [0.33.3]: https://github.com/doppler-dsp/doppler/compare/v0.33.2...v0.33.3
 [0.33.4]: https://github.com/doppler-dsp/doppler/compare/v0.33.3...v0.33.4
+[0.33.5]: https://github.com/doppler-dsp/doppler/compare/v0.33.4...v0.33.5
 [0.4.0]: https://github.com/doppler-dsp/doppler/compare/v0.3.7...v0.4.0
 [0.4.1]: https://github.com/doppler-dsp/doppler/compare/v0.4.0...v0.4.1
 [0.5.0]: https://github.com/doppler-dsp/doppler/compare/v0.4.1...v0.5.0
@@ -2750,4 +2792,4 @@ ______________________________________________________________________
 [0.7.0]: https://github.com/doppler-dsp/doppler/compare/v0.6.0...v0.7.0
 [0.8.0]: https://github.com/doppler-dsp/doppler/compare/v0.7.0...v0.8.0
 [0.9.0]: https://github.com/doppler-dsp/doppler/compare/v0.8.0...v0.9.0
-[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.33.4...HEAD
+[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.33.5...HEAD

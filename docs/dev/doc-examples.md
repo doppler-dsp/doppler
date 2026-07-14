@@ -174,21 +174,26 @@ illustrative fragment whose names come from prose.
 
 ## C fences
 
-C has no REPL and no doctest notion, so a ```` ```c ```` fence has **three**
+C has no REPL and no doctest notion, so a ```` ```c ```` fence has **five**
 states instead of Python's four — no per-page shared namespace either, since
 each fence is a fully independent compile-and-run:
 
-| State       | How                                                | Proves                                                   | Use for                     |
-| ----------- | -------------------------------------------------- | -------------------------------------------------------- | --------------------------- |
-| **exec**    | plain ```` ```c ```` with its own `int main(void)` | compiles + runs, exit 0                                  | it *builds and runs*        |
-| **include** | `--8<--` from a tested `examples/c/*.c`            | byte-identical to code `make test-examples` already runs | zero drift, by construction |
-| **skip**    | `<!-- docs-snippet: skip=REASON -->`               | nothing (documents *why*)                                | —                           |
+| State       | How                                                | Proves                                                   | Use for                                         |
+| ----------- | -------------------------------------------------- | -------------------------------------------------------- | ----------------------------------------------- |
+| **exec**    | plain ```` ```c ```` with its own `int main(void)` | compiles + runs, exit 0                                  | it *builds and runs*                            |
+| **include** | `--8<--` from a tested `examples/c/*.c`            | byte-identical to code `make test-examples` already runs | zero drift, by construction                     |
+| **broker**  | `<!-- docs-snippet: broker=REASON -->`             | compiles everywhere; runs where a broker is on :4222     | complete program that talks to a broker         |
+| **no-run**  | `<!-- docs-snippet: no-run=REASON -->`             | compiles `-Werror` against the real headers + link line  | complete program whose run blocks on a peer     |
+| **skip**    | `<!-- docs-snippet: skip=REASON -->`               | nothing (documents *why*)                                | genuine fragments (no `main`, undeclared names) |
 
 The same "runnable-first" bias applies: a fragment missing `main()` or an
 `#include` is usually one edit from genuinely compiling — prefer fixing it
-over skipping. Reach for `skip=` only for what truly can't run headless (a
-blocking `recv()` waiting on a live broker/peer, or a struct-layout /
-signature-only excerpt never meant to stand alone) — same bar as Python's.
+over skipping. A complete program that only can't *run* headless takes
+`no-run=` (blocking `recv()` on a live peer) or `broker=` (needs only a
+broker — CI provides one), both of which still compile it with the full
+`-Werror` consumer recipe; `skip=` drops even the compile check, so it is
+for genuine fragments only (a struct-layout or signature-only excerpt
+never meant to stand alone).
 
 ## The burn-down backlog
 

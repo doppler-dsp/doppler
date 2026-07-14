@@ -4,7 +4,22 @@
 
 Requires a running `nats-server` (e.g. `nats-server -js`).
 
+`dp_pub_*`/`dp_sub_*` live in the **optional stream archive**, not the
+core library — an `undefined reference to dp_pub_create` means
+`libdoppler_stream.a` is missing from the link line. Compile any snippet
+on this page with both archives (either order works; the stream layer is
+pure C and adds only `-lpthread`):
+
+```sh
+cc app.c -I "$HOME/.local/doppler/include" \
+   "$HOME/.local/doppler/lib/libdoppler_stream.a" \
+   "$HOME/.local/doppler/lib/libdoppler.a" \
+   -lm -lpthread -o app
+```
+
 ### Transmitter
+
+<!-- docs-snippet: broker=publishes to a live broker; CI's python-tests job provides one, compile-checked everywhere -->
 
 ```c
 #include <stream/stream.h>
@@ -28,7 +43,7 @@ int main(void) {
 
 ### Receiver
 
-<!-- docs-snippet: skip=blocking NATS recv, needs a live transmitter + broker; covered by stream tests -->
+<!-- docs-snippet: no-run=blocking recv needs a live transmitter; compile-checked against the real wire API, round-trip covered by stream tests -->
 
 ```c
 #include <stream/stream.h>

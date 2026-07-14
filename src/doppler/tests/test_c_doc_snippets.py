@@ -122,7 +122,17 @@ def _cc() -> str:
     pytest.skip("no C compiler (cc/gcc/clang) on PATH")
 
 
-def _compile_and_run(blockid, code, tmp_path):
+def _broker_reachable(host="127.0.0.1", port=4222):
+    import socket
+
+    try:
+        with socket.create_connection((host, port), timeout=0.5):
+            return True
+    except OSError:
+        return False
+
+
+def _compile_and_run(blockid, code, tmp_path, run=True):
     src = tmp_path / "snippet.c"
     src.write_text(code)
     exe = tmp_path / "snippet"
@@ -190,6 +200,9 @@ def _compile_and_run(blockid, code, tmp_path):
             f"----- cc stderr -----\n{compiled.stderr}"
         )
 
+    if not run:
+        return  # no-run= / broker-unreachable: compile check only
+
     try:
         ran = subprocess.run(
             [str(exe)],
@@ -212,6 +225,7 @@ def _compile_and_run(blockid, code, tmp_path):
 
 
 def _run_one(blockid, marker, code, tmp_path):
+    run = True
     if marker is not None:
         kind, _, rest = marker.partition("=")
         kind, rest = kind.strip(), rest.strip()
@@ -221,13 +235,30 @@ def _run_one(blockid, marker, code, tmp_path):
                 f"`<!-- docs-snippet: skip=why -->`"
             )
             return
-        raise AssertionError(
-            f"{blockid}: unknown docs-snippet marker {marker!r} "
-            f"(expected skip= -- C fences don't support raises=)"
-        )
+        elif kind == "no-run":
+            # Compile with the full -Werror consumer recipe but never
+            # execute: for a complete program whose run blocks on a
+            # live peer by design. The snippet stays verified against
+            # the real headers and link line -- skip= would drop even
+            # that.
+            assert rest, f"{blockid}: no-run marker needs a reason"
+            run = False
+        elif kind == "broker":
+            # Compile always; execute only when a NATS broker is
+            # reachable on 127.0.0.1:4222 (CI's python-tests job
+            # starts one) -- the same idiom as the Python gate's
+            # broker= and the example gate's broker: registry class.
+            assert rest, f"{blockid}: broker marker needs a reason"
+            run = _broker_reachable()
+        else:
+            raise AssertionError(
+                f"{blockid}: unknown docs-snippet marker {marker!r} "
+                f"(expected skip=, no-run=, or broker= -- C fences "
+                f"don't support raises=)"
+            )
 
     code = _resolve_snippets(code)  # inline any --8<-- gold-standard includes
-    _compile_and_run(blockid, code, tmp_path)
+    _compile_and_run(blockid, code, tmp_path, run=run)
 
 
 @pytest.mark.docs_snippets

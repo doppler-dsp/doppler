@@ -128,6 +128,18 @@ jobs:
         ( cd "${RUNNER_TEMP}" && ./consumer_smoke )
         echo "OK — libdoppler.a links into a downstream with only -lm on ${{ matrix.os }}."
 
+    - name: Smoke-test the three consumer faces (cc / CMake / pkg-config)
+      # Installs the fresh build to a scratch prefix and builds the
+      # core+stream consumer via all three documented faces, asserting
+      # identical output. The docs' "Compile it — three ways" snippets
+      # are --8<-- included from build-three-ways.sh itself, so this
+      # step proves exactly what readers copy. release-smoke.sh repeats
+      # it against the published tarball on every release (x86_64,
+      # aarch64, macOS).
+      run: |
+        cmake --install build --prefix "${RUNNER_TEMP}/pfx"
+        bash tests/install/stream-consumer/build-three-ways.sh "${RUNNER_TEMP}/pfx"
+
   # ------------------------------------------------------------------
   # Python package build + pytest
   # ------------------------------------------------------------------

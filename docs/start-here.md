@@ -10,6 +10,7 @@ answers it.
 | Accomplish a task end-to-end       | [Guides](guide/index.md) — task-oriented walkthroughs (lock detection, DSSS acquisition, PSD, real-time pacing) |
 | Understand why it's built this way | [Design](design/index.md) — architecture decisions and algorithm rationale                                      |
 | Add a module or contribute         | [Contributing](dev/index.md) — repo layout, module conventions, release process                                 |
+| Build a C program against doppler  | [C Quick Start](quickstart-c.md) — get the library + the three CI-verified build faces (cc/CMake/pkg-config)    |
 | Look up a raw C signature          | [C API](c-api/index.md) — machine-generated from the C headers                                                  |
 | Compose and stream a waveform      | [Waveform Generator](guide/wfmgen/index.md) — wfmgen's own top-level nav section                                |
 

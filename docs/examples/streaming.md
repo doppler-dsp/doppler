@@ -11,11 +11,12 @@ on this page with both archives (either order works; the stream layer is
 pure C and adds only `-lpthread`):
 
 ```sh
-cc app.c -I "$HOME/.local/doppler/include" \
-   "$HOME/.local/doppler/lib/libdoppler_stream.a" \
-   "$HOME/.local/doppler/lib/libdoppler.a" \
-   -lm -lpthread -o app
+PREFIX="$HOME/.local/doppler"
+--8<-- "tests/install/stream-consumer/build-three-ways.sh:cc"
 ```
+
+(CMake and pkg-config faces of the same link line:
+[C Quick Start](../quickstart-c.md#compile-it-three-ways).)
 
 ### Transmitter
 

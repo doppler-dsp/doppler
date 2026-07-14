@@ -118,10 +118,14 @@ gcc -o app main.c $(pkg-config --cflags --libs doppler)
 gcc -o app main.c $(pkg-config --cflags doppler) \
     "$(pkg-config --variable=libdir doppler)/libdoppler.a" -lm
 
-# static + the optional NATS stream layer (pure C, no extra runtime)
+# the optional NATS stream layer has its own module — one name gives
+# the whole line (shared; Requires: doppler)
+gcc -o app main.c $(pkg-config --cflags --libs doppler_stream) -lm
+
+# static + stream: name the archives explicitly
 gcc -o app main.c $(pkg-config --cflags doppler) \
-    "$(pkg-config --variable=libdir doppler)/libdoppler.a" \
     "$(pkg-config --variable=libdir doppler)/libdoppler_stream.a" \
+    "$(pkg-config --variable=libdir doppler)/libdoppler.a" \
     -lpthread -lm
 ```
 

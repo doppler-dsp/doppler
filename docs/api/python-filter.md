@@ -73,6 +73,31 @@ ______________________________________________________________________
 
 ______________________________________________________________________
 
+## Filter design helpers
+
+`design_lowpass` composes `doppler.resample.kaiser_num_taps` /
+`kaiser_beta` and `doppler.spectral.kaiser_window` into a one-call
+windowed-sinc lowpass design: `n_taps` is sized automatically from the
+requested passband/stopband edges and stopband attenuation — no
+hand-rolled sinc/window math or `scipy` dependency required.
+`fpass`/`fstop` are Nyquist-normalised (`1.0` == fs/2), matching the
+convention `kaiser_num_taps` already uses.
+
+```python
+from doppler.filter import FIR, design_lowpass
+import numpy as np
+
+taps = design_lowpass(fpass=0.4, fstop=0.6, atten_db=60.0)
+filt = FIR(taps)
+
+x = np.random.randn(4096).astype(np.complex64)
+y = filt.execute(x)
+```
+
+::: doppler.filter.design_lowpass
+
+______________________________________________________________________
+
 ## Moving average (boxcar)
 
 `MovingAverage` is a sliding-window boxcar filter over the last `len` complex

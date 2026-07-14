@@ -553,6 +553,29 @@ lint idea: warn during `jm apply` when a header `@param`'s `(default: X)`
 annotation contradicts the manifest default, so this class of doc rot is
 caught automatically instead of by manual diff review.
 
+### 0.29.0 adoptions — aarch64/NEON tier (jm#473, pin: 0.29.0)
+
+The CI drift gate now pins **0.29.0** (`ci.yml` + `perf-regression.yml`);
+`jm_version` is stamped 0.29.0. **Drive doppler with
+`uvx --from 'just-makeit==0.29.0' just-makeit …`.** Pure tooling bump —
+`jm apply` produced **zero codegen drift** (3412 manifest-owned files
+matched before and after); full rebuild + `ctest` (82/82) + `pytest`
+(2152 passed, excluding the sandbox's unrelated pre-existing NATS-broker
+failures) both green on this machine, which happens to be aarch64.
+
+0.29.0 ships **aarch64 (Linux) NEON support** in `jm_simd.h` (4x f32 / 2x
+f64 lanes via `float32x4_t`/`float64x2_t`, `vfmaq_f32`/`vfmaq_f64`,
+`vaddvq_f32`/`vaddvq_f64`) alongside the existing AVX-512/AVX2 tiers —
+aarch64 already built and ran correctly via the scalar fallback; this
+closes the SIMD gap. **Gotcha checked and not applicable to doppler**:
+NEON is unconditional on aarch64 (unlike AVX2/AVX-512, gated behind
+compiler flags), so any `JM_DEFINE_STEPS`/`JM_DEFINE_STEPS_EX`
+stateless (`LENGTH=0`) object now needs a placeholder `state->delay`
+member for the generated code to compile — doppler has zero uses of
+either macro (`perf = "true"` only drives `JM_HOT`/`JM_FORCEINLINE`
+annotations, a separate mechanism), so this doesn't affect any object
+here.
+
 ______________________________________________________________________
 
 ## State serialization

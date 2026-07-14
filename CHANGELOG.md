@@ -13,6 +13,18 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+### Added
+
+- **`Plan` sweeps multi-segment / repeated / ranged-gap scenes.** The
+    prepare-once stimulus cache now supports any number of finite segments,
+    `repeats=N` bounded instancing, ranged `off_samples`/`delay_samples`
+    (redrawn per instance from the Plan's seed), and a lone bundled noisy
+    source (its AWGN reconstructed via a per-instance noise synth rather
+    than an external multiply) — the canonical 5-burst DSSS train can now
+    be swept in place instead of re-composed per point. Still out of scope:
+    a ranged on-time or any ranged per-source field (both would invalidate
+    the cached signal render). Fixes #410.
+
 ## [0.33.5] — 2026-07-13
 
 Stream-component ergonomics, prompted by a real aarch64 user hitting

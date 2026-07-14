@@ -180,14 +180,16 @@ def _spec_json(scene: Composer | str | bytes) -> str:
 class Plan:
     """A prepared scene that re-materializes parameter variations cheaply.
 
-    A composed multi-source scene is a linear form
+    A composed scene is a sequence of segments, each a linear form
     ``Σ gainₖ·signalₖ + noise``; the expensive DSP (spreading, pulse shaping,
     the LO) lives entirely in the *signal* terms, which do not change when you
-    sweep a level, a phase, the SNR, or the noise seed. :class:`Plan` renders
-    each source once (bit-identically to a full compose), caches it, and then
-    serves every variation as a cheap re-weighted sum — so a BER/Pd curve or a
-    Monte-Carlo campaign that re-runs one scene hundreds of times pays the DSP
-    cost *once*.
+    sweep a level, a phase, the SNR, or the noise seed — nor across a
+    segment's ``repeats`` instances (only the AWGN, and any ranged gap
+    length, vary per instance). :class:`Plan` renders each segment's signal
+    once (bit-identically to a full compose), caches it, and then serves
+    every variation as a cheap re-weighted sum plus a regenerated noise
+    synth per instance — so a BER/Pd curve or a Monte-Carlo campaign that
+    re-runs one scene hundreds of times pays the DSP cost *once*.
 
     Construct it from anything :func:`_spec_json` accepts — most often a
     :class:`Composer` (or call :func:`prepare`). The baseline ``render()`` (no
@@ -201,13 +203,21 @@ class Plan:
 
     Notes
     -----
-    v1 supports a single finite (non-ranged, no off-gap) ``sum`` segment with
-    at most one noise floor; a lone *bundled* noisy source (its private RNG is
-    fused into the signal) is not separable and raises ``ValueError`` at
-    construction. The overridable axes are per-source ``gains`` (dBFS levels),
-    ``phases`` (radians), ``enable`` (drop a source), the global ``snr`` (the
-    noise floor), and the Monte-Carlo ``seed``. Frequency (Doppler) and delay
-    (multipath) are planned follow-ups.
+    Any number of finite segments (no ``continuous``/``repeat`` scene — that
+    has no fixed capacity); each segment may declare ``repeats`` and ranged
+    ``off_samples``/``delay_samples`` (redrawn per instance, deterministic
+    from the Plan's seed). A lone *bundled* noisy source (one source
+    carrying its own SNR) is supported: its AWGN is reconstructed via a
+    per-instance noise synth rather than an external multiply. Still out of
+    scope, and raising ``ValueError`` at construction: a ranged on-time
+    (``num_samples`` — it would invalidate the fixed-length signal cache) or
+    any ranged per-source field (``freq``/``snr``/``level``/``f_end`` —
+    redrawing one would invalidate its cached render). The overridable axes
+    are per-source ``gains`` (dBFS levels), ``phases`` (radians), ``enable``
+    (drop a source), the global ``snr`` (the noise floor), and the
+    Monte-Carlo ``seed`` (also redraws any ranged gap length) — applied
+    uniformly across every segment/instance that carries noise. Frequency
+    (Doppler) and multipath delay are planned follow-ups.
 
     Examples
     --------
@@ -242,10 +252,11 @@ class Plan:
             # The generated ctor returns NULL → RuntimeError for an
             # unparseable or out-of-scope spec; ValueError is the honest sign.
             raise ValueError(
-                "scene cannot be prepared as a Plan: expected a single "
-                "finite, non-ranged sum segment with a separable noise floor "
-                "(a lone bundled noisy source, a multi-segment / continuous / "
-                "repeat / ranged scene is out of v1 scope)"
+                "scene cannot be prepared as a Plan: expected finite "
+                "segments (no continuous/repeat scene) with a ranged "
+                "on-time or a ranged per-source field (freq/snr/level/"
+                "f_end) -- ranged off_samples/delay_samples and repeats "
+                "are supported, as is a lone bundled noisy source"
             ) from exc
 
     def render(

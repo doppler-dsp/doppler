@@ -618,8 +618,9 @@ exec'd or `>>>`-output-checked, page = one shared-namespace notebook),
 against the CLIs' real `build_parser()`; safe fences execute under
 `bash -e` in a per-page cwd with ```` ```json title="f.json" ````
 fences materialized as files). Markers, reasons mandatory:
-`skip=`, `raises=`, `broker=` (runs iff a NATS broker is on :4222 —
-CI has one), `no-exec=` (sh only: parse-validate, don't run).
+`skip=`, `raises=` (py), `broker=` (py+C: runs iff a NATS broker is on
+:4222 — CI has one; C compiles regardless), `no-run=` (C:
+compile-`-Werror` only) and `no-exec=` (sh: parse-validate only).
 
 **Examples**: every `src/doppler/examples/*.py` runs via
 `test_examples.py` (glob-discovered; skips in

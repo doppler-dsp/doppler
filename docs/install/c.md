@@ -61,13 +61,26 @@ for why static vendoring was chosen over a system client-library dependency.
 
 ## System install
 
-Install headers and libraries to the system prefix (default `/usr/local`):
+Install headers and libraries to a system prefix (default `/usr/local`)
+so `find_package`/`pkg-config` resolve with no per-project paths.
+
+**From a release tarball (no toolchain, no build)** — point
+`jbx get-doppler` at the prefix. The `sudo env "PATH=$PATH"` form keeps
+`jbx` findable under sudo's restricted PATH:
+
+```sh
+sudo env "PATH=$PATH" jbx get-doppler --prefix /usr/local
+sudo ldconfig
+```
+
+**From a source build** — only if you already
+[built from source](source.md) (a `build/` tree exists):
 
 ```sh
 --8<-- "tests/install/cmake-install.sh:install"
 ```
 
-Verify the install is visible to your toolchain:
+Either way, verify the install is visible to your toolchain:
 
 ```sh
 --8<-- "tests/install/cmake-install.sh:verify"

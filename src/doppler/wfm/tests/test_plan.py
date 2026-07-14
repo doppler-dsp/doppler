@@ -119,17 +119,66 @@ def test_context_manager_closes() -> None:
         np.testing.assert_array_equal(plan.render(), scene.compose())
 
 
-def test_rejects_bundled_single_noisy_source() -> None:
-    # one source carrying SNR → its RNG is fused into the signal, not separable
-    bundled = Composer(
-        Segment.sum(qpsk(snr=12.0, seed=7), fs=1e6, num_samples=1024)
+def test_accepts_bundled_single_noisy_source() -> None:
+    # A lone source carrying its own SNR is now separable: its AWGN is
+    # reconstructed via a per-instance noise synth rather than an external
+    # multiply (BUNDLED mode), matching a full compose bit-for-bit.
+    scene = Composer(
+        Segment.sum(
+            qpsk(snr=12.0, seed=7, sps=8, pn_length=7),
+            fs=1e6,
+            num_samples=1024,
+        )
     )
-    with pytest.raises(ValueError):
-        prepare(bundled)
+    plan = prepare(scene)
+    assert plan.n_sources == 1
+    np.testing.assert_array_equal(plan.render(), scene.compose())
+
+    ref = Composer(
+        Segment.sum(
+            qpsk(snr=9.0, seed=7, sps=8, pn_length=7), fs=1e6, num_samples=1024
+        )
+    ).compose()
+    np.testing.assert_array_equal(plan.render(snr=9.0), ref)
+
+
+def test_accepts_bundled_dsss_source_with_owned_arrays() -> None:
+    # A bundled dsss source carries acq_code/data_code/sync/payload as
+    # owned arrays -- exercises the deep-copy path (not just the scalar
+    # fields) that a plain qpsk/tone bundled source above never touches.
+    rng = np.random.default_rng(0)
+    acq = rng.integers(0, 2, 64, dtype=np.uint8)
+    dat = rng.integers(0, 2, 13, dtype=np.uint8)
+    pay = rng.integers(0, 2, 40, dtype=np.uint8)
+    sync = np.array([1, 1, 1, 1, 1, 0, 0, 1, 1, 0, 1, 0, 1], dtype=np.uint8)
+
+    def _seg(snr: float) -> Segment:
+        return Segment(
+            type="dsss",
+            fs=4e6,
+            sps=4,
+            seed=1,
+            snr=snr,
+            snr_mode="esno",
+            acq_code=acq,
+            acq_reps=4,
+            data_code=dat,
+            sync=sync,
+            payload=pay,
+        )
+
+    scene = Composer(_seg(10.0))
+    plan = prepare(scene)
+    assert plan.n_sources == 1
+    np.testing.assert_array_equal(plan.render(), scene.compose())
+
+    ref = Composer(_seg(6.0)).compose()
+    np.testing.assert_array_equal(plan.render(snr=6.0), ref)
 
 
 def test_rejects_ranged_scene() -> None:
-    # a swept (ranged) parameter draws per-epoch → ambiguous for a static Plan
+    # a swept (ranged) per-source parameter draws per-epoch → ambiguous for
+    # a static Plan's signal cache (still out of scope, unlike ranged gaps)
     ranged = Composer(
         Segment.sum(
             qpsk(snr=[6.0, 12.0], seed=7),
@@ -140,3 +189,76 @@ def test_rejects_ranged_scene() -> None:
     )
     with pytest.raises(ValueError):
         prepare(ranged)
+
+
+def test_rejects_ranged_num_samples() -> None:
+    # a ranged on-time would invalidate the fixed-length signal cache
+    ranged = Composer(
+        Segment.sum(
+            qpsk(snr=12.0, seed=7),
+            fs=1e6,
+            num_samples=(1024, 2048),
+        )
+    )
+    with pytest.raises(ValueError):
+        prepare(ranged)
+
+
+def test_multi_segment_plan_matches_compose() -> None:
+    segs = [
+        Segment.sum(
+            qpsk(snr=12.0, seed=7, sps=8, pn_length=7),
+            fs=1e6,
+            num_samples=1024,
+            off_samples=200,
+        ),
+        Segment.sum(
+            tone(freq=2e5, seed=11, level=-3.0), fs=1e6, num_samples=512
+        ),
+    ]
+    scene = Composer(segs)
+    plan = prepare(scene)
+    assert len(plan) == 1024 + 200 + 512
+    assert plan.n_sources == 2
+    np.testing.assert_array_equal(plan.render(), scene.compose())
+
+
+def test_repeats_plan_matches_compose() -> None:
+    scene = Composer(
+        Segment.sum(
+            qpsk(snr=10.0, seed=21, sps=8, pn_length=7),
+            fs=1e6,
+            num_samples=256,
+            off_samples=64,
+            repeats=4,
+        )
+    )
+    plan = prepare(scene)
+    assert len(plan) == 4 * (256 + 64)
+    np.testing.assert_array_equal(plan.render(), scene.compose())
+    # per-instance AWGN differs: the 4 (equal-length) bursts are not
+    # identical to each other.
+    rendered = plan.render()
+    burst0 = rendered[:256]
+    burst1 = rendered[256 + 64 : 256 + 64 + 256]
+    assert not np.array_equal(burst0, burst1)
+
+
+def test_ranged_gap_redraws_per_seed() -> None:
+    scene = Composer(
+        Segment.sum(
+            qpsk(snr=10.0, seed=33, sps=8, pn_length=7),
+            fs=1e6,
+            num_samples=256,
+            off_samples=(32, 256),
+            repeats=3,
+        )
+    )
+    plan = prepare(scene)
+    # baseline (no seed override) reproduces a full compose bit-for-bit --
+    # the segment's own draw seed (epoch 0), same as the no-Plan path.
+    np.testing.assert_array_equal(plan.render(), scene.compose())
+
+    r1 = plan.render(seed=101)
+    r2 = plan.render(seed=202)
+    assert len(r1) != len(r2) or not np.array_equal(r1, r2)

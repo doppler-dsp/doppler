@@ -1,29 +1,58 @@
 /*
  * wfm_plan.h — "prepare once, materialize many" stimulus engine.
  *
- * A composed multi-source scene is a linear form
+ * A composed scene is a sequence of segments, each a linear form
  *
- *     out = Σ_k gain_k · signal_k  +  noise
+ *     segment = Σ_k gain_k · signal_k  +  noise
  *
  * (wfm_resolve_noise() cleans every signal source and appends one
- * WFM_SYNTH_NOISE source at the shared floor). The expensive DSP — LFSR
- * spread, RRC convolution, transcendental LO — lives entirely in the signal
- * terms, which are INVARIANT across a parameter sweep. So a Plan renders each
- * source's contribution ONCE (via the composer's own wfm_compose_build_synth,
- * so a cached render is byte-identical to a full compose), caches it, and then
- * re-materializes any variation as a cheap re-weighted sum + a regenerated
- * noise floor:
+ * WFM_SYNTH_NOISE source at the shared floor, for a multi-source segment; a
+ * lone source carrying its own real SNR keeps it — its AWGN is baked into
+ * its own synth, "bundled"). The expensive DSP — LFSR spread, RRC
+ * convolution, transcendental LO — lives entirely in the signal terms,
+ * which are INVARIANT across a parameter sweep and across a segment's
+ * `repeats` instances (only the AWGN, and any ranged gap length, vary per
+ * instance). So a Plan renders each segment's signal ON-time ONCE (via the
+ * composer's own wfm_compose_build_synth, so a cached render is
+ * byte-identical to a full compose), caches it, and then re-materializes
+ * any variation as a cheap re-weighted sum per segment/instance plus a
+ * regenerated noise synth spanning that instance's delay+on+off:
  *
- *     render(θ) = Σ_k g_k(θ)·e^{jφ_k(θ)}·cache_k  +  gain(snr(θ))·noise(seed(θ))
+ *     render(θ) = concat over segments, repeat instances of
+ *                 [ noise(delay) | Σ_k g_k(θ)·e^{jφ_k(θ)}·cache_k + noise(on) | noise(off) ]
  *
  * v1 axes (all bit-exact vs a full compose): per-source gain/level, phase,
- * enable/disable, global SNR/noise-floor and Monte-Carlo noise-seed. Frequency
- * (Doppler) and timing (multipath) are staged follow-ups on the same frame.
+ * enable/disable, global SNR/noise-floor and Monte-Carlo noise-seed —
+ * applied uniformly across every segment/instance that carries noise.
+ * Frequency (Doppler) and multipath delay are staged follow-ups on the same
+ * frame.
  *
- * Scope (v1): a single finite, non-ranged ON segment (num_samples, no gap),
- * with at most one noise source (the resolve-appended floor, which must be
- * last). A lone *bundled* noisy source (one source carrying snr) is NOT
- * separable — its private RNG stays entangled — and is rejected.
+ * Scope: any number of finite segments (no continuous/repeat scene — that
+ * has no fixed capacity); each segment may declare `repeats` (bounded
+ * instancing, AWGN fresh per instance, signal fixed) and ranged
+ * `off_samples`/`delay_samples` (redrawn per instance at materialize time,
+ * via the same deterministic hash the streaming composer uses). Still out
+ * of scope: a ranged on-time (`num_samples`) — it would invalidate the
+ * fixed-length signal cache — and any ranged per-source field
+ * (freq/snr/level/f_end) — redrawing a source's frequency or SNR would
+ * invalidate its cached render, defeating the "expensive DSP once"
+ * guarantee this exists to provide.
+ *
+ * `wfm_plan_len()` is a WORST-CASE capacity (every ranged gap at its `hi`
+ * bound): `render()`/`at()` write up to that many samples but return the
+ * ACTUAL length of that specific draw — trailing samples beyond the
+ * return value are zero padding. A `seed` override drives both the noise
+ * realization AND (for a scene with a ranged gap/delay) the gap/delay
+ * redraw; the "no-override reproduces wfm_compose to the bit" guarantee is
+ * scoped to `render()` with no `"seed"` key (or `NULL`/`"{}"` overrides) —
+ * each segment then draws from its own baked default seed (its first
+ * source's `seed` field), same as a plain compose. `at()`'s `seed` is
+ * always an explicit override (parallel to its always-explicit `snr`), so
+ * it does not carry that baseline guarantee for a ranged-gap scene.
+ *
+ * `gains`/`phases`/`enable` override arrays are flat and segment-major
+ * (segment 0's sources in scene order, then segment 1's, ...) — length
+ * `wfm_plan_n_sources()`.
  *
  * The Plan is a re-creatable derived cache, not evolving state: persist the
  * spec JSON (Composer.to_json()) and rebuild, rather than serializing the
@@ -47,28 +76,34 @@ typedef struct wfm_plan wfm_plan_t;
 /**
  * @brief Prepare a Plan from a composer spec JSON (Composer.to_json()).
  *
- * Parses + resolves the scene, validates the v1 scope, then renders and caches
- * each signal source at gain 1. Returns NULL on parse failure or an
- * out-of-scope spec (multi-segment, continuous/repeat, ranged, a non-trailing
- * or multiple noise source, or a lone bundled noisy source).
+ * Parses + resolves the scene, validates scope per segment, then renders
+ * and caches each segment's clean signal ON-time at gain 1. Returns NULL on
+ * parse failure or an out-of-scope spec (continuous/repeat scene, a ranged
+ * on-time, a ranged per-source field, or a non-trailing/multiple noise
+ * source within a segment).
  *
  * @param spec_json A NUL-terminated composer spec JSON string.
  * @return Heap Plan (caller wfm_plan_destroy()s it), or NULL.
  */
 wfm_plan_t *wfm_plan_prepare(const char *spec_json);
 
-/** @brief Cached length in samples (the jm binding's out_len_fn). */
+/** @brief Worst-case materialized length in samples (every ranged gap at
+ * its `hi` bound) — the jm binding's out_len_fn / allocation capacity. */
 size_t wfm_plan_len(const wfm_plan_t *p);
 
-/** @brief Number of cached signal sources (excludes the noise floor). */
+/** @brief Number of cached signal sources across every segment (excludes
+ * noise floors); the length of the `gains`/`phases`/`enable` arrays. */
 size_t wfm_plan_n_sources(const wfm_plan_t *p);
 
 /**
  * @brief The noise seed that reproduces a full compose.
  *
- * Passing this as `wfm_plan_at`'s seed (with the scene's base SNR) yields the
- * byte-identical output of `wfm_compose`. Varying the seed draws independent
- * Monte-Carlo noise realizations over the same signal.
+ * The first noisy segment's default seed (its first source's `seed`
+ * field). Passing this as `wfm_plan_at`'s seed (with the scene's base SNR)
+ * yields the byte-identical output of `wfm_compose` for a single-segment
+ * scene; for a multi-segment scene each segment still draws from its own
+ * default seed unless overridden. Varying the seed draws independent
+ * Monte-Carlo noise (and, for a ranged-gap scene, timing) realizations.
  */
 uint64_t wfm_plan_anchor_seed(const wfm_plan_t *p);
 
@@ -77,11 +112,12 @@ uint64_t wfm_plan_anchor_seed(const wfm_plan_t *p);
  *
  * `overrides_json` is a small JSON object, all keys optional:
  * `{"gains":[dB…], "phases":[rad…], "enable":[bool…], "snr":dB, "seed":u}`
- * (`gains`/`phases`/`enable` are per-source, length = wfm_plan_n_sources()).
- * An empty object (or NULL) renders the baseline — bit-identical to
- * `Composer(scene).compose()`. Writes `wfm_plan_len(p)` samples to `out`.
+ * (`gains`/`phases`/`enable` are per-source, flat and segment-major, length
+ * = wfm_plan_n_sources()). An empty object (or NULL) renders the baseline —
+ * bit-identical to `Composer(scene).compose()`. Writes up to
+ * `wfm_plan_len(p)` samples to `out`.
  *
- * @return Samples written (== wfm_plan_len(p)).
+ * @return Samples actually written for this draw (<= wfm_plan_len(p)).
  */
 size_t wfm_plan_render(const wfm_plan_t *p, const char *overrides_json,
                        float _Complex *out);
@@ -89,10 +125,11 @@ size_t wfm_plan_render(const wfm_plan_t *p, const char *overrides_json,
 /**
  * @brief Scalar fast-path for the hot Monte-Carlo/SNR loop (no JSON parse).
  *
- * `out = Σ gain_k·cache_k + gain(snr)·noise(seed)`; writes `wfm_plan_len(p)`
- * samples. Equivalent to `render` with only `{"snr":snr,"seed":seed}`.
+ * `out = Σ gain_k·cache_k + gain(snr)·noise(seed)` per segment/instance;
+ * writes up to `wfm_plan_len(p)` samples. Equivalent to `render` with only
+ * `{"snr":snr,"seed":seed}` — `seed` is always an explicit override here.
  *
- * @return Samples written (== wfm_plan_len(p)).
+ * @return Samples actually written for this draw (<= wfm_plan_len(p)).
  */
 size_t wfm_plan_at(const wfm_plan_t *p, double snr, uint64_t seed,
                    float _Complex *out);

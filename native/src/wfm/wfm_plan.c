@@ -1,14 +1,27 @@
 /*
  * wfm_plan.c — component-cache stimulus engine (see wfm_plan.h).
  *
- * prepare() parses + resolves a scene, then renders each signal source ONCE
- * (through the composer's own wfm_compose_build_synth, so a cached render is
- * byte-identical to a full compose) and caches it at gain 1. render()/at()
- * re-materialize a variation as the composer's identical accumulation kernel —
- * Σ g_k·[e^{jφ_k}·]cache_k, left-to-right in source order — then add the noise
- * floor last (rebuilt through the same SSOT with the requested seed, so it is
- * byte-identical to the composer's noise). Baseline (no overrides) reproduces
- * wfm_compose to the bit.
+ * prepare() parses + resolves a scene, then renders each signal source's
+ * ON-time contribution ONCE per segment (through the composer's own
+ * wfm_compose_build_synth, so a cached render is byte-identical to a full
+ * compose) and caches it at gain 1, clean (no AWGN). render()/at()
+ * re-materialize a variation by walking every segment's repeat instances:
+ * cheap re-weighted signal sum for the cached ON-time, plus a noise
+ * synth spanning that instance's delay+on+off (rebuilt through the same
+ * SSOT, so it is byte-identical to the composer's noise/gap handling)
+ * added on top. Baseline (no overrides) reproduces wfm_compose to the bit.
+ *
+ * Two noise reconstruction modes, matching the composer's own "1-source
+ * vs N-source" split (see wfm_compose.c's top-of-file comment):
+ *   - SHARED: a multi-source segment's resolve-appended WFM_SYNTH_NOISE
+ *     source. Its amplitude is a pure external multiply (segment_noise_gain,
+ *     the anchor/floor math), independent of any per-signal-source gain
+ *     override.
+ *   - BUNDLED: a segment with exactly one source carrying its own real
+ *     (non-clean) snr. Its AWGN is baked into synth creation (not a
+ *     separable external multiply), and that source's own level/gains
+ *     override multiplies the WHOLE synth output (signal AND noise), same
+ *     as a real single continuously-alive synth in the composer.
  */
 #include "wfm/wfm_plan.h"
 
@@ -17,32 +30,106 @@
 #include "wfm_synth/wfm_synth_core.h"
 
 #include "cJSON.h"
+#include "wfm_draw.h"
 
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
 
-struct wfm_plan
+typedef struct
 {
-  size_t           len;       /* L: cached length in samples             */
-  size_t           n_sig;     /* number of signal sources (excl. noise)  */
-  float _Complex **cache_sig; /* [n_sig] buffers, each L, at gain 1      */
-  float           *base_gain; /* [n_sig]: 10^(level_k/20) as resolved    */
-  double           fs;        /* sample rate (for the noise rebuild)     */
+  size_t   n_sig;   /* cached clean signal sources owned by this segment    */
+  size_t   sig_off; /* offset into the plan's flat cache_sig[]/base_gain[]  */
+  size_t   num_samples; /* on-time, fixed across every repeat instance      */
+  size_t   repeats;     /* resolved: 0/1 both normalize to 1                */
+  unsigned ranged;      /* subset of WFM_RANGE_OFF_SAMPLES|DELAY_SAMPLES    */
+  size_t   off_lo, off_hi;
+  size_t   delay_lo, delay_hi;
+  int      gap_noise; /* 0 auto (gaps carry the floor), 1 off (hard zero) */
+  uint32_t dseed;     /* default draw/noise seed == sources[0].seed       */
 
-  int          has_noise;      /* 1 → a trailing NOISE floor is present   */
-  wfm_source_t noise_src;      /* the resolved NOISE source (for rebuild) */
-  uint32_t     noise_seed;     /* == noise_src.seed (default for at())    */
-  int          explicit_floor; /* 1 → floor is fixed (no snr anchor)      */
-  double       floor_db;       /* base/explicit floor in dB               */
-  /* anchor meta, so a swept SNR recomputes floor = level − snr_over_fs. */
+  int          has_noise; /* 1 -> a gap-spanning noise synth is built     */
+  int          bundled;   /* 1 -> noise_src is the lone real-snr source   */
+  wfm_source_t noise_src; /* deep-copied owned arrays (freed at destroy)  */
+  /* SHARED-only anchor bookkeeping (segment_noise_gain); unused when
+   * bundled, since a bundled source's amplitude is baked into creation. */
+  int    explicit_floor;
+  double floor_db;
   double anchor_level;
   int    anchor_type, anchor_mode, anchor_sps;
-  size_t anchor_sf; /* dsss anchor: chips per data symbol (else 1) */
+  size_t anchor_sf;
+} wfm_plan_segment_t;
+
+struct wfm_plan
+{
+  size_t              n_segs;
+  wfm_plan_segment_t *segs;
+  size_t              n_sig;     /* total signal sources, all segments  */
+  float _Complex    **cache_sig; /* [n_sig] flat, gain 1, clean          */
+  float              *base_gain; /* [n_sig] flat: 10^(level/20)          */
+  double              fs;
+  size_t              len; /* worst-case total materialized length       */
 };
 
-/* Accumulate one source into out: real·complex when φ==0 (exactly the
- * composer's expression), else the phase-rotated complex·complex transform. */
+/* Free one source's owned arrays (mirrors wfm_compose.c's
+ * free_segment_sources, but for a single embedded struct). */
+static void
+free_source_arrays (wfm_source_t *s)
+{
+  free (s->bits);
+  free (s->symbols);
+  free (s->acq_code);
+  free (s->data_code);
+  free (s->sync);
+}
+
+/* malloc+memcpy an owned byte array (NULL for an empty one). */
+static uint8_t *
+dup_u8 (const uint8_t *src, size_t n)
+{
+  if (!src || !n)
+    return NULL;
+  uint8_t *copy = malloc (n);
+  if (copy)
+    memcpy (copy, src, n);
+  return copy;
+}
+
+/* Replace dst's array pointers with owned copies of src's (dst's scalar
+ * fields are assumed already struct-copied by the caller). Returns 0, or
+ * -1 on allocation failure (dst is left safe to free either way). */
+static int
+copy_source_arrays (wfm_source_t *dst, const wfm_source_t *src)
+{
+  dst->bits      = NULL;
+  dst->symbols   = NULL;
+  dst->acq_code  = NULL;
+  dst->data_code = NULL;
+  dst->sync      = NULL;
+  if (src->bits && src->n_bits)
+    if (!(dst->bits = dup_u8 (src->bits, src->n_bits)))
+      return -1;
+  if (src->symbols && src->n_symbols)
+    {
+      size_t nbytes = src->n_symbols * sizeof *src->symbols;
+      if (!(dst->symbols = malloc (nbytes)))
+        return -1;
+      memcpy (dst->symbols, src->symbols, nbytes);
+    }
+  if (src->acq_code && src->n_acq_code)
+    if (!(dst->acq_code = dup_u8 (src->acq_code, src->n_acq_code)))
+      return -1;
+  if (src->data_code && src->n_data_code)
+    if (!(dst->data_code = dup_u8 (src->data_code, src->n_data_code)))
+      return -1;
+  if (src->sync && src->n_sync)
+    if (!(dst->sync = dup_u8 (src->sync, src->n_sync)))
+      return -1;
+  return 0;
+}
+
+/* Accumulate one source into out: real*complex when phi==0 (exactly the
+ * composer's expression), else the phase-rotated complex*complex form. */
 static void
 accumulate (float _Complex *out, size_t len, float g, double phase,
             const float _Complex *cache)
@@ -58,65 +145,222 @@ accumulate (float _Complex *out, size_t len, float g, double phase,
     }
 }
 
-/* Noise gain 10^(floor/20): the resolved base floor for the baseline, or the
- * anchor-recomputed floor when a SNR is supplied (an explicit floor is fixed —
- * SNR has no anchor to move it). */
+/* SHARED-mode external multiply: 10^(floor/20), the resolved base floor or
+ * the anchor-recomputed floor when an SNR override is given (an explicit
+ * floor is fixed -- SNR has no anchor to move it). Bundled segments have no
+ * separate multiplier (their amplitude is baked into synth creation via
+ * segment_gap_snr below) so this always returns 1.0 for them. */
 static float
-noise_gain (const wfm_plan_t *p, double snr, int snr_given)
+segment_noise_gain (const wfm_plan_segment_t *ps, double snr, int snr_given)
 {
-  if (!p->has_noise)
-    return 0.0f;
-  double fdb = p->floor_db;
-  if (snr_given && !p->explicit_floor)
-    fdb = p->anchor_level
-          - wfm_snr_over_fs (p->anchor_mode, p->anchor_type, p->anchor_sps,
-                             p->anchor_sf, snr);
+  if (!ps->has_noise || ps->bundled)
+    return 1.0f;
+  double fdb = ps->floor_db;
+  if (snr_given && !ps->explicit_floor)
+    fdb = ps->anchor_level
+          - wfm_snr_over_fs (ps->anchor_mode, ps->anchor_type, ps->anchor_sps,
+                             ps->anchor_sf, snr);
   return (float)pow (10.0, fdb / 20.0);
 }
 
-/* The shared kernel behind render() and at(): re-weighted signal sum + noise.
- * gains_db/phases/enable are per-source overrides (NULL → base gain / 0 phase
- * / all enabled). */
+/* Build this segment/instance's gap-spanning noise synth, or NULL if the
+ * segment carries no noise. SHARED: noise_src.snr is fixed (unused by a
+ * NOISE-type synth; amplitude comes entirely from segment_noise_gain's
+ * external multiply). BUNDLED: an SNR override replaces the source's own
+ * (already-resolved-units) snr directly, since its AWGN is baked into
+ * creation, not a separable multiply. */
+static wfm_synth_state_t *
+build_gap_synth (const wfm_plan_segment_t *ps, double fs, double snr,
+                 int snr_given, uint32_t seed, size_t instance)
+{
+  if (!ps->has_noise)
+    return NULL;
+  wfm_source_t ns = ps->noise_src;
+  ns.seed         = seed;
+  double use_snr  = ns.snr;
+  if (ps->bundled && snr_given)
+    use_snr = snr;
+  return wfm_compose_build_synth (&ns, fs, ps->num_samples, ns.freq, use_snr,
+                                  ns.f_end, 0, WFM_SEED_ADVANCE_NONE,
+                                  instance);
+}
+
+/* Draw noise_steps(n) from syn and add gain*sample into out (used for both
+ * the delay/off gaps and the always-on ON-time noise addition). */
+static void
+add_noise (wfm_synth_state_t *syn, float _Complex *out, size_t n, float gain)
+{
+  if (n == 0)
+    return;
+  float _Complex *tmp = malloc (n * sizeof *tmp);
+  if (!tmp)
+    return;
+  wfm_synth_noise_steps (syn, tmp, n);
+  for (size_t i = 0; i < n; i++)
+    out[i] += gain * tmp[i];
+  free (tmp);
+}
+
+/* The shared kernel behind render() and at(): walk every segment's repeat
+ * instances, accumulating the cached ON-time signal plus a gap-spanning
+ * noise synth (delay -> on -> off, matching the composer's own phase
+ * sequencing so gap_noise/level semantics are byte-identical). Returns the
+ * actual materialized length for this draw (<= wfm_plan_len(p), the
+ * worst-case capacity `out` was sized to). */
 static size_t
 materialize (const wfm_plan_t *p, const double *gains_db, const double *phases,
              const int *enable, double snr, int snr_given, uint64_t seed,
-             float _Complex *out)
+             int seed_given, float _Complex *out)
 {
-  size_t len = p->len;
-  memset (out, 0, len * sizeof *out);
-  for (size_t k = 0; k < p->n_sig; k++)
+  memset (out, 0, p->len * sizeof *out);
+  size_t pos = 0;
+  for (size_t si = 0; si < p->n_segs; si++)
     {
-      float g
-          = gains_db ? (float)pow (10.0, gains_db[k] / 20.0) : p->base_gain[k];
-      if (enable && !enable[k])
-        g = 0.0f;
-      double ph = phases ? phases[k] : 0.0;
-      accumulate (out, len, g, ph, p->cache_sig[k]);
-    }
-  /* Noise floor last (the resolve-appended NOISE source is last), rebuilt via
-   * the SSOT with the requested seed → byte-identical to the composer. */
-  float gn = noise_gain (p, snr, snr_given);
-  if (gn != 0.0f)
-    {
-      wfm_source_t ns = p->noise_src;
-      ns.seed         = (uint32_t)seed;
-      wfm_synth_state_t *syn
-          = wfm_compose_build_synth (&ns, p->fs, len, ns.freq, ns.snr,
-                                     ns.f_end, 0, WFM_SEED_ADVANCE_NONE, 0);
-      if (syn)
+      const wfm_plan_segment_t *ps = &p->segs[si];
+      uint32_t eff_seed            = seed_given ? (uint32_t)seed : ps->dseed;
+      for (size_t inst = 0; inst < ps->repeats; inst++)
         {
-          float _Complex *tmp = malloc (len * sizeof *tmp);
-          if (tmp)
+          size_t dly = (ps->ranged & WFM_RANGE_DELAY_SAMPLES)
+                           ? wfm_draw_samples (eff_seed, 0, inst, si,
+                                               WFM_RANGE_DELAY_SAMPLES,
+                                               ps->delay_lo, ps->delay_hi)
+                           : ps->delay_lo;
+          size_t off = (ps->ranged & WFM_RANGE_OFF_SAMPLES)
+                           ? wfm_draw_samples (eff_seed, 0, inst, si,
+                                               WFM_RANGE_OFF_SAMPLES,
+                                               ps->off_lo, ps->off_hi)
+                           : ps->off_lo;
+          size_t on  = ps->num_samples;
+
+          float ext_gain = 1.0f;
+          if (ps->bundled)
             {
-              wfm_synth_steps (syn, tmp, len);
-              for (size_t i = 0; i < len; i++)
-                out[i] += gn * tmp[i];
-              free (tmp);
+              size_t gi = ps->sig_off;
+              ext_gain  = gains_db ? (float)pow (10.0, gains_db[gi] / 20.0)
+                                   : p->base_gain[gi];
+              if (enable && !enable[gi])
+                ext_gain = 0.0f;
             }
-          wfm_synth_destroy (syn);
+          else
+            ext_gain = segment_noise_gain (ps, snr, snr_given);
+
+          wfm_synth_state_t *gsyn
+              = build_gap_synth (ps, p->fs, snr, snr_given, eff_seed, inst);
+
+          if (gsyn && !ps->gap_noise)
+            add_noise (gsyn, out + pos, dly, ext_gain);
+          pos += dly;
+
+          for (size_t k = 0; k < ps->n_sig; k++)
+            {
+              size_t gi = ps->sig_off + k;
+              float  g  = gains_db ? (float)pow (10.0, gains_db[gi] / 20.0)
+                                   : p->base_gain[gi];
+              if (enable && !enable[gi])
+                g = 0.0f;
+              double ph = phases ? phases[gi] : 0.0;
+              accumulate (out + pos, on, g, ph, p->cache_sig[gi]);
+            }
+          if (gsyn) /* ON always carries noise, regardless of gap_noise */
+            add_noise (gsyn, out + pos, on, ext_gain);
+          pos += on;
+
+          if (gsyn && !ps->gap_noise)
+            add_noise (gsyn, out + pos, off, ext_gain);
+          pos += off;
+
+          if (gsyn)
+            wfm_synth_destroy (gsyn);
         }
     }
-  return len;
+  return pos;
+}
+
+/* Resolve one segment's noise configuration (SHARED / BUNDLED / none) into
+ * *ps. Returns 0 on success, -1 on an out-of-scope condition. */
+static int
+resolve_segment_noise (wfm_plan_segment_t *ps, const wfm_segment_t *g)
+{
+  size_t n_noise   = 0;
+  int    noise_idx = -1;
+  for (size_t k = 0; k < g->n_sources; k++)
+    if (g->sources[k].type == WFM_SYNTH_NOISE)
+      {
+        n_noise++;
+        noise_idx = (int)k;
+      }
+  if (n_noise > 1 || (noise_idx >= 0 && (size_t)noise_idx != g->n_sources - 1))
+    return -1; /* at most one noise source, and it must be trailing */
+
+  ps->bundled   = (g->n_sources == 1 && n_noise == 0
+                   && g->sources[0].snr < WFM_SYNTH_SNR_CLEAN);
+  ps->has_noise = (n_noise > 0) || ps->bundled;
+
+  if (n_noise > 0)
+    {
+      const wfm_source_t *nsrc = &g->sources[noise_idx];
+      ps->noise_src            = *nsrc;
+      if (copy_source_arrays (&ps->noise_src, nsrc) != 0)
+        return -1;
+      ps->explicit_floor = 1;
+      ps->floor_db       = nsrc->level;
+      for (size_t j = 0; j < g->n_sources; j++)
+        if (g->sources[j].type != WFM_SYNTH_NOISE
+            && g->sources[j].seed == nsrc->seed)
+          {
+            ps->explicit_floor = 0;
+            ps->anchor_level   = g->sources[j].level;
+            ps->anchor_type    = g->sources[j].type;
+            ps->anchor_mode    = g->sources[j].snr_mode;
+            ps->anchor_sps     = g->sources[j].sps;
+            ps->anchor_sf      = g->sources[j].n_data_code;
+            break;
+          }
+    }
+  else if (ps->bundled)
+    {
+      ps->noise_src = g->sources[0];
+      if (copy_source_arrays (&ps->noise_src, &g->sources[0]) != 0)
+        return -1;
+    }
+  return 0;
+}
+
+/* Cache every clean signal source of segment g at gain 1, into
+ * p->cache_sig[ps->sig_off .. +ps->n_sig). A bundled source's own real snr
+ * is forced clean for this render (its noise is reconstructed separately,
+ * per instance, at materialize time); a SHARED segment's non-noise sources
+ * are already clean by the time wfm_resolve_noise ran. Returns 0, or -1 on
+ * allocation/synth failure. */
+static int
+cache_segment_signals (wfm_plan_t *p, wfm_plan_segment_t *ps,
+                       const wfm_segment_t *g)
+{
+  size_t si = ps->sig_off;
+  for (size_t k = 0; k < g->n_sources; k++)
+    {
+      const wfm_source_t *src = &g->sources[k];
+      if (src->type == WFM_SYNTH_NOISE)
+        continue;
+      double cache_snr       = ps->bundled ? WFM_SYNTH_SNR_CLEAN : src->snr;
+      wfm_synth_state_t *syn = wfm_compose_build_synth (
+          src, g->fs, g->num_samples, src->freq, cache_snr, src->f_end, 0,
+          WFM_SEED_ADVANCE_NONE, 0);
+      float _Complex *buf = syn ? malloc (g->num_samples * sizeof *buf) : NULL;
+      if (!syn || !buf)
+        {
+          free (buf);
+          if (syn)
+            wfm_synth_destroy (syn);
+          return -1;
+        }
+      wfm_synth_steps (syn, buf, g->num_samples);
+      wfm_synth_destroy (syn);
+      p->cache_sig[si] = buf;
+      p->base_gain[si] = (float)pow (10.0, src->level / 20.0);
+      si++;
+    }
+  return 0;
 }
 
 wfm_plan_t *
@@ -133,101 +377,94 @@ wfm_plan_prepare (const char *spec_json)
   const wfm_segment_t *segs
       = wfm_compose_segments (cs, &n_segs, &repeat, &cont);
 
-  /* v1 scope: a single finite, non-continuous, non-repeating segment. */
   wfm_plan_t *p = NULL;
-  if (!segs || n_segs != 1 || repeat || cont)
-    goto done;
-  const wfm_segment_t *g = &segs[0];
-  if (g->off_samples != 0 || g->num_samples == 0 || g->ranged
-      || g->repeats > 1)
-    goto done; /* no OFF gap / ranged / repeated segment in v1 (gh-410) */
-  for (size_t k = 0; k < g->n_sources; k++)
-    if (g->sources[k].ranged)
-      goto done; /* a ranged source is ambiguous for a static Plan */
+  if (!segs || n_segs == 0 || repeat || cont)
+    goto done; /* unbounded repeat/continuous: no fixed capacity (gh-410) */
 
-  /* Count signal sources, locate the (at most one, trailing) noise source. */
-  size_t n_noise   = 0;
-  int    noise_idx = -1;
-  for (size_t k = 0; k < g->n_sources; k++)
-    if (g->sources[k].type == WFM_SYNTH_NOISE)
-      {
-        n_noise++;
-        noise_idx = (int)k;
-      }
-  if (n_noise > 1 || (noise_idx >= 0 && (size_t)noise_idx != g->n_sources - 1))
-    goto done; /* v1: at most one noise source, and it must be last */
-  size_t n_sig = g->n_sources - n_noise;
-  if (n_sig == 0)
-    goto done;
-  /* A lone bundled noisy source is not separable (its private RNG is fused).
-   */
-  if (g->n_sources == 1 && g->sources[0].type != WFM_SYNTH_NOISE
-      && g->sources[0].snr < WFM_SYNTH_SNR_CLEAN)
+  /* Pass 1: per-segment scope validation + total signal-source count. */
+  size_t total_sig = 0;
+  for (size_t i = 0; i < n_segs; i++)
+    {
+      const wfm_segment_t *g = &segs[i];
+      if (g->num_samples == 0 || g->n_sources == 0)
+        goto done;
+      if (g->ranged & WFM_RANGE_NUM_SAMPLES)
+        goto done; /* a ranged on-time would invalidate the fixed cache */
+      if (g->fs != segs[0].fs)
+        goto done; /* one global sample rate across the whole scene */
+      for (size_t k = 0; k < g->n_sources; k++)
+        if (g->sources[k].ranged)
+          goto done; /* a ranged source is ambiguous for a static cache */
+      size_t n_noise = 0;
+      for (size_t k = 0; k < g->n_sources; k++)
+        if (g->sources[k].type == WFM_SYNTH_NOISE)
+          n_noise++;
+      total_sig += g->n_sources - n_noise;
+    }
+  if (total_sig == 0)
     goto done;
 
   p = calloc (1, sizeof *p);
   if (!p)
     goto done;
-  p->len       = g->num_samples;
-  p->n_sig     = n_sig;
-  p->fs        = g->fs;
-  p->cache_sig = calloc (n_sig, sizeof *p->cache_sig);
-  p->base_gain = calloc (n_sig, sizeof *p->base_gain);
-  if (!p->cache_sig || !p->base_gain)
+  p->n_segs    = n_segs;
+  p->fs        = segs[0].fs;
+  p->segs      = calloc (n_segs, sizeof *p->segs);
+  p->n_sig     = total_sig;
+  p->cache_sig = calloc (total_sig, sizeof *p->cache_sig);
+  p->base_gain = calloc (total_sig, sizeof *p->base_gain);
+  if (!p->segs || !p->cache_sig || !p->base_gain)
     {
       wfm_plan_destroy (p);
       p = NULL;
       goto done;
     }
 
-  size_t si = 0;
-  for (size_t k = 0; k < g->n_sources; k++)
+  /* Pass 2: build each segment descriptor, cache its clean signal(s), and
+   * accumulate the worst-case (ranged-hi) total materialized length. */
+  size_t sig_off   = 0;
+  size_t worst_len = 0;
+  for (size_t i = 0; i < n_segs; i++)
     {
-      const wfm_source_t *src = &g->sources[k];
-      if (src->type == WFM_SYNTH_NOISE)
+      const wfm_segment_t *g  = &segs[i];
+      wfm_plan_segment_t  *ps = &p->segs[i];
+
+      size_t n_noise = 0;
+      for (size_t k = 0; k < g->n_sources; k++)
+        if (g->sources[k].type == WFM_SYNTH_NOISE)
+          n_noise++;
+
+      ps->num_samples = g->num_samples;
+      ps->repeats     = g->repeats ? g->repeats : 1;
+      ps->dseed       = g->n_sources ? g->sources[0].seed : 1u;
+      ps->ranged
+          = g->ranged & (WFM_RANGE_OFF_SAMPLES | WFM_RANGE_DELAY_SAMPLES);
+      ps->off_lo    = g->off_samples;
+      ps->off_hi    = g->off_samples_hi;
+      ps->delay_lo  = g->delay_samples;
+      ps->delay_hi  = g->delay_samples_hi;
+      ps->gap_noise = g->gap_noise;
+      ps->sig_off   = sig_off;
+      ps->n_sig     = g->n_sources - n_noise;
+
+      if (resolve_segment_noise (ps, g) != 0
+          || cache_segment_signals (p, ps, g) != 0)
         {
-          p->has_noise  = 1;
-          p->noise_src  = *src;
-          p->noise_seed = src->seed;
-          p->floor_db   = src->level;
-          /* The anchor is the signal source whose seed the floor inherited
-           * (wfm_resolve_noise sets noise.seed = anchor.seed). Found → SNR is
-           * anchor-relative; not found → an explicit fixed floor. */
-          p->explicit_floor = 1;
-          for (size_t j = 0; j < g->n_sources; j++)
-            if (g->sources[j].type != WFM_SYNTH_NOISE
-                && g->sources[j].seed == src->seed)
-              {
-                p->explicit_floor = 0;
-                p->anchor_level   = g->sources[j].level;
-                p->anchor_type    = g->sources[j].type;
-                p->anchor_mode    = g->sources[j].snr_mode;
-                p->anchor_sps     = g->sources[j].sps;
-                p->anchor_sf      = g->sources[j].n_data_code;
-                break;
-              }
-          continue;
-        }
-      /* Signal source: render once through the SSOT and cache at gain 1. */
-      wfm_synth_state_t *syn
-          = wfm_compose_build_synth (src, g->fs, p->len, src->freq, src->snr,
-                                     src->f_end, 0, WFM_SEED_ADVANCE_NONE, 0);
-      float _Complex *buf = syn ? malloc (p->len * sizeof *buf) : NULL;
-      if (!syn || !buf)
-        {
-          free (buf);
-          if (syn)
-            wfm_synth_destroy (syn);
           wfm_plan_destroy (p);
           p = NULL;
           goto done;
         }
-      wfm_synth_steps (syn, buf, p->len);
-      wfm_synth_destroy (syn);
-      p->cache_sig[si] = buf;
-      p->base_gain[si] = (float)pow (10.0, src->level / 20.0);
-      si++;
+
+      sig_off += ps->n_sig;
+
+      size_t off_worst
+          = (ps->ranged & WFM_RANGE_OFF_SAMPLES) ? ps->off_hi : ps->off_lo;
+      size_t delay_worst = (ps->ranged & WFM_RANGE_DELAY_SAMPLES)
+                               ? ps->delay_hi
+                               : ps->delay_lo;
+      worst_len += ps->repeats * (delay_worst + ps->num_samples + off_worst);
     }
+  p->len = worst_len;
 
 done:
   wfm_compose_destroy (cs);
@@ -249,7 +486,12 @@ wfm_plan_n_sources (const wfm_plan_t *p)
 uint64_t
 wfm_plan_anchor_seed (const wfm_plan_t *p)
 {
-  return (p && p->has_noise) ? p->noise_seed : 0;
+  if (!p)
+    return 0;
+  for (size_t i = 0; i < p->n_segs; i++)
+    if (p->segs[i].has_noise)
+      return p->segs[i].noise_src.seed;
+  return 0;
 }
 
 /* Read an optional per-source double array (gains/phases) from the override
@@ -280,8 +522,8 @@ wfm_plan_render (const wfm_plan_t *p, const char *overrides_json,
   if (!p)
     return 0;
   double   snr = 0.0, seed_d = 0.0;
-  int      snr_given = 0;
-  uint64_t seed      = p->noise_seed;
+  int      snr_given = 0, seed_given = 0;
+  uint64_t seed = 0;
 
   double *gains = NULL, *phases = NULL;
   int    *enable = NULL;
@@ -299,8 +541,9 @@ wfm_plan_render (const wfm_plan_t *p, const char *overrides_json,
       const cJSON *sd = cJSON_GetObjectItemCaseSensitive (root, "seed");
       if (cJSON_IsNumber (sd))
         {
-          seed_d = sd->valuedouble;
-          seed   = (uint64_t)seed_d;
+          seed_d     = sd->valuedouble;
+          seed       = (uint64_t)seed_d;
+          seed_given = 1;
         }
       double *gbuf = malloc (p->n_sig * sizeof *gbuf);
       double *pbuf = malloc (p->n_sig * sizeof *pbuf);
@@ -328,7 +571,8 @@ wfm_plan_render (const wfm_plan_t *p, const char *overrides_json,
         }
     }
 
-  size_t n = materialize (p, gains, phases, enable, snr, snr_given, seed, out);
+  size_t n = materialize (p, gains, phases, enable, snr, snr_given, seed,
+                          seed_given, out);
   free (gains);
   free (phases);
   free (enable);
@@ -343,7 +587,7 @@ wfm_plan_at (const wfm_plan_t *p, double snr, uint64_t seed,
 {
   if (!p)
     return 0;
-  return materialize (p, NULL, NULL, NULL, snr, 1, seed, out);
+  return materialize (p, NULL, NULL, NULL, snr, 1, seed, 1, out);
 }
 
 void
@@ -351,6 +595,11 @@ wfm_plan_destroy (wfm_plan_t *p)
 {
   if (!p)
     return;
+  if (p->segs)
+    for (size_t i = 0; i < p->n_segs; i++)
+      if (p->segs[i].has_noise)
+        free_source_arrays (&p->segs[i].noise_src);
+  free (p->segs);
   if (p->cache_sig)
     for (size_t k = 0; k < p->n_sig; k++)
       free (p->cache_sig[k]);

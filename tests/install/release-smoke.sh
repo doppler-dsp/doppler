@@ -126,5 +126,12 @@ else
     echo ">> pkg-config not found — skipping pkg-config paths"
 fi
 
+# ── 5: the stream component, three ways (cc / CMake / pkg-config) ────────────
+# Builds the core+stream consumer via every face and asserts identical
+# output — the docs' "Compile it — three ways" snippets are --8<-- included
+# from the very script this runs.
+echo ">> stream consumer, three ways"
+bash "$ROOT/tests/install/stream-consumer/build-three-ways.sh" "$prefix"
+
 echo ">> PASS: v$VERSION ($PLAT) consumable via find_package + pkg-config,"
-echo "         static + shared, with no libzmq dependency anywhere."
+echo "         static + shared (core and stream), no libzmq anywhere."

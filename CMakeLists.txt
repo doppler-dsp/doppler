@@ -523,6 +523,13 @@ install(FILES
 configure_file(cmake/doppler.pc.in doppler.pc @ONLY)
 install(FILES "${CMAKE_CURRENT_BINARY_DIR}/doppler.pc"
     DESTINATION ${CMAKE_INSTALL_LIBDIR}/pkgconfig)
+if(NOT WIN32)
+    # One pkg-config name for the whole streaming link line:
+    # `pkg-config --cflags --libs doppler_stream` (Requires: doppler).
+    configure_file(cmake/doppler_stream.pc.in doppler_stream.pc @ONLY)
+    install(FILES "${CMAKE_CURRENT_BINARY_DIR}/doppler_stream.pc"
+        DESTINATION ${CMAKE_INSTALL_LIBDIR}/pkgconfig)
+endif()
 
 # ── App ───────────────────────────────────────────────────────────
 # The single-shot `wavegen` is gone: a 1-segment `wfmgen` run is byte-for-byte

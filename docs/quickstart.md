@@ -41,6 +41,12 @@ instead — see [C Library](install/c.md#install-from-a-release-tarball).
 
 ______________________________________________________________________
 
+## Use the C library
+
+Building against the C library — plain `cc`, CMake, or pkg-config, all
+three CI-verified to produce identical binaries? One page:
+[C Quick Start](quickstart-c.md).
+
 ## Signal processing
 
 Every object is a thin, stateful wrapper over the C core: construct it once,

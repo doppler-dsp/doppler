@@ -13,6 +13,11 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+## [0.34.0] — 2026-07-14
+
+Four issues closed and one bug found and fixed along the way, all from a
+single "clear the open-issue backlog" pass.
+
 ### Added
 
 - **`Plan` sweeps multi-segment / repeated / ranged-gap scenes.** The
@@ -24,6 +29,40 @@ ______________________________________________________________________
     be swept in place instead of re-composed per point. Still out of scope:
     a ranged on-time or any ranged per-source field (both would invalidate
     the cached signal render). Fixes #410.
+- **`doppler.filter.design_lowpass`** — a one-call Kaiser-windowed-sinc
+    lowpass FIR design helper (`fpass`/`fstop` Nyquist-normalised band
+    edges, `atten_db` stopband target); `n_taps` is auto-sized via
+    `doppler.resample.kaiser_num_taps`. Closes the last reason a doppler
+    example would reach for `scipy`. Fixes #453.
+
+### Fixed
+
+- **specan web UI: negative tone-frequency wrap.** `DemoSource` wrapped a
+    signed tone offset into `[0, 1)` via a plain `% 1.0`, so a tone set
+    below center (or the negative half of a chirp sweep) silently reported
+    a near-Nyquist alias instead — the web UI marker vanished or jumped.
+    Now wraps into `(-0.5, 0.5]`. Fixes #457.
+- **specan web UI: WebSocket receive desync.** `websocket_endpoint()`
+    interleaved outgoing frames and incoming commands via a
+    timeout-cancelled `receive_text()`; cancelling it mid-flight desynced
+    Starlette's receive state, so a rapid slider drag silently dropped
+    every subsequent command — including unrelated controls — for the
+    rest of the connection. Split into two independent concurrent tasks
+    (a plain, uncancelled receive loop; a separate send loop) so a
+    receive is never cancelled mid-flight. Found while manually testing
+    the #457 fix. Fixes #475.
+
+### Investigated
+
+- **Acquisition blind-sweep false-alarm rate — settled as normal
+    variance, not a calibration gap.** A single 471-dwell overlapping
+    blind sweep once measured 3 false alarms against a naive
+    `pfa * n_dwells` estimate of ~0.47. A follow-up 2.34M-dwell
+    Monte-Carlo study across four overlap fractions (0%/50%/75%/87.5%)
+    found every condition within ±1.8 std devs of the naive estimate,
+    with no trend toward inflation as overlap increases — ordinary
+    Poisson variance (`P(X>=3 | lambda=0.47) ~ 1.5%`), not a per-dwell
+    calibration or composability gap. No engine changes. Fixes #394.
 
 ## [0.33.5] — 2026-07-13
 
@@ -2792,6 +2831,7 @@ ______________________________________________________________________
 [0.33.3]: https://github.com/doppler-dsp/doppler/compare/v0.33.2...v0.33.3
 [0.33.4]: https://github.com/doppler-dsp/doppler/compare/v0.33.3...v0.33.4
 [0.33.5]: https://github.com/doppler-dsp/doppler/compare/v0.33.4...v0.33.5
+[0.34.0]: https://github.com/doppler-dsp/doppler/compare/v0.33.5...v0.34.0
 [0.4.0]: https://github.com/doppler-dsp/doppler/compare/v0.3.7...v0.4.0
 [0.4.1]: https://github.com/doppler-dsp/doppler/compare/v0.4.0...v0.4.1
 [0.5.0]: https://github.com/doppler-dsp/doppler/compare/v0.4.1...v0.5.0
@@ -2804,4 +2844,4 @@ ______________________________________________________________________
 [0.7.0]: https://github.com/doppler-dsp/doppler/compare/v0.6.0...v0.7.0
 [0.8.0]: https://github.com/doppler-dsp/doppler/compare/v0.7.0...v0.8.0
 [0.9.0]: https://github.com/doppler-dsp/doppler/compare/v0.8.0...v0.9.0
-[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.33.5...HEAD
+[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.34.0...HEAD

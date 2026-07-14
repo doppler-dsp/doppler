@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import asyncio
 import concurrent.futures
+import contextlib
 import json
 import logging
 from pathlib import Path
@@ -157,51 +158,77 @@ _FRAME_DT = 1.0 / _FRAME_RATE
 async def websocket_endpoint(ws: WebSocket) -> None:
     await ws.accept()
     log.info("specan client connected")
-    try:
-        while True:
-            t0 = asyncio.get_event_loop().time()
 
-            frame = await asyncio.get_event_loop().run_in_executor(
-                _dsp_executor, _next_frame
+    # Outgoing frames and incoming commands run as two independent tasks
+    # rather than one loop interleaving them via a timeout-cancelled
+    # receive_text(). Cancelling receive_text() mid-flight (the previous
+    # `asyncio.wait_for(ws.receive_text(), timeout=0.001)` pattern) desyncs
+    # Starlette's WebSocket receive state: after the first cancellation, a
+    # rapid burst of client messages (e.g. a slider drag) applies partway
+    # through and then every *subsequent* command over that connection --
+    # including unrelated controls sent well afterward -- is silently
+    # dropped for the rest of the connection's lifetime (gh-475).
+    send_task = asyncio.create_task(_send_frames(ws))
+    recv_task = asyncio.create_task(_recv_commands(ws))
+    done, pending = await asyncio.wait(
+        {send_task, recv_task}, return_when=asyncio.FIRST_COMPLETED
+    )
+    for task in pending:
+        task.cancel()
+    for task in pending:
+        with contextlib.suppress(asyncio.CancelledError):
+            await task
+    for task in done:
+        exc = task.exception()
+        if exc is not None and not isinstance(exc, WebSocketDisconnect):
+            log.warning("specan websocket error: %s", exc)
+    log.info("specan client disconnected")
+
+
+async def _send_frames(ws: WebSocket) -> None:
+    """Stream SpectrumFrame JSON to *ws* at ``_FRAME_RATE`` fps."""
+    while True:
+        t0 = asyncio.get_event_loop().time()
+
+        frame = await asyncio.get_event_loop().run_in_executor(
+            _dsp_executor, _next_frame
+        )
+
+        if frame is not None:
+            from doppler.specan.source import DemoSource
+
+            tones = (
+                _source.get_tones() if isinstance(_source, DemoSource) else []
             )
+            payload = json.dumps(
+                {
+                    "fft_size": frame.fft_size,
+                    "fs_out": frame.fs_out,
+                    "center_freq": frame.center_freq,
+                    "span": frame.span,
+                    "rbw": frame.rbw,
+                    "db": frame.db,
+                    "peaks": [
+                        {"freq_hz": p.freq_hz, "db": p.db} for p in frame.peaks
+                    ],
+                    "tones": tones,
+                }
+            )
+            await ws.send_text(payload)
 
-            if frame is not None:
-                from doppler.specan.source import DemoSource
+        elapsed = asyncio.get_event_loop().time() - t0
+        await asyncio.sleep(max(0.0, _FRAME_DT - elapsed))
 
-                tones = (
-                    _source.get_tones()
-                    if isinstance(_source, DemoSource)
-                    else []
-                )
-                payload = json.dumps(
-                    {
-                        "fft_size": frame.fft_size,
-                        "fs_out": frame.fs_out,
-                        "center_freq": frame.center_freq,
-                        "span": frame.span,
-                        "rbw": frame.rbw,
-                        "db": frame.db,
-                        "peaks": [
-                            {"freq_hz": p.freq_hz, "db": p.db}
-                            for p in frame.peaks
-                        ],
-                        "tones": tones,
-                    }
-                )
-                await ws.send_text(payload)
 
-            # Non-blocking check for incoming tune commands
-            try:
-                msg = await asyncio.wait_for(ws.receive_text(), timeout=0.001)
-                await _apply_cmd(json.loads(msg))
-            except asyncio.TimeoutError:
-                pass
+async def _recv_commands(ws: WebSocket) -> None:
+    """Apply incoming tune commands from *ws* as they arrive.
 
-            elapsed = asyncio.get_event_loop().time() - t0
-            await asyncio.sleep(max(0.0, _FRAME_DT - elapsed))
-
-    except WebSocketDisconnect:
-        log.info("specan client disconnected")
+    A plain, uncancelled ``receive_text()`` -- never raced against a
+    timeout -- so the WebSocket's receive state can't desync (gh-475).
+    """
+    while True:
+        msg = await ws.receive_text()
+        await _apply_cmd(json.loads(msg))
 
 
 def _next_frame() -> SpectrumFrame | None:

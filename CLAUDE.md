@@ -576,6 +576,28 @@ either macro (`perf = "true"` only drives `JM_HOT`/`JM_FORCEINLINE`
 annotations, a separate mechanism), so this doesn't affect any object
 here.
 
+### 0.29.1 adoptions — pure bugfix/docs bump (pin: 0.29.1)
+
+The CI drift gate now pins **0.29.1** (`ci.yml` + `perf-regression.yml`);
+`jm_version` is stamped 0.29.1. **Drive doppler with
+`uvx --from 'just-makeit==0.29.1' just-makeit …`.** Pure tooling bump —
+`jm apply` produced **zero codegen drift** (3412 manifest-owned files,
+1 allowed, matched before and after); full rebuild + `ctest` (82/82) both
+green. `pytest` green excluding two pre-existing, environment-specific
+failures: the known sandbox NATS-broker flakes, plus
+`receiver_lock_demo.py`/its doc-snippet test, which fail locally
+(deterministic seed=7) but are confirmed green in real CI on the exact
+same commit (`d3dde1d3`, pre-bump) — a local-machine-only numeric flake,
+not a regression from this bump.
+
+0.29.1 fixes a `--result-field` (`jm method`/`jm function`) scaffold bug
+(gh-477: header/body signature mismatch + dropped call-site args on
+first-time CLI scaffold) plus a docs-site precision audit — neither
+touches `jm apply`/`status` codegen paths doppler already exercises
+(doppler's `single`-record objects like `measure` were scaffolded long
+before this fix and are unaffected; the bug was in the *scaffolding*
+path, not the steady-state apply path).
+
 ______________________________________________________________________
 
 ## State serialization

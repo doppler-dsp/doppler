@@ -80,6 +80,21 @@ def _dbm_to_amplitude(dbm: float) -> float:
     return math.sqrt(p_watts * 2.0 * 50.0)
 
 
+def _wrap_signed(fn: float) -> float:
+    """Wrap a normalised frequency into ``(-0.5, 0.5]``.
+
+    The NCO itself is periodic in integer shifts of ``fn`` and doesn't
+    care about the wrap, but callers (``get_tones()``, the web UI
+    marker) report ``fn`` directly — wrapping into ``[0, 1)`` via a
+    plain ``% 1.0`` would silently turn a below-center offset (e.g.
+    ``-0.049``) into a near-Nyquist one (``0.951``).
+    """
+    fn = float(fn) % 1.0
+    if fn > 0.5:
+        fn -= 1.0
+    return fn
+
+
 class DemoSource(Source):
     """
     Synthetic IQ source: calibrated tones + AWGN.
@@ -136,7 +151,7 @@ class DemoSource(Source):
 
     def _make_tone(self, fn: float, dbm: float) -> dict:
         return {
-            "fn": float(fn) % 1.0,
+            "fn": _wrap_signed(fn),
             "amp": _dbm_to_amplitude(dbm),
             "dbm": float(dbm),
             "nco": None,
@@ -157,8 +172,8 @@ class DemoSource(Source):
         self._fft_size = n
 
     def set_tone_freq(self, fn: float) -> None:
-        """Set primary tone frequency (normalised [0, 1))."""
-        self._tones[0]["fn"] = float(fn) % 1.0
+        """Set primary tone frequency (normalised, signed offset from DC)."""
+        self._tones[0]["fn"] = _wrap_signed(fn)
         if self._tones[0]["nco"] is not None:
             self._tones[0]["nco"].norm_freq = self._tones[0]["fn"]
 
@@ -194,7 +209,7 @@ class DemoSource(Source):
         Parameters
         ----------
         fn : float
-            Normalised frequency [0, 1).
+            Normalised frequency, signed offset from DC.
         dbm : float
             Power in dBm.
         """

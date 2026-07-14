@@ -251,24 +251,31 @@ inconvenience:
     frame. Genuine streaming behaviour, not a bug — but downstream code must
     not assume the output length is exact.
 
-- **Neither DSSS `snr_est` field is actually in dB.** `Acquisition.push()`'s
-    6th tuple element is documented as "estimated *per-sample amplitude*
-    SNR" (`acq_core.h`) — a linear ratio,
-    `test_stat / sqrt(2*pi) / sqrt(2*n)`. It's *supposed* to look small and
-    flat (~0.2 here) even when `test_stat` is large and healthy (~24): it
-    backs the coherent-integration gain back out of `test_stat` to recover
-    the raw per-sample SNR, a different, correctly-related quantity — not a
-    broken one. First draft of this demo printed it as `snr(dB)` and that
-    was simply wrong.
+- **(resolved) `Acquisition.push()`'s 6th tuple element used to be a linear,
+    un-suffixed `snr_est`.** It was documented as "estimated *per-sample
+    amplitude* SNR" — `test_stat / sqrt(2*pi) / sqrt(2*n)`, a
+    bandwidth-dependent quantity ("per-sample" really meant "normalised by
+    the sample rate") that isn't portable across `spc`/`reps` configurations
+    and gave no legible sense of link margin: a large, healthy `test_stat`
+    (~24) could still show a small, flat linear ratio (~0.2), which reads as
+    "stuck"/broken even for a rock-solid detection. It's now `cn0_dbhz_est`
+    — the same statistic inverted back through the engine's own
+    C/N0-to-amplitude-SNR sizing transform, directly comparable to the
+    `cn0_dbhz` the engine was constructed with. It tracks true C/N0 while
+    AWGN dominates the CFAR noise estimate, and saturates at the code's own
+    autocorrelation-sidelobe floor once C/N0 exceeds what the code/geometry
+    can resolve — a real ceiling, not a bug. First draft of this demo
+    printed the old field as `snr(dB)`, which was simply wrong; the new
+    field genuinely is dB (dB-Hz).
 
 - **`BurstDespreader.snr_est` is numerically unstable once the Costas loop
     is well locked on BPSK**, and isn't dB either — an EMA of
     `Re(prompt)^2 / Im(prompt)^2`. A locked BPSK prompt has `Im -> 0`, so the
     ratio can spike to absurd values — this demo observed everything from
-    single digits up to `6.9e6` across otherwise-healthy bursts. Neither
-    field is suffixed `_db` even though `BurstDemod.est_snr_db` is — a
-    naming inconsistency worth fixing upstream. This demo now reports a
-    proper [data-aided Es/N0 (dB)](#esn0-db-not-snr_est-now-a-standalone-dopplersnr-module)
+    single digits up to `6.9e6` across otherwise-healthy bursts. Not
+    suffixed `_db` even though `BurstDemod.est_snr_db` is, and — unlike
+    `Acquisition`'s field above — not yet fixed upstream. This demo reports
+    a proper [data-aided Es/N0 (dB)](#esn0-db-not-snr_est-now-a-standalone-dopplersnr-module)
     instead.
 
 - **The Es/N0 replacement was first a Python prototype, then ported to

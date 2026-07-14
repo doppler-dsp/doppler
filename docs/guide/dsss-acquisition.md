@@ -53,9 +53,9 @@ This is the usage walk-through. For the matched-filter surface it builds on, see
     iq_stream = np.array_split(capture, 8)
 
     for chunk in iq_stream:                          # any cf32 block size
-        for dop, phase, peak, noise, stat, snr in acq.push(chunk):
+        for dop, phase, peak, noise, stat, cn0 in acq.push(chunk):
             print(f"hit: Doppler bin {dop}, code phase {phase} samples, "
-                  f"SNR≈{snr:.2f}")
+                  f"C/N0≈{cn0:.1f} dB-Hz")
     ```
 
 ______________________________________________________________________
@@ -216,18 +216,18 @@ detection per coherent **frame** (or, on the non-coherent path, per `n_noncoh`
 accumulated frames) whose statistic clears the gate. Each hit is a 6-tuple:
 
 ```python
-for dop, phase, peak, noise, stat, snr in acq.push(chunk):
+for dop, phase, peak, noise, stat, cn0 in acq.push(chunk):
     ...
 ```
 
-| field         | meaning                                                     |
-| ------------- | ----------------------------------------------------------- |
-| `doppler_bin` | peak row — slow-time Doppler bin (`0 … doppler_bins-1`)     |
-| `code_phase`  | peak column — integer-sample code phase (`0 … code_bins-1`) |
-| `peak_mag`    | peak correlation magnitude over the surface                 |
-| `noise_est`   | CFAR noise estimate                                         |
-| `test_stat`   | `peak_mag / noise_est` (compared against `threshold`)       |
-| `snr_est`     | estimated per-sample amplitude SNR of the burst             |
+| field          | meaning                                                              |
+| -------------- | -------------------------------------------------------------------- |
+| `doppler_bin`  | peak row — slow-time Doppler bin (`0 … doppler_bins-1`)              |
+| `code_phase`   | peak column — integer-sample code phase (`0 … code_bins-1`)          |
+| `peak_mag`     | peak correlation magnitude over the surface                          |
+| `noise_est`    | CFAR noise estimate                                                  |
+| `test_stat`    | `peak_mag / noise_est` (compared against `threshold`)                |
+| `cn0_dbhz_est` | estimated carrier-to-noise density (dB-Hz), comparable to `cn0_dbhz` |
 
 Map the integer bins back to physical units:
 
@@ -368,7 +368,7 @@ for chunk in iq_stream:                                  # any cf32 block
     n = n0 + np.arange(len(chunk))
     for f_coarse, acq in zip(coarse, bank):
         mixed = (chunk * np.exp(-2j * np.pi * f_coarse / fs * n)).astype(np.complex64)
-        for dop, phase, *_rest, snr in acq.push(mixed):
+        for dop, phase, *_rest, cn0 in acq.push(mixed):
             k = (dop + acq.doppler_bins // 2) % acq.doppler_bins \
                 - acq.doppler_bins // 2
             doppler_hz = f_coarse + k * acq.doppler_res_hz

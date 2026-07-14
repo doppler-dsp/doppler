@@ -28,7 +28,12 @@
  * coherent depth doppler_bins in `[1, reps]` whose doppler_bins*code_bins
  * coherent samples meet @p pd (det_threshold / det_pd) — minimum latency for a
  * strong signal.  A tighter @p doppler_uncertainty shrinks the searched cell
- * count, lowering the Bonferroni threshold (more sensitive).
+ * count, lowering the Bonferroni threshold (more sensitive).  Every reported
+ * detection inverts this same relationship to report an estimated C/N0
+ * (acq_result_t::cn0_dbhz_est) — a bandwidth/integration-time-independent
+ * figure of merit directly comparable to @p cn0_dbhz, unlike a raw per-sample
+ * or coherently-integrated ratio (both scale with @p spc/@p reps and so
+ * aren't portable across configurations).
  *
  * @code
  * // 31-chip PN, 4x oversample, up to 16 coherent reps; 1 MHz chips, 45 dB-Hz
@@ -38,8 +43,9 @@
  * acq_result_t hits[64];
  * size_t nh = acq_push(a, samples, n_samples, hits, 64);
  * for (size_t i = 0; i < nh; i++)
- *   printf("Doppler %zu, code phase %zu, SNR %.2f\n",
- *          hits[i].doppler_bin, hits[i].code_phase, hits[i].snr_est);
+ *   printf("Doppler %zu, code phase %zu, C/N0 %.1f dB-Hz\n",
+ *          hits[i].doppler_bin, hits[i].code_phase,
+ *          hits[i].cn0_dbhz_est);
  * acq_destroy(a);
  * @endcode
  */
@@ -48,9 +54,9 @@
 
 #include "buffer/buffer.h"
 #include "clib_common.h"
-#include "dp_state.h"
 #include "corr2d/corr2d_core.h"
 #include "detection/detection_core.h"
+#include "dp_state.h"
 #include "fft/fft_core.h"
 #include "jm_perf.h"
 /* detector2d_core.h supplies det_noise_mode_t (guarded typedef). */
@@ -71,8 +77,19 @@ extern "C"
     size_t code_phase; /**< Peak col: code phase (0 … code_bins-1).          */
     float  peak_mag;   /**< max `|R[i,j]|` over the surface (linear).        */
     float  noise_est;  /**< CFAR noise estimate over `[noise_lo, noise_hi]`. */
-    float  test_stat;  /**< peak_mag / noise_est; 0 if noise_est == 0.       */
-    float  snr_est;    /**< Estimated per-sample amplitude SNR of the burst. */
+    float  test_stat;  /**< The gating CFAR statistic: peak_mag / noise_est
+                            under coherent-only detection (n_noncoh == 1);
+                            scaled by sqrt(2*n_noncoh) once non-coherent
+                            looks are combined. 0 if noise_est == 0.        */
+    float cn0_dbhz_est; /**< Estimated carrier-to-noise density (dB-Hz),
+                             backed out of test_stat via the same C/N0 <->
+                             per-sample-amplitude-SNR relationship used to
+                             size the engine (see acq_create()). Tracks the
+                             true C/N0 while receiver AWGN dominates the
+                             CFAR noise estimate; saturates at the code's
+                             own autocorrelation-sidelobe floor once the
+                             true C/N0 exceeds what this code/geometry can
+                             resolve — a real ceiling, not a fault.        */
   } acq_result_t;
 
   /**
@@ -84,8 +101,8 @@ extern "C"
   {
     corr2d_state_t *corr; /**< Single-row-ref correlator (dwell=1).          */
     fft_state_t *slow_fft; /**< Length-doppler_bins forward FFT (slow time). */
-    dp_f32_t      *ring; /**< Raw cf32 input ring (the only ring).          */
-    float complex *ref;  /**< Single-row reference (n), owned.              */
+    dp_f32_t    *ring;  /**< Raw cf32 input ring (the only ring).          */
+    float complex *ref; /**< Single-row reference (n), owned.              */
     float complex *yframe;  /**< Slow-time-FFT'd frame (n) fed to corr.  */
     float complex *colbuf;  /**< Gathered column scratch (doppler_bins).  */
     float complex *colout;  /**< FFT'd column scratch (doppler_bins).  */
@@ -159,16 +176,17 @@ extern "C"
    * bytes interface (see dp_state.h); layout, contiguous and flat:
    *
    *   `[ dp_state_hdr_t ] [ acq_extra_t ]`
-   *   `[ float complex unconsumed[n_unconsumed] ]`   (partial frame, < n samples)
+   *   `[ float complex unconsumed[n_unconsumed] ]`   (partial frame, < n
+   * samples)
    *   `[ float          nc_surface[n] ]`             (only when n_noncoh > 1)
    *
    * Build the byte buffer with acq_state_bytes(); set_state validates the
-   * envelope (magic/version/size) plus n / n_noncoh below, rejecting a mismatch
-   * rather than reinterpreting it.
+   * envelope (magic/version/size) plus n / n_noncoh below, rejecting a
+   * mismatch rather than reinterpreting it.
    */
   typedef struct
   {
-    uint16_t has_nc;  /**< 1 if `nc_surface[n]` follows the samples.     */
+    uint16_t has_nc; /**< 1 if `nc_surface[n]` follows the samples.     */
     uint16_t _pad;
     uint32_t n_noncoh;         /**< Non-coherent looks (consistency).     */
     uint64_t n;                /**< Frame size; must equal engine's n.    */

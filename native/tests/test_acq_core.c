@@ -2,8 +2,10 @@
  * test_acq_core.c — DSSS acquisition engine C-level tests.
  *
  * Covers: argument validation, physics auto-config (C/N0 -> snr, the chosen
- * coherent depth doppler_bins, threshold/eta), and noise-free localization of
- * a streamed burst to the injected (Doppler bin, code phase).
+ * coherent depth doppler_bins, threshold/eta), noise-free localization of a
+ * streamed burst to the injected (Doppler bin, code phase), and a real AWGN
+ * calibration check that acq_result_t::cn0_dbhz_est tracks a known injected
+ * C/N0.
  */
 #include "acq/acq_core.h"
 #include <complex.h>
@@ -106,6 +108,87 @@ _acq_run_roundtrip (const float complex *s0d, size_t nx, size_t spc,
   return _fails;
 }
 
+/* Unit-variance complex Gaussian (Box-Muller from xorshift); 0.5 variance per
+ * component so E|z|^2 = 1 (same generator as test_dll_core.c/
+ * test_symsync_core.c — no shared test-utils header exists for it yet). */
+static float complex
+cgauss (uint32_t *st)
+{
+  *st ^= *st << 13;
+  *st ^= *st >> 17;
+  *st ^= *st << 5;
+  uint32_t a = *st;
+  *st ^= *st << 13;
+  *st ^= *st >> 17;
+  *st ^= *st << 5;
+  uint32_t b   = *st;
+  double   u1  = ((double)a + 1.0) / 4294967297.0;
+  double   u2  = ((double)b + 1.0) / 4294967297.0;
+  double   mag = sqrt (-log (u1)); /* sqrt(-2 ln u1)/sqrt(2) */
+  double   th  = 6.283185307179586 * u2;
+  return (float)(mag * cos (th)) + (float)(mag * sin (th)) * I;
+}
+
+/* C/N0 calibration: acq_result_t::cn0_dbhz_est should track a known injected
+ * C/N0 while AWGN dominates the CFAR noise estimate -- the entire point of
+ * reporting a bandwidth-normalised C/N0 instead of a raw per-sample or
+ * coherently-integrated ratio (both scale with spc/reps and so aren't
+ * portable across configurations). A 31-chip MLS code at 4x oversample, 16
+ * coherent reps (the header's own @code example geometry) keeps the code's
+ * autocorrelation-sidelobe floor well below a 55 dB-Hz injected AWGN floor,
+ * so the estimate should land within a couple dB of truth -- previously
+ * nothing checked this field (formerly snr_est) against ground truth, only
+ * finiteness and cross-call determinism. */
+static int
+_acq_cn0_calibration (void)
+{
+  int                  _fails = 0;
+  static const uint8_t CODE31[31]
+      = { 1, 0, 1, 0, 1, 1, 1, 0, 1, 1, 0, 0, 0, 1, 1, 1,
+          1, 1, 0, 0, 1, 1, 0, 1, 0, 0, 1, 0, 0, 0, 0 };
+  const size_t spc      = 4;
+  const double crate    = 1.0e6;
+  const double fs       = crate * (double)spc;
+  const double cn0_true = 55.0;
+
+  acq_state_t *a
+      = acq_create (CODE31, 31, 16, spc, crate, 45.0, 0.0, 1e-3, 0.9, 0, 1);
+  CHECK (a != NULL);
+  if (!a)
+    return _fails;
+
+  const size_t   n = a->n; /* doppler_bins * code_bins */
+  float complex *x = malloc (n * sizeof (float complex));
+  CHECK (x != NULL);
+  if (!x)
+    {
+      acq_destroy (a);
+      return _fails;
+    }
+
+  /* Exact inverse of the sizing transform: amp_snr = sqrt(C/N0 / fs); sigma
+   * is the total complex noise RMS matching a unit chip amplitude. */
+  const double amp_snr = sqrt (pow (10.0, cn0_true / 10.0) / fs);
+  const float  sigma   = (float)(1.0 / amp_snr);
+  uint32_t     st      = 12345u;
+  for (size_t k = 0; k < n; k++)
+    {
+      uint8_t chip = CODE31[(k / spc) % 31];
+      float   c    = (chip & 1u) ? -1.0f : 1.0f; /* unit chip amplitude */
+      x[k]         = c + sigma * cgauss (&st);
+    }
+
+  acq_result_t hits[4];
+  size_t       nh = acq_push (a, x, n, hits, 4);
+  CHECK (nh == 1);
+  if (nh == 1)
+    CHECK (fabsf (hits[0].cn0_dbhz_est - (float)cn0_true) < 3.0f);
+
+  free (x);
+  acq_destroy (a);
+  return _fails;
+}
+
 int
 main (void)
 {
@@ -195,7 +278,7 @@ main (void)
       CHECK (hits[0].doppler_bin == u);
       CHECK (hits[0].code_phase == d);
       CHECK (hits[0].test_stat > b->threshold);
-      CHECK (isfinite (hits[0].snr_est) && hits[0].snr_est > 0.0f);
+      CHECK (isfinite (hits[0].cn0_dbhz_est) && hits[0].cn0_dbhz_est > 0.0f);
     }
 
   /* reset drains the ring and clears the accumulator. */
@@ -261,7 +344,8 @@ main (void)
                 CHECK (hA[i].code_phase == hB[i].code_phase);
                 CHECK (fabsf (hA[i].peak_mag - hB[i].peak_mag) < 1e-5f);
                 CHECK (fabsf (hA[i].test_stat - hB[i].test_stat) < 1e-5f);
-                CHECK (fabsf (hA[i].snr_est - hB[i].snr_est) < 1e-5f);
+                CHECK (fabsf (hA[i].cn0_dbhz_est - hB[i].cn0_dbhz_est)
+                       < 1e-5f);
               }
             free (blob);
           }
@@ -277,6 +361,8 @@ main (void)
    * the latter covering the nc_surface serialize/restore paths. */
   _fails += _acq_run_roundtrip (s0d, nx, spc, crate, 20.0, 1, 0);
   _fails += _acq_run_roundtrip (s0d, nx, spc, crate, 30.0, 8, 1);
+
+  _fails += _acq_cn0_calibration ();
 
   if (_fails)
     {

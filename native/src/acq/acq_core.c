@@ -29,6 +29,20 @@
 
 /* ── Helpers ────────────────────────────────────────────────────────────── */
 
+/* Converts a per-sample amplitude SNR back to an estimated C/N0 (dB-Hz) --
+ * the exact inverse of acq_create()'s sizing transform
+ * (snr = sqrt(10^(cn0_dbhz/10) / fs)) -- so the reported figure is directly
+ * comparable to the caller's own cn0_dbhz argument regardless of chip_rate
+ * or spc, unlike a raw per-sample or coherently-integrated ratio (both scale
+ * with the frame geometry and so aren't portable across configurations).
+ * amp_snr is always > 0 here: every call site sits behind a
+ * test_stat > threshold gate, and threshold/eta_nc are always positive. */
+static inline float
+_cn0_dbhz_from_amp_snr (float amp_snr, double fs)
+{
+  return (float)(20.0 * log10 ((double)amp_snr) + 10.0 * log10 (fs));
+}
+
 /* Doppler-band mask: with a doppler_uncertainty prior the engine scans only
  * searched_bins rows centred on DC, so the peak search must match (else the
  * lowered Bonferroni threshold over-counts and realized Pfa exceeds target).
@@ -496,12 +510,14 @@ acq_push (acq_state_t *st, const float complex *in, size_t n_in,
               _compute_stat (st);
               if (st->test_stat > st->threshold)
                 {
-                  float snr_est = st->test_stat / ACQ_SQRT_2_OVER_PI
+                  float amp_snr = st->test_stat / ACQ_SQRT_2_OVER_PI
                                   / sqrtf (2.0f * (float)n);
+                  float cn0_dbhz_est
+                      = _cn0_dbhz_from_amp_snr (amp_snr, st->fs);
                   result[ndet++]
                       = (acq_result_t){ st->peak_row,  st->peak_col,
                                         st->peak_mag,  st->noise_est,
-                                        st->test_stat, snr_est };
+                                        st->test_stat, cn0_dbhz_est };
                 }
               continue;
             }
@@ -519,11 +535,12 @@ acq_push (acq_state_t *st, const float complex *in, size_t n_in,
           _compute_stat_nc (st);
           if (st->test_stat > st->eta_nc)
             {
-              float snr_est = st->test_stat
+              float amp_snr = st->test_stat
                               / sqrtf (2.0f * (float)n * (float)st->n_noncoh);
-              result[ndet++]
-                  = (acq_result_t){ st->peak_row,  st->peak_col,  st->peak_mag,
-                                    st->noise_est, st->test_stat, snr_est };
+              float cn0_dbhz_est = _cn0_dbhz_from_amp_snr (amp_snr, st->fs);
+              result[ndet++] = (acq_result_t){ st->peak_row,  st->peak_col,
+                                               st->peak_mag,  st->noise_est,
+                                               st->test_stat, cn0_dbhz_est };
             }
           memset (st->nc_surface, 0, n * sizeof (float));
           st->nc_count = 0;

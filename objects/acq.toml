@@ -81,7 +81,7 @@ arg_type = "float _Complex"
 return_type = "acq_result_t"
 nogil = true
 max_results = 64
-result_fields = [{name = "doppler_bin", type = "size_t"}, {name = "code_phase", type = "size_t"}, {name = "peak_mag", type = "float"}, {name = "noise_est", type = "float"}, {name = "test_stat", type = "float"}, {name = "snr_est", type = "float"}]
+result_fields = [{name = "doppler_bin", type = "size_t"}, {name = "code_phase", type = "size_t"}, {name = "peak_mag", type = "float"}, {name = "noise_est", type = "float"}, {name = "test_stat", type = "float"}, {name = "cn0_dbhz_est", type = "float"}]
 
 # ── Read-back grid the engine derived ────────────────────────────────────────
 

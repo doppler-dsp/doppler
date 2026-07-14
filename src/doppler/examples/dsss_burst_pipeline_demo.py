@@ -132,25 +132,30 @@ write-up):
   boundary by one symbol over a long (1000+ symbol) frame. Genuine
   streaming behaviour, not a bug — but code consuming the output must not
   assume the count is exact.
-* **Neither DSSS ``snr_est`` field is in dB, despite the demo's first draft
-  printing both as "snr(dB)".**
-  :attr:`Acquisition.push`'s 6th tuple element is documented as "estimated
-  *per-sample amplitude* SNR" (``acq_core.h``) — a linear ratio, computed as
-  ``test_stat / sqrt(2*pi) / sqrt(2*n)``. It is *supposed* to look small and
-  flat (observed ~0.2 here) even when ``test_stat`` is large and healthy
-  (observed ~24): it backs the coherent-integration gain back out of
-  ``test_stat`` to recover the raw per-sample SNR, which is a different,
-  correctly-related quantity, not a broken one.
+* **(resolved)** :attr:`Acquisition.push`'s 6th tuple element used to be a
+  linear, un-suffixed ``snr_est`` — "estimated *per-sample amplitude* SNR"
+  (``test_stat / sqrt(2*pi) / sqrt(2*n)``), a bandwidth-dependent quantity
+  ("per-sample" really meant "normalised by the sample rate") that isn't
+  portable across ``spc``/``reps`` configurations and gave no way to gauge
+  a detection's actual link margin. It's now ``cn0_dbhz_est`` — the same
+  test statistic inverted back through the engine's own C/N0-to-amplitude-
+  SNR sizing transform, so it's directly comparable to the ``cn0_dbhz`` the
+  engine was constructed with (see ``acq_core.h``). It tracks true C/N0
+  while AWGN dominates the CFAR noise estimate, and saturates at the code's
+  own autocorrelation-sidelobe floor once C/N0 exceeds what the code/
+  geometry can resolve — a real ceiling, not a bug (verified: a strong,
+  confidently-detected burst can report a very ordinary linear ratio near
+  0.5 under the old field, which reads as "stuck"/broken even though
+  ``test_stat`` is deep in detection territory; ``cn0_dbhz_est`` reports the
+  same detection as a legible ~55-90 dB-Hz instead).
 * ``BurstDespreader.snr_est`` (EMA of ``Re(prompt)^2 / Im(prompt)^2``) is
-  *also* not dB — a power-domain ratio — and is numerically unstable once
-  the Costas loop is well locked on BPSK: a locked BPSK prompt has
-  ``Im -> 0``, so the ratio can spike to absurd values (observed: single
-  digits up to 6.9e6 across otherwise-healthy bursts in this demo). Treat it
-  as a rough lock-quality signal, not a calibrated SNR.
-* Neither of the two fields above is suffixed ``_db`` even though sibling
-  fields elsewhere in the same module are (:attr:`BurstDemod.est_snr_db`) —
-  worth a consistent naming convention upstream so "not dB" is visible from
-  the name.
+  *not* dB — a power-domain ratio — and is numerically unstable once the
+  Costas loop is well locked on BPSK: a locked BPSK prompt has ``Im -> 0``,
+  so the ratio can spike to absurd values (observed: single digits up to
+  6.9e6 across otherwise-healthy bursts in this demo). Treat it as a rough
+  lock-quality signal, not a calibrated SNR — also worth a ``_db``-suffixed,
+  properly-calibrated replacement upstream, matching the fix above and
+  sibling fields elsewhere in the module (:attr:`BurstDemod.est_snr_db`).
 * **The Es/N0 replacement was first a Python prototype, then ported to C.**
   Reimplementing the fix in Python (strip the known sign, ``a**2 / mean(|z
   - a|**2)``) was fine to validate the idea, but doppler is C-first — a
@@ -415,10 +420,10 @@ def demo_acquisition(rx, acq_code, *, cn0_dbhz=40.0):
         # start clean, since push()'s own framing has no "restart here"
         # concept (see the walkthrough in the module docstring).
         acq.reset()
-        for dop, cp, _peak, _noise, test_stat, snr in acq.push(
+        for dop, cp, _peak, _noise, test_stat, cn0 in acq.push(
             rx[pos : pos + PRE_LEN]
         ):
-            raw.append((pos + cp, dop, test_stat, snr))
+            raw.append((pos + cp, dop, test_stat, cn0))
     print(
         f"  swept {n_dwells} overlapping dwells ({ACQ_HOP}-sample hop, "
         f"{PRE_LEN}-sample dwell) over {len(rx)} samples: "
@@ -431,11 +436,11 @@ def demo_acquisition(rx, acq_code, *, cn0_dbhz=40.0):
     # strongest per cluster, so the report is one line per actual burst.
     raw.sort()
     hits = []
-    for abs_pos, dop, test_stat, snr in raw:
+    for abs_pos, dop, test_stat, cn0 in raw:
         if hits and abs_pos - hits[-1]["abs_pos"] <= PRE_LEN:
             if test_stat > hits[-1]["test_stat"]:
                 hits[-1].update(
-                    abs_pos=abs_pos, dop=dop, test_stat=test_stat, snr=snr
+                    abs_pos=abs_pos, dop=dop, test_stat=test_stat, cn0=cn0
                 )
         else:
             hits.append(
@@ -443,24 +448,24 @@ def demo_acquisition(rx, acq_code, *, cn0_dbhz=40.0):
                     "abs_pos": abs_pos,
                     "dop": dop,
                     "test_stat": test_stat,
-                    "snr": snr,
+                    "cn0": cn0,
                 }
             )
 
     print(
         f"  {'#':<3} {'abs. sample':>12} {'dop bin':>7} {'test stat':>9} "
-        f"{'threshold':>9} {'snr_est(lin)':>12}"
+        f"{'threshold':>9} {'C/N0 (dB-Hz)':>12}"
     )
     for i, h in enumerate(hits):
-        # snr_est is a *linear per-sample amplitude* ratio (acq_core.h),
-        # NOT dB, and NOT the post-integration detection stat — it's
-        # expected to look small/flat for a spread-spectrum signal since
-        # it backs the coherent gain back out of test_stat. See module
-        # docstring's "Rough edges found".
+        # cn0_dbhz_est is a bandwidth/integration-time-independent estimate
+        # of the burst's carrier-to-noise density, directly comparable to
+        # this engine's own cn0_dbhz sizing input (acq_core.h) -- unlike a
+        # raw per-sample or coherently-integrated ratio (both scale with
+        # spc/reps and so aren't portable across configurations).
         print(
             f"  {i:<3} {h['abs_pos']:>12} {h['dop']:>7d} "
             f"{h['test_stat']:>9.1f} {acq.threshold:>9.1f} "
-            f"{h['snr']:>12.3f}"
+            f"{h['cn0']:>12.1f}"
         )
     return hits, acq
 

@@ -91,8 +91,11 @@ class Detection:
         Code phase (samples) at the channel's acquisition rate.
     test_stat : float
         CFAR test statistic (peak / noise) reported by the channel.
-    snr_est : float
-        Estimated per-sample amplitude SNR of the burst.
+    cn0_dbhz_est : float
+        Estimated carrier-to-noise density (dB-Hz) of the burst — directly
+        comparable to the channel's own ``cn0_dbhz`` sizing input, unlike a
+        raw per-sample or coherently-integrated ratio (both would scale with
+        the channel's spc/reps and so wouldn't be portable across channels).
     channel : int
         Index of the coarse channel that reported the hit.
     """
@@ -100,7 +103,7 @@ class Detection:
     doppler_hz: float
     code_phase: int
     test_stat: float
-    snr_est: float
+    cn0_dbhz_est: float
     channel: int
 
 
@@ -179,7 +182,7 @@ class CoarseChannel:
         """Down-mix + acquire a block; return absolute-coordinate hits."""
         baseband = self._ddc.execute(block)
         hits = []
-        for dop_bin, code_phase, _peak, _noise, stat, snr in self._acq.push(
+        for dop_bin, code_phase, _peak, _noise, stat, cn0 in self._acq.push(
             baseband
         ):
             hits.append(
@@ -187,7 +190,7 @@ class CoarseChannel:
                     self._abs_doppler(dop_bin),
                     int(code_phase),
                     float(stat),
-                    float(snr),
+                    float(cn0),
                     index,
                 )
             )

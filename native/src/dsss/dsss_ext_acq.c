@@ -156,7 +156,7 @@ AcquisitionObj_push (AcquisitionObject *self, PyObject *args)
       PyObject *tup = Py_BuildValue (
           "(KKffff)", (unsigned long long)results[i].doppler_bin,
           (unsigned long long)results[i].code_phase, results[i].peak_mag,
-          results[i].noise_est, results[i].test_stat, results[i].snr_est);
+          results[i].noise_est, results[i].test_stat, results[i].cn0_dbhz_est);
       if (!tup)
         {
           Py_DECREF (lst);
@@ -494,16 +494,19 @@ static PyGetSetDef Acquisition_getset[] = {
     "Bonferroni per-cell false-alarm probability over the searched cells.\n",
     NULL },
   { "pd_predicted", (getter)Acquisition_getprop_pd_predicted, NULL,
-    "Predicted Pd at cn0_dbhz and the chosen grid, at the straddle-derated "
-    "operating SNR (the average over random Doppler/code phase the "
-    "Monte-Carlo characterization measures - not the on-grid best case).\n",
+    "Predicted Pd at cn0_dbhz and the chosen grid: the average Pd over the "
+    "straddle priors (slow-time scalloping, intra-segment rotation, "
+    "code-phase sample offset - quadrature over uniform priors), matching "
+    "what the Monte-Carlo characterization measures rather than the on-grid "
+    "best case.\n",
     NULL },
   { "straddle_loss", (getter)Acquisition_getprop_straddle_loss, NULL,
     "Mean amplitude derating of the correlation peak from grid straddle "
     "(slow-time Doppler scalloping x intra-segment rotation x code-phase "
-    "sample offset, each averaged over a uniform prior). Sizing and "
-    "pd_predicted both use snr*straddle_loss; 20*log10(straddle_loss) is the "
-    "loss in dB.\n",
+    "sample offset, each averaged over a uniform prior) - a diagnostic "
+    "summary; 20*log10(straddle_loss) is the loss in dB. Sizing and "
+    "pd_predicted average Pd itself over the priors (Pd at this mean "
+    "amplitude would overstate the mean Pd).\n",
     NULL },
   { "fs", (getter)Acquisition_getprop_fs, NULL,
     "Sample rate (Hz) = chip_rate * spc.\n", NULL },
@@ -562,7 +565,7 @@ static PyMethodDef AcquisitionObj_methods[]
           "push(x) -> list[tuple]\n"
           "\n"
           "Returns list of (doppler_bin, code_phase, peak_mag, noise_est, "
-          "test_stat, snr_est,) tuples.\n"
+          "test_stat, cn0_dbhz_est,) tuples.\n"
           "\n"
           "    >>> import numpy as np\n"
           "    >>> from doppler import Acquisition\n"

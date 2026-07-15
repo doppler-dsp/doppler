@@ -164,6 +164,24 @@ a downstream `Costas` loop removes it at full symbol SNR. Putting a carrier loop
 *inside* the despreader would only matter for long coherent integration — which
 partials deliberately avoid.
 
+### The same scope rule applies to the DSSS-MPSK composition
+
+`Dll(segments=K) -> MpskReceiver` (`docs/gallery/async-dsss-receiver.md`) is
+the other downstream composition, and the same rule bites the same way: the
+despreader's partial-correlation output rate is whatever `K*chip_rate/SF`
+comes out to — a sub-multiple of the chip rate, not chosen with
+`MpskReceiver`'s `sps` in mind. An early version of that gallery page
+violated its own §4 by picking `K` specifically so
+`round(K*T_sym/T_epoch)` landed on an integer, coupling `Dll`'s own
+tracking parameter to `MpskReceiver`'s sample-rate requirement. That made a
+perfectly good `Dll` tuning look downstream-broken. The fix is
+`doppler.resample.RateConverter` between the two — an explicit, arbitrary-
+ratio resample stage, the same category of fix as `Costas`/`SymbolSync`
+being separate objects from `Dll` here. Choose `segments` for the
+despreader's own tracking quality; choose the demodulator's `sps` for its
+own reasons; bridge the two with a resampler, never by coupling the
+parameters directly.
+
 ## 5. Code-lock detection (always on)
 
 A tracking channel must always answer one question: *am I locked?* The DLL

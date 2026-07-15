@@ -49,6 +49,16 @@ identical mislock reproduces bit-for-bit, proving it is a deterministic
 consequence of the code's partial-window self-correlation structure and
 the transition's position within the epoch -- not a noise event.
 
+**A second figure asks the same question at a realistic link margin**
+(Es/N0 = 10 dB, not the deliberately-strong 97 dB-Hz above): detection
+probability vs. integration depth, coherent (one D-epoch dump) vs.
+non-coherent (D independent 1-epoch looks), same total epochs either way.
+At this margin the effect isn't an occasional mislock anymore -- it's a
+first-order Pd gap. An 11-epoch coherent window spans ~8 symbols (~7 data
+transitions), and coherent Pd plateaus around 68%, far short of its own
+91% theoretical target, while non-coherent (immune to phase disagreement
+between looks) comfortably clears 99%.
+
 Downstream despread/demod (``Dll(segments) -> MpskReceiver``) is a
 separate, later stage of this story -- this page is deliberately
 acquisition-only.
@@ -246,17 +256,20 @@ def _replay_epoch_noiseless(trial: int, epoch: int) -> float:
 
 
 # --8<-- [start:diversity_configs]
-# Same total energy budget across the last three (2-3 epochs each); only how
-# it's combined differs. cn0_dbhz is a sizing target, not the real injected
-# signal (CN0_OPERATING_DBHZ, always 97 dB-Hz) -- lowering it is how each
-# config is pushed past the single-epoch coherent ceiling.
-N_EPOCHS_DIV = 99  # divisible by 2 and 3, for the epoch-diversity comparison
-DIVERSITY_CONFIGS = [
-    (55.0, 1, 1, "1 epoch/decision (coherent, baseline)"),
-    (50.0, 3, 1, "2 epochs/decision (coherent)"),
-    (49.0, 3, 1, "3 epochs/decision (coherent, 1 dump)"),
-    (48.0, 1, 4, "3 epochs/decision (non-coherent, 3 looks)"),
-]
+# A realistic link margin, unlike CN0_OPERATING_DBHZ (97 dB-Hz, deliberately
+# strong for the mislock-mechanism story above): Es/N0 = C/N0 - 10*log10(Rs),
+# so C/N0 = Es/N0 + 10*log10(symbol_rate). Pd vs. integration depth, coherent
+# vs. non-coherent: for depth D, "coherent" forces reps=D, max_noncoh=1 (a
+# single D-epoch coherent dump) and "non-coherent" forces reps=1,
+# max_noncoh=D (D independent 1-epoch looks, power-summed). auto-config
+# picks the *smallest* depth that meets pd=0.9 within the ceiling you give
+# it, so for D below what's needed it's forced to use the full D (still
+# short of pd) -- sweeping D traces out the actual Pd-vs-integration curve
+# for each strategy, not just its endpoint.
+DIVERSITY_ES_N0_DB = 10.0
+DIVERSITY_CN0_DBHZ = DIVERSITY_ES_N0_DB + 10 * np.log10(SYM_RATE)  # ~43.2
+N_EPOCHS_DIV = 96  # epochs per trial; >= the deepest depth swept below
+DEPTHS = list(range(1, 13))  # epochs integrated; brackets the ~11-epoch knee
 # --8<-- [end:diversity_configs]
 
 
@@ -306,7 +319,10 @@ def _diversity_trial(trial: int, cn0_dbhz: float, reps: int, max_noncoh: int):
     )
     cph = ((idx / SPC).astype(int) + phase0) % SF
     sig = data[si] * _CSIGN[cph] * np.exp(2j * np.pi * (doppler_hz / FS) * idx)
-    amp_snr = np.sqrt(10.0 ** (CN0_OPERATING_DBHZ / 10.0) / FS)
+    # The real injected signal, not CN0_OPERATING_DBHZ (that constant is the
+    # deliberately-strong mislock-mechanism story above) -- this sweep is a
+    # genuine link-margin study at DIVERSITY_ES_N0_DB.
+    amp_snr = np.sqrt(10.0 ** (DIVERSITY_CN0_DBHZ / 10.0) / FS)
     sigma = 1.0 / amp_snr
     noise = (sigma / np.sqrt(2.0)) * (
         rng.standard_normal(n) + 1j * rng.standard_normal(n)
@@ -344,11 +360,25 @@ def _diversity_sweep(cn0_dbhz: float, reps: int, max_noncoh: int, label: str):
     valid = ~np.isnan(ce_mat)
     mislock = valid & (np.abs(np.nan_to_num(ce_mat)) > 5.0)
     mislock_rate = float(np.sum(mislock) / np.sum(valid))
+
+    # Empirical Pd -- the metric that actually discriminates at low margin:
+    # push() only ever reports a value once it clears threshold, so "min
+    # test statistic among detections" degenerates toward the threshold
+    # itself when Pd is low (a handful of trials get lucky, and that's all
+    # you ever see). Opportunities/trial is push-count for the coherent
+    # path (one decision per push) but push-count // n_noncoh for the
+    # non-coherent path (a decision only completes every n_noncoh pushes;
+    # ts_mat's column count is still per-push, not per-decision).
+    opportunities_per_trial = ts_mat.shape[1] // acq_ref.n_noncoh
+    total_opportunities = N_TRIALS_MC * opportunities_per_trial
+    pd_empirical = float(np.sum(valid) / total_opportunities)
+
     thr = acq_ref.eta_nc if acq_ref.n_noncoh > 1 else acq_ref.threshold
     print(
         f"epoch-diversity[{label}]: doppler_bins={acq_ref.doppler_bins} "
         f"n_noncoh={acq_ref.n_noncoh} threshold={thr:.2f} "
-        f"mislock_rate={mislock_rate:.4f} "
+        f"pd_empirical={pd_empirical:.4f} (pd_predicted="
+        f"{acq_ref.pd_predicted:.4f}) mislock_rate={mislock_rate:.4f} "
         f"({int(np.sum(mislock))} of {int(np.sum(valid))})"
     )
     return (
@@ -358,6 +388,8 @@ def _diversity_sweep(cn0_dbhz: float, reps: int, max_noncoh: int, label: str):
         acq_ref.doppler_bins,
         acq_ref.n_noncoh,
         mislock_rate,
+        pd_empirical,
+        acq_ref.pd_predicted,
     )
 
 
@@ -567,56 +599,87 @@ def main(out_path: str = "dsss_acq_async_data_demo.png") -> None:
     fig.savefig(out_path, dpi=120)
     print(f"wrote {out_path}")
 
-    # --- epoch-diversity comparison: does *any* combining across >=2 ------
-    # independent epochs (coherent or non-coherent) fix the mislock, and
-    # does non-coherent still win on variance even where both reach zero?
+    # --- Pd vs. integration depth: coherent (one D-epoch dump) vs. ---------
+    # non-coherent (D independent 1-epoch looks, power-summed), same total
+    # epochs either way, at a realistic (not deliberately strong) margin.
     div_path = out_path.replace(".png", "_diversity.png")
-    results = [
-        _diversity_sweep(cn0, reps, mnc, label)
-        for cn0, reps, mnc, label in DIVERSITY_CONFIGS
+    coh_results = [
+        _diversity_sweep(DIVERSITY_CN0_DBHZ, d, 1, f"COH-{d}") for d in DEPTHS
     ]
-    baseline_rate = results[0][5]
-    assert baseline_rate > 0.01, (
-        "expected the 1-epoch baseline to show a real mislock rate here"
-    )
-    for result, (_cn0, _reps, _mnc, label) in zip(
-        results[1:], DIVERSITY_CONFIGS[1:]
-    ):
-        rate = result[5]
-        assert rate < 0.005, (
-            f"expected epoch diversity to clear the mislock for {label!r} "
-            f"(mislock_rate={rate:.4f})"
-        )
+    noncoh_results = [
+        _diversity_sweep(DIVERSITY_CN0_DBHZ, 1, d, f"NONCOH-{d}")
+        for d in DEPTHS
+    ]
+    coh_pd = np.array([r[6] for r in coh_results])
+    noncoh_pd = np.array([r[6] for r in noncoh_results])
 
-    # Only the min across trials matters here -- a mislock happens when the
-    # WORST epoch of a run drops near threshold, not when the mean does.
-    # One overlay, not four panels: the min trajectories are what's being
-    # compared, and mean/max would only distract from that comparison.
-    short_labels = ["COH-1", "COH-2", "COH-3", "NON-COH-3"]
-    colors = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728"]
+    assert coh_pd[0] < 0.2 and noncoh_pd[0] < 0.2, (
+        f"expected the 1-epoch depth to be far short of pd=0.9 here "
+        f"(coh={coh_pd[0]:.3f}, noncoh={noncoh_pd[0]:.3f})"
+    )
+    assert noncoh_pd[-1] > 0.85, (
+        f"expected non-coherent to reach close to its own pd=0.9 target "
+        f"at the deepest swept depth (noncoh={noncoh_pd[-1]:.3f})"
+    )
+    # The real, more interesting finding: coherent does NOT reach its own
+    # theoretical target here, because an 11-epoch coherent window spans
+    # ~8 symbols (~7 data transitions) -- the same self-cancellation
+    # mechanism from the mislock story above now costs real Pd, not just
+    # occasional mislocks, while non-coherent (blind to phase between
+    # looks) is immune to it and comfortably clears the target.
+    assert coh_pd[-1] < noncoh_pd[-1] - 0.1, (
+        "expected coherent combining to meaningfully underperform "
+        f"non-coherent at the deepest depth (coh={coh_pd[-1]:.3f}, "
+        f"noncoh={noncoh_pd[-1]:.3f})"
+    )
+    # Binomial standard error per point, for the error bars below.
+    coh_n = np.array(
+        [N_TRIALS_MC * (r[0].shape[1] // r[4]) for r in coh_results]
+    )
+    noncoh_n = np.array(
+        [N_TRIALS_MC * (r[0].shape[1] // r[4]) for r in noncoh_results]
+    )
+    coh_se = np.sqrt(coh_pd * (1 - coh_pd) / coh_n)
+    noncoh_se = np.sqrt(noncoh_pd * (1 - noncoh_pd) / noncoh_n)
+    pd_predicted = [r[7] for r in coh_results]  # same at every depth
 
     fig2, ax2 = plt.subplots(figsize=(8, 5.5))
-    for result, short, color in zip(results, short_labels, colors):
-        ts_mat, _ce_mat, thr, db, _nnc, _mislock_rate = result
-        ep2 = np.arange(ts_mat.shape[1]) * db
-        valid = ~np.all(np.isnan(ts_mat), axis=0)
-        ep_v = ep2[valid]
-        ts_min = np.nanmin(ts_mat[:, valid], axis=0)
-        ax2.plot(ep_v, ts_min, color=color, lw=1.4, label=short)
-        ax2.axhline(thr, color=color, lw=0.8, ls=":", alpha=0.6)
-
-    ax2.set_ylim(0, 60)
-    ax2.set_title(
-        "Worst-case (min) test statistic vs. epoch\n"
-        f"{N_TRIALS_MC} trials each; dotted lines mark each config's own "
-        "CFAR threshold"
+    ax2.errorbar(
+        DEPTHS,
+        coh_pd,
+        yerr=1.96 * coh_se,
+        color="#1f77b4",
+        marker="o",
+        ms=4,
+        lw=1.4,
+        capsize=3,
+        label="coherent (1 dump, D epochs)",
     )
-    ax2.set_xlabel("code epoch (real time)")
-    ax2.set_ylabel("test statistic")
-    ax2.legend(fontsize=9)
+    ax2.errorbar(
+        DEPTHS,
+        noncoh_pd,
+        yerr=1.96 * noncoh_se,
+        color="#d62728",
+        marker="s",
+        ms=4,
+        lw=1.4,
+        capsize=3,
+        label="non-coherent (D looks)",
+    )
+    ax2.axhline(0.9, color="k", lw=0.8, ls="--", label="target pd = 0.9")
+    ax2.set_ylim(0, 1.0)
+    ax2.set_xlabel("integration depth D (code epochs)")
+    ax2.set_ylabel("empirical Pd")
+    ax2.set_title(
+        f"Detection probability vs. integration depth\n"
+        f"Es/N0={DIVERSITY_ES_N0_DB:.0f} dB "
+        f"(C/N0={DIVERSITY_CN0_DBHZ:.1f} dB-Hz), {N_TRIALS_MC} trials/depth, "
+        f"95% CI"
+    )
+    ax2.legend(fontsize=9, loc="lower right")
     fig2.tight_layout()
     fig2.savefig(div_path, dpi=120)
-    print(f"wrote {div_path}")
+    print(f"wrote {div_path} (pd_predicted={pd_predicted[-1]:.3f})")
 
 
 if __name__ == "__main__":

@@ -18,6 +18,37 @@ which measures Pd/Pfa vs Es/N0 for a **bursty** preamble+payload link with
 synchronous spreading. This page's code is always present and its data
 clock is deliberately misaligned to the code clock.
 
+## How it works
+
+```python
+--8<-- "src/doppler/examples/dsss_acq_async_data_demo.py:signal"
+```
+
+1. Build a continuous capture: silence, then the Gold-code-spread BPSK
+    stream at real chip/symbol rates with an independent, non-integer
+    symbol clock and a residual 50 Hz carrier.
+1. Stream it through `Acquisition.push()` — no `reset()`-hopping sweep
+    needed, since (unlike a sparse burst) the code is always present.
+1. At the hit, invert `code_phase` (a correlation *lag*) into the code's
+    actual phase (`chip_phase = (sf - code_phase/spc) % sf`) and rebuild a
+    local chip replica to compare against ground truth.
+1. Separately, run the Monte-Carlo sweep: fresh `Acquisition` instances,
+    100 epochs of continuous signal each (no silence — this measures
+    per-epoch search behaviour in steady transmission, not acquisition
+    latency), random data, starting code phase, and a residual Doppler
+    drawn uniformly from ±100 Hz per trial, recording test statistic,
+    code-phase error, and Doppler error at every epoch.
+1. Then the Pd-vs-depth sweep: the same signal construction and trial
+    loop at the realistic `DIVERSITY_CN0_DBHZ` margin, run twice per
+    depth `D` in `1..12` — once with `(reps=D, max_noncoh=1)` (coherent)
+    and once with `(reps=1, max_noncoh=D)` (non-coherent) — recording
+    empirical Pd (opportunities-aware: a non-coherent decision only
+    completes every `n_noncoh` pushes, so the denominator is pushes
+    divided by `n_noncoh`, not raw pushes) at each depth.
+
+Downstream despread and demod (`Dll(segments) -> MpskReceiver`) are later
+stages of this story, each getting their own page once built.
+
 ## What you're seeing
 
 **Top left — chip-level zoom at the hit.** The raw received signal
@@ -94,73 +125,54 @@ within the epoch, not a noise event. Stripping the noise couldn't have
 "fixed" a noise-driven failure; it did nothing here, because noise was
 never the cause.
 
-## Fixing it: combine across epochs
+## Fixing it: Pd vs. integration depth, at a realistic margin
 
-![Worst-case test statistic vs. epoch, coherent vs. non-coherent combining](../assets/dsss_acq_async_data_demo_diversity.png)
+![Detection probability vs. integration depth, coherent vs. non-coherent combining](../assets/dsss_acq_async_data_demo_diversity.png)
 
-If a single epoch is fragile, does combining more than one fix it — and
-does it matter *how* they're combined? Four configurations, same 200-trial
-sweep (random data, code phase, and a ±100 Hz residual Doppler per trial,
-same as above). The plot deliberately shows only the **minimum** test statistic
-across trials at each epoch, against each config's own CFAR threshold
-(dotted, same color) — the mean or max would only flatter the config that
-merely combines more raw energy; the *minimum* is what actually decides
-whether a given run mislocks, since a mislock happens when the worst
-epoch's peak drops far enough to lose to a spurious one.
+The mislock story above uses a deliberately strong C/N0 (97 dB-Hz) to
+unambiguously isolate the mechanism. At a **realistic** link margin —
+Es/N0 = 10 dB, i.e. C/N0 = Es/N0 + 10·log10(symbol_rate) ≈ 43.2 dB-Hz —
+the same effect stops being an occasional mislock and becomes a
+first-order gap in detection probability itself.
 
-| config (legend)    | `doppler_bins` | `n_noncoh` | mislock rate |
-| ------------------ | -------------- | ---------- | ------------ |
-| `COH-1` (baseline) | 1              | 1          | 3.07%        |
-| `COH-2`            | 2              | 1          | 0.00%        |
-| `COH-3`            | 3              | 1          | 0.00%        |
-| `NON-COH-3`        | 1              | 3          | 0.00%        |
+For each integration depth `D` (1 to 12 code epochs), two strategies are
+swept at the same total energy: **coherent** forces `reps=D, max_noncoh=1` (one `D`-epoch coherent dump — `Acquisition`'s auto-config
+picks the *smallest* depth that meets `pd=0.9`, so at any `D` short of
+that it's forced to use the full `D`, still short) and **non-coherent**
+forces `reps=1, max_noncoh=D` (`D` independent 1-epoch looks, power-
+summed). 200 trials per depth per strategy; error bars are a 95%
+binomial confidence interval.
 
-**Any combining across ≥2 independent epochs clears the mislock** — even
-plain coherent stacking (`COH-2`) gets to zero, which at first looks like
-it should undercut the fix's mechanism: not "non-coherent specifically
-defeats it", but epoch **diversity** in general. The engine's coherent
-combining isn't one long correlation over the concatenated window — it's a
-per-code-phase-column FFT *across* the epoch axis (a coherent sum,
-sample-position by sample-position, of each epoch's own raw samples at
-that same within-epoch offset). A transition corrupts only a narrow,
-transition-position-dependent slice of that sum, and because the
-transition's position drifts epoch to epoch (the fixed 1.396
-epochs/symbol ratio never repeats the same offset), that corrupted slice
-never dominates once ≥2 epochs are combined, coherently or not.
+**Non-coherent reaches the pd = 0.9 target by `D≈6` and keeps climbing to
+~99.8% by `D=11`.** **Coherent climbs far more slowly and plateaus around
+68%** — nowhere near its own 91% theoretical prediction at `D=11`, and
+adding still more coherent depth (`D=12`) doesn't help; the engine's
+auto-config has already found the smallest `D` it thinks it needs; the
+`D=11`/`D=12` gap between empirical and predicted Pd doesn't close by
+requesting more.
 
-But look at the *margin*, not just whether each cleared zero: `COH-2`'s
-worst-case trace still dips down to hug its own (barely higher) threshold
-almost as tightly as `COH-1` does — it happened not to convert to an
-actual mislock in this 200-trial run, but it is running with very little
-room to spare. `COH-3` opens up real headroom. `NON-COH-3` is in a
-different league entirely — its minimum never approaches its own
-(highest) threshold anywhere in the run. Two independent reasons favor
-non-coherent as the robust default, not just "ties on mislock count":
-
-1. **Variance.** Power-summing (`|·|²` accumulate) can never be dragged
-    down by destructive combination the way a coherent (complex-amplitude)
-    sum can — it only ever adds. A coherent stack's gain is real, but its
-    floor is set by however badly the worst single epoch in the stack
-    disagrees in *phase*, not just magnitude.
-1. **Drift immunity — the more important point for a real channel.**
-    Coherent stacking across `doppler_bins` epochs is a single-frequency
-    -hypothesis slow-time FFT — it implicitly assumes the carrier's phase
-    evolves predictably across the *entire* window. Any unmodeled dynamics
-    inside that window (residual acceleration, oscillator phase noise, a
-    Doppler rate finer than the bin grid resolves) bleeds coherent gain
-    away as the window lengthens — a cost this controlled simulation
-    cannot show, because it has none of those drift sources. Non-coherent
-    combining is blind to phase *between* looks by construction, so it is
-    immune to that failure mode regardless of what the simulation does or
-    doesn't model. The price is the classic non-coherent combining loss
-    (roughly 1–3 dB versus the same total energy combined ideally
-    coherently, for small `N`) — invisible here only because of the huge
-    operating margin (real C/N0 = 97 dB-Hz vs. a ≤55 dB-Hz sizing target).
+**Why coherent falls short of its own prediction:** `Acquisition`'s Pd
+sizing math assumes a plain, continuous, unmodulated code — it has no
+notion of data riding on top. An 11-epoch coherent window spans
+`11 / 1.396 ≈ 7.9` symbols, i.e. **about 7 data-bit transitions inside one
+"coherent" integration** — the exact self-cancellation mechanism from the
+mislock story above, now compounding across a much longer window instead
+of costing one epoch's worth of margin. Non-coherent combining never
+integrates coherently across a transition in the first place — each
+1-epoch look is independent, and power-summing (`|·|²` accumulate) cannot
+be dragged down by a badly-phased look the way a coherent sum can; it can
+only ever add. That is why non-coherent's *empirical* Pd comfortably
+*exceeds* its own theoretical prediction here (the prediction is a
+conservative bound for a clean, unmodulated code) while coherent's falls
+well short of the same kind of bound.
 
 See the [DSSS acquisition guide](../guide/dsss-acquisition.md#continuous-data-modulated-signals-the-asynchronous-symbol-clock-case)
 for the resulting recommendation: given `code`, `chip_rate`, and a
 `symbol_rate` (the signal that continuous data modulation is present),
-cap `reps=1` and size sensitivity through `max_noncoh` by default.
+cap `reps=1` and size sensitivity through `max_noncoh` by default — not
+just because it avoids an occasional mislock, but because at a realistic
+margin, coherent combining across many data-modulated epochs may simply
+never reach the detection probability its own sizing math promises.
 
 ```python
 --8<-- "src/doppler/examples/dsss_acq_async_data_demo.py:diversity_configs"
@@ -170,38 +182,10 @@ cap `reps=1` and size sensitivity through `max_noncoh` by default.
 --8<-- "src/doppler/examples/dsss_acq_async_data_demo.py:diversity_acq"
 ```
 
-## How it works
-
-```python
---8<-- "src/doppler/examples/dsss_acq_async_data_demo.py:signal"
-```
-
-1. Build a continuous capture: silence, then the Gold-code-spread BPSK
-    stream at real chip/symbol rates with an independent, non-integer
-    symbol clock and a residual 50 Hz carrier.
-1. Stream it through `Acquisition.push()` — no `reset()`-hopping sweep
-    needed, since (unlike a sparse burst) the code is always present.
-1. At the hit, invert `code_phase` (a correlation *lag*) into the code's
-    actual phase (`chip_phase = (sf - code_phase/spc) % sf`) and rebuild a
-    local chip replica to compare against ground truth.
-1. Separately, run the Monte-Carlo sweep: fresh `Acquisition` instances,
-    100 epochs of continuous signal each (no silence — this measures
-    per-epoch search behaviour in steady transmission, not acquisition
-    latency), random data, starting code phase, and a residual Doppler
-    drawn uniformly from ±100 Hz per trial, recording test statistic,
-    code-phase error, and Doppler error at every epoch.
-1. Then the epoch-diversity comparison: the same signal construction and
-    trial loop, parametrized over `(cn0_dbhz, reps, max_noncoh)` so
-    `doppler_bins`/`n_noncoh` land on each of the four configurations in
-    the table above, at a fixed real C/N0 the whole time.
-
-Downstream despread and demod (`Dll(segments) -> MpskReceiver`) are later
-stages of this story, each getting their own page once built.
-
 ## Run it
 
 ```sh
-python -m doppler.examples.dsss_acq_async_data_demo   # ~15 s -> two PNGs
+python -m doppler.examples.dsss_acq_async_data_demo   # ~1 min -> two PNGs
 ```
 
 Writes both figures on this page (`dsss_acq_async_data_demo.png` and

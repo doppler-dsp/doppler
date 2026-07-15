@@ -1,6 +1,7 @@
-"""async_dsss_receiver_demo.py -- Acquisition -> Dll(segments) -> MpskReceiver,
-the full continuous DSSS receive chain, against a continuous Gold code
-carrying asynchronous BPSK data modulation.
+"""async_dsss_receiver_demo.py -- Acquisition -> Dll(segments) ->
+RateConverter -> MpskReceiver, the full continuous DSSS receive chain,
+against a continuous Gold code carrying asynchronous BPSK data
+modulation.
 
 Stage 3 of the same multi-part story as ``dsss_acq_async_data_demo.py``
 (Stage 1: does :class:`~doppler.dsss.Acquisition` land the right code
@@ -9,43 +10,58 @@ that hit correctly seed :class:`~doppler.track.Dll`, and is ``segments=4``
 robust enough for the DLL's *own* tracking loop). This page asks the last
 question the story set up: carrier and symbol-timing recovery
 (:class:`~doppler.track.MpskReceiver`) sit downstream of ``Dll`` too --
-does Stage 2's own ``segments=4`` sweet spot suffice there as well, or
-does a coherent-combining matched filter need something ``Dll``'s own
-loop never needed?
+does Stage 2's own ``segments=4`` sweet spot suffice there as well?
 
-``MpskReceiver``'s own docstring states the intended composition: *"A
-DSSS-MPSK receiver is ``Dll(segments) -> MpskReceiver``: despread to
-symbol-rate soft chips, then this modem."* ``Dll.steps()``'s partial
-stream feeds ``MpskReceiver.steps()`` directly -- no intermediate carrier
-wipe or matched filter, since ``MpskReceiver`` owns both internally
-(NDA carrier acquisition, then Gardner+Farrow symbol timing, then --
-once locked -- decision-directed tracking).
+**The despreader's only job is to remove the code.** ``Dll(segments=K)``
+emits its partial-correlation dumps at a fixed, uniform rate
+``K*chip_rate/SF`` -- a sub-multiple of the chip rate, nothing more.
+Turning that into a clean ``N`` samples/symbol grid for the demodulator
+is a *separate* problem, solved by an explicit resampler
+(:class:`~doppler.resample.RateConverter`, arbitrary output/input ratio,
+already in this codebase), not by contorting ``Dll``'s own tuning
+parameter to fake the right output rate. An earlier version of this page
+got this wrong: it wired ``segments`` directly into ``MpskReceiver``'s
+``sps`` (picking ``segments=34`` purely because
+``round(segments*T_sym/T_epoch)`` landed on an integer), which made
+``segments=4`` -- Stage 2's own tracking-optimal choice -- look
+downstream-broken. It wasn't. At ``segments=4`` the partial rate is
+``~11.7 kHz``, already ~5.6x the 2100 sym/s symbol rate -- comfortably
+past the 2x Nyquist floor for symbol timing recovery. The failure was
+architectural, not a property of non-coherent partial correlation.
 
-**The central finding, measured fresh on this page's signal (not assumed
-from an older run): ``segments=4`` never decodes.** Streamed through
-``MpskReceiver`` unchanged, its BER sits at ~0.47 -- indistinguishable
-from a coin flip -- for the entire run. ``segments=34`` (chosen so
-``round(segments * T_sym/T_epoch)`` lands on an ``MpskReceiver``-friendly
-``sps`` with a small divisor for the carrier-arm count ``n``) decodes
-perfectly, converging to 100% symbol correctness within about 150
-symbols and staying there. The reason ``segments=4`` fails here even
-though it's ``Dll``'s own robust choice (Stage 2): each partial is
-``segments``-times weaker than a full coherent code epoch, and while
-that's fine for the DLL's own non-coherent early/late discriminator, it
-starves ``MpskReceiver``'s coherent matched filter (length ``sps``) of
-the samples-per-symbol it needs to rebuild real coherent gain before its
-carrier/timing loops can converge at all.
+**The corrected chain, measured fresh:** ``Dll(segments=4)`` (Stage 2's
+own choice, kept for its own tracking-robustness reasons and nothing
+else) feeds :class:`~doppler.resample.RateConverter`, which converts the
+partial stream to a clean ``N=8`` samples/symbol -- ``MpskReceiver``'s
+own constructor default, the same shape used everywhere else in this
+codebase (``test_mpsk_receiver.py``, ``mpsk_receiver_demo.py``). A
+"normal" ``MpskReceiver(m=2, sps=8, n=4, ...)`` takes over from there,
+with none of the previous ``sps=47`` weirdness. On the *same* signal,
+*same* ``segments=4``, the only thing that changed is whether a resample
+stage sits in between: without it, BER sits at ~0.44 (chance) the entire
+run; with it, BER is 0.0 and stays there. Panel 3 below is that direct
+before/after comparison. ``init_norm_freq``'s unit conversion also
+simplifies and becomes independent of ``segments``: it's cycles per
+``RateConverter``'s *output* sample rate (``N*symbol_rate``, fixed),
+not per the despreader's own partial rate.
+
+**A caveat found while re-measuring, not chased further:** this specific
+loop tuning (``bn_carrier=bn_timing=0.01``, ``sps=8``) stays perfectly
+locked through the ~3500-symbol run plotted here, but a longer run (past
+~4000 symbols, at this same margin) shows the symbol-timing loop starting
+to jitter and occasionally slip. That's a separate, further loop-tuning
+question -- how finely ``Gardner`` timing resolution scales with ``sps``
+under this margin -- not resolved on this page, the same way Stage 2
+found (and didn't chase) ``segments=1``'s eventual long-run divergence.
 
 Two more things worth knowing before reusing this pattern:
 
 - **``MpskReceiver``'s own ``tracking``/``lock`` flags are not reliable
-    stand-ins for "decoding correctly" at the failing ``segments``.**
-    ``segments=4`` frequently reports ``tracking=1`` with a healthy-looking
+    stand-ins for "decoding correctly."** The broken (un-resampled)
+    variant frequently reports ``tracking=1`` with a healthy-looking
     ``lock`` value despite decoding pure noise -- the carrier loop can
-    lock to *something* (a wrong absolute phase, or a timing point that
-    isn't actually sampling the symbol) without ever producing a correct
-    bit. Don't gate success on these flags for an unfamiliar ``segments``;
-    check measured BER against known data instead, same as this page does
+    lock to *something* without ever producing a correct bit. Check
+    measured BER against known data instead, same as this page does
     (extending Stage 2's own caution about ``Dll.locked`` at large
     ``segments`` -- the analogous flag one layer up shows the same
     pattern).
@@ -68,18 +84,17 @@ chosen -- as in the pre-story version of this demo -- to unambiguously
 validate the pipeline mechanics rather than run a margin sensitivity
 study; see Stage 2 for a page that studies margin sensitivity instead):
 
-1. **Decoded BPSK constellation** (settled window, ``segments=34``): two
-   tight clusters at +/-1, confirming the residual carrier is fully
-   removed and symbol timing has converged.
-2. **Running BER** (settled window, ``segments=34``): flat at zero,
-   confirming the lock isn't a lucky momentary alignment.
-3. **Windowed decode correctness, ``segments=4`` vs. ``segments=34``**
-   (50-symbol windows, the central finding above): ``segments=34``
-   converges to 100% correct almost immediately; ``segments=4`` never
-   rises above chance for the entire run.
-4. **``MpskReceiver.norm_freq`` vs. epoch** (``segments=34``): the
-   carrier loop's pull-in from the Acquisition-quantized seed to the true
-   residual Doppler.
+1. **Decoded BPSK constellation** (settled window): two tight clusters
+   at +/-1, confirming the residual carrier is fully removed and symbol
+   timing has converged.
+2. **Running BER** (settled window): flat at zero, confirming the lock
+   isn't a lucky momentary alignment.
+3. **Windowed decode correctness, with vs. without the resample stage**
+   (50-symbol windows, the central finding above, both at ``segments=4``):
+   with ``RateConverter`` in the chain, correctness is 100% from the
+   first window on; without it, it never rises above chance.
+4. **``MpskReceiver.norm_freq`` vs. epoch**: the carrier loop's pull-in
+   from the Acquisition-quantized seed to the true residual Doppler.
 
 Run:  python -m doppler.examples.async_dsss_receiver_demo  [out.png]
 """
@@ -104,7 +119,12 @@ TE = SF * SPC  # samples per code epoch
 TSYM = FS / SYM_RATE  # samples per symbol ~= 1.4 code epochs
 
 DOPPLER_HZ = 50.0  # residual carrier -- never removed upstream of MpskReceiver
-N_SYM = 6000
+# Deliberately shorter than Stage 1/2's N_SYM=6000: at this margin/loop
+# tuning the symbol-timing loop stays locked through ~4000 symbols and
+# starts to jitter past that (see the module docstring's caveat) -- this
+# page's own asserts are sized to what's actually verified, not to the
+# largest number that happens to compile.
+N_SYM = 3500
 PRE_SILENCE = TE * 20 + 737  # deliberately not a whole number of epochs
 
 # CCSDS defaults: known 3-valued correlation sidelobes {-1, -65, 63}, a
@@ -152,19 +172,22 @@ def make_signal(cn0_dbhz: float, seed: int):
 # --8<-- [end:signal]
 
 from doppler.dsss.handoff import dll_init_chip_from_acq  # noqa: E402
+from doppler.resample import RateConverter  # noqa: E402
 from doppler.track import Dll, MpskReceiver  # noqa: E402
 
 SEED = 6
 CN0_OPERATING_DBHZ = 97.0  # deliberately strong -- see the module docstring
 
-# Segments per code epoch that MpskReceiver actually needs (measured on
-# this page's signal, not assumed from the older PN-code run) versus
-# Dll's own tracking sweet spot from Stage 2, kept for direct contrast.
-K_WORKING = 34
-K_DLL_SWEETSPOT = 4
+# Dll's own tracking-optimal segments (Stage 2) -- chosen for Dll's own
+# robustness, nothing else. Not coupled to MpskReceiver's sps at all;
+# RateConverter is what bridges the two.
+K = 4
 BN = 0.002  # every validated Dll example in this codebase uses this, not
 # the constructor's own default (0.01, unstable at this geometry -- see
 # Stage 2's module docstring).
+
+MPSK_SPS = 8  # MpskReceiver's own constructor default -- a "normal" config
+MPSK_N = 4
 
 
 # --8<-- [start:acq_symbol_rate]
@@ -204,29 +227,33 @@ def _acquire(x: np.ndarray):
     return None, None, acq
 
 
-def _mpsk_dims(segments: int):
-    """MpskReceiver's own sps/n for a given Dll ``segments`` count --
-    ``sps`` chosen so ``round(segments*TSYM/TE)`` lands close to an
-    integer partials-per-symbol count, ``n`` the largest divisor of
-    ``sps`` in ``{4, 2, 1}`` (the carrier-arm count)."""
-    sps = round(segments * TSYM / TE)
-    n_arm = next(c for c in (4, 2, 1) if sps % c == 0)
-    return sps, n_arm
-
-
 # --8<-- [start:handoff]
-def _new_chain(chip_phase: float, doppler_hz_est: float, segments: int):
-    """Build a hand-off-seeded ``Dll``/``MpskReceiver`` pair.
+def _new_chain(chip_phase: float, doppler_hz_est: float, resample: bool):
+    """Build a hand-off-seeded ``Dll`` -> (optional) ``RateConverter`` ->
+    ``MpskReceiver`` chain.
 
-    ``MpskReceiver``'s ``init_norm_freq`` is cycles per *its own input
-    sample* -- the Dll partial stream, at rate ``FS*segments/TE`` -- not
-    cycles per raw ADC sample. Converting by the raw sample rate instead
-    would seed a wildly wrong carrier frequency.
+    ``resample=True`` is the correct architecture: ``Dll(segments=K)``
+    is tuned purely for its own tracking robustness (Stage 2), and
+    ``RateConverter`` converts its partial-correlation stream (a
+    sub-multiple of the chip rate) to a clean ``MPSK_SPS`` samples/symbol
+    for a "normal" ``MpskReceiver``. ``resample=False`` reproduces the
+    earlier, broken direct-wiring (``segments`` forced to double as
+    ``sps``) purely for the before/after comparison in panel 3 -- not a
+    pattern to reuse.
     """
-    partial_rate = FS * segments / TE
-    norm_freq = doppler_hz_est / partial_rate
-    sps, n_arm = _mpsk_dims(segments)
-    dll = Dll(CODE, SPC, chip_phase, BN, 0.707, 0.5, segments=segments)
+    dll = Dll(CODE, SPC, chip_phase, BN, 0.707, 0.5, segments=K)
+    if resample:
+        partial_rate = FS * K / TE
+        target_rate = MPSK_SPS * SYM_RATE
+        rc = RateConverter(rate=target_rate / partial_rate)
+        norm_freq = doppler_hz_est / target_rate
+        sps, n_arm = MPSK_SPS, MPSK_N
+    else:
+        rc = None
+        partial_rate = FS * K / TE
+        norm_freq = doppler_hz_est / partial_rate
+        sps = round(K * TSYM / TE)
+        n_arm = next(c for c in (4, 2, 1) if sps % c == 0)
     rx = MpskReceiver(
         m=2,
         sps=sps,
@@ -239,25 +266,27 @@ def _new_chain(chip_phase: float, doppler_hz_est: float, segments: int):
         init_norm_freq=norm_freq,
         warmup_syms=30,
     )
-    return dll, rx
+    return dll, rc, rx
 
 
 # --8<-- [end:handoff]
 
 
 def _receive(
-    x, s0: int, chip_phase: float, doppler_hz_est: float, segments: int
+    x, s0: int, chip_phase: float, doppler_hz_est: float, resample: bool
 ):
-    """Despread ``x[s0:]`` and demodulate it in one pass; return
-    ``(dll, rx, syms)``. ``MpskReceiver.steps()`` is block-size invariant
-    (state carries across calls), so one call over the whole despread
-    stream is equivalent to a per-epoch streaming call."""
-    dll, rx = _new_chain(chip_phase, doppler_hz_est, segments)
+    """Despread ``x[s0:]``, optionally resample, and demodulate in one
+    pass; return ``(dll, rx, syms)``. Both ``RateConverter.execute()``
+    and ``MpskReceiver.steps()`` are block-size invariant (state carries
+    between calls), so one call over the whole stream is equivalent to a
+    per-epoch streaming call."""
+    dll, rc, rx = _new_chain(chip_phase, doppler_hz_est, resample)
     rest = x[s0:]
     nep = len(rest) // TE
     parts = [dll.steps(rest[e * TE : (e + 1) * TE]) for e in range(nep)]
     part = np.concatenate(parts)
-    syms = rx.steps(part)
+    stream = rc.execute(part) if rc is not None else part
+    syms = rx.steps(stream)
     return dll, rx, syms
 
 
@@ -297,19 +326,26 @@ def _windowed_ber(bits, data, data_start, lag, inv, window=50):
     correct = np.full(len(bits), np.nan)
     correct[valid] = (aligned[valid] == data[idx[valid]]).astype(float)
     n_win = len(correct) // window
-    return np.array(
-        [
-            1.0 - np.nanmean(correct[i * window : (i + 1) * window])
-            for i in range(n_win)
-        ]
-    )
+    with warnings.catch_warnings():
+        # A window entirely before data_start+lag>=0 (a large negative
+        # lag, only possible for the un-resampled/broken chain) is
+        # all-NaN by construction; the resulting NaN is the correct
+        # "unknown" value, not a bug.
+        warnings.simplefilter("ignore", RuntimeWarning)
+        return np.array(
+            [
+                1.0 - np.nanmean(correct[i * window : (i + 1) * window])
+                for i in range(n_win)
+            ]
+        )
 
 
-def _norm_freq_trace(x, s0, chip_phase, doppler_hz_est, segments, n_epochs):
-    """Stream ``segments`` epoch by epoch, recording ``rx.norm_freq``
-    after each call -- the carrier loop's pull-in trace from its
-    Acquisition-quantized seed toward the true residual Doppler."""
-    dll, rx = _new_chain(chip_phase, doppler_hz_est, segments)
+def _norm_freq_trace(x, s0, chip_phase, doppler_hz_est, n_epochs):
+    """Stream the corrected chain epoch by epoch, recording
+    ``rx.norm_freq`` after each call -- the carrier loop's pull-in trace
+    from its Acquisition-quantized seed toward the true residual
+    Doppler."""
+    dll, rc, rx = _new_chain(chip_phase, doppler_hz_est, resample=True)
     nf = np.full(n_epochs, np.nan)
     pos = s0
     for i in range(n_epochs):
@@ -317,8 +353,9 @@ def _norm_freq_trace(x, s0, chip_phase, doppler_hz_est, segments, n_epochs):
             break
         part = dll.steps(x[pos : pos + TE])
         pos += TE
-        if len(part):
-            rx.steps(part)
+        stream = rc.execute(part)
+        if len(stream):
+            rx.steps(stream)
         nf[i] = rx.norm_freq
     return nf
 
@@ -350,118 +387,115 @@ def main(out_path: str = "async_dsss_receiver_demo.png") -> None:
     s0 = hitpos + frame
     data_start = round((s0 - PRE_SILENCE) / TSYM)
 
-    # --- stage 3: despread + demod, at both segments counts -----------------
-    _dll34, rx34, syms34 = _receive(
-        x, s0, chip_phase, doppler_hz_est, K_WORKING
-    )
-    bits34, ber34, lag34, inv34 = _decode_ber(syms34, data, data_start)
+    # --- stage 3: despread -> resample -> demod, with vs. without the -------
+    # resample stage (both at segments=K, isolating exactly what changed)
+    _dll_ok, rx_ok, syms_ok = _receive(x, s0, chip_phase, doppler_hz_est, True)
+    bits_ok, ber_ok, lag_ok, inv_ok = _decode_ber(syms_ok, data, data_start)
     print(
-        f"segments={K_WORKING}: recovered {len(syms34)} symbols, "
-        f"tracking={rx34.tracking} lock={rx34.lock:.2f} ber={ber34:.4f} "
-        f"lag={lag34} inverted={inv34}"
+        f"resampled chain (segments={K}, sps={MPSK_SPS}): recovered "
+        f"{len(syms_ok)} symbols, tracking={rx_ok.tracking} "
+        f"lock={rx_ok.lock:.2f} ber={ber_ok:.4f} lag={lag_ok} "
+        f"inverted={inv_ok}"
     )
-    assert ber34 < 0.01, "segments=K_WORKING failed to decode cleanly"
-    assert rx34.tracking == 1, "MpskReceiver never handed over to tracking"
+    assert ber_ok < 0.01, "the resampled chain failed to decode cleanly"
+    assert rx_ok.tracking == 1, "MpskReceiver never handed over to tracking"
 
-    _dll4, rx4, syms4 = _receive(
-        x, s0, chip_phase, doppler_hz_est, K_DLL_SWEETSPOT
+    _dll_bad, rx_bad, syms_bad = _receive(
+        x, s0, chip_phase, doppler_hz_est, False
     )
-    bits4, ber4, lag4, inv4 = _decode_ber(syms4, data, data_start)
+    bits_bad, ber_bad, lag_bad, inv_bad = _decode_ber(
+        syms_bad, data, data_start
+    )
     print(
-        f"segments={K_DLL_SWEETSPOT} (Dll's own Stage-2 sweet spot): "
-        f"recovered {len(syms4)} symbols, tracking={rx4.tracking} "
-        f"lock={rx4.lock:.2f} ber={ber4:.4f}"
+        f"un-resampled direct-wiring (segments={K}, the earlier bug): "
+        f"recovered {len(syms_bad)} symbols, tracking={rx_bad.tracking} "
+        f"lock={rx_bad.lock:.2f} ber={ber_bad:.4f}"
     )
-    # The central finding: Dll's own optimum is downstream-insufficient.
-    assert ber4 > 0.3, (
-        f"expected segments={K_DLL_SWEETSPOT} to fail to decode (near-"
-        f"chance BER) despite being Dll's own tracking sweet spot; "
-        f"got ber={ber4:.4f}"
+    # The central finding: the fix was the resample stage, not a bigger K.
+    assert ber_bad > 0.3, (
+        f"expected the un-resampled direct-wiring to fail (near-chance "
+        f"BER) at segments={K}; got ber={ber_bad:.4f}"
     )
-    assert ber34 < ber4, (
-        f"expected segments={K_WORKING} to decode far better than "
-        f"segments={K_DLL_SWEETSPOT} (ber34={ber34:.4f}, ber4={ber4:.4f})"
+    assert ber_ok < ber_bad, (
+        f"expected the resampled chain to decode far better than the "
+        f"un-resampled one at the same segments={K} "
+        f"(ber_ok={ber_ok:.4f}, ber_bad={ber_bad:.4f})"
     )
 
-    wber34 = _windowed_ber(bits34, data, data_start, lag34, inv34)
-    wber4 = _windowed_ber(bits4, data, data_start, lag4, inv4)
-    assert np.nanmean(wber34[-5:]) < 0.05, (
-        "expected segments=K_WORKING's windowed BER to converge to "
-        f"~0 by the end of the run (last 5 windows mean="
-        f"{np.nanmean(wber34[-5:]):.3f})"
+    wber_ok = _windowed_ber(bits_ok, data, data_start, lag_ok, inv_ok)
+    wber_bad = _windowed_ber(bits_bad, data, data_start, lag_bad, inv_bad)
+    assert np.nanmean(wber_ok[-5:]) < 0.05, (
+        "expected the resampled chain's windowed BER to converge to ~0 "
+        f"by the end of the run (last 5 windows mean="
+        f"{np.nanmean(wber_ok[-5:]):.3f})"
     )
-    assert np.nanmean(wber4[-5:]) > 0.3, (
-        "expected segments=K_DLL_SWEETSPOT's windowed BER to stay near "
+    assert np.nanmean(wber_bad[-5:]) > 0.3, (
+        "expected the un-resampled chain's windowed BER to stay near "
         f"chance the whole run (last 5 windows mean="
-        f"{np.nanmean(wber4[-5:]):.3f})"
+        f"{np.nanmean(wber_bad[-5:]):.3f})"
     )
 
     n_epochs_nf = min(300, (len(x) - s0) // TE)
-    nf_trace = _norm_freq_trace(
-        x, s0, chip_phase, doppler_hz_est, K_WORKING, n_epochs_nf
-    )
-    partial_rate34 = FS * K_WORKING / TE
-    norm_freq_true = DOPPLER_HZ / partial_rate34
+    nf_trace = _norm_freq_trace(x, s0, chip_phase, doppler_hz_est, n_epochs_nf)
+    norm_freq_true = DOPPLER_HZ / (MPSK_SPS * SYM_RATE)
 
     # --- plot -----------------------------------------------------------
     fig, ((a, b), (c, d)) = plt.subplots(2, 2, figsize=(11, 8.5))
 
-    lo, hi = len(bits34) // 3, 2 * len(bits34) // 3
+    lo, hi = len(bits_ok) // 3, 2 * len(bits_ok) // 3
     a.scatter(
-        syms34[lo:hi].real,
-        syms34[lo:hi].imag,
+        syms_ok[lo:hi].real,
+        syms_ok[lo:hi].imag,
         s=8,
         color="#1f77b4",
         alpha=0.5,
     )
     a.axhline(0, color="k", lw=0.5)
     a.axvline(0, color="k", lw=0.5)
-    lim = 1.3 * np.max(np.abs(syms34[lo:hi]))
+    lim = 1.3 * np.max(np.abs(syms_ok[lo:hi]))
     a.set_xlim(-lim, lim)
     a.set_ylim(-lim, lim)
     a.set_aspect("equal")
     a.set_title(
-        f"Decoded BPSK symbols (settled window, segments={K_WORKING})\n"
-        f"BER={ber34:.4f}",
+        f"Decoded BPSK symbols (settled window)\nBER={ber_ok:.4f}",
         fontsize=9,
     )
     a.set_xlabel("I")
     a.set_ylabel("Q")
     a.grid(alpha=0.25)
 
-    aligned34 = bits34 if not inv34 else -bits34
-    idx34 = data_start + lag34 + np.arange(lo, hi)
-    correct34 = aligned34[lo:hi] == data[idx34]
-    running_ber = 1.0 - np.cumsum(correct34) / (np.arange(len(correct34)) + 1)
+    aligned_ok = bits_ok if not inv_ok else -bits_ok
+    idx_ok = data_start + lag_ok + np.arange(lo, hi)
+    correct_ok = aligned_ok[lo:hi] == data[idx_ok]
+    running_ber = 1.0 - np.cumsum(correct_ok) / (
+        np.arange(len(correct_ok)) + 1
+    )
     b.plot(running_ber, color="#2ca02c", lw=1.1)
     b.set_ylim(0, max(0.05, running_ber.max() * 1.1))
-    b.set_title(
-        f"Running BER over the settled window (segments={K_WORKING})",
-        fontsize=9,
-    )
+    b.set_title("Running BER over the settled window", fontsize=9)
     b.set_xlabel("symbol index (settled window)")
     b.set_ylabel("running BER")
     b.grid(alpha=0.25)
 
     c.plot(
-        np.arange(len(wber34)) * 50,
-        wber34,
+        np.arange(len(wber_ok)) * 50,
+        wber_ok,
         lw=1.1,
         color="#1f77b4",
-        label=f"segments={K_WORKING}",
+        label="with RateConverter (correct)",
     )
     c.plot(
-        np.arange(len(wber4)) * 50,
-        wber4,
+        np.arange(len(wber_bad)) * 50,
+        wber_bad,
         lw=1.1,
         color="#d62728",
-        label=f"segments={K_DLL_SWEETSPOT} (Dll's own sweet spot)",
+        label="without it (the earlier bug)",
     )
     c.axhline(0.5, color="k", lw=0.8, ls="--", label="chance")
     c.set_ylim(-0.05, 0.65)
     c.set_title(
-        "Windowed decode correctness (50-symbol windows)\n"
-        "Dll's own optimum is downstream-insufficient",
+        f"Windowed decode correctness (both segments={K})\n"
+        "the fix was the resample stage, not a bigger K",
         fontsize=9,
     )
     c.set_xlabel("symbol index")
@@ -475,9 +509,7 @@ def main(out_path: str = "async_dsss_receiver_demo.png") -> None:
         norm_freq_true, color="k", lw=1.0, ls="--", label="true norm_freq"
     )
     d.set_title(
-        f"Carrier pull-in (segments={K_WORKING})\n"
-        "from the Acquisition-quantized seed",
-        fontsize=9,
+        "Carrier pull-in from the Acquisition-quantized seed", fontsize=9
     )
     d.set_xlabel("epoch")
     d.set_ylabel("MpskReceiver.norm_freq")
@@ -485,9 +517,10 @@ def main(out_path: str = "async_dsss_receiver_demo.png") -> None:
     d.grid(alpha=0.25)
 
     fig.suptitle(
-        f"Acquisition -> Dll(segments) -> MpskReceiver -- CCSDS Gold code "
-        f"(SF={SF}), continuous asynchronous BPSK data ({SYM_RATE:.0f} "
-        f"sym/s), C/N0={CN0_OPERATING_DBHZ:.0f} dB-Hz",
+        f"Acquisition -> Dll(segments={K}) -> RateConverter -> "
+        f"MpskReceiver(sps={MPSK_SPS}) -- CCSDS Gold code (SF={SF}), "
+        f"continuous asynchronous BPSK data ({SYM_RATE:.0f} sym/s), "
+        f"C/N0={CN0_OPERATING_DBHZ:.0f} dB-Hz",
         fontsize=10,
     )
     fig.tight_layout(rect=(0, 0, 1, 0.95))

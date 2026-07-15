@@ -29,17 +29,19 @@ bit-for-bit — asserted, not eyeballed. This isolates Acquisition's own
 `code_phase`/`doppler_bin` estimate from every stage downstream (despread,
 carrier recovery) and confirms it is exact.
 
-**Top right — test statistic vs. epoch, Monte-Carlo over random data and
-code phase.** At this operating point `doppler_bins == 1`, so every
-`push()` evaluates exactly one code epoch — a direct per-epoch window onto
-how the asynchronous data modulation affects the search. 200 independent
-trials (random data, random starting code phase, the same 97 dB-Hz C/N0,
+**Top right — test statistic vs. epoch, Monte-Carlo over random data,
+code phase, and Doppler.** At this operating point `doppler_bins == 1`,
+so every `push()` evaluates exactly one code epoch — a direct per-epoch
+window onto how the asynchronous data modulation affects the search. 200
+independent trials (random data, random starting code phase, a residual
+Doppler drawn uniformly from ±100 Hz per trial, the same 97 dB-Hz C/N0,
 100 code epochs each) are summarized as a min/mean/max band against the
 engine's own CFAR `threshold`. The regular scalloping (period ≈ 2.5
 epochs, matching the fixed 1.396 epochs/symbol ratio) is real: a data-bit
 transition landing mid-epoch partially cancels that epoch's coherent sum.
 The worst epochs dip to within a hair of the threshold line — but across
-20 000 epoch-trials, detection never actually failed.
+20 000 epoch-trials, detection never actually failed, across the whole
+±100 Hz range, not just one fixed offset.
 
 **Bottom left — code-phase error vs. epoch, same Monte Carlo.** Tight,
 near-zero error almost everywhere — except at the *exact same* epochs
@@ -51,12 +53,16 @@ threshold. 3.1% of epochs in this run show a >5-chip mislock, and the
 mislocks are provably concentrated at the low-test-stat epochs (asserted,
 not just visually correlated). **The mislocks are not noise** — see below.
 
-**Bottom right — Doppler error vs. epoch, same Monte Carlo.** Flat at the
-full injected 50 Hz, with zero trial-to-trial variance. Not a bug: at
-`doppler_bins == 1` the single Doppler bin spans the engine's *entire*
-native ±1.47 kHz span, so this operating point makes no attempt at fine
-Doppler resolution at all — that refinement is a downstream tracking-loop
-job (`MpskReceiver`'s carrier NCO), not acquisition's.
+**Bottom right — Doppler error vs. epoch, same Monte Carlo.** A flat-vs-
+time band spanning the full ±100 Hz trial-to-trial spread — each
+individual trial's own Doppler is constant across its epochs (that's the
+physical scenario: one residual carrier offset per capture), so the
+*width* of the band is entirely the Monte-Carlo diversity across trials,
+not per-epoch drift within one. Not a bug: at `doppler_bins == 1` the
+single Doppler bin spans the engine's *entire* native ±1.47 kHz span, so
+this operating point makes no attempt at fine Doppler resolution at all —
+that refinement is a downstream tracking-loop job (`MpskReceiver`'s
+carrier NCO), not acquisition's.
 
 ## Why the mislocks happen
 
@@ -94,7 +100,8 @@ never the cause.
 
 If a single epoch is fragile, does combining more than one fix it — and
 does it matter *how* they're combined? Four configurations, same 200-trial
-sweep. The plot deliberately shows only the **minimum** test statistic
+sweep (random data, code phase, and a ±100 Hz residual Doppler per trial,
+same as above). The plot deliberately shows only the **minimum** test statistic
 across trials at each epoch, against each config's own CFAR threshold
 (dotted, same color) — the mean or max would only flatter the config that
 merely combines more raw energy; the *minimum* is what actually decides
@@ -180,8 +187,9 @@ cap `reps=1` and size sensitivity through `max_noncoh` by default.
 1. Separately, run the Monte-Carlo sweep: fresh `Acquisition` instances,
     100 epochs of continuous signal each (no silence — this measures
     per-epoch search behaviour in steady transmission, not acquisition
-    latency), random data and starting code phase per trial, recording
-    test statistic, code-phase error, and Doppler error at every epoch.
+    latency), random data, starting code phase, and a residual Doppler
+    drawn uniformly from ±100 Hz per trial, recording test statistic,
+    code-phase error, and Doppler error at every epoch.
 1. Then the epoch-diversity comparison: the same signal construction and
     trial loop, parametrized over `(cn0_dbhz, reps, max_noncoh)` so
     `doppler_bins`/`n_noncoh` land on each of the four configurations in

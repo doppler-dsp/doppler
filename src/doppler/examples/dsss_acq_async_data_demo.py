@@ -20,16 +20,20 @@ Four panels:
    chip-phase reconstruction. Bit-for-bit agreement here is the actual
    proof -- Acquisition's ``code_phase``/``doppler_bin`` estimate is
    exactly right, not merely close.
-2. **Test statistic vs. epoch, Monte-Carlo over random data and code
-   phase.** ``doppler_bins=1`` at this operating point, so each ``push()``
-   evaluates exactly one code epoch -- a direct per-epoch window onto
-   how asynchronous data modulation affects the search.
+2. **Test statistic vs. epoch, Monte-Carlo over random data, code phase,
+   and a +-100 Hz residual Doppler.** ``doppler_bins=1`` at this operating
+   point, so each ``push()`` evaluates exactly one code epoch -- a direct
+   per-epoch window onto how asynchronous data modulation affects the
+   search, generalized across a real frequency-uncertainty range rather
+   than one fixed offset.
 3. **Code-phase error vs. epoch, same sweep.** Near-zero almost
    everywhere, with occasional gross (hundreds-of-chips) mislocks at the
    same epochs where the test statistic dipped.
-4. **Doppler error vs. epoch.** Flat at the full injected offset --
-   ``doppler_bins=1`` means this operating point makes no attempt at fine
-   Doppler resolution at all (that's a downstream tracking-loop job).
+4. **Doppler error vs. epoch.** A flat-vs-time band spanning the full
+   +-100 Hz trial-to-trial spread (each individual trial's own Doppler is
+   constant across its epochs) -- ``doppler_bins=1`` means this operating
+   point makes no attempt at fine Doppler resolution at all (that's a
+   downstream tracking-loop job).
 
 **Why the mislocks happen (verified, not just observed):** a data-bit
 transition landing mid-epoch splits that epoch's coherent sum into two
@@ -132,6 +136,7 @@ SEED = 6
 
 N_EPOCHS_MC = 100  # Monte-Carlo observation window, in code epochs
 N_TRIALS_MC = 200  # independent random-data/random-code-phase trials
+DOPPLER_UNCERTAINTY_HZ = 100.0  # Monte-Carlo trials draw from +-this, uniform
 
 
 def _new_acq() -> Acquisition:
@@ -150,16 +155,19 @@ def _new_acq() -> Acquisition:
 
 def _mc_trial(trial: int) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Test statistic / code-phase-error / Doppler-error traces for one
-    random-data/random-phase trial.
+    random-data/random-phase/random-Doppler trial.
 
     Builds ``N_EPOCHS_MC`` epochs of continuous signal (no silence --
     this experiment is about the search's per-epoch behaviour once
     already in steady transmission, not acquisition latency), random
-    data and a random starting code phase, and streams it through a
-    fresh ``Acquisition`` instance one epoch (one ``push()``) at a time.
-    Returns three length-``N_EPOCHS_MC`` arrays (test statistic, code-phase
-    error in chips, Doppler error in Hz), NaN where that epoch's peak fell
-    below the CFAR gate (a real miss, not a bug).
+    data, a random starting code phase, and a residual Doppler drawn
+    uniformly from ``+-DOPPLER_UNCERTAINTY_HZ`` (so the mislock-mechanism
+    finding isn't an artifact of one fixed offset), and streams it
+    through a fresh ``Acquisition`` instance one epoch (one ``push()``)
+    at a time. Returns three length-``N_EPOCHS_MC`` arrays (test
+    statistic, code-phase error in chips, Doppler error in Hz), NaN
+    where that epoch's peak fell below the CFAR gate (a real miss, not
+    a bug).
     """
     rng = np.random.default_rng(1000 + trial)
     n = N_EPOCHS_MC * TE
@@ -167,8 +175,11 @@ def _mc_trial(trial: int) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     data = (rng.integers(0, 2, int(n / TSYM) + 4) * 2 - 1).astype(float)
     si = np.clip(np.floor(idx / TSYM).astype(int), 0, len(data) - 1)
     phase0 = int(rng.integers(0, SF))
+    doppler_hz = float(
+        rng.uniform(-DOPPLER_UNCERTAINTY_HZ, DOPPLER_UNCERTAINTY_HZ)
+    )
     cph = ((idx / SPC).astype(int) + phase0) % SF
-    sig = data[si] * _CSIGN[cph] * np.exp(2j * np.pi * (DOPPLER_HZ / FS) * idx)
+    sig = data[si] * _CSIGN[cph] * np.exp(2j * np.pi * (doppler_hz / FS) * idx)
     amp_snr = np.sqrt(10.0 ** (CN0_OPERATING_DBHZ / 10.0) / FS)
     sigma = 1.0 / amp_snr
     noise = (sigma / np.sqrt(2.0)) * (
@@ -184,7 +195,7 @@ def _mc_trial(trial: int) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     nframes = len(x) // frame
     ts = np.full(nframes, np.nan)
     code_err = np.full(nframes, np.nan)  # chips, circular, vs. true phase0
-    dopp_err = np.full(nframes, np.nan)  # Hz, vs. true DOPPLER_HZ
+    dopp_err = np.full(nframes, np.nan)  # Hz, vs. true doppler_hz
     pos = 0
     for i in range(nframes):
         hits = acq.push(x[pos : pos + frame])
@@ -196,7 +207,7 @@ def _mc_trial(trial: int) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
             k_fold = (
                 dop_bin + doppler_bins // 2
             ) % doppler_bins - doppler_bins // 2
-            dopp_err[i] = k_fold * doppler_res_hz - DOPPLER_HZ
+            dopp_err[i] = k_fold * doppler_res_hz - doppler_hz
         pos += frame
     return ts, code_err, dopp_err
 
@@ -205,12 +216,12 @@ def _replay_epoch_noiseless(trial: int, epoch: int) -> float:
     """Rebuild one Monte-Carlo (trial, epoch) with all injected noise
     removed and report its code-phase error in chips.
 
-    Uses the exact same ``rng``/``phase0`` construction as ``_mc_trial``
-    for that trial, so this reproduces the identical code phase, data
-    sequence, and data-bit-transition timing -- only the AWGN term is
-    dropped. If the mislock survives noiseless, it is a deterministic
-    property of the code and the transition's position within the epoch,
-    not a noise event.
+    Uses the exact same ``rng``/``phase0``/``doppler_hz`` construction as
+    ``_mc_trial`` for that trial (same draw order), so this reproduces the
+    identical code phase, data sequence, Doppler, and data-bit-transition
+    timing -- only the AWGN term is dropped. If the mislock survives
+    noiseless, it is a deterministic property of the code and the
+    transition's position within the epoch, not a noise event.
     """
     rng = np.random.default_rng(1000 + trial)
     n = N_EPOCHS_MC * TE
@@ -218,8 +229,11 @@ def _replay_epoch_noiseless(trial: int, epoch: int) -> float:
     data = (rng.integers(0, 2, int(n / TSYM) + 4) * 2 - 1).astype(float)
     si = np.clip(np.floor(idx / TSYM).astype(int), 0, len(data) - 1)
     phase0 = int(rng.integers(0, SF))
+    doppler_hz = float(
+        rng.uniform(-DOPPLER_UNCERTAINTY_HZ, DOPPLER_UNCERTAINTY_HZ)
+    )
     cph = ((idx / SPC).astype(int) + phase0) % SF
-    sig = data[si] * _CSIGN[cph] * np.exp(2j * np.pi * (DOPPLER_HZ / FS) * idx)
+    sig = data[si] * _CSIGN[cph] * np.exp(2j * np.pi * (doppler_hz / FS) * idx)
     e0, e1 = epoch * TE, (epoch + 1) * TE
     ep_clean = sig[e0:e1].astype(np.complex64)  # no noise added
 
@@ -277,6 +291,9 @@ def _diversity_trial(trial: int, cn0_dbhz: float, reps: int, max_noncoh: int):
     ``n_noncoh`` pushes (a non-coherent combine) -- the column index of
     the returned arrays is therefore in units of "one push", not "one
     epoch"; the caller rescales by ``acq.doppler_bins`` to get real time.
+    Also draws a residual Doppler uniformly from
+    ``+-DOPPLER_UNCERTAINTY_HZ`` per trial, same as ``_mc_trial``, so the
+    epoch-diversity comparison isn't tied to one fixed offset either.
     """
     rng = np.random.default_rng(1000 + trial)
     n = N_EPOCHS_DIV * TE
@@ -284,8 +301,11 @@ def _diversity_trial(trial: int, cn0_dbhz: float, reps: int, max_noncoh: int):
     data = (rng.integers(0, 2, int(n / TSYM) + 4) * 2 - 1).astype(float)
     si = np.clip(np.floor(idx / TSYM).astype(int), 0, len(data) - 1)
     phase0 = int(rng.integers(0, SF))
+    doppler_hz = float(
+        rng.uniform(-DOPPLER_UNCERTAINTY_HZ, DOPPLER_UNCERTAINTY_HZ)
+    )
     cph = ((idx / SPC).astype(int) + phase0) % SF
-    sig = data[si] * _CSIGN[cph] * np.exp(2j * np.pi * (DOPPLER_HZ / FS) * idx)
+    sig = data[si] * _CSIGN[cph] * np.exp(2j * np.pi * (doppler_hz / FS) * idx)
     amp_snr = np.sqrt(10.0 ** (CN0_OPERATING_DBHZ / 10.0) / FS)
     sigma = 1.0 / amp_snr
     noise = (sigma / np.sqrt(2.0)) * (

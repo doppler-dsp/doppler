@@ -169,6 +169,7 @@ nav:
           - Streaming Async Despreader: gallery/async-despread.md
           - Despreader (full continuous receiver): gallery/despreader.md
           - Full-Chain Lock-Up: gallery/receiver-lock.md
+          - Continuous Async DSSS Receiver: gallery/async-dsss-receiver.md
       - Synchronization Loops:
           - Carrier Loop Stress: gallery/costas.md
           - Costas Loop (theory): gallery/costas-theory.md

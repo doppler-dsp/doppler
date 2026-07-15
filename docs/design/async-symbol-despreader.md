@@ -230,6 +230,26 @@ start of a noise stream.
     `SymbolSync` (Gardner + Farrow symbol timing). A receiver is the pipeline
     `Dll(segments) → Costas → SymbolSync`; the §3 study and the
     `async_despread_demo` gallery example show the composition.
+- **End-to-end validated with a real acquisition front end.**
+    `Dll(segments=K) → MpskReceiver` (`MpskReceiver` already fuses matched
+    filter + NDA carrier acquisition + Gardner/Farrow timing + acq↔track
+    handover into one object — its own docstring names this exact
+    composition) is now proven at real physical parameters — a continuous
+    1023-chip code at 3 Mchips/s, async 2100 sym/s BPSK data, with a genuine
+    `Acquisition` search in front (see the
+    [Continuous Async DSSS Receiver](../gallery/async-dsss-receiver.md)
+    gallery page, `src/doppler/examples/async_dsss_receiver_demo.py`).
+    One correction to this section's own guidance surfaced doing so: `K=4`
+    (§3.3's sweet spot) is tuned for the DLL's own code-discriminator
+    variance, not for feeding a downstream matched filter — each partial is
+    `K`-times weaker than a full coherent epoch, so a downstream receiver
+    needs a much larger `K` (34, in the validated example) to reconstruct
+    real coherent gain before its own carrier/timing loops can converge.
+    The acquisition hand-off also needs two non-obvious unit conversions
+    (`Dll`'s `init_chip` is phase-*inverted* relative to `Acquisition`'s
+    `code_phase`; `MpskReceiver`'s `init_norm_freq` is cycles per its own
+    *partial-rate* input, not per raw ADC sample) — see the example's
+    docstring for the exact formulas.
 
 ### Possible refinements
 

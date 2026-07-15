@@ -74,8 +74,9 @@ because it doesn't model the analogous leakage on the *code-phase* axis
 (the same mislock mechanism from the first figure, now also handing out
 partial credit toward detection, not just occasional wrong-phase locks).
 
-Downstream despread/demod (``Dll(segments) -> MpskReceiver``) is a
-separate, later stage of this story -- this page is deliberately
+Downstream despread (``Dll(segments)`` -- Stage 2, see
+``dsss_despread_async_data_demo.py``) and demod (``MpskReceiver`` --
+Stage 3) are later stages of this story -- this page is deliberately
 acquisition-only.
 
 Run:  python -m doppler.examples.dsss_acq_async_data_demo  [out.png]
@@ -152,6 +153,9 @@ def make_signal(cn0_dbhz: float, seed: int):
 # --8<-- [end:signal]
 
 from doppler.detection import det_pd, marcum_q  # noqa: E402 -- theory below
+from doppler.dsss.handoff import (  # noqa: E402 -- not needed by make_signal
+    dll_init_chip_from_acq,
+)
 
 # Deliberately strong (not a sensitivity study) to unambiguously validate
 # the search mechanics -- see the module docstring. It reads as a high
@@ -229,7 +233,7 @@ def _mc_trial(trial: int) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         if hits:
             dop_bin, code_phase, _pk, _n, test_stat, _c = hits[0]
             ts[i] = test_stat
-            chip_phase = (SF - code_phase / SPC) % SF
+            chip_phase = dll_init_chip_from_acq(code_phase, SPC, SF)
             code_err[i] = ((chip_phase - phase0 + SF / 2) % SF) - SF / 2
             k_fold = (
                 dop_bin + doppler_bins // 2
@@ -268,7 +272,7 @@ def _replay_epoch_noiseless(trial: int, epoch: int) -> float:
     hits = acq.push(ep_clean)
     assert hits, "noiseless epoch produced no detection at all"
     _dop_bin, code_phase, _pk, _n, _ts, _c = hits[0]
-    chip_phase = (SF - code_phase / SPC) % SF
+    chip_phase = dll_init_chip_from_acq(code_phase, SPC, SF)
     return float(((chip_phase - phase0 + SF / 2) % SF) - SF / 2)
 
 
@@ -357,7 +361,7 @@ def _diversity_trial(trial: int, cn0_dbhz: float, reps: int, max_noncoh: int):
         if hits:
             _dop, code_phase, _pk, _n, test_stat, _c = hits[0]
             ts[i] = test_stat
-            chip_phase = (SF - code_phase / SPC) % SF
+            chip_phase = dll_init_chip_from_acq(code_phase, SPC, SF)
             code_err[i] = ((chip_phase - phase0 + SF / 2) % SF) - SF / 2
         pos += frame
     return ts, code_err, acq
@@ -535,7 +539,7 @@ def main(out_path: str = "dsss_acq_async_data_demo.png") -> None:
 
     # code_phase is a correlation *lag*; the code's actual phase is the
     # inverted quantity -- see the full-chain example's finding #2.
-    chip_phase = (SF - code_phase / SPC) % SF
+    chip_phase = dll_init_chip_from_acq(code_phase, SPC, SF)
     s0 = hitpos + frame
 
     # --- chip-level zoom: raw signal vs. truth vs. acq's own phase ---------

@@ -130,6 +130,8 @@ def make_signal(cn0_dbhz: float, seed: int = 3):
 
 # --8<-- [end:signal]
 
+from doppler.dsss.handoff import dll_init_chip_from_acq  # noqa: E402
+
 # Segments per code epoch (finding #1 above) and the MpskReceiver samples/
 # symbol it implies -- chosen so round(K*TSYM/TE) lands on a value with a
 # small divisor for MpskReceiver's carrier-arm count `n`.
@@ -188,7 +190,7 @@ def main(out_path: str = "async_dsss_receiver_demo.png") -> None:
     doppler_hz_est = k_fold * acq.doppler_res_hz
     partial_rate = FS * K / TE
     norm_freq = doppler_hz_est / partial_rate  # MpskReceiver's own units
-    chip_phase = (SF - code_phase / SPC) % SF  # inverted vs. code_phase/SPC
+    chip_phase = dll_init_chip_from_acq(code_phase, SPC, SF)
 
     rest = x[hitpos + frame :]
 

@@ -48,6 +48,7 @@ FFT, ring buffers, C programs, or the NATS streaming demo? Those live on the
 - [Full-Chain Lock-Up](receiver-lock.md) — `Dll -> Costas -> SymbolSync` cold-started with no code, carrier, or timing knowledge, watched over one shared `Telemetry` context.
 - [Continuous Async DSSS Receiver](async-dsss-receiver.md) — `Acquisition -> Dll(segments) -> MpskReceiver` at real chip/symbol rates.
 - [DSSS Acquisition — Continuous Async-Data Modulation](dsss-acq-async-data.md) — Stage 1 of that story alone: exact code-phase/Doppler lock and per-epoch test-stat robustness under asynchronous BPSK data, CCSDS Gold code.
+- [DSSS Despread — Acquisition-to-Dll Hand-off, Continuous Async-Data](dsss-despread-async-data.md) — Stage 2: the hand-off seeds `Dll` exactly, and `segments=4` tracks reliably where `segments=1` measurably degrades under the same asynchronous BPSK data.
 
 ## Synchronization Loops
 

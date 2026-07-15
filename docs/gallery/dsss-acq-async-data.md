@@ -46,8 +46,9 @@ clock is deliberately misaligned to the code clock.
     completes every `n_noncoh` pushes, so the denominator is pushes
     divided by `n_noncoh`, not raw pushes) at each depth.
 
-Downstream despread and demod (`Dll(segments) -> MpskReceiver`) are later
-stages of this story, each getting their own page once built.
+Downstream despread ([`Dll(segments)`](dsss-despread-async-data.md), Stage 2,
+now built) and demod (`MpskReceiver`, Stage 3) are later stages of this
+story, each getting their own page.
 
 ## What you're seeing
 
@@ -232,6 +233,9 @@ Writes both figures on this page (`dsss_acq_async_data_demo.png` and
 Source: `src/doppler/examples/dsss_acq_async_data_demo.py`. See also the
 [DSSS acquisition guide](../guide/dsss-acquisition.md) (the recommendation
 this page's epoch-diversity comparison backs),
+[DSSS Despread — Acquisition-to-Dll Hand-off](dsss-despread-async-data.md)
+(Stage 2: does this page's hit correctly seed `Dll`, and does `Dll` have
+its own version of the mislock mechanism above),
 [Continuous Async DSSS Receiver](async-dsss-receiver.md) (the full
 downstream chain, currently on a plain PN code — due for a revisit once
 this story's later stages land) and

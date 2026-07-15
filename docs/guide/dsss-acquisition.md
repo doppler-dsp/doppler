@@ -374,12 +374,12 @@ The failure only shows up once your coherent window spans more than a small
 fraction of a symbol — which is exactly what a naive
 `Acquisition(code, reps=16, ...)` call risks, since the engine's default
 sizing greedily grows the coherent depth (`doppler_bins`) up to `reps` before
-ever falling back to non-coherent combining (`n_noncoh`). Nothing in the
-constructor signature tells it a data-modulated symbol clock is present —
-`Acquisition` only ever sees a `code` and a `chip_rate`; you have to supply
-the extra knowledge yourself.
+ever falling back to non-coherent combining (`n_noncoh`). By default, nothing
+in the constructor tells it a data-modulated symbol clock is present —
+`Acquisition` only ever sees a `code` and a `chip_rate`. Pass `symbol_rate` and
+it does.
 
-### The robust default: cap `reps=1`, size sensitivity with `max_noncoh`
+### The robust default: pass `symbol_rate`
 
 Given the high-level inputs a typical caller actually has — the `code`, the
 `chip_rate`, the `symbol_rate`, a Doppler uncertainty, and a `cn0_dbhz`
@@ -393,25 +393,32 @@ doppler_uncertainty = 5000.0   # Hz, your link's Doppler budget
 acq = Acquisition(
     code, chip_rate=chip_rate, cn0_dbhz=52,
     spc=4, doppler_uncertainty=doppler_uncertainty,
-    reps=1,           # never let the engine grow a multi-epoch coherent window
-    max_noncoh=8,     # size sensitivity non-coherently instead (raise if needed)
+    reps=16,             # generous coherent-depth ceiling -- headroom, not a mandate
+    max_noncoh=8,        # ceiling for the joint search's non-coherent axis
+    symbol_rate=symbol_rate,  # tells the sizer a data clock is present
     pfa=1e-3, pd=0.9,
 )
-assert acq.pd_predicted >= acq.pd   # raise max_noncoh if this fails
+assert acq.pd_predicted >= acq.pd    # raise max_noncoh / reps if this fails
+assert acq.doppler_bins == 1         # the search still lands here on its own:
+                                      # growing the coherent depth at this
+                                      # margin doesn't pay for the extra
+                                      # self-cancellation risk, so it doesn't
 ```
 
-`symbol_rate` itself never enters the call — its role is purely the *decision*
-to cap `reps=1` in the first place (a non-integer `chip_rate / symbol_rate` is
-your signal that data modulation is present and continuous). Once capped,
-`doppler_bins` can only ever be `1`: every coherent look is exactly one code
-epoch, the shortest window a data transition can possibly corrupt (never more
-than one transition per look, and never a coherent stack of several
-transition-corrupted epochs). Sensitivity then comes entirely from
-`max_noncoh`: the engine still auto-sizes `n_noncoh` from your `cn0_dbhz`/`pd`
-target with the same detection-theory sizing described above — this costs
-nothing you have to compute by hand, you are just removing `reps` as a
-coherent-depth lever and handing the sensitivity budget to `max_noncoh`
-instead.
+`symbol_rate > 0` switches `_auto_config`'s search from the single-axis
+"smallest `doppler_bins` that meets `pd` alone, else escalate `n_noncoh` at
+the full `reps` ceiling" logic to a **joint** search over
+`doppler_bins ∈ [1, reps] × n_noncoh ∈ [1, max_noncoh]`, honestly pricing the
+data-transition self-cancellation loss at every candidate grid (the
+semi-analytical model in
+[DSSS Acquisition — Continuous Async-Data Modulation](../gallery/dsss-acq-async-data.md#the-theory-curves-dashed)),
+and picks whichever grid meets `pd` with the fewest total epochs, breaking
+ties toward the smaller coherent depth. In practice this means the engine
+naturally lands on a short coherent depth plus non-coherent looks exactly when
+the physics calls for it — no more manually deciding to cap `reps=1` and
+reasoning about *why* by hand. You still supply `max_noncoh` (and `reps`, if
+you want to allow a nontrivial coherent depth at all) as ceilings; the search
+picks the actual working point within them.
 
 This is the better default for a second, independent reason beyond the
 mislock: **it doesn't require phase coherency across the integration window.**
@@ -431,11 +438,30 @@ robustness on a continuous, data-modulated link.
 ### When coherent-only is still fine
 
 If there is no `symbol_rate` to speak of — a genuine data-free preamble, the
-classic case the rest of this guide describes — none of this applies: there is
-no data transition to straddle, so the default coherent-first sizing (`reps`
-grown before `max_noncoh` engages) is both simpler and pays no combining-loss
-penalty. Reach for the `reps=1` cap **only** when you know the code carries
-continuous data modulation during acquisition itself.
+classic case the rest of this guide describes — none of this applies: leave
+`symbol_rate` at its default `0.0` (no known data-modulation clock) and get
+the simpler coherent-first sizing (`reps` grown before `max_noncoh` engages),
+which pays no combining-loss penalty. Pass `symbol_rate` **only** when you
+know the code carries continuous data modulation during acquisition itself.
+
+### Advanced: pinning the grid directly
+
+Both searches above are convenience layers over the same underlying knob:
+`doppler_bins` and `n_noncoh`. If you already know the grid you want — from a
+prior characterization run, or because you want to A/B two specific
+configurations without reconstructing the object — `configure_search_raw`
+pins it directly, bypassing both searches:
+
+```python
+acq.configure_search_raw(doppler_bins=1, n_noncoh=8)
+```
+
+It resizes every buffer/plan the grid touches (the slow-time FFT, the code
+correlator, every per-frame scratch buffer) and re-derives the threshold
+ladder for that exact grid, clearing any in-flight accumulation — call it
+between `push()` calls, never a substitute for one. Bounds are still
+enforced (`doppler_bins ∈ [1, reps]`, `n_noncoh ∈ [1, max_noncoh]`); an
+out-of-range pin raises `ValueError` and leaves the engine at its prior grid.
 
 ______________________________________________________________________
 

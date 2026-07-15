@@ -201,13 +201,16 @@ primitives `Acquisition` itself sizes against
     this model uses — a real, open extension, left as future work rather
     than forced to match.
 
-See the [DSSS acquisition guide](../guide/dsss-acquisition.md#continuous-data-modulated-signals-the-asynchronous-symbol-clock-case)
-for the resulting recommendation: given `code`, `chip_rate`, and a
-`symbol_rate` (the signal that continuous data modulation is present),
-cap `reps=1` and size sensitivity through `max_noncoh` by default — not
-just because it avoids an occasional mislock, but because at a realistic
-margin, coherent combining across many data-modulated epochs may simply
-never reach the detection probability its own sizing math promises.
+This same semi-analytical model now runs *inside* `Acquisition` itself: pass
+`symbol_rate` and the engine jointly searches `doppler_bins × n_noncoh`
+against this honest, data-modulation-aware Pd, instead of the old
+Doppler/code-phase-only search that could silently under-size a
+data-modulated link the way the coherent curve above demonstrates. See the
+[DSSS acquisition guide](../guide/dsss-acquisition.md#continuous-data-modulated-signals-the-asynchronous-symbol-clock-case)
+for the construction — not just because it avoids an occasional mislock, but
+because at a realistic margin, coherent combining across many data-modulated
+epochs may simply never reach the detection probability the old,
+data-modulation-blind sizing math promised.
 
 ```python
 --8<-- "src/doppler/examples/dsss_acq_async_data_demo.py:diversity_configs"

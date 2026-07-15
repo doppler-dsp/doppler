@@ -449,9 +449,11 @@ class Acquisition:
         CFAR mode index: 0=mean, 1=median, 2=min, 3=max.
     max_noncoh : int, default 1
         Cap on the auto-split non-coherent look count (>= 1; default 1 keeps the engine purely coherent).
+    symbol_rate : float, default 0.0
+        Continuous data-symbol rate in Hz; <= 0 (default) disables the data-modulation-aware search above.
 
     """
-    def __init__(self, code: NDArray[np.uint8] = ..., reps: int = ..., spc: int = ..., chip_rate: float = ..., cn0_dbhz: float = ..., doppler_uncertainty: float = ..., pfa: float = ..., pd: float = ..., noise_mode: Literal["mean", "median", "min", "max"] = "mean", max_noncoh: int = ...) -> None: ...
+    def __init__(self, code: NDArray[np.uint8] = ..., reps: int = ..., spc: int = ..., chip_rate: float = ..., cn0_dbhz: float = ..., doppler_uncertainty: float = ..., pfa: float = ..., pd: float = ..., noise_mode: Literal["mean", "median", "min", "max"] = "mean", max_noncoh: int = ..., symbol_rate: float = ...) -> None: ...
 
     def reset(self) -> None:
         """Drain the input ring and reset the coherent accumulator.
@@ -475,6 +477,24 @@ class Acquisition:
         -------
         list[tuple[int, int, float, float, float, float]]
             Number of events written (0 … max_results).
+        """
+
+    def configure_search_raw(self, doppler_bins: int, n_noncoh: int) -> None:
+        """Pin the search grid directly, bypassing both auto-sizing searches -- the advanced escape hatch (mirrors Dll.configure_lock_raw/Costas.configure_lock). Resizes every buffer/plan that depends on the grid (the slow-time FFT, the code correlator, the reference, and every per-frame scratch buffer), re-derives the threshold ladder for the pinned grid from the same physics __init__ used, and clears in-flight accumulation (ring contents, the non-coherent power accumulator, dwell bookkeeping) -- call between push() calls, never a substitute for one. Raises ValueError if doppler_bins is outside [1, reps] or n_noncoh is outside [1, max_noncoh].
+
+        Resizes every buffer/plan that depends on the grid (the slow-time FFT,
+        the code correlator, the reference, and every per-frame scratch buffer),
+        re-derives the threshold ladder for the pinned grid from the same
+        physics acq_create() used, and clears in-flight accumulation (ring
+        contents, the non-coherent power accumulator, dwell bookkeeping) — call
+        between push() calls, never a substitute for one.
+
+        Parameters
+        ----------
+        doppler_bins : int
+            Coherent depth to pin, in `[1, reps]`.
+        n_noncoh : int
+            Non-coherent look count to pin, in `[1, max_noncoh]`.
         """
 
     def state_bytes(self) -> int:
@@ -571,6 +591,14 @@ class Acquisition:
     @property
     def underpowered(self) -> bool:
         """True when pd_predicted < pd (the search cannot meet the target)."""
+
+    @property
+    def symbol_rate(self) -> float:
+        """Continuous data-symbol rate (Hz) used to size the search; 0 means the legacy Doppler/code-phase-only search (no known data-modulation clock)."""
+
+    @property
+    def epochs_per_symbol(self) -> float:
+        """(chip_rate/sf)/symbol_rate -- code epochs per data symbol; 0 when symbol_rate is 0."""
 
     def destroy(self) -> None:
         """Release C resources immediately."""

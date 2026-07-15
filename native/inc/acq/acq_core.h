@@ -136,6 +136,14 @@ extern "C"
         doppler_span_hz; /**< Native Doppler half-range = chip_rate/(2*sf). */
     double
         doppler_res_hz; /**< Doppler bin width = chip_rate/(sf*doppler_bins).*/
+    double pfa; /**< Target system false-alarm probability (stored for
+                     configure_search_raw's threshold re-derivation).    */
+    double doppler_uncertainty; /**< One-sided Doppler search half-range
+                                      (Hz); 0 = full native span.         */
+    double symbol_rate; /**< Continuous data-symbol rate (Hz); 0 = no known
+                              data-modulation clock (legacy sizing).     */
+    double epochs_per_symbol; /**< (chip_rate/sf)/symbol_rate; 0 when
+                                    symbol_rate <= 0.                    */
 
     float  threshold; /**< CFAR gate on test_stat (theta); coherent path.   */
     float  eta;       /**< Raw per-cell Rayleigh amplitude threshold.       */
@@ -204,11 +212,31 @@ extern "C"
    * Builds the single-row oversampled BPSK reference from @p code, infers
    * sf = @p code_len, converts @p cn0_dbhz to a per-sample amplitude SNR
    * (snr = sqrt(10^(cn0_dbhz/10) / (chip_rate*spc))), and auto-configures the
-   * search grid: the smallest coherent depth doppler_bins in `[1, reps]`
-   * whose doppler_bins*code_bins coherent samples meet @p pd at the Bonferroni
-   * threshold, plus non-coherent looks (up to @p max_noncoh) if the coherent
-   * depth alone falls short.  A tighter @p doppler_uncertainty narrows the
-   * scanned Doppler band, lowering the per-cell threshold (more sensitive).
+   * search grid.
+   *
+   * With @p symbol_rate <= 0 (default; no known continuous data-modulation
+   * clock): picks the *smallest* coherent depth doppler_bins in `[1, reps]`
+   * whose doppler_bins*code_bins coherent samples meet @p pd at the
+   * Bonferroni threshold, plus non-coherent looks (up to @p max_noncoh) if
+   * the coherent depth alone falls short.
+   *
+   * With @p symbol_rate > 0: a continuous data-modulated signal makes a
+   * data-bit transition landing mid-coherent-epoch split the coherent sum
+   * into two oppositely-signed partial segments, a self-cancellation loss
+   * the Doppler/code-phase-only model above doesn't know about and can
+   * silently under-size for (see docs/gallery/dsss-acq-async-data.md).  The
+   * engine instead jointly searches doppler_bins in `[1, reps]` x
+   * non-coherent looks in `[1, max_noncoh]`, pricing that loss honestly
+   * (semi-analytical: quadrature over the window's phase relative to the
+   * symbol clock, crossed with exact enumeration over the data signs the
+   * window touches), and picks the grid meeting @p pd with the fewest total
+   * epochs, breaking ties toward a smaller coherent depth (which also lowers
+   * mislock risk).
+   *
+   * A tighter @p doppler_uncertainty narrows the scanned Doppler band,
+   * lowering the per-cell threshold (more sensitive), on both paths.  Use
+   * acq_configure_search_raw() to pin the grid directly instead of relying
+   * on either search.
    *
    * @param code        PN chips (0/1), length @p code_len.
    * @param code_len    Number of chips supplied (= sf, the spreading factor).
@@ -224,13 +252,16 @@ extern "C"
    * @param noise_mode  CFAR mode index: 0=mean, 1=median, 2=min, 3=max.
    * @param max_noncoh  Cap on the auto-split non-coherent look count (>= 1;
    *                    default 1 keeps the engine purely coherent).
+   * @param symbol_rate Continuous data-symbol rate in Hz; <= 0 (default)
+   *                    disables the data-modulation-aware search above.
    * @return Heap-allocated state, or NULL on bad arguments / allocation
    * failure.
    */
   acq_state_t *acq_create (const uint8_t *code, size_t code_len, size_t reps,
                            size_t spc, double chip_rate, double cn0_dbhz,
                            double doppler_uncertainty, double pfa, double pd,
-                           int noise_mode, size_t max_noncoh);
+                           int noise_mode, size_t max_noncoh,
+                           double symbol_rate);
 
   /** @brief Destroy and free an engine.  @param state May be NULL. */
   void acq_destroy (acq_state_t *state);
@@ -240,6 +271,28 @@ extern "C"
    * @param state Must be non-NULL.
    */
   void acq_reset (acq_state_t *state);
+
+  /**
+   * @brief Pin the search grid directly, bypassing both auto-sizing
+   *        searches — the advanced escape hatch (mirrors Dll's/Costas's
+   *        configure_lock_raw()).
+   *
+   * Resizes every buffer/plan that depends on the grid (the slow-time FFT,
+   * the code correlator, the reference, and every per-frame scratch buffer),
+   * re-derives the threshold ladder for the pinned grid from the same
+   * physics acq_create() used, and clears in-flight accumulation (ring
+   * contents, the non-coherent power accumulator, dwell bookkeeping) — call
+   * between push() calls, never a substitute for one.
+   *
+   * @param state        Allocated engine (non-NULL).
+   * @param doppler_bins Coherent depth to pin, in `[1, reps]`.
+   * @param n_noncoh     Non-coherent look count to pin, in `[1, max_noncoh]`.
+   * @return 0 on success, -1 if either argument is out of range or an
+   *         allocation fails (the engine is left usable at its prior grid
+   *         on failure).
+   */
+  int acq_configure_search_raw (acq_state_t *state, size_t doppler_bins,
+                                size_t n_noncoh);
 
   /**
    * @brief Stream raw samples; emit one event per CFAR dump above threshold.

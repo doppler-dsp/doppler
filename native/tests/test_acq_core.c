@@ -42,7 +42,7 @@ _acq_run_roundtrip (const float complex *s0d, size_t nx, size_t spc,
   const double PI     = acos (-1.0);
 
   acq_state_t *ra = acq_create (CODE7, 7, 8, spc, crate, cn0, 0.0, 1e-2, 0.9,
-                                0, max_noncoh);
+                                0, max_noncoh, 0.0);
   CHECK (ra != NULL);
   if (!ra)
     return _fails;
@@ -71,9 +71,9 @@ _acq_run_roundtrip (const float complex *s0d, size_t nx, size_t spc,
   /* split: engine1 emits state_out; a fresh engine2 restores it via state_in.
    */
   acq_state_t *r1 = acq_create (CODE7, 7, 8, spc, crate, cn0, 0.0, 1e-2, 0.9,
-                                0, max_noncoh);
+                                0, max_noncoh, 0.0);
   acq_state_t *r2 = acq_create (CODE7, 7, 8, spc, crate, cn0, 0.0, 1e-2, 0.9,
-                                0, max_noncoh);
+                                0, max_noncoh, 0.0);
   CHECK (r1 && r2);
   if (r1 && r2)
     {
@@ -94,7 +94,7 @@ _acq_run_roundtrip (const float complex *s0d, size_t nx, size_t spc,
       /* a corrupted blob must make acq_run reject (set_state != 0) -> 0 out.
        */
       acq_state_t *r3 = acq_create (CODE7, 7, 8, spc, crate, cn0, 0.0, 1e-2,
-                                    0.9, 0, max_noncoh);
+                                    0.9, 0, max_noncoh, 0.0);
       acq_get_state (r3, blob);
       ((char *)blob)[0] ^= (char)0xFF; /* clobber the state header magic */
       CHECK (acq_run (r3, blob, NULL, s, cut, hB, 16) == 0);
@@ -151,8 +151,8 @@ _acq_cn0_calibration (void)
   const double fs       = crate * (double)spc;
   const double cn0_true = 55.0;
 
-  acq_state_t *a
-      = acq_create (CODE31, 31, 16, spc, crate, 45.0, 0.0, 1e-3, 0.9, 0, 1);
+  acq_state_t *a = acq_create (CODE31, 31, 16, spc, crate, 45.0, 0.0, 1e-3,
+                               0.9, 0, 1, 0.0);
   CHECK (a != NULL);
   if (!a)
     return _fails;
@@ -189,6 +189,195 @@ _acq_cn0_calibration (void)
   return _fails;
 }
 
+/* Data-modulation-aware sizing (symbol_rate > 0): at a realistic weak
+ * margin, pd_predicted (derived through the joint (doppler_bins, n_noncoh)
+ * search and _data_mod_pd) should track real empirical Pd on a continuous
+ * async-data-modulated stream. Zero Doppler / zero code-phase offset
+ * isolates the data-transition self-cancellation effect this fix targets
+ * from the Doppler/code-phase straddle model _mean_pd already covers
+ * elsewhere in this file. Also exercises a genuine (doppler_bins > 1 &&
+ * n_noncoh > 1) grid -- the gallery script's own _theoretical_pd (which
+ * this ports from) was validated only at doppler_bins == 1 or n_noncoh ==
+ * 1, so a real push-through here is the correctness proof for the general
+ * case. */
+static int
+_acq_data_mod_check (void)
+{
+  int                  _fails = 0;
+  static const uint8_t CODE31[31]
+      = { 1, 0, 1, 0, 1, 1, 1, 0, 1, 1, 0, 0, 0, 1, 1, 1,
+          1, 1, 0, 0, 1, 1, 0, 1, 0, 0, 1, 0, 0, 0, 0 };
+  const size_t spc   = 4;
+  const double crate = 1.0e6;
+  const double fs    = crate * (double)spc;
+  /* epochs_per_symbol ~ 1.4: the same regime documented in
+   * docs/gallery/dsss-acq-async-data.md. One epoch is sf chips (its
+   * duration in seconds doesn't depend on spc, the samples/chip
+   * oversample factor) -- epoch_rate = chip_rate/sf, so pick a symbol_rate
+   * that lands ~1.4 epochs per data symbol at that epoch rate. */
+  const double epoch_sec = 31.0 / crate;
+  const double sym_rate  = 1.0 / (1.4 * epoch_sec);
+  /* This 31-chip code's per-epoch processing gain is far below the
+   * 1023-chip Gold code the gallery script uses, so its "weak, realistic"
+   * cn0_dbhz is proportionally higher (~15 dB, matching the shorter code's
+   * ~15 dB smaller coherent gain per epoch); chosen empirically so the
+   * joint search lands on a genuine doppler_bins > 1 && n_noncoh > 1 grid
+   * (D=2, nc=7 here) -- exercising the general case, not just the two
+   * special cases the gallery script's own model validated. */
+  const double cn0_dbhz = 50.0;
+
+  acq_state_t *a = acq_create (CODE31, 31, 16, spc, crate, cn0_dbhz, 0.0, 1e-3,
+                               0.9, 0, 16, sym_rate);
+  CHECK (a != NULL);
+  if (!a)
+    return _fails;
+  CHECK (a->symbol_rate == sym_rate);
+  CHECK (fabs (a->epochs_per_symbol - 1.4) < 1e-6);
+  CHECK (!a->underpowered);
+  CHECK (a->doppler_bins <= a->reps && a->n_noncoh <= a->max_noncoh);
+
+  const size_t cb    = a->code_bins; /* samples in one epoch */
+  const size_t depth = a->doppler_bins * a->n_noncoh; /* epochs/decision */
+  const size_t opp_target    = 400; /* decision opportunities to gather */
+  const size_t decision_samp = depth * cb; /* samples spanning one decision */
+  /* Slack epochs beyond one decision's worth so a trial can start at any
+   * random sample offset up to a full symbol period and still find
+   * decision_samp samples ahead of it -- this is what makes the window's
+   * phase relative to the symbol clock (phi0) land uniformly, matching
+   * what _data_mod_pd averages over, rather than always the same phase a
+   * fixed period-aligned stride would produce (14 epochs == exactly 10
+   * symbols here, so a fixed stride would silently repeat one phi0 for
+   * every decision). */
+  const size_t max_offset = (size_t)(a->epochs_per_symbol * (double)cb) + cb;
+  const size_t buf_samp   = decision_samp + max_offset;
+  const size_t buf_epochs = (buf_samp + cb - 1) / cb;
+
+  float complex *x = malloc (buf_epochs * cb * sizeof (float complex));
+  CHECK (x != NULL);
+  if (!x)
+    {
+      acq_destroy (a);
+      return _fails;
+    }
+
+  const double amp_snr = sqrt (pow (10.0, cn0_dbhz / 10.0) / fs);
+  const float  sigma   = (float)(1.0 / amp_snr);
+  uint32_t     rst     = 424242u;
+
+  /* Random i.i.d. +-1 data sign per symbol, looked up by each sample's
+   * exact fractional symbol position -- a transition can land mid-epoch
+   * (any chip offset), not just on an epoch boundary; getting this right
+   * at chip granularity is the whole point of the model under test. */
+  const size_t total_chips = buf_epochs * 31;
+  const size_t n_symbols
+      = (size_t)((double)total_chips / (a->epochs_per_symbol * 31.0)) + 4;
+  float   *signs    = malloc (n_symbols * sizeof (float));
+  uint32_t sign_rst = 13579u;
+  for (size_t i = 0; i < n_symbols; i++)
+    {
+      sign_rst ^= sign_rst << 13;
+      sign_rst ^= sign_rst >> 17;
+      sign_rst ^= sign_rst << 5;
+      signs[i] = (sign_rst & 1u) ? 1.0f : -1.0f;
+    }
+
+  for (size_t e = 0; e < buf_epochs; e++)
+    for (size_t k = 0; k < cb; k++)
+      {
+        size_t chip_global = e * 31 + k / spc;
+        size_t sym_id
+            = (size_t)((double)chip_global / (a->epochs_per_symbol * 31.0));
+        uint8_t chip  = CODE31[(k / spc) % 31];
+        float   c     = (chip & 1u) ? -1.0f : 1.0f;
+        x[e * cb + k] = signs[sym_id] * c + sigma * cgauss (&rst);
+      }
+  free (signs);
+
+  /* Each trial: reset to a clean slate, then push decision_samp samples
+   * starting at a random offset into the buffer -- the reset makes each
+   * trial an independent decision opportunity, and the random start
+   * (rather than a fixed stride) samples phi0 uniformly. */
+  uint32_t off_rst = 909090u;
+  size_t   ndet    = 0;
+  for (size_t trial = 0; trial < opp_target; trial++)
+    {
+      off_rst ^= off_rst << 13;
+      off_rst ^= off_rst >> 17;
+      off_rst ^= off_rst << 5;
+      size_t off = off_rst % (max_offset + 1);
+
+      acq_reset (a);
+      acq_result_t hits[4];
+      ndet += acq_push (a, x + off, decision_samp, hits, 4);
+    }
+
+  double pd_empirical = (double)ndet / (double)opp_target;
+  /* Generous tolerance: opp_target=400 gives a binomial SE ~0.015 at
+   * pd~0.9, so this is an ~8-sigma band -- wide enough to absorb the
+   * model's own known residual (the coherent case's un-modeled code-phase
+   * -axis leakage, see the gallery page) without masking a real bug (the
+   * pre-fix model's error on this class of scenario was >0.17). */
+  CHECK (fabs (pd_empirical - a->pd_predicted) < 0.12);
+
+  free (x);
+  acq_destroy (a);
+  return _fails;
+}
+
+/* configure_search_raw: the advanced escape hatch. Bounds violations leave
+ * the engine untouched at its prior grid; a valid pin resizes every
+ * grid-dependent buffer/plan, re-derives the threshold ladder, and the
+ * result actually detects a noise-free burst at that geometry. */
+static int
+_acq_configure_search_raw_check (void)
+{
+  int          _fails = 0;
+  const size_t spc    = 2;
+
+  acq_state_t *a
+      = acq_create (CODE7, 7, 8, spc, 1.0e6, 45.0, 0.0, 1e-2, 0.9, 0, 4, 0.0);
+  CHECK (a != NULL);
+  if (!a)
+    return _fails;
+
+  size_t orig_db = a->doppler_bins, orig_nc = a->n_noncoh;
+
+  CHECK (acq_configure_search_raw (a, 0, 1) == -1); /* doppler_bins < 1 */
+  CHECK (acq_configure_search_raw (a, 9, 1) == -1); /* > reps (8) */
+  CHECK (acq_configure_search_raw (a, 1, 0) == -1); /* n_noncoh < 1 */
+  CHECK (acq_configure_search_raw (a, 1, 5) == -1); /* > max_noncoh (4) */
+  CHECK (a->doppler_bins == orig_db && a->n_noncoh == orig_nc);
+
+  CHECK (acq_configure_search_raw (a, 3, 2) == 0);
+  CHECK (a->doppler_bins == 3 && a->n_noncoh == 2);
+  CHECK (a->n == 3 * a->code_bins);
+  CHECK (a->eta_nc > 0.0f && a->threshold == 0.0f);
+
+  const size_t   n     = a->n;
+  float complex *burst = malloc (2 * n * sizeof (float complex));
+  CHECK (burst != NULL);
+  if (burst)
+    {
+      for (size_t k = 0; k < 2 * n; k++)
+        {
+          uint8_t chip = CODE7[(k / spc) % 7];
+          burst[k]     = (chip & 1u) ? -1.0f : 1.0f;
+        }
+      acq_result_t hits[4];
+      size_t       nh = acq_push (a, burst, 2 * n, hits, 4);
+      CHECK (nh == 1);
+      if (nh == 1)
+        {
+          CHECK (hits[0].doppler_bin == 0);
+          CHECK (hits[0].code_phase == 0);
+        }
+      free (burst);
+    }
+
+  acq_destroy (a);
+  return _fails;
+}
+
 int
 main (void)
 {
@@ -201,21 +390,21 @@ main (void)
   const double span  = crate / (2.0 * 7.0);
 
   /* ── argument validation ────────────────────────────────────────────── */
-  CHECK (acq_create (NULL, 0, 8, spc, crate, 45.0, 0.0, 1e-3, 0.9, 0, 1)
+  CHECK (acq_create (NULL, 0, 8, spc, crate, 45.0, 0.0, 1e-3, 0.9, 0, 1, 0.0)
          == NULL);
-  CHECK (acq_create (CODE7, 7, 8, spc, 0.0, 45.0, 0.0, 1e-3, 0.9, 0, 1)
+  CHECK (acq_create (CODE7, 7, 8, spc, 0.0, 45.0, 0.0, 1e-3, 0.9, 0, 1, 0.0)
          == NULL); /* chip_rate <= 0 */
-  CHECK (acq_create (CODE7, 7, 8, spc, crate, 0.0, 0.0, 1e-3, 0.9, 0, 1)
+  CHECK (acq_create (CODE7, 7, 8, spc, crate, 0.0, 0.0, 1e-3, 0.9, 0, 1, 0.0)
          == NULL); /* cn0_dbhz <= 0 */
-  CHECK (acq_create (CODE7, 7, 8, spc, crate, 45.0, 0.0, 0.0, 0.9, 0, 1)
+  CHECK (acq_create (CODE7, 7, 8, spc, crate, 45.0, 0.0, 0.0, 0.9, 0, 1, 0.0)
          == NULL); /* pfa out of range */
-  CHECK (
-      acq_create (CODE7, 7, 8, spc, crate, 45.0, span * 2.0, 1e-3, 0.9, 0, 1)
-      == NULL); /* doppler_uncertainty > span */
+  CHECK (acq_create (CODE7, 7, 8, spc, crate, 45.0, span * 2.0, 1e-3, 0.9, 0,
+                     1, 0.0)
+         == NULL); /* doppler_uncertainty > span */
 
   /* ── auto-config: a strong C/N0 needs only one coherent rep ──────────── */
   acq_state_t *a
-      = acq_create (CODE7, 7, 8, spc, crate, 65.0, 0.0, 1e-2, 0.9, 0, 1);
+      = acq_create (CODE7, 7, 8, spc, crate, 65.0, 0.0, 1e-2, 0.9, 0, 1, 0.0);
   CHECK (a != NULL);
   if (!a)
     return 1;
@@ -241,7 +430,7 @@ main (void)
    * injected burst is noise-free, so it clears the (best-effort) gate anyway.
    */
   acq_state_t *b
-      = acq_create (CODE7, 7, 8, spc, crate, 20.0, 0.0, 1e-2, 0.9, 0, 1);
+      = acq_create (CODE7, 7, 8, spc, crate, 20.0, 0.0, 1e-2, 0.9, 0, 1, 0.0);
   CHECK (b != NULL);
   if (!b)
     return 1;
@@ -292,8 +481,8 @@ main (void)
    * A fresh engine + the state blob must reproduce an uninterrupted run
    * exactly — the elastic-resume (pod handoff) guarantee. */
   {
-    acq_state_t *ra
-        = acq_create (CODE7, 7, 8, spc, crate, 20.0, 0.0, 1e-2, 0.9, 0, 1);
+    acq_state_t *ra = acq_create (CODE7, 7, 8, spc, crate, 20.0, 0.0, 1e-2,
+                                  0.9, 0, 1, 0.0);
     CHECK (ra != NULL);
     if (ra)
       {
@@ -315,10 +504,10 @@ main (void)
 
         /* Run B — engine1 takes [0,cut), hands its state to a fresh engine2
          * which takes [cut,L3). */
-        acq_state_t *r1
-            = acq_create (CODE7, 7, 8, spc, crate, 20.0, 0.0, 1e-2, 0.9, 0, 1);
-        acq_state_t *r2
-            = acq_create (CODE7, 7, 8, spc, crate, 20.0, 0.0, 1e-2, 0.9, 0, 1);
+        acq_state_t *r1 = acq_create (CODE7, 7, 8, spc, crate, 20.0, 0.0, 1e-2,
+                                      0.9, 0, 1, 0.0);
+        acq_state_t *r2 = acq_create (CODE7, 7, 8, spc, crate, 20.0, 0.0, 1e-2,
+                                      0.9, 0, 1, 0.0);
         CHECK (r1 && r2);
         if (r1 && r2)
           {
@@ -363,6 +552,8 @@ main (void)
   _fails += _acq_run_roundtrip (s0d, nx, spc, crate, 30.0, 8, 1);
 
   _fails += _acq_cn0_calibration ();
+  _fails += _acq_data_mod_check ();
+  _fails += _acq_configure_search_raw_check ();
 
   if (_fails)
     {

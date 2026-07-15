@@ -88,6 +88,75 @@ within the epoch, not a noise event. Stripping the noise couldn't have
 "fixed" a noise-driven failure; it did nothing here, because noise was
 never the cause.
 
+## Fixing it: combine across epochs
+
+![Epoch-diversity comparison: coherent vs. non-coherent combining](../assets/dsss_acq_async_data_demo_diversity.png)
+
+If a single epoch is fragile, does combining more than one fix it — and
+does it matter *how* they're combined? Four configurations, same 200-trial
+sweep, x-axis in real epochs so they're directly comparable (mislock
+defined the same way as above, >5 chips):
+
+| config                                    | `doppler_bins` | `n_noncoh` | mislock rate |
+| ----------------------------------------- | -------------- | ---------- | ------------ |
+| 1 epoch/decision (baseline)               | 1              | 1          | 3.07%        |
+| 2 epochs/decision, coherent               | 2              | 1          | 0.00%        |
+| 3 epochs/decision, coherent (1 dump)      | 3              | 1          | 0.00%        |
+| 3 epochs/decision, non-coherent (3 looks) | 1              | 3          | 0.00%        |
+
+**Any combining across ≥2 independent epochs clears the mislock** — even
+plain coherent stacking (`doppler_bins=2`) gets to zero, which at first
+looks like it should suppress the fix's mechanism: not "non-coherent
+specifically defeats it", but epoch **diversity** in general. The engine's
+coherent combining isn't one long correlation over the concatenated window
+— it's a per-code-phase-column FFT *across* the epoch axis (a coherent sum,
+sample-position by sample-position, of each epoch's own raw samples at
+that same within-epoch offset). A transition corrupts only a narrow,
+transition-position-dependent slice of that sum, and because the
+transition's position drifts epoch to epoch (the fixed 1.396
+epochs/symbol ratio never repeats the same offset), that corrupted slice
+never dominates once ≥2 epochs are combined, coherently or not.
+
+Look closer at the panels, though, and non-coherent (bottom right) is
+still the visibly *tightest* band of the four — no periodic dips at all,
+where the coherent configs (top right, bottom left) still show real
+periodic scalloping, just clear of their (also higher) thresholds rather
+than hugging them. Two independent reasons favor non-coherent as the
+robust default, not just "ties on this metric":
+
+1. **Variance.** Power-summing (`|·|²` accumulate) can never be dragged
+    down by destructive combination the way a coherent (complex-amplitude)
+    sum can — it only ever adds. A coherent stack's gain is real, but its
+    floor is set by however badly the worst single epoch in the stack
+    disagrees in *phase*, not just magnitude.
+1. **Drift immunity — the more important point for a real channel.**
+    Coherent stacking across `doppler_bins` epochs is a single-frequency
+    -hypothesis slow-time FFT — it implicitly assumes the carrier's phase
+    evolves predictably across the *entire* window. Any unmodeled dynamics
+    inside that window (residual acceleration, oscillator phase noise, a
+    Doppler rate finer than the bin grid resolves) bleeds coherent gain
+    away as the window lengthens — a cost this controlled simulation
+    cannot show, because it has none of those drift sources. Non-coherent
+    combining is blind to phase *between* looks by construction, so it is
+    immune to that failure mode regardless of what the simulation does or
+    doesn't model. The price is the classic non-coherent combining loss
+    (roughly 1–3 dB versus the same total energy combined ideally
+    coherently, for small `N`) — invisible here only because of the huge
+    operating margin (real C/N0 = 97 dB-Hz vs. a ≤55 dB-Hz sizing target).
+
+See the [DSSS acquisition guide](../guide/dsss-acquisition.md#continuous-data-modulated-signals-the-asynchronous-symbol-clock-case)
+for the resulting recommendation: given `code`, `chip_rate`, and a
+`symbol_rate` (the signal that continuous data modulation is present),
+cap `reps=1` and size sensitivity through `max_noncoh` by default.
+
+```python
+--8<-- "src/doppler/examples/dsss_acq_async_data_demo.py:diversity_configs"
+```
+
+```python
+--8<-- "src/doppler/examples/dsss_acq_async_data_demo.py:diversity_acq"
+```
+
 ## How it works
 
 ```python
@@ -107,6 +176,10 @@ never the cause.
     per-epoch search behaviour in steady transmission, not acquisition
     latency), random data and starting code phase per trial, recording
     test statistic, code-phase error, and Doppler error at every epoch.
+1. Then the epoch-diversity comparison: the same signal construction and
+    trial loop, parametrized over `(cn0_dbhz, reps, max_noncoh)` so
+    `doppler_bins`/`n_noncoh` land on each of the four configurations in
+    the table above, at a fixed real C/N0 the whole time.
 
 Downstream despread and demod (`Dll(segments) -> MpskReceiver`) are later
 stages of this story, each getting their own page once built.
@@ -114,10 +187,15 @@ stages of this story, each getting their own page once built.
 ## Run it
 
 ```sh
-python -m doppler.examples.dsss_acq_async_data_demo   # ~few seconds -> PNG
+python -m doppler.examples.dsss_acq_async_data_demo   # ~15 s -> two PNGs
 ```
 
-Source: `src/doppler/examples/dsss_acq_async_data_demo.py`. See also
+Writes both figures on this page (`dsss_acq_async_data_demo.png` and
+`dsss_acq_async_data_demo_diversity.png`); both are wired into `make gallery`.
+
+Source: `src/doppler/examples/dsss_acq_async_data_demo.py`. See also the
+[DSSS acquisition guide](../guide/dsss-acquisition.md) (the recommendation
+this page's epoch-diversity comparison backs),
 [Continuous Async DSSS Receiver](async-dsss-receiver.md) (the full
 downstream chain, currently on a plain PN code — due for a revisit once
 this story's later stages land) and

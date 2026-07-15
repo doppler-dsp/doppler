@@ -231,6 +231,116 @@ def _replay_epoch_noiseless(trial: int, epoch: int) -> float:
     return float(((chip_phase - phase0 + SF / 2) % SF) - SF / 2)
 
 
+# --8<-- [start:diversity_configs]
+# Same total energy budget across the last three (2-3 epochs each); only how
+# it's combined differs. cn0_dbhz is a sizing target, not the real injected
+# signal (CN0_OPERATING_DBHZ, always 97 dB-Hz) -- lowering it is how each
+# config is pushed past the single-epoch coherent ceiling.
+N_EPOCHS_DIV = 99  # divisible by 2 and 3, for the epoch-diversity comparison
+DIVERSITY_CONFIGS = [
+    (55.0, 1, 1, "1 epoch/decision (coherent, baseline)"),
+    (50.0, 3, 1, "2 epochs/decision (coherent)"),
+    (49.0, 3, 1, "3 epochs/decision (coherent, 1 dump)"),
+    (48.0, 1, 4, "3 epochs/decision (non-coherent, 3 looks)"),
+]
+# --8<-- [end:diversity_configs]
+
+
+# --8<-- [start:diversity_acq]
+def _new_acq_config(
+    cn0_dbhz: float, reps: int, max_noncoh: int
+) -> Acquisition:
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", UserWarning)
+        return Acquisition(
+            CODE,
+            reps=reps,  # coherent-depth ceiling (1 = never grow it)
+            spc=SPC,
+            chip_rate=CHIP_RATE,
+            cn0_dbhz=cn0_dbhz,  # sizing target -- pushes past the coherent
+            pfa=1e-3,  # ceiling to engage max_noncoh
+            pd=0.9,
+            max_noncoh=max_noncoh,  # non-coherent looks the engine may add
+        )
+
+
+# --8<-- [end:diversity_acq]
+
+
+def _diversity_trial(trial: int, cn0_dbhz: float, reps: int, max_noncoh: int):
+    """Test-stat and code-phase-error trace for one trial of one
+    epoch-diversity configuration.
+
+    Unlike ``_mc_trial`` (fixed at ``doppler_bins=1``), this drives
+    ``reps``/``max_noncoh`` directly, so ``frame`` may span more than one
+    epoch (a multi-epoch coherent dump) or a decision may only land every
+    ``n_noncoh`` pushes (a non-coherent combine) -- the column index of
+    the returned arrays is therefore in units of "one push", not "one
+    epoch"; the caller rescales by ``acq.doppler_bins`` to get real time.
+    """
+    rng = np.random.default_rng(1000 + trial)
+    n = N_EPOCHS_DIV * TE
+    idx = np.arange(n)
+    data = (rng.integers(0, 2, int(n / TSYM) + 4) * 2 - 1).astype(float)
+    si = np.clip(np.floor(idx / TSYM).astype(int), 0, len(data) - 1)
+    phase0 = int(rng.integers(0, SF))
+    cph = ((idx / SPC).astype(int) + phase0) % SF
+    sig = data[si] * _CSIGN[cph] * np.exp(2j * np.pi * (DOPPLER_HZ / FS) * idx)
+    amp_snr = np.sqrt(10.0 ** (CN0_OPERATING_DBHZ / 10.0) / FS)
+    sigma = 1.0 / amp_snr
+    noise = (sigma / np.sqrt(2.0)) * (
+        rng.standard_normal(n) + 1j * rng.standard_normal(n)
+    )
+    x = (sig + noise).astype(np.complex64)
+
+    acq = _new_acq_config(cn0_dbhz, reps, max_noncoh)
+    frame = acq.code_bins * acq.doppler_bins
+    nframes = len(x) // frame
+    ts = np.full(nframes, np.nan)
+    code_err = np.full(nframes, np.nan)
+    pos = 0
+    for i in range(nframes):
+        hits = acq.push(x[pos : pos + frame])
+        if hits:
+            _dop, code_phase, _pk, _n, test_stat, _c = hits[0]
+            ts[i] = test_stat
+            chip_phase = (SF - code_phase / SPC) % SF
+            code_err[i] = ((chip_phase - phase0 + SF / 2) % SF) - SF / 2
+        pos += frame
+    return ts, code_err, acq
+
+
+def _diversity_sweep(cn0_dbhz: float, reps: int, max_noncoh: int, label: str):
+    """Aggregate ``N_TRIALS_MC`` trials of one epoch-diversity config."""
+    ts_rows, ce_rows = [], []
+    acq_ref = None
+    for tr in range(N_TRIALS_MC):
+        ts, ce, acq_ref = _diversity_trial(tr, cn0_dbhz, reps, max_noncoh)
+        ts_rows.append(ts)
+        ce_rows.append(ce)
+    ts_mat = np.array(ts_rows)
+    ce_mat = np.array(ce_rows)
+    # exclude non-coherent's still-accumulating (NaN) slots from the rate
+    valid = ~np.isnan(ce_mat)
+    mislock = valid & (np.abs(np.nan_to_num(ce_mat)) > 5.0)
+    mislock_rate = float(np.sum(mislock) / np.sum(valid))
+    thr = acq_ref.eta_nc if acq_ref.n_noncoh > 1 else acq_ref.threshold
+    print(
+        f"epoch-diversity[{label}]: doppler_bins={acq_ref.doppler_bins} "
+        f"n_noncoh={acq_ref.n_noncoh} threshold={thr:.2f} "
+        f"mislock_rate={mislock_rate:.4f} "
+        f"({int(np.sum(mislock))} of {int(np.sum(valid))})"
+    )
+    return (
+        ts_mat,
+        ce_mat,
+        thr,
+        acq_ref.doppler_bins,
+        acq_ref.n_noncoh,
+        mislock_rate,
+    )
+
+
 def main(out_path: str = "dsss_acq_async_data_demo.png") -> None:
     import matplotlib
 
@@ -436,6 +546,60 @@ def main(out_path: str = "dsss_acq_async_data_demo.png") -> None:
     fig.subplots_adjust(hspace=0.5, wspace=0.3)
     fig.savefig(out_path, dpi=120)
     print(f"wrote {out_path}")
+
+    # --- epoch-diversity comparison: does *any* combining across >=2 ------
+    # independent epochs (coherent or non-coherent) fix the mislock, and
+    # does non-coherent still win on variance even where both reach zero?
+    div_path = out_path.replace(".png", "_diversity.png")
+    results = [
+        _diversity_sweep(cn0, reps, mnc, label)
+        for cn0, reps, mnc, label in DIVERSITY_CONFIGS
+    ]
+    baseline_rate = results[0][5]
+    assert baseline_rate > 0.01, (
+        "expected the 1-epoch baseline to show a real mislock rate here"
+    )
+    for result, (_cn0, _reps, _mnc, label) in zip(
+        results[1:], DIVERSITY_CONFIGS[1:]
+    ):
+        rate = result[5]
+        assert rate < 0.005, (
+            f"expected epoch diversity to clear the mislock for {label!r} "
+            f"(mislock_rate={rate:.4f})"
+        )
+
+    fig2, axs2 = plt.subplots(2, 2, figsize=(11, 8.5))
+    for ax, result, config in zip(axs2.flat, results, DIVERSITY_CONFIGS):
+        ts_mat, _ce_mat, thr, db, nnc, mislock_rate = result
+        label = config[3]
+        ep2 = np.arange(ts_mat.shape[1]) * db
+        valid = ~np.all(np.isnan(ts_mat), axis=0)
+        ep_v, ts_v = ep2[valid], ts_mat[:, valid]
+        ts_min, ts_mean, ts_max = (
+            np.nanmin(ts_v, axis=0),
+            np.nanmean(ts_v, axis=0),
+            np.nanmax(ts_v, axis=0),
+        )
+        if nnc > 1:
+            ax.vlines(ep_v, ts_min, ts_max, color="#1f77b4", alpha=0.4, lw=1.5)
+            ax.plot(ep_v, ts_mean, "o-", color="#1f77b4", lw=1.2, ms=3)
+        else:
+            ax.fill_between(ep_v, ts_min, ts_max, color="#1f77b4", alpha=0.25)
+            ax.plot(ep_v, ts_mean, color="#1f77b4", lw=1.2)
+        ax.axhline(thr, color="#d62728", lw=1.2, ls="--")
+        ax.set_title(f"{label}\nmislock_rate={mislock_rate:.4f}", fontsize=9)
+        ax.set_xlabel("code epoch (real time)")
+        ax.set_ylabel("test statistic")
+
+    fig2.suptitle(
+        "Epoch-diversity comparison: coherent vs. non-coherent combining "
+        f"across independent epochs ({N_TRIALS_MC} trials each)",
+        fontsize=11,
+    )
+    fig2.tight_layout(rect=(0, 0, 1, 0.95))
+    fig2.subplots_adjust(hspace=0.4, wspace=0.3)
+    fig2.savefig(div_path, dpi=120)
+    print(f"wrote {div_path}")
 
 
 if __name__ == "__main__":

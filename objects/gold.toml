@@ -1,0 +1,39 @@
+[gold]
+arg_type = "void"
+return_type = "uint8_t"
+mutable = "false"
+no_state = "true"
+no_step = "true"
+serializable = "true"
+class_name = "Gold"
+
+[[gold.init_params]]
+name = "taps_a"
+type = "uint64_t"
+default = "934"
+
+[[gold.init_params]]
+name = "seed_a"
+type = "uint64_t"
+default = "350"
+
+[[gold.init_params]]
+name = "taps_b"
+type = "uint64_t"
+default = "567"
+
+[[gold.init_params]]
+name = "seed_b"
+type = "uint64_t"
+default = "73"
+
+[[gold.init_params]]
+name = "length"
+type = "uint32_t"
+default = "10"
+
+[[gold.methods]]
+name = "generate"
+arg_type = "void"
+return_type = "uint8_t"
+variable_output = true

@@ -66,7 +66,7 @@ from doppler.track import (
     MpskReceiver,
     SymbolSync,
 )
-from doppler.wfm import PN, _SynthEngine
+from doppler.wfm import PN, Gold, _SynthEngine
 
 # A short 0/1 spreading code for the code-tracking compositions.
 _CODE = (np.arange(31, dtype=np.uint8) & 1).astype(np.uint8)
@@ -312,6 +312,10 @@ CASES: dict[str, tuple[Callable[[], Any], _Feed]] = {
     ),
     "PN": (
         lambda: PN(96, 1, 7),
+        lambda o, seg: np.array(o.generate(len(seg))),
+    ),
+    "Gold": (
+        lambda: Gold(),
         lambda o, seg: np.array(o.generate(len(seg))),
     ),
     # Tracking loops — carrier loops take complex baseband; LoopFilter takes a

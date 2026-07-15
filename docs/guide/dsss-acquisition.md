@@ -344,6 +344,101 @@ to search wider, use the coarse-mix bank below.
 
 ______________________________________________________________________
 
+## Continuous, data-modulated signals — the asynchronous-symbol-clock case
+
+Everything above assumes the classic **preamble** case: an isolated run of the
+*same*, data-free code repeated back to back, so any coherent depth up to
+`reps` sums honestly. That assumption breaks for a **continuous** carrier —
+e.g. a beacon or telemetry stream where the spreading code repeats forever and
+BPSK data rides on top continuously, with a symbol clock that is *not* an
+integer multiple of the code-epoch clock (`chip_rate / symbol_rate` not a
+whole number — the common case in real hardware, where the two clocks derive
+from independent budgets). If you know your `symbol_rate`, use it to drive the
+construction below instead of the default coherent-first sizing.
+
+### Why this changes the sizing decision
+
+A data-bit transition landing *inside* one coherent epoch splits that epoch's
+contribution into two oppositely-signed halves. This does more than cost some
+correlation gain at the true code phase — it can produce a genuine,
+deterministic **mislock**: the code's off-peak correlation has no bound over
+an unequal-length partial window the way it does over a full period, so at
+some *other* candidate phase the two mis-signed partial sums can happen to add
+constructively and beat the (weakened) true-phase peak. This is not a noise
+event — see
+[DSSS Acquisition — Continuous Async-Data Modulation](../gallery/dsss-acq-async-data.md)
+for the worked proof: a bad epoch replayed with all injected noise removed
+reproduces the identical mislock, bit for bit.
+
+The failure only shows up once your coherent window spans more than a small
+fraction of a symbol — which is exactly what a naive
+`Acquisition(code, reps=16, ...)` call risks, since the engine's default
+sizing greedily grows the coherent depth (`doppler_bins`) up to `reps` before
+ever falling back to non-coherent combining (`n_noncoh`). Nothing in the
+constructor signature tells it a data-modulated symbol clock is present —
+`Acquisition` only ever sees a `code` and a `chip_rate`; you have to supply
+the extra knowledge yourself.
+
+### The robust default: cap `reps=1`, size sensitivity with `max_noncoh`
+
+Given the high-level inputs a typical caller actually has — the `code`, the
+`chip_rate`, the `symbol_rate`, a Doppler uncertainty, and a `cn0_dbhz`
+sensitivity — the robust construction is:
+
+```python
+chip_rate = 1.023e6            # Hz, the waveform (matches the code above)
+symbol_rate = 2400.0           # Hz -- present and asynchronous to chip_rate
+doppler_uncertainty = 5000.0   # Hz, your link's Doppler budget
+
+acq = Acquisition(
+    code, chip_rate=chip_rate, cn0_dbhz=52,
+    spc=4, doppler_uncertainty=doppler_uncertainty,
+    reps=1,           # never let the engine grow a multi-epoch coherent window
+    max_noncoh=8,     # size sensitivity non-coherently instead (raise if needed)
+    pfa=1e-3, pd=0.9,
+)
+assert acq.pd_predicted >= acq.pd   # raise max_noncoh if this fails
+```
+
+`symbol_rate` itself never enters the call — its role is purely the *decision*
+to cap `reps=1` in the first place (a non-integer `chip_rate / symbol_rate` is
+your signal that data modulation is present and continuous). Once capped,
+`doppler_bins` can only ever be `1`: every coherent look is exactly one code
+epoch, the shortest window a data transition can possibly corrupt (never more
+than one transition per look, and never a coherent stack of several
+transition-corrupted epochs). Sensitivity then comes entirely from
+`max_noncoh`: the engine still auto-sizes `n_noncoh` from your `cn0_dbhz`/`pd`
+target with the same detection-theory sizing described above — this costs
+nothing you have to compute by hand, you are just removing `reps` as a
+coherent-depth lever and handing the sensitivity budget to `max_noncoh`
+instead.
+
+This is the better default for a second, independent reason beyond the
+mislock: **it doesn't require phase coherency across the integration window.**
+A coherent stack over several epochs (`doppler_bins > 1`) is a single-frequency
+-hypothesis slow-time FFT — it implicitly assumes the carrier's phase evolves
+predictably across the *entire* window. Any unmodeled dynamics inside that
+window (residual acceleration, oscillator phase noise, a Doppler rate finer
+than the bin grid resolves) bleeds coherent gain away as the window lengthens,
+on top of whatever the data-transition mechanism costs. Non-coherent combining
+is blind to phase between looks by construction, so it is immune to that
+failure mode too — a real channel has these drift sources even when a
+controlled simulation does not model them. The one thing you give up is the
+classic non-coherent combining loss (roughly 1–3 dB versus the same total
+energy combined ideally coherently, for small `N`) — a fair price for
+robustness on a continuous, data-modulated link.
+
+### When coherent-only is still fine
+
+If there is no `symbol_rate` to speak of — a genuine data-free preamble, the
+classic case the rest of this guide describes — none of this applies: there is
+no data transition to straddle, so the default coherent-first sizing (`reps`
+grown before `max_noncoh` engages) is both simpler and pays no combining-loss
+penalty. Reach for the `reps=1` cap **only** when you know the code carries
+continuous data modulation during acquisition itself.
+
+______________________________________________________________________
+
 ## Widening the Doppler search
 
 The native search spans only `±chip_rate/(2·sf)` — one slow-time Nyquist, set by
@@ -445,6 +540,8 @@ ______________________________________________________________________
 - [Python: Detection Statistics](../api/python-detection.md) — `det_threshold` / `det_pd` / `det_dwell`
 - [Gallery: 2-D Acquisition](../gallery/detection2d.md) — the `CorrDetector2D` matched-filter surface
 - [Gallery: DSSS Acquisition & Despreading](../gallery/dsss-despread.md) — end-to-end demo
+- [Gallery: DSSS Acquisition — Continuous Async-Data Modulation](../gallery/dsss-acq-async-data.md) —
+    the worked proof behind the `reps=1`/`max_noncoh` recommendation above
 - [Design: pure-functional acquisition kernel](../design/acq-fn.md) — the
     elastic `(ddc_fn, acq_fn)` pipeline behind `Acquisition`, for pod fan-out
     and checkpoint/resume

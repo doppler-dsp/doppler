@@ -76,8 +76,8 @@ partial credit toward detection, not just occasional wrong-phase locks).
 
 Downstream despread (``Dll(segments)`` -- Stage 2, see
 ``dsss_despread_async_data_demo.py``) and demod (``MpskReceiver`` --
-Stage 3) are later stages of this story -- this page is deliberately
-acquisition-only.
+Stage 3, see ``async_dsss_receiver_demo.py``) are later stages of this
+story -- this page is deliberately acquisition-only.
 
 Run:  python -m doppler.examples.dsss_acq_async_data_demo  [out.png]
 """

@@ -62,8 +62,9 @@ run this page's signal far enough (well past the window plotted here) and
 ``segments=1`` eventually loses lock outright and drifts without bound,
 while ``segments=4`` degrades far more gracefully at the same point.
 
-Carrier and symbol-timing recovery (``MpskReceiver``) are Stage 3, not
-this page -- this page is deliberately despread-only.
+Carrier and symbol-timing recovery (``MpskReceiver``) are Stage 3, see
+``async_dsss_receiver_demo.py`` -- this page is deliberately
+despread-only.
 
 Run:  python -m doppler.examples.dsss_despread_async_data_demo  [out.png]
 """

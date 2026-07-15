@@ -1,33 +1,49 @@
 # Continuous Async DSSS Receiver
 
-![Decoded BPSK constellation and running BER](../assets/async_dsss_receiver_demo.png)
+![Constellation, running BER, segments comparison, and carrier pull-in](../assets/async_dsss_receiver_demo.png)
 
-The full receive chain — `Acquisition -> Dll(segments=K) -> MpskReceiver`
-— for a **continuous**, non-bursty spreading code whose data-symbol clock
-is **asynchronous** to the code-epoch clock: a 1023-chip PN code at
-3 Mchips/s carrying BPSK data at 2100 sym/s (`chips/symbol ~= 1428.6`, not
-an integer). This is the same two-clock problem
-[Streaming Async Despreader](async-despread.md) and
-`docs/design/async-symbol-despreader.md` study, but with a real
-[`Acquisition`](../api/python-dsss.md) search in front — neither existing
-example constructs `Dll` from anything but a genie-known phase.
+Stage 3 of the multi-part story that began with
+[DSSS Acquisition: Continuous Async-Data Modulation](dsss-acq-async-data.md)
+(Stage 1 — does `Acquisition` land the right code phase/Doppler bin) and
+[DSSS Despread: Continuous Async-Data Hand-off](dsss-despread-async-data.md)
+(Stage 2 — does that hit correctly seed `Dll`, and is `segments=4` robust
+enough for the DLL's *own* tracking loop). This page asks the last
+question the story set up: carrier and symbol-timing recovery
+([`MpskReceiver`](../api/python-track.md)) sit downstream of `Dll` too —
+does Stage 2's own `segments=4` sweet spot suffice there as well, or does
+a coherent-combining matched filter need something `Dll`'s own loop
+never needed?
+
+`MpskReceiver`'s own docstring states the intended composition: *"A
+DSSS-MPSK receiver is `Dll(segments) -> MpskReceiver`: despread to
+symbol-rate soft chips, then this modem."* `Dll.steps()`'s partial stream
+feeds `MpskReceiver.steps()` directly — no intermediate carrier wipe or
+matched filter, since `MpskReceiver` owns both internally.
 
 Not to be confused with [`dsss.Despreader`](despreader.md), which composes
 `Costas`+`Dll` for the **synchronous** case (symbol clock = code-epoch
 clock, `segments=1`). This page's signal needs the asynchronous
 `segments=K` architecture throughout.
 
-## What you're seeing
+## The central finding
 
-**Left — decoded BPSK constellation.** Two tight clusters at ±1, not a
-smeared ring: the residual carrier has been fully removed by
-[`MpskReceiver`](../api/python-track.md)'s NDA carrier loop by the settled
-window shown, and the symbol timing has converged tightly enough that
-every recovered sample lands on-constellation. BER over this window is
-0 — every symbol decodes correctly against the known transmitted data.
+**Measured fresh on this page's CCSDS Gold-code signal, not assumed from
+an older run: `segments=4` — `Dll`'s own robust tracking sweet spot from
+Stage 2 — never decodes.** Streamed through `MpskReceiver` unchanged, its
+BER sits at ~0.47, indistinguishable from a coin flip, for the entire
+run. `segments=34` (chosen so `round(segments * T_sym/T_epoch)` lands on
+an `MpskReceiver`-friendly `sps` with a small divisor for the carrier-arm
+count `n`) decodes perfectly, converging to 100% symbol correctness
+within about 150 symbols and staying there.
 
-**Right — running BER.** Flat at zero across the settled window,
-confirming the lock isn't a lucky momentary alignment.
+The reason: each `Dll` partial is `segments`-times weaker than a full
+coherent code epoch. That's fine for the DLL's own non-coherent
+early/late discriminator (Stage 2), but it starves `MpskReceiver`'s
+coherent matched filter (length `sps`) of the samples-per-symbol it needs
+to rebuild real coherent gain before its carrier/timing loops can
+converge at all. **The DLL's own optimum is downstream-insufficient** —
+tuning `Dll` in isolation and assuming that setting carries over to a
+composed receiver is exactly the trap this page catches.
 
 ## How it works
 
@@ -35,41 +51,84 @@ confirming the lock isn't a lucky momentary alignment.
 --8<-- "src/doppler/examples/async_dsss_receiver_demo.py:signal"
 ```
 
+```python
+--8<-- "src/doppler/examples/async_dsss_receiver_demo.py:acq_symbol_rate"
+```
+
+```python
+--8<-- "src/doppler/examples/async_dsss_receiver_demo.py:handoff"
+```
+
 Three stages, each seeded from the previous:
 
-1. **Acquisition** streams raw samples until it reports a hit — no
-    `reset()`-hopping sweep needed (unlike a sparse burst, the code is
-    always present, so a single continuous `push()` stream suffices).
-1. **Hand-off.** The hit's `doppler_bin`/`code_phase` seed `Dll` and
-    `MpskReceiver`. Two non-obvious conversions, both load-bearing:
-    - `Dll`'s `init_chip` is the code's *actual* phase, while
-        `Acquisition`'s `code_phase` is a correlation *lag* — they're
-        inverted: `chip_phase = (sf - code_phase/spc) % sf`.
-    - `MpskReceiver`'s `init_norm_freq` is cycles per *its own input
-        sample* (the `Dll` partial stream), not cycles per raw ADC sample:
-        divide `doppler_hz` by the partial rate `fs*K/T_epoch`, not `fs`.
-1. **Despread + demod.** `Dll(segments=K).steps()`'s partial stream feeds
+1. **Acquisition** streams raw samples until it reports a hit, sized by
+    `symbol_rate=` the same robust-default way Stage 1/2 use — no
+    `reset()`-hopping sweep needed (the code is always present).
+1. **Hand-off.** `dll_init_chip_from_acq` (Stage 2's own helper, reused
+    verbatim — the phase-inversion finding isn't re-litigated here) seeds
+    `Dll`'s code phase; `MpskReceiver`'s `init_norm_freq` is cycles per
+    *its own input sample* (the `Dll` partial stream, at rate
+    `FS*segments/TE`), not cycles per raw ADC sample.
+1. **Despread + demod.** `Dll(segments).steps()`'s partial stream feeds
     directly into `MpskReceiver.steps()` — matched filter (boxcar), NDA
     carrier acquisition, Gardner+Farrow symbol timing, and (once locked)
     decision-directed tracking, all in one call.
 
-### Tuning `K`
+## What you're seeing
 
-`docs/design/async-symbol-despreader.md` finds `K=4` optimal — but that
-result is tuned for the DLL's *own* non-coherent code-discriminator
-variance, not for feeding a downstream matched filter. Each partial is
-`K`-times weaker than a full coherent epoch; `MpskReceiver`'s own boxcar
-(length `sps`) needs enough partials to rebuild real coherent gain before
-its carrier/timing loops can converge. `K=4` never locks here; `K=34`
-(chosen so `round(K * T_sym/T_epoch)` lands on an `MpskReceiver`-friendly
-`sps` with a small divisor for the carrier-arm count `n`) locks robustly.
-If you reuse this pattern at different rates, expect to re-sweep `K`.
+All four panels run at one operating point (CN0=97 dB-Hz) — chosen, as in
+the pre-story version of this demo, to unambiguously validate the
+pipeline mechanics rather than run a margin sensitivity study (see Stage
+2 for a page that studies margin sensitivity instead).
+
+**Top-left — decoded BPSK constellation** (settled window, `segments=34`).
+Two tight clusters at ±1, not a smeared ring: the residual carrier has
+been fully removed by `MpskReceiver`'s NDA carrier loop, and symbol
+timing has converged tightly enough that every recovered sample lands
+on-constellation.
+
+**Top-right — running BER** (settled window, `segments=34`). Flat at
+zero across the settled window, confirming the lock isn't a lucky
+momentary alignment.
+
+**Bottom-left — windowed decode correctness, `segments=4` vs.
+`segments=34`** (50-symbol windows, the whole run). This is the panel
+that actually demonstrates the central finding: `segments=34`'s windowed
+BER drops to zero almost immediately and stays there; `segments=4`'s
+oscillates around the 0.5 chance line the entire run, never converging.
+
+**Bottom-right — `MpskReceiver.norm_freq` vs. epoch** (`segments=34`).
+`Acquisition`'s Doppler bins are sized wide enough that this page's hit
+resolves to a single ~kHz-scale bin at Doppler=0 — the carrier-frequency
+seed handed to `MpskReceiver` starts off by the *entire* 50 Hz injected
+residual, not close to it. The NDA carrier loop visibly pulls `norm_freq`
+in over the first ~100 epochs and holds it at the true value afterward.
+Nothing downstream needs the Acquisition estimate to be exact — only
+close enough for the carrier loop's own capture range.
+
+## Two gotchas worth knowing before reusing this pattern
+
+**`MpskReceiver`'s own `tracking`/`lock` flags are not reliable
+stand-ins for "decoding correctly" at a failing `segments`.** In this
+page's run, `segments=4` frequently reports `tracking=1` with a
+healthy-looking `lock` value despite decoding pure noise — the carrier
+loop can lock to *something* (a wrong absolute phase, or a timing point
+that isn't actually sampling the symbol) without ever producing a
+correct bit. Don't gate success on these flags for an unfamiliar
+`segments`; check measured BER against known data instead. This extends
+Stage 2's own caution about `Dll.locked` not being reliable at large
+`segments` — the analogous flag one layer up shows the same pattern, and
+Stage 2's resolution (gate on measured performance, not the lock flag)
+applies here too.
+
+**`init_norm_freq` starts from a coarse, quantized estimate, not the true
+residual carrier** — see the bottom-right panel above.
 
 Source: `src/doppler/examples/async_dsss_receiver_demo.py`. See also
-[Streaming Async Despreader](async-despread.md) (the despread-only half,
-toy parameters, genie code phase), [Full-Chain Lock-Up](receiver-lock.md)
-(a converged `Dll -> Costas -> SymbolSync` chain with `.locked` observed
-via telemetry on all three loops — worth comparing against this page's
-`Dll.locked` staying unlatched despite a clean decode, discussed in the
-example's own docstring), and `docs/design/async-symbol-despreader.md` for
-the underlying theory.
+[DSSS Acquisition: Continuous Async-Data Modulation](dsss-acq-async-data.md)
+(Stage 1), [DSSS Despread: Continuous Async-Data Hand-off](dsss-despread-async-data.md)
+(Stage 2), [Streaming Async Despreader](async-despread.md) (the
+despread-only half, toy parameters, genie code phase), [Full-Chain
+Lock-Up](receiver-lock.md) (a converged `Dll -> Costas -> SymbolSync`
+chain with `.locked` observed via telemetry on all three loops), and
+`docs/design/async-symbol-despreader.md` for the underlying theory.

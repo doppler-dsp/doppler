@@ -46,9 +46,9 @@ clock is deliberately misaligned to the code clock.
     completes every `n_noncoh` pushes, so the denominator is pushes
     divided by `n_noncoh`, not raw pushes) at each depth.
 
-Downstream despread ([`Dll(segments)`](dsss-despread-async-data.md), Stage 2,
-now built) and demod (`MpskReceiver`, Stage 3) are later stages of this
-story, each getting their own page.
+Downstream despread ([`Dll(segments)`](dsss-despread-async-data.md), Stage 2)
+and demod ([`MpskReceiver`](async-dsss-receiver.md), Stage 3) are later
+stages of this story, now both built.
 
 ## What you're seeing
 
@@ -236,8 +236,7 @@ this page's epoch-diversity comparison backs),
 [DSSS Despread — Acquisition-to-Dll Hand-off](dsss-despread-async-data.md)
 (Stage 2: does this page's hit correctly seed `Dll`, and does `Dll` have
 its own version of the mislock mechanism above),
-[Continuous Async DSSS Receiver](async-dsss-receiver.md) (the full
-downstream chain, currently on a plain PN code — due for a revisit once
-this story's later stages land) and
+[Continuous Async DSSS Receiver](async-dsss-receiver.md) (Stage 3: the
+full downstream chain, including carrier/symbol recovery) and
 [Streaming Async Despreader](async-despread.md) (the despread-only half
 at toy parameters).

@@ -50,8 +50,8 @@ failure mode?
     full-epoch dump), so the two configurations' behavior can be compared
     epoch-for-epoch on the same signal.
 
-Carrier and symbol-timing recovery (`MpskReceiver`) are Stage 3, a later
-page.
+Carrier and symbol-timing recovery ([`MpskReceiver`](async-dsss-receiver.md))
+are Stage 3.
 
 ## What you're seeing
 
@@ -139,6 +139,6 @@ Source: `src/doppler/examples/dsss_despread_async_data_demo.py`. See also
 the `Acquisition` sizing this page's hand-off starts from),
 [Streaming Async Despreader](async-despread.md) (the despread-only half at
 toy parameters), and
-[Continuous Async DSSS Receiver](async-dsss-receiver.md) (the full
-downstream chain — still on a plain PN code and a much larger `segments`
-tuned for a downstream matched filter, pending Stage 3).
+[Continuous Async DSSS Receiver](async-dsss-receiver.md) (Stage 3: the
+full downstream chain, including the finding that this page's own
+`segments=4` sweet spot is insufficient once `MpskReceiver` is added).

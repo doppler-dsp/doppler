@@ -94,8 +94,10 @@ never the cause.
 
 If a single epoch is fragile, does combining more than one fix it — and
 does it matter *how* they're combined? Four configurations, same 200-trial
-sweep, x-axis in real epochs so they're directly comparable (mislock
-defined the same way as above, >5 chips):
+sweep, x-axis in real epochs and **y-axis on one shared scale across all
+four panels** so both the growing coherent-gain margin and the relative
+band widths are directly comparable, not just each panel's own threshold
+crossing (mislock defined the same way as above, >5 chips):
 
 | config                                    | `doppler_bins` | `n_noncoh` | mislock rate |
 | ----------------------------------------- | -------------- | ---------- | ------------ |

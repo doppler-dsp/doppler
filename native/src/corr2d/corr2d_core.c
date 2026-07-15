@@ -44,6 +44,19 @@ _zeropad_2d (corr2d_state_t *s, const float complex *p, float complex *out)
     }
 }
 
+/* True iff ref (ny,nx, row-major) is exactly zero outside row 0 — the
+ * single-row-reference fast-path precondition (see corr2d_core.h's file
+ * doc comment for the identity this licenses).  ny==1 is trivially true. */
+static int
+_is_single_row_ref (const float complex *ref, size_t ny, size_t nx)
+{
+  for (size_t i = 1; i < ny; i++)
+    for (size_t j = 0; j < nx; j++)
+      if (ref[i * nx + j] != 0.0f)
+        return 0;
+  return 1;
+}
+
 corr2d_state_t *
 corr2d_create (const float complex *ref, size_t ny, size_t nx, size_t dwell,
                int nthreads, size_t ny_out, size_t nx_out)
@@ -61,41 +74,77 @@ corr2d_create (const float complex *ref, size_t ny, size_t nx, size_t dwell,
       return NULL;
     }
   int decoupled = (nyo != ny) || (nxo != nx);
+  /* Fast path requires ny_out == ny (the row-axis identity only holds for a
+   * matched forward/inverse row-transform length — see the header doc
+   * comment) and a reference with no energy outside row 0. */
+  int fast = (nyo == ny) && _is_single_row_ref (ref, ny, nx);
 
-  state->fwd = fft2d_create (ny, nx, -1, nthreads);
-  state->inv = fft2d_create (nyo, nxo, +1, nthreads);
-  if (!state->fwd || !state->inv)
-    goto fail;
-
-  state->ref_spec = malloc (n * sizeof (*state->ref_spec));
   state->work_fft = malloc (n * sizeof (*state->work_fft));
   state->accum    = calloc (n, sizeof (*state->accum));
-  if (!state->ref_spec || !state->work_fft || !state->accum)
+  if (!state->work_fft || !state->accum)
     goto fail;
 
-  if (decoupled)
+  if (fast)
     {
-      state->work_pad = malloc (nyo * nxo * sizeof (float complex));
-      state->ztmp     = malloc (ny * nxo * sizeof (float complex));
-      state->zcol     = malloc (ny * sizeof (float complex));
-      state->zcolout  = malloc (nyo * sizeof (float complex));
-      if (!state->work_pad || !state->ztmp || !state->zcol || !state->zcolout)
+      state->fwd1d = fft_create (nx, -1, nthreads);
+      state->inv1d = fft_create (nxo, +1, nthreads);
+      if (!state->fwd1d || !state->inv1d)
         goto fail;
+
+      state->row_ref_spec = malloc (nx * sizeof (*state->row_ref_spec));
+      if (!state->row_ref_spec)
+        goto fail;
+      /* row_ref_spec = conj(FFT_nx(ref row 0)) — ref's rows 1..ny-1 are all
+       * zero (just checked above), so only row 0 need be transformed. */
+      fft_execute_cf32 (state->fwd1d, ref, nx, state->row_ref_spec);
+      for (size_t k = 0; k < nx; k++)
+        state->row_ref_spec[k] = conjf (state->row_ref_spec[k]);
+
+      if (nxo != nx)
+        {
+          state->work_pad = malloc (ny * nxo * sizeof (float complex));
+          if (!state->work_pad)
+            goto fail;
+        }
+    }
+  else
+    {
+      state->fwd = fft2d_create (ny, nx, -1, nthreads);
+      state->inv = fft2d_create (nyo, nxo, +1, nthreads);
+      if (!state->fwd || !state->inv)
+        goto fail;
+
+      state->ref_spec = malloc (n * sizeof (*state->ref_spec));
+      if (!state->ref_spec)
+        goto fail;
+
+      if (decoupled)
+        {
+          state->work_pad = malloc (nyo * nxo * sizeof (float complex));
+          state->ztmp     = malloc (ny * nxo * sizeof (float complex));
+          state->zcol     = malloc (ny * sizeof (float complex));
+          state->zcolout  = malloc (nyo * sizeof (float complex));
+          if (!state->work_pad || !state->ztmp || !state->zcol
+              || !state->zcolout)
+            goto fail;
+        }
+
+      /* Pre-compute conjugate reference spectrum: ref_spec = conj(FFT2(ref)).
+       */
+      fft2d_execute_cf32 (state->fwd, ref, n, state->ref_spec);
+      for (size_t k = 0; k < n; k++)
+        state->ref_spec[k] = conjf (state->ref_spec[k]);
     }
 
-  /* Pre-compute conjugate reference spectrum: ref_spec = conj(FFT2(ref)). */
-  fft2d_execute_cf32 (state->fwd, ref, n, state->ref_spec);
-  for (size_t k = 0; k < n; k++)
-    state->ref_spec[k] = conjf (state->ref_spec[k]);
-
-  state->ny     = ny;
-  state->nx     = nx;
-  state->n      = n;
-  state->ny_out = nyo;
-  state->nx_out = nxo;
-  state->n_out  = nyo * nxo;
-  state->dwell  = dwell;
-  state->count  = 0;
+  state->fast_path = fast;
+  state->ny        = ny;
+  state->nx        = nx;
+  state->n         = n;
+  state->ny_out    = nyo;
+  state->nx_out    = nxo;
+  state->n_out     = nyo * nxo;
+  state->dwell     = dwell;
+  state->count     = 0;
   return state;
 
 fail:
@@ -112,7 +161,12 @@ corr2d_destroy (corr2d_state_t *state)
     fft2d_destroy (state->fwd);
   if (state->inv)
     fft2d_destroy (state->inv);
+  if (state->fwd1d)
+    fft_destroy (state->fwd1d);
+  if (state->inv1d)
+    fft_destroy (state->inv1d);
   free (state->ref_spec);
+  free (state->row_ref_spec);
   free (state->work_fft);
   free (state->accum);
   free (state->work_pad);
@@ -157,13 +211,28 @@ corr2d_set_state (corr2d_state_t *s, const void *blob)
   return DP_OK;
 }
 
-void
+int
 corr2d_set_ref (corr2d_state_t *state, const float complex *ref)
 {
-  fft2d_execute_cf32 (state->fwd, ref, state->n, state->ref_spec);
-  for (size_t k = 0; k < state->n; k++)
-    state->ref_spec[k] = conjf (state->ref_spec[k]);
+  if (state->fast_path)
+    {
+      /* Mode is fixed for the object's lifetime (see the header doc
+       * comment) — reject rather than silently truncating a ref that no
+       * longer fits the single-row assumption row_ref_spec relies on. */
+      if (!_is_single_row_ref (ref, state->ny, state->nx))
+        return -1;
+      fft_execute_cf32 (state->fwd1d, ref, state->nx, state->row_ref_spec);
+      for (size_t k = 0; k < state->nx; k++)
+        state->row_ref_spec[k] = conjf (state->row_ref_spec[k]);
+    }
+  else
+    {
+      fft2d_execute_cf32 (state->fwd, ref, state->n, state->ref_spec);
+      for (size_t k = 0; k < state->n; k++)
+        state->ref_spec[k] = conjf (state->ref_spec[k]);
+    }
   corr2d_reset (state);
+  return 0;
 }
 
 size_t
@@ -172,11 +241,64 @@ corr2d_execute_max_out (corr2d_state_t *state)
   return state->n_out;
 }
 
+/* Fast path: ref is single-row and ny_out == ny, so (see the header doc
+ * comment for the full derivation) the row axis of the 2-D transform pair
+ * cancels to an exact identity and corr2d_execute reduces, per row i, to
+ *
+ *   R(i,j) = IFFT_nx( FFT_nx(row_i) · conj(FFT_nx(ref_row0)) )(j) / nx
+ *
+ * — ny independent length-nx circular cross-correlations, normalized by
+ * 1/nx (NOT 1/n = ny*nx: the row-axis orthogonality sum contributes the
+ * extra factor of ny that turns 1/n into 1/nx — see the derivation). */
+static size_t
+_execute_fast (corr2d_state_t *state, const float complex *in,
+               float complex *out)
+{
+  const size_t ny = state->ny, nx = state->nx, nxo = state->nx_out;
+
+  for (size_t i = 0; i < ny; i++)
+    fft_execute_cf32 (state->fwd1d, in + i * nx, nx, state->work_fft + i * nx);
+
+  for (size_t i = 0; i < ny; i++)
+    for (size_t v = 0; v < nx; v++)
+      state->accum[i * nx + v]
+          += state->work_fft[i * nx + v] * state->row_ref_spec[v];
+
+  if (++state->count == state->dwell)
+    {
+      const float inv_nx = 1.0f / (float)nx;
+      if (nxo == nx)
+        {
+          for (size_t i = 0; i < ny; i++)
+            fft_execute_cf32 (state->inv1d, state->accum + i * nx, nx,
+                              out + i * nx);
+        }
+      else
+        {
+          for (size_t i = 0; i < ny; i++)
+            _zeropad_1d (state->accum + i * nx, nx, state->work_pad + i * nxo,
+                         nxo);
+          for (size_t i = 0; i < ny; i++)
+            fft_execute_cf32 (state->inv1d, state->work_pad + i * nxo, nxo,
+                              out + i * nxo);
+        }
+      for (size_t k = 0; k < state->n_out; k++)
+        out[k] *= inv_nx;
+      memset (state->accum, 0, state->n * sizeof (*state->accum));
+      state->count = 0;
+      return state->n_out;
+    }
+  return 0;
+}
+
 size_t
 corr2d_execute (corr2d_state_t *state, const float complex *in, size_t n_in,
                 float complex *out)
 {
   (void)n_in;
+
+  if (state->fast_path)
+    return _execute_fast (state, in, out);
 
   /* Frequency-domain coherent accumulation.  Accumulate the per-frame cross-
    * spectrum  P_k = FFT2(x_k) · conj(FFT2(ref))  and invert once on dump,

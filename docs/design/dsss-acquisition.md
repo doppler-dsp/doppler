@@ -256,6 +256,24 @@ per core**. That cost is **almost entirely the `corr2d` 2-D FFT**: a bare
 `corr2d.execute` on the same grid is ~95–100% of the tile (`bench_corr2d.py`),
 so the slow-time FFT, ring, and CFAR are a few-percent tail and the engine is
 **2-D-FFT bound** — optimization effort belongs in the transform, not the glue.
+
+**Update — shipped:** `corr2d` now exploits a structural fact this section's
+own numbers motivated but didn't yet act on: `acq`'s reference is single-row
+(row 0 only), so `ref_spec` is row-frequency-invariant and the row axis of
+`corr2d_execute`'s forward-accumulate-inverse round trip is an *exact*
+identity for any row content (DFT orthogonality) — `corr2d` was paying for a
+full row-axis FFT and IFFT every frame that provably cancelled to a no-op.
+A fast path (`native/src/corr2d/corr2d_core.c`, see
+[corr2d-interpolated-inverse.md §9](corr2d-interpolated-inverse.md)) now
+skips it, replacing the `(ny,nx)` 2-D transform pair with `ny` independent
+length-`nx` 1-D transforms. This is a **different lever from P2** below —
+P2 targets the forward transform's prime code-length (an FFT-*size*
+problem); the fast path eliminates row-axis work regardless of size (an
+FFT-*count* problem) — the two are independent and compose. Measured
+end-to-end: the composed `DsssReceiver`'s acquisition-search throughput
+went from ~28-59 MSa/s to ~133 MSa/s, matching its tracking-regime
+throughput instead of trailing it 3-5x.
+
 `Acquisition.push` releases the GIL, so thread-per-shard scaling is
 **~3.4× on 8 cores, ~4.9× on 12** (memory-bandwidth bound past a few cores, like
 `ddc_fn`) → **~240 MSa/s aggregate** on this box. Per-shard memory is tiny

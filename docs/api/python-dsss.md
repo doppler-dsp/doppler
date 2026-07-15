@@ -227,11 +227,33 @@ ______________________________________________________________________
 
 ::: doppler.dsss.BurstDespreader
 
+## `DsssReceiver` — the composed continuous receiver
+
+The single-object form of `Acquisition -> Dll(segments) -> RateConverter -> MpskReceiver`: only `code`/`chip_rate`/`symbol_rate` are required,
+everything else defaults to this project's own validated values, with
+`configure_search_raw`/`configure_lock_raw`/`configure_chain_raw` as the
+power-user escape hatches. See the
+[DsssReceiver gallery page](../gallery/dsss-receiver.md) for the full
+story this composes.
+
+```python
+import numpy as np
+from doppler.dsss import DsssReceiver
+
+code = np.random.default_rng(1).integers(0, 2, 127).astype(np.uint8)
+rx = DsssReceiver(code, chip_rate=3.0e6, symbol_rate=2100.0)
+x = np.zeros(1024, dtype=np.complex64)   # no real signal here -- just show the call
+syms = rx.steps(x)   # empty while searching; demodulated symbols once locked
+rx.tracking          # 0 = searching, 1 = locked and demodulating
+```
+
+::: doppler.dsss.DsssReceiver
+
 ## Related pages
 
 <!-- related-pages:start -->
 
-**Gallery** — [Continuous Async DSSS Receiver](../gallery/async-dsss-receiver.md), [Correlation and Detection](../gallery/corr.md), [Despreader (full continuous receiver)](../gallery/despreader.md), [DSSS Acquisition — Pd / Pfa vs Es/N0](../gallery/dsss-acq-characterization.md), [A 5-Burst DSSS Link — wfmgen's Three Faces, the Full Receiver Chain](../gallery/dsss-burst-pipeline.md), [DSSS Acquisition & Despreading](../gallery/dsss-despread.md), [Gallery](../gallery/index.md), [Full-Chain Lock-Up](../gallery/receiver-lock.md)
+**Gallery** — [Continuous Async DSSS Receiver](../gallery/async-dsss-receiver.md), [Correlation and Detection](../gallery/corr.md), [Despreader (full continuous receiver)](../gallery/despreader.md), [DSSS Acquisition — Continuous Async-Data Modulation](../gallery/dsss-acq-async-data.md), [DSSS Acquisition — Pd / Pfa vs Es/N0](../gallery/dsss-acq-characterization.md), [A 5-Burst DSSS Link — wfmgen's Three Faces, the Full Receiver Chain](../gallery/dsss-burst-pipeline.md), [DSSS Despread — Acquisition-to-Dll Hand-off, Continuous Async-Data](../gallery/dsss-despread-async-data.md), [DSSS Acquisition & Despreading](../gallery/dsss-despread.md), [DsssReceiver — the Composed Continuous DSSS Receiver](../gallery/dsss-receiver.md), [Gallery](../gallery/index.md), [Full-Chain Lock-Up](../gallery/receiver-lock.md)
 **Guides** — [DSSS Burst Acquisition](../guide/dsss-acquisition.md), [Guides](../guide/index.md), [Lock Detection Across `doppler.track`](../guide/lock-detection.md), [DSSS bursts — a burst train in one declaration](../guide/wfmgen/dsss-bursts.md), [Waveforms](../guide/wfmgen/waveforms.md)
 **Design** — [Design — pure-functional acquisition kernel (elastic fleet)](../design/acq-fn.md), [API taxonomy: the DSP building-block hierarchy and its naming axis](../design/api-taxonomy.md), [Asynchronous symbol/code despreading](../design/async-symbol-despreader.md), [Corr2D: decoupled (interpolated) inverse length](../design/corr2d-interpolated-inverse.md), [DSSS acquisition: stateless, parallel, dynamics-capable](../design/dsss-acquisition.md), [Design](../design/index.md), [State Serialization — the standard bytes interface](../design/state-serialization.md)
 **Contributing** — [DSSS Primary Use Cases for Code Acquisition Design](../dev/dsss-use-cases.md), [Contributing](../dev/index.md)

@@ -129,6 +129,8 @@ extern "C" {
 
 #include "burst_demod/burst_demod_core.h"
 
+#include "dsss_receiver/dsss_receiver_core.h"
+
 #ifdef __cplusplus
 }
 #endif

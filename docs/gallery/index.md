@@ -48,7 +48,8 @@ FFT, ring buffers, C programs, or the NATS streaming demo? Those live on the
 - [Full-Chain Lock-Up](receiver-lock.md) — `Dll -> Costas -> SymbolSync` cold-started with no code, carrier, or timing knowledge, watched over one shared `Telemetry` context.
 - [DSSS Acquisition — Continuous Async-Data Modulation](dsss-acq-async-data.md) — Stage 1: exact code-phase/Doppler lock and per-epoch test-stat robustness under asynchronous BPSK data, CCSDS Gold code.
 - [DSSS Despread — Acquisition-to-Dll Hand-off, Continuous Async-Data](dsss-despread-async-data.md) — Stage 2: the hand-off seeds `Dll` exactly, and `segments=4` tracks reliably where `segments=1` measurably degrades under the same asynchronous BPSK data.
-- [Continuous Async DSSS Receiver](async-dsss-receiver.md) — Stage 3: `Acquisition -> Dll(segments) -> MpskReceiver` at real chip/symbol rates — `segments=4`, `Dll`'s own tracking sweet spot, turns out to be downstream-insufficient; `segments=34` decodes cleanly.
+- [Continuous Async DSSS Receiver](async-dsss-receiver.md) — Stage 3: `Acquisition -> Dll(segments) -> RateConverter -> MpskReceiver` at real chip/symbol rates — the despreader removes the code, an explicit resampler bridges it to a normal demodulator, and `Dll`'s own tracking-optimal `segments=4` decodes cleanly once wired that way.
+- [DsssReceiver — the Composed Continuous DSSS Receiver](dsss-receiver.md) — the single-object payoff: everything Stage 3 hand-composed across four objects, collapsed into one `DsssReceiver` and one `steps()` call.
 
 ## Synchronization Loops
 

@@ -172,6 +172,7 @@ nav:
           - "DSSS Acquisition: Continuous Async-Data Modulation": gallery/dsss-acq-async-data.md
           - "DSSS Despread: Continuous Async-Data Hand-off": gallery/dsss-despread-async-data.md
           - Continuous Async DSSS Receiver: gallery/async-dsss-receiver.md
+          - DsssReceiver (Composed Object): gallery/dsss-receiver.md
       - Synchronization Loops:
           - Carrier Loop Stress: gallery/costas.md
           - Costas Loop (theory): gallery/costas-theory.md

@@ -788,3 +788,183 @@ class BurstDemod:
     def __enter__(self) -> "BurstDemod": ...
 
     def __exit__(self, *args: object) -> None: ...
+
+class DsssReceiver:
+    """Create a DSSS receiver in the searching state.
+
+    Parameters
+    ----------
+    code : NDArray[np.uint8], default ...
+        Spreading code (chip values).
+    chip_rate : float, default 1000000.0
+        Chip rate, Hz. Required.
+    symbol_rate : float, default 1000.0
+        Data-symbol rate, Hz. Required — sizes the embedded Acquisition's joint search (see `acq_create()`'s own `symbol_rate`).
+    spc : int, default 2
+        Samples/chip (front-end oversample); default 2 (fs = 2x chip_rate).
+    m : int, default 2
+        PSK order, 2/4/8; default 2 (BPSK).
+    cn0_dbhz : float, default 55.0
+        Design C/N0 for acquisition sizing, dB-Hz; default 55.0.
+    pfa : float, default 1e-3
+        Acquisition false-alarm target; default 1e-3.
+    pd : float, default 0.9
+        Acquisition detection-probability target; default 0.9.
+    doppler_uncertainty : float, default 100.0
+        One-sided Doppler search half-range, Hz; default 100.0.
+    reps : int, default 16
+        Acquisition's own coherent-depth upper bound for its joint search; default 16.
+    max_noncoh : int, default 8
+        Acquisition's own non-coherent-look upper bound for its joint search; default 8.
+    segments : int, default 4
+        Dll's own non-coherent partial-correlation count per code epoch — its tracking- robustness parameter, independent of `sps` (see the module docstring); default 4, this story's own validated sweet spot.
+    sps : int, default 8
+        MpskReceiver's samples/symbol, reached by an internal RateConverter bridging the despreader's own partial rate to this rate; default 8, MpskReceiver's own constructor default.
+    differential : int, default 0
+        MpskReceiver's differential (rotation- invariant) demap; default 0 (coherent).
+
+    """
+    def __init__(self, code: NDArray[np.uint8] = ..., chip_rate: float = ..., symbol_rate: float = ..., spc: int = ..., m: int = ..., cn0_dbhz: float = ..., pfa: float = ..., pd: float = ..., doppler_uncertainty: float = ..., reps: int = ..., max_noncoh: int = ..., segments: int = ..., sps: int = ..., differential: int = ...) -> None: ...
+
+    def steps(self, x: NDArray[np.complex64], out: NDArray[np.complex64] | None = None) -> NDArray[np.complex64]:
+        """Stream raw cf32 samples through the receiver. While searching, samples feed the embedded Acquisition and nothing is emitted (an empty array is normal, not an error). The moment a hit fires, Dll/RateConverter/MpskReceiver are built and seeded from it -- the same phase-inversion hand-off and rate-bridging this project's async-DSSS-receiver gallery story validated by hand -- and the unconsumed tail of this same call is handed straight to them, so no samples are dropped at the transition. While tracking, samples feed Dll -> RateConverter -> MpskReceiver in sequence and demodulated symbols are returned. Accepts any block size; state carries across calls.
+
+        While searching, samples feed the embedded Acquisition and nothing is
+        emitted (0 return is normal, not an error). The moment a hit fires,
+        `Dll`/`RateConverter`/`MpskReceiver` are built and seeded from it, and
+        the unconsumed tail of THIS call — computed exactly from
+        `acq->samples_consumed`, no samples dropped or double-fed — is handed
+        straight to them in the same call. While tracking, samples feed `Dll ->
+        RateConverter -> MpskReceiver` in sequence. Accepts any block size;
+        state carries across calls (`Acquisition`/`Dll`/
+        `RateConverter`/`MpskReceiver` are all already block-size invariant, so
+        this object needs no ring-buffering of its own).
+
+        Parameters
+        ----------
+        x : NDArray[np.complex64]
+            Input cf32 samples.
+
+        Returns
+        -------
+        NDArray[np.complex64]
+            Number of symbols written (0 while searching, or while tracking with not yet a full symbol's worth of input).
+        """
+
+    def steps_max_out(self) -> int:
+        """Max output length steps() can produce for the current state."""
+
+    def configure_search_raw(self, doppler_bins: int, n_noncoh: int) -> None:
+        """Pin the embedded Acquisition's search grid directly, bypassing the symbol_rate-driven auto-sizing -- the escape hatch for a power user who wants a specific (doppler_bins, n_noncoh). Only meaningful while searching.
+
+        Parameters
+        ----------
+        doppler_bins : int
+            Input.
+        n_noncoh : int
+            Input.
+        """
+
+    def configure_lock_raw(self, up_thresh: float, down_thresh: float, n_looks: int, alpha: float, n_up: int, n_down: int) -> None:
+        """Re-tune the embedded Dll's code-lock detector directly. Only meaningful once tracking has begun; a no-op while searching.
+
+        Parameters
+        ----------
+        up_thresh : float
+            Input.
+        down_thresh : float
+            Input.
+        n_looks : int
+            Input.
+        alpha : float
+            Input.
+        n_up : int
+            Input.
+        n_down : int
+            Input.
+        """
+
+    def configure_chain_raw(self, segments: int, sps: int, n: int) -> None:
+        """Pin the despread/resample/demod grid directly, bypassing the create-time segments/sps defaults -- segments (Dll's tracking parameter) and sps/n (MpskReceiver's rate/carrier-arm parameters) stay independently overridable here, still bridged by a freshly-sized RateConverter, never coupled to each other. Only meaningful once tracking; rebuilds the chain with every replacement allocated first, so a failed pin leaves the receiver on its prior grid.
+
+        The escape hatch for the one composition-specific knob this object adds
+        beyond its children's own: `segments` (Dll's tracking parameter) and
+        `sps`/`n` (MpskReceiver's sample-rate/carrier-arm parameters) are
+        indepen­dently overridable here, still bridged by a freshly-sized
+        `RateConverter` — never coupled to each other (see the module
+        docstring). Rebuilds `dll`/`rc`/`rx` with every replacement allocated
+        first, only freeing and adopting the old ones once every allocation has
+        succeeded (mirrors `Acquisition`'s own `_regrid()` discipline) — a
+        failed pin leaves the receiver tracking on its prior grid, not
+        half-destroyed. Only meaningful once tracking (the grid defaults still
+        apply to create-time auto-sizing for the next hit while searching; call
+        `dsss_receiver_create()` with different `segments`/`sps` for that, or
+        re-pin here again after the next hit).
+
+        Parameters
+        ----------
+        segments : int
+            Input.
+        sps : int
+            Input.
+        n : int
+            MpskReceiver's carrier-arm count; must divide sps.
+        """
+
+    def reset(self) -> None:
+        """Return to the searching state: resets the embedded Acquisition and frees Dll/RateConverter/MpskReceiver (rebuilt from scratch on the next hit).
+        """
+
+    def state_bytes(self) -> int:
+        """Serialized state size in bytes."""
+    def get_state(self) -> bytes:
+        """Serialize the engine's mutable state to bytes."""
+    def set_state(self, blob: bytes) -> None:
+        """Restore mutable state from a get_state() blob."""
+
+    @property
+    def tracking(self) -> int:
+        """Tracking."""
+
+    @property
+    def doppler_hz(self) -> float:
+        """Doppler hz."""
+
+    @property
+    def cn0_dbhz_est(self) -> float:
+        """Cn0 dbhz est."""
+
+    @property
+    def segments(self) -> int:
+        """Segments."""
+
+    @property
+    def sps(self) -> int:
+        """Sps."""
+
+    @property
+    def n(self) -> int:
+        """N."""
+
+    @property
+    def chip_phase(self) -> float:
+        """Dll's live tracked code phase (chips); 0.0 while searching."""
+
+    @property
+    def code_rate(self) -> float:
+        """Dll's own tracking-quality indicator; 1.0 while searching."""
+
+    @property
+    def lock(self) -> float:
+        """MpskReceiver's carrier lock EMA; 0.0 while searching."""
+
+    @property
+    def norm_freq(self) -> float:
+        """MpskReceiver's tracked carrier frequency; 0.0 while searching."""
+
+    def destroy(self) -> None:
+        """Release C resources immediately."""
+
+    def __enter__(self) -> "DsssReceiver": ...
+
+    def __exit__(self, *args: object) -> None: ...

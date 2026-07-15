@@ -101,8 +101,10 @@ residual carrier** — see the bottom-right panel above.
 Source: `src/doppler/examples/async_dsss_receiver_demo.py`. See also
 [DSSS Acquisition: Continuous Async-Data Modulation](dsss-acq-async-data.md)
 (Stage 1), [DSSS Despread: Continuous Async-Data Hand-off](dsss-despread-async-data.md)
-(Stage 2), [Streaming Async Despreader](async-despread.md) (the
-despread-only half, toy parameters, genie code phase), [Full-Chain
+(Stage 2), [DsssReceiver — the Composed Continuous DSSS Receiver](dsss-receiver.md)
+(this same chain as one C object, for real use rather than hand-composing
+it as this page does), [Streaming Async Despreader](async-despread.md)
+(the despread-only half, toy parameters, genie code phase), [Full-Chain
 Lock-Up](receiver-lock.md) (a converged `Dll -> Costas -> SymbolSync`
 chain with `.locked` observed via telemetry on all three loops), and
 `docs/design/async-symbol-despreader.md` for the underlying theory.

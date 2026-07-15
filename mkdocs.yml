@@ -170,6 +170,7 @@ nav:
           - Despreader (full continuous receiver): gallery/despreader.md
           - Full-Chain Lock-Up: gallery/receiver-lock.md
           - Continuous Async DSSS Receiver: gallery/async-dsss-receiver.md
+          - "DSSS Acquisition: Continuous Async-Data Modulation": gallery/dsss-acq-async-data.md
       - Synchronization Loops:
           - Carrier Loop Stress: gallery/costas.md
           - Costas Loop (theory): gallery/costas-theory.md

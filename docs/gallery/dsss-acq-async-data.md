@@ -166,6 +166,41 @@ only ever add. That is why non-coherent's *empirical* Pd comfortably
 conservative bound for a clean, unmodulated code) while coherent's falls
 well short of the same kind of bound.
 
+### The theory curves (dashed)
+
+This isn't hand-waved — both dashed curves are a genuine theoretical
+Pd(D) with a **uniformly-distributed data-bit transition**, computed
+semi-analytically (exact chip-timing combinatorics, no noise Monte
+Carlo): quadrature over the window's phase relative to the symbol clock,
+crossed with exact enumeration over the small number of i.i.d. ±1 data
+signs the window touches, fed through the same `det_pd`/`marcum_q`
+primitives `Acquisition` itself sizes against
+([Python: Detection Statistics](../api/python-detection.md)).
+
+- **Non-coherent** — each of the `D` looks is independent, and summing
+    independent non-central chi-squared(2) terms gives a non-central
+    chi-squared(`2·D`) whose non-centrality is the *sum* of the
+    individual looks' non-centralities, exactly what `marcum_q` expects.
+    The theory curve lands almost exactly on the empirical one (max
+    difference < 0.01 across all 12 depths) — a clean, essentially exact
+    validation.
+- **Coherent** — the naive model (one amplitude for the whole window,
+    computed from the signed segment sum) underestimates empirical Pd by
+    as much as 0.47. The fix: `Acquisition`'s slow-time integration is a
+    `D`-point Doppler FFT, not a plain time-domain sum, and a mid-window
+    phase step (the transition) leaks energy into *every* FFT bin, not
+    just the zero-Doppler one — detection only needs the *peak* bin to
+    cross threshold. Using the window's own `D`-point DFT peak instead of
+    its DC term shrinks the gap to about 0.17. The **remaining** gap is
+    the honest, quantified footprint of an analogous leakage effect on
+    the *code-phase* axis — the same partial-correlation mislock
+    mechanism from the first figure above, now also handing out partial
+    credit toward detection at low margin, not just occasional
+    wrong-phase locks. Modeling that fully means walking the entire 2-D
+    Doppler × code-phase grid, not just the on-diagonal true-phase slice
+    this model uses — a real, open extension, left as future work rather
+    than forced to match.
+
 See the [DSSS acquisition guide](../guide/dsss-acquisition.md#continuous-data-modulated-signals-the-asynchronous-symbol-clock-case)
 for the resulting recommendation: given `code`, `chip_rate`, and a
 `symbol_rate` (the signal that continuous data modulation is present),

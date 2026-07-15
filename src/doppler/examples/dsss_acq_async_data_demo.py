@@ -59,6 +59,21 @@ transitions), and coherent Pd plateaus around 68%, far short of its own
 91% theoretical target, while non-coherent (immune to phase disagreement
 between looks) comfortably clears 99%.
 
+**Both curves get an overlaid theoretical prediction** -- a
+semi-analytical Pd(D) computed from the exact chip-timing combinatorics
+of a uniformly-distributed data-bit transition (window phase quadrature x
+exact enumeration over the i.i.d. +-1 data signs touched, no noise Monte
+Carlo), fed through the same ``det_pd``/``marcum_q`` primitives
+:class:`~doppler.dsss.Acquisition` itself sizes against. The non-coherent
+theory matches its empirical curve almost exactly (each look is
+independent, so summing non-centralities is exact). The coherent theory
+-- accounting for the engine's slow-time Doppler FFT leaking a
+transition's energy into non-zero bins, not just DC -- captures most of
+the effect but still undershoots empirical Pd by a residual amount,
+because it doesn't model the analogous leakage on the *code-phase* axis
+(the same mislock mechanism from the first figure, now also handing out
+partial credit toward detection, not just occasional wrong-phase locks).
+
 Downstream despread/demod (``Dll(segments) -> MpskReceiver``) is a
 separate, later stage of this story -- this page is deliberately
 acquisition-only.
@@ -135,6 +150,8 @@ def make_signal(cn0_dbhz: float, seed: int):
 
 
 # --8<-- [end:signal]
+
+from doppler.detection import det_pd, marcum_q  # noqa: E402 -- theory below
 
 # Deliberately strong (not a sensitivity study) to unambiguously validate
 # the search mechanics -- see the module docstring. It reads as a high
@@ -373,7 +390,11 @@ def _diversity_sweep(cn0_dbhz: float, reps: int, max_noncoh: int, label: str):
     total_opportunities = N_TRIALS_MC * opportunities_per_trial
     pd_empirical = float(np.sum(valid) / total_opportunities)
 
+    # `.threshold` (mean-CFAR scale) is what test_stat is plotted against;
+    # `.eta`/`.eta_nc` (raw Rayleigh/Marcum scale) is what det_pd/marcum_q
+    # need for the theoretical model below -- two different quantities.
     thr = acq_ref.eta_nc if acq_ref.n_noncoh > 1 else acq_ref.threshold
+    eta_raw = acq_ref.eta_nc if acq_ref.n_noncoh > 1 else acq_ref.eta
     print(
         f"epoch-diversity[{label}]: doppler_bins={acq_ref.doppler_bins} "
         f"n_noncoh={acq_ref.n_noncoh} threshold={thr:.2f} "
@@ -390,7 +411,90 @@ def _diversity_sweep(cn0_dbhz: float, reps: int, max_noncoh: int, label: str):
         mislock_rate,
         pd_empirical,
         acq_ref.pd_predicted,
+        eta_raw,
     )
+
+
+EPOCHS_PER_SYMBOL = TSYM / TE  # ~1.396; fixed by the waveform, not random
+
+
+def _window_epoch_segments(phi0: float, depth: int):
+    """Segment the ``depth``-epoch window starting at symbol-phase
+    ``phi0`` (elapsed into the current data symbol, in ``[0,
+    EPOCHS_PER_SYMBOL)``) into per-epoch ``[(length, symbol_id), ...]``
+    lists. ``symbol_id`` increments at each crossed data-bit boundary, so
+    two segments sharing a ``symbol_id`` share the same (unknown, i.i.d.
+    +-1) data sign -- this is the exact combinatorial structure a
+    uniformly-distributed transition (or several, for a wide window)
+    imposes on the window, with no noise or Monte Carlo involved.
+    """
+    segments_per_epoch = []
+    phase = phi0
+    symbol_id = 0
+    for _ in range(depth):
+        segs = []
+        remaining = 1.0
+        while remaining > 1e-9:
+            to_boundary = EPOCHS_PER_SYMBOL - phase
+            take = min(to_boundary, remaining)
+            segs.append((take, symbol_id))
+            remaining -= take
+            phase += take
+            if phase >= EPOCHS_PER_SYMBOL - 1e-9:
+                phase = 0.0
+                symbol_id += 1
+        segments_per_epoch.append(segs)
+    return segments_per_epoch, symbol_id + 1
+
+
+def _theoretical_pd(depth, snr, code_bins, eta, n_noncoh, n_phi=200):
+    """Semi-analytical Pd(depth) with a uniformly-distributed data-bit
+    transition inside the integration window -- no AWGN Monte Carlo, no
+    ``Acquisition`` simulation, just the exact chip-timing combinatorics
+    (phase quadrature over the window's position relative to the symbol
+    clock, exact enumeration over the small number of i.i.d. +-1 data
+    signs touched) fed through the same ``det_pd``/``marcum_q`` primitives
+    ``Acquisition`` itself sizes against.
+
+    Coherent (``n_noncoh<=1``): the engine's slow-time FFT searches every
+    Doppler bin, and a mid-window phase step (from a transition) leaks
+    energy into non-zero bins too, so the right per-window amplitude is
+    the *peak* across the window's own D-point DFT, not just its DC term.
+    Non-coherent (``n_noncoh>1``): each look is independent, and summing
+    independent non-central chi-squared(2) terms gives a non-central
+    chi-squared(2*n_noncoh) whose non-centrality is the *sum* of the
+    individual looks' non-centralities -- exactly what ``marcum_q``
+    expects.
+    """
+    phis = (np.arange(n_phi) + 0.5) / n_phi * EPOCHS_PER_SYMBOL
+    pd_acc = 0.0
+    for phi0 in phis:
+        segs_per_epoch, n_symbols = _window_epoch_segments(phi0, depth)
+        n_combos = 1 << n_symbols
+        pd_sum = 0.0
+        for bits in range(n_combos):
+            signs = np.array(
+                [1.0 if (bits >> i) & 1 else -1.0 for i in range(n_symbols)]
+            )
+            v = np.array(
+                [
+                    sum(signs[sid] * length for length, sid in segs)
+                    for segs in segs_per_epoch
+                ]
+            )
+            if n_noncoh <= 1:
+                if depth == 1:
+                    alpha = abs(v[0])
+                else:
+                    alpha = np.abs(np.fft.fft(v)).max() / depth
+                pd_sum += det_pd(snr * alpha, depth * code_bins, eta)
+            else:
+                lam = sum(
+                    (np.sqrt(2.0 * code_bins) * snr * abs(vi)) ** 2 for vi in v
+                )
+                pd_sum += marcum_q(n_noncoh, np.sqrt(lam), eta)
+        pd_acc += pd_sum / n_combos
+    return pd_acc / n_phi
 
 
 def main(out_path: str = "dsss_acq_async_data_demo.png") -> None:
@@ -643,6 +747,48 @@ def main(out_path: str = "dsss_acq_async_data_demo.png") -> None:
     noncoh_se = np.sqrt(noncoh_pd * (1 - noncoh_pd) / noncoh_n)
     pd_predicted = [r[7] for r in coh_results]  # same at every depth
 
+    # --- theoretical Pd with a uniformly-distributed transition ------------
+    # (semi-analytical: exact chip-timing combinatorics, no noise Monte
+    # Carlo -- see _theoretical_pd's docstring).
+    snr_th = np.sqrt(10.0 ** (DIVERSITY_CN0_DBHZ / 10.0) / FS)
+    coh_theory = np.array(
+        [
+            _theoretical_pd(d, snr_th, SF * SPC, r[8], 1)
+            for d, r in zip(DEPTHS, coh_results)
+        ]
+    )
+    noncoh_theory = np.array(
+        [
+            _theoretical_pd(d, snr_th, SF * SPC, r[8], r[4])
+            for d, r in zip(DEPTHS, noncoh_results)
+        ]
+    )
+    noncoh_theory_err = float(np.max(np.abs(noncoh_theory - noncoh_pd)))
+    coh_theory_err = float(np.max(np.abs(coh_theory - coh_pd)))
+    print(
+        f"theory vs. empirical: non-coherent max|diff|="
+        f"{noncoh_theory_err:.4f}, coherent max|diff|={coh_theory_err:.4f}"
+    )
+    assert noncoh_theory_err < 0.05, (
+        "expected the independent-look non-coherent theory (exact "
+        "chip-timing combinatorics through marcum_q, no noise Monte "
+        f"Carlo) to closely match the empirical sweep (max diff "
+        f"{noncoh_theory_err:.4f})"
+    )
+    # Coherent theory is deliberately a partial model (the window's own
+    # D-point DFT peak, capturing Doppler-bin leakage from a mid-window
+    # phase step) -- it should track empirical Pd's rise-then-plateau
+    # shape and stay close to or below it (the code-phase axis has an
+    # analogous leakage effect this model doesn't include, which is why
+    # real Pd ends up higher at most depths -- see the gallery page). A
+    # small overshoot at low D (finite-sample noise on the empirical
+    # side) is expected; a large one would mean the DFT-peak model is
+    # over-crediting.
+    assert np.all(coh_theory <= coh_pd + 0.1), (
+        "coherent theory overshot empirical Pd by more than expected "
+        "finite-sample noise -- the DFT-peak model may be over-crediting"
+    )
+
     fig2, ax2 = plt.subplots(figsize=(8, 5.5))
     ax2.errorbar(
         DEPTHS,
@@ -665,6 +811,24 @@ def main(out_path: str = "dsss_acq_async_data_demo.png") -> None:
         lw=1.4,
         capsize=3,
         label="non-coherent (D looks)",
+    )
+    ax2.plot(
+        DEPTHS,
+        coh_theory,
+        color="#1f77b4",
+        lw=1.0,
+        ls="--",
+        alpha=0.7,
+        label="coherent theory (uniform transition)",
+    )
+    ax2.plot(
+        DEPTHS,
+        noncoh_theory,
+        color="#d62728",
+        lw=1.0,
+        ls="--",
+        alpha=0.7,
+        label="non-coherent theory (uniform transition)",
     )
     ax2.axhline(0.9, color="k", lw=0.8, ls="--", label="target pd = 0.9")
     ax2.set_ylim(0, 1.0)

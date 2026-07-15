@@ -568,45 +568,33 @@ def main(out_path: str = "dsss_acq_async_data_demo.png") -> None:
             f"(mislock_rate={rate:.4f})"
         )
 
-    # Shared y-scale across all four panels -- otherwise each config's much
-    # larger coherent-gain peak (more epochs combined) visually shrinks its
-    # own band, making the mislock-vs-margin comparison misleading. Capped
-    # (not the data max, ~160 for the 3-epoch coherent dump): the mislock
-    # margin against threshold lives well under 100, and the multi-epoch
-    # configs' peaks are already unambiguously off the top of the chart.
-    shared_ymax = 100.0
+    # Only the min across trials matters here -- a mislock happens when the
+    # WORST epoch of a run drops near threshold, not when the mean does.
+    # One overlay, not four panels: the min trajectories are what's being
+    # compared, and mean/max would only distract from that comparison.
+    short_labels = ["COH-1", "COH-2", "COH-3", "NON-COH-3"]
+    colors = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728"]
 
-    fig2, axs2 = plt.subplots(2, 2, figsize=(11, 8.5))
-    for ax, result, config in zip(axs2.flat, results, DIVERSITY_CONFIGS):
-        ts_mat, _ce_mat, thr, db, nnc, mislock_rate = result
-        label = config[3]
+    fig2, ax2 = plt.subplots(figsize=(8, 5.5))
+    for result, short, color in zip(results, short_labels, colors):
+        ts_mat, _ce_mat, thr, db, _nnc, _mislock_rate = result
         ep2 = np.arange(ts_mat.shape[1]) * db
         valid = ~np.all(np.isnan(ts_mat), axis=0)
-        ep_v, ts_v = ep2[valid], ts_mat[:, valid]
-        ts_min, ts_mean, ts_max = (
-            np.nanmin(ts_v, axis=0),
-            np.nanmean(ts_v, axis=0),
-            np.nanmax(ts_v, axis=0),
-        )
-        if nnc > 1:
-            ax.vlines(ep_v, ts_min, ts_max, color="#1f77b4", alpha=0.4, lw=1.5)
-            ax.plot(ep_v, ts_mean, "o-", color="#1f77b4", lw=1.2, ms=3)
-        else:
-            ax.fill_between(ep_v, ts_min, ts_max, color="#1f77b4", alpha=0.25)
-            ax.plot(ep_v, ts_mean, color="#1f77b4", lw=1.2)
-        ax.axhline(thr, color="#d62728", lw=1.2, ls="--")
-        ax.set_ylim(0, shared_ymax)
-        ax.set_title(f"{label}\nmislock_rate={mislock_rate:.4f}", fontsize=9)
-        ax.set_xlabel("code epoch (real time)")
-        ax.set_ylabel("test statistic")
+        ep_v = ep2[valid]
+        ts_min = np.nanmin(ts_mat[:, valid], axis=0)
+        ax2.plot(ep_v, ts_min, color=color, lw=1.4, label=short)
+        ax2.axhline(thr, color=color, lw=0.8, ls=":", alpha=0.6)
 
-    fig2.suptitle(
-        "Epoch-diversity comparison: coherent vs. non-coherent combining "
-        f"across independent epochs ({N_TRIALS_MC} trials each)",
-        fontsize=11,
+    ax2.set_ylim(0, 60)
+    ax2.set_title(
+        "Worst-case (min) test statistic vs. epoch\n"
+        f"{N_TRIALS_MC} trials each; dotted lines mark each config's own "
+        "CFAR threshold"
     )
-    fig2.tight_layout(rect=(0, 0, 1, 0.95))
-    fig2.subplots_adjust(hspace=0.4, wspace=0.3)
+    ax2.set_xlabel("code epoch (real time)")
+    ax2.set_ylabel("test statistic")
+    ax2.legend(fontsize=9)
+    fig2.tight_layout()
     fig2.savefig(div_path, dpi=120)
     print(f"wrote {div_path}")
 

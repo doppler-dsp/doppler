@@ -90,28 +90,30 @@ never the cause.
 
 ## Fixing it: combine across epochs
 
-![Epoch-diversity comparison: coherent vs. non-coherent combining](../assets/dsss_acq_async_data_demo_diversity.png)
+![Worst-case test statistic vs. epoch, coherent vs. non-coherent combining](../assets/dsss_acq_async_data_demo_diversity.png)
 
 If a single epoch is fragile, does combining more than one fix it — and
 does it matter *how* they're combined? Four configurations, same 200-trial
-sweep, x-axis in real epochs and **y-axis on one shared scale across all
-four panels** so both the growing coherent-gain margin and the relative
-band widths are directly comparable, not just each panel's own threshold
-crossing (mislock defined the same way as above, >5 chips):
+sweep. The plot deliberately shows only the **minimum** test statistic
+across trials at each epoch, against each config's own CFAR threshold
+(dotted, same color) — the mean or max would only flatter the config that
+merely combines more raw energy; the *minimum* is what actually decides
+whether a given run mislocks, since a mislock happens when the worst
+epoch's peak drops far enough to lose to a spurious one.
 
-| config                                    | `doppler_bins` | `n_noncoh` | mislock rate |
-| ----------------------------------------- | -------------- | ---------- | ------------ |
-| 1 epoch/decision (baseline)               | 1              | 1          | 3.07%        |
-| 2 epochs/decision, coherent               | 2              | 1          | 0.00%        |
-| 3 epochs/decision, coherent (1 dump)      | 3              | 1          | 0.00%        |
-| 3 epochs/decision, non-coherent (3 looks) | 1              | 3          | 0.00%        |
+| config (legend)    | `doppler_bins` | `n_noncoh` | mislock rate |
+| ------------------ | -------------- | ---------- | ------------ |
+| `COH-1` (baseline) | 1              | 1          | 3.07%        |
+| `COH-2`            | 2              | 1          | 0.00%        |
+| `COH-3`            | 3              | 1          | 0.00%        |
+| `NON-COH-3`        | 1              | 3          | 0.00%        |
 
 **Any combining across ≥2 independent epochs clears the mislock** — even
-plain coherent stacking (`doppler_bins=2`) gets to zero, which at first
-looks like it should suppress the fix's mechanism: not "non-coherent
-specifically defeats it", but epoch **diversity** in general. The engine's
-coherent combining isn't one long correlation over the concatenated window
-— it's a per-code-phase-column FFT *across* the epoch axis (a coherent sum,
+plain coherent stacking (`COH-2`) gets to zero, which at first looks like
+it should undercut the fix's mechanism: not "non-coherent specifically
+defeats it", but epoch **diversity** in general. The engine's coherent
+combining isn't one long correlation over the concatenated window — it's a
+per-code-phase-column FFT *across* the epoch axis (a coherent sum,
 sample-position by sample-position, of each epoch's own raw samples at
 that same within-epoch offset). A transition corrupts only a narrow,
 transition-position-dependent slice of that sum, and because the
@@ -119,12 +121,14 @@ transition's position drifts epoch to epoch (the fixed 1.396
 epochs/symbol ratio never repeats the same offset), that corrupted slice
 never dominates once ≥2 epochs are combined, coherently or not.
 
-Look closer at the panels, though, and non-coherent (bottom right) is
-still the visibly *tightest* band of the four — no periodic dips at all,
-where the coherent configs (top right, bottom left) still show real
-periodic scalloping, just clear of their (also higher) thresholds rather
-than hugging them. Two independent reasons favor non-coherent as the
-robust default, not just "ties on this metric":
+But look at the *margin*, not just whether each cleared zero: `COH-2`'s
+worst-case trace still dips down to hug its own (barely higher) threshold
+almost as tightly as `COH-1` does — it happened not to convert to an
+actual mislock in this 200-trial run, but it is running with very little
+room to spare. `COH-3` opens up real headroom. `NON-COH-3` is in a
+different league entirely — its minimum never approaches its own
+(highest) threshold anywhere in the run. Two independent reasons favor
+non-coherent as the robust default, not just "ties on mislock count":
 
 1. **Variance.** Power-summing (`|·|²` accumulate) can never be dragged
     down by destructive combination the way a coherent (complex-amplitude)

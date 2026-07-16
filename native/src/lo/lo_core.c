@@ -52,12 +52,27 @@ lut_init (void)
  *
  * Uses double arithmetic to avoid rounding at the float→uint32 boundary.
  * floor() folds negative frequencies correctly: −0.25 → 0.75 → 3×2^30.
+ *
+ * Rounds to the nearest 32-bit increment (llround) rather than truncating:
+ * a 32-bit phase word can only ever represent frequency in fs/2^32 steps
+ * (a one-time, unavoidable quantization — no fixed-width accumulator can
+ * be exact except at those specific levels), but truncating always rounds
+ * toward zero, giving a *systematic* one-sided bias up to a full step;
+ * rounding halves the worst case and centers the residual at zero.  This
+ * has no bearing on tracking-loop performance downstream — a carrier loop
+ * exists precisely to null out a small, constant residual like this one,
+ * regardless of its source or size.  `d` is always in [0, 1) here, so
+ * `llround`'s result is always in [0, 2^32]; the one edge case (d rounds
+ * up to exactly 1.0 cycle, i.e. 2^32) wraps to phase-increment 0 via the
+ * well-defined long long → uint32_t conversion — correct, since a full
+ * extra cycle per sample is indistinguishable from no rotation at all,
+ * the same aliasing identity the negative-frequency folding above uses.
  * ------------------------------------------------------------------ */
 static uint32_t
 norm_to_inc (double norm_freq)
 {
   double d = norm_freq - floor (norm_freq);
-  return (uint32_t)(d * 4294967296.0);
+  return (uint32_t)llround (d * 4294967296.0);
 }
 
 /* ================================================================== */

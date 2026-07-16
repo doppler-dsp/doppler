@@ -334,6 +334,45 @@ def test_bits_array_input():
     assert y.real.round().astype(int).tolist() == [-1, 1, -1, -1]
 
 
+def test_carrier_freq_rounds_to_nearest_not_truncated():
+    """The carrier's actual frequency is the *rounded* 32-bit phase-word
+    approximation of the requested frequency (native/src/lo/lo_core.c's
+    norm_to_inc), not truncated toward zero. freq=51 Hz at fs=21e6 is a
+    case where rounding and truncation differ (freq=50 Hz at the same fs
+    does not -- see native/tests/test_lo_core.c's own test for this):
+    truncating would leave the carrier low by ~0.00279 Hz, exceeding half
+    a quantization step; rounding leaves a smaller ~0.00179 Hz residual,
+    within it. Measured directly via mean instantaneous frequency over a
+    modest block -- a fixed-point phase increment is exactly constant per
+    sample by construction, so this needs no long floating-point
+    simulation (a double loses precision at large sample counts too; the
+    exact 32-bit modular accumulator is the only long-run guarantee this
+    design makes)."""
+    fs = 21e6
+    freq = 51.0
+    step_hz = fs / 4294967296.0
+    # A large-enough block for the per-sample estimator to average out the
+    # LUT's own coarser (2^16) quantization noise at this slow a relative
+    # rate; deterministic (snr=100 disables AWGN), so this is not flaky.
+    x = Synth(type="tone", fs=fs, freq=freq, snr=100.0).steps(1_000_000)
+    measured = float(np.mean(_inst_freq(x, fs)))
+    assert abs(measured - freq) <= 0.5 * step_hz + 1e-4, (
+        f"measured {measured} vs requested {freq}, "
+        f"half-step bound {0.5 * step_hz}"
+    )
+
+
+def test_step_matches_steps_bit_exact():
+    """Synth.step() (inline per-sample) must reproduce Synth.steps()
+    (block) bit-exactly -- the same guarantee this project's C-level
+    LO/NCO test suite already locks in (native/tests/test_lo_core.c)."""
+    a = Synth(type="tone", fs=1e6, freq=12345.6, snr=100.0)
+    b = Synth(type="tone", fs=1e6, freq=12345.6, snr=100.0)
+    ref = a.steps(257)
+    got = np.array([b.step() for _ in range(257)], dtype=np.complex64)
+    assert np.array_equal(got, ref)
+
+
 def test_bits_needs_pattern():
     # A pattern-less bits Synth has nothing to transmit. Standalone generation
     # is lazy, so the guard (in the C bridge) surfaces at first steps(): the

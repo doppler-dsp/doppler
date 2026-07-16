@@ -392,6 +392,53 @@ main (void)
     lo_destroy (b);
   }
 
+  /* ----------------------------------------------------------------
+   * 15. Frequency-quantization bound — round-to-nearest, not truncation.
+   *
+   * A 32-bit phase word can only represent frequency in fs/2^32 steps —
+   * a one-time, unavoidable quantization no fixed-width accumulator can
+   * be exact past (this is not a bug; it's what makes the accumulator
+   * itself exact and drift-free for any run length, see test 10). What
+   * IS a choice is truncating vs. rounding to the nearest representable
+   * step: truncating always rounds toward zero, so its worst case is a
+   * FULL step; rounding halves that bound. This test is closed-form and
+   * needs no simulated waveform: it checks the exact integer phase_inc
+   * norm_to_inc() produces, and bounds the resulting frequency error
+   * directly from that integer -- not by comparing against a floating-
+   * point reference over a long run (a double loses precision at large
+   * sample counts too; the exact 32-bit modular accumulator, proven
+   * exact in test 10, is the only long-run guarantee this design makes).
+   *
+   * fs=21e6 (this project's dsss_receiver_stress wfmgen generation rate)
+   * at freq=51 Hz is a case where truncation and rounding actually
+   * differ (freq=50 Hz does not: its exact phase_inc has a fractional
+   * remainder < 0.5, so truncating and rounding coincide there) --
+   * exact values below computed independently in Python.
+   * ---------------------------------------------------------------- */
+  {
+    const double fs      = 21.0e6;
+    const double step_hz = fs / 4294967296.0; /* one quantization step */
+
+    /* freq=50 Hz: truncate == round (fractional remainder ~0.11 < 0.5). */
+    lo_state_t *lo50 = lo_create (50.0 / fs);
+    CHECK (lo_get_phase_inc (lo50) == 10226u);
+    double actual50 = (double)lo_get_phase_inc (lo50) / 4294967296.0 * fs;
+    CHECK (fabs (actual50 - 50.0) <= 0.5 * step_hz + 1e-9);
+    lo_destroy (lo50);
+
+    /* freq=51 Hz: fractional remainder ~0.635 > 0.5 -- truncating would
+     * give 10430 (error ~-0.00279 Hz, EXCEEDS half a step); rounding
+     * must give 10431 (error ~+0.00179 Hz, within half a step). */
+    lo_state_t *lo51 = lo_create (51.0 / fs);
+    CHECK (lo_get_phase_inc (lo51) == 10431u);
+    double actual51 = (double)lo_get_phase_inc (lo51) / 4294967296.0 * fs;
+    CHECK (fabs (actual51 - 51.0) <= 0.5 * step_hz + 1e-9);
+    /* the case this test exists to catch: a regression to truncation
+     * would produce 10430 here, whose error exceeds the half-step bound
+     * above -- so reverting norm_to_inc's rounding fails this CHECK. */
+    lo_destroy (lo51);
+  }
+
   if (_fails)
     {
       fprintf (stderr, "test_lo_core FAILED (%d)\n", _fails);

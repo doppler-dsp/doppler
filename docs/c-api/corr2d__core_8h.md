@@ -12,6 +12,7 @@ _2-D FFT-based cross-correlator with coherent integrate-and-dump._ [More...](#de
 
 * `#include "clib_common.h"`
 * `#include "dp_state.h"`
+* `#include "fft/fft_core.h"`
 * `#include "fft2d/fft2d_core.h"`
 
 
@@ -65,7 +66,7 @@ _2-D FFT-based cross-correlator with coherent integrate-and-dump._ [More...](#de
 |  size\_t | [**corr2d\_execute\_max\_out**](#function-corr2d_execute_max_out) ([**corr2d\_state\_t**](structcorr2d__state__t.md) \* state) <br>_Maximum output samples per execute call (always == ny\*nx)._  |
 |  void | [**corr2d\_get\_state**](#function-corr2d_get_state) (const [**corr2d\_state\_t**](structcorr2d__state__t.md) \* state, void \* blob) <br> |
 |  void | [**corr2d\_reset**](#function-corr2d_reset) ([**corr2d\_state\_t**](structcorr2d__state__t.md) \* state) <br>_Zero the accumulator and reset the integration counter to 0. Equivalent to starting a fresh dwell cycle without rebuilding FFT plans or recomputing ref\_spec._  |
-|  void | [**corr2d\_set\_ref**](#function-corr2d_set_ref) ([**corr2d\_state\_t**](structcorr2d__state__t.md) \* state, const float complex \* ref) <br>_Replace the reference and recompute conj(FFT2(ref))._  |
+|  int | [**corr2d\_set\_ref**](#function-corr2d_set_ref) ([**corr2d\_state\_t**](structcorr2d__state__t.md) \* state, const float complex \* ref) <br>_Replace the reference and recompute its spectrum._  |
 |  int | [**corr2d\_set\_state**](#function-corr2d_set_state) ([**corr2d\_state\_t**](structcorr2d__state__t.md) \* state, const void \* blob) <br> |
 |  size\_t | [**corr2d\_state\_bytes**](#function-corr2d_state_bytes) (const [**corr2d\_state\_t**](structcorr2d__state__t.md) \* state) <br> |
 
@@ -112,6 +113,9 @@ Two-dimensional extension of corr\_core: all buffers are ny×nx row-major flat a
 
 
 The reference spectrum is pre-computed at create time. The int-dump semantics are identical to the 1-D case: coherently sum `dwell` frames, then dump.
+
+
+**Single-row-reference fast path.** When `ref` is nonzero only in row 0 (the DSSS acquisition/detection shape: a code replica with no Doppler content of its own) and `ny_out` == `ny` (no row-axis interpolation), `ref_spec[u,v]` is independent of `u` — the row axis of the 2-D transform pair cancels to an exact identity (DFT orthogonality: `sum_u exp(2*pi*i*u*(i-i')/ny) = ny` iff `i==i'`, else 0), for _any_ row content. `corr2d_execute` then reduces exactly to `R(i,j) = IFFT_nx(FFT_nx(row_i) · conj(FFT_nx(ref_row0)))(j) / nx`, applied independently per row — so `corr2d_create` detects this shape and runs `ny` independent length-`nx` 1-D FFTs instead of a full `(ny,nx)` 2-D FFT, skipping the row-axis work that would otherwise cancel to a no-op. Any other reference shape, or `ny_out > ny`, uses the general 2-D path unchanged.
 
 
 Lifecycle: 
@@ -335,9 +339,9 @@ void corr2d_reset (
 
 ### function corr2d\_set\_ref 
 
-_Replace the reference and recompute conj(FFT2(ref))._ 
+_Replace the reference and recompute its spectrum._ 
 ```C++
-void corr2d_set_ref (
+int corr2d_set_ref (
     corr2d_state_t * state,
     const float complex * ref
 ) 
@@ -345,7 +349,7 @@ void corr2d_set_ref (
 
 
 
-Also resets accumulator and counter.
+Also resets accumulator and counter on success. The object's fast-path mode (see the file doc comment) is fixed at create() time and never changes here: on a fast-path object, `ref` must still be nonzero only in row 0, or the call is rejected and the object's existing reference and spectrum are left completely untouched (never a silent partial update) — a caller that needs a genuinely different reference shape must build a new [**corr2d\_state\_t**](structcorr2d__state__t.md). A general-path object accepts any (ny,nx) `ref` and always succeeds.
 
 
 
@@ -355,6 +359,13 @@ Also resets accumulator and counter.
 
 * `state` Must be non-NULL. 
 * `ref` New reference, flat row-major CF32, length ny\*nx. 
+
+
+
+**Returns:**
+
+0 on success, -1 if `state` is fast-path and `ref` is no longer single-row. 
+
 
 
 

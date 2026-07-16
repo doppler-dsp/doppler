@@ -15,6 +15,7 @@
 
 #include "buffer/buffer.h"
 #include "clib_common.h" /* DP_OK, DP_ERR_INVALID */
+#include "jm_perf.h"      /* JM_FORCEINLINE */
 
 /* 16-byte ring slots: sizeof(uint64_t)*2 per "complex sample" — exactly one
  * telemetry record each, buying the VM-mirrored contiguity, acquire/release
@@ -82,7 +83,7 @@ dp_tlm_set_now (dp_tlm_t *t, uint64_t n)
     t->now = n;
 }
 
-static inline void
+JM_FORCEINLINE void
 dp_tlm_emit (dp_tlm_t *t, int32_t id, double v)
 {
   if (!t)

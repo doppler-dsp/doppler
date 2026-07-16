@@ -39,8 +39,11 @@ _2-D FFT correlator state._ [More...](#detailed-description)
 |  float complex \* | [**accum**](#variable-accum)  <br> |
 |  size\_t | [**count**](#variable-count)  <br> |
 |  size\_t | [**dwell**](#variable-dwell)  <br> |
+|  int | [**fast\_path**](#variable-fast_path)  <br> |
 |  [**fft2d\_state\_t**](structfft2d__state__t.md) \* | [**fwd**](#variable-fwd)  <br> |
+|  [**fft\_state\_t**](structfft__state__t.md) \* | [**fwd1d**](#variable-fwd1d)  <br> |
 |  [**fft2d\_state\_t**](structfft2d__state__t.md) \* | [**inv**](#variable-inv)  <br> |
+|  [**fft\_state\_t**](structfft__state__t.md) \* | [**inv1d**](#variable-inv1d)  <br> |
 |  size\_t | [**n**](#variable-n)  <br> |
 |  size\_t | [**n\_out**](#variable-n_out)  <br> |
 |  size\_t | [**nx**](#variable-nx)  <br> |
@@ -48,6 +51,7 @@ _2-D FFT correlator state._ [More...](#detailed-description)
 |  size\_t | [**ny**](#variable-ny)  <br> |
 |  size\_t | [**ny\_out**](#variable-ny_out)  <br> |
 |  float complex \* | [**ref\_spec**](#variable-ref_spec)  <br> |
+|  float complex \* | [**row\_ref\_spec**](#variable-row_ref_spec)  <br> |
 |  float complex \* | [**work\_fft**](#variable-work_fft)  <br> |
 |  float complex \* | [**work\_pad**](#variable-work_pad)  <br> |
 |  float complex \* | [**zcol**](#variable-zcol)  <br> |
@@ -117,7 +121,7 @@ float complex* corr2d_state_t::accum;
 
 
 
-Coherent product-spectrum accumulator. 
+Coherent product-spectrum accumulator, same (ny,nx)/reinterpretation rule as work\_fft. 
 
 
         
@@ -160,6 +164,23 @@ Integration depth.
 
 
 
+### variable fast\_path 
+
+```C++
+int corr2d_state_t::fast_path;
+```
+
+
+
+1 if using the 1-D-per-row fast path. 
+
+
+        
+
+<hr>
+
+
+
 ### variable fwd 
 
 ```C++
@@ -168,7 +189,24 @@ fft2d_state_t* corr2d_state_t::fwd;
 
 
 
-Forward 2-D plan (sign = -1) at (ny, nx). 
+Forward 2-D plan (sign = -1) at (ny, nx). NULL when [**fast\_path**](structcorr2d__state__t.md#variable-fast_path). 
+
+
+        
+
+<hr>
+
+
+
+### variable fwd1d 
+
+```C++
+fft_state_t* corr2d_state_t::fwd1d;
+```
+
+
+
+Forward 1-D plan, length nx. Fast only. 
 
 
         
@@ -185,7 +223,24 @@ fft2d_state_t* corr2d_state_t::inv;
 
 
 
-Inverse 2-D plan (sign = +1) at (ny\_out,…). 
+Inverse 2-D plan (sign = +1) at (ny\_out,…). NULL when [**fast\_path**](structcorr2d__state__t.md#variable-fast_path). 
+
+
+        
+
+<hr>
+
+
+
+### variable inv1d 
+
+```C++
+fft_state_t* corr2d_state_t::inv1d;
+```
+
+
+
+Inverse 1-D plan, length nx\_out. Fast only. 
 
 
         
@@ -304,7 +359,24 @@ float complex* corr2d_state_t::ref_spec;
 
 
 
-conj(FFT2(ref)), pre-computed. (ny, nx) 
+conj(FFT2(ref)), pre-computed. (ny, nx). NULL when [**fast\_path**](structcorr2d__state__t.md#variable-fast_path) (see row\_ref\_spec). 
+
+
+        
+
+<hr>
+
+
+
+### variable row\_ref\_spec 
+
+```C++
+float complex* corr2d_state_t::row_ref_spec;
+```
+
+
+
+conj(FFT\_nx(ref row 0)), length nx. Fast-path replacement for ref\_spec. 
 
 
         
@@ -321,7 +393,7 @@ float complex* corr2d_state_t::work_fft;
 
 
 
-Scratch: FFT2(in) · ref\_spec (product). 
+Scratch: FFT(in)·ref\_spec product. (ny,nx) either path — fast path reinterprets this as ny independent length-nx row spectra. 
 
 
         
@@ -338,7 +410,7 @@ float complex* corr2d_state_t::work_pad;
 
 
 
-Zero-padded product, (ny\_out, nx\_out). 
+Zero-padded product, (ny\_out, nx\_out) or, fast path, (ny, nx\_out). 
 
 
         
@@ -355,7 +427,7 @@ float complex* corr2d_state_t::zcol;
 
 
 
-Column gather scratch, (ny). 
+Column gather scratch, (ny). General path only. 
 
 
         
@@ -372,7 +444,7 @@ float complex* corr2d_state_t::zcolout;
 
 
 
-Column-padded scratch, (ny\_out). 
+Column-padded scratch, (ny\_out). General path only. 
 
 
         
@@ -389,7 +461,7 @@ float complex* corr2d_state_t::ztmp;
 
 
 
-Row-padded intermediate, (ny, nx\_out). 
+Row-padded intermediate, (ny, nx\_out). General path only. 
 
 
         

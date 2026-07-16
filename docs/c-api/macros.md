@@ -107,6 +107,8 @@
 * **DLL\_EPS** ([**dll\_core.h**](dll__core_8h.md))
 * **DLL\_STATE\_MAGIC** ([**dll\_core.h**](dll__core_8h.md))
 * **DLL\_STATE\_VERSION** ([**dll\_core.h**](dll__core_8h.md))
+* **DSSS\_RECEIVER\_STATE\_MAGIC** ([**dsss\_receiver\_core.h**](dsss__receiver__core_8h.md))
+* **DSSS\_RECEIVER\_STATE\_VERSION** ([**dsss\_receiver\_core.h**](dsss__receiver__core_8h.md))
 * **DP\_TLM** ([**telemetry.h**](telemetry_8h.md))
 * **DP\_TLM\_MAX\_PROBES** ([**telemetry.h**](telemetry_8h.md))
 * **DP\_TLM\_NAME\_MAX** ([**telemetry.h**](telemetry_8h.md))
@@ -127,6 +129,12 @@
 * **FARROW\_STATE\_VERSION** ([**farrow\_core.h**](farrow__core_8h.md))
 * **FIR\_STATE\_MAGIC** ([**fir\_core.h**](fir__core_8h.md))
 * **FIR\_STATE\_VERSION** ([**fir\_core.h**](fir__core_8h.md))
+
+
+## g
+
+* **GOLD\_STATE\_MAGIC** ([**gold\_core.h**](gold__core_8h.md))
+* **GOLD\_STATE\_VERSION** ([**gold\_core.h**](gold__core_8h.md))
 
 
 ## h

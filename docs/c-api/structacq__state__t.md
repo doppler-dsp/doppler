@@ -43,8 +43,12 @@ _Streaming acquisition-engine state._ [More...](#detailed-description)
 |  float complex \* | [**colout**](#variable-colout)  <br> |
 |  [**corr2d\_state\_t**](structcorr2d__state__t.md) \* | [**corr**](#variable-corr)  <br> |
 |  size\_t | [**doppler\_bins**](#variable-doppler_bins)  <br> |
+|  double | [**doppler\_rate**](#variable-doppler_rate)  <br> |
 |  double | [**doppler\_res\_hz**](#variable-doppler_res_hz)  <br> |
+|  double | [**doppler\_resolution**](#variable-doppler_resolution)  <br> |
 |  double | [**doppler\_span\_hz**](#variable-doppler_span_hz)  <br> |
+|  double | [**doppler\_uncertainty**](#variable-doppler_uncertainty)  <br> |
+|  double | [**epochs\_per\_symbol**](#variable-epochs_per_symbol)  <br> |
 |  float | [**eta**](#variable-eta)  <br> |
 |  float | [**eta\_nc**](#variable-eta_nc)  <br> |
 |  double | [**fs**](#variable-fs)  <br> |
@@ -65,6 +69,7 @@ _Streaming acquisition-engine state._ [More...](#detailed-description)
 |  size\_t | [**peak\_col**](#variable-peak_col)  <br> |
 |  float | [**peak\_mag**](#variable-peak_mag)  <br> |
 |  size\_t | [**peak\_row**](#variable-peak_row)  <br> |
+|  double | [**pfa**](#variable-pfa)  <br> |
 |  double | [**pfa\_cell**](#variable-pfa_cell)  <br> |
 |  float complex \* | [**ref**](#variable-ref)  <br> |
 |  size\_t | [**reps**](#variable-reps)  <br> |
@@ -76,6 +81,7 @@ _Streaming acquisition-engine state._ [More...](#detailed-description)
 |  [**fft\_state\_t**](structfft__state__t.md) \* | [**slow\_fft**](#variable-slow_fft)  <br> |
 |  size\_t | [**spc**](#variable-spc)  <br> |
 |  double | [**straddle\_loss**](#variable-straddle_loss)  <br> |
+|  double | [**symbol\_rate**](#variable-symbol_rate)  <br> |
 |  float | [**test\_stat**](#variable-test_stat)  <br> |
 |  float | [**threshold**](#variable-threshold)  <br> |
 |  uint8\_t | [**underpowered**](#variable-underpowered)  <br> |
@@ -255,6 +261,23 @@ Coherent depth = slow-time FFT length (&lt;= reps).
 
 
 
+### variable doppler\_rate 
+
+```C++
+double acq_state_t::doppler_rate;
+```
+
+
+
+Expected Doppler rate of change (Hz/s) on the data-modulation search; 0 = static Doppler (no ceiling beyond reps). 
+
+
+        
+
+<hr>
+
+
+
 ### variable doppler\_res\_hz 
 
 ```C++
@@ -272,6 +295,23 @@ Doppler bin width = chip\_rate/(sf\*doppler\_bins).
 
 
 
+### variable doppler\_resolution 
+
+```C++
+double acq_state_t::doppler_resolution;
+```
+
+
+
+Desired Doppler-bin resolution (Hz) on the data-modulation search; 0 = no floor (minimize total epochs outright, the legacy joint-search behavior). 
+
+
+        
+
+<hr>
+
+
+
 ### variable doppler\_span\_hz 
 
 ```C++
@@ -281,6 +321,40 @@ double acq_state_t::doppler_span_hz;
 
 
 Native Doppler half-range = chip\_rate/(2\*sf). 
+
+
+        
+
+<hr>
+
+
+
+### variable doppler\_uncertainty 
+
+```C++
+double acq_state_t::doppler_uncertainty;
+```
+
+
+
+One-sided Doppler search half-range (Hz); 0 = full native span. 
+
+
+        
+
+<hr>
+
+
+
+### variable epochs\_per\_symbol 
+
+```C++
+double acq_state_t::epochs_per_symbol;
+```
+
+
+
+(chip\_rate/sf)/symbol\_rate; 0 when symbol\_rate &lt;= 0. 
 
 
         
@@ -613,6 +687,23 @@ size_t acq_state_t::peak_row;
 
 
 
+### variable pfa 
+
+```C++
+double acq_state_t::pfa;
+```
+
+
+
+Target system false-alarm probability (stored for configure\_search\_raw's threshold re-derivation). 
+
+
+        
+
+<hr>
+
+
+
 ### variable pfa\_cell 
 
 ```C++
@@ -792,6 +883,23 @@ double acq_state_t::straddle_loss;
 
 
 Mean AMPLITUDE derating from grid straddle — a diagnostic summary (~20\*log10 of it in dB); sizing and pd\_predicted average Pd itself over the priors. Derived config, recomputed by create(). 
+
+
+        
+
+<hr>
+
+
+
+### variable symbol\_rate 
+
+```C++
+double acq_state_t::symbol_rate;
+```
+
+
+
+Continuous data-symbol rate (Hz); 0 = no known data-modulation clock (legacy sizing). 
 
 
         

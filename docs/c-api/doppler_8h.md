@@ -31,6 +31,7 @@
 * `#include "awgn/awgn_core.h"`
 * `#include "pn/pn_core.h"`
 * `#include "wfm_synth/wfm_synth_core.h"`
+* `#include "gold/gold_core.h"`
 * `#include "delay/delay_core.h"`
 * `#include "fft/fft_core.h"`
 * `#include "fft2d/fft2d_core.h"`
@@ -66,6 +67,7 @@
 * `#include "acq/acq_core.h"`
 * `#include "ppe/ppe_core.h"`
 * `#include "burst_demod/burst_demod_core.h"`
+* `#include "dsss_receiver/dsss_receiver_core.h"`
 
 
 

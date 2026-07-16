@@ -59,6 +59,25 @@ tracks `ny` (`bench_widedoppler.py`). The roll pays for it with one epoch's
 gain and `1/nx` (coarse) resolution. So: **roll when SNR lets one epoch acquire;
 column-FFT/mixer when you must buy the coherent gain.**
 
+!!! warning "`M_coh` large is only safe over a genuinely code-only window"
+
+    "Capped by ... the data-bit period" above is not a diminishing-returns
+    cutoff you can push past for a bit more gain — it's a hard requirement.
+    `M_coh` large is only the right column-FFT answer when those `M_coh`
+    epochs are genuinely data-free for their whole span (a preamble, or the
+    periodic code-only pilot epochs in UC1 below). Coherently integrating
+    across real data transitions doesn't just cost gain smoothly: the data's
+    own baseband spectrum aliases across the *entire* Doppler-bin axis once
+    the window spans more than a handful of symbols, and a real,
+    deterministic mislock (wrong bin wins outright) results — confirmed on
+    this project's own continuous receiver. See
+    [Continuous, data-modulated signals](../guide/dsss-acquisition.md#continuous-data-modulated-signals-the-asynchronous-symbol-clock-case)
+    and
+    [DSSS Acquisition — Continuous Async-Data Modulation](../gallery/dsss-acq-async-data.md).
+    On a data-bearing stretch, `M_coh` is effectively 1 regardless of what
+    the decision table above implies — reach for `Acquisition(symbol_rate=…)`
+    (the joint search) or non-coherent looks, not a larger `reps` alone.
+
 ______________________________________________________________________
 
 ## GPS-like always on 1023-chip Gold code

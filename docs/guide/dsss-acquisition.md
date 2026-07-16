@@ -333,6 +333,16 @@ The genuine receiver / operator knobs:
 `pd`, so raising `reps` only helps weak signals (a strong one still resolves in a
 few repetitions).
 
+!!! warning "`reps` assumes a data-free coherent window"
+
+    Deeper coherent integration (a larger `reps`/`doppler_bins`) is only safe for
+    the classic **preamble** case this section describes — a data-free code
+    repeated back to back. Raising it on a **continuous, data-modulated**
+    signal doesn't just cost some gain, it can produce a deterministic
+    **mislock** onto the wrong Doppler bin. See
+    [Continuous, data-modulated signals](#continuous-data-modulated-signals-the-asynchronous-symbol-clock-case)
+    below before reaching for `reps` on that kind of signal.
+
 ### Narrowing the Doppler search
 
 If you already know the carrier offset lies within `±Δf`, pass
@@ -435,6 +445,30 @@ classic non-coherent combining loss (roughly 1–3 dB versus the same total
 energy combined ideally coherently, for small `N`) — a fair price for
 robustness on a continuous, data-modulated link.
 
+!!! danger "`doppler_resolution`/`doppler_rate` can defeat this protection"
+
+    `Acquisition` also has `doppler_resolution` (floor a minimum Doppler-bin
+    resolution) and `doppler_rate` (cap the coherent depth for Doppler-rate
+    smearing) knobs. Both exist to serve a genuine, separate need — getting a
+    finer Doppler estimate handed to a downstream tracking loop — but
+    `doppler_resolution` works by **forcing `doppler_bins` up**, overriding the
+    exact protection this section just described: even with `symbol_rate` set,
+    a large enough `doppler_resolution` floor can push the coherent depth well
+    past what the joint search would have picked on its own (the
+    `acq.doppler_bins == 1` guarantee above no longer holds). Confirmed
+    directly on this project's own continuous receiver: forcing
+    `doppler_bins` up via `doppler_resolution` to shrink a downstream
+    carrier-loop's pull-in range caused *frequent, gross* mislocks (the wrong
+    Doppler bin winning outright, not just reduced accuracy) — the data
+    modulation's own baseband spectrum, sampled at close to one sample per
+    symbol, is broadband enough to alias real energy across the *entire*
+    Doppler-bin axis once the coherent window spans more than a handful of
+    symbols. Treat `doppler_resolution` as unsafe to raise on a continuous,
+    data-modulated signal until it's paired with a resolution mechanism that
+    doesn't grow real coherent depth (zero-padding the Doppler FFT, not yet
+    shipped) — raising `reps`/`doppler_resolution` together is not a
+    substitute.
+
 ### When coherent-only is still fine
 
 If there is no `symbol_rate` to speak of — a genuine data-free preamble, the
@@ -462,6 +496,16 @@ ladder for that exact grid, clearing any in-flight accumulation — call it
 between `push()` calls, never a substitute for one. Bounds are still
 enforced (`doppler_bins ∈ [1, reps]`, `n_noncoh ∈ [1, max_noncoh]`); an
 out-of-range pin raises `ValueError` and leaves the engine at its prior grid.
+
+!!! warning "Pinning a large `doppler_bins` bypasses the mislock protection too"
+
+    `configure_search_raw` is a direct pin — it doesn't know or care whether
+    your signal is continuous and data-modulated. Pinning a large
+    `doppler_bins` on one reintroduces exactly the mislock risk described in
+    [Continuous, data-modulated signals](#continuous-data-modulated-signals-the-asynchronous-symbol-clock-case)
+    above, with none of the joint search's Pd-honest pricing to warn you.
+    Only pin a coherent depth beyond a handful of epochs when you know the
+    window is genuinely data-free (a preamble) for its whole span.
 
 ______________________________________________________________________
 

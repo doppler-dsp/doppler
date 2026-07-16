@@ -41,6 +41,19 @@ required. Three escape hatches cover the power-user surface:
     defaults, still bridged by a freshly-sized `RateConverter` — the one
     composition-specific knob this object adds beyond its children's own.
 
+!!! warning "`configure_search_raw` bypasses the mislock-avoiding auto-sizer"
+
+    `DsssReceiver` always has a `symbol_rate` (it's required), so its
+    embedded `Acquisition` always runs the data-modulation-aware joint
+    search — which naturally lands on a short coherent depth plus
+    non-coherent looks specifically to avoid a real, confirmed mislock
+    failure mode (see
+    [Continuous, data-modulated signals](../guide/dsss-acquisition.md#continuous-data-modulated-signals-the-asynchronous-symbol-clock-case)).
+    Pinning a large `doppler_bins` directly via `configure_search_raw`
+    bypasses that protection entirely, with no Pd-honest pricing to warn
+    you. Only pin a coherent depth beyond a handful of epochs if you know
+    the signal is genuinely data-free for that whole window.
+
 ## How it works
 
 ```python

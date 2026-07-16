@@ -58,6 +58,8 @@
 * [**dp\_tlm\_probe\_t**](structdp__tlm__probe__t.md)
 * [**dp\_tlm\_rec\_t**](structdp__tlm__rec__t.md)
 * [**dp\_writer\_t**](structdp__writer__t.md)
+* [**dsss\_receiver\_extra\_t**](structdsss__receiver__extra__t.md)
+* [**dsss\_receiver\_state\_t**](structdsss__receiver__state__t.md)
 
 
 ## f
@@ -70,6 +72,11 @@
 * [**fft2d\_state\_t**](structfft2d__state__t.md)
 * [**fft\_state\_t**](structfft__state__t.md)
 * [**fir\_state\_t**](structfir__state__t.md)
+
+
+## g
+
+* [**gold\_state\_t**](structgold__state__t.md)
 
 
 ## h

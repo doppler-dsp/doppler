@@ -50,13 +50,13 @@ _Util module — public C API._ [More...](#detailed-description)
 
 
 
-
-
-## Public Static Functions
+## Public Functions
 
 | Type | Name |
 | ---: | :--- |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) float complex | [**square\_clip**](#function-square_clip) (float complex y, float lin) <br>_Square-clip a complex sample: clip the real and imaginary parts independently to_ `[-lin, lin]` _(a square region in the IQ plane, not a circular magnitude limit). Each component is passed through unchanged when its magnitude is within the threshold and clamped to the nearest boundary otherwise._ |
+
+
 
 
 
@@ -90,7 +90,7 @@ The util functions are header-only and JM\_FORCEINLINE: any caller that includes
 
 
     
-## Public Static Functions Documentation
+## Public Functions Documentation
 
 
 
@@ -99,7 +99,7 @@ The util functions are header-only and JM\_FORCEINLINE: any caller that includes
 
 _Square-clip a complex sample: clip the real and imaginary parts independently to_ `[-lin, lin]` _(a square region in the IQ plane, not a circular magnitude limit). Each component is passed through unchanged when its magnitude is within the threshold and clamped to the nearest boundary otherwise._
 ```C++
-static JM_FORCEINLINE float complex square_clip (
+JM_FORCEINLINE float complex square_clip (
     float complex y,
     float lin
 ) 

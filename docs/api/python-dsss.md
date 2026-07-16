@@ -236,6 +236,13 @@ power-user escape hatches. See the
 [DsssReceiver gallery page](../gallery/dsss-receiver.md) for the full
 story this composes.
 
+!!! warning "`configure_search_raw` bypasses the mislock-avoiding auto-sizer"
+
+    See the gallery page's own warning before pinning a large `doppler_bins`
+    directly — `DsssReceiver` always has `symbol_rate` set, so the default
+    auto-sizing exists specifically to avoid a confirmed mislock failure
+    mode that a raw pin bypasses.
+
 ```python
 import numpy as np
 from doppler.dsss import DsssReceiver

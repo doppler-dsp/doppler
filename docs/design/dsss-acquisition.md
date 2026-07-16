@@ -20,6 +20,26 @@ and sizes its own grid: the coherent depth `doppler_bins` is the smallest in
 `ny ≡ doppler_bins` is the slow-time / coherent-depth axis. It works, and it is
 the right tool for a static, low-Doppler signal.
 
+!!! warning "Only for a data-free coherent window"
+
+    Everything below about pushing `M`/`doppler_bins` up for gain or
+    resolution assumes the coherent window is genuinely **code-only** (a
+    preamble, or a periodic pilot epoch on an otherwise data-bearing stream —
+    see UC1 in [the use-cases doc](../dev/dsss-use-cases.md)). On a
+    **continuous, data-modulated** signal, growing `M` past the data-bit
+    period is not a graceful gain/latency trade — the data's own baseband
+    spectrum, sampled at close to one sample per symbol, aliases broadband
+    energy across the *entire* Doppler-bin axis, and a real, deterministic
+    mislock (the wrong bin winning outright) results well before "gain
+    reverses into loss" in §5 sounds like it would. See
+    [Continuous, data-modulated signals](../guide/dsss-acquisition.md#continuous-data-modulated-signals-the-asynchronous-symbol-clock-case)
+    in the guide and
+    [DSSS Acquisition — Continuous Async-Data Modulation](../gallery/dsss-acq-async-data.md)
+    for the confirmed mechanism and worked proof. The shipped engine's
+    `symbol_rate`/`doppler_resolution`/`doppler_rate` parameters (added after
+    this document was drafted) price this in; this design's `T_coh`-ceiling
+    framing below should eventually be reconciled with them.
+
 It also sits in **one corner** of the acquisition design space, with three gaps:
 
 | Gap                  | Today                                                                                                                                           | Why it matters                                                                                      |
@@ -136,7 +156,19 @@ ______________________________________________________________________
 (a) Doppler uncertainty (`f·T_coh < ~1/4` cycle, the within-segment sinc), (b)
 data-bit period, (c) oscillator coherence, (d) **Doppler rate**
 (`rdot·T_coh² < O(1)`). Pushed past the binding ceiling, coherent gain reverses
-into loss. **Non-coherent integration** (`N_noncoh` magnitude-summed looks) picks
+into loss.
+
+!!! warning "Ceiling (b) fails hard, not gracefully"
+
+    Ceilings (a)/(c)/(d) do degrade gracefully — smearing that costs gain
+    smoothly as the ceiling is exceeded. Ceiling (b), the data-bit period, is
+    qualitatively different and does **not** belong in the same "gain
+    reverses into loss" bucket: past it, the data's own spectrum aliases
+    across the whole Doppler axis and a specific, deterministic *mislock*
+    (wrong bin wins outright) becomes likely, confirmed empirically — see the
+    warning in §1 above.
+
+**Non-coherent integration** (`N_noncoh` magnitude-summed looks) picks
 up there: robust to inter-look phase (Doppler walk, bit flips, oscillator drift),
 gaining about `5·log10(N_nc)` in the weak limit — the **squaring/combining loss**
 is the price of phase-robustness.

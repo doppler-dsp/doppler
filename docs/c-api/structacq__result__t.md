@@ -36,11 +36,11 @@ _One acquisition detection event._
 
 | Type | Name |
 | ---: | :--- |
+|  float | [**cn0\_dbhz\_est**](#variable-cn0_dbhz_est)  <br> |
 |  size\_t | [**code\_phase**](#variable-code_phase)  <br> |
 |  size\_t | [**doppler\_bin**](#variable-doppler_bin)  <br> |
 |  float | [**noise\_est**](#variable-noise_est)  <br> |
 |  float | [**peak\_mag**](#variable-peak_mag)  <br> |
-|  float | [**snr\_est**](#variable-snr_est)  <br> |
 |  float | [**test\_stat**](#variable-test_stat)  <br> |
 
 
@@ -88,6 +88,23 @@ _One acquisition detection event._
 
 ## Public Attributes Documentation
 
+
+
+
+### variable cn0\_dbhz\_est 
+
+```C++
+float acq_result_t::cn0_dbhz_est;
+```
+
+
+
+Estimated carrier-to-noise density (dB-Hz), backed out of test\_stat via the same C/N0 &lt;-&gt; per-sample-amplitude-SNR relationship used to size the engine (see [**acq\_create()**](acq__core_8h.md#function-acq_create)). Tracks the true C/N0 while receiver AWGN dominates the CFAR noise estimate; saturates at the code's own autocorrelation-sidelobe floor once the true C/N0 exceeds what this code/geometry can resolve — a real ceiling, not a fault. 
+
+
+        
+
+<hr>
 
 
 
@@ -159,23 +176,6 @@ max `|R[i,j]|` over the surface (linear).
 
 
 
-### variable snr\_est 
-
-```C++
-float acq_result_t::snr_est;
-```
-
-
-
-Estimated per-sample amplitude SNR of the burst. 
-
-
-        
-
-<hr>
-
-
-
 ### variable test\_stat 
 
 ```C++
@@ -184,7 +184,7 @@ float acq_result_t::test_stat;
 
 
 
-peak\_mag / noise\_est; 0 if noise\_est == 0. 
+The gating CFAR statistic: peak\_mag / noise\_est under coherent-only detection (n\_noncoh == 1); scaled by sqrt(2\*n\_noncoh) once non-coherent looks are combined. 0 if noise\_est == 0. 
 
 
         

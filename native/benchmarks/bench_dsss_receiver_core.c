@@ -59,9 +59,9 @@ main (void)
 
   /* ── search: feed silence, never locks, pure Acquisition cost ─────────── */
   {
-    dsss_receiver_state_t *rx
-        = dsss_receiver_create (CODE7, 7, 1.0e6, 35714.29, 4, 2, 45.0, 1e-2,
-                                0.9, 500.0, 8, 4, 4, 8, 0);
+    dsss_receiver_state_t *rx = dsss_receiver_create (
+        CODE7, 7, 1.0e6, 35714.29, 4, 2, 45.0, 1e-2, 0.9, 500.0, 8, 4,
+        0.0 /* doppler_resolution */, 4, 8, 0);
     float complex *x   = calloc (BENCH_N, sizeof *x);
     float complex *out = malloc (BENCH_N * sizeof *out);
     dsss_receiver_steps (rx, x, BENCH_N, out, BENCH_N); /* warmup */
@@ -114,9 +114,9 @@ main (void)
         x[pre_silence + idx] += (float)si * csign[cph];
       }
 
-    dsss_receiver_state_t *rx
-        = dsss_receiver_create (CODE7, sf, 1.0e6, sym_rate, spc, 2, 45.0, 1e-2,
-                                0.9, 500.0, 8, 4, 4, 8, 0);
+    dsss_receiver_state_t *rx = dsss_receiver_create (
+        CODE7, sf, 1.0e6, sym_rate, spc, 2, 45.0, 1e-2, 0.9, 500.0, 8, 4,
+        0.0 /* doppler_resolution */, 4, 8, 0);
     float complex *out = malloc (BENCH_N * sizeof *out);
     size_t         pos = 0;
     /* stream until locked (search cost not timed) */

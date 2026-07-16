@@ -828,6 +828,8 @@ class DsssReceiver:
         Acquisition's own coherent-depth upper bound for its joint search; default 16.
     max_noncoh : int, default 8
         Acquisition's own non-coherent-look upper bound for its joint search; default 8.
+    doppler_resolution : float, default 0.0
+        Acquisition's own resolution floor on its joint search (Hz); default 0.0 (no floor -- see `acq_create()`'s own `doppler_resolution`). WARNING: this receiver always has `symbol_rate` set (it's required), so raising this forces the embedded Acquisition's coherent depth up on a continuous, data-modulated signal -- confirmed to cause frequent gross mislocks (the wrong Doppler bin winning outright), since the data modulation's own baseband spectrum aliases across the whole Doppler axis once the coherent window spans more than a handful of symbols. Leave at 0 until a resolution mechanism that doesn't grow real coherent depth (zero-padding the Doppler FFT) ships -- see docs/guide/dsss-acquisition.md's "Continuous, data-modulated signals" section.
     segments : int, default 4
         Dll's own non-coherent partial-correlation count per code epoch — its tracking- robustness parameter, independent of `sps` (see the module docstring); default 4, this story's own validated sweet spot.
     sps : int, default 8
@@ -836,7 +838,7 @@ class DsssReceiver:
         MpskReceiver's differential (rotation- invariant) demap; default 0 (coherent).
 
     """
-    def __init__(self, code: NDArray[np.uint8] = ..., chip_rate: float = ..., symbol_rate: float = ..., spc: int = ..., m: int = ..., cn0_dbhz: float = ..., pfa: float = ..., pd: float = ..., doppler_uncertainty: float = ..., reps: int = ..., max_noncoh: int = ..., segments: int = ..., sps: int = ..., differential: int = ...) -> None: ...
+    def __init__(self, code: NDArray[np.uint8] = ..., chip_rate: float = ..., symbol_rate: float = ..., spc: int = ..., m: int = ..., cn0_dbhz: float = ..., pfa: float = ..., pd: float = ..., doppler_uncertainty: float = ..., reps: int = ..., max_noncoh: int = ..., doppler_resolution: float = ..., segments: int = ..., sps: int = ..., differential: int = ...) -> None: ...
 
     def steps(self, x: NDArray[np.complex64], out: NDArray[np.complex64] | None = None) -> NDArray[np.complex64]:
         """Stream raw cf32 samples through the receiver. While searching, samples feed the embedded Acquisition and nothing is emitted (an empty array is normal, not an error). The moment a hit fires, Dll/RateConverter/MpskReceiver are built and seeded from it -- the same phase-inversion hand-off and rate-bridging this project's async-DSSS-receiver gallery story validated by hand -- and the unconsumed tail of this same call is handed straight to them, so no samples are dropped at the transition. While tracking, samples feed Dll -> RateConverter -> MpskReceiver in sequence and demodulated symbols are returned. Accepts any block size; state carries across calls.

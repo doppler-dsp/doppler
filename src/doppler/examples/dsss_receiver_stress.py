@@ -154,6 +154,8 @@ def run_trial(
     spc=None,
     power_scale=None,
     n_sym=N_SYM,
+    reps=16,
+    doppler_resolution=0.0,
 ):
     """Run one randomized trial (or a pinned one, for the pull-in
     bisection below) and return a full diagnostic record -- ground truth,
@@ -187,8 +189,9 @@ def run_trial(
             spc=spc,
             cn0_dbhz=max(cn0_dbhz, 30.0),
             doppler_uncertainty=0.95 * SPAN_HZ,
-            reps=16,
+            reps=reps,
             max_noncoh=8,
+            doppler_resolution=doppler_resolution,
             segments=4,
             sps=8,
         )
@@ -247,7 +250,12 @@ def run_trial(
 
 
 def find_doppler_pullin_boundary(
-    cn0_dbhz=65.0, seed=1000, n_sym=N_SYM, tol_hz=10.0
+    cn0_dbhz=65.0,
+    seed=1000,
+    n_sym=N_SYM,
+    tol_hz=10.0,
+    reps=16,
+    doppler_resolution=0.0,
 ):
     """Bisect |Doppler| between 0 and the near-DC clean point and the
     engine's search span to find the transition from clean decode
@@ -263,6 +271,8 @@ def find_doppler_pullin_boundary(
         spc=2,
         power_scale=1.0,
         n_sym=n_sym,
+        reps=reps,
+        doppler_resolution=doppler_resolution,
     )
     if r0["ber"] > 0.3:
         return None  # doesn't even work at Doppler=0 -- a different problem
@@ -274,6 +284,8 @@ def find_doppler_pullin_boundary(
         spc=2,
         power_scale=1.0,
         n_sym=n_sym,
+        reps=reps,
+        doppler_resolution=doppler_resolution,
     )
     if r1["ber"] < 0.02:
         return hi_hz  # works across the whole searchable range
@@ -287,6 +299,8 @@ def find_doppler_pullin_boundary(
             spc=2,
             power_scale=1.0,
             n_sym=n_sym,
+            reps=reps,
+            doppler_resolution=doppler_resolution,
         )
         if r["ber"] < 0.02:
             lo_hz = mid

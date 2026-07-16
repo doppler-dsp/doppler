@@ -37,9 +37,10 @@
  *     code, code_len, 3.0e6, 2100.0,   // chip_rate, symbol_rate
  *     2, 2,                            // spc, m (BPSK)
  *     55.0, 1e-3, 0.9, 100.0,          // cn0_dbhz, pfa, pd,
- * doppler_uncertainty 16, 8,                           // reps, max_noncoh
- * (Acquisition's own
- *                                      // search-grid upper bounds)
+ *                                      // doppler_uncertainty
+ *     16, 8, 0.0,                      // reps, max_noncoh,
+ *                                      // doppler_resolution (Acquisition's
+ *                                      // own search-grid upper bounds)
  *     4, 8,                            // segments, sps
  *     0);                              // differential
  * float complex syms[4096];
@@ -155,6 +156,26 @@ extern "C"
    *                             bound for its joint search; default 16.
    * @param max_noncoh           Acquisition's own non-coherent-look upper
    *                             bound for its joint search; default 8.
+   * @param doppler_resolution   Acquisition's own resolution floor on its
+   *                             joint search (Hz); default 0.0 (no floor
+   *                             -- see `acq_create()`'s own
+   *                             `doppler_resolution`). WARNING: this
+   *                             receiver always has `symbol_rate` set (it's
+   *                             required), so raising this forces the
+   *                             embedded Acquisition's coherent depth up
+   *                             on a continuous, data-modulated signal --
+   *                             confirmed to cause frequent gross mislocks
+   *                             (the wrong Doppler bin winning outright),
+   *                             since the data modulation's own baseband
+   *                             spectrum aliases across the whole Doppler
+   *                             axis once the coherent window spans more
+   *                             than a handful of symbols. Leave at 0
+   *                             until a resolution mechanism that doesn't
+   *                             grow real coherent depth (zero-padding the
+   *                             Doppler FFT) ships -- see
+   *                             docs/guide/dsss-acquisition.md's
+   *                             "Continuous, data-modulated signals"
+   *                             section.
    * @param segments             Dll's own non-coherent partial-correlation
    *                             count per code epoch — its tracking-
    *                             robustness parameter, independent of
@@ -174,7 +195,8 @@ extern "C"
   dsss_receiver_create (const uint8_t *code, size_t code_len, double chip_rate,
                         double symbol_rate, size_t spc, int m, double cn0_dbhz,
                         double pfa, double pd, double doppler_uncertainty,
-                        size_t reps, size_t max_noncoh, size_t segments,
+                        size_t reps, size_t max_noncoh,
+                        double doppler_resolution, size_t segments,
                         size_t sps, int differential);
 
   /** @brief Destroy a receiver and release all four children.

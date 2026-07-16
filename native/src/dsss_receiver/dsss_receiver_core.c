@@ -148,8 +148,9 @@ dsss_receiver_state_t *
 dsss_receiver_create (const uint8_t *code, size_t code_len, double chip_rate,
                       double symbol_rate, size_t spc, int m, double cn0_dbhz,
                       double pfa, double pd, double doppler_uncertainty,
-                      size_t reps, size_t max_noncoh, size_t segments,
-                      size_t sps, int differential)
+                      size_t reps, size_t max_noncoh,
+                      double doppler_resolution, size_t segments, size_t sps,
+                      int differential)
 {
   if (!code || code_len < 1 || chip_rate <= 0.0 || symbol_rate <= 0.0
       || spc < 1 || (m != 2 && m != 4 && m != 8) || segments < 1 || sps < 1)
@@ -170,7 +171,7 @@ dsss_receiver_create (const uint8_t *code, size_t code_len, double chip_rate,
 
   obj->acq = acq_create (obj->code, code_len, reps, spc, chip_rate, cn0_dbhz,
                          doppler_uncertainty, pfa, pd, 0 /* noise_mode=mean */,
-                         max_noncoh, symbol_rate, 0.0 /* doppler_resolution */,
+                         max_noncoh, symbol_rate, doppler_resolution,
                          0.0 /* doppler_rate */);
   if (!obj->acq)
     {

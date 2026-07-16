@@ -58,20 +58,24 @@ _test_arg_validation (void)
 {
   int _fails = 0;
   CHECK (dsss_receiver_create (NULL, 0, 1e6, 1e3, 2, 2, 55.0, 1e-3, 0.9, 100.0,
-                               16, 8, 4, 8, 0)
+                               16, 8, 0.0 /* doppler_resolution */, 4, 8, 0)
          == NULL);
   CHECK (dsss_receiver_create (CODE7, 7, 0.0, 1e3, 2, 2, 55.0, 1e-3, 0.9,
-                               100.0, 16, 8, 4, 8, 0)
+                               100.0, 16, 8, 0.0 /* doppler_resolution */, 4,
+                               8, 0)
          == NULL); /* chip_rate <= 0 */
   CHECK (dsss_receiver_create (CODE7, 7, 1e6, 1e3, 2, 3, 55.0, 1e-3, 0.9,
-                               100.0, 16, 8, 4, 8, 0)
+                               100.0, 16, 8, 0.0 /* doppler_resolution */, 4,
+                               8, 0)
          == NULL); /* m not in {2,4,8} */
   CHECK (dsss_receiver_create (CODE7, 7, 1e6, 1e3, 2, 2, 55.0, 1e-3, 0.9,
-                               100.0, 16, 8, 0, 8, 0)
+                               100.0, 16, 8, 0.0 /* doppler_resolution */, 0,
+                               8, 0)
          == NULL); /* segments < 1 */
 
   dsss_receiver_state_t *rx = dsss_receiver_create (
-      CODE7, 7, 1.0e6, 35714.29, 4, 2, 45.0, 1e-2, 0.9, 500.0, 8, 4, 4, 8, 0);
+      CODE7, 7, 1.0e6, 35714.29, 4, 2, 45.0, 1e-2, 0.9, 500.0, 8, 4,
+      0.0 /* doppler_resolution */, 4, 8, 0);
   CHECK (rx != NULL);
   if (rx)
     {
@@ -213,9 +217,9 @@ _test_acquire_and_decode (void)
   _make_signal (CODE7, sf, spc, fs, tsym, 0.0, cn0, n_sym, pre_silence, 7, &x,
                 &n, &data);
 
-  dsss_receiver_state_t *rx
-      = dsss_receiver_create (CODE7, sf, 1.0e6, sym_rate, spc, 2, 45.0, 1e-2,
-                              0.9, 500.0, 8, 4, 4, 8, 0);
+  dsss_receiver_state_t *rx = dsss_receiver_create (
+      CODE7, sf, 1.0e6, sym_rate, spc, 2, 45.0, 1e-2, 0.9, 500.0, 8, 4,
+      0.0 /* doppler_resolution */, 4, 8, 0);
   CHECK (rx != NULL);
   if (!rx)
     {
@@ -239,9 +243,9 @@ _test_acquire_and_decode (void)
   void  *blob = malloc (cb);
   dsss_receiver_get_state (rx, blob);
 
-  dsss_receiver_state_t *rx2
-      = dsss_receiver_create (CODE7, sf, 1.0e6, sym_rate, spc, 2, 45.0, 1e-2,
-                              0.9, 500.0, 8, 4, 4, 8, 0);
+  dsss_receiver_state_t *rx2 = dsss_receiver_create (
+      CODE7, sf, 1.0e6, sym_rate, spc, 2, 45.0, 1e-2, 0.9, 500.0, 8, 4,
+      0.0 /* doppler_resolution */, 4, 8, 0);
   CHECK (rx2 != NULL);
   if (rx2)
     {
@@ -259,9 +263,9 @@ _test_acquire_and_decode (void)
   free (blob);
 
   /* ── state-serialization round trip, while searching ─────────────────── */
-  dsss_receiver_state_t *rx3
-      = dsss_receiver_create (CODE7, sf, 1.0e6, sym_rate, spc, 2, 45.0, 1e-2,
-                              0.9, 500.0, 8, 4, 4, 8, 0);
+  dsss_receiver_state_t *rx3 = dsss_receiver_create (
+      CODE7, sf, 1.0e6, sym_rate, spc, 2, 45.0, 1e-2, 0.9, 500.0, 8, 4,
+      0.0 /* doppler_resolution */, 4, 8, 0);
   CHECK (rx3 != NULL);
   if (rx3)
     {
@@ -269,9 +273,9 @@ _test_acquire_and_decode (void)
       void  *blob3 = malloc (cb3);
       dsss_receiver_get_state (rx3, blob3);
 
-      dsss_receiver_state_t *rx4
-          = dsss_receiver_create (CODE7, sf, 1.0e6, sym_rate, spc, 2, 45.0,
-                                  1e-2, 0.9, 500.0, 8, 4, 4, 8, 0);
+      dsss_receiver_state_t *rx4 = dsss_receiver_create (
+          CODE7, sf, 1.0e6, sym_rate, spc, 2, 45.0, 1e-2, 0.9, 500.0, 8, 4,
+          0.0 /* doppler_resolution */, 4, 8, 0);
       CHECK (rx4 != NULL);
       if (rx4)
         {

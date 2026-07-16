@@ -451,9 +451,13 @@ class Acquisition:
         Cap on the auto-split non-coherent look count (>= 1; default 1 keeps the engine purely coherent).
     symbol_rate : float, default 0.0
         Continuous data-symbol rate in Hz; <= 0 (default) disables the data-modulation-aware search above.
+    doppler_resolution : float, default 0.0
+        Desired Doppler-bin resolution in Hz; 0 (default) places no floor on the coherent depth -- see above.
+    doppler_rate : float, default 0.0
+        Expected Doppler rate of change in Hz/s; 0 (default) assumes a static Doppler -- see above.
 
     """
-    def __init__(self, code: NDArray[np.uint8] = ..., reps: int = ..., spc: int = ..., chip_rate: float = ..., cn0_dbhz: float = ..., doppler_uncertainty: float = ..., pfa: float = ..., pd: float = ..., noise_mode: Literal["mean", "median", "min", "max"] = "mean", max_noncoh: int = ..., symbol_rate: float = ...) -> None: ...
+    def __init__(self, code: NDArray[np.uint8] = ..., reps: int = ..., spc: int = ..., chip_rate: float = ..., cn0_dbhz: float = ..., doppler_uncertainty: float = ..., pfa: float = ..., pd: float = ..., noise_mode: Literal["mean", "median", "min", "max"] = "mean", max_noncoh: int = ..., symbol_rate: float = ..., doppler_resolution: float = ..., doppler_rate: float = ...) -> None: ...
 
     def reset(self) -> None:
         """Drain the input ring and reset the coherent accumulator.
@@ -599,6 +603,14 @@ class Acquisition:
     @property
     def epochs_per_symbol(self) -> float:
         """(chip_rate/sf)/symbol_rate -- code epochs per data symbol; 0 when symbol_rate is 0."""
+
+    @property
+    def doppler_resolution(self) -> float:
+        """Desired Doppler-bin resolution (Hz) floored on the data-modulation search; 0 means no floor (the joint search minimizes total epochs outright). Compare against the achieved doppler_res_hz."""
+
+    @property
+    def doppler_rate(self) -> float:
+        """Expected Doppler rate of change (Hz/s) capping the data-modulation search's coherent-depth ceiling; 0 means a static Doppler (no ceiling beyond reps)."""
 
     def destroy(self) -> None:
         """Release C resources immediately."""

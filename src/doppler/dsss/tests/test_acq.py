@@ -38,6 +38,7 @@ aligned bursts give exactly ``F``.
 """
 
 import math
+import time
 import warnings
 
 import numpy as np
@@ -576,6 +577,210 @@ def test_symbol_rate_joint_search_avoids_pure_max_depth():
     assert a.n_noncoh > 1
     assert a.doppler_bins < 16  # didn't just exhaust to the ceiling
     assert a.doppler_bins * a.n_noncoh <= 16 * 16
+
+
+# ``doppler_resolution`` trades the joint search's fewest-total-epochs
+# guarantee for a resolution guarantee: it floors doppler_bins at
+# ceil(chip_rate/(sf*doppler_resolution)) and takes the first grid (starting
+# from that floor) meeting pd, rather than exhaustively searching for the
+# global minimum-total grid. This also fixes a real scaling problem: the
+# unfloored joint search's own cost is O(reps^3) (every D up to reps pays the
+# O(D^2) DFT inside the data-modulation Pd model), so naively raising reps to
+# reach a fine resolution made construction take minutes; anchoring the
+# search at the floor keeps it fast regardless of reps.
+
+
+def test_doppler_resolution_default_disabled():
+    """doppler_resolution defaults to 0 -- the exhaustive fewest-total-epochs
+    search, byte-identical to every other symbol_rate>0 test in this file
+    (none of which pass doppler_resolution)."""
+    symbol_rate = CHIP_RATE / SF / 1.4
+    a = Acquisition(
+        CODE,
+        reps=16,
+        spc=SPS,
+        chip_rate=CHIP_RATE,
+        cn0_dbhz=46.0,
+        pfa=PFA,
+        pd=PD,
+        max_noncoh=16,
+        symbol_rate=symbol_rate,
+    )
+    assert a.doppler_resolution == 0.0
+    assert a.n_noncoh > 1
+    assert a.doppler_bins < 16
+
+
+def test_doppler_resolution_floors_coherent_depth():
+    """A resolution finer than the unfloored search would ever pick (it
+    favors doppler_bins=1 whenever that meets pd) floors doppler_bins at
+    ceil(chip_rate/(sf*doppler_resolution)), and the achieved doppler_res_hz
+    meets the target."""
+    symbol_rate = CHIP_RATE / SF / 1.4
+    res_hz = 100.0
+    reps = 400  # comfortably past the floor this res_hz implies
+    floor_d = math.ceil(CHIP_RATE / (SF * res_hz))
+
+    a = Acquisition(
+        CODE,
+        reps=reps,
+        spc=SPS,
+        chip_rate=CHIP_RATE,
+        cn0_dbhz=55.0,
+        pfa=PFA,
+        pd=PD,
+        max_noncoh=8,
+        symbol_rate=symbol_rate,
+        doppler_resolution=res_hz,
+    )
+    assert a.doppler_resolution == res_hz
+    assert a.doppler_bins >= floor_d
+    assert a.doppler_res_hz <= res_hz
+    assert not a.underpowered
+
+
+def test_doppler_resolution_clips_to_reps():
+    """A resolution finer than reps can ever deliver clips the floor at reps
+    itself, rather than rejecting the request."""
+    symbol_rate = CHIP_RATE / SF / 1.4
+    a = Acquisition(
+        CODE,
+        reps=8,
+        spc=SPS,
+        chip_rate=CHIP_RATE,
+        cn0_dbhz=55.0,
+        pfa=PFA,
+        pd=PD,
+        max_noncoh=8,
+        symbol_rate=symbol_rate,
+        doppler_resolution=1.0,  # would need doppler_bins in the thousands
+    )
+    assert a.doppler_bins == 8
+
+
+def test_doppler_resolution_rejects_negative():
+    with pytest.raises(MemoryError):
+        Acquisition(
+            CODE,
+            reps=16,
+            spc=SPS,
+            chip_rate=CHIP_RATE,
+            cn0_dbhz=55.0,
+            pfa=PFA,
+            pd=PD,
+            symbol_rate=CHIP_RATE / SF / 1.4,
+            doppler_resolution=-1.0,
+        )
+
+
+def test_doppler_resolution_construction_stays_fast_at_large_reps():
+    """The actual point of the fix: construction must stay fast even at a
+    reps large enough that the unfloored sweep would be O(reps^3) -- this
+    measured minutes before the floor-anchored early exit (see
+    native/tests/test_acq_core.c's C-level version of this same guard for
+    the extrapolated number); a generous ceiling leaves wide margin while
+    still catching a regression back to the full sweep."""
+    symbol_rate = CHIP_RATE / SF / 1.4
+    t0 = time.perf_counter()
+    a = Acquisition(
+        CODE,
+        reps=100,
+        spc=SPS,
+        chip_rate=CHIP_RATE,
+        cn0_dbhz=55.0,
+        pfa=PFA,
+        pd=PD,
+        max_noncoh=8,
+        symbol_rate=symbol_rate,
+        doppler_resolution=20.0,
+    )
+    dt = time.perf_counter() - t0
+    assert dt < 10.0
+    assert a.doppler_bins <= 100
+
+
+# ``doppler_rate`` caps the coherent-depth ceiling from the opposite
+# direction to ``doppler_resolution``'s floor: past
+# doppler_bins >= chip_rate/(sf*sqrt(doppler_rate)), in-window Doppler drift
+# would smear the FFT peak across a resolution bin.
+
+
+def test_doppler_rate_default_disabled():
+    symbol_rate = CHIP_RATE / SF / 1.4
+    a = Acquisition(
+        CODE,
+        reps=16,
+        spc=SPS,
+        chip_rate=CHIP_RATE,
+        cn0_dbhz=55.0,
+        pfa=PFA,
+        pd=PD,
+        max_noncoh=8,
+        symbol_rate=symbol_rate,
+    )
+    assert a.doppler_rate == 0.0
+
+
+def test_doppler_rate_rejects_negative():
+    with pytest.raises(MemoryError):
+        Acquisition(
+            CODE,
+            reps=16,
+            spc=SPS,
+            chip_rate=CHIP_RATE,
+            cn0_dbhz=55.0,
+            pfa=PFA,
+            pd=PD,
+            symbol_rate=CHIP_RATE / SF / 1.4,
+            doppler_rate=-1.0,
+        )
+
+
+def test_doppler_rate_caps_unfloored_search():
+    """A tight doppler_rate caps the unfloored search's own range, even
+    though reps alone would let it search much deeper."""
+    symbol_rate = CHIP_RATE / SF / 1.4
+    rate_hz = 1.0e6
+    rate_ceiling = math.floor(CHIP_RATE / (SF * math.sqrt(rate_hz)))
+    assert 1 <= rate_ceiling < 400
+
+    a = Acquisition(
+        CODE,
+        reps=400,
+        spc=SPS,
+        chip_rate=CHIP_RATE,
+        cn0_dbhz=55.0,
+        pfa=PFA,
+        pd=PD,
+        max_noncoh=8,
+        symbol_rate=symbol_rate,
+        doppler_rate=rate_hz,
+    )
+    assert a.doppler_bins <= rate_ceiling
+
+
+def test_doppler_rate_caps_resolution_floor():
+    """A tight doppler_rate also wins over a caller-requested
+    doppler_resolution that alone would ask for a much deeper coherent
+    depth."""
+    symbol_rate = CHIP_RATE / SF / 1.4
+    rate_hz = 1.0e6
+    rate_ceiling = math.floor(CHIP_RATE / (SF * math.sqrt(rate_hz)))
+
+    a = Acquisition(
+        CODE,
+        reps=400,
+        spc=SPS,
+        chip_rate=CHIP_RATE,
+        cn0_dbhz=55.0,
+        pfa=PFA,
+        pd=PD,
+        max_noncoh=8,
+        symbol_rate=symbol_rate,
+        doppler_resolution=100.0,  # alone would ask for doppler_bins ~323
+        doppler_rate=rate_hz,
+    )
+    assert a.doppler_bins <= rate_ceiling
 
 
 def _window_epoch_segments(phi0, depth, epochs_per_symbol):

@@ -85,6 +85,30 @@ name = "symbol_rate"
 type = "double"
 default = "0.0"
 
+# Only meaningful with symbol_rate > 0. 0 (default) keeps the joint search's
+# fewest-total-epochs objective (unchanged). > 0 floors doppler_bins at
+# ceil(chip_rate/(sf*doppler_resolution)) and takes the first grid at or
+# above that floor meeting pd -- trading the epoch-count guarantee for a
+# resolution guarantee, and, critically, keeping construction cheap when reps
+# is raised to reach a fine resolution (the unfloored search is a full
+# reps x max_noncoh sweep of the data-modulation model's O(doppler_bins^2)
+# cost, cubic in reps; anchoring at the floor touches only a handful of
+# doppler_bins near it, independent of reps).
+[[acq.init_params]]
+name = "doppler_resolution"
+type = "double"
+default = "0.0"
+
+# Only meaningful with symbol_rate > 0. 0 (default) assumes a static Doppler
+# (no ceiling beyond reps). > 0 caps doppler_bins at the largest depth whose
+# in-window Doppler drift stays under one resolution bin
+# (doppler_bins < chip_rate/(sf*sqrt(doppler_rate))) -- tightens, never
+# loosens, reps and any doppler_resolution floor.
+[[acq.init_params]]
+name = "doppler_rate"
+type = "double"
+default = "0.0"
+
 [[acq.methods]]
 name = "push"
 arg_type = "float _Complex"
@@ -255,3 +279,15 @@ name = "epochs_per_symbol"
 type = "double"
 field = true
 doc = "(chip_rate/sf)/symbol_rate -- code epochs per data symbol; 0 when symbol_rate is 0."
+
+[[acq.properties]]
+name = "doppler_resolution"
+type = "double"
+field = true
+doc = "Desired Doppler-bin resolution (Hz) floored on the data-modulation search; 0 means no floor (the joint search minimizes total epochs outright). Compare against the achieved doppler_res_hz."
+
+[[acq.properties]]
+name = "doppler_rate"
+type = "double"
+field = true
+doc = "Expected Doppler rate of change (Hz/s) capping the data-modulation search's coherent-depth ceiling; 0 means a static Doppler (no ceiling beyond reps)."

@@ -12,6 +12,7 @@
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <time.h>
 
 #define CHECK(cond)                                                           \
   do                                                                          \
@@ -42,7 +43,7 @@ _acq_run_roundtrip (const float complex *s0d, size_t nx, size_t spc,
   const double PI     = acos (-1.0);
 
   acq_state_t *ra = acq_create (CODE7, 7, 8, spc, crate, cn0, 0.0, 1e-2, 0.9,
-                                0, max_noncoh, 0.0);
+                                0, max_noncoh, 0.0, 0.0, 0.0);
   CHECK (ra != NULL);
   if (!ra)
     return _fails;
@@ -71,9 +72,9 @@ _acq_run_roundtrip (const float complex *s0d, size_t nx, size_t spc,
   /* split: engine1 emits state_out; a fresh engine2 restores it via state_in.
    */
   acq_state_t *r1 = acq_create (CODE7, 7, 8, spc, crate, cn0, 0.0, 1e-2, 0.9,
-                                0, max_noncoh, 0.0);
+                                0, max_noncoh, 0.0, 0.0, 0.0);
   acq_state_t *r2 = acq_create (CODE7, 7, 8, spc, crate, cn0, 0.0, 1e-2, 0.9,
-                                0, max_noncoh, 0.0);
+                                0, max_noncoh, 0.0, 0.0, 0.0);
   CHECK (r1 && r2);
   if (r1 && r2)
     {
@@ -94,7 +95,7 @@ _acq_run_roundtrip (const float complex *s0d, size_t nx, size_t spc,
       /* a corrupted blob must make acq_run reject (set_state != 0) -> 0 out.
        */
       acq_state_t *r3 = acq_create (CODE7, 7, 8, spc, crate, cn0, 0.0, 1e-2,
-                                    0.9, 0, max_noncoh, 0.0);
+                                    0.9, 0, max_noncoh, 0.0, 0.0, 0.0);
       acq_get_state (r3, blob);
       ((char *)blob)[0] ^= (char)0xFF; /* clobber the state header magic */
       CHECK (acq_run (r3, blob, NULL, s, cut, hB, 16) == 0);
@@ -152,7 +153,7 @@ _acq_cn0_calibration (void)
   const double cn0_true = 55.0;
 
   acq_state_t *a = acq_create (CODE31, 31, 16, spc, crate, 45.0, 0.0, 1e-3,
-                               0.9, 0, 1, 0.0);
+                               0.9, 0, 1, 0.0, 0.0, 0.0);
   CHECK (a != NULL);
   if (!a)
     return _fails;
@@ -227,7 +228,7 @@ _acq_data_mod_check (void)
   const double cn0_dbhz = 50.0;
 
   acq_state_t *a = acq_create (CODE31, 31, 16, spc, crate, cn0_dbhz, 0.0, 1e-3,
-                               0.9, 0, 16, sym_rate);
+                               0.9, 0, 16, sym_rate, 0.0, 0.0);
   CHECK (a != NULL);
   if (!a)
     return _fails;
@@ -334,8 +335,8 @@ _acq_configure_search_raw_check (void)
   int          _fails = 0;
   const size_t spc    = 2;
 
-  acq_state_t *a
-      = acq_create (CODE7, 7, 8, spc, 1.0e6, 45.0, 0.0, 1e-2, 0.9, 0, 4, 0.0);
+  acq_state_t *a = acq_create (CODE7, 7, 8, spc, 1.0e6, 45.0, 0.0, 1e-2, 0.9,
+                               0, 4, 0.0, 0.0, 0.0);
   CHECK (a != NULL);
   if (!a)
     return _fails;
@@ -378,6 +379,198 @@ _acq_configure_search_raw_check (void)
   return _fails;
 }
 
+/* doppler_resolution: the resolution floor added to fix the O(reps^3)
+ * construction-time blowup of the joint (doppler_bins, n_noncoh) search once
+ * reps is raised to reach a fine resolution (see acq_create()'s doc). Checks
+ * the floor is honored and clipped at both ends, a negative value is
+ * rejected, and -- the actual point of the fix -- that construction stays
+ * fast even at a reps large enough that the unfloored sweep would be
+ * O(reps^3). */
+static int
+_acq_doppler_resolution_check (void)
+{
+  int                  _fails = 0;
+  static const uint8_t CODE31[31]
+      = { 1, 0, 1, 0, 1, 1, 1, 0, 1, 1, 0, 0, 0, 1, 1, 1,
+          1, 1, 0, 0, 1, 1, 0, 1, 0, 0, 1, 0, 0, 0, 0 };
+  const size_t spc      = 4;
+  const double crate    = 1.0e6;
+  const double sf       = 31.0;
+  const double sym_rate = 2000.0; /* > 0 enables the joint search */
+  const double cn0_dbhz = 55.0;
+
+  /* Negative doppler_resolution is rejected, same as any other bad arg. */
+  CHECK (acq_create (CODE31, 31, 16, spc, crate, cn0_dbhz, 0.0, 1e-3, 0.9, 0,
+                     8, sym_rate, -1.0, 0.0)
+         == NULL);
+
+  /* Floored: request a resolution finer than the unfloored search would
+   * ever pick (it favors doppler_bins=1 whenever that meets pd) -- the
+   * chosen grid must floor doppler_bins at
+   * ceil(chip_rate/(sf*doppler_resolution)), and its achieved doppler_res_hz
+   * must meet the target. */
+  {
+    const double res_hz  = 100.0;
+    const size_t reps    = 400; /* well past the floor this res_hz implies */
+    size_t       floor_d = (size_t)ceil (crate / (sf * res_hz));
+    if (floor_d < 1)
+      floor_d = 1;
+    if (floor_d > reps)
+      floor_d = reps;
+
+    acq_state_t *a = acq_create (CODE31, 31, reps, spc, crate, cn0_dbhz, 0.0,
+                                 1e-3, 0.9, 0, 8, sym_rate, res_hz, 0.0);
+    CHECK (a != NULL);
+    if (a)
+      {
+        CHECK (a->doppler_resolution == res_hz);
+        CHECK (a->doppler_bins >= floor_d);
+        CHECK (a->doppler_res_hz <= res_hz + 1e-9);
+        CHECK (!a->underpowered);
+        acq_destroy (a);
+      }
+  }
+
+  /* Clipped high: a resolution finer than reps can ever deliver clips the
+   * floor at reps itself. */
+  {
+    acq_state_t *a = acq_create (CODE31, 31, 8, spc, crate, cn0_dbhz, 0.0,
+                                 1e-3, 0.9, 0, 8, sym_rate, 1.0, 0.0);
+    CHECK (a != NULL);
+    if (a)
+      {
+        CHECK (a->doppler_bins == 8); /* clipped to reps */
+        acq_destroy (a);
+      }
+  }
+
+  /* Clipped low: a resolution coarser than doppler_bins=1 already achieves
+   * floors at 1, i.e. the floored search starts exactly where the unfloored
+   * one does. They aren't guaranteed to agree in general past that (the
+   * floored search stops at the first D that meets pd; the unfloored one
+   * keeps searching for the true minimum-total D, which need not be 1) --
+   * but at a cn0 strong enough that D=1,nc=1 alone already meets pd, total=1
+   * is the global minimum no search order can beat, so both must land on
+   * the same (1, 1) regardless. */
+  {
+    const double cn0_strong = 80.0;
+    acq_state_t *unfloored
+        = acq_create (CODE31, 31, 16, spc, crate, cn0_strong, 0.0, 1e-3, 0.9,
+                      0, 8, sym_rate, 0.0, 0.0);
+    acq_state_t *coarse
+        = acq_create (CODE31, 31, 16, spc, crate, cn0_strong, 0.0, 1e-3, 0.9,
+                      0, 8, sym_rate, 1.0e9, 0.0);
+    CHECK (unfloored != NULL && coarse != NULL);
+    if (unfloored && coarse)
+      {
+        CHECK (unfloored->doppler_bins == 1 && unfloored->n_noncoh == 1);
+        CHECK (unfloored->doppler_bins == coarse->doppler_bins
+               && unfloored->n_noncoh == coarse->n_noncoh);
+      }
+    if (unfloored)
+      acq_destroy (unfloored);
+    if (coarse)
+      acq_destroy (coarse);
+  }
+
+  /* The actual point of the fix: construction must stay fast even at a reps
+   * large enough that the unfloored sweep would be O(reps^3) -- measured
+   * ~145s (extrapolated from the cubic fit) before the floor-anchored early
+   * exit; a generous 5s ceiling leaves >20x margin while still catching a
+   * regression back to the full sweep. */
+  {
+    const clock_t t0 = clock ();
+    acq_state_t  *a  = acq_create (CODE31, 31, 100, spc, crate, cn0_dbhz, 0.0,
+                                   1e-3, 0.9, 0, 8, sym_rate, 20.0, 0.0);
+    double        dt = (double)(clock () - t0) / CLOCKS_PER_SEC;
+    CHECK (a != NULL);
+    CHECK (dt < 5.0);
+    if (a)
+      acq_destroy (a);
+  }
+
+  return _fails;
+}
+
+/* doppler_rate: caps the coherent-depth ceiling from the opposite direction
+ * to doppler_resolution's floor -- past D < chip_rate/(sf*sqrt(doppler_rate)),
+ * in-window Doppler drift would smear the FFT peak across a resolution bin.
+ * Checks it tightens both the unfloored search's own range and a caller-
+ * requested doppler_resolution's floor, and rejects a negative value. */
+static int
+_acq_doppler_rate_check (void)
+{
+  int                  _fails = 0;
+  static const uint8_t CODE31[31]
+      = { 1, 0, 1, 0, 1, 1, 1, 0, 1, 1, 0, 0, 0, 1, 1, 1,
+          1, 1, 0, 0, 1, 1, 0, 1, 0, 0, 1, 0, 0, 0, 0 };
+  const size_t spc      = 4;
+  const double crate    = 1.0e6;
+  const double sf       = 31.0;
+  const double sym_rate = 2000.0;
+  const double cn0_dbhz = 55.0;
+
+  /* Negative doppler_rate is rejected, same as any other bad arg. */
+  CHECK (acq_create (CODE31, 31, 16, spc, crate, cn0_dbhz, 0.0, 1e-3, 0.9, 0,
+                     8, sym_rate, 0.0, -1.0)
+         == NULL);
+
+  /* rate_ceiling_d well below both reps and the resolution floor it's paired
+   * with -- must win over both. */
+  const double rate_hz      = 1.0e6;
+  size_t       rate_ceiling = (size_t)floor (crate / (sf * sqrt (rate_hz)));
+  CHECK (rate_ceiling >= 1 && rate_ceiling < 400);
+
+  /* Tightens a caller-requested doppler_resolution's floor: 100 Hz alone
+   * would ask for doppler_bins ~323 (see the doppler_resolution test above),
+   * far past rate_ceiling. */
+  {
+    acq_state_t *a = acq_create (CODE31, 31, 400, spc, crate, cn0_dbhz, 0.0,
+                                 1e-3, 0.9, 0, 8, sym_rate, 100.0, rate_hz);
+    CHECK (a != NULL);
+    if (a)
+      {
+        CHECK (a->doppler_bins <= rate_ceiling);
+        acq_destroy (a);
+      }
+  }
+
+  /* Tightens the unfloored search's own range too: reps=400 would otherwise
+   * let it search all the way up. */
+  {
+    acq_state_t *a = acq_create (CODE31, 31, 400, spc, crate, cn0_dbhz, 0.0,
+                                 1e-3, 0.9, 0, 8, sym_rate, 0.0, rate_hz);
+    CHECK (a != NULL);
+    if (a)
+      {
+        CHECK (a->doppler_bins <= rate_ceiling);
+        acq_destroy (a);
+      }
+  }
+
+  /* Never loosens: with reps already below the rate ceiling, doppler_rate
+   * changes nothing. */
+  {
+    const double loose_rate = 1.0; /* rate_ceiling_d in the thousands */
+    acq_state_t *unrated
+        = acq_create (CODE31, 31, 16, spc, crate, cn0_dbhz, 0.0, 1e-3, 0.9, 0,
+                      8, sym_rate, 0.0, 0.0);
+    acq_state_t *rated
+        = acq_create (CODE31, 31, 16, spc, crate, cn0_dbhz, 0.0, 1e-3, 0.9, 0,
+                      8, sym_rate, 0.0, loose_rate);
+    CHECK (unrated != NULL && rated != NULL);
+    if (unrated && rated)
+      CHECK (unrated->doppler_bins == rated->doppler_bins
+             && unrated->n_noncoh == rated->n_noncoh);
+    if (unrated)
+      acq_destroy (unrated);
+    if (rated)
+      acq_destroy (rated);
+  }
+
+  return _fails;
+}
+
 int
 main (void)
 {
@@ -390,21 +583,25 @@ main (void)
   const double span  = crate / (2.0 * 7.0);
 
   /* ── argument validation ────────────────────────────────────────────── */
-  CHECK (acq_create (NULL, 0, 8, spc, crate, 45.0, 0.0, 1e-3, 0.9, 0, 1, 0.0)
+  CHECK (acq_create (NULL, 0, 8, spc, crate, 45.0, 0.0, 1e-3, 0.9, 0, 1, 0.0,
+                     0.0, 0.0)
          == NULL);
-  CHECK (acq_create (CODE7, 7, 8, spc, 0.0, 45.0, 0.0, 1e-3, 0.9, 0, 1, 0.0)
+  CHECK (acq_create (CODE7, 7, 8, spc, 0.0, 45.0, 0.0, 1e-3, 0.9, 0, 1, 0.0,
+                     0.0, 0.0)
          == NULL); /* chip_rate <= 0 */
-  CHECK (acq_create (CODE7, 7, 8, spc, crate, 0.0, 0.0, 1e-3, 0.9, 0, 1, 0.0)
+  CHECK (acq_create (CODE7, 7, 8, spc, crate, 0.0, 0.0, 1e-3, 0.9, 0, 1, 0.0,
+                     0.0, 0.0)
          == NULL); /* cn0_dbhz <= 0 */
-  CHECK (acq_create (CODE7, 7, 8, spc, crate, 45.0, 0.0, 0.0, 0.9, 0, 1, 0.0)
+  CHECK (acq_create (CODE7, 7, 8, spc, crate, 45.0, 0.0, 0.0, 0.9, 0, 1, 0.0,
+                     0.0, 0.0)
          == NULL); /* pfa out of range */
   CHECK (acq_create (CODE7, 7, 8, spc, crate, 45.0, span * 2.0, 1e-3, 0.9, 0,
-                     1, 0.0)
+                     1, 0.0, 0.0, 0.0)
          == NULL); /* doppler_uncertainty > span */
 
   /* ── auto-config: a strong C/N0 needs only one coherent rep ──────────── */
-  acq_state_t *a
-      = acq_create (CODE7, 7, 8, spc, crate, 65.0, 0.0, 1e-2, 0.9, 0, 1, 0.0);
+  acq_state_t *a = acq_create (CODE7, 7, 8, spc, crate, 65.0, 0.0, 1e-2, 0.9,
+                               0, 1, 0.0, 0.0, 0.0);
   CHECK (a != NULL);
   if (!a)
     return 1;
@@ -429,8 +626,8 @@ main (void)
    * doppler_bins == reps and the slow-time axis has bins to localize on.  The
    * injected burst is noise-free, so it clears the (best-effort) gate anyway.
    */
-  acq_state_t *b
-      = acq_create (CODE7, 7, 8, spc, crate, 20.0, 0.0, 1e-2, 0.9, 0, 1, 0.0);
+  acq_state_t *b = acq_create (CODE7, 7, 8, spc, crate, 20.0, 0.0, 1e-2, 0.9,
+                               0, 1, 0.0, 0.0, 0.0);
   CHECK (b != NULL);
   if (!b)
     return 1;
@@ -482,7 +679,7 @@ main (void)
    * exactly — the elastic-resume (pod handoff) guarantee. */
   {
     acq_state_t *ra = acq_create (CODE7, 7, 8, spc, crate, 20.0, 0.0, 1e-2,
-                                  0.9, 0, 1, 0.0);
+                                  0.9, 0, 1, 0.0, 0.0, 0.0);
     CHECK (ra != NULL);
     if (ra)
       {
@@ -505,9 +702,9 @@ main (void)
         /* Run B — engine1 takes [0,cut), hands its state to a fresh engine2
          * which takes [cut,L3). */
         acq_state_t *r1 = acq_create (CODE7, 7, 8, spc, crate, 20.0, 0.0, 1e-2,
-                                      0.9, 0, 1, 0.0);
+                                      0.9, 0, 1, 0.0, 0.0, 0.0);
         acq_state_t *r2 = acq_create (CODE7, 7, 8, spc, crate, 20.0, 0.0, 1e-2,
-                                      0.9, 0, 1, 0.0);
+                                      0.9, 0, 1, 0.0, 0.0, 0.0);
         CHECK (r1 && r2);
         if (r1 && r2)
           {
@@ -554,6 +751,8 @@ main (void)
   _fails += _acq_cn0_calibration ();
   _fails += _acq_data_mod_check ();
   _fails += _acq_configure_search_raw_check ();
+  _fails += _acq_doppler_resolution_check ();
+  _fails += _acq_doppler_rate_check ();
 
   if (_fails)
     {

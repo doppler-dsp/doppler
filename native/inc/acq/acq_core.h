@@ -39,7 +39,7 @@
  * // 31-chip PN, 4x oversample, up to 16 coherent reps; 1 MHz chips, 45 dB-Hz
  * uint8_t code[31] = { 0 };   // ... fill with PN chips (0/1) ...
  * acq_state_t *a = acq_create(code, 31, 16, 4, 1.0e6, 45.0,
- *                             0.0, 1e-3, 0.9, 0, 1);
+ *                             0.0, 1e-3, 0.9, 0, 1, 0.0, 0.0);
  * acq_result_t hits[64];
  * size_t nh = acq_push(a, samples, n_samples, hits, 64);
  * for (size_t i = 0; i < nh; i++)
@@ -144,6 +144,13 @@ extern "C"
                               data-modulation clock (legacy sizing).     */
     double epochs_per_symbol; /**< (chip_rate/sf)/symbol_rate; 0 when
                                     symbol_rate <= 0.                    */
+    double doppler_resolution; /**< Desired Doppler-bin resolution (Hz) on
+                                     the data-modulation search; 0 = no
+                                     floor (minimize total epochs outright,
+                                     the legacy joint-search behavior).   */
+    double doppler_rate; /**< Expected Doppler rate of change (Hz/s) on the
+                               data-modulation search; 0 = static Doppler
+                               (no ceiling beyond reps).                  */
 
     float  threshold; /**< CFAR gate on test_stat (theta); coherent path.   */
     float  eta;       /**< Raw per-cell Rayleigh amplitude threshold.       */
@@ -231,12 +238,39 @@ extern "C"
    * symbol clock, crossed with exact enumeration over the data signs the
    * window touches), and picks the grid meeting @p pd with the fewest total
    * epochs, breaking ties toward a smaller coherent depth (which also lowers
-   * mislock risk).
+   * mislock risk) -- unless @p doppler_resolution floors the search (below).
    *
    * A tighter @p doppler_uncertainty narrows the scanned Doppler band,
    * lowering the per-cell threshold (more sensitive), on both paths.  Use
    * acq_configure_search_raw() to pin the grid directly instead of relying
    * on either search.
+   *
+   * @p doppler_resolution > 0 (only meaningful with @p symbol_rate > 0)
+   * floors the coherent depth at `ceil(chip_rate / (sf * doppler_resolution))`
+   * (clipped to `[1, reps]`) before the joint search runs, and the search
+   * then takes the *first* `(doppler_bins, n_noncoh)` starting from that
+   * floor that meets @p pd -- trading the fewest-total-epochs guarantee for a
+   * guaranteed minimum resolution, and, critically, for search cost: the
+   * unfloored joint search is a full `reps x max_noncoh` sweep of the
+   * `O(doppler_bins^2)` data-modulation model (`_data_mod_pd`), which the
+   * function's own inner comment already flags as assuming a coherent depth
+   * "physically small (tens at most)" -- fine at the default @p reps, but
+   * cubic in @p reps once a caller raises it to reach a fine
+   * @p doppler_resolution.  Anchoring the sweep at the resolution floor
+   * instead of 1 turns that into a handful of evaluations near the floor
+   * (first success wins), independent of how large @p reps is.
+   *
+   * @p doppler_rate > 0 (only meaningful with @p symbol_rate > 0) caps the
+   * coherent depth from the other direction: over a `doppler_bins`-epoch
+   * coherent window, a nonzero Doppler rate of change shifts the true
+   * frequency across the window, smearing the FFT peak once that drift
+   * approaches a resolution bin.  The largest depth that keeps in-window
+   * drift under one bin is `doppler_bins < chip_rate / (sf * sqrt
+   * (doppler_rate))`; the joint search (both its floored and unfloored
+   * modes) clips its coherent-depth ceiling to this in addition to @p reps,
+   * so a caller-raised @p doppler_resolution can never push `doppler_bins`
+   * past the point where the signal's own dynamics would invalidate the
+   * coherent sum.
    *
    * @param code        PN chips (0/1), length @p code_len.
    * @param code_len    Number of chips supplied (= sf, the spreading factor).
@@ -254,6 +288,11 @@ extern "C"
    *                    default 1 keeps the engine purely coherent).
    * @param symbol_rate Continuous data-symbol rate in Hz; <= 0 (default)
    *                    disables the data-modulation-aware search above.
+   * @param doppler_resolution  Desired Doppler-bin resolution in Hz; 0
+   *                    (default) places no floor on the coherent depth --
+   *                    see above.
+   * @param doppler_rate  Expected Doppler rate of change in Hz/s; 0
+   *                    (default) assumes a static Doppler -- see above.
    * @return Heap-allocated state, or NULL on bad arguments / allocation
    * failure.
    */
@@ -261,7 +300,8 @@ extern "C"
                            size_t spc, double chip_rate, double cn0_dbhz,
                            double doppler_uncertainty, double pfa, double pd,
                            int noise_mode, size_t max_noncoh,
-                           double symbol_rate);
+                           double symbol_rate, double doppler_resolution,
+                           double doppler_rate);
 
   /** @brief Destroy and free an engine.  @param state May be NULL. */
   void acq_destroy (acq_state_t *state);

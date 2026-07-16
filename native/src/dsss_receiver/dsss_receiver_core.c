@@ -170,7 +170,8 @@ dsss_receiver_create (const uint8_t *code, size_t code_len, double chip_rate,
 
   obj->acq = acq_create (obj->code, code_len, reps, spc, chip_rate, cn0_dbhz,
                          doppler_uncertainty, pfa, pd, 0 /* noise_mode=mean */,
-                         max_noncoh, symbol_rate);
+                         max_noncoh, symbol_rate, 0.0 /* doppler_resolution */,
+                         0.0 /* doppler_rate */);
   if (!obj->acq)
     {
       free (obj->code);

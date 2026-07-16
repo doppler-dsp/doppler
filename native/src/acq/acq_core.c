@@ -497,9 +497,32 @@ _commit_thresholds (acq_state_t *st, double pfa, double pd, double snr,
  * -epoch splits the coherent sum (see _data_mod_pd) -- a loss the model
  * above can't see and can silently under-size for.  Jointly searches
  * doppler_bins in [1, reps] x non-coherent looks in [1, max_noncoh],
- * pricing that loss honestly, picking the grid meeting Pd with the fewest
- * total epochs (ties favor smaller doppler_bins, which also lowers mislock
- * risk -- see docs/gallery/dsss-acq-async-data.md). */
+ * pricing that loss honestly.
+ *
+ * st->doppler_resolution <= 0 (default): picks the grid meeting Pd with the
+ * fewest total epochs (ties favor smaller doppler_bins, which also lowers
+ * mislock risk -- see docs/gallery/dsss-acq-async-data.md).  This is a full
+ * reps x max_noncoh sweep of the O(doppler_bins^2) _data_mod_pd model --
+ * fine at the small reps this path was designed for.
+ *
+ * st->doppler_resolution > 0: floors doppler_bins at
+ * ceil(chip_rate/(sf*doppler_resolution)) (clipped to [1, reps]) and scans
+ * UP from there, taking the first (doppler_bins, n_noncoh) that meets Pd
+ * (smallest n_noncoh first, so still the cheapest grid at that depth) --
+ * trading the fewest-total-epochs guarantee for a resolution guarantee.
+ * This is the difference between an O(reps) and an O(reps^3) construction:
+ * scanning the full range from 1 pays the O(D^2) DFT inside _data_mod_pd for
+ * every D up to reps, so raising reps to reach a fine doppler_resolution
+ * makes the unfloored sweep cubic in reps; starting at the floor and
+ * stopping at the first success touches only a handful of D near it,
+ * independent of reps.
+ *
+ * st->doppler_rate > 0: caps the coherent-depth ceiling (both the loop's
+ * upper bound and doppler_resolution's floor) at the largest D whose
+ * in-window Doppler drift (doppler_rate * D * epoch duration) stays under
+ * one resolution bin (chip_rate/(sf*D)) -- solving for D gives
+ * D < chip_rate/(sf*sqrt(doppler_rate)).  This only ever tightens the
+ * search space beyond reps; it never widens it. */
 static void
 _auto_config (const acq_state_t *st, double pfa, double pd, double snr,
               double du, size_t *out_d, size_t *out_nc)
@@ -509,31 +532,72 @@ _auto_config (const acq_state_t *st, double pfa, double pd, double snr,
 
   if (st->epochs_per_symbol > 0.0)
     {
-      size_t best_d = 0, best_nc = 0, best_total = 0;
-      for (size_t D = 1; D <= st->reps; D++)
-        for (size_t nc = 1; nc <= st->max_noncoh; nc++)
-          {
-            size_t sb  = _searched_bins (D, du, span);
-            double pc  = 1.0 - pow (1.0 - pfa, 1.0 / (double)(sb * cb));
-            double eta = (nc > 1) ? det_threshold_noncoherent (pc, (int)nc)
-                                  : det_threshold (pc);
-            double pdd
-                = _data_mod_pd (D, nc, st->epochs_per_symbol, snr, cb, eta);
-            if (pdd < pd)
-              continue;
-            size_t total = D * nc;
-            if (best_d == 0 || total < best_total
-                || (total == best_total && D < best_d))
-              {
-                best_d     = D;
-                best_nc    = nc;
-                best_total = total;
-              }
-          }
+      /* doppler_rate caps the coherent depth from the opposite direction to
+       * doppler_resolution's floor: past this D, in-window frequency drift
+       * would smear the FFT peak across a resolution bin (see acq_create's
+       * doc for the derivation), so it tightens -- never loosens -- reps. */
+      size_t d_ceiling = st->reps;
+      if (st->doppler_rate > 0.0)
+        {
+          double rate_ceiling_d = floor (
+              st->chip_rate / ((double)st->sf * sqrt (st->doppler_rate)));
+          if (rate_ceiling_d < 1.0)
+            rate_ceiling_d = 1.0;
+          if (rate_ceiling_d < (double)d_ceiling)
+            d_ceiling = (size_t)rate_ceiling_d;
+        }
+
+      size_t d_start = 1;
+      if (st->doppler_resolution > 0.0)
+        {
+          double floor_d = ceil (st->chip_rate
+                                 / ((double)st->sf * st->doppler_resolution));
+          d_start        = (floor_d < 1.0) ? 1 : (size_t)floor_d;
+          if (d_start > d_ceiling)
+            d_start = d_ceiling;
+        }
+
+      const int floored = (st->doppler_resolution > 0.0);
+      size_t    best_d = 0, best_nc = 0, best_total = 0;
+      for (size_t D = d_start; D <= d_ceiling; D++)
+        {
+          int found_at_d = 0;
+          for (size_t nc = 1; nc <= st->max_noncoh; nc++)
+            {
+              size_t sb  = _searched_bins (D, du, span);
+              double pc  = 1.0 - pow (1.0 - pfa, 1.0 / (double)(sb * cb));
+              double eta = (nc > 1) ? det_threshold_noncoherent (pc, (int)nc)
+                                    : det_threshold (pc);
+              double pdd
+                  = _data_mod_pd (D, nc, st->epochs_per_symbol, snr, cb, eta);
+              if (pdd < pd)
+                continue;
+              size_t total = D * nc;
+              if (best_d == 0 || total < best_total
+                  || (total == best_total && D < best_d))
+                {
+                  best_d     = D;
+                  best_nc    = nc;
+                  best_total = total;
+                }
+              /* Floored search only: nc ascends, so the first hit at this D
+               * is already its cheapest; stop growing D once any D succeeds
+               * -- resolution, not total epochs, is the priority past the
+               * floor.  Unfloored keeps the exhaustive scan (every nc, every
+               * D) byte-identical to the original search. */
+              if (floored)
+                {
+                  found_at_d = 1;
+                  break;
+                }
+            }
+          if (floored && found_at_d)
+            break;
+        }
       if (best_d == 0)
         {
           /* Best effort: nothing in the ceilings meets pd. */
-          best_d  = st->reps;
+          best_d  = d_ceiling;
           best_nc = st->max_noncoh;
         }
       *out_d  = best_d;
@@ -746,7 +810,7 @@ acq_state_t *
 acq_create (const uint8_t *code, size_t code_len, size_t reps, size_t spc,
             double chip_rate, double cn0_dbhz, double doppler_uncertainty,
             double pfa, double pd, int noise_mode, size_t max_noncoh,
-            double symbol_rate)
+            double symbol_rate, double doppler_resolution, double doppler_rate)
 {
   /* Validate: bad arguments yield NULL (the binding maps this to a clear
    * MemoryError) rather than undefined behaviour downstream.  chip_rate /
@@ -759,7 +823,8 @@ acq_create (const uint8_t *code, size_t code_len, size_t reps, size_t spc,
   if (!code || code_len < 1 || spc < 1 || reps < 1 || !(chip_rate > 0.0)
       || !(cn0_dbhz > 0.0) || !isfinite (cn0_dbhz) || !(pfa > 0.0 && pfa < 1.0)
       || !(pd > 0.0 && pd < 1.0) || doppler_uncertainty < 0.0
-      || doppler_uncertainty > span)
+      || doppler_uncertainty > span || doppler_resolution < 0.0
+      || doppler_rate < 0.0)
     return NULL;
 
   acq_state_t *st = (acq_state_t *)calloc (1, sizeof (*st));
@@ -783,6 +848,9 @@ acq_create (const uint8_t *code, size_t code_len, size_t reps, size_t spc,
   st->epochs_per_symbol   = (st->symbol_rate > 0.0)
                                 ? (chip_rate / (double)sf) / st->symbol_rate
                                 : 0.0;
+  st->doppler_resolution
+      = (doppler_resolution > 0.0) ? doppler_resolution : 0.0;
+  st->doppler_rate = (doppler_rate > 0.0) ? doppler_rate : 0.0;
 
   /* C/N0 (dB-Hz) -> per-sample amplitude SNR: power SNR = (C/N0)/fs, and the
    * detection model's non-centrality is a = sqrt(2M)*snr (amplitude). */

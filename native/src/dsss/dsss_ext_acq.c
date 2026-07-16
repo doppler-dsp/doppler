@@ -36,11 +36,13 @@ AcquisitionObj_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 static int
 AcquisitionObj_init (AcquisitionObject *self, PyObject *args, PyObject *kwds)
 {
-  static char *kwlist[] = { "code",       "reps",        "spc",
-                            "chip_rate",  "cn0_dbhz",    "doppler_uncertainty",
-                            "pfa",        "pd",          "noise_mode",
-                            "max_noncoh", "symbol_rate", NULL };
-  PyObject    *code_obj = NULL;
+  static char *kwlist[]
+      = { "code",         "reps",        "spc",
+          "chip_rate",    "cn0_dbhz",    "doppler_uncertainty",
+          "pfa",          "pd",          "noise_mode",
+          "max_noncoh",   "symbol_rate", "doppler_resolution",
+          "doppler_rate", NULL };
+  PyObject          *code_obj            = NULL;
   unsigned long long reps_raw            = 1;
   unsigned long long spc_raw             = 4;
   double             chip_rate           = 1000000.0;
@@ -51,11 +53,14 @@ AcquisitionObj_init (AcquisitionObject *self, PyObject *args, PyObject *kwds)
   const char        *noise_mode_str      = "mean";
   unsigned long long max_noncoh_raw      = 1;
   double             symbol_rate         = 0.0;
+  double             doppler_resolution  = 0.0;
+  double             doppler_rate        = 0.0;
 
   if (!PyArg_ParseTupleAndKeywords (
-          args, kwds, "O|KKdddddsKd", kwlist, &code_obj, &reps_raw, &spc_raw,
+          args, kwds, "O|KKdddddsKddd", kwlist, &code_obj, &reps_raw, &spc_raw,
           &chip_rate, &cn0_dbhz, &doppler_uncertainty, &pfa, &pd,
-          &noise_mode_str, &max_noncoh_raw, &symbol_rate))
+          &noise_mode_str, &max_noncoh_raw, &symbol_rate, &doppler_resolution,
+          &doppler_rate))
     return -1;
   size_t reps       = (size_t)reps_raw;
   size_t spc        = (size_t)spc_raw;
@@ -84,10 +89,10 @@ AcquisitionObj_init (AcquisitionObject *self, PyObject *args, PyObject *kwds)
       return -1;
     }
   size_t code_len = (size_t)PyArray_SIZE (code_arr);
-  self->handle
-      = acq_create ((const uint8_t *)PyArray_DATA (code_arr), code_len, reps,
-                    spc, chip_rate, cn0_dbhz, doppler_uncertainty, pfa, pd,
-                    noise_mode, max_noncoh, symbol_rate);
+  self->handle    = acq_create (
+      (const uint8_t *)PyArray_DATA (code_arr), code_len, reps, spc, chip_rate,
+      cn0_dbhz, doppler_uncertainty, pfa, pd, noise_mode, max_noncoh,
+      symbol_rate, doppler_resolution, doppler_rate);
   Py_DECREF (code_arr);
   if (!self->handle)
     {
@@ -167,6 +172,33 @@ AcquisitionObj_push (AcquisitionObject *self, PyObject *args)
       PyList_SET_ITEM (lst, (Py_ssize_t)i, tup);
     }
   return lst;
+}
+
+static PyObject *
+AcquisitionObj_configure_search_raw (AcquisitionObject *self, PyObject *args,
+                                     PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char       *_kwlist[]        = { "doppler_bins", "n_noncoh", NULL };
+  unsigned long long doppler_bins_raw = 0ULL;
+  unsigned long long n_noncoh_raw     = 0ULL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "KK", _kwlist,
+                                    &doppler_bins_raw, &n_noncoh_raw))
+    return NULL;
+  size_t doppler_bins = (size_t)doppler_bins_raw;
+  size_t n_noncoh     = (size_t)n_noncoh_raw;
+  int    _rc = acq_configure_search_raw (self->handle, doppler_bins, n_noncoh);
+  if (_rc != 0)
+    {
+      PyErr_Format (PyExc_ValueError, "configure_search_raw failed (rc=%d)",
+                    _rc);
+      return NULL;
+    }
+  Py_RETURN_NONE;
 }
 
 static PyObject *
@@ -464,7 +496,6 @@ Acquisition_getprop_underpowered (AcquisitionObject *self,
     }
   return PyBool_FromLong ((long)(self->handle->underpowered));
 }
-
 static PyObject *
 Acquisition_getprop_symbol_rate (AcquisitionObject *self,
                                  void              *Py_UNUSED (closure))
@@ -476,7 +507,6 @@ Acquisition_getprop_symbol_rate (AcquisitionObject *self,
     }
   return PyFloat_FromDouble (self->handle->symbol_rate);
 }
-
 static PyObject *
 Acquisition_getprop_epochs_per_symbol (AcquisitionObject *self,
                                        void              *Py_UNUSED (closure))
@@ -487,6 +517,28 @@ Acquisition_getprop_epochs_per_symbol (AcquisitionObject *self,
       return NULL;
     }
   return PyFloat_FromDouble (self->handle->epochs_per_symbol);
+}
+static PyObject *
+Acquisition_getprop_doppler_resolution (AcquisitionObject *self,
+                                        void              *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyFloat_FromDouble (self->handle->doppler_resolution);
+}
+static PyObject *
+Acquisition_getprop_doppler_rate (AcquisitionObject *self,
+                                  void              *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyFloat_FromDouble (self->handle->doppler_rate);
 }
 
 static PyGetSetDef Acquisition_getset[] = {
@@ -559,6 +611,16 @@ static PyGetSetDef Acquisition_getset[] = {
     "(chip_rate/sf)/symbol_rate -- code epochs per data symbol; 0 when "
     "symbol_rate is 0.\n",
     NULL },
+  { "doppler_resolution", (getter)Acquisition_getprop_doppler_resolution, NULL,
+    "Desired Doppler-bin resolution (Hz) floored on the data-modulation "
+    "search; 0 means no floor (the joint search minimizes total epochs "
+    "outright). Compare against the achieved doppler_res_hz.\n",
+    NULL },
+  { "doppler_rate", (getter)Acquisition_getprop_doppler_rate, NULL,
+    "Expected Doppler rate of change (Hz/s) capping the data-modulation "
+    "search's coherent-depth ceiling; 0 means a static Doppler (no ceiling "
+    "beyond reps).\n",
+    NULL },
   { NULL }
 };
 
@@ -592,33 +654,6 @@ AcquisitionObj_exit (AcquisitionObject *self, PyObject *args)
   Py_RETURN_NONE;
 }
 
-static PyObject *
-AcquisitionObj_configure_search_raw (AcquisitionObject *self, PyObject *args,
-                                     PyObject *kwds)
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  static char       *_kwlist[]        = { "doppler_bins", "n_noncoh", NULL };
-  unsigned long long doppler_bins_raw = 0ULL;
-  unsigned long long n_noncoh_raw     = 0ULL;
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "KK", _kwlist,
-                                    &doppler_bins_raw, &n_noncoh_raw))
-    return NULL;
-  size_t doppler_bins = (size_t)doppler_bins_raw;
-  size_t n_noncoh     = (size_t)n_noncoh_raw;
-  int    _rc = acq_configure_search_raw (self->handle, doppler_bins, n_noncoh);
-  if (_rc != 0)
-    {
-      PyErr_Format (PyExc_ValueError, "configure_search_raw failed (rc=%d)",
-                    _rc);
-      return NULL;
-    }
-  Py_RETURN_NONE;
-}
-
 static PyMethodDef AcquisitionObj_methods[] = {
   { "reset", (PyCFunction)AcquisitionObj_reset, METH_NOARGS,
     "Reset state to post-create defaults." },
@@ -631,21 +666,11 @@ static PyMethodDef AcquisitionObj_methods[] = {
     "\n"
     "    >>> import numpy as np\n"
     "    >>> from doppler import Acquisition\n"
-    "    >>> obj = Acquisition(np.zeros(1, dtype=np.uint8), 1, 4, "
-    "1000000.0, 50.0, 0.0, 1e-3, 0.9, \"mean\", 1)\n"
+    "    >>> obj = Acquisition(np.zeros(1, dtype=np.uint8), 1, 4, 1000000.0, "
+    "50.0, 0.0, 1e-3, 0.9, \"mean\", 1, 0.0, 0.0, 0.0)\n"
     "    >>> results = obj.push(np.zeros(4, dtype=np.complex64))\n"
     "    >>> isinstance(results, list)\n"
     "    True\n" },
-  { "state_bytes", (PyCFunction)AcquisitionObj_state_bytes, METH_NOARGS,
-    "Serialized state size in bytes." },
-  { "get_state", (PyCFunction)AcquisitionObj_get_state, METH_NOARGS,
-    "Serialize the engine's mutable state to bytes." },
-  { "set_state", (PyCFunction)AcquisitionObj_set_state, METH_O,
-    "Restore mutable state from a get_state() blob." },
-  { "destroy", (PyCFunction)AcquisitionObj_destroy, METH_NOARGS,
-    "Release resources." },
-  { "__enter__", (PyCFunction)AcquisitionObj_enter, METH_NOARGS, NULL },
-  { "__exit__", (PyCFunction)AcquisitionObj_exit, METH_VARARGS, NULL },
   { "configure_search_raw",
     (PyCFunction)(void *)AcquisitionObj_configure_search_raw,
     METH_VARARGS | METH_KEYWORDS,
@@ -665,9 +690,19 @@ static PyMethodDef AcquisitionObj_methods[] = {
     "    >>> import numpy as np\n"
     "    >>> from doppler import Acquisition\n"
     "    >>> obj = Acquisition(np.zeros(1, dtype=np.uint8), 1, 4, 1000000.0, "
-    "50.0, 0.0, 1e-3, 0.9, \"mean\", 1, 0.0)\n"
-    "    >>> obj.configure_search_raw(1, 1) is None\n"
-    "    True\n" },
+    "50.0, 0.0, 1e-3, 0.9, \"mean\", 1, 0.0, 0.0, 0.0)\n"
+    "    >>> obj.configure_search_raw(0, 0)\n"
+    "    0\n" },
+  { "state_bytes", (PyCFunction)AcquisitionObj_state_bytes, METH_NOARGS,
+    "Serialized state size in bytes." },
+  { "get_state", (PyCFunction)AcquisitionObj_get_state, METH_NOARGS,
+    "Serialize the engine's mutable state to bytes." },
+  { "set_state", (PyCFunction)AcquisitionObj_set_state, METH_O,
+    "Restore mutable state from a get_state() blob." },
+  { "destroy", (PyCFunction)AcquisitionObj_destroy, METH_NOARGS,
+    "Release resources." },
+  { "__enter__", (PyCFunction)AcquisitionObj_enter, METH_NOARGS, NULL },
+  { "__exit__", (PyCFunction)AcquisitionObj_exit, METH_VARARGS, NULL },
   { NULL }
 };
 

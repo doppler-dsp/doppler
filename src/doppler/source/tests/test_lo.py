@@ -233,3 +233,29 @@ def test_steps_ctrl_out_undersized_raises():
         lo.steps_ctrl(
             np.zeros(64, dtype=np.float32), out=np.zeros(1, dtype=np.complex64)
         )
+
+
+# ── No-aliasing regression (previously a real, live bug) ──────────────
+
+
+def test_steps_no_aliasing_across_calls():
+    """A previously-returned array must not change when a later call is
+    made. The old cached-buffer scheme reused the same underlying memory
+    for every no-out= call, so a second call silently overwrote the
+    first call's already-returned data out from under any caller still
+    holding a reference to it."""
+    lo = LO(norm_freq=0.1)
+    first = lo.steps(4)
+    first_snapshot = first.copy()
+    _ = lo.steps(4)
+    np.testing.assert_array_equal(first, first_snapshot)
+
+
+def test_steps_ctrl_no_aliasing_across_calls():
+    lo = LO(norm_freq=0.0)
+    ctrl1 = np.full(4, 0.25, dtype=np.float32)
+    ctrl2 = np.full(4, 0.5, dtype=np.float32)
+    first = lo.steps_ctrl(ctrl1)
+    first_snapshot = first.copy()
+    _ = lo.steps_ctrl(ctrl2)
+    np.testing.assert_array_equal(first, first_snapshot)

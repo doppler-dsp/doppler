@@ -72,7 +72,11 @@ def test_tracks_code_doppler():
     d = Dll(code, SPS, 0.0, 0.005, 0.707, 0.5)
     sym = d.steps(rx)
     assert d.code_rate == pytest.approx(1.0 + delta, abs=1e-4)
-    assert np.mean(np.abs(sym[len(sym) // 2 :].real)) > 0.9
+    # 0.85, not 0.9: the point-sample 2x-oversampled replica (dll_replica)
+    # has a small, expected SNR cost versus the old dwell-integrated exact
+    # matched filter (measured ~0.865 here; same class of retune as
+    # test_dll_core.c's Test 3).
+    assert np.mean(np.abs(sym[len(sym) // 2 :].real)) > 0.85
 
 
 def test_pulls_in_static_offset():

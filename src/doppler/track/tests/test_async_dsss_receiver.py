@@ -41,9 +41,10 @@ import numpy as np
 import pytest
 
 from doppler.track import Costas, Dll, SymbolSync
+from doppler.wfm import PN, mls_poly
 
 CHIP_RATE = 2.046e6
-SF = 1023  # Gold-code length (approximated here by a random 0/1 sequence)
+SF = 1023  # a real length-10 maximal-length sequence, period 2^10 - 1
 SPS = 2  # samples/chip -- kept small for a tractable simulation size
 TE = SF * SPS  # samples/code-epoch
 DATA_RATE = 1800.0
@@ -54,7 +55,18 @@ F0 = 1e-4  # residual carrier after acquisition, cycles/sample
 
 
 def _code(seed=1):
-    return np.random.default_rng(seed).integers(0, 2, SF).astype(np.uint8)
+    # A real m-sequence, not an arbitrary random 0/1 draw: an arbitrary
+    # random sequence has no guarantee on its autocorrelation sidelobes,
+    # and some seeds produce a sequence bad enough that the DLL's
+    # tracking loop genuinely destabilizes over a long run -- confirmed
+    # by sweeping seeds at a fixed SF/bn (some clean, some not) and by
+    # swapping in this real MLS at the SAME seeds/bn/SF (uniformly
+    # stable). `seed` here only selects the LFSR's start phase within
+    # the one guaranteed-clean period-1023 sequence, not the sequence's
+    # autocorrelation quality.
+    return np.asarray(
+        PN(poly=mls_poly(10), seed=seed, length=10).generate(SF)
+    ).astype(np.uint8)
 
 
 def _signal(code, nsym, epochs_per_symbol, phi, f0, snr_db, seed):

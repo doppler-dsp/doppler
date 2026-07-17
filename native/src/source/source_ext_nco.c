@@ -297,6 +297,100 @@ NCOObj_steps_u32_scaled_max_out (NCOObject *self,
   return PyLong_FromSize_t (nco_steps_u32_scaled_max_out (self->handle));
 }
 
+static PyObject *
+NCOObj_steps_u32_ctrl (NCOObject *self, PyObject *args, PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char   *_kwlist[] = { "ctrl", "out", NULL };
+  PyObject      *ctrl_obj  = NULL;
+  PyArrayObject *ctrl_arr  = NULL;
+  PyObject      *out_obj   = NULL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|O", _kwlist, &ctrl_obj,
+                                    &out_obj))
+    return NULL;
+  ctrl_arr = (PyArrayObject *)PyArray_FROM_OTF (ctrl_obj, NPY_FLOAT,
+                                                NPY_ARRAY_C_CONTIGUOUS);
+  if (!ctrl_arr)
+    return NULL;
+  if (out_obj && out_obj != Py_None)
+    {
+      PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
+          out_obj, NPY_UINT32, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
+      if (!out_arr)
+        {
+          Py_DECREF (ctrl_arr);
+          return NULL;
+        }
+      size_t _cap     = (size_t)PyArray_SIZE (out_arr);
+      size_t _omax    = nco_steps_u32_ctrl_max_out (self->handle);
+      size_t _min_cap = _omax > (size_t)PyArray_SIZE (ctrl_arr)
+                            ? _omax
+                            : ((size_t)PyArray_SIZE (ctrl_arr));
+      if (_cap < _min_cap)
+        {
+          PyErr_Format (PyExc_ValueError, "out has %zu elements, need >= %zu",
+                        _cap, _min_cap);
+          Py_DECREF (out_arr);
+          Py_DECREF (ctrl_arr);
+          return NULL;
+        }
+      size_t n_out = nco_steps_u32_ctrl (
+          self->handle, (const float *)PyArray_DATA (ctrl_arr),
+          (size_t)PyArray_SIZE (ctrl_arr), (uint32_t *)PyArray_DATA (out_arr));
+      Py_DECREF (ctrl_arr);
+      npy_intp  _odim  = (npy_intp)n_out;
+      PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_UINT32,
+                                                    PyArray_DATA (out_arr));
+      if (!_oview)
+        {
+          Py_DECREF (out_arr);
+          return NULL;
+        }
+      PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
+      return _oview;
+    }
+  /* NumPy owns the output: allocate exactly ctrl_len and write into it,
+   * fresh every call -- matches steps_u32/steps_u32_scaled/steps_u32_ovf
+   * above (see the steps_u32 comment re #116). jm's default
+   * variable_output template (cached buffer + gh-437 weakref-gated
+   * retire) leaks unboundedly here: Python only decrefs a call's
+   * PREVIOUS return value AFTER evaluating the new call
+   * (`x = obj.method(...)` rebinds `x` only once the RHS finishes), so
+   * the "is the last view still alive" check is true on essentially
+   * every call in a tight loop -- exactly the natural way to drive a
+   * per-epoch control-port NCO -- and the retired buffer is then never
+   * reclaimed until the whole NCO is destroyed. Confirmed leaking
+   * ~12 KB/call under that exact pattern before this fix. */
+  size_t    ctrl_len = (size_t)PyArray_SIZE (ctrl_arr);
+  npy_intp  dim      = (npy_intp)ctrl_len;
+  PyObject *arr      = PyArray_SimpleNew (1, &dim, NPY_UINT32);
+  if (!arr)
+    {
+      Py_DECREF (ctrl_arr);
+      return NULL;
+    }
+  nco_steps_u32_ctrl (self->handle, (const float *)PyArray_DATA (ctrl_arr),
+                      ctrl_len,
+                      (uint32_t *)PyArray_DATA ((PyArrayObject *)arr));
+  Py_DECREF (ctrl_arr);
+  return arr;
+}
+
+static PyObject *
+NCOObj_steps_u32_ctrl_max_out (NCOObject *self, PyObject *Py_UNUSED (ignored))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromSize_t (nco_steps_u32_ctrl_max_out (self->handle));
+}
+
 static PyMethodDef NCOObj_methods[] = {
   { "reset", (PyCFunction)NCOObj_reset, METH_NOARGS,
     "Reset state to post-create defaults." },
@@ -352,6 +446,23 @@ static PyMethodDef NCOObj_methods[] = {
     "steps_u32_scaled_max_out() -> int\n\nMax output length "
     "steps_u32_scaled() can produce for the current state.\nUse to size the "
     "``out=`` buffer." },
+  { "steps_u32_ctrl", (PyCFunction)NCOObj_steps_u32_ctrl,
+    METH_VARARGS | METH_KEYWORDS,
+    "steps_u32_ctrl(ctrl) -> ndarray\n"
+    "\n"
+    "Advance ctrl_len samples; raw phase, with a per-sample control offset "
+    "added on top of the fixed phase_inc (not persisted).\n"
+    "\n"
+    "    >>> import numpy as np\n"
+    "    >>> from doppler import NCO\n"
+    "    >>> obj = NCO(0.0, 0)\n"
+    "    >>> y = obj.steps_u32_ctrl(np.zeros(4))\n"
+    "    >>> y.dtype\n"
+    "    dtype('uint32')\n" },
+  { "steps_u32_ctrl_max_out", (PyCFunction)NCOObj_steps_u32_ctrl_max_out,
+    METH_NOARGS,
+    "steps_u32_ctrl_max_out() -> int\n\nMax output length steps_u32_ctrl() "
+    "can produce for the current state.\nUse to size the ``out=`` buffer." },
   { NULL }
 };
 

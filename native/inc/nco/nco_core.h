@@ -73,7 +73,7 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
   {
     uint32_t phase;     /* current accumulator value [0, 2^32)         */
     uint32_t phase_inc; /* advance per sample = floor(norm_freq * 2^32) */
-    double norm_freq;   /* normalised frequency (cycles/sample)          */
+    double   norm_freq; /* normalised frequency (cycles/sample)          */
     uint32_t nmax;      /* wrap target for steps_u32_scaled; 0 = raw   */
   } nco_state_t;
 
@@ -125,7 +125,8 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
 
   /* ── Serializable state (standard bytes interface; see dp_state.h) ────────
    * Only the running phase accumulator is serialized; phase_inc / nmax are
-   * config restored by the constructor.  Envelope: [dp_state_hdr_t][u32 phase].
+   * config restored by the constructor.  Envelope: [dp_state_hdr_t][u32
+   * phase].
    */
 #define NCO_STATE_MAGIC DP_FOURCC ('N', 'C', 'O', '_')
 #define NCO_STATE_VERSION 1u
@@ -134,7 +135,8 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
   size_t nco_state_bytes (const nco_state_t *state);
   /** @brief Serialize the phase accumulator into @p blob. */
   void nco_get_state (const nco_state_t *state, void *blob);
-  /** @brief Restore phase; DP_OK, or DP_ERR_INVALID if the envelope rejects. */
+  /** @brief Restore phase; DP_OK, or DP_ERR_INVALID if the envelope rejects.
+   */
   int nco_set_state (nco_state_t *state, const void *blob);
 
   /* ---- Properties ---- */
@@ -155,7 +157,7 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
    * @endcode
    */
   double nco_get_norm_freq (const nco_state_t *state);
-  void nco_set_norm_freq (nco_state_t *state, double norm_freq);
+  void   nco_set_norm_freq (nco_state_t *state, double norm_freq);
 
   /**
    * @brief Current phase accumulator value (read/write).
@@ -174,7 +176,7 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
    * @endcode
    */
   uint32_t nco_get_phase (const nco_state_t *state);
-  void nco_set_phase (nco_state_t *state, uint32_t phase);
+  void     nco_set_phase (nco_state_t *state, uint32_t phase);
 
   /**
    * @brief Per-sample phase increment (read-only).
@@ -281,6 +283,47 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
    */
   size_t nco_steps_u32_ovf (nco_state_t *state, size_t n, uint32_t *out,
                             uint8_t *out1);
+
+  size_t nco_steps_u32_ctrl_max_out (nco_state_t *state);
+
+  /**
+   * @brief Advance ctrl_len samples; raw phase, with a per-sample control
+   *        offset added on top of the fixed phase_inc (not persisted).
+   *
+   * The NCO **control port** for a tracking loop: @p ctrl is a per-sample
+   * frequency control in normalised cycles/sample, added to the centre
+   * increment @c phase_inc for that step only. @c phase_inc / @c norm_freq
+   * are NEVER modified by this call -- only the running @c phase advances,
+   * by `phase_inc + ctrl_inc` each sample -- so a loop filter can drive the
+   * NCO with its full per-sample output (integrator + proportional term)
+   * without the caller ever touching the NCO's own configured rate. Mirrors
+   * `lo_step_ctrl`/`lo_steps_ctrl` (native/inc/lo/lo_core.h), which does
+   * this for the CF32 phasor output; this is the same control-port pattern
+   * for NCO's raw phase output. With every `ctrl[i] == 0` this is
+   * bit-identical to nco_steps_u32(). Returns ctrl_len.
+   *
+   * @param state     NCO state returned by nco_create().
+   * @param ctrl      Float32 array of per-sample normalised-frequency
+   *                  control offsets, any sign (the fractional cycle is
+   *                  taken, so it wraps correctly).
+   * @param ctrl_len  Number of elements in ctrl; equals output length.
+   * @param out       Output buffer; must hold at least ctrl_len uint32_t
+   *                  values.
+   * @return ctrl_len (always).
+   * @code
+   * >>> from doppler.source import NCO
+   * >>> import numpy as np
+   * >>> nco = NCO(norm_freq=0.0, nmax=0)
+   * >>> ctrl = np.full(4, 0.25, dtype=np.float32)
+   * >>> out = nco.steps_u32_ctrl(ctrl)
+   * >>> out.tolist()
+   * [0, 1073741824, 2147483648, 3221225472]
+   * >>> nco.norm_freq
+   * 0.0
+   * @endcode
+   */
+  size_t nco_steps_u32_ctrl (nco_state_t *state, const float *ctrl,
+                             size_t ctrl_len, uint32_t *out);
 
 #ifdef __cplusplus
 }

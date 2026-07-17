@@ -10,6 +10,8 @@
  *   5. nmax scaling — steps_u32_scaled maps [0, 2^32) → [0, nmax)
  *   6. Overflow flag — carry fires exactly once per full cycle
  *   7. Property accessors — get/set norm_freq, phase, phase_inc
+ *   8. ctrl-port FM shift — steps_u32_ctrl deviates phase per sample
+ *      without touching phase_inc/norm_freq (mirrors lo_steps_ctrl)
  */
 #include "nco/nco_core.h"
 #include <math.h>
@@ -206,6 +208,36 @@ main (void)
     nco_destroy (a);
     nco_destroy (b);
     free (blob);
+  }
+
+  /* ----------------------------------------------------------------
+   * 8. ctrl-port FM shift
+   *
+   * steps_u32_ctrl with a constant ctrl offset of 0.25 must produce
+   * the same phase sequence as steps_u32 at norm_freq + 0.25 -- but
+   * without modifying the NCO's base norm_freq/phase_inc.
+   * ---------------------------------------------------------------- */
+  {
+    nco_state_t *nco_ctrl = nco_create (0.0, 0);
+    nco_state_t *nco_ref  = nco_create (0.25, 0);
+
+    float ctrl[8];
+    for (int i = 0; i < 8; i++)
+      ctrl[i] = 0.25f;
+
+    uint32_t out_ctrl[8], out_ref[8];
+    nco_steps_u32_ctrl (nco_ctrl, ctrl, 8, out_ctrl);
+    nco_steps_u32 (nco_ref, 8, out_ref);
+
+    for (int i = 0; i < 8; i++)
+      CHECK (out_ctrl[i] == out_ref[i]);
+
+    /* Base norm_freq/phase_inc unchanged after steps_u32_ctrl. */
+    CHECK (nco_get_norm_freq (nco_ctrl) == 0.0);
+    CHECK (nco_get_phase_inc (nco_ctrl) == 0u);
+
+    nco_destroy (nco_ctrl);
+    nco_destroy (nco_ref);
   }
 
   if (_fails)

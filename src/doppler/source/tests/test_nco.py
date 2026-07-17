@@ -1,8 +1,11 @@
 """Tests for the NCO Python extension.
 
 Mirrors test_nco_core.c: lifecycle, zero-freq, quarter-rate sequence,
-phase continuity, nmax scaling, overflow carry flag, property accessors.
+phase continuity, nmax scaling, overflow carry flag, property accessors,
+ctrl-port FM shift.
 """
+
+import resource
 
 import numpy as np
 
@@ -188,3 +191,57 @@ def test_steps_u32_large_matches_chunked():
         [nco.steps_u32(50_000), nco.steps_u32(n - 50_000)]
     )
     assert np.array_equal(big, chunked)
+
+
+# ── ctrl-port FM shift ────────────────────────────────────────────────
+
+
+def test_steps_u32_ctrl_constant_shift():
+    """Constant ctrl=0.25 with base norm_freq=0 equals NCO at 0.25."""
+    nco_ctrl = NCO(norm_freq=0.0, nmax=0)
+    nco_ref = NCO(norm_freq=0.25, nmax=0)
+    ctrl = np.full(8, 0.25, dtype=np.float32)
+    out_ctrl = nco_ctrl.steps_u32_ctrl(ctrl)
+    out_ref = nco_ref.steps_u32(8)
+    np.testing.assert_array_equal(out_ctrl, out_ref)
+
+
+def test_steps_u32_ctrl_no_base_mutation():
+    """steps_u32_ctrl must not modify the base norm_freq/phase_inc."""
+    nco = NCO(norm_freq=0.0, nmax=0)
+    ctrl = np.full(8, 0.25, dtype=np.float32)
+    nco.steps_u32_ctrl(ctrl)
+    assert nco.norm_freq == 0.0
+    assert nco.phase_inc == 0
+
+
+def test_steps_u32_ctrl_output_length():
+    nco = NCO(norm_freq=0.1, nmax=0)
+    ctrl = np.zeros(16, dtype=np.float32)
+    out = nco.steps_u32_ctrl(ctrl)
+    assert out.shape == (16,)
+    assert out.dtype == np.uint32
+
+
+def test_steps_u32_ctrl_no_leak_in_tight_loop():
+    """Regression: jm's default cached-buffer + gh-437 weakref-gated
+    retire template leaks unboundedly under `x = obj.method(...)` in a
+    loop (the previous return value is still referenced at the moment
+    the next call runs, since Python only drops it after the RHS
+    finishes evaluating -- see source_ext_nco.c's steps_u32_ctrl
+    comment). This method deliberately allocates a fresh NumPy array
+    per call instead, matching steps_u32/steps_u32_scaled/steps_u32_ovf.
+    Confirmed leaking ~12 KB/call before the fix; assert well under
+    that over a loop long enough to make a regression obvious."""
+    nco = NCO(norm_freq=1.0 / 2046, nmax=0)
+    ctrl = np.full(2046, 1e-7, dtype=np.float32)
+    for _ in range(2000):
+        _ = nco.steps_u32_ctrl(ctrl)
+    start_kb = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+    for _ in range(50_000):
+        _ = nco.steps_u32_ctrl(ctrl)
+    end_kb = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+    # The old cached-buffer scheme leaked ~12 KB/call -> ~600 MB over
+    # 50,000 calls; a generous 20 MB ceiling catches any reintroduction
+    # while tolerating normal allocator/interpreter noise.
+    assert (end_kb - start_kb) < 20_000

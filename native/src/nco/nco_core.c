@@ -204,3 +204,28 @@ nco_steps_u32_ovf (nco_state_t *state, size_t n, uint32_t *out, uint8_t *out1)
   state->phase = ph;
   return n;
 }
+
+size_t
+nco_steps_u32_ctrl_max_out (nco_state_t *state)
+{
+  (void)state;
+  return NCO_MAX_OUT;
+}
+
+size_t
+nco_steps_u32_ctrl (nco_state_t *state, const float *ctrl, size_t ctrl_len,
+                    uint32_t *out)
+{
+  uint32_t ph  = state->phase;
+  uint32_t inc = state->phase_inc;
+  for (size_t i = 0; i < ctrl_len; i++)
+    {
+      out[i]   = ph;
+      double d = (double)ctrl[i];
+      d -= floor (d);
+      uint32_t ctrl_inc = (uint32_t)(d * 4294967296.0);
+      ph += inc + ctrl_inc;
+    }
+  state->phase = ph;
+  return ctrl_len;
+}

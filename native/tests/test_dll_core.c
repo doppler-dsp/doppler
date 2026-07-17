@@ -292,6 +292,13 @@ main (void)
       if ((acc[s] >= 0 ? 1 : -1) != data[s])
         err++;
     CHECK (err == 0); /* partials recover the asynchronous data */
+    /* No code Doppler here (ci is code-aligned above): a well-behaved loop
+       should settle near code_rate=1 with a small last_error, not pinned at
+       DLL_DISC_CLAMP every epoch (a real bug -- the segments>1 discriminator
+       once mixed a tsamps-normalised pp against raw-scale ep/lp, off by
+       roughly tsamps^2, so it saturated on essentially every epoch). */
+    CHECK (fabs (dll_get_code_rate (d) - 1.0) < 1e-3);
+    CHECK (fabs (dll_get_last_error (d)) < 0.5);
     dll_destroy (d);
     free (acc);
     free (rx);

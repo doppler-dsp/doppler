@@ -546,8 +546,16 @@ dll_steps_impl (dll_state_t *state, const float complex *x, size_t x_len,
                 }
               float  me = cabsf (acc_e_tot), ml = cabsf (acc_l_tot);
               double ep = (double)me * me, lp = (double)ml * ml;
-              double pp = best_abs * best_abs;
-              double e  = 0.5 * (ep - lp) / (pp + DLL_EPS);
+              /* pp must be on the SAME raw (un-normalised) scale as ep/lp,
+                 which come straight from acc_e_tot/acc_l_tot -- best_abs
+                 was divided by tsamps for the search comparison and the
+                 output denom below, so undo that here rather than mixing
+                 a tsamps-scaled pp against a raw ep/lp (that mismatch, off
+                 by roughly tsamps^2, pinned the discriminator at
+                 DLL_DISC_CLAMP on essentially every epoch). */
+              double best_mag = best_abs * tsamps;
+              double pp       = best_mag * best_mag;
+              double e        = 0.5 * (ep - lp) / (pp + DLL_EPS);
               if (e > DLL_DISC_CLAMP)
                 e = DLL_DISC_CLAMP;
               else if (e < -DLL_DISC_CLAMP)

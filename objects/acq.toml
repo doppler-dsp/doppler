@@ -216,3 +216,18 @@ name = "underpowered"
 type = "bool"
 field = true
 doc = "True when pd_predicted < pd (the search cannot meet the target)."
+
+# ── Under-powered search (gh-481) ────────────────────────────────────────────
+# The auto-config can only build a best-effort grid: when the requested pd is
+# unreachable at this reps/cn0_dbhz, acq_create() still succeeds and raises the
+# `underpowered` flag rather than failing — it is a "here's the best I could do"
+# signal, not an error. C cannot raise a Python warning (create() returns
+# non-NULL or it doesn't; there is no channel for "succeeded, but"), so this
+# used to be a hand-patch in the sacred dsss_ext_acq.c fragment. jm >= 0.30.0
+# generates it from the declaration below, so it now survives the
+# delete-fragment-then-`jm apply` migration that silently dropped the patch.
+[[acq.warnings]]
+after = "__init__"
+condition = "underpowered"
+category = "UserWarning"
+message = "Acquisition is under-powered: pd_predicted < pd at this reps/cn0_dbhz. Raise reps or cn0_dbhz, set max_noncoh>1, or narrow doppler_uncertainty."

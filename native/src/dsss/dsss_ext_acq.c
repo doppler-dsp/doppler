@@ -92,17 +92,13 @@ AcquisitionObj_init (AcquisitionObject *self, PyObject *args, PyObject *kwds)
       PyErr_SetString (PyExc_MemoryError, "acq_create returned NULL");
       return -1;
     }
-  /* Hand-patch (sacred fragment): C cannot raise a Python warning, so surface
-   * an under-powered search here — the auto-config built a best-effort grid
-   * whose pd_predicted falls short of the requested pd. */
   if (self->handle->underpowered)
     {
-      if (PyErr_WarnEx (
-              PyExc_UserWarning,
-              "Acquisition is under-powered: pd_predicted < pd at this "
-              "reps/cn0_dbhz. Raise reps or cn0_dbhz, set max_noncoh>1, "
-              "or narrow doppler_uncertainty.",
-              1)
+      if (PyErr_WarnEx (PyExc_UserWarning,
+                        "Acquisition is under-powered: pd_predicted < pd at "
+                        "this reps/cn0_dbhz. Raise reps or cn0_dbhz, set "
+                        "max_noncoh>1, or narrow doppler_uncertainty.",
+                        1)
           < 0)
         return -1;
     }
@@ -494,16 +490,19 @@ static PyGetSetDef Acquisition_getset[] = {
     "Bonferroni per-cell false-alarm probability over the searched cells.\n",
     NULL },
   { "pd_predicted", (getter)Acquisition_getprop_pd_predicted, NULL,
-    "Predicted Pd at cn0_dbhz and the chosen grid, at the straddle-derated "
-    "operating SNR (the average over random Doppler/code phase the "
-    "Monte-Carlo characterization measures - not the on-grid best case).\n",
+    "Predicted Pd at cn0_dbhz and the chosen grid: the average Pd over the "
+    "straddle priors (slow-time scalloping, intra-segment rotation, "
+    "code-phase sample offset - quadrature over uniform priors), matching "
+    "what the Monte-Carlo characterization measures rather than the on-grid "
+    "best case.\n",
     NULL },
   { "straddle_loss", (getter)Acquisition_getprop_straddle_loss, NULL,
     "Mean amplitude derating of the correlation peak from grid straddle "
     "(slow-time Doppler scalloping x intra-segment rotation x code-phase "
-    "sample offset, each averaged over a uniform prior). Sizing and "
-    "pd_predicted both use snr*straddle_loss; 20*log10(straddle_loss) is the "
-    "loss in dB.\n",
+    "sample offset, each averaged over a uniform prior) - a diagnostic "
+    "summary; 20*log10(straddle_loss) is the loss in dB. Sizing and "
+    "pd_predicted average Pd itself over the priors (Pd at this mean "
+    "amplitude would overstate the mean Pd).\n",
     NULL },
   { "fs", (getter)Acquisition_getprop_fs, NULL,
     "Sample rate (Hz) = chip_rate * spc.\n", NULL },

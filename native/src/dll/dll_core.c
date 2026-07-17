@@ -152,6 +152,15 @@ configure_geometry (dll_state_t *s, size_t code_len, size_t sps,
   s->sf        = code_len ? code_len : 1;
   s->sps       = sps ? sps : 1;
   s->inv_sps   = 1.0 / (double)s->sps;
+  /* sf/sps are create-time invariants (no setter changes them after
+     this), so their reciprocals are computed exactly once, here --
+     never re-derived (let alone divided) in the tracking loop's
+     per-epoch execution code (dll_update(), dll_steps_impl()'s
+     segments>1 branch). */
+  double tsamps    = (double)s->sf * (double)s->sps;
+  s->inv_tsamps    = 1.0 / tsamps;
+  s->inv_tsamps2   = s->inv_tsamps * s->inv_tsamps;
+  s->inv_tsamps_sf = s->inv_tsamps / (double)s->sf;
   s->spacing   = spacing;
   s->seed_chip = init_chip;
   s->bn        = bn;
@@ -562,17 +571,29 @@ dll_steps_impl (dll_state_t *state, const float complex *x, size_t x_len,
                 e = -DLL_DISC_CLAMP;
               state->last_error = e;
               /* Divide the loop filter's FULL proportional+integral
-                 output by tsamps to get the per-sample rate correction
-                 -- the validated form (see the Python prototype this
-                 was ported from, despreader.py's module docstring
-                 point 2), not "integrator alone as the sustained rate,
-                 plus the proportional term spread over an extra factor
-                 of sf" (a scheme that diverges under long-run stress:
-                 last_error creeps and saturates DLL_DISC_CLAMP). */
-              double lf_out     = loop_filter_step (&state->lf, e);
-              state->code_rate  = 1.0 + lf_out / tsamps;
-              state->code_nco.phase_inc = dll_cycles_to_phase_delta (
-                  state->code_rate / tsamps);
+                 output by tsamps^2 to get a PURE per-sample phase_inc
+                 deviation -- the validated form (see the Python
+                 prototype this was ported from, despreader.py's module
+                 docstring point 2), not "integrator alone as the
+                 sustained rate, plus the proportional term spread over
+                 an extra factor of sf" (a scheme that diverges under
+                 long-run stress: last_error creeps and saturates
+                 DLL_DISC_CLAMP). The NCO free-runs at its own nominal
+                 rate (1/tsamps, set once in seed()); ctrl never
+                 involves that "1.0" nominal at all -- only the final
+                 phase_inc combination does, as a separate additive
+                 term, so a future second correction source (e.g. a
+                 carrier-aiding term) can sum in without redefining
+                 what "nominal" means. code_rate stays a public ratio
+                 observable (1.0 = nominal) -- never fed back in. Nor
+                 does this divide: inv_tsamps/inv_tsamps2 are
+                 precomputed once at construction
+                 (configure_geometry()), never here. */
+              double lf_out    = loop_filter_step (&state->lf, e);
+              double ctrl      = lf_out * state->inv_tsamps2;
+              state->code_rate = 1.0 + lf_out * state->inv_tsamps;
+              state->code_nco.phase_inc
+                  = dll_cycles_to_phase_delta (state->inv_tsamps + ctrl);
 
               /* Output: this epoch's own natural chunk sums, normalized by
                  the clean power reference found above -- never the

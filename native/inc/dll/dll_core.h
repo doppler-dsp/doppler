@@ -106,6 +106,13 @@ typedef struct {
     size_t sf;               /**< code length (chips per period).          */
     size_t sps;              /**< samples per chip.                        */
     double inv_sps;          /**< 1 / sps (per-sample chip advance scale).  */
+    double inv_tsamps;       /**< 1 / (sf*sps) -- the nominal phase_inc,
+                                  cycles/sample; precomputed once (sf/sps are
+                                  create-time invariants) so the tracking
+                                  loop never divides by tsamps.             */
+    double inv_tsamps2;      /**< 1 / (sf*sps)^2 -- segments>1's ctrl scale. */
+    double inv_tsamps_sf;    /**< 1 / (sf*sps*sf) -- segments<=1's kp*e/(sf)
+                                  ctrl term's scale.                        */
     double spacing;          /**< early/late tap offset, chips (e.g. 0.5).  */
     double chip_pos;         /**< current prompt code phase, chips; DERIVED
                                   from code_nco.phase on every dll_accumulate,
@@ -387,6 +394,17 @@ void dll_lock_epoch(dll_state_t *s);
  * period boundary (dll_accumulate() returned 1) after reading the
  * prompt, then the caller resets the accumulators. Inline.
  *
+ * The NCO free-runs at its own nominal rate (`1/tsamps` cycles/sample,
+ * set once in seed() and never touched directly); this function only
+ * ever computes a pure correction (`ctrl`, built entirely from the
+ * loop filter's integrator and proportional term -- no "1.0"/nominal
+ * anywhere in it) and adds it on top when steering `phase_inc`. Keeping
+ * the control path free of the nominal rate is what lets a future
+ * second correction source (e.g. a carrier-aiding term) sum in
+ * cleanly, and is what `code_rate` (a *public*, ratio-form observable
+ * -- 1.0 = nominal, unrelated to how phase_inc is actually steered)
+ * must never be substituted for internally.
+ *
  * @param s  DLL state.  Must be non-NULL.
  */
 JM_FORCEINLINE JM_HOT void
@@ -401,18 +419,18 @@ dll_update(dll_state_t *s)
         e = -DLL_DISC_CLAMP;
     s->last_error = e;
     loop_filter_step(&s->lf, e);
-    s->code_rate = 1.0 + s->lf.integ;
-    /* Rate from the integrator alone, PLUS the proportional term spread
-       smoothly over the whole next period rather than kicked directly
-       into `phase` (see the comment above): kp*e chips of total
-       correction over sf*sps samples is kp*e/(sf*sf*sps) extra cycles
-       per sample -- the same total chip-domain correction the original
-       double-accumulator design applied as `chip_pos += kp*e`, just
-       distributed through the rate instead of a discrete phase jump. */
-    s->code_nco.phase_inc = dll_cycles_to_phase_delta(
-        s->code_rate / ((double)s->sf * (double)s->sps)
-        + s->lf.kp * e
-              / ((double)s->sf * (double)s->sf * (double)s->sps));
+    /* Pure control deviation: the integrator alone, PLUS the
+       proportional term spread smoothly over the whole next period
+       rather than kicked directly into `phase` (see the comment
+       above) -- kp*e chips of total correction over sf*sps samples is
+       kp*e/(sf*sf*sps) extra cycles per sample, the same total
+       chip-domain correction the original double-accumulator design
+       applied as `chip_pos += kp*e`. Neither term involves "1.0", and
+       neither divides -- inv_tsamps/inv_tsamps_sf are precomputed once
+       at construction (configure_geometry()), never here. */
+    double ctrl = s->lf.integ * s->inv_tsamps + s->lf.kp * e * s->inv_tsamps_sf;
+    s->code_rate = 1.0 + s->lf.integ; /* public ratio observable only */
+    s->code_nco.phase_inc = dll_cycles_to_phase_delta(s->inv_tsamps + ctrl);
 }
 
 /**
@@ -631,8 +649,10 @@ int dll_set_telemetry(dll_state_t *state, dp_tlm_t * tlm, const char * prefix, u
  * pointers, NOT part of the whole-struct snapshot) are packed/restored
  * field-wise when segments > 1. */
 #define DLL_STATE_MAGIC DP_FOURCC ('D','L','L',' ')
-#define DLL_STATE_VERSION 4u /* v4: fixed-point code_nco + segments>1 chunked
-                                lookback buffers (see dll_core.c) */
+#define DLL_STATE_VERSION 5u /* v5: precomputed inv_tsamps/inv_tsamps2/
+                                inv_tsamps_sf fields added to the struct
+                                (v4: fixed-point code_nco + segments>1
+                                chunked lookback buffers; see dll_core.c) */
 size_t dll_state_bytes (const dll_state_t *state);
 void dll_get_state (const dll_state_t *state, void *blob);
 int dll_set_state (dll_state_t *state, const void *blob);

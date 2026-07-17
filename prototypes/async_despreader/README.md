@@ -195,26 +195,66 @@ comparison:
 **This is the key finding for the eventual C port**: the divergence bug
 was never about `loop_filter_core.h`'s internal recursion form -- that
 engine is fine as-is. It was specifically the *scaling formula* wrapped
-around it in `dll_update()`. The C fix (next-steps item 3 below) can
+around it in `dll_update()`. The C fix (next-steps item 2 below) can
 reuse the existing shared loop filter engine untouched and just correct
 how its output is applied, rather than introducing a new filter design
 into C.
 
+**Step 3 -- replica generation (`despreader_interp.py`,
+`compare_interp.py`): done, bit-exact.** Unlike NCO/LoopFilter, there
+was no existing standalone "replica" object to swap into --
+`dll_replica()` (`native/inc/dll/dll_core.h`) is a private helper baked
+directly into `Dll`, not exposed to Python at all. Built a genuinely
+new, general-purpose doppler object instead:
+**`doppler.interp.InterpolatedTable`** (`native/inc/interp_table/
+interp_table_core.h`), a faithful port of a working implementation's own
+`InterpolatedTable` class -- periodic mod-length wraparound indexing +
+floor/nearest/linear interpolation over an arbitrary complex table, not
+DSSS-specific at all. The despreader builds a 2x-oversampled ±1-chip-sign
+table once at construction (`table2x[2c] == table2x[2c+1] ==
+csign[c]`, matching `replica2x`'s "hold" convention) and queries it with
+the same `c*2 - 0.5` position transform `replica2x` used --
+`InterpolatedTable`'s own wraparound makes pre-wrapping the position
+unnecessary (wrapping by a whole multiple of the table length before
+taking the fractional part is a no-op). `compare_interp.py` confirms
+this is not just close but **bit-exact** against `despreader_lf.py`
+across all 18 swept configs (`max|out_diff|=0.000e+00` everywhere) --
+the two are the same double-precision arithmetic, just computed in C
+instead of numpy. Re-validated: `validate_stress.py`'s full sweep
+against `despreader_interp.py` directly (all CLEAN), and the full
+pipeline BER check (still 0.0 at Es/N0=22.6dB and 10dB).
+
+Adding `InterpolatedTable` surfaced the SAME jm codegen leak bug found
+for `NCO`/`LO` (cached buffer + gh-437 weakref-gated retire under the
+`x = obj.method(...)` loop pattern) -- fixed the same way
+(`InterpolatedTableObj_execute` in `native/src/interp/
+interp_ext_interp_table.c` allocates fresh per call by default), with
+the same permanent regression tests in
+`src/doppler/interp/tests/test_interp_table.py`. Unlike NCO/LO,
+`execute_max_out()` is always 0 (output length is deterministically
+tied to input length, no separate larger cap), so its `out=` path only
+ever needs a buffer sized to the call's own input length -- simpler
+than NCO/LO's `>= max_out()` quirk. A real bug was caught and fixed
+*before* it shipped in the despreader glue itself, not the C extension:
+the first draft reused `out=` buffers for `early`/`late` too, but those
+two get stashed as `self._last_early`/`self._last_late` for the NEXT
+epoch's `get_window()` to read -- reusing their buffers would let the
+next epoch's write silently corrupt the "previous epoch" data
+`get_window()` depends on. Only `punctual` (read once, same epoch,
+never stashed) is safe to reuse via `out=`; `early`/`late` stay on the
+safe default (a fresh, independent array every call).
+
 ## Next steps
 
-1. Continue the piece-by-piece C-backed migration: replica generation
-   next (a real `doppler` LUT/interpolator object) -- its own
-   `despreader_<piece>.py` + `compare_<piece>.py` pair, same pattern as
-   steps 1-2 above.
-2. Update `test_async_dsss_receiver.py` to use a valid `windows` divisor
+1. Update `test_async_dsss_receiver.py` to use a valid `windows` divisor
    (its current `K=8` does not evenly divide `TE=2046` -- neither this
    prototype nor `dll_core.c`'s C implementation support that), the
    explicit resample step, and a properly sized warm-up in its low-SNR
    assertions.
-3. Port the two fixes above (sample-level reconstruction, exact
+2. Port the two fixes above (sample-level reconstruction, exact
    loop-filter scaling) into `native/src/dll/dll_core.c`'s `segments > 1`
    branch, with the same stress scenarios as C regression tests.
-4. Separately: the working implementation reviewed for comparison
+3. Separately: the working implementation reviewed for comparison
    couples carrier tracking into the despread replica itself (its local
    oscillator, driven by the Costas loop, multiplies the local code
    replica before despreading), so its code loop is coherent, not

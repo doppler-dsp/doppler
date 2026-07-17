@@ -561,22 +561,18 @@ dll_steps_impl (dll_state_t *state, const float complex *x, size_t x_len,
               else if (e < -DLL_DISC_CLAMP)
                 e = -DLL_DISC_CLAMP;
               state->last_error = e;
-              loop_filter_step (&state->lf, e);
-              state->code_rate = 1.0 + state->lf.integ;
-              /* Rate from the integrator alone, plus the proportional
-                 term spread smoothly over the whole next period --
-                 see dll_update()'s doc comment for why (matches the
-                 original double-accumulator design's `chip_pos += kp*e`
-                 total correction exactly, without either the massive
-                 over-amplification of folding the FULL control into a
-                 sustained rate, or the spurious-rewrap risk of kicking
-                 `phase` directly right after a wrap). */
+              /* Divide the loop filter's FULL proportional+integral
+                 output by tsamps to get the per-sample rate correction
+                 -- the validated form (see the Python prototype this
+                 was ported from, despreader.py's module docstring
+                 point 2), not "integrator alone as the sustained rate,
+                 plus the proportional term spread over an extra factor
+                 of sf" (a scheme that diverges under long-run stress:
+                 last_error creeps and saturates DLL_DISC_CLAMP). */
+              double lf_out     = loop_filter_step (&state->lf, e);
+              state->code_rate  = 1.0 + lf_out / tsamps;
               state->code_nco.phase_inc = dll_cycles_to_phase_delta (
-                  state->code_rate
-                      / ((double)state->sf * (double)state->sps)
-                  + state->lf.kp * e
-                        / ((double)state->sf * (double)state->sf
-                           * (double)state->sps));
+                  state->code_rate / tsamps);
 
               /* Output: this epoch's own natural chunk sums, normalized by
                  the clean power reference found above -- never the

@@ -17,17 +17,24 @@ gain) -- symbol period slightly *longer* than one code epoch, so more
 than one code period elapses per data bit and the symbol boundary
 continuously slides through the epoch grid.
 
-Composition (no new object -- three existing `doppler.track`
-primitives): `Dll(..., segments=K)` splits each epoch into `K`
-sub-epoch partial correlations (code tracking survives a mid-epoch
-data flip because the non-coherent discriminator only degrades the
-one straddling partial); `Costas(tsamps=1)` de-rotates the residual
-carrier per partial (no premature block integration -- the true
-symbol boundary isn't a fixed multiple of partials); a sliding
-length-`K` boxcar re-forms a symbol matched filter without decimating;
-`SymbolSync` recovers the (possibly drifting, independent) symbol
-clock via Gardner TED + Farrow interpolation and emits one decision
-per symbol.
+Composition (no new object -- four existing `doppler.track`/
+`doppler.resample` primitives): `Dll(..., segments=K)` splits each
+epoch into `K` sub-epoch partial correlations (code tracking survives
+a mid-epoch data flip because the non-coherent discriminator only
+degrades the one straddling partial); `Costas(tsamps=1)` de-rotates
+the residual carrier per partial (no premature block integration --
+the true symbol boundary isn't a fixed multiple of partials); a
+sliding length-`K` boxcar re-forms a symbol matched filter without
+decimating; `Resampler` bridges the despreader's own (generally
+fractional) partial rate to a clean integer samples/symbol -- `K`
+is chosen for the despreader's own tracking quality, never coupled to
+the demodulator's rate requirement
+(`feedback_despread_resample_demod_separation`: feeding `SymbolSync`
+the raw fractional partial rate directly tracks correctly *most* of
+the time but fails at some code-phase offsets); `SymbolSync` recovers
+the (possibly drifting, independent) symbol clock via Gardner TED +
+Farrow interpolation at that clean rate and emits one decision per
+symbol.
 
 `Costas.norm_freq` is in cycles/*partial*, not cycles/original-sample
 -- the partial stream is a `TE/K`-times decimated view of the input,
@@ -35,11 +42,16 @@ so a residual carrier that's small relative to the original sample
 rate can still be a large fraction of a cycle per partial. Choose the
 loop bandwidth accordingly (`f0 * TE / K` must sit inside the loop's
 pull-in range).
+
+`K` must evenly divide `TE` (`Dll`'s own `segments` constraint); `K=8`
+does not (`TE=2046`), which silently produced an ill-formed partial
+stream -- `K=6` does (`2046 / 6 = 341`).
 """
 
 import numpy as np
 import pytest
 
+from doppler.resample import Resampler
 from doppler.track import Costas, Dll, SymbolSync
 from doppler.wfm import PN, mls_poly
 
@@ -49,8 +61,10 @@ SPS = 2  # samples/chip -- kept small for a tractable simulation size
 TE = SF * SPS  # samples/code-epoch
 DATA_RATE = 1800.0
 EPOCHS_PER_SYMBOL = (1.0 / DATA_RATE) / (SF / CHIP_RATE)  # 1.11111
-K = 8  # partials/epoch -> ~K*EPOCHS_PER_SYMBOL = 8.89 partials/symbol
-NOMINAL_RATE = K * EPOCHS_PER_SYMBOL  # SymbolSync's starting sps hint
+K = 6  # partials/epoch; must divide TE=2046 (2046 / 6 = 341)
+NOMINAL_RATE = K * EPOCHS_PER_SYMBOL  # despreader's own partial/symbol rate
+TARGET_SPS = 8  # SymbolSync's clean, integer samples/symbol
+CONV_RATE = TARGET_SPS / NOMINAL_RATE  # Resampler bridges the two
 F0 = 1e-4  # residual carrier after acquisition, cycles/sample
 
 

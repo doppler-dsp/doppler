@@ -172,8 +172,8 @@ phase_var (double gamma, double bn, const uint8_t *code,
               awgn_generate (g, NBLK, nb);
               pos = 0;
             }
-          dll_accumulate (&d, sig[i] + nb[pos++]);
-          if (d.chip_pos < (double)SF)
+          int wrapped = dll_accumulate (&d, sig[i] + nb[pos++]);
+          if (!wrapped)
             continue;
           dll_update (&d); /* one loop update per epoch */
           d.acc_e = d.acc_p = d.acc_l = 0.0f;

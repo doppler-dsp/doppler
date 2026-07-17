@@ -8,6 +8,10 @@
  *   3. Code Doppler — code_rate converges to the incoming chip rate
  *   4. Static phase offset is pulled in (discriminator decays)
  *   5. Reset reproducibility
+ *   6. segments > 1: sub-epoch partials recover an async symbol clock
+ *   7. Always-on lock detector: locks on signal, not on noise
+ *   8. Long-run false-lock regression (segments=1, ~4188 periods, several
+ *      noise seeds, zero Doppler/carrier)
  */
 #include "dll/dll_core.h"
 #include "dp_state_test.h"
@@ -166,13 +170,19 @@ main (void)
     /* the loop must speed its replica up to match the incoming rate */
     CHECK (fabs (dll_get_code_rate (d) - (1.0 + delta)) < 1e-4);
     /* sub-chip lock holds: the prompt despreads cleanly over the run tail
-       (mean |Re prompt| near 1; the fractional-boundary discriminator tracks
-       the sliding code phase without the integer-sample staircase). */
+       (mean |Re prompt| well above 0; the code-phase tracking follows the
+       sliding code phase without the integer-sample staircase). Threshold
+       0.85, not the pre-redesign 0.9: the 2-samples/chip interpolated
+       replica (docs/design/async-despreader-working-design.md) is a
+       simpler point-sample model than the old dwell-width-aware exact
+       matched-filter integral it replaced, and costs a small, expected
+       amount of despread gain (observed ~0.87 here; ~0.88 in the Python
+       prototype that validated this redesign) -- not a regression. */
     size_t lo = k / 2;
     double pm = 0.0;
     for (size_t j = lo; j < k; j++)
       pm += fabs (crealf (sym[j]));
-    CHECK (k > lo && pm / (double)(k - lo) > 0.9);
+    CHECK (k > lo && pm / (double)(k - lo) > 0.85);
     dll_destroy (d);
     free (rx);
     free (sym);
@@ -335,13 +345,26 @@ main (void)
        needs two CONSECUTIVE above-threshold decisions. K=4 partials per
        period x 5 periods = 20 looks = exactly one decision window, so one
        window of strong signal leaves the loop unlocked with the verify
-       run in flight; the second window declares. */
-    size_t       nv = make_signal (rx, code, sf, sps, 0.0, 5, 9u, 1);
+       run in flight; the second window declares. Both windows are drawn
+       from ONE continuous 11-period signal (not the same 5 periods
+       replayed) -- replaying the identical buffer for the second call
+       would re-inject it right where the first call's phase left off,
+       an artificial discontinuity at the seam that isn't a real data
+       transition and measurably (not just cosmetically) degrades one
+       epoch's power. A small margin beyond exactly 5 periods' worth of
+       samples (half a partial-segment width, well under a quarter
+       period) gives each window's last epoch room to complete its wrap
+       even though the fixed-point loop's phase_inc drifts by a few PPM
+       during early convergence -- exactly 5*tsamps samples is otherwise
+       a zero-slack edge case, not a meaningful assertion. */
+    size_t       margin = sf * sps / 8;
+    size_t       nv     = sf * sps * 5 + margin;
+    make_signal (rx, code, sf, sps, 0.0, 11, 9u, 1);
     dll_state_t *dv = dll_create (code, sf, sps, 0.0, 0.002, 0.707, 0.5, K);
     dll_steps (dv, rx, nv, out, nv);
     CHECK (dv->lock.cnt == 1);
     CHECK (dll_get_locked (dv) == 0);
-    dll_steps (dv, rx, nv, out, nv);
+    dll_steps (dv, rx + nv, nv, out, nv);
     CHECK (dll_get_locked (dv) == 1);
     dll_destroy (dv);
     free (rx);
@@ -493,6 +516,60 @@ main (void)
     CHECK (d->tlm.ctx == NULL);
     dll_destroy (d);
     dp_tlm_destroy (tlm);
+  }
+
+  /* ---------------------------------------------------------------- *
+   * 8. Long-run false-lock regression: zero Doppler, zero carrier,   *
+   *    segments=1 -- the code phase must never make a large jump     *
+   *    once locked. This is the committed guard for a real bug: an   *
+   *    earlier fixed-point-NCO redesign attempt (dwell-integrated    *
+   *    replica + magnitude discriminator, direct phase kicks) passed  *
+   *    every other test in this file yet still false-locked into a   *
+   *    stable, wrong code phase over thousands of periods on select   *
+   *    noise seeds -- with no test here to catch it. The 2x-          *
+   *    oversampled replica + power-domain NELP discriminator (see     *
+   *    dll_replica()/dll_update()) is what actually fixed it; this    *
+   *    test is what would have caught the earlier attempt's failure   *
+   *    immediately instead of needing a multi-session investigation. *
+   * ---------------------------------------------------------------- */
+  {
+    const size_t  sf = 63, sps = 4, nper = 4188, tsamps = sf * sps;
+    const uint32_t seeds[]   = { 42, 43, 44, 100 };
+    const size_t  n_seeds    = sizeof (seeds) / sizeof (seeds[0]);
+    uint8_t      *code       = malloc (sf);
+    float complex *rx        = malloc (tsamps * nper * sizeof (*rx));
+    for (size_t si = 0; si < n_seeds; si++)
+      {
+        make_code (code, sf, 7u + seeds[si]);
+        size_t n = make_signal (rx, code, sf, sps, 0.0, nper, 1000u + seeds[si],
+                                1);
+        dll_state_t *d = dll_create (code, sf, sps, 0.0, 0.02, 0.707, 0.5, 1);
+        double        prev_phase = -1.0;
+        double        max_jump   = 0.0;
+        for (size_t p = 0; p < nper; p++)
+          {
+            for (size_t i = 0; i < tsamps; i++)
+              dll_accumulate (d, rx[p * tsamps + i]);
+            dll_update (d);
+            d->acc_e = d->acc_p = d->acc_l = 0.0f;
+            double cp = dll_get_code_phase (d);
+            if (prev_phase >= 0.0)
+              {
+                double jump = fabs (cp - prev_phase);
+                if (jump > (double)sf / 2.0)
+                  jump = (double)sf - jump;
+                if (jump > max_jump)
+                  max_jump = jump;
+              }
+            prev_phase = cp;
+          }
+        (void)n;
+        CHECK (max_jump < 5.0); /* no false-lock jump over the whole run */
+        CHECK (fabs (dll_get_code_rate (d) - 1.0) < 1e-3);
+        dll_destroy (d);
+      }
+    free (rx);
+    free (code);
   }
 
   if (_fails)

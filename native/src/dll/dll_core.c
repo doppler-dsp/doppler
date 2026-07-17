@@ -54,16 +54,21 @@ draw_offset (dll_state_t *s)
 static void
 seed (dll_state_t *s)
 {
-  s->chip_pos   = s->seed_chip;
-  s->code_rate  = 1.0;
-  s->acc_e      = 0.0f;
-  s->acc_p      = 0.0f;
-  s->acc_l      = 0.0f;
-  s->acc_o      = 0.0f;
-  s->last_error = 0.0;
-  s->seg_idx    = 0;
-  s->sum_e      = 0.0;
-  s->sum_l      = 0.0;
+  s->code_nco.phase
+      = dll_cycles_to_phase_delta (s->seed_chip / (double)s->sf);
+  s->code_nco.phase_inc = dll_cycles_to_phase_delta (
+      1.0 / ((double)s->sf * (double)s->sps));
+  s->code_nco.norm_freq = 1.0 / ((double)s->sf * (double)s->sps);
+  s->code_nco.nmax      = 0;
+  s->chip_pos        = s->seed_chip;
+  s->code_rate       = 1.0;
+  s->acc_e           = 0.0f;
+  s->acc_p           = 0.0f;
+  s->acc_l           = 0.0f;
+  s->acc_o           = 0.0f;
+  s->last_error      = 0.0;
+  s->seg_idx         = 0;
+  s->have_prev_epoch = 0;
   s->rng        = 0x2545F491u ^ (uint32_t)s->sf; /* deterministic seed */
   draw_offset (s);
   /* Clear the lock detector's running state; keep its config (threshold/
@@ -174,11 +179,50 @@ dll_init (dll_state_t *s, const uint8_t *code, size_t code_len, size_t sps,
   loop_filter_reset (&s->lf);
   s->code      = code; /* borrowed */
   s->owns_code = 0;
+  /* dll_init always runs with segments == 1 (configure_geometry's
+   * set_segments default; there is no by-value counterpart to dll_create()'s
+   * segments parameter), so the segments>1 chunk/lookback buffers are never
+   * allocated for this instance — explicitly NULL them (not calloc'd, unlike
+   * dll_create) so a stack-embedded caller struct doesn't carry garbage
+   * pointers. */
+  s->chunk_p = s->chunk_e = s->chunk_l = NULL;
+  s->last_backward_p = s->last_e = s->last_l = NULL;
   /* In-place (stack-embedded) init: start detached — dll_create's calloc
    * gets this for free, a caller-owned struct would otherwise carry a
    * garbage telemetry pointer into the emit gates. */
   memset (&s->tlm, 0, sizeof s->tlm);
   seed (s);
+}
+
+/* Allocate the segments>1 chunk/lookback buffers (six arrays, length
+ * segments); on any failure, free whatever succeeded and return 0. Only
+ * ever called from dll_create() -- dll_init()'s embedded/borrowed path is
+ * always segments==1 (see dll_init()'s own comment), so this never needs a
+ * matching deinit for that lifecycle. */
+static int
+alloc_segment_buffers (dll_state_t *s, size_t segments)
+{
+  s->chunk_p          = calloc (segments, sizeof (*s->chunk_p));
+  s->chunk_e          = calloc (segments, sizeof (*s->chunk_e));
+  s->chunk_l          = calloc (segments, sizeof (*s->chunk_l));
+  s->last_backward_p  = calloc (segments, sizeof (*s->last_backward_p));
+  s->last_e           = calloc (segments, sizeof (*s->last_e));
+  s->last_l           = calloc (segments, sizeof (*s->last_l));
+  return s->chunk_p && s->chunk_e && s->chunk_l && s->last_backward_p
+         && s->last_e && s->last_l;
+}
+
+static void
+free_segment_buffers (dll_state_t *s)
+{
+  free (s->chunk_p);
+  free (s->chunk_e);
+  free (s->chunk_l);
+  free (s->last_backward_p);
+  free (s->last_e);
+  free (s->last_l);
+  s->chunk_p = s->chunk_e = s->chunk_l = NULL;
+  s->last_backward_p = s->last_e = s->last_l = NULL;
 }
 
 dll_state_t *
@@ -199,6 +243,13 @@ dll_create (const uint8_t *code, size_t code_len, size_t sps, double init_chip,
   memcpy (copy, code, code_len);
   configure_geometry (obj, code_len, sps, init_chip, bn, zeta, spacing);
   set_segments (obj, segments);
+  if (obj->segments > 1 && !alloc_segment_buffers (obj, obj->segments))
+    {
+      free_segment_buffers (obj);
+      free (copy);
+      free (obj);
+      return NULL;
+    }
   obj->code      = copy;
   obj->owns_code = 1;
   seed (obj);
@@ -212,6 +263,7 @@ dll_destroy (dll_state_t *state)
     return;
   if (state->owns_code)
     free ((void *)state->code);
+  free_segment_buffers (state);
   free (state);
 }
 
@@ -260,32 +312,51 @@ dll_tlm_flush (const dll_state_t *s)
   dp_tlm_emit (s->tlm.ctx, s->tlm.id_locked, (double)s->lock.locked);
 }
 
-/* Serializable state — whole-struct snapshot (loop_filter child is
- * POD-embedded, so its bytes are its state); only the borrowed `code` pointer
- * + its ownership are this instance's (config), restored by create() and
- * preserved here. */
+/* Serializable state — whole-struct snapshot (loop_filter child and the
+ * embedded code_nco are both POD, so their bytes are their state) plus,
+ * when segments > 1, the six heap-owned chunk/lookback buffers packed
+ * field-wise (same pattern as despreader_state_t's `flip_hist`) since
+ * they're pointers, not part of the struct's own bytes. The borrowed
+ * `code` pointer + its ownership are this instance's (config), restored
+ * by create() and preserved here. */
 size_t
 dll_state_bytes (const dll_state_t *s)
 {
-  (void)s;
-  return sizeof (dp_state_hdr_t) + sizeof (dll_state_t);
+  size_t extra = s->segments > 1
+                     ? 6 * s->segments * sizeof (*s->chunk_p)
+                     : 0;
+  return sizeof (dp_state_hdr_t) + sizeof (dll_state_t) + extra;
 }
 
 void
 dll_get_state (const dll_state_t *s, void *blob)
 {
   DP_GET_OPEN (DLL_STATE_MAGIC, DLL_STATE_VERSION, dll_state_bytes (s));
-  /* Snapshot the struct but NULL the borrowed `code` pointer + its ownership:
-   * those are this instance's config (restored by create), and serializing a
-   * machine address would make the blob differ across otherwise-identical
-   * instances. The telemetry attachment is zeroed for the same reason (blobs
-   * stay deterministic and attachment-independent; telemetry is observation,
-   * not DSP state). set_state preserves the live values regardless. */
+  /* Snapshot the struct but NULL the borrowed `code` pointer + its ownership,
+   * and the six segments>1 buffer pointers (packed separately below;
+   * serializing a raw address would make the blob differ across otherwise-
+   * identical instances): those are this instance's config (restored by
+   * create), and the telemetry attachment is zeroed for the same reason
+   * (blobs stay deterministic and attachment-independent; telemetry is
+   * observation, not DSP state). set_state preserves the live values
+   * regardless. */
   dll_state_t tmp = *s;
   tmp.code        = NULL;
   tmp.owns_code   = 0;
+  tmp.chunk_p = tmp.chunk_e = tmp.chunk_l = NULL;
+  tmp.last_backward_p = tmp.last_e = tmp.last_l = NULL;
   memset (&tmp.tlm, 0, sizeof tmp.tlm);
   dp_w_bytes (&_w, &tmp, sizeof tmp);
+  if (s->segments > 1)
+    {
+      size_t n = s->segments;
+      dp_w_bytes (&_w, s->chunk_p, n * sizeof (*s->chunk_p));
+      dp_w_bytes (&_w, s->chunk_e, n * sizeof (*s->chunk_e));
+      dp_w_bytes (&_w, s->chunk_l, n * sizeof (*s->chunk_l));
+      dp_w_bytes (&_w, s->last_backward_p, n * sizeof (*s->last_backward_p));
+      dp_w_bytes (&_w, s->last_e, n * sizeof (*s->last_e));
+      dp_w_bytes (&_w, s->last_l, n * sizeof (*s->last_l));
+    }
 }
 
 int
@@ -296,10 +367,32 @@ dll_set_state (dll_state_t *s, const void *blob)
       = s->code; /* this instance's code + ownership (config) */
   int       owns = s->owns_code;
   dll_tlm_t tlm  = s->tlm; /* live attachment survives a state hand-off */
+  /* This instance's own buffers (sized by ITS segments, fixed at create) —
+   * never trust a size from the blob for allocation. */
+  float complex *chunk_p = s->chunk_p, *chunk_e = s->chunk_e,
+                *chunk_l = s->chunk_l;
+  float complex *last_backward_p = s->last_backward_p, *last_e = s->last_e,
+                *last_l          = s->last_l;
   dp_r_bytes (&_r, s, sizeof *s);
   s->code      = code;
   s->owns_code = owns;
   s->tlm       = tlm;
+  s->chunk_p = chunk_p;
+  s->chunk_e = chunk_e;
+  s->chunk_l = chunk_l;
+  s->last_backward_p = last_backward_p;
+  s->last_e           = last_e;
+  s->last_l           = last_l;
+  if (s->segments > 1)
+    {
+      size_t n = s->segments;
+      dp_r_bytes (&_r, s->chunk_p, n * sizeof (*s->chunk_p));
+      dp_r_bytes (&_r, s->chunk_e, n * sizeof (*s->chunk_e));
+      dp_r_bytes (&_r, s->chunk_l, n * sizeof (*s->chunk_l));
+      dp_r_bytes (&_r, s->last_backward_p, n * sizeof (*s->last_backward_p));
+      dp_r_bytes (&_r, s->last_e, n * sizeof (*s->last_e));
+      dp_r_bytes (&_r, s->last_l, n * sizeof (*s->last_l));
+    }
   return DP_OK;
 }
 
@@ -343,8 +436,8 @@ dll_steps_impl (dll_state_t *state, const float complex *x, size_t x_len,
           /* Off-peak (noise) tap on the same pre-advance phase as the
              prompt; accumulates over the same epoch. */
           dll_lock_accumulate (state, x[n]);
-          dll_accumulate (state, x[n]);
-          if (state->chip_pos < (double)state->sf)
+          int wrapped = dll_accumulate (state, x[n]);
+          if (!wrapped)
             continue;
           float complex prompt = state->acc_p / (float)tsamps;
           float complex noise  = state->acc_o / (float)tsamps;
@@ -362,44 +455,145 @@ dll_steps_impl (dll_state_t *state, const float complex *x, size_t x_len,
         }
       return emitted;
     }
-  /* segments > 1: dump a partial prompt every sf/segments chips, fold each
-     partial's early/late envelopes into the non-coherent epoch sums, and steer
-     the code NCO once per epoch on (sum|E|-sum|L|)/(sum|E|+sum|L|) — which a
-     data flip cannot collapse (only the one straddling segment degrades). */
+  /* segments > 1: chunked output + a margin-gated, one-epoch-deep lookback
+     (docs/design/async-despreader-working-design.md) -- the OUTPUT is always
+     this epoch's own natural, unshifted per-chunk prompt sums (an oversampled
+     stream at `segments` samples/epoch); the lookback only supplies a clean
+     power reference (for the discriminator's denominator and the output
+     normalization) by comparing the natural window against candidates built
+     from the previous epoch's tail -- never an open-ended buffer, exactly one
+     epoch deep. Gated by DLL_LOOKBACK_MARGIN: a still-converging code_rate is
+     never exactly 1.0, so comparing two epochs' windows without a real
+     margin lets pure numerical noise make the search prefer a stale window,
+     destabilizing the loop even with zero actual data transitions
+     (validated empirically in the Python prototype this ports). */
+  size_t w      = state->segments;
+  double tsamps = (double)(state->sf * state->sps);
   for (size_t n = 0; n < x_len; n++)
     {
-      /* Off-peak (noise) tap, accumulated per sample like the prompt and
-         dumped per partial; gives one signal-free noise sample per emitted
-         look. */
       dll_lock_accumulate (state, x[n]);
-      dll_accumulate (state, x[n]);
-      while (state->seg_idx < state->segments
-             && state->chip_pos
-                    >= (double)(state->seg_idx + 1) * state->seg_chips)
+      int wrapped = dll_accumulate (state, x[n]);
+      for (;;)
         {
+          if (state->seg_idx >= w)
+            break;
+          int last_chunk = (state->seg_idx + 1 == w);
+          int ready
+              = last_chunk
+                    ? wrapped
+                    : (state->chip_pos
+                       >= (double)(state->seg_idx + 1) * state->seg_chips);
+          if (!ready)
+            break;
+          /* Per-chunk lock-detector look: unrelated to the lookback (the
+             noise tap's own statistics aren't biased by a data transition),
+             so this stays exactly as it was pre-redesign -- immediate,
+             seg_norm-normalized. */
           float complex part  = state->acc_p / (float)state->seg_norm;
           float complex noise = state->acc_o / (float)state->seg_norm;
-          if (emitted < max_out)
-            out[emitted++] = part;
           lock_look (state, part, noise);
-          state->sum_e += (double)cabsf (state->acc_e);
-          state->sum_l += (double)cabsf (state->acc_l);
+          state->chunk_p[state->seg_idx] = state->acc_p;
+          state->chunk_e[state->seg_idx] = state->acc_e;
+          state->chunk_l[state->seg_idx] = state->acc_l;
           state->acc_e = 0.0f;
           state->acc_p = 0.0f;
           state->acc_l = 0.0f;
           state->acc_o = 0.0f;
           state->seg_idx++;
-          if (state->seg_idx == state->segments)
+          if (state->seg_idx == w)
             {
-              double me = state->sum_e, ml = state->sum_l;
-              double e          = (me - ml) / (me + ml + DLL_EPS);
+              /* Epoch boundary: margin-gated one-epoch-deep lookback for a
+                 clean power reference. */
+              float complex fsum = 0.0f;
+              for (size_t k = 0; k < w; k++)
+                fsum += state->chunk_p[k];
+              double best_abs  = cabsf (fsum) / tsamps;
+              size_t best_widx = 0; /* 0 = natural (unshifted) window */
+              if (state->have_prev_epoch)
+                {
+                  float complex partial = fsum;
+                  for (size_t widx = 1; widx < w; widx++)
+                    {
+                      /* partial = this epoch's first (w-widx) chunks;
+                         last_backward_p[widx-1] = previous epoch's last
+                         widx chunks (a reversed cumsum, so index widx-1
+                         holds the sum of the last widx chunks). */
+                      partial -= state->chunk_p[w - widx];
+                      float complex combined
+                          = partial + state->last_backward_p[widx - 1];
+                      double p = cabsf (combined) / tsamps;
+                      if (p > best_abs * DLL_LOOKBACK_MARGIN)
+                        {
+                          best_abs  = p;
+                          best_widx = widx;
+                        }
+                    }
+                }
+              /* Reconstruct E/L over the winning window: last_e/last_l's
+                 tail (best_widx chunks) + this epoch's chunk_e/chunk_l head
+                 (w-best_widx chunks) -- trivial when best_widx == 0. */
+              float complex acc_e_tot = 0.0f, acc_l_tot = 0.0f;
+              if (best_widx > 0)
+                for (size_t k = w - best_widx; k < w; k++)
+                  {
+                    acc_e_tot += state->last_e[k];
+                    acc_l_tot += state->last_l[k];
+                  }
+              for (size_t k = 0; k < w - best_widx; k++)
+                {
+                  acc_e_tot += state->chunk_e[k];
+                  acc_l_tot += state->chunk_l[k];
+                }
+              float  me = cabsf (acc_e_tot), ml = cabsf (acc_l_tot);
+              double ep = (double)me * me, lp = (double)ml * ml;
+              double pp = best_abs * best_abs;
+              double e  = 0.5 * (ep - lp) / (pp + DLL_EPS);
+              if (e > DLL_DISC_CLAMP)
+                e = DLL_DISC_CLAMP;
+              else if (e < -DLL_DISC_CLAMP)
+                e = -DLL_DISC_CLAMP;
               state->last_error = e;
               loop_filter_step (&state->lf, e);
               state->code_rate = 1.0 + state->lf.integ;
-              state->chip_pos -= (double)state->sf;
-              state->chip_pos += state->lf.kp * e; /* proportional nudge */
-              state->sum_e   = 0.0;
-              state->sum_l   = 0.0;
+              /* Rate from the integrator alone, plus the proportional
+                 term spread smoothly over the whole next period --
+                 see dll_update()'s doc comment for why (matches the
+                 original double-accumulator design's `chip_pos += kp*e`
+                 total correction exactly, without either the massive
+                 over-amplification of folding the FULL control into a
+                 sustained rate, or the spurious-rewrap risk of kicking
+                 `phase` directly right after a wrap). */
+              state->code_nco.phase_inc = dll_cycles_to_phase_delta (
+                  state->code_rate
+                      / ((double)state->sf * (double)state->sps)
+                  + state->lf.kp * e
+                        / ((double)state->sf * (double)state->sf
+                           * (double)state->sps));
+
+              /* Output: this epoch's own natural chunk sums, normalized by
+                 the clean power reference found above -- never the
+                 lookback-shifted reconstruction. */
+              double denom = best_abs > 0.0 ? state->seg_norm * best_abs
+                                             : state->seg_norm;
+              for (size_t k = 0; k < w; k++)
+                if (emitted < max_out)
+                  out[emitted++] = state->chunk_p[k] / (float)denom;
+
+              /* This epoch's reversed-cumsum + raw chunk sums become the
+                 lookback reference for the NEXT epoch (computed only after
+                 all reads of the OLD last_backward_p/last_e/last_l above). */
+              float complex bsum = 0.0f;
+              for (size_t j = 0; j < w; j++)
+                {
+                  bsum += state->chunk_p[w - 1 - j];
+                  state->last_backward_p[j] = bsum;
+                }
+              memcpy (state->last_e, state->chunk_e,
+                      w * sizeof (*state->last_e));
+              memcpy (state->last_l, state->chunk_l,
+                      w * sizeof (*state->last_l));
+              state->have_prev_epoch = 1;
+
               state->seg_idx = 0;
               draw_offset (state); /* fresh noise phase for the next epoch */
               if (tlm_on)

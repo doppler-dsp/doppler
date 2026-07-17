@@ -302,6 +302,14 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
    * for NCO's raw phase output. With every `ctrl[i] == 0` this is
    * bit-identical to nco_steps_u32(). Returns ctrl_len.
    *
+   * Python's `out=` keyword writes directly into a caller-supplied
+   * buffer instead of allocating a fresh one -- essential for driving
+   * this from a hot per-epoch tracking loop with no per-call
+   * allocation (fill `ctrl` in place, reuse the same `out` buffer every
+   * call). That buffer must be sized to `steps_u32_ctrl_max_out()`,
+   * NOT just `len(ctrl)` -- the returned view is still correctly
+   * sliced to `len(ctrl)` regardless of the buffer's actual size.
+   *
    * @param state     NCO state returned by nco_create().
    * @param ctrl      Float32 array of per-sample normalised-frequency
    *                  control offsets, any sign (the fractional cycle is

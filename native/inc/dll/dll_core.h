@@ -241,14 +241,41 @@ void dll_init(dll_state_t *s, const uint8_t *code, size_t code_len, size_t sps,
               double init_chip, double bn, double zeta, double spacing);
 
 /**
+ * @brief This sample's dwell-CENTER code phase, chips.
+ *
+ * A received sample is a zero-order hold over its dwell interval
+ * `[chip_pos, chip_pos + step)`, `step` = one `phase_inc` in chip units
+ * (~1/sps). Evaluating the replica taps at the dwell's START (the raw
+ * pre-advance `chip_pos`) treats every sample as landing at the very
+ * first instant of its hold interval rather than at the interval's
+ * continuous-time representative point — this biases the correlation by
+ * half a sample's worth of chip phase (0.5/sps chips). Found via a
+ * direct symmetry check: the autocorrelation of a real signal must
+ * satisfy R(tau) = R(-tau), and the S-curve didn't — it was offset from
+ * tau=0 by exactly 0.5/sps, vanishing when taps are evaluated at the
+ * dwell midpoint instead. Advancing by half of `phase_inc` before
+ * deriving the chip position gives that midpoint.
+ *
+ * @param s  DLL state.
+ * @return   Dwell-center code phase, chips.
+ */
+JM_FORCEINLINE double
+dll_dwell_center_chip_pos(const dll_state_t *s)
+{
+    uint32_t mid = s->code_nco.phase + (s->code_nco.phase_inc >> 1);
+    return ((double)mid / 4294967296.0) * (double)s->sf;
+}
+
+/**
  * @brief Per-sample early/prompt/late correlate + fixed-point code-phase
  * advance.
  *
  * Correlates the carrier-wiped sample @p d against the early, prompt and late
- * code taps at the PRE-advance phase (wrapped over the periodic code), then
- * advances the embedded fixed-point NCO by one sample and re-derives
- * `chip_pos` from its POST-advance phase (never independently accumulated —
- * see @ref dll_state_t::chip_pos). Inline, zero call overhead.
+ * code taps at this sample's dwell-CENTER phase (@ref
+ * dll_dwell_center_chip_pos, wrapped over the periodic code), then advances
+ * the embedded fixed-point NCO by one sample and re-derives `chip_pos` from
+ * its POST-advance (dwell-START-of-next-sample) phase (never independently
+ * accumulated — see @ref dll_state_t::chip_pos). Inline, zero call overhead.
  *
  * @param s  DLL state.  Must be non-NULL.
  * @param d  One carrier-wiped input sample.
@@ -263,7 +290,7 @@ JM_FORCEINLINE JM_HOT int
 dll_accumulate(dll_state_t *s, float complex d)
 {
     double sfd = (double)s->sf;
-    double cp = ((double)s->code_nco.phase / 4294967296.0) * sfd;
+    double cp = dll_dwell_center_chip_pos(s);
     double ce = cp + s->spacing;
     if (ce >= sfd)
         ce -= sfd;
@@ -286,9 +313,11 @@ dll_accumulate(dll_state_t *s, float complex d)
  * The composition sibling of dll_accumulate(): correlates the input against
  * the code at this epoch's random off-peak offset, feeding the CFAR noise
  * reference. Call it on the same sample stream as dll_accumulate() and
- * BEFORE it (both taps evaluate the pre-advance chip phase). A composer
- * that skips this (and dll_lock_look()/dll_lock_epoch()) simply leaves the
- * lock detector idle — locked stays 0, lock_stat/noise_est stay 0.
+ * BEFORE it (both taps evaluate this sample's dwell-CENTER chip phase, @ref
+ * dll_dwell_center_chip_pos — dll_accumulate() hasn't advanced the NCO yet,
+ * so the two calls see the same phase). A composer that skips this (and
+ * dll_lock_look()/dll_lock_epoch()) simply leaves the lock detector idle —
+ * locked stays 0, lock_stat/noise_est stay 0.
  *
  * @param s  DLL state.  Must be non-NULL.
  * @param d  One carrier-wiped input sample (same sample as dll_accumulate).
@@ -296,7 +325,7 @@ dll_accumulate(dll_state_t *s, float complex d)
 JM_FORCEINLINE JM_HOT void
 dll_lock_accumulate(dll_state_t *s, float complex d)
 {
-    double co = s->chip_pos + s->off_chips;
+    double co = dll_dwell_center_chip_pos(s) + s->off_chips;
     if (co >= (double)s->sf)
         co -= (double)s->sf;
     s->acc_o += d * dll_replica(s, co);

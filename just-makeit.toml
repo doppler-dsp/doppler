@@ -1979,6 +1979,13 @@ values = ["cf32", "cf64", "ci32", "ci16", "ci8"]
 name = "endian"
 values = ["le", "be"]
 
+[[enum]]
+name = "interp_method"
+values = ["floor", "nearest", "linear"]
+
+[module.interp]
+objects = ["interp_table"]
+
 [module.track]
 objects = ["loop_filter", "costas", "dll", "symsync", "carrier_mpsk", "carrier_nda", "mpsk_receiver"]
 

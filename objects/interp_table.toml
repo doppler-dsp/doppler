@@ -1,0 +1,28 @@
+[interp_table]
+arg_type = "double"
+return_type = "double _Complex"
+mutable = "false"
+no_state = "true"
+no_step = "true"
+class_name = "InterpolatedTable"
+
+[[interp_table.init_params]]
+name = "table"
+type = "double _Complex[]"
+
+[[interp_table.init_params]]
+name = "method"
+type = "enum:interp_method"
+default = "linear"
+
+[[interp_table.methods]]
+name = "execute"
+arg_type = "double"
+return_type = "double _Complex"
+variable_output = true
+
+[[interp_table.properties]]
+name = "n"
+type = "size_t"
+field = true
+doc = "Table length (one period), read-only."

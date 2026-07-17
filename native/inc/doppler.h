@@ -105,6 +105,8 @@ extern "C" {
 
 #include "acc_q8/acc_q8_core.h"
 
+#include "interp_table/interp_table_core.h"
+
 #include "loop_filter/loop_filter_core.h"
 
 #include "costas/costas_core.h"

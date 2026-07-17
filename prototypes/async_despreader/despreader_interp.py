@@ -166,7 +166,16 @@ class SimpleAsyncDespreader:
         self.step_size = self.tsamps // windows
         self.spacing = spacing
 
+        # Precomputed once (sf/sps/tsamps are construction-time
+        # invariants) -- the tracking loop below never divides by
+        # tsamps, it only ever multiplies by this reciprocal.
+        self._inv_tsamps = 1.0 / self.tsamps
         self.code_rate = 1.0
+        # Pure control-loop state: the tracked deviation from nominal,
+        # with NO notion of the nominal (1.0) rate baked in anywhere.
+        # `code_rate` (above) stays a public, ratio-form display value
+        # only -- the control path below is built entirely from this.
+        self._rate_dev = 0.0
         self._nco = NCO(norm_freq=1.0 / self.tsamps, nmax=0)
         self._nco.phase = int(
             round(((init_chip / self.sf) % 1.0) * 4294967296.0)
@@ -216,13 +225,15 @@ class SimpleAsyncDespreader:
 
             # NCO control port: phase_inc stays at the pinned nominal
             # rate; `ctrl` is this epoch's tracked deviation
-            # (code_rate - 1)/tsamps, constant across the epoch since
-            # the loop filter only updates once per epoch, added on top
-            # for these tsamps steps without ever touching norm_freq.
-            # Both buffers are the ones allocated once in __init__ --
-            # fill in place, write through `out=` -- no allocation in
-            # this hot per-epoch loop.
-            self._ctrl_buf.fill((self.code_rate - 1.0) / self.tsamps)
+            # (self._rate_dev, a PURE deviation -- no "1.0" nominal
+            # anywhere in it) scaled by the precomputed inv_tsamps,
+            # constant across the epoch since the loop filter only
+            # updates once per epoch, added on top for these tsamps
+            # steps without ever touching norm_freq. Both buffers are
+            # the ones allocated once in __init__ -- fill in place,
+            # write through `out=` -- no allocation, and no division,
+            # in this hot per-epoch loop.
+            self._ctrl_buf.fill(self._rate_dev * self._inv_tsamps)
             phase_u32 = self._nco.steps_u32_ctrl(
                 self._ctrl_buf, out=self._phase_buf
             )
@@ -282,12 +293,15 @@ class SimpleAsyncDespreader:
             )
             self.last_error = e
             lf_out = self.lf.step(e)
-            # the working implementation's exact scaling: the loop
+            # The working implementation's exact scaling: the loop
             # filter's own update rate is once/epoch, so its output is a
-            # "chips per epoch" quantity; dividing by tsamps converts
-            # that into the per-sample rate the NCO needs (matches its
-            # despreader's `_loop_out_scaling`).
-            self.code_rate = 1.0 + lf_out / self.tsamps
+            # "chips per epoch" quantity; multiplying by the
+            # precomputed inv_tsamps converts that into the per-sample
+            # rate deviation the NCO needs (matches its despreader's
+            # `_loop_out_scaling`) -- a pure deviation, no "1.0"
+            # anywhere. `code_rate` is derived from it for display only.
+            self._rate_dev = lf_out * self._inv_tsamps
+            self.code_rate = 1.0 + self._rate_dev
 
             out[k * self.windows:(k + 1) * self.windows] = integrate_and_dump
 

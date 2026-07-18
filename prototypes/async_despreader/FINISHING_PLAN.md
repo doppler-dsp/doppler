@@ -141,27 +141,50 @@ exceeded ~1.3 kHz).
   integrated methodology to `Es/N0={3,5,10}dB x rate={0,500,1000}Hz/s`
   -- the corrected worst case plus a 2x margin point, `bn=bn_car=0.01`
   per `SPEC.md`'s derived ceiling, 8 seeds/point).
-  **Finding: FLL-assist is UNSAFE at the literal 3 dB floor, confirmed
-  at the ACTUAL corrected rate, not just an inflated one.** At
-  Es/N0=3dB, rate=500 Hz/s (SPEC's real worst case): FLL=on is worse
-  than FLL=off in 7/8 seeds (mean err 3018 Hz vs. FLL=off's 676 Hz --
-  over 4x worse); rate=0: 8/8 worse; rate=1000 (2x margin): 6/8 worse.
-  **Clean transition at 5 dB**: at rate=500, FLL=on FLIPS to a clear
-  win, 0/8 worse (mean 110 Hz vs. FLL=off's 675 Hz). 10 dB behaves
-  exactly as originally validated (0/8 gross errors, clear win at
-  nonzero rates). Also notable: Costas-ALONE (FLL=off) settles to a
-  persistent ~675 Hz error at rate=500 regardless of Es/N0 (3/5/10 dB
-  all land ~672-680 Hz) -- past its own ~117 Hz/s lock-loss cliff (see
-  below) but not so far past it that tracking goes fully unbounded;
-  either way, ~675 Hz residual is itself too large for clean decode,
-  so Costas-alone isn't a safe fallback either. **This directly
-  extends `SPEC.md`'s own "still open" line** (per-epoch bit-straddle
-  SNR loss "not yet separately quantified") — it's now quantified, and
-  the answer is that the existing FLL-assist mechanism needs a gate
-  before it's trustworthy near the floor (either a sanity/consistency
-  check per correction, or adaptively growing `fll_block_epochs` off
-  an Es/N0 estimate — NOT YET IMPLEMENTED, flagged as a follow-up
-  below).
+  **ORIGINAL finding (superseded — kept for the historical record of
+  why the rework below happened): FLL-assist is UNSAFE at the literal
+  3 dB floor, confirmed at the ACTUAL corrected rate, not just an
+  inflated one.** At Es/N0=3dB, rate=500 Hz/s (SPEC's real worst case):
+  FLL=on is worse than FLL=off in 7/8 seeds (mean err 3018 Hz vs.
+  FLL=off's 676 Hz -- over 4x worse); rate=0: 8/8 worse; rate=1000 (2x
+  margin): 6/8 worse. Clean transition at 5 dB, 10 dB behaves as
+  originally validated. Also notable: Costas-ALONE (FLL=off) settles
+  to a persistent ~675 Hz error at rate=500 regardless of Es/N0 --
+  past its own ~117 Hz/s lock-loss cliff (see below) -- so Costas-alone
+  isn't a safe fallback either. This was the ad-hoc periodic-FFT
+  mechanism's own result; it directly extends `SPEC.md`'s "still open"
+  per-epoch bit-straddle line, but the mechanism itself turned out to
+  be the wrong thing to fix (see "The real fix" section below).
+
+  **UPDATED result, same 8-seed/point sweep, after the rework to the
+  real `bn_fll` cross-product mechanism (`bn_fll_car=0.03`,
+  `test_costas_core.c`'s own validated calibration point) — now a
+  categorically different, and clean, result:**
+
+  | Es/N0 | rate (Hz/s) | FLL=off mean err (Hz) | FLL=on mean err (Hz) | FLL=on worse than off |
+  |---|---|---|---|---|
+  | 3 dB  | 0    |    4.2 |   57.1 | 8/8 (rate=0: no ramp to correct — pure added noise floor, see below) |
+  | 3 dB  | 500  |  668.3 |   62.9 | 0/8 |
+  | 3 dB  | 1000 | 1351.3 |   51.8 | 0/8 |
+  | 5 dB  | 0    |    3.0 |   52.6 | 6/8 |
+  | 5 dB  | 500  |  674.6 |   51.5 | 0/8 |
+  | 5 dB  | 1000 | 1346.6 |   21.6 | 0/8 |
+  | 10 dB | 0    |    1.4 |   10.9 | 8/8 |
+  | 10 dB | 500  |  668.2 |   18.7 | 0/8 |
+  | 10 dB | 1000 | 1351.1 |   13.6 | 0/8 |
+
+  **At SPEC's literal worst case (3 dB / 500 Hz/s): mean error 668 Hz
+  (FLL=off) -> 63 Hz (FLL=on), a ~10x reduction; 0/8 seeds worse.** No
+  gross wrong-peak errors anywhere in the sweep (max error across every
+  nonzero-rate cell stays under 200 Hz). The only place FLL=on costs
+  anything is `rate=0` (no ramp present) — a real, understood, minor
+  trade-off: an always-on cross-product discriminator adds a small
+  noise floor (tens of Hz) even with nothing to pull in, since it's
+  still computing and folding in a nonzero (if small) `freq_err` every
+  epoch from noise alone. Full raw sweep output:
+  `/home/matt/.claude/jobs/6e54682b/tmp/floor_test_reworked_out.txt`.
+  **This closes the follow-up** — the mechanism itself (not a gate
+  bolted onto the old one) was the fix; see below.
 
 ## Still open / explicit follow-ups (not started)
 
@@ -222,20 +245,44 @@ shipped, already-validated one instead (per this project's own "never
 reimplement existing logic" principle). This is now the actual
 follow-up:
 
-- [ ] **Rework `despreader_coupled.py`'s carrier tracking to use the
-  real `costas_core.h` mechanism** (either call the real `Costas`
-  object directly if its per-symbol/downstream-of-despread shape fits,
-  or port its `bn_fll` cross-product update rule into the prototype's
-  own chip-rate, pre-despread carrier loop if the "carrier ahead of
-  despreading" architecture this module explores needs to stay
-  chip-rate) instead of the hand-rolled phase-only discriminator +
-  ad-hoc periodic-batch-reestimation FLL-assist it has today. This is
-  real prototype-refactor work, not yet started.
-- [ ] The plots backing this finding: `/home/matt/.claude/jobs/
-  6e54682b/tmp/loop_stress_3_10db.png` (prototype's own FLL-assist,
+- [x] **Rework `despreader_coupled.py`'s carrier tracking to use the
+  real `costas_core.h` mechanism.** `Costas.steps()` couldn't be
+  called directly -- it's a self-contained block API (raw samples in,
+  one symbol-rate prompt out) that does its own internal wipeoff+I&D,
+  discarding the intermediate per-sample derotated stream this
+  module's code-tracking correlator needs (and per-sample, PRE-despread
+  correction is load-bearing here, not optional -- a downstream-only
+  fix lets the signal walk out of the correlator's bandwidth over
+  minutes of operation). So the port is at the mechanism level, not an
+  object swap: `costas_update`'s exact control flow (cross-product
+  `freq_err` folded into `car_lf.integ` ahead of `step(e_car)`, PLUS
+  the proportional phase-kick `nco.phase += nco_norm_to_inc(kp*e/2pi)`
+  this module was missing entirely) now drives the SAME real `LO`/
+  `LoopFilter` C objects already in use -- reusing the canonical
+  primitive's actual numerics, only the epoch-level wiring (which
+  prompt feeds which discriminator) is new, since that wiring is
+  exactly what `Costas.steps()`'s fixed shape can't expose. New
+  constructor param `bn_fll_car` (mirrors `Costas`'s own `bn_fll`,
+  `k_fll=4*bn_fll_car`) replaces `fll_block_epochs`/`fll_n_fft`/
+  `fll_zero_pad` and the whole periodic-FFT mechanism outright -- one
+  tracked carrier deviation now, not a coarse/fine split.
+  Smoke-verified (`Es/N0=3dB, rate=500Hz/s`: err 664 Hz FLL-off -> 69 Hz
+  FLL-on; `10dB`: 659 Hz -> 18 Hz) before re-running the full 8-seed
+  sweep -- see updated numbers below, replacing the old mechanism's
+  entries. Callers migrated: `doppler_rate_test.py`,
+  `doppler_rate_floor_test.py` (both `run_integrated*` now take
+  `bn_fll_car=` instead of `fll_block_epochs=`, `BN_FLL_CAR=0.03` --
+  `test_costas_core.c`'s own validated calibration point), and
+  `acq_handoff.py`'s docstring (its tracking construction never passed
+  `fll_block_epochs=`, so its behavior is unaffected -- FLL stays
+  disabled there by default, same as before).
+- [ ] The plots backing the ORIGINAL finding (kept for the historical
+  record of why this rework happened): `/home/matt/.claude/jobs/
+  6e54682b/tmp/loop_stress_3_10db.png` (prototype's OLD FLL-assist,
   runaway at 3dB) and `real_costas_fll_3_10db.png` (real bn_fll,
-  stable at both) -- not yet copied into the repo/docs; worth adding
-  to `docs/design/` if this finding gets written up formally.
+  stable at both, standalone `Costas` object) -- not yet copied into
+  the repo/docs; worth adding to `docs/design/` if this finding gets
+  written up formally.
 
 ## Corrected Doppler-rate figure (this session, later)
 

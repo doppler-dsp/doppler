@@ -66,25 +66,44 @@ away unboundedly -- above ~120 Hz/s (confirmed by an 8000-epoch
 time-series trace, not just a final snapshot). `SPEC.md`'s own
 corrected worst case (+/-500 Hz/s, was mistyped "+/-5 kHz/s") is
 already ~4x past that cliff, so some form of rate-aiding is
-structurally required, not optional. (An earlier `doppler_rate_test.py`
-measurement at the since-corrected, 10x-too-high rate figure found a
-one-shot static estimate off by >9 kHz there, with a periodically
-re-seeded version tracking to ~60 Hz -- consistent with this, since
-that rate was also far past the cliff.) Set
-`fll_block_epochs` to enable a SECOND, slower carrier-tracking axis:
-every that many epochs, the despread output accumulated over the block
-is run through `freq_refine.estimate_residual_freq` (the exact same
-primitive Phase 1c already validated -- no new discriminator), and the
-result becomes a correction to a separate COARSE deviation register,
-left entirely apart from Costas's own fast, continuous FINE deviation.
-The two are pure deviations, combined only where they're actually used
-(the LO's ctrl port, the display `car_norm_freq`, and the code-aiding
-scale) -- never re-mixed into each other's state, same discipline as
-the rest of this project's control-path architecture. `bn_car` and
-`fll_block_epochs` are thus two independent knobs on two different
-rate regimes: `bn_car` sizes how fast Costas closes a STEP-like
-residual; `fll_block_epochs` sizes how often the coarse loop corrects
-the RAMP-induced lag Costas structurally cannot close on its own.
+structurally required, not optional.
+
+**The real fix (Phase 1f): `bn_fll_car`, not a hand-rolled FFT
+re-estimate.** The FIRST FLL-assist attempt (Phase 1d/1e, described
+above) invented an entirely separate, from-scratch mechanism: a
+periodic batch `freq_refine.estimate_residual_freq` (squaring+FFT)
+folded into a second "coarse" deviation register. Investigating why
+*that* mechanism was unsafe near the noise floor (gross wrong-peak
+corrections, -7800 Hz error at 3dB/500Hz-per-s) led to the question
+that mattered -- "where is this Costas?" -- and the discovery that
+`costas_core.h`'s own `bn_fll` is EXACTLY this problem, already
+solved: a decision-directed cross-product frequency discriminator
+(`costas_update`'s `k_fll * freq_err` term, folded straight into the
+PI loop's own integrator) with a far wider linear range than the
+phase discriminator alone, validated safe at the identical stress
+scenario (-25 Hz error at 3dB, vs -7800 Hz for the hand-rolled
+mechanism; see `test_real_costas_fll.py` in this session's
+investigation, referenced from `FINISHING_PLAN.md`). This module now
+mirrors `costas_update` directly: `bn_fll_car` (default 0.0, disabled
+-- same convention as `Costas`'s own `bn_fll`) derives `k_fll = 4 *
+bn_fll_car`; every epoch, a cross-product between this epoch's and
+the previous epoch's despread prompt (both data-wiped by their own
+sign, so a BPSK bit flip between epochs doesn't corrupt the product)
+nudges `car_lf.integ` directly, ahead of the loop filter's own
+`step(e_car)` call -- plus the proportional phase-kick
+(`nco.phase += nco_norm_to_inc(kp*e_car/2pi)`) `costas_update` also
+applies, previously missing here entirely. There is only ONE tracked
+carrier deviation now (`_car_rate_dev`), not two -- the old
+coarse/fine split is retired along with the FFT mechanism it existed
+to support. `bn_car` and `bn_fll_car` are still two independent knobs
+on two different rate regimes, exactly like `Costas`'s own `bn`/
+`bn_fll`: `bn_car` sizes how fast the PLL closes a STEP-like residual;
+`bn_fll_car` sizes how fast the FLL cross-product term pulls in a
+RAMP-induced (or just large-initial) residual the PLL alone cannot
+close. `freq_refine.estimate_residual_freq` remains the right tool
+for `acq_handoff.py`'s one-shot post-acquisition frequency bridge
+(Phase 1c) -- it's `despreader_coupled.py`'s own duplicate
+CONTINUOUS-TRACKING use of it, specifically, that's retired here.
 """
 from __future__ import annotations
 
@@ -93,9 +112,21 @@ import numpy as np
 from doppler.interp import InterpolatedTable
 from doppler.source import LO, NCO
 from doppler.track import LoopFilter
-from freq_refine import estimate_residual_freq
 
 COSTAS_EPS = 1e-12
+
+
+def _nco_norm_to_inc(cycles):
+    """Cycles -> uint32 phase-delta, matching `nco_core.h`'s
+    `nco_norm_to_inc` (floor-normalize then round -- a bare truncating
+    cast is UB on a negative value; see that primitive's own doc).
+    Not Python-exposed (it's a header-inline C composition primitive),
+    so mirrored here rather than adding new bindings for a prototype --
+    this file already used the identical formula inline once (the
+    `init_chip` phase seed below), now factored so it isn't a second
+    private copy."""
+    frac = cycles - np.floor(cycles)
+    return int(round(frac * 4294967296.0)) & 0xFFFFFFFF
 
 
 def get_window(x, last_x, index):
@@ -175,25 +206,22 @@ class CoupledAsyncDespreader:
         rate matching `sf*sps` at `sf=1023`/2.046 Mcps chip rate/2
         samples-per-chip -> 4.092 Msps; carrier_freq_hz=2.2e9, a
         typical S-band downlink) -- override for any other setup.
-    fll_block_epochs : int or None
-        If set, enables FLL-assist: every this many epochs, run
-        `freq_refine.estimate_residual_freq` over the accumulated
-        despread output and fold the result into a COARSE carrier
-        deviation register, separate from Costas's own continuous fine
-        deviation -- see the module docstring. `None` (default)
-        disables it entirely; behavior is then byte-identical to
-        before this feature existed.
-    fll_n_fft, fll_zero_pad : int
-        Passed straight through to `estimate_residual_freq` -- Phase
-        1c's own validated defaults (64, 4).
+    bn_fll_car : float
+        FLL-assist bandwidth, same convention as `Costas`'s own
+        `bn_fll` -- derives `k_fll = 4 * bn_fll_car`, the gain on the
+        per-epoch cross-product frequency discriminator folded into
+        `car_lf.integ` ahead of the loop filter's own PLL update.
+        Default 0.0 (disabled -- pure PLL, behavior byte-identical to
+        before this feature existed). See the module docstring's
+        "Phase 1f" section for why this replaced an earlier
+        from-scratch periodic-FFT mechanism.
     """
 
     def __init__(
         self, code, sps, bn, zeta=0.707, spacing=0.5, windows=8,
         init_chip=0.0, bn_car=None, init_car_norm_freq=0.0,
         aid_code=True, sample_rate_hz=4.092e6, carrier_freq_hz=2.2e9,
-        freeze_carrier=False, fll_block_epochs=None, fll_n_fft=64,
-        fll_zero_pad=4,
+        freeze_carrier=False, bn_fll_car=0.0,
     ):
         self.code = code
         self.sf = len(code)
@@ -214,9 +242,7 @@ class CoupledAsyncDespreader:
         self.code_rate = 1.0
         self._rate_dev = 0.0
         self._nco = NCO(norm_freq=1.0 / self.tsamps, nmax=0)
-        self._nco.phase = int(
-            round(((init_chip / self.sf) % 1.0) * 4294967296.0)
-        ) & 0xFFFFFFFF
+        self._nco.phase = _nco_norm_to_inc(init_chip / self.sf)
         self._ctrl_buf = np.full(self.tsamps, 0.0, dtype=np.float32)
         self._phase_buf = np.empty(
             max(self._nco.steps_u32_ctrl_max_out(), self.tsamps),
@@ -252,23 +278,12 @@ class CoupledAsyncDespreader:
         # adapting, instead of chasing a moving target.
         self.freeze_carrier = freeze_carrier
 
-        # ── FLL-assist: a SECOND, independent pure deviation, updated
-        # periodically (not every epoch) -- see module docstring for
-        # why this doesn't double-count against Costas's own fine
-        # deviation above.
-        self._car_coarse_dev = 0.0
-        self._fll_block_epochs = fll_block_epochs
-        self._fll_n_fft = fll_n_fft
-        self._fll_zero_pad = fll_zero_pad
-        self.fll_corrections = 0
-        if fll_block_epochs is not None:
-            self._fll_buf = np.empty(
-                fll_block_epochs * windows, dtype=np.complex128
-            )
-            self._fll_pos = 0
-            self._fll_epoch_count = 0
-        else:
-            self._fll_buf = None
+        # ── FLL-assist: costas_update's own cross-product frequency
+        # discriminator, folded directly into car_lf.integ -- see
+        # module docstring's "Phase 1f" section. k_fll=0 (bn_fll_car=0)
+        # is a pure PLL, byte-identical to before this feature existed.
+        self._k_fll = 4.0 * bn_fll_car
+        self._car_prev_prompt = None
 
         self._last_buff = None
         self._last_early = None
@@ -289,11 +304,12 @@ class CoupledAsyncDespreader:
             seg = x[k * self.tsamps:(k + 1) * self.tsamps]
 
             # ── Carrier: derotate raw samples BEFORE despreading ──
-            # Both the coarse (FLL, periodic) and fine (Costas,
-            # per-epoch) deviations flow through the SAME ctrl port --
-            # the LO's own pinned norm_freq is never touched, only
-            # combined here at the point of use.
-            self._car_ctrl_buf.fill(self._car_coarse_dev + self._car_rate_dev)
+            # (must happen here, pre-despread -- a downstream-only
+            # correction lets the signal walk out of the correlator's
+            # bandwidth over minutes of operation; see module
+            # docstring.) The tracked deviation flows through the ctrl
+            # port -- the LO's own pinned norm_freq is never touched.
+            self._car_ctrl_buf.fill(self._car_rate_dev)
             wiped = self._car_lo.steps_ctrl(self._car_ctrl_buf)
             seg_wiped = seg * np.conj(wiped)
 
@@ -360,6 +376,26 @@ class CoupledAsyncDespreader:
             e_car = (im_p if re_p >= 0.0 else -im_p) / a_p
             self.car_last_error = e_car
             if not self.freeze_carrier:
+                # FLL-assist: costas_update's own cross-product
+                # frequency discriminator, folded directly into
+                # car_lf.integ AHEAD of this epoch's step(e_car) --
+                # both prompts data-wiped by their own Re sign so a
+                # BPSK bit flip between epochs doesn't corrupt the
+                # cross product. Far wider linear range than the phase
+                # discriminator alone; see module docstring.
+                if self._k_fll > 0.0 and self._car_prev_prompt is not None:
+                    rpr = self._car_prev_prompt.real
+                    ipr = self._car_prev_prompt.imag
+                    sc = 1.0 if re_p >= 0.0 else -1.0
+                    sp = 1.0 if rpr >= 0.0 else -1.0
+                    ic, qc = re_p * sc, im_p * sc
+                    ip, qp = rpr * sp, ipr * sp
+                    cross = ip * qc - qp * ic
+                    a_pr = abs(self._car_prev_prompt) + COSTAS_EPS
+                    freq_err = cross / (a_p * a_pr)
+                    self.car_lf.integ += self._k_fll * freq_err
+                self._car_prev_prompt = prompt
+
                 car_lf_out = self.car_lf.step(e_car)  # radians/epoch
                 # radians/epoch -> cycles/sample: /(2*pi) then
                 # *inv_tsamps. Pure deviation -- the LO's own pinned
@@ -370,54 +406,36 @@ class CoupledAsyncDespreader:
                 self._car_rate_dev = (
                     car_lf_out * self._inv_tsamps / (2.0 * np.pi)
                 )
+                # Proportional phase kick (costas_update's other term,
+                # previously missing here): kp*e_car radians -> cycles
+                # -> uint32 phase delta, applied directly to the
+                # carrier LO's own accumulator -- speeds lock the pure
+                # frequency-integral path alone can't.
+                kick = self.car_lf.kp * e_car / (2.0 * np.pi)
+                self._car_lo.phase = (
+                    self._car_lo.phase + _nco_norm_to_inc(kick)
+                ) & 0xFFFFFFFF
 
             self.car_norm_freq = (
-                self._init_car_norm_freq + self._car_coarse_dev
-                + self._car_rate_dev
+                self._init_car_norm_freq + self._car_rate_dev
             )
 
-            total_car_dev = self._car_coarse_dev + self._car_rate_dev
             if self.aid_code:
                 # Physical coupling: the SAME v/c that shifts the
-                # carrier by its TOTAL tracked deviation (coarse FLL +
-                # fine Costas, cycles/sample, i.e. fraction of
-                # sample_rate_hz) shifts the code clock by the
-                # identical FRACTIONAL amount -- scale by
+                # carrier by its tracked deviation (cycles/sample, i.e.
+                # fraction of sample_rate_hz) shifts the code clock by
+                # the identical FRACTIONAL amount -- scale by
                 # sample_rate_hz/carrier_freq_hz to convert into the
                 # code loop's own dimensionless rate-ratio deviation,
                 # then just ADD it -- a second pure deviation, no
                 # re-derivation of "nominal" anywhere.
-                aid_dev = total_car_dev * self._aid_scale
+                aid_dev = self._car_rate_dev * self._aid_scale
                 self._rate_dev = code_disc_dev + aid_dev
             else:
                 self._rate_dev = code_disc_dev
             self.code_rate = 1.0 + self._rate_dev
 
             out[k * self.windows:(k + 1) * self.windows] = integrate_and_dump
-
-            # ── FLL-assist: accumulate this epoch's despread output;
-            # every fll_block_epochs epochs, re-estimate the residual
-            # (Phase 1c's own primitive) and fold it into the COARSE
-            # deviation -- corrects the ramp-induced lag Costas's fine
-            # loop structurally can't close on its own (see module
-            # docstring). Left entirely separate from _car_rate_dev.
-            if self._fll_buf is not None:
-                self._fll_buf[
-                    self._fll_pos:self._fll_pos + self.windows
-                ] = integrate_and_dump
-                self._fll_pos += self.windows
-                self._fll_epoch_count += 1
-                if self._fll_epoch_count == self._fll_block_epochs:
-                    window_rate_hz = self._sample_rate_hz / self.step_size
-                    residual_hz = estimate_residual_freq(
-                        self._fll_buf, window_rate_hz,
-                        n_fft=self._fll_n_fft,
-                        zero_pad=self._fll_zero_pad, interp=True,
-                    )
-                    self._car_coarse_dev += residual_hz / self._sample_rate_hz
-                    self.fll_corrections += 1
-                    self._fll_pos = 0
-                    self._fll_epoch_count = 0
 
             if log is not None and k % log == 0:
                 print(

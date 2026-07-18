@@ -60,8 +60,12 @@ RATE_LIST_HZ_PER_S = [0.0, 500.0, 1000.0]  # SPEC's own +/-500 Hz/s
 # it was never a real requirement, just the mistyped one.
 N_SEEDS = 8  # independent noise realizations per (Es/N0, rate) point
 
-BN = 0.01      # SPEC-derived bn<=0.01 floor bound -- code loop
-BN_CAR = 0.01  # ditto, carrier loop -- explicit, NOT the 10x default
+BN = 0.01          # SPEC-derived bn<=0.01 floor bound -- code loop
+BN_CAR = 0.01      # ditto, carrier loop -- explicit, NOT the 10x default
+BN_FLL_CAR = 0.03  # test_costas_core.c's own validated bn_fll calibration
+# (test 7, "FLL assist widens pull-in") -- the real costas_update
+# cross-product discriminator CoupledAsyncDespreader's carrier loop now
+# mirrors, replacing the old periodic-FFT "integrated FLL=on" path.
 
 TE = SF * SPS
 # The FFT peak search's own coarse (un-padded, pre-interpolation) bin
@@ -152,16 +156,18 @@ def run_fll_assist_floor(c, chip_snr_db, rate_hz_per_s, seed):
     }
 
 
-def run_integrated_floor(c, chip_snr_db, rate_hz_per_s, seed, fll_block_epochs):
+def run_integrated_floor(c, chip_snr_db, rate_hz_per_s, seed, bn_fll_car):
     """`doppler_rate_test.run_integrated`, bn/bn_car pinned to the
-    floor bound."""
+    floor bound. `bn_fll_car=0.0` reproduces the pure-PLL path;
+    `bn_fll_car=BN_FLL_CAR` exercises the real costas_update
+    cross-product FLL-assist (see module docstring)."""
     total_epochs = FLL_BLOCK_EPOCHS * N_FLL_BLOCKS
     x = make_ramp_signal(c, chip_snr_db, 0.0, rate_hz_per_s, seed, total_epochs)
     x = x[:total_epochs * TE]
     d = CoupledAsyncDespreader(
         c, SPS, bn=BN, bn_car=BN_CAR, zeta=0.707, windows=WINDOWS,
         init_car_norm_freq=0.0, aid_code=True,
-        sample_rate_hz=SAMPLE_RATE_HZ, fll_block_epochs=fll_block_epochs,
+        sample_rate_hz=SAMPLE_RATE_HZ, bn_fll_car=bn_fll_car,
     )
     d.run(x)
     duration_s = total_epochs * TE / SAMPLE_RATE_HZ
@@ -172,7 +178,6 @@ def run_integrated_floor(c, chip_snr_db, rate_hz_per_s, seed, fll_block_epochs):
         "true_at_end_hz": true_at_end,
         "err": abs(tracked_hz - true_at_end),
         "code_rate": d.code_rate,
-        "fll_corrections": d.fll_corrections,
     }
 
 
@@ -211,12 +216,11 @@ def main():
                 n_gross += int(fll["gross_error"])
 
                 off = run_integrated_floor(
-                    c, chip_snr_db, rate, seed, fll_block_epochs=None,
+                    c, chip_snr_db, rate, seed, bn_fll_car=0.0,
                 )
                 off_errs.append(off["err"])
                 on = run_integrated_floor(
-                    c, chip_snr_db, rate, seed,
-                    fll_block_epochs=FLL_BLOCK_EPOCHS,
+                    c, chip_snr_db, rate, seed, bn_fll_car=BN_FLL_CAR,
                 )
                 on_errs.append(on["err"])
 

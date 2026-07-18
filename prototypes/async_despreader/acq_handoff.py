@@ -35,7 +35,7 @@ can actually be constructed with.
   nx]`).
 - `cn0_dbhz_est`, `peak_mag`, `noise_est`, `test_stat` pass straight
   through as diagnostics (`cn0_dbhz_est` not yet used to size
-  `fll_block_epochs` -- see the module's "Not yet decided" note below).
+  `bn_fll_car` -- see the module's "Not yet decided" note below).
 
 **Found validating against `SPEC.md`'s real operating point (this
 session): `CoupledAsyncDespreader.init_chip`'s own convention is the
@@ -80,13 +80,13 @@ non-wideband auto-config) -- so the existing bridge composes with the
 new wideband handoff with NO changes needed to `freq_refine.py`
 itself, only a real seed feeding it instead of a hand-chosen gap.
 
-**Not yet decided (flagged, not solved here)**: `fll_block_epochs`
-sizing from `cn0_dbhz_est` (the design rule from Phase 1e: size to the
-SHORTEST block that stays reliable at the estimated Es/N0 floor, per
-`characterize_snr.py`'s own sweep) -- this module reports
-`cn0_dbhz_est` but leaves the caller to choose `fll_block_epochs`
-explicitly for now, rather than guessing an interpolation off
-`characterize_snr.py`'s few sampled points.
+**Not yet decided (flagged, not solved here)**: `bn_fll_car` sizing
+from `cn0_dbhz_est` -- this module reports `cn0_dbhz_est` but leaves
+the caller to choose `bn_fll_car` explicitly for now (the tracking
+construction below doesn't pass one, so FLL-assist stays disabled by
+default here), rather than guessing an interpolation off
+`test_costas_core.c`'s/this story's own few validated calibration
+points (`bn_fll=0.03`).
 
 **Timing (`timestamp_ns`)**: `Acquisition.push()` now reports
 `samples_consumed` per hit (task #71/timestamp-mechanism follow-on) --

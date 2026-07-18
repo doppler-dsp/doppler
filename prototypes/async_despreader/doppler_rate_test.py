@@ -58,6 +58,9 @@ FLL_BLOCK_EPOCHS = 300  # the shortest block characterize_snr.py
 # already showed converges cleanly at this Es/N0
 N_FLL_BLOCKS = 9  # 9*300 = 2700 epochs total -- same total duration
 # as the static batch, for a fair comparison
+BN_FLL_CAR = 0.03  # test_costas_core.c's own validated bn_fll
+# calibration (test 7, "FLL assist widens pull-in"); used by
+# run_integrated's "fll enabled" point below.
 
 
 def make_ramp_signal(
@@ -159,12 +162,14 @@ def run_fll_assist(c, chip_snr_db, rate_hz_per_s, seed):
     }
 
 
-def run_integrated(c, chip_snr_db, rate_hz_per_s, seed, fll_block_epochs):
+def run_integrated(c, chip_snr_db, rate_hz_per_s, seed, bn_fll_car):
     """The REAL end-to-end check: one single `CoupledAsyncDespreader`
     instance, Costas + code loop + (optionally) FLL-assist all running
     together continuously via ONE `run()` call -- not the isolated
-    per-block harness above. `fll_block_epochs=None` reproduces the
-    OLD (pre-FLL-assist) behavior for direct comparison."""
+    per-block harness above. `bn_fll_car=0.0` reproduces the pure-PLL
+    (pre-FLL-assist) behavior for direct comparison; a positive value
+    exercises the real costas_update cross-product FLL-assist (see
+    `despreader_coupled.py`'s module docstring)."""
     te = SF * SPS
     total_epochs = FLL_BLOCK_EPOCHS * N_FLL_BLOCKS
     x = make_ramp_signal(c, chip_snr_db, 0.0, rate_hz_per_s, seed, total_epochs)
@@ -172,7 +177,7 @@ def run_integrated(c, chip_snr_db, rate_hz_per_s, seed, fll_block_epochs):
     d = CoupledAsyncDespreader(
         c, SPS, bn=BN, zeta=0.707, windows=WINDOWS,
         init_car_norm_freq=0.0, aid_code=True,
-        sample_rate_hz=SAMPLE_RATE_HZ, fll_block_epochs=fll_block_epochs,
+        sample_rate_hz=SAMPLE_RATE_HZ, bn_fll_car=bn_fll_car,
     )
     out = d.run(x)
     duration_s = total_epochs * te / SAMPLE_RATE_HZ
@@ -183,7 +188,6 @@ def run_integrated(c, chip_snr_db, rate_hz_per_s, seed, fll_block_epochs):
         "true_at_end_hz": true_at_end,
         "err": abs(tracked_hz - true_at_end),
         "code_rate": d.code_rate,
-        "fll_corrections": d.fll_corrections,
         "out_max_mag": float(np.max(np.abs(out))),
     }
 
@@ -220,7 +224,7 @@ def main():
 
         print("  --- integrated CoupledAsyncDespreader (Costas+code+FLL "
               "together) ---")
-        i_off = run_integrated(c, chip_snr_db, rate, 42, fll_block_epochs=None)
+        i_off = run_integrated(c, chip_snr_db, rate, 42, bn_fll_car=0.0)
         print(
             f"  fll disabled:  tracked={i_off['tracked_hz']:8.1f} Hz  "
             f"true@end={i_off['true_at_end_hz']:8.1f} Hz  "
@@ -228,14 +232,13 @@ def main():
             f"out_max={i_off['out_max_mag']:.3f}"
         )
         i_on = run_integrated(
-            c, chip_snr_db, rate, 42, fll_block_epochs=FLL_BLOCK_EPOCHS,
+            c, chip_snr_db, rate, 42, bn_fll_car=BN_FLL_CAR,
         )
         print(
             f"  fll enabled:   tracked={i_on['tracked_hz']:8.1f} Hz  "
             f"true@end={i_on['true_at_end_hz']:8.1f} Hz  "
             f"err={i_on['err']:8.1f} Hz  code_rate={i_on['code_rate']:.6f}  "
-            f"out_max={i_on['out_max_mag']:.3f}  "
-            f"fll_corrections={i_on['fll_corrections']}"
+            f"out_max={i_on['out_max_mag']:.3f}"
         )
 
 

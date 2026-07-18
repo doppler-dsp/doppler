@@ -55,8 +55,12 @@ struct dp_nats_state
 
 struct dp_ctx
 {
-  dp_sample_type_t     sample_type;
-  uint64_t             sequence; /* per-sender count. */
+  dp_sample_type_t sample_type;
+  uint64_t         sequence;              /* per-sender count. */
+  uint64_t         timestamp_override_ns; /* one-shot; consumed by the next
+                                              send_signal() call (dp_ctx_set_
+                                              timestamp_ns()). */
+  int                  timestamp_override_set;
   struct dp_nats_state nats;
 };
 

@@ -231,7 +231,7 @@ def _mc_trial(trial: int) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     for i in range(nframes):
         hits = acq.push(x[pos : pos + frame])
         if hits:
-            dop_bin, code_phase, _pk, _n, test_stat, _c = hits[0]
+            dop_bin, code_phase, _pk, _n, test_stat, _c, *_rest = hits[0]
             ts[i] = test_stat
             chip_phase = dll_init_chip_from_acq(code_phase, SPC, SF)
             code_err[i] = ((chip_phase - phase0 + SF / 2) % SF) - SF / 2
@@ -271,7 +271,7 @@ def _replay_epoch_noiseless(trial: int, epoch: int) -> float:
     acq = _new_acq()
     hits = acq.push(ep_clean)
     assert hits, "noiseless epoch produced no detection at all"
-    _dop_bin, code_phase, _pk, _n, _ts, _c = hits[0]
+    _dop_bin, code_phase, _pk, _n, _ts, _c, *_rest = hits[0]
     chip_phase = dll_init_chip_from_acq(code_phase, SPC, SF)
     return float(((chip_phase - phase0 + SF / 2) % SF) - SF / 2)
 
@@ -359,7 +359,7 @@ def _diversity_trial(trial: int, cn0_dbhz: float, reps: int, max_noncoh: int):
     for i in range(nframes):
         hits = acq.push(x[pos : pos + frame])
         if hits:
-            _dop, code_phase, _pk, _n, test_stat, _c = hits[0]
+            _dop, code_phase, _pk, _n, test_stat, _c, *_rest = hits[0]
             ts[i] = test_stat
             chip_phase = dll_init_chip_from_acq(code_phase, SPC, SF)
             code_err[i] = ((chip_phase - phase0 + SF / 2) % SF) - SF / 2
@@ -521,7 +521,15 @@ def main(out_path: str = "dsss_acq_async_data_demo.png") -> None:
             break
         pos += frame
     assert hit is not None, "acquisition failed to find the continuous code"
-    dop_bin, code_phase, _peak_mag, _noise_est, test_stat, cn0_dbhz_est = hit
+    (
+        dop_bin,
+        code_phase,
+        _peak_mag,
+        _noise_est,
+        test_stat,
+        cn0_dbhz_est,
+        *_rest,
+    ) = hit
     print(
         f"acquired: hitpos={hitpos} doppler_bin={dop_bin} "
         f"code_phase={code_phase} test_stat={test_stat:.1f} "

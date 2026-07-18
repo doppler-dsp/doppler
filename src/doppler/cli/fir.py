@@ -113,10 +113,22 @@ def main() -> None:
                 except TimeoutError:
                     continue
                 y = fir.execute(samples.astype(np.complex64))
+                # Forward the incoming frame's own origin timestamp instead
+                # of letting send() auto-stamp "now" -- otherwise every hop
+                # silently replaces the true sample-capture time with
+                # whenever THIS hop got around to sending it, and a
+                # multi-hop chain's final timestamp ends up reflecting
+                # cumulative queueing/processing latency rather than the
+                # original samples' true time. A straight passthrough is
+                # used here (FIR's own group delay would shift this by
+                # group_delay_samples/sample_rate for exact per-sample
+                # precision -- a follow-on refinement, not required for
+                # this hop to stop DESTROYING the timestamp outright).
                 push.send(
                     y.astype("complex128"),
                     sample_rate=hdr["sample_rate"],
                     center_freq=hdr["center_freq"],
+                    timestamp_ns=hdr["timestamp_ns"],
                 )
                 pull.ack(samples)
     except KeyboardInterrupt:

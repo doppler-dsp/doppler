@@ -167,7 +167,7 @@ def _collect(a, rng, stream):
 def _split(hits, cp_expected):
     """Partition hits into true-cell vs false-alarm by location (±1 cell)."""
     true_n = fa_n = 0
-    for dop, col, _peak, _noise, _stat, _snr in hits:
+    for dop, col, _peak, _noise, _stat, _snr, *_rest in hits:
         d_ok = min((dop - U_TRUE) % NY, (U_TRUE - dop) % NY) == 0
         c_ok = min((col - cp_expected) % NX, (cp_expected - col) % NX) <= 1
         if d_ok and c_ok:

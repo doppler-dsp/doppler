@@ -310,6 +310,32 @@ fn = "dp_sample_clock_stamp"
 returns = "uint64_t"
 
 [[module.sample_clock.methods]]
+name = "stamp_at"
+fn = "dp_sample_clock_stamp_at"
+returns = "uint64_t"
+
+[[module.sample_clock.methods.args]]
+name = "n"
+type = "uint64_t"
+
+[[module.sample_clock.methods]]
+name = "track"
+fn = "dp_sample_clock_track"
+returns = "int"
+
+[[module.sample_clock.methods.args]]
+name = "observed_timestamp_ns"
+type = "uint64_t"
+
+[[module.sample_clock.methods.args]]
+name = "n_at_observation"
+type = "uint64_t"
+
+[[module.sample_clock.methods.args]]
+name = "tolerance_ns"
+type = "uint64_t"
+
+[[module.sample_clock.methods]]
 name = "reset"
 fn = "dp_sample_clock_reset"
 

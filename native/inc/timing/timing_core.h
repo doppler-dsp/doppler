@@ -16,7 +16,8 @@
  * error is per-block jitter bounded by the OS scheduler, which averages out.
  *
  * Pacing is POSIX only (``clock_gettime`` + an absolute-deadline sleep); the
- * build guards this translation unit out on Windows, mirroring the stream sink.
+ * build guards this translation unit out on Windows, mirroring the stream
+ * sink.
  */
 #ifndef DP_TIMING_CORE_H
 #define DP_TIMING_CORE_H
@@ -40,6 +41,12 @@ extern "C"
     uint64_t underruns;     /**< pace() calls that arrived past deadline. */
     uint64_t max_late_ns;   /**< worst lateness observed (ns). */
     int      resync;        /**< nonzero: pace() re-anchors on underrun. */
+    int      has_anchor; /**< nonzero once track() has adopted a real observed
+                               (timestamp, n) pair; init()/reset() start at 0 --
+                               the receive-side counterpart of the TX-side
+                               epoch capture, so the first track() call always
+                               adopts rather than tolerance-gating against an
+                               arbitrary construction-time guess. */
   } dp_sample_clock_t;
 
   /** Current monotonic clock in ns (CLOCK_MONOTONIC) — for pacing. */
@@ -63,8 +70,44 @@ extern "C"
 
   /** Ideal wall-clock timestamp (ns since the UNIX epoch) of the next sample
    *  to be produced — sample index ``n``. Call it before pace() to tag the
-   *  block you are about to emit, or after to tag the following block. */
+   *  block you are about to emit, or after to tag the following block.
+   *  Equivalent to ``dp_sample_clock_stamp_at(c, c->n)``. */
   uint64_t dp_sample_clock_stamp (const dp_sample_clock_t *c);
+
+  /** Ideal wall-clock timestamp (ns since the UNIX epoch) of an ARBITRARY
+   *  sample index @p n — past, present, or future, not just the clock's own
+   *  live position. The receive-side counterpart of dp_sample_clock_stamp():
+   *  a block emitting several per-record outputs from one buffered input
+   *  (e.g. several detections spanning different epochs from one streamed
+   *  message) stamps each at its own historical sample offset instead of
+   *  reusing the whole buffer's single arrival time. */
+  uint64_t dp_sample_clock_stamp_at (const dp_sample_clock_t *c, uint64_t n);
+
+  /** Reconcile @p c's epoch_real_ns against one OBSERVED (timestamp, sample
+   *  index) pair read off an incoming stream header — the receive-side dual
+   *  of pace()'s resync: instead of sleeping toward a deadline, this adopts
+   *  or corrects the epoch from ground truth the sender already stamped.
+   *
+   *  The FIRST call always adopts @p observed_timestamp_ns as the epoch
+   *  (``has_anchor`` starts false — a fresh clock has no real observation
+   *  yet, so there is nothing to compare against). Every later call only
+   *  re-anchors if the discrepancy between the observation and what the
+   *  clock's current model predicts exceeds @p tolerance_ns (same
+   *  step-correction semantics as pace()'s own resync, applied to tracking
+   *  instead of sleeping) — this corrects accumulated epoch OFFSET only, it
+   *  does not model sample-rate SKEW, exactly like pace()'s resync.
+   *
+   *  Rejects (no-op, returns 0) any observation with @p n_at_observation
+   *  less than the clock's current @c n outright: a stale, out-of-order, or
+   *  redelivered header must never walk the epoch backward. Never treat two
+   *  reconciled observations as literal replay-safe state — always resync
+   *  from an ARRIVING message, not a cached one.
+   *
+   *  @return Nonzero if this call adopted or re-anchored the epoch; 0 if it
+   *  was accepted as already consistent, or rejected as stale. */
+  int dp_sample_clock_track (dp_sample_clock_t *c,
+                             uint64_t           observed_timestamp_ns,
+                             uint64_t n_at_observation, uint64_t tolerance_ns);
 
   /** Re-capture both epochs and zero the counters — a fresh clock at n=0. */
   void dp_sample_clock_reset (dp_sample_clock_t *c);
@@ -74,10 +117,11 @@ extern "C"
    *  present. (pace() does this automatically when ``resync`` is set.) */
   void dp_sample_clock_resync (dp_sample_clock_t *c);
 
-  /* A stats snapshot for the generated `SampleClock` handle (jm kind="handle"):
-   * the decoded-getter face wants one call that fills an out-struct, so this
-   * copies the (public) clock struct out. The handle constructs init-in-place
-   * via dp_sample_clock_init above (jm#320 `init_fn`); jm owns that malloc/free. */
+  /* A stats snapshot for the generated `SampleClock` handle (jm
+   * kind="handle"): the decoded-getter face wants one call that fills an
+   * out-struct, so this copies the (public) clock struct out. The handle
+   * constructs init-in-place via dp_sample_clock_init above (jm#320
+   * `init_fn`); jm owns that malloc/free. */
   void dp_sample_clock_stats (const dp_sample_clock_t *c,
                               dp_sample_clock_t       *out);
 

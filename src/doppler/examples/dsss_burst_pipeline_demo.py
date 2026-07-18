@@ -336,7 +336,7 @@ def demo_acquisition(rx, acq_code, *, cn0_dbhz=40.0):
         # start clean, since push()'s own framing has no "restart here"
         # concept (see the walkthrough in the module docstring).
         acq.reset()
-        for dop, cp, _peak, _noise, test_stat, cn0 in acq.push(
+        for dop, cp, _peak, _noise, test_stat, cn0, *_rest in acq.push(
             rx[pos : pos + PRE_LEN]
         ):
             raw.append((pos + cp, dop, test_stat, cn0))

@@ -559,21 +559,19 @@ _auto_config (const acq_state_t *st, double pfa, double pd, double snr,
       const size_t n_freq_bins = (size_t)ceil (du / span);
       const size_t sb          = n_freq_bins;
       const double umax        = _intra_umax (1, sb, du, span);
-      const double pc = 1.0 - pow (1.0 - pfa, 1.0 / (double)(sb * cb));
+      const double pc    = 1.0 - pow (1.0 - pfa, 1.0 / (double)(sb * cb));
       const double sloss = _straddle_loss (1, sb, st->spc, du, span);
 
-      int    k = det_n_noncoh (snr * sloss, (int)cb, pd, pc,
-                               (int)st->max_noncoh);
+      int k = det_n_noncoh (snr * sloss, (int)cb, pd, pc, (int)st->max_noncoh);
       size_t nc = (k > 0) ? (size_t)k : st->max_noncoh;
       while (nc < st->max_noncoh)
         {
           double e = (nc > 1) ? det_threshold_noncoherent (pc, (int)nc)
                               : det_threshold (pc);
-          double pdd = (st->epochs_per_symbol > 0.0)
-                          ? _data_mod_pd (1, nc, st->epochs_per_symbol, snr,
-                                          cb, e)
-                          : _mean_pd (snr, 1, umax, st->spc, (int)cb, e,
-                                      (int)nc);
+          double pdd
+              = (st->epochs_per_symbol > 0.0)
+                    ? _data_mod_pd (1, nc, st->epochs_per_symbol, snr, cb, e)
+                    : _mean_pd (snr, 1, umax, st->spc, (int)cb, e, (int)nc);
           if (pdd >= pd)
             break;
           nc++;
@@ -736,29 +734,29 @@ static int
 _regrid (acq_state_t *st, size_t new_db, size_t new_nc, size_t new_freq_bins,
          const uint8_t *code, size_t code_len)
 {
-  const size_t cb    = st->code_bins;
-  const size_t new_n = new_db * new_freq_bins * cb;
+  const size_t cb           = st->code_bins;
+  const size_t new_n        = new_db * new_freq_bins * cb;
   const int    grid_changed = (new_db != st->doppler_bins) || (new_n != st->n)
                            || (new_freq_bins != st->n_freq_bins);
   const size_t new_frame_n = (new_freq_bins > 1) ? cb : new_n;
 
-  corr2d_state_t *new_corr         = NULL;
-  fft_state_t    *new_fft          = NULL;
-  float complex  *new_ref          = NULL;
-  float complex  *new_yframe       = NULL;
-  float complex  *new_out          = NULL;
-  float complex  *new_colbuf       = NULL;
-  float complex  *new_colout       = NULL;
-  float          *new_mag          = NULL;
-  float          *new_scratch      = NULL;
-  float          *new_ncsurf       = NULL;
-  dp_f32_t       *new_ring         = NULL;
-  size_t          new_ring_cap     = st->ring_cap;
-  fft_state_t    *new_wide_fwd     = NULL;
-  fft_state_t    *new_wide_inv     = NULL;
+  corr2d_state_t *new_corr          = NULL;
+  fft_state_t    *new_fft           = NULL;
+  float complex  *new_ref           = NULL;
+  float complex  *new_yframe        = NULL;
+  float complex  *new_out           = NULL;
+  float complex  *new_colbuf        = NULL;
+  float complex  *new_colout        = NULL;
+  float          *new_mag           = NULL;
+  float          *new_scratch       = NULL;
+  float          *new_ncsurf        = NULL;
+  dp_f32_t       *new_ring          = NULL;
+  size_t          new_ring_cap      = st->ring_cap;
+  fft_state_t    *new_wide_fwd      = NULL;
+  fft_state_t    *new_wide_inv      = NULL;
   float complex  *new_wide_ref_spec = NULL;
-  float complex  *new_wide_spec    = NULL;
-  float complex  *new_wide_prod    = NULL;
+  float complex  *new_wide_spec     = NULL;
+  float complex  *new_wide_prod     = NULL;
 
   if (grid_changed)
     {
@@ -966,7 +964,7 @@ acq_create (const uint8_t *code, size_t code_len, size_t reps, size_t spc,
   const double snr    = sqrt (pow (10.0, cn0_dbhz / 10.0) / st->fs);
   size_t       best_d = 0, best_nc = 0, best_freq_bins = 1;
   _auto_config (st, pfa, pd, snr, doppler_uncertainty, &best_d, &best_nc,
-               &best_freq_bins);
+                &best_freq_bins);
 
   if (_regrid (st, best_d, best_nc, best_freq_bins, code, code_len) != 0)
     goto fail;
@@ -1109,9 +1107,8 @@ acq_push (acq_state_t *st, const float complex *in, size_t n_in,
                   long signed_r = (r <= st->n_freq_bins / 2)
                                       ? (long)r
                                       : (long)r - (long)st->n_freq_bins;
-                  long   wrapped = ((signed_r % (long)nx) + (long)nx)
-                                   % (long)nx;
-                  size_t roll    = (size_t)wrapped;
+                  long wrapped = ((signed_r % (long)nx) + (long)nx) % (long)nx;
+                  size_t roll  = (size_t)wrapped;
                   for (size_t j = 0; j < nx; j++)
                     st->wide_prod[j] = st->wide_spec[(j + roll) % nx]
                                        * st->wide_ref_spec[j];
@@ -1151,10 +1148,15 @@ acq_push (acq_state_t *st, const float complex *in, size_t n_in,
                                   / sqrtf (2.0f * (float)frame_n);
                   float cn0_dbhz_est
                       = _cn0_dbhz_from_amp_snr (amp_snr, st->fs);
-                  result[ndet++]
-                      = (acq_result_t){ st->peak_row,  st->peak_col,
-                                        st->peak_mag,  st->noise_est,
-                                        st->test_stat, cn0_dbhz_est };
+                  result[ndet++] = (acq_result_t){
+                    .doppler_bin      = st->peak_row,
+                    .code_phase       = st->peak_col,
+                    .peak_mag         = st->peak_mag,
+                    .noise_est        = st->noise_est,
+                    .test_stat        = st->test_stat,
+                    .cn0_dbhz_est     = cn0_dbhz_est,
+                    .samples_consumed = st->samples_consumed,
+                  };
                 }
               continue;
             }
@@ -1176,9 +1178,15 @@ acq_push (acq_state_t *st, const float complex *in, size_t n_in,
                   = st->test_stat
                     / sqrtf (2.0f * (float)frame_n * (float)st->n_noncoh);
               float cn0_dbhz_est = _cn0_dbhz_from_amp_snr (amp_snr, st->fs);
-              result[ndet++] = (acq_result_t){ st->peak_row,  st->peak_col,
-                                               st->peak_mag,  st->noise_est,
-                                               st->test_stat, cn0_dbhz_est };
+              result[ndet++]     = (acq_result_t){
+                    .doppler_bin      = st->peak_row,
+                    .code_phase       = st->peak_col,
+                    .peak_mag         = st->peak_mag,
+                    .noise_est        = st->noise_est,
+                    .test_stat        = st->test_stat,
+                    .cn0_dbhz_est     = cn0_dbhz_est,
+                    .samples_consumed = st->samples_consumed,
+              };
             }
           memset (st->nc_surface, 0, n * sizeof (float));
           st->nc_count = 0;

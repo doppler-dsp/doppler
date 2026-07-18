@@ -84,6 +84,51 @@ plan file for numbers):
   below that stream's own Nyquist, unlike `Acquisition`'s own slow-time
   axis (see [`archive/`](archive/README.md)).
 
+## Acquisition → tracking handoff (Phase 0, `acq_handoff.py`)
+
+Every script above (`pullin_sweep.py`, `characterize_snr.py`,
+`doppler_rate_test.py`) seeds `CoupledAsyncDespreader` from a
+HAND-CHOSEN `seed_gap_hz` — a stand-in for "whatever Acquisition would
+have said." `acq_handoff.py` replaces that stand-in with the real
+conversion, against the REAL `doppler.dsss.Acquisition` C object in
+wideband mode (task #72's `acq_core.c` change) — not a hand-rolled
+sweep script.
+
+`handoff_from_hit()` converts one real `acq.push()` hit into a
+tracker seed: `doppler_bin` folds into a centered, signed hypothesis
+index (the SAME formula whether `Acquisition` is in native or
+wideband mode — `acq_core.h`'s own file doc comment: `doppler_bin`/
+`doppler_res_hz` compose identically either way) scaled by
+`doppler_res_hz` for a coarse Hz estimate; `code_phase` (a raw sample
+index) divides by `spc` to get the CHIP-unit `init_chip` the tracker
+expects. Wideband mode's `doppler_res_hz` is a WINDOW spacing, not a
+fine estimate — the true residual can be anywhere in
+`±doppler_res_hz/2` — so `freq_refine.refine_seed()` still runs after
+the handoff, unmodified, to close that gap (this story's own
+`SPEC.md` waveform's window is `±1500 Hz`, well inside
+`freq_refine.py`'s already-characterized working range).
+
+Validated end to end (`python acq_handoff.py` and a multi-case sweep):
+real search → handoff → refine → track, at several true Doppler
+values (including negative and near-DC) and several nonzero
+code-phase delays — the code-phase conversion lands **exactly** on
+the true value every time (0.00 chip error), and the full chain
+locks. One genuine finding along the way: the closed-loop tracker's
+steady-state carrier estimate JITTERS by design (measured std ~10 Hz
+at this suite's standard -8 dB operating point, symmetric and
+non-diverging) — a single final-snapshot readout is noisy; the demo
+reports a trailing average instead, which is also what a real
+receiver would report as "current lock frequency."
+
+Not yet decided (flagged, not solved here): sizing `fll_block_epochs`
+from the handoff's `cn0_dbhz_est` (the Phase 1e design rule — shortest
+block that stays reliable at the estimated Es/N0 floor) is left to the
+caller for now rather than guessing an interpolation off
+`characterize_snr.py`'s few sampled points. This Python-side formula
+is also the basis for the eventual C `acq_handoff_t`/
+`dsss_acq_handoff_from_result()` (Phase 0's C struct, not yet built —
+see the plan file).
+
 ## The bug
 
 `native/src/dll/dll_core.c`'s `segments > 1` path (`Dll(..., segments=K)`)

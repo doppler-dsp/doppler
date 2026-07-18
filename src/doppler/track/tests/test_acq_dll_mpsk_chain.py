@@ -152,7 +152,7 @@ def _chain(x, s0, chip_phase, doppler_hz_est, resample: bool):
 def _handoff(x):
     hit, hitpos, acq = _acquire(x)
     assert hit is not None, "acquisition failed to find the continuous code"
-    dop_bin, code_phase, _pk, _n, _ts, _c = hit
+    dop_bin, code_phase, _pk, _n, _ts, _c, *_rest = hit
     doppler_bins = acq.doppler_bins
     k_fold = (dop_bin + doppler_bins // 2) % doppler_bins - doppler_bins // 2
     doppler_hz_est = k_fold * acq.doppler_res_hz

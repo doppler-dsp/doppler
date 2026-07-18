@@ -182,9 +182,15 @@ class CoarseChannel:
         """Down-mix + acquire a block; return absolute-coordinate hits."""
         baseband = self._ddc.execute(block)
         hits = []
-        for dop_bin, code_phase, _peak, _noise, stat, cn0 in self._acq.push(
-            baseband
-        ):
+        for (
+            dop_bin,
+            code_phase,
+            _peak,
+            _noise,
+            stat,
+            cn0,
+            *_rest,
+        ) in self._acq.push(baseband):
             hits.append(
                 Detection(
                     self._abs_doppler(dop_bin),

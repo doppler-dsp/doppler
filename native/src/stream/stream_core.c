@@ -193,22 +193,34 @@ send_signal (struct dp_ctx *ctx, const void *samples, size_t num_samples,
   if (!ctx || !samples || num_samples == 0)
     return DP_ERR_INVALID;
 
-  dp_header_t header  = { 0 };
-  header.magic        = DP_MAGIC;
-  header.version      = DP_VERSION;
-  header.protocol     = DP_PROTO_SIGS;
-  header.stream_id    = 0;
-  header.sample_type  = type;
-  header.flags        = 0;
-  header.sequence     = ctx->sequence++;
-  header.timestamp_ns = dp_get_timestamp_ns ();
-  header.sample_rate  = sample_rate;
-  header.center_freq  = center_freq;
-  header.num_samples  = num_samples;
+  dp_header_t header          = { 0 };
+  header.magic                = DP_MAGIC;
+  header.version              = DP_VERSION;
+  header.protocol             = DP_PROTO_SIGS;
+  header.stream_id            = 0;
+  header.sample_type          = type;
+  header.flags                = 0;
+  header.sequence             = ctx->sequence++;
+  header.timestamp_ns         = ctx->timestamp_override_set
+                                    ? ctx->timestamp_override_ns
+                                    : dp_get_timestamp_ns ();
+  ctx->timestamp_override_set = 0; /* one-shot, whether used or not */
+  header.sample_rate          = sample_rate;
+  header.center_freq          = center_freq;
+  header.num_samples          = num_samples;
 
   size_t data_size = num_samples * dp_sample_size (type);
 
   return nats_send_signal (ctx, &header, samples, data_size);
+}
+
+void
+dp_ctx_set_timestamp_ns (dp_pub_t *ctx, uint64_t timestamp_ns)
+{
+  if (!ctx)
+    return;
+  ctx->timestamp_override_ns  = timestamp_ns;
+  ctx->timestamp_override_set = 1;
 }
 
 static int

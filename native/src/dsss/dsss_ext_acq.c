@@ -161,9 +161,10 @@ AcquisitionObj_push (AcquisitionObject *self, PyObject *args)
   for (size_t i = 0; i < n_out; i++)
     {
       PyObject *tup = Py_BuildValue (
-          "(KKffff)", (unsigned long long)results[i].doppler_bin,
+          "(KKffffK)", (unsigned long long)results[i].doppler_bin,
           (unsigned long long)results[i].code_phase, results[i].peak_mag,
-          results[i].noise_est, results[i].test_stat, results[i].cn0_dbhz_est);
+          results[i].noise_est, results[i].test_stat, results[i].cn0_dbhz_est,
+          (unsigned long long)results[i].samples_consumed);
       if (!tup)
         {
           Py_DECREF (lst);
@@ -681,7 +682,7 @@ static PyMethodDef AcquisitionObj_methods[] = {
     "push(x) -> list[tuple]\n"
     "\n"
     "Returns list of (doppler_bin, code_phase, peak_mag, noise_est, "
-    "test_stat, cn0_dbhz_est,) tuples.\n"
+    "test_stat, cn0_dbhz_est, samples_consumed,) tuples.\n"
     "\n"
     "    >>> import numpy as np\n"
     "    >>> from doppler import Acquisition\n"

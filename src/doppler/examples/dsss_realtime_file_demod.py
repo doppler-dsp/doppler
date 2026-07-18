@@ -200,7 +200,9 @@ def decode_chunk(chunk, *, nominal_hz=NOMINAL_HZ):
     hits = acq.push(base)
     if not hits:
         return {"detected": False, "frame_valid": False, "code_phase": 0}
-    dop, cp, _peak, _noise, test_stat, _snr = max(hits, key=lambda h: h[4])
+    dop, cp, _peak, _noise, test_stat, _snr, *_rest = max(
+        hits, key=lambda h: h[4]
+    )
     f0 = dop * acq.doppler_res_hz
     if dop >= acq.doppler_bins / 2:
         f0 -= acq.doppler_bins * acq.doppler_res_hz

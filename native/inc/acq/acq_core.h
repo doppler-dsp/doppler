@@ -117,15 +117,31 @@ extern "C"
                             under coherent-only detection (n_noncoh == 1);
                             scaled by sqrt(2*n_noncoh) once non-coherent
                             looks are combined. 0 if noise_est == 0.        */
-    float cn0_dbhz_est; /**< Estimated carrier-to-noise density (dB-Hz),
-                             backed out of test_stat via the same C/N0 <->
-                             per-sample-amplitude-SNR relationship used to
-                             size the engine (see acq_create()). Tracks the
-                             true C/N0 while receiver AWGN dominates the
-                             CFAR noise estimate; saturates at the code's
-                             own autocorrelation-sidelobe floor once the
-                             true C/N0 exceeds what this code/geometry can
-                             resolve — a real ceiling, not a fault.        */
+    float cn0_dbhz_est;        /**< Estimated carrier-to-noise density (dB-Hz),
+                                    backed out of test_stat via the same C/N0 <->
+                                    per-sample-amplitude-SNR relationship used to
+                                    size the engine (see acq_create()). Tracks the
+                                    true C/N0 while receiver AWGN dominates the
+                                    CFAR noise estimate; saturates at the code's
+                                    own autocorrelation-sidelobe floor once the
+                                    true C/N0 exceeds what this code/geometry can
+                                    resolve — a real ceiling, not a fault.        */
+    uint64_t samples_consumed; /**< st->samples_consumed at the exact
+                                     moment this hit was appended — the
+                                     raw sample offset (since this engine's
+                                     own stream start) this detection's
+                                     epoch ended at. The per-hit anchor a
+                                     caller needs to derive a precise
+                                     timestamp (dp_sample_clock_stamp_at(),
+                                     timing/timing_core.h) instead of
+                                     reusing one message-level timestamp
+                                     for every hit — a single push() call
+                                     spanning multiple epochs can emit
+                                     several hits at different sample
+                                     offsets. Acquisition itself stays
+                                     wall-clock-agnostic; this is the raw
+                                     material a caller with a real clock
+                                     converts.                            */
   } acq_result_t;
 
   /**
@@ -162,8 +178,8 @@ extern "C"
                                     length code_bins; reused per hypothesis. */
 
     size_t
-        doppler_bins; /**< Coherent depth = slow-time FFT length (<= reps).
-                            Forced to 1 in wideband mode (n_freq_bins > 1).  */
+        doppler_bins;   /**< Coherent depth = slow-time FFT length (<= reps).
+                              Forced to 1 in wideband mode (n_freq_bins > 1).  */
     size_t n_freq_bins; /**< Wideband frequency-window hypotheses (1 =
                               disabled/native — see the file doc comment).   */
     size_t code_bins; /**< One segment in samples = sf*spc.                 */
@@ -173,9 +189,9 @@ extern "C"
                           == n natively; == code_bins in wideband mode (one
                           epoch's worth — n_freq_bins hypotheses come from
                           ONE shared epoch, not from consuming more input).  */
-    size_t sf;        /**< Chips per PN segment (= len(code)).              */
-    size_t spc;       /**< Samples per chip (chip-rate oversample factor).  */
-    size_t reps;      /**< Max coherent code repetitions (the ceiling).     */
+    size_t sf;      /**< Chips per PN segment (= len(code)).              */
+    size_t spc;     /**< Samples per chip (chip-rate oversample factor).  */
+    size_t reps;    /**< Max coherent code repetitions (the ceiling).     */
     size_t
         searched_bins; /**< Doppler bins scanned (<= doppler_bins; du prior).*/
     size_t n_noncoh;   /**< Non-coherent looks per detection (1 = coherent). */
@@ -193,14 +209,14 @@ extern "C"
         doppler_span_hz; /**< Native Doppler half-range = chip_rate/(2*sf). */
     double
         doppler_res_hz; /**< Doppler bin width = chip_rate/(sf*doppler_bins).*/
-    double pfa; /**< Target system false-alarm probability (stored for
-                     configure_search_raw's threshold re-derivation).    */
+    double pfa;         /**< Target system false-alarm probability (stored for
+                             configure_search_raw's threshold re-derivation).    */
     double doppler_uncertainty; /**< One-sided Doppler search half-range
                                       (Hz); 0 = full native span.         */
     double symbol_rate; /**< Continuous data-symbol rate (Hz); 0 = no known
                               data-modulation clock (legacy sizing).     */
-    double epochs_per_symbol; /**< (chip_rate/sf)/symbol_rate; 0 when
-                                    symbol_rate <= 0.                    */
+    double epochs_per_symbol;  /**< (chip_rate/sf)/symbol_rate; 0 when
+                                     symbol_rate <= 0.                    */
     double doppler_resolution; /**< Desired Doppler-bin resolution (Hz) on
                                      the data-modulation search; 0 = no
                                      floor (minimize total epochs outright,

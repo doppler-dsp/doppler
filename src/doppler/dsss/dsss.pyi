@@ -463,7 +463,7 @@ class Acquisition:
         """Drain the input ring and reset the coherent accumulator.
         """
 
-    def push(self, x: complex) -> list[tuple[int, int, float, float, float, float]]:
+    def push(self, x: complex) -> list[tuple[int, int, float, float, float, float, int]]:
         """Stream raw samples; emit one event per CFAR dump above threshold.
 
         Buffers in, then for every complete frame applies the slow-time Doppler
@@ -479,7 +479,7 @@ class Acquisition:
 
         Returns
         -------
-        list[tuple[int, int, float, float, float, float]]
+        list[tuple[int, int, float, float, float, float, int]]
             Number of events written (0 … max_results).
         """
 

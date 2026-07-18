@@ -236,7 +236,15 @@ def run_trial(
         )
         return record
 
-    dop_bin, code_phase, peak_mag, noise_est, test_stat, cn0_dbhz_est = hit
+    (
+        dop_bin,
+        code_phase,
+        peak_mag,
+        noise_est,
+        test_stat,
+        cn0_dbhz_est,
+        *_rest,
+    ) = hit
     doppler_hz_est = (
         dop_bin if dop_bin <= a.doppler_bins // 2 else dop_bin - a.doppler_bins
     ) * a.doppler_res_hz

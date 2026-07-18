@@ -91,7 +91,7 @@ def test_acquisition_hit_seeds_dll_exactly():
     x = _make_signal(cn0_dbhz=75.0, n_sym=1500, seed=6)
     hit, hitpos, acq = _acquire(x)
     assert hit is not None, "acquisition failed to find the continuous code"
-    _dop_bin, code_phase, _pk, _n, _ts, _c = hit
+    _dop_bin, code_phase, _pk, _n, _ts, _c, *_rest = hit
 
     chip_phase = dll_init_chip_from_acq(code_phase, SPC, SF)
     s0 = hitpos + acq.code_bins * acq.doppler_bins
@@ -113,7 +113,7 @@ def test_dll_tracks_after_handoff(segments):
     x = _make_signal(cn0_dbhz=80.0, n_sym=900, seed=6)
     hit, hitpos, acq = _acquire(x)
     assert hit is not None
-    _dop_bin, code_phase, _pk, _n, _ts, _c = hit
+    _dop_bin, code_phase, _pk, _n, _ts, _c, *_rest = hit
 
     chip_phase = dll_init_chip_from_acq(code_phase, SPC, SF)
     s0 = hitpos + acq.code_bins * acq.doppler_bins

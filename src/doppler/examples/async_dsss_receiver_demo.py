@@ -306,7 +306,7 @@ def main(out_path: str = "async_dsss_receiver_demo.png") -> None:
     # --- stage 1: acquisition -- stream until a hit lands -------------------
     hit, hitpos, acq = _acquire(x)
     assert hit is not None, "acquisition failed to find the continuous code"
-    dop_bin, code_phase, _pk, _noise_est, test_stat, cn0_dbhz_est = hit
+    dop_bin, code_phase, _pk, _noise_est, test_stat, cn0_dbhz_est, *_rest = hit
     print(
         f"acquired: doppler_bin={dop_bin} code_phase={code_phase} "
         f"test_stat={test_stat:.1f} cn0_dbhz_est={cn0_dbhz_est:.1f} "

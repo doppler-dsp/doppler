@@ -541,6 +541,19 @@ Acquisition_getprop_doppler_rate (AcquisitionObject *self,
   return PyFloat_FromDouble (self->handle->doppler_rate);
 }
 
+static PyObject *
+Acquisition_getprop_n_freq_bins (AcquisitionObject *self,
+                                 void              *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromUnsignedLongLong (
+      (unsigned long long)self->handle->n_freq_bins);
+}
+
 static PyGetSetDef Acquisition_getset[] = {
   { "code_bins", (getter)Acquisition_getprop_code_bins, NULL,
     "Code-phase hypotheses searched (= sf*spc, one code period).\n", NULL },
@@ -620,6 +633,12 @@ static PyGetSetDef Acquisition_getset[] = {
     "Expected Doppler rate of change (Hz/s) capping the data-modulation "
     "search's coherent-depth ceiling; 0 means a static Doppler (no ceiling "
     "beyond reps).\n",
+    NULL },
+  { "n_freq_bins", (getter)Acquisition_getprop_n_freq_bins, NULL,
+    "Wideband frequency-window hypotheses searched in parallel from one epoch "
+    "(1 = native mode; > 1 means doppler_uncertainty exceeded the native span "
+    "and doppler_bins was forced to 1 -- see acq_core.h's wideband-mode doc "
+    "comment).\n",
     NULL },
   { NULL }
 };

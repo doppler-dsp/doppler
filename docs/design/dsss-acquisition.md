@@ -111,7 +111,7 @@ ______________________________________________________________________
 | Method                              | Wins when                                          | Doppler resolution | Stateless | Verdict                     |
 | ----------------------------------- | -------------------------------------------------- | ------------------ | --------- | --------------------------- |
 | **Mixer + slow-time FFT** (current) | Doppler within one slow-time Nyquist; low dynamics | `1/(ny·nx)` (fine) | after P0  | **IN — P0 coherent kernel** |
-| **2-D spectral roll**               | single-epoch coarse sweep, no integration          | `1/nx` (coarse)    | yes       | **OUT — documented dual**   |
+| **2-D spectral roll**               | single-epoch coarse sweep, no integration          | `1/nx` (coarse)    | yes       | **OUT for `ny>1` regimes; IN — D=1 async-data widener** |
 | **Sub-block chop**                  | wide Doppler with integration intact               | `1/(ny·nx)` (same) | yes       | **IN — P2 widener**         |
 | **Direct mix-and-correlate**        | reference truth                                    | any                | yes       | **OUT — test ground truth** |
 | **Doppler-rate de-chirp grid**      | acceleration / long `T_coh`                        | adds rate bins     | yes       | **IN — P3 dynamics axis**   |
@@ -122,16 +122,41 @@ most code-correlation-efficient method per Doppler bin: one correlation set yiel
 all `ny` Doppler bins via the slow-time FFT. The whole architecture generalizes
 *around* this kernel.
 
-**2-D spectral roll — OUT, but worth understanding.** Rolling `conj(FFT(code))`
-by `k` integer bins and IFFT-ing against the received spectrum tests Doppler
-hypothesis `k`. But rolling by `k` bins is *exactly* mixing by `k/nx` — the
-integer-bin special case of the mixer. The mixer bank does everything the roll
-does **plus** a finer (half-window) step **plus** the multi-epoch slow-time
-integration the roll lacks; sub-block chopping widens the span the same way with
-integration intact and at the same resolution. The roll is **strictly dominated**
-on every axis except raw single-epoch simplicity, so it stays a documented dual,
-not a kernel. (Revisit only if profiling ever shows a batched roll-IFFT beats the
-per-channel mixer at very wide spans — a micro-optimization, not architecture.)
+**2-D spectral roll — OUT when coherent integration is viable, but IN as the
+dedicated D=1 async-data widener.** Rolling `conj(FFT(code))` by `k` integer
+bins and IFFT-ing against the received spectrum tests Doppler hypothesis `k`.
+Rolling by `k` bins is *exactly* mixing by `k/nx` — the integer-bin special case
+of the mixer. Where the mixer bank's `ny`-epoch (or P2's `K`-sub-block) coherent
+integration is available, it does everything the roll does **plus** a finer
+(half-window) step **plus** that integration gain, so the roll stays strictly
+dominated there — a documented dual, not a kernel.
+
+That domination argument assumes coherent integration across more than one
+epoch is *on the table*. It isn't for continuous, asynchronous data-modulated
+signals: §4's own reasoning depends on a data-free coherent window, and task
+#67 of the async-receiver story (`prototypes/async_despreader/`) measured this
+directly — a data toggle rate close to the code-epoch rate aliases the data's
+own baseband spectrum across the *entire* Doppler-bin axis of any `ny>1`
+coherent FFT (slow-time OR a P2 sub-block's longer `ny·K` window), producing a
+structural, deterministic mislock rather than graceful SNR loss. In that
+regime `ny` (and `K`) are pinned to 1 regardless of method, so the mixer
+bank's and P2's entire advantage over the roll — the coherent gain — is
+unavailable to either of them; margin instead comes from non-coherent
+accumulation (`n_noncoh`, itself alias-immune) across many `D=1` epochs. With
+coherent integration off the table for every method, the domination argument
+collapses and the roll's one-epoch, `35`-FFT-equivalent grid (vs. a `D`-channel
+mixer bank's `2D` FFT-equivalents, `D` = uncertainty / native span — measured
+1.2-1.55x, `prototypes/async_despreader/bench_freq_bank.py`) is the right,
+adopted mechanism for this regime specifically. It is now wired directly into
+`Acquisition`'s C core (`native/src/acq/acq_core.c`'s wideband mode,
+`doppler_uncertainty` beyond the native span forces `doppler_bins=1` and tiles
+with `n_freq_bins` parallel roll-FFT hypotheses) rather than composed
+externally, since — unlike the `ny>1` mixer/sub-block case — there is no
+coherent-depth knob left for a caller to tune once `ny` is pinned to 1; the
+roll IS the whole D=1 search, not an optional front-end layered in front of a
+richer kernel. (The burst/repeats regime, where `ny>1` coherent integration
+remains genuinely available, is unaffected: the mixer bank/P2 stay primary
+there, per open question 6 below.)
 
 **Sub-block chopping — the wide-Doppler widener.** Chop each epoch into `K`
 sub-blocks; the slow-time rate rises to `K/T_epoch`, so the native span widens to
@@ -465,6 +490,16 @@ finer decomposition hasn't been built.
 coarse-Doppler shards with bit-identical `get_state`/`set_state` pod
 hand-off, matching this phase's acceptance criteria.
 
+**D=1 async-data wideband roll — shipped, outside the P0-P4 phase list.**
+`Acquisition`'s C core now auto-engages the 2-D spectral roll (see §4 above)
+when `doppler_uncertainty` exceeds the native span: `doppler_bins` is forced
+to 1 and the uncertainty is tiled with `n_freq_bins` parallel roll-FFT
+hypotheses from one epoch, sized by non-coherent accumulation (`n_noncoh`)
+rather than coherent depth. This is a narrower, alias-safe widener than P2 —
+it targets specifically the regime where `ny>1` coherent integration is
+unavailable (continuous async data), not the general wide-Doppler case P2
+targets — so it isn't a substitute for P2 and doesn't move P2's status below.
+
 **Not yet started:** P2 (sub-block), P3 (Doppler-rate).
 
 | Phase                                     | Deliverable                                                                                                                                               | Acceptance criteria                                                                                                                                                                                                               |
@@ -491,8 +526,12 @@ ______________________________________________________________________
     `marcum_q`), not `acq` — recommended.
 1. **Code-Doppler scope.** Deferred to P5; revisit if a target needs long codes or
     very high velocity within one coherent window.
-1. **2-D roll re-litigation.** Verdict is OUT (dominated); reopen only if P2/P4
-    profiling shows a batched roll-IFFT wins at very wide spans on some hardware.
+1. **2-D roll re-litigation.** Partially resolved: for the `ny>1`-viable
+    (burst/repeats) regime the verdict stands, OUT (dominated) — reopen only if
+    P2/P4 profiling shows a batched roll-IFFT wins at very wide spans on some
+    hardware. For the continuous async-data `D=1`-forced regime (coherent
+    integration unavailable to any method, task #67), the roll is now IN,
+    adopted directly in `Acquisition`'s C core — see §4 and §10 above.
 
 ______________________________________________________________________
 

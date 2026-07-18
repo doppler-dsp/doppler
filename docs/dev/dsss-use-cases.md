@@ -17,7 +17,7 @@ non-coherent layer:
 | Method                                              | doppler API                                         | Doppler res / span                    | Integration            | Use when                                                 |
 | --------------------------------------------------- | --------------------------------------------------- | ------------------------------------- | ---------------------- | -------------------------------------------------------- |
 | **Column-FFT** (slow-time)                          | `dsss.Acquisition`                                  | `1/(ny·nx)` / `±1/(2nx)`              | ny epochs **coherent** | many coherent reps; need the gain                        |
-| **2-D roll** (2-D code FFT × signal FFT → 2-D IFFT) | `spectral.Corr2D` / `CorrDetector2D`                | `1/nx` / `±1/2`                       | **1 epoch**            | wide Δf, few reps, enough SNR — whole grid in one 2-D op |
+| **2-D roll** (2-D code FFT × signal FFT → 2-D IFFT) | `spectral.Corr2D` / `CorrDetector2D` (manual composition), or natively via `dsss.Acquisition` when `doppler_uncertainty` exceeds the native span (wideband mode) | `1/nx` / `±1/2` | **1 epoch** | wide Δf, few reps, enough SNR — whole grid in one 2-D op |
 | **Mixer bank**                                      | caller loop ([guide](../guide/dsss-acquisition.md)) | tiles either, `1/(2nx)` step          | —                      | widen Δf at a fine resolution; linear cost               |
 | **Non-coherent**                                    | `Acquisition(max_noncoh=…)`                         | sensitivity past the coherent ceiling | `N_nc` looks           | data-bit / burst-limited `M_coh`                         |
 

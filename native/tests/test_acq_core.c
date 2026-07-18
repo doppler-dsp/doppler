@@ -379,6 +379,84 @@ _acq_configure_search_raw_check (void)
   return _fails;
 }
 
+/* Wideband mode (doppler_uncertainty > the native span): doppler_bins is
+ * forced to 1 and the uncertainty is tiled with n_freq_bins parallel
+ * roll-FFT frequency-window hypotheses (see acq_core.h's file doc comment,
+ * and prototypes/async_despreader/bench_freq_bank.py for the benchmark that
+ * settled roll-FFT over a tuned-mixer bank). One noise-free epoch (frame_n
+ * == code_bins here, not a multi-epoch tile like the native localization
+ * test above needs) should localize to the injected (frequency window, code
+ * phase) -- including a NEGATIVE frequency window, which exercises the
+ * modulo-nx wraparound the roll amount needs (a naive modulo-n_freq_bins
+ * roll would silently fold negative windows back onto the positive side). */
+static int
+_acq_wideband_check (void)
+{
+  int          _fails = 0;
+  const double PI     = acos (-1.0);
+  const size_t spc    = 2;
+  const size_t nx     = 7 * spc; /* code_bins = sf*spc = 14 */
+  const double crate  = 1.0e6;
+  const double span   = crate / (2.0 * 7.0);
+
+  /* 3.5 * span -> n_freq_bins = ceil(3.5) = 4 (even, so n_freq_bins/2 = 2
+   * lands exactly on the convention's positive/negative boundary). */
+  acq_state_t *w = acq_create (CODE7, 7, 8, spc, crate, 45.0, 3.5 * span,
+                               1e-2, 0.9, 0, 1 /* max_noncoh: force nc=1 */,
+                               0.0, 0.0, 0.0);
+  CHECK (w != NULL);
+  if (!w)
+    return _fails;
+
+  CHECK (w->doppler_bins == 1);
+  CHECK (w->n_freq_bins == 4);
+  CHECK (w->n == w->n_freq_bins * nx);
+  CHECK (w->frame_n == nx); /* one epoch, not n_freq_bins epochs */
+  CHECK (w->n_noncoh == 1);
+  CHECK (w->searched_bins == w->n_freq_bins);
+  CHECK (fabs (w->doppler_res_hz - crate / 7.0) < 1e-6); /* chip_rate/sf */
+
+  /* row r=3 -> signed_r = 3 - 4 = -1 (one window NEGATIVE of DC): the
+   * wraparound case. */
+  const size_t row      = 3;
+  const long   signed_r = (long)row - (long)w->n_freq_bins;
+  const double f_norm   = (double)signed_r / (double)nx; /* cycles/sample */
+  const size_t d         = 5;                             /* code phase */
+
+  float complex s0d[14];
+  for (size_t q = 0; q < nx; q++)
+    {
+      size_t  src  = (q + nx - (d % nx)) % nx; /* roll by +d */
+      uint8_t chip = CODE7[(src / spc) % 7];
+      s0d[q]       = (chip & 1u) ? -1.0f : 1.0f;
+    }
+  float complex burst[14];
+  for (size_t k = 0; k < nx; k++)
+    {
+      double ph = 2.0 * PI * f_norm * (double)k;
+      burst[k]  = s0d[k] * (float complex) (cos (ph) + I * sin (ph));
+    }
+
+  acq_result_t hits[8];
+  size_t       nh = acq_push (w, burst, nx, hits, 8);
+  CHECK (nh == 1); /* one epoch -> one dump */
+  if (nh == 1)
+    {
+      CHECK (hits[0].doppler_bin == row);
+      CHECK (hits[0].code_phase == d);
+      CHECK (hits[0].test_stat > w->threshold);
+      CHECK (isfinite (hits[0].cn0_dbhz_est) && hits[0].cn0_dbhz_est > 0.0f);
+    }
+
+  /* configure_search_raw always exits wideband mode back to the native
+   * (doppler_bins, n_noncoh) grid, per its documented contract. */
+  CHECK (acq_configure_search_raw (w, 2, 1) == 0);
+  CHECK (w->n_freq_bins == 1 && w->doppler_bins == 2);
+
+  acq_destroy (w);
+  return _fails;
+}
+
 /* doppler_resolution: the resolution floor added to fix the O(reps^3)
  * construction-time blowup of the joint (doppler_bins, n_noncoh) search once
  * reps is raised to reach a fine resolution (see acq_create()'s doc). Checks
@@ -595,9 +673,19 @@ main (void)
   CHECK (acq_create (CODE7, 7, 8, spc, crate, 45.0, 0.0, 0.0, 0.9, 0, 1, 0.0,
                      0.0, 0.0)
          == NULL); /* pfa out of range */
-  CHECK (acq_create (CODE7, 7, 8, spc, crate, 45.0, span * 2.0, 1e-3, 0.9, 0,
-                     1, 0.0, 0.0, 0.0)
-         == NULL); /* doppler_uncertainty > span */
+  /* doppler_uncertainty > span used to be rejected; it now engages wideband
+   * mode instead (see _acq_wideband_check below) -- must succeed here. */
+  {
+    acq_state_t *wide = acq_create (CODE7, 7, 8, spc, crate, 45.0, span * 2.0,
+                                    1e-3, 0.9, 0, 1, 0.0, 0.0, 0.0);
+    CHECK (wide != NULL);
+    if (wide)
+      {
+        CHECK (wide->doppler_bins == 1);
+        CHECK (wide->n_freq_bins == 2); /* ceil(2.0) */
+        acq_destroy (wide);
+      }
+  }
 
   /* ── auto-config: a strong C/N0 needs only one coherent rep ──────────── */
   acq_state_t *a = acq_create (CODE7, 7, 8, spc, crate, 65.0, 0.0, 1e-2, 0.9,
@@ -751,6 +839,7 @@ main (void)
   _fails += _acq_cn0_calibration ();
   _fails += _acq_data_mod_check ();
   _fails += _acq_configure_search_raw_check ();
+  _fails += _acq_wideband_check ();
   _fails += _acq_doppler_resolution_check ();
   _fails += _acq_doppler_rate_check ();
 

@@ -440,7 +440,7 @@ class Acquisition:
     cn0_dbhz : float, default 50.0
         Carrier-to-noise density in dB-Hz (> 0).
     doppler_uncertainty : float, default 0.0
-        One-sided Doppler search half-range in Hz; 0 uses the full native span +/- chip_rate/(2*sf).  Must be <= span.
+        One-sided Doppler search half-range in Hz; 0 uses the full native span +/- chip_rate/(2*sf).  A value greater than the native span engages wideband mode (see the file doc comment above): doppler_bins is forced to 1 and the uncertainty is tiled with parallel frequency-window hypotheses instead.
     pfa : float, default 1e-3
         Target system (max-of-N) false-alarm probability (0,1).
     pd : float, default 0.9
@@ -515,6 +515,10 @@ class Acquisition:
     @property
     def doppler_bins(self) -> int:
         """Coherent depth chosen: the slow-time FFT length in code reps (<= reps)."""
+
+    @property
+    def n_freq_bins(self) -> int:
+        """Wideband frequency-window hypotheses searched in parallel from one epoch (1 = native mode; > 1 means doppler_uncertainty exceeded the native span and doppler_bins was forced to 1 -- see acq_core.h's wideband-mode doc comment)."""
 
     @property
     def sf(self) -> int:

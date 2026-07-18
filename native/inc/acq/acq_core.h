@@ -35,6 +35,39 @@
  * or coherently-integrated ratio (both scale with @p spc/@p reps and so
  * aren't portable across configurations).
  *
+ * **Wideband mode** (@p doppler_uncertainty > the native span
+ * `chip_rate/(2*sf)`): a coherent slow-time Doppler FFT can only ever resolve
+ * frequency *within* one native span — more coherent depth subdivides that
+ * SAME fixed range more finely, it never widens it — and for a continuous
+ * (async, data-modulated) signal, a multi-epoch coherent axis wide enough to
+ * matter aliases the data's own bit transitions across the whole Doppler-bin
+ * axis (a structural mislock, not a graceful SNR loss — see
+ * docs/design/dsss-acquisition.md).  So once @p doppler_uncertainty exceeds
+ * the native span, this engine forces `doppler_bins = 1` (no coherent
+ * multi-epoch combining at all — sidesteps the aliasing entirely) and instead
+ * tiles the requested uncertainty with `n_freq_bins =
+ * ceil(doppler_uncertainty / (chip_rate/(2*sf)))` parallel frequency-window
+ * hypotheses, each one native span wide, searched every epoch from a SINGLE
+ * shared forward FFT of that epoch: hypothesis r's spectrum is the shared FFT
+ * circularly rolled by r bins (exact — the window spacing IS this
+ * code_bins-point FFT's own bin spacing) against one fixed precomputed
+ * replica spectrum, then inverse-FFT'd — `n_freq_bins` inverse FFTs plus the
+ * one shared forward FFT per epoch, not `n_freq_bins` independent
+ * down-conversions. Empirically the cheaper of the two realizations
+ * benchmarked for this (`prototypes/async_despreader/bench_freq_bank.py`):
+ * ~1.2x-1.55x faster than an equivalent tuned-mixer bank, measured with real
+ * doppler.spectral.FFT.  SNR margin in this mode comes entirely from
+ * @p max_noncoh non-coherent looks (magnitude-squared accumulation, immune to
+ * data-modulation sign flips) rather than coherent depth.  `doppler_bin` in
+ * @ref acq_result_t reports the frequency-window index (0 … n_freq_bins-1,
+ * native FFT-bin ordering) instead of a slow-time-FFT row; `doppler_res_hz`
+ * still reports the per-window spacing (chip_rate/sf, unchanged formula at
+ * doppler_bins=1).  @p doppler_resolution / @p doppler_rate are ignored in
+ * this mode (doppler_bins is forced to 1 regardless — the finest resolution
+ * this mode offers is one native window); combining wideband search WITH a
+ * coherent depth > 1 per window is not supported (a possible future
+ * extension, not needed by any current use case).
+ *
  * @code
  * // 31-chip PN, 4x oversample, up to 16 coherent reps; 1 MHz chips, 45 dB-Hz
  * uint8_t code[31] = { 0 };   // ... fill with PN chips (0/1) ...
@@ -73,7 +106,10 @@ extern "C"
    */
   typedef struct
   {
-    size_t doppler_bin; /**< Peak row: Doppler bin (0 … doppler_bins-1). */
+    size_t doppler_bin; /**< Peak row: Doppler bin (0 … doppler_bins-1), or,
+                             in wideband mode, the frequency-window index
+                             (0 … n_freq_bins-1) — see acq_core.h's file
+                             doc comment.                                   */
     size_t code_phase; /**< Peak col: code phase (0 … code_bins-1).          */
     float  peak_mag;   /**< max `|R[i,j]|` over the surface (linear).        */
     float  noise_est;  /**< CFAR noise estimate over `[noise_lo, noise_hi]`. */
@@ -106,16 +142,37 @@ extern "C"
     float complex *yframe;  /**< Slow-time-FFT'd frame (n) fed to corr.  */
     float complex *colbuf;  /**< Gathered column scratch (doppler_bins).  */
     float complex *colout;  /**< FFT'd column scratch (doppler_bins).  */
-    float complex *out_buf; /**< corr2d dump output (n). */
+    float complex *out_buf; /**< corr2d dump output (n) — also the wideband
+                                 mode's (n_freq_bins, code_bins) grid.       */
     float *mag_buf;       /**< |out_buf| (n).                                */
     float *noise_scratch; /**< Scratch for the median sort (n).              */
     float *nc_surface;    /**< Non-coherent |·|² accumulator (n); NULL
                                unless n_noncoh > 1.                          */
 
+    /* Wideband mode only (n_freq_bins > 1) — see the file doc comment.
+     * Independent of corr/slow_fft/yframe/colbuf/colout above (unused, but
+     * left allocated at their trivial doppler_bins=1 size, in this mode). */
+    fft_state_t *wide_fwd; /**< Forward FFT, length code_bins.               */
+    fft_state_t *wide_inv; /**< Inverse FFT, length code_bins.               */
+    float complex
+        *wide_ref_spec; /**< conj(FFT(replica row)), length code_bins.     */
+    float complex
+        *wide_spec; /**< FFT(raw epoch), length code_bins; once/epoch.    */
+    float complex *wide_prod; /**< Rolled-spectrum * wide_ref_spec product,
+                                    length code_bins; reused per hypothesis. */
+
     size_t
-        doppler_bins; /**< Coherent depth = slow-time FFT length (<= reps). */
+        doppler_bins; /**< Coherent depth = slow-time FFT length (<= reps).
+                            Forced to 1 in wideband mode (n_freq_bins > 1).  */
+    size_t n_freq_bins; /**< Wideband frequency-window hypotheses (1 =
+                              disabled/native — see the file doc comment).   */
     size_t code_bins; /**< One segment in samples = sf*spc.                 */
-    size_t n;         /**< doppler_bins * code_bins — frame size in samples.*/
+    size_t n; /**< Output grid size in samples: doppler_bins * n_freq_bins *
+                   code_bins (one of doppler_bins/n_freq_bins is always 1).  */
+    size_t frame_n; /**< Raw samples consumed from the ring per iteration:
+                          == n natively; == code_bins in wideband mode (one
+                          epoch's worth — n_freq_bins hypotheses come from
+                          ONE shared epoch, not from consuming more input).  */
     size_t sf;        /**< Chips per PN segment (= len(code)).              */
     size_t spc;       /**< Samples per chip (chip-rate oversample factor).  */
     size_t reps;      /**< Max coherent code repetitions (the ceiling).     */
@@ -280,7 +337,10 @@ extern "C"
    * @param chip_rate   Chip rate in Hz (> 0).
    * @param cn0_dbhz    Carrier-to-noise density in dB-Hz (> 0).
    * @param doppler_uncertainty  One-sided Doppler search half-range in Hz; 0
-   * uses the full native span +/- chip_rate/(2*sf).  Must be <= span.
+   * uses the full native span +/- chip_rate/(2*sf).  A value greater than the
+   * native span engages wideband mode (see the file doc comment above):
+   * doppler_bins is forced to 1 and the uncertainty is tiled with parallel
+   * frequency-window hypotheses instead.
    * @param pfa         Target system (max-of-N) false-alarm probability (0,1).
    * @param pd          Target detection probability (0,1).
    * @param noise_mode  CFAR mode index: 0=mean, 1=median, 2=min, 3=max.

@@ -303,9 +303,12 @@ def test_doppler_uncertainty_sharpens_gate():
     assert narrow.eta < full.eta  # ... → lower amplitude threshold
     assert narrow.pd_predicted >= full.pd_predicted
 
-    # Beyond the native span there is nothing to search → rejected.
-    with pytest.raises(MemoryError):
-        Acquisition(
+    # Beyond the native span, wideband mode tiles the uncertainty with
+    # parallel frequency-window hypotheses (roll-FFT search, one epoch,
+    # doppler_bins forced to 1) instead of a coherent slow-time axis.
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", UserWarning)
+        wide = Acquisition(
             CODE,
             reps=4,
             spc=SPS,
@@ -315,6 +318,8 @@ def test_doppler_uncertainty_sharpens_gate():
             pd=PD,
             doppler_uncertainty=full.doppler_span_hz * 2,
         )
+    assert wide.doppler_bins == 1
+    assert wide.n_freq_bins == 2
 
 
 def test_underpowered_warns():

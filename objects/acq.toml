@@ -149,6 +149,12 @@ field = true
 doc = "Coherent depth chosen: the slow-time FFT length in code reps (<= reps)."
 
 [[acq.properties]]
+name = "n_freq_bins"
+type = "size_t"
+field = true
+doc = "Wideband frequency-window hypotheses searched in parallel from one epoch (1 = native mode; > 1 means doppler_uncertainty exceeded the native span and doppler_bins was forced to 1 -- see acq_core.h's wideband-mode doc comment)."
+
+[[acq.properties]]
 name = "sf"
 type = "size_t"
 field = true

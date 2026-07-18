@@ -10,7 +10,9 @@ analyzed a FIXED residual carrier's one-epoch I&D loss. It never
 analyzed carrier RATE OF CHANGE -- the actual failure mode for the
 S-band LEO use case this receiver targets (confirmed numbers already
 in `docs/design/dsss-acquisition.md` Sec8: Doppler up to +/-100 kHz,
-Doppler RATE up to +/-5 kHz/s). This module is the first attempt at
+Doppler RATE up to +/-500 Hz/s -- corrected from an earlier "+/-5 kHz/s"
+typo, 10x too high; see `SPEC.md`'s own corrected figure). This module
+is the first attempt at
 the alternative: carrier-aided code tracking, the standard GNSS/DSSS
 technique -- carrier Doppler and code-rate Doppler are physically
 coupled through `sample_rate/carrier_freq` (both scale with the same
@@ -53,12 +55,22 @@ toggleable (`aid_code=`) so the carrier loop and the aiding path can be
 validated independently before validating them together.
 
 **FLL-assist (added, Phase 1d/1e)**: Costas alone cannot track a
-Doppler RATE (a frequency ramp) without a bounded steady-state lag --
-it's a type-2 phase loop, so it has zero steady-state error for a
-frequency STEP but not for a frequency RAMP (`doppler_rate_test.py`
-measured this directly: at the LEO worst-case rate, +-5 kHz/s, a
-static one-shot version of the same estimator used here was off by
->9 kHz; a periodically-re-seeded version tracked to ~60 Hz). Set
+Doppler RATE (a frequency ramp) -- and it's worse than "a bounded
+steady-state lag" (the naive type-2-loop expectation: zero steady-state
+error for a frequency STEP, a bounded lag for a frequency RAMP). A
+later rate-sweep at this module's own `bn=bn_car=0.01` (`SPEC.md`'s
+derived floor bound) found a hard CLIFF, not a graceful lag: tracking
+stays essentially exact up to ~117 Hz/s and is completely lost --
+`car_norm_freq` pinned near its seed while the true frequency runs
+away unboundedly -- above ~120 Hz/s (confirmed by an 8000-epoch
+time-series trace, not just a final snapshot). `SPEC.md`'s own
+corrected worst case (+/-500 Hz/s, was mistyped "+/-5 kHz/s") is
+already ~4x past that cliff, so some form of rate-aiding is
+structurally required, not optional. (An earlier `doppler_rate_test.py`
+measurement at the since-corrected, 10x-too-high rate figure found a
+one-shot static estimate off by >9 kHz there, with a periodically
+re-seeded version tracking to ~60 Hz -- consistent with this, since
+that rate was also far past the cliff.) Set
 `fll_block_epochs` to enable a SECOND, slower carrier-tracking axis:
 every that many epochs, the despread output accumulated over the block
 is run through `freq_refine.estimate_residual_freq` (the exact same

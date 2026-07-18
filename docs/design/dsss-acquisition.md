@@ -405,7 +405,10 @@ ______________________________________________________________________
 
 Assume a LEO-like downlink: `Rc = 1 Mcps`, `L = 1000` (`T_epoch = 1 ms`),
 `spc = 2` (`fs = 2 Msps`, `nx = 2000`), Doppler **±100 kHz**, Doppler rate
-**±5 kHz/s**.
+**±500 Hz/s** (matches the standard LEO worst-case nadir-pass derivation
+`f_dot_max = (f_c/c)*(v^2/h)` at a representative S-band carrier and
+~800 km altitude, ~579 Hz/s -- corrected from an earlier "±5 kHz/s" typo,
+which was 10x too high; see `SPEC.md`'s own corrected figure).
 
 **Wide Doppler.** Native span is `±500 Hz`. Either a **coarse mixer bank**
 (primary): 50%-overlap step `500 Hz` → **400 channels** for the 200 kHz range at
@@ -425,19 +428,23 @@ rdot_res ≤ 2 / T_coh²            (¼-cycle edge tolerance)
 R        = rate_span / Δrdot
 ```
 
-| `ny` | `T_coh` | `Δrdot`   | `R` for ±5 kHz/s      |
-| ---- | ------- | --------- | --------------------- |
-| 10   | 10 ms   | 40 kHz/s  | **1** (dynamics free) |
-| 50   | 50 ms   | 1.6 kHz/s | **~7**                |
-| 100  | 100 ms  | 400 Hz/s  | **~25**               |
+| `ny` | `T_coh` | `Δrdot`   | `R` for ±500 Hz/s      |
+| ---- | ------- | --------- | ---------------------- |
+| 10   | 10 ms   | 40 kHz/s  | **1** (dynamics free)  |
+| 50   | 50 ms   | 1.6 kHz/s | **1** (dynamics free)  |
+| 100  | 100 ms  | 400 Hz/s  | **~3**                 |
 
-The key insight: at 10 ms coherent this case needs **no rate search** — the
-dynamics are absorbed. It is *pushing `T_coh`* (for coherent dB on weak signals)
-that forces a rate grid, and its size grows as `T_coh²`. So the auto-splitter
-should cap `T_coh` at the rate ceiling and spend the rest on `N_nc`, unless the
-SNR genuinely demands coherent dB only a rate-searched long `T_coh` can give. The
-worst row above is `400 coarse × 25 rate ≈ 10 000` independent tiles per 100 ms —
-squarely fan-out territory.
+The key insight: at the corrected rate, dynamics stay absorbed all the way out
+to 50 ms coherent (`Δrdot` still exceeds the full `±500 Hz/s` span) — it takes
+pushing `T_coh` to 100 ms before a rate grid is even needed at all, and even
+then it's a small one (`~3` tiles, not the `~25` the old mistyped `±5 kHz/s`
+figure implied). `Δrdot`'s `T_coh²` scaling still means a rate grid becomes
+real again for long enough coherent integration on weak signals, so the
+auto-splitter should still cap `T_coh` at the rate ceiling and spend the rest
+on `N_nc` unless the SNR genuinely demands it — the corrected numbers just
+push that ceiling much further out. The worst row above is `400 coarse × 3
+rate ≈ 1 200` independent tiles per 100 ms — real, but a much smaller
+fan-out burden than previously estimated.
 
 **Code Doppler** (chip-rate dilation) walks the code phase by `(v/c)·Rc·T_coh`
 chips; for `T_coh ≤ 10 ms` at modest `v/c` this is sub-chip and tolerable. It

@@ -135,36 +135,128 @@ exceeded ~1.3 kHz).
      trail.)
 - [x] After both fixes: full chain LOCKS cleanly at the real operating
   point (refine residual +9.3 Hz, final tracking error 0.06 Hz).
-- [x] **Doppler-rate (<5 kHz/s) tracking at the real 3 dB floor** —
-  investigated via `doppler_rate_floor_test.py` (new, extends
-  `doppler_rate_test.py`'s exact static-batch/FLL-assist/integrated
-  methodology to `Es/N0={3,5,10}dB x rate={0,1000,5000}Hz/s`, `bn=
-  bn_car=0.01` per `SPEC.md`'s derived ceiling, 8 seeds/point).
-  **Finding: FLL-assist is UNSAFE at the literal 3 dB floor** — 8/8
-  seeds hit a gross wrong-peak correction (>469 Hz, some >8 kHz) at
-  every rate INCLUDING rate=0 (no correction even needed), and in the
-  real integrated system FLL=on is worse than FLL=off in 8/8 seeds at
-  rate=0, 6/8 at rate=1000, 4/8 at rate=5000. 5 dB is a genuine
-  transition zone (better but still risky at nonzero rates). 10 dB
-  behaves exactly as originally validated (0/8 gross errors, clear
-  win at nonzero rates). **This directly extends `SPEC.md`'s own
-  "still open" line** (per-epoch bit-straddle SNR loss "not yet
-  separately quantified") — it's now quantified, and the answer is
-  that the existing FLL-assist mechanism needs a gate before it's
-  trustworthy near the floor (either a sanity/consistency check per
-  correction, or adaptively growing `fll_block_epochs` off an Es/N0
-  estimate — NOT YET IMPLEMENTED, flagged as a follow-up below).
+- [x] **Doppler-rate (<500 Hz/s, corrected -- see below) tracking at the
+  real 3 dB floor** — investigated via `doppler_rate_floor_test.py`
+  (extends `doppler_rate_test.py`'s exact static-batch/FLL-assist/
+  integrated methodology to `Es/N0={3,5,10}dB x rate={0,500,1000}Hz/s`
+  -- the corrected worst case plus a 2x margin point, `bn=bn_car=0.01`
+  per `SPEC.md`'s derived ceiling, 8 seeds/point).
+  **Finding: FLL-assist is UNSAFE at the literal 3 dB floor, confirmed
+  at the ACTUAL corrected rate, not just an inflated one.** At
+  Es/N0=3dB, rate=500 Hz/s (SPEC's real worst case): FLL=on is worse
+  than FLL=off in 7/8 seeds (mean err 3018 Hz vs. FLL=off's 676 Hz --
+  over 4x worse); rate=0: 8/8 worse; rate=1000 (2x margin): 6/8 worse.
+  **Clean transition at 5 dB**: at rate=500, FLL=on FLIPS to a clear
+  win, 0/8 worse (mean 110 Hz vs. FLL=off's 675 Hz). 10 dB behaves
+  exactly as originally validated (0/8 gross errors, clear win at
+  nonzero rates). Also notable: Costas-ALONE (FLL=off) settles to a
+  persistent ~675 Hz error at rate=500 regardless of Es/N0 (3/5/10 dB
+  all land ~672-680 Hz) -- past its own ~117 Hz/s lock-loss cliff (see
+  below) but not so far past it that tracking goes fully unbounded;
+  either way, ~675 Hz residual is itself too large for clean decode,
+  so Costas-alone isn't a safe fallback either. **This directly
+  extends `SPEC.md`'s own "still open" line** (per-epoch bit-straddle
+  SNR loss "not yet separately quantified") — it's now quantified, and
+  the answer is that the existing FLL-assist mechanism needs a gate
+  before it's trustworthy near the floor (either a sanity/consistency
+  check per correction, or adaptively growing `fll_block_epochs` off
+  an Es/N0 estimate — NOT YET IMPLEMENTED, flagged as a follow-up
+  below).
 
 ## Still open / explicit follow-ups (not started)
 
-- [ ] **FLL-assist safety gate near the Es/N0 floor** (see finding
-  above) — needs either a per-correction sanity/consistency check
-  before folding into `_car_coarse_dev`, or adaptive
-  `fll_block_epochs` sizing off an estimated Es/N0. Affects
-  `prototypes/async_despreader/despreader_coupled.py`
-  (`CoupledAsyncDespreader`'s FLL-assist mechanism) — this is prototype
-  code; nothing in shipped C/Python uses FLL-assist yet, so this is
-  pre-production risk, not a live bug.
+- [x] ~~FLL-assist safety gate near the Es/N0 floor~~ — **SUPERSEDED,
+  see "The real fix" below.** The prototype's own ad-hoc FLL-assist
+  (periodic squaring+FFT batch re-estimation) does need a safety gate
+  to be trustworthy near the floor, and Costas-alone genuinely cannot
+  track SPEC's corrected +/-500 Hz/s requirement on its own (confirmed:
+  a hard lock-loss cliff at ~117 Hz/s, ~4x below the requirement,
+  traced down to the discriminator level -- accumulated phase error
+  from the uncorrected ramp outruns the Costas phase-discriminator's
+  inherent +/-90 degree unambiguous range within tens of symbols once
+  the rate exceeds the loop's own correction bandwidth; confirmed
+  independent of the `aid_code` carrier->code coupling via a byte-
+  identical A/B). But building a safety gate for the prototype's own
+  invented mechanism turned out to be solving the wrong problem --
+  see below.
+
+## The real fix: use the shipped `costas_core.h` `bn_fll`, not a hand-rolled FLL
+
+Found while asking "where does this Costas discriminator actually come
+from" (this session): `prototypes/async_despreader/despreader_coupled.py`
+hand-rolls its own Python copy of just the PHASE-discriminator formula
+(`e_car = (im_p if re_p>=0 else -im_p)/a_p`, matching `costas_core.h`'s
+`costas_update`'s form) but never calls the real, shipped `Costas`
+object at all -- and its own "FLL-assist" (periodic squaring+FFT batch
+re-estimation over 300-epoch blocks) is a from-scratch invention,
+**duplicating a mechanism that already exists, is already shipped, and
+is already tested**: `native/inc/costas/costas_core.h` /
+`native/src/costas/costas_core.c` has a built-in `bn_fll` parameter --
+a decision-directed CROSS-PRODUCT frequency discriminator (continuous,
+per-symbol, standard GNSS/DSSS technique), exposed to Python via
+`doppler.track.Costas(bn_fll=...)`, with its own passing test
+(`test_costas_core.c`, test 7: "FLL assist widens pull-in" --
+`bn=0.01, bn_fll=0.03` acquires a large static residual a bare PLL
+can't, at zero noise).
+
+That existing test never combined bn_fll with BOTH a Doppler RAMP and
+low Es/N0 together -- exactly the untested combination this session's
+whole investigation was chasing. Tested directly (new, this session):
+real `Costas(bn=0.01, bn_fll=0.03, tsamps=2046)` against the identical
+rate=500 Hz/s ramp, Es/N0=3dB and 10dB. **Result: the real bn_fll
+mechanism is safe and effective at BOTH points** -- final tracking
+error -24.9 Hz at 3dB, -10.6 Hz at 10dB (vs. the prototype's own
+FLL-assist: -7800 Hz at 3dB). No gross failures, no runaway, smooth
+ramp-following throughout at both SNR points. This is because a
+cross-product discriminator's failure mode is structurally different
+from squaring+FFT batch re-estimation: it doesn't depend on collecting
+enough samples in a short, noisy block to average down before
+committing to an estimate -- it's continuous and per-symbol, feeding
+the SAME loop filter that's already handling the phase-tracking noise
+averaging.
+
+**Conclusion: the safety-gate follow-up above is superseded.** The
+prototype doesn't need a custom gate bolted onto its own invented FLL
+mechanism -- it needs to stop reimplementing Costas and use the real,
+shipped, already-validated one instead (per this project's own "never
+reimplement existing logic" principle). This is now the actual
+follow-up:
+
+- [ ] **Rework `despreader_coupled.py`'s carrier tracking to use the
+  real `costas_core.h` mechanism** (either call the real `Costas`
+  object directly if its per-symbol/downstream-of-despread shape fits,
+  or port its `bn_fll` cross-product update rule into the prototype's
+  own chip-rate, pre-despread carrier loop if the "carrier ahead of
+  despreading" architecture this module explores needs to stay
+  chip-rate) instead of the hand-rolled phase-only discriminator +
+  ad-hoc periodic-batch-reestimation FLL-assist it has today. This is
+  real prototype-refactor work, not yet started.
+- [ ] The plots backing this finding: `/home/matt/.claude/jobs/
+  6e54682b/tmp/loop_stress_3_10db.png` (prototype's own FLL-assist,
+  runaway at 3dB) and `real_costas_fll_3_10db.png` (real bn_fll,
+  stable at both) -- not yet copied into the repo/docs; worth adding
+  to `docs/design/` if this finding gets written up formally.
+
+## Corrected Doppler-rate figure (this session, later)
+
+`SPEC.md`'s "Frequency rate of change: < 5 kHz/s" was a typo -- 10x too
+high; the intent was 500 Hz/s. Verified three independent ways, all
+landing in the same "few hundred Hz/s" range and nowhere near 5 kHz/s:
+(1) standard LEO nadir-pass orbital-mechanics derivation
+(`f_dot_max = (f_c/c)*(v^2/h)`) at SPEC's own 2.5 GHz and a
+representative ~800 km altitude: 579 Hz/s; (2) pass-duration averaging
+(a 10-minute pass over SPEC's own ±50 kHz swing): ~167 Hz/s average,
+~250-333 Hz/s peak; (3) the same averaging over the design doc's
+±100 kHz worked-case swing: ~333 Hz/s average, ~500-667 Hz/s peak.
+Corrected in `SPEC.md` (line 6) and every place that cited the old
+figure: `docs/design/dsss-acquisition.md` §8 (its own Δrdot/R worked
+table recomputed -- the corrected, 10x-smaller rate span means even
+50 ms coherent integration stays "dynamics free," and the worst-case
+tile count drops from ~10,000 to ~1,200), `despreader_coupled.py`,
+`doppler_rate_test.py`, `doppler_rate_floor_test.py` (its own
+`RATE_LIST_HZ_PER_S` changed from `[0, 1000, 5000]` to `[0, 500,
+1000]` -- the corrected worst case plus a 2x stress margin, re-run;
+see the FLL-assist finding above for the updated numbers).
 - [ ] **`dsss_acq_handoff_from_result()`** (C struct/function building
   a wire-ready `DetectionEvent` from an `acq_result_t`) — the
   microservice-decomposition target's missing piece; only the Python

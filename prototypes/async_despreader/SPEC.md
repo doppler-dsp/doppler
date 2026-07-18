@@ -3,7 +3,11 @@
 - Level: Any
 - Nominal frequency: 2.5 GHz
 - Frequency uncertainty: +/- 50 kHz
-- Frequency rate of change: < 5 kHz/s
+- Frequency rate of change: < 500 Hz/s (was mistyped "5 kHz/s" -- an order
+  of magnitude too high; matches the standard LEO worst-case nadir-pass
+  derivation `f_dot_max = (f_c/c)*(v^2/h)` at this spec's own 2.5 GHz and
+  a representative ~800 km altitude: ~579 Hz/s, i.e. this bound with a
+  small margin)
 - Waveform: Continuous DSSS BPSK
 - Waveform exemplary use-case:
     - Code: CCSDS Command link Gold Code 1023 chips repeating

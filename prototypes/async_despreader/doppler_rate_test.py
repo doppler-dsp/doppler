@@ -8,8 +8,12 @@ expected to speed up the STATIC case this story already characterized.
 Where a continuous loop's architecture SHOULD matter is Doppler RATE
 (untested until now): the batch bridge collects one long window and
 assumes the residual is ~static across it -- at the LEO rate this
-story cares about (+-5 kHz/s, `docs/design/dsss-acquisition.md` Sec8),
-the true frequency can drift thousands of Hz across a single
+story cares about (+-500 Hz/s, `docs/design/dsss-acquisition.md` Sec8
+-- corrected from an earlier "+-5 kHz/s" typo, 10x too high; this
+module's own RATE_LIST_HZ_PER_S below still exercises 1000/5000 Hz/s
+as stress/margin points beyond the actual worst case, not the
+requirement itself), the true frequency can drift thousands of Hz
+across a single
 ~2.7 s/2700-epoch collection window, smearing the non-coherent
 accumulation (each block's true peak lands in a DIFFERENT bin as the
 collection progresses) instead of reinforcing it.

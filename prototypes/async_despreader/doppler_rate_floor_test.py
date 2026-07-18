@@ -53,7 +53,11 @@ from doppler_rate_test import (
 ES_N0_DB_LIST = [3.0, 5.0, 10.0]  # the real SPEC floor, one context
 # point above it, and doppler_rate_test.py's own 10 dB point for a
 # direct before/after trend comparison at the identical rates.
-RATE_LIST_HZ_PER_S = [0.0, 1000.0, 5000.0]  # SPEC's own +/-5 kHz/s
+RATE_LIST_HZ_PER_S = [0.0, 500.0, 1000.0]  # SPEC's own +/-500 Hz/s
+# (corrected from an earlier "+/-5 kHz/s" typo, 10x too high -- see
+# SPEC.md's own corrected figure) as the actual worst case, plus 1000
+# Hz/s kept as a 2x stress/margin point beyond it. 5000 Hz/s dropped --
+# it was never a real requirement, just the mistyped one.
 N_SEEDS = 8  # independent noise realizations per (Es/N0, rate) point
 
 BN = 0.01      # SPEC-derived bn<=0.01 floor bound -- code loop

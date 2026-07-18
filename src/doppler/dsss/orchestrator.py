@@ -1,19 +1,20 @@
 """Elastic multi-channel DSSS acquirer — a coarse-Doppler mixer bank.
 
-A single :class:`~doppler.dsss.Acquisition` searches only its *native* Doppler
-span, ``±chip_rate/(2*sf)`` (the slow-time FFT's unambiguous range — beyond it
-the per-segment integrate-and-dump's ``sinc`` rolloff nulls the correlation at
-``±2*span``).  To acquire a burst whose Doppler is uncertain over a *wider*
-range, this tiles ``K`` coarse-Doppler **channels**: each down-mixes its
-sub-band to baseband with a :class:`~doppler.ddc.DDC` and runs its own
-``Acquisition`` there, so the bank covers ``±doppler_uncertainty``.
+A single :class:`~doppler.dsss.BurstAcquisition` searches only its *native*
+Doppler span, ``±chip_rate/(2*sf)`` (the slow-time FFT's unambiguous range —
+beyond it the per-segment integrate-and-dump's ``sinc`` rolloff nulls the
+correlation at ``±2*span``).  To acquire a burst whose Doppler is uncertain
+over a *wider* range, this tiles ``K`` coarse-Doppler **channels**: each
+down-mixes its sub-band to baseband with a :class:`~doppler.ddc.DDC` and runs
+its own ``BurstAcquisition`` there, so the bank covers ``±doppler_uncertainty``.
 
-Each channel is an independent ``DDC → Acquisition`` pipeline over the elastic
-pure kernels, so the bank fans out across a thread pool (the C kernels release
-the GIL).  The same channels are shippable as ``(descriptor, state, block)`` to
-separate processes / pods: :meth:`CoarseChannel.get_state` /
-:meth:`Acquirer.get_state` snapshot the running state (the DDC mixer/decimator
-and the Acquisition search), and :meth:`set_state` resumes it bit-for-bit in a
+Each channel is an independent ``DDC → BurstAcquisition`` pipeline over the
+elastic pure kernels, so the bank fans out across a thread pool (the C kernels
+release the GIL).  The same channels are shippable as
+``(descriptor, state, block)`` to separate processes / pods:
+:meth:`CoarseChannel.get_state` / :meth:`Acquirer.get_state` snapshot the
+running state (the DDC mixer/decimator and the Acquisition search), and
+:meth:`set_state` resumes it bit-for-bit in a
 fresh, identically-built instance elsewhere — checkpoint a bank here, rebuild
 it from its descriptor on another pod, restore the blob, and the search
 continues without missing a sample.
@@ -60,7 +61,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 
 from doppler.ddc import DDC
-from doppler.dsss import Acquisition
+from doppler.dsss import BurstAcquisition
 
 if TYPE_CHECKING:
     from numpy.typing import NDArray
@@ -108,11 +109,11 @@ class Detection:
 
 
 class CoarseChannel:
-    """One ``DDC(mix → decimate) → Acquisition`` pipeline at center ``f_hz``.
+    """One ``DDC(mix → decimate) → BurstAcquisition`` pipeline at center ``f_hz``.
 
     The DDC mixes ``f_hz`` to DC (``norm_freq = -f_hz/source_rate``) and
     decimates the input to the acquisition rate (``chip_rate*spc``); the
-    Acquisition then searches the residual Doppler over its native span.
+    BurstAcquisition then searches the residual Doppler over its native span.
     Stateful across :meth:`process` calls (one channel per stream).
     """
 
@@ -129,7 +130,6 @@ class CoarseChannel:
         pfa: float,
         pd: float,
         noise_mode: str = "mean",
-        max_noncoh: int = 1,
     ) -> None:
         acq_fs = chip_rate * spc
         if not source_rate >= acq_fs:
@@ -147,7 +147,7 @@ class CoarseChannel:
             # A conservative sizing C/N0 may flag under-power; the bank (not
             # the single channel) is the operating point — caller decides.
             warnings.simplefilter("ignore", UserWarning)
-            self._acq = Acquisition(
+            self._acq = BurstAcquisition(
                 code,
                 reps=reps,
                 spc=spc,
@@ -157,14 +157,23 @@ class CoarseChannel:
                 pfa=pfa,
                 pd=pd,
                 noise_mode=noise_mode,
-                max_noncoh=max_noncoh,
             )
+            # Pin n_noncoh=1 explicitly: process() reports a hit per single
+            # push() call (one block = one decision), which only holds for
+            # coherent-only detection. With no caller-facing max_noncoh knob
+            # left to default to "coherent-only" (removed -- see
+            # prototypes/async_despreader/SPEC.md), the auto-sizer would
+            # otherwise silently auto-escalate non-coherent looks whenever
+            # the coherent depth alone falls short of pd, requiring several
+            # accumulated push() calls before a hit could fire at all --
+            # breaking this module's one-block-one-decision design.
+            self._acq.configure_search_raw(self._acq.doppler_bins, 1)
         self._res = self._acq.doppler_res_hz
         self._nbins = self._acq.doppler_bins
 
     @property
-    def acquisition(self) -> Acquisition:
-        """The underlying per-channel :class:`~doppler.dsss.Acquisition`."""
+    def acquisition(self) -> BurstAcquisition:
+        """The underlying per-channel :class:`~doppler.dsss.BurstAcquisition`."""
         return self._acq
 
     def _abs_doppler(self, doppler_bin: int) -> float:
@@ -294,9 +303,9 @@ class Acquirer:
     chip_rate : float
         Chip rate (Hz).
     reps : int, default 1
-        Max coherent code repetitions per channel (the Acquisition ceiling).
-    cn0_dbhz, pfa, pd, noise_mode, max_noncoh
-        Per-channel :class:`~doppler.dsss.Acquisition` detection parameters.
+        Max coherent code repetitions per channel (the BurstAcquisition ceiling).
+    cn0_dbhz, pfa, pd, noise_mode
+        Per-channel :class:`~doppler.dsss.BurstAcquisition` detection parameters.
     max_workers : int, optional
         Thread-pool size; defaults to the channel count.
     """
@@ -314,7 +323,6 @@ class Acquirer:
         pfa: float = 1e-3,
         pd: float = 0.9,
         noise_mode: str = "mean",
-        max_noncoh: int = 1,
         max_workers: int | None = None,
     ) -> None:
         if doppler_uncertainty_hz < 0.0:
@@ -329,7 +337,6 @@ class Acquirer:
             "pfa": pfa,
             "pd": pd,
             "noise_mode": noise_mode,
-            "max_noncoh": max_noncoh,
         }
         # Probe one channel to read the native span / resolution.
         probe = CoarseChannel(0.0, **ch_kw)

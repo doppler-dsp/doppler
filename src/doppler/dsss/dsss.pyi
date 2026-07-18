@@ -425,39 +425,31 @@ class BurstDespreader:
     def __exit__(self, *args: object) -> None: ...
 
 class Acquisition:
-    """Create a streaming DSSS acquisition engine.
+    """Acquisition component.
 
     Parameters
     ----------
     code : NDArray[np.uint8], default ...
-        PN chips (0/1), length code_len.
-    reps : int, default 1
-        Max coherent code repetitions, the coherence ceiling (>=1).
+        code constructor parameter.
     spc : int, default 4
-        Samples per chip (>= 1).
+        spc constructor parameter.
     chip_rate : float, default 1000000.0
-        Chip rate in Hz (> 0).
+        chip_rate constructor parameter.
+    symbol_rate : float, default 1000.0
+        symbol_rate constructor parameter.
     cn0_dbhz : float, default 50.0
-        Carrier-to-noise density in dB-Hz (> 0).
+        cn0_dbhz constructor parameter.
     doppler_uncertainty : float, default 0.0
-        One-sided Doppler search half-range in Hz; 0 uses the full native span +/- chip_rate/(2*sf).  A value greater than the native span engages wideband mode (see the file doc comment above): doppler_bins is forced to 1 and the uncertainty is tiled with parallel frequency-window hypotheses instead.
+        doppler_uncertainty constructor parameter.
     pfa : float, default 1e-3
-        Target system (max-of-N) false-alarm probability (0,1).
+        pfa constructor parameter.
     pd : float, default 0.9
-        Target detection probability (0,1).
+        pd constructor parameter.
     noise_mode : Literal["mean", "median", "min", "max"], default "mean"
-        CFAR mode index: 0=mean, 1=median, 2=min, 3=max.
-    max_noncoh : int, default 1
-        Cap on the auto-split non-coherent look count (>= 1; default 1 keeps the engine purely coherent).
-    symbol_rate : float, default 0.0
-        Continuous data-symbol rate in Hz; <= 0 (default) disables the data-modulation-aware search above.
-    doppler_resolution : float, default 0.0
-        Desired Doppler-bin resolution in Hz; 0 (default) places no floor on the coherent depth -- see above.
-    doppler_rate : float, default 0.0
-        Expected Doppler rate of change in Hz/s; 0 (default) assumes a static Doppler -- see above.
+        noise_mode constructor parameter.
 
     """
-    def __init__(self, code: NDArray[np.uint8] = ..., reps: int = ..., spc: int = ..., chip_rate: float = ..., cn0_dbhz: float = ..., doppler_uncertainty: float = ..., pfa: float = ..., pd: float = ..., noise_mode: Literal["mean", "median", "min", "max"] = "mean", max_noncoh: int = ..., symbol_rate: float = ..., doppler_resolution: float = ..., doppler_rate: float = ...) -> None: ...
+    def __init__(self, code: NDArray[np.uint8] = ..., spc: int = ..., chip_rate: float = ..., symbol_rate: float = ..., cn0_dbhz: float = ..., doppler_uncertainty: float = ..., pfa: float = ..., pd: float = ..., noise_mode: Literal["mean", "median", "min", "max"] = "mean") -> None: ...
 
     def reset(self) -> None:
         """Drain the input ring and reset the coherent accumulator.
@@ -484,21 +476,22 @@ class Acquisition:
         """
 
     def configure_search_raw(self, doppler_bins: int, n_noncoh: int) -> None:
-        """Pin the search grid directly, bypassing both auto-sizing searches -- the advanced escape hatch (mirrors Dll.configure_lock_raw/Costas.configure_lock). Resizes every buffer/plan that depends on the grid (the slow-time FFT, the code correlator, the reference, and every per-frame scratch buffer), re-derives the threshold ladder for the pinned grid from the same physics __init__ used, and clears in-flight accumulation (ring contents, the non-coherent power accumulator, dwell bookkeeping) -- call between push() calls, never a substitute for one. Raises ValueError if doppler_bins is outside [1, reps] or n_noncoh is outside [1, max_noncoh].
+        """Pin the search grid directly, bypassing both auto-sizing searches -- the advanced escape hatch (mirrors Dll.configure_lock_raw/Costas.configure_lock). Resizes every buffer/plan that depends on the grid (the slow-time FFT, the code correlator, the reference, and every per-frame scratch buffer), re-derives the threshold ladder for the pinned grid from the same physics __init__ used, and clears in-flight accumulation (ring contents, the non-coherent power accumulator, dwell bookkeeping) -- call between push() calls, never a substitute for one. Raises ValueError if doppler_bins is outside [1, reps] or n_noncoh is outside [1, 256] (the internal non-coherent-look safety-valve ceiling).
 
         Resizes every buffer/plan that depends on the grid (the slow-time FFT,
         the code correlator, the reference, and every per-frame scratch buffer),
         re-derives the threshold ladder for the pinned grid from the same
-        physics acq_create() used, and clears in-flight accumulation (ring
-        contents, the non-coherent power accumulator, dwell bookkeeping) — call
-        between push() calls, never a substitute for one.
+        physics acq_create_burst()/acq_create_continuous() used, and clears
+        in-flight accumulation (ring contents, the non-coherent power
+        accumulator, dwell bookkeeping) — call between push() calls, never a
+        substitute for one.
 
         Parameters
         ----------
         doppler_bins : int
             Coherent depth to pin, in `[1, reps]`.
         n_noncoh : int
-            Non-coherent look count to pin, in `[1, max_noncoh]`.
+            Non-coherent look count to pin, in `[1, ACQ_N_NONCOH_SAFETY_CEILING]`.
         """
 
     def state_bytes(self) -> int:
@@ -514,11 +507,169 @@ class Acquisition:
 
     @property
     def doppler_bins(self) -> int:
-        """Coherent depth chosen: the slow-time FFT length in code reps (<= reps)."""
+        """Effective Doppler search granularity this engine picked: the window-tile count (this engine always window-tiles -- see acq_core.h's file doc comment -- so this is window_bins, never a coherent-depth axis)."""
 
     @property
-    def n_freq_bins(self) -> int:
-        """Wideband frequency-window hypotheses searched in parallel from one epoch (1 = native mode; > 1 means doppler_uncertainty exceeded the native span and doppler_bins was forced to 1 -- see acq_core.h's wideband-mode doc comment)."""
+    def sf(self) -> int:
+        """Chips per PN segment, inferred from len(code)."""
+
+    @property
+    def spc(self) -> int:
+        """Samples per chip (chip-rate oversample factor)."""
+
+    @property
+    def n_noncoh(self) -> int:
+        """Non-coherent looks per detection (1 = pure coherent)."""
+
+    @property
+    def ring_cap(self) -> int:
+        """Input ring capacity in complex samples."""
+
+    @property
+    def noise_lo(self) -> int:
+        """First CFAR reference bin (inclusive)."""
+
+    @property
+    def noise_hi(self) -> int:
+        """Last CFAR reference bin (inclusive)."""
+
+    @property
+    def threshold(self) -> float:
+        """CFAR gate on the test statistic (coherent path)."""
+
+    @property
+    def eta(self) -> float:
+        """Raw per-cell Rayleigh amplitude threshold."""
+
+    @property
+    def eta_nc(self) -> float:
+        """Non-coherent CFAR threshold (order-N_nc Marcum)."""
+
+    @property
+    def pfa_cell(self) -> float:
+        """Bonferroni per-cell false-alarm probability over the searched cells."""
+
+    @property
+    def pd_predicted(self) -> float:
+        """Predicted Pd at cn0_dbhz and the chosen grid: the average Pd over the straddle priors (slow-time scalloping, intra-segment rotation, code-phase sample offset - quadrature over uniform priors), matching what the Monte-Carlo characterization measures rather than the on-grid best case."""
+
+    @property
+    def straddle_loss(self) -> float:
+        """Mean amplitude derating of the correlation peak from grid straddle (slow-time Doppler scalloping x intra-segment rotation x code-phase sample offset, each averaged over a uniform prior) - a diagnostic summary; 20*log10(straddle_loss) is the loss in dB. Sizing and pd_predicted average Pd itself over the priors (Pd at this mean amplitude would overstate the mean Pd)."""
+
+    @property
+    def fs(self) -> float:
+        """Sample rate (Hz) = chip_rate * spc."""
+
+    @property
+    def chip_rate(self) -> float:
+        """Chip rate (Hz)."""
+
+    @property
+    def cn0_dbhz(self) -> float:
+        """Carrier-to-noise density used to size the search (dB-Hz)."""
+
+    @property
+    def doppler_span_hz(self) -> float:
+        """Native unambiguous Doppler half-range = +/- chip_rate/(2*sf) Hz."""
+
+    @property
+    def doppler_res_hz(self) -> float:
+        """Doppler bin width = chip_rate/(sf*doppler_bins) Hz."""
+
+    @property
+    def pd(self) -> float:
+        """Target detection probability."""
+
+    @property
+    def underpowered(self) -> bool:
+        """True when pd_predicted < pd (the search cannot meet the target)."""
+
+    @property
+    def symbol_rate(self) -> float:
+        """Continuous data-symbol rate (Hz) this engine was built with -- diagnostic only, doesn't feed sizing (this engine never coherently combines regardless)."""
+
+    @property
+    def epochs_per_symbol(self) -> float:
+        """(chip_rate/sf)/symbol_rate -- code epochs per data symbol; 0 when symbol_rate is 0."""
+
+    def destroy(self) -> None:
+        """Release C resources immediately."""
+
+    def __enter__(self) -> "Acquisition": ...
+
+    def __exit__(self, *args: object) -> None: ...
+
+class BurstAcquisition:
+    """Create a burst-mode acquisition engine (forwards to acq_create_burst() -- see its doc comment in acq_core.h for the full physics).
+
+    Parameters
+    ----------
+    code : NDArray[np.uint8], default ...
+        PN chips (0/1), length code_len.
+    reps : int, default 1
+        Max coherent code repetitions (>= 1).
+    spc : int, default 4
+        Samples per chip (>= 1).
+    chip_rate : float, default 1000000.0
+        Chip rate in Hz (> 0).
+    cn0_dbhz : float, default 50.0
+        Carrier-to-noise density in dB-Hz (> 0).
+    doppler_uncertainty : float, default 0.0
+        One-sided Doppler search half-range in Hz.
+    pfa : float, default 1e-3
+        Target system false-alarm probability (0,1).
+    pd : float, default 0.9
+        Target detection probability (0,1).
+    noise_mode : Literal["mean", "median", "min", "max"], default "mean"
+        CFAR mode index: 0=mean, 1=median, 2=min, 3=max.
+
+    """
+    def __init__(self, code: NDArray[np.uint8] = ..., reps: int = ..., spc: int = ..., chip_rate: float = ..., cn0_dbhz: float = ..., doppler_uncertainty: float = ..., pfa: float = ..., pd: float = ..., noise_mode: Literal["mean", "median", "min", "max"] = "mean") -> None: ...
+
+    def reset(self) -> None:
+        """Drain the input ring and reset the coherent accumulator. @param state Must be non-NULL.
+        """
+
+    def push(self, x: complex) -> list[tuple[int, int, float, float, float, float, int]]:
+        """Stream raw samples; emit one event per CFAR dump above threshold. Forwards to acq_push() -- see its doc comment.
+
+        Parameters
+        ----------
+        x : complex
+            Input.
+
+        Returns
+        -------
+        list[tuple[int, int, float, float, float, float, int]]
+            Output.
+        """
+
+    def configure_search_raw(self, doppler_bins: int, n_noncoh: int) -> None:
+        """Pin the search grid directly, bypassing both auto-sizing searches -- the advanced escape hatch (mirrors Dll.configure_lock_raw/Costas.configure_lock). Resizes every buffer/plan that depends on the grid (the slow-time FFT, the code correlator, the reference, and every per-frame scratch buffer), re-derives the threshold ladder for the pinned grid from the same physics __init__ used, and clears in-flight accumulation (ring contents, the non-coherent power accumulator, dwell bookkeeping) -- call between push() calls, never a substitute for one. Raises ValueError if doppler_bins is outside [1, reps] or n_noncoh is outside [1, 256] (the internal non-coherent-look safety-valve ceiling).
+
+        Parameters
+        ----------
+        doppler_bins : int
+            Input.
+        n_noncoh : int
+            Input.
+        """
+
+    def state_bytes(self) -> int:
+        """Serialized state size in bytes."""
+    def get_state(self) -> bytes:
+        """Serialize the engine's mutable state to bytes."""
+    def set_state(self, blob: bytes) -> None:
+        """Restore mutable state from a get_state() blob."""
+
+    @property
+    def code_bins(self) -> int:
+        """Code-phase hypotheses searched (= sf*spc, one code period)."""
+
+    @property
+    def doppler_bins(self) -> int:
+        """Coherent depth chosen: the slow-time FFT length in code reps (<= reps), unless doppler_uncertainty exceeds the native span, in which case this reports the wideband window-tile count instead (coherent depth forced to 1 -- see acq_core.h's file doc comment)."""
 
     @property
     def sf(self) -> int:
@@ -600,26 +751,10 @@ class Acquisition:
     def underpowered(self) -> bool:
         """True when pd_predicted < pd (the search cannot meet the target)."""
 
-    @property
-    def symbol_rate(self) -> float:
-        """Continuous data-symbol rate (Hz) used to size the search; 0 means the legacy Doppler/code-phase-only search (no known data-modulation clock)."""
-
-    @property
-    def epochs_per_symbol(self) -> float:
-        """(chip_rate/sf)/symbol_rate -- code epochs per data symbol; 0 when symbol_rate is 0."""
-
-    @property
-    def doppler_resolution(self) -> float:
-        """Desired Doppler-bin resolution (Hz) floored on the data-modulation search; 0 means no floor (the joint search minimizes total epochs outright). Compare against the achieved doppler_res_hz."""
-
-    @property
-    def doppler_rate(self) -> float:
-        """Expected Doppler rate of change (Hz/s) capping the data-modulation search's coherent-depth ceiling; 0 means a static Doppler (no ceiling beyond reps)."""
-
     def destroy(self) -> None:
         """Release C resources immediately."""
 
-    def __enter__(self) -> "Acquisition": ...
+    def __enter__(self) -> "BurstAcquisition": ...
 
     def __exit__(self, *args: object) -> None: ...
 
@@ -815,7 +950,7 @@ class DsssReceiver:
     chip_rate : float, default 1000000.0
         Chip rate, Hz. Required.
     symbol_rate : float, default 1000.0
-        Data-symbol rate, Hz. Required — sizes the embedded Acquisition's joint search (see `acq_create()`'s own `symbol_rate`).
+        Data-symbol rate, Hz. Required — passed straight to the embedded Acquisition's own `symbol_rate` (diagnostic there; see `acq_create_continuous()`).
     spc : int, default 2
         Samples/chip (front-end oversample); default 2 (fs = 2x chip_rate).
     m : int, default 2
@@ -828,12 +963,6 @@ class DsssReceiver:
         Acquisition detection-probability target; default 0.9.
     doppler_uncertainty : float, default 100.0
         One-sided Doppler search half-range, Hz; default 100.0.
-    reps : int, default 16
-        Acquisition's own coherent-depth upper bound for its joint search; default 16.
-    max_noncoh : int, default 8
-        Acquisition's own non-coherent-look upper bound for its joint search; default 8.
-    doppler_resolution : float, default 0.0
-        Acquisition's own resolution floor on its joint search (Hz); default 0.0 (no floor -- see `acq_create()`'s own `doppler_resolution`). WARNING: this receiver always has `symbol_rate` set (it's required), so raising this forces the embedded Acquisition's coherent depth up on a continuous, data-modulated signal -- confirmed to cause frequent gross mislocks (the wrong Doppler bin winning outright), since the data modulation's own baseband spectrum aliases across the whole Doppler axis once the coherent window spans more than a handful of symbols. Leave at 0 until a resolution mechanism that doesn't grow real coherent depth (zero-padding the Doppler FFT) ships -- see docs/guide/dsss-acquisition.md's "Continuous, data-modulated signals" section.
     segments : int, default 4
         Dll's own non-coherent partial-correlation count per code epoch — its tracking- robustness parameter, independent of `sps` (see the module docstring); default 4, this story's own validated sweet spot.
     sps : int, default 8
@@ -842,7 +971,7 @@ class DsssReceiver:
         MpskReceiver's differential (rotation- invariant) demap; default 0 (coherent).
 
     """
-    def __init__(self, code: NDArray[np.uint8] = ..., chip_rate: float = ..., symbol_rate: float = ..., spc: int = ..., m: int = ..., cn0_dbhz: float = ..., pfa: float = ..., pd: float = ..., doppler_uncertainty: float = ..., reps: int = ..., max_noncoh: int = ..., doppler_resolution: float = ..., segments: int = ..., sps: int = ..., differential: int = ...) -> None: ...
+    def __init__(self, code: NDArray[np.uint8] = ..., chip_rate: float = ..., symbol_rate: float = ..., spc: int = ..., m: int = ..., cn0_dbhz: float = ..., pfa: float = ..., pd: float = ..., doppler_uncertainty: float = ..., segments: int = ..., sps: int = ..., differential: int = ...) -> None: ...
 
     def steps(self, x: NDArray[np.complex64], out: NDArray[np.complex64] | None = None) -> NDArray[np.complex64]:
         """Stream raw cf32 samples through the receiver. While searching, samples feed the embedded Acquisition and nothing is emitted (an empty array is normal, not an error). The moment a hit fires, Dll/RateConverter/MpskReceiver are built and seeded from it -- the same phase-inversion hand-off and rate-bridging this project's async-DSSS-receiver gallery story validated by hand -- and the unconsumed tail of this same call is handed straight to them, so no samples are dropped at the transition. While tracking, samples feed Dll -> RateConverter -> MpskReceiver in sequence and demodulated symbols are returned. Accepts any block size; state carries across calls.

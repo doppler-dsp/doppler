@@ -1,84 +1,72 @@
-[acq]
+[burst_acq]
 arg_type = "float _Complex"
 return_type = "float _Complex"
 mutable = "false"
 no_state = "true"
 no_step = "true"
-class_name = "Acquisition"
+class_name = "BurstAcquisition"
 serializable = "true"
-# OBJECT-library object files do not propagate transitively through corr2d, so
-# fft2d/fft must be linked explicitly (as the spectral module does) for the
-# slow-time fft_create + corr2d FFTs. detection_core supplies det_threshold/
-# det_pd for the auto-config. det_private.h / the detector2d header are
-# header-only (statics + the enum) → no link line needed for them.
-depends_on = [
-    { name = "corr2d", link = true },
-    { name = "fft2d", link = true },
-    { name = "fft", link = true },
-    { name = "detection", link = true },
-]
+# Composes acq's shared engine (acq_state_t/acq_core.c) -- this class is the
+# BURST front door (see prototypes/async_despreader/SPEC.md's Acquisition/
+# BurstAcquisition split); today's existing pre-split Acquisition behavior,
+# unchanged, including its wideband fallback for doppler_uncertainty beyond
+# the native span (coherent depth structurally can't cover more than one
+# native span, regardless of class). The hand-written burst_acq_core.h/.c
+# (below) is a thin forwarder onto acq_create_burst()/acq_push()/etc -- the
+# entire algorithm lives in acq_core.c exactly once.
+depends_on = [{ name = "acq", link = true }]
 
 # ── Construction: physics in, grid out ───────────────────────────────────────
-# The user states the waveform, front end, and operating point in real units;
-# the engine derives the whole search grid (window count, threshold, looks).
-# This class is the CONTINUOUS front door (see prototypes/async_despreader/
-# SPEC.md's Acquisition/BurstAcquisition split): always window-tiles, never
-# coherently combines across epochs -- BurstAcquisition (objects/burst_acq.toml)
-# is the other front door onto this SAME shared acq_state_t/acq_core.c engine.
-# chip_rate / cn0_dbhz carry valid nonzero placeholder defaults so jm's auto-
-# doctest builds a non-NULL object; acq_create_continuous still rejects an
-# explicit 0.
+# Today's existing (pre-split) Acquisition signature, minus symbol_rate
+# (continuous-only) and minus max_noncoh/doppler_resolution/doppler_rate
+# (removed entirely -- n_noncoh is purely auto-selected against an internal
+# safety-valve ceiling now, see ACQ_N_NONCOH_SAFETY_CEILING).
 
-[[acq.init_params]]
+[[burst_acq.init_params]]
 name = "code"
 type = "uint8_t[]"
 
-[[acq.init_params]]
+[[burst_acq.init_params]]
+name = "reps"
+type = "size_t"
+default = "1"
+
+[[burst_acq.init_params]]
 name = "spc"
 type = "size_t"
 default = "4"
 
-[[acq.init_params]]
+[[burst_acq.init_params]]
 name = "chip_rate"
 type = "double"
 default = "1000000.0"
 
-# Continuous data-symbol rate (Hz) -- diagnostic only (exposed via
-# epochs_per_symbol), doesn't feed sizing: this engine never coherently
-# combines regardless of the data-modulation clock (task #67: coherent
-# combining under continuous async data is a structural aliasing mislock,
-# not a tunable SNR trade-off).
-[[acq.init_params]]
-name = "symbol_rate"
-type = "double"
-default = "1000.0"
-
-[[acq.init_params]]
+[[burst_acq.init_params]]
 name = "cn0_dbhz"
 type = "double"
 default = "50.0"
 
-[[acq.init_params]]
+[[burst_acq.init_params]]
 name = "doppler_uncertainty"
 type = "double"
 default = "0.0"
 
-[[acq.init_params]]
+[[burst_acq.init_params]]
 name = "pfa"
 type = "double"
 default = "1e-3"
 
-[[acq.init_params]]
+[[burst_acq.init_params]]
 name = "pd"
 type = "double"
 default = "0.9"
 
-[[acq.init_params]]
+[[burst_acq.init_params]]
 name = "noise_mode"
 type = "string_enum:mean,median,min,max"
 default = "mean"
 
-[[acq.methods]]
+[[burst_acq.methods]]
 name = "push"
 arg_type = "float _Complex"
 return_type = "acq_result_t"
@@ -93,7 +81,7 @@ result_fields = [{name = "doppler_bin", type = "size_t"}, {name = "code_phase", 
 # every grid-dependent buffer/plan and clears in-flight accumulation (ring
 # contents, the non-coherent power accumulator) -- call between push() calls,
 # never a substitute for one.
-[[acq.methods]]
+[[burst_acq.methods]]
 name = "configure_search_raw"
 doc = "Pin the search grid directly, bypassing both auto-sizing searches -- the advanced escape hatch (mirrors Dll.configure_lock_raw/Costas.configure_lock). Resizes every buffer/plan that depends on the grid (the slow-time FFT, the code correlator, the reference, and every per-frame scratch buffer), re-derives the threshold ladder for the pinned grid from the same physics __init__ used, and clears in-flight accumulation (ring contents, the non-coherent power accumulator, dwell bookkeeping) -- call between push() calls, never a substitute for one. Raises ValueError if doppler_bins is outside [1, reps] or n_noncoh is outside [1, 256] (the internal non-coherent-look safety-valve ceiling)."
 arg_type = "void"
@@ -106,140 +94,134 @@ params = [
 
 # ── Read-back grid the engine derived ────────────────────────────────────────
 
-[[acq.properties]]
+[[burst_acq.properties]]
 name = "code_bins"
 type = "size_t"
 field = true
 doc = "Code-phase hypotheses searched (= sf*spc, one code period)."
 
-[[acq.properties]]
+[[burst_acq.properties]]
 name = "doppler_bins"
 type = "size_t"
 field = true
-doc = "Effective Doppler search granularity this engine picked: the window-tile count (this engine always window-tiles -- see acq_core.h's file doc comment -- so this is window_bins, never a coherent-depth axis)."
+doc = "Coherent depth chosen: the slow-time FFT length in code reps (<= reps), unless doppler_uncertainty exceeds the native span, in which case this reports the wideband window-tile count instead (coherent depth forced to 1 -- see acq_core.h's file doc comment)."
 
-[[acq.properties]]
+[[burst_acq.properties]]
 name = "sf"
 type = "size_t"
 field = true
 doc = "Chips per PN segment, inferred from len(code)."
 
-[[acq.properties]]
+[[burst_acq.properties]]
 name = "spc"
 type = "size_t"
 field = true
 doc = "Samples per chip (chip-rate oversample factor)."
 
-[[acq.properties]]
+[[burst_acq.properties]]
+name = "reps"
+type = "size_t"
+field = true
+doc = "Max coherent code repetitions (the coherence ceiling)."
+
+[[burst_acq.properties]]
 name = "n_noncoh"
 type = "size_t"
 field = true
 doc = "Non-coherent looks per detection (1 = pure coherent)."
 
-[[acq.properties]]
+[[burst_acq.properties]]
 name = "ring_cap"
 type = "size_t"
 field = true
 doc = "Input ring capacity in complex samples."
 
-[[acq.properties]]
+[[burst_acq.properties]]
 name = "noise_lo"
 type = "size_t"
 field = true
 doc = "First CFAR reference bin (inclusive)."
 
-[[acq.properties]]
+[[burst_acq.properties]]
 name = "noise_hi"
 type = "size_t"
 field = true
 doc = "Last CFAR reference bin (inclusive)."
 
-[[acq.properties]]
+[[burst_acq.properties]]
 name = "threshold"
 type = "float"
 field = true
 doc = "CFAR gate on the test statistic (coherent path)."
 
-[[acq.properties]]
+[[burst_acq.properties]]
 name = "eta"
 type = "float"
 field = true
 doc = "Raw per-cell Rayleigh amplitude threshold."
 
-[[acq.properties]]
+[[burst_acq.properties]]
 name = "eta_nc"
 type = "float"
 field = true
 doc = "Non-coherent CFAR threshold (order-N_nc Marcum)."
 
-[[acq.properties]]
+[[burst_acq.properties]]
 name = "pfa_cell"
 type = "double"
 field = true
 doc = "Bonferroni per-cell false-alarm probability over the searched cells."
 
-[[acq.properties]]
+[[burst_acq.properties]]
 name = "pd_predicted"
 type = "double"
 field = true
 doc = "Predicted Pd at cn0_dbhz and the chosen grid: the average Pd over the straddle priors (slow-time scalloping, intra-segment rotation, code-phase sample offset - quadrature over uniform priors), matching what the Monte-Carlo characterization measures rather than the on-grid best case."
 
-[[acq.properties]]
+[[burst_acq.properties]]
 name = "straddle_loss"
 type = "double"
 field = true
 doc = "Mean amplitude derating of the correlation peak from grid straddle (slow-time Doppler scalloping x intra-segment rotation x code-phase sample offset, each averaged over a uniform prior) - a diagnostic summary; 20*log10(straddle_loss) is the loss in dB. Sizing and pd_predicted average Pd itself over the priors (Pd at this mean amplitude would overstate the mean Pd)."
 
-[[acq.properties]]
+[[burst_acq.properties]]
 name = "fs"
 type = "double"
 field = true
 doc = "Sample rate (Hz) = chip_rate * spc."
 
-[[acq.properties]]
+[[burst_acq.properties]]
 name = "chip_rate"
 type = "double"
 field = true
 doc = "Chip rate (Hz)."
 
-[[acq.properties]]
+[[burst_acq.properties]]
 name = "cn0_dbhz"
 type = "double"
 field = true
 doc = "Carrier-to-noise density used to size the search (dB-Hz)."
 
-[[acq.properties]]
+[[burst_acq.properties]]
 name = "doppler_span_hz"
 type = "double"
 field = true
 doc = "Native unambiguous Doppler half-range = +/- chip_rate/(2*sf) Hz."
 
-[[acq.properties]]
+[[burst_acq.properties]]
 name = "doppler_res_hz"
 type = "double"
 field = true
 doc = "Doppler bin width = chip_rate/(sf*doppler_bins) Hz."
 
-[[acq.properties]]
+[[burst_acq.properties]]
 name = "pd"
 type = "double"
 field = true
 doc = "Target detection probability."
 
-[[acq.properties]]
+[[burst_acq.properties]]
 name = "underpowered"
 type = "bool"
 field = true
 doc = "True when pd_predicted < pd (the search cannot meet the target)."
-
-[[acq.properties]]
-name = "symbol_rate"
-type = "double"
-field = true
-doc = "Continuous data-symbol rate (Hz) this engine was built with -- diagnostic only, doesn't feed sizing (this engine never coherently combines regardless)."
-
-[[acq.properties]]
-name = "epochs_per_symbol"
-type = "double"
-field = true
-doc = "(chip_rate/sf)/symbol_rate -- code epochs per data symbol; 0 when symbol_rate is 0."

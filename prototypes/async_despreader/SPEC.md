@@ -195,42 +195,31 @@ underlying engine):
 | `noise_est` | `float` | Raw CFAR noise-floor estimate -- diagnostic passthrough. |
 | `test_stat` | `float` | Raw CFAR gating statistic -- diagnostic passthrough. |
 
-**A real gap this surfaced, not yet fixed**: `acq_result_t` (today's
-shipped struct) carries neither field above -- `acq_core.c` computes
-`samples_consumed` right before appending each result (`acq_push()`,
-around the `dp_f32_consume`/`result[ndet++]` site) and never stamps it
-onto the result at all, so it's silently unavailable per-hit even
-though the engine already knows it at exactly the right moment.
-Getting `timestamp_ns` onto `DetectionEvent` needs two additions,
-neither of them a new timestamp SCHEME (reuse `dp_sample_clock_t`'s
-existing `epoch_real_ns + n/fs` formula, don't invent a fourth one
-alongside `dp_header_t.timestamp_ns` and `dp_tlm_rec_t.n`):
+**Shipped** (`cb1765cc`, task #71's timestamp-mechanism follow-on):
+`acq_result_t` gained the `samples_consumed` field this section called
+for, `dp_sample_clock_t` gained the `stamp_at(c, n)`/`track(...)`
+pair, and the stream layer gained a one-shot `timestamp_ns` override so
+a hop-to-hop send no longer clobbers the true origin timestamp with a
+fresh syscall read. `prototypes/async_despreader/acq_handoff.py`'s
+`handoff_from_hit()` already takes the `dp_sample_clock_t` analogue
+(`doppler.wfm.SampleClock`) as its optional `clock` param and resolves
+`timestamp_ns = clock.stamp_at(samples_consumed)` -- verified exact
+end to end (`python acq_handoff.py`, `LOCKED`, timestamp checked
+against the formula directly). What's still open is only the C side of
+the handoff ACTION itself: `dsss_acq_handoff_from_result()` (Phase 0 of
+the coupled-tracker roadmap) doesn't exist as a C struct/function yet
+-- today's validated conversion lives only in Python. `Acquisition`/
+`BurstAcquisition` themselves stay wall-clock/epoch-agnostic (pure
+sample-domain engines, no I/O) -- the `dp_sample_clock_t` anchor comes
+from whatever upstream source (DDC, a real front end) is actually
+feeding them samples, and gets threaded through by the composing layer
+(`DsssReceiver`, or the k8s block wrapper), not owned by `Acquisition`
+itself.
 
-1. `acq_result_t` gains a `samples_consumed` field, stamped at the
-   same point `acq_core.c` already computes it per-hit.
-2. The handoff ACTION (Python's `handoff_from_hit()` today, the
-   planned `dsss_acq_handoff_from_result()` in C) takes a
-   `dp_sample_clock_t` as an extra input and resolves `timestamp_ns =
-   c->epoch_real_ns + samples_consumed/c->fs*1e9` -- note this is
-   `dp_sample_clock_t`'s underlying FORMULA, not a literal
-   `dp_sample_clock_stamp()` call, since that function stamps the
-   clock's OWN current position, not an arbitrary historical `n` (a
-   `push()` call can emit a hit for a `samples_consumed` behind the
-   clock's live position if multiple epochs were processed in one
-   call) -- worth a tiny `dp_sample_clock_stamp_at(c, n)` helper
-   alongside `dp_sample_clock_stamp()` rather than duplicating the
-   formula at every call site.
-3. `Acquisition`/`BurstAcquisition` themselves stay wall-clock/epoch
-   -agnostic (pure sample-domain engines, no I/O) -- the
-   `dp_sample_clock_t` anchor comes from whatever upstream source
-   (DDC, a real front end) is actually feeding them samples, and gets
-   threaded through by the composing layer (`DsssReceiver`, or the k8s
-   block wrapper), not owned by `Acquisition` itself.
-
-This gap isn't specific to `Acquisition` -- `dp_tlm_rec_t`'s own doc
-comment already flags the general pattern ("if never stamped it stays
-0"), meaning this is likely unwired in other streaming objects too,
-not just here.
+This gap wasn't specific to `Acquisition` -- `dp_tlm_rec_t`'s own doc
+comment already flagged the general pattern ("if never stamped it
+stays 0"), so the same unwired-timestamp check is worth running over
+other streaming objects too, not just this one.
 
 **Settles the plan's open question: no `carrier_freq` parameter on
 either class.** The plan flagged "does `carrier_freq` need to become a

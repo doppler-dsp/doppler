@@ -92,12 +92,10 @@ from doppler.examples.dsss_receiver_stress import (
 from doppler.resample import RateConverter
 
 # Acquisition sizing knobs, matching what DsssReceiver configures internally
-# for its own embedded engine (native_dsss_receiver_core.c's acq_create call
-# by way of the Python DsssReceiver constructor's own defaults/stress-harness
-# choices) -- this is what makes "the full range we defined for DsssReceiver"
-# apply to Acquisition on its own.
-REPS = 16
-MAX_NONCOH = 8
+# for its own embedded engine (native_dsss_receiver_core.c's
+# acq_create_continuous call by way of the Python DsssReceiver constructor's
+# own defaults/stress-harness choices) -- this is what makes "the full range
+# we defined for DsssReceiver" apply to Acquisition on its own.
 DOPPLER_UNCERTAINTY = 0.95 * SPAN_HZ
 
 MAX_FRAMES = 64  # safety cap on frames pushed while searching for a hit
@@ -111,16 +109,14 @@ def _circ_dist(a: int, b: int, m: int) -> int:
 
 def make_engine(cn0_dbhz: float, spc: int) -> Acquisition:
     """Build a fresh engine at this trial's sizing C/N0 and spc, matching
-    DsssReceiver's own `Acquisition` configuration (reps/max_noncoh/
-    doppler_uncertainty/symbol_rate)."""
+    DsssReceiver's own `Acquisition` configuration (doppler_uncertainty/
+    symbol_rate)."""
     return Acquisition(
         CODE,
-        reps=REPS,
         spc=spc,
         chip_rate=CHIP_RATE,
         cn0_dbhz=max(cn0_dbhz, 30.0),
         doppler_uncertainty=DOPPLER_UNCERTAINTY,
-        max_noncoh=MAX_NONCOH,
         symbol_rate=SYM_RATE,
     )
 

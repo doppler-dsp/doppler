@@ -127,6 +127,8 @@ extern "C" {
 
 #include "acq/acq_core.h"
 
+#include "burst_acq/burst_acq_core.h"
+
 #include "ppe/ppe_core.h"
 
 #include "burst_demod/burst_demod_core.h"

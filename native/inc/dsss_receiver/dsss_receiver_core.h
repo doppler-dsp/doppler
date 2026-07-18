@@ -38,9 +38,6 @@
  *     2, 2,                            // spc, m (BPSK)
  *     55.0, 1e-3, 0.9, 100.0,          // cn0_dbhz, pfa, pd,
  *                                      // doppler_uncertainty
- *     16, 8, 0.0,                      // reps, max_noncoh,
- *                                      // doppler_resolution (Acquisition's
- *                                      // own search-grid upper bounds)
  *     4, 8,                            // segments, sps
  *     0);                              // differential
  * float complex syms[4096];
@@ -89,8 +86,9 @@ extern "C"
     RateConverter_state_t *rc;
     mpsk_receiver_state_t *rx;
 
-    /* Own copy of the spreading code -- acq_create()/dll_create()'s own
-     * borrow-vs-copy semantics aren't part of either's public contract,
+    /* Own copy of the spreading code -- acq_create_continuous()/
+     * dll_create()'s own borrow-vs-copy semantics aren't part of either's
+     * public contract,
      * so this object keeps a persistent copy rather than depend on being
      * able to read it back out of a child, or on the caller's original
      * buffer outliving construction. */
@@ -124,23 +122,27 @@ extern "C"
    * Only `code`/`chip_rate`/`symbol_rate` describe the signal itself —
    * everything else is a physically-motivated default a caller can
    * override, not a requirement. Internally: the embedded `Acquisition`
-   * is sized by `symbol_rate` the same joint `(doppler_bins, n_noncoh)`
-   * way `docs/guide/dsss-acquisition.md` recommends; `Dll` always uses
-   * `bn=0.002` (this story's own validated stable loop bandwidth for a
-   * one-update-per-code-epoch geometry, not `dll_create()`'s own default
-   * of 0.01, which this story found unstable here) and `zeta=0.707`,
-   * `spacing=0.5`; `MpskReceiver` always uses `pulse=iandd`,
-   * `bn_carrier=bn_timing=0.01`, `zeta=0.707`, `acq_to_track=1`,
-   * `lock_thresh=0.3`, `warmup_syms=30` — this story's own validated
-   * values throughout. `n` (MpskReceiver's carrier-arm count) is derived
-   * from `sps`: the largest divisor of `sps` in `{4, 2, 1}`.
+   * is built via `acq_create_continuous()` (this receiver is inherently
+   * continuous/streaming) -- always window-tiles, never coherently
+   * combines across epochs, sensitivity purely from an internally
+   * auto-sized non-coherent look count (see `acq_core.h`'s file doc
+   * comment); `Dll` always uses `bn=0.002` (this story's own validated
+   * stable loop bandwidth for a one-update-per-code-epoch geometry, not
+   * `dll_create()`'s own default of 0.01, which this story found unstable
+   * here) and `zeta=0.707`, `spacing=0.5`; `MpskReceiver` always uses
+   * `pulse=iandd`, `bn_carrier=bn_timing=0.01`, `zeta=0.707`,
+   * `acq_to_track=1`, `lock_thresh=0.3`, `warmup_syms=30` — this story's
+   * own validated values throughout. `n` (MpskReceiver's carrier-arm
+   * count) is derived from `sps`: the largest divisor of `sps` in
+   * `{4, 2, 1}`.
    *
    * @param code                Spreading code (chip values).
    * @param code_len             Chips in `code` (the spreading factor).
    * @param chip_rate            Chip rate, Hz. Required.
-   * @param symbol_rate          Data-symbol rate, Hz. Required — sizes
-   *                             the embedded Acquisition's joint search
-   *                             (see `acq_create()`'s own `symbol_rate`).
+   * @param symbol_rate          Data-symbol rate, Hz. Required — passed
+   *                             straight to the embedded Acquisition's
+   *                             own `symbol_rate` (diagnostic there; see
+   *                             `acq_create_continuous()`).
    * @param spc                  Samples/chip (front-end oversample);
    *                             default 2 (fs = 2x chip_rate).
    * @param m                    PSK order, 2/4/8; default 2 (BPSK).
@@ -152,30 +154,6 @@ extern "C"
    *                             default 0.9.
    * @param doppler_uncertainty  One-sided Doppler search half-range, Hz;
    *                             default 100.0.
-   * @param reps                 Acquisition's own coherent-depth upper
-   *                             bound for its joint search; default 16.
-   * @param max_noncoh           Acquisition's own non-coherent-look upper
-   *                             bound for its joint search; default 8.
-   * @param doppler_resolution   Acquisition's own resolution floor on its
-   *                             joint search (Hz); default 0.0 (no floor
-   *                             -- see `acq_create()`'s own
-   *                             `doppler_resolution`). WARNING: this
-   *                             receiver always has `symbol_rate` set (it's
-   *                             required), so raising this forces the
-   *                             embedded Acquisition's coherent depth up
-   *                             on a continuous, data-modulated signal --
-   *                             confirmed to cause frequent gross mislocks
-   *                             (the wrong Doppler bin winning outright),
-   *                             since the data modulation's own baseband
-   *                             spectrum aliases across the whole Doppler
-   *                             axis once the coherent window spans more
-   *                             than a handful of symbols. Leave at 0
-   *                             until a resolution mechanism that doesn't
-   *                             grow real coherent depth (zero-padding the
-   *                             Doppler FFT) ships -- see
-   *                             docs/guide/dsss-acquisition.md's
-   *                             "Continuous, data-modulated signals"
-   *                             section.
    * @param segments             Dll's own non-coherent partial-correlation
    *                             count per code epoch — its tracking-
    *                             robustness parameter, independent of
@@ -195,9 +173,7 @@ extern "C"
   dsss_receiver_create (const uint8_t *code, size_t code_len, double chip_rate,
                         double symbol_rate, size_t spc, int m, double cn0_dbhz,
                         double pfa, double pd, double doppler_uncertainty,
-                        size_t reps, size_t max_noncoh,
-                        double doppler_resolution, size_t segments,
-                        size_t sps, int differential);
+                        size_t segments, size_t sps, int differential);
 
   /** @brief Destroy a receiver and release all four children.
    *  @param state May be NULL. */

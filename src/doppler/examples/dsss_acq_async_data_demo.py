@@ -90,7 +90,7 @@ import warnings
 # --8<-- [start:signal]
 import numpy as np
 
-from doppler.dsss import Acquisition
+from doppler.dsss import BurstAcquisition
 from doppler.wfm import Gold
 
 SF = 1023  # 2**10 - 1: the CCSDS 415.0-G-1 command-link Gold code period
@@ -170,10 +170,10 @@ N_TRIALS_MC = 200  # independent random-data/random-code-phase trials
 DOPPLER_UNCERTAINTY_HZ = 100.0  # Monte-Carlo trials draw from +-this, uniform
 
 
-def _new_acq() -> Acquisition:
+def _new_acq() -> BurstAcquisition:
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", UserWarning)
-        return Acquisition(
+        return BurstAcquisition(
             CODE,
             reps=4,
             spc=SPC,
@@ -297,19 +297,29 @@ DEPTHS = list(range(1, 13))  # epochs integrated; brackets the ~11-epoch knee
 # --8<-- [start:diversity_acq]
 def _new_acq_config(
     cn0_dbhz: float, reps: int, max_noncoh: int
-) -> Acquisition:
+) -> BurstAcquisition:
+    """Build a BurstAcquisition, then PIN the exact (coherent_depth,
+    n_noncoh) grid point via configure_search_raw, bypassing auto-sizing
+    entirely -- this sweep's whole point is to trace Pd vs. a caller
+    -chosen integration depth, so it needs the EXACT depth tested, not
+    whatever an auto-sizer with no caller-facing max_noncoh cap left
+    might land on (which, with the cap gone, would now silently
+    auto-escalate non-coherent looks on the "coherent" arm below and
+    silently pick a different look count than requested on the
+    "non-coherent" arm)."""
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", UserWarning)
-        return Acquisition(
+        acq = BurstAcquisition(
             CODE,
-            reps=reps,  # coherent-depth ceiling (1 = never grow it)
+            reps=reps,
             spc=SPC,
             chip_rate=CHIP_RATE,
-            cn0_dbhz=cn0_dbhz,  # sizing target -- pushes past the coherent
-            pfa=1e-3,  # ceiling to engage max_noncoh
+            cn0_dbhz=cn0_dbhz,
+            pfa=1e-3,
             pd=0.9,
-            max_noncoh=max_noncoh,  # non-coherent looks the engine may add
         )
+        acq.configure_search_raw(reps, max_noncoh)
+    return acq
 
 
 # --8<-- [end:diversity_acq]

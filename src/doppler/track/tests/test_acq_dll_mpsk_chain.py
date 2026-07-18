@@ -80,8 +80,6 @@ def _acquire(x):
             chip_rate=CHIP_RATE,
             cn0_dbhz=55.0,
             doppler_uncertainty=100.0,
-            reps=16,
-            max_noncoh=8,
             symbol_rate=SYM_RATE,
             pfa=1e-3,
             pd=0.9,

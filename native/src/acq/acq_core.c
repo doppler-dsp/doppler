@@ -48,23 +48,23 @@ _cn0_dbhz_from_amp_snr (float amp_snr, double fs)
  * searched_bins rows centred on DC, so the peak search must match (else the
  * lowered Bonferroni threshold over-counts and realized Pfa exceeds target).
  * Returns 1 if the cell at flat index k is inside the scanned band.  The
- * folded distance |k_row| from DC (rows >doppler_bins/2 are negative Doppler)
- * must not exceed half = (searched_bins-1)/2.  When searched_bins ==
- * doppler_bins this admits every row (byte-identical to the full search). */
+ * folded distance |k_row| from DC (rows >coherent_bins/2 are negative
+ * Doppler) must not exceed half = (searched_bins-1)/2.  When searched_bins ==
+ * coherent_bins this admits every row (byte-identical to the full search). */
 static inline int
 _in_doppler_band (const acq_state_t *st, size_t k)
 {
-  /* Wideband mode always searches its whole n_freq_bins grid by
+  /* Wideband mode always searches its whole window_bins grid by
    * construction (there is no further-narrowing prior beyond the windows
-   * n_freq_bins itself already tiles) -- every hypothesis is in-band.
+   * window_bins itself already tiles) -- every hypothesis is in-band.
    * Bypassing the native fold formula also sidesteps its even-D Nyquist-row
-   * exclusion quirk (irrelevant here: n_freq_bins isn't a slow-time FFT
+   * exclusion quirk (irrelevant here: window_bins isn't a slow-time FFT
    * length, so that formula's assumptions don't apply to it anyway). */
-  if (st->n_freq_bins > 1)
+  if (st->window_bins > 1)
     return 1;
   const size_t row = k / st->code_bins;
   const size_t fold
-      = (row <= st->doppler_bins - row) ? row : st->doppler_bins - row;
+      = (row <= st->coherent_bins - row) ? row : st->coherent_bins - row;
   return fold <= (st->searched_bins - 1) / 2;
 }
 
@@ -239,230 +239,27 @@ _mean_pd (double snr, size_t D, double umax, size_t spc, int n, double eta,
   return acc / (double)(nd * nu * nk);
 }
 
-/* ── Data-modulation self-cancellation model (symbol_rate > 0)
- * ────────────
- *
- * A continuous data-modulated signal's bit transitions land inside a
- * coherent window at a phase uniformly distributed relative to the window,
- * splitting it into segments that each carry one (unknown, i.i.d. +-1) data
- * sign -- a loss the Doppler/code-phase straddle model above knows nothing
- * about.  This ports the semi-analytical model validated in
- * src/doppler/examples/dsss_acq_async_data_demo.py's _theoretical_pd (see
- * its docstring for the derivation and the empirical cross-check: <0.01
- * max Pd error for the non-coherent case) into the sizing engine itself,
- * generalized from that script's two special cases (coherent-only,
- * non-coherent-of-single-epoch-looks) to an arbitrary D-epoch-look x
- * n_noncoh-looks grid.
- */
-
-#define ACQ_DM_NPHI 8U              /* window-phase quadrature nodes */
-#define ACQ_DM_EXACT_MAX_SYMBOLS 6U /* <=64 combos: exact sign enumeration */
-#define ACQ_DM_MC_SAMPLES 64U       /* sign draws beyond the exact cap */
-
-/* One run of a coherent window sharing a single (unknown) data symbol. */
-typedef struct
-{
-  double len;   /* Fractional epochs this run spans. */
-  size_t sym;   /* Which data symbol (0-based) it belongs to. */
-  size_t epoch; /* Which epoch (0 .. depth-1) it belongs to. */
-} _dm_run_t;
-
-/* Segment a `depth`-epoch window starting at symbol-phase phi0 (elapsed
- * into the current data symbol, in epochs) into runs of (length, symbol,
- * epoch) -- mirrors _window_epoch_segments() in the gallery script.  Pure
- * geometry: independent of the (unknown) data signs, so it is computed
- * once per phi0 and reused across every sign combination tried at that
- * phase.  `runs` must have capacity >= max_runs (caller-bounded). */
-static size_t
-_dm_segment_window (double phi0, size_t depth, double epochs_per_symbol,
-                    _dm_run_t *runs, size_t max_runs, size_t *n_symbols)
-{
-  double phase     = phi0;
-  size_t symbol_id = 0;
-  size_t nruns     = 0;
-  for (size_t e = 0; e < depth; e++)
-    {
-      double remaining = 1.0;
-      while (remaining > 1e-9)
-        {
-          double to_boundary = epochs_per_symbol - phase;
-          double take = (to_boundary < remaining) ? to_boundary : remaining;
-          if (nruns < max_runs)
-            {
-              runs[nruns].len   = take;
-              runs[nruns].sym   = symbol_id;
-              runs[nruns].epoch = e;
-              nruns++;
-            }
-          remaining -= take;
-          phase += take;
-          if (phase >= epochs_per_symbol - 1e-9)
-            {
-              phase = 0.0;
-              symbol_id++;
-            }
-        }
-    }
-  *n_symbols = symbol_id + 1;
-  return nruns;
-}
-
-/* Fill v[0 .. depth-1] (real, signed per-epoch sums) from the precomputed
- * runs and a sign assignment (bit i of `bits` -> symbol i's sign). */
-static void
-_dm_apply_signs (const _dm_run_t *runs, size_t nruns, size_t depth,
-                 uint64_t bits, double *v)
-{
-  for (size_t e = 0; e < depth; e++)
-    v[e] = 0.0;
-  for (size_t k = 0; k < nruns; k++)
-    {
-      double sign = ((bits >> runs[k].sym) & 1u) ? 1.0 : -1.0;
-      v[runs[k].epoch] += sign * runs[k].len;
-    }
-}
-
-/* Peak-of-D-point-DFT magnitude / D for a real length-D sequence -- the
- * coherent per-look gain fraction under a mid-window data transition.  The
- * engine's slow-time combine is a D-point Doppler FFT: a phase step
- * mid-window leaks energy into every bin, not just the near-zero one, and
- * detection only needs the peak bin to cross threshold.  Direct O(D^2) DFT
- * -- D is the coherent-depth search ceiling, physically small (tens at
- * most); this runs at construction time, never in a hot loop. */
-static double
-_dm_group_alpha (const double *v, size_t D)
-{
-  if (D == 1)
-    return fabs (v[0]);
-  double peak = 0.0;
-  for (size_t k = 0; k < D; k++)
-    {
-      double re = 0.0, im = 0.0;
-      for (size_t t = 0; t < D; t++)
-        {
-          double ang = -2.0 * M_PI * (double)k * (double)t / (double)D;
-          re += v[t] * cos (ang);
-          im += v[t] * sin (ang);
-        }
-      double mag = sqrt (re * re + im * im);
-      if (mag > peak)
-        peak = mag;
-    }
-  return peak / (double)D;
-}
-
-/* Deterministic xorshift64: a local, fixed-seed PRNG for the Monte-Carlo
- * sign-combo fallback (never the shared RNG state of anything else), so
- * acq_create()'s sizing decision stays reproducible. */
-static uint64_t
-_dm_xorshift64 (uint64_t *s)
-{
-  uint64_t x = *s;
-  x ^= x << 13;
-  x ^= x >> 7;
-  x ^= x << 17;
-  *s = x;
-  return x;
-}
-
-/* Semi-analytical Pd for a grid of n_noncoh non-coherently combined looks,
- * each a D-epoch coherent block (n_noncoh == 1: pure coherent), under a
- * uniformly-distributed data-bit transition relative to the D*n_noncoh
- * -epoch window.  Averages over window phase (quadrature) and the i.i.d.
- * +-1 data signs the window touches (exact enumeration for a small symbol
- * count, capped Monte Carlo beyond that).  Generalizes
- * dsss_acq_async_data_demo.py's _theoretical_pd (validated there only at
- * n_noncoh == 1 and D == 1) to an arbitrary (D, n_noncoh): each look's own
- * D-point-DFT-peak amplitude feeds a non-centrality sum across looks,
- * exactly like summing independent non-central chi-squared(2) terms into
- * marcum_q's non-central chi-squared(2*n_noncoh) -- reduces to the
- * validated D-only case at n_noncoh == 1 and to the validated
- * single-epoch-look case at D == 1. */
-static double
-_data_mod_pd (size_t D, size_t n_noncoh, double epochs_per_symbol, double snr,
-              size_t cb, double eta)
-{
-  const size_t depth = D * n_noncoh;
-  const size_t max_runs
-      = (size_t)((double)depth / fmax (epochs_per_symbol, 1e-6)) + depth + 4;
-
-  _dm_run_t *runs = (_dm_run_t *)malloc (max_runs * sizeof (*runs));
-  double    *v    = (double *)malloc (depth * sizeof (*v));
-  if (!runs || !v)
-    {
-      free (runs);
-      free (v);
-      return 0.0; /* allocation failure: treat as "doesn't meet pd" */
-    }
-
-  double   pd_acc = 0.0;
-  uint64_t rng    = 0x9E3779B97F4A7C15ull; /* fixed seed: reproducible */
-  for (size_t p = 0; p < ACQ_DM_NPHI; p++)
-    {
-      double phi0
-          = ((double)p + 0.5) / (double)ACQ_DM_NPHI * epochs_per_symbol;
-      size_t n_symbols = 0;
-      size_t nruns = _dm_segment_window (phi0, depth, epochs_per_symbol, runs,
-                                         max_runs, &n_symbols);
-
-      int    exact    = n_symbols <= ACQ_DM_EXACT_MAX_SYMBOLS;
-      size_t n_combos = exact ? ((size_t)1 << n_symbols) : ACQ_DM_MC_SAMPLES;
-
-      double pd_sum = 0.0;
-      for (size_t c = 0; c < n_combos; c++)
-        {
-          uint64_t bits = exact ? (uint64_t)c : _dm_xorshift64 (&rng);
-          _dm_apply_signs (runs, nruns, depth, bits, v);
-
-          if (n_noncoh <= 1)
-            {
-              double alpha = _dm_group_alpha (v, D);
-              pd_sum += det_pd (snr * alpha, (int)(D * cb), eta);
-            }
-          else
-            {
-              double lam = 0.0;
-              for (size_t g = 0; g < n_noncoh; g++)
-                {
-                  double alpha = _dm_group_alpha (v + g * D, D);
-                  double a     = sqrt (2.0 * (double)(D * cb)) * snr * alpha;
-                  lam += a * a;
-                }
-              pd_sum += marcum_q ((int)n_noncoh, sqrt (lam), eta);
-            }
-        }
-      pd_acc += pd_sum / (double)n_combos;
-    }
-
-  free (runs);
-  free (v);
-  return pd_acc / (double)ACQ_DM_NPHI;
-}
-
 /* Derive and commit the threshold ladder (searched_bins / pfa_cell / eta /
  * eta_nc / threshold / straddle_loss / pd_predicted / underpowered) for the
- * grid already set on st (st->doppler_bins / st->n_noncoh), given the sizing
- * physics.  Shared by _auto_config (both its paths) and
- * acq_configure_search_raw, so a caller-pinned grid gets exactly the same
- * threshold derivation an auto-sized one would.  On the data-modulation path
- * (st->epochs_per_symbol > 0) Pd is evaluated via _data_mod_pd instead of
- * _mean_pd -- see _data_mod_pd's doc for why that model isn't folded into
- * the straddle-loss quadrature. */
+ * grid already set on st (st->coherent_bins / st->n_noncoh), given the sizing
+ * physics.  Shared by both auto-sizers and acq_configure_search_raw, so a
+ * caller-pinned grid gets exactly the same threshold derivation an
+ * auto-sized one would. */
 static void
 _commit_thresholds (acq_state_t *st, double pfa, double pd, double snr,
                     double du)
 {
   const size_t cb   = st->code_bins;
   const double span = st->doppler_span_hz;
-  const size_t D    = st->doppler_bins;
+  const size_t D    = st->coherent_bins;
   const size_t nc   = st->n_noncoh;
 
   /* Wideband mode already tiles the FULL requested uncertainty with
-   * n_freq_bins windows (no further within-mode narrowing prior exists), so
+   * window_bins windows (no further within-mode narrowing prior exists), so
    * every window is "searched" by construction -- unlike the native
    * du-narrows-the-native-span case _searched_bins models. */
   st->searched_bins
-      = (st->n_freq_bins > 1) ? st->n_freq_bins : _searched_bins (D, du, span);
+      = (st->window_bins > 1) ? st->window_bins : _searched_bins (D, du, span);
   st->doppler_res_hz = st->chip_rate / ((double)st->sf * (double)D);
   st->pfa_cell = 1.0 - pow (1.0 - pfa, 1.0 / (double)(st->searched_bins * cb));
   double umax  = _intra_umax (D, st->searched_bins, du, span);
@@ -475,188 +272,84 @@ _commit_thresholds (acq_state_t *st, double pfa, double pd, double snr,
       st->eta_nc    = (float)e;
       st->threshold = 0.0f; /* coherent gate unused on the non-coherent path */
       st->pd_predicted
-          = (st->epochs_per_symbol > 0.0)
-                ? _data_mod_pd (D, nc, st->epochs_per_symbol, snr, cb, e)
-                : _mean_pd (snr, D, umax, st->spc, (int)st->n, e, (int)nc);
+          = _mean_pd (snr, D, umax, st->spc, (int)st->n, e, (int)nc);
     }
   else
     {
       st->eta_nc    = 0.0f;
       st->threshold = st->eta * ACQ_SQRT_2_OVER_PI;
       st->pd_predicted
-          = (st->epochs_per_symbol > 0.0)
-                ? _data_mod_pd (D, 1, st->epochs_per_symbol, snr, cb, st->eta)
-                : _mean_pd (snr, D, umax, st->spc, (int)st->n, st->eta, 1);
+          = _mean_pd (snr, D, umax, st->spc, (int)st->n, st->eta, 1);
     }
   st->underpowered = (uint8_t)(st->pd_predicted < pd);
 }
 
-/* Search the grid from the physics: WHICH (doppler_bins, n_noncoh) to use,
- * written to *out_d / *out_nc.  Deliberately does not touch st (not even
- * st->doppler_bins/st->n/st->n_noncoh) and does not allocate anything --
- * the caller commits the decision via _regrid() (which needs to see the
- * PRIOR grid to know what changed) and then _commit_thresholds() (which
- * needs the grid _regrid() just committed).  Search only; no side effects.
+/* Ascend n_noncoh from 1 until the AVERAGED Pd meets pd, capped at
+ * ACQ_N_NONCOH_SAFETY_CEILING (the internal safety valve replacing the old
+ * caller-supplied max_noncoh cap -- see its doc comment in acq_core.h).
+ * Shared by the wideband/window-tiling path (D pinned to 1, sb = window
+ * count) and the burst path's non-coherent fallback (D = the coherent depth
+ * that fell short, sb = its searched-bin count).  det_n_noncoh sizes at the
+ * mean straddle amplitude -- a fast initializer that Jensen makes slightly
+ * optimistic -- then the count escalates until the AVERAGED Pd meets the
+ * target. */
+static size_t
+_ascend_n_noncoh (double snr, size_t D, size_t sb, size_t cb, double pfa,
+                  double pd, size_t spc, double du, double span)
+{
+  const double umax  = _intra_umax (D, sb, du, span);
+  const double pc    = 1.0 - pow (1.0 - pfa, 1.0 / (double)(sb * cb));
+  const double sloss = _straddle_loss (D, sb, spc, du, span);
+
+  int k = det_n_noncoh (snr * sloss, (int)(D * cb), pd, pc,
+                        (int)ACQ_N_NONCOH_SAFETY_CEILING);
+  size_t nc = (k > 0) ? (size_t)k : ACQ_N_NONCOH_SAFETY_CEILING;
+  while (nc < ACQ_N_NONCOH_SAFETY_CEILING)
+    {
+      double e = (nc > 1) ? det_threshold_noncoherent (pc, (int)nc)
+                          : det_threshold (pc);
+      if (_mean_pd (snr, D, umax, spc, (int)(D * cb), e, (int)nc) >= pd)
+        break;
+      nc++;
+    }
+  return nc;
+}
+
+/* Search the grid for a BURST-mode engine: WHICH (coherent_bins, n_noncoh,
+ * window_bins) to use, written to *out_d / *out_nc / *out_window_bins.
+ * Deliberately does not touch st and does not allocate anything -- the
+ * caller commits the decision via _regrid() (which needs to see the PRIOR
+ * grid to know what changed) and then _commit_thresholds() (which needs the
+ * grid _regrid() just committed).  Search only; no side effects.
  *
- * st->epochs_per_symbol <= 0 (no known data-modulation clock): picks the
- * smallest coherent depth doppler_bins in [1, reps] whose doppler_bins*
- * code_bins coherent samples meet Pd at the (doppler_uncertainty-shrunk)
- * Bonferroni threshold; if the full coherent ceiling still falls short,
- * adds non-coherent looks (up to max_noncoh).  Unchanged from the original
- * single-axis search -- byte-identical sizing for every caller that doesn't
- * opt into symbol_rate.
+ * du > span (wideband fallback): coherent depth structurally can't cover
+ * more than one native span regardless of reps, so *out_d is forced to 1
+ * and *out_window_bins = ceil(du/span) tiles the requested uncertainty
+ * instead -- only n_noncoh needs sizing (_ascend_n_noncoh).
  *
- * st->epochs_per_symbol > 0: a data-bit transition landing mid-coherent
- * -epoch splits the coherent sum (see _data_mod_pd) -- a loss the model
- * above can't see and can silently under-size for.  Jointly searches
- * doppler_bins in [1, reps] x non-coherent looks in [1, max_noncoh],
- * pricing that loss honestly.
- *
- * st->doppler_resolution <= 0 (default): picks the grid meeting Pd with the
- * fewest total epochs (ties favor smaller doppler_bins, which also lowers
- * mislock risk -- see docs/gallery/dsss-acq-async-data.md).  This is a full
- * reps x max_noncoh sweep of the O(doppler_bins^2) _data_mod_pd model --
- * fine at the small reps this path was designed for.
- *
- * st->doppler_resolution > 0: floors doppler_bins at
- * ceil(chip_rate/(sf*doppler_resolution)) (clipped to [1, reps]) and scans
- * UP from there, taking the first (doppler_bins, n_noncoh) that meets Pd
- * (smallest n_noncoh first, so still the cheapest grid at that depth) --
- * trading the fewest-total-epochs guarantee for a resolution guarantee.
- * This is the difference between an O(reps) and an O(reps^3) construction:
- * scanning the full range from 1 pays the O(D^2) DFT inside _data_mod_pd for
- * every D up to reps, so raising reps to reach a fine doppler_resolution
- * makes the unfloored sweep cubic in reps; starting at the floor and
- * stopping at the first success touches only a handful of D near it,
- * independent of reps.
- *
- * st->doppler_rate > 0: caps the coherent-depth ceiling (both the loop's
- * upper bound and doppler_resolution's floor) at the largest D whose
- * in-window Doppler drift (doppler_rate * D * epoch duration) stays under
- * one resolution bin (chip_rate/(sf*D)) -- solving for D gives
- * D < chip_rate/(sf*sqrt(doppler_rate)).  This only ever tightens the
- * search space beyond reps; it never widens it.
- *
- * du > span (wideband): short-circuits both paths above entirely -- see the
- * file doc comment's "Wideband mode" section. doppler_bins is forced to 1
- * (a coherent multi-epoch axis can't combine with the frequency-window
- * roll-bank -- and isn't safe under continuous async data regardless, the
- * whole reason this engine ever prefers a smaller D) and
- * *out_freq_bins = ceil(du/span) tiles the requested uncertainty. Only
- * n_noncoh needs sizing: ascends from 1, pricing the FULL n_freq_bins*cb
- * Bonferroni cell count, using whichever Pd model (data-modulation-aware or
- * plain) epochs_per_symbol already selects -- same physics, just evaluated
- * once at the fixed D=1/n_freq_bins grid instead of searched over D. */
+ * du <= span: picks the smallest coherent depth D in [1, reps] whose
+ * D*code_bins coherent samples meet Pd at the (doppler_uncertainty-shrunk)
+ * Bonferroni threshold (minimum latency for a strong signal); if the full
+ * coherent ceiling still falls short, adds non-coherent looks via
+ * _ascend_n_noncoh. */
 static void
-_auto_config (const acq_state_t *st, double pfa, double pd, double snr,
-              double du, size_t *out_d, size_t *out_nc, size_t *out_freq_bins)
+_auto_config_burst (const acq_state_t *st, double pfa, double pd, double snr,
+                    double du, size_t *out_d, size_t *out_nc,
+                    size_t *out_window_bins)
 {
   const size_t cb   = st->code_bins;
   const double span = st->doppler_span_hz;
 
   if (du > span)
     {
-      const size_t n_freq_bins = (size_t)ceil (du / span);
-      const size_t sb          = n_freq_bins;
-      const double umax        = _intra_umax (1, sb, du, span);
-      const double pc    = 1.0 - pow (1.0 - pfa, 1.0 / (double)(sb * cb));
-      const double sloss = _straddle_loss (1, sb, st->spc, du, span);
-
-      int k = det_n_noncoh (snr * sloss, (int)cb, pd, pc, (int)st->max_noncoh);
-      size_t nc = (k > 0) ? (size_t)k : st->max_noncoh;
-      while (nc < st->max_noncoh)
-        {
-          double e = (nc > 1) ? det_threshold_noncoherent (pc, (int)nc)
-                              : det_threshold (pc);
-          double pdd
-              = (st->epochs_per_symbol > 0.0)
-                    ? _data_mod_pd (1, nc, st->epochs_per_symbol, snr, cb, e)
-                    : _mean_pd (snr, 1, umax, st->spc, (int)cb, e, (int)nc);
-          if (pdd >= pd)
-            break;
-          nc++;
-        }
-      *out_d         = 1;
-      *out_nc        = nc;
-      *out_freq_bins = n_freq_bins;
+      const size_t window_bins = (size_t)ceil (du / span);
+      *out_d           = 1;
+      *out_nc          = _ascend_n_noncoh (snr, 1, window_bins, cb, pfa, pd,
+                                           st->spc, du, span);
+      *out_window_bins = window_bins;
       return;
     }
-  *out_freq_bins = 1;
-
-  if (st->epochs_per_symbol > 0.0)
-    {
-      /* doppler_rate caps the coherent depth from the opposite direction to
-       * doppler_resolution's floor: past this D, in-window frequency drift
-       * would smear the FFT peak across a resolution bin (see acq_create's
-       * doc for the derivation), so it tightens -- never loosens -- reps. */
-      size_t d_ceiling = st->reps;
-      if (st->doppler_rate > 0.0)
-        {
-          double rate_ceiling_d = floor (
-              st->chip_rate / ((double)st->sf * sqrt (st->doppler_rate)));
-          if (rate_ceiling_d < 1.0)
-            rate_ceiling_d = 1.0;
-          if (rate_ceiling_d < (double)d_ceiling)
-            d_ceiling = (size_t)rate_ceiling_d;
-        }
-
-      size_t d_start = 1;
-      if (st->doppler_resolution > 0.0)
-        {
-          double floor_d = ceil (st->chip_rate
-                                 / ((double)st->sf * st->doppler_resolution));
-          d_start        = (floor_d < 1.0) ? 1 : (size_t)floor_d;
-          if (d_start > d_ceiling)
-            d_start = d_ceiling;
-        }
-
-      const int floored = (st->doppler_resolution > 0.0);
-      size_t    best_d = 0, best_nc = 0, best_total = 0;
-      for (size_t D = d_start; D <= d_ceiling; D++)
-        {
-          int found_at_d = 0;
-          for (size_t nc = 1; nc <= st->max_noncoh; nc++)
-            {
-              size_t sb  = _searched_bins (D, du, span);
-              double pc  = 1.0 - pow (1.0 - pfa, 1.0 / (double)(sb * cb));
-              double eta = (nc > 1) ? det_threshold_noncoherent (pc, (int)nc)
-                                    : det_threshold (pc);
-              double pdd
-                  = _data_mod_pd (D, nc, st->epochs_per_symbol, snr, cb, eta);
-              if (pdd < pd)
-                continue;
-              size_t total = D * nc;
-              if (best_d == 0 || total < best_total
-                  || (total == best_total && D < best_d))
-                {
-                  best_d     = D;
-                  best_nc    = nc;
-                  best_total = total;
-                }
-              /* Floored search only: nc ascends, so the first hit at this D
-               * is already its cheapest; stop growing D once any D succeeds
-               * -- resolution, not total epochs, is the priority past the
-               * floor.  Unfloored keeps the exhaustive scan (every nc, every
-               * D) byte-identical to the original search. */
-              if (floored)
-                {
-                  found_at_d = 1;
-                  break;
-                }
-            }
-          if (floored && found_at_d)
-            break;
-        }
-      if (best_d == 0)
-        {
-          /* Best effort: nothing in the ceilings meets pd. */
-          best_d  = d_ceiling;
-          best_nc = st->max_noncoh;
-        }
-      *out_d  = best_d;
-      *out_nc = best_nc;
-      return;
-    }
+  *out_window_bins = 1;
 
   /* Smallest coherent depth D meeting Pd (minimum latency for strong
    * signals); Bonferroni uses only the cells actually scanned at that
@@ -680,33 +373,38 @@ _auto_config (const acq_state_t *st, double pfa, double pd, double snr,
         }
     }
 
-  /* Non-coherent looks only if the coherent ceiling fell short and the
-   * caller raised the cap above 1 (best effort if even max_noncoh is
-   * infeasible). det_n_noncoh sizes at the mean straddle amplitude — a
-   * fast initializer that Jensen makes slightly optimistic — then the
-   * count escalates until the AVERAGED Pd meets the target. */
+  /* Non-coherent looks only if the coherent ceiling fell short (best effort
+   * if even the safety-valve ceiling is infeasible). */
   size_t nc = 1;
-  if (!coh_meets && st->max_noncoh > 1)
+  if (!coh_meets)
     {
-      size_t sb    = _searched_bins (best_d, du, span);
-      double umax  = _intra_umax (best_d, sb, du, span);
-      double pc    = 1.0 - pow (1.0 - pfa, 1.0 / (double)(sb * cb));
-      double sloss = _straddle_loss (best_d, sb, st->spc, du, span);
-      int    k     = det_n_noncoh (snr * sloss, (int)(best_d * cb), pd, pc,
-                                   (int)st->max_noncoh);
-      nc           = (k > 0) ? (size_t)k : st->max_noncoh;
-      while (nc < st->max_noncoh)
-        {
-          double e = det_threshold_noncoherent (pc, (int)nc);
-          if (_mean_pd (snr, best_d, umax, st->spc, (int)(best_d * cb), e,
-                        (int)nc)
-              >= pd)
-            break;
-          nc++;
-        }
+      size_t sb = _searched_bins (best_d, du, span);
+      nc = _ascend_n_noncoh (snr, best_d, sb, cb, pfa, pd, st->spc, du, span);
     }
   *out_d  = best_d;
   *out_nc = nc;
+}
+
+/* Search the grid for a CONTINUOUS-mode engine: ALWAYS the wideband
+ * window-tiling mechanism, unconditionally (never gated on du > span,
+ * unlike the burst path above) -- coherent_bins stays pinned to 1 by the
+ * caller regardless of what this returns; only window_bins/n_noncoh need
+ * sizing.  window_bins = max(1, ceil(du/span)) covers du <= 0 (native,
+ * single window) through du > span (multi-window tiling) with one formula,
+ * never a coherent-depth search -- see the file doc comment for why this
+ * mode never attempts coherent multi-epoch combining at all. */
+static void
+_auto_config_continuous (const acq_state_t *st, double pfa, double pd,
+                         double snr, double du, size_t *out_nc,
+                         size_t *out_window_bins)
+{
+  const size_t cb          = st->code_bins;
+  const double span        = st->doppler_span_hz;
+  const size_t window_bins = (du > 0.0) ? (size_t)ceil (du / span) : 1;
+
+  *out_window_bins = window_bins;
+  *out_nc = _ascend_n_noncoh (snr, 1, window_bins, cb, pfa, pd, st->spc, du,
+                              span);
 }
 
 /* ── Lifecycle ──────────────────────────────────────────────────────────── */
@@ -723,21 +421,23 @@ _auto_config (const acq_state_t *st, double pfa, double pd, double snr,
  * leaves `st` fully untouched at its prior grid (the contract
  * acq_configure_search_raw() promises its caller).
  *
- * `code`/`code_len` are non-NULL only from acq_create()'s initial build
- * (fresh reference from the caller's chips); a later regrid
- * (acq_configure_search_raw) passes NULL and copies row 0 of the EXISTING
- * reference forward instead of rebuilding it from scratch -- row 0 is the
- * only nonzero row regardless of doppler_bins (see the comment below), so
- * it alone fully captures the code -- unaffected by new_freq_bins growing
- * new_n, since the fill loop below only ever touches indices [0, cb). */
+ * `code`/`code_len` are non-NULL only from acq_create_burst()'s/
+ * acq_create_continuous()'s initial build (fresh reference from the
+ * caller's chips); a later regrid (acq_configure_search_raw) passes NULL
+ * and copies row 0 of the EXISTING reference forward instead of rebuilding
+ * it from scratch -- row 0 is the only nonzero row regardless of
+ * coherent_bins (see the comment below), so it alone fully captures the
+ * code -- unaffected by new_freq_bins growing new_n, since the fill loop
+ * below only ever touches indices [0, cb). */
 static int
 _regrid (acq_state_t *st, size_t new_db, size_t new_nc, size_t new_freq_bins,
          const uint8_t *code, size_t code_len)
 {
   const size_t cb           = st->code_bins;
   const size_t new_n        = new_db * new_freq_bins * cb;
-  const int    grid_changed = (new_db != st->doppler_bins) || (new_n != st->n)
-                           || (new_freq_bins != st->n_freq_bins);
+  const int    grid_changed = (new_db != st->coherent_bins)
+                           || (new_n != st->n)
+                           || (new_freq_bins != st->window_bins);
   const size_t new_frame_n = (new_freq_bins > 1) ? cb : new_n;
 
   corr2d_state_t *new_corr          = NULL;
@@ -877,9 +577,9 @@ _regrid (acq_state_t *st, size_t new_db, size_t new_nc, size_t new_freq_bins,
   free (st->nc_surface);
   st->nc_surface = new_ncsurf;
 
-  st->doppler_bins = new_db;
-  st->n_freq_bins  = new_freq_bins;
-  st->n_noncoh     = new_nc;
+  st->coherent_bins = new_db;
+  st->window_bins   = new_freq_bins;
+  st->n_noncoh      = new_nc;
   st->n            = new_n;
   st->frame_n      = new_frame_n;
   st->noise_lo     = 0;
@@ -911,27 +611,29 @@ fail:
   return -1;
 }
 
-acq_state_t *
-acq_create (const uint8_t *code, size_t code_len, size_t reps, size_t spc,
-            double chip_rate, double cn0_dbhz, double doppler_uncertainty,
-            double pfa, double pd, int noise_mode, size_t max_noncoh,
-            double symbol_rate, double doppler_resolution, double doppler_rate)
+/* Shared builder: allocates and configures the engine, dropping straight
+ * into whichever auto-sizer `continuous` selects.  Not declared in the
+ * header -- acq_create_burst()/acq_create_continuous() are the only public
+ * entry points, each fixing @p reps/@p symbol_rate/`continuous` to its own
+ * mode, never a per-call knob (see the file doc comment). */
+static acq_state_t *
+_acq_create_impl (const uint8_t *code, size_t code_len, size_t reps,
+                  size_t spc, double chip_rate, double symbol_rate,
+                  double cn0_dbhz, double doppler_uncertainty, double pfa,
+                  double pd, int noise_mode, int continuous)
 {
   /* Validate: bad arguments yield NULL (the binding maps this to a clear
    * MemoryError) rather than undefined behaviour downstream.  chip_rate /
    * cn0_dbhz > 0 act as the required sentinels (their toml placeholder
    * defaults are valid, but an explicit 0 is rejected). */
-  if (max_noncoh < 1)
-    max_noncoh = 1;
   const size_t sf   = code_len; /* sf is inferred from the code length */
   const double span = (sf > 0) ? chip_rate / (2.0 * (double)sf) : 0.0;
-  /* doppler_uncertainty > span is no longer rejected: it engages wideband
-   * mode (see the file doc comment's "Wideband mode" section) instead of
-   * being an out-of-range error. */
+  /* doppler_uncertainty > span is not rejected: it engages wideband mode
+   * (see the file doc comment's "Wideband window-tiling mode" section)
+   * instead of being an out-of-range error. */
   if (!code || code_len < 1 || spc < 1 || reps < 1 || !(chip_rate > 0.0)
       || !(cn0_dbhz > 0.0) || !isfinite (cn0_dbhz) || !(pfa > 0.0 && pfa < 1.0)
-      || !(pd > 0.0 && pd < 1.0) || doppler_uncertainty < 0.0
-      || doppler_resolution < 0.0 || doppler_rate < 0.0)
+      || !(pd > 0.0 && pd < 1.0) || doppler_uncertainty < 0.0)
     return NULL;
 
   acq_state_t *st = (acq_state_t *)calloc (1, sizeof (*st));
@@ -949,24 +651,27 @@ acq_create (const uint8_t *code, size_t code_len, size_t reps, size_t spc,
   st->pd                  = pd;
   st->pfa                 = pfa;
   st->doppler_uncertainty = doppler_uncertainty;
-  st->max_noncoh          = max_noncoh;
   st->noise_mode          = (det_noise_mode_t)noise_mode;
   st->symbol_rate         = (symbol_rate > 0.0) ? symbol_rate : 0.0;
   st->epochs_per_symbol   = (st->symbol_rate > 0.0)
                                 ? (chip_rate / (double)sf) / st->symbol_rate
                                 : 0.0;
-  st->doppler_resolution
-      = (doppler_resolution > 0.0) ? doppler_resolution : 0.0;
-  st->doppler_rate = (doppler_rate > 0.0) ? doppler_rate : 0.0;
 
   /* C/N0 (dB-Hz) -> per-sample amplitude SNR: power SNR = (C/N0)/fs, and the
    * detection model's non-centrality is a = sqrt(2M)*snr (amplitude). */
   const double snr    = sqrt (pow (10.0, cn0_dbhz / 10.0) / st->fs);
-  size_t       best_d = 0, best_nc = 0, best_freq_bins = 1;
-  _auto_config (st, pfa, pd, snr, doppler_uncertainty, &best_d, &best_nc,
-                &best_freq_bins);
+  size_t       best_d = 0, best_nc = 0, best_window_bins = 1;
+  if (continuous)
+    {
+      best_d = 1;
+      _auto_config_continuous (st, pfa, pd, snr, doppler_uncertainty,
+                               &best_nc, &best_window_bins);
+    }
+  else
+    _auto_config_burst (st, pfa, pd, snr, doppler_uncertainty, &best_d,
+                        &best_nc, &best_window_bins);
 
-  if (_regrid (st, best_d, best_nc, best_freq_bins, code, code_len) != 0)
+  if (_regrid (st, best_d, best_nc, best_window_bins, code, code_len) != 0)
     goto fail;
   _commit_thresholds (st, pfa, pd, snr, doppler_uncertainty);
 
@@ -977,16 +682,39 @@ fail:
   return NULL;
 }
 
+acq_state_t *
+acq_create_burst (const uint8_t *code, size_t code_len, size_t reps,
+                  size_t spc, double chip_rate, double cn0_dbhz,
+                  double doppler_uncertainty, double pfa, double pd,
+                  int noise_mode)
+{
+  return _acq_create_impl (code, code_len, reps, spc, chip_rate,
+                           /* symbol_rate= */ 0.0, cn0_dbhz,
+                           doppler_uncertainty, pfa, pd, noise_mode,
+                           /* continuous= */ 0);
+}
+
+acq_state_t *
+acq_create_continuous (const uint8_t *code, size_t code_len, size_t spc,
+                       double chip_rate, double symbol_rate,
+                       double cn0_dbhz, double doppler_uncertainty,
+                       double pfa, double pd, int noise_mode)
+{
+  return _acq_create_impl (code, code_len, /* reps= */ 1, spc, chip_rate,
+                           symbol_rate, cn0_dbhz, doppler_uncertainty, pfa,
+                           pd, noise_mode, /* continuous= */ 1);
+}
+
 int
 acq_configure_search_raw (acq_state_t *st, size_t doppler_bins,
                           size_t n_noncoh)
 {
   if (doppler_bins < 1 || doppler_bins > st->reps || n_noncoh < 1
-      || n_noncoh > st->max_noncoh)
+      || n_noncoh > ACQ_N_NONCOH_SAFETY_CEILING)
     return -1;
 
   /* This escape hatch always pins the NATIVE (doppler_bins, n_noncoh) grid
-   * -- it exits wideband mode (n_freq_bins back to 1) if that was active,
+   * -- it exits wideband mode (window_bins back to 1) if that was active,
    * matching its documented contract of pinning the classic grid directly. */
   if (_regrid (st, doppler_bins, n_noncoh, 1, NULL, 0) != 0)
     return -1;
@@ -1050,9 +778,9 @@ acq_push (acq_state_t *st, const float complex *in, size_t n_in,
   size_t       off      = 0;
   const size_t n        = st->n;
   const size_t frame_n  = st->frame_n;
-  const size_t ny       = st->doppler_bins;
+  const size_t ny       = st->coherent_bins;
   const size_t nx       = st->code_bins;
-  const size_t wideband = st->n_freq_bins > 1;
+  const size_t wideband = st->window_bins > 1;
 
   while (off < n_in && ndet < max_results)
     {
@@ -1086,27 +814,27 @@ acq_push (acq_state_t *st, const float complex *in, size_t n_in,
               /* Wideband: one shared forward FFT of this epoch; roll its
                * spectrum per hypothesis against the fixed replica spectrum,
                * one inverse FFT per hypothesis, filling out_buf's
-               * n_freq_bins rows -- see the file doc comment's "Wideband
-               * mode" section and prototypes/async_despreader/
+               * window_bins rows -- see the file doc comment's "Wideband
+               * window-tiling mode" section and prototypes/async_despreader/
                * bench_freq_bank.py (the benchmark this reuses, roll-FFT
                * over a tuned-mixer bank).  Row r's REPORTED index uses the
-               * same native FFT-bin convention as the doppler_bins axis
-               * (0 = DC, ascending positive to n_freq_bins/2, then
+               * same native FFT-bin convention as the coherent_bins axis
+               * (0 = DC, ascending positive to window_bins/2, then
                * wrapping negative) so doppler_bin/doppler_res_hz compose
                * identically in either mode; the ACTUAL roll amount fed to
                * the (j+roll)%nx indexing wraps modulo nx (the full
-               * code_bins-point transform), not modulo n_freq_bins, so a
+               * code_bins-point transform), not modulo window_bins, so a
                * "negative" row correctly represents a negative-frequency
                * roll instead of silently aliasing back into the positive
-               * side (n_freq_bins is always << nx: n_freq_bins tiles the
+               * side (window_bins is always << nx: window_bins tiles the
                * requested uncertainty, nx = sf*spc is the full code
                * length). */
               fft_execute_cf32 (st->wide_fwd, frame, nx, st->wide_spec);
-              for (size_t r = 0; r < st->n_freq_bins; r++)
+              for (size_t r = 0; r < st->window_bins; r++)
                 {
-                  long signed_r = (r <= st->n_freq_bins / 2)
+                  long signed_r = (r <= st->window_bins / 2)
                                       ? (long)r
-                                      : (long)r - (long)st->n_freq_bins;
+                                      : (long)r - (long)st->window_bins;
                   long wrapped = ((signed_r % (long)nx) + (long)nx) % (long)nx;
                   size_t roll  = (size_t)wrapped;
                   for (size_t j = 0; j < nx; j++)

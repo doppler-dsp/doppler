@@ -2,11 +2,13 @@
  * real n_noncoh non-coherent accumulation, at the SPEC-realistic waveform
  * this story settled on (prototypes/async_despreader/SPEC.md): Rc = 3.069
  * Mcps Gold-1023 code (spc=2 -> code_bins=2046, native span = chip_rate/
- * (2*sf) = 1500 Hz exactly), +/-50 kHz Doppler uncertainty -> n_freq_bins =
+ * (2*sf) = 1500 Hz exactly), +/-50 kHz Doppler uncertainty -> window_bins =
  * ceil(50000/1500) = 34 parallel roll-FFT frequency-window hypotheses per
- * epoch (see acq_core.h's "Wideband mode" doc comment and
+ * epoch (see acq_core.h's "Wideband window-tiling mode" doc comment and
  * bench_freq_bank.py, the Python prototype this reuses), cn0_dbhz = 37.31
- * (this waveform's real link budget).
+ * (this waveform's real link budget). Built via acq_create_continuous() --
+ * this is exactly the continuous/async scenario that engine always
+ * window-tiles for.
  *
  * Task #71: prototypes/async_despreader/bench_freq_bank.py only measured the
  * per-epoch cost of forming the 34-bin grid (a Python/numpy prototype); this
@@ -16,14 +18,17 @@
  * n_noncoh*code_bins samples (one full non-coherent dwell) of a real
  * injected burst + AWGN.
  *
- * n_noncoh itself is picked by acq_create()'s real physics-driven
+ * n_noncoh itself is picked by acq_create_continuous()'s real physics-driven
  * auto-sizer at three pd targets (0.9/0.99/0.999) rather than forced to
  * SPEC.md's earlier n_noncoh=96/128/192 sweep -- that sweep was a
  * standalone Python sizing sketch predating this wideband mode's C
  * implementation, and the REAL 34-bin Bonferroni-corrected model here turns
  * out considerably more optimistic (pd_predicted ~0.999 already by
  * n_noncoh~96-123 at this cn0, not ~0.917 at 96 / ~0.994 at 192 as
- * estimated there) -- see the memory note accompanying this benchmark. */
+ * estimated there) -- see the memory note accompanying this benchmark. The
+ * auto-sizer's internal safety-valve ceiling (ACQ_N_NONCOH_SAFETY_CEILING =
+ * 256, replacing the old caller-supplied max_noncoh cap) comfortably covers
+ * the n_noncoh~96-123 this waveform actually lands on. */
 #include "acq/acq_core.h"
 #include "jm_bench.h"
 #include <complex.h>
@@ -41,13 +46,12 @@
 #define SYMBOL_RATE 2700.0 /* bps -- async BPSK data clock.               */
 #define DOPPLER_UNCERTAINTY 50000.0 /* Hz -- +/-50 kHz.                   */
 #define PFA 1e-3
-/* Frequency-window hypothesis (0 .. n_freq_bins-1) the injected burst
+/* Frequency-window hypothesis (0 .. window_bins-1) the injected burst
    lands in. */
 #define INJECT_WINDOW 5
 #define INJECT_PHASE 777 /* code phase (samples) to inject the burst at. */
 
 static const double PD_POINTS[] = { 0.9, 0.99, 0.999 };
-#define MAX_NONCOH_CAP 300
 
 static double
 elapsed_sec (struct timespec *t0, struct timespec *t1)
@@ -108,31 +112,33 @@ main (void)
     {
       const double pd_target = PD_POINTS[p];
 
-      /* Let the real auto-sizer pick n_noncoh honestly, capped at a
-       * generous max_noncoh -- see the file doc comment above. */
-      acq_state_t *a = acq_create (code, SF, 1, SPC, CHIP_RATE, CN0_DBHZ,
-                                   DOPPLER_UNCERTAINTY, PFA, pd_target, 0,
-                                   MAX_NONCOH_CAP, SYMBOL_RATE, 0.0, 0.0);
+      /* Let the real auto-sizer pick n_noncoh honestly, bounded only by the
+       * internal safety-valve ceiling -- see the file doc comment above. */
+      acq_state_t *a
+          = acq_create_continuous (code, SF, SPC, CHIP_RATE, SYMBOL_RATE,
+                                   CN0_DBHZ, DOPPLER_UNCERTAINTY, PFA,
+                                   pd_target, 0);
       if (!a)
         {
-          fprintf (stderr, "acq_create failed at pd=%.3f\n", pd_target);
+          fprintf (stderr, "acq_create_continuous failed at pd=%.3f\n",
+                   pd_target);
           continue;
         }
-      if (a->doppler_bins != 1 || a->n_freq_bins != 34)
+      if (a->coherent_bins != 1 || a->window_bins != 34)
         {
           fprintf (stderr,
-                   "unexpected grid at pd=%.3f: doppler_bins=%zu "
-                   "n_freq_bins=%zu\n",
-                   pd_target, a->doppler_bins, a->n_freq_bins);
+                   "unexpected grid at pd=%.3f: coherent_bins=%zu "
+                   "window_bins=%zu\n",
+                   pd_target, a->coherent_bins, a->window_bins);
           acq_destroy (a);
           continue;
         }
       const size_t nc = a->n_noncoh;
 
       const size_t n_in     = a->n_noncoh * nx;
-      const long   signed_r = (INJECT_WINDOW <= a->n_freq_bins / 2)
+      const long   signed_r = (INJECT_WINDOW <= a->window_bins / 2)
                                   ? (long)INJECT_WINDOW
-                                  : (long)INJECT_WINDOW - (long)a->n_freq_bins;
+                                  : (long)INJECT_WINDOW - (long)a->window_bins;
       const double f_norm   = (double)signed_r / (double)nx;
 
       float complex *buf   = malloc (n_in * sizeof (float complex));

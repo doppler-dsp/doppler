@@ -136,7 +136,7 @@ from pathlib import Path
 
 import numpy as np
 
-from doppler.dsss import Acquisition, BurstDemod, BurstDespreader
+from doppler.dsss import BurstAcquisition, BurstDemod, BurstDespreader
 from doppler.snr import snr_data_aided_db, snr_data_aided_db_series
 from doppler.wfm import Composer, Segment, crc16
 
@@ -325,10 +325,17 @@ def demo_acquisition(rx, acq_code, *, cn0_dbhz=40.0):
     docstring's "API notes" for how push() actually buffers/frames samples
     and why this function drives its own overlapping sweep instead of one
     call per known burst."""
-    print("\n== Acquisition (alone, continuous blind sweep) ==")
-    acq = Acquisition(
+    print("\n== BurstAcquisition (alone, continuous blind sweep) ==")
+    acq = BurstAcquisition(
         acq_code, reps=REPS, spc=SPC, chip_rate=CHIP_RATE, cn0_dbhz=cn0_dbhz
     )
+    # Pin n_noncoh=1 explicitly: each dwell pushes exactly one frame then
+    # reset()s (see below) -- with no caller-facing max_noncoh knob left to
+    # default to "coherent-only," the auto-sizer would otherwise silently
+    # pick n_noncoh > 1 here, and a decision could never fire (reset()
+    # between dwells clears the non-coherent accumulator before it ever
+    # reaches n_noncoh looks).
+    acq.configure_search_raw(REPS, 1)
     raw = []
     n_dwells = (len(rx) - PRE_LEN) // ACQ_HOP + 1
     for pos in range(0, len(rx) - PRE_LEN + 1, ACQ_HOP):

@@ -1,4 +1,4 @@
-"""Benchmark for Acquisition — the acquisition unit of work (one CAF tile).
+"""Benchmark for BurstAcquisition — the acquisition unit of work (one CAF tile).
 
 One ``push`` of ``N = doppler_bins*code_bins`` samples is the engine's smallest
 reusable unit: ring write → slow-time Doppler FFT → single-row corr2d → CFAR.
@@ -9,7 +9,7 @@ The grids pin ``doppler_bins == reps`` with a deliberately low sizing
 ``cn0_dbhz`` (which the engine reports as ``underpowered`` — irrelevant for a
 throughput probe, so the warning is filtered).
 
-``Acquisition.push`` releases the GIL, so the same kernel scales
+``BurstAcquisition.push`` releases the GIL, so the same kernel scales
 thread-per-shard across cores.
 
 Run: pytest src/doppler/dsss/benchmarks/bench_acq.py --benchmark-only
@@ -19,7 +19,7 @@ import warnings
 
 import numpy as np
 
-from doppler.dsss import Acquisition
+from doppler.dsss import BurstAcquisition
 from doppler.wfm import PN, mls_poly
 
 
@@ -31,7 +31,7 @@ def _acq(sf, length, *, reps, spc):
     """Force doppler_bins == reps via a weak sizing C/N0 (warning filtered)."""
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", UserWarning)
-        return Acquisition(
+        return BurstAcquisition(
             _code(sf, length),
             reps=reps,
             spc=spc,

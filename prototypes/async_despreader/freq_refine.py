@@ -261,7 +261,7 @@ def estimate_residual_freq(
 def refine_seed(
     tracker_cls, code, sps, bn, seeded_norm_freq, rx_prefix,
     sample_rate_hz, n_fft=64, zero_pad=4, interp=True, use_mf=False,
-    bn_car=None, windows=6,
+    bn_car=None, windows=6, init_chip=0.0,
 ):
     """Run one frozen-carrier collection pass (`freeze_carrier=True`,
     `aid_code=False` -- isolates the collection from any closed-loop
@@ -275,11 +275,22 @@ def refine_seed(
     imported, to keep this module import-independent of the
     coupled-tracker prototype file per this folder's own precedent of
     self-contained sibling modules).
+
+    `init_chip` seeds the collection tracker's own code phase (chips)
+    -- every caller before `acq_handoff.py` always collected at code
+    phase 0 (a hand-chosen residual with no real code-phase handoff),
+    so this defaulted to 0.0 implicitly and no caller needed to pass
+    it. A real `Acquisition`-detected code phase is generally NONZERO;
+    without seeding it here, `d0`'s own code loop starts badly
+    mismatched against the real code phase in `rx_prefix`, degrading
+    the despread output enough to corrupt the frequency estimate
+    (found the hard way validating against `SPEC.md`'s real operating
+    point -- see `acq_handoff.py`'s module docstring).
     """
     d0 = tracker_cls(
         code, sps, bn=bn, zeta=0.707, windows=windows, bn_car=bn_car,
-        init_car_norm_freq=seeded_norm_freq, aid_code=False,
-        sample_rate_hz=sample_rate_hz, freeze_carrier=True,
+        init_chip=init_chip, init_car_norm_freq=seeded_norm_freq,
+        aid_code=False, sample_rate_hz=sample_rate_hz, freeze_carrier=True,
     )
     out0 = d0.run(rx_prefix)
     window_rate_hz = sample_rate_hz / d0.step_size

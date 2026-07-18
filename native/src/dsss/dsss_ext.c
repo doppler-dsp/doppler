@@ -1,7 +1,7 @@
 /*
  * dsss_ext.c — Python extension module dsss
  *
- * Objects: Despreader, BurstDespreader, Acquisition, PolynomialPhaseEstimator, BurstDemod, DsssReceiver
+ * Objects: Despreader, BurstDespreader, Acquisition, BurstAcquisition, PolynomialPhaseEstimator, BurstDemod, DsssReceiver
  * GENERATED — do not hand-edit. Patches belong in the _ext_<obj>.c fragments.
  */
 
@@ -15,6 +15,7 @@
 #include "dsss_ext_despreader.c"
 #include "dsss_ext_burst_despreader.c"
 #include "dsss_ext_acq.c"
+#include "dsss_ext_burst_acq.c"
 #include "dsss_ext_ppe.c"
 #include "dsss_ext_burst_demod.c"
 #include "dsss_ext_dsss_receiver.c"
@@ -38,6 +39,7 @@ PyInit_dsss(void)
     if (PyType_Ready(&DespreaderObjType) < 0) return NULL;
     if (PyType_Ready(&BurstDespreaderObjType) < 0) return NULL;
     if (PyType_Ready(&AcquisitionObjType) < 0) return NULL;
+    if (PyType_Ready(&BurstAcquisitionObjType) < 0) return NULL;
     if (PyType_Ready(&PolynomialPhaseEstimatorObjType) < 0) return NULL;
     if (PyType_Ready(&BurstDemodObjType) < 0) return NULL;
     if (PyType_Ready(&DsssReceiverObjType) < 0) return NULL;
@@ -54,6 +56,10 @@ PyInit_dsss(void)
     Py_INCREF(&AcquisitionObjType);
     if (PyModule_AddObject(m, "Acquisition", (PyObject *)&AcquisitionObjType) < 0) {
         Py_DECREF(&AcquisitionObjType); Py_DECREF(m); return NULL;
+    }
+    Py_INCREF(&BurstAcquisitionObjType);
+    if (PyModule_AddObject(m, "BurstAcquisition", (PyObject *)&BurstAcquisitionObjType) < 0) {
+        Py_DECREF(&BurstAcquisitionObjType); Py_DECREF(m); return NULL;
     }
     Py_INCREF(&PolynomialPhaseEstimatorObjType);
     if (PyModule_AddObject(m, "PolynomialPhaseEstimator", (PyObject *)&PolynomialPhaseEstimatorObjType) < 0) {

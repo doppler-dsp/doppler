@@ -148,9 +148,7 @@ dsss_receiver_state_t *
 dsss_receiver_create (const uint8_t *code, size_t code_len, double chip_rate,
                       double symbol_rate, size_t spc, int m, double cn0_dbhz,
                       double pfa, double pd, double doppler_uncertainty,
-                      size_t reps, size_t max_noncoh,
-                      double doppler_resolution, size_t segments, size_t sps,
-                      int differential)
+                      size_t segments, size_t sps, int differential)
 {
   if (!code || code_len < 1 || chip_rate <= 0.0 || symbol_rate <= 0.0
       || spc < 1 || (m != 2 && m != 4 && m != 8) || segments < 1 || sps < 1)
@@ -169,10 +167,9 @@ dsss_receiver_create (const uint8_t *code, size_t code_len, double chip_rate,
   memcpy (obj->code, code, code_len);
   obj->code_len = code_len;
 
-  obj->acq = acq_create (obj->code, code_len, reps, spc, chip_rate, cn0_dbhz,
-                         doppler_uncertainty, pfa, pd, 0 /* noise_mode=mean */,
-                         max_noncoh, symbol_rate, doppler_resolution,
-                         0.0 /* doppler_rate */);
+  obj->acq = acq_create_continuous (obj->code, code_len, spc, chip_rate,
+                                    symbol_rate, cn0_dbhz, doppler_uncertainty,
+                                    pfa, pd, 0 /* noise_mode=mean */);
   if (!obj->acq)
     {
       free (obj->code);
@@ -271,7 +268,10 @@ dsss_receiver_steps (dsss_receiver_state_t *state, const float complex *x,
 
       double chip_phase
           = _chip_phase_from_hit (hit.code_phase, state->spc, state->code_len);
-      size_t dop_bins       = state->acq->doppler_bins;
+      /* This receiver's embedded engine is always built via
+       * acq_create_continuous() -- coherent_bins is pinned at 1, window_bins
+       * is the active mechanism, always. */
+      size_t dop_bins       = state->acq->window_bins;
       size_t half           = dop_bins / 2;
       size_t folded         = (hit.doppler_bin + half) % dop_bins;
       long   k_fold         = (long)folded - (long)half;

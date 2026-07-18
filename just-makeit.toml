@@ -2016,4 +2016,4 @@ objects = ["interp_table"]
 objects = ["loop_filter", "costas", "dll", "symsync", "carrier_mpsk", "carrier_nda", "mpsk_receiver"]
 
 [module.dsss]
-objects = ["despreader", "burst_despreader", "acq", "ppe", "burst_demod", "dsss_receiver"]
+objects = ["despreader", "burst_despreader", "acq", "burst_acq", "ppe", "burst_demod", "dsss_receiver"]

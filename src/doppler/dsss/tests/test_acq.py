@@ -1,4 +1,4 @@
-"""Streaming acquisition tests for ``doppler.dsss.Acquisition``.
+"""Streaming acquisition tests for ``doppler.dsss.BurstAcquisition``.
 
 Drives the engine with a realistic receive stream — silence (AWGN) of varying
 length, then a burst of repeated BPSK PN segments at an unknown code phase and
@@ -11,7 +11,7 @@ The engine ingests **raw** cf32 and applies the slow-time Doppler FFT
 internally, so (unlike the CorrDetector2D demo) these builders never call
 ``np.fft``.
 
-Construction is physics-only: ``Acquisition`` derives the search grid from
+Construction is physics-only: ``BurstAcquisition`` derives the search grid from
 ``(reps, spc, chip_rate, cn0_dbhz, pfa, pd, doppler_uncertainty)``.  The
 streaming tests pin the coherent depth to ``reps`` with a deliberately low
 sizing ``cn0_dbhz`` (so ``doppler_bins == reps``); the injected burst is much
@@ -38,7 +38,6 @@ aligned bursts give exactly ``F``.
 """
 
 import math
-import time
 import warnings
 
 import numpy as np
@@ -48,9 +47,8 @@ from doppler.detection import (
     det_pd,
     det_threshold,
     det_threshold_noncoherent,
-    marcum_q,
 )
-from doppler.dsss import Acquisition
+from doppler.dsss import BurstAcquisition
 from doppler.examples.detector2d_acq_demo import (
     NX,
     NY,
@@ -85,15 +83,22 @@ def _cn0_for_snr(snr_amp, fs):
 
 
 def _stream_acq(**kw):
-    """Construct with doppler_bins pinned to REPS (low sizing C/N0).
+    """Construct with doppler_bins pinned to REPS (low sizing C/N0), then
+    explicitly pin n_noncoh=1 -- with no caller-facing max_noncoh knob left
+    to default to "coherent-only," the auto-sizer would otherwise auto
+    -escalate non-coherent looks here (it's still under-powered even at
+    the internal safety-valve ceiling, so it never reaches pd, but the
+    escalation alone breaks this module's single-frame-per-hit hit-count
+    algebra below, which every streaming test in this file depends on).
 
-    The conservative sizing C/N0 can't meet pd on the reps-deep grid, so an
-    "under-powered" UserWarning is expected here — the injected burst is far
-    stronger.  Filtered so the streaming assertions stay clean.
+    The conservative sizing C/N0 can't meet pd on the reps-deep grid even
+    at n_noncoh==1, so an "under-powered" UserWarning is expected here —
+    the injected burst is far stronger.  Filtered so the streaming
+    assertions stay clean.
     """
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", UserWarning)
-        a = Acquisition(
+        a = BurstAcquisition(
             CODE,
             reps=REPS,
             spc=SPS,
@@ -103,9 +108,11 @@ def _stream_acq(**kw):
             pd=PD,
             **kw,
         )
+        a.configure_search_raw(REPS, 1)
     # Geometry must match the demo's fixed grid for the hit-count algebra.
     assert (a.code_bins, a.doppler_bins) == (NX, NY)
     assert a.code_bins * a.doppler_bins == N
+    assert a.n_noncoh == 1
     return a
 
 
@@ -195,7 +202,7 @@ def _full_frames(l_pre):
 )
 def test_config_physics(cn0_dbhz, want_db):
     """C/N0 → snr, smallest coherent depth meeting Pd, and grid math."""
-    a = Acquisition(
+    a = BurstAcquisition(
         CODE,
         reps=16,
         spc=SPS,
@@ -226,17 +233,23 @@ def test_config_physics(cn0_dbhz, want_db):
     assert a.threshold == pytest.approx(eta * SQRT_2_OVER_PI, rel=1e-5)
 
     # Boundary/minimality through the engine itself: capping reps at
-    # db - 1 forces the next-smaller grid, which cannot meet pd (the
-    # sizing quadrature lives in C; replicating it here would just be a
-    # copy). Sanity-bracket pd_predicted instead of recomputing it: it is
-    # the straddle-AVERAGED Pd, so it sits at or above pd and strictly
-    # below the on-grid best case.
+    # db - 1 forces the next-smaller COHERENT-ONLY grid, which cannot meet
+    # pd (the sizing quadrature lives in C; replicating it here would just
+    # be a copy). Pinned to n_noncoh=1 explicitly -- with no caller-facing
+    # max_noncoh knob left to default to "coherent-only," the auto-sizer
+    # would otherwise auto-escalate non-coherent looks and potentially
+    # rescue this smaller grid, which isn't what this check is about (it's
+    # testing db's minimality AT THE COHERENT-ONLY operating point, not
+    # whether a joint coherent+non-coherent search could do better).
+    # Sanity-bracket pd_predicted instead of recomputing it: it is the
+    # straddle-AVERAGED Pd, so it sits at or above pd and strictly below
+    # the on-grid best case.
     assert PD <= a.pd_predicted < det_pd(snr, db * nx, eta)
     assert 0.0 < a.straddle_loss < 1.0
     if db > 1:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", UserWarning)
-            smaller = Acquisition(
+            smaller = BurstAcquisition(
                 CODE,
                 reps=db - 1,
                 spc=SPS,
@@ -245,13 +258,14 @@ def test_config_physics(cn0_dbhz, want_db):
                 pfa=PFA,
                 pd=PD,
             )
+            smaller.configure_search_raw(db - 1, 1)
         assert smaller.underpowered
         assert smaller.pd_predicted < PD
 
 
 def test_d_selection_monotone():
     """Weaker C/N0 needs a deeper coherent grid (more reps)."""
-    strong = Acquisition(
+    strong = BurstAcquisition(
         CODE,
         reps=16,
         spc=SPS,
@@ -260,7 +274,7 @@ def test_d_selection_monotone():
         pfa=PFA,
         pd=PD,
     )
-    mid = Acquisition(
+    mid = BurstAcquisition(
         CODE,
         reps=16,
         spc=SPS,
@@ -279,7 +293,7 @@ def test_doppler_uncertainty_sharpens_gate():
     # threshold change from the Doppler prior), so the warning is expected.
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", UserWarning)
-        full = Acquisition(
+        full = BurstAcquisition(
             CODE,
             reps=16,
             spc=SPS,
@@ -289,7 +303,7 @@ def test_doppler_uncertainty_sharpens_gate():
             pd=PD,
             doppler_uncertainty=0.0,
         )
-        narrow = Acquisition(
+        narrow = BurstAcquisition(
             CODE,
             reps=16,
             spc=SPS,
@@ -304,11 +318,12 @@ def test_doppler_uncertainty_sharpens_gate():
     assert narrow.pd_predicted >= full.pd_predicted
 
     # Beyond the native span, wideband mode tiles the uncertainty with
-    # parallel frequency-window hypotheses (roll-FFT search, one epoch,
-    # doppler_bins forced to 1) instead of a coherent slow-time axis.
+    # parallel frequency-window hypotheses (roll-FFT search, one epoch)
+    # instead of a coherent slow-time axis -- doppler_bins (the unified
+    # property) reports that window-tile count instead.
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", UserWarning)
-        wide = Acquisition(
+        wide = BurstAcquisition(
             CODE,
             reps=4,
             spc=SPS,
@@ -318,14 +333,13 @@ def test_doppler_uncertainty_sharpens_gate():
             pd=PD,
             doppler_uncertainty=full.doppler_span_hz * 2,
         )
-    assert wide.doppler_bins == 1
-    assert wide.n_freq_bins == 2
+    assert wide.doppler_bins == 2
 
 
 def test_underpowered_warns():
     """An infeasible operating point still builds, but warns + self-flags."""
     with pytest.warns(UserWarning, match="under-powered"):
-        a = Acquisition(
+        a = BurstAcquisition(
             CODE,
             reps=2,
             spc=SPS,
@@ -339,7 +353,7 @@ def test_underpowered_warns():
     # A comfortably powered build emits no warning.
     with warnings.catch_warnings():
         warnings.simplefilter("error")
-        b = Acquisition(
+        b = BurstAcquisition(
             CODE,
             reps=16,
             spc=SPS,
@@ -446,7 +460,7 @@ def test_config_noncoherent_autosplit():
     eta = det_threshold(pfa_cell)
     cn0 = 42.0  # too weak for 16 coherent reps to reach Pd
     snr = math.sqrt(10.0 ** (cn0 / 10.0) / (CHIP_RATE * SPS))
-    a = Acquisition(
+    a = BurstAcquisition(
         CODE,
         reps=16,
         spc=SPS,
@@ -454,7 +468,6 @@ def test_config_noncoherent_autosplit():
         cn0_dbhz=cn0,
         pfa=PFA,
         pd=PD,
-        max_noncoh=64,
     )
     assert a.doppler_bins == 16  # coherent grown to the reps ceiling
     assert det_pd(snr, N, eta) < PD  # coherent-only falls short
@@ -469,7 +482,7 @@ def test_config_noncoherent_autosplit():
 
 def test_config_strong_stays_coherent():
     """A strong target needs no looks: pure-coherent path (N_nc == 1)."""
-    a = Acquisition(
+    a = BurstAcquisition(
         CODE,
         reps=16,
         spc=SPS,
@@ -477,7 +490,6 @@ def test_config_strong_stays_coherent():
         cn0_dbhz=65.0,
         pfa=PFA,
         pd=PD,
-        max_noncoh=16,
     )
     assert a.n_noncoh == 1
     assert a.eta_nc == 0.0  # non-coherent gate unused
@@ -491,11 +503,10 @@ def test_config_strong_stays_coherent():
 # mean-amplitude sizing called 45/nc=4 powered when its true average Pd
 # was 0.849 — the honest criterion moved the boundary, not the physics).
 NC_CN0 = 46.0
-NC_MAX_NONCOH = 4
 
 
 def _noncoherent_acq():
-    a = Acquisition(
+    a = BurstAcquisition(
         CODE,
         reps=REPS,
         spc=SPS,
@@ -503,7 +514,6 @@ def _noncoherent_acq():
         cn0_dbhz=NC_CN0,
         pfa=PFA,
         pd=PD,
-        max_noncoh=NC_MAX_NONCOH,
     )
     assert a.doppler_bins == NY and a.n_noncoh > 1 and not a.underpowered
     return a
@@ -530,384 +540,12 @@ def test_noncoherent_empirical_pfa():
     assert fa <= 4  # generous bound on a ~0.2-expectation Poisson
 
 
-# ── Symbol-rate-aware sizing (continuous, data-modulated signals) ───────────
-#
-# See docs/gallery/dsss-acq-async-data.md: a data-bit transition landing
-# mid-coherent-epoch splits the coherent sum into two oppositely-signed
-# partial segments, a self-cancellation loss the physics above (Doppler
-# scalloping / intra-segment rotation / code-phase straddle) knows nothing
-# about. ``symbol_rate`` gives the engine the missing piece (the data clock)
-# so it can jointly search (doppler_bins, n_noncoh) pricing that loss
-# honestly, instead of the old "set reps=1 by hand" workaround.
-
-
-def test_symbol_rate_default_disabled():
-    """symbol_rate defaults to 0 -- the legacy single-axis search, byte
-    -identical to every pre-existing test in this file (none of which pass
-    symbol_rate)."""
-    a = Acquisition(
-        CODE,
-        reps=16,
-        spc=SPS,
-        chip_rate=CHIP_RATE,
-        cn0_dbhz=65.0,
-        pfa=PFA,
-        pd=PD,
-    )
-    assert a.symbol_rate == 0.0
-    assert a.epochs_per_symbol == 0.0
-    assert a.doppler_bins == 1  # matches test_config_physics's cn0=65 case
-
-
-def test_symbol_rate_joint_search_avoids_pure_max_depth():
-    """At a weak, data-modulated margin, the joint search should not simply
-    grow doppler_bins to the reps ceiling with n_noncoh == 1 (the old
-    single-axis search's behavior) -- self-cancellation makes a large
-    coherent-only depth unable to reach pd, so a real look count should
-    show up instead, at a bounded coherent depth."""
-    symbol_rate = CHIP_RATE / SF / 1.4  # epochs_per_symbol == 1.4
-    a = Acquisition(
-        CODE,
-        reps=16,
-        spc=SPS,
-        chip_rate=CHIP_RATE,
-        cn0_dbhz=46.0,
-        pfa=PFA,
-        pd=PD,
-        max_noncoh=16,
-        symbol_rate=symbol_rate,
-    )
-    assert a.epochs_per_symbol == pytest.approx(1.4)
-    assert not a.underpowered
-    assert a.n_noncoh > 1
-    assert a.doppler_bins < 16  # didn't just exhaust to the ceiling
-    assert a.doppler_bins * a.n_noncoh <= 16 * 16
-
-
-# ``doppler_resolution`` trades the joint search's fewest-total-epochs
-# guarantee for a resolution guarantee: it floors doppler_bins at
-# ceil(chip_rate/(sf*doppler_resolution)) and takes the first grid (starting
-# from that floor) meeting pd, rather than exhaustively searching for the
-# global minimum-total grid. This also fixes a real scaling problem: the
-# unfloored joint search's own cost is O(reps^3) (every D up to reps pays the
-# O(D^2) DFT inside the data-modulation Pd model), so naively raising reps to
-# reach a fine resolution made construction take minutes; anchoring the
-# search at the floor keeps it fast regardless of reps.
-
-
-def test_doppler_resolution_default_disabled():
-    """doppler_resolution defaults to 0 -- the exhaustive fewest-total-epochs
-    search, byte-identical to every other symbol_rate>0 test in this file
-    (none of which pass doppler_resolution)."""
-    symbol_rate = CHIP_RATE / SF / 1.4
-    a = Acquisition(
-        CODE,
-        reps=16,
-        spc=SPS,
-        chip_rate=CHIP_RATE,
-        cn0_dbhz=46.0,
-        pfa=PFA,
-        pd=PD,
-        max_noncoh=16,
-        symbol_rate=symbol_rate,
-    )
-    assert a.doppler_resolution == 0.0
-    assert a.n_noncoh > 1
-    assert a.doppler_bins < 16
-
-
-def test_doppler_resolution_floors_coherent_depth():
-    """A resolution finer than the unfloored search would ever pick (it
-    favors doppler_bins=1 whenever that meets pd) floors doppler_bins at
-    ceil(chip_rate/(sf*doppler_resolution)), and the achieved doppler_res_hz
-    meets the target."""
-    symbol_rate = CHIP_RATE / SF / 1.4
-    res_hz = 100.0
-    reps = 400  # comfortably past the floor this res_hz implies
-    floor_d = math.ceil(CHIP_RATE / (SF * res_hz))
-
-    a = Acquisition(
-        CODE,
-        reps=reps,
-        spc=SPS,
-        chip_rate=CHIP_RATE,
-        cn0_dbhz=55.0,
-        pfa=PFA,
-        pd=PD,
-        max_noncoh=8,
-        symbol_rate=symbol_rate,
-        doppler_resolution=res_hz,
-    )
-    assert a.doppler_resolution == res_hz
-    assert a.doppler_bins >= floor_d
-    assert a.doppler_res_hz <= res_hz
-    assert not a.underpowered
-
-
-def test_doppler_resolution_clips_to_reps():
-    """A resolution finer than reps can ever deliver clips the floor at reps
-    itself, rather than rejecting the request."""
-    symbol_rate = CHIP_RATE / SF / 1.4
-    a = Acquisition(
-        CODE,
-        reps=8,
-        spc=SPS,
-        chip_rate=CHIP_RATE,
-        cn0_dbhz=55.0,
-        pfa=PFA,
-        pd=PD,
-        max_noncoh=8,
-        symbol_rate=symbol_rate,
-        doppler_resolution=1.0,  # would need doppler_bins in the thousands
-    )
-    assert a.doppler_bins == 8
-
-
-def test_doppler_resolution_rejects_negative():
-    with pytest.raises(MemoryError):
-        Acquisition(
-            CODE,
-            reps=16,
-            spc=SPS,
-            chip_rate=CHIP_RATE,
-            cn0_dbhz=55.0,
-            pfa=PFA,
-            pd=PD,
-            symbol_rate=CHIP_RATE / SF / 1.4,
-            doppler_resolution=-1.0,
-        )
-
-
-def test_doppler_resolution_construction_stays_fast_at_large_reps():
-    """The actual point of the fix: construction must stay fast even at a
-    reps large enough that the unfloored sweep would be O(reps^3) -- this
-    measured minutes before the floor-anchored early exit (see
-    native/tests/test_acq_core.c's C-level version of this same guard for
-    the extrapolated number); a generous ceiling leaves wide margin while
-    still catching a regression back to the full sweep."""
-    symbol_rate = CHIP_RATE / SF / 1.4
-    t0 = time.perf_counter()
-    a = Acquisition(
-        CODE,
-        reps=100,
-        spc=SPS,
-        chip_rate=CHIP_RATE,
-        cn0_dbhz=55.0,
-        pfa=PFA,
-        pd=PD,
-        max_noncoh=8,
-        symbol_rate=symbol_rate,
-        doppler_resolution=20.0,
-    )
-    dt = time.perf_counter() - t0
-    assert dt < 10.0
-    assert a.doppler_bins <= 100
-
-
-# ``doppler_rate`` caps the coherent-depth ceiling from the opposite
-# direction to ``doppler_resolution``'s floor: past
-# doppler_bins >= chip_rate/(sf*sqrt(doppler_rate)), in-window Doppler drift
-# would smear the FFT peak across a resolution bin.
-
-
-def test_doppler_rate_default_disabled():
-    symbol_rate = CHIP_RATE / SF / 1.4
-    a = Acquisition(
-        CODE,
-        reps=16,
-        spc=SPS,
-        chip_rate=CHIP_RATE,
-        cn0_dbhz=55.0,
-        pfa=PFA,
-        pd=PD,
-        max_noncoh=8,
-        symbol_rate=symbol_rate,
-    )
-    assert a.doppler_rate == 0.0
-
-
-def test_doppler_rate_rejects_negative():
-    with pytest.raises(MemoryError):
-        Acquisition(
-            CODE,
-            reps=16,
-            spc=SPS,
-            chip_rate=CHIP_RATE,
-            cn0_dbhz=55.0,
-            pfa=PFA,
-            pd=PD,
-            symbol_rate=CHIP_RATE / SF / 1.4,
-            doppler_rate=-1.0,
-        )
-
-
-def test_doppler_rate_caps_unfloored_search():
-    """A tight doppler_rate caps the unfloored search's own range, even
-    though reps alone would let it search much deeper."""
-    symbol_rate = CHIP_RATE / SF / 1.4
-    rate_hz = 1.0e6
-    rate_ceiling = math.floor(CHIP_RATE / (SF * math.sqrt(rate_hz)))
-    assert 1 <= rate_ceiling < 400
-
-    a = Acquisition(
-        CODE,
-        reps=400,
-        spc=SPS,
-        chip_rate=CHIP_RATE,
-        cn0_dbhz=55.0,
-        pfa=PFA,
-        pd=PD,
-        max_noncoh=8,
-        symbol_rate=symbol_rate,
-        doppler_rate=rate_hz,
-    )
-    assert a.doppler_bins <= rate_ceiling
-
-
-def test_doppler_rate_caps_resolution_floor():
-    """A tight doppler_rate also wins over a caller-requested
-    doppler_resolution that alone would ask for a much deeper coherent
-    depth."""
-    symbol_rate = CHIP_RATE / SF / 1.4
-    rate_hz = 1.0e6
-    rate_ceiling = math.floor(CHIP_RATE / (SF * math.sqrt(rate_hz)))
-
-    a = Acquisition(
-        CODE,
-        reps=400,
-        spc=SPS,
-        chip_rate=CHIP_RATE,
-        cn0_dbhz=55.0,
-        pfa=PFA,
-        pd=PD,
-        max_noncoh=8,
-        symbol_rate=symbol_rate,
-        doppler_resolution=100.0,  # alone would ask for doppler_bins ~323
-        doppler_rate=rate_hz,
-    )
-    assert a.doppler_bins <= rate_ceiling
-
-
-def _window_epoch_segments(phi0, depth, epochs_per_symbol):
-    """Segment a ``depth``-epoch window starting at symbol-phase ``phi0``
-    into per-epoch ``[(length, symbol_id), ...]`` lists -- mirrors
-    ``_dm_segment_window`` in native/src/acq/acq_core.c (and the earlier
-    ``_window_epoch_segments`` in dsss_acq_async_data_demo.py it was ported
-    from)."""
-    segs_per_epoch = []
-    phase = phi0
-    symbol_id = 0
-    for _ in range(depth):
-        segs = []
-        remaining = 1.0
-        while remaining > 1e-9:
-            to_boundary = epochs_per_symbol - phase
-            take = min(to_boundary, remaining)
-            segs.append((take, symbol_id))
-            remaining -= take
-            phase += take
-            if phase >= epochs_per_symbol - 1e-9:
-                phase = 0.0
-                symbol_id += 1
-        segs_per_epoch.append(segs)
-    return segs_per_epoch, symbol_id + 1
-
-
-def _group_alpha(v):
-    d = len(v)
-    if d == 1:
-        return abs(v[0])
-    return float(np.abs(np.fft.fft(v)).max() / d)
-
-
-def _data_mod_pd_reference(
-    doppler_bins, n_noncoh, epochs_per_symbol, snr, cb, eta, n_phi=8
-):
-    """Independent Python reimplementation of ``_data_mod_pd``
-    (native/src/acq/acq_core.c) for cross-validating the C sizing engine's
-    data-modulation Pd model -- the same semi-analytical model (window
-    -phase quadrature x exact sign enumeration through det_pd/marcum_q),
-    deliberately written from scratch here rather than calling into the C
-    engine, so a shared bug in the C port wouldn't silently agree with
-    itself. Callers must keep every window within the exact-enumeration
-    regime (no Monte-Carlo fallback on either side -- the two PRNGs
-    wouldn't agree), which the parametrized (doppler_bins, n_noncoh, 1.4)
-    cases below satisfy by construction."""
-    depth = doppler_bins * n_noncoh
-    pd_acc = 0.0
-    for p in range(n_phi):
-        phi0 = (p + 0.5) / n_phi * epochs_per_symbol
-        segs_per_epoch, n_symbols = _window_epoch_segments(
-            phi0, depth, epochs_per_symbol
-        )
-        assert n_symbols <= 6  # exact-enumeration regime, see docstring
-        n_combos = 1 << n_symbols
-        pd_sum = 0.0
-        for bits in range(n_combos):
-            signs = np.array(
-                [1.0 if (bits >> i) & 1 else -1.0 for i in range(n_symbols)]
-            )
-            v = np.array(
-                [
-                    sum(signs[sid] * length for length, sid in segs)
-                    for segs in segs_per_epoch
-                ]
-            )
-            if n_noncoh <= 1:
-                alpha = _group_alpha(v)
-                pd_sum += det_pd(snr * alpha, doppler_bins * cb, eta)
-            else:
-                lam = 0.0
-                for g in range(n_noncoh):
-                    alpha = _group_alpha(
-                        v[g * doppler_bins : (g + 1) * doppler_bins]
-                    )
-                    amp = math.sqrt(2.0 * doppler_bins * cb) * snr * alpha
-                    lam += amp * amp
-                pd_sum += marcum_q(n_noncoh, math.sqrt(lam), eta)
-        pd_acc += pd_sum / n_combos
-    return pd_acc / n_phi
-
-
-@pytest.mark.parametrize(
-    "doppler_bins, n_noncoh",
-    [(1, 1), (3, 1), (1, 4), (2, 3)],  # last two exercise D>1 AND nc>1
-)
-def test_data_mod_pd_matches_reference(doppler_bins, n_noncoh):
-    """pd_predicted on a symbol_rate>0 engine, pinned via
-    configure_search_raw to a specific (doppler_bins, n_noncoh), matches
-    an independent Python reimplementation of the same model -- including
-    the D>1 && n_noncoh>1 general case the gallery script's own
-    _theoretical_pd (which this ports from) was validated only in the
-    doppler_bins==1 or n_noncoh==1 special cases."""
-    a = Acquisition(
-        CODE,
-        reps=8,
-        spc=SPS,
-        chip_rate=CHIP_RATE,
-        cn0_dbhz=50.0,
-        pfa=PFA,
-        pd=PD,
-        max_noncoh=8,
-        symbol_rate=CHIP_RATE / SF / 1.4,
-    )
-    assert a.epochs_per_symbol == pytest.approx(1.4)
-    a.configure_search_raw(doppler_bins, n_noncoh)
-    assert (a.doppler_bins, a.n_noncoh) == (doppler_bins, n_noncoh)
-
-    snr = math.sqrt(10.0 ** (a.cn0_dbhz / 10.0) / a.fs)
-    eta = a.eta_nc if n_noncoh > 1 else a.eta
-    expected = _data_mod_pd_reference(
-        doppler_bins, n_noncoh, a.epochs_per_symbol, snr, a.code_bins, eta
-    )
-    assert a.pd_predicted == pytest.approx(expected, rel=1e-6, abs=1e-9)
-
 
 def test_configure_search_raw_bounds():
     """Out-of-range pins raise ValueError and leave the engine untouched at
     its prior grid; a valid pin changes the grid and re-derives the
     threshold ladder."""
-    a = Acquisition(
+    a = BurstAcquisition(
         CODE,
         reps=8,
         spc=SPS,
@@ -915,11 +553,12 @@ def test_configure_search_raw_bounds():
         cn0_dbhz=65.0,
         pfa=PFA,
         pd=PD,
-        max_noncoh=4,
     )
     orig_db, orig_nc = a.doppler_bins, a.n_noncoh
 
-    for db, nc in [(0, 1), (9, 1), (1, 0), (1, 5)]:
+    # n_noncoh's upper bound is now the internal safety-valve ceiling (256),
+    # not a caller-supplied max_noncoh.
+    for db, nc in [(0, 1), (9, 1), (1, 0), (1, 257)]:
         with pytest.raises(ValueError):
             a.configure_search_raw(db, nc)
     assert (a.doppler_bins, a.n_noncoh) == (orig_db, orig_nc)
@@ -933,7 +572,7 @@ def test_configure_search_raw_detects():
     """A pinned grid actually detects a noise-free burst at that geometry
     -- configure_search_raw doesn't just relabel fields, it rebuilds the
     correlator/FFT/buffers to match."""
-    a = Acquisition(
+    a = BurstAcquisition(
         CODE,
         reps=8,
         spc=SPS,
@@ -941,7 +580,6 @@ def test_configure_search_raw_detects():
         cn0_dbhz=65.0,
         pfa=PFA,
         pd=PD,
-        max_noncoh=4,
     )
     a.configure_search_raw(4, 2)
     assert (a.doppler_bins, a.n_noncoh) == (4, 2)

@@ -47,11 +47,10 @@ DsssReceiverObj_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 static int
 DsssReceiverObj_init (DsssReceiverObject *self, PyObject *args, PyObject *kwds)
 {
-  static char *kwlist[]    = { "code",     "chip_rate",  "symbol_rate",
-                               "spc",      "m",          "cn0_dbhz",
-                               "pfa",      "pd",         "doppler_uncertainty",
-                               "reps",     "max_noncoh", "doppler_resolution",
-                               "segments", "sps",        "differential",
+  static char *kwlist[]    = { "code",       "chip_rate", "symbol_rate",
+                               "spc",        "m",         "cn0_dbhz",
+                               "pfa",        "pd",        "doppler_uncertainty",
+                               "segments",   "sps",       "differential",
                                NULL };
   PyObject    *code_obj    = NULL;
   double       chip_rate   = 1000000.0;
@@ -62,22 +61,16 @@ DsssReceiverObj_init (DsssReceiverObject *self, PyObject *args, PyObject *kwds)
   double             pfa                 = 1e-3;
   double             pd                  = 0.9;
   double             doppler_uncertainty = 100.0;
-  unsigned long long reps_raw            = 16;
-  unsigned long long max_noncoh_raw      = 8;
-  double             doppler_resolution  = 0.0;
   unsigned long long segments_raw        = 4;
   unsigned long long sps_raw             = 8;
   int                differential        = 0;
 
   if (!PyArg_ParseTupleAndKeywords (
-          args, kwds, "O|ddKiddddKKdKKi", kwlist, &code_obj, &chip_rate,
+          args, kwds, "O|ddKiddddKKi", kwlist, &code_obj, &chip_rate,
           &symbol_rate, &spc_raw, &m, &cn0_dbhz, &pfa, &pd,
-          &doppler_uncertainty, &reps_raw, &max_noncoh_raw,
-          &doppler_resolution, &segments_raw, &sps_raw, &differential))
+          &doppler_uncertainty, &segments_raw, &sps_raw, &differential))
     return -1;
   size_t         spc        = (size_t)spc_raw;
-  size_t         reps       = (size_t)reps_raw;
-  size_t         max_noncoh = (size_t)max_noncoh_raw;
   size_t         segments   = (size_t)segments_raw;
   size_t         sps        = (size_t)sps_raw;
   PyArrayObject *code_arr   = (PyArrayObject *)PyArray_FROM_OTF (
@@ -89,8 +82,8 @@ DsssReceiverObj_init (DsssReceiverObject *self, PyObject *args, PyObject *kwds)
   size_t code_len = (size_t)PyArray_SIZE (code_arr);
   self->handle    = dsss_receiver_create (
       (const uint8_t *)PyArray_DATA (code_arr), code_len, chip_rate,
-      symbol_rate, spc, m, cn0_dbhz, pfa, pd, doppler_uncertainty, reps,
-      max_noncoh, doppler_resolution, segments, sps, differential);
+      symbol_rate, spc, m, cn0_dbhz, pfa, pd, doppler_uncertainty, segments,
+      sps, differential);
   Py_DECREF (code_arr);
   if (!self->handle)
     {
@@ -614,7 +607,7 @@ static PyMethodDef DsssReceiverObj_methods[] = {
     "    >>> import numpy as np\n"
     "    >>> from doppler import DsssReceiver\n"
     "    >>> obj = DsssReceiver(np.zeros(1, dtype=np.uint8), 1000000.0, "
-    "1000.0, 2, 2, 55.0, 1e-3, 0.9, 100.0, 16, 8, 0.0, 4, 8, 0)\n"
+    "1000.0, 2, 2, 55.0, 1e-3, 0.9, 100.0, 4, 8, 0)\n"
     "    >>> y = obj.steps(np.zeros(4))\n"
     "    >>> y.dtype\n"
     "    dtype('complex64')\n" },
@@ -634,7 +627,7 @@ static PyMethodDef DsssReceiverObj_methods[] = {
     "    >>> import numpy as np\n"
     "    >>> from doppler import DsssReceiver\n"
     "    >>> obj = DsssReceiver(np.zeros(1, dtype=np.uint8), 1000000.0, "
-    "1000.0, 2, 2, 55.0, 1e-3, 0.9, 100.0, 16, 8, 0.0, 4, 8, 0)\n"
+    "1000.0, 2, 2, 55.0, 1e-3, 0.9, 100.0, 4, 8, 0)\n"
     "    >>> obj.configure_search_raw(0, 0)\n"
     "    0\n" },
   { "configure_lock_raw",
@@ -649,7 +642,7 @@ static PyMethodDef DsssReceiverObj_methods[] = {
     "    >>> import numpy as np\n"
     "    >>> from doppler import DsssReceiver\n"
     "    >>> obj = DsssReceiver(np.zeros(1, dtype=np.uint8), 1000000.0, "
-    "1000.0, 2, 2, 55.0, 1e-3, 0.9, 100.0, 16, 8, 0.0, 4, 8, 0)\n"
+    "1000.0, 2, 2, 55.0, 1e-3, 0.9, 100.0, 4, 8, 0)\n"
     "    >>> obj.configure_lock_raw(0.0, 0.0, 0, 0.0, 0, 0)\n" },
   { "configure_chain_raw",
     (PyCFunction)(void *)DsssReceiverObj_configure_chain_raw,
@@ -667,7 +660,7 @@ static PyMethodDef DsssReceiverObj_methods[] = {
     "    >>> import numpy as np\n"
     "    >>> from doppler import DsssReceiver\n"
     "    >>> obj = DsssReceiver(np.zeros(1, dtype=np.uint8), 1000000.0, "
-    "1000.0, 2, 2, 55.0, 1e-3, 0.9, 100.0, 16, 8, 0.0, 4, 8, 0)\n"
+    "1000.0, 2, 2, 55.0, 1e-3, 0.9, 100.0, 4, 8, 0)\n"
     "    >>> obj.configure_chain_raw(0, 0, 0)\n"
     "    0\n" },
   { "reset", (PyCFunction)DsssReceiverObj_reset, METH_NOARGS,
@@ -678,7 +671,7 @@ static PyMethodDef DsssReceiverObj_methods[] = {
     "\n"
     "    >>> from doppler import DsssReceiver\n"
     "    >>> obj = DsssReceiver(np.zeros(1, dtype=np.uint8), 1000000.0, "
-    "1000.0, 2, 2, 55.0, 1e-3, 0.9, 100.0, 16, 8, 0.0, 4, 8, 0)\n"
+    "1000.0, 2, 2, 55.0, 1e-3, 0.9, 100.0, 4, 8, 0)\n"
     "    >>> obj.reset()\n" },
   { "state_bytes", (PyCFunction)DsssReceiverObj_state_bytes, METH_NOARGS,
     "Serialized state size in bytes." },

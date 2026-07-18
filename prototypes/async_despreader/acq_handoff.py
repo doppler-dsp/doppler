@@ -18,23 +18,56 @@ can actually be constructed with.
 
 **The conversion (`handoff_from_hit`)**:
 
-- `acq_result_t::doppler_bin` composes IDENTICALLY whether Acquisition
-  is in native or wideband mode (`acq_core.h`'s own file doc comment):
-  fold it into a centered, signed hypothesis index (`0..n_hyp/2` ->
-  itself; beyond that -> `- n_hyp`, matching the native FFT-bin
-  convention already used for the slow-time axis) and scale by
-  `doppler_res_hz` (chip_rate/sf in wideband mode; chip_rate/(sf*
-  doppler_bins) natively) to get a coarse Hz estimate. `n_hyp` is
-  `n_freq_bins` when wideband (`> 1`), else `doppler_bins` -- one
-  formula, no mode branch needed beyond picking which count to fold
-  over.
+- `acq_result_t::doppler_bin` composes against `acq.doppler_bins`
+  (`Acquisition` always window-tiles now -- see `SPEC.md`'s
+  Acquisition/BurstAcquisition split and `acq_core.h`'s file doc
+  comment): fold it into a centered, signed hypothesis index
+  (`0..doppler_bins/2` -> itself; beyond that -> `- doppler_bins`,
+  matching the native FFT-bin convention already used for the
+  slow-time axis) and scale by `doppler_res_hz` (chip_rate/(sf*
+  doppler_bins)) to get a coarse Hz estimate. One formula, no
+  wideband/native mode branch -- continuous `Acquisition` no longer
+  has two modes to distinguish.
 - `acq_result_t::code_phase` is a RAW SAMPLE index into the
   `code_bins = sf*spc` epoch; dividing by `spc` converts it to the
-  CHIP-unit `init_chip` `CoupledAsyncDespreader` (and the shipped
-  `Dll`) already expect.
-- `cn0_dbhz_est` passes straight through as a diagnostic (not yet used
-  to size `fll_block_epochs` -- see the module's "Not yet decided"
-  note below).
+  CHIP-unit `chip_phase` `DetectionEvent` reports, in `Acquisition`'s
+  own native convention (`acq_core.h`: `burst[q] = replica[(q-d) mod
+  nx]`).
+- `cn0_dbhz_est`, `peak_mag`, `noise_est`, `test_stat` pass straight
+  through as diagnostics (`cn0_dbhz_est` not yet used to size
+  `fll_block_epochs` -- see the module's "Not yet decided" note below).
+
+**Found validating against `SPEC.md`'s real operating point (this
+session): `CoupledAsyncDespreader.init_chip`'s own convention is the
+MIRROR IMAGE of `Acquisition`'s (`tracker_init_chip = (sf -
+chip_phase) % sf`, not `chip_phase` directly) -- a real, previously
+undiscovered handoff bug, not a code-phase-in-general sensitivity.**
+Every earlier script in this folder always collected/tracked at code
+phase 0, so this convention mismatch had zero surface area to show up
+until a genuine, nonzero `Acquisition`-detected phase was fed through
+for the first time. `code_rate` staying pinned near 1.0 regardless of
+whether the phase is right or wrong does NOT catch this -- it only
+reflects the loop filter's own rate integrator, not absolute phase
+lock, so it looked deceptively healthy even while completely
+mismatched. `main()` computes the flip once (`tracker_init_chip`) and
+threads it into both `refine_seed()` and the final tracking
+`CoupledAsyncDespreader` construction. `freq_refine.refine_seed()`
+also gained an `init_chip` parameter (previously always defaulted its
+own collection tracker to phase 0, silently ignoring any real
+detected phase -- invisible for the same reason). This is specific to
+this Python prototype's own `CoupledAsyncDespreader`; the shipped C
+`DsssReceiver` (`dsss_receiver_core.c`) already bridges `Acquisition`
+into `Dll` correctly, confirmed by its own passing decode tests.
+
+`DetectionEvent` is `SPEC.md`'s finalized output shape, field-for-field
+-- the same record `dsss_acq_handoff_from_result()` will build in C.
+Grid-relative diagnostics that only make sense alongside the emitting
+`Acquisition`'s own config (`doppler_bin`, `n_hyp`, `wideband`) are
+computed locally inside `handoff_from_hit()` but deliberately don't
+survive into the record itself; a caller that wants
+`init_car_norm_freq` divides `doppler_hz_est` by its own known sample
+rate (see `main()`), rather than the record carrying a cycles/sample
+value that's meaningless without that same rate shipped alongside it.
 
 **Why a refine step still follows the handoff, not instead of it**:
 wideband mode's `doppler_res_hz` is the WINDOW spacing, not a fine
@@ -69,10 +102,12 @@ a regression guard, since both should always agree).
 
 Run: `python acq_handoff.py` (needs numpy + doppler) for a full
 search -> handoff -> refine -> track demonstration against a real
-`Acquisition` object at a modest wideband span (+-10 kHz, 10x this
-geometry's 1 kHz native window -- large enough to force wideband mode
-and exercise a real fold across the DC boundary, without re-measuring
-`bench_acq_core.c`'s already-settled 34-bin/+-50kHz timing numbers).
+`Acquisition` object at `SPEC.md`'s ACTUAL operating point, not a
+scaled-down placeholder: the full +/-50 kHz uncertainty (the real
+34-bin wideband grid `bench_acq_core.c` benchmarks), the exact CCSDS
+Gold-1023 @ 3.069 Mcps / async BPSK @ 2700 bps waveform, `cn0_dbhz`
+solved for the Es/N0=3 dB worst-case floor exactly, and `bn<=0.01` on
+every tracking loop per `SPEC.md`'s derived loop-bandwidth rule.
 """
 
 from __future__ import annotations
@@ -82,34 +117,60 @@ from dataclasses import dataclass
 import numpy as np
 from despreader_coupled import CoupledAsyncDespreader
 from freq_refine import refine_seed
-from signal_gen import CHIP_RATE, SF, SPS, TE, code, signal
+from signal_gen import SF, SPS, TE, signal
 
 from doppler.dsss import Acquisition
-from doppler.wfm import SampleClock
+from doppler.wfm import Gold, SampleClock
 
-SAMPLE_RATE_HZ = CHIP_RATE * SPS  # matches the class default (4.092e6)
-CARRIER_FREQ_HZ = 2.2e9
-DOPPLER_UNCERTAINTY_HZ = 10_000.0  # 10x the 1 kHz native window --
-# forces wideband mode (n_freq_bins = ceil(10000/1000) = 10) without
-# re-measuring bench_acq_core.c's own +-50kHz/34-bin numbers.
+# `signal_gen`'s SF/SPS/TE are already SPEC.md-compatible in sample-domain
+# terms (sf=1023, spc=2 -> code_bins=2046, matching bench_acq_core.c
+# exactly) -- only its own CHIP_RATE (2.046 Mcps, a generic placeholder
+# geometry shared by this folder's earlier phase-characterization
+# scripts) needs overriding here with SPEC.md's real waveform numbers.
+# Neither CHIP_RATE nor SYMBOL_RATE enters signal_gen.signal()'s own math
+# directly (it's purely sample/normalized-frequency-domain), so this
+# override is sufficient without touching signal_gen.py itself.
+CHIP_RATE = 3.069e6  # SPEC.md: CCSDS Command link Gold Code 1023 @ 3.069 Mcps
+SYMBOL_RATE = 2700.0  # SPEC.md: Asynchronous Rectangular BPSK @ 2700 bps
+SAMPLE_RATE_HZ = CHIP_RATE * SPS
+CARRIER_FREQ_HZ = 2.5e9  # SPEC.md: nominal frequency 2.5 GHz
+DOPPLER_UNCERTAINTY_HZ = 50_000.0  # SPEC.md: +/-50 kHz -- the FULL 34-bin
+# wideband grid (native span = chip_rate/sf = 3.000 kHz; ceil(100000/3000)
+# = 34 windows spanning the full +/-50kHz), i.e. bench_acq_core.c's own
+# operating point, not a scaled-down placeholder.
+
+# SPEC.md's derived rule: bn <= 0.01 for EVERY tracking loop (code DLL,
+# Costas carrier, FLL-assist alike -- the loop-SNR>=20dB-at-the-floor
+# relation depends only on Es/N0 and bn, not which loop it is). Passed
+# explicitly below rather than relying on CoupledAsyncDespreader's own
+# bn_car=10*bn default, which would silently exceed this ceiling.
+BN_CODE = 0.01
+BN_CAR = 0.01
+
+# Es/N0(dB) = cn0_dbhz - 10*log10(symbol_rate); solve for cn0_dbhz at
+# SPEC.md's Es/N0 = 3 dB worst-case floor exactly -- matches
+# bench_acq_core.c's own CN0_DBHZ=37.31 constant.
+ESN0_FLOOR_DB = 3.0
+CN0_DBHZ_FLOOR = ESN0_FLOOR_DB + 10.0 * np.log10(SYMBOL_RATE)
 
 
 @dataclass(frozen=True)
 class DetectionEvent:
-    """The seed a tracker needs, plus the diagnostics behind it."""
+    """`SPEC.md`'s finalized output shape, field-for-field (the same
+    record `dsss_acq_handoff_from_result()` will build in C) -- a flat,
+    pointer-free POD safe to serialize across a process boundary."""
 
-    coarse_norm_freq: float  # cycles/sample -- init_car_norm_freq seed
-    init_chip: float  # chips -- init_chip seed
-    window_hz: float  # the coarse Hz estimate before scaling to
-    # cycles/sample (diagnostic -- same information, Hz instead of
-    # cycles/sample)
-    cn0_dbhz_est: float
-    doppler_bin: int
-    n_hyp: int  # n_freq_bins if wideband else doppler_bins
-    wideband: bool
-    samples_consumed: int  # acq_result_t's own per-hit raw-sample anchor
     timestamp_ns: int | None  # clock.stamp_at(samples_consumed); None if
     # no clock was supplied to handoff_from_hit()
+    samples_consumed: int  # acq_result_t's own per-hit raw-sample anchor
+    chip_phase: float  # chips -- init_chip seed
+    doppler_hz_est: float  # coarse Hz estimate, folded/signed/scaled
+    doppler_res_hz: float  # width of that estimate (+-doppler_res_hz/2
+    # remaining uncertainty a downstream refine/tracking stage must close)
+    cn0_dbhz_est: float
+    peak_mag: float  # raw CFAR peak magnitude -- diagnostic passthrough
+    noise_est: float  # raw CFAR noise-floor estimate -- diagnostic passthrough
+    test_stat: float  # raw CFAR gating statistic -- diagnostic passthrough
 
 
 def handoff_from_hit(acq, hit, spc, sample_rate_hz, clock=None):
@@ -129,29 +190,28 @@ def handoff_from_hit(acq, hit, spc, sample_rate_hz, clock=None):
     (
         doppler_bin,
         code_phase,
-        _peak_mag,
-        _noise_est,
-        _test_stat,
+        peak_mag,
+        noise_est,
+        test_stat,
         cn0_est,
         samples_consumed,
     ) = hit
-    wideband = acq.n_freq_bins > 1
-    n_hyp = acq.n_freq_bins if wideband else acq.doppler_bins
+    n_hyp = acq.doppler_bins
     signed = doppler_bin if doppler_bin <= n_hyp // 2 else doppler_bin - n_hyp
-    window_hz = signed * acq.doppler_res_hz
+    doppler_hz_est = signed * acq.doppler_res_hz
     timestamp_ns = (
         clock.stamp_at(samples_consumed) if clock is not None else None
     )
     return DetectionEvent(
-        coarse_norm_freq=window_hz / sample_rate_hz,
-        init_chip=code_phase / spc,
-        window_hz=window_hz,
-        cn0_dbhz_est=cn0_est,
-        doppler_bin=doppler_bin,
-        n_hyp=n_hyp,
-        wideband=wideband,
-        samples_consumed=samples_consumed,
         timestamp_ns=timestamp_ns,
+        samples_consumed=samples_consumed,
+        chip_phase=code_phase / spc,
+        doppler_hz_est=doppler_hz_est,
+        doppler_res_hz=acq.doppler_res_hz,
+        cn0_dbhz_est=cn0_est,
+        peak_mag=peak_mag,
+        noise_est=noise_est,
+        test_stat=test_stat,
     )
 
 
@@ -166,11 +226,7 @@ def search_and_handoff(acq, rx, spc, sample_rate_hz, clock=None):
 
     Raises `RuntimeError` if `rx` runs out before any hit fires.
     """
-    frame_n = (
-        acq.code_bins
-        if acq.n_freq_bins > 1
-        else acq.code_bins * acq.doppler_bins
-    )
+    frame_n = acq.code_bins
     consumed = 0
     while consumed + frame_n <= len(rx):
         chunk = rx[consumed : consumed + frame_n].astype(np.complex64)
@@ -188,25 +244,31 @@ def search_and_handoff(acq, rx, spc, sample_rate_hz, clock=None):
     )
 
 
-def _chip_snr_db_to_cn0_dbhz(chip_snr_db, sample_rate_hz):
-    """Inverse of `Acquisition`'s own sizing transform (`amp_snr =
-    sqrt(10**(cn0_dbhz/10) / fs)`), for a unit-chip-amplitude signal --
-    the SAME per-sample SNR convention `signal_gen.signal()`'s
-    `snr_db` argument already uses (see `characterize_snr.py`'s own
-    documented derivation of this relationship, reused here in the
-    other direction: `cn0_dbhz = chip_snr_db + 10*log10(fs)`)."""
-    return chip_snr_db + 10.0 * np.log10(sample_rate_hz)
+# characterize_snr.py's own Es/N0 sweep found `found_right_peak` at its
+# lowest characterized point (2 dB, 1 dB below this exact floor) needs up
+# to ~2700 epochs to reach 0.83-0.92 -- nowhere near the old placeholder's
+# 300. Sized to that same 2700-epoch collection (doppler_rate_test.py's
+# own "Phase-1c-validated static window" length) since this floor is only
+# 1 dB better.
+REFINE_PREFIX_EPOCHS = 2700
 
-
-REFINE_PREFIX_EPOCHS = 300  # matches pullin_sweep.py's own validated
-# default at a comparable operating point.
+# Enough data symbols to cover the acquisition search dwell (bench_acq_core.c
+# measures n_noncoh~112 epochs at this exact cn0/pd=0.9 default) +
+# REFINE_PREFIX_EPOCHS + a healthy tracking tail, at
+# epochs_per_symbol = (chip_rate/sf)/symbol_rate ~= 1.11 epochs/symbol.
+N_SYM = 8000
 
 
 def main():
-    c = code(11)
-    true_doppler_hz = 6234.0  # inside +-10kHz, crosses window folds
-    chip_snr_db = -8.0  # matches this suite's standard operating point
-    cn0_dbhz = _chip_snr_db_to_cn0_dbhz(chip_snr_db, SAMPLE_RATE_HZ)
+    c = np.asarray(Gold().generate(SF)).astype(np.uint8)
+    true_doppler_hz = 45_000.0  # deep inside +/-50kHz -- exercises the
+    # real 34-bin wideband search across most of its span, not a narrow
+    # slice near DC.
+    cn0_dbhz = CN0_DBHZ_FLOOR
+    # signal_gen.signal()'s own snr_db is a per-raw-sample power ratio,
+    # not cn0_dbhz/Es_N0 directly -- inverse of Acquisition's own sizing
+    # transform (amp_snr = sqrt(10**(cn0_dbhz/10) / fs)).
+    chip_snr_db = cn0_dbhz - 10.0 * np.log10(SAMPLE_RATE_HZ)
     symbol_offset = 0.37 * TE  # a symbol-BOUNDARY offset -- signal_gen's
     # own `cph = (idx // SPS) % SF` never depends on `phi`, so this does
     # NOT move the PN code phase (it's always 0-aligned to idx=0 by that
@@ -214,10 +276,11 @@ def main():
     # what actually exercises a nonzero code-phase handoff.
     code_phase_delay = 757  # raw samples dropped off the front below.
 
+    epochs_per_symbol = (1.0 / SYMBOL_RATE) / (SF / CHIP_RATE)
     rx, _data, _tsym = signal(
         c,
-        4000,
-        (1.0 / 1800.0) / (SF / CHIP_RATE),
+        N_SYM,
+        epochs_per_symbol,
         symbol_offset,
         true_doppler_hz / SAMPLE_RATE_HZ,
         chip_snr_db,
@@ -233,19 +296,16 @@ def main():
 
     acq = Acquisition(
         c,
-        reps=1,
         spc=SPS,
         chip_rate=CHIP_RATE,
         cn0_dbhz=cn0_dbhz,
         doppler_uncertainty=DOPPLER_UNCERTAINTY_HZ,
         pfa=1e-3,
         pd=0.9,
-        max_noncoh=100,
-        symbol_rate=1800.0,
+        symbol_rate=SYMBOL_RATE,
     )
     print(
-        f"--- Acquisition: wideband={acq.n_freq_bins > 1} "
-        f"n_freq_bins={acq.n_freq_bins} doppler_bins={acq.doppler_bins} "
+        f"--- Acquisition: doppler_bins={acq.doppler_bins} "
         f"n_noncoh={acq.n_noncoh} doppler_res_hz={acq.doppler_res_hz:.1f} "
         f"cn0_dbhz={cn0_dbhz:.1f} ---"
     )
@@ -265,8 +325,8 @@ def main():
     handoff, consumed = search_and_handoff(
         acq, rx, SPS, SAMPLE_RATE_HZ, clock=clock
     )
-    coarse_err_hz = abs(handoff.window_hz - true_doppler_hz)
-    chip_err = abs(handoff.init_chip - true_init_chip)
+    coarse_err_hz = abs(handoff.doppler_hz_est - true_doppler_hz)
+    chip_err = abs(handoff.chip_phase - true_init_chip)
     expected_ts = stream_epoch_ns + round(
         handoff.samples_consumed / SAMPLE_RATE_HZ * 1e9
     )
@@ -279,26 +339,40 @@ def main():
         f"(epoch + samples_consumed/fs, verified exact) ---"
     )
     print(
-        f"--- handoff: doppler_bin={handoff.doppler_bin}/"
-        f"{handoff.n_hyp} code_phase_chips={handoff.init_chip:.2f} "
+        f"--- handoff: chip_phase={handoff.chip_phase:.2f} "
         f"(true={true_init_chip:.2f}, err={chip_err:.2f} chips) "
-        f"window_hz={handoff.window_hz:+.1f} "
+        f"doppler_hz_est={handoff.doppler_hz_est:+.1f} "
+        f"+-{handoff.doppler_res_hz / 2:.1f} "
         f"(true={true_doppler_hz:+.1f}, err={coarse_err_hz:.1f} Hz) "
         f"cn0_dbhz_est={handoff.cn0_dbhz_est:.1f} "
         f"consumed={consumed} samples ---"
     )
 
+    # Acquisition's own code_phase convention (acq_core.h: burst[q] =
+    # replica[(q-d) mod nx], validated exact above) is the MIRROR IMAGE of
+    # CoupledAsyncDespreader's own init_chip convention -- found the hard
+    # way validating against SPEC.md's real operating point (see the
+    # module docstring): feeding handoff.chip_phase straight into
+    # init_chip is silently wrong (code_rate stays ~1.0 regardless, since
+    # it only reflects the loop's rate integrator, not absolute phase
+    # lock -- it does NOT catch this). This flip is specific to this
+    # prototype's OWN tracker; DsssReceiver's real C handoff
+    # (dsss_receiver_core.c) already gets this right internally.
+    tracker_init_chip = (SF - handoff.chip_phase) % SF
+
+    coarse_norm_freq = handoff.doppler_hz_est / SAMPLE_RATE_HZ
     prefix = rx[consumed : consumed + REFINE_PREFIX_EPOCHS * TE]
     refined_norm_freq, residual_est_hz = refine_seed(
         CoupledAsyncDespreader,
         c,
         SPS,
-        0.002,
-        handoff.coarse_norm_freq,
+        BN_CODE,
+        coarse_norm_freq,
         prefix,
         SAMPLE_RATE_HZ,
-        bn_car=0.02,
+        bn_car=BN_CAR,
         windows=6,
+        init_chip=tracker_init_chip,
     )
     refined_hz = refined_norm_freq * SAMPLE_RATE_HZ
     refine_err_hz = abs(refined_hz - true_doppler_hz)
@@ -311,11 +385,11 @@ def main():
     d = CoupledAsyncDespreader(
         c,
         SPS,
-        bn=0.002,
+        bn=BN_CODE,
         zeta=0.707,
         windows=6,
-        bn_car=0.02,
-        init_chip=handoff.init_chip,
+        bn_car=BN_CAR,
+        init_chip=tracker_init_chip,
         init_car_norm_freq=refined_norm_freq,
         aid_code=True,
         sample_rate_hz=SAMPLE_RATE_HZ,

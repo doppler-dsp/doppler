@@ -65,8 +65,6 @@ def _new_receiver():
             spc=SPC,
             cn0_dbhz=55.0,
             doppler_uncertainty=100.0,
-            reps=16,
-            max_noncoh=8,
             segments=4,
             sps=8,
         )

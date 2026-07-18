@@ -79,39 +79,6 @@ name = "doppler_uncertainty"
 type = "double"
 default = "100.0"
 
-[[dsss_receiver.init_params]]
-name = "reps"
-type = "size_t"
-default = "16"
-
-[[dsss_receiver.init_params]]
-name = "max_noncoh"
-type = "size_t"
-default = "8"
-
-# Acquisition's own resolution floor on its joint search -- 0 (default)
-# leaves it minimizing total epochs outright (acq_create()'s own default);
-# raising it (together with reps, which the floor is clipped to) tightens
-# the Doppler estimate handed to Dll/MpskReceiver at hit time.
-#
-# WARNING: this receiver always has symbol_rate set (it's required), so
-# raising doppler_resolution forces the embedded Acquisition's coherent
-# depth up on a continuous, data-modulated signal -- confirmed to cause
-# frequent gross mislocks (the wrong Doppler bin winning outright, not
-# just reduced accuracy): the data modulation's own baseband spectrum,
-# sampled at close to one sample per symbol, aliases broadband energy
-# across the entire Doppler-bin axis once the coherent window spans more
-# than a handful of symbols. Safe to leave at 0 (unchanged epoch-
-# minimizing sizing); do not raise it on this object until it's paired
-# with a resolution mechanism that doesn't grow real coherent depth
-# (zero-padding the Doppler FFT, not yet shipped -- see
-# docs/guide/dsss-acquisition.md's "Continuous, data-modulated signals"
-# section for the full explanation).
-[[dsss_receiver.init_params]]
-name = "doppler_resolution"
-type = "double"
-default = "0.0"
-
 # Dll's own tracking-robustness parameter -- independent of `sps` below,
 # bridged by an internal RateConverter, never coupled to it (this story's
 # own hard-won lesson; see docs/design/async-symbol-despreader.md §4).

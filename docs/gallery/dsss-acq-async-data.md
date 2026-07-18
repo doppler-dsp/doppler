@@ -9,7 +9,7 @@ BER number. This page asks the narrowest possible question: with a
 **continuous** (non-bursty) 1023-chip CCSDS Gold code at 3 Mchips/s
 carrying BPSK data at 2100 sym/s — `chips/symbol ~= 1428.6`, not an
 integer, so the data-symbol clock is **asynchronous** to the code-epoch
-clock — does [`Acquisition`](../api/python-dsss.md) still land on the
+clock — does [`BurstAcquisition`](../api/python-dsss.md) still land on the
 *exact* right code phase and Doppler bin, and does its per-epoch test
 statistic survive a data-bit transition landing mid-epoch?
 
@@ -27,12 +27,12 @@ clock is deliberately misaligned to the code clock.
 1. Build a continuous capture: silence, then the Gold-code-spread BPSK
     stream at real chip/symbol rates with an independent, non-integer
     symbol clock and a residual 50 Hz carrier.
-1. Stream it through `Acquisition.push()` — no `reset()`-hopping sweep
+1. Stream it through `BurstAcquisition.push()` — no `reset()`-hopping sweep
     needed, since (unlike a sparse burst) the code is always present.
 1. At the hit, invert `code_phase` (a correlation *lag*) into the code's
     actual phase (`chip_phase = (sf - code_phase/spc) % sf`) and rebuild a
     local chip replica to compare against ground truth.
-1. Separately, run the Monte-Carlo sweep: fresh `Acquisition` instances,
+1. Separately, run the Monte-Carlo sweep: fresh `BurstAcquisition` instances,
     100 epochs of continuous signal each (no silence — this measures
     per-epoch search behaviour in steady transmission, not acquisition
     latency), random data, starting code phase, and a residual Doppler
@@ -40,11 +40,14 @@ clock is deliberately misaligned to the code clock.
     code-phase error, and Doppler error at every epoch.
 1. Then the Pd-vs-depth sweep: the same signal construction and trial
     loop at the realistic `DIVERSITY_CN0_DBHZ` margin, run twice per
-    depth `D` in `1..12` — once with `(reps=D, max_noncoh=1)` (coherent)
-    and once with `(reps=1, max_noncoh=D)` (non-coherent) — recording
-    empirical Pd (opportunities-aware: a non-coherent decision only
-    completes every `n_noncoh` pushes, so the denominator is pushes
-    divided by `n_noncoh`, not raw pushes) at each depth.
+    depth `D` in `1..12` on a `BurstAcquisition`, each pinned directly via
+    `configure_search_raw` (bypassing auto-sizing, since this sweep needs
+    the *exact* depth tested at every point) — once to
+    `(doppler_bins=D, n_noncoh=1)` (coherent) and once to
+    `(doppler_bins=1, n_noncoh=D)` (non-coherent) — recording empirical Pd
+    (opportunities-aware: a non-coherent decision only completes every
+    `n_noncoh` pushes, so the denominator is pushes divided by `n_noncoh`,
+    not raw pushes) at each depth.
 
 Downstream despread ([`Dll(segments)`](dsss-despread-async-data.md), Stage 2)
 and demod ([`MpskReceiver`](async-dsss-receiver.md), Stage 3) are later
@@ -55,9 +58,9 @@ stages of this story, now both built.
 **Top left — chip-level zoom at the hit.** The raw received signal
 (genie-derotated by the exactly-known injected Doppler — for plotting
 only, not part of the real receiver), the TRUE transmitted chip×data
-sequence, and Acquisition's own reported chip-phase reconstruction, all
-overlaid for 400 samples right where the engine fired. All three match
-bit-for-bit — asserted, not eyeballed. This isolates Acquisition's own
+sequence, and `BurstAcquisition`'s own reported chip-phase reconstruction,
+all overlaid for 400 samples right where the engine fired. All three match
+bit-for-bit — asserted, not eyeballed. This isolates `BurstAcquisition`'s own
 `code_phase`/`doppler_bin` estimate from every stage downstream (despread,
 carrier recovery) and confirms it is exact.
 
@@ -137,22 +140,22 @@ the same effect stops being an occasional mislock and becomes a
 first-order gap in detection probability itself.
 
 For each integration depth `D` (1 to 12 code epochs), two strategies are
-swept at the same total energy: **coherent** forces `reps=D, max_noncoh=1` (one `D`-epoch coherent dump — `Acquisition`'s auto-config
-picks the *smallest* depth that meets `pd=0.9`, so at any `D` short of
-that it's forced to use the full `D`, still short) and **non-coherent**
-forces `reps=1, max_noncoh=D` (`D` independent 1-epoch looks, power-
-summed). 200 trials per depth per strategy; error bars are a 95%
-binomial confidence interval.
+swept at the same total energy, each a `BurstAcquisition(reps=D)` pinned
+directly via `configure_search_raw` (bypassing auto-config entirely, so
+every `D` is the exact depth tested, not whatever an auto-sizer would have
+picked): **coherent** pins `(doppler_bins=D, n_noncoh=1)` (one `D`-epoch
+coherent dump) and **non-coherent** pins `(doppler_bins=1, n_noncoh=D)`
+(`D` independent 1-epoch looks, power-summed). 200 trials per depth per
+strategy; error bars are a 95% binomial confidence interval.
 
 **Non-coherent reaches the pd = 0.9 target by `D≈6` and keeps climbing to
 ~99.8% by `D=11`.** **Coherent climbs far more slowly and plateaus around
 68%** — nowhere near its own 91% theoretical prediction at `D=11`, and
-adding still more coherent depth (`D=12`) doesn't help; the engine's
-auto-config has already found the smallest `D` it thinks it needs; the
-`D=11`/`D=12` gap between empirical and predicted Pd doesn't close by
-requesting more.
+pinning still more coherent depth (`D=12`) doesn't help either: the
+`D=11`/`D=12` gap between empirical and predicted Pd is the mislock
+mechanism compounding, not a sizing shortfall that more depth would fix.
 
-**Why coherent falls short of its own prediction:** `Acquisition`'s Pd
+**Why coherent falls short of its own prediction:** `BurstAcquisition`'s Pd
 sizing math assumes a plain, continuous, unmodulated code — it has no
 notion of data riding on top. An 11-epoch coherent window spans
 `11 / 1.396 ≈ 7.9` symbols, i.e. **about 7 data-bit transitions inside one
@@ -175,7 +178,7 @@ semi-analytically (exact chip-timing combinatorics, no noise Monte
 Carlo): quadrature over the window's phase relative to the symbol clock,
 crossed with exact enumeration over the small number of i.i.d. ±1 data
 signs the window touches, fed through the same `det_pd`/`marcum_q`
-primitives `Acquisition` itself sizes against
+primitives the acquisition engine itself sizes against
 ([Python: Detection Statistics](../api/python-detection.md)).
 
 - **Non-coherent** — each of the `D` looks is independent, and summing
@@ -187,7 +190,7 @@ primitives `Acquisition` itself sizes against
     validation.
 - **Coherent** — the naive model (one amplitude for the whole window,
     computed from the signed segment sum) underestimates empirical Pd by
-    as much as 0.47. The fix: `Acquisition`'s slow-time integration is a
+    as much as 0.47. The fix: `BurstAcquisition`'s slow-time integration is a
     `D`-point Doppler FFT, not a plain time-domain sum, and a mid-window
     phase step (the transition) leaks energy into *every* FFT bin, not
     just the zero-Doppler one — detection only needs the *peak* bin to
@@ -202,16 +205,25 @@ primitives `Acquisition` itself sizes against
     this model uses — a real, open extension, left as future work rather
     than forced to match.
 
-This same semi-analytical model now runs *inside* `Acquisition` itself: pass
-`symbol_rate` and the engine jointly searches `doppler_bins × n_noncoh`
-against this honest, data-modulation-aware Pd, instead of the old
-Doppler/code-phase-only search that could silently under-size a
-data-modulated link the way the coherent curve above demonstrates. See the
+This finding is exactly why the shipped engine no longer tries to price a
+data-modulation-aware coherent Pd model into its sizing loop at all:
+`Acquisition` (continuous) closes the gap **structurally** instead of
+pricing it. It never attempts coherent multi-epoch combining in the first
+place — `doppler_bins` on this class is always the window-tile count
+(parallel single-epoch roll-FFT hypotheses; see the [design doc's
+§4](../design/dsss-acquisition.md)), never a slow-time-FFT depth — so there
+is no coherent curve like the one above for it to underperform its own
+prediction on. Sensitivity margin comes entirely
+from `n_noncoh`, auto-selected against the plain, transition-free
+non-coherent Pd model — exactly the model the non-coherent curve above
+already shows tracking empirical Pd almost exactly, with no correction
+needed. See the
 [DSSS acquisition guide](../guide/dsss-acquisition.md#continuous-data-modulated-signals-the-asynchronous-symbol-clock-case)
 for the construction — not just because it avoids an occasional mislock, but
 because at a realistic margin, coherent combining across many data-modulated
-epochs may simply never reach the detection probability the old,
-data-modulation-blind sizing math promised.
+epochs (`BurstAcquisition` misused on a signal like this) may simply never
+reach the detection probability this page's coherent curve shows falling
+short of its own theoretical target.
 
 ```python
 --8<-- "src/doppler/examples/dsss_acq_async_data_demo.py:diversity_configs"

@@ -1,0 +1,291 @@
+"""Phase 1c of the coupled-tracker roadmap
+(`~/.claude/plans/jiggly-munching-newell.md`): a frequency-refinement
+bridge that closes the gap `pullin_sweep.py` (Phase 1b) measured
+between `Acquisition`'s real seed quality (mean |error| ~685 Hz,
+worst case 1320+ Hz -- see `project_dsss_acq_async_story.md`'s
+Acquisition-isolation section) and the coupled tracker's own bare
+pull-in range (locks through ~100 Hz, fails at 200 Hz+).
+
+Replaces legacy-commz's two bespoke `COARSE_FREQUENCY`/
+`FINE_FREQUENCY` `FrequencyAcquisition` stages with ONE reused doppler
+primitive, per this story's reduced-scope decision -- no new FFT
+implementation, no code-phase search (code phase is already resolved
+by the time this runs; `acq_core.c`'s 2-D code+Doppler engine has
+nothing left to search and is the wrong tool here).
+
+Mechanism (standard, non-data-aided frequency estimation):
+
+1. **Square** the despread, window-rate output stream. Squaring a
+   BPSK-modulated tone (`+-1 * exp(j*2*pi*f*n)`) removes the +-1 data
+   ambiguity at the cost of doubling the tone's own frequency --
+   exactly the squaring-loop technique behind
+   `[[reference_squaring_loss_ebno_not_cno]]`, already established
+   in this project, applied here for frequency estimation rather
+   than a lock-detector SNR formula. Without this step, the data
+   modulation aliases the residual tone across the ENTIRE FFT (the
+   `doppler_resolution`-engaged-on-`DsssReceiver` investigation, same
+   story, found and characterized exactly this failure mode). This
+   is also exactly why this bridge's accuracy is Es/N0-sensitive in a
+   NONLINEAR way (squaring loss) rather than degrading gracefully like
+   a linear discriminator would -- see `characterize_snr.py`, which
+   sweeps Es/N0 = 2/5/10/20/50 dB specifically to characterize this.
+2. **FFT peak search** over one or more coherent blocks, using
+   `doppler.spectral.FFT` (already exists -- reused, not
+   reimplemented). Non-coherently accumulates `|FFT|^2` across blocks
+   to smooth noise, mirroring `Acquisition`'s own `n_noncoh` knob.
+   Optionally **zero-padded** (`zero_pad>1`) before each block's FFT --
+   does not add real spectral resolution (still set by the coherent
+   block's own time duration) but removes picket-fence/scalloping bias
+   by sampling the same continuous spectrum more finely, and optionally
+   **parabolic-interpolated** (`interp=True`) around the accumulated
+   power spectrum's peak bin for a further sub-bin refinement -- both
+   are the standard pair of techniques for exactly this problem, used
+   together here per the user's own suggestion rather than picking one.
+3. Halve the peak (or interpolated) bin's frequency to undo the
+   squaring and recover the residual carrier estimate in Hz, at the
+   window-rate stream's own sample rate -- unambiguous as long as
+   `2 * search range < window sample rate` (true for this story's
+   Doppler numbers; a larger physical range, e.g. the full +-100 kHz
+   LEO span, would need a coarser first look or a higher window rate
+   -- open question, not solved here, see the module docstring's own
+   scope note).
+
+**Zero-padding/interpolation only sharpen a correct peak -- they do
+NOT rescue a peak the noise picked at the wrong bin outright.** At low
+Es/N0 the failure mode is categorically different (gross error, not
+quantization bias); `characterize_snr.py` reports both separately
+(mean/RMS error among trials that found the RIGHT peak vs. the
+fraction of trials that didn't) rather than blending them into one
+number that would hide the transition.
+
+Two follow-on improvements, tried directly against that low-Es/N0
+gross-error mode (both suggested by the user; results in
+`improve_low_snr.py`):
+
+- **Multi-look non-coherent averaging -- WORKS, the real fix.**
+  `estimate_residual_freq` already non-coherently sums `|FFT|^2` over
+  every `n_fft`-sample block in `x` -- so "more looks" is just "more
+  epochs in the collection window," a caller-side knob (`refine_seed`'s
+  `rx_prefix` length), not a new code path. Measured: at Es/N0=2 dB,
+  `found_right_peak` goes 0.17-0.25 (300 epochs) -> 0.58-0.83 (900) ->
+  0.83-0.92 (2700); by 5 dB it's ~1.0 even at 300 epochs and the
+  collection length mainly sharpens RMS error instead (6+ Hz -> ~2 Hz).
+- **Matched-filter the known mainlobe shape** (`use_mf=True`,
+  `_matched_filter_power`) -- **tried, measured, does NOT help.**
+  Cross-correlating the accumulated power spectrum against the known
+  Dirichlet-kernel mainlobe shape before picking the peak was expected
+  to suppress single-bin noise spikes relative to a genuine
+  `~zero_pad`-bin-wide peak. Measured result: `found_right_peak` with
+  `use_mf=True` is equal to or slightly WORSE than without it at every
+  Es/N0/collection-length combination tried (e.g. 2 dB/300 epochs:
+  0.25 -> 0.17). Plausible reason: the squared-signal's noise
+  cross-terms are themselves correlated across nearby bins (same
+  finite-length DFT), so locally summing bins doesn't discriminate
+  signal from this particular noise the way it would for independent
+  per-bin noise -- an honest negative result, kept in the code as an
+  opt-in (`use_mf=False` default) rather than deleted, in case a
+  different kernel shape or normalization is worth trying later, but
+  NOT recommended as-is. Multi-look averaging is the lever that
+  actually works.
+"""
+from __future__ import annotations
+
+import numpy as np
+
+from doppler.spectral import FFT
+
+
+def _parabolic_peak(power, k):
+    """Sub-bin refinement of a DFT power-spectrum peak at integer bin
+    `k`, via the standard 3-point parabolic (quadratic) fit through
+    `power[k-1], power[k], power[k+1]` (indices wrap circularly, valid
+    for a full-period DFT). Returns the fractional bin OFFSET from `k`
+    (in `[-0.5, 0.5]`); add it to `k` for the refined bin position.
+    Degenerates to 0 if the three points are exactly collinear
+    (flat/noise-floor peak) rather than dividing by zero.
+    """
+    n = len(power)
+    y1, y2, y3 = power[(k - 1) % n], power[k], power[(k + 1) % n]
+    denom = y1 - 2.0 * y2 + y3
+    if denom == 0.0:
+        return 0.0
+    return 0.5 * (y1 - y3) / denom
+
+
+def _dirichlet_mainlobe_kernel(n_fft, zero_pad):
+    """The KNOWN magnitude-squared Dirichlet kernel of a length-`n_fft`
+    rectangular window, sampled at the zero-padded bin spacing, local
+    to its mainlobe only (first null at +-`zero_pad` padded bins --
+    `theta_null = 2*pi/n_fft` in continuous angular frequency, and each
+    padded bin steps `2*pi/(n_fft*zero_pad)` -- so the null lands
+    exactly `zero_pad` bins out). Returned as `(offsets, weights)`,
+    `weights` peak-normalized to 1 at `offsets=0`, covering out to the
+    first sidelobe (`2*zero_pad` bins) so the matched filter has a
+    little margin beyond the bare mainlobe.
+    """
+    half_width = max(1, 2 * zero_pad)
+    offsets = np.arange(-half_width, half_width + 1)
+    theta = 2.0 * np.pi * offsets / (n_fft * zero_pad)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        weights = np.where(
+            offsets == 0,
+            1.0,
+            (np.sin(n_fft * theta / 2.0) / (n_fft * np.sin(theta / 2.0)))
+            ** 2,
+        )
+    return offsets, weights
+
+
+def _matched_filter_power(power, n_fft, zero_pad):
+    """Cross-correlate `power` (an accumulated `|FFT|^2` spectrum)
+    against the KNOWN Dirichlet mainlobe shape (see
+    `_dirichlet_mainlobe_kernel`) -- a local weighted sum around each
+    candidate bin, not a raw per-bin `argmax`. A genuine tone's energy
+    is spread across `~zero_pad` bins in exactly this shape (zero-pad
+    doesn't add resolution, it samples this same kernel more finely);
+    a single isolated noise spike is not, so this suppresses spurious
+    single-bin peaks relative to a real one -- closer to the actual
+    maximum-likelihood statistic for a tone in white noise than raw
+    per-bin energy.
+    """
+    n = len(power)
+    offsets, weights = _dirichlet_mainlobe_kernel(n_fft, zero_pad)
+    mf = np.zeros(n)
+    for offset, weight in zip(offsets, weights):
+        mf += weight * np.roll(power, -offset)
+    return mf
+
+
+def estimate_residual_freq(
+    x, sample_rate_hz, n_fft=64, zero_pad=1, interp=True, use_mf=False,
+):
+    """Estimate a residual carrier tone's frequency (Hz) in a
+    BPSK-data-modulated complex sequence `x`, sampled at
+    `sample_rate_hz`.
+
+    Squares `x` (removes the +-1 data modulation, doubling the tone's
+    own frequency), then non-coherently accumulates `|FFT|^2` over
+    `len(x) // n_fft` blocks of length `n_fft` (each optionally
+    zero-padded to `n_fft * zero_pad` before its FFT) and returns the
+    halved peak-bin frequency, optionally sub-bin refined via a
+    3-point parabolic fit around the peak.
+
+    Parameters
+    ----------
+    x : ndarray, complex
+        Despread, window-rate output (e.g. `CoupledAsyncDespreader
+        .run()`'s return value, collected with `freeze_carrier=True`
+        so the residual tone isn't already being chased by a closed
+        loop).
+    sample_rate_hz : float
+        Sample rate of `x` (the despread stream's own window rate,
+        NOT the chip/sample rate of the original raw signal).
+    n_fft : int
+        Coherent block length. The REAL frequency resolution
+        (pre-halving) is fixed at `sample_rate_hz / n_fft` by this
+        block's own time duration, regardless of `zero_pad`; more
+        blocks (longer `x`) improve the noise floor of the
+        non-coherent sum without changing resolution.
+    zero_pad : int
+        Zero-pad each block to `n_fft * zero_pad` samples before its
+        FFT. Densifies the sampled spectrum (reduces picket-fence
+        bias) without adding real resolution; `1` disables it
+        (original coarse-bin behavior).
+    interp : bool
+        Apply a 3-point parabolic sub-bin refinement around the
+        (possibly matched-filtered) peak. Only sharpens a
+        correctly-found peak -- see the module docstring's note on
+        gross errors at low Es/N0.
+    use_mf : bool
+        Cross-correlate the accumulated power spectrum against the
+        KNOWN Dirichlet mainlobe shape (`_matched_filter_power`)
+        before picking the peak -- suppresses single-bin noise spikes
+        relative to a genuine multi-bin-wide peak, aimed directly at
+        low-Es/N0 gross errors (unlike `zero_pad`/`interp`, which only
+        sharpen an already-correct peak).
+
+    Returns
+    -------
+    float
+        Estimated residual frequency in Hz, signed, at `x`'s own rate
+        (same sign convention as the tone actually present in `x`).
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> n = 4096
+    >>> rng = np.random.default_rng(0)
+    >>> data = np.where(rng.integers(0, 2, n), 1.0, -1.0)
+    >>> tone = np.exp(2j * np.pi * 123.0 * np.arange(n) / 2000.0)
+    >>> est = estimate_residual_freq(
+    ...     data * tone, 2000.0, n_fft=64, zero_pad=4,
+    ... )
+    >>> bool(abs(est - 123.0) < 5.0)  # sub-bin accurate now
+    True
+    """
+    n_blocks = len(x) // n_fft
+    if n_blocks < 1:
+        raise ValueError(
+            f"len(x)={len(x)} shorter than n_fft={n_fft}: need at "
+            "least one coherent block"
+        )
+    n_padded = n_fft * zero_pad
+    squared = (x[: n_blocks * n_fft] ** 2).astype(np.complex128)
+    fft = FFT(n=n_padded, sign=-1)
+    power = np.zeros(n_padded)
+    padded_block = np.zeros(n_padded, dtype=np.complex128)
+    for i in range(n_blocks):
+        padded_block[:n_fft] = squared[i * n_fft:(i + 1) * n_fft]
+        if zero_pad > 1:
+            padded_block[n_fft:] = 0.0
+        spec = fft.execute_cf64(padded_block)
+        power += np.abs(spec) ** 2
+
+    decision_power = (
+        _matched_filter_power(power, n_fft, zero_pad) if use_mf else power
+    )
+    peak_bin = int(np.argmax(decision_power))
+    bin_pos = peak_bin
+    if interp:
+        bin_pos = peak_bin + _parabolic_peak(decision_power, peak_bin)
+        # keep the physically-meaningful wrap (fftfreq's own
+        # convention: bins > n/2 are negative frequencies) even after
+        # a fractional refinement that could cross that boundary.
+        if bin_pos > n_padded / 2:
+            bin_pos -= n_padded
+
+    squared_freq_hz = bin_pos * sample_rate_hz / n_padded
+    return squared_freq_hz / 2.0
+
+
+def refine_seed(
+    tracker_cls, code, sps, bn, seeded_norm_freq, rx_prefix,
+    sample_rate_hz, n_fft=64, zero_pad=4, interp=True, use_mf=False,
+    bn_car=None, windows=6,
+):
+    """Run one frozen-carrier collection pass (`freeze_carrier=True`,
+    `aid_code=False` -- isolates the collection from any closed-loop
+    adaptation) over `rx_prefix`, estimate the residual carrier tone
+    left after derotating at `seeded_norm_freq`, and return the
+    refined seed (`seeded_norm_freq` plus the estimated residual,
+    converted back to cycles/sample) ready to construct a fresh
+    tracker with.
+
+    `tracker_cls` is `CoupledAsyncDespreader` (passed in, not
+    imported, to keep this module import-independent of the
+    coupled-tracker prototype file per this folder's own precedent of
+    self-contained sibling modules).
+    """
+    d0 = tracker_cls(
+        code, sps, bn=bn, zeta=0.707, windows=windows, bn_car=bn_car,
+        init_car_norm_freq=seeded_norm_freq, aid_code=False,
+        sample_rate_hz=sample_rate_hz, freeze_carrier=True,
+    )
+    out0 = d0.run(rx_prefix)
+    window_rate_hz = sample_rate_hz / d0.step_size
+    residual_hz = estimate_residual_freq(
+        out0, window_rate_hz, n_fft=n_fft, zero_pad=zero_pad,
+        interp=interp, use_mf=use_mf,
+    )
+    refined_norm_freq = seeded_norm_freq + residual_hz / sample_rate_hz
+    return refined_norm_freq, residual_hz

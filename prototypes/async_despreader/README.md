@@ -1,5 +1,78 @@
 # Async despreader prototype
 
+## Current design: coupled carrier+code tracking with FLL-assist
+
+`despreader_coupled.py`'s `CoupledAsyncDespreader` is the current
+architecture: a chip-rate carrier LO derotates the raw signal BEFORE
+despreading (rather than a downstream-only Costas/CarrierNda, the
+shipped `Dll`'s design), with the carrier itself tracked on TWO
+independent time scales — a fast, continuous Costas loop and a slow,
+periodic FLL-assist block estimator — because a single Costas loop
+alone (a type-2 phase loop) cannot close a Doppler-RATE-induced
+tracking lag on its own, only a Doppler step. See
+`~/.claude/plans/jiggly-munching-newell.md` (Phases 1a-1e) for the full
+validation history behind every arrow below; **discarded alternatives
+and superseded historical scripts are in
+[`archive/`](archive/README.md), not deleted.**
+
+```mermaid
+flowchart TD
+    RAW["Raw chip-rate samples\n(from Acquisition: coarse code\nphase + rough/noisy Doppler)"]
+
+    RAW --> DEROT["Carrier LO\n(derotate)"]
+    DEROT --> REPLICA["Code replica correlate\n(InterpolatedTable E/P/L)"]
+    REPLICA --> DESPREAD["Despread output\n(integrate_and_dump)"]
+    DESPREAD --> OUT["Chunk-rate output stream"]
+
+    subgraph FAST["Fast, continuous: Costas (per epoch)"]
+        DESPREAD --> COSTASD["sign(Re(P)) * Im(P) / |P|"]
+        COSTASD --> CARLF["Carrier LoopFilter"]
+        CARLF --> FINE["fine_dev\n(handles a Doppler STEP\nwith zero steady-state error)"]
+    end
+
+    subgraph SLOW["Slow, periodic: FLL-assist (every fll_block_epochs)"]
+        DESPREAD --> FLLBUF["Accumulate block"]
+        FLLBUF --> FLLEST["freq_refine.estimate_residual_freq\n(square, zero-pad FFT, parabolic interp)"]
+        FLLEST --> COARSE["coarse_dev\n(corrects the RAMP-induced lag\nCostas structurally can't close)"]
+    end
+
+    FINE --> CTRLSUM(("+"))
+    COARSE --> CTRLSUM
+    CTRLSUM -->|"ctrl port"| DEROT
+
+    FINE --> AIDSUM(("+"))
+    COARSE --> AIDSUM
+    AIDSUM --> AIDSCALE["x sample_rate_hz / carrier_freq_hz\n(v/c coupling)"]
+
+    subgraph CODE["Code tracking loop (unchanged since Phase 1a)"]
+        DESPREAD --> CODEDISC["E/L power diff\n(async-data lookback)"]
+        CODEDISC --> CODELF["Code LoopFilter"]
+        CODELF --> CODESUM(("+"))
+        AIDSCALE --> CODESUM
+        CODESUM --> CODENCO["Code NCO rate"]
+        CODENCO --> REPLICA
+    end
+```
+
+Design rules this diagram encodes (all validated, not assumed — see the
+plan file for numbers):
+
+- **Two pure deviations, combined only at point of use** — `fine_dev`
+  and `coarse_dev` never mix into each other's state; they're summed
+  only at the LO ctrl port, the `car_norm_freq` display, and the
+  code-aiding scale (the same discipline this project applies to every
+  other control path — nominal and deviation never re-derive each
+  other).
+- **`fll_block_epochs` must be sized to the SHORTEST length that stays
+  reliable at the target Es/N0 floor** — a direct trade between
+  per-block noise-averaging margin (favors longer) and Doppler-rate
+  -tracking fidelity (favors shorter), not a fixed default.
+- **The FLL estimator is the exact same primitive Acquisition-native
+  tuning couldn't replace** — it works specifically because it runs on
+  the POST-DESPREAD stream, where the async data rate sits comfortably
+  below that stream's own Nyquist, unlike `Acquisition`'s own slow-time
+  axis (see [`archive/`](archive/README.md)).
+
 ## The bug
 
 `native/src/dll/dll_core.c`'s `segments > 1` path (`Dll(..., segments=K)`)
@@ -25,11 +98,11 @@ with more windows; `windows=1` (no chunking at all) never diverges.
 
 A working DSSS despreader implementation reviewed for comparison
 implements essentially the same algorithm and is proven robust over long
-transmissions in its own test suite and examples. `despreader.py` in this
+transmissions in its own test suite and examples. `archive/despreader.py` in this
 folder is a faithful, sample-level pure-Python port of its core loop
 (`_find_max_power` / `_get_window` / its `LoopFilter`), stripped of
 numba, acquisition, the state machine, and carrier coupling. Validated
-**rock solid** (`validate_stress.py`) across:
+**rock solid** (`archive/validate_stress.py`) across:
 
 - `windows` = 6, 11, 22 (both a hand-picked size and the design doc's own
   `max_error_db`-derived size)
@@ -39,7 +112,7 @@ numba, acquisition, the state machine, and carrier coupling. Validated
 - runs up to 12,000 symbols (4x the length that originally diverged)
 
 Two differences from the earlier (buggy) reimplementations turned out to
-matter -- see `despreader.py`'s module docstring for the full
+matter -- see `archive/despreader.py`'s module docstring for the full
 explanation:
 
 1. Sample-level `get_window` reconstruction (shift the raw per-sample
@@ -52,7 +125,7 @@ explanation:
    factor of `sf`" (a scheme arrived at this session while fixing a
    different, already-resolved bug).
 
-## Downstream pipeline (`validate_pipeline.py`)
+## Downstream pipeline (`archive/validate_pipeline.py`)
 
 Feeding the despreader's chunk-rate output through `Costas` ->
 `Resampler` -> `SymbolSync` (matching
@@ -85,28 +158,28 @@ trustworthy, and a naive "discard the first quarter" warm-up on a short
 run undercounts this at low SNR, especially since `Costas` runs at the
 *chunk* rate where per-sample SNR is much lower than the eventual
 matched-filtered symbol SNR. With a properly sized warm-up and a longer
-run (`validate_pipeline.py`'s `SNR_SWEEP_WARMUP`/`SNR_SWEEP_NSYM`):
+run (`archive/validate_pipeline.py`'s `SNR_SWEEP_WARMUP`/`SNR_SWEEP_NSYM`):
 **BER=0.0 (0 errors in 6191 symbols) at Es/N0=10dB**, matching the
 theoretical floor.
 
 ## Migrating to C-backed doppler objects, piece by piece
 
-`despreader.py` stays the pure-Python original -- untouched, so it keeps
+`archive/despreader.py` stays the pure-Python original -- untouched, so it keeps
 serving as the known-good reference. Each piece being swapped for a real
 doppler C extension gets its own copy (`despreader_<piece>.py`) plus a
 `compare_<piece>.py` that runs both on identical input and diffs the
 outputs and internal loop state, so a regression is caught immediately
 rather than discovered several pieces later.
 
-**Step 1 -- `NCO` (`despreader_nco.py`, `compare_nco.py`): done.** Code-
+**Step 1 -- `NCO` (`archive/despreader_nco.py`, `archive/compare_nco.py`): done.** Code-
 phase tracking's `phase`/`phase_inc`/`% 1.0` float bookkeeping is
 replaced by `doppler.source.NCO` (`native/inc/nco/nco_core.h`): each
 epoch sets `norm_freq = code_rate / tsamps` and calls
 `steps_u32(tsamps)`, converting the raw `[0, 2**32)` ramp to a chip
-position via `phase / 2**32 * sf`. Re-ran `validate_stress.py`'s full
-sweep against `despreader_nco.py` directly: **CLEAN** at every
+position via `phase / 2**32 * sf`. Re-ran `archive/validate_stress.py`'s full
+sweep against `archive/despreader_nco.py` directly: **CLEAN** at every
 `windows`/`bn`/noise config, same as the pure-Python original.
-`compare_nco.py` confirms the two are not bit-exact (`NCO`'s `phase_inc
+`archive/compare_nco.py` confirms the two are not bit-exact (`NCO`'s `phase_inc
 = floor(frac(norm_freq) * 2**32)` truncation gives it a real, finite
 rate resolution -- `2**-32 * tsamps ~= 4.8e-7` in `code_rate` units for
 `tsamps=2046`), but the divergence is **exactly the predicted
@@ -145,7 +218,7 @@ separately for `[project] c_style = "clang-format"` reformatting sacred
 `native/inc/**` headers with no exclusion (found while trying to
 eliminate the manual `clang-format -i` step this addition needed).
 
-**Both `despreader_nco.py` and `despreader_lf.py` now also avoid
+**Both `archive/despreader_nco.py` and `archive/despreader_lf.py` now also avoid
 per-epoch allocation entirely**: the `ctrl` (float32) and phase-out
 (uint32) buffers are allocated ONCE in `__init__` and reused every epoch
 via `steps_u32_ctrl`'s `out=` parameter (`ctrl_buf.fill(...)` in place,
@@ -155,12 +228,12 @@ own array), so this is safe by construction, not just empirically
 leak-free. Note `out=`'s buffer must be sized to
 `steps_u32_ctrl_max_out()` (65536), not just this epoch's `tsamps` --
 the returned view is still correctly sliced to `tsamps`. Re-validated
-after this change: `compare_nco.py` (all 18 MATCH, unchanged),
-`compare_lf.py` (all 18 CLEAN, unchanged), and the full pipeline BER
+after this change: `archive/compare_nco.py` (all 18 MATCH, unchanged),
+`archive/compare_lf.py` (all 18 CLEAN, unchanged), and the full pipeline BER
 check (still 0.0 at Es/N0=22.6dB and 10dB) -- confirms the optimization
 is behavior-preserving.
 
-**Step 2 -- `LoopFilter` (`despreader_lf.py`, `compare_lf.py`): done, and
+**Step 2 -- `LoopFilter` (`archive/despreader_lf.py`, `archive/compare_lf.py`): done, and
 load-bearing for the C port.** The code loop's `LoopFilter` is swapped
 to the real `doppler.track.LoopFilter` (`native/inc/loop_filter/
 loop_filter_core.h`) -- the SAME engine already used by every other
@@ -185,7 +258,7 @@ comparison:
    tsamps`, not the currently-committed C `dll_update()`'s "integrator
    alone as rate + kp*e spread over an extra factor of sf*sps"): the
    real `LoopFilter` is **just as stable** across the full
-   `validate_stress.py` sweep (windows=6/11/22, bn=0.002/0.01/0.02,
+   `archive/validate_stress.py` sweep (windows=6/11/22, bn=0.002/0.01/0.02,
    with/without -8 dB noise, 12000 symbols) -- every config CLEAN, code
    rate and output magnitude matching the NCO-only version to 6 decimal
    places. The full downstream pipeline (`Costas` -> `Resampler` ->
@@ -200,8 +273,8 @@ reuse the existing shared loop filter engine untouched and just correct
 how its output is applied, rather than introducing a new filter design
 into C.
 
-**Step 3 -- replica generation (`despreader_interp.py`,
-`compare_interp.py`): done, bit-exact.** Unlike NCO/LoopFilter, there
+**Step 3 -- replica generation (`archive/despreader_interp.py`,
+`archive/compare_interp.py`): done, bit-exact.** Unlike NCO/LoopFilter, there
 was no existing standalone "replica" object to swap into --
 `dll_replica()` (`native/inc/dll/dll_core.h`) is a private helper baked
 directly into `Dll`, not exposed to Python at all. Built a genuinely
@@ -216,12 +289,12 @@ csign[c]`, matching `replica2x`'s "hold" convention) and queries it with
 the same `c*2 - 0.5` position transform `replica2x` used --
 `InterpolatedTable`'s own wraparound makes pre-wrapping the position
 unnecessary (wrapping by a whole multiple of the table length before
-taking the fractional part is a no-op). `compare_interp.py` confirms
-this is not just close but **bit-exact** against `despreader_lf.py`
+taking the fractional part is a no-op). `archive/compare_interp.py` confirms
+this is not just close but **bit-exact** against `archive/despreader_lf.py`
 across all 18 swept configs (`max|out_diff|=0.000e+00` everywhere) --
 the two are the same double-precision arithmetic, just computed in C
-instead of numpy. Re-validated: `validate_stress.py`'s full sweep
-against `despreader_interp.py` directly (all CLEAN), and the full
+instead of numpy. Re-validated: `archive/validate_stress.py`'s full sweep
+against `archive/despreader_interp.py` directly (all CLEAN), and the full
 pipeline BER check (still 0.0 at Es/N0=22.6dB and 10dB).
 
 Adding `InterpolatedTable` surfaced the SAME jm codegen leak bug found

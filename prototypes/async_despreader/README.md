@@ -17,41 +17,52 @@ and superseded historical scripts are in
 
 ```mermaid
 flowchart TD
-    RAW["Raw chip-rate samples\n(from Acquisition: coarse code\nphase + rough/noisy Doppler)"]
+    RAW["I/Q 
+    @ 2x Chip Rate"]
 
-    RAW --> DEROT["Carrier LO\n(derotate)"]
-    DEROT --> REPLICA["Code replica correlate\n(InterpolatedTable E/P/L)"]
+    RAW --> 
+    DEROT["Complex 
+      Mixer"]
+    DEROT --> 
+    REPLICA["Code replica correlate
+      (InterpolatedTable E/P/L)"]
     REPLICA --> DESPREAD["Despread output\n(integrate_and_dump)"]
-    DESPREAD --> OUT["Chunk-rate output stream"]
 
-    subgraph FAST["Fast, continuous: Costas (per epoch)"]
-        DESPREAD --> COSTASD["sign(Re(P)) * Im(P) / |P|"]
-        COSTASD --> CARLF["Carrier LoopFilter"]
-        CARLF --> FINE["fine_dev\n(handles a Doppler STEP\nwith zero steady-state error)"]
+    subgraph FAST["Fast, continuous"]
+        COSTASD["Phase 
+          Detector"]
+        COSTASD --> 
+        CARLF["Carrier 
+          LoopFilter"]
+    end
+   DESPREAD --> COSTASD
+   DESPREAD --> FLLBUF
+    subgraph SLOW["Slow FLL-assist"]
+        FLLBUF["Accumulate"]
+        FLLBUF --> 
+        FLLEST["Square, 
+         zero-pad FFT, 
+         parabolic interp"]
     end
 
-    subgraph SLOW["Slow, periodic: FLL-assist (every fll_block_epochs)"]
-        DESPREAD --> FLLBUF["Accumulate block"]
-        FLLBUF --> FLLEST["freq_refine.estimate_residual_freq\n(square, zero-pad FFT, parabolic interp)"]
-        FLLEST --> COARSE["coarse_dev\n(corrects the RAMP-induced lag\nCostas structurally can't close)"]
-    end
-
-    FINE --> CTRLSUM(("+"))
-    COARSE --> CTRLSUM
+    FLLEST --> CTRLSUM(("+"))
+    CARLF --> CTRLSUM(("+"))
     CTRLSUM -->|"ctrl port"| DEROT
 
-    FINE --> AIDSUM(("+"))
-    COARSE --> AIDSUM
-    AIDSUM --> AIDSCALE["x sample_rate_hz / carrier_freq_hz\n(v/c coupling)"]
+    FLLEST --> AIDSUM(("+"))
+    CARLF --> AIDSUM(("+"))
+    AIDSUM --> AIDSCALE["x (Fs / fc)"]
 
-    subgraph CODE["Code tracking loop (unchanged since Phase 1a)"]
-        DESPREAD --> CODEDISC["E/L power diff\n(async-data lookback)"]
-        CODEDISC --> CODELF["Code LoopFilter"]
-        CODELF --> CODESUM(("+"))
-        AIDSCALE --> CODESUM
-        CODESUM --> CODENCO["Code NCO rate"]
-        CODENCO --> REPLICA
-    end
+   DESPREAD --> 
+   CODEDISC["E/L power diff
+      async-data 
+      lookback"]
+   CODEDISC --> CODELF["Code 
+      LoopFilter"]
+   CODELF --> CODESUM(("+"))
+   AIDSCALE --> CODESUM
+   CODESUM --> CODENCO["Code NCO rate"]
+   CODENCO --> REPLICA
 ```
 
 Design rules this diagram encodes (all validated, not assumed — see the

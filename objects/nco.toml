@@ -43,6 +43,21 @@ return_type = "uint32_t"
 variable_output = true
 params = [{ name = "ctrl", type = "float[]" }]
 
+[[nco.methods]]
+name = "steps_u32_scaled_ctrl"
+arg_type = "void"
+return_type = "uint32_t"
+variable_output = true
+params = [{ name = "ctrl", type = "float[]" }]
+
+[[nco.methods]]
+name = "steps_u32_ovf_ctrl"
+arg_type = "void"
+return_type = "uint32_t"
+variable_output = true
+multi_output = ["uint8_t"]
+params = [{ name = "ctrl", type = "float[]" }]
+
 [[nco.properties]]
 name = "norm_freq"
 type = "double"

@@ -54,9 +54,8 @@ draw_offset (dll_state_t *s)
 static void
 seed (dll_state_t *s)
 {
-  s->code_nco.phase
-      = dll_cycles_to_phase_delta (s->seed_chip / (double)s->sf);
-  s->code_nco.phase_inc = dll_cycles_to_phase_delta (
+  s->code_nco.phase = nco_norm_to_inc (s->seed_chip / (double)s->sf);
+  s->code_nco.phase_inc = nco_norm_to_inc (
       1.0 / ((double)s->sf * (double)s->sps));
   s->code_nco.norm_freq = 1.0 / ((double)s->sf * (double)s->sps);
   s->code_nco.nmax      = 0;
@@ -593,7 +592,7 @@ dll_steps_impl (dll_state_t *state, const float complex *x, size_t x_len,
               double ctrl      = lf_out * state->inv_tsamps2;
               state->code_rate = 1.0 + lf_out * state->inv_tsamps;
               state->code_nco.phase_inc
-                  = dll_cycles_to_phase_delta (state->inv_tsamps + ctrl);
+                  = nco_norm_to_inc (state->inv_tsamps + ctrl);
 
               /* Output: this epoch's own natural chunk sums, normalized by
                  the clean power reference found above -- never the

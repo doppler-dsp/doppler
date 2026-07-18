@@ -38,10 +38,55 @@
 #include "clib_common.h"
 #include "dp_state.h"
 #include "jm_perf.h"
+#include <math.h>
 #ifdef __cplusplus
 extern "C"
 {
 #endif
+
+  /**
+   * @brief Normalised cycles -> uint32 phase delta, the ONE shared
+   *        primitive for this conversion.
+   *
+   * Floor-normalises @p cycles into `[0, 1)` before scaling and
+   * ROUNDS (not truncates) to the nearest integer phase step
+   * (`llround`, not a bare cast) -- a truncating cast systematically
+   * biases every phase advance low, which compounds over long runs
+   * into a real, measurable rate error. Every caller that needs this
+   * conversion (`nco_create`/`nco_set_norm_freq`, `LO`'s own phase
+   * accumulator, `Dll`'s code-phase NCO steering) MUST call this
+   * inline function rather than growing its own private copy --
+   * duplicated copies of this exact formula have already drifted once
+   * (one truncated while a sibling copy had already been fixed to
+   * round) before being consolidated here.
+   *
+   * A 32-bit phase word can only ever represent frequency in fs/2^32
+   * steps (a one-time, unavoidable quantization -- no fixed-width
+   * accumulator can be exact except at those specific levels), but
+   * truncating always rounds toward zero, giving a *systematic*
+   * one-sided bias up to a full step; rounding halves the worst case
+   * and centers the residual at zero. This has no bearing on
+   * tracking-loop performance downstream -- a carrier/code loop exists
+   * precisely to null out a small, constant residual like this one,
+   * regardless of its source or size. `d` is always in `[0, 1)`, so
+   * `llround`'s result is always in `[0, 2^32]`; the one edge case (d
+   * rounds up to exactly 1.0 cycle, i.e. 2^32) wraps to phase delta 0
+   * via the well-defined `long long` -> `uint32_t` conversion --
+   * correct, since a full extra cycle per sample is indistinguishable
+   * from no rotation at all, the same aliasing identity the
+   * negative-frequency floor-fold above uses.
+   *
+   * @param cycles  Any real number of cycles; only the fractional part
+   *                matters. Negative values fold correctly (e.g. -0.25
+   *                -> 3x2^30).
+   * @return Phase delta in `[0, 2^32)`.
+   */
+  JM_FORCEINLINE uint32_t
+  nco_norm_to_inc (double cycles)
+  {
+    double d = cycles - floor (cycles);
+    return (uint32_t)llround (d * 4294967296.0);
+  }
 
 /**
  * @brief Wrapping add with carry detection.
@@ -76,6 +121,119 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
     double   norm_freq; /* normalised frequency (cycles/sample)          */
     uint32_t nmax;      /* wrap target for steps_u32_scaled; 0 = raw   */
   } nco_state_t;
+
+  /**
+   * @brief Emit the current raw phase, then advance the accumulator.
+   *
+   * Single-sample form, suitable for inlining into another module's own
+   * per-sample loop (e.g. a code-tracking loop's phase steer) with zero
+   * call overhead -- the canonical primitive every batch stepper below
+   * and every OTHER module embedding an nco_state_t by value should
+   * compose, rather than reimplementing this advance inline (see
+   * nco_norm_to_inc()'s own doc comment on why duplicated copies of
+   * this exact class of arithmetic have already drifted once).
+   *
+   * @param state  NCO state.  Must be non-NULL.
+   * @return Phase value BEFORE the increment.
+   */
+  JM_FORCEINLINE JM_HOT uint32_t
+  nco_step_u32 (nco_state_t *state)
+  {
+    uint32_t ph = state->phase;
+    state->phase = ph + state->phase_inc;
+    return ph;
+  }
+
+  /**
+   * @brief Emit the current phase scaled to `[0, nmax)`, then advance.
+   * Single-sample form of nco_steps_u32_scaled() -- see that function's
+   * doc comment for the scaling identity and the nmax==0 special case.
+   * @param state  NCO state.  Must be non-NULL.
+   * @return Scaled phase value (or raw, if nmax == 0) BEFORE the increment.
+   */
+  JM_FORCEINLINE JM_HOT uint32_t
+  nco_step_u32_scaled (nco_state_t *state)
+  {
+    uint32_t ph   = state->phase;
+    uint32_t nmax = state->nmax;
+    state->phase  = ph + state->phase_inc;
+    return nmax == 0 ? ph : (uint32_t)(((uint64_t)ph * nmax) >> 32);
+  }
+
+  /**
+   * @brief Emit the current raw phase and this step's carry, then advance.
+   * Single-sample form of nco_steps_u32_ovf().
+   * @param state  NCO state.  Must be non-NULL.
+   * @param carry  Out-param: set to 1 if this step's advance wrapped past
+   *               2^32, else 0. Must be non-NULL.
+   * @return Phase value BEFORE the increment.
+   */
+  JM_FORCEINLINE JM_HOT uint32_t
+  nco_step_u32_ovf (nco_state_t *state, uint8_t *carry)
+  {
+    uint32_t ph = state->phase;
+    *carry      = NCO_ADD_OVF (ph, state->phase_inc, &state->phase);
+    return ph;
+  }
+
+  /**
+   * @brief Emit the current raw phase, then advance by phase_inc + ctrl.
+   * Single-sample form of nco_steps_u32_ctrl() -- the control port for a
+   * tracking loop, see that function's doc comment. phase_inc/norm_freq
+   * are never modified; only the running phase advances.
+   * @param state  NCO state.  Must be non-NULL.
+   * @param ctrl   Per-sample normalised-frequency control offset, any
+   *               sign (the fractional cycle is taken, so it wraps
+   *               correctly).
+   * @return Phase value BEFORE the increment.
+   */
+  JM_FORCEINLINE JM_HOT uint32_t
+  nco_step_u32_ctrl (nco_state_t *state, double ctrl)
+  {
+    uint32_t ph = state->phase;
+    state->phase = ph + state->phase_inc + nco_norm_to_inc (ctrl);
+    return ph;
+  }
+
+  /**
+   * @brief Emit the current phase scaled to `[0, nmax)`, then advance by
+   *        phase_inc + ctrl.
+   * Single-sample form of nco_steps_u32_scaled_ctrl().
+   * @param state  NCO state.  Must be non-NULL.
+   * @param ctrl   Per-sample normalised-frequency control offset.
+   * @return Scaled phase value (or raw, if nmax == 0) BEFORE the increment.
+   */
+  JM_FORCEINLINE JM_HOT uint32_t
+  nco_step_u32_scaled_ctrl (nco_state_t *state, double ctrl)
+  {
+    uint32_t ph   = state->phase;
+    uint32_t nmax = state->nmax;
+    state->phase  = ph + state->phase_inc + nco_norm_to_inc (ctrl);
+    return nmax == 0 ? ph : (uint32_t)(((uint64_t)ph * nmax) >> 32);
+  }
+
+  /**
+   * @brief Emit the current raw phase and this step's carry, then advance
+   *        by phase_inc + ctrl.
+   * Single-sample form of nco_steps_u32_ovf_ctrl(). The carry reflects
+   * THIS step's true advance (phase_inc + ctrl), computed as one 64-bit
+   * sum so a wrap is never missed even when ctrl itself is large.
+   * @param state  NCO state.  Must be non-NULL.
+   * @param ctrl   Per-sample normalised-frequency control offset.
+   * @param carry  Out-param: set to 1 if this step's advance wrapped past
+   *               2^32, else 0. Must be non-NULL.
+   * @return Phase value BEFORE the increment.
+   */
+  JM_FORCEINLINE JM_HOT uint32_t
+  nco_step_u32_ovf_ctrl (nco_state_t *state, double ctrl, uint8_t *carry)
+  {
+    uint32_t ph  = state->phase;
+    uint64_t sum = (uint64_t)ph + (uint64_t)state->phase_inc
+                   + (uint64_t)nco_norm_to_inc (ctrl);
+    *carry        = (uint8_t)((sum >> 32) != 0);
+    state->phase  = (uint32_t)sum;
+    return ph;
+  }
 
   /**
    * @brief Create an NCO instance.
@@ -332,6 +490,85 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
    */
   size_t nco_steps_u32_ctrl (nco_state_t *state, const float *ctrl,
                              size_t ctrl_len, uint32_t *out);
+
+  size_t nco_steps_u32_scaled_ctrl_max_out (nco_state_t *state);
+
+  /**
+   * @brief Advance ctrl_len samples; values scaled to `[0, nmax)`, with a
+   *        per-sample control offset added on top of phase_inc.
+   *
+   * The @ref nco_steps_u32_scaled output mapping (nmax=0 falls back to
+   * the raw accumulator) driven by the @ref nco_steps_u32_ctrl control
+   * port -- every stepper has a matching control-input counterpart, so
+   * a tracking loop can drive LUT-indexed output (nmax = table length)
+   * exactly as it would raw phase output, without ever touching
+   * phase_inc/norm_freq. With every `ctrl[i] == 0` this is bit-identical
+   * to nco_steps_u32_scaled(). Returns ctrl_len.
+   *
+   * @param state     NCO state returned by nco_create().
+   * @param ctrl      Float32 array of per-sample normalised-frequency
+   *                  control offsets, any sign (the fractional cycle is
+   *                  taken, so it wraps correctly).
+   * @param ctrl_len  Number of elements in ctrl; equals output length.
+   * @param out       Output buffer; must hold at least ctrl_len uint32_t
+   *                  values.
+   * @return ctrl_len (always).
+   * @code
+   * >>> from doppler.source import NCO
+   * >>> import numpy as np
+   * >>> nco = NCO(norm_freq=0.0, nmax=4)
+   * >>> ctrl = np.full(4, 0.25, dtype=np.float32)
+   * >>> out = nco.steps_u32_scaled_ctrl(ctrl)
+   * >>> out.tolist()
+   * [0, 1, 2, 3]
+   * @endcode
+   */
+  size_t nco_steps_u32_scaled_ctrl (nco_state_t *state, const float *ctrl,
+                                    size_t ctrl_len, uint32_t *out);
+
+  size_t nco_steps_u32_ovf_ctrl_max_out (nco_state_t *state);
+
+  /**
+   * @brief Advance ctrl_len samples; raw phase + per-sample carry, with a
+   *        per-sample control offset added on top of phase_inc.
+   *
+   * The @ref nco_steps_u32_ovf output mapping (raw phase plus a carry
+   * flag marking each sample whose advance wrapped past 2^32) driven by
+   * the @ref nco_steps_u32_ctrl control port -- every stepper has a
+   * matching control-input counterpart. The carry reflects THIS
+   * sample's true advance (`phase_inc + ctrl_inc`, added as a single
+   * 64-bit sum so a wrap is never missed even when the control offset
+   * itself is large), not just phase_inc alone -- needed by any
+   * consumer (e.g. a coupled carrier/code tracker) that must detect a
+   * period boundary while the rate is being actively steered. With
+   * every `ctrl[i] == 0` this is bit-identical to nco_steps_u32_ovf().
+   * Returns ctrl_len.
+   *
+   * @param state     NCO state returned by nco_create().
+   * @param ctrl      Float32 array of per-sample normalised-frequency
+   *                  control offsets, any sign (the fractional cycle is
+   *                  taken, so it wraps correctly).
+   * @param ctrl_len  Number of elements in ctrl; equals output length.
+   * @param out       Phase output buffer; must hold at least ctrl_len
+   *                  uint32_t values.
+   * @param out1      Carry output buffer; must hold at least ctrl_len
+   *                  uint8_t values.
+   * @return ctrl_len (always).
+   * @code
+   * >>> from doppler.source import NCO
+   * >>> import numpy as np
+   * >>> nco = NCO(norm_freq=0.25, nmax=0)
+   * >>> ctrl = np.zeros(4, dtype=np.float32)
+   * >>> ph, carry = nco.steps_u32_ovf_ctrl(ctrl)
+   * >>> ph.tolist()
+   * [0, 1073741824, 2147483648, 3221225472]
+   * >>> carry.tolist()
+   * [0, 0, 0, 0]
+   * @endcode
+   */
+  size_t nco_steps_u32_ovf_ctrl (nco_state_t *state, const float *ctrl,
+                                 size_t ctrl_len, uint32_t *out,
+                                 uint8_t *out1);
 
 #ifdef __cplusplus
 }

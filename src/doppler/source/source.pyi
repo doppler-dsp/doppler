@@ -158,6 +158,80 @@ class NCO:
     def steps_u32_ctrl_max_out(self) -> int:
         """Max output length steps_u32_ctrl() can produce for the current state."""
 
+    def steps_u32_scaled_ctrl(self, ctrl: NDArray[np.float32], out: NDArray[np.uint32] | None = None) -> NDArray[np.uint32]:
+        """Advance ctrl_len samples; values scaled to `[0, nmax)`, with a per-sample control offset added on top of phase_inc.
+
+        The nco_steps_u32_scaled output mapping (nmax=0 falls back to the raw
+        accumulator) driven by the nco_steps_u32_ctrl control port -- every
+        stepper has a matching control-input counterpart, so a tracking loop can
+        drive LUT-indexed output (nmax = table length) exactly as it would raw
+        phase output, without ever touching phase_inc/norm_freq. With every
+        `ctrl[i] == 0` this is bit-identical to nco_steps_u32_scaled(). Returns
+        ctrl_len.
+
+        Parameters
+        ----------
+        ctrl : NDArray[np.float32]
+            Float32 array of per-sample normalised-frequency control offsets, any sign (the fractional cycle is taken, so it wraps correctly).
+
+        Returns
+        -------
+        NDArray[np.uint32]
+            ctrl_len (always).
+
+        Examples
+        --------
+        >>> from doppler.source import NCO
+        >>> import numpy as np
+        >>> nco = NCO(norm_freq=0.0, nmax=4)
+        >>> ctrl = np.full(4, 0.25, dtype=np.float32)
+        >>> out = nco.steps_u32_scaled_ctrl(ctrl)
+        >>> out.tolist()
+        [0, 1, 2, 3]
+
+        """
+
+    def steps_u32_scaled_ctrl_max_out(self) -> int:
+        """Max output length steps_u32_scaled_ctrl() can produce for the current state."""
+
+    def steps_u32_ovf_ctrl(self, ctrl: NDArray[np.float32]) -> tuple[NDArray[np.uint32], NDArray[np.uint8]]:
+        """Advance ctrl_len samples; raw phase + per-sample carry, with a per-sample control offset added on top of phase_inc.
+
+        The nco_steps_u32_ovf output mapping (raw phase plus a carry flag
+        marking each sample whose advance wrapped past 2^32) driven by the
+        nco_steps_u32_ctrl control port -- every stepper has a matching
+        control-input counterpart. The carry reflects THIS sample's true advance
+        (`phase_inc + ctrl_inc`, added as a single 64-bit sum so a wrap is never
+        missed even when the control offset itself is large), not just phase_inc
+        alone -- needed by any consumer (e.g. a coupled carrier/code tracker)
+        that must detect a period boundary while the rate is being actively
+        steered. With every `ctrl[i] == 0` this is bit-identical to
+        nco_steps_u32_ovf(). Returns ctrl_len.
+
+        Parameters
+        ----------
+        ctrl : NDArray[np.float32]
+            Float32 array of per-sample normalised-frequency control offsets, any sign (the fractional cycle is taken, so it wraps correctly).
+
+        Returns
+        -------
+        tuple[NDArray[np.uint32], NDArray[np.uint8]]
+            ctrl_len (always).
+
+        Examples
+        --------
+        >>> from doppler.source import NCO
+        >>> import numpy as np
+        >>> nco = NCO(norm_freq=0.25, nmax=0)
+        >>> ctrl = np.zeros(4, dtype=np.float32)
+        >>> ph, carry = nco.steps_u32_ovf_ctrl(ctrl)
+        >>> ph.tolist()
+        [0, 1073741824, 2147483648, 3221225472]
+        >>> carry.tolist()
+        [0, 0, 0, 0]
+
+        """
+
     def state_bytes(self) -> int:
         """Serialized state size in bytes."""
     def get_state(self) -> bytes:

@@ -207,26 +207,12 @@ dll_replica(const dll_state_t *s, double c)
     return (float)((1.0 - mu) * v0 + mu * v1);
 }
 
-/**
- * @brief Floor-normalize @p cycles into [0, 1) then scale to a u32 phase
- * delta, `llround`-not-truncated. Mirrors the already-hardened
- * `lo_core.c` `norm_to_inc()` pattern: floor-normalizing before the cast
- * (rather than truncating a possibly-negative double directly to
- * uint32_t) avoids undefined behaviour and gives the correct modular
- * wraparound for a signed phase nudge (a small negative `cycles` maps to
- * a large positive delta that, added mod 2^32, is equivalent to
- * subtracting the small magnitude).
- *
- * @param cycles  Any real number of cycles (code periods); only the
- *                fractional part matters.
- * @return Phase delta in [0, 2^32).
- */
-JM_FORCEINLINE uint32_t
-dll_cycles_to_phase_delta(double cycles)
-{
-    double d = cycles - floor(cycles);
-    return (uint32_t)llround(d * 4294967296.0);
-}
+/* Cycles -> u32 phase delta: nco_norm_to_inc() (native/inc/nco/nco_core.h)
+ * is the ONE shared primitive for this conversion -- do not grow a
+ * private copy here (a prior copy of this exact formula existed under
+ * the name dll_cycles_to_phase_delta() and has been consolidated away;
+ * see nco_norm_to_inc()'s own doc comment for why duplicates of this
+ * conversion keep drifting). */
 
 /**
  * @brief Initialise a DLL in place (no allocation); BORROWS @p code.
@@ -307,11 +293,13 @@ dll_accumulate(dll_state_t *s, float complex d)
     s->acc_p += d * dll_replica(s, cp);
     s->acc_e += d * dll_replica(s, ce);
     s->acc_l += d * dll_replica(s, cl);
-    uint32_t old_phase = s->code_nco.phase;
-    uint64_t sum = (uint64_t)old_phase + (uint64_t)s->code_nco.phase_inc;
-    s->code_nco.phase = (uint32_t)sum;
+    /* nco_step_u32_ovf() (native/inc/nco/nco_core.h) is the ONE shared
+       primitive for "advance one sample, report whether it wrapped" --
+       this used to be a private inline reimplementation of exactly that. */
+    uint8_t carry;
+    (void)nco_step_u32_ovf(&s->code_nco, &carry);
     s->chip_pos = ((double)s->code_nco.phase / 4294967296.0) * sfd;
-    return (sum >> 32) != 0;
+    return carry;
 }
 
 /**
@@ -430,7 +418,7 @@ dll_update(dll_state_t *s)
        at construction (configure_geometry()), never here. */
     double ctrl = s->lf.integ * s->inv_tsamps + s->lf.kp * e * s->inv_tsamps_sf;
     s->code_rate = 1.0 + s->lf.integ; /* public ratio observable only */
-    s->code_nco.phase_inc = dll_cycles_to_phase_delta(s->inv_tsamps + ctrl);
+    s->code_nco.phase_inc = nco_norm_to_inc(s->inv_tsamps + ctrl);
 }
 
 /**

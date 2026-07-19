@@ -14,6 +14,8 @@ target_link_libraries(dsss_receiver_core PUBLIC
     loop_filter_core
     lockdet_core
     telemetry_core
+    costas_core
+    lo_core
     RateConverter_core
     resamp_core
     hbdecim_core
@@ -22,7 +24,6 @@ target_link_libraries(dsss_receiver_core PUBLIC
     resample_core
     mpsk_receiver_core
     carrier_nda_core
-    lo_core
     boxcar_core
     agc_core
     symsync_core
@@ -42,6 +43,8 @@ target_link_libraries(test_dsss_receiver_core
     loop_filter_core
     lockdet_core
     telemetry_core
+    costas_core
+    lo_core
     RateConverter_core
     resamp_core
     hbdecim_core
@@ -50,7 +53,6 @@ target_link_libraries(test_dsss_receiver_core
     resample_core
     mpsk_receiver_core
     carrier_nda_core
-    lo_core
     boxcar_core
     agc_core
     symsync_core
@@ -75,6 +77,8 @@ target_link_libraries(bench_dsss_receiver_core
     loop_filter_core
     lockdet_core
     telemetry_core
+    costas_core
+    lo_core
     RateConverter_core
     resamp_core
     hbdecim_core
@@ -83,7 +87,6 @@ target_link_libraries(bench_dsss_receiver_core
     resample_core
     mpsk_receiver_core
     carrier_nda_core
-    lo_core
     boxcar_core
     agc_core
     symsync_core

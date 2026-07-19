@@ -12,6 +12,7 @@ serializable = "true"
 depends_on = [
     { name = "acq", link = true },
     { name = "dll", link = true },
+    { name = "costas", link = true },
     { name = "RateConverter", link = true },
     { name = "mpsk_receiver", link = true },
     # RateConverter's own cascade components -- jm's depends_on linking is

@@ -122,3 +122,74 @@ finite-length DFT), so local bin-averaging doesn't discriminate signal
 from this particular noise the way it would for independent per-bin
 noise. **Multi-look non-coherent averaging (longer collection) is the
 lever that actually works** — see `../README.md` / `../improve_low_snr.py`.
+
+## The nested-loop rearchitecture campaign (CHECKPOINTS 16-23) and its superseding cleanup
+
+**Idea**: a working reference implementation (`~/legacy-commz`) showed
+the intended carrier-tracking architecture is a nested two-rate loop
+(raw-rate fused code+carrier replica, always-on code-rate aiding from
+the carrier estimate, a low-rate PSD-matched-filter refinement, a
+closed Costas loop running on a RESAMPLED low-rate stream that feeds
+back into the raw-rate replica) rather than the once-per-epoch,
+no-aiding, no-resample design this story had used up to that point.
+
+**Tried**: fixed `aid_code`'s formula to aid from the full current
+carrier estimate, not just the tracked deviation (`despreader_coupled
+.py`, still in place); added an opt-in `car_update_windows` per-window
+carrier-loop mode (`despreader_coupled.py`, still in place); built a
+`carrier_resample_track.py` external harness mirroring the reference's
+own resample-then-track carrier loop exactly (anti-alias-filtered
+`RateConverter` down to the demod rate, THEN a Costas discriminator,
+matching `~/legacy-commz`'s `Despreader.step()`).
+
+**Found, and (partially) dropped**: none of these fixed the BER~0.5
+"never locks" failure this whole campaign was chasing — confirmed
+against both a synthetic sweep AND a real `~/legacy-commz`-generated
+capture (bit-identical Gold-1023 code verified between the two
+projects). Pulling `MpskReceiver`'s own telemetry eventually found the
+real cause: its symbol-timing loop never locks on either signal,
+independent of anything upstream — a separate, still-open bug entirely
+outside Acquisition/PSDMF/`CoupledAsyncDespreader` (out of this
+folder's current scope; see `../FINISHING_PLAN.md`).
+`carrier_resample_track.py` is archived here because, once the real
+cause was found downstream, its own hypothesis (raw per-window
+discriminator too coarse/unfiltered) was never actually the problem —
+`car_update_windows=True` alone (no resample stage) despreads cleanly,
+confirmed by a direct genie-aided BER check
+(`../e2e_acq_to_despreader.py`).
+
+**Two REAL bugs the cleanup's genie-aided despread-level test DID
+find, isolated from the `MpskReceiver` confound for the first time**:
+(1) `aid_code=True` combined with a nonzero static Doppler offset on
+this story's own synthetic signal generators (`make_ramp_signal`,
+`signal_gen.signal()`) is catastrophic, not a mild regression —
+because neither generator gives the Doppler offset a matching
+code-rate change, `aid_code` injects a real but physically-unwarranted
+correction that misaligns the code loop over a long run (worked around
+in `e2e_acq_to_despreader.py` by disabling `aid_code` for that one
+case; see task #101). (2) the real SPEC rate (500 Hz/s) alone,
+independent of any static offset or `aid_code`, ALSO produces BER~0.5
+— likely because PSDMF's one-shot batch refine doesn't account for the
+residual moving ~450 Hz during its own ~0.9s collection window, but
+this is a hypothesis, not yet confirmed. (2) is still open.
+
+**Archived alongside this campaign** (superseded by
+`../e2e_acq_to_despreader.py`, ONE clean end-to-end test replacing
+several overlapping/exploratory scripts):
+`spec_full_characterization_prototype.py` (three overlapping trial
+functions — coarse-seed-only, PSDMF-seeded zero-impairment, and the
+CHECKPOINT-17 static-offset sweep — all now covered by the one new
+test), `doppler_rate_test.py`/`doppler_rate_floor_test.py` (the
+FLL-assist-vs-static-batch characterization that led to `bn_fll_car`,
+now integrated into `despreader_coupled.py` and no longer needing a
+standalone sweep), `pullin_sweep.py` (the empirical pull-in gate that
+predates the real Acquisition handoff — `acq_handoff.py` replaced the
+hand-chosen `seed_gap_hz` this measured against), `characterize_snr.py`
+/`improve_low_snr.py` (the PSDMF Es/N0 characterization behind the
+multi-look-averaging finding above, superseded by the one new test's
+own scoring), `bench_freq_bank.py` (the roll-FFT-vs-mixer-bank
+benchmark for task #70, long since resolved and shipped), and
+`signal_gen.py` (the decoupled-code-phase signal generator all of the
+above depended on — no longer imported by anything in this folder now
+that `acq_handoff.py`'s own demo, which used it, has been trimmed down
+to pure Acquisition->handoff glue).

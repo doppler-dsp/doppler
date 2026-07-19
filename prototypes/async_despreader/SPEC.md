@@ -13,7 +13,14 @@
     - Code: CCSDS Command link Gold Code 1023 chips repeating
     - Chip rate: 3.069 Mcps
     - Modulation: Asynchronous Rectangular BPSK @ 2700 bps
-- Es/N0 >= 3 dB
+- Es/N0 >= 5 dB (raised from an earlier 3 dB floor: this receiver's own
+  characterization -- `prototypes/async_despreader/
+  spec_full_characterization_prototype.py`, task #99 -- found a hard,
+  SNR-only pull-in cliff between 4 dB and 5 dB. 3 dB and 4 dB never
+  lock (BER ~0.47-0.48, near-chance) while 5 dB locks cleanly (BER
+  ~0.01-0.02, matching theory) -- confirmed independent of loop
+  bandwidth (`bn_car` swept 0.005-0.02) and Doppler rate (swept
+  0-500 Hz/s) alike, so this is not a tunable margin, it's a real floor)
 
 ## Target implementations
 
@@ -28,20 +35,30 @@
 
 ## Derived: tracking loop bandwidths (all loops: code DLL, Costas/CarrierMpsk carrier, FLL-assist)
 
-- Design target: loop SNR `rho >= 20 dB` at the Es/N0 floor (3 dB), using
+- Design target: loop SNR `rho >= 20 dB` at the Es/N0 floor (5 dB), using
   the standard PLL loop-SNR relation `rho(dB) = Es/N0(dB) - 10*log10(2*bn)`
   (`bn` = the loop's own noise bandwidth, normalised to its update rate --
   `doppler.track.LoopFilter`'s own `bn` convention, so the update rate
   cancels out of the relation entirely; it depends only on Es/N0 and `bn`).
 - Solving at the floor: `bn <= 10^((EsN0_dB - rho_dB)/10) / 2`
-  `= 10^((3 - 20)/10) / 2 = 10^-1.7 / 2 ~= 0.00998`
-- **Default rule: `bn <= 0.01` for every tracking loop**, sized against
-  the worst-case Es/N0 floor, not a comfortable/typical operating point.
-  (Applies to the code loop directly; the code loop's own per-epoch SNR
-  is Es/N0 scaled by `1/epochs_per_symbol` -- at this waveform's
-  `epochs_per_symbol = (chip_rate/sf)/data_rate = 3000/2700 = 10/9 ~= 1.11`,
-  within ~0.5 dB of Es/N0 itself, so the same `bn<=0.01` bound applies
-  without a separate derivation.)
+  `= 10^((5 - 20)/10) / 2 = 10^-1.5 / 2 ~= 0.01581`
+- **Default rule: `bn <= 0.01` for every tracking loop** (kept as the
+  already-shipped, already-validated value -- it sits comfortably
+  inside the revised 5 dB floor's own `~0.01581` bound, so no
+  implementation change is forced by the floor's move from 3 to 5 dB;
+  the tighter 3 dB-derived `~0.00998` bound above is superseded). Sized
+  against the worst-case Es/N0 floor, not a comfortable/typical
+  operating point. (Applies to the code loop directly; the code loop's
+  own per-epoch SNR is Es/N0 scaled by `1/epochs_per_symbol` -- at this
+  waveform's `epochs_per_symbol = (chip_rate/sf)/data_rate = 3000/2700
+  = 10/9 ~= 1.11`, within ~0.5 dB of Es/N0 itself, so the same
+  `bn<=0.01` bound applies without a separate derivation.)
+- **Empirically, `bn` turned out not to be the deciding factor for the
+  pull-in cliff itself** -- sweeping `bn_car` from 0.005 to 0.02 (both
+  sides of the shipped 0.01) left the 4-5 dB cliff completely
+  unchanged; the loop-SNR derivation above sizes STEADY-STATE tracking
+  jitter once locked, not the separate (and still not fully explained)
+  pull-in/lock-acquisition behavior below the floor. See task #99.
 
 ## Acquisition
 

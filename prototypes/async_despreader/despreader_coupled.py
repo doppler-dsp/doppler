@@ -214,14 +214,59 @@ class CoupledAsyncDespreader:
         Default 0.0 (disabled -- pure PLL, behavior byte-identical to
         before this feature existed). See the module docstring's
         "Phase 1f" section for why this replaced an earlier
-        from-scratch periodic-FFT mechanism.
+        from-scratch periodic-FFT mechanism. Ignored when
+        `car_update_windows=True` (FLL-assist is not engaged in that
+        mode -- see below).
+    car_update_windows : bool
+        Default False -- byte-identical to every prior behavior of
+        this class (once-per-EPOCH carrier discriminator/loop-filter
+        update on the coherent full-epoch prompt, `output.mean()`).
+        If True, the carrier loop instead updates once per WINDOW,
+        directly off each window's own `integrate_and_dump[i]` partial
+        prompt (already computed by `find_max_power` for the code
+        loop) -- no data-wiping/combination step needed, since each
+        window gets its own real-time discriminator update instead of
+        being averaged into one epoch-wide figure first. This fixes
+        the once-per-epoch discriminator's own Nyquist margin (the
+        legacy_commz reference's nested two-rate loop always updates
+        at this granularity; see `FINISHING_PLAN.md`/project memory,
+        CHECKPOINT 16). The carrier NCO/LO's ctrl port is driven by a
+        `windows`-length per-window deviation array (applied via
+        `np.repeat` across each window's `step_size` raw samples),
+        preserving the existing one-epoch-delay convention at window
+        granularity: the deviation computed for window `i` this epoch
+        is applied to window `i`'s samples on the NEXT epoch.
+
+        **`bn_car` is passed straight through UNCHANGED -- do NOT
+        divide it by `windows` or any per-epoch/per-symbol ratio.**
+        `LoopFilter(bn, zeta, t=1.0)` is already per-UPDATE normalized
+        (`t=1.0` fixed regardless of how many real samples an update
+        spans); `kp` scales ~linearly with `bn` but `ki` scales
+        ~QUADRATICALLY (standard 2nd-order PI loop filter, confirmed
+        directly against `doppler.track.LoopFilter`: `ki/bn**2` is
+        ~constant across an 8x `bn` sweep). Dividing `bn_car` by
+        `windows` (an earlier version of this docstring's own advice,
+        "typically bn_car_symbol_normalized / windows_per_symbol" --
+        WRONG, see CHECKPOINT 25 in `FINISHING_PLAN.md`) under-scales
+        the integrator -- the mechanism that gives a type-2 loop its
+        ramp/rate-tracking capability -- by an EXTRA factor of
+        `windows` on top of the `windows`-times-more-frequent updates,
+        crippling real-Doppler-RATE tracking specifically (confirmed:
+        divided, BER~0.5 on a real 500Hz/s case; undivided, BER=0.0000,
+        no FLL-assist needed at all). Running the identical `(bn_car,
+        zeta)` at a higher update rate already widens the real-Hz
+        bandwidth correctly on its own -- that's the whole point of
+        this mode, no manual rescaling required. FLL-assist
+        (`bn_fll_car`) is not engaged in this mode (and isn't needed --
+        the `~/legacy-commz` reference also tracks a real Doppler rate
+        with a plain Costas PLL, no FLL cross-product term at all).
     """
 
     def __init__(
         self, code, sps, bn, zeta=0.707, spacing=0.5, windows=8,
         init_chip=0.0, bn_car=None, init_car_norm_freq=0.0,
         aid_code=True, sample_rate_hz=4.092e6, carrier_freq_hz=2.2e9,
-        freeze_carrier=False, bn_fll_car=0.0,
+        freeze_carrier=False, bn_fll_car=0.0, car_update_windows=False,
     ):
         self.code = code
         self.sf = len(code)
@@ -268,6 +313,13 @@ class CoupledAsyncDespreader:
         self._car_rate_dev = 0.0  # Costas's own FINE pure deviation
         self.car_lf = LoopFilter(bn=bn_car, zeta=zeta, t=1.0)
         self.car_last_error = 0.0
+        self.car_update_windows = car_update_windows
+        # Per-window pure-deviation control array (natural window
+        # order, same indexing as find_max_power's integrate_and_dump)
+        # -- one-epoch-delay convention at window granularity: index i
+        # here was computed FROM window i's prompt last epoch, and gets
+        # applied TO window i's raw samples this epoch via np.repeat.
+        self._car_ctrl_windows = np.zeros(self.windows, dtype=np.float64)
         self.car_norm_freq = init_car_norm_freq  # public display only
         # If True, the carrier LO derotates every epoch at its pinned
         # seed rate only -- the discriminator still computes e_car (for
@@ -309,7 +361,12 @@ class CoupledAsyncDespreader:
             # bandwidth over minutes of operation; see module
             # docstring.) The tracked deviation flows through the ctrl
             # port -- the LO's own pinned norm_freq is never touched.
-            self._car_ctrl_buf.fill(self._car_rate_dev)
+            if self.car_update_windows:
+                self._car_ctrl_buf[:] = np.repeat(
+                    self._car_ctrl_windows, self.step_size
+                )
+            else:
+                self._car_ctrl_buf.fill(self._car_rate_dev)
             wiped = self._car_lo.steps_ctrl(self._car_ctrl_buf)
             seg_wiped = seg * np.conj(wiped)
 
@@ -367,69 +424,126 @@ class CoupledAsyncDespreader:
             lf_out = self.lf.step(e)
             code_disc_dev = lf_out * self._inv_tsamps
 
-            # ── Carrier discriminator: Costas' own sign(Re)*Im/|.| form,
-            # on this epoch's COHERENT full-epoch prompt (no lookback
-            # needed for carrier tracking -- see module docstring). ──
-            prompt = output.mean()
-            re_p, im_p = prompt.real, prompt.imag
-            a_p = abs(prompt) + COSTAS_EPS
-            e_car = (im_p if re_p >= 0.0 else -im_p) / a_p
-            self.car_last_error = e_car
-            if not self.freeze_carrier:
-                # FLL-assist: costas_update's own cross-product
-                # frequency discriminator, folded directly into
-                # car_lf.integ AHEAD of this epoch's step(e_car) --
-                # both prompts data-wiped by their own Re sign so a
-                # BPSK bit flip between epochs doesn't corrupt the
-                # cross product. Far wider linear range than the phase
-                # discriminator alone; see module docstring.
-                if self._k_fll > 0.0 and self._car_prev_prompt is not None:
-                    rpr = self._car_prev_prompt.real
-                    ipr = self._car_prev_prompt.imag
-                    sc = 1.0 if re_p >= 0.0 else -1.0
-                    sp = 1.0 if rpr >= 0.0 else -1.0
-                    ic, qc = re_p * sc, im_p * sc
-                    ip, qp = rpr * sp, ipr * sp
-                    cross = ip * qc - qp * ic
-                    a_pr = abs(self._car_prev_prompt) + COSTAS_EPS
-                    freq_err = cross / (a_p * a_pr)
-                    self.car_lf.integ += self._k_fll * freq_err
-                self._car_prev_prompt = prompt
-
-                car_lf_out = self.car_lf.step(e_car)  # radians/epoch
-                # radians/epoch -> cycles/sample: /(2*pi) then
-                # *inv_tsamps. Pure deviation -- the LO's own pinned
-                # norm_freq (the nominal/seed) is never touched; only
-                # the ctrl port sees this. car_norm_freq (below) adds
-                # the two back together for display only, mirroring
-                # code_rate = 1.0 + rate_dev.
-                self._car_rate_dev = (
-                    car_lf_out * self._inv_tsamps / (2.0 * np.pi)
+            if self.car_update_windows:
+                # ── Per-WINDOW carrier discriminator: costas_update's
+                # sign(Re)*Im/|.| form, run once per window directly on
+                # `integrate_and_dump[i]` (already computed by
+                # find_max_power for the code loop) -- no lookback/
+                # combination needed, each window is its own real-time
+                # update. FLL-assist is not engaged in this mode (see
+                # class docstring); `bn_car` is interpreted at this
+                # per-window rate, so the radians->cycles/sample
+                # conversion below uses step_size, not tsamps.
+                for i in range(self.windows):
+                    prompt_i = integrate_and_dump[i]
+                    re_p, im_p = prompt_i.real, prompt_i.imag
+                    a_p = abs(prompt_i) + COSTAS_EPS
+                    e_car = (im_p if re_p >= 0.0 else -im_p) / a_p
+                    if not self.freeze_carrier:
+                        car_lf_out = self.car_lf.step(e_car)
+                        self._car_ctrl_windows[i] = (
+                            car_lf_out / (self.step_size * 2.0 * np.pi)
+                        )
+                        kick = self.car_lf.kp * e_car / (2.0 * np.pi)
+                        self._car_lo.phase = (
+                            self._car_lo.phase + _nco_norm_to_inc(kick)
+                        ) & 0xFFFFFFFF
+                self.car_last_error = e_car
+                self._car_rate_dev = self._car_ctrl_windows[-1]
+                self.car_norm_freq = (
+                    self._init_car_norm_freq + self._car_rate_dev
                 )
-                # Proportional phase kick (costas_update's other term,
-                # previously missing here): kp*e_car radians -> cycles
-                # -> uint32 phase delta, applied directly to the
-                # carrier LO's own accumulator -- speeds lock the pure
-                # frequency-integral path alone can't.
-                kick = self.car_lf.kp * e_car / (2.0 * np.pi)
-                self._car_lo.phase = (
-                    self._car_lo.phase + _nco_norm_to_inc(kick)
-                ) & 0xFFFFFFFF
+            else:
+                # ── Carrier discriminator: Costas' own sign(Re)*Im/|.|
+                # form, on this epoch's COHERENT full-epoch prompt (no
+                # lookback needed for carrier tracking -- see module
+                # docstring). TEMPORARILY REVERTED (task #100's own
+                # data-wiping fix, backed out for an ablation
+                # comparison -- see FINISHING_PLAN.md/project memory
+                # for the measured before/after; likely to be
+                # re-applied).
+                prompt = output.mean()
+                re_p, im_p = prompt.real, prompt.imag
+                a_p = abs(prompt) + COSTAS_EPS
+                e_car = (im_p if re_p >= 0.0 else -im_p) / a_p
+                self.car_last_error = e_car
+                if not self.freeze_carrier:
+                    # FLL-assist: costas_update's own cross-product
+                    # frequency discriminator, folded directly into
+                    # car_lf.integ AHEAD of this epoch's step(e_car) --
+                    # both prompts data-wiped by their own Re sign so a
+                    # BPSK bit flip between epochs doesn't corrupt the
+                    # cross product. Far wider linear range than the
+                    # phase discriminator alone; see module docstring.
+                    if (
+                        self._k_fll > 0.0
+                        and self._car_prev_prompt is not None
+                    ):
+                        rpr = self._car_prev_prompt.real
+                        ipr = self._car_prev_prompt.imag
+                        sc = 1.0 if re_p >= 0.0 else -1.0
+                        sp = 1.0 if rpr >= 0.0 else -1.0
+                        ic, qc = re_p * sc, im_p * sc
+                        ip, qp = rpr * sp, ipr * sp
+                        cross = ip * qc - qp * ic
+                        a_pr = abs(self._car_prev_prompt) + COSTAS_EPS
+                        freq_err = cross / (a_p * a_pr)
+                        self.car_lf.integ += self._k_fll * freq_err
+                    self._car_prev_prompt = prompt
 
-            self.car_norm_freq = (
-                self._init_car_norm_freq + self._car_rate_dev
-            )
+                    car_lf_out = self.car_lf.step(e_car)  # radians/epoch
+                    # radians/epoch -> cycles/sample: /(2*pi) then
+                    # *inv_tsamps. Pure deviation -- the LO's own
+                    # pinned norm_freq (the nominal/seed) is never
+                    # touched; only the ctrl port sees this.
+                    # car_norm_freq (below) adds the two back together
+                    # for display only, mirroring code_rate = 1.0 +
+                    # rate_dev.
+                    self._car_rate_dev = (
+                        car_lf_out * self._inv_tsamps / (2.0 * np.pi)
+                    )
+                    # Proportional phase kick (costas_update's other
+                    # term, previously missing here): kp*e_car radians
+                    # -> cycles -> uint32 phase delta, applied directly
+                    # to the carrier LO's own accumulator -- speeds
+                    # lock the pure frequency-integral path alone
+                    # can't.
+                    kick = self.car_lf.kp * e_car / (2.0 * np.pi)
+                    self._car_lo.phase = (
+                        self._car_lo.phase + _nco_norm_to_inc(kick)
+                    ) & 0xFFFFFFFF
+
+                self.car_norm_freq = (
+                    self._init_car_norm_freq + self._car_rate_dev
+                )
 
             if self.aid_code:
                 # Physical coupling: the SAME v/c that shifts the
-                # carrier by its tracked deviation (cycles/sample, i.e.
-                # fraction of sample_rate_hz) shifts the code clock by
-                # the identical FRACTIONAL amount -- scale by
-                # sample_rate_hz/carrier_freq_hz to convert into the
-                # code loop's own dimensionless rate-ratio deviation,
-                # then just ADD it -- a second pure deviation, no
-                # re-derivation of "nominal" anywhere.
-                aid_dev = self._car_rate_dev * self._aid_scale
+                # carrier shifts the code clock by the identical
+                # FRACTIONAL amount -- scale by sample_rate_hz/
+                # carrier_freq_hz to convert into the code loop's own
+                # dimensionless rate-ratio deviation. Must aid from the
+                # FULL current carrier estimate (fixed nominal seed +
+                # whatever the closed loop has since tracked), not just
+                # the tracked deviation alone -- a nonzero
+                # `init_car_norm_freq` (e.g. an Acquisition/PSDMF seed)
+                # implies its own physical code-rate offset regardless
+                # of whether the closed carrier loop has corrected
+                # anything yet. Mirrors legacy_commz's own
+                # `_loop_doppler_aid` (from the fixed nominal, set once
+                # at code lock) + `_loop_doppler_aid_carrier_loop_
+                # contribution` (from the closed loop's own incremental
+                # stress), added together -- found missing the nominal
+                # term this session while comparing against that
+                # reference (`~/legacy-commz`). No-op for every existing
+                # caller in this folder that pairs `aid_code=True` with
+                # `init_car_norm_freq=0.0` (doppler_rate_test.py/
+                # doppler_rate_floor_test.py); changes acq_handoff.py's
+                # own behavior (nonzero seed there) -- re-verified it
+                # still locks after this fix.
+                aid_dev = (
+                    self._init_car_norm_freq + self._car_rate_dev
+                ) * self._aid_scale
                 self._rate_dev = code_disc_dev + aid_dev
             else:
                 self._rate_dev = code_disc_dev

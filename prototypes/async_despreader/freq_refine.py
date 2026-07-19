@@ -258,6 +258,32 @@ def estimate_residual_freq(
     return squared_freq_hz / 2.0
 
 
+def _collect_frozen_carrier_prefix(
+    tracker_cls, code, sps, bn, seeded_norm_freq, rx_prefix,
+    sample_rate_hz, bn_car, windows, init_chip,
+):
+    """Shared collection pass behind both `refine_seed` and
+    `refine_seed_matched`: run one frozen-carrier despread pass
+    (`freeze_carrier=True`, `aid_code=False` -- isolates the collection
+    from any closed-loop carrier adaptation, letting the CODE loop lock
+    on its own while the carrier NCO holds at `seeded_norm_freq`) over
+    `rx_prefix`, and return `(out0, window_rate_hz)` -- the despread
+    "windows"-rate output stream and its own sample rate, ready for
+    either estimator to consume. Factored out so the two frequency
+    estimators below (squaring-based vs. template-matched) share
+    identical collection semantics and can be compared apples-to-apples
+    -- see `refine_seed`'s own docstring for why `init_chip` matters.
+    """
+    d0 = tracker_cls(
+        code, sps, bn=bn, zeta=0.707, windows=windows, bn_car=bn_car,
+        init_chip=init_chip, init_car_norm_freq=seeded_norm_freq,
+        aid_code=False, sample_rate_hz=sample_rate_hz, freeze_carrier=True,
+    )
+    out0 = d0.run(rx_prefix)
+    window_rate_hz = sample_rate_hz / d0.step_size
+    return out0, window_rate_hz
+
+
 def refine_seed(
     tracker_cls, code, sps, bn, seeded_norm_freq, rx_prefix,
     sample_rate_hz, n_fft=64, zero_pad=4, interp=True, use_mf=False,
@@ -287,16 +313,149 @@ def refine_seed(
     (found the hard way validating against `SPEC.md`'s real operating
     point -- see `acq_handoff.py`'s module docstring).
     """
-    d0 = tracker_cls(
-        code, sps, bn=bn, zeta=0.707, windows=windows, bn_car=bn_car,
-        init_chip=init_chip, init_car_norm_freq=seeded_norm_freq,
-        aid_code=False, sample_rate_hz=sample_rate_hz, freeze_carrier=True,
+    out0, window_rate_hz = _collect_frozen_carrier_prefix(
+        tracker_cls, code, sps, bn, seeded_norm_freq, rx_prefix,
+        sample_rate_hz, bn_car, windows, init_chip,
     )
-    out0 = d0.run(rx_prefix)
-    window_rate_hz = sample_rate_hz / d0.step_size
     residual_hz = estimate_residual_freq(
         out0, window_rate_hz, n_fft=n_fft, zero_pad=zero_pad,
         interp=interp, use_mf=use_mf,
+    )
+    refined_norm_freq = seeded_norm_freq + residual_hz / sample_rate_hz
+    return refined_norm_freq, residual_hz
+
+
+def _known_symbol_psd_template(n_padded, sample_rate_hz, symbol_rate_hz):
+    """The KNOWN (analytically precomputed, not empirically estimated)
+    power spectral density shape of a random +-1 rectangular-pulse
+    (NRZ) symbol stream at `symbol_rate_hz`, DC-centered, sampled at
+    the SAME DFT bin grid (`n_padded` bins spanning `sample_rate_hz`)
+    the measured periodogram uses so the two are directly comparable.
+
+    A random bipolar rectangular pulse train has a closed-form
+    continuous-time PSD `S(f) = sinc^2(f / symbol_rate_hz)` (first null
+    at +-`symbol_rate_hz`) -- this is the average spectral shape of the
+    DESPREAD data-modulated stream (the spreading code has already been
+    removed by this point; only the +-1 data symbols remain), known
+    exactly from the waveform's own symbol rate regardless of what the
+    actual (unknown, random) data bits are.
+    """
+    freqs = np.fft.fftfreq(n_padded, d=1.0 / sample_rate_hz)
+    return np.sinc(freqs / symbol_rate_hz) ** 2
+
+
+def _template_correlate(power, template):
+    """Circular cross-correlation of the measured `power` spectrum
+    against the known `template` shape, evaluated at every candidate
+    frequency-shift bin `k`: `corr[k] = sum_m power[m] * template[(m -
+    k) mod n]` -- i.e. how well the template, shifted by `k` bins,
+    explains the measured spectrum. `argmax(corr)` is the quasi-ML
+    frequency-shift estimate when the underlying data symbols are
+    unknown/random (their known AVERAGE spectral shape stands in for
+    the unknown realization, rather than squaring them away at the
+    cost of squaring loss)."""
+    n = len(power)
+    corr = np.empty(n)
+    for k in range(n):
+        corr[k] = np.sum(power * np.roll(template, k))
+    return corr
+
+
+def estimate_residual_freq_matched(
+    x, sample_rate_hz, symbol_rate_hz, n_fft=64, zero_pad=4, interp=True,
+):
+    """Quasi-maximum-likelihood residual-carrier estimate for a
+    BPSK-data-modulated complex sequence `x` with UNKNOWN (random) data
+    symbols, avoiding `estimate_residual_freq`'s squaring step and its
+    associated squaring loss entirely.
+
+    Rather than squaring `x` to collapse the +-1 data ambiguity into a
+    clean tone (halving the frequency and paying squaring loss --
+    `[[reference_squaring_loss_ebno_not_cno]]` -- which is the direct
+    cause of `estimate_residual_freq`'s gross wrong-peak errors near
+    the noise floor), this treats the unknown data as a nuisance
+    parameter and uses its KNOWN AVERAGE power spectral shape (a sinc^2
+    for rectangular NRZ, `_known_symbol_psd_template`) directly: the
+    measured (non-coherently accumulated, same as
+    `estimate_residual_freq`) periodogram of the RAW, unsquared stream
+    is cross-correlated against that known template at every candidate
+    frequency shift, and the `argmax` of that correlation is the
+    estimate -- the quasi-ML estimator when data symbols are unknown/
+    random (as opposed to a known-pilot ML estimator, which would
+    correlate against the actual known symbol sequence instead of its
+    average shape). No squaring means no factor-of-2 undoing either --
+    the returned Hz value is the residual frequency directly.
+
+    Parameters mirror `estimate_residual_freq` except `symbol_rate_hz`
+    (needed to build the known template) replaces `use_mf` (not
+    applicable here -- the "matched filter" IS the known symbol PSD
+    shape, not an FFT-window-artifact kernel).
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> sps = 20
+    >>> n = 8192 // sps * sps  # exact multiple of sps
+    >>> rng = np.random.default_rng(0)
+    >>> sym_rate = 100.0
+    >>> data = np.repeat(
+    ...     np.where(rng.integers(0, 2, n // sps), 1.0, -1.0), sps,
+    ... )
+    >>> tone = np.exp(2j * np.pi * 123.0 * np.arange(n) / 2000.0)
+    >>> est = estimate_residual_freq_matched(
+    ...     data * tone, 2000.0, sym_rate, n_fft=256, zero_pad=4,
+    ... )
+    >>> bool(abs(est - 123.0) < 5.0)
+    True
+    """
+    n_blocks = len(x) // n_fft
+    if n_blocks < 1:
+        raise ValueError(
+            f"len(x)={len(x)} shorter than n_fft={n_fft}: need at "
+            "least one coherent block"
+        )
+    n_padded = n_fft * zero_pad
+    fft = FFT(n=n_padded, sign=-1)
+    power = np.zeros(n_padded)
+    padded_block = np.zeros(n_padded, dtype=np.complex128)
+    for i in range(n_blocks):
+        padded_block[:n_fft] = x[i * n_fft:(i + 1) * n_fft]
+        if zero_pad > 1:
+            padded_block[n_fft:] = 0.0
+        spec = fft.execute_cf64(padded_block)
+        power += np.abs(spec) ** 2
+
+    template = _known_symbol_psd_template(
+        n_padded, sample_rate_hz, symbol_rate_hz
+    )
+    corr = _template_correlate(power, template)
+    peak_bin = int(np.argmax(corr))
+    bin_pos = peak_bin
+    if interp:
+        bin_pos = peak_bin + _parabolic_peak(corr, peak_bin)
+        if bin_pos > n_padded / 2:
+            bin_pos -= n_padded
+
+    return bin_pos * sample_rate_hz / n_padded
+
+
+def refine_seed_matched(
+    tracker_cls, code, sps, bn, seeded_norm_freq, rx_prefix,
+    sample_rate_hz, symbol_rate_hz, n_fft=64, zero_pad=4, interp=True,
+    bn_car=None, windows=6, init_chip=0.0,
+):
+    """`refine_seed`'s own collection pass, but estimating the residual
+    with `estimate_residual_freq_matched` (known-PSD template
+    correlation) instead of `estimate_residual_freq` (squaring). See
+    `estimate_residual_freq_matched`'s own docstring for why this is
+    expected to do better at low Es/N0 -- no squaring loss."""
+    out0, window_rate_hz = _collect_frozen_carrier_prefix(
+        tracker_cls, code, sps, bn, seeded_norm_freq, rx_prefix,
+        sample_rate_hz, bn_car, windows, init_chip,
+    )
+    residual_hz = estimate_residual_freq_matched(
+        out0, window_rate_hz, symbol_rate_hz, n_fft=n_fft,
+        zero_pad=zero_pad, interp=interp,
     )
     refined_norm_freq = seeded_norm_freq + residual_hz / sample_rate_hz
     return refined_norm_freq, residual_hz

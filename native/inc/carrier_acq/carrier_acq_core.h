@@ -19,10 +19,25 @@
  *     of a random rectangular-pulse BPSK symbol stream by default, or a
  *     caller-supplied override for a different pulse/modulation) plus a
  *     noise-referenced test statistic and argmax lag.
- *   - detection_core's det_threshold_noncoherent()/det_n_noncoh(): the
- *     same Pfa/Pd chi-square statistics Acquisition's own auto-config is
- *     built on, driving both the per-block CFAR threshold and the
- *     precomputed fixed-dwell/give-up cap.
+ *   - detection_core's det_n_noncoh()/det_threshold(): det_n_noncoh
+ *     (the same chi-square statistic Acquisition's own auto-config
+ *     uses) drives the precomputed fixed-dwell/give-up cap; det_threshold
+ *     (sqrt(-2*ln(pfa))) is reused as the tail-quantile stand-in inside
+ *     the per-block CFAR ratio threshold below.
+ *
+ * The per-block CFAR ratio threshold is NOT det_threshold_noncoherent()
+ * (that statistic -- a classic complex-correlator peak/noise envelope
+ * ratio -- does not transfer to this object's real statistic, a
+ * power-spectrum-vs-known-template correlation; confirmed via Monte
+ * Carlo, ~5x too conservative). _ratio_threshold() (carrier_acq_core.c)
+ * instead uses the derived H0 model for this specific statistic (an
+ * exact Gamma-sum mean/variance for the averaged, template-correlated
+ * periodogram) plus ONE empirically-calibrated tail-inflation constant
+ * (kappa, standing in for the argmax-over-nfft-correlated-lags extreme-
+ * value quantile a full closed form hasn't cleanly reduced to yet --
+ * see FINISHING_PLAN.md's CarrierAcquisition section / the
+ * derive_carrier_acq_statistic.py derivation for the full story, and
+ * revisit/refine kappa when time allows).
  *
  * Only the default template generator (a sinc^2 shape, DC-centred to
  * match psd_power_twosided()'s own bin order) and the 3-point parabolic
@@ -81,6 +96,8 @@ typedef struct {
     double sample_rate_hz;
     double pfa;
     bool   sequential;
+    double s_t;   /**< sum(template) -- ratio-threshold calibration.   */
+    double s_t2;  /**< sum(template^2) -- ratio-threshold calibration. */
 
     /* Public (property-backed) running/result fields. */
     bool   ready;
@@ -122,12 +139,12 @@ typedef struct {
  *                        can't stop it from trying more blocks once real
  *                        data shows it needs to.
  * @param sequential      True: test for a detection after EVERY block
- *                        (the per-block CFAR threshold, from
- *                        det_threshold_noncoherent(pfa, n_blocks),
- *                        rises as more looks accumulate), stopping the
- *                        moment one fires or max_n_blocks is reached.
- *                        False: accumulate silently and test once, at
- *                        dwell_target.
+ *                        (the per-block CFAR ratio threshold -- see
+ *                        _ratio_threshold() in carrier_acq_core.c --
+ *                        tightens as more looks accumulate), stopping
+ *                        the moment one fires or max_n_blocks is
+ *                        reached. False: accumulate silently and test
+ *                        once, at dwell_target.
  * @param max_n_blocks    Sequential mode's own give-up cap (ignored by
  *                        non-sequential mode, which stops at
  *                        dwell_target instead) -- deliberately a

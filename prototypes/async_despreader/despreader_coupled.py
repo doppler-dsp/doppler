@@ -129,6 +129,53 @@ def _nco_norm_to_inc(cycles):
     return int(round(frac * 4294967296.0)) & 0xFFFFFFFF
 
 
+def async_lookback_windows(tsamps, max_error_db=0.5):
+    """Derive `(windows, window_size)` from a MAXIMUM ALLOWED correlation
+    power loss (`max_error_db`, dB) due to asynchronous data transitions
+    landing mid-epoch, instead of hand-picking a `windows` constant --
+    ported verbatim from `~/legacy-commz`'s own
+    `receiver/dsss/despreader.py` (`asynchronous_correlation_loss`,
+    default 0.5 dB): the worst case is a transition landing just past a
+    lookback candidate boundary, corrupting close to one `window_size`-
+    sample window before the next candidate can re-combine, so the
+    ALLOWED fractional loss directly sets the required window size
+    (`phase_resolution = 1 - 10**(-max_error_db/10)`,
+    `window_size = ceil(tsamps * phase_resolution)`, snapped to the
+    nearest exact divisor of `tsamps` so `windows = tsamps/window_size`
+    stays an integer -- `find_max_power`'s own precondition).
+
+    Replaces this project's own prior `WINDOWS=62` hand-picked constant
+    in `e2e_acq_to_despreader.py`, which (a) was never actually derived
+    from a stated loss tolerance -- reverse-engineering this SAME
+    formula against it implies an unexamined ~0.07-0.1 dB tolerance,
+    5-7x tighter than legacy's own validated 0.5 dB default -- and (b)
+    was ALSO serving a second, now-obsolete role ("PSDMF-collection
+    Nyquist margin") from before `CarrierAcquisition` existed and got
+    its own independent resample stage (see `freq_refine.py`'s
+    `_collect_frozen_carrier_prefix`) -- this function derives `windows`
+    from the async-lookback requirement ALONE, decoupled from any
+    downstream carrier-refinement rate concern.
+
+    Parameters
+    ----------
+    tsamps : int
+        Raw samples per code epoch (`sf * spc`).
+    max_error_db : float
+        Maximum allowed worst-case correlation power loss, dB. Default
+        0.5, matching legacy's own default.
+
+    Returns
+    -------
+    windows, window_size : int, int
+        `windows * window_size == tsamps` exactly.
+    """
+    phase_resolution = 1 - 10 ** (-max_error_db / 10)
+    window_size = int(np.ceil(tsamps * phase_resolution))
+    factors = [i for i in range(1, tsamps + 1) if tsamps % i == 0]
+    window_size = factors[np.abs(np.array(factors) - window_size).argmin()]
+    return int(tsamps / window_size), window_size
+
+
 def get_window(x, last_x, index):
     """Reconstruct a full-length array as [last `index` samples of the
     PREVIOUS buffer] + [all but the last `index` samples of the CURRENT

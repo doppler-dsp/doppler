@@ -101,8 +101,15 @@ carrier_acq_create(double sample_rate_hz, double symbol_rate_hz,
     memcpy(tmpl, psd_template, s->nfft * sizeof(float));
   else
     _default_template(tmpl, s->nfft, sample_rate_hz, symbol_rate_hz);
+  double s_t = 0.0, s_t2 = 0.0;
   for (size_t k = 0; k < s->nfft; k++)
-    ref[k] = tmpl[k] + 0.0f * I;
+    {
+      ref[k] = tmpl[k] + 0.0f * I;
+      s_t += (double)tmpl[k];
+      s_t2 += (double)tmpl[k] * (double)tmpl[k];
+    }
+  s->s_t = s_t;
+  s->s_t2 = s_t2;
   free(tmpl);
 
   /* Full-span noise/peak search (no sub-band restriction -- deferred,
@@ -208,6 +215,56 @@ _giveup_cap(const carrier_acq_state_t *s)
   return s->sequential ? s->max_n_blocks : s->dwell_target;
 }
 
+/* Empirically-calibrated CFAR ratio threshold (test_stat = peak/
+ * median) for THIS object's real statistic -- a power-spectrum-vs-
+ * known-template correlation, NOT the classic complex-correlator
+ * peak/noise envelope ratio det_threshold_noncoherent() was derived
+ * for (confirmed via Monte Carlo this session: that borrowed formula
+ * is ~5x too conservative here, see FINISHING_PLAN.md's
+ * CarrierAcquisition section / derive_carrier_acq_statistic.py).
+ *
+ * Derivation (validated for the MEAN; KAPPA below is where the
+ * approximation lives): under H0, the averaged, CG^2-normalised
+ * periodogram Pavg[m] ~ Gamma(n_blocks, mu/n_blocks) exactly, so
+ * C[k] = sum_m Pavg[m]*template[(m-k) mod nfft] has EXACT mean
+ * mu*s_t; its variance follows the same Gamma-sum shape
+ * ((mu^2/n_blocks)*s_t2), up to window-induced bin correlation and
+ * the argmax-over-nfft-correlated-lags extreme-value effect that a
+ * plain per-lag variance doesn't capture. noise_est estimates mu*s_t,
+ * so the ratio threshold is 1 + z*sqrt(s_t2/n_blocks)/s_t for some
+ * tail quantile z; KAPPA*det_threshold(pfa) (det_threshold() --
+ * doppler's own existing sqrt(-2*ln(pfa)) primitive, reused rather
+ * than adding a new inverse-normal-CDF) stands in for z.
+ *
+ * KAPPA=7.9 was fit via 3000-trial null-distribution Monte Carlo at
+ * THIS object's own most common real configuration (sample_rate_hz=
+ * 8000, symbol_rate_hz=1000, default resolution/zero_pad -- nfft=512,
+ * hann window, default template -- matches every existing carrier_acq
+ * test/gallery demo in this repo), checked at pfa in {1e-2,1e-3} and
+ * n_blocks in {1,4,13}: consistently ERRS 10-30% ON THE CONSERVATIVE
+ * SIDE (a slightly higher threshold, hence a slightly lower realized
+ * Pfa/Pd than requested -- safer than the reverse) rather than being
+ * exact. This is NOT yet a general closed form valid across arbitrary
+ * nfft/window/template choices -- a proper Sidak/Bonferroni-style
+ * effective-independent-lags derivation for the argmax extreme value
+ * didn't cleanly close on a first attempt (see
+ * derive_carrier_acq_statistic.py), and KAPPA itself was seen to need
+ * real recalibration when nfft changed (an earlier, toy nfft=64
+ * calibration point was wildly wrong at this object's real nfft=512
+ * default -- caught by the very C test suite this fix now passes).
+ * TODO: revisit and properly derive (or recalibrate across a wider
+ * nfft/pfa/window/template grid) when time allows -- tracked in
+ * FINISHING_PLAN.md, not forgotten. */
+#define CARRIER_ACQ_KAPPA 7.9
+
+static float
+_ratio_threshold(const carrier_acq_state_t *s, size_t n_blocks)
+{
+  double z = CARRIER_ACQ_KAPPA * det_threshold(s->pfa);
+  double spread = sqrt(s->s_t2 / (double)n_blocks) / s->s_t;
+  return (float)(1.0 + z * spread);
+}
+
 static void
 _process_block(carrier_acq_state_t *s, const float complex *block)
 {
@@ -224,7 +281,7 @@ _process_block(carrier_acq_state_t *s, const float complex *block)
   for (size_t k = 0; k < s->nfft; k++)
     s->power_buf[k] = s->pwr_buf[k] + 0.0f * I;
 
-  float eta_nc = (float)det_threshold_noncoherent(s->pfa, (int)s->n_blocks);
+  float eta_nc = _ratio_threshold(s, s->n_blocks);
   detector_set_threshold(s->det, eta_nc);
 
   det_result_t result[1];

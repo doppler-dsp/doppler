@@ -2,7 +2,11 @@
 folder's canonical validation of that path, superseding
 `archive/spec_full_characterization_prototype.py`'s three overlapping
 trial functions): Acquisition search+handoff (`acq_handoff.py`) -> one
-PSDMF frequency refinement pass (`freq_refine.refine_seed_matched`) ->
+PSDMF frequency refinement pass, now the C-backed
+`freq_refine.refine_seed_carrier_acq` (`doppler.acquire
+.CarrierAcquisition`, folded in once its own CFAR threshold was fixed
+-- see `FINISHING_PLAN.md`'s `CarrierAcquisition` section; previously
+`freq_refine.refine_seed_matched`, the pure-Python PSDMF estimator) ->
 `CoupledAsyncDespreader` tracking (`aid_code=True` + the per-window
 `car_update_windows=True` carrier loop), at `SPEC.md`'s real operating
 point -- the genuine +/-50kHz Acquisition search, the real 500Hz/s
@@ -60,8 +64,8 @@ from __future__ import annotations
 import numpy as np
 
 from acq_handoff import search_and_handoff
-from despreader_coupled import CoupledAsyncDespreader
-from freq_refine import refine_seed_matched
+from despreader_coupled import CoupledAsyncDespreader, async_lookback_windows
+from freq_refine import refine_seed_carrier_acq
 from spec_full_characterization import (
     CODE,
     CHIP_RATE,
@@ -83,12 +87,25 @@ FS_FRONT = CHIP_RATE * SPC
 
 BN_CODE = 0.002
 BN_CARRIER = 0.01
-WINDOWS = 62  # PSDMF-collection Nyquist margin + code-loop async-lookback
-# granularity (2046/62=33) -- see despreader_coupled.py's own docstring.
+# Async-lookback granularity, derived (not hand-picked) from a maximum
+# allowed correlation-loss tolerance -- see async_lookback_windows()'s own
+# docstring for the full derivation and why the prior WINDOWS=62 constant
+# was stale on two separate counts. 0.5dB matches ~/legacy-commz's own
+# validated default (`asynchronous_correlation_loss`); gives windows=11,
+# window_size=186 at this waveform's tsamps=2046 -- CarrierAcquisition's
+# own rate is now handled by an independent resample stage
+# (freq_refine.py's _collect_frozen_carrier_prefix), not by this value.
+WINDOWS, _WINDOW_SIZE = async_lookback_windows(TE, max_error_db=0.5)
 TRACK_WINDOWS = 6  # closed per-window carrier-loop granularity (2046/6=341);
 # deliberately coarser than WINDOWS -- reusing WINDOWS here starves each
 # window's own per-update SNR (found and fixed this session, see
 # FINISHING_PLAN.md CHECKPOINT 19).
+
+# refine_seed_carrier_acq's own design point -- SPEC's minimum Es/N0, not
+# whatever Es/N0 a given trial actually runs at (design_snr is a PLANNING
+# assumption, same role as Acquisition's own cn0_dbhz -- see that
+# function's own docstring for the design_margin_db derating this needs).
+CN0_MIN_DBHZ = es_n0_to_cn0_dbhz(5.0, sym_rate=SYM_RATE)
 
 # Long enough to cover the Acquisition search dwell + a 2700-epoch PSDMF
 # collection prefix + a healthy tracking tail, at ~1.11 epochs/symbol.
@@ -181,25 +198,47 @@ def run_trial(
     if n_prefix_epochs < 1 or n_epochs_total - n_prefix_epochs < 1:
         return {"ber": 1.0, "n_scored": 0, "tracking": False}
     prefix = tail[: n_prefix_epochs * TE]
-    track_rx = tail[n_prefix_epochs * TE : n_epochs_total * TE]
 
-    refined_norm_freq, _residual_hz = refine_seed_matched(
-        CoupledAsyncDespreader,
-        CODE,
-        SPC,
-        BN_CODE,
-        coarse_norm_freq,
-        prefix,
-        FS_FRONT,
-        SYM_RATE,
-        n_fft=64,
-        zero_pad=4,
-        interp=True,
-        bn_car=BN_CARRIER,
-        windows=WINDOWS,
-        init_chip=tracker_init_chip,
+    refined_norm_freq, _residual_hz, ca_ready, samples_consumed = (
+        refine_seed_carrier_acq(
+            CoupledAsyncDespreader,
+            CODE,
+            SPC,
+            BN_CODE,
+            coarse_norm_freq,
+            prefix,
+            FS_FRONT,
+            SYM_RATE,
+            CN0_MIN_DBHZ,
+            bn_car=BN_CARRIER,
+            windows=WINDOWS,
+            init_chip=tracker_init_chip,
+        )
     )
-    true_at_prefix_end = true_doppler_at(consumed + n_prefix_epochs * TE)
+    if not ca_ready:
+        return {
+            "ber": 1.0,
+            "n_scored": 0,
+            "tracking": False,
+            "coarse_err_hz": coarse_err_hz,
+            "carrier_acq_ready": False,
+        }
+    # Size the tracking handoff dynamically off how much of `prefix`
+    # CarrierAcquisition ACTUALLY used (samples_consumed), not the fixed,
+    # generously-sized PREFIX_EPOCHS budget -- CarrierAcquisition's own
+    # dwell is now sized off its calibrated statistic (often a small
+    # fraction of PREFIX_EPOCHS), so treating the unused remainder of
+    # `prefix` as already "spent" before tracking starts hands the
+    # tracker a stale seed, off by however far the residual has genuinely
+    # drifted in that unused remainder in the meantime (confirmed: >300Hz
+    # of avoidable error at SPEC's own 500Hz/s rate -- a stale-reference
+    # artifact, not an estimation error). Round UP to a whole epoch (this
+    # pipeline's own natural framing granularity elsewhere).
+    n_epochs_used = min(
+        -(-samples_consumed // TE) or 1, n_prefix_epochs
+    )
+    track_rx = tail[n_epochs_used * TE : n_epochs_total * TE]
+    true_at_prefix_end = true_doppler_at(consumed + n_epochs_used * TE)
     refined_err_hz = refined_norm_freq * FS_FRONT - true_at_prefix_end
 
     d = CoupledAsyncDespreader(
@@ -235,7 +274,7 @@ def run_trial(
 
     out_rate_hz = CHIP_RATE * TRACK_WINDOWS / SF
     elapsed_bits = (
-        (consumed + n_prefix_epochs * TE) / FS_FRONT * SYM_RATE
+        (consumed + n_epochs_used * TE) / FS_FRONT * SYM_RATE
     )
     symbols_in_prefix = int(np.floor(elapsed_bits))
     frac_bit_offset = elapsed_bits - symbols_in_prefix

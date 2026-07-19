@@ -22,10 +22,14 @@ Two conditions, same signal, same true 137 Hz residual:
 
 - **10 dB Es/N0**: both templates land within a few Hz -- at generous
   margin, template shape barely matters.
-- **5 dB Es/N0**: the DEFAULT (rectangular-pulse) template never
-  confidently detects at all (the CFAR gate never fires) while the
-  matched RRC template still lands within a few Hz -- the wrong shape
-  doesn't just cost precision, it can cost the detection outright.
+- **0 dB Es/N0**: both templates still confidently detect (the CFAR
+  gate fires for both -- a corrected threshold, see
+  FINISHING_PLAN.md's CarrierAcquisition section, replaced the earlier
+  overly-conservative one that used to make the wrong template miss
+  outright at moderate SNR), but the DEFAULT (rectangular-pulse)
+  template's own estimate is roughly 2x worse than the matched RRC
+  template's -- the wrong shape systematically biases the estimate,
+  and that bias grows as SNR degrades.
 
 Run:  python -m doppler.examples.carrier_acq_rrc_demo  [out.png]
 """
@@ -133,9 +137,9 @@ def main(out_path: str = "carrier_acq_rrc_demo.png") -> None:
     import matplotlib.pyplot as plt
 
     hi = run_condition(10.0)
-    lo = run_condition(5.0)
+    lo = run_condition(0.0)
 
-    for label, r in (("10 dB", hi), ("5 dB", lo)):
+    for label, r in (("10 dB", hi), ("0 dB", lo)):
         d, rr = r["default"], r["rrc"]
         print(
             f"{label}: default ready={d.ready} "
@@ -149,14 +153,22 @@ def main(out_path: str = "carrier_acq_rrc_demo.png") -> None:
     assert abs(hi["default"].residual_hz - TRUE_RESIDUAL_HZ) < 10.0
     assert abs(hi["rrc"].residual_hz - TRUE_RESIDUAL_HZ) < 10.0
 
-    assert not lo["default"].ready, (
-        "expected the WRONG (rectangular-pulse) template to fail to "
-        "confidently detect at 5 dB -- if this now passes, the demo's "
-        "own headline point (template shape matters) no longer holds "
-        "at these parameters and needs re-tuning"
+    assert lo["default"].ready and lo["rrc"].ready, (
+        "expected both templates to still confidently detect at 0 dB "
+        "with the corrected CFAR threshold (carrier_acq_core.c's "
+        "_ratio_threshold -- see FINISHING_PLAN.md's CarrierAcquisition "
+        "section)"
     )
-    assert lo["rrc"].ready, "expected the matched RRC template to detect at 5 dB"
-    assert abs(lo["rrc"].residual_hz - TRUE_RESIDUAL_HZ) < 10.0
+    default_err = abs(lo["default"].residual_hz - TRUE_RESIDUAL_HZ)
+    rrc_err = abs(lo["rrc"].residual_hz - TRUE_RESIDUAL_HZ)
+    assert default_err > 1.5 * rrc_err, (
+        "expected the WRONG (rectangular-pulse) template's estimate to "
+        "be meaningfully worse than the matched RRC template's at "
+        "degraded SNR -- if this now fails, the demo's own headline "
+        "point (template shape biases accuracy) no longer holds at "
+        "these parameters and needs re-tuning"
+    )
+    assert rrc_err < 10.0
 
     # --- illustrative measured spectrum (NOT read from CarrierAcquisition's
     # own internals -- a separate PSD instance, for the plot only) ---------
@@ -175,7 +187,7 @@ def main(out_path: str = "carrier_acq_rrc_demo.png") -> None:
     fig, (a, b) = plt.subplots(1, 2, figsize=(11, 4.5))
 
     a.plot(freqs, measured_db - measured_db.max(), color="#1f77b4", lw=1.0,
-           label="measured PSD (5 dB Es/N0)")
+           label="measured PSD (0 dB Es/N0)")
     a.plot(freqs, rrc_db - rrc_db.max(), color="#2ca02c", lw=1.4, ls="--",
            label="RRC template (matched)")
     a.axvline(TRUE_RESIDUAL_HZ, color="k", lw=0.8, ls=":", label="true residual")
@@ -187,7 +199,7 @@ def main(out_path: str = "carrier_acq_rrc_demo.png") -> None:
     a.legend(fontsize=7)
     a.grid(alpha=0.25)
 
-    conditions = ["10 dB\ndefault", "10 dB\nRRC", "5 dB\ndefault", "5 dB\nRRC"]
+    conditions = ["10 dB\ndefault", "10 dB\nRRC", "0 dB\ndefault", "0 dB\nRRC"]
     errs = [
         hi["default"].residual_hz - TRUE_RESIDUAL_HZ,
         hi["rrc"].residual_hz - TRUE_RESIDUAL_HZ,

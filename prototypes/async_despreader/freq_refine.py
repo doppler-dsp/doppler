@@ -92,7 +92,11 @@ from __future__ import annotations
 
 import numpy as np
 
+from doppler.acquire import CarrierAcquisition
+from doppler.resample import RateConverter
 from doppler.spectral import FFT
+
+_NO_TEMPLATE = np.array([], dtype=np.float32)
 
 
 def _parabolic_peak(power, k):
@@ -459,3 +463,123 @@ def refine_seed_matched(
     )
     refined_norm_freq = seeded_norm_freq + residual_hz / sample_rate_hz
     return refined_norm_freq, residual_hz
+
+
+def refine_seed_carrier_acq(
+    tracker_cls, code, sps, bn, seeded_norm_freq, rx_prefix,
+    sample_rate_hz, symbol_rate_hz, cn0_dbhz, n_fft=64, zero_pad=8,
+    bn_car=None, windows=6, init_chip=0.0, pfa=1e-3, pd=0.9,
+    design_margin_db=14.0, sequential=False, max_n_blocks=100000,
+    samples_per_symbol=4,
+):
+    """`refine_seed_matched`'s own collection pass, but estimating the
+    residual with the C-backed `doppler.acquire.CarrierAcquisition` (a
+    jm port of this same known-PSD-template correlation) instead of
+    the Python `estimate_residual_freq_matched`. This is the fold-in
+    the user asked for once `CarrierAcquisition`'s own CFAR threshold
+    was fixed (`carrier_acq_core.c`'s `_ratio_threshold()` -- the
+    borrowed `det_threshold_noncoherent` model was ~5x too conservative
+    for this statistic; see `FINISHING_PLAN.md`'s `CarrierAcquisition`
+    section for the full derivation and the fix).
+
+    `cn0_dbhz` is a DESIGN assumption (not a live measurement -- same
+    role as `Acquisition`'s own `cn0_dbhz`), typically SPEC's own
+    minimum-Es/N0 operating point converted via
+    `spec_full_characterization.es_n0_to_cn0_dbhz`. `design_snr` is
+    computed HERE from it, at the DESPREAD stream's own
+    `window_rate_hz` -- NOT the raw chip rate `sample_rate_hz` this
+    function otherwise takes -- because this estimator runs on the
+    despread, window-rate output (`out0`), whose per-sample amplitude
+    SNR is boosted by the despreading + window-averaging processing
+    gain over the raw chip-rate stream. Same `amp_snr =
+    sqrt(10**(cn0_dbhz/10)/fs)` convention `Acquisition` itself and
+    every sibling demo in `src/doppler/examples/` already use, just
+    evaluated at this stream's own rate.
+
+    `design_margin_db` (default 14.0, empirical) compensates for a
+    real, separate gap this session found and left open: `_ratio_
+    threshold()`'s own KAPPA correction fixed the CFAR gate's
+    detection DECISION for this object's real statistic, but
+    `carrier_acq_create()`'s `dwell_target` PLANNING still calls
+    `det_n_noncoh()` against the un-corrected classic model -- so the
+    literal `cn0_dbhz`-derived `design_snr` predicts a dwell far
+    smaller (e.g. 7 blocks at SPEC's own 5dB minimum) than what the
+    real, KAPPA-corrected gate needs to actually fire reliably (in the
+    tens-of-Hz-error range only once dwell reaches the many hundreds,
+    confirmed against this folder's own real captures). Derating the
+    design point by this fixed margin before conversion is a practical
+    workaround, not a fix to that planning/testing model mismatch --
+    see `FINISHING_PLAN.md`'s `CarrierAcquisition` section.
+
+    `samples_per_symbol` (default 4) sets `CarrierAcquisition`'s OWN
+    operating rate -- `target_rate_hz = samples_per_symbol *
+    symbol_rate_hz` -- fully DECOUPLED from `windows`/`window_rate_hz`
+    (the code-tracking loop's own async-lookback granularity, now
+    itself derived from `despreader_coupled.async_lookback_windows()`,
+    not sized for this estimator at all). The despreader's own
+    integrate-and-dump (`find_max_power`'s per-window coherent sum)
+    still does the heavy coherent averaging -- it is NOT relied on to
+    also decimate down to this estimator's target rate; a proper
+    anti-aliased `RateConverter` resample does that job explicitly,
+    right before `CarrierAcquisition` ever sees the stream. Acquisition
+    has already narrowed the residual to +/-(chip_rate/sf)/2 (this
+    waveform: +/-1500 Hz) by the time this runs, and 4 samples/symbol
+    gives a comfortable Nyquist margin over that (`2*samples_per_symbol
+    *symbol_rate_hz` half-span) without oversampling far beyond what's
+    needed, unlike inheriting whatever rate the code loop's own
+    `windows` granularity happens to produce.
+
+    `resolution_hz` is derived from `n_fft`/`target_rate_hz` (not the
+    native `window_rate_hz`) so the coherent block length matches
+    `estimate_residual_freq_matched`'s own `n_fft` in SYMBOL units
+    (`n_fft=64` at `samples_per_symbol=4` -> 16 symbols/block, closer to
+    the sinc^2 template's own "average PSD of a random NRZ stream"
+    premise than a sub-symbol block would give). `zero_pad=8` lands on
+    this object's own validated `nfft=512` calibration point.
+
+    Returns `(refined_norm_freq, residual_hz, ready, samples_consumed)`.
+    `ready` is `False` if `CarrierAcquisition` never fired (hit its
+    give-up cap without a detection); `residual_hz`/`refined_norm_freq`
+    are then whatever the object's own last (zeroed, if it never ran a
+    single test) state holds, NOT a silently-reused prior estimate --
+    callers MUST check `ready` before trusting them. `samples_consumed`
+    is `ca.n_blocks`' worth of `rx_prefix`, converted back to raw
+    `sample_rate_hz` samples -- callers MUST use THIS (not the full
+    length of `rx_prefix` handed in) to decide where downstream tracking
+    should resume: since `CarrierAcquisition`'s own dwell is now sized
+    off its OWN calibrated statistic rather than a generous fixed
+    prefix, it typically finishes using only a small fraction of
+    whatever `rx_prefix` was supplied -- treating the REST of
+    `rx_prefix` as already "spent" (as this project's own e2e harness
+    did before this fix) hands a stale seed to the tracker, off by
+    however much the residual has genuinely drifted in the unused
+    remainder (confirmed directly: ~300+ Hz of avoidable error at
+    `SPEC.md`'s own 500 Hz/s rate, entirely a stale-reference artifact,
+    not an estimation error).
+    """
+    out0, window_rate_hz = _collect_frozen_carrier_prefix(
+        tracker_cls, code, sps, bn, seeded_norm_freq, rx_prefix,
+        sample_rate_hz, bn_car, windows, init_chip,
+    )
+    target_rate_hz = samples_per_symbol * symbol_rate_hz
+    out0 = RateConverter(rate=target_rate_hz / window_rate_hz).execute(
+        out0.astype(np.complex64)
+    )
+    effective_cn0_dbhz = cn0_dbhz - design_margin_db
+    design_snr = float(
+        np.sqrt(10.0 ** (effective_cn0_dbhz / 10.0) / target_rate_hz)
+    )
+    resolution_hz = target_rate_hz / n_fft
+    ca = CarrierAcquisition(
+        _NO_TEMPLATE, target_rate_hz, symbol_rate_hz,
+        resolution_hz=resolution_hz, zero_pad=zero_pad, pfa=pfa, pd=pd,
+        design_snr=design_snr, sequential=sequential,
+        max_n_blocks=max_n_blocks,
+    )
+    ca.steps(out0.astype(np.complex64))
+    residual_hz = ca.residual_hz
+    ready = ca.ready
+    refined_norm_freq = seeded_norm_freq + residual_hz / sample_rate_hz
+    elapsed_s = ca.n_blocks * n_fft / target_rate_hz
+    samples_consumed = int(round(elapsed_s * sample_rate_hz))
+    return refined_norm_freq, residual_hz, ready, samples_consumed

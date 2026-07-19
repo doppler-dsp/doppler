@@ -46,30 +46,35 @@ DC-centred squared frequency response.
 
 Same RRC-shaped BPSK stream, same true 137 Hz residual, two Es/N0 points:
 
-**Left — measured power spectrum vs. the matched RRC template**, at 5 dB
+**Left — measured power spectrum vs. the matched RRC template**, at 0 dB
 Es/N0. The measured spectrum's own roll-off (blue) lines up with the
 template's shape (dashed green) — this is the shape the correlation is
 actually matching against, not an arbitrary constant.
 
 **Right — estimate error, wrong vs. matched template, at two Es/N0
 points**. At 10 dB both templates land within a few Hz of the true
-residual — at generous margin, template shape barely matters. At 5 dB the
-**default (rectangular-pulse) template never confidently detects at all**
-— the CFAR gate never fires — while the **matched RRC template still lands
-within a few Hz**. The wrong shape doesn't just cost precision; it can cost
-the detection outright.
+residual — at generous margin, template shape barely matters. At 0 dB
+both templates still confidently detect (the CFAR gate fires for both),
+but the **default (rectangular-pulse) template's own estimate is roughly
+2x worse** than the **matched RRC template's**. The wrong shape doesn't
+cost the detection outright here — it systematically biases the estimate,
+and that bias grows as SNR degrades.
 
-## A known open question, not swept under the rug
+## A calibration fix, mid-story
 
-`CarrierAcquisition`'s detection gate reuses `doppler.detection`'s
+`CarrierAcquisition`'s detection gate originally reused `doppler.detection`'s
 `det_threshold_noncoherent`/`det_n_noncoh` — the same Pfa/Pd statistics
 `Acquisition` itself is built on, derived for classic complex-correlator
-(Rayleigh/Rician) detection. Whether those statistics transfer cleanly to
-gating a *power-spectrum-vs-template* correlation (a different,
-non-negative, non-Gaussian regime) hasn't been verified — this page's own
-`design_snr`/`sequential=False` choice was picked empirically to get a
-converged, multi-look comparison, not derived from first principles. See
-`FINISHING_PLAN.md`'s own `CarrierAcquisition` section for the open item.
+(Rayleigh/Rician) detection. That model does NOT transfer to gating a
+*power-spectrum-vs-template* correlation — confirmed via Monte Carlo (see
+`FINISHING_PLAN.md`'s `CarrierAcquisition` section): the borrowed threshold
+was roughly **5x too conservative**, which is why an earlier version of
+this very page showed the default template failing to detect outright at
+5 dB. `carrier_acq_core.c`'s `_ratio_threshold()` now uses a threshold
+derived from this object's own real statistic (an exact Gamma-sum H0 model)
+plus one empirically-calibrated constant — not yet a fully general closed
+form (see the source comment for what's still open), but a large,
+measured improvement over the borrowed model.
 
 Source: `src/doppler/examples/carrier_acq_rrc_demo.py`. See also
 [Correlation](corr.md) (the `PSD`/`Corr`/`CorrDetector` primitives this

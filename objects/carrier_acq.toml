@@ -1,0 +1,173 @@
+# carrier_acq — CarrierAcquisition: PSDMF (power-spectral-density
+# matched-filter) residual-carrier frequency estimator, run AFTER
+# Acquisition's own coarse Doppler search as a one-shot refinement stage.
+#
+# Composes existing primitives rather than reimplementing them: psd_core
+# (FFT + window + zero-pad + non-coherent power averaging, Welch's
+# method), detector_core (FFT-based circular correlation of the averaged
+# power spectrum against a known template + noise-referenced test
+# statistic + argmax lag), and detection_core (the same Pfa/Pd chi-square
+# statistics Acquisition's own auto-config is built on) for the
+# adaptive/fixed dwell gate. Only the known-template generator (a sinc^2
+# shape, the average PSD of a random rectangular-pulse BPSK symbol
+# stream) and a small 3-point local re-correlation + parabolic sub-bin
+# peak refinement are genuinely new leaf code -- ported verbatim from the
+# already-validated Python prototype
+# (prototypes/async_despreader/freq_refine.py).
+#
+# Block-I/O object (opaque handle, like Despreader/DsssReceiver): feed
+# raw despread-stream samples via steps(), read back `ready`/
+# `residual_hz`/`n_blocks` once enough non-coherent looks have
+# accumulated to cross the Pfa/Pd-driven detection threshold.
+
+[carrier_acq]
+arg_type = "float _Complex"
+return_type = "float _Complex"
+mutable = "false"
+no_state = "true"
+no_step = "true"
+class_name = "CarrierAcquisition"
+depends_on = [
+  { name = "psd", link = true },
+  { name = "detector", link = true },
+  { name = "detection", link = true },
+  # OBJECT-library object files do not propagate transitively through a
+  # link=true boundary (the same fft2d/fft gotcha acq.toml's own
+  # depends_on comment documents): psd_core itself depends on
+  # spectral_core (window generation / measurement free functions), and
+  # detector_core itself depends on corr_core (the FFT correlator it
+  # wraps) -- both must be linked explicitly here too, even though
+  # neither is used directly by this object's own code.
+  { name = "spectral", link = true },
+  { name = "corr", link = true },
+  { name = "fft", link = true },
+  { name = "acc_trace", link = true },
+]
+serializable = "true"
+
+[[carrier_acq.init_params]]
+name = "sample_rate_hz"
+type = "double"
+
+[[carrier_acq.init_params]]
+name = "symbol_rate_hz"
+type = "double"
+
+# 0.0 is a sentinel meaning "auto": carrier_acq_create() substitutes
+# symbol_rate_hz/10.0 internally (a reasonable default granularity for
+# the residual this stage estimates, matching the reference's own
+# resolution-driven sizing philosophy). A caller-supplied value sizes
+# n_fft = round(sample_rate_hz/resolution_hz) directly.
+[[carrier_acq.init_params]]
+name = "resolution_hz"
+type = "double"
+default = "0.0"
+
+[[carrier_acq.init_params]]
+name = "zero_pad"
+type = "size_t"
+default = "4"
+
+[[carrier_acq.init_params]]
+name = "window"
+type = "string_enum:hann,kaiser,blackman-harris"
+default = "hann"
+
+[[carrier_acq.init_params]]
+name = "beta"
+type = "float"
+default = "0.0f"
+
+# Known PSD-shape template to correlate the measured power spectrum
+# against ("what you're searching for") -- empty (the default) means
+# "not supplied": carrier_acq_create() computes the default
+# rectangular-pulse sinc^2 template internally from symbol_rate_hz (the
+# average spectral shape of a random NRZ BPSK symbol stream). A
+# caller-supplied array must be length nfft (== next_pow2(n_fft*zero_pad))
+# and is used verbatim instead, for a different pulse shape/modulation.
+[[carrier_acq.init_params]]
+name = "psd_template"
+type = "float[]"
+default = "[]"
+
+[[carrier_acq.init_params]]
+name = "pfa"
+type = "double"
+default = "1e-3"
+
+[[carrier_acq.init_params]]
+name = "pd"
+type = "double"
+default = "0.9"
+
+[[carrier_acq.init_params]]
+name = "design_snr"
+type = "double"
+default = "2.0"
+
+[[carrier_acq.init_params]]
+name = "sequential"
+type = "bool"
+default = "true"
+
+# Sequential mode's OWN give-up cap -- deliberately INDEPENDENT of
+# dwell_target (design_snr's point-estimate wait count for
+# NON-sequential mode). Sequential testing exists specifically to
+# escape a wrong/optimistic design_snr guess by testing every block's
+# own rising CFAR threshold rather than trusting a single planned
+# count; capping it at dwell_target too would defeat that -- an
+# over-optimistic design_snr (dwell_target=1) must not stop sequential
+# mode from trying many more blocks once real data shows it needs to.
+[[carrier_acq.init_params]]
+name = "max_n_blocks"
+type = "size_t"
+default = "100000"
+
+[[carrier_acq.methods]]
+name = "steps"
+doc = "Fold raw complex samples into the running PSD average and test for a detection; any chunk size across repeated calls (a partial trailing block carries to the next call)."
+arg_type = "void"
+return_type = "void"
+params = [{name = "x", type = "float _Complex[]"}]
+
+[[carrier_acq.methods]]
+name = "reset"
+doc = "Discard the running PSD average and detection state; counters return to zero."
+arg_type = "void"
+return_type = "void"
+
+[[carrier_acq.properties]]
+name = "ready"
+type = "bool"
+field = true
+doc = "True once a detection has fired (or the dwell_target give-up cap was reached) -- residual_hz is only meaningful once this is true."
+
+[[carrier_acq.properties]]
+name = "residual_hz"
+type = "double"
+field = true
+doc = "Sub-bin-refined residual carrier frequency estimate, Hz. Valid only when ready is true."
+
+[[carrier_acq.properties]]
+name = "n_blocks"
+type = "size_t"
+field = true
+doc = "Number of n_fft-length blocks actually folded into the PSD average so far."
+
+[[carrier_acq.properties]]
+name = "dwell_target"
+type = "size_t"
+field = true
+doc = "Non-sequential mode's precomputed fixed wait count, from det_n_noncoh(design_snr, ...) at construction. Ignored by sequential mode's own give-up bound -- see max_n_blocks."
+
+[[carrier_acq.properties]]
+name = "max_n_blocks"
+type = "size_t"
+field = true
+doc = "Sequential mode's own give-up cap (independent of dwell_target) -- the max_n_blocks constructor argument, echoed back."
+
+[[carrier_acq.properties]]
+name = "nfft"
+type = "size_t"
+field = true
+doc = "PSD transform length (next_pow2(n_fft*zero_pad)) -- the length any caller-supplied template array must match."

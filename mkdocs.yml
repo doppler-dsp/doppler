@@ -173,6 +173,7 @@ nav:
           - "DSSS Despread: Continuous Async-Data Hand-off": gallery/dsss-despread-async-data.md
           - Continuous Async DSSS Receiver: gallery/async-dsss-receiver.md
           - DsssReceiver (Composed Object): gallery/dsss-receiver.md
+          - "CarrierAcquisition: RRC Pulse Shaping": gallery/carrier-acq-rrc.md
       - Synchronization Loops:
           - Carrier Loop Stress: gallery/costas.md
           - Costas Loop (theory): gallery/costas-theory.md
@@ -217,6 +218,7 @@ nav:
       - "Python: AGC": api/python-agc.md
       - "Python: Loop Filter (track)": api/python-track.md
       - "Python: DSSS": api/python-dsss.md
+      - "Python: Acquire (CarrierAcquisition)": api/python-acquire.md
       - "Python: SNR": api/python-snr.md
       - "Python: Streaming": api/python-streaming.md
       - "Python: Buffer": api/python-buffer.md

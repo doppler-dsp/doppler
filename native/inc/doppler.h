@@ -135,6 +135,8 @@ extern "C" {
 
 #include "dsss_receiver/dsss_receiver_core.h"
 
+#include "carrier_acq/carrier_acq_core.h"
+
 #ifdef __cplusplus
 }
 #endif

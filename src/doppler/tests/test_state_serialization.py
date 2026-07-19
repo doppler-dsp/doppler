@@ -38,6 +38,7 @@ import pytest
 from numpy.typing import NDArray
 
 from doppler.accumulator import AccCf64, AccF32, AccTrace
+from doppler.acquire import CarrierAcquisition
 from doppler.agc import AGC
 from doppler.analyzer import Specan
 from doppler.arith import AccQ8, AccQ15
@@ -384,6 +385,23 @@ CASES: dict[str, tuple[Callable[[], Any], _Feed]] = {
     "_SynthEngine[dsss]": (
         _make_dsss_engine,
         _blob_after(lambda o, seg: o.steps(len(seg))),
+    ),
+    # PSDMF frequency refinement -- resumable state is the composed psd +
+    # detector children's own running non-coherent averages plus the
+    # carry buffer; design_snr=0.1 -> dwell_target=6686 (n_fft=16),
+    # comfortably beyond the harness's 2048-sample stream so the object
+    # never reaches its terminal (ready/give-up) state mid-test -- a
+    # genuine in-progress resume, like PSD's/Corr's own entries above.
+    "CarrierAcquisition": (
+        lambda: CarrierAcquisition(
+            np.array([], dtype=np.float32),
+            16000.0,
+            1000.0,
+            resolution_hz=1000.0,
+            zero_pad=1,
+            design_snr=0.1,
+        ),
+        _blob_after(lambda o, seg: o.steps(seg)),
     ),
 }
 

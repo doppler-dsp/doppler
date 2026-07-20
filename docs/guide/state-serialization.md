@@ -76,6 +76,78 @@ c = FIR(taps)
 c.set_state("not bytes")
 ```
 
+## From C
+
+Python's `state_bytes()`/`get_state()`/`set_state()` are a thin `jm`-generated
+wrapper — the real interface is the C triplet underneath
+(`fir_state_bytes`/`fir_get_state`/`fir_set_state`, one per object), and it's
+what every language binding doppler ships ultimately calls. Same guarantees,
+same two things to prove: a checkpoint mid-stream resumes bit-exact in a
+freshly built instance, and a clobbered blob is rejected, never
+reinterpreted.
+
+```c
+#include <assert.h>
+#include <complex.h>
+#include <fir/fir_core.h>
+#include <stdlib.h>
+#include <string.h>
+
+int main(void)
+{
+  float complex taps[7]
+      = { 0.1f, -0.2f, 0.3f, 0.6f, 0.3f, -0.2f, 0.1f };
+  size_t total = 2048, split = 1000, tail_n = total - split;
+  float complex stream[2048], scratch[2048];
+  for (size_t i = 0; i < total; i++)
+    stream[i] = (float) (i % 11) - 5.0f + ((float) (i % 5) - 2.0f) * I;
+
+  /* Uninterrupted reference. */
+  fir_state_t *ref = fir_create (taps, 7);
+  fir_execute (ref, stream, split, scratch);
+  float complex ref_tail[1048];
+  fir_execute (ref, stream + split, tail_n, ref_tail);
+  fir_destroy (ref);
+
+  /* Checkpoint after the same warm-up block. */
+  fir_state_t *a = fir_create (taps, 7);
+  fir_execute (a, stream, split, scratch);
+  size_t nbytes = fir_state_bytes (a);
+  void *blob = malloc (nbytes);
+  fir_get_state (a, blob);
+  fir_destroy (a);
+
+  /* A clobbered envelope is rejected, never silently reinterpreted. */
+  unsigned char *corrupt = malloc (nbytes);
+  memcpy (corrupt, blob, nbytes);
+  corrupt[0] ^= 0xFF;
+  fir_state_t *bad = fir_create (taps, 7);
+  assert (fir_set_state (bad, corrupt) == DP_ERR_INVALID);
+  fir_destroy (bad);
+  free (corrupt);
+
+  /* Resume into a fresh, identically-built filter -- "a different process". */
+  fir_state_t *b = fir_create (taps, 7); /* same taps: the descriptor */
+  assert (fir_set_state (b, blob) == DP_OK);
+  float complex b_tail[1048];
+  fir_execute (b, stream + split, tail_n, b_tail);
+  fir_destroy (b);
+  free (blob);
+
+  assert (memcmp (ref_tail, b_tail, tail_n * sizeof (float complex)) == 0);
+  return 0;
+}
+```
+
+Every object's triplet follows this same shape — `<obj>_state_bytes`,
+`<obj>_get_state`, `<obj>_set_state`, `DP_OK`/`DP_ERR_INVALID` — see the
+[State Serialization design note](../design/state-serialization.md#the-abi-triplet)
+for the envelope layout and the macros that generate most triplets in a few
+lines. `ffi/rust`'s `impl_serializable!` macro exposes the identical
+guarantee (`state_bytes()`/`get_state() -> Vec<u8>`/`set_state(&[u8])`) on
+`Lo`/`Nco`/`Fir`/`AccF32`/`AccCf64` — see
+[Language faces](../design/state-serialization.md#language-faces).
+
 ## Compositions resume as one blob
 
 An object built from other serializable objects (a receiver's carrier loop,

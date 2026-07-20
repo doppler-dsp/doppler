@@ -301,8 +301,8 @@ _ascend_n_noncoh (double snr, size_t D, size_t sb, size_t cb, double pfa,
   const double pc    = 1.0 - pow (1.0 - pfa, 1.0 / (double)(sb * cb));
   const double sloss = _straddle_loss (D, sb, spc, du, span);
 
-  int k = det_n_noncoh (snr * sloss, (int)(D * cb), pd, pc,
-                        (int)ACQ_N_NONCOH_SAFETY_CEILING);
+  int    k  = det_n_noncoh (snr * sloss, (int)(D * cb), pd, pc,
+                            (int)ACQ_N_NONCOH_SAFETY_CEILING);
   size_t nc = (k > 0) ? (size_t)k : ACQ_N_NONCOH_SAFETY_CEILING;
   while (nc < ACQ_N_NONCOH_SAFETY_CEILING)
     {
@@ -313,6 +313,46 @@ _ascend_n_noncoh (double snr, size_t D, size_t sb, size_t cb, double pfa,
       nc++;
     }
   return nc;
+}
+
+/* How many frequency-window hypotheses cover +/- du at this engine's own bin
+ * spacing.  ALWAYS ODD, and sized against the spacing the bins are actually
+ * reported at -- both of which are load-bearing:
+ *
+ * - The hypothesis spacing is doppler_res_hz = chip_rate/(sf*D) = 2*span at
+ *   the D=1 every wideband path uses, NOT `span` (= chip_rate/(2*sf), the
+ *   half-span).  Sizing with `ceil(du/span)` counted half-bins and produced
+ *   roughly twice the windows the coverage needed.
+ * - The centre bin covers +/- res/2 and each further bin per side adds res,
+ *   so covering du needs n_side = ceil((du - res/2)/res) per side and
+ *   2*n_side+1 total.  An ODD count is what makes coverage symmetric: an even
+ *   count folds to [-n/2, +n/2-1] (one more negative hypothesis than
+ *   positive), leaving the top positive offset unreachable, and puts a bin at
+ *   exactly n/2 whose signed reading is the one index the search and the
+ *   handoff used to disagree on (see acq_bin_to_signed()).
+ *
+ * Worked example, SPEC.md's geometry (chip_rate 3.069 Mcps, sf 1023 -> span
+ * 1500 Hz, res 3000 Hz) at du = 50 kHz: n_side = ceil(48500/3000) = 17 ->
+ * 35 windows, k in [-17, +17], reach +/-51000 Hz.  The old formula gave
+ * ceil(50000/1500) = 34, k in [-16, +17], reach [-48000, +51000] -- so a true
+ * -50 kHz had no hypothesis within half a bin. */
+static size_t
+_cover_window_bins (double du, double span)
+{
+  if (!(du > 0.0))
+    return 1;
+  const double res = 2.0 * span; /* D == 1 in every wideband path */
+  /* The -1e-9 is a boundary guard, not a fudge: a du that is an exact whole
+     number of bins lands on an integer here, and floating-point rounding can
+     put it one ULP ABOVE that integer (du = 3*span at span = 1e6/62 gives
+     1.0000000000000002), whose ceil provisions a spurious extra PAIR of
+     windows.  The tolerance is ~1e-9 bins, far below any real sizing
+     decision -- a du that genuinely needs another bin exceeds the boundary
+     by vastly more than this. */
+  double ns = ceil ((du - 0.5 * res) / res - 1e-9);
+  if (!(ns > 0.0))
+    return 1;
+  return 2u * (size_t)ns + 1u;
 }
 
 /* Search the grid for a BURST-mode engine: WHICH (coherent_bins, n_noncoh,
@@ -342,10 +382,10 @@ _auto_config_burst (const acq_state_t *st, double pfa, double pd, double snr,
 
   if (du > span)
     {
-      const size_t window_bins = (size_t)ceil (du / span);
-      *out_d           = 1;
-      *out_nc          = _ascend_n_noncoh (snr, 1, window_bins, cb, pfa, pd,
-                                           st->spc, du, span);
+      const size_t window_bins = _cover_window_bins (du, span);
+      *out_d                   = 1;
+      *out_nc = _ascend_n_noncoh (snr, 1, window_bins, cb, pfa, pd, st->spc,
+                                  du, span);
       *out_window_bins = window_bins;
       return;
     }
@@ -389,10 +429,10 @@ _auto_config_burst (const acq_state_t *st, double pfa, double pd, double snr,
  * window-tiling mechanism, unconditionally (never gated on du > span,
  * unlike the burst path above) -- coherent_bins stays pinned to 1 by the
  * caller regardless of what this returns; only window_bins/n_noncoh need
- * sizing.  window_bins = max(1, ceil(du/span)) covers du <= 0 (native,
- * single window) through du > span (multi-window tiling) with one formula,
- * never a coherent-depth search -- see the file doc comment for why this
- * mode never attempts coherent multi-epoch combining at all. */
+ * sizing.  _cover_window_bins() covers du <= 0 (native, single window)
+ * through du > span (multi-window tiling) with one formula, never a
+ * coherent-depth search -- see the file doc comment for why this mode never
+ * attempts coherent multi-epoch combining at all. */
 static void
 _auto_config_continuous (const acq_state_t *st, double pfa, double pd,
                          double snr, double du, size_t *out_nc,
@@ -400,11 +440,11 @@ _auto_config_continuous (const acq_state_t *st, double pfa, double pd,
 {
   const size_t cb          = st->code_bins;
   const double span        = st->doppler_span_hz;
-  const size_t window_bins = (du > 0.0) ? (size_t)ceil (du / span) : 1;
+  const size_t window_bins = _cover_window_bins (du, span);
 
   *out_window_bins = window_bins;
-  *out_nc = _ascend_n_noncoh (snr, 1, window_bins, cb, pfa, pd, st->spc, du,
-                              span);
+  *out_nc
+      = _ascend_n_noncoh (snr, 1, window_bins, cb, pfa, pd, st->spc, du, span);
 }
 
 /* ── Lifecycle ──────────────────────────────────────────────────────────── */
@@ -435,10 +475,9 @@ _regrid (acq_state_t *st, size_t new_db, size_t new_nc, size_t new_freq_bins,
 {
   const size_t cb           = st->code_bins;
   const size_t new_n        = new_db * new_freq_bins * cb;
-  const int    grid_changed = (new_db != st->coherent_bins)
-                           || (new_n != st->n)
-                           || (new_freq_bins != st->window_bins);
-  const size_t new_frame_n = (new_freq_bins > 1) ? cb : new_n;
+  const int    grid_changed = (new_db != st->coherent_bins) || (new_n != st->n)
+                              || (new_freq_bins != st->window_bins);
+  const size_t new_frame_n  = (new_freq_bins > 1) ? cb : new_n;
 
   corr2d_state_t *new_corr          = NULL;
   fft_state_t    *new_fft           = NULL;
@@ -580,10 +619,10 @@ _regrid (acq_state_t *st, size_t new_db, size_t new_nc, size_t new_freq_bins,
   st->coherent_bins = new_db;
   st->window_bins   = new_freq_bins;
   st->n_noncoh      = new_nc;
-  st->n            = new_n;
-  st->frame_n      = new_frame_n;
-  st->noise_lo     = 0;
-  st->noise_hi     = new_n - 1;
+  st->n             = new_n;
+  st->frame_n       = new_frame_n;
+  st->noise_lo      = 0;
+  st->noise_hi      = new_n - 1;
   return 0;
 
 fail:
@@ -664,8 +703,8 @@ _acq_create_impl (const uint8_t *code, size_t code_len, size_t reps,
   if (continuous)
     {
       best_d = 1;
-      _auto_config_continuous (st, pfa, pd, snr, doppler_uncertainty,
-                               &best_nc, &best_window_bins);
+      _auto_config_continuous (st, pfa, pd, snr, doppler_uncertainty, &best_nc,
+                               &best_window_bins);
     }
   else
     _auto_config_burst (st, pfa, pd, snr, doppler_uncertainty, &best_d,
@@ -696,13 +735,13 @@ acq_create_burst (const uint8_t *code, size_t code_len, size_t reps,
 
 acq_state_t *
 acq_create_continuous (const uint8_t *code, size_t code_len, size_t spc,
-                       double chip_rate, double symbol_rate,
-                       double cn0_dbhz, double doppler_uncertainty,
-                       double pfa, double pd, int noise_mode)
+                       double chip_rate, double symbol_rate, double cn0_dbhz,
+                       double doppler_uncertainty, double pfa, double pd,
+                       int noise_mode)
 {
   return _acq_create_impl (code, code_len, /* reps= */ 1, spc, chip_rate,
-                           symbol_rate, cn0_dbhz, doppler_uncertainty, pfa,
-                           pd, noise_mode, /* continuous= */ 1);
+                           symbol_rate, cn0_dbhz, doppler_uncertainty, pfa, pd,
+                           noise_mode, /* continuous= */ 1);
 }
 
 int
@@ -832,9 +871,7 @@ acq_push (acq_state_t *st, const float complex *in, size_t n_in,
               fft_execute_cf32 (st->wide_fwd, frame, nx, st->wide_spec);
               for (size_t r = 0; r < st->window_bins; r++)
                 {
-                  long signed_r = (r <= st->window_bins / 2)
-                                      ? (long)r
-                                      : (long)r - (long)st->window_bins;
+                  long signed_r = acq_bin_to_signed (r, st->window_bins);
                   long wrapped = ((signed_r % (long)nx) + (long)nx) % (long)nx;
                   size_t roll  = (size_t)wrapped;
                   for (size_t j = 0; j < nx; j++)
@@ -907,13 +944,13 @@ acq_push (acq_state_t *st, const float complex *in, size_t n_in,
                     / sqrtf (2.0f * (float)frame_n * (float)st->n_noncoh);
               float cn0_dbhz_est = _cn0_dbhz_from_amp_snr (amp_snr, st->fs);
               result[ndet++]     = (acq_result_t){
-                    .doppler_bin      = st->peak_row,
-                    .code_phase       = st->peak_col,
-                    .peak_mag         = st->peak_mag,
-                    .noise_est        = st->noise_est,
-                    .test_stat        = st->test_stat,
-                    .cn0_dbhz_est     = cn0_dbhz_est,
-                    .samples_consumed = st->samples_consumed,
+                .doppler_bin      = st->peak_row,
+                .code_phase       = st->peak_col,
+                .peak_mag         = st->peak_mag,
+                .noise_est        = st->noise_est,
+                .test_stat        = st->test_stat,
+                .cn0_dbhz_est     = cn0_dbhz_est,
+                .samples_consumed = st->samples_consumed,
               };
             }
           memset (st->nc_surface, 0, n * sizeof (float));
@@ -936,10 +973,10 @@ acq_build_handoff (const acq_state_t *state, const acq_result_t *hit,
   if (phase < 0.0)
     phase += cl;
 
-  size_t dop_bins = state->window_bins;
-  size_t half     = dop_bins / 2;
-  size_t folded   = (hit->doppler_bin + half) % dop_bins;
-  long   k_fold   = (long)folded - (long)half;
+  /* Shared with the wideband search's own row->roll mapping — see
+     acq_bin_to_signed()'s doc comment for the sign inversion that a second,
+     drifted copy of this formula used to cause here. */
+  long k_fold = acq_bin_to_signed (hit->doppler_bin, state->window_bins);
 
   *out = (acq_handoff_t){
     .samples_consumed = hit->samples_consumed,

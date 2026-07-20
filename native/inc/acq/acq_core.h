@@ -479,6 +479,36 @@ extern "C"
   } acq_handoff_t;
 
   /**
+   * @brief Map a reported bin index to its SIGNED frequency index.
+   *
+   * The one definition of the FFT-bin convention this engine reports in:
+   * `0 = DC`, ascending positive through `n_bins/2`, then wrapping negative.
+   * Both the wideband search (which chooses a row's spectral roll) and
+   * `acq_build_handoff()` (which converts a hit back to Hz) MUST agree on
+   * it, so it lives here once rather than as a formula in each.
+   *
+   * It did not, once: the search used this form while the handoff used
+   * `((bin + n/2) % n) - n/2`, which disagrees at exactly one index —
+   * `bin == n_bins/2`, reachable only when `n_bins` is even. The search
+   * read that row as `+n/2` and the handoff as `-n/2`, a full-span sign
+   * inversion (102 kHz at SPEC.md's geometry) that surfaced as a receiver
+   * reporting `tracking == 1` while decoding noise. Auto-sizing now keeps
+   * `window_bins` odd (see `_auto_config_continuous`) so no such index
+   * exists, and this shared helper keeps the two readings identical
+   * regardless.
+   *
+   * @param bin     Reported bin index in `[0, n_bins)`.
+   * @param n_bins  Grid size (`window_bins`, or `coherent_bins`).
+   * @return Signed index in `[-(n_bins/2), +(n_bins/2)]`; multiply by
+   *         `doppler_res_hz` for Hz.
+   */
+  static inline long
+  acq_bin_to_signed (size_t bin, size_t n_bins)
+  {
+    return (bin <= n_bins / 2) ? (long)bin : (long)bin - (long)n_bins;
+  }
+
+  /**
    * @brief Convert one acq_push() hit into a wire-ready hand-off record.
    *
    * Two convention inversions live here, ported verbatim from
@@ -492,9 +522,9 @@ extern "C"
    * - **Doppler**: @p state is assumed built via acq_create_continuous()
    *   (coherent_bins pinned at 1, `window_bins` the active mechanism, the
    *   only mode this function supports), so `hit`'s `doppler_bin` is a
-   *   frequency-WINDOW index, folded to a signed bin
-   *   (`k = ((doppler_bin + window_bins/2) % window_bins) -
-   *   window_bins/2`) and scaled by `state->doppler_res_hz`.
+   *   frequency-WINDOW index, mapped to a signed bin by
+   *   `acq_bin_to_signed()` — the SAME helper the search uses — and scaled
+   *   by `state->doppler_res_hz`.
    *
    * @param state    The engine @p hit came from (non-NULL, built via
    *                 acq_create_continuous()).

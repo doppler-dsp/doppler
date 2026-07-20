@@ -45,8 +45,8 @@ _acq_run_roundtrip (const float complex *s0d, size_t nx, size_t spc,
   int          _fails = 0;
   const double PI     = acos (-1.0);
 
-  acq_state_t *ra = acq_create_burst (CODE7, 7, 8, spc, crate, cn0, 0.0, 1e-2,
-                                      0.9, 0);
+  acq_state_t *ra
+      = acq_create_burst (CODE7, 7, 8, spc, crate, cn0, 0.0, 1e-2, 0.9, 0);
   CHECK (ra != NULL);
   if (!ra)
     return _fails;
@@ -73,10 +73,10 @@ _acq_run_roundtrip (const float complex *s0d, size_t nx, size_t spc,
 
   /* split: engine1 emits state_out; a fresh engine2 restores it via state_in.
    */
-  acq_state_t *r1 = acq_create_burst (CODE7, 7, 8, spc, crate, cn0, 0.0, 1e-2,
-                                      0.9, 0);
-  acq_state_t *r2 = acq_create_burst (CODE7, 7, 8, spc, crate, cn0, 0.0, 1e-2,
-                                      0.9, 0);
+  acq_state_t *r1
+      = acq_create_burst (CODE7, 7, 8, spc, crate, cn0, 0.0, 1e-2, 0.9, 0);
+  acq_state_t *r2
+      = acq_create_burst (CODE7, 7, 8, spc, crate, cn0, 0.0, 1e-2, 0.9, 0);
   CHECK (r1 && r2);
   if (r1 && r2)
     {
@@ -98,8 +98,8 @@ _acq_run_roundtrip (const float complex *s0d, size_t nx, size_t spc,
 
       /* a corrupted blob must make acq_run reject (set_state != 0) -> 0 out.
        */
-      acq_state_t *r3 = acq_create_burst (CODE7, 7, 8, spc, crate, cn0, 0.0,
-                                         1e-2, 0.9, 0);
+      acq_state_t *r3
+          = acq_create_burst (CODE7, 7, 8, spc, crate, cn0, 0.0, 1e-2, 0.9, 0);
       CHECK (acq_configure_search_raw (r3, 8, n_noncoh_pin) == 0);
       acq_get_state (r3, blob);
       ((char *)blob)[0] ^= (char)0xFF; /* clobber the state header magic */
@@ -157,8 +157,8 @@ _acq_cn0_calibration (void)
   const double fs       = crate * (double)spc;
   const double cn0_true = 55.0;
 
-  acq_state_t *a = acq_create_burst (CODE31, 31, 16, spc, crate, 45.0, 0.0,
-                                     1e-3, 0.9, 0);
+  acq_state_t *a
+      = acq_create_burst (CODE31, 31, 16, spc, crate, 45.0, 0.0, 1e-3, 0.9, 0);
   CHECK (a != NULL);
   if (!a)
     return _fails;
@@ -208,8 +208,8 @@ _acq_configure_search_raw_check (void)
   int          _fails = 0;
   const size_t spc    = 2;
 
-  acq_state_t *a = acq_create_burst (CODE7, 7, 8, spc, 1.0e6, 45.0, 0.0, 1e-2,
-                                     0.9, 0);
+  acq_state_t *a
+      = acq_create_burst (CODE7, 7, 8, spc, 1.0e6, 45.0, 0.0, 1e-2, 0.9, 0);
   CHECK (a != NULL);
   if (!a)
     return _fails;
@@ -282,14 +282,21 @@ _acq_wideband_check (void)
   /* 3.5 * span -> window_bins = ceil(3.5) = 4 (even, so window_bins/2 = 2
    * lands exactly on the convention's positive/negative boundary). */
   acq_state_t *w = acq_create_burst (CODE7, 7, 8, spc, crate, 90.0 /* strong:
-                                     forces n_noncoh=1 -- see doc above */,
+                                     forces n_noncoh=1 -- see doc above */
+                                     ,
                                      3.5 * span, 1e-2, 0.9, 0);
   CHECK (w != NULL);
   if (!w)
     return _fails;
 
   CHECK (w->coherent_bins == 1);
-  CHECK (w->window_bins == 4);
+  /* Coverage-sized and ODD: du = 3.5*span, bins are spaced doppler_res_hz =
+     2*span apart, so each side needs ceil((3.5 - 0.5)*span / (2*span)) = 2
+     hypotheses beyond DC -> 5.  Odd is required, not incidental: an even
+     count folds asymmetrically and puts a bin at exactly n/2, the one index
+     the search and acq_build_handoff() used to read with opposite signs. */
+  CHECK (w->window_bins == 5);
+  CHECK (w->window_bins % 2 == 1);
   CHECK (w->n == w->window_bins * nx);
   CHECK (w->frame_n == nx); /* one epoch, not window_bins epochs */
   CHECK (w->n_noncoh == 1);
@@ -301,7 +308,7 @@ _acq_wideband_check (void)
   const size_t row      = 3;
   const long   signed_r = (long)row - (long)w->window_bins;
   const double f_norm   = (double)signed_r / (double)nx; /* cycles/sample */
-  const size_t d         = 5;                             /* code phase */
+  const size_t d        = 5;                             /* code phase */
 
   float complex s0d[14];
   for (size_t q = 0; q < nx; q++)
@@ -337,6 +344,89 @@ _acq_wideband_check (void)
   return _fails;
 }
 
+/* The wideband grid's real contract is COVERAGE, not bin count: every Doppler
+ * in [-du, +du] must have a hypothesis within half a bin, and the search and
+ * acq_build_handoff() must agree on which one.
+ *
+ * This is the regression test for the bug that motivated acq_bin_to_signed().
+ * The two used to carry separate fold formulas that disagreed at exactly one
+ * index -- bin == window_bins/2, reachable only for an EVEN window_bins. The
+ * search read that row as +n/2 and the handoff as -n/2, so a true Doppler
+ * landing there was reported with the wrong sign and a full-span magnitude
+ * error (at SPEC.md's geometry: +50 kHz truth -> -51 kHz estimate, 101 kHz
+ * off, while the receiver still reported tracking == 1).
+ *
+ * Asserting bin counts would not have caught it; asserting coverage does. */
+static int
+_acq_wideband_coverage_check (void)
+{
+  int _fails = 0;
+
+  /* SPEC.md's own geometry -- span 1500 Hz, doppler_res_hz 3000 Hz, and a
+     +/-50 kHz uncertainty whose maximum is exactly where the bug lived. */
+  const size_t sf = 1023, spc = 2;
+  const double crate = 3.069e6, du = 50000.0;
+  uint8_t     *code = malloc (sf);
+  CHECK (code != NULL);
+  if (!code)
+    return _fails;
+  for (size_t i = 0; i < sf; i++)
+    code[i] = (uint8_t)(i & 1u);
+
+  acq_state_t *w = acq_create_continuous (code, sf, spc, crate, 2700.0, 44.31,
+                                          du, 1e-3, 0.9, 0);
+  CHECK (w != NULL);
+  if (!w)
+    {
+      free (code);
+      return _fails;
+    }
+
+  /* Odd, so the fold is symmetric and no ambiguous n/2 index exists. */
+  CHECK (w->window_bins % 2 == 1);
+
+  const double res  = w->doppler_res_hz;
+  const long   kmax = (long)(w->window_bins / 2);
+
+  /* Reach must cover the requested uncertainty on BOTH sides. The old sizing
+     reached [-48000, +51000] for this config -- symmetric on paper, short by
+     2 kHz at -50 kHz in practice. */
+  CHECK ((double)kmax * res >= du - 0.5 * res);
+
+  /* Every bin round-trips: the search's row->signed mapping and the handoff's
+     bin->signed mapping are now the same function, so this holds by
+     construction -- the assertion documents the invariant and fails loudly if
+     either side ever grows a private copy again. */
+  for (size_t b = 0; b < w->window_bins; b++)
+    {
+      long k = acq_bin_to_signed (b, w->window_bins);
+      CHECK (k >= -kmax && k <= kmax);
+      acq_result_t  hit = { .doppler_bin = b, .code_phase = 0 };
+      acq_handoff_t ho;
+      acq_build_handoff (w, &hit, sf, spc, &ho);
+      CHECK (fabs (ho.doppler_hz_est - (double)k * res) < 1e-6);
+    }
+
+  /* Coverage sweep: every true Doppler across the band has a hypothesis
+     within half a bin. */
+  for (double truth = -du; truth <= du + 1.0; truth += res / 4.0)
+    {
+      double best = 1e300;
+      for (size_t b = 0; b < w->window_bins; b++)
+        {
+          double hz = (double)acq_bin_to_signed (b, w->window_bins) * res;
+          double e  = fabs (hz - truth);
+          if (e < best)
+            best = e;
+        }
+      CHECK (best <= 0.5 * res + 1e-6);
+    }
+
+  acq_destroy (w);
+  free (code);
+  return _fails;
+}
+
 /* acq_create_continuous: ALWAYS window-tiles, even when doppler_uncertainty
  * is narrower than one native span -- unlike acq_create_burst's wideband
  * fallback (only gated on du > span), this is unconditional and never
@@ -360,9 +450,8 @@ _acq_continuous_check (void)
   /* du == 0 (no uncertainty prior at all): still window-tiled at
    * window_bins == 1 -- native span, single window -- never a coherent
    * axis. */
-  acq_state_t *narrow = acq_create_continuous (CODE31, 31, spc, crate,
-                                               sym_rate, cn0_dbhz, 0.0, 1e-3,
-                                               0.9, 0);
+  acq_state_t *narrow = acq_create_continuous (
+      CODE31, 31, spc, crate, sym_rate, cn0_dbhz, 0.0, 1e-3, 0.9, 0);
   CHECK (narrow != NULL);
   if (narrow)
     {
@@ -393,7 +482,8 @@ _acq_continuous_check (void)
   if (wide)
     {
       CHECK (wide->coherent_bins == 1);
-      CHECK (wide->window_bins == 4); /* ceil(3.5) */
+      CHECK (wide->window_bins == 5); /* covers +/-3.5*span, odd */
+      CHECK (wide->window_bins % 2 == 1);
       CHECK (wide->symbol_rate == sym_rate);
       CHECK (fabs (wide->epochs_per_symbol - (crate / sf) / sym_rate) < 1e-6);
       acq_destroy (wide);
@@ -431,7 +521,8 @@ main (void)
     if (wide)
       {
         CHECK (wide->coherent_bins == 1);
-        CHECK (wide->window_bins == 2); /* ceil(2.0) */
+        CHECK (wide->window_bins == 3); /* covers +/-2*span, odd */
+        CHECK (wide->window_bins % 2 == 1);
         acq_destroy (wide);
       }
   }
@@ -543,12 +634,10 @@ main (void)
 
         /* Run B — engine1 takes [0,cut), hands its state to a fresh engine2
          * which takes [cut,L3). */
-        acq_state_t *r1
-            = acq_create_burst (CODE7, 7, 8, spc, crate, 20.0, 0.0, 1e-2, 0.9,
-                                0);
-        acq_state_t *r2
-            = acq_create_burst (CODE7, 7, 8, spc, crate, 20.0, 0.0, 1e-2, 0.9,
-                                0);
+        acq_state_t *r1 = acq_create_burst (CODE7, 7, 8, spc, crate, 20.0, 0.0,
+                                            1e-2, 0.9, 0);
+        acq_state_t *r2 = acq_create_burst (CODE7, 7, 8, spc, crate, 20.0, 0.0,
+                                            1e-2, 0.9, 0);
         CHECK (r1 && r2);
         if (r1 && r2)
           {
@@ -597,6 +686,7 @@ main (void)
   _fails += _acq_cn0_calibration ();
   _fails += _acq_configure_search_raw_check ();
   _fails += _acq_wideband_check ();
+  _fails += _acq_wideband_coverage_check ();
   _fails += _acq_continuous_check ();
 
   if (_fails)

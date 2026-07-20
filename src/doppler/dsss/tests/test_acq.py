@@ -333,7 +333,14 @@ def test_doppler_uncertainty_sharpens_gate():
             pd=PD,
             doppler_uncertainty=full.doppler_span_hz * 2,
         )
-    assert wide.doppler_bins == 2
+    # 3, not the 2 this once asserted. Bins are spaced doppler_res_hz =
+    # 2*doppler_span_hz apart, so covering +/-2*span needs one hypothesis
+    # either side of DC. The old count came from sizing against the half-span
+    # and folded to k in [-1, 0] -- reaching -2*span but nothing above DC, so
+    # any positive Doppler in the requested range was uncovered. An odd count
+    # is what makes the grid symmetric; see _cover_window_bins().
+    assert wide.doppler_bins == 3
+    assert wide.doppler_bins % 2 == 1
 
 
 def test_underpowered_warns():
@@ -538,7 +545,6 @@ def test_noncoherent_empirical_pfa():
     noise = _awgn(rng, nnc * 200 * N, _sigma(SNR_DB))
     fa = len(_collect(a, rng, noise.astype(np.complex64)))
     assert fa <= 4  # generous bound on a ~0.2-expectation Poisson
-
 
 
 def test_configure_search_raw_bounds():

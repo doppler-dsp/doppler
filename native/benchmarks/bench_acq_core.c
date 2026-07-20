@@ -53,6 +53,26 @@
 
 static const double PD_POINTS[] = { 0.9, 0.99, 0.999 };
 
+/* Two search geometries, so the wideband tiling cost is reported against its
+ * own baseline rather than in isolation.  "native" is the no-coarse-Doppler
+ * case (doppler_uncertainty = 0 -> window_bins == 1, a single native-span
+ * window, one forward+inverse FFT per epoch); "wideband" tiles +/-50 kHz into
+ * 35 roll-FFT hypotheses off ONE shared forward FFT.  The ratio between them
+ * is the real price of covering SPEC.md's uncertainty, which the wideband
+ * number alone never showed. */
+typedef struct
+{
+  double      du;            /* doppler_uncertainty, Hz                  */
+  const char *label;         /* bench name prefix                        */
+  size_t      expect_bins;   /* window_bins the sizer must pick          */
+  size_t      inject_window; /* hypothesis to inject into (0 when 1 bin) */
+} acq_bench_cfg_t;
+
+static const acq_bench_cfg_t CFGS[] = {
+  { 0.0, "native", 1, 0 },
+  { DOPPLER_UNCERTAINTY, "wideband", 35, INJECT_WINDOW },
+};
+
 static double
 elapsed_sec (struct timespec *t0, struct timespec *t1)
 {
@@ -108,95 +128,110 @@ main (void)
   const double amp_snr = sqrt (pow (10.0, CN0_DBHZ / 10.0) / fs);
   const float  sigma   = (float)(1.0 / amp_snr);
 
-  for (size_t p = 0; p < sizeof (PD_POINTS) / sizeof (PD_POINTS[0]); p++)
+  for (size_t g = 0; g < sizeof (CFGS) / sizeof (CFGS[0]); g++)
     {
-      const double pd_target = PD_POINTS[p];
+      const acq_bench_cfg_t *cfg = &CFGS[g];
+      printf ("--- %s: doppler_uncertainty=+/-%.0f Hz -> window_bins=%zu "
+              "---\n",
+              cfg->label, cfg->du, cfg->expect_bins);
 
-      /* Let the real auto-sizer pick n_noncoh honestly, bounded only by the
-       * internal safety-valve ceiling -- see the file doc comment above. */
-      acq_state_t *a
-          = acq_create_continuous (code, SF, SPC, CHIP_RATE, SYMBOL_RATE,
-                                   CN0_DBHZ, DOPPLER_UNCERTAINTY, PFA,
-                                   pd_target, 0);
-      if (!a)
+      for (size_t p = 0; p < sizeof (PD_POINTS) / sizeof (PD_POINTS[0]); p++)
         {
-          fprintf (stderr, "acq_create_continuous failed at pd=%.3f\n",
-                   pd_target);
-          continue;
-        }
-      if (a->coherent_bins != 1 || a->window_bins != 34)
-        {
-          fprintf (stderr,
-                   "unexpected grid at pd=%.3f: coherent_bins=%zu "
-                   "window_bins=%zu\n",
-                   pd_target, a->coherent_bins, a->window_bins);
+          const double pd_target = PD_POINTS[p];
+
+          /* Let the real auto-sizer pick n_noncoh honestly, bounded only by
+           * the internal safety-valve ceiling -- see the file doc comment
+           * above. */
+          acq_state_t *a
+              = acq_create_continuous (code, SF, SPC, CHIP_RATE, SYMBOL_RATE,
+                                       CN0_DBHZ, cfg->du, PFA, pd_target, 0);
+          if (!a)
+            {
+              fprintf (stderr, "acq_create_continuous failed at pd=%.3f\n",
+                       pd_target);
+              continue;
+            }
+          /* The wideband case expects 35, not the 34 this once did: window
+           * sizing is against the spacing bins are actually reported at
+           * (doppler_res_hz = 2*span), and forced odd so coverage is symmetric
+           * and no ambiguous n/2 index exists -- see _cover_window_bins() /
+           * acq_bin_to_signed(). */
+          if (a->coherent_bins != 1 || a->window_bins != cfg->expect_bins)
+            {
+              fprintf (stderr,
+                       "unexpected grid at pd=%.3f: coherent_bins=%zu "
+                       "window_bins=%zu\n",
+                       pd_target, a->coherent_bins, a->window_bins);
+              acq_destroy (a);
+              continue;
+            }
+          const size_t nc = a->n_noncoh;
+
+          const size_t n_in = a->n_noncoh * nx;
+          /* Same shared helper the engine itself uses, so the injected tone
+             and the reported bin can never disagree about a row's sign. */
+          const long signed_r
+              = acq_bin_to_signed (cfg->inject_window, a->window_bins);
+          const double f_norm = (double)signed_r / (double)nx;
+
+          float complex *buf   = malloc (n_in * sizeof (float complex));
+          uint32_t       nseed = 1234u + (uint32_t)nc;
+          for (size_t k = 0; k < n_in; k++)
+            {
+              size_t        epoch_k = k % nx;
+              size_t        src  = (epoch_k + nx - (INJECT_PHASE % nx)) % nx;
+              uint8_t       chip = code[(src / SPC) % SF];
+              float         c    = (chip & 1u) ? -1.0f : 1.0f;
+              double        ph   = 2.0 * PI * f_norm * (double)k;
+              float complex tone
+                  = c * (float complex) (cos (ph) + I * sin (ph));
+              buf[k] = tone + sigma * cgauss (&nseed);
+            }
+
+          acq_result_t hits[4];
+          size_t       nh = acq_push (a, buf, n_in, hits, 4); /* warm-up */
+          int ok = (nh == 1 && hits[0].doppler_bin == cfg->inject_window
+                    && hits[0].code_phase == INJECT_PHASE);
+          printf ("n_noncoh=%3zu  pd_predicted=%.4f  detect=%s  "
+                  "doppler_bin=%zu code_phase=%zu cn0_dbhz_est=%.2f\n",
+                  nc, a->pd_predicted, ok ? "yes" : "NO",
+                  nh ? hits[0].doppler_bin : 0, nh ? hits[0].code_phase : 0,
+                  nh ? hits[0].cn0_dbhz_est : 0.0f);
+
+          double times[ITERATIONS];
+          for (int r = 0; r < ITERATIONS; r++)
+            {
+              struct timespec t0, t1;
+              clock_gettime (CLOCK_MONOTONIC, &t0);
+              nh = acq_push (a, buf, n_in, hits, 4);
+              clock_gettime (CLOCK_MONOTONIC, &t1);
+              times[r] = elapsed_sec (&t0, &t1);
+              if (nh != 1)
+                fprintf (stderr, "  iter %d: unexpected nh=%zu\n", r, nh);
+            }
+
+          double sum = 0.0, mn = times[0], mx = times[0];
+          for (int r = 0; r < ITERATIONS; r++)
+            {
+              sum += times[r];
+              if (times[r] < mn)
+                mn = times[r];
+              if (times[r] > mx)
+                mx = times[r];
+            }
+          double mean = sum / ITERATIONS;
+          printf ("  latency: mean=%.2f ms  min=%.2f ms  max=%.2f ms  "
+                  "(%zu epochs/dwell, %.3f ms/epoch)\n\n",
+                  mean * 1e3, mn * 1e3, mx * 1e3, a->n_noncoh,
+                  mean * 1e3 / (double)a->n_noncoh);
+
+          char name[JM_BENCH_NAME_LEN];
+          snprintf (name, sizeof (name), "%s_nc%zu", cfg->label, nc);
+          jm_bench_add (&_bench, name, times, ITERATIONS, (int)n_in);
+
+          free (buf);
           acq_destroy (a);
-          continue;
         }
-      const size_t nc = a->n_noncoh;
-
-      const size_t n_in     = a->n_noncoh * nx;
-      const long   signed_r = (INJECT_WINDOW <= a->window_bins / 2)
-                                  ? (long)INJECT_WINDOW
-                                  : (long)INJECT_WINDOW - (long)a->window_bins;
-      const double f_norm   = (double)signed_r / (double)nx;
-
-      float complex *buf   = malloc (n_in * sizeof (float complex));
-      uint32_t       nseed = 1234u + (uint32_t)nc;
-      for (size_t k = 0; k < n_in; k++)
-        {
-          size_t        epoch_k = k % nx;
-          size_t        src     = (epoch_k + nx - (INJECT_PHASE % nx)) % nx;
-          uint8_t       chip    = code[(src / SPC) % SF];
-          float         c       = (chip & 1u) ? -1.0f : 1.0f;
-          double        ph      = 2.0 * PI * f_norm * (double)k;
-          float complex tone = c * (float complex) (cos (ph) + I * sin (ph));
-          buf[k]             = tone + sigma * cgauss (&nseed);
-        }
-
-      acq_result_t hits[4];
-      size_t       nh = acq_push (a, buf, n_in, hits, 4); /* warm-up */
-      int          ok = (nh == 1 && hits[0].doppler_bin == INJECT_WINDOW
-                && hits[0].code_phase == INJECT_PHASE);
-      printf ("n_noncoh=%3zu  pd_predicted=%.4f  detect=%s  "
-              "doppler_bin=%zu code_phase=%zu cn0_dbhz_est=%.2f\n",
-              nc, a->pd_predicted, ok ? "yes" : "NO",
-              nh ? hits[0].doppler_bin : 0, nh ? hits[0].code_phase : 0,
-              nh ? hits[0].cn0_dbhz_est : 0.0f);
-
-      double times[ITERATIONS];
-      for (int r = 0; r < ITERATIONS; r++)
-        {
-          struct timespec t0, t1;
-          clock_gettime (CLOCK_MONOTONIC, &t0);
-          nh = acq_push (a, buf, n_in, hits, 4);
-          clock_gettime (CLOCK_MONOTONIC, &t1);
-          times[r] = elapsed_sec (&t0, &t1);
-          if (nh != 1)
-            fprintf (stderr, "  iter %d: unexpected nh=%zu\n", r, nh);
-        }
-
-      double sum = 0.0, mn = times[0], mx = times[0];
-      for (int r = 0; r < ITERATIONS; r++)
-        {
-          sum += times[r];
-          if (times[r] < mn)
-            mn = times[r];
-          if (times[r] > mx)
-            mx = times[r];
-        }
-      double mean = sum / ITERATIONS;
-      printf ("  latency: mean=%.2f ms  min=%.2f ms  max=%.2f ms  "
-              "(%zu epochs/dwell, %.3f ms/epoch)\n\n",
-              mean * 1e3, mn * 1e3, mx * 1e3, a->n_noncoh,
-              mean * 1e3 / (double)a->n_noncoh);
-
-      char name[JM_BENCH_NAME_LEN];
-      snprintf (name, sizeof (name), "wideband_nc%zu", nc);
-      jm_bench_add (&_bench, name, times, ITERATIONS, (int)n_in);
-
-      free (buf);
-      acq_destroy (a);
     }
 
   jm_bench_write_json (&_bench, "acq");

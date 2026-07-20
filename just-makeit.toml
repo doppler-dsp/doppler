@@ -912,6 +912,12 @@ enum = "crc"
 default = "crc16"
 doc = "For type=dsss: the frame trailer — crc16 appends a CRC-16-CCITT over the payload bits (what BurstDemod validates as frame_valid); none omits it."
 
+[[module.wfm_compose.source.fields]]
+name = "symbol_rate"
+type = "double"
+default = "0.0"
+doc = "For type=dsss: > 0 selects CONTINUOUS asynchronous mode — the spreading code repeats endlessly and data rides on it at this symbol rate (Hz), independent of the code-epoch rate (chips/symbol = fs/sps/symbol_rate, non-integer). No preamble/sync/CRC frame; data comes from the payload when supplied, else a seeded PN a receiver regenerates. Absent/0 = burst."
+
 [module.wfm_compose.source.generates]
 generator = "wfm_synth"
 bridge_fn = "wfm_source_to_synth"

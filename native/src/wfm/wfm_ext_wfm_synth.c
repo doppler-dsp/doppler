@@ -300,6 +300,80 @@ _SynthEngine_set_dsss (_SynthEngineObject *self, PyObject *args,
   Py_RETURN_NONE;
 }
 
+/* set_dsss_cont(code, chips_per_symbol, data="prbs", payload=None) — configure
+ * a type=dsss synth for CONTINUOUS asynchronous generation: the spreading
+ * `code` repeats endlessly, data rides on it at chips_per_symbol chips/symbol
+ * (non-integer). `data` selects the source: "none" (code only), "prbs" (the
+ * synth's seeded PN, regenerable via doppler.wfm.PN), or "bits" (the payload
+ * array, cycled). A payload forces "bits". */
+static PyObject *
+_SynthEngine_set_dsss_cont (_SynthEngineObject *self, PyObject *args,
+                            PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char *kwlist[]
+      = { "code", "chips_per_symbol", "data", "payload", NULL };
+  PyObject   *code_obj = Py_None, *pay_obj = Py_None;
+  double      cps      = 0.0;
+  const char *data_str = "prbs";
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "Od|sO", kwlist, &code_obj,
+                                    &cps, &data_str, &pay_obj))
+    return NULL;
+
+  int mode;
+  if (pay_obj != Py_None || strcmp (data_str, "bits") == 0)
+    mode = WFM_DSSS_DATA_BITS;
+  else if (strcmp (data_str, "none") == 0)
+    mode = WFM_DSSS_DATA_NONE;
+  else if (strcmp (data_str, "prbs") == 0)
+    mode = WFM_DSSS_DATA_PRBS;
+  else
+    {
+      PyErr_SetString (
+          PyExc_ValueError,
+          "set_dsss_cont: data must be 'none', 'prbs', or 'bits'");
+      return NULL;
+    }
+
+  PyArrayObject *code_arr = (PyArrayObject *)PyArray_FROM_OTF (
+      code_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS);
+  if (!code_arr)
+    return NULL;
+  PyArrayObject *pay_arr = NULL;
+  if (pay_obj != Py_None)
+    {
+      pay_arr = (PyArrayObject *)PyArray_FROM_OTF (pay_obj, NPY_UINT8,
+                                                   NPY_ARRAY_C_CONTIGUOUS);
+      if (!pay_arr)
+        {
+          Py_DECREF (code_arr);
+          return NULL;
+        }
+    }
+  int rc = wfm_synth_set_dsss_cont (
+      self->handle, (const uint8_t *)PyArray_DATA (code_arr),
+      (size_t)PyArray_SIZE (code_arr), cps, mode,
+      pay_arr ? (const uint8_t *)PyArray_DATA (pay_arr) : NULL,
+      pay_arr ? (size_t)PyArray_SIZE (pay_arr) : 0);
+  Py_XDECREF (pay_arr);
+  Py_DECREF (code_arr);
+  if (rc != 0)
+    {
+      PyErr_SetString (
+          PyExc_ValueError,
+          "set_dsss_cont: invalid geometry (need a code, chips_per_symbol >= "
+          "1, "
+          "a payload for data='bits', a valid pn_length for data='prbs'), or "
+          "not a dsss synth");
+      return NULL;
+    }
+  Py_RETURN_NONE;
+}
+
 /* set_symbols(symbols) — attach a user complex-symbol stream to a
  * type=symbols synth. symbols is any array-like coerced to complex64; each
  * element is the constellation point itself (no bit->symbol mapping). */
@@ -602,6 +676,17 @@ static PyMethodDef _SynthEngine_methods[] = {
     "frame [sync | payload | CRC-16], every frame bit spread by data_code.\n"
     "Arrays are array-likes of 0/1 (coerced to uint8); crc!=0 appends the\n"
     "CRC-16-CCITT trailer over the payload bits.\n" },
+  { "set_dsss_cont", (PyCFunction)_SynthEngine_set_dsss_cont,
+    METH_VARARGS | METH_KEYWORDS,
+    "set_dsss_cont(code, chips_per_symbol, data='prbs', payload=None) -> "
+    "None\n"
+    "\n"
+    "Configure a type=dsss synth for CONTINUOUS asynchronous generation: the\n"
+    "spreading `code` repeats endlessly and data rides on it at\n"
+    "chips_per_symbol chips/symbol (non-integer -- the asynchronicity).\n"
+    "data selects the symbol source: 'none' (code only, pure +code), 'prbs'\n"
+    "(the synth's seeded PN, reproducible via doppler.wfm.PN), or 'bits'\n"
+    "(the payload array, cycled). Supplying payload forces 'bits'.\n" },
   { "set_bits", (PyCFunction)_SynthEngine_set_bits, METH_VARARGS,
     "set_bits(pattern, modulation=1) -> None\n"
     "\n"

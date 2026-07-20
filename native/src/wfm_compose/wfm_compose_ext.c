@@ -264,7 +264,7 @@ _attach_bytes(uint8_t **dst, size_t *n_dst, PyObject *obj)
 static int
 Synth_init(SynthObject *self, PyObject *args, PyObject *kwds)
 {
-    static char *kwlist[] = {"type", "freq", "snr", "snr_mode", "seed", "sps", "pn_length", "pn_poly", "lfsr", "level", "f_end", "bits", "modulation", "pulse", "rrc_beta", "rrc_span", "symbols", "acq_code", "acq_reps", "data_code", "sync", "crc", "fs", NULL};
+    static char *kwlist[] = {"type", "freq", "snr", "snr_mode", "seed", "sps", "pn_length", "pn_poly", "lfsr", "level", "f_end", "bits", "modulation", "pulse", "rrc_beta", "rrc_span", "symbols", "acq_code", "acq_reps", "data_code", "sync", "crc", "symbol_rate", "fs", NULL};
     const char *type = "tone";
     PyObject *freq = NULL;
     PyObject *snr = NULL;
@@ -287,6 +287,7 @@ Synth_init(SynthObject *self, PyObject *args, PyObject *kwds)
     PyObject *data_code = NULL;
     PyObject *sync = NULL;
     const char *crc = "crc16";
+    double symbol_rate = 0.0;
     double fs = 1e6;
     PyObject *_kw = kwds;
     int _kw_owned = 0;
@@ -355,8 +356,8 @@ Synth_init(SynthObject *self, PyObject *args, PyObject *kwds)
             }
         }
     }
-    if (!PyArg_ParseTupleAndKeywords(args, _kw, "|sOOsIiiKsOOOssdiOOnOOsd", kwlist,
-            &type, &freq, &snr, &snr_mode, &seed, &sps, &pn_length, &pn_poly, &lfsr, &level, &f_end, &bits, &modulation, &pulse, &rrc_beta, &rrc_span, &symbols, &acq_code, &acq_reps, &data_code, &sync, &crc, &fs)) {
+    if (!PyArg_ParseTupleAndKeywords(args, _kw, "|sOOsIiiKsOOOssdiOOnOOsdd", kwlist,
+            &type, &freq, &snr, &snr_mode, &seed, &sps, &pn_length, &pn_poly, &lfsr, &level, &f_end, &bits, &modulation, &pulse, &rrc_beta, &rrc_span, &symbols, &acq_code, &acq_reps, &data_code, &sync, &crc, &symbol_rate, &fs)) {
         if (_kw_owned) Py_DECREF(_kw);
         return -1;
     }
@@ -494,6 +495,7 @@ Synth_init(SynthObject *self, PyObject *args, PyObject *kwds)
         }
         self->src.crc = _i;
     }
+    self->src.symbol_rate = symbol_rate;
     return 0;
 }
 
@@ -900,6 +902,20 @@ Synth_set_crc(SynthObject *self, PyObject *value, void *closure)
     return 0;
 }
 static PyObject *
+Synth_get_symbol_rate(SynthObject *self, void *closure)
+{
+    (void)closure;
+    return PyFloat_FromDouble((double)self->src.symbol_rate);
+}
+static int
+Synth_set_symbol_rate(SynthObject *self, PyObject *value, void *closure)
+{
+    (void)closure;
+    self->src.symbol_rate = (double)PyFloat_AsDouble(value);
+    if (PyErr_Occurred()) return -1;
+    return 0;
+}
+static PyObject *
 Synth_get_fs(SynthObject *self, void *closure)
 {
     (void)closure;
@@ -937,6 +953,7 @@ static PyGetSetDef Synth_getset[] = {
     {"data_code", (getter)Synth_get_data_code, (setter)Synth_set_data_code, NULL, NULL},
     {"sync", (getter)Synth_get_sync, (setter)Synth_set_sync, NULL, NULL},
     {"crc", (getter)Synth_get_crc, (setter)Synth_set_crc, NULL, NULL},
+    {"symbol_rate", (getter)Synth_get_symbol_rate, (setter)Synth_set_symbol_rate, NULL, NULL},
     {"fs", (getter)Synth_get_fs, (setter)Synth_set_fs, NULL, NULL},
     {NULL, NULL, NULL, NULL, NULL}
 };
@@ -1703,6 +1720,17 @@ Segment_flat_crc(SegmentObject *self, void *closure)
     }
     return PyObject_GetAttrString(PyList_GET_ITEM(self->sources, 0), "crc");
 }
+static PyObject *
+Segment_flat_symbol_rate(SegmentObject *self, void *closure)
+{
+    (void)closure;
+    if (PyList_GET_SIZE(self->sources) != 1) {
+        PyErr_SetString(PyExc_AttributeError,
+                        "symbol_rate is only on a single-source Segment");
+        return NULL;
+    }
+    return PyObject_GetAttrString(PyList_GET_ITEM(self->sources, 0), "symbol_rate");
+}
 
 static PyObject *
 Segment_add(SegmentObject *self, PyObject *args)
@@ -1755,6 +1783,7 @@ static PyGetSetDef Segment_getset[] = {
     {"data_code", (getter)Segment_flat_data_code, NULL, NULL, NULL},
     {"sync", (getter)Segment_flat_sync, NULL, NULL, NULL},
     {"crc", (getter)Segment_flat_crc, NULL, NULL, NULL},
+    {"symbol_rate", (getter)Segment_flat_symbol_rate, NULL, NULL, NULL},
     {NULL, NULL, NULL, NULL, NULL}
 };
 
@@ -2480,7 +2509,7 @@ _Composer_obj_to_dict(PyObject *o, const char *const *keys)
 }
 
 static const char *const _Composer_seg_keys[] = { "fs", "num_samples", "off_samples", "repeats", "delay_samples", "gap_noise", NULL };
-static const char *const _Composer_src_keys[] = { "type", "freq", "snr", "snr_mode", "seed", "sps", "pn_length", "pn_poly", "lfsr", "level", "f_end", "bits", "modulation", "pulse", "rrc_beta", "rrc_span", "symbols", "acq_code", "acq_reps", "data_code", "sync", "crc", NULL };
+static const char *const _Composer_src_keys[] = { "type", "freq", "snr", "snr_mode", "seed", "sps", "pn_length", "pn_poly", "lfsr", "level", "f_end", "bits", "modulation", "pulse", "rrc_beta", "rrc_span", "symbols", "acq_code", "acq_reps", "data_code", "sync", "crc", "symbol_rate", NULL };
 
 static PyObject *
 Composer_to_dict(ComposerObject *self, PyObject *Py_UNUSED(ignored))

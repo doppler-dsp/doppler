@@ -203,6 +203,21 @@ def _make_dsss_engine() -> Any:
     return e
 
 
+def _make_dsss_cont_engine() -> Any:
+    """A type=dsss synth in CONTINUOUS mode, prbs data (noisy, so the AWGN
+    child rides the blob). The code + chips_per_symbol are config (rebuilt by
+    set_dsss_cont); the running fields the split must carry are the chip/symbol
+    clocks (chip_n, sym_idx, cur_data) AND the PN child that supplies the data.
+    chips_per_symbol is non-integer -- the asynchronicity -- so symbol edges
+    fall mid-code-epoch across the resume point."""
+    e = _SynthEngine(
+        type="dsss", fs=1.0, freq=0.0, snr=-3.0, snr_mode="fs", seed=5, sps=2
+    )
+    rng = np.random.default_rng(3)
+    e.set_dsss_cont(rng.integers(0, 2, 31, dtype=np.uint8), 12.7, data="prbs")
+    return e
+
+
 CASES: dict[str, tuple[Callable[[], Any], _Feed]] = {
     "LO": (lambda: LO(0.05), lambda o, seg: np.array(o.steps(len(seg)))),
     "CIC": (lambda: CIC(4), lambda o, seg: np.array(o.decimate(seg))),
@@ -398,6 +413,10 @@ CASES: dict[str, tuple[Callable[[], Any], _Feed]] = {
     ),
     "_SynthEngine[dsss]": (
         _make_dsss_engine,
+        _blob_after(lambda o, seg: o.steps(len(seg))),
+    ),
+    "_SynthEngine[dsss-continuous]": (
+        _make_dsss_cont_engine,
         _blob_after(lambda o, seg: o.steps(len(seg))),
     ),
     # PSDMF frequency refinement -- resumable state is the composed psd +

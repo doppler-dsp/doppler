@@ -7,11 +7,11 @@
  * The production C port of the validated Python prototype's own
  * search -> refine -> track pipeline
  * (`prototypes/async_despreader/{despreader_coupled,freq_refine,
- * e2e_acq_to_despreader}.py`), designed to close task #99's 4-5dB Es/N0
- * pull-in cliff. See `~/.claude/plans/crystalline-knitting-hopper.md` for
- * the full design rationale. Unlike `DsssReceiver` (which goes straight
- * from an acquisition hit to tracking with the hit's own coarse Doppler
- * estimate), this object inserts a REFINING stage between the two:
+ * e2e_acq_to_despreader}.py`). Unlike `DsssReceiver` (which goes
+ * straight from an acquisition hit to tracking with the hit's own
+ * coarse Doppler estimate), this object inserts a REFINING stage
+ * between the two, closing a low-Es/N0 pull-in gap the coarse-only
+ * estimate leaves at large static Doppler offsets:
  *
  *   - **searching** (`get_tracking() == 0 && get_refining() == 0`):
  *     samples feed the embedded `Acquisition`. On a hit,

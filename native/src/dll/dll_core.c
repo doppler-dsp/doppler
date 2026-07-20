@@ -55,20 +55,20 @@ static void
 seed (dll_state_t *s)
 {
   s->code_nco.phase = nco_norm_to_inc (s->seed_chip / (double)s->sf);
-  s->code_nco.phase_inc = nco_norm_to_inc (
-      1.0 / ((double)s->sf * (double)s->sps));
+  s->code_nco.phase_inc
+      = nco_norm_to_inc (1.0 / ((double)s->sf * (double)s->sps));
   s->code_nco.norm_freq = 1.0 / ((double)s->sf * (double)s->sps);
   s->code_nco.nmax      = 0;
-  s->chip_pos        = s->seed_chip;
-  s->code_rate       = 1.0;
-  s->acc_e           = 0.0f;
-  s->acc_p           = 0.0f;
-  s->acc_l           = 0.0f;
-  s->acc_o           = 0.0f;
-  s->last_error      = 0.0;
-  s->seg_idx         = 0;
-  s->have_prev_epoch = 0;
-  s->rng        = 0x2545F491u ^ (uint32_t)s->sf; /* deterministic seed */
+  s->chip_pos           = s->seed_chip;
+  s->code_rate          = 1.0;
+  s->acc_e              = 0.0f;
+  s->acc_p              = 0.0f;
+  s->acc_l              = 0.0f;
+  s->acc_o              = 0.0f;
+  s->last_error         = 0.0;
+  s->seg_idx            = 0;
+  s->have_prev_epoch    = 0;
+  s->rng = 0x2545F491u ^ (uint32_t)s->sf; /* deterministic seed */
   draw_offset (s);
   /* Clear the lock detector's running state; keep its config (threshold/
      n_looks/alpha) so reset() re-seeds the loop without re-tuning the
@@ -148,9 +148,9 @@ static void
 configure_geometry (dll_state_t *s, size_t code_len, size_t sps,
                     double init_chip, double bn, double zeta, double spacing)
 {
-  s->sf        = code_len ? code_len : 1;
-  s->sps       = sps ? sps : 1;
-  s->inv_sps   = 1.0 / (double)s->sps;
+  s->sf      = code_len ? code_len : 1;
+  s->sps     = sps ? sps : 1;
+  s->inv_sps = 1.0 / (double)s->sps;
   /* sf/sps are create-time invariants (no setter changes them after
      this), so their reciprocals are computed exactly once, here --
      never re-derived (let alone divided) in the tracking loop's
@@ -160,10 +160,10 @@ configure_geometry (dll_state_t *s, size_t code_len, size_t sps,
   s->inv_tsamps    = 1.0 / tsamps;
   s->inv_tsamps2   = s->inv_tsamps * s->inv_tsamps;
   s->inv_tsamps_sf = s->inv_tsamps / (double)s->sf;
-  s->spacing   = spacing;
-  s->seed_chip = init_chip;
-  s->bn        = bn;
-  s->zeta      = zeta;
+  s->spacing       = spacing;
+  s->seed_chip     = init_chip;
+  s->bn            = bn;
+  s->zeta          = zeta;
   /* The offset (noise) tap must clear the prompt/early/late lobe: early and
      late sit `spacing` chips out, so guard a couple chips beyond that. */
   s->noise_guard = spacing + 2.0;
@@ -213,13 +213,13 @@ dll_init (dll_state_t *s, const uint8_t *code, size_t code_len, size_t sps,
 static int
 alloc_segment_buffers (dll_state_t *s, size_t segments)
 {
-  s->chunk_p          = calloc (segments, sizeof (*s->chunk_p));
-  s->chunk_e          = calloc (segments, sizeof (*s->chunk_e));
-  s->chunk_l          = calloc (segments, sizeof (*s->chunk_l));
-  s->sums             = calloc (segments, sizeof (*s->sums));
-  s->last_backward_p  = calloc (segments, sizeof (*s->last_backward_p));
-  s->last_e           = calloc (segments, sizeof (*s->last_e));
-  s->last_l           = calloc (segments, sizeof (*s->last_l));
+  s->chunk_p         = calloc (segments, sizeof (*s->chunk_p));
+  s->chunk_e         = calloc (segments, sizeof (*s->chunk_e));
+  s->chunk_l         = calloc (segments, sizeof (*s->chunk_l));
+  s->sums            = calloc (segments, sizeof (*s->sums));
+  s->last_backward_p = calloc (segments, sizeof (*s->last_backward_p));
+  s->last_e          = calloc (segments, sizeof (*s->last_e));
+  s->last_l          = calloc (segments, sizeof (*s->last_l));
   return s->chunk_p && s->chunk_e && s->chunk_l && s->sums
          && s->last_backward_p && s->last_e && s->last_l;
 }
@@ -359,9 +359,7 @@ dll_tlm_flush (const dll_state_t *s)
 size_t
 dll_state_bytes (const dll_state_t *s)
 {
-  size_t extra = s->segments > 1
-                     ? 6 * s->segments * sizeof (*s->chunk_p)
-                     : 0;
+  size_t extra = s->segments > 1 ? 6 * s->segments * sizeof (*s->chunk_p) : 0;
   return sizeof (dp_state_hdr_t) + sizeof (dll_state_t) + extra;
 }
 
@@ -413,18 +411,18 @@ dll_set_state (dll_state_t *s, const void *blob)
   float complex *chunk_p = s->chunk_p, *chunk_e = s->chunk_e,
                 *chunk_l = s->chunk_l, *sums = s->sums;
   float complex *last_backward_p = s->last_backward_p, *last_e = s->last_e,
-                *last_l          = s->last_l;
+                *last_l = s->last_l;
   dp_r_bytes (&_r, s, sizeof *s);
-  s->code      = code;
-  s->owns_code = owns;
-  s->tlm       = tlm;
-  s->chunk_p = chunk_p;
-  s->chunk_e = chunk_e;
-  s->chunk_l = chunk_l;
-  s->sums    = sums;
+  s->code            = code;
+  s->owns_code       = owns;
+  s->tlm             = tlm;
+  s->chunk_p         = chunk_p;
+  s->chunk_e         = chunk_e;
+  s->chunk_l         = chunk_l;
+  s->sums            = sums;
   s->last_backward_p = last_backward_p;
-  s->last_e           = last_e;
-  s->last_l           = last_l;
+  s->last_e          = last_e;
+  s->last_l          = last_l;
   if (s->segments > 1)
     {
       size_t n = s->segments;
@@ -507,8 +505,8 @@ dll_steps_impl (dll_state_t *state, const float complex *x, size_t x_len,
      at `segments` samples/epoch, Python's `integrate_and_dump`) -- this
      is the actual despread symbol stream a composing receiver hands to
      its demodulator, NOT internal scratch, so it is never sign-adjusted
-     here (see the emit-block comment below for why an attempt to do
-     that was reverted). The lookback only supplies a clean power
+     here (see the emit-block comment below). The lookback only supplies
+     a clean power
      reference (for the discriminator's denominator and the output
      normalization, Python's `max_abs`) by comparing the natural window
      against candidates built from the previous epoch's tail -- never an
@@ -531,11 +529,10 @@ dll_steps_impl (dll_state_t *state, const float complex *x, size_t x_len,
           if (state->seg_idx >= w)
             break;
           int last_chunk = (state->seg_idx + 1 == w);
-          int ready
-              = last_chunk
-                    ? wrapped
-                    : (state->chip_pos
-                       >= (double)(state->seg_idx + 1) * state->seg_chips);
+          int ready = last_chunk
+                          ? wrapped
+                          : (state->chip_pos >= (double)(state->seg_idx + 1)
+                                                    * state->seg_chips);
           if (!ready)
             break;
           /* Per-chunk lock-detector look: unrelated to the lookback (the
@@ -548,10 +545,10 @@ dll_steps_impl (dll_state_t *state, const float complex *x, size_t x_len,
           state->chunk_p[state->seg_idx] = state->acc_p;
           state->chunk_e[state->seg_idx] = state->acc_e;
           state->chunk_l[state->seg_idx] = state->acc_l;
-          state->acc_e = 0.0f;
-          state->acc_p = 0.0f;
-          state->acc_l = 0.0f;
-          state->acc_o = 0.0f;
+          state->acc_e                   = 0.0f;
+          state->acc_p                   = 0.0f;
+          state->acc_l                   = 0.0f;
+          state->acc_o                   = 0.0f;
           state->seg_idx++;
           if (state->seg_idx == w)
             {
@@ -595,8 +592,7 @@ dll_steps_impl (dll_state_t *state, const float complex *x, size_t x_len,
                 for (size_t k = 0; k + 1 < w; k++)
                   {
                     float complex combined
-                        = state->sums[k]
-                          + state->last_backward_p[w - 2 - k];
+                        = state->sums[k] + state->last_backward_p[w - 2 - k];
                     double p = cabsf (combined) / tsamps;
                     if (p > best_abs)
                       {
@@ -669,33 +665,21 @@ dll_steps_impl (dll_state_t *state, const float complex *x, size_t x_len,
 
               /* Output: this epoch's own natural chunk sums, normalized by
                  the clean power reference found above -- never the
-                 lookback-shifted reconstruction, and NEVER sign-adjusted
-                 either (an earlier version of this fix applied the
-                 winning candidate's own sign uniformly to every chunk
-                 here -- reverted: `out[]` is not an internal scratch
-                 value, it is the actual despread symbol stream a
-                 composing receiver hands straight to its RateConverter/
-                 demodulator, e.g. dsss_receiver_core.c's own
-                 `_track_carrier_dll` -> `RateConverter_execute` call
-                 chain. Forcing one sign onto a whole epoch is exactly
-                 wrong there whenever the natural window genuinely
-                 straddles a data-bit transition -- the very case
-                 `best_widx != 0` exists to detect -- since the two
+                 lookback-shifted reconstruction, and never sign-adjusted
+                 either. `out[]` is not internal scratch: it is the
+                 actual despread symbol stream a composing receiver hands
+                 straight to its RateConverter/demodulator. Forcing one
+                 sign onto a whole epoch would be wrong whenever the
+                 natural window genuinely straddles a data-bit transition
+                 (the very case a nonzero `best_widx` detects) -- the two
                  halves of that epoch then carry two REAL, different data
-                 bits; overwriting both to the winning candidate's single
-                 sign silently corrupts one of them. Confirmed directly:
-                 doing this dropped `test_dsss_receiver.py::
-                 test_acquires_and_decodes` from a clean decode to
-                 ber=0.465, i.e. destroyed the payload. `best_val`'s sign
-                 is real, useful information -- see `_track_period`'s/
-                 `_carrier_update_from_partials`'s own per-partial
-                 sign-align, a data-WIPING step deliberately applied only
-                 to an internal carrier-tracking reference sum that is
-                 never handed onward as data -- but it belongs in a
-                 consumer's own derived reference, never baked into this
-                 primitive's actual output. */
+                 bits, and one epoch-wide sign would silently corrupt one
+                 of them. A carrier-tracking consumer that wants a
+                 data-wiped reference derives its own (see
+                 dsss_receiver_core.c's `_carrier_update_from_partials`)
+                 rather than this primitive baking one into its output. */
               double denom = best_abs > 0.0 ? state->seg_norm * best_abs
-                                             : state->seg_norm;
+                                            : state->seg_norm;
               for (size_t k = 0; k < w; k++)
                 if (emitted < max_out)
                   out[emitted++] = state->chunk_p[k] / (float)denom;

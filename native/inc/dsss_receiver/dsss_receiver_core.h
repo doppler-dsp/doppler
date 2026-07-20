@@ -27,8 +27,7 @@
  *     and its RATE OF CHANGE before the code loop ever sees it; a fixed/
  *     bounded residual alone is fine downstream-only, per
  *     `docs/design/async-symbol-despreader.md` §4, but an unbounded
- *     Doppler RATE is not -- see the module's own history in
- *     `project_dsss_acq_async_story` memory, CHECKPOINT 9/10), one code
+ *     Doppler RATE is not), one code
  *     period at a time (a small internal carry buffer holds any leftover
  *     partial-period tail across calls -- `steps()` still accepts any
  *     block size), then feed `Dll -> RateConverter -> MpskReceiver` in

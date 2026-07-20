@@ -56,20 +56,15 @@ _build_chain (double chip_rate, double symbol_rate, const uint8_t *code,
    * the FULL physical Doppler; by the time a wiped, despread, resampled
    * sample reaches MpskReceiver, only a small residual (that loop's own
    * steady-state/settling error) should remain. Seeding MpskReceiver's
-   * NCO with the SAME full doppler_hz_est again (an earlier version of
-   * this code did, re-evaluated at target_rate=sps*symbol_rate) is a
-   * double count that is merely negligible at small Doppler
-   * (doppler_hz_est/target_rate ~0) but catastrophic at large offsets:
-   * at 15000 Hz / 21600 Hz target_rate = 0.694 cycles/sample, past
-   * Nyquist -- the NCO can only represent frequency mod 1 cycle/sample,
-   * so this aliases to a real, wrong seed of ~-0.306 cycles/sample, far
-   * outside MpskReceiver's own carrier_nda loop's validated pull-in
-   * range (~0.01 cycles/sample, carrier_nda_pullin.c) -- confirmed as
-   * the direct cause of total lock failure on a real static-offset case
-   * (task #148), fixed here. */
-  mpsk_receiver_state_t *rx = mpsk_receiver_create (
-      m, sps, n, MPSK_RX_PULSE_IANDD, 0.35, 8, 0.01, 0.707, 0.01, 1, 0.3,
-      0.0, 30, differential);
+   * NCO with the SAME full doppler_hz_est again (evaluated at the much
+   * smaller target_rate=sps*symbol_rate) double-counts it -- negligible
+   * at small Doppler, but at large offsets it can alias past Nyquist
+   * (the NCO only represents frequency mod 1 cycle/sample), landing a
+   * wrong seed far outside MpskReceiver's own carrier_nda loop's
+   * validated pull-in range (~0.01 cycles/sample, carrier_nda_pullin.c). */
+  mpsk_receiver_state_t *rx
+      = mpsk_receiver_create (m, sps, n, MPSK_RX_PULSE_IANDD, 0.35, 8, 0.01,
+                              0.707, 0.01, 1, 0.3, 0.0, 30, differential);
   if (!rx)
     {
       RateConverter_destroy (rc);
@@ -84,10 +79,9 @@ _build_chain (double chip_rate, double symbol_rate, const uint8_t *code,
    * `bn_fll` are normalized to this update rate (loop_filter_init's own
    * per-update convention, costas_core.c), so `tsamps` here must match
    * the actual call cadence in _carrier_update_from_partials, not a
-   * finer per-segment interval (an earlier draft divided this by
-   * `segments` to match a since-reverted per-partial update cadence --
-   * that quadrupled the loop's real-time bandwidth at fixed `bn`, which
-   * measurably made tracking WORSE, not better; see FINISHING_PLAN.md). */
+   * finer per-segment interval: calling costas_update() once per
+   * partial instead would quadruple the loop's real-time bandwidth at
+   * a fixed `bn`, weakening tracking rather than speeding it up. */
   double front_end_rate = chip_rate * (double)spc;
   costas_init (car_out, DSSS_RX_BN_CARRIER, 0.707,
                doppler_hz_est / front_end_rate, code_len * spc,
@@ -145,10 +139,9 @@ _rebuild_chain (dsss_receiver_state_t *s, double chip_phase,
  * calibration, see _build_chain). dll_steps() emits `segments`-many
  * PARTIAL prompts per period, and a data-bit transition can land inside
  * the period -- at SPEC's own async ratio (periods/symbol ~= 1.111) this
- * happens in the large majority of periods, not as a rare edge case. A
- * bare coherent SUM of the raw partials (an earlier draft of this
- * function did exactly that) flips sign between partials straddling the
- * transition and self-cancels. The fix reuses the SAME technique
+ * happens in the large majority of periods, not as a rare edge case, so
+ * a bare coherent sum of the raw partials would flip sign across the
+ * transition and self-cancel. The fix reuses the SAME technique
  * costas_update()'s own bn_fll cross-product term already applies
  * between consecutive symbols ("both prompts are data-wiped [by their
  * own Re sign] so a BPSK bit flip ... does not corrupt the cross
@@ -157,29 +150,17 @@ _rebuild_chain (dsss_receiver_state_t *s, double chip_phase,
  * instead of cancelling it. Costas' phase/frequency discriminator only
  * cares about the sum's relative alignment to the carrier, not an
  * absolute data-bit reference, so this data-wiping is exactly as safe
- * here as it already is inside costas_update() itself (a per-partial
- * version of a trick this codebase already trusts, not a new one).
+ * here as it already is inside costas_update() itself.
  *
- * Confirmed load-bearing a THIRD time (task #151's investigation, after
- * two earlier re-confirmations recorded in project memory CHECKPOINT
- * 37): dll_steps()'s own segments>1 emit block was tried carrying the
- * winning lookback candidate's own coherent sign through to its OUTPUT
- * (chunk_p[]) instead of leaving this per-partial guess as the only sign
- * source. That output is not internal scratch -- it is the actual
- * despread symbol stream this object hands straight to RateConverter/
- * mpsk_receiver for demodulation (`_track_carrier_dll`'s own dll_out
- * buffer, read again here AND passed on to RateConverter_execute
- * unmodified). Applying one epoch-wide sign there directly corrupted
- * real data: `test_dsss_receiver.py::test_acquires_and_decodes` dropped
- * from a clean decode to ber=0.465, because a natural epoch straddling a
- * transition genuinely carries two different bits in its two halves --
- * exactly the case a shifted lookback candidate winning is meant to
- * detect -- and a single epoch sign silently overwrites one of them.
- * Reverted at the primitive; this per-partial decision-directed guess
- * remains the only sign source for THIS internal carrier-tracking sum, a
- * value that (unlike dll_steps()'s own output) is never handed onward as
- * data. A single (or all-zero-magnitude) partial degenerates harmlessly
- * to a plain pass-through / no-op sum. */
+ * This decision has to live here, in the consumer, not inside
+ * dll_steps() itself: `partials` (== `_track_carrier_dll`'s own dll_out)
+ * is the actual despread symbol stream this object also hands straight
+ * to RateConverter/mpsk_receiver, not scratch, and a natural period that
+ * straddles a transition genuinely carries two different data bits in
+ * its two halves -- no single sign is correct for the whole period
+ * there, so dll_core.c cannot make this call on its own output (see its
+ * segments>1 emit-block comment). A single (or all-zero-magnitude)
+ * partial degenerates harmlessly to a plain pass-through / no-op sum. */
 static void
 _carrier_update_from_partials (costas_state_t      *car,
                                const float complex *partials, size_t n)

@@ -8,7 +8,7 @@ sweep, and the auto-resolved SNR (Es/No for the modulated types).
 import numpy as np
 import pytest
 
-from doppler.wfm import Synth, bits, chirp, rrc_taps
+from doppler.wfm import PN, Synth, bits, chirp, mls_poly, rrc_taps
 
 
 def _inst_freq(x, fs):
@@ -44,6 +44,35 @@ def test_pn_is_maximal_length():
     chips = np.sign(p.real).astype(int)
     assert np.array_equal(chips[:127], chips[127:254])  # period 127
     assert int(np.sum(chips[:127] == -1)) == 64  # 64 ones / 63 zeros
+
+
+@pytest.mark.parametrize("length,seed", [(7, 1), (7, 42), (9, 7), (11, 3)])
+def test_synth_pn_matches_standalone_pn(length: int, seed: int) -> None:
+    """A ``type="pn"`` synth emits exactly the bits ``doppler.wfm.PN`` would.
+
+    This is the contract a receiver-side BER scorer depends on: the
+    transmitted data is a pure function of ``(pn_poly, seed, pn_length,
+    lfsr)``, so a receiver regenerates the identical truth with
+    ``PN(...).generate(n)`` rather than being handed a truth array. The
+    continuous-async DSSS ``prbs`` data mode draws its data bits from this same
+    LFSR, seeded with the source's own ``seed`` -- so if this invariant ever
+    breaks, every PRBS-mode BER measurement silently mis-scores. It was
+    untested until now.
+
+    The synth maps bit ``b`` to ``1 - 2b`` (0 -> +1, 1 -> -1); ``PN.generate``
+    returns the raw 0/1 bits, and ``poly=0`` auto-selects the same
+    ``mls_poly(length)`` the synth uses.
+    """
+    n = 300
+    syn = np.asarray(
+        Synth(type="pn", pn_length=length, seed=seed, sps=1, snr=100).steps(n)
+    )
+    # Both spellings of the code a receiver might use.
+    for poly in (0, mls_poly(length)):
+        truth = np.asarray(PN(poly=poly, seed=seed, length=length).generate(n))
+        assert np.array_equal(
+            np.sign(syn.real).astype(int), 1 - 2 * truth.astype(int)
+        ), f"synth PN diverged from PN(poly={poly})"
 
 
 def test_pn_fibonacci_differs_from_galois():

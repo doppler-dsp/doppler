@@ -11,22 +11,27 @@ if (state->wtype == WFM_SYNTH_BITS || state->wtype == WFM_SYNTH_DSSS) {
      * symbol latch mirrors the PN path but sources bits from bits[bit_idx]
      * instead of the LFSR; bit_mod picks the mapping. A dsss burst is the
      * same machinery over the chip pattern set_dsss() assembled. */
-    if (state->sym_pos == 0 && state->bits && state->n_bits) {
-        if (state->bit_mod == 2) { /* qpsk: 2 bits/symbol, Gray-mapped */
-            uint8_t b0 = state->bits[state->bit_idx];
-            uint8_t b1 = state->bits[(state->bit_idx + 1) % state->n_bits];
-            const float s = 0.70710678118654752f;
-            state->cur_re = b0 ? -s : s;
-            state->cur_im = b1 ? -s : s;
-            state->bit_idx = (state->bit_idx + 2) % state->n_bits;
-        } else if (state->bit_mod == 1) { /* bpsk: 0->+1, 1->-1 */
-            state->cur_re = state->bits[state->bit_idx] ? -1.0f : 1.0f;
+    if (state->sym_pos == 0) {
+        if (state->chips_per_symbol > 0.0) { /* continuous DSSS: lazy chip */
+            state->cur_re = wfm_synth_cont_dsss_chip(state);
             state->cur_im = 0.0f;
-            state->bit_idx = (state->bit_idx + 1) % state->n_bits;
-        } else { /* none: unmodulated 0/1 amplitude */
-            state->cur_re = state->bits[state->bit_idx] ? 1.0f : 0.0f;
-            state->cur_im = 0.0f;
-            state->bit_idx = (state->bit_idx + 1) % state->n_bits;
+        } else if (state->bits && state->n_bits) {
+            if (state->bit_mod == 2) { /* qpsk: 2 bits/symbol, Gray-mapped */
+                uint8_t b0 = state->bits[state->bit_idx];
+                uint8_t b1 = state->bits[(state->bit_idx + 1) % state->n_bits];
+                const float s = 0.70710678118654752f;
+                state->cur_re = b0 ? -s : s;
+                state->cur_im = b1 ? -s : s;
+                state->bit_idx = (state->bit_idx + 2) % state->n_bits;
+            } else if (state->bit_mod == 1) { /* bpsk: 0->+1, 1->-1 */
+                state->cur_re = state->bits[state->bit_idx] ? -1.0f : 1.0f;
+                state->cur_im = 0.0f;
+                state->bit_idx = (state->bit_idx + 1) % state->n_bits;
+            } else { /* none: unmodulated 0/1 amplitude */
+                state->cur_re = state->bits[state->bit_idx] ? 1.0f : 0.0f;
+                state->cur_im = 0.0f;
+                state->bit_idx = (state->bit_idx + 1) % state->n_bits;
+            }
         }
     }
     if (state->fir) {

@@ -38,7 +38,18 @@ enum {
     WFM_SYNTH_SYMBOLS
     = 7,                /* user complex-symbol stream, oversampled + cycled */
     WFM_SYNTH_DSSS = 8, /* two-code DSSS burst: repeated preamble +
-                           spread frame, built by wfm_synth_set_dsss() */
+                           spread frame, built by wfm_synth_set_dsss();
+                           OR a continuous asynchronous stream when a
+                           symbol_rate is supplied (wfm_synth_set_dsss_cont).
+                           The two modes share this one type — a symbol_rate
+                           discriminates, no tenth waveform type. */
+};
+
+/** Continuous-DSSS data-symbol source (wfm_synth_set_dsss_cont's data_mode). */
+enum {
+    WFM_DSSS_DATA_NONE = 0, /* code-only: constant bit 0 -> the pure code    */
+    WFM_DSSS_DATA_BITS = 1, /* a caller payload array, cycled mod n_bits      */
+    WFM_DSSS_DATA_PRBS = 2, /* bits from the seeded PN LFSR (regenerable)     */
 };
 
 /* snr >= this (dB) means "clean": no AWGN is generated at all (the common case
@@ -148,11 +159,57 @@ typedef struct {
     float _Complex * symbols;
     size_t n_symbols;
     size_t sym_read_idx;
+    /* continuous asynchronous DSSS (type=dsss + symbol_rate > 0):
+       chips_per_symbol == 0 means burst mode (the fields below are unused). */
+    double chips_per_symbol; /* config: chip_rate / symbol_rate (non-integer) */
+    uint8_t * code;          /* config: spreading code (0/1), owned          */
+    size_t n_code;           /* config: spreading code length in chips        */
+    int data_mode;           /* config: WFM_DSSS_DATA_{NONE,BITS,PRBS}        */
+    uint64_t chip_n;         /* running: chips emitted so far                 */
+    uint64_t sym_idx;        /* running: current data-symbol index            */
+    uint8_t cur_data;        /* running: data bit latched for this symbol      */
     fir_state_t * fir;
     lo_state_t * lo;
     awgn_state_t * awgn;
     pn_state_t * pn;
 } wfm_synth_state_t;
+
+/**
+ * @brief One continuous-DSSS chip: `code[n % n_code] ^ data`, as a BPSK sign.
+ *
+ * The per-chip kernel shared by `wfm_synth_step` and `wfm_synth_steps` (and the
+ * manifest `impl`), so the single-sample and block paths cannot diverge — they
+ * call the SAME function rather than each inlining the arithmetic. Advances the
+ * code clock (`n % n_code`) and the INDEPENDENT symbol clock (`floor(n /
+ * chips_per_symbol)`) off one running chip counter; at each symbol boundary it
+ * refreshes the data bit from the configured source (constant 0 for code-only,
+ * the cycled payload, or the next PN bit). Non-integer `chips_per_symbol` is
+ * what makes symbol edges land mid-epoch — the asynchronicity.
+ *
+ * Requires `chips_per_symbol >= 1` (chip rate >= symbol rate, always true for a
+ * real DSSS waveform), so the symbol index advances by 0 or 1 per chip and the
+ * PN is never asked to skip.
+ */
+JM_FORCEINLINE float
+wfm_synth_cont_dsss_chip(wfm_synth_state_t *s)
+{
+    uint64_t n   = s->chip_n;
+    uint64_t sym = (uint64_t)((double)n / s->chips_per_symbol);
+    if (n == 0 || sym != s->sym_idx) {
+        s->sym_idx = sym;
+        if (s->data_mode == WFM_DSSS_DATA_PRBS)
+            s->cur_data = s->pn ? pn_step(s->pn) : 0u;
+        else if (s->data_mode == WFM_DSSS_DATA_BITS)
+            s->cur_data = (s->bits && s->n_bits)
+                              ? (uint8_t)(s->bits[sym % s->n_bits] & 1u)
+                              : 0u;
+        else
+            s->cur_data = 0u; /* code-only: the pure code, +code polarity */
+    }
+    uint8_t code_bit = (uint8_t)(s->code[n % s->n_code] & 1u);
+    s->chip_n        = n + 1;
+    return (code_bit ^ s->cur_data) ? -1.0f : 1.0f;
+}
 
 /**
  * @brief Allocate and configure a waveform synthesiser.
@@ -293,6 +350,43 @@ int wfm_synth_set_dsss(wfm_synth_state_t *state, const uint8_t *acq_code,
                        const uint8_t *payload, size_t payload_len, int crc);
 
 /**
+ * @brief Configure a type=dsss synth for CONTINUOUS ASYNCHRONOUS generation.
+ *
+ * The continuous counterpart to wfm_synth_set_dsss(): the same `type="dsss"`
+ * waveform, switched to the endless mode by supplying `chips_per_symbol` (=
+ * `chip_rate / symbol_rate`). One waveform type, one discriminator — no tenth
+ * entry in the five hand-maintained name tables `wfm_names.h` records rotting
+ * once already.
+ *
+ * **Lazy, not materialised.** Chips are generated per sample by
+ * `wfm_synth_cont_dsss_chip` off a running counter, so the stream is genuinely
+ * endless — there is no pattern length to pick and the standalone `Synth` face
+ * works unbounded. The data-symbol source is chosen by @p data_mode:
+ *   - `WFM_DSSS_DATA_NONE` — code-only: the pure spreading code, no data.
+ *   - `WFM_DSSS_DATA_BITS` — @p data, cycled mod @p n_data (caller holds it).
+ *   - `WFM_DSSS_DATA_PRBS` — the synth's own seeded PN (create it in create();
+ *     a receiver regenerates the bits via `doppler.wfm.PN`).
+ *
+ * The burst frame parameters have no meaning here (no preamble, sync, or CRC);
+ * the caller rejects that combination upstream rather than ignoring it (see
+ * wfmgen's `--symbol-rate` validation), so this function does not revisit it.
+ *
+ * @param state       Synth (no-op unless `wtype == WFM_SYNTH_DSSS`).
+ * @param code        Spreading code chips (0/1), length @p code_len; copied.
+ * @param code_len    Spreading code length in chips (> 0) — the SF.
+ * @param chips_per_symbol  Chips per data symbol (>= 1), `chip_rate /
+ *                    symbol_rate`. Non-integer is the normal, asynchronous case.
+ * @param data_mode   WFM_DSSS_DATA_{NONE,BITS,PRBS}.
+ * @param data        Payload bits (0/1) for WFM_DSSS_DATA_BITS, length
+ *                    @p n_data; copied. Ignored (may be NULL) otherwise.
+ * @param n_data      Payload length in bits (> 0 for WFM_DSSS_DATA_BITS).
+ * @return 0 on success; -1 on invalid geometry or allocation failure.
+ */
+int wfm_synth_set_dsss_cont(wfm_synth_state_t *state, const uint8_t *code,
+                            size_t code_len, double chips_per_symbol,
+                            int data_mode, const uint8_t *data, size_t n_data);
+
+/**
  * @brief Attach a complex-symbol stream to a type=symbols synth (no-op else).
  *
  * Copies @p n complex symbols into the synth. Each symbol **is** the
@@ -421,22 +515,27 @@ wfm_synth_step(wfm_synth_state_t *state)
          * symbol latch mirrors the PN path but sources bits from bits[bit_idx]
          * instead of the LFSR; bit_mod picks the mapping. A dsss burst is the
          * same machinery over the chip pattern set_dsss() assembled. */
-        if (state->sym_pos == 0 && state->bits && state->n_bits) {
-            if (state->bit_mod == 2) { /* qpsk: 2 bits/symbol, Gray-mapped */
-                uint8_t b0 = state->bits[state->bit_idx];
-                uint8_t b1 = state->bits[(state->bit_idx + 1) % state->n_bits];
-                const float s = 0.70710678118654752f;
-                state->cur_re = b0 ? -s : s;
-                state->cur_im = b1 ? -s : s;
-                state->bit_idx = (state->bit_idx + 2) % state->n_bits;
-            } else if (state->bit_mod == 1) { /* bpsk: 0->+1, 1->-1 */
-                state->cur_re = state->bits[state->bit_idx] ? -1.0f : 1.0f;
+        if (state->sym_pos == 0) {
+            if (state->chips_per_symbol > 0.0) { /* continuous DSSS: lazy chip */
+                state->cur_re = wfm_synth_cont_dsss_chip(state);
                 state->cur_im = 0.0f;
-                state->bit_idx = (state->bit_idx + 1) % state->n_bits;
-            } else { /* none: unmodulated 0/1 amplitude */
-                state->cur_re = state->bits[state->bit_idx] ? 1.0f : 0.0f;
-                state->cur_im = 0.0f;
-                state->bit_idx = (state->bit_idx + 1) % state->n_bits;
+            } else if (state->bits && state->n_bits) {
+                if (state->bit_mod == 2) { /* qpsk: 2 bits/symbol, Gray-mapped */
+                    uint8_t b0 = state->bits[state->bit_idx];
+                    uint8_t b1 = state->bits[(state->bit_idx + 1) % state->n_bits];
+                    const float s = 0.70710678118654752f;
+                    state->cur_re = b0 ? -s : s;
+                    state->cur_im = b1 ? -s : s;
+                    state->bit_idx = (state->bit_idx + 2) % state->n_bits;
+                } else if (state->bit_mod == 1) { /* bpsk: 0->+1, 1->-1 */
+                    state->cur_re = state->bits[state->bit_idx] ? -1.0f : 1.0f;
+                    state->cur_im = 0.0f;
+                    state->bit_idx = (state->bit_idx + 1) % state->n_bits;
+                } else { /* none: unmodulated 0/1 amplitude */
+                    state->cur_re = state->bits[state->bit_idx] ? 1.0f : 0.0f;
+                    state->cur_im = 0.0f;
+                    state->bit_idx = (state->bit_idx + 1) % state->n_bits;
+                }
             }
         }
         if (state->fir) {
@@ -662,7 +761,7 @@ void wfm_synth_set_cur_im(wfm_synth_state_t *state, float val);
  * composition of optional fir/lo/awgn/pn children (presence-flagged) +
  * running waveform-position scalars; bits/config restored by create. */
 #define WFM_SYNTH_STATE_MAGIC DP_FOURCC ('W','F','M','S')
-#define WFM_SYNTH_STATE_VERSION 1u
+#define WFM_SYNTH_STATE_VERSION 2u /* v2: + continuous-DSSS chip/symbol clocks */
 size_t wfm_synth_state_bytes (const wfm_synth_state_t *state);
 void wfm_synth_get_state (const wfm_synth_state_t *state, void *blob);
 int wfm_synth_set_state (wfm_synth_state_t *state, const void *blob);

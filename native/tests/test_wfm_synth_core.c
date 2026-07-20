@@ -477,6 +477,133 @@ main (void)
     wfm_synth_destroy (b);
   }
 
+  /* continuous asynchronous dsss: the lazy per-sample generator (no
+   * materialised burst). Covers all three data modes, the step()==steps()
+   * byte-identity the shared kernel guarantees, a mid-stream resume that
+   * carries the running chip/symbol clocks (and the PN child for prbs), and
+   * the geometry rejects. chips_per_symbol = (fs/spc)/symbol_rate is
+   * deliberately non-integer ((1e6/2)/2100 = 238.095), the asynchronicity. */
+  {
+    const size_t sf = 31, spc = 2;
+    const double fs = 1e6, cps = (fs / (double)spc) / 2100.0;
+    uint8_t      code[31];
+    for (size_t i = 0; i < sf; i++)
+      code[i] = (uint8_t)((i * 7 + 1) & 1u);
+    const uint8_t pay[5] = { 1, 0, 1, 1, 0 };
+    const int     modes[3]
+        = { WFM_DSSS_DATA_NONE, WFM_DSSS_DATA_BITS, WFM_DSSS_DATA_PRBS };
+
+    for (int mi = 0; mi < 3; mi++)
+      {
+        int                mode = modes[mi];
+        wfm_synth_state_t *a = wfm_synth_create (WFM_SYNTH_DSSS, fs, 0.0, 3.0,
+                                                 1, 9, (int)spc, 7, 0, 0, 0.0);
+        wfm_synth_state_t *b = wfm_synth_create (WFM_SYNTH_DSSS, fs, 0.0, 3.0,
+                                                 1, 9, (int)spc, 7, 0, 0, 0.0);
+        CHECK (a != NULL && b != NULL);
+        const uint8_t *d  = (mode == WFM_DSSS_DATA_BITS) ? pay : NULL;
+        size_t         nd = (mode == WFM_DSSS_DATA_BITS) ? 5 : 0;
+        CHECK (wfm_synth_set_dsss_cont (a, code, sf, cps, mode, d, nd) == 0);
+        CHECK (wfm_synth_set_dsss_cont (b, code, sf, cps, mode, d, nd) == 0);
+
+        /* step() and steps() must agree bit-for-bit (shared chip kernel). */
+        float complex blk[600];
+        wfm_synth_steps (a, blk, 600);
+        int idn = 1;
+        for (int i = 0; i < 600; i++)
+          if (wfm_synth_step (b) != blk[i])
+            {
+              idn = 0;
+              break;
+            }
+        CHECK (idn); /* step()==steps() for this data mode */
+
+        /* mid-stream resume: a's state -> a fresh c, then both run on and the
+         * outputs coincide (noisy, so the AWGN child rides too; prbs also
+         * carries the PN child across the split). */
+        wfm_synth_reset (a);
+        float complex ref[600], part[250], cont[350];
+        wfm_synth_steps (a, ref, 600);
+        wfm_synth_reset (a);
+        wfm_synth_steps (a, part, 250);
+        size_t nb   = wfm_synth_state_bytes (a);
+        void  *blob = malloc (nb);
+        wfm_synth_get_state (a, blob);
+        wfm_synth_state_t *c = wfm_synth_create (WFM_SYNTH_DSSS, fs, 0.0, 3.0,
+                                                 1, 9, (int)spc, 7, 0, 0, 0.0);
+        CHECK (wfm_synth_set_dsss_cont (c, code, sf, cps, mode, d, nd) == 0);
+        CHECK (wfm_synth_set_state (c, blob) == 0);
+        wfm_synth_steps (c, cont, 350);
+        int ok = 1;
+        for (int i = 0; i < 250; i++)
+          if (part[i] != ref[i])
+            ok = 0;
+        for (int i = 0; i < 350; i++)
+          if (cont[i] != ref[250 + i])
+            ok = 0;
+        CHECK (ok); /* part ++ cont == ref across the split */
+        ((uint8_t *)blob)[0] ^= 0xFFu; /* envelope reject */
+        CHECK (wfm_synth_set_state (c, blob) == DP_ERR_INVALID);
+        free (blob);
+        wfm_synth_destroy (a);
+        wfm_synth_destroy (b);
+        wfm_synth_destroy (c);
+      }
+
+    /* code-only emits the pure code at nominal polarity (+code): chip k,
+     * sampled at its chip-start, is code[k] ? -1 : +1. */
+    {
+      wfm_synth_state_t *a = wfm_synth_create (WFM_SYNTH_DSSS, fs, 0.0, 100.0,
+                                               0, 9, (int)spc, 7, 0, 0, 0.0);
+      CHECK (wfm_synth_set_dsss_cont (a, code, sf, cps, WFM_DSSS_DATA_NONE,
+                                      NULL, 0)
+             == 0);
+      float complex blk[sf * spc];
+      wfm_synth_steps (a, blk, sf * spc);
+      int ok = 1;
+      for (size_t k = 0; k < sf; k++)
+        {
+          float want = code[k] ? -1.0f : 1.0f;
+          if (crealf (blk[k * spc]) != want)
+            ok = 0;
+        }
+      CHECK (ok); /* code-only == +code */
+      wfm_synth_destroy (a);
+    }
+
+    /* geometry rejects: no code; cps < 1; prbs with a bad pn_length (no PN);
+     * BITS with no payload; no-op on a non-dsss synth. */
+    {
+      wfm_synth_state_t *a = wfm_synth_create (WFM_SYNTH_DSSS, fs, 0.0, 100.0,
+                                               0, 9, (int)spc, 7, 0, 0, 0.0);
+      CHECK (wfm_synth_set_dsss_cont (a, NULL, 0, cps, WFM_DSSS_DATA_NONE,
+                                      NULL, 0)
+             == -1);
+      CHECK (wfm_synth_set_dsss_cont (a, code, sf, 0.5, WFM_DSSS_DATA_NONE,
+                                      NULL, 0)
+             == -1); /* cps < 1 */
+      CHECK (wfm_synth_set_dsss_cont (a, code, sf, cps, WFM_DSSS_DATA_BITS,
+                                      NULL, 0)
+             == -1); /* BITS without payload */
+      wfm_synth_destroy (a);
+      /* prbs with an out-of-table pn_length leaves the PN NULL -> reject. */
+      wfm_synth_state_t *bad = wfm_synth_create (
+          WFM_SYNTH_DSSS, fs, 0.0, 100.0, 0, 9, (int)spc, 99, 0, 0, 0.0);
+      CHECK (bad != NULL); /* burst dsss still builds over a bad pn_length */
+      CHECK (bad->pn == NULL);
+      CHECK (wfm_synth_set_dsss_cont (bad, code, sf, cps, WFM_DSSS_DATA_PRBS,
+                                      NULL, 0)
+             == -1);
+      wfm_synth_destroy (bad);
+      wfm_synth_state_t *tn = wfm_synth_create (WFM_SYNTH_TONE, fs, 0.0, 100.0,
+                                                0, 1, 1, 7, 0, 0, 0.0);
+      CHECK (wfm_synth_set_dsss_cont (tn, code, sf, cps, WFM_DSSS_DATA_NONE,
+                                      NULL, 0)
+             == 0); /* no-op for other types */
+      wfm_synth_destroy (tn);
+    }
+  }
+
   /* the serialization sections above also count via CHECK — fail if any
    * tripped (the early _fails gate only covered the pre-state sections). */
   if (_fails)

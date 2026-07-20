@@ -65,6 +65,28 @@ wfm_dsss_spread (const float _Complex *syms, size_t n_sym, const uint8_t *code,
 }
 
 size_t
+wfm_cont_dsss_chips (const uint8_t *code, size_t code_len, const uint8_t *data,
+                     size_t n_data, double chips_per_symbol, size_t n_chips,
+                     uint8_t *out)
+{
+  if (!code || code_len == 0 || !data || n_data == 0
+      || !(chips_per_symbol > 0.0) || n_chips == 0)
+    return 0;
+  /* Both clocks advance off the same chip index, independently: the code by
+     integer modulo, the data by a floor of a FRACTIONAL quotient.  That floor
+     is the whole point -- it is what puts symbol boundaries inside code
+     epochs and makes consecutive symbols span different chip counts. */
+  for (size_t i = 0; i < n_chips; i++)
+    {
+      size_t  ci = i % code_len;
+      size_t  si = (size_t)((double)i / chips_per_symbol);
+      uint8_t b  = data[si % n_data] & 1u;
+      out[i]     = (uint8_t)((code[ci] & 1u) ^ b);
+    }
+  return n_chips;
+}
+
+size_t
 wfm_frame_dsss_nchips (size_t acq_len, size_t acq_reps, size_t data_len,
                        size_t sync_len, size_t payload_len, int crc)
 {

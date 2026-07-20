@@ -112,6 +112,57 @@ size_t wfm_frame_dsss_chips(const uint8_t *acq_code, size_t acq_len,
                             size_t sync_len, const uint8_t *payload,
                             size_t payload_len, int crc, uint8_t *out);
 
+/**
+ * @brief Chip count for `wfm_cont_dsss_chips`: exactly @p n_chips.
+ *
+ * Trivial, but present so the two continuous entry points mirror the burst
+ * pair (`wfm_frame_dsss_nchips` / `wfm_frame_dsss_chips`) and callers size
+ * their buffer through a named function rather than an open-coded expression.
+ */
+static inline size_t
+wfm_cont_dsss_nchips(size_t n_chips)
+{
+    return n_chips;
+}
+
+/**
+ * @brief Build a CONTINUOUS, ASYNCHRONOUS DSSS chip pattern.
+ *
+ * The continuous counterpart to `wfm_frame_dsss_chips`. Two differences, both
+ * required by a continuously-transmitting spread carrier (CCSDS command-link
+ * style) rather than a bounded burst:
+ *
+ *  - **Continuous**: no preamble, no sync word, no CRC. The spreading code
+ *    repeats end to end and data rides on it the whole way.
+ *  - **Asynchronous**: the data-symbol clock is independent of the code epoch,
+ *    so `chips_per_symbol` is a non-integer `double` and symbol boundaries
+ *    land *inside* code epochs. The burst builder spreads exactly one bit per
+ *    full code period — synchronous by construction, integer always.
+ *
+ * Chip `i` carries `code[i % code_len] ^ data[floor(i / chips_per_symbol)]`,
+ * so both clocks advance independently off the same chip index. Because the
+ * symbol index is a floor of a fractional quotient, consecutive symbols
+ * legitimately span different numbers of chips (1136 or 1137 at SPEC.md's
+ * 3.069 Mcps / 2700 bps) — that jitter IS the asynchronicity, not an artifact.
+ *
+ * Materialising the pattern up front, exactly as the burst builder does, is
+ * what lets the synth's existing cyclic chip latch play it back unchanged: no
+ * new per-sample branch, no new running state, no serialization change.
+ *
+ * @param code       spreading code chips (0/1), length @p code_len.
+ * @param code_len   spreading code length in chips (> 0).
+ * @param data       data bits (0/1), length @p n_data; cycled if exhausted.
+ * @param n_data     data bit count (> 0).
+ * @param chips_per_symbol  chips per data symbol (> 0, typically non-integer).
+ * @param n_chips    chips to produce (the caller's requested span).
+ * @param out        output chip array (0/1) of @p n_chips elements.
+ * @return Chips written (== @p n_chips), or 0 on invalid geometry.
+ */
+size_t wfm_cont_dsss_chips(const uint8_t *code, size_t code_len,
+                           const uint8_t *data, size_t n_data,
+                           double chips_per_symbol, size_t n_chips,
+                           uint8_t *out);
+
 #ifdef __cplusplus
 }
 #endif

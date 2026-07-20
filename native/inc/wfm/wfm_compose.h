@@ -109,6 +109,13 @@ typedef struct {
     uint8_t *sync;       /* frame-sync word bits (0/1), owned; NULL = none */
     size_t n_sync;       /* sync word length in bits */
     int crc;             /* frame trailer: 0 none, 1 crc16 (dp_crc16.h) */
+    /* type=dsss, CONTINUOUS mode: a data-symbol rate independent of the code
+       epoch rate selects the continuous form (wfm_synth_set_dsss_cont) over
+       the burst form above -- one waveform type, one discriminator, rather
+       than a tenth entry in five hand-maintained name tables. 0 = burst.
+       The frame fields (acq_code/sync/crc/bits) are meaningless when this is
+       set and are rejected by the caller rather than silently ignored. */
+    double symbol_rate;  /* Hz; > 0 selects continuous async DSSS */
 } wfm_source_t;
 
 /**

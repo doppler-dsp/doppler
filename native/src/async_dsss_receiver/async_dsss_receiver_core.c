@@ -33,13 +33,13 @@ _build_refine_chain (async_dsss_receiver_state_t *s, double chip_phase,
                      float complex **rc_out_buf_out, size_t *rc_out_cap_out)
 {
   /* Frozen carrier: costas_update() is never called on this instance --
-   * the direct C equivalent of Python's freeze_carrier=True. bn/bn_fll/
-   * tsamps below are inert placeholders; only costas_wipeoff()'s phase
-   * accumulator is ever touched. */
+   * the direct C equivalent of Python's freeze_carrier=True. bn/tsamps
+   * below are inert placeholders; only costas_wipeoff()'s phase accumulator
+   * is ever touched. bn_fll = 0: no FLL anywhere in this object (see the
+   * ASYNC_DSSS_RX_BN_CARRIER comment). */
   double front_end_rate = s->chip_rate * (double)s->spc;
   costas_init (car_frozen_out, ASYNC_DSSS_RX_BN_CARRIER, 0.707,
-               doppler_hz_est / front_end_rate, s->tsamps,
-               ASYNC_DSSS_RX_BN_FLL);
+               doppler_hz_est / front_end_rate, s->tsamps, 0.0);
 
   dll_state_t *refine_dll
       = dll_create (s->code, s->code_len, s->spc, chip_phase,
@@ -239,17 +239,19 @@ _build_track_chain (async_dsss_receiver_state_t *s, double chip_phase,
 
   /* Per-CODE-PERIOD cadence (tsamps = one whole period), matching
    * dsss_receiver_core.c's own mechanism -- NOT once per dll_steps()
-   * partial. costas_update()'s bn_fll cross-product discriminator scales
-   * its output with the TIME interval between the two prompts it
-   * correlates; calling it once per partial instead of once per period
-   * shrinks that interval by `segments`, weakening the real error signal
-   * at a fixed gain rather than speeding tracking up -- it does not
-   * track SPEC's Doppler-rate requirement. See _track_period()'s own
-   * per-period combine-and-sign-align. */
+   * partial. The Costas phase discriminator integrates over the interval
+   * between updates; calling it once per partial instead of once per period
+   * shrinks that integration by `segments`, so each update carries a
+   * `segments`x weaker, noisier error -- too weak to steer a clean carrier
+   * estimate, and it does not track SPEC's Doppler-rate requirement. The
+   * per-period sign-aligned partial sum (_track_period()) gives the loop a
+   * full-period error instead. Pure PLL, no FLL (bn_fll = 0 below). */
   double front_end_rate = s->chip_rate * (double)s->spc;
+  /* bn_fll = 0: pure PLL, no FLL (see ASYNC_DSSS_RX_BN_CARRIER's comment --
+     the FLL cross-product is too noisy on the despread-symbol input and
+     drives the carrier wander that causes the residual slips). */
   costas_init (car_out, ASYNC_DSSS_RX_BN_CARRIER, 0.707,
-               doppler_hz_est / front_end_rate, s->tsamps,
-               ASYNC_DSSS_RX_BN_FLL);
+               doppler_hz_est / front_end_rate, s->tsamps, 0.0);
 
   *dll_out = dll;
   *rc_out  = rc;
@@ -371,10 +373,9 @@ _process_refine (async_dsss_receiver_state_t *s, const float complex *x,
  * A code period spans multiple data bits at SPEC's async ratio, so a
  * bare coherent sum of dll_steps()'s partials self-cancels across a
  * transition; sign-aligning each partial by its own real part first
- * (the same technique costas_update()'s own bn_fll cross-product term
- * already applies between consecutive symbols -- "both prompts are
- * data-wiped [by their own Re sign] so a BPSK bit flip ... does not
- * corrupt the cross product", costas_core.h) fixes that. This decision
+ * (the same data-wiping the Costas phase discriminator itself applies --
+ * a BPSK bit flip does not corrupt a `sign(Re)`-wiped combine, costas_
+ * core.h) fixes that. This decision
  * has to live here, in the consumer, and not be pushed into dll_steps()
  * itself: dll_out is the actual despread symbol stream this object also
  * hands to RateConverter/mpsk_receiver, not scratch, and a natural

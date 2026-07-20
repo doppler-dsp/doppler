@@ -45,9 +45,11 @@
  *     cadence (`costas_update()` once per emitted partial, mirroring the
  *     Python prototype's `car_update_windows=True`) was tried first and
  *     found NOT to track SPEC's own 500Hz/s ramp at this object's real
- *     operating geometry -- see `_build_track_chain()`'s own comment for
- *     the loop-dynamics reason (`k_fll`'s fixed per-call gain vs. a 4x
- *     shorter inter-prompt interval).
+ *     operating geometry -- see `_build_track_chain()`'s own comment: a
+ *     per-partial update sees a `segments`x shorter integration with a
+ *     `segments`x weaker per-update error, too noisy to steer a clean
+ *     carrier estimate. (This loop is a pure PLL -- no FLL anywhere, see
+ *     the `ASYNC_DSSS_RX_BN_CARRIER` comment.)
  *
  * Both the refine and track stages share ONE carrier-wipe scratch/carry
  * buffer set (`car_wiped_buf`/`car_carry_buf`/`car_carry_len`, sized
@@ -97,19 +99,29 @@ extern "C"
 {
 #endif
 
-  /* SPEC-derived defaults for the pre-despread carrier loop -- the same
-   * values DsssReceiver's own DSSS_RX_BN_CARRIER/DSSS_RX_BN_FLL use
-   * (hardcoded, not public constructor params, matching this object's
+  /* SPEC-derived carrier-loop bandwidth for the pre-despread Costas
+   * (hardcoded, not a public constructor param, matching this object's
    * "just works" philosophy). The refine-stage's frozen carrier never
-   * calls costas_update(), so its own bn/zeta/bn_fll are irrelevant --
-   * only its tsamps (the wipe period length) and init_norm_freq matter. */
+   * calls costas_update(), so its own bn/zeta are irrelevant -- only its
+   * tsamps (the wipe period length) and init_norm_freq matter.
+   *
+   * NO FLL: the pre-despread Costas always passes bn_fll = 0 (a pure PLL).
+   * The FLL cross-product frequency discriminator is far too noisy on this
+   * loop's data-modulated despread-symbol input -- direct measurement (the
+   * loop-stress plot) showed a nonzero bn_fll drives large slow carrier
+   * frequency wander (tens of Hz) that intermittently rotates the
+   * constellation through whole windows, the dominant residual "slip"
+   * mechanism at large coupled-Doppler offsets. A plain Costas PLL tracks
+   * the coupled Doppler (offset AND 500 Hz/s ramp) cleanly; the carrier
+   * norm_freq goes dead flat once settled. So the FLL is not exposed here
+   * at all, not merely defaulted off. */
 #define ASYNC_DSSS_RX_BN_CARRIER 0.01
-#define ASYNC_DSSS_RX_BN_FLL 0.03
-  /* Dll's own bn: this story's validated stable loop bandwidth for a
-   * one-update-per-code-epoch (or, for tracking, one-update-per-partial)
-   * geometry -- same value DsssReceiver's own Dll uses, not
-   * dll_create()'s own default of 0.01. */
-#define ASYNC_DSSS_RX_DLL_BN 0.002
+  /* Dll's own bn: the validated stable code-loop bandwidth for the
+   * one-update-per-partial tracking geometry. Wider than DsssReceiver's own
+   * 0.002 -- needed to track sustained code-rate Doppler without lagging
+   * into a slip (measured: 0.005 raises the clean-window fraction at 10 dB
+   * across the ±50 kHz coupled range). */
+#define ASYNC_DSSS_RX_DLL_BN 0.005
 
   /**
    * @brief Composed receiver state.

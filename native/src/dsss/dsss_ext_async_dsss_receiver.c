@@ -49,39 +49,39 @@ static int
 AsyncDsssReceiverObj_init (AsyncDsssReceiverObject *self, PyObject *args,
                            PyObject *kwds)
 {
-  static char       *kwlist[]                      = { "code",
-                                                       "chip_rate",
-                                                       "symbol_rate",
-                                                       "spc",
-                                                       "m",
-                                                       "cn0_dbhz",
-                                                       "pfa",
-                                                       "pd",
-                                                       "doppler_uncertainty",
-                                                       "segments",
-                                                       "sps",
-                                                       "differential",
-                                                       "refine_max_error_db",
-                                                       "refine_samples_per_symbol",
-                                                       "refine_design_margin_db",
-                                                       "refine_n_fft",
-                                                       "refine_zero_pad",
-                                                       "refine_sequential",
-                                                       "refine_max_n_blocks",
-                                                       NULL };
-  PyObject          *code_obj                      = NULL;
-  double             chip_rate                     = 1000000.0;
-  double             symbol_rate                   = 1000.0;
-  unsigned long long spc_raw                       = 2;
-  int                m                             = 2;
-  double             cn0_dbhz                      = 55.0;
-  double             pfa                           = 1e-3;
-  double             pd                            = 0.9;
-  double             doppler_uncertainty           = 100.0;
-  unsigned long long segments_raw                  = 4;
-  unsigned long long sps_raw                       = 8;
-  int                differential                  = 0;
-  double             refine_max_error_db           = 100.0;
+  static char       *kwlist[]            = { "code",
+                                             "chip_rate",
+                                             "symbol_rate",
+                                             "spc",
+                                             "m",
+                                             "cn0_dbhz",
+                                             "pfa",
+                                             "pd",
+                                             "doppler_uncertainty",
+                                             "segments",
+                                             "sps",
+                                             "differential",
+                                             "refine_max_error_db",
+                                             "refine_samples_per_symbol",
+                                             "refine_design_margin_db",
+                                             "refine_n_fft",
+                                             "refine_zero_pad",
+                                             "refine_sequential",
+                                             "refine_max_n_blocks",
+                                             NULL };
+  PyObject          *code_obj            = NULL;
+  double             chip_rate           = 1000000.0;
+  double             symbol_rate         = 1000.0;
+  unsigned long long spc_raw             = 2;
+  int                m                   = 2;
+  double             cn0_dbhz            = 55.0;
+  double             pfa                 = 1e-3;
+  double             pd                  = 0.9;
+  double             doppler_uncertainty = 100.0;
+  unsigned long long segments_raw        = 4;
+  unsigned long long sps_raw             = 8;
+  int                differential        = 0;
+  double             refine_max_error_db = 0.5;
   unsigned long long refine_samples_per_symbol_raw = 4;
   double             refine_design_margin_db       = 14.0;
   unsigned long long refine_n_fft_raw              = 64;
@@ -315,8 +315,8 @@ AsyncDsssReceiverObj_configure_search_raw (AsyncDsssReceiverObject *self,
     return NULL;
   size_t doppler_bins = (size_t)doppler_bins_raw;
   size_t n_noncoh     = (size_t)n_noncoh_raw;
-  int    _rc          = async_dsss_receiver_configure_search_raw (self->handle,
-                                                                  doppler_bins, n_noncoh);
+  int _rc = async_dsss_receiver_configure_search_raw (self->handle,
+                                                      doppler_bins, n_noncoh);
   if (_rc != 0)
     {
       PyErr_Format (PyExc_ValueError, "configure_search_raw failed (rc=%d)",

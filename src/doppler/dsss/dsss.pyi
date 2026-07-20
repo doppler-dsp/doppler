@@ -1145,8 +1145,8 @@ class AsyncDsssReceiver:
         MpskReceiver's samples/symbol; default 8.
     differential : int, default 0
         MpskReceiver's differential demap; default 0 (coherent).
-    refine_max_error_db : float, default 100.0
-        Max tolerable async-lookback correlation-power loss driving the refine-stage Dll's own segments via dll_lookback_segments(); default 0.5.
+    refine_max_error_db : float, default 0.5
+        Max tolerable async-lookback correlation-power loss driving the refine-stage collection Dll's coherent-I&D window count via dll_lookback_segments(). Oversampling the epoch is required for the asynchronous data: the residual carrier rides a ~symbol_rate-wide data-modulated spectrum, so segments>1 (default yields 11 at tsamps=2046) samples it above Nyquist; segments=1 undersamples and aliases it. Default 0.5.
     refine_samples_per_symbol : int, default 4
         CarrierAcquisition's own operating rate = this * symbol_rate; default 4.
     refine_design_margin_db : float, default 14.0

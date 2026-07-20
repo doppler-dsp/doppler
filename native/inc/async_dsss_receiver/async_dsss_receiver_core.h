@@ -19,11 +19,13 @@
  *     carrier derotation -- `costas_wipeoff()` at the coarse estimate,
  *     `costas_update()` never called, the direct C equivalent of the
  *     Python prototype's `freeze_carrier=True` -- feeding a collection
- *     `Dll` (segments=1, a plain coherent per-epoch dump -- see the
- *     `refine_max_error_db` doc comment on `async_dsss_receiver_create()`
- *     for why `dll_lookback_segments()`'s own multi-segment lookback
- *     reconstruction was tried and found unsuitable as a `CarrierAcquisition`
- *     front end), then a `RateConverter` to `CarrierAcquisition`'s own
+ *     `Dll` whose `dll_lookback_segments(refine_max_error_db)` windows
+ *     OVERSAMPLE each epoch with coherent integrate-and-dump dumps -- the
+ *     asynchronous data's residual carrier rides a ~symbol_rate-wide
+ *     spectrum that a single per-epoch dump would undersample and alias
+ *     (see the `refine_max_error_db` doc comment on
+ *     `async_dsss_receiver_create()`), then a `RateConverter` to
+ *     `CarrierAcquisition`'s own
  *     operating rate, then `CarrierAcquisition` itself), and the
  *     unconsumed tail of the same call is handed straight to it.
  *   - **refining** (`get_refining() == 1`): samples feed the refine-stage
@@ -258,8 +260,17 @@ extern "C"
    *                                   default 0 (coherent).
    * @param refine_max_error_db        Max tolerable async-lookback
    *                                   correlation-power loss driving the
-   *                                   refine-stage Dll's own segments via
-   *                                   dll_lookback_segments(); default 0.5.
+   *                                   refine-stage collection Dll's
+   *                                   coherent-I&D window count via
+   *                                   dll_lookback_segments(). Oversampling
+   *                                   the epoch is required for the
+   *                                   asynchronous data: the residual
+   *                                   carrier rides a ~symbol_rate-wide
+   *                                   data-modulated spectrum, so segments>1
+   *                                   (default yields 11 at tsamps=2046)
+   *                                   samples it above Nyquist; segments=1
+   *                                   undersamples and aliases it. Default
+   *                                   0.5.
    * @param refine_samples_per_symbol  CarrierAcquisition's own operating
    *                                   rate = this * symbol_rate; default 4.
    * @param refine_design_margin_db    Empirical derating of cn0_dbhz before

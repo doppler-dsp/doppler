@@ -119,26 +119,33 @@ default = "0"
 # own already-validated defaults verbatim) ───────────────────────────────
 
 # Max tolerable async-lookback correlation-power loss driving the
-# refine-stage collection Dll's OWN segments count via
-# dll_lookback_segments(). Default 100.0 (NOT 0.5, Python's own
-# async_lookback_windows() default) forces segments=1 -- a plain
-# coherent per-epoch dump, no multi-segment lookback reconstruction.
-# Direct measurement found dll_lookback_segments()'s own multi-segment
-# value (11, at this waveform's tsamps=2046) measurably corrupts
-# CarrierAcquisition's residual estimate versus segments=1 (a clean
-# synthetic-stream probe at segments=1 landed within ~18Hz of truth;
-# segments=11 landed 70-90Hz off, sometimes wrong-signed) -- DLL's own
-# margin-gated shifted-window reconstruction (dll_core.c's own
-# DLL_LOOKBACK_MARGIN mechanism, built for the LIVE tracking loop's own
-# E/P/L discriminator robustness) does not transfer cleanly to feeding
-# a PSDMF frequency estimator. Exposed as a real, overridable parameter
-# (not hardcoded to 1) since this is an empirical finding on ONE
-# waveform, not a proven general rule -- revisit if a different
-# geometry shows otherwise.
+# refine-stage collection Dll's window/segment count via
+# dll_lookback_segments(). Default 0.5 -- freq_refine.refine_seed_
+# carrier_acq()/async_lookback_windows()'s own validated value, which
+# yields segments=11 at this waveform's tsamps=2046.
+#
+# Oversampling the epoch is REQUIRED, not optional, because the data is
+# asynchronous: the residual carrier the PSDMF has to locate rides a
+# ~symbol_rate-wide data-modulated spectrum, so the despread stream must
+# be sampled above that spectrum's Nyquist. dll_lookback_segments()
+# splits each epoch into that many COHERENT integrate-and-dump windows --
+# each window phase-coherent internally (what CarrierAcquisition's
+# per-block FFT consumes), the several windows per epoch raising the
+# despread rate to segments*epoch_rate (11*3000 = 33kHz here), well above
+# the data bandwidth, before refine_rc resamples to the estimator's rate.
+#
+# The degenerate segments=1 (one dump per epoch = epoch_rate ~= 1
+# sample/symbol) UNDERSAMPLES that spectrum: any nonzero coarse-handoff
+# residual aliases and CarrierAcquisition returns a near-DC estimate,
+# leaving the ~1kHz coarse residual uncorrected and the tracker seeded
+# off enough to lose lock. A prior 100.0 default forced this path; the
+# "segments=1 within ~18Hz, segments=11 70-90Hz off" measurement that
+# justified it was taken at ~zero residual -- the one regime where the
+# undersampling doesn't bite -- and did not exercise the aliasing.
 [[async_dsss_receiver.init_params]]
 name = "refine_max_error_db"
 type = "double"
-default = "100.0"
+default = "0.5"
 
 # CarrierAcquisition's own operating rate = refine_samples_per_symbol *
 # symbol_rate -- decoupled from the code loop's own lookback granularity

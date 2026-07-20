@@ -280,18 +280,19 @@ _rebuild_track_chain (async_dsss_receiver_state_t *s, double chip_phase,
  * carrier_acq_steps() is documented as a no-op once ready (or the
  * give-up cap) is reached, so calling it past that point is harmless.
  *
- * `refine_dll`'s own `segments` MUST stay 1 for this collection to be
- * usable at all: `segments>1`'s natural, unshifted per-chunk OUTPUT
- * (dll_core.c's own segments>1 emit-block comment) carries no
- * epoch-to-epoch sign guarantee, and a natural epoch that straddles a
- * data-bit transition genuinely holds two different bits with two
- * different signs. CarrierAcquisition needs the opposite: phase-coherent
- * samples across the WHOLE collection window to FFT. `refine_max_
- * error_db`'s own dll_lookback_segments() derivation can in principle
- * pick segments>1 for a large enough tolerance, but doing so here would
- * hand this collection a stream a coherent estimator can't use.
- * `async_dsss_receiver_create()`'s own `refine_max_error_db=100.0`
- * default keeps this at segments=1 deliberately. */
+ * `refine_dll` MUST oversample the epoch: with asynchronous data the
+ * residual carrier rides a ~symbol_rate-wide data-modulated spectrum, and
+ * CarrierAcquisition's PSDMF can only locate its centre if that spectrum is
+ * sampled above its Nyquist. `dll_lookback_segments(refine_max_error_db)`
+ * splits each epoch into `refine_segments` coherent integrate-and-dump
+ * windows -- each window is phase-coherent internally (what the per-block
+ * FFT consumes), and the several windows per epoch raise the despread rate
+ * to `refine_segments * epoch_rate`, comfortably above the data bandwidth
+ * before refine_rc feeds the estimator. The degenerate `segments=1` (one
+ * dump per epoch, ~epoch_rate ~= 1 sample/symbol here) undersamples that
+ * spectrum: any nonzero coarse-handoff residual aliases, and the estimate
+ * collapses to near-DC. See objects/async_dsss_receiver.toml's
+ * refine_max_error_db comment. */
 static void
 _refine_period (async_dsss_receiver_state_t *s, const float complex *period)
 {

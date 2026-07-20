@@ -117,11 +117,12 @@ extern "C"
    * at all, not merely defaulted off. */
 #define ASYNC_DSSS_RX_BN_CARRIER 0.01
   /* Dll's own bn: the validated stable code-loop bandwidth for the
-   * one-update-per-partial tracking geometry. Wider than DsssReceiver's own
-   * 0.002 -- needed to track sustained code-rate Doppler without lagging
-   * into a slip (measured: 0.005 raises the clean-window fraction at 10 dB
-   * across the ±50 kHz coupled range). */
-#define ASYNC_DSSS_RX_DLL_BN 0.005
+   * one-update-per-partial tracking geometry -- same value DsssReceiver's
+   * own Dll uses, not dll_create()'s own default of 0.01. (A wider 0.005 was
+   * tried to chase sustained code-rate Doppler, but with the FLL removed the
+   * carrier-driven slips are gone and the narrower 0.002 keeps its noise
+   * immunity at the low-Es/N0 floor.) */
+#define ASYNC_DSSS_RX_DLL_BN 0.002
 
   /**
    * @brief Composed receiver state.

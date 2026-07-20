@@ -131,6 +131,17 @@ add_dsss_fields (cJSON *o, const wfm_source_t *src)
 {
   if (src->type != WFM_SYNTH_DSSS)
     return;
+  /* CONTINUOUS (symbol_rate > 0): only the spreading code, the payload (when
+     one drives the data), and symbol_rate — no preamble/sync/CRC frame. Emit
+     just those so a continuous record round-trips clean, without the spurious
+     "acq_reps"/"crc" the burst path always writes. */
+  if (src->symbol_rate > 0.0)
+    {
+      add_bit_string (o, "data_code", src->data_code, src->n_data_code);
+      add_bit_string (o, "payload", src->bits, src->n_bits);
+      cJSON_AddNumberToObject (o, "symbol_rate", src->symbol_rate);
+      return;
+    }
   add_bit_string (o, "acq_code", src->acq_code, src->n_acq_code);
   cJSON_AddNumberToObject (o, "acq_reps", (double)src->acq_reps);
   add_bit_string (o, "data_code", src->data_code, src->n_data_code);
@@ -345,6 +356,9 @@ parse_source_obj (const cJSON *so, wfm_source_t *out)
           cJSON_GetStringValue (cJSON_GetObjectItemCaseSensitive (so, "crc")),
           CRC_NAMES, 2);
       out->crc = (c < 0) ? 1 : c;
+      /* symbol_rate > 0 selects the continuous async mode (data clock
+         independent of the code); absent/0 = burst. */
+      out->symbol_rate = num (so, "symbol_rate", 0.0);
     }
   if (t == WFM_SYNTH_SYMBOLS)
     {

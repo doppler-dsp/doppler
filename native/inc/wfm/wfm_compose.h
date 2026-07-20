@@ -272,6 +272,25 @@ double wfm_source_create_snr(const wfm_source_t *src, double fs, double snr,
                              int *snr_mode);
 
 /**
+ * @brief Attach a dsss source's data to a freshly-created synth.
+ *
+ * The single dsss-attach path, called by BOTH synth-construction faces
+ * (`wfm_compose_build_synth` and the standalone `wfm_source_to_synth`), so the
+ * two cannot drift on how a dsss stream is configured. Selects on
+ * `symbol_rate`: 0 → the burst form (`wfm_synth_set_dsss`); > 0 → the
+ * continuous form (`wfm_synth_set_dsss_cont`) with `chips_per_symbol =
+ * (fs/sps)/symbol_rate`, taking the data from the payload when one is supplied
+ * (`bits`) and otherwise from the seeded PN. A no-op for a non-dsss source.
+ *
+ * @param syn  A synth from wfm_synth_create() with `wtype == WFM_SYNTH_DSSS`.
+ * @param src  The source (codes, payload, symbol_rate, pn config).
+ * @param fs   Segment sample rate (Hz) — the continuous chip rate is fs/sps.
+ * @return 0 on success (or non-dsss no-op); -1 on invalid geometry.
+ */
+int wfm_source_attach_dsss(wfm_synth_state_t *syn, const wfm_source_t *src,
+                           double fs);
+
+/**
  * @brief Construct + configure the synth for one resolved source.
  *
  * THE single synth-construction path (create + chirp-span pin + bits/symbols/RRC

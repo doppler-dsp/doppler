@@ -192,15 +192,12 @@ wfm_compose_build_synth (const wfm_source_t *src, double fs, size_t on_len,
     wfm_synth_set_bits (syn, src->bits, src->n_bits, src->modulation);
   if (src->type == WFM_SYNTH_SYMBOLS && src->symbols)
     wfm_synth_set_symbols (syn, src->symbols, src->n_symbols);
-  if (src->type == WFM_SYNTH_DSSS
-      && wfm_synth_set_dsss (syn, src->acq_code, src->n_acq_code,
-                             src->acq_reps, src->data_code, src->n_data_code,
-                             src->sync, src->n_sync, src->bits, src->n_bits,
-                             src->crc)
-             != 0)
+  /* dsss burst OR continuous, via the one shared attach path (bridge) so the
+   * standalone and composed faces cannot drift. */
+  if (wfm_source_attach_dsss (syn, src, fs) != 0)
     {
-      /* Invalid burst geometry: fail the build (the composer skips the
-       * segment to a silent gap; a standalone Synth raises at first use). */
+      /* Invalid geometry: fail the build (the composer skips the segment to a
+       * silent gap; a standalone Synth raises at first use). */
       wfm_synth_destroy (syn);
       return NULL;
     }
@@ -397,14 +394,22 @@ wfm_compose_create (const wfm_segment_t *segs, size_t n_segs, int repeat,
               return NULL;
             }
         }
-      /* A lone dsss source's on-time is intrinsic — exactly one burst
+      /* A lone dsss BURST's on-time is intrinsic — exactly one burst
        * (n_chips * sps samples) — so num_samples is derived here, on the
        * private copy, and any caller-supplied value (or range) is ignored:
        * every face resolves identically and --record emits the real span.
        * (A dsss source inside a multi-source sum keeps the segment's
-       * explicit num_samples — the mix's span is the caller's call.) */
+       * explicit num_samples — the mix's span is the caller's call.)
+       *
+       * A CONTINUOUS dsss source (symbol_rate > 0) has NO intrinsic length —
+       * the stream is endless and --count IS the span. It must be excluded
+       * here, and not only because the derivation is meaningless:
+       * wfm_frame_dsss_nchips() returns a nonzero (garbage) value for it
+       * (n_bits payload * n_data_code + a spurious CRC), which would pass the
+       * `if (nchips)` guard and silently overwrite the user's num_samples. */
       if (s->segs[i].n_sources == 1
-          && s->segs[i].sources[0].type == WFM_SYNTH_DSSS)
+          && s->segs[i].sources[0].type == WFM_SYNTH_DSSS
+          && s->segs[i].sources[0].symbol_rate <= 0.0)
         {
           const wfm_source_t *d = &s->segs[i].sources[0];
           size_t nchips = wfm_frame_dsss_nchips (d->n_acq_code, d->acq_reps,

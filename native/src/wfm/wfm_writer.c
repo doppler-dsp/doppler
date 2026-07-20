@@ -427,6 +427,20 @@ wfm_sigmf_meta_json (int sample_type, int endian, double fs, double fc,
           cJSON_AddNumberToObject (a, "wfmgen:seed", src->seed);
           cJSON_AddNumberToObject (a, "wfmgen:pn_length", src->pn_length);
           cJSON_AddNumberToObject (a, "wfmgen:pn_poly", src->pn_poly);
+          /* The "dsss" core:label can't distinguish a synchronous burst
+           * (integer chips/symbol, framed) from a continuous asynchronous
+           * stream — only symbol_rate does. Emit it for a continuous source so
+           * a scorer knows the outer symbol clock; mirror the JSON face's
+           * data-source label ("none" for code-only, omitted for the
+           * data-modulated default). Burst dsss and every other type omit
+           * these keys (symbol_rate <= 0). */
+          if (src->type == WFM_SYNTH_DSSS && src->symbol_rate > 0.0)
+            {
+              cJSON_AddNumberToObject (a, "wfmgen:symbol_rate",
+                                       src->symbol_rate);
+              if (src->dsss_code_only)
+                cJSON_AddStringToObject (a, "wfmgen:data", "none");
+            }
           cJSON_AddItemToArray (anns, a);
         }
     }

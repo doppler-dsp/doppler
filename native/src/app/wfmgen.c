@@ -331,6 +331,19 @@ static const char USAGE[]
       "  --sync BITS          Frame-sync word, e.g. Barker-13 (default none)\n"
       "  --crc C              none | crc16 payload trailer (default crc16)\n"
       "\n"
+      "DSSS CONTINUOUS  (--type dsss --symbol-rate HZ)\n"
+      "  An endless stream: code B repeats forever and data rides it at\n"
+      "  --symbol-rate Hz, independent of the chip clock (non-integer\n"
+      "  chips/symbol -- the asynchronicity). No preamble/sync/CRC frame;\n"
+      "  --count is honoured verbatim; --snr-mode esno is the Es/N0 of the\n"
+      "  data symbol (fs/symbol_rate samples). Data source: default PRBS\n"
+      "  (seeded PN a receiver regenerates), --data none for code-only\n"
+      "  (the pure code), or --bits* for a payload. Rejects the burst-frame\n"
+      "  flags (--acq-code/--sync/--crc) and --data with --bits*.\n"
+      "  --symbol-rate HZ     Data symbol rate; > 0 selects continuous mode\n"
+      "  --data-code[-hex] C  Spreading code (required)\n"
+      "  --data D             none | prbs data source (default prbs)\n"
+      "\n"
       "PN SEQUENCE  (--type pn)\n"
       "  --pn-length N   Register length; period = 2^N - 1 (default 15)\n"
       "  --pn-poly N     Generator polynomial; 0 = auto-select (default 0)\n"
@@ -478,8 +491,9 @@ doppler_wfmgen (int   argc, /* NOLINT(readability-function-size) */
   double        headroom     = 0.0; /* dB of peak backoff; gain = 10^(-H/20) */
   int           headroom_set = 0; /* explicit --headroom overrides a record */
   int           sample_type = 0, file_type = 0, endian = 0;
-  int           data_flag_set = 0; /* --data given (continuous dsss only) */
-  double        fc            = 0.0;
+  int           data_flag_set   = 0; /* --data given (continuous dsss only) */
+  int           symbol_rate_set = 0; /* --symbol-rate given (reject <= 0) */
+  double        fc              = 0.0;
   const char   *from_file = NULL, *out_path = NULL, *record_path = NULL;
 
   /* NEXT() yields the flag's value argument, or NULL when the flag was the
@@ -678,6 +692,7 @@ doppler_wfmgen (int   argc, /* NOLINT(readability-function-size) */
         {
           REQVAL (v);
           src.symbol_rate = strtod (v, NULL);
+          symbol_rate_set = 1;
         }
       else if (!strcmp (a, "--data"))
         {
@@ -888,6 +903,13 @@ doppler_wfmgen (int   argc, /* NOLINT(readability-function-size) */
     {
       /* Continuous-DSSS flag consistency (reject, don't silently ignore — the
          mode-dependent dead-knob problem, per the --detached precedent). */
+      if (symbol_rate_set && src.symbol_rate <= 0.0)
+        {
+          (void)fprintf (stderr,
+                         "error: --symbol-rate must be positive (it is the "
+                         "continuous-dsss data symbol rate in Hz)\n");
+          return 2;
+        }
       if (src.symbol_rate > 0.0)
         {
           if (src.type != WFM_SYNTH_DSSS)
@@ -1091,6 +1113,17 @@ doppler_wfmgen (int   argc, /* NOLINT(readability-function-size) */
             {
               (void)fprintf (stderr,
                              "error: --file-type sigmf needs --output\n");
+              wfm_compose_destroy (comp);
+              return 2;
+            }
+          if (c)
+            {
+              /* The .sigmf-meta sidecar is written after the emit loop from
+                 the resolved spans; an unbounded stream never reaches it (same
+                 constraint --detached has). */
+              (void)fprintf (stderr,
+                             "error: --file-type sigmf requires finite "
+                             "output (not --continuous)\n");
               wfm_compose_destroy (comp);
               return 2;
             }

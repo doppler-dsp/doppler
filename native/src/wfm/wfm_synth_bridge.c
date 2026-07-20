@@ -35,8 +35,9 @@ wfm_source_attach_dsss (wfm_synth_state_t *syn, const wfm_source_t *src,
          regenerate. (Code-only, --data none, arrives with the CLI flag.) */
       double cps
           = (src->sps > 0) ? (fs / (double)src->sps) / src->symbol_rate : 0.0;
-      int mode = (src->bits && src->n_bits) ? WFM_DSSS_DATA_BITS
-                                            : WFM_DSSS_DATA_PRBS;
+      int mode = src->dsss_code_only          ? WFM_DSSS_DATA_NONE
+                 : (src->bits && src->n_bits) ? WFM_DSSS_DATA_BITS
+                                              : WFM_DSSS_DATA_PRBS;
       return wfm_synth_set_dsss_cont (syn, src->data_code, src->n_data_code,
                                       cps, mode, src->bits, src->n_bits);
     }

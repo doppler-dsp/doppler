@@ -116,6 +116,9 @@ typedef struct {
        The frame fields (acq_code/sync/crc/bits) are meaningless when this is
        set and are rejected by the caller rather than silently ignored. */
     double symbol_rate;  /* Hz; > 0 selects continuous async DSSS */
+    int dsss_code_only;  /* continuous dsss: 1 = code-only (--data none), no
+                            data modulation; 0 = data-modulated (payload if
+                            supplied, else the seeded PN). Ignored for burst. */
 } wfm_source_t;
 
 /**

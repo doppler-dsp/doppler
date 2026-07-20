@@ -208,6 +208,12 @@
           "exclusiveMinimum": 0,
           "description": "type=dsss: > 0 selects CONTINUOUS asynchronous mode — the spreading code repeats endlessly and data rides on it at this symbol rate (Hz), independent of the code-epoch rate (chips/symbol = fs/sps/symbol_rate, non-integer). Continuous mode has no preamble/sync/CRC frame, so acq_code/acq_reps/sync/crc are omitted; data comes from payload when supplied, else a seeded PN. Absent = burst mode."
         },
+        "data": {
+          "type": "string",
+          "enum": ["none", "prbs"],
+          "default": "prbs",
+          "description": "Continuous dsss (symbol_rate > 0) data-symbol source: none = code-only (the pure spreading code, no data modulation); prbs = the synth's seeded PN, reproducible receiver-side via doppler.wfm.PN. A payload overrides both. Ignored in burst mode."
+        },
 
         "pulse": {
           "type": "string",
@@ -299,6 +305,7 @@
         "payload":    { "$ref": "#/$defs/source/properties/payload" },
         "crc":        { "$ref": "#/$defs/source/properties/crc" },
         "symbol_rate": { "$ref": "#/$defs/source/properties/symbol_rate" },
+        "data":        { "$ref": "#/$defs/source/properties/data" },
         "pulse":      { "$ref": "#/$defs/source/properties/pulse" },
         "rrc_beta":   { "$ref": "#/$defs/source/properties/rrc_beta" },
         "rrc_span":   { "$ref": "#/$defs/source/properties/rrc_span" }

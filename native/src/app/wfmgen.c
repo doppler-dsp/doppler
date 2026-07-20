@@ -33,9 +33,10 @@
 static const char *const TYPES[]
     = { "tone",  "noise", "pn",      "bpsk", "qpsk",
         "chirp", "bits",  "symbols", "dsss" };
-static const char *const MODES[]   = { "auto", "fs", "ebno", "esno" };
-static const char *const CRCS[]    = { "none", "crc16" };
-static const char *const BITMODS[] = { "none", "bpsk", "qpsk" };
+static const char *const MODES[]      = { "auto", "fs", "ebno", "esno" };
+static const char *const CRCS[]       = { "none", "crc16" };
+static const char *const DATA_MODES[] = { "none", "prbs" };
+static const char *const BITMODS[]    = { "none", "bpsk", "qpsk" };
 static const char *const STYPES[]  = { "cf32", "cf64", "ci32", "ci16", "ci8" };
 static const char *const FTYPES[]  = { "raw", "csv", "blue", "sigmf" };
 static const char *const ENDIANS[] = { "le", "be" };
@@ -477,7 +478,8 @@ doppler_wfmgen (int   argc, /* NOLINT(readability-function-size) */
   double        headroom     = 0.0; /* dB of peak backoff; gain = 10^(-H/20) */
   int           headroom_set = 0; /* explicit --headroom overrides a record */
   int           sample_type = 0, file_type = 0, endian = 0;
-  double        fc        = 0.0;
+  int           data_flag_set = 0; /* --data given (continuous dsss only) */
+  double        fc            = 0.0;
   const char   *from_file = NULL, *out_path = NULL, *record_path = NULL;
 
   /* NEXT() yields the flag's value argument, or NULL when the flag was the
@@ -671,6 +673,20 @@ doppler_wfmgen (int   argc, /* NOLINT(readability-function-size) */
       else if (!strcmp (a, "--crc"))
         {
           CHOICE (src.crc, CRCS);
+        }
+      else if (!strcmp (a, "--symbol-rate"))
+        {
+          REQVAL (v);
+          src.symbol_rate = strtod (v, NULL);
+        }
+      else if (!strcmp (a, "--data"))
+        {
+          /* DATA_MODES = { "none", "prbs" }: none -> code-only (bit 0), prbs
+             -> the seeded PN. A supplied --bits overrides to a payload. */
+          int idx;
+          CHOICE (idx, DATA_MODES);
+          src.dsss_code_only = (idx == 0);
+          data_flag_set      = 1;
         }
       else if (!strcmp (a, "--symbols-file"))
         {
@@ -870,6 +886,44 @@ doppler_wfmgen (int   argc, /* NOLINT(readability-function-size) */
     }
   else
     {
+      /* Continuous-DSSS flag consistency (reject, don't silently ignore — the
+         mode-dependent dead-knob problem, per the --detached precedent). */
+      if (src.symbol_rate > 0.0)
+        {
+          if (src.type != WFM_SYNTH_DSSS)
+            {
+              (void)fprintf (stderr,
+                             "error: --symbol-rate is only for --type dsss\n");
+              return 2;
+            }
+          if (!src.data_code)
+            {
+              (void)fprintf (stderr, "error: continuous dsss (--symbol-rate) "
+                                     "needs --data-code\n");
+              return 2;
+            }
+          if (src.acq_code || src.sync)
+            {
+              (void)fprintf (stderr,
+                             "error: --acq-code/--sync are burst-frame flags, "
+                             "meaningless with --symbol-rate\n");
+              return 2;
+            }
+          if (data_flag_set && src.bits)
+            {
+              (void)fprintf (stderr,
+                             "error: --data and --bits both set the data; "
+                             "use one\n");
+              return 2;
+            }
+        }
+      else if (data_flag_set)
+        {
+          (void)fprintf (
+              stderr, "error: --data selects the continuous-dsss data source; "
+                      "it needs --symbol-rate\n");
+          return 2;
+        }
       comp = wfm_compose_create (&seg, 1, repeat, continuous);
       wfm_compose_set_seed_advance (comp, seed_advance);
     }

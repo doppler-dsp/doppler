@@ -47,6 +47,15 @@ _build_refine_chain (async_dsss_receiver_state_t *s, double chip_phase,
   if (!refine_dll)
     return -1;
 
+  /* Carrier->code aiding on the collection Dll too: without it the coupled
+     code-rate Doppler drifts the code phase over the frozen refine prefix
+     (~55 chips at a 50 kHz offset / 2.5 GHz over ~0.9 s), degrading the very
+     despread stream CarrierAcquisition estimates from. Seeded off the coarse
+     handoff Doppler (the refined value isn't known yet); the ~1 kHz coarse
+     residual leaves only a small aiding error. Off when carrier_freq_hz==0. */
+  if (s->carrier_freq_hz > 0.0)
+    dll_set_rate_aid (refine_dll, doppler_hz_est / s->carrier_freq_hz);
+
   double partial_rate
       = s->chip_rate * (double)s->refine_segments / (double)s->code_len;
   double target_rate = (double)s->refine_samples_per_symbol * s->symbol_rate;
@@ -192,6 +201,15 @@ _build_track_chain (async_dsss_receiver_state_t *s, double chip_phase,
                                  ASYNC_DSSS_RX_DLL_BN, 0.707, 0.5, segments);
   if (!dll)
     return -1;
+
+  /* Carrier->code aiding: the code-rate Doppler is coupled to the carrier
+     offset through the same v/c, so feed the refined carrier estimate into
+     the code NCO's rate. The discriminator alone cannot pull in that
+     constant rate offset at low SNR (~24.6 chips/s at 20 kHz / 2.5 GHz), so
+     unaided the code loop walks off even with a correct carrier. Off when
+     carrier_freq_hz == 0 (a pure baseband offset with no clock dilation). */
+  if (s->carrier_freq_hz > 0.0)
+    dll_set_rate_aid (dll, doppler_hz_est / s->carrier_freq_hz);
 
   RateConverter_state_t *rc
       = RateConverter_create (target_rate / partial_rate, 0);
@@ -386,6 +404,17 @@ _track_period (async_dsss_receiver_state_t *s, const float complex *period,
           sum += dll_out[i] * sign;
         }
       costas_update (&s->car, sum);
+      /* Continuous carrier->code aiding: the pre-despread Costas tracks the
+         FULL carrier offset (including the 500 Hz/s ramp), so refresh the
+         code NCO's rate bias from it every period. This keeps the initial
+         build-time seed (dll_set_rate_aid in _build_track_chain) fresh as the
+         ramp drifts, and applies at the next period boundary (dll_set_rate_
+         aid only stores the field, never clobbers phase_inc). Off when
+         carrier_freq_hz == 0. */
+      if (s->carrier_freq_hz > 0.0)
+        dll_set_rate_aid (s->dll, costas_get_norm_freq (&s->car)
+                                      * (s->chip_rate * (double)s->spc)
+                                      / s->carrier_freq_hz);
     }
   return n_out;
 }
@@ -460,12 +489,13 @@ async_dsss_receiver_create (
     double doppler_uncertainty, size_t segments, size_t sps, int differential,
     double refine_max_error_db, size_t refine_samples_per_symbol,
     double refine_design_margin_db, size_t refine_n_fft,
-    size_t refine_zero_pad, bool refine_sequential, size_t refine_max_n_blocks)
+    size_t refine_zero_pad, bool refine_sequential, size_t refine_max_n_blocks,
+    double carrier_freq_hz)
 {
   if (!code || code_len < 1 || chip_rate <= 0.0 || symbol_rate <= 0.0
       || spc < 1 || (m != 2 && m != 4 && m != 8) || segments < 1 || sps < 1
       || refine_samples_per_symbol < 1 || refine_n_fft < 1
-      || refine_zero_pad < 1)
+      || refine_zero_pad < 1 || carrier_freq_hz < 0.0)
     return NULL;
 
   async_dsss_receiver_state_t *obj = calloc (1, sizeof (*obj));
@@ -508,6 +538,7 @@ async_dsss_receiver_create (
   obj->refine_zero_pad           = refine_zero_pad;
   obj->refine_sequential         = refine_sequential;
   obj->refine_max_n_blocks       = refine_max_n_blocks;
+  obj->carrier_freq_hz           = carrier_freq_hz;
 
   /* tsamps (one code period, samples) is fixed for this object's entire
    * lifetime -- refine_segments is likewise fixed (depends only on

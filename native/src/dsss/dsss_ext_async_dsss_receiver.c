@@ -68,6 +68,7 @@ AsyncDsssReceiverObj_init (AsyncDsssReceiverObject *self, PyObject *args,
                                              "refine_zero_pad",
                                              "refine_sequential",
                                              "refine_max_n_blocks",
+                                             "carrier_freq_hz",
                                              NULL };
   PyObject          *code_obj            = NULL;
   double             chip_rate           = 1000000.0;
@@ -88,14 +89,15 @@ AsyncDsssReceiverObj_init (AsyncDsssReceiverObject *self, PyObject *args,
   unsigned long long refine_zero_pad_raw           = 8;
   int                refine_sequential_raw         = false;
   unsigned long long refine_max_n_blocks_raw       = 100000;
+  double             carrier_freq_hz               = 0.0;
 
   if (!PyArg_ParseTupleAndKeywords (
-          args, kwds, "O|ddKiddddKKidKdKKpK", kwlist, &code_obj, &chip_rate,
+          args, kwds, "O|ddKiddddKKidKdKKpKd", kwlist, &code_obj, &chip_rate,
           &symbol_rate, &spc_raw, &m, &cn0_dbhz, &pfa, &pd,
           &doppler_uncertainty, &segments_raw, &sps_raw, &differential,
           &refine_max_error_db, &refine_samples_per_symbol_raw,
           &refine_design_margin_db, &refine_n_fft_raw, &refine_zero_pad_raw,
-          &refine_sequential_raw, &refine_max_n_blocks_raw))
+          &refine_sequential_raw, &refine_max_n_blocks_raw, &carrier_freq_hz))
     return -1;
   size_t spc                       = (size_t)spc_raw;
   size_t segments                  = (size_t)segments_raw;
@@ -117,7 +119,7 @@ AsyncDsssReceiverObj_init (AsyncDsssReceiverObject *self, PyObject *args,
       symbol_rate, spc, m, cn0_dbhz, pfa, pd, doppler_uncertainty, segments,
       sps, differential, refine_max_error_db, refine_samples_per_symbol,
       refine_design_margin_db, refine_n_fft, refine_zero_pad,
-      refine_sequential, refine_max_n_blocks);
+      refine_sequential, refine_max_n_blocks, carrier_freq_hz);
   Py_DECREF (code_arr);
   if (!self->handle)
     {

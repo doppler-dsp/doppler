@@ -108,6 +108,15 @@ typedef struct {
                                   from code_nco.phase on every dll_accumulate,
                                   never independently accumulated.          */
     double code_rate;        /**< chips advanced per nominal chip (~1.0).  */
+    double rate_aid;         /**< carrier-aiding code-rate deviation (ratio,
+                                  0 = off): a fixed fractional bias summed
+                                  into the sample-and-hold phase_inc every
+                                  epoch, on top of the loop's own ctrl. For
+                                  physically-coupled Doppler, the caller sets
+                                  this to carrier_offset/carrier_freq so the
+                                  code NCO rides the code-rate dilation the
+                                  code discriminator alone can't pull in at
+                                  low SNR. See dll_set_rate_aid().           */
     double seed_chip;        /**< create-time code phase, for reset.       */
     double bn;               /**< loop noise bandwidth (retained).         */
     double zeta;             /**< damping factor (retained).               */
@@ -424,7 +433,11 @@ dll_update(dll_state_t *s)
        at construction (configure_geometry()), never here. */
     double ctrl = s->lf.integ * s->inv_tsamps + s->lf.kp * e * s->inv_tsamps_sf;
     s->code_rate = 1.0 + s->lf.integ; /* public ratio observable only */
-    s->code_nco.phase_inc = nco_norm_to_inc(s->inv_tsamps + ctrl);
+    /* rate_aid (0 = off): a fixed carrier-aiding rate bias, scaled by the
+       nominal per-sample rate so it sums into the sample-and-hold phase_inc
+       as a continuous adjustment across the epoch, not a phase pulse. */
+    s->code_nco.phase_inc
+        = nco_norm_to_inc(s->inv_tsamps * (1.0 + s->rate_aid) + ctrl);
 }
 
 /**
@@ -492,6 +505,23 @@ size_t dll_steps(dll_state_t *state, const float complex *x, size_t x_len, float
 void dll_configure(dll_state_t *state, double bn, double zeta);
 double dll_get_bn(const dll_state_t *state);
 void dll_set_bn(dll_state_t *state, double val);
+
+/**
+ * @brief Set the carrier-aiding code-rate deviation (ratio; 0 = off).
+ *
+ * A fixed fractional rate bias summed into the sample-and-hold `phase_inc`
+ * on top of the loop's own control every epoch -- for physically-coupled
+ * Doppler, `carrier_offset_hz / carrier_freq_hz`, so the code NCO rides the
+ * code-rate dilation the discriminator alone can't pull in at low SNR.
+ * Applied continuously across the epoch (via `phase_inc`), not as a phase
+ * pulse. Also nudges the current `phase_inc` so the aid takes effect before
+ * the first period update. `code_rate` stays the loop's own observable and
+ * is unaffected.
+ *
+ * @param state     DLL state. Must be non-NULL.
+ * @param rate_aid  Fractional code-rate deviation (e.g. 8e-6). 0 disables.
+ */
+void dll_set_rate_aid(dll_state_t *state, double rate_aid);
 double dll_get_code_phase(const dll_state_t *state);
 double dll_get_code_rate(const dll_state_t *state);
 double dll_get_last_error(const dll_state_t *state);
@@ -668,7 +698,9 @@ int dll_set_telemetry(dll_state_t *state, dp_tlm_t * tlm, const char * prefix, u
  * pointers, NOT part of the whole-struct snapshot) are packed/restored
  * field-wise when segments > 1. */
 #define DLL_STATE_MAGIC DP_FOURCC ('D','L','L',' ')
-#define DLL_STATE_VERSION 6u /* v6: `sums` scratch field added to the
+#define DLL_STATE_VERSION 7u /* v7: `rate_aid` carrier-aiding field added
+                                (whole-struct snapshot, so the blob grew).
+                                v6: `sums` scratch field added to the
                                 struct (pure epoch-local scratch, not
                                 serialized -- grows sizeof(dll_state_t)
                                 regardless, so the version marks the

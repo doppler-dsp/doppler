@@ -26,20 +26,22 @@
  * this project's own established per-test-file convention).
  */
 #include "async_dsss_receiver/async_dsss_receiver_core.h"
+#include "gold/gold_core.h" /* SPEC Gold-1023 for the Es/N0-floor sweep   */
+#include "wfm/wfm_dsp.h"    /* wfm_cont_dsss_chips: the wfmgen C API       */
 #include <complex.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 
-#define CHECK(cond)                                                         \
-  do                                                                        \
-    {                                                                       \
-      if (!(cond))                                                         \
-        {                                                                  \
-          fprintf (stderr, "FAIL %s:%d  %s\n", __FILE__, __LINE__, #cond); \
-          _fails++;                                                       \
-        }                                                                  \
-    }                                                                      \
+#define CHECK(cond)                                                           \
+  do                                                                          \
+    {                                                                         \
+      if (!(cond))                                                            \
+        {                                                                     \
+          fprintf (stderr, "FAIL %s:%d  %s\n", __FILE__, __LINE__, #cond);    \
+          _fails++;                                                           \
+        }                                                                     \
+    }                                                                         \
   while (0)
 
 /* A length-7 maximal-length sequence -- same fixture test_dsss_receiver_
@@ -81,9 +83,9 @@ cgauss (uint32_t *st)
  * Doppler -- mirrors test_dsss_receiver_core.c's own _make_signal(). */
 static void
 _make_signal (const uint8_t *code, size_t sf, size_t spc, double fs,
-             double tsym, double doppler_hz, double cn0_dbhz, size_t n_sym,
-             size_t pre_silence, uint32_t seed, float complex **x_out,
-             size_t *n_out, double **data_out)
+              double tsym, double doppler_hz, double cn0_dbhz, size_t n_sym,
+              size_t pre_silence, uint32_t seed, float complex **x_out,
+              size_t *n_out, double **data_out)
 {
   float *csign = malloc (sf * sizeof *csign);
   for (size_t i = 0; i < sf; i++)
@@ -179,7 +181,7 @@ _make_ramp_signal (const uint8_t *code, size_t sf, size_t spc, double fs,
  * symbol; return the symbol count and fill `*syms_out` (caller frees). */
 static size_t
 _stream (async_dsss_receiver_state_t *rx, const float complex *x, size_t n,
-        size_t chunk, float complex **syms_out)
+         size_t chunk, float complex **syms_out)
 {
   float complex *syms   = malloc (n * sizeof *syms); /* generous upper bound */
   size_t         n_syms = 0;
@@ -197,7 +199,7 @@ _stream (async_dsss_receiver_state_t *rx, const float complex *x, size_t n,
  * known data -- mirrors test_dsss_receiver_core.c's own _best_ber(). */
 static double
 _best_ber (const float complex *syms, size_t n_syms, const double *data,
-          size_t n_sym)
+           size_t n_sym)
 {
   if (n_syms < 20)
     return 1.0;
@@ -233,24 +235,28 @@ _test_arg_validation (void)
   int _fails = 0;
   CHECK (async_dsss_receiver_create (NULL, 0, 1e6, 1e3, 2, 2, 55.0, 1e-3, 0.9,
                                      100.0, 4, 8, 0, 100.0, 4, 14.0, 64, 8,
-                                     false, 100000)
+                                     false, 100000, 0.0)
          == NULL);
-  CHECK (async_dsss_receiver_create (CODE7, 7, 0.0, 1e3, 2, 2, 55.0, 1e-3,
-                                     0.9, 100.0, 4, 8, 0, 100.0, 4, 14.0, 64, 8,
-                                     false, 100000)
+  CHECK (async_dsss_receiver_create (CODE7, 7, 0.0, 1e3, 2, 2, 55.0, 1e-3, 0.9,
+                                     100.0, 4, 8, 0, 100.0, 4, 14.0, 64, 8,
+                                     false, 100000, 0.0)
          == NULL); /* chip_rate <= 0 */
-  CHECK (async_dsss_receiver_create (CODE7, 7, 1e6, 1e3, 2, 3, 55.0, 1e-3,
-                                     0.9, 100.0, 4, 8, 0, 100.0, 4, 14.0, 64, 8,
-                                     false, 100000)
+  CHECK (async_dsss_receiver_create (CODE7, 7, 1e6, 1e3, 2, 3, 55.0, 1e-3, 0.9,
+                                     100.0, 4, 8, 0, 100.0, 4, 14.0, 64, 8,
+                                     false, 100000, 0.0)
          == NULL); /* m not in {2,4,8} */
-  CHECK (async_dsss_receiver_create (CODE7, 7, 1e6, 1e3, 2, 2, 55.0, 1e-3,
-                                     0.9, 100.0, 0, 8, 0, 100.0, 4, 14.0, 64, 8,
-                                     false, 100000)
+  CHECK (async_dsss_receiver_create (CODE7, 7, 1e6, 1e3, 2, 2, 55.0, 1e-3, 0.9,
+                                     100.0, 0, 8, 0, 100.0, 4, 14.0, 64, 8,
+                                     false, 100000, 0.0)
          == NULL); /* segments < 1 */
+  CHECK (async_dsss_receiver_create (CODE7, 7, 1e6, 1e3, 2, 2, 55.0, 1e-3, 0.9,
+                                     100.0, 4, 8, 0, 0.5, 4, 14.0, 64, 8,
+                                     false, 100000, -1.0)
+         == NULL); /* carrier_freq_hz < 0 */
 
   async_dsss_receiver_state_t *rx = async_dsss_receiver_create (
-      CODE7, 7, 1.0e6, 35714.29, 4, 2, 70.0, 1e-2, 0.9, 500.0, 4, 8, 0, 0.5,
-      4, 14.0, 64, 8, false, 100000);
+      CODE7, 7, 1.0e6, 35714.29, 4, 2, 70.0, 1e-2, 0.9, 500.0, 4, 8, 0, 0.5, 4,
+      14.0, 64, 8, false, 100000, 0.0);
   CHECK (rx != NULL);
   if (rx)
     {
@@ -285,11 +291,11 @@ _test_acquire_and_decode (void)
   size_t         n;
   double        *data;
   _make_signal (CODE7, sf, spc, fs, tsym, 0.0, cn0, n_sym, pre_silence, 7, &x,
-               &n, &data);
+                &n, &data);
 
   async_dsss_receiver_state_t *rx = async_dsss_receiver_create (
       CODE7, sf, 1.0e6, sym_rate, spc, 2, cn0, 1e-2, 0.9, 500.0, 4, 8, 0,
-      100.0, 4, 14.0, 32, 8, false, 100000);
+      100.0, 4, 14.0, 32, 8, false, 100000, 0.0);
   CHECK (rx != NULL);
   if (!rx)
     {
@@ -316,14 +322,14 @@ _test_acquire_and_decode (void)
 
   async_dsss_receiver_state_t *rx2 = async_dsss_receiver_create (
       CODE7, sf, 1.0e6, sym_rate, spc, 2, cn0, 1e-2, 0.9, 500.0, 4, 8, 0,
-      100.0, 4, 14.0, 32, 8, false, 100000);
+      100.0, 4, 14.0, 32, 8, false, 100000, 0.0);
   CHECK (rx2 != NULL);
   if (rx2)
     {
       CHECK (async_dsss_receiver_set_state (rx2, blob) == DP_OK);
       CHECK (async_dsss_receiver_get_tracking (rx2) == 1);
       CHECK (fabs (async_dsss_receiver_get_chip_phase (rx2)
-                  - async_dsss_receiver_get_chip_phase (rx))
+                   - async_dsss_receiver_get_chip_phase (rx))
              < 1e-9);
 
       /* a corrupted envelope must be rejected, not reinterpreted. */
@@ -336,7 +342,7 @@ _test_acquire_and_decode (void)
   /* ── state-serialization round trip, while searching ─────────────────── */
   async_dsss_receiver_state_t *rx3 = async_dsss_receiver_create (
       CODE7, sf, 1.0e6, sym_rate, spc, 2, cn0, 1e-2, 0.9, 500.0, 4, 8, 0,
-      100.0, 4, 14.0, 32, 8, false, 100000);
+      100.0, 4, 14.0, 32, 8, false, 100000, 0.0);
   CHECK (rx3 != NULL);
   if (rx3)
     {
@@ -346,7 +352,7 @@ _test_acquire_and_decode (void)
 
       async_dsss_receiver_state_t *rx4 = async_dsss_receiver_create (
           CODE7, sf, 1.0e6, sym_rate, spc, 2, cn0, 1e-2, 0.9, 500.0, 4, 8, 0,
-          100.0, 4, 14.0, 32, 8, false, 100000);
+          100.0, 4, 14.0, 32, 8, false, 100000, 0.0);
       CHECK (rx4 != NULL);
       if (rx4)
         {
@@ -401,11 +407,12 @@ _test_give_up_cap (void)
   size_t         n;
   double        *data;
   _make_signal (CODE7, sf, spc, fs, tsym, 0.0, cn0, n_sym, pre_silence, 9, &x,
-               &n, &data);
+                &n, &data);
 
   async_dsss_receiver_state_t *rx = async_dsss_receiver_create (
       CODE7, sf, 1.0e6, sym_rate, spc, 2, cn0, 1e-2, 0.9, 500.0, 4, 8, 0, 0.5,
-      4, 14.0, 16, 4, true, 1 /* refine_max_n_blocks: forces give-up */);
+      4, 14.0, 16, 4, true, 1 /* refine_max_n_blocks: forces give-up */,
+      0.0 /* carrier_freq_hz: aiding off */);
   CHECK (rx != NULL);
   if (!rx)
     {
@@ -414,7 +421,7 @@ _test_give_up_cap (void)
       return _fails + 1;
     }
 
-  float complex *syms = malloc (n * sizeof *syms);
+  float complex *syms   = malloc (n * sizeof *syms);
   size_t         n_syms = _stream (rx, x, n, te, &syms);
 
   CHECK (async_dsss_receiver_get_refining (rx) == 0);
@@ -485,7 +492,7 @@ _test_spec_ramp_decode (void)
 
   async_dsss_receiver_state_t *rx = async_dsss_receiver_create (
       code, sf, chip_rate, sym_rate, spc, 2, cn0, 1e-2, 0.9, 500.0, 4, 8, 0,
-      100.0, 4, 14.0, 64, 8, false, 100000);
+      100.0, 4, 14.0, 64, 8, false, 100000, 0.0);
   CHECK (rx != NULL);
   if (!rx)
     {
@@ -533,11 +540,11 @@ _test_spec_combined_scenario_at_spec_floor (void)
 {
   int _fails = 0;
 
-  const size_t sf        = 1023;
-  const size_t spc       = 2;
-  const double chip_rate = 3.069e6;
-  const double fs        = chip_rate * (double)spc;
-  const double sym_rate  = 2700.0;
+  const size_t sf            = 1023;
+  const size_t spc           = 2;
+  const double chip_rate     = 3.069e6;
+  const double fs            = chip_rate * (double)spc;
+  const double sym_rate      = 2700.0;
   const double tsym          = fs / sym_rate;
   const size_t te            = sf * spc;
   const double rate_hz_per_s = 500.0;
@@ -560,7 +567,7 @@ _test_spec_combined_scenario_at_spec_floor (void)
 
   async_dsss_receiver_state_t *rx = async_dsss_receiver_create (
       code, sf, chip_rate, sym_rate, spc, 2, cn0, 1e-2, 0.9, 500.0, 4, 8, 0,
-      100.0, 4, 14.0, 64, 8, false, 100000);
+      100.0, 4, 14.0, 64, 8, false, 100000, 0.0);
   CHECK (rx != NULL);
   if (!rx)
     {
@@ -586,6 +593,101 @@ _test_spec_combined_scenario_at_spec_floor (void)
   return _fails;
 }
 
+/* AWGN-only Es/N0 decode floor at SPEC's own geometry (Gold-1023, 3.069
+ * Mcps, 2700 bps asynchronous BPSK, spc=2), ZERO Doppler -- characterizes
+ * the pull-in cliff (task #99), independent of Doppler and of the aiding
+ * path. Generated with the wfmgen C API (wfm_cont_dsss_chips) so this test
+ * exercises the same continuous-DSSS builder the wfmgen tool ships. Sweeps
+ * Es/N0 and prints BER (visible under `ctest -V`) so the floor is a tracked,
+ * inspectable quantity; asserts a clean decode above the floor and that a
+ * genuine floor exists below it (not that the receiver meets SPEC's 5 dB --
+ * it does not; the shipped receivers decode cleanly only above ~11-12 dB
+ * here, matching prototypes/async_despreader/spec_full_characterization.py).
+ */
+static int
+_test_awgn_esn0_floor (void)
+{
+  int          _fails = 0;
+  const size_t sf = 1023, spc = 2;
+  const double chip_rate = 3.069e6, sym_rate = 2700.0;
+  const double fs    = chip_rate * (double)spc;
+  const double cps   = chip_rate / sym_rate; /* 1136.67, non-integer */
+  const size_t n_sym = 1500;
+
+  uint8_t      *code = malloc (sf);
+  gold_state_t *g    = gold_create (934, 350, 567, 73, 10);
+  gold_generate (g, sf, code);
+  gold_destroy (g);
+  size_t ones = 0;
+  for (size_t i = 0; i < sf; i++)
+    ones += code[i];
+  CHECK (ones > 480 && ones < 544); /* a valid Gold-1023 is ~balanced */
+
+  printf ("  AWGN-only Es/N0 floor (Gold-1023, 3.069 Mcps, 2700 bps, "
+          "no Doppler):\n");
+  const double esn0_pts[] = { 8.0, 11.0, 13.0, 15.0, 17.0 };
+  const size_t n_pts      = sizeof esn0_pts / sizeof esn0_pts[0];
+  double       ber_at[5]  = { 1, 1, 1, 1, 1 };
+
+  for (size_t p = 0; p < n_pts; p++)
+    {
+      double   cn0    = esn0_pts[p] + 10.0 * log10 (sym_rate);
+      size_t   n_data = n_sym + 8;
+      uint8_t *dbits  = malloc (n_data);
+      double  *dsym   = malloc (n_data * sizeof *dsym);
+      uint32_t st     = 0x51ced00du + (uint32_t)p;
+      for (size_t i = 0; i < n_data; i++)
+        {
+          st ^= st << 13;
+          st ^= st >> 17;
+          st ^= st << 5;
+          dbits[i] = (uint8_t)(st & 1u);
+          dsym[i]  = 1.0 - 2.0 * (double)dbits[i]; /* transmitted BPSK sym */
+        }
+
+      size_t   n_chips = (size_t)((double)n_sym * cps) + 2 * sf;
+      uint8_t *chips   = malloc (n_chips);
+      wfm_cont_dsss_chips (code, sf, dbits, n_data, cps, n_chips, chips);
+
+      size_t         pre   = sf * spc * 5 + 3;
+      size_t         n     = n_chips * spc;
+      size_t         tot   = pre + n;
+      float complex *x     = calloc (tot, sizeof *x);
+      double         amp   = sqrt (pow (10.0, cn0 / 10.0) / fs);
+      double         sigma = 1.0 / amp;
+      for (size_t i = 0; i < tot; i++)
+        x[i] = (float complex) (sigma / sqrt (2.0)) * cgauss (&st);
+      for (size_t i = 0; i < n; i++)
+        x[pre + i] += (float)(1.0 - 2.0 * (double)chips[i / spc]);
+
+      async_dsss_receiver_state_t *rx = async_dsss_receiver_create (
+          code, sf, chip_rate, sym_rate, spc, 2, cn0, 1e-3, 0.9, 100.0, 4, 8,
+          0, 0.5, 4, 14.0, 64, 8, false, 100000, 0.0);
+      float complex *syms   = NULL;
+      size_t         n_syms = rx ? _stream (rx, x, tot, sf * spc, &syms) : 0;
+      double         ber    = _best_ber (syms, n_syms, dsym, n_data);
+      ber_at[p]             = ber;
+      printf ("    Es/N0=%4.1f dB  cn0=%5.1f dB-Hz  tracking=%d  ber=%.4f\n",
+              esn0_pts[p], cn0, rx ? async_dsss_receiver_get_tracking (rx) : 0,
+              ber);
+
+      free (syms);
+      async_dsss_receiver_destroy (rx);
+      free (x);
+      free (chips);
+      free (dsym);
+      free (dbits);
+    }
+  free (code);
+
+  /* Above the floor decodes cleanly; a genuine floor exists below (this
+     receiver's cliff sits ~11-12 dB, well above SPEC's aspirational 5 dB). */
+  CHECK (ber_at[4] < 0.05); /* 17 dB: clean, well above the floor */
+  CHECK (ber_at[3] < 0.10); /* 15 dB: at/above the knee */
+  CHECK (ber_at[0] > 0.30); /* 8 dB: below the floor -- chance */
+  return _fails;
+}
+
 int
 main (void)
 {
@@ -595,11 +697,11 @@ main (void)
   _fails += _test_give_up_cap ();
   _fails += _test_spec_ramp_decode ();
   _fails += _test_spec_combined_scenario_at_spec_floor ();
+  _fails += _test_awgn_esn0_floor ();
 
   if (_fails)
     {
-      fprintf (stderr, "test_async_dsss_receiver_core FAILED (%d)\n",
-              _fails);
+      fprintf (stderr, "test_async_dsss_receiver_core FAILED (%d)\n", _fails);
       return 1;
     }
 

@@ -60,7 +60,8 @@
  *     55.0, 1e-3, 0.9, 100.0,          // cn0_dbhz, pfa, pd,
  *                                      // doppler_uncertainty
  *     4, 8, 0,                         // segments, sps, differential
- *     0.5, 4, 14.0, 64, 8, false, 100000);  // refine_* tuning
+ *     0.5, 4, 14.0, 64, 8, false, 100000,  // refine_* tuning
+ *     0.0);                            // carrier_freq_hz (0 = aiding off)
  * float complex syms[4096];
  * size_t n = async_dsss_receiver_steps(rx, x, x_len, syms, 4096);
  * async_dsss_receiver_destroy(rx);
@@ -202,6 +203,9 @@ extern "C"
     size_t refine_zero_pad;
     bool   refine_sequential;
     size_t refine_max_n_blocks;
+    double carrier_freq_hz; /**< nominal RF carrier, Hz; > 0 enables the
+                                 carrier->code rate aiding, 0 = off (config,
+                                 not running state -- restored by create). */
 
     int state; /**< 0 = searching, 1 = refining, 2 = tracking.           */
     double   seed_chip_phase;     /**< Original handoff chip phase --
@@ -293,6 +297,17 @@ extern "C"
    *                                   default.
    * @param refine_max_n_blocks        CarrierAcquisition's own give-up cap
    *                                   in sequential mode; default 100000.
+   * @param carrier_freq_hz            Nominal RF carrier frequency, Hz,
+   *                                   enabling carrier->code aiding; 0.0
+   *                                   (default) = off. When > 0, the coupled
+   *                                   code-rate Doppler
+   *                                   (carrier_offset/carrier_freq) is fed to
+   *                                   the tracking Dll via dll_set_rate_aid()
+   *                                   so the code loop rides a dilated clock
+   *                                   the discriminator alone can't pull in
+   *                                   at low SNR. Set to the receiver's own
+   *                                   downlink RF frequency for a
+   *                                   physically-coupled Doppler capture.
    * @return Heap-allocated state, or NULL on invalid args / allocation
    *         failure.
    */
@@ -303,7 +318,7 @@ extern "C"
       int differential, double refine_max_error_db,
       size_t refine_samples_per_symbol, double refine_design_margin_db,
       size_t refine_n_fft, size_t refine_zero_pad, bool refine_sequential,
-      size_t refine_max_n_blocks);
+      size_t refine_max_n_blocks, double carrier_freq_hz);
 
   /** @brief Destroy a receiver and release every child.
    *  @param state May be NULL. */

@@ -660,8 +660,11 @@ dll_steps_impl (dll_state_t *state, const float complex *x, size_t x_len,
               double lf_out    = loop_filter_step (&state->lf, e);
               double ctrl      = lf_out * state->inv_tsamps2;
               state->code_rate = 1.0 + lf_out * state->inv_tsamps;
-              state->code_nco.phase_inc
-                  = nco_norm_to_inc (state->inv_tsamps + ctrl);
+              /* rate_aid (0 = off): the carrier-aiding rate bias, scaled by
+                 the nominal per-sample rate so it rides the sample-and-hold
+                 phase_inc continuously across the epoch (see dll_update()). */
+              state->code_nco.phase_inc = nco_norm_to_inc (
+                  state->inv_tsamps * (1.0 + state->rate_aid) + ctrl);
 
               /* Output: this epoch's own natural chunk sums, normalized by
                  the clean power reference found above -- never the
@@ -734,6 +737,19 @@ void
 dll_set_bn (dll_state_t *state, double val)
 {
   dll_configure (state, val, state->zeta);
+}
+
+void
+dll_set_rate_aid (dll_state_t *state, double rate_aid)
+{
+  /* Just stores the bias; the next dll_update()/dll_steps() period boundary
+     folds it into phase_inc (inv_tsamps*(1+rate_aid) + ctrl). Deliberately
+     does NOT touch phase_inc here, so this is safe to call every period for
+     continuous aiding without clobbering the loop's own steering -- a fresh
+     DLL simply drifts for at most one (sub-chip) period before the first
+     update applies the aid. code_rate (the loop's own ratio observable) is
+     left untouched. */
+  state->rate_aid = rate_aid;
 }
 
 double

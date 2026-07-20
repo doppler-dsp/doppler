@@ -39,6 +39,7 @@ target_link_libraries(dsss PRIVATE
     hbdecim_core
     cic_core
     resample_core
+    gold_core
     carrier_acq_core
     psd_core
     acc_trace_core

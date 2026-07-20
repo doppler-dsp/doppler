@@ -148,6 +148,7 @@ nav:
           - WCDMA Carriers: gallery/wcdma-carriers.md
           - "Prepare Once, Sweep Many (Plan)": gallery/plan.md
           - AWGN: gallery/awgn.md
+          - Doppler Channel: gallery/doppler-channel.md
           - LO: examples/python-lo.md
           - NCO: examples/python-nco.md
       - Filters & Resampling:
@@ -211,6 +212,7 @@ nav:
       - "Python: Detection Statistics": api/python-detection.md
       - "Python: M-PSK Constellation": api/python-mpsk.md
       - "Python: Source (NCO / LO / AWGN)": api/python-nco.md
+      - "Python: Impairment (DopplerChannel)": api/python-impairment.md
       - "Python: Waveform Generator (Synth / PN)": api/python-wfmgen.md
       - "Python: FIR Filter": api/python-filter.md
       - "Python: DDC": api/python-ddc.md

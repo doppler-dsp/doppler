@@ -18,6 +18,7 @@ The Python modules are thin CPython extensions over the C ABI — no reimplement
 | `doppler.detection` — detection statistics                 | [Python: Detection Statistics](python-detection.md)   |
 | `doppler.source` — NCO, LO, AWGN                           | [Python: Source (NCO / LO / AWGN)](python-nco.md)     |
 | `doppler.wfm` — waveform generator                         | [Python: Waveform Generator](python-wfmgen.md)        |
+| `doppler.impairment` — propagation impairments             | [Python: Impairment](python-impairment.md)            |
 | `doppler.filter` — FIR, halfband                           | [Python: FIR Filter](python-filter.md)                |
 | `doppler.ddc` — down-converter                             | [Python: DDC](python-ddc.md)                          |
 | `doppler.resample` — polyphase resampler                   | [Python: Resample](python-resample.md)                |

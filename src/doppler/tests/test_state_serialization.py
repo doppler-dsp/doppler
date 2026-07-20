@@ -48,6 +48,7 @@ from doppler.delay import DelayCf64
 from doppler.detection import LockDet
 from doppler.dsss import BurstDespreader, Despreader
 from doppler.filter import FIR, MovingAverage
+from doppler.impairment import DopplerChannel
 from doppler.resample import (
     CIC,
     Farrow,
@@ -281,6 +282,19 @@ CASES: dict[str, tuple[Callable[[], Any], _Feed]] = {
         ),
     ),
     # Compositions — children nested as self-validating sub-blobs.
+    # DopplerChannel nests the resampler that realises the time dilation; its
+    # own payload is just the two sample clocks (input-side for the resampler
+    # ctrl, output-side for the carrier phase), so a resume that restored only
+    # one of them would drift the carrier against the code rate.
+    "DopplerChannel": (
+        lambda: DopplerChannel(
+            fs=6.138e6,
+            carrier_hz=2.5e9,
+            doppler_ppm=20.0,
+            doppler_rate_ppm_s=0.2,
+        ),
+        lambda o, seg: np.array(o.execute(seg)),
+    ),
     "Dll": (
         lambda: Dll(
             code=_CODE,

@@ -1,7 +1,7 @@
 include = ["objects/*.toml"]
 
 [project]
-jm_version = "0.32.0"
+jm_version = "0.33.1"
 name = "doppler"
 version = "0.1.0"
 build = "cmake"
@@ -1764,6 +1764,15 @@ default = "4"
 
 [module.agc]
 objects = ["agc"]
+
+# Propagation impairments: things that TRANSFORM a signal on its way from
+# transmitter to receiver, as opposed to source's awgn/lo/nco, which GENERATE
+# one. DopplerChannel is the first; multipath/fading/phase-noise belong here
+# when they land. doppler_channel.toml's depends_on link=true (gh-225) links
+# resamp_core into the impairment .so — the dilation is resamp_execute_ctrl,
+# not a hand-rolled resampler.
+[module.impairment]
+objects = ["doppler_channel"]
 
 [module.util]
 objects = []

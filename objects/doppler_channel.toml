@@ -1,0 +1,73 @@
+[doppler_channel]
+arg_type = "float _Complex"
+return_type = "float _Complex"
+mutable = "false"
+no_state = "true"
+no_step = "true"
+class_name = "DopplerChannel"
+serializable = "true"
+depends_on = [{ name = "resamp", link = true }]
+
+[[doppler_channel.init_params]]
+name = "fs"
+type = "double"
+default = "1000000.0"
+
+[[doppler_channel.init_params]]
+name = "carrier_hz"
+type = "double"
+default = "0.0"
+
+[[doppler_channel.init_params]]
+name = "doppler_ppm"
+type = "double"
+default = "0.0"
+
+[[doppler_channel.init_params]]
+name = "doppler_rate_ppm_s"
+type = "double"
+default = "0.0"
+
+[[doppler_channel.methods]]
+name = "execute"
+arg_type = "void"
+return_type = "float _Complex"
+variable_output = true
+pass_capacity = true
+nogil = true
+params = [{name = "x", type = "float _Complex[]"}]
+
+[[doppler_channel.methods]]
+name = "reset"
+arg_type = "void"
+return_type = "void"
+
+[[doppler_channel.properties]]
+name = "fs"
+type = "double"
+field = true
+
+[[doppler_channel.properties]]
+name = "carrier_hz"
+type = "double"
+field = true
+
+[[doppler_channel.properties]]
+name = "doppler_ppm"
+type = "double"
+field = true
+
+[[doppler_channel.properties]]
+name = "doppler_rate_ppm_s"
+type = "double"
+field = true
+
+[[doppler_channel.properties]]
+name = "elapsed_s"
+type = "double"
+doc = "Receive time in seconds consumed so far, the `t` every Doppler quantity is evaluated at. Advances by `n/fs` per `execute(x)` call and is zeroed by `reset()`."
+
+[[doppler_channel.properties]]
+name = "offset_hz"
+type = "double"
+doc = "Instantaneous carrier offset `fc * d(t)` in Hz at the current `elapsed_s` -- the frequency a receiver would have to tune out right now. Read-only diagnostic; with a non-zero `doppler_rate_ppm_s` it ramps as the stream advances."

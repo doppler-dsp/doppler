@@ -50,8 +50,10 @@ depends_on = [
 ]
 # wfm_dsp_core: the wfmgen C API used by test_async_dsss_receiver_core.c's
 # AWGN Es/N0-floor characterization (wfm_cont_dsss_chips continuous DSSS
-# builder). gold_core: the SPEC Gold-1023 code for that same test.
-extra_link_libs = ["wfm_dsp_core", "gold_core"]
+# builder). gold_core: the SPEC Gold-1023 code for that same test. snr_core:
+# the canonical blind M2M4 SNR validator (snr_m2m4_db) that same test uses to
+# validate lock independently of BER.
+extra_link_libs = ["wfm_dsp_core", "gold_core", "snr_core"]
 
 # ── Construction: only the signal itself is required ─────────────────────────
 

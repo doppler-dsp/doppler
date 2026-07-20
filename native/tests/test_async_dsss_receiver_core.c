@@ -27,6 +27,7 @@
  */
 #include "async_dsss_receiver/async_dsss_receiver_core.h"
 #include "gold/gold_core.h" /* SPEC Gold-1023 for the Es/N0-floor sweep   */
+#include "snr/snr_core.h"   /* snr_m2m4_db: canonical blind SNR validator  */
 #include "wfm/wfm_dsp.h"    /* wfm_cont_dsss_chips: the wfmgen C API       */
 #include <complex.h>
 #include <math.h>
@@ -205,7 +206,13 @@ _best_ber (const float complex *syms, size_t n_syms, const double *data,
     return 1.0;
   size_t lo = n_syms / 2, hi = n_syms;
   double best = 1.0;
-  for (int lag = -20; lag <= 20; lag++)
+  /* Wide lag search: the acquisition/refine settling delay GROWS as Es/N0
+     drops (tens of symbols near the floor), so a narrow window gives false
+     "chance" BER at low SNR even when the receiver decodes perfectly -- the
+     exact BER fragility the self-referenced EVM/M2M4 validators guard
+     against. Over a several-hundred-symbol back half, a spurious sub-0.05
+     alignment is statistically impossible, so a wide search stays honest. */
+  for (int lag = -250; lag <= 250; lag++)
     {
       size_t errs = 0, cnt = 0;
       for (size_t i = lo; i < hi; i++)
@@ -227,6 +234,59 @@ _best_ber (const float complex *syms, size_t n_syms, const double *data,
         best = 1.0 - ber;
     }
   return best;
+}
+
+/* Self-referenced EVM (dB) over the back half -- each symbol against its OWN
+ * hard decision, with NO lag search and NO link to the true data. De-rotates
+ * the constellation by the BPSK squaring angle (M=2, removing any static
+ * residual phase Costas left) and normalizes to unit power, then measures
+ * RMS(z - nearest +-1) against the |ref|=1 reference. A locked BPSK sits at
+ * EVM ~ -Es/N0 dB; a scattered/unlocked constellation sits near 0 dB. This
+ * cannot be fooled by a lucky lag/polarity the way a truth-referenced BER can
+ * at low Es/N0, so it is the independent lock validator. */
+static double
+_evm_db_hard (const float complex *syms, size_t n_syms)
+{
+  if (n_syms < 20)
+    return 0.0;
+  size_t lo = n_syms / 2, hi = n_syms, n = hi - lo;
+  double c2r = 0.0, c2i = 0.0, p = 0.0;
+  for (size_t i = lo; i < hi; i++)
+    {
+      double re = crealf (syms[i]), im = cimagf (syms[i]);
+      c2r += re * re - im * im; /* Re(z^2) */
+      c2i += 2.0 * re * im;     /* Im(z^2) */
+      p += re * re + im * im;
+    }
+  double scale = sqrt (p / (double)n);
+  if (scale < 1e-20)
+    return 0.0;
+  double phi = 0.5 * atan2 (c2i, c2r); /* constellation rotation */
+  double cr = cos (-phi), sr = sin (-phi);
+  double errsq = 0.0;
+  for (size_t i = lo; i < hi; i++)
+    {
+      double re = crealf (syms[i]), im = cimagf (syms[i]);
+      double dr = (re * cr - im * sr) / scale; /* de-rotated, unit power */
+      double di = (re * sr + im * cr) / scale;
+      double d  = (dr >= 0.0) ? 1.0 : -1.0; /* nearest BPSK point */
+      errsq += (dr - d) * (dr - d) + di * di;
+    }
+  double evm = sqrt (errsq / (double)n); /* |ref| = 1 */
+  return (evm > 0.0) ? 20.0 * log10 (evm) : -120.0;
+}
+
+/* Blind M2M4 Es/N0 (dB) over the back half via the canonical snr_m2m4_db()
+ * primitive (native/inc/snr) -- moment-based, NO reference symbols. A second,
+ * independent post-despread symbol-SNR validator: a locked stream recovers
+ * ~Es/N0; noise-dominated symbols estimate near 0 dB. */
+static double
+_m2m4_snr_db (const float complex *syms, size_t n_syms)
+{
+  if (n_syms < 20)
+    return -120.0;
+  size_t lo = n_syms / 2;
+  return snr_m2m4_db (syms + lo, n_syms - lo);
 }
 
 static int
@@ -314,6 +374,9 @@ _test_acquire_and_decode (void)
 
   double ber = _best_ber (syms, n_syms, data, n_sym + 4);
   CHECK (ber < 0.05);
+  /* Truth-free corroboration: a real lock, not a lucky BER lag/polarity. */
+  CHECK (_evm_db_hard (syms, n_syms) < -8.0);
+  CHECK (_m2m4_snr_db (syms, n_syms) > 8.0);
 
   /* ── state-serialization round trip, while tracking ─────────────────── */
   size_t cb   = async_dsss_receiver_state_bytes (rx);
@@ -510,6 +573,9 @@ _test_spec_ramp_decode (void)
   CHECK (async_dsss_receiver_get_tracking (rx) == 1);
   CHECK (n_syms > (n_sym / 2));
   CHECK (ber < 0.05);
+  /* Truth-free corroboration under the ramp: a real lock, not a lucky lag. */
+  CHECK (_evm_db_hard (syms, n_syms) < -8.0);
+  CHECK (_m2m4_snr_db (syms, n_syms) > 8.0);
 
   free (syms);
   free (x);
@@ -595,14 +661,19 @@ _test_spec_combined_scenario_at_spec_floor (void)
 
 /* AWGN-only Es/N0 decode floor at SPEC's own geometry (Gold-1023, 3.069
  * Mcps, 2700 bps asynchronous BPSK, spc=2), ZERO Doppler -- characterizes
- * the pull-in cliff (task #99), independent of Doppler and of the aiding
- * path. Generated with the wfmgen C API (wfm_cont_dsss_chips) so this test
+ * the decode floor, independent of Doppler and of the aiding path.
+ * Generated with the wfmgen C API (wfm_cont_dsss_chips) so this test
  * exercises the same continuous-DSSS builder the wfmgen tool ships. Sweeps
- * Es/N0 and prints BER (visible under `ctest -V`) so the floor is a tracked,
- * inspectable quantity; asserts a clean decode above the floor and that a
- * genuine floor exists below it (not that the receiver meets SPEC's 5 dB --
- * it does not; the shipped receivers decode cleanly only above ~11-12 dB
- * here, matching prototypes/async_despreader/spec_full_characterization.py).
+ * Es/N0 and prints three metrics (visible under `ctest -V`) so the floor is
+ * a tracked, inspectable quantity: the truth-referenced BER PLUS two
+ * truth-free validators that cannot be fooled by a lucky BER lag/polarity --
+ * the self-referenced EVM (each symbol vs its OWN hard decision, no lag) and
+ * the blind M2M4 SNR (snr_m2m4_db, moment-based, no reference symbols).
+ * AWGN-only, this receiver essentially MEETS SPEC's 5 dB floor: it decodes
+ * cleanly at 5 dB and only fails at 4 dB. (An earlier "~12 dB floor" was a
+ * pure BER-lag artifact -- the settling delay grows toward the floor, so a
+ * fixed short lag window reports chance while the receiver actually decodes;
+ * the EVM/M2M4 corroboration is what caught and corrected it.)
  */
 static int
 _test_awgn_esn0_floor (void)
@@ -625,9 +696,11 @@ _test_awgn_esn0_floor (void)
 
   printf ("  AWGN-only Es/N0 floor (Gold-1023, 3.069 Mcps, 2700 bps, "
           "no Doppler):\n");
-  const double esn0_pts[] = { 8.0, 11.0, 13.0, 15.0, 17.0 };
+  const double esn0_pts[] = { 4.0, 5.0, 6.0, 8.0, 10.0 };
   const size_t n_pts      = sizeof esn0_pts / sizeof esn0_pts[0];
   double       ber_at[5]  = { 1, 1, 1, 1, 1 };
+  double       evm_at[5]  = { 0, 0, 0, 0, 0 };
+  double       snr_at[5]  = { 0, 0, 0, 0, 0 };
 
   for (size_t p = 0; p < n_pts; p++)
     {
@@ -666,10 +739,18 @@ _test_awgn_esn0_floor (void)
       float complex *syms   = NULL;
       size_t         n_syms = rx ? _stream (rx, x, tot, sf * spc, &syms) : 0;
       double         ber    = _best_ber (syms, n_syms, dsym, n_data);
+      double         evm    = _evm_db_hard (syms, n_syms); /* no lag/truth */
+      double         snr    = _m2m4_snr_db (syms, n_syms); /* blind M2M4   */
       ber_at[p]             = ber;
-      printf ("    Es/N0=%4.1f dB  cn0=%5.1f dB-Hz  tracking=%d  ber=%.4f\n",
+      evm_at[p]             = evm;
+      snr_at[p]             = snr;
+      /* Print all three: ber is the truth-referenced number; evm (self-
+         referenced, no lag) and the blind M2M4 SNR are the independent
+         validators that can't be fooled by a lucky-lag false pass. */
+      printf ("    Es/N0=%4.1f dB  cn0=%5.1f dB-Hz  tracking=%d  ber=%.4f  "
+              "evm=%6.1f dB  m2m4_snr=%5.1f dB\n",
               esn0_pts[p], cn0, rx ? async_dsss_receiver_get_tracking (rx) : 0,
-              ber);
+              ber, evm, snr);
 
       free (syms);
       async_dsss_receiver_destroy (rx);
@@ -680,11 +761,28 @@ _test_awgn_esn0_floor (void)
     }
   free (code);
 
-  /* Above the floor decodes cleanly; a genuine floor exists below (this
-     receiver's cliff sits ~11-12 dB, well above SPEC's aspirational 5 dB). */
-  CHECK (ber_at[4] < 0.05); /* 17 dB: clean, well above the floor */
-  CHECK (ber_at[3] < 0.10); /* 15 dB: at/above the knee */
-  CHECK (ber_at[0] > 0.30); /* 8 dB: below the floor -- chance */
+  /* AWGN-only, this receiver essentially MEETS SPEC's 5 dB floor: it decodes
+     cleanly at 5 dB and only fails at 4 dB. (An earlier characterization put
+     the floor ~12 dB -- that was purely a narrow BER lag-search artifact:
+     the settling delay grows toward the floor, so a fixed short lag window
+     misses the alignment and reports chance even while the receiver decodes
+     perfectly. Widening the lag AND cross-checking with the truth-free
+     EVM/M2M4 validators is what corrected it.) */
+  CHECK (ber_at[4] < 0.05); /* 10 dB: clean */
+  CHECK (ber_at[3] < 0.05); /* 8 dB: clean */
+  CHECK (ber_at[1] < 0.05); /* 5 dB: MEETS SPEC's 5 dB floor (AWGN-only) */
+  CHECK (ber_at[0] > 0.10); /* 4 dB: below the floor */
+
+  /* Independent, truth-free corroboration (no lag, no reference symbols):
+     the self-referenced EVM and blind M2M4 SNR must AGREE with the BER
+     verdict and degrade monotonically toward the floor -- this is what makes
+     the floor call robust rather than a BER-lag artifact. A locked
+     constellation is tight (EVM ~ -Es/N0) with real symbol SNR; toward the
+     floor both worsen. */
+  CHECK (evm_at[4] < -8.0);            /* 10 dB locked: tight */
+  CHECK (snr_at[4] > 10.0);            /* 10 dB locked: real symbol SNR */
+  CHECK (evm_at[0] > evm_at[3] + 3.0); /* 4 dB EVM >= 3 dB worse than 8 dB */
+  CHECK (snr_at[0] < snr_at[3] - 2.0); /* 4 dB blind SNR collapses vs 8 dB */
   return _fails;
 }
 

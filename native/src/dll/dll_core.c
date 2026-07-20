@@ -193,7 +193,7 @@ dll_init (dll_state_t *s, const uint8_t *code, size_t code_len, size_t sps,
    * allocated for this instance — explicitly NULL them (not calloc'd, unlike
    * dll_create) so a stack-embedded caller struct doesn't carry garbage
    * pointers. */
-  s->chunk_p = s->chunk_e = s->chunk_l = NULL;
+  s->chunk_p = s->chunk_e = s->chunk_l = s->sums = NULL;
   s->last_backward_p = s->last_e = s->last_l = NULL;
   /* In-place (stack-embedded) init: start detached — dll_create's calloc
    * gets this for free, a caller-owned struct would otherwise carry a
@@ -202,22 +202,26 @@ dll_init (dll_state_t *s, const uint8_t *code, size_t code_len, size_t sps,
   seed (s);
 }
 
-/* Allocate the segments>1 chunk/lookback buffers (six arrays, length
+/* Allocate the segments>1 chunk/lookback buffers (seven arrays, length
  * segments); on any failure, free whatever succeeded and return 0. Only
  * ever called from dll_create() -- dll_init()'s embedded/borrowed path is
  * always segments==1 (see dll_init()'s own comment), so this never needs a
- * matching deinit for that lifecycle. */
+ * matching deinit for that lifecycle. `sums` is pure epoch-local scratch
+ * (rebuilt from chunk_p every epoch boundary; see dll_steps_impl's
+ * segments>1 branch) but is persisted here rather than allocated per-epoch,
+ * matching this codebase's "no allocation in the hot loop" rule. */
 static int
 alloc_segment_buffers (dll_state_t *s, size_t segments)
 {
   s->chunk_p          = calloc (segments, sizeof (*s->chunk_p));
   s->chunk_e          = calloc (segments, sizeof (*s->chunk_e));
   s->chunk_l          = calloc (segments, sizeof (*s->chunk_l));
+  s->sums             = calloc (segments, sizeof (*s->sums));
   s->last_backward_p  = calloc (segments, sizeof (*s->last_backward_p));
   s->last_e           = calloc (segments, sizeof (*s->last_e));
   s->last_l           = calloc (segments, sizeof (*s->last_l));
-  return s->chunk_p && s->chunk_e && s->chunk_l && s->last_backward_p
-         && s->last_e && s->last_l;
+  return s->chunk_p && s->chunk_e && s->chunk_l && s->sums
+         && s->last_backward_p && s->last_e && s->last_l;
 }
 
 static void
@@ -226,10 +230,11 @@ free_segment_buffers (dll_state_t *s)
   free (s->chunk_p);
   free (s->chunk_e);
   free (s->chunk_l);
+  free (s->sums);
   free (s->last_backward_p);
   free (s->last_e);
   free (s->last_l);
-  s->chunk_p = s->chunk_e = s->chunk_l = NULL;
+  s->chunk_p = s->chunk_e = s->chunk_l = s->sums = NULL;
   s->last_backward_p = s->last_e = s->last_l = NULL;
 }
 
@@ -280,6 +285,30 @@ dll_reset (dll_state_t *state)
 {
   loop_filter_reset (&state->lf);
   seed (state);
+}
+
+size_t
+dll_lookback_segments (size_t tsamps, double max_error_db)
+{
+  if (tsamps == 0)
+    return 1;
+  double phase_resolution = 1.0 - pow (10.0, -max_error_db / 10.0);
+  double ideal            = ceil ((double)tsamps * phase_resolution);
+
+  size_t best_size = 1;
+  double best_dist = HUGE_VAL;
+  for (size_t i = 1; i <= tsamps; i++)
+    {
+      if (tsamps % i != 0)
+        continue;
+      double dist = fabs ((double)i - ideal);
+      if (dist < best_dist)
+        {
+          best_dist = dist;
+          best_size = i;
+        }
+    }
+  return tsamps / best_size;
 }
 
 int
@@ -341,17 +370,18 @@ dll_get_state (const dll_state_t *s, void *blob)
 {
   DP_GET_OPEN (DLL_STATE_MAGIC, DLL_STATE_VERSION, dll_state_bytes (s));
   /* Snapshot the struct but NULL the borrowed `code` pointer + its ownership,
-   * and the six segments>1 buffer pointers (packed separately below;
-   * serializing a raw address would make the blob differ across otherwise-
-   * identical instances): those are this instance's config (restored by
-   * create), and the telemetry attachment is zeroed for the same reason
-   * (blobs stay deterministic and attachment-independent; telemetry is
-   * observation, not DSP state). set_state preserves the live values
-   * regardless. */
+   * and the seven segments>1 buffer pointers (six packed separately below;
+   * `sums` is pure epoch-local scratch, never meaningful across calls, so
+   * it is NULLed here and simply not packed at all -- serializing a raw
+   * address would make the blob differ across otherwise-identical
+   * instances): those are this instance's config (restored by create), and
+   * the telemetry attachment is zeroed for the same reason (blobs stay
+   * deterministic and attachment-independent; telemetry is observation,
+   * not DSP state). set_state preserves the live values regardless. */
   dll_state_t tmp = *s;
   tmp.code        = NULL;
   tmp.owns_code   = 0;
-  tmp.chunk_p = tmp.chunk_e = tmp.chunk_l = NULL;
+  tmp.chunk_p = tmp.chunk_e = tmp.chunk_l = tmp.sums = NULL;
   tmp.last_backward_p = tmp.last_e = tmp.last_l = NULL;
   memset (&tmp.tlm, 0, sizeof tmp.tlm);
   dp_w_bytes (&_w, &tmp, sizeof tmp);
@@ -376,9 +406,12 @@ dll_set_state (dll_state_t *s, const void *blob)
   int       owns = s->owns_code;
   dll_tlm_t tlm  = s->tlm; /* live attachment survives a state hand-off */
   /* This instance's own buffers (sized by ITS segments, fixed at create) —
-   * never trust a size from the blob for allocation. */
+   * never trust a size from the blob for allocation. `sums` is preserved
+   * the same way though never packed/restored from the blob body (pure
+   * epoch-local scratch, rebuilt from chunk_p at the next epoch boundary
+   * regardless of whatever was in it before this call). */
   float complex *chunk_p = s->chunk_p, *chunk_e = s->chunk_e,
-                *chunk_l = s->chunk_l;
+                *chunk_l = s->chunk_l, *sums = s->sums;
   float complex *last_backward_p = s->last_backward_p, *last_e = s->last_e,
                 *last_l          = s->last_l;
   dp_r_bytes (&_r, s, sizeof *s);
@@ -388,6 +421,7 @@ dll_set_state (dll_state_t *s, const void *blob)
   s->chunk_p = chunk_p;
   s->chunk_e = chunk_e;
   s->chunk_l = chunk_l;
+  s->sums    = sums;
   s->last_backward_p = last_backward_p;
   s->last_e           = last_e;
   s->last_l           = last_l;
@@ -463,18 +497,29 @@ dll_steps_impl (dll_state_t *state, const float complex *x, size_t x_len,
         }
       return emitted;
     }
-  /* segments > 1: chunked output + a margin-gated, one-epoch-deep lookback
-     (docs/design/async-despreader-working-design.md) -- the OUTPUT is always
-     this epoch's own natural, unshifted per-chunk prompt sums (an oversampled
-     stream at `segments` samples/epoch); the lookback only supplies a clean
-     power reference (for the discriminator's denominator and the output
-     normalization) by comparing the natural window against candidates built
-     from the previous epoch's tail -- never an open-ended buffer, exactly one
-     epoch deep. Gated by DLL_LOOKBACK_MARGIN: a still-converging code_rate is
-     never exactly 1.0, so comparing two epochs' windows without a real
-     margin lets pure numerical noise make the search prefer a stale window,
-     destabilizing the loop even with zero actual data transitions
-     (validated empirically in the Python prototype this ports). */
+  /* segments > 1: chunked output + a one-epoch-deep lookback for a clean
+     power reference -- a direct C port of `prototypes/async_despreader/
+     despreader_coupled.py`'s `find_max_power()`/`get_window()` (also
+     `docs/design/async-despreader-working-design.md`'s own reference
+     pseudocode), traceable against that Python source step for step (see
+     the epoch-boundary block below). The OUTPUT is always this epoch's
+     own natural, unshifted per-chunk prompt sums (an oversampled stream
+     at `segments` samples/epoch, Python's `integrate_and_dump`) -- this
+     is the actual despread symbol stream a composing receiver hands to
+     its demodulator, NOT internal scratch, so it is never sign-adjusted
+     here (see the emit-block comment below for why an attempt to do
+     that was reverted). The lookback only supplies a clean power
+     reference (for the discriminator's denominator and the output
+     normalization, Python's `max_abs`) by comparing the natural window
+     against candidates built from the previous epoch's tail -- never an
+     open-ended buffer, exactly one epoch deep. A plain argmax over every
+     candidate, same as the reference -- no margin/hysteresis (a
+     DLL_LOOKBACK_MARGIN threshold lived here previously; it was an
+     undocumented deviation from the validated design, present in neither
+     despreader_coupled.py/
+     despreader_interp.py's own find_max_power nor the design doc's own
+     pseudocode, and empirically made no difference to this scenario's own
+     behavior -- removed). */
   size_t w      = state->segments;
   double tsamps = (double)(state->sf * state->sps);
   for (size_t n = 0; n < x_len; n++)
@@ -510,36 +555,64 @@ dll_steps_impl (dll_state_t *state, const float complex *x, size_t x_len,
           state->seg_idx++;
           if (state->seg_idx == w)
             {
-              /* Epoch boundary: margin-gated one-epoch-deep lookback for a
-                 clean power reference. */
-              float complex fsum = 0.0f;
-              for (size_t k = 0; k < w; k++)
-                fsum += state->chunk_p[k];
-              double best_abs  = cabsf (fsum) / tsamps;
+              /* Epoch boundary -- find_max_power(), step by step:
+
+                 Step 1 (Python: `partial_sums = x.reshape(windows,
+                 step_size).sum(axis=1)`): chunk_p[] IS partial_sums,
+                 already built one chunk per loop iteration above.
+
+                 Step 2 (Python: `sums = partial_sums.cumsum()`): a plain
+                 forward running sum of this epoch's own chunks. */
+              state->sums[0] = state->chunk_p[0];
+              for (size_t k = 1; k < w; k++)
+                state->sums[k] = state->sums[k - 1] + state->chunk_p[k];
+
+              /* Step 3 (Python: `correlations`): one candidate per
+                 lookback shift. Candidate k=w-1 is the natural (unshifted)
+                 window -- the WHOLE epoch, `sums[w-1]` (Python's own
+                 `correlations[-1] = abs(sums[-1])`) -- taken as the
+                 default below. Every other candidate k=0..w-2 borrows the
+                 previous epoch's LAST (w-1-k) chunks (from
+                 last_backward_p, saved at the end of the PREVIOUS
+                 epoch's own Step 5 below -- last_backward_p[j] holds the
+                 sum of that epoch's last (j+1) chunks) in place of this
+                 epoch's own last (w-1-k) chunks: `sums[k] +
+                 last_backward_p[w-2-k]`, exactly Python's `sums[:-1] +
+                 last_backward_sums[::-1][1:]` re-indexed for a forward
+                 loop instead of a reversed numpy slice. No previous
+                 epoch yet: skip the loop entirely and keep the natural
+                 window (Python's own `else: correlations[:-1] =
+                 abs(sums[:-1])` branch is subsumed -- every un-compared
+                 candidate is simply never preferred over the initial
+                 default).
+
+                 Step 4 (Python: `max_window = correlations.argmax()`):
+                 plain argmax over ALL w candidates below -- no margin or
+                 hysteresis, matching the reference exactly. */
+              double best_abs  = cabsf (state->sums[w - 1]) / tsamps;
               size_t best_widx = 0; /* 0 = natural (unshifted) window */
               if (state->have_prev_epoch)
-                {
-                  float complex partial = fsum;
-                  for (size_t widx = 1; widx < w; widx++)
-                    {
-                      /* partial = this epoch's first (w-widx) chunks;
-                         last_backward_p[widx-1] = previous epoch's last
-                         widx chunks (a reversed cumsum, so index widx-1
-                         holds the sum of the last widx chunks). */
-                      partial -= state->chunk_p[w - widx];
-                      float complex combined
-                          = partial + state->last_backward_p[widx - 1];
-                      double p = cabsf (combined) / tsamps;
-                      if (p > best_abs * DLL_LOOKBACK_MARGIN)
-                        {
-                          best_abs  = p;
-                          best_widx = widx;
-                        }
-                    }
-                }
-              /* Reconstruct E/L over the winning window: last_e/last_l's
-                 tail (best_widx chunks) + this epoch's chunk_e/chunk_l head
-                 (w-best_widx chunks) -- trivial when best_widx == 0. */
+                for (size_t k = 0; k + 1 < w; k++)
+                  {
+                    float complex combined
+                        = state->sums[k]
+                          + state->last_backward_p[w - 2 - k];
+                    double p = cabsf (combined) / tsamps;
+                    if (p > best_abs)
+                      {
+                        best_abs = p;
+                        /* chunks borrowed from the previous epoch's tail;
+                           Python's own window_index/step_size. */
+                        best_widx = w - 1 - k;
+                      }
+                  }
+              /* Step 5 (Python: `get_window(early, last_early,
+                 window_index)`/`get_window(late, ...)`, then
+                 `early_power`/`late_power`): reconstruct E/L over the
+                 winning window -- last_e/last_l's tail (best_widx chunks,
+                 the borrowed previous-epoch tail) + this epoch's own
+                 chunk_e/chunk_l head (w-best_widx chunks) -- trivial when
+                 best_widx == 0 (the natural window). */
               float complex acc_e_tot = 0.0f, acc_l_tot = 0.0f;
               if (best_widx > 0)
                 for (size_t k = w - best_widx; k < w; k++)
@@ -596,16 +669,43 @@ dll_steps_impl (dll_state_t *state, const float complex *x, size_t x_len,
 
               /* Output: this epoch's own natural chunk sums, normalized by
                  the clean power reference found above -- never the
-                 lookback-shifted reconstruction. */
+                 lookback-shifted reconstruction, and NEVER sign-adjusted
+                 either (an earlier version of this fix applied the
+                 winning candidate's own sign uniformly to every chunk
+                 here -- reverted: `out[]` is not an internal scratch
+                 value, it is the actual despread symbol stream a
+                 composing receiver hands straight to its RateConverter/
+                 demodulator, e.g. dsss_receiver_core.c's own
+                 `_track_carrier_dll` -> `RateConverter_execute` call
+                 chain. Forcing one sign onto a whole epoch is exactly
+                 wrong there whenever the natural window genuinely
+                 straddles a data-bit transition -- the very case
+                 `best_widx != 0` exists to detect -- since the two
+                 halves of that epoch then carry two REAL, different data
+                 bits; overwriting both to the winning candidate's single
+                 sign silently corrupts one of them. Confirmed directly:
+                 doing this dropped `test_dsss_receiver.py::
+                 test_acquires_and_decodes` from a clean decode to
+                 ber=0.465, i.e. destroyed the payload. `best_val`'s sign
+                 is real, useful information -- see `_track_period`'s/
+                 `_carrier_update_from_partials`'s own per-partial
+                 sign-align, a data-WIPING step deliberately applied only
+                 to an internal carrier-tracking reference sum that is
+                 never handed onward as data -- but it belongs in a
+                 consumer's own derived reference, never baked into this
+                 primitive's actual output. */
               double denom = best_abs > 0.0 ? state->seg_norm * best_abs
                                              : state->seg_norm;
               for (size_t k = 0; k < w; k++)
                 if (emitted < max_out)
                   out[emitted++] = state->chunk_p[k] / (float)denom;
 
-              /* This epoch's reversed-cumsum + raw chunk sums become the
-                 lookback reference for the NEXT epoch (computed only after
-                 all reads of the OLD last_backward_p/last_e/last_l above). */
+              /* Step 6 (Python: `backward_sums = partial_sums[::-1]
+                 .cumsum()`, returned for the NEXT call's own
+                 `last_backward_sums` argument): this epoch's reversed
+                 running sum + raw chunk sums become the lookback
+                 reference for the NEXT epoch (computed only after all
+                 reads of the OLD last_backward_p/last_e/last_l above). */
               float complex bsum = 0.0f;
               for (size_t j = 0; j < w; j++)
                 {

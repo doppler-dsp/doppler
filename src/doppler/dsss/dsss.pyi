@@ -1115,3 +1115,172 @@ class DsssReceiver:
     def __enter__(self) -> "DsssReceiver": ...
 
     def __exit__(self, *args: object) -> None: ...
+
+class AsyncDsssReceiver:
+    """Create an AsyncDsssReceiver in the searching state.
+
+    Parameters
+    ----------
+    code : NDArray[np.uint8], default ...
+        Spreading code (chip values).
+    chip_rate : float, default 1000000.0
+        Chip rate, Hz. Required.
+    symbol_rate : float, default 1000.0
+        Data-symbol rate, Hz. Required.
+    spc : int, default 2
+        Samples/chip; default 2.
+    m : int, default 2
+        PSK order, 2/4/8; default 2 (BPSK).
+    cn0_dbhz : float, default 55.0
+        Design C/N0, dB-Hz; default 55.0 -- feeds BOTH the embedded Acquisition's own sizing AND (derated by `refine_design_margin_db`) CarrierAcquisition's `design_snr`.
+    pfa : float, default 1e-3
+        Acquisition false-alarm target; default 1e-3. Also CarrierAcquisition's own `pfa`.
+    pd : float, default 0.9
+        Acquisition detection-probability target; default 0.9. Also CarrierAcquisition's own `pd`.
+    doppler_uncertainty : float, default 100.0
+        One-sided Doppler search half-range, Hz; default 100.0.
+    segments : int, default 4
+        Live-tracking Dll's own segments; default 4.
+    sps : int, default 8
+        MpskReceiver's samples/symbol; default 8.
+    differential : int, default 0
+        MpskReceiver's differential demap; default 0 (coherent).
+    refine_max_error_db : float, default 100.0
+        Max tolerable async-lookback correlation-power loss driving the refine-stage Dll's own segments via dll_lookback_segments(); default 0.5.
+    refine_samples_per_symbol : int, default 4
+        CarrierAcquisition's own operating rate = this * symbol_rate; default 4.
+    refine_design_margin_db : float, default 14.0
+        Empirical derating of cn0_dbhz before CarrierAcquisition's design_snr; default 14.0.
+    refine_n_fft : int, default 64
+        CarrierAcquisition's own block size; default 64.
+    refine_zero_pad : int, default 8
+        CarrierAcquisition's own zero_pad; default 8.
+    refine_sequential : bool, default false
+        CarrierAcquisition's own sequential mode; default false -- sequential mode's early per-block test fires on far too little averaging at SPEC's own Es/N0 floor (confirmed: as few as 4 blocks, 150-200+ Hz off); false waits the full design_snr-derived dwell_target, matching freq_refine.refine_seed_ carrier_acq()'s own validated default.
+    refine_max_n_blocks : int, default 100000
+        CarrierAcquisition's own give-up cap in sequential mode; default 100000.
+
+    """
+    def __init__(self, code: NDArray[np.uint8] = ..., chip_rate: float = ..., symbol_rate: float = ..., spc: int = ..., m: int = ..., cn0_dbhz: float = ..., pfa: float = ..., pd: float = ..., doppler_uncertainty: float = ..., segments: int = ..., sps: int = ..., differential: int = ..., refine_max_error_db: float = ..., refine_samples_per_symbol: int = ..., refine_design_margin_db: float = ..., refine_n_fft: int = ..., refine_zero_pad: int = ..., refine_sequential: bool = ..., refine_max_n_blocks: int = ...) -> None: ...
+
+    def steps(self, x: NDArray[np.complex64], out: NDArray[np.complex64] | None = None) -> NDArray[np.complex64]:
+        """Stream raw cf32 samples through the receiver. While searching, samples feed the embedded Acquisition and nothing is emitted. On a hit, the refine stage (a frozen-carrier Dll collection feeding CarrierAcquisition) is built and seeded from it, and the unconsumed tail of this call is handed straight to it -- no samples dropped. Once CarrierAcquisition reports ready (or its own give-up cap is reached), the live tracking chain (Dll + per-partial Costas + RateConverter + MpskReceiver) is built fresh, seeded from the ORIGINAL handoff chip phase and the refined-or-unrefined Doppler estimate, and demodulated symbols are returned from then on. Accepts any block size; state carries across calls.
+
+        Parameters
+        ----------
+        x : NDArray[np.complex64]
+            Input cf32 samples.
+
+        Returns
+        -------
+        NDArray[np.complex64]
+            Number of symbols written (0 while searching/refining, or while tracking with not yet a full symbol's worth of input).
+        """
+
+    def steps_max_out(self) -> int:
+        """Max output length steps() can produce for the current state."""
+
+    def configure_search_raw(self, doppler_bins: int, n_noncoh: int) -> None:
+        """Pin the embedded Acquisition's search grid directly, bypassing the symbol_rate-driven auto-sizing. Only meaningful while searching.
+
+        Parameters
+        ----------
+        doppler_bins : int
+            Input.
+        n_noncoh : int
+            Input.
+        """
+
+    def configure_lock_raw(self, up_thresh: float, down_thresh: float, n_looks: int, alpha: float, n_up: int, n_down: int) -> None:
+        """Re-tune the live-tracking Dll's code-lock detector directly. Only meaningful once tracking has begun; a no-op while searching or refining.
+
+        Parameters
+        ----------
+        up_thresh : float
+            Input.
+        down_thresh : float
+            Input.
+        n_looks : int
+            Input.
+        alpha : float
+            Input.
+        n_up : int
+            Input.
+        n_down : int
+            Input.
+        """
+
+    def configure_chain_raw(self, segments: int, sps: int, n: int) -> None:
+        """Pin the live-tracking despread/resample/demod grid directly, bypassing the create-time segments/sps defaults. Only meaningful once tracking; rebuilds the chain with every replacement allocated first, so a failed pin leaves the receiver on its prior grid.
+
+        Parameters
+        ----------
+        segments : int
+            Input.
+        sps : int
+            Input.
+        n : int
+            Input.
+        """
+
+    def reset(self) -> None:
+        """Return to the searching state: resets the embedded Acquisition and frees every refine-stage/track-stage child (rebuilt from scratch on the next hit).
+        """
+
+    def state_bytes(self) -> int:
+        """Serialized state size in bytes."""
+    def get_state(self) -> bytes:
+        """Serialize the engine's mutable state to bytes."""
+    def set_state(self, blob: bytes) -> None:
+        """Restore mutable state from a get_state() blob."""
+
+    @property
+    def tracking(self) -> int:
+        """1 once the live tracking chain is built and demodulating; 0 while searching or refining."""
+
+    @property
+    def refining(self) -> int:
+        """1 while the refine stage (CarrierAcquisition collection) is active; 0 while searching or tracking."""
+
+    @property
+    def doppler_hz(self) -> float:
+        """The current best Doppler estimate: the coarse handoff value while refining, the CarrierAcquisition-refined value once tracking."""
+
+    @property
+    def cn0_dbhz_est(self) -> float:
+        """Cn0 dbhz est."""
+
+    @property
+    def segments(self) -> int:
+        """Segments."""
+
+    @property
+    def sps(self) -> int:
+        """Sps."""
+
+    @property
+    def n(self) -> int:
+        """N."""
+
+    @property
+    def chip_phase(self) -> float:
+        """Chip phase."""
+
+    @property
+    def code_rate(self) -> float:
+        """Code rate."""
+
+    @property
+    def lock(self) -> float:
+        """Lock."""
+
+    @property
+    def norm_freq(self) -> float:
+        """Norm freq."""
+
+    def destroy(self) -> None:
+        """Release C resources immediately."""
+
+    def __enter__(self) -> "AsyncDsssReceiver": ...
+
+    def __exit__(self, *args: object) -> None: ...

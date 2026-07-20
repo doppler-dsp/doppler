@@ -50,16 +50,6 @@
 extern "C" {
 #endif
 
-/* Margin the segments>1 lookback search must beat the natural (unshifted)
- * window's power by before preferring a shifted, previous-epoch-combined
- * candidate -- an amplitude-domain ratio, ~0.5 dB (10**(0.5/20)), the
- * reference design's own example async-correlation-loss budget. Without
- * this margin, comparing two epochs' windows under a still-converging
- * (never exactly 1.0) code_rate destabilizes the loop on pure numerical
- * noise even with zero real data transitions -- validated empirically in
- * the Python prototype across a 0.1-3.0 dB sweep. */
-#define DLL_LOOKBACK_MARGIN 1.06
-
 /* Numerical guard on the early+late envelope sum (not tunable). */
 #define DLL_EPS 1e-12
 
@@ -132,11 +122,27 @@ typedef struct {
     /* ── segments>1 chunked output + one-epoch-deep lookback (heap-owned,
      *    length `segments`; NULL when segments==1 -- dll_init()'s embedded/
      *    borrowed path is always segments==1, so this never needs a
-     *    deinit contract there, same lifecycle class as `code`/owns_code). */
-    float complex *chunk_p;         /**< this epoch's per-chunk prompt sums. */
+     *    deinit contract there, same lifecycle class as `code`/owns_code).
+     *    This is the direct C port of `prototypes/async_despreader/
+     *    despreader_coupled.py`'s `find_max_power()`/`get_window()` (also
+     *    `docs/design/async-despreader-working-design.md`'s own reference
+     *    pseudocode) -- see dll_steps_impl()'s segments>1 branch, which
+     *    builds the SAME named artifacts (`sums`, `backward_sums`,
+     *    `correlations`) in the same order so it can be checked directly
+     *    against that Python function line for line. */
+    float complex *chunk_p;         /**< this epoch's per-chunk prompt sums;
+                                          Python's `partial_sums`.          */
     float complex *chunk_e;         /**< this epoch's per-chunk early sums.  */
     float complex *chunk_l;         /**< this epoch's per-chunk late sums.   */
-    float complex *last_backward_p; /**< prev epoch's reversed-cumsum prompt.*/
+    float complex *sums;            /**< this epoch's running cumulative sum
+                                          of chunk_p; Python's `partial_sums
+                                          .cumsum()`. Pure scratch (rebuilt
+                                          every epoch boundary, never read
+                                          across calls) -- not part of the
+                                          serialized state.                 */
+    float complex *last_backward_p; /**< prev epoch's reversed-cumsum prompt;
+                                          Python's `backward_sums`, saved
+                                          from the PREVIOUS epoch's call.   */
     float complex *last_e;          /**< prev epoch's per-chunk early sums.  */
     float complex *last_l;          /**< prev epoch's per-chunk late sums.   */
     int have_prev_epoch;     /**< 0 until one full epoch has completed.    */
@@ -445,6 +451,31 @@ dll_update(dll_state_t *s)
 dll_state_t *dll_create(const uint8_t *code, size_t code_len, size_t sps, double init_chip, double bn, double zeta, double spacing, size_t segments);
 
 /**
+ * @brief Derive a principled `segments` count from a max tolerable
+ *        async-lookback correlation-power loss, instead of hand-picking one.
+ *
+ * Ports `prototypes/async_despreader/despreader_coupled.py`'s
+ * `async_lookback_windows()` verbatim (itself ported from
+ * `~/legacy-commz`'s `asynchronous_correlation_loss`): derives an ideal
+ * segment size from @p max_error_db, then snaps to the nearest exact
+ * divisor of @p tsamps so `tsamps/segment_size` is always an integer count
+ * (ties broken toward the smaller/earlier divisor, matching
+ * `numpy.argmin`'s own first-occurrence convention). This project found
+ * hand-picked `segments`/`windows` values go stale silently (a `WINDOWS=62`
+ * constant was carried for a long time implying an unexamined ~0.07-0.1dB
+ * loss tolerance, ~5-7x tighter than this formula's own validated 0.5dB
+ * default) — this function is the canonical, derived replacement.
+ *
+ * @param tsamps       One code period, in samples (`code_len * sps`).
+ * @param max_error_db Maximum tolerable correlation-power loss from
+ *                     splitting the epoch into this many segments (dB,
+ *                     > 0); 0.5 is this project's own validated default.
+ * @return Segment count in `[1, tsamps]` that evenly divides @p tsamps
+ *         (1 if @p tsamps == 0).
+ */
+size_t dll_lookback_segments(size_t tsamps, double max_error_db);
+
+/**
  * @brief Destroy a DLL instance and release all memory (incl. the code copy).
  * @param state  May be NULL.
  */
@@ -637,10 +668,15 @@ int dll_set_telemetry(dll_state_t *state, dp_tlm_t * tlm, const char * prefix, u
  * pointers, NOT part of the whole-struct snapshot) are packed/restored
  * field-wise when segments > 1. */
 #define DLL_STATE_MAGIC DP_FOURCC ('D','L','L',' ')
-#define DLL_STATE_VERSION 5u /* v5: precomputed inv_tsamps/inv_tsamps2/
-                                inv_tsamps_sf fields added to the struct
-                                (v4: fixed-point code_nco + segments>1
-                                chunked lookback buffers; see dll_core.c) */
+#define DLL_STATE_VERSION 6u /* v6: `sums` scratch field added to the
+                                struct (pure epoch-local scratch, not
+                                serialized -- grows sizeof(dll_state_t)
+                                regardless, so the version marks the
+                                layout change) (v5: precomputed
+                                inv_tsamps/inv_tsamps2/inv_tsamps_sf
+                                fields added to the struct; v4: fixed-
+                                point code_nco + segments>1 chunked
+                                lookback buffers; see dll_core.c) */
 size_t dll_state_bytes (const dll_state_t *state);
 void dll_get_state (const dll_state_t *state, void *blob);
 int dll_set_state (dll_state_t *state, const void *blob);

@@ -1,0 +1,286 @@
+# async_dsss_receiver — AsyncDsssReceiver: production C port of the
+# validated Python prototype's search -> refine -> track pipeline
+# (prototypes/async_despreader/{despreader_coupled,freq_refine,
+# e2e_acq_to_despreader}.py), closing task #99's 4-5dB Es/N0 pull-in
+# cliff. See ~/.claude/plans/crystalline-knitting-hopper.md for the full
+# design.
+#
+# Three states, routed by steps():
+#   searching -> acq hit -> refining -> CarrierAcquisition ready
+#             (or its own give-up cap) -> tracking
+#
+# Composes acq (Acquisition) + carrier_acq (CarrierAcquisition, the
+# refine stage's frequency estimator) + dll (code tracking, both stages)
+# + costas (carrier loop, both stages) + RateConverter (both stages) +
+# mpsk_receiver (demod, track stage only) -- the same cross-module
+# composition shape dsss_receiver.toml already uses, extended with the
+# refine stage's own children.
+
+[async_dsss_receiver]
+arg_type = "float _Complex"
+return_type = "float _Complex"
+mutable = "false"
+no_state = "true"
+no_step = "true"
+class_name = "AsyncDsssReceiver"
+serializable = "true"
+depends_on = [
+    { name = "acq", link = true },
+    { name = "carrier_acq", link = true },
+    { name = "dll", link = true },
+    { name = "costas", link = true },
+    { name = "RateConverter", link = true },
+    { name = "mpsk_receiver", link = true },
+    # RateConverter's own cascade components -- jm's depends_on linking is
+    # not recursively transitive (dsss_receiver.toml's own comment on this
+    # applies verbatim here).
+    { name = "resamp", link = true },
+    { name = "hbdecim", link = true },
+    { name = "cic", link = true },
+    { name = "resample", link = true },
+    # carrier_acq's own transitive deps -- carrier_acq.toml's link=true
+    # entries don't propagate through its OWN link=true boundary either.
+    { name = "psd", link = true },
+    { name = "detector", link = true },
+    { name = "detection", link = true },
+    { name = "spectral", link = true },
+    { name = "corr", link = true },
+    { name = "fft", link = true },
+    { name = "acc_trace", link = true },
+]
+extra_link_libs = ["wfm_dsp_core"]
+
+# ── Construction: only the signal itself is required ─────────────────────────
+
+[[async_dsss_receiver.init_params]]
+name = "code"
+type = "uint8_t[]"
+
+[[async_dsss_receiver.init_params]]
+name = "chip_rate"
+type = "double"
+default = "1000000.0"
+
+[[async_dsss_receiver.init_params]]
+name = "symbol_rate"
+type = "double"
+default = "1000.0"
+
+[[async_dsss_receiver.init_params]]
+name = "spc"
+type = "size_t"
+default = "2"
+
+[[async_dsss_receiver.init_params]]
+name = "m"
+type = "int"
+default = "2"
+
+[[async_dsss_receiver.init_params]]
+name = "cn0_dbhz"
+type = "double"
+default = "55.0"
+
+[[async_dsss_receiver.init_params]]
+name = "pfa"
+type = "double"
+default = "1e-3"
+
+[[async_dsss_receiver.init_params]]
+name = "pd"
+type = "double"
+default = "0.9"
+
+[[async_dsss_receiver.init_params]]
+name = "doppler_uncertainty"
+type = "double"
+default = "100.0"
+
+# The LIVE-TRACKING Dll's own segments -- distinct from the refine
+# stage's OWN collection-Dll segments (refine_max_error_db below),
+# deliberately, per Python's WINDOWS vs TRACK_WINDOWS split (see the
+# plan doc's dll_lookback_segments() section).
+[[async_dsss_receiver.init_params]]
+name = "segments"
+type = "size_t"
+default = "4"
+
+[[async_dsss_receiver.init_params]]
+name = "sps"
+type = "size_t"
+default = "8"
+
+[[async_dsss_receiver.init_params]]
+name = "differential"
+type = "int"
+default = "0"
+
+# ── Refine-stage tuning (all mirror freq_refine.refine_seed_carrier_acq's
+# own already-validated defaults verbatim) ───────────────────────────────
+
+# Max tolerable async-lookback correlation-power loss driving the
+# refine-stage collection Dll's OWN segments count via
+# dll_lookback_segments(). Default 100.0 (NOT 0.5, Python's own
+# async_lookback_windows() default) forces segments=1 -- a plain
+# coherent per-epoch dump, no multi-segment lookback reconstruction.
+# Direct measurement found dll_lookback_segments()'s own multi-segment
+# value (11, at this waveform's tsamps=2046) measurably corrupts
+# CarrierAcquisition's residual estimate versus segments=1 (a clean
+# synthetic-stream probe at segments=1 landed within ~18Hz of truth;
+# segments=11 landed 70-90Hz off, sometimes wrong-signed) -- DLL's own
+# margin-gated shifted-window reconstruction (dll_core.c's own
+# DLL_LOOKBACK_MARGIN mechanism, built for the LIVE tracking loop's own
+# E/P/L discriminator robustness) does not transfer cleanly to feeding
+# a PSDMF frequency estimator. Exposed as a real, overridable parameter
+# (not hardcoded to 1) since this is an empirical finding on ONE
+# waveform, not a proven general rule -- revisit if a different
+# geometry shows otherwise.
+[[async_dsss_receiver.init_params]]
+name = "refine_max_error_db"
+type = "double"
+default = "100.0"
+
+# CarrierAcquisition's own operating rate = refine_samples_per_symbol *
+# symbol_rate -- decoupled from the code loop's own lookback granularity
+# (see freq_refine.py's own rationale).
+[[async_dsss_receiver.init_params]]
+name = "refine_samples_per_symbol"
+type = "size_t"
+default = "4"
+
+# Empirical derating already proven sufficient to close SPEC's own
+# 4-5dB/500Hz-s combined gating scenario in Python -- ported as-is, not
+# re-derived (see the plan doc's own scope note on this).
+[[async_dsss_receiver.init_params]]
+name = "refine_design_margin_db"
+type = "double"
+default = "14.0"
+
+[[async_dsss_receiver.init_params]]
+name = "refine_n_fft"
+type = "size_t"
+default = "64"
+
+[[async_dsss_receiver.init_params]]
+name = "refine_zero_pad"
+type = "size_t"
+default = "8"
+
+# false (NOT carrier_acq.toml's own standalone default of true): matches
+# freq_refine.refine_seed_carrier_acq()'s own default, the one actually
+# validated at SPEC's operating point. Sequential mode's per-block early
+# test fires the moment ANY block crosses threshold -- confirmed via a
+# direct isolated CarrierAcquisition probe to fire on as few as 4 blocks
+# at this SNR/geometry, ~150-200Hz+ off; non-sequential mode waits the
+# full dwell_target (design_snr-derived) before testing once, giving a
+# far more accurate (if still imperfect -- see refine_design_margin_db's
+# own doc comment) estimate.
+[[async_dsss_receiver.init_params]]
+name = "refine_sequential"
+type = "bool"
+default = "false"
+
+[[async_dsss_receiver.init_params]]
+name = "refine_max_n_blocks"
+type = "size_t"
+default = "100000"
+
+[[async_dsss_receiver.methods]]
+name = "steps"
+doc = "Stream raw cf32 samples through the receiver. While searching, samples feed the embedded Acquisition and nothing is emitted. On a hit, the refine stage (a frozen-carrier Dll collection feeding CarrierAcquisition) is built and seeded from it, and the unconsumed tail of this call is handed straight to it -- no samples dropped. Once CarrierAcquisition reports ready (or its own give-up cap is reached), the live tracking chain (Dll + per-partial Costas + RateConverter + MpskReceiver) is built fresh, seeded from the ORIGINAL handoff chip phase and the refined-or-unrefined Doppler estimate, and demodulated symbols are returned from then on. Accepts any block size; state carries across calls."
+arg_type = "void"
+return_type = "float _Complex"
+variable_output = true
+pass_capacity = true
+nogil = true
+params = [{ name = "x", type = "float _Complex[]" }]
+
+[[async_dsss_receiver.methods]]
+name = "configure_search_raw"
+doc = "Pin the embedded Acquisition's search grid directly, bypassing the symbol_rate-driven auto-sizing. Only meaningful while searching."
+arg_type = "void"
+return_type = "int"
+status_return = true
+params = [
+    { name = "doppler_bins", type = "size_t" },
+    { name = "n_noncoh", type = "size_t" },
+]
+
+[[async_dsss_receiver.methods]]
+name = "configure_lock_raw"
+doc = "Re-tune the live-tracking Dll's code-lock detector directly. Only meaningful once tracking has begun; a no-op while searching or refining."
+arg_type = "void"
+return_type = "void"
+params = [
+    { name = "up_thresh", type = "double" },
+    { name = "down_thresh", type = "double" },
+    { name = "n_looks", type = "size_t" },
+    { name = "alpha", type = "double" },
+    { name = "n_up", type = "uint32_t" },
+    { name = "n_down", type = "uint32_t" },
+]
+
+[[async_dsss_receiver.methods]]
+name = "configure_chain_raw"
+doc = "Pin the live-tracking despread/resample/demod grid directly, bypassing the create-time segments/sps defaults. Only meaningful once tracking; rebuilds the chain with every replacement allocated first, so a failed pin leaves the receiver on its prior grid."
+arg_type = "void"
+return_type = "int"
+status_return = true
+params = [
+    { name = "segments", type = "size_t" },
+    { name = "sps", type = "size_t" },
+    { name = "n", type = "int" },
+]
+
+[[async_dsss_receiver.methods]]
+name = "reset"
+doc = "Return to the searching state: resets the embedded Acquisition and frees every refine-stage/track-stage child (rebuilt from scratch on the next hit)."
+arg_type = "void"
+return_type = "void"
+
+[[async_dsss_receiver.properties]]
+name = "tracking"
+type = "int"
+doc = "1 once the live tracking chain is built and demodulating; 0 while searching or refining."
+
+[[async_dsss_receiver.properties]]
+name = "refining"
+type = "int"
+doc = "1 while the refine stage (CarrierAcquisition collection) is active; 0 while searching or tracking."
+
+[[async_dsss_receiver.properties]]
+name = "doppler_hz"
+type = "double"
+doc = "The current best Doppler estimate: the coarse handoff value while refining, the CarrierAcquisition-refined value once tracking."
+
+[[async_dsss_receiver.properties]]
+name = "cn0_dbhz_est"
+type = "double"
+
+[[async_dsss_receiver.properties]]
+name = "segments"
+type = "size_t"
+
+[[async_dsss_receiver.properties]]
+name = "sps"
+type = "size_t"
+
+[[async_dsss_receiver.properties]]
+name = "n"
+type = "int"
+
+[[async_dsss_receiver.properties]]
+name = "chip_phase"
+type = "double"
+
+[[async_dsss_receiver.properties]]
+name = "code_rate"
+type = "double"
+
+[[async_dsss_receiver.properties]]
+name = "lock"
+type = "double"
+
+[[async_dsss_receiver.properties]]
+name = "norm_freq"
+type = "double"

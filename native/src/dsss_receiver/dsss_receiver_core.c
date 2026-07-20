@@ -16,19 +16,6 @@ _derive_n (size_t sps)
   return 1;
 }
 
-/* Acquisition's code_phase is a correlation LAG; Dll's init_chip wants the
- * code's own instantaneous phase -- the inversion this project's Stage 2
- * validated (doppler.dsss.handoff.dll_init_chip_from_acq), ported to C. */
-static double
-_chip_phase_from_hit (size_t code_phase, size_t spc, size_t code_len)
-{
-  double cl    = (double)code_len;
-  double phase = fmod (cl - (double)code_phase / (double)spc, cl);
-  if (phase < 0.0)
-    phase += cl;
-  return phase;
-}
-
 /* Allocate a fresh Dll/RateConverter/MpskReceiver triple (+ seed the
  * pre-despread carrier loop, by value into *car_out -- costas_init never
  * allocates, so it can't fail) from the given hand-off phase/frequency and
@@ -63,9 +50,26 @@ _build_chain (double chip_rate, double symbol_rate, const uint8_t *code,
       return -1;
     }
 
+  /* MpskReceiver's own carrier loop is seeded at 0, NOT doppler_hz_est --
+   * the pre-despread Costas loop below (FLL-assisted, seeded correctly at
+   * the front-end rate) is the stage actually responsible for removing
+   * the FULL physical Doppler; by the time a wiped, despread, resampled
+   * sample reaches MpskReceiver, only a small residual (that loop's own
+   * steady-state/settling error) should remain. Seeding MpskReceiver's
+   * NCO with the SAME full doppler_hz_est again (an earlier version of
+   * this code did, re-evaluated at target_rate=sps*symbol_rate) is a
+   * double count that is merely negligible at small Doppler
+   * (doppler_hz_est/target_rate ~0) but catastrophic at large offsets:
+   * at 15000 Hz / 21600 Hz target_rate = 0.694 cycles/sample, past
+   * Nyquist -- the NCO can only represent frequency mod 1 cycle/sample,
+   * so this aliases to a real, wrong seed of ~-0.306 cycles/sample, far
+   * outside MpskReceiver's own carrier_nda loop's validated pull-in
+   * range (~0.01 cycles/sample, carrier_nda_pullin.c) -- confirmed as
+   * the direct cause of total lock failure on a real static-offset case
+   * (task #148), fixed here. */
   mpsk_receiver_state_t *rx = mpsk_receiver_create (
       m, sps, n, MPSK_RX_PULSE_IANDD, 0.35, 8, 0.01, 0.707, 0.01, 1, 0.3,
-      doppler_hz_est / target_rate, 30, differential);
+      0.0, 30, differential);
   if (!rx)
     {
       RateConverter_destroy (rc);
@@ -74,13 +78,13 @@ _build_chain (double chip_rate, double symbol_rate, const uint8_t *code,
     }
 
   /* Pre-despread carrier loop: seeded in cycles/sample at the FRONT-END
-   * rate (chip_rate*spc) -- NOT MpskReceiver's own post-RateConverter
-   * seed above, a separate computation from the same physical Doppler
-   * estimate. One costas_update() per code PERIOD (code_len*spc samples)
-   * -- `bn`/`bn_fll` are normalized to this update rate (loop_filter_init's
-   * own per-update convention, costas_core.c), so `tsamps` here must
-   * match the actual call cadence in _carrier_update_from_partials, not
-   * a finer per-segment interval (an earlier draft divided this by
+   * rate (chip_rate*spc) -- the stage that actually owns removing the
+   * full Doppler (see the comment above MpskReceiver's own seed). One
+   * costas_update() per code PERIOD (code_len*spc samples) -- `bn`/
+   * `bn_fll` are normalized to this update rate (loop_filter_init's own
+   * per-update convention, costas_core.c), so `tsamps` here must match
+   * the actual call cadence in _carrier_update_from_partials, not a
+   * finer per-segment interval (an earlier draft divided this by
    * `segments` to match a since-reverted per-partial update cadence --
    * that quadrupled the loop's real-time bandwidth at fixed `bn`, which
    * measurably made tracking WORSE, not better; see FINISHING_PLAN.md). */
@@ -144,22 +148,38 @@ _rebuild_chain (dsss_receiver_state_t *s, double chip_phase,
  * happens in the large majority of periods, not as a rare edge case. A
  * bare coherent SUM of the raw partials (an earlier draft of this
  * function did exactly that) flips sign between partials straddling the
- * transition and self-cancels -- precisely the failure mode dll_core.h's
- * own segments>1 design exists to avoid (its E/P/L discriminator combines
- * partials via POWER, never a raw complex sum, for this exact reason --
- * see its file doc on "tracks the code non-coherently across them"). The
- * fix reuses the SAME technique costas_update()'s own bn_fll cross-product
- * term already applies between consecutive symbols ("both prompts are
- * data-wiped [by their own Re sign] so a BPSK bit flip ... does not
- * corrupt the cross product", costas_core.h): sign-align each partial by
- * its OWN real-part sign before adding, so a bit flip between partials
- * reinforces the sum instead of cancelling it. Costas' phase/frequency
- * discriminator only cares about the sum's relative alignment to the
- * carrier, not an absolute data-bit reference, so this data-wiping is
- * exactly as safe here as it already is inside costas_update() itself
- * (a per-partial version of a trick this codebase already trusts, not a
- * new one). A single (or all-zero-magnitude) partial degenerates
- * harmlessly to a plain pass-through / no-op sum. */
+ * transition and self-cancels. The fix reuses the SAME technique
+ * costas_update()'s own bn_fll cross-product term already applies
+ * between consecutive symbols ("both prompts are data-wiped [by their
+ * own Re sign] so a BPSK bit flip ... does not corrupt the cross
+ * product", costas_core.h): sign-align each partial by its OWN real-part
+ * sign before adding, so a bit flip between partials reinforces the sum
+ * instead of cancelling it. Costas' phase/frequency discriminator only
+ * cares about the sum's relative alignment to the carrier, not an
+ * absolute data-bit reference, so this data-wiping is exactly as safe
+ * here as it already is inside costas_update() itself (a per-partial
+ * version of a trick this codebase already trusts, not a new one).
+ *
+ * Confirmed load-bearing a THIRD time (task #151's investigation, after
+ * two earlier re-confirmations recorded in project memory CHECKPOINT
+ * 37): dll_steps()'s own segments>1 emit block was tried carrying the
+ * winning lookback candidate's own coherent sign through to its OUTPUT
+ * (chunk_p[]) instead of leaving this per-partial guess as the only sign
+ * source. That output is not internal scratch -- it is the actual
+ * despread symbol stream this object hands straight to RateConverter/
+ * mpsk_receiver for demodulation (`_track_carrier_dll`'s own dll_out
+ * buffer, read again here AND passed on to RateConverter_execute
+ * unmodified). Applying one epoch-wide sign there directly corrupted
+ * real data: `test_dsss_receiver.py::test_acquires_and_decodes` dropped
+ * from a clean decode to ber=0.465, because a natural epoch straddling a
+ * transition genuinely carries two different bits in its two halves --
+ * exactly the case a shifted lookback candidate winning is meant to
+ * detect -- and a single epoch sign silently overwrites one of them.
+ * Reverted at the primitive; this per-partial decision-directed guess
+ * remains the only sign source for THIS internal carrier-tracking sum, a
+ * value that (unlike dll_steps()'s own output) is never handed onward as
+ * data. A single (or all-zero-magnitude) partial degenerates harmlessly
+ * to a plain pass-through / no-op sum. */
 static void
 _carrier_update_from_partials (costas_state_t      *car,
                                const float complex *partials, size_t n)
@@ -413,25 +433,21 @@ dsss_receiver_steps (dsss_receiver_state_t *state, const float complex *x,
       size_t tail_len = (tail64 > (uint64_t)x_len) ? x_len : (size_t)tail64;
       const float complex *tail = x + (x_len - tail_len);
 
-      double chip_phase
-          = _chip_phase_from_hit (hit.code_phase, state->spc, state->code_len);
       /* This receiver's embedded engine is always built via
        * acq_create_continuous() -- coherent_bins is pinned at 1, window_bins
-       * is the active mechanism, always. */
-      size_t dop_bins       = state->acq->window_bins;
-      size_t half           = dop_bins / 2;
-      size_t folded         = (hit.doppler_bin + half) % dop_bins;
-      long   k_fold         = (long)folded - (long)half;
-      double doppler_hz_est = (double)k_fold * state->acq->doppler_res_hz;
+       * is the active mechanism, always -- acq_build_handoff()'s only
+       * supported mode. */
+      acq_handoff_t ho;
+      acq_build_handoff (state->acq, &hit, state->code_len, state->spc, &ho);
 
-      if (_rebuild_chain (state, chip_phase, doppler_hz_est, state->segments,
-                          state->sps, state->n)
+      if (_rebuild_chain (state, ho.chip_phase, ho.doppler_hz_est,
+                          state->segments, state->sps, state->n)
           != 0)
         return 0; /* stay searching; try again on the next hit */
 
       state->tracking       = 1;
-      state->doppler_hz_est = doppler_hz_est;
-      state->cn0_dbhz_est   = (double)hit.cn0_dbhz_est;
+      state->doppler_hz_est = ho.doppler_hz_est;
+      state->cn0_dbhz_est   = ho.cn0_dbhz_est;
 
       return _track_chain (state, tail, tail_len, out, max_out);
     }

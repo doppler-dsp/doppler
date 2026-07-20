@@ -579,6 +579,27 @@ main (void)
     free (code);
   }
 
+  /* dll_lookback_segments(): ports despreader_coupled.py's
+   * async_lookback_windows() -- the known reference value it derives at
+   * this project's own validated point (tsamps=2046, max_error_db=0.5
+   * -> windows=11). */
+  {
+    CHECK (dll_lookback_segments (2046, 0.5) == 11);
+    /* tsamps==0 is a degenerate guard, not a real caller input. */
+    CHECK (dll_lookback_segments (0, 0.5) == 1);
+    /* Every returned segments count must evenly divide tsamps -- the
+     * whole point of the divisor-snapping step. */
+    size_t tsamps_probe[] = { 2046, 1024, 63 * 4, 31 * 2, 100 };
+    for (size_t i = 0; i < sizeof (tsamps_probe) / sizeof (tsamps_probe[0]);
+         i++)
+      {
+        size_t t = tsamps_probe[i];
+        size_t s = dll_lookback_segments (t, 0.5);
+        CHECK (s >= 1 && s <= t);
+        CHECK (t % s == 0);
+      }
+  }
+
   if (_fails)
     {
       fprintf (stderr, "test_dll_core FAILED (%d)\n", _fails);

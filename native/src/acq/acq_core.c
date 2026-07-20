@@ -927,6 +927,32 @@ acq_push (acq_state_t *st, const float complex *in, size_t n_in,
   return ndet;
 }
 
+void
+acq_build_handoff (const acq_state_t *state, const acq_result_t *hit,
+                   size_t code_len, size_t spc, acq_handoff_t *out)
+{
+  double cl    = (double)code_len;
+  double phase = fmod (cl - (double)hit->code_phase / (double)spc, cl);
+  if (phase < 0.0)
+    phase += cl;
+
+  size_t dop_bins = state->window_bins;
+  size_t half     = dop_bins / 2;
+  size_t folded   = (hit->doppler_bin + half) % dop_bins;
+  long   k_fold   = (long)folded - (long)half;
+
+  *out = (acq_handoff_t){
+    .samples_consumed = hit->samples_consumed,
+    .chip_phase       = phase,
+    .doppler_hz_est   = (double)k_fold * state->doppler_res_hz,
+    .doppler_res_hz   = state->doppler_res_hz,
+    .cn0_dbhz_est     = (double)hit->cn0_dbhz_est,
+    .peak_mag         = hit->peak_mag,
+    .noise_est        = hit->noise_est,
+    .test_stat        = hit->test_stat,
+  };
+}
+
 /* ── Serializable state — the pure-transducer face ─────────────────────────
  *
  * Fixed flat layout (offsets depend only on the ring capacity), so the state

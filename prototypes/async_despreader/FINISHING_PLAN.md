@@ -83,6 +83,374 @@ measurement, and dead end behind each line below) lives in the
     - Files touched: `despreader_coupled.py` (new `async_lookback_windows()`), `e2e_acq_to_despreader.py` (derived `WINDOWS`, dynamic `n_epochs_used` handoff), `freq_refine.py` (`RateConverter` resample stage in `refine_seed_carrier_acq`, `samples_consumed` return value).
     - Not yet re-validated: `KAPPA=7.9`'s own generality at the NEW `n_fft`/rate geometry (16 symbols/block at 4sps vs. the original calibration's 8 sps) — still a single calibration point, now at a slightly different symbols-per-block ratio than it was fit at; worth a recalibration check, not yet done.
 
+## C port attempt #1: retrofitting the OLD DsssReceiver — REVERTED, wrong approach
+
+- [x] **Tried composing `CarrierAcquisition` into the EXISTING `dsss_receiver_core.c` (a "refining" state between searching/tracking, frozen-carrier DLL reuse, `hit_chip_phase`-seeded fresh rebuild on completion) — reverted entirely, per direct user redirect: "we are not hacking the current DsssReceiver — we are building a new one from the Python prototype with the extensions we built to support it."** The old object's own architecture (once-per-code-period `costas_update`, no `windows`/`car_update_windows` concept, hardcoded `segments`) predates and doesn't match the validated Python prototype (`despreader_coupled.py`'s `car_update_windows=True`, `TRACK_WINDOWS`/`WINDOWS` granularity, `async_lookback_windows()`) — retrofitting fights the old assumptions instead of building the thing already proven to work. All changes to `dsss_receiver_core.h`/`.c`, its test, and `objects/dsss_receiver.toml` were `git checkout`'d back to their last commit; nothing from this attempt survives except the findings below, which DO carry forward to the new object:
+    1. **Real, worth-keeping fix along the way**: the C carrier loop should update ONCE PER PARTIAL PROMPT (matching `car_update_windows=True`'s per-window cadence), not once per full code period — `costas_update()`'s own discriminator (decision-directed `sign(Re)*Im` phase error + a `sign`-wiped cross-product FLL term against its own `prev` state) is already designed to take one raw prompt at a time; no external "combine partials, sign-align, one update" step is needed once `costas_init()`'s own `tsamps` is re-normalized to the per-partial interval (`code_len*spc/segments`). The OLD object's own code comment claimed an "earlier draft" of exactly this was tried and "measurably made tracking WORSE" — not reproduced or re-explained; the new object should re-derive this cleanly rather than inherit that old, unverified caveat.
+    2. **Decisive, still-unresolved root cause of the pull-in failures seen while retrofitting**: `CarrierAcquisition`'s dwell sizing (`design_margin_db=14`, `carrier_acq_core.c`) is tuned ONLY for reliable DETECTION (Pd>=0.9), not for ESTIMATION ACCURACY. Confirmed via a clean, receiver-free Monte Carlo (`CarrierAcquisition` fed a synthetic BPSK tone + AWGN directly, no DLL/Acquisition involved at all): at Es/N0=4-5dB, dwell=12-16 blocks, the residual estimate has ~50-150Hz of symmetric (not biased) scatter across seeds — confirmed to be inherent to the estimator at this dwell, not a wiring bug (multi-seed data from inside the (reverted) C receiver showed the SAME symmetric scatter, not a systematic offset). **This is the real, unresolved gap the new object will need to actually fix** (a proper dwell target for estimation accuracy, not just detection reliability) — not a receiver-composition problem.
+- [x] **Next: design and build a NEW C object** composing `Acquisition` -> handoff -> `CarrierAcquisition` refine -> a NEW despread/track composition -> demod. **DONE — see the `AsyncDsssReceiver` section below.**
+
+## `AsyncDsssReceiver` — the new object, built and verified (this session)
+
+Built `doppler.dsss.AsyncDsssReceiver` (`objects/async_dsss_receiver.toml`,
+`native/{inc,src}/async_dsss_receiver/`) per
+`~/.claude/plans/crystalline-knitting-hopper.md`: `Acquisition` -> handoff
+-> a frozen-carrier collection `Dll` feeding `CarrierAcquisition` (refine)
+-> a fresh per-code-period-cadence Costas/`Dll`/`RateConverter`/
+`MpskReceiver` chain (track). Two shared, canonical primitives were
+factored out first (not duplicated inline, per this project's own rule):
+
+- **`acq_build_handoff()`** (`acq_core.h`/`.c`) — the C twin of
+  `acq_handoff.py`'s `DetectionEvent` conversion (chip-phase mirror-image
+  inversion + Doppler-bin fold), closing `FINISHING_PLAN.md`'s own
+  long-standing `dsss_acq_handoff_from_result()` TODO. `dsss_receiver_
+  core.c`'s own call site was switched to use it too (deleted its
+  duplicate `_chip_phase_from_hit()`); `ctest -R dsss_receiver` stayed
+  green throughout.
+- **`dll_lookback_segments()`** (`dll_core.h`/`.c`) — ports
+  `despreader_coupled.async_lookback_windows()`'s exact divisor-snapping
+  algorithm to C, a derived (not hand-picked) `segments` count.
+
+**Real bugs found and fixed while building/validating** (each confirmed
+via direct measurement, not assumed):
+
+1. **`refine_sequential` must default to `false`, not `carrier_acq.toml`'s
+   own standalone default of `true`.** Direct isolated probe: sequential
+   mode's per-block early test fires on as few as 4 blocks at SPEC's real
+   SNR/geometry, ~150-600Hz off; non-sequential (the validated
+   `freq_refine.refine_seed_carrier_acq()` recipe) waits the full
+   `dwell_target`, landing within tens of Hz.
+2. **Per-partial `costas_update()` cadence (mirroring Python's
+   `car_update_windows=True`) does NOT track SPEC's 500Hz/s ramp at this
+   object's real geometry — reverted to `DsssReceiver`'s own proven
+   per-code-period cadence** (`costas_update()` once per period, on a
+   sign-aligned sum of that period's emitted partials). Root cause:
+   `k_fll = 4*bn_fll` is a fixed per-call gain, but the FLL cross-product
+   discriminator's own output scales with the time interval between the
+   two prompts it correlates — calling it 4x more often (`segments=4`)
+   shrinks that interval 4x, weakening the real error signal at fixed
+   gain rather than speeding up tracking. This directly reproduces (and
+   now empirically confirms, not just repeats unverified) the OLD
+   `DsssReceiver`'s own retired code comment claiming per-partial cadence
+   "measurably made tracking WORSE."
+3. **`dll_lookback_segments()`'s own multi-segment value (segments=11 at
+   this waveform's `tsamps=2046`) measurably CORRUPTS `CarrierAcquisition`'s
+   residual estimate, versus segments=1 (a plain coherent per-epoch
+   dump)** — a clean isolated probe (Python bindings, `Dll`+`RateConverter`
+   +`CarrierAcquisition`, no C receiver involved) landed within ~18Hz of
+   truth at segments=1 vs. 70-90Hz off (sometimes wrong-signed) at
+   segments=11. `Dll`'s own margin-gated shifted-window reconstruction
+   (`DLL_LOOKBACK_MARGIN`, built for the LIVE tracking loop's own E/P/L
+   discriminator robustness) doesn't transfer cleanly to feeding a PSDMF
+   frequency estimator. Fixed by defaulting `refine_max_error_db=100.0`
+   (forces segments=1 via the same formula) rather than Python's own
+   0.5dB default — an empirical finding on ONE waveform, documented as
+   such, not asserted as a general rule.
+4. **THE decisive bug (found via a from-scratch A/B against the
+   already-shipped `DsssReceiver` fed the IDENTICAL signal at Es/N0=30dB —
+   `DsssReceiver` decoded perfectly, `AsyncDsssReceiver` didn't, ruling out
+   SNR/noise-realization as the explanation): the live tracking chain's
+   reused `seed_chip_phase` (the ORIGINAL handoff chip phase, not wherever
+   the refine-stage `Dll` drifted to) is only valid if the live chain's
+   first sample is an EXACT whole number of code periods after the
+   handoff** (one whole period = zero net code-phase advance, by
+   definition). `samples_consumed_refine` (the elapsed-time-based raw-
+   sample estimate of how much of the refine collection was actually
+   used) was NOT rounded to a period boundary before slicing the tail —
+   Python's own `e2e_acq_to_despreader.py` relies on exactly this rounding
+   (`n_epochs_used`'s own ceiling-to-whole-epoch step) and this C port had
+   silently dropped it. Fixed: round `samples_consumed_refine` UP to the
+   nearest multiple of `tsamps` before computing the tail. Confirmed:
+   BER 0.47 (chance) -> 0.0000 at Es/N0=30dB with the fix; the full
+   `test_spec_ramp_decode` C test (Es/N0=20dB, real 500Hz/s ramp) and
+   `test_acquires_refines_and_decodes` (Python, Es/N0=20dB) both now
+   decode cleanly.
+5. A minor bug also fixed along the way: the refine->track
+   `samples_consumed_refine` formula used `ca->nfft` (the zero-padded PSD
+   *transform* length) instead of `refine_n_fft` (the raw per-block
+   sample count) — an 8x scale error at the default `zero_pad=8`,
+   independent of bug 4 above (both needed fixing).
+
+**Verification**: full C suite green (88/88 `ctest`, including
+`test_async_dsss_receiver_core`'s SPEC-geometry ramp-decode test at
+Es/N0=20dB and a give-up-cap test forcing `refine_max_n_blocks=1`); full
+Python suite green (249 tests, including 10 new
+`test_async_dsss_receiver.py` tests); `jm status --check` clean.
+`prototypes/async_despreader/async_dsss_receiver_c_vs_python.py` runs the
+IDENTICAL front-end signal through the C object and Python's own
+`e2e_acq_to_despreader.run_trial()` across the same 3 gating cases:
+
+- **"zero impairments"**: AGREE, both PASS (BER 0.0000 / 0.0003).
+- **"SPEC real rate (500Hz/s)" — the decisive case for task #99**:
+  AGREE, both PASS (BER 0.0004 / 0.0003).
+- **"static offset only (+15kHz)"**: originally DISAGREE — Python passed
+  (BER=0.0000), the C side failed (BER~0.48, chance). Confirmed NOT a
+  regression from `AsyncDsssReceiver`'s own new machinery: the ALREADY-
+  SHIPPED `DsssReceiver`, given the IDENTICAL signal, failed identically
+  (BER~0.48, even though its own cached `doppler_hz` read back exactly
+  15000.0 — the coarse estimate itself was correct). **ROOT-CAUSED AND
+  FIXED (task #148)** — see the dedicated section below. Now AGREES,
+  both PASS (BER 0.0000 / 0.0000).
+
+### Task #148 — large-static-Doppler-offset decode failure: root cause + fix
+
+**Root cause**: `dsss_receiver_core.c`'s `_build_chain()` and `async_
+dsss_receiver_core.c`'s `_build_track_chain()` both seeded `mpsk_
+receiver_create()`'s own `init_norm_freq` with the SAME full physical
+`doppler_hz_est` that ALSO, separately and correctly, seeds the
+pre-despread Costas loop (at the front-end rate) — a double count. At
+small Doppler this is negligible (`doppler_hz_est/target_rate` ~0
+either way); at 15000 Hz static offset over `target_rate=sps*symbol_
+rate=21600 Hz`, `15000/21600 = 0.694` cycles/sample — past Nyquist, so
+`mpsk_receiver`'s integer NCO (which can only represent frequency mod 1
+cycle/sample) silently aliases this to a real, WRONG initial condition
+of `~-0.306` cycles/sample. `norm_freq` is not a lazily-corrected
+loop-filter guess — `carrier_nda_init`'s `lo_init` bakes it straight
+into the NCO's `phase_inc` from sample 0, with the loop filter's own
+integrator starting at 0 — and MpskReceiver's own `carrier_nda` loop has
+no FLL assist, with a validated pull-in range of only `~0.01`
+cycles/sample (`carrier_nda_pullin.c`), 1-2 orders of magnitude too
+narrow to recover from a `~0.3`-cycle seed error. Nothing between the
+pre-despread Costas loop and MpskReceiver (RateConverter, Dll) reintroduces
+a Doppler-scaled rotation, so MpskReceiver never actually needed the full
+estimate — only the small residual the front-end loop leaves behind.
+
+Diagnosed via `prototypes/async_despreader/case1_stage_diagnostics.py`
+(new, instruments both pipelines stage-by-stage instead of one final
+BER number): Acquisition hit stats matched exactly between C and
+Python (same C `acq_core.c` engine underneath both); the
+`CarrierAcquisition` refine estimate was close in both (Python +15.3 Hz
+err, C -360.5 Hz err — a real but secondary discrepancy, plausibly the
+refine-stage collection Dll's `segments=1` vs. Python's `windows=11`
+lookback granularity, not investigated further since it turned out not
+to matter); but tracking-stage EVM was near-ideal in Python (-9.47 dB,
+essentially the -10 dB AWGN floor) vs. catastrophic in C (+27.2 dB, no
+lock at all, flat from sample 1 — not a loop that starts well and
+drifts, evidence it never entered the pull-in range to begin with).
+
+**Fix**: seed `mpsk_receiver_create()`'s `init_norm_freq` with `0.0` in
+both `dsss_receiver_core.c:53-55`'s `_build_chain()` and `async_dsss_
+receiver_core.c`'s `_build_track_chain()`, instead of `doppler_hz_est /
+target_rate`. **Verified**: re-running `case1_stage_diagnostics.py`
+after the fix, C tracking EVM went from +27.2 dB to **-9.18 dB**
+(matching Python's -9.47 dB, both at the AWGN floor); lock went from
+0.039 (unlocked) to 0.419. The secondary ~360 Hz refine-estimate gap
+between C and Python is still present and is now visibly inconsequential
+— confirming it was never the real bug, just a smaller pre-existing
+imprecision riding along with the actual (much larger) double-count.
+Full regression check green: 88/88 `ctest`, full `pytest src/doppler/`,
+and all 3 `async_dsss_receiver_c_vs_python.py` gating cases AGREE/PASS
+(case 1 now BER=0.0000, was BER~0.48).
+
+### Task #151 — the secondary ~360 Hz refine-estimate gap: DLL lookback port cleaned up, root cause of the segments>1 failure still open
+
+The now-inconsequential residual gap left over from task #148 (Python's
+`refine_seed_carrier_acq` collection: +15.3 Hz err; `AsyncDsssReceiver`'s
+own C collection: -360.5 Hz err) was investigated with a dedicated
+isolation script, `prototypes/async_despreader/refine_stage_ab.py`.
+
+**First, a wrong turn, corrected**: it initially looked like `dll_core.c`'s
+`segments>1` mode and `despreader_coupled.py`'s own hand-rolled `windows`
+collection were two unrelated algorithms (`CoupledAsyncDespreader` doesn't
+import `doppler.track.Dll`) — but `dll_core.h`'s own file doc and
+`dll_lookback_segments()`'s own doc comment are explicit that `segments>1`
+IS meant to be the direct C port of `despreader_coupled.py`'s
+`find_max_power()`/`get_window()` (also `docs/design/async-despreader-
+working-design.md`'s own reference pseudocode) — two independent
+implementations of the SAME intended technique, not two different
+techniques. Checked line-by-line against all three source: the archived
+`despreader_interp.py` (the design's true origin), `despreader_coupled.py`,
+and the design doc's own pseudocode all implement `find_max_power` as a
+**plain `argmax` over every lookback candidate, every epoch — no margin
+or hysteresis of any kind.** `dll_core.c` carried an undocumented
+`DLL_LOOKBACK_MARGIN=1.06` (~0.5 dB) threshold gating the search away
+from switching to a shifted candidate unless it beat the natural window
+by that margin — a real, unauthorized deviation from the validated
+design, not present in any of the three reference sources, and not
+exercised by `test_dll_core.c`'s own false-lock regression (that test is
+`segments=1` only).
+
+**Fixed**: `dll_core.c`'s `segments>1` epoch-boundary block was rewritten
+as an explicit, step-by-step port of `find_max_power` — building the
+literal same named artifacts in the same order (`sums` = a real forward
+running sum, mirroring Python's `partial_sums.cumsum()`; the existing
+`last_backward_p` bookkeeping, unchanged, already matched Python's
+`backward_sums`; a plain per-candidate argmax, no margin) instead of the
+old incremental-subtraction form, so it can be checked directly against
+`despreader_coupled.py`'s own source line for line. `DLL_LOOKBACK_MARGIN`
+is deleted entirely (was in `dll_core.h`). A new pure-scratch `sums`
+field was added to `dll_state_t` (bumping `DLL_STATE_VERSION` to 6;
+excluded from the serialized blob like the other scratch buffers).
+**Verified byte-identical** to the old margin-gated code's own output
+(confirmed by first testing with `DLL_LOOKBACK_MARGIN` set to 1.0 as an
+experiment before the rewrite — zero change in any measured value) for
+every case checked except one: a single-seed, right-at-the-edge C-level
+regression (`src/doppler/track/tests/test_async_dsss_receiver.py::
+test_recovers_near_the_noise_floor`, Es/N0~10.6dB) whose exact BER moved
+from ~under 0.06 to ~0.097 — a real, legitimate consequence of the
+(correct) margin removal, not a fluke; its own docstring already
+anticipated this class of nudge from a legitimate implementation change
+(precedent: the `nco_norm_to_inc` rounding fix), so the threshold was
+retuned to 0.10 with a comment explaining why. Full regression clean:
+88/88 `ctest` (incl. `test_dll_core.c`'s own segments>1 and false-lock
+regressions) + 435/435 `pytest` across `track`/`dsss`/state-serialization.
+
+**Task #151's own original symptom was UNCHANGED by the lookback rewrite
+above** — re-running `refine_stage_ab.py`'s segments sweep against the
+rewritten `dll_core.c` reproduced the exact same numbers as before it
+(`segments=1` detects at -232.4Hz err, every `segments>1` value never
+fires) — the lookback search was confirmed NOT to be the cause: its
+winning candidate only ever feeds the discriminator and a normalization
+scalar, never the actual complex samples handed downstream (those are
+always the epoch's own natural `chunk_p[]`; Python's own
+`integrate_and_dump` has the identical structure).
+
+**A whole detour, fully retraced and reverted -- worth recording in
+detail, since the final answer is architectural, not a patch.** The
+first hypothesis was that `_refine_period()` (`async_dsss_receiver_
+core.c`) simply needed the same consumer-side sign-alignment `_track_
+period()`/`_carrier_update_from_partials()` already apply -- a data-bit
+transition mid-period flips the sign of partials after it, and those two
+existing consumers already sign-align by each partial's own real-part
+sign before combining further. That fix was applied to `_refine_period()`
+too, tested against "does despreader_coupled.py do this?" (no, but it
+doesn't call `dll_core.c` at all, so that test doesn't apply), reverted,
+re-applied with a corrected "matches the other two consumers' contract"
+rationale, and empirically DID fix `segments>1`'s detection failure
+(every segments value went from mostly-never-detecting to a clean
+detection; segments=1 error even improved -232.4Hz->-37.7Hz).
+
+**The sign-align fix was still wrong, but the "segments>1 is fundamentally
+non-coherent, never use it" conclusion drawn from that was ALSO wrong --
+a second correction, from the user directly.** `AsyncDsssReceiver` exists
+specifically to handle genuinely async data by finding the best-
+correlating window COHERENTLY -- that IS what `dll_core.c`'s `segments>1`
+lookback search does (the same technique `despreader_coupled.py`'s own
+`find_max_power`/`get_window` independently implements for the same
+reason). `dll_core.h`'s own "tracks the code non-coherently across them"
+phrase describes how the CODE DISCRIMINATOR combines partials for the
+code loop's own purposes, not a property of the window-selection search
+itself or a blanket disqualification of `segments>1` as a source of
+coherent samples. The sign-align fix was still wrong to keep (still not
+what any consumer's own contract requires), but "so `segments>1` must
+never be used" did not follow from that -- reverted the sign-align,
+kept `segments>1` on the table.
+
+Also tested and refuted (`refine_stage_ab.py`'s own dwell sweep, adding
+`design_margin_db` as a parameter): does `segments>1` just need more
+dwell, the same way `segments=1` turned out to (see below)? No --
+`segments=11` still never fires even at `n_blocks=16`, the exact dwell
+that fixed `segments=1`. Something about `segments>1`'s own output
+still prevents detection, independent of dwell -- not yet found (one
+concrete, unchased lead: `segments=1`'s raw rate is upsampled into
+`RateConverter` while `segments>1`'s is downsampled, opposite filter
+paths through the same resampler). Low priority: `segments=1` (below)
+now closes the gap on its own.
+
+**A second, separate experiment on the same theme, also reverted**:
+since the `dll_core.c` segments>1 lookback search was independently
+rewritten this session (removing `DLL_LOOKBACK_MARGIN`, correcting it to
+a proper `find_max_power()` port), tested whether `_track_period()`'s/
+`_carrier_update_from_partials()`'s OWN long-standing, task-#100-
+validated sign-alignment had become redundant now that the underlying
+window search is fixed. It passed the full existing `ctest` suite with
+the sign-align removed -- but broke tracking outright on the real
+SPEC-geometry case1 scenario (EVM -9.14dB -> +13.37dB,
+`case1_stage_diagnostics.py`; the existing test suite apparently doesn't
+exercise a geometry where the effect is severe enough to fail). This is
+a genuinely different problem than the lookback rewrite touched: that
+fix corrected HOW the best window is CHOSEN; it says nothing about the
+fact that a real data-bit transition mid-period flips the underlying
+SIGNAL's own sign, which self-cancels in any bare SUM of multiple
+partials regardless of how correctly the window was chosen. `_track_
+period()` and `_carrier_update_from_partials()` sum partials into one
+value (unlike `_refine_period()`, which never summed anything -- each
+partial survives as its own sample); that summing operation is where the
+sign-align is actually load-bearing. Restored in both, re-confirming
+task #100's own original fix rather than superseding it.
+
+**Task #151's REAL root cause, finally found: a manifest-vs-fragment
+drift, not an algorithm or discriminator problem at all.** The dwell
+hypothesis above (short `n_blocks=3` -> periodogram variance) was tested
+directly in the isolated probe by adding `design_margin_db` as a sweep
+parameter: at `margin_db=20` (`n_blocks=16`), `segments=1`'s error
+collapsed from -232.4Hz to **-18.0Hz** -- decisive confirmation that
+short dwell was real. But testing the SAME override on the real
+`AsyncDsssReceiver` object (`refine_design_margin_db=20.0` passed to the
+constructor) had **zero effect** -- identical -355.9Hz at margin 14, 20,
+5, and 0. The parameter wasn't being honored at all.
+
+Root cause: `dsss_ext_async_dsss_receiver.c` (the hand-owned Python
+binding fragment) had `refine_sequential_raw = true` as its C-level
+default -- but `objects/async_dsss_receiver.toml` correctly declares
+`default = "false"`, matching the object's own documented, validated
+design (non-sequential mode waits the full `design_snr`-derived
+`dwell_target` before testing once; sequential mode tests every block
+and fires on the first one that crosses threshold, with far too little
+averaging -- exactly the failure this whole story chased). In sequential
+mode, `carrier_acq_core.c`'s own `do_test = state->sequential || (...)`
+is unconditionally true, so it fires almost immediately regardless of
+`design_margin_db`/`dwell_target` -- explaining why the parameter had no
+effect: the whole dwell-calibration mechanism was being bypassed
+entirely, for BOTH `segments=1` and every `segments>1` value, every time,
+since construction. The manifest was always right; the hand-owned
+fragment had silently drifted out of sync with it (untracked in git, so
+no diff/blame trail for when).
+
+Fixed via this project's own established mechanic (not a hand patch):
+deleted `dsss_ext_async_dsss_receiver.c` and re-ran `jm apply`, which
+regenerated it correctly from the manifest (`refine_sequential_raw =
+false`); `clang-format`'d per convention; `jm status --check` clean.
+
+**Verified, decisively, end to end**: refine error **-355.9Hz ->
+-52.8Hz** at the object's own DEFAULT config (no override needed) --
+consistent with the isolated probe's own dwell-sweep finding once
+`refine_sequential` is correctly `false`. `async_dsss_receiver_c_vs_
+python.py`'s own case 1 (the authoritative cross-check, unaffected by
+diagnostic-script bugs) stayed BER=0.0000, matching Python exactly. A
+follow-up EVM check (`case1_stage_diagnostics.py`) initially appeared to
+show a severe regression (+24.7dB) -- traced to the diagnostic script's
+OWN lag-search window (`max_lag=50`) being too narrow: the true
+alignment lag shifted to 55 once refine legitimately started taking
+longer (more accurate dwell = more raw samples consumed before tracking
+begins), landing just outside the old search range. Fixed
+(`max_lag=150`); EVM is genuinely healthy: **-9.13dB**, matching
+Python's own -9.47dB almost exactly. Full regression clean: 88/88
+`ctest`, full `pytest src/doppler/` (2451 passed; the 15 failures are
+the SAME pre-existing, unrelated set already confirmed in task #148's
+own investigation, plus one new environment-only failure -- missing CLI
+executables on PATH, `doppler-fir`/`doppler-specan`/`doppler-source`,
+nothing to do with this work), all 3 `async_dsss_receiver_c_vs_python
+.py` gating cases AGREE/PASS.
+
+**The `refine_max_error_db=100.0` (`segments=1`) default now stands on
+solid ground for a genuinely different reason than either earlier
+attempt**: not "segments>1 is fundamentally non-coherent" (wrong, see
+above) and not "segments=1 measured better at near-zero Doppler"
+(the original, pre-this-session finding) -- `segments=1`, now that
+`refine_sequential` is correctly `false`, closes task #151's own gap on
+its own, decisively, with no further patching needed. `segments>1`'s own
+remaining mystery (still never fires, independent of dwell -- see above)
+is a real but low-priority open item, since `segments=1` already works.
+
+**Decisive finding on task #99 itself**: closing task #99 was this
+object's whole motivation, but direct measurement now shows **task #99's
+own 4-5dB cliff is NOT a Doppler-estimation-accuracy problem at all** —
+confirmed by feeding the ALREADY-SHIPPED `DsssReceiver` a trivial STATIC
+ZERO Doppler offset (no frequency error whatsoever, coarse or refined) at
+SPEC's exact Es/N0=5dB floor: it still fails to decode (BER~0.43,
+lock~0.55). `AsyncDsssReceiver`'s own refine stage, once its real bugs
+above were fixed, produces accurate estimates and decodes cleanly at
+every SNR tested down to ~15-20dB under the real 500Hz/s ramp — but
+cannot and does not close SPEC's literal 5dB floor case, because that
+floor was never actually about Doppler accuracy. This confirms
+`FINISHING_PLAN.md`'s own prior note verbatim: *"the leading remaining
+candidate is Acquisition's own hit quality/reliability at this SNR, not
+yet directly inspected."* Task #99 stays open, now with a much narrower,
+better-evidenced next step (investigate `Acquisition`'s own hit quality
+at low SNR directly) instead of the Doppler-refinement hypothesis this
+whole object was built to test.
+
 ## Other still-open items
 
 - [ ] Reconcile `acq_handoff.py`'s `DetectionEvent` field names/shape with `SPEC.md`'s own (task #79).

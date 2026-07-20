@@ -453,6 +453,60 @@ extern "C"
   size_t acq_push (acq_state_t *state, const float complex *in, size_t n_in,
                    acq_result_t *result, size_t max_results);
 
+  /**
+   * @brief Wire-ready hand-off record built from one acq_result_t hit.
+   *
+   * The C twin of `prototypes/async_despreader/acq_handoff.py`'s
+   * `DetectionEvent` (minus `timestamp_ns`, which depends on an optional
+   * `dp_sample_clock_t*` only that Python layer currently threads
+   * through). Fields are named/shaped to match `SPEC.md`'s own
+   * `DetectionEvent` table so a future wire encoding needs no renaming.
+   */
+  typedef struct
+  {
+    uint64_t samples_consumed; /**< Raw-sample offset this hit ended at. */
+    double
+        chip_phase; /**< Chips, Dll's own instantaneous-phase convention
+                         (the mirror image of acq_result_t::code_phase's
+                         correlation-lag convention -- see
+                         acq_build_handoff()'s doc comment). */
+    double doppler_hz_est;  /**< Folded/signed Doppler estimate, Hz. */
+    double doppler_res_hz;  /**< Width of the estimate (+/- half this). */
+    double cn0_dbhz_est;    /**< Estimated carrier-to-noise density, dB-Hz. */
+    float  peak_mag;        /**< Raw CFAR peak magnitude, diagnostic. */
+    float  noise_est;       /**< Raw CFAR noise-floor estimate, diagnostic. */
+    float  test_stat;       /**< Raw CFAR gating statistic, diagnostic. */
+  } acq_handoff_t;
+
+  /**
+   * @brief Convert one acq_push() hit into a wire-ready hand-off record.
+   *
+   * Two convention inversions live here, ported verbatim from
+   * `dsss_receiver_core.c`'s own (pre-existing, now-shared) handoff logic:
+   *
+   * - **Chip phase**: @p hit's `code_phase` is a correlation LAG (0 …
+   *   code_bins-1); a code-tracking loop's `init_chip` wants the code's
+   *   own instantaneous phase instead — the mirror-image inversion
+   *   `phase = fmod(code_len - code_phase/spc, code_len)`, folded
+   *   non-negative.
+   * - **Doppler**: @p state is assumed built via acq_create_continuous()
+   *   (coherent_bins pinned at 1, `window_bins` the active mechanism, the
+   *   only mode this function supports), so `hit`'s `doppler_bin` is a
+   *   frequency-WINDOW index, folded to a signed bin
+   *   (`k = ((doppler_bin + window_bins/2) % window_bins) -
+   *   window_bins/2`) and scaled by `state->doppler_res_hz`.
+   *
+   * @param state    The engine @p hit came from (non-NULL, built via
+   *                 acq_create_continuous()).
+   * @param hit      One hit from acq_push() (non-NULL).
+   * @param code_len Spreading-code length (chips) — the same value passed
+   *                 to whichever acq_create_*() built @p state.
+   * @param spc      Samples/chip — likewise.
+   * @param out      Written on return (non-NULL).
+   */
+  void acq_build_handoff (const acq_state_t *state, const acq_result_t *hit,
+                          size_t code_len, size_t spc, acq_handoff_t *out);
+
   /* ── Serializable state — the elastic / pure-transducer face
    * ─────────────────
    *

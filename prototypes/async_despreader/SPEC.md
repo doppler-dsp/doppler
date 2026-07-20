@@ -3,35 +3,139 @@
 - Level: Any
 - Nominal frequency: 2.5 GHz
 - Frequency uncertainty: +/- 50 kHz
-- Frequency rate of change: < 500 Hz/s (was mistyped "5 kHz/s" -- an order
-  of magnitude too high; matches the standard LEO worst-case nadir-pass
-  derivation `f_dot_max = (f_c/c)*(v^2/h)` at this spec's own 2.5 GHz and
-  a representative ~800 km altitude: ~579 Hz/s, i.e. this bound with a
-  small margin)
+- Frequency rate of change: < 500 Hz/s <sup>[[1]](#note-1)</sup>
 - Waveform: Continuous DSSS BPSK
 - Waveform exemplary use-case:
     - Code: CCSDS Command link Gold Code 1023 chips repeating
     - Chip rate: 3.069 Mcps
     - Modulation: Asynchronous Rectangular BPSK @ 2700 bps
-- Es/N0 >= 5 dB (raised from an earlier 3 dB floor: this receiver's own
-  characterization -- `prototypes/async_despreader/
-  spec_full_characterization_prototype.py`, task #99 -- found a hard,
-  SNR-only pull-in cliff between 4 dB and 5 dB. 3 dB and 4 dB never
-  lock (BER ~0.47-0.48, near-chance) while 5 dB locks cleanly (BER
-  ~0.01-0.02, matching theory) -- confirmed independent of loop
-  bandwidth (`bn_car` swept 0.005-0.02) and Doppler rate (swept
-  0-500 Hz/s) alike, so this is not a tunable margin, it's a real floor)
+- Es/N0 >= 5 dB <sup>[[2]](#note-2)</sup>
 
 ## Target implementations
 
-- Complete C DsssReceiver available in libdoppler.{a,so} to compile into C/C++ applications
+- Complete C DsssReceiver available in libdoppler.{a,so} to compile into
+  C/C++ applications <sup>[[3]](#note-3)</sup>
 - Complete Python DsssReceiver to include in Python applications
-- Set of stateless (serialized state passing) composable blocks deployable as k8s microservices
-  - DDC
-  - Acquisition
-  - Despreader
-  - RateConverter (may be absorbed by despreader or MpskReceiver)
-  - MpskReceiver
+- Set of stateless (serialized state passing) composable blocks
+  deployable as k8s microservices <sup>[[4]](#note-4)</sup>
+  - Digital Down-Conversion (DDC) -- absorbed into BurstAcquisition;
+    see "Service boundaries" below
+  - Code and Coarse Carrier Acquisition (BurstAcquisition)
+  - Frame Demodulation (BurstDemod)
+
+### Service boundaries: which blocks are HPA-friendly
+
+This microservices target is specifically the BURST counterparts
+(`BurstAcquisition`/`BurstDemod` -- `DsssBurstReceiver`, task #80,
+filed but not yet composed) -- not the continuous chain the rest of
+this spec and this project's current C work is about. Continuous
+tracking (Dll + Costas, inside the monolithic "Complete C DsssReceiver"
+above) is a long-lived, per-pass STATEFUL process; it doesn't decompose
+into independent stateless hops the way a bounded, feedforward burst
+does, so it stays part of the monolithic library target rather than
+being split into k8s hops.
+
+Both burst blocks are HPA-friendly, and for the same underlying reason:
+neither has a tracking loop. `BurstAcquisition` forwards straight onto
+the shared `acq_core.c` engine (no separate algorithm, `acq_create_
+burst()`) and completes one bounded detection attempt, then is done.
+`BurstDemod` is explicitly feedforward -- preamble estimate, dechirp,
+despread the data section, frame sync, slice bits, verify CRC -- no
+loops, one bounded pass per burst. Any replica can pick up any
+detection attempt or any burst; classic HPA (queue depth/CPU-driven
+replica count) applies to both.
+
+Two things worth being precise about here (an earlier draft of this
+section conflated these while thinking through the continuous case):
+
+- **The internal search parallelism and the HPA replica axis are
+  different, and stay different here too.** `BurstAcquisition`'s own
+  `coherent_bins`/`reps` sizing is internal to ONE detection attempt
+  (bounded by the burst/preamble's own length; no documented ceiling
+  beyond `>= 1`). The HPA axis is dispatching independent detection
+  attempts (different candidate windows, or independent uplink
+  sessions) across replicas -- not parallelizing within one attempt.
+- **DDC is genuinely stateless throughout this chain, no caveat
+  needed.** Nothing in the burst path closes a loop:
+  `BurstAcquisition`'s Doppler estimate is a fixed, one-shot value per
+  attempt, so any DDC correction applied is a pure function of sample
+  index throughout, not evolving state -- unlike a continuous
+  tracking loop's own continuously-updated NCO, which would NOT be
+  stateless. The one real implementation cost that remains: a
+  block-parallel DDC still needs a few samples of the PRECEDING block
+  to seed its decimation filter's delay line correctly (the standard
+  overlap-save technique) -- a small, genuine data dependency between
+  adjacent workers, not zero-coordination independence.
+
+DDC is absorbed into `BurstAcquisition` rather than kept as its own hop
+for the same reason `RateConverter` may be absorbed elsewhere in a
+composed pipeline: it has no consumer besides `BurstAcquisition` in
+this chain (`BurstDemod` works from the already-corrected burst-sample
+window `BurstAcquisition`'s own handoff identifies, not a second DDC
+tap), and the two always co-scale 1:1 -- a separate hop would just add
+serialization overhead for nothing. One real trade-off worth naming
+rather than assuming away: if multiple independent detection replicas
+process overlapping time windows of the same physical feed, each
+redundantly re-runs its own DDC over the shared samples -- normal for a
+fan-out sharding pattern, but a genuine, not-free duplication.
+
+**Not yet built**: `DsssBurstReceiver` (composing `BurstAcquisition` ->
+`BurstDemod`, task #80) is filed but not implemented -- neither object
+calls the other today, and neither composes DDC internally yet.
+
+---
+
+<a id="note-1"></a>**[1]** Was mistyped "5 kHz/s" -- an order of
+magnitude too high; matches the standard LEO worst-case nadir-pass
+derivation `f_dot_max = (f_c/c)*(v^2/h)` at this spec's own 2.5 GHz and
+a representative ~800 km altitude: ~579 Hz/s, i.e. this bound with a
+small margin.
+
+<a id="note-2"></a>**[2]** Raised from an earlier 3 dB floor: this
+receiver's own characterization
+(`prototypes/async_despreader/spec_full_characterization_prototype.py`,
+task #99) found a hard, SNR-only pull-in cliff between 4 dB and 5 dB --
+3 dB and 4 dB never lock (BER ~0.47-0.48, near-chance) while 5 dB locks
+cleanly (BER ~0.01-0.02, matching theory), confirmed independent of
+loop bandwidth (`bn_car` swept 0.005-0.02) and Doppler rate (swept
+0-500 Hz/s) alike, so this is not a tunable margin, it's a real floor.
+**Caveat, not yet resolved (task #99 remains open)**: this floor was
+characterized against the real C `DsssReceiver`'s current pipeline --
+Acquisition's coarse handoff feeding directly into the pre-despread
+Costas/FLL loop, with no refinement stage in between. "Acquisition hit
+quality" was flagged as the leading remaining candidate for the cliff
+at the time, and this folder's own Python prototype work (see
+`FINISHING_PLAN.md`'s `CarrierAcquisition` section) has since built and
+validated exactly the missing piece -- a one-shot PSDMF refinement
+stage between Acquisition's handoff and tracking -- that this floor was
+set before having available. This 5 dB number may be revisitable
+downward once that stage exists in C and task #99 is re-run against
+it; treat it as the current best-known floor, not a settled intrinsic
+limit, until that's actually tried.
+
+<a id="note-3"></a>**[3]** Should internally compose Fine Carrier
+Frequency Refinement (`CarrierAcquisition`) as a stage between
+Acquisition's coarse handoff and Dll/Costas tracking -- motivated
+directly by task #99's still-open 4-5dB pull-in cliff (see the Es/N0
+footnote above). This is real, separate work from the k8s microservices
+target below: `CarrierAcquisition` is an internal composition detail of
+the monolithic continuous receiver, not a k8s hop, since the continuous
+receiver's own tracking (Dll+Costas) is a long-lived, stateful,
+per-pass process that doesn't decompose into independent stateless hops
+the way a bounded burst does (see "Service boundaries" below). A C
+object (`doppler.acquire.CarrierAcquisition`) already exists and is
+serializable/stateless-resumable; it is not yet composed into the C
+`DsssReceiver`'s own pipeline, nor validated end-to-end in C against
+this spec's real async/wide-uncertainty scenario the way the Python
+prototype now is -- that C port is the immediately next task.
+
+<a id="note-4"></a>**[4]** This target is for the BURST counterparts
+specifically (`BurstAcquisition`/`BurstDemod`, task #80's filed
+`DsssBurstReceiver`), not the continuous chain this project's current C
+work is building. Continuous tracking is inherently a long-lived,
+per-pass stateful process (see "Service boundaries" below), so it stays
+part of the monolithic Complete C DsssReceiver above rather than being
+split into k8s hops.
 
 ## Derived: tracking loop bandwidths (all loops: code DLL, Costas/CarrierMpsk carrier, FLL-assist)
 

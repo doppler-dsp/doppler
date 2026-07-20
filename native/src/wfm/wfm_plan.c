@@ -58,6 +58,7 @@ typedef struct
   double anchor_level;
   int    anchor_type, anchor_mode, anchor_sps;
   size_t anchor_sf;
+  double anchor_sym_span; /* continuous-dsss fs/symbol_rate; 0 = burst */
 } wfm_plan_segment_t;
 
 struct wfm_plan
@@ -159,7 +160,7 @@ segment_noise_gain (const wfm_plan_segment_t *ps, double snr, int snr_given)
   if (snr_given && !ps->explicit_floor)
     fdb = ps->anchor_level
           - wfm_snr_over_fs (ps->anchor_mode, ps->anchor_type, ps->anchor_sps,
-                             ps->anchor_sf, snr);
+                             ps->anchor_sf, ps->anchor_sym_span, snr);
   return (float)pow (10.0, fdb / 20.0);
 }
 
@@ -314,6 +315,11 @@ resolve_segment_noise (wfm_plan_segment_t *ps, const wfm_segment_t *g)
             ps->anchor_mode    = g->sources[j].snr_mode;
             ps->anchor_sps     = g->sources[j].sps;
             ps->anchor_sf      = g->sources[j].n_data_code;
+            ps->anchor_sym_span
+                = (g->sources[j].type == WFM_SYNTH_DSSS
+                   && g->sources[j].symbol_rate > 0.0 && g->fs > 0.0)
+                      ? g->fs / g->sources[j].symbol_rate
+                      : 0.0;
             break;
           }
     }

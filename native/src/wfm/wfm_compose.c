@@ -179,7 +179,7 @@ wfm_compose_build_synth (const wfm_source_t *src, double fs, size_t on_len,
   /* A dsss data-symbol Es/N0 is referred to fs before create (the codes
    * attach below, after create resolves the noise); identity otherwise. */
   int                snr_mode = 0;
-  double             snr_c    = wfm_source_create_snr (src, snr, &snr_mode);
+  double             snr_c = wfm_source_create_snr (src, fs, snr, &snr_mode);
   wfm_synth_state_t *syn
       = wfm_synth_create (src->type, fs, freq, snr_c, snr_mode, seed, src->sps,
                           src->pn_length, src->pn_poly, src->lfsr, f_end);

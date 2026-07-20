@@ -226,20 +226,26 @@ int wfm_resolve_noise(wfm_segment_t *segs, size_t n);
  * the Plan stimulus engine reuses it to recompute the floor at an arbitrary
  * swept SNR — so both agree to the bit.
  *
- * For `type=dsss` the symbol is the outer *data* symbol, which spans
- * `sf * sps` samples (sf chips, sps samples per chip): `auto` picks esno, and
- * esno/ebno convert as `snr − 10·log10(sf·sps)` (BPSK payload, so the two
- * coincide). Every other type ignores `sf`.
+ * For `type=dsss` the symbol is the outer *data* symbol. For a BURST that
+ * spans `sf * sps` samples (sf chips, sps samples per chip). For a CONTINUOUS
+ * async stream the data clock is independent of the code, so the span is
+ * `fs / symbol_rate` samples — passed as @p sym_span (non-integer), which
+ * OVERRIDES the `sf·sps` reconstruction when non-zero. `auto` picks esno, and
+ * esno/ebno convert as `snr − 10·log10(span)` (BPSK payload, so the two
+ * coincide). Every other type ignores `sf` and `sym_span`.
  *
  * @param snr_mode 0 auto, 1 fs, 2 ebno, 3 esno.
  * @param type     A WFM_SYNTH_* waveform type (selects the auto convention).
  * @param sps      Samples per symbol/chip (≥1; <1 treated as 1).
- * @param sf       Spreading factor — chips per data symbol (dsss only; ≥1,
+ * @param sf       Spreading factor — chips per data symbol (burst dsss; ≥1,
  *                 <1 treated as 1).
+ * @param sym_span Continuous-dsss symbol span in samples (`fs/symbol_rate`);
+ *                 0 = burst/non-dsss, derive from `sf·sps`.
  * @param snr      The declared SNR in dB.
  * @return SNR over fs in dB.
  */
-double wfm_snr_over_fs(int snr_mode, int type, int sps, size_t sf, double snr);
+double wfm_snr_over_fs(int snr_mode, int type, int sps, size_t sf,
+                       double sym_span, double snr);
 
 /**
  * @brief Resolve a source's (snr, snr_mode) into the pair to hand to
@@ -249,16 +255,20 @@ double wfm_snr_over_fs(int snr_mode, int type, int sps, size_t sf, double snr);
  * cannot know the spreading factor its own esno would need. This helper — the
  * one create-time entry point shared by the composer (`wfm_compose_build_synth`)
  * and the standalone-Synth bridge (`wfm_source_to_synth`), so every face agrees
- * to the bit — converts a dsss source's SNR to the over-fs reference
- * (via `wfm_snr_over_fs` with `sf = n_data_code`) and returns `snr_mode=fs`;
- * every other type passes through unchanged.
+ * to the bit — converts a dsss source's SNR to the over-fs reference (via
+ * `wfm_snr_over_fs`; the burst span is `sf = n_data_code`, a continuous stream
+ * uses `fs/symbol_rate`) and returns `snr_mode=fs`; every other type passes
+ * through unchanged.
  *
- * @param src      The source (supplies type/sps/snr_mode/n_data_code).
+ * @param src      The source (supplies type/sps/snr_mode/n_data_code/
+ *                 symbol_rate).
+ * @param fs       Segment sample rate (Hz) — needed for a continuous dsss
+ *                 source's `fs/symbol_rate` span; ignored otherwise.
  * @param snr      The declared SNR in dB, already ranged-resolved.
  * @param snr_mode Receives the snr_mode for create.
  * @return The SNR in dB for create.
  */
-double wfm_source_create_snr(const wfm_source_t *src, double snr,
+double wfm_source_create_snr(const wfm_source_t *src, double fs, double snr,
                              int *snr_mode);
 
 /**

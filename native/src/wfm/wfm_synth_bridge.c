@@ -43,9 +43,9 @@ wfm_source_to_synth (const wfm_source_t *src, double fs)
 
   /* Refer a dsss data-symbol Es/N0 to fs before create (the SSOT helper the
      composer also uses, so both faces agree to the bit). */
-  int                snr_mode = 0;
-  double             snr_c = wfm_source_create_snr (src, src->snr, &snr_mode);
-  wfm_synth_state_t *eng   = wfm_synth_create (
+  int    snr_mode = 0;
+  double snr_c    = wfm_source_create_snr (src, fs, src->snr, &snr_mode);
+  wfm_synth_state_t *eng = wfm_synth_create (
       src->type, fs, src->freq, snr_c, snr_mode, src->seed, src->sps,
       src->pn_length, src->pn_poly, src->lfsr, src->f_end);
   if (!eng)

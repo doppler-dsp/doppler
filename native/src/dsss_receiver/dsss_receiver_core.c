@@ -21,10 +21,10 @@ _derive_n (size_t sps)
  * allocates, so it can't fail) from the given hand-off phase/frequency and
  * grid, without touching `state`'s existing children -- the fail-safe half
  * of the "allocate everything first" regrid discipline (_regrid() in
- * acq_core.c is the precedent). On any failure, frees whatever it already
- * allocated and returns -1; `*dll_out` etc. are only ever written on
- * success. */
-static int
+ * acq_core.c is the precedent). Cannot fail: the sub-object allocations are
+ * small, internal, and argument-validated, so they route through the
+ * abort-on-OOM helpers (dp_xnn) rather than an unwind path no test reaches. */
+static void
 _build_chain (double chip_rate, double symbol_rate, const uint8_t *code,
               size_t code_len, size_t spc, int m, int differential,
               double chip_phase, double doppler_hz_est, size_t segments,
@@ -34,21 +34,12 @@ _build_chain (double chip_rate, double symbol_rate, const uint8_t *code,
 {
   double partial_rate = chip_rate * (double)segments / (double)code_len;
   double target_rate  = (double)sps * symbol_rate;
-  if (partial_rate <= 0.0 || target_rate <= 0.0)
-    return -1;
 
-  dll_state_t *dll = dll_create (code, code_len, spc, chip_phase, 0.002, 0.707,
-                                 0.5, segments);
-  if (!dll)
-    return -1;
+  dll_state_t *dll = dp_xnn (dll_create (code, code_len, spc, chip_phase,
+                                         0.002, 0.707, 0.5, segments));
 
   RateConverter_state_t *rc
-      = RateConverter_create (target_rate / partial_rate, 0);
-  if (!rc)
-    {
-      dll_destroy (dll);
-      return -1;
-    }
+      = dp_xnn (RateConverter_create (target_rate / partial_rate, 0));
 
   /* MpskReceiver's own carrier loop is seeded at 0, NOT doppler_hz_est --
    * the pre-despread Costas loop below (FLL-assisted, seeded correctly at
@@ -62,15 +53,9 @@ _build_chain (double chip_rate, double symbol_rate, const uint8_t *code,
    * (the NCO only represents frequency mod 1 cycle/sample), landing a
    * wrong seed far outside MpskReceiver's own carrier_nda loop's
    * validated pull-in range (~0.01 cycles/sample, carrier_nda_pullin.c). */
-  mpsk_receiver_state_t *rx
-      = mpsk_receiver_create (m, sps, n, MPSK_RX_PULSE_IANDD, 0.35, 8, 0.01,
-                              0.707, 0.01, 1, 0.3, 0.0, 30, differential);
-  if (!rx)
-    {
-      RateConverter_destroy (rc);
-      dll_destroy (dll);
-      return -1;
-    }
+  mpsk_receiver_state_t *rx = dp_xnn (
+      mpsk_receiver_create (m, sps, n, MPSK_RX_PULSE_IANDD, 0.35, 8, 0.01,
+                            0.707, 0.01, 1, 0.3, 0.0, 30, differential));
 
   /* Pre-despread carrier loop: seeded in cycles/sample at the FRONT-END
    * rate (chip_rate*spc) -- the stage that actually owns removing the
@@ -90,7 +75,6 @@ _build_chain (double chip_rate, double symbol_rate, const uint8_t *code,
   *dll_out = dll;
   *rc_out  = rc;
   *rx_out  = rx;
-  return 0;
 }
 
 static void
@@ -107,8 +91,8 @@ _free_chain (dsss_receiver_state_t *s)
 /* Build a fresh chain and, only on success, swap it in for state's current
  * one (freeing the old triple) -- the "allocate everything first" half of
  * the regrid discipline applied at the call site, not just inside
- * _build_chain. Returns 0/-1 like _build_chain. */
-static int
+ * _build_chain. Cannot fail (the sub-object allocations are trusted). */
+static void
 _rebuild_chain (dsss_receiver_state_t *s, double chip_phase,
                 double doppler_hz_est, size_t segments, size_t sps, int n)
 {
@@ -116,11 +100,9 @@ _rebuild_chain (dsss_receiver_state_t *s, double chip_phase,
   dll_state_t           *dll = NULL;
   RateConverter_state_t *rc  = NULL;
   mpsk_receiver_state_t *rx  = NULL;
-  if (_build_chain (s->chip_rate, s->symbol_rate, s->code, s->code_len, s->spc,
-                    s->m, s->differential, chip_phase, doppler_hz_est,
-                    segments, sps, n, &car, &dll, &rc, &rx)
-      != 0)
-    return -1;
+  _build_chain (s->chip_rate, s->symbol_rate, s->code, s->code_len, s->spc,
+                s->m, s->differential, chip_phase, doppler_hz_est, segments,
+                sps, n, &car, &dll, &rc, &rx);
   _free_chain (s);
   s->car           = car;
   s->dll           = dll;
@@ -130,7 +112,6 @@ _rebuild_chain (dsss_receiver_state_t *s, double chip_phase,
   s->sps           = sps;
   s->n             = n;
   s->car_carry_len = 0; /* fresh chain: no leftover partial-period tail */
-  return 0;
 }
 
 /* Sum whatever dll_steps() just emitted for one wiped period into a single
@@ -249,18 +230,11 @@ _track_chain (dsss_receiver_state_t *s, const float complex *x, size_t x_len,
   if (x_len == 0)
     return 0;
 
-  float complex *dll_out = malloc (x_len * sizeof *dll_out);
-  if (!dll_out)
-    return 0;
-  size_t n_dll = _track_carrier_dll (s, x, x_len, dll_out, x_len);
+  float complex *dll_out = dp_xmalloc (x_len * sizeof *dll_out);
+  size_t         n_dll   = _track_carrier_dll (s, x, x_len, dll_out, x_len);
 
   size_t         rc_cap = (size_t)((double)n_dll * s->rc->rate) + 64;
-  float complex *rc_out = malloc (rc_cap * sizeof *rc_out);
-  if (!rc_out)
-    {
-      free (dll_out);
-      return 0;
-    }
+  float complex *rc_out = dp_xmalloc (rc_cap * sizeof *rc_out);
   size_t n_rc = RateConverter_execute (s->rc, dll_out, n_dll, rc_out, rc_cap);
   free (dll_out);
 
@@ -279,28 +253,15 @@ dsss_receiver_create (const uint8_t *code, size_t code_len, double chip_rate,
       || spc < 1 || (m != 2 && m != 4 && m != 8) || segments < 1 || sps < 1)
     return NULL;
 
-  dsss_receiver_state_t *obj = calloc (1, sizeof (*obj));
-  if (!obj)
-    return NULL;
+  dsss_receiver_state_t *obj = dp_xcalloc (1, sizeof (*obj));
 
-  obj->code = malloc (code_len);
-  if (!obj->code)
-    {
-      free (obj);
-      return NULL;
-    }
+  obj->code = dp_xmalloc (code_len);
   memcpy (obj->code, code, code_len);
   obj->code_len = code_len;
 
-  obj->acq = acq_create_continuous (obj->code, code_len, spc, chip_rate,
-                                    symbol_rate, cn0_dbhz, doppler_uncertainty,
-                                    pfa, pd, 0 /* noise_mode=mean */);
-  if (!obj->acq)
-    {
-      free (obj->code);
-      free (obj);
-      return NULL;
-    }
+  obj->acq = dp_xnn (acq_create_continuous (
+      obj->code, code_len, spc, chip_rate, symbol_rate, cn0_dbhz,
+      doppler_uncertainty, pfa, pd, 0 /* noise_mode=mean */));
 
   obj->spc          = spc;
   obj->m            = m;
@@ -315,34 +276,16 @@ dsss_receiver_create (const uint8_t *code, size_t code_len, double chip_rate,
    * carrier scratch/carry buffers are allocated ONCE here, never
    * per-rebuild, and freed once in destroy(). */
   obj->tsamps        = code_len * spc;
-  obj->car_wiped_buf = malloc (obj->tsamps * sizeof (*obj->car_wiped_buf));
-  obj->car_carry_buf = malloc (obj->tsamps * sizeof (*obj->car_carry_buf));
-  if (!obj->car_wiped_buf || !obj->car_carry_buf)
-    {
-      free (obj->car_wiped_buf);
-      free (obj->car_carry_buf);
-      acq_destroy (obj->acq);
-      free (obj->code);
-      free (obj);
-      return NULL;
-    }
+  obj->car_wiped_buf = dp_xmalloc (obj->tsamps * sizeof (*obj->car_wiped_buf));
+  obj->car_carry_buf = dp_xmalloc (obj->tsamps * sizeof (*obj->car_carry_buf));
   obj->car_carry_len = 0;
 
   /* Placeholder chain (phase 0, no Doppler) -- always allocated, seeded
    * for real the moment a hit fires (see the state struct's own doc
    * comment for why). */
-  if (_build_chain (chip_rate, symbol_rate, obj->code, code_len, spc, m,
-                    differential, 0.0, 0.0, segments, sps, _derive_n (sps),
-                    &obj->car, &obj->dll, &obj->rc, &obj->rx)
-      != 0)
-    {
-      free (obj->car_wiped_buf);
-      free (obj->car_carry_buf);
-      acq_destroy (obj->acq);
-      free (obj->code);
-      free (obj);
-      return NULL;
-    }
+  _build_chain (chip_rate, symbol_rate, obj->code, code_len, spc, m,
+                differential, 0.0, 0.0, segments, sps, _derive_n (sps),
+                &obj->car, &obj->dll, &obj->rc, &obj->rx);
   obj->segments = segments;
   obj->sps      = sps;
   obj->n        = _derive_n (sps);
@@ -421,10 +364,8 @@ dsss_receiver_steps (dsss_receiver_state_t *state, const float complex *x,
       acq_handoff_t ho;
       acq_build_handoff (state->acq, &hit, state->code_len, state->spc, &ho);
 
-      if (_rebuild_chain (state, ho.chip_phase, ho.doppler_hz_est,
-                          state->segments, state->sps, state->n)
-          != 0)
-        return 0; /* stay searching; try again on the next hit */
+      _rebuild_chain (state, ho.chip_phase, ho.doppler_hz_est, state->segments,
+                      state->sps, state->n);
 
       state->tracking       = 1;
       state->doppler_hz_est = ho.doppler_hz_est;
@@ -465,7 +406,8 @@ dsss_receiver_configure_chain_raw (dsss_receiver_state_t *state,
   double doppler_hz_now
       = mpsk_receiver_get_norm_freq (state->rx) * old_target_rate;
 
-  return _rebuild_chain (state, chip_phase, doppler_hz_now, segments, sps, n);
+  _rebuild_chain (state, chip_phase, doppler_hz_now, segments, sps, n);
+  return 0;
 }
 
 int

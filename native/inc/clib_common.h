@@ -42,4 +42,47 @@
 
 #include "jm_perf.h"
 
+/* ------------------------------------------------------------------ */
+/* Trusted allocation                                                  */
+/*                                                                     */
+/* A small, fixed-size, internally-sized allocation with already-      */
+/* validated arguments cannot fail in practice; the only way malloc /  */
+/* a sub-object create() returns NULL is genuine OOM, an unrecoverable  */
+/* condition for a compute kernel. Rather than thread a per-call unwind */
+/* path no test can reach (and that inflates every create() with        */
+/* uncoverable cleanup), route such allocations through these helpers:  */
+/* they abort() immediately on the impossible failure. This is the      */
+/* doppler-wide convention for trusted internal allocations — see the   */
+/* "trust internal guarantees" rule. (Reachable failures — invalid      */
+/* user arguments — still return NULL / DP_ERR_INVALID as before; only  */
+/* the OOM path aborts.)                                                 */
+/* ------------------------------------------------------------------ */
+
+/** Assert a just-constructed object / allocation is non-NULL, aborting with
+ *  a diagnostic on the impossible OOM. The single check point: a sub-object
+ *  create() returns NULL only on OOM once its arguments are validated, so
+ *  wrap the call — `x = dp_xnn (foo_create (...))` — instead of
+ *  checking-and-unwinding at every call site. (Classic GNU `xmalloc`.) */
+static inline void *
+dp_xnn (void *p)
+{
+  if (!p)
+    abort ();
+  return p;
+}
+
+/** malloc that aborts on OOM (for a trusted internal allocation). */
+static inline void *
+dp_xmalloc (size_t n)
+{
+  return dp_xnn (malloc (n));
+}
+
+/** calloc that aborts on OOM (zero-initialised trusted allocation). */
+static inline void *
+dp_xcalloc (size_t nmemb, size_t size)
+{
+  return dp_xnn (calloc (nmemb, size));
+}
+
 #endif /* DOPPLER_CLIB_COMMON_H */

@@ -33,9 +33,11 @@ _reset_lock (async_dsss_receiver_state_t *s)
  * children -- the fail-safe half of the "allocate everything first"
  * regrid discipline (dsss_receiver_core.c's own _build_chain is the
  * precedent). `s->refine_segments` is assumed already set (fixed for the
- * object's lifetime -- see async_dsss_receiver_create()). On any
- * failure, frees whatever it already allocated and returns -1. */
-static int
+ * object's lifetime -- see async_dsss_receiver_create()). The sub-object
+ * allocations are small and internal, so they are trusted (the house
+ * "no error handling for impossible scenarios" rule) -- this build cannot
+ * fail. */
+static void
 _build_refine_chain (async_dsss_receiver_state_t *s, double chip_phase,
                      double doppler_hz_est, costas_state_t *car_frozen_out,
                      dll_state_t           **refine_dll_out,
@@ -53,11 +55,9 @@ _build_refine_chain (async_dsss_receiver_state_t *s, double chip_phase,
   costas_init (car_frozen_out, ASYNC_DSSS_RX_BN_CARRIER, 0.707,
                doppler_hz_est / front_end_rate, s->tsamps, 0.0);
 
-  dll_state_t *refine_dll
-      = dll_create (s->code, s->code_len, s->spc, chip_phase,
-                    ASYNC_DSSS_RX_DLL_BN, 0.707, 0.5, s->refine_segments);
-  if (!refine_dll)
-    return -1;
+  dll_state_t *refine_dll = dp_xnn (
+      dll_create (s->code, s->code_len, s->spc, chip_phase,
+                  ASYNC_DSSS_RX_DLL_BN, 0.707, 0.5, s->refine_segments));
 
   /* Carrier->code aiding on the collection Dll too: without it the coupled
      code-rate Doppler drifts the code phase over the frozen refine prefix
@@ -71,19 +71,9 @@ _build_refine_chain (async_dsss_receiver_state_t *s, double chip_phase,
   double partial_rate
       = s->chip_rate * (double)s->refine_segments / (double)s->code_len;
   double target_rate = (double)s->refine_samples_per_symbol * s->symbol_rate;
-  if (partial_rate <= 0.0 || target_rate <= 0.0)
-    {
-      dll_destroy (refine_dll);
-      return -1;
-    }
 
   RateConverter_state_t *refine_rc
-      = RateConverter_create (target_rate / partial_rate, 0);
-  if (!refine_rc)
-    {
-      dll_destroy (refine_dll);
-      return -1;
-    }
+      = dp_xnn (RateConverter_create (target_rate / partial_rate, 0));
 
   /* design_snr/resolution_hz: freq_refine.refine_seed_carrier_acq()'s own
    * formula, ported verbatim (see objects/async_dsss_receiver.toml's
@@ -94,38 +84,17 @@ _build_refine_chain (async_dsss_receiver_state_t *s, double chip_phase,
       = sqrt (pow (10.0, effective_cn0_dbhz / 10.0) / target_rate);
   double resolution_hz = target_rate / (double)s->refine_n_fft;
 
-  carrier_acq_state_t *ca = carrier_acq_create (
+  carrier_acq_state_t *ca = dp_xnn (carrier_acq_create (
       target_rate, s->symbol_rate, resolution_hz, s->refine_zero_pad,
       0 /* window=hann */, 0.0f, NULL, 0, s->pfa, s->pd, design_snr,
-      s->refine_sequential, s->refine_max_n_blocks);
-  if (!ca)
-    {
-      RateConverter_destroy (refine_rc);
-      dll_destroy (refine_dll);
-      return -1;
-    }
+      s->refine_sequential, s->refine_max_n_blocks));
 
   float complex *dll_out_buf
-      = malloc (s->refine_segments * sizeof (*dll_out_buf));
-  if (!dll_out_buf)
-    {
-      carrier_acq_destroy (ca);
-      RateConverter_destroy (refine_rc);
-      dll_destroy (refine_dll);
-      return -1;
-    }
+      = dp_xmalloc (s->refine_segments * sizeof (*dll_out_buf));
 
   size_t rc_out_cap
       = (size_t)((double)s->refine_segments * refine_rc->rate) + 64;
-  float complex *rc_out_buf = malloc (rc_out_cap * sizeof (*rc_out_buf));
-  if (!rc_out_buf)
-    {
-      free (dll_out_buf);
-      carrier_acq_destroy (ca);
-      RateConverter_destroy (refine_rc);
-      dll_destroy (refine_dll);
-      return -1;
-    }
+  float complex *rc_out_buf = dp_xmalloc (rc_out_cap * sizeof (*rc_out_buf));
 
   *refine_dll_out  = refine_dll;
   *refine_rc_out   = refine_rc;
@@ -134,7 +103,6 @@ _build_refine_chain (async_dsss_receiver_state_t *s, double chip_phase,
   *dll_out_cap_out = s->refine_segments;
   *rc_out_buf_out  = rc_out_buf;
   *rc_out_cap_out  = rc_out_cap;
-  return 0;
 }
 
 static void
@@ -156,8 +124,8 @@ _free_refine_chain (async_dsss_receiver_state_t *s)
  * current one -- the "allocate everything first" half of the regrid
  * discipline applied at the call site. Also resets refine_samples_fed
  * and the shared carry buffer (fresh chain: no leftover partial-period
- * tail). Returns 0/-1 like _build_refine_chain. */
-static int
+ * tail). Cannot fail (the sub-object allocations are trusted). */
+static void
 _rebuild_refine_chain (async_dsss_receiver_state_t *s, double chip_phase,
                        double doppler_hz_est)
 {
@@ -170,11 +138,9 @@ _rebuild_refine_chain (async_dsss_receiver_state_t *s, double chip_phase,
   float complex         *rc_out_buf  = NULL;
   size_t                 rc_out_cap  = 0;
 
-  if (_build_refine_chain (s, chip_phase, doppler_hz_est, &car_frozen,
-                           &refine_dll, &refine_rc, &ca, &dll_out_buf,
-                           &dll_out_cap, &rc_out_buf, &rc_out_cap)
-      != 0)
-    return -1;
+  _build_refine_chain (s, chip_phase, doppler_hz_est, &car_frozen, &refine_dll,
+                       &refine_rc, &ca, &dll_out_buf, &dll_out_cap,
+                       &rc_out_buf, &rc_out_cap);
 
   _free_refine_chain (s);
   s->car_frozen         = car_frozen;
@@ -187,7 +153,6 @@ _rebuild_refine_chain (async_dsss_receiver_state_t *s, double chip_phase,
   s->refine_rc_out_cap  = rc_out_cap;
   s->refine_samples_fed = 0;
   s->car_carry_len      = 0;
-  return 0;
 }
 
 /* Allocate a fresh live-tracking chain (Dll/RateConverter/MpskReceiver +
@@ -197,7 +162,7 @@ _rebuild_refine_chain (async_dsss_receiver_state_t *s, double chip_phase,
  * (squaring) combine of that period's emitted coherent-I&D partials (see
  * _track_period()) -- not once per partial (see this function's own
  * comment on costas_init() below for why). */
-static int
+static void
 _build_track_chain (async_dsss_receiver_state_t *s, double chip_phase,
                     double doppler_hz_est, size_t segments, size_t sps, int n,
                     costas_state_t *car_out, dll_state_t **dll_out,
@@ -206,13 +171,10 @@ _build_track_chain (async_dsss_receiver_state_t *s, double chip_phase,
 {
   double partial_rate = s->chip_rate * (double)segments / (double)s->code_len;
   double target_rate  = (double)sps * s->symbol_rate;
-  if (partial_rate <= 0.0 || target_rate <= 0.0)
-    return -1;
 
-  dll_state_t *dll = dll_create (s->code, s->code_len, s->spc, chip_phase,
-                                 ASYNC_DSSS_RX_DLL_BN, 0.707, 0.5, segments);
-  if (!dll)
-    return -1;
+  dll_state_t *dll
+      = dp_xnn (dll_create (s->code, s->code_len, s->spc, chip_phase,
+                            ASYNC_DSSS_RX_DLL_BN, 0.707, 0.5, segments));
 
   /* Carrier->code aiding: the code-rate Doppler is coupled to the carrier
      offset through the same v/c, so feed the refined carrier estimate into
@@ -224,12 +186,7 @@ _build_track_chain (async_dsss_receiver_state_t *s, double chip_phase,
     dll_set_rate_aid (dll, doppler_hz_est / s->carrier_freq_hz);
 
   RateConverter_state_t *rc
-      = RateConverter_create (target_rate / partial_rate, 0);
-  if (!rc)
-    {
-      dll_destroy (dll);
-      return -1;
-    }
+      = dp_xnn (RateConverter_create (target_rate / partial_rate, 0));
 
   /* MpskReceiver's own carrier loop is seeded at 0, NOT doppler_hz_est
    * again -- same reasoning as dsss_receiver_core.c's own _build_chain():
@@ -239,15 +196,9 @@ _build_track_chain (async_dsss_receiver_state_t *s, double chip_phase,
    * target_rate=sps*symbol_rate, a much smaller rate than the front end)
    * double-counts and can alias past Nyquist at large offsets, far
    * outside MpskReceiver's own carrier_nda pull-in range. */
-  mpsk_receiver_state_t *rx
-      = mpsk_receiver_create (s->m, sps, n, MPSK_RX_PULSE_IANDD, 0.35, 8, 0.01,
-                              0.707, 0.01, 1, 0.3, 0.0, 30, s->differential);
-  if (!rx)
-    {
-      RateConverter_destroy (rc);
-      dll_destroy (dll);
-      return -1;
-    }
+  mpsk_receiver_state_t *rx = dp_xnn (
+      mpsk_receiver_create (s->m, sps, n, MPSK_RX_PULSE_IANDD, 0.35, 8, 0.01,
+                            0.707, 0.01, 1, 0.3, 0.0, 30, s->differential));
 
   /* Per-CODE-PERIOD cadence (tsamps = one whole period), matching
    * dsss_receiver_core.c's own mechanism -- NOT once per dll_steps()
@@ -266,7 +217,6 @@ _build_track_chain (async_dsss_receiver_state_t *s, double chip_phase,
   *dll_out = dll;
   *rc_out  = rc;
   *rx_out  = rx;
-  return 0;
 }
 
 static void
@@ -280,7 +230,7 @@ _free_track_chain (async_dsss_receiver_state_t *s)
   s->dll = NULL;
 }
 
-static int
+static void
 _rebuild_track_chain (async_dsss_receiver_state_t *s, double chip_phase,
                       double doppler_hz_est, size_t segments, size_t sps,
                       int n)
@@ -289,10 +239,8 @@ _rebuild_track_chain (async_dsss_receiver_state_t *s, double chip_phase,
   dll_state_t           *dll = NULL;
   RateConverter_state_t *rc  = NULL;
   mpsk_receiver_state_t *rx  = NULL;
-  if (_build_track_chain (s, chip_phase, doppler_hz_est, segments, sps, n,
-                          &car, &dll, &rc, &rx)
-      != 0)
-    return -1;
+  _build_track_chain (s, chip_phase, doppler_hz_est, segments, sps, n, &car,
+                      &dll, &rc, &rx);
   _free_track_chain (s);
   s->car           = car;
   s->dll           = dll;
@@ -303,7 +251,6 @@ _rebuild_track_chain (async_dsss_receiver_state_t *s, double chip_phase,
   s->n             = n;
   s->car_carry_len = 0;
   _reset_lock (s); /* fresh symbol-lock per pass */
-  return 0;
 }
 
 /* One frozen-carrier-wiped code period through refine_dll -> refine_rc ->
@@ -492,18 +439,11 @@ _track_chain (async_dsss_receiver_state_t *s, const float complex *x,
   if (x_len == 0)
     return 0;
 
-  float complex *dll_out = malloc (x_len * sizeof *dll_out);
-  if (!dll_out)
-    return 0;
-  size_t n_dll = _track_carrier_dll (s, x, x_len, dll_out, x_len);
+  float complex *dll_out = dp_xmalloc (x_len * sizeof *dll_out);
+  size_t         n_dll   = _track_carrier_dll (s, x, x_len, dll_out, x_len);
 
   size_t         rc_cap = (size_t)((double)n_dll * s->rc->rate) + 64;
-  float complex *rc_out = malloc (rc_cap * sizeof *rc_out);
-  if (!rc_out)
-    {
-      free (dll_out);
-      return 0;
-    }
+  float complex *rc_out = dp_xmalloc (rc_cap * sizeof *rc_out);
   size_t n_rc = RateConverter_execute (s->rc, dll_out, n_dll, rc_out, rc_cap);
   free (dll_out);
 
@@ -545,28 +485,15 @@ async_dsss_receiver_create (
       || refine_zero_pad < 1 || carrier_freq_hz < 0.0)
     return NULL;
 
-  async_dsss_receiver_state_t *obj = calloc (1, sizeof (*obj));
-  if (!obj)
-    return NULL;
+  async_dsss_receiver_state_t *obj = dp_xcalloc (1, sizeof (*obj));
 
-  obj->code = malloc (code_len);
-  if (!obj->code)
-    {
-      free (obj);
-      return NULL;
-    }
+  obj->code = dp_xmalloc (code_len);
   memcpy (obj->code, code, code_len);
   obj->code_len = code_len;
 
-  obj->acq = acq_create_continuous (obj->code, code_len, spc, chip_rate,
-                                    symbol_rate, cn0_dbhz, doppler_uncertainty,
-                                    pfa, pd, 0 /* noise_mode=mean */);
-  if (!obj->acq)
-    {
-      free (obj->code);
-      free (obj);
-      return NULL;
-    }
+  obj->acq = dp_xnn (acq_create_continuous (
+      obj->code, code_len, spc, chip_rate, symbol_rate, cn0_dbhz,
+      doppler_uncertainty, pfa, pd, 0 /* noise_mode=mean */));
 
   obj->spc          = spc;
   obj->m            = m;
@@ -595,49 +522,21 @@ async_dsss_receiver_create (
   obj->tsamps = code_len * spc;
   obj->refine_segments
       = dll_lookback_segments (obj->tsamps, refine_max_error_db);
-  obj->car_wiped_buf = malloc (obj->tsamps * sizeof (*obj->car_wiped_buf));
-  obj->car_carry_buf = malloc (obj->tsamps * sizeof (*obj->car_carry_buf));
-  if (!obj->car_wiped_buf || !obj->car_carry_buf)
-    {
-      free (obj->car_wiped_buf);
-      free (obj->car_carry_buf);
-      acq_destroy (obj->acq);
-      free (obj->code);
-      free (obj);
-      return NULL;
-    }
+  obj->car_wiped_buf = dp_xmalloc (obj->tsamps * sizeof (*obj->car_wiped_buf));
+  obj->car_carry_buf = dp_xmalloc (obj->tsamps * sizeof (*obj->car_carry_buf));
   obj->car_carry_len = 0;
 
   /* Placeholder chains (phase 0, no Doppler) -- always allocated, seeded
    * for real the moment a hit fires (fixed shape, same rationale
    * dsss_receiver_core.c's own state struct doc comment gives). */
-  if (_build_refine_chain (obj, 0.0, 0.0, &obj->car_frozen, &obj->refine_dll,
-                           &obj->refine_rc, &obj->ca, &obj->refine_dll_out_buf,
-                           &obj->refine_dll_out_cap, &obj->refine_rc_out_buf,
-                           &obj->refine_rc_out_cap)
-      != 0)
-    {
-      free (obj->car_wiped_buf);
-      free (obj->car_carry_buf);
-      acq_destroy (obj->acq);
-      free (obj->code);
-      free (obj);
-      return NULL;
-    }
+  _build_refine_chain (obj, 0.0, 0.0, &obj->car_frozen, &obj->refine_dll,
+                       &obj->refine_rc, &obj->ca, &obj->refine_dll_out_buf,
+                       &obj->refine_dll_out_cap, &obj->refine_rc_out_buf,
+                       &obj->refine_rc_out_cap);
   obj->refine_samples_fed = 0;
 
-  if (_build_track_chain (obj, 0.0, 0.0, segments, sps, _derive_n (sps),
-                          &obj->car, &obj->dll, &obj->rc, &obj->rx)
-      != 0)
-    {
-      _free_refine_chain (obj);
-      free (obj->car_wiped_buf);
-      free (obj->car_carry_buf);
-      acq_destroy (obj->acq);
-      free (obj->code);
-      free (obj);
-      return NULL;
-    }
+  _build_track_chain (obj, 0.0, 0.0, segments, sps, _derive_n (sps), &obj->car,
+                      &obj->dll, &obj->rc, &obj->rx);
   obj->segments      = segments;
   obj->sps           = sps;
   obj->n             = _derive_n (sps);
@@ -728,8 +627,7 @@ async_dsss_receiver_steps (async_dsss_receiver_state_t *state,
       acq_handoff_t ho;
       acq_build_handoff (state->acq, &hit, state->code_len, state->spc, &ho);
 
-      if (_rebuild_refine_chain (state, ho.chip_phase, ho.doppler_hz_est) != 0)
-        return 0; /* stay searching; try again on the next hit */
+      _rebuild_refine_chain (state, ho.chip_phase, ho.doppler_hz_est);
 
       state->state               = 1; /* refining */
       state->seed_chip_phase     = ho.chip_phase;
@@ -808,15 +706,9 @@ async_dsss_receiver_steps (async_dsss_receiver_state_t *state,
       size_t   tail_len  = (unused > (uint64_t)x_len) ? 0 : (size_t)unused;
       const float complex *tail = x + (x_len - tail_len);
 
-      if (_rebuild_track_chain (state, state->seed_chip_phase,
-                                refined_doppler_hz_est, state->segments,
-                                state->sps, state->n)
-          != 0)
-        return 0; /* stay refining; ca is already at its ready/give-up
-                     state, so this retries every subsequent call until
-                     an allocation succeeds -- an OOM-only degenerate
-                     path, matching dsss_receiver_core.c's own rebuild-
-                     failure handling. */
+      _rebuild_track_chain (state, state->seed_chip_phase,
+                            refined_doppler_hz_est, state->segments,
+                            state->sps, state->n);
 
       state->state          = 2; /* tracking */
       state->doppler_hz_est = refined_doppler_hz_est;
@@ -856,8 +748,8 @@ async_dsss_receiver_configure_chain_raw (async_dsss_receiver_state_t *state,
   double doppler_hz_now
       = mpsk_receiver_get_norm_freq (state->rx) * old_target_rate;
 
-  return _rebuild_track_chain (state, chip_phase, doppler_hz_now, segments,
-                               sps, n);
+  _rebuild_track_chain (state, chip_phase, doppler_hz_now, segments, sps, n);
+  return 0;
 }
 
 int

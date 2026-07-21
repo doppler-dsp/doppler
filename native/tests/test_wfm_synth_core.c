@@ -558,7 +558,10 @@ main (void)
       CHECK (wfm_synth_set_dsss_cont (a, code, sf, cps, WFM_DSSS_DATA_NONE,
                                       NULL, 0)
              == 0);
-      float complex blk[sf * spc];
+      /* heap, not a `blk[sf * spc]` VLA: sf/spc are const size_t, not integer
+       * constant expressions, so the array would be a (folded) VLA -- clang
+       * warns -Wgnu-folding-constant. */
+      float complex *blk = malloc (sf * spc * sizeof *blk);
       wfm_synth_steps (a, blk, sf * spc);
       int ok = 1;
       for (size_t k = 0; k < sf; k++)
@@ -568,6 +571,7 @@ main (void)
             ok = 0;
         }
       CHECK (ok); /* code-only == +code */
+      free (blk);
       wfm_synth_destroy (a);
     }
 

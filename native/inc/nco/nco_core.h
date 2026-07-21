@@ -84,8 +84,18 @@ extern "C"
   JM_FORCEINLINE uint32_t
   nco_norm_to_inc (double cycles)
   {
-    double d = cycles - floor (cycles);
-    return (uint32_t)llround (d * 4294967296.0);
+    double    d = cycles - floor (cycles); /* fractional cycles, [0, 1) */
+    long long v = llround (d * 4294967296.0);
+    /* llround can round d*2^32 UP to exactly 2^32 when d is just below 1
+       (e.g. a code rate steered a hair below an integer -> d ~ 0.9999...).
+       The contract is [0, 2^32), and (uint32_t)2^32 == 0 would collapse a
+       near-full-range step to NO movement -- freezing the NCO (a closed
+       loop then never wraps). This is host-FP-sensitive: x86's llround
+       rounds to 2^32-1 here, arm64's to 2^32. Clamp to the max u32 so d->1
+       is the near-full step it should be, never a spurious zero. */
+    if (v > 0xFFFFFFFFLL)
+      v = 0xFFFFFFFFLL;
+    return (uint32_t)v;
   }
 
 /**

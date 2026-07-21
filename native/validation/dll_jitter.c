@@ -168,7 +168,14 @@ phase_var (double gamma, double bn, const uint8_t *code,
   long long    samp = 0;
   double       m = 0, m2 = 0;
   long         n = 0;
-  while (dumps < ndump)
+  /* dumps advances only on a code-epoch wrap, so a locked loop that stopped
+     wrapping (rate steered to ~0) would spin here forever. Bound the total
+     samples at a generous 64x the nominal (ndump epochs = ndump*SF*SPS
+     samples): a healthy loop wraps ~once per epoch and never approaches this,
+     while a pathological non-convergence exits with too few dumps and fails
+     the caller's variance-vs-law check rather than hanging the run. */
+  const long long max_samp = (long long)ndump * SF * SPS * 64;
+  while (dumps < ndump && samp < max_samp)
     {
       for (size_t i = 0; i < (size_t)SF * SPS; i++, samp++)
         {
@@ -196,6 +203,9 @@ phase_var (double gamma, double bn, const uint8_t *code,
     }
   free (nb);
   awgn_destroy (g);
+  if (n
+      == 0) /* hit the sample cap without converging: fail the caller loudly */
+    return 1e9;
   return m2 / n - (m / n) * (m / n);
 }
 

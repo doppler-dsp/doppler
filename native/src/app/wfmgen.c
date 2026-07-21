@@ -508,18 +508,25 @@ doppler_wfmgen (int   argc, /* NOLINT(readability-function-size) */
       (void)fprintf (stderr, "error: %s requires a value\n", a);              \
       return 2;                                                               \
     }
+/* NB: the internal index is named `choice_idx_` (not `idx`) so it cannot
+ * shadow a caller variable of the same name — `CHOICE(idx, DATA_MODES)` with a
+ * plain `int idx` would otherwise expand to `int idx = …; idx = idx;`, where
+ * the inner declaration captures the assignment and the caller's `idx` is left
+ * uninitialised (a compiler-dependent value that silently corrupted --data).
+ */
 #define CHOICE(dst, tbl)                                                      \
   do                                                                          \
     {                                                                         \
       const char *v = NEXT ();                                                \
-      int idx = v ? lookup (v, (tbl), (int)(sizeof (tbl) / sizeof (*(tbl))))  \
-                  : -1;                                                       \
-      if (idx < 0)                                                            \
+      int         choice_idx_                                                 \
+          = v ? lookup (v, (tbl), (int)(sizeof (tbl) / sizeof (*(tbl))))      \
+              : -1;                                                           \
+      if (choice_idx_ < 0)                                                    \
         {                                                                     \
           (void)fprintf (stderr, "error: bad value for %s\n", a);             \
           return 2;                                                           \
         }                                                                     \
-      (dst) = idx;                                                            \
+      (dst) = choice_idx_;                                                    \
     }                                                                         \
   while (0)
 

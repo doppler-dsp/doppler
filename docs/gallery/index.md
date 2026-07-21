@@ -51,6 +51,7 @@ FFT, ring buffers, C programs, or the NATS streaming demo? Those live on the
 - [DSSS Despread — Acquisition-to-Dll Hand-off, Continuous Async-Data](dsss-despread-async-data.md) — Stage 2: the hand-off seeds `Dll` exactly, and `segments=4` tracks reliably where `segments=1` measurably degrades under the same asynchronous BPSK data.
 - [Continuous Async DSSS Receiver](async-dsss-receiver.md) — Stage 3: `Acquisition -> Dll(segments) -> RateConverter -> MpskReceiver` at real chip/symbol rates — the despreader removes the code, an explicit resampler bridges it to a normal demodulator, and `Dll`'s own tracking-optimal `segments=4` decodes cleanly once wired that way.
 - [DsssReceiver — the Composed Continuous DSSS Receiver](dsss-receiver.md) — the single-object payoff: everything Stage 3 hand-composed across four objects, collapsed into one `DsssReceiver` and one `steps()` call.
+- [AsyncDsssReceiver: the SPEC Waveform](async-dsss-receiver-spec.md) — the packaged receiver decoding SPEC's own continuous async DSSS (CCSDS Gold-1023, 3.069 Mcps, 2700 bps) through physically-coupled clock Doppler, in both pass regimes (TCA-crossing ramp and ±50 kHz offset extremum), with the pre-despread carrier loop tracking the ramp and a binary symbol-lock indicator.
 - [CarrierAcquisition: RRC Pulse Shaping](carrier-acq-rrc.md) — PSDMF residual-carrier estimation against an RRC-shaped BPSK stream, and why the `psd_template` override matters.
 
 ## Synchronization Loops

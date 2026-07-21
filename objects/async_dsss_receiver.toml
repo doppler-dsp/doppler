@@ -313,3 +313,44 @@ type = "double"
 [[async_dsss_receiver.properties]]
 name = "norm_freq"
 type = "double"
+doc = "Smoothed carrier estimate (integrator only, cycles/sample of the MpskReceiver output rate); lags a Doppler ramp by the constant Type-II ramp error."
+
+[[async_dsss_receiver.properties]]
+name = "nco_freq"
+type = "double"
+doc = "Live carrier loop-filter output = NCO frequency command (cycles/sample of the MpskReceiver output rate): its mean tracks a Doppler ramp with no lag, its variance is the carrier loop stress."
+
+[[async_dsss_receiver.properties]]
+name = "locked"
+type = "int"
+doc = "Binary receiver lock: the hysteretic (up/down verify-counted) lock detector on the emitted symbols -- declared when lock_metric stays >= lock_threshold for the up-count and dropped below it for the down-count."
+
+[[async_dsss_receiver.properties]]
+name = "lock_metric"
+type = "double"
+doc = "Symbol-lock metric: SNR-weighted running mean of the BPSK lock signal (I^2-Q^2)/(I^2+Q^2) = cos(2*phi) over the emitted symbols (locked -> ~+1). Drives `locked`; exposed for engineering debug."
+
+[[async_dsss_receiver.properties]]
+name = "lock_threshold"
+type = "double"
+doc = "The lock_metric declare threshold `locked` latches above (the lockdet up_thresh); exposed alongside lock_metric for engineering debug."
+
+[[async_dsss_receiver.properties]]
+name = "car_last_error"
+type = "double"
+doc = "Pre-despread Costas phase discriminator (rad): the residual carrier phase loop 1 (de-rotates before the Dll) is not nulling. Engineering debug."
+
+[[async_dsss_receiver.properties]]
+name = "car_nco_freq"
+type = "double"
+doc = "Loop 1 (pre-despread Costas) loop-filter output = NCO frequency command, cycles/sample of the front-end (chip_rate*spc) rate. Engineering debug."
+
+[[async_dsss_receiver.properties]]
+name = "mpsk_last_error"
+type = "double"
+doc = "MpskReceiver carrier phase discriminator (rad): the residual carrier phase loop 2 (post-despread) is not nulling. Engineering debug."
+
+[[async_dsss_receiver.properties]]
+name = "code_locked"
+type = "int"
+doc = "Binary code-lock flag from the live tracking Dll's own verify-counted (pfa-tuned) lock detector -- the fundamental DSSS \"am I despreading\" lock, de-chattered by up/down hysteresis."

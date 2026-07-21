@@ -1278,7 +1278,39 @@ class AsyncDsssReceiver:
 
     @property
     def norm_freq(self) -> float:
-        """Norm freq."""
+        """Smoothed carrier estimate (integrator only, cycles/sample of the MpskReceiver output rate); lags a Doppler ramp by the constant Type-II ramp error."""
+
+    @property
+    def nco_freq(self) -> float:
+        """Live carrier loop-filter output = NCO frequency command (cycles/sample of the MpskReceiver output rate): its mean tracks a Doppler ramp with no lag, its variance is the carrier loop stress."""
+
+    @property
+    def locked(self) -> int:
+        """Binary receiver lock: the hysteretic (up/down verify-counted) lock detector on the emitted symbols -- declared when lock_metric stays >= lock_threshold for the up-count and dropped below it for the down-count."""
+
+    @property
+    def lock_metric(self) -> float:
+        """Symbol-lock metric: SNR-weighted running mean of the BPSK lock signal (I^2-Q^2)/(I^2+Q^2) = cos(2*phi) over the emitted symbols (locked -> ~+1). Drives `locked`; exposed for engineering debug."""
+
+    @property
+    def lock_threshold(self) -> float:
+        """The lock_metric declare threshold `locked` latches above (the lockdet up_thresh); exposed alongside lock_metric for engineering debug."""
+
+    @property
+    def car_last_error(self) -> float:
+        """Pre-despread Costas phase discriminator (rad): the residual carrier phase loop 1 (de-rotates before the Dll) is not nulling. Engineering debug."""
+
+    @property
+    def car_nco_freq(self) -> float:
+        """Loop 1 (pre-despread Costas) loop-filter output = NCO frequency command, cycles/sample of the front-end (chip_rate*spc) rate. Engineering debug."""
+
+    @property
+    def mpsk_last_error(self) -> float:
+        """MpskReceiver carrier phase discriminator (rad): the residual carrier phase loop 2 (post-despread) is not nulling. Engineering debug."""
+
+    @property
+    def code_locked(self) -> int:
+        """Binary code-lock flag from the live tracking Dll's own verify-counted (pfa-tuned) lock detector -- the fundamental DSSS "am I despreading" lock, de-chattered by up/down hysteresis."""
 
     def destroy(self) -> None:
         """Release C resources immediately."""

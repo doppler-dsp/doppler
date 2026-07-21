@@ -315,8 +315,24 @@ carrier_nda_get_norm_freq (const carrier_nda_state_t *state)
 {
   /* Tracked carrier = NCO centre (nco.norm_freq) + the loop's integrated
    * frequency correction (lf.integ, already in cycles/sample — the loop gains
-   * carry the rad->cycle scale, see config_loop). */
+   * carry the rad->cycle scale, see config_loop). This is the SMOOTHED
+   * (integrator-only) frequency estimate: under a frequency ramp it lags the
+   * true carrier by the constant Type-II ramp error (the standing phase error
+   * lives in the omitted proportional path — see carrier_nda_get_nco_freq). */
   return state->nco.norm_freq + state->lf.integ;
+}
+
+double
+carrier_nda_get_nco_freq (const carrier_nda_state_t *state)
+{
+  /* The instantaneous NCO frequency command = centre + the FULL loop-filter
+   * output (ctl_cyc = integ + kp*e, cycles/sample), i.e. the exact frequency
+   * carrier_nda_wipeoff de-rotates by this sample. Unlike get_norm_freq's
+   * integrator, this includes the proportional term, so its MEAN rides a
+   * frequency ramp with no lag; its per-sample variance IS the loop stress.
+   * The right readout for observing the loop track dynamics; not a smoothed
+   * estimate. */
+  return state->nco.norm_freq + state->ctl_cyc;
 }
 
 void

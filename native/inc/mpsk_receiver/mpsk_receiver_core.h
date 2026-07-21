@@ -216,8 +216,17 @@ extern "C"
                              uint8_t *out, size_t max_out);
 
   double mpsk_receiver_get_norm_freq (const mpsk_receiver_state_t *state);
+  /** @brief Instantaneous NCO frequency command (carrier loop filter output,
+   * cycles/sample): mean tracks a ramp with no lag, variance is loop stress. */
+  double mpsk_receiver_get_nco_freq (const mpsk_receiver_state_t *state);
   void mpsk_receiver_set_norm_freq (mpsk_receiver_state_t *state, double val);
   double mpsk_receiver_get_lock (const mpsk_receiver_state_t *state);
+  /** @brief Binary carrier-lock flag from the loop's hysteretic (up/down
+   * verify-counted) lock detector — de-chattered, unlike the raw metric. */
+  int mpsk_receiver_get_locked (const mpsk_receiver_state_t *state);
+  /** @brief Carrier loop phase discriminator (rad) — the residual phase the
+   * loop is trying to null; loop stress. */
+  double mpsk_receiver_get_last_error (const mpsk_receiver_state_t *state);
 
   /**
    * @brief Re-tune the acquisition<->tracking handover detector directly.

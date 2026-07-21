@@ -244,6 +244,10 @@ void costas_configure(costas_state_t *state, double bn, double zeta);
 double costas_get_bn(const costas_state_t *state);
 void costas_set_bn(costas_state_t *state, double val);
 double costas_get_norm_freq(const costas_state_t *state);
+/** @brief Effective NCO frequency command (loop-filter output = integrator +
+ * proportional), cycles/sample. Mean rides a ramp with no lag, unlike the
+ * integrator-only get_norm_freq. */
+double costas_get_nco_freq(const costas_state_t *state);
 void costas_set_norm_freq(costas_state_t *state, double val);
 double costas_get_lock_metric(const costas_state_t *state);
 double costas_get_last_error(const costas_state_t *state);

@@ -594,35 +594,170 @@ AsyncDsssReceiver_getprop_norm_freq (AsyncDsssReceiverObject *self,
   /* <<IMPLEMENT: return the computed or stored value>> */
   return PyFloat_FromDouble (async_dsss_receiver_get_norm_freq (self->handle));
 }
+static PyObject *
+AsyncDsssReceiver_getprop_nco_freq (AsyncDsssReceiverObject *self,
+                                    void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyFloat_FromDouble (async_dsss_receiver_get_nco_freq (self->handle));
+}
+static PyObject *
+AsyncDsssReceiver_getprop_locked (AsyncDsssReceiverObject *self,
+                                  void                    *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyBool_FromLong (async_dsss_receiver_get_locked (self->handle));
+}
+static PyObject *
+AsyncDsssReceiver_getprop_code_locked (AsyncDsssReceiverObject *self,
+                                       void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyBool_FromLong (async_dsss_receiver_get_code_locked (self->handle));
+}
+static PyObject *
+AsyncDsssReceiver_getprop_car_last_error (AsyncDsssReceiverObject *self,
+                                          void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyFloat_FromDouble (
+      async_dsss_receiver_get_car_last_error (self->handle));
+}
+static PyObject *
+AsyncDsssReceiver_getprop_car_nco_freq (AsyncDsssReceiverObject *self,
+                                        void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyFloat_FromDouble (
+      async_dsss_receiver_get_car_nco_freq (self->handle));
+}
+static PyObject *
+AsyncDsssReceiver_getprop_mpsk_last_error (AsyncDsssReceiverObject *self,
+                                           void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyFloat_FromDouble (
+      async_dsss_receiver_get_mpsk_last_error (self->handle));
+}
+static PyObject *
+AsyncDsssReceiver_getprop_lock_metric (AsyncDsssReceiverObject *self,
+                                       void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyFloat_FromDouble (
+      async_dsss_receiver_get_lock_metric (self->handle));
+}
+static PyObject *
+AsyncDsssReceiver_getprop_lock_threshold (AsyncDsssReceiverObject *self,
+                                          void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyFloat_FromDouble (
+      async_dsss_receiver_get_lock_threshold (self->handle));
+}
 
-static PyGetSetDef AsyncDsssReceiver_getset[]
-    = { { "tracking", (getter)AsyncDsssReceiver_getprop_tracking, NULL,
-          "1 once the live tracking chain is built and demodulating; 0 while "
-          "searching or refining.\n",
-          NULL },
-        { "refining", (getter)AsyncDsssReceiver_getprop_refining, NULL,
-          "1 while the refine stage (CarrierAcquisition collection) is "
-          "active; 0 while searching or tracking.\n",
-          NULL },
-        { "doppler_hz", (getter)AsyncDsssReceiver_getprop_doppler_hz, NULL,
-          "The current best Doppler estimate: the coarse handoff value while "
-          "refining, the CarrierAcquisition-refined value once tracking.\n",
-          NULL },
-        { "cn0_dbhz_est", (getter)AsyncDsssReceiver_getprop_cn0_dbhz_est, NULL,
-          "Cn0 dbhz est.\n", NULL },
-        { "segments", (getter)AsyncDsssReceiver_getprop_segments, NULL,
-          "Segments.\n", NULL },
-        { "sps", (getter)AsyncDsssReceiver_getprop_sps, NULL, "Sps.\n", NULL },
-        { "n", (getter)AsyncDsssReceiver_getprop_n, NULL, "N.\n", NULL },
-        { "chip_phase", (getter)AsyncDsssReceiver_getprop_chip_phase, NULL,
-          "Chip phase.\n", NULL },
-        { "code_rate", (getter)AsyncDsssReceiver_getprop_code_rate, NULL,
-          "Code rate.\n", NULL },
-        { "lock", (getter)AsyncDsssReceiver_getprop_lock, NULL, "Lock.\n",
-          NULL },
-        { "norm_freq", (getter)AsyncDsssReceiver_getprop_norm_freq, NULL,
-          "Norm freq.\n", NULL },
-        { NULL } };
+static PyGetSetDef AsyncDsssReceiver_getset[] = {
+  { "tracking", (getter)AsyncDsssReceiver_getprop_tracking, NULL,
+    "1 once the live tracking chain is built and demodulating; 0 while "
+    "searching or refining.\n",
+    NULL },
+  { "refining", (getter)AsyncDsssReceiver_getprop_refining, NULL,
+    "1 while the refine stage (CarrierAcquisition collection) is "
+    "active; 0 while searching or tracking.\n",
+    NULL },
+  { "doppler_hz", (getter)AsyncDsssReceiver_getprop_doppler_hz, NULL,
+    "The current best Doppler estimate: the coarse handoff value while "
+    "refining, the CarrierAcquisition-refined value once tracking.\n",
+    NULL },
+  { "cn0_dbhz_est", (getter)AsyncDsssReceiver_getprop_cn0_dbhz_est, NULL,
+    "Cn0 dbhz est.\n", NULL },
+  { "segments", (getter)AsyncDsssReceiver_getprop_segments, NULL,
+    "Segments.\n", NULL },
+  { "sps", (getter)AsyncDsssReceiver_getprop_sps, NULL, "Sps.\n", NULL },
+  { "n", (getter)AsyncDsssReceiver_getprop_n, NULL, "N.\n", NULL },
+  { "chip_phase", (getter)AsyncDsssReceiver_getprop_chip_phase, NULL,
+    "Chip phase.\n", NULL },
+  { "code_rate", (getter)AsyncDsssReceiver_getprop_code_rate, NULL,
+    "Code rate.\n", NULL },
+  { "lock", (getter)AsyncDsssReceiver_getprop_lock, NULL, "Lock.\n", NULL },
+  { "norm_freq", (getter)AsyncDsssReceiver_getprop_norm_freq, NULL,
+    "Smoothed carrier estimate (integrator only, cycles/sample of the "
+    "MpskReceiver output rate); lags a Doppler ramp by the constant "
+    "Type-II ramp error.\n",
+    NULL },
+  { "nco_freq", (getter)AsyncDsssReceiver_getprop_nco_freq, NULL,
+    "Live carrier loop-filter output = NCO frequency command "
+    "(cycles/sample of the MpskReceiver output rate): its mean tracks a "
+    "Doppler ramp with no lag, its variance is the carrier loop "
+    "stress.\n",
+    NULL },
+  { "locked", (getter)AsyncDsssReceiver_getprop_locked, NULL,
+    "Binary receiver lock: the hysteretic (up/down verify-counted) lock "
+    "detector on the emitted symbols -- declared when lock_metric stays >= "
+    "lock_threshold for the up-count and dropped below it for the "
+    "down-count.\n",
+    NULL },
+  { "lock_metric", (getter)AsyncDsssReceiver_getprop_lock_metric, NULL,
+    "Symbol-lock metric: SNR-weighted running mean of the BPSK lock signal "
+    "(I^2-Q^2)/(I^2+Q^2) = cos(2*phi) over the emitted symbols (locked -> "
+    "~+1). Drives `locked`; exposed for engineering debug.\n",
+    NULL },
+  { "lock_threshold", (getter)AsyncDsssReceiver_getprop_lock_threshold, NULL,
+    "The lock_metric declare threshold `locked` latches above (the lockdet "
+    "up_thresh); exposed alongside lock_metric for engineering debug.\n",
+    NULL },
+  { "code_locked", (getter)AsyncDsssReceiver_getprop_code_locked, NULL,
+    "Binary code-lock flag from the live tracking Dll's own "
+    "verify-counted (pfa-tuned) lock detector -- the fundamental DSSS "
+    "\"am I despreading\" lock, de-chattered by up/down hysteresis.\n",
+    NULL },
+  { "car_last_error", (getter)AsyncDsssReceiver_getprop_car_last_error, NULL,
+    "Pre-despread Costas phase discriminator (rad): the residual "
+    "carrier phase loop 1 (de-rotates before the Dll) is not "
+    "nulling.\n",
+    NULL },
+  { "car_nco_freq", (getter)AsyncDsssReceiver_getprop_car_nco_freq, NULL,
+    "Loop 1 (pre-despread Costas) loop-filter output = NCO frequency "
+    "command, cycles/sample of the front-end (chip_rate*spc) rate.\n",
+    NULL },
+  { "mpsk_last_error", (getter)AsyncDsssReceiver_getprop_mpsk_last_error, NULL,
+    "MpskReceiver carrier phase discriminator (rad): the residual "
+    "carrier phase loop 2 (post-despread) is not nulling.\n",
+    NULL },
+  { NULL }
+};
 
 static PyObject *
 AsyncDsssReceiverObj_destroy (AsyncDsssReceiverObject *self,

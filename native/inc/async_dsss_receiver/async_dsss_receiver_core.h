@@ -36,20 +36,24 @@
  *     wherever the refine-stage `Dll` drifted to) and the refined (or, on
  *     a give-up, unrefined) Doppler estimate -- and the object
  *     transitions to tracking.
- *   - **tracking** (`get_tracking() == 1`): samples feed a pre-despread
- *     carrier loop (`costas_wipeoff`/`costas_update`) -> `Dll` ->
- *     `RateConverter` -> `MpskReceiver`, the SAME per-code-period cadence
- *     `DsssReceiver` already validates (`costas_update()` called once per
- *     period on a sign-aligned sum of that period's `dll_steps()`
- *     partials -- `_track_period()`'s own doc comment). A per-partial
- *     cadence (`costas_update()` once per emitted partial, mirroring the
- *     Python prototype's `car_update_windows=True`) was tried first and
- *     found NOT to track SPEC's own 500Hz/s ramp at this object's real
- *     operating geometry -- see `_build_track_chain()`'s own comment: a
- *     per-partial update sees a `segments`x shorter integration with a
- *     `segments`x weaker per-update error, too noisy to steer a clean
- *     carrier estimate. (This loop is a pure PLL -- no FLL anywhere, see
- *     the `ASYNC_DSSS_RX_BN_CARRIER` comment.)
+ *   - **tracking** (`get_tracking() == 1`): the refined carrier estimate is
+ *     UNFROZEN into a live pre-despread carrier loop
+ *     (`costas_wipeoff`/`costas_update`) -> `Dll` -> `RateConverter` ->
+ *     `MpskReceiver` -- the "track" leg of coarse -> freeze -> refine ->
+ *     unfreeze/track. `costas_update()` runs once per code period, driven by
+ *     a NON-DATA-AIDED (squaring) discriminator over that period's coherent-
+ *     I&D partials (`_track_period()`): a code period spans ~0.9 data symbols
+ *     at SPEC's async ratio, so a transition lands inside nearly every
+ *     period, and squaring is what makes the carrier error transition-robust
+ *     (a decision-directed sign-aligned combine, tried first, thrashed
+ *     +/-57deg and averaged to zero, so loop 1 never tracked and the
+ *     post-despread MpskReceiver loop silently inherited the whole carrier +
+ *     its Type-II ramp phase error). With that clean error and a bandwidth
+ *     wide enough to pull the refined seed in and ride the ramp
+ *     (`ASYNC_DSSS_RX_BN_CARRIER`), the pre-despread loop removes the FULL
+ *     coupled Doppler (offset AND 500 Hz/s ramp), so despreading is coherent
+ *     and MpskReceiver is left only a small residual. (Pure PLL -- no FLL
+ *     anywhere, see the `ASYNC_DSSS_RX_BN_CARRIER` comment.)
  *
  * Both the refine and track stages share ONE carrier-wipe scratch/carry
  * buffer set (`car_wiped_buf`/`car_carry_buf`/`car_carry_len`, sized
@@ -80,6 +84,7 @@
 #include "dll/dll_core.h"
 #include "dp_state.h"
 #include "hbdecim/hbdecim_core.h"
+#include "lockdet/lockdet_core.h"
 #include "mpsk_receiver/mpsk_receiver_core.h"
 #include "resamp/resamp_core.h"
 #include "resample/resample_core.h"
@@ -105,17 +110,30 @@ extern "C"
    * calls costas_update(), so its own bn/zeta are irrelevant -- only its
    * tsamps (the wipe period length) and init_norm_freq matter.
    *
+   * Wider than the 0.01 first used, for two reasons the narrow value could
+   * not meet: (1) PULL-IN -- the refined seed still leaves ~tens of Hz of
+   * residual (PSDMF accuracy + the ramp drifting the carrier over the
+   * refine->track latency), and a per-code-period PLL at 0.01 has a pull-in
+   * range far under that, so the residual wraps as a zero-mean sinusoid and
+   * the loop never locks; (2) DYNAMICS -- tracking SPEC's 500 Hz/s ramp with
+   * a per-period Type-II loop needs the bandwidth to keep the velocity lag
+   * (phase error ~ ramp/omega_n^2) small. 0.04 pulls the seed in and rides
+   * the ramp with a clean (~0 deg) despread constellation; the minimum that
+   * works is ~0.03 (0.02 under-pulls). Because the phase detector is
+   * |P|-normalized (unit-slope), this is the true noise bandwidth, so it
+   * costs some phase noise at the 0-Doppler floor -- but the ~5 dB Es/N0
+   * floor is still met.
+   *
    * NO FLL: the pre-despread Costas always passes bn_fll = 0 (a pure PLL).
    * The FLL cross-product frequency discriminator is far too noisy on this
-   * loop's data-modulated despread-symbol input -- direct measurement (the
-   * loop-stress plot) showed a nonzero bn_fll drives large slow carrier
-   * frequency wander (tens of Hz) that intermittently rotates the
-   * constellation through whole windows, the dominant residual "slip"
-   * mechanism at large coupled-Doppler offsets. A plain Costas PLL tracks
-   * the coupled Doppler (offset AND 500 Hz/s ramp) cleanly; the carrier
-   * norm_freq goes dead flat once settled. So the FLL is not exposed here
-   * at all, not merely defaulted off. */
-#define ASYNC_DSSS_RX_BN_CARRIER 0.01
+   * loop's data-modulated despread-symbol input. The phase discriminator is
+   * NON-DATA-AIDED (squaring the emitted coherent-I&D partials) so it is
+   * immune to the async data transitions that land inside nearly every code
+   * period (see _track_period()); with that clean, transition-robust error
+   * the plain PLL tracks the coupled Doppler (offset AND 500 Hz/s ramp)
+   * pre-despread. So the FLL is not exposed here at all, not merely
+   * defaulted off. */
+#define ASYNC_DSSS_RX_BN_CARRIER 0.04
   /* Dll's own bn: the validated stable code-loop bandwidth for the
    * one-update-per-partial tracking geometry -- same value DsssReceiver's
    * own Dll uses, not dll_create()'s own default of 0.01. (A wider 0.005 was
@@ -123,6 +141,21 @@ extern "C"
    * carrier-driven slips are gone and the narrower 0.002 keeps its noise
    * immunity at the low-Es/N0 floor.) */
 #define ASYNC_DSSS_RX_DLL_BN 0.002
+
+  /* Symbol-lock detector on the emitted symbols. The lock signal is the
+   * BPSK phase-lock statistic (I^2 - Q^2)/(I^2 + Q^2) = cos(2*phi) per
+   * symbol (locked -> +1, 45deg-rotated/noise -> 0). The lock METRIC is that
+   * signal integrated proportionally to SNR -- a power-weighted running mean,
+   * EMA(I^2-Q^2)/EMA(I^2+Q^2), so high-|symbol| (high-SNR) symbols dominate
+   * and noisy ones contribute little -- over a dwell of LOCK_DWELL symbols
+   * (>= 30). A hysteretic lockdet (lockdet_core.h) then declares `locked`
+   * after LOCK_N_UP consecutive symbols with the metric >= LOCK_UP and drops
+   * it after LOCK_N_DOWN below LOCK_DOWN. */
+#define ASYNC_DSSS_RX_LOCK_DWELL 30u
+#define ASYNC_DSSS_RX_LOCK_UP 0.5
+#define ASYNC_DSSS_RX_LOCK_DOWN 0.3
+#define ASYNC_DSSS_RX_LOCK_N_UP 30u
+#define ASYNC_DSSS_RX_LOCK_N_DOWN 15u
 
   /**
    * @brief Composed receiver state.
@@ -163,11 +196,10 @@ extern "C"
     float complex *refine_rc_out_buf;
     size_t         refine_rc_out_cap;
 
-    /* Track stage: DsssReceiver's own composition, with ONE difference --
-     * costas_init()'s tsamps here is the PER-PARTIAL interval
-     * (code_len*spc/segments), and costas_update() is called once per
-     * dll_steps()-emitted partial directly (see _track_carrier_dll() in
-     * the .c file) -- no combine-and-sign-align step. */
+    /* Track stage: DsssReceiver's own composition. costas_init()'s tsamps is
+     * one whole code period, and the pre-despread carrier loop updates once
+     * per period from a non-data-aided (squaring) combine of that period's
+     * coherent-I&D partials (see _track_period() in the .c file). */
     costas_state_t         car;
     dll_state_t           *dll;
     RateConverter_state_t *rc;
@@ -238,6 +270,17 @@ extern "C"
                                         acq->samples_consumed right after a
                                         hit, same technique DsssReceiver's
                                         own steps() uses.                 */
+
+    /* Symbol-lock detector running state (see the ASYNC_DSSS_RX_LOCK_*
+     * defines). lock_num/lock_den are the power-weighted EMAs of I^2-Q^2 and
+     * I^2+Q^2; lock_metric = lock_num/lock_den = cos(2*phi); sym_lockdet is
+     * the hysteretic up/down declare. Reset when the track chain is (re)built
+     * (fresh lock per pass). */
+    double          lock_num;
+    double          lock_den;
+    double          lock_metric;
+    double          lock_alpha; /**< EMA coeff = 1/dwell (dwell >= 30).    */
+    lockdet_state_t sym_lockdet;
   } async_dsss_receiver_state_t;
 
   /**
@@ -395,6 +438,42 @@ extern "C"
       const async_dsss_receiver_state_t *state);
   double async_dsss_receiver_get_norm_freq (
       const async_dsss_receiver_state_t *state);
+  /** @brief Live carrier loop-filter output = NCO frequency command
+   * (cycles/sample of the MpskReceiver output rate). Its mean tracks a
+   * Doppler ramp with no lag (unlike get_norm_freq's integrator estimate);
+   * its variance is the carrier loop stress. */
+  double async_dsss_receiver_get_nco_freq (
+      const async_dsss_receiver_state_t *state);
+  /** @brief Binary carrier-lock flag from the loop's hysteretic (up/down
+   * verify-counted) lock detector — the de-chattered lock indicator, unlike
+   * the raw `lock` metric. */
+  int async_dsss_receiver_get_locked (
+      const async_dsss_receiver_state_t *state);
+  /** @brief Binary code-lock flag from the live tracking Dll's own
+   * verify-counted (pfa-tuned) lock detector — the fundamental DSSS "am I
+   * despreading" lock, de-chattered by up/down hysteresis. */
+  int async_dsss_receiver_get_code_locked (
+      const async_dsss_receiver_state_t *state);
+  /** @brief Pre-despread Costas phase discriminator (rad): the residual
+   * carrier phase LOOP 1 (which de-rotates before the Dll) is not nulling. */
+  double async_dsss_receiver_get_car_last_error (
+      const async_dsss_receiver_state_t *state);
+  /** @brief LOOP 1 (pre-despread Costas) loop-filter output = NCO frequency
+   * command, cycles/sample of the front-end (chip_rate*spc) rate. */
+  double async_dsss_receiver_get_car_nco_freq (
+      const async_dsss_receiver_state_t *state);
+  /** @brief MpskReceiver carrier phase discriminator (rad): the residual
+   * carrier phase LOOP 2 (post-despread) is not nulling. */
+  double async_dsss_receiver_get_mpsk_last_error (
+      const async_dsss_receiver_state_t *state);
+  /** @brief Symbol-lock metric = SNR-weighted EMA of (I^2-Q^2)/(I^2+Q^2)
+   * = cos(2*phi) over the emitted symbols (locked -> ~+1). Drives `locked`. */
+  double async_dsss_receiver_get_lock_metric (
+      const async_dsss_receiver_state_t *state);
+  /** @brief The lock-metric declare threshold `locked` latches above (the
+   * lockdet up_thresh); exposed alongside lock_metric for engineering debug. */
+  double async_dsss_receiver_get_lock_threshold (
+      const async_dsss_receiver_state_t *state);
 
   /* ── Serializable state (standard bytes interface; see dp_state.h) ──────
    * Composition: acq + car_frozen + refine_dll + refine_rc + ca + car +
@@ -415,10 +494,14 @@ extern "C"
     uint64_t refine_segments;
     uint64_t refine_samples_fed;
     uint64_t car_carry_len;
+    double   lock_num;  /**< symbol-lock EMAs + hysteretic detector: the */
+    double   lock_den;  /**< running state that survives a checkpoint    */
+    double   lock_metric;         /**< (config -- alpha, thresholds -- is */
+    lockdet_state_t sym_lockdet;  /**< restored by create()).             */
   } async_dsss_receiver_extra_t;
 
 #define ASYNC_DSSS_RECEIVER_STATE_MAGIC DP_FOURCC ('A', 'D', 'R', 'X')
-#define ASYNC_DSSS_RECEIVER_STATE_VERSION 1u
+#define ASYNC_DSSS_RECEIVER_STATE_VERSION 2u
 
   size_t async_dsss_receiver_state_bytes (
       const async_dsss_receiver_state_t *state);

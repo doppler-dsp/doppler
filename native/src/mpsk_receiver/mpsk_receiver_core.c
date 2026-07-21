@@ -370,6 +370,12 @@ mpsk_receiver_get_norm_freq (const mpsk_receiver_state_t *state)
   return carrier_nda_get_norm_freq (&state->car);
 }
 
+double
+mpsk_receiver_get_nco_freq (const mpsk_receiver_state_t *state)
+{
+  return carrier_nda_get_nco_freq (&state->car);
+}
+
 void
 mpsk_receiver_set_norm_freq (mpsk_receiver_state_t *state, double val)
 {
@@ -380,6 +386,18 @@ double
 mpsk_receiver_get_lock (const mpsk_receiver_state_t *state)
 {
   return state->car.lock;
+}
+
+int
+mpsk_receiver_get_locked (const mpsk_receiver_state_t *state)
+{
+  return carrier_nda_get_locked (&state->car);
+}
+
+double
+mpsk_receiver_get_last_error (const mpsk_receiver_state_t *state)
+{
+  return carrier_nda_get_last_error (&state->car);
 }
 
 void

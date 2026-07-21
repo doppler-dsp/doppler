@@ -15,6 +15,18 @@ _derive_n (size_t sps)
   return 1;
 }
 
+/* Reset the symbol-lock detector's RUNNING state (config -- alpha, lockdet
+ * thresholds/counts -- is set once in create()). Called on every fresh
+ * track-chain build so each pass starts unlocked. */
+static void
+_reset_lock (async_dsss_receiver_state_t *s)
+{
+  s->lock_num    = 0.0;
+  s->lock_den    = 0.0;
+  s->lock_metric = 0.0;
+  lockdet_reset (&s->sym_lockdet);
+}
+
 /* Allocate a fresh refine-stage chain (frozen carrier + collection Dll +
  * RateConverter + CarrierAcquisition, plus their scratch buffers) from
  * the given hand-off phase/frequency, without touching `s`'s existing
@@ -181,8 +193,8 @@ _rebuild_refine_chain (async_dsss_receiver_state_t *s, double chip_phase,
 /* Allocate a fresh live-tracking chain (Dll/RateConverter/MpskReceiver +
  * the pre-despread carrier loop), mirroring dsss_receiver_core.c's own
  * _build_chain: costas_init()'s tsamps is one whole code period, and
- * costas_update() is called once per period from the period's own
- * data-wiped sum of dll_steps()'s emitted partials (see
+ * costas_update() is called once per period from a non-data-aided
+ * (squaring) combine of that period's emitted coherent-I&D partials (see
  * _track_period()) -- not once per partial (see this function's own
  * comment on costas_init() below for why). */
 static int
@@ -239,13 +251,11 @@ _build_track_chain (async_dsss_receiver_state_t *s, double chip_phase,
 
   /* Per-CODE-PERIOD cadence (tsamps = one whole period), matching
    * dsss_receiver_core.c's own mechanism -- NOT once per dll_steps()
-   * partial. The Costas phase discriminator integrates over the interval
-   * between updates; calling it once per partial instead of once per period
-   * shrinks that integration by `segments`, so each update carries a
-   * `segments`x weaker, noisier error -- too weak to steer a clean carrier
-   * estimate, and it does not track SPEC's Doppler-rate requirement. The
-   * per-period sign-aligned partial sum (_track_period()) gives the loop a
-   * full-period error instead. Pure PLL, no FLL (bn_fll = 0 below). */
+   * partial. The carrier discriminator combines the whole period's coherent-
+   * I&D partials (a non-data-aided squaring combine, _track_period()) into
+   * one full-period error; a per-partial cadence would shrink each update's
+   * integration by `segments`, too weak/noisy to steer a clean carrier
+   * estimate. Pure PLL, no FLL (bn_fll = 0 below). */
   double front_end_rate = s->chip_rate * (double)s->spc;
   /* bn_fll = 0: pure PLL, no FLL (see ASYNC_DSSS_RX_BN_CARRIER's comment --
      the FLL cross-product is too noisy on the despread-symbol input and
@@ -292,6 +302,7 @@ _rebuild_track_chain (async_dsss_receiver_state_t *s, double chip_phase,
   s->sps           = sps;
   s->n             = n;
   s->car_carry_len = 0;
+  _reset_lock (s); /* fresh symbol-lock per pass */
   return 0;
 }
 
@@ -367,27 +378,26 @@ _process_refine (async_dsss_receiver_state_t *s, const float complex *x,
   s->car_carry_len = leftover;
 }
 
-/* One carrier-wiped code period through dll -> ONE costas_update() call
- * per period, on a DATA-WIPED sum of that period's emitted partials --
- * dsss_receiver_core.c's own _carrier_update_from_partials() mechanism.
- * A code period spans multiple data bits at SPEC's async ratio, so a
- * bare coherent sum of dll_steps()'s partials self-cancels across a
- * transition; sign-aligning each partial by its own real part first
- * (the same data-wiping the Costas phase discriminator itself applies --
- * a BPSK bit flip does not corrupt a `sign(Re)`-wiped combine, costas_
- * core.h) fixes that. This decision
- * has to live here, in the consumer, and not be pushed into dll_steps()
- * itself: dll_out is the actual despread symbol stream this object also
- * hands to RateConverter/mpsk_receiver, not scratch, and a natural
- * epoch that straddles a transition genuinely carries two different
- * data bits -- no single sign is correct for the whole epoch there, so
- * dll_core.c cannot make this decision on the primitive's own output
- * (see its segments>1 emit-block comment). Costas' phase/frequency
- * discriminator only cares about the sum's relative alignment to the
- * carrier, not an absolute data-bit reference, so this data-wiping is
- * exactly as safe here as it already is inside costas_update() itself.
- * Writes emitted partials into dll_out (capacity max_out); returns
- * count. */
+/* One carrier-wiped code period through dll -> ONE costas_update() call per
+ * period, driven by a NON-DATA-AIDED (squaring) carrier discriminator over
+ * that period's emitted coherent-I&D partials. A code period spans ~0.9 data
+ * symbols at SPEC's async ratio, so a data transition lands inside nearly
+ * every period; the earlier decision-directed combine (sign-align each
+ * partial by its own real part, then sum) was corrupted by exactly those
+ * transitions -- direct measurement showed a +/-57deg discriminator that
+ * averaged to zero, so the loop never tracked and the whole carrier burden
+ * silently fell to the post-despread MpskReceiver loop (which then held the
+ * Type-II ramp phase error). Squaring removes the +/-1 BPSK data with NO
+ * per-partial sign decision (dll_out[i]^2 = A^2 exp(j2phi) regardless of the
+ * data bit); a partial straddling a transition merely loses amplitude, not
+ * phase. This is the SAME non-data-aided principle the downstream
+ * MpskReceiver carrier loop already uses, applied PRE-despread on the
+ * transition-free windows so despreading stays coherent (no residual carrier
+ * rotating within the correlation) -- the "unfreeze and track loop 1" step
+ * of coarse -> freeze -> refine -> track. The dll_out partials are the actual
+ * despread symbol stream this object also hands to RateConverter/mpsk_
+ * receiver, so this squaring lives here in the consumer, not in dll_core.c.
+ * Writes emitted partials into dll_out (capacity max_out); returns count. */
 static size_t
 _track_period (async_dsss_receiver_state_t *s, const float complex *period,
                float complex *dll_out, size_t max_out)
@@ -398,13 +408,32 @@ _track_period (async_dsss_receiver_state_t *s, const float complex *period,
       = dll_steps (s->dll, s->car_wiped_buf, s->tsamps, dll_out, max_out);
   if (n_out > 0)
     {
-      float complex sum = 0.0f;
+      /* NON-DATA-AIDED carrier discriminator on the despread coherent-I&D
+       * windows. Each emitted partial is dll_out[i] = A * d * exp(j*phi),
+       * d = +/-1 BPSK data, phi = residual carrier phase. Squaring removes
+       * the data (d^2 = 1) with NO per-partial sign DECISION -- the failure
+       * mode of the old decision-directed sum, which at SPEC's async ratio
+       * (~0.9 symbols/code period) straddles a data transition almost every
+       * period, giving a garbage +/-57deg discriminator that averages to
+       * zero so the loop never tracks. The dll_steps() windows are short
+       * (dll_lookback_segments oversampling, the same transition-free I&D the
+       * refine PSDMF consumes): a window entirely within one symbol squares
+       * cleanly; one straddling a transition merely loses amplitude, not
+       * phase -- exactly why NDA is transition-robust where the sign-wipe is
+       * not. Sum the squares and halve the angle for the carrier phase
+       * (mod pi, the harmless BPSK sign ambiguity). Feed it to the existing
+       * Costas loop via a unit phasor (Re = cos(phi) >= 0, so its own data-
+       * wipe never flips it, and its discriminator reads sin(phi)). This is
+       * the same NDA principle the downstream MpskReceiver carrier loop uses,
+       * applied PRE-despread so despreading stays coherent (no residual
+       * carrier rotating within the correlation) instead of leaving the whole
+       * carrier burden to the post-despread loop. */
+      float complex sq = 0.0f;
       for (size_t i = 0; i < n_out; i++)
-        {
-          float sign = (crealf (dll_out[i]) >= 0.0f) ? 1.0f : -1.0f;
-          sum += dll_out[i] * sign;
-        }
-      costas_update (&s->car, sum);
+        sq += dll_out[i] * dll_out[i];
+      double        phi = 0.5 * atan2 (cimag (sq), creal (sq));
+      float complex P   = (float)cos (phi) + (float)sin (phi) * I;
+      costas_update (&s->car, P);
       /* Continuous carrier->code aiding: the pre-despread Costas tracks the
          FULL carrier offset (including the 500 Hz/s ramp), so refresh the
          code NCO's rate bias from it every period. This keeps the initial
@@ -480,6 +509,23 @@ _track_chain (async_dsss_receiver_state_t *s, const float complex *x,
 
   size_t n_out = mpsk_receiver_steps (s->rx, rc_out, n_rc, out, max_out);
   free (rc_out);
+
+  /* Symbol-lock detector: per emitted symbol, integrate the BPSK phase-lock
+   * signal (I^2-Q^2)/(I^2+Q^2) = cos(2*phi) as a POWER-WEIGHTED (i.e. SNR-
+   * weighted) running mean -- separate EMAs of the numerator and the total
+   * power, so a high-|symbol| (high-SNR) symbol dominates and a
+   * noise/transient one contributes little -- then step the hysteretic lockdet
+   * on the ratio. dwell = 1/lock_alpha >= LOCK_DWELL. See the
+   * ASYNC_DSSS_RX_LOCK_* defines. */
+  for (size_t i = 0; i < n_out; i++)
+    {
+      double re = (double)crealf (out[i]);
+      double im = (double)cimagf (out[i]);
+      s->lock_num += s->lock_alpha * ((re * re - im * im) - s->lock_num);
+      s->lock_den += s->lock_alpha * ((re * re + im * im) - s->lock_den);
+      s->lock_metric = (s->lock_den > 0.0) ? s->lock_num / s->lock_den : 0.0;
+      (void)lockdet_step (&s->sym_lockdet, s->lock_metric);
+    }
   return n_out;
 }
 
@@ -602,6 +648,14 @@ async_dsss_receiver_create (
   obj->doppler_hz_est      = 0.0;
   obj->cn0_dbhz_est        = 0.0;
   obj->samples_fed         = 0;
+
+  /* Symbol-lock detector config (running state reset per track-chain build,
+   * _reset_lock()). */
+  obj->lock_alpha = 1.0 / (double)ASYNC_DSSS_RX_LOCK_DWELL;
+  lockdet_init (&obj->sym_lockdet, ASYNC_DSSS_RX_LOCK_UP,
+                ASYNC_DSSS_RX_LOCK_DOWN, ASYNC_DSSS_RX_LOCK_N_UP,
+                ASYNC_DSSS_RX_LOCK_N_DOWN);
+  _reset_lock (obj);
   return obj;
 }
 
@@ -862,6 +916,57 @@ async_dsss_receiver_get_norm_freq (const async_dsss_receiver_state_t *state)
   return mpsk_receiver_get_norm_freq (state->rx);
 }
 
+double
+async_dsss_receiver_get_nco_freq (const async_dsss_receiver_state_t *state)
+{
+  return mpsk_receiver_get_nco_freq (state->rx);
+}
+
+int
+async_dsss_receiver_get_locked (const async_dsss_receiver_state_t *state)
+{
+  return state->sym_lockdet.locked;
+}
+
+double
+async_dsss_receiver_get_lock_metric (const async_dsss_receiver_state_t *state)
+{
+  return state->lock_metric;
+}
+
+double
+async_dsss_receiver_get_lock_threshold (
+    const async_dsss_receiver_state_t *state)
+{
+  return state->sym_lockdet.up_thresh;
+}
+
+int
+async_dsss_receiver_get_code_locked (const async_dsss_receiver_state_t *state)
+{
+  return dll_get_locked (state->dll);
+}
+
+double
+async_dsss_receiver_get_car_last_error (
+    const async_dsss_receiver_state_t *state)
+{
+  return costas_get_last_error (&state->car);
+}
+
+double
+async_dsss_receiver_get_car_nco_freq (const async_dsss_receiver_state_t *state)
+{
+  return costas_get_nco_freq (&state->car);
+}
+
+double
+async_dsss_receiver_get_mpsk_last_error (
+    const async_dsss_receiver_state_t *state)
+{
+  return mpsk_receiver_get_last_error (state->rx);
+}
+
 size_t
 async_dsss_receiver_state_bytes (const async_dsss_receiver_state_t *s)
 {
@@ -894,6 +999,10 @@ async_dsss_receiver_get_state (const async_dsss_receiver_state_t *s,
     .refine_segments     = (uint64_t)s->refine_segments,
     .refine_samples_fed  = s->refine_samples_fed,
     .car_carry_len       = (uint64_t)s->car_carry_len,
+    .lock_num            = s->lock_num,
+    .lock_den            = s->lock_den,
+    .lock_metric         = s->lock_metric,
+    .sym_lockdet         = s->sym_lockdet,
   };
   dp_w_bytes (&_w, &extra, sizeof extra);
   DP_W_CHILD (&_w, acq, s->acq);
@@ -939,5 +1048,9 @@ async_dsss_receiver_set_state (async_dsss_receiver_state_t *s,
   s->cn0_dbhz_est        = extra.cn0_dbhz_est;
   s->refine_samples_fed  = extra.refine_samples_fed;
   s->car_carry_len       = (size_t)extra.car_carry_len;
+  s->lock_num            = extra.lock_num;
+  s->lock_den            = extra.lock_den;
+  s->lock_metric         = extra.lock_metric;
+  s->sym_lockdet         = extra.sym_lockdet;
   return DP_OK;
 }

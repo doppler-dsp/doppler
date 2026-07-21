@@ -38,7 +38,7 @@
  * piecewise-constant ratio re-set once per block. No resampling math is
  * implemented here.
  *
- * Lifecycle: create -> [execute / reset]* -> destroy
+ * Lifecycle: create -> `[execute / reset]*` -> destroy
  *
  * Example — a 2.5 GHz carrier seen at +20 ppm, ramping at 0.2 ppm/s:
  * @code

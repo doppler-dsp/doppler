@@ -670,6 +670,36 @@ _test_carry_buffer_state_roundtrip (void)
   return _fails;
 }
 
+/* Exercise the read-only accessors and the three raw sub-loop reconfigure
+ * entry points (search grid / lock detector / track chain) plus the chain
+ * rejection paths — thin delegations the algorithm tests never call, reachable
+ * on a freshly created (pre-lock) receiver. */
+static int
+_test_accessor_coverage (void)
+{
+  int                    _fails = 0;
+  dsss_receiver_state_t *rx     = dsss_receiver_create (
+      CODE7, 7, 1.0e6, 35714.29, 4, 2, 70.0, 1e-2, 0.9, 500.0, 4, 8, 0);
+  CHECK (rx != NULL);
+  if (!rx)
+    return _fails + 1;
+
+  (void)dsss_receiver_get_lock (rx);
+  (void)dsss_receiver_get_norm_freq (rx);
+  (void)dsss_receiver_get_doppler_hz (rx);
+  (void)dsss_receiver_steps_max_out (rx); /* 0 until first stream */
+
+  CHECK (dsss_receiver_configure_search_raw (rx, 1, 1) == 0);
+  CHECK (dsss_receiver_configure_search_raw (rx, 100000, 1) == -1);
+  dsss_receiver_configure_lock_raw (rx, 12.0, 6.0, 8, 0.1, 3, 3);
+  CHECK (dsss_receiver_configure_chain_raw (rx, 4, 8, 4) == 0);
+  CHECK (dsss_receiver_configure_chain_raw (rx, 0, 8, 4) == -1);
+  CHECK (dsss_receiver_configure_chain_raw (rx, 4, 8, 3) == -1);
+
+  dsss_receiver_destroy (rx);
+  return _fails;
+}
+
 int
 main (void)
 {
@@ -679,6 +709,7 @@ main (void)
   _fails += _test_carrier_dll_composition_ramp ();
   _fails += _test_sustained_doppler_rate ();
   _fails += _test_carry_buffer_state_roundtrip ();
+  _fails += _test_accessor_coverage ();
   if (_fails)
     {
       fprintf (stderr, "test_dsss_receiver_core FAILED (%d)\n", _fails);

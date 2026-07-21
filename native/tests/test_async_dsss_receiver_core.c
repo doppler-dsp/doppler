@@ -786,6 +786,49 @@ _test_awgn_esn0_floor (void)
   return _fails;
 }
 
+/* Exercise every read-only accessor and the three raw sub-loop reconfigure
+ * entry points (search grid / lock detector / track chain), including the
+ * chain-reconfigure rejection paths. These are thin delegations the algorithm
+ * tests above never call, so they carry no signal dependence — a freshly
+ * created (pre-lock) receiver reaches all of them. */
+static int
+_test_accessor_coverage (void)
+{
+  int                          _fails = 0;
+  async_dsss_receiver_state_t *rx     = async_dsss_receiver_create (
+      CODE7, 7, 1.0e6, 35714.29, 4, 2, 70.0, 1e-2, 0.9, 500.0, 4, 8, 0, 0.5, 4,
+      14.0, 64, 8, false, 100000, 0.0);
+  CHECK (rx != NULL);
+  if (!rx)
+    return _fails + 1;
+
+  /* Read-only accessors: each executes its one-line body on live state. */
+  (void)async_dsss_receiver_get_lock (rx);
+  (void)async_dsss_receiver_get_locked (rx);
+  (void)async_dsss_receiver_get_code_locked (rx);
+  (void)async_dsss_receiver_get_lock_metric (rx);
+  CHECK (async_dsss_receiver_get_lock_threshold (rx) > 0.0);
+  (void)async_dsss_receiver_get_norm_freq (rx);
+  (void)async_dsss_receiver_get_nco_freq (rx);
+  (void)async_dsss_receiver_get_car_nco_freq (rx);
+  (void)async_dsss_receiver_get_car_last_error (rx);
+  (void)async_dsss_receiver_get_mpsk_last_error (rx);
+  (void)async_dsss_receiver_steps_max_out (rx); /* 0 until first stream */
+
+  /* Raw sub-loop reconfiguration: valid grids/detectors, then the chain's
+   * accept + both reject branches (segments < 1, and sps not a multiple of n).
+   */
+  CHECK (async_dsss_receiver_configure_search_raw (rx, 1, 1) == 0);
+  CHECK (async_dsss_receiver_configure_search_raw (rx, 100000, 1) == -1);
+  async_dsss_receiver_configure_lock_raw (rx, 12.0, 6.0, 8, 0.1, 3, 3);
+  CHECK (async_dsss_receiver_configure_chain_raw (rx, 4, 8, 4) == 0);
+  CHECK (async_dsss_receiver_configure_chain_raw (rx, 0, 8, 4) == -1);
+  CHECK (async_dsss_receiver_configure_chain_raw (rx, 4, 8, 3) == -1);
+
+  async_dsss_receiver_destroy (rx);
+  return _fails;
+}
+
 int
 main (void)
 {
@@ -796,6 +839,7 @@ main (void)
   _fails += _test_spec_ramp_decode ();
   _fails += _test_spec_combined_scenario_at_spec_floor ();
   _fails += _test_awgn_esn0_floor ();
+  _fails += _test_accessor_coverage ();
 
   if (_fails)
     {

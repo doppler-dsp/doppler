@@ -381,6 +381,7 @@ main (void)
     for (int i = 0; i < 8; i++)
       ctrl[i] = 0.05f * (float)i;
     uint32_t bout[8];
+    CHECK (nco_steps_u32_ctrl_max_out (batch) >= 8);
     nco_steps_u32_ctrl (batch, ctrl, 8, bout);
     for (int i = 0; i < 8; i++)
       CHECK (nco_step_u32_ctrl (single, (double)ctrl[i]) == bout[i]);
@@ -394,6 +395,7 @@ main (void)
     for (int i = 0; i < 8; i++)
       ctrl[i] = 0.05f * (float)i;
     uint32_t bout[8];
+    CHECK (nco_steps_u32_scaled_ctrl_max_out (batch) >= 8);
     nco_steps_u32_scaled_ctrl (batch, ctrl, 8, bout);
     for (int i = 0; i < 8; i++)
       CHECK (nco_step_u32_scaled_ctrl (single, (double)ctrl[i]) == bout[i]);
@@ -408,6 +410,7 @@ main (void)
       ctrl[i] = 0.05f * (float)i;
     uint32_t bout[8];
     uint8_t  bov[8];
+    CHECK (nco_steps_u32_ovf_ctrl_max_out (batch) >= 8);
     nco_steps_u32_ovf_ctrl (batch, ctrl, 8, bout, bov);
     for (int i = 0; i < 8; i++)
       {

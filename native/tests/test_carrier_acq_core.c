@@ -276,6 +276,52 @@ main (void)
     free (x);
   }
 
+  /* ── state-serialization round trip (mid-dwell split) + envelope reject +
+     reset ── the standard's "resume bit-for-bit" contract for a stateful
+     object; also exercises carrier_acq_reset(). ── */
+  {
+    size_t         n;
+    float complex *x
+        = _make_signal (N_SYMBOLS, SPS, SAMPLE_RATE_HZ, TONE_HZ, 999u, &n);
+    carrier_acq_state_t *ca = carrier_acq_create (
+        SAMPLE_RATE_HZ, SYMBOL_RATE_HZ, 0.0, 4, 0, 0.0f, NULL, 0, 1e-3, 0.9,
+        2.0, /*sequential=*/true, MAX_N_BLOCKS);
+    CHECK (ca != NULL);
+    if (ca)
+      {
+        size_t half = n / 2;
+        carrier_acq_steps (ca, x, half);
+
+        size_t nb   = carrier_acq_state_bytes (ca);
+        void  *blob = malloc (nb);
+        carrier_acq_get_state (ca, blob);
+
+        carrier_acq_state_t *cr = carrier_acq_create (
+            SAMPLE_RATE_HZ, SYMBOL_RATE_HZ, 0.0, 4, 0, 0.0f, NULL, 0, 1e-3,
+            0.9, 2.0, /*sequential=*/true, MAX_N_BLOCKS);
+        CHECK (cr != NULL);
+        if (cr)
+          {
+            CHECK (carrier_acq_set_state (cr, blob) == DP_OK);
+            carrier_acq_steps (ca, x + half, n - half);
+            carrier_acq_steps (cr, x + half, n - half);
+            CHECK (ca->ready == cr->ready);
+            CHECK (ca->n_blocks == cr->n_blocks);
+            if (ca->ready && cr->ready)
+              CHECK (fabs (ca->residual_hz - cr->residual_hz) < 1e-9);
+
+            /* a corrupted envelope must be rejected, not reinterpreted */
+            ((char *)blob)[0] ^= (char)0xFF;
+            CHECK (carrier_acq_set_state (cr, blob) == DP_ERR_INVALID);
+            carrier_acq_destroy (cr);
+          }
+        free (blob);
+        carrier_acq_reset (ca);
+        carrier_acq_destroy (ca);
+      }
+    free (x);
+  }
+
   if (_fails)
     {
       fprintf (stderr, "test_carrier_acq_core FAILED (%d)\n", _fails);

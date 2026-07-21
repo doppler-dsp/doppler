@@ -190,6 +190,11 @@ def test_invalid_sample_rate_rejected(fs: float) -> None:
 
 
 def test_time_reversing_doppler_rejected() -> None:
-    """d <= -1 would stop or reverse time; refuse rather than emit garbage."""
+    """d <= -1 (scale <= 0) would stop or reverse time; refuse rather than
+    emit garbage. Uses d = -2 (well inside the rejected region), not the
+    exact d = -1 boundary: ``1 + (-1e6) * 1e-6`` is not representable as
+    exactly 0 and lands at +/-1e-17 depending on the platform's FP
+    evaluation, so the exact boundary is non-portable (rejected on x86,
+    accepted on arm64/macOS)."""
     with pytest.raises((ValueError, MemoryError)):
-        DopplerChannel(fs=FS, carrier_hz=FC, doppler_ppm=-1.0e6)
+        DopplerChannel(fs=FS, carrier_hz=FC, doppler_ppm=-2.0e6)

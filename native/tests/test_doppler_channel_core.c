@@ -228,8 +228,13 @@ main (void)
   /* ---- 8. invalid configuration is rejected, not silently accepted ---- */
   CHECK (doppler_channel_create (0.0, T_FC, 0.0, 0.0) == NULL);
   CHECK (doppler_channel_create (-1.0, T_FC, 0.0, 0.0) == NULL);
-  /* d <= -1 would stop or reverse time. */
-  CHECK (doppler_channel_create (T_FS, T_FC, -1e6, 0.0) == NULL);
+  /* d <= -1 (scale <= 0) would stop or reverse time. Use d = -2 (well inside
+   * the rejected region) rather than the exact d = -1 boundary: 1 +
+   * (-1e6)*1e-6 is not representable as exactly 0, so it lands at +/-1e-17
+   * depending on the platform's FP evaluation (rejected on x86, accepted on
+   * arm64/macOS) -- testing the unrepresentable boundary is inherently
+   * non-portable. */
+  CHECK (doppler_channel_create (T_FS, T_FC, -2e6, 0.0) == NULL);
 
   /* ---- 9. reset returns both clocks to zero --------------------------- */
   {

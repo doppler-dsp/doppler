@@ -36,10 +36,11 @@ AcquisitionObj_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 static int
 AcquisitionObj_init (AcquisitionObject *self, PyObject *args, PyObject *kwds)
 {
-  static char *kwlist[] = { "code",  "spc", "chip_rate", "symbol_rate",
-                            "cn0_dbhz", "doppler_uncertainty",
-                            "pfa",   "pd",  "noise_mode", NULL };
-  PyObject          *code_obj            = NULL;
+  static char *kwlist[] = { "code",        "spc",      "chip_rate",
+                            "symbol_rate", "cn0_dbhz", "doppler_uncertainty",
+                            "pfa",         "pd",       "noise_mode",
+                            NULL };
+  PyObject    *code_obj = NULL;
   unsigned long long spc_raw             = 4;
   double             chip_rate           = 1000000.0;
   double             symbol_rate         = 1000.0;
@@ -49,11 +50,10 @@ AcquisitionObj_init (AcquisitionObject *self, PyObject *args, PyObject *kwds)
   double             pd                  = 0.9;
   const char        *noise_mode_str      = "mean";
 
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|Kdddddds", kwlist,
-                                    &code_obj, &spc_raw, &chip_rate,
-                                    &symbol_rate, &cn0_dbhz,
-                                    &doppler_uncertainty, &pfa, &pd,
-                                    &noise_mode_str))
+  if (!PyArg_ParseTupleAndKeywords (
+          args, kwds, "O|Kdddddds", kwlist, &code_obj, &spc_raw, &chip_rate,
+          &symbol_rate, &cn0_dbhz, &doppler_uncertainty, &pfa, &pd,
+          &noise_mode_str))
     return -1;
   size_t spc        = (size_t)spc_raw;
   int    noise_mode = 0;

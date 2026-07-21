@@ -15,8 +15,8 @@
  * @code
  * >>> from doppler.interp import InterpolatedTable
  * >>> import numpy as np
- * >>> table = InterpolatedTable(np.array([0.0, 1.0, 2.0],
- * dtype=np.complex128))
+ * >>> table = InterpolatedTable(
+ * ...     np.array([0.0, 1.0, 2.0], dtype=np.complex128))
  * >>> table.execute(np.array([1.1]))
  * array([1.1+0.j])
  * @endcode
@@ -59,8 +59,8 @@ extern "C"
    * @code
    * >>> from doppler.interp import InterpolatedTable
    * >>> import numpy as np
-   * >>> t = InterpolatedTable(np.array([0.0, 1.0, 2.0], dtype=np.complex128),
-   * method="linear")
+   * >>> t = InterpolatedTable(
+   * ...     np.array([0.0, 1.0, 2.0], dtype=np.complex128), method="linear")
    * >>> t.n
    * 3
    * @endcode
@@ -108,8 +108,8 @@ extern "C"
    * @code
    * >>> from doppler.interp import InterpolatedTable
    * >>> import numpy as np
-   * >>> ramp = InterpolatedTable(np.array([0.0, 1.0, 2.0],
-   * dtype=np.complex128))
+   * >>> ramp = InterpolatedTable(
+   * ...     np.array([0.0, 1.0, 2.0], dtype=np.complex128))
    * >>> ramp.execute(np.array([0.5, 1.1]))
    * array([0.5+0.j, 1.1+0.j])
    * @endcode

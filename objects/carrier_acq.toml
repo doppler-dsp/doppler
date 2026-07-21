@@ -13,7 +13,7 @@
 # stream) and a small 3-point local re-correlation + parabolic sub-bin
 # peak refinement are genuinely new leaf code -- ported verbatim from the
 # already-validated Python prototype
-# (prototypes/async_despreader/freq_refine.py).
+# (the freq-refine prototype).
 #
 # Block-I/O object (opaque handle, like Despreader/DsssReceiver): feed
 # raw despread-stream samples via steps(), read back `ready`/

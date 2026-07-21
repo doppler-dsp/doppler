@@ -1,13 +1,13 @@
 # Asynchronous data modulating a repeating PN code
 
-> [!IMPORTANT] This assumes at most one data symbol transition per code epoch
+> **Important:** This assumes at most one data symbol transition per code epoch
 
 ```mermaid
 flowchart LR
 subgraph TED
-    
+
 end
-LUT["LOCAL CODE \n INTERPOLATED LUT"] 
+LUT["LOCAL CODE \n INTERPOLATED LUT"]
 TED --> LF
 RX["RX CODE"] --> TED
 LF["LOOP FILTER"] --> SCALE["SCALE BY \n EPOCHS / SAMPLE"]
@@ -17,18 +17,22 @@ NCO --$$i + \mu$$--> LUT
 LUT --E / P / L--> TED
 ```
 
-- TED generates one error per epoch using the signal power formed by correlating 
-  the rx signal with local code replicas E, P, and L over a window _which maximizes power_ 
-  of the prompt correlation and forms the error: 
+- TED generates one error per epoch using the signal power formed by correlating
+    the rx signal with local code replicas E, P, and L over a window _which maximizes power_
+    of the prompt correlation and forms the error:
 
     ```python
     code_phase_error = 0.5 * (early_power - late_power) / signal_plus_noise_power
     ```
-- This requires storing a buffer of the last received samples to "look back" in the case 
-  where a transition occurs in the current sample buffer so a transition free epoch may be 
-  obtained
+
+- This requires storing a buffer of the last received samples to "look back" in the case
+    where a transition occurs in the current sample buffer so a transition free epoch may be
+    obtained
+
 - This is scaled down and repeated driving the NCO at 2x chip rate
+
 - Local code is 2 samples per chip and linear interpolation is used to compute fractional samples
+
 - LUT outputs early, prompt, and late codes offset by 1/2 chip (1 sample)
 
 ```python
@@ -49,7 +53,7 @@ last_late_sums = np.zeros_like(last_backward_sums)
 
 def find_max_power(x, windows, step_size, last_backward_sums):
     """Find max correlation over different output phase offsets."""
-        
+
     # First compute the partial sums of the current correlation
     partial_sums = x.reshape(windows, step_size).sum(axis=1)
 
@@ -57,7 +61,7 @@ def find_max_power(x, windows, step_size, last_backward_sums):
     sums = partial_sums.cumsum()
     backward_sums = partial_sums[::-1].cumsum()
 
-    # Use the last epochs backward looking sums and the current 
+    # Use the last epochs backward looking sums and the current
     # epochs forward looking sums to comput the overlapping correlation
     # at each phase across the two epochs and keep the maximum
     correlations = np.zeros(sums.size)
@@ -106,7 +110,7 @@ while signal_buffer,more_data:
         pn_control
     )
 
-    b = signal_buffer.get() 
+    b = signal_buffer.get()
     x = b * prompt
     power, window, last_backward_sums, integrate_and_dump,window_index = find_max_power(
         x, windows, window_size, last_backward_sums

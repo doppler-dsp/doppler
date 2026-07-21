@@ -6,8 +6,8 @@
  *
  * The production C port of the validated Python prototype's own
  * search -> refine -> track pipeline
- * (`prototypes/async_despreader/{despreader_coupled,freq_refine,
- * e2e_acq_to_despreader}.py`). Unlike `DsssReceiver` (which goes
+ * (validated in the coupled-despreader, freq-refine, and end-to-end
+ * acquisition prototypes). Unlike `DsssReceiver` (which goes
  * straight from an acquisition hit to tracking with the hit's own
  * coarse Doppler estimate), this object inserts a REFINING stage
  * between the two, closing a low-Es/N0 pull-in gap the coarse-only

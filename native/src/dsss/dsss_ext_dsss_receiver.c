@@ -47,10 +47,10 @@ DsssReceiverObj_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 static int
 DsssReceiverObj_init (DsssReceiverObject *self, PyObject *args, PyObject *kwds)
 {
-  static char *kwlist[]    = { "code",       "chip_rate", "symbol_rate",
-                               "spc",        "m",         "cn0_dbhz",
-                               "pfa",        "pd",        "doppler_uncertainty",
-                               "segments",   "sps",       "differential",
+  static char *kwlist[]    = { "code",     "chip_rate", "symbol_rate",
+                               "spc",      "m",         "cn0_dbhz",
+                               "pfa",      "pd",        "doppler_uncertainty",
+                               "segments", "sps",       "differential",
                                NULL };
   PyObject    *code_obj    = NULL;
   double       chip_rate   = 1000000.0;
@@ -70,10 +70,10 @@ DsssReceiverObj_init (DsssReceiverObject *self, PyObject *args, PyObject *kwds)
           &symbol_rate, &spc_raw, &m, &cn0_dbhz, &pfa, &pd,
           &doppler_uncertainty, &segments_raw, &sps_raw, &differential))
     return -1;
-  size_t         spc        = (size_t)spc_raw;
-  size_t         segments   = (size_t)segments_raw;
-  size_t         sps        = (size_t)sps_raw;
-  PyArrayObject *code_arr   = (PyArrayObject *)PyArray_FROM_OTF (
+  size_t         spc      = (size_t)spc_raw;
+  size_t         segments = (size_t)segments_raw;
+  size_t         sps      = (size_t)sps_raw;
+  PyArrayObject *code_arr = (PyArrayObject *)PyArray_FROM_OTF (
       code_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS);
   if (!code_arr)
     {

@@ -1,8 +1,8 @@
 """AsyncDsssReceiver: Acquisition -> handoff -> CarrierAcquisition refine ->
 per-code-period Costas/Dll/RateConverter/MpskReceiver track, one object --
 the production C port of the validated Python prototype's own search ->
-refine -> track pipeline (`prototypes/async_despreader/{despreader_coupled,
-freq_refine,e2e_acq_to_despreader}.py`). See
+refine -> track pipeline (validated in the coupled-despreader, freq-refine,
+and end-to-end acquisition prototypes). See
 `~/.claude/plans/crystalline-knitting-hopper.md` for the design.
 
 Uses SPEC's own Gold-1023/3.069Mcps/2700bps geometry and 500 Hz/s Doppler

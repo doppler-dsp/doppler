@@ -340,7 +340,7 @@ main (void)
    * refactor didn't change either side's behaviour.
    * ---------------------------------------------------------------- */
   {
-    nco_state_t *batch = nco_create (0.1, 5);
+    nco_state_t *batch  = nco_create (0.1, 5);
     nco_state_t *single = nco_create (0.1, 5);
     uint32_t     bout[8];
     nco_steps_u32 (batch, 8, bout);

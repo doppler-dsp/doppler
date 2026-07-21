@@ -44,8 +44,8 @@ class InterpolatedTable:
         --------
         >>> from doppler.interp import InterpolatedTable
         >>> import numpy as np
-        >>> ramp = InterpolatedTable(np.array([0.0, 1.0, 2.0],
-        dtype=np.complex128))
+        >>> ramp = InterpolatedTable(
+        ...     np.array([0.0, 1.0, 2.0], dtype=np.complex128))
         >>> ramp.execute(np.array([0.5, 1.1]))
         array([0.5+0.j, 1.1+0.j])
 

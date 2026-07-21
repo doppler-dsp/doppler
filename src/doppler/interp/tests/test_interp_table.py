@@ -20,7 +20,7 @@ def test_create():
 
 
 def test_create_rejects_empty_table():
-    with pytest.raises(Exception):
+    with pytest.raises(MemoryError):
         InterpolatedTable(np.zeros(0, dtype=np.complex128))
 
 
@@ -89,9 +89,7 @@ def test_reference_ramp_example():
     """Matches the working implementation's own worked examples."""
     table = InterpolatedTable(np.array([0.0, 1.0, 2.0], dtype=np.complex128))
     np.testing.assert_allclose(table.execute(np.array([1.1])), [1.1])
-    np.testing.assert_allclose(
-        table.execute(np.array([0.5, 1.1])), [0.5, 1.1]
-    )
+    np.testing.assert_allclose(table.execute(np.array([0.5, 1.1])), [0.5, 1.1])
 
 
 def test_out_writes_into_callers_buffer():

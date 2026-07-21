@@ -60,7 +60,7 @@ def test_reset():
     """reset() clears in-flight accumulation without needing a fresh object:
     pushing the same stream after a mid-stream reset reproduces a totally
     fresh engine's hits on that same stream."""
-    rng = np.random.default_rng(3)
+    np.random.default_rng(3)
     s0 = np.repeat(np.where(CODE & 1, -1.0, 1.0), SPC).astype(np.complex64)
     burst = np.tile(s0, 8).astype(np.complex64)
 

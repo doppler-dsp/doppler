@@ -8,7 +8,7 @@ This is the closing example of the continuous-DSSS story: where
 chain (``Acquisition`` -> ``Dll`` -> ``RateConverter`` -> ``MpskReceiver``)
 to *show the mechanics*, this page drives the single packaged object that
 wraps that whole chain -- search, carrier refine, and live tracking --
-against the literal SPEC waveform (``prototypes/async_despreader/SPEC.md``):
+against the literal SPEC waveform (``docs/design/async-dsss-spec.md``):
 CCSDS Gold-1023, 3.069 Mcps, asynchronous BPSK at 2700 bps, 2.5 GHz
 carrier, +/-50 kHz frequency uncertainty, <500 Hz/s rate of change.
 

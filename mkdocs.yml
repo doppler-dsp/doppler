@@ -232,6 +232,7 @@ nav:
       - "Python: Fixed-Point Arithmetic": api/python-arith.md
       - "Python: Measurement Suite": api/python-measure.md
       - "Polyphase → Resample": api/python-polyphase.md
+      - "Python: Interp (InterpolatedTable)": api/python-interp.md
       - "Python: Utilities": api/python-util.md
   - Type System: types.md
   - Benchmarks: benchmarks.md
@@ -250,6 +251,7 @@ nav:
       - State Serialization: design/state-serialization.md
       - Telemetry: design/telemetry.md
       - DSSS Acquisition: design/dsss-acquisition.md
+      - Async DSSS Receiver Spec: design/async-dsss-spec.md
       - Async Symbol Despreader: design/async-symbol-despreader.md
       - Timing Lock Detector: design/timing_lock_detector.md
       - MPSK Receiver: design/mpsk.md

@@ -7,7 +7,7 @@ no_step = "true"
 class_name = "BurstAcquisition"
 serializable = "true"
 # Composes acq's shared engine (acq_state_t/acq_core.c) -- this class is the
-# BURST front door (see prototypes/async_despreader/SPEC.md's Acquisition/
+# BURST front door (see docs/design/async-dsss-spec.md's Acquisition/
 # BurstAcquisition split); today's existing pre-split Acquisition behavior,
 # unchanged, including its wideband fallback for doppler_uncertainty beyond
 # the native span (coherent depth structurally can't cover more than one

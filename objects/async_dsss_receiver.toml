@@ -1,7 +1,7 @@
 # async_dsss_receiver — AsyncDsssReceiver: production C port of the
 # validated Python prototype's search -> refine -> track pipeline
-# (prototypes/async_despreader/{despreader_coupled,freq_refine,
-# e2e_acq_to_despreader}.py), closing task #99's 4-5dB Es/N0 pull-in
+# (validated in the coupled-despreader, freq-refine, and end-to-end
+# acquisition prototypes), closing task #99's 4-5dB Es/N0 pull-in
 # cliff. See ~/.claude/plans/crystalline-knitting-hopper.md for the full
 # design.
 #

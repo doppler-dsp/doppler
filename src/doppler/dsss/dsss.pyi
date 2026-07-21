@@ -1051,9 +1051,9 @@ class DsssReceiver:
         Parameters
         ----------
         segments : int
-            Input.
+            Dll tracking segments per code period.
         sps : int
-            Input.
+            MpskReceiver samples per symbol (the resample target).
         n : int
             MpskReceiver's carrier-arm count; must divide sps.
         """

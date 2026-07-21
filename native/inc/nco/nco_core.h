@@ -563,7 +563,7 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
    * >>> ph.tolist()
    * [0, 1073741824, 2147483648, 3221225472]
    * >>> carry.tolist()
-   * [0, 0, 0, 0]
+   * [0, 0, 0, 1]
    * @endcode
    */
   size_t nco_steps_u32_ovf_ctrl (nco_state_t *state, const float *ctrl,

@@ -204,8 +204,8 @@ nco_steps_u32_ovf_ctrl_max_out (nco_state_t *state)
 }
 
 size_t
-nco_steps_u32_ovf_ctrl (nco_state_t *state, const float *ctrl,
-                        size_t ctrl_len, uint32_t *out, uint8_t *out1)
+nco_steps_u32_ovf_ctrl (nco_state_t *state, const float *ctrl, size_t ctrl_len,
+                        uint32_t *out, uint8_t *out1)
 {
   for (size_t i = 0; i < ctrl_len; i++)
     out[i] = nco_step_u32_ovf_ctrl (state, (double)ctrl[i], &out1[i]);

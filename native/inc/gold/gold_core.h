@@ -13,7 +13,7 @@
  * the whole Gold-code family (2^length members); Register B's taps and
  * initial condition are both fixed by the standard.
  *
- * Lifecycle: create -> [generate / reset]* -> destroy
+ * Lifecycle: create -> generate/reset (repeatable) -> destroy
  *
  * Example:
  * @code

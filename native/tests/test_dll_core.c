@@ -364,8 +364,8 @@ main (void)
        even though the fixed-point loop's phase_inc drifts by a few PPM
        during early convergence -- exactly 5*tsamps samples is otherwise
        a zero-slack edge case, not a meaningful assertion. */
-    size_t       margin = sf * sps / 8;
-    size_t       nv     = sf * sps * 5 + margin;
+    size_t margin = sf * sps / 8;
+    size_t nv     = sf * sps * 5 + margin;
     make_signal (rx, code, sf, sps, 0.0, 11, 9u, 1);
     dll_state_t *dv = dll_create (code, sf, sps, 0.0, 0.002, 0.707, 0.5, K);
     dll_steps (dv, rx, nv, out, nv);
@@ -540,26 +540,26 @@ main (void)
    *    immediately instead of needing a multi-session investigation. *
    * ---------------------------------------------------------------- */
   {
-    const size_t  sf = 63, sps = 4, nper = 4188, tsamps = sf * sps;
-    const uint32_t seeds[]   = { 42, 43, 44, 100 };
-    const size_t  n_seeds    = sizeof (seeds) / sizeof (seeds[0]);
-    uint8_t      *code       = malloc (sf);
-    float complex *rx        = malloc (tsamps * nper * sizeof (*rx));
+    const size_t   sf = 63, sps = 4, nper = 4188, tsamps = sf * sps;
+    const uint32_t seeds[] = { 42, 43, 44, 100 };
+    const size_t   n_seeds = sizeof (seeds) / sizeof (seeds[0]);
+    uint8_t       *code    = malloc (sf);
+    float complex *rx      = malloc (tsamps * nper * sizeof (*rx));
     for (size_t si = 0; si < n_seeds; si++)
       {
         make_code (code, sf, 7u + seeds[si]);
-        size_t n = make_signal (rx, code, sf, sps, 0.0, nper, 1000u + seeds[si],
-                                1);
+        size_t n
+            = make_signal (rx, code, sf, sps, 0.0, nper, 1000u + seeds[si], 1);
         dll_state_t *d = dll_create (code, sf, sps, 0.0, 0.02, 0.707, 0.5, 1);
-        double        prev_phase = -1.0;
-        double        max_jump   = 0.0;
+        double       prev_phase = -1.0;
+        double       max_jump   = 0.0;
         for (size_t p = 0; p < nper; p++)
           {
             for (size_t i = 0; i < tsamps; i++)
               dll_accumulate (d, rx[p * tsamps + i]);
             dll_update (d);
             d->acc_e = d->acc_p = d->acc_l = 0.0f;
-            double cp = dll_get_code_phase (d);
+            double cp                      = dll_get_code_phase (d);
             if (prev_phase >= 0.0)
               {
                 double jump = fabs (cp - prev_phase);

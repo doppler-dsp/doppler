@@ -38,11 +38,11 @@ static int
 BurstAcquisitionObj_init (BurstAcquisitionObject *self, PyObject *args,
                           PyObject *kwds)
 {
-  static char       *kwlist[]            = { "code",      "reps",     "spc",
-                                             "chip_rate", "cn0_dbhz", "doppler_uncertainty",
-                                             "pfa",       "pd",       "noise_mode",
-                                             NULL };
-  PyObject          *code_obj            = NULL;
+  static char *kwlist[] = { "code",      "reps",     "spc",
+                            "chip_rate", "cn0_dbhz", "doppler_uncertainty",
+                            "pfa",       "pd",       "noise_mode",
+                            NULL };
+  PyObject    *code_obj = NULL;
   unsigned long long reps_raw            = 1;
   unsigned long long spc_raw             = 4;
   double             chip_rate           = 1000000.0;
@@ -83,9 +83,9 @@ BurstAcquisitionObj_init (BurstAcquisitionObject *self, PyObject *args,
       return -1;
     }
   size_t code_len = (size_t)PyArray_SIZE (code_arr);
-  self->handle    = burst_acq_create ((const uint8_t *)PyArray_DATA (code_arr),
-                                      code_len, reps, spc, chip_rate, cn0_dbhz,
-                                      doppler_uncertainty, pfa, pd, noise_mode);
+  self->handle = burst_acq_create ((const uint8_t *)PyArray_DATA (code_arr),
+                                   code_len, reps, spc, chip_rate, cn0_dbhz,
+                                   doppler_uncertainty, pfa, pd, noise_mode);
   Py_DECREF (code_arr);
   if (!self->handle)
     {

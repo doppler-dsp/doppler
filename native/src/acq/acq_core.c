@@ -854,8 +854,8 @@ acq_push (acq_state_t *st, const float complex *in, size_t n_in,
                * spectrum per hypothesis against the fixed replica spectrum,
                * one inverse FFT per hypothesis, filling out_buf's
                * window_bins rows -- see the file doc comment's "Wideband
-               * window-tiling mode" section and prototypes/async_despreader/
-               * bench_freq_bank.py (the benchmark this reuses, roll-FFT
+               * window-tiling mode" section and a frequency-bank
+               * benchmark (the benchmark this reuses, roll-FFT
                * over a tuned-mixer bank).  Row r's REPORTED index uses the
                * same native FFT-bin convention as the coherent_bins axis
                * (0 = DC, ascending positive to window_bins/2, then

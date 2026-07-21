@@ -14,15 +14,15 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#define CHECK(cond)                                                          \
-  do                                                                         \
-    {                                                                        \
-      if (!(cond))                                                           \
-        {                                                                    \
-          fprintf (stderr, "FAIL %s:%d  %s\n", __FILE__, __LINE__, #cond);   \
-          _fails++;                                                          \
-        }                                                                    \
-    }                                                                        \
+#define CHECK(cond)                                                           \
+  do                                                                          \
+    {                                                                         \
+      if (!(cond))                                                            \
+        {                                                                     \
+          fprintf (stderr, "FAIL %s:%d  %s\n", __FILE__, __LINE__, #cond);    \
+          _fails++;                                                           \
+        }                                                                     \
+    }                                                                         \
   while (0)
 
 static const uint8_t CODE7[7] = { 1, 1, 1, 0, 1, 0, 0 };

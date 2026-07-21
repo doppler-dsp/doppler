@@ -67,7 +67,8 @@ def make_signal(esn0_db: float, seed: int = SEED):
     sig_power = np.mean(shaped**2)
     noise_power = sig_power / (10.0 ** (esn0_db / 10.0))
     noise = np.sqrt(noise_power / 2.0) * (
-        rng.standard_normal(len(shaped)) + 1j * rng.standard_normal(len(shaped))
+        rng.standard_normal(len(shaped))
+        + 1j * rng.standard_normal(len(shaped))
     )
     t = np.arange(len(shaped))
     tone = np.exp(2j * np.pi * TRUE_RESIDUAL_HZ * t / SAMPLE_RATE_HZ)
@@ -186,11 +187,24 @@ def main(out_path: str = "carrier_acq_rrc_demo.png") -> None:
 
     fig, (a, b) = plt.subplots(1, 2, figsize=(11, 4.5))
 
-    a.plot(freqs, measured_db - measured_db.max(), color="#1f77b4", lw=1.0,
-           label="measured PSD (0 dB Es/N0)")
-    a.plot(freqs, rrc_db - rrc_db.max(), color="#2ca02c", lw=1.4, ls="--",
-           label="RRC template (matched)")
-    a.axvline(TRUE_RESIDUAL_HZ, color="k", lw=0.8, ls=":", label="true residual")
+    a.plot(
+        freqs,
+        measured_db - measured_db.max(),
+        color="#1f77b4",
+        lw=1.0,
+        label="measured PSD (0 dB Es/N0)",
+    )
+    a.plot(
+        freqs,
+        rrc_db - rrc_db.max(),
+        color="#2ca02c",
+        lw=1.4,
+        ls="--",
+        label="RRC template (matched)",
+    )
+    a.axvline(
+        TRUE_RESIDUAL_HZ, color="k", lw=0.8, ls=":", label="true residual"
+    )
     a.set_xlim(-SAMPLE_RATE_HZ / 2, SAMPLE_RATE_HZ / 2)
     a.set_ylim(-40, 5)
     a.set_xlabel("frequency (Hz)")
@@ -203,20 +217,38 @@ def main(out_path: str = "carrier_acq_rrc_demo.png") -> None:
     errs = [
         hi["default"].residual_hz - TRUE_RESIDUAL_HZ,
         hi["rrc"].residual_hz - TRUE_RESIDUAL_HZ,
-        np.nan if not lo["default"].ready else lo["default"].residual_hz - TRUE_RESIDUAL_HZ,
+        np.nan
+        if not lo["default"].ready
+        else lo["default"].residual_hz - TRUE_RESIDUAL_HZ,
         lo["rrc"].residual_hz - TRUE_RESIDUAL_HZ,
     ]
     colors = ["#7f9ec9", "#2ca02c", "#d62728", "#2ca02c"]
-    bars = b.bar(conditions, [0 if np.isnan(e) else e for e in errs], color=colors)
+    bars = b.bar(
+        conditions, [0 if np.isnan(e) else e for e in errs], color=colors
+    )
     finite = [e for e in errs if not np.isnan(e)]
-    y_lo, y_hi = min(finite + [0.0]) * 1.4 - 0.3, max(finite + [0.0]) * 1.4 + 0.3
+    y_lo, y_hi = (
+        min([*finite, 0.0]) * 1.4 - 0.3,
+        max([*finite, 0.0]) * 1.4 + 0.3,
+    )
     b.set_ylim(y_lo, y_hi)
     label_y = y_lo + 0.15 * (y_hi - y_lo)
     for bar, e in zip(bars, errs):
         if np.isnan(e):
-            b.text(bar.get_x() + bar.get_width() / 2, label_y, "NOT\nDETECTED",
-                   ha="center", va="center", fontsize=7, color="white",
-                   bbox=dict(boxstyle="round", facecolor="#d62728", edgecolor="none"))
+            b.text(
+                bar.get_x() + bar.get_width() / 2,
+                label_y,
+                "NOT\nDETECTED",
+                ha="center",
+                va="center",
+                fontsize=7,
+                color="white",
+                bbox={
+                    "boxstyle": "round",
+                    "facecolor": "#d62728",
+                    "edgecolor": "none",
+                },
+            )
     b.axhline(0, color="k", lw=0.6)
     b.set_ylabel("residual_hz - true (Hz)")
     b.set_title("Estimate error: wrong vs. matched template", fontsize=9)

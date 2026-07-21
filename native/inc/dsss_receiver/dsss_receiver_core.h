@@ -306,7 +306,10 @@ extern "C"
    * while searching; call `dsss_receiver_create()` with different
    * `segments`/`sps` for that, or re-pin here again after the next hit).
    *
-   * @param n  MpskReceiver's carrier-arm count; must divide @p sps.
+   * @param state     The receiver.
+   * @param segments  Dll tracking segments per code period.
+   * @param sps       MpskReceiver samples per symbol (the resample target).
+   * @param n         MpskReceiver's carrier-arm count; must divide @p sps.
    * @return 0 on success, -1 on invalid grid or an allocation failure
    *         (the receiver is left usable at its prior grid on failure).
    */

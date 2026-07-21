@@ -114,7 +114,10 @@ def _burst_stream(rng, n_epochs, code_bins, sigma, strong_sigma):
         rng.standard_normal(len(burst)) + 1j * rng.standard_normal(len(burst))
     )
     return np.concatenate(
-        [noise_pre.astype(np.complex64), (burst + noise_burst).astype(np.complex64)]
+        [
+            noise_pre.astype(np.complex64),
+            (burst + noise_burst).astype(np.complex64),
+        ]
     )
 
 
@@ -127,8 +130,11 @@ def test_state_roundtrip_resume():
     a = _acq(cn0_dbhz=90.0)  # strong sizing -> n_noncoh small, fast hits
     code_bins = a.code_bins
     stream = _burst_stream(
-        rng, n_epochs=a.n_noncoh * 6, code_bins=code_bins,
-        sigma=_sigma(90.0, a.fs), strong_sigma=_sigma(90.0, a.fs) * 0.1,
+        rng,
+        n_epochs=a.n_noncoh * 6,
+        code_bins=code_bins,
+        sigma=_sigma(90.0, a.fs),
+        strong_sigma=_sigma(90.0, a.fs) * 0.1,
     )
     cut = len(stream) // 2
 

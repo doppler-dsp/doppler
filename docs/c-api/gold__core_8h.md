@@ -108,7 +108,7 @@ _Gold code component API._ [More...](#detailed-description)
 CCSDS Command Link Gold Code Generator (CCSDS 415.0-G-1, section 5.2.2.4, Figure 5-1): two same-clocked Fibonacci LFSRs ("Register A" and "Register B"), each with its own fixed feedback-tap polynomial, XOR- combined chip-by-chip into a single 1023-chip (length=10) Gold code. The two m-sequences form a genuine "preferred pair" — their XOR family has a strict three-valued periodic autocorrelation/cross-correlation set {-1, -65, 63} (verified: see native/tests/test\_gold\_core.c). Register A's initial condition is "User dependent" per the standard — varying it walks the whole Gold-code family (2^length members); Register B's taps and initial condition are both fixed by the standard.
 
 
-Lifecycle: create -&gt; [generate / reset]\* -&gt; destroy
+Lifecycle: create -&gt; generate/reset (repeatable) -&gt; destroy
 
 
 Example: 

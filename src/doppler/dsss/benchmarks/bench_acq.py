@@ -1,4 +1,4 @@
-"""Benchmark for BurstAcquisition — the acquisition unit of work (one CAF tile).
+"""Benchmark for BurstAcquisition — the acquisition unit of work (one tile).
 
 One ``push`` of ``N = doppler_bins*code_bins`` samples is the engine's smallest
 reusable unit: ring write → slow-time Doppler FFT → single-row corr2d → CFAR.

@@ -256,7 +256,7 @@ _acq_configure_search_raw_check (void)
 /* Wideband mode (doppler_uncertainty > the native span): coherent_bins is
  * forced to 1 and the uncertainty is tiled with window_bins parallel
  * roll-FFT frequency-window hypotheses (see acq_core.h's file doc comment,
- * and prototypes/async_despreader/bench_freq_bank.py for the benchmark that
+ * and the frequency-bank benchmark for the roll-vs-bank comparison that
  * settled roll-FFT over a tuned-mixer bank). One noise-free epoch (frame_n
  * == code_bins here, not a multi-epoch tile like the native localization
  * test above needs) should localize to the injected (frequency window, code

@@ -6,7 +6,7 @@ beyond it the per-segment integrate-and-dump's ``sinc`` rolloff nulls the
 correlation at ``±2*span``).  To acquire a burst whose Doppler is uncertain
 over a *wider* range, this tiles ``K`` coarse-Doppler **channels**: each
 down-mixes its sub-band to baseband with a :class:`~doppler.ddc.DDC` and runs
-its own ``BurstAcquisition`` there, so the bank covers ``±doppler_uncertainty``.
+its own ``BurstAcquisition`` there, so the bank spans ``±doppler_uncertainty``.
 
 Each channel is an independent ``DDC → BurstAcquisition`` pipeline over the
 elastic pure kernels, so the bank fans out across a thread pool (the C kernels
@@ -109,7 +109,7 @@ class Detection:
 
 
 class CoarseChannel:
-    """One ``DDC(mix → decimate) → BurstAcquisition`` pipeline at center ``f_hz``.
+    """One ``DDC(mix → decimate) → BurstAcquisition`` pipeline at ``f_hz``.
 
     The DDC mixes ``f_hz`` to DC (``norm_freq = -f_hz/source_rate``) and
     decimates the input to the acquisition rate (``chip_rate*spc``); the
@@ -162,7 +162,7 @@ class CoarseChannel:
             # push() call (one block = one decision), which only holds for
             # coherent-only detection. With no caller-facing max_noncoh knob
             # left to default to "coherent-only" (removed -- see
-            # prototypes/async_despreader/SPEC.md), the auto-sizer would
+            # docs/design/async-dsss-spec.md), the auto-sizer would
             # otherwise silently auto-escalate non-coherent looks whenever
             # the coherent depth alone falls short of pd, requiring several
             # accumulated push() calls before a hit could fire at all --
@@ -173,7 +173,7 @@ class CoarseChannel:
 
     @property
     def acquisition(self) -> BurstAcquisition:
-        """The underlying per-channel :class:`~doppler.dsss.BurstAcquisition`."""
+        """The per-channel :class:`~doppler.dsss.BurstAcquisition`."""
         return self._acq
 
     def _abs_doppler(self, doppler_bin: int) -> float:
@@ -303,9 +303,9 @@ class Acquirer:
     chip_rate : float
         Chip rate (Hz).
     reps : int, default 1
-        Max coherent code repetitions per channel (the BurstAcquisition ceiling).
+        Max coherent code repetitions per channel (BurstAcquisition ceiling).
     cn0_dbhz, pfa, pd, noise_mode
-        Per-channel :class:`~doppler.dsss.BurstAcquisition` detection parameters.
+        Per-channel :class:`~doppler.dsss.BurstAcquisition` detect params.
     max_workers : int, optional
         Thread-pool size; defaults to the channel count.
     """

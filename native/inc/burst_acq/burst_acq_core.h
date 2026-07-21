@@ -7,7 +7,7 @@
  * engine `Acquisition` (acq_core.h) composes via acq_create_continuous().
  * Every function here is a direct forward to the corresponding acq_* call;
  * the entire algorithm lives in acq_core.c exactly once (see
- * prototypes/async_despreader/SPEC.md's Acquisition/BurstAcquisition split
+ * docs/design/async-dsss-spec.md's Acquisition/BurstAcquisition split
  * and CLAUDE.md's "every algorithm lives in C exactly once" rule).
  *
  * @code

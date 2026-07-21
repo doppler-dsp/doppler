@@ -496,8 +496,8 @@ dll_steps_impl (dll_state_t *state, const float complex *x, size_t x_len,
       return emitted;
     }
   /* segments > 1: chunked output + a one-epoch-deep lookback for a clean
-     power reference -- a direct C port of `prototypes/async_despreader/
-     despreader_coupled.py`'s `find_max_power()`/`get_window()` (also
+     power reference -- a direct C port of the coupled-despreader
+     prototype's `find_max_power()`/`get_window()` (also
      `docs/design/async-despreader-working-design.md`'s own reference
      pseudocode), traceable against that Python source step for step (see
      the epoch-boundary block below). The OUTPUT is always this epoch's

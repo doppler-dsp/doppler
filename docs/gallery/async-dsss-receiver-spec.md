@@ -8,7 +8,7 @@ hand-composes the receive chain — `Acquisition` → `Dll` →
 `RateConverter` → `MpskReceiver` — to *show the mechanics*, this page
 drives the single packaged object that wraps that whole chain,
 [`dsss.AsyncDsssReceiver`](../api/python-dsss.md), against the literal
-waveform from `prototypes/async_despreader/SPEC.md`:
+waveform from [the async DSSS receiver spec](../design/async-dsss-spec.md):
 
 - CCSDS 415.0-G-1 command-link **Gold code, 1023 chips**, repeating
 - **3.069 Mcps** chip rate, asynchronous **BPSK at 2700 bps**
@@ -83,7 +83,7 @@ loop, not to null the phase error on the wrong one.
 
 ## How it works
 
-The clean signal is synthesised by [`wfm.Synth`](../api/python-wfm.md) in
+The clean signal is synthesised by [`wfm.Synth`](../api/python-wfmgen.md) in
 continuous DSSS mode (`symbol_rate>0`): the Gold code repeats forever and a
 known random payload rides on it at the symbol rate with non-integer
 chips/symbol. `DopplerChannel` then dilates the clock and applies the

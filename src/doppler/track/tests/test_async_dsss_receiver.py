@@ -51,7 +51,6 @@ stream -- `K=6` does (`2046 / 6 = 341`).
 import numpy as np
 import pytest
 
-from doppler.resample import Resampler
 from doppler.track import Costas, Dll, SymbolSync
 from doppler.wfm import PN, mls_poly
 

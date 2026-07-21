@@ -66,7 +66,7 @@
  * inverse-FFT'd — `window_bins` inverse FFTs plus the one shared forward FFT
  * per epoch, not `window_bins` independent down-conversions. Empirically the
  * cheaper of the two realizations benchmarked for this
- * (`prototypes/async_despreader/bench_freq_bank.py`): ~1.2x-1.55x faster than
+ * (a frequency-bank benchmark): ~1.2x-1.55x faster than
  * an equivalent tuned-mixer bank, measured with real doppler.spectral.FFT.
  * SNR margin in this mode comes entirely from auto-selected non-coherent
  * looks (magnitude-squared accumulation, immune to data-modulation sign
@@ -306,7 +306,7 @@ extern "C"
    * The semi-analytical Pd model both auto-sizers ascend against turns
    * non-monotonic and unreliable past a few hundred looks (this project's
    * own geometry found ~256 empirically -- see
-   * prototypes/async_despreader/SPEC.md).  Hitting this ceiling without
+   * docs/design/async-dsss-spec.md).  Hitting this ceiling without
    * meeting @p pd leaves acq_state_t::underpowered set, same as any other
    * infeasible operating point -- no separate bookkeeping needed.
    */
@@ -456,7 +456,7 @@ extern "C"
   /**
    * @brief Wire-ready hand-off record built from one acq_result_t hit.
    *
-   * The C twin of `prototypes/async_despreader/acq_handoff.py`'s
+   * The C twin of the acquisition hand-off prototype's
    * `DetectionEvent` (minus `timestamp_ns`, which depends on an optional
    * `dp_sample_clock_t*` only that Python layer currently threads
    * through). Fields are named/shaped to match `SPEC.md`'s own

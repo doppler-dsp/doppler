@@ -69,6 +69,6 @@ ______________________________________________________________________
 
 <!-- related-pages:start -->
 
-**Gallery** — [A 5-Burst DSSS Link — wfmgen's Three Faces, the Full Receiver Chain](../gallery/dsss-burst-pipeline.md)
+**Gallery** — [Async DSSS Receiver: the SPEC waveform through coupled Doppler](../gallery/async-dsss-receiver-spec.md), [A 5-Burst DSSS Link — wfmgen's Three Faces, the Full Receiver Chain](../gallery/dsss-burst-pipeline.md)
 
 <!-- related-pages:end -->

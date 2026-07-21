@@ -130,6 +130,6 @@ ______________________________________________________________________
 
 <!-- related-pages:start -->
 
-**Gallery** — [Doppler Channel — Clock Doppler as a Propagation Impairment](../gallery/doppler-channel.md)
+**Gallery** — [Async DSSS Receiver: the SPEC waveform through coupled Doppler](../gallery/async-dsss-receiver-spec.md), [Doppler Channel — Clock Doppler as a Propagation Impairment](../gallery/doppler-channel.md)
 
 <!-- related-pages:end -->

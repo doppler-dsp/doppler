@@ -132,8 +132,8 @@ typedef struct {
      *    length `segments`; NULL when segments==1 -- dll_init()'s embedded/
      *    borrowed path is always segments==1, so this never needs a
      *    deinit contract there, same lifecycle class as `code`/owns_code).
-     *    This is the direct C port of `prototypes/async_despreader/
-     *    despreader_coupled.py`'s `find_max_power()`/`get_window()` (also
+     *    This is the direct C port of the coupled-despreader
+     *    prototype's `find_max_power()`/`get_window()` (also
      *    `docs/design/async-despreader-working-design.md`'s own reference
      *    pseudocode) -- see dll_steps_impl()'s segments>1 branch, which
      *    builds the SAME named artifacts (`sums`, `backward_sums`,
@@ -467,7 +467,7 @@ dll_state_t *dll_create(const uint8_t *code, size_t code_len, size_t sps, double
  * @brief Derive a principled `segments` count from a max tolerable
  *        async-lookback correlation-power loss, instead of hand-picking one.
  *
- * Ports `prototypes/async_despreader/despreader_coupled.py`'s
+ * Ports the coupled-despreader prototype's
  * `async_lookback_windows()` verbatim (itself ported from
  * `~/legacy-commz`'s `asynchronous_correlation_loss`): derives an ideal
  * segment size from @p max_error_db, then snaps to the nearest exact

@@ -54,11 +54,11 @@ window-tiling mechanism of §4 instead — see the warning immediately below.
 
 It also sits in **one corner** of the acquisition design space, with three gaps:
 
-| Gap                  | Today                                                                                                                                           | Why it matters                                                                                      |
-| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| **Stateful**         | Owns a private ring, a `corr2d` coherent accumulator (`accum`/`count`), and a stream offset — none expressible as explicit carry.               | Cannot fan out across processes/pods; the engine *is* the unit of parallelism, not the work.        |
+| Gap                  | Today                                                                                                                                                                                      | Why it matters                                                                                      |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------- |
+| **Stateful**         | Owns a private ring, a `corr2d` coherent accumulator (`accum`/`count`), and a stream offset — none expressible as explicit carry.                                                          | Cannot fan out across processes/pods; the engine *is* the unit of parallelism, not the work.        |
 | **All-coherent**     | The slow-time FFT over the `ny` epochs is coherent. Non-coherent (`n_noncoh>1`, always auto-selected — no caller-facing cap) looks extend it, but the coherent depth is the primary lever. | Coherent time is bounded (below); weak signals beyond that bound need the non-coherent looks.       |
-| **Constant-Doppler** | The slow-time FFT assumes a linear phase ramp across segments.                                                                                  | Platform **dynamics** (Doppler rate) make the phase quadratic → the FFT smears → acquisition fails. |
+| **Constant-Doppler** | The slow-time FFT assumes a linear phase ramp across segments.                                                                                                                             | Platform **dynamics** (Doppler rate) make the phase quadratic → the FFT smears → acquisition fails. |
 
 This document defines the problem and terms precisely, frames every acquisition
 method as one **cross-ambiguity function (CAF)**, lays out the trade space, and
@@ -120,13 +120,13 @@ ______________________________________________________________________
 
 ## 4. Computational decompositions — placement verdicts
 
-| Method                              | Wins when                                          | Doppler resolution | Stateless | Verdict                     |
-| ----------------------------------- | -------------------------------------------------- | ------------------ | --------- | --------------------------- |
-| **Mixer + slow-time FFT** (current) | Doppler within one slow-time Nyquist; low dynamics | `1/(ny·nx)` (fine) | after P0  | **IN — P0 coherent kernel** |
+| Method                              | Wins when                                          | Doppler resolution | Stateless | Verdict                                                 |
+| ----------------------------------- | -------------------------------------------------- | ------------------ | --------- | ------------------------------------------------------- |
+| **Mixer + slow-time FFT** (current) | Doppler within one slow-time Nyquist; low dynamics | `1/(ny·nx)` (fine) | after P0  | **IN — P0 coherent kernel**                             |
 | **2-D spectral roll**               | single-epoch coarse sweep, no integration          | `1/nx` (coarse)    | yes       | **OUT for `ny>1` regimes; IN — D=1 async-data widener** |
-| **Sub-block chop**                  | wide Doppler with integration intact               | `1/(ny·nx)` (same) | yes       | **IN — P2 widener**         |
-| **Direct mix-and-correlate**        | reference truth                                    | any                | yes       | **OUT — test ground truth** |
-| **Doppler-rate de-chirp grid**      | acceleration / long `T_coh`                        | adds rate bins     | yes       | **IN — P3 dynamics axis**   |
+| **Sub-block chop**                  | wide Doppler with integration intact               | `1/(ny·nx)` (same) | yes       | **IN — P2 widener**                                     |
+| **Direct mix-and-correlate**        | reference truth                                    | any                | yes       | **OUT — test ground truth**                             |
+| **Doppler-rate de-chirp grid**      | acceleration / long `T_coh`                        | adds rate bins     | yes       | **IN — P3 dynamics axis**                               |
 
 **Mixer + slow-time FFT — the core.** Reframe `(ny, nx)`, FFT down the columns
 for Doppler, correlate rows against the code, integrate `dwell` frames. It is the
@@ -146,7 +146,7 @@ dominated there — a documented dual, not a kernel.
 That domination argument assumes coherent integration across more than one
 epoch is *on the table*. It isn't for continuous, asynchronous data-modulated
 signals: §4's own reasoning depends on a data-free coherent window, and task
-#67 of the async-receiver story (`prototypes/async_despreader/`) measured this
+#67 of the async-receiver story measured this
 directly — a data toggle rate close to the code-epoch rate aliases the data's
 own baseband spectrum across the *entire* Doppler-bin axis of any `ny>1`
 coherent FFT (slow-time OR a P2 sub-block's longer `ny·K` window), producing a
@@ -158,7 +158,7 @@ accumulation (`n_noncoh`, itself alias-immune) across many `D=1` epochs. With
 coherent integration off the table for every method, the domination argument
 collapses and the roll's one-epoch, `35`-FFT-equivalent grid (vs. a `D`-channel
 mixer bank's `2D` FFT-equivalents, `D` = uncertainty / native span — measured
-1.2-1.55x, `prototypes/async_despreader/bench_freq_bank.py`) is the right,
+1.2-1.55x, a frequency-bank benchmark) is the right,
 adopted mechanism for this regime specifically. It is now wired directly into
 `Acquisition` (continuous)'s C core (`native/src/acq/acq_core.c`'s wideband
 mode, `coherent_bins` pinned to 1 and the uncertainty tiled with `window_bins`
@@ -428,11 +428,11 @@ rdot_res ≤ 2 / T_coh²            (¼-cycle edge tolerance)
 R        = rate_span / Δrdot
 ```
 
-| `ny` | `T_coh` | `Δrdot`   | `R` for ±500 Hz/s      |
-| ---- | ------- | --------- | ---------------------- |
-| 10   | 10 ms   | 40 kHz/s  | **1** (dynamics free)  |
-| 50   | 50 ms   | 1.6 kHz/s | **1** (dynamics free)  |
-| 100  | 100 ms  | 400 Hz/s  | **~3**                 |
+| `ny` | `T_coh` | `Δrdot`   | `R` for ±500 Hz/s     |
+| ---- | ------- | --------- | --------------------- |
+| 10   | 10 ms   | 40 kHz/s  | **1** (dynamics free) |
+| 50   | 50 ms   | 1.6 kHz/s | **1** (dynamics free) |
+| 100  | 100 ms  | 400 Hz/s  | **~3**                |
 
 The key insight: at the corrected rate, dynamics stay absorbed all the way out
 to 50 ms coherent (`Δrdot` still exceeds the full `±500 Hz/s` span) — it takes
@@ -442,8 +442,7 @@ figure implied). `Δrdot`'s `T_coh²` scaling still means a rate grid becomes
 real again for long enough coherent integration on weak signals, so the
 auto-splitter should still cap `T_coh` at the rate ceiling and spend the rest
 on `N_nc` unless the SNR genuinely demands it — the corrected numbers just
-push that ceiling much further out. The worst row above is `400 coarse × 3
-rate ≈ 1 200` independent tiles per 100 ms — real, but a much smaller
+push that ceiling much further out. The worst row above is `400 coarse × 3 rate ≈ 1 200` independent tiles per 100 ms — real, but a much smaller
 fan-out burden than previously estimated.
 
 **Code Doppler** (chip-rate dilation) walks the code phase by `(v/c)·Rc·T_coh`

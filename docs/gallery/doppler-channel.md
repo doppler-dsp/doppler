@@ -16,7 +16,7 @@ parameter, so they cannot disagree with each other.
 **Left — the carrier offset is linear in ppm.** Doppler is specified in parts
 per million of the nominal time base, which is what makes it
 carrier-frequency agnostic. At the 2.5 GHz carrier of
-`prototypes/async_despreader/SPEC.md`, that spec's ±50 kHz frequency
+[the async DSSS receiver spec](../design/async-dsss-spec.md), that spec's ±50 kHz frequency
 uncertainty is exactly **±20 ppm**. Measured FFT peaks sit on the `fc·d` line
 across the sweep.
 

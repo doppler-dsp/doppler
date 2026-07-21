@@ -37,5 +37,6 @@ independent of `dwell_target`.
 <!-- related-pages:start -->
 
 **Gallery** — [CarrierAcquisition: RRC Pulse Shaping](../gallery/carrier-acq-rrc.md), [Gallery](../gallery/index.md)
+**Design** — [DsssReceiver Specifications](../design/async-dsss-spec.md)
 
 <!-- related-pages:end -->

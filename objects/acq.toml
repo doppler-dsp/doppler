@@ -21,8 +21,8 @@ depends_on = [
 # ── Construction: physics in, grid out ───────────────────────────────────────
 # The user states the waveform, front end, and operating point in real units;
 # the engine derives the whole search grid (window count, threshold, looks).
-# This class is the CONTINUOUS front door (see prototypes/async_despreader/
-# SPEC.md's Acquisition/BurstAcquisition split): always window-tiles, never
+# This class is the CONTINUOUS front door (see docs/design/async-dsss-spec.md's
+# Acquisition/BurstAcquisition split): always window-tiles, never
 # coherently combines across epochs -- BurstAcquisition (objects/burst_acq.toml)
 # is the other front door onto this SAME shared acq_state_t/acq_core.c engine.
 # chip_rate / cn0_dbhz carry valid nonzero placeholder defaults so jm's auto-

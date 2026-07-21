@@ -19,7 +19,7 @@ rate error in chips/s. ``carrier_hz`` is therefore load-bearing DSP input here,
 not the SigMF metadata it is everywhere else in this codebase: it is the only
 thing that converts a dimensionless ppm into Hz.
 
-Geometry throughout is ``prototypes/async_despreader/SPEC.md``'s: 3.069 Mcps at
+Geometry throughout is ``docs/design/async-dsss-spec.md``'s: 3.069 Mcps at
 ``spc=2`` on a 2.5 GHz carrier. That spec's +/-50 kHz frequency uncertainty and
 its 500 Hz/s rate of change are, in ppm, exactly **20 ppm** and **0.2 ppm/s**.
 

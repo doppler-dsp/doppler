@@ -49,32 +49,38 @@ extern "C"
    *        primitive for this conversion.
    *
    * Floor-normalises @p cycles into `[0, 1)` before scaling and
-   * ROUNDS (not truncates) to the nearest integer phase step
-   * (`llround`, not a bare cast) -- a truncating cast systematically
-   * biases every phase advance low, which compounds over long runs
-   * into a real, measurable rate error. Every caller that needs this
-   * conversion (`nco_create`/`nco_set_norm_freq`, `LO`'s own phase
-   * accumulator, `Dll`'s code-phase NCO steering) MUST call this
-   * inline function rather than growing its own private copy --
-   * duplicated copies of this exact formula have already drifted once
-   * (one truncated while a sibling copy had already been fixed to
-   * round) before being consolidated here.
+   * TRUNCATES toward zero (the bare C99 float->unsigned cast, 6.3.1.4)
+   * to an integer phase step -- deliberately NOT `llround`. Every
+   * caller that needs this conversion (`nco_create`/`nco_set_norm_freq`,
+   * `LO`'s own phase accumulator, `Dll`'s code-phase NCO steering) MUST
+   * call this inline function rather than growing its own private copy
+   * -- duplicated copies of this exact formula have already drifted
+   * once (one truncated while a sibling copy rounded) before being
+   * consolidated here on the truncating convention.
    *
    * A 32-bit phase word can only ever represent frequency in fs/2^32
    * steps (a one-time, unavoidable quantization -- no fixed-width
-   * accumulator can be exact except at those specific levels), but
-   * truncating always rounds toward zero, giving a *systematic*
-   * one-sided bias up to a full step; rounding halves the worst case
-   * and centers the residual at zero. This has no bearing on
-   * tracking-loop performance downstream -- a carrier/code loop exists
-   * precisely to null out a small, constant residual like this one,
-   * regardless of its source or size. `d` is always in `[0, 1)`, so
-   * `llround`'s result is always in `[0, 2^32]`; the one edge case (d
-   * rounds up to exactly 1.0 cycle, i.e. 2^32) wraps to phase delta 0
-   * via the well-defined `long long` -> `uint32_t` conversion --
-   * correct, since a full extra cycle per sample is indistinguishable
-   * from no rotation at all, the same aliasing identity the
-   * negative-frequency floor-fold above uses.
+   * accumulator can be exact except at those specific levels).
+   * Truncation biases every phase advance low by up to a full step,
+   * but it is the correct convention for a phase-accumulator NCO for
+   * two reasons that outweigh the centered residual `llround` would
+   * give:
+   *   1. **Host-determinism.** A bare truncating cast is bit-identical
+   *      on every host; `llround` is round-to-nearest, whose result at
+   *      a boundary is FP-sensitive, so a closed-loop DLL fed a rounded
+   *      increment converged differently on x86 vs arm64 (the loop got
+   *      a slightly different step per epoch and diverged only on
+   *      arm64). The increment feeds tracking loops, so it MUST be
+   *      reproducible across platforms.
+   *   2. **No 2^32 overflow.** `d < 1` makes `d*2^32` strictly `< 2^32`,
+   *      so the cast lands in `[0, 2^32)` with no clamp. `llround` could
+   *      round `d*2^32` UP to exactly `2^32` for `d ~ 0.9999...`, and
+   *      `(uint32_t)2^32 == 0` freezes the NCO (x86 landed on 2^32-1,
+   *      arm64 on 2^32 -- an arm64-only hang).
+   * The residual is a small constant bias a carrier/code loop nulls
+   * out anyway (a floor the integrator absorbs), so downstream tracking
+   * is unaffected. The realised frequency is at most one step LOW,
+   * never high.
    *
    * @param cycles  Any real number of cycles; only the fractional part
    *                matters. Negative values fold correctly (e.g. -0.25

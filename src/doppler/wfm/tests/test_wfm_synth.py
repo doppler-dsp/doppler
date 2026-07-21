@@ -363,32 +363,41 @@ def test_bits_array_input():
     assert y.real.round().astype(int).tolist() == [-1, 1, -1, -1]
 
 
-def test_carrier_freq_rounds_to_nearest_not_truncated():
-    """The carrier's actual frequency is the *rounded* 32-bit phase-word
-    approximation of the requested frequency (native/src/lo/lo_core.c's
-    norm_to_inc), not truncated toward zero. freq=51 Hz at fs=21e6 is a
-    case where rounding and truncation differ (freq=50 Hz at the same fs
-    does not -- see native/tests/test_lo_core.c's own test for this):
-    truncating would leave the carrier low by ~0.00279 Hz, exceeding half
-    a quantization step; rounding leaves a smaller ~0.00179 Hz residual,
-    within it. Measured directly via mean instantaneous frequency over a
+def test_carrier_freq_truncates_toward_zero():
+    """The carrier's actual frequency is the *truncated* 32-bit phase-word
+    approximation of the requested frequency (native/inc/nco/nco_core.h's
+    nco_norm_to_inc, the one shared LO/NCO primitive), rounded toward zero
+    -- not to nearest. freq=51 Hz at fs=21e6 is a case where truncation and
+    round-to-nearest differ (freq=50 Hz at the same fs does not -- see
+    native/tests/test_lo_core.c's own cases for both): the truncated
+    increment leaves the carrier low by ~0.63 of a quantization step,
+    past the half-step a round would guarantee -- and strictly never high.
+    Truncation is deliberate: a bare C99 float->uint cast is bit-identical
+    on every host, where round-to-nearest is FP-sensitive at a boundary and
+    made a closed-loop DLL diverge on arm64 (the rationale is documented in
+    nco_core.h). Measured directly via mean instantaneous frequency over a
     modest block -- a fixed-point phase increment is exactly constant per
-    sample by construction, so this needs no long floating-point
-    simulation (a double loses precision at large sample counts too; the
-    exact 32-bit modular accumulator is the only long-run guarantee this
-    design makes)."""
+    sample by construction, so this needs no long floating-point simulation
+    (a double loses precision at large sample counts too; the exact 32-bit
+    modular accumulator is the only long-run guarantee this design makes)."""
     fs = 21e6
     freq = 51.0
     step_hz = fs / 4294967296.0
+    # The truncating (toward zero) phase-word approximation the NCO realises.
+    inc = int(freq / fs * 4294967296.0)  # C99 float->uint cast == floor here
+    realised = inc / 4294967296.0 * fs
     # A large-enough block for the per-sample estimator to average out the
     # LUT's own coarser (2^16) quantization noise at this slow a relative
     # rate; deterministic (snr=100 disables AWGN), so this is not flaky.
     x = Synth(type="tone", fs=fs, freq=freq, snr=100.0).steps(1_000_000)
     measured = float(np.mean(_inst_freq(x, fs)))
-    assert abs(measured - freq) <= 0.5 * step_hz + 1e-4, (
-        f"measured {measured} vs requested {freq}, "
-        f"half-step bound {0.5 * step_hz}"
+    # Realised == the truncated approximation (not the round-to-nearest one).
+    assert measured == pytest.approx(realised, abs=1e-4), (
+        f"measured {measured} vs truncated-realised {realised}"
     )
+    # ... which is LOW by up to one full step, and strictly never high.
+    assert freq - measured <= step_hz + 1e-4
+    assert measured <= freq + 1e-4
 
 
 def test_step_matches_steps_bit_exact():

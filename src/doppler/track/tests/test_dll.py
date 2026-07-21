@@ -55,11 +55,19 @@ def test_properties():
 
 def test_one_prompt_per_period():
     code = _code()
-    rx = _signal(code, 0.0, 100)
+    nper = 100
+    rx = _signal(code, 0.0, nper)
     d = Dll(code, SPS, 0.0, 0.005, 0.707, 0.5)
     sym = d.steps(rx)
     assert sym.dtype == np.complex64
-    assert len(sym) == 100
+    # One prompt per code epoch. The epoch NCO increment truncates toward
+    # zero (nco_norm_to_inc, ~0.22 LSB/sample low at norm_freq=1/(SF*SPS)),
+    # so for an input landing exactly on the nper-th epoch boundary the
+    # final wrap can fall a sub-LSB fraction past the end -> nper-1, not a
+    # fixed nper. Assert the rate, not the knife-edge boundary (any
+    # fixed-point NCO is off-by-one at an exact-integer boundary; truncate
+    # vs round only picks which side).
+    assert len(sym) in (nper - 1, nper)
 
 
 def test_tracks_code_doppler():

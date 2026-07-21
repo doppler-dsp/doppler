@@ -22,34 +22,22 @@ doppler_channel_create (double fs, double carrier_hz, double doppler_ppm,
 {
   if (!(fs > 0.0))
     return NULL;
-  doppler_channel_state_t *obj = calloc (1, sizeof (*obj));
-  if (!obj)
-    return NULL;
-  obj->fs                 = fs;
-  obj->carrier_hz         = carrier_hz;
-  obj->doppler_ppm        = doppler_ppm;
-  obj->doppler_rate_ppm_s = doppler_rate_ppm_s;
+  doppler_channel_state_t *obj = dp_xcalloc (1, sizeof (*obj));
+  obj->fs                      = fs;
+  obj->carrier_hz              = carrier_hz;
+  obj->doppler_ppm             = doppler_ppm;
+  obj->doppler_rate_ppm_s      = doppler_rate_ppm_s;
 
-  /* A scale of zero or less would mean time stopping or running backwards. */
+  /* A scale of zero or less would mean time stopping or running backwards --
+   * a reachable invalid configuration (a doppler_ppm at or past -1e6). */
   if (doppler_channel_scale (obj, 0.0) <= 0.0)
     {
       free (obj);
       return NULL;
     }
 
-  obj->rs = resamp_create (doppler_channel_ratio (obj, 0.0));
-  if (!obj->rs)
-    {
-      free (obj);
-      return NULL;
-    }
-  obj->ctrl = malloc (DOPPLER_CHANNEL_MAX_BLOCK * sizeof (*obj->ctrl));
-  if (!obj->ctrl)
-    {
-      resamp_destroy (obj->rs);
-      free (obj);
-      return NULL;
-    }
+  obj->rs       = dp_xnn (resamp_create (doppler_channel_ratio (obj, 0.0)));
+  obj->ctrl     = dp_xmalloc (DOPPLER_CHANNEL_MAX_BLOCK * sizeof (*obj->ctrl));
   obj->ctrl_cap = DOPPLER_CHANNEL_MAX_BLOCK;
   return obj;
 }

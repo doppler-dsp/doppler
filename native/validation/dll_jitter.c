@@ -175,20 +175,6 @@ phase_var (double gamma, double bn, const uint8_t *code,
      while a pathological non-convergence exits with too few dumps and fails
      the caller's variance-vs-law check rather than hanging the run. */
   const long long max_samp = (long long)ndump * SF * SPS * 64;
-  /* TEMP DIAGNOSTIC (remove after arm64/macOS root-cause): trace the first
-     phase_var call's loop-filter state per epoch to stderr. Silent on a
-     passing run (ctest hides stderr); shown under --output-on-failure. */
-  static int traced   = 0;
-  int        do_trace = !traced;
-  if (do_trace)
-    {
-      traced = 1;
-      fprintf (stderr,
-               "[dbg] init: phase_inc=%u inv_tsamps=%.9g kp=%.9g ki=%.9g "
-               "inv_tsamps_sf=%.9g\n",
-               d.code_nco.phase_inc, d.inv_tsamps, d.lf.kp, d.lf.ki,
-               d.inv_tsamps_sf);
-    }
   while (dumps < ndump && samp < max_samp)
     {
       for (size_t i = 0; i < (size_t)SF * SPS; i++, samp++)
@@ -204,12 +190,6 @@ phase_var (double gamma, double bn, const uint8_t *code,
           dll_update (&d); /* one loop update per epoch */
           d.acc_e = d.acc_p = d.acc_l = 0.0f;
           dumps++;
-          if (do_trace && dumps <= 18)
-            fprintf (stderr,
-                     "[dbg] ep=%ld e=%.6g integ=%.9g code_rate=%.9g "
-                     "phase_inc=%u samp=%lld\n",
-                     dumps, d.last_error, d.lf.integ, d.code_rate,
-                     d.code_nco.phase_inc, samp);
           if (dumps > warm)
             {
               double loop_phase = d.chip_pos + (double)dumps * (double)SF;

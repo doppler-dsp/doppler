@@ -4,6 +4,7 @@
  *
  * Tests:
  *   1. Lifecycle / NULL-code guard / init==create parity
+ *   1b. dll_init defends against a dirty caller stack (rate_aid init)
  *   2. On-time alignment — discriminator ~0, code_rate ~1
  *   3. Code Doppler — code_rate converges to the incoming chip rate
  *   4. Static phase offset is pulled in (discriminator decays)
@@ -128,6 +129,50 @@ main (void)
     CHECK (v.owns_code == 0);  /* init borrows */
     CHECK (c->owns_code == 1); /* create copies */
     dll_destroy (c);
+  }
+
+  /* ---------------------------------------------------------------- *
+   * 1b. dll_init defends against a dirty caller stack                 *
+   *                                                                  *
+   * dll_init() does an in-place init of a caller-owned (often stack) *
+   * dll_state_t, so every field it does not explicitly set starts as *
+   * whatever garbage the caller's memory held. rate_aid (carrier-    *
+   * aiding config, set only by dll_set_rate_aid) was the one field   *
+   * the zero-against-garbage block missed: on a clean stack it read  *
+   * 0 (Linux), but a NaN there (0xFF-filled stack, seen on macOS)    *
+   * made phase_inc = nco_norm_to_inc(inv_tsamps*(1+NaN)+ctrl) cast   *
+   * to 0, freezing the code NCO permanently (validate_dll_jitter     *
+   * #82). Poison the whole struct, init, and assert the loop still   *
+   * steers a live, wrapping NCO.                                     *
+   * ---------------------------------------------------------------- */
+  {
+    uint8_t code[31];
+    make_code (code, 31, 1u);
+    dll_state_t g;
+    memset (&g, 0xFF, sizeof g); /* 0xFF doubles are NaN — the macOS case */
+    dll_init (&g, code, 31, 2, 0.0, 0.002, 0.707, 0.5);
+    CHECK (g.rate_aid == 0.0);         /* zeroed, not NaN */
+    CHECK (g.code_nco.phase_inc > 0u); /* NCO not frozen */
+    uint32_t inc0 = g.code_nco.phase_inc;
+    /* run a clean aligned epoch; the NCO must keep a sane (nonzero, ~nominal)
+       phase_inc rather than collapsing to 0. */
+    float complex sig[31 * 2];
+    for (size_t ci = 0; ci < 31; ci++)
+      {
+        float vv    = (code[ci] & 1u) ? -1.0f : 1.0f;
+        sig[ci * 2] = sig[ci * 2 + 1] = vv;
+      }
+    int wraps = 0;
+    for (int ep = 0; ep < 4; ep++)
+      for (size_t i = 0; i < 31 * 2; i++)
+        if (dll_accumulate (&g, sig[i]))
+          {
+            dll_update (&g);
+            g.acc_e = g.acc_p = g.acc_l = 0.0f;
+            wraps++;
+          }
+    CHECK (wraps >= 3);                       /* keeps wrapping ~once/epoch */
+    CHECK (g.code_nco.phase_inc > inc0 / 2u); /* still near nominal, not 0 */
   }
 
   /* ---------------------------------------------------------------- *

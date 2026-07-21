@@ -185,6 +185,17 @@ dll_init (dll_state_t *s, const uint8_t *code, size_t code_len, size_t sps,
      free via calloc; an embedded/stack dll_state_t would otherwise start with
      a garbage code rate. */
   loop_filter_reset (&s->lf);
+  /* rate_aid is carrier-aiding config (0 = off), set only by
+     dll_set_rate_aid(); seed()/reset() deliberately preserve it (like the
+     lock-detector config), so it is NOT zeroed there. dll_create() gets it
+     zeroed free via calloc, but this in-place init of a caller-owned
+     (possibly stack) struct MUST zero it explicitly -- otherwise it starts as
+     stack garbage and feeds phase_inc = nco_norm_to_inc(inv_tsamps*(1+garbage)
+     + ctrl) every epoch. Benign when the stack happens to hold 0 (Linux); a
+     garbage/NaN value on another host (macOS/arm64) makes the argument
+     degenerate and (uint32_t)-casts to 0, freezing the code NCO -- the loop
+     stops wrapping and never converges (validate_dll_jitter #82). */
+  s->rate_aid  = 0.0;
   s->code      = code; /* borrowed */
   s->owns_code = 0;
   /* dll_init always runs with segments == 1 (configure_geometry's

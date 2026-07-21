@@ -179,6 +179,31 @@ def test_absolute_level_invariance(db):
     assert np.allclose(scaled, ref, rtol=1e-3, atol=1e-3)
 
 
+@pytest.mark.parametrize("sig_esn0_db", [40.0, 80.0, 200.0])
+def test_extreme_high_snr_stays_stable(sig_esn0_db):
+    """Extremely high Es/N0 (up to effectively noiseless) must not destabilise
+    the receiver. A collapsing noise estimate is the classic high-SNR failure
+    mode -- a CFAR threshold or a `|P|`-normaliser whose denominator tends to
+    zero blows up to inf/NaN. This receiver does not: every ratio has a
+    guarded denominator, so fed a signal from 40 dB to ~noiseless (designed at
+    a normal 20 dB) it stays finite, locks, and decodes cleanly. Constellation
+    quality saturates at an implementation floor (~-24 dB EVM / ~22 dB
+    effective SNR, from the point-sample 2x replica's matched-filter loss + the
+    async-symbol straddle + NCO quantisation) -- more SNR past ~40 dB neither
+    improves nor destabilises it (measured; not asserted here)."""
+    design_cn0 = 20.0 + 10.0 * np.log10(SYM_RATE)  # a normal design point
+    sig_cn0 = sig_esn0_db + 10.0 * np.log10(SYM_RATE)  # 200 dB ~ noiseless
+    x, data = _make_ramp_signal(sig_cn0, seed=21)
+    rx = _new_receiver(design_cn0)
+
+    syms = _stream(rx, x)
+
+    assert rx.tracking == 1
+    assert len(syms) > N_SYM // 2
+    assert np.all(np.isfinite(syms.view(np.float64)))  # no inf/NaN blow-up
+    assert _best_ber(syms, data) < 0.01  # still a clean decode
+
+
 def test_spec_floor_reaches_tracking_but_may_not_decode():
     """SPEC's own literal Es/N0=5dB floor. Direct measurement while
     building this object found that the ALREADY-SHIPPED, already-validated

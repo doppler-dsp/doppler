@@ -419,23 +419,29 @@ main (void)
     const double fs      = 21.0e6;
     const double step_hz = fs / 4294967296.0; /* one quantization step */
 
-    /* freq=50 Hz: truncate == round (fractional remainder ~0.11 < 0.5). */
+    /* nco_norm_to_inc truncates toward zero (the natural C99 float->unsigned
+     * conversion), NOT round-to-nearest: the increment is then deterministic
+     * across hosts (llround's rounding is host-FP-sensitive and could
+     * overshoot to 2^32==0, freezing the closed-loop code NCO on arm64 -- see
+     * nco_norm_to_inc). Truncation always floors, so the realised frequency is
+     * at most one quantization step LOW, never high. */
+
+    /* freq=50 Hz: fractional remainder ~0.11, truncates to 10226. */
     lo_state_t *lo50 = lo_create (50.0 / fs);
     CHECK (lo_get_phase_inc (lo50) == 10226u);
     double actual50 = (double)lo_get_phase_inc (lo50) / 4294967296.0 * fs;
-    CHECK (fabs (actual50 - 50.0) <= 0.5 * step_hz + 1e-9);
+    CHECK (actual50 <= 50.0 + 1e-9); /* truncation never overshoots */
+    CHECK (fabs (actual50 - 50.0) <= step_hz + 1e-9);
     lo_destroy (lo50);
 
-    /* freq=51 Hz: fractional remainder ~0.635 > 0.5 -- truncating would
-     * give 10430 (error ~-0.00279 Hz, EXCEEDS half a step); rounding
-     * must give 10431 (error ~+0.00179 Hz, within half a step). */
+    /* freq=51 Hz: fractional remainder ~0.635 -- truncates to 10430 (floor),
+     * a ~-0.00279 Hz error (within one full step, the truncation guarantee).
+     * Round-to-nearest would give 10431; this CHECK pins the truncation. */
     lo_state_t *lo51 = lo_create (51.0 / fs);
-    CHECK (lo_get_phase_inc (lo51) == 10431u);
+    CHECK (lo_get_phase_inc (lo51) == 10430u);
     double actual51 = (double)lo_get_phase_inc (lo51) / 4294967296.0 * fs;
-    CHECK (fabs (actual51 - 51.0) <= 0.5 * step_hz + 1e-9);
-    /* the case this test exists to catch: a regression to truncation
-     * would produce 10430 here, whose error exceeds the half-step bound
-     * above -- so reverting norm_to_inc's rounding fails this CHECK. */
+    CHECK (actual51 <= 51.0 + 1e-9); /* truncation never overshoots */
+    CHECK (fabs (actual51 - 51.0) <= step_hz + 1e-9);
     lo_destroy (lo51);
   }
 

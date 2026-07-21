@@ -703,6 +703,56 @@ def test_reader_roundtrips_each_container(
     assert np.max(np.abs(y - x)) < tol
 
 
+@_needs_wfmgen
+@pytest.mark.parametrize("detached", [False, True])
+def test_reader_reads_back_wfmgen_cli_blue(tmp_path, detached):
+    """The BLUE the *CLI* writes is readable, end to end.
+
+    The other BLUE coverage is transitive: the CLI test asserts only size +
+    "BLUE" magic, the round-trips above drive the library Writer, and
+    byte-parity links the two. Nothing directly proves a wfmgen-written
+    capture survives the reader, so a CLI-only header regression (a wrong
+    xdelta, an unpatched data_size, a detached .hdr/.det split) would slip
+    every gate. Write with the real binary, read with the real reader, and
+    check both the recovered metadata and the samples -- against the same
+    tone the library synthesises, which must be bit-exact.
+    """
+    fs, freq, n = 1e6, 1e5, 4096
+    out = tmp_path / ("cap_det" if detached else "cap.blue")
+    cmd = [
+        _WFMGEN,
+        "--type",
+        "tone",
+        "--freq",
+        str(freq),
+        "--fs",
+        str(fs),
+        "--count",
+        str(n),
+        "--sample-type",
+        "cf32",
+        "--file-type",
+        "blue",
+        "-o",
+        str(out),
+    ]
+    if detached:
+        cmd.append("--detached")
+    subprocess.run(cmd, check=True, capture_output=True)
+
+    # detached splits into <base>.hdr (512-byte HCB) + <base>.det (data)
+    path = tmp_path / ("cap_det.det" if detached else "cap.blue")
+    with Reader(path) as r:
+        assert r.file_type == "blue"  # auto-detected from the magic
+        assert r.sample_type == "cf32"  # recovered from the HCB
+        assert r.fs == pytest.approx(fs)  # xdelta -> fs
+        y = _read_all(r)
+
+    ref = Synth(type="tone", freq=freq, fs=fs, snr=100.0).steps(n)
+    assert len(y) == n
+    assert np.max(np.abs(y - ref)) == 0.0  # bit-exact through the container
+
+
 def test_reader_blue_recovers_metadata(tmp_path):
     """A BLUE capture self-describes: fs comes back from the HCB, no hint."""
     x = Composer(type="qpsk", sps=8, num_samples=2048).compose()

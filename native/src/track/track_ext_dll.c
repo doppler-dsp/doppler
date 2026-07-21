@@ -583,6 +583,22 @@ DllObj_configure_lock_raw (DllObject *self, PyObject *args, PyObject *kwds)
   Py_RETURN_NONE;
 }
 
+static PyObject *
+DllObj_set_rate_aid (DllObject *self, PyObject *args, PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char *_kwlist[] = { "rate_aid", NULL };
+  double       rate_aid  = 0.0;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "d", _kwlist, &rate_aid))
+    return NULL;
+  dll_set_rate_aid (self->handle, rate_aid);
+  Py_RETURN_NONE;
+}
+
 static PyMethodDef DllObj_methods[] = {
 
   { "steps", (PyCFunction)DllObj_steps, METH_VARARGS | METH_KEYWORDS,
@@ -715,6 +731,24 @@ static PyMethodDef DllObj_methods[] = {
     "    >>> obj = Dll(np.zeros(1, dtype=np.uint8), 2, 0.0, 0.01, 0.707, 0.5, "
     "1)\n"
     "    >>> obj.configure_lock_raw(0.0, 0.0, 0, 0.0, 0, 0)\n" },
+  { "set_rate_aid", (PyCFunction)(void *)DllObj_set_rate_aid,
+    METH_VARARGS | METH_KEYWORDS,
+    "set_rate_aid(rate_aid) -> None\n"
+    "\n"
+    "Set the carrier-aiding code-rate deviation (ratio; 0 = off): a fixed "
+    "fractional rate bias summed into the code NCO's phase_inc every epoch, "
+    "on top of the loop's own control. For physically-coupled Doppler, pass "
+    "carrier_offset_hz / carrier_freq_hz so the code NCO rides the code-rate "
+    "dilation the discriminator alone can't pull in at low SNR. Applied "
+    "continuously across the epoch (not a phase pulse), and nudges the "
+    "current phase_inc so the aid takes effect before the first period "
+    "update. code_rate stays the loop's own observable and is unaffected.\n"
+    "\n"
+    "    >>> import numpy as np\n"
+    "    >>> from doppler import Dll\n"
+    "    >>> obj = Dll(np.zeros(1, dtype=np.uint8), 2, 0.0, 0.01, 0.707, 0.5, "
+    "1)\n"
+    "    >>> obj.set_rate_aid(0.0)\n" },
   { NULL }
 };
 

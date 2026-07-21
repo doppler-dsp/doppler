@@ -3,17 +3,14 @@ RateConverter -> MpskReceiver, the full continuous DSSS receive chain,
 against a continuous Gold code carrying asynchronous BPSK data
 modulation.
 
-Stage 3 of the same multi-part story as ``dsss_acq_async_data_demo.py``
-(Stage 1: does :class:`~doppler.dsss.Acquisition` land the right code
-phase/Doppler bin) and ``dsss_despread_async_data_demo.py`` (Stage 2: does
-that hit correctly seed :class:`~doppler.track.Dll`, and is ``segments=4``
-robust enough for the DLL's *own* tracking loop). This page closes the
-loop: carrier and symbol-timing recovery
-(:class:`~doppler.track.MpskReceiver`) sit downstream of ``Dll``, bridged
-by :class:`~doppler.resample.RateConverter`.
+A standalone continuous DSSS receiver demo, hand-composing the full
+receive chain from its four objects. Carrier and symbol-timing recovery
+(:class:`~doppler.track.MpskReceiver`) sit downstream of
+:class:`~doppler.track.Dll`, bridged by
+:class:`~doppler.resample.RateConverter`.
 
 **Scope**: the despreader's only job is to remove the code.
-``Dll(segments=4)`` (Stage 2's own tracking-optimal choice, kept for its
+``Dll(segments=4)`` (a tracking-optimal choice, kept for its
 own robustness reasons and nothing else) emits its partial-correlation
 stream at a fixed rate, a sub-multiple of the chip rate.
 ``RateConverter`` (arbitrary output/input ratio) converts that to a
@@ -26,14 +23,14 @@ rate. See ``docs/design/async-symbol-despreader.md`` §4 for why this
 separation is the right architecture, not just a convenient one.
 
 The phase-inversion hand-off (``Acquisition.code_phase`` -> ``Dll``'s
-``init_chip``) is Stage 2's own finding, reused verbatim here via
+``init_chip``) is done here via
 :func:`doppler.dsss.handoff.dll_init_chip_from_acq`.
 
 Two things worth knowing before reusing this pattern:
 
 - **``MpskReceiver``'s own ``tracking``/``lock`` flags are not proof of
-    correct decoding** -- always check measured BER against known data,
-    extending Stage 2's caution about ``Dll.locked``.
+    correct decoding** -- always check measured BER against known data;
+    the same caution applies to ``Dll.locked``.
 - **``init_norm_freq`` starts from a coarse, quantized estimate.**
     ``Acquisition``'s Doppler bins are sized wide (this page's config
     resolves to a single ~kHz-scale bin at Doppler=0), so the carrier
@@ -43,8 +40,7 @@ Two things worth knowing before reusing this pattern:
 
 Four panels, all at this page's one operating point (CN0=97 dB-Hz,
 chosen to unambiguously validate the pipeline mechanics rather than run
-a margin sensitivity study; see Stage 2 for a page that studies margin
-sensitivity instead):
+a margin sensitivity study):
 
 1. **Decoded BPSK constellation** (settled window): two tight clusters
    at +/-1.
@@ -86,7 +82,7 @@ PRE_SILENCE = TE * 20 + 737  # deliberately not a whole number of epochs
 
 # CCSDS defaults: known 3-valued correlation sidelobes {-1, -65, 63}, a
 # real, cross-checked reference code instead of an arbitrary MLS choice.
-CODE = np.asarray(Gold().generate(SF)).astype(np.uint8)
+CODE = Gold().generate(SF)
 _CSIGN = np.where(CODE & 1, -1.0, 1.0)
 
 

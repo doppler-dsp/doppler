@@ -118,7 +118,7 @@ SEED = 1
 PRE = SF * SPC * 20 + 737  # pre-signal silence (not a whole # of epochs)
 
 # CCSDS Gold code: real, cross-checked reference (3-valued sidelobes).
-CODE = np.asarray(Gold().generate(SF)).astype(np.uint8)
+CODE = Gold().generate(SF)
 
 
 def make_capture(start_hz: float, rate_hz_s: float, seed: int):

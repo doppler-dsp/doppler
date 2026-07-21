@@ -10,9 +10,6 @@ latency-bound bursts.
 Source:
 [`src/doppler/dsss/__init__.py`](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/dsss/__init__.py)
 
-See the [DSSS acquisition & despreading gallery page](../gallery/dsss-despread.md)
-for the full acquire → track → despread chain with plots.
-
 ______________________________________________________________________
 
 ## `Acquisition` — streaming burst acquisition
@@ -130,9 +127,6 @@ histograms the prompt sign-flip positions to find the bit boundary
 (`bit_phase`), then coherently sums `periods_per_bit` prompts per bit. The
 despreader is seeded by acquisition (coarse carrier frequency + code phase)
 and tracks the residual.
-
-See the [despreader gallery page](../gallery/despreader.md) for the full
-receiver acquiring and despreading end to end.
 
 ```python
 import numpy as np
@@ -284,7 +278,7 @@ for an end-to-end decode through physically-coupled Doppler.
 
 <!-- related-pages:start -->
 
-**Gallery** — [Async DSSS Receiver: the SPEC waveform through coupled Doppler](../gallery/async-dsss-receiver-spec.md), [Continuous Async DSSS Receiver](../gallery/async-dsss-receiver.md), [CarrierAcquisition: RRC Pulse Shaping](../gallery/carrier-acq-rrc.md), [Correlation and Detection](../gallery/corr.md), [Despreader (full continuous receiver)](../gallery/despreader.md), [DSSS Acquisition — Continuous Async-Data Modulation](../gallery/dsss-acq-async-data.md), [DSSS Acquisition — Pd / Pfa vs Es/N0](../gallery/dsss-acq-characterization.md), [A 5-Burst DSSS Link — wfmgen's Three Faces, the Full Receiver Chain](../gallery/dsss-burst-pipeline.md), [DSSS Despread — Acquisition-to-Dll Hand-off, Continuous Async-Data](../gallery/dsss-despread-async-data.md), [DSSS Acquisition & Despreading](../gallery/dsss-despread.md), [DsssReceiver — the Composed Continuous DSSS Receiver](../gallery/dsss-receiver.md), [Gallery](../gallery/index.md), [Full-Chain Lock-Up](../gallery/receiver-lock.md)
+**Gallery** — [Streaming Async Despreader](../gallery/async-despread.md), [Async DSSS Receiver: the SPEC waveform through coupled Doppler](../gallery/async-dsss-receiver-spec.md), [Continuous Async DSSS Receiver](../gallery/async-dsss-receiver.md), [CarrierAcquisition: RRC Pulse Shaping](../gallery/carrier-acq-rrc.md), [Correlation and Detection](../gallery/corr.md), [DSSS Acquisition — Pd / Pfa vs Es/N0](../gallery/dsss-acq-characterization.md), [A 5-Burst DSSS Link — wfmgen's Three Faces, the Full Receiver Chain](../gallery/dsss-burst-pipeline.md), [DsssReceiver — the Composed Continuous DSSS Receiver](../gallery/dsss-receiver.md), [Gallery](../gallery/index.md), [Full-Chain Lock-Up](../gallery/receiver-lock.md)
 **Guides** — [DSSS Burst Acquisition](../guide/dsss-acquisition.md), [Guides](../guide/index.md), [Lock Detection Across `doppler.track`](../guide/lock-detection.md), [DSSS bursts — a burst train in one declaration](../guide/wfmgen/dsss-bursts.md), [Waveforms](../guide/wfmgen/waveforms.md)
 **Design** — [Design — pure-functional acquisition kernel (elastic fleet)](../design/acq-fn.md), [API taxonomy: the DSP building-block hierarchy and its naming axis](../design/api-taxonomy.md), [DsssReceiver Specifications](../design/async-dsss-spec.md), [Asynchronous symbol/code despreading](../design/async-symbol-despreader.md), [Corr2D: decoupled (interpolated) inverse length](../design/corr2d-interpolated-inverse.md), [DSSS acquisition: stateless, parallel, dynamics-capable](../design/dsss-acquisition.md), [Design](../design/index.md), [State Serialization — the standard bytes interface](../design/state-serialization.md)
 **Contributing** — [DSSS Primary Use Cases for Code Acquisition Design](../dev/dsss-use-cases.md), [Contributing](../dev/index.md)

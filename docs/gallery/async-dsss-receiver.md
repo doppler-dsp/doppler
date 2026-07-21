@@ -2,24 +2,20 @@
 
 ![Constellation, running BER, windowed correctness, and carrier pull-in](../assets/async_dsss_receiver_demo.png)
 
-Stage 3 of the multi-part story that began with
-[DSSS Acquisition: Continuous Async-Data Modulation](dsss-acq-async-data.md)
-(Stage 1 — does `Acquisition` land the right code phase/Doppler bin) and
-[DSSS Despread: Continuous Async-Data Hand-off](dsss-despread-async-data.md)
-(Stage 2 — does that hit correctly seed `Dll`, and is `segments=4` robust
-enough for the DLL's *own* tracking loop). This page closes the loop:
-carrier and symbol-timing recovery ([`MpskReceiver`](../api/python-track.md))
-sit downstream of `Dll`, bridged by
-[`RateConverter`](../api/python-resample.md).
+A standalone continuous DSSS receive chain against a continuous Gold code
+carrying asynchronous BPSK data modulation, hand-composed here from its
+four objects: `Acquisition -> Dll(segments) -> RateConverter -> MpskReceiver`. Carrier and symbol-timing recovery
+([`MpskReceiver`](../api/python-track.md)) sit downstream of `Dll`, bridged
+by [`RateConverter`](../api/python-resample.md).
 
-Not to be confused with [`dsss.Despreader`](despreader.md), which composes
+Not to be confused with `dsss.Despreader`, which composes
 `Costas`+`Dll` for the **synchronous** case (symbol clock = code-epoch
 clock, `segments=1`). This page's signal needs the asynchronous
 `segments=K` architecture throughout.
 
 ## Scope: the despreader removes the code, nothing else
 
-`Dll(segments=4)` (Stage 2's own tracking-optimal choice, kept for its
+`Dll(segments=4)` (a tracking-optimal choice, kept for its
 own robustness reasons and nothing else) emits its partial-correlation
 stream at a fixed rate — a sub-multiple of the chip rate. `RateConverter`
 (arbitrary output/input ratio) converts that to a clean `sps=8` —
@@ -52,9 +48,8 @@ rule that governs the `Costas`/`SymbolSync` composition, applied here to
 Three stages, each seeded from the previous:
 
 1. **Acquisition** streams raw samples until it reports a hit, sized by
-    `symbol_rate=` the same robust-default way Stage 1/2 use.
-1. **Hand-off.** `dll_init_chip_from_acq` (Stage 2's own helper, reused
-    verbatim) seeds `Dll`'s code phase.
+    `symbol_rate=` in the robust-default way.
+1. **Hand-off.** `dll_init_chip_from_acq` seeds `Dll`'s code phase.
 1. **Despread -> resample -> demod.** `Dll(segments=4).steps()`'s
     partial stream feeds `RateConverter`, which produces a clean `sps=8`
     grid for `MpskReceiver` — matched filter (boxcar), NDA carrier
@@ -63,10 +58,9 @@ Three stages, each seeded from the previous:
 
 ## What you're seeing
 
-All four panels run at one operating point (CN0=97 dB-Hz) — chosen, as in
-the pre-story version of this demo, to unambiguously validate the
-pipeline mechanics rather than run a margin sensitivity study (see Stage
-2 for a page that studies margin sensitivity instead).
+All four panels run at one operating point (CN0=97 dB-Hz) — chosen to
+unambiguously validate the pipeline mechanics rather than run a margin
+sensitivity study.
 
 **Top-left — decoded BPSK constellation** (settled window). Two tight
 clusters at ±1, not a smeared ring: the residual carrier has been fully
@@ -91,17 +85,14 @@ first ~50 epochs and holds it at the true value afterward.
 ## Two gotchas worth knowing before reusing this pattern
 
 **`MpskReceiver`'s own `tracking`/`lock` flags are not proof of correct
-decoding.** Always check measured BER against known data — extending
-Stage 2's own caution about `Dll.locked` not being reliable at large
-`segments`.
+decoding.** Always check measured BER against known data — the same
+caution applies to `Dll.locked` not being reliable at large `segments`.
 
 **`init_norm_freq` starts from a coarse, quantized estimate, not the true
 residual carrier** — see the bottom-right panel above.
 
 Source: `src/doppler/examples/async_dsss_receiver_demo.py`. See also
-[DSSS Acquisition: Continuous Async-Data Modulation](dsss-acq-async-data.md)
-(Stage 1), [DSSS Despread: Continuous Async-Data Hand-off](dsss-despread-async-data.md)
-(Stage 2), [DsssReceiver — the Composed Continuous DSSS Receiver](dsss-receiver.md)
+[DsssReceiver — the Composed Continuous DSSS Receiver](dsss-receiver.md)
 (this same chain as one C object, for real use rather than hand-composing
 it as this page does), [Streaming Async Despreader](async-despread.md)
 (the despread-only half, toy parameters, genie code phase), [Full-Chain

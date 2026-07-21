@@ -24,8 +24,8 @@ across the sweep.
 wrong: it would be flat on the dotted zero line. The real channel accumulates
 code phase at `Rc·d` — **61.4 chips per second** at 20 ppm on a 3.069 Mcps
 code. Over the 256 ms plotted, that is 16 chips the receiver's code loop has to
-make up. The trace is quantised to half a chip because slip is counted in whole
-samples at `spc=2`.
+make up. The trace is quantised to an eighth of a chip because slip is counted
+in whole samples at `spc=8`.
 
 **Right — a Doppler ramp is the integral of the rate.** With
 `doppler_rate_ppm_s = 0.2` (SPEC.md's 500 Hz/s at 2.5 GHz), the instantaneous

@@ -21,7 +21,7 @@ LUT --E / P / L--> TED
     the rx signal with local code replicas E, P, and L over a window _which maximizes power_
     of the prompt correlation and forms the error:
 
-    ```python
+    ```text
     code_phase_error = 0.5 * (early_power - late_power) / signal_plus_noise_power
     ```
 
@@ -35,7 +35,7 @@ LUT --E / P / L--> TED
 
 - LUT outputs early, prompt, and late codes offset by 1/2 chip (1 sample)
 
-```python
+```text
 
 # Init
 code_size = 1023

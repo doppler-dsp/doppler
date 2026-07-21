@@ -38,9 +38,8 @@ window-tiling mechanism of §4 instead — see the warning immediately below.
     mislock (the wrong bin winning outright) results well before "gain
     reverses into loss" in §5 sounds like it would. See
     [Continuous, data-modulated signals](../guide/dsss-acquisition.md#continuous-data-modulated-signals-the-asynchronous-symbol-clock-case)
-    in the guide and
-    [DSSS Acquisition — Continuous Async-Data Modulation](../gallery/dsss-acq-async-data.md)
-    for the confirmed mechanism and worked proof. The shipped engine closes
+    in the guide for the confirmed mechanism and worked proof. The shipped
+    engine closes
     this by construction rather than by pricing it as a tunable trade-off:
     the class is now split in two (see §10's "Update — shipped: the
     burst/continuous split"), and the continuous `Acquisition` class always

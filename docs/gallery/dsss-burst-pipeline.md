@@ -227,8 +227,6 @@ tests (skipped when the `wfmgen` CLI isn't built):
 
 ## See also
 
-- [DSSS Acquisition & Despreading](dsss-despread.md) — the shorter,
-    single-burst version of the `Acquisition` -> `BurstDespreader` chain.
 - [DSSS Acquisition: Pd/Pfa](dsss-acq-characterization.md) — how
     `Acquisition`'s detection performance is characterised against Es/N0.
 - [wfmgen — One Engine, Every Waveform](wfmgen.md) — the CLI and Composer

@@ -79,7 +79,7 @@ FS_GEN = float(math.lcm(int(CHIP_RATE), int(SYM_RATE)))  # 21e6
 CHIP_SPS = int(FS_GEN / CHIP_RATE)  # 7
 DATA_SPS = int(FS_GEN / SYM_RATE)  # 10000
 
-CODE = np.asarray(Gold().generate(SF)).astype(np.uint8)
+CODE = Gold().generate(SF)
 
 # Randomized axes.
 CN0_RANGE_DBHZ = (40.0, 80.0)

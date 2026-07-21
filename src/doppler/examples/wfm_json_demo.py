@@ -29,6 +29,7 @@ Run::
 from __future__ import annotations
 
 import json
+import re
 import textwrap
 
 import matplotlib
@@ -38,6 +39,7 @@ import matplotlib.pyplot as plt
 
 # --8<-- [start:roundtrip]
 import numpy as np
+from matplotlib.offsetbox import AnchoredOffsetbox, HPacker, TextArea, VPacker
 
 from doppler.wfm import Composer, Segment
 
@@ -83,6 +85,58 @@ iq_b = np.asarray(composer_b.compose(), dtype=np.complex64)
 
 assert np.array_equal(iq_a, iq_b), "round-trip produced different samples"
 # --8<-- [end:roundtrip]
+
+
+# ── minimal JSON syntax highlighter for the figure's code-block panel ────────
+# GitHub-light palette; readable on the light-gray "code" background below.
+_JSON_COLOR = {
+    "key": "#005cc5",  # object keys (blue)
+    "str": "#22863a",  # string values (green)
+    "num": "#d73a49",  # numbers (red)
+    "bool": "#6f42c1",  # true / false / null (purple)
+    "punct": "#57606a",  # braces, brackets, commas, colons (gray)
+    "ws": "#57606a",
+}
+_JSON_TOKEN = re.compile(
+    r'(?P<ws>\s+)|(?P<str>"(?:[^"\\]|\\.)*")'
+    r"|(?P<num>-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)"
+    r"|(?P<bool>true|false|null)|(?P<punct>[{}\[\],:])"
+)
+
+
+def _json_line_spans(line):
+    """Tokenise one JSON line into (text, kind) spans; a quoted string is a
+    ``key`` when the next non-space token is a colon, else a ``str`` value."""
+    toks = list(_JSON_TOKEN.finditer(line))
+    spans = []
+    for i, m in enumerate(toks):
+        kind = m.lastgroup
+        if kind == "str":
+            nxt = next((t for t in toks[i + 1 :] if t.lastgroup != "ws"), None)
+            kind = "key" if (nxt and nxt.group() == ":") else "str"
+        spans.append((m.group(), kind))
+    return spans
+
+
+def _highlighted_json_box(display, fontsize):
+    """A VPacker of per-line HPackers of colour-coded monospace TextAreas."""
+    lines = []
+    for line in display.split("\n"):
+        spans = _json_line_spans(line) or [(" ", "ws")]
+        areas = [
+            TextArea(
+                text,
+                textprops={
+                    "color": _JSON_COLOR[kind],
+                    "fontsize": fontsize,
+                    "family": "monospace",
+                },
+            )
+            for text, kind in spans
+        ]
+        lines.append(HPacker(children=areas, align="baseline", pad=0, sep=0))
+    return VPacker(children=lines, align="left", pad=0, sep=2)
+
 
 # ── the resolved spec, as a dict for the figure's JSON panel ────────────────
 spec = json.loads(spec_json)
@@ -148,23 +202,36 @@ for t, label in zip(seg_starts_ms, seg_labels):
         va="top",
     )
 
-# JSON spec panel — pretty-print with compact segment objects
+# JSON spec panel — compact segment objects, wrapped to a panel-safe line
+# length so nothing runs off the JSON panel (which would squish the
+# spectrogram beside it). The `(", ", ":")` separators put break points only
+# BETWEEN key/value pairs, so wrapping never splits a `"key":value` token.
 compact_segs = []
 for seg in spec["segments"]:
+    segf = {
+        k: v for k, v in seg.items() if k not in ("seed", "pn_poly", "lfsr")
+    }
+    # One segment per block: opening brace, `type`, the wrapped remaining
+    # attributes, then the closing brace — each on its own line.
+    rest = {k: v for k, v in segf.items() if k != "type"}
+    rest_json = json.dumps(rest, separators=(", ", ":"))[1:-1]  # strip braces
+    wrapped_rest = textwrap.fill(
+        rest_json,
+        width=50,
+        initial_indent="      ",
+        subsequent_indent="      ",
+        break_long_words=False,
+        break_on_hyphens=False,
+    )
     compact_segs.append(
-        "    "
-        + json.dumps(
-            {
-                k: v
-                for k, v in seg.items()
-                if k not in ("seed", "pn_poly", "lfsr")
-            },
-            separators=(", ", ": "),
-        )
+        "    {\n"
+        f'      "type":{json.dumps(segf.get("type", ""))},\n'
+        f"{wrapped_rest}\n"
+        "    }"
     )
 top = {k: v for k, v in spec.items() if k != "segments"}
 spec_display = (
-    json.dumps(top, separators=(", ", ": "))[:-1]
+    json.dumps(top, separators=(", ", ":"))[:-1]
     + ',\n  "segments": [\n'
     + ",\n".join(compact_segs)
     + "\n  ]\n}"
@@ -172,33 +239,41 @@ spec_display = (
 
 ax_json.axis("off")
 ax_json.text(
-    0.02,
-    0.98,
-    textwrap.fill(
-        "Spec (version, repeat, continuous omitted — defaults):", 42
-    ),
+    0.5,
+    0.99,
+    "The resolved JSON spec — paste into a file and feed back:",
     transform=ax_json.transAxes,
-    fontsize=9,
+    fontsize=10,
     va="top",
+    ha="center",
     fontweight="bold",
 )
-ax_json.text(
-    0.02,
-    0.90,
-    spec_display,
-    transform=ax_json.transAxes,
-    fontsize=7.5,
-    va="top",
-    family="monospace",
-    linespacing=1.4,
+# Syntax-highlighted JSON in a light-gray "code block" box, auto-sized to the
+# text and centered in the panel below the heading.
+_json_box = AnchoredOffsetbox(
+    loc="upper center",
+    child=_highlighted_json_box(spec_display, fontsize=9),
+    pad=0.5,
+    borderpad=0.0,
+    frameon=True,
+    bbox_to_anchor=(0.5, 0.93),
+    bbox_transform=ax_json.transAxes,
 )
+_json_box.patch.set(
+    facecolor="#f3f4f6",
+    edgecolor="#d0d7de",
+    linewidth=1.0,
+    boxstyle="round,pad=0.5",
+)
+ax_json.add_artist(_json_box)
 ax_json.text(
-    0.02,
+    0.5,
     0.06,
     f"✓  {len(iq_a):,} samples — byte-identical after round-trip",
     transform=ax_json.transAxes,
     fontsize=9,
     va="bottom",
+    ha="center",
     color="green",
 )
 

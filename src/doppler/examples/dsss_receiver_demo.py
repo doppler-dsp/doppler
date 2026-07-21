@@ -42,7 +42,7 @@ DOPPLER_HZ = 50.0
 N_SYM = 3500
 PRE_SILENCE = TE * 20 + 737  # deliberately not a whole number of epochs
 
-CODE = np.asarray(Gold().generate(SF)).astype(np.uint8)
+CODE = Gold().generate(SF)
 _CSIGN = np.where(CODE & 1, -1.0, 1.0)
 
 

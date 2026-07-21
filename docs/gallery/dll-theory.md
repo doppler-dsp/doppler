@@ -3,16 +3,20 @@
 ![DLL theory validation](../assets/dll_theory_demo.png)
 
 A theoretical-correctness check on [`track.Dll`](../api/python-track.md)'s
-non-coherent early-minus-late code discriminator `(|E|-|L|)/(|E|+|L|)`.
+prompt-normalized early-minus-late power code discriminator
+`0.5·(|E|²-|L|²)/|P|²` (clamped to ±1).
 
 **Left — Code-detector S-curve.** The open-loop discriminator (swept static
-code-phase error, bn → 0) follows the **triangular-autocorrelation E-L
-reference** `(R(τ+s)-R(τ-s))/(R(τ+s)+R(τ-s))`, `R(τ)=max(0,1-|τ|)`: zero with a
-restoring (negative) slope at the lock, linear within the early-late span, and
-saturating beyond ±½ chip. The **fractional-boundary integrate-and-dump**
-overlap-weights the lone sample straddling each chip transition, so the curve is
-**smooth and antisymmetric to round-off at any `sps`** — no integer-sample
-code-phase staircase, giving the loop true sub-chip resolution.
+code-phase error, bn → 0) follows the reference built from the triangular code
+autocorrelation `R(τ)=max(0,1-|τ|)`,
+`clip(0.5·(R(τ+s)²-R(τ-s)²)/R(τ)², -1, 1)`: zero with a restoring (negative)
+slope at the lock, and saturating at ±1 by the half-chip point. The
+**fractional-boundary integrate-and-dump** overlap-weights the lone sample
+straddling each chip transition, so the curve is **smooth and antisymmetric to
+round-off at any `sps`** — no integer-sample code-phase staircase, giving the
+loop true sub-chip resolution. (The only visible gap between measured and
+reference is at the clamp knee, where the continuous triangular model departs
+most from the discrete, fractional-boundary-weighted correlation.)
 
 **Right — Code-error variance vs SNR.** At the lock the early-late discriminator
 variance follows a clean **`1/SNR`** law (the per-epoch code-error noise) — the

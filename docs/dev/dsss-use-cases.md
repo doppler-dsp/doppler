@@ -72,9 +72,7 @@ column-FFT/mixer when you must buy the coherent gain.**
     the window spans more than a handful of symbols, and a real,
     deterministic mislock (wrong bin wins outright) results — confirmed on
     this project's own continuous receiver. See
-    [Continuous, data-modulated signals](../guide/dsss-acquisition.md#continuous-data-modulated-signals-the-asynchronous-symbol-clock-case)
-    and
-    [DSSS Acquisition — Continuous Async-Data Modulation](../gallery/dsss-acq-async-data.md).
+    [Continuous, data-modulated signals](../guide/dsss-acquisition.md#continuous-data-modulated-signals-the-asynchronous-symbol-clock-case).
     On a data-bearing stretch, `M_coh` is effectively 1 regardless of what
     the decision table above implies — reach for `Acquisition` (continuous)
     instead of `BurstAcquisition`, not a larger `reps` on the same class. The

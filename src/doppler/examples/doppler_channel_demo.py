@@ -20,7 +20,7 @@ not the SigMF metadata it is everywhere else in this codebase: it is the only
 thing that converts a dimensionless ppm into Hz.
 
 Geometry throughout is ``docs/design/async-dsss-spec.md``'s: 3.069 Mcps at
-``spc=2`` on a 2.5 GHz carrier. That spec's +/-50 kHz frequency uncertainty and
+``spc=8`` on a 2.5 GHz carrier. That spec's +/-50 kHz frequency uncertainty and
 its 500 Hz/s rate of change are, in ppm, exactly **20 ppm** and **0.2 ppm/s**.
 
 Three panels:
@@ -55,8 +55,8 @@ from doppler.impairment import DopplerChannel
 
 # SPEC.md geometry, with its RF numbers restated as ppm of the time base.
 CHIP_RATE = 3.069e6  # Mcps
-SPC = 2  # samples per chip
-FS = CHIP_RATE * SPC  # 6.138 MS/s
+SPC = 8  # samples per chip
+FS = CHIP_RATE * SPC  # 24.552 MS/s
 FC = 2.5e9  # RF carrier -- load-bearing, not metadata
 PPM = 20.0  # +/-50 kHz at 2.5 GHz
 RATE_PPM_S = 0.2  # 500 Hz/s at 2.5 GHz
@@ -80,7 +80,7 @@ def apply_doppler(x: np.ndarray, ppm: float, rate_ppm_s: float = 0.0):
 
 # --8<-- [end:channel]
 
-N = 1 << 16  # one block, ~10.7 ms at this fs
+N = 1 << 18  # one block, ~10.7 ms at this fs (4x samples for 4x-higher spc)
 
 
 def _dc(n: int = N) -> np.ndarray:

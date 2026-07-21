@@ -6,10 +6,8 @@ and ``test_async_dsss_receiver.py`` (a genie-seeded ``Dll`` feeding
 ``Acquisition`` search over a continuous, asynchronous-data-modulated,
 carrier-present signal, converted via ``dll_init_chip_from_acq`` into a
 real ``Dll`` seed, then verifies that seed is exact and that tracking
-holds up over an extended run. See
-``src/doppler/examples/dsss_despread_async_data_demo.py`` (the gallery
-counterpart, same construction, more epochs, plotted) for the full story
-this pins down as a fast, always-run regression check.
+holds up over an extended run. This is a fast, always-run regression
+check on the acquisition-to-DLL hand-off.
 """
 
 import warnings

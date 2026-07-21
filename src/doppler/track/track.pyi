@@ -365,6 +365,24 @@ class Dll:
             Input.
         """
 
+    def set_rate_aid(self, rate_aid: float) -> None:
+        """Set the carrier-aiding code-rate deviation (ratio; 0 = off): a fixed fractional rate bias summed into the code NCO's phase_inc every epoch, on top of the loop's own control. For physically-coupled Doppler, pass carrier_offset_hz / carrier_freq_hz so the code NCO rides the code-rate dilation the discriminator alone can't pull in at low SNR. Applied continuously across the epoch (not a phase pulse), and nudges the current phase_inc so the aid takes effect before the first period update. code_rate stays the loop's own observable and is unaffected.
+
+        A fixed fractional rate bias summed into the sample-and-hold `phase_inc`
+        on top of the loop's own control every epoch -- for physically-coupled
+        Doppler, `carrier_offset_hz / carrier_freq_hz`, so the code NCO rides
+        the code-rate dilation the discriminator alone can't pull in at low SNR.
+        Applied continuously across the epoch (via `phase_inc`), not as a phase
+        pulse. Also nudges the current `phase_inc` so the aid takes effect
+        before the first period update. `code_rate` stays the loop's own
+        observable and is unaffected.
+
+        Parameters
+        ----------
+        rate_aid : float
+            Fractional code-rate deviation (e.g. 8e-6). 0 disables.
+        """
+
     def configure_lock(self, pfa: float, n_looks: int, ref_snr_db: float = 0.0) -> None:
         """Tune the always-on code-lock detector to a target (pfa, n_looks). The detector reuses acquisition's non-coherent statistic R = sqrt(2*sum|P|^2 / E|O|^2), where the prompt powers of n_looks consecutive looks are summed and E|O|^2 is an EMA of a random off-peak (noise) correlation re-drawn each epoch; a decision compares R against det_threshold_noncoherent(pfa, n_looks). Size n_looks with detection.det_n_noncoh(snr, ...) for your operating C/N0. The EMA bandwidth is sized probabilistically (detection.det_ema_alpha): ref_snr_db sets the noise reference's estimator SNR (mean^2/variance of the EMA output); the default 0.0 derives it from n_looks so the reference's std stays an eighth of the statistic's intrinsic H0 spread, floored at ~33 dB. Decisions feed a verify-counted lock detector rather than a single-comparison latch: locked flips up only after det_verify_count(pfa, pfa*1e-3) consecutive above-threshold decisions (2 for the default pfa=1e-3, compounding the false-declare rate three decades under pfa) and drops only after 2 consecutive below-threshold decisions, so a statistic grazing the threshold cannot chatter the flag. The default config is pfa=1e-3 over 20 looks. Raises ValueError for pfa outside (0, 1). Read the result from the locked / lock_stat / noise_est properties.
 

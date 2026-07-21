@@ -396,10 +396,8 @@ deterministic **mislock**: the code's off-peak correlation has no bound over
 an unequal-length partial window the way it does over a full period, so at
 some *other* candidate phase the two mis-signed partial sums can happen to add
 constructively and beat the (weakened) true-phase peak. This is not a noise
-event — see
-[DSSS Acquisition — Continuous Async-Data Modulation](../gallery/dsss-acq-async-data.md)
-for the worked proof: a bad epoch replayed with all injected noise removed
-reproduces the identical mislock, bit for bit.
+event: a bad epoch replayed with all injected noise removed reproduces the
+identical mislock, bit for bit.
 
 The failure only shows up once your coherent window spans more than a small
 fraction of a symbol — which is exactly what a naive
@@ -643,9 +641,6 @@ ______________________________________________________________________
 - [Python: DSSS API](../api/python-dsss.md) — full `Acquisition`/`BurstAcquisition` + `BurstDespreader` reference
 - [Python: Detection Statistics](../api/python-detection.md) — `det_threshold` / `det_pd` / `det_dwell`
 - [Gallery: 2-D Acquisition](../gallery/detection2d.md) — the `CorrDetector2D` matched-filter surface
-- [Gallery: DSSS Acquisition & Despreading](../gallery/dsss-despread.md) — end-to-end demo
-- [Gallery: DSSS Acquisition — Continuous Async-Data Modulation](../gallery/dsss-acq-async-data.md) —
-    the worked proof behind the `Acquisition`/`BurstAcquisition` split recommended above
 - [Design: pure-functional acquisition kernel](../design/acq-fn.md) — the
     elastic `(ddc_fn, acq_fn)` pipeline behind the acquisition engine, for pod
     fan-out and checkpoint/resume

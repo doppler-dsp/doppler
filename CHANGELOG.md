@@ -13,8 +13,46 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+## [0.35.0] — 2026-07-21
+
+Continuous asynchronous DSSS, end to end: a spread-spectrum signal can now be
+synthesised, driven through coupled clock Doppler, and acquired/tracked back to
+bits by packaged receiver objects.
+
+### Added
+
+- **`doppler.dsss.AsyncDsssReceiver`** — packaged continuous asynchronous DSSS
+    receiver (acquire → refine → track) with carrier→code aiding for coupled
+    clock Doppler. `steps()` accepts any block size with state carried across
+    calls, so one epoch per call equals one big call.
+- **`doppler.dsss.DsssReceiver`** — packaged burst DSSS receiver over the same
+    acquisition/tracking primitives.
+- **`doppler.dsss.BurstAcquisition`** — 2-D (code phase × Doppler) burst DSSS
+    acquisition.
+- **`doppler.acquire.CarrierAcquisition`** — PSDMF carrier-frequency estimator
+    (a C port of the periodogram-sum-of-differences maximum-of-forward
+    estimator).
+- **`doppler.impairment.DopplerChannel`** — coupled clock Doppler modelled as
+    time dilation plus a coherent carrier, ppm-parameterised (a starting offset
+    and a linear rate).
+- **Gold-code generation** — maximal-length Gold code pairs for spreading.
+- **Continuous DSSS synthesis** in `doppler.wfm.Synth` (`symbol_rate > 0`): an
+    endlessly repeating spreading code carrying data at a symbol rate
+    independent of the code epoch (non-integer chips/symbol), with code-only,
+    user-payload, or PRBS data sources.
+- **Interpolation primitives** (`interp`, `interp_table`).
+- State serialization (the `state_bytes`/`get_state`/`set_state` bytes triplet)
+    for the new stateful objects.
+
 ### Changed
 
+- **`nco_norm_to_inc` (the shared LO / NCO / DLL phase-increment conversion)
+    now truncates toward zero** — the standard fixed-point / DDS
+    phase-accumulator convention — instead of rounding to nearest. This makes
+    the increment bit-identical across hosts and removes an arm64 NCO-overflow
+    edge case; the realised frequency is now at most one quantization step
+    (`fs / 2^32`) low, never high. Generated carriers (`Synth` tones, `LO`,
+    `NCO`) shift by at most that one step.
 - **`Acquisition.push()`'s 6th tuple field is now `cn0_dbhz_est` (dB-Hz),
     replacing the linear `snr_est`.** The old field reported a per-sample
     amplitude ratio backed out of the CFAR test statistic
@@ -32,6 +70,17 @@ ______________________________________________________________________
     bug). Verified against known-C/N0 injected AWGN to within ~1 dB.
     `doppler.dsss.orchestrator.Detection.snr_est` is renamed
     `cn0_dbhz_est` to match.
+
+### Fixed
+
+- **`dll_init` now initializes `rate_aid`.** The in-place (stack-embedded)
+    `Dll` init left the carrier-aiding rate bias uninitialized; on a host whose
+    stack held a NaN there (macOS/arm64) it made the steered phase increment
+    degenerate and cast to zero, freezing the code NCO permanently. Benign on
+    hosts whose stack held 0 (Linux/x86). Any object embedding a `Dll` by value
+    was affected.
+- **`marcum_q` underflow and CarrierAcquisition threshold calibration** in the
+    detection / acquisition path.
 
 ## [0.34.0] — 2026-07-14
 

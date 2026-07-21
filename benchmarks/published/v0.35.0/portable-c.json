@@ -1,0 +1,3069 @@
+{
+ "datetime": "2026-07-21T15:43:34.913086+00:00",
+ "machine_info": {
+  "node": "cachyos-x8664-ai465",
+  "system": "Linux",
+  "release": "7.1.3-2-cachyos",
+  "machine": "x86_64",
+  "cpu": {
+   "count": 20,
+   "brand_raw": "AMD Ryzen AI 9 465 w/ Radeon 880M"
+  }
+ },
+ "commit_info": {
+  "id": "84c46503955699ac29db0db465c29b056b4e1742",
+  "branch": "HEAD",
+  "dirty": false
+ },
+ "benchmarks": [
+  {
+   "group": null,
+   "name": "RateConverter::HB(0.5)",
+   "fullname": "bench_RateConverter_core::HB(0.5)",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 359.85367107465805
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "clock_gettime",
+    "min_rounds": 100,
+    "max_time": null,
+    "min_time": null,
+    "warmup": true
+   },
+   "stats": {
+    "min": 0.000157514,
+    "max": 0.000301393,
+    "mean": 0.00018211847000000004,
+    "stddev": 3.711748317711118e-05,
+    "rounds": 100,
+    "median": 0.0001620225,
+    "iqr": 5.832824999999999e-05,
+    "q1": 0.00015828850000000003,
+    "q3": 0.00021661675000000003,
+    "iqr_outliers": 0,
+    "stddev_outliers": 0,
+    "outliers": "0;0",
+    "ld15iqr": 0.000157514,
+    "hd15iqr": 0.000301393,
+    "ops": 359853671.0746581,
+    "total": 0.018211847000000003,
+    "iterations": 65536
+   }
+  },
+  {
+   "group": null,
+   "name": "RateConverter::HB2(0.25)",
+   "fullname": "bench_RateConverter_core::HB2(0.25)",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 258.5971028254148
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "clock_gettime",
+    "min_rounds": 100,
+    "max_time": null,
+    "min_time": null,
+    "warmup": true
+   },
+   "stats": {
+    "min": 0.00023700200000000002,
+    "max": 0.000709165,
+    "mean": 0.00025342898000000003,
+    "stddev": 7.31556511473138e-05,
+    "rounds": 100,
+    "median": 0.00024117050000000003,
+    "iqr": 8.629999999999814e-07,
+    "q1": 0.00024072400000000002,
+    "q3": 0.000241587,
+    "iqr_outliers": 0,
+    "stddev_outliers": 0,
+    "outliers": "0;0",
+    "ld15iqr": 0.00023700200000000002,
+    "hd15iqr": 0.000709165,
+    "ops": 258597102.8254148,
+    "total": 0.025342898000000003,
+    "iterations": 65536
+   }
+  },
+  {
+   "group": null,
+   "name": "RateConverter::CIC(0.125)",
+   "fullname": "bench_RateConverter_core::CIC(0.125)",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 504.75918998534837
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "clock_gettime",
+    "min_rounds": 100,
+    "max_time": null,
+    "min_time": null,
+    "warmup": true
+   },
+   "stats": {
+    "min": 0.000129402,
+    "max": 0.000132939,
+    "mean": 0.00012983617,
+    "stddev": 6.822928080073721e-07,
+    "rounds": 100,
+    "median": 0.000129602,
+    "iqr": 1.3325000000001096e-07,
+    "q1": 0.000129552,
+    "q3": 0.00012968525000000002,
+    "iqr_outliers": 0,
+    "stddev_outliers": 0,
+    "outliers": "0;0",
+    "ld15iqr": 0.000129402,
+    "hd15iqr": 0.000132939,
+    "ops": 504759189.9853484,
+    "total": 0.012983617,
+    "iterations": 65536
+   }
+  },
+  {
+   "group": null,
+   "name": "RateConverter::CIC+Rs(0.1)",
+   "fullname": "bench_RateConverter_core::CIC+Rs(0.1)",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 320.1736254044796
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "clock_gettime",
+    "min_rounds": 100,
+    "max_time": null,
+    "min_time": null,
+    "warmup": true
+   },
+   "stats": {
+    "min": 0.00020378,
+    "max": 0.00020720700000000002,
+    "mean": 0.00020468894,
+    "stddev": 9.041099068345411e-07,
+    "rounds": 100,
+    "median": 0.00020429200000000002,
+    "iqr": 1.4745000000000144e-06,
+    "q1": 0.0002039185,
+    "q3": 0.000205393,
+    "iqr_outliers": 0,
+    "stddev_outliers": 0,
+    "outliers": "0;0",
+    "ld15iqr": 0.00020378,
+    "hd15iqr": 0.00020720700000000002,
+    "ops": 320173625.4044796,
+    "total": 0.020468894,
+    "iterations": 65536
+   }
+  },
+  {
+   "group": null,
+   "name": "RateConverter::Resamp(1/3)",
+   "fullname": "bench_RateConverter_core::Resamp(1/3)",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 167.29837101329034
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "clock_gettime",
+    "min_rounds": 100,
+    "max_time": null,
+    "min_time": null,
+    "warmup": true
+   },
+   "stats": {
+    "min": 0.000388014,
+    "max": 0.000418942,
+    "mean": 0.00039173125,
+    "stddev": 3.2455486762019077e-06,
+    "rounds": 100,
+    "median": 0.000391496,
+    "iqr": 2.2042499999999307e-06,
+    "q1": 0.00039028125000000006,
+    "q3": 0.0003924855,
+    "iqr_outliers": 0,
+    "stddev_outliers": 0,
+    "outliers": "0;0",
+    "ld15iqr": 0.000388014,
+    "hd15iqr": 0.000418942,
+    "ops": 167298371.01329035,
+    "total": 0.039173125,
+    "iterations": 65536
+   }
+  },
+  {
+   "group": null,
+   "name": "RateConverter::Interp(2.0)",
+   "fullname": "bench_RateConverter_core::Interp(2.0)",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 82.80730720912054
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "clock_gettime",
+    "min_rounds": 100,
+    "max_time": null,
+    "min_time": null,
+    "warmup": true
+   },
+   "stats": {
+    "min": 0.000789374,
+    "max": 0.000807889,
+    "mean": 0.0007914277400000002,
+    "stddev": 1.964696329993748e-06,
+    "rounds": 100,
+    "median": 0.000791333,
+    "iqr": 1.4004999999999877e-06,
+    "q1": 0.00079062675,
+    "q3": 0.00079202725,
+    "iqr_outliers": 0,
+    "stddev_outliers": 0,
+    "outliers": "0;0",
+    "ld15iqr": 0.000789374,
+    "hd15iqr": 0.000807889,
+    "ops": 82807307.20912054,
+    "total": 0.07914277400000003,
+    "iterations": 65536
+   }
+  },
+  {
+   "group": null,
+   "name": "Resampler::reset",
+   "fullname": "bench_Resampler_core::reset",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 224.65116313348798
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "clock_gettime",
+    "min_rounds": 200,
+    "max_time": null,
+    "min_time": null,
+    "warmup": true
+   },
+   "stats": {
+    "min": 0.000272579,
+    "max": 0.000790937,
+    "mean": 0.0002917233950000002,
+    "stddev": 7.274246083271428e-05,
+    "rounds": 200,
+    "median": 0.000272819,
+    "iqr": 1.510499999999985e-06,
+    "q1": 0.00027275675,
+    "q3": 0.00027426725,
+    "iqr_outliers": 0,
+    "stddev_outliers": 0,
+    "outliers": "0;0",
+    "ld15iqr": 0.000272579,
+    "hd15iqr": 0.000790937,
+    "ops": 224651163.133488,
+    "total": 0.05834467900000003,
+    "iterations": 65536
+   }
+  },
+  {
+   "group": null,
+   "name": "acc_cf64::step",
+   "fullname": "bench_acc_cf64_core::step",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 1377.144788589384
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "clock_gettime",
+    "min_rounds": 200,
+    "max_time": null,
+    "min_time": null,
+    "warmup": true
+   },
+   "stats": {
+    "min": 3.8953000000000005e-05,
+    "max": 0.000142556,
+    "mean": 4.758831499999999e-05,
+    "stddev": 2.2402126660214123e-05,
+    "rounds": 200,
+    "median": 3.9023e-05,
+    "iqr": 6.925000000000616e-08,
+    "q1": 3.9003e-05,
+    "q3": 3.9072250000000005e-05,
+    "iqr_outliers": 0,
+    "stddev_outliers": 0,
+    "outliers": "0;0",
+    "ld15iqr": 3.8953000000000005e-05,
+    "hd15iqr": 0.000142556,
+    "ops": 1377144788.589384,
+    "total": 0.009517662999999997,
+    "iterations": 65536
+   }
+  },
+  {
+   "group": null,
+   "name": "acc_cf64::steps",
+   "fullname": "bench_acc_cf64_core::steps",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 1675.2530543153566
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "clock_gettime",
+    "min_rounds": 200,
+    "max_time": null,
+    "min_time": null,
+    "warmup": true
+   },
+   "stats": {
+    "min": 3.8963e-05,
+    "max": 4.1648000000000005e-05,
+    "mean": 3.912005999999999e-05,
+    "stddev": 4.124433585598155e-07,
+    "rounds": 200,
+    "median": 3.9033000000000004e-05,
+    "iqr": 3.0000000000004795e-08,
+    "q1": 3.9013e-05,
+    "q3": 3.9043000000000005e-05,
+    "iqr_outliers": 0,
+    "stddev_outliers": 0,
+    "outliers": "0;0",
+    "ld15iqr": 3.8963e-05,
+    "hd15iqr": 4.1648000000000005e-05,
+    "ops": 1675253054.3153567,
+    "total": 0.007824011999999998,
+    "iterations": 65536
+   }
+  },
+  {
+   "group": null,
+   "name": "acc_cf64::get",
+   "fullname": "bench_acc_cf64_core::get",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 1259.1779433279623
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "clock_gettime",
+    "min_rounds": 200,
+    "max_time": null,
+    "min_time": null,
+    "warmup": true
+   },
+   "stats": {
+    "min": 5.1907e-05,
+    "max": 5.479200000000001e-05,
+    "mean": 5.2046654999999994e-05,
+    "stddev": 3.9147628842240886e-07,
+    "rounds": 200,
+    "median": 5.1967000000000006e-05,
+    "iqr": 1.999999999999642e-08,
+    "q1": 5.1957000000000004e-05,
+    "q3": 5.1977e-05,
+    "iqr_outliers": 0,
+    "stddev_outliers": 0,
+    "outliers": "0;0",
+    "ld15iqr": 5.1907e-05,
+    "hd15iqr": 5.479200000000001e-05,
+    "ops": 1259177943.3279624,
+    "total": 0.010409330999999999,
+    "iterations": 65536
+   }
+  },
+  {
+   "group": null,
+   "name": "acc_cf64::dump",
+   "fullname": "bench_acc_cf64_core::dump",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 1258.6112295945723
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "clock_gettime",
+    "min_rounds": 200,
+    "max_time": null,
+    "min_time": null,
+    "warmup": true
+   },
+   "stats": {
+    "min": 5.1917000000000005e-05,
+    "max": 5.4822000000000005e-05,
+    "mean": 5.207008999999997e-05,
+    "stddev": 4.729361849926237e-07,
+    "rounds": 200,
+    "median": 5.1957000000000004e-05,
+    "iqr": 5.0000000000001215e-08,
+    "q1": 5.1937e-05,
+    "q3": 5.1987e-05,
+    "iqr_outliers": 0,
+    "stddev_outliers": 0,
+    "outliers": "0;0",
+    "ld15iqr": 5.1917000000000005e-05,
+    "hd15iqr": 5.4822000000000005e-05,
+    "ops": 1258611229.5945723,
+    "total": 0.010414017999999994,
+    "iterations": 65536
+   }
+  },
+  {
+   "group": null,
+   "name": "acc_cf64::madd",
+   "fullname": "bench_acc_cf64_core::madd",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 1258.7013956804374
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "clock_gettime",
+    "min_rounds": 200,
+    "max_time": null,
+    "min_time": null,
+    "warmup": true
+   },
+   "stats": {
+    "min": 5.1917000000000005e-05,
+    "max": 5.4702000000000006e-05,
+    "mean": 5.206635999999993e-05,
+    "stddev": 3.7134128798290667e-07,
+    "rounds": 200,
+    "median": 5.1997000000000004e-05,
+    "iqr": 5.0000000000001215e-08,
+    "q1": 5.1957000000000004e-05,
+    "q3": 5.2007000000000005e-05,
+    "iqr_outliers": 0,
+    "stddev_outliers": 0,
+    "outliers": "0;0",
+    "ld15iqr": 5.1917000000000005e-05,
+    "hd15iqr": 5.4702000000000006e-05,
+    "ops": 1258701395.6804373,
+    "total": 0.010413271999999986,
+    "iterations": 65536
+   }
+  },
+  {
+   "group": null,
+   "name": "acc_cf64::add2d",
+   "fullname": "bench_acc_cf64_core::add2d",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 1249.0653832438518
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "clock_gettime",
+    "min_rounds": 200,
+    "max_time": null,
+    "min_time": null,
+    "warmup": true
+   },
+   "stats": {
+    "min": 5.2347000000000006e-05,
+    "max": 5.5143000000000004e-05,
+    "mean": 5.246803000000006e-05,
+    "stddev": 4.028734593158323e-07,
+    "rounds": 200,
+    "median": 5.2368000000000004e-05,
+    "iqr": 2.999999999999802e-08,
+    "q1": 5.2358e-05,
+    "q3": 5.2388e-05,
+    "iqr_outliers": 0,
+    "stddev_outliers": 0,
+    "outliers": "0;0",
+    "ld15iqr": 5.2347000000000006e-05,
+    "hd15iqr": 5.5143000000000004e-05,
+    "ops": 1249065383.243852,
+    "total": 0.010493606000000013,
+    "iterations": 65536
+   }
+  },
+  {
+   "group": null,
+   "name": "acc_cf64::madd2d",
+   "fullname": "bench_acc_cf64_core::madd2d",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 1258.9749946426923
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "clock_gettime",
+    "min_rounds": 200,
+    "max_time": null,
+    "min_time": null,
+    "warmup": true
+   },
+   "stats": {
+    "min": 5.1937e-05,
+    "max": 5.377e-05,
+    "mean": 5.205504499999991e-05,
+    "stddev": 3.181540238460724e-07,
+    "rounds": 200,
+    "median": 5.1987e-05,
+    "iqr": 3.999999999999962e-08,
+    "q1": 5.1957000000000004e-05,
+    "q3": 5.1997000000000004e-05,
+    "iqr_outliers": 0,
+    "stddev_outliers": 0,
+    "outliers": "0;0",
+    "ld15iqr": 5.1937e-05,
+    "hd15iqr": 5.377e-05,
+    "ops": 1258974994.6426923,
+    "total": 0.010411008999999982,
+    "iterations": 65536
+   }
+  },
+  {
+   "group": null,
+   "name": "acc_f32::step",
+   "fullname": "bench_acc_f32_core::step",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 1220.2530047585126
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "clock_gettime",
+    "min_rounds": 200,
+    "max_time": null,
+    "min_time": null,
+    "warmup": true
+   },
+   "stats": {
+    "min": 3.8942e-05,
+    "max": 6.8538e-05,
+    "mean": 5.3706895000000046e-05,
+    "stddev": 9.33241047642449e-06,
+    "rounds": 200,
+    "median": 5.929e-05,
+    "iqr": 2.0337000000000005e-05,
+    "q1": 3.8963e-05,
+    "q3": 5.9300000000000005e-05,
+    "iqr_outliers": 0,
+    "stddev_outliers": 0,
+    "outliers": "0;0",
+    "ld15iqr": 3.8942e-05,
+    "hd15iqr": 6.8538e-05,
+    "ops": 1220253004.7585127,
+    "total": 0.01074137900000001,
+    "iterations": 65536
+   }
+  },
+  {
+   "group": null,
+   "name": "acc_f32::steps",
+   "fullname": "bench_acc_f32_core::steps",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 6704.817092290987
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "clock_gettime",
+    "min_rounds": 200,
+    "max_time": null,
+    "min_time": null,
+    "warmup": true
+   },
+   "stats": {
+    "min": 9.738e-06,
+    "max": 1.1401000000000001e-05,
+    "mean": 9.774464999999997e-06,
+    "stddev": 1.5734840762432123e-07,
+    "rounds": 200,
+    "median": 9.758e-06,
+    "iqr": 1.1000000000000403e-08,
+    "q1": 9.748e-06,
+    "q3": 9.759000000000001e-06,
+    "iqr_outliers": 0,
+    "stddev_outliers": 0,
+    "outliers": "0;0",
+    "ld15iqr": 9.738e-06,
+    "hd15iqr": 1.1401000000000001e-05,
+    "ops": 6704817092.290987,
+    "total": 0.001954892999999999,
+    "iterations": 65536
+   }
+  },
+  {
+   "group": null,
+   "name": "acc_f32::get",
+   "fullname": "bench_acc_f32_core::get",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 1255.3288649019737
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "clock_gettime",
+    "min_rounds": 200,
+    "max_time": null,
+    "min_time": null,
+    "warmup": true
+   },
+   "stats": {
+    "min": 5.1926000000000004e-05,
+    "max": 6.492100000000001e-05,
+    "mean": 5.220623999999999e-05,
+    "stddev": 1.259422449750152e-06,
+    "rounds": 200,
+    "median": 5.1957000000000004e-05,
+    "iqr": 2.999999999999802e-08,
+    "q1": 5.1947e-05,
+    "q3": 5.1977e-05,
+    "iqr_outliers": 0,
+    "stddev_outliers": 0,
+    "outliers": "0;0",
+    "ld15iqr": 5.1926000000000004e-05,
+    "hd15iqr": 6.492100000000001e-05,
+    "ops": 1255328864.9019737,
+    "total": 0.010441247999999998,
+    "iterations": 65536
+   }
+  },
+  {
+   "group": null,
+   "name": "acc_f32::dump",
+   "fullname": "bench_acc_f32_core::dump",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 1257.5986555115937
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "clock_gettime",
+    "min_rounds": 200,
+    "max_time": null,
+    "min_time": null,
+    "warmup": true
+   },
+   "stats": {
+    "min": 5.1897e-05,
+    "max": 5.7066000000000006e-05,
+    "mean": 5.211201499999999e-05,
+    "stddev": 6.010201250612521e-07,
+    "rounds": 200,
+    "median": 5.1967000000000006e-05,
+    "iqr": 1.999999999999642e-08,
+    "q1": 5.1957000000000004e-05,
+    "q3": 5.1977e-05,
+    "iqr_outliers": 0,
+    "stddev_outliers": 0,
+    "outliers": "0;0",
+    "ld15iqr": 5.1897e-05,
+    "hd15iqr": 5.7066000000000006e-05,
+    "ops": 1257598655.5115938,
+    "total": 0.010422402999999998,
+    "iterations": 65536
+   }
+  },
+  {
+   "group": null,
+   "name": "acc_f32::madd",
+   "fullname": "bench_acc_f32_core::madd",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 1259.0776702759613
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "clock_gettime",
+    "min_rounds": 200,
+    "max_time": null,
+    "min_time": null,
+    "warmup": true
+   },
+   "stats": {
+    "min": 5.1887000000000007e-05,
+    "max": 5.4652000000000005e-05,
+    "mean": 5.205079999999999e-05,
+    "stddev": 3.75509583414566e-07,
+    "rounds": 200,
+    "median": 5.1967000000000006e-05,
+    "iqr": 1.999999999999642e-08,
+    "q1": 5.1957000000000004e-05,
+    "q3": 5.1977e-05,
+    "iqr_outliers": 0,
+    "stddev_outliers": 0,
+    "outliers": "0;0",
+    "ld15iqr": 5.1887000000000007e-05,
+    "hd15iqr": 5.4652000000000005e-05,
+    "ops": 1259077670.2759614,
+    "total": 0.010410159999999998,
+    "iterations": 65536
+   }
+  },
+  {
+   "group": null,
+   "name": "acc_f32::add2d",
+   "fullname": "bench_acc_f32_core::add2d",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 1249.0822858876722
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "clock_gettime",
+    "min_rounds": 200,
+    "max_time": null,
+    "min_time": null,
+    "warmup": true
+   },
+   "stats": {
+    "min": 5.2348e-05,
+    "max": 5.5904000000000006e-05,
+    "mean": 5.246732000000001e-05,
+    "stddev": 4.3292064982537634e-07,
+    "rounds": 200,
+    "median": 5.2368000000000004e-05,
+    "iqr": 1.0000000000001598e-08,
+    "q1": 5.2368000000000004e-05,
+    "q3": 5.2378000000000006e-05,
+    "iqr_outliers": 0,
+    "stddev_outliers": 0,
+    "outliers": "0;0",
+    "ld15iqr": 5.2348e-05,
+    "hd15iqr": 5.5904000000000006e-05,
+    "ops": 1249082285.8876722,
+    "total": 0.010493464000000003,
+    "iterations": 65536
+   }
+  },
+  {
+   "group": null,
+   "name": "acc_f32::madd2d",
+   "fullname": "bench_acc_f32_core::madd2d",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 1259.015869390167
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "clock_gettime",
+    "min_rounds": 200,
+    "max_time": null,
+    "min_time": null,
+    "warmup": true
+   },
+   "stats": {
+    "min": 5.1947e-05,
+    "max": 5.4221e-05,
+    "mean": 5.2053355e-05,
+    "stddev": 3.7490704908318414e-07,
+    "rounds": 200,
+    "median": 5.1967000000000006e-05,
+    "iqr": 1.999999999999642e-08,
+    "q1": 5.1957000000000004e-05,
+    "q3": 5.1977e-05,
+    "iqr_outliers": 0,
+    "stddev_outliers": 0,
+    "outliers": "0;0",
+    "ld15iqr": 5.1947e-05,
+    "hd15iqr": 5.4221e-05,
+    "ops": 1259015869.390167,
+    "total": 0.010410671,
+    "iterations": 65536
+   }
+  },
+  {
+   "group": null,
+   "name": "acc_q15::step",
+   "fullname": "bench_acc_q15_core::step",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 3306.613251730926
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "clock_gettime",
+    "min_rounds": 200,
+    "max_time": null,
+    "min_time": null,
+    "warmup": true
+   },
+   "stats": {
+    "min": 1.9756000000000002e-05,
+    "max": 2.2662e-05,
+    "mean": 1.9819674999999957e-05,
+    "stddev": 3.489042710065802e-07,
+    "rounds": 200,
+    "median": 1.9767000000000002e-05,
+    "iqr": 9.99999999999821e-09,
+    "q1": 1.9767000000000002e-05,
+    "q3": 1.9777e-05,
+    "iqr_outliers": 0,
+    "stddev_outliers": 0,
+    "outliers": "0;0",
+    "ld15iqr": 1.9756000000000002e-05,
+    "hd15iqr": 2.2662e-05,
+    "ops": 3306613251.730926,
+    "total": 0.003963934999999991,
+    "iterations": 65536
+   }
+  },
+  {
+   "group": null,
+   "name": "acc_q15::steps",
+   "fullname": "bench_acc_q15_core::steps",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 5026.437576793225
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "clock_gettime",
+    "min_rounds": 200,
+    "max_time": null,
+    "min_time": null,
+    "warmup": true
+   },
+   "stats": {
+    "min": 1.2964000000000002e-05,
+    "max": 1.5559e-05,
+    "mean": 1.3038259999999992e-05,
+    "stddev": 2.495635837047501e-07,
+    "rounds": 200,
+    "median": 1.3005e-05,
+    "iqr": 1.9000000000001004e-08,
+    "q1": 1.2995e-05,
+    "q3": 1.3014000000000001e-05,
+    "iqr_outliers": 0,
+    "stddev_outliers": 0,
+    "outliers": "0;0",
+    "ld15iqr": 1.2964000000000002e-05,
+    "hd15iqr": 1.5559e-05,
+    "ops": 5026437576.793225,
+    "total": 0.0026076519999999985,
+    "iterations": 65536
+   }
+  },
+  {
+   "group": null,
+   "name": "acc_q8::step",
+   "fullname": "bench_acc_q8_core::step",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 2802.614450638644
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "clock_gettime",
+    "min_rounds": 200,
+    "max_time": null,
+    "min_time": null,
+    "warmup": true
+   },
+   "stats": {
+    "min": 2.3103000000000002e-05,
+    "max": 4.5074e-05,
+    "mean": 2.3383880000000007e-05,
+    "stddev": 1.6566779453693973e-06,
+    "rounds": 200,
+    "median": 2.3164e-05,
+    "iqr": 5.900000000000062e-08,
+    "q1": 2.3144e-05,
+    "q3": 2.3203e-05,
+    "iqr_outliers": 0,
+    "stddev_outliers": 0,
+    "outliers": "0;0",
+    "ld15iqr": 2.3103000000000002e-05,
+    "hd15iqr": 4.5074e-05,
+    "ops": 2802614450.638644,
+    "total": 0.004676776000000001,
+    "iterations": 65536
+   }
+  },
+  {
+   "group": null,
+   "name": "acc_q8::steps",
+   "fullname": "bench_acc_q8_core::steps",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 3374.0615415109805
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "clock_gettime",
+    "min_rounds": 200,
+    "max_time": null,
+    "min_time": null,
+    "warmup": true
+   },
+   "stats": {
+    "min": 1.5238e-05,
+    "max": 5.3941000000000004e-05,
+    "mean": 1.9423475000000003e-05,
+    "stddev": 4.852351891999792e-06,
+    "rounds": 200,
+    "median": 1.5404e-05,
+    "iqr": 7.924e-06,
+    "q1": 1.5269000000000002e-05,
+    "q3": 2.3193000000000003e-05,
+    "iqr_outliers": 0,
+    "stddev_outliers": 0,
+    "outliers": "0;0",
+    "ld15iqr": 1.5238e-05,
+    "hd15iqr": 5.3941000000000004e-05,
+    "ops": 3374061541.5109806,
+    "total": 0.0038846950000000005,
+    "iterations": 65536
+   }
+  },
+  {
+   "group": null,
+   "name": "acq::native_nc90",
+   "fullname": "bench_acq_core::native_nc90",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 48.45243491246591
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "clock_gettime",
+    "min_rounds": 15,
+    "max_time": null,
+    "min_time": null,
+    "warmup": true
+   },
+   "stats": {
+    "min": 0.0033640230000000003,
+    "max": 0.005227173000000001,
+    "mean": 0.0038004282000000003,
+    "stddev": 0.0007084386017838507,
+    "rounds": 15,
+    "median": 0.003405621,
+    "iqr": 0.000512963,
+    "q1": 0.0033685470000000004,
+    "q3": 0.0038815100000000003,
+    "iqr_outliers": 0,
+    "stddev_outliers": 0,
+    "outliers": "0;0",
+    "ld15iqr": 0.0033640230000000003,
+    "hd15iqr": 0.005227173000000001,
+    "ops": 48452434.912465915,
+    "total": 0.05700642300000001,
+    "iterations": 184140
+   }
+  },
+  {
+   "group": null,
+   "name": "acq::native_nc176",
+   "fullname": "bench_acq_core::native_nc176",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 53.74565292439949
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "clock_gettime",
+    "min_rounds": 15,
+    "max_time": null,
+    "min_time": null,
+    "warmup": true
+   },
+   "stats": {
+    "min": 0.006588283,
+    "max": 0.007654784,
+    "mean": 0.006700002333333332,
+    "stddev": 0.00028834184373529047,
+    "rounds": 15,
+    "median": 0.006599084000000001,
+    "iqr": 1.4366999999999505e-05,
+    "q1": 0.0065943995000000005,
+    "q3": 0.0066087665,
+    "iqr_outliers": 0,
+    "stddev_outliers": 0,
+    "outliers": "0;0",
+    "ld15iqr": 0.006588283,
+    "hd15iqr": 0.007654784,
+    "ops": 53745652.92439949,
+    "total": 0.10050003499999999,
+    "iterations": 360096
+   }
+  },
+  {
+   "group": null,
+   "name": "acq::native_nc256",
+   "fullname": "bench_acq_core::native_nc256",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 53.02172666992971
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "clock_gettime",
+    "min_rounds": 15,
+    "max_time": null,
+    "min_time": null,
+    "warmup": true
+   },
+   "stats": {
+    "min": 0.009552959,
+    "max": 0.014134044,
+    "mean": 0.00987851646666667,
+    "stddev": 0.0011774989345406078,
+    "rounds": 15,
+    "median": 0.009572686,
+    "iqr": 1.998650000000282e-05,
+    "q1": 0.0095625175,
+    "q3": 0.009582504000000002,
+    "iqr_outliers": 0,
+    "stddev_outliers": 0,
+    "outliers": "0;0",
+    "ld15iqr": 0.009552959,
+    "hd15iqr": 0.014134044,
+    "ops": 53021726.66992971,
+    "total": 0.14817774700000003,
+    "iterations": 523776
+   }
+  },
+  {
+   "group": null,
+   "name": "acq::wideband_nc112",
+   "fullname": "bench_acq_core::wideband_nc112",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 3.3856419286104056
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "clock_gettime",
+    "min_rounds": 15,
+    "max_time": null,
+    "min_time": null,
+    "warmup": true
+   },
+   "stats": {
+    "min": 0.064383251,
+    "max": 0.09210074,
+    "mean": 0.06768347179999999,
+    "stddev": 0.007507533829206643,
+    "rounds": 15,
+    "median": 0.06463856700000001,
+    "iqr": 0.0014406209999999892,
+    "q1": 0.06455830650000001,
+    "q3": 0.0659989275,
+    "iqr_outliers": 0,
+    "stddev_outliers": 0,
+    "outliers": "0;0",
+    "ld15iqr": 0.064383251,
+    "hd15iqr": 0.09210074,
+    "ops": 3385641.928610406,
+    "total": 1.015252077,
+    "iterations": 229152
+   }
+  },
+  {
+   "group": null,
+   "name": "acq::wideband_nc215",
+   "fullname": "bench_acq_core::wideband_nc215",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 3.355617047516314
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "clock_gettime",
+    "min_rounds": 15,
+    "max_time": null,
+    "min_time": null,
+    "warmup": true
+   },
+   "stats": {
+    "min": 0.12429980700000001,
+    "max": 0.16894276899999994,
+    "mean": 0.13109064406666665,
+    "stddev": 0.012966707913685096,
+    "rounds": 15,
+    "median": 0.124661642,
+    "iqr": 0.006907001999999968,
+    "q1": 0.1245383025,
+    "q3": 0.13144530449999997,
+    "iqr_outliers": 0,
+    "stddev_outliers": 0,
+    "outliers": "0;0",
+    "ld15iqr": 0.12429980700000001,
+    "hd15iqr": 0.16894276899999994,
+    "ops": 3355617.0475163143,
+    "total": 1.9663596609999998,
+    "iterations": 439890
+   }
+  },
+  {
+   "group": null,
+   "name": "acq::wideband_nc256",
+   "fullname": "bench_acq_core::wideband_nc256",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 3.1030458272980015
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "clock_gettime",
+    "min_rounds": 15,
+    "max_time": null,
+    "min_time": null,
+    "warmup": true
+   },
+   "stats": {
+    "min": 0.14904462500000001,
+    "max": 0.21182787800000002,
+    "mean": 0.16879415553333335,
+    "stddev": 0.019715995655982522,
+    "rounds": 15,
+    "median": 0.158756384,
+    "iqr": 0.02455368500000002,
+    "q1": 0.1561276845,
+    "q3": 0.18068136950000002,
+    "iqr_outliers": 0,
+    "stddev_outliers": 0,
+    "outliers": "0;0",
+    "ld15iqr": 0.14904462500000001,
+    "hd15iqr": 0.21182787800000002,
+    "ops": 3103045.827298002,
+    "total": 2.531912333,
+    "iterations": 523776
+   }
+  },
+  {
+   "group": null,
+   "name": "adc::step",
+   "fullname": "bench_adc_core::step",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 1022.6224157566498
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "clock_gettime",
+    "min_rounds": 200,
+    "max_time": null,
+    "min_time": null,
+    "warmup": true
+   },
+   "stats": {
+    "min": 5.1786e-05,
+    "max": 0.000142086,
+    "mean": 6.408621499999995e-05,
+    "stddev": 1.8111870302318774e-05,
+    "rounds": 200,
+    "median": 5.1886000000000004e-05,
+    "iqr": 3.646800000000001e-05,
+    "q1": 5.1847e-05,
+    "q3": 8.831500000000001e-05,
+    "iqr_outliers": 0,
+    "stddev_outliers": 0,
+    "outliers": "0;0",
+    "ld15iqr": 5.1786e-05,
+    "hd15iqr": 0.000142086,
+    "ops": 1022622415.7566499,
+    "total": 0.01281724299999999,
+    "iterations": 65536
+   }
+  },
+  {
+   "group": null,
+   "name": "adc::steps",
+   "fullname": "bench_adc_core::steps",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 827.7644127613594
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "clock_gettime",
+    "min_rounds": 200,
+    "max_time": null,
+    "min_time": null,
+    "warmup": true
+   },
+   "stats": {
+    "min": 5.8238e-05,
+    "max": 0.000210883,
+    "mean": 7.917228500000002e-05,
+    "stddev": 2.9547779056464183e-05,
+    "rounds": 200,
+    "median": 5.8590000000000007e-05,
+    "iqr": 3.930550000000001e-05,
+    "q1": 5.83665e-05,
+    "q3": 9.767200000000001e-05,
+    "iqr_outliers": 0,
+    "stddev_outliers": 0,
+    "outliers": "0;0",
+    "ld15iqr": 5.8238e-05,
+    "hd15iqr": 0.000210883,
+    "ops": 827764412.7613595,
+    "total": 0.015834457000000003,
+    "iterations": 65536
+   }
+  },
+  {
+   "group": null,
+   "name": "agc::step",
+   "fullname": "bench_agc_core::step",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 34.29321670430246
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "clock_gettime",
+    "min_rounds": 200,
+    "max_time": null,
+    "min_time": null,
+    "warmup": true
+   },
+   "stats": {
+    "min": 0.001747353,
+    "max": 0.004011761,
+    "mean": 0.0019110484900000003,
+    "stddev": 0.00047788311597998903,
+    "rounds": 200,
+    "median": 0.0017602020000000002,
+    "iqr": 5.853500000000062e-06,
+    "q1": 0.001756991,
+    "q3": 0.0017628445000000001,
+    "iqr_outliers": 0,
+    "stddev_outliers": 0,
+    "outliers": "0;0",
+    "ld15iqr": 0.001747353,
+    "hd15iqr": 0.004011761,
+    "ops": 34293216.70430246,
+    "total": 0.38220969800000004,
+    "iterations": 65536
+   }
+  },
+  {
+   "group": null,
+   "name": "agc::steps",
+   "fullname": "bench_agc_core::steps",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 134.52274103180778
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "clock_gettime",
+    "min_rounds": 200,
+    "max_time": null,
+    "min_time": null,
+    "warmup": true
+   },
+   "stats": {
+    "min": 0.00048413400000000005,
+    "max": 0.000585924,
+    "mean": 0.00048717413500000027,
+    "stddev": 7.3555901277472e-06,
+    "rounds": 200,
+    "median": 0.00048629300000000006,
+    "iqr": 2.505000000000031e-06,
+    "q1": 0.00048530100000000005,
+    "q3": 0.0004878060000000001,
+    "iqr_outliers": 0,
+    "stddev_outliers": 0,
+    "outliers": "0;0",
+    "ld15iqr": 0.00048413400000000005,
+    "hd15iqr": 0.000585924,
+    "ops": 134522741.03180778,
+    "total": 0.09743482700000006,
+    "iterations": 65536
+   }
+  },
+  {
+   "group": null,
+   "name": "boxcar::step",
+   "fullname": "bench_boxcar_core::step",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 1094.1820323142322
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "clock_gettime",
+    "min_rounds": 200,
+    "max_time": null,
+    "min_time": null,
+    "warmup": true
+   },
+   "stats": {
+    "min": 5.1926000000000004e-05,
+    "max": 0.00016106,
+    "mean": 5.989497000000004e-05,
+    "stddev": 2.643921920879955e-05,
+    "rounds": 200,
+    "median": 5.2007000000000005e-05,
+    "iqr": 4.100000000000181e-08,
+    "q1": 5.1987e-05,
+    "q3": 5.2028000000000004e-05,
+    "iqr_outliers": 0,
+    "stddev_outliers": 0,
+    "outliers": "0;0",
+    "ld15iqr": 5.1926000000000004e-05,
+    "hd15iqr": 0.00016106,
+    "ops": 1094182032.314232,
+    "total": 0.011978994000000008,
+    "iterations": 65536
+   }
+  },
+  {
+   "group": null,
+   "name": "boxcar::steps",
+   "fullname": "bench_boxcar_core::steps",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 334.70158745771965
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "clock_gettime",
+    "min_rounds": 200,
+    "max_time": null,
+    "min_time": null,
+    "warmup": true
+   },
+   "stats": {
+    "min": 0.000194744,
+    "max": 0.000284912,
+    "mean": 0.0001958042700000001,
+    "stddev": 6.399060327302933e-06,
+    "rounds": 200,
+    "median": 0.000194964,
+    "iqr": 8.249999999997083e-08,
+    "q1": 0.00019493150000000003,
+    "q3": 0.000195014,
+    "iqr_outliers": 0,
+    "stddev_outliers": 0,
+    "outliers": "0;0",
+    "ld15iqr": 0.000194744,
+    "hd15iqr": 0.000284912,
+    "ops": 334701587.4577197,
+    "total": 0.03916085400000002,
+    "iterations": 65536
+   }
+  },
+  {
+   "group": null,
+   "name": "carrier_nda::step",
+   "fullname": "bench_carrier_nda_core::step",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 77.01445457053217
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "clock_gettime",
+    "min_rounds": 200,
+    "max_time": null,
+    "min_time": null,
+    "warmup": true
+   },
+   "stats": {
+    "min": 0.000660023,
+    "max": 0.0017565710000000002,
+    "mean": 0.0008509571400000001,
+    "stddev": 0.00020452286935021874,
+    "rounds": 200,
+    "median": 0.000822822,
+    "iqr": 0.00028124,
+    "q1": 0.0006701495,
+    "q3": 0.0009513895,
+    "iqr_outliers": 0,
+    "stddev_outliers": 0,
+    "outliers": "0;0",
+    "ld15iqr": 0.000660023,
+    "hd15iqr": 0.0017565710000000002,
+    "ops": 77014454.57053217,
+    "total": 0.17019142800000003,
+    "iterations": 65536
+   }
+  },
+  {
+   "group": null,
+   "name": "carrier_nda::steps",
+   "fullname": "bench_carrier_nda_core::steps",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 95.23278229266616
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "clock_gettime",
+    "min_rounds": 200,
+    "max_time": null,
+    "min_time": null,
+    "warmup": true
+   },
+   "stats": {
+    "min": 0.0006729170000000001,
+    "max": 0.000699456,
+    "mean": 0.00068816639,
+    "stddev": 3.799013190819436e-06,
+    "rounds": 200,
+    "median": 0.0006881400000000001,
+    "iqr": 4.73149999999996e-06,
+    "q1": 0.0006857382500000001,
+    "q3": 0.00069046975,
+    "iqr_outliers": 0,
+    "stddev_outliers": 0,
+    "outliers": "0;0",
+    "ld15iqr": 0.0006729170000000001,
+    "hd15iqr": 0.000699456,
+    "ops": 95232782.29266617,
+    "total": 0.137633278,
+    "iterations": 65536
+   }
+  },
+  {
+   "group": null,
+   "name": "cic::decimate",
+   "fullname": "bench_cic_core::decimate",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 633.4883705644046
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "clock_gettime",
+    "min_rounds": 200,
+    "max_time": null,
+    "min_time": null,
+    "warmup": true
+   },
+   "stats": {
+    "min": 8.853600000000001e-05,
+    "max": 0.000214791,
+    "mean": 0.00010345257,
+    "stddev": 3.570498196865544e-05,
+    "rounds": 200,
+    "median": 8.8696e-05,
+    "iqr": 2.459999999999973e-07,
+    "q1": 8.8645e-05,
+    "q3": 8.8891e-05,
+    "iqr_outliers": 0,
+    "stddev_outliers": 0,
+    "outliers": "0;0",
+    "ld15iqr": 8.853600000000001e-05,
+    "hd15iqr": 0.000214791,
+    "ops": 633488370.5644046,
+    "total": 0.020690514,
+    "iterations": 65536
+   }
+  },
+  {
+   "group": null,
+   "name": "corr2d::single_row_fast_path",
+   "fullname": "bench_corr2d_core::single_row_fast_path",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 61.71509599962656
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "clock_gettime",
+    "min_rounds": 50,
+    "max_time": null,
+    "min_time": null,
+    "warmup": true
+   },
+   "stats": {
+    "min": 0.000428159,
+    "max": 0.000986413,
+    "mean": 0.0005304374800000001,
+    "stddev": 0.00019915047170708048,
+    "rounds": 50,
+    "median": 0.000431486,
+    "iqr": 7.047749999999973e-06,
+    "q1": 0.00042923175000000006,
+    "q3": 0.00043627950000000004,
+    "iqr_outliers": 0,
+    "stddev_outliers": 0,
+    "outliers": "0;0",
+    "ld15iqr": 0.000428159,
+    "hd15iqr": 0.000986413,
+    "ops": 61715095.99962656,
+    "total": 0.026521874,
+    "iterations": 32736
+   }
+  },
+  {
+   "group": null,
+   "name": "corr2d::multi_row_general_path",
+   "fullname": "bench_corr2d_core::multi_row_general_path",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 60.68671196814035
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "clock_gettime",
+    "min_rounds": 50,
+    "max_time": null,
+    "min_time": null,
+    "warmup": true
+   },
+   "stats": {
+    "min": 0.000537083,
+    "max": 0.00054579,
+    "mean": 0.0005394261600000001,
+    "stddev": 1.8071783323451896e-06,
+    "rounds": 50,
+    "median": 0.0005398835000000001,
+    "iqr": 2.565750000000093e-06,
+    "q1": 0.0005378140000000001,
+    "q3": 0.0005403797500000002,
+    "iqr_outliers": 0,
+    "stddev_outliers": 0,
+    "outliers": "0;0",
+    "ld15iqr": 0.000537083,
+    "hd15iqr": 0.00054579,
+    "ops": 60686711.968140356,
+    "total": 0.026971308000000006,
+    "iterations": 32736
+   }
+  },
+  {
+   "group": null,
+   "name": "costas::steps",
+   "fullname": "bench_costas_core::steps",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 383.1721946410209
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "clock_gettime",
+    "min_rounds": 200,
+    "max_time": null,
+    "min_time": null,
+    "warmup": true
+   },
+   "stats": {
+    "min": 0.000153627,
+    "max": 0.00046894600000000003,
+    "mean": 0.000171035375,
+    "stddev": 5.737211781490389e-05,
+    "rounds": 200,
+    "median": 0.000154128,
+    "iqr": 1.3122500000000076e-06,
+    "q1": 0.00015398775,
+    "q3": 0.0001553,
+    "iqr_outliers": 0,
+    "stddev_outliers": 0,
+    "outliers": "0;0",
+    "ld15iqr": 0.000153627,
+    "hd15iqr": 0.00046894600000000003,
+    "ops": 383172194.6410209,
+    "total": 0.034207075,
+    "iterations": 65536
+   }
+  },
+  {
+   "group": null,
+   "name": "delay::push",
+   "fullname": "bench_delay_core::push",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 429.25877765458375
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "clock_gettime",
+    "min_rounds": 200,
+    "max_time": null,
+    "min_time": null,
+    "warmup": true
+   },
+   "stats": {
+    "min": 0.00012188700000000001,
+    "max": 0.00039140100000000004,
+    "mean": 0.00015267247500000002,
+    "stddev": 5.4525177137527666e-05,
+    "rounds": 200,
+    "median": 0.000128756,
+    "iqr": 7.168749999999981e-06,
+    "q1": 0.000125379,
+    "q3": 0.00013254775,
+    "iqr_outliers": 0,
+    "stddev_outliers": 0,
+    "outliers": "0;0",
+    "ld15iqr": 0.00012188700000000001,
+    "hd15iqr": 0.00039140100000000004,
+    "ops": 429258777.65458375,
+    "total": 0.030534495000000005,
+    "iterations": 65536
+   }
+  },
+  {
+   "group": null,
+   "name": "delay::write",
+   "fullname": "bench_delay_core::write",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 555.3232623089375
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "clock_gettime",
+    "min_rounds": 200,
+    "max_time": null,
+    "min_time": null,
+    "warmup": true
+   },
+   "stats": {
+    "min": 0.00011685800000000001,
+    "max": 0.00012325000000000001,
+    "mean": 0.00011801414500000002,
+    "stddev": 1.5925376020820436e-06,
+    "rounds": 200,
+    "median": 0.000116909,
+    "iqr": 2.202249999999994e-06,
+    "q1": 0.00011688800000000001,
+    "q3": 0.00011909025,
+    "iqr_outliers": 0,
+    "stddev_outliers": 0,
+    "outliers": "0;0",
+    "ld15iqr": 0.00011685800000000001,
+    "hd15iqr": 0.00012325000000000001,
+    "ops": 555323262.3089375,
+    "total": 0.023602829000000002,
+    "iterations": 65536
+   }
+  },
+  {
+   "group": null,
+   "name": "despreader::steps",
+   "fullname": "bench_despreader_core::steps",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 35.88879426449141
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "clock_gettime",
+    "min_rounds": 200,
+    "max_time": null,
+    "min_time": null,
+    "warmup": true
+   },
+   "stats": {
+    "min": 0.001595279,
+    "max": 0.003511529,
+    "mean": 0.0018260853099999997,
+    "stddev": 0.0004373248195014593,
+    "rounds": 200,
+    "median": 0.0016007445,
+    "iqr": 0.00031094525000000006,
+    "q1": 0.0015983582500000001,
+    "q3": 0.0019093035000000002,
+    "iqr_outliers": 0,
+    "stddev_outliers": 0,
+    "outliers": "0;0",
+    "ld15iqr": 0.001595279,
+    "hd15iqr": 0.003511529,
+    "ops": 35888794.26449141,
+    "total": 0.3652170619999999,
+    "iterations": 65536
+   }
+  },
+  {
+   "group": null,
+   "name": "dll::steps",
+   "fullname": "bench_dll_core::steps",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 39.90078551809952
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "clock_gettime",
+    "min_rounds": 200,
+    "max_time": null,
+    "min_time": null,
+    "warmup": true
+   },
+   "stats": {
+    "min": 0.0014347300000000002,
+    "max": 0.004116678,
+    "mean": 0.0016424739300000002,
+    "stddev": 0.0005213985269579835,
+    "rounds": 200,
+    "median": 0.0014395135,
+    "iqr": 1.7009249999999773e-05,
+    "q1": 0.0014375950000000003,
+    "q3": 0.00145460425,
+    "iqr_outliers": 0,
+    "stddev_outliers": 0,
+    "outliers": "0;0",
+    "ld15iqr": 0.0014347300000000002,
+    "hd15iqr": 0.004116678,
+    "ops": 39900785.51809952,
+    "total": 0.32849478600000004,
+    "iterations": 65536
+   }
+  },
+  {
+   "group": null,
+   "name": "dsss_receiver::search",
+   "fullname": "bench_dsss_receiver_core::search",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 83.06065957889807
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "clock_gettime",
+    "min_rounds": 50,
+    "max_time": null,
+    "min_time": null,
+    "warmup": true
+   },
+   "stats": {
+    "min": 0.0006475690000000001,
+    "max": 0.001441783,
+    "mean": 0.00078901372,
+    "stddev": 0.00028920734412225173,
+    "rounds": 50,
+    "median": 0.0006557795000000001,
+    "iqr": 9.117000000000001e-06,
+    "q1": 0.000652048,
+    "q3": 0.000661165,
+    "iqr_outliers": 0,
+    "stddev_outliers": 0,
+    "outliers": "0;0",
+    "ld15iqr": 0.0006475690000000001,
+    "hd15iqr": 0.001441783,
+    "ops": 83060659.57889807,
+    "total": 0.039450686,
+    "iterations": 65536
+   }
+  },
+  {
+   "group": null,
+   "name": "dsss_receiver::track",
+   "fullname": "bench_dsss_receiver_core::track",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 36.03203186934694
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "clock_gettime",
+    "min_rounds": 50,
+    "max_time": null,
+    "min_time": null,
+    "warmup": true
+   },
+   "stats": {
+    "min": 0.001811763,
+    "max": 0.0018397650000000002,
+    "mean": 0.0018188261,
+    "stddev": 5.4585362927421926e-06,
+    "rounds": 50,
+    "median": 0.001817699,
+    "iqr": 4.596249999999809e-06,
+    "q1": 0.0018155102500000003,
+    "q3": 0.0018201065,
+    "iqr_outliers": 0,
+    "stddev_outliers": 0,
+    "outliers": "0;0",
+    "ld15iqr": 0.001811763,
+    "hd15iqr": 0.0018397650000000002,
+    "ops": 36032031.86934694,
+    "total": 0.090941305,
+    "iterations": 65536
+   }
+  },
+  {
+   "group": null,
+   "name": "f32_to_i16::step",
+   "fullname": "bench_f32_to_i16_core::step",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 397.7084067817365
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "clock_gettime",
+    "min_rounds": 200,
+    "max_time": null,
+    "min_time": null,
+    "warmup": true
+   },
+   "stats": {
+    "min": 0.000142776,
+    "max": 0.000339093,
+    "mean": 0.00016478404500000005,
+    "stddev": 5.5217154943579726e-05,
+    "rounds": 200,
+    "median": 0.00014293700000000002,
+    "iqr": 1.4905000000000224e-06,
+    "q1": 0.00014284675,
+    "q3": 0.00014433725000000003,
+    "iqr_outliers": 0,
+    "stddev_outliers": 0,
+    "outliers": "0;0",
+    "ld15iqr": 0.000142776,
+    "hd15iqr": 0.000339093,
+    "ops": 397708406.78173655,
+    "total": 0.03295680900000001,
+    "iterations": 65536
+   }
+  },
+  {
+   "group": null,
+   "name": "f32_to_i16::steps",
+   "fullname": "bench_f32_to_i16_core::steps",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 375.20245867075016
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "clock_gettime",
+    "min_rounds": 200,
+    "max_time": null,
+    "min_time": null,
+    "warmup": true
+   },
+   "stats": {
+    "min": 0.000129753,
+    "max": 0.0006571670000000001,
+    "mean": 0.00017466836499999998,
+    "stddev": 7.860970842743923e-05,
+    "rounds": 200,
+    "median": 0.00012988300000000002,
+    "iqr": 0.00014771849999999998,
+    "q1": 0.00012985975,
+    "q3": 0.00027757825,
+    "iqr_outliers": 0,
+    "stddev_outliers": 0,
+    "outliers": "0;0",
+    "ld15iqr": 0.000129753,
+    "hd15iqr": 0.0006571670000000001,
+    "ops": 375202458.6707502,
+    "total": 0.034933673,
+    "iterations": 65536
+   }
+  },
+  {
+   "group": null,
+   "name": "f32_to_i16u32::step",
+   "fullname": "bench_f32_to_i16u32_core::step",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 331.76933910844974
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "clock_gettime",
+    "min_rounds": 200,
+    "max_time": null,
+    "min_time": null,
+    "warmup": true
+   },
+   "stats": {
+    "min": 0.00014272700000000002,
+    "max": 0.00043524300000000003,
+    "mean": 0.0001975348300000001,
+    "stddev": 8.073862814635806e-05,
+    "rounds": 200,
+    "median": 0.00014294200000000001,
+    "iqr": 0.00016251625000000003,
+    "q1": 0.000142857,
+    "q3": 0.00030537325000000004,
+    "iqr_outliers": 0,
+    "stddev_outliers": 0,
+    "outliers": "0;0",
+    "ld15iqr": 0.00014272700000000002,
+    "hd15iqr": 0.00043524300000000003,
+    "ops": 331769339.10844976,
+    "total": 0.03950696600000002,
+    "iterations": 65536
+   }
+  },
+  {
+   "group": null,
+   "name": "f32_to_i16u32::steps",
+   "fullname": "bench_f32_to_i16u32_core::steps",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 502.63492955357
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "clock_gettime",
+    "min_rounds": 200,
+    "max_time": null,
+    "min_time": null,
+    "warmup": true
+   },
+   "stats": {
+    "min": 0.000129763,
+    "max": 0.000172522,
+    "mean": 0.00013038489000000007,
+    "stddev": 3.122067756033865e-06,
+    "rounds": 200,
+    "median": 0.000129893,
+    "iqr": 1.4099999999999746e-07,
+    "q1": 0.00012980200000000002,
+    "q3": 0.000129943,
+    "iqr_outliers": 0,
+    "stddev_outliers": 0,
+    "outliers": "0;0",
+    "ld15iqr": 0.000129763,
+    "hd15iqr": 0.000172522,
+    "ops": 502634929.55357,
+    "total": 0.02607697800000001,
+    "iterations": 65536
+   }
+  },
+  {
+   "group": null,
+   "name": "f32_to_i16u64::step",
+   "fullname": "bench_f32_to_i16u64_core::step",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 443.63762544748107
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "clock_gettime",
+    "min_rounds": 200,
+    "max_time": null,
+    "min_time": null,
+    "warmup": true
+   },
+   "stats": {
+    "min": 0.000142747,
+    "max": 0.00031145200000000004,
+    "mean": 0.00014772416999999995,
+    "stddev": 2.3908925844888598e-05,
+    "rounds": 200,
+    "median": 0.00014287700000000002,
+    "iqr": 1.609999999999871e-07,
+    "q1": 0.000142816,
+    "q3": 0.000142977,
+    "iqr_outliers": 0,
+    "stddev_outliers": 0,
+    "outliers": "0;0",
+    "ld15iqr": 0.000142747,
+    "hd15iqr": 0.00031145200000000004,
+    "ops": 443637625.4474811,
+    "total": 0.02954483399999999,
+    "iterations": 65536
+   }
+  },
+  {
+   "group": null,
+   "name": "f32_to_i16u64::steps",
+   "fullname": "bench_f32_to_i16u64_core::steps",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 453.7824424222329
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "clock_gettime",
+    "min_rounds": 200,
+    "max_time": null,
+    "min_time": null,
+    "warmup": true
+   },
+   "stats": {
+    "min": 0.000142767,
+    "max": 0.00038564000000000003,
+    "mean": 0.00014442162999999994,
+    "stddev": 1.717067715446348e-05,
+    "rounds": 200,
+    "median": 0.000142907,
+    "iqr": 9.34999999999814e-08,
+    "q1": 0.00014285600000000002,
+    "q3": 0.0001429495,
+    "iqr_outliers": 0,
+    "stddev_outliers": 0,
+    "outliers": "0;0",
+    "ld15iqr": 0.000142767,
+    "hd15iqr": 0.00038564000000000003,
+    "ops": 453782442.4222329,
+    "total": 0.028884325999999988,
+    "iterations": 65536
+   }
+  },
+  {
+   "group": null,
+   "name": "f32_to_uq15::step",
+   "fullname": "bench_f32_to_uq15_core::step",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 308.53922898619084
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "clock_gettime",
+    "min_rounds": 200,
+    "max_time": null,
+    "min_time": null,
+    "warmup": true
+   },
+   "stats": {
+    "min": 0.000203851,
+    "max": 0.00041406300000000005,
+    "mean": 0.00021240735000000003,
+    "stddev": 2.966508540892973e-05,
+    "rounds": 200,
+    "median": 0.00020403100000000003,
+    "iqr": 1.6229999999999945e-06,
+    "q1": 0.000203961,
+    "q3": 0.000205584,
+    "iqr_outliers": 0,
+    "stddev_outliers": 0,
+    "outliers": "0;0",
+    "ld15iqr": 0.000203851,
+    "hd15iqr": 0.00041406300000000005,
+    "ops": 308539228.98619086,
+    "total": 0.04248147000000001,
+    "iterations": 65536
+   }
+  },
+  {
+   "group": null,
+   "name": "f32_to_uq15::steps",
+   "fullname": "bench_f32_to_uq15_core::steps",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 457.574546298737
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "clock_gettime",
+    "min_rounds": 200,
+    "max_time": null,
+    "min_time": null,
+    "warmup": true
+   },
+   "stats": {
+    "min": 0.000142766,
+    "max": 0.000164508,
+    "mean": 0.0001432247499999999,
+    "stddev": 1.637037266699452e-06,
+    "rounds": 200,
+    "median": 0.0001428765,
+    "iqr": 1.1999999999999207e-07,
+    "q1": 0.00014282700000000002,
+    "q3": 0.000142947,
+    "iqr_outliers": 0,
+    "stddev_outliers": 0,
+    "outliers": "0;0",
+    "ld15iqr": 0.000142766,
+    "hd15iqr": 0.000164508,
+    "ops": 457574546.29873705,
+    "total": 0.02864494999999998,
+    "iterations": 65536
+   }
+  },
+  {
+   "group": null,
+   "name": "farrow::delay_linear",
+   "fullname": "bench_farrow_core::delay_linear",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 335.2953109255692
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "clock_gettime",
+    "min_rounds": 200,
+    "max_time": null,
+    "min_time": null,
+    "warmup": true
+   },
+   "stats": {
+    "min": 0.000168695,
+    "max": 0.00047404500000000003,
+    "mean": 0.00019545755,
+    "stddev": 6.66283793552344e-05,
+    "rounds": 200,
+    "median": 0.0001689155,
+    "iqr": 1.772999999999998e-06,
+    "q1": 0.00016886600000000002,
+    "q3": 0.00017063900000000002,
+    "iqr_outliers": 0,
+    "stddev_outliers": 0,
+    "outliers": "0;0",
+    "ld15iqr": 0.000168695,
+    "hd15iqr": 0.00047404500000000003,
+    "ops": 335295310.92556924,
+    "total": 0.03909151,
+    "iterations": 65536
+   }
+  },
+  {
+   "group": null,
+   "name": "farrow::delay_parabolic",
+   "fullname": "bench_farrow_core::delay_parabolic",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 329.1909370222917
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "clock_gettime",
+    "min_rounds": 200,
+    "max_time": null,
+    "min_time": null,
+    "warmup": true
+   },
+   "stats": {
+    "min": 0.000142055,
+    "max": 0.000548023,
+    "mean": 0.00019908203000000002,
+    "stddev": 8.497958418307744e-05,
+    "rounds": 200,
+    "median": 0.000143423,
+    "iqr": 0.00016271975,
+    "q1": 0.00014309700000000002,
+    "q3": 0.00030581675,
+    "iqr_outliers": 0,
+    "stddev_outliers": 0,
+    "outliers": "0;0",
+    "ld15iqr": 0.000142055,
+    "hd15iqr": 0.000548023,
+    "ops": 329190937.0222917,
+    "total": 0.039816406000000006,
+    "iterations": 65536
+   }
+  },
+  {
+   "group": null,
+   "name": "farrow::delay_cubic",
+   "fullname": "bench_farrow_core::delay_cubic",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 408.44472685399126
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "clock_gettime",
+    "min_rounds": 200,
+    "max_time": null,
+    "min_time": null,
+    "warmup": true
+   },
+   "stats": {
+    "min": 0.000136956,
+    "max": 0.00041987400000000004,
+    "mean": 0.00016045255499999998,
+    "stddev": 5.891728920344509e-05,
+    "rounds": 200,
+    "median": 0.00013799800000000002,
+    "iqr": 1.6422499999999994e-06,
+    "q1": 0.00013763775,
+    "q3": 0.00013928,
+    "iqr_outliers": 0,
+    "stddev_outliers": 0,
+    "outliers": "0;0",
+    "ld15iqr": 0.000136956,
+    "hd15iqr": 0.00041987400000000004,
+    "ops": 408444726.85399127,
+    "total": 0.032090510999999995,
+    "iterations": 65536
+   }
+  },
+  {
+   "group": null,
+   "name": "i16_to_f32::step",
+   "fullname": "bench_i16_to_f32_core::step",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 2495.0169901078375
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "clock_gettime",
+    "min_rounds": 200,
+    "max_time": null,
+    "min_time": null,
+    "warmup": true
+   },
+   "stats": {
+    "min": 1.8665000000000002e-05,
+    "max": 0.00010494600000000001,
+    "mean": 2.6266755e-05,
+    "stddev": 1.1762692205638895e-05,
+    "rounds": 200,
+    "median": 1.91455e-05,
+    "iqr": 9.349500000000003e-06,
+    "q1": 1.8715e-05,
+    "q3": 2.8064500000000002e-05,
+    "iqr_outliers": 0,
+    "stddev_outliers": 0,
+    "outliers": "0;0",
+    "ld15iqr": 1.8665000000000002e-05,
+    "hd15iqr": 0.00010494600000000001,
+    "ops": 2495016990.1078377,
+    "total": 0.005253351,
+    "iterations": 65536
+   }
+  },
+  {
+   "group": null,
+   "name": "i16_to_f32::steps",
+   "fullname": "bench_i16_to_f32_core::steps",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 12469.59233512792
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "clock_gettime",
+    "min_rounds": 200,
+    "max_time": null,
+    "min_time": null,
+    "warmup": true
+   },
+   "stats": {
+    "min": 4.899e-06,
+    "max": 6.3398e-05,
+    "mean": 5.255664999999994e-06,
+    "stddev": 4.165083368928601e-06,
+    "rounds": 200,
+    "median": 4.919000000000001e-06,
+    "iqr": 1.0000000000000751e-08,
+    "q1": 4.909e-06,
+    "q3": 4.919000000000001e-06,
+    "iqr_outliers": 0,
+    "stddev_outliers": 0,
+    "outliers": "0;0",
+    "ld15iqr": 4.899e-06,
+    "hd15iqr": 6.3398e-05,
+    "ops": 12469592335.12792,
+    "total": 0.0010511329999999988,
+    "iterations": 65536
+   }
+  },
+  {
+   "group": null,
+   "name": "i16u32_to_f32::step",
+   "fullname": "bench_i16u32_to_f32_core::step",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 2999.4944852205003
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "clock_gettime",
+    "min_rounds": 200,
+    "max_time": null,
+    "min_time": null,
+    "warmup": true
+   },
+   "stats": {
+    "min": 1.8805e-05,
+    "max": 5.881e-05,
+    "mean": 2.1849015e-05,
+    "stddev": 7.699167050475698e-06,
+    "rounds": 200,
+    "median": 1.9105500000000002e-05,
+    "iqr": 2.5024999999999985e-07,
+    "q1": 1.8995750000000002e-05,
+    "q3": 1.9246000000000002e-05,
+    "iqr_outliers": 0,
+    "stddev_outliers": 0,
+    "outliers": "0;0",
+    "ld15iqr": 1.8805e-05,
+    "hd15iqr": 5.881e-05,
+    "ops": 2999494485.2205005,
+    "total": 0.004369803,
+    "iterations": 65536
+   }
+  },
+  {
+   "group": null,
+   "name": "i16u32_to_f32::steps",
+   "fullname": "bench_i16u32_to_f32_core::steps",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 9254.307773231614
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "clock_gettime",
+    "min_rounds": 200,
+    "max_time": null,
+    "min_time": null,
+    "warmup": true
+   },
+   "stats": {
+    "min": 6.752000000000001e-06,
+    "max": 5.8028e-05,
+    "mean": 7.081675e-06,
+    "stddev": 3.6270570707319634e-06,
+    "rounds": 200,
+    "median": 6.802e-06,
+    "iqr": 4.0000000000000464e-08,
+    "q1": 6.783e-06,
+    "q3": 6.8230000000000006e-06,
+    "iqr_outliers": 0,
+    "stddev_outliers": 0,
+    "outliers": "0;0",
+    "ld15iqr": 6.752000000000001e-06,
+    "hd15iqr": 5.8028e-05,
+    "ops": 9254307773.231615,
+    "total": 0.0014163350000000001,
+    "iterations": 65536
+   }
+  },
+  {
+   "group": null,
+   "name": "i16u64_to_f32::step",
+   "fullname": "bench_i16u64_to_f32_core::step",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 2516.810644523731
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "clock_gettime",
+    "min_rounds": 200,
+    "max_time": null,
+    "min_time": null,
+    "warmup": true
+   },
+   "stats": {
+    "min": 1.8535e-05,
+    "max": 6.1395e-05,
+    "mean": 2.6039304999999997e-05,
+    "stddev": 5.045607439560248e-06,
+    "rounds": 200,
+    "median": 2.7826500000000002e-05,
+    "iqr": 8.324999999999958e-08,
+    "q1": 2.7778750000000002e-05,
+    "q3": 2.7862000000000002e-05,
+    "iqr_outliers": 0,
+    "stddev_outliers": 0,
+    "outliers": "0;0",
+    "ld15iqr": 1.8535e-05,
+    "hd15iqr": 6.1395e-05,
+    "ops": 2516810644.5237308,
+    "total": 0.005207860999999999,
+    "iterations": 65536
+   }
+  },
+  {
+   "group": null,
+   "name": "i16u64_to_f32::steps",
+   "fullname": "bench_i16u64_to_f32_core::steps",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 4753.115206617919
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "clock_gettime",
+    "min_rounds": 200,
+    "max_time": null,
+    "min_time": null,
+    "warmup": true
+   },
+   "stats": {
+    "min": 1.3305e-05,
+    "max": 6.7666e-05,
+    "mean": 1.3788010000000012e-05,
+    "stddev": 4.220522313993207e-06,
+    "rounds": 200,
+    "median": 1.3355e-05,
+    "iqr": 3.000000000000141e-08,
+    "q1": 1.3335e-05,
+    "q3": 1.3365000000000002e-05,
+    "iqr_outliers": 0,
+    "stddev_outliers": 0,
+    "outliers": "0;0",
+    "ld15iqr": 1.3305e-05,
+    "hd15iqr": 6.7666e-05,
+    "ops": 4753115206.61792,
+    "total": 0.0027576020000000022,
+    "iterations": 65536
+   }
+  },
+  {
+   "group": null,
+   "name": "i32_to_f32::step",
+   "fullname": "bench_i32_to_f32_core::step",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 3018.560628915927
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "clock_gettime",
+    "min_rounds": 200,
+    "max_time": null,
+    "min_time": null,
+    "warmup": true
+   },
+   "stats": {
+    "min": 1.8554000000000002e-05,
+    "max": 5.4401e-05,
+    "mean": 2.1711010000000007e-05,
+    "stddev": 4.951366563295491e-06,
+    "rounds": 200,
+    "median": 1.8595e-05,
+    "iqr": 9.18725e-06,
+    "q1": 1.8584750000000002e-05,
+    "q3": 2.7772e-05,
+    "iqr_outliers": 0,
+    "stddev_outliers": 0,
+    "outliers": "0;0",
+    "ld15iqr": 1.8554000000000002e-05,
+    "hd15iqr": 5.4401e-05,
+    "ops": 3018560628.915927,
+    "total": 0.004342202000000002,
+    "iterations": 65536
+   }
+  },
+  {
+   "group": null,
+   "name": "i32_to_f32::steps",
+   "fullname": "bench_i32_to_f32_core::steps",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 13331.231342714329
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "clock_gettime",
+    "min_rounds": 200,
+    "max_time": null,
+    "min_time": null,
+    "warmup": true
+   },
+   "stats": {
+    "min": 4.678e-06,
+    "max": 4.7799e-05,
+    "mean": 4.915974999999995e-06,
+    "stddev": 3.0501857319468037e-06,
+    "rounds": 200,
+    "median": 4.689e-06,
+    "iqr": 2.4999999999970114e-10,
+    "q1": 4.688750000000001e-06,
+    "q3": 4.689e-06,
+    "iqr_outliers": 0,
+    "stddev_outliers": 0,
+    "outliers": "0;0",
+    "ld15iqr": 4.678e-06,
+    "hd15iqr": 4.7799e-05,
+    "ops": 13331231342.714329,
+    "total": 0.000983194999999999,
+    "iterations": 65536
+   }
+  },
+  {
+   "group": null,
+   "name": "i8_to_f32::step",
+   "fullname": "bench_i8_to_f32_core::step",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 2496.00762939832
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "clock_gettime",
+    "min_rounds": 200,
+    "max_time": null,
+    "min_time": null,
+    "warmup": true
+   },
+   "stats": {
+    "min": 1.8635e-05,
+    "max": 4.9563000000000006e-05,
+    "mean": 2.6256330000000003e-05,
+    "stddev": 4.293030131462888e-06,
+    "rounds": 200,
+    "median": 2.7912000000000003e-05,
+    "iqr": 1.5000000000000026e-07,
+    "q1": 2.7862000000000002e-05,
+    "q3": 2.8012000000000002e-05,
+    "iqr_outliers": 0,
+    "stddev_outliers": 0,
+    "outliers": "0;0",
+    "ld15iqr": 1.8635e-05,
+    "hd15iqr": 4.9563000000000006e-05,
+    "ops": 2496007629.39832,
+    "total": 0.005251266000000001,
+    "iterations": 65536
+   }
+  },
+  {
+   "group": null,
+   "name": "i8_to_f32::steps",
+   "fullname": "bench_i8_to_f32_core::steps",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 9967.406992819811
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "clock_gettime",
+    "min_rounds": 200,
+    "max_time": null,
+    "min_time": null,
+    "warmup": true
+   },
+   "stats": {
+    "min": 6.192e-06,
+    "max": 5.5634e-05,
+    "mean": 6.575029999999994e-06,
+    "stddev": 3.53675050999498e-06,
+    "rounds": 200,
+    "median": 6.241e-06,
+    "iqr": 9.100000000000048e-08,
+    "q1": 6.231e-06,
+    "q3": 6.322000000000001e-06,
+    "iqr_outliers": 0,
+    "stddev_outliers": 0,
+    "outliers": "0;0",
+    "ld15iqr": 6.192e-06,
+    "hd15iqr": 5.5634e-05,
+    "ops": 9967406992.819813,
+    "total": 0.0013150059999999988,
+    "iterations": 65536
+   }
+  },
+  {
+   "group": null,
+   "name": "lo::step",
+   "fullname": "bench_lo_core::step",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 1733.1328234903813
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "clock_gettime",
+    "min_rounds": 200,
+    "max_time": null,
+    "min_time": null,
+    "warmup": true
+   },
+   "stats": {
+    "min": 3.5817e-05,
+    "max": 0.00019441300000000002,
+    "mean": 3.7813605e-05,
+    "stddev": 1.1848699293751351e-05,
+    "rounds": 200,
+    "median": 3.63775e-05,
+    "iqr": 5.334999999999975e-07,
+    "q1": 3.6208e-05,
+    "q3": 3.67415e-05,
+    "iqr_outliers": 0,
+    "stddev_outliers": 0,
+    "outliers": "0;0",
+    "ld15iqr": 3.5817e-05,
+    "hd15iqr": 0.00019441300000000002,
+    "ops": 1733132823.4903812,
+    "total": 0.0075627210000000005,
+    "iterations": 65536
+   }
+  },
+  {
+   "group": null,
+   "name": "lo::steps",
+   "fullname": "bench_lo_core::steps",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 1813.3073172135396
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "clock_gettime",
+    "min_rounds": 200,
+    "max_time": null,
+    "min_time": null,
+    "warmup": true
+   },
+   "stats": {
+    "min": 3.5706e-05,
+    "max": 4.7690000000000006e-05,
+    "mean": 3.6141695e-05,
+    "stddev": 9.176348131071157e-07,
+    "rounds": 200,
+    "median": 3.60125e-05,
+    "iqr": 1.9999999999999809e-07,
+    "q1": 3.5927000000000003e-05,
+    "q3": 3.6127e-05,
+    "iqr_outliers": 0,
+    "stddev_outliers": 0,
+    "outliers": "0;0",
+    "ld15iqr": 3.5706e-05,
+    "hd15iqr": 4.7690000000000006e-05,
+    "ops": 1813307317.2135396,
+    "total": 0.007228339,
+    "iterations": 65536
+   }
+  },
+  {
+   "group": null,
+   "name": "lo::cexpf_baseline",
+   "fullname": "bench_lo_core::cexpf_baseline",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 183.4944892575255
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "clock_gettime",
+    "min_rounds": 200,
+    "max_time": null,
+    "min_time": null,
+    "warmup": true
+   },
+   "stats": {
+    "min": 0.000354632,
+    "max": 0.00038452800000000003,
+    "mean": 0.0003571551399999999,
+    "stddev": 3.401403953468829e-06,
+    "rounds": 200,
+    "median": 0.00035616500000000003,
+    "iqr": 1.978750000000012e-06,
+    "q1": 0.00035570175,
+    "q3": 0.00035768050000000004,
+    "iqr_outliers": 0,
+    "stddev_outliers": 0,
+    "outliers": "0;0",
+    "ld15iqr": 0.000354632,
+    "hd15iqr": 0.00038452800000000003,
+    "ops": 183494489.2575255,
+    "total": 0.07143102799999998,
+    "iterations": 65536
+   }
+  },
+  {
+   "group": null,
+   "name": "lockdet::step",
+   "fullname": "bench_lockdet_core::step",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 2062.0019598709428
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "clock_gettime",
+    "min_rounds": 200,
+    "max_time": null,
+    "min_time": null,
+    "warmup": true
+   },
+   "stats": {
+    "min": 2.5718e-05,
+    "max": 6.3107e-05,
+    "mean": 3.178270499999999e-05,
+    "stddev": 9.04348019226639e-06,
+    "rounds": 200,
+    "median": 2.68e-05,
+    "iqr": 5.881e-06,
+    "q1": 2.676e-05,
+    "q3": 3.2641e-05,
+    "iqr_outliers": 0,
+    "stddev_outliers": 0,
+    "outliers": "0;0",
+    "ld15iqr": 2.5718e-05,
+    "hd15iqr": 6.3107e-05,
+    "ops": 2062001959.870943,
+    "total": 0.006356540999999998,
+    "iterations": 65536
+   }
+  },
+  {
+   "group": null,
+   "name": "lockdet::steps",
+   "fullname": "bench_lockdet_core::steps",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 1152.4826358679093
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "clock_gettime",
+    "min_rounds": 200,
+    "max_time": null,
+    "min_time": null,
+    "warmup": true
+   },
+   "stats": {
+    "min": 5.4982e-05,
+    "max": 0.000109585,
+    "mean": 5.6865065e-05,
+    "stddev": 4.933338278857756e-06,
+    "rounds": 200,
+    "median": 5.6235000000000006e-05,
+    "iqr": 1.7000000000000007e-07,
+    "q1": 5.6205e-05,
+    "q3": 5.6375e-05,
+    "iqr_outliers": 0,
+    "stddev_outliers": 0,
+    "outliers": "0;0",
+    "ld15iqr": 5.4982e-05,
+    "hd15iqr": 0.000109585,
+    "ops": 1152482635.8679094,
+    "total": 0.011373013000000001,
+    "iterations": 65536
+   }
+  },
+  {
+   "group": null,
+   "name": "loop_filter::step",
+   "fullname": "bench_loop_filter_core::step",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 944.9307083015221
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "clock_gettime",
+    "min_rounds": 200,
+    "max_time": null,
+    "min_time": null,
+    "warmup": true
+   },
+   "stats": {
+    "min": 6.2647e-05,
+    "max": 0.000125585,
+    "mean": 6.935535000000003e-05,
+    "stddev": 1.2590800912395442e-05,
+    "rounds": 200,
+    "median": 6.404900000000001e-05,
+    "iqr": 2.3865000000000084e-06,
+    "q1": 6.35165e-05,
+    "q3": 6.590300000000001e-05,
+    "iqr_outliers": 0,
+    "stddev_outliers": 0,
+    "outliers": "0;0",
+    "ld15iqr": 6.2647e-05,
+    "hd15iqr": 0.000125585,
+    "ops": 944930708.3015221,
+    "total": 0.013871070000000006,
+    "iterations": 65536
+   }
+  },
+  {
+   "group": null,
+   "name": "loop_filter::steps",
+   "fullname": "bench_loop_filter_core::steps",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 274.6590885635792
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "clock_gettime",
+    "min_rounds": 200,
+    "max_time": null,
+    "min_time": null,
+    "warmup": true
+   },
+   "stats": {
+    "min": 0.000220191,
+    "max": 0.00045176300000000005,
+    "mean": 0.000238608525,
+    "stddev": 4.648984086591463e-05,
+    "rounds": 200,
+    "median": 0.000222711,
+    "iqr": 2.7975000000000287e-06,
+    "q1": 0.000222606,
+    "q3": 0.00022540350000000003,
+    "iqr_outliers": 0,
+    "stddev_outliers": 0,
+    "outliers": "0;0",
+    "ld15iqr": 0.000220191,
+    "hd15iqr": 0.00045176300000000005,
+    "ops": 274659088.5635792,
+    "total": 0.047721705,
+    "iterations": 65536
+   }
+  },
+  {
+   "group": null,
+   "name": "ppe::doppler",
+   "fullname": "bench_ppe_core::doppler",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 12.7663765557463
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "clock_gettime",
+    "min_rounds": 200,
+    "max_time": null,
+    "min_time": null,
+    "warmup": true
+   },
+   "stats": {
+    "min": 0.000309628,
+    "max": 0.0008637330000000001,
+    "mean": 0.00032084280000000006,
+    "stddev": 5.7802011650758076e-05,
+    "rounds": 200,
+    "median": 0.00031166700000000006,
+    "iqr": 3.1834999999999806e-06,
+    "q1": 0.000311086,
+    "q3": 0.0003142695,
+    "iqr_outliers": 0,
+    "stddev_outliers": 0,
+    "outliers": "0;0",
+    "ld15iqr": 0.000309628,
+    "hd15iqr": 0.0008637330000000001,
+    "ops": 12766376.5557463,
+    "total": 0.06416856000000001,
+    "iterations": 4096
+   }
+  },
+  {
+   "group": null,
+   "name": "ppe::chirp",
+   "fullname": "bench_ppe_core::chirp",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 0.3994922391220096
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "clock_gettime",
+    "min_rounds": 200,
+    "max_time": null,
+    "min_time": null,
+    "warmup": true
+   },
+   "stats": {
+    "min": 0.0009166420000000001,
+    "max": 0.0026729930000000002,
+    "mean": 0.0012816269000000002,
+    "stddev": 0.000349912212159596,
+    "rounds": 200,
+    "median": 0.0012950385,
+    "iqr": 0.00036013000000000006,
+    "q1": 0.0009389815,
+    "q3": 0.0012991115,
+    "iqr_outliers": 0,
+    "stddev_outliers": 0,
+    "outliers": "0;0",
+    "ld15iqr": 0.0009166420000000001,
+    "hd15iqr": 0.0026729930000000002,
+    "ops": 399492.2391220096,
+    "total": 0.25632538000000005,
+    "iterations": 512
+   }
+  },
+  {
+   "group": null,
+   "name": "symsync::steps",
+   "fullname": "bench_symsync_core::steps",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 121.16476433401566
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "clock_gettime",
+    "min_rounds": 200,
+    "max_time": null,
+    "min_time": null,
+    "warmup": true
+   },
+   "stats": {
+    "min": 0.0005276160000000001,
+    "max": 0.000957218,
+    "mean": 0.0005408833200000002,
+    "stddev": 4.806335055027054e-05,
+    "rounds": 200,
+    "median": 0.000532845,
+    "iqr": 3.490999999999889e-06,
+    "q1": 0.0005312477500000001,
+    "q3": 0.00053473875,
+    "iqr_outliers": 0,
+    "stddev_outliers": 0,
+    "outliers": "0;0",
+    "ld15iqr": 0.0005276160000000001,
+    "hd15iqr": 0.000957218,
+    "ops": 121164764.33401567,
+    "total": 0.10817666400000003,
+    "iterations": 65536
+   }
+  },
+  {
+   "group": null,
+   "name": "uq15_to_f32::step",
+   "fullname": "bench_uq15_to_f32_core::step",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 2487.3032195919154
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "clock_gettime",
+    "min_rounds": 200,
+    "max_time": null,
+    "min_time": null,
+    "warmup": true
+   },
+   "stats": {
+    "min": 2.2301000000000002e-05,
+    "max": 5.4362000000000006e-05,
+    "mean": 2.6348214999999997e-05,
+    "stddev": 5.67572422570072e-06,
+    "rounds": 200,
+    "median": 2.2332000000000002e-05,
+    "iqr": 1.09835e-05,
+    "q1": 2.2321750000000004e-05,
+    "q3": 3.3305250000000004e-05,
+    "iqr_outliers": 0,
+    "stddev_outliers": 0,
+    "outliers": "0;0",
+    "ld15iqr": 2.2301000000000002e-05,
+    "hd15iqr": 5.4362000000000006e-05,
+    "ops": 2487303219.5919156,
+    "total": 0.005269642999999999,
+    "iterations": 65536
+   }
+  },
+  {
+   "group": null,
+   "name": "uq15_to_f32::steps",
+   "fullname": "bench_uq15_to_f32_core::steps",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 9069.421149066427
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "clock_gettime",
+    "min_rounds": 200,
+    "max_time": null,
+    "min_time": null,
+    "warmup": true
+   },
+   "stats": {
+    "min": 6.963e-06,
+    "max": 5.397000000000001e-05,
+    "mean": 7.226040000000004e-06,
+    "stddev": 3.329888752484023e-06,
+    "rounds": 200,
+    "median": 6.973000000000001e-06,
+    "iqr": 0,
+    "q1": 6.973000000000001e-06,
+    "q3": 6.973000000000001e-06,
+    "iqr_outliers": 0,
+    "stddev_outliers": 0,
+    "outliers": "0;0",
+    "ld15iqr": 6.963e-06,
+    "hd15iqr": 5.397000000000001e-05,
+    "ops": 9069421149.066427,
+    "total": 0.0014452080000000008,
+    "iterations": 65536
+   }
+  }
+ ],
+ "doppler_meta": {
+  "measured_at": "2026-07-21T15:43:34.913086+00:00",
+  "commit": "84c46503",
+  "compiler": "cc (GCC) 16.1.1 20260625",
+  "flags": "-O3 -march=x86-64-v2 -ffast-math",
+  "cpu": "AMD Ryzen AI 9 465 w/ Radeon 880M",
+  "cores": 20,
+  "cpu_governor": "powersave",
+  "cpu_boost": "on",
+  "kernel": "7.1.3-2-cachyos",
+  "python": "3.13.13",
+  "numpy": "2.4.5",
+  "glibc": "glibc 2.43",
+  "cmake": "4.4.0"
+ }
+}

@@ -14,6 +14,7 @@
 
 #include "clib_common.h"
 #include "dp_state.h"
+#include "fft/fft_core.h"
 #include "fft2d/fft2d_core.h"
 
 #ifdef __cplusplus
@@ -27,12 +28,23 @@ typedef struct {
   float complex *work_fft;  
   float complex *accum;     
   /* Decoupled-inverse scratch — allocated only when (ny_out,nx_out) differ
-   * from (ny,nx); NULL on the native path.  zeropad goes accum → ztmp (rows)
-   * → work_pad (cols), then inverse(work_pad). */
+   * from (ny,nx); NULL on the native path.  General path: zeropad goes
+   * accum -> ztmp (rows) -> work_pad (cols), then inverse(work_pad).  Fast
+   * path (nx_out != nx only, ny_out == ny is required for fast_path at all):
+   * zeropad goes accum -> work_pad directly, one row at a time, via
+   * _zeropad_1d; ztmp/zcol/zcolout are unused (2-axis-pad only). */
   float complex *work_pad;  
   float complex *ztmp;      
   float complex *zcol;      
   float complex *zcolout;   
+  /* Single-row-reference fast path (see the file doc comment for the
+   * identity this relies on).  fast_path is decided once at create() and
+   * fixed for the object's lifetime; set_ref() may only refresh within the
+   * same mode (see corr2d_set_ref doc comment). */
+  int             fast_path;    
+  fft_state_t    *fwd1d;         
+  fft_state_t    *inv1d;         
+  float complex  *row_ref_spec;  
   size_t ny;                
   size_t nx;                
   size_t n;                 
@@ -51,7 +63,7 @@ void corr2d_destroy(corr2d_state_t *state);
 
 void corr2d_reset(corr2d_state_t *state);
 
-void corr2d_set_ref(corr2d_state_t *state, const float complex *ref);
+int corr2d_set_ref(corr2d_state_t *state, const float complex *ref);
 
 size_t corr2d_execute_max_out(corr2d_state_t *state);
 

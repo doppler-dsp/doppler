@@ -252,11 +252,11 @@ class Publisher:
         samples: NDArray[Any],
         sample_rate: float = 0,
         center_freq: float = 0,
+        timestamp_ns: int | None = None,
     ) -> None:
         """Broadcast one block of samples to all connected Subscribers.
 
-        Constructs a ``dp_header_t`` with the supplied metadata (plus an
-        auto-generated ``timestamp_ns`` from ``CLOCK_REALTIME`` and a
+        Constructs a ``dp_header_t`` with the supplied metadata (plus a
         per-socket monotonically increasing ``sequence`` number), stages
         one ``[header][raw sample bytes]`` buffer (NATS has no scatter/
         gather send, so header and data are copied into one contiguous
@@ -275,6 +275,12 @@ class Publisher:
             Samples per second written into the header (default 0).
         center_freq : float, optional
             Centre frequency in Hz written into the header (default 0).
+        timestamp_ns : int, optional
+            UNIX nanoseconds to stamp on ``timestamp_ns`` instead of a
+            fresh ``CLOCK_REALTIME`` read -- propagate an upstream
+            message's own origin timestamp (or one derived from
+            :class:`~doppler.wfm.SampleClock`) through this hop instead
+            of overwriting it with "now" (default ``None``: auto-stamp).
 
         Raises
         ------
@@ -567,6 +573,7 @@ class Push:
         samples: NDArray[Any],
         sample_rate: float = 0,
         center_freq: float = 0,
+        timestamp_ns: int | None = None,
     ) -> None:
         """Durably publish one block of samples to the work-queue.
 
@@ -586,6 +593,11 @@ class Push:
             Samples per second written into the header (default 0).
         center_freq : float, optional
             Centre frequency in Hz written into the header (default 0).
+        timestamp_ns : int, optional
+            UNIX nanoseconds to stamp on ``timestamp_ns`` instead of a
+            fresh ``CLOCK_REALTIME`` read -- propagate an upstream
+            message's own origin timestamp through this hop instead of
+            overwriting it with "now" (default ``None``: auto-stamp).
 
         Raises
         ------
@@ -896,6 +908,7 @@ class Requester:
         samples: NDArray[Any],
         sample_rate: float = 0,
         center_freq: float = 0,
+        timestamp_ns: int | None = None,
     ) -> None:
         """Publish a request frame with this Requester's reply-to inbox.
 
@@ -916,6 +929,9 @@ class Requester:
             Samples per second written into the header (default 0).
         center_freq : float, optional
             Centre frequency in Hz written into the header (default 0).
+        timestamp_ns : int, optional
+            UNIX nanoseconds to stamp on ``timestamp_ns`` instead of a
+            fresh ``CLOCK_REALTIME`` read (default ``None``: auto-stamp).
 
         Raises
         ------
@@ -1130,6 +1146,7 @@ class Replier:
         samples: NDArray[Any],
         sample_rate: float = 0,
         center_freq: float = 0,
+        timestamp_ns: int | None = None,
     ) -> None:
         """Publish the reply to the request's captured reply-to inbox.
 
@@ -1151,6 +1168,9 @@ class Replier:
         center_freq : float, optional
             Centre frequency in Hz written into the reply header
             (default 0).
+        timestamp_ns : int, optional
+            UNIX nanoseconds to stamp on ``timestamp_ns`` instead of a
+            fresh ``CLOCK_REALTIME`` read (default ``None``: auto-stamp).
 
         Raises
         ------

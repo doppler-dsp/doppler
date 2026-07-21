@@ -201,6 +201,20 @@ costas_get_norm_freq (const costas_state_t *state)
   return state->nco.norm_freq;
 }
 
+double
+costas_get_nco_freq (const costas_state_t *state)
+{
+  /* Effective NCO frequency command = the loop-filter OUTPUT: the NCO
+   * frequency register (which holds the integrator, set each symbol) PLUS
+   * the proportional term applied to phase as a per-symbol nudge
+   * (kp*e radians every tsamps samples == kp*e/(2*pi*tsamps) cycles/sample).
+   * Its mean rides a frequency ramp with no lag; the integrator-only
+   * get_norm_freq lags by the constant Type-II ramp error. */
+  return state->nco.norm_freq
+         + (state->lf.kp * state->last_error)
+               / (2.0 * M_PI * (double)state->tsamps);
+}
+
 void
 costas_set_norm_freq (costas_state_t *state, double val)
 {

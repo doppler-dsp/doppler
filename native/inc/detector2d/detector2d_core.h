@@ -157,14 +157,18 @@ void detector2d_destroy (detector2d_state_t *state);
 void detector2d_reset (detector2d_state_t *state);
 
 /**
- * @brief Replace the reference image and recompute conj(FFT2(ref)).
+ * @brief Replace the reference image and recompute its spectrum.
  *
- * Also resets.  The new reference must have the same ny*nx total size.
+ * Always resets (ring, corr2d accumulator, last-dump bookkeeping), even if
+ * the new reference is subsequently rejected.  The new reference must have
+ * the same ny*nx total size; see corr2d_set_ref() for the single-row-fast-
+ * path rejection rule this forwards.
  *
  * @param state Must be non-NULL.
  * @param ref   New reference, flat row-major CF32, length ny*nx.
+ * @return 0 on success, -1 if rejected by corr2d_set_ref().
  */
-void detector2d_set_ref (detector2d_state_t *state, const float complex *ref);
+int detector2d_set_ref (detector2d_state_t *state, const float complex *ref);
 
 /**
  * @brief Change threshold without rebuilding.

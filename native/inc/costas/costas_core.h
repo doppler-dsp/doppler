@@ -169,8 +169,10 @@ costas_update(costas_state_t *s, float complex P)
     /* per-symbol freq estimate (rad/symbol) -> rad/sample -> cycles/sample */
     double car_w = s->lf.integ / (double)s->tsamps;
     lo_set_norm_freq(&s->nco, car_w / (2.0 * M_PI));
-    /* proportional phase nudge: kp*e radians -> uint32 phase delta */
-    s->nco.phase += (uint32_t)((s->lf.kp * e) / (2.0 * M_PI) * 4294967296.0);
+    /* proportional phase nudge: kp*e radians -> cycles -> uint32 phase
+     * delta, via the one shared primitive (a bare truncating cast here
+     * is UB on a negative value -- see nco_norm_to_inc()'s own doc). */
+    s->nco.phase += nco_norm_to_inc ((s->lf.kp * e) / (2.0 * M_PI));
     /* lock metric: |Re|/|P| EMA (1 = phase-locked BPSK, ~0 = no carrier) */
     double inst = (double)(fabsf(reP) / aP);
     s->lock_metric += COSTAS_LOCK_ALPHA * (inst - s->lock_metric);
@@ -242,6 +244,10 @@ void costas_configure(costas_state_t *state, double bn, double zeta);
 double costas_get_bn(const costas_state_t *state);
 void costas_set_bn(costas_state_t *state, double val);
 double costas_get_norm_freq(const costas_state_t *state);
+/** @brief Effective NCO frequency command (loop-filter output = integrator +
+ * proportional), cycles/sample. Mean rides a ramp with no lag, unlike the
+ * integrator-only get_norm_freq. */
+double costas_get_nco_freq(const costas_state_t *state);
 void costas_set_norm_freq(costas_state_t *state, double val);
 double costas_get_lock_metric(const costas_state_t *state);
 double costas_get_last_error(const costas_state_t *state);

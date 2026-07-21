@@ -1,4 +1,4 @@
-"""Performance-characterisation gate for ``doppler.dsss.Acquisition``.
+"""Performance-characterisation gate for ``doppler.dsss.BurstAcquisition``.
 
 Drives the engine through the ``dsss_acq_characterization`` demo — a length-511
 PN preamble (9-stage MLS) repeated 5 times, a 64-chip-per-symbol BPSK DSSS

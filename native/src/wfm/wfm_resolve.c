@@ -35,7 +35,8 @@
  * recomputes floor(snr) at an arbitrary swept SNR using the identical formula
  * (single source of truth — no drift). */
 double
-wfm_snr_over_fs (int snr_mode, int type, int sps, size_t sf, double snr)
+wfm_snr_over_fs (int snr_mode, int type, int sps, size_t sf, double sym_span,
+                 double snr)
 {
   int mode = snr_mode;
   if (mode == 0) /* auto: *psk/dsss → Es/No, tone/noise/pn/chirp/bits → fs */
@@ -45,11 +46,18 @@ wfm_snr_over_fs (int snr_mode, int type, int sps, size_t sf, double snr)
                : 1;
   int nsps = (sps < 1) ? 1 : sps;
   int bps  = (type == WFM_SYNTH_QPSK) ? 2 : 1;
-  /* dsss: the symbol is the outer data symbol — sf chips × sps samples/chip
-   * — so Es spans sf·sps samples. The BPSK payload makes ebno == esno. */
-  double span = (type == WFM_SYNTH_DSSS)
-                    ? (double)nsps * (double)(sf < 1 ? 1 : sf)
-                    : (double)nsps;
+  /* dsss: Es spans one DATA symbol. For a BURST that is the outer data symbol
+   * — sf chips × sps samples/chip. For a CONTINUOUS async stream the symbol
+   * clock is independent of the code, so the span is fs/symbol_rate samples
+   * (passed as @p sym_span, non-integer), NOT sf·sps — those coincide only in
+   * the synchronous case continuous mode exists to avoid. The BPSK payload
+   * makes ebno == esno in both. */
+  double span;
+  if (type == WFM_SYNTH_DSSS)
+    span = (sym_span > 0.0) ? sym_span
+                            : (double)nsps * (double)(sf < 1 ? 1 : sf);
+  else
+    span = (double)nsps;
   if (mode == 2) /* Eb/No */
     return snr + 10.0 * log10 ((double)bps) - 10.0 * log10 (span);
   if (mode == 3) /* Es/No */
@@ -57,17 +65,28 @@ wfm_snr_over_fs (int snr_mode, int type, int sps, size_t sf, double snr)
   return snr; /* over fs */
 }
 
+/* Continuous-DSSS symbol span in samples (fs/symbol_rate), or 0 for a burst /
+ * non-dsss source — the value @p sym_span above wants. */
+static double
+dsss_sym_span (const wfm_source_t *s, double fs)
+{
+  return (s->type == WFM_SYNTH_DSSS && s->symbol_rate > 0.0 && fs > 0.0)
+             ? fs / s->symbol_rate
+             : 0.0;
+}
+
 /* Convenience wrapper over the source's own fields (the resolve-time caller).
  */
 static double
-snr_over_fs (const wfm_source_t *s)
+snr_over_fs (const wfm_source_t *s, double fs)
 {
   return wfm_snr_over_fs (s->snr_mode, s->type, s->sps, s->n_data_code,
-                          s->snr);
+                          dsss_sym_span (s, fs), s->snr);
 }
 
 double
-wfm_source_create_snr (const wfm_source_t *src, double snr, int *snr_mode)
+wfm_source_create_snr (const wfm_source_t *src, double fs, double snr,
+                       int *snr_mode)
 {
   *snr_mode = src->snr_mode;
   /* wfm_synth_create() sees only sps, so a dsss data-symbol Es/N0 must be
@@ -75,8 +94,8 @@ wfm_source_create_snr (const wfm_source_t *src, double snr, int *snr_mode)
    * pass through so the no-AWGN shortcut still applies. */
   if (src->type == WFM_SYNTH_DSSS && snr < WFM_SYNTH_SNR_CLEAN)
     {
-      snr       = wfm_snr_over_fs (src->snr_mode, src->type, src->sps,
-                                   src->n_data_code, snr);
+      snr = wfm_snr_over_fs (src->snr_mode, src->type, src->sps,
+                             src->n_data_code, dsss_sym_span (src, fs), snr);
       *snr_mode = 1; /* fs */
     }
   return snr;
@@ -113,8 +132,9 @@ wfm_resolve_noise (wfm_segment_t *segs, size_t n)
           for (size_t k = 0; k < g->n_sources; k++)
             if (g->sources[k].snr < WFM_SYNTH_SNR_CLEAN)
               {
-                anchor   = (int)k;
-                floor_db = g->sources[k].level - snr_over_fs (&g->sources[k]);
+                anchor     = (int)k;
+                floor_db   = g->sources[k].level
+                             - snr_over_fs (&g->sources[k], g->fs);
                 have_floor = 1;
                 break;
               }

@@ -43,8 +43,10 @@ repos:
       - id: mdformat
         # Generated, not hand-written: docs/c-api is mkdoxy from the C headers;
         # docs/benchmarks.md is `make bench-docs` output (mdformat would realign
-        # its tables on every regen → spurious diffs).
-        exclude: '^docs/(c-api/|benchmarks\.md$)'
+        # its tables on every regen → spurious diffs). Archived docs under
+        # docs/**/archive/ are frozen snapshots — not reformatted (and one trips
+        # a plugin render-consistency bug across mdformat-gfm versions).
+        exclude: '^docs/(c-api/|benchmarks\.md$)|^docs/.*/archive/'
         additional_dependencies:
           - mdformat-gfm
           - mdformat-gfm-alerts

@@ -1,4 +1,4 @@
-"""Streaming acquisition tests for ``doppler.dsss.Acquisition``.
+"""Streaming acquisition tests for ``doppler.dsss.BurstAcquisition``.
 
 Drives the engine with a realistic receive stream — silence (AWGN) of varying
 length, then a burst of repeated BPSK PN segments at an unknown code phase and
@@ -11,7 +11,7 @@ The engine ingests **raw** cf32 and applies the slow-time Doppler FFT
 internally, so (unlike the CorrDetector2D demo) these builders never call
 ``np.fft``.
 
-Construction is physics-only: ``Acquisition`` derives the search grid from
+Construction is physics-only: ``BurstAcquisition`` derives the search grid from
 ``(reps, spc, chip_rate, cn0_dbhz, pfa, pd, doppler_uncertainty)``.  The
 streaming tests pin the coherent depth to ``reps`` with a deliberately low
 sizing ``cn0_dbhz`` (so ``doppler_bins == reps``); the injected burst is much
@@ -48,7 +48,7 @@ from doppler.detection import (
     det_threshold,
     det_threshold_noncoherent,
 )
-from doppler.dsss import Acquisition
+from doppler.dsss import BurstAcquisition
 from doppler.examples.detector2d_acq_demo import (
     NX,
     NY,
@@ -83,15 +83,22 @@ def _cn0_for_snr(snr_amp, fs):
 
 
 def _stream_acq(**kw):
-    """Construct with doppler_bins pinned to REPS (low sizing C/N0).
+    """Construct with doppler_bins pinned to REPS (low sizing C/N0), then
+    explicitly pin n_noncoh=1 -- with no caller-facing max_noncoh knob left
+    to default to "coherent-only," the auto-sizer would otherwise auto
+    -escalate non-coherent looks here (it's still under-powered even at
+    the internal safety-valve ceiling, so it never reaches pd, but the
+    escalation alone breaks this module's single-frame-per-hit hit-count
+    algebra below, which every streaming test in this file depends on).
 
-    The conservative sizing C/N0 can't meet pd on the reps-deep grid, so an
-    "under-powered" UserWarning is expected here — the injected burst is far
-    stronger.  Filtered so the streaming assertions stay clean.
+    The conservative sizing C/N0 can't meet pd on the reps-deep grid even
+    at n_noncoh==1, so an "under-powered" UserWarning is expected here —
+    the injected burst is far stronger.  Filtered so the streaming
+    assertions stay clean.
     """
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", UserWarning)
-        a = Acquisition(
+        a = BurstAcquisition(
             CODE,
             reps=REPS,
             spc=SPS,
@@ -101,9 +108,11 @@ def _stream_acq(**kw):
             pd=PD,
             **kw,
         )
+        a.configure_search_raw(REPS, 1)
     # Geometry must match the demo's fixed grid for the hit-count algebra.
     assert (a.code_bins, a.doppler_bins) == (NX, NY)
     assert a.code_bins * a.doppler_bins == N
+    assert a.n_noncoh == 1
     return a
 
 
@@ -165,7 +174,7 @@ def _collect(a, rng, stream):
 def _split(hits, cp_expected):
     """Partition hits into true-cell vs false-alarm by location (±1 cell)."""
     true_n = fa_n = 0
-    for dop, col, _peak, _noise, _stat, _snr in hits:
+    for dop, col, _peak, _noise, _stat, _snr, *_rest in hits:
         d_ok = min((dop - U_TRUE) % NY, (U_TRUE - dop) % NY) == 0
         c_ok = min((col - cp_expected) % NX, (cp_expected - col) % NX) <= 1
         if d_ok and c_ok:
@@ -193,7 +202,7 @@ def _full_frames(l_pre):
 )
 def test_config_physics(cn0_dbhz, want_db):
     """C/N0 → snr, smallest coherent depth meeting Pd, and grid math."""
-    a = Acquisition(
+    a = BurstAcquisition(
         CODE,
         reps=16,
         spc=SPS,
@@ -224,17 +233,23 @@ def test_config_physics(cn0_dbhz, want_db):
     assert a.threshold == pytest.approx(eta * SQRT_2_OVER_PI, rel=1e-5)
 
     # Boundary/minimality through the engine itself: capping reps at
-    # db - 1 forces the next-smaller grid, which cannot meet pd (the
-    # sizing quadrature lives in C; replicating it here would just be a
-    # copy). Sanity-bracket pd_predicted instead of recomputing it: it is
-    # the straddle-AVERAGED Pd, so it sits at or above pd and strictly
-    # below the on-grid best case.
+    # db - 1 forces the next-smaller COHERENT-ONLY grid, which cannot meet
+    # pd (the sizing quadrature lives in C; replicating it here would just
+    # be a copy). Pinned to n_noncoh=1 explicitly -- with no caller-facing
+    # max_noncoh knob left to default to "coherent-only," the auto-sizer
+    # would otherwise auto-escalate non-coherent looks and potentially
+    # rescue this smaller grid, which isn't what this check is about (it's
+    # testing db's minimality AT THE COHERENT-ONLY operating point, not
+    # whether a joint coherent+non-coherent search could do better).
+    # Sanity-bracket pd_predicted instead of recomputing it: it is the
+    # straddle-AVERAGED Pd, so it sits at or above pd and strictly below
+    # the on-grid best case.
     assert PD <= a.pd_predicted < det_pd(snr, db * nx, eta)
     assert 0.0 < a.straddle_loss < 1.0
     if db > 1:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", UserWarning)
-            smaller = Acquisition(
+            smaller = BurstAcquisition(
                 CODE,
                 reps=db - 1,
                 spc=SPS,
@@ -243,13 +258,14 @@ def test_config_physics(cn0_dbhz, want_db):
                 pfa=PFA,
                 pd=PD,
             )
+            smaller.configure_search_raw(db - 1, 1)
         assert smaller.underpowered
         assert smaller.pd_predicted < PD
 
 
 def test_d_selection_monotone():
     """Weaker C/N0 needs a deeper coherent grid (more reps)."""
-    strong = Acquisition(
+    strong = BurstAcquisition(
         CODE,
         reps=16,
         spc=SPS,
@@ -258,7 +274,7 @@ def test_d_selection_monotone():
         pfa=PFA,
         pd=PD,
     )
-    mid = Acquisition(
+    mid = BurstAcquisition(
         CODE,
         reps=16,
         spc=SPS,
@@ -277,7 +293,7 @@ def test_doppler_uncertainty_sharpens_gate():
     # threshold change from the Doppler prior), so the warning is expected.
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", UserWarning)
-        full = Acquisition(
+        full = BurstAcquisition(
             CODE,
             reps=16,
             spc=SPS,
@@ -287,7 +303,7 @@ def test_doppler_uncertainty_sharpens_gate():
             pd=PD,
             doppler_uncertainty=0.0,
         )
-        narrow = Acquisition(
+        narrow = BurstAcquisition(
             CODE,
             reps=16,
             spc=SPS,
@@ -301,9 +317,13 @@ def test_doppler_uncertainty_sharpens_gate():
     assert narrow.eta < full.eta  # ... → lower amplitude threshold
     assert narrow.pd_predicted >= full.pd_predicted
 
-    # Beyond the native span there is nothing to search → rejected.
-    with pytest.raises(MemoryError):
-        Acquisition(
+    # Beyond the native span, wideband mode tiles the uncertainty with
+    # parallel frequency-window hypotheses (roll-FFT search, one epoch)
+    # instead of a coherent slow-time axis -- doppler_bins (the unified
+    # property) reports that window-tile count instead.
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", UserWarning)
+        wide = BurstAcquisition(
             CODE,
             reps=4,
             spc=SPS,
@@ -313,12 +333,20 @@ def test_doppler_uncertainty_sharpens_gate():
             pd=PD,
             doppler_uncertainty=full.doppler_span_hz * 2,
         )
+    # 3, not the 2 this once asserted. Bins are spaced doppler_res_hz =
+    # 2*doppler_span_hz apart, so covering +/-2*span needs one hypothesis
+    # either side of DC. The old count came from sizing against the half-span
+    # and folded to k in [-1, 0] -- reaching -2*span but nothing above DC, so
+    # any positive Doppler in the requested range was uncovered. An odd count
+    # is what makes the grid symmetric; see _cover_window_bins().
+    assert wide.doppler_bins == 3
+    assert wide.doppler_bins % 2 == 1
 
 
 def test_underpowered_warns():
     """An infeasible operating point still builds, but warns + self-flags."""
     with pytest.warns(UserWarning, match="under-powered"):
-        a = Acquisition(
+        a = BurstAcquisition(
             CODE,
             reps=2,
             spc=SPS,
@@ -332,7 +360,7 @@ def test_underpowered_warns():
     # A comfortably powered build emits no warning.
     with warnings.catch_warnings():
         warnings.simplefilter("error")
-        b = Acquisition(
+        b = BurstAcquisition(
             CODE,
             reps=16,
             spc=SPS,
@@ -439,7 +467,7 @@ def test_config_noncoherent_autosplit():
     eta = det_threshold(pfa_cell)
     cn0 = 42.0  # too weak for 16 coherent reps to reach Pd
     snr = math.sqrt(10.0 ** (cn0 / 10.0) / (CHIP_RATE * SPS))
-    a = Acquisition(
+    a = BurstAcquisition(
         CODE,
         reps=16,
         spc=SPS,
@@ -447,7 +475,6 @@ def test_config_noncoherent_autosplit():
         cn0_dbhz=cn0,
         pfa=PFA,
         pd=PD,
-        max_noncoh=64,
     )
     assert a.doppler_bins == 16  # coherent grown to the reps ceiling
     assert det_pd(snr, N, eta) < PD  # coherent-only falls short
@@ -462,7 +489,7 @@ def test_config_noncoherent_autosplit():
 
 def test_config_strong_stays_coherent():
     """A strong target needs no looks: pure-coherent path (N_nc == 1)."""
-    a = Acquisition(
+    a = BurstAcquisition(
         CODE,
         reps=16,
         spc=SPS,
@@ -470,7 +497,6 @@ def test_config_strong_stays_coherent():
         cn0_dbhz=65.0,
         pfa=PFA,
         pd=PD,
-        max_noncoh=16,
     )
     assert a.n_noncoh == 1
     assert a.eta_nc == 0.0  # non-coherent gate unused
@@ -484,11 +510,10 @@ def test_config_strong_stays_coherent():
 # mean-amplitude sizing called 45/nc=4 powered when its true average Pd
 # was 0.849 — the honest criterion moved the boundary, not the physics).
 NC_CN0 = 46.0
-NC_MAX_NONCOH = 4
 
 
 def _noncoherent_acq():
-    a = Acquisition(
+    a = BurstAcquisition(
         CODE,
         reps=REPS,
         spc=SPS,
@@ -496,7 +521,6 @@ def _noncoherent_acq():
         cn0_dbhz=NC_CN0,
         pfa=PFA,
         pd=PD,
-        max_noncoh=NC_MAX_NONCOH,
     )
     assert a.doppler_bins == NY and a.n_noncoh > 1 and not a.underpowered
     return a
@@ -521,3 +545,54 @@ def test_noncoherent_empirical_pfa():
     noise = _awgn(rng, nnc * 200 * N, _sigma(SNR_DB))
     fa = len(_collect(a, rng, noise.astype(np.complex64)))
     assert fa <= 4  # generous bound on a ~0.2-expectation Poisson
+
+
+def test_configure_search_raw_bounds():
+    """Out-of-range pins raise ValueError and leave the engine untouched at
+    its prior grid; a valid pin changes the grid and re-derives the
+    threshold ladder."""
+    a = BurstAcquisition(
+        CODE,
+        reps=8,
+        spc=SPS,
+        chip_rate=CHIP_RATE,
+        cn0_dbhz=65.0,
+        pfa=PFA,
+        pd=PD,
+    )
+    orig_db, orig_nc = a.doppler_bins, a.n_noncoh
+
+    # n_noncoh's upper bound is now the internal safety-valve ceiling (256),
+    # not a caller-supplied max_noncoh.
+    for db, nc in [(0, 1), (9, 1), (1, 0), (1, 257)]:
+        with pytest.raises(ValueError):
+            a.configure_search_raw(db, nc)
+    assert (a.doppler_bins, a.n_noncoh) == (orig_db, orig_nc)
+
+    a.configure_search_raw(3, 2)
+    assert (a.doppler_bins, a.n_noncoh) == (3, 2)
+    assert a.eta_nc > 0.0 and a.threshold == 0.0
+
+
+def test_configure_search_raw_detects():
+    """A pinned grid actually detects a noise-free burst at that geometry
+    -- configure_search_raw doesn't just relabel fields, it rebuilds the
+    correlator/FFT/buffers to match."""
+    a = BurstAcquisition(
+        CODE,
+        reps=8,
+        spc=SPS,
+        chip_rate=CHIP_RATE,
+        cn0_dbhz=65.0,
+        pfa=PFA,
+        pd=PD,
+    )
+    a.configure_search_raw(4, 2)
+    assert (a.doppler_bins, a.n_noncoh) == (4, 2)
+
+    s0 = np.repeat(np.where(CODE & 1, -1.0, 1.0), SPS)
+    burst = np.tile(s0, 2 * a.doppler_bins).astype(np.complex64)  # 2 decisions
+    hits = a.push(burst)
+    assert len(hits) == 1
+    dop, col, *_ = hits[0]
+    assert dop == 0 and col == 0

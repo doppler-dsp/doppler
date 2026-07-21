@@ -39,9 +39,9 @@ dpMsg_dealloc (dpMsgObject *self)
 
 static PyTypeObject dpMsgType = {
   PyVarObject_HEAD_INIT (NULL, 0).tp_name = "stream._dpMsg",
-  .tp_basicsize = sizeof (dpMsgObject),
-  .tp_dealloc = (destructor)dpMsg_dealloc,
-  .tp_flags = Py_TPFLAGS_DEFAULT,
+  .tp_basicsize                           = sizeof (dpMsgObject),
+  .tp_dealloc                             = (destructor)dpMsg_dealloc,
+  .tp_flags                               = Py_TPFLAGS_DEFAULT,
   .tp_doc = "Internal dp_msg_t wrapper for zero-copy recv",
 };
 
@@ -67,8 +67,8 @@ build_recv_result (dp_msg_t *msg, const dp_header_t *hdr)
     }
   msg_obj->msg = msg;
 
-  npy_intp dims[1];
-  int typenum;
+  npy_intp         dims[1];
+  int              typenum;
   dp_sample_type_t st = dp_msg_sample_type (msg);
 
   if (st == CI32)
@@ -175,13 +175,24 @@ do_send (void *ctx, int sample_type, send_ci32_fn fn_ci32,
          PyObject *kwds)
 {
   PyArrayObject *arr;
-  double sample_rate = 0.0;
-  double center_freq = 0.0;
+  double         sample_rate      = 0.0;
+  double         center_freq      = 0.0;
+  PyObject      *timestamp_ns_obj = NULL;
 
-  static char *kwlist[] = { "samples", "sample_rate", "center_freq", NULL };
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O!|dd", kwlist, &PyArray_Type,
-                                    &arr, &sample_rate, &center_freq))
+  static char *kwlist[]
+      = { "samples", "sample_rate", "center_freq", "timestamp_ns", NULL };
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O!|ddO", kwlist,
+                                    &PyArray_Type, &arr, &sample_rate,
+                                    &center_freq, &timestamp_ns_obj))
     return NULL;
+
+  if (timestamp_ns_obj && timestamp_ns_obj != Py_None)
+    {
+      unsigned long long ts = PyLong_AsUnsignedLongLong (timestamp_ns_obj);
+      if (PyErr_Occurred ())
+        return NULL;
+      dp_ctx_set_timestamp_ns ((dp_pub_t *)ctx, (uint64_t)ts);
+    }
 
   if (!PyArray_IS_C_CONTIGUOUS (arr))
     {
@@ -189,7 +200,7 @@ do_send (void *ctx, int sample_type, send_ci32_fn fn_ci32,
       return NULL;
     }
 
-  int expected = (sample_type == CI32)   ? NPY_INT32
+  int expected = (sample_type == CI32)    ? NPY_INT32
                  : (sample_type == CF64)  ? NPY_COMPLEX128
                  : (sample_type == CF128) ? NPY_CLONGDOUBLE
                  : (sample_type == CI8)   ? NPY_INT8
@@ -205,37 +216,39 @@ do_send (void *ctx, int sample_type, send_ci32_fn fn_ci32,
   if (sample_type == CI32 || sample_type == CI8 || sample_type == CI16)
     num_samples /= 2; /* interleaved I/Q pairs */
 
-  int rc;
+  int   rc;
   void *data = PyArray_DATA (arr);
 
-  Py_BEGIN_ALLOW_THREADS;
-  if (sample_type == CI32)
-    rc = fn_ci32 (ctx, (const int32_t *)data, (size_t)num_samples, sample_rate,
-                  center_freq);
-  else if (sample_type == CF64)
-    rc = fn_cf64 (ctx, (const double _Complex *)data, (size_t)num_samples,
-                  sample_rate, center_freq);
-  else if (sample_type == CI8)
-    rc = fn_ci8 (ctx, (const int8_t *)data, (size_t)num_samples, sample_rate,
-                 center_freq);
-  else if (sample_type == CI16)
-    rc = fn_ci16 (ctx, (const int16_t *)data, (size_t)num_samples, sample_rate,
-                  center_freq);
-  else if (sample_type == CF32)
-    rc = fn_cf32 (ctx, (const float _Complex *)data, (size_t)num_samples,
-                  sample_rate, center_freq);
-  else
-    rc = fn_cf128 (ctx, (const long double _Complex *)data,
-                   (size_t)num_samples, sample_rate, center_freq);
+  Py_BEGIN_ALLOW_THREADS
+    ;
+    if (sample_type == CI32)
+      rc = fn_ci32 (ctx, (const int32_t *)data, (size_t)num_samples,
+                    sample_rate, center_freq);
+    else if (sample_type == CF64)
+      rc = fn_cf64 (ctx, (const double _Complex *)data, (size_t)num_samples,
+                    sample_rate, center_freq);
+    else if (sample_type == CI8)
+      rc = fn_ci8 (ctx, (const int8_t *)data, (size_t)num_samples, sample_rate,
+                   center_freq);
+    else if (sample_type == CI16)
+      rc = fn_ci16 (ctx, (const int16_t *)data, (size_t)num_samples,
+                    sample_rate, center_freq);
+    else if (sample_type == CF32)
+      rc = fn_cf32 (ctx, (const float _Complex *)data, (size_t)num_samples,
+                    sample_rate, center_freq);
+    else
+      rc = fn_cf128 (ctx, (const long double _Complex *)data,
+                     (size_t)num_samples, sample_rate, center_freq);
   Py_END_ALLOW_THREADS;
 
   if (rc == DP_ERR_TOO_LARGE)
     {
-      PyErr_Format (PyExc_ValueError,
-                    "%s: this frame does not fit in one message on the NATS "
-                    "work-queue (PUSH/PULL) tier; raise the broker max_payload "
-                    "or use PUB/SUB, which chunks",
-                    dp_strerror (rc));
+      PyErr_Format (
+          PyExc_ValueError,
+          "%s: this frame does not fit in one message on the NATS "
+          "work-queue (PUSH/PULL) tier; raise the broker max_payload "
+          "or use PUB/SUB, which chunks",
+          dp_strerror (rc));
       return NULL;
     }
   if (rc != DP_OK)
@@ -264,12 +277,13 @@ do_recv (void *ctx, set_timeout_fn fn_timeout, recv_signal_fn fn_recv,
   if (timeout_ms >= 0)
     fn_timeout (ctx, timeout_ms);
 
-  dp_msg_t *msg = NULL;
+  dp_msg_t   *msg = NULL;
   dp_header_t hdr;
-  int rc;
+  int         rc;
 
-  Py_BEGIN_ALLOW_THREADS;
-  rc = fn_recv (ctx, &msg, &hdr);
+  Py_BEGIN_ALLOW_THREADS
+    ;
+    rc = fn_recv (ctx, &msg, &hdr);
   Py_END_ALLOW_THREADS;
 
   if (rc == DP_ERR_TIMEOUT)
@@ -293,8 +307,8 @@ do_recv (void *ctx, set_timeout_fn fn_timeout, recv_signal_fn fn_recv,
 typedef struct
 {
   PyObject_HEAD dp_pub_t *ctx;
-  int sample_type;
-  int closed;
+  int                     sample_type;
+  int                     closed;
 } PublisherObject;
 
 static void
@@ -309,7 +323,7 @@ static PyObject *
 Publisher_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
   const char *endpoint;
-  int sample_type = CF64;
+  int         sample_type = CF64;
 
   static char *kwlist[] = { "endpoint", "sample_type", NULL };
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "s|i", kwlist, &endpoint,
@@ -336,7 +350,7 @@ Publisher_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
     }
 
   self->sample_type = sample_type;
-  self->closed = 0;
+  self->closed      = 0;
   return (PyObject *)self;
 }
 
@@ -349,14 +363,22 @@ Publisher_send (PublisherObject *self, PyObject *args, PyObject *kwds)
        * dtype Telemetry.read() returns) published verbatim. PUB-only —
        * do_send's typed sample dispatch doesn't apply. */
       PyArrayObject *arr;
-      double         sample_rate = 0.0;
-      double         center_freq = 0.0;
-      static char *kwlist[] = { "samples", "sample_rate", "center_freq",
-                                NULL };
-      if (!PyArg_ParseTupleAndKeywords (args, kwds, "O!|dd", kwlist,
+      double         sample_rate      = 0.0;
+      double         center_freq      = 0.0;
+      PyObject      *timestamp_ns_obj = NULL;
+      static char   *kwlist[]
+          = { "samples", "sample_rate", "center_freq", "timestamp_ns", NULL };
+      if (!PyArg_ParseTupleAndKeywords (args, kwds, "O!|ddO", kwlist,
                                         &PyArray_Type, &arr, &sample_rate,
-                                        &center_freq))
+                                        &center_freq, &timestamp_ns_obj))
         return NULL;
+      if (timestamp_ns_obj && timestamp_ns_obj != Py_None)
+        {
+          unsigned long long ts = PyLong_AsUnsignedLongLong (timestamp_ns_obj);
+          if (PyErr_Occurred ())
+            return NULL;
+          dp_ctx_set_timestamp_ns (self->ctx, (uint64_t)ts);
+        }
       if (!PyArray_IS_C_CONTIGUOUS (arr)
           || PyArray_ITEMSIZE (arr) != (npy_intp)sizeof (dp_tlm_rec_t))
         {
@@ -368,8 +390,9 @@ Publisher_send (PublisherObject *self, PyObject *args, PyObject *kwds)
       size_t      n    = (size_t)PyArray_SIZE (arr);
       const void *data = PyArray_DATA (arr);
       int         rc;
-      Py_BEGIN_ALLOW_THREADS;
-      rc = dp_pub_send_tlm16 (self->ctx, data, n, sample_rate, center_freq);
+      Py_BEGIN_ALLOW_THREADS
+        ;
+        rc = dp_pub_send_tlm16 (self->ctx, data, n, sample_rate, center_freq);
       Py_END_ALLOW_THREADS;
       if (rc != DP_OK)
         {
@@ -382,8 +405,7 @@ Publisher_send (PublisherObject *self, PyObject *args, PyObject *kwds)
   return do_send (self->ctx, self->sample_type, (send_ci32_fn)dp_pub_send_ci32,
                   (send_cf64_fn)dp_pub_send_cf64,
                   (send_cf128_fn)dp_pub_send_cf128,
-                  (send_ci8_fn)dp_pub_send_ci8,
-                  (send_ci16_fn)dp_pub_send_ci16,
+                  (send_ci8_fn)dp_pub_send_ci8, (send_ci16_fn)dp_pub_send_ci16,
                   (send_cf32_fn)dp_pub_send_cf32, args, kwds);
 }
 
@@ -393,7 +415,7 @@ Publisher_close (PublisherObject *self, PyObject *Py_UNUSED (ignored))
   if (!self->closed && self->ctx)
     {
       dp_pub_destroy (self->ctx);
-      self->ctx = NULL;
+      self->ctx    = NULL;
       self->closed = 1;
     }
   Py_RETURN_NONE;
@@ -414,7 +436,9 @@ Publisher_exit (PublisherObject *self, PyObject *Py_UNUSED (args))
 
 static PyMethodDef Publisher_methods[] = {
   { "send", (PyCFunction)Publisher_send, METH_VARARGS | METH_KEYWORDS,
-    "send(samples, sample_rate=0, center_freq=0)" },
+    "send(samples, sample_rate=0, center_freq=0, timestamp_ns=None) -- "
+    "timestamp_ns overrides the auto-stamped send time, propagating an "
+    "upstream origin timestamp instead of stamping now" },
   { "close", (PyCFunction)Publisher_close, METH_NOARGS,
     "close() — destroy the socket" },
   { "__enter__", (PyCFunction)Publisher_enter, METH_NOARGS, NULL },
@@ -424,12 +448,12 @@ static PyMethodDef Publisher_methods[] = {
 
 static PyTypeObject PublisherType = {
   PyVarObject_HEAD_INIT (NULL, 0).tp_name = "stream.Publisher",
-  .tp_basicsize = sizeof (PublisherObject),
-  .tp_dealloc = (destructor)Publisher_dealloc,
-  .tp_flags = Py_TPFLAGS_DEFAULT,
-  .tp_doc = "Publisher(endpoint, sample_type=CF64) — NATS PUB",
+  .tp_basicsize                           = sizeof (PublisherObject),
+  .tp_dealloc                             = (destructor)Publisher_dealloc,
+  .tp_flags                               = Py_TPFLAGS_DEFAULT,
+  .tp_doc     = "Publisher(endpoint, sample_type=CF64) — NATS PUB",
   .tp_methods = Publisher_methods,
-  .tp_new = Publisher_new,
+  .tp_new     = Publisher_new,
 };
 
 /* =========================================================================
@@ -439,7 +463,7 @@ static PyTypeObject PublisherType = {
 typedef struct
 {
   PyObject_HEAD dp_sub_t *ctx;
-  int closed;
+  int                     closed;
 } SubscriberObject;
 
 static void
@@ -489,7 +513,7 @@ Subscriber_close (SubscriberObject *self, PyObject *Py_UNUSED (ignored))
   if (!self->closed && self->ctx)
     {
       dp_sub_destroy (self->ctx);
-      self->ctx = NULL;
+      self->ctx    = NULL;
       self->closed = 1;
     }
   Py_RETURN_NONE;
@@ -519,12 +543,12 @@ static PyMethodDef Subscriber_methods[] = {
 
 static PyTypeObject SubscriberType = {
   PyVarObject_HEAD_INIT (NULL, 0).tp_name = "stream.Subscriber",
-  .tp_basicsize = sizeof (SubscriberObject),
-  .tp_dealloc = (destructor)Subscriber_dealloc,
-  .tp_flags = Py_TPFLAGS_DEFAULT,
-  .tp_doc = "Subscriber(endpoint) — NATS SUB",
-  .tp_methods = Subscriber_methods,
-  .tp_new = Subscriber_new,
+  .tp_basicsize                           = sizeof (SubscriberObject),
+  .tp_dealloc                             = (destructor)Subscriber_dealloc,
+  .tp_flags                               = Py_TPFLAGS_DEFAULT,
+  .tp_doc                                 = "Subscriber(endpoint) — NATS SUB",
+  .tp_methods                             = Subscriber_methods,
+  .tp_new                                 = Subscriber_new,
 };
 
 /* =========================================================================
@@ -534,8 +558,8 @@ static PyTypeObject SubscriberType = {
 typedef struct
 {
   PyObject_HEAD dp_push_t *ctx;
-  int sample_type;
-  int closed;
+  int                      sample_type;
+  int                      closed;
 } PushObject;
 
 static void
@@ -550,7 +574,7 @@ static PyObject *
 Push_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
   const char *endpoint;
-  int sample_type = CF64;
+  int         sample_type = CF64;
 
   static char *kwlist[] = { "endpoint", "sample_type", NULL };
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "s|i", kwlist, &endpoint,
@@ -577,20 +601,18 @@ Push_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
     }
 
   self->sample_type = sample_type;
-  self->closed = 0;
+  self->closed      = 0;
   return (PyObject *)self;
 }
 
 static PyObject *
 Push_send (PushObject *self, PyObject *args, PyObject *kwds)
 {
-  return do_send (self->ctx, self->sample_type,
-                  (send_ci32_fn)dp_push_send_ci32,
-                  (send_cf64_fn)dp_push_send_cf64,
-                  (send_cf128_fn)dp_push_send_cf128,
-                  (send_ci8_fn)dp_push_send_ci8,
-                  (send_ci16_fn)dp_push_send_ci16,
-                  (send_cf32_fn)dp_push_send_cf32, args, kwds);
+  return do_send (
+      self->ctx, self->sample_type, (send_ci32_fn)dp_push_send_ci32,
+      (send_cf64_fn)dp_push_send_cf64, (send_cf128_fn)dp_push_send_cf128,
+      (send_ci8_fn)dp_push_send_ci8, (send_ci16_fn)dp_push_send_ci16,
+      (send_cf32_fn)dp_push_send_cf32, args, kwds);
 }
 
 static PyObject *
@@ -599,7 +621,7 @@ Push_close (PushObject *self, PyObject *Py_UNUSED (ignored))
   if (!self->closed && self->ctx)
     {
       dp_push_destroy (self->ctx);
-      self->ctx = NULL;
+      self->ctx    = NULL;
       self->closed = 1;
     }
   Py_RETURN_NONE;
@@ -620,7 +642,9 @@ Push_exit (PushObject *self, PyObject *Py_UNUSED (args))
 
 static PyMethodDef Push_methods[] = {
   { "send", (PyCFunction)Push_send, METH_VARARGS | METH_KEYWORDS,
-    "send(samples, sample_rate=0, center_freq=0)" },
+    "send(samples, sample_rate=0, center_freq=0, timestamp_ns=None) -- "
+    "timestamp_ns overrides the auto-stamped send time, propagating an "
+    "upstream origin timestamp instead of stamping now" },
   { "close", (PyCFunction)Push_close, METH_NOARGS, NULL },
   { "__enter__", (PyCFunction)Push_enter, METH_NOARGS, NULL },
   { "__exit__", (PyCFunction)Push_exit, METH_VARARGS, NULL },
@@ -629,12 +653,13 @@ static PyMethodDef Push_methods[] = {
 
 static PyTypeObject PushType = {
   PyVarObject_HEAD_INIT (NULL, 0).tp_name = "stream.Push",
-  .tp_basicsize = sizeof (PushObject),
-  .tp_dealloc = (destructor)Push_dealloc,
-  .tp_flags = Py_TPFLAGS_DEFAULT,
-  .tp_doc = "Push(endpoint, sample_type=CF64) — NATS JetStream work-queue producer",
+  .tp_basicsize                           = sizeof (PushObject),
+  .tp_dealloc                             = (destructor)Push_dealloc,
+  .tp_flags                               = Py_TPFLAGS_DEFAULT,
+  .tp_doc
+  = "Push(endpoint, sample_type=CF64) — NATS JetStream work-queue producer",
   .tp_methods = Push_methods,
-  .tp_new = Push_new,
+  .tp_new     = Push_new,
 };
 
 /* =========================================================================
@@ -644,7 +669,7 @@ static PyTypeObject PushType = {
 typedef struct
 {
   PyObject_HEAD dp_pull_t *ctx;
-  int closed;
+  int                      closed;
 } PullObject;
 
 static void
@@ -711,7 +736,7 @@ Pull_ack (PullObject *Py_UNUSED (self), PyObject *arr)
   dp_msg_t *msg = ((dpMsgObject *)base)->msg;
   int       rc;
   Py_BEGIN_ALLOW_THREADS
-  rc = dp_msg_ack (msg);
+    rc = dp_msg_ack (msg);
   Py_END_ALLOW_THREADS
   if (rc != DP_OK)
     {
@@ -727,7 +752,7 @@ Pull_close (PullObject *self, PyObject *Py_UNUSED (ignored))
   if (!self->closed && self->ctx)
     {
       dp_pull_destroy (self->ctx);
-      self->ctx = NULL;
+      self->ctx    = NULL;
       self->closed = 1;
     }
   Py_RETURN_NONE;
@@ -750,7 +775,8 @@ static PyMethodDef Pull_methods[] = {
   { "recv", (PyCFunction)Pull_recv, METH_VARARGS | METH_KEYWORDS,
     "recv(timeout_ms=-1) -> (samples, header) — zero-copy recv" },
   { "ack", (PyCFunction)Pull_ack, METH_O,
-    "ack(samples) — acknowledge a JetStream work-queue frame (no-op on PUB/SUB)" },
+    "ack(samples) — acknowledge a JetStream work-queue frame (no-op on "
+    "PUB/SUB)" },
   { "close", (PyCFunction)Pull_close, METH_NOARGS, NULL },
   { "__enter__", (PyCFunction)Pull_enter, METH_NOARGS, NULL },
   { "__exit__", (PyCFunction)Pull_exit, METH_VARARGS, NULL },
@@ -759,12 +785,12 @@ static PyMethodDef Pull_methods[] = {
 
 static PyTypeObject PullType = {
   PyVarObject_HEAD_INIT (NULL, 0).tp_name = "stream.Pull",
-  .tp_basicsize = sizeof (PullObject),
-  .tp_dealloc = (destructor)Pull_dealloc,
-  .tp_flags = Py_TPFLAGS_DEFAULT,
-  .tp_doc = "Pull(endpoint) — NATS JetStream work-queue consumer",
+  .tp_basicsize                           = sizeof (PullObject),
+  .tp_dealloc                             = (destructor)Pull_dealloc,
+  .tp_flags                               = Py_TPFLAGS_DEFAULT,
+  .tp_doc     = "Pull(endpoint) — NATS JetStream work-queue consumer",
   .tp_methods = Pull_methods,
-  .tp_new = Pull_new,
+  .tp_new     = Pull_new,
 };
 
 /* =========================================================================
@@ -774,8 +800,8 @@ static PyTypeObject PullType = {
 typedef struct
 {
   PyObject_HEAD dp_req_t *ctx;
-  int sample_type;
-  int closed;
+  int                     sample_type;
+  int                     closed;
 } RequesterObject;
 
 static void
@@ -790,7 +816,7 @@ static PyObject *
 Requester_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
   const char *endpoint;
-  int sample_type = CF64;
+  int         sample_type = CF64;
 
   static char *kwlist[] = { "endpoint", "sample_type", NULL };
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "s|i", kwlist, &endpoint,
@@ -817,7 +843,7 @@ Requester_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
     }
 
   self->sample_type = sample_type;
-  self->closed = 0;
+  self->closed      = 0;
   return (PyObject *)self;
 }
 
@@ -827,8 +853,7 @@ Requester_send (RequesterObject *self, PyObject *args, PyObject *kwds)
   return do_send (self->ctx, self->sample_type, (send_ci32_fn)dp_req_send_ci32,
                   (send_cf64_fn)dp_req_send_cf64,
                   (send_cf128_fn)dp_req_send_cf128,
-                  (send_ci8_fn)dp_req_send_ci8,
-                  (send_ci16_fn)dp_req_send_ci16,
+                  (send_ci8_fn)dp_req_send_ci8, (send_ci16_fn)dp_req_send_ci16,
                   (send_cf32_fn)dp_req_send_cf32, args, kwds);
 }
 
@@ -845,7 +870,7 @@ Requester_close (RequesterObject *self, PyObject *Py_UNUSED (ignored))
   if (!self->closed && self->ctx)
     {
       dp_req_destroy (self->ctx);
-      self->ctx = NULL;
+      self->ctx    = NULL;
       self->closed = 1;
     }
   Py_RETURN_NONE;
@@ -866,7 +891,9 @@ Requester_exit (RequesterObject *self, PyObject *Py_UNUSED (args))
 
 static PyMethodDef Requester_methods[] = {
   { "send", (PyCFunction)Requester_send, METH_VARARGS | METH_KEYWORDS,
-    "send(samples, sample_rate=0, center_freq=0)" },
+    "send(samples, sample_rate=0, center_freq=0, timestamp_ns=None) -- "
+    "timestamp_ns overrides the auto-stamped send time, propagating an "
+    "upstream origin timestamp instead of stamping now" },
   { "recv", (PyCFunction)Requester_recv, METH_VARARGS | METH_KEYWORDS,
     "recv(timeout_ms=-1) -> (samples, header)" },
   { "close", (PyCFunction)Requester_close, METH_NOARGS, NULL },
@@ -877,12 +904,12 @@ static PyMethodDef Requester_methods[] = {
 
 static PyTypeObject RequesterType = {
   PyVarObject_HEAD_INIT (NULL, 0).tp_name = "stream.Requester",
-  .tp_basicsize = sizeof (RequesterObject),
-  .tp_dealloc = (destructor)Requester_dealloc,
-  .tp_flags = Py_TPFLAGS_DEFAULT,
-  .tp_doc = "Requester(endpoint, sample_type=CF64) — NATS request",
+  .tp_basicsize                           = sizeof (RequesterObject),
+  .tp_dealloc                             = (destructor)Requester_dealloc,
+  .tp_flags                               = Py_TPFLAGS_DEFAULT,
+  .tp_doc     = "Requester(endpoint, sample_type=CF64) — NATS request",
   .tp_methods = Requester_methods,
-  .tp_new = Requester_new,
+  .tp_new     = Requester_new,
 };
 
 /* =========================================================================
@@ -892,8 +919,8 @@ static PyTypeObject RequesterType = {
 typedef struct
 {
   PyObject_HEAD dp_rep_t *ctx;
-  int sample_type;
-  int closed;
+  int                     sample_type;
+  int                     closed;
 } ReplierObject;
 
 static void
@@ -908,7 +935,7 @@ static PyObject *
 Replier_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
   const char *endpoint;
-  int sample_type = CF64;
+  int         sample_type = CF64;
 
   static char *kwlist[] = { "endpoint", "sample_type", NULL };
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "s|i", kwlist, &endpoint,
@@ -935,7 +962,7 @@ Replier_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
     }
 
   self->sample_type = sample_type;
-  self->closed = 0;
+  self->closed      = 0;
   return (PyObject *)self;
 }
 
@@ -952,8 +979,7 @@ Replier_send (ReplierObject *self, PyObject *args, PyObject *kwds)
   return do_send (self->ctx, self->sample_type, (send_ci32_fn)dp_rep_send_ci32,
                   (send_cf64_fn)dp_rep_send_cf64,
                   (send_cf128_fn)dp_rep_send_cf128,
-                  (send_ci8_fn)dp_rep_send_ci8,
-                  (send_ci16_fn)dp_rep_send_ci16,
+                  (send_ci8_fn)dp_rep_send_ci8, (send_ci16_fn)dp_rep_send_ci16,
                   (send_cf32_fn)dp_rep_send_cf32, args, kwds);
 }
 
@@ -963,7 +989,7 @@ Replier_close (ReplierObject *self, PyObject *Py_UNUSED (ignored))
   if (!self->closed && self->ctx)
     {
       dp_rep_destroy (self->ctx);
-      self->ctx = NULL;
+      self->ctx    = NULL;
       self->closed = 1;
     }
   Py_RETURN_NONE;
@@ -986,7 +1012,9 @@ static PyMethodDef Replier_methods[] = {
   { "recv", (PyCFunction)Replier_recv, METH_VARARGS | METH_KEYWORDS,
     "recv(timeout_ms=-1) -> (samples, header)" },
   { "send", (PyCFunction)Replier_send, METH_VARARGS | METH_KEYWORDS,
-    "send(samples, sample_rate=0, center_freq=0)" },
+    "send(samples, sample_rate=0, center_freq=0, timestamp_ns=None) -- "
+    "timestamp_ns overrides the auto-stamped send time, propagating an "
+    "upstream origin timestamp instead of stamping now" },
   { "close", (PyCFunction)Replier_close, METH_NOARGS, NULL },
   { "__enter__", (PyCFunction)Replier_enter, METH_NOARGS, NULL },
   { "__exit__", (PyCFunction)Replier_exit, METH_VARARGS, NULL },
@@ -995,12 +1023,12 @@ static PyMethodDef Replier_methods[] = {
 
 static PyTypeObject ReplierType = {
   PyVarObject_HEAD_INIT (NULL, 0).tp_name = "stream.Replier",
-  .tp_basicsize = sizeof (ReplierObject),
-  .tp_dealloc = (destructor)Replier_dealloc,
-  .tp_flags = Py_TPFLAGS_DEFAULT,
-  .tp_doc = "Replier(endpoint, sample_type=CF64) — NATS reply",
+  .tp_basicsize                           = sizeof (ReplierObject),
+  .tp_dealloc                             = (destructor)Replier_dealloc,
+  .tp_flags                               = Py_TPFLAGS_DEFAULT,
+  .tp_doc     = "Replier(endpoint, sample_type=CF64) — NATS reply",
   .tp_methods = Replier_methods,
-  .tp_new = Replier_new,
+  .tp_new     = Replier_new,
 };
 
 /* =========================================================================
@@ -1028,9 +1056,9 @@ static PyMethodDef module_methods[] = {
 
 static PyModuleDef stream_module = {
   PyModuleDef_HEAD_INIT,
-  .m_name = "stream",
-  .m_doc = "Doppler streaming — NATS PUB/SUB, PUSH/PULL, REQ/REP.",
-  .m_size = -1,
+  .m_name    = "stream",
+  .m_doc     = "Doppler streaming — NATS PUB/SUB, PUSH/PULL, REQ/REP.",
+  .m_size    = -1,
   .m_methods = module_methods,
 };
 
@@ -1041,9 +1069,8 @@ PyInit_stream (void)
 
   /* TLM16 record dtype: 16 bytes packed, the exact dp_tlm_rec_t layout
    * (mirrors doppler.telemetry's read() dtype). */
-  PyObject *spec
-      = Py_BuildValue ("[(ss)(ss)(ss)(ss)]", "n", "<u8", "value", "<f4",
-                       "probe", "<u2", "flags", "<u2");
+  PyObject *spec = Py_BuildValue ("[(ss)(ss)(ss)(ss)]", "n", "<u8", "value",
+                                  "<f4", "probe", "<u2", "flags", "<u2");
   if (!spec)
     return NULL;
   int descr_ok = PyArray_DescrConverter (spec, &tlm16_descr);

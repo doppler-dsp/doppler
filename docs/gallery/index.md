@@ -21,6 +21,7 @@ FFT, ring buffers, C programs, or the NATS streaming demo? Those live on the
 - [WCDMA Carriers](wcdma-carriers.md) — four RRC channels measured with `PSD` and `AccTrace`.
 - [Prepare Once, Sweep Many (Plan)](plan.md) — one declarative scene evaluated at many SNR operating points via the `Plan` stimulus engine.
 - [AWGN](awgn.md) — complex Box-Muller noise, amplitude histogram, and flat PSD.
+- [Doppler Channel](doppler-channel.md) — clock Doppler as an impairment: one ppm dilates the whole time base *and* shifts the carrier, so a code loop sees the rate error its carrier loop implies.
 
 ## Filters & Resampling
 
@@ -40,12 +41,14 @@ FFT, ring buffers, C programs, or the NATS streaming demo? Those live on the
 - [Monte Carlo](detection-sim.md) — 30,000-trial validation of the Marcum Q curves.
 - [Lock Detection: Verify Counts](lockdet.md) — level + time hysteresis vs. a naive comparator on a marginal signal.
 - [2-D Acquisition](detection2d.md) — GPS/CDMA Doppler × code-phase search with Bonferroni-corrected CFAR.
-- [DSSS Acquisition & Despreading](dsss-despread.md) — burst acquisition into a streaming despreader.
 - [DSSS Acquisition: Pd/Pfa](dsss-acq-characterization.md) — detection characterisation curves.
 - [5-Burst DSSS Link (wfmgen's 3 Faces)](dsss-burst-pipeline.md) — every `wfmgen` production path feeding the same full receiver chain.
 - [Streaming Async Despreader](async-despread.md) — `Dll(segments)` PN-epoch despreader.
-- [Despreader (full continuous receiver)](despreader.md) — a combined carrier + code tracking receiver.
 - [Full-Chain Lock-Up](receiver-lock.md) — `Dll -> Costas -> SymbolSync` cold-started with no code, carrier, or timing knowledge, watched over one shared `Telemetry` context.
+- [Continuous Async DSSS Receiver](async-dsss-receiver.md) — Stage 3: `Acquisition -> Dll(segments) -> RateConverter -> MpskReceiver` at real chip/symbol rates — the despreader removes the code, an explicit resampler bridges it to a normal demodulator, and `Dll`'s own tracking-optimal `segments=4` decodes cleanly once wired that way.
+- [DsssReceiver — the Composed Continuous DSSS Receiver](dsss-receiver.md) — the single-object payoff: everything Stage 3 hand-composed across four objects, collapsed into one `DsssReceiver` and one `steps()` call.
+- [AsyncDsssReceiver: the SPEC Waveform](async-dsss-receiver-spec.md) — the packaged receiver decoding SPEC's own continuous async DSSS (CCSDS Gold-1023, 3.069 Mcps, 2700 bps) through physically-coupled clock Doppler, in both pass regimes (TCA-crossing ramp and ±50 kHz offset extremum), with the pre-despread carrier loop tracking the ramp and a binary symbol-lock indicator.
+- [CarrierAcquisition: RRC Pulse Shaping](carrier-acq-rrc.md) — PSDMF residual-carrier estimation against an RRC-shaped BPSK stream, and why the `psd_template` override matters.
 
 ## Synchronization Loops
 

@@ -2,15 +2,18 @@ add_library(dsss_core OBJECT dsss_core.c)
 target_include_directories(dsss_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc)
 
 if(BUILD_PYTHON)
-# dsss Python module — aggregates: Despreader, BurstDespreader, Acquisition, PolynomialPhaseEstimator, BurstDemod
+# dsss Python module — aggregates: Despreader, BurstDespreader, Acquisition, BurstAcquisition, PolynomialPhaseEstimator, BurstDemod, DsssReceiver, AsyncDsssReceiver
 Python3_add_library(dsss MODULE WITH_SOABI dsss_ext.c)
 target_link_libraries(dsss PRIVATE
     dsss_core
     despreader_core
     burst_despreader_core
     acq_core
+    burst_acq_core
     ppe_core
     burst_demod_core
+    dsss_receiver_core
+    async_dsss_receiver_core
     costas_core
     lo_core
     lockdet_core
@@ -22,6 +25,27 @@ target_link_libraries(dsss PRIVATE
     fft2d_core
     fft_core
     spectral_core
+    wfm_dsp_core
+    RateConverter_core
+    resamp_core
+    fir_core
+    mpsk_receiver_core
+    carrier_nda_core
+    boxcar_core
+    agc_core
+    symsync_core
+    nco_core
+    farrow_core
+    hbdecim_core
+    cic_core
+    resample_core
+    gold_core
+    snr_core
+    carrier_acq_core
+    psd_core
+    acc_trace_core
+    detector_core
+    corr_core
     Python3::NumPy)
 target_include_directories(dsss PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
 set_target_properties(dsss PROPERTIES

@@ -43,7 +43,7 @@ from pathlib import Path
 import numpy as np
 
 from doppler.ddc import DDC
-from doppler.dsss import Acquisition, BurstDemod
+from doppler.dsss import BurstAcquisition, BurstDemod
 from doppler.wfm import PN
 
 # ── waveform geometry ────────────────────────────────────────────────────────
@@ -194,13 +194,21 @@ def decode_chunk(chunk, *, nominal_hz=NOMINAL_HZ):
     returned ``code_phase`` is where in the window the preamble landed — the
     per-burst arrival jitter — and ``est_freq_hz`` is the recovered Doppler."""
     base = DDC(norm_freq=-nominal_hz / FS, rate=1.0).execute(chunk)
-    acq = Acquisition(
+    acq = BurstAcquisition(
         _ACODE, reps=REPS, spc=SPC, chip_rate=CHIP_RATE, cn0_dbhz=40.0
     )
+    # Pin n_noncoh=1: a single push() below must decide immediately: with
+    # no caller-facing max_noncoh knob left to default to "coherent-only,"
+    # the auto-sizer would otherwise silently pick n_noncoh > 1, requiring
+    # several accumulated frames within this one push before a hit could
+    # ever fire.
+    acq.configure_search_raw(REPS, 1)
     hits = acq.push(base)
     if not hits:
         return {"detected": False, "frame_valid": False, "code_phase": 0}
-    dop, cp, _peak, _noise, test_stat, _snr = max(hits, key=lambda h: h[4])
+    dop, cp, _peak, _noise, test_stat, _snr, *_rest = max(
+        hits, key=lambda h: h[4]
+    )
     f0 = dop * acq.doppler_res_hz
     if dop >= acq.doppler_bins / 2:
         f0 -= acq.doppler_bins * acq.doppler_res_hz

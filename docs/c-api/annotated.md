@@ -47,6 +47,8 @@ Here are the classes, structs, unions and interfaces with brief descriptions:
 * **struct** [**dp\_tlm\_probe\_t**](structdp__tlm__probe__t.md) _Per-probe registry entry: name, decimation and accounting._     
 * **struct** [**dp\_tlm\_rec\_t**](structdp__tlm__rec__t.md) _One telemetry sample: a probe's scalar value at sample index_ `n` _._    
 * **struct** [**dp\_writer\_t**](structdp__writer__t.md)     
+* **struct** [**dsss\_receiver\_extra\_t**](structdsss__receiver__extra__t.md)     
+* **struct** [**dsss\_receiver\_state\_t**](structdsss__receiver__state__t.md) _Composed receiver state._     
 * **struct** [**f32\_to\_i16\_state\_t**](structf32__to__i16__state__t.md) _F32ToI16 state._     
 * **struct** [**f32\_to\_i16u32\_state\_t**](structf32__to__i16u32__state__t.md) _F32ToI16U32 state._     
 * **struct** [**f32\_to\_i16u64\_state\_t**](structf32__to__i16u64__state__t.md) _F32ToI16U64 state._     
@@ -55,6 +57,7 @@ Here are the classes, structs, unions and interfaces with brief descriptions:
 * **struct** [**fft2d\_state\_t**](structfft2d__state__t.md)     
 * **struct** [**fft\_state\_t**](structfft__state__t.md)     
 * **struct** [**fir\_state\_t**](structfir__state__t.md)     
+* **struct** [**gold\_state\_t**](structgold__state__t.md) _Gold state._     
 * **struct** [**hbdecim\_q15\_state\_t**](structhbdecim__q15__state__t.md)     
 * **struct** [**hbdecim\_state\_t**](structhbdecim__state__t.md)     
 * **struct** [**i16\_to\_f32\_state\_t**](structi16__to__f32__state__t.md) _I16ToF32 state._     

@@ -127,4 +127,51 @@ endif()
 #     (A streamless symbols synth emits zeros, like a pattern-less bits synth.)
 expect_exit(2 --type symbols --symbols-file)        # missing value
 
+# 14. Continuous async DSSS (--symbol-rate): a finite --count generates, and a
+#     --record → --from-file replay is byte-identical, for each data source
+#     (default PRBS and --data none code-only). The data code is a 0/1 string;
+#     symbol_rate independent of the chip clock is the asynchronicity.
+set(DC "1111100110101001000101111")   # 25-chip data code (arbitrary)
+run(--type dsss --data-code ${DC} --symbol-rate 2700 --sps 2 --fs 6138000
+    --count 4096 --record wg_cont.json -o wg_cont_a.cf32)
+run(--from-file wg_cont.json -o wg_cont_b.cf32)
+file(MD5 wg_cont_a.cf32 ca)
+file(MD5 wg_cont_b.cf32 cb)
+if(NOT ca STREQUAL cb)
+    message(FATAL_ERROR "continuous DSSS --from-file replay differs (prbs)")
+endif()
+run(--type dsss --data-code ${DC} --symbol-rate 2700 --data none --sps 2
+    --fs 6138000 --count 4096 --record wg_cono.json -o wg_cono_a.cf32)
+run(--from-file wg_cono.json -o wg_cono_b.cf32)
+file(MD5 wg_cono_a.cf32 na)
+file(MD5 wg_cono_b.cf32 nb)
+if(NOT na STREQUAL nb)
+    message(FATAL_ERROR "continuous DSSS --from-file replay differs (none)")
+endif()
+# PRBS and code-only must differ (data modulation is present in one, not both).
+if(ca STREQUAL na)
+    message(FATAL_ERROR "continuous DSSS: prbs and code-only produced same bytes")
+endif()
+
+# 15. Continuous DSSS SigMF sidecar carries wfmgen:symbol_rate (the "dsss" label
+#     alone can't distinguish burst from continuous); code-only adds
+#     wfmgen:data=none.
+run(--type dsss --data-code ${DC} --symbol-rate 2700 --sps 2 --fs 6138000
+    --count 512 --file-type sigmf -o wg_cont_cap)
+expect_contains(wg_cont_cap.sigmf-meta "\"wfmgen:symbol_rate\":2700")
+run(--type dsss --data-code ${DC} --symbol-rate 2700 --data none --sps 2
+    --fs 6138000 --count 512 --file-type sigmf -o wg_cono_cap)
+expect_contains(wg_cono_cap.sigmf-meta "\"wfmgen:data\":\"none\"")
+
+# 16. Continuous-DSSS usage rejections (exit 2): incompatible burst-frame flags,
+#     --data with a payload, missing --data-code, non-positive --symbol-rate,
+#     and --continuous with SigMF (the sidecar can't be written for an unbounded
+#     stream).
+expect_exit(2 --type dsss --data-code ${DC} --symbol-rate 2700 --acq-code ${DC})
+expect_exit(2 --type dsss --data-code ${DC} --symbol-rate 2700 --data none --bits 1011)
+expect_exit(2 --type dsss --symbol-rate 2700 --sps 2)   # no --data-code
+expect_exit(2 --type dsss --data-code ${DC} --symbol-rate 0)
+expect_exit(2 --type dsss --data-code ${DC} --symbol-rate 2700 --sps 2 --fs 6138000
+    --continuous --file-type sigmf -o wg_bad_cont)
+
 message(STATUS "wfmgen_cli: OK")

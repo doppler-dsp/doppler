@@ -73,6 +73,19 @@ wfm_synth_create (int type, double fs, double freq, double snr, int snr_mode,
           return NULL;
         }
     }
+  /* dsss also gets a PN — the data source for continuous WFM_DSSS_DATA_PRBS,
+     seeded with the source seed so a receiver regenerates the bits. NON-fatal
+     on a bad pn_length: a burst dsss never touches the PN, so it must not fail
+     to build over an unused knob; continuous prbs rejects a NULL pn in
+     wfm_synth_set_dsss_cont instead. */
+  else if (type == WFM_SYNTH_DSSS)
+    {
+      uint64_t poly
+          = pn_poly ? pn_poly : wfm_synth_mls_poly ((uint32_t)pn_length);
+      if (poly != 0)
+        obj->pn
+            = pn_create (poly, seed ? seed : 1u, (uint32_t)pn_length, lfsr);
+    }
 
   /* AWGN at the resolved SNR. snr_mode: 0 auto, 1 fs, 2 ebno, 3 esno.
    * Noise is generated only when requested: type=noise always; otherwise only
@@ -195,6 +208,56 @@ wfm_synth_set_dsss (wfm_synth_state_t *state, const uint8_t *acq_code,
 }
 
 int
+wfm_synth_set_dsss_cont (wfm_synth_state_t *state, const uint8_t *code,
+                         size_t code_len, double chips_per_symbol,
+                         int data_mode, const uint8_t *data, size_t n_data)
+{
+  if (state->wtype != WFM_SYNTH_DSSS)
+    return 0; /* no-op for every other type, same as set_dsss */
+  if (!code || code_len == 0 || !(chips_per_symbol >= 1.0)
+      || data_mode < WFM_DSSS_DATA_NONE || data_mode > WFM_DSSS_DATA_PRBS
+      || (data_mode == WFM_DSSS_DATA_BITS && (!data || n_data == 0))
+      || (data_mode == WFM_DSSS_DATA_PRBS && !state->pn))
+    return -1;
+
+  /* Copy the spreading code (config; the per-sample kernel indexes it). */
+  uint8_t *code_copy = malloc (code_len);
+  if (!code_copy)
+    return -1;
+  for (size_t i = 0; i < code_len; i++)
+    code_copy[i] = code[i] & 1u;
+
+  /* The payload rides the shared bits[] field, so a data-aided receiver or a
+     resume path reaches it the same way the burst payload does. */
+  uint8_t *data_copy = NULL;
+  if (data_mode == WFM_DSSS_DATA_BITS)
+    {
+      data_copy = malloc (n_data);
+      if (!data_copy)
+        {
+          free (code_copy);
+          return -1;
+        }
+      for (size_t i = 0; i < n_data; i++)
+        data_copy[i] = data[i] & 1u;
+    }
+
+  free (state->code);
+  free (state->bits);
+  state->code             = code_copy;
+  state->n_code           = code_len;
+  state->chips_per_symbol = chips_per_symbol;
+  state->data_mode        = data_mode;
+  state->bits             = data_copy; /* NULL unless WFM_DSSS_DATA_BITS */
+  state->n_bits           = (data_mode == WFM_DSSS_DATA_BITS) ? n_data : 0;
+  state->bit_mod          = 1; /* chips are always BPSK (0 -> +1, 1 -> -1) */
+  state->chip_n           = 0;
+  state->sym_idx          = 0;
+  state->cur_data         = 0;
+  return 0;
+}
+
+int
 wfm_synth_set_symbols (wfm_synth_state_t *state, const float _Complex *symbols,
                        size_t n)
 {
@@ -221,6 +284,7 @@ wfm_synth_destroy (wfm_synth_state_t *state)
     fir_destroy (state->fir);
   free (state->bits);
   free (state->symbols);
+  free (state->code);
   if (state->lo)
     lo_destroy (state->lo);
   if (state->awgn)
@@ -256,6 +320,9 @@ wfm_synth_reset (wfm_synth_state_t *state)
   state->sym_read_idx = 0;   /* rewind the complex-symbol stream */
   state->chirp_ph     = 0.0; /* rewind the sweep; span/slope stay locked */
   state->chirp_n      = 0;
+  state->chip_n       = 0; /* rewind the continuous-DSSS chip/symbol clocks */
+  state->sym_idx      = 0;
+  state->cur_data     = 0;
   if (state->fir)
     fir_reset (state->fir); /* clear the RRC delay line */
   if (state->lo)
@@ -286,6 +353,9 @@ wfm_synth_state_bytes (const wfm_synth_state_t *s)
              + sizeof (uint64_t)                         /* sym_read_idx */
              + sizeof (double)                           /* chirp_ph     */
              + sizeof (uint64_t)                         /* chirp_n      */
+             + sizeof (uint64_t)                         /* chip_n       */
+             + sizeof (uint64_t)                         /* sym_idx      */
+             + sizeof (uint8_t)                          /* cur_data     */
              + 4;                                        /* presence     */
   if (s->fir)
     b += fir_state_bytes (s->fir);
@@ -310,6 +380,9 @@ wfm_synth_get_state (const wfm_synth_state_t *s, void *blob)
   dp_w_u64 (&_w, s->sym_read_idx);
   dp_w_f64 (&_w, s->chirp_ph);
   dp_w_u64 (&_w, s->chirp_n);
+  dp_w_u64 (&_w, s->chip_n);
+  dp_w_u64 (&_w, s->sym_idx);
+  dp_w_bytes (&_w, &s->cur_data, 1);
   uint8_t pres[4]
       = { s->fir != NULL, s->lo != NULL, s->awgn != NULL, s->pn != NULL };
   dp_w_bytes (&_w, pres, 4);
@@ -335,6 +408,9 @@ wfm_synth_set_state (wfm_synth_state_t *s, const void *blob)
   s->sym_read_idx = (size_t)dp_r_u64 (&_r);
   s->chirp_ph     = dp_r_f64 (&_r);
   s->chirp_n      = (size_t)dp_r_u64 (&_r);
+  s->chip_n       = dp_r_u64 (&_r);
+  s->sym_idx      = dp_r_u64 (&_r);
+  dp_r_bytes (&_r, &s->cur_data, 1);
   uint8_t pres[4];
   dp_r_bytes (&_r, pres, 4);
   /* the blob's child set must match this instance's config (same wtype). */
@@ -378,6 +454,10 @@ wfm_synth_steps (wfm_synth_state_t *state, float complex *output, size_t n)
   const int     has_awgn = state->awgn != NULL;
   const int     is_bits
       = state->wtype == WFM_SYNTH_BITS || state->wtype == WFM_SYNTH_DSSS;
+  /* Continuous DSSS rides the is_bits machinery (same FIR/rect/carrier/noise
+     path) but sources each chip from wfm_synth_cont_dsss_chip() instead of the
+     cyclic bits[] latch. chips_per_symbol > 0 is the discriminator. */
+  const int is_cont    = state->chips_per_symbol > 0.0;
   const int is_symbols = state->wtype == WFM_SYNTH_SYMBOLS;
   const int is_chirp   = state->wtype == WFM_SYNTH_CHIRP;
   const int modulated
@@ -437,27 +517,35 @@ wfm_synth_steps (wfm_synth_state_t *state, float complex *output, size_t n)
             {
               for (size_t i = 0; i < m; i++)
                 {
-                  if (sym_pos == 0 && bits && nb)
+                  if (sym_pos == 0)
                     {
-                      if (bmod == 2)
+                      if (is_cont)
                         {
-                          uint8_t b0 = bits[bit_idx];
-                          uint8_t b1 = bits[(bit_idx + 1) % nb];
-                          cre        = b0 ? -s : s;
-                          cim        = b1 ? -s : s;
-                          bit_idx    = (bit_idx + 2) % nb;
+                          cre = wfm_synth_cont_dsss_chip (state);
+                          cim = 0.0f;
                         }
-                      else if (bmod == 1)
+                      else if (bits && nb)
                         {
-                          cre     = bits[bit_idx] ? -1.0f : 1.0f;
-                          cim     = 0.0f;
-                          bit_idx = (bit_idx + 1) % nb;
-                        }
-                      else
-                        {
-                          cre     = bits[bit_idx] ? 1.0f : 0.0f;
-                          cim     = 0.0f;
-                          bit_idx = (bit_idx + 1) % nb;
+                          if (bmod == 2)
+                            {
+                              uint8_t b0 = bits[bit_idx];
+                              uint8_t b1 = bits[(bit_idx + 1) % nb];
+                              cre        = b0 ? -s : s;
+                              cim        = b1 ? -s : s;
+                              bit_idx    = (bit_idx + 2) % nb;
+                            }
+                          else if (bmod == 1)
+                            {
+                              cre     = bits[bit_idx] ? -1.0f : 1.0f;
+                              cim     = 0.0f;
+                              bit_idx = (bit_idx + 1) % nb;
+                            }
+                          else
+                            {
+                              cre     = bits[bit_idx] ? 1.0f : 0.0f;
+                              cim     = 0.0f;
+                              bit_idx = (bit_idx + 1) % nb;
+                            }
                         }
                     }
                   out[i]
@@ -479,27 +567,35 @@ wfm_synth_steps (wfm_synth_state_t *state, float complex *output, size_t n)
           else
             for (size_t i = 0; i < m; i++)
               {
-                if (sym_pos == 0 && bits && nb)
+                if (sym_pos == 0)
                   {
-                    if (bmod == 2)
+                    if (is_cont)
                       {
-                        uint8_t b0 = bits[bit_idx];
-                        uint8_t b1 = bits[(bit_idx + 1) % nb];
-                        cre        = b0 ? -s : s;
-                        cim        = b1 ? -s : s;
-                        bit_idx    = (bit_idx + 2) % nb;
+                        cre = wfm_synth_cont_dsss_chip (state);
+                        cim = 0.0f;
                       }
-                    else if (bmod == 1)
+                    else if (bits && nb)
                       {
-                        cre     = bits[bit_idx] ? -1.0f : 1.0f;
-                        cim     = 0.0f;
-                        bit_idx = (bit_idx + 1) % nb;
-                      }
-                    else
-                      {
-                        cre     = bits[bit_idx] ? 1.0f : 0.0f;
-                        cim     = 0.0f;
-                        bit_idx = (bit_idx + 1) % nb;
+                        if (bmod == 2)
+                          {
+                            uint8_t b0 = bits[bit_idx];
+                            uint8_t b1 = bits[(bit_idx + 1) % nb];
+                            cre        = b0 ? -s : s;
+                            cim        = b1 ? -s : s;
+                            bit_idx    = (bit_idx + 2) % nb;
+                          }
+                        else if (bmod == 1)
+                          {
+                            cre     = bits[bit_idx] ? -1.0f : 1.0f;
+                            cim     = 0.0f;
+                            bit_idx = (bit_idx + 1) % nb;
+                          }
+                        else
+                          {
+                            cre     = bits[bit_idx] ? 1.0f : 0.0f;
+                            cim     = 0.0f;
+                            bit_idx = (bit_idx + 1) % nb;
+                          }
                       }
                   }
                 if (++sym_pos >= nsps)

@@ -598,6 +598,39 @@ touches `jm apply`/`status` codegen paths doppler already exercises
 before this fix and are unaffected; the bug was in the *scaffolding*
 path, not the steady-state apply path).
 
+### 0.30.1 adoptions — `c_style="clang-format"` NOT viable (jm#493, pin: 0.30.1)
+
+The CI drift gate now pins **0.30.1** (`ci.yml` + `perf-regression.yml`);
+`jm_version` is stamped 0.30.1. **Drive doppler with
+`uvx --from 'just-makeit==0.30.1' just-makeit …`.** 0.30.0 added
+`create_error`/`create_error_message` (gh-482, translates a `create()`
+NULL into the exception the component actually meant instead of a
+blanket `MemoryError` — additive, no doppler object opts in yet); 0.30.1
+fixed a `.pyi` doctest-corruption bug shared by `jm method`/`jm remove`
+(gh-486). Neither touches `jm apply`/`status` codegen paths doppler
+exercises today — `jm status --check` clean before and after the pin
+bump alone (3732 manifest-owned files, 2 allowed).
+
+**Tried and reverted in the same pass: `[project] c_style = "clang-format"`**
+(gh-265 — exists since 0.19.10, off by default). The intent was to stop
+hand-running `clang-format -i` on a sacred `_ext_<obj>.c` fragment after
+every `jm apply` that touches one (see the many "clang-format the
+fragment" notes throughout this doc). In practice, `_cfmt.py` walks and
+reformats **every** file under both `native/inc/**` and `native/src/**`
+with no exclusion — including the sacred, hand-owned `native/inc/**`
+headers this file's own pre-commit config deliberately excludes from
+clang-format (jm's `_inject_decls_into_core_h` decl-injection detection
+is whitespace-sensitive, so reformatting a header can make a *later*
+`jm apply` misdetect it as needing a re-patch). Reproduced directly:
+enabling it reformatted 148 files project-wide in one `apply`, and a
+second `apply` (with **zero** manifest changes in between) reported
+`patched 2 impl(s)` and `jm status --check` kept flip-flopping between
+clean and "32 stale" across repeated runs — a non-converging churn loop,
+not a one-time reformat. Filed [jm#493](https://github.com/just-buildit/just-makeit/issues/493);
+reverted (`c_style` unset). doppler stays on the manual `clang-format -i`
+pass after touching a sacred fragment until jm gains a `native/inc`
+exclusion/scope option for this flag.
+
 ______________________________________________________________________
 
 ## State serialization

@@ -13,6 +13,26 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+### Changed
+
+- **`Acquisition.push()`'s 6th tuple field is now `cn0_dbhz_est` (dB-Hz),
+    replacing the linear `snr_est`.** The old field reported a per-sample
+    amplitude ratio backed out of the CFAR test statistic
+    (`test_stat / sqrt(2*pi) / sqrt(2*n)`) — bandwidth-dependent ("per-
+    sample" really meant "normalised by the sample rate"), not portable
+    across `spc`/`reps` configurations, and gave no legible sense of link
+    margin: a rock-solid detection (`test_stat` in the dozens) could still
+    report a small, flat linear ratio, reading as broken even when it
+    wasn't. `cn0_dbhz_est` inverts the same statistic back through the
+    engine's own C/N0-to-amplitude-SNR sizing transform, so it's directly
+    comparable to the `cn0_dbhz` the engine was constructed with — it
+    tracks true C/N0 while AWGN dominates the CFAR noise estimate, and
+    saturates at the code's own autocorrelation-sidelobe floor once C/N0
+    exceeds what the code/geometry can resolve (a real ceiling, not a
+    bug). Verified against known-C/N0 injected AWGN to within ~1 dB.
+    `doppler.dsss.orchestrator.Detection.snr_est` is renamed
+    `cn0_dbhz_est` to match.
+
 ## [0.34.0] — 2026-07-14
 
 Four issues closed and one bug found and fixed along the way, all from a

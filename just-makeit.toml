@@ -1,7 +1,7 @@
 include = ["objects/*.toml"]
 
 [project]
-jm_version = "0.29.1"
+jm_version = "0.33.1"
 name = "doppler"
 version = "0.1.0"
 build = "cmake"
@@ -9,6 +9,16 @@ build = "cmake"
 # — see docs). Omitting "windows" drops jm's per-component MinGW DLL-copy
 # boilerplate (jm-gh-213); the drift gate treats its absence as correct.
 platforms = ["linux", "macos"]
+# NOT adopting [project] c_style = "clang-format" (gh-265): jm 0.30.1's
+# _cfmt.py walks and reformats ALL of native/inc/** + native/src/** with
+# no exclusion, including the sacred native/inc/** headers that doppler's
+# OWN pre-commit config deliberately excludes from clang-format (jm's
+# decl-injection detection is whitespace-sensitive, so reformatting a
+# header confuses a LATER `jm apply` into re-patching it — an endless
+# churn loop, reproduced directly on this repo: reformatting touched 148
+# files project-wide, and a second `jm apply` re-"patched" impls that had
+# not actually changed in the manifest). Revisit if jm adds a native/inc
+# exclusion/scope option to c_style.
 perf = "true"
 pytest = "true"
 pytest_benchmark = "true"
@@ -40,9 +50,7 @@ c_deps = ["hbdecim", "resamp", "wfmcompose"]
 # binding gets them correctly; the .pyi generator doesn't) — a separate,
 # analogous jm gap. spectral.pyi is hand-maintained for FFT/FFT2D's execute*
 # methods and PSD's band_power() for the same reason (plus FFT's execute_ci16/
-# execute_ci8, which are hand-written and never had a stub at all). wfm.pyi's
-# generate() (PN), source.pyi (LO.steps_ctrl), and accumulator.pyi
-# (AccTrace.value) hit the same has_params-single-array-param stub-lag.
+# execute_ci8, which are hand-written and never had a stub at all).
 # resample.pyi is hand-maintained for RateConverter.execute(): the fragment
 # itself is entirely hand-written (custom growth/ping-pong logic, a `stages`
 # getset and DP_PY_STATE_METHODS macro not representable in the manifest at
@@ -50,6 +58,22 @@ c_deps = ["hbdecim", "resamp", "wfmcompose"]
 # .pyi needs the matching hand-fix for the same reason as the rest of this
 # list. Restore these hand-fixes after every `jm apply` until fixed
 # upstream.
+#
+# source.pyi (NCO/LO.steps_ctrl) and accumulator.pyi (AccTrace.value) came
+# OFF this list on the 0.30.1 pin bump: both were here for the same
+# has_params-single-array-param stub-lag as analyzer.pyi/delay.pyi above,
+# and both now regenerate byte-identical to the prior hand-maintained
+# content (verified directly: dropped from status_allow, ran a full
+# `jm apply`, diffed — zero unwanted change, NCO's newly-added
+# steps_u32_ctrl picked up its stub correctly for free). wfm.pyi does NOT
+# come off despite being exempted for the same original reason
+# (PN.generate()) — a full regen silently drops Gold's entire class
+# docstring (the CCSDS Code #365 worked example, the "preferred pair"
+# three-valued autocorrelation description) in favour of generic
+# boilerplate, a different and still-live gap (the sacred header's own
+# doxygen for Gold apparently never carried this detail — jm has nothing
+# richer to pull from). Re-test wfm.pyi the same way after any future pin
+# bump; don't assume the fix generalizes without re-diffing.
 #
 # util_core.h's square_clip came OFF this list in jm 0.28.11 (gh-468):
 # jm's decl-injector previously had no case for a non-static, header-only,
@@ -65,8 +89,6 @@ status_allow = [
     "src/doppler/measure/measure.pyi",
     "src/doppler/spectral/spectral.pyi",
     "src/doppler/wfm/wfm.pyi",
-    "src/doppler/source/source.pyi",
-    "src/doppler/accumulator/accumulator.pyi",
     "src/doppler/resample/resample.pyi",
 ]
 
@@ -286,6 +308,32 @@ type = "size_t"
 name = "stamp"
 fn = "dp_sample_clock_stamp"
 returns = "uint64_t"
+
+[[module.sample_clock.methods]]
+name = "stamp_at"
+fn = "dp_sample_clock_stamp_at"
+returns = "uint64_t"
+
+[[module.sample_clock.methods.args]]
+name = "n"
+type = "uint64_t"
+
+[[module.sample_clock.methods]]
+name = "track"
+fn = "dp_sample_clock_track"
+returns = "int"
+
+[[module.sample_clock.methods.args]]
+name = "observed_timestamp_ns"
+type = "uint64_t"
+
+[[module.sample_clock.methods.args]]
+name = "n_at_observation"
+type = "uint64_t"
+
+[[module.sample_clock.methods.args]]
+name = "tolerance_ns"
+type = "uint64_t"
 
 [[module.sample_clock.methods]]
 name = "reset"
@@ -529,7 +577,7 @@ objects = ["nco", "lo", "awgn"]
 extra_link_libs = ["$<$<AND:$<PLATFORM_ID:Linux>,$<STREQUAL:${CMAKE_SYSTEM_PROCESSOR},x86_64>>:mvec>"]
 
 [module.wfm]
-objects = ["pn", "wfm_synth"]
+objects = ["pn", "wfm_synth", "gold"]
 # wfm_synth.toml's depends_on link=true (gh-225) links lo/awgn/fir _core into the
 # wfm .so; pn is in-module (linked via objects). Replaces extra_link_libs.
 # wfm_dsp_core (the rrc/dsss kernels in wfm_dsp.c) backs the rrc_taps/dsss_spread
@@ -863,6 +911,18 @@ type = "int"
 enum = "crc"
 default = "crc16"
 doc = "For type=dsss: the frame trailer — crc16 appends a CRC-16-CCITT over the payload bits (what BurstDemod validates as frame_valid); none omits it."
+
+[[module.wfm_compose.source.fields]]
+name = "symbol_rate"
+type = "double"
+default = "0.0"
+doc = "For type=dsss: > 0 selects CONTINUOUS asynchronous mode — the spreading code repeats endlessly and data rides on it at this symbol rate (Hz), independent of the code-epoch rate (chips/symbol = fs/sps/symbol_rate, non-integer). No preamble/sync/CRC frame; data comes from the payload when supplied, else a seeded PN a receiver regenerates. Absent/0 = burst."
+
+[[module.wfm_compose.source.fields]]
+name = "dsss_code_only"
+type = "int"
+default = "0"
+doc = "Continuous dsss data source: 1 = code-only (the pure spreading code, no data modulation); 0 = data-modulated (the payload when supplied, else the seeded PN). Ignored for burst dsss and non-dsss types."
 
 [module.wfm_compose.source.generates]
 generator = "wfm_synth"
@@ -1717,6 +1777,15 @@ default = "4"
 [module.agc]
 objects = ["agc"]
 
+# Propagation impairments: things that TRANSFORM a signal on its way from
+# transmitter to receiver, as opposed to source's awgn/lo/nco, which GENERATE
+# one. DopplerChannel is the first; multipath/fading/phase-noise belong here
+# when they land. doppler_channel.toml's depends_on link=true (gh-225) links
+# resamp_core into the impairment .so — the dilation is resamp_execute_ctrl,
+# not a hand-rolled resampler.
+[module.impairment]
+objects = ["doppler_channel"]
+
 [module.util]
 objects = []
 
@@ -1957,8 +2026,18 @@ values = ["cf32", "cf64", "ci32", "ci16", "ci8"]
 name = "endian"
 values = ["le", "be"]
 
+[[enum]]
+name = "interp_method"
+values = ["floor", "nearest", "linear"]
+
+[module.interp]
+objects = ["interp_table"]
+
 [module.track]
 objects = ["loop_filter", "costas", "dll", "symsync", "carrier_mpsk", "carrier_nda", "mpsk_receiver"]
 
 [module.dsss]
-objects = ["despreader", "burst_despreader", "acq", "ppe", "burst_demod"]
+objects = ["despreader", "burst_despreader", "acq", "burst_acq", "ppe", "burst_demod", "dsss_receiver", "async_dsss_receiver"]
+
+[module.acquire]
+objects = ["carrier_acq"]

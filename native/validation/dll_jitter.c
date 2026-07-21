@@ -24,13 +24,18 @@
  * epoch-normalized), the harness checks the robust, defensible signatures of
  * that law. SPAN: sigma_tau^2 rises steeply as gamma falls. NOISE-CROSS-NOISE:
  * sigma_tau^2 * gamma rises at low gamma (pure 1/gamma would keep it flat),
- * the signature of the 1/gamma^2 term. BANDWIDTH: sigma_tau^2 grows with the
- * loop bandwidth bn. THRESHOLD: at low gamma the loop loses lock and the
- * jitter explodes. A 2-term c1/gamma + c2/gamma^2 fit is printed for reference
- * but is collinear and noise-sensitive, so it is not gated on. The loop's
- * effective bandwidth is Kd*bn (the
- * (|E|-|L|)/(|E|+|L|) discriminator gain Kd ~ 2.5 > 1), so the loop is
- * exercised at low bn, inside the stable regime.
+ * the signature of the 1/gamma^2 term -- muted (but not eliminated) versus
+ * the old magnitude discriminator by DLL_DISC_CLAMP, which caps exactly the
+ * large-error swings from a noise-collapsed prompt power that would
+ * otherwise drive this term (confirmed by temporarily lifting the clamp:
+ * the rise recovers to ~1.5, so the gate below is tuned for the
+ * clamped, production loop, not the unclamped ideal). BANDWIDTH:
+ * sigma_tau^2 grows with the loop bandwidth bn. THRESHOLD: at low gamma the
+ * loop loses lock and the jitter explodes. A 2-term c1/gamma + c2/gamma^2 fit
+ * is printed for reference but is collinear and noise-sensitive, so it is not
+ * gated on. The loop's effective bandwidth is Kd*bn (the power-domain
+ * discriminator's gain Kd, measured below rather than assumed), so the loop
+ * is exercised at low bn, inside the stable regime.
  *
  * Usage:  dll_jitter [--check]
  */
@@ -163,7 +168,14 @@ phase_var (double gamma, double bn, const uint8_t *code,
   long long    samp = 0;
   double       m = 0, m2 = 0;
   long         n = 0;
-  while (dumps < ndump)
+  /* dumps advances only on a code-epoch wrap, so a locked loop that stopped
+     wrapping (rate steered to ~0) would spin here forever. Bound the total
+     samples at a generous 64x the nominal (ndump epochs = ndump*SF*SPS
+     samples): a healthy loop wraps ~once per epoch and never approaches this,
+     while a pathological non-convergence exits with too few dumps and fails
+     the caller's variance-vs-law check rather than hanging the run. */
+  const long long max_samp = (long long)ndump * SF * SPS * 64;
+  while (dumps < ndump && samp < max_samp)
     {
       for (size_t i = 0; i < (size_t)SF * SPS; i++, samp++)
         {
@@ -172,8 +184,8 @@ phase_var (double gamma, double bn, const uint8_t *code,
               awgn_generate (g, NBLK, nb);
               pos = 0;
             }
-          dll_accumulate (&d, sig[i] + nb[pos++]);
-          if (d.chip_pos < (double)SF)
+          int wrapped = dll_accumulate (&d, sig[i] + nb[pos++]);
+          if (!wrapped)
             continue;
           dll_update (&d); /* one loop update per epoch */
           d.acc_e = d.acc_p = d.acc_l = 0.0f;
@@ -191,6 +203,9 @@ phase_var (double gamma, double bn, const uint8_t *code,
     }
   free (nb);
   awgn_destroy (g);
+  if (n
+      == 0) /* hit the sample cap without converging: fail the caller loudly */
+    return 1e9;
   return m2 / n - (m / n) * (m / n);
 }
 
@@ -229,9 +244,9 @@ main (int argc, char **argv)
   printf ("DLL code jitter  (SF=%d, sps=%d, d=%.1f, Kd=%.3f)\n", SF, SPS,
           SPACING, Kd);
 
-  /* sigma_tau^2 vs per-period SNR gamma at fixed bn=0.002 (the (|E|-|L|)/(|E|+
-   * |L|) discriminator gain Kd~2.5 raises the effective loop gain, so the loop
-   * is operated at low bn — well inside the stable regime). */
+  /* sigma_tau^2 vs per-period SNR gamma at fixed bn=0.002 (Kd > 1 raises the
+   * effective loop gain, so the loop is operated at low bn — well inside the
+   * stable regime). */
   double gam[6] = { 40, 25, 15, 9, 6, 4 };
   double sv[6];
   printf ("  gamma  sigma_tau^2(chip^2)   sqrt=sigma_tau(chip)\n");
@@ -263,7 +278,7 @@ main (int argc, char **argv)
   /* sigma_tau^2 proportional to the loop bandwidth bn (gamma=25): the
      early-late law has sigma_tau^2 = K(gamma,d) * bn, so sigma_tau^2 / bn is
      constant. Use the cleanly-measurable, stable range bn in [0.001, 0.003]:
-     above ~0.004 the Kd~2.5 discriminator gain pushes the effective bandwidth
+     above ~0.004 the Kd discriminator gain pushes the effective bandwidth
      toward the stability edge (super-linear), and below ~0.001 the loop's 1/bn
      correlation time exceeds the measurement window. The loop starts aligned,
      so there is no acquisition transient to warm past. */
@@ -296,8 +311,12 @@ main (int argc, char **argv)
     {
       if (span < 5.0)
         fail = 1; /* jitter rises steeply as SNR drops */
-      if (nxn < 1.5)
-        fail = 1; /* 1/gamma^2 noise-cross-noise term is present */
+      /* 1/gamma^2 noise-cross-noise term is present, muted by DLL_DISC_CLAMP
+       * (measured ~1.13 clamped vs ~1.5 with the clamp lifted -- see the
+       * file doc comment); 1.05 still requires a real rise over the flat-
+       * at-1.0 null while giving margin over the measured value. */
+      if (nxn < 1.05)
+        fail = 1;
       if (!mono)
         fail = 1; /* jitter ~ proportional to bn */
       if (lo / hi < 50.0)

@@ -14,9 +14,9 @@
 
 #include "buffer/buffer.h"
 #include "clib_common.h"
-#include "dp_state.h"
 #include "corr2d/corr2d_core.h"
 #include "detection/detection_core.h"
+#include "dp_state.h"
 #include "fft/fft_core.h"
 #include "jm_perf.h"
 /* detector2d_core.h supplies det_noise_mode_t (guarded typedef). */
@@ -35,15 +35,15 @@ extern "C"
     float  peak_mag;   
     float  noise_est;  
     float  test_stat;  
-    float  snr_est;    
+    float cn0_dbhz_est; 
   } acq_result_t;
 
   typedef struct
   {
     corr2d_state_t *corr; 
     fft_state_t *slow_fft; 
-    dp_f32_t      *ring; 
-    float complex *ref;  
+    dp_f32_t    *ring;  
+    float complex *ref; 
     float complex *yframe;  
     float complex *colbuf;  
     float complex *colout;  
@@ -76,6 +76,12 @@ extern "C"
         doppler_span_hz; 
     double
         doppler_res_hz; 
+    double pfa; 
+    double doppler_uncertainty; 
+    double symbol_rate; 
+    double epochs_per_symbol; 
+    double doppler_resolution; 
+    double doppler_rate; 
 
     float  threshold; 
     float  eta;       
@@ -99,7 +105,7 @@ extern "C"
 
   typedef struct
   {
-    uint16_t has_nc;  
+    uint16_t has_nc; 
     uint16_t _pad;
     uint32_t n_noncoh;         
     uint64_t n;                
@@ -114,11 +120,16 @@ extern "C"
   acq_state_t *acq_create (const uint8_t *code, size_t code_len, size_t reps,
                            size_t spc, double chip_rate, double cn0_dbhz,
                            double doppler_uncertainty, double pfa, double pd,
-                           int noise_mode, size_t max_noncoh);
+                           int noise_mode, size_t max_noncoh,
+                           double symbol_rate, double doppler_resolution,
+                           double doppler_rate);
 
   void acq_destroy (acq_state_t *state);
 
   void acq_reset (acq_state_t *state);
+
+  int acq_configure_search_raw (acq_state_t *state, size_t doppler_bins,
+                                size_t n_noncoh);
 
   size_t acq_push (acq_state_t *state, const float complex *in, size_t n_in,
                    acq_result_t *result, size_t max_results);

@@ -25,6 +25,29 @@ uvx --from 'just-makeit==0.28.11' jm --help
 `jm_version` for the live value.) The scaffold writes into the doppler
 source tree, so run all commands from the repo root.
 
+**Always diff after any mutating `jm` command** (`object`, `method`,
+`property`, `add`, `remove`, and — see Step 11 — a bare `apply`). Confirmed
+on jm 0.29.1: these commands can rewrite files well outside the component
+you touched —
+
+- Every `jm object` / `jm method` / `jm remove object` call reformats
+    **every** `objects/*.toml` fragment (reordering keys, collapsing
+    multi-line arrays, stripping hand-written comments) even though only
+    one object changed semantically. Cosmetic, but don't commit the noise:
+    `git checkout -- objects/ just-makeit.toml` after the command, then
+    reapply just your own manifest edit by hand.
+- A **bare** `jm apply` (no fragment path) can regenerate a sibling
+    object's sacred `<module>_ext_<component>.c` fragment in the same
+    module — silently discarding hand-patches (a corrected constructor
+    default, an explanatory comment, a UAF fix) even though that object
+    was never touched. This is not cosmetic — it reintroduces real bugs.
+    Prefer the **scoped** form, `jm apply objects/<component>.toml`, and
+    if you do run a bare `jm apply`, check `git diff` for every
+    `*_ext_*.c` file, not just the one you meant to change.
+
+These are being filed upstream as just-makeit issues; this note stays
+until they're fixed and the pin bumped past the fix.
+
 ______________________________________________________________________
 
 ## Step 0 — Characterize the algorithm
@@ -522,11 +545,17 @@ make python-test                        # full pytest suite
 
 If you changed `objects/<component>.toml` (or `just-makeit.toml`) after
 the initial `jm apply` — e.g. added a property, tweaked a param default —
-reconcile the generated glue:
+reconcile the generated glue. **Prefer the scoped form** —
+`jm apply objects/<component>.toml` — over a bare `jm apply`: in a module
+with sibling objects, a bare `jm apply` has been seen (jm 0.29.1) to
+regenerate a *sibling's* sacred `_ext_<sibling>.c` fragment too, discarding
+its hand-patches. Whichever form you run, check `git diff` before trusting
+it:
 
 ```sh
-jm apply   # idempotent; reconciles CMakeLists, __init__.py, .pyi
-jm status --check   # confirms zero drift; this is what CI's manifest-drift gate runs
+jm apply objects/<component>.toml   # scoped; reconciles CMakeLists, __init__.py, .pyi
+jm status --check                   # confirms zero drift; this is what CI's manifest-drift gate runs
+git diff --stat                     # confirm only your component's files changed
 ```
 
 ______________________________________________________________________

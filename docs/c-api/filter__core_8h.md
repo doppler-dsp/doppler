@@ -11,6 +11,7 @@
 _Filter module — public C API._ 
 
 * `#include "clib_common.h"`
+* `#include "resample/resample_core.h"`
 
 
 
@@ -48,7 +49,11 @@ _Filter module — public C API._
 
 
 
+## Public Functions
 
+| Type | Name |
+| ---: | :--- |
+|  void | [**design\_lowpass**](#function-design_lowpass) (double fpass, double fstop, double atten\_db, float \* out) <br> |
 
 
 
@@ -76,6 +81,27 @@ _Filter module — public C API._
 
 
 
+
+## Public Functions Documentation
+
+
+
+
+### function design\_lowpass 
+
+```C++
+void design_lowpass (
+    double fpass,
+    double fstop,
+    double atten_db,
+    float * out
+) 
+```
+
+
+
+
+<hr>
 
 ------------------------------
 The documentation for this class was generated from the following file `native/inc/filter/filter_core.h`

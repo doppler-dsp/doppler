@@ -100,6 +100,100 @@ test_reset (void)
   return 0;
 }
 
+/* stamp_at() on an arbitrary historical n matches stamp() at the same n --
+   the whole point is that stamp() is just stamp_at(c, c->n). */
+static int
+test_stamp_at_matches_stamp (void)
+{
+  dp_sample_clock_t c;
+  dp_sample_clock_init (&c, 1000.0, 0);
+  c.n = 500;
+  CHECK (dp_sample_clock_stamp_at (&c, 500) == dp_sample_clock_stamp (&c),
+         "stamp_at(c, c->n) == stamp(c)");
+  CHECK (dp_sample_clock_stamp_at (&c, 250)
+             == dp_sample_clock_stamp_at (&c, 500) - 250000000ULL,
+         "stamp_at is pure arithmetic at an arbitrary (past) n");
+  return 0;
+}
+
+/* The first track() call always adopts the observation outright, regardless
+   of tolerance -- a fresh clock has no real anchor to compare against. */
+static int
+test_track_first_call_adopts (void)
+{
+  dp_sample_clock_t c;
+  dp_sample_clock_init (&c, 1000.0, 0);
+  uint64_t observed = 1700000000000000000ULL; /* an arbitrary "real" ts */
+  CHECK (dp_sample_clock_track (&c, observed, 100, 1000000ULL) != 0,
+         "first track() call adopts");
+  CHECK (c.has_anchor != 0, "has_anchor set after first track()");
+  CHECK (dp_sample_clock_stamp_at (&c, 100) == observed,
+         "adopted epoch reproduces the observed timestamp exactly");
+  return 0;
+}
+
+/* Once anchored, an observation consistent with the clock's own model
+   (within tolerance) does NOT re-anchor -- the whole point of tolerance is
+   to absorb ordinary jitter without needlessly perturbing the epoch. */
+static int
+test_track_tolerance_absorbs_jitter (void)
+{
+  dp_sample_clock_t c;
+  dp_sample_clock_init (&c, 1000.0, 0);
+  uint64_t observed0 = 1700000000000000000ULL;
+  dp_sample_clock_track (&c, observed0, 0, 1000000ULL);
+  uint64_t epoch_after_first = c.epoch_real_ns;
+
+  /* Predicted stamp at n=1000 is observed0 + 1s exactly; perturb it by a
+     small amount well inside the 1ms tolerance. */
+  uint64_t predicted = dp_sample_clock_stamp_at (&c, 1000);
+  int resynced = dp_sample_clock_track (&c, predicted + 5000 /* 5us */, 1000,
+                                        1000000ULL);
+  CHECK (resynced == 0, "small jitter inside tolerance does not resync");
+  CHECK (c.epoch_real_ns == epoch_after_first,
+         "epoch unchanged when within tolerance");
+  CHECK (c.n == 1000, "n still advances to the latest observation");
+  return 0;
+}
+
+/* A discrepancy beyond tolerance DOES resync -- a genuine discontinuity
+   (dropped samples, a real source restart) must not be silently absorbed. */
+static int
+test_track_resyncs_beyond_tolerance (void)
+{
+  dp_sample_clock_t c;
+  dp_sample_clock_init (&c, 1000.0, 0);
+  uint64_t observed0 = 1700000000000000000ULL;
+  dp_sample_clock_track (&c, observed0, 0, 1000000ULL);
+
+  uint64_t predicted = dp_sample_clock_stamp_at (&c, 1000);
+  uint64_t skewed    = predicted + 50000000ULL; /* 50ms, past the 1ms tol */
+  int      resynced  = dp_sample_clock_track (&c, skewed, 1000, 1000000ULL);
+  CHECK (resynced != 0, "discrepancy beyond tolerance resyncs");
+  CHECK (dp_sample_clock_stamp_at (&c, 1000) == skewed,
+         "re-anchored epoch reproduces the new observation exactly");
+  return 0;
+}
+
+/* A stale/out-of-order/redelivered observation (n_at_observation < c->n) is
+   rejected outright -- the epoch must never walk backward. */
+static int
+test_track_rejects_stale (void)
+{
+  dp_sample_clock_t c;
+  dp_sample_clock_init (&c, 1000.0, 0);
+  dp_sample_clock_track (&c, 1700000000000000000ULL, 5000, 1000000ULL);
+  uint64_t epoch_before = c.epoch_real_ns;
+  uint64_t n_before     = c.n;
+
+  int accepted
+      = dp_sample_clock_track (&c, 1600000000000000000ULL, 100, 1000000ULL);
+  CHECK (accepted == 0, "stale (older-n) observation is rejected");
+  CHECK (c.epoch_real_ns == epoch_before, "epoch unchanged by a stale obs");
+  CHECK (c.n == n_before, "n unchanged by a stale obs");
+  return 0;
+}
+
 int
 main (void)
 {
@@ -112,6 +206,16 @@ main (void)
   if (test_resync ())
     return 1;
   if (test_reset ())
+    return 1;
+  if (test_stamp_at_matches_stamp ())
+    return 1;
+  if (test_track_first_call_adopts ())
+    return 1;
+  if (test_track_tolerance_absorbs_jitter ())
+    return 1;
+  if (test_track_resyncs_beyond_tolerance ())
+    return 1;
+  if (test_track_rejects_stale ())
     return 1;
   printf ("test_timing_core: all passed\n");
   return 0;

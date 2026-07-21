@@ -82,7 +82,7 @@ void detector2d_destroy (detector2d_state_t *state);
 
 void detector2d_reset (detector2d_state_t *state);
 
-void detector2d_set_ref (detector2d_state_t *state, const float complex *ref);
+int detector2d_set_ref (detector2d_state_t *state, const float complex *ref);
 
 void detector2d_set_threshold (detector2d_state_t *state, float threshold);
 

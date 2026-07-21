@@ -139,6 +139,30 @@ def test_push_pull_header_has_timestamp(push_pull_cf64):
     assert hdr["timestamp_ns"] > 0
 
 
+def test_push_pull_header_timestamp_override(push_pull_cf64):
+    """An explicit timestamp_ns propagates through send() -> recv()
+    exactly, instead of being overwritten by a fresh CLOCK_REALTIME
+    read -- the propagation fix this test guards against regressing."""
+    push, pull = push_pull_cf64
+    x = np.ones(4, dtype=np.complex128)
+    upstream_ts = 1_700_000_000_123_456_789
+    push.send(x, timestamp_ns=upstream_ts)
+    _, hdr = pull.recv(timeout_ms=2000)
+    assert hdr["timestamp_ns"] == upstream_ts
+
+
+def test_push_pull_header_timestamp_default_unchanged(push_pull_cf64):
+    """Omitting timestamp_ns keeps today's behavior: auto-stamped close
+    to wall-clock now, not the override path silently engaging."""
+    push, pull = push_pull_cf64
+    x = np.ones(4, dtype=np.complex128)
+    before = get_timestamp_ns()
+    push.send(x)
+    _, hdr = pull.recv(timeout_ms=2000)
+    after = get_timestamp_ns()
+    assert before <= hdr["timestamp_ns"] <= after
+
+
 def test_pull_timeout_raises(push_pull_cf64):
     _, pull = push_pull_cf64
     with pytest.raises((TimeoutError, Exception)):

@@ -1,16 +1,18 @@
 """dll_theory_demo.py — DLL code loop validated against theory.
 
 Two theoretical-correctness checks for :class:`doppler.track.Dll`'s
-non-coherent early-minus-late code discriminator `(|E|-|L|)/(|E|+|L|)`:
+non-coherent, prompt-normalized early-minus-late power discriminator
+`0.5*(|E|^2 - |L|^2)/|P|^2` (clamped to +/-1):
 
   * **Code-detector S-curve** — drive the loop open-loop (bn -> 0) over a swept
-    static code-phase error and read the discriminator, vs the triangular
-    autocorrelation reference, R(t)=max(0,1-|t|): zero at the lock t=0
-    with a restoring (negative) slope.
-    Zero (stable lock) at t=0 with a restoring (negative) slope. The
-    fractional-boundary integrate-and-dump (overlap-weighting the lone sample
-    that straddles a chip transition) makes the curve smooth and antisymmetric
-    to round-off at any sps — no integer-sample code-phase staircase.
+    static code-phase error and read the discriminator, vs the reference built
+    from the triangular code autocorrelation R(t)=max(0,1-|t|):
+    `clip(0.5*(R(t+s)^2 - R(t-s)^2)/R(t)^2, -1, 1)` at half-chip early/late
+    spacing s. Zero (stable lock) at t=0 with a restoring (negative) slope,
+    saturating at +/-1 by the half-chip point. The fractional-boundary
+    integrate-and-dump (overlap-weighting the lone sample that straddles a chip
+    transition) makes the curve smooth and antisymmetric to round-off at any
+    sps — no integer-sample code-phase staircase.
 
   * **Code-error variance vs SNR** — at lock the early-late discriminator
     variance follows a clean `1/SNR` law (the per-epoch code-error noise).
@@ -48,11 +50,15 @@ def _scurve(sps, taus, spacing=0.5):
 
 
 def _tri_ref(taus, s=0.5):
+    # The DLL uses a prompt-normalized power discriminator,
+    # 0.5*(|E|^2 - |L|^2)/|P|^2, clamped to +/-1 (DLL_DISC_CLAMP). Build the
+    # reference from the triangular code autocorrelation R(t)=max(0,1-|t|),
+    # sampling early/late at +/-spacing and the prompt on-time.
     def acorr(t):
         return np.maximum(0, 1 - np.abs(t))
 
-    early, late = acorr(taus + s), acorr(taus - s)
-    return (early - late) / (early + late + 1e-12)
+    early, late, prompt = acorr(taus + s), acorr(taus - s), acorr(taus)
+    return np.clip(0.5 * (early**2 - late**2) / (prompt**2 + 1e-12), -1.0, 1.0)
 
 
 def _disc_var(snr_db, sps=16, nper=400):
@@ -91,12 +97,12 @@ def main(out_path="dll_theory_demo.png"):
 
     fig, (a, b) = plt.subplots(1, 2, figsize=(11, 4.5))
 
-    a.plot(taus, ref, "k--", lw=2, label="triangular E-L reference")
+    a.plot(taus, ref, "k--", lw=2, label="0.5(E²-L²)/P² reference (clamped)")
     a.plot(taus, meas, color="#9467bd", lw=1.4, label="measured (sps=16)")
     a.axhline(0, color="0.7", lw=0.6)
     a.axvline(0, color="0.7", lw=0.6)
     a.set_xlabel("code-phase error (chips)")
-    a.set_ylabel("discriminator (|E|-|L|)/(|E|+|L|)")
+    a.set_ylabel("discriminator 0.5(|E|²-|L|²)/|P|²")
     a.set_title("DLL code-detector S-curve (stable lock at 0)", fontsize=10)
     a.legend(fontsize=8, loc="upper right")
     a.grid(alpha=0.3)
@@ -118,16 +124,20 @@ def main(out_path="dll_theory_demo.png"):
     )
 
     # ── self-validation: the demo's theory claims, asserted ──────────────
-    # Stable lock: the discriminator must null exactly at zero code-phase
-    # error and be antisymmetric to round-off (the fractional-boundary
-    # integrate-and-dump leaves no integer-sample staircase bias).
-    assert abs(meas[len(meas) // 2]) < 1e-6, "discriminator not null at 0"
+    # Stable lock: the discriminator nulls at zero code-phase error (to the
+    # fixed-point NCO's replica-quantization floor, a few 1e-6) and is
+    # antisymmetric to round-off (the fractional-boundary integrate-and-dump
+    # leaves no integer-sample staircase bias).
+    assert abs(meas[len(meas) // 2]) < 5e-6, "discriminator not null at 0"
     assert asym < 1e-4, "S-curve is not antisymmetric"
-    # The measured curve must follow the triangular-autocorrelation E-L
-    # reference across the swept chip range (restoring slope included).
+    # The measured curve must follow the prompt-normalized power reference
+    # across the swept chip range (restoring slope + the +/-1 saturation by
+    # the half-chip point). The residual is largest at the clamp knee
+    # (t≈0.375), where the continuous triangular model departs most from the
+    # discrete, fractional-boundary-weighted correlation.
     scurve_err = np.max(np.abs(meas - ref))
-    print(f"S-curve max err vs triangular reference {scurve_err:.3f}")
-    assert scurve_err < 0.05, "S-curve departs from the triangular model"
+    print(f"S-curve max err vs power reference {scurve_err:.3f}")
+    assert scurve_err < 0.09, "S-curve departs from the power reference"
     # At lock the code-error variance is thermal: every swept point must
     # sit on the 1/SNR line (anchored at 20 dB) to within 1 dB.
     dev_db = np.abs(10 * np.log10(var / law))

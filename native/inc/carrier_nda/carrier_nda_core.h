@@ -455,6 +455,11 @@ extern "C"
   size_t carrier_nda_steps (carrier_nda_state_t *state, const float complex *x,
                             size_t x_len, float complex *out, size_t max_out);
   double carrier_nda_get_norm_freq (const carrier_nda_state_t *state);
+  /** @brief Instantaneous NCO frequency command = centre + full loop-filter
+   * output (integ + kp*e), cycles/sample. Mean rides a ramp with no lag;
+   * variance is the loop stress. See the impl for the estimator-vs-command
+   * distinction. */
+  double carrier_nda_get_nco_freq (const carrier_nda_state_t *state);
   void   carrier_nda_set_norm_freq (carrier_nda_state_t *state, double val);
   double carrier_nda_get_lock (const carrier_nda_state_t *state);
   double carrier_nda_get_last_error (const carrier_nda_state_t *state);

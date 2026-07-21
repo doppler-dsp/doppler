@@ -20,18 +20,18 @@ depends_on = [
 
 # ── Construction: physics in, grid out ───────────────────────────────────────
 # The user states the waveform, front end, and operating point in real units;
-# the engine derives the whole search grid (coherent depth, threshold, looks).
+# the engine derives the whole search grid (window count, threshold, looks).
+# This class is the CONTINUOUS front door (see docs/design/async-dsss-spec.md's
+# Acquisition/BurstAcquisition split): always window-tiles, never
+# coherently combines across epochs -- BurstAcquisition (objects/burst_acq.toml)
+# is the other front door onto this SAME shared acq_state_t/acq_core.c engine.
 # chip_rate / cn0_dbhz carry valid nonzero placeholder defaults so jm's auto-
-# doctest builds a non-NULL object; acq_create still rejects an explicit 0.
+# doctest builds a non-NULL object; acq_create_continuous still rejects an
+# explicit 0.
 
 [[acq.init_params]]
 name = "code"
 type = "uint8_t[]"
-
-[[acq.init_params]]
-name = "reps"
-type = "size_t"
-default = "1"
 
 [[acq.init_params]]
 name = "spc"
@@ -42,6 +42,16 @@ default = "4"
 name = "chip_rate"
 type = "double"
 default = "1000000.0"
+
+# Continuous data-symbol rate (Hz) -- diagnostic only (exposed via
+# epochs_per_symbol), doesn't feed sizing: this engine never coherently
+# combines regardless of the data-modulation clock (task #67: coherent
+# combining under continuous async data is a structural aliasing mislock,
+# not a tunable SNR trade-off).
+[[acq.init_params]]
+name = "symbol_rate"
+type = "double"
+default = "1000.0"
 
 [[acq.init_params]]
 name = "cn0_dbhz"
@@ -68,20 +78,31 @@ name = "noise_mode"
 type = "string_enum:mean,median,min,max"
 default = "mean"
 
-# Advanced: non-coherent look cap. 1 (default) = coherent-only; raise it to let
-# auto-config add magnitude-summed looks when reps coherent alone can't reach pd.
-[[acq.init_params]]
-name = "max_noncoh"
-type = "size_t"
-default = "1"
-
 [[acq.methods]]
 name = "push"
 arg_type = "float _Complex"
 return_type = "acq_result_t"
 nogil = true
 max_results = 64
-result_fields = [{name = "doppler_bin", type = "size_t"}, {name = "code_phase", type = "size_t"}, {name = "peak_mag", type = "float"}, {name = "noise_est", type = "float"}, {name = "test_stat", type = "float"}, {name = "snr_est", type = "float"}]
+result_fields = [{name = "doppler_bin", type = "size_t"}, {name = "code_phase", type = "size_t"}, {name = "peak_mag", type = "float"}, {name = "noise_est", type = "float"}, {name = "test_stat", type = "float"}, {name = "cn0_dbhz_est", type = "float"}, {name = "samples_consumed", type = "uint64_t"}]
+
+# Advanced escape hatch: pin the search grid directly, bypassing both
+# auto-sizing searches (mirrors Dll's/Costas's configure_lock_raw()). Raises
+# ValueError if doppler_bins is outside [1, reps] or n_noncoh outside
+# [1, 256] (the internal non-coherent-look safety-valve ceiling). Resizes
+# every grid-dependent buffer/plan and clears in-flight accumulation (ring
+# contents, the non-coherent power accumulator) -- call between push() calls,
+# never a substitute for one.
+[[acq.methods]]
+name = "configure_search_raw"
+doc = "Pin the search grid directly, bypassing both auto-sizing searches -- the advanced escape hatch (mirrors Dll.configure_lock_raw/Costas.configure_lock). Resizes every buffer/plan that depends on the grid (the slow-time FFT, the code correlator, the reference, and every per-frame scratch buffer), re-derives the threshold ladder for the pinned grid from the same physics __init__ used, and clears in-flight accumulation (ring contents, the non-coherent power accumulator, dwell bookkeeping) -- call between push() calls, never a substitute for one. Raises ValueError if doppler_bins is outside [1, reps] or n_noncoh is outside [1, 256] (the internal non-coherent-look safety-valve ceiling)."
+arg_type = "void"
+return_type = "int"
+status_return = true
+params = [
+  { name = "doppler_bins", type = "size_t" },
+  { name = "n_noncoh", type = "size_t" },
+]
 
 # ── Read-back grid the engine derived ────────────────────────────────────────
 
@@ -95,7 +116,7 @@ doc = "Code-phase hypotheses searched (= sf*spc, one code period)."
 name = "doppler_bins"
 type = "size_t"
 field = true
-doc = "Coherent depth chosen: the slow-time FFT length in code reps (<= reps)."
+doc = "Effective Doppler search granularity this engine picked: the window-tile count (this engine always window-tiles -- see acq_core.h's file doc comment -- so this is window_bins, never a coherent-depth axis)."
 
 [[acq.properties]]
 name = "sf"
@@ -108,12 +129,6 @@ name = "spc"
 type = "size_t"
 field = true
 doc = "Samples per chip (chip-rate oversample factor)."
-
-[[acq.properties]]
-name = "reps"
-type = "size_t"
-field = true
-doc = "Max coherent code repetitions (the coherence ceiling)."
 
 [[acq.properties]]
 name = "n_noncoh"
@@ -216,3 +231,15 @@ name = "underpowered"
 type = "bool"
 field = true
 doc = "True when pd_predicted < pd (the search cannot meet the target)."
+
+[[acq.properties]]
+name = "symbol_rate"
+type = "double"
+field = true
+doc = "Continuous data-symbol rate (Hz) this engine was built with -- diagnostic only, doesn't feed sizing (this engine never coherently combines regardless)."
+
+[[acq.properties]]
+name = "epochs_per_symbol"
+type = "double"
+field = true
+doc = "(chip_rate/sf)/symbol_rate -- code epochs per data symbol; 0 when symbol_rate is 0."

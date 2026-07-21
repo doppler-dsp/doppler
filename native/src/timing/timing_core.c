@@ -8,6 +8,13 @@
  * The deadline offset is computed in ``long double`` as ``n / fs * 1e9`` (in
  * that order, to keep the magnitudes small) so it stays exact for the sample
  * counts a long-running stream reaches.
+ *
+ * track()/stamp_at() are the receive-side counterpart of pace()/stamp():
+ * instead of sleeping toward a deadline it owns, a receiver reconciles its
+ * clock's epoch against ground truth read off an arriving stream header, then
+ * stamps arbitrary historical sample indices (e.g. several per-record
+ * detections spanning different offsets within one buffered input) off that
+ * same drift-free timeline.
  */
 #define _POSIX_C_SOURCE 200809L
 
@@ -91,6 +98,7 @@ dp_sample_clock_init (dp_sample_clock_t *c, double fs, int resync)
   c->max_late_ns   = 0;
   c->epoch_mono_ns = dp_mono_ns ();
   c->epoch_real_ns = dp_real_ns ();
+  c->has_anchor    = 0;
 }
 
 double
@@ -117,9 +125,48 @@ dp_sample_clock_pace (dp_sample_clock_t *c, size_t count)
 }
 
 uint64_t
+dp_sample_clock_stamp_at (const dp_sample_clock_t *c, uint64_t n)
+{
+  return c->epoch_real_ns + offset_ns (n, c->fs);
+}
+
+uint64_t
 dp_sample_clock_stamp (const dp_sample_clock_t *c)
 {
-  return c->epoch_real_ns + offset_ns (c->n, c->fs);
+  return dp_sample_clock_stamp_at (c, c->n);
+}
+
+int
+dp_sample_clock_track (dp_sample_clock_t *c, uint64_t observed_timestamp_ns,
+                       uint64_t n_at_observation, uint64_t tolerance_ns)
+{
+  /* Stale/out-of-order/redelivered header -- never walk the epoch
+     backward (this codebase's own PUSH/PULL delivery is at-least-once and
+     may redeliver to a different worker after a crash). */
+  if (n_at_observation < c->n)
+    return 0;
+
+  if (!c->has_anchor)
+    {
+      c->epoch_real_ns
+          = observed_timestamp_ns - offset_ns (n_at_observation, c->fs);
+      c->n          = n_at_observation;
+      c->has_anchor = 1;
+      return 1;
+    }
+
+  uint64_t predicted = dp_sample_clock_stamp_at (c, n_at_observation);
+  uint64_t diff      = (predicted > observed_timestamp_ns)
+                           ? predicted - observed_timestamp_ns
+                           : observed_timestamp_ns - predicted;
+  c->n = n_at_observation; /* always advance to the latest known position */
+  if (diff > tolerance_ns)
+    {
+      c->epoch_real_ns
+          = observed_timestamp_ns - offset_ns (n_at_observation, c->fs);
+      return 1;
+    }
+  return 0;
 }
 
 void

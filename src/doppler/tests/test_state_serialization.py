@@ -38,6 +38,7 @@ import pytest
 from numpy.typing import NDArray
 
 from doppler.accumulator import AccCf64, AccF32, AccTrace
+from doppler.acquire import CarrierAcquisition
 from doppler.agc import AGC
 from doppler.analyzer import Specan
 from doppler.arith import AccQ8, AccQ15
@@ -47,6 +48,7 @@ from doppler.delay import DelayCf64
 from doppler.detection import LockDet
 from doppler.dsss import BurstDespreader, Despreader
 from doppler.filter import FIR, MovingAverage
+from doppler.impairment import DopplerChannel
 from doppler.resample import (
     CIC,
     Farrow,
@@ -66,7 +68,7 @@ from doppler.track import (
     MpskReceiver,
     SymbolSync,
 )
-from doppler.wfm import PN, _SynthEngine
+from doppler.wfm import PN, Gold, _SynthEngine
 
 # A short 0/1 spreading code for the code-tracking compositions.
 _CODE = (np.arange(31, dtype=np.uint8) & 1).astype(np.uint8)
@@ -201,6 +203,21 @@ def _make_dsss_engine() -> Any:
     return e
 
 
+def _make_dsss_cont_engine() -> Any:
+    """A type=dsss synth in CONTINUOUS mode, prbs data (noisy, so the AWGN
+    child rides the blob). The code + chips_per_symbol are config (rebuilt by
+    set_dsss_cont); the running fields the split must carry are the chip/symbol
+    clocks (chip_n, sym_idx, cur_data) AND the PN child that supplies the data.
+    chips_per_symbol is non-integer -- the asynchronicity -- so symbol edges
+    fall mid-code-epoch across the resume point."""
+    e = _SynthEngine(
+        type="dsss", fs=1.0, freq=0.0, snr=-3.0, snr_mode="fs", seed=5, sps=2
+    )
+    rng = np.random.default_rng(3)
+    e.set_dsss_cont(rng.integers(0, 2, 31, dtype=np.uint8), 12.7, data="prbs")
+    return e
+
+
 CASES: dict[str, tuple[Callable[[], Any], _Feed]] = {
     "LO": (lambda: LO(0.05), lambda o, seg: np.array(o.steps(len(seg)))),
     "CIC": (lambda: CIC(4), lambda o, seg: np.array(o.decimate(seg))),
@@ -280,6 +297,19 @@ CASES: dict[str, tuple[Callable[[], Any], _Feed]] = {
         ),
     ),
     # Compositions — children nested as self-validating sub-blobs.
+    # DopplerChannel nests the resampler that realises the time dilation; its
+    # own payload is just the two sample clocks (input-side for the resampler
+    # ctrl, output-side for the carrier phase), so a resume that restored only
+    # one of them would drift the carrier against the code rate.
+    "DopplerChannel": (
+        lambda: DopplerChannel(
+            fs=6.138e6,
+            carrier_hz=2.5e9,
+            doppler_ppm=20.0,
+            doppler_rate_ppm_s=0.2,
+        ),
+        lambda o, seg: np.array(o.execute(seg)),
+    ),
     "Dll": (
         lambda: Dll(
             code=_CODE,
@@ -312,6 +342,10 @@ CASES: dict[str, tuple[Callable[[], Any], _Feed]] = {
     ),
     "PN": (
         lambda: PN(96, 1, 7),
+        lambda o, seg: np.array(o.generate(len(seg))),
+    ),
+    "Gold": (
+        lambda: Gold(),
         lambda o, seg: np.array(o.generate(len(seg))),
     ),
     # Tracking loops — carrier loops take complex baseband; LoopFilter takes a
@@ -380,6 +414,27 @@ CASES: dict[str, tuple[Callable[[], Any], _Feed]] = {
     "_SynthEngine[dsss]": (
         _make_dsss_engine,
         _blob_after(lambda o, seg: o.steps(len(seg))),
+    ),
+    "_SynthEngine[dsss-continuous]": (
+        _make_dsss_cont_engine,
+        _blob_after(lambda o, seg: o.steps(len(seg))),
+    ),
+    # PSDMF frequency refinement -- resumable state is the composed psd +
+    # detector children's own running non-coherent averages plus the
+    # carry buffer; design_snr=0.1 -> dwell_target=6686 (n_fft=16),
+    # comfortably beyond the harness's 2048-sample stream so the object
+    # never reaches its terminal (ready/give-up) state mid-test -- a
+    # genuine in-progress resume, like PSD's/Corr's own entries above.
+    "CarrierAcquisition": (
+        lambda: CarrierAcquisition(
+            np.array([], dtype=np.float32),
+            16000.0,
+            1000.0,
+            resolution_hz=1000.0,
+            zero_pad=1,
+            design_snr=0.1,
+        ),
+        _blob_after(lambda o, seg: o.steps(seg)),
     ),
 }
 

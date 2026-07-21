@@ -10,9 +10,6 @@ latency-bound bursts.
 Source:
 [`src/doppler/dsss/__init__.py`](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/dsss/__init__.py)
 
-See the [DSSS acquisition & despreading gallery page](../gallery/dsss-despread.md)
-for the full acquire → track → despread chain with plots.
-
 ______________________________________________________________________
 
 ## `Acquisition` — streaming burst acquisition
@@ -131,9 +128,6 @@ histograms the prompt sign-flip positions to find the bit boundary
 despreader is seeded by acquisition (coarse carrier frequency + code phase)
 and tracks the residual.
 
-See the [despreader gallery page](../gallery/despreader.md) for the full
-receiver acquiring and despreading end to end.
-
 ```python
 import numpy as np
 from doppler.dsss import Despreader
@@ -227,13 +221,66 @@ ______________________________________________________________________
 
 ::: doppler.dsss.BurstDespreader
 
+## `DsssReceiver` — the composed continuous receiver
+
+The single-object form of `Acquisition -> Dll(segments) -> RateConverter -> MpskReceiver`: only `code`/`chip_rate`/`symbol_rate` are required,
+everything else defaults to this project's own validated values, with
+`configure_search_raw`/`configure_lock_raw`/`configure_chain_raw` as the
+power-user escape hatches. See the
+[DsssReceiver gallery page](../gallery/dsss-receiver.md) for the full
+story this composes.
+
+!!! warning "`configure_search_raw` bypasses the mislock-avoiding auto-sizer"
+
+    See the gallery page's own warning before pinning a large `doppler_bins`
+    directly — `DsssReceiver` always has `symbol_rate` set, so the default
+    auto-sizing exists specifically to avoid a confirmed mislock failure
+    mode that a raw pin bypasses.
+
+```python
+import numpy as np
+from doppler.dsss import DsssReceiver
+
+code = np.random.default_rng(1).integers(0, 2, 127).astype(np.uint8)
+rx = DsssReceiver(code, chip_rate=3.0e6, symbol_rate=2100.0)
+x = np.zeros(1024, dtype=np.complex64)   # no real signal here -- just show the call
+syms = rx.steps(x)   # empty while searching; demodulated symbols once locked
+rx.tracking          # 0 = searching, 1 = locked and demodulating
+```
+
+::: doppler.dsss.DsssReceiver
+
+## `BurstAcquisition` — the burst front door to acquisition
+
+`BurstAcquisition` is the burst-oriented front door to the shared
+acquisition engine: a bounded preamble is searched over a (Doppler, code
+phase) grid and the peak is reported once, rather than the continuous
+streaming push of [`Acquisition`](#acquisition-streaming-burst-acquisition).
+Both wrap the same stateless kernel; the two front doors differ only in how
+the capture is fed and when the estimate is emitted.
+
+::: doppler.dsss.BurstAcquisition
+
+## `AsyncDsssReceiver` — the packaged continuous async receiver
+
+`AsyncDsssReceiver` wraps the whole acquire → carrier-refine → track chain
+behind one `steps()` call for the continuous *asynchronous* waveform
+(non-integer chips/symbol). It carries two carrier loops — a pre-despread
+Costas that tracks the Doppler dynamics before the code loop, and a
+post-despread mop-up loop — plus carrier→code aiding for coupled clock
+Doppler and a binary symbol-lock indicator. See the gallery page
+[AsyncDsssReceiver: the SPEC Waveform](../gallery/async-dsss-receiver-spec.md)
+for an end-to-end decode through physically-coupled Doppler.
+
+::: doppler.dsss.AsyncDsssReceiver
+
 ## Related pages
 
 <!-- related-pages:start -->
 
-**Gallery** — [Correlation and Detection](../gallery/corr.md), [Despreader (full continuous receiver)](../gallery/despreader.md), [DSSS Acquisition — Pd / Pfa vs Es/N0](../gallery/dsss-acq-characterization.md), [A 5-Burst DSSS Link — wfmgen's Three Faces, the Full Receiver Chain](../gallery/dsss-burst-pipeline.md), [DSSS Acquisition & Despreading](../gallery/dsss-despread.md), [Gallery](../gallery/index.md), [Full-Chain Lock-Up](../gallery/receiver-lock.md)
+**Gallery** — [Streaming Async Despreader](../gallery/async-despread.md), [Async DSSS Receiver: the SPEC waveform through coupled Doppler](../gallery/async-dsss-receiver-spec.md), [Continuous Async DSSS Receiver](../gallery/async-dsss-receiver.md), [CarrierAcquisition: RRC Pulse Shaping](../gallery/carrier-acq-rrc.md), [Correlation and Detection](../gallery/corr.md), [DSSS Acquisition — Pd / Pfa vs Es/N0](../gallery/dsss-acq-characterization.md), [A 5-Burst DSSS Link — wfmgen's Three Faces, the Full Receiver Chain](../gallery/dsss-burst-pipeline.md), [DsssReceiver — the Composed Continuous DSSS Receiver](../gallery/dsss-receiver.md), [Gallery](../gallery/index.md), [Full-Chain Lock-Up](../gallery/receiver-lock.md)
 **Guides** — [DSSS Burst Acquisition](../guide/dsss-acquisition.md), [Guides](../guide/index.md), [Lock Detection Across `doppler.track`](../guide/lock-detection.md), [DSSS bursts — a burst train in one declaration](../guide/wfmgen/dsss-bursts.md), [Waveforms](../guide/wfmgen/waveforms.md)
-**Design** — [Design — pure-functional acquisition kernel (elastic fleet)](../design/acq-fn.md), [API taxonomy: the DSP building-block hierarchy and its naming axis](../design/api-taxonomy.md), [Corr2D: decoupled (interpolated) inverse length](../design/corr2d-interpolated-inverse.md), [DSSS acquisition: stateless, parallel, dynamics-capable](../design/dsss-acquisition.md), [Design](../design/index.md), [State Serialization — the standard bytes interface](../design/state-serialization.md)
+**Design** — [Design — pure-functional acquisition kernel (elastic fleet)](../design/acq-fn.md), [API taxonomy: the DSP building-block hierarchy and its naming axis](../design/api-taxonomy.md), [DsssReceiver Specifications](../design/async-dsss-spec.md), [Asynchronous symbol/code despreading](../design/async-symbol-despreader.md), [Corr2D: decoupled (interpolated) inverse length](../design/corr2d-interpolated-inverse.md), [DSSS acquisition: stateless, parallel, dynamics-capable](../design/dsss-acquisition.md), [Design](../design/index.md), [State Serialization — the standard bytes interface](../design/state-serialization.md)
 **Contributing** — [DSSS Primary Use Cases for Code Acquisition Design](../dev/dsss-use-cases.md), [Contributing](../dev/index.md)
 
 <!-- related-pages:end -->

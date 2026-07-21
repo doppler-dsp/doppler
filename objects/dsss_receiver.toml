@@ -1,0 +1,193 @@
+[dsss_receiver]
+arg_type = "float _Complex"
+return_type = "float _Complex"
+mutable = "false"
+no_state = "true"
+no_step = "true"
+class_name = "DsssReceiver"
+serializable = "true"
+# Composes Acquisition (this module) with Dll/MpskReceiver (track) and
+# RateConverter (resample) -- the same cross-module composition shape
+# despreader.toml already uses for Costas+Dll.
+depends_on = [
+    { name = "acq", link = true },
+    { name = "dll", link = true },
+    { name = "costas", link = true },
+    { name = "RateConverter", link = true },
+    { name = "mpsk_receiver", link = true },
+    # RateConverter's own cascade components -- jm's depends_on linking is
+    # not recursively transitive, so these must be listed explicitly here
+    # too, the same way objects/ddc.toml (the other RateConverter-composing
+    # object) already lists them.
+    { name = "resamp", link = true },
+    { name = "hbdecim", link = true },
+    { name = "cic", link = true },
+    { name = "resample", link = true },
+]
+# wfm_dsp_core: the RRC matched-filter kernel behind mpsk_receiver's own RRC
+# pulse option -- a wfmcompose-internal OBJECT lib, not a jm component, so it
+# rides extra_link_libs the same way objects/mpsk_receiver.toml's own does.
+extra_link_libs = ["wfm_dsp_core"]
+
+# ── Construction: only the signal itself is required ─────────────────────────
+# code/chip_rate/symbol_rate describe the waveform; everything else is a
+# physically-motivated default (chip_rate/symbol_rate carry placeholder
+# defaults purely so jm's auto-doctest can build a non-NULL object, the
+# same soft-required pattern objects/acq.toml's own chip_rate/cn0_dbhz use --
+# both are "required" in practice, see the header/docstring).
+
+[[dsss_receiver.init_params]]
+name = "code"
+type = "uint8_t[]"
+
+[[dsss_receiver.init_params]]
+name = "chip_rate"
+type = "double"
+default = "1000000.0"
+
+[[dsss_receiver.init_params]]
+name = "symbol_rate"
+type = "double"
+default = "1000.0"
+
+[[dsss_receiver.init_params]]
+name = "spc"
+type = "size_t"
+default = "2"
+
+[[dsss_receiver.init_params]]
+name = "m"
+type = "int"
+default = "2"
+
+[[dsss_receiver.init_params]]
+name = "cn0_dbhz"
+type = "double"
+default = "55.0"
+
+[[dsss_receiver.init_params]]
+name = "pfa"
+type = "double"
+default = "1e-3"
+
+[[dsss_receiver.init_params]]
+name = "pd"
+type = "double"
+default = "0.9"
+
+[[dsss_receiver.init_params]]
+name = "doppler_uncertainty"
+type = "double"
+default = "100.0"
+
+# Dll's own tracking-robustness parameter -- independent of `sps` below,
+# bridged by an internal RateConverter, never coupled to it (this story's
+# own hard-won lesson; see docs/design/async-symbol-despreader.md §4).
+[[dsss_receiver.init_params]]
+name = "segments"
+type = "size_t"
+default = "4"
+
+# MpskReceiver's own samples/symbol -- MpskReceiver's own constructor default.
+[[dsss_receiver.init_params]]
+name = "sps"
+type = "size_t"
+default = "8"
+
+[[dsss_receiver.init_params]]
+name = "differential"
+type = "int"
+default = "0"
+
+[[dsss_receiver.methods]]
+name = "steps"
+doc = "Stream raw cf32 samples through the receiver. While searching, samples feed the embedded Acquisition and nothing is emitted (an empty array is normal, not an error). The moment a hit fires, Dll/RateConverter/MpskReceiver are built and seeded from it -- the same phase-inversion hand-off and rate-bridging this project's async-DSSS-receiver gallery story validated by hand -- and the unconsumed tail of this same call is handed straight to them, so no samples are dropped at the transition. While tracking, samples feed Dll -> RateConverter -> MpskReceiver in sequence and demodulated symbols are returned. Accepts any block size; state carries across calls."
+arg_type = "void"
+return_type = "float _Complex"
+variable_output = true
+pass_capacity = true
+nogil = true
+params = [{ name = "x", type = "float _Complex[]" }]
+
+[[dsss_receiver.methods]]
+name = "configure_search_raw"
+doc = "Pin the embedded Acquisition's search grid directly, bypassing the symbol_rate-driven auto-sizing -- the escape hatch for a power user who wants a specific (doppler_bins, n_noncoh). Only meaningful while searching."
+arg_type = "void"
+return_type = "int"
+status_return = true
+params = [
+    { name = "doppler_bins", type = "size_t" },
+    { name = "n_noncoh", type = "size_t" },
+]
+
+[[dsss_receiver.methods]]
+name = "configure_lock_raw"
+doc = "Re-tune the embedded Dll's code-lock detector directly. Only meaningful once tracking has begun; a no-op while searching."
+arg_type = "void"
+return_type = "void"
+params = [
+    { name = "up_thresh", type = "double" },
+    { name = "down_thresh", type = "double" },
+    { name = "n_looks", type = "size_t" },
+    { name = "alpha", type = "double" },
+    { name = "n_up", type = "uint32_t" },
+    { name = "n_down", type = "uint32_t" },
+]
+
+[[dsss_receiver.methods]]
+name = "configure_chain_raw"
+doc = "Pin the despread/resample/demod grid directly, bypassing the create-time segments/sps defaults -- segments (Dll's tracking parameter) and sps/n (MpskReceiver's rate/carrier-arm parameters) stay independently overridable here, still bridged by a freshly-sized RateConverter, never coupled to each other. Only meaningful once tracking; rebuilds the chain with every replacement allocated first, so a failed pin leaves the receiver on its prior grid."
+arg_type = "void"
+return_type = "int"
+status_return = true
+params = [
+    { name = "segments", type = "size_t" },
+    { name = "sps", type = "size_t" },
+    { name = "n", type = "int" },
+]
+
+[[dsss_receiver.methods]]
+name = "reset"
+doc = "Return to the searching state: resets the embedded Acquisition and frees Dll/RateConverter/MpskReceiver (rebuilt from scratch on the next hit)."
+arg_type = "void"
+return_type = "void"
+
+[[dsss_receiver.properties]]
+name = "tracking"
+type = "int"
+
+[[dsss_receiver.properties]]
+name = "doppler_hz"
+type = "double"
+
+[[dsss_receiver.properties]]
+name = "cn0_dbhz_est"
+type = "double"
+
+[[dsss_receiver.properties]]
+name = "segments"
+type = "size_t"
+
+[[dsss_receiver.properties]]
+name = "sps"
+type = "size_t"
+
+[[dsss_receiver.properties]]
+name = "n"
+type = "int"
+
+[[dsss_receiver.properties]]
+name = "chip_phase"
+type = "double"
+
+[[dsss_receiver.properties]]
+name = "code_rate"
+type = "double"
+
+[[dsss_receiver.properties]]
+name = "lock"
+type = "double"
+
+[[dsss_receiver.properties]]
+name = "norm_freq"
+type = "double"

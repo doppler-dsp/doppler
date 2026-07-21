@@ -60,6 +60,8 @@ extern "C" {
 
 #include "wfm_synth/wfm_synth_core.h"
 
+#include "gold/gold_core.h"
+
 #include "delay/delay_core.h"
 
 #include "fft/fft_core.h"
@@ -129,6 +131,8 @@ extern "C" {
 #include "ppe/ppe_core.h"
 
 #include "burst_demod/burst_demod_core.h"
+
+#include "dsss_receiver/dsss_receiver_core.h"
 
 #ifdef __cplusplus
 }

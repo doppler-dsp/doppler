@@ -19,6 +19,7 @@
 #include "detector/det_private.h"
 
 #include <math.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -29,19 +30,41 @@
 
 /* ── Helpers ────────────────────────────────────────────────────────────── */
 
+/* Converts a per-sample amplitude SNR back to an estimated C/N0 (dB-Hz) --
+ * the exact inverse of acq_create()'s sizing transform
+ * (snr = sqrt(10^(cn0_dbhz/10) / fs)) -- so the reported figure is directly
+ * comparable to the caller's own cn0_dbhz argument regardless of chip_rate
+ * or spc, unlike a raw per-sample or coherently-integrated ratio (both scale
+ * with the frame geometry and so aren't portable across configurations).
+ * amp_snr is always > 0 here: every call site sits behind a
+ * test_stat > threshold gate, and threshold/eta_nc are always positive. */
+static inline float
+_cn0_dbhz_from_amp_snr (float amp_snr, double fs)
+{
+  return (float)(20.0 * log10 ((double)amp_snr) + 10.0 * log10 (fs));
+}
+
 /* Doppler-band mask: with a doppler_uncertainty prior the engine scans only
  * searched_bins rows centred on DC, so the peak search must match (else the
  * lowered Bonferroni threshold over-counts and realized Pfa exceeds target).
  * Returns 1 if the cell at flat index k is inside the scanned band.  The
- * folded distance |k_row| from DC (rows >doppler_bins/2 are negative Doppler)
- * must not exceed half = (searched_bins-1)/2.  When searched_bins ==
- * doppler_bins this admits every row (byte-identical to the full search). */
+ * folded distance |k_row| from DC (rows >coherent_bins/2 are negative
+ * Doppler) must not exceed half = (searched_bins-1)/2.  When searched_bins ==
+ * coherent_bins this admits every row (byte-identical to the full search). */
 static inline int
 _in_doppler_band (const acq_state_t *st, size_t k)
 {
+  /* Wideband mode always searches its whole window_bins grid by
+   * construction (there is no further-narrowing prior beyond the windows
+   * window_bins itself already tiles) -- every hypothesis is in-band.
+   * Bypassing the native fold formula also sidesteps its even-D Nyquist-row
+   * exclusion quirk (irrelevant here: window_bins isn't a slow-time FFT
+   * length, so that formula's assumptions don't apply to it anyway). */
+  if (st->window_bins > 1)
+    return 1;
   const size_t row = k / st->code_bins;
   const size_t fold
-      = (row <= st->doppler_bins - row) ? row : st->doppler_bins - row;
+      = (row <= st->coherent_bins - row) ? row : st->coherent_bins - row;
   return fold <= (st->searched_bins - 1) / 2;
 }
 
@@ -216,17 +239,157 @@ _mean_pd (double snr, size_t D, double umax, size_t spc, int n, double eta,
   return acc / (double)(nd * nu * nk);
 }
 
-/* Size the search grid from the physics.  Picks the smallest coherent depth
- * doppler_bins in [1, reps] whose doppler_bins*code_bins coherent samples meet
- * Pd at the (doppler_uncertainty-shrunk) Bonferroni threshold; if the full
- * coherent ceiling still falls short, adds non-coherent looks (up to
- * max_noncoh).  Commits doppler_bins / n / searched_bins / threshold ladder.
- */
+/* Derive and commit the threshold ladder (searched_bins / pfa_cell / eta /
+ * eta_nc / threshold / straddle_loss / pd_predicted / underpowered) for the
+ * grid already set on st (st->coherent_bins / st->n_noncoh), given the sizing
+ * physics.  Shared by both auto-sizers and acq_configure_search_raw, so a
+ * caller-pinned grid gets exactly the same threshold derivation an
+ * auto-sized one would. */
 static void
-_auto_config (acq_state_t *st, double pfa, double pd, double snr, double du)
+_commit_thresholds (acq_state_t *st, double pfa, double pd, double snr,
+                    double du)
 {
   const size_t cb   = st->code_bins;
   const double span = st->doppler_span_hz;
+  const size_t D    = st->coherent_bins;
+  const size_t nc   = st->n_noncoh;
+
+  /* Wideband mode already tiles the FULL requested uncertainty with
+   * window_bins windows (no further within-mode narrowing prior exists), so
+   * every window is "searched" by construction -- unlike the native
+   * du-narrows-the-native-span case _searched_bins models. */
+  st->searched_bins
+      = (st->window_bins > 1) ? st->window_bins : _searched_bins (D, du, span);
+  st->doppler_res_hz = st->chip_rate / ((double)st->sf * (double)D);
+  st->pfa_cell = 1.0 - pow (1.0 - pfa, 1.0 / (double)(st->searched_bins * cb));
+  double umax  = _intra_umax (D, st->searched_bins, du, span);
+  st->straddle_loss = _straddle_loss (D, st->searched_bins, st->spc, du, span);
+  st->eta           = (float)det_threshold (st->pfa_cell);
+
+  if (nc > 1)
+    {
+      double e      = det_threshold_noncoherent (st->pfa_cell, (int)nc);
+      st->eta_nc    = (float)e;
+      st->threshold = 0.0f; /* coherent gate unused on the non-coherent path */
+      st->pd_predicted
+          = _mean_pd (snr, D, umax, st->spc, (int)st->n, e, (int)nc);
+    }
+  else
+    {
+      st->eta_nc    = 0.0f;
+      st->threshold = st->eta * ACQ_SQRT_2_OVER_PI;
+      st->pd_predicted
+          = _mean_pd (snr, D, umax, st->spc, (int)st->n, st->eta, 1);
+    }
+  st->underpowered = (uint8_t)(st->pd_predicted < pd);
+}
+
+/* Ascend n_noncoh from 1 until the AVERAGED Pd meets pd, capped at
+ * ACQ_N_NONCOH_SAFETY_CEILING (the internal safety valve replacing the old
+ * caller-supplied max_noncoh cap -- see its doc comment in acq_core.h).
+ * Shared by the wideband/window-tiling path (D pinned to 1, sb = window
+ * count) and the burst path's non-coherent fallback (D = the coherent depth
+ * that fell short, sb = its searched-bin count).  det_n_noncoh sizes at the
+ * mean straddle amplitude -- a fast initializer that Jensen makes slightly
+ * optimistic -- then the count escalates until the AVERAGED Pd meets the
+ * target. */
+static size_t
+_ascend_n_noncoh (double snr, size_t D, size_t sb, size_t cb, double pfa,
+                  double pd, size_t spc, double du, double span)
+{
+  const double umax  = _intra_umax (D, sb, du, span);
+  const double pc    = 1.0 - pow (1.0 - pfa, 1.0 / (double)(sb * cb));
+  const double sloss = _straddle_loss (D, sb, spc, du, span);
+
+  int    k  = det_n_noncoh (snr * sloss, (int)(D * cb), pd, pc,
+                            (int)ACQ_N_NONCOH_SAFETY_CEILING);
+  size_t nc = (k > 0) ? (size_t)k : ACQ_N_NONCOH_SAFETY_CEILING;
+  while (nc < ACQ_N_NONCOH_SAFETY_CEILING)
+    {
+      double e = (nc > 1) ? det_threshold_noncoherent (pc, (int)nc)
+                          : det_threshold (pc);
+      if (_mean_pd (snr, D, umax, spc, (int)(D * cb), e, (int)nc) >= pd)
+        break;
+      nc++;
+    }
+  return nc;
+}
+
+/* How many frequency-window hypotheses cover +/- du at this engine's own bin
+ * spacing.  ALWAYS ODD, and sized against the spacing the bins are actually
+ * reported at -- both of which are load-bearing:
+ *
+ * - The hypothesis spacing is doppler_res_hz = chip_rate/(sf*D) = 2*span at
+ *   the D=1 every wideband path uses, NOT `span` (= chip_rate/(2*sf), the
+ *   half-span).  Sizing with `ceil(du/span)` counted half-bins and produced
+ *   roughly twice the windows the coverage needed.
+ * - The centre bin covers +/- res/2 and each further bin per side adds res,
+ *   so covering du needs n_side = ceil((du - res/2)/res) per side and
+ *   2*n_side+1 total.  An ODD count is what makes coverage symmetric: an even
+ *   count folds to [-n/2, +n/2-1] (one more negative hypothesis than
+ *   positive), leaving the top positive offset unreachable, and puts a bin at
+ *   exactly n/2 whose signed reading is the one index the search and the
+ *   handoff used to disagree on (see acq_bin_to_signed()).
+ *
+ * Worked example, SPEC.md's geometry (chip_rate 3.069 Mcps, sf 1023 -> span
+ * 1500 Hz, res 3000 Hz) at du = 50 kHz: n_side = ceil(48500/3000) = 17 ->
+ * 35 windows, k in [-17, +17], reach +/-51000 Hz.  The old formula gave
+ * ceil(50000/1500) = 34, k in [-16, +17], reach [-48000, +51000] -- so a true
+ * -50 kHz had no hypothesis within half a bin. */
+static size_t
+_cover_window_bins (double du, double span)
+{
+  if (!(du > 0.0))
+    return 1;
+  const double res = 2.0 * span; /* D == 1 in every wideband path */
+  /* The -1e-9 is a boundary guard, not a fudge: a du that is an exact whole
+     number of bins lands on an integer here, and floating-point rounding can
+     put it one ULP ABOVE that integer (du = 3*span at span = 1e6/62 gives
+     1.0000000000000002), whose ceil provisions a spurious extra PAIR of
+     windows.  The tolerance is ~1e-9 bins, far below any real sizing
+     decision -- a du that genuinely needs another bin exceeds the boundary
+     by vastly more than this. */
+  double ns = ceil ((du - 0.5 * res) / res - 1e-9);
+  if (!(ns > 0.0))
+    return 1;
+  return 2u * (size_t)ns + 1u;
+}
+
+/* Search the grid for a BURST-mode engine: WHICH (coherent_bins, n_noncoh,
+ * window_bins) to use, written to *out_d / *out_nc / *out_window_bins.
+ * Deliberately does not touch st and does not allocate anything -- the
+ * caller commits the decision via _regrid() (which needs to see the PRIOR
+ * grid to know what changed) and then _commit_thresholds() (which needs the
+ * grid _regrid() just committed).  Search only; no side effects.
+ *
+ * du > span (wideband fallback): coherent depth structurally can't cover
+ * more than one native span regardless of reps, so *out_d is forced to 1
+ * and *out_window_bins = ceil(du/span) tiles the requested uncertainty
+ * instead -- only n_noncoh needs sizing (_ascend_n_noncoh).
+ *
+ * du <= span: picks the smallest coherent depth D in [1, reps] whose
+ * D*code_bins coherent samples meet Pd at the (doppler_uncertainty-shrunk)
+ * Bonferroni threshold (minimum latency for a strong signal); if the full
+ * coherent ceiling still falls short, adds non-coherent looks via
+ * _ascend_n_noncoh. */
+static void
+_auto_config_burst (const acq_state_t *st, double pfa, double pd, double snr,
+                    double du, size_t *out_d, size_t *out_nc,
+                    size_t *out_window_bins)
+{
+  const size_t cb   = st->code_bins;
+  const double span = st->doppler_span_hz;
+
+  if (du > span)
+    {
+      const size_t window_bins = _cover_window_bins (du, span);
+      *out_d                   = 1;
+      *out_nc = _ascend_n_noncoh (snr, 1, window_bins, cb, pfa, pd, st->spc,
+                                  du, span);
+      *out_window_bins = window_bins;
+      return;
+    }
+  *out_window_bins = 1;
 
   /* Smallest coherent depth D meeting Pd (minimum latency for strong
    * signals); Bonferroni uses only the cells actually scanned at that
@@ -250,153 +413,355 @@ _auto_config (acq_state_t *st, double pfa, double pd, double snr, double du)
         }
     }
 
-  st->doppler_bins   = best_d;
-  st->n              = best_d * cb;
-  st->searched_bins  = _searched_bins (best_d, du, span);
-  st->doppler_res_hz = st->chip_rate / ((double)st->sf * (double)best_d);
-  st->pfa_cell = 1.0 - pow (1.0 - pfa, 1.0 / (double)(st->searched_bins * cb));
-  st->eta      = (float)det_threshold (st->pfa_cell);
-  double umax_best = _intra_umax (best_d, st->searched_bins, du, span);
-  st->straddle_loss
-      = _straddle_loss (best_d, st->searched_bins, st->spc, du, span);
-
-  /* Non-coherent looks only if the coherent ceiling fell short and the
-   * caller raised the cap above 1 (best effort if even max_noncoh is
-   * infeasible). det_n_noncoh sizes at the mean straddle amplitude — a
-   * fast initializer that Jensen makes slightly optimistic — then the
-   * count escalates until the AVERAGED Pd meets the target. */
+  /* Non-coherent looks only if the coherent ceiling fell short (best effort
+   * if even the safety-valve ceiling is infeasible). */
   size_t nc = 1;
-  if (!coh_meets && st->max_noncoh > 1)
+  if (!coh_meets)
     {
-      int k = det_n_noncoh (snr * st->straddle_loss, (int)st->n, pd,
-                            st->pfa_cell, (int)st->max_noncoh);
-      nc    = (k > 0) ? (size_t)k : st->max_noncoh;
-      while (nc < st->max_noncoh)
-        {
-          double e = det_threshold_noncoherent (st->pfa_cell, (int)nc);
-          if (_mean_pd (snr, best_d, umax_best, st->spc, (int)st->n, e,
-                        (int)nc)
-              >= pd)
-            break;
-          nc++;
-        }
+      size_t sb = _searched_bins (best_d, du, span);
+      nc = _ascend_n_noncoh (snr, best_d, sb, cb, pfa, pd, st->spc, du, span);
     }
-  st->n_noncoh = nc;
+  *out_d  = best_d;
+  *out_nc = nc;
+}
 
-  if (nc > 1)
-    {
-      double e      = det_threshold_noncoherent (st->pfa_cell, (int)nc);
-      st->eta_nc    = (float)e;
-      st->threshold = 0.0f; /* coherent gate unused on the non-coherent path */
-      st->pd_predicted
-          = _mean_pd (snr, best_d, umax_best, st->spc, (int)st->n, e, (int)nc);
-    }
-  else
-    {
-      st->eta_nc    = 0.0f;
-      st->threshold = st->eta * ACQ_SQRT_2_OVER_PI;
-      st->pd_predicted
-          = _mean_pd (snr, best_d, umax_best, st->spc, (int)st->n, st->eta, 1);
-    }
+/* Search the grid for a CONTINUOUS-mode engine: ALWAYS the wideband
+ * window-tiling mechanism, unconditionally (never gated on du > span,
+ * unlike the burst path above) -- coherent_bins stays pinned to 1 by the
+ * caller regardless of what this returns; only window_bins/n_noncoh need
+ * sizing.  _cover_window_bins() covers du <= 0 (native, single window)
+ * through du > span (multi-window tiling) with one formula, never a
+ * coherent-depth search -- see the file doc comment for why this mode never
+ * attempts coherent multi-epoch combining at all. */
+static void
+_auto_config_continuous (const acq_state_t *st, double pfa, double pd,
+                         double snr, double du, size_t *out_nc,
+                         size_t *out_window_bins)
+{
+  const size_t cb          = st->code_bins;
+  const double span        = st->doppler_span_hz;
+  const size_t window_bins = _cover_window_bins (du, span);
 
-  st->underpowered = (uint8_t)(st->pd_predicted < pd);
+  *out_window_bins = window_bins;
+  *out_nc
+      = _ascend_n_noncoh (snr, 1, window_bins, cb, pfa, pd, st->spc, du, span);
 }
 
 /* ── Lifecycle ──────────────────────────────────────────────────────────── */
 
-acq_state_t *
-acq_create (const uint8_t *code, size_t code_len, size_t reps, size_t spc,
-            double chip_rate, double cn0_dbhz, double doppler_uncertainty,
-            double pfa, double pd, int noise_mode, size_t max_noncoh)
+/* Rebuild every grid-dependent buffer/plan for (new_db, new_nc,
+ * new_freq_bins): the slow-time FFT, the code correlator + its reference,
+ * every per-frame scratch buffer (yframe/out_buf/colbuf/colout/mag_buf/
+ * noise_scratch), the wideband roll-FFT buffers (wide_fwd/wide_inv/
+ * wide_ref_spec/wide_spec/wide_prod — only when new_freq_bins > 1, see the
+ * file doc comment's "Wideband mode" section), growing the ring if the new
+ * frame no longer fits, and the non-coherent power accumulator if new_nc
+ * crosses the 1 <-> >1 boundary.  Allocates the replacements FIRST and only
+ * frees/adopts them once every allocation needed has succeeded, so a failure
+ * leaves `st` fully untouched at its prior grid (the contract
+ * acq_configure_search_raw() promises its caller).
+ *
+ * `code`/`code_len` are non-NULL only from acq_create_burst()'s/
+ * acq_create_continuous()'s initial build (fresh reference from the
+ * caller's chips); a later regrid (acq_configure_search_raw) passes NULL
+ * and copies row 0 of the EXISTING reference forward instead of rebuilding
+ * it from scratch -- row 0 is the only nonzero row regardless of
+ * coherent_bins (see the comment below), so it alone fully captures the
+ * code -- unaffected by new_freq_bins growing new_n, since the fill loop
+ * below only ever touches indices [0, cb). */
+static int
+_regrid (acq_state_t *st, size_t new_db, size_t new_nc, size_t new_freq_bins,
+         const uint8_t *code, size_t code_len)
+{
+  const size_t cb           = st->code_bins;
+  const size_t new_n        = new_db * new_freq_bins * cb;
+  const int    grid_changed = (new_db != st->coherent_bins) || (new_n != st->n)
+                              || (new_freq_bins != st->window_bins);
+  const size_t new_frame_n  = (new_freq_bins > 1) ? cb : new_n;
+
+  corr2d_state_t *new_corr          = NULL;
+  fft_state_t    *new_fft           = NULL;
+  float complex  *new_ref           = NULL;
+  float complex  *new_yframe        = NULL;
+  float complex  *new_out           = NULL;
+  float complex  *new_colbuf        = NULL;
+  float complex  *new_colout        = NULL;
+  float          *new_mag           = NULL;
+  float          *new_scratch       = NULL;
+  float          *new_ncsurf        = NULL;
+  dp_f32_t       *new_ring          = NULL;
+  size_t          new_ring_cap      = st->ring_cap;
+  fft_state_t    *new_wide_fwd      = NULL;
+  fft_state_t    *new_wide_inv      = NULL;
+  float complex  *new_wide_ref_spec = NULL;
+  float complex  *new_wide_spec     = NULL;
+  float complex  *new_wide_prod     = NULL;
+
+  if (grid_changed)
+    {
+      /* Single-row oversampled BPSK reference: row 0 (indices [0, cb))
+       * carries the replica (chip 0 -> +1, chip 1 -> -1, each held for spc
+       * samples), the rest of the (possibly wideband-enlarged) buffer
+       * zero. */
+      new_ref = (float complex *)calloc (new_n, sizeof (float complex));
+      if (!new_ref)
+        goto fail;
+      if (code)
+        for (size_t c = 0; c < code_len; c++)
+          {
+            float sign = (code[c] & 1u) ? -1.0f : 1.0f;
+            for (size_t s = 0; s < st->spc; s++)
+              new_ref[c * st->spc + s] = sign;
+          }
+      else
+        memcpy (new_ref, st->ref, cb * sizeof (float complex));
+
+      new_corr = corr2d_create (new_ref, new_db, cb, 1, 1, 0, 0);
+      if (!new_corr)
+        goto fail;
+      new_fft = fft_create (new_db, -1, 1);
+      if (!new_fft)
+        goto fail;
+
+      new_yframe  = (float complex *)malloc (new_n * sizeof (float complex));
+      new_out     = (float complex *)malloc (new_n * sizeof (float complex));
+      new_colbuf  = (float complex *)malloc (new_db * sizeof (float complex));
+      new_colout  = (float complex *)malloc (new_db * sizeof (float complex));
+      new_mag     = (float *)malloc (new_n * sizeof (float));
+      new_scratch = (float *)malloc (new_n * sizeof (float));
+      if (!new_yframe || !new_out || !new_colbuf || !new_colout || !new_mag
+          || !new_scratch)
+        goto fail;
+
+      if (new_freq_bins > 1)
+        {
+          new_wide_fwd = fft_create (cb, -1, 1);
+          new_wide_inv = fft_create (cb, +1, 1);
+          new_wide_ref_spec
+              = (float complex *)malloc (cb * sizeof (float complex));
+          new_wide_spec
+              = (float complex *)malloc (cb * sizeof (float complex));
+          new_wide_prod
+              = (float complex *)malloc (cb * sizeof (float complex));
+          if (!new_wide_fwd || !new_wide_inv || !new_wide_ref_spec
+              || !new_wide_spec || !new_wide_prod)
+            goto fail;
+          /* Precompute conj(FFT(replica)) once -- reused every epoch. */
+          fft_execute_cf32 (new_wide_fwd, new_ref, cb, new_wide_ref_spec);
+          for (size_t j = 0; j < cb; j++)
+            new_wide_ref_spec[j] = conjf (new_wide_ref_spec[j]);
+        }
+    }
+
+  if (new_frame_n > new_ring_cap)
+    {
+      new_ring = _ring_create (new_frame_n > 512 ? new_frame_n : 512);
+      if (!new_ring)
+        goto fail;
+      new_ring_cap = new_ring->capacity;
+    }
+
+  /* Non-coherent power accumulator — only on the N_nc > 1 path. */
+  if (new_nc > 1)
+    {
+      new_ncsurf = (float *)calloc (new_n, sizeof (float));
+      if (!new_ncsurf)
+        goto fail;
+    }
+
+  /* Every allocation needed succeeded — commit: free the old, adopt the
+   * new. */
+  if (grid_changed)
+    {
+      if (st->corr)
+        corr2d_destroy (st->corr);
+      if (st->slow_fft)
+        fft_destroy (st->slow_fft);
+      if (st->wide_fwd)
+        fft_destroy (st->wide_fwd);
+      if (st->wide_inv)
+        fft_destroy (st->wide_inv);
+      free (st->ref);
+      free (st->yframe);
+      free (st->out_buf);
+      free (st->colbuf);
+      free (st->colout);
+      free (st->mag_buf);
+      free (st->noise_scratch);
+      free (st->wide_ref_spec);
+      free (st->wide_spec);
+      free (st->wide_prod);
+      st->corr          = new_corr;
+      st->slow_fft      = new_fft;
+      st->ref           = new_ref;
+      st->yframe        = new_yframe;
+      st->out_buf       = new_out;
+      st->colbuf        = new_colbuf;
+      st->colout        = new_colout;
+      st->mag_buf       = new_mag;
+      st->noise_scratch = new_scratch;
+      st->wide_fwd      = new_wide_fwd;
+      st->wide_inv      = new_wide_inv;
+      st->wide_ref_spec = new_wide_ref_spec;
+      st->wide_spec     = new_wide_spec;
+      st->wide_prod     = new_wide_prod;
+    }
+  if (new_ring)
+    {
+      if (st->ring)
+        dp_f32_destroy (st->ring);
+      st->ring     = new_ring;
+      st->ring_cap = new_ring_cap;
+    }
+  free (st->nc_surface);
+  st->nc_surface = new_ncsurf;
+
+  st->coherent_bins = new_db;
+  st->window_bins   = new_freq_bins;
+  st->n_noncoh      = new_nc;
+  st->n             = new_n;
+  st->frame_n       = new_frame_n;
+  st->noise_lo      = 0;
+  st->noise_hi      = new_n - 1;
+  return 0;
+
+fail:
+  if (new_corr)
+    corr2d_destroy (new_corr);
+  if (new_fft)
+    fft_destroy (new_fft);
+  if (new_wide_fwd)
+    fft_destroy (new_wide_fwd);
+  if (new_wide_inv)
+    fft_destroy (new_wide_inv);
+  free (new_ref);
+  free (new_yframe);
+  free (new_out);
+  free (new_colbuf);
+  free (new_colout);
+  free (new_mag);
+  free (new_scratch);
+  free (new_ncsurf);
+  free (new_wide_ref_spec);
+  free (new_wide_spec);
+  free (new_wide_prod);
+  if (new_ring)
+    dp_f32_destroy (new_ring);
+  return -1;
+}
+
+/* Shared builder: allocates and configures the engine, dropping straight
+ * into whichever auto-sizer `continuous` selects.  Not declared in the
+ * header -- acq_create_burst()/acq_create_continuous() are the only public
+ * entry points, each fixing @p reps/@p symbol_rate/`continuous` to its own
+ * mode, never a per-call knob (see the file doc comment). */
+static acq_state_t *
+_acq_create_impl (const uint8_t *code, size_t code_len, size_t reps,
+                  size_t spc, double chip_rate, double symbol_rate,
+                  double cn0_dbhz, double doppler_uncertainty, double pfa,
+                  double pd, int noise_mode, int continuous)
 {
   /* Validate: bad arguments yield NULL (the binding maps this to a clear
    * MemoryError) rather than undefined behaviour downstream.  chip_rate /
    * cn0_dbhz > 0 act as the required sentinels (their toml placeholder
    * defaults are valid, but an explicit 0 is rejected). */
-  if (max_noncoh < 1)
-    max_noncoh = 1;
   const size_t sf   = code_len; /* sf is inferred from the code length */
   const double span = (sf > 0) ? chip_rate / (2.0 * (double)sf) : 0.0;
+  /* doppler_uncertainty > span is not rejected: it engages wideband mode
+   * (see the file doc comment's "Wideband window-tiling mode" section)
+   * instead of being an out-of-range error. */
   if (!code || code_len < 1 || spc < 1 || reps < 1 || !(chip_rate > 0.0)
       || !(cn0_dbhz > 0.0) || !isfinite (cn0_dbhz) || !(pfa > 0.0 && pfa < 1.0)
-      || !(pd > 0.0 && pd < 1.0) || doppler_uncertainty < 0.0
-      || doppler_uncertainty > span)
+      || !(pd > 0.0 && pd < 1.0) || doppler_uncertainty < 0.0)
     return NULL;
 
   acq_state_t *st = (acq_state_t *)calloc (1, sizeof (*st));
   if (!st)
     return NULL;
 
-  st->sf              = sf;
-  st->spc             = spc;
-  st->reps            = reps;
-  st->code_bins       = sf * spc;
-  st->chip_rate       = chip_rate;
-  st->fs              = chip_rate * (double)spc;
-  st->cn0_dbhz        = cn0_dbhz;
-  st->doppler_span_hz = span;
-  st->pd              = pd;
-  st->max_noncoh      = max_noncoh;
-  st->noise_mode      = (det_noise_mode_t)noise_mode;
+  st->sf                  = sf;
+  st->spc                 = spc;
+  st->reps                = reps;
+  st->code_bins           = sf * spc;
+  st->chip_rate           = chip_rate;
+  st->fs                  = chip_rate * (double)spc;
+  st->cn0_dbhz            = cn0_dbhz;
+  st->doppler_span_hz     = span;
+  st->pd                  = pd;
+  st->pfa                 = pfa;
+  st->doppler_uncertainty = doppler_uncertainty;
+  st->noise_mode          = (det_noise_mode_t)noise_mode;
+  st->symbol_rate         = (symbol_rate > 0.0) ? symbol_rate : 0.0;
+  st->epochs_per_symbol   = (st->symbol_rate > 0.0)
+                                ? (chip_rate / (double)sf) / st->symbol_rate
+                                : 0.0;
 
   /* C/N0 (dB-Hz) -> per-sample amplitude SNR: power SNR = (C/N0)/fs, and the
    * detection model's non-centrality is a = sqrt(2M)*snr (amplitude). */
-  const double snr = sqrt (pow (10.0, cn0_dbhz / 10.0) / st->fs);
-  _auto_config (st, pfa, pd, snr, doppler_uncertainty);
-
-  const size_t n  = st->n; /* doppler_bins * code_bins (post-config) */
-  const size_t db = st->doppler_bins;
-  st->noise_lo    = 0;
-  st->noise_hi    = n - 1;
-
-  /* Single-row oversampled BPSK reference: row 0 carries the replica
-   * (chip 0 -> +1, chip 1 -> -1, each held for spc samples), rest zero. */
-  st->ref = (float complex *)calloc (n, sizeof (float complex));
-  if (!st->ref)
-    goto fail;
-  for (size_t c = 0; c < sf; c++)
+  const double snr    = sqrt (pow (10.0, cn0_dbhz / 10.0) / st->fs);
+  size_t       best_d = 0, best_nc = 0, best_window_bins = 1;
+  if (continuous)
     {
-      float sign = (code[c] & 1u) ? -1.0f : 1.0f;
-      for (size_t s = 0; s < spc; s++)
-        st->ref[c * spc + s] = sign;
+      best_d = 1;
+      _auto_config_continuous (st, pfa, pd, snr, doppler_uncertainty, &best_nc,
+                               &best_window_bins);
     }
+  else
+    _auto_config_burst (st, pfa, pd, snr, doppler_uncertainty, &best_d,
+                        &best_nc, &best_window_bins);
 
-  st->corr = corr2d_create (st->ref, db, st->code_bins, 1, 1, 0, 0);
-  if (!st->corr)
+  if (_regrid (st, best_d, best_nc, best_window_bins, code, code_len) != 0)
     goto fail;
-
-  st->slow_fft = fft_create (db, -1, 1);
-  if (!st->slow_fft)
-    goto fail;
-
-  st->ring = _ring_create (n > 512 ? n : 512);
-  if (!st->ring)
-    goto fail;
-  st->ring_cap = st->ring->capacity;
-
-  st->yframe        = (float complex *)malloc (n * sizeof (float complex));
-  st->out_buf       = (float complex *)malloc (n * sizeof (float complex));
-  st->colbuf        = (float complex *)malloc (db * sizeof (float complex));
-  st->colout        = (float complex *)malloc (db * sizeof (float complex));
-  st->mag_buf       = (float *)malloc (n * sizeof (float));
-  st->noise_scratch = (float *)malloc (n * sizeof (float));
-  if (!st->yframe || !st->out_buf || !st->colbuf || !st->colout || !st->mag_buf
-      || !st->noise_scratch)
-    goto fail;
-
-  /* Non-coherent power accumulator — only on the N_nc > 1 path. */
-  if (st->n_noncoh > 1)
-    {
-      st->nc_surface = (float *)calloc (n, sizeof (float));
-      if (!st->nc_surface)
-        goto fail;
-    }
+  _commit_thresholds (st, pfa, pd, snr, doppler_uncertainty);
 
   return st;
 
 fail:
   acq_destroy (st);
   return NULL;
+}
+
+acq_state_t *
+acq_create_burst (const uint8_t *code, size_t code_len, size_t reps,
+                  size_t spc, double chip_rate, double cn0_dbhz,
+                  double doppler_uncertainty, double pfa, double pd,
+                  int noise_mode)
+{
+  return _acq_create_impl (code, code_len, reps, spc, chip_rate,
+                           /* symbol_rate= */ 0.0, cn0_dbhz,
+                           doppler_uncertainty, pfa, pd, noise_mode,
+                           /* continuous= */ 0);
+}
+
+acq_state_t *
+acq_create_continuous (const uint8_t *code, size_t code_len, size_t spc,
+                       double chip_rate, double symbol_rate, double cn0_dbhz,
+                       double doppler_uncertainty, double pfa, double pd,
+                       int noise_mode)
+{
+  return _acq_create_impl (code, code_len, /* reps= */ 1, spc, chip_rate,
+                           symbol_rate, cn0_dbhz, doppler_uncertainty, pfa, pd,
+                           noise_mode, /* continuous= */ 1);
+}
+
+int
+acq_configure_search_raw (acq_state_t *st, size_t doppler_bins,
+                          size_t n_noncoh)
+{
+  if (doppler_bins < 1 || doppler_bins > st->reps || n_noncoh < 1
+      || n_noncoh > ACQ_N_NONCOH_SAFETY_CEILING)
+    return -1;
+
+  /* This escape hatch always pins the NATIVE (doppler_bins, n_noncoh) grid
+   * -- it exits wideband mode (window_bins back to 1) if that was active,
+   * matching its documented contract of pinning the classic grid directly. */
+  if (_regrid (st, doppler_bins, n_noncoh, 1, NULL, 0) != 0)
+    return -1;
+
+  const double snr = sqrt (pow (10.0, st->cn0_dbhz / 10.0) / st->fs);
+  _commit_thresholds (st, st->pfa, st->pd, snr, st->doppler_uncertainty);
+  acq_reset (st);
+  return 0;
 }
 
 void
@@ -408,6 +773,10 @@ acq_destroy (acq_state_t *st)
     corr2d_destroy (st->corr);
   if (st->slow_fft)
     fft_destroy (st->slow_fft);
+  if (st->wide_fwd)
+    fft_destroy (st->wide_fwd);
+  if (st->wide_inv)
+    fft_destroy (st->wide_inv);
   if (st->ring)
     dp_f32_destroy (st->ring);
   free (st->ref);
@@ -418,6 +787,9 @@ acq_destroy (acq_state_t *st)
   free (st->mag_buf);
   free (st->noise_scratch);
   free (st->nc_surface);
+  free (st->wide_ref_spec);
+  free (st->wide_spec);
+  free (st->wide_prod);
   free (st);
 }
 
@@ -441,11 +813,13 @@ size_t
 acq_push (acq_state_t *st, const float complex *in, size_t n_in,
           acq_result_t *result, size_t max_results)
 {
-  size_t       ndet = 0;
-  size_t       off  = 0;
-  const size_t n    = st->n;
-  const size_t ny   = st->doppler_bins;
-  const size_t nx   = st->code_bins;
+  size_t       ndet     = 0;
+  size_t       off      = 0;
+  const size_t n        = st->n;
+  const size_t frame_n  = st->frame_n;
+  const size_t ny       = st->coherent_bins;
+  const size_t nx       = st->code_bins;
+  const size_t wideband = st->window_bins > 1;
 
   while (off < n_in && ndet < max_results)
     {
@@ -466,27 +840,66 @@ acq_push (acq_state_t *st, const float complex *in, size_t n_in,
         {
           size_t h = DP_LOAD_ACQ (&st->ring->head);
           size_t t = DP_LOAD_RLX (&st->ring->tail);
-          if (h - t < n)
+          if (h - t < frame_n)
             break;
 
           const float complex *frame
               = (const float complex *)(st->ring->data
                                         + (t & st->ring->mask) * 2);
 
-          /* Slow-time Doppler FFT: FFT along the ny segment axis, per column.
-           * Unnormalised (matches numpy fft); corr2d supplies the only 1/n. */
-          for (size_t j = 0; j < nx; j++)
+          size_t n_out;
+          if (wideband)
             {
-              for (size_t i = 0; i < ny; i++)
-                st->colbuf[i] = frame[i * nx + j];
-              fft_execute_cf32 (st->slow_fft, st->colbuf, ny, st->colout);
-              for (size_t i = 0; i < ny; i++)
-                st->yframe[i * nx + j] = st->colout[i];
+              /* Wideband: one shared forward FFT of this epoch; roll its
+               * spectrum per hypothesis against the fixed replica spectrum,
+               * one inverse FFT per hypothesis, filling out_buf's
+               * window_bins rows -- see the file doc comment's "Wideband
+               * window-tiling mode" section and a frequency-bank
+               * benchmark (the benchmark this reuses, roll-FFT
+               * over a tuned-mixer bank).  Row r's REPORTED index uses the
+               * same native FFT-bin convention as the coherent_bins axis
+               * (0 = DC, ascending positive to window_bins/2, then
+               * wrapping negative) so doppler_bin/doppler_res_hz compose
+               * identically in either mode; the ACTUAL roll amount fed to
+               * the (j+roll)%nx indexing wraps modulo nx (the full
+               * code_bins-point transform), not modulo window_bins, so a
+               * "negative" row correctly represents a negative-frequency
+               * roll instead of silently aliasing back into the positive
+               * side (window_bins is always << nx: window_bins tiles the
+               * requested uncertainty, nx = sf*spc is the full code
+               * length). */
+              fft_execute_cf32 (st->wide_fwd, frame, nx, st->wide_spec);
+              for (size_t r = 0; r < st->window_bins; r++)
+                {
+                  long signed_r = acq_bin_to_signed (r, st->window_bins);
+                  long wrapped = ((signed_r % (long)nx) + (long)nx) % (long)nx;
+                  size_t roll  = (size_t)wrapped;
+                  for (size_t j = 0; j < nx; j++)
+                    st->wide_prod[j] = st->wide_spec[(j + roll) % nx]
+                                       * st->wide_ref_spec[j];
+                  fft_execute_cf32 (st->wide_inv, st->wide_prod, nx,
+                                    st->out_buf + r * nx);
+                }
+              n_out = n;
             }
-          dp_f32_consume (st->ring, n);
-          st->samples_consumed += n;
+          else
+            {
+              /* Slow-time Doppler FFT: FFT along the ny segment axis, per
+               * column. Unnormalised (matches numpy fft); corr2d supplies
+               * the only 1/n. */
+              for (size_t j = 0; j < nx; j++)
+                {
+                  for (size_t i = 0; i < ny; i++)
+                    st->colbuf[i] = frame[i * nx + j];
+                  fft_execute_cf32 (st->slow_fft, st->colbuf, ny, st->colout);
+                  for (size_t i = 0; i < ny; i++)
+                    st->yframe[i * nx + j] = st->colout[i];
+                }
+              n_out = corr2d_execute (st->corr, st->yframe, n, st->out_buf);
+            }
+          dp_f32_consume (st->ring, frame_n);
+          st->samples_consumed += frame_n;
 
-          size_t n_out = corr2d_execute (st->corr, st->yframe, n, st->out_buf);
           if (n_out == 0)
             continue; /* mid-dwell — coherent accumulation, no dump yet */
 
@@ -496,12 +909,19 @@ acq_push (acq_state_t *st, const float complex *in, size_t n_in,
               _compute_stat (st);
               if (st->test_stat > st->threshold)
                 {
-                  float snr_est = st->test_stat / ACQ_SQRT_2_OVER_PI
-                                  / sqrtf (2.0f * (float)n);
-                  result[ndet++]
-                      = (acq_result_t){ st->peak_row,  st->peak_col,
-                                        st->peak_mag,  st->noise_est,
-                                        st->test_stat, snr_est };
+                  float amp_snr = st->test_stat / ACQ_SQRT_2_OVER_PI
+                                  / sqrtf (2.0f * (float)frame_n);
+                  float cn0_dbhz_est
+                      = _cn0_dbhz_from_amp_snr (amp_snr, st->fs);
+                  result[ndet++] = (acq_result_t){
+                    .doppler_bin      = st->peak_row,
+                    .code_phase       = st->peak_col,
+                    .peak_mag         = st->peak_mag,
+                    .noise_est        = st->noise_est,
+                    .test_stat        = st->test_stat,
+                    .cn0_dbhz_est     = cn0_dbhz_est,
+                    .samples_consumed = st->samples_consumed,
+                  };
                 }
               continue;
             }
@@ -519,11 +939,19 @@ acq_push (acq_state_t *st, const float complex *in, size_t n_in,
           _compute_stat_nc (st);
           if (st->test_stat > st->eta_nc)
             {
-              float snr_est = st->test_stat
-                              / sqrtf (2.0f * (float)n * (float)st->n_noncoh);
-              result[ndet++]
-                  = (acq_result_t){ st->peak_row,  st->peak_col,  st->peak_mag,
-                                    st->noise_est, st->test_stat, snr_est };
+              float amp_snr
+                  = st->test_stat
+                    / sqrtf (2.0f * (float)frame_n * (float)st->n_noncoh);
+              float cn0_dbhz_est = _cn0_dbhz_from_amp_snr (amp_snr, st->fs);
+              result[ndet++]     = (acq_result_t){
+                .doppler_bin      = st->peak_row,
+                .code_phase       = st->peak_col,
+                .peak_mag         = st->peak_mag,
+                .noise_est        = st->noise_est,
+                .test_stat        = st->test_stat,
+                .cn0_dbhz_est     = cn0_dbhz_est,
+                .samples_consumed = st->samples_consumed,
+              };
             }
           memset (st->nc_surface, 0, n * sizeof (float));
           st->nc_count = 0;
@@ -534,6 +962,32 @@ acq_push (acq_state_t *st, const float complex *in, size_t n_in,
     }
 
   return ndet;
+}
+
+void
+acq_build_handoff (const acq_state_t *state, const acq_result_t *hit,
+                   size_t code_len, size_t spc, acq_handoff_t *out)
+{
+  double cl    = (double)code_len;
+  double phase = fmod (cl - (double)hit->code_phase / (double)spc, cl);
+  if (phase < 0.0)
+    phase += cl;
+
+  /* Shared with the wideband search's own row->roll mapping — see
+     acq_bin_to_signed()'s doc comment for the sign inversion that a second,
+     drifted copy of this formula used to cause here. */
+  long k_fold = acq_bin_to_signed (hit->doppler_bin, state->window_bins);
+
+  *out = (acq_handoff_t){
+    .samples_consumed = hit->samples_consumed,
+    .chip_phase       = phase,
+    .doppler_hz_est   = (double)k_fold * state->doppler_res_hz,
+    .doppler_res_hz   = state->doppler_res_hz,
+    .cn0_dbhz_est     = (double)hit->cn0_dbhz_est,
+    .peak_mag         = hit->peak_mag,
+    .noise_est        = hit->noise_est,
+    .test_stat        = hit->test_stat,
+  };
 }
 
 /* ── Serializable state — the pure-transducer face ─────────────────────────

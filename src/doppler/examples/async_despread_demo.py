@@ -1,28 +1,44 @@
-"""async_despread_demo.py — the streaming code despreader: PN in, oversampled
-asynchronous BPSK out.
+"""async_despread_demo.py — the streaming DSSS despreader at the DLL layer.
 
-Drives :class:`doppler.track.Dll` in **segments** mode — the streaming DSSS
-despreader. Its one job is to *remove the PN code and output samples*. The data
-symbols ride on a clock that is **asynchronous** to the code epoch; that is
-merely why it despreads in ``K`` sub-epoch **partial** correlations, so a
-mid-epoch data flip cannot collapse the non-coherent code discriminator. A
-small **residual carrier** rides out on the output — carrier recovery and
-symbol-timing recovery are *downstream*, not this object's job.
+Drives :class:`doppler.track.Dll` in **segments** mode — the streaming
+despreader whose one job is to remove the PN code and emit oversampled data
+samples. Two things make this the *asynchronous* case, and both are why
+segments mode exists:
+
+  * The data symbols ride a clock **asynchronous** to the code epoch, so the
+    DLL despreads in ``K`` **coherent** sub-epoch integrate-and-dump partials.
+    A partial window that straddles a mid-symbol data flip merely loses
+    amplitude, not phase — a single full-epoch I&D would be corrupted by the
+    flip. (Coherent within each partial; the early-minus-late *combining* is
+    what's non-coherent.)
+  * The code Doppler dilates the chip clock. The power discriminator
+    ``0.5*(|E|^2 - |L|^2)/|P|^2`` cannot pull that rate in on its own at low
+    SNR, so the code rate is supplied by **carrier→code aiding**
+    (:meth:`Dll.set_rate_aid`): the upstream carrier loop's offset scaled by
+    ``carrier_offset/carrier_freq``. The DLL's own ``code_rate`` observable
+    then stays ~1.0 — the loop only mops up the residual; the aid carries the
+    Doppler.
+
+The DLL runs on a **carrier-wiped** stream: the carrier loop is *upstream*
+(here a genie de-rotate stands in for the Costas loop that
+:class:`~doppler.dsss.AsyncDsssReceiver` runs before its DLL). With the carrier
+removed and the rate aided, the despread output is clean BPSK — no residual
+ring — and the code stays locked through the Doppler.
 
 Writes TWO figures. The despread story is noiseless so the envelope is clean;
 the lock detector needs noise to be meaningful, so it gets its own figure on
 its own noisy signal — the two are never conflated.
 
 ``<out>.png`` — the despreader, three noiseless views:
-  * **Oversampled async BPSK out** — the despread partial stream at `K`
+  * **Oversampled async BPSK out** — the despread partial stream at ``K``
     samples/symbol; the symbol edges (dashed) slide through the code epochs
     because the symbol clock is independent of the code clock.
-  * **Carrier rides on the output** — the same partials in the complex plane:
-    two BPSK clusters smeared onto a ring by the residual carrier; a downstream
-    carrier loop collapses them back to ±1.
-  * **Code stays locked under the carrier** — the non-coherent ``(|E|-|L|)``
-    discriminator is carrier-blind, so the code rate tracks the code Doppler
-    with the residual carrier still on the samples.
+  * **Clean despread constellation** — the same partials in the complex plane:
+    two tight BPSK clusters at ±1 (carrier wiped upstream, rate aided), not the
+    smeared ring an uncorrected residual carrier would leave.
+  * **Code rate from aiding** — ``code_rate`` (the loop's own observable) sits
+    at ~1.0 while the aid supplies the true ``1 + DCODE`` code-rate dilation:
+    the DLL isn't rate-tracking the Doppler, it's being *handed* the rate.
 
 ``<out>_lock.png`` — the always-on lock detector on a SEPARATE noisy run: the
   non-coherent lock statistic ``R = sqrt(2*sum|P|^2 / E|O|^2)`` (acquisition's
@@ -40,14 +56,19 @@ import sys
 import numpy as np
 
 from doppler.track import Dll
+from doppler.wfm import Gold
 
-SF, SPS, K = 127, 8, 4  # code chips, samples/chip, partials/epoch
+# CCSDS Gold-1023 at the SPEC geometry. K = 11 coherent segments per epoch is
+# dll_lookback_segments(1023, 0.5 dB) -- the transition-free coherent windows
+# the 1023 code splits into at the SPEC's tolerable correlation-power loss, and
+# what AsyncDsssReceiver's refine/track stages use.
+SF, SPS, K = 1023, 8, 11  # Gold-1023 chips, samples/chip, coherent segments
 TE = SF * SPS  # code-epoch length, samples
-F0 = 3e-4  # residual carrier, cyc/sample (< ½ epoch-FFT bin = 1/2TE)
-DCODE = 2e-4  # code Doppler (chip-rate offset)
+F0 = 3e-4  # residual carrier, cyc/sample (removed upstream before the DLL)
+DCODE = 2e-4  # code Doppler (chip-rate offset), supplied to the DLL as aid
 DSYM = 4e-3  # symbol-vs-code rate offset (async)
 PHI = 0.37 * TE  # symbol-clock phase, samples
-NSYM = 1200
+NSYM = 300
 
 
 def make_signal(code, seed=9):
@@ -64,6 +85,16 @@ def make_signal(code, seed=9):
     return rx.astype(np.complex64), tsym
 
 
+def carrier_wipe(rx):
+    """Stand-in for the upstream carrier loop: de-rotate the residual carrier
+    off the stream so the DLL sees a carrier-wiped signal (its documented
+    input contract — the carrier loop wipes the carrier, the DLL wipes the
+    code). AsyncDsssReceiver does this with a live Costas loop; here we
+    de-rotate by the known F0."""
+    idx = np.arange(len(rx))
+    return (rx * np.exp(-2j * np.pi * F0 * idx)).astype(np.complex64)
+
+
 # --8<-- [end:signal]
 
 
@@ -73,37 +104,37 @@ def main(out_path="async_despread_demo.png"):
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
-    code = np.random.default_rng(11).integers(0, 2, SF).astype(np.uint8)
-    rx, tsym = make_signal(code)
-    d = Dll(code, SPS, 0.0, 0.002, 0.707, 0.5, segments=K)
+    code = Gold().generate(SF)
+    rxw = carrier_wipe(make_signal(code)[0])  # carrier removed upstream
+    _, tsym = make_signal(code)
 
-    nep = len(rx) // TE
+    d = Dll(code, SPS, 0.0, 0.002, 0.707, 0.5, segments=K)
+    # Carrier→code aiding: the upstream carrier loop's offset, as a code-rate
+    # ratio, hands the DLL the Doppler dilation it can't pull in on its own.
+    d.set_rate_aid(DCODE)
+
+    nep = len(rxw) // TE
     rate = np.empty(nep)
     chunks = []
     for e in range(nep):
-        chunks.append(d.steps(rx[e * TE : (e + 1) * TE]))
+        chunks.append(d.steps(rxw[e * TE : (e + 1) * TE]))
         rate[e] = d.code_rate
     part = np.concatenate(chunks)  # K partials per epoch ~ K samples/symbol
 
-    # The non-coherent (|E|-|L|) discriminator is carrier-blind: the
-    # settled code-rate estimate must sit on the true code Doppler with
-    # the residual carrier still on the samples.
-    rate_err = float(np.abs(rate[nep // 2 :].mean() - (1.0 + DCODE)))
-    print(f"settled code-rate err = {rate_err:.1e} (Doppler = {DCODE:.0e})")
-    assert rate_err < 0.25 * DCODE, "DLL settled off the true code rate"
-
-    # Noiseless despread: with the code wiped, partials sit at the unit
-    # signal amplitude except the 1-in-K straddling each async symbol
-    # edge — the settled envelope median must be ~1.
+    # Aided + carrier-wiped: the despread envelope sits at ~1 (except the
+    # partial straddling each async symbol edge) and the code holds lock.
     env_med = float(np.median(np.abs(part[len(part) // 2 :])))
     print(f"settled despread envelope median = {env_med:.3f}")
     assert env_med > 0.9, "despread envelope collapsed"
+    print(f"code locked = {bool(d.locked)}  lock_stat = {d.lock_stat:.1f}")
+    assert d.locked, "code loop did not hold lock"
 
-    # Downstream carrier wipe (genie): de-rotate each partial by the residual
-    # carrier at its centre sample, then align the BPSK axis to the real axis
-    # (this is the job of a downstream Costas loop — shown here for clarity).
-    tc = TE * (np.arange(len(part)) + 0.5) / K
-    dero = part * np.exp(-2j * np.pi * F0 * tc)
+    # code_rate is the loop's OWN observable (1 + integrator); with the aid
+    # carrying the DCODE dilation, the loop only mops up residual, so it stays
+    # near 1.0 — far below the true 1 + DCODE the aid supplies.
+    settled_rate = float(rate[nep // 2 :].mean())
+    print(f"loop code_rate (aid off the books) = {settled_rate:.6f}")
+    assert abs(settled_rate - 1.0) < DCODE, "loop residual larger than the aid"
 
     fig, (a, b, c) = plt.subplots(1, 3, figsize=(13.5, 4.2))
 
@@ -113,9 +144,8 @@ def main(out_path="async_despread_demo.png"):
     span = nshow * K
     pp = np.arange(off, off + span)
     sl = slice(off, off + span)
-    # align the BPSK to the real axis within this window (a downstream Costas
-    # job; genie here): residual carrier ≈ a constant phase over the window
-    win = dero[sl] * np.exp(-0.5j * np.angle(np.mean(dero[sl] ** 2)))
+    # BPSK already on the real axis (carrier wiped); align residual phase.
+    win = part[sl] * np.exp(-0.5j * np.angle(np.mean(part[sl] ** 2)))
     a.plot(
         pp,
         win.real,
@@ -125,7 +155,6 @@ def main(out_path="async_despread_demo.png"):
         lw=1.0,
         label="despread (real)",
     )
-    # the despread ENVELOPE makes the amplitude modulation explicit
     a.plot(pp, np.abs(part[sl]), color="#999999", lw=0.9, label="|despread|")
     a.plot(pp, -np.abs(part[sl]), color="#999999", lw=0.9)
     a.axhline(0, color="k", lw=0.6)
@@ -148,42 +177,55 @@ def main(out_path="async_despread_demo.png"):
     a.legend(fontsize=7, loc="lower right")
     a.grid(alpha=0.25)
 
-    # --- 2. carrier rides on the output (raw partials) ---
+    # --- 2. clean despread constellation (carrier wiped + rate aided) ---
     w = part[200 : 200 + 80 * K]
-    c0 = c  # keep name; plot constellation on axis b
-    b.scatter(w.real, w.imag, s=12, color="#7f7f7f", alpha=0.5)
-    lim = 1.2 * np.max(np.abs(w))
+    # align the BPSK axis to real (a downstream Costas job; genie here)
+    w = w * np.exp(-0.5j * np.angle(np.mean(w**2)))
+    b.scatter(w.real, w.imag, s=12, color="#1f77b4", alpha=0.5)
+    lim = 1.4
     b.set_xlim(-lim, lim)
     b.set_ylim(-lim, lim)
     b.set_aspect("equal")
     b.axhline(0, color="k", lw=0.5)
     b.axvline(0, color="k", lw=0.5)
     b.set_title(
-        "Carrier rides on the output\n(2 BPSK clusters smeared to a ring)",
+        "Clean despread BPSK\n(carrier wiped upstream, rate aided — no ring)",
         fontsize=9,
     )
     b.set_xlabel("I")
     b.set_ylabel("Q")
     b.grid(alpha=0.25)
 
-    # --- 3. code stays locked under the carrier ---
-    c0.axhline(1.0 + DCODE, color="k", ls="--", lw=1.3, label="true code rate")
-    c0.plot(
-        np.arange(nep), rate, color="#2ca02c", lw=1.1, label="DLL estimate"
+    # --- 3. code rate comes from aiding, not the DLL's own loop ---
+    c.axhline(
+        1.0 + DCODE,
+        color="k",
+        ls="--",
+        lw=1.3,
+        label="true rate (aid supplies)",
     )
-    c0.set_title(
-        "Code stays locked under the carrier\n(non-coherent loop is "
-        "carrier-blind)",
+    c.axhline(1.0, color="0.6", lw=0.8)
+    c.plot(
+        np.arange(nep),
+        rate,
+        color="#2ca02c",
+        lw=1.1,
+        label="loop code_rate (residual)",
+    )
+    c.set_ylim(1.0 - DCODE, 1.0 + 2 * DCODE)
+    c.set_title(
+        "Code rate from carrier→code aiding\n"
+        "(loop observable stays ~1.0; the aid carries the Doppler)",
         fontsize=9,
     )
-    c0.set_xlabel("code epoch")
-    c0.set_ylabel("code rate (chips/chip)")
-    c0.legend(fontsize=8, loc="lower right")
-    c0.grid(alpha=0.25)
+    c.set_xlabel("code epoch")
+    c.set_ylabel("code rate (chips/chip)")
+    c.legend(fontsize=8, loc="upper right")
+    c.grid(alpha=0.25)
 
     fig.suptitle(
-        f"track.Dll(segments={K}) streaming despreader — remove the PN, "
-        f"output samples (SF={SF}, sps={SPS}, residual carrier {F0:.0e}, "
+        f"track.Dll(segments={K}) streaming despreader — carrier-wiped, "
+        f"rate-aided (SF={SF}, sps={SPS}, code Doppler {DCODE:.0e}, "
         f"async data δ={DSYM:.0e})",
         fontsize=10,
     )
@@ -209,21 +251,22 @@ def _lock_figure(code, plt, out_path):
     Two panels: the lock statistic ``R`` climbing past the CFAR threshold at a
     few per-sample SNRs (with a noise-only trace that stays below), and the
     noisy despread output that produced the middle trace — so it is clearly a
-    *different, noisy* signal from the noiseless despread figure.
+    *different, noisy* signal from the noiseless despread figure. Same
+    carrier-wiped + rate-aided DLL as main().
     """
     from doppler.detection import det_threshold_noncoherent
 
-    rx, _ = make_signal(code)
-    nep = len(rx) // TE
+    rxw = carrier_wipe(make_signal(code)[0])
+    nep = len(rxw) // TE
     thr = det_threshold_noncoherent(1e-3, 20)  # default lock config
     rng = np.random.default_rng(5)
 
     def add_noise(namp):
-        z = rng.standard_normal(len(rx)) + 1j * rng.standard_normal(len(rx))
-        return (rx + namp * z / np.sqrt(2)).astype(np.complex64)
+        z = rng.standard_normal(len(rxw)) + 1j * rng.standard_normal(len(rxw))
+        return (rxw + namp * z / np.sqrt(2)).astype(np.complex64)
 
     def noise_only(namp):
-        z = rng.standard_normal(len(rx)) + 1j * rng.standard_normal(len(rx))
+        z = rng.standard_normal(len(rxw)) + 1j * rng.standard_normal(len(rxw))
         return (namp * z / np.sqrt(2)).astype(np.complex64)
 
     fig, (a, b) = plt.subplots(1, 2, figsize=(11.5, 4.4))
@@ -238,6 +281,7 @@ def _lock_figure(code, plt, out_path):
     mid_part = None
     for label, rxn, col, tag in runs:
         dl = Dll(code, SPS, 0.0, 0.002, 0.707, 0.5, segments=K)
+        dl.set_rate_aid(DCODE)
         R = np.empty(nep)
         chunks = []
         for e in range(nep):
@@ -262,7 +306,7 @@ def _lock_figure(code, plt, out_path):
     a.set_ylim(0, None)
     a.set_title(
         "Lock statistic R vs epoch (noisy)\n"
-        "R = √(2·Σ|P|²/E|O|²); SF=127 → signal sits far above η",
+        "R = √(2·Σ|P|²/E|O|²); SF=1023 → signal sits far above η",
         fontsize=9,
     )
     a.set_xlabel("code epoch")
@@ -270,43 +314,26 @@ def _lock_figure(code, plt, out_path):
     a.legend(fontsize=7, loc="center right")
     a.grid(alpha=0.25)
 
-    # --- right: the noisy despread output behind the "weak" trace ---
-    off = (len(mid_part) * 6 // 10) // K * K
-    span = 24 * K
-    pp = np.arange(off, off + span)
-    sl = slice(off, off + span)
-    a2 = mid_part[sl]
-    a2 = a2 * np.exp(-0.5j * np.angle(np.mean(a2**2)))  # genie axis align
-    b.plot(
-        pp,
-        a2.real,
-        "-o",
-        color="#2ca02c",
-        ms=3,
-        lw=0.9,
-        label="despread (real)",
-    )
-    b.plot(
-        pp, np.abs(mid_part[sl]), color="#999999", lw=0.8, label="|despread|"
-    )
-    b.axhline(0, color="k", lw=0.6)
-    b.set_xlim(off, off + span)
+    # --- right: the noisy despread output the middle trace ran on ---
+    if mid_part is not None:
+        seg = mid_part[len(mid_part) // 2 : len(mid_part) // 2 + 80 * K]
+        seg = seg * np.exp(-0.5j * np.angle(np.mean(seg**2)))
+        b.scatter(seg.real, seg.imag, s=10, color="#2ca02c", alpha=0.4)
+        lim = 1.3 * float(np.median(np.abs(seg))) + 1e-9
+        b.set_xlim(-4 * lim, 4 * lim)
+        b.set_ylim(-4 * lim, 4 * lim)
+    b.set_aspect("equal")
+    b.axhline(0, color="k", lw=0.5)
+    b.axvline(0, color="k", lw=0.5)
     b.set_title(
-        "Noisy despread output (the 'weak' run)\n"
-        "BPSK still recoverable; the detector reports lock on it",
+        "Noisy despread output (weak run)\n(the signal the R trace saw)",
         fontsize=9,
     )
-    b.set_xlabel("partial index (= output sample)")
-    b.set_ylabel("despread output")
-    b.legend(fontsize=7, loc="lower right")
+    b.set_xlabel("I")
+    b.set_ylabel("Q")
     b.grid(alpha=0.25)
 
-    fig.suptitle(
-        "track.Dll always-on code-lock detector "
-        "(separate noisy run — not the noiseless figure)",
-        fontsize=10,
-    )
-    fig.tight_layout(rect=(0, 0, 1, 0.95))
+    fig.tight_layout()
     fig.savefig(out_path, dpi=120)
     print(f"wrote {out_path}")
 

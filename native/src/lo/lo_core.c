@@ -47,19 +47,6 @@ lut_init (void)
   lut_ready = 1;
 }
 
-/* ------------------------------------------------------------------
- * Normalised frequency → uint32 phase increment.
- *
- * Uses double arithmetic to avoid rounding at the float→uint32 boundary.
- * floor() folds negative frequencies correctly: −0.25 → 0.75 → 3×2^30.
- * ------------------------------------------------------------------ */
-static uint32_t
-norm_to_inc (double norm_freq)
-{
-  double d = norm_freq - floor (norm_freq);
-  return (uint32_t)(d * 4294967296.0);
-}
-
 /* ================================================================== */
 /* Lifecycle                                                           */
 /* ================================================================== */
@@ -69,7 +56,7 @@ lo_init (lo_state_t *state, double norm_freq)
 {
   lut_init ();
   state->phase     = 0;
-  state->phase_inc = norm_to_inc (norm_freq);
+  state->phase_inc = nco_norm_to_inc (norm_freq);
   state->norm_freq = norm_freq;
 }
 
@@ -108,7 +95,7 @@ lo_get_norm_freq (const lo_state_t *state)
 void
 lo_set_norm_freq (lo_state_t *state, double norm_freq)
 {
-  state->phase_inc = norm_to_inc (norm_freq);
+  state->phase_inc = nco_norm_to_inc (norm_freq);
   state->norm_freq = norm_freq;
 }
 
@@ -288,7 +275,11 @@ lo_steps (lo_state_t *state, size_t n, float complex *out)
  * Precision: ctrl_inc uses float32 (multiply by 2^32).  The ULP at
  * 2^32 in float32 is 2^8 = 256, so ctrl_inc is accurate to ±128 in
  * its lowest 8 bits — below one LUT bin (2^16 counts).  No effect on
- * the top 16 bits that drive the LUT.
+ * the top 16 bits that drive the LUT.  Rounds to nearest (matching
+ * nco_norm_to_inc()'s convention, not a truncating cast) via
+ * _mm512_cvtps_epu32 — see nco_norm_to_inc()'s own doc comment on why
+ * a duplicated truncating copy of this conversion is a standing bug,
+ * not a style choice.
  */
 size_t
 lo_steps_ctrl (lo_state_t *state, const float *ctrl, size_t ctrl_len,
@@ -317,8 +308,9 @@ lo_steps_ctrl (lo_state_t *state, const float *ctrl, size_t ctrl_len,
       __m512 vc    = _mm512_loadu_ps (ctrl + i);
       __m512 vfrac = _mm512_sub_ps (vc, _mm512_floor_ps (vc));
 
-      /* ctrl_inc[k] = (uint32_t)(frac[k] * 2^32) */
-      __m512i vci = _mm512_cvttps_epu32 (_mm512_mul_ps (vfrac, v2p32));
+      /* ctrl_inc[k] = round(frac[k] * 2^32) -- round-to-nearest, not
+       * truncating, to match nco_norm_to_inc()'s convention. */
+      __m512i vci = _mm512_cvtps_epu32 (_mm512_mul_ps (vfrac, v2p32));
 
       /* delta[k] = inc + ctrl_inc[k] */
       __m512i vd = _mm512_add_epi32 (vinc, vci);
@@ -356,12 +348,12 @@ lo_steps_ctrl (lo_state_t *state, const float *ctrl, size_t ctrl_len,
       ph += (uint32_t)_mm512_reduce_add_epi32 (vd);
     }
 
-  /* Scalar tail — double precision for the ctrl_inc conversion. */
+  /* Scalar tail — the shared double-precision primitive, not a
+   * private copy (nco_norm_to_inc() already floor-normalizes and
+   * rounds to nearest). */
   for (; i < ctrl_len; i++)
     {
-      double d = (double)ctrl[i];
-      d -= floor (d);
-      uint32_t ctrl_inc = (uint32_t)(d * 4294967296.0);
+      uint32_t ctrl_inc = nco_norm_to_inc ((double)ctrl[i]);
       uint16_t idx      = (uint16_t)(ph >> (32u - LO_LUT_BITS));
       out[i] = CMPLXF (lo_sin_lut[(uint16_t)(idx + (uint16_t)LO_LUT_QTR)],
                        lo_sin_lut[idx]);
@@ -382,9 +374,7 @@ lo_steps_ctrl (lo_state_t *state, const float *ctrl, size_t ctrl_len,
   uint32_t inc = state->phase_inc;
   for (size_t i = 0; i < ctrl_len; i++)
     {
-      double d = (double)ctrl[i];
-      d -= floor (d);
-      uint32_t ctrl_inc = (uint32_t)(d * 4294967296.0);
+      uint32_t ctrl_inc = nco_norm_to_inc ((double)ctrl[i]);
       uint16_t idx      = (uint16_t)(ph >> (32u - LO_LUT_BITS));
       out[i] = CMPLXF (lo_sin_lut[(uint16_t)(idx + (uint16_t)LO_LUT_QTR)],
                        lo_sin_lut[idx]);

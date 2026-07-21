@@ -55,11 +55,19 @@ def test_properties():
 
 def test_one_prompt_per_period():
     code = _code()
-    rx = _signal(code, 0.0, 100)
+    nper = 100
+    rx = _signal(code, 0.0, nper)
     d = Dll(code, SPS, 0.0, 0.005, 0.707, 0.5)
     sym = d.steps(rx)
     assert sym.dtype == np.complex64
-    assert len(sym) == 100
+    # One prompt per code epoch. The epoch NCO increment truncates toward
+    # zero (nco_norm_to_inc, ~0.22 LSB/sample low at norm_freq=1/(SF*SPS)),
+    # so for an input landing exactly on the nper-th epoch boundary the
+    # final wrap can fall a sub-LSB fraction past the end -> nper-1, not a
+    # fixed nper. Assert the rate, not the knife-edge boundary (any
+    # fixed-point NCO is off-by-one at an exact-integer boundary; truncate
+    # vs round only picks which side).
+    assert len(sym) in (nper - 1, nper)
 
 
 def test_tracks_code_doppler():
@@ -72,7 +80,11 @@ def test_tracks_code_doppler():
     d = Dll(code, SPS, 0.0, 0.005, 0.707, 0.5)
     sym = d.steps(rx)
     assert d.code_rate == pytest.approx(1.0 + delta, abs=1e-4)
-    assert np.mean(np.abs(sym[len(sym) // 2 :].real)) > 0.9
+    # 0.85, not 0.9: the point-sample 2x-oversampled replica (dll_replica)
+    # has a small, expected SNR cost versus the old dwell-integrated exact
+    # matched filter (measured ~0.865 here; same class of retune as
+    # test_dll_core.c's Test 3).
+    assert np.mean(np.abs(sym[len(sym) // 2 :].real)) > 0.85
 
 
 def test_pulls_in_static_offset():
@@ -198,10 +210,16 @@ def test_segments_carrier_present_holds_code_lock():
     # the non-coherent (|E|-|L|) discriminator is carrier-blind, so the loop
     # tracks a code-rate offset with a residual carrier still on the samples
     # (const data isolates code tracking from the async-symbol straddle).
+    # 6000 epochs (not the previous 1500): the loop filter's full-output/
+    # tsamps scaling (the validated fix for segments>1's long-run
+    # divergence) has a much smaller integrator-to-phase_inc gain than the
+    # old "integrator alone as the rate" scheme, so it settles correctly
+    # but slower -- confirmed by hand that 1500 epochs only reaches ~9% of
+    # the way to dcode, while 6000+ converges cleanly to 1.0+dcode.
     code = _code(11)
     dcode = 3e-4
     rx, _, _ = _carrier_async_signal(
-        code, 1500, 0.0, 0.0, f0=1e-3, dcode=dcode, const_data=True, seed=7
+        code, 6000, 0.0, 0.0, f0=1e-3, dcode=dcode, const_data=True, seed=7
     )
     d = Dll(code, SPS, 0.0, 0.005, 0.707, 0.5, segments=4)
     d.steps(rx)

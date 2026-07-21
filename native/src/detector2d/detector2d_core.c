@@ -186,11 +186,11 @@ detector2d_set_state (detector2d_state_t *s, const void *blob)
   return DP_OK;
 }
 
-void
+int
 detector2d_set_ref (detector2d_state_t *state, const float complex *ref)
 {
   detector2d_reset (state);
-  corr2d_set_ref (state->corr, ref);
+  return corr2d_set_ref (state->corr, ref);
 }
 
 void

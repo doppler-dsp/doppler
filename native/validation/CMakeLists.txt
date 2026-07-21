@@ -28,7 +28,17 @@ add_executable(validate_dll_jitter
 target_include_directories(validate_dll_jitter
                            PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
 target_link_libraries(validate_dll_jitter PRIVATE doppler_lib_static m)
-target_compile_options(validate_dll_jitter PRIVATE -O3 -funroll-loops)
+# -ffp-contract=off: the closed-loop integrator (`integ += ki*x` in
+# loop_filter_step, `integ*inv_tsamps + kp*e*inv_tsamps_sf` in dll_update)
+# fuses into a single fmadd under the default -ffp-contract=fast on hosts with
+# baseline FMA (arm64/AArch64 NEON), but stays separately-rounded on x86-64
+# without -mfma. That per-epoch LSB difference compounds over the 5000-8000
+# epoch Monte-Carlo and lands the loop on a different jitter, tripping the
+# knife-edge nxn>=1.05 gate on macOS/arm64 while passing on x86. Disabling
+# contraction makes both platforms round every multiply-add separately (the
+# gates are tuned once against that), so the harness is host-deterministic.
+target_compile_options(validate_dll_jitter PRIVATE -O3 -funroll-loops
+                                                   -ffp-contract=off)
 add_test(NAME validate_dll_jitter
          COMMAND validate_dll_jitter --check)
 

@@ -12,6 +12,7 @@ _Lightweight scalar telemetry taps for running DSP objects._ [More...](#detailed
 
 * `#include "buffer/buffer.h"`
 * `#include "clib_common.h"`
+* `#include "jm_perf.h"`
 
 
 
@@ -70,6 +71,7 @@ _Lightweight scalar telemetry taps for running DSP objects._ [More...](#detailed
 |  [**dp\_tlm\_t**](telemetry_8h.md#typedef-dp_tlm_t) \* | [**dp\_tlm\_create**](#function-dp_tlm_create) (size\_t ring\_records) <br>_Creates a telemetry context with a ring of_ `ring_records` _slots._ |
 |  void | [**dp\_tlm\_destroy**](#function-dp_tlm_destroy) ([**dp\_tlm\_t**](telemetry_8h.md#typedef-dp_tlm_t) \* t) <br>_Destroys a context. NULL-safe. Detach all objects first._  |
 |  uint64\_t | [**dp\_tlm\_dropped**](#function-dp_tlm_dropped) (const [**dp\_tlm\_t**](telemetry_8h.md#typedef-dp_tlm_t) \* t) <br>_Total records dropped on ring overrun (monotonic)._  |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) void | [**dp\_tlm\_emit**](#function-dp_tlm_emit) ([**dp\_tlm\_t**](telemetry_8h.md#typedef-dp_tlm_t) \* t, int32\_t id, double v) <br>_Records one scalar for probe_ `id` _. The hot-path primitive._ |
 |  uint64\_t | [**dp\_tlm\_emitted**](#function-dp_tlm_emitted) (const [**dp\_tlm\_t**](telemetry_8h.md#typedef-dp_tlm_t) \* t, int id) <br>_Records written for probe_ `id` _(post-decimation, post-drop)._ |
 |  int | [**dp\_tlm\_lookup**](#function-dp_tlm_lookup) (const [**dp\_tlm\_t**](telemetry_8h.md#typedef-dp_tlm_t) \* t, const char \* name) <br>_Looks up a probe id by name; DP\_ERR\_INVALID if unknown._  |
 |  int | [**dp\_tlm\_probe**](#function-dp_tlm_probe) ([**dp\_tlm\_t**](telemetry_8h.md#typedef-dp_tlm_t) \* t, const char \* name, uint32\_t decim) <br>_Registers (or re-registers) a named probe. Setup path, not hot._  |
@@ -82,7 +84,6 @@ _Lightweight scalar telemetry taps for running DSP objects._ [More...](#detailed
 
 | Type | Name |
 | ---: | :--- |
-|  void | [**dp\_tlm\_emit**](#function-dp_tlm_emit) ([**dp\_tlm\_t**](telemetry_8h.md#typedef-dp_tlm_t) \* t, int32\_t id, double v) <br>_Records one scalar for probe_ `id` _. The hot-path primitive._ |
 |  void | [**dp\_tlm\_set\_now**](#function-dp_tlm_set_now) ([**dp\_tlm\_t**](telemetry_8h.md#typedef-dp_tlm_t) \* t, uint64\_t n) <br>_Stamps the sample index carried by subsequent records._  |
 
 
@@ -113,7 +114,7 @@ _Lightweight scalar telemetry taps for running DSP objects._ [More...](#detailed
 
 | Type | Name |
 | ---: | :--- |
-| define  | [**DP\_TLM**](telemetry_8h.md#define-dp_tlm) (ctx, id, v) `dp\_tlm\_emit ((ctx), (id), (v))`<br>_Probe-site wrapper around dp\_tlm\_emit()._  |
+| define  | [**DP\_TLM**](telemetry_8h.md#define-dp_tlm) (ctx, id, v) `[**dp\_tlm\_emit**](telemetry_8h.md#function-dp_tlm_emit) ((ctx), (id), (v))`<br>_Probe-site wrapper around_ [_**dp\_tlm\_emit()**_](telemetry_8h.md#function-dp_tlm_emit) _._ |
 | define  | [**DP\_TLM\_MAX\_PROBES**](telemetry_8h.md#define-dp_tlm_max_probes)  `64`<br> |
 | define  | [**DP\_TLM\_NAME\_MAX**](telemetry_8h.md#define-dp_tlm_name_max)  `32`<br> |
 
@@ -287,6 +288,31 @@ uint64_t dp_tlm_dropped (
 
 
 
+### function dp\_tlm\_emit 
+
+_Records one scalar for probe_ `id` _. The hot-path primitive._
+```C++
+JM_FORCEINLINE void dp_tlm_emit (
+    dp_tlm_t * t,
+    int32_t id,
+    double v
+) 
+```
+
+
+
+Detached (`t` NULL) this is one branch — the entire disabled cost. Attached: bump the probe's decimation phase, and on the decim-th event write one 16-byte record (value narrowed to float, stamped with the context's current `now`). Never blocks, never allocates; on ring overrun the record is dropped and counted.
+
+
+`id` must come from a successful [**dp\_tlm\_probe()**](telemetry_8h.md#function-dp_tlm_probe) on this context — an object's set\_telemetry fails the whole attach otherwise. 
+
+
+        
+
+<hr>
+
+
+
 ### function dp\_tlm\_emitted 
 
 _Records written for probe_ `id` _(post-decimation, post-drop)._
@@ -429,31 +455,6 @@ Number of records copied out.
 
 
 
-### function dp\_tlm\_emit 
-
-_Records one scalar for probe_ `id` _. The hot-path primitive._
-```C++
-static inline void dp_tlm_emit (
-    dp_tlm_t * t,
-    int32_t id,
-    double v
-) 
-```
-
-
-
-Detached (`t` NULL) this is one branch — the entire disabled cost. Attached: bump the probe's decimation phase, and on the decim-th event write one 16-byte record (value narrowed to float, stamped with the context's current `now`). Never blocks, never allocates; on ring overrun the record is dropped and counted.
-
-
-`id` must come from a successful [**dp\_tlm\_probe()**](telemetry_8h.md#function-dp_tlm_probe) on this context — an object's set\_telemetry fails the whole attach otherwise. 
-
-
-        
-
-<hr>
-
-
-
 ### function dp\_tlm\_set\_now 
 
 _Stamps the sample index carried by subsequent records._ 
@@ -480,7 +481,7 @@ Call once per block from whoever owns the pipeline's sample clock (`dp_tlm_set_n
 
 ### define DP\_TLM 
 
-_Probe-site wrapper around dp\_tlm\_emit()._ 
+_Probe-site wrapper around_ [_**dp\_tlm\_emit()**_](telemetry_8h.md#function-dp_tlm_emit) _._
 ```C++
 #define DP_TLM (
     ctx,

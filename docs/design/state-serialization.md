@@ -189,6 +189,17 @@ int delay_set_state(delay_state_t *s, const void *blob)
 > you snapshot the whole struct, NULL it in the serialized copy and preserve the
 > live value in `set_state`. See `dll_get_state`.
 
+> A **wall-clock or other non-deterministic quantity** (a `dp_sample_clock_t`
+> anchor, a running sample counter kept only for cross-call bookkeeping) is
+> runtime state, not resumable DSP state — never part of the blob. Bit-exact
+> resume means "the exact same next *sample*," not "the exact same wall-clock
+> reading" — a restored object re-observes or re-derives timing fresh, the same
+> way a borrowed pointer is re-established by `create()` rather than carried in
+> the blob. `DsssReceiver`'s own `samples_fed` (a plain cross-call sample
+> counter, tracked only to diff against a child's post-hit offset) is already
+> deliberately excluded from `dsss_receiver_get_state`/`set_state` on exactly
+> this basis — follow that precedent rather than inventing a new one.
+
 ### Composition — `DP_W_CHILD` / `DP_R_CHILD`
 
 Nest each serializable child as a self-validating sub-blob. `state_bytes` sums

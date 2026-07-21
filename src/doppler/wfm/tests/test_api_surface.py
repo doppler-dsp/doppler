@@ -37,6 +37,7 @@ import doppler.wfm as w
 COVERAGE: dict[str, str] = {
     # generators / engine
     "PN": "TestPNLifecycle",
+    "Gold": "TestGoldLifecycle",
     "_SynthEngine": "TestSynthEngineLifecycle",
     "Synth": "TestSynthLifecycle",
     "Segment": "TestComposerGraph",
@@ -140,6 +141,41 @@ class TestPNLifecycle:
     def test_context_manager(self) -> None:
         with w.PN(poly=w.mls_poly(5), seed=1, length=5) as p:
             assert p.generate(31).shape == (31,)
+
+
+class TestGoldLifecycle:
+    def test_construct_generate_reset_destroy(self) -> None:
+        g = w.Gold()
+        a = g.generate(16).copy()
+        g.reset()
+        b = g.generate(16).copy()
+        assert np.array_equal(a, b)
+        g.destroy()
+
+    def test_defaults_reproduce_ccsds_worked_example(self) -> None:
+        # CCSDS 415.0-G-1 Figure 5-2, PN Code Library Code #365.
+        chips = w.Gold().generate(1023)
+        assert chips[:15].tolist() == [
+            0,
+            1,
+            0,
+            0,
+            0,
+            1,
+            0,
+            1,
+            1,
+            1,
+            0,
+            1,
+            1,
+            1,
+            1,
+        ]
+
+    def test_context_manager(self) -> None:
+        with w.Gold() as g:
+            assert g.generate(1023).shape == (1023,)
 
 
 class TestSynthEngineLifecycle:

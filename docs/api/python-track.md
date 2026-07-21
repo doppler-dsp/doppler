@@ -10,9 +10,6 @@ instantaneous (phase) correction.
 Source:
 [`src/doppler/track/__init__.py`](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/track/__init__.py)
 
-See the [DSSS despreader gallery page](../gallery/dsss-despread.md), which uses
-two of these — one for the carrier loop, one for the code loop.
-
 ______________________________________________________________________
 
 ## How it works
@@ -302,9 +299,9 @@ ______________________________________________________________________
 
 <!-- related-pages:start -->
 
-**Gallery** — [Streaming Async Despreader](../gallery/async-despread.md), [M-PSK Carrier Loop — Theory Validation](../gallery/carrier-mpsk.md), [NDA Carrier Loop — Theory Validation](../gallery/carrier-nda.md), [Costas Loop — Theory Validation](../gallery/costas-theory.md), [Carrier Loop Stress](../gallery/costas.md), [Despreader (full continuous receiver)](../gallery/despreader.md), [DLL Code Loop — Theory Validation](../gallery/dll-theory.md), [Code Loop Tracking](../gallery/dll.md), [DSSS Acquisition & Despreading](../gallery/dsss-despread.md), [Gallery](../gallery/index.md), [Lock Detection: Verify Counts + Hysteresis](../gallery/lockdet.md), [M-PSK Receiver — Pull-in, Lock, and BER](../gallery/mpsk-receiver.md), [Full-Chain Lock-Up](../gallery/receiver-lock.md), [Timing Loop — Theory Validation](../gallery/symsync-theory.md), [Symbol Timing Recovery](../gallery/symsync.md)
+**Gallery** — [Streaming Async Despreader](../gallery/async-despread.md), [Async DSSS Receiver: the SPEC waveform through coupled Doppler](../gallery/async-dsss-receiver-spec.md), [Continuous Async DSSS Receiver](../gallery/async-dsss-receiver.md), [M-PSK Carrier Loop — Theory Validation](../gallery/carrier-mpsk.md), [NDA Carrier Loop — Theory Validation](../gallery/carrier-nda.md), [Costas Loop — Theory Validation](../gallery/costas-theory.md), [Carrier Loop Stress](../gallery/costas.md), [DLL Code Loop — Theory Validation](../gallery/dll-theory.md), [Code Loop Tracking](../gallery/dll.md), [DsssReceiver — the Composed Continuous DSSS Receiver](../gallery/dsss-receiver.md), [Gallery](../gallery/index.md), [Lock Detection: Verify Counts + Hysteresis](../gallery/lockdet.md), [M-PSK Receiver — Pull-in, Lock, and BER](../gallery/mpsk-receiver.md), [Full-Chain Lock-Up](../gallery/receiver-lock.md), [Timing Loop — Theory Validation](../gallery/symsync-theory.md), [Symbol Timing Recovery](../gallery/symsync.md)
 **Guides** — [Lock Detection Across `doppler.track`](../guide/lock-detection.md)
-**Design** — [API taxonomy: the DSP building-block hierarchy and its naming axis](../design/api-taxonomy.md), [Asynchronous symbol/code despreading](../design/async-symbol-despreader.md), [MPSK Receiver](../design/mpsk.md), [SymbolSync Timing Lock Detector](../design/timing_lock_detector.md)
+**Design** — [API taxonomy: the DSP building-block hierarchy and its naming axis](../design/api-taxonomy.md), [DsssReceiver Specifications](../design/async-dsss-spec.md), [Asynchronous symbol/code despreading](../design/async-symbol-despreader.md), [MPSK Receiver](../design/mpsk.md), [SymbolSync Timing Lock Detector](../design/timing_lock_detector.md)
 **Contributing** — [Docs Conventions — what's generated, what's hand-owned, and what not to edit](../dev/docs-conventions.md)
 
 <!-- related-pages:end -->

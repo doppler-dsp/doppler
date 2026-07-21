@@ -4,11 +4,14 @@
  *
  * Tracks the code phase of a continuous, repeating spreading code (e.g. a PN /
  * Gold sequence) on a *carrier-wiped* sample stream. Per sample it correlates
- * the input against three taps of the local code — early (`+spacing` chips),
- * prompt, late (`-spacing` chips) — accumulating an integrate-and-dump over one
- * code period; per period it runs the non-coherent envelope discriminator
- * `(|E| - |L|) / (|E| + |L|)`, filters it through an embedded 2nd-order
- * @ref loop_filter_state_t, and steers the code rate + phase.
+ * the input against three taps of a 2-samples/chip interpolated local-code
+ * replica — early (`+spacing` chips), prompt, late (`-spacing` chips) —
+ * accumulating an integrate-and-dump over one code period; per period it runs
+ * the power-domain non-coherent early-minus-late discriminator
+ * `0.5 * (|E|^2 - |L|^2) / |P|^2`, filters it through an embedded 2nd-order
+ * @ref loop_filter_state_t, and steers an embedded fixed-point NCO
+ * (@ref nco_state_t) that tracks the code phase — a 32-bit phase accumulator,
+ * exact integer wraparound, no open-ended floating-point drift.
  *
  * It pairs with the carrier loop (costas_core.h): the carrier loop wipes the
  * carrier, the DLL wipes the code. The block API (dll_steps) is the Python face;
@@ -17,7 +20,9 @@
  * tracking channel inlines into its own sample loop.
  *
  * Lifecycle: `dll_create -> (steps / configure / reset)* -> dll_destroy`, or
- * embed by value with dll_init() (which BORROWS the caller-owned code).
+ * embed by value with dll_init() (which BORROWS the caller-owned code, and
+ * always runs with `segments == 1` — there is no by-value counterpart to
+ * `dll_create()`'s `segments` parameter).
  *
  * @code
  * uint8_t code[31] = { ... };  // 0/1 chips, one period
@@ -36,8 +41,10 @@
 #include "jm_perf.h"
 #include "lockdet/lockdet_core.h"
 #include "loop_filter/loop_filter_core.h"
+#include "nco/nco_core.h"
 #include "telemetry/telemetry.h"
 #include <complex.h>
+#include <math.h>
 #include "detection/detection_core.h"
 #ifdef __cplusplus
 extern "C" {
@@ -45,6 +52,19 @@ extern "C" {
 
 /* Numerical guard on the early+late envelope sum (not tunable). */
 #define DLL_EPS 1e-12
+
+/* Clamp on the discriminator output |e| before it reaches the loop filter.
+ * The old magnitude-domain discriminator (|E|-|L|)/(|E|+|L|) was always
+ * inherently bounded in [-1, 1] (|E|-|L| <= |E|+|L| identically); the
+ * power-domain 0.5*(Ep-Lp)/Pp form is NOT -- a data transition landing
+ * badly enough to collapse the prompt power Pp near zero (the lookback
+ * failing to find a clean candidate that epoch, a real, reachable case,
+ * not a hypothetical one -- observed directly while porting this design)
+ * can blow e up arbitrarily, injecting a huge phase nudge that cascades
+ * into a runaway. Clamping restores the old design's inherent safety
+ * property without changing behaviour in the overwhelming common case
+ * (|e| well under 1 at any reasonable lock). */
+#define DLL_DISC_CLAMP 1.0
 
 /**
  * @brief Telemetry attachment: a borrowed context + this object's probe
@@ -71,13 +91,32 @@ typedef struct {
  */
 typedef struct {
     loop_filter_state_t lf;  /**< 2nd-order code PI loop.                  */
+    nco_state_t code_nco;    /**< fixed-point code-phase NCO (phase/phase_inc).*/
     const uint8_t *code;     /**< spreading code, one period (0/1 chips).  */
     size_t sf;               /**< code length (chips per period).          */
     size_t sps;              /**< samples per chip.                        */
     double inv_sps;          /**< 1 / sps (per-sample chip advance scale).  */
+    double inv_tsamps;       /**< 1 / (sf*sps) -- the nominal phase_inc,
+                                  cycles/sample; precomputed once (sf/sps are
+                                  create-time invariants) so the tracking
+                                  loop never divides by tsamps.             */
+    double inv_tsamps2;      /**< 1 / (sf*sps)^2 -- segments>1's ctrl scale. */
+    double inv_tsamps_sf;    /**< 1 / (sf*sps*sf) -- segments<=1's kp*e/(sf)
+                                  ctrl term's scale.                        */
     double spacing;          /**< early/late tap offset, chips (e.g. 0.5).  */
-    double chip_pos;         /**< current prompt code phase, chips.        */
+    double chip_pos;         /**< current prompt code phase, chips; DERIVED
+                                  from code_nco.phase on every dll_accumulate,
+                                  never independently accumulated.          */
     double code_rate;        /**< chips advanced per nominal chip (~1.0).  */
+    double rate_aid;         /**< carrier-aiding code-rate deviation (ratio,
+                                  0 = off): a fixed fractional bias summed
+                                  into the sample-and-hold phase_inc every
+                                  epoch, on top of the loop's own ctrl. For
+                                  physically-coupled Doppler, the caller sets
+                                  this to carrier_offset/carrier_freq so the
+                                  code NCO rides the code-rate dilation the
+                                  code discriminator alone can't pull in at
+                                  low SNR. See dll_set_rate_aid().           */
     double seed_chip;        /**< create-time code phase, for reset.       */
     double bn;               /**< loop noise bandwidth (retained).         */
     double zeta;             /**< damping factor (retained).               */
@@ -88,9 +127,34 @@ typedef struct {
     size_t segments;         /**< partial correlations per epoch (1 = full). */
     double seg_chips;        /**< code phase per partial segment = sf/segments.*/
     double seg_norm;         /**< nominal samples per segment (prompt scale). */
-    size_t seg_idx;          /**< current partial index within the epoch.   */
-    double sum_e;            /**< non-coherent early sum over the epoch.     */
-    double sum_l;            /**< non-coherent late sum over the epoch.      */
+    size_t seg_idx;          /**< samples integrated into the current chunk.*/
+    /* ── segments>1 chunked output + one-epoch-deep lookback (heap-owned,
+     *    length `segments`; NULL when segments==1 -- dll_init()'s embedded/
+     *    borrowed path is always segments==1, so this never needs a
+     *    deinit contract there, same lifecycle class as `code`/owns_code).
+     *    This is the direct C port of the coupled-despreader
+     *    prototype's `find_max_power()`/`get_window()` (also
+     *    `docs/design/async-despreader-working-design.md`'s own reference
+     *    pseudocode) -- see dll_steps_impl()'s segments>1 branch, which
+     *    builds the SAME named artifacts (`sums`, `backward_sums`,
+     *    `correlations`) in the same order so it can be checked directly
+     *    against that Python function line for line. */
+    float complex *chunk_p;         /**< this epoch's per-chunk prompt sums;
+                                          Python's `partial_sums`.          */
+    float complex *chunk_e;         /**< this epoch's per-chunk early sums.  */
+    float complex *chunk_l;         /**< this epoch's per-chunk late sums.   */
+    float complex *sums;            /**< this epoch's running cumulative sum
+                                          of chunk_p; Python's `partial_sums
+                                          .cumsum()`. Pure scratch (rebuilt
+                                          every epoch boundary, never read
+                                          across calls) -- not part of the
+                                          serialized state.                 */
+    float complex *last_backward_p; /**< prev epoch's reversed-cumsum prompt;
+                                          Python's `backward_sums`, saved
+                                          from the PREVIOUS epoch's call.   */
+    float complex *last_e;          /**< prev epoch's per-chunk early sums.  */
+    float complex *last_l;          /**< prev epoch's per-chunk late sums.   */
+    int have_prev_epoch;     /**< 0 until one full epoch has completed.    */
     /* ── lock detector (always on): offset-tap CFAR noise ref + N-look test  */
     float complex acc_o;     /**< offset (noise) correlator accumulator.     */
     double off_chips;        /**< this look's offset code phase, whole chips. */
@@ -119,43 +183,51 @@ dll_chip_sign(uint8_t c)
 /**
  * @brief Sub-chip code replica at fractional code phase @p c (one tap).
  *
- * Evaluates the ±1 code at chip phase @p c over the chip-phase extent
- * `[c, c + adv)` swept by one input sample (`adv = code_rate / sps`). Away from
- * a chip transition this is just `sign(code[floor(c)])`. When the sample's
- * extent straddles the boundary into the next chip, it returns the
- * overlap-weighted blend of the two chip signs — `frac` of the sample lies in
- * chip `floor(c)`, `1 - frac` in the next chip. Because the chips are ±1 and
- * constant away from a transition, this is the *exact* matched-filter integral
- * over a window whose edge falls at a fractional sample position: it makes the
- * correlation (hence the E-L discriminator) vary continuously with sub-sample
- * code phase instead of stepping in integer-sample quanta, with no loss of
- * despread SNR (the chip interior is still fully integrated). The blend is the
- * linear (trapezoidal) interpolant of the correlation; for ±1 chips no signal
- * interpolation is needed — only the lone straddling sample is reweighted.
+ * The code is treated as held at a fixed 2 samples/chip, sampled at
+ * chip-relative positions {0.25, 0.75} (a quarter and three-quarters into
+ * each chip) and linearly interpolated at any fractional position — NOT
+ * at {0, 0.5}, which would confine the whole linear-interpolation
+ * transition zone to one side of each chip boundary (found during the
+ * initial port: a real bug, not a cosmetic asymmetry — it broke E/L
+ * symmetry around P badly enough to leave a large discriminator offset
+ * at perfect lock). Quarter/three-quarter placement centers the
+ * transition zone symmetrically on each boundary (spanning
+ * `[chip-0.25, chip+0.25)`), and both quarter-chip flat regions are
+ * pure `sign(code[chip])` (no table is materialised — the 2x-oversampled
+ * index converts straight back to a chip index via `>> 1`, same as an
+ * unshifted grid would, only the phase origin moves). A point-sample
+ * interpolation, not a dwell-width-aware blend: this replaces the earlier
+ * exact matched-filter integral (which varied its blend width with the
+ * sample's chip-phase dwell time) with the simpler, validated design from
+ * `docs/design/async-despreader-working-design.md` — the dwell-integral
+ * model was mathematically fancier but did not, on its own, fix the
+ * long-run false-lock that motivated this redesign; this one does.
  *
- * @param s    DLL state (for the code and period length).
- * @param c    Code phase of the tap, chips, in [0, sf).
- * @param adv  Chip-phase advance per input sample (`code_rate / sps`).
- * @return Blended ±1 replica value for this tap and sample.
+ * @param s  DLL state (for the code and period length).
+ * @param c  Code phase of the tap, chips (any real value; wrapped mod sf).
+ * @return Linearly-interpolated ±1 replica value for this tap and sample.
  */
 JM_FORCEINLINE float
-dll_replica(const dll_state_t *s, double c, double adv)
+dll_replica(const dll_state_t *s, double c)
 {
-    size_t i = (size_t)c;
-    if (i >= s->sf)
-        i = s->sf - 1;
-    /* Distance from this sample to the next chip boundary. When it is at least
-       one sample (adv), no transition falls inside the sample and the replica
-       is a clean single chip sign — the common path, no divide. */
-    double rem = (double)(i + 1) - c;
-    if (rem >= adv)
-        return dll_chip_sign(s->code[i]);
-    /* Rare: the sample straddles the boundary; blend by the in-chip fraction. */
-    double frac = rem / adv;
-    size_t j = (i + 1 >= s->sf) ? 0 : i + 1; /* next chip, wraps the period */
-    return (float)(frac * dll_chip_sign(s->code[i])
-                   + (1.0 - frac) * dll_chip_sign(s->code[j]));
+    double sfd2 = 2.0 * (double)s->sf;
+    double p = fmod(c * 2.0 - 0.5, sfd2);
+    if (p < 0.0)
+        p += sfd2;
+    size_t i = (size_t)p;
+    double mu = p - (double)i;
+    size_t j = (i + 1 >= (size_t)sfd2) ? 0 : i + 1;
+    float v0 = dll_chip_sign(s->code[i >> 1]);
+    float v1 = dll_chip_sign(s->code[j >> 1]);
+    return (float)((1.0 - mu) * v0 + mu * v1);
 }
+
+/* Cycles -> u32 phase delta: nco_norm_to_inc() (native/inc/nco/nco_core.h)
+ * is the ONE shared primitive for this conversion -- do not grow a
+ * private copy here (a prior copy of this exact formula existed under
+ * the name dll_cycles_to_phase_delta() and has been consolidated away;
+ * see nco_norm_to_inc()'s own doc comment for why duplicates of this
+ * conversion keep drifting). */
 
 /**
  * @brief Initialise a DLL in place (no allocation); BORROWS @p code.
@@ -177,34 +249,72 @@ void dll_init(dll_state_t *s, const uint8_t *code, size_t code_len, size_t sps,
               double init_chip, double bn, double zeta, double spacing);
 
 /**
- * @brief Per-sample early/prompt/late correlate + code-phase advance.
+ * @brief This sample's dwell-CENTER code phase, chips.
+ *
+ * A received sample is a zero-order hold over its dwell interval
+ * `[chip_pos, chip_pos + step)`, `step` = one `phase_inc` in chip units
+ * (~1/sps). Evaluating the replica taps at the dwell's START (the raw
+ * pre-advance `chip_pos`) treats every sample as landing at the very
+ * first instant of its hold interval rather than at the interval's
+ * continuous-time representative point — this biases the correlation by
+ * half a sample's worth of chip phase (0.5/sps chips). Found via a
+ * direct symmetry check: the autocorrelation of a real signal must
+ * satisfy R(tau) = R(-tau), and the S-curve didn't — it was offset from
+ * tau=0 by exactly 0.5/sps, vanishing when taps are evaluated at the
+ * dwell midpoint instead. Advancing by half of `phase_inc` before
+ * deriving the chip position gives that midpoint.
+ *
+ * @param s  DLL state.
+ * @return   Dwell-center code phase, chips.
+ */
+JM_FORCEINLINE double
+dll_dwell_center_chip_pos(const dll_state_t *s)
+{
+    uint32_t mid = s->code_nco.phase + (s->code_nco.phase_inc >> 1);
+    return ((double)mid / 4294967296.0) * (double)s->sf;
+}
+
+/**
+ * @brief Per-sample early/prompt/late correlate + fixed-point code-phase
+ * advance.
  *
  * Correlates the carrier-wiped sample @p d against the early, prompt and late
- * code taps (wrapped over the periodic code) and advances the code phase by
- * `code_rate / sps` chips. Inline, zero call overhead.
+ * code taps at this sample's dwell-CENTER phase (@ref
+ * dll_dwell_center_chip_pos, wrapped over the periodic code), then advances
+ * the embedded fixed-point NCO by one sample and re-derives `chip_pos` from
+ * its POST-advance (dwell-START-of-next-sample) phase (never independently
+ * accumulated — see @ref dll_state_t::chip_pos). Inline, zero call overhead.
  *
  * @param s  DLL state.  Must be non-NULL.
  * @param d  One carrier-wiped input sample.
+ * @return 1 if this sample's advance wrapped the code period (a period
+ *         boundary), 0 otherwise. A plain return value, not a persistent
+ *         struct field — a stored wrap flag that a caller forgets to
+ *         consume is exactly the class of bug an earlier attempt at this
+ *         redesign hit (a stale flag causing an infinite loop under
+ *         segments>1 stress); a local value cannot go stale.
  */
-JM_FORCEINLINE JM_HOT void
+JM_FORCEINLINE JM_HOT int
 dll_accumulate(dll_state_t *s, float complex d)
 {
-    double adv = s->code_rate * s->inv_sps;
-    double cp = s->chip_pos;
     double sfd = (double)s->sf;
+    double cp = dll_dwell_center_chip_pos(s);
     double ce = cp + s->spacing;
     if (ce >= sfd)
         ce -= sfd;
     double cl = cp - s->spacing;
     if (cl < 0.0)
         cl += sfd;
-    /* Fractional-boundary integrate-and-dump: each tap's replica blends across a
-       chip transition that falls inside the sample (dll_replica), so the E/P/L
-       correlations vary continuously with sub-sample code phase. */
-    s->acc_p += d * dll_replica(s, cp, adv);
-    s->acc_e += d * dll_replica(s, ce, adv);
-    s->acc_l += d * dll_replica(s, cl, adv);
-    s->chip_pos += adv;
+    s->acc_p += d * dll_replica(s, cp);
+    s->acc_e += d * dll_replica(s, ce);
+    s->acc_l += d * dll_replica(s, cl);
+    /* nco_step_u32_ovf() (native/inc/nco/nco_core.h) is the ONE shared
+       primitive for "advance one sample, report whether it wrapped" --
+       this used to be a private inline reimplementation of exactly that. */
+    uint8_t carry;
+    (void)nco_step_u32_ovf(&s->code_nco, &carry);
+    s->chip_pos = ((double)s->code_nco.phase / 4294967296.0) * sfd;
+    return carry;
 }
 
 /**
@@ -213,9 +323,11 @@ dll_accumulate(dll_state_t *s, float complex d)
  * The composition sibling of dll_accumulate(): correlates the input against
  * the code at this epoch's random off-peak offset, feeding the CFAR noise
  * reference. Call it on the same sample stream as dll_accumulate() and
- * BEFORE it (both taps evaluate the pre-advance chip phase). A composer
- * that skips this (and dll_lock_look()/dll_lock_epoch()) simply leaves the
- * lock detector idle — locked stays 0, lock_stat/noise_est stay 0.
+ * BEFORE it (both taps evaluate this sample's dwell-CENTER chip phase, @ref
+ * dll_dwell_center_chip_pos — dll_accumulate() hasn't advanced the NCO yet,
+ * so the two calls see the same phase). A composer that skips this (and
+ * dll_lock_look()/dll_lock_epoch()) simply leaves the lock detector idle —
+ * locked stays 0, lock_stat/noise_est stay 0.
  *
  * @param s  DLL state.  Must be non-NULL.
  * @param d  One carrier-wiped input sample (same sample as dll_accumulate).
@@ -223,10 +335,10 @@ dll_accumulate(dll_state_t *s, float complex d)
 JM_FORCEINLINE JM_HOT void
 dll_lock_accumulate(dll_state_t *s, float complex d)
 {
-    double co = s->chip_pos + s->off_chips;
+    double co = dll_dwell_center_chip_pos(s) + s->off_chips;
     if (co >= (double)s->sf)
         co -= (double)s->sf;
-    s->acc_o += d * dll_replica(s, co, s->code_rate * s->inv_sps);
+    s->acc_o += d * dll_replica(s, co);
 }
 
 /**
@@ -256,25 +368,76 @@ void dll_lock_look(dll_state_t *s, double norm);
 void dll_lock_epoch(dll_state_t *s);
 
 /**
- * @brief Per-period code discriminator + loop update + phase wrap.
+ * @brief Per-period code discriminator + loop update + NCO steer.
  *
- * Runs the non-coherent early-minus-late envelope discriminator on the dumped
- * accumulators, filters it, updates the code rate, and wraps the prompt phase
- * to the next period (plus a proportional phase nudge). Call at a period
- * boundary after reading the prompt; the caller resets the accumulators. Inline.
+ * Runs the power-domain non-coherent early-minus-late discriminator
+ * `0.5 * (|E|^2 - |L|^2) / |P|^2` on the dumped accumulators (the prompt
+ * power is the normalizing "signal + noise power" reference — the
+ * validated design from `docs/design/async-despreader-working-design.md`,
+ * not a magnitude-domain `(|E|-|L|)/(|E|+|L|)` ratio), filters it, and
+ * steers `phase_inc` (sample-and-hold — held constant until the next
+ * call, exactly one epoch later) from BOTH the integrator (`code_rate`,
+ * a sustained rate) and the proportional term, spread smoothly across
+ * the whole next period rather than kicked directly into `phase`. Two
+ * things were tried and rejected while porting this design: (1) folding
+ * the loop filter's full combined control (`integ + kp*e`) into
+ * `phase_inc` as a single rate (mirroring `symsync_core.h`) massively
+ * over-corrects — a rate held for a whole `sf*sps`-sample period turns a
+ * `kp*e`-chip correction into a `kp*e*sf`-chip one, unstable at any
+ * non-tiny `bn`; (2) kicking `phase` directly once per period (mirroring
+ * `costas_core.c`) is unsafe right after a wrap (when `phase` is near
+ * zero) — a negative kick pushes phase backward across the just-crossed
+ * boundary, and the very next sample's forward step re-crosses it,
+ * registering a second, spurious wrap. Spreading the *same total*
+ * `kp*e`-chip correction over the next period's `phase_inc` (not
+ * `phase` directly) reproduces the original double-accumulator design's
+ * `chip_pos += kp*e` exactly, without either failure mode. The period
+ * wrap itself is NOT handled here — it falls out of dll_accumulate()'s
+ * own NCO advance (which wraps mod 2^32 on its own); call this at a
+ * period boundary (dll_accumulate() returned 1) after reading the
+ * prompt, then the caller resets the accumulators. Inline.
+ *
+ * The NCO free-runs at its own nominal rate (`1/tsamps` cycles/sample,
+ * set once in seed() and never touched directly); this function only
+ * ever computes a pure correction (`ctrl`, built entirely from the
+ * loop filter's integrator and proportional term -- no "1.0"/nominal
+ * anywhere in it) and adds it on top when steering `phase_inc`. Keeping
+ * the control path free of the nominal rate is what lets a future
+ * second correction source (e.g. a carrier-aiding term) sum in
+ * cleanly, and is what `code_rate` (a *public*, ratio-form observable
+ * -- 1.0 = nominal, unrelated to how phase_inc is actually steered)
+ * must never be substituted for internally.
  *
  * @param s  DLL state.  Must be non-NULL.
  */
 JM_FORCEINLINE JM_HOT void
 dll_update(dll_state_t *s)
 {
-    float me = cabsf(s->acc_e), ml = cabsf(s->acc_l);
-    double e = (double)(me - ml) / ((double)(me + ml) + DLL_EPS);
+    float me = cabsf(s->acc_e), ml = cabsf(s->acc_l), mp = cabsf(s->acc_p);
+    double ep = (double)me * me, lp = (double)ml * ml, pp = (double)mp * mp;
+    double e = 0.5 * (ep - lp) / (pp + DLL_EPS);
+    if (e > DLL_DISC_CLAMP)
+        e = DLL_DISC_CLAMP;
+    else if (e < -DLL_DISC_CLAMP)
+        e = -DLL_DISC_CLAMP;
     s->last_error = e;
     loop_filter_step(&s->lf, e);
-    s->code_rate = 1.0 + s->lf.integ;
-    s->chip_pos -= (double)s->sf;
-    s->chip_pos += s->lf.kp * e; /* proportional phase nudge, chips */
+    /* Pure control deviation: the integrator alone, PLUS the
+       proportional term spread smoothly over the whole next period
+       rather than kicked directly into `phase` (see the comment
+       above) -- kp*e chips of total correction over sf*sps samples is
+       kp*e/(sf*sf*sps) extra cycles per sample, the same total
+       chip-domain correction the original double-accumulator design
+       applied as `chip_pos += kp*e`. Neither term involves "1.0", and
+       neither divides -- inv_tsamps/inv_tsamps_sf are precomputed once
+       at construction (configure_geometry()), never here. */
+    double ctrl = s->lf.integ * s->inv_tsamps + s->lf.kp * e * s->inv_tsamps_sf;
+    s->code_rate = 1.0 + s->lf.integ; /* public ratio observable only */
+    /* rate_aid (0 = off): a fixed carrier-aiding rate bias, scaled by the
+       nominal per-sample rate so it sums into the sample-and-hold phase_inc
+       as a continuous adjustment across the epoch, not a phase pulse. */
+    s->code_nco.phase_inc
+        = nco_norm_to_inc(s->inv_tsamps * (1.0 + s->rate_aid) + ctrl);
 }
 
 /**
@@ -301,6 +464,31 @@ dll_update(dll_state_t *s)
 dll_state_t *dll_create(const uint8_t *code, size_t code_len, size_t sps, double init_chip, double bn, double zeta, double spacing, size_t segments);
 
 /**
+ * @brief Derive a principled `segments` count from a max tolerable
+ *        async-lookback correlation-power loss, instead of hand-picking one.
+ *
+ * Ports the coupled-despreader prototype's
+ * `async_lookback_windows()` verbatim (itself ported from
+ * `~/legacy-commz`'s `asynchronous_correlation_loss`): derives an ideal
+ * segment size from @p max_error_db, then snaps to the nearest exact
+ * divisor of @p tsamps so `tsamps/segment_size` is always an integer count
+ * (ties broken toward the smaller/earlier divisor, matching
+ * `numpy.argmin`'s own first-occurrence convention). This project found
+ * hand-picked `segments`/`windows` values go stale silently (a `WINDOWS=62`
+ * constant was carried for a long time implying an unexamined ~0.07-0.1dB
+ * loss tolerance, ~5-7x tighter than this formula's own validated 0.5dB
+ * default) — this function is the canonical, derived replacement.
+ *
+ * @param tsamps       One code period, in samples (`code_len * sps`).
+ * @param max_error_db Maximum tolerable correlation-power loss from
+ *                     splitting the epoch into this many segments (dB,
+ *                     > 0); 0.5 is this project's own validated default.
+ * @return Segment count in `[1, tsamps]` that evenly divides @p tsamps
+ *         (1 if @p tsamps == 0).
+ */
+size_t dll_lookback_segments(size_t tsamps, double max_error_db);
+
+/**
  * @brief Destroy a DLL instance and release all memory (incl. the code copy).
  * @param state  May be NULL.
  */
@@ -317,6 +505,23 @@ size_t dll_steps(dll_state_t *state, const float complex *x, size_t x_len, float
 void dll_configure(dll_state_t *state, double bn, double zeta);
 double dll_get_bn(const dll_state_t *state);
 void dll_set_bn(dll_state_t *state, double val);
+
+/**
+ * @brief Set the carrier-aiding code-rate deviation (ratio; 0 = off).
+ *
+ * A fixed fractional rate bias summed into the sample-and-hold `phase_inc`
+ * on top of the loop's own control every epoch -- for physically-coupled
+ * Doppler, `carrier_offset_hz / carrier_freq_hz`, so the code NCO rides the
+ * code-rate dilation the discriminator alone can't pull in at low SNR.
+ * Applied continuously across the epoch (via `phase_inc`), not as a phase
+ * pulse. Also nudges the current `phase_inc` so the aid takes effect before
+ * the first period update. `code_rate` stays the loop's own observable and
+ * is unaffected.
+ *
+ * @param state     DLL state. Must be non-NULL.
+ * @param rate_aid  Fractional code-rate deviation (e.g. 8e-6). 0 disables.
+ */
+void dll_set_rate_aid(dll_state_t *state, double rate_aid);
 double dll_get_code_phase(const dll_state_t *state);
 double dll_get_code_rate(const dll_state_t *state);
 double dll_get_last_error(const dll_state_t *state);
@@ -487,10 +692,23 @@ void dll_tlm_flush(const dll_state_t *s);
 int dll_set_telemetry(dll_state_t *state, dp_tlm_t * tlm, const char * prefix, uint32_t decim);
 
 /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
- * composition+field-wise: loop_filter child (POD-embedded) + running
- * correlators/loop/lock state; borrowed `code` pointer restored by create. */
+ * composition+field-wise: loop_filter child (POD-embedded) + embedded NCO
+ * (POD) + running correlators/loop/lock state; borrowed `code` pointer
+ * restored by create; the segments>1 chunk/lookback buffers (heap-owned,
+ * pointers, NOT part of the whole-struct snapshot) are packed/restored
+ * field-wise when segments > 1. */
 #define DLL_STATE_MAGIC DP_FOURCC ('D','L','L',' ')
-#define DLL_STATE_VERSION 3u /* v3: lockdet decision rule (verify counters) */
+#define DLL_STATE_VERSION 7u /* v7: `rate_aid` carrier-aiding field added
+                                (whole-struct snapshot, so the blob grew).
+                                v6: `sums` scratch field added to the
+                                struct (pure epoch-local scratch, not
+                                serialized -- grows sizeof(dll_state_t)
+                                regardless, so the version marks the
+                                layout change) (v5: precomputed
+                                inv_tsamps/inv_tsamps2/inv_tsamps_sf
+                                fields added to the struct; v4: fixed-
+                                point code_nco + segments>1 chunked
+                                lookback buffers; see dll_core.c) */
 size_t dll_state_bytes (const dll_state_t *state);
 void dll_get_state (const dll_state_t *state, void *blob);
 int dll_set_state (dll_state_t *state, const void *blob);

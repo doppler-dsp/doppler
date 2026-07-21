@@ -94,6 +94,40 @@ SampleClock_stamp(SampleClockObject *self, PyObject *args)
 }
 
 static PyObject *
+SampleClock_stamp_at(SampleClockObject *self, PyObject *args, PyObject *kwds)
+{
+    static char *kwlist[] = {"n", NULL};
+    uint64_t n;
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "K", kwlist,
+            &n)) return NULL;
+    if (self->closed) {
+        PyErr_SetString(PyExc_RuntimeError, "SampleClock is closed");
+        return NULL;
+    }
+    uint64_t r;
+    r = dp_sample_clock_stamp_at(self->h, n);
+    return PyLong_FromUnsignedLongLong((unsigned long long)r);
+}
+
+static PyObject *
+SampleClock_track(SampleClockObject *self, PyObject *args, PyObject *kwds)
+{
+    static char *kwlist[] = {"observed_timestamp_ns", "n_at_observation", "tolerance_ns", NULL};
+    uint64_t observed_timestamp_ns;
+    uint64_t n_at_observation;
+    uint64_t tolerance_ns;
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "KKK", kwlist,
+            &observed_timestamp_ns, &n_at_observation, &tolerance_ns)) return NULL;
+    if (self->closed) {
+        PyErr_SetString(PyExc_RuntimeError, "SampleClock is closed");
+        return NULL;
+    }
+    int r;
+    r = dp_sample_clock_track(self->h, observed_timestamp_ns, n_at_observation, tolerance_ns);
+    return PyLong_FromLong((long)r);
+}
+
+static PyObject *
 SampleClock_reset(SampleClockObject *self, PyObject *args)
 {
     (void)args;
@@ -185,6 +219,8 @@ SampleClock_dealloc(SampleClockObject *self)
 static PyMethodDef SampleClock_methods[] = {
     {"pace", (PyCFunction)SampleClock_pace, METH_VARARGS | METH_KEYWORDS, NULL},
     {"stamp", (PyCFunction)SampleClock_stamp, METH_VARARGS, NULL},
+    {"stamp_at", (PyCFunction)SampleClock_stamp_at, METH_VARARGS | METH_KEYWORDS, NULL},
+    {"track", (PyCFunction)SampleClock_track, METH_VARARGS | METH_KEYWORDS, NULL},
     {"reset", (PyCFunction)SampleClock_reset, METH_VARARGS, NULL},
     {"resync", (PyCFunction)SampleClock_resync, METH_VARARGS, NULL},
     {"close", (PyCFunction)SampleClock_close, METH_NOARGS, "close() -> None"},

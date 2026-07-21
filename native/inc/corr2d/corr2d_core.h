@@ -11,6 +11,20 @@
  * semantics are identical to the 1-D case: coherently sum ``dwell``
  * frames, then dump.
  *
+ * **Single-row-reference fast path.**  When @p ref is nonzero only in row 0
+ * (the DSSS acquisition/detection shape: a code replica with no Doppler
+ * content of its own) and @p ny_out == @p ny (no row-axis interpolation),
+ * `ref_spec[u,v]` is independent of `u` — the row axis of the 2-D transform
+ * pair cancels to an exact identity (DFT orthogonality:
+ * `sum_u exp(2*pi*i*u*(i-i')/ny) = ny` iff `i==i'`, else 0), for *any* row
+ * content.  `corr2d_execute` then reduces exactly to
+ * `R(i,j) = IFFT_nx(FFT_nx(row_i) · conj(FFT_nx(ref_row0)))(j) / nx`,
+ * applied independently per row — so `corr2d_create` detects this shape and
+ * runs `ny` independent length-`nx` 1-D FFTs instead of a full `(ny,nx)`
+ * 2-D FFT, skipping the row-axis work that would otherwise cancel to a
+ * no-op.  Any other reference shape, or `ny_out > ny`, uses the general
+ * 2-D path unchanged.
+ *
  * Lifecycle:
  * @code
  * float complex ref[NY * NX] = { ... };    // row-major 2-D reference
@@ -28,6 +42,7 @@
 
 #include "clib_common.h"
 #include "dp_state.h"
+#include "fft/fft_core.h"
 #include "fft2d/fft2d_core.h"
 
 #ifdef __cplusplus
@@ -41,18 +56,41 @@ extern "C" {
  * are ``ny * nx`` complex floats stored in row-major order.
  */
 typedef struct {
-  fft2d_state_t *fwd;       /**< Forward 2-D plan (sign = -1) at (ny, nx).   */
-  fft2d_state_t *inv;       /**< Inverse 2-D plan (sign = +1) at (ny_out,…). */
-  float complex *ref_spec;  /**< conj(FFT2(ref)), pre-computed.  (ny, nx)    */
-  float complex *work_fft;  /**< Scratch: FFT2(in) · ref_spec (product).     */
-  float complex *accum;     /**< Coherent product-spectrum accumulator.      */
+  fft2d_state_t *fwd;       /**< Forward 2-D plan (sign = -1) at (ny, nx).
+                                 NULL when @ref fast_path.                  */
+  fft2d_state_t *inv;       /**< Inverse 2-D plan (sign = +1) at (ny_out,…).
+                                 NULL when @ref fast_path.                  */
+  float complex *ref_spec;  /**< conj(FFT2(ref)), pre-computed.  (ny, nx).
+                                 NULL when @ref fast_path (see row_ref_spec). */
+  float complex *work_fft;  /**< Scratch: FFT(in)·ref_spec product.  (ny,nx)
+                                 either path — fast path reinterprets this
+                                 as ny independent length-nx row spectra.   */
+  float complex *accum;     /**< Coherent product-spectrum accumulator, same
+                                 (ny,nx)/reinterpretation rule as work_fft.  */
   /* Decoupled-inverse scratch — allocated only when (ny_out,nx_out) differ
-   * from (ny,nx); NULL on the native path.  zeropad goes accum → ztmp (rows)
-   * → work_pad (cols), then inverse(work_pad). */
-  float complex *work_pad;  /**< Zero-padded product, (ny_out, nx_out).      */
-  float complex *ztmp;      /**< Row-padded intermediate, (ny, nx_out).      */
-  float complex *zcol;      /**< Column gather scratch, (ny).                */
-  float complex *zcolout;   /**< Column-padded scratch, (ny_out).            */
+   * from (ny,nx); NULL on the native path.  General path: zeropad goes
+   * accum -> ztmp (rows) -> work_pad (cols), then inverse(work_pad).  Fast
+   * path (nx_out != nx only, ny_out == ny is required for fast_path at all):
+   * zeropad goes accum -> work_pad directly, one row at a time, via
+   * _zeropad_1d; ztmp/zcol/zcolout are unused (2-axis-pad only). */
+  float complex *work_pad;  /**< Zero-padded product, (ny_out, nx_out) or,
+                                 fast path, (ny, nx_out).                   */
+  float complex *ztmp;      /**< Row-padded intermediate, (ny, nx_out).
+                                 General path only.                        */
+  float complex *zcol;      /**< Column gather scratch, (ny). General path
+                                 only.                                      */
+  float complex *zcolout;   /**< Column-padded scratch, (ny_out). General
+                                 path only.                                 */
+  /* Single-row-reference fast path (see the file doc comment for the
+   * identity this relies on).  fast_path is decided once at create() and
+   * fixed for the object's lifetime; set_ref() may only refresh within the
+   * same mode (see corr2d_set_ref doc comment). */
+  int             fast_path;    /**< 1 if using the 1-D-per-row fast path.   */
+  fft_state_t    *fwd1d;         /**< Forward 1-D plan, length nx.  Fast only.*/
+  fft_state_t    *inv1d;         /**< Inverse 1-D plan, length nx_out.  Fast
+                                      only.                                 */
+  float complex  *row_ref_spec;  /**< conj(FFT_nx(ref row 0)), length nx.
+                                      Fast-path replacement for ref_spec.   */
   size_t ny;                /**< Row count.                               */
   size_t nx;                /**< Column count.                            */
   size_t n;                 /**< ny * nx — total element count.           */
@@ -121,14 +159,23 @@ void corr2d_destroy(corr2d_state_t *state);
 void corr2d_reset(corr2d_state_t *state);
 
 /**
- * @brief Replace the reference and recompute conj(FFT2(ref)).
+ * @brief Replace the reference and recompute its spectrum.
  *
- * Also resets accumulator and counter.
+ * Also resets accumulator and counter on success.  The object's fast-path
+ * mode (see the file doc comment) is fixed at create() time and never
+ * changes here: on a fast-path object, @p ref must still be nonzero only in
+ * row 0, or the call is rejected and the object's existing reference and
+ * spectrum are left completely untouched (never a silent partial update) —
+ * a caller that needs a genuinely different reference shape must build a
+ * new corr2d_state_t.  A general-path object accepts any (ny,nx) @p ref and
+ * always succeeds.
  *
  * @param state Must be non-NULL.
  * @param ref   New reference, flat row-major CF32, length ny*nx.
+ * @return 0 on success, -1 if @p state is fast-path and @p ref is no longer
+ *         single-row.
  */
-void corr2d_set_ref(corr2d_state_t *state, const float complex *ref);
+int corr2d_set_ref(corr2d_state_t *state, const float complex *ref);
 
 /** @brief Maximum output samples per execute call (always == ny*nx). */
 size_t corr2d_execute_max_out(corr2d_state_t *state);

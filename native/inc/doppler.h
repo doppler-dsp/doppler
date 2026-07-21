@@ -57,6 +57,8 @@ extern "C" {
 
 #include "wfm_synth/wfm_synth_core.h"
 
+#include "gold/gold_core.h"
+
 #include "delay/delay_core.h"
 
 #include "fft/fft_core.h"
@@ -99,9 +101,13 @@ extern "C" {
 
 #include "agc/agc_core.h"
 
+#include "doppler_channel/doppler_channel_core.h"
+
 #include "acc_q15/acc_q15_core.h"
 
 #include "acc_q8/acc_q8_core.h"
+
+#include "interp_table/interp_table_core.h"
 
 #include "loop_filter/loop_filter_core.h"
 
@@ -123,9 +129,17 @@ extern "C" {
 
 #include "acq/acq_core.h"
 
+#include "burst_acq/burst_acq_core.h"
+
 #include "ppe/ppe_core.h"
 
 #include "burst_demod/burst_demod_core.h"
+
+#include "dsss_receiver/dsss_receiver_core.h"
+
+#include "async_dsss_receiver/async_dsss_receiver_core.h"
+
+#include "carrier_acq/carrier_acq_core.h"
 
 #ifdef __cplusplus
 }

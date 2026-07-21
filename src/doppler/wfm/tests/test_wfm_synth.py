@@ -8,7 +8,7 @@ sweep, and the auto-resolved SNR (Es/No for the modulated types).
 import numpy as np
 import pytest
 
-from doppler.wfm import Synth, bits, chirp, rrc_taps
+from doppler.wfm import PN, Synth, bits, chirp, mls_poly, rrc_taps
 
 
 def _inst_freq(x, fs):
@@ -44,6 +44,35 @@ def test_pn_is_maximal_length():
     chips = np.sign(p.real).astype(int)
     assert np.array_equal(chips[:127], chips[127:254])  # period 127
     assert int(np.sum(chips[:127] == -1)) == 64  # 64 ones / 63 zeros
+
+
+@pytest.mark.parametrize("length,seed", [(7, 1), (7, 42), (9, 7), (11, 3)])
+def test_synth_pn_matches_standalone_pn(length: int, seed: int) -> None:
+    """A ``type="pn"`` synth emits exactly the bits ``doppler.wfm.PN`` would.
+
+    This is the contract a receiver-side BER scorer depends on: the
+    transmitted data is a pure function of ``(pn_poly, seed, pn_length,
+    lfsr)``, so a receiver regenerates the identical truth with
+    ``PN(...).generate(n)`` rather than being handed a truth array. The
+    continuous-async DSSS ``prbs`` data mode draws its data bits from this same
+    LFSR, seeded with the source's own ``seed`` -- so if this invariant ever
+    breaks, every PRBS-mode BER measurement silently mis-scores. It was
+    untested until now.
+
+    The synth maps bit ``b`` to ``1 - 2b`` (0 -> +1, 1 -> -1); ``PN.generate``
+    returns the raw 0/1 bits, and ``poly=0`` auto-selects the same
+    ``mls_poly(length)`` the synth uses.
+    """
+    n = 300
+    syn = np.asarray(
+        Synth(type="pn", pn_length=length, seed=seed, sps=1, snr=100).steps(n)
+    )
+    # Both spellings of the code a receiver might use.
+    for poly in (0, mls_poly(length)):
+        truth = np.asarray(PN(poly=poly, seed=seed, length=length).generate(n))
+        assert np.array_equal(
+            np.sign(syn.real).astype(int), 1 - 2 * truth.astype(int)
+        ), f"synth PN diverged from PN(poly={poly})"
 
 
 def test_pn_fibonacci_differs_from_galois():
@@ -332,6 +361,54 @@ def test_bits_array_input():
     arr = np.array([1, 0, 1, 1], dtype=np.uint8)
     y = bits(pattern=arr, sps=1, modulation="bpsk").steps(4)
     assert y.real.round().astype(int).tolist() == [-1, 1, -1, -1]
+
+
+def test_carrier_freq_truncates_toward_zero():
+    """The carrier's actual frequency is the *truncated* 32-bit phase-word
+    approximation of the requested frequency (native/inc/nco/nco_core.h's
+    nco_norm_to_inc, the one shared LO/NCO primitive), rounded toward zero
+    -- not to nearest. freq=51 Hz at fs=21e6 is a case where truncation and
+    round-to-nearest differ (freq=50 Hz at the same fs does not -- see
+    native/tests/test_lo_core.c's own cases for both): the truncated
+    increment leaves the carrier low by ~0.63 of a quantization step,
+    past the half-step a round would guarantee -- and strictly never high.
+    Truncation is deliberate: a bare C99 float->uint cast is bit-identical
+    on every host, where round-to-nearest is FP-sensitive at a boundary and
+    made a closed-loop DLL diverge on arm64 (the rationale is documented in
+    nco_core.h). Measured directly via mean instantaneous frequency over a
+    modest block -- a fixed-point phase increment is exactly constant per
+    sample by construction, so this needs no long floating-point simulation
+    (a double loses precision at large sample counts too; the exact 32-bit
+    modular accumulator is the only long-run guarantee this design makes)."""
+    fs = 21e6
+    freq = 51.0
+    step_hz = fs / 4294967296.0
+    # The truncating (toward zero) phase-word approximation the NCO realises.
+    inc = int(freq / fs * 4294967296.0)  # C99 float->uint cast == floor here
+    realised = inc / 4294967296.0 * fs
+    # A large-enough block for the per-sample estimator to average out the
+    # LUT's own coarser (2^16) quantization noise at this slow a relative
+    # rate; deterministic (snr=100 disables AWGN), so this is not flaky.
+    x = Synth(type="tone", fs=fs, freq=freq, snr=100.0).steps(1_000_000)
+    measured = float(np.mean(_inst_freq(x, fs)))
+    # Realised == the truncated approximation (not the round-to-nearest one).
+    assert measured == pytest.approx(realised, abs=1e-4), (
+        f"measured {measured} vs truncated-realised {realised}"
+    )
+    # ... which is LOW by up to one full step, and strictly never high.
+    assert freq - measured <= step_hz + 1e-4
+    assert measured <= freq + 1e-4
+
+
+def test_step_matches_steps_bit_exact():
+    """Synth.step() (inline per-sample) must reproduce Synth.steps()
+    (block) bit-exactly -- the same guarantee this project's C-level
+    LO/NCO test suite already locks in (native/tests/test_lo_core.c)."""
+    a = Synth(type="tone", fs=1e6, freq=12345.6, snr=100.0)
+    b = Synth(type="tone", fs=1e6, freq=12345.6, snr=100.0)
+    ref = a.steps(257)
+    got = np.array([b.step() for _ in range(257)], dtype=np.complex64)
+    assert np.array_equal(got, ref)
 
 
 def test_bits_needs_pattern():

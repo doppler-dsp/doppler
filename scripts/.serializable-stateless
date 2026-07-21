@@ -18,3 +18,5 @@ imdmeas
 ppe
 # Feedforward DSSS frame demod — one-shot burst analyzers, no running state.
 burst_demod
+# Periodic table lookup — pure function of (table, method, point), no state.
+interp_table

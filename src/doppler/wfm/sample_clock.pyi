@@ -22,6 +22,10 @@ class SampleClock:
         """pace(count) -> float."""
     def stamp(self) -> int:
         """stamp() -> int."""
+    def stamp_at(self, n: int) -> int:
+        """stamp_at(n) -> int."""
+    def track(self, observed_timestamp_ns: int, n_at_observation: int, tolerance_ns: int) -> int:
+        """track(observed_timestamp_ns, n_at_observation, tolerance_ns) -> int."""
     def reset(self) -> None:
         """reset() -> None."""
     def resync(self) -> None:

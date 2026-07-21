@@ -148,6 +148,7 @@ nav:
           - WCDMA Carriers: gallery/wcdma-carriers.md
           - "Prepare Once, Sweep Many (Plan)": gallery/plan.md
           - AWGN: gallery/awgn.md
+          - Doppler Channel: gallery/doppler-channel.md
           - LO: examples/python-lo.md
           - NCO: examples/python-nco.md
       - Filters & Resampling:
@@ -163,12 +164,14 @@ nav:
           - Monte Carlo: gallery/detection-sim.md
           - "Lock Detection: Verify Counts": gallery/lockdet.md
           - 2-D Acquisition: gallery/detection2d.md
-          - DSSS Acquisition & Despreading: gallery/dsss-despread.md
           - "DSSS Acquisition: Pd/Pfa": gallery/dsss-acq-characterization.md
           - 5-Burst DSSS Link (wfmgen's 3 Faces): gallery/dsss-burst-pipeline.md
           - Streaming Async Despreader: gallery/async-despread.md
-          - Despreader (full continuous receiver): gallery/despreader.md
           - Full-Chain Lock-Up: gallery/receiver-lock.md
+          - Continuous Async DSSS Receiver: gallery/async-dsss-receiver.md
+          - DsssReceiver (Composed Object): gallery/dsss-receiver.md
+          - "AsyncDsssReceiver: the SPEC Waveform": gallery/async-dsss-receiver-spec.md
+          - "CarrierAcquisition: RRC Pulse Shaping": gallery/carrier-acq-rrc.md
       - Synchronization Loops:
           - Carrier Loop Stress: gallery/costas.md
           - Costas Loop (theory): gallery/costas-theory.md
@@ -206,6 +209,7 @@ nav:
       - "Python: Detection Statistics": api/python-detection.md
       - "Python: M-PSK Constellation": api/python-mpsk.md
       - "Python: Source (NCO / LO / AWGN)": api/python-nco.md
+      - "Python: Impairment (DopplerChannel)": api/python-impairment.md
       - "Python: Waveform Generator (Synth / PN)": api/python-wfmgen.md
       - "Python: FIR Filter": api/python-filter.md
       - "Python: DDC": api/python-ddc.md
@@ -213,6 +217,7 @@ nav:
       - "Python: AGC": api/python-agc.md
       - "Python: Loop Filter (track)": api/python-track.md
       - "Python: DSSS": api/python-dsss.md
+      - "Python: Acquire (CarrierAcquisition)": api/python-acquire.md
       - "Python: SNR": api/python-snr.md
       - "Python: Streaming": api/python-streaming.md
       - "Python: Buffer": api/python-buffer.md
@@ -223,6 +228,7 @@ nav:
       - "Python: Fixed-Point Arithmetic": api/python-arith.md
       - "Python: Measurement Suite": api/python-measure.md
       - "Polyphase → Resample": api/python-polyphase.md
+      - "Python: Interp (InterpolatedTable)": api/python-interp.md
       - "Python: Utilities": api/python-util.md
   - Type System: types.md
   - Benchmarks: benchmarks.md
@@ -241,6 +247,7 @@ nav:
       - State Serialization: design/state-serialization.md
       - Telemetry: design/telemetry.md
       - DSSS Acquisition: design/dsss-acquisition.md
+      - Async DSSS Receiver Spec: design/async-dsss-spec.md
       - Async Symbol Despreader: design/async-symbol-despreader.md
       - Timing Lock Detector: design/timing_lock_detector.md
       - MPSK Receiver: design/mpsk.md

@@ -86,7 +86,7 @@ class _SynthEngine:
     Parameters
     ----------
     type : Literal["tone", "noise", "pn", "bpsk", "qpsk", "chirp", "bits", "symbols", "dsss"], default "tone"
-        Waveform type: 0=tone, 1=noise, 2=pn, 3=bpsk, 4=qpsk, 5=chirp, 6=bits, 7=symbols, 8=dsss.  The Python binding accepts strings "tone"|"noise"|"pn"|"bpsk"|"qpsk"|"chirp"|"bits"|"symbols"|"dsss".  For "bits" attach the pattern with wfm_synth_set_bits(); for "symbols" attach the complex stream with wfm_synth_set_symbols(); for "dsss" attach the burst with wfm_synth_set_dsss() after create().
+        Waveform type: 0=tone, 1=noise, 2=pn, 3=bpsk, 4=qpsk, 5=chirp, 6=bits, 7=symbols, 8=dsss.  The Python binding accepts strings "tone"|"noise"|"pn"|"bpsk"|"qpsk"|"chirp"|"bits"|"symbols"|"dsss". For "bits" attach the pattern with wfm_synth_set_bits(); for "symbols" attach the complex stream with wfm_synth_set_symbols(); for "dsss" attach the burst with wfm_synth_set_dsss() after create().
     fs : float, default 1000000.0
         Sample rate in Hz.  Sets the carrier frequency normalisation and the noise bandwidth.  Default 1 000 000.0.
     freq : float, default 0.0
@@ -193,6 +193,89 @@ class _SynthEngine:
         """Release C resources immediately."""
 
     def __enter__(self) -> "_SynthEngine": ...
+
+    def __exit__(self, *args: object) -> None: ...
+
+class Gold:
+    """CCSDS Command Link Gold Code Generator (CCSDS 415.0-G-1 5.2.2.4, Figure 5-1). Two same-clocked Fibonacci LFSRs ("Register A" and "Register B"), each with its own fixed feedback-tap polynomial, XOR-combined chip-by-chip into a single 1023-chip (length=10) Gold code. The two m-sequences form a genuine "preferred pair" — their XOR family has a strict three-valued periodic autocorrelation/cross-correlation set {-1, -65, 63}. Register A's initial condition is "User dependent" per the standard — varying ``seed_a`` walks the whole Gold-code family (2**length members); Register B's taps and initial condition are both fixed by the standard.
+
+    Parameters
+    ----------
+    taps_a : int, default 934
+        Register A feedback-tap mask; bit k set means stage k+1 is XORed into the feedback. Default 934 (stages 2,3,6,8,9,10 — the CCSDS-fixed Register A polynomial x^10+x^9+x^8+x^6+x^3+x^2+1).
+    seed_a : int, default 350
+        Register A initial value; must be non-zero. Per CCSDS this is "User dependent" — any nonzero value selects a different member of the 1024-code Gold family. Default 350 is the worked example from CCSDS 415.0-G-1 Figure 5-2 (PN Code Library Table 1, Code Number 365).
+    taps_b : int, default 567
+        Register B feedback-tap mask, same bit convention as ``taps_a``. Default 567 (stages 1,2,3,5,6,10 — the CCSDS-fixed Register B polynomial).
+    seed_b : int, default 73
+        Register B initial value; must be non-zero. Default 73 (stages 1,4,7 — CCSDS's fixed Register B initial value 1001001000, unique per the standard, not user-selectable).
+    length : int, default 10
+        Register width in bits, 1..64. CCSDS command link uses 10 (period 1023). Default 10.
+
+    Examples
+    --------
+    >>> from doppler.wfm import Gold
+    >>> import numpy as np
+    >>> g = Gold()
+    >>> chips = g.generate(1023)
+    >>> chips.dtype
+    dtype('uint8')
+    >>> chips[:15].tolist()   # CCSDS Code #365 worked example
+    [0, 1, 0, 0, 0, 1, 0, 1, 1, 1, 0, 1, 1, 1, 1]
+    >>> int(chips.sum()), int((1 - chips).sum())   # balanced: 512 ones, 511 zeros
+    (512, 511)
+
+    """
+    def __init__(self, taps_a: int = ..., seed_a: int = ..., taps_b: int = ..., seed_b: int = ..., length: int = ...) -> None: ...
+
+    def reset(self) -> None:
+        """Reset Gold to its post-create state. Reloads both LFSR registers from their original seeds so the sequence restarts from chip 0. Useful for reproducible captures without re-allocating.
+
+        Examples
+        --------
+        >>> from doppler.wfm import Gold
+        >>> import numpy as np
+        >>> g = Gold()
+        >>> a = g.generate(8).copy()
+        >>> g.reset()
+        >>> np.array_equal(a, g.generate(8))
+        True
+
+        """
+
+    def generate(self, out: NDArray[np.uint8] | None = None) -> NDArray[np.uint8]:
+        """Generate ``n`` chips into ``out`` and advance both LFSRs by ``n`` positions. Each element of ``out`` is 0 or 1. Requesting more than one period is valid — the sequence simply wraps around. Returns a zero-copy NumPy uint8 view over a pre-allocated buffer; copy the result before calling generate again if you need a snapshot.
+
+        Returns
+        -------
+        NDArray[np.uint8]
+            ``n`` chips (0 or 1 each).
+
+        Examples
+        --------
+        >>> from doppler.wfm import Gold
+        >>> import numpy as np
+        >>> g = Gold()
+        >>> chips = g.generate(1023)
+        >>> len(chips)
+        1023
+
+        """
+
+    def generate_max_out(self) -> int:
+        """Max output length generate() can produce for the current state."""
+
+    def state_bytes(self) -> int:
+        """Serialized state size in bytes."""
+    def get_state(self) -> bytes:
+        """Serialize both LFSR registers to bytes."""
+    def set_state(self, blob: bytes) -> None:
+        """Restore both LFSR registers from a get_state() blob."""
+
+    def destroy(self) -> None:
+        """Release C resources immediately."""
+
+    def __enter__(self) -> "Gold": ...
 
     def __exit__(self, *args: object) -> None: ...
 
@@ -319,9 +402,7 @@ def mls_poly(n: int) -> int:
     """
 
 def crc16(bits: NDArray[np.uint8]) -> int:
-    """CRC-16-CCITT (poly 0x1021, init 0xFFFF) over an unpacked 0/1 bit
-    array, MSB-first — the DSSS burst frame trailer wfmgen appends and
-    BurstDemod validates (one shared C kernel, dp_crc16.h).
+    """CRC-16-CCITT (poly 0x1021, init 0xFFFF) over an unpacked 0/1 bit array, MSB-first — the DSSS burst frame trailer wfmgen appends and BurstDemod validates.
 
     Parameters
     ----------
@@ -331,7 +412,7 @@ def crc16(bits: NDArray[np.uint8]) -> int:
     Returns
     -------
     int
-        The 16-bit CRC; transmit it MSB-first.
+        The 16-bit CRC.
 
     Examples
     --------

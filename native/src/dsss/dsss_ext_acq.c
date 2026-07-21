@@ -36,27 +36,25 @@ AcquisitionObj_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 static int
 AcquisitionObj_init (AcquisitionObject *self, PyObject *args, PyObject *kwds)
 {
-  static char *kwlist[] = { "code",       "reps",     "spc",
-                            "chip_rate",  "cn0_dbhz", "doppler_uncertainty",
-                            "pfa",        "pd",       "noise_mode",
-                            "max_noncoh", NULL };
+  static char *kwlist[] = { "code",        "spc",      "chip_rate",
+                            "symbol_rate", "cn0_dbhz", "doppler_uncertainty",
+                            "pfa",         "pd",       "noise_mode",
+                            NULL };
   PyObject    *code_obj = NULL;
-  unsigned long long reps_raw            = 1;
   unsigned long long spc_raw             = 4;
   double             chip_rate           = 1000000.0;
+  double             symbol_rate         = 1000.0;
   double             cn0_dbhz            = 50.0;
   double             doppler_uncertainty = 0.0;
   double             pfa                 = 1e-3;
   double             pd                  = 0.9;
   const char        *noise_mode_str      = "mean";
-  unsigned long long max_noncoh_raw      = 1;
 
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|KKdddddsK", kwlist,
-                                    &code_obj, &reps_raw, &spc_raw, &chip_rate,
-                                    &cn0_dbhz, &doppler_uncertainty, &pfa, &pd,
-                                    &noise_mode_str, &max_noncoh_raw))
+  if (!PyArg_ParseTupleAndKeywords (
+          args, kwds, "O|Kdddddds", kwlist, &code_obj, &spc_raw, &chip_rate,
+          &symbol_rate, &cn0_dbhz, &doppler_uncertainty, &pfa, &pd,
+          &noise_mode_str))
     return -1;
-  size_t reps       = (size_t)reps_raw;
   size_t spc        = (size_t)spc_raw;
   int    noise_mode = 0;
   if (strcmp (noise_mode_str, "mean") == 0)
@@ -75,33 +73,33 @@ AcquisitionObj_init (AcquisitionObject *self, PyObject *args, PyObject *kwds)
                     noise_mode_str);
       return -1;
     }
-  size_t         max_noncoh = (size_t)max_noncoh_raw;
-  PyArrayObject *code_arr   = (PyArrayObject *)PyArray_FROM_OTF (
+  PyArrayObject *code_arr = (PyArrayObject *)PyArray_FROM_OTF (
       code_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS);
   if (!code_arr)
     {
       return -1;
     }
   size_t code_len = (size_t)PyArray_SIZE (code_arr);
-  self->handle    = acq_create (
-      (const uint8_t *)PyArray_DATA (code_arr), code_len, reps, spc, chip_rate,
-      cn0_dbhz, doppler_uncertainty, pfa, pd, noise_mode, max_noncoh);
+  self->handle    = acq_create_continuous (
+      (const uint8_t *)PyArray_DATA (code_arr), code_len, spc, chip_rate,
+      symbol_rate, cn0_dbhz, doppler_uncertainty, pfa, pd, noise_mode);
   Py_DECREF (code_arr);
   if (!self->handle)
     {
-      PyErr_SetString (PyExc_MemoryError, "acq_create returned NULL");
+      PyErr_SetString (PyExc_MemoryError,
+                       "acq_create_continuous returned NULL");
       return -1;
     }
   /* Hand-patch (sacred fragment): C cannot raise a Python warning, so surface
    * an under-powered search here — the auto-config built a best-effort grid
-   * whose pd_predicted falls short of the requested pd. */
+   * (bounded by the internal non-coherent-look safety valve) whose
+   * pd_predicted falls short of the requested pd. */
   if (self->handle->underpowered)
     {
       if (PyErr_WarnEx (
               PyExc_UserWarning,
               "Acquisition is under-powered: pd_predicted < pd at this "
-              "reps/cn0_dbhz. Raise reps or cn0_dbhz, set max_noncoh>1, "
-              "or narrow doppler_uncertainty.",
+              "cn0_dbhz. Raise cn0_dbhz or narrow doppler_uncertainty.",
               1)
           < 0)
         return -1;
@@ -154,9 +152,10 @@ AcquisitionObj_push (AcquisitionObject *self, PyObject *args)
   for (size_t i = 0; i < n_out; i++)
     {
       PyObject *tup = Py_BuildValue (
-          "(KKffff)", (unsigned long long)results[i].doppler_bin,
+          "(KKffffK)", (unsigned long long)results[i].doppler_bin,
           (unsigned long long)results[i].code_phase, results[i].peak_mag,
-          results[i].noise_est, results[i].test_stat, results[i].snr_est);
+          results[i].noise_est, results[i].test_stat, results[i].cn0_dbhz_est,
+          (unsigned long long)results[i].samples_consumed);
       if (!tup)
         {
           Py_DECREF (lst);
@@ -165,6 +164,33 @@ AcquisitionObj_push (AcquisitionObject *self, PyObject *args)
       PyList_SET_ITEM (lst, (Py_ssize_t)i, tup);
     }
   return lst;
+}
+
+static PyObject *
+AcquisitionObj_configure_search_raw (AcquisitionObject *self, PyObject *args,
+                                     PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char       *_kwlist[]        = { "doppler_bins", "n_noncoh", NULL };
+  unsigned long long doppler_bins_raw = 0ULL;
+  unsigned long long n_noncoh_raw     = 0ULL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "KK", _kwlist,
+                                    &doppler_bins_raw, &n_noncoh_raw))
+    return NULL;
+  size_t doppler_bins = (size_t)doppler_bins_raw;
+  size_t n_noncoh     = (size_t)n_noncoh_raw;
+  int    _rc = acq_configure_search_raw (self->handle, doppler_bins, n_noncoh);
+  if (_rc != 0)
+    {
+      PyErr_Format (PyExc_ValueError, "configure_search_raw failed (rc=%d)",
+                    _rc);
+      return NULL;
+    }
+  Py_RETURN_NONE;
 }
 
 static PyObject *
@@ -242,8 +268,13 @@ Acquisition_getprop_doppler_bins (AcquisitionObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromUnsignedLongLong (
-      (unsigned long long)self->handle->doppler_bins);
+  /* Unified property: whichever mechanism is active. Always window_bins for
+   * this (continuous) engine -- coherent_bins is pinned to 1 -- but written
+   * with the same shared formula BurstAcquisition's identical getter uses,
+   * for consistency. */
+  size_t db = (self->handle->window_bins > 1) ? self->handle->window_bins
+                                              : self->handle->coherent_bins;
+  return PyLong_FromUnsignedLongLong ((unsigned long long)db);
 }
 static PyObject *
 Acquisition_getprop_sf (AcquisitionObject *self, void *Py_UNUSED (closure))
@@ -264,16 +295,6 @@ Acquisition_getprop_spc (AcquisitionObject *self, void *Py_UNUSED (closure))
       return NULL;
     }
   return PyLong_FromUnsignedLongLong ((unsigned long long)self->handle->spc);
-}
-static PyObject *
-Acquisition_getprop_reps (AcquisitionObject *self, void *Py_UNUSED (closure))
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  return PyLong_FromUnsignedLongLong ((unsigned long long)self->handle->reps);
 }
 static PyObject *
 Acquisition_getprop_n_noncoh (AcquisitionObject *self,
@@ -462,20 +483,41 @@ Acquisition_getprop_underpowered (AcquisitionObject *self,
     }
   return PyBool_FromLong ((long)(self->handle->underpowered));
 }
-
+static PyObject *
+Acquisition_getprop_symbol_rate (AcquisitionObject *self,
+                                 void              *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyFloat_FromDouble (self->handle->symbol_rate);
+}
+static PyObject *
+Acquisition_getprop_epochs_per_symbol (AcquisitionObject *self,
+                                       void              *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyFloat_FromDouble (self->handle->epochs_per_symbol);
+}
 static PyGetSetDef Acquisition_getset[] = {
   { "code_bins", (getter)Acquisition_getprop_code_bins, NULL,
     "Code-phase hypotheses searched (= sf*spc, one code period).\n", NULL },
   { "doppler_bins", (getter)Acquisition_getprop_doppler_bins, NULL,
-    "Coherent depth chosen: the slow-time FFT length in code reps (<= "
-    "reps).\n",
+    "Effective Doppler search granularity this engine picked: the "
+    "window-tile count (this engine always window-tiles -- see "
+    "acq_core.h's file doc comment -- so this is window_bins, never a "
+    "coherent-depth axis).\n",
     NULL },
   { "sf", (getter)Acquisition_getprop_sf, NULL,
     "Chips per PN segment, inferred from len(code).\n", NULL },
   { "spc", (getter)Acquisition_getprop_spc, NULL,
     "Samples per chip (chip-rate oversample factor).\n", NULL },
-  { "reps", (getter)Acquisition_getprop_reps, NULL,
-    "Max coherent code repetitions (the coherence ceiling).\n", NULL },
   { "n_noncoh", (getter)Acquisition_getprop_n_noncoh, NULL,
     "Non-coherent looks per detection (1 = pure coherent).\n", NULL },
   { "ring_cap", (getter)Acquisition_getprop_ring_cap, NULL,
@@ -494,16 +536,19 @@ static PyGetSetDef Acquisition_getset[] = {
     "Bonferroni per-cell false-alarm probability over the searched cells.\n",
     NULL },
   { "pd_predicted", (getter)Acquisition_getprop_pd_predicted, NULL,
-    "Predicted Pd at cn0_dbhz and the chosen grid, at the straddle-derated "
-    "operating SNR (the average over random Doppler/code phase the "
-    "Monte-Carlo characterization measures - not the on-grid best case).\n",
+    "Predicted Pd at cn0_dbhz and the chosen grid: the average Pd over the "
+    "straddle priors (slow-time scalloping, intra-segment rotation, "
+    "code-phase sample offset - quadrature over uniform priors), matching "
+    "what the Monte-Carlo characterization measures rather than the on-grid "
+    "best case.\n",
     NULL },
   { "straddle_loss", (getter)Acquisition_getprop_straddle_loss, NULL,
     "Mean amplitude derating of the correlation peak from grid straddle "
     "(slow-time Doppler scalloping x intra-segment rotation x code-phase "
-    "sample offset, each averaged over a uniform prior). Sizing and "
-    "pd_predicted both use snr*straddle_loss; 20*log10(straddle_loss) is the "
-    "loss in dB.\n",
+    "sample offset, each averaged over a uniform prior) - a diagnostic "
+    "summary; 20*log10(straddle_loss) is the loss in dB. Sizing and "
+    "pd_predicted average Pd itself over the priors (Pd at this mean "
+    "amplitude would overstate the mean Pd).\n",
     NULL },
   { "fs", (getter)Acquisition_getprop_fs, NULL,
     "Sample rate (Hz) = chip_rate * spc.\n", NULL },
@@ -520,6 +565,15 @@ static PyGetSetDef Acquisition_getset[] = {
     "Target detection probability.\n", NULL },
   { "underpowered", (getter)Acquisition_getprop_underpowered, NULL,
     "True when pd_predicted < pd (the search cannot meet the target).\n",
+    NULL },
+  { "symbol_rate", (getter)Acquisition_getprop_symbol_rate, NULL,
+    "Continuous data-symbol rate (Hz) this engine was built with -- "
+    "diagnostic only, doesn't feed sizing (this engine never coherently "
+    "combines regardless).\n",
+    NULL },
+  { "epochs_per_symbol", (getter)Acquisition_getprop_epochs_per_symbol, NULL,
+    "(chip_rate/sf)/symbol_rate -- code epochs per data symbol; 0 when "
+    "symbol_rate is 0.\n",
     NULL },
   { NULL }
 };
@@ -554,34 +608,58 @@ AcquisitionObj_exit (AcquisitionObject *self, PyObject *args)
   Py_RETURN_NONE;
 }
 
-static PyMethodDef AcquisitionObj_methods[]
-    = { { "reset", (PyCFunction)AcquisitionObj_reset, METH_NOARGS,
-          "Reset state to post-create defaults." },
+static PyMethodDef AcquisitionObj_methods[] = {
+  { "reset", (PyCFunction)AcquisitionObj_reset, METH_NOARGS,
+    "Reset state to post-create defaults." },
 
-        { "push", (PyCFunction)AcquisitionObj_push, METH_VARARGS,
-          "push(x) -> list[tuple]\n"
-          "\n"
-          "Returns list of (doppler_bin, code_phase, peak_mag, noise_est, "
-          "test_stat, snr_est,) tuples.\n"
-          "\n"
-          "    >>> import numpy as np\n"
-          "    >>> from doppler import Acquisition\n"
-          "    >>> obj = Acquisition(np.zeros(1, dtype=np.uint8), 1, 4, "
-          "1000000.0, 50.0, 0.0, 1e-3, 0.9, \"mean\", 1)\n"
-          "    >>> results = obj.push(np.zeros(4, dtype=np.complex64))\n"
-          "    >>> isinstance(results, list)\n"
-          "    True\n" },
-        { "state_bytes", (PyCFunction)AcquisitionObj_state_bytes, METH_NOARGS,
-          "Serialized state size in bytes." },
-        { "get_state", (PyCFunction)AcquisitionObj_get_state, METH_NOARGS,
-          "Serialize the engine's mutable state to bytes." },
-        { "set_state", (PyCFunction)AcquisitionObj_set_state, METH_O,
-          "Restore mutable state from a get_state() blob." },
-        { "destroy", (PyCFunction)AcquisitionObj_destroy, METH_NOARGS,
-          "Release resources." },
-        { "__enter__", (PyCFunction)AcquisitionObj_enter, METH_NOARGS, NULL },
-        { "__exit__", (PyCFunction)AcquisitionObj_exit, METH_VARARGS, NULL },
-        { NULL } };
+  { "push", (PyCFunction)AcquisitionObj_push, METH_VARARGS,
+    "push(x) -> list[tuple]\n"
+    "\n"
+    "Returns list of (doppler_bin, code_phase, peak_mag, noise_est, "
+    "test_stat, cn0_dbhz_est, samples_consumed,) tuples.\n"
+    "\n"
+    "    >>> import numpy as np\n"
+    "    >>> from doppler import Acquisition\n"
+    "    >>> obj = Acquisition(np.zeros(1, dtype=np.uint8), 4, 1000000.0, "
+    "1000.0, 50.0, 0.0, 1e-3, 0.9, \"mean\")\n"
+    "    >>> results = obj.push(np.zeros(4, dtype=np.complex64))\n"
+    "    >>> isinstance(results, list)\n"
+    "    True\n" },
+  { "configure_search_raw",
+    (PyCFunction)(void *)AcquisitionObj_configure_search_raw,
+    METH_VARARGS | METH_KEYWORDS,
+    "configure_search_raw(doppler_bins, n_noncoh) -> int\n"
+    "\n"
+    "Pin the search grid directly, bypassing both auto-sizing searches -- the "
+    "advanced escape hatch (mirrors "
+    "Dll.configure_lock_raw/Costas.configure_lock). Resizes every buffer/plan "
+    "that depends on the grid (the slow-time FFT, the code correlator, the "
+    "reference, and every per-frame scratch buffer), re-derives the threshold "
+    "ladder for the pinned grid from the same physics __init__ used, and "
+    "clears in-flight accumulation (ring contents, the non-coherent power "
+    "accumulator, dwell bookkeeping) -- call between push() calls, never a "
+    "substitute for one. Raises ValueError if doppler_bins is outside [1, "
+    "reps] or n_noncoh is outside [1, 256] (the internal non-coherent-look "
+    "safety-valve ceiling).\n"
+    "\n"
+    "    >>> import numpy as np\n"
+    "    >>> from doppler import Acquisition\n"
+    "    >>> obj = Acquisition(np.zeros(1, dtype=np.uint8), 4, 1000000.0, "
+    "1000.0, 50.0, 0.0, 1e-3, 0.9, \"mean\")\n"
+    "    >>> obj.configure_search_raw(0, 0)\n"
+    "    0\n" },
+  { "state_bytes", (PyCFunction)AcquisitionObj_state_bytes, METH_NOARGS,
+    "Serialized state size in bytes." },
+  { "get_state", (PyCFunction)AcquisitionObj_get_state, METH_NOARGS,
+    "Serialize the engine's mutable state to bytes." },
+  { "set_state", (PyCFunction)AcquisitionObj_set_state, METH_O,
+    "Restore mutable state from a get_state() blob." },
+  { "destroy", (PyCFunction)AcquisitionObj_destroy, METH_NOARGS,
+    "Release resources." },
+  { "__enter__", (PyCFunction)AcquisitionObj_enter, METH_NOARGS, NULL },
+  { "__exit__", (PyCFunction)AcquisitionObj_exit, METH_VARARGS, NULL },
+  { NULL }
+};
 
 static PyTypeObject AcquisitionObjType = {
   PyVarObject_HEAD_INIT (NULL, 0).tp_name = "dsss.Acquisition",

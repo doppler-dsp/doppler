@@ -8,21 +8,6 @@
  */
 #include "nco/nco_core.h"
 
-#include <math.h>
-
-/*
- * Normalised frequency → uint32 phase increment.
- *
- * Uses double arithmetic to avoid rounding at the float→uint32 boundary.
- * floor() folds negative frequencies correctly: −0.25 → 0.75 → 3×2^30.
- */
-static uint32_t
-norm_to_inc (double norm_freq)
-{
-  double d = norm_freq - floor (norm_freq);
-  return (uint32_t)(d * 4294967296.0);
-}
-
 /* ================================================================== */
 /* Lifecycle                                                           */
 /* ================================================================== */
@@ -34,7 +19,7 @@ nco_create (double norm_freq, uint32_t nmax)
   if (!state)
     return NULL;
   state->phase     = 0;
-  state->phase_inc = norm_to_inc (norm_freq);
+  state->phase_inc = nco_norm_to_inc (norm_freq);
   state->norm_freq = norm_freq;
   state->nmax      = nmax;
   return state;
@@ -96,7 +81,7 @@ nco_get_norm_freq (const nco_state_t *state)
 void
 nco_set_norm_freq (nco_state_t *state, double norm_freq)
 {
-  state->phase_inc = norm_to_inc (norm_freq);
+  state->phase_inc = nco_norm_to_inc (norm_freq);
   state->norm_freq = norm_freq;
 }
 
@@ -136,17 +121,16 @@ nco_steps_u32_max_out (nco_state_t *state)
   return NCO_MAX_OUT;
 }
 
+/* Every batch stepper below is a thin loop over the matching
+   nco_core.h single-sample primitive (nco_step_u32*) -- the per-sample
+   phase-advance arithmetic lives in exactly ONE place (the header), not
+   duplicated in each of these six loop bodies. */
+
 size_t
 nco_steps_u32 (nco_state_t *state, size_t n, uint32_t *out)
 {
-  uint32_t ph  = state->phase;
-  uint32_t inc = state->phase_inc;
   for (size_t i = 0; i < n; i++)
-    {
-      out[i] = ph;
-      ph += inc;
-    }
-  state->phase = ph;
+    out[i] = nco_step_u32 (state);
   return n;
 }
 
@@ -160,27 +144,8 @@ nco_steps_u32_scaled_max_out (nco_state_t *state)
 size_t
 nco_steps_u32_scaled (nco_state_t *state, size_t n, uint32_t *out)
 {
-  uint32_t ph   = state->phase;
-  uint32_t inc  = state->phase_inc;
-  uint32_t nmax = state->nmax;
-  if (nmax == 0)
-    {
-      /* nmax=0 → raw accumulator, identical to nco_steps_u32 */
-      for (size_t i = 0; i < n; i++)
-        {
-          out[i] = ph;
-          ph += inc;
-        }
-    }
-  else
-    {
-      for (size_t i = 0; i < n; i++)
-        {
-          out[i] = (uint32_t)(((uint64_t)ph * nmax) >> 32);
-          ph += inc;
-        }
-    }
-  state->phase = ph;
+  for (size_t i = 0; i < n; i++)
+    out[i] = nco_step_u32_scaled (state);
   return n;
 }
 
@@ -194,13 +159,55 @@ nco_steps_u32_ovf_max_out (nco_state_t *state)
 size_t
 nco_steps_u32_ovf (nco_state_t *state, size_t n, uint32_t *out, uint8_t *out1)
 {
-  uint32_t ph  = state->phase;
-  uint32_t inc = state->phase_inc;
   for (size_t i = 0; i < n; i++)
-    {
-      out[i]  = ph;
-      out1[i] = NCO_ADD_OVF (ph, inc, &ph);
-    }
-  state->phase = ph;
+    out[i] = nco_step_u32_ovf (state, &out1[i]);
   return n;
+}
+
+size_t
+nco_steps_u32_ctrl_max_out (nco_state_t *state)
+{
+  (void)state;
+  return NCO_MAX_OUT;
+}
+
+size_t
+nco_steps_u32_ctrl (nco_state_t *state, const float *ctrl, size_t ctrl_len,
+                    uint32_t *out)
+{
+  for (size_t i = 0; i < ctrl_len; i++)
+    out[i] = nco_step_u32_ctrl (state, (double)ctrl[i]);
+  return ctrl_len;
+}
+
+size_t
+nco_steps_u32_scaled_ctrl_max_out (nco_state_t *state)
+{
+  (void)state;
+  return NCO_MAX_OUT;
+}
+
+size_t
+nco_steps_u32_scaled_ctrl (nco_state_t *state, const float *ctrl,
+                           size_t ctrl_len, uint32_t *out)
+{
+  for (size_t i = 0; i < ctrl_len; i++)
+    out[i] = nco_step_u32_scaled_ctrl (state, (double)ctrl[i]);
+  return ctrl_len;
+}
+
+size_t
+nco_steps_u32_ovf_ctrl_max_out (nco_state_t *state)
+{
+  (void)state;
+  return NCO_MAX_OUT;
+}
+
+size_t
+nco_steps_u32_ovf_ctrl (nco_state_t *state, const float *ctrl, size_t ctrl_len,
+                        uint32_t *out, uint8_t *out1)
+{
+  for (size_t i = 0; i < ctrl_len; i++)
+    out[i] = nco_step_u32_ovf_ctrl (state, (double)ctrl[i], &out1[i]);
+  return ctrl_len;
 }

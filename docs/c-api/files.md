@@ -82,6 +82,8 @@ Here is a list of all files with brief descriptions:
             * **file** [**dll\_core.h**](dll__core_8h.md) _Delay-lock loop (DLL) — non-coherent early/prompt/late code tracking._     
         * **dir** [**dsss**](dir_8b18bfb9a64167292d2c60acbfcb2ae1.md)     
             * **file** [**dsss\_core.h**](dsss__core_8h.md) _Dsss module — public C API._ 
+        * **dir** [**dsss\_receiver**](dir_39e39d42b234cb6483b3a80e996300fe.md)     
+            * **file** [**dsss\_receiver\_core.h**](dsss__receiver__core_8h.md) _Composed continuous DSSS receiver: Acquisition -&gt; Dll(segments) -&gt; RateConverter -&gt; MpskReceiver, one object._     
         * **dir** [**f32\_to\_i16**](dir_e25c96329f88166d8f87eefdc2ba64fa.md)     
             * **file** [**f32\_to\_i16\_core.h**](f32__to__i16__core_8h.md) _Scale-and-saturate float-to-int16 converter._     
         * **dir** [**f32\_to\_i16u32**](dir_5361bfc3c658147f85e2e18e4bfef9b4.md)     
@@ -97,9 +99,11 @@ Here is a list of all files with brief descriptions:
         * **dir** [**fft2d**](dir_9009a3f6624dc57956402cd0407c056b.md)     
             * **file** [**fft2d\_core.h**](fft2d__core_8h.md) _Per-instance 2-D FFT using pocketfft directly._     
         * **dir** [**filter**](dir_8178efb5c7670e7552eaa4222282ba05.md)     
-            * **file** [**filter\_core.h**](filter__core_8h.md) _Filter module — public C API._ 
+            * **file** [**filter\_core.h**](filter__core_8h.md) _Filter module — public C API._     
         * **dir** [**fir**](dir_37fd0118bf34c485dd22fe4d261d6eac.md)     
             * **file** [**fir\_core.h**](fir__core_8h.md) _Direct-form FIR filter — real-tap and complex-tap variants._     
+        * **dir** [**gold**](dir_eaad5c90f79e5666c89030cb43ebb96d.md)     
+            * **file** [**gold\_core.h**](gold__core_8h.md) _Gold code component API._     
         * **dir** [**hbdecim**](dir_3828151286b0ff520a0d701b39db5af1.md)     
             * **file** [**hbdecim\_core.h**](hbdecim__core_8h.md) _Halfband 2:1 decimator for CF32 IQ samples._     
             * **file** [**hbdecim\_r2c\_core.h**](hbdecim__r2c__core_8h.md) _Real-to-complex halfband 2:1 decimator (Architecture D2)._     

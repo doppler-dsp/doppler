@@ -20,6 +20,8 @@ static const char *const LFSR_NAMES[]   = { "galois", "fibonacci" };
 static const char *const BITMOD_NAMES[] = { "none", "bpsk", "qpsk" };
 static const char *const PULSE_NAMES[]  = { "rect", "rrc" };
 static const char *const CRC_NAMES[]    = { "none", "crc16" };
+/* Continuous-dsss data source: index 0 = code-only, 1 = prbs (the default). */
+static const char *const DATA_NAMES[] = { "none", "prbs" };
 /* Ordered to match wfm_seed_advance_t (NONE=0, NOISE=1, ALL=2). */
 static const char *const SEED_ADVANCE_NAMES[] = { "none", "noise", "all" };
 
@@ -131,6 +133,19 @@ add_dsss_fields (cJSON *o, const wfm_source_t *src)
 {
   if (src->type != WFM_SYNTH_DSSS)
     return;
+  /* CONTINUOUS (symbol_rate > 0): only the spreading code, the payload (when
+     one drives the data), and symbol_rate — no preamble/sync/CRC frame. Emit
+     just those so a continuous record round-trips clean, without the spurious
+     "acq_reps"/"crc" the burst path always writes. */
+  if (src->symbol_rate > 0.0)
+    {
+      add_bit_string (o, "data_code", src->data_code, src->n_data_code);
+      add_bit_string (o, "payload", src->bits, src->n_bits);
+      cJSON_AddNumberToObject (o, "symbol_rate", src->symbol_rate);
+      if (src->dsss_code_only) /* omit for the data-modulated default */
+        cJSON_AddStringToObject (o, "data", "none");
+      return;
+    }
   add_bit_string (o, "acq_code", src->acq_code, src->n_acq_code);
   cJSON_AddNumberToObject (o, "acq_reps", (double)src->acq_reps);
   add_bit_string (o, "data_code", src->data_code, src->n_data_code);
@@ -345,6 +360,16 @@ parse_source_obj (const cJSON *so, wfm_source_t *out)
           cJSON_GetStringValue (cJSON_GetObjectItemCaseSensitive (so, "crc")),
           CRC_NAMES, 2);
       out->crc = (c < 0) ? 1 : c;
+      /* symbol_rate > 0 selects the continuous async mode (data clock
+         independent of the code); absent/0 = burst. */
+      out->symbol_rate = num (so, "symbol_rate", 0.0);
+      /* "data": "none" = code-only (pure code, no modulation); "prbs"
+         (default) / absent = the seeded PN; a payload overrides to itself. */
+      out->dsss_code_only
+          = (name_index (cJSON_GetStringValue (
+                             cJSON_GetObjectItemCaseSensitive (so, "data")),
+                         DATA_NAMES, 2)
+             == 0);
     }
   if (t == WFM_SYNTH_SYMBOLS)
     {

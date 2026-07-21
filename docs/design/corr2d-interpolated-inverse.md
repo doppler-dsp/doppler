@@ -3,7 +3,8 @@
 **Status:** shipped (PR #241) — `ny_out`/`nx_out`, zero-pad interpolation,
 and frequency-domain dwell accumulation are all in
 `native/src/corr2d/corr2d_core.c`. §6 (downstream `detector2d`/`acq` wiring)
-remains a separate, additive follow-up, not yet done.
+remains a separate, additive follow-up, not yet done. §9 (single-row-
+reference fast path) is a later, independent addition — shipped.
 **Scope:** add an optional larger, independently-chosen **inverse** transform
 size to `Corr2D` (`native/src/corr2d/corr2d_core.c`) — a pffft-friendly,
 malloc-free inverse plus free band-limited interpolation of the correlation
@@ -210,6 +211,89 @@ A **P0/P1 baseline kernel feature** — clean, loss-free, independent of the
 sub-block work. It makes the inverse friendly and hands the engine sub-bin
 resolution; **P2 sub-block** then makes the *forward* friendly for `2ⁿ−1` codes.
 Together: both transforms pffft, interpolated output.
+
+______________________________________________________________________
+
+## 9. Single-row-reference fast path (shipped)
+
+**Status:** shipped. **Scope:** skip the row axis of the 2-D FFT pair
+entirely when it provably contributes nothing — a `corr2d`-level
+optimization, independent of §1-8's forward/inverse split and orthogonal to
+P2 (prime-length forward FFT).
+
+**Why.** Both real callers of `corr2d` (`acq_core.c`, `detector2d_core.c`)
+build a reference with energy only in row 0 (`build_ref`'s own docstring:
+"the flat-in-slow-time row spectrum ... turns the row axis into a
+pass-through" — `acq_core.c` already relies on this, doing its own
+Doppler-axis FFT by hand before calling `corr2d_execute`). For such a
+reference, `ref_spec[u,v] = conj(FFT_nx(ref_row0))[v]` is independent of the
+row-frequency index `u`. DFT orthogonality then makes the row axis of the
+forward-accumulate-inverse round trip an **exact identity** for *any* row
+content — not an approximation, not specific to the impulse/delta cases
+the existing test suite happened to check:
+
+```
+R(i,j) = (1/nx) * IFFT_nx( FFT_nx(row_i_of_input) * conj(FFT_nx(ref_row0)) )(j)
+```
+
+i.e. `corr2d_execute`, for a single-row reference with `ny_out == ny` (no
+Doppler-axis interpolation — see below), reduces to `ny` independent
+length-`nx` circular cross-correlations. The general 2-D path was silently
+paying for a full `(ny,nx)` FFT2 forward *and* inverse every frame when
+only the `nx`-axis (code) transform does real work.
+
+**Eligibility** (decided once, at `corr2d_create`, fixed for the object's
+lifetime): reference nonzero only in row 0, **and** `ny_out == ny`. The
+`ny_out == ny` condition is required because the identity relies on the
+forward and inverse row-axis transforms being the *same length* — a
+caller requesting Doppler-axis interpolation (`ny_out > ny`, a documented
+`Corr2D` feature, unused by any caller today) genuinely needs the row
+axis's content and must fall back to the general path. `nx_out != nx`
+(code-axis interpolation) composes fine with the fast path — it's a pure
+per-row zero-pad (`_zeropad_1d`, reused unchanged) before each row's
+inverse.
+
+**Implementation** (`native/src/corr2d/corr2d_core.c`): `_is_single_row_ref`
+detects eligibility at `create`/`set_ref` time; the fast branch replaces
+the `(ny,nx)` `fft2d_state_t` plans with a pair of length-`nx`/`nx_out`
+`fft_state_t` 1-D plans and a length-`nx` `row_ref_spec` (replacing the
+full `(ny,nx)` `ref_spec` — smaller, not larger). `corr2d_execute` branches
+on `state->fast_path` at the top; the general path is completely
+untouched. `corr2d_set_ref` now returns `int` (0/-1): on a fast-path
+object it rejects a subsequently-supplied non-single-row reference rather
+than silently truncating it — mode is fixed for the object's lifetime, not
+re-derived per call.
+
+**Serialization is unaffected.** `accum`/`work_fft` keep their existing
+`(ny,nx)`-sized allocation in both modes — the fast path just reinterprets
+them as `ny` independent length-`nx` row spectra instead of one flat 2-D
+spectrum. Same byte count, same layout, so `corr2d_state_bytes`/
+`get_state`/`set_state` needed zero changes.
+
+**Measured** (see `native/benchmarks/bench_corr2d_core.c`,
+`ny=16, nx=2046` — the acquisition grid from §1/`dsss-acquisition.md` §7):
+single-row (fast path) ~86 MSa/s vs. multi-row (general path) ~54 MSa/s at
+that grid. The much larger end-to-end win is in the small-grid regime
+`acq_push` actually runs at (`ny=16, nx=14`): the composed `DsssReceiver`'s
+"search" (acquisition) benchmark went from ~28-59 MSa/s to ~133 MSa/s,
+now roughly matching its "track" regime (~135 MSa/s) instead of trailing
+it 3-5x — `corr2d_execute` was ~75% of `acq_push`'s per-frame cost, split
+almost evenly between the forward and inverse FFT2, confirming the row
+axis really was paying for a full transform pair every frame.
+
+**Tests** (`native/tests/test_corr2d_core.c`): every pre-existing test
+already used a single-row reference, so they all exercise the fast path
+automatically (free regression coverage). Added: a brute-force dense-signal
+correctness check for *both* paths (existing coverage was impulse/shift-
+only, which passes through almost any correlator trivially); fast path +
+`nx_out` interpolation; the `ny_out > ny` fallback (asserts `fast_path==0`
+even for a single-row reference); `corr2d_set_ref` accept/reject; a
+fast-path state round-trip. Sanity-break-and-revert confirmed both eligibility
+conditions are load-bearing: forcing `fast_path=0` unconditionally left
+`acq`/`detector2d`/`DsssReceiver`'s own correctness tests passing (they
+don't depend on which path runs); forcing `fast_path=1` on a genuinely
+multi-row reference made the new dense-signal test fail cleanly (no crash,
+no silent corruption).
 
 ## See also
 

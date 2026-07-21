@@ -158,6 +158,130 @@ All three faces render byte-identically; `--record` emits the resolved scene
 for a byte-exact `--from-file` replay, and `--file-type sigmf` writes the
 annotated sidecar.
 
+______________________________________________________________________
+
+## Continuous asynchronous DSSS
+
+A **burst** is a bounded frame with an integer number of chips per data
+symbol (one bit spread by exactly one code period). Some links instead run a
+**continuous** stream: the spreading code repeats forever and the data rides
+it at a symbol rate that is *independent* of the code epoch — so the chips per
+symbol are **non-integer** and symbol edges land mid-code:
+
+```text
+chip[i] = code[i mod code_len] ^ data[floor(i / chips_per_symbol)]
+```
+
+Adding `symbol_rate=` (Hz) to a `dsss` source selects this mode. There is no
+preamble/sync/CRC frame — only the spreading code and the outer data clock:
+
+```python
+import numpy as np
+from doppler.wfm import Composer, Segment
+
+fs, spc, chip_rate = 6.138e6, 2, 3.069e6
+code = np.array([1, 1, 1, 0, 0, 1, 0, 1, 0, 1, 1, 0, 0, 1, 1], np.uint8)
+
+stream = Segment(
+    type="dsss", fs=fs, sps=spc, seed=1,
+    symbol_rate=2700.0,          # data clock, independent of the chip clock
+    data_code=code,              # spreading code; repeats forever
+    snr=10.0, snr_mode="esno",   # Es/N0 of the 2700 bps data symbol
+    num_samples=40_000,
+)
+x = Composer([stream]).compose()
+
+cps = (fs / spc) / 2700.0        # chips per symbol
+assert abs(cps - 1136.667) < 1e-3        # non-integer: the asynchronicity
+```
+
+Here `sps` is samples per **chip** (as for a burst), so the chip rate is
+`fs / sps` and `chips_per_symbol = (fs / sps) / symbol_rate` — `1136.667` at
+these numbers, spanning `1137, 1137, 1136` chips in a repeating cycle with
+boundaries falling inside a code period. Unlike a burst, the stream has no
+intrinsic length, so `num_samples` (`--count`) is honoured verbatim.
+
+### Three data sources
+
+The data modulating the code has three legitimate origins, selected the same
+way on every face:
+
+| source             | selector                              | what it emits                                                                            |
+| ------------------ | ------------------------------------- | ---------------------------------------------------------------------------------------- |
+| **PRBS** (default) | —                                     | bits from the source's seeded PN — endless, and a receiver regenerates them to score BER |
+| **code-only**      | `dsss_code_only=True` (`--data none`) | constant bit 0 → the pure spreading code, `+code` polarity, no data transitions          |
+| **payload**        | `payload=` (`--bits*`)                | a caller bit pattern, cycled `mod len`                                                   |
+
+The default **PRBS** is the useful one for a stream with no finite truth
+array: the data is a pure function of `(pn_poly, seed, pn_length, lfsr)`, so a
+scorer regenerates exactly the transmitted bits — chip `i` carries data symbol
+`floor(i / chips_per_symbol)`, and that bit is the `floor(i/cps)`-th PN output.
+On a clean capture the chip-centre sample signs match bit-for-bit:
+
+```python
+from doppler.wfm import PN, mls_poly
+
+clean = Segment(
+    type="dsss", fs=fs, sps=spc, seed=1, symbol_rate=2700.0,
+    data_code=code, snr=100.0, snr_mode="fs", num_samples=40_000,
+)
+xc = Composer([clean]).compose()
+
+L = 15                                    # default --pn-length (register size)
+bits = PN(poly=mls_poly(L), seed=1, length=L).generate(64)
+i = np.arange(len(xc) // spc)             # one entry per chip
+sym = np.floor(i / cps).astype(int)
+chip = code.astype(int)[i % len(code)] ^ bits[sym]     # transmitted chip bit
+centres = i * spc + spc // 2
+assert np.array_equal(np.sign(xc[centres].real).astype(int), 1 - 2 * chip)
+```
+
+(`--seed-advance all` makes the per-epoch signal seed `seed + epoch`, so a
+long multi-epoch scorer must track the epoch; the safe scoring modes are the
+default `none` and `noise`. Code-only and payload are seed-independent.)
+
+### Es/N0 references the data symbol, correctly
+
+`snr_mode="esno"`/`auto` targets the outer data symbol, which spans
+`fs / symbol_rate` samples — **not** `sf * sps`. The referencing SSOT takes
+`fs` so a non-integer symbol span is exact (a truncated "effective spreading
+factor" would silently misplace the noise floor). Nothing to set; it is
+picked up from `symbol_rate`.
+
+### The CLI face
+
+```sh
+wfmgen --type dsss --fs 6138000 --sps 2 --seed 1 \
+       --symbol-rate 2700 --data-code 111001010110011 \
+       --snr 10 --snr-mode esno --count 40000 \
+       --record cont.json -o cont.cf32
+```
+
+`--data none` selects code-only; a supplied `--bits`/`--bits-hex` selects a
+payload. Incompatible combinations are rejected (exit 2), not silently
+ignored: `--symbol-rate` with the burst-frame flags (`--acq-code`, `--sync`,
+`--crc`), `--data` together with `--bits*`, `--symbol-rate` without
+`--data-code`, and a non-positive `--symbol-rate`.
+
+### SigMF distinguishes the two modes
+
+Both modes carry the `"dsss"` `core:label`, so the sidecar adds a
+`wfmgen:symbol_rate` key for a continuous source (a burst omits it), and
+`wfmgen:data: "none"` for a code-only stream — enough for a scorer to know the
+outer symbol clock and how the code is (un)modulated:
+
+```python
+import json
+
+meta = json.loads(Composer([stream]).to_sigmf(sample_type="cf32", fs=fs))
+assert meta["annotations"][0]["wfmgen:symbol_rate"] == 2700
+```
+
+A continuous stream has no defined end, so `--file-type sigmf` (whose sidecar
+is written after the capture) requires a finite `--count`, not `--continuous`.
+
+______________________________________________________________________
+
 ## Sweeping a burst train with `Plan`
 
 `Plan` supports the same `repeats` + ranged-`off_samples`/`delay_samples`

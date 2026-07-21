@@ -45,7 +45,8 @@
 #include <stdint.h>
 
 /* CMPLXF/CMPLX/CMPLXL fallbacks and the shared DP_OK/DP_ERR_* error codes
- * live in clib_common.h — the streaming API uses the one doppler-wide scheme. */
+ * live in clib_common.h — the streaming API uses the one doppler-wide scheme.
+ */
 #include "clib_common.h"
 
 /**
@@ -87,12 +88,12 @@ extern "C"
    */
   typedef enum
   {
-    CI32 = 0,  /**< Complex int32: int32_t I/Q   (8 bytes/sample). */
-    CF64 = 1,  /**< Complex float64: double I/Q  (16 bytes/sample). */
+    CI32  = 0, /**< Complex int32: int32_t I/Q   (8 bytes/sample). */
+    CF64  = 1, /**< Complex float64: double I/Q  (16 bytes/sample). */
     CF128 = 2, /**< Complex long double I/Q      (32 bytes/sample). */
-    CI8 = 3,   /**< Complex int8: int8_t I/Q     (2 bytes/sample).  */
-    CI16 = 4,  /**< Complex int16: int16_t I/Q   (4 bytes/sample).  */
-    CF32 = 5,  /**< Complex float32: float I/Q   (8 bytes/sample).  */
+    CI8   = 3, /**< Complex int8: int8_t I/Q     (2 bytes/sample).  */
+    CI16  = 4, /**< Complex int16: int16_t I/Q   (4 bytes/sample).  */
+    CF32  = 5, /**< Complex float32: float I/Q   (8 bytes/sample).  */
     TLM16 = 6, /**< 16-byte telemetry records (dp_tlm_rec_t) — not I/Q;
                     num_samples counts records. Published by the
                     dp_tlm_sink_* helper (telemetry/tlm_sink.h). */
@@ -152,9 +153,9 @@ extern "C"
     uint32_t flags;       /**< Reserved flags — set to 0. */
     uint64_t sequence;    /**< Monotonically increasing per-sender count. */
     uint64_t
-        timestamp_ns;   /**< UNIX timestamp in nanoseconds (CLOCK_REALTIME). */
-    double sample_rate; /**< Sample rate in Hz. */
-    double center_freq; /**< Centre frequency in Hz. */
+        timestamp_ns; /**< UNIX timestamp in nanoseconds (CLOCK_REALTIME). */
+    double   sample_rate; /**< Sample rate in Hz. */
+    double   center_freq; /**< Centre frequency in Hz. */
     uint64_t num_samples; /**< Number of complex samples in this message. */
     uint64_t reserved[4]; /**< Reserved — set to zero, do not interpret. */
   } dp_header_t;
@@ -310,8 +311,9 @@ extern "C"
    * @brief Send an array of CI8 samples via a Publisher.
    * @copydetails dp_pub_send_ci32
    */
-  int dp_pub_send_ci8 (dp_pub_t *ctx, const int8_t *samples, size_t num_samples,
-                       double sample_rate, double center_freq);
+  int dp_pub_send_ci8 (dp_pub_t *ctx, const int8_t *samples,
+                       size_t num_samples, double sample_rate,
+                       double center_freq);
 
   /**
    * @brief Send an array of CI16 samples via a Publisher.
@@ -422,7 +424,8 @@ extern "C"
    * `dp_push_send_*` returns @ref DP_ERR_TOO_LARGE. Raise the broker
    * `max_payload` for larger durable frames, or use PUB/SUB (which chunks).
    */
-  dp_push_t *dp_push_create (const char *endpoint, dp_sample_type_t sample_type);
+  dp_push_t *dp_push_create (const char      *endpoint,
+                             dp_sample_type_t sample_type);
 
   /**
    * @brief Create a Pull consumer and connect to @p endpoint.
@@ -581,8 +584,9 @@ extern "C"
                          size_t num_samples, double sample_rate,
                          double center_freq);
   /** @brief Send CI8 signal frame as a request. */
-  int dp_req_send_ci8 (dp_req_t *ctx, const int8_t *samples, size_t num_samples,
-                       double sample_rate, double center_freq);
+  int dp_req_send_ci8 (dp_req_t *ctx, const int8_t *samples,
+                       size_t num_samples, double sample_rate,
+                       double center_freq);
   /** @brief Send CI16 signal frame as a request. */
   int dp_req_send_ci16 (dp_req_t *ctx, const int16_t *samples,
                         size_t num_samples, double sample_rate,
@@ -605,8 +609,9 @@ extern "C"
                          size_t num_samples, double sample_rate,
                          double center_freq);
   /** @brief Send CI8 signal frame as a reply. */
-  int dp_rep_send_ci8 (dp_rep_t *ctx, const int8_t *samples, size_t num_samples,
-                       double sample_rate, double center_freq);
+  int dp_rep_send_ci8 (dp_rep_t *ctx, const int8_t *samples,
+                       size_t num_samples, double sample_rate,
+                       double center_freq);
   /** @brief Send CI16 signal frame as a reply. */
   int dp_rep_send_ci16 (dp_rep_t *ctx, const int16_t *samples,
                         size_t num_samples, double sample_rate,
@@ -696,6 +701,26 @@ extern "C"
    * @return Nanoseconds since epoch.
    */
   uint64_t dp_get_timestamp_ns (void);
+
+  /**
+   * @brief Override the @c timestamp_ns the NEXT send on @p ctx will stamp,
+   * instead of a fresh dp_get_timestamp_ns() read.
+   *
+   * One-shot: consumed (and cleared) by the very next send call on this
+   * context, whether or not it was actually used. Lets a hop that already
+   * knows a more precise or truer origin time (e.g. a value derived from
+   * dp_sample_clock_stamp_at() over an upstream message's own header, or a
+   * passthrough of that upstream header's own @c timestamp_ns) propagate it
+   * downstream instead of every hop silently re-stamping "now" and losing
+   * the connection to when the samples actually occurred. @p ctx accepts
+   * any socket role (dp_pub_t / dp_push_t / dp_req_t / dp_rep_t are the
+   * same underlying context type).
+   *
+   * @param ctx          Allocated send-capable context (any role).
+   * @param timestamp_ns Nanoseconds since the UNIX epoch to stamp on the
+   *                     next send.
+   */
+  void dp_ctx_set_timestamp_ns (dp_pub_t *ctx, uint64_t timestamp_ns);
 
   /**
    * @brief Return a human-readable description of an error code.

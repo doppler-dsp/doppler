@@ -2,31 +2,62 @@
 
 **Status:** draft / for discussion
 **Scope:** the receive-side acquisition *architecture* — beyond today's
-all-coherent streaming `Acquisition`. This is theory, trade-space, and a phased
-roadmap; for how to *use* the current engine see the
+all-coherent streaming `BurstAcquisition` (paired with a continuous
+`Acquisition` sibling that always window-tiles instead — see §1). This is
+theory, trade-space, and a phased roadmap; for how to *use* the current
+engine see the
 [DSSS Burst Acquisition guide](../guide/dsss-acquisition.md).
 
 ______________________________________________________________________
 
 ## 1. Context
 
-`doppler.dsss.Acquisition` (`native/src/acq/acq_core.c`) acquires a DSSS burst —
-repeated BPSK PN epochs — under unknown code phase and Doppler. It frames the
-stream into `(doppler_bins, nx)` (one PN epoch per row), FFTs down the columns
-for Doppler, correlates each row against the code, and CFAR-gates the surface. It
-is parameterised by **physics** — `chip_rate`, `cn0_dbhz`, `reps`, `pfa`, `pd` —
-and sizes its own grid: the coherent depth `doppler_bins` is the smallest in
-`[1, reps]` that meets `pd` (see [the guide](../guide/dsss-acquisition.md)). Below,
-`ny ≡ doppler_bins` is the slow-time / coherent-depth axis. It works, and it is
-the right tool for a static, low-Doppler signal.
+`doppler.dsss.BurstAcquisition` (`native/src/acq/acq_core.c`) acquires a DSSS
+burst — repeated BPSK PN epochs — under unknown code phase and Doppler. It
+frames the stream into `(doppler_bins, nx)` (one PN epoch per row), FFTs down
+the columns for Doppler, correlates each row against the code, and CFAR-gates
+the surface. It is parameterised by **physics** — `chip_rate`, `cn0_dbhz`,
+`reps`, `pfa`, `pd` — and sizes its own grid: the coherent depth `doppler_bins`
+is the smallest in `[1, reps]` that meets `pd` (see
+[the guide](../guide/dsss-acquisition.md)). Below, `ny ≡ doppler_bins` is the
+slow-time / coherent-depth axis. It works, and it is the right tool for a
+static, low-Doppler, data-free (preamble) signal. A sibling `Acquisition`
+class (continuous) shares this same C engine but always uses the
+window-tiling mechanism of §4 instead — see the warning immediately below.
+
+!!! warning "Only for a data-free coherent window"
+
+    Everything below about pushing `M`/`doppler_bins` up for gain or
+    resolution assumes the coherent window is genuinely **code-only** (a
+    preamble, or a periodic pilot epoch on an otherwise data-bearing stream —
+    see UC1 in [the use-cases doc](../dev/dsss-use-cases.md)). On a
+    **continuous, data-modulated** signal, growing `M` past the data-bit
+    period is not a graceful gain/latency trade — the data's own baseband
+    spectrum, sampled at close to one sample per symbol, aliases broadband
+    energy across the *entire* Doppler-bin axis, and a real, deterministic
+    mislock (the wrong bin winning outright) results well before "gain
+    reverses into loss" in §5 sounds like it would. See
+    [Continuous, data-modulated signals](../guide/dsss-acquisition.md#continuous-data-modulated-signals-the-asynchronous-symbol-clock-case)
+    in the guide for the confirmed mechanism and worked proof. The shipped
+    engine closes
+    this by construction rather than by pricing it as a tunable trade-off:
+    the class is now split in two (see §10's "Update — shipped: the
+    burst/continuous split"), and the continuous `Acquisition` class always
+    window-tiles instead of ever coherently combining, so there is no
+    coherent-depth knob on it left for a caller to misuse. An interim
+    design tried `symbol_rate`/`doppler_resolution`/`doppler_rate`
+    parameters on one combined class (added after this document was
+    drafted) to price this in instead; those three are gone now (see §10).
+    This design's `T_coh`-ceiling framing below should eventually be
+    reconciled with the split, not with the retired parameters.
 
 It also sits in **one corner** of the acquisition design space, with three gaps:
 
-| Gap                  | Today                                                                                                                                           | Why it matters                                                                                      |
-| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| **Stateful**         | Owns a private ring, a `corr2d` coherent accumulator (`accum`/`count`), and a stream offset — none expressible as explicit carry.               | Cannot fan out across processes/pods; the engine *is* the unit of parallelism, not the work.        |
-| **All-coherent**     | The slow-time FFT over the `ny` epochs is coherent. Non-coherent (`max_noncoh>1`) looks extend it, but the coherent depth is the primary lever. | Coherent time is bounded (below); weak signals beyond that bound need the non-coherent looks.       |
-| **Constant-Doppler** | The slow-time FFT assumes a linear phase ramp across segments.                                                                                  | Platform **dynamics** (Doppler rate) make the phase quadratic → the FFT smears → acquisition fails. |
+| Gap                  | Today                                                                                                                                                                                      | Why it matters                                                                                      |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------- |
+| **Stateful**         | Owns a private ring, a `corr2d` coherent accumulator (`accum`/`count`), and a stream offset — none expressible as explicit carry.                                                          | Cannot fan out across processes/pods; the engine *is* the unit of parallelism, not the work.        |
+| **All-coherent**     | The slow-time FFT over the `ny` epochs is coherent. Non-coherent (`n_noncoh>1`, always auto-selected — no caller-facing cap) looks extend it, but the coherent depth is the primary lever. | Coherent time is bounded (below); weak signals beyond that bound need the non-coherent looks.       |
+| **Constant-Doppler** | The slow-time FFT assumes a linear phase ramp across segments.                                                                                                                             | Platform **dynamics** (Doppler rate) make the phase quadratic → the FFT smears → acquisition fails. |
 
 This document defines the problem and terms precisely, frames every acquisition
 method as one **cross-ambiguity function (CAF)**, lays out the trade space, and
@@ -88,13 +119,13 @@ ______________________________________________________________________
 
 ## 4. Computational decompositions — placement verdicts
 
-| Method                              | Wins when                                          | Doppler resolution | Stateless | Verdict                     |
-| ----------------------------------- | -------------------------------------------------- | ------------------ | --------- | --------------------------- |
-| **Mixer + slow-time FFT** (current) | Doppler within one slow-time Nyquist; low dynamics | `1/(ny·nx)` (fine) | after P0  | **IN — P0 coherent kernel** |
-| **2-D spectral roll**               | single-epoch coarse sweep, no integration          | `1/nx` (coarse)    | yes       | **OUT — documented dual**   |
-| **Sub-block chop**                  | wide Doppler with integration intact               | `1/(ny·nx)` (same) | yes       | **IN — P2 widener**         |
-| **Direct mix-and-correlate**        | reference truth                                    | any                | yes       | **OUT — test ground truth** |
-| **Doppler-rate de-chirp grid**      | acceleration / long `T_coh`                        | adds rate bins     | yes       | **IN — P3 dynamics axis**   |
+| Method                              | Wins when                                          | Doppler resolution | Stateless | Verdict                                                 |
+| ----------------------------------- | -------------------------------------------------- | ------------------ | --------- | ------------------------------------------------------- |
+| **Mixer + slow-time FFT** (current) | Doppler within one slow-time Nyquist; low dynamics | `1/(ny·nx)` (fine) | after P0  | **IN — P0 coherent kernel**                             |
+| **2-D spectral roll**               | single-epoch coarse sweep, no integration          | `1/nx` (coarse)    | yes       | **OUT for `ny>1` regimes; IN — D=1 async-data widener** |
+| **Sub-block chop**                  | wide Doppler with integration intact               | `1/(ny·nx)` (same) | yes       | **IN — P2 widener**                                     |
+| **Direct mix-and-correlate**        | reference truth                                    | any                | yes       | **OUT — test ground truth**                             |
+| **Doppler-rate de-chirp grid**      | acceleration / long `T_coh`                        | adds rate bins     | yes       | **IN — P3 dynamics axis**                               |
 
 **Mixer + slow-time FFT — the core.** Reframe `(ny, nx)`, FFT down the columns
 for Doppler, correlate rows against the code, integrate `dwell` frames. It is the
@@ -102,16 +133,42 @@ most code-correlation-efficient method per Doppler bin: one correlation set yiel
 all `ny` Doppler bins via the slow-time FFT. The whole architecture generalizes
 *around* this kernel.
 
-**2-D spectral roll — OUT, but worth understanding.** Rolling `conj(FFT(code))`
-by `k` integer bins and IFFT-ing against the received spectrum tests Doppler
-hypothesis `k`. But rolling by `k` bins is *exactly* mixing by `k/nx` — the
-integer-bin special case of the mixer. The mixer bank does everything the roll
-does **plus** a finer (half-window) step **plus** the multi-epoch slow-time
-integration the roll lacks; sub-block chopping widens the span the same way with
-integration intact and at the same resolution. The roll is **strictly dominated**
-on every axis except raw single-epoch simplicity, so it stays a documented dual,
-not a kernel. (Revisit only if profiling ever shows a batched roll-IFFT beats the
-per-channel mixer at very wide spans — a micro-optimization, not architecture.)
+**2-D spectral roll — OUT when coherent integration is viable, but IN as the
+dedicated D=1 async-data widener.** Rolling `conj(FFT(code))` by `k` integer
+bins and IFFT-ing against the received spectrum tests Doppler hypothesis `k`.
+Rolling by `k` bins is *exactly* mixing by `k/nx` — the integer-bin special case
+of the mixer. Where the mixer bank's `ny`-epoch (or P2's `K`-sub-block) coherent
+integration is available, it does everything the roll does **plus** a finer
+(half-window) step **plus** that integration gain, so the roll stays strictly
+dominated there — a documented dual, not a kernel.
+
+That domination argument assumes coherent integration across more than one
+epoch is *on the table*. It isn't for continuous, asynchronous data-modulated
+signals: §4's own reasoning depends on a data-free coherent window, and task
+#67 of the async-receiver story measured this
+directly — a data toggle rate close to the code-epoch rate aliases the data's
+own baseband spectrum across the *entire* Doppler-bin axis of any `ny>1`
+coherent FFT (slow-time OR a P2 sub-block's longer `ny·K` window), producing a
+structural, deterministic mislock rather than graceful SNR loss. In that
+regime `ny` (and `K`) are pinned to 1 regardless of method, so the mixer
+bank's and P2's entire advantage over the roll — the coherent gain — is
+unavailable to either of them; margin instead comes from non-coherent
+accumulation (`n_noncoh`, itself alias-immune) across many `D=1` epochs. With
+coherent integration off the table for every method, the domination argument
+collapses and the roll's one-epoch, `35`-FFT-equivalent grid (vs. a `D`-channel
+mixer bank's `2D` FFT-equivalents, `D` = uncertainty / native span — measured
+1.2-1.55x, a frequency-bank benchmark) is the right,
+adopted mechanism for this regime specifically. It is now wired directly into
+`Acquisition` (continuous)'s C core (`native/src/acq/acq_core.c`'s wideband
+mode, `coherent_bins` pinned to 1 and the uncertainty tiled with `window_bins`
+parallel roll-FFT hypotheses) rather than composed externally, since — unlike
+the `ny>1` mixer/sub-block case — there is no coherent-depth knob left for a
+caller to tune once `ny` is pinned to 1 (indeed `Acquisition` (continuous)
+never exposes one at all — see §10); the roll IS the whole D=1 search, not an
+optional front-end layered in front of a richer kernel. (The burst/repeats
+regime, where `ny>1` coherent integration remains genuinely available —
+`BurstAcquisition` — is unaffected: the mixer bank/P2 stay primary there, per
+open question 6 below.)
 
 **Sub-block chopping — the wide-Doppler widener.** Chop each epoch into `K`
 sub-blocks; the slow-time rate rises to `K/T_epoch`, so the native span widens to
@@ -136,7 +193,19 @@ ______________________________________________________________________
 (a) Doppler uncertainty (`f·T_coh < ~1/4` cycle, the within-segment sinc), (b)
 data-bit period, (c) oscillator coherence, (d) **Doppler rate**
 (`rdot·T_coh² < O(1)`). Pushed past the binding ceiling, coherent gain reverses
-into loss. **Non-coherent integration** (`N_noncoh` magnitude-summed looks) picks
+into loss.
+
+!!! warning "Ceiling (b) fails hard, not gracefully"
+
+    Ceilings (a)/(c)/(d) do degrade gracefully — smearing that costs gain
+    smoothly as the ceiling is exceeded. Ceiling (b), the data-bit period, is
+    qualitatively different and does **not** belong in the same "gain
+    reverses into loss" bucket: past it, the data's own spectrum aliases
+    across the whole Doppler axis and a specific, deterministic *mislock*
+    (wrong bin wins outright) becomes likely, confirmed empirically — see the
+    warning in §1 above.
+
+**Non-coherent integration** (`N_noncoh` magnitude-summed looks) picks
 up there: robust to inter-look phase (Doppler walk, bit flips, oscillator drift),
 gaining about `5·log10(N_nc)` in the weak limit — the **squaring/combining loss**
 is the price of phase-robustness.
@@ -212,7 +281,8 @@ that POD (the `ddc_fn` precedent: opaque state across free functions, GIL releas
 via `nogil`); processes and pods serialize the **same bytes**. One representation,
 two faces — no second format to maintain.
 
-**`Acquisition` becomes a thin wrapper.** It keeps the ring (leftover + offset) and
+**The engine becomes a thin wrapper.** `acq_state_t` (shared by both
+`BurstAcquisition` and `Acquisition`) keeps the ring (leftover + offset) and
 the carry buffers; `acq_push` drains the ring into `ny·nx` blocks, calls
 `acq_caf_tile` per shard, feeds dumps to `acq_nc_accumulate`, and gates after
 `N_nc` looks. The hot math lives entirely in the pure kernel; the wrapper owns the
@@ -256,7 +326,26 @@ per core**. That cost is **almost entirely the `corr2d` 2-D FFT**: a bare
 `corr2d.execute` on the same grid is ~95–100% of the tile (`bench_corr2d.py`),
 so the slow-time FFT, ring, and CFAR are a few-percent tail and the engine is
 **2-D-FFT bound** — optimization effort belongs in the transform, not the glue.
-`Acquisition.push` releases the GIL, so thread-per-shard scaling is
+
+**Update — shipped:** `corr2d` now exploits a structural fact this section's
+own numbers motivated but didn't yet act on: `acq`'s reference is single-row
+(row 0 only), so `ref_spec` is row-frequency-invariant and the row axis of
+`corr2d_execute`'s forward-accumulate-inverse round trip is an *exact*
+identity for any row content (DFT orthogonality) — `corr2d` was paying for a
+full row-axis FFT and IFFT every frame that provably cancelled to a no-op.
+A fast path (`native/src/corr2d/corr2d_core.c`, see
+[corr2d-interpolated-inverse.md §9](corr2d-interpolated-inverse.md)) now
+skips it, replacing the `(ny,nx)` 2-D transform pair with `ny` independent
+length-`nx` 1-D transforms. This is a **different lever from P2** below —
+P2 targets the forward transform's prime code-length (an FFT-*size*
+problem); the fast path eliminates row-axis work regardless of size (an
+FFT-*count* problem) — the two are independent and compose. Measured
+end-to-end: the composed `DsssReceiver`'s acquisition-search throughput
+went from ~28-59 MSa/s to ~133 MSa/s, matching its tracking-regime
+throughput instead of trailing it 3-5x.
+
+`push` (shared by both `BurstAcquisition` and `Acquisition`) releases the GIL,
+so thread-per-shard scaling is
 **~3.4× on 8 cores, ~4.9× on 12** (memory-bandwidth bound past a few cores, like
 `ddc_fn`) → **~240 MSa/s aggregate** on this box. Per-shard memory is tiny
 (`accum`/`nc_surface` are `ny·nx·4 B ≈ 80–160 kB`), so thousands of shards fit in
@@ -315,7 +404,10 @@ ______________________________________________________________________
 
 Assume a LEO-like downlink: `Rc = 1 Mcps`, `L = 1000` (`T_epoch = 1 ms`),
 `spc = 2` (`fs = 2 Msps`, `nx = 2000`), Doppler **±100 kHz**, Doppler rate
-**±5 kHz/s**.
+**±500 Hz/s** (matches the standard LEO worst-case nadir-pass derivation
+`f_dot_max = (f_c/c)*(v^2/h)` at a representative S-band carrier and
+~800 km altitude, ~579 Hz/s -- corrected from an earlier "±5 kHz/s" typo,
+which was 10x too high; see `SPEC.md`'s own corrected figure).
 
 **Wide Doppler.** Native span is `±500 Hz`. Either a **coarse mixer bank**
 (primary): 50%-overlap step `500 Hz` → **400 channels** for the 200 kHz range at
@@ -335,19 +427,22 @@ rdot_res ≤ 2 / T_coh²            (¼-cycle edge tolerance)
 R        = rate_span / Δrdot
 ```
 
-| `ny` | `T_coh` | `Δrdot`   | `R` for ±5 kHz/s      |
+| `ny` | `T_coh` | `Δrdot`   | `R` for ±500 Hz/s     |
 | ---- | ------- | --------- | --------------------- |
 | 10   | 10 ms   | 40 kHz/s  | **1** (dynamics free) |
-| 50   | 50 ms   | 1.6 kHz/s | **~7**                |
-| 100  | 100 ms  | 400 Hz/s  | **~25**               |
+| 50   | 50 ms   | 1.6 kHz/s | **1** (dynamics free) |
+| 100  | 100 ms  | 400 Hz/s  | **~3**                |
 
-The key insight: at 10 ms coherent this case needs **no rate search** — the
-dynamics are absorbed. It is *pushing `T_coh`* (for coherent dB on weak signals)
-that forces a rate grid, and its size grows as `T_coh²`. So the auto-splitter
-should cap `T_coh` at the rate ceiling and spend the rest on `N_nc`, unless the
-SNR genuinely demands coherent dB only a rate-searched long `T_coh` can give. The
-worst row above is `400 coarse × 25 rate ≈ 10 000` independent tiles per 100 ms —
-squarely fan-out territory.
+The key insight: at the corrected rate, dynamics stay absorbed all the way out
+to 50 ms coherent (`Δrdot` still exceeds the full `±500 Hz/s` span) — it takes
+pushing `T_coh` to 100 ms before a rate grid is even needed at all, and even
+then it's a small one (`~3` tiles, not the `~25` the old mistyped `±5 kHz/s`
+figure implied). `Δrdot`'s `T_coh²` scaling still means a rate grid becomes
+real again for long enough coherent integration on weak signals, so the
+auto-splitter should still cap `T_coh` at the rate ceiling and spend the rest
+on `N_nc` unless the SNR genuinely demands it — the corrected numbers just
+push that ceiling much further out. The worst row above is `400 coarse × 3 rate ≈ 1 200` independent tiles per 100 ms — real, but a much smaller
+fan-out burden than previously estimated.
 
 **Code Doppler** (chip-rate dilation) walks the code phase by `(v/c)·Rc·T_coh`
 chips; for `T_coh ≤ 10 ms` at modest `v/c` this is sub-chip and tolerable. It
@@ -359,8 +454,9 @@ ______________________________________________________________________
 ## 9. Honest tradeoffs
 
 - **Statelessness vs the shipped API.** P0 moves the hot path into a pure kernel.
-    We hold the `Acquisition` Python API and bit-exactness as a hard contract, so the
-    refactor is invisible to users — at the cost of carrying the wrapper.
+    We hold the `Acquisition`/`BurstAcquisition` Python API and bit-exactness as
+    a hard contract, so the refactor is invisible to users — at the cost of
+    carrying the wrapper.
 - **Squaring loss.** Non-coherent integration buys phase-robustness and weak-signal
     reach, but only `~5·log10(N_nc)` versus `10·log10` coherent. It is a fallback
     for when coherence runs out, not a free sensitivity dial.
@@ -388,12 +484,13 @@ Priority: **sensitivity → span → dynamics.**
 **P1 (non-coherent) — landed.** `doppler.detection` gained the order-`N_nc`
 helpers `det_threshold_noncoherent` / `det_pd_noncoherent` / `det_n_noncoh`
 (thin wrappers over the existing generalized `marcum_q`, validated against
-Monte-Carlo to \<1%). `Acquisition` takes `max_noncoh` (auto-split cap): the
-auto-config grows the coherent depth to `reps`, then adds magnitude-summed looks
-(up to `max_noncoh`) to close the Pd gap; the `N_nc>1` push path accumulates
-`|·|²` and gates the normalized order-`N_nc` statistic. The pure-coherent
-(`N_nc=1`) path is unchanged. The associative pod-merge (`acq_nc_merge`) is left
-to **P4**.
+Monte-Carlo to \<1%). At the time, `Acquisition` took `max_noncoh` (auto-split
+cap): the auto-config grew the coherent depth to `reps`, then added
+magnitude-summed looks (up to `max_noncoh`) to close the Pd gap; the `N_nc>1`
+push path accumulates `|·|²` and gates the normalized order-`N_nc` statistic.
+The pure-coherent (`N_nc=1`) path is unchanged. The associative pod-merge
+(`acq_nc_merge`) is left to **P4**. (`max_noncoh` itself has since been
+removed from both classes — see the Update below.)
 
 **Physics-only constructor — landed.** The grid-and-SNR API
 (`sf`/`ny`/`min_snr`/`max_dwell`/`n_noncoh`) was replaced by physics:
@@ -402,18 +499,52 @@ to **P4**.
 meeting `pd`; `doppler_uncertainty` narrows the scanned Doppler band (fewer
 Bonferroni cells → lower gate, with a matching masked argmax); an infeasible
 operating point builds best-effort, flags `underpowered`, and warns.
+
+**Update — shipped: the burst/continuous split.** The single `Acquisition`
+class described above (P1, physics-only constructor) split into two front
+doors sharing one engine (see the [guide](../guide/dsss-acquisition.md)):
+`BurstAcquisition` keeps exactly that coherent-depth behavior (`reps`-bounded
+`doppler_bins`, unmodulated preamble/burst use only, unchanged), while a new
+`Acquisition` (continuous) class ALWAYS uses the wideband window-tiling
+mechanism (§4) instead of coherent multi-epoch combining — closing the
+continuous-async-data mislock (§1's warning, task #67) structurally rather
+than leaving it to a caller-tuned knob. `max_noncoh` is gone from both:
+`n_noncoh` is now always auto-selected to meet `pd`, bounded only by an
+internal, non-public safety-valve ceiling (`ACQ_N_NONCOH_SAFETY_CEILING` =
+256 looks — the semi-analytical `pd_predicted` model this engine sizes
+against turns unreliable past that many looks, not a physical sensitivity
+limit). Two parameters that briefly existed on the combined class,
+`doppler_resolution` and `doppler_rate` (sizing a coherent-depth floor/ceiling
+for a downstream tracking loop's benefit — see §1's footnote), are also gone:
+both worked by forcing the coherent depth up, exactly the aliasing risk the
+continuous class now closes by construction, so there is no longer a
+parameter left for them to defeat.
+
 **P0 (stateless kernel) — substantially shipped, via a coarser mechanism
 than specified below.** `acq_run`/`acq_state_bytes`/`acq_get_state`/
 `acq_set_state` (`native/src/acq/acq_core.c`,
-[acq-fn.md](acq-fn.md)) give `Acquisition` the pure-transducer /
-serializable-carry properties P0 asks for, but not via the `acq_caf_tile`
-tile-level kernel extraction this section's table row describes — that
-finer decomposition hasn't been built.
+[acq-fn.md](acq-fn.md)) give the shared `acq_state_t` engine the
+pure-transducer / serializable-carry properties P0 asks for, but not via the
+`acq_caf_tile` tile-level kernel extraction this section's table row
+describes — that finer decomposition hasn't been built.
 
 **P4 (orchestration) — shipped.** `src/doppler/dsss/orchestrator.py`
 (`Acquirer`/`CoarseChannel`) implements thread-pool fan-out over
 coarse-Doppler shards with bit-identical `get_state`/`set_state` pod
 hand-off, matching this phase's acceptance criteria.
+
+**D=1 async-data wideband roll — shipped, outside the P0-P4 phase list.**
+`Acquisition` (continuous)'s C core ALWAYS engages the 2-D spectral roll (see
+§4 above), unconditionally: `coherent_bins` is pinned to 1 and the
+uncertainty is tiled with `window_bins` parallel roll-FFT hypotheses from one
+epoch, sized by non-coherent accumulation (`n_noncoh`) rather than coherent
+depth. `BurstAcquisition` retains the same mechanism only as a conditional
+fallback, when `doppler_uncertainty` exceeds the native span (task #67
+doesn't apply to a genuine data-free burst/preamble window, so there's no
+reason to force it there). This is a narrower, alias-safe widener than P2 —
+it targets specifically the regime where `ny>1` coherent integration is
+unavailable (continuous async data), not the general wide-Doppler case P2
+targets — so it isn't a substitute for P2 and doesn't move P2's status below.
 
 **Not yet started:** P2 (sub-block), P3 (Doppler-rate).
 
@@ -441,15 +572,21 @@ ______________________________________________________________________
     `marcum_q`), not `acq` — recommended.
 1. **Code-Doppler scope.** Deferred to P5; revisit if a target needs long codes or
     very high velocity within one coherent window.
-1. **2-D roll re-litigation.** Verdict is OUT (dominated); reopen only if P2/P4
-    profiling shows a batched roll-IFFT wins at very wide spans on some hardware.
+1. **2-D roll re-litigation.** Partially resolved: for the `ny>1`-viable
+    (burst/repeats) regime the verdict stands, OUT (dominated) — reopen only if
+    P2/P4 profiling shows a batched roll-IFFT wins at very wide spans on some
+    hardware. For the continuous async-data `D=1`-forced regime (coherent
+    integration unavailable to any method, task #67), the roll is now IN,
+    adopted directly in `Acquisition` (continuous)'s C core — see §4 and §10
+    above.
 
 ______________________________________________________________________
 
 ## 12. See also
 
 - [DSSS Burst Acquisition guide](../guide/dsss-acquisition.md) — how to use today's
-    `Acquisition` (parameters, streaming, the coarse-mix widening loop).
+    `BurstAcquisition`/`Acquisition` classes (parameters, streaming, the
+    coarse-mix widening loop).
 - [Python: Detection Statistics](../api/python-detection.md) — `det_threshold` /
     `det_pd` / `det_dwell` / `marcum_q` (the order-`M` primitive).
 - [Gallery: 2-D Acquisition](../gallery/detection2d.md) — the `CorrDetector2D`

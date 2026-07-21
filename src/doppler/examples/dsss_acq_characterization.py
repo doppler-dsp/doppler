@@ -96,7 +96,7 @@ import warnings
 import numpy as np
 from numpy.typing import NDArray
 
-from doppler.dsss import Acquisition
+from doppler.dsss import BurstAcquisition
 from doppler.wfm import PN, Synth, dsss_spread, mls_poly
 
 # ── burst geometry ───────────────────────────────────────────────────────────
@@ -140,16 +140,23 @@ _PREAMBLE0: NDArray[np.complex64] = Synth(
 ).steps(ACQ_REPS * SF * SPC)
 
 
-def make_engine() -> Acquisition:
-    """Build an acquisition engine pinned to ``doppler_bins == ACQ_REPS``.
+def make_engine() -> BurstAcquisition:
+    """Build an acquisition engine pinned to ``doppler_bins == ACQ_REPS``
+    and ``n_noncoh == 1`` (one push == one decision, which everything
+    downstream in this module assumes).
 
-    The conservative ``CN0_SIZE`` cannot meet ``PD`` on the reps-deep grid, so
-    construction emits an "under-powered" ``UserWarning`` — expected here (the
-    injected bursts are far stronger than the sizing point), and filtered.
+    The conservative ``CN0_SIZE`` cannot meet ``PD`` on the reps-deep grid
+    at n_noncoh==1, so construction emits an "under-powered" ``UserWarning``
+    — expected here (the injected bursts are far stronger than the sizing
+    point), and filtered. Explicitly pinned via ``configure_search_raw``
+    rather than left to auto-sizing: with no caller-facing ``max_noncoh``
+    knob left to default to "coherent-only," the auto-sizer would otherwise
+    silently escalate non-coherent looks here, breaking the
+    one-push-one-decision assumption.
 
     Returns
     -------
-    Acquisition
+    BurstAcquisition
         A fresh engine; ``code_bins == SF``, ``doppler_bins == ACQ_REPS``.
 
     Examples
@@ -160,7 +167,7 @@ def make_engine() -> Acquisition:
     """
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", UserWarning)
-        a = Acquisition(
+        a = BurstAcquisition(
             ACQ_CODE,
             reps=ACQ_REPS,
             spc=SPC,
@@ -170,7 +177,9 @@ def make_engine() -> Acquisition:
             pfa=PFA,
             pd=PD,
         )
+        a.configure_search_raw(ACQ_REPS, 1)
     assert a.doppler_bins == ACQ_REPS, "sizing failed to pin doppler_bins"
+    assert a.n_noncoh == 1
     return a
 
 

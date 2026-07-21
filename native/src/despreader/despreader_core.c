@@ -173,8 +173,8 @@ process_sample (despreader_state_t *ch, float complex x, float complex *prompt)
 {
   float complex d = costas_wipeoff (&ch->car, x); /* carrier wipe-off */
   dll_lock_accumulate (&ch->code, d); /* off-peak noise tap (lock det) */
-  dll_accumulate (&ch->code, d);      /* E/P/L correlate */
-  if (ch->code.chip_pos < (double)ch->code.sf)
+  int wrapped = dll_accumulate (&ch->code, d); /* E/P/L correlate */
+  if (!wrapped)
     return 0;
   /* code-period boundary */
   float complex P = ch->code.acc_p;

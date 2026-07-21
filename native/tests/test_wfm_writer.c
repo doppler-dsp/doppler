@@ -179,6 +179,54 @@ main (void)
     free (j);
   }
 
+  /* ── SigMF meta: continuous DSSS carries wfmgen:symbol_rate (the "dsss"
+     core:label alone can't distinguish burst from continuous). Code-only adds
+     wfmgen:data=none; a burst dsss omits both. ── */
+  {
+    uint8_t      code[7] = { 1, 1, 1, 0, 0, 1, 0 };
+    wfm_source_t prbs    = { .type        = WFM_SYNTH_DSSS,
+                             .sps         = 2,
+                             .data_code   = code,
+                             .n_data_code = 7,
+                             .symbol_rate = 2700.0 };
+    wfm_source_t none    = { .type           = WFM_SYNTH_DSSS,
+                             .sps            = 2,
+                             .data_code      = code,
+                             .n_data_code    = 7,
+                             .symbol_rate    = 2700.0,
+                             .dsss_code_only = 1 };
+    wfm_source_t burst   = {
+      .type = WFM_SYNTH_DSSS, .sps = 2, .data_code = code, .n_data_code = 7
+    }; /* symbol_rate 0 → burst */
+
+    wfm_segment_t sp = {
+      .sources = &prbs, .n_sources = 1, .fs = 6.138e6, .num_samples = 4096
+    };
+    char *jp = wfm_sigmf_meta_json (0, 0, 6.138e6, 0, &sp, 1);
+    CHECK (jp && strstr (jp, "\"wfmgen:symbol_rate\":2700"),
+           "sigmf continuous prbs symbol_rate");
+    CHECK (jp && !strstr (jp, "\"wfmgen:data\""),
+           "sigmf continuous prbs omits data key");
+    free (jp);
+
+    wfm_segment_t sn = {
+      .sources = &none, .n_sources = 1, .fs = 6.138e6, .num_samples = 4096
+    };
+    char *jn = wfm_sigmf_meta_json (0, 0, 6.138e6, 0, &sn, 1);
+    CHECK (jn && strstr (jn, "\"wfmgen:symbol_rate\":2700")
+               && strstr (jn, "\"wfmgen:data\":\"none\""),
+           "sigmf code-only symbol_rate + data=none");
+    free (jn);
+
+    wfm_segment_t sb = {
+      .sources = &burst, .n_sources = 1, .fs = 6.138e6, .num_samples = 4096
+    };
+    char *jb = wfm_sigmf_meta_json (0, 0, 6.138e6, 0, &sb, 1);
+    CHECK (jb && !strstr (jb, "\"wfmgen:symbol_rate\""),
+           "sigmf burst dsss omits symbol_rate");
+    free (jb);
+  }
+
   /* ── clip detection: peak (always) + opt-in fraction ── */
   {
     /* s0: |re|=1.5 clips, |im|=0.5 ok; s1: |re|=0.5 ok, |im|=2.0 clips.

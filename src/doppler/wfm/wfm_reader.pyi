@@ -30,6 +30,9 @@ class Reader:
     def sample_type(self) -> str:
         """sample_type (str); one of ``"cf32"``, ``"cf64"``, ``"ci32"``, ``"ci16"``, ``"ci8"``."""
     @property
+    def mode(self) -> str:
+        """mode (str); one of ``"complex"``, ``"scalar"``."""
+    @property
     def endian(self) -> str:
         """endian (str); one of ``"le"``, ``"be"``."""
     @property

@@ -16,8 +16,7 @@
 
 /* per sample_type (0 cf32, 1 cf64, 2 ci32, 3 ci16, 4 ci8) — mirror wfm_writer
  */
-static const size_t ELEM[5] = { 4, 8, 4, 2, 1 }; /* bytes per I or Q */
-static const size_t BPS[5] = { 8, 16, 8, 4, 2 }; /* bytes per complex sample */
+static const size_t ELEM[5]  = { 4, 8, 4, 2, 1 }; /* bytes per component */
 static const double SCALE[5] = { 0, 0, 2147483647.0, 32767.0, 127.0 };
 static const char   FMTCH[5]
     = { 'F', 'D', 'L', 'I', 'B' }; /* BLUE format char */
@@ -27,6 +26,7 @@ struct wfm_reader
   FILE    *fp;
   int      ft;       /* wfm_filetype_t */
   int      stype;    /* 0..4 */
+  int      mode;     /* wfm_mode_t: 0 complex, 1 scalar */
   int      endian;   /* 0 le, 1 be */
   double   fs, fc;   /* Hz; 0 if unknown */
   size_t   nsamples; /* total complex samples; 0 if unknown */
@@ -65,73 +65,78 @@ swap_ext (const char *path, const char *ext, char *out, size_t cap)
   snprintf (out, cap, "%.*s%s", (int)base, path, ext);
 }
 
-/* Decode one interleaved I/Q pair from the wire type into unit-scale floats.
- */
-static void
-convert_pair (const uint8_t *p, int stype, int be, float *re, float *im)
+/* Decode ONE wire component (an I, or a Q, or a scalar-mode real sample) into
+   a unit-scale float. Per-component rather than per-pair because BLUE 'S'
+   files carry one component per sample; complex is just two calls. */
+static float
+convert_elem (const uint8_t *p, int stype, int be)
 {
-  size_t e = ELEM[stype];
   switch (stype)
     {
     case 0:
       {
-        float a, b;
+        float a;
         swab_copy (&a, p, 4, be);
-        swab_copy (&b, p + 4, 4, be);
-        *re = a;
-        *im = b;
-        break;
+        return a;
       }
     case 1:
       {
-        double a, b;
+        double a;
         swab_copy (&a, p, 8, be);
-        swab_copy (&b, p + 8, 8, be);
-        *re = (float)a;
-        *im = (float)b;
-        break;
+        return (float)a;
       }
     case 2:
       {
-        int32_t a, b;
+        int32_t a;
         swab_copy (&a, p, 4, be);
-        swab_copy (&b, p + 4, 4, be);
-        *re = (float)(a / SCALE[2]);
-        *im = (float)(b / SCALE[2]);
-        break;
+        return (float)(a / SCALE[2]);
       }
     case 3:
       {
-        int16_t a, b;
+        int16_t a;
         swab_copy (&a, p, 2, be);
-        swab_copy (&b, p + 2, 2, be);
-        *re = (float)(a / SCALE[3]);
-        *im = (float)(b / SCALE[3]);
-        break;
+        return (float)(a / SCALE[3]);
       }
     default:
-      {
-        int8_t a = (int8_t)p[0], b = (int8_t)p[1];
-        *re = (float)(a / SCALE[4]);
-        *im = (float)(b / SCALE[4]);
-        break;
-      }
+      return (float)((int8_t)p[0] / SCALE[4]);
     }
-  (void)e;
+}
+
+/* Wire components per emitted sample: 2 for interleaved I/Q, 1 for scalar. */
+static size_t
+comps (int mode)
+{
+  return (mode == WFM_MODE_SCALAR) ? 1u : 2u;
 }
 
 /* Parse a 512-byte BLUE type-1000 HCB. Returns 0 on success, -1 if this is not
    a BLUE header — the "BLUE" magic at byte 0 is the gate, so a file that is
    not BLUE (a stray .hdr, a raw file that happens to be .det) is rejected,
-   never mis-read. Every BLUE path (attached + detached) goes through here. */
+   never mis-read. Every BLUE path (attached + detached) goes through here.
+
+   The two-character `format` field (bytes 52..53) is [mode][type]: the mode
+   says how many components make a sample, the type says how each component is
+   stored. Both halves are validated — an unsupported mode (V/Q/M/T/…, three or
+   more components per sample) is REJECTED rather than assumed to be
+   interleaved I/Q, which would silently return garbage at the wrong stride. */
 static int
-parse_blue_hcb (const uint8_t h[512], int *stype, int *endian, double *fs,
-                double *data_start, size_t *nsamples, int *detached)
+parse_blue_hcb (const uint8_t h[512], int *stype, int *mode, int *endian,
+                double *fs, double *data_start, size_t *nsamples,
+                int *detached)
 {
   if (memcmp (h, "BLUE", 4) != 0) /* validate the magic before trusting it */
     return -1;
-  int  be  = (memcmp (h + 4, "IEEE", 4) == 0); /* EEEI = le, IEEE = be */
-  char fmt = (char)h[53];
+  int be = (memcmp (h + 4, "IEEE", 4) == 0); /* EEEI = le, IEEE = be */
+
+  int md; /* format mode (byte 52): components per sample */
+  if (h[52] == 'C')
+    md = WFM_MODE_COMPLEX;
+  else if (h[52] == 'S')
+    md = WFM_MODE_SCALAR;
+  else
+    return -1;
+
+  char fmt = (char)h[53]; /* format type (byte 53): per-component storage */
   int  st  = -1;
   for (int i = 0; i < 5; i++)
     if (FMTCH[i] == fmt)
@@ -145,11 +150,14 @@ parse_blue_hcb (const uint8_t h[512], int *stype, int *endian, double *fs,
   swab_copy (&dsz, h + 40, 8, be);
   swab_copy (&xdelta, h + 264, 8, be);
   *stype      = st;
+  *mode       = md;
   *endian     = be;
   *fs         = (xdelta != 0.0) ? 1.0 / xdelta : 0.0;
   *data_start = ds;
-  *nsamples   = (size_t)(dsz / (double)BPS[st]);
-  *detached   = (int)det;
+  /* data_size is BYTES; a scalar file packs one component per sample, so
+     dividing by the complex size would under-count by 2x. */
+  *nsamples = (size_t)(dsz / (double)(comps (md) * ELEM[st]));
+  *detached = (int)det;
   return 0;
 }
 
@@ -242,7 +250,7 @@ fill_nsamples (wfm_reader_t *r)
       long end = ftell (r->fp);
       fseek (r->fp, cur, SEEK_SET);
       if (end >= cur)
-        r->nsamples = (size_t)(end - cur) / BPS[r->stype];
+        r->nsamples = (size_t)(end - cur) / (comps (r->mode) * ELEM[r->stype]);
     }
 }
 
@@ -294,7 +302,7 @@ wfm_reader_open (const char *path, int hint_stype, int hint_endian)
       double ds;
       int    det = 0;
       if (!ok
-          || parse_blue_hcb (h, &r->stype, &r->endian, &r->fs, &ds,
+          || parse_blue_hcb (h, &r->stype, &r->mode, &r->endian, &r->fs, &ds,
                              &r->nsamples, &det)
                  != 0)
         goto fail;
@@ -326,7 +334,7 @@ wfm_reader_open (const char *path, int hint_stype, int hint_endian)
       double ds;
       int    det = 0;
       if (got != 512
-          || parse_blue_hcb (h, &r->stype, &r->endian, &r->fs, &ds,
+          || parse_blue_hcb (h, &r->stype, &r->mode, &r->endian, &r->fs, &ds,
                              &r->nsamples, &det)
                  != 0)
         goto fail;
@@ -370,6 +378,7 @@ wfm_reader_info (const wfm_reader_t *r, wfm_reader_info_t *info)
 {
   info->file_type   = r->ft;
   info->sample_type = r->stype;
+  info->mode        = r->mode;
   info->endian      = r->endian;
   info->fs          = r->fs;
   info->fc          = r->fc;
@@ -401,8 +410,8 @@ wfm_reader_read (wfm_reader_t *r, float _Complex *out, size_t max)
   if (r->ft == WFM_FT_CSV)
     return read_csv (r, out, max);
 
-  size_t elem = ELEM[r->stype];
-  size_t need = max * 2 * elem;
+  size_t elem = ELEM[r->stype], nc = comps (r->mode);
+  size_t need = max * nc * elem;
   if (r->scratch_cap < need)
     {
       uint8_t *p = (uint8_t *)realloc (r->scratch, need);
@@ -412,14 +421,17 @@ wfm_reader_read (wfm_reader_t *r, float _Complex *out, size_t max)
       r->scratch_cap = need;
     }
   size_t         got   = fread (r->scratch, 1, need, r->fp);
-  size_t         nsamp = got / (2 * elem);
+  size_t         nsamp = got / (nc * elem);
   const uint8_t *p     = r->scratch;
   for (size_t i = 0; i < nsamp; i++)
     {
-      float re, im;
-      convert_pair (p, r->stype, r->endian, &re, &im);
+      /* scalar mode has no Q component on the wire -- it reads as exactly 0,
+         so an 'S' capture surfaces as a real signal on the imaginary axis. */
+      float re = convert_elem (p, r->stype, r->endian);
+      float im
+          = (nc == 2) ? convert_elem (p + elem, r->stype, r->endian) : 0.0f;
       out[i] = re + im * (float _Complex)I;
-      p += 2 * elem;
+      p += nc * elem;
     }
   return nsamp;
 }

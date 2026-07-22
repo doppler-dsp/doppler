@@ -821,6 +821,77 @@ def test_reader_detached_header_is_the_entry_point(tmp_path, hdr_ext):
     assert np.max(np.abs(y - ref)) == 0.0
 
 
+def _patch_blue_mode(path, mode, ncomp, n):
+    """Rewrite a complex BLUE capture in place as `mode`, keeping only the
+    first `ncomp` component(s) of each sample. doppler's writer only ever
+    emits 'C', so a foreign-producer file has to be forged: patch the HCB
+    format mode (byte 52) and data_size (byte 40), then rewrite the payload.
+    """
+    h = bytearray(path.read_bytes()[:512])
+    iq = np.frombuffer(path.read_bytes()[512:], dtype=np.float32)[: 2 * n]
+    h[52] = ord(mode)
+    h[40:48] = np.float64(n * ncomp * 4).tobytes()
+    body = iq.reshape(n, 2)[:, :ncomp].reshape(-1)
+    path.write_bytes(bytes(h) + body.tobytes())
+
+
+def test_reader_blue_scalar_mode(tmp_path):
+    """A SCALAR ('S') BLUE capture reads as a real signal, at full length.
+
+    The BLUE `format` field is [mode][type] (HCB bytes 52..53) and only the
+    type half used to be parsed, so a scalar file -- one component per sample
+    -- was walked at the *complex* stride: every second real sample became a
+    phantom Q, the capture came back at half its length, and `num_samples`
+    under-reported 2x. Silent, on a perfectly valid Midas file.
+    """
+    n = 1024
+    x = Synth(type="tone", freq=1e5, fs=1e6, snr=100.0).steps(n)
+    p = tmp_path / "cap.blue"
+    with Writer(p, file_type="blue", sample_type="cf32", fs=1e6) as w:
+        w.write(x)
+    _patch_blue_mode(p, "S", 1, n)
+
+    with Reader(p) as r:
+        assert r.mode == "scalar"
+        assert r.num_samples == n  # not n // 2
+        y = _read_all(r)
+    assert len(y) == n
+    assert np.array_equal(y.real, x.real)  # I survives bit-exact
+    assert np.all(y.imag == 0.0)  # no phantom Q from the next sample
+
+
+def test_reader_blue_complex_mode_reports_itself(tmp_path):
+    """The ordinary complex path is unchanged and names its own mode."""
+    n = 512
+    x = Synth(type="tone", freq=1e5, fs=1e6, snr=100.0).steps(n)
+    p = tmp_path / "cap.blue"
+    with Writer(p, file_type="blue", sample_type="cf32", fs=1e6) as w:
+        w.write(x)
+    with Reader(p) as r:
+        assert r.mode == "complex"
+        assert r.num_samples == n
+        assert np.array_equal(_read_all(r), x)
+
+
+@pytest.mark.parametrize("mode", ["V", "Q", "M", "T", "X", "1"])
+def test_reader_rejects_unsupported_blue_mode(tmp_path, mode):
+    """Modes doppler cannot decode are refused, never read at a wrong stride.
+
+    Midas defines further modes carrying three or more components per sample
+    (V, Q, M, T ...). Only S and C are supported here; anything else must fail
+    to open rather than hand back samples strided as if it were interleaved
+    I/Q.
+    """
+    n = 64
+    x = Synth(type="tone", freq=1e5, fs=1e6, snr=100.0).steps(n)
+    p = tmp_path / "cap.blue"
+    with Writer(p, file_type="blue", sample_type="cf32", fs=1e6) as w:
+        w.write(x)
+    _patch_blue_mode(p, mode, 2, n)
+    with pytest.raises(RuntimeError):
+        Reader(p)
+
+
 def test_reader_blue_recovers_metadata(tmp_path):
     """A BLUE capture self-describes: fs comes back from the HCB, no hint."""
     x = Composer(type="qpsk", sps=8, num_samples=2048).compose()

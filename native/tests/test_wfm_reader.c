@@ -172,6 +172,94 @@ test_detached_header_entry (void)
   return 0;
 }
 
+/* Write a BLUE type-1000 capture whose HCB `format` field carries an arbitrary
+   [mode][type] pair, with @p ncomp components per sample written from x's real
+   (and, when ncomp == 2, imaginary) parts. wfm_blue_write_hcb always emits
+   'C', so byte 52 is patched after the fact -- that is exactly the file a
+   foreign Midas producer would hand us. */
+static int
+write_blue_mode (const char *path, char mode, size_t ncomp,
+                 const float _Complex *x, size_t n)
+{
+  FILE *fp = fopen (path, "wb");
+  CHECK (fp != NULL, "open mode file");
+  CHECK (wfm_blue_write_hcb (fp, 0, 0, 1e6, 0.0, 512.0, n, 0) == 0,
+         "write HCB");
+  /* data_size assumed complex; rewrite it for the real component count. */
+  double dsz = (double)(n * ncomp * 4);
+  fseek (fp, 52, SEEK_SET);
+  fputc (mode, fp);
+  fseek (fp, 40, SEEK_SET);
+  fwrite (&dsz, sizeof dsz, 1, fp);
+  fseek (fp, 512, SEEK_SET);
+  for (size_t i = 0; i < n; i++)
+    {
+      float re = crealf (x[i]), im = cimagf (x[i]);
+      CHECK (fwrite (&re, sizeof re, 1, fp) == 1, "write I");
+      if (ncomp == 2)
+        CHECK (fwrite (&im, sizeof im, 1, fp) == 1, "write Q");
+    }
+  fclose (fp);
+  return 0;
+}
+
+/* The BLUE `format` field is [mode][type] (bytes 52..53). Only byte 53 used to
+   be read, so a SCALAR ('S') capture -- one component per sample -- was walked
+   at the complex stride: every other real sample became a phantom Q, the
+   signal came back at half length, and num_samples under-counted 2x. Neither
+   error surfaced. Now the mode is parsed: 'S' reads one component with Q == 0,
+   'C' reads the interleaved pair, and every other Midas mode (V/Q/M/T, 3..10
+   components) is REJECTED at open rather than misread at the wrong stride. */
+static int
+test_blue_format_mode (void)
+{
+  float _Complex x[N], y[N];
+  make_signal (x, N);
+
+  /* scalar: one component per sample, Q == 0 */
+  if (write_blue_mode ("dp_mode_s.blue", 'S', 1, x, N))
+    return 1;
+  wfm_reader_t *r = wfm_reader_open ("dp_mode_s.blue", 0, 0);
+  CHECK (r != NULL, "scalar BLUE opens");
+  wfm_reader_info_t info;
+  wfm_reader_info (r, &info);
+  CHECK (info.mode == WFM_MODE_SCALAR, "mode is scalar");
+  CHECK (info.num_samples == N, "scalar num_samples is not halved");
+  size_t got = wfm_reader_read (r, y, N);
+  wfm_reader_close (r);
+  CHECK (got == N, "scalar yields every sample, not half");
+  for (size_t k = 0; k < N; k++)
+    {
+      CHECK (fabsf (crealf (y[k]) - crealf (x[k])) < 1e-6f, "scalar I exact");
+      CHECK (cimagf (y[k]) == 0.0f, "scalar Q is exactly zero");
+    }
+
+  /* complex: unchanged, and reports its mode */
+  if (write_blue_mode ("dp_mode_c.blue", 'C', 2, x, N))
+    return 1;
+  r = wfm_reader_open ("dp_mode_c.blue", 0, 0);
+  CHECK (r != NULL, "complex BLUE opens");
+  wfm_reader_info (r, &info);
+  CHECK (info.mode == WFM_MODE_COMPLEX, "mode is complex");
+  CHECK (info.num_samples == N, "complex num_samples");
+  got = wfm_reader_read (r, y, N);
+  wfm_reader_close (r);
+  CHECK (got == N, "complex yields every sample");
+  for (size_t k = 0; k < N; k++)
+    CHECK (cabsf (y[k] - x[k]) < 1e-6f, "complex round-trips");
+
+  /* every unsupported mode designator is refused, not guessed at */
+  static const char BAD[] = { 'V', 'Q', 'M', 'T', 'X', '1', 'c', 's' };
+  for (size_t i = 0; i < sizeof BAD; i++)
+    {
+      if (write_blue_mode ("dp_mode_bad.blue", BAD[i], 2, x, 8))
+        return 1;
+      CHECK (wfm_reader_open ("dp_mode_bad.blue", 0, 0) == NULL,
+             "unsupported format mode is rejected");
+    }
+  return 0;
+}
+
 int
 main (void)
 {
@@ -192,6 +280,8 @@ main (void)
   if (test_blue_gate ())
     return 1;
   if (test_detached_header_entry ())
+    return 1;
+  if (test_blue_format_mode ())
     return 1;
   printf ("test_wfm_reader: all passed\n");
   return 0;

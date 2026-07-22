@@ -8,7 +8,7 @@ class Despreader:
 
     Parameters
     ----------
-    code : NDArray[np.uint8], default ...
+    code : NDArray[np.uint8]
         code constructor parameter.
     sps : int, default 4
         sps constructor parameter.
@@ -253,7 +253,7 @@ class BurstDespreader:
 
     Parameters
     ----------
-    code : NDArray[np.uint8], default ...
+    code : NDArray[np.uint8]
         Data spreading code (0/1 chips), length code_len; copied.
     sf : int, default 1
         Spreading factor: chips integrated per prompt symbol (default: 1).
@@ -429,7 +429,7 @@ class Acquisition:
 
     Parameters
     ----------
-    code : NDArray[np.uint8], default ...
+    code : NDArray[np.uint8]
         code constructor parameter.
     spc : int, default 4
         spc constructor parameter.
@@ -605,7 +605,7 @@ class BurstAcquisition:
 
     Parameters
     ----------
-    code : NDArray[np.uint8], default ...
+    code : NDArray[np.uint8]
         PN chips (0/1), length code_len.
     reps : int, default 1
         Max coherent code repetitions (>= 1).
@@ -824,7 +824,7 @@ class BurstDemod:
 
     Parameters
     ----------
-    data_code : NDArray[np.uint8], default ...
+    data_code : NDArray[np.uint8]
         Data spreading code (0/1); copied.
     spc : int, default 4
         Samples per chip.
@@ -945,7 +945,7 @@ class DsssReceiver:
 
     Parameters
     ----------
-    code : NDArray[np.uint8], default ...
+    code : NDArray[np.uint8]
         Spreading code, one 0/1 chip per element (0 -> +1, 1 -> -1 BPSK; only the low bit is used, so pass 0/1, not +/-1).
     chip_rate : float, default 1000000.0
         Chip rate, Hz. Required.
@@ -1121,7 +1121,7 @@ class AsyncDsssReceiver:
 
     Parameters
     ----------
-    code : NDArray[np.uint8], default ...
+    code : NDArray[np.uint8]
         Spreading code, one 0/1 chip per element (0 -> +1, 1 -> -1 BPSK; only the low bit is used, so pass 0/1, not +/-1).
     chip_rate : float, default 1000000.0
         Chip rate, Hz. Required.

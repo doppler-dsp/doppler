@@ -598,6 +598,48 @@ touches `jm apply`/`status` codegen paths doppler already exercises
 before this fix and are unaffected; the bug was in the *scaffolding*
 path, not the steady-state apply path).
 
+### 0.33.2 adoptions — doppler-driven `path` init-params + handle `create_error` (pin: 0.33.2)
+
+The CI drift gate now pins **0.33.2** (`ci.yml` + `perf-regression.yml`);
+`jm_version` is stamped 0.33.2. **Drive doppler with
+`uvx --from 'just-makeit==0.33.2' just-makeit …`.** Both fixes are
+doppler-filed, from migrating `wfm.Reader`/`wfm.Writer` off `kind="handle"`:
+
+- **gh-515 / jm#516 — object `init_params` accept `type = "path"`.** It used
+    to crash `jm apply` outright (`KeyError: 'path'` in
+    `_build_no_state_init_ctx`), because `path` is a pseudo-type deliberately
+    absent from `_CTYPE_META` and the init path looked it up unconditionally.
+    A path is now always a required positional coerced by
+    `PyUnicode_FSConverter`, with the borrow released only **after** `create()`
+    copies it (gh-219). Without this an object ctor could take `str` only,
+    while the handle it replaces already accepted `os.PathLike` — a migration
+    would have regressed `Reader(pathlib.Path(...))`.
+- **gh-514 / jm#517 — `kind="handle"` honours `create_error` /
+    `create_error_message`.** gh-482 (0.30.0) only ever reached objects: a
+    handle's keys live under `[module.<name>]` while `create_error(cfg, comp)`
+    reads `cfg[comp]`, so setting either key on a handle silently did nothing
+    and every open failure surfaced as `RuntimeError: "<create_fn> failed"`.
+    A handle module is the shape that opens files/sockets/devices, so that is
+    where a meaningful message matters most.
+
+**Two `.pyi` traps worth knowing** (both fixed in 0.33.2, both silent before):
+a **non-required** string init-param still renders its "Create with defaults"
+doctest with the numeric zero (`Obj(path=0)`), which fails the
+`pytest --doctest-glob='*.pyi'` gate — mark a file-backed ctor param
+`required = true` (gh-266), which also fixes kwlist ordering so the optional
+string-enum kwargs sort *after* it. And a param with no default no longer
+emits a bogus `, default` clause: this bump's only codegen drift is **5 `.pyi`
+files** losing fabricated defaults (`sample_rate_hz : float, default .0` →
+`float`; `code : NDArray[np.uint8], default ...` → no clause). Verified against
+the manifests — `carrier_acq.toml` gives `sample_rate_hz` no default at all,
+while its sibling `resolution_hz`, which does, correctly keeps
+`, default 0.0`. No real default was dropped.
+
+**Also do not use `out_type` on a `[[obj.methods]]` entry** — it is a
+`jm function` feature; on a method it renders `-> complex` and injects no C
+declaration. The working "method returns a fresh array" shape is
+`arg_type = "void"` + `variable_output = true` (the LO/NCO generator pattern).
+
 ### 0.30.1 adoptions — `c_style="clang-format"` NOT viable (jm#493, pin: 0.30.1)
 
 The CI drift gate now pins **0.30.1** (`ci.yml` + `perf-regression.yml`);

@@ -8,9 +8,9 @@ class CarrierAcquisition:
 
     Parameters
     ----------
-    sample_rate_hz : float, default .0
+    sample_rate_hz : float
         sample_rate_hz constructor parameter.
-    symbol_rate_hz : float, default .0
+    symbol_rate_hz : float
         symbol_rate_hz constructor parameter.
     resolution_hz : float, default 0.0
         resolution_hz constructor parameter.

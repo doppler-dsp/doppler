@@ -288,7 +288,7 @@ class Dll:
 
     Parameters
     ----------
-    code : NDArray[np.uint8], default ...
+    code : NDArray[np.uint8]
         Spreading code (0/1 chips), one period; copied internally.
     sps : int, default 2
         Samples per chip (default 2).

@@ -21,7 +21,7 @@
  * wfm_reader_info(r, &info);                 // info.fs, info.sample_type, ...
  * float _Complex buf[4096];
  * size_t n;
- * while ((n = wfm_reader_read(r, buf, 4096)) > 0)
+ * while ((n = wfm_reader_read(r, 4096, buf)) > 0)   // (state, count, out)
  *   consume(buf, n);
  * wfm_reader_destroy(r);
  * @endcode

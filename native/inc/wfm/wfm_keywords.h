@@ -56,7 +56,7 @@ extern "C"
 #define WFM_KW_MAX_TAG 255
 
   /** One decoded keyword. `value` is `count * elem_size` bytes in HOST order;
-   *  for type `'A'` it is `count` characters and is NOT NUL-terminated. */
+   *  for type `A` it is `count` characters and is NOT NUL-terminated. */
   typedef struct
   {
     char     tag[WFM_KW_MAX_TAG + 1]; /**< NUL-terminated tag. */
@@ -94,7 +94,8 @@ extern "C"
    * @param cap   bytes available at @p out.
    * @param tag   NUL-terminated tag, 1..WFM_KW_MAX_TAG characters.
    * @param type  element type code (must be KW-legal, see wfm_kw_elem_size).
-   * @param value @p count elements in HOST order (characters for `'A'`).
+   * @param value the elements to write, in HOST order (characters for an
+   *              ASCII keyword).
    * @param count element count; must be non-zero.
    * @param be    write the value big-endian (the HCB's `head_rep`).
    * @return bytes written, or 0 if the arguments are invalid or @p cap is too

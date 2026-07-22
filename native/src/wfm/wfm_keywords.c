@@ -11,9 +11,11 @@
 
 /* Copy sz bytes, reversing when the file is big-endian. Same convention as the
    reader's swab_copy / the writer's put: host order on one side, file order on
-   the other, and the direction is symmetric so one helper serves both. */
+   the other, and the direction is symmetric so one helper serves both.
+   NB: not `swab` -- that is BSD swab(3), declared in <unistd.h> on macOS, and
+   a static redeclaration with a different signature is a hard error there. */
 static void
-swab (void *dst, const void *src, size_t sz, int be)
+kw_swab (void *dst, const void *src, size_t sz, int be)
 {
   uint8_t       *d = dst;
   const uint8_t *s = src;
@@ -74,8 +76,8 @@ wfm_kw_encode (uint8_t *out, size_t cap, const char *tag, char type,
   memset (out, 0, lkey); /* zero-fills the padding for free */
   int32_t k32 = (int32_t)lkey;
   int16_t x16 = (int16_t)lext;
-  swab (out + 0, &k32, 4, be);
-  swab (out + 4, &x16, 2, be);
+  kw_swab (out + 0, &k32, 4, be);
+  kw_swab (out + 4, &x16, 2, be);
   out[6] = (uint8_t)ltag;
   out[7] = (uint8_t)type;
 
@@ -84,7 +86,7 @@ wfm_kw_encode (uint8_t *out, size_t cap, const char *tag, char type,
      past the first. 'A' is a byte string and needs no swap either way. */
   const uint8_t *src = (const uint8_t *)value;
   for (size_t i = 0; i < count; i++)
-    swab (out + 8 + i * esz, src + i * esz, esz, be);
+    kw_swab (out + 8 + i * esz, src + i * esz, esz, be);
   memcpy (out + 8 + vbytes, tag, ltag);
   return lkey;
 }
@@ -97,8 +99,8 @@ wfm_kw_decode (const uint8_t *p, size_t avail, int be, wfm_keyword_t *out,
     return -1;
   int32_t k32;
   int16_t x16;
-  swab (&k32, p + 0, 4, be);
-  swab (&x16, p + 4, 2, be);
+  kw_swab (&k32, p + 0, 4, be);
+  kw_swab (&x16, p + 4, 2, be);
   size_t ltag = p[6];
   char   type = (char)p[7];
 
@@ -123,7 +125,7 @@ wfm_kw_decode (const uint8_t *p, size_t avail, int be, wfm_keyword_t *out,
     return -1;
   const uint8_t *src = p + 8;
   for (size_t i = 0; i < count; i++)
-    swab (out->value + i * esz, src + i * esz, esz, be);
+    kw_swab (out->value + i * esz, src + i * esz, esz, be);
   memcpy (out->tag, p + 8 + vbytes, ltag);
   out->tag[ltag] = '\0';
   out->type      = type;

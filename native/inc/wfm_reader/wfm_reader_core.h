@@ -81,9 +81,11 @@ extern "C"
    *                       (its header sibling is resolved). A SigMF
    *                       `.sigmf-data` file resolves its `.sigmf-meta`
    *                       sidecar the same way.
-   * @param hint_sample_type  sample type (0..4) for headerless raw/CSV; ignored
-   *                       once BLUE/SigMF metadata is parsed.
-   * @param hint_endian    byte order (0 le, 1 be) for headerless raw.
+   * @param sample_type    sample type (0..4) used as a HINT for headerless
+   *                       raw/CSV; ignored once BLUE/SigMF metadata is parsed,
+   *                       which carries its own.
+   * @param endian         byte order (0 le, 1 be), likewise a hint for
+   *                       headerless raw.
    * @return a reader, or NULL on open/parse failure.
    */
 wfm_reader_state_t *wfm_reader_create(const char *path, int sample_type, int endian);
@@ -92,9 +94,9 @@ wfm_reader_state_t *wfm_reader_create(const char *path, int sample_type, int end
   void wfm_reader_info (const wfm_reader_state_t *r, wfm_reader_info_t *info);
 
   /**
-   * @brief Read up to @p max complex samples into @p out (unit-scale
+   * @brief Read up to @p n complex samples into @p out (unit-scale
    * `float _Complex`), converting from the wire type. Returns the count read;
-   * 0 at end of file.
+   * 0 at end of file, and never more than the container's declared payload.
    */
 size_t wfm_reader_read(wfm_reader_state_t *state, size_t n, float complex *out);
 

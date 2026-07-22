@@ -11,9 +11,9 @@ class Reader:
     path : str
         file to read. For a DETACHED BLUE capture this is normally the HEADER file -- `<base>.tmp` or `<base>.prm` per BLUE 3.1.1.4 (this library's own writer emits `<base>.hdr`) -- whose HCB `detached` field points at the collocated `<base>.det` payload; the extension does not decide, `detached` does. Passing the `<base>.det` directly also works (its header sibling is resolved). A SigMF `.sigmf-data` file resolves its `.sigmf-meta` sidecar the same way.
     sample_type : Literal["cf32", "cf64", "ci32", "ci16", "ci8"], default "cf32"
-        sample_type constructor parameter.
+        sample type (0..4) used as a HINT for headerless raw/CSV; ignored once BLUE/SigMF metadata is parsed, which carries its own.
     endian : Literal["le", "be"], default "le"
-        endian constructor parameter.
+        byte order (0 le, 1 be), likewise a hint for headerless raw.
 
     """
     def __init__(self, path: str, sample_type: Literal["cf32", "cf64", "ci32", "ci16", "ci8"] = "cf32", endian: Literal["le", "be"] = "le") -> None: ...
@@ -29,7 +29,7 @@ class Reader:
         """
 
     def read(self, count: int = 1, out: NDArray[np.complex64] | None = None) -> NDArray[np.complex64]:
-        """Read up to max complex samples into out (unit-scale `float _Complex`), converting from the wire type. Returns the count read; 0 at end of file.
+        """Read up to n complex samples into out (unit-scale `float _Complex`), converting from the wire type. Returns the count read; 0 at end of file, and never more than the container's declared payload.
 
         Returns
         -------

@@ -50,6 +50,12 @@ static const char *const _enum_ftype[] = {
     NULL,
 };
 
+static const char *const _enum_sample_mode[] = {
+    "complex",
+    "scalar",
+    NULL,
+};
+
 typedef struct {
     PyObject_HEAD
     wfm_reader_t *h;
@@ -143,6 +149,14 @@ Reader_get_sample_type(ReaderObject *self, void *closure)
 }
 
 static PyObject *
+Reader_get_mode(ReaderObject *self, void *closure)
+{
+    (void)closure;
+    wfm_reader_info_t tmp = self->_g0;
+    return PyUnicode_FromString(_enum_sample_mode[tmp.mode]);
+}
+
+static PyObject *
 Reader_get_endian(ReaderObject *self, void *closure)
 {
     (void)closure;
@@ -177,6 +191,7 @@ Reader_get_num_samples(ReaderObject *self, void *closure)
 static PyGetSetDef Reader_getset[] = {
     {"file_type", (getter)Reader_get_file_type, NULL, NULL, NULL},
     {"sample_type", (getter)Reader_get_sample_type, NULL, NULL, NULL},
+    {"mode", (getter)Reader_get_mode, NULL, NULL, NULL},
     {"endian", (getter)Reader_get_endian, NULL, NULL, NULL},
     {"fs", (getter)Reader_get_fs, NULL, NULL, NULL},
     {"fc", (getter)Reader_get_fc, NULL, NULL, NULL},

@@ -3,7 +3,9 @@
  * @brief Input containers for generated IQ — the dual of wfm_writer.
  *
  * Reads back what wfm_writer wrote: raw interleaved I/Q, CSV, BLUE type-1000
- * (attached or detached), and SigMF. The container is **auto-detected** from
+ * (attached or detached, `format` mode `S` or `C`), and SigMF. A BLUE file in
+ * any other mode is rejected at open — see ::wfm_mode_t.
+ * The container is **auto-detected** from
  * the file (BLUE magic / `.sigmf-meta` sidecar / `.csv` extension), and
  * self-describing containers (BLUE, SigMF) recover the sample type, byte order,
  * sample rate and centre frequency from their metadata. Headerless containers
@@ -40,12 +42,23 @@ extern "C"
   /** Opaque reader handle. */
   typedef struct wfm_reader wfm_reader_t;
 
+  /** Components per sample — the BLUE `format` field's *mode* designator
+   *  (HCB byte 52). Only these two are supported; every other Midas mode
+   *  (V/Q/M/T/…, 3..10 components) is rejected at open rather than
+   *  misinterpreted as interleaved I/Q. Non-BLUE containers are complex. */
+  typedef enum
+  {
+    WFM_MODE_COMPLEX = 0, /**< 'C' — interleaved I/Q, two components. */
+    WFM_MODE_SCALAR = 1   /**< 'S' — real, one component (Q read as 0). */
+  } wfm_mode_t;
+
   /** Resolved metadata for an open capture. Fields the container does not
    *  carry are 0 (`fs`/`fc` for raw/CSV, `num_samples` for a stream). */
   typedef struct
   {
     int    file_type;   /**< detected wfm_filetype_t. */
     int    sample_type; /**< 0 cf32, 1 cf64, 2 ci32, 3 ci16, 4 ci8. */
+    int    mode;        /**< wfm_mode_t: 0 complex, 1 scalar (BLUE 'S'). */
     int    endian;      /**< 0 little, 1 big. */
     double fs;          /**< sample rate (Hz); 0 if unknown. */
     double fc;          /**< centre frequency (Hz); 0 if unknown. */

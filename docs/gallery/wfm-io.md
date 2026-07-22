@@ -19,6 +19,11 @@ on-disk size and the metadata the container recovered:
     bytes (and a tiny text-rounding error).
 - **BLUE (type-1000)** — a 512-byte header recording the sample format, byte
     order, and `fs` (as `xdelta = 1/fs`); the reader recovers them with no hints.
+    The `format` field is a `[mode][type]` pair: doppler writes `C` (complex,
+    interleaved I/Q) and reads back both `C` and `S` (scalar/real — `r.mode`
+    says which, and an `S` capture comes back with `imag == 0`). Every other
+    Midas mode (`V`/`Q`/`M`/`T`, 3 to 16 components per sample) is **refused at
+    open** rather than walked at the wrong stride and returned as garbage.
 - **SigMF** — a `.sigmf-data` + `.sigmf-meta` JSON pair; the most self-describing,
     recovering **both** `fs` and `fc` (and one annotation per segment).
 

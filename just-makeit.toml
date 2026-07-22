@@ -164,6 +164,12 @@ type = "int"
 enum = "stype"
 
 [[module.wfm_reader.getters.fields]]
+name = "mode"
+from = "mode"
+type = "int"
+enum = "sample_mode"
+
+[[module.wfm_reader.getters.fields]]
 name = "endian"
 from = "endian"
 type = "int"
@@ -2025,6 +2031,11 @@ values = ["cf32", "cf64", "ci32", "ci16", "ci8"]
 [[enum]]
 name = "endian"
 values = ["le", "be"]
+
+# BLUE `format` mode designator (HCB byte 52): components per sample.
+[[enum]]
+name = "sample_mode"
+values = ["complex", "scalar"]
 
 [[enum]]
 name = "interp_method"

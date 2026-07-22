@@ -22,6 +22,28 @@ static const double SCALE[5] = { 0, 0, 2147483647.0, 32767.0, 127.0 };
 static const char   FMTCH[5]
     = { 'F', 'D', 'L', 'I', 'B' }; /* BLUE format char */
 
+struct wfm_reader_state
+{
+  FILE          *fp;
+  int            file_type;   /* wfm_filetype_t */
+  int            sample_type; /* 0..4 */
+  int            mode;        /* wfm_mode_t: 0 complex, 1 scalar */
+  int            endian;      /* 0 le, 1 be */
+  double         fs, fc;      /* Hz; 0 if unknown */
+  size_t         num_samples; /* total complex samples; 0 if unknown */
+  uint8_t       *scratch;     /* read buffer for binary containers */
+  size_t         scratch_cap;
+  wfm_keyword_t *kw; /* decoded extended-header keywords (BLUE only) */
+  size_t         nkw;
+  /* BLUE declares its payload length, and anything after it (an extended
+     header, X-Midas slack) is NOT samples. `bounded` says the limit is known;
+     `remaining` counts down the samples still owed. Raw/CSV/SigMF run to EOF,
+     which for them is the same thing. */
+  int    bounded;
+  size_t remaining;
+  long   data_off; /* byte offset of the first sample, for reset() */
+};
+
 /* Copy sz bytes of *src into *dst, reversing on big-endian so the host (LE on
    both wheel targets) sees a native value. Inverse of wfm_writer's put(). */
 static void
@@ -546,6 +568,51 @@ wfm_reader_reset (wfm_reader_state_t *r)
     return;
   fseek (r->fp, r->data_off, SEEK_SET);
   r->remaining = r->num_samples; /* only consulted when `bounded` */
+}
+
+/* Property accessors for the generated binding (the "computed" property kind).
+   Keeping these instead of exposing the struct is what lets the layout above
+   stay private -- jm only needs a pointer to an incomplete type. */
+int
+wfm_reader_get_file_type (const wfm_reader_state_t *r)
+{
+  return r->file_type;
+}
+
+int
+wfm_reader_get_sample_type (const wfm_reader_state_t *r)
+{
+  return r->sample_type;
+}
+
+int
+wfm_reader_get_mode (const wfm_reader_state_t *r)
+{
+  return r->mode;
+}
+
+int
+wfm_reader_get_endian (const wfm_reader_state_t *r)
+{
+  return r->endian;
+}
+
+double
+wfm_reader_get_fs (const wfm_reader_state_t *r)
+{
+  return r->fs;
+}
+
+double
+wfm_reader_get_fc (const wfm_reader_state_t *r)
+{
+  return r->fc;
+}
+
+size_t
+wfm_reader_get_num_samples (const wfm_reader_state_t *r)
+{
+  return r->num_samples;
 }
 
 size_t

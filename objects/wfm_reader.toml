@@ -60,43 +60,38 @@ arg_type = "void"
 return_type = "float _Complex"
 variable_output = true
 
-# gh-519: enum properties resolve through the [[enum]] SSOT, so these keep
-# returning the strings the handle binding returned.
+# Computed properties (no `field`): jm declares wfm_reader_get_<prop>() for the
+# core to implement and calls it from the binding, so the state struct stays
+# private to wfm_reader_core.c. gh-519 makes the enum decode work either way, so
+# file_type/sample_type/mode/endian still return their strings.
 [[wfm_reader.properties]]
 name = "file_type"
 type = "int"
-field = "ft"
 enum = "ftype"
 
 [[wfm_reader.properties]]
 name = "sample_type"
 type = "int"
-field = "stype"
 enum = "stype"
 
 [[wfm_reader.properties]]
 name = "mode"
 type = "int"
-field = true
 enum = "sample_mode"
 
 [[wfm_reader.properties]]
 name = "endian"
 type = "int"
-field = true
 enum = "endian"
 
 [[wfm_reader.properties]]
 name = "fs"
 type = "double"
-field = true
 
 [[wfm_reader.properties]]
 name = "fc"
 type = "double"
-field = true
 
 [[wfm_reader.properties]]
 name = "num_samples"
 type = "size_t"
-field = "nsamples"

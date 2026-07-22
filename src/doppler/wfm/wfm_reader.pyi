@@ -28,7 +28,7 @@ class Reader:
         the header and do not change.
         """
 
-    def read(self, out: NDArray[np.complex64] | None = None) -> NDArray[np.complex64]:
+    def read(self, count: int = 1, out: NDArray[np.complex64] | None = None) -> NDArray[np.complex64]:
         """Read up to max complex samples into out (unit-scale `float _Complex`), converting from the wire type. Returns the count read; 0 at end of file.
 
         Returns

@@ -293,7 +293,7 @@ Reader_getprop_file_type (ReaderObject *self, void *Py_UNUSED (closure))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  long _v = (long)(self->handle->file_type);
+  long _v = (long)(wfm_reader_get_file_type (self->handle));
   if (_v < 0 || _v >= 4)
     {
       PyErr_Format (PyExc_ValueError,
@@ -312,7 +312,7 @@ Reader_getprop_sample_type (ReaderObject *self, void *Py_UNUSED (closure))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  long _v = (long)(self->handle->sample_type);
+  long _v = (long)(wfm_reader_get_sample_type (self->handle));
   if (_v < 0 || _v >= 5)
     {
       PyErr_Format (PyExc_ValueError,
@@ -331,7 +331,7 @@ Reader_getprop_mode (ReaderObject *self, void *Py_UNUSED (closure))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  long _v = (long)(self->handle->mode);
+  long _v = (long)(wfm_reader_get_mode (self->handle));
   if (_v < 0 || _v >= 2)
     {
       PyErr_Format (PyExc_ValueError,
@@ -350,7 +350,7 @@ Reader_getprop_endian (ReaderObject *self, void *Py_UNUSED (closure))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  long _v = (long)(self->handle->endian);
+  long _v = (long)(wfm_reader_get_endian (self->handle));
   if (_v < 0 || _v >= 2)
     {
       PyErr_Format (PyExc_ValueError,
@@ -369,7 +369,7 @@ Reader_getprop_fs (ReaderObject *self, void *Py_UNUSED (closure))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyFloat_FromDouble (self->handle->fs);
+  return PyFloat_FromDouble (wfm_reader_get_fs (self->handle));
 }
 static PyObject *
 Reader_getprop_fc (ReaderObject *self, void *Py_UNUSED (closure))
@@ -379,7 +379,7 @@ Reader_getprop_fc (ReaderObject *self, void *Py_UNUSED (closure))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyFloat_FromDouble (self->handle->fc);
+  return PyFloat_FromDouble (wfm_reader_get_fc (self->handle));
 }
 static PyObject *
 Reader_getprop_num_samples (ReaderObject *self, void *Py_UNUSED (closure))
@@ -390,7 +390,7 @@ Reader_getprop_num_samples (ReaderObject *self, void *Py_UNUSED (closure))
       return NULL;
     }
   return PyLong_FromUnsignedLongLong (
-      (unsigned long long)self->handle->num_samples);
+      (unsigned long long)wfm_reader_get_num_samples (self->handle));
 }
 
 /* `.keywords` — the BLUE extended header as a dict.

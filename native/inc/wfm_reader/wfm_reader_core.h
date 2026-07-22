@@ -31,8 +31,6 @@
 
 #include <complex.h>
 #include <stddef.h>
-#include <stdint.h>
-#include <stdio.h>
 
 #include "wfm/wfm_keywords.h" /* wfm_keyword_t */
 #include "wfm_writer/wfm_writer_core.h"   /* wfm_filetype_t */
@@ -43,32 +41,8 @@ extern "C"
 #endif
 
   /** Opaque reader handle. */
-  /** Reader state.
-   *
-   *  Public only because jm's generated property getters read these fields
-   *  directly; every member is private to the implementation and may change
-   *  without notice. Use the accessors. */
-  typedef struct
-  {
-    FILE          *fp;
-    int            file_type;   /* wfm_filetype_t */
-    int            sample_type; /* 0..4 */
-    int            mode;     /* wfm_mode_t: 0 complex, 1 scalar */
-    int            endian;   /* 0 le, 1 be */
-    double         fs, fc;   /* Hz; 0 if unknown */
-    size_t         num_samples; /* total complex samples; 0 if unknown */
-    uint8_t       *scratch;  /* read buffer for binary containers */
-    size_t         scratch_cap;
-    wfm_keyword_t *kw; /* decoded extended-header keywords (BLUE only) */
-    size_t         nkw;
-    /* BLUE declares its payload length, and anything after it (an extended
-       header, X-Midas slack) is NOT samples. `bounded` says the limit is known;
-       `remaining` counts down the samples still owed. Raw/CSV/SigMF run to EOF,
-       which for them is the same thing. */
-    int    bounded;
-    size_t remaining;
-    long   data_off; /* byte offset of the first sample, for reset() */
-  } wfm_reader_state_t;
+  /** Opaque reader state; the layout is private to wfm_reader_core.c. */
+  typedef struct wfm_reader_state wfm_reader_state_t;
 
 /* Transitional alias: the current kind="handle" binding derives its C
    type name from the module's `backing` key, so it still spells this
@@ -177,6 +151,13 @@ void wfm_reader_reset(wfm_reader_state_t *state);
   /** @brief Close the file, free the reader and its decoded keywords. */
 void wfm_reader_destroy(wfm_reader_state_t *state);
 
+int wfm_reader_get_file_type(const wfm_reader_state_t *state);
+int wfm_reader_get_sample_type(const wfm_reader_state_t *state);
+int wfm_reader_get_mode(const wfm_reader_state_t *state);
+int wfm_reader_get_endian(const wfm_reader_state_t *state);
+double wfm_reader_get_fs(const wfm_reader_state_t *state);
+double wfm_reader_get_fc(const wfm_reader_state_t *state);
+size_t wfm_reader_get_num_samples(const wfm_reader_state_t *state);
 #ifdef __cplusplus
 }
 #endif

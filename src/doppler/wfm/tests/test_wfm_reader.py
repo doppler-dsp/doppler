@@ -66,6 +66,14 @@ def test_read_reset_read_is_repeatable(capture):
     assert np.array_equal(second, x)
 
 
+def test_keywords_is_empty_without_an_extended_header(capture):
+    """No extended header yields {}, never None — so a caller can just
+    iterate it without a guard."""
+    p, _ = capture
+    with Reader(p) as r:
+        assert r.keywords == {}
+
+
 def test_close_is_idempotent_and_aliases_destroy(capture):
     """`close()` survived the migration; `destroy()` is jm's spelling."""
     p, _ = capture

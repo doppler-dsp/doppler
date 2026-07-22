@@ -393,6 +393,134 @@ Reader_getprop_num_samples (ReaderObject *self, void *Py_UNUSED (closure))
       (unsigned long long)self->handle->num_samples);
 }
 
+/* `.keywords` — the BLUE extended header as a dict.
+ *
+ * Hand-written: a dict-valued property has no declarative form in jm (the
+ * manifest can express scalars, enums and array views, not mappings), and this
+ * fragment is sacred, so jm only creates it when missing.
+ *
+ * One entry per decoded keyword, in file order. The value's Python type
+ * follows the keyword's own type code: `A` is a str (the wire form carries no
+ * NUL, so the length is explicit), the integer and float codes give an
+ * int/float when the keyword holds one element and a list when it holds
+ * several. Keywords whose type this library cannot decode were already skipped
+ * during the walk (BLUE §3.3.1), so they simply do not appear. A capture with
+ * no extended header yields an empty dict, never None — "no keywords" and "not
+ * BLUE" are the same thing to a caller iterating it.
+ *
+ * Duplicate tags are legal in the format; a dict cannot hold them, so the last
+ * one wins. Use wfm_reader_keyword(i) from C if that matters.
+ */
+static PyObject *
+Reader_getprop_keywords (ReaderObject *self, void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  PyObject *d = PyDict_New ();
+  if (!d)
+    return NULL;
+
+  size_t n = wfm_reader_num_keywords (self->handle);
+  for (size_t i = 0; i < n; i++)
+    {
+      const wfm_keyword_t *kw  = wfm_reader_keyword (self->handle, i);
+      PyObject            *val = NULL;
+
+      if (kw->type == 'A')
+        {
+          val = PyUnicode_FromStringAndSize ((const char *)kw->value,
+                                             (Py_ssize_t)kw->count);
+        }
+      else
+        {
+          /* Build the elements first; collapse to a scalar when there is
+             exactly one, which is what almost every real keyword holds. */
+          PyObject *list = PyList_New ((Py_ssize_t)kw->count);
+          if (!list)
+            {
+              Py_DECREF (d);
+              return NULL;
+            }
+          for (size_t k = 0; k < kw->count; k++)
+            {
+              const uint8_t *p    = kw->value + k * kw->elem_size;
+              PyObject      *item = NULL;
+              switch (kw->type)
+                {
+                case 'B':
+                  item = PyLong_FromLong ((long)*(const int8_t *)p);
+                  break;
+                case 'I':
+                  {
+                    int16_t v;
+                    memcpy (&v, p, sizeof v);
+                    item = PyLong_FromLong ((long)v);
+                    break;
+                  }
+                case 'L':
+                case 'T': /* deprecated spelling of a 32-bit integer */
+                  {
+                    int32_t v;
+                    memcpy (&v, p, sizeof v);
+                    item = PyLong_FromLong ((long)v);
+                    break;
+                  }
+                case 'X':
+                  {
+                    int64_t v;
+                    memcpy (&v, p, sizeof v);
+                    item = PyLong_FromLongLong ((long long)v);
+                    break;
+                  }
+                case 'F':
+                  {
+                    float v;
+                    memcpy (&v, p, sizeof v);
+                    item = PyFloat_FromDouble ((double)v);
+                    break;
+                  }
+                default: /* 'D' — the decoder admits no other type */
+                  {
+                    double v;
+                    memcpy (&v, p, sizeof v);
+                    item = PyFloat_FromDouble (v);
+                    break;
+                  }
+                }
+              if (!item)
+                {
+                  Py_DECREF (list);
+                  Py_DECREF (d);
+                  return NULL;
+                }
+              PyList_SET_ITEM (list, (Py_ssize_t)k, item); /* steals item */
+            }
+          if (kw->count == 1)
+            {
+              val = PyList_GET_ITEM (list, 0);
+              Py_INCREF (val);
+              Py_DECREF (list);
+            }
+          else
+            {
+              val = list;
+            }
+        }
+
+      if (!val || PyDict_SetItemString (d, kw->tag, val) != 0)
+        {
+          Py_XDECREF (val);
+          Py_DECREF (d);
+          return NULL;
+        }
+      Py_DECREF (val);
+    }
+  return d;
+}
+
 static PyGetSetDef Reader_getset[]
     = { { "file_type", (getter)Reader_getprop_file_type, NULL, "File type.\n",
           NULL },
@@ -404,6 +532,16 @@ static PyGetSetDef Reader_getset[]
         { "fc", (getter)Reader_getprop_fc, NULL, "Fc.\n", NULL },
         { "num_samples", (getter)Reader_getprop_num_samples, NULL,
           "Num samples.\n", NULL },
+        { "keywords", (getter)Reader_getprop_keywords, NULL,
+          "The BLUE extended header as a {tag: value} dict, in file order; "
+          "empty when\n"
+          "the capture carries no extended header. Values follow the keyword "
+          "type: a\n"
+          "str for A, an int/float for a single-element numeric keyword, a "
+          "list for a\n"
+          "multi-element one. For a detached capture these come from the "
+          "HEADER file.\n",
+          NULL },
         { NULL } };
 
 static PyObject *

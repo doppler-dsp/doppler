@@ -115,7 +115,9 @@ context_manager = true
 close_fn        = "wfm_reader_close"
 create_fn       = "wfm_reader_open"
 # wfm_reader.c parses SigMF sidecars via the vendored cJSON OBJECT lib; libm too.
-extra_link_libs = ["wfm_cjson", "m"]
+# wfm_keywords_core is the shared BLUE extended-header codec (object libraries
+# are not propagated transitively, so every final target names it).
+extra_link_libs = ["wfm_cjson", "wfm_keywords_core", "m"]
 
 [[module.wfm_reader.create_args]]
 name = "path"
@@ -378,7 +380,7 @@ context_manager = true
 close_fn        = "wfm_writer_close"
 close_returns   = "int"
 create_fn       = "wfm_writer_open_path"
-extra_link_libs = ["wfm_draw_core", "wfm_cjson", "m"]
+extra_link_libs = ["wfm_draw_core", "wfm_cjson", "wfm_keywords_core", "m"]
 
 [[module.wfm_writer.create_args]]
 name = "path"
@@ -721,7 +723,8 @@ sample_type  = true
 # wfm_dsp (DSSS/RRC taps), and the synth chain wfm_synth/lo/awgn/pn/fir. The
 # vendored cJSON OBJECT lib (wfm_cjson) + libm go in extra_link_libs. This mirrors
 # native/src/wfmcompose/CMakeLists.txt's test_wfm_compose link line.
-extra_link_libs = ["wfm_draw_core", "wfm_cjson", "m"]
+# wfm_keywords_core: the writer core's BLUE extended-header codec.
+extra_link_libs = ["wfm_draw_core", "wfm_cjson", "wfm_keywords_core", "m"]
 
 # The source type wraps wfm_source_t field-for-field (struct order); enum fields
 # cross as validated strings via the SSOT, `bits` as an owned bytes buffer.

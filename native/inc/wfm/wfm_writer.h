@@ -66,8 +66,44 @@ wfm_writer_t *wfm_writer_open(FILE *fp, wfm_filetype_t ft, int sample_type,
 size_t wfm_writer_write(wfm_writer_t *w, const float _Complex *iq, size_t n);
 
 /**
+ * @brief Attach a BLUE extended-header keyword (a tag/value pair).
+ *
+ * Keywords are buffered and written as one block by wfm_writer_close(), after
+ * the data — the layout BLUE §3.3 recommends for streaming, since the total
+ * data size is not known until the stream ends. `ext_start`/`ext_size` are
+ * patched into the HCB at the same time. Call as many times as you like,
+ * before or between writes; order is preserved, and duplicate tags are
+ * allowed (the format permits them).
+ *
+ * @param w     an open BLUE writer (any other container returns an error —
+ *              only BLUE has an extended header).
+ * @param tag   NUL-terminated tag, 1..255 characters. Upper-case is strongly
+ *              preferred: lower-case has limited support across the Midas
+ *              baselines.
+ * @param type  element type code — `B`/`I`/`L`/`X` (8/16/32/64-bit integer),
+ *              `F`/`D` (32/64-bit float), or `A` (ASCII string, variable
+ *              length in keyword context). `O`/`P`/`N` are not permitted in
+ *              keywords and are rejected.
+ * @param value @p count elements in host byte order; for `A`, @p count
+ *              characters (no NUL is written or required).
+ * @param count element count; must be non-zero.
+ * @return 0 on success, non-zero if the container is not BLUE, the arguments
+ *         are invalid, or the buffer could not grow.
+ *
+ * @code
+ * double fc = 1.2345e9;
+ * wfm_writer_add_keyword(w, "F_C", 'D', &fc, 1);
+ * wfm_writer_add_keyword(w, "COMMENT", 'A', "10 dB pad", 9);
+ * wfm_writer_close(w);   // keywords land after the data, HCB patched
+ * @endcode
+ */
+int wfm_writer_add_keyword(wfm_writer_t *w, const char *tag, char type,
+                          const void *value, size_t count);
+
+/**
  * @brief Flush, patch the BLUE data_size from the actual count (if seekable),
- *        and free the writer (does not close the FILE*).
+ *        write any attached extended-header keywords, and free the writer
+ *        (does not close the FILE*).
  * @return 0 on success, non-zero on a write/seek error.
  */
 int wfm_writer_close(wfm_writer_t *w);

@@ -13,6 +13,7 @@
 #include <string.h>
 
 #include "cJSON.h"
+#include "wfm/wfm_keywords.h"
 
 /* per sample_type (0 cf32, 1 cf64, 2 ci32, 3 ci16, 4 ci8) — mirror wfm_writer
  */
@@ -23,15 +24,23 @@ static const char   FMTCH[5]
 
 struct wfm_reader
 {
-  FILE    *fp;
-  int      ft;       /* wfm_filetype_t */
-  int      stype;    /* 0..4 */
-  int      mode;     /* wfm_mode_t: 0 complex, 1 scalar */
-  int      endian;   /* 0 le, 1 be */
-  double   fs, fc;   /* Hz; 0 if unknown */
-  size_t   nsamples; /* total complex samples; 0 if unknown */
-  uint8_t *scratch;  /* read buffer for binary containers */
-  size_t   scratch_cap;
+  FILE          *fp;
+  int            ft;       /* wfm_filetype_t */
+  int            stype;    /* 0..4 */
+  int            mode;     /* wfm_mode_t: 0 complex, 1 scalar */
+  int            endian;   /* 0 le, 1 be */
+  double         fs, fc;   /* Hz; 0 if unknown */
+  size_t         nsamples; /* total complex samples; 0 if unknown */
+  uint8_t       *scratch;  /* read buffer for binary containers */
+  size_t         scratch_cap;
+  wfm_keyword_t *kw; /* decoded extended-header keywords (BLUE only) */
+  size_t         nkw;
+  /* BLUE declares its payload length, and anything after it (an extended
+     header, X-Midas slack) is NOT samples. `bounded` says the limit is known;
+     `remaining` counts down the samples still owed. Raw/CSV/SigMF run to EOF,
+     which for them is the same thing. */
+  int    bounded;
+  size_t remaining;
 };
 
 /* Copy sz bytes of *src into *dst, reversing on big-endian so the host (LE on
@@ -109,6 +118,17 @@ comps (int mode)
   return (mode == WFM_MODE_SCALAR) ? 1u : 2u;
 }
 
+/* Everything wfm_reader needs out of a 512-byte BLUE type-1000 HCB. */
+typedef struct
+{
+  int    stype, mode, endian, detached;
+  double fs;
+  double data_start; /* bytes from the start of the DATA file */
+  size_t nsamples;
+  long   ext_off;  /* bytes from the start of the HEADER file; 0 = none */
+  size_t ext_size; /* extended-header length in bytes; 0 = none */
+} blue_hcb_t;
+
 /* Parse a 512-byte BLUE type-1000 HCB. Returns 0 on success, -1 if this is not
    a BLUE header — the "BLUE" magic at byte 0 is the gate, so a file that is
    not BLUE (a stray .hdr, a raw file that happens to be .det) is rejected,
@@ -120,9 +140,7 @@ comps (int mode)
    more components per sample) is REJECTED rather than assumed to be
    interleaved I/Q, which would silently return garbage at the wrong stride. */
 static int
-parse_blue_hcb (const uint8_t h[512], int *stype, int *mode, int *endian,
-                double *fs, double *data_start, size_t *nsamples,
-                int *detached)
+parse_blue_hcb (const uint8_t h[512], blue_hcb_t *o)
 {
   if (memcmp (h, "BLUE", 4) != 0) /* validate the magic before trusting it */
     return -1;
@@ -144,21 +162,77 @@ parse_blue_hcb (const uint8_t h[512], int *stype, int *mode, int *endian,
   if (st < 0)
     return -1;
   double  ds, dsz, xdelta;
-  int32_t det;
+  int32_t det, xstart, xsize;
   swab_copy (&det, h + 12, 4, be);
+  swab_copy (&xstart, h + 24, 4, be);
+  swab_copy (&xsize, h + 28, 4, be);
   swab_copy (&ds, h + 32, 8, be);
   swab_copy (&dsz, h + 40, 8, be);
   swab_copy (&xdelta, h + 264, 8, be);
-  *stype      = st;
-  *mode       = md;
-  *endian     = be;
-  *fs         = (xdelta != 0.0) ? 1.0 / xdelta : 0.0;
-  *data_start = ds;
+  o->stype      = st;
+  o->mode       = md;
+  o->endian     = be;
+  o->fs         = (xdelta != 0.0) ? 1.0 / xdelta : 0.0;
+  o->data_start = ds;
   /* data_size is BYTES; a scalar file packs one component per sample, so
      dividing by the complex size would under-count by 2x. */
-  *nsamples = (size_t)(dsz / (double)(comps (md) * ELEM[st]));
-  *detached = (int)det;
+  o->nsamples = (size_t)(dsz / (double)(comps (md) * ELEM[st]));
+  o->detached = (int)det;
+  /* ext_start counts 512-byte BLOCKS from the start of the file; ext_size is
+     in BYTES (§3.1.1.7/.8). Both live in the HEADER file, which for a detached
+     capture is not the file the samples come from. */
+  o->ext_off  = (xstart > 0) ? (long)xstart * 512L : 0L;
+  o->ext_size = (xsize > 0) ? (size_t)xsize : 0u;
   return 0;
+}
+
+/* Decode the extended header at [ext_off, ext_off + ext_size) of @p hf into
+   r->kw. Best-effort by design: a file whose keyword region is truncated or
+   malformed still yields its samples (and any keywords decoded before the bad
+   entry), because metadata must never cost you the capture. Unrecognised
+   keyword types are stepped over, per §3.3.1. */
+static void
+load_keywords (wfm_reader_t *r, FILE *hf, long ext_off, size_t ext_size)
+{
+  if (ext_off <= 0 || ext_size < 8)
+    return;
+  long save = ftell (hf);
+  if (fseek (hf, ext_off, SEEK_SET) != 0)
+    return;
+  uint8_t *blob = (uint8_t *)malloc (ext_size);
+  if (!blob)
+    return;
+  size_t got = fread (blob, 1, ext_size, hf);
+  if (save >= 0)
+    fseek (hf, save, SEEK_SET);
+
+  size_t off = 0, cap = 0;
+  while (off + 8 <= got)
+    {
+      wfm_keyword_t kw;
+      size_t        used = 0;
+      int rc = wfm_kw_decode (blob + off, got - off, r->endian, &kw, &used);
+      if (rc < 0 || used == 0)
+        break; /* malformed: keep what we have, stop walking */
+      off += used;
+      if (rc > 0)
+        continue; /* unsupported type: skipped, not fatal */
+      if (r->nkw == cap)
+        {
+          size_t         ncap = cap ? cap * 2 : 8;
+          wfm_keyword_t *p
+              = (wfm_keyword_t *)realloc (r->kw, ncap * sizeof *p);
+          if (!p)
+            {
+              free (kw.value);
+              break;
+            }
+          r->kw = p;
+          cap   = ncap;
+        }
+      r->kw[r->nkw++] = kw;
+    }
+  free (blob);
 }
 
 /* Map a SigMF datatype string ("cf32_le", "ci16_be", "ci8", …) to type/endian.
@@ -254,6 +328,20 @@ fill_nsamples (wfm_reader_t *r)
     }
 }
 
+/* Copy the parsed HCB fields the reader keeps. Split out so both BLUE entry
+   points (header-first and .det-first) agree on what the header decides. */
+static void
+apply_hcb (wfm_reader_t *r, const blue_hcb_t *h)
+{
+  r->stype     = h->stype;
+  r->mode      = h->mode;
+  r->endian    = h->endian;
+  r->fs        = h->fs;
+  r->nsamples  = h->nsamples;
+  r->bounded   = 1;
+  r->remaining = h->nsamples;
+}
+
 wfm_reader_t *
 wfm_reader_open (const char *path, int hint_stype, int hint_endian)
 {
@@ -296,16 +384,19 @@ wfm_reader_open (const char *path, int hint_stype, int hint_endian)
         }
       if (!hf)
         goto fail;
-      uint8_t h[512];
-      int     ok = (fread (h, 1, 512, hf) == 512);
+      uint8_t    h[512];
+      int        ok = (fread (h, 1, 512, hf) == 512);
+      blue_hcb_t hcb;
+      if (!ok || parse_blue_hcb (h, &hcb) != 0)
+        {
+          fclose (hf);
+          goto fail;
+        }
+      apply_hcb (r, &hcb);
+      /* the extended header lives in the HEADER file, which is not the file
+         the samples come from — decode it before letting go of hf. */
+      load_keywords (r, hf, hcb.ext_off, hcb.ext_size);
       fclose (hf);
-      double ds;
-      int    det = 0;
-      if (!ok
-          || parse_blue_hcb (h, &r->stype, &r->mode, &r->endian, &r->fs, &ds,
-                             &r->nsamples, &det)
-                 != 0)
-        goto fail;
       r->ft = WFM_FT_BLUE;
       r->fp = fopen (path, "rb"); /* .det is raw from byte 0 */
       if (!r->fp)
@@ -331,15 +422,15 @@ wfm_reader_open (const char *path, int hint_stype, int hint_endian)
   size_t  got = fread (h, 1, 512, r->fp);
   if (got >= 4 && memcmp (h, "BLUE", 4) == 0)
     {
-      double ds;
-      int    det = 0;
-      if (got != 512
-          || parse_blue_hcb (h, &r->stype, &r->mode, &r->endian, &r->fs, &ds,
-                             &r->nsamples, &det)
-                 != 0)
+      blue_hcb_t hcb;
+      if (got != 512 || parse_blue_hcb (h, &hcb) != 0)
         goto fail;
+      apply_hcb (r, &hcb);
       r->ft = WFM_FT_BLUE;
-      if (det != 0)
+      /* this file IS the header (attached or detached), so its extended
+         header is here regardless of where the samples end up. */
+      load_keywords (r, r->fp, hcb.ext_off, hcb.ext_size);
+      if (hcb.detached != 0)
         {
           /* Detached (spec 3.1.1.4): this file holds ONLY the header +
              extended keywords; the payload is a separate <base>.det. The
@@ -358,7 +449,7 @@ wfm_reader_open (const char *path, int hint_stype, int hint_endian)
             goto fail;
           return r; /* .det carries raw payload from byte 0 */
         }
-      fseek (r->fp, (long)ds, SEEK_SET);
+      fseek (r->fp, (long)hcb.data_start, SEEK_SET);
       return r;
     }
   rewind (r->fp);
@@ -410,6 +501,13 @@ wfm_reader_read (wfm_reader_t *r, float _Complex *out, size_t max)
   if (r->ft == WFM_FT_CSV)
     return read_csv (r, out, max);
 
+  if (r->bounded)
+    {
+      if (r->remaining == 0)
+        return 0; /* the payload is spent; whatever follows is not samples */
+      if (max > r->remaining)
+        max = r->remaining;
+    }
   size_t elem = ELEM[r->stype], nc = comps (r->mode);
   size_t need = max * nc * elem;
   if (r->scratch_cap < need)
@@ -433,7 +531,30 @@ wfm_reader_read (wfm_reader_t *r, float _Complex *out, size_t max)
       out[i] = re + im * (float _Complex)I;
       p += nc * elem;
     }
+  if (r->bounded)
+    r->remaining -= nsamp;
   return nsamp;
+}
+
+size_t
+wfm_reader_num_keywords (const wfm_reader_t *r)
+{
+  return r->nkw;
+}
+
+const wfm_keyword_t *
+wfm_reader_keyword (const wfm_reader_t *r, size_t i)
+{
+  return (i < r->nkw) ? &r->kw[i] : NULL;
+}
+
+const wfm_keyword_t *
+wfm_reader_find_keyword (const wfm_reader_t *r, const char *tag)
+{
+  for (size_t i = 0; i < r->nkw; i++)
+    if (strcmp (r->kw[i].tag, tag) == 0)
+      return &r->kw[i];
+  return NULL;
 }
 
 void
@@ -443,6 +564,9 @@ wfm_reader_close (wfm_reader_t *r)
     return;
   if (r->fp)
     fclose (r->fp);
+  for (size_t i = 0; i < r->nkw; i++)
+    free (r->kw[i].value);
+  free (r->kw);
   free (r->scratch);
   free (r);
 }

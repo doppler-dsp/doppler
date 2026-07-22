@@ -32,7 +32,8 @@
 #include <complex.h>
 #include <stddef.h>
 
-#include "wfm/wfm_writer.h" /* wfm_filetype_t */
+#include "wfm/wfm_keywords.h" /* wfm_keyword_t */
+#include "wfm/wfm_writer.h"   /* wfm_filetype_t */
 
 #ifdef __cplusplus
 extern "C"
@@ -96,7 +97,35 @@ extern "C"
    */
   size_t wfm_reader_read (wfm_reader_t *r, float _Complex *out, size_t max);
 
-  /** @brief Close the file and free the reader. */
+  /**
+   * @brief Number of extended-header keywords recovered from the capture.
+   *
+   * BLUE only, and 0 unless the file carries an extended header. Keywords of
+   * a type this library cannot decode are skipped during the walk (BLUE
+   * §3.3.1) and are not counted; a truncated or malformed keyword region
+   * yields whatever decoded cleanly before it, since metadata must never cost
+   * you the samples. For a detached capture the keywords come from the HEADER
+   * file, not the `.det`.
+   */
+  size_t wfm_reader_num_keywords (const wfm_reader_t *r);
+
+  /**
+   * @brief The @p i'th keyword in file order, or NULL if @p i is out of range.
+   *
+   * The returned pointer (and its `value` buffer) is owned by the reader and
+   * is freed by wfm_reader_close().
+   */
+  const wfm_keyword_t *wfm_reader_keyword (const wfm_reader_t *r, size_t i);
+
+  /**
+   * @brief The first keyword whose tag equals @p tag, or NULL if absent.
+   *
+   * Tags are not required to be unique; this returns the earliest match.
+   */
+  const wfm_keyword_t *wfm_reader_find_keyword (const wfm_reader_t *r,
+                                                const char        *tag);
+
+  /** @brief Close the file, free the reader and its decoded keywords. */
   void wfm_reader_close (wfm_reader_t *r);
 
 #ifdef __cplusplus

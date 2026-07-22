@@ -25,8 +25,8 @@
 #include "timing/timing_core.h"
 #include "wfm/wfm_compose.h"
 #include "wfm/wfm_sink.h"
-#include "wfm/wfm_writer.h"
 #include "wfm/wfmgen.h"
+#include "wfm_writer/wfm_writer_core.h"
 
 #define BLK 4096
 
@@ -1070,9 +1070,9 @@ doppler_wfmgen (int   argc, /* NOLINT(readability-function-size) */
         }
       else
         {
-          wfm_writer_t *w     = wfm_writer_open (df, WFM_FT_RAW, sample_type,
-                                                 endian, fs, fc, 0);
-          size_t        total = 0;
+          wfm_writer_state_t *w = wfm_writer_open (df, WFM_FT_RAW, sample_type,
+                                                   endian, fs, fc, 0);
+          size_t              total = 0;
           if (w)
             {
               wfm_writer_set_gain (w, gain);
@@ -1169,8 +1169,8 @@ doppler_wfmgen (int   argc, /* NOLINT(readability-function-size) */
           wfm_compose_destroy (comp);
           return 1;
         }
-      int           wft = sigmf ? WFM_FT_RAW : file_type;
-      wfm_writer_t *w
+      int                 wft = sigmf ? WFM_FT_RAW : file_type;
+      wfm_writer_state_t *w
           = wfm_writer_open (fp, wft, sample_type, endian, fs, fc, 0);
       if (!w)
         {

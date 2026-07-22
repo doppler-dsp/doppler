@@ -3,8 +3,8 @@
  * container, plus container auto-detection and the BLUE-magic gate.
  */
 #include "wfm/wfm_keywords.h"
-#include "wfm/wfm_reader.h"
-#include "wfm/wfm_writer.h"
+#include "wfm_reader/wfm_reader_core.h"
+#include "wfm_writer/wfm_writer_core.h"
 
 #include <complex.h>
 #include <math.h>
@@ -42,7 +42,7 @@ roundtrip (const char *path, int ft, int stype, double fs, double tol)
 
   FILE *fp = fopen (path, "wb");
   CHECK (fp, "open for write");
-  wfm_writer_t *w = wfm_writer_open (fp, ft, stype, 0, fs, 0.0, N);
+  wfm_writer_state_t *w = wfm_writer_open (fp, ft, stype, 0, fs, 0.0, N);
   CHECK (w, "writer open");
   CHECK (wfm_writer_write (w, x, N) == N, "writer wrote N");
   wfm_writer_close (w);
@@ -63,7 +63,7 @@ roundtrip (const char *path, int ft, int stype, double fs, double tol)
       free (meta);
     }
 
-  wfm_reader_t *r = wfm_reader_open (path, stype, 0);
+  wfm_reader_state_t *r = wfm_reader_create (path, stype, 0);
   CHECK (r, "reader open");
   wfm_reader_info_t info;
   wfm_reader_info (r, &info);
@@ -75,7 +75,7 @@ roundtrip (const char *path, int ft, int stype, double fs, double tol)
   size_t total = 0, n;
   while ((n = wfm_reader_read (r, y + total, N - total)) > 0)
     total += n;
-  wfm_reader_close (r);
+  wfm_reader_destroy (r);
   CHECK (total == N, "read back N samples");
 
   double maxerr = 0.0;
@@ -100,16 +100,16 @@ test_blue_gate (void)
   make_signal (x, 8);
   FILE *fp = fopen (raw, "wb");
   CHECK (fp, "open raw");
-  wfm_writer_t *w = wfm_writer_open (fp, WFM_FT_RAW, 0, 0, 1e6, 0.0, 8);
+  wfm_writer_state_t *w = wfm_writer_open (fp, WFM_FT_RAW, 0, 0, 1e6, 0.0, 8);
   wfm_writer_write (w, x, 8);
   wfm_writer_close (w);
   fclose (fp);
-  wfm_reader_t *r = wfm_reader_open (raw, 0, 0);
+  wfm_reader_state_t *r = wfm_reader_create (raw, 0, 0);
   CHECK (r, "raw opens");
   wfm_reader_info_t info;
   wfm_reader_info (r, &info);
   CHECK (info.file_type == WFM_FT_RAW, "raw not mis-detected as BLUE");
-  wfm_reader_close (r);
+  wfm_reader_destroy (r);
 
   /* a .det whose .hdr lacks the BLUE magic must be rejected. */
   FILE *hf = fopen ("dp_reader_bad.hdr", "wb");
@@ -120,7 +120,7 @@ test_blue_gate (void)
   FILE *df = fopen ("dp_reader_bad.det", "wb");
   fwrite (x, sizeof x, 1, df);
   fclose (df);
-  CHECK (wfm_reader_open ("dp_reader_bad.det", 0, 0) == NULL,
+  CHECK (wfm_reader_create ("dp_reader_bad.det", 0, 0) == NULL,
          "detached without BLUE magic is rejected");
   return 0;
 }
@@ -157,14 +157,14 @@ test_detached_header_entry (void)
              "write detached HCB");
       fclose (hf);
 
-      wfm_reader_t *r = wfm_reader_open (HDR[i], 0, 0);
+      wfm_reader_state_t *r = wfm_reader_create (HDR[i], 0, 0);
       CHECK (r != NULL, "open detached capture by its header");
       wfm_reader_info_t info;
       wfm_reader_info (r, &info);
       CHECK (info.file_type == WFM_FT_BLUE, "detached header detects BLUE");
       CHECK (info.num_samples == N, "detached num_samples from data_size");
       size_t got = wfm_reader_read (r, y, N);
-      wfm_reader_close (r);
+      wfm_reader_destroy (r);
       /* the whole payload -- NOT the 512-byte header as 64 samples */
       CHECK (got == N, "detached header yields the full payload");
       for (size_t k = 0; k < N; k++)
@@ -220,14 +220,14 @@ test_blue_format_mode (void)
   /* scalar: one component per sample, Q == 0 */
   if (write_blue_mode ("dp_mode_s.blue", 'S', 1, x, N))
     return 1;
-  wfm_reader_t *r = wfm_reader_open ("dp_mode_s.blue", 0, 0);
+  wfm_reader_state_t *r = wfm_reader_create ("dp_mode_s.blue", 0, 0);
   CHECK (r != NULL, "scalar BLUE opens");
   wfm_reader_info_t info;
   wfm_reader_info (r, &info);
   CHECK (info.mode == WFM_MODE_SCALAR, "mode is scalar");
   CHECK (info.num_samples == N, "scalar num_samples is not halved");
   size_t got = wfm_reader_read (r, y, N);
-  wfm_reader_close (r);
+  wfm_reader_destroy (r);
   CHECK (got == N, "scalar yields every sample, not half");
   for (size_t k = 0; k < N; k++)
     {
@@ -238,13 +238,13 @@ test_blue_format_mode (void)
   /* complex: unchanged, and reports its mode */
   if (write_blue_mode ("dp_mode_c.blue", 'C', 2, x, N))
     return 1;
-  r = wfm_reader_open ("dp_mode_c.blue", 0, 0);
+  r = wfm_reader_create ("dp_mode_c.blue", 0, 0);
   CHECK (r != NULL, "complex BLUE opens");
   wfm_reader_info (r, &info);
   CHECK (info.mode == WFM_MODE_COMPLEX, "mode is complex");
   CHECK (info.num_samples == N, "complex num_samples");
   got = wfm_reader_read (r, y, N);
-  wfm_reader_close (r);
+  wfm_reader_destroy (r);
   CHECK (got == N, "complex yields every sample");
   for (size_t k = 0; k < N; k++)
     CHECK (cabsf (y[k] - x[k]) < 1e-6f, "complex round-trips");
@@ -255,7 +255,7 @@ test_blue_format_mode (void)
     {
       if (write_blue_mode ("dp_mode_bad.blue", BAD[i], 2, x, 8))
         return 1;
-      CHECK (wfm_reader_open ("dp_mode_bad.blue", 0, 0) == NULL,
+      CHECK (wfm_reader_create ("dp_mode_bad.blue", 0, 0) == NULL,
              "unsupported format mode is rejected");
     }
   return 0;
@@ -273,7 +273,7 @@ static const int8_t      KW_B    = -7;
 static const int64_t     KW_X    = 1234567890123LL;
 
 static int
-attach_keywords (wfm_writer_t *w)
+attach_keywords (wfm_writer_state_t *w)
 {
   CHECK (wfm_writer_add_keyword (w, "COMMENT", 'A', KW_STR, strlen (KW_STR))
              == 0,
@@ -289,7 +289,7 @@ attach_keywords (wfm_writer_t *w)
 
 /* Check the keywords attach_keywords() wrote all came back intact. */
 static int
-check_keywords (wfm_reader_t *r)
+check_keywords (wfm_reader_state_t *r)
 {
   CHECK (wfm_reader_num_keywords (r) == 7, "all seven keywords recovered");
   const wfm_keyword_t *k = wfm_reader_find_keyword (r, "COMMENT");
@@ -347,7 +347,7 @@ test_keyword_roundtrip (void)
       const char *path = be ? "dp_kw_be.blue" : "dp_kw_le.blue";
       FILE       *fp   = fopen (path, "wb");
       CHECK (fp != NULL, "open blue");
-      wfm_writer_t *w
+      wfm_writer_state_t *w
           = wfm_writer_open (fp, WFM_FT_BLUE, 0, be, 2.4e6, 0.0, N);
       CHECK (w != NULL, "writer open");
       if (attach_keywords (w))
@@ -356,7 +356,7 @@ test_keyword_roundtrip (void)
       CHECK (wfm_writer_close (w) == 0, "close writes the extended header");
       fclose (fp);
 
-      wfm_reader_t *r = wfm_reader_open (path, 0, 0);
+      wfm_reader_state_t *r = wfm_reader_create (path, 0, 0);
       CHECK (r != NULL, "reopen");
       if (check_keywords (r))
         return 1;
@@ -371,7 +371,7 @@ test_keyword_roundtrip (void)
       CHECK (wfm_reader_read (r, y, N) == 0, "and stays at end of data");
       for (size_t i = 0; i < N; i++)
         CHECK (cabsf (y[i] - x[i]) < 1e-6f, "samples unaffected");
-      wfm_reader_close (r);
+      wfm_reader_destroy (r);
     }
 
   /* detached: keywords are in the .hdr, samples in the .det */
@@ -414,7 +414,7 @@ test_keyword_roundtrip (void)
   static const char *const ENTRY[] = { "dp_kw_det.hdr", "dp_kw_det.det" };
   for (size_t i = 0; i < 2; i++)
     {
-      wfm_reader_t *r = wfm_reader_open (ENTRY[i], 0, 0);
+      wfm_reader_state_t *r = wfm_reader_create (ENTRY[i], 0, 0);
       CHECK (r != NULL, "open detached capture");
       CHECK (wfm_reader_num_keywords (r) == 2,
              "detached keywords come from the HEADER file");
@@ -424,7 +424,7 @@ test_keyword_roundtrip (void)
       memcpy (&d, k->value, 8);
       CHECK (d == KW_D, "detached keyword value");
       CHECK (wfm_reader_read (r, y, N) == N, "detached samples still read");
-      wfm_reader_close (r);
+      wfm_reader_destroy (r);
     }
   return 0;
 }
@@ -440,15 +440,16 @@ test_keyword_absent_and_corrupt (void)
 
   FILE *fp = fopen ("dp_kw_none.blue", "wb");
   CHECK (fp != NULL, "open");
-  wfm_writer_t *w = wfm_writer_open (fp, WFM_FT_BLUE, 0, 0, 2.4e6, 0.0, N);
+  wfm_writer_state_t *w
+      = wfm_writer_open (fp, WFM_FT_BLUE, 0, 0, 2.4e6, 0.0, N);
   wfm_writer_write (w, x, N);
   wfm_writer_close (w);
   fclose (fp);
-  wfm_reader_t *r = wfm_reader_open ("dp_kw_none.blue", 0, 0);
+  wfm_reader_state_t *r = wfm_reader_create ("dp_kw_none.blue", 0, 0);
   CHECK (r != NULL, "opens");
   CHECK (wfm_reader_num_keywords (r) == 0, "no extended header, no keywords");
   CHECK (wfm_reader_keyword (r, 0) == NULL, "index 0 is NULL");
-  wfm_reader_close (r);
+  wfm_reader_destroy (r);
 
   /* claim an extended header that runs off the end of the file */
   fp = fopen ("dp_kw_bad.blue", "wb");
@@ -463,11 +464,64 @@ test_keyword_absent_and_corrupt (void)
   fseek (fp, 28, SEEK_SET);
   fwrite (&huge, 4, 1, fp);
   fclose (fp);
-  r = fopen ("dp_kw_bad.blue", "rb") ? wfm_reader_open ("dp_kw_bad.blue", 0, 0)
-                                     : NULL;
+  r = fopen ("dp_kw_bad.blue", "rb")
+          ? wfm_reader_create ("dp_kw_bad.blue", 0, 0)
+          : NULL;
   CHECK (r != NULL, "a bad keyword region does not fail the open");
   CHECK (wfm_reader_read (r, y, N) == N, "samples survive a bad ext header");
-  wfm_reader_close (r);
+  wfm_reader_destroy (r);
+  return 0;
+}
+
+/* reset() rewinds to the first SAMPLE, not to byte 0 of the file. Getting that
+   wrong on an attached BLUE capture would replay the 512-byte HCB as IQ -- the
+   same failure the detached-header bug produced -- so this checks the second
+   pass is bit-identical to the first across every container, including the
+   detached split (where the payload genuinely does start at byte 0 of another
+   file) and a capture carrying an extended header (where the data does not run
+   to EOF). */
+static int
+test_reset_rewinds_to_the_first_sample (void)
+{
+  float _Complex x[N], a[N], b[N];
+  make_signal (x, N);
+
+  static const char *const PATHS[]
+      = { "dp_rst.blue", "dp_rst.cf32", "dp_rst.csv" };
+  static const int FT[] = { WFM_FT_BLUE, WFM_FT_RAW, WFM_FT_CSV };
+  for (size_t i = 0; i < sizeof FT / sizeof *FT; i++)
+    {
+      FILE *fp = fopen (PATHS[i], "wb");
+      CHECK (fp != NULL, "open");
+      wfm_writer_state_t *w = wfm_writer_open (fp, FT[i], 0, 0, 2.4e6, 0.0, N);
+      CHECK (w != NULL, "writer");
+      if (FT[i] == WFM_FT_BLUE && attach_keywords (w))
+        return 1;
+      CHECK (wfm_writer_write (w, x, N) == N, "write");
+      CHECK (wfm_writer_close (w) == 0, "close");
+      fclose (fp);
+
+      wfm_reader_state_t *r = wfm_reader_create (PATHS[i], 0, 0);
+      CHECK (r != NULL, "open for reset");
+      CHECK (wfm_reader_read (r, a, N) == N, "first pass");
+      wfm_reader_reset (r);
+      CHECK (wfm_reader_read (r, b, N) == N, "second pass reads N again");
+      CHECK (wfm_reader_read (r, b + N - 1, 1) == 0, "and stops at the end");
+      wfm_reader_destroy (r);
+      for (size_t k = 0; k + 1 < N; k++)
+        CHECK (a[k] == b[k], "reset replays the identical samples");
+    }
+
+  /* detached: payload is byte 0 of the .det, header is elsewhere */
+  wfm_reader_state_t *r = wfm_reader_create ("dp_kw_det.hdr", 0, 0);
+  CHECK (r != NULL, "open detached");
+  CHECK (wfm_reader_read (r, a, N) == N, "detached first pass");
+  wfm_reader_reset (r);
+  CHECK (wfm_reader_read (r, b, N) == N, "detached second pass");
+  CHECK (wfm_reader_num_keywords (r) == 2, "keywords survive a reset");
+  wfm_reader_destroy (r);
+  for (size_t k = 0; k < N; k++)
+    CHECK (a[k] == b[k], "detached reset replays identically");
   return 0;
 }
 
@@ -497,6 +551,8 @@ main (void)
   if (test_keyword_roundtrip ())
     return 1;
   if (test_keyword_absent_and_corrupt ())
+    return 1;
+  if (test_reset_rewinds_to_the_first_sample ())
     return 1;
   printf ("test_wfm_reader: all passed\n");
   return 0;

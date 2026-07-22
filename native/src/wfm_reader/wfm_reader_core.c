@@ -5,7 +5,7 @@
  * yields unit-scale float complex samples. Container parsing and the wire→unit
  * conversion live here, in C; the Python `Reader` is a thin binding.
  */
-#include "wfm/wfm_reader.h"
+#include "wfm_reader/wfm_reader_core.h"
 
 #include <stdint.h>
 #include <stdio.h>
@@ -22,7 +22,7 @@ static const double SCALE[5] = { 0, 0, 2147483647.0, 32767.0, 127.0 };
 static const char   FMTCH[5]
     = { 'F', 'D', 'L', 'I', 'B' }; /* BLUE format char */
 
-struct wfm_reader
+struct wfm_reader_state
 {
   FILE          *fp;
   int            ft;       /* wfm_filetype_t */
@@ -41,6 +41,7 @@ struct wfm_reader
      which for them is the same thing. */
   int    bounded;
   size_t remaining;
+  long   data_off; /* byte offset of the first sample, for reset() */
 };
 
 /* Copy sz bytes of *src into *dst, reversing on big-endian so the host (LE on
@@ -192,7 +193,7 @@ parse_blue_hcb (const uint8_t h[512], blue_hcb_t *o)
    entry), because metadata must never cost you the capture. Unrecognised
    keyword types are stepped over, per §3.3.1. */
 static void
-load_keywords (wfm_reader_t *r, FILE *hf, long ext_off, size_t ext_size)
+load_keywords (wfm_reader_state_t *r, FILE *hf, long ext_off, size_t ext_size)
 {
   if (ext_off <= 0 || ext_size < 8)
     return;
@@ -316,7 +317,7 @@ parse_sigmf_meta (const char *meta_path, int *stype, int *endian, double *fs,
 /* Fill nsamples from the bytes remaining between the current offset and EOF.
  */
 static void
-fill_nsamples (wfm_reader_t *r)
+fill_nsamples (wfm_reader_state_t *r)
 {
   long cur = ftell (r->fp);
   if (cur >= 0 && fseek (r->fp, 0, SEEK_END) == 0)
@@ -331,7 +332,7 @@ fill_nsamples (wfm_reader_t *r)
 /* Copy the parsed HCB fields the reader keeps. Split out so both BLUE entry
    points (header-first and .det-first) agree on what the header decides. */
 static void
-apply_hcb (wfm_reader_t *r, const blue_hcb_t *h)
+apply_hcb (wfm_reader_state_t *r, const blue_hcb_t *h)
 {
   r->stype     = h->stype;
   r->mode      = h->mode;
@@ -342,12 +343,23 @@ apply_hcb (wfm_reader_t *r, const blue_hcb_t *h)
   r->remaining = h->nsamples;
 }
 
-wfm_reader_t *
-wfm_reader_open (const char *path, int hint_stype, int hint_endian)
+/* Record where the samples begin, so reset() can rewind to exactly here. The
+   offset differs per container (512 into an attached BLUE, 0 for a .det, raw
+   or SigMF payload), so it is captured once each path is positioned. */
+static wfm_reader_state_t *
+ready (wfm_reader_state_t *r)
+{
+  long p      = ftell (r->fp);
+  r->data_off = (p > 0) ? p : 0;
+  return r;
+}
+
+wfm_reader_state_t *
+wfm_reader_create (const char *path, int hint_stype, int hint_endian)
 {
   if (!path || hint_stype < 0 || hint_stype > 4)
     return NULL;
-  wfm_reader_t *r = (wfm_reader_t *)calloc (1, sizeof *r);
+  wfm_reader_state_t *r = (wfm_reader_state_t *)calloc (1, sizeof *r);
   if (!r)
     return NULL;
   r->stype    = hint_stype;
@@ -366,7 +378,7 @@ wfm_reader_open (const char *path, int hint_stype, int hint_endian)
       if (!r->fp)
         goto fail;
       fill_nsamples (r);
-      return r;
+      return ready (r);
     }
 
   /* BLUE detached, entered from the DATA side: <base>.det + its header
@@ -401,7 +413,7 @@ wfm_reader_open (const char *path, int hint_stype, int hint_endian)
       r->fp = fopen (path, "rb"); /* .det is raw from byte 0 */
       if (!r->fp)
         goto fail;
-      return r;
+      return ready (r);
     }
 
   /* CSV by extension. */
@@ -411,7 +423,7 @@ wfm_reader_open (const char *path, int hint_stype, int hint_endian)
       r->fp = fopen (path, "r");
       if (!r->fp)
         goto fail;
-      return r;
+      return ready (r);
     }
 
   /* Otherwise peek for the BLUE magic; fall back to raw. */
@@ -447,15 +459,15 @@ wfm_reader_open (const char *path, int hint_stype, int hint_endian)
           r->fp = fopen (side, "rb");
           if (!r->fp)
             goto fail;
-          return r; /* .det carries raw payload from byte 0 */
+          return ready (r); /* .det carries raw payload from byte 0 */
         }
       fseek (r->fp, (long)hcb.data_start, SEEK_SET);
-      return r;
+      return ready (r);
     }
   rewind (r->fp);
   r->ft = WFM_FT_RAW;
   fill_nsamples (r);
-  return r;
+  return ready (r);
 
 fail:
   if (r->fp)
@@ -465,7 +477,7 @@ fail:
 }
 
 void
-wfm_reader_info (const wfm_reader_t *r, wfm_reader_info_t *info)
+wfm_reader_info (const wfm_reader_state_t *r, wfm_reader_info_t *info)
 {
   info->file_type   = r->ft;
   info->sample_type = r->stype;
@@ -479,7 +491,7 @@ wfm_reader_info (const wfm_reader_t *r, wfm_reader_info_t *info)
 /* CSV: one "I,Q" per line; integer wire types are divided back by full-scale.
  */
 static size_t
-read_csv (wfm_reader_t *r, float _Complex *out, size_t max)
+read_csv (wfm_reader_state_t *r, float _Complex *out, size_t max)
 {
   double scale = (r->stype >= 2) ? SCALE[r->stype] : 1.0;
   size_t i;
@@ -494,7 +506,7 @@ read_csv (wfm_reader_t *r, float _Complex *out, size_t max)
 }
 
 size_t
-wfm_reader_read (wfm_reader_t *r, float _Complex *out, size_t max)
+wfm_reader_read (wfm_reader_state_t *r, float _Complex *out, size_t max)
 {
   if (max == 0)
     return 0;
@@ -536,20 +548,29 @@ wfm_reader_read (wfm_reader_t *r, float _Complex *out, size_t max)
   return nsamp;
 }
 
+void
+wfm_reader_reset (wfm_reader_state_t *r)
+{
+  if (!r || !r->fp)
+    return;
+  fseek (r->fp, r->data_off, SEEK_SET);
+  r->remaining = r->nsamples; /* only consulted when `bounded` */
+}
+
 size_t
-wfm_reader_num_keywords (const wfm_reader_t *r)
+wfm_reader_num_keywords (const wfm_reader_state_t *r)
 {
   return r->nkw;
 }
 
 const wfm_keyword_t *
-wfm_reader_keyword (const wfm_reader_t *r, size_t i)
+wfm_reader_keyword (const wfm_reader_state_t *r, size_t i)
 {
   return (i < r->nkw) ? &r->kw[i] : NULL;
 }
 
 const wfm_keyword_t *
-wfm_reader_find_keyword (const wfm_reader_t *r, const char *tag)
+wfm_reader_find_keyword (const wfm_reader_state_t *r, const char *tag)
 {
   for (size_t i = 0; i < r->nkw; i++)
     if (strcmp (r->kw[i].tag, tag) == 0)
@@ -558,7 +579,7 @@ wfm_reader_find_keyword (const wfm_reader_t *r, const char *tag)
 }
 
 void
-wfm_reader_close (wfm_reader_t *r)
+wfm_reader_destroy (wfm_reader_state_t *r)
 {
   if (!r)
     return;

@@ -1,5 +1,5 @@
 /**
- * @file wfm_reader.h
+ * @file wfm_reader_core.h
  * @brief Input containers for generated IQ — the dual of wfm_writer.
  *
  * Reads back what wfm_writer wrote: raw interleaved I/Q, CSV, BLUE type-1000
@@ -16,14 +16,14 @@
  * inverse of the writer's quantiser).
  *
  * @code
- * wfm_reader_t *r = wfm_reader_open("cap.sigmf-data", 0, 0);
+ * wfm_reader_state_t *r = wfm_reader_create("cap.sigmf-data", 0, 0);
  * wfm_reader_info_t info;
  * wfm_reader_info(r, &info);                 // info.fs, info.sample_type, ...
  * float _Complex buf[4096];
  * size_t n;
  * while ((n = wfm_reader_read(r, buf, 4096)) > 0)
  *   consume(buf, n);
- * wfm_reader_close(r);
+ * wfm_reader_destroy(r);
  * @endcode
  */
 #ifndef DP_WFM_READER_H
@@ -33,7 +33,7 @@
 #include <stddef.h>
 
 #include "wfm/wfm_keywords.h" /* wfm_keyword_t */
-#include "wfm/wfm_writer.h"   /* wfm_filetype_t */
+#include "wfm_writer/wfm_writer_core.h"   /* wfm_filetype_t */
 
 #ifdef __cplusplus
 extern "C"
@@ -41,7 +41,12 @@ extern "C"
 #endif
 
   /** Opaque reader handle. */
-  typedef struct wfm_reader wfm_reader_t;
+  typedef struct wfm_reader_state wfm_reader_state_t;
+
+/* Transitional alias: the current kind="handle" binding derives its C
+   type name from the module's `backing` key, so it still spells this
+   `wfm_reader_t`. Retired when the object migration flips the module kind. */
+typedef wfm_reader_state_t wfm_reader_t;
 
   /** Components per sample — the BLUE `format` field's *mode* designator
    *  (HCB byte 52). Only these two are supported; every other Midas mode
@@ -84,18 +89,18 @@ extern "C"
    * @param hint_endian    byte order (0 le, 1 be) for headerless raw.
    * @return a reader, or NULL on open/parse failure.
    */
-  wfm_reader_t *wfm_reader_open (const char *path, int hint_sample_type,
+  wfm_reader_state_t *wfm_reader_create (const char *path, int hint_sample_type,
                                  int hint_endian);
 
   /** @brief Copy the resolved capture metadata into @p info. */
-  void wfm_reader_info (const wfm_reader_t *r, wfm_reader_info_t *info);
+  void wfm_reader_info (const wfm_reader_state_t *r, wfm_reader_info_t *info);
 
   /**
    * @brief Read up to @p max complex samples into @p out (unit-scale
    * `float _Complex`), converting from the wire type. Returns the count read;
    * 0 at end of file.
    */
-  size_t wfm_reader_read (wfm_reader_t *r, float _Complex *out, size_t max);
+  size_t wfm_reader_read (wfm_reader_state_t *r, float _Complex *out, size_t max);
 
   /**
    * @brief Number of extended-header keywords recovered from the capture.
@@ -107,26 +112,37 @@ extern "C"
    * you the samples. For a detached capture the keywords come from the HEADER
    * file, not the `.det`.
    */
-  size_t wfm_reader_num_keywords (const wfm_reader_t *r);
+  size_t wfm_reader_num_keywords (const wfm_reader_state_t *r);
 
   /**
    * @brief The @p i'th keyword in file order, or NULL if @p i is out of range.
    *
    * The returned pointer (and its `value` buffer) is owned by the reader and
-   * is freed by wfm_reader_close().
+   * is freed by wfm_reader_destroy().
    */
-  const wfm_keyword_t *wfm_reader_keyword (const wfm_reader_t *r, size_t i);
+  const wfm_keyword_t *wfm_reader_keyword (const wfm_reader_state_t *r, size_t i);
 
   /**
    * @brief The first keyword whose tag equals @p tag, or NULL if absent.
    *
    * Tags are not required to be unique; this returns the earliest match.
    */
-  const wfm_keyword_t *wfm_reader_find_keyword (const wfm_reader_t *r,
+  const wfm_keyword_t *wfm_reader_find_keyword (const wfm_reader_state_t *r,
                                                 const char        *tag);
 
+  /**
+   * @brief Rewind to the first sample of the capture.
+   *
+   * Seeks back to where the payload starts — 512 bytes into an attached BLUE
+   * file, byte 0 of a `.det` or a raw/SigMF payload — and restores the
+   * remaining-sample count, so the capture reads again from the top. The
+   * container metadata and decoded keywords are unaffected: they came from the
+   * header and do not change.
+   */
+  void wfm_reader_reset (wfm_reader_state_t *r);
+
   /** @brief Close the file, free the reader and its decoded keywords. */
-  void wfm_reader_close (wfm_reader_t *r);
+  void wfm_reader_destroy (wfm_reader_state_t *r);
 
 #ifdef __cplusplus
 }

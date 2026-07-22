@@ -8,8 +8,8 @@
 #define _POSIX_C_SOURCE 200809L
 
 #include "jm_bench.h"
-#include "wfm/wfm_reader.h"
-#include "wfm/wfm_writer.h"
+#include "wfm_reader/wfm_reader_core.h"
+#include "wfm_writer/wfm_writer_core.h"
 
 #include <complex.h>
 #include <stdio.h>
@@ -31,8 +31,9 @@ bench_cfg (const char *name, const char *path, int ft, int stype,
            const float _Complex *x, float _Complex *out, jm_bench_t *bench)
 {
   /* Write the capture once (kept warm in the page cache). */
-  FILE         *fp = fopen (path, "wb");
-  wfm_writer_t *w  = wfm_writer_open (fp, ft, stype, 0, 1e6, 0.0, BENCH_N);
+  FILE               *fp = fopen (path, "wb");
+  wfm_writer_state_t *w
+      = wfm_writer_open (fp, ft, stype, 0, 1e6, 0.0, BENCH_N);
   wfm_writer_write (w, x, BENCH_N);
   wfm_writer_close (w);
   fclose (fp);
@@ -42,11 +43,11 @@ bench_cfg (const char *name, const char *path, int ft, int stype,
   for (int r = 0; r < ITERATIONS; r++)
     {
       clock_gettime (CLOCK_MONOTONIC, &t0);
-      wfm_reader_t *rd    = wfm_reader_open (path, stype, 0);
-      size_t        total = 0, n;
+      wfm_reader_state_t *rd    = wfm_reader_create (path, stype, 0);
+      size_t              total = 0, n;
       while ((n = wfm_reader_read (rd, out + total, BENCH_N - total)) > 0)
         total += n;
-      wfm_reader_close (rd);
+      wfm_reader_destroy (rd);
       clock_gettime (CLOCK_MONOTONIC, &t1);
       times[r] = elapsed_sec (&t0, &t1);
     }

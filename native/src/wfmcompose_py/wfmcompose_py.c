@@ -20,7 +20,7 @@
 
 #include <stdio.h>
 
-#include "wfm/wfm_writer.h" /* wfm_blue_write_hcb */
+#include "wfm_writer/wfm_writer_core.h" /* wfm_blue_write_hcb */
 
 static PyObject *
 _fn_blue_write_hcb (PyObject *mod, PyObject *args)

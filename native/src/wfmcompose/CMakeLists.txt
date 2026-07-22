@@ -89,11 +89,16 @@ add_test(NAME test_wfm_keywords COMMAND test_wfm_keywords)
 
 # ── output containers: raw/csv/BLUE-1000 + SigMF meta (cJSON) ────────────────
 add_library(wfm_writer_core OBJECT
-    ${CMAKE_SOURCE_DIR}/native/src/wfm/wfm_writer.c)
+    ${CMAKE_SOURCE_DIR}/native/src/wfm_writer/wfm_writer_core.c)
 target_include_directories(wfm_writer_core PUBLIC
     ${CMAKE_SOURCE_DIR}/native/inc
     ${CMAKE_SOURCE_DIR}/native/inc/wfm
     ${CMAKE_SOURCE_DIR}/vendor/cjson)
+# wfm_names.h is a PRIVATE header shared with wfm_json.c (the TYPE_NAMES /
+# MODE_NAMES SSOT); it stays under native/src/wfm now that the writer core has
+# moved to its own object directory.
+target_include_directories(wfm_writer_core PRIVATE
+    ${CMAKE_SOURCE_DIR}/native/src/wfm)
 target_link_libraries(wfm_writer_core PUBLIC wfm_keywords_core m)
 
 add_executable(test_wfm_writer
@@ -106,7 +111,7 @@ add_test(NAME test_wfm_writer COMMAND test_wfm_writer)
 
 # ── input containers: the dual of the writer (raw/csv/BLUE/SigMF auto-detect) ─
 add_library(wfm_reader_core OBJECT
-    ${CMAKE_SOURCE_DIR}/native/src/wfm/wfm_reader.c)
+    ${CMAKE_SOURCE_DIR}/native/src/wfm_reader/wfm_reader_core.c)
 target_include_directories(wfm_reader_core PUBLIC
     ${CMAKE_SOURCE_DIR}/native/inc
     ${CMAKE_SOURCE_DIR}/native/inc/wfm

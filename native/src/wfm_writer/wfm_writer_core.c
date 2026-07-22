@@ -4,7 +4,7 @@
  * Host is assumed little-endian (doppler's targets); big-endian output is
  * produced by reversing each element on the way out.
  */
-#include "wfm/wfm_writer.h"
+#include "wfm_writer/wfm_writer_core.h"
 
 #include "wfm/wfm_keywords.h"
 
@@ -25,7 +25,7 @@ static const char   FMTCH[5]
 
 #include "wfm_names.h" /* TYPE_NAMES / N_TYPES / MODE_NAMES (SSOT) */
 
-struct wfm_writer
+struct wfm_writer_state
 {
   FILE    *fp;
   int      owns_fp; /* close fp in wfm_writer_close (path-opened writers) */
@@ -46,7 +46,7 @@ struct wfm_writer
 /* Update the running peak (always) and, when opted in for an integer wire
  * type, the saturated-component count. One fused max in the write loop. */
 static inline void
-track_sample (wfm_writer_t *w, float re, float im)
+track_sample (wfm_writer_state_t *w, float re, float im)
 {
   float ar = fabsf (re), ai = fabsf (im);
   float m = ar > ai ? ar : ai;
@@ -84,7 +84,7 @@ put_at (uint8_t *h, size_t off, const void *src, size_t sz, int be)
 }
 
 static int
-grow (wfm_writer_t *w, size_t need)
+grow (wfm_writer_state_t *w, size_t need)
 {
   if (w->cap >= need)
     return 0;
@@ -145,14 +145,14 @@ wfm_blue_write_hcb (FILE *fp, int sample_type, int endian, double fs,
   return fwrite (h, 1, 512, fp) == 512 ? 0 : -1;
 }
 
-wfm_writer_t *
+wfm_writer_state_t *
 wfm_writer_open (FILE *fp, wfm_filetype_t ft, int sample_type, int endian,
                  double fs, double fc, size_t total_samples)
 {
   (void)fc;
   if (!fp || sample_type < 0 || sample_type > 4 || ft < 0 || ft > 3)
     return NULL;
-  wfm_writer_t *w = calloc (1, sizeof (*w));
+  wfm_writer_state_t *w = calloc (1, sizeof (*w));
   if (!w)
     return NULL;
   w->fp    = fp;
@@ -172,7 +172,7 @@ wfm_writer_open (FILE *fp, wfm_filetype_t ft, int sample_type, int endian,
 
 /* CSV: one complex sample per line. */
 static size_t
-write_csv (wfm_writer_t *w, const float _Complex *iq, size_t n)
+write_csv (wfm_writer_state_t *w, const float _Complex *iq, size_t n)
 {
   for (size_t i = 0; i < n; i++)
     {
@@ -195,7 +195,7 @@ write_csv (wfm_writer_t *w, const float _Complex *iq, size_t n)
 
 /* raw / blue body: interleaved I/Q in the wire type + byte order. */
 static size_t
-write_binary (wfm_writer_t *w, const float _Complex *iq, size_t n)
+write_binary (wfm_writer_state_t *w, const float _Complex *iq, size_t n)
 {
   size_t elem = ELEM[w->stype], be = w->be;
   if (grow (w, n * 2 * elem))
@@ -251,7 +251,7 @@ write_binary (wfm_writer_t *w, const float _Complex *iq, size_t n)
 }
 
 size_t
-wfm_writer_write (wfm_writer_t *w, const float _Complex *iq, size_t n)
+wfm_writer_write (wfm_writer_state_t *w, const float _Complex *iq, size_t n)
 {
   if (!w || (n && !iq))
     return 0;
@@ -262,7 +262,7 @@ wfm_writer_write (wfm_writer_t *w, const float _Complex *iq, size_t n)
 }
 
 int
-wfm_writer_add_keyword (wfm_writer_t *w, const char *tag, char type,
+wfm_writer_add_keyword (wfm_writer_state_t *w, const char *tag, char type,
                         const void *value, size_t count)
 {
   if (!w || w->ft != WFM_FT_BLUE) /* only BLUE has an extended header */
@@ -298,7 +298,7 @@ wfm_writer_add_keyword (wfm_writer_t *w, const char *tag, char type,
    The extended header must begin on a 512-byte boundary, so the gap is zero-
    filled -- also §3.3's suggested use for that slack. */
 static int
-write_ext_header (wfm_writer_t *w)
+write_ext_header (wfm_writer_state_t *w)
 {
   if (fseek (w->fp, 0, SEEK_END) != 0)
     return -1;
@@ -325,7 +325,7 @@ write_ext_header (wfm_writer_t *w)
 }
 
 int
-wfm_writer_close (wfm_writer_t *w)
+wfm_writer_close (wfm_writer_state_t *w)
 {
   int rc = 0;
   if (w)
@@ -352,20 +352,26 @@ wfm_writer_close (wfm_writer_t *w)
   return rc;
 }
 
+void
+wfm_writer_destroy (wfm_writer_state_t *w)
+{
+  (void)wfm_writer_close (w);
+}
+
 /* Path-opening + FILE-owning variant for the generated `Writer` handle (jm
  * kind="handle"): the handle wants create(path,…) -> writer*, and close must
  * release the FILE (the old CPython capsule owned it). Opens the file,
  * delegates to wfm_writer_open, and marks the FILE owned so wfm_writer_close
  * fclose's it. */
-wfm_writer_t *
-wfm_writer_open_path (const char *path, wfm_filetype_t ft, int sample_type,
-                      int endian, double fs, double fc, size_t total_samples,
-                      double headroom)
+wfm_writer_state_t *
+wfm_writer_create (const char *path, wfm_filetype_t ft, int sample_type,
+                   int endian, double fs, double fc, size_t total_samples,
+                   double headroom)
 {
   FILE *fp = fopen (path, "wb");
   if (!fp)
     return NULL;
-  wfm_writer_t *w
+  wfm_writer_state_t *w
       = wfm_writer_open (fp, ft, sample_type, endian, fs, fc, total_samples);
   if (!w)
     {
@@ -382,27 +388,27 @@ wfm_writer_open_path (const char *path, wfm_filetype_t ft, int sample_type,
 }
 
 void
-wfm_writer_track_clipping (wfm_writer_t *w, int on)
+wfm_writer_track_clipping (wfm_writer_state_t *w, int on)
 {
   if (w)
     w->track = on ? 1 : 0;
 }
 
 void
-wfm_writer_set_gain (wfm_writer_t *w, double gain)
+wfm_writer_set_gain (wfm_writer_state_t *w, double gain)
 {
   if (w)
     w->gain = (float)gain;
 }
 
 double
-wfm_writer_peak (const wfm_writer_t *w)
+wfm_writer_peak (const wfm_writer_state_t *w)
 {
   return w ? (double)w->peak : 0.0;
 }
 
 double
-wfm_writer_clip_fraction (const wfm_writer_t *w)
+wfm_writer_clip_fraction (const wfm_writer_state_t *w)
 {
   if (!w || w->written == 0)
     return 0.0;

@@ -137,7 +137,14 @@ Reader_get_file_type(ReaderObject *self, void *closure)
 {
     (void)closure;
     wfm_reader_info_t tmp = self->_g0;
-    return PyUnicode_FromString(_enum_ftype[tmp.file_type]);
+    long _v = (long)(tmp.file_type);
+    if (_v < 0 || _v >= 4) {
+        PyErr_Format(PyExc_ValueError,
+            "file_type holds out-of-range ftype value %ld"
+            " (valid: 0..3)", _v);
+        return NULL;
+    }
+    return PyUnicode_FromString(_enum_ftype[_v]);
 }
 
 static PyObject *
@@ -145,7 +152,14 @@ Reader_get_sample_type(ReaderObject *self, void *closure)
 {
     (void)closure;
     wfm_reader_info_t tmp = self->_g0;
-    return PyUnicode_FromString(_enum_stype[tmp.sample_type]);
+    long _v = (long)(tmp.sample_type);
+    if (_v < 0 || _v >= 5) {
+        PyErr_Format(PyExc_ValueError,
+            "sample_type holds out-of-range stype value %ld"
+            " (valid: 0..4)", _v);
+        return NULL;
+    }
+    return PyUnicode_FromString(_enum_stype[_v]);
 }
 
 static PyObject *
@@ -153,7 +167,14 @@ Reader_get_mode(ReaderObject *self, void *closure)
 {
     (void)closure;
     wfm_reader_info_t tmp = self->_g0;
-    return PyUnicode_FromString(_enum_sample_mode[tmp.mode]);
+    long _v = (long)(tmp.mode);
+    if (_v < 0 || _v >= 2) {
+        PyErr_Format(PyExc_ValueError,
+            "mode holds out-of-range sample_mode value %ld"
+            " (valid: 0..1)", _v);
+        return NULL;
+    }
+    return PyUnicode_FromString(_enum_sample_mode[_v]);
 }
 
 static PyObject *
@@ -161,7 +182,14 @@ Reader_get_endian(ReaderObject *self, void *closure)
 {
     (void)closure;
     wfm_reader_info_t tmp = self->_g0;
-    return PyUnicode_FromString(_enum_endian[tmp.endian]);
+    long _v = (long)(tmp.endian);
+    if (_v < 0 || _v >= 2) {
+        PyErr_Format(PyExc_ValueError,
+            "endian holds out-of-range endian value %ld"
+            " (valid: 0..1)", _v);
+        return NULL;
+    }
+    return PyUnicode_FromString(_enum_endian[_v]);
 }
 
 static PyObject *

@@ -44,10 +44,6 @@ extern "C"
   /** Opaque reader state; the layout is private to wfm_reader_core.c. */
   typedef struct wfm_reader_state wfm_reader_state_t;
 
-/* Transitional alias: the current kind="handle" binding derives its C
-   type name from the module's `backing` key, so it still spells this
-   `wfm_reader_t`. Retired when the object migration flips the module kind. */
-typedef wfm_reader_state_t wfm_reader_t;
 
   /** Components per sample — the BLUE `format` field's *mode* designator
    *  (HCB byte 52). Only these two are supported; every other Midas mode

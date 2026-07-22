@@ -42,10 +42,6 @@ typedef enum {
 /** Opaque writer. */
 typedef struct wfm_writer_state wfm_writer_state_t;
 
-/* Transitional alias: the current kind="handle" binding derives its C
-   type name from the module's `backing` key, so it still spells this
-   `wfm_writer_t`. Retired when the object migration flips the module kind. */
-typedef wfm_writer_state_t wfm_writer_t;
 
 /**
  * @brief Open a writer on an already-open stream.

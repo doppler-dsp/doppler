@@ -87,22 +87,11 @@ target_include_directories(test_wfm_keywords
     PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
 add_test(NAME test_wfm_keywords COMMAND test_wfm_keywords)
 
-# ── output containers: raw/csv/BLUE-1000 + SigMF meta (cJSON) ────────────────
-add_library(wfm_writer_core OBJECT
-    ${CMAKE_SOURCE_DIR}/native/src/wfm_writer/wfm_writer_core.c)
-target_include_directories(wfm_writer_core PUBLIC
-    ${CMAKE_SOURCE_DIR}/native/inc
-    ${CMAKE_SOURCE_DIR}/native/inc/wfm
-    ${CMAKE_SOURCE_DIR}/vendor/cjson)
-target_link_libraries(wfm_writer_core PUBLIC wfm_keywords_core m)
-
-add_executable(test_wfm_writer
-    ${CMAKE_SOURCE_DIR}/native/tests/test_wfm_writer.c)
-target_link_libraries(test_wfm_writer PRIVATE
-    wfm_writer_core wfm_keywords_core wfm_draw_core wfm_cjson_core m)
-target_include_directories(test_wfm_writer PRIVATE
-    ${CMAKE_SOURCE_DIR}/native/inc ${CMAKE_SOURCE_DIR}/vendor/cjson)
-add_test(NAME test_wfm_writer COMMAND test_wfm_writer)
+# ── output containers ────────────────────────────────────────────────────────
+# wfm_writer is a jm OBJECT (collocated module-object), so its core library,
+# ctest and bench are generated in native/src/wfm_writer/CMakeLists.txt — the
+# core sits outside that file's BUILD_PYTHON gate, so the pure-C consumers here
+# (wfmgen_cli, libdoppler) still link it.
 
 # ── input containers: the dual of the writer ─────────────────────────────────
 # wfm_reader is a jm OBJECT (collocated module-object), so its core library,
@@ -150,14 +139,6 @@ if(NOT WIN32)
     # Container codec benchmarks (make bench). POSIX-only too: the writer bench
     # isolates the codec via open_memstream and the reader bench uses temp
     # files — neither is on the Windows portability path (no Windows wheels).
-    add_executable(bench_wfm_writer_core
-        ${CMAKE_SOURCE_DIR}/native/benchmarks/bench_wfm_writer_core.c)
-    target_link_libraries(bench_wfm_writer_core PRIVATE
-        wfm_writer_core wfm_keywords_core wfm_draw_core wfm_cjson_core m)
-    target_include_directories(bench_wfm_writer_core PRIVATE
-        ${CMAKE_SOURCE_DIR}/native/inc ${CMAKE_SOURCE_DIR}/native/benchmarks
-        ${CMAKE_SOURCE_DIR}/vendor/cjson)
-
     add_library(wfm_sink_core OBJECT
         ${CMAKE_SOURCE_DIR}/native/src/wfm/wfm_sink.c)
     target_include_directories(wfm_sink_core PUBLIC

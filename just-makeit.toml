@@ -1,7 +1,7 @@
 include = ["objects/*.toml"]
 
 [project]
-jm_version = "0.33.3"
+jm_version = "0.33.4"
 name = "doppler"
 version = "0.1.0"
 build = "cmake"
@@ -291,105 +291,10 @@ from = "max_late_ns"
 type = "double"
 scale = "1e-9"
 [module.wfm_writer]
-kind            = "handle"
-backing         = "wfm_writer"
-header          = "wfm_writer/wfm_writer_core.h"
-package         = "wfm"
-type_name       = "Writer"
-context_manager = true
-close_fn        = "wfm_writer_close"
-close_returns   = "int"
-create_fn       = "wfm_writer_create"
-extra_link_libs = ["wfm_draw_core", "wfm_cjson_core", "wfm_keywords_core", "m"]
+objects = ["wfm_writer"]
+package = "wfm"
+extra_link_libs = ["m"]
 
-[[module.wfm_writer.create_args]]
-name = "path"
-type = "path"
-
-[[module.wfm_writer.create_args]]
-name = "file_type"
-type = "int"
-enum = "ftype"
-default = "raw"
-kwonly = true
-
-[[module.wfm_writer.create_args]]
-name = "sample_type"
-type = "int"
-enum = "stype"
-default = "cf32"
-kwonly = true
-
-[[module.wfm_writer.create_args]]
-name = "endian"
-type = "int"
-enum = "endian"
-default = "le"
-kwonly = true
-
-[[module.wfm_writer.create_args]]
-name = "fs"
-type = "double"
-default = "1e6"
-kwonly = true
-
-[[module.wfm_writer.create_args]]
-name = "fc"
-type = "double"
-default = "0.0"
-kwonly = true
-
-[[module.wfm_writer.create_args]]
-name = "total"
-type = "size_t"
-default = "0"
-kwonly = true
-
-[[module.wfm_writer.create_args]]
-name = "headroom"
-type = "double"
-default = "0.0"
-kwonly = true
-[[module.wfm_writer.depends_on]]
-name = "wfm_writer"
-link = true
-[[module.wfm_writer.methods]]
-name = "write"
-fn = "wfm_writer_write"
-returns = "size_t"
-nogil = true
-
-[[module.wfm_writer.methods.args]]
-name = "iq"
-type = "float _Complex[]"
-
-[[module.wfm_writer.methods]]
-name = "track_clipping"
-fn = "wfm_writer_track_clipping"
-
-[[module.wfm_writer.methods.args]]
-name = "on"
-type = "int"
-default = "1"
-[[module.wfm_writer.getters]]
-[[module.wfm_writer.getters.fields]]
-name = "clip_fraction"
-getter = "wfm_writer_clip_fraction"
-type = "double"
-
-[[module.wfm_writer.getters.fields]]
-name = "peak_dbfs"
-getter = "wfm_writer_peak"
-type = "double"
-returns = "double"
-expr = "tmp > 0 ? 20*log10(tmp) : -INFINITY"
-
-[[module.wfm_writer.getters.fields]]
-name = "clipped"
-getter = "wfm_writer_peak"
-type = "bool"
-returns = "double"
-expr = "tmp > 1.0 && self->sample_type >= 2"
 [module.wfm_sink]
 kind            = "handle"
 backing         = "wfm_stream_sink"

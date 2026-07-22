@@ -324,6 +324,40 @@ write_ext_header (wfm_writer_state_t *w)
   return fseek (w->fp, 0, SEEK_END);
 }
 
+/* Property accessors for the generated binding's computed properties. Keeping
+   these means the state layout stays private to this file. */
+double
+wfm_writer_get_clip_fraction (const wfm_writer_state_t *w)
+{
+  return wfm_writer_clip_fraction (w);
+}
+
+double
+wfm_writer_get_peak_dbfs (const wfm_writer_state_t *w)
+{
+  double p = wfm_writer_peak (w);
+  return (p > 0.0) ? 20.0 * log10 (p) : -INFINITY;
+}
+
+bool
+wfm_writer_get_clipped (const wfm_writer_state_t *w)
+{
+  /* Only the integer wire types saturate; a float capture above full scale is
+     merely loud, not clipped. */
+  return wfm_writer_peak (w) > 1.0 && w->stype >= 2;
+}
+
+/* There is nothing coherent to reset on a writer: the samples are already on
+   disk, and `written` drives the BLUE data_size patch that close() applies, so
+   clearing it would corrupt the header. This exists because jm's object shape
+   declares it; the Python binding refuses the call outright rather than
+   silently doing nothing. */
+void
+wfm_writer_reset (wfm_writer_state_t *w)
+{
+  (void)w;
+}
+
 int
 wfm_writer_close (wfm_writer_state_t *w)
 {
@@ -364,15 +398,15 @@ wfm_writer_destroy (wfm_writer_state_t *w)
  * delegates to wfm_writer_open, and marks the FILE owned so wfm_writer_close
  * fclose's it. */
 wfm_writer_state_t *
-wfm_writer_create (const char *path, wfm_filetype_t ft, int sample_type,
-                   int endian, double fs, double fc, size_t total_samples,
+wfm_writer_create (const char *path, int file_type, int sample_type,
+                   int endian, double fs, double fc, size_t total,
                    double headroom)
 {
   FILE *fp = fopen (path, "wb");
   if (!fp)
     return NULL;
-  wfm_writer_state_t *w
-      = wfm_writer_open (fp, ft, sample_type, endian, fs, fc, total_samples);
+  wfm_writer_state_t *w = wfm_writer_open (fp, (wfm_filetype_t)file_type,
+                                           sample_type, endian, fs, fc, total);
   if (!w)
     {
       fclose (fp);

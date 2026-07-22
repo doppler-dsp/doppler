@@ -40,7 +40,7 @@ class NCO:
 
         """
 
-    def steps_u32(self, out: NDArray[np.uint32] | None = None) -> NDArray[np.uint32]:
+    def steps_u32(self, count: int = 1, out: NDArray[np.uint32] | None = None) -> NDArray[np.uint32]:
         """Advance n samples; write raw uint32 accumulator values. Each element is the phase value BEFORE the increment fires, so `out[0]` is the phase at the moment of the call.  The accumulator wraps silently at 2^32, giving the full-resolution integer ramp that the scaled and carry variants derive from.  Returns n.
 
         Returns
@@ -63,7 +63,7 @@ class NCO:
     def steps_u32_max_out(self) -> int:
         """Max output length steps_u32() can produce for the current state."""
 
-    def steps_u32_scaled(self, out: NDArray[np.uint32] | None = None) -> NDArray[np.uint32]:
+    def steps_u32_scaled(self, count: int = 1, out: NDArray[np.uint32] | None = None) -> NDArray[np.uint32]:
         """Advance n samples; values scaled to `[0, nmax)`. Uses the branchless fixed-point identity `out[i]` = (uint64_t)phase * nmax >> 32 to map the full accumulator range uniformly onto [0, nmax) without a modulo operation.  When nmax == 0 falls back to the raw accumulator (identical to nco_steps_u32).  Useful for polyphase filter bank indexing and direct LUT addressing.  Returns n.
 
         Returns
@@ -86,7 +86,7 @@ class NCO:
     def steps_u32_scaled_max_out(self) -> int:
         """Max output length steps_u32_scaled() can produce for the current state."""
 
-    def steps_u32_ovf(self) -> tuple[NDArray[np.uint32], NDArray[np.uint8]]:
+    def steps_u32_ovf(self, count: int = 1) -> tuple[NDArray[np.uint32], NDArray[np.uint8]]:
         """Advance n samples; write raw phase values and per-sample carry. Identical to nco_steps_u32 for the phase array, but simultaneously fills a parallel uint8 carry buffer: `out1[i]` is 1 if the add that produced `out[i]`'s post-increment phase wrapped past 2^32, else 0. The carry marks the exact boundary of one input period and is the primitive for polyphase sample-clock and rational resampling engines. Returns n.
 
         Returns
@@ -298,7 +298,7 @@ class LO:
 
         """
 
-    def steps(self, out: NDArray[np.complex64] | None = None) -> NDArray[np.complex64]:
+    def steps(self, count: int = 1, out: NDArray[np.complex64] | None = None) -> NDArray[np.complex64]:
         """Generate n CF32 phasors at the current norm_freq. Each sample is cos(θ) + j·sin(θ) where θ is the phase BEFORE the accumulator is advanced, giving a unit-magnitude complex sinusoid via the 65536-entry LUT.  SFDR ≈ 96 dBc.  Returns n.
 
         Returns
@@ -421,7 +421,7 @@ class AWGN:
 
         """
 
-    def generate(self, out: NDArray[np.complex64] | None = None) -> NDArray[np.complex64]:
+    def generate(self, count: int = 1, out: NDArray[np.complex64] | None = None) -> NDArray[np.complex64]:
         """Generate n complex CF32 AWGN samples. Uses Box-Muller with xoshiro256++ to fill `out` with independent complex Gaussians: Re and Im each have zero mean and standard deviation `amplitude`.  Total complex power = 2 × amplitude². The AVX2 path processes 8 samples in parallel when available.
 
         Returns

@@ -41,12 +41,9 @@ extern "C"
 #endif
 
   /** Opaque reader handle. */
+  /** Opaque reader state; the layout is private to wfm_reader_core.c. */
   typedef struct wfm_reader_state wfm_reader_state_t;
 
-/* Transitional alias: the current kind="handle" binding derives its C
-   type name from the module's `backing` key, so it still spells this
-   `wfm_reader_t`. Retired when the object migration flips the module kind. */
-typedef wfm_reader_state_t wfm_reader_t;
 
   /** Components per sample — the BLUE `format` field's *mode* designator
    *  (HCB byte 52). Only these two are supported; every other Midas mode
@@ -84,23 +81,31 @@ typedef wfm_reader_state_t wfm_reader_t;
    *                       (its header sibling is resolved). A SigMF
    *                       `.sigmf-data` file resolves its `.sigmf-meta`
    *                       sidecar the same way.
-   * @param hint_sample_type  sample type (0..4) for headerless raw/CSV; ignored
-   *                       once BLUE/SigMF metadata is parsed.
-   * @param hint_endian    byte order (0 le, 1 be) for headerless raw.
+   * @param sample_type    sample type (0..4) used as a HINT for headerless
+   *                       raw/CSV; ignored once BLUE/SigMF metadata is parsed,
+   *                       which carries its own.
+   * @param endian         byte order (0 le, 1 be), likewise a hint for
+   *                       headerless raw.
    * @return a reader, or NULL on open/parse failure.
    */
-  wfm_reader_state_t *wfm_reader_create (const char *path, int hint_sample_type,
-                                 int hint_endian);
+wfm_reader_state_t *wfm_reader_create(const char *path, int sample_type, int endian);
 
   /** @brief Copy the resolved capture metadata into @p info. */
   void wfm_reader_info (const wfm_reader_state_t *r, wfm_reader_info_t *info);
 
   /**
-   * @brief Read up to @p max complex samples into @p out (unit-scale
+   * @brief Read up to @p n complex samples into @p out (unit-scale
    * `float _Complex`), converting from the wire type. Returns the count read;
-   * 0 at end of file.
+   * 0 at end of file, and never more than the container's declared payload.
    */
-  size_t wfm_reader_read (wfm_reader_state_t *r, float _Complex *out, size_t max);
+size_t wfm_reader_read(wfm_reader_state_t *state, size_t n, float complex *out);
+
+  /** @brief Upper bound on one read()'s output, or 0 for "unbounded".
+   *
+   *  A reader streams, so it declares no bound and the generated binding sizes
+   *  its buffer from the caller's request instead of pre-allocating the whole
+   *  capture at construction. */
+size_t wfm_reader_read_max_out(wfm_reader_state_t *state);
 
   /**
    * @brief Number of extended-header keywords recovered from the capture.
@@ -139,11 +144,18 @@ typedef wfm_reader_state_t wfm_reader_t;
    * container metadata and decoded keywords are unaffected: they came from the
    * header and do not change.
    */
-  void wfm_reader_reset (wfm_reader_state_t *r);
+void wfm_reader_reset(wfm_reader_state_t *state);
 
   /** @brief Close the file, free the reader and its decoded keywords. */
-  void wfm_reader_destroy (wfm_reader_state_t *r);
+void wfm_reader_destroy(wfm_reader_state_t *state);
 
+int wfm_reader_get_file_type(const wfm_reader_state_t *state);
+int wfm_reader_get_sample_type(const wfm_reader_state_t *state);
+int wfm_reader_get_mode(const wfm_reader_state_t *state);
+int wfm_reader_get_endian(const wfm_reader_state_t *state);
+double wfm_reader_get_fs(const wfm_reader_state_t *state);
+double wfm_reader_get_fc(const wfm_reader_state_t *state);
+size_t wfm_reader_get_num_samples(const wfm_reader_state_t *state);
 #ifdef __cplusplus
 }
 #endif

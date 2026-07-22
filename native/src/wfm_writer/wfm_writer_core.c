@@ -23,7 +23,7 @@ static const double SCALE[5] = { 0, 0, 2147483647.0, 32767.0, 127.0 };
 static const char   FMTCH[5]
     = { 'F', 'D', 'L', 'I', 'B' }; /* BLUE format char */
 
-#include "wfm_names.h" /* TYPE_NAMES / N_TYPES / MODE_NAMES (SSOT) */
+#include "wfm/wfm_names.h" /* TYPE_NAMES / N_TYPES / MODE_NAMES (SSOT) */
 
 struct wfm_writer_state
 {
@@ -324,6 +324,29 @@ write_ext_header (wfm_writer_state_t *w)
   return fseek (w->fp, 0, SEEK_END);
 }
 
+/* Property accessors for the generated binding's computed properties. Keeping
+   these means the state layout stays private to this file. */
+double
+wfm_writer_get_clip_fraction (const wfm_writer_state_t *w)
+{
+  return wfm_writer_clip_fraction (w);
+}
+
+double
+wfm_writer_get_peak_dbfs (const wfm_writer_state_t *w)
+{
+  double p = wfm_writer_peak (w);
+  return (p > 0.0) ? 20.0 * log10 (p) : -INFINITY;
+}
+
+bool
+wfm_writer_get_clipped (const wfm_writer_state_t *w)
+{
+  /* Only the integer wire types saturate; a float capture above full scale is
+     merely loud, not clipped. */
+  return wfm_writer_peak (w) > 1.0 && w->stype >= 2;
+}
+
 int
 wfm_writer_close (wfm_writer_state_t *w)
 {
@@ -343,8 +366,26 @@ wfm_writer_close (wfm_writer_state_t *w)
           if (w->kwlen && write_ext_header (w) != 0)
             rc = -1;
         }
+      /* Did the capture actually land? Two independent things can say no, and
+         both were previously discarded:
+
+         ferror() is the durable record that some earlier write failed. It is
+         checked first because a rejected write leaves nothing buffered, so
+         fflush/fclose alone would cheerfully report success afterwards.
+
+         fclose() is where buffered data finally reaches the disk, which is
+         where a full filesystem surfaces. Only a path-opened writer owns its
+         FILE; when the caller supplied it, closing is theirs, so we fflush to
+         learn whether OUR writes made it out and leave the stream open. */
+      if (w->fp && ferror (w->fp))
+        rc = -1;
       if (w->owns_fp && w->fp)
-        fclose (w->fp); /* path-opened writers own their FILE */
+        {
+          if (fclose (w->fp) != 0)
+            rc = -1;
+        }
+      else if (w->fp && fflush (w->fp) != 0)
+        rc = -1;
       free (w->kw);
       free (w->buf);
       free (w);
@@ -364,15 +405,15 @@ wfm_writer_destroy (wfm_writer_state_t *w)
  * delegates to wfm_writer_open, and marks the FILE owned so wfm_writer_close
  * fclose's it. */
 wfm_writer_state_t *
-wfm_writer_create (const char *path, wfm_filetype_t ft, int sample_type,
-                   int endian, double fs, double fc, size_t total_samples,
+wfm_writer_create (const char *path, int file_type, int sample_type,
+                   int endian, double fs, double fc, size_t total,
                    double headroom)
 {
   FILE *fp = fopen (path, "wb");
   if (!fp)
     return NULL;
-  wfm_writer_state_t *w
-      = wfm_writer_open (fp, ft, sample_type, endian, fs, fc, total_samples);
+  wfm_writer_state_t *w = wfm_writer_open (fp, (wfm_filetype_t)file_type,
+                                           sample_type, endian, fs, fc, total);
   if (!w)
     {
       fclose (fp);

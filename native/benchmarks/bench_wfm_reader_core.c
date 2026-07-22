@@ -45,7 +45,7 @@ bench_cfg (const char *name, const char *path, int ft, int stype,
       clock_gettime (CLOCK_MONOTONIC, &t0);
       wfm_reader_state_t *rd    = wfm_reader_create (path, stype, 0);
       size_t              total = 0, n;
-      while ((n = wfm_reader_read (rd, out + total, BENCH_N - total)) > 0)
+      while ((n = wfm_reader_read (rd, BENCH_N - total, out + total)) > 0)
         total += n;
       wfm_reader_destroy (rd);
       clock_gettime (CLOCK_MONOTONIC, &t1);

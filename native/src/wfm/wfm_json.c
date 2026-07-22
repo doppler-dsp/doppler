@@ -14,7 +14,7 @@
 
 #include "cJSON.h"
 
-#include "wfm_names.h" /* TYPE_NAMES / N_TYPES / MODE_NAMES (SSOT) */
+#include "wfm/wfm_names.h" /* TYPE_NAMES / N_TYPES / MODE_NAMES (SSOT) */
 
 static const char *const LFSR_NAMES[]   = { "galois", "fibonacci" };
 static const char *const BITMOD_NAMES[] = { "none", "bpsk", "qpsk" };

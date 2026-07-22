@@ -1,0 +1,94 @@
+# wfm_writer — the output-container Writer (raw / CSV / BLUE-1000 / SigMF).
+#
+# The dual of wfm_reader, migrated the same way. Its state struct stays private:
+# the three statistics are computed properties, so jm declares the accessors and
+# never reads the layout.
+[wfm_writer]
+arg_type = "float _Complex"
+return_type = "float _Complex"
+mutable = "true"
+no_state = "true"
+no_step = "true"
+class_name = "Writer"
+create_error = "OSError"
+create_error_message = "cannot open the capture for writing (check the path, the directory, and permissions)"
+
+[[wfm_writer.depends_on]]
+name = "wfm_cjson"
+link = true
+
+[[wfm_writer.depends_on]]
+name = "wfm_keywords"
+link = true
+
+[[wfm_writer.depends_on]]
+name = "wfm_draw"
+link = true
+
+[[wfm_writer.init_params]]
+name = "path"
+type = "path"
+
+[[wfm_writer.init_params]]
+name = "file_type"
+type = "string_enum:raw,csv,blue,sigmf"
+default = "raw"
+
+[[wfm_writer.init_params]]
+name = "sample_type"
+type = "string_enum:cf32,cf64,ci32,ci16,ci8"
+default = "cf32"
+
+[[wfm_writer.init_params]]
+name = "endian"
+type = "string_enum:le,be"
+default = "le"
+
+[[wfm_writer.init_params]]
+name = "fs"
+type = "double"
+default = "1e6"
+
+[[wfm_writer.init_params]]
+name = "fc"
+type = "double"
+default = "0.0"
+
+# `total` (not total_samples): the handle binding's public keyword, preserved.
+[[wfm_writer.init_params]]
+name = "total"
+type = "size_t"
+default = "0"
+
+[[wfm_writer.init_params]]
+name = "headroom"
+type = "double"
+default = "0.0"
+
+[[wfm_writer.methods]]
+name = "write"
+arg_type = "float _Complex[]"
+return_type = "size_t"
+nogil = true
+
+# `params` rather than `arg_type`, so `on` keeps the default the handle gave it
+# — w.track_clipping() with no argument is the documented spelling.
+[[wfm_writer.methods]]
+name = "track_clipping"
+arg_type = "void"
+return_type = "void"
+params = [{ name = "on", type = "int", default = "1" }]
+
+# Computed properties: jm declares wfm_writer_get_<prop>() and calls it, so the
+# state layout stays private to wfm_writer_core.c.
+[[wfm_writer.properties]]
+name = "clip_fraction"
+type = "double"
+
+[[wfm_writer.properties]]
+name = "peak_dbfs"
+type = "double"
+
+[[wfm_writer.properties]]
+name = "clipped"
+type = "bool"

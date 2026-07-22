@@ -21,6 +21,7 @@
 #ifndef WFM_WRITER_H
 #define WFM_WRITER_H
 
+#include <stdbool.h>
 #include <stdio.h>
 
 #include "clib_common.h"
@@ -41,10 +42,6 @@ typedef enum {
 /** Opaque writer. */
 typedef struct wfm_writer_state wfm_writer_state_t;
 
-/* Transitional alias: the current kind="handle" binding derives its C
-   type name from the module's `backing` key, so it still spells this
-   `wfm_writer_t`. Retired when the object migration flips the module kind. */
-typedef wfm_writer_state_t wfm_writer_t;
 
 /**
  * @brief Open a writer on an already-open stream.
@@ -68,7 +65,7 @@ wfm_writer_state_t *wfm_writer_open(FILE *fp, wfm_filetype_t ft, int sample_type
  * @brief Convert and write `n` complex samples.
  * @return Number of complex samples written (== n on success, else short).
  */
-size_t wfm_writer_write(wfm_writer_state_t *w, const float _Complex *iq, size_t n);
+size_t wfm_writer_write(wfm_writer_state_t *state, const float complex *x, size_t x_len);
 
 /**
  * @brief Attach a BLUE extended-header keyword (a tag/value pair).
@@ -122,7 +119,7 @@ int wfm_writer_close(wfm_writer_state_t *w);
  * header are both written during close, so a write error there means the file
  * on disk is not the file you asked for.
  */
-void wfm_writer_destroy(wfm_writer_state_t *w);
+void wfm_writer_destroy(wfm_writer_state_t *state);
 
 /* ── clip detection ───────────────────────────────────────────────────────
  * Full-scale is ±1.0 per axis; integer wire types saturate to it. The writer
@@ -134,7 +131,7 @@ void wfm_writer_destroy(wfm_writer_state_t *w);
  * (cf32/cf64) never clip but still report a peak. Call after writing. */
 
 /** Enable the per-component clip *counter* (off by default; peak is always on). */
-void wfm_writer_track_clipping(wfm_writer_state_t *w, int on);
+void wfm_writer_track_clipping(wfm_writer_state_t *state, int on);
 
 /* ── headroom ──────────────────────────────────────────────────────────────
  * A common output gain applied to every sample just before quantisation, so
@@ -159,10 +156,7 @@ double wfm_writer_clip_fraction(const wfm_writer_state_t *w);
 /** Path-opening + FILE-owning ctor for the generated `Writer` handle (jm
  *  kind="handle"): opens `path` ("wb"), delegates to wfm_writer_open, and marks
  *  the FILE owned so wfm_writer_close fclose's it. Returns NULL on open failure. */
-wfm_writer_state_t *wfm_writer_create(const char *path, wfm_filetype_t ft,
-                                   int sample_type, int endian, double fs,
-                                   double fc, size_t total_samples,
-                                   double headroom);
+wfm_writer_state_t *wfm_writer_create(const char *path, int file_type, int sample_type, int endian, double fs, double fc, size_t total, double headroom);
 
 /**
  * @brief Write a complete 512-byte BLUE/Platinum type-1000 Header Control Block.
@@ -202,6 +196,23 @@ int wfm_blue_write_hcb(FILE *fp, int sample_type, int endian, double fs,
 char *wfm_sigmf_meta_json(int sample_type, int endian, double fs, double fc,
                           const wfm_segment_t *segs, size_t n_segs);
 
+/* DELIBERATELY NOT DEFINED. jm's object shape declares a reset() for every
+   object, but a writer has nothing coherent to reset: the samples are already
+   on disk, and the written count drives the BLUE data_size patch that close()
+   applies, so clearing it would corrupt the header. The binding refuses the
+   call (NotImplementedError) in the sacred fragment and never reaches this.
+   Leaving the definition out is what makes that safe. If the fragment is ever
+   regenerated without the hand-written refusal, the generated reset() calls
+   this and the extension fails to load outright --
+   `ImportError: undefined symbol: wfm_writer_reset` -- instead of silently
+   becoming a no-op that tells callers their writer was reset. (A Python
+   extension links with undefined symbols permitted, so this surfaces at import
+   rather than at link; either way the first test to run catches it. Verified,
+   not assumed.) See just-buildit/just-makeit#542. */
+void wfm_writer_reset(wfm_writer_state_t *state);
+double wfm_writer_get_clip_fraction(const wfm_writer_state_t *state);
+double wfm_writer_get_peak_dbfs(const wfm_writer_state_t *state);
+bool wfm_writer_get_clipped(const wfm_writer_state_t *state);
 #ifdef __cplusplus
 }
 #endif

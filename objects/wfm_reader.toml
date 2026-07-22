@@ -1,0 +1,97 @@
+# wfm_reader — the input-container Reader (raw / CSV / BLUE-1000 / SigMF).
+#
+# A file-backed object: no step(), a hand-written state struct, and a streaming
+# read(). Migrated from kind="handle" once jm could express what the handle
+# already did — a path ctor arg (gh-515), a meaningful create() failure
+# (gh-514), enum-valued properties (gh-519) and a package placement (gh-523).
+[wfm_reader]
+arg_type = "float _Complex"
+return_type = "float _Complex"
+mutable = "true"
+no_state = "true"
+no_step = "true"
+class_name = "Reader"
+create_error = "ValueError"
+create_error_message = "cannot open capture: no such file, unrecognised container, or an unsupported BLUE format mode (only S and C are supported)"
+
+# The CORE's own dependencies. gh-254 makes link=true additive for a collocated
+# module-object, so these land on the object's core/test/bench AND the .so.
+[[wfm_reader.depends_on]]
+name = "wfm_cjson"
+link = true
+
+[[wfm_reader.depends_on]]
+name = "wfm_keywords"
+link = true
+
+# The reader's C test round-trips through the writer (it writes the captures it
+# then reads back), and jm has no test-only dependency: `depends_on` lands on
+# the .so as well. A few KB of writer objects in the reader module is the cost
+# of keeping the round-trip test honest.
+[[wfm_reader.depends_on]]
+name = "wfm_writer"
+link = true
+
+[[wfm_reader.depends_on]]
+name = "wfm_draw"
+link = true
+
+# gh-515: `path` crosses as a borrowed const char * (PyUnicode_FSConverter), so
+# str and os.PathLike both work; wfm_reader_create copies it during the call.
+[[wfm_reader.init_params]]
+name = "path"
+type = "path"
+
+[[wfm_reader.init_params]]
+name = "sample_type"
+type = "string_enum:cf32,cf64,ci32,ci16,ci8"
+default = "cf32"
+
+[[wfm_reader.init_params]]
+name = "endian"
+type = "string_enum:le,be"
+default = "le"
+
+# arg_type="void" + variable_output is the generator shape: read(n) -> ndarray.
+# (`out_type` is a jm *function* feature; on a method it renders `-> complex`.)
+[[wfm_reader.methods]]
+name = "read"
+arg_type = "void"
+return_type = "float _Complex"
+variable_output = true
+
+# Computed properties (no `field`): jm declares wfm_reader_get_<prop>() for the
+# core to implement and calls it from the binding, so the state struct stays
+# private to wfm_reader_core.c. gh-519 makes the enum decode work either way, so
+# file_type/sample_type/mode/endian still return their strings.
+[[wfm_reader.properties]]
+name = "file_type"
+type = "int"
+enum = "ftype"
+
+[[wfm_reader.properties]]
+name = "sample_type"
+type = "int"
+enum = "stype"
+
+[[wfm_reader.properties]]
+name = "mode"
+type = "int"
+enum = "sample_mode"
+
+[[wfm_reader.properties]]
+name = "endian"
+type = "int"
+enum = "endian"
+
+[[wfm_reader.properties]]
+name = "fs"
+type = "double"
+
+[[wfm_reader.properties]]
+name = "fc"
+type = "double"
+
+[[wfm_reader.properties]]
+name = "num_samples"
+type = "size_t"

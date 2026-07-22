@@ -1,7 +1,7 @@
 include = ["objects/*.toml"]
 
 [project]
-jm_version = "0.33.3"
+jm_version = "0.33.4"
 name = "doppler"
 version = "0.1.0"
 build = "cmake"
@@ -106,91 +106,11 @@ block_sizes = [65536]
 # lookup tables from these, collapsing the string tables historically duplicated
 # across wfmgen.c / wfm_json.c / wfmcompose_py.c / compose.py to this one source.
 [module.wfm_reader]
-kind            = "handle"
-backing         = "wfm_reader"
-header          = "wfm_reader/wfm_reader_core.h"
-package         = "wfm"
-type_name       = "Reader"
-context_manager = true
-close_fn        = "wfm_reader_destroy"
-create_fn       = "wfm_reader_create"
-# wfm_reader.c parses SigMF sidecars via the vendored cJSON OBJECT lib; libm too.
-# wfm_keywords_core is the shared BLUE extended-header codec (object libraries
-# are not propagated transitively, so every final target names it).
-extra_link_libs = ["wfm_cjson", "wfm_keywords_core", "m"]
-
-[[module.wfm_reader.create_args]]
-name = "path"
-type = "path"
-
-[[module.wfm_reader.create_args]]
-name = "sample_type"
-type = "int"
-enum = "stype"
-default = "cf32"
-kwonly = true
-
-[[module.wfm_reader.create_args]]
-name = "endian"
-type = "int"
-enum = "endian"
-default = "le"
-kwonly = true
-[[module.wfm_reader.depends_on]]
-name = "wfm_reader"
-link = true
-[[module.wfm_reader.methods]]
-name = "read"
-fn = "wfm_reader_read"
-returns = "float _Complex[]"
-nogil = true
-
-[[module.wfm_reader.methods.args]]
-name = "n"
-type = "size_t"
-[[module.wfm_reader.getters]]
-fn = "wfm_reader_info"
-out = "wfm_reader_info_t"
-cache = true
-
-[[module.wfm_reader.getters.fields]]
-name = "file_type"
-from = "file_type"
-type = "int"
-enum = "ftype"
-
-[[module.wfm_reader.getters.fields]]
-name = "sample_type"
-from = "sample_type"
-type = "int"
-enum = "stype"
-
-[[module.wfm_reader.getters.fields]]
-name = "mode"
-from = "mode"
-type = "int"
-enum = "sample_mode"
-
-[[module.wfm_reader.getters.fields]]
-name = "endian"
-from = "endian"
-type = "int"
-enum = "endian"
-
-[[module.wfm_reader.getters.fields]]
-name = "fs"
-from = "fs"
-type = "double"
-
-[[module.wfm_reader.getters.fields]]
-name = "fc"
-from = "fc"
-type = "double"
-
-[[module.wfm_reader.getters.fields]]
-name = "num_samples"
-from = "num_samples"
-type = "size_t"
+objects = ["wfm_reader"]
+# gh-523: an object module can now live in an existing subpackage, so Reader
+# stays at doppler.wfm.Reader rather than minting a top-level package.
+package = "wfm"
+extra_link_libs = ["m"]
 
 # ── wfm_plan: "prepare once, materialize many" stimulus engine ───────────────
 # Constructed from a spec-JSON string (Composer.to_json()); render/at return a
@@ -206,7 +126,7 @@ type_name       = "Plan"
 context_manager = true
 close_fn        = "wfm_plan_destroy"
 create_fn       = "wfm_plan_prepare"
-extra_link_libs = ["wfm_draw_core", "wfm_cjson", "m"]
+extra_link_libs = ["wfm_draw_core", "wfm_cjson_core", "m"]
 
 [[module.wfm_plan.create_args]]
 name = "spec_json"
@@ -371,105 +291,10 @@ from = "max_late_ns"
 type = "double"
 scale = "1e-9"
 [module.wfm_writer]
-kind            = "handle"
-backing         = "wfm_writer"
-header          = "wfm_writer/wfm_writer_core.h"
-package         = "wfm"
-type_name       = "Writer"
-context_manager = true
-close_fn        = "wfm_writer_close"
-close_returns   = "int"
-create_fn       = "wfm_writer_create"
-extra_link_libs = ["wfm_draw_core", "wfm_cjson", "wfm_keywords_core", "m"]
+objects = ["wfm_writer"]
+package = "wfm"
+extra_link_libs = ["m"]
 
-[[module.wfm_writer.create_args]]
-name = "path"
-type = "path"
-
-[[module.wfm_writer.create_args]]
-name = "file_type"
-type = "int"
-enum = "ftype"
-default = "raw"
-kwonly = true
-
-[[module.wfm_writer.create_args]]
-name = "sample_type"
-type = "int"
-enum = "stype"
-default = "cf32"
-kwonly = true
-
-[[module.wfm_writer.create_args]]
-name = "endian"
-type = "int"
-enum = "endian"
-default = "le"
-kwonly = true
-
-[[module.wfm_writer.create_args]]
-name = "fs"
-type = "double"
-default = "1e6"
-kwonly = true
-
-[[module.wfm_writer.create_args]]
-name = "fc"
-type = "double"
-default = "0.0"
-kwonly = true
-
-[[module.wfm_writer.create_args]]
-name = "total"
-type = "size_t"
-default = "0"
-kwonly = true
-
-[[module.wfm_writer.create_args]]
-name = "headroom"
-type = "double"
-default = "0.0"
-kwonly = true
-[[module.wfm_writer.depends_on]]
-name = "wfm_writer"
-link = true
-[[module.wfm_writer.methods]]
-name = "write"
-fn = "wfm_writer_write"
-returns = "size_t"
-nogil = true
-
-[[module.wfm_writer.methods.args]]
-name = "iq"
-type = "float _Complex[]"
-
-[[module.wfm_writer.methods]]
-name = "track_clipping"
-fn = "wfm_writer_track_clipping"
-
-[[module.wfm_writer.methods.args]]
-name = "on"
-type = "int"
-default = "1"
-[[module.wfm_writer.getters]]
-[[module.wfm_writer.getters.fields]]
-name = "clip_fraction"
-getter = "wfm_writer_clip_fraction"
-type = "double"
-
-[[module.wfm_writer.getters.fields]]
-name = "peak_dbfs"
-getter = "wfm_writer_peak"
-type = "double"
-returns = "double"
-expr = "tmp > 0 ? 20*log10(tmp) : -INFINITY"
-
-[[module.wfm_writer.getters.fields]]
-name = "clipped"
-getter = "wfm_writer_peak"
-type = "bool"
-returns = "double"
-expr = "tmp > 1.0 && self->sample_type >= 2"
 [module.wfm_sink]
 kind            = "handle"
 backing         = "wfm_stream_sink"
@@ -721,10 +546,10 @@ composes     = ["wfm_synth"]
 sample_type  = true
 # link=true cores (jm appends _core): wfm_compose (composer + wfm_json + resolve),
 # wfm_dsp (DSSS/RRC taps), and the synth chain wfm_synth/lo/awgn/pn/fir. The
-# vendored cJSON OBJECT lib (wfm_cjson) + libm go in extra_link_libs. This mirrors
+# vendored cJSON OBJECT lib (wfm_cjson_core) + libm go in extra_link_libs. This mirrors
 # native/src/wfmcompose/CMakeLists.txt's test_wfm_compose link line.
 # wfm_keywords_core: the writer core's BLUE extended-header codec.
-extra_link_libs = ["wfm_draw_core", "wfm_cjson", "wfm_keywords_core", "m"]
+extra_link_libs = ["wfm_draw_core", "wfm_cjson_core", "wfm_keywords_core", "m"]
 
 # The source type wraps wfm_source_t field-for-field (struct order); enum fields
 # cross as validated strings via the SSOT, `bits` as an owned bytes buffer.

@@ -888,7 +888,10 @@ def test_reader_rejects_unsupported_blue_mode(tmp_path, mode):
     with Writer(p, file_type="blue", sample_type="cf32", fs=1e6) as w:
         w.write(x)
     _patch_blue_mode(p, mode, 2, n)
-    with pytest.raises(RuntimeError):
+    # ValueError, not RuntimeError: the object binding declares
+    # create_error/create_error_message (jm gh-514), so a failed open names the
+    # actual problem instead of an internal C symbol.
+    with pytest.raises(ValueError, match="unsupported BLUE format mode"):
         Reader(p)
 
 
@@ -966,8 +969,9 @@ def test_reader_idempotent_close(tmp_path):
 
 
 def test_reader_missing_file_raises(tmp_path):
-    # The generated handle raises RuntimeError when the C open returns NULL.
-    with pytest.raises((OSError, RuntimeError)):
+    # A failed open raises the component's declared create_error (jm gh-514);
+    # OSError stays in the tuple for the paths that surface errno directly.
+    with pytest.raises((OSError, ValueError)):
         Reader(str(tmp_path / "does-not-exist.cf32"))
 
 

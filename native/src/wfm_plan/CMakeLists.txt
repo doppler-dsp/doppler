@@ -13,7 +13,7 @@ target_link_libraries(wfm_plan PRIVATE
     pn_core
     fir_core
     wfm_draw_core
-    wfm_cjson
+    wfm_cjson_core
     m
     Python3::NumPy)
 target_include_directories(wfm_plan PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)

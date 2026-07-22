@@ -14,4 +14,4 @@ from .wfm_writer import Writer  # noqa: E402
 from .readback import read_iq  # noqa: E402
 from .compose import Synth, tone, bpsk, qpsk, pn, noise, Segment, Timeline, Composer, write_blue_header, bits, chirp, Plan, prepare  # noqa: E402
 
-__all__ = ["PN", "bpsk_map", "qpsk_map", "wfm_awgn_amplitude", "wfm_ebno_to_snr_db", "_SynthEngine", "mls_poly", "rrc_taps", "dsss_spread", "crc16", "Gold", "Synth", "tone", "bpsk", "qpsk", "pn", "noise", "Segment", "Timeline", "Composer", "write_blue_header", "bits", "chirp", "Plan", "prepare", "Writer", "Reader", "StreamSink", "SampleClock", "read_iq"]
+__all__ = ["PN", "bpsk_map", "qpsk_map", "wfm_awgn_amplitude", "wfm_ebno_to_snr_db", "_SynthEngine", "mls_poly", "rrc_taps", "dsss_spread", "crc16", "Gold", "Writer", "Reader", "StreamSink", "SampleClock", "Synth", "tone", "bpsk", "qpsk", "pn", "noise", "Segment", "Timeline", "Composer", "write_blue_header", "bits", "chirp", "Plan", "prepare", "read_iq"]

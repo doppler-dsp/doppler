@@ -15,6 +15,8 @@ extern "C" {
 
 /* ── Components ─────────────────────────────────────────────────────────── */
 
+#include "wfm_reader/wfm_reader_core.h"
+
 #include "f32_to_i16/f32_to_i16_core.h"
 
 #include "i16_to_f32/i16_to_f32_core.h"

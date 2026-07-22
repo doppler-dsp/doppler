@@ -10,7 +10,7 @@ if(BUILD_PYTHON)
 #
 # The capsule bindings for the now-generated handles were removed (gh-178 review
 # #7), so the only backing left is wfm_blue_write_hcb (in wfm_writer_core, which
-# uses cJSON for its embedded SigMF writer — hence wfm_cjson). The compose / dsp
+# uses cJSON for its embedded SigMF writer — hence wfm_cjson_core). The compose / dsp
 # / sink / clock / synth / source cores it used to drag in are no longer linked,
 # and the POSIX/Windows split is gone with the sink_*/clock_* bindings.
 
@@ -19,7 +19,7 @@ target_include_directories(_wfmcompose PRIVATE
     ${CMAKE_SOURCE_DIR}/native/inc
     ${CMAKE_SOURCE_DIR}/vendor/cjson)
 
-target_link_libraries(_wfmcompose PRIVATE wfm_writer_core wfm_keywords_core wfm_draw_core wfm_cjson m)
+target_link_libraries(_wfmcompose PRIVATE wfm_writer_core wfm_keywords_core wfm_draw_core wfm_cjson_core m)
 
 set_target_properties(_wfmcompose PROPERTIES
     LIBRARY_OUTPUT_DIRECTORY "${PYTHON_PACKAGE_DIR}/wfm"

@@ -1,5 +1,5 @@
 # wfm/wfm_reader.pyi — type stubs for the wfm_reader C extension.
-from typing import Literal
+from typing import Any, Literal
 import numpy as np
 from numpy.typing import NDArray
 
@@ -67,6 +67,13 @@ class Reader:
     @property
     def num_samples(self) -> int:
         """Num samples."""
+
+    @property
+    def keywords(self) -> dict[str, Any]:
+        """The BLUE extended header as a {tag: value} dict, in file order; empty when the capture carries no extended header. Values follow the keyword type: a str for A, an int/float for a single-element numeric keyword, a list for a multi-element one. For a detached capture these come from the HEADER file."""
+
+    def close(self) -> None:
+        """Release C resources immediately."""
 
     def destroy(self) -> None:
         """Release C resources immediately."""

@@ -7,8 +7,8 @@ preserve and the two behaviours that are hand-written in the sacred fragment:
 
   * an ``os.PathLike`` constructor argument            (jm gh-515)
   * ``track_clipping()`` keeping its default argument
-  * ``close()`` reporting a failed final flush, which ``destroy()`` cannot
-  * ``reset()`` refusing rather than silently doing nothing
+  * ``close()`` reporting a failed final flush             (jm gh-541/544)
+  * ``reset()`` being absent rather than a no-op            (jm gh-542)
 
 Container-level behaviour lives in test_api_surface.py / test_compose.py; this
 file is about the binding.
@@ -49,13 +49,19 @@ def test_track_clipping_defaults_to_on(tmp_path, scene):
         assert w.peak_dbfs < 0.0
 
 
-def test_reset_refuses(tmp_path):
-    """A writer cannot be reset; build a new one for a new capture."""
-    with (
-        Writer(tmp_path / "c.cf32") as w,
-        pytest.raises(NotImplementedError, match="construct a new Writer"),
-    ):
-        w.reset()
+def test_writer_has_no_reset(tmp_path):
+    """A writer cannot be reset; the method is absent, not a no-op.
+
+    Declared `no_reset` (jm gh-542), so there is no `reset()` at all --
+    ``hasattr`` is False and calling it is an ``AttributeError``, the honest
+    Python answer for a type that has nothing to reset. Build a new Writer for
+    a new capture. (Previously this raised ``NotImplementedError`` from a
+    hand-written stub; the stub is gone with the whole method.)
+    """
+    with Writer(tmp_path / "c.cf32") as w:
+        assert not hasattr(w, "reset")
+        with pytest.raises(AttributeError):
+            w.reset()
 
 
 def test_close_is_idempotent_and_destroy_agrees(tmp_path, scene):

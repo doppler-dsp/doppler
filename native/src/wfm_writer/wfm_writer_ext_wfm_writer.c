@@ -20,7 +20,14 @@ static void
 WriterObj_dealloc (WriterObject *self)
 {
   if (self->handle)
-    wfm_writer_destroy (self->handle);
+    {
+      /* gh-541: tp_dealloc has no exception context — there
+         is no caller to raise to, and an in-flight exception
+         must not be clobbered. Discarding the status is the
+         only correct choice here; the explicit teardown and
+         __exit__ paths do report it. */
+      (void)wfm_writer_destroy (self->handle);
+    }
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -122,21 +129,6 @@ WriterObj_init (WriterObject *self, PyObject *args, PyObject *kwds)
 }
 
 static PyObject *
-WriterObj_reset (WriterObject *self, PyObject *Py_UNUSED (ignored))
-{
-  (void)self;
-  /* Hand-written. jm's object shape always emits a reset(), but a writer has
-   * nothing coherent to reset: the samples are already on disk, and the
-   * written count drives the BLUE data_size patch that close() applies, so
-   * clearing it would corrupt the header. Refusing beats silently doing
-   * nothing -- a caller reaching for reset() wants a fresh capture. */
-  PyErr_SetString (PyExc_NotImplementedError,
-                   "a Writer cannot be reset -- construct a new Writer for a "
-                   "new capture");
-  return NULL;
-}
-
-static PyObject *
 WriterObj_write (WriterObject *self, PyObject *args, PyObject *kwds)
 {
   if (!self->handle)
@@ -224,24 +216,11 @@ WriterObj_destroy (WriterObject *self, PyObject *Py_UNUSED (ignored))
 {
   if (self->handle)
     {
-      wfm_writer_destroy (self->handle);
+      int rc = wfm_writer_destroy (self->handle);
+      /* gh-541: clear the handle before reporting, so a second
+         call is a no-op rather than a double free — the state is
+         released whatever the status says. */
       self->handle = NULL;
-    }
-  Py_RETURN_NONE;
-}
-
-/* `close()` is how this type has always been finalised, and unlike destroy()
- * it reports failure. That matters: the BLUE data_size patch and the extended
- * header are both written during close, so a write error there means the file
- * on disk is not the file you asked for. Hand-written -- jm's object shape has
- * only the void destructor. */
-static PyObject *
-WriterObj_close (WriterObject *self, PyObject *Py_UNUSED (ignored))
-{
-  if (self->handle)
-    {
-      int rc       = wfm_writer_close (self->handle);
-      self->handle = NULL; /* freed by close() either way */
       if (rc != 0)
         {
           PyErr_SetString (PyExc_OSError,
@@ -264,21 +243,25 @@ static PyObject *
 WriterObj_exit (WriterObject *self, PyObject *args)
 {
   (void)args;
-  /* Deliberately close(), not destroy(): a with-block must still raise when
-   * the final flush fails. */
-  return WriterObj_close (self, NULL);
+  if (self->handle)
+    {
+      int rc = wfm_writer_destroy (self->handle);
+      /* gh-541: clear the handle before reporting, so a second
+         call is a no-op rather than a double free — the state is
+         released whatever the status says. */
+      self->handle = NULL;
+      if (rc != 0)
+        {
+          PyErr_SetString (PyExc_OSError,
+                           "failed to finalise the capture: the trailing "
+                           "header patch or extended header was not written");
+          return NULL;
+        }
+    }
+  Py_RETURN_NONE;
 }
 
 static PyMethodDef WriterObj_methods[] = {
-  { "close", (PyCFunction)WriterObj_close, METH_NOARGS,
-    "close() -> None\n"
-    "\n"
-    "Finalise the capture: flush, patch the BLUE data_size from the actual\n"
-    "sample count, append any extended header, and release the file.\n"
-    "Raises OSError if that final write fails. Idempotent.\n" },
-
-  { "reset", (PyCFunction)WriterObj_reset, METH_NOARGS,
-    "Reset state to post-create defaults." },
 
   { "write", (PyCFunction)(void *)WriterObj_write,
     METH_VARARGS | METH_KEYWORDS,
@@ -302,6 +285,8 @@ static PyMethodDef WriterObj_methods[] = {
     "    >>> from doppler import Writer\n"
     "    >>> obj = Writer(..., \"raw\", \"cf32\", \"le\", 1e6, 0.0, 0, 0.0)\n"
     "    >>> obj.track_clipping(0)\n" },
+  { "close", (PyCFunction)WriterObj_destroy, METH_NOARGS,
+    "Release resources." },
   { "destroy", (PyCFunction)WriterObj_destroy, METH_NOARGS,
     "Release resources." },
   { "__enter__", (PyCFunction)WriterObj_enter, METH_NOARGS, NULL },

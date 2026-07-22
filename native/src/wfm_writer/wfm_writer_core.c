@@ -393,10 +393,14 @@ wfm_writer_close (wfm_writer_state_t *w)
   return rc;
 }
 
-void
+/* The object binding's fallible destructor (gh-541): jm generates a close()
+   that raises when this returns non-zero, so the finaliser's status reaches
+   the caller. wfm_writer_close() is the implementation; C callers use it
+   directly. */
+int
 wfm_writer_destroy (wfm_writer_state_t *w)
 {
-  (void)wfm_writer_close (w);
+  return wfm_writer_close (w);
 }
 
 /* Path-opening + FILE-owning variant for the generated `Writer` handle (jm

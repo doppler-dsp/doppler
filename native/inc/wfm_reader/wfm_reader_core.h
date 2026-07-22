@@ -117,7 +117,7 @@ size_t wfm_reader_read_max_out(wfm_reader_state_t *state);
    * you the samples. For a detached capture the keywords come from the HEADER
    * file, not the `.det`.
    */
-  size_t wfm_reader_num_keywords (const wfm_reader_state_t *r);
+size_t wfm_reader_num_keywords(const wfm_reader_state_t *state);
 
   /**
    * @brief The @p i'th keyword in file order, or NULL if @p i is out of range.
@@ -126,6 +126,15 @@ size_t wfm_reader_read_max_out(wfm_reader_state_t *state);
    * is freed by wfm_reader_destroy().
    */
   const wfm_keyword_t *wfm_reader_keyword (const wfm_reader_state_t *r, size_t i);
+
+  /**
+   * @brief The tag of the @p i'th keyword (key_fn for the `.keywords` dict).
+   *
+   * jm's generated dict loop (gh-543) calls this for every index in
+   * [0, wfm_reader_num_keywords()), so @p i is always in range. The returned
+   * pointer is owned by the reader.
+   */
+const char *wfm_reader_keyword_tag(const wfm_reader_state_t *state, size_t i);
 
   /**
    * @brief The first keyword whose tag equals @p tag, or NULL if absent.

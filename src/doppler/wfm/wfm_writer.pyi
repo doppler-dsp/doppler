@@ -28,9 +28,6 @@ class Writer:
     """
     def __init__(self, path: str, file_type: Literal["raw", "csv", "blue", "sigmf"] = "raw", sample_type: Literal["cf32", "cf64", "ci32", "ci16", "ci8"] = "cf32", endian: Literal["le", "be"] = "le", fs: float = ..., fc: float = ..., total: int = ..., headroom: float = ...) -> None: ...
 
-    def reset(self) -> None:
-        """Reset state to post-create defaults."""
-
     def write(self, x: NDArray[np.complex64]) -> int:
         """Convert and write `n` complex samples.
 
@@ -66,8 +63,29 @@ class Writer:
     def clipped(self) -> bool:
         """Clipped."""
 
+    def close(self) -> None:
+        """Release C resources immediately.
+
+        Raises
+        ------
+        OSError
+            If the C destructor reports failure. Raised from
+            an explicit call and from ``__exit__`` alike, so a
+            failing teardown propagates out of a ``with``
+            block (gh-541).
+        """
+
     def destroy(self) -> None:
-        """Release C resources immediately."""
+        """Release C resources immediately.
+
+        Raises
+        ------
+        OSError
+            If the C destructor reports failure. Raised from
+            an explicit call and from ``__exit__`` alike, so a
+            failing teardown propagates out of a ``with``
+            block (gh-541).
+        """
 
     def __enter__(self) -> "Writer": ...
 

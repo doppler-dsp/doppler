@@ -598,49 +598,57 @@ touches `jm apply`/`status` codegen paths doppler already exercises
 before this fix and are unaffected; the bug was in the *scaffolding*
 path, not the steady-state apply path).
 
-### 0.33.4 adoptions — `wfm.Reader`/`wfm.Writer` are jm OBJECTS (pin: 0.33.4)
+### 0.33.6 adoptions — `wfm.Reader`/`wfm.Writer` are FULLY declarative (pin: 0.33.6)
 
-The CI drift gate pins **0.33.4**; `jm_version` is stamped 0.33.4. **Drive
-doppler with `uvx --from 'just-makeit==0.33.4' just-makeit …`.** The release
-also fixes a `variable_output` `.pyi` bug doppler reported — a generated stub
-omitted the method's count parameter and so contradicted its own runtime
-binding (`LO`, `NCO`, `AWGN`, the accumulators; `source.pyi` is generated and
-not `status_allow`-listed, so it was shipped wrong).
+The CI drift gate pins **0.33.6**; `jm_version` is stamped 0.33.6. **Drive
+doppler with `uvx --from 'just-makeit==0.33.6' just-makeit …`.** 0.33.5 shipped
+gh-541/542/544 and 0.33.6 shipped gh-543 — the four doppler-filed features that
+the Reader/Writer object migration needed but could not express, so its four
+hand-written fragment blocks are now **manifest keys** and both
+`_ext_<obj>.c` fragments are fully jm-generated again:
 
-`[module.wfm_reader]` and `[module.wfm_writer]` are no longer `kind = "handle"`
-— they are ordinary object modules (`objects/wfm_reader.toml`,
-`objects/wfm_writer.toml`). The migration needed four doppler-filed jm features:
-`path` init-params (gh-515), `create_error` (gh-514), enum-valued properties
-(gh-519) and `package` on an object module (gh-523).
+| was hand-written                                | now declarative                                                                                                             |
+| ----------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| Writer `close()` + `__exit__` error propagation | `[wfm_writer.destroy]` `returns="int"` `error="OSError"` (gh-541); core `wfm_writer_destroy` widened to return int          |
+| Writer `reset()` raising `NotImplementedError`  | `no_reset = "true"` (gh-542) — the method is **gone**; `w.reset()` is now `AttributeError`, `hasattr(w,"reset")` is False   |
+| `close()`/`destroy()` naming on both types      | `[<obj>.destroy]` `name="close"` `aliases=["destroy"]` (gh-544)                                                             |
+| `Reader.keywords` (dict)                        | `type="dict"` `value_type="object"` (gh-543); jm generates the loop/refcount/guards, one hand-written value builder remains |
 
-**Both `_ext_<obj>.c` fragments carry hand-written blocks**, each blocked on a
-filed jm gap. They are sacred, so they survive `jm apply` — but delete a
-fragment and they are gone:
+The **one** behaviour change is `Writer.reset()`: `no_reset` removes the method
+entirely, so it raises `AttributeError` rather than the old hand-written
+`NotImplementedError`. That is gh-542's intent — a writer has nothing to reset,
+and an absent method is the honest Python answer. `wfm_writer_reset()` is gone
+from the header too (the declared-but-undefined undefined-symbol trick is no
+longer needed — there is no `reset()` to guard).
 
-| block                                           | jm gap                                                                                |
-| ----------------------------------------------- | ------------------------------------------------------------------------------------- |
-| Writer `close()` + `__exit__` error propagation | [jm#541](https://github.com/just-buildit/just-makeit/issues/541) fallible destructor  |
-| Writer `reset()` raising `NotImplementedError`  | [jm#542](https://github.com/just-buildit/just-makeit/issues/542) `no_reset`           |
-| `Reader.keywords` (dict)                        | [jm#543](https://github.com/just-buildit/just-makeit/issues/543) dict-valued property |
-| `close()` on both types                         | [jm#544](https://github.com/just-buildit/just-makeit/issues/544) destructor naming    |
+Making `keywords` declarative also lands it in the `.pyi` (`dict[str, Any]`),
+and `close()` on both types — a fragment-added method never reached a type
+checker. That closes the gap noted below.
 
-Retire each block as its issue ships; the fragments are the reference for what
-the generated form must match. A hand-written method never reaches the `.pyi`,
-so `close()` is invisible to a type checker until gh-544 lands (mypy is not
-gated here).
+**One hand-written helper survives, by design:** `Reader.keywords`'s per-keyword
+VALUE is data-dependent (its Python type comes from the keyword's own BLUE type
+code — `str` for `A`, `int`/`float` for a scalar numeric, `list` for a
+multi-element one), so it uses `value_type="object"` and jm forward-declares
+`wfm_reader_keyword_value(const state*, size_t) -> PyObject*` for a hand-written
+`native/src/wfm_reader/wfm_reader_ext_extra.c` (gh-543's standalone-object
+`_ext_extra.c` hook — jm wires it in, never creates or modifies it). jm still
+generates the dict loop, the refcounting, every error path, and the gh-521-class
+NULL-key/NULL-value guards. Test coverage: the C round-trip proves the decode
+(`test_wfm_reader_core.c`); a hand-built keyworded BLUE file in
+`test_wfm_reader.py` (`_encode_keyword`, assembled against the Midas BLUE 1.1
+wire format because the Python `Writer` has no `add_keyword` binding) proves the
+Python value dispatch — verified to fail if the builder is broken.
 
-**`wfm_writer_reset()` is deliberately declared but NOT defined.** If the
-fragment is ever regenerated without the hand-written refusal, the generated
-`reset()` calls it and the extension fails to load —
-`ImportError: undefined symbol: wfm_writer_reset` — instead of silently
-becoming a no-op that tells callers their writer was reset. Verified, not
-assumed.
+**`Writer` cannot emit keywords from Python.** `wfm_writer_add_keyword` exists
+in C (C-tested) with no binding, so a keyword round-trip can only be tested by
+building the file bytes directly. Exposing it is new public API (a
+manifest-vs-fragment decision) and is left unfiled.
 
 **Use the SCOPED `jm apply objects/<obj>.toml` whenever a sacred fragment
 exists.** A bare `jm apply` can regenerate a *sibling's* fragment and discard
-its hand-patches (documented at `docs/dev/adding-a-module.md:39`). Ignoring
-this cost three silent re-applications during the migration. After touching a
-fragment, clang-format it — jm emits K&R 4-space, doppler is GNU 2-space.
+its hand-patches (documented at `docs/dev/adding-a-module.md:39`). After
+touching a fragment — or the hand-owned `wfm_reader_ext_extra.c` — clang-format
+it: jm emits K&R 4-space, doppler is GNU 2-space.
 
 **Check doxygen at CI's version, not the local one.** CI runs 1.9.8 (Ubuntu);
 a newer local doxygen does not report what it does. It caught three real

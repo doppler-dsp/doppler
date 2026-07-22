@@ -4,7 +4,7 @@
  * Uses tmpfile() (seekable) so the BLUE data_size patch-on-close is exercised.
  * Host is little-endian (x86), matching the writer's assumption.
  */
-#include "wfm/wfm_writer.h"
+#include "wfm_writer/wfm_writer_core.h"
 
 #include <complex.h>
 #include <stdio.h>
@@ -38,9 +38,9 @@ main (void)
 
   /* ── raw cf32 LE: interleaved float I/Q, host order ── */
   {
-    float _Complex s[2] = { 1.0f + 2.0f * I, -1.0f - 2.0f * I };
-    FILE         *fp    = tmpfile ();
-    wfm_writer_t *w     = wfm_writer_open (fp, WFM_FT_RAW, 0, 0, 1e6, 0, 2);
+    float _Complex s[2]    = { 1.0f + 2.0f * I, -1.0f - 2.0f * I };
+    FILE               *fp = tmpfile ();
+    wfm_writer_state_t *w  = wfm_writer_open (fp, WFM_FT_RAW, 0, 0, 1e6, 0, 2);
     CHECK (w, "raw open");
     CHECK (wfm_writer_write (w, s, 2) == 2, "raw write");
     CHECK (wfm_writer_close (w) == 0, "raw close");
@@ -56,10 +56,10 @@ main (void)
   /* ── endian: ci16 BE is the byte-reverse of ci16 LE ── */
   {
     float _Complex s[1] = { 0.5f - 0.5f * I };
-    uint8_t       le[4], be[4];
-    FILE         *fl = tmpfile (), *fb = tmpfile ();
-    wfm_writer_t *wl = wfm_writer_open (fl, WFM_FT_RAW, 3, 0, 1e6, 0, 1);
-    wfm_writer_t *wb = wfm_writer_open (fb, WFM_FT_RAW, 3, 1, 1e6, 0, 1);
+    uint8_t             le[4], be[4];
+    FILE               *fl = tmpfile (), *fb = tmpfile ();
+    wfm_writer_state_t *wl = wfm_writer_open (fl, WFM_FT_RAW, 3, 0, 1e6, 0, 1);
+    wfm_writer_state_t *wb = wfm_writer_open (fb, WFM_FT_RAW, 3, 1, 1e6, 0, 1);
     wfm_writer_write (wl, s, 1);
     wfm_writer_write (wb, s, 1);
     wfm_writer_close (wl);
@@ -74,9 +74,9 @@ main (void)
 
   /* ── csv cf32: one "%0.9f,%0.9f" line per sample ── */
   {
-    float _Complex s[1] = { 0.25f + (-0.5f) * I };
-    FILE         *fp    = tmpfile ();
-    wfm_writer_t *w     = wfm_writer_open (fp, WFM_FT_CSV, 0, 0, 1e6, 0, 1);
+    float _Complex s[1]    = { 0.25f + (-0.5f) * I };
+    FILE               *fp = tmpfile ();
+    wfm_writer_state_t *w  = wfm_writer_open (fp, WFM_FT_CSV, 0, 0, 1e6, 0, 1);
     CHECK (wfm_writer_write (w, s, 1) == 1, "csv write");
     wfm_writer_close (w);
     size_t nb = slurp (fp, bytes, sizeof bytes - 1);
@@ -91,7 +91,7 @@ main (void)
     float _Complex s[2] = { 1.0f + 0.0f * I, 0.0f + 1.0f * I };
     FILE *fp            = tmpfile ();
     /* total unknown at open (0) → close must patch it */
-    wfm_writer_t *w = wfm_writer_open (fp, WFM_FT_BLUE, 0, 0, 1e6, 0, 0);
+    wfm_writer_state_t *w = wfm_writer_open (fp, WFM_FT_BLUE, 0, 0, 1e6, 0, 0);
     CHECK (w, "blue open");
     wfm_writer_write (w, s, 2);
     CHECK (wfm_writer_close (w) == 0, "blue close");
@@ -231,9 +231,9 @@ main (void)
   {
     /* s0: |re|=1.5 clips, |im|=0.5 ok; s1: |re|=0.5 ok, |im|=2.0 clips.
        peak = 2.0; 2 of 4 components saturate → fraction 0.5 (ci16). */
-    float _Complex s[2] = { 1.5f + 0.5f * I, -0.5f - 2.0f * I };
-    FILE         *fp    = tmpfile ();
-    wfm_writer_t *w     = wfm_writer_open (fp, WFM_FT_RAW, 3, 0, 1e6, 0, 2);
+    float _Complex s[2]    = { 1.5f + 0.5f * I, -0.5f - 2.0f * I };
+    FILE               *fp = tmpfile ();
+    wfm_writer_state_t *w  = wfm_writer_open (fp, WFM_FT_RAW, 3, 0, 1e6, 0, 2);
     CHECK (w, "clip open");
     wfm_writer_track_clipping (w, 1);
     CHECK (wfm_writer_write (w, s, 2) == 2, "clip write");
@@ -246,9 +246,9 @@ main (void)
 
   /* ── float never clips: peak tracked, fraction stays 0 ── */
   {
-    float _Complex s[1] = { 3.0f + 0.0f * I };
-    FILE         *fp    = tmpfile ();
-    wfm_writer_t *w     = wfm_writer_open (fp, WFM_FT_RAW, 0, 0, 1e6, 0, 1);
+    float _Complex s[1]    = { 3.0f + 0.0f * I };
+    FILE               *fp = tmpfile ();
+    wfm_writer_state_t *w  = wfm_writer_open (fp, WFM_FT_RAW, 0, 0, 1e6, 0, 1);
     wfm_writer_track_clipping (w, 1);
     wfm_writer_write (w, s, 1);
     CHECK (wfm_writer_peak (w) == 3.0, "float peak tracked");
@@ -260,9 +260,9 @@ main (void)
   /* ── clean at full-scale: peak == 1.0, no clip; fraction 0 without opt-in ──
    */
   {
-    float _Complex s[2] = { 1.0f + 1.0f * I, -1.0f - 1.0f * I };
-    FILE         *fp    = tmpfile ();
-    wfm_writer_t *w     = wfm_writer_open (fp, WFM_FT_RAW, 3, 0, 1e6, 0, 2);
+    float _Complex s[2]    = { 1.0f + 1.0f * I, -1.0f - 1.0f * I };
+    FILE               *fp = tmpfile ();
+    wfm_writer_state_t *w  = wfm_writer_open (fp, WFM_FT_RAW, 3, 0, 1e6, 0, 2);
     wfm_writer_write (w, s, 2); /* no track_clipping → fraction stays 0 */
     CHECK (wfm_writer_peak (w) == 1.0, "clean peak == 1.0 (no clip)");
     CHECK (wfm_writer_clip_fraction (w) == 0.0, "no opt-in → fraction 0");
@@ -273,10 +273,10 @@ main (void)
   /* ── headroom: gain 1.0 is a bit-exact no-op (byte-identical) ── */
   {
     float _Complex s[1] = { 0.8f - 0.3f * I };
-    uint8_t       a[4], b[4];
-    FILE         *fa = tmpfile (), *fb = tmpfile ();
-    wfm_writer_t *wa = wfm_writer_open (fa, WFM_FT_RAW, 3, 0, 1e6, 0, 1);
-    wfm_writer_t *wb = wfm_writer_open (fb, WFM_FT_RAW, 3, 0, 1e6, 0, 1);
+    uint8_t             a[4], b[4];
+    FILE               *fa = tmpfile (), *fb = tmpfile ();
+    wfm_writer_state_t *wa = wfm_writer_open (fa, WFM_FT_RAW, 3, 0, 1e6, 0, 1);
+    wfm_writer_state_t *wb = wfm_writer_open (fb, WFM_FT_RAW, 3, 0, 1e6, 0, 1);
     wfm_writer_set_gain (wa, 1.0); /* explicit 1.0 == default (no gain) */
     wfm_writer_write (wa, s, 1);
     wfm_writer_write (wb, s, 1);
@@ -290,9 +290,9 @@ main (void)
 
   /* ── headroom backs the signal off: gain 0.5 clears a clip ── */
   {
-    float _Complex s[1] = { 1.5f + 0.0f * I }; /* clips at unity gain */
-    FILE         *fp    = tmpfile ();
-    wfm_writer_t *w     = wfm_writer_open (fp, WFM_FT_RAW, 3, 0, 1e6, 0, 1);
+    float _Complex s[1]    = { 1.5f + 0.0f * I }; /* clips at unity gain */
+    FILE               *fp = tmpfile ();
+    wfm_writer_state_t *w  = wfm_writer_open (fp, WFM_FT_RAW, 3, 0, 1e6, 0, 1);
     wfm_writer_set_gain (w, 0.5); /* 1.5 * 0.5 = 0.75, fits full-scale */
     wfm_writer_track_clipping (w, 1);
     wfm_writer_write (w, s, 1);

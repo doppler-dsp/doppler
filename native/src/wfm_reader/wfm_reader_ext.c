@@ -15,7 +15,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "wfm/wfm_reader.h"
+#include "wfm_reader/wfm_reader_core.h"
 
 /* String-enum tables — order is the C int (the [[enum]] SSOT). */
 static int
@@ -88,14 +88,14 @@ Reader_init(ReaderObject *self, PyObject *args, PyObject *kwds)
         return -1;
     }
     if (!self->closed && self->h) {
-        wfm_reader_close(self->h);
+        wfm_reader_destroy(self->h);
         self->h = NULL;
         self->closed = 1;
     }
-    self->h = wfm_reader_open(PyBytes_AS_STRING(path), _arg_sample_type, _arg_endian);
+    self->h = wfm_reader_create(PyBytes_AS_STRING(path), _arg_sample_type, _arg_endian);
     Py_XDECREF(path);
     if (!self->h) {
-        PyErr_SetString(PyExc_RuntimeError, "wfm_reader_open failed");
+        PyErr_SetString(PyExc_RuntimeError, "wfm_reader_create failed");
         return -1;
     }
     self->closed = 0;
@@ -203,7 +203,7 @@ static PyObject *
 Reader_close(ReaderObject *self, PyObject *Py_UNUSED(ignored))
 {
     if (!self->closed && self->h) {
-        wfm_reader_close(self->h);
+        wfm_reader_destroy(self->h);
         self->closed = 1;
     }
     Py_RETURN_NONE;
@@ -226,7 +226,7 @@ static void
 Reader_dealloc(ReaderObject *self)
 {
     if (!self->closed && self->h) {
-        wfm_reader_close(self->h);
+        wfm_reader_destroy(self->h);
     }
     Py_TYPE(self)->tp_free((PyObject *)self);
 }

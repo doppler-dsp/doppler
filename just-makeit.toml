@@ -108,12 +108,12 @@ block_sizes = [65536]
 [module.wfm_reader]
 kind            = "handle"
 backing         = "wfm_reader"
-header          = "wfm/wfm_reader.h"
+header          = "wfm_reader/wfm_reader_core.h"
 package         = "wfm"
 type_name       = "Reader"
 context_manager = true
-close_fn        = "wfm_reader_close"
-create_fn       = "wfm_reader_open"
+close_fn        = "wfm_reader_destroy"
+create_fn       = "wfm_reader_create"
 # wfm_reader.c parses SigMF sidecars via the vendored cJSON OBJECT lib; libm too.
 # wfm_keywords_core is the shared BLUE extended-header codec (object libraries
 # are not propagated transitively, so every final target names it).
@@ -373,13 +373,13 @@ scale = "1e-9"
 [module.wfm_writer]
 kind            = "handle"
 backing         = "wfm_writer"
-header          = "wfm/wfm_writer.h"
+header          = "wfm_writer/wfm_writer_core.h"
 package         = "wfm"
 type_name       = "Writer"
 context_manager = true
 close_fn        = "wfm_writer_close"
 close_returns   = "int"
-create_fn       = "wfm_writer_open_path"
+create_fn       = "wfm_writer_create"
 extra_link_libs = ["wfm_draw_core", "wfm_cjson", "wfm_keywords_core", "m"]
 
 [[module.wfm_writer.create_args]]
@@ -1016,7 +1016,7 @@ to_json_trailing = ["0.0"]
 name = "to_sigmf"
 fn = "wfm_sigmf_meta_json"
 returns = "str"
-header = "wfm/wfm_writer.h"
+header = "wfm_writer/wfm_writer_core.h"
 
 [[module.wfm_compose.serializers.params]]
 name = "sample_type"

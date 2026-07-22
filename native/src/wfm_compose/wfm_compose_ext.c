@@ -17,7 +17,7 @@
 /* project bridge (straight C, no CPython): build the generator. */
 extern wfm_synth_state_t *wfm_source_to_synth(const wfm_source_t *, double);
 #include "timing/timing_core.h"
-#include "wfm/wfm_writer.h"
+#include "wfm_writer/wfm_writer_core.h"
 
 /* String-enum tables — order is the C int (the [[enum]] SSOT). */
 static int

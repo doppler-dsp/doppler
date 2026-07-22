@@ -15,7 +15,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "wfm/wfm_writer.h"
+#include "wfm_writer/wfm_writer_core.h"
 
 /* String-enum tables — order is the C int (the [[enum]] SSOT). */
 static int
@@ -97,10 +97,10 @@ Writer_init(WriterObject *self, PyObject *args, PyObject *kwds)
         self->h = NULL;
         self->closed = 1;
     }
-    self->h = wfm_writer_open_path(PyBytes_AS_STRING(path), _arg_file_type, _arg_sample_type, _arg_endian, fs, fc, total, headroom);
+    self->h = wfm_writer_create(PyBytes_AS_STRING(path), _arg_file_type, _arg_sample_type, _arg_endian, fs, fc, total, headroom);
     Py_XDECREF(path);
     if (!self->h) {
-        PyErr_SetString(PyExc_RuntimeError, "wfm_writer_open_path failed");
+        PyErr_SetString(PyExc_RuntimeError, "wfm_writer_create failed");
         return -1;
     }
     self->closed = 0;

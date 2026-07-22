@@ -55,7 +55,7 @@ wfmgen --from-file scenario.json --sample-type ci16 --file-type sigmf -o capture
 The `.sigmf-meta` JSON is SigMF 1.0.0 with one **annotation per source per
 segment**, so a multi-segment / multi-source scene becomes a self-labelling
 ground-truth capture. The exact shape `wfmgen` (and `Composer.to_sigmf`) emit —
-see `native/src/wfm/wfm_writer.c`:
+see `native/src/wfm_writer/wfm_writer_core.c`:
 
 ```json
 {

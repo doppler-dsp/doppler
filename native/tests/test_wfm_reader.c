@@ -124,6 +124,54 @@ test_blue_gate (void)
   return 0;
 }
 
+/* A DETACHED BLUE capture opened by its HEADER must return the payload.
+   Regression: the reader used to infer "detached" from the .det extension and
+   never read the HCB `detached` field (offset 12), so a header file parsed its
+   HCB then seeked to data_start -- 0 when detached -- and handed back the
+   512-byte HCB itself as IQ (64 cf32 "samples", the first being the ASCII
+   "BLUEEEEI" magic as two floats). Silent: no error, right file_type and fs.
+   Per BLUE 3.1.1.4 the header is <base>.tmp / <base>.prm (doppler writes
+   <base>.hdr) and the payload is the collocated <base>.det, so the extension
+   must not decide -- `detached` does. Checks every header spelling. */
+static int
+test_detached_header_entry (void)
+{
+  static const char *const HDR[]
+      = { "dp_det.hdr", "dp_det.prm", "dp_det.tmp" };
+  float _Complex x[N], y[N];
+  make_signal (x, N);
+
+  /* payload: raw cf32 from byte 0 of the .det */
+  FILE *df = fopen ("dp_det.det", "wb");
+  CHECK (df != NULL, "open .det");
+  CHECK (fwrite (x, sizeof x[0], N, df) == N, "write .det");
+  fclose (df);
+
+  for (size_t i = 0; i < sizeof HDR / sizeof *HDR; i++)
+    {
+      FILE *hf = fopen (HDR[i], "wb");
+      CHECK (hf != NULL, "open detached header");
+      /* data_start = 0, detached = 1 -> payload is the collocated .det */
+      CHECK (wfm_blue_write_hcb (hf, 0, 0, 2.4e6, 0.0, 0.0, N, 1) == 0,
+             "write detached HCB");
+      fclose (hf);
+
+      wfm_reader_t *r = wfm_reader_open (HDR[i], 0, 0);
+      CHECK (r != NULL, "open detached capture by its header");
+      wfm_reader_info_t info;
+      wfm_reader_info (r, &info);
+      CHECK (info.file_type == WFM_FT_BLUE, "detached header detects BLUE");
+      CHECK (info.num_samples == N, "detached num_samples from data_size");
+      size_t got = wfm_reader_read (r, y, N);
+      wfm_reader_close (r);
+      /* the whole payload -- NOT the 512-byte header as 64 samples */
+      CHECK (got == N, "detached header yields the full payload");
+      for (size_t k = 0; k < N; k++)
+        CHECK (cabsf (y[k] - x[k]) < 1e-6f, "detached payload is exact");
+    }
+  return 0;
+}
+
 int
 main (void)
 {
@@ -142,6 +190,8 @@ main (void)
   if (roundtrip ("dp_reader_i16.csv", WFM_FT_CSV, 3, 1e6, 1e-3))
     return 1;
   if (test_blue_gate ())
+    return 1;
+  if (test_detached_header_entry ())
     return 1;
   printf ("test_wfm_reader: all passed\n");
   return 0;

@@ -95,28 +95,3 @@ type = "double"
 [[wfm_reader.properties]]
 name = "num_samples"
 type = "size_t"
-
-# `.keywords` — the BLUE extended header as a {tag: value} dict (gh-543). jm
-# generates the dict loop, refcounting and every error path; the per-keyword
-# VALUE is data-dependent (its Python type comes from the keyword's own type
-# code in the file -- str for A, int/float for a scalar numeric, list for a
-# multi-element one), so value_type="object" routes it to a hand-written
-# wfm_reader_keyword_value() in wfm_reader_ext_extra.c that returns the PyObject
-# itself. count_fn/key_fn default from the object+property name. Making it
-# declarative also lands `keywords` in the .pyi, which a fragment method never
-# reached.
-[[wfm_reader.properties]]
-name = "keywords"
-type = "dict"
-value_type = "object"
-count_fn = "wfm_reader_num_keywords"
-key_fn = "wfm_reader_keyword_tag"
-value_fn = "wfm_reader_keyword_value"
-doc = """The BLUE extended header as a {tag: value} dict, in file order; empty when the capture carries no extended header. Values follow the keyword type: a str for A, an int/float for a single-element numeric keyword, a list for a multi-element one. For a detached capture these come from the HEADER file."""
-
-# close() is the name this type has always released its file under, and every
-# caller and doc example uses it. gh-544 names the destructor; `destroy()` (jm's
-# default) stays as an alias. Void -- a reader's close cannot fail.
-[wfm_reader.destroy]
-name = "close"
-aliases = ["destroy"]

@@ -12,25 +12,6 @@ no_step = "true"
 class_name = "Writer"
 create_error = "OSError"
 create_error_message = "cannot open the capture for writing (check the path, the directory, and permissions)"
-# A writer has nothing coherent to reset -- the samples are on disk and the
-# written count drives the BLUE data_size patch that close() applies. gh-542
-# removes the method entirely rather than shipping a no-op or a hand-written
-# raise (which would silently degrade to a no-op if a regeneration dropped it).
-no_reset = "true"
-
-# close() is finalisation, not cleanup: the BLUE data_size patch and the
-# extended header are both written during close, so a failed write there means
-# the file on disk is not the file the caller asked for. A fallible, renamed
-# destructor (gh-541/544) reports it -- returns != 0 raises, and the status
-# reaches the generated __exit__, so a `with` block raises rather than
-# swallowing a corrupt capture. `destroy()` stays as an alias for the handle-era
-# spelling.
-[wfm_writer.destroy]
-name = "close"
-aliases = ["destroy"]
-returns = "int"
-error = "OSError"
-error_message = "failed to finalise the capture: the trailing header patch or extended header was not written"
 
 [[wfm_writer.depends_on]]
 name = "wfm_cjson"

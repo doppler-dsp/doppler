@@ -7,7 +7,7 @@ class FIR:
 
     Parameters
     ----------
-    taps : NDArray[np.complex64], default ...
+    taps : NDArray[np.complex64]
         Array of num_taps CF32 coefficients (I+jQ each), copied.
 
     """

@@ -6,6 +6,8 @@
  */
 #include "wfm/wfm_writer.h"
 
+#include "wfm/wfm_keywords.h"
+
 #include <complex.h>
 #include <math.h>
 #include <stdint.h>
@@ -37,6 +39,8 @@ struct wfm_writer
   uint64_t nclip; /* saturated I/Q components (only when `track`) */
   int      track; /* count clips (opt-in); peak is always on */
   float    gain;  /* output gain (headroom); 1.0 = no-op */
+  uint8_t *kw;    /* encoded extended-header keywords, written at close */
+  size_t   kwlen, kwcap;
 };
 
 /* Update the running peak (always) and, when opted in for an integer wire
@@ -258,6 +262,69 @@ wfm_writer_write (wfm_writer_t *w, const float _Complex *iq, size_t n)
 }
 
 int
+wfm_writer_add_keyword (wfm_writer_t *w, const char *tag, char type,
+                        const void *value, size_t count)
+{
+  if (!w || w->ft != WFM_FT_BLUE) /* only BLUE has an extended header */
+    return -1;
+  size_t esz = wfm_kw_elem_size (type);
+  if (esz == 0 || !tag || !value || count == 0)
+    return -1;
+  size_t need = wfm_kw_entry_size (strlen (tag), count * esz);
+  if (w->kwlen + need > w->kwcap)
+    {
+      size_t   ncap = w->kwcap ? w->kwcap * 2 : 256;
+      uint8_t *p;
+      while (ncap < w->kwlen + need)
+        ncap *= 2;
+      p = (uint8_t *)realloc (w->kw, ncap);
+      if (!p)
+        return -1;
+      w->kw    = p;
+      w->kwcap = ncap;
+    }
+  size_t got = wfm_kw_encode (w->kw + w->kwlen, w->kwcap - w->kwlen, tag, type,
+                              value, count, w->be);
+  if (got == 0)
+    return -1;
+  w->kwlen += got;
+  return 0;
+}
+
+/* Append the buffered keywords as the extended header and patch ext_start /
+   ext_size into the HCB. Called from close, after the data is complete: BLUE
+   §3.3 explicitly allows the extended header to follow the data section, which
+   is the only workable order for a stream whose length is unknown up front.
+   The extended header must begin on a 512-byte boundary, so the gap is zero-
+   filled -- also §3.3's suggested use for that slack. */
+static int
+write_ext_header (wfm_writer_t *w)
+{
+  if (fseek (w->fp, 0, SEEK_END) != 0)
+    return -1;
+  long end = ftell (w->fp);
+  if (end < 0)
+    return -1;
+  long pad = (512 - (end % 512)) % 512;
+  for (long i = 0; i < pad; i++)
+    if (fputc (0, w->fp) == EOF)
+      return -1;
+  long start = end + pad;
+  if (fwrite (w->kw, 1, w->kwlen, w->fp) != w->kwlen)
+    return -1;
+
+  int32_t  blocks = (int32_t)(start / 512);
+  int32_t  size   = (int32_t)w->kwlen;
+  uint8_t  b[8];
+  uint8_t *p = b;
+  put (&p, &blocks, 4, w->be); /* ext_start, in 512-byte blocks */
+  put (&p, &size, 4, w->be);   /* ext_size, in bytes */
+  if (fseek (w->fp, 24, SEEK_SET) != 0 || fwrite (b, 1, 8, w->fp) != 8)
+    return -1;
+  return fseek (w->fp, 0, SEEK_END);
+}
+
+int
 wfm_writer_close (wfm_writer_t *w)
 {
   int rc = 0;
@@ -273,9 +340,12 @@ wfm_writer_close (wfm_writer_t *w)
           if (fwrite (b, 1, 8, w->fp) != 8)
             rc = -1;
           fseek (w->fp, 0, SEEK_END);
+          if (w->kwlen && write_ext_header (w) != 0)
+            rc = -1;
         }
       if (w->owns_fp && w->fp)
         fclose (w->fp); /* path-opened writers own their FILE */
+      free (w->kw);
       free (w->buf);
       free (w);
     }

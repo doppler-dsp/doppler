@@ -2,6 +2,7 @@
  * test_wfm_reader.c — round-trip wfm_writer → wfm_reader across every
  * container, plus container auto-detection and the BLUE-magic gate.
  */
+#include "wfm/wfm_keywords.h"
 #include "wfm/wfm_reader.h"
 #include "wfm/wfm_writer.h"
 
@@ -260,6 +261,216 @@ test_blue_format_mode (void)
   return 0;
 }
 
+/* Attach one keyword of every KW-legal type to @p w. Kept in one place so the
+   writer test and the reader test cannot drift apart about what was written.
+ */
+static const char *const KW_STR  = "10 dB pad, 2026-07-21";
+static const double      KW_D    = 1.2345e9;
+static const float       KW_F[3] = { 1.5f, -2.5f, 3.5f };
+static const int32_t     KW_L    = -70000;
+static const int16_t     KW_I    = -1234;
+static const int8_t      KW_B    = -7;
+static const int64_t     KW_X    = 1234567890123LL;
+
+static int
+attach_keywords (wfm_writer_t *w)
+{
+  CHECK (wfm_writer_add_keyword (w, "COMMENT", 'A', KW_STR, strlen (KW_STR))
+             == 0,
+         "add A");
+  CHECK (wfm_writer_add_keyword (w, "F_C", 'D', &KW_D, 1) == 0, "add D");
+  CHECK (wfm_writer_add_keyword (w, "GAINS", 'F', KW_F, 3) == 0, "add F[]");
+  CHECK (wfm_writer_add_keyword (w, "OFFSET", 'L', &KW_L, 1) == 0, "add L");
+  CHECK (wfm_writer_add_keyword (w, "TRIM", 'I', &KW_I, 1) == 0, "add I");
+  CHECK (wfm_writer_add_keyword (w, "FLAG", 'B', &KW_B, 1) == 0, "add B");
+  CHECK (wfm_writer_add_keyword (w, "TICKS", 'X', &KW_X, 1) == 0, "add X");
+  return 0;
+}
+
+/* Check the keywords attach_keywords() wrote all came back intact. */
+static int
+check_keywords (wfm_reader_t *r)
+{
+  CHECK (wfm_reader_num_keywords (r) == 7, "all seven keywords recovered");
+  const wfm_keyword_t *k = wfm_reader_find_keyword (r, "COMMENT");
+  CHECK (k && k->type == 'A', "COMMENT is a string");
+  CHECK (k->count == strlen (KW_STR), "string length (no NUL on the wire)");
+  CHECK (memcmp (k->value, KW_STR, k->count) == 0, "string value");
+
+  k = wfm_reader_find_keyword (r, "F_C");
+  double d;
+  CHECK (k && k->type == 'D' && k->count == 1, "F_C is a scalar double");
+  memcpy (&d, k->value, 8);
+  CHECK (d == KW_D, "double value");
+
+  k = wfm_reader_find_keyword (r, "GAINS");
+  float f[3];
+  CHECK (k && k->type == 'F' && k->count == 3, "GAINS is a 3-element float");
+  memcpy (f, k->value, sizeof f);
+  CHECK (f[0] == KW_F[0] && f[1] == KW_F[1] && f[2] == KW_F[2],
+         "array order preserved");
+
+  k = wfm_reader_find_keyword (r, "OFFSET");
+  int32_t l;
+  CHECK (k && k->count == 1, "OFFSET present");
+  memcpy (&l, k->value, 4);
+  CHECK (l == KW_L, "negative int32 value");
+
+  k = wfm_reader_find_keyword (r, "TICKS");
+  int64_t x;
+  CHECK (k && k->count == 1, "TICKS present");
+  memcpy (&x, k->value, 8);
+  CHECK (x == KW_X, "int64 value");
+
+  CHECK (wfm_reader_find_keyword (r, "NOPE") == NULL, "absent tag is NULL");
+  /* file order is preserved, so index 0 is the first one written */
+  CHECK (strcmp (wfm_reader_keyword (r, 0)->tag, "COMMENT") == 0,
+         "keywords come back in file order");
+  CHECK (wfm_reader_keyword (r, 7) == NULL, "out-of-range index is NULL");
+  return 0;
+}
+
+/* Extended-header keywords survive a full write -> read cycle, attached and
+   detached, little- and big-endian, without disturbing the samples. The
+   detached case is the one that can silently regress: the extended header
+   lives in the HEADER file while the samples come from the .det, so a reader
+   that looks for keywords in the data file finds none and reports an empty
+   capture rather than an error. */
+static int
+test_keyword_roundtrip (void)
+{
+  float _Complex x[N], y[N];
+  make_signal (x, N);
+
+  for (int be = 0; be <= 1; be++)
+    {
+      const char *path = be ? "dp_kw_be.blue" : "dp_kw_le.blue";
+      FILE       *fp   = fopen (path, "wb");
+      CHECK (fp != NULL, "open blue");
+      wfm_writer_t *w
+          = wfm_writer_open (fp, WFM_FT_BLUE, 0, be, 2.4e6, 0.0, N);
+      CHECK (w != NULL, "writer open");
+      if (attach_keywords (w))
+        return 1;
+      CHECK (wfm_writer_write (w, x, N) == N, "write samples");
+      CHECK (wfm_writer_close (w) == 0, "close writes the extended header");
+      fclose (fp);
+
+      wfm_reader_t *r = wfm_reader_open (path, 0, 0);
+      CHECK (r != NULL, "reopen");
+      if (check_keywords (r))
+        return 1;
+      /* Draining to EOF must stop at the declared payload. The extended
+         header sits AFTER the data, so a reader that just reads until fread
+         runs dry would hand the caller keyword bytes as IQ -- silently, and
+         only for files that carry metadata. */
+      size_t total = 0, got;
+      while ((got = wfm_reader_read (r, y + total, N - total)) > 0)
+        total += got;
+      CHECK (total == N, "drains to exactly the declared payload");
+      CHECK (wfm_reader_read (r, y, N) == 0, "and stays at end of data");
+      for (size_t i = 0; i < N; i++)
+        CHECK (cabsf (y[i] - x[i]) < 1e-6f, "samples unaffected");
+      wfm_reader_close (r);
+    }
+
+  /* detached: keywords are in the .hdr, samples in the .det */
+  FILE *hf = fopen ("dp_kw_det.hdr", "wb");
+  CHECK (hf != NULL, "open detached header");
+  CHECK (wfm_blue_write_hcb (hf, 0, 0, 2.4e6, 0.0, 0.0, N, 1) == 0,
+         "write detached HCB");
+  fclose (hf);
+  /* re-open the header as a BLUE writer target purely to attach keywords:
+     the payload goes to the .det, so this writer emits no samples. */
+  hf = fopen ("dp_kw_det.hdr", "r+b");
+  CHECK (hf != NULL, "reopen header");
+  fseek (hf, 0, SEEK_END);
+  {
+    uint8_t kwblob[512];
+    size_t  off = 0;
+    off += wfm_kw_encode (kwblob + off, sizeof kwblob - off, "COMMENT", 'A',
+                          KW_STR, strlen (KW_STR), 0);
+    off += wfm_kw_encode (kwblob + off, sizeof kwblob - off, "F_C", 'D', &KW_D,
+                          1, 0);
+    /* the extended header must start on a 512-byte boundary; the HCB is
+       exactly 512 bytes, so block 1 is where it lands. */
+    CHECK (fwrite (kwblob, 1, off, hf) == off, "append extended header");
+    int32_t  blocks = 1, size = (int32_t)off;
+    uint8_t  b[8];
+    uint8_t *p = b;
+    memcpy (p, &blocks, 4);
+    memcpy (p + 4, &size, 4);
+    fseek (hf, 24, SEEK_SET);
+    CHECK (fwrite (b, 1, 8, hf) == 8, "patch ext_start/ext_size");
+    fclose (hf);
+  }
+  FILE *df = fopen ("dp_kw_det.det", "wb");
+  CHECK (df != NULL, "open .det");
+  CHECK (fwrite (x, sizeof x[0], N, df) == N, "write payload");
+  fclose (df);
+
+  /* both entry points must find the keywords -- they live in the header file
+     either way, which is the whole point of the detached split. */
+  static const char *const ENTRY[] = { "dp_kw_det.hdr", "dp_kw_det.det" };
+  for (size_t i = 0; i < 2; i++)
+    {
+      wfm_reader_t *r = wfm_reader_open (ENTRY[i], 0, 0);
+      CHECK (r != NULL, "open detached capture");
+      CHECK (wfm_reader_num_keywords (r) == 2,
+             "detached keywords come from the HEADER file");
+      const wfm_keyword_t *k = wfm_reader_find_keyword (r, "F_C");
+      double               d;
+      CHECK (k != NULL, "F_C present");
+      memcpy (&d, k->value, 8);
+      CHECK (d == KW_D, "detached keyword value");
+      CHECK (wfm_reader_read (r, y, N) == N, "detached samples still read");
+      wfm_reader_close (r);
+    }
+  return 0;
+}
+
+/* A capture with no extended header reports none -- and a BLUE file whose
+   keyword region is truncated or corrupt still yields its samples. Metadata
+   must never cost you the data. */
+static int
+test_keyword_absent_and_corrupt (void)
+{
+  float _Complex x[N], y[N];
+  make_signal (x, N);
+
+  FILE *fp = fopen ("dp_kw_none.blue", "wb");
+  CHECK (fp != NULL, "open");
+  wfm_writer_t *w = wfm_writer_open (fp, WFM_FT_BLUE, 0, 0, 2.4e6, 0.0, N);
+  wfm_writer_write (w, x, N);
+  wfm_writer_close (w);
+  fclose (fp);
+  wfm_reader_t *r = wfm_reader_open ("dp_kw_none.blue", 0, 0);
+  CHECK (r != NULL, "opens");
+  CHECK (wfm_reader_num_keywords (r) == 0, "no extended header, no keywords");
+  CHECK (wfm_reader_keyword (r, 0) == NULL, "index 0 is NULL");
+  wfm_reader_close (r);
+
+  /* claim an extended header that runs off the end of the file */
+  fp = fopen ("dp_kw_bad.blue", "wb");
+  w  = wfm_writer_open (fp, WFM_FT_BLUE, 0, 0, 2.4e6, 0.0, N);
+  attach_keywords (w);
+  wfm_writer_write (w, x, N);
+  wfm_writer_close (w);
+  fclose (fp);
+  fp = fopen ("dp_kw_bad.blue", "r+b");
+  CHECK (fp != NULL, "reopen to corrupt");
+  int32_t huge = 1 << 20; /* ext_size far past EOF */
+  fseek (fp, 28, SEEK_SET);
+  fwrite (&huge, 4, 1, fp);
+  fclose (fp);
+  r = fopen ("dp_kw_bad.blue", "rb") ? wfm_reader_open ("dp_kw_bad.blue", 0, 0)
+                                     : NULL;
+  CHECK (r != NULL, "a bad keyword region does not fail the open");
+  CHECK (wfm_reader_read (r, y, N) == N, "samples survive a bad ext header");
+  wfm_reader_close (r);
+  return 0;
+}
+
 int
 main (void)
 {
@@ -282,6 +493,10 @@ main (void)
   if (test_detached_header_entry ())
     return 1;
   if (test_blue_format_mode ())
+    return 1;
+  if (test_keyword_roundtrip ())
+    return 1;
+  if (test_keyword_absent_and_corrupt ())
     return 1;
   printf ("test_wfm_reader: all passed\n");
   return 0;

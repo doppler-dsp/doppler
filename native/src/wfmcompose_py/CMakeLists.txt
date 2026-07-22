@@ -19,7 +19,7 @@ target_include_directories(_wfmcompose PRIVATE
     ${CMAKE_SOURCE_DIR}/native/inc
     ${CMAKE_SOURCE_DIR}/vendor/cjson)
 
-target_link_libraries(_wfmcompose PRIVATE wfm_writer_core wfm_draw_core wfm_cjson m)
+target_link_libraries(_wfmcompose PRIVATE wfm_writer_core wfm_keywords_core wfm_draw_core wfm_cjson m)
 
 set_target_properties(_wfmcompose PROPERTIES
     LIBRARY_OUTPUT_DIRECTORY "${PYTHON_PACKAGE_DIR}/wfm"

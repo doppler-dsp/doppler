@@ -8,6 +8,7 @@ target_link_libraries(wfm_writer PRIVATE
     wfm_writer_core
     wfm_draw_core
     wfm_cjson
+    wfm_keywords_core
     m
     Python3::NumPy)
 target_include_directories(wfm_writer PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)

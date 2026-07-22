@@ -71,6 +71,22 @@ target_include_directories(test_wfm_dsp
     PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
 add_test(NAME test_wfm_dsp COMMAND test_wfm_dsp)
 
+# ── BLUE extended-header keyword codec — ONE encoder/decoder, shared by the
+#    writer and the reader so the two can never disagree about the wire format
+#    (Midas BLUE 1.1 §3.3.1, Table 26). No deps. ──────────────────────────────
+add_library(wfm_keywords_core OBJECT
+    ${CMAKE_SOURCE_DIR}/native/src/wfm/wfm_keywords.c)
+target_include_directories(wfm_keywords_core PUBLIC
+    ${CMAKE_SOURCE_DIR}/native/inc
+    ${CMAKE_SOURCE_DIR}/native/inc/wfm)
+
+add_executable(test_wfm_keywords
+    ${CMAKE_SOURCE_DIR}/native/tests/test_wfm_keywords.c)
+target_link_libraries(test_wfm_keywords PRIVATE wfm_keywords_core)
+target_include_directories(test_wfm_keywords
+    PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
+add_test(NAME test_wfm_keywords COMMAND test_wfm_keywords)
+
 # ── output containers: raw/csv/BLUE-1000 + SigMF meta (cJSON) ────────────────
 add_library(wfm_writer_core OBJECT
     ${CMAKE_SOURCE_DIR}/native/src/wfm/wfm_writer.c)
@@ -78,12 +94,12 @@ target_include_directories(wfm_writer_core PUBLIC
     ${CMAKE_SOURCE_DIR}/native/inc
     ${CMAKE_SOURCE_DIR}/native/inc/wfm
     ${CMAKE_SOURCE_DIR}/vendor/cjson)
-target_link_libraries(wfm_writer_core PUBLIC m)
+target_link_libraries(wfm_writer_core PUBLIC wfm_keywords_core m)
 
 add_executable(test_wfm_writer
     ${CMAKE_SOURCE_DIR}/native/tests/test_wfm_writer.c)
 target_link_libraries(test_wfm_writer PRIVATE
-    wfm_writer_core wfm_draw_core wfm_cjson m)
+    wfm_writer_core wfm_keywords_core wfm_draw_core wfm_cjson m)
 target_include_directories(test_wfm_writer PRIVATE
     ${CMAKE_SOURCE_DIR}/native/inc ${CMAKE_SOURCE_DIR}/vendor/cjson)
 add_test(NAME test_wfm_writer COMMAND test_wfm_writer)
@@ -95,12 +111,12 @@ target_include_directories(wfm_reader_core PUBLIC
     ${CMAKE_SOURCE_DIR}/native/inc
     ${CMAKE_SOURCE_DIR}/native/inc/wfm
     ${CMAKE_SOURCE_DIR}/vendor/cjson)
-target_link_libraries(wfm_reader_core PUBLIC m)
+target_link_libraries(wfm_reader_core PUBLIC wfm_keywords_core m)
 
 add_executable(test_wfm_reader
     ${CMAKE_SOURCE_DIR}/native/tests/test_wfm_reader.c)
 target_link_libraries(test_wfm_reader PRIVATE
-    wfm_reader_core wfm_writer_core wfm_draw_core wfm_cjson m)
+    wfm_reader_core wfm_writer_core wfm_keywords_core wfm_draw_core wfm_cjson m)
 target_include_directories(test_wfm_reader PRIVATE
     ${CMAKE_SOURCE_DIR}/native/inc ${CMAKE_SOURCE_DIR}/vendor/cjson)
 add_test(NAME test_wfm_reader COMMAND test_wfm_reader)
@@ -148,7 +164,7 @@ if(NOT WIN32)
     add_executable(bench_wfm_writer_core
         ${CMAKE_SOURCE_DIR}/native/benchmarks/bench_wfm_writer_core.c)
     target_link_libraries(bench_wfm_writer_core PRIVATE
-        wfm_writer_core wfm_draw_core wfm_cjson m)
+        wfm_writer_core wfm_keywords_core wfm_draw_core wfm_cjson m)
     target_include_directories(bench_wfm_writer_core PRIVATE
         ${CMAKE_SOURCE_DIR}/native/inc ${CMAKE_SOURCE_DIR}/native/benchmarks
         ${CMAKE_SOURCE_DIR}/vendor/cjson)
@@ -156,7 +172,7 @@ if(NOT WIN32)
     add_executable(bench_wfm_reader_core
         ${CMAKE_SOURCE_DIR}/native/benchmarks/bench_wfm_reader_core.c)
     target_link_libraries(bench_wfm_reader_core PRIVATE
-        wfm_reader_core wfm_writer_core wfm_draw_core wfm_cjson m)
+        wfm_reader_core wfm_writer_core wfm_keywords_core wfm_draw_core wfm_cjson m)
     target_include_directories(bench_wfm_reader_core PRIVATE
         ${CMAKE_SOURCE_DIR}/native/inc ${CMAKE_SOURCE_DIR}/native/benchmarks
         ${CMAKE_SOURCE_DIR}/vendor/cjson)
@@ -211,7 +227,7 @@ if(NOT WIN32)
     set_target_properties(wfmgen_cli PROPERTIES OUTPUT_NAME wfmgen)
     target_link_libraries(wfmgen_cli PRIVATE
         wfmgen_core
-        wfm_compose_core wfm_draw_core wfm_writer_core wfm_sink_core timing_core wfm_cjson
+        wfm_compose_core wfm_draw_core wfm_writer_core wfm_keywords_core wfm_sink_core timing_core wfm_cjson
         wfm_dsp_core wfm_synth_core lo_core awgn_core pn_core fir_core
         $<TARGET_OBJECTS:stream_core_obj>
         telemetry_core
@@ -242,6 +258,7 @@ if(NOT WIN32)
             $<TARGET_OBJECTS:wfm_compose_core>
             $<TARGET_OBJECTS:wfm_draw_core>
             $<TARGET_OBJECTS:wfm_writer_core>
+            $<TARGET_OBJECTS:wfm_keywords_core>
             $<TARGET_OBJECTS:wfm_cjson>)
     endforeach()
 

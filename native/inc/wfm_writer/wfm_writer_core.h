@@ -111,15 +111,16 @@ int wfm_writer_add_keyword(wfm_writer_state_t *w, const char *tag, char type,
 int wfm_writer_close(wfm_writer_state_t *w);
 
 /**
- * @brief Close and free, discarding the status — the destructor form.
+ * @brief Finalise and free — the object binding's fallible destructor.
  *
- * Identical to wfm_writer_close() except that it returns nothing, which is the
- * shape a destructor needs. Prefer wfm_writer_close() wherever the caller can
- * act on a failed final flush: the BLUE `data_size` patch and the extended
- * header are both written during close, so a write error there means the file
- * on disk is not the file you asked for.
+ * Identical to wfm_writer_close(); the object shape (gh-541) generates a
+ * Python close() from this that raises when it returns non-zero, so the
+ * finaliser's status reaches the caller and out of a `with` block. C callers
+ * may use either name.
+ *
+ * @return 0 on success, non-zero on a write/seek error during finalisation.
  */
-void wfm_writer_destroy(wfm_writer_state_t *state);
+int wfm_writer_destroy(wfm_writer_state_t *state);
 
 /* ── clip detection ───────────────────────────────────────────────────────
  * Full-scale is ±1.0 per axis; integer wire types saturate to it. The writer
@@ -196,20 +197,10 @@ int wfm_blue_write_hcb(FILE *fp, int sample_type, int endian, double fs,
 char *wfm_sigmf_meta_json(int sample_type, int endian, double fs, double fc,
                           const wfm_segment_t *segs, size_t n_segs);
 
-/* DELIBERATELY NOT DEFINED. jm's object shape declares a reset() for every
-   object, but a writer has nothing coherent to reset: the samples are already
-   on disk, and the written count drives the BLUE data_size patch that close()
-   applies, so clearing it would corrupt the header. The binding refuses the
-   call (NotImplementedError) in the sacred fragment and never reaches this.
-   Leaving the definition out is what makes that safe. If the fragment is ever
-   regenerated without the hand-written refusal, the generated reset() calls
-   this and the extension fails to load outright --
-   `ImportError: undefined symbol: wfm_writer_reset` -- instead of silently
-   becoming a no-op that tells callers their writer was reset. (A Python
-   extension links with undefined symbols permitted, so this surfaces at import
-   rather than at link; either way the first test to run catches it. Verified,
-   not assumed.) See just-buildit/just-makeit#542. */
-void wfm_writer_reset(wfm_writer_state_t *state);
+/* No wfm_writer_reset: the object declares `no_reset` (gh-542), so jm emits no
+   reset() binding and no call site. A writer has nothing coherent to reset --
+   the samples are on disk and the written count drives the BLUE data_size patch
+   -- so the method is absent rather than a no-op or a raise. */
 double wfm_writer_get_clip_fraction(const wfm_writer_state_t *state);
 double wfm_writer_get_peak_dbfs(const wfm_writer_state_t *state);
 bool wfm_writer_get_clipped(const wfm_writer_state_t *state);

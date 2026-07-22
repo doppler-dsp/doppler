@@ -13,6 +13,20 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+### Added
+
+- **`doppler.wfm.Reader.keywords`** now appears in the type stub as
+    `dict[str, Any]`, and `close()`/`destroy()` on both `Reader` and `Writer`
+    now appear too — they were runtime-only before.
+
+### Changed
+
+- **`doppler.wfm.Writer.reset()` is removed.** A writer has nothing coherent to
+    reset (its samples are on disk and the written count drives the BLUE
+    `data_size` patch), so the method is now absent — `w.reset()` raises
+    `AttributeError` rather than the previous `NotImplementedError`. Construct a
+    new `Writer` for a new capture.
+
 ## [0.35.0] — 2026-07-21
 
 Continuous asynchronous DSSS, end to end: a spread-spectrum signal can now be

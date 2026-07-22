@@ -20,3 +20,8 @@ ppe
 burst_demod
 # Periodic table lookup — pure function of (table, method, point), no state.
 interp_table
+# File-backed container I/O — the FILE* IS the state; a read cursor or a
+# written count is meaningless without the OS handle, which cannot cross a
+# checkpoint/pod boundary. No dp_state triplet; resume by re-opening the path.
+wfm_reader
+wfm_writer

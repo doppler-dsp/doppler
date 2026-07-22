@@ -627,6 +627,15 @@ wfm_reader_keyword (const wfm_reader_state_t *r, size_t i)
   return (i < r->nkw) ? &r->kw[i] : NULL;
 }
 
+/* key_fn for the `.keywords` dict property (gh-543): the tag of the i-th
+   keyword. jm's generated loop calls it for 0 <= i < wfm_reader_num_keywords,
+   so the index is always in range. */
+const char *
+wfm_reader_keyword_tag (const wfm_reader_state_t *r, size_t i)
+{
+  return r->kw[i].tag;
+}
+
 const wfm_keyword_t *
 wfm_reader_find_keyword (const wfm_reader_state_t *r, const char *tag)
 {

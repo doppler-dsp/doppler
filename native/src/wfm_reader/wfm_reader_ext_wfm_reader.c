@@ -293,6 +293,7 @@ Reader_getprop_file_type (ReaderObject *self, void *Py_UNUSED (closure))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
+  /* <<IMPLEMENT: return the computed or stored value>> */
   long _v = (long)(wfm_reader_get_file_type (self->handle));
   if (_v < 0 || _v >= 4)
     {
@@ -312,6 +313,7 @@ Reader_getprop_sample_type (ReaderObject *self, void *Py_UNUSED (closure))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
+  /* <<IMPLEMENT: return the computed or stored value>> */
   long _v = (long)(wfm_reader_get_sample_type (self->handle));
   if (_v < 0 || _v >= 5)
     {
@@ -331,6 +333,7 @@ Reader_getprop_mode (ReaderObject *self, void *Py_UNUSED (closure))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
+  /* <<IMPLEMENT: return the computed or stored value>> */
   long _v = (long)(wfm_reader_get_mode (self->handle));
   if (_v < 0 || _v >= 2)
     {
@@ -350,6 +353,7 @@ Reader_getprop_endian (ReaderObject *self, void *Py_UNUSED (closure))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
+  /* <<IMPLEMENT: return the computed or stored value>> */
   long _v = (long)(wfm_reader_get_endian (self->handle));
   if (_v < 0 || _v >= 2)
     {
@@ -369,6 +373,7 @@ Reader_getprop_fs (ReaderObject *self, void *Py_UNUSED (closure))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
+  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyFloat_FromDouble (wfm_reader_get_fs (self->handle));
 }
 static PyObject *
@@ -379,6 +384,7 @@ Reader_getprop_fc (ReaderObject *self, void *Py_UNUSED (closure))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
+  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyFloat_FromDouble (wfm_reader_get_fc (self->handle));
 }
 static PyObject *
@@ -389,28 +395,14 @@ Reader_getprop_num_samples (ReaderObject *self, void *Py_UNUSED (closure))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
+  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromUnsignedLongLong (
       (unsigned long long)wfm_reader_get_num_samples (self->handle));
 }
+/* gh-543: implemented by hand (Python-aware, so it cannot live in the pure-C
+ * core). Must return a new reference, or NULL with an exception set. */
+PyObject *wfm_reader_keyword_value (const wfm_reader_state_t *state, size_t i);
 
-/* `.keywords` — the BLUE extended header as a dict.
- *
- * Hand-written: a dict-valued property has no declarative form in jm (the
- * manifest can express scalars, enums and array views, not mappings), and this
- * fragment is sacred, so jm only creates it when missing.
- *
- * One entry per decoded keyword, in file order. The value's Python type
- * follows the keyword's own type code: `A` is a str (the wire form carries no
- * NUL, so the length is explicit), the integer and float codes give an
- * int/float when the keyword holds one element and a list when it holds
- * several. Keywords whose type this library cannot decode were already skipped
- * during the walk (BLUE §3.3.1), so they simply do not appear. A capture with
- * no extended header yields an empty dict, never None — "no keywords" and "not
- * BLUE" are the same thing to a caller iterating it.
- *
- * Duplicate tags are legal in the format; a dict cannot hold them, so the last
- * one wins. Use wfm_reader_keyword(i) from C if that matters.
- */
 static PyObject *
 Reader_getprop_keywords (ReaderObject *self, void *Py_UNUSED (closure))
 {
@@ -419,106 +411,37 @@ Reader_getprop_keywords (ReaderObject *self, void *Py_UNUSED (closure))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  PyObject *d = PyDict_New ();
-  if (!d)
+  size_t    _n = wfm_reader_num_keywords (self->handle);
+  PyObject *_c = PyDict_New ();
+  if (!_c)
     return NULL;
-
-  size_t n = wfm_reader_num_keywords (self->handle);
-  for (size_t i = 0; i < n; i++)
+  for (size_t _i = 0; _i < _n; _i++)
     {
-      const wfm_keyword_t *kw  = wfm_reader_keyword (self->handle, i);
-      PyObject            *val = NULL;
-
-      if (kw->type == 'A')
+      const char *_k = wfm_reader_keyword_tag (self->handle, _i);
+      if (!_k)
         {
-          val = PyUnicode_FromStringAndSize ((const char *)kw->value,
-                                             (Py_ssize_t)kw->count);
-        }
-      else
-        {
-          /* Build the elements first; collapse to a scalar when there is
-             exactly one, which is what almost every real keyword holds. */
-          PyObject *list = PyList_New ((Py_ssize_t)kw->count);
-          if (!list)
-            {
-              Py_DECREF (d);
-              return NULL;
-            }
-          for (size_t k = 0; k < kw->count; k++)
-            {
-              const uint8_t *p    = kw->value + k * kw->elem_size;
-              PyObject      *item = NULL;
-              switch (kw->type)
-                {
-                case 'B':
-                  item = PyLong_FromLong ((long)*(const int8_t *)p);
-                  break;
-                case 'I':
-                  {
-                    int16_t v;
-                    memcpy (&v, p, sizeof v);
-                    item = PyLong_FromLong ((long)v);
-                    break;
-                  }
-                case 'L':
-                case 'T': /* deprecated spelling of a 32-bit integer */
-                  {
-                    int32_t v;
-                    memcpy (&v, p, sizeof v);
-                    item = PyLong_FromLong ((long)v);
-                    break;
-                  }
-                case 'X':
-                  {
-                    int64_t v;
-                    memcpy (&v, p, sizeof v);
-                    item = PyLong_FromLongLong ((long long)v);
-                    break;
-                  }
-                case 'F':
-                  {
-                    float v;
-                    memcpy (&v, p, sizeof v);
-                    item = PyFloat_FromDouble ((double)v);
-                    break;
-                  }
-                default: /* 'D' — the decoder admits no other type */
-                  {
-                    double v;
-                    memcpy (&v, p, sizeof v);
-                    item = PyFloat_FromDouble (v);
-                    break;
-                  }
-                }
-              if (!item)
-                {
-                  Py_DECREF (list);
-                  Py_DECREF (d);
-                  return NULL;
-                }
-              PyList_SET_ITEM (list, (Py_ssize_t)k, item); /* steals item */
-            }
-          if (kw->count == 1)
-            {
-              val = PyList_GET_ITEM (list, 0);
-              Py_INCREF (val);
-              Py_DECREF (list);
-            }
-          else
-            {
-              val = list;
-            }
-        }
-
-      if (!val || PyDict_SetItemString (d, kw->tag, val) != 0)
-        {
-          Py_XDECREF (val);
-          Py_DECREF (d);
+          PyErr_Format (
+              PyExc_RuntimeError,
+              "keywords: wfm_reader_keyword_tag returned NULL at index %zu",
+              _i);
+          Py_DECREF (_c);
           return NULL;
         }
-      Py_DECREF (val);
+      PyObject *_v = wfm_reader_keyword_value (self->handle, _i);
+      if (!_v)
+        {
+          Py_DECREF (_c);
+          return NULL;
+        }
+      if (PyDict_SetItemString (_c, _k, _v) != 0)
+        {
+          Py_DECREF (_v);
+          Py_DECREF (_c);
+          return NULL;
+        }
+      Py_DECREF (_v);
     }
-  return d;
+  return _c;
 }
 
 static PyGetSetDef Reader_getset[]
@@ -534,13 +457,10 @@ static PyGetSetDef Reader_getset[]
           "Num samples.\n", NULL },
         { "keywords", (getter)Reader_getprop_keywords, NULL,
           "The BLUE extended header as a {tag: value} dict, in file order; "
-          "empty when\n"
-          "the capture carries no extended header. Values follow the keyword "
-          "type: a\n"
-          "str for A, an int/float for a single-element numeric keyword, a "
-          "list for a\n"
-          "multi-element one. For a detached capture these come from the "
-          "HEADER file.\n",
+          "empty when the capture carries no extended header. Values follow "
+          "the keyword type: a str for A, an int/float for a single-element "
+          "numeric keyword, a list for a multi-element one. For a detached "
+          "capture these come from the HEADER file.\n",
           NULL },
         { NULL } };
 
@@ -574,38 +494,16 @@ ReaderObj_exit (ReaderObject *self, PyObject *args)
   Py_RETURN_NONE;
 }
 
-/* `close()` is the name this type has always released its file under, and it
- * is what every caller and doc example uses. jm's object shape names the
- * destructor `destroy()`; both are kept, idempotent and interchangeable, so
- * the handle-era API survives the migration unchanged. (Hand-written: this
- * fragment is sacred, jm only creates it when missing.) */
-static PyObject *
-ReaderObj_close (ReaderObject *self, PyObject *Py_UNUSED (ignored))
-{
-  if (self->handle)
-    {
-      wfm_reader_destroy (self->handle);
-      self->handle = NULL;
-    }
-  Py_RETURN_NONE;
-}
-
 static PyMethodDef ReaderObj_methods[] = {
-  { "close", (PyCFunction)ReaderObj_close, METH_NOARGS,
-    "close() -> None\n"
-    "\n"
-    "Close the capture and release the file. Idempotent; also called by\n"
-    "__exit__ and at deallocation. An alias for destroy().\n" },
-
   { "reset", (PyCFunction)ReaderObj_reset, METH_NOARGS,
     "Reset state to post-create defaults." },
 
   { "read", (PyCFunction)ReaderObj_read, METH_VARARGS | METH_KEYWORDS,
     "read(n=1) -> ndarray\n"
     "\n"
-    "Read up to max complex samples into out (unit-scale `float _Complex`), "
-    "converting from the wire type. Returns the count read; 0 at end of "
-    "file.\n"
+    "Read up to n complex samples into out (unit-scale `float _Complex`), "
+    "converting from the wire type. Returns the count read; 0 at end of file, "
+    "and never more than the container's declared payload.\n"
     "\n"
     "    >>> import numpy as np\n"
     "    >>> from doppler import Reader\n"
@@ -616,6 +514,8 @@ static PyMethodDef ReaderObj_methods[] = {
   { "read_max_out", (PyCFunction)ReaderObj_read_max_out, METH_NOARGS,
     "read_max_out() -> int\n\nMax output length read() can produce for the "
     "current state.\nUse to size the ``out=`` buffer." },
+  { "close", (PyCFunction)ReaderObj_destroy, METH_NOARGS,
+    "Release resources." },
   { "destroy", (PyCFunction)ReaderObj_destroy, METH_NOARGS,
     "Release resources." },
   { "__enter__", (PyCFunction)ReaderObj_enter, METH_NOARGS, NULL },

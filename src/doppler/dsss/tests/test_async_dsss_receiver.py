@@ -144,6 +144,66 @@ def test_acquires_refines_and_decodes():
     assert ber < 0.01, f"expected a clean decode, got ber={ber}"
 
 
+@pytest.mark.parametrize("db", [-30.0, -15.0, 15.0, 30.0])
+def test_absolute_level_invariance(db):
+    """Decisions are invariant to the absolute input level (no AGC needed).
+
+    Every stage of the receiver keys off a ratio, not an absolute magnitude:
+    the acquisition detector is CFAR (test statistic normalised by its own
+    measured noise), the code loop's discriminator is
+    ``(|E|^2-|L|^2)/(|P|^2+eps)``, the pre-despread Costas is ``|P|``-
+    normalised, and the symbol-lock metric is ``(I^2-Q^2)/(I^2+Q^2)``. So
+    scaling the whole capture by a constant gain must not move a single
+    decoded bit -- an AGC-free front end. Stronger still, the output is level-
+    *independent*, not merely decision-invariant: the despread symbol is
+    normalised, so the recovered constellation comes out at the SAME
+    magnitude regardless of input gain (scaling in does NOT scale out).
+    (Measured directly, the decode stays invariant from roughly -200 dB to
+    +200 dB, where the absolute ``DLL_EPS`` floor and float32 overflow
+    eventually bite; +/-30 dB is deep in that flat interior.)"""
+    esn0_db = 20.0
+    cn0_dbhz = esn0_db + 10.0 * np.log10(SYM_RATE)
+    x, _data = _make_ramp_signal(cn0_dbhz, seed=21)
+    ref = _stream(_new_receiver(cn0_dbhz), x)
+    assert len(ref) > N_SYM // 2  # a real decode to compare against
+
+    g = np.complex64(10.0 ** (db / 20.0))
+    scaled = _stream(_new_receiver(cn0_dbhz), (x * g).astype(np.complex64))
+
+    assert len(scaled) == len(ref)  # identical acquisition/refine timing
+    # identical hard decisions -> identical BER at any absolute level
+    assert np.array_equal(np.sign(scaled.real), np.sign(ref.real))
+    assert np.array_equal(np.sign(scaled.imag), np.sign(ref.imag))
+    # normalised output: the recovered symbols are level-INDEPENDENT (same
+    # magnitude in, out), not scaled by the input gain
+    assert np.allclose(scaled, ref, rtol=1e-3, atol=1e-3)
+
+
+@pytest.mark.parametrize("sig_esn0_db", [40.0, 80.0, 200.0])
+def test_extreme_high_snr_stays_stable(sig_esn0_db):
+    """Extremely high Es/N0 (up to effectively noiseless) must not destabilise
+    the receiver. A collapsing noise estimate is the classic high-SNR failure
+    mode -- a CFAR threshold or a `|P|`-normaliser whose denominator tends to
+    zero blows up to inf/NaN. This receiver does not: every ratio has a
+    guarded denominator, so fed a signal from 40 dB to ~noiseless (designed at
+    a normal 20 dB) it stays finite, locks, and decodes cleanly. Constellation
+    quality saturates at an implementation floor (~-24 dB EVM / ~22 dB
+    effective SNR, from the point-sample 2x replica's matched-filter loss + the
+    async-symbol straddle + NCO quantisation) -- more SNR past ~40 dB neither
+    improves nor destabilises it (measured; not asserted here)."""
+    design_cn0 = 20.0 + 10.0 * np.log10(SYM_RATE)  # a normal design point
+    sig_cn0 = sig_esn0_db + 10.0 * np.log10(SYM_RATE)  # 200 dB ~ noiseless
+    x, data = _make_ramp_signal(sig_cn0, seed=21)
+    rx = _new_receiver(design_cn0)
+
+    syms = _stream(rx, x)
+
+    assert rx.tracking == 1
+    assert len(syms) > N_SYM // 2
+    assert np.all(np.isfinite(syms.view(np.float64)))  # no inf/NaN blow-up
+    assert _best_ber(syms, data) < 0.01  # still a clean decode
+
+
 def test_spec_floor_reaches_tracking_but_may_not_decode():
     """SPEC's own literal Es/N0=5dB floor. Direct measurement while
     building this object found that the ALREADY-SHIPPED, already-validated

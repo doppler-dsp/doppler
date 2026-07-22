@@ -130,9 +130,10 @@ def make_capture(start_hz: float, rate_hz_s: float, seed: int):
     and a known random payload rides on it at ``SYM_RATE`` with non-integer
     chips/symbol. :class:`~doppler.impairment.DopplerChannel` then dilates
     the clock and applies the coherent carrier for a Doppler that starts at
-    ``start_hz`` and ramps at ``rate_hz_s`` (both expressed as ppm of the RF
-    carrier); noise is added last at the Es/N0 referenced to the outer data
-    symbol -- ``cn0 = Es/N0 + 10log10(symbol_rate)``.
+    ``start_hz`` and ramps at ``rate_hz_s`` (both in Hz and Hz/s, converted
+    here to the ppm of carrier the channel is parameterised in, via
+    ``f / CARRIER``); noise is added last at the Es/N0 referenced to the outer
+    data symbol -- ``cn0 = Es/N0 + 10log10(symbol_rate)``.
 
     Returns
     -------

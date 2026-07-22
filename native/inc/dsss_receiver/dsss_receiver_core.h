@@ -182,7 +182,9 @@ extern "C"
    * count) is derived from `sps`: the largest divisor of `sps` in
    * `{4, 2, 1}`.
    *
-   * @param code                Spreading code (chip values).
+   * @param code                Spreading code, one 0/1 chip per element
+   *                            (0 -> +1, 1 -> -1 BPSK; only the low bit is
+   *                            used, so pass 0/1, not +/-1).
    * @param code_len             Chips in `code` (the spreading factor).
    * @param chip_rate            Chip rate, Hz. Required.
    * @param symbol_rate          Data-symbol rate, Hz. Required — passed

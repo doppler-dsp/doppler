@@ -55,9 +55,16 @@ extern "C"
   /**
    * @brief Open a capture, auto-detecting its container.
    *
-   * @param path           file to read. A BLUE `.det` or SigMF `.sigmf-data`
-   *                       data file resolves its `.hdr` / `.sigmf-meta`
-   *                       sidecar automatically.
+   * @param path           file to read. For a DETACHED BLUE capture this is
+   *                       normally the HEADER file -- `<base>.tmp` or
+   *                       `<base>.prm` per BLUE 3.1.1.4 (this library's own
+   *                       writer emits `<base>.hdr`) -- whose HCB `detached`
+   *                       field points at the collocated `<base>.det`
+   *                       payload; the extension does not decide, `detached`
+   *                       does. Passing the `<base>.det` directly also works
+   *                       (its header sibling is resolved). A SigMF
+   *                       `.sigmf-data` file resolves its `.sigmf-meta`
+   *                       sidecar the same way.
    * @param hint_sample_type  sample type (0..4) for headerless raw/CSV; ignored
    *                       once BLUE/SigMF metadata is parsed.
    * @param hint_endian    byte order (0 le, 1 be) for headerless raw.

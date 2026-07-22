@@ -946,7 +946,7 @@ class DsssReceiver:
     Parameters
     ----------
     code : NDArray[np.uint8], default ...
-        Spreading code (chip values).
+        Spreading code, one 0/1 chip per element (0 -> +1, 1 -> -1 BPSK; only the low bit is used, so pass 0/1, not +/-1).
     chip_rate : float, default 1000000.0
         Chip rate, Hz. Required.
     symbol_rate : float, default 1000.0
@@ -1122,7 +1122,7 @@ class AsyncDsssReceiver:
     Parameters
     ----------
     code : NDArray[np.uint8], default ...
-        Spreading code (chip values).
+        Spreading code, one 0/1 chip per element (0 -> +1, 1 -> -1 BPSK; only the low bit is used, so pass 0/1, not +/-1).
     chip_rate : float, default 1000000.0
         Chip rate, Hz. Required.
     symbol_rate : float, default 1000.0

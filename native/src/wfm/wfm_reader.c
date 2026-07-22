@@ -51,6 +51,20 @@ ends_with (const char *s, const char *suffix)
   return ls >= lx && strcmp (s + ls - lx, suffix) == 0;
 }
 
+/* Swap @p path's final extension for @p ext (e.g. "foo/cap.prm" -> "foo/
+   cap.det"). A path whose basename carries no dot just gains the extension.
+   The dot must be in the basename, so a dotted DIRECTORY ("../cap") is not
+   mistaken for an extension. */
+static void
+swap_ext (const char *path, const char *ext, char *out, size_t cap)
+{
+  const char *dot   = strrchr (path, '.');
+  const char *slash = strrchr (path, '/');
+  size_t      base  = (dot && (!slash || dot > slash)) ? (size_t)(dot - path)
+                                                       : strlen (path);
+  snprintf (out, cap, "%.*s%s", (int)base, path, ext);
+}
+
 /* Decode one interleaved I/Q pair from the wire type into unit-scale floats.
  */
 static void
@@ -112,7 +126,7 @@ convert_pair (const uint8_t *p, int stype, int be, float *re, float *im)
    never mis-read. Every BLUE path (attached + detached) goes through here. */
 static int
 parse_blue_hcb (const uint8_t h[512], int *stype, int *endian, double *fs,
-                double *data_start, size_t *nsamples)
+                double *data_start, size_t *nsamples, int *detached)
 {
   if (memcmp (h, "BLUE", 4) != 0) /* validate the magic before trusting it */
     return -1;
@@ -124,7 +138,9 @@ parse_blue_hcb (const uint8_t h[512], int *stype, int *endian, double *fs,
       st = i;
   if (st < 0)
     return -1;
-  double ds, dsz, xdelta;
+  double  ds, dsz, xdelta;
+  int32_t det;
+  swab_copy (&det, h + 12, 4, be);
   swab_copy (&ds, h + 32, 8, be);
   swab_copy (&dsz, h + 40, 8, be);
   swab_copy (&xdelta, h + 264, 8, be);
@@ -133,6 +149,7 @@ parse_blue_hcb (const uint8_t h[512], int *stype, int *endian, double *fs,
   *fs         = (xdelta != 0.0) ? 1.0 / xdelta : 0.0;
   *data_start = ds;
   *nsamples   = (size_t)(dsz / (double)BPS[st]);
+  *detached   = (int)det;
   return 0;
 }
 
@@ -256,20 +273,29 @@ wfm_reader_open (const char *path, int hint_stype, int hint_endian)
       return r;
     }
 
-  /* BLUE detached: <base>.det data + <base>.hdr header. */
+  /* BLUE detached, entered from the DATA side: <base>.det + its header
+     sibling. The header is conventionally <base>.tmp or <base>.prm (spec
+     3.1.1.4); doppler's own writer emits <base>.hdr. Try each — the usual
+     entry point is the header itself, handled by the magic-peek path below. */
   if (ends_with (path, ".det"))
     {
-      snprintf (side, sizeof side, "%.*s.hdr", (int)(plen - 4), path);
-      FILE *hf = fopen (side, "rb");
+      static const char *const HDR_EXT[] = { ".hdr", ".prm", ".tmp" };
+      FILE                    *hf        = NULL;
+      for (size_t i = 0; i < sizeof HDR_EXT / sizeof *HDR_EXT && !hf; i++)
+        {
+          swap_ext (path, HDR_EXT[i], side, sizeof side);
+          hf = fopen (side, "rb");
+        }
       if (!hf)
         goto fail;
       uint8_t h[512];
       int     ok = (fread (h, 1, 512, hf) == 512);
       fclose (hf);
       double ds;
+      int    det = 0;
       if (!ok
           || parse_blue_hcb (h, &r->stype, &r->endian, &r->fs, &ds,
-                             &r->nsamples)
+                             &r->nsamples, &det)
                  != 0)
         goto fail;
       r->ft = WFM_FT_BLUE;
@@ -298,12 +324,32 @@ wfm_reader_open (const char *path, int hint_stype, int hint_endian)
   if (got >= 4 && memcmp (h, "BLUE", 4) == 0)
     {
       double ds;
+      int    det = 0;
       if (got != 512
           || parse_blue_hcb (h, &r->stype, &r->endian, &r->fs, &ds,
-                             &r->nsamples)
+                             &r->nsamples, &det)
                  != 0)
         goto fail;
       r->ft = WFM_FT_BLUE;
+      if (det != 0)
+        {
+          /* Detached (spec 3.1.1.4): this file holds ONLY the header +
+             extended keywords; the payload is a separate <base>.det. The
+             header file is conventionally <base>.tmp or <base>.prm (doppler's
+             own writer uses <base>.hdr) — the extension is irrelevant, the
+             `detached` field is what decides. det == 1 means the collocated
+             .det; 2..127 name an X-Midas auxiliary path (3.1.1.4.1) that
+             cannot be resolved without an X-Midas environment, so we try the
+             collocated file and fail loudly rather than misread. WITHOUT this
+             branch data_start (0 for a detached capture) seeks back to byte 0
+             of the HEADER file and the 512-byte HCB is returned as IQ. */
+          swap_ext (path, ".det", side, sizeof side);
+          fclose (r->fp);
+          r->fp = fopen (side, "rb");
+          if (!r->fp)
+            goto fail;
+          return r; /* .det carries raw payload from byte 0 */
+        }
       fseek (r->fp, (long)ds, SEEK_SET);
       return r;
     }

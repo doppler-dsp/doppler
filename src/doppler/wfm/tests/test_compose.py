@@ -703,6 +703,124 @@ def test_reader_roundtrips_each_container(
     assert np.max(np.abs(y - x)) < tol
 
 
+@_needs_wfmgen
+@pytest.mark.parametrize(
+    "file_type,detached,out_name,read_name",
+    [
+        ("blue", False, "cap.blue", "cap.blue"),
+        ("blue", True, "cap_det", "cap_det.det"),  # entered from the DATA side
+        ("blue", True, "cap_det", "cap_det.hdr"),  # entered from the HEADER
+        ("sigmf", False, "cap", "cap.sigmf-data"),  # + .sigmf-meta sidecar
+    ],
+)
+def test_reader_reads_back_wfmgen_cli_container(
+    tmp_path, file_type, detached, out_name, read_name
+):
+    """The self-describing containers the *CLI* writes are readable, end to
+    end.
+
+    The other coverage is transitive: wfmgen_cli_test.cmake asserts only size
+    plus a magic/string grep ("BLUE", "ci16_le"), the round-trips above drive
+    the library Writer, and byte-parity links the two. Nothing directly proves
+    a wfmgen-written capture survives the reader, so a CLI-only metadata
+    regression -- a wrong BLUE xdelta, an unpatched data_size, a bad detached
+    .hdr/.det split, a malformed SigMF core:datatype/sample_rate -- would slip
+    every gate. Write with the real binary, read with the real reader, and
+    check both the recovered metadata and the samples: against the same tone
+    the library synthesises, which must be bit-exact.
+    """
+    fs, freq, n = 1e6, 1e5, 4096
+    cmd = [
+        _WFMGEN,
+        "--type",
+        "tone",
+        "--freq",
+        str(freq),
+        "--fs",
+        str(fs),
+        "--count",
+        str(n),
+        "--sample-type",
+        "cf32",
+        "--file-type",
+        file_type,
+        "-o",
+        str(tmp_path / out_name),
+    ]
+    if detached:
+        cmd.append("--detached")
+    subprocess.run(cmd, check=True, capture_output=True)
+
+    with Reader(tmp_path / read_name) as r:
+        # container auto-detected (BLUE magic / .sigmf-meta sidecar), and the
+        # sample type + rate recovered from its own metadata -- no hints.
+        assert r.file_type == file_type
+        assert r.sample_type == "cf32"
+        assert r.fs == pytest.approx(fs)
+        y = _read_all(r)
+
+    ref = Synth(type="tone", freq=freq, fs=fs, snr=100.0).steps(n)
+    assert len(y) == n
+    assert np.max(np.abs(y - ref)) == 0.0  # bit-exact through the container
+
+
+@_needs_wfmgen
+@pytest.mark.parametrize("hdr_ext", [".hdr", ".prm", ".tmp"])
+def test_reader_detached_header_is_the_entry_point(tmp_path, hdr_ext):
+    """Opening a DETACHED BLUE capture by its header must read the payload.
+
+    Regression for a silent data-corruption bug: the reader used to decide
+    "detached" from the *.det extension* and never read the HCB's `detached`
+    field (offset 12). Handed a header file it parsed the HCB, then seeked to
+    data_start -- which is 0 for a detached capture -- and returned the
+    512-byte HCB *itself* as IQ: 64 cf32 "samples" whose first value is the
+    ASCII "BLUEEEEI" magic as two floats. No exception, correct-looking
+    file_type/fs; just wrong data, on the conventional entry point.
+
+    Per BLUE 3.1.1.4 the detached header is named <base>.tmp or <base>.prm
+    (doppler's writer emits <base>.hdr) and the payload is the collocated
+    <base>.det -- so the *extension is irrelevant*; `detached` decides. All
+    three header spellings must yield the identical, bit-exact capture.
+    """
+    fs, freq, n = 1e6, 1e5, 1024
+    subprocess.run(
+        [
+            _WFMGEN,
+            "--type",
+            "tone",
+            "--freq",
+            str(freq),
+            "--fs",
+            str(fs),
+            "--count",
+            str(n),
+            "--sample-type",
+            "cf32",
+            "--file-type",
+            "blue",
+            "--detached",
+            "-o",
+            str(tmp_path / "cap"),
+        ],
+        check=True,
+        capture_output=True,
+    )
+    # wfmgen writes cap.hdr + cap.det; the spec's names are cap.prm / cap.tmp.
+    if hdr_ext != ".hdr":
+        shutil.copyfile(tmp_path / "cap.hdr", tmp_path / f"cap{hdr_ext}")
+
+    with Reader(tmp_path / f"cap{hdr_ext}") as r:
+        assert r.file_type == "blue"
+        assert r.sample_type == "cf32"
+        assert r.fs == pytest.approx(fs)
+        y = _read_all(r)
+
+    ref = Synth(type="tone", freq=freq, fs=fs, snr=100.0).steps(n)
+    # the whole capture, not the 512-byte header reinterpreted as 64 samples
+    assert len(y) == n
+    assert np.max(np.abs(y - ref)) == 0.0
+
+
 def test_reader_blue_recovers_metadata(tmp_path):
     """A BLUE capture self-describes: fs comes back from the HCB, no hint."""
     x = Composer(type="qpsk", sps=8, num_samples=2048).compose()

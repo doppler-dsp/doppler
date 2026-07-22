@@ -187,6 +187,38 @@ class F32Buffer:
         ...
 
     @property
+    def available(self) -> int:
+        """Samples written but not yet consumed.
+
+        The largest ``n`` for which :meth:`wait` is guaranteed to return
+        without spinning.  Read this rather than tracking the count
+        yourself: :meth:`wait` has no timeout and no short return, so
+        asking for more than has been written spins until the producer
+        catches up -- forever, if there is no producer.
+
+        Read from the consumer side this is a *lower* bound.  A producer
+        on another thread can only increase it, so a block sized from it
+        is always safe; it may simply be smaller than what has landed by
+        the time :meth:`wait` runs.
+
+        Examples
+        --------
+        >>> from doppler.buffer import F32Buffer
+        >>> import numpy as np
+        >>> buf = F32Buffer(1024)
+        >>> buf.available
+        0
+        >>> _ = buf.write(np.zeros(100, dtype=np.complex64))
+        >>> buf.available
+        100
+        >>> _ = buf.wait(64); buf.consume(64)
+        >>> buf.available
+        36
+
+        """
+        ...
+
+    @property
     def dropped(self) -> int:
         """Cumulative count of samples dropped due to buffer overrun.
 
@@ -369,6 +401,38 @@ class F64Buffer:
         >>> from doppler.buffer import F64Buffer
         >>> F64Buffer(512).capacity >= 512
         True
+
+        """
+        ...
+
+    @property
+    def available(self) -> int:
+        """Samples written but not yet consumed.
+
+        The largest ``n`` for which :meth:`wait` is guaranteed to return
+        without spinning.  Read this rather than tracking the count
+        yourself: :meth:`wait` has no timeout and no short return, so
+        asking for more than has been written spins until the producer
+        catches up -- forever, if there is no producer.
+
+        Read from the consumer side this is a *lower* bound.  A producer
+        on another thread can only increase it, so a block sized from it
+        is always safe; it may simply be smaller than what has landed by
+        the time :meth:`wait` runs.
+
+        Examples
+        --------
+        >>> from doppler.buffer import F64Buffer
+        >>> import numpy as np
+        >>> buf = F64Buffer(1024)
+        >>> buf.available
+        0
+        >>> _ = buf.write(np.zeros(100, dtype=np.complex128))
+        >>> buf.available
+        100
+        >>> _ = buf.wait(64); buf.consume(64)
+        >>> buf.available
+        36
 
         """
         ...
@@ -564,6 +628,38 @@ class I16Buffer:
         >>> from doppler.buffer import I16Buffer
         >>> I16Buffer(1024).capacity >= 1024
         True
+
+        """
+        ...
+
+    @property
+    def available(self) -> int:
+        """Samples written but not yet consumed.
+
+        The largest ``n`` for which :meth:`wait` is guaranteed to return
+        without spinning.  Read this rather than tracking the count
+        yourself: :meth:`wait` has no timeout and no short return, so
+        asking for more than has been written spins until the producer
+        catches up -- forever, if there is no producer.
+
+        Read from the consumer side this is a *lower* bound.  A producer
+        on another thread can only increase it, so a block sized from it
+        is always safe; it may simply be smaller than what has landed by
+        the time :meth:`wait` runs.
+
+        Examples
+        --------
+        >>> from doppler.buffer import I16Buffer
+        >>> import numpy as np
+        >>> buf = I16Buffer(1024)
+        >>> buf.available
+        0
+        >>> _ = buf.write(np.zeros((100, 2), dtype=np.int16))
+        >>> buf.available
+        100
+        >>> _ = buf.wait(64); buf.consume(64)
+        >>> buf.available
+        36
 
         """
         ...

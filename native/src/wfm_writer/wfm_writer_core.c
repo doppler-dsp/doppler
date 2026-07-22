@@ -347,17 +347,6 @@ wfm_writer_get_clipped (const wfm_writer_state_t *w)
   return wfm_writer_peak (w) > 1.0 && w->stype >= 2;
 }
 
-/* There is nothing coherent to reset on a writer: the samples are already on
-   disk, and `written` drives the BLUE data_size patch that close() applies, so
-   clearing it would corrupt the header. This exists because jm's object shape
-   declares it; the Python binding refuses the call outright rather than
-   silently doing nothing. */
-void
-wfm_writer_reset (wfm_writer_state_t *w)
-{
-  (void)w;
-}
-
 int
 wfm_writer_close (wfm_writer_state_t *w)
 {
@@ -377,8 +366,26 @@ wfm_writer_close (wfm_writer_state_t *w)
           if (w->kwlen && write_ext_header (w) != 0)
             rc = -1;
         }
+      /* Did the capture actually land? Two independent things can say no, and
+         both were previously discarded:
+
+         ferror() is the durable record that some earlier write failed. It is
+         checked first because a rejected write leaves nothing buffered, so
+         fflush/fclose alone would cheerfully report success afterwards.
+
+         fclose() is where buffered data finally reaches the disk, which is
+         where a full filesystem surfaces. Only a path-opened writer owns its
+         FILE; when the caller supplied it, closing is theirs, so we fflush to
+         learn whether OUR writes made it out and leave the stream open. */
+      if (w->fp && ferror (w->fp))
+        rc = -1;
       if (w->owns_fp && w->fp)
-        fclose (w->fp); /* path-opened writers own their FILE */
+        {
+          if (fclose (w->fp) != 0)
+            rc = -1;
+        }
+      else if (w->fp && fflush (w->fp) != 0)
+        rc = -1;
       free (w->kw);
       free (w->buf);
       free (w);

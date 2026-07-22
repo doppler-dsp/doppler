@@ -196,6 +196,19 @@ int wfm_blue_write_hcb(FILE *fp, int sample_type, int endian, double fs,
 char *wfm_sigmf_meta_json(int sample_type, int endian, double fs, double fc,
                           const wfm_segment_t *segs, size_t n_segs);
 
+/* DELIBERATELY NOT DEFINED. jm's object shape declares a reset() for every
+   object, but a writer has nothing coherent to reset: the samples are already
+   on disk, and the written count drives the BLUE data_size patch that close()
+   applies, so clearing it would corrupt the header. The binding refuses the
+   call (NotImplementedError) in the sacred fragment and never reaches this.
+   Leaving the definition out is what makes that safe. If the fragment is ever
+   regenerated without the hand-written refusal, the generated reset() calls
+   this and the extension fails to load outright --
+   `ImportError: undefined symbol: wfm_writer_reset` -- instead of silently
+   becoming a no-op that tells callers their writer was reset. (A Python
+   extension links with undefined symbols permitted, so this surfaces at import
+   rather than at link; either way the first test to run catches it. Verified,
+   not assumed.) See just-buildit/just-makeit#542. */
 void wfm_writer_reset(wfm_writer_state_t *state);
 double wfm_writer_get_clip_fraction(const wfm_writer_state_t *state);
 double wfm_writer_get_peak_dbfs(const wfm_writer_state_t *state);

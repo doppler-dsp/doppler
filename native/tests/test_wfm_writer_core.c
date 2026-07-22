@@ -31,6 +31,36 @@ slurp (FILE *fp, uint8_t *buf, size_t cap)
   return fread (buf, 1, cap, fp);
 }
 
+/* close() must report a failed final flush, not discard it. fclose() is where
+   buffered data actually reaches the disk, so its result IS the answer to "did
+   the capture land"; ignoring it reported success for a file that never made
+   it. Uses a read-only FILE so every write fails: the HCB write at open fails,
+   the data writes fail, and the flush at close fails. */
+static int
+test_close_reports_a_failed_flush (void)
+{
+  const char *path = "dp_wr_ro.blue";
+  FILE       *mk   = fopen (path, "wb"); /* create it, then reopen read-only */
+  CHECK (mk != NULL, "create");
+  fclose (mk);
+
+  FILE *ro = fopen (path, "rb"); /* writes on this stream cannot succeed */
+  CHECK (ro != NULL, "reopen read-only");
+  wfm_writer_state_t *w = wfm_writer_open (ro, WFM_FT_RAW, 0, 0, 1e6, 0.0, 0);
+  if (w)
+    {
+      float _Complex x[16];
+      for (size_t i = 0; i < 16; i++)
+        x[i] = 0.5f + 0.25f * (float _Complex)I;
+      wfm_writer_write (w, x, 16);
+      /* The caller owns `ro`, so close() fflush()es rather than fclose()ing --
+         either way a stream that cannot be written must not report success. */
+      CHECK (wfm_writer_close (w) != 0, "close reports the failed flush");
+    }
+  fclose (ro);
+  return 0;
+}
+
 int
 main (void)
 {
@@ -302,6 +332,8 @@ main (void)
     fclose (fp);
   }
 
+  if (test_close_reports_a_failed_flush ())
+    return 1;
   printf ("test_wfm_writer: OK (raw/endian/csv/blue + sigmf + clip + "
           "headroom)\n");
   return 0;

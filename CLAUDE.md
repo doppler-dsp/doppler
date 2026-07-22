@@ -598,6 +598,62 @@ touches `jm apply`/`status` codegen paths doppler already exercises
 before this fix and are unaffected; the bug was in the *scaffolding*
 path, not the steady-state apply path).
 
+### 0.33.4 adoptions — `wfm.Reader`/`wfm.Writer` are jm OBJECTS (pin: 0.33.4)
+
+The CI drift gate pins **0.33.4**; `jm_version` is stamped 0.33.4. **Drive
+doppler with `uvx --from 'just-makeit==0.33.4' just-makeit …`.** The release
+also fixes a `variable_output` `.pyi` bug doppler reported — a generated stub
+omitted the method's count parameter and so contradicted its own runtime
+binding (`LO`, `NCO`, `AWGN`, the accumulators; `source.pyi` is generated and
+not `status_allow`-listed, so it was shipped wrong).
+
+`[module.wfm_reader]` and `[module.wfm_writer]` are no longer `kind = "handle"`
+— they are ordinary object modules (`objects/wfm_reader.toml`,
+`objects/wfm_writer.toml`). The migration needed four doppler-filed jm features:
+`path` init-params (gh-515), `create_error` (gh-514), enum-valued properties
+(gh-519) and `package` on an object module (gh-523).
+
+**Both `_ext_<obj>.c` fragments carry hand-written blocks**, each blocked on a
+filed jm gap. They are sacred, so they survive `jm apply` — but delete a
+fragment and they are gone:
+
+| block                                           | jm gap                                                                                |
+| ----------------------------------------------- | ------------------------------------------------------------------------------------- |
+| Writer `close()` + `__exit__` error propagation | [jm#541](https://github.com/just-buildit/just-makeit/issues/541) fallible destructor  |
+| Writer `reset()` raising `NotImplementedError`  | [jm#542](https://github.com/just-buildit/just-makeit/issues/542) `no_reset`           |
+| `Reader.keywords` (dict)                        | [jm#543](https://github.com/just-buildit/just-makeit/issues/543) dict-valued property |
+| `close()` on both types                         | [jm#544](https://github.com/just-buildit/just-makeit/issues/544) destructor naming    |
+
+Retire each block as its issue ships; the fragments are the reference for what
+the generated form must match. A hand-written method never reaches the `.pyi`,
+so `close()` is invisible to a type checker until gh-544 lands (mypy is not
+gated here).
+
+**`wfm_writer_reset()` is deliberately declared but NOT defined.** If the
+fragment is ever regenerated without the hand-written refusal, the generated
+`reset()` calls it and the extension fails to load —
+`ImportError: undefined symbol: wfm_writer_reset` — instead of silently
+becoming a no-op that tells callers their writer was reset. Verified, not
+assumed.
+
+**Use the SCOPED `jm apply objects/<obj>.toml` whenever a sacred fragment
+exists.** A bare `jm apply` can regenerate a *sibling's* fragment and discard
+its hand-patches (documented at `docs/dev/adding-a-module.md:39`). Ignoring
+this cost three silent re-applications during the migration. After touching a
+fragment, clang-format it — jm emits K&R 4-space, doppler is GNU 2-space.
+
+**Check doxygen at CI's version, not the local one.** CI runs 1.9.8 (Ubuntu);
+a newer local doxygen does not report what it does. It caught three real
+problems during this migration — stale `@file` tags after a rename, `@param`
+names that no longer matched jm's injected signature, and a backtick-quoted
+character literal that swallowed the `@param` lines after it:
+
+```sh
+docker run --rm -v "$PWD":/w -w /w ubuntu:24.04 bash -c \
+  'apt-get update -qq >/dev/null && apt-get install -y -qq doxygen >/dev/null &&
+   doxygen Doxyfile 2>&1 | grep -c "warning:"'
+```
+
 ### 0.33.2 adoptions — doppler-driven `path` init-params + handle `create_error` (pin: 0.33.2)
 
 The CI drift gate now pins **0.33.2** (`ci.yml` + `perf-regression.yml`);

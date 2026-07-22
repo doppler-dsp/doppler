@@ -15,9 +15,13 @@ never touches:
 * **draining to EOF** — ``read()`` is bounded by the payload the header
   declares, so the loop stops at the last sample rather than continuing into
   whatever follows it. To make that bound do visible work, this demo appends
-  trailing bytes after the payload the way a real BLUE file carries an extended
-  header: an unbounded reader would hand them back decoded as IQ, which is
-  silent corruption rather than an error.
+  stand-in bytes after the payload, occupying the region where a real BLUE file
+  keeps its extended header: an unbounded reader hands them back decoded as IQ
+  (64 samples of garbage, here), which is silent corruption rather than an
+  error. They are only stand-ins — a genuine extended header would also be
+  pointed to by the HCB and decoded into ``Reader.keywords``, which the Python
+  ``Writer`` currently cannot produce (the C API has ``add_keyword``; there is
+  no binding for it yet).
 * **``close()`` reporting** — the ``data_size`` patch happens at close, after
   the samples, so a failure there means the file on disk is wrong. ``close()``
   raises rather than returning quietly, and ``with`` propagates it.
@@ -31,9 +35,11 @@ reach for it here — the obvious alternative, keeping a numpy leftover array an
 allocates as it goes. Measured on this shape it is worth about 1.4x (0.90 ms vs
 1.26 ms per 1.18 Msamp) and, more usefully, zero allocations in the loop.
 
-The ring's ``wait(n)`` *spins* until ``n`` samples are available, which is
-right for a producer thread and a deadlock in a single-threaded script, so the
-loops below only ever ask for what they have already counted in.
+The ring's ``wait(n)`` *spins* until ``n`` samples arrive. It releases the GIL,
+so a producer on another thread is the case it is built for, but it has no
+timeout and no short return, so asking for one sample more than was written
+hangs forever. The loops below size every block from ``ring.available`` and so
+can never ask for a sample that has not landed.
 
 Run::
 
@@ -67,7 +73,6 @@ synth = qpsk(sps=8, snr=30.0, fs=FS, seed=1)
 
 tx_ring = F32Buffer(1 << 15)  # power of two; read .capacity for what you got
 sent = []  # keep a reference copy to verify the round-trip
-pending = 0
 n_written = 0
 
 # total=0: the length is NOT known when the header goes down. close() patches
@@ -77,20 +82,19 @@ with Writer(PATH, file_type="blue", sample_type="cf32", fs=FS, total=0) as w:
         chunk = synth.steps(arrival)
         sent.append(chunk)
         assert tx_ring.write(chunk), "ring overflow — grow the capacity"
-        pending += arrival
 
-        # Drain whole blocks only. wait() spins, so never ask for more than
-        # has been counted in.
-        while pending >= TX_BLOCK:
+        # Drain whole blocks only. `available` is what makes wait() safe:
+        # it never reports a sample that has not landed, and wait() would
+        # spin forever on one that has not.
+        while tx_ring.available >= TX_BLOCK:
             block = tx_ring.wait(TX_BLOCK)  # contiguous even across the wrap
             n_written += w.write(block)
             tx_ring.consume(TX_BLOCK)
-            pending -= TX_BLOCK
 
     # The stream ended mid-block; flush the remainder.
-    if pending:
-        n_written += w.write(tx_ring.wait(pending))
-        tx_ring.consume(pending)
+    if tail := tx_ring.available:
+        n_written += w.write(tx_ring.wait(tail))
+        tx_ring.consume(tail)
 # close() ran here: data_size is now the real count, not the placeholder.
 # --8<-- [end:write]
 
@@ -104,7 +108,6 @@ trailing = os.path.getsize(PATH) - (512 + n_written * 8)
 # --8<-- [start:read]
 rx_ring = F32Buffer(1 << 15)
 received = []
-pending = 0
 
 with Reader(PATH) as r:
     declared = r.num_samples  # recovered from the patched header
@@ -113,17 +116,15 @@ with Reader(PATH) as r:
         if len(got) == 0:
             break
         assert rx_ring.write(got), "ring overflow — grow the capacity"
-        pending += len(got)
 
-        while pending >= RX_BLOCK:
+        while rx_ring.available >= RX_BLOCK:
             block = rx_ring.wait(RX_BLOCK)
             received.append(np.array(block))  # copy: consume() invalidates it
             rx_ring.consume(RX_BLOCK)
-            pending -= RX_BLOCK
 
-    if pending:
-        received.append(np.array(rx_ring.wait(pending)))
-        rx_ring.consume(pending)
+    if tail := rx_ring.available:
+        received.append(np.array(rx_ring.wait(tail)))
+        rx_ring.consume(tail)
 
     # The read loop stopped at the declared payload, not at end-of-file.
     at_end = r.read(TX_BLOCK)

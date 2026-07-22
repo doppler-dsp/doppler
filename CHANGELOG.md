@@ -13,6 +13,81 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+Three silent data-corruption bugs in the BLUE reader, found by auditing the
+Header Control Block parse against the Midas BLUE 1.1 specification after the
+first one turned up. Each returned wrong samples with no error, correct-looking
+`file_type`/`fs`, and no way for a caller to notice.
+
+### Fixed
+
+- **A detached BLUE capture opened by its header returned the 512-byte HCB as
+    IQ.** The reader inferred "detached" from the `.det` extension and never
+    read the HCB's `detached` field (offset 12), so a header file parsed its
+    HCB, seeked to `data_start` — 0 for a detached capture — and handed back
+    the header itself as 64 cf32 "samples", the first being the ASCII
+    `BLUEEEEI` magic as two floats. Per BLUE §3.1.1.4 the header is the normal
+    entry point (`<base>.tmp`/`<base>.prm`; doppler writes `<base>.hdr`) and
+    the payload is the collocated `<base>.det`, so the extension must not
+    decide — `detached` does. All four entry points now yield the same capture.
+- **Scalar BLUE captures were read at the complex stride.** The `format` field
+    (HCB bytes 52–53) is a `[mode][type]` pair and only the type half was
+    parsed. A valid `S` (scalar) capture was walked as interleaved I/Q: every
+    second real sample became a phantom Q, the capture came back at half its
+    length, and `num_samples` under-reported 2x. Mode is now parsed — `S` reads
+    one component per sample with `imag == 0`, `C` is unchanged, and every
+    other Midas mode (`V`/`Q`/`M`/`T`/…, three or more components per sample)
+    is **rejected at open** rather than strided as if it were I/Q.
+- **Reads ran past the declared payload.** BLUE states its data size, but the
+    reader streamed to EOF, so draining a capture that carries an extended
+    header returned keyword bytes decoded as IQ. Reads are now bounded by the
+    declared sample count.
+- The async DSSS spec-demo's prose described its Doppler inputs in the wrong
+    units (they are Hz and Hz/s, converted internally to ppm of carrier).
+
+### Added
+
+- **BLUE extended-header keywords**, read and written (Midas BLUE 1.1 §3.3.1,
+    Table 26). `ext_start`/`ext_size` were previously never parsed and hardcoded
+    to zero on write, so a file's entire metadata region was invisible in both
+    directions. One codec — `native/src/wfm/wfm_keywords.c` — serves both
+    sides, so encode and decode cannot drift apart. Types `B`/`I`/`L`/`X`,
+    `F`/`D`, `A` (a variable-length string in keyword context) and the
+    deprecated `T`; unrecognised types are stepped over rather than aborting
+    the walk, per §3.3.1. C API: `wfm_writer_add_keyword()`,
+    `wfm_reader_num_keywords()`/`_keyword()`/`_find_keyword()`. A Python
+    surface will follow with the Reader/Writer object migration.
+- **`Reader.mode`** — `"complex"` or `"scalar"`, parsed from the BLUE `format`
+    mode designator; other containers are complex.
+- **`wfm_reader_reset()`** rewinds to the first sample of the capture (512
+    bytes into an attached BLUE file, byte 0 of a `.det` or raw/SigMF payload),
+    leaving the container metadata and decoded keywords intact.
+- **`wfm_writer_destroy()`** — the `void` destructor form of
+    `wfm_writer_close()`, which keeps returning its status and stays the one to
+    call when the caller can act on a failed final flush.
+
+### Changed
+
+- **C API (breaking for C consumers).** The reader/writer cores moved onto the
+    standard object layout and their lifecycle functions were renamed:
+
+    | before                        | after                                     |
+    | ----------------------------- | ----------------------------------------- |
+    | `#include "wfm/wfm_reader.h"` | `#include "wfm_reader/wfm_reader_core.h"` |
+    | `#include "wfm/wfm_writer.h"` | `#include "wfm_writer/wfm_writer_core.h"` |
+    | `wfm_reader_open()`           | `wfm_reader_create()`                     |
+    | `wfm_reader_close()`          | `wfm_reader_destroy()`                    |
+    | `wfm_writer_open_path()`      | `wfm_writer_create()`                     |
+
+    `wfm_writer_open(FILE *, …)` keeps its name — it is a secondary
+    constructor, not the object's ctor. `wfm_reader_t`/`wfm_writer_t` still
+    work as aliases for the new `*_state_t` names. Python is unaffected.
+
+- Tooling: the just-makeit pin moves 0.33.1 → 0.33.3, picking up four
+    doppler-filed fixes (jm gh-514, gh-515, gh-519, gh-521). gh-521 fixes a
+    memory-safety bug in handle enum getters, which regenerates `Reader`'s property
+    bindings with bounds checks; doppler's own paths clamp every one of those
+    fields before storing it, so the out-of-range read was not reachable here.
+
 ## [0.35.0] — 2026-07-21
 
 Continuous asynchronous DSSS, end to end: a spread-spectrum signal can now be

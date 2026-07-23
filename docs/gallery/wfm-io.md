@@ -22,8 +22,9 @@ on-disk size and the metadata the container recovered:
     The `format` field is a `[mode][type]` pair: doppler writes `C` (complex,
     interleaved I/Q) and reads back both `C` and `S` (scalar/real — `r.mode`
     says which, and an `S` capture comes back with `imag == 0`). Every other
-    Midas mode (`V`/`Q`/`M`/`T`, 3 to 16 components per sample) is **refused at
-    open** rather than walked at the wrong stride and returned as garbage.
+    Midas mode (`V`/`Q`/`M`/`T`/…, three or more components per sample) is
+    **refused at open** rather than walked at the wrong stride and returned as
+    garbage.
 - **SigMF** — a `.sigmf-data` + `.sigmf-meta` JSON pair; the most self-describing,
     recovering **both** `fs` and `fc` (and one annotation per segment).
 
@@ -78,6 +79,21 @@ with Writer("cap.det", file_type="raw", sample_type="cf32") as w:
 The CLI does the same in one shot with `--file-type blue --detached -o cap`
 (writes `cap.hdr` + `cap.det`); detached output needs `--output` and a finite
 (non-`--continuous`) run.
+
+Read it back through the **header**, not the body. The HCB's `detached` field
+is what says where the samples live, so `Reader` follows it to the collocated
+`.det` — the extension never decides. Per BLUE §3.1.1.4 the header is
+conventionally `<base>.tmp` or `<base>.prm` (doppler writes `<base>.hdr`), and
+all of them work, as does handing `Reader` the `.det` directly:
+
+```python
+with Reader("cap.hdr") as r:          # the header, not cap.det
+    assert r.file_type == "blue"
+    assert r.num_samples == len(x)    # from the HCB's data_size
+    y = r.read(len(x))                # ...but the samples come from cap.det
+
+assert (y == x).all()
+```
 
 ## Real-time streaming (`SampleClock` + `StreamSink`)
 

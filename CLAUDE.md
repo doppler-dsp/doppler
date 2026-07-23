@@ -598,6 +598,70 @@ touches `jm apply`/`status` codegen paths doppler already exercises
 before this fix and are unaffected; the bug was in the *scaffolding*
 path, not the steady-state apply path).
 
+### 0.33.6 adoptions — `wfm.Reader`/`wfm.Writer` are FULLY declarative (pin: 0.33.6)
+
+The CI drift gate pins **0.33.6**; `jm_version` is stamped 0.33.6. **Drive
+doppler with `uvx --from 'just-makeit==0.33.6' just-makeit …`.** 0.33.5 shipped
+gh-541/542/544 and 0.33.6 shipped gh-543 — the four doppler-filed features that
+the Reader/Writer object migration needed but could not express, so its four
+hand-written fragment blocks are now **manifest keys** and both
+`_ext_<obj>.c` fragments are fully jm-generated again:
+
+| was hand-written                                | now declarative                                                                                                             |
+| ----------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| Writer `close()` + `__exit__` error propagation | `[wfm_writer.destroy]` `returns="int"` `error="OSError"` (gh-541); core `wfm_writer_destroy` widened to return int          |
+| Writer `reset()` raising `NotImplementedError`  | `no_reset = "true"` (gh-542) — the method is **gone**; `w.reset()` is now `AttributeError`, `hasattr(w,"reset")` is False   |
+| `close()`/`destroy()` naming on both types      | `[<obj>.destroy]` `name="close"` `aliases=["destroy"]` (gh-544)                                                             |
+| `Reader.keywords` (dict)                        | `type="dict"` `value_type="object"` (gh-543); jm generates the loop/refcount/guards, one hand-written value builder remains |
+
+The **one** behaviour change is `Writer.reset()`: `no_reset` removes the method
+entirely, so it raises `AttributeError` rather than the old hand-written
+`NotImplementedError`. That is gh-542's intent — a writer has nothing to reset,
+and an absent method is the honest Python answer. `wfm_writer_reset()` is gone
+from the header too (the declared-but-undefined undefined-symbol trick is no
+longer needed — there is no `reset()` to guard).
+
+Making `keywords` declarative also lands it in the `.pyi` (`dict[str, Any]`),
+and `close()` on both types — a fragment-added method never reached a type
+checker. That closes the gap noted below.
+
+**One hand-written helper survives, by design:** `Reader.keywords`'s per-keyword
+VALUE is data-dependent (its Python type comes from the keyword's own BLUE type
+code — `str` for `A`, `int`/`float` for a scalar numeric, `list` for a
+multi-element one), so it uses `value_type="object"` and jm forward-declares
+`wfm_reader_keyword_value(const state*, size_t) -> PyObject*` for a hand-written
+`native/src/wfm_reader/wfm_reader_ext_extra.c` (gh-543's standalone-object
+`_ext_extra.c` hook — jm wires it in, never creates or modifies it). jm still
+generates the dict loop, the refcounting, every error path, and the gh-521-class
+NULL-key/NULL-value guards. Test coverage: the C round-trip proves the decode
+(`test_wfm_reader_core.c`); a hand-built keyworded BLUE file in
+`test_wfm_reader.py` (`_encode_keyword`, assembled against the Midas BLUE 1.1
+wire format because the Python `Writer` has no `add_keyword` binding) proves the
+Python value dispatch — verified to fail if the builder is broken.
+
+**`Writer` cannot emit keywords from Python.** `wfm_writer_add_keyword` exists
+in C (C-tested) with no binding, so a keyword round-trip can only be tested by
+building the file bytes directly. Exposing it is new public API (a
+manifest-vs-fragment decision) and is left unfiled.
+
+**Use the SCOPED `jm apply objects/<obj>.toml` whenever a sacred fragment
+exists.** A bare `jm apply` can regenerate a *sibling's* fragment and discard
+its hand-patches (documented at `docs/dev/adding-a-module.md:39`). After
+touching a fragment — or the hand-owned `wfm_reader_ext_extra.c` — clang-format
+it: jm emits K&R 4-space, doppler is GNU 2-space.
+
+**Check doxygen at CI's version, not the local one.** CI runs 1.9.8 (Ubuntu);
+a newer local doxygen does not report what it does. It caught three real
+problems during this migration — stale `@file` tags after a rename, `@param`
+names that no longer matched jm's injected signature, and a backtick-quoted
+character literal that swallowed the `@param` lines after it:
+
+```sh
+docker run --rm -v "$PWD":/w -w /w ubuntu:24.04 bash -c \
+  'apt-get update -qq >/dev/null && apt-get install -y -qq doxygen >/dev/null &&
+   doxygen Doxyfile 2>&1 | grep -c "warning:"'
+```
+
 ### 0.33.2 adoptions — doppler-driven `path` init-params + handle `create_error` (pin: 0.33.2)
 
 The CI drift gate now pins **0.33.2** (`ci.yml` + `perf-regression.yml`);

@@ -21,6 +21,7 @@
 #ifndef WFM_WRITER_H
 #define WFM_WRITER_H
 
+#include <stdbool.h>
 #include <stdio.h>
 
 #include "clib_common.h"
@@ -41,10 +42,6 @@ typedef enum {
 /** Opaque writer. */
 typedef struct wfm_writer_state wfm_writer_state_t;
 
-/* Transitional alias: the current kind="handle" binding derives its C
-   type name from the module's `backing` key, so it still spells this
-   `wfm_writer_t`. Retired when the object migration flips the module kind. */
-typedef wfm_writer_state_t wfm_writer_t;
 
 /**
  * @brief Open a writer on an already-open stream.
@@ -68,7 +65,7 @@ wfm_writer_state_t *wfm_writer_open(FILE *fp, wfm_filetype_t ft, int sample_type
  * @brief Convert and write `n` complex samples.
  * @return Number of complex samples written (== n on success, else short).
  */
-size_t wfm_writer_write(wfm_writer_state_t *w, const float _Complex *iq, size_t n);
+size_t wfm_writer_write(wfm_writer_state_t *state, const float complex *x, size_t x_len);
 
 /**
  * @brief Attach a BLUE extended-header keyword (a tag/value pair).
@@ -114,15 +111,16 @@ int wfm_writer_add_keyword(wfm_writer_state_t *w, const char *tag, char type,
 int wfm_writer_close(wfm_writer_state_t *w);
 
 /**
- * @brief Close and free, discarding the status — the destructor form.
+ * @brief Finalise and free — the object binding's fallible destructor.
  *
- * Identical to wfm_writer_close() except that it returns nothing, which is the
- * shape a destructor needs. Prefer wfm_writer_close() wherever the caller can
- * act on a failed final flush: the BLUE `data_size` patch and the extended
- * header are both written during close, so a write error there means the file
- * on disk is not the file you asked for.
+ * Identical to wfm_writer_close(); the object shape (gh-541) generates a
+ * Python close() from this that raises when it returns non-zero, so the
+ * finaliser's status reaches the caller and out of a `with` block. C callers
+ * may use either name.
+ *
+ * @return 0 on success, non-zero on a write/seek error during finalisation.
  */
-void wfm_writer_destroy(wfm_writer_state_t *w);
+int wfm_writer_destroy(wfm_writer_state_t *state);
 
 /* ── clip detection ───────────────────────────────────────────────────────
  * Full-scale is ±1.0 per axis; integer wire types saturate to it. The writer
@@ -134,7 +132,7 @@ void wfm_writer_destroy(wfm_writer_state_t *w);
  * (cf32/cf64) never clip but still report a peak. Call after writing. */
 
 /** Enable the per-component clip *counter* (off by default; peak is always on). */
-void wfm_writer_track_clipping(wfm_writer_state_t *w, int on);
+void wfm_writer_track_clipping(wfm_writer_state_t *state, int on);
 
 /* ── headroom ──────────────────────────────────────────────────────────────
  * A common output gain applied to every sample just before quantisation, so
@@ -159,10 +157,7 @@ double wfm_writer_clip_fraction(const wfm_writer_state_t *w);
 /** Path-opening + FILE-owning ctor for the generated `Writer` handle (jm
  *  kind="handle"): opens `path` ("wb"), delegates to wfm_writer_open, and marks
  *  the FILE owned so wfm_writer_close fclose's it. Returns NULL on open failure. */
-wfm_writer_state_t *wfm_writer_create(const char *path, wfm_filetype_t ft,
-                                   int sample_type, int endian, double fs,
-                                   double fc, size_t total_samples,
-                                   double headroom);
+wfm_writer_state_t *wfm_writer_create(const char *path, int file_type, int sample_type, int endian, double fs, double fc, size_t total, double headroom);
 
 /**
  * @brief Write a complete 512-byte BLUE/Platinum type-1000 Header Control Block.
@@ -202,6 +197,13 @@ int wfm_blue_write_hcb(FILE *fp, int sample_type, int endian, double fs,
 char *wfm_sigmf_meta_json(int sample_type, int endian, double fs, double fc,
                           const wfm_segment_t *segs, size_t n_segs);
 
+/* No wfm_writer_reset: the object declares `no_reset` (gh-542), so jm emits no
+   reset() binding and no call site. A writer has nothing coherent to reset --
+   the samples are on disk and the written count drives the BLUE data_size patch
+   -- so the method is absent rather than a no-op or a raise. */
+double wfm_writer_get_clip_fraction(const wfm_writer_state_t *state);
+double wfm_writer_get_peak_dbfs(const wfm_writer_state_t *state);
+bool wfm_writer_get_clipped(const wfm_writer_state_t *state);
 #ifdef __cplusplus
 }
 #endif

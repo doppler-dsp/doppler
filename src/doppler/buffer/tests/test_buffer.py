@@ -89,6 +89,85 @@ class TestF32Buffer:
         buf.destroy()
 
 
+# ── available (the wait() guard) ─────────────────────────────────────────────
+# `wait()` has no timeout and no short return: ask for one sample more than
+# has been written and it spins forever. `available` is how a consumer sizes
+# a block without shadow-counting what it fed in, so it has to track write
+# and consume exactly -- an over-report is a hang, not a wrong number.
+
+
+class TestAvailable:
+    @pytest.mark.parametrize(
+        ("cls", "make"),
+        [
+            (F32Buffer, lambda n: np.zeros(n, dtype=np.complex64)),
+            (F64Buffer, lambda n: np.zeros(n, dtype=np.complex128)),
+            (I16Buffer, lambda n: np.zeros((n, 2), dtype=np.int16)),
+        ],
+    )
+    def test_tracks_write_and_consume(self, cls, make):
+        buf = cls(1024)
+        assert buf.available == 0
+        buf.write(make(100))
+        assert buf.available == 100
+        _ = buf.wait(60)
+        assert buf.available == 100, "wait() alone must not release samples"
+        buf.consume(60)
+        assert buf.available == 40
+        buf.write(make(10))
+        assert buf.available == 50
+
+    def test_survives_the_wrap(self):
+        """The count is head-tail, not an index difference, so a buffer
+        that has wrapped many times still reports the true backlog."""
+        buf = F32Buffer(1024)
+        cap = buf.capacity
+        for _ in range(5):
+            buf.write(np.zeros(cap, dtype=np.complex64))
+            _ = buf.wait(cap)
+            buf.consume(cap)
+            assert buf.available == 0
+        buf.write(np.zeros(7, dtype=np.complex64))
+        assert buf.available == 7
+
+    def test_a_rejected_write_does_not_count(self):
+        """An overrun increments `dropped`, and those samples are not
+        readable -- so `available` must not include them."""
+        buf = F32Buffer(1024)
+        cap = buf.capacity
+        buf.write(np.zeros(cap, dtype=np.complex64))
+        assert buf.write(np.zeros(1, dtype=np.complex64)) is False
+        assert buf.dropped == 1
+        assert buf.available == cap
+
+    def test_is_a_safe_lower_bound_under_a_producer(self):
+        """Read concurrently it may lag, but never over-reports: whatever
+        it returns, wait() for that many returns without spinning."""
+        N = 4096
+        buf = F32Buffer(1 << 13)
+        done = threading.Event()
+
+        def producer():
+            for i in range(0, N, 64):
+                buf.write(np.full(64, i, dtype=np.complex64))
+            done.set()
+
+        t = threading.Thread(target=producer)
+        t.start()
+        seen = 0
+        while seen < N:
+            n = buf.available
+            if n == 0:
+                continue
+            _ = buf.wait(n)  # must not spin: n was already readable
+            buf.consume(n)
+            seen += n
+        t.join()
+        assert done.is_set()
+        assert seen == N
+        assert buf.available == 0
+
+
 # ── F64Buffer (complex128) ───────────────────────────────────────────────────
 
 

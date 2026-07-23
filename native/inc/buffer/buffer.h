@@ -452,6 +452,24 @@ dp__buf_free (void *addr, size_t bytes, void *handle)
     return &ab->data[(t & ab->mask) * 2];                                     \
   }                                                                           \
                                                                               \
+  /**                                                                         \
+   * @brief Samples written but not yet consumed.                             \
+   *                                                                          \
+   * The largest @p n for which dp_##name##_wait() is guaranteed to return    \
+   * without spinning. Read from the consumer side: the producer may only     \
+   * grow this concurrently, so the value is a lower bound that never goes    \
+   * stale in the unsafe direction.                                           \
+   *                                                                          \
+   * @param ab Pointer to buffer.                                             \
+   * @return   Number of samples currently readable.                          \
+   */                                                                         \
+  static inline size_t dp_##name##_available (const dp_##name##_t *ab)        \
+  {                                                                           \
+    size_t h = DP_LOAD_ACQ (&ab->head);                                       \
+    size_t t = DP_LOAD_RLX (&ab->tail);                                       \
+    return h - t;                                                             \
+  }                                                                           \
+                                                                              \
   /** @brief Releases @p n samples after processing is complete. */           \
   static inline void dp_##name##_consume (dp_##name##_t *ab, size_t n)        \
   {                                                                           \

@@ -177,9 +177,18 @@ F32Buffer_dropped (F32BufferObject *self, void *Py_UNUSED (closure))
   return PyLong_FromSsize_t ((Py_ssize_t)self->buf->dropped);
 }
 
+static PyObject *
+F32Buffer_available (F32BufferObject *self, void *Py_UNUSED (closure))
+{
+  return PyLong_FromSize_t (dp_f32_available (self->buf));
+}
+
 static PyGetSetDef F32Buffer_getset[] = {
   { "capacity", (getter)F32Buffer_capacity, NULL,
     "Buffer capacity in complex samples.", NULL },
+  { "available", (getter)F32Buffer_available, NULL,
+    "Samples written but not yet consumed -- the largest n that wait()\n"
+    "will return for without spinning.", NULL },
   { "dropped", (getter)F32Buffer_dropped, NULL,
     "Samples dropped due to buffer overrun.", NULL },
   { NULL },
@@ -360,9 +369,18 @@ F64Buffer_dropped (F64BufferObject *self, void *Py_UNUSED (closure))
   return PyLong_FromSsize_t ((Py_ssize_t)self->buf->dropped);
 }
 
+static PyObject *
+F64Buffer_available (F64BufferObject *self, void *Py_UNUSED (closure))
+{
+  return PyLong_FromSize_t (dp_f64_available (self->buf));
+}
+
 static PyGetSetDef F64Buffer_getset[] = {
   { "capacity", (getter)F64Buffer_capacity, NULL,
     "Buffer capacity in complex samples.", NULL },
+  { "available", (getter)F64Buffer_available, NULL,
+    "Samples written but not yet consumed -- the largest n that wait()\n"
+    "will return for without spinning.", NULL },
   { "dropped", (getter)F64Buffer_dropped, NULL,
     "Samples dropped due to buffer overrun.", NULL },
   { NULL },
@@ -554,9 +572,18 @@ I16Buffer_dropped (I16BufferObject *self, void *Py_UNUSED (closure))
   return PyLong_FromSsize_t ((Py_ssize_t)self->buf->dropped);
 }
 
+static PyObject *
+I16Buffer_available (I16BufferObject *self, void *Py_UNUSED (closure))
+{
+  return PyLong_FromSize_t (dp_i16_available (self->buf));
+}
+
 static PyGetSetDef I16Buffer_getset[] = {
   { "capacity", (getter)I16Buffer_capacity, NULL,
     "Buffer capacity in IQ sample pairs.", NULL },
+  { "available", (getter)I16Buffer_available, NULL,
+    "Samples written but not yet consumed -- the largest n that wait()\n"
+    "will return for without spinning.", NULL },
   { "dropped", (getter)I16Buffer_dropped, NULL,
     "Sample pairs dropped due to buffer overrun.", NULL },
   { NULL },

@@ -25,13 +25,13 @@ static const char   FMTCH[5]
 struct wfm_reader_state
 {
   FILE          *fp;
-  int            ft;       /* wfm_filetype_t */
-  int            stype;    /* 0..4 */
-  int            mode;     /* wfm_mode_t: 0 complex, 1 scalar */
-  int            endian;   /* 0 le, 1 be */
-  double         fs, fc;   /* Hz; 0 if unknown */
-  size_t         nsamples; /* total complex samples; 0 if unknown */
-  uint8_t       *scratch;  /* read buffer for binary containers */
+  int            file_type;   /* wfm_filetype_t */
+  int            sample_type; /* 0..4 */
+  int            mode;        /* wfm_mode_t: 0 complex, 1 scalar */
+  int            endian;      /* 0 le, 1 be */
+  double         fs, fc;      /* Hz; 0 if unknown */
+  size_t         num_samples; /* total complex samples; 0 if unknown */
+  uint8_t       *scratch;     /* read buffer for binary containers */
   size_t         scratch_cap;
   wfm_keyword_t *kw; /* decoded extended-header keywords (BLUE only) */
   size_t         nkw;
@@ -325,7 +325,8 @@ fill_nsamples (wfm_reader_state_t *r)
       long end = ftell (r->fp);
       fseek (r->fp, cur, SEEK_SET);
       if (end >= cur)
-        r->nsamples = (size_t)(end - cur) / (comps (r->mode) * ELEM[r->stype]);
+        r->num_samples
+            = (size_t)(end - cur) / (comps (r->mode) * ELEM[r->sample_type]);
     }
 }
 
@@ -334,13 +335,13 @@ fill_nsamples (wfm_reader_state_t *r)
 static void
 apply_hcb (wfm_reader_state_t *r, const blue_hcb_t *h)
 {
-  r->stype     = h->stype;
-  r->mode      = h->mode;
-  r->endian    = h->endian;
-  r->fs        = h->fs;
-  r->nsamples  = h->nsamples;
-  r->bounded   = 1;
-  r->remaining = h->nsamples;
+  r->sample_type = h->stype;
+  r->mode        = h->mode;
+  r->endian      = h->endian;
+  r->fs          = h->fs;
+  r->num_samples = h->nsamples;
+  r->bounded     = 1;
+  r->remaining   = h->nsamples;
 }
 
 /* Record where the samples begin, so reset() can rewind to exactly here. The
@@ -362,19 +363,20 @@ wfm_reader_create (const char *path, int hint_stype, int hint_endian)
   wfm_reader_state_t *r = (wfm_reader_state_t *)calloc (1, sizeof *r);
   if (!r)
     return NULL;
-  r->stype    = hint_stype;
-  r->endian   = hint_endian ? 1 : 0;
-  size_t plen = strlen (path);
+  r->sample_type = hint_stype;
+  r->endian      = hint_endian ? 1 : 0;
+  size_t plen    = strlen (path);
   char   side[1024];
 
   /* SigMF: <base>.sigmf-data + <base>.sigmf-meta sidecar. */
   if (ends_with (path, ".sigmf-data"))
     {
       snprintf (side, sizeof side, "%.*s.sigmf-meta", (int)(plen - 11), path);
-      if (parse_sigmf_meta (side, &r->stype, &r->endian, &r->fs, &r->fc) != 0)
+      if (parse_sigmf_meta (side, &r->sample_type, &r->endian, &r->fs, &r->fc)
+          != 0)
         goto fail;
-      r->ft = WFM_FT_SIGMF;
-      r->fp = fopen (path, "rb");
+      r->file_type = WFM_FT_SIGMF;
+      r->fp        = fopen (path, "rb");
       if (!r->fp)
         goto fail;
       fill_nsamples (r);
@@ -409,8 +411,8 @@ wfm_reader_create (const char *path, int hint_stype, int hint_endian)
          the samples come from — decode it before letting go of hf. */
       load_keywords (r, hf, hcb.ext_off, hcb.ext_size);
       fclose (hf);
-      r->ft = WFM_FT_BLUE;
-      r->fp = fopen (path, "rb"); /* .det is raw from byte 0 */
+      r->file_type = WFM_FT_BLUE;
+      r->fp        = fopen (path, "rb"); /* .det is raw from byte 0 */
       if (!r->fp)
         goto fail;
       return ready (r);
@@ -419,8 +421,8 @@ wfm_reader_create (const char *path, int hint_stype, int hint_endian)
   /* CSV by extension. */
   if (ends_with (path, ".csv"))
     {
-      r->ft = WFM_FT_CSV;
-      r->fp = fopen (path, "r");
+      r->file_type = WFM_FT_CSV;
+      r->fp        = fopen (path, "r");
       if (!r->fp)
         goto fail;
       return ready (r);
@@ -438,7 +440,7 @@ wfm_reader_create (const char *path, int hint_stype, int hint_endian)
       if (got != 512 || parse_blue_hcb (h, &hcb) != 0)
         goto fail;
       apply_hcb (r, &hcb);
-      r->ft = WFM_FT_BLUE;
+      r->file_type = WFM_FT_BLUE;
       /* this file IS the header (attached or detached), so its extended
          header is here regardless of where the samples end up. */
       load_keywords (r, r->fp, hcb.ext_off, hcb.ext_size);
@@ -465,7 +467,7 @@ wfm_reader_create (const char *path, int hint_stype, int hint_endian)
       return ready (r);
     }
   rewind (r->fp);
-  r->ft = WFM_FT_RAW;
+  r->file_type = WFM_FT_RAW;
   fill_nsamples (r);
   return ready (r);
 
@@ -479,13 +481,13 @@ fail:
 void
 wfm_reader_info (const wfm_reader_state_t *r, wfm_reader_info_t *info)
 {
-  info->file_type   = r->ft;
-  info->sample_type = r->stype;
+  info->file_type   = r->file_type;
+  info->sample_type = r->sample_type;
   info->mode        = r->mode;
   info->endian      = r->endian;
   info->fs          = r->fs;
   info->fc          = r->fc;
-  info->num_samples = r->nsamples;
+  info->num_samples = r->num_samples;
 }
 
 /* CSV: one "I,Q" per line; integer wire types are divided back by full-scale.
@@ -493,7 +495,7 @@ wfm_reader_info (const wfm_reader_state_t *r, wfm_reader_info_t *info)
 static size_t
 read_csv (wfm_reader_state_t *r, float _Complex *out, size_t max)
 {
-  double scale = (r->stype >= 2) ? SCALE[r->stype] : 1.0;
+  double scale = (r->sample_type >= 2) ? SCALE[r->sample_type] : 1.0;
   size_t i;
   for (i = 0; i < max; i++)
     {
@@ -506,11 +508,11 @@ read_csv (wfm_reader_state_t *r, float _Complex *out, size_t max)
 }
 
 size_t
-wfm_reader_read (wfm_reader_state_t *r, float _Complex *out, size_t max)
+wfm_reader_read (wfm_reader_state_t *r, size_t max, float _Complex *out)
 {
   if (max == 0)
     return 0;
-  if (r->ft == WFM_FT_CSV)
+  if (r->file_type == WFM_FT_CSV)
     return read_csv (r, out, max);
 
   if (r->bounded)
@@ -520,7 +522,7 @@ wfm_reader_read (wfm_reader_state_t *r, float _Complex *out, size_t max)
       if (max > r->remaining)
         max = r->remaining;
     }
-  size_t elem = ELEM[r->stype], nc = comps (r->mode);
+  size_t elem = ELEM[r->sample_type], nc = comps (r->mode);
   size_t need = max * nc * elem;
   if (r->scratch_cap < need)
     {
@@ -537,15 +539,26 @@ wfm_reader_read (wfm_reader_state_t *r, float _Complex *out, size_t max)
     {
       /* scalar mode has no Q component on the wire -- it reads as exactly 0,
          so an 'S' capture surfaces as a real signal on the imaginary axis. */
-      float re = convert_elem (p, r->stype, r->endian);
-      float im
-          = (nc == 2) ? convert_elem (p + elem, r->stype, r->endian) : 0.0f;
-      out[i] = re + im * (float _Complex)I;
+      float re = convert_elem (p, r->sample_type, r->endian);
+      float im = (nc == 2) ? convert_elem (p + elem, r->sample_type, r->endian)
+                           : 0.0f;
+      out[i]   = re + im * (float _Complex)I;
       p += nc * elem;
     }
   if (r->bounded)
     r->remaining -= nsamp;
   return nsamp;
+}
+
+size_t
+wfm_reader_read_max_out (wfm_reader_state_t *r)
+{
+  /* 0 = "no fixed upper bound": jm's variable_output machinery then sizes its
+     buffer from whatever the caller asks for and grows on demand. A reader
+     streams, so declaring nsamples here would allocate the whole capture the
+     moment the object is constructed. */
+  (void)r;
+  return 0;
 }
 
 void
@@ -554,7 +567,52 @@ wfm_reader_reset (wfm_reader_state_t *r)
   if (!r || !r->fp)
     return;
   fseek (r->fp, r->data_off, SEEK_SET);
-  r->remaining = r->nsamples; /* only consulted when `bounded` */
+  r->remaining = r->num_samples; /* only consulted when `bounded` */
+}
+
+/* Property accessors for the generated binding (the "computed" property kind).
+   Keeping these instead of exposing the struct is what lets the layout above
+   stay private -- jm only needs a pointer to an incomplete type. */
+int
+wfm_reader_get_file_type (const wfm_reader_state_t *r)
+{
+  return r->file_type;
+}
+
+int
+wfm_reader_get_sample_type (const wfm_reader_state_t *r)
+{
+  return r->sample_type;
+}
+
+int
+wfm_reader_get_mode (const wfm_reader_state_t *r)
+{
+  return r->mode;
+}
+
+int
+wfm_reader_get_endian (const wfm_reader_state_t *r)
+{
+  return r->endian;
+}
+
+double
+wfm_reader_get_fs (const wfm_reader_state_t *r)
+{
+  return r->fs;
+}
+
+double
+wfm_reader_get_fc (const wfm_reader_state_t *r)
+{
+  return r->fc;
+}
+
+size_t
+wfm_reader_get_num_samples (const wfm_reader_state_t *r)
+{
+  return r->num_samples;
 }
 
 size_t
@@ -567,6 +625,15 @@ const wfm_keyword_t *
 wfm_reader_keyword (const wfm_reader_state_t *r, size_t i)
 {
   return (i < r->nkw) ? &r->kw[i] : NULL;
+}
+
+/* key_fn for the `.keywords` dict property (gh-543): the tag of the i-th
+   keyword. jm's generated loop calls it for 0 <= i < wfm_reader_num_keywords,
+   so the index is always in range. */
+const char *
+wfm_reader_keyword_tag (const wfm_reader_state_t *r, size_t i)
+{
+  return r->kw[i].tag;
 }
 
 const wfm_keyword_t *

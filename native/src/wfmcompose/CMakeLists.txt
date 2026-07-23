@@ -4,8 +4,8 @@
 # [project].c_deps). This file is hand-maintained.
 
 # ── vendored cJSON (compiled once, shared by the JSON + writer libs) ──────────
-add_library(wfm_cjson OBJECT ${CMAKE_SOURCE_DIR}/vendor/cjson/cJSON.c)
-target_include_directories(wfm_cjson PUBLIC ${CMAKE_SOURCE_DIR}/vendor/cjson)
+add_library(wfm_cjson_core OBJECT ${CMAKE_SOURCE_DIR}/vendor/cjson/cJSON.c)
+target_include_directories(wfm_cjson_core PUBLIC ${CMAKE_SOURCE_DIR}/vendor/cjson)
 
 # ── ranged-draw hash + span replayer (no deps — the writer's sidecar and the
 #    composer share one draw definition without the synth chain) ──────────────
@@ -37,7 +37,7 @@ add_executable(test_wfm_compose
     ${CMAKE_SOURCE_DIR}/native/tests/test_wfm_compose.c)
 # the composer reuses synth, which pulls in lo/awgn/pn
 target_link_libraries(test_wfm_compose PRIVATE
-    wfm_compose_core wfm_draw_core wfm_dsp_core wfm_cjson wfm_synth_core lo_core awgn_core
+    wfm_compose_core wfm_draw_core wfm_dsp_core wfm_cjson_core wfm_synth_core lo_core awgn_core
     pn_core fir_core
     m)
 target_include_directories(test_wfm_compose PRIVATE
@@ -49,7 +49,7 @@ add_test(NAME test_wfm_compose COMMAND test_wfm_compose)
 add_executable(test_wfm_plan
     ${CMAKE_SOURCE_DIR}/native/tests/test_wfm_plan.c)
 target_link_libraries(test_wfm_plan PRIVATE
-    wfm_compose_core wfm_draw_core wfm_dsp_core wfm_cjson wfm_synth_core lo_core awgn_core
+    wfm_compose_core wfm_draw_core wfm_dsp_core wfm_cjson_core wfm_synth_core lo_core awgn_core
     pn_core fir_core
     m)
 target_include_directories(test_wfm_plan PRIVATE
@@ -87,44 +87,17 @@ target_include_directories(test_wfm_keywords
     PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
 add_test(NAME test_wfm_keywords COMMAND test_wfm_keywords)
 
-# ── output containers: raw/csv/BLUE-1000 + SigMF meta (cJSON) ────────────────
-add_library(wfm_writer_core OBJECT
-    ${CMAKE_SOURCE_DIR}/native/src/wfm_writer/wfm_writer_core.c)
-target_include_directories(wfm_writer_core PUBLIC
-    ${CMAKE_SOURCE_DIR}/native/inc
-    ${CMAKE_SOURCE_DIR}/native/inc/wfm
-    ${CMAKE_SOURCE_DIR}/vendor/cjson)
-# wfm_names.h is a PRIVATE header shared with wfm_json.c (the TYPE_NAMES /
-# MODE_NAMES SSOT); it stays under native/src/wfm now that the writer core has
-# moved to its own object directory.
-target_include_directories(wfm_writer_core PRIVATE
-    ${CMAKE_SOURCE_DIR}/native/src/wfm)
-target_link_libraries(wfm_writer_core PUBLIC wfm_keywords_core m)
+# ── output containers ────────────────────────────────────────────────────────
+# wfm_writer is a jm OBJECT (collocated module-object), so its core library,
+# ctest and bench are generated in native/src/wfm_writer/CMakeLists.txt — the
+# core sits outside that file's BUILD_PYTHON gate, so the pure-C consumers here
+# (wfmgen_cli, libdoppler) still link it.
 
-add_executable(test_wfm_writer
-    ${CMAKE_SOURCE_DIR}/native/tests/test_wfm_writer.c)
-target_link_libraries(test_wfm_writer PRIVATE
-    wfm_writer_core wfm_keywords_core wfm_draw_core wfm_cjson m)
-target_include_directories(test_wfm_writer PRIVATE
-    ${CMAKE_SOURCE_DIR}/native/inc ${CMAKE_SOURCE_DIR}/vendor/cjson)
-add_test(NAME test_wfm_writer COMMAND test_wfm_writer)
-
-# ── input containers: the dual of the writer (raw/csv/BLUE/SigMF auto-detect) ─
-add_library(wfm_reader_core OBJECT
-    ${CMAKE_SOURCE_DIR}/native/src/wfm_reader/wfm_reader_core.c)
-target_include_directories(wfm_reader_core PUBLIC
-    ${CMAKE_SOURCE_DIR}/native/inc
-    ${CMAKE_SOURCE_DIR}/native/inc/wfm
-    ${CMAKE_SOURCE_DIR}/vendor/cjson)
-target_link_libraries(wfm_reader_core PUBLIC wfm_keywords_core m)
-
-add_executable(test_wfm_reader
-    ${CMAKE_SOURCE_DIR}/native/tests/test_wfm_reader.c)
-target_link_libraries(test_wfm_reader PRIVATE
-    wfm_reader_core wfm_writer_core wfm_keywords_core wfm_draw_core wfm_cjson m)
-target_include_directories(test_wfm_reader PRIVATE
-    ${CMAKE_SOURCE_DIR}/native/inc ${CMAKE_SOURCE_DIR}/vendor/cjson)
-add_test(NAME test_wfm_reader COMMAND test_wfm_reader)
+# ── input containers: the dual of the writer ─────────────────────────────────
+# wfm_reader is a jm OBJECT (collocated module-object), so its core library,
+# ctest and bench are generated in native/src/wfm_reader/CMakeLists.txt — the
+# core lands outside that file's BUILD_PYTHON gate, so the pure-C consumers
+# here still link it.
 
 # ── NATS PUB sink — POSIX only (vendored nats.c + pthreads don't build on
 #    MinGW; mirrors examples/c's streaming guard). The sink is independent of
@@ -166,22 +139,6 @@ if(NOT WIN32)
     # Container codec benchmarks (make bench). POSIX-only too: the writer bench
     # isolates the codec via open_memstream and the reader bench uses temp
     # files — neither is on the Windows portability path (no Windows wheels).
-    add_executable(bench_wfm_writer_core
-        ${CMAKE_SOURCE_DIR}/native/benchmarks/bench_wfm_writer_core.c)
-    target_link_libraries(bench_wfm_writer_core PRIVATE
-        wfm_writer_core wfm_keywords_core wfm_draw_core wfm_cjson m)
-    target_include_directories(bench_wfm_writer_core PRIVATE
-        ${CMAKE_SOURCE_DIR}/native/inc ${CMAKE_SOURCE_DIR}/native/benchmarks
-        ${CMAKE_SOURCE_DIR}/vendor/cjson)
-
-    add_executable(bench_wfm_reader_core
-        ${CMAKE_SOURCE_DIR}/native/benchmarks/bench_wfm_reader_core.c)
-    target_link_libraries(bench_wfm_reader_core PRIVATE
-        wfm_reader_core wfm_writer_core wfm_keywords_core wfm_draw_core wfm_cjson m)
-    target_include_directories(bench_wfm_reader_core PRIVATE
-        ${CMAKE_SOURCE_DIR}/native/inc ${CMAKE_SOURCE_DIR}/native/benchmarks
-        ${CMAKE_SOURCE_DIR}/vendor/cjson)
-
     add_library(wfm_sink_core OBJECT
         ${CMAKE_SOURCE_DIR}/native/src/wfm/wfm_sink.c)
     target_include_directories(wfm_sink_core PUBLIC
@@ -232,7 +189,7 @@ if(NOT WIN32)
     set_target_properties(wfmgen_cli PROPERTIES OUTPUT_NAME wfmgen)
     target_link_libraries(wfmgen_cli PRIVATE
         wfmgen_core
-        wfm_compose_core wfm_draw_core wfm_writer_core wfm_keywords_core wfm_sink_core timing_core wfm_cjson
+        wfm_compose_core wfm_draw_core wfm_writer_core wfm_keywords_core wfm_sink_core timing_core wfm_cjson_core
         wfm_dsp_core wfm_synth_core lo_core awgn_core pn_core fir_core
         $<TARGET_OBJECTS:stream_core_obj>
         telemetry_core
@@ -264,7 +221,7 @@ if(NOT WIN32)
             $<TARGET_OBJECTS:wfm_draw_core>
             $<TARGET_OBJECTS:wfm_writer_core>
             $<TARGET_OBJECTS:wfm_keywords_core>
-            $<TARGET_OBJECTS:wfm_cjson>)
+            $<TARGET_OBJECTS:wfm_cjson_core>)
     endforeach()
 
     # Bundle the wfmgen binary into the Python package so the wheel ships it as

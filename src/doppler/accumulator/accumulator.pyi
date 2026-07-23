@@ -456,7 +456,7 @@ class AccTrace:
 
         """
 
-    def value(self, out: NDArray[np.float32] | None = None) -> NDArray[np.float32]:
+    def value(self, count: int = 1, out: NDArray[np.float32] | None = None) -> NDArray[np.float32]:
         """Copy the current averaged trace (None before any accumulate).
 
         Returns

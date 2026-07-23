@@ -61,9 +61,11 @@ first one turned up. Each returned wrong samples with no error, correct-looking
 - **`wfm_reader_reset()`** rewinds to the first sample of the capture (512
     bytes into an attached BLUE file, byte 0 of a `.det` or raw/SigMF payload),
     leaving the container metadata and decoded keywords intact.
-- **`wfm_writer_destroy()`** — the `void` destructor form of
-    `wfm_writer_close()`, which keeps returning its status and stays the one to
-    call when the caller can act on a failed final flush.
+- **`doppler.wfm.Reader.keywords`** now appears in the type stub as
+    `dict[str, Any]`, and `close()`/`destroy()` on both `Reader` and `Writer`
+    now appear too — they were runtime-only before. This is the *read* half of
+    the Python keyword surface the codec above anticipated; writing keywords
+    from Python (`wfm_writer_add_keyword`) is still C-only.
 
 ### Changed
 
@@ -82,11 +84,20 @@ first one turned up. Each returned wrong samples with no error, correct-looking
     constructor, not the object's ctor. `wfm_reader_t`/`wfm_writer_t` still
     work as aliases for the new `*_state_t` names. Python is unaffected.
 
-- Tooling: the just-makeit pin moves 0.33.1 → 0.33.3, picking up four
-    doppler-filed fixes (jm gh-514, gh-515, gh-519, gh-521). gh-521 fixes a
-    memory-safety bug in handle enum getters, which regenerates `Reader`'s property
-    bindings with bounds checks; doppler's own paths clamp every one of those
-    fields before storing it, so the out-of-range read was not reachable here.
+- **`doppler.wfm.Writer.reset()` is removed.** A writer has nothing coherent to
+    reset (its samples are on disk and the written count drives the BLUE
+    `data_size` patch), so the method is now absent — `w.reset()` raises
+    `AttributeError` rather than the previous `NotImplementedError`. Construct a
+    new `Writer` for a new capture.
+
+- Tooling: the just-makeit pin moves to 0.33.6, picking up the doppler-filed
+    features behind the Reader/Writer object migration and its fully-declarative
+    follow-up — gh-514/515/519/521/523 (path ctor args, meaningful `create()`
+    failures, enum-valued properties, out-of-range enum guards, object-module
+    packaging) and gh-541/542/543/544 (fallible/renamable destructors,
+    `no_reset`, dict-valued properties). gh-521 fixes a memory-safety bug in the
+    enum getters; doppler's own paths clamp every one of those fields before
+    storing it, so the out-of-range read was not reachable here.
 
 ## [0.35.0] — 2026-07-21
 

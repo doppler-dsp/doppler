@@ -184,6 +184,24 @@ extern "C"
    */
   wfm_plan_t *wfm_plan_restore (const void *blob, size_t n);
 
+  /**
+   * @brief Save a Plan to a file (wfm_plan_save() bytes at @p path).
+   *
+   * @return 0 on success, non-zero on an open/write error.
+   */
+  int wfm_plan_dump (const wfm_plan_t *p, const char *path);
+
+  /**
+   * @brief Load a Plan from a file written by wfm_plan_dump().
+   *
+   * Same fingerprint semantics as wfm_plan_restore(): a matching build loads the
+   * cached buffers, a mismatch rebuilds from the embedded spec.
+   *
+   * @return Heap Plan (caller wfm_plan_destroy()s it), or NULL on an open/read
+   *         error or a malformed/foreign-endian file.
+   */
+  wfm_plan_t *wfm_plan_load (const char *path);
+
   /** @brief Destroy a Plan and free its caches. NULL is a no-op. */
   void wfm_plan_destroy (wfm_plan_t *p);
 

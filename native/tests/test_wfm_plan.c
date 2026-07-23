@@ -541,6 +541,18 @@ main (void)
     CHECK (wfm_plan_restore (blob, 10) == NULL, "reject truncated blob");
 
     free (blob);
+
+    /* dump/load: the file round-trip renders bit-identically. */
+    const char *path = "test_wfm_plan_dump.bin";
+    CHECK (wfm_plan_dump (p, path) == 0, "dump to file");
+    wfm_plan_t *pl = wfm_plan_load (path);
+    CHECK (pl, "load from file");
+    CHECK (wfm_plan_render (pl, "{}", got) == L, "loaded render baseline");
+    CHECK (memcmp (base, got, bytes) == 0, "DUMP/LOAD: baseline bit-exact");
+    wfm_plan_destroy (pl);
+    remove (path);
+    CHECK (wfm_plan_load ("no_such_wfm_plan_file.bin") == NULL,
+           "load of a missing file is NULL");
   }
 
   wfm_plan_destroy (p);

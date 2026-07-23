@@ -37,6 +37,7 @@
 #include <math.h>
 #include <stdatomic.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -916,5 +917,60 @@ wfm_plan_restore (const void *blob, size_t n)
   free (lens);
   free (bufs);
   free (spec);
+  return p;
+}
+
+int
+wfm_plan_dump (const wfm_plan_t *p, const char *path)
+{
+  if (!p || !path)
+    return -1;
+  size_t   n    = wfm_plan_save_bytes (p);
+  uint8_t *blob = malloc (n);
+  if (!blob)
+    return -1;
+  wfm_plan_save (p, blob);
+  FILE *f = fopen (path, "wb");
+  if (!f)
+    {
+      free (blob);
+      return -1;
+    }
+  size_t wrote = fwrite (blob, 1, n, f);
+  free (blob);
+  /* Always close exactly once; success needs both a full write and a clean
+     close (fclose is where a full-disk error finally surfaces). */
+  return (fclose (f) == 0 && wrote == n) ? 0 : -1;
+}
+
+wfm_plan_t *
+wfm_plan_load (const char *path)
+{
+  if (!path)
+    return NULL;
+  FILE *f = fopen (path, "rb");
+  if (!f)
+    return NULL;
+  if (fseek (f, 0, SEEK_END) != 0)
+    {
+      fclose (f);
+      return NULL;
+    }
+  long sz = ftell (f);
+  if (sz < 0 || fseek (f, 0, SEEK_SET) != 0)
+    {
+      fclose (f);
+      return NULL;
+    }
+  uint8_t *blob = malloc ((size_t)sz);
+  if (!blob)
+    {
+      fclose (f);
+      return NULL;
+    }
+  size_t got = fread (blob, 1, (size_t)sz, f);
+  fclose (f);
+  wfm_plan_t *p = (got == (size_t)sz) ? wfm_plan_restore (blob, got) : NULL;
+  free (blob);
   return p;
 }

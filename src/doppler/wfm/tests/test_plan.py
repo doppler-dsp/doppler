@@ -13,7 +13,16 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from doppler.wfm import Composer, Plan, Segment, prepare, qpsk, tone
+from doppler.wfm import (
+    Composer,
+    Plan,
+    PlanFromBlob,
+    PlanFromFile,
+    Segment,
+    prepare,
+    qpsk,
+    tone,
+)
 
 
 def _scene(qpsk_snr: float = 12.0, tone_level: float = 0.0) -> Composer:
@@ -35,6 +44,42 @@ def test_baseline_render_is_bit_identical_to_compose() -> None:
     assert plan.n_sources == 2
     assert plan.anchor_seed == 7
     np.testing.assert_array_equal(plan.render(), scene.compose())
+
+
+def test_save_restore_round_trips_bit_exact(tmp_path) -> None:
+    """save()/PlanFromBlob and dump()/PlanFromFile reconstruct a bit-exact Plan
+    from the cached buffers — no re-run of prepare()'s DSP."""
+    plan = prepare(_scene())
+    base = plan.render()
+
+    blob = plan.save()
+    assert isinstance(blob, bytes) and len(blob) > 0
+    restored = PlanFromBlob(blob)
+    np.testing.assert_array_equal(restored.render(), base)
+    # a variation also matches through the restored cache
+    np.testing.assert_array_equal(restored.at(6.0, 1000), plan.at(6.0, 1000))
+    assert restored.n_sources == plan.n_sources
+    assert len(restored) == len(plan)
+
+    p = tmp_path / "plan.bin"
+    plan.dump(p)
+    np.testing.assert_array_equal(PlanFromFile(p).render(), base)
+
+
+def test_restore_rejects_a_corrupt_blob() -> None:
+    """A truncated or wrong-magic blob is rejected, not reinterpreted."""
+    blob = prepare(_scene()).save()
+    with pytest.raises((ValueError, RuntimeError)):
+        PlanFromBlob(blob[:16])  # truncated
+    with pytest.raises((ValueError, RuntimeError)):
+        PlanFromBlob(b"\x00" * len(blob))  # wrong magic
+
+
+def test_dump_to_unwritable_path_raises_oserror(tmp_path) -> None:
+    """dump() surfaces a failed write as OSError (the int->raise binding)."""
+    plan = prepare(_scene())
+    with pytest.raises(OSError):
+        plan.dump(tmp_path / "no_such_dir" / "plan.bin")
 
 
 def test_render_no_overrides_equals_empty_and_none_paths() -> None:

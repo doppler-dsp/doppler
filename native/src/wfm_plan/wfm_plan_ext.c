@@ -144,6 +144,48 @@ Plan_anchor_seed(PlanObject *self, PyObject *args)
     return PyLong_FromUnsignedLongLong((unsigned long long)r);
 }
 
+static PyObject *
+Plan_save(PlanObject *self, PyObject *args)
+{
+    (void)args;
+    if (self->closed) {
+        PyErr_SetString(PyExc_RuntimeError, "Plan is closed");
+        return NULL;
+    }
+    size_t _n = (size_t)wfm_plan_save_bytes(self->h);
+    char *_buf = (char *)PyMem_Malloc(_n ? _n : 1);
+    if (!_buf) return PyErr_NoMemory();
+    size_t _got;
+    _got = wfm_plan_save(self->h, _buf);
+    PyObject *_r = PyBytes_FromStringAndSize(_buf, (Py_ssize_t)_got);
+    PyMem_Free(_buf);
+    return _r;
+}
+
+static PyObject *
+Plan_dump(PlanObject *self, PyObject *args, PyObject *kwds)
+{
+    static char *kwlist[] = {"path", NULL};
+    PyObject *path = NULL;  /* fspath -> bytes */
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "O&", kwlist,
+            PyUnicode_FSConverter, &path)) {
+        Py_XDECREF(path);
+        return NULL;
+    }
+    if (self->closed) {
+        PyErr_SetString(PyExc_RuntimeError, "Plan is closed");
+        return NULL;
+    }
+    int _rc;
+    _rc = wfm_plan_dump(self->h, PyBytes_AS_STRING(path));
+    Py_XDECREF(path);
+    if (_rc != 0) {
+        PyErr_Format(PyExc_OSError, "wfm_plan_dump failed (rc=%d)", (int)_rc);
+        return NULL;
+    }
+    Py_RETURN_NONE;
+}
+
 
 static PyGetSetDef Plan_getset[] = {
     {NULL, NULL, NULL, NULL, NULL}
@@ -187,6 +229,8 @@ static PyMethodDef Plan_methods[] = {
     {"length", (PyCFunction)Plan_length, METH_VARARGS, NULL},
     {"n_sources", (PyCFunction)Plan_n_sources, METH_VARARGS, NULL},
     {"anchor_seed", (PyCFunction)Plan_anchor_seed, METH_VARARGS, NULL},
+    {"save", (PyCFunction)Plan_save, METH_VARARGS, NULL},
+    {"dump", (PyCFunction)Plan_dump, METH_VARARGS | METH_KEYWORDS, NULL},
     {"close", (PyCFunction)Plan_close, METH_NOARGS, "close() -> None"},
     {"__enter__", (PyCFunction)Plan_enter, METH_NOARGS, NULL},
     {"__exit__", (PyCFunction)Plan_exit, METH_VARARGS, NULL},
@@ -206,8 +250,60 @@ static PyTypeObject PlanType = {
     .tp_doc       = PyDoc_STR("Plan — handle over `wfm_plan`."),
 };
 
+static PyObject *
+wfm_plan_PlanFromBlob(PyObject *_mod, PyObject *args)
+{
+    (void)_mod;
+    const char *blob = NULL;  /* borrowed bytes buffer */
+    Py_ssize_t blob_len = 0;
+    if (!PyArg_ParseTuple(args, "y#", &blob, &blob_len))
+        return NULL;
+    wfm_plan_t *_h = wfm_plan_restore((const void *)blob, (size_t)blob_len);
+    if (!_h) {
+        PyErr_SetString(PyExc_ValueError, "PlanFromBlob failed");
+        return NULL;
+    }
+    PlanObject *self = (PlanObject *)PlanType.tp_alloc(&PlanType, 0);
+    if (!self) {
+        wfm_plan_destroy(_h); return NULL;
+    }
+    self->h = _h;
+    self->closed = 0;
+    return (PyObject *)self;
+}
+
+static PyObject *
+wfm_plan_PlanFromFile(PyObject *_mod, PyObject *args)
+{
+    (void)_mod;
+    PyObject *path = NULL;  /* fspath -> bytes */
+    if (!PyArg_ParseTuple(args, "O&", PyUnicode_FSConverter, &path))
+        return NULL;
+    wfm_plan_t *_h = wfm_plan_load(PyBytes_AS_STRING(path));
+    Py_XDECREF(path);
+    if (!_h) {
+        PyErr_SetString(PyExc_ValueError, "PlanFromFile failed");
+        return NULL;
+    }
+    PlanObject *self = (PlanObject *)PlanType.tp_alloc(&PlanType, 0);
+    if (!self) {
+        wfm_plan_destroy(_h); return NULL;
+    }
+    self->h = _h;
+    self->closed = 0;
+    return (PyObject *)self;
+}
+
+static PyMethodDef wfm_plan_functions[] = {
+    {"PlanFromBlob", (PyCFunction)wfm_plan_PlanFromBlob, METH_VARARGS,
+     "Construct a Plan via wfm_plan_restore."},
+    {"PlanFromFile", (PyCFunction)wfm_plan_PlanFromFile, METH_VARARGS,
+     "Construct a Plan via wfm_plan_load."},
+    {NULL, NULL, 0, NULL}
+};
+
 static struct PyModuleDef _moduledef = {
-    PyModuleDef_HEAD_INIT, "wfm_plan", NULL, -1, NULL,
+    PyModuleDef_HEAD_INIT, "wfm_plan", NULL, -1, wfm_plan_functions,
     NULL, NULL, NULL, NULL
 };
 

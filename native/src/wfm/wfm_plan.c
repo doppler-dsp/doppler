@@ -27,6 +27,7 @@
 
 #include "awgn/awgn_core.h"
 #include "wfm/wfm_compose.h"
+#include "wfm/wfm_plan_dsp_hash.h" /* WFM_PLAN_DSP_HASH_U64 (configure-time) */
 #include "wfm_synth/wfm_synth_core.h"
 
 #include "cJSON.h"
@@ -35,8 +36,20 @@
 
 #include <math.h>
 #include <stdatomic.h>
+#include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+/* Loaded cache buffers for the restore fast-path: cache_segment_signals()
+ * reads from these (guarded per-source by length) instead of running the DSP.
+ * NULL for wfm_plan_prepare() and for a fingerprint-mismatched restore. */
+typedef struct
+{
+  size_t                 n;    /* number of source buffers in the blob */
+  const size_t          *lens; /* [n] expected sample count per source */
+  const float _Complex **bufs; /* [n] pointers into the blob's payload */
+} plan_loaded_t;
 
 typedef struct
 {
@@ -71,7 +84,8 @@ struct wfm_plan
   float _Complex    **cache_sig; /* [n_sig] flat, gain 1, clean          */
   float              *base_gain; /* [n_sig] flat: 10^(level/20)          */
   double              fs;
-  size_t              len; /* worst-case total materialized length       */
+  size_t              len;       /* worst-case total materialized length */
+  char               *spec_json; /* owned copy, embedded by wfm_plan_save */
 };
 
 /* Free one source's owned arrays (mirrors wfm_compose.c's
@@ -351,30 +365,52 @@ typedef struct
   const size_t             *src_idx; /* g->sources index for work item w    */
   const size_t             *slot;    /* flat cache_sig/base_gain index for w */
   atomic_int               *failed;  /* set once if any work item fails      */
+  const plan_loaded_t      *loaded;  /* restore fast-path source (or NULL)   */
 } cache_work_t;
 
 static void
 cache_build_one (size_t w, void *ctx)
 {
-  cache_work_t       *cw  = (cache_work_t *)ctx;
-  const wfm_source_t *src = &cw->g->sources[cw->src_idx[w]];
-  double cache_snr        = cw->ps->bundled ? WFM_SYNTH_SNR_CLEAN : src->snr;
-  wfm_synth_state_t *syn  = wfm_compose_build_synth (
-      src, cw->g->fs, cw->g->num_samples, src->freq, cache_snr, src->f_end, 0,
-      WFM_SEED_ADVANCE_NONE, 0);
-  float _Complex *buf = syn ? malloc (cw->g->num_samples * sizeof *buf) : NULL;
-  if (!syn || !buf)
+  cache_work_t       *cw   = (cache_work_t *)ctx;
+  const wfm_source_t *src  = &cw->g->sources[cw->src_idx[w]];
+  size_t              slot = cw->slot[w];
+  size_t              n    = cw->g->num_samples;
+
+  /* base_gain is a pure function of the source level — always cheap. */
+  cw->p->base_gain[slot] = (float)pow (10.0, src->level / 20.0);
+
+  float _Complex *buf = malloc (n * sizeof *buf);
+  if (!buf)
     {
-      free (buf);
-      if (syn)
-        wfm_synth_destroy (syn);
       atomic_store (cw->failed, 1);
       return;
     }
-  wfm_synth_steps (syn, buf, cw->g->num_samples);
+
+  /* Fast path (restore): copy the cached render from a matching blob instead
+   * of recomputing it. Guarded per-source by the expected length, so a
+   * spec/buffer inconsistency silently falls through to the DSP. */
+  const plan_loaded_t *ld = cw->loaded;
+  if (ld && slot < ld->n && ld->lens[slot] == n)
+    {
+      memcpy (buf, ld->bufs[slot], n * sizeof *buf);
+      cw->p->cache_sig[slot] = buf;
+      return;
+    }
+
+  /* Slow path (prepare, or a mismatched restore): run the DSP. */
+  double cache_snr = cw->ps->bundled ? WFM_SYNTH_SNR_CLEAN : src->snr;
+  wfm_synth_state_t *syn
+      = wfm_compose_build_synth (src, cw->g->fs, n, src->freq, cache_snr,
+                                 src->f_end, 0, WFM_SEED_ADVANCE_NONE, 0);
+  if (!syn)
+    {
+      free (buf);
+      atomic_store (cw->failed, 1);
+      return;
+    }
+  wfm_synth_steps (syn, buf, n);
   wfm_synth_destroy (syn);
-  cw->p->cache_sig[cw->slot[w]] = buf;
-  cw->p->base_gain[cw->slot[w]] = (float)pow (10.0, src->level / 20.0);
+  cw->p->cache_sig[slot] = buf;
 }
 
 /* Below this ON-time length the per-source build is too cheap for the thread
@@ -393,7 +429,7 @@ cache_build_one (size_t w, void *ctx)
  * on allocation/synth failure. */
 static int
 cache_segment_signals (wfm_plan_t *p, wfm_plan_segment_t *ps,
-                       const wfm_segment_t *g)
+                       const wfm_segment_t *g, const plan_loaded_t *loaded)
 {
   /* Flatten the non-noise sources to work items with their distinct cache
    * slots (serial, O(n_sources), no DSP) so the heavy build can fan out. */
@@ -419,7 +455,7 @@ cache_segment_signals (wfm_plan_t *p, wfm_plan_segment_t *ps,
 
   atomic_int failed;
   atomic_init (&failed, 0);
-  cache_work_t cw = { p, g, ps, src_idx, slot, &failed };
+  cache_work_t cw = { p, g, ps, src_idx, slot, &failed, loaded };
   int          max_threads
       = (nw > 1 && g->num_samples >= WFM_PLAN_PARALLEL_MIN_SAMPLES) ? 0 : 1;
   dp_parallel_for (nw, cache_build_one, &cw, max_threads);
@@ -429,8 +465,12 @@ cache_segment_signals (wfm_plan_t *p, wfm_plan_segment_t *ps,
   return atomic_load (&failed) ? -1 : 0;
 }
 
-wfm_plan_t *
-wfm_plan_prepare (const char *spec_json)
+/* The shared engine behind prepare() and restore(): parse + validate the spec,
+ * build every segment descriptor, and fill each source's cache — from @p
+ * loaded (the restore fast-path) where the fingerprint and length match, else
+ * via the DSP. `loaded == NULL` is a plain prepare(). */
+static wfm_plan_t *
+plan_build (const char *spec_json, const plan_loaded_t *loaded)
 {
   if (!spec_json)
     return NULL;
@@ -479,7 +519,8 @@ wfm_plan_prepare (const char *spec_json)
   p->n_sig     = total_sig;
   p->cache_sig = calloc (total_sig, sizeof *p->cache_sig);
   p->base_gain = calloc (total_sig, sizeof *p->base_gain);
-  if (!p->segs || !p->cache_sig || !p->base_gain)
+  p->spec_json = strdup (spec_json); /* embedded verbatim by wfm_plan_save */
+  if (!p->segs || !p->cache_sig || !p->base_gain || !p->spec_json)
     {
       wfm_plan_destroy (p);
       p = NULL;
@@ -514,7 +555,7 @@ wfm_plan_prepare (const char *spec_json)
       ps->n_sig     = g->n_sources - n_noise;
 
       if (resolve_segment_noise (ps, g) != 0
-          || cache_segment_signals (p, ps, g) != 0)
+          || cache_segment_signals (p, ps, g, loaded) != 0)
         {
           wfm_plan_destroy (p);
           p = NULL;
@@ -535,6 +576,12 @@ wfm_plan_prepare (const char *spec_json)
 done:
   wfm_compose_destroy (cs);
   return p;
+}
+
+wfm_plan_t *
+wfm_plan_prepare (const char *spec_json)
+{
+  return plan_build (spec_json, NULL);
 }
 
 size_t
@@ -671,5 +718,259 @@ wfm_plan_destroy (wfm_plan_t *p)
       free (p->cache_sig[k]);
   free (p->cache_sig);
   free (p->base_gain);
+  free (p->spec_json);
   free (p);
+}
+
+/* ── save / restore ──────────────────────────────────────────────────────────
+ *
+ * Blob layout (native-endian POD, foreign-endian rejected on read):
+ *
+ *   [0]  magic[4]      = 'P','L','N','0'
+ *   [4]  u16 version   = WFM_PLAN_BLOB_VERSION
+ *   [6]  u8  endian    = 1 little / 0 big (host, checked on restore)
+ *   [7]  u8  reserved  = 0
+ *   [8]  u64 dsp_hash  = WFM_PLAN_DSP_HASH_U64 at save time
+ *   [16] u64 spec_len  = strlen(spec_json)         (no NUL stored)
+ *   [24] spec bytes    [spec_len]
+ *        u64 n_sig
+ *        per source (n_sig of them): u64 num_samples; cf32 data[num_samples]
+ *
+ * The spec fully reconstructs the Plan's structure; only the cached sample
+ * buffers are payload. On restore the fingerprint gates whether those buffers
+ * are trusted (loaded) or rebuilt from the spec via the DSP.
+ */
+#define WFM_PLAN_BLOB_MAGIC0 'P'
+#define WFM_PLAN_BLOB_MAGIC1 'L'
+#define WFM_PLAN_BLOB_MAGIC2 'N'
+#define WFM_PLAN_BLOB_MAGIC3 '0'
+#define WFM_PLAN_BLOB_VERSION 1u
+
+static int
+host_is_little (void)
+{
+  uint16_t one = 1u;
+  return *(const uint8_t *)&one == 1u;
+}
+
+size_t
+wfm_plan_save_bytes (const wfm_plan_t *p)
+{
+  if (!p)
+    return 0;
+  size_t n = 24;              /* fixed header */
+  n += strlen (p->spec_json); /* spec, no NUL */
+  n += sizeof (uint64_t);     /* n_sig */
+  for (size_t k = 0; k < p->n_sig; k++)
+    {
+      /* each source's cached length == its segment's num_samples */
+      size_t len = 0;
+      for (size_t s = 0; s < p->n_segs; s++)
+        if (k >= p->segs[s].sig_off
+            && k < p->segs[s].sig_off + p->segs[s].n_sig)
+          {
+            len = p->segs[s].num_samples;
+            break;
+          }
+      n += sizeof (uint64_t) + len * sizeof (float _Complex);
+    }
+  return n;
+}
+
+/* Length of the cache buffer at flat source index k (its segment's on-time).
+ */
+static size_t
+sig_len (const wfm_plan_t *p, size_t k)
+{
+  for (size_t s = 0; s < p->n_segs; s++)
+    if (k >= p->segs[s].sig_off && k < p->segs[s].sig_off + p->segs[s].n_sig)
+      return p->segs[s].num_samples;
+  return 0;
+}
+
+size_t
+wfm_plan_save (const wfm_plan_t *p, void *blob)
+{
+  if (!p || !blob)
+    return 0;
+  uint8_t *const start   = (uint8_t *)blob;
+  uint8_t       *q       = start;
+  size_t         splen   = strlen (p->spec_json);
+  uint64_t       hash    = (uint64_t)WFM_PLAN_DSP_HASH_U64;
+  uint64_t       n_sig   = (uint64_t)p->n_sig;
+  uint64_t       splen64 = (uint64_t)splen;
+
+  q[0]         = WFM_PLAN_BLOB_MAGIC0;
+  q[1]         = WFM_PLAN_BLOB_MAGIC1;
+  q[2]         = WFM_PLAN_BLOB_MAGIC2;
+  q[3]         = WFM_PLAN_BLOB_MAGIC3;
+  uint16_t ver = WFM_PLAN_BLOB_VERSION;
+  memcpy (q + 4, &ver, 2);
+  q[6] = (uint8_t)(host_is_little () ? 1 : 0);
+  q[7] = 0;
+  memcpy (q + 8, &hash, 8);
+  memcpy (q + 16, &splen64, 8);
+  q += 24;
+  memcpy (q, p->spec_json, splen);
+  q += splen;
+  memcpy (q, &n_sig, 8);
+  q += 8;
+  for (size_t k = 0; k < p->n_sig; k++)
+    {
+      uint64_t len = (uint64_t)sig_len (p, k);
+      memcpy (q, &len, 8);
+      q += 8;
+      memcpy (q, p->cache_sig[k], (size_t)len * sizeof (float _Complex));
+      q += (size_t)len * sizeof (float _Complex);
+    }
+  return (size_t)(q - start);
+}
+
+wfm_plan_t *
+wfm_plan_restore (const void *blob, size_t n)
+{
+  if (!blob || n < 24)
+    return NULL;
+  const uint8_t *q = (const uint8_t *)blob;
+  if (q[0] != WFM_PLAN_BLOB_MAGIC0 || q[1] != WFM_PLAN_BLOB_MAGIC1
+      || q[2] != WFM_PLAN_BLOB_MAGIC2 || q[3] != WFM_PLAN_BLOB_MAGIC3)
+    return NULL;
+  uint16_t ver;
+  memcpy (&ver, q + 4, 2);
+  if (ver != WFM_PLAN_BLOB_VERSION)
+    return NULL;
+  if (q[6] != (uint8_t)(host_is_little () ? 1 : 0))
+    return NULL; /* foreign endian — the buffers are not host-readable */
+  uint64_t hash, splen64;
+  memcpy (&hash, q + 8, 8);
+  memcpy (&splen64, q + 16, 8);
+  size_t splen = (size_t)splen64;
+  if (24 + splen + 8 > n)
+    return NULL;
+
+  /* Embedded spec is NUL-terminated into a scratch copy for the parser. */
+  char *spec = malloc (splen + 1);
+  if (!spec)
+    return NULL;
+  memcpy (spec, q + 24, splen);
+  spec[splen] = '\0';
+
+  const uint8_t *r = q + 24 + splen;
+  uint64_t       n_sig;
+  memcpy (&n_sig, r, 8);
+  r += 8;
+
+  /* Parse the payload buffer table (lengths + pointers into the blob). Bounds
+   * are validated against `n` so a truncated/tampered blob is rejected rather
+   * than read out of range; on any doubt we still fall back to a DSP rebuild.
+   */
+  plan_loaded_t          loaded    = { 0 };
+  plan_loaded_t         *use       = NULL;
+  size_t                *lens      = NULL;
+  const float _Complex **bufs      = NULL;
+  int                    fp_ok     = (hash == (uint64_t)WFM_PLAN_DSP_HASH_U64);
+  int                    layout_ok = 1;
+  if (n_sig > 0 && n_sig < (SIZE_MAX / sizeof (size_t)))
+    {
+      lens = (size_t *)malloc ((size_t)n_sig * sizeof *lens);
+      bufs = (const float _Complex **)malloc ((size_t)n_sig * sizeof *bufs);
+      if (!lens || !bufs)
+        {
+          free (lens);
+          free (bufs);
+          free (spec);
+          return NULL;
+        }
+      for (uint64_t k = 0; k < n_sig; k++)
+        {
+          if ((size_t)(r - q) + 8 > n)
+            {
+              layout_ok = 0;
+              break;
+            }
+          uint64_t len;
+          memcpy (&len, r, 8);
+          r += 8;
+          size_t nbytes = (size_t)len * sizeof (float _Complex);
+          if ((size_t)(r - q) + nbytes > n)
+            {
+              layout_ok = 0;
+              break;
+            }
+          lens[k] = (size_t)len;
+          bufs[k] = (const float _Complex *)r;
+          r += nbytes;
+        }
+    }
+
+  /* Trust the buffers only when the DSP fingerprint AND the payload layout are
+   * intact; otherwise rebuild from the (authoritative) embedded spec. */
+  if (fp_ok && layout_ok && n_sig > 0)
+    {
+      loaded.n    = (size_t)n_sig;
+      loaded.lens = lens;
+      loaded.bufs = bufs;
+      use         = &loaded;
+    }
+
+  wfm_plan_t *p = plan_build (spec, use);
+  free (lens);
+  free (bufs);
+  free (spec);
+  return p;
+}
+
+int
+wfm_plan_dump (const wfm_plan_t *p, const char *path)
+{
+  if (!p || !path)
+    return -1;
+  size_t   n    = wfm_plan_save_bytes (p);
+  uint8_t *blob = malloc (n);
+  if (!blob)
+    return -1;
+  wfm_plan_save (p, blob);
+  FILE *f = fopen (path, "wb");
+  if (!f)
+    {
+      free (blob);
+      return -1;
+    }
+  size_t wrote = fwrite (blob, 1, n, f);
+  free (blob);
+  /* Always close exactly once; success needs both a full write and a clean
+     close (fclose is where a full-disk error finally surfaces). */
+  return (fclose (f) == 0 && wrote == n) ? 0 : -1;
+}
+
+wfm_plan_t *
+wfm_plan_load (const char *path)
+{
+  if (!path)
+    return NULL;
+  FILE *f = fopen (path, "rb");
+  if (!f)
+    return NULL;
+  if (fseek (f, 0, SEEK_END) != 0)
+    {
+      fclose (f);
+      return NULL;
+    }
+  long sz = ftell (f);
+  if (sz < 0 || fseek (f, 0, SEEK_SET) != 0)
+    {
+      fclose (f);
+      return NULL;
+    }
+  uint8_t *blob = malloc ((size_t)sz);
+  if (!blob)
+    {
+      fclose (f);
+      return NULL;
+    }
+  size_t got = fread (blob, 1, (size_t)sz, f);
+  fclose (f);
+  wfm_plan_t *p = (got == (size_t)sz) ? wfm_plan_restore (blob, got) : NULL;
+  free (blob);
+  return p;
 }

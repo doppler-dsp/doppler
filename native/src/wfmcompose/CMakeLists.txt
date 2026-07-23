@@ -15,6 +15,38 @@ target_include_directories(wfm_draw_core PUBLIC
     ${CMAKE_SOURCE_DIR}/native/inc
     ${CMAKE_SOURCE_DIR}/native/inc/wfm)
 
+# ── wfm_plan DSP fingerprint (auto-hash for save/restore) ────────────────────
+# A build-time SHA-256 over the DSP sources whose output feeds wfm_plan's cache.
+# Any change flips the fingerprint, so a Plan blob saved by a different DSP build
+# fails wfm_plan_restore()'s fast-path check and is rebuilt from its embedded
+# spec — never reinterpreted. Content-based, so identical source ⇒ identical
+# fingerprint across hosts (a blob saved on one worker fast-loads on another).
+# ADD any file here whose change can alter build_synth's sample output.
+set(WFM_PLAN_DSP_SOURCES
+    ${CMAKE_SOURCE_DIR}/native/src/wfm/wfm_compose.c      # build_synth itself
+    ${CMAKE_SOURCE_DIR}/native/src/wfm/wfm_resolve.c      # source/noise resolve
+    ${CMAKE_SOURCE_DIR}/native/src/wfm/wfm_synth_bridge.c # dsss attach
+    ${CMAKE_SOURCE_DIR}/native/src/wfm/wfm_dsp.c          # rrc_taps / spreading
+    ${CMAKE_SOURCE_DIR}/native/src/wfm_synth/wfm_synth_core.c
+    ${CMAKE_SOURCE_DIR}/native/src/fir/fir_core.c
+    ${CMAKE_SOURCE_DIR}/native/src/lo/lo_core.c
+    ${CMAKE_SOURCE_DIR}/native/src/nco/nco_core.c
+    ${CMAKE_SOURCE_DIR}/native/src/awgn/awgn_core.c
+    ${CMAKE_SOURCE_DIR}/native/src/pn/pn_core.c)
+set(_wfm_plan_dsp_concat "")
+foreach(_f ${WFM_PLAN_DSP_SOURCES})
+    file(SHA256 "${_f}" _wfm_plan_dsp_h)
+    string(APPEND _wfm_plan_dsp_concat "${_wfm_plan_dsp_h}")
+endforeach()
+string(SHA256 _wfm_plan_dsp_full "${_wfm_plan_dsp_concat}")
+string(SUBSTRING "${_wfm_plan_dsp_full}" 0 16 WFM_PLAN_DSP_HASH_U64)
+configure_file(
+    ${CMAKE_SOURCE_DIR}/native/inc/wfm/wfm_plan_dsp_hash.h.in
+    ${CMAKE_BINARY_DIR}/native/inc/wfm/wfm_plan_dsp_hash.h @ONLY)
+# Reconfigure (regenerate the fingerprint) whenever a DSP source changes.
+set_property(DIRECTORY APPEND PROPERTY
+    CMAKE_CONFIGURE_DEPENDS ${WFM_PLAN_DSP_SOURCES})
+
 # ── composer + JSON spec ─────────────────────────────────────────────────────
 add_library(wfm_compose_core OBJECT
     ${CMAKE_SOURCE_DIR}/native/src/wfm/wfm_compose.c
@@ -30,6 +62,7 @@ add_library(wfm_compose_core OBJECT
 target_include_directories(wfm_compose_core PUBLIC
     ${CMAKE_SOURCE_DIR}/native/inc
     ${CMAKE_SOURCE_DIR}/native/inc/wfm
+    ${CMAKE_BINARY_DIR}/native/inc      # configure-time wfm_plan_dsp_hash.h
     ${CMAKE_SOURCE_DIR}/vendor/cjson)
 # wfm_plan.c fans the per-source signal build across cores (dp_parallel.h);
 # Threads::Threads (located once at the top-level CMakeLists) is PUBLIC so the

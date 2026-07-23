@@ -75,7 +75,15 @@ from .wfm_compose import (  # noqa: F401  (re-export)
     qpsk,
     tone,
 )
-from .wfm_plan import Plan as _Plan  # the generated handle; wrapped below
+from .wfm_plan import (  # generated handle + restore factories; wrapped
+    Plan as _Plan,
+)
+from .wfm_plan import (
+    PlanFromBlob as _PlanFromBlob,
+)
+from .wfm_plan import (
+    PlanFromFile as _PlanFromFile,
+)
 from .wfm_reader import Reader  # noqa: F401  (re-export)
 from .wfm_sink import StreamSink  # noqa: F401  (re-export)
 from .wfm_writer import Writer  # noqa: F401  (re-export)
@@ -359,6 +367,61 @@ class Plan:
 
     def __exit__(self, *exc: object) -> None:
         self._h.close()
+
+    def save(self) -> bytes:
+        """Serialize this prepared Plan to a bytes blob.
+
+        The blob embeds the scene spec, a build-time fingerprint of the DSP
+        source, and the cached per-source signal buffers, so
+        :func:`PlanFromBlob` reconstructs an equivalent Plan without re-running
+        ``prepare()``'s DSP. A fingerprint mismatch (the library was rebuilt
+        with different DSP) rebuilds transparently — never silently wrong. All
+        of it happens in C.
+        """
+        return self._h.save()
+
+    def dump(self, path: str | os.PathLike[str]) -> None:
+        """Save this prepared Plan to ``path`` (the file form of :meth:`save`).
+
+        Raises :class:`OSError` if the file cannot be written. The write is
+        done in C, not via Python I/O.
+        """
+        self._h.dump(path)
+
+    @classmethod
+    def _wrap(cls, handle: _Plan) -> Plan:
+        """Wrap an already-built generated handle (from a restore factory)."""
+        plan = cls.__new__(cls)
+        plan._h = handle
+        return plan
+
+
+def PlanFromBlob(blob: bytes) -> Plan:  # noqa: N802 (class-like factory name)
+    """Reconstruct a :class:`Plan` from a blob produced by :meth:`Plan.save`.
+
+    Skips ``prepare()``'s DSP by copying the cached signal buffers out of the
+    blob (rebuilding transparently on a DSP-fingerprint mismatch). The blob's
+    reconstruction is entirely in C.
+
+    Examples
+    --------
+    >>> from doppler.wfm import prepare, Composer, Segment, qpsk, PlanFromBlob
+    >>> scene = Composer(Segment.sum(qpsk(seed=1), fs=1e6, num_samples=1024))
+    >>> plan = prepare(scene)
+    >>> restored = PlanFromBlob(plan.save())
+    >>> import numpy as np
+    >>> np.array_equal(restored.render(), plan.render())
+    True
+    """
+    return Plan._wrap(_PlanFromBlob(blob))
+
+
+def PlanFromFile(path: str | os.PathLike[str]) -> Plan:  # noqa: N802
+    """Reconstruct a :class:`Plan` from a file produced by :meth:`Plan.dump`.
+
+    The file form of :func:`PlanFromBlob`; the read is done in C.
+    """
+    return Plan._wrap(_PlanFromFile(path))
 
 
 def prepare(scene: Composer | str | bytes) -> Plan:

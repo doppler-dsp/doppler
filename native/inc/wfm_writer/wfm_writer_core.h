@@ -204,6 +204,7 @@ char *wfm_sigmf_meta_json(int sample_type, int endian, double fs, double fc,
 double wfm_writer_get_clip_fraction(const wfm_writer_state_t *state);
 double wfm_writer_get_peak_dbfs(const wfm_writer_state_t *state);
 bool wfm_writer_get_clipped(const wfm_writer_state_t *state);
+int write_blue_header(const char *path, int sample_type, int endian, double fs, double fc, double data_start, size_t total, int detached);
 #ifdef __cplusplus
 }
 #endif

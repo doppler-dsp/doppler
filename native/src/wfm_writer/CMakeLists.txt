@@ -1,5 +1,5 @@
 # OBJECT library — pure C core, no Python dependency.
-add_library(wfm_writer_core OBJECT wfm_writer_core.c)
+add_library(wfm_writer_core OBJECT wfm_writer_core.c write_blue_header.c)
 target_include_directories(
   wfm_writer_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc
                             ${CMAKE_SOURCE_DIR}/native/inc/wfm_writer)

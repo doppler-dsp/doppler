@@ -312,8 +312,9 @@ Regenerating each fragment also re-emits jm's current `variable_output`
 machinery (LO/CIC pick up the gh-219 retired-list deferred-free + CIC gains the
 `out=` kwarg on `decimate`); `test_lo.py`'s #116 large-n regressions confirm the
 regenerated `steps()` is correct, so LO's bespoke independent-array `steps()` is
-retired in favour of the declarative form. `ddcr` is NOT eligible (hand-owned
-`ddc_fn`, `no_generate`); `hbdecim`/`resamp` are composed under
+retired in favour of the declarative form. `ddcr` was NOT eligible at the time
+(then a hand-owned `ddc_fn`; since migrated to a generated `kind = "handle"`
+module, gh-306); `hbdecim`/`resamp` are composed under
 `HalfbandDecimator`/`Resampler` and stay C-level for now.
 
 ### 0.19.7 adoptions — additive collocated `link=true` (gh-254) (pin: 0.19.7)
@@ -504,16 +505,15 @@ geometry doubles are declared `params` (with `guard_hz` defaulting to 0.0);
 (delete + `jm apply`). The module composes `fft_core` + `spectral_core`;
 module-level helpers are one TU each. See `docs/design/measurement-suite.md`.
 
-### `ddc_fn` — the functional DDCR API (`no_generate`)
+### `ddc_fn` — the functional DDCR API (`kind = "handle"`, jm-generated)
 
-`[module.ddc_fn]` is `no_generate`: a fully hand-written CPython extension
-exposing the DDCR down-converter as free functions over an opaque PyCapsule
-state (`ddcr_create`/`execute`/`reset`/`destroy`/`get_/set_*`) instead of a
-type. jm only wires its CMake `add_subdirectory`; `ddc_fn_ext.c` and
-`ddc_fn.pyi` are hand-owned (including their GIL release — a no_generate module
-is hand-owned end to end, so `nogil` does not apply). `doppler.ddc` re-exports
-the `ddcr_*` names via the `reexports` key above. See the gallery walkthrough
-(`docs/gallery/ddc-fn.md`) for the streaming/threading model.
+`[module.ddc_fn]` is a jm-**generated** `kind = "handle"` module (migrated off
+`no_generate` in gh-306): the typed `Ddcr` handle over the `ddcr` down-converter
+core. jm owns both `ddc_fn_ext.c` (its file header reads "pure generated glue")
+and `ddc_fn.pyi` — delete-and-`jm apply` recreates the binding; it is NOT
+hand-written. `doppler.ddc` re-exports the handle's names via the `reexports`
+key above. See the gallery walkthrough (`docs/gallery/ddc-fn.md`) for the
+streaming/threading model.
 
 ### 0.28.2 adoptions — `jm apply` now honors `status_allow` (jm#441, pin: 0.28.2)
 

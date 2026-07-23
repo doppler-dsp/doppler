@@ -787,16 +787,17 @@ sig_len (const wfm_plan_t *p, size_t k)
   return 0;
 }
 
-void
+size_t
 wfm_plan_save (const wfm_plan_t *p, void *blob)
 {
   if (!p || !blob)
-    return;
-  uint8_t *q       = (uint8_t *)blob;
-  size_t   splen   = strlen (p->spec_json);
-  uint64_t hash    = (uint64_t)WFM_PLAN_DSP_HASH_U64;
-  uint64_t n_sig   = (uint64_t)p->n_sig;
-  uint64_t splen64 = (uint64_t)splen;
+    return 0;
+  uint8_t *const start   = (uint8_t *)blob;
+  uint8_t       *q       = start;
+  size_t         splen   = strlen (p->spec_json);
+  uint64_t       hash    = (uint64_t)WFM_PLAN_DSP_HASH_U64;
+  uint64_t       n_sig   = (uint64_t)p->n_sig;
+  uint64_t       splen64 = (uint64_t)splen;
 
   q[0]         = WFM_PLAN_BLOB_MAGIC0;
   q[1]         = WFM_PLAN_BLOB_MAGIC1;
@@ -821,6 +822,7 @@ wfm_plan_save (const wfm_plan_t *p, void *blob)
       memcpy (q, p->cache_sig[k], (size_t)len * sizeof (float _Complex));
       q += (size_t)len * sizeof (float _Complex);
     }
+  return (size_t)(q - start);
 }
 
 wfm_plan_t *

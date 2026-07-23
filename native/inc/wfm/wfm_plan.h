@@ -161,9 +161,11 @@ extern "C"
    * @brief Serialize a Plan into @p blob (wfm_plan_save_bytes(p) bytes).
    *
    * Native-endian. The blob embeds the spec JSON, so a restore is
-   * self-contained.
+   * self-contained. Returns the number of bytes written (==
+   * wfm_plan_save_bytes(p)) — the actual-length contract a variable-output
+   * binding needs, so `save() -> bytes` generates with no hand-written glue.
    */
-  void wfm_plan_save (const wfm_plan_t *p, void *blob);
+  size_t wfm_plan_save (const wfm_plan_t *p, void *blob);
 
   /**
    * @brief Reconstruct a Plan from a blob produced by wfm_plan_save().

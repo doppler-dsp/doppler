@@ -503,7 +503,7 @@ main (void)
     CHECK (blen > 0, "save_bytes > 0");
     uint8_t *blob = malloc (blen);
     CHECK (blob, "alloc blob");
-    wfm_plan_save (p, blob);
+    CHECK (wfm_plan_save (p, blob) == blen, "save returns bytes written");
 
     wfm_plan_t *pr = wfm_plan_restore (blob, blen);
     CHECK (pr, "restore");

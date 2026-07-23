@@ -224,4 +224,4 @@ doc = "Target detection probability."
 name = "underpowered"
 type = "bool"
 field = true
-doc = "True when pd_predicted < pd (the search cannot meet the target)."
+doc = "True when pd_predicted < pd -- the search cannot meet the target pd at this cn0_dbhz and geometry. The engine still builds a best-effort grid rather than failing; because C cannot raise a Python warning from a successful create, construction also emits a UserWarning in this case."

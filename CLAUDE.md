@@ -625,24 +625,33 @@ Making `keywords` declarative also lands it in the `.pyi` (`dict[str, Any]`),
 and `close()` on both types — a fragment-added method never reached a type
 checker. That closes the gap noted below.
 
-**One hand-written helper survives, by design:** `Reader.keywords`'s per-keyword
-VALUE is data-dependent (its Python type comes from the keyword's own BLUE type
-code — `str` for `A`, `int`/`float` for a scalar numeric, `list` for a
-multi-element one), so it uses `value_type="object"` and jm forward-declares
-`wfm_reader_keyword_value(const state*, size_t) -> PyObject*` for a hand-written
-`native/src/wfm_reader/wfm_reader_ext_extra.c` (gh-543's standalone-object
-`_ext_extra.c` hook — jm wires it in, never creates or modifies it). jm still
-generates the dict loop, the refcounting, every error path, and the gh-521-class
-NULL-key/NULL-value guards. Test coverage: the C round-trip proves the decode
-(`test_wfm_reader_core.c`); a hand-built keyworded BLUE file in
-`test_wfm_reader.py` (`_encode_keyword`, assembled against the Midas BLUE 1.1
-wire format because the Python `Writer` has no `add_keyword` binding) proves the
-Python value dispatch — verified to fail if the builder is broken.
+**Two hand-written keyword helpers survive, by design — the read/write pair.**
+A keyword's VALUE is data-dependent (its Python type comes from the keyword's
+own BLUE type code — `str` for `A`, `int`/`float` for a scalar numeric, `list`
+for a multi-element one), so jm cannot generate the marshaling on **either**
+side; both are one hand-written binding:
 
-**`Writer` cannot emit keywords from Python.** `wfm_writer_add_keyword` exists
-in C (C-tested) with no binding, so a keyword round-trip can only be tested by
-building the file bytes directly. Exposing it is new public API (a
-manifest-vs-fragment decision) and is left unfiled.
+- **Read** — `Reader.keywords` uses `type="dict"` `value_type="object"` (gh-543)
+    and jm forward-declares `wfm_reader_keyword_value(const state*, size_t) ->   PyObject*` for a hand-written `native/src/wfm_reader/wfm_reader_ext_extra.c`
+    (gh-543's standalone-object `_ext_extra.c` hook — jm wires it in, never
+    creates or modifies it). jm still generates the dict loop, refcounting,
+    every error path, and the gh-521-class NULL guards.
+- **Write** — `Writer.add_keyword(tag, type, value)` is a hand-written method in
+    the sacred `wfm_writer_ext_wfm_writer.c` (the gh-426 precedent: a bespoke
+    method lives in the fragment; `FFT.execute_ci16` is the model) plus a
+    `# jm:hand` stub in `wfm_writer.pyi` (gh-538) so it reaches a type checker
+    and `jm status --check` treats it as intentional, not dropped. **Gotcha:**
+    `# jm:hand` transplants the *member* only — a top-of-file `import` it needs
+    is dropped on the next `jm apply`, so annotate with builtins (`list[int]`,
+    not `Sequence[int]`). This is the input-side twin of gh-543, filed as
+    [jm#554](https://github.com/just-buildit/just-makeit/issues/554).
+
+Test coverage: the C round-trip proves the decode (`test_wfm_reader_core.c`);
+`test_wfm_writer.py::test_add_keyword_round_trips_every_type` is the fully-Python
+round-trip (write via `add_keyword`, read via `Reader.keywords`), covering every
+type code — verified to fail if the marshaler is broken. The hand-built
+`_encode_keyword` bytes fixture in `test_wfm_reader.py` stays as a low-level
+wire-format conformance check.
 
 **Use the SCOPED `jm apply objects/<obj>.toml` whenever a sacred fragment
 exists.** A bare `jm apply` can regenerate a *sibling's* fragment and discard

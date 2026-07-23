@@ -63,9 +63,13 @@ first one turned up. Each returned wrong samples with no error, correct-looking
     leaving the container metadata and decoded keywords intact.
 - **`doppler.wfm.Reader.keywords`** now appears in the type stub as
     `dict[str, Any]`, and `close()`/`destroy()` on both `Reader` and `Writer`
-    now appear too — they were runtime-only before. This is the *read* half of
-    the Python keyword surface the codec above anticipated; writing keywords
-    from Python (`wfm_writer_add_keyword`) is still C-only.
+    now appear too — they were runtime-only before.
+- **`doppler.wfm.Writer.add_keyword(tag, type, value)`** — the write half of
+    the Python keyword surface, completing what `Reader.keywords` reads.
+    `value` is a `str` (type `"A"`), a single `int`/`float`, or a sequence of
+    them; keywords are buffered and written at `close()`. Its C→Python value is
+    data-dependent on the type code, so — like `Reader.keywords`' value builder
+    — the marshaling is one hand-written binding method rather than generated.
 
 ### Changed
 

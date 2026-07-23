@@ -64,6 +64,8 @@ COVERAGE: dict[str, str] = {
     # stimulus engine (component cache) — dedicated suite in test_plan.py
     "Plan": "test_plan.py",
     "prepare": "test_plan.py",
+    "PlanFromBlob": "test_plan.py",
+    "PlanFromFile": "test_plan.py",
     # transport / IO handles
     "Writer": "TestReaderWriter",
     "Reader": "TestReaderWriter",

@@ -1,7 +1,7 @@
 include = ["objects/*.toml"]
 
 [project]
-jm_version = "0.33.9"
+jm_version = "0.33.11"
 name = "doppler"
 version = "0.1.0"
 build = "cmake"
@@ -216,6 +216,36 @@ returns = "size_t"
 name = "anchor_seed"
 fn = "wfm_plan_anchor_seed"
 returns = "uint64_t"
+
+# Zero-binding save/restore (jm gh-565): a prepared Plan persists to bytes/file
+# and reconstructs a fresh handle, skipping prepare()'s DSP. All I/O in C.
+# save() -> bytes: out_len_fn sizes the blob, fn fills a temp buffer.
+[[module.wfm_plan.methods]]
+name = "save"
+fn = "wfm_plan_save"
+out_len_fn = "wfm_plan_save_bytes"
+returns = "bytes"
+# dump(path) -> None: path arg (os.fspath -> const char*), int return raises
+# OSError on a non-zero result (a failed write) -- keeps file I/O in C.
+[[module.wfm_plan.methods]]
+name = "dump"
+fn = "wfm_plan_dump"
+returns = "int"
+error = "OSError"
+[[module.wfm_plan.methods.args]]
+name = "path"
+type = "path"
+
+# Module-level alternate constructors: reconstruct a fresh Plan from a blob or a
+# file. A mismatched DSP fingerprint transparently rebuilds (never wrong).
+[[module.wfm_plan.factories]]
+name = "PlanFromBlob"
+create_fn = "wfm_plan_restore"
+init_params = [{ name = "blob", type = "bytes" }]
+[[module.wfm_plan.factories]]
+name = "PlanFromFile"
+create_fn = "wfm_plan_load"
+init_params = [{ name = "path", type = "path" }]
 
 [module.sample_clock]
 kind            = "handle"
@@ -446,7 +476,7 @@ extra_link_libs = ["wfm_dsp_core"]
 # straight from their .so submodules — zero hand-Python). Composition surface +
 # the remaining free functions still come from compose.py.
 [module.wfm.reexports]
-compose = ["Synth", "tone", "bpsk", "qpsk", "pn", "noise", "chirp", "bits", "Segment", "Timeline", "Composer", "write_blue_header", "Plan", "prepare"]
+compose = ["Synth", "tone", "bpsk", "qpsk", "pn", "noise", "chirp", "bits", "Segment", "Timeline", "Composer", "write_blue_header", "Plan", "prepare", "PlanFromBlob", "PlanFromFile"]
 wfm_writer = ["Writer"]
 wfm_reader = ["Reader"]
 wfm_sink = ["StreamSink"]

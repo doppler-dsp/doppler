@@ -398,10 +398,10 @@ cache_build_one (size_t w, void *ctx)
     }
 
   /* Slow path (prepare, or a mismatched restore): run the DSP. */
-  double cache_snr       = cw->ps->bundled ? WFM_SYNTH_SNR_CLEAN : src->snr;
-  wfm_synth_state_t *syn = wfm_compose_build_synth (
-      src, cw->g->fs, n, src->freq, cache_snr, src->f_end, 0,
-      WFM_SEED_ADVANCE_NONE, 0);
+  double cache_snr = cw->ps->bundled ? WFM_SYNTH_SNR_CLEAN : src->snr;
+  wfm_synth_state_t *syn
+      = wfm_compose_build_synth (src, cw->g->fs, n, src->freq, cache_snr,
+                                 src->f_end, 0, WFM_SEED_ADVANCE_NONE, 0);
   if (!syn)
     {
       free (buf);

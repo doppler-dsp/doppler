@@ -28,9 +28,19 @@ class Plan:
         """n_sources() -> int."""
     def anchor_seed(self) -> int:
         """anchor_seed() -> int."""
+    def save(self) -> bytes:
+        """save() -> bytes."""
+    def dump(self, path: str) -> None:
+        """dump(path) -> None."""
     def close(self) -> None:
         """Release the handle and free resources."""
     def __enter__(self) -> Plan:
         """Enter context; return self."""
     def __exit__(self, *exc: Any) -> None:
         """Exit context and close the handle."""
+
+def PlanFromBlob(blob: bytes) -> Plan:
+    """Construct a Plan via wfm_plan_restore."""
+
+def PlanFromFile(path: str) -> Plan:
+    """Construct a Plan via wfm_plan_load."""

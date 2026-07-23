@@ -20,6 +20,7 @@ FFT, ring buffers, C programs, or the NATS streaming demo? Those live on the
 - [Waveform Write](wfm-write.md) — the shortest path from a `Composer` to a file and back.
 - [WCDMA Carriers](wcdma-carriers.md) — four RRC channels measured with `PSD` and `AccTrace`.
 - [Prepare Once, Sweep Many (Plan)](plan.md) — one declarative scene evaluated at many SNR operating points via the `Plan` stimulus engine.
+- [A Crowded Band](crowded-band.md) — twenty RRC carriers in one segment, prepared in parallel across cores; `Plan.render(enable=...)` thins them for free.
 - [AWGN](awgn.md) — complex Box-Muller noise, amplitude histogram, and flat PSD.
 - [Doppler Channel](doppler-channel.md) — clock Doppler as an impairment: one ppm dilates the whole time base *and* shifts the carrier, so a code loop sees the rate error its carrier loop implies.
 

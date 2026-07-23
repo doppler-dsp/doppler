@@ -24,7 +24,7 @@ The composition layer mirrors the [concepts](concepts.md) ladder. Builders
 them, `.add` / `Timeline` sequences them, and `Composer` renders:
 
 ```python
-from doppler.wfm import Composer, Segment, Writer, qpsk, tone, read_iq
+from doppler.wfm import Composer, Reader, Segment, Writer, qpsk, tone
 
 # Mix a QPSK signal of interest under a CW interferer, one noise floor.
 scene = Segment.sum(qpsk(snr=15, sps=8, level=-10), tone(freq=2e5, level=-3),
@@ -36,7 +36,8 @@ c = Composer(scene)
 with Writer("frame.cf32", sample_type="cf32") as w:
     while len(blk := c.execute(4096)):
         w.write(blk)
-back = read_iq("frame.cf32", "cf32")           # zero-copy complex64 view
+with Reader("frame.cf32", sample_type="cf32") as r:  # C reader → complex64
+    back = r.read(r.num_samples)
 ```
 
 Remember the timing gotcha from [concepts](concepts.md#gotcha-where-timing-lives):
@@ -64,23 +65,24 @@ iq = Synth(type="symbols", symbols=stream, sps=8, pulse="rrc").steps(64 * 8)
 ## Reading a capture back
 
 The `raw` container is **interleaved** I/Q in the chosen sample type, so a naive
-`np.fromfile` gets the layout (and, for integers, the scale) wrong. `read_iq`
-does the right thing — a zero-copy complex view for the float types, a SIMD
-rescale to ±1.0 for the integer types; the container-aware `Reader` also
-auto-detects BLUE/SigMF/CSV/raw and recovers `fs`/`fc`/sample-type:
+`np.fromfile` gets the layout (and, for integers, the scale) wrong. `Reader`
+does the right thing entirely in C — deinterleaving and rescaling any wire type
+to unit-scale `complex64` — and auto-detects BLUE/SigMF/CSV/raw, recovering
+`fs`/`fc`/sample-type from a self-describing header:
 
 <!-- docs-snippet: skip=illustrative: reads an I/Q capture file you supply -->
 
 ```python
-from doppler.wfm import read_iq, Reader
+from doppler.wfm import Reader
 
-iq = read_iq("capture.iq", sample_type="ci16")   # → complex64, ±1.0
-with Reader("capture.blue") as r:                 # container auto-detected
+with Reader("capture.iq", sample_type="ci16") as r:  # hint for headerless raw
+    iq = r.read(r.num_samples)                        # → complex64, ±1.0
+with Reader("capture.blue") as r:                     # container auto-detected
     print(r.file_type, r.fs, r.num_samples)
     x = r.read(r.num_samples)
 ```
 
-`generate → read_iq` is bit-faithful. See
+`generate → Reader.read` is bit-faithful. See
 [Type System → Reading interleaved I/Q](../../types.md#reading-interleaved-iq-in-python).
 
 ## Module-level helpers

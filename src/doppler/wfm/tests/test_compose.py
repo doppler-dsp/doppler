@@ -4,7 +4,7 @@ The strong test is **byte-parity against the C ``wfmgen`` CLI**: a
 single-segment
 ``Composer`` written through ``Writer`` must produce the exact same file the
 one C CLI does for the same flags. The rest cover the JSON round-trip, the
-Writer↔read_iq round-trip per sample type, segment timing, and the DSP helpers.
+Writer↔Reader round-trip per sample type, segment timing, and the DSP helpers.
 """
 
 import hashlib
@@ -36,7 +36,6 @@ from doppler.wfm.compose import (
     qpsk,
     tone,
 )
-from doppler.wfm.readback import read_iq
 
 
 def _read_all(r):
@@ -261,13 +260,13 @@ def test_symbols_json_roundtrip(synths):
 
 @pytest.mark.parametrize("stype", ["cf32", "cf64", "ci32", "ci16", "ci8"])
 def test_writer_readback_roundtrip(tmp_path, stype):
-    """Writer → read_iq round-trips per sample type (cf* exact, ci* within
+    """Writer → Reader round-trips per sample type (cf* exact, ci* within
     q-step)."""
     x = Composer(type="tone", freq=1e5, num_samples=1000).compose()
     p = tmp_path / f"cap.{stype}"
     with Writer(p, sample_type=stype) as w:
         w.write(x)
-    y = read_iq(str(p), stype)
+    y = _read_all(Reader(str(p), sample_type=stype))
     assert len(y) == len(x)
     tol = {"cf32": 1e-6, "cf64": 1e-9, "ci32": 1e-6, "ci16": 1e-3, "ci8": 1e-1}
     assert np.max(np.abs(y - x)) < tol[stype]
@@ -926,21 +925,6 @@ def test_reader_sigmf_pair(tmp_path):
         assert np.allclose(_read_all(r), x)
 
 
-def test_reader_matches_read_iq_for_raw(tmp_path):
-    """Reader agrees with the existing read_iq helper on a raw capture."""
-    x = Composer(type="noise", snr=20, num_samples=4096, seed=5).compose()
-    p = tmp_path / "cap.ci32"
-    with Writer(p, sample_type="ci32", fs=1e6) as w:
-        w.write(x)
-    via_reader = _read_all(Reader(str(p), sample_type="ci32"))
-    via_read_iq = read_iq(str(p), "ci32")
-    # Both divide by the same full-scale; the C reader does it scalar,
-    # read_iq via the SIMD cvt converter, so they agree to float precision
-    # (not bitwise).
-    assert via_reader.shape == via_read_iq.shape
-    assert np.allclose(via_reader, via_read_iq, atol=1e-6)
-
-
 def test_reader_blocked_read_matches_read_all(tmp_path):
     """Block-wise read() concatenates to the same array as read_all()."""
     x = Composer(type="bpsk", sps=4, num_samples=3000, seed=2).compose()
@@ -978,7 +962,7 @@ def test_sigmf_meta_and_data_pair(tmp_path):
     """sigmf_meta() + Writer(file_type='sigmf') produce a valid SigMF pair.
 
     The metadata records the global sample rate and one annotation per segment;
-    the companion .sigmf-data round-trips back through read_iq.
+    the companion .sigmf-data round-trips back through Reader.
     """
     import json
 
@@ -990,11 +974,17 @@ def test_sigmf_meta_and_data_pair(tmp_path):
     data = tmp_path / "cap.sigmf-data"
     with Writer(data, file_type="sigmf", sample_type="cf32", fs=1e6) as w:
         w.write(x)
-    meta = json.loads(Composer(spec).to_sigmf(sample_type="cf32", fs=1e6))
+    meta_json = Composer(spec).to_sigmf(sample_type="cf32", fs=1e6)
+    meta = json.loads(meta_json)
     assert meta["global"]["core:sample_rate"] == 1e6
     assert meta["global"]["core:datatype"] == "cf32_le"
     assert len(meta["annotations"]) == 2  # one per segment
-    assert np.allclose(read_iq(str(data), "cf32"), x)
+    # Write the .sigmf-meta sidecar so Reader resolves the SigMF pair and
+    # reads sample-type/fs from the metadata (not a headerless-raw hint).
+    (tmp_path / "cap.sigmf-meta").write_text(meta_json)
+    with Reader(str(data)) as r:
+        assert r.file_type == "sigmf"
+        assert np.allclose(_read_all(r), x)
 
 
 def test_writer_clip_detection(tmp_path):
@@ -1038,12 +1028,17 @@ def test_writer_headroom(tmp_path):
         tmp_path / "hr.cf32", sample_type="cf32", headroom=6.0206
     ) as w:
         w.write(x)
-    assert np.allclose(read_iq(str(tmp_path / "hr.cf32"), "cf32"), x * 0.5)
+    assert np.allclose(
+        _read_all(Reader(str(tmp_path / "hr.cf32"), sample_type="cf32")),
+        x * 0.5,
+    )
 
     # 0 dB (default) is verbatim
     with Writer(tmp_path / "h0.cf32", sample_type="cf32") as w:
         w.write(x)
-    assert np.allclose(read_iq(str(tmp_path / "h0.cf32"), "cf32"), x)
+    assert np.allclose(
+        _read_all(Reader(str(tmp_path / "h0.cf32"), sample_type="cf32")), x
+    )
 
     # enough headroom clears a clip that would saturate at unity gain
     with Writer(tmp_path / "c.ci16", sample_type="ci16", headroom=12.0) as w:

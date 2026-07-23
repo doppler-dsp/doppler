@@ -122,22 +122,23 @@ ______________________________________________________________________
 
 The `raw` container is **interleaved** I/Q in the chosen `--sample-type`, so a
 naive `np.fromfile` gets the layout (and, for integers, the scale) wrong.
-`read_iq` does the right thing — a zero-copy complex view for the float types, a
-SIMD rescale to ±1.0 for the integer types; the container-aware `Reader` also
-auto-detects BLUE/SigMF/CSV/raw and recovers `fs`/`fc`/sample-type from metadata:
+`Reader` does the right thing entirely in C — deinterleaving and rescaling any
+wire type to unit-scale `complex64` — and auto-detects BLUE/SigMF/CSV/raw,
+recovering `fs`/`fc`/sample-type from metadata:
 
 <!-- docs-snippet: skip=illustrative: reads an I/Q capture file you supply -->
 
 ```python
-from doppler.wfm import read_iq, Reader
+from doppler.wfm import Reader
 
-iq = read_iq("capture.iq", sample_type="ci16")   # → complex64, ±1.0
-with Reader("capture.blue") as r:                 # container auto-detected
+with Reader("capture.iq", sample_type="ci16") as r:  # hint for headerless raw
+    iq = r.read(r.num_samples)                        # → complex64, ±1.0
+with Reader("capture.blue") as r:                     # container auto-detected
     print(r.file_type, r.fs, r.num_samples)
-    x = r.read(r.num_samples)                       # or block-wise: r.read(4096)
+    x = r.read(r.num_samples)                          # or block-wise: r.read(4096)
 ```
 
-`generate → read_iq` is bit-faithful. See
+`generate → Reader.read` is bit-faithful. See
 [Type System → Reading interleaved I/Q](../../types.md#reading-interleaved-iq-in-python)
 and the [Python API](python.md) page.
 

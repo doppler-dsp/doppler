@@ -12,7 +12,7 @@ NATS. The composer's resolved spec round-trips through JSON
 fully reproducible.
 
 The samples come back as ``complex64`` arrays; pair :class:`Writer` with
-:func:`doppler.wfm.readback.read_iq` to round-trip a file.
+:class:`doppler.wfm.Reader` to round-trip a file.
 
 The ``Synth`` / ``Segment`` / ``Timeline`` / ``Composer`` ergonomic types
 are the **jm-generated** CPython types in ``doppler.wfm.wfm_compose`` (the

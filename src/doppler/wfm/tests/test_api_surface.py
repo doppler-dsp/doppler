@@ -71,7 +71,6 @@ COVERAGE: dict[str, str] = {
     "Reader": "TestReaderWriter",
     "StreamSink": "TestStreamSinkAndClock",
     "SampleClock": "TestStreamSinkAndClock",
-    "read_iq": "TestReaderWriter",
 }
 
 ENUMS = {
@@ -492,17 +491,16 @@ class TestReaderWriter:
     @pytest.mark.parametrize(
         "sample_type", ["cf32", "cf64", "ci8", "ci16", "ci32"]
     )
-    def test_read_iq_all_types(self, tmp_path, sample_type: str) -> None:
+    def test_reader_all_types(self, tmp_path, sample_type: str) -> None:
         x = w.Synth(type="qpsk", sps=2, snr=100.0).steps(1024)
         p = tmp_path / f"c.{sample_type}"
         with w.Writer(
             str(p), file_type="raw", sample_type=sample_type, total=len(x)
         ) as wr:
             wr.write(x)
-        y = w.read_iq(str(p), sample_type)
+        with w.Reader(str(p), sample_type=sample_type) as r:
+            y = r.read(1024)
         assert len(y) == 1024
-        raw = w.read_iq(str(p), sample_type, raw=True)
-        assert raw.shape == (1024, 2)
 
 
 def _nats_available() -> bool:
@@ -651,7 +649,8 @@ class TestCLI:
             check=True,
             capture_output=True,
         )
-        y = w.read_iq(str(out), stype)
+        with w.Reader(str(out), sample_type=stype) as r:
+            y = r.read(256)
         assert len(y) == 256
 
     def test_face_parity_cli_vs_composer(self, tmp_path) -> None:

@@ -1,0 +1,23 @@
+/*
+ * wfm_plan_dsp_hash.h — GENERATED at configure time. DO NOT EDIT.
+ *
+ * A build-time SHA-256 fingerprint of the DSP source files whose output feeds
+ * wfm_plan's signal cache (build_synth + the synth/fir/lo/awgn/pn primitives).
+ * A change to any of them flips this value, so a Plan blob saved by a
+ * different DSP build fails the fast-path check in wfm_plan_restore() and is
+ * transparently rebuilt from its embedded spec rather than reinterpreted. It
+ * is content-based (not a timestamp), so two hosts building the same source
+ * get the same fingerprint — a blob saved on one worker fast-loads on another
+ * across a fleet.
+ *
+ * The source list lives in native/src/wfmcompose/CMakeLists.txt; add any file
+ * whose change can alter build_synth's sample output.
+ */
+#ifndef WFM_PLAN_DSP_HASH_H
+#define WFM_PLAN_DSP_HASH_H
+
+/* clang-format off */
+#define WFM_PLAN_DSP_HASH_U64 0x@WFM_PLAN_DSP_HASH_U64@ULL
+/* clang-format on */
+
+#endif /* WFM_PLAN_DSP_HASH_H */

@@ -494,6 +494,55 @@ main (void)
   wfm_plan_destroy (prg);
   free (jrg);
 
+  /* ── save / restore ────────────────────────────────────────────────────
+   * A restored Plan renders bit-identically to the original; a fingerprint
+   * mismatch rebuilds from the embedded spec (never NULL, never wrong); a
+   * corrupt/truncated blob is rejected. */
+  {
+    size_t blen = wfm_plan_save_bytes (p);
+    CHECK (blen > 0, "save_bytes > 0");
+    uint8_t *blob = malloc (blen);
+    CHECK (blob, "alloc blob");
+    wfm_plan_save (p, blob);
+
+    wfm_plan_t *pr = wfm_plan_restore (blob, blen);
+    CHECK (pr, "restore");
+    CHECK (wfm_plan_len (pr) == L && wfm_plan_n_sources (pr) == 2,
+           "restore: structure matches the spec");
+    CHECK (wfm_plan_render (pr, "{}", got) == L, "restore render baseline");
+    CHECK (memcmp (base, got, bytes) == 0,
+           "SAVE/RESTORE: baseline is bit-exact");
+    char *j6 = scene_json (6.0, 0.0, 0.0);
+    CHECK (compose_collect (j6, ref) == L, "compose snr=6 (restore)");
+    CHECK (wfm_plan_at (pr, 6.0, wfm_plan_anchor_seed (pr), got) == L,
+           "restore at(6)");
+    CHECK (memcmp (ref, got, bytes) == 0,
+           "SAVE/RESTORE: an override on the restored Plan is bit-exact");
+    free (j6);
+    wfm_plan_destroy (pr);
+
+    /* Fingerprint mismatch (corrupt the dsp_hash at offset 8): the fast path
+     * is refused and the Plan is rebuilt from the embedded spec — still exact.
+     */
+    blob[8] ^= 0xFFu;
+    wfm_plan_t *pm = wfm_plan_restore (blob, blen);
+    CHECK (pm, "restore rebuilds on fingerprint mismatch (not NULL)");
+    CHECK (wfm_plan_render (pm, "{}", got) == L, "rebuilt render baseline");
+    CHECK (memcmp (base, got, bytes) == 0,
+           "SAVE/RESTORE: fingerprint-mismatch rebuild is bit-exact");
+    wfm_plan_destroy (pm);
+    blob[8] ^= 0xFFu; /* undo */
+
+    /* Malformed / truncated blobs are rejected outright. */
+    uint8_t m0 = blob[0];
+    blob[0]    = 'X';
+    CHECK (wfm_plan_restore (blob, blen) == NULL, "reject bad magic");
+    blob[0] = m0;
+    CHECK (wfm_plan_restore (blob, 10) == NULL, "reject truncated blob");
+
+    free (blob);
+  }
+
   wfm_plan_destroy (p);
   free (json);
   free (ref);

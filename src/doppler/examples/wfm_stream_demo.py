@@ -19,9 +19,9 @@ never touches:
   keeps its extended header: an unbounded reader hands them back decoded as IQ
   (64 samples of garbage, here), which is silent corruption rather than an
   error. They are only stand-ins — a genuine extended header would also be
-  pointed to by the HCB and decoded into ``Reader.keywords``, which the Python
-  ``Writer`` currently cannot produce (the C API has ``add_keyword``; there is
-  no binding for it yet).
+  pointed to by the HCB and decoded into ``Reader.keywords`` (write one with
+  ``Writer.add_keyword``); these raw bytes are not, so the reader never looks
+  at them.
 * **``close()`` reporting** — the ``data_size`` patch happens at close, after
   the samples, so a failure there means the file on disk is wrong. ``close()``
   raises rather than returning quietly, and ``with`` propagates it.

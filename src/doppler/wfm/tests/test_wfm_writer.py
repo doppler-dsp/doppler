@@ -9,6 +9,7 @@ preserve and the two behaviours that are hand-written in the sacred fragment:
   * ``track_clipping()`` keeping its default argument
   * ``close()`` reporting a failed final flush             (jm gh-541/544)
   * ``reset()`` being absent rather than a no-op            (jm gh-542)
+  * ``add_keyword()`` marshaling every keyword type        (hand-written)
 
 Container-level behaviour lives in test_api_surface.py / test_compose.py; this
 file is about the binding.
@@ -27,6 +28,63 @@ from doppler.wfm import Composer, Reader, Segment, Writer
 @pytest.fixture
 def scene():
     return Composer([Segment("qpsk", sps=8, num_samples=1024)]).compose()
+
+
+# ── add_keyword: the write-side mirror of Reader.keywords ────────────────────
+# The C add_keyword takes an untyped `const void *value` whose element type is
+# decided at runtime by the `type` char, so the Python -> C marshaling is
+# hand-written (jm cannot generate it -- the input twin of gh-543). These
+# exercise it end to end: write via add_keyword, read back via Reader.keywords,
+# which is the only *fully-Python* keyword round-trip the library has.
+
+
+def test_add_keyword_round_trips_every_type(tmp_path, scene):
+    """Each type code marshals to the right Python value on read-back."""
+    p = tmp_path / "kw.blue"
+    with Writer(p, file_type="blue", sample_type="cf32", fs=1e6) as w:
+        w.write(scene)
+        w.add_keyword("COMMENT", "A", "10 dB pad")  # str
+        w.add_keyword("F_C", "D", 1.2345e9)  # scalar double
+        w.add_keyword("GAINS", "F", [1.5, -2.5, 3.5])  # list of float
+        w.add_keyword("FLAG", "B", -7)  # int8
+        w.add_keyword("TRIM", "I", -1234)  # int16
+        w.add_keyword("OFFSET", "L", -70000)  # int32
+        w.add_keyword("TICKS", "X", 1234567890123)  # int64 (past 32-bit)
+
+    with Reader(p) as r:
+        assert np.array_equal(r.read(len(scene)), scene)  # samples intact
+        kw = r.keywords
+
+    assert kw["COMMENT"] == "10 dB pad" and isinstance(kw["COMMENT"], str)
+    assert kw["F_C"] == pytest.approx(1.2345e9) and isinstance(
+        kw["F_C"], float
+    )
+    assert kw["GAINS"] == pytest.approx([1.5, -2.5, 3.5])
+    assert isinstance(kw["GAINS"], list)  # multi-element -> list
+    assert kw["FLAG"] == -7  # negative int8 stays signed
+    assert kw["TRIM"] == -1234
+    assert kw["OFFSET"] == -70000
+    assert kw["TICKS"] == 1234567890123
+
+
+def test_add_keyword_rejects_non_blue(tmp_path):
+    """Only BLUE has an extended header; other containers refuse."""
+    with (
+        Writer(tmp_path / "c.raw") as w,  # raw, not blue
+        pytest.raises(ValueError, match="not a BLUE capture"),
+    ):
+        w.add_keyword("X", "D", 1.0)
+
+
+def test_add_keyword_type_validation(tmp_path):
+    """The type code and value type are checked before the C call."""
+    with Writer(tmp_path / "c.blue", file_type="blue") as w:
+        with pytest.raises(ValueError, match="single character"):
+            w.add_keyword("X", "DD", 1.0)
+        with pytest.raises(ValueError, match="unsupported keyword type"):
+            w.add_keyword("X", "Z", 1.0)
+        with pytest.raises(TypeError, match="type 'A' takes a str"):
+            w.add_keyword("X", "A", 123)  # A needs a str, not an int
 
 
 def test_accepts_pathlike_and_round_trips(tmp_path, scene):

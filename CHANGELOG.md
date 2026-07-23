@@ -13,6 +13,8 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+## [0.36.0] — 2026-07-22
+
 Three silent data-corruption bugs in the BLUE reader, found by auditing the
 Header Control Block parse against the Midas BLUE 1.1 specification after the
 first one turned up. Each returned wrong samples with no error, correct-looking
@@ -70,6 +72,10 @@ first one turned up. Each returned wrong samples with no error, correct-looking
     them; keywords are buffered and written at `close()`. Its C→Python value is
     data-dependent on the type code, so — like `Reader.keywords`' value builder
     — the marshaling is one hand-written binding method rather than generated.
+- **`F32Buffer`/`F64Buffer`/`I16Buffer.available`** — samples written but not
+    yet consumed; the largest `n` for which `wait(n)` returns without spinning.
+    `wait()` has no timeout, so a consumer that over-counts hangs; read from the
+    consumer side, `available` is a safe lower bound to size blocks from.
 
 ### Changed
 
@@ -2991,6 +2997,8 @@ ______________________________________________________________________
 [0.33.4]: https://github.com/doppler-dsp/doppler/compare/v0.33.3...v0.33.4
 [0.33.5]: https://github.com/doppler-dsp/doppler/compare/v0.33.4...v0.33.5
 [0.34.0]: https://github.com/doppler-dsp/doppler/compare/v0.33.5...v0.34.0
+[0.35.0]: https://github.com/doppler-dsp/doppler/compare/v0.34.0...v0.35.0
+[0.36.0]: https://github.com/doppler-dsp/doppler/compare/v0.35.0...v0.36.0
 [0.4.0]: https://github.com/doppler-dsp/doppler/compare/v0.3.7...v0.4.0
 [0.4.1]: https://github.com/doppler-dsp/doppler/compare/v0.4.0...v0.4.1
 [0.5.0]: https://github.com/doppler-dsp/doppler/compare/v0.4.1...v0.5.0
@@ -3003,4 +3011,4 @@ ______________________________________________________________________
 [0.7.0]: https://github.com/doppler-dsp/doppler/compare/v0.6.0...v0.7.0
 [0.8.0]: https://github.com/doppler-dsp/doppler/compare/v0.7.0...v0.8.0
 [0.9.0]: https://github.com/doppler-dsp/doppler/compare/v0.8.0...v0.9.0
-[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.34.0...HEAD
+[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.36.0...HEAD

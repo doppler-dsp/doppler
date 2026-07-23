@@ -598,6 +598,48 @@ touches `jm apply`/`status` codegen paths doppler already exercises
 before this fix and are unaffected; the bug was in the *scaffolding*
 path, not the steady-state apply path).
 
+### 0.33.9 adoptions — the variant codec retires both keyword fragments (gh-554, pin: 0.33.9)
+
+The CI drift gate now pins **0.33.9** (`ci.yml` + `perf-regression.yml`);
+`jm_version` is stamped 0.33.9. **Drive doppler with
+`uvx --from 'just-makeit==0.33.9' just-makeit …`.** 0.33.9 ships the
+doppler-driven **variant codec** (gh-554): a top-level `[codec.X]` table maps a
+runtime type code (the BLUE keyword's `char`) to a C element width **once**, and
+that single declaration drives BOTH directions, so they cannot drift. This
+retires the last two hand-written wfm binding fragments — the read/write keyword
+pair the 0.33.6 pass could not express:
+
+| was hand-written                                                                                                  | now declarative                                                                                                                                                 |
+| ----------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Writer.add_keyword` (bespoke method in the sacred fragment + `# jm:hand` `.pyi` stub)                            | codec method: `codec="blue_keyword"` + `sink_fn` + a `role="variant"` param; jm packs the Python scalar-or-sequence into a host-order buffer and calls the sink |
+| `Reader.keywords` (`value_type="object"` → hand-written `wfm_reader_keyword_value()` in `wfm_reader_ext_extra.c`) | container property: `type="dict"` + `codec` + `entry_fn` cursor; jm decodes each entry back to Python and emits a precise `.pyi` union                          |
+
+The `[codec.blue_keyword]` table lives in `just-makeit.toml` (discriminant
+`char`, `scalar_collapse=true`, one entry per type code A/B/I/L/T/X/F/D). jm
+generates the entire binding — per-code pack/decode, refcounting, every error
+path, and the `.pyi` union (`str | int | float | Sequence[int] | Sequence[float]`
+in, `list[…]` out) — so there is **no hand marshaler on either side**. The write
+`sink_fn` and the read `entry_fn`/struct stay the user's pure-C contract, exactly
+as before. `wfm_reader_ext_extra.c` is **deleted**; the `add_keyword` hand method
+and its `# jm:hand` stub are **gone**.
+
+**`entry_type` is REQUIRED** — jm derives the entry struct as `<obj>_<prop>_t`
+(`wfm_reader_keywords_t`), but doppler's decoded struct is `wfm_keyword_t`, so the
+property sets `entry_type = "wfm_keyword_t"`. (Filed as the entry_type finding on
+jm#564.) The **codec now owns the error messages** (`add_keyword failed`,
+`unsupported code`, the C-format `TypeError`), so two writer error-path tests
+match the codec's canonical wording; a `doc` key restores the rich docstring.
+
+Verified against released 0.33.9: `jm status --check` clean (19943 files),
+`jm apply` leaves the generated `.pyi`/fragments **byte-identical** to the
+pre-release branch build (only the pins move), 462 wfm pytest + the C
+reader/writer round-trips + the stub-doctest gate all green.
+
+**NB — `wfm.Plan` save/restore stays blocked.** The Plan branch needs
+**gh-565** (zero-binding `bytes`/`path` handle constructors + `returns="bytes"` +
+`[[module.X.factories]]`), which is still in jm's **`[Unreleased]`** section, NOT
+in 0.33.9. Do not bump its manifest until gh-565 ships in a release.
+
 ### 0.33.6 adoptions — `wfm.Reader`/`wfm.Writer` are FULLY declarative (pin: 0.33.6)
 
 The CI drift gate pins **0.33.6**; `jm_version` is stamped 0.33.6. **Drive

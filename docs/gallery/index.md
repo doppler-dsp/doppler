@@ -46,6 +46,7 @@ FFT, ring buffers, C programs, or the NATS streaming demo? Those live on the
 - [Streaming Async Despreader](async-despread.md) — `Dll(segments)` PN-epoch despreader.
 - [Despreader (full continuous receiver)](despreader.md) — a combined carrier + code tracking receiver.
 - [Full-Chain Lock-Up](receiver-lock.md) — `Dll -> Costas -> SymbolSync` cold-started with no code, carrier, or timing knowledge, watched over one shared `Telemetry` context.
+- [Continuous Async DSSS Receiver](async-dsss-receiver.md) — `Acquisition -> Dll(segments) -> MpskReceiver` at real chip/symbol rates.
 
 ## Synchronization Loops
 

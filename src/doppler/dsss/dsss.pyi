@@ -586,7 +586,7 @@ class Acquisition:
 
     @property
     def underpowered(self) -> bool:
-        """True when pd_predicted < pd (the search cannot meet the target)."""
+        """True when pd_predicted < pd -- the search cannot meet the target pd at this cn0_dbhz and geometry. The engine still builds a best-effort grid rather than failing; because C cannot raise a Python warning from a successful create, construction also emits a UserWarning in this case."""
 
     @property
     def symbol_rate(self) -> float:
@@ -753,7 +753,7 @@ class BurstAcquisition:
 
     @property
     def underpowered(self) -> bool:
-        """True when pd_predicted < pd (the search cannot meet the target)."""
+        """True when pd_predicted < pd -- the search cannot meet the target pd at this cn0_dbhz and geometry. The engine still builds a best-effort grid rather than failing; because C cannot raise a Python warning from a successful create, construction also emits a UserWarning in this case."""
 
     def destroy(self) -> None:
         """Release C resources immediately."""

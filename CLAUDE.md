@@ -598,11 +598,54 @@ touches `jm apply`/`status` codegen paths doppler already exercises
 before this fix and are unaffected; the bug was in the *scaffolding*
 path, not the steady-state apply path).
 
+### 0.33.11 adoptions — zero-binding Plan save/restore + write_blue_header goes declarative (gh-565/353/363, pin: 0.33.11)
+
+The CI drift gate now pins **0.33.11** (`ci.yml` + `perf-regression.yml`);
+`jm_version` is stamped 0.33.11. **Drive doppler with
+`uvx --from 'just-makeit==0.33.11' just-makeit …`.** 0.33.10 + 0.33.11 shipped
+three doppler-driven feature families, all adopted:
+
+**1. Zero-binding `wfm.Plan` save/restore (gh-565, 0.33.10 + 0.33.11).** A
+`kind="handle"` module round-trips to `bytes`/file with **no `_ext.c`**:
+`type="bytes"` init-param, a `returns="bytes"` method (`out_len_fn` sizes it),
+`[[module.X.factories]]` module-level alt-constructors, and (0.33.11) a handle
+method `path` arg + `error="OSError"` int→raise. Adopted on `wfm_plan`: `save()`,
+`dump(path)`, `PlanFromBlob(bytes)`/`PlanFromFile(path)` over the hand-written C
+save/restore ABI. **Gotchas that cost time:** handle-method args are
+`[[module.X.methods.args]]`, NOT the object-only `params` key (a `params` path
+arg silently no-ops); a factory's re-exported names must be added to
+`[module.wfm.reexports]` or `__init__.py` drifts; the public `Plan` is a thin
+compose.py wrapper over the generated handle, so `save`/`dump` delegate and the
+factories re-wrap the restored handle (exposure only — all serialize/file logic
+in C). See `[[project-plan-save-codec]]` memory.
+
+**2. `write_blue_header` → generated `jm function` (gh-353 path/enum + gh-363
+check_return).** Retired the *last* hand binding compose.py flagged (its
+`_STYPES`/`_ENDIANS`/`_idx` third copy of the enum SSOT is gone). A module
+function now takes `type="path"` + string-enum params **referencing the
+`[[enum]]` SSOT** via `type="int"` + `enum="stype"`/`enum="endian"` (NOT
+`type="enum:stype"` — that KeyErrors; the `enum` key on the param is the trigger,
+see `_build_params_parse`), and `check_return=true` raises on a non-zero `int`
+return. **Hosted on the `wfm_writer` module, not the base `wfm` module** — the C
+kernel `wfm_blue_write_hcb` lives in `wfm_writer_core`, which drags the
+keyword/cJSON chain; putting the function on base `wfm` would invert the layering
+(base→writer). A thin `write_blue_header.c` shim opens the path and calls the
+shared FILE-based kernel. With its only surface migrated, the **`_wfmcompose`
+(`wfmcompose_py`) `no_generate` module was fully retired** (decl + source dir +
+top-level `add_subdirectory`). NB: `bool` params inject `bool` into the module
+header without `<stdbool.h>` → use `type="int"` for a C-`int` flag.
+
+**3. Parallel `Plan.prepare()` (doppler-internal, not a jm feature).**
+`native/inc/dp_parallel.h` — doppler's **first C-level threading**: a bounded
+parallel-for (pthread + lock-free fetch-add cursor, serial fallback) fans the
+independent per-source signal builds across cores in `cache_segment_signals`
+(threshold-gated ≥4096 samples, >1 source; bit-exact, TSan-clean, ~9.4× on 20
+cores). Links `Threads::Threads` (already located for the stream component).
+
 ### 0.33.9 adoptions — the variant codec retires both keyword fragments (gh-554, pin: 0.33.9)
 
-The CI drift gate now pins **0.33.9** (`ci.yml` + `perf-regression.yml`);
-`jm_version` is stamped 0.33.9. **Drive doppler with
-`uvx --from 'just-makeit==0.33.9' just-makeit …`.** 0.33.9 ships the
+The CI drift gate previously pinned **0.33.9** (`ci.yml` + `perf-regression.yml`);
+`jm_version` was stamped 0.33.9 (superseded by 0.33.11 above). 0.33.9 ships the
 doppler-driven **variant codec** (gh-554): a top-level `[codec.X]` table maps a
 runtime type code (the BLUE keyword's `char`) to a C element width **once**, and
 that single declaration drives BOTH directions, so they cannot drift. This

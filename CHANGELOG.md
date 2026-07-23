@@ -13,6 +13,26 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+## [0.37.0] — 2026-07-23
+
+### Added
+
+- **`wfm.Plan` save / restore** — a prepared `Plan` (the prepare-once stimulus
+    engine) can now be serialized so its one-time DSP is paid once across
+    processes or machines. `plan.save()` returns the cache as `bytes`,
+    `plan.dump(path)` writes it to a file, and the module factories
+    `PlanFromBlob(blob)` / `PlanFromFile(path)` reconstruct a `Plan` without
+    re-running `prepare()`. The blob carries a build-time DSP-source
+    fingerprint, so a stale cache transparently rebuilds rather than returning
+    wrong samples. Restore of a large scene is a `memcpy` instead of the full
+    `build_synth` DSP (55 s → milliseconds in the WCDMA case).
+- **`Plan.prepare()` runs across cores** — the per-source DSP for a
+    many-signal segment is now fanned out over a bounded pthread pool
+    (`dp_parallel.h`, doppler's first C-level threading), gated on signal
+    count and sample size so tiny scenes stay serial. Bit-for-bit identical to
+    the serial result; ~9× on a 20-core host for a crowded band. See the
+    [A Crowded Band](docs/gallery/crowded-band.md) gallery example.
+
 ### Removed
 
 - **`doppler.wfm.read_iq`** (and the `doppler.wfm.readback` module) — the
@@ -3019,6 +3039,7 @@ ______________________________________________________________________
 [0.34.0]: https://github.com/doppler-dsp/doppler/compare/v0.33.5...v0.34.0
 [0.35.0]: https://github.com/doppler-dsp/doppler/compare/v0.34.0...v0.35.0
 [0.36.0]: https://github.com/doppler-dsp/doppler/compare/v0.35.0...v0.36.0
+[0.37.0]: https://github.com/doppler-dsp/doppler/compare/v0.36.0...v0.37.0
 [0.4.0]: https://github.com/doppler-dsp/doppler/compare/v0.3.7...v0.4.0
 [0.4.1]: https://github.com/doppler-dsp/doppler/compare/v0.4.0...v0.4.1
 [0.5.0]: https://github.com/doppler-dsp/doppler/compare/v0.4.1...v0.5.0
@@ -3031,4 +3052,4 @@ ______________________________________________________________________
 [0.7.0]: https://github.com/doppler-dsp/doppler/compare/v0.6.0...v0.7.0
 [0.8.0]: https://github.com/doppler-dsp/doppler/compare/v0.7.0...v0.8.0
 [0.9.0]: https://github.com/doppler-dsp/doppler/compare/v0.8.0...v0.9.0
-[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.36.0...HEAD
+[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.37.0...HEAD

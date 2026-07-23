@@ -374,7 +374,7 @@ and `SampleClock(fs, resync=True)` re-anchors to "now" on each underrun.
 The SigMF sidecar is now `Composer(...).to_sigmf(...)` — see the `Composer`
 class above.
 
-::: doppler.wfm.compose.write_blue_header
+::: doppler.wfm.write_blue_header
 
 ::: doppler.wfm.rrc_taps
 

@@ -21,9 +21,11 @@ composer lives entirely in the ``.so``; ``jm`` owns the binding). They are
 sample generation
 (:meth:`Synth.steps`), the ``pattern`` / ``f_start`` input sugar, the flat
 single-source :class:`Segment` view, :meth:`Composer.stream`, and the resolved
-:meth:`Composer.to_dict` are all generated. Only the container writers/readers
-(BLUE / SigMF / NATS / sample-clock) stay hand-written here, over the transport
-binding ``_wfmcompose``.
+:meth:`Composer.to_dict` are all generated. The container writers/readers
+(:class:`Writer` / :class:`Reader` / :class:`StreamSink`), the sample clock,
+and :func:`write_blue_header` are likewise generated extension types/functions
+re-exported here; the :class:`Plan` wrapper (with its save/restore factories)
+is the only hand-written glue left in this module.
 
 Examples
 --------
@@ -40,18 +42,14 @@ Examples
 from __future__ import annotations
 
 import json as _json
-import os
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    import os
     from collections.abc import Iterator, Sequence
 
     import numpy as np
     from numpy.typing import NDArray
-
-# _wfmcompose: transport binding (sigmf/DSP helpers — the transport classes are
-# now the generated kind="handle" types below).
-from . import _wfmcompose as _c
 
 # The transport surface is now the generated kind="handle" types — re-export
 # them through compose so `doppler.wfm.compose.Writer` (etc.) stays the import
@@ -88,74 +86,10 @@ from .wfm_reader import Reader  # noqa: F401  (re-export)
 from .wfm_sink import StreamSink  # noqa: F401  (re-export)
 from .wfm_writer import Writer  # noqa: F401  (re-export)
 
-# string-enum ↔ C-int tables for the remaining hand binding
-# (write_blue_header); must match native/src/app/wfmgen.c and the manifest
-# [[enum]] stype/endian.
-#
-# This is a third copy of that enum SSOT (doppler#179 review #8). It
-# survives because write_blue_header is the last unmigrated hand binding:
-# turning it into a generated `jm function` would let the enum strings
-# resolve against the single manifest [[enum]] SSOT, deleting these tables
-# — but that needs `path` + `enum` arg support in jm's module-function
-# generator, which it does not yet have (tracked as just-makeit#353). Until
-# then, the mapping has to live here.
-_STYPES = ("cf32", "cf64", "ci32", "ci16", "ci8")
-_ENDIANS = ("le", "be")
-
-
-def _idx(name: str, table: tuple[str, ...], what: str) -> int:
-    try:
-        return table.index(name)
-    except ValueError:
-        raise ValueError(
-            f"{what} must be one of {table!r}, got {name!r}"
-        ) from None
-
-
-# ── module-level helpers ─────────────────────────────────────────────────────
-
-# sigmf_meta is now the generated Composer.to_sigmf() method (delegated
-# serializer over the resolved segments) — call Composer(spec).to_sigmf(...).
-
-
-def write_blue_header(
-    path: str | os.PathLike,
-    *,
-    sample_type: str = "cf32",
-    endian: str = "le",
-    fs: float = 1e6,
-    fc: float = 0.0,
-    total: int,
-    data_start: float = 0.0,
-    detached: bool = True,
-) -> None:
-    """Write a standalone BLUE type-1000 HCB header (the detached ``.hdr``).
-
-    The 512-byte header carries the ``"BLUE"`` magic, byte order, ``data_size``
-    (``total`` × bytes-per-sample), the type-1000 tag and ``xdelta = 1/fs``;
-    pair it with a detached ``.det`` body of raw interleaved I/Q.
-
-    Examples
-    --------
-    >>> import os, tempfile
-    >>> from doppler.wfm.compose import write_blue_header
-    >>> p = os.path.join(tempfile.mkdtemp(), "cap.hdr")
-    >>> write_blue_header(p, sample_type="cf32", fs=1e6, total=512)
-    >>> with open(p, "rb") as f:
-    ...     head = f.read()
-    >>> head[:4], len(head)
-    (b'BLUE', 512)
-    """
-    _c.blue_write_hcb(
-        os.fspath(path),
-        _idx(sample_type, _STYPES, "sample_type"),
-        _idx(endian, _ENDIANS, "endian"),
-        float(fs),
-        float(fc),
-        float(data_start),
-        int(total),
-        bool(detached),
-    )
+# write_blue_header is now a generated wfm_writer module function (path + enum
+# args + check_return, jm gh-353/gh-363) — doppler.wfm.write_blue_header comes
+# from the wfm_writer extension now, not a hand binding here. sigmf_meta is the
+# generated Composer.to_sigmf() method.
 
 
 # rrc_taps / dsss_spread are now generated `variable_output` module functions

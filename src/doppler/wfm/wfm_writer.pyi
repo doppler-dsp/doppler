@@ -1,6 +1,7 @@
 # wfm/wfm_writer.pyi — type stubs for the wfm_writer C extension.
 from typing import final, Literal
 from collections.abc import Sequence
+import os
 import numpy as np
 from numpy.typing import NDArray
 
@@ -95,3 +96,6 @@ class Writer:
     def __enter__(self) -> "Writer": ...
 
     def __exit__(self, *args: object) -> None: ...
+
+def write_blue_header(path: str | os.PathLike, sample_type: str = 'cf32', endian: str = 'le', fs: float = 1e6, fc: float = 0.0, data_start: float = 0.0, total: int = 0, detached: int = 1) -> None:
+    """Write a standalone BLUE type-1000 HCB header (the detached .hdr): 512 bytes carrying the BLUE magic, byte order, data_size (total x bytes-per-sample), the type-1000 tag and xdelta = 1/fs. Pair it with a detached .det body of raw interleaved I/Q. Raises on a failed write."""

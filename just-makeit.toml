@@ -345,6 +345,52 @@ objects = ["wfm_writer"]
 package = "wfm"
 extra_link_libs = ["m"]
 
+# BLUE type-1000 HCB header writer, retiring the last hand binding (was
+# compose.py's write_blue_header + its 3rd copy of the stype/endian tables).
+# gh-353 path/enum args + gh-363 check_return — jm built these for exactly this
+# "path + string-enum header writer" shape; enum:stype/endian resolve against
+# the [[enum]] SSOT, and the int status raises on a failed write. Lives here,
+# not on the base wfm module, because wfm_writer_core (with its keyword/cJSON
+# deps) is already linked on this module.
+[[module.wfm_writer.functions]]
+name = "write_blue_header"
+doc = "Write a standalone BLUE type-1000 HCB header (the detached .hdr): 512 bytes carrying the BLUE magic, byte order, data_size (total x bytes-per-sample), the type-1000 tag and xdelta = 1/fs. Pair it with a detached .det body of raw interleaved I/Q. Raises on a failed write."
+return_type = "int"
+check_return = true
+[[module.wfm_writer.functions.params]]
+name = "path"
+type = "path"
+[[module.wfm_writer.functions.params]]
+name = "sample_type"
+type = "int"
+enum = "stype"
+default = "cf32"
+[[module.wfm_writer.functions.params]]
+name = "endian"
+type = "int"
+enum = "endian"
+default = "le"
+[[module.wfm_writer.functions.params]]
+name = "fs"
+type = "double"
+default = "1e6"
+[[module.wfm_writer.functions.params]]
+name = "fc"
+type = "double"
+default = "0.0"
+[[module.wfm_writer.functions.params]]
+name = "data_start"
+type = "double"
+default = "0.0"
+[[module.wfm_writer.functions.params]]
+name = "total"
+type = "size_t"
+default = "0"
+[[module.wfm_writer.functions.params]]
+name = "detached"
+type = "int"
+default = "1"
+
 [module.wfm_sink]
 kind            = "handle"
 backing         = "wfm_stream_sink"
@@ -476,8 +522,8 @@ extra_link_libs = ["wfm_dsp_core"]
 # straight from their .so submodules — zero hand-Python). Composition surface +
 # the remaining free functions still come from compose.py.
 [module.wfm.reexports]
-compose = ["Synth", "tone", "bpsk", "qpsk", "pn", "noise", "chirp", "bits", "Segment", "Timeline", "Composer", "write_blue_header", "Plan", "prepare", "PlanFromBlob", "PlanFromFile"]
-wfm_writer = ["Writer"]
+compose = ["Synth", "tone", "bpsk", "qpsk", "pn", "noise", "chirp", "bits", "Segment", "Timeline", "Composer", "Plan", "prepare", "PlanFromBlob", "PlanFromFile"]
+wfm_writer = ["Writer", "write_blue_header"]
 wfm_reader = ["Reader"]
 wfm_sink = ["StreamSink"]
 sample_clock = ["SampleClock"]
@@ -1122,9 +1168,6 @@ no_generate = "true"
 no_generate = "true"
 
 [module.stream]
-no_generate = "true"
-
-[module.wfmcompose_py]
 no_generate = "true"
 
 [module.ddc]

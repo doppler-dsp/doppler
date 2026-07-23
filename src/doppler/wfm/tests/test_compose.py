@@ -21,7 +21,7 @@ import time
 import numpy as np
 import pytest
 
-from doppler.wfm import dsss_spread, mls_poly, rrc_taps
+from doppler.wfm import dsss_spread, mls_poly, rrc_taps, write_blue_header
 from doppler.wfm.compose import (
     Composer,
     Reader,
@@ -35,7 +35,6 @@ from doppler.wfm.compose import (
     prepare,
     qpsk,
     tone,
-    write_blue_header,
 )
 from doppler.wfm.readback import read_iq
 

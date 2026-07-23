@@ -10,8 +10,8 @@ from .wfm import PN, bpsk_map, qpsk_map, wfm_awgn_amplitude, wfm_ebno_to_snr_db,
 from .sample_clock import SampleClock  # noqa: E402
 from .wfm_sink import StreamSink  # noqa: E402
 from .wfm_reader import Reader  # noqa: E402
-from .wfm_writer import Writer  # noqa: E402
+from .wfm_writer import Writer, write_blue_header  # noqa: E402
 from .readback import read_iq  # noqa: E402
-from .compose import Synth, tone, bpsk, qpsk, pn, noise, Segment, Timeline, Composer, write_blue_header, bits, chirp, Plan, prepare, PlanFromBlob, PlanFromFile  # noqa: E402
+from .compose import Synth, tone, bpsk, qpsk, pn, noise, Segment, Timeline, Composer, bits, chirp, Plan, prepare, PlanFromBlob, PlanFromFile  # noqa: E402
 
-__all__ = ["PN", "bpsk_map", "qpsk_map", "wfm_awgn_amplitude", "wfm_ebno_to_snr_db", "_SynthEngine", "mls_poly", "rrc_taps", "dsss_spread", "crc16", "Gold", "Writer", "Reader", "StreamSink", "SampleClock", "Synth", "tone", "bpsk", "qpsk", "pn", "noise", "Segment", "Timeline", "Composer", "write_blue_header", "bits", "chirp", "Plan", "prepare", "PlanFromBlob", "PlanFromFile", "read_iq"]
+__all__ = ["PN", "bpsk_map", "qpsk_map", "wfm_awgn_amplitude", "wfm_ebno_to_snr_db", "_SynthEngine", "mls_poly", "rrc_taps", "dsss_spread", "crc16", "Gold", "Writer", "Reader", "StreamSink", "SampleClock", "write_blue_header", "Synth", "tone", "bpsk", "qpsk", "pn", "noise", "Segment", "Timeline", "Composer", "bits", "chirp", "Plan", "prepare", "PlanFromBlob", "PlanFromFile", "read_iq"]

@@ -1,11 +1,10 @@
 # compose.pyi — type stubs for the hand-written composer wrapper.
 #
-# Hand-owned (no_generate): the C extension is doppler.wfm._wfmcompose and the
-# ergonomic API lives in compose.py. The doctests here are the CI-gated surface
+# Hand-owned: the ergonomic composer + Plan API lives in compose.py, wrapping
+# the generated wfm extension types. The doctests here are the CI-gated surface
 # (pytest --doctest-glob='*.pyi'); they run against the built extension.
 from __future__ import annotations
 
-import os
 from typing import Sequence
 
 import numpy as np
@@ -37,32 +36,7 @@ from .wfm_sink import StreamSink as StreamSink
 from .wfm_writer import Writer as Writer
 
 # sigmf_meta is now the generated Composer.to_sigmf() method (see wfm_compose.pyi).
-
-def write_blue_header(
-    path: str | os.PathLike,
-    *,
-    sample_type: str = ...,
-    endian: str = ...,
-    fs: float = ...,
-    fc: float = ...,
-    total: int,
-    data_start: float = ...,
-    detached: bool = ...,
-) -> None:
-    """Write a standalone BLUE type-1000 HCB header (the detached ``.hdr``).
-
-    Examples
-    --------
-    >>> import os, tempfile
-    >>> from doppler.wfm.compose import write_blue_header
-    >>> p = os.path.join(tempfile.mkdtemp(), "cap.hdr")
-    >>> write_blue_header(p, sample_type="cf32", fs=1e6, total=512)
-    >>> with open(p, "rb") as f:
-    ...     head = f.read()
-    >>> head[:4], len(head)
-    (b'BLUE', 512)
-
-    """
-    ...
+# write_blue_header is now a generated wfm_writer module function (see
+# wfm_writer.pyi) — no longer a hand binding here.
 
 # rrc_taps / dsss_spread are generated module functions — see wfm.pyi.

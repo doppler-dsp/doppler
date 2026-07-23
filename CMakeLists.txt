@@ -400,7 +400,6 @@ target_sources(doppler_lib_static PRIVATE $<TARGET_OBJECTS:wfm_reader_core>)
 add_subdirectory(native/src/buffer)
 add_subdirectory(native/src/telemetry)
 add_subdirectory(native/src/stream)
-add_subdirectory(native/src/wfmcompose_py)
 # The detection module's free functions (marcum_q, det_* sizing) live in
 # module-level TUs, so jm emits no C test target for them — register the
 # module-level test here (per-object tests are jm-generated in their own

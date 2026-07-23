@@ -1,7 +1,9 @@
 # source/source.pyi — type stubs for the source C extension.
+from typing import final
 import numpy as np
 from numpy.typing import NDArray
 
+@final
 class NCO:
     """Create an NCO instance. Allocates and initialises the phase accumulator to zero, converts norm_freq to the integer phase_inc = floor(frac(norm_freq) × 2^32), and stores nmax for scaled output.  The NCO is immediately ready to call nco_steps_u32 / nco_steps_u32_scaled / nco_steps_u32_ovf.
 
@@ -262,6 +264,7 @@ class NCO:
 
     def __exit__(self, *args: object) -> None: ...
 
+@final
 class LO:
     """Create an LO instance. Allocates state, sets phase to 0, and derives phase_inc from norm_freq.  Initialises the shared 65536-entry float LUT on the first call (single-threaded concern: call lo_create() before spawning threads that share LO instances).
 
@@ -385,6 +388,7 @@ class LO:
 
     def __exit__(self, *args: object) -> None: ...
 
+@final
 class AWGN:
     """Create an AWGN generator. Allocates state, seeds the xoshiro256++ RNG via SplitMix64, and sets up both the scalar and the AVX2 parallel streams.  The initial seed is stored so awgn_reset() can reproduce the exact same stream.
 

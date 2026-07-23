@@ -1,7 +1,9 @@
 # agc/agc.pyi — type stubs for the agc C extension.
+from typing import final
 import numpy as np
 from numpy.typing import NDArray
 
+@final
 class AGC:
     """Construct a log-domain feedback AGC and return its heap state. The loop integrator starts at 0 dB (unity gain) and the power detector p_avg is pre-seeded to 10^(ref_db/10) linear, so the first block of on-target samples produces no transient.  Three parameters tune the closed-loop behaviour: ref_db sets the target, loop_bw sets the convergence speed, and alpha sets the detector smoothing.
 

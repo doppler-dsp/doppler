@@ -1,8 +1,9 @@
 # track/track.pyi — type stubs for the track C extension.
-from typing import Literal
+from typing import final, Literal
 import numpy as np
 from numpy.typing import NDArray
 
+@final
 class LoopFilter:
     """LoopFilter component.
 
@@ -112,6 +113,7 @@ class LoopFilter:
 
     def __exit__(self, *args: object) -> None: ...
 
+@final
 class Costas:
     """Costas component.
 
@@ -283,6 +285,7 @@ class Costas:
 
     def __exit__(self, *args: object) -> None: ...
 
+@final
 class Dll:
     """Create a DLL instance (COPIES code).
 
@@ -531,6 +534,7 @@ class Dll:
 
     def __exit__(self, *args: object) -> None: ...
 
+@final
 class SymbolSync:
     """SymbolSync component.
 
@@ -731,6 +735,7 @@ class SymbolSync:
 
     def __exit__(self, *args: object) -> None: ...
 
+@final
 class CarrierMpsk:
     """Create an M-PSK carrier loop instance.
 
@@ -835,6 +840,7 @@ class CarrierMpsk:
 
     def __exit__(self, *args: object) -> None: ...
 
+@final
 class CarrierNda:
     """Create an NDA carrier loop instance.
 
@@ -1002,6 +1008,7 @@ class CarrierNda:
 
     def __exit__(self, *args: object) -> None: ...
 
+@final
 class MpskReceiver:
     """Create an M-PSK receiver.
 

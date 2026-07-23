@@ -1,8 +1,9 @@
 # wfm/wfm_reader.pyi — type stubs for the wfm_reader C extension.
-from typing import Any, Literal
+from typing import Any, final, Literal
 import numpy as np
 from numpy.typing import NDArray
 
+@final
 class Reader:
     """Open a capture, auto-detecting its container.
 
@@ -69,7 +70,7 @@ class Reader:
         """Num samples."""
 
     @property
-    def keywords(self) -> dict[str, Any]:
+    def keywords(self) -> dict[str, str | int | float | list[int] | list[float]]:
         """The BLUE extended header as a {tag: value} dict, in file order; empty when the capture carries no extended header. Values follow the keyword type: a str for A, an int/float for a single-element numeric keyword, a list for a multi-element one. For a detached capture these come from the HEADER file."""
 
     def close(self) -> None:

@@ -1,7 +1,7 @@
 include = ["objects/*.toml"]
 
 [project]
-jm_version = "0.33.6"
+jm_version = "0.33.8"
 name = "doppler"
 version = "0.1.0"
 build = "cmake"
@@ -99,6 +99,26 @@ status_allow = [
 # hand-trimmed after each `jm apply`. Declaring it here stops the reintroduction.
 [project.bench]
 block_sizes = [65536]
+
+# ── BLUE extended-header keyword codec (gh-554) ──────────────────────────────
+# ONE variant-codec table drives BOTH directions of the keyword binding:
+# Writer.add_keyword packs a Python value into a discriminant-tagged buffer, and
+# Reader.keywords decodes each entry back — so the two cannot drift, and neither
+# needs a hand-written fragment. Codes/widths mirror wfm_keywords.c's Table-26
+# set (Midas BLUE 1.1 §3.3.1); `T` is the deprecated 32-bit-int alias of `L`.
+[codec.blue_keyword]
+discriminant = "char"
+scalar_collapse = true
+entries = [
+  { code = "A", ctype = "char", bytes = true },  # -> str
+  { code = "B", ctype = "int8_t" },               # -> int
+  { code = "I", ctype = "int16_t" },              # -> int
+  { code = "L", ctype = "int32_t" },              # -> int
+  { code = "T", ctype = "int32_t" },              # -> int (deprecated alias of L)
+  { code = "X", ctype = "int64_t" },              # -> int
+  { code = "F", ctype = "float" },                # -> float
+  { code = "D", ctype = "double" },               # -> float
+]
 
 # ── Waveform enum single-source-of-truth (gh-285) ────────────────────────────
 # One string↔int table per synth enum; list order IS the C enum value

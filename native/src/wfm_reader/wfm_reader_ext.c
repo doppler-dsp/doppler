@@ -13,7 +13,6 @@
 
 
 #include "wfm_reader_ext_wfm_reader.c"
-#include "wfm_reader_ext_extra.c"  /* hand-written — jm never modifies */
 
 /* ======================================================== */
 /* Module                                                    */

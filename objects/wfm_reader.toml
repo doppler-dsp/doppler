@@ -105,13 +105,19 @@ type = "size_t"
 # itself. count_fn/key_fn default from the object+property name. Making it
 # declarative also lands `keywords` in the .pyi, which a fragment method never
 # reached.
+# The BLUE extended header as a {tag: value} dict (gh-554). The variant codec
+# [codec.blue_keyword] decodes each entry to its Python type; jm generates the
+# whole getter (loop + per-code decode + scalar_collapse), so the hand-written
+# wfm_reader_keyword_value / wfm_reader_ext_extra.c is gone. entry_fn is the
+# existing cursor returning a wfm_keyword_t* (type/count/elem_size/value).
 [[wfm_reader.properties]]
 name = "keywords"
 type = "dict"
-value_type = "object"
+codec = "blue_keyword"
 count_fn = "wfm_reader_num_keywords"
 key_fn = "wfm_reader_keyword_tag"
-value_fn = "wfm_reader_keyword_value"
+entry_fn = "wfm_reader_keyword"
+entry_type = "wfm_keyword_t"
 doc = """The BLUE extended header as a {tag: value} dict, in file order; empty when the capture carries no extended header. Values follow the keyword type: a str for A, an int/float for a single-element numeric keyword, a list for a multi-element one. For a detached capture these come from the HEADER file."""
 
 # close() is the name this type has always released its file under, and every

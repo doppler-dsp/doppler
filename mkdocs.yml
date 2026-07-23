@@ -147,6 +147,7 @@ nav:
           - Waveform Write: gallery/wfm-write.md
           - WCDMA Carriers: gallery/wcdma-carriers.md
           - "Prepare Once, Sweep Many (Plan)": gallery/plan.md
+          - "A Crowded Band (parallel prepare)": gallery/crowded-band.md
           - AWGN: gallery/awgn.md
           - Doppler Channel: gallery/doppler-channel.md
           - LO: examples/python-lo.md

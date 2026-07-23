@@ -31,7 +31,10 @@ target_include_directories(wfm_compose_core PUBLIC
     ${CMAKE_SOURCE_DIR}/native/inc
     ${CMAKE_SOURCE_DIR}/native/inc/wfm
     ${CMAKE_SOURCE_DIR}/vendor/cjson)
-target_link_libraries(wfm_compose_core PUBLIC m)
+# wfm_plan.c fans the per-source signal build across cores (dp_parallel.h);
+# Threads::Threads (located once at the top-level CMakeLists) is PUBLIC so the
+# tests and the .so that link this object library pick up -pthread transitively.
+target_link_libraries(wfm_compose_core PUBLIC m Threads::Threads)
 
 add_executable(test_wfm_compose
     ${CMAKE_SOURCE_DIR}/native/tests/test_wfm_compose.c)

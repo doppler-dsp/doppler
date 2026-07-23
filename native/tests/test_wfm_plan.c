@@ -89,9 +89,80 @@ any_diff (const float _Complex *a, const float _Complex *b)
   return 0;
 }
 
+/* Force the parallel per-source build and prove it is bit-identical to a full
+ * serial compose. With L=1024 (< WFM_PLAN_PARALLEL_MIN_SAMPLES) the rest of
+ * this file exercises only the serial fan-out fallback; this is the one case
+ * that actually spins up dp_parallel_for's workers — many sources, a long
+ * enough ON-time to cross the threshold. Distinct freq/seed/level per source
+ * so a mis-slotted concurrent write would not accidentally still sum right. */
+#define NPAR_SRC 12u
+#define NPAR_LEN 8192u /* >= WFM_PLAN_PARALLEL_MIN_SAMPLES (4096) */
+
+static int
+test_parallel_build_bit_exact (void)
+{
+  wfm_source_t src[NPAR_SRC];
+  memset (src, 0, sizeof src);
+  for (unsigned k = 0; k < NPAR_SRC; k++)
+    {
+      /* tone / qpsk / bpsk in rotation; all clean so every source is its own
+       * non-noise work item (no appended noise), maximising the fan-out. */
+      src[k].type      = (k % 3 == 0) ? 0 : (k % 3 == 1) ? 4 : 3;
+      src[k].freq      = -3e5 + (double)k * 5e4;
+      src[k].snr       = 100.0; /* clean */
+      src[k].snr_mode  = 0;
+      src[k].seed      = 100u + k;
+      src[k].sps       = 8;
+      src[k].pn_length = 7;
+      src[k].level     = -3.0 * (double)(k % 4);
+    }
+  wfm_segment_t seg  = { .sources     = src,
+                         .n_sources   = NPAR_SRC,
+                         .fs          = 1e6,
+                         .num_samples = NPAR_LEN,
+                         .off_samples = 0 };
+  char         *json = wfm_spec_to_json (&seg, 1, 0, 0, 0.0);
+  CHECK (json, "par: spec_to_json");
+
+  size_t          nbytes = NPAR_LEN * sizeof (float _Complex);
+  float _Complex *ref    = malloc (nbytes);
+  float _Complex *got    = malloc (nbytes);
+  CHECK (ref && got, "par: alloc");
+
+  /* Full serial compose — the ground truth. */
+  wfm_compose_state_t *c = wfm_compose_from_json (json);
+  CHECK (c, "par: compose_from_json");
+  size_t        total = 0, n;
+  float complex buf[257];
+  while ((n = wfm_compose_execute (c, buf, 257)) > 0 && total + n <= NPAR_LEN)
+    {
+      memcpy (ref + total, buf, n * sizeof *buf);
+      total += n;
+    }
+  wfm_compose_destroy (c);
+  CHECK (total == NPAR_LEN, "par: compose length");
+
+  /* Parallel prepare (fans the 12 source builds across cores) + baseline. */
+  wfm_plan_t *p = wfm_plan_prepare (json);
+  CHECK (p, "par: prepare (parallel build)");
+  CHECK (wfm_plan_n_sources (p) == NPAR_SRC, "par: n_sources");
+  CHECK (wfm_plan_render (p, "{}", got) == NPAR_LEN, "par: render baseline");
+  CHECK (memcmp (ref, got, nbytes) == 0,
+         "PAR: parallel render({}) == serial compose, bit-for-bit");
+
+  wfm_plan_destroy (p);
+  free (ref);
+  free (got);
+  free (json);
+  return 0;
+}
+
 int
 main (void)
 {
+  if (test_parallel_build_bit_exact ())
+    return 1;
+
   size_t          bytes = L * sizeof (float _Complex);
   float _Complex *ref   = malloc (bytes);
   float _Complex *got   = malloc (bytes);

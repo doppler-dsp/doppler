@@ -30,9 +30,11 @@
 #include "wfm_synth/wfm_synth_core.h"
 
 #include "cJSON.h"
+#include "dp_parallel.h"
 #include "wfm_draw.h"
 
 #include <math.h>
+#include <stdatomic.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -332,41 +334,99 @@ resolve_segment_noise (wfm_plan_segment_t *ps, const wfm_segment_t *g)
   return 0;
 }
 
+/* One source's build: create its synth through the composer's SSOT, render
+ * the clean ON-time into a fresh buffer, and store it at its own flat cache
+ * slot. Each work item reads only shared read-only config (g, ps) and writes
+ * only its own slot[w] — no cross-item state — so the sources of a segment can
+ * be built concurrently and the result is bit-identical to the serial build
+ * (a per-source AWGN seed is deterministic, and the sum is deferred to
+ * render()/at() in fixed order). Failures set a shared flag; a partially
+ * filled cache_sig[] is freed by wfm_plan_destroy (unset slots stay NULL from
+ * calloc). */
+typedef struct
+{
+  wfm_plan_t               *p;
+  const wfm_segment_t      *g;
+  const wfm_plan_segment_t *ps;
+  const size_t             *src_idx; /* g->sources index for work item w    */
+  const size_t             *slot;    /* flat cache_sig/base_gain index for w */
+  atomic_int               *failed;  /* set once if any work item fails      */
+} cache_work_t;
+
+static void
+cache_build_one (size_t w, void *ctx)
+{
+  cache_work_t       *cw  = (cache_work_t *)ctx;
+  const wfm_source_t *src = &cw->g->sources[cw->src_idx[w]];
+  double cache_snr        = cw->ps->bundled ? WFM_SYNTH_SNR_CLEAN : src->snr;
+  wfm_synth_state_t *syn  = wfm_compose_build_synth (
+      src, cw->g->fs, cw->g->num_samples, src->freq, cache_snr, src->f_end, 0,
+      WFM_SEED_ADVANCE_NONE, 0);
+  float _Complex *buf = syn ? malloc (cw->g->num_samples * sizeof *buf) : NULL;
+  if (!syn || !buf)
+    {
+      free (buf);
+      if (syn)
+        wfm_synth_destroy (syn);
+      atomic_store (cw->failed, 1);
+      return;
+    }
+  wfm_synth_steps (syn, buf, cw->g->num_samples);
+  wfm_synth_destroy (syn);
+  cw->p->cache_sig[cw->slot[w]] = buf;
+  cw->p->base_gain[cw->slot[w]] = (float)pow (10.0, src->level / 20.0);
+}
+
+/* Below this ON-time length the per-source build is too cheap for the thread
+ * hand-off to pay for itself, so a multi-source segment stays serial. A single
+ * non-noise source is always serial regardless (dp_parallel_for is a no-op
+ * fan-out at n == 1). */
+#define WFM_PLAN_PARALLEL_MIN_SAMPLES 4096u
+
 /* Cache every clean signal source of segment g at gain 1, into
  * p->cache_sig[ps->sig_off .. +ps->n_sig). A bundled source's own real snr
  * is forced clean for this render (its noise is reconstructed separately,
  * per instance, at materialize time); a SHARED segment's non-noise sources
- * are already clean by the time wfm_resolve_noise ran. Returns 0, or -1 on
- * allocation/synth failure. */
+ * are already clean by the time wfm_resolve_noise ran. The per-source builds
+ * fan out across cores (auto-sized to the online count, one worker per source
+ * at most) — the win for a segment packed with many signals. Returns 0, or -1
+ * on allocation/synth failure. */
 static int
 cache_segment_signals (wfm_plan_t *p, wfm_plan_segment_t *ps,
                        const wfm_segment_t *g)
 {
+  /* Flatten the non-noise sources to work items with their distinct cache
+   * slots (serial, O(n_sources), no DSP) so the heavy build can fan out. */
+  size_t *src_idx = malloc (g->n_sources * sizeof *src_idx);
+  size_t *slot    = malloc (g->n_sources * sizeof *slot);
+  if (!src_idx || !slot)
+    {
+      free (src_idx);
+      free (slot);
+      return -1;
+    }
+  size_t nw = 0;
   size_t si = ps->sig_off;
   for (size_t k = 0; k < g->n_sources; k++)
     {
-      const wfm_source_t *src = &g->sources[k];
-      if (src->type == WFM_SYNTH_NOISE)
+      if (g->sources[k].type == WFM_SYNTH_NOISE)
         continue;
-      double cache_snr       = ps->bundled ? WFM_SYNTH_SNR_CLEAN : src->snr;
-      wfm_synth_state_t *syn = wfm_compose_build_synth (
-          src, g->fs, g->num_samples, src->freq, cache_snr, src->f_end, 0,
-          WFM_SEED_ADVANCE_NONE, 0);
-      float _Complex *buf = syn ? malloc (g->num_samples * sizeof *buf) : NULL;
-      if (!syn || !buf)
-        {
-          free (buf);
-          if (syn)
-            wfm_synth_destroy (syn);
-          return -1;
-        }
-      wfm_synth_steps (syn, buf, g->num_samples);
-      wfm_synth_destroy (syn);
-      p->cache_sig[si] = buf;
-      p->base_gain[si] = (float)pow (10.0, src->level / 20.0);
+      src_idx[nw] = k;
+      slot[nw]    = si;
+      nw++;
       si++;
     }
-  return 0;
+
+  atomic_int failed;
+  atomic_init (&failed, 0);
+  cache_work_t cw = { p, g, ps, src_idx, slot, &failed };
+  int          max_threads
+      = (nw > 1 && g->num_samples >= WFM_PLAN_PARALLEL_MIN_SAMPLES) ? 0 : 1;
+  dp_parallel_for (nw, cache_build_one, &cw, max_threads);
+
+  free (src_idx);
+  free (slot);
+  return atomic_load (&failed) ? -1 : 0;
 }
 
 wfm_plan_t *

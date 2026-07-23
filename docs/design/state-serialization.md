@@ -1,5 +1,10 @@
 # State Serialization — the standard bytes interface
 
+This is the internals doc — the envelope, the cursor helpers, and the CI
+gate. For the practitioner's path (the basic pattern, composed receivers,
+elastic pod hand-off) see the
+[Checkpoint & Resume guide](../guide/state-serialization.md).
+
 Every stateful doppler object can hand its running state to a fresh instance and
 resume **bit-for-bit** — across a thread, a process, or a pod. A decimator
 serialized at sample 1100 and restored into a brand-new decimator produces the

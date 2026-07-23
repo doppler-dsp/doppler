@@ -239,6 +239,7 @@ nav:
       - Power Spectra & Measurements: guide/spectral-psd.md
       - Real-Time Pacing & Timestamping: guide/timing.md
       - Fixed-Point Arithmetic: guide/fixed-point.md
+      - Checkpoint & Resume: guide/state-serialization.md
   - Design:
       - Design: design/index.md
       - API Taxonomy: design/api-taxonomy.md

@@ -10,7 +10,7 @@ golden-path proof that what a user `pip install`s actually works on Python 3.9:
   3. generate every waveform type via `Synth`/factories; FFT-verify the tone
      peak and the noise power (loose tolerances);
   4. `Composer` -> write all four containers (raw / csv / blue / sigmf) across
-     representative sample types -> `read_iq` / `Reader` round-trip, asserting
+     representative sample types -> `Reader` round-trip, asserting
      sample count, dtype, and a correlation check;
   5. `to_json` -> `from_json` parity; `to_sigmf` JSON parses with the expected
      keys.
@@ -71,7 +71,6 @@ EXPECTED_SYMBOLS = {
     "Reader",
     "StreamSink",
     "SampleClock",
-    "read_iq",
 }
 
 results: list[tuple[str, bool, str]] = []
@@ -277,8 +276,8 @@ def _containers() -> str:
     return "5 container/dtype combos"
 
 
-@check("read_iq across sample types")
-def _read_iq() -> str:
+@check("Reader across sample types")
+def _reader_dtypes() -> str:
     x = np.asarray(w.Synth(type="qpsk", sps=2, snr=100.0).steps(1024))
     for st in ("cf32", "cf64", "ci8", "ci16", "ci32"):
         with tempfile.TemporaryDirectory() as d:
@@ -287,7 +286,8 @@ def _read_iq() -> str:
                 p, file_type="raw", sample_type=st, total=len(x)
             ) as wr:
                 wr.write(x)
-            y = w.read_iq(p, st)
+            with w.Reader(p, sample_type=st) as r:
+                y = r.read(1024)
         assert len(y) == 1024, f"{st}: {len(y)}"
     return "5 dtypes"
 

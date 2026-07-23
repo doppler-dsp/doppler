@@ -1,8 +1,11 @@
-"""Round-trip tests for read_iq: generate -> read back -> faithful complex64.
+"""CLI round-trip tests for wfm.Reader: wfmgen writes -> Reader reads back.
 
 Drives the real ``wfmgen`` CLI so the on-disk bytes are exactly what users get,
-then checks read_iq reconstructs the signal within the wire type's
-quantization.
+then checks :class:`doppler.wfm.Reader` reconstructs the signal within the wire
+type's quantization. Reader is the C reader that superseded the old pure-Python
+``read_iq`` helper; the conversion from every wire type to unit-scale
+``complex64`` happens in C, so cf64 also comes back as ``complex64`` (the old
+helper returned a zero-copy ``complex128`` view).
 """
 
 import os
@@ -13,7 +16,7 @@ import subprocess
 import numpy as np
 import pytest
 
-from doppler.wfm.readback import read_iq
+from doppler.wfm import Reader
 
 
 def _wfmgen_bin():
@@ -61,15 +64,28 @@ def _gen(tmp_path, sample_type, endian="le", n=2000):
     return str(out)
 
 
-def test_cf32_is_zero_copy_complex64(tmp_path):
-    iq = read_iq(_gen(tmp_path, "cf32"), "cf32")
+def _read_all(path, sample_type, endian="le"):
+    """Drain a whole raw capture through Reader into one complex64 array."""
+    with Reader(path, sample_type=sample_type, endian=endian) as r:
+        chunks, blk = [], r.read(65536)
+        while len(blk):
+            chunks.append(blk)
+            blk = r.read(65536)
+    return np.concatenate(chunks) if chunks else np.empty(0, np.complex64)
+
+
+def test_cf32_reads_back_as_complex64(tmp_path):
+    iq = _read_all(_gen(tmp_path, "cf32"), "cf32")
     assert iq.dtype == np.complex64
     assert np.isclose(np.mean(np.abs(iq) ** 2), 1.0, atol=0.05)  # clean tone
 
 
-def test_cf64_is_complex128(tmp_path):
-    iq = read_iq(_gen(tmp_path, "cf64"), "cf64")
-    assert iq.dtype == np.complex128
+def test_cf64_reads_back_faithfully(tmp_path):
+    # Reader always yields unit-scale complex64, converting the cf64 wire
+    # samples in C (the old read_iq returned a zero-copy complex128 view).
+    iq = _read_all(_gen(tmp_path, "cf64"), "cf64")
+    assert iq.dtype == np.complex64
+    assert np.isclose(np.mean(np.abs(iq) ** 2), 1.0, atol=0.05)
 
 
 @pytest.mark.parametrize(
@@ -77,26 +93,18 @@ def test_cf64_is_complex128(tmp_path):
     [("ci32", 1e-6), ("ci16", 2 / 32767), ("ci8", 2 / 127)],
 )
 def test_int_roundtrip_matches_cf32(tmp_path, sample_type, atol):
-    truth = read_iq(_gen(tmp_path, "cf32"), "cf32")
-    got = read_iq(_gen(tmp_path, sample_type), sample_type)
+    truth = _read_all(_gen(tmp_path, "cf32"), "cf32")
+    got = _read_all(_gen(tmp_path, sample_type), sample_type)
     assert got.dtype == np.complex64
     assert np.allclose(got, truth, atol=atol)  # within quantization
 
 
-def test_raw_is_zero_copy_two_column_view(tmp_path):
-    raw = read_iq(_gen(tmp_path, "ci16", n=128), "ci16", raw=True)
-    assert raw.shape == (128, 2) and raw.dtype == np.int16
-    # cf32 raw → the underlying float pairs
-    fraw = read_iq(_gen(tmp_path, "cf32", n=128), "cf32", raw=True)
-    assert fraw.shape == (128, 2) and fraw.dtype == np.float32
-
-
 def test_big_endian_roundtrip(tmp_path):
-    truth = read_iq(_gen(tmp_path, "cf32"), "cf32")
-    be = read_iq(_gen(tmp_path, "ci16", endian="be"), "ci16", endian="be")
+    truth = _read_all(_gen(tmp_path, "cf32"), "cf32")
+    be = _read_all(_gen(tmp_path, "ci16", endian="be"), "ci16", "be")
     assert np.allclose(be, truth, atol=2 / 32767)
 
 
 def test_unknown_sample_type_rejected(tmp_path):
     with pytest.raises(ValueError):
-        read_iq("nope", "cf99")
+        Reader("nope", "cf99")

@@ -385,7 +385,7 @@ class TestSNRModes:
 
 
 # --------------------------------------------------------------------------- #
-# Quantization round-trip (Writer -> read_iq)
+# Quantization round-trip (Writer -> Reader)
 # --------------------------------------------------------------------------- #
 class TestQuantization:
     @pytest.mark.parametrize(
@@ -402,7 +402,8 @@ class TestQuantization:
             str(p), file_type="raw", sample_type=stype, total=len(x)
         ) as wr:
             wr.write(x)
-        y = w.read_iq(str(p), stype)
+        with w.Reader(str(p), sample_type=stype) as r:
+            y = r.read(len(x))
         assert y.shape == x.shape
         # Round-trip error bounded by one quantizer step.
         assert np.max(np.abs(y - x)) <= 1.5 / scale
@@ -415,7 +416,8 @@ class TestQuantization:
             str(p), file_type="raw", sample_type=stype, total=len(x)
         ) as wr:
             wr.write(x)
-        y = w.read_iq(str(p), stype)
+        with w.Reader(str(p), sample_type=stype) as r:
+            y = r.read(len(x))
         # Float containers are a bit-exact re-interpretation of cf32 input.
         assert np.allclose(y, x, atol=1e-6)
 

@@ -268,8 +268,7 @@ capture is fully reproducible.
 
 ```python
 import numpy as np
-from doppler.wfm import Composer, Segment, Writer, mls_poly, qpsk, tone
-from doppler.wfm import read_iq
+from doppler.wfm import Composer, Reader, Segment, Writer, mls_poly, qpsk, tone
 
 # Mix: a QPSK signal of interest under a CW interferer, one noise floor.
 scene = Segment.sum(
@@ -287,7 +286,8 @@ c = Composer(timeline)
 with Writer("frame.cf32", sample_type="cf32") as w:
     while len(blk := c.execute(4096)):
         w.write(blk)
-back = read_iq("frame.cf32", "cf32")      # zero-copy complex64 view
+with Reader("frame.cf32", sample_type="cf32") as r:  # C reader → complex64
+    back = r.read(r.num_samples)
 
 # Reproducible: the resolved spec serialises to JSON and back.
 j = Composer(timeline).to_json()
@@ -320,9 +320,8 @@ with Reader("capture.blue") as r:          # container auto-detected
     x = r.read(r.num_samples)               # or block-wise: r.read(4096)
 ```
 
-For a quick raw-only read with no object, `read_iq` still works;
-`Reader` is the full container-aware dual. `Writer` pairs with `read_iq` or
-`Reader`; for SigMF, pair a `Writer(..., file_type="sigmf")` data file with
+`Writer` pairs with `Reader` for a full round-trip; for SigMF, pair a
+`Writer(..., file_type="sigmf")` data file with
 `Composer(...).to_sigmf(...)`, and for detached BLUE use `write_blue_header(...)`. The
 `StreamSink` is POSIX-only. DSP
 helpers `rrc_taps(beta, sps, span)` and `dsss_spread(syms, code, sf)` expose the
@@ -383,8 +382,6 @@ class above.
 ::: doppler.wfm.crc16
 
 ::: doppler.wfm.mls_poly
-
-::: doppler.wfm.readback.read_iq
 
 ### Modulation & SNR helpers
 

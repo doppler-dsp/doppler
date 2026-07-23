@@ -1,6 +1,6 @@
 """wfm_io_demo.py — write a waveform once, read it back from any container.
 
-The waveform I/O layer (``doppler.wfm.Writer`` / ``Reader`` / ``read_iq``)
+The waveform I/O layer (``doppler.wfm.Writer`` / ``Reader``)
 is the
 same C codec behind the ``wfmgen`` CLI's ``--file-type``. This demo writes one
 QPSK capture to all four containers and reads each back, showing the headline

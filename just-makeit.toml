@@ -527,7 +527,6 @@ wfm_writer = ["Writer", "write_blue_header"]
 wfm_reader = ["Reader"]
 wfm_sink = ["StreamSink"]
 sample_clock = ["SampleClock"]
-readback = ["read_iq"]
 
 [[module.wfm.functions]]
 name = "bpsk_map"

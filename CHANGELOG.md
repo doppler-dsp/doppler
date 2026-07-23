@@ -13,6 +13,26 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+### Removed
+
+- **`doppler.wfm.read_iq`** (and the `doppler.wfm.readback` module) — the
+    pure-Python interleaved-I/Q reader is retired in favour of the C
+    [`doppler.wfm.Reader`](docs/api/python-wfmgen.md), which supersedes it: same
+    `(path, sample_type, endian)` arguments, the wire-type → unit-scale
+    `complex64` deinterleave/rescale done in C rather than NumPy, plus
+    container auto-detection (BLUE / SigMF / CSV / raw) `read_iq` never had.
+    This removes the last pure-Python DSP logic from `doppler.wfm`. Migrate:
+
+    ```python
+    # before: y = read_iq(path, sample_type)
+    with Reader(path, sample_type=sample_type) as r:
+        y = r.read(r.num_samples)
+    ```
+
+    The one behaviour `Reader` does not reproduce is `read_iq(..., raw=True)`'s
+    zero-copy `(N, 2)` on-disk-dtype view — that is a plain
+    `numpy.fromfile(path, dtype).reshape(-1, 2)` with no doppler logic.
+
 ## [0.36.0] — 2026-07-22
 
 Three silent data-corruption bugs in the BLUE reader, found by auditing the

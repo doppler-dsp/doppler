@@ -24,7 +24,6 @@ SKIP_TOP = {"cli", "specan", "tests", "benchmarks"}
 # as (dotted name, path-relative-to-PKG_DIR).
 EXTRA_MODULES = [
     ("doppler.wfm.compose", "wfm/compose.py"),
-    ("doppler.wfm.readback", "wfm/readback.py"),
 ]
 
 

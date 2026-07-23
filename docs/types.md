@@ -139,27 +139,33 @@ integer types, the scale too — so it's worth knowing what each type costs:
 | `cf64`                  | `np.complex128` | complex **view**                                  | zero-copy               |
 | `ci8` / `ci16` / `ci32` | `np.int8/16/32` | full-scale ints; **no** complex-int dtype         | copy to rescale to ±1.0 |
 
-There is no complex-integer dtype, so integer captures can be a zero-copy
-`(N, 2)` int view *or* a `complex64` copy (deinterleave + rescale via the
-`cvt` SIMD converters), but not both. The convenience helper returns `complex`
-by default (SIMD path for integers); pass `raw=True` for the zero-copy view:
+There is no complex-integer dtype, so integer captures deinterleave and rescale
+to `complex64` (±1.0) on read; the float types are already the memory layout of
+a complex array. [`Reader`](api/python-wfmgen.md) does the conversion in C — any
+wire type to unit-scale `complex64` — and auto-detects the container (BLUE /
+SigMF / CSV / raw), so it also recovers `fs`/`fc`/sample-type from a
+self-describing header:
 
 <!-- docs-snippet: skip=illustrative: reads an I/Q capture file you supply -->
 
 ```python
-from doppler.wfm.readback import read_iq
+from doppler.wfm import Reader
 
-iq  = read_iq("capture.iq", "ci16")            # complex64, rescaled to ±1.0
-iq  = read_iq("capture.iq", "cf32")            # complex64, zero-copy view
-raw = read_iq("capture.iq", "ci16", raw=True)  # (N, 2) int16, zero-copy
+# headerless raw: pass the on-disk sample_type as a hint
+with Reader("capture.iq", sample_type="ci16") as r:
+    iq = r.read(r.num_samples)                     # complex64, rescaled to ±1.0
 
-# the float types also read directly, no helper needed:
-iq  = np.fromfile("capture.iq", dtype="<c8")       # cf32 → complex64
-iq  = np.memmap("huge.iq", dtype="<c8", mode="r")  # zero-copy view of a big capture
+# self-describing container: sample_type comes from the metadata
+with Reader("capture.blue") as r:
+    iq = r.read(r.num_samples)
+
+# the float types are also a plain reinterpretation, no reader needed:
+iq = np.fromfile("capture.iq", dtype="<c8")        # cf32 → complex64
+iq = np.memmap("huge.iq", dtype="<c8", mode="r")   # zero-copy view of a big capture
 ```
 
-`read_iq` uses the writer's exact full-scale (`2³¹−1 / 32767 / 127`), so
-`generate → read_iq` is bit-faithful.
+`Reader` uses the writer's exact full-scale (`2³¹−1 / 32767 / 127`), so
+`generate → Reader.read` is bit-faithful.
 
 ______________________________________________________________________
 

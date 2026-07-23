@@ -1,7 +1,9 @@
 # cvt/cvt.pyi — type stubs for the cvt C extension.
+from typing import final
 import numpy as np
 from numpy.typing import NDArray
 
+@final
 class F32ToI16:
     """F32ToI16 component.
 
@@ -72,6 +74,7 @@ class F32ToI16:
 
     def __exit__(self, *args: object) -> None: ...
 
+@final
 class I16ToF32:
     """I16ToF32 component.
 
@@ -128,6 +131,7 @@ class I16ToF32:
 
     def __exit__(self, *args: object) -> None: ...
 
+@final
 class I32ToF32:
     """I32ToF32 component.
 
@@ -188,6 +192,7 @@ class I32ToF32:
 
     def __exit__(self, *args: object) -> None: ...
 
+@final
 class I8ToF32:
     """I8ToF32 component.
 
@@ -248,6 +253,7 @@ class I8ToF32:
 
     def __exit__(self, *args: object) -> None: ...
 
+@final
 class F32ToI16U32:
     """F32ToI16U32 component.
 
@@ -316,6 +322,7 @@ class F32ToI16U32:
 
     def __exit__(self, *args: object) -> None: ...
 
+@final
 class F32ToI16U64:
     """F32ToI16U64 component.
 
@@ -384,6 +391,7 @@ class F32ToI16U64:
 
     def __exit__(self, *args: object) -> None: ...
 
+@final
 class I16U32ToF32:
     """I16U32ToF32 component.
 
@@ -440,6 +448,7 @@ class I16U32ToF32:
 
     def __exit__(self, *args: object) -> None: ...
 
+@final
 class I16U64ToF32:
     """I16U64ToF32 component.
 
@@ -496,6 +505,7 @@ class I16U64ToF32:
 
     def __exit__(self, *args: object) -> None: ...
 
+@final
 class F32ToUQ15:
     """F32ToUQ15 component.
 
@@ -564,6 +574,7 @@ class F32ToUQ15:
 
     def __exit__(self, *args: object) -> None: ...
 
+@final
 class UQ15ToF32:
     """UQ15ToF32 component.
 
@@ -621,6 +632,7 @@ class UQ15ToF32:
 
     def __exit__(self, *args: object) -> None: ...
 
+@final
 class ADC:
     """Create an ADC instance.
 

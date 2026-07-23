@@ -1,7 +1,9 @@
 # ddc/ddc.pyi — type stubs for the ddc C extension.
+from typing import final
 import numpy as np
 from numpy.typing import NDArray
 
+@final
 class DDC:
     """Create a complex-input Digital Down-Converter. Allocates internal state for the LO and RateConverter cascade. The RateConverter selects the cheapest multi-stage decimation chain (CIC + optional halfband + polyphase resampler) for the given rate.
 

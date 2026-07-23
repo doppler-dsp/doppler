@@ -1,8 +1,9 @@
 # interp/interp.pyi — type stubs for the interp C extension.
-from typing import Literal
+from typing import final, Literal
 import numpy as np
 from numpy.typing import NDArray
 
+@final
 class InterpolatedTable:
     """Create an InterpolatedTable instance.
 

@@ -1,8 +1,9 @@
 # dsss/dsss.pyi — type stubs for the dsss C extension.
-from typing import Literal
+from typing import final, Literal
 import numpy as np
 from numpy.typing import NDArray
 
+@final
 class Despreader:
     """Create a despreader (COPIES code).
 
@@ -248,6 +249,7 @@ class Despreader:
 
     def __exit__(self, *args: object) -> None: ...
 
+@final
 class BurstDespreader:
     """Create a burst despreader instance.
 
@@ -424,6 +426,7 @@ class BurstDespreader:
 
     def __exit__(self, *args: object) -> None: ...
 
+@final
 class Acquisition:
     """Acquisition component.
 
@@ -600,6 +603,7 @@ class Acquisition:
 
     def __exit__(self, *args: object) -> None: ...
 
+@final
 class BurstAcquisition:
     """Create a burst-mode acquisition engine (forwards to acq_create_burst() -- see its doc comment in acq_core.h for the full physics).
 
@@ -758,6 +762,7 @@ class BurstAcquisition:
 
     def __exit__(self, *args: object) -> None: ...
 
+@final
 class PolynomialPhaseEstimator:
     """Create a polynomial-phase estimator.
 
@@ -819,6 +824,7 @@ class PolynomialPhaseEstimator:
 
     def __exit__(self, *args: object) -> None: ...
 
+@final
 class BurstDemod:
     """Create a burst demodulator.
 
@@ -940,6 +946,7 @@ class BurstDemod:
 
     def __exit__(self, *args: object) -> None: ...
 
+@final
 class DsssReceiver:
     """Create a DSSS receiver in the searching state.
 
@@ -1116,6 +1123,7 @@ class DsssReceiver:
 
     def __exit__(self, *args: object) -> None: ...
 
+@final
 class AsyncDsssReceiver:
     """Create an AsyncDsssReceiver in the searching state.
 

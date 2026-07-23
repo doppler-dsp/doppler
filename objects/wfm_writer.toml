@@ -98,6 +98,23 @@ arg_type = "void"
 return_type = "void"
 params = [{ name = "on", type = "int", default = "1" }]
 
+# add_keyword(tag, type, value): the variant codec (gh-554) packs `value` into a
+# discriminant-tagged buffer per the `type` code and calls the sink. jm
+# generates the whole method (parse + per-code switch + sink call + rc->error),
+# so the hand-written binding + its `# jm:hand` .pyi stub are gone. sink_fn is
+# the existing C encoder. Same [codec.blue_keyword] table as Reader.keywords, so
+# the write and read halves cannot drift.
+[[wfm_writer.methods]]
+name = "add_keyword"
+codec = "blue_keyword"
+sink_fn = "wfm_writer_add_keyword"
+doc = "Attach a BLUE extended-header keyword (BLUE captures only). `type` is a single character (B/I/L/X int, F/D float, A string, T deprecated int); `value` is a str for A, a single int/float, or a sequence of them. Keywords are buffered and written at close(). The read side is Reader.keywords."
+params = [
+  { name = "tag", type = "const char *" },
+  { name = "type", type = "char", role = "discriminant" },
+  { name = "value", role = "variant" },
+]
+
 # Computed properties: jm declares wfm_writer_get_<prop>() and calls it, so the
 # state layout stays private to wfm_writer_core.c.
 [[wfm_writer.properties]]

@@ -4,11 +4,12 @@
 # class over an opaque wfm_stream_sink_t resource handle.
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, final
 
 import numpy as np
 from numpy.typing import NDArray
 
+@final
 class StreamSink:
     """StreamSink handle.
 

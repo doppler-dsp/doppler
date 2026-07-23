@@ -1,7 +1,9 @@
 # arith/arith.pyi — type stubs for the arith C extension.
+from typing import final
 import numpy as np
 from numpy.typing import NDArray
 
+@final
 class AccQ15:
     """Allocate and initialise an AccQ15 accumulator. The accumulator starts at the supplied initial value and may be driven sample-by-sample (step), in bulk (steps), or via multiply-accumulate (madd). The internal register is a 64-bit signed integer so it will not overflow in any realistic DSP workload.
 
@@ -150,6 +152,11 @@ class AccQ15:
         """Serialize the engine's mutable state to bytes."""
     def set_state(self, blob: bytes) -> None:
         """Restore mutable state from a get_state() blob."""
+    def get_acc(self) -> int:
+        """Return current acc."""
+
+    def set_acc(self, value: int) -> None:
+        """Set acc."""
 
     def destroy(self) -> None:
         """Release C resources immediately."""
@@ -158,6 +165,7 @@ class AccQ15:
 
     def __exit__(self, *args: object) -> None: ...
 
+@final
 class AccQ8:
     """Allocate and initialise an AccQ8 accumulator. The accumulator starts at the supplied initial value and accepts Q8 (int8_t) samples via step(), steps(), or madd(). The 32-bit internal register handles up to roughly 16 million max-magnitude samples before wrap — sufficient for all standard DSP block sizes.
 
@@ -306,6 +314,11 @@ class AccQ8:
         """Serialize the engine's mutable state to bytes."""
     def set_state(self, blob: bytes) -> None:
         """Restore mutable state from a get_state() blob."""
+    def get_acc(self) -> int:
+        """Return current acc."""
+
+    def set_acc(self, value: int) -> None:
+        """Set acc."""
 
     def destroy(self) -> None:
         """Release C resources immediately."""

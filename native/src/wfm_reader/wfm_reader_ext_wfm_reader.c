@@ -399,9 +399,134 @@ Reader_getprop_num_samples (ReaderObject *self, void *Py_UNUSED (closure))
   return PyLong_FromUnsignedLongLong (
       (unsigned long long)wfm_reader_get_num_samples (self->handle));
 }
-/* gh-543: implemented by hand (Python-aware, so it cannot live in the pure-C
- * core). Must return a new reference, or NULL with an exception set. */
-PyObject *wfm_reader_keyword_value (const wfm_reader_state_t *state, size_t i);
+static PyObject *
+Reader_decode_keywords (const wfm_keyword_t *_e)
+{
+  size_t _esz      = 0;
+  int    _is_float = 0, _is_bytes = 0;
+  switch (_e->type)
+    {
+    case 'A':
+      _is_bytes = 1;
+      break;
+    case 'B':
+      _esz = sizeof (int8_t);
+      break;
+    case 'I':
+      _esz = sizeof (int16_t);
+      break;
+    case 'L':
+      _esz = sizeof (int32_t);
+      break;
+    case 'T':
+      _esz = sizeof (int32_t);
+      break;
+    case 'X':
+      _esz = sizeof (int64_t);
+      break;
+    case 'F':
+      _esz      = sizeof (float);
+      _is_float = 1;
+      break;
+    case 'D':
+      _esz      = sizeof (double);
+      _is_float = 1;
+      break;
+    default:
+      PyErr_Format (PyExc_ValueError, "unknown code '%c'", _e->type);
+      return NULL;
+    }
+  if (_is_bytes)
+    return PyUnicode_FromStringAndSize ((const char *)_e->value,
+                                        (Py_ssize_t)_e->count);
+  PyObject *_lst = PyList_New ((Py_ssize_t)_e->count);
+  if (!_lst)
+    return NULL;
+  for (size_t _k = 0; _k < _e->count; _k++)
+    {
+      const uint8_t *_p  = (const uint8_t *)_e->value + _k * _esz;
+      PyObject      *_it = NULL;
+      if (_is_float)
+        {
+          switch (_e->type)
+            {
+            case 'F':
+              {
+                float _v;
+                memcpy (&_v, _p, sizeof _v);
+                _it = PyFloat_FromDouble ((double)_v);
+                break;
+              }
+            case 'D':
+              {
+                double _v;
+                memcpy (&_v, _p, sizeof _v);
+                _it = PyFloat_FromDouble ((double)_v);
+                break;
+              }
+            default:
+              break;
+            }
+        }
+      else
+        {
+          switch (_e->type)
+            {
+            case 'B':
+              {
+                int8_t _v;
+                memcpy (&_v, _p, sizeof _v);
+                _it = PyLong_FromLongLong ((long long)_v);
+                break;
+              }
+            case 'I':
+              {
+                int16_t _v;
+                memcpy (&_v, _p, sizeof _v);
+                _it = PyLong_FromLongLong ((long long)_v);
+                break;
+              }
+            case 'L':
+              {
+                int32_t _v;
+                memcpy (&_v, _p, sizeof _v);
+                _it = PyLong_FromLongLong ((long long)_v);
+                break;
+              }
+            case 'T':
+              {
+                int32_t _v;
+                memcpy (&_v, _p, sizeof _v);
+                _it = PyLong_FromLongLong ((long long)_v);
+                break;
+              }
+            case 'X':
+              {
+                int64_t _v;
+                memcpy (&_v, _p, sizeof _v);
+                _it = PyLong_FromLongLong ((long long)_v);
+                break;
+              }
+            default:
+              break;
+            }
+        }
+      if (!_it)
+        {
+          Py_DECREF (_lst);
+          return NULL;
+        }
+      PyList_SET_ITEM (_lst, (Py_ssize_t)_k, _it);
+    }
+  if (_e->count == 1)
+    {
+      PyObject *_s = PyList_GET_ITEM (_lst, 0);
+      Py_INCREF (_s);
+      Py_DECREF (_lst);
+      return _s;
+    }
+  return _lst;
+}
 
 static PyObject *
 Reader_getprop_keywords (ReaderObject *self, void *Py_UNUSED (closure))
@@ -427,7 +552,8 @@ Reader_getprop_keywords (ReaderObject *self, void *Py_UNUSED (closure))
           Py_DECREF (_c);
           return NULL;
         }
-      PyObject *_v = wfm_reader_keyword_value (self->handle, _i);
+      PyObject *_v
+          = Reader_decode_keywords (wfm_reader_keyword (self->handle, _i));
       if (!_v)
         {
           Py_DECREF (_c);

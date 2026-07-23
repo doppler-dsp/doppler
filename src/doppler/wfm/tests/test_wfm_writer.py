@@ -68,22 +68,33 @@ def test_add_keyword_round_trips_every_type(tmp_path, scene):
 
 
 def test_add_keyword_rejects_non_blue(tmp_path):
-    """Only BLUE has an extended header; other containers refuse."""
+    """Only BLUE has an extended header; other containers refuse.
+
+    The variant codec (gh-554) surfaces a non-zero ``sink_fn`` return as a
+    generic ``ValueError: add_keyword failed`` -- the C encoder rejects a
+    non-BLUE writer.
+    """
     with (
         Writer(tmp_path / "c.raw") as w,  # raw, not blue
-        pytest.raises(ValueError, match="not a BLUE capture"),
+        pytest.raises(ValueError, match="add_keyword failed"),
     ):
         w.add_keyword("X", "D", 1.0)
 
 
 def test_add_keyword_type_validation(tmp_path):
-    """The type code and value type are checked before the C call."""
+    """The type code and value type are checked before the C call.
+
+    Error surfaces come from the generated variant-codec binding: a multi-char
+    ``type`` fails the ``C`` format parse (TypeError), an unknown code is an
+    ``unsupported code`` ValueError, and an ``A`` with a non-str value is a
+    ``value must be a str`` TypeError.
+    """
     with Writer(tmp_path / "c.blue", file_type="blue") as w:
-        with pytest.raises(ValueError, match="single character"):
-            w.add_keyword("X", "DD", 1.0)
-        with pytest.raises(ValueError, match="unsupported keyword type"):
+        with pytest.raises(TypeError, match="unicode character"):
+            w.add_keyword("X", "DD", 1.0)  # 'C' format wants exactly one char
+        with pytest.raises(ValueError, match="unsupported code"):
             w.add_keyword("X", "Z", 1.0)
-        with pytest.raises(TypeError, match="type 'A' takes a str"):
+        with pytest.raises(TypeError, match="must be a str"):
             w.add_keyword("X", "A", 123)  # A needs a str, not an int
 
 

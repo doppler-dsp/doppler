@@ -1,7 +1,9 @@
 # filter/filter.pyi — type stubs for the filter C extension.
+from typing import final
 import numpy as np
 from numpy.typing import NDArray
 
+@final
 class FIR:
     """Create a FIR filter from complex CF32 tap coefficients. Implements a direct-form FIR convolution: `y[n]` = sum_k `h[k]`*`x[n-k]`. The tap array is copied at creation; the caller may free it afterward. Use fir_create_real() instead when all imaginary parts are zero — that path costs 1 FMA/tap versus 2 FMA + permute + mul here.
 
@@ -86,6 +88,7 @@ class FIR:
 
     def __exit__(self, *args: object) -> None: ...
 
+@final
 class MovingAverage:
     """MovingAverage component.
 

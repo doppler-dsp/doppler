@@ -1,8 +1,9 @@
 # accumulator/accumulator.pyi — type stubs for the accumulator C extension.
-from typing import Literal
+from typing import final, Literal
 import numpy as np
 from numpy.typing import NDArray
 
+@final
 class AccF32:
     """Single-precision floating-point scalar accumulator. Maintains one running sum (``acc``) that persists across calls to ``step``, ``steps``, ``madd``, ``add2d``, and ``madd2d``. Use ``get`` to read without side-effects or ``dump`` to read and atomically zero in a single call.
 
@@ -193,6 +194,11 @@ class AccF32:
         """Serialize the engine's mutable state to bytes."""
     def set_state(self, blob: bytes) -> None:
         """Restore mutable state from a get_state() blob."""
+    def get_acc(self) -> float:
+        """Return current acc."""
+
+    def set_acc(self, value: float) -> None:
+        """Set acc."""
 
     def destroy(self) -> None:
         """Release C resources immediately."""
@@ -201,6 +207,7 @@ class AccF32:
 
     def __exit__(self, *args: object) -> None: ...
 
+@final
 class AccCf64:
     """Double-precision complex scalar accumulator. Maintains one running complex sum (``acc``) across calls to ``step``, ``steps``, ``madd``, ``add2d``, and ``madd2d``. The signal path is double-precision complex (128-bit per sample); coefficient arrays for ``madd``/``madd2d`` are single-precision float to match typical FIR weight storage. Use ``get`` to read without side-effects or ``dump`` to read and zero atomically.
 
@@ -391,6 +398,11 @@ class AccCf64:
         """Serialize the engine's mutable state to bytes."""
     def set_state(self, blob: bytes) -> None:
         """Restore mutable state from a get_state() blob."""
+    def get_acc(self) -> complex:
+        """Return current acc."""
+
+    def set_acc(self, value: complex) -> None:
+        """Set acc."""
 
     def destroy(self) -> None:
         """Release C resources immediately."""
@@ -399,6 +411,7 @@ class AccCf64:
 
     def __exit__(self, *args: object) -> None: ...
 
+@final
 class AccTrace:
     """Create a length-n trace accumulator.
 

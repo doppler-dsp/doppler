@@ -1,7 +1,9 @@
 # impairment/impairment.pyi — type stubs for the impairment C extension.
+from typing import final
 import numpy as np
 from numpy.typing import NDArray
 
+@final
 class DopplerChannel:
     """DopplerChannel component.
 

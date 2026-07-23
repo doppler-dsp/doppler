@@ -12,7 +12,7 @@ build-backend = "just_buildit"
 
 [project]
 name = "doppler-dsp"
-version = "0.36.0"
+version = "0.37.0"
 description = "Practical, portable, performant digital signal processing."
 readme = "README.md"
 requires-python = ">=3.9"

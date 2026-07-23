@@ -417,6 +417,17 @@ sweep or a Monte-Carlo campaign that re-runs one scene at many operating points
 
 ::: doppler.wfm.compose.prepare
 
+A prepared `Plan` can be **saved** and restored so the one-time DSP is paid once
+across processes or machines: `plan.save()` returns the cache as `bytes` and
+`plan.dump(path)` writes it to a file; `PlanFromBlob(blob)` and
+`PlanFromFile(path)` reconstruct a `Plan` without re-running `prepare()` (the
+blob carries a DSP-source fingerprint, so a stale cache transparently rebuilds
+rather than returning wrong samples).
+
+::: doppler.wfm.compose.PlanFromBlob
+
+::: doppler.wfm.compose.PlanFromFile
+
 ## Related pages
 
 <!-- related-pages:start -->

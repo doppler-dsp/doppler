@@ -17,6 +17,28 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 # report bogus "file not found" / "unknown type" errors for those headers.
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+# Build type — DEFAULT TO OPTIMISED, because empty means -O0, not -O2.
+#
+# CMake leaves CMAKE_BUILD_TYPE empty unless the caller sets one, and an empty
+# type contributes NO -O flag at all: a bare `cmake -B build` — the command the
+# README, CLAUDE.md and the C-API docs all document — builds the entire DSP
+# library unoptimised. `make` (which passes -DCMAKE_BUILD_TYPE=$(BUILD_TYPE))
+# and the release workflow were always explicit, so only the hand-typed
+# configure was affected; it silently produced scalar, stack-spilled code and
+# invalidated any benchmark run against it.
+#
+# Multi-config generators (Ninja Multi-Config, Visual Studio, Xcode) choose the
+# configuration at BUILD time, so they are left alone.
+if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
+    set(CMAKE_BUILD_TYPE Release CACHE STRING
+        "Build type (Debug, Release, RelWithDebInfo, MinSizeRel)" FORCE)
+    message(STATUS
+        "CMAKE_BUILD_TYPE was not set — defaulting to Release. "
+        "Configure with -DCMAKE_BUILD_TYPE=Debug for an unoptimised build.")
+endif()
+set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS
+    Debug Release RelWithDebInfo MinSizeRel)
+
 option(ENABLE_SIMD "Enable SIMD / fast-math flags" ON)
 
 # -march policy — DISTRIBUTION SAFETY IS THE DEFAULT.

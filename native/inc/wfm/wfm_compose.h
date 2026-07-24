@@ -85,6 +85,10 @@ typedef struct {
     uint64_t pn_poly;  /* 0 → MLS poly for the length */
     int lfsr;          /* 0 galois, 1 fibonacci */
     double level;      /* source level in dBFS (≤0); 0 = unit power, no gain */
+    int background;    /* 1 = static background: prepare() folds a contiguous
+                          prefix of background sources into ONE pre-summed Plan
+                          cache slot (scaled/rotated/dropped as a unit), instead
+                          of caching each individually. Ignored by compose().  */
     double f_end;      /* chirp end frequency (Hz); ignored by other types */
     uint8_t *bits;     /* type=bits: pattern (0/1), owned; NULL otherwise */
     size_t n_bits;     /* type=bits: pattern length */

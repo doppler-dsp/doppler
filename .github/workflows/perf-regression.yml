@@ -57,12 +57,15 @@ jobs:
       run: |
         git worktree add /tmp/base "${{ github.event.pull_request.base.sha }}"
         cd /tmp/base
-        # Benchmark the base SOURCE with the head's RECIPE. Without this the
-        # base tree runs its own Makefile, so any PR that touches a bench
-        # target fails here ("No rule to make target") purely because the base
-        # predates it — and a fair comparison wants one procedure across both
-        # sides anyway, differing only in the code under test.
-        git checkout "${{ github.event.pull_request.head.sha }}" -- Makefile
+        # Benchmark the base SOURCE with the head's RECIPE and TOOLCHAIN.
+        # Without this the base tree runs its own Makefile and lockfile, so any
+        # PR that touches a bench target or the tool pin fails here purely
+        # because the base predates it ("No rule to make target",
+        # "Failed to spawn: just-makeit"). Imposing one procedure and one
+        # toolchain on both sides is also the fairer comparison: the two runs
+        # then differ only in the code under test.
+        git checkout "${{ github.event.pull_request.head.sha }}" -- \
+          Makefile pyproject.toml uv.lock
         uv sync --group dev
         # bench-baseline depends on build+pyext: jm bench builds with
         # BUILD_PYTHON off, so the pytest-benchmark suite can't import

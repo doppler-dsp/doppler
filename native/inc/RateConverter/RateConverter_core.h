@@ -163,6 +163,36 @@ size_t RateConverter_execute (RateConverter_state_t *s,
 size_t RateConverter_execute_max_out (RateConverter_state_t *s);
 
 /**
+ * @brief Convert a block, steering the cascade's fractional stage by @p ctrl.
+ *
+ * The control-port form of RateConverter_execute(): the fixed integer stages
+ * (HalfbandDecimator / CIC) run unchanged, and the scalar rate deviation
+ * @p ctrl is forwarded to the **terminal polyphase Resampler stage's**
+ * accumulator (via resamp_execute_ctrl_push) — so its effective rate becomes
+ * `stage_rate + ctrl` for this call. This exposes the fractional tail's control
+ * port that RateConverter_execute() hides: a timing/rate-tracking loop can
+ * decimate a high input rate cheaply through the HB/CIC stages and then
+ * arbitrary-rate + strobe-align in the last stage, updating @p ctrl per block.
+ *
+ * `ctrl` is referenced to the terminal stage's (post-decimation) rate, not the
+ * overall rate. It is meaningful only when the cascade actually ends in a
+ * Resampler stage; a pure integer HB/CIC cascade has no fractional stage to
+ * steer, so this **falls through to RateConverter_execute()** (ctrl ignored).
+ *
+ * @param s        Pointer to a valid RateConverter_state_t.
+ * @param in       CF32 input block.
+ * @param n_in     Number of input samples.
+ * @param ctrl     Rate deviation added to the terminal Resampler stage's rate.
+ * @param out      Output buffer; must hold at least max_out samples.
+ * @param max_out  Capacity of out in samples.
+ * @return CF32 output count.
+ */
+size_t RateConverter_execute_ctrl (RateConverter_state_t *s,
+                                   const float _Complex *in, size_t n_in,
+                                   double ctrl, float _Complex *out,
+                                   size_t max_out);
+
+/**
  * @brief Get / set the output-to-input sample rate ratio.
  * The setter rebuilds the entire cascade (new stage selection, new
  * sub-objects) and resets all filter memories — equivalent to

@@ -194,6 +194,39 @@ extern "C"
                              float _Complex *out, size_t max_out);
 
   /* ------------------------------------------------------------------
+   * Streaming control port (closed-loop timing / arbitrary rate)
+   * ------------------------------------------------------------------ */
+
+  /**
+   * @brief Push one input at an instantaneous rate deviation; emit any outputs.
+   *
+   * The single-input streaming form of resamp_execute_ctrl(): pushes @p x into
+   * the delay line, advances the double-precision accumulator by
+   * `rate + ctrl`, and emits every output whose accumulator period completes
+   * (0 for a decimator between strobes, 1 typically, or several for an
+   * interpolator) at the polyphase arm the fractional remainder selects.
+   * Feeding a stream of `(x, ctrl)` through this one input at a time reproduces
+   * resamp_execute_ctrl() on the same `(in, ctrl[])` bit-for-bit — but, unlike
+   * the block form's precomputed `ctrl[]`, `ctrl` here can depend on the
+   * outputs already emitted. That closes the loop: a timing-recovery or
+   * rate-tracking loop reads each emitted output, computes its correction, and
+   * feeds it back as the next call's @p ctrl to steer the strobe. This is the
+   * per-output feedback a matched-filter timing loop (track.RrcSync) needs and
+   * the block `execute_ctrl` cannot provide.
+   *
+   * @param state    Must be non-NULL.
+   * @param x        One input sample.
+   * @param ctrl     Rate deviation added to the base rate for this input
+   *                 (real-valued; the effective rate is `rate + ctrl`).
+   * @param out      Output buffer for any emitted samples.
+   * @param max_out  Capacity of @p out (emission stops at this bound).
+   * @return Number of outputs emitted into @p out (0, 1, or more).
+   */
+  size_t resamp_execute_ctrl_push (resamp_state_t *state, float _Complex x,
+                                   double ctrl, float _Complex *out,
+                                   size_t max_out);
+
+  /* ------------------------------------------------------------------
    * Properties
    * ------------------------------------------------------------------ */
 

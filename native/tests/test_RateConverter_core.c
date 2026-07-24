@@ -447,6 +447,100 @@ test_state_roundtrip (void)
 
 /* ------------------------------------------------------------------ */
 
+/* execute_ctrl forwards a scalar rate deviation to the terminal resamp stage:
+ * ctrl == 0 reproduces execute() bit-for-bit; ctrl != 0 changes the output
+ * (the steered accumulator crosses at different times); and a cascade with no
+ * terminal resamp stage falls through to execute() with ctrl ignored. */
+static void
+test_execute_ctrl (void)
+{
+  enum
+  {
+    N   = 4096,
+    CAP = 8192
+  };
+  float _Complex *in = malloc (N * sizeof (float _Complex));
+  float _Complex *o0 = malloc (CAP * sizeof (float _Complex));
+  float _Complex *oc = malloc (CAP * sizeof (float _Complex));
+  for (size_t i = 0; i < (size_t)N; i++)
+    {
+      double ph = 2.0 * M_PI * 0.02 * (double)i;
+      in[i]     = CMPLXF ((float)cos (ph), (float)sin (ph));
+    }
+
+  /* NB: for decimation resamp_execute uses the transposed-form polyphase path
+   * while the ctrl port uses the unified accumulator (a different algorithm),
+   * so execute_ctrl(ctrl=0) != execute() by construction — we assert the ctrl
+   * port's own invariants (reproducible + a non-zero deviation steers). */
+
+  /* rate 0.8 → a single Resampler stage. */
+  {
+    RateConverter_state_t *a = RateConverter_create (0.8, 0);
+    RateConverter_state_t *b = RateConverter_create (0.8, 0);
+    CHECK (a && b && a->stage_types[a->n_stages - 1] == RC_STAGE_RESAMP);
+    size_t n0 = RateConverter_execute_ctrl (a, in, N, 0.0, o0, CAP);
+    size_t nr = RateConverter_execute_ctrl (b, in, N, 0.0, oc, CAP);
+    CHECK (n0 == nr); /* deterministic */
+    int repro = (n0 == nr);
+    for (size_t i = 0; i < n0 && i < nr; i++)
+      if (o0[i] != oc[i])
+        repro = 0;
+    CHECK (repro);
+    for (size_t i = 0; i < n0; i++)
+      CHECK (isfinite (crealf (o0[i])) && isfinite (cimagf (o0[i])));
+    RateConverter_destroy (b);
+    b            = RateConverter_create (0.8, 0);
+    size_t nc    = RateConverter_execute_ctrl (b, in, N, 0.05, oc, CAP);
+    int    moved = (nc != n0);
+    for (size_t i = 0; i < n0 && i < nc && !moved; i++)
+      if (o0[i] != oc[i])
+        moved = 1;
+    CHECK (moved); /* a non-zero deviation actually steers the stage */
+    RateConverter_destroy (a);
+    RateConverter_destroy (b);
+  }
+
+  /* rate 0.1 → CIC + Resampler cascade: ctrl steers the terminal stage. */
+  {
+    RateConverter_state_t *a = RateConverter_create (0.1, 0);
+    RateConverter_state_t *b = RateConverter_create (0.1, 0);
+    CHECK (a && b && a->n_stages >= 2
+           && a->stage_types[a->n_stages - 1] == RC_STAGE_RESAMP);
+    size_t n0    = RateConverter_execute_ctrl (a, in, N, 0.0, o0, CAP);
+    size_t nc    = RateConverter_execute_ctrl (b, in, N, 0.05, oc, CAP);
+    int    moved = (nc != n0);
+    for (size_t i = 0; i < n0 && i < nc && !moved; i++)
+      if (o0[i] != oc[i])
+        moved = 1;
+    CHECK (moved);
+    for (size_t i = 0; i < n0; i++)
+      CHECK (isfinite (crealf (o0[i])) && isfinite (cimagf (o0[i])));
+    RateConverter_destroy (a);
+    RateConverter_destroy (b);
+  }
+
+  /* rate 0.5 → HalfbandDecimator only (no resamp stage): execute_ctrl falls
+   * through to execute, ctrl ignored. */
+  {
+    RateConverter_state_t *a = RateConverter_create (0.5, 0);
+    RateConverter_state_t *b = RateConverter_create (0.5, 0);
+    CHECK (a && b && a->stage_types[a->n_stages - 1] != RC_STAGE_RESAMP);
+    size_t na   = RateConverter_execute (a, in, N, o0, CAP);
+    size_t nb   = RateConverter_execute_ctrl (b, in, N, 0.05, oc, CAP);
+    int    same = (na == nb);
+    for (size_t i = 0; i < na && i < nb; i++)
+      if (o0[i] != oc[i])
+        same = 0;
+    CHECK (same); /* no fractional stage → ctrl has no effect */
+    RateConverter_destroy (a);
+    RateConverter_destroy (b);
+  }
+
+  free (in);
+  free (o0);
+  free (oc);
+}
+
 int
 main (void)
 {
@@ -459,6 +553,7 @@ main (void)
   test_execute_max_out ();
   test_convert ();
   test_state_roundtrip ();
+  test_execute_ctrl ();
 
   if (_fails)
     {

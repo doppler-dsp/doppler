@@ -348,6 +348,33 @@ class RateConverter:
     def execute_max_out(self) -> int:
         """Max output length execute() can produce for the current state."""
 
+    # jm:hand
+    def execute_ctrl(self, x: NDArray[np.complex64], ctrl: float) -> NDArray[np.complex64]:
+        """Convert a block, steering the cascade's fractional stage by a scalar rate deviation. The fixed integer stages (HalfbandDecimator / CIC) run unchanged; ``ctrl`` is forwarded to the terminal Resampler stage's accumulator, so its effective rate becomes ``stage_rate + ctrl`` for this call. A timing or rate-tracking loop updates ``ctrl`` per block to align strobes after cheap integer decimation. No-op (falls through to ``execute``) when the cascade has no terminal Resampler stage.
+
+        Parameters
+        ----------
+        x : NDArray[np.complex64]
+            Input samples.
+        ctrl : float
+            Rate deviation added to the terminal Resampler stage's rate.
+
+        Returns
+        -------
+        NDArray[np.complex64]
+            CF32 output array.
+
+        Examples
+        --------
+        >>> from doppler.resample import RateConverter
+        >>> import numpy as np
+        >>> rc = RateConverter(rate=0.5, compensate=0)
+        >>> y = rc.execute_ctrl(np.ones(256, dtype=np.complex64), 0.0)
+        >>> y.dtype == np.complex64
+        True
+
+        """
+
     def reset(self) -> None:
         """Zero all sub-stage filter memories. Rate, stage count, and stage types are preserved. Processing from a reset state produces the same output as a freshly created converter fed the same input. Use between signal bursts to suppress transient artefacts from prior filter memory.
 

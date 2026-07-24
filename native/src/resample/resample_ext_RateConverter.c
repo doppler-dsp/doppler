@@ -352,6 +352,74 @@ RateConverterObj_execute_max_out (RateConverterObject *self,
   return PyLong_FromSize_t (RateConverter_execute_max_out (self->handle));
 }
 
+/* -------------------------------------------------------------- */
+/* execute_ctrl(x, ctrl) -> ndarray[complex64]                    */
+/*                                                                */
+/* Control-port form: a scalar rate deviation steers the terminal */
+/* Resampler stage (no-op for a pure integer HB/CIC cascade).     */
+/* -------------------------------------------------------------- */
+static PyObject *
+RateConverterObj_execute_ctrl (RateConverterObject *self, PyObject *args,
+                               PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char *kwlist[] = { "x", "ctrl", NULL };
+  PyObject    *x_obj    = NULL;
+  double       ctrl     = 0.0;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "Od", kwlist, &x_obj, &ctrl))
+    return NULL;
+
+  PyArrayObject *x_arr = (PyArrayObject *)PyArray_FROM_OTF (
+      x_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS);
+  if (!x_arr)
+    return NULL;
+
+  size_t n_in  = (size_t)PyArray_SIZE (x_arr);
+  double rate  = RateConverter_get_rate (self->handle);
+  double ratio = (rate > 1.0) ? rate : 1.0;
+  size_t need  = (size_t)(n_in * ratio) + 4;
+
+  if (need > self->_execute_buf_cap)
+    {
+      if (RateConverterObj_retire_execute_buf (self) != 0)
+        {
+          Py_DECREF (x_arr);
+          PyErr_NoMemory ();
+          return NULL;
+        }
+      self->_execute_buf = malloc (need * sizeof (float complex));
+      if (!self->_execute_buf)
+        {
+          self->_execute_buf_cap = 0;
+          Py_DECREF (x_arr);
+          PyErr_NoMemory ();
+          return NULL;
+        }
+      self->_execute_buf_cap = need;
+    }
+
+  size_t n_out = RateConverter_execute_ctrl (
+      self->handle, (const float complex *)PyArray_DATA (x_arr), n_in, ctrl,
+      self->_execute_buf, self->_execute_buf_cap);
+
+  npy_intp  dim = (npy_intp)n_out;
+  PyObject *out
+      = PyArray_SimpleNewFromData (1, &dim, NPY_COMPLEX64, self->_execute_buf);
+  if (!out)
+    {
+      Py_DECREF (x_arr);
+      return NULL;
+    }
+  PyArray_SetBaseObject ((PyArrayObject *)out, (PyObject *)self);
+  Py_INCREF (self);
+  Py_DECREF (x_arr);
+  return out;
+}
+
 static PyMethodDef RateConverter_methods[]
     = { { "execute", (PyCFunction)(void *)RateConverterObj_execute,
           METH_VARARGS | METH_KEYWORDS,
@@ -384,6 +452,44 @@ static PyMethodDef RateConverter_methods[]
           "    >>> rc = RateConverter(0.5)\n"
           "    >>> y = rc.execute(np.ones(256, dtype=np.complex64))\n"
           "    >>> len(y) == 128\n"
+          "    True\n" },
+        { "execute_ctrl", (PyCFunction)(void *)RateConverterObj_execute_ctrl,
+          METH_VARARGS | METH_KEYWORDS,
+          "execute_ctrl(x, ctrl) -> ndarray\n"
+          "\n"
+          "Convert a block, steering the cascade's fractional stage.\n"
+          "\n"
+          "The fixed integer stages (HalfbandDecimator / CIC) run\n"
+          "unchanged; the scalar rate deviation ``ctrl`` is forwarded to\n"
+          "the terminal Resampler stage's accumulator, so its effective\n"
+          "rate becomes ``stage_rate + ctrl`` for this call. A timing or\n"
+          "rate-tracking loop updates ``ctrl`` per block to align strobes\n"
+          "after cheap integer decimation. No-op (falls through to\n"
+          "``execute``) when the cascade has no terminal Resampler stage.\n"
+          "\n"
+          "The returned array is a view into a buffer reused on the next\n"
+          "call.\n"
+          "\n"
+          "Parameters\n"
+          "----------\n"
+          "x : array_like, complex64\n"
+          "    Input samples.\n"
+          "ctrl : float\n"
+          "    Rate deviation added to the terminal Resampler stage's rate.\n"
+          "\n"
+          "Returns\n"
+          "-------\n"
+          "ndarray, complex64\n"
+          "    Output samples.\n"
+          "\n"
+          "Examples\n"
+          "--------\n"
+          "    >>> import numpy as np\n"
+          "    >>> from doppler.resample import RateConverter\n"
+          "    >>> rc = RateConverter(0.5)\n"
+          "    >>> y = rc.execute_ctrl(np.ones(256, dtype=np.complex64), "
+          "0.0)\n"
+          "    >>> y.dtype == np.complex64\n"
           "    True\n" },
         { "execute_max_out", (PyCFunction)RateConverterObj_execute_max_out,
           METH_NOARGS,

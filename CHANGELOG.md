@@ -13,6 +13,22 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+### Added
+
+- **Streaming control port on `Resampler` and `RateConverter`.** A new
+    `resamp_execute_ctrl_push` (C) drives the resampler one input at a time with
+    an instantaneous rate deviation — the per-output-feedback form of
+    `execute_ctrl` that a closed timing/rate-tracking loop needs (the block form
+    takes a precomputed `ctrl[]` and cannot depend on outputs already emitted).
+    Feeding a stream through it reproduces block `execute_ctrl` bit-for-bit.
+    Built on it, **`RateConverter.execute_ctrl(x, ctrl)`** (C + Python) forwards
+    a scalar rate deviation to the cascade's **terminal `Resampler` stage** while
+    the fixed integer HB/CIC stages run unchanged — so a loop can decimate a high
+    input rate cheaply and then arbitrary-rate + strobe-align in the last stage
+    (the wideband/DSSS receiver front-end). No-op fall-through when the cascade
+    has no fractional stage to steer. Foundation for the polyphase RX
+    matched-filter + timing-recovery block.
+
 ### Changed
 
 - **Polyphase RRC pulse shaping — ~`sps`× faster waveform synthesis.** The

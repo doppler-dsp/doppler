@@ -575,6 +575,69 @@ RateConverter_execute (RateConverter_state_t *s, const float _Complex *in,
                       s->stage_ptrs[s->n_stages - 1], src, n, out, max_out);
 }
 
+/* Run a resamp stage with a constant rate deviation on every input — the
+ * scalar control-port form, built on the per-input streaming push. */
+static size_t
+_resamp_exec_ctrl (resamp_state_t *r, const float _Complex *in, size_t n_in,
+                   double ctrl, float _Complex *out, size_t max_out)
+{
+  size_t oi = 0;
+  for (size_t i = 0; i < n_in && oi < max_out; i++)
+    oi += resamp_execute_ctrl_push (r, in[i], ctrl, out + oi, max_out - oi);
+  return oi;
+}
+
+size_t
+RateConverter_execute_ctrl (RateConverter_state_t *s, const float _Complex *in,
+                            size_t n_in, double ctrl, float _Complex *out,
+                            size_t max_out)
+{
+  if (s->n_stages == 0)
+    return 0;
+  int last = s->n_stages - 1;
+  /* Only a terminal Resampler stage has a steerable fractional accumulator; a
+     pure integer HB/CIC cascade has nothing to steer → un-steered execute. */
+  if (s->stage_types[last] != RC_STAGE_RESAMP)
+    return RateConverter_execute (s, in, n_in, out, max_out);
+
+  /* Grow ping-pong buffers lazily to n_in (mirrors RateConverter_execute). */
+  if (n_in > s->buf_cap)
+    {
+      free (s->bufs[0]);
+      free (s->bufs[1]);
+      s->bufs[0] = (float _Complex *)malloc (n_in * sizeof (float _Complex));
+      s->bufs[1] = (float _Complex *)malloc (n_in * sizeof (float _Complex));
+      if (!s->bufs[0] || !s->bufs[1])
+        {
+          free (s->bufs[0]);
+          free (s->bufs[1]);
+          s->bufs[0] = s->bufs[1] = NULL;
+          s->buf_cap              = 0;
+          return 0;
+        }
+      s->buf_cap = n_in;
+    }
+
+  if (s->n_stages == 1)
+    return _resamp_exec_ctrl ((resamp_state_t *)s->stage_ptrs[0], in, n_in,
+                              ctrl, out, max_out);
+
+  /* Upstream integer stages run plain; the terminal Resampler is steered. */
+  const float _Complex *src  = in;
+  size_t                n    = n_in;
+  int                   ping = 0;
+  for (int i = 0; i < last; i++)
+    {
+      float _Complex *dst = s->bufs[ping];
+      n   = _stage_exec (s->stage_types[i], s->stage_ptrs[i], src, n, dst,
+                         s->buf_cap);
+      src = dst;
+      ping ^= 1;
+    }
+  return _resamp_exec_ctrl ((resamp_state_t *)s->stage_ptrs[last], src, n,
+                            ctrl, out, max_out);
+}
+
 size_t
 RateConverter_execute_max_out (RateConverter_state_t *s)
 {

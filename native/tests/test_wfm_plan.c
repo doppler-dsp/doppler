@@ -157,9 +157,73 @@ test_parallel_build_bit_exact (void)
   return 0;
 }
 
+/* The SNR-carrying source does not have to be sources[0]. The resolver seeds
+ * the appended noise source from the ANCHOR (wfm_resolve.c), while the ranged
+ * off/delay draws key off sources[0] (wfm_compose.c's start_segment) — two
+ * different seeds that are equal only in the scenes every other test here
+ * builds, where the anchor happens to come first. Seeding the reconstructed
+ * noise from sources[0] produced an entirely different realization (not a
+ * rounding difference: full-scale, every sample), so this walks the anchor
+ * through each position of a 3-source scene. */
+#define ANCHOR_POS 3u
+
+static int
+test_noise_anchor_position (void)
+{
+  size_t          bytes = L * sizeof (float _Complex);
+  float _Complex *ref   = malloc (bytes);
+  float _Complex *got   = malloc (bytes);
+  CHECK (ref && got, "anchor: alloc");
+
+  for (unsigned a = 0; a < ANCHOR_POS; a++)
+    {
+      wfm_source_t src[ANCHOR_POS];
+      for (unsigned k = 0; k < ANCHOR_POS; k++)
+        {
+          memset (&src[k], 0, sizeof src[k]);
+          src[k].type = 4; /* qpsk */
+          src[k].freq = 1e5 * (double)k;
+          src[k].snr  = (k == a) ? 6.0 : 100.0; /* one anchor, rest clean */
+          src[k].seed = 40u + k;
+          src[k].sps  = 8;
+          src[k].pn_length = 7;
+          src[k].level     = (k == a) ? 0.0 : -6.0;
+        }
+      wfm_segment_t seg  = { .sources     = src,
+                             .n_sources   = ANCHOR_POS,
+                             .fs          = 1e6,
+                             .num_samples = L,
+                             .off_samples = 0 };
+      char         *json = wfm_spec_to_json (&seg, 1, 0, 0, 0.0);
+      CHECK (json, "anchor: spec_to_json");
+      CHECK (compose_collect (json, ref) == L, "anchor: compose length");
+
+      wfm_plan_t *p = wfm_plan_prepare (json);
+      CHECK (p, "anchor: prepare");
+      CHECK (wfm_plan_render (p, "{}", got) == L, "anchor: render baseline");
+      CHECK (memcmp (ref, got, bytes) == 0,
+             "ANCHOR: render({}) == compose with the SNR source at any index");
+
+      /* A seed override still moves the noise (Monte-Carlo), from any pos. */
+      CHECK (wfm_plan_render (p, "{\"seed\":4242}", got) == L,
+             "anchor: render with a seed override");
+      CHECK (memcmp (ref, got, bytes) != 0,
+             "ANCHOR: a seed override still redraws the noise");
+
+      wfm_plan_destroy (p);
+      free (json);
+    }
+
+  free (got);
+  free (ref);
+  return 0;
+}
+
 int
 main (void)
 {
+  if (test_noise_anchor_position ())
+    return 1;
   if (test_parallel_build_bit_exact ())
     return 1;
 
@@ -372,6 +436,50 @@ main (void)
 
   wfm_plan_destroy (psolo);
   free (jsolo);
+
+  /* A bundled source with a NON-ZERO level. Every bundled check above leaves
+   * level at 0, i.e. gain exactly 1.0, where scaling the cached signal and
+   * the reconstructed noise separately is trivially exact — so none of them
+   * can see g*sig + g*noise drifting an ULP from the composer's single
+   * g*(sig+noise). This is that case: at -3 dB it used to mismatch on ~2/3 of
+   * the samples (max |diff| 1.7e-7). */
+  wfm_source_t solo_lvl = solo;
+  solo_lvl.level        = -3.0;
+  wfm_segment_t sseg_lvl
+      = { .sources = &solo_lvl, .n_sources = 1, .fs = 1e6, .num_samples = L };
+  char *jlvl = wfm_spec_to_json (&sseg_lvl, 1, 0, 0, 0.0);
+  CHECK (jlvl, "solo level json");
+  CHECK (compose_collect (jlvl, ref) == L, "compose solo@level=-3");
+  wfm_plan_t *plvl = wfm_plan_prepare (jlvl);
+  CHECK (plvl, "prepare bundled @ level=-3");
+  CHECK (wfm_plan_render (plvl, "{}", got) == L, "bundled level render");
+  CHECK (memcmp (ref, got, bytes) == 0,
+         "BUNDLED LEVEL: render({}) == compose(solo @ -3 dB), bit-for-bit");
+
+  /* The same, with an SNR override: the noise is rebuilt at the new SNR and
+   * still has to ride through the one shared multiply. */
+  wfm_source_t solo_lvl9 = solo_lvl;
+  solo_lvl9.snr          = 9.0;
+  wfm_segment_t sseg_lvl9
+      = { .sources = &solo_lvl9, .n_sources = 1, .fs = 1e6, .num_samples = L };
+  char *jlvl9 = wfm_spec_to_json (&sseg_lvl9, 1, 0, 0, 0.0);
+  CHECK (jlvl9, "solo level snr json");
+  CHECK (compose_collect (jlvl9, ref) == L, "compose solo@-3,snr=9");
+  CHECK (wfm_plan_render (plvl, "{\"snr\":9.0}", got) == L,
+         "bundled level render snr=9");
+  CHECK (memcmp (ref, got, bytes) == 0,
+         "BUNDLED LEVEL SNR: render(snr=9) == compose(solo @ -3 dB, snr 9)");
+  free (jlvl9);
+
+  /* Disabling still zeroes the whole contribution (ext_gain 0 -> the scale
+   * pass wipes signal and noise together). */
+  CHECK (wfm_plan_render (plvl, "{\"enable\":[false]}", got) == L,
+         "bundled level render disabled");
+  for (size_t i = 0; i < L; i++)
+    CHECK (got[i] == 0.0f, "BUNDLED LEVEL ENABLE: disabling zeroes output");
+
+  wfm_plan_destroy (plvl);
+  free (jlvl);
 
   /* ── multi-segment: two segments now accepted, byte-exact vs. a full
    * compose of the same 2-segment spec. ── */

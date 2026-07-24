@@ -61,7 +61,10 @@ typedef struct
   size_t   off_lo, off_hi;
   size_t   delay_lo, delay_hi;
   int      gap_noise; /* 0 auto (gaps carry the floor), 1 off (hard zero) */
-  uint32_t dseed;     /* default draw/noise seed == sources[0].seed       */
+  uint32_t dseed;     /* ranged off/delay DRAW seed == sources[0].seed.
+                       * NOT the noise seed — that is noise_src.seed, the
+                       * anchor's, which differs whenever the SNR-carrying
+                       * source is not sources[0]. */
 
   int          has_noise; /* 1 -> a gap-spanning noise synth is built     */
   int          bundled;   /* 1 -> noise_src is the lone real-snr source   */
@@ -234,16 +237,26 @@ materialize (const wfm_plan_t *p, const double *gains_db, const double *phases,
   for (size_t si = 0; si < p->n_segs; si++)
     {
       const wfm_plan_segment_t *ps = &p->segs[si];
-      uint32_t eff_seed            = seed_given ? (uint32_t)seed : ps->dseed;
+      /* Two DIFFERENT default seeds, and conflating them is a silent bug.
+       * The ranged off/delay draws key off the segment's first source
+       * (wfm_compose.c's start_segment does the same, so the drawn lengths
+       * match), while the noise synth must be rebuilt from the seed the
+       * RESOLVER gave the noise source — the anchor's, i.e. whichever source
+       * carries the SNR (wfm_resolve.c). Those are the same number only when
+       * the anchor happens to be sources[0]; anywhere else, seeding the noise
+       * from sources[0] reconstructs a completely different realization than
+       * compose() produced. A seed override (Monte-Carlo) still moves both. */
+      uint32_t draw_seed  = seed_given ? (uint32_t)seed : ps->dseed;
+      uint32_t noise_seed = seed_given ? (uint32_t)seed : ps->noise_src.seed;
       for (size_t inst = 0; inst < ps->repeats; inst++)
         {
           size_t dly = (ps->ranged & WFM_RANGE_DELAY_SAMPLES)
-                           ? wfm_draw_samples (eff_seed, 0, inst, si,
+                           ? wfm_draw_samples (draw_seed, 0, inst, si,
                                                WFM_RANGE_DELAY_SAMPLES,
                                                ps->delay_lo, ps->delay_hi)
                            : ps->delay_lo;
           size_t off = (ps->ranged & WFM_RANGE_OFF_SAMPLES)
-                           ? wfm_draw_samples (eff_seed, 0, inst, si,
+                           ? wfm_draw_samples (draw_seed, 0, inst, si,
                                                WFM_RANGE_OFF_SAMPLES,
                                                ps->off_lo, ps->off_hi)
                            : ps->off_lo;
@@ -262,24 +275,46 @@ materialize (const wfm_plan_t *p, const double *gains_db, const double *phases,
             ext_gain = segment_noise_gain (ps, snr, snr_given);
 
           wfm_synth_state_t *gsyn
-              = build_gap_synth (ps, p->fs, snr, snr_given, eff_seed, inst);
+              = build_gap_synth (ps, p->fs, snr, snr_given, noise_seed, inst);
 
           if (gsyn && !ps->gap_noise)
             add_noise (gsyn, out + pos, dly, ext_gain);
           pos += dly;
 
-          for (size_t k = 0; k < ps->n_sig; k++)
+          if (ps->bundled)
             {
-              size_t gi = ps->sig_off + k;
-              float  g  = gains_db ? (float)pow (10.0, gains_db[gi] / 20.0)
-                                   : p->base_gain[gi];
-              if (enable && !enable[gi])
-                g = 0.0f;
-              double ph = phases ? phases[gi] : 0.0;
-              accumulate (out + pos, on, g, ph, p->cache_sig[gi]);
+              /* One synth, one multiply: the composer scales a lone source's
+               * signal AND its baked-in noise together, out[j] = g*scratch[j]
+               * over the combined stream. Scaling the cached signal and the
+               * reconstructed noise separately is the same number in exact
+               * arithmetic but NOT in float — g*sig + g*noise drifts about an
+               * ULP from g*(sig+noise) — so the pieces are summed at unit gain
+               * and the ON region is scaled once, exactly as compose does. A
+               * bundled segment owns its whole ON region (n_sig == 1, no other
+               * source writes here), so the in-place scale is safe. */
+              double ph = phases ? phases[ps->sig_off] : 0.0;
+              accumulate (out + pos, on, 1.0f, ph, p->cache_sig[ps->sig_off]);
+              if (gsyn)
+                add_noise (gsyn, out + pos, on, 1.0f);
+              if (ext_gain != 1.0f)
+                for (size_t i = 0; i < on; i++)
+                  out[pos + i] *= ext_gain;
             }
-          if (gsyn) /* ON always carries noise, regardless of gap_noise */
-            add_noise (gsyn, out + pos, on, ext_gain);
+          else
+            {
+              for (size_t k = 0; k < ps->n_sig; k++)
+                {
+                  size_t gi = ps->sig_off + k;
+                  float  g  = gains_db ? (float)pow (10.0, gains_db[gi] / 20.0)
+                                       : p->base_gain[gi];
+                  if (enable && !enable[gi])
+                    g = 0.0f;
+                  double ph = phases ? phases[gi] : 0.0;
+                  accumulate (out + pos, on, g, ph, p->cache_sig[gi]);
+                }
+              if (gsyn) /* ON always carries noise, regardless of gap_noise */
+                add_noise (gsyn, out + pos, on, ext_gain);
+            }
           pos += on;
 
           if (gsyn && !ps->gap_noise)

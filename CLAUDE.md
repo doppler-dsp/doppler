@@ -42,6 +42,25 @@ Ask one question:
     - Block processor / decimator / resampler / FFT / correlator → `--preset blockwise`
     - Signal generator (void input, array output) → `--preset generator`
 
+### How to run jm — through `make`, never `uvx`
+
+**jm is a dev-group dependency, pinned once in `pyproject.toml`** (keep it in
+sync with `jm_version` in `just-makeit.toml`). Run it as `uv run just-makeit …`,
+and in CI only through a **Makefile target** — the Makefile is the single driver
+for every jm invocation (`make drift-check`, `make bench`, `make bench-baseline`,
+`make bench-check`).
+
+**Never `uvx just-makeit`.** An unpinned `uvx <tool>` does NOT fetch the latest
+release: it silently reuses whatever version is installed as a uv *tool*, which
+drifts per machine and never updates. That is not hypothetical — `make bench`
+was the one unpinned call site and had been resolving to **0.19.28** while the
+repo pinned 0.33.12, so it did not understand the `[codec.blue_keyword]` table
+(jm 0.33.9), derived a bogus `codec` component, and died on
+`No rule to make target 'bench_codec_core'`. The local benchmark path was
+unrunnable from then on, which is why `benchmarks/published` stalled at v0.35.0.
+(Historical `uvx --from 'just-makeit==X'` lines in the adoption notes below are
+a record of which pin was current at the time, not an instruction.)
+
 ### Step 1 — declare the interface
 
 **Entry point A: CLI (exploratory, step/steps objects)**

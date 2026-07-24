@@ -58,11 +58,10 @@ jobs:
         git worktree add /tmp/base "${{ github.event.pull_request.base.sha }}"
         cd /tmp/base
         uv sync --group dev
-        # Build the Python extensions first — jm bench builds with BUILD_PYTHON
-        # off, so the pytest-benchmark suite can't import doppler.* without this.
-        make build
-        make pyext
-        uvx --refresh --from 'just-makeit==0.33.12' just-makeit bench --python-only --tag base
+        # bench-baseline depends on build+pyext: jm bench builds with
+        # BUILD_PYTHON off, so the pytest-benchmark suite can't import
+        # doppler.* without them.
+        make bench-baseline
         mkdir -p "$GITHUB_WORKSPACE/benchmarks/history"
         cp benchmarks/history/base.json \
            "$GITHUB_WORKSPACE/benchmarks/history/base.json"
@@ -70,7 +69,4 @@ jobs:
     - name: Benchmark the PR head and check against the baseline
       run: |
         uv sync --group dev
-        make build
-        make pyext
-        uvx --refresh --from 'just-makeit==0.33.12' just-makeit bench --check \
-          --python-only --baseline base --threshold 0.30
+        make bench-check

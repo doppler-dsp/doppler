@@ -373,6 +373,50 @@ main (void)
   wfm_plan_destroy (psolo);
   free (jsolo);
 
+  /* A bundled source with a NON-ZERO level. Every bundled check above leaves
+   * level at 0, i.e. gain exactly 1.0, where scaling the cached signal and
+   * the reconstructed noise separately is trivially exact — so none of them
+   * can see g*sig + g*noise drifting an ULP from the composer's single
+   * g*(sig+noise). This is that case: at -3 dB it used to mismatch on ~2/3 of
+   * the samples (max |diff| 1.7e-7). */
+  wfm_source_t solo_lvl = solo;
+  solo_lvl.level        = -3.0;
+  wfm_segment_t sseg_lvl
+      = { .sources = &solo_lvl, .n_sources = 1, .fs = 1e6, .num_samples = L };
+  char *jlvl = wfm_spec_to_json (&sseg_lvl, 1, 0, 0, 0.0);
+  CHECK (jlvl, "solo level json");
+  CHECK (compose_collect (jlvl, ref) == L, "compose solo@level=-3");
+  wfm_plan_t *plvl = wfm_plan_prepare (jlvl);
+  CHECK (plvl, "prepare bundled @ level=-3");
+  CHECK (wfm_plan_render (plvl, "{}", got) == L, "bundled level render");
+  CHECK (memcmp (ref, got, bytes) == 0,
+         "BUNDLED LEVEL: render({}) == compose(solo @ -3 dB), bit-for-bit");
+
+  /* The same, with an SNR override: the noise is rebuilt at the new SNR and
+   * still has to ride through the one shared multiply. */
+  wfm_source_t solo_lvl9 = solo_lvl;
+  solo_lvl9.snr          = 9.0;
+  wfm_segment_t sseg_lvl9
+      = { .sources = &solo_lvl9, .n_sources = 1, .fs = 1e6, .num_samples = L };
+  char *jlvl9 = wfm_spec_to_json (&sseg_lvl9, 1, 0, 0, 0.0);
+  CHECK (jlvl9, "solo level snr json");
+  CHECK (compose_collect (jlvl9, ref) == L, "compose solo@-3,snr=9");
+  CHECK (wfm_plan_render (plvl, "{\"snr\":9.0}", got) == L,
+         "bundled level render snr=9");
+  CHECK (memcmp (ref, got, bytes) == 0,
+         "BUNDLED LEVEL SNR: render(snr=9) == compose(solo @ -3 dB, snr 9)");
+  free (jlvl9);
+
+  /* Disabling still zeroes the whole contribution (ext_gain 0 -> the scale
+   * pass wipes signal and noise together). */
+  CHECK (wfm_plan_render (plvl, "{\"enable\":[false]}", got) == L,
+         "bundled level render disabled");
+  for (size_t i = 0; i < L; i++)
+    CHECK (got[i] == 0.0f, "BUNDLED LEVEL ENABLE: disabling zeroes output");
+
+  wfm_plan_destroy (plvl);
+  free (jlvl);
+
   /* ── multi-segment: two segments now accepted, byte-exact vs. a full
    * compose of the same 2-segment spec. ── */
   wfm_source_t  tone2       = { .type      = 0,

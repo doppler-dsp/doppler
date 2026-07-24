@@ -268,18 +268,40 @@ materialize (const wfm_plan_t *p, const double *gains_db, const double *phases,
             add_noise (gsyn, out + pos, dly, ext_gain);
           pos += dly;
 
-          for (size_t k = 0; k < ps->n_sig; k++)
+          if (ps->bundled)
             {
-              size_t gi = ps->sig_off + k;
-              float  g  = gains_db ? (float)pow (10.0, gains_db[gi] / 20.0)
-                                   : p->base_gain[gi];
-              if (enable && !enable[gi])
-                g = 0.0f;
-              double ph = phases ? phases[gi] : 0.0;
-              accumulate (out + pos, on, g, ph, p->cache_sig[gi]);
+              /* One synth, one multiply: the composer scales a lone source's
+               * signal AND its baked-in noise together, out[j] = g*scratch[j]
+               * over the combined stream. Scaling the cached signal and the
+               * reconstructed noise separately is the same number in exact
+               * arithmetic but NOT in float — g*sig + g*noise drifts about an
+               * ULP from g*(sig+noise) — so the pieces are summed at unit gain
+               * and the ON region is scaled once, exactly as compose does. A
+               * bundled segment owns its whole ON region (n_sig == 1, no other
+               * source writes here), so the in-place scale is safe. */
+              double ph = phases ? phases[ps->sig_off] : 0.0;
+              accumulate (out + pos, on, 1.0f, ph, p->cache_sig[ps->sig_off]);
+              if (gsyn)
+                add_noise (gsyn, out + pos, on, 1.0f);
+              if (ext_gain != 1.0f)
+                for (size_t i = 0; i < on; i++)
+                  out[pos + i] *= ext_gain;
             }
-          if (gsyn) /* ON always carries noise, regardless of gap_noise */
-            add_noise (gsyn, out + pos, on, ext_gain);
+          else
+            {
+              for (size_t k = 0; k < ps->n_sig; k++)
+                {
+                  size_t gi = ps->sig_off + k;
+                  float  g  = gains_db ? (float)pow (10.0, gains_db[gi] / 20.0)
+                                       : p->base_gain[gi];
+                  if (enable && !enable[gi])
+                    g = 0.0f;
+                  double ph = phases ? phases[gi] : 0.0;
+                  accumulate (out + pos, on, g, ph, p->cache_sig[gi]);
+                }
+              if (gsyn) /* ON always carries noise, regardless of gap_noise */
+                add_noise (gsyn, out + pos, on, ext_gain);
+            }
           pos += on;
 
           if (gsyn && !ps->gap_noise)

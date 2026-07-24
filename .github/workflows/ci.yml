@@ -381,6 +381,11 @@ jobs:
       run: uv sync --group dev --group docs
 
     - name: Check Python API docs coverage
+      # Every gate below runs even if an earlier one failed (!cancelled()), so
+      # ALL doc failures surface in one run instead of one-per-push — the job
+      # still goes red if any fail. (A failed dep install cascades; that's a
+      # rare infra failure, not the drift this guards.)
+      if: ${{ !cancelled() }}
       # Fails if a public symbol (module __all__) is documented nowhere under
       # docs/api/. Pre-existing gaps are baselined in .api-coverage-ignore, so
       # this only trips on a NEW undocumented surface. doppler is importable
@@ -388,6 +393,7 @@ jobs:
       run: uv run python scripts/check_api_docs.py
 
     - name: Check docs nav index coverage
+      if: ${{ !cancelled() }}
       # Fails if a page under docs/design/, docs/dev/, or docs/gallery/ (on
       # disk, or listed in mkdocs.yml's nav) has no bullet in that section's
       # index.md. Those index pages are hand-curated and have rotted more
@@ -395,6 +401,7 @@ jobs:
       run: uv run python scripts/check_nav_index.py
 
     - name: Check related-pages drift
+      if: ${{ !cancelled() }}
       # Fails if docs/api/*.md's generated "## Related pages" block doesn't
       # match a fresh scan of docs/gallery|guide|design|dev for a backtick
       # or link-text mention of that page's symbols. Run
@@ -402,6 +409,7 @@ jobs:
       run: uv run python scripts/gen_related_pages.py --check
 
     - name: Check README sync drift
+      if: ${{ !cancelled() }}
       # Fails if README.md's marked body doesn't match a fresh regeneration
       # from docs/index.md's readme-sync region (the single source of
       # truth for everything below the badges). Run `make docs-relink`
@@ -409,6 +417,7 @@ jobs:
       run: uv run python scripts/gen_readme.py --check
 
     - name: Check install-script drift
+      if: ${{ !cancelled() }}
       # Fails if tests/install/build-*-deps.sh (rendered into
       # docs/install/source.md and docs/quickstart.md via --8<-- includes)
       # doesn't match a fresh projection of jb.toml's [dev.*] package
@@ -417,12 +426,14 @@ jobs:
       run: uv run python scripts/gen_install_scripts.py --check
 
     - name: Check version strings in docs
+      if: ${{ !cancelled() }}
       # Fails if the current pyproject.toml version is hand-typed anywhere
       # in README.md or hand-owned docs/ pages -- such a claim goes stale
       # at the very next release (this rotted once in dev/wfmgen/api.md).
       run: uv run python scripts/check_version_strings.py
 
     - name: Check serialization stance
+      if: ${{ !cancelled() }}
       # Fails if an object declares neither serializable="true" nor is opted
       # out as stateless (scripts/.serializable-stateless). The rollout set is
       # baselined in scripts/.serializable-ignore (burn-down to empty), so this
@@ -430,11 +441,13 @@ jobs:
       run: uv run python scripts/check_serializable.py
 
     - name: Build docs
+      if: ${{ !cancelled() }}
       # --strict: any build warning (unresolved link ref, bad include)
       # fails the job instead of scrolling past.
       run: uv run zensical build --strict
 
     - name: Check site internal links
+      if: ${{ !cancelled() }}
       # Walks the freshly built site/: every internal href/src must
       # resolve to a real file, every #fragment to a real element id.
       # Generated trees (c-api, doxygen) are linked-into but not

@@ -96,6 +96,7 @@ endif
         bench bench-report bench-publish bench-interleaved bench-docs \
         bench-stream \
         debug release blazing bump-version check-version tag-release \
+        release-watch ship docs-check \
         test-examples test-examples-python install-deps setup clean help
 
 # ── default ──────────────────────────────────────────────────────────────────
@@ -536,6 +537,48 @@ endif
 	git tag -a "v$(VERSION)" -m "Release v$(VERSION)"
 	git push origin "v$(VERSION)"
 	@echo "Tagged v$(VERSION) on merged main — release workflow starting on GitHub"
+
+# ── release-watch ─────────────────────────────────────────────────────────────
+# Watch release.yml through to VERIFIED: stream job outcomes, auto-recover ONE
+# pre-publish flake (rerun a failed job / cancel+rerun a hung one — safe because
+# publish is gated behind smoke), then verify the real artifacts (PyPI
+# per-version then latest, GitHub Release published with notes + C tarballs).
+#   make release-watch VERSION=0.37.0
+release-watch:
+ifndef VERSION
+	@echo "usage: make release-watch VERSION=<x.y.z>"
+	@exit 1
+endif
+	@REPO=doppler-dsp/doppler scripts/release-watch.sh "$(VERSION)"
+
+# ── ship ──────────────────────────────────────────────────────────────────────
+# tag-release then release-watch — the whole tag→publish→verify loop in one
+# command. (Named `ship`, not `release`, so it never collides with a cmake
+# Release build.) Run on merged, CI-green main.
+#   make ship VERSION=0.37.0
+ship: tag-release release-watch
+
+# ── docs-check ────────────────────────────────────────────────────────────────
+# Run EVERY gate the CI Docs job runs, locally, and report ALL failures in one
+# pass (the CI job stops at the first, so a later red can hide behind an earlier
+# one — this does not). Run before pushing any docs/api or generated-doc change.
+docs-check:
+	@fail=0; \
+	for c in \
+	  "python scripts/check_api_docs.py" \
+	  "python scripts/check_nav_index.py" \
+	  "python scripts/gen_related_pages.py --check" \
+	  "python scripts/gen_readme.py --check" \
+	  "python scripts/gen_install_scripts.py --check" \
+	  "python scripts/check_version_strings.py" \
+	  "python scripts/check_serializable.py"; do \
+	    echo "=== $$c ==="; uv run $$c || fail=1; \
+	done; \
+	echo "=== zensical build --strict ==="; uv run zensical build --strict || fail=1; \
+	echo "=== python scripts/check_site_links.py ==="; \
+	  uv run python scripts/check_site_links.py || fail=1; \
+	if [ "$$fail" = 0 ]; then echo "docs-check: ALL GATES PASS"; \
+	else echo "docs-check: FAILURES above — fix, or run 'make docs-relink' for drift"; exit 1; fi
 
 # ── clean ─────────────────────────────────────────────────────────────────────
 clean:

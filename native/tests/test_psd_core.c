@@ -170,6 +170,31 @@ main (void)
     psd_destroy (w);
   }
 
+  /* ── band power is ABSOLUTE: window- and pad-invariant ──────────────────
+   * Regression for the ENBW bug (band power normalised by coherent gain cg^2
+   * instead of the noise-power gain nfft*s2): a full-scale (A=1, full_scale=1)
+   * tone integrates to its true power, 0 dBFS, for EVERY window and pad.  The
+   * bug scaled this by 10*log10(enbw*nfft/n) — +1.76 dB (Hann), +3 dB (BH),
+   * more when padded — so the reading tracked the window instead of the tone.
+   */
+  {
+    const double whole[2] = { -0.5, 0.5 };
+    /* window: 0=hann, 1=kaiser, 2=blackman-harris; pad in {1,4}. */
+    for (int win = 0; win <= 2; win++)
+      for (size_t pad = 1; pad <= 4; pad *= 4)
+        {
+          psd_state_t *w = psd_create (N, 1.0, win, 8.0f, pad, 1.0, 0, 0, 0.1);
+          CHECK (w != NULL);
+          float complex x[64];
+          fill_tone (x, N, 9); /* window spreads it; Parseval recovers total */
+          for (int r = 0; r < 8; r++)
+            psd_accumulate (w, x, N);
+          double p = psd_total_band_power (w, whole, 2);
+          CHECK (fabs (p) < 0.3); /* 0 dBFS +/- 0.3 dB, any window/pad */
+          psd_destroy (w);
+        }
+  }
+
   /* ── occupied bandwidth: narrow for a tone, ~full for flat noise ────── */
   {
     psd_state_t  *w = psd_create (N, 1.0, 0, 0.0f, 1, 1.0, 0, 0, 0.1);

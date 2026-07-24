@@ -11,7 +11,10 @@
  * Normalisation: dividing |X|^2 by the window coherent gain squared (cg^2)
  * makes a full-scale tone read its true power (psd_db); dividing instead by
  * fs*sum(w^2) yields PSD in dB/Hz (psd_dbhz).  The two differ only by the
- * constant 10*log10(cg^2 / (fs*s2)).
+ * constant 10*log10(cg^2 / (fs*s2)).  Band-*integrated* power (band_power,
+ * total_band_power) is a third case: it normalises by the noise-power gain
+ * nfft*s2, not cg^2, so an integrated band is window- and pad-independent —
+ * see psd_band_lin.
  */
 #include "psd/psd_core.h"
 #include "spectral/spectral_core.h"
@@ -313,14 +316,25 @@ psd_band_bins (const psd_state_t *s, double lo, double hi, size_t *ilo_out,
   return 1;
 }
 
-/* Linear power integrated over a [lo,hi] Hz band (dBFS reference). */
+/* Linear power integrated over a [lo,hi] Hz band (dBFS reference).
+ *
+ * Band-integrated power uses the *noise-power* (incoherent) window
+ * normalisation nfft*s2, NOT the coherent gain cg^2 that psd_db uses to read a
+ * single tone's peak bin.  The two differ by the window's equivalent noise
+ * bandwidth, ENBW = nfft*s2/cg^2: a windowed tone leaks across ~ENBW bins, so
+ * summing pwr/cg^2 over a band over-counts the true power by ENBW — and, with
+ * zero-padding, by a further nfft/n.  Normalising by nfft*s2 (== cg^2 * nfft/n
+ * * enbw, the same calibration nprmeas applies per bin) makes an integrated
+ * band read its true power window- and pad-independently: by Parseval a
+ * full-scale tone integrates to full_scale^2 and a noise band to its variance.
+ */
 static double
 psd_band_lin (const psd_state_t *s, double lo, double hi)
 {
   size_t ilo, ihi;
   if (!psd_band_bins (s, lo, hi, &ilo, &ihi))
     return 0.0;
-  const double ref = psd_db_ref (s);
+  const double ref = (double)s->nfft * s->s2 * s->full_scale * s->full_scale;
   double       sum = 0.0;
   for (size_t i = ilo; i <= ihi; i++)
     sum += (double)s->pwr[i] / ref;

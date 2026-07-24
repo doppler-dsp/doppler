@@ -32,6 +32,8 @@ class Synth:
         One of ``"galois"``, ``"fibonacci"``.
     level : float | tuple[float, float], default 0.0
         Source power in dBFS (<=0; 0 = unit power). Applies only when summed in a Segment/Composer (gain 10^(level/20)); ignored by standalone Synth.steps().
+    background : int, default 0
+        Mark this source as part of the static background field (0/1). Plan.prepare() folds a contiguous leading run of background sources into ONE pre-summed cache entry instead of caching each separately, so a scene of many fixed emitters costs one buffer rather than hundreds. The composite is overridable as a unit: it takes a single slot in gains/phases/enable and counts as one in n_sources(), so scaling it trims the whole field while its members keep their relative levels. Background sources must come first in the segment (a non-prefix ordering is rejected by prepare, since the fold would no longer reproduce compose bit-for-bit). Ignored by compose() and by standalone Synth.steps().
     f_end : float | tuple[float, float], default 0.0
         Chirp end frequency in Hz; ignored by non-chirp types.
     bits : bytes | None, default None
@@ -66,7 +68,7 @@ class Synth:
     fs : float, default 1.0
         Sample rate in Hz — one per segment (all sources share it).
     """
-    def __init__(self, type: str = ..., freq: float | tuple[float, float] = ..., snr: float | tuple[float, float] = ..., snr_mode: str = ..., seed: int = ..., sps: int = ..., pn_length: int = ..., pn_poly: int = ..., lfsr: str = ..., level: float | tuple[float, float] = ..., f_end: float | tuple[float, float] = ..., bits: bytes | None = ..., modulation: str = ..., pulse: str = ..., rrc_beta: float = ..., rrc_span: int = ..., symbols: NDArray[np.complex64] | None = ..., acq_code: bytes | None = ..., acq_reps: int = ..., data_code: bytes | None = ..., sync: bytes | None = ..., crc: str = ..., symbol_rate: float = ..., dsss_code_only: int = ..., fs: float = ...) -> None: ...
+    def __init__(self, type: str = ..., freq: float | tuple[float, float] = ..., snr: float | tuple[float, float] = ..., snr_mode: str = ..., seed: int = ..., sps: int = ..., pn_length: int = ..., pn_poly: int = ..., lfsr: str = ..., level: float | tuple[float, float] = ..., background: int = ..., f_end: float | tuple[float, float] = ..., bits: bytes | None = ..., modulation: str = ..., pulse: str = ..., rrc_beta: float = ..., rrc_span: int = ..., symbols: NDArray[np.complex64] | None = ..., acq_code: bytes | None = ..., acq_reps: int = ..., data_code: bytes | None = ..., sync: bytes | None = ..., crc: str = ..., symbol_rate: float = ..., dsss_code_only: int = ..., fs: float = ...) -> None: ...
     def __getattr__(self, name: str) -> Any: ...
     def steps(self, n: int) -> NDArray[np.complex64]:
         """Generate *n* complex samples."""
@@ -103,6 +105,8 @@ class Segment:
         One of ``"galois"``, ``"fibonacci"``.
     level : float | tuple[float, float], default 0.0
         Source power in dBFS (<=0; 0 = unit power). Applies only when summed in a Segment/Composer (gain 10^(level/20)); ignored by standalone Synth.steps().
+    background : int, default 0
+        Mark this source as part of the static background field (0/1). Plan.prepare() folds a contiguous leading run of background sources into ONE pre-summed cache entry instead of caching each separately, so a scene of many fixed emitters costs one buffer rather than hundreds. The composite is overridable as a unit: it takes a single slot in gains/phases/enable and counts as one in n_sources(), so scaling it trims the whole field while its members keep their relative levels. Background sources must come first in the segment (a non-prefix ordering is rejected by prepare, since the fold would no longer reproduce compose bit-for-bit). Ignored by compose() and by standalone Synth.steps().
     f_end : float | tuple[float, float], default 0.0
         Chirp end frequency in Hz; ignored by non-chirp types.
     bits : bytes | None, default None
@@ -159,6 +163,7 @@ class Segment:
     pn_poly: int
     lfsr: str
     level: float
+    background: int
     f_end: float
     bits: bytes | None
     modulation: str
@@ -173,7 +178,7 @@ class Segment:
     crc: str
     symbol_rate: float
     dsss_code_only: int
-    def __init__(self, type: str = ..., freq: float | tuple[float, float] = ..., snr: float | tuple[float, float] = ..., snr_mode: str = ..., seed: int = ..., sps: int = ..., pn_length: int = ..., pn_poly: int = ..., lfsr: str = ..., level: float | tuple[float, float] = ..., f_end: float | tuple[float, float] = ..., bits: bytes | None = ..., modulation: str = ..., pulse: str = ..., rrc_beta: float = ..., rrc_span: int = ..., symbols: NDArray[np.complex64] | None = ..., acq_code: bytes | None = ..., acq_reps: int = ..., data_code: bytes | None = ..., sync: bytes | None = ..., crc: str = ..., symbol_rate: float = ..., dsss_code_only: int = ..., fs: float = ..., num_samples: int | tuple[int, int] = ..., off_samples: int | tuple[int, int] = ..., repeats: int = ..., delay_samples: int | tuple[int, int] = ..., gap_noise: str = ...) -> None: ...
+    def __init__(self, type: str = ..., freq: float | tuple[float, float] = ..., snr: float | tuple[float, float] = ..., snr_mode: str = ..., seed: int = ..., sps: int = ..., pn_length: int = ..., pn_poly: int = ..., lfsr: str = ..., level: float | tuple[float, float] = ..., background: int = ..., f_end: float | tuple[float, float] = ..., bits: bytes | None = ..., modulation: str = ..., pulse: str = ..., rrc_beta: float = ..., rrc_span: int = ..., symbols: NDArray[np.complex64] | None = ..., acq_code: bytes | None = ..., acq_reps: int = ..., data_code: bytes | None = ..., sync: bytes | None = ..., crc: str = ..., symbol_rate: float = ..., dsss_code_only: int = ..., fs: float = ..., num_samples: int | tuple[int, int] = ..., off_samples: int | tuple[int, int] = ..., repeats: int = ..., delay_samples: int | tuple[int, int] = ..., gap_noise: str = ...) -> None: ...
     @classmethod
     def sum(cls, *sources: Synth, fs: float = ..., num_samples: int | tuple[int, int] = ..., off_samples: int | tuple[int, int] = ..., repeats: int = ..., delay_samples: int | tuple[int, int] = ..., gap_noise: str = ...) -> Segment:
         """Combine *sources* into a single Segment."""

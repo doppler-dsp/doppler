@@ -770,6 +770,12 @@ default = "0.0"
 doc = "Source power in dBFS (<=0; 0 = unit power). Applies only when summed in a Segment/Composer (gain 10^(level/20)); ignored by standalone Synth.steps()."
 
 [[module.wfm_compose.source.fields]]
+name = "background"
+type = "int"
+default = "0"
+doc = "Mark this source as part of the static background field (0/1). Plan.prepare() folds a contiguous leading run of background sources into ONE pre-summed cache entry instead of caching each separately, so a scene of many fixed emitters costs one buffer rather than hundreds. The composite is overridable as a unit: it takes a single slot in gains/phases/enable and counts as one in n_sources(), so scaling it trims the whole field while its members keep their relative levels. Background sources must come first in the segment (a non-prefix ordering is rejected by prepare, since the fold would no longer reproduce compose bit-for-bit). Ignored by compose() and by standalone Synth.steps()."
+
+[[module.wfm_compose.source.fields]]
 name = "f_end"
 type = "double"
 default = "0.0"

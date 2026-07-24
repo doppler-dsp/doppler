@@ -149,10 +149,17 @@ copy_source_arrays (wfm_source_t *dst, const wfm_source_t *src)
 }
 
 /* Accumulate one source into out: real*complex when phi==0 (exactly the
- * composer's expression), else the phase-rotated complex*complex form. */
+ * composer's expression), else the phase-rotated complex*complex form.
+ *
+ * restrict is the difference between a half-width SLP vectorization (one
+ * complex sample per iteration) and a full 128-bit loop vectorization: with
+ * plain pointers the compiler cannot rule out out/cache overlap. No caller
+ * aliases them — a cache slot is a distinct allocation from the render
+ * output and from the fold's accumulator — and the op is element-wise, so
+ * the wider form is bit-identical. */
 static void
-accumulate (float _Complex *out, size_t len, float g, double phase,
-            const float _Complex *cache)
+accumulate (float _Complex *restrict out, size_t len, float g, double phase,
+            const float _Complex *restrict cache)
 {
   if (phase == 0.0)
     for (size_t i = 0; i < len; i++)
@@ -328,6 +335,56 @@ materialize (const wfm_plan_t *p, const double *gains_db, const double *phases,
   return pos;
 }
 
+/* BUNDLED: a segment whose lone source carries its own real (non-clean) snr,
+ * so its AWGN is baked into synth creation rather than being a separable
+ * external multiply (see the top-of-file note). */
+static int
+is_bundled (const wfm_segment_t *g)
+{
+  return g->n_sources == 1 && g->sources[0].type != WFM_SYNTH_NOISE
+         && g->sources[0].snr < WFM_SYNTH_SNR_CLEAN;
+}
+
+/* Cache-slot geometry for one segment: how many flat slots it needs
+ * (*n_sig), and how many leading sources collapse into a single composite
+ * background slot (*n_bg; 0 = no fold). Returns -1 if the `background`
+ * sources are not a contiguous PREFIX of the segment's non-noise sources.
+ *
+ * The prefix is load-bearing, not tidiness. compose() sums the sources into
+ * a running accumulator in spec order, while the composite sums from zero,
+ * so the two agree to the last bit only while nothing precedes the folded
+ * block (float addition is not associative). A background source sitting
+ * behind a foreground one would quietly cost the render()==compose()
+ * contract, so prepare() rejects the scene instead of degrading it.
+ *
+ * A bundled segment folds nothing: it has a single source (nothing to sum
+ * with) whose baked-in noise amplitude rides on base_gain, which the fold
+ * would overwrite with 1.0. */
+static int
+segment_slots (const wfm_segment_t *g, size_t *n_sig, size_t *n_bg)
+{
+  size_t n_src = 0, bg = 0;
+  int    fg = 0;
+  for (size_t k = 0; k < g->n_sources; k++)
+    {
+      const wfm_source_t *s = &g->sources[k];
+      if (s->type == WFM_SYNTH_NOISE)
+        continue;
+      n_src++;
+      if (!s->background)
+        fg = 1;
+      else if (fg)
+        return -1;
+      else
+        bg++;
+    }
+  if (is_bundled (g))
+    bg = 0;
+  *n_bg  = bg;
+  *n_sig = n_src - bg + (bg > 0 ? 1 : 0);
+  return 0;
+}
+
 /* Resolve one segment's noise configuration (SHARED / BUNDLED / none) into
  * *ps. Returns 0 on success, -1 on an out-of-scope condition. */
 static int
@@ -383,15 +440,46 @@ resolve_segment_noise (wfm_plan_segment_t *ps, const wfm_segment_t *g)
   return 0;
 }
 
-/* One source's build: create its synth through the composer's SSOT, render
- * the clean ON-time into a fresh buffer, and store it at its own flat cache
- * slot. Each work item reads only shared read-only config (g, ps) and writes
- * only its own slot[w] — no cross-item state — so the sources of a segment can
- * be built concurrently and the result is bit-identical to the serial build
- * (a per-source AWGN seed is deterministic, and the sum is deferred to
- * render()/at() in fixed order). Failures set a shared flag; a partially
- * filled cache_sig[] is freed by wfm_plan_destroy (unset slots stay NULL from
- * calloc). */
+/* Render one source's clean ON-time into caller-owned @p buf (num_samples
+ * long), through the composer's own SSOT so a cached render is byte-identical
+ * to a full compose. @p loaded is the restore fast-path: when the blob holds
+ * a matching buffer for @p slot it is copied instead of recomputed (guarded
+ * by the expected length, so a spec/buffer inconsistency silently falls
+ * through to the DSP). Pass NULL for a source that has no cache slot of its
+ * own — a member of the background fold, whose slot holds the composite.
+ * Returns 0, or -1 if the synth could not be built. */
+static int
+render_source_into (const wfm_segment_t *g, const wfm_plan_segment_t *ps,
+                    const wfm_source_t *src, const plan_loaded_t *loaded,
+                    size_t slot, float _Complex *buf)
+{
+  size_t n = g->num_samples;
+
+  if (loaded && slot < loaded->n && loaded->lens[slot] == n)
+    {
+      memcpy (buf, loaded->bufs[slot], n * sizeof *buf);
+      return 0;
+    }
+
+  double             cache_snr = ps->bundled ? WFM_SYNTH_SNR_CLEAN : src->snr;
+  wfm_synth_state_t *syn
+      = wfm_compose_build_synth (src, g->fs, n, src->freq, cache_snr,
+                                 src->f_end, 0, WFM_SEED_ADVANCE_NONE, 0);
+  if (!syn)
+    return -1;
+  wfm_synth_steps (syn, buf, n);
+  wfm_synth_destroy (syn);
+  return 0;
+}
+
+/* One source's build: render it into a fresh buffer and store it at its own
+ * flat cache slot. Each work item reads only shared read-only config (g, ps)
+ * and writes only its own slot[w] — no cross-item state — so the sources of a
+ * segment can be built concurrently and the result is bit-identical to the
+ * serial build (a per-source AWGN seed is deterministic, and the sum is
+ * deferred to render()/at() in fixed order). Failures set a shared flag; a
+ * partially filled cache_sig[] is freed by wfm_plan_destroy (unset slots stay
+ * NULL from calloc). */
 typedef struct
 {
   wfm_plan_t               *p;
@@ -409,42 +497,18 @@ cache_build_one (size_t w, void *ctx)
   cache_work_t       *cw   = (cache_work_t *)ctx;
   const wfm_source_t *src  = &cw->g->sources[cw->src_idx[w]];
   size_t              slot = cw->slot[w];
-  size_t              n    = cw->g->num_samples;
 
   /* base_gain is a pure function of the source level — always cheap. */
   cw->p->base_gain[slot] = (float)pow (10.0, src->level / 20.0);
 
-  float _Complex *buf = malloc (n * sizeof *buf);
-  if (!buf)
-    {
-      atomic_store (cw->failed, 1);
-      return;
-    }
-
-  /* Fast path (restore): copy the cached render from a matching blob instead
-   * of recomputing it. Guarded per-source by the expected length, so a
-   * spec/buffer inconsistency silently falls through to the DSP. */
-  const plan_loaded_t *ld = cw->loaded;
-  if (ld && slot < ld->n && ld->lens[slot] == n)
-    {
-      memcpy (buf, ld->bufs[slot], n * sizeof *buf);
-      cw->p->cache_sig[slot] = buf;
-      return;
-    }
-
-  /* Slow path (prepare, or a mismatched restore): run the DSP. */
-  double cache_snr = cw->ps->bundled ? WFM_SYNTH_SNR_CLEAN : src->snr;
-  wfm_synth_state_t *syn
-      = wfm_compose_build_synth (src, cw->g->fs, n, src->freq, cache_snr,
-                                 src->f_end, 0, WFM_SEED_ADVANCE_NONE, 0);
-  if (!syn)
+  float _Complex *buf = malloc (cw->g->num_samples * sizeof *buf);
+  if (!buf
+      || render_source_into (cw->g, cw->ps, src, cw->loaded, slot, buf) != 0)
     {
       free (buf);
       atomic_store (cw->failed, 1);
       return;
     }
-  wfm_synth_steps (syn, buf, n);
-  wfm_synth_destroy (syn);
   cw->p->cache_sig[slot] = buf;
 }
 
@@ -454,19 +518,189 @@ cache_build_one (size_t w, void *ctx)
  * fan-out at n == 1). */
 #define WFM_PLAN_PARALLEL_MIN_SAMPLES 4096u
 
+/* Peak scratch the background fold may hold at once. The fold has to sum in
+ * spec order to stay bit-exact, so its parallelism comes from BUILDING a
+ * group of background sources concurrently and then summing that group in
+ * order; this budget caps the group so a 400-source background can never
+ * materialise 400 full-length buffers, which is the whole point of folding. */
+#define WFM_PLAN_FOLD_BUDGET_BYTES ((size_t)256u << 20)
+
+/* Samples per work item of the ordered combine. Sized so the composite's
+ * slice (8 B/sample -> 256 KiB) stays L2-resident while a whole group is
+ * summed into it: the accumulator is then read+written once per GROUP rather
+ * than once per SOURCE, which is where the fold's memory traffic actually
+ * goes (a scaled complex add is ~0.25 flop/byte — bandwidth-bound, not
+ * issue-bound, so traffic is the thing worth optimising). */
+#define WFM_PLAN_FOLD_CHUNK ((size_t)32768u)
+
+/* One group of the background fold: work item w renders background source
+ * bg_idx[w] into its own scratch buffer. Same no-shared-writes contract as
+ * cache_build_one, so a group fans out across cores. */
+typedef struct
+{
+  const wfm_segment_t      *g;
+  const wfm_plan_segment_t *ps;
+  const size_t             *bg_idx; /* g->sources index for work item w   */
+  float _Complex          **tmp;    /* [group] caller-owned scratch bufs  */
+  atomic_int               *failed;
+} fold_work_t;
+
+static void
+fold_build_one (size_t w, void *ctx)
+{
+  fold_work_t *fw = (fold_work_t *)ctx;
+  if (render_source_into (fw->g, fw->ps, &fw->g->sources[fw->bg_idx[w]], NULL,
+                          0, fw->tmp[w])
+      != 0)
+    atomic_store (fw->failed, 1);
+}
+
+/* The ordered half of the fold: work item c owns one contiguous sample range
+ * of the composite and adds the whole group into it, in spec order. The split
+ * is by SAMPLE, so every sample still sees its sources in the same sequence
+ * the serial fold would apply them — the parallel combine is bit-identical to
+ * the serial one. It reuses accumulate(), the same scaled add render() uses,
+ * so a folded slot and a plain slot are summed by identical code. */
+typedef struct
+{
+  float _Complex        *acc;
+  float _Complex *const *tmp;  /* [n_grp] group buffers, spec order  */
+  const float           *gain; /* [n_grp] 10^(level/20) per member   */
+  size_t                 n_grp;
+  size_t                 n; /* composite length                    */
+} combine_work_t;
+
+static void
+fold_combine_chunk (size_t c, void *ctx)
+{
+  combine_work_t *kw = (combine_work_t *)ctx;
+  size_t          lo = c * WFM_PLAN_FOLD_CHUNK;
+  size_t          hi = lo + WFM_PLAN_FOLD_CHUNK;
+  if (hi > kw->n)
+    hi = kw->n;
+  for (size_t j = 0; j < kw->n_grp; j++)
+    accumulate (kw->acc + lo, hi - lo, kw->gain[j], 0.0, kw->tmp[j] + lo);
+}
+
+/* Fold segment g's leading `background` sources into ONE composite cache slot
+ * at ps->sig_off, each pre-weighted by its own 10^(level/20) so the slot
+ * carries base_gain 1.0 and render()/at() need no special case: the composite
+ * is just another cache entry that happens to be pre-summed. It is also
+ * overridable as a unit — one entry in gains/phases/enable scales, rotates or
+ * drops the entire background field.
+ *
+ * The sum runs from zero over a contiguous prefix, in spec order, which is
+ * exactly the partial sum compose() holds after that prefix — so an
+ * unoverridden render() stays bit-for-bit identical (segment_slots enforces
+ * the prefix; see the note there). Returns 0, or -1 on allocation/synth
+ * failure. */
+static int
+fold_background (wfm_plan_t *p, const wfm_plan_segment_t *ps,
+                 const wfm_segment_t *g, const plan_loaded_t *loaded,
+                 size_t n_bg)
+{
+  size_t n    = g->num_samples;
+  size_t slot = ps->sig_off;
+
+  float _Complex *acc = calloc (n, sizeof *acc);
+  if (!acc)
+    return -1;
+  p->base_gain[slot] = 1.0f;
+
+  /* Restore fast-path: the saved blob's slot IS the folded composite (save
+   * serialises the already-folded cache), so one memcpy replaces the fold. */
+  if (loaded && slot < loaded->n && loaded->lens[slot] == n)
+    {
+      memcpy (acc, loaded->bufs[slot], n * sizeof *acc);
+      p->cache_sig[slot] = acc;
+      return 0;
+    }
+
+  /* Flatten the background prefix: source indices plus the gain each one
+   * contributes at, baked in here because the composite carries no level. */
+  size_t *bg_idx = malloc (n_bg * sizeof *bg_idx);
+  float  *gain   = malloc (n_bg * sizeof *gain);
+  size_t  per    = n * sizeof *acc;
+  size_t  grp    = WFM_PLAN_FOLD_BUDGET_BYTES / (per ? per : 1);
+  if (grp == 0)
+    grp = 1;
+  if (grp > n_bg)
+    grp = n_bg;
+  float _Complex **tmp = (float _Complex **)calloc (grp, sizeof *tmp);
+
+  int rc = (bg_idx && gain && tmp) ? 0 : -1;
+  for (size_t j = 0; rc == 0 && j < grp; j++)
+    {
+      tmp[j] = malloc (per);
+      if (!tmp[j])
+        rc = -1;
+    }
+
+  if (rc == 0)
+    {
+      size_t m = 0;
+      for (size_t k = 0; k < g->n_sources && m < n_bg; k++)
+        {
+          const wfm_source_t *s = &g->sources[k];
+          if (s->type == WFM_SYNTH_NOISE || !s->background)
+            continue;
+          bg_idx[m] = k;
+          gain[m]   = (float)pow (10.0, s->level / 20.0);
+          m++;
+        }
+    }
+
+  int mt = (n >= WFM_PLAN_PARALLEL_MIN_SAMPLES) ? 0 : 1;
+  for (size_t base = 0; rc == 0 && base < n_bg; base += grp)
+    {
+      size_t     cnt = (n_bg - base < grp) ? n_bg - base : grp;
+      atomic_int failed;
+      atomic_init (&failed, 0);
+      fold_work_t fw = { g, ps, bg_idx + base, tmp, &failed };
+      dp_parallel_for (cnt, fold_build_one, &fw, mt);
+      if (atomic_load (&failed))
+        {
+          rc = -1;
+          break;
+        }
+      combine_work_t kw = { acc, tmp, gain + base, cnt, n };
+      dp_parallel_for ((n + WFM_PLAN_FOLD_CHUNK - 1) / WFM_PLAN_FOLD_CHUNK,
+                       fold_combine_chunk, &kw, mt);
+    }
+
+  if (tmp)
+    for (size_t j = 0; j < grp; j++)
+      free (tmp[j]);
+  free ((void *)tmp);
+  free (bg_idx);
+  free (gain);
+  if (rc != 0)
+    {
+      free (acc);
+      return -1;
+    }
+  p->cache_sig[slot] = acc;
+  return 0;
+}
+
 /* Cache every clean signal source of segment g at gain 1, into
  * p->cache_sig[ps->sig_off .. +ps->n_sig). A bundled source's own real snr
  * is forced clean for this render (its noise is reconstructed separately,
  * per instance, at materialize time); a SHARED segment's non-noise sources
  * are already clean by the time wfm_resolve_noise ran. The per-source builds
  * fan out across cores (auto-sized to the online count, one worker per source
- * at most) — the win for a segment packed with many signals. Returns 0, or -1
- * on allocation/synth failure. */
+ * at most) — the win for a segment packed with many signals.
+ *
+ * @p n_bg leading sources (from segment_slots) do NOT get a slot each: they
+ * fold into the single composite slot that leads the segment's range, so the
+ * foreground sources start one past it. Returns 0, or -1 on allocation/synth
+ * failure. */
 static int
 cache_segment_signals (wfm_plan_t *p, wfm_plan_segment_t *ps,
-                       const wfm_segment_t *g, const plan_loaded_t *loaded)
+                       const wfm_segment_t *g, const plan_loaded_t *loaded,
+                       size_t n_bg)
 {
-  /* Flatten the non-noise sources to work items with their distinct cache
+  /* Flatten the foreground sources to work items with their distinct cache
    * slots (serial, O(n_sources), no DSP) so the heavy build can fan out. */
   size_t *src_idx = malloc (g->n_sources * sizeof *src_idx);
   size_t *slot    = malloc (g->n_sources * sizeof *slot);
@@ -477,10 +711,12 @@ cache_segment_signals (wfm_plan_t *p, wfm_plan_segment_t *ps,
       return -1;
     }
   size_t nw = 0;
-  size_t si = ps->sig_off;
+  size_t si = ps->sig_off + (n_bg > 0 ? 1 : 0);
   for (size_t k = 0; k < g->n_sources; k++)
     {
       if (g->sources[k].type == WFM_SYNTH_NOISE)
+        continue;
+      if (n_bg > 0 && g->sources[k].background)
         continue;
       src_idx[nw] = k;
       slot[nw]    = si;
@@ -497,7 +733,9 @@ cache_segment_signals (wfm_plan_t *p, wfm_plan_segment_t *ps,
 
   free (src_idx);
   free (slot);
-  return atomic_load (&failed) ? -1 : 0;
+  if (atomic_load (&failed))
+    return -1;
+  return n_bg > 0 ? fold_background (p, ps, g, loaded, n_bg) : 0;
 }
 
 /* The shared engine behind prepare() and restore(): parse + validate the spec,
@@ -536,11 +774,10 @@ plan_build (const char *spec_json, const plan_loaded_t *loaded)
       for (size_t k = 0; k < g->n_sources; k++)
         if (g->sources[k].ranged)
           goto done; /* a ranged source is ambiguous for a static cache */
-      size_t n_noise = 0;
-      for (size_t k = 0; k < g->n_sources; k++)
-        if (g->sources[k].type == WFM_SYNTH_NOISE)
-          n_noise++;
-      total_sig += g->n_sources - n_noise;
+      size_t seg_sig, seg_bg;
+      if (segment_slots (g, &seg_sig, &seg_bg) != 0)
+        goto done; /* background sources are not a contiguous prefix */
+      total_sig += seg_sig;
     }
   if (total_sig == 0)
     goto done;
@@ -571,10 +808,13 @@ plan_build (const char *spec_json, const plan_loaded_t *loaded)
       const wfm_segment_t *g  = &segs[i];
       wfm_plan_segment_t  *ps = &p->segs[i];
 
-      size_t n_noise = 0;
-      for (size_t k = 0; k < g->n_sources; k++)
-        if (g->sources[k].type == WFM_SYNTH_NOISE)
-          n_noise++;
+      size_t seg_sig, seg_bg;
+      if (segment_slots (g, &seg_sig, &seg_bg) != 0)
+        {
+          wfm_plan_destroy (p);
+          p = NULL;
+          goto done;
+        }
 
       ps->num_samples = g->num_samples;
       ps->repeats     = g->repeats ? g->repeats : 1;
@@ -587,10 +827,10 @@ plan_build (const char *spec_json, const plan_loaded_t *loaded)
       ps->delay_hi  = g->delay_samples_hi;
       ps->gap_noise = g->gap_noise;
       ps->sig_off   = sig_off;
-      ps->n_sig     = g->n_sources - n_noise;
+      ps->n_sig     = seg_sig;
 
       if (resolve_segment_noise (ps, g) != 0
-          || cache_segment_signals (p, ps, g, loaded) != 0)
+          || cache_segment_signals (p, ps, g, loaded, seg_bg) != 0)
         {
           wfm_plan_destroy (p);
           p = NULL;

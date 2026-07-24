@@ -219,10 +219,223 @@ test_noise_anchor_position (void)
   return 0;
 }
 
+/* ── background=1: a contiguous prefix folds into ONE composite slot ──
+ *
+ * The fold is invisible to render(): the composite is just another cache
+ * entry that happens to be pre-summed (base_gain 1.0, each member's own
+ * 10^(level/20) baked in), so a baseline render must still equal a full
+ * compose bit-for-bit while the cache holds 1 buffer instead of BG_N.
+ * BG_LEN crosses both thresholds that matter — WFM_PLAN_PARALLEL_MIN_SAMPLES
+ * (4096, so the group build fans out) and 2x WFM_PLAN_FOLD_CHUNK (32768, so
+ * the ordered combine really is split across several work items). */
+#define BG_N 6u
+#define FG_N 2u
+#define BG_LEN 70000u
+
+static void
+fill_src (wfm_source_t *s, unsigned k, int background)
+{
+  memset (s, 0, sizeof *s);
+  s->type       = (k % 3 == 0) ? 0 : (k % 3 == 1) ? 4 : 3; /* tone/qpsk/bpsk */
+  s->freq       = -3e5 + (double)k * 4e4;
+  s->snr        = 100.0; /* clean: no appended noise source */
+  s->snr_mode   = 0;
+  s->seed       = 200u + k;
+  s->sps        = 8;
+  s->pn_length  = 7;
+  s->level      = -2.0 * (double)(k % 5);
+  s->background = background;
+}
+
+/* Full-compose `json` into out[n]; returns the sample count collected. */
+static size_t
+compose_n (const char *json, float _Complex *out, size_t n)
+{
+  wfm_compose_state_t *c = wfm_compose_from_json (json);
+  if (!c)
+    return 0;
+  size_t        total = 0, got;
+  float complex buf[257];
+  while ((got = wfm_compose_execute (c, buf, 257)) > 0 && total + got <= n)
+    {
+      memcpy (out + total, buf, got * sizeof *buf);
+      total += got;
+    }
+  wfm_compose_destroy (c);
+  return total;
+}
+
+static int
+test_background_fold (void)
+{
+  wfm_source_t src[BG_N + FG_N];
+  for (unsigned k = 0; k < BG_N + FG_N; k++)
+    fill_src (&src[k], k, k < BG_N);
+
+  wfm_segment_t seg  = { .sources     = src,
+                         .n_sources   = BG_N + FG_N,
+                         .fs          = 1e6,
+                         .num_samples = BG_LEN,
+                         .off_samples = 0 };
+  char         *json = wfm_spec_to_json (&seg, 1, 0, 0, 0.0);
+  CHECK (json, "bg: spec_to_json");
+
+  /* The same scene with the flag cleared: same samples, BG_N + FG_N slots. */
+  wfm_source_t flat[BG_N + FG_N];
+  for (unsigned k = 0; k < BG_N + FG_N; k++)
+    fill_src (&flat[k], k, 0);
+  wfm_segment_t fseg = seg;
+  fseg.sources       = flat;
+  char *fjson        = wfm_spec_to_json (&fseg, 1, 0, 0, 0.0);
+  CHECK (fjson, "bg: flat spec_to_json");
+
+  /* Foreground only — the reference for disabling the whole background. */
+  wfm_segment_t gseg = seg;
+  gseg.sources       = flat + BG_N;
+  gseg.n_sources     = FG_N;
+  char *gjson        = wfm_spec_to_json (&gseg, 1, 0, 0, 0.0);
+  CHECK (gjson, "bg: fg-only spec_to_json");
+
+  size_t          nbytes = BG_LEN * sizeof (float _Complex);
+  float _Complex *ref    = malloc (nbytes);
+  float _Complex *got    = malloc (nbytes);
+  float _Complex *fgref  = malloc (nbytes);
+  float _Complex *base   = malloc (nbytes);
+  CHECK (ref && got && fgref && base, "bg: alloc");
+
+  CHECK (compose_n (json, ref, BG_LEN) == BG_LEN, "bg: compose length");
+
+  wfm_plan_t *p = wfm_plan_prepare (json);
+  CHECK (p, "bg: prepare");
+
+  /* The whole point: BG_N sources collapse to one overridable slot. */
+  CHECK (wfm_plan_n_sources (p) == 1u + FG_N, "BG: n_sources == 1 + FG_N");
+  wfm_plan_t *pf = wfm_plan_prepare (fjson);
+  CHECK (pf && wfm_plan_n_sources (pf) == BG_N + FG_N,
+         "bg: unfolded scene keeps a slot per source");
+
+  /* Gate-0 for the fold: summing the prefix from zero, in spec order, is
+   * exactly the partial sum compose() holds at that point. */
+  CHECK (wfm_plan_render (p, "{}", base) == BG_LEN, "bg: render baseline");
+  CHECK (memcmp (ref, base, nbytes) == 0,
+         "BG: folded render({}) == compose, bit-for-bit");
+  CHECK (wfm_plan_render (pf, "{}", got) == BG_LEN, "bg: unfolded baseline");
+  CHECK (memcmp (base, got, nbytes) == 0,
+         "BG: folding does not change the baseline at all");
+  wfm_plan_destroy (pf);
+
+  /* enable[0] = false drops the entire background field — what is left must
+   * be exactly a compose of the foreground sources alone. */
+  CHECK (compose_n (gjson, fgref, BG_LEN) == BG_LEN, "bg: fg compose length");
+  CHECK (wfm_plan_render (p, "{\"enable\":[false,true,true]}", got) == BG_LEN,
+         "bg: render with background disabled");
+  CHECK (memcmp (fgref, got, nbytes) == 0,
+         "BG: enable[0]=false leaves exactly the foreground");
+
+  /* gains[0] trims the composite as a UNIT: its members keep their relative
+   * levels, so the background's contribution scales by 10^(g/20) while the
+   * foreground is untouched. Checked physically (the float sum order differs
+   * from any reference spec we could compose), 1e-5 relative. */
+  const double gdb = -6.0;
+  float        gl  = (float)pow (10.0, gdb / 20.0);
+  CHECK (wfm_plan_render (p, "{\"gains\":[-6.0,-2.0,-4.0]}", got) == BG_LEN,
+         "bg: render with the background trimmed");
+  double err = 0.0, mag = 0.0;
+  for (size_t i = 0; i < BG_LEN; i++)
+    {
+      /* The override JSON pins each foreground slot to its own level (0.0 and
+       * -2.0, per fill_src), so the foreground contribution is identical in
+       * both renders and subtracts out — what is left is the background. */
+      float _Complex bg_base = base[i] - fgref[i];
+      float _Complex bg_trim = got[i] - fgref[i];
+      err += cabs (bg_trim - gl * bg_base);
+      mag += cabs (bg_base);
+    }
+  CHECK (mag > 0.0 && err / mag < 1e-5,
+         "BG: gains[0] scales the whole background field as a unit");
+
+  wfm_plan_destroy (p);
+  free (base);
+  free (fgref);
+  free (got);
+  free (ref);
+  free (gjson);
+  free (fjson);
+  free (json);
+  return 0;
+}
+
+/* A background source behind a foreground one is NOT a prefix: the composite
+ * sums from zero, so it would only reproduce compose()'s running accumulator
+ * approximately, silently costing the bit-exactness contract. prepare()
+ * refuses the scene instead of degrading it. */
+static int
+test_background_must_be_prefix (void)
+{
+  wfm_source_t src[3];
+  fill_src (&src[0], 0, 1);
+  fill_src (&src[1], 1, 0);
+  fill_src (&src[2], 2, 1); /* behind a foreground source */
+
+  wfm_segment_t seg  = { .sources     = src,
+                         .n_sources   = 3,
+                         .fs          = 1e6,
+                         .num_samples = L,
+                         .off_samples = 0 };
+  char         *json = wfm_spec_to_json (&seg, 1, 0, 0, 0.0);
+  CHECK (json, "prefix: spec_to_json");
+  CHECK (wfm_plan_prepare (json) == NULL,
+         "BG: an interleaved background is rejected by prepare()");
+  free (json);
+  return 0;
+}
+
+/* A BUNDLED segment (a lone source carrying its own real snr) folds nothing:
+ * its AWGN amplitude rides on base_gain, which the fold would overwrite with
+ * 1.0 — the signal would survive, the noise would not. Flagging it must be a
+ * no-op, not a silent amplitude bug. */
+static int
+test_background_bundled_is_not_folded (void)
+{
+  wfm_source_t solo;
+  fill_src (&solo, 1, 1); /* qpsk, background=1 */
+  solo.snr   = 9.0;       /* real snr -> bundled */
+  solo.level = -3.0;
+
+  wfm_segment_t seg  = { .sources     = &solo,
+                         .n_sources   = 1,
+                         .fs          = 1e6,
+                         .num_samples = L,
+                         .off_samples = 0 };
+  char         *json = wfm_spec_to_json (&seg, 1, 0, 0, 0.0);
+  CHECK (json, "bundled-bg: spec_to_json");
+
+  size_t          bytes = L * sizeof (float _Complex);
+  float _Complex *ref   = malloc (bytes);
+  float _Complex *got   = malloc (bytes);
+  CHECK (ref && got, "bundled-bg: alloc");
+  CHECK (compose_n (json, ref, L) == L, "bundled-bg: compose length");
+
+  wfm_plan_t *p = wfm_plan_prepare (json);
+  CHECK (p, "bundled-bg: prepare");
+  CHECK (wfm_plan_n_sources (p) == 1, "bundled-bg: still one slot");
+  CHECK (wfm_plan_render (p, "{}", got) == L, "bundled-bg: render baseline");
+  CHECK (memcmp (ref, got, bytes) == 0,
+         "BG: background on a bundled source is a no-op (noise gain intact)");
+
+  wfm_plan_destroy (p);
+  free (got);
+  free (ref);
+  free (json);
+  return 0;
+}
+
 int
 main (void)
 {
-  if (test_noise_anchor_position ())
+  if (test_noise_anchor_position () || test_background_fold ()
+      || test_background_must_be_prefix ()
+      || test_background_bundled_is_not_folded ())
     return 1;
   if (test_parallel_build_bit_exact ())
     return 1;

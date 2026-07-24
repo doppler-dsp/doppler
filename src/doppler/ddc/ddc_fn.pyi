@@ -11,18 +11,65 @@ from numpy.typing import NDArray
 
 @final
 class Ddcr:
-    """Ddcr handle.
+    """Create a real-input Digital Down-Converter (Architecture D2). The signal chain is: halfband R2C (2:1, bakes in +fs/4 shift) → fine LO mix at the intermediate rate (fs_in/2) → RateConverter → CF32 output.  The halfband stage uses ±1/0 coefficients (no multiplications), making DDCR roughly 2× cheaper than DDC at the same total decimation ratio.
 
     Parameters
     ----------
     norm_freq : float, default 0.0
+        Fine NCO frequency at the intermediate rate (fs_in/2, cycles/sample).  To tune a real tone at normalised input frequency f_c to DC, set norm_freq = -(2*f_c + 0.5).
     rate : float, default 0.25
+        Total output/input rate.  Must be in (0, 0.5) because the halfband pre-decimates by 2.
     """
     def __init__(self, norm_freq: float = ..., rate: float = ...) -> None: ...
     def execute(self, x: NDArray[Any], out: NDArray[Any]) -> NDArray[Any]:
-        """execute(x, out) -> NDArray[Any]."""
+        """Process a block of real float32 samples through the full DDCR signal chain: halfband R2C → LO mix → RateConverter → CF32. The halfband decimates by 2 and applies a built-in +fs/4 frequency shift; the fine NCO then completes the tuning.  State is maintained across calls for contiguous streaming.  Output length ≈ n_in * rate (±1 from polyphase indexing).  A real tone at input normalised frequency f_c has amplitude 0.5 in the baseband output (one-sided spectrum), consistent with analytic signal theory.
+
+        Parameters
+        ----------
+        x : NDArray[Any]
+            Input.
+        out : NDArray[Any]
+            CF32 output buffer (C-only, hidden from Python).
+
+        Returns
+        -------
+        NDArray[Any]
+            Number of output samples written (C-only).
+
+        Examples
+        --------
+        >>> from doppler.ddc import Ddcr
+        >>> import numpy as np
+        >>> ddcr = Ddcr(norm_freq=-0.7, rate=0.25)
+        >>> t = np.arange(4096)
+        >>> x = np.cos(2 * np.pi * 0.1 * t).astype(np.float32)
+        >>> out = np.empty(len(x), dtype=np.complex64)
+        >>> y = ddcr.execute(x, out)
+        >>> y.shape
+        (1024,)
+        >>> y.dtype
+        dtype('complex64')
+        >>> round(float(abs(y[500])), 2)   # one-sided cosine amplitude ≈ 0.5
+        0.5
+
+        """
     def reset(self) -> None:
-        """reset() -> None."""
+        """Zero halfband filter history, LO phase, and resampler history. After reset, the next execute call reproduces the output of the first call after create, enabling repeatable block-by-block tests.
+
+        Examples
+        --------
+        >>> from doppler.ddc import Ddcr
+        >>> import numpy as np
+        >>> ddcr = Ddcr(norm_freq=0.0, rate=0.25)
+        >>> x = np.ones(64, dtype=np.float32)
+        >>> out = np.empty(64, dtype=np.complex64)
+        >>> y1 = ddcr.execute(x, out).copy()
+        >>> ddcr.reset()
+        >>> y2 = ddcr.execute(x, out)
+        >>> bool(np.array_equal(y1, y2))
+        True
+
+        """
     @property
     def norm_freq(self) -> float:
         """norm_freq (float)."""

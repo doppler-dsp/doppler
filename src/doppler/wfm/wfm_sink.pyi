@@ -11,19 +11,42 @@ from numpy.typing import NDArray
 
 @final
 class StreamSink:
-    """StreamSink handle.
+    """Open a stream sink (PUB) bound to a NATS subject.
 
     Parameters
     ----------
     endpoint : int
+        Endpoint, e.g. "nats://127.0.0.1:4222/iq".
     sample_type : str, default ``"cf32"``
+        Wire type (wavegen order): 0 cf32, 1 cf64, 2 ci32, 3 ci16, 4 ci8. Integer types use full-scale ±1.0.
         One of ``"cf32"``, ``"cf64"``, ``"ci32"``, ``"ci16"``, ``"ci8"``.
     """
     def __init__(self, endpoint: int, sample_type: str = ...) -> None: ...
     def send(self, x: NDArray[Any], fs: float, fc: float) -> int:
-        """send(x, fs, fc) -> int."""
+        """Convert a cf32 block to the wire type and publish it.
+
+        Parameters
+        ----------
+        iq : NDArray[Any]
+            Complex-float samples; @param n complex sample count.
+        fs : float
+            sample rate (Hz); @param fc center frequency (Hz) — wire header.
+        fc : float
+            the sink handle.
+
+        Returns
+        -------
+        int
+            0 on success, non-zero on a send/allocation error.
+        """
     def track_clipping(self, on: int = ...) -> None:
-        """track_clipping(on=1) -> None."""
+        """Enable the per-component clip counter (off by default; peak always on).
+
+        Parameters
+        ----------
+        on : int
+            Input.
+        """
     @property
     def clip_fraction(self) -> float:
         """clip_fraction (float)."""

@@ -13,6 +13,18 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+### Changed
+
+- **Richer type stubs, derived from the C headers (jm 0.33.12).** The `.pyi`
+    stubs for the `Ddcr` handle (`doppler.ddc`) and the `Plan` handle
+    (`doppler.wfm` save/restore surface), plus the `SampleClock`/`StreamSink`
+    standalones, now carry full docstrings — class summary, `Parameters`,
+    method docs, and (for `Ddcr.execute`) a runnable header-derived doctest —
+    synthesized from each object's backing-header Doxygen instead of the old
+    generic `"<Type> handle."` template. `Plan.save`/`dump`/`render`/`at` and
+    the `PlanFromBlob`/`PlanFromFile` factories are now properly documented at
+    the type-checker surface. No runtime/behavior change.
+
 ## [0.37.1] — 2026-07-24
 
 ### Fixed

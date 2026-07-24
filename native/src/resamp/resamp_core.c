@@ -387,6 +387,42 @@ interp_execute (resamp_state_t *s, const float _Complex *in, size_t num_in,
 }
 
 /* ------------------------------------------------------------------ */
+/* Streaming interpolation — output-count driven                       */
+/* Same per-output kernel as interp_execute, but it always emits       */
+/* max_out outputs (no "input exhausted" early exit), so a producer     */
+/* can feed exactly the inputs the overflow count requires.            */
+/* ------------------------------------------------------------------ */
+
+size_t
+resamp_interp_inputs_needed (const resamp_state_t *s, size_t max_out)
+{
+  /* Overflows in max_out ticks from the current phase: the high 32 bits of
+     (phase + max_out * phase_inc), computed in 64-bit so it can't wrap. */
+  uint64_t end
+      = (uint64_t)s->phase + (uint64_t)max_out * (uint64_t)s->phase_inc;
+  return (size_t)(end >> 32);
+}
+
+size_t
+resamp_interp_fill (resamp_state_t *s, const float _Complex *in,
+                    float _Complex *out, size_t max_out)
+{
+  size_t   xi = 0;
+  uint32_t ph = s->phase, inc = s->phase_inc;
+
+  for (size_t oi = 0; oi < max_out; oi++)
+    {
+      out[oi] = dot_cf32 (dl_ptr (s), get_branch (s, ph), s->num_taps);
+      uint32_t new_ph;
+      if (ADD_OVF (ph, inc, &new_ph))
+        dl_push (s, in[xi++]);
+      ph = new_ph;
+    }
+  s->phase = ph;
+  return xi;
+}
+
+/* ------------------------------------------------------------------ */
 /* Decimation path — input-driven, transposed polyphase form          */
 /*                                                                    */
 /* Mirrors the reference Python _decimate():                          */

@@ -65,6 +65,66 @@ rt_resamp (double rate)
   return ok;
 }
 
+/* resamp_interp_fill must reproduce the interpolation branch of
+ * resamp_execute() bit-for-bit (both call the same per-output kernel), and a
+ * single fill of M outputs must equal M single-output fills fed on demand
+ * (block-boundary invariance) — the two properties the polyphase pulse shaper
+ * relies on for step()==steps(). Uses an integer-rate custom bank so the
+ * overflow count (inputs_needed) is exact. Returns 1 on success. */
+static int
+eq_interp_fill (size_t nphases, size_t ntaps)
+{
+  enum
+  {
+    BIG = 512,
+    M   = 300
+  };
+  float *bank = malloc (nphases * ntaps * sizeof (float));
+  for (size_t p = 0; p < nphases; p++)
+    for (size_t t = 0; t < ntaps; t++)
+      bank[p * ntaps + t]
+          = (float)sin (0.3 * (double)(p + 1) * (double)(t + 1));
+  float _Complex in[BIG], out_ref[M], out_a[M], out_b[M];
+  for (size_t i = 0; i < (size_t)BIG; i++)
+    {
+      double ph = 2.0 * M_PI * 0.017 * (double)i;
+      in[i]     = CMPLXF ((float)cos (ph), (float)sin (ph));
+    }
+
+  /* Reference: interpolation branch of resamp_execute with ample input. */
+  resamp_state_t *rr
+      = resamp_create_custom (nphases, ntaps, bank, (double)nphases);
+  size_t nref = resamp_execute (rr, in, BIG, out_ref, M);
+  resamp_destroy (rr);
+  int ok = (nref == (size_t)M);
+
+  /* A: one fill of M outputs. Consumes exactly inputs_needed. */
+  resamp_state_t *ra
+      = resamp_create_custom (nphases, ntaps, bank, (double)nphases);
+  size_t need = resamp_interp_inputs_needed (ra, M);
+  size_t ca   = resamp_interp_fill (ra, in, out_a, M);
+  resamp_destroy (ra);
+  ok = ok && (ca == need);
+  for (size_t i = 0; i < (size_t)M; i++)
+    ok = ok && crealf (out_a[i]) == crealf (out_ref[i])
+         && cimagf (out_a[i]) == cimagf (out_ref[i]);
+
+  /* B: M single-output fills, fed on demand (the synth's step() model). */
+  resamp_state_t *rb
+      = resamp_create_custom (nphases, ntaps, bank, (double)nphases);
+  size_t xi = 0;
+  for (size_t i = 0; i < (size_t)M; i++)
+    xi += resamp_interp_fill (rb, in + xi, out_b + i, 1);
+  resamp_destroy (rb);
+  ok = ok && (xi == need);
+  for (size_t i = 0; i < (size_t)M; i++)
+    ok = ok && crealf (out_b[i]) == crealf (out_ref[i])
+         && cimagf (out_b[i]) == cimagf (out_ref[i]);
+
+  free (bank);
+  return ok;
+}
+
 int
 main (void)
 {
@@ -161,6 +221,13 @@ main (void)
   CHECK (rt_resamp (0.5)); /* decimation: decim_iad/decim_tfd path */
   CHECK (rt_resamp (2.0)); /* interpolation: delay_buf path        */
   CHECK (rt_resamp (0.4)); /* non-integer: fractional phase + ctrl */
+
+  /* Streaming interpolation fill == resamp_execute, and block-invariant
+   * (single M-fill == M on-demand 1-fills). pow-2 nphases → exact overflow
+   * count. Both the pulse-shaper's steps() and step() paths depend on this. */
+  CHECK (eq_interp_fill (8, 4));
+  CHECK (eq_interp_fill (4, 17));
+  CHECK (eq_interp_fill (16, 3));
 
   if (_fails)
     {

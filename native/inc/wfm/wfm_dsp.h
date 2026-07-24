@@ -44,6 +44,70 @@ wfm_rrc_ntaps(int sps, int span)
 void wfm_rrc_taps(double beta, int sps, int span, float *taps);
 
 /**
+ * @brief Number of taps per phase in a `wfm_rrc_polyphase_bank`: `2*span + 1`.
+ * @param span  one-sided filter span in symbols (>= 1).
+ */
+static inline size_t
+wfm_rrc_bank_ntaps(int span)
+{
+    return (size_t)(2 * span + 1);
+}
+
+/**
+ * @brief Deal an arbitrary FIR prototype into a polyphase interpolation bank.
+ *
+ * The pure decomposition shared by every polyphase-bank builder: phase `p`
+ * gets the prototype taps that land on output samples of residue `p`, so
+ * `bank[p*num_taps + t] = proto[t*num_phases + p]` (zero-padded past
+ * `proto_len`). Row-major, `num_phases * num_taps` floats — exactly the layout
+ * `resamp_create_custom(num_phases, num_taps, bank, rate)` consumes. Interpolate
+ * an input stream by `num_phases` (rate = num_phases) with the resulting bank
+ * and you recompute the dense `proto` convolution from only the nonzero
+ * upsampled contributions.
+ *
+ * @param proto       prototype FIR taps.
+ * @param proto_len   number of prototype taps.
+ * @param num_phases  interpolation factor (bank rows).
+ * @param num_taps    taps per phase; must satisfy
+ *                    `num_phases * num_taps >= proto_len`
+ *                    (use `(proto_len + num_phases - 1) / num_phases`).
+ * @param bank        output bank, row-major, length `num_phases * num_taps`.
+ */
+void wfm_polyphase_bank(const float *proto, size_t proto_len,
+                        size_t num_phases, size_t num_taps, float *bank);
+
+/**
+ * @brief Decompose the RRC pulse shape into a polyphase interpolation bank.
+ *
+ * The dense pulse shaper upsamples a symbol stream by `sps` (one impulse per
+ * `sps` samples, the rest hard zeros) then runs the full `wfm_rrc_taps` FIR
+ * over it — `(sps-1)/sps` of every tap-multiply hits a structural zero. The
+ * *polyphase* form computes the identical convolution from only the nonzero
+ * contributions: it splits the length-`wfm_rrc_ntaps(sps, span)` prototype into
+ * `sps` phases of `wfm_rrc_bank_ntaps(span)` taps each, so phase `p` selects the
+ * subset of prototype taps that land on output samples of residue `p`.
+ *
+ * The prototype is `wfm_rrc_taps(beta, sps, span)` scaled by `sqrt(sps)` — the
+ * same unit-average-power scaling `wfm_synth_set_rrc` applies to the dense taps,
+ * folded in here so the two paths shape at byte-comparable amplitude. The
+ * row-major layout `bank[p*num_taps + t] = proto[t*sps + p]` (zero-padded past
+ * the final partial tap) is exactly the decomposition `resamp`'s own Kaiser
+ * bank uses, so the bank drops straight into `resamp_create_custom(sps,
+ * wfm_rrc_bank_ntaps(span), bank, sps)` as an interpolate-by-`sps` shaper.
+ *
+ * Unlike `resamp`'s Kaiser prototype (which carries a `×num_phases` gain to
+ * compensate interpolation energy spreading), the RRC prototype carries no such
+ * gain: the interpolate path reproduces the dense FIR output to float precision
+ * with the raw scaled taps.
+ *
+ * @param beta  roll-off in `[0, 1]`.
+ * @param sps   samples per symbol (>= 1); also the number of phases.
+ * @param span  one-sided span in symbols (>= 1).
+ * @param bank  output bank, row-major, length `sps * wfm_rrc_bank_ntaps(span)`.
+ */
+void wfm_rrc_polyphase_bank(double beta, int sps, int span, float *bank);
+
+/**
  * @brief Spread `n_sym` complex data symbols by a binary PN code.
  *
  * `out[i*sf + j] = syms[i] * (code[j] ? -1 : +1)` — each symbol is repeated

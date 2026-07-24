@@ -44,6 +44,40 @@ check_rrc (double beta, int sps, int span)
   return 0;
 }
 
+/* The polyphase bank must be the sqrt(sps)-scaled prototype, dealt into
+ * `sps` phases of `2*span+1` taps by `bank[p*num_taps+t] = proto[t*sps+p]`
+ * (zero past the prototype). This pins the exact decomposition the resamp
+ * interp path consumes — the crux the Python twin validated end to end. */
+static int
+check_rrc_polyphase (double beta, int sps, int span)
+{
+  size_t       proto_len = wfm_rrc_ntaps (sps, span);
+  size_t       num_taps  = wfm_rrc_bank_ntaps (span);
+  static float proto[4096];
+  static float bank[4096];
+  CHECK (proto_len <= 4096 && (size_t)sps * num_taps <= 4096, "sizes fit");
+
+  wfm_rrc_taps (beta, sps, span, proto);
+  float scale = (float)sqrt ((double)sps);
+  wfm_rrc_polyphase_bank (beta, sps, span, bank);
+
+  double bank_sumsq = 0.0;
+  for (int p = 0; p < sps; p++)
+    for (size_t t = 0; t < num_taps; t++)
+      {
+        size_t idx  = t * (size_t)sps + (size_t)p;
+        float  want = (idx < proto_len) ? proto[idx] * scale : 0.0f;
+        float  got  = bank[(size_t)p * num_taps + t];
+        CHECK (fabsf (got - want) < 1e-6f, "bank == scaled decomposed proto");
+        bank_sumsq += (double)got * got;
+      }
+  /* Every prototype tap lands in exactly one phase, so the bank's total
+   * energy is the prototype's (== 1 unit-energy) times the sqrt(sps)^2 = sps
+   * transmit-power scale. */
+  CHECK (fabs (bank_sumsq - (double)sps) < 1e-3, "bank energy == sps");
+  return 0;
+}
+
 int
 main (void)
 {
@@ -56,6 +90,14 @@ main (void)
   if (check_rrc (0.25, 4, 6))
     return 1;
   if (check_rrc (0.5, 4, 6))
+    return 1;
+
+  /* Polyphase bank decomposition (pow-2 sps, the shaper fast-path cases). */
+  if (check_rrc_polyphase (0.35, 8, 8))
+    return 1;
+  if (check_rrc_polyphase (0.5, 4, 6))
+    return 1;
+  if (check_rrc_polyphase (0.25, 2, 10))
     return 1;
 
   /* DSSS: spread two symbols by a 4-chip code, check values + despread. */

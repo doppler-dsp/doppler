@@ -16,7 +16,9 @@ wfm_synth_create (int type, double fs, double freq, double snr, int snr_mode,
   obj->cur_re
       = (type == WFM_SYNTH_TONE || type == WFM_SYNTH_CHIRP) ? 1.0f : 0.0f;
   obj->cur_im = 0.0f;
-  obj->fir    = NULL; /* RRC FIR attached via wfm_synth_set_rrc() */
+  obj->fir    = NULL; /* dense RRC FIR (non-pow2 sps), via set_rrc() */
+  obj->shaper = NULL; /* polyphase RRC shaper (pow2 sps), via set_rrc() */
+  obj->primed = 0;
 
   /* Chirp: store the normalised start/end frequencies (freq is the start, the
    * instantaneous frequency at t=0). The per-sample slope chirp_k locks once
@@ -144,18 +146,61 @@ wfm_synth_set_rrc (wfm_synth_state_t *state, const float *taps, size_t ntaps)
    * symbol-rate impulse train (one impulse per sps samples → mean power
    * 1/sps) comes out at unit average power — and every caller that passes the
    * raw wfm_rrc_taps() output gets byte-identical shaping. */
-  float  scale  = (float)sqrt ((double)state->nsps);
+  int    sps    = state->nsps;
+  float  scale  = (float)sqrt ((double)sps);
   float *scaled = malloc (ntaps * sizeof (float));
   if (!scaled)
     return -1;
   for (size_t i = 0; i < ntaps; i++)
     scaled[i] = taps[i] * scale;
+
+  /* Power-of-two sps: shape with a polyphase resamp view over the RRC bank
+   * instead of the dense FIR — same convolution, ~sps× fewer MACs (the dense
+   * FIR wastes (sps-1)/sps of every tap on the impulse train's structural
+   * zeros). resamp's branch select needs a power-of-two phase count, so an odd
+   * sps keeps the dense FIR. The bank is the polyphase decomposition of the
+   * already-scaled taps (interpolate-by-sps at rate = sps). */
+  if (sps >= 1 && (sps & (sps - 1)) == 0)
+    {
+      size_t nphases = (size_t)sps;
+      size_t nptaps  = (ntaps + nphases - 1) / nphases;
+      float *bank    = malloc (nphases * nptaps * sizeof (float));
+      if (!bank)
+        {
+          free (scaled);
+          return -1;
+        }
+      wfm_polyphase_bank (scaled, ntaps, nphases, nptaps, bank);
+      resamp_state_t *sh
+          = resamp_create_custom (nphases, nptaps, bank, (double)sps);
+      free (bank);
+      free (scaled);
+      if (!sh)
+        return -1;
+      if (state->shaper)
+        resamp_destroy (state->shaper);
+      if (state->fir)
+        {
+          fir_destroy (state->fir);
+          state->fir = NULL;
+        }
+      state->shaper = sh;
+      state->primed = 0;
+      return 0;
+    }
+
+  /* Non-power-of-two sps: dense FIR fallback. */
   fir_state_t *fir = fir_create_real (scaled, ntaps);
   free (scaled);
   if (!fir)
     return -1;
   if (state->fir)
     fir_destroy (state->fir);
+  if (state->shaper)
+    {
+      resamp_destroy (state->shaper);
+      state->shaper = NULL;
+    }
   state->fir = fir;
   return 0;
 }
@@ -282,6 +327,8 @@ wfm_synth_destroy (wfm_synth_state_t *state)
 {
   if (state->fir)
     fir_destroy (state->fir);
+  if (state->shaper)
+    resamp_destroy (state->shaper);
   free (state->bits);
   free (state->symbols);
   free (state->code);
@@ -325,6 +372,11 @@ wfm_synth_reset (wfm_synth_state_t *state)
   state->cur_data     = 0;
   if (state->fir)
     fir_reset (state->fir); /* clear the RRC delay line */
+  if (state->shaper)
+    {
+      resamp_reset (state->shaper); /* clear the polyphase delay line/phase */
+      state->primed = 0;            /* re-arm the sps-sample latency priming */
+    }
   if (state->lo)
     lo_reset (state->lo);
   if (state->awgn)
@@ -341,8 +393,11 @@ wfm_synth_reseed_noise (wfm_synth_state_t *state, uint32_t seed)
 }
 
 /* Serializable state — running waveform-position scalars + the optional
- * fir/lo/awgn/pn children (presence-flagged, so a payload-only or noiseless
- * synth round-trips); bits[] + sweep geometry are config (restored by create).
+ * fir/shaper/lo/awgn/pn children (presence-flagged, so a payload-only or
+ * noiseless synth round-trips); bits[] + sweep geometry are config (restored
+ * by create). The polyphase shaper carries its own delay line/phase, and
+ * `primed` records whether the sps-sample latency priming has run, so a
+ * mid-stream hand-off resumes the shaped waveform bit-for-bit.
  */
 size_t
 wfm_synth_state_bytes (const wfm_synth_state_t *s)
@@ -356,9 +411,12 @@ wfm_synth_state_bytes (const wfm_synth_state_t *s)
              + sizeof (uint64_t)                         /* chip_n       */
              + sizeof (uint64_t)                         /* sym_idx      */
              + sizeof (uint8_t)                          /* cur_data     */
-             + 4;                                        /* presence     */
+             + sizeof (uint8_t)                          /* primed       */
+             + 5;                                        /* presence     */
   if (s->fir)
     b += fir_state_bytes (s->fir);
+  if (s->shaper)
+    b += resamp_state_bytes (s->shaper);
   if (s->lo)
     b += lo_state_bytes (s->lo);
   if (s->awgn)
@@ -383,11 +441,14 @@ wfm_synth_get_state (const wfm_synth_state_t *s, void *blob)
   dp_w_u64 (&_w, s->chip_n);
   dp_w_u64 (&_w, s->sym_idx);
   dp_w_bytes (&_w, &s->cur_data, 1);
-  uint8_t pres[4]
-      = { s->fir != NULL, s->lo != NULL, s->awgn != NULL, s->pn != NULL };
-  dp_w_bytes (&_w, pres, 4);
+  dp_w_bytes (&_w, &s->primed, 1);
+  uint8_t pres[5] = { s->fir != NULL, s->shaper != NULL, s->lo != NULL,
+                      s->awgn != NULL, s->pn != NULL };
+  dp_w_bytes (&_w, pres, 5);
   if (s->fir)
     DP_W_CHILD (&_w, fir, s->fir);
+  if (s->shaper)
+    DP_W_CHILD (&_w, resamp, s->shaper);
   if (s->lo)
     DP_W_CHILD (&_w, lo, s->lo);
   if (s->awgn)
@@ -411,15 +472,20 @@ wfm_synth_set_state (wfm_synth_state_t *s, const void *blob)
   s->chip_n       = dp_r_u64 (&_r);
   s->sym_idx      = dp_r_u64 (&_r);
   dp_r_bytes (&_r, &s->cur_data, 1);
-  uint8_t pres[4];
-  dp_r_bytes (&_r, pres, 4);
+  dp_r_bytes (&_r, &s->primed, 1);
+  uint8_t pres[5];
+  dp_r_bytes (&_r, pres, 5);
   /* the blob's child set must match this instance's config (same wtype). */
-  if ((pres[0] != 0) != (s->fir != NULL) || (pres[1] != 0) != (s->lo != NULL)
-      || (pres[2] != 0) != (s->awgn != NULL)
-      || (pres[3] != 0) != (s->pn != NULL))
+  if ((pres[0] != 0) != (s->fir != NULL)
+      || (pres[1] != 0) != (s->shaper != NULL)
+      || (pres[2] != 0) != (s->lo != NULL)
+      || (pres[3] != 0) != (s->awgn != NULL)
+      || (pres[4] != 0) != (s->pn != NULL))
     return DP_ERR_INVALID;
   if (s->fir)
     DP_R_CHILD (&_r, fir, s->fir);
+  if (s->shaper)
+    DP_R_CHILD (&_r, resamp, s->shaper);
   if (s->lo)
     DP_R_CHILD (&_r, lo, s->lo);
   if (s->awgn)
@@ -447,9 +513,10 @@ wfm_synth_steps (wfm_synth_state_t *state, float complex *output, size_t n)
   {
     CH = 2048
   }; /* <= LO_MAX_OUT */
-  float complex carrier[CH];   /* 16 KiB */
-  float complex noise[CH];     /* 16 KiB */
-  uint8_t       chips[2 * CH]; /* up to 2 chips/sample (qpsk at sps 1) */
+  float complex carrier[CH];     /* 16 KiB */
+  float complex noise[CH];       /* 16 KiB */
+  float complex shaper_syms[CH]; /* polyphase-shaper symbol scratch */
+  uint8_t       chips[2 * CH];   /* up to 2 chips/sample (qpsk at sps 1) */
   const int     has_lo   = state->lo != NULL;
   const int     has_awgn = state->awgn != NULL;
   const int     is_bits
@@ -502,6 +569,31 @@ wfm_synth_steps (wfm_synth_state_t *state, float complex *output, size_t n)
           }
       if (has_awgn)
         awgn_generate (state->awgn, m, noise);
+
+      if (state->shaper)
+        {
+          /* Polyphase RRC pulse shaping — the single kernel wfm_synth_step()
+           * also drives (one output at a time), so the block and per-sample
+           * paths are bit-identical. Covers every shaped type; the symbol
+           * source is dispatched inside wfm_synth_shape/next_symbol, which
+           * advance bit_idx/sym_read_idx (and the pn/chip clocks) on `state`
+           * directly — re-sync the block-local read cursors afterwards so the
+           * post-loop write-back does not stomp them with stale values. */
+          wfm_synth_shape (state, out, m, shaper_syms);
+          if (has_lo && has_awgn)
+            for (size_t i = 0; i < m; i++)
+              out[i] = out[i] * carrier[i] + noise[i];
+          else if (has_lo)
+            for (size_t i = 0; i < m; i++)
+              out[i] = out[i] * carrier[i];
+          else if (has_awgn)
+            for (size_t i = 0; i < m; i++)
+              out[i] = out[i] + noise[i];
+          bit_idx = state->bit_idx;
+          sidx    = state->sym_read_idx;
+          done += m;
+          continue;
+        }
 
       if (is_bits)
         {

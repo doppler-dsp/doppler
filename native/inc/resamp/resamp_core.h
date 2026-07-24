@@ -148,6 +148,52 @@ extern "C"
                               float _Complex *out, size_t max_out);
 
   /* ------------------------------------------------------------------
+   * Streaming interpolation (fixed integer rate, output-count driven)
+   * ------------------------------------------------------------------ */
+
+  /**
+   * @brief Input samples an interpolating fill of @p max_out outputs consumes.
+   *
+   * The exact number of delay-line pushes producing @p max_out outputs from
+   * the current phase: `((uint64_t)phase + max_out * phase_inc) >> 32`. For an
+   * integer interpolation factor (phase_inc = 2^32 / rate divides evenly, i.e.
+   * a power-of-two `num_phases` bank at rate == num_phases) this is exact, so a
+   * caller can generate precisely this many inputs — no over- or
+   * under-production. Meaningful only for an upsampling resampler (rate >= 1).
+   *
+   * @param state    Must be non-NULL, upsampling.
+   * @param max_out  Number of outputs the following resamp_interp_fill() call
+   *                 will request.
+   * @return Inputs that call will consume.
+   */
+  size_t resamp_interp_inputs_needed (const resamp_state_t *state,
+                                      size_t max_out);
+
+  /**
+   * @brief Emit exactly @p max_out interpolated outputs, pulling inputs on
+   * overflow.
+   *
+   * The output-count-driven twin of the interpolation branch of
+   * resamp_execute(): it emits one output per phase tick and pushes the next
+   * input on each NCO overflow, but — unlike resamp_execute(), whose loop halts
+   * as soon as the input is exhausted even with output capacity left — it always
+   * writes @p max_out outputs. The caller must therefore supply at least
+   * resamp_interp_inputs_needed(state, max_out) inputs in @p in; supplying
+   * exactly that many (the common case) consumes them all. This is what lets a
+   * streaming producer (e.g. a pulse-shaping synth) feed symbols on demand and
+   * get a bit-exact match between a single call for @p max_out outputs and
+   * @p max_out single-output calls (the resampler is block-boundary invariant).
+   *
+   * @param state    Must be non-NULL, upsampling.
+   * @param in       Inputs to push on overflow (>= inputs_needed available).
+   * @param out      Output buffer, capacity >= @p max_out.
+   * @param max_out  Number of outputs to emit.
+   * @return Inputs consumed (== resamp_interp_inputs_needed(state, max_out)).
+   */
+  size_t resamp_interp_fill (resamp_state_t *state, const float _Complex *in,
+                             float _Complex *out, size_t max_out);
+
+  /* ------------------------------------------------------------------
    * Properties
    * ------------------------------------------------------------------ */
 

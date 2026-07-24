@@ -13,6 +13,26 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+## [0.37.1] — 2026-07-24
+
+### Fixed
+
+- **`PSD.band_power` / `total_band_power` were scaled by the window's
+    equivalent noise bandwidth (ENBW).** Band-*integrated* power normalised by
+    the coherent gain `cg²` — correct for reading a single tone's peak bin in
+    `psd_db`, but wrong for integrating power across a band, where the leaky
+    main lobe must be normalised by the noise-power gain `nfft·s²`. The two
+    differ by exactly the window's ENBW, so an absolute band power read
+    **1.5× too high for a Hann window, 2× for Blackman-Harris**, and with
+    zero-padding a further `nfft/n` on top (6× / 8× at `pad=4`) — i.e. it
+    tracked the window instead of the signal. Now normalised by `nfft·s²` (the
+    same per-bin calibration `nprmeas` already applied): a full-scale tone
+    integrates to 0 dBFS and a noise band to its true variance, window- and
+    pad-invariant (Parseval). *Relative* band powers (channel-to-channel
+    ratios, ACLR, `snr`, `occupied_bw`) are unchanged — the error was a common
+    factor that cancelled in any ratio. The raw per-bin accessors
+    (`power_onesided`/`power_twosided`) keep their documented `cg²` convention.
+
 ## [0.37.0] — 2026-07-23
 
 ### Added
@@ -3040,6 +3060,7 @@ ______________________________________________________________________
 [0.35.0]: https://github.com/doppler-dsp/doppler/compare/v0.34.0...v0.35.0
 [0.36.0]: https://github.com/doppler-dsp/doppler/compare/v0.35.0...v0.36.0
 [0.37.0]: https://github.com/doppler-dsp/doppler/compare/v0.36.0...v0.37.0
+[0.37.1]: https://github.com/doppler-dsp/doppler/compare/v0.37.0...v0.37.1
 [0.4.0]: https://github.com/doppler-dsp/doppler/compare/v0.3.7...v0.4.0
 [0.4.1]: https://github.com/doppler-dsp/doppler/compare/v0.4.0...v0.4.1
 [0.5.0]: https://github.com/doppler-dsp/doppler/compare/v0.4.1...v0.5.0
@@ -3052,4 +3073,4 @@ ______________________________________________________________________
 [0.7.0]: https://github.com/doppler-dsp/doppler/compare/v0.6.0...v0.7.0
 [0.8.0]: https://github.com/doppler-dsp/doppler/compare/v0.7.0...v0.8.0
 [0.9.0]: https://github.com/doppler-dsp/doppler/compare/v0.8.0...v0.9.0
-[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.37.0...HEAD
+[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.37.1...HEAD

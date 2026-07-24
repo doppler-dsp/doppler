@@ -183,8 +183,19 @@ except ValueError as e:
     print("rejected:", str(e)[:38], "…")
 ```
 
-A `Plan` is **not serializable** — it is a re-creatable cache, so persist the
-scene's spec JSON (`Composer.to_json()`) and re-`prepare()` on the far side.
+A prepared `Plan` **can** be serialized — `plan.save()` → `bytes`,
+`plan.dump(path)` → a file, restored with `PlanFromBlob` / `PlanFromFile` — and
+the restored cache reproduces the stimulus bit-for-bit. But reach for it only to
+checkpoint or resume a *live* Plan, **not** to move one between processes: the
+blob is the whole rendered cache — roughly `n_sources × len(plan) × 8` bytes —
+so it grows with the scene, and for anything large, restoring a multi-gigabyte
+blob is **slower than re-rendering it from scratch**.
+
+For a hand-off, persist the scene's compact **spec JSON** (`Composer.to_json()`)
+and re-`prepare()` on the far side — the re-render is almost always cheaper than
+shipping and deserializing the cache, and the spec is kilobytes, not gigabytes.
+The rule of thumb: transport the *recipe*, not the *rendered signal*.
+
 Frequency (Doppler) and delay (multipath) are planned follow-ups on the same
 frame — additive axes, not a rewrite.
 

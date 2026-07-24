@@ -183,10 +183,24 @@ except ValueError as e:
     print("rejected:", str(e)[:38], "…")
 ```
 
-A `Plan` is **not serializable** — it is a re-creatable cache, so persist the
-scene's spec JSON (`Composer.to_json()`) and re-`prepare()` on the far side.
-Frequency (Doppler) and delay (multipath) are planned follow-ups on the same
-frame — additive axes, not a rewrite.
+A prepared `Plan` **serializes to bytes** (`plan.save()`) or a file
+(`plan.dump(path)`) and restores with `PlanFromBlob(blob)` / `PlanFromFile(path)`,
+so the rendered cache survives a process or host hand-off and reproduces the
+stimulus bit-for-bit without re-preparing:
+
+```python
+from doppler.wfm import PlanFromBlob
+
+blob = plan.save()  # bytes; plan.dump("scene.plan") writes the same to a file
+restored = PlanFromBlob(blob)  # PlanFromFile("scene.plan") on the far side
+assert (restored.render() == plan.render()).all()  # identical stimulus
+```
+
+Alternatively — since a `Plan` is a re-creatable cache — persist the scene's
+spec JSON (`Composer.to_json()`) and re-`prepare()` on the far side; that
+re-renders rather than restoring the cache. Frequency (Doppler) and delay
+(multipath) are planned follow-ups on the same frame — additive axes, not a
+rewrite.
 
 ## See also
 

@@ -61,7 +61,10 @@ typedef struct
   size_t   off_lo, off_hi;
   size_t   delay_lo, delay_hi;
   int      gap_noise; /* 0 auto (gaps carry the floor), 1 off (hard zero) */
-  uint32_t dseed;     /* default draw/noise seed == sources[0].seed       */
+  uint32_t dseed;     /* ranged off/delay DRAW seed == sources[0].seed.
+                       * NOT the noise seed — that is noise_src.seed, the
+                       * anchor's, which differs whenever the SNR-carrying
+                       * source is not sources[0]. */
 
   int          has_noise; /* 1 -> a gap-spanning noise synth is built     */
   int          bundled;   /* 1 -> noise_src is the lone real-snr source   */
@@ -234,16 +237,26 @@ materialize (const wfm_plan_t *p, const double *gains_db, const double *phases,
   for (size_t si = 0; si < p->n_segs; si++)
     {
       const wfm_plan_segment_t *ps = &p->segs[si];
-      uint32_t eff_seed            = seed_given ? (uint32_t)seed : ps->dseed;
+      /* Two DIFFERENT default seeds, and conflating them is a silent bug.
+       * The ranged off/delay draws key off the segment's first source
+       * (wfm_compose.c's start_segment does the same, so the drawn lengths
+       * match), while the noise synth must be rebuilt from the seed the
+       * RESOLVER gave the noise source — the anchor's, i.e. whichever source
+       * carries the SNR (wfm_resolve.c). Those are the same number only when
+       * the anchor happens to be sources[0]; anywhere else, seeding the noise
+       * from sources[0] reconstructs a completely different realization than
+       * compose() produced. A seed override (Monte-Carlo) still moves both. */
+      uint32_t draw_seed  = seed_given ? (uint32_t)seed : ps->dseed;
+      uint32_t noise_seed = seed_given ? (uint32_t)seed : ps->noise_src.seed;
       for (size_t inst = 0; inst < ps->repeats; inst++)
         {
           size_t dly = (ps->ranged & WFM_RANGE_DELAY_SAMPLES)
-                           ? wfm_draw_samples (eff_seed, 0, inst, si,
+                           ? wfm_draw_samples (draw_seed, 0, inst, si,
                                                WFM_RANGE_DELAY_SAMPLES,
                                                ps->delay_lo, ps->delay_hi)
                            : ps->delay_lo;
           size_t off = (ps->ranged & WFM_RANGE_OFF_SAMPLES)
-                           ? wfm_draw_samples (eff_seed, 0, inst, si,
+                           ? wfm_draw_samples (draw_seed, 0, inst, si,
                                                WFM_RANGE_OFF_SAMPLES,
                                                ps->off_lo, ps->off_hi)
                            : ps->off_lo;
@@ -262,7 +275,7 @@ materialize (const wfm_plan_t *p, const double *gains_db, const double *phases,
             ext_gain = segment_noise_gain (ps, snr, snr_given);
 
           wfm_synth_state_t *gsyn
-              = build_gap_synth (ps, p->fs, snr, snr_given, eff_seed, inst);
+              = build_gap_synth (ps, p->fs, snr, snr_given, noise_seed, inst);
 
           if (gsyn && !ps->gap_noise)
             add_noise (gsyn, out + pos, dly, ext_gain);

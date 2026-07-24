@@ -157,9 +157,73 @@ test_parallel_build_bit_exact (void)
   return 0;
 }
 
+/* The SNR-carrying source does not have to be sources[0]. The resolver seeds
+ * the appended noise source from the ANCHOR (wfm_resolve.c), while the ranged
+ * off/delay draws key off sources[0] (wfm_compose.c's start_segment) — two
+ * different seeds that are equal only in the scenes every other test here
+ * builds, where the anchor happens to come first. Seeding the reconstructed
+ * noise from sources[0] produced an entirely different realization (not a
+ * rounding difference: full-scale, every sample), so this walks the anchor
+ * through each position of a 3-source scene. */
+#define ANCHOR_POS 3u
+
+static int
+test_noise_anchor_position (void)
+{
+  size_t          bytes = L * sizeof (float _Complex);
+  float _Complex *ref   = malloc (bytes);
+  float _Complex *got   = malloc (bytes);
+  CHECK (ref && got, "anchor: alloc");
+
+  for (unsigned a = 0; a < ANCHOR_POS; a++)
+    {
+      wfm_source_t src[ANCHOR_POS];
+      for (unsigned k = 0; k < ANCHOR_POS; k++)
+        {
+          memset (&src[k], 0, sizeof src[k]);
+          src[k].type = 4; /* qpsk */
+          src[k].freq = 1e5 * (double)k;
+          src[k].snr  = (k == a) ? 6.0 : 100.0; /* one anchor, rest clean */
+          src[k].seed = 40u + k;
+          src[k].sps  = 8;
+          src[k].pn_length = 7;
+          src[k].level     = (k == a) ? 0.0 : -6.0;
+        }
+      wfm_segment_t seg  = { .sources     = src,
+                             .n_sources   = ANCHOR_POS,
+                             .fs          = 1e6,
+                             .num_samples = L,
+                             .off_samples = 0 };
+      char         *json = wfm_spec_to_json (&seg, 1, 0, 0, 0.0);
+      CHECK (json, "anchor: spec_to_json");
+      CHECK (compose_collect (json, ref) == L, "anchor: compose length");
+
+      wfm_plan_t *p = wfm_plan_prepare (json);
+      CHECK (p, "anchor: prepare");
+      CHECK (wfm_plan_render (p, "{}", got) == L, "anchor: render baseline");
+      CHECK (memcmp (ref, got, bytes) == 0,
+             "ANCHOR: render({}) == compose with the SNR source at any index");
+
+      /* A seed override still moves the noise (Monte-Carlo), from any pos. */
+      CHECK (wfm_plan_render (p, "{\"seed\":4242}", got) == L,
+             "anchor: render with a seed override");
+      CHECK (memcmp (ref, got, bytes) != 0,
+             "ANCHOR: a seed override still redraws the noise");
+
+      wfm_plan_destroy (p);
+      free (json);
+    }
+
+  free (got);
+  free (ref);
+  return 0;
+}
+
 int
 main (void)
 {
+  if (test_noise_anchor_position ())
+    return 1;
   if (test_parallel_build_bit_exact ())
     return 1;
 

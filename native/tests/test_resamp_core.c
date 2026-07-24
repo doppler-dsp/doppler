@@ -125,6 +125,46 @@ eq_interp_fill (size_t nphases, size_t ntaps)
   return ok;
 }
 
+/* resamp_execute_ctrl_push (one input at a time) must reproduce the block
+ * resamp_execute_ctrl on the same (in, ctrl[]) bit-for-bit — the property a
+ * closed timing loop relies on to steer the strobe per output. Returns 1 ok.
+ */
+static int
+eq_ctrl_push (double rate)
+{
+  enum
+  {
+    L   = 400,
+    CAP = 1024
+  };
+  float _Complex in[L], ctrl[L], out_ref[CAP], out_push[CAP];
+  for (size_t i = 0; i < (size_t)L; i++)
+    {
+      double ph = 2.0 * M_PI * 0.023 * (double)i;
+      in[i]     = CMPLXF ((float)cos (ph), (float)sin (ph));
+      /* a slowly-varying rate deviation, both signs */
+      ctrl[i] = CMPLXF ((float)(0.01 * sin (0.05 * (double)i)), 0.0f);
+    }
+
+  resamp_state_t *rb   = resamp_create (rate);
+  size_t          nref = resamp_execute_ctrl (rb, in, ctrl, L, out_ref, CAP);
+  resamp_destroy (rb);
+
+  resamp_state_t *rp = resamp_create (rate);
+  size_t          np = 0;
+  for (size_t i = 0; i < (size_t)L && np < CAP; i++)
+    np += resamp_execute_ctrl_push (rp, in[i], (double)crealf (ctrl[i]),
+                                    out_push + np, CAP - np);
+  resamp_destroy (rp);
+
+  int ok = (np == nref);
+  for (size_t i = 0; i < nref && i < np; i++)
+    if (crealf (out_ref[i]) != crealf (out_push[i])
+        || cimagf (out_ref[i]) != cimagf (out_push[i]))
+      ok = 0;
+  return ok;
+}
+
 int
 main (void)
 {
@@ -228,6 +268,14 @@ main (void)
   CHECK (eq_interp_fill (8, 4));
   CHECK (eq_interp_fill (4, 17));
   CHECK (eq_interp_fill (16, 3));
+
+  /* Streaming control port: one-input-at-a-time execute_ctrl_push == the block
+   * execute_ctrl, for decimation, interpolation, and unity — the property a
+   * closed-loop timing/rate tracker relies on to steer the strobe per output.
+   */
+  CHECK (eq_ctrl_push (0.4));
+  CHECK (eq_ctrl_push (2.0));
+  CHECK (eq_ctrl_push (1.0));
 
   if (_fails)
     {

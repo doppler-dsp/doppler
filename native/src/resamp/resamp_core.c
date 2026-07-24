@@ -534,3 +534,32 @@ resamp_execute_ctrl (resamp_state_t *s, const float _Complex *in,
   s->ctrl_acc = acc;
   return oi;
 }
+
+/* ------------------------------------------------------------------ */
+/* execute_ctrl_push — single-input streaming form of execute_ctrl    */
+/* One iteration of the block loop's outer body, so feeding a stream   */
+/* one sample at a time matches the block call bit-for-bit, but with   */
+/* the rate deviation free to depend on outputs already emitted.       */
+/* ------------------------------------------------------------------ */
+
+size_t
+resamp_execute_ctrl_push (resamp_state_t *s, float _Complex x, double ctrl,
+                          float _Complex *out, size_t max_out)
+{
+  size_t oi  = 0;
+  double acc = s->ctrl_acc;
+
+  dl_push (s, x);
+  acc += s->rate + ctrl;
+  while (acc >= 1.0 && oi < max_out)
+    {
+      acc -= 1.0;
+      size_t arm = (size_t)(acc * (double)s->num_phases);
+      if (arm >= s->num_phases)
+        arm = s->num_phases - 1;
+      out[oi++]
+          = dot_cf32 (dl_ptr (s), &s->bank[arm * s->num_taps], s->num_taps);
+    }
+  s->ctrl_acc = acc;
+  return oi;
+}

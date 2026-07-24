@@ -75,18 +75,6 @@ imbalance or a relative phase just as cheaply:
 clean = plan.render(enable=[True, False, True], gains=[0.0, -3.0, -16.0])
 ```
 
-The prepared cache itself persists: `plan.save()` serializes it to bytes (or
-`plan.dump(path)` to a file), and `PlanFromBlob` / `PlanFromFile` restore it on
-another process or host. So the one-time prepare can run once and the cache ship
-to the workers that sweep it — each restores it and renders bit-identically:
-
-```python
-from doppler.wfm import PlanFromBlob
-
-worker = PlanFromBlob(plan.save())                      # restore the cache elsewhere
-assert np.array_equal(worker.render(), plan.render())   # identical stimulus
-```
-
 ## Notes
 
 `Plan` v1 covers a single finite, non-ranged `sum` segment with a separable

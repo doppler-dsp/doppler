@@ -183,24 +183,21 @@ except ValueError as e:
     print("rejected:", str(e)[:38], "…")
 ```
 
-A prepared `Plan` **serializes to bytes** (`plan.save()`) or a file
-(`plan.dump(path)`) and restores with `PlanFromBlob(blob)` / `PlanFromFile(path)`,
-so the rendered cache survives a process or host hand-off and reproduces the
-stimulus bit-for-bit without re-preparing:
+A prepared `Plan` **can** be serialized — `plan.save()` → `bytes`,
+`plan.dump(path)` → a file, restored with `PlanFromBlob` / `PlanFromFile` — and
+the restored cache reproduces the stimulus bit-for-bit. But reach for it only to
+checkpoint or resume a *live* Plan, **not** to move one between processes: the
+blob is the whole rendered cache — roughly `n_sources × len(plan) × 8` bytes —
+so it grows with the scene, and for anything large, restoring a multi-gigabyte
+blob is **slower than re-rendering it from scratch**.
 
-```python
-from doppler.wfm import PlanFromBlob
+For a hand-off, persist the scene's compact **spec JSON** (`Composer.to_json()`)
+and re-`prepare()` on the far side — the re-render is almost always cheaper than
+shipping and deserializing the cache, and the spec is kilobytes, not gigabytes.
+The rule of thumb: transport the *recipe*, not the *rendered signal*.
 
-blob = plan.save()  # bytes; plan.dump("scene.plan") writes the same to a file
-restored = PlanFromBlob(blob)  # PlanFromFile("scene.plan") on the far side
-assert (restored.render() == plan.render()).all()  # identical stimulus
-```
-
-Alternatively — since a `Plan` is a re-creatable cache — persist the scene's
-spec JSON (`Composer.to_json()`) and re-`prepare()` on the far side; that
-re-renders rather than restoring the cache. Frequency (Doppler) and delay
-(multipath) are planned follow-ups on the same frame — additive axes, not a
-rewrite.
+Frequency (Doppler) and delay (multipath) are planned follow-ups on the same
+frame — additive axes, not a rewrite.
 
 ## See also
 

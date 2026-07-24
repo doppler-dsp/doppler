@@ -13,6 +13,8 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+## [0.37.2] — 2026-07-24
+
 ### Added
 
 - **Streaming control port on `Resampler` and `RateConverter`.** A new
@@ -3104,6 +3106,7 @@ ______________________________________________________________________
 [0.36.0]: https://github.com/doppler-dsp/doppler/compare/v0.35.0...v0.36.0
 [0.37.0]: https://github.com/doppler-dsp/doppler/compare/v0.36.0...v0.37.0
 [0.37.1]: https://github.com/doppler-dsp/doppler/compare/v0.37.0...v0.37.1
+[0.37.2]: https://github.com/doppler-dsp/doppler/compare/v0.37.1...v0.37.2
 [0.4.0]: https://github.com/doppler-dsp/doppler/compare/v0.3.7...v0.4.0
 [0.4.1]: https://github.com/doppler-dsp/doppler/compare/v0.4.0...v0.4.1
 [0.5.0]: https://github.com/doppler-dsp/doppler/compare/v0.4.1...v0.5.0
@@ -3116,4 +3119,4 @@ ______________________________________________________________________
 [0.7.0]: https://github.com/doppler-dsp/doppler/compare/v0.6.0...v0.7.0
 [0.8.0]: https://github.com/doppler-dsp/doppler/compare/v0.7.0...v0.8.0
 [0.9.0]: https://github.com/doppler-dsp/doppler/compare/v0.8.0...v0.9.0
-[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.37.1...HEAD
+[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.37.2...HEAD

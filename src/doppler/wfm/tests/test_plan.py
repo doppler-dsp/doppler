@@ -307,3 +307,124 @@ def test_ranged_gap_redraws_per_seed() -> None:
     r1 = plan.render(seed=101)
     r2 = plan.render(seed=202)
     assert len(r1) != len(r2) or not np.array_equal(r1, r2)
+
+
+# ── background=True: a static source prefix folds into one cache slot ──
+
+
+def _field_scene(
+    n_bg: int, *, background: bool, snr: float = 12.0
+) -> Composer:
+    """`n_bg` static users (flagged or not) + a wanted anchor + a jammer.
+
+    The background sources lead the segment, which puts the SNR-carrying
+    anchor at index `n_bg` -- deliberately not sources[0].
+    """
+    field = [
+        qpsk(
+            seed=500 + k,
+            sps=8,
+            pn_length=7,
+            freq=-2e5 + 1e4 * k,
+            level=-24.0,
+            background=background,
+        )
+        for k in range(n_bg)
+    ]
+    return Composer(
+        Segment.sum(
+            *field,
+            qpsk(snr=snr, seed=7, sps=8, pn_length=7),
+            tone(freq=2.2e5, seed=3, sps=8, level=-9.0),
+            fs=1e6,
+            num_samples=4096,
+        )
+    )
+
+
+def test_background_prefix_folds_to_one_slot() -> None:
+    """The population collapses to a single overridable cache entry."""
+    folded = prepare(_field_scene(8, background=True))
+    per_source = prepare(_field_scene(8, background=False))
+    assert folded.n_sources == 3  # background + anchor + tone
+    assert per_source.n_sources == 10
+
+
+def test_background_fold_is_bit_identical_to_compose() -> None:
+    """The whole point: folding changes the cache, never the samples."""
+    scene = _field_scene(8, background=True)
+    folded = prepare(scene)
+    np.testing.assert_array_equal(folded.render(), scene.compose())
+    # ...and identical to the same scene cached one buffer per source.
+    per_source = prepare(_field_scene(8, background=False))
+    np.testing.assert_array_equal(folded.render(), per_source.render())
+
+
+def test_background_slot_scales_the_whole_field() -> None:
+    """gains[0] trims the composite as a unit; the others keep their own."""
+    plan = prepare(_field_scene(8, background=True))
+    base = plan.render()
+    off = plan.render(enable=[False, True, True])
+    trimmed = plan.render(gains=[-6.0, 0.0, -9.0])
+
+    # Removing the field must change the output but leave the anchor's own
+    # contribution, so the result is neither unchanged nor empty.
+    assert not np.array_equal(base, off)
+    assert np.any(off != 0)
+
+    # The field's own contribution scales by the trim: powers of independent
+    # sources add, so subtracting the field-off render isolates it.
+    p_base = float(np.mean(np.abs(base - off) ** 2))
+    p_trim = float(np.mean(np.abs(trimmed - off) ** 2))
+    scale_db = 10.0 * np.log10(p_base / p_trim)
+    assert 5.5 < scale_db < 6.5
+
+
+def test_background_must_be_a_contiguous_prefix() -> None:
+    """A background source behind a foreground one is refused, not degraded.
+
+    The composite sums from zero, so it only reproduces the composer's running
+    accumulator bit-for-bit while nothing precedes it.
+    """
+    scene = Composer(
+        Segment.sum(
+            qpsk(seed=501, sps=8, pn_length=7, level=-20.0, background=True),
+            qpsk(snr=12.0, seed=7, sps=8, pn_length=7),
+            qpsk(seed=502, sps=8, pn_length=7, level=-20.0, background=True),
+            fs=1e6,
+            num_samples=1024,
+        )
+    )
+    with pytest.raises(ValueError):
+        prepare(scene)
+
+
+def test_background_on_a_bundled_source_is_a_no_op() -> None:
+    """A lone real-SNR source has nothing to fold, and its baked-in noise
+    amplitude rides on the base gain the fold would overwrite."""
+    scene = Composer(
+        Segment.sum(
+            qpsk(
+                snr=9.0,
+                seed=7,
+                sps=8,
+                pn_length=7,
+                level=-3.0,
+                background=True,
+            ),
+            fs=1e6,
+            num_samples=1024,
+        )
+    )
+    plan = prepare(scene)
+    assert plan.n_sources == 1
+    np.testing.assert_array_equal(plan.render(), scene.compose())
+
+
+def test_background_survives_save_restore() -> None:
+    """A folded cache round-trips as-is -- the blob holds the composite."""
+    scene = _field_scene(6, background=True)
+    plan = prepare(scene)
+    restored = PlanFromBlob(plan.save())
+    assert restored.n_sources == plan.n_sources == 3
+    np.testing.assert_array_equal(restored.render(), plan.render())

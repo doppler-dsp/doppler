@@ -77,14 +77,25 @@ clean = plan.render(enable=[True, False, True], gains=[0.0, -3.0, -16.0])
 
 ## Notes
 
-`Plan` v1 covers a single finite, non-ranged `sum` segment with a separable
-noise floor (the common evaluation scene). A lone *bundled* noisy source — one
-source that carries the SNR alone, its private RNG fused into the signal — is not
-separable and raises `ValueError`. Frequency (Doppler) and delay (multipath) are
-planned follow-ups on the same frame.
+`Plan` caches a scene whose **shape** is fixed. That is more than the first
+release covered: any number of finite segments, each with its own repeats,
+leading delay and trailing gap — fixed or drawn from a range — sharing one
+sample rate. A lone *bundled* noisy source (one source carrying the SNR alone,
+its private RNG fused into the signal) is supported too; its AWGN is
+reconstructed per instance instead of being a separable multiply.
+
+What `prepare()` refuses is a scene whose *sources* move, because then the
+cached render is no longer the signal the spec asks for: a ranged source field
+(`freq=(lo, hi)` and friends), a ranged ON-time, or a mix of sample rates. An
+unbounded `repeat` / continuous timeline is out of scope for the same reason —
+there is no fixed capacity to cache. Each of those raises `ValueError`.
+
+Per-source frequency (Doppler) and delay (multipath) overrides remain planned
+follow-ups on the same frame.
 
 ## See also
 
+- [One Cache Slot for a Whole Background Field](plan-background.md) — `background=True`, for a scene dominated by emitters that never move.
 - [Composing a Scene](wfm-composition.md) — building the `Composer` scenes a Plan prepares.
 - [WCDMA Carriers](wcdma-carriers.md) — a multi-carrier measurement scene.
 - `src/doppler/examples/plan_demo.py` — the script behind this figure.

@@ -147,6 +147,7 @@ nav:
           - Waveform Write: gallery/wfm-write.md
           - WCDMA Carriers: gallery/wcdma-carriers.md
           - "Prepare Once, Sweep Many (Plan)": gallery/plan.md
+          - "One Cache Slot for a Whole Background Field": gallery/plan-background.md
           - "A Crowded Band (parallel prepare)": gallery/crowded-band.md
           - AWGN: gallery/awgn.md
           - Doppler Channel: gallery/doppler-channel.md

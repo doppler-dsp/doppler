@@ -247,6 +247,8 @@ add_source_obj (cJSON *so, const wfm_source_t *src)
   if (src->level != 0.0 || (src->ranged & WFM_RANGE_LEVEL))
     add_num_or_range (so, "level", src->level, src->level_hi,
                       src->ranged & WFM_RANGE_LEVEL);
+  if (src->background) /* omit when false so old specs are unchanged */
+    cJSON_AddBoolToObject (so, "background", 1);
   add_bits_fields (so, src);
   add_symbols_fields (so, src);
   add_dsss_fields (so, src);
@@ -287,6 +289,9 @@ parse_source_obj (const cJSON *so, wfm_source_t *out)
                  ? 1
                  : 0,
     .level = level,
+    .background
+    = cJSON_IsTrue (cJSON_GetObjectItemCaseSensitive (so, "background")) ? 1
+                                                                         : 0,
     .f_end = f_end,
     .ranged
     = (unsigned)((rf ? WFM_RANGE_FREQ : 0) | (rs ? WFM_RANGE_SNR : 0)
@@ -463,6 +468,8 @@ wfm_spec_to_json (const wfm_segment_t *segs, size_t n_segs, int repeat,
               || (src->ranged & WFM_RANGE_LEVEL))
             add_num_or_range (s, "level", src->level, src->level_hi,
                               src->ranged & WFM_RANGE_LEVEL);
+          if (src->background) /* omit when false so old specs are unchanged */
+            cJSON_AddBoolToObject (s, "background", 1);
           add_bits_fields (s, src);
           add_symbols_fields (s, src);
           add_dsss_fields (s, src);

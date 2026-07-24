@@ -89,7 +89,7 @@ main (void)
                                               0, 7, 4, 7, 0, 0, 0.0);
     CHECK (rs && rs->fir == NULL);
     CHECK (wfm_synth_set_rrc (rs, taps, 5) == 0);
-    CHECK (rs->fir != NULL);
+    CHECK (rs->shaper != NULL && rs->fir == NULL);
     float complex y[256];
     wfm_synth_steps (rs, y, 256);
 
@@ -121,6 +121,29 @@ main (void)
     wfm_synth_destroy (rs);
     wfm_synth_destroy (rs2);
     wfm_synth_destroy (rect);
+  }
+
+  /* ── RRC at a NON-power-of-two sps: the dense-FIR fallback (resamp's branch
+   *    select needs a pow-2 phase count), and step()==steps() still holds. */
+  {
+    const float        taps[5] = { 0.1f, 0.2f, 0.4f, 0.2f, 0.1f };
+    wfm_synth_state_t *fs3     = wfm_synth_create (
+        WFM_SYNTH_PN, 1e6, 0.0, 100.0, 0, 7, 3, 7, 0, 0, 0.0); /* sps=3 */
+    CHECK (fs3 && wfm_synth_set_rrc (fs3, taps, 5) == 0);
+    CHECK (fs3 && fs3->fir != NULL
+           && fs3->shaper == NULL); /* dense fallback */
+    float complex y3[192];
+    wfm_synth_steps (fs3, y3, 192);
+    wfm_synth_state_t *fs3b = wfm_synth_create (WFM_SYNTH_PN, 1e6, 0.0, 100.0,
+                                                0, 7, 3, 7, 0, 0, 0.0);
+    wfm_synth_set_rrc (fs3b, taps, 5);
+    int m3 = 1;
+    for (int i = 0; i < 192; i++)
+      if (wfm_synth_step (fs3b) != y3[i])
+        m3 = 0;
+    CHECK (m3); /* step()==steps() on the dense-FIR fallback path */
+    wfm_synth_destroy (fs3);
+    wfm_synth_destroy (fs3b);
   }
 
   /* ── bits: user pattern, mapping, cycling, step()==steps() ────────────────
@@ -178,7 +201,7 @@ main (void)
                                               0, 1, 4, 7, 0, 0, 0.0);
     CHECK (wfm_synth_set_bits (bs, pat, 6, 1) == 0); /* bpsk */
     CHECK (wfm_synth_set_rrc (bs, taps, 5) == 0);    /* now accepted on bits */
-    CHECK (bs->fir != NULL);
+    CHECK (bs->shaper != NULL && bs->fir == NULL);
     float complex y[256];
     wfm_synth_steps (bs, y, 256);
 
@@ -267,7 +290,7 @@ main (void)
                                               100.0, 0, 1, 4, 7, 0, 0, 0.0);
     wfm_synth_set_symbols (ss, syms, 3);
     CHECK (wfm_synth_set_rrc (ss, taps, 5) == 0); /* accepted on symbols */
-    CHECK (ss->fir != NULL);
+    CHECK (ss->shaper != NULL && ss->fir == NULL);
     float complex y[192];
     wfm_synth_steps (ss, y, 192);
 
@@ -606,6 +629,43 @@ main (void)
              == 0); /* no-op for other types */
       wfm_synth_destroy (tn);
     }
+  }
+
+  /* ── polyphase shaper serialization: the resamp shaper child + the `primed`
+   *    latency flag resume bit-for-bit mid-stream, alongside the lo/awgn/pn
+   *    children (pn carrier + noise + RRC shaping at a power-of-two sps). */
+  {
+    const float        taps[5] = { 0.1f, 0.2f, 0.4f, 0.2f, 0.1f };
+    wfm_synth_state_t *a = wfm_synth_create (WFM_SYNTH_PN, 1e6, 1000.0, 5.0, 1,
+                                             7, 4, 7, 0, 0, 0.0);
+    CHECK (a && wfm_synth_set_rrc (a, taps, 5) == 0);
+    CHECK (a && a->shaper != NULL && a->lo != NULL && a->awgn != NULL
+           && a->pn != NULL);
+    float complex ref[512], part[200], cont[312];
+    wfm_synth_steps (a, ref, 512);  /* uninterrupted reference */
+    wfm_synth_reset (a);            /* re-arm priming + rewind children */
+    wfm_synth_steps (a, part, 200); /* first leg, past the sps priming */
+    size_t nb   = wfm_synth_state_bytes (a);
+    void  *blob = malloc (nb);
+    wfm_synth_get_state (a, blob);
+    wfm_synth_state_t *c = wfm_synth_create (WFM_SYNTH_PN, 1e6, 1000.0, 5.0, 1,
+                                             7, 4, 7, 0, 0, 0.0);
+    CHECK (c && wfm_synth_set_rrc (c, taps, 5) == 0);
+    CHECK (wfm_synth_set_state (c, blob) == 0);
+    wfm_synth_steps (c, cont, 312); /* resume from the handed-off state */
+    int ok = 1;
+    for (int i = 0; i < 200; i++)
+      if (part[i] != ref[i])
+        ok = 0;
+    for (int i = 0; i < 312; i++)
+      if (cont[i] != ref[200 + i])
+        ok = 0;
+    CHECK (ok); /* shaper + primed resume: part ++ cont == ref bit-for-bit */
+    ((uint8_t *)blob)[0] ^= 0xFFu; /* envelope reject leaves c untouched */
+    CHECK (wfm_synth_set_state (c, blob) == DP_ERR_INVALID);
+    free (blob);
+    wfm_synth_destroy (a);
+    wfm_synth_destroy (c);
   }
 
   /* the serialization sections above also count via CHECK — fail if any

@@ -15,6 +15,21 @@ ______________________________________________________________________
 
 ### Changed
 
+- **Polyphase RRC pulse shaping — ~`sps`× faster waveform synthesis.** The
+    synth's RRC pulse shaper (`pn`/`bpsk`/`qpsk`/`bits`/`symbols`/`dsss` sources
+    with `pulse="rrc"`) no longer builds a symbol-rate impulse train and runs a
+    dense FIR over it — wasting `(sps-1)/sps` of every tap-multiply on structural
+    zeros. For a power-of-two `sps` it now decomposes the RRC into a polyphase
+    bank and shapes it as an interpolate-by-`sps` view over the existing `resamp`
+    engine (`Resampler(rate=sps, bank=…)`), computing the identical convolution
+    from only the nonzero contributions. Measured ~4× (`sps=4`), ~8× (`sps=8`),
+    ~16× (`sps=16`) on the shaping stage — the win scales with `sps` and directly
+    cuts `Composer`/`Plan.prepare()` build time. Output is aligned to the dense
+    path to float precision (a one-time `sps`-sample latency prime), so shaped
+    waveforms are unchanged at the sample level; `step()`==`steps()` stays
+    bit-exact and mid-stream state serialization resumes bit-for-bit. Odd `sps`
+    keeps the dense FIR (the polyphase branch select needs a power-of-two phase
+    count). No API change.
 - **Richer type stubs, derived from the C headers (jm 0.33.12).** The `.pyi`
     stubs for the `Ddcr` handle (`doppler.ddc`) and the `Plan` handle
     (`doppler.wfm` save/restore surface), plus the `SampleClock`/`StreamSink`

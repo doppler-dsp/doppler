@@ -320,6 +320,52 @@ class TestRRC:
         h = w.rrc_taps(0.25, 4, 8)
         assert np.all(np.isfinite(h))
 
+    @pytest.mark.parametrize("sps", [2, 4, 8, 16])
+    def test_polyphase_bank_reproduces_dense_shaping(self, sps: int) -> None:
+        """A Resampler driven by the RRC polyphase bank reproduces the dense
+        upsample+FIR pulse shaper to float precision.
+
+        This is the crux PR1's TX pulse-shaping optimisation rests on: the C
+        `wfm_rrc_polyphase_bank` deals the sqrt(sps)-scaled `rrc_taps`
+        prototype into `bank[p, t] = proto[t*sps + p]`, and running that bank
+        as an interpolate-by-`sps` Resampler computes the identical
+        convolution the dense FIR does — from only the nonzero contributions.
+        The interp output lags the causal dense FIR by a constant `sps`
+        samples (delay-line priming), so `poly[sps:]` aligns with `dense[:]`.
+        """
+        from doppler.resample import Resampler
+
+        rng = np.random.default_rng(0)
+        beta, span = 0.35, 8
+        proto = w.rrc_taps(beta, sps, span).astype(np.float64) * np.sqrt(sps)
+        proto_len = 2 * span * sps + 1
+        ntaps = 2 * span + 1
+
+        # Polyphase decomposition — the numpy twin of wfm_rrc_polyphase_bank.
+        bank = np.zeros((sps, ntaps), dtype=np.float32)
+        for p in range(sps):
+            for t in range(ntaps):
+                idx = t * sps + p
+                if idx < proto_len:
+                    bank[p, t] = proto[idx]
+
+        syms = (1 - 2 * rng.integers(0, 2, 64)).astype(np.complex64)
+
+        # Dense reference: zero-stuff by sps, causal FIR with the scaled taps.
+        up = np.zeros(len(syms) * sps, dtype=np.complex64)
+        up[::sps] = syms
+        dense = np.convolve(up, proto.astype(np.complex64))[: len(up)]
+
+        poly = np.asarray(Resampler(rate=float(sps), bank=bank).execute(syms))
+
+        # Compare the interior, past both the sps priming lag and the tail the
+        # resampler has not yet flushed.
+        n = len(syms) * sps - span * sps
+        assert np.allclose(poly[sps : sps + n], dense[:n], atol=1e-4), (
+            f"sps={sps}: max err "
+            f"{np.max(np.abs(poly[sps : sps + n] - dense[:n])):.2e}"
+        )
+
 
 # --------------------------------------------------------------------------- #
 # DSSS spreading / despreading

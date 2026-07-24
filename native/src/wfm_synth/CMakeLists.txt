@@ -8,6 +8,7 @@ target_link_libraries(wfm_synth_core PUBLIC
     awgn_core
     pn_core
     fir_core
+    resamp_core
     wfm_dsp_core)
 
 add_executable(test_wfm_synth_core
@@ -17,6 +18,7 @@ target_link_libraries(test_wfm_synth_core
     awgn_core
     pn_core
     fir_core
+    resamp_core
     wfm_dsp_core
     m)
 target_include_directories(test_wfm_synth_core
@@ -31,6 +33,7 @@ target_link_libraries(bench_wfm_synth_core
     awgn_core
     pn_core
     fir_core
+    resamp_core
     wfm_dsp_core
     m)
 target_include_directories(

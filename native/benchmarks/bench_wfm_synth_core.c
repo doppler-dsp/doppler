@@ -6,6 +6,7 @@
  * bit-manipulation path). Emits pytest-benchmark-compatible JSON via make
  * bench. */
 #include "jm_bench.h"
+#include "wfm/wfm_dsp.h" /* wfm_rrc_taps — RRC pulse-shaping bench */
 #include "wfm_synth/wfm_synth_core.h"
 #include <complex.h>
 #include <stdio.h>
@@ -57,6 +58,47 @@ bench_cfg (const char *name, int type, int sps, int pnlen, int lfsr,
   wfm_synth_destroy (obj);
 }
 
+/* Bench wfm_synth_steps with an RRC pulse shaper attached — the polyphase
+ * resamp shaper for a power-of-two sps, the dense FIR otherwise. beta 0.35,
+ * span 8. Isolates the pulse-shaping cost on top of the bit source. */
+static void
+bench_cfg_rrc (const char *name, int type, int sps, int pnlen, double snr,
+               double freq, float complex *out, jm_bench_t *bench)
+{
+  wfm_synth_state_t *obj
+      = wfm_synth_create (type, 1e6, freq, snr, 0, 1, sps, pnlen, 0, 0, 0.0);
+  if (!obj)
+    {
+      printf ("  %-26s   (create failed)\n", name);
+      return;
+    }
+  size_t ntaps = wfm_rrc_ntaps (sps, 8);
+  float *taps  = malloc (ntaps * sizeof (float));
+  wfm_rrc_taps (0.35, sps, 8, taps);
+  wfm_synth_set_rrc (obj, taps, ntaps);
+  free (taps);
+  wfm_synth_steps (obj, out, BENCH_N); /* warm up (also primes the shaper) */
+
+  struct timespec t0, t1;
+  double          times[ITERATIONS];
+  for (int r = 0; r < ITERATIONS; r++)
+    {
+      clock_gettime (CLOCK_MONOTONIC, &t0);
+      wfm_synth_steps (obj, out, BENCH_N);
+      clock_gettime (CLOCK_MONOTONIC, &t1);
+      times[r] = elapsed_sec (&t0, &t1);
+    }
+  double mean = 0.0;
+  for (int r = 0; r < ITERATIONS; r++)
+    mean += times[r];
+  mean /= ITERATIONS;
+  double msas = (double)BENCH_N / mean / 1e6;
+  printf ("  %-26s %8.1f MSa/s  (%.2f GSa/s)\n", name, msas, msas / 1000.0);
+  jm_bench_add (bench, name, times, ITERATIONS, BENCH_N);
+
+  wfm_synth_destroy (obj);
+}
+
 int
 main (void)
 {
@@ -84,6 +126,12 @@ main (void)
   bench_cfg ("bpsk  +noise", 3, 8, 7, 0, 20.0, 1e5, out, &bench);
   bench_cfg ("qpsk  clean", 4, 8, 7, 0, 100.0, 1e5, out, &bench);
   bench_cfg ("qpsk  +noise", 4, 8, 7, 0, 20.0, 1e5, out, &bench);
+
+  /* RRC pulse shaping — the polyphase resamp shaper (power-of-two sps). */
+  bench_cfg_rrc ("bpsk  rrc sps=4", 3, 4, 7, 100.0, 1e5, out, &bench);
+  bench_cfg_rrc ("bpsk  rrc sps=8", 3, 8, 7, 100.0, 1e5, out, &bench);
+  bench_cfg_rrc ("qpsk  rrc sps=8", 4, 8, 7, 100.0, 1e5, out, &bench);
+  bench_cfg_rrc ("bpsk  rrc sps=16", 3, 16, 7, 100.0, 1e5, out, &bench);
 
   jm_bench_write_json (&bench, "synth");
   free (out);

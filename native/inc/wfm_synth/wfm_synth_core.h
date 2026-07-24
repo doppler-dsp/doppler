@@ -21,6 +21,7 @@
 #include "lo/lo_core.h"
 #include "awgn/awgn_core.h"
 #include "pn/pn_core.h"
+#include "resamp/resamp_core.h"
 #include <math.h> /* log10/powf/sqrtf in create_impl */
 #ifdef __cplusplus
 extern "C" {
@@ -168,7 +169,13 @@ typedef struct {
     uint64_t chip_n;         /* running: chips emitted so far                 */
     uint64_t sym_idx;        /* running: current data-symbol index            */
     uint8_t cur_data;        /* running: data bit latched for this symbol      */
-    fir_state_t * fir;
+    fir_state_t * fir;       /* dense RRC FIR (non-power-of-two sps fallback)  */
+    /* Polyphase RRC pulse shaper: a resamp interpolate-by-sps view over the
+       RRC bank, replacing the dense fir (impulse-train + full FIR) with ~sps×
+       fewer MACs. Built by wfm_synth_set_rrc when sps is a power of two; the
+       dense `fir` is used otherwise. Exactly one of fir/shaper is ever set. */
+    resamp_state_t * shaper;
+    uint8_t primed;          /* running: shaper's sps-sample latency primed     */
     lo_state_t * lo;
     awgn_state_t * awgn;
     pn_state_t * pn;
@@ -209,6 +216,117 @@ wfm_synth_cont_dsss_chip(wfm_synth_state_t *s)
     uint8_t code_bit = (uint8_t)(s->code[n % s->n_code] & 1u);
     s->chip_n        = n + 1;
     return (code_bit ^ s->cur_data) ? -1.0f : 1.0f;
+}
+
+/**
+ * @brief Pull the next constellation symbol from the active shaped source.
+ *
+ * The single symbol-generation point the polyphase pulse shaper feeds from,
+ * dispatching on the waveform type exactly as `wfm_synth_step`'s symbol latch
+ * does — the PN LFSR (pn/bpsk one chip, qpsk two Gray chips), the cycled user
+ * bit pattern (bits, per bit_mod), the continuous asynchronous DSSS chip, or
+ * the cycled complex-symbol stream — and advancing that source's read cursor by
+ * one symbol. Only the shaped types (pn/bpsk/qpsk/bits/symbols/dsss, the set
+ * `wfm_synth_set_rrc` accepts) reach here, so the shaper draws the *same* symbol
+ * sequence the dense-FIR path would; only the pulse-shaping filter differs.
+ */
+JM_FORCEINLINE float _Complex
+wfm_synth_next_symbol(wfm_synth_state_t *s)
+{
+    const float q = 0.70710678118654752f; /* 1/sqrt(2) — QPSK leg */
+    if (s->wtype == WFM_SYNTH_SYMBOLS) {
+        float _Complex v = 0.0f + 0.0f * I;
+        if (s->symbols && s->n_symbols) {
+            v = s->symbols[s->sym_read_idx];
+            s->sym_read_idx = (s->sym_read_idx + 1) % s->n_symbols;
+        }
+        return v;
+    }
+    if (s->wtype == WFM_SYNTH_BITS || s->wtype == WFM_SYNTH_DSSS) {
+        if (s->chips_per_symbol > 0.0) /* continuous DSSS: lazy chip */
+            return wfm_synth_cont_dsss_chip(s) + 0.0f * I;
+        if (s->bits && s->n_bits) {
+            if (s->bit_mod == 2) { /* qpsk: 2 bits/symbol, Gray-mapped */
+                uint8_t b0     = s->bits[s->bit_idx];
+                uint8_t b1     = s->bits[(s->bit_idx + 1) % s->n_bits];
+                s->bit_idx     = (s->bit_idx + 2) % s->n_bits;
+                return (b0 ? -q : q) + (b1 ? -q : q) * I;
+            }
+            if (s->bit_mod == 1) { /* bpsk: 0->+1, 1->-1 */
+                float re   = s->bits[s->bit_idx] ? -1.0f : 1.0f;
+                s->bit_idx = (s->bit_idx + 1) % s->n_bits;
+                return re + 0.0f * I;
+            }
+            /* none: unmodulated 0/1 amplitude */
+            float re   = s->bits[s->bit_idx] ? 1.0f : 0.0f;
+            s->bit_idx = (s->bit_idx + 1) % s->n_bits;
+            return re + 0.0f * I;
+        }
+        return 0.0f + 0.0f * I;
+    }
+    /* pn / bpsk / qpsk: source symbols from the LFSR */
+    if (s->wtype == WFM_SYNTH_QPSK) {
+        uint8_t b0 = pn_step(s->pn);
+        uint8_t b1 = pn_step(s->pn);
+        return (b0 ? -q : q) + (b1 ? -q : q) * I;
+    }
+    uint8_t b = pn_step(s->pn);
+    return (b ? -1.0f : 1.0f) + 0.0f * I;
+}
+
+/**
+ * @brief Prime the shaper's delay line so its output aligns with the dense FIR.
+ *
+ * The polyphase interpolator emits its first meaningful sample only after the
+ * delay line fills, so its output lags the dense-FIR path by exactly `nsps`
+ * samples. Discarding that many leading outputs once, at stream start (which
+ * consumes exactly the first source symbol into the delay line), realigns the
+ * shaped waveform to the dense path to float precision — so switching a source
+ * to polyphase shaping does not shift downstream sample timing. Idempotent via
+ * the `primed` flag; re-armed by `wfm_synth_reset`.
+ */
+JM_FORCEINLINE void
+wfm_synth_shaper_prime(wfm_synth_state_t *s)
+{
+    size_t left = (size_t)s->nsps;
+    while (left) {
+        float _Complex syms[64], scratch[64];
+        size_t pm = left < 64 ? left : 64;
+        size_t need = resamp_interp_inputs_needed(s->shaper, pm);
+        for (size_t k = 0; k < need; k++)
+            syms[k] = wfm_synth_next_symbol(s);
+        resamp_interp_fill(s->shaper, syms, scratch, pm);
+        left -= pm;
+    }
+    s->primed = 1;
+}
+
+/**
+ * @brief Produce `m` polyphase-shaped baseband samples into `out`.
+ *
+ * The one shaping kernel shared by `wfm_synth_step` (m == 1) and
+ * `wfm_synth_steps` (m == block): prime once, generate exactly the
+ * `resamp_interp_inputs_needed(shaper, m)` symbols this call consumes into the
+ * caller's `syms` scratch, and fill `m` outputs. Because the resampler is
+ * block-boundary invariant and both faces call this identical routine, a single
+ * m-sample call and m one-sample calls produce bit-identical output — the
+ * step()==steps() guarantee. Carrier mix and noise are applied by the caller.
+ *
+ * @param s     Shaper-attached synth state (`s->shaper != NULL`).
+ * @param out   Output buffer, capacity >= @p m.
+ * @param m     Number of baseband samples to produce.
+ * @param syms  Caller scratch, capacity >= resamp_interp_inputs_needed(s, m).
+ */
+JM_FORCEINLINE void
+wfm_synth_shape(wfm_synth_state_t *s, float _Complex *out, size_t m,
+                float _Complex *syms)
+{
+    if (!s->primed)
+        wfm_synth_shaper_prime(s);
+    size_t need = resamp_interp_inputs_needed(s->shaper, m);
+    for (size_t k = 0; k < need; k++)
+        syms[k] = wfm_synth_next_symbol(s);
+    resamp_interp_fill(s->shaper, syms, out, m);
 }
 
 /**
@@ -510,7 +628,15 @@ JM_FORCEINLINE JM_HOT float complex
 wfm_synth_step(wfm_synth_state_t *state)
 {
     float complex sym;
-    if (state->wtype == WFM_SYNTH_BITS || state->wtype == WFM_SYNTH_DSSS) {
+    if (state->shaper) {
+        /* Polyphase RRC pulse shaping (power-of-two sps). The single shaping
+         * kernel wfm_synth_steps() also drives, one output at a time, so step()
+         * and the block path agree bit-for-bit (the resampler is block-boundary
+         * invariant). Covers every shaped type — the symbol source is dispatched
+         * inside wfm_synth_next_symbol(). */
+        float complex s1[1];
+        wfm_synth_shape(state, &sym, 1, s1);
+    } else if (state->wtype == WFM_SYNTH_BITS || state->wtype == WFM_SYNTH_DSSS) {
         /* User bit pattern, oversampled sps and cycled to fill the request. The
          * symbol latch mirrors the PN path but sources bits from bits[bit_idx]
          * instead of the LFSR; bit_mod picks the mapping. A dsss burst is the

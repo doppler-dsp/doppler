@@ -175,6 +175,9 @@ link = true
 [[module.wfm_plan.depends_on]]
 name = "fir"
 link = true
+[[module.wfm_plan.depends_on]]
+name = "resamp"
+link = true
 
 # General render: a small JSON override object → cf32 array (length from the
 # handle). Baseline (empty object) reproduces a full compose bit-for-bit.
@@ -640,7 +643,8 @@ header       = "wfm/wfm_compose.h"
 composes     = ["wfm_synth"]
 sample_type  = true
 # link=true cores (jm appends _core): wfm_compose (composer + wfm_json + resolve),
-# wfm_dsp (DSSS/RRC taps), and the synth chain wfm_synth/lo/awgn/pn/fir. The
+# wfm_dsp (DSSS/RRC taps), and the synth chain wfm_synth/lo/awgn/pn/fir/resamp
+# (resamp backs the polyphase RRC pulse shaper). The
 # vendored cJSON OBJECT lib (wfm_cjson_core) + libm go in extra_link_libs. This mirrors
 # native/src/wfmcompose/CMakeLists.txt's test_wfm_compose link line.
 # wfm_keywords_core: the writer core's BLUE extended-header codec.
@@ -674,6 +678,10 @@ link = true
 
 [[module.wfm_compose.depends_on]]
 name = "fir"
+link = true
+
+[[module.wfm_compose.depends_on]]
+name = "resamp"
 link = true
 
 [[module.wfm_compose.depends_on]]

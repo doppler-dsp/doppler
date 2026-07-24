@@ -20,17 +20,80 @@ class SampleClock:
     """
     def __init__(self, fs: float, resync: int = ...) -> None: ...
     def pace(self, count: int) -> float:
-        """pace(count) -> float."""
+        """Advance by count samples and sleep until that block's deadline (``epoch + n/fs``). Returns the slack in seconds measured before sleeping: ``>= 0`` means early (and it slept that long); ``< 0`` means it arrived late — an underrun, which is counted (and the epoch re-anchored when ``resync`` is set), with no sleep.
+
+        Parameters
+        ----------
+        count : int
+            Input.
+
+        Returns
+        -------
+        float
+            Output.
+        """
     def stamp(self) -> int:
-        """stamp() -> int."""
+        """Ideal wall-clock timestamp (ns since the UNIX epoch) of the next sample to be produced — sample index ``n``. Call it before pace() to tag the block you are about to emit, or after to tag the following block. Equivalent to ``dp_sample_clock_stamp_at(c, c->n)``.
+
+        Returns
+        -------
+        int
+            Output.
+        """
     def stamp_at(self, n: int) -> int:
-        """stamp_at(n) -> int."""
+        """Ideal wall-clock timestamp (ns since the UNIX epoch) of an ARBITRARY sample index n — past, present, or future, not just the clock's own live position. The receive-side counterpart of dp_sample_clock_stamp(): a block emitting several per-record outputs from one buffered input (e.g. several detections spanning different epochs from one streamed message) stamps each at its own historical sample offset instead of reusing the whole buffer's single arrival time.
+
+        Parameters
+        ----------
+        n : int
+            Input.
+
+        Returns
+        -------
+        int
+            Output.
+        """
     def track(self, observed_timestamp_ns: int, n_at_observation: int, tolerance_ns: int) -> int:
-        """track(observed_timestamp_ns, n_at_observation, tolerance_ns) -> int."""
+        """Reconcile c's epoch_real_ns against one OBSERVED (timestamp, sample index) pair read off an incoming stream header — the receive-side dual of pace()'s resync: instead of sleeping toward a deadline, this adopts or corrects the epoch from ground truth the sender already stamped.
+
+        The FIRST call always adopts observed_timestamp_ns as the epoch
+        (``has_anchor`` starts false — a fresh clock has no real observation
+        yet, so there is nothing to compare against). Every later call only
+        re-anchors if the discrepancy between the observation and what the
+        clock's current model predicts exceeds tolerance_ns (same
+        step-correction semantics as pace()'s own resync, applied to tracking
+        instead of sleeping) — this corrects accumulated epoch OFFSET only, it
+        does not model sample-rate SKEW, exactly like pace()'s resync.
+
+        Rejects (no-op, returns 0) any observation with n_at_observation less
+        than the clock's current n outright: a stale, out-of-order, or
+        redelivered header must never walk the epoch backward. Never treat two
+        reconciled observations as literal replay-safe state — always resync
+        from an ARRIVING message, not a cached one.
+
+        @return Nonzero if this call adopted or re-anchored the epoch; 0 if it
+        was accepted as already consistent, or rejected as stale.
+
+        Parameters
+        ----------
+        observed_timestamp_ns : int
+            Input.
+        n_at_observation : int
+            Input.
+        tolerance_ns : int
+            Input.
+
+        Returns
+        -------
+        int
+            Output.
+        """
     def reset(self) -> None:
-        """reset() -> None."""
+        """Re-capture both epochs and zero the counters — a fresh clock at n=0.
+        """
     def resync(self) -> None:
-        """resync() -> None."""
+        """Re-anchor the pacing epoch to "now" without clearing ``n`` or counters, dropping any accumulated lateness so future blocks pace forward from the present. (pace() does this automatically when ``resync`` is set.)
+        """
     @property
     def samples(self) -> int:
         """samples (int)."""

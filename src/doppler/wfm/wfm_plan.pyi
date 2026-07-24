@@ -11,27 +11,111 @@ from numpy.typing import NDArray
 
 @final
 class Plan:
-    """Plan handle.
+    """Prepare a Plan from a composer spec JSON (Composer.to_json()).
+
+    Parses + resolves the scene, validates scope per segment, then renders
+    and caches each segment's clean signal ON-time at gain 1. Returns NULL
+    on parse failure or an out-of-scope spec (continuous/repeat scene, a
+    ranged on-time, a ranged per-source field, or a non-trailing/multiple
+    noise source within a segment).
 
     Parameters
     ----------
     spec_json : str
+        A NUL-terminated composer spec JSON string.
     """
     def __init__(self, spec_json: str) -> None: ...
     def render(self, overrides_json: str) -> NDArray[Any]:
-        """render(overrides_json) -> NDArray[Any]."""
+        """General render: apply a JSON override spec, return a cf32 array.
+
+        `overrides_json` is a small JSON object, all keys optional:
+        `{"gains":[dB…], "phases":[rad…], "enable":[bool…], "snr":dB, "seed":u}`
+        (`gains`/`phases`/`enable` are per-source, flat and segment-major,
+        length = wfm_plan_n_sources()). An empty object (or NULL) renders the
+        baseline — bit-identical to `Composer(scene).compose()`. Writes up to
+        `wfm_plan_len(p)` samples to `out`.
+
+        Parameters
+        ----------
+        overrides_json : str
+            Input.
+
+        Returns
+        -------
+        NDArray[Any]
+            Samples actually written for this draw (<= wfm_plan_len(p)).
+        """
     def at(self, snr: float, seed: int) -> NDArray[Any]:
-        """at(snr, seed) -> NDArray[Any]."""
+        """Scalar fast-path for the hot Monte-Carlo/SNR loop (no JSON parse).
+
+        `out = Σ gain_k·cache_k + gain(snr)·noise(seed)` per segment/instance;
+        writes up to `wfm_plan_len(p)` samples. Equivalent to `render` with only
+        `{"snr":snr,"seed":seed}` — `seed` is always an explicit override here.
+
+        Parameters
+        ----------
+        snr : float
+            Input.
+        seed : int
+            Input.
+
+        Returns
+        -------
+        NDArray[Any]
+            Samples actually written for this draw (<= wfm_plan_len(p)).
+        """
     def length(self) -> int:
-        """length() -> int."""
+        """Worst-case materialized length in samples (every ranged gap at its `hi` bound) — the jm binding's out_len_fn / allocation capacity.
+
+        Returns
+        -------
+        int
+            Output.
+        """
     def n_sources(self) -> int:
-        """n_sources() -> int."""
+        """Number of cached signal sources across every segment (excludes noise floors); the length of the `gains`/`phases`/`enable` arrays.
+
+        Returns
+        -------
+        int
+            Output.
+        """
     def anchor_seed(self) -> int:
-        """anchor_seed() -> int."""
+        """The noise seed that reproduces a full compose.
+
+        The first noisy segment's default seed (its first source's `seed`
+        field). Passing this as `wfm_plan_at`'s seed (with the scene's base SNR)
+        yields the byte-identical output of `wfm_compose` for a single-segment
+        scene; for a multi-segment scene each segment still draws from its own
+        default seed unless overridden. Varying the seed draws independent
+        Monte-Carlo noise (and, for a ranged-gap scene, timing) realizations.
+
+        Returns
+        -------
+        int
+            Output.
+        """
     def save(self) -> bytes:
-        """save() -> bytes."""
+        """Serialize a Plan into blob (wfm_plan_save_bytes(p) bytes).
+
+        Native-endian. The blob embeds the spec JSON, so a restore is
+        self-contained. Returns the number of bytes written (==
+        wfm_plan_save_bytes(p)) — the actual-length contract a variable-output
+        binding needs, so `save() -> bytes` generates with no hand-written glue.
+
+        Returns
+        -------
+        bytes
+            Output.
+        """
     def dump(self, path: str) -> None:
-        """dump(path) -> None."""
+        """Save a Plan to a file (wfm_plan_save() bytes at path).
+
+        Parameters
+        ----------
+        path : str
+            Input.
+        """
     def close(self) -> None:
         """Release the handle and free resources."""
     def __enter__(self) -> Plan:

@@ -21,6 +21,7 @@
 #include "hbdecim/hbdecim_core.h"
 #include "resamp/resamp_core.h"
 #include "resample/resample_core.h" /* ciccompmf */
+#include "wfm/wfm_dsp.h" /* wfm_rrc_h — the RRC formula's one home */
 
 #include <math.h>
 #include <stdio.h>
@@ -99,12 +100,22 @@ _log2 (double x)
 
 /*
  * Plan the cascade for `rate'.  Returns the number of stages (0 on
- * invalid rate, else 1 or 2).  Fills plan[0..n-1] with descriptors.
+ * invalid rate, else 1..3).  Fills plan[0..n-1] with descriptors.
  *
- * Mirrors _plan_cascade() from the Python prototype exactly.
+ * Mirrors _plan_cascade() from the Python prototype exactly, with one
+ * addition: `force_terminal' guarantees the plan ENDS in a fractional
+ * Resampler stage even when the rate needs no fractional correction.
+ *
+ * That matters only for the matched-filter path, where the terminal stage is
+ * not merely a rate correction: it is simultaneously the matched filter and
+ * the timing element a loop steers.  Without it, `rate = 2/64' plans a bare
+ * CIC(32) — perfectly good arithmetic, nothing steerable at the end — so the
+ * stage is appended at rate R/D (exactly 1.0 whenever the integer stages
+ * already landed the rate).
  */
 static int
-_plan (double rate, int compensate, rc_plan_entry_t plan[RC_MAX_STAGES])
+_plan (double rate, int compensate, int force_terminal,
+       rc_plan_entry_t plan[RC_MAX_STAGES])
 {
   if (rate <= 0.0)
     return 0;
@@ -130,23 +141,36 @@ _plan (double rate, int compensate, rc_plan_entry_t plan[RC_MAX_STAGES])
   if (fabs (log2_D - n) < _EXACT_TOL)
     {
       /* Exact power-of-2 decimation. */
+      int ns = 0;
+      int R  = 0; /* 0 = decimation done by halfband stages */
       if (n == 1)
         {
-          plan[0].type = RC_STAGE_HB;
-          return 1;
+          plan[ns++].type = RC_STAGE_HB;
         }
-      if (n == 2)
+      else if (n == 2)
         {
-          plan[0].type = RC_STAGE_HB;
-          plan[1].type = RC_STAGE_HB;
-          return 2;
+          plan[ns++].type = RC_STAGE_HB;
+          plan[ns++].type = RC_STAGE_HB;
         }
-      /* n >= 3: CIC(R), capped at 4096. */
-      int R              = (n <= 12) ? (1 << n) : 4096;
-      plan[0].type       = RC_STAGE_CIC;
-      plan[0].R          = R;
-      plan[0].compensate = compensate;
-      return 1;
+      else
+        {
+          /* n >= 3: CIC(R), capped at 4096. */
+          R                   = (n <= 12) ? (1 << n) : 4096;
+          plan[ns].type       = RC_STAGE_CIC;
+          plan[ns].R          = R;
+          plan[ns].compensate = compensate;
+          ns++;
+        }
+      if (force_terminal)
+        {
+          /* Whatever the integer stages left over — 1.0 for n <= 12, the
+             residual D/4096 for a capped CIC. */
+          int R_done           = R ? R : (1 << n);
+          plan[ns].type        = RC_STAGE_RESAMP;
+          plan[ns].resamp_rate = (double)R_done / D;
+          ns++;
+        }
+      return ns;
     }
 
   if (D >= _CIC_MIN_D)
@@ -174,7 +198,7 @@ _plan (double rate, int compensate, rc_plan_entry_t plan[RC_MAX_STAGES])
       plan[0].R          = R;
       plan[0].compensate = compensate;
       int ns             = 1;
-      if (fabs (corr - 1.0) > 1e-6)
+      if (force_terminal || fabs (corr - 1.0) > 1e-6)
         {
           plan[ns].type        = RC_STAGE_RESAMP;
           plan[ns].resamp_rate = corr;
@@ -187,6 +211,116 @@ _plan (double rate, int compensate, rc_plan_entry_t plan[RC_MAX_STAGES])
   plan[0].type        = RC_STAGE_RESAMP;
   plan[0].resamp_rate = rate;
   return 1;
+}
+
+/* ------------------------------------------------------------------ */
+/* Pulse-shaped terminal bank                                          */
+/*                                                                     */
+/* The bank belongs here, not in a downstream timing object: this is   */
+/* the only party that knows its own CIC geometry (for the droop fold) */
+/* and the terminal stage's rate (which sets the tap grid).            */
+/* ------------------------------------------------------------------ */
+
+/* Number of taps the CIC droop compensator uses when folded into the bank. */
+#define _RC_COMP_NTAPS 7
+/* CIC differential delay assumed by ciccompmf (matches cic_create). */
+#define _RC_CIC_ORDER 4
+
+/* Pulse h(t), t in SYMBOL periods from the pulse centre. */
+static double
+_pulse_h (int pulse, double t, double beta)
+{
+  if (pulse == RC_PULSE_IANDD)
+    /* Unit rectangle over one symbol — the matched filter for a rectangular
+       symbol, and exactly what an integrate-and-dump computes. Half-open at
+       the trailing edge so two adjacent symbols never both claim t = ±0.5. */
+    return (t >= -0.5 && t < 0.5) ? 1.0 : 0.0;
+  return wfm_rrc_h (t, beta); /* the canonical RRC, one home */
+}
+
+/* One-sided support in symbols. The rectangle is one symbol wide whatever
+   `span' says. */
+static double
+_pulse_support (int pulse, size_t span)
+{
+  return pulse == RC_PULSE_IANDD ? 0.5 : (double)span;
+}
+
+/*
+ * Build the terminal stage's polyphase bank.
+ *
+ * `sps' is the symbol period measured in the terminal stage's INPUT samples
+ * — that is the grid the taps live on, and it is what makes this bank small:
+ * the integer stages have already done the bulk decimation, so sps is ~2
+ * whatever the input rate was.  `pulse_sps' is the same period counted in
+ * OUTPUT samples, so one output period is `1/pulse_sps' symbols — the span an
+ * arm sweeps, because the accumulator's fractional remainder (which selects
+ * the arm) is measured in output periods.
+ *
+ * Layout is `bank[p][t] = h(-t/sps + support + (p/num_phases)/pulse_sps)':
+ * arm p moves the sampling instant in the SAME direction crossing an
+ * accumulator boundary moves it.  Getting that backwards makes the arm and the
+ * accumulator fight and the effective sampling instant becomes a
+ * one-output-period sawtooth (it still "works", it just jitters), which is why
+ * this must match the unified accumulator path — see
+ * resamp_execute_ctrl_push().
+ *
+ * When `comp' is non-NULL the CIC droop compensator is folded in by convolving
+ * every arm with it.  This is exact, not an approximation: ciccompmf's taps
+ * run at the decimated rate, which IS this bank's tap grid, so the composite
+ * response of (comp FIR then bank arm) is just their convolution — no separate
+ * stage, no resampling of one grid onto another.
+ *
+ * Returns a malloc'd num_phases x (*out_ntaps) bank, or NULL on OOM.
+ */
+static float *
+_build_bank (int pulse, double beta, double sps, double pulse_sps, size_t span,
+             size_t num_phases, const double *comp, size_t n_comp,
+             size_t *out_ntaps)
+{
+  double support = _pulse_support (pulse, span);
+  /* Cover the full pulse for EVERY arm: the last arm displaces the window by
+     one whole output period (1/pulse_sps symbols), so the tap count has to
+     carry that on top of the two-sided support. */
+  size_t raw = (size_t)ceil ((2.0 * support + 1.0 / pulse_sps) * sps) + 1u;
+  size_t nt  = comp ? raw + n_comp - 1u : raw;
+
+  float *bank = (float *)calloc (num_phases * nt, sizeof (float));
+  if (!bank)
+    return NULL;
+
+  for (size_t p = 0; p < num_phases; p++)
+    {
+      double arm = (double)p / (double)num_phases / pulse_sps;
+      float *row = bank + p * nt;
+      for (size_t t = 0; t < raw; t++)
+        {
+          /* tap t multiplies x[n-t]: the delay line is newest-first. */
+          double ts = -(double)t / sps + support + arm;
+          double h  = _pulse_h (pulse, ts, beta);
+          if (!comp)
+            row[t] = (float)h;
+          else
+            /* Composite of comp FIR then this arm: both index x[n-k], so
+               the tap that multiplies x[n-(t+j)] gains comp[j]*h. */
+            for (size_t j = 0; j < n_comp; j++)
+              row[t + j] += (float)(comp[j] * h);
+        }
+    }
+
+  /* ONE common scale across all arms, taken from arm 0.  Normalising each arm
+     to unit energy independently would make the cascade's gain a function of
+     the timing phase — a gain ripple synchronous with the very quantity a
+     downstream loop is trying to estimate. */
+  double e0 = 0.0;
+  for (size_t t = 0; t < nt; t++)
+    e0 += (double)bank[t] * (double)bank[t];
+  float g = (float)(e0 > 0.0 ? 1.0 / sqrt (e0) : 1.0);
+  for (size_t i = 0; i < num_phases * nt; i++)
+    bank[i] *= g;
+
+  *out_ntaps = nt;
+  return bank;
 }
 
 /* ------------------------------------------------------------------ */
@@ -376,6 +510,9 @@ _destroy_all_stages (RateConverter_state_t *s)
  * Instantiate C stage objects from the plan.
  * Returns 1 on success, 0 on any allocation failure (partially-built
  * stages are cleaned up before returning).
+ *
+ * When s->pulse != RC_PULSE_NONE the terminal stage gets a pulse-shaped bank
+ * instead of resamp's default Kaiser one, with any CIC droop folded into it.
  */
 static int
 _build_stages (RateConverter_state_t *s, const rc_plan_entry_t *plan, int n)
@@ -383,7 +520,48 @@ _build_stages (RateConverter_state_t *s, const rc_plan_entry_t *plan, int n)
   int i;
   for (i = 0; i < n; i++)
     {
-      void *obj = NULL;
+      void *obj      = NULL;
+      int   terminal = (i == n - 1) && s->pulse != RC_PULSE_NONE;
+
+      if (terminal)
+        {
+          /* Only a Resampler stage can carry a bank; _plan(force_terminal)
+             guarantees one, so this is an assertion of that contract. */
+          if (plan[i].type != RC_STAGE_RESAMP)
+            goto fail;
+
+          /* Droop compensation folds into the bank when an upstream CIC
+             asked for it — same tap grid, so the fold is exact and this
+             path never appends a comp FIR stage. */
+          double  comp[_RC_COMP_NTAPS];
+          double *compp = NULL;
+          for (int k = 0; k < i; k++)
+            if (plan[k].type == RC_STAGE_CIC && s->compensate)
+              {
+                ciccompmf (comp, _RC_CIC_ORDER, (uint32_t)plan[k].R,
+                           _RC_COMP_NTAPS);
+                compp = comp;
+              }
+
+          /* Symbol period on the TERMINAL stage's input grid: pulse_sps
+             output samples per symbol, at this stage's rate. */
+          double bank_sps = s->pulse_sps / plan[i].resamp_rate;
+          size_t ntaps    = 0;
+          float *bank = _build_bank (s->pulse, s->beta, bank_sps, s->pulse_sps,
+                                     s->span, s->num_phases, compp,
+                                     _RC_COMP_NTAPS, &ntaps);
+          if (!bank)
+            goto fail;
+          obj = resamp_create_custom (s->num_phases, ntaps, bank,
+                                      plan[i].resamp_rate);
+          free (bank);
+          if (!obj)
+            goto fail;
+          s->stage_types[i] = plan[i].type;
+          s->stage_ptrs[i]  = obj;
+          continue;
+        }
+
       switch (plan[i].type)
         {
         case RC_STAGE_HB:
@@ -457,9 +635,36 @@ RateConverter_create (double rate, int compensate)
   if (rate <= 0.0)
     return NULL;
 
+  RateConverter_state_t *s = (RateConverter_state_t *)calloc (1, sizeof (*s));
+  if (!s)
+    return NULL;
+
+  /* NOT the calloc default: RC_PULSE_NONE is 2 so that 0/1 line up with the
+     receiver's IANDD/RRC vocabulary. */
+  s->pulse      = RC_PULSE_NONE;
+  s->rate       = rate;
+  s->compensate = compensate;
+
   rc_plan_entry_t plan[RC_MAX_STAGES];
-  int             n = _plan (rate, compensate, plan);
-  if (n == 0)
+  int             n = _plan (rate, compensate, 0, plan);
+  if (n == 0 || !_build_stages (s, plan, n))
+    {
+      free (s);
+      return NULL;
+    }
+  return s;
+}
+
+RateConverter_state_t *
+RateConverter_create_matched (double rate, int compensate, int pulse,
+                              double beta, size_t span, double pulse_sps,
+                              size_t num_phases)
+{
+  /* Written as !(x >= y) so a NaN parameter is rejected, not accepted. */
+  if (!(rate > 0.0) || !(beta >= 0.0) || !(beta <= 1.0) || span < 1
+      || !(pulse_sps > 0.0) || num_phases < 2u
+      || (num_phases & (num_phases - 1u)) != 0u
+      || (pulse != RC_PULSE_IANDD && pulse != RC_PULSE_RRC))
     return NULL;
 
   RateConverter_state_t *s = (RateConverter_state_t *)calloc (1, sizeof (*s));
@@ -468,8 +673,20 @@ RateConverter_create (double rate, int compensate)
 
   s->rate       = rate;
   s->compensate = compensate;
+  s->pulse      = pulse;
+  s->beta       = beta;
+  s->span       = span;
+  s->pulse_sps  = pulse_sps;
+  s->num_phases = num_phases;
 
-  if (!_build_stages (s, plan, n))
+  rc_plan_entry_t plan[RC_MAX_STAGES];
+  /* force_terminal: the terminal stage IS the matched filter and the timing
+     element, so it exists even when the rate needs no correction. */
+  int n = _plan (rate, compensate, 1, plan);
+  /* The fold replaces the comp FIR — never both. */
+  for (int i = 0; i < n; i++)
+    plan[i].compensate = 0;
+  if (n == 0 || !_build_stages (s, plan, n))
     {
       free (s);
       return NULL;
@@ -535,6 +752,14 @@ RateConverter_execute (RateConverter_state_t *s, const float _Complex *in,
 {
   if (s->n_stages == 0)
     return 0;
+
+  /* A pulse-shaped bank is laid out for the unified accumulator (arm p
+     advances the sampling instant), while resamp_execute()'s decimating path
+     is transposed-form and indexes arms the other way — different algorithms,
+     not just different code paths. So a matched cascade always runs through
+     the accumulator, at zero deviation. One structure, one bank layout. */
+  if (s->pulse != RC_PULSE_NONE)
+    return RateConverter_execute_ctrl (s, in, n_in, 0.0, out, max_out);
 
   /* Grow ping-pong buffers lazily to n_in on first call. */
   if (n_in > s->buf_cap)
@@ -639,6 +864,37 @@ RateConverter_execute_ctrl (RateConverter_state_t *s, const float _Complex *in,
 }
 
 size_t
+RateConverter_execute_ctrl_push (RateConverter_state_t *s, float _Complex x,
+                                 double ctrl, float _Complex *out,
+                                 size_t max_out)
+{
+  if (s->n_stages == 0 || max_out == 0)
+    return 0;
+  int last = s->n_stages - 1;
+
+  /* Every non-terminal stage is an integer decimator (the planner only ever
+     puts HB/CIC ahead of the fractional tail), so one input yields at most one
+     intermediate sample and two scalars suffice — no buffers, no allocation
+     on the per-sample path. */
+  float _Complex cur = x;
+  size_t n           = 1;
+  for (int i = 0; i < last; i++)
+    {
+      float _Complex nxt;
+      n = _stage_exec (s->stage_types[i], s->stage_ptrs[i], &cur, 1, &nxt, 1);
+      if (n == 0)
+        return 0; /* stage swallowed it (between decimation strobes) */
+      cur = nxt;
+    }
+
+  if (s->stage_types[last] != RC_STAGE_RESAMP)
+    return _stage_exec (s->stage_types[last], s->stage_ptrs[last], &cur, 1,
+                        out, max_out);
+  return resamp_execute_ctrl_push ((resamp_state_t *)s->stage_ptrs[last], cur,
+                                   ctrl, out, max_out);
+}
+
+size_t
 RateConverter_execute_max_out (RateConverter_state_t *s)
 {
   /* Upper bound for a 65536-sample input at the current rate.
@@ -658,10 +914,14 @@ RateConverter_set_rate (RateConverter_state_t *s, double rate)
   if (rate <= 0.0)
     return;
 
+  int             matched = s->pulse != RC_PULSE_NONE;
   rc_plan_entry_t plan[RC_MAX_STAGES];
-  int             n = _plan (rate, s->compensate, plan);
+  int             n = _plan (rate, s->compensate, matched, plan);
   if (n == 0)
     return;
+  if (matched)
+    for (int i = 0; i < n; i++)
+      plan[i].compensate = 0;
 
   _destroy_all_stages (s);
   s->rate = rate;
@@ -694,7 +954,15 @@ RateConverter_stage_label (RateConverter_state_t *s, int i, char *buf,
     case RC_STAGE_RESAMP:
       {
         double r = resamp_get_rate ((resamp_state_t *)s->stage_ptrs[i]);
-        snprintf (buf, len, "Resampler(%g)", r);
+        /* Only the terminal stage can carry a pulse-shaped bank; naming it
+           is how a caller sees that the matched filter is IN the cascade
+           rather than a stage someone still has to append. */
+        if (i == s->n_stages - 1 && s->pulse == RC_PULSE_RRC)
+          snprintf (buf, len, "Resampler(%g,rrc)", r);
+        else if (i == s->n_stages - 1 && s->pulse == RC_PULSE_IANDD)
+          snprintf (buf, len, "Resampler(%g,iandd)", r);
+        else
+          snprintf (buf, len, "Resampler(%g)", r);
       }
       break;
     default:

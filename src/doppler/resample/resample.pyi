@@ -309,7 +309,32 @@ class RateConverter:
     rate : float, default 1.0
         Output-to-input sample rate ratio. Any positive float.
     compensate : int, default 0
-        Non-zero to append a CIC passband-droop compensating FIR after any CIC stage.
+        Non-zero to correct CIC passband droop. With ``pulse="none"`` this
+        appends a compensating FIR after any CIC stage; with a pulse selected
+        it folds into the bank instead (no extra stage), where it is worth
+        about 28 dB of EVM and should be considered mandatory.
+    pulse : {"none", "rrc", "iandd"}, default "none"
+        Shape of the terminal stage's polyphase bank. ``"none"`` is the plain
+        Kaiser anti-alias bank (pure rate conversion). Anything else makes the
+        cascade its own matched filter: the same dot product converts the rate
+        and matched-filters, and the stage's arm is the fractional timing delay
+        ``execute_ctrl``/``execute_ctrl_push`` steer. Selecting a pulse also
+        guarantees the terminal fractional stage exists — without it,
+        ``rate=2/64`` plans a bare ``CIC(32)`` with nothing steerable at the
+        end.
+    beta : float, default 0.35
+        RRC roll-off in ``[0, 1]``. Ignored for ``"iandd"``.
+    span : int, default 8
+        One-sided RRC span in symbols. Ignored for ``"iandd"``, whose support
+        is always exactly one symbol.
+    pulse_sps : float, default 2.0
+        The pulse's period in **output** samples. A shape parameter, not a
+        rate-planning one: the planner still knows nothing of symbols, so a
+        caller wanting ``m`` samples per symbol at ``sps`` asks for
+        ``rate = m/sps`` and ``pulse_sps = m``.
+    num_phases : int, default 1024
+        Terminal-stage arms; a power of two. Sets the fractional timing
+        resolution to ``1/num_phases`` of an output period.
 
     Examples
     --------
@@ -318,8 +343,26 @@ class RateConverter:
     >>> from doppler.resample import RateConverter
     >>> obj = RateConverter(rate=1.0, compensate=0)
 
+    A matched cascade decimates cheaply and matched-filters in one pass, and
+    keeps a steerable stage at the end even when the rate divides exactly:
+
+    >>> RateConverter(rate=2 / 64).stages
+    ['CIC(32)']
+    >>> RateConverter(rate=2 / 64, pulse="rrc", compensate=1).stages
+    ['CIC(32)', 'Resampler(1,rrc)']
+
     """
-    def __init__(self, rate: float = ..., compensate: int = ...) -> None: ...
+    # jm:hand
+    def __init__(
+        self,
+        rate: float = ...,
+        compensate: int = ...,
+        pulse: str = ...,
+        beta: float = ...,
+        span: int = ...,
+        pulse_sps: float = ...,
+        num_phases: int = ...,
+    ) -> None: ...
 
     def execute(self, x: NDArray[np.complex64], out: NDArray[np.complex64] | None = None) -> NDArray[np.complex64]:
         """Convert a block of CF32 samples through the cascade. Passes input through each stage in order, ping-ponging between two intermediate buffers. State persists between calls, so contiguous calls on sequential blocks give the same result as one large call. Output length is approximately n_in * rate.
@@ -375,6 +418,31 @@ class RateConverter:
 
         """
 
+    # jm:hand
+    def execute_ctrl_push(self, x: complex, ctrl: float) -> NDArray[np.complex64]:
+        """Push ONE input sample; return whatever outputs it completes. The per-input form of ``execute_ctrl`` — and the only form a closed loop can use, because a block call has to know its whole ``ctrl`` history up front while a timing loop computes each correction *from* the outputs already emitted. Feeding a stream one sample at a time reproduces ``execute_ctrl`` on the same block bit-for-bit when ``ctrl`` is held constant. Returns 0 samples (a decimator between strobes — the common case), 1, or several; the array is independent, not a view.
+
+        Parameters
+        ----------
+        x : complex
+            One input sample.
+        ctrl : float
+            Rate deviation added to the terminal Resampler stage's rate.
+
+        Returns
+        -------
+        NDArray[np.complex64]
+            The outputs this input completed; possibly empty.
+
+        Examples
+        --------
+        >>> from doppler.resample import RateConverter
+        >>> rc = RateConverter(rate=0.5, compensate=0)
+        >>> sum(len(rc.execute_ctrl_push(1 + 0j, 0.0)) for _ in range(256))
+        128
+
+        """
+
     def reset(self) -> None:
         """Zero all sub-stage filter memories. Rate, stage count, and stage types are preserved. Processing from a reset state produces the same output as a freshly created converter fed the same input. Use between signal bursts to suppress transient artefacts from prior filter memory.
 
@@ -400,6 +468,28 @@ class RateConverter:
         """Get / set the output-to-input sample rate ratio. The setter rebuilds the entire cascade (new stage selection, new sub-objects) and resets all filter memories — equivalent to destroying and recreating with the new rate. Setting rate <= 0 is silently ignored."""
     @rate.setter
     def rate(self, value: float) -> None: ...
+
+    # jm:hand
+    @property
+    def stages(self) -> list[str]:
+        """Stage labels for the planned cascade, e.g. ``['CIC(8)', 'Resampler(0.8)']``. A terminal stage carrying a pulse-shaped bank names its pulse: ``'Resampler(0.923077,rrc)'``."""
+
+    # jm:hand
+    @property
+    def bank_shape(self) -> tuple[int, int] | None:
+        """``(num_phases, num_taps)`` of the terminal polyphase stage, or ``None`` when the cascade ends in an integer decimator. ``num_taps`` is the per-output MAC count and, times ``num_phases``, the bank's size in floats. With a pulse selected it is set by the terminal stage's rate rather than the input rate — which is what keeps a matched filter affordable at a high input samples-per-symbol.
+
+        Examples
+        --------
+        >>> from doppler.resample import RateConverter
+        >>> RateConverter(rate=2 / 4, pulse="rrc").bank_shape == RateConverter(
+        ...     rate=2 / 256, pulse="rrc"
+        ... ).bank_shape
+        True
+        >>> RateConverter(rate=2 / 64).bank_shape is None
+        True
+
+        """
 
     def destroy(self) -> None:
         """Release C resources immediately."""

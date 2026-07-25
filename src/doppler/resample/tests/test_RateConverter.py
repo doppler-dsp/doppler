@@ -281,3 +281,220 @@ def test_execute_returned_view_survives_rate_change():
     del junk
     assert np.array_equal(y1, snapshot)
     assert len(y2) == 16
+
+
+# ------------------------------------------------------------------ #
+# Matched-filter terminal bank (pulse=)                               #
+# ------------------------------------------------------------------ #
+
+_MF_BETA = 0.35
+_MF_SPAN = 8
+_MF_NSYM = 500
+
+
+def _rrc_h(t: np.ndarray, beta: float) -> np.ndarray:
+    """Analytic RRC, vectorised, with both removable singularities."""
+    t = np.asarray(t, dtype=np.float64)
+    out = np.empty_like(t)
+    zero = np.abs(t) < 1e-9
+    sing = beta > 0 and np.isclose(np.abs(t), 1 / (4 * beta), atol=1e-9)
+    gen = ~(zero | sing)
+    out[zero] = 1 - beta + 4 * beta / math.pi
+    if np.any(sing):
+        a = math.pi / (4 * beta)
+        out[sing] = (beta / math.sqrt(2)) * (
+            (1 + 2 / math.pi) * math.sin(a) + (1 - 2 / math.pi) * math.cos(a)
+        )
+    tg = t[gen]
+    pt = math.pi * tg
+    num = np.sin(pt * (1 - beta)) + 4 * beta * tg * np.cos(pt * (1 + beta))
+    den = pt * (1 - (4 * beta * tg) ** 2)
+    out[gen] = num / den
+    return out
+
+
+def _rrc_bpsk(sps: float, phi: float, seed: int = 7) -> tuple:
+    """RRC-shaped BPSK plus the symbols that made it.
+
+    Amplitude stays well inside ``cic_core``'s Q15 full scale: a CIC stage
+    quantizes at its boundary, so overdriving it clips and every measured
+    EVM collapses for reasons that have nothing to do with the filter.
+    """
+    syms = np.where(
+        np.random.default_rng(seed).integers(0, 2, _MF_NSYM) > 0, 1.0, -1.0
+    )
+    n = int(_MF_NSYM * sps) + 64
+    idx = np.arange(n, dtype=np.float64)
+    x = np.zeros(n, dtype=np.float64)
+    for k, a in enumerate(syms):
+        t = (idx - (k + _MF_SPAN) * sps) / sps - phi
+        near = np.abs(t) <= _MF_SPAN
+        x[near] += a * _rrc_h(t[near], _MF_BETA)
+    return (0.25 * x).astype(np.complex64), syms
+
+
+def _best_evm_db(y: np.ndarray, syms: np.ndarray) -> float:
+    """Min EVM over strobe alignment.
+
+    Open loop the cascade's strobe phase is arbitrary, so minimising over
+    alignment isolates the matched filter from the timing loop that does not
+    exist yet (that is Layer 2's job, ``track.RateSync``).
+    """
+    best = np.inf
+    ref = syms[40 : _MF_NSYM - 40]
+    for par in (0, 1):
+        for lag in range(140):
+            idx = lag + par + 2 * np.arange(40, _MF_NSYM - 40)
+            if idx[-1] >= len(y):
+                break
+            got = y[idx]
+            g = float(np.dot(ref, got.real) / len(ref))
+            if g == 0.0:
+                continue
+            err = got - g * ref
+            best = min(
+                best,
+                float(np.linalg.norm(err) / (abs(g) * math.sqrt(len(ref)))),
+            )
+    return 20 * math.log10(best)
+
+
+def _sweep_evm_db(sps: float, compensate: int) -> float:
+    return min(
+        _best_evm_db(
+            RateConverter(
+                rate=2 / sps,
+                compensate=compensate,
+                pulse="rrc",
+                beta=_MF_BETA,
+                span=_MF_SPAN,
+                pulse_sps=2.0,
+            ).execute(x),
+            syms,
+        )
+        for x, syms in (_rrc_bpsk(sps, j / 8.0) for j in range(8))
+    )
+
+
+def test_pulse_forces_a_steerable_terminal_stage():
+    # The plain planner drops the fractional stage when the integer stages
+    # already land the rate -- leaving nothing for a timing loop to steer.
+    assert RateConverter(rate=2 / 64).stages == ["CIC(32)"]
+    assert RateConverter(rate=2 / 64, pulse="rrc").stages == [
+        "CIC(32)",
+        "Resampler(1,rrc)",
+    ]
+    # ...and the label names the pulse, so the matched filter is visibly IN
+    # the cascade rather than a stage still to be appended.
+    for sps in (4, 8, 16, 17.333333333, 64, 256):
+        assert (
+            RateConverter(rate=2 / sps, pulse="rrc")
+            .stages[-1]
+            .endswith(",rrc)")
+        )
+    assert (
+        RateConverter(rate=2 / 17.3, pulse="iandd")
+        .stages[-1]
+        .endswith(",iandd)")
+    )
+
+
+@pytest.mark.parametrize("pulse", ["sinc", "RRC", ""])
+def test_unknown_pulse_raises(pulse):
+    with pytest.raises(ValueError, match="pulse must be"):
+        RateConverter(rate=0.5, pulse=pulse)
+
+
+@pytest.mark.parametrize(
+    "kw",
+    [
+        {"beta": 1.5},
+        {"beta": -0.1},
+        {"span": 0},
+        {"pulse_sps": 0.0},
+        {"num_phases": 1000},  # not a power of two
+        {"num_phases": 1},
+    ],
+)
+def test_invalid_matched_params_raise(kw):
+    with pytest.raises(ValueError):
+        RateConverter(rate=0.5, pulse="rrc", **kw)
+
+
+def test_droop_compensation_folds_into_the_bank():
+    # No extra stage, and no "+FIR" on the CIC label: the compensator is a
+    # per-arm convolution on the terminal bank's own tap grid.
+    off = RateConverter(rate=2 / 17.333333333, pulse="rrc", compensate=0)
+    on = RateConverter(rate=2 / 17.333333333, pulse="rrc", compensate=1)
+    assert len(on.stages) == len(off.stages)
+    assert "FIR" not in on.stages[0]
+    # And it is worth ~28 dB on a CIC cascade -- not a refinement.
+    assert _sweep_evm_db(17.333333333, 1) < -45.0
+    assert (
+        _sweep_evm_db(17.333333333, 1) < _sweep_evm_db(17.333333333, 0) - 20.0
+    )
+
+
+def test_matched_cascade_recovers_symbols_at_arbitrary_rate():
+    # sps is not an integer and not a ratio of small integers: the cascade
+    # decimates by 8 in the CIC and takes the 0.923 remainder on the bank.
+    assert _sweep_evm_db(17.333333333, 1) < -45.0
+    # A halfband cascade has no quantizing stage, so it shows what the bank
+    # itself is worth.
+    assert _sweep_evm_db(4.0, 0) < -55.0
+
+
+def test_bank_is_sized_by_the_post_decimation_rate():
+    # Matched-filtering at the INPUT rate would cost taps proportional to the
+    # input samples per symbol (thousands at sps=256, tens of MB of bank).
+    # Sized by the terminal stage's rate it is constant in the input rate.
+    arms4, n4 = RateConverter(rate=2 / 4, pulse="rrc").bank_shape
+    arms256, n256 = RateConverter(rate=2 / 256, pulse="rrc").bank_shape
+    assert (arms4, n4) == (arms256, n256) == (1024, n256)
+    assert n256 < 4 * _MF_SPAN * 2 + 8
+    # The rectangle is one symbol wide whatever span says -- smaller still.
+    assert RateConverter(rate=2 / 256, pulse="iandd").bank_shape[1] < n256
+    # An integer-only cascade has no bank at all.
+    assert RateConverter(rate=2 / 64).bank_shape is None
+
+
+@pytest.mark.parametrize("sps", [4.0, 17.333333333, 64.0])
+def test_execute_ctrl_push_matches_block_and_execute(sps):
+    # The per-input streaming form is the only one a closed loop can use (it
+    # computes each correction FROM the outputs already emitted), so it has to
+    # agree with the block form -- otherwise open and closed loop would be
+    # running different filters.
+    x, _ = _rrc_bpsk(sps, 0.3)
+    kw = {"rate": 2 / sps, "compensate": 1, "pulse": "rrc"}
+    block = np.array(RateConverter(**kw).execute_ctrl(x, 0.0))
+    rc = RateConverter(**kw)
+    push = np.concatenate(
+        [rc.execute_ctrl_push(complex(v), 0.0) for v in x]
+        + [np.empty(0, np.complex64)]
+    )
+    assert np.array_equal(block, push)
+    # execute() on a matched cascade must be the SAME algorithm: the pulse
+    # bank is laid out for the unified accumulator, while resamp's decimating
+    # path is transposed-form and indexes arms the other way.
+    assert np.array_equal(block, np.array(RateConverter(**kw).execute(x)))
+
+
+def test_matched_state_round_trips_mid_stream():
+    x, _ = _rrc_bpsk(17.333333333, 0.2)
+    kw = {"rate": 2 / 17.333333333, "compensate": 1, "pulse": "rrc"}
+    a, b = RateConverter(**kw), RateConverter(**kw)
+    half = len(x) // 2
+    a.execute(x[:half])
+    b.set_state(a.get_state())
+    assert np.array_equal(
+        np.array(a.execute(x[half:])), np.array(b.execute(x[half:]))
+    )
+
+
+def test_set_rate_keeps_the_pulse():
+    # The pulse is configuration, not part of the plan, so re-planning must
+    # keep it -- including the always-append rule and the fold.
+    rc = RateConverter(rate=2 / 17.333333333, compensate=1, pulse="rrc")
+    rc.rate = 2 / 64
+    assert rc.stages == ["CIC(32)", "Resampler(1,rrc)"]
+    assert "FIR" not in rc.stages[0]

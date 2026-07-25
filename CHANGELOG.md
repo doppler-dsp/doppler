@@ -13,6 +13,62 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+### Added
+
+- **`RateConverter(pulse=…)` — the cascade IS the matched filter.** The
+    terminal polyphase stage can now carry a pulse-shaped bank (`"rrc"` /
+    `"iandd"`) instead of the default Kaiser anti-alias one, so a single dot
+    product converts the rate *and* matched-filters, and that stage's arm is
+    the fractional timing delay `execute_ctrl` steers. Selecting a pulse
+    changes three things:
+
+    - **The terminal fractional stage always exists.** The planner used to drop
+        it whenever the integer stages already landed the rate, so `rate=2/64`
+        planned a bare `CIC(32)` — correct arithmetic, nothing steerable at the
+        end. It now plans `['CIC(32)', 'Resampler(1,rrc)']`, because that stage
+        is simultaneously the matched filter and the timing element.
+    - **The bank is sized by the post-decimation rate, not the input rate.**
+        Matched-filtering at the input rate costs taps proportional to the input
+        samples per symbol — 4225 taps/arm at 256 samples/symbol, ~35 MB of
+        bank. After the integer stages have done the bulk decimation it is ~34
+        taps/arm, **identical at 4 and at 256 samples/symbol** (~0.14 MB), with
+        the CIC doing the decimation at no multiplies. Visible as the new
+        `bank_shape` property.
+    - **CIC droop folds into the bank** rather than appending a comp FIR.
+        `ciccompmf`'s taps run at the decimated rate, which *is* the terminal
+        bank's tap grid, so the fold is a per-arm convolution: exact, six extra
+        taps per arm, no extra stage and no extra pass over the data. Measured
+        against the reference architecture (plain cascade + separate comp FIR +
+        dense matched filter) it agrees within 0.6 dB — and on a CIC cascade it
+        is worth **28 dB of EVM** (−50 dB with `compensate=1`, −22 dB without),
+        so on this path compensation is not a refinement.
+
+    Measured on RRC-BPSK at a deliberately awkward 17.333 samples/symbol
+    (`CIC(8)` + `Resampler(0.923,rrc)`), noiseless, best-case timing phase:
+    **−50 dB EVM**; a halfband cascade reaches −60 dB. Keep the input inside
+    `cic_core`'s Q15 full scale — a CIC quantizes at its boundary, so the same
+    signal at peak 1.29 measures −25 dB for reasons unrelated to the filter.
+
+- **`RateConverter.execute_ctrl_push(x, ctrl)`** — the per-input streaming
+    form of `execute_ctrl`, and the only form a closed loop can use: a block
+    call must know its whole `ctrl` history up front, while a timing loop
+    computes each correction *from* the outputs already emitted. Bit-exact
+    against the block form at constant `ctrl`, so open- and closed-loop paths
+    are the same filter.
+
+- **`RateConverter.bank_shape`** — `(num_phases, num_taps)` of the terminal
+    polyphase stage, or `None` for an integer-only cascade. `stages` and
+    `bank_shape` now both appear in the type stubs; `stages` previously did not.
+
+### Changed
+
+- `RateConverter.execute()` on a **matched** cascade routes through the unified
+    accumulator (`execute_ctrl` at zero deviation) rather than `resamp`'s
+    transposed-form decimating path. The two are different algorithms that index
+    polyphase arms in opposite directions, and a pulse-shaped bank is laid out
+    for the accumulator; mixing them yields a one-output-period sawtooth in the
+    effective sampling instant. Plain (`pulse="none"`) cascades are unchanged.
+
 ## [0.37.3] — 2026-07-24
 
 ### Added

@@ -1,6 +1,6 @@
-"""ddc_fn_demo.py — the Ddcr handle: real passband to complex baseband.
+"""ddc_fn_demo.py — Ddcr: real passband to complex baseband.
 
-``doppler.ddc.Ddcr`` is a generated ``kind="handle"`` class over an opaque
+``doppler.ddc.Ddcr`` is a generated class over an opaque
 ``ddcr_state_t *``. It owns the C state like an object, yet
 ``execute()`` writes
 into a **caller-provided** output buffer — so the caller keeps control of
@@ -84,7 +84,7 @@ def _peak_fn(x: np.ndarray) -> float:
 
 
 def demo_lifecycle() -> None:
-    print("--- 1. Lifecycle (Ddcr handle) ---")
+    print("--- 1. Lifecycle (Ddcr) ---")
     ddcr = Ddcr(_lo_for_carrier(0.18), RATE)
     print(
         f"  created      norm_freq={ddcr.norm_freq:+.4f}  rate={ddcr.rate:.4f}"

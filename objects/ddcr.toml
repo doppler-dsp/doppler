@@ -1,0 +1,107 @@
+[ddcr]
+arg_type = "float"
+return_type = "float _Complex"
+mutable = "false"
+no_state = "true"
+no_step = "true"
+class_name = "Ddcr"
+serializable = "true"
+# A NULL create means a parameter was out of range, not OOM (gh-482).
+create_error = "ValueError"
+create_error_message = "Ddcr: invalid parameter (need 0 < rate < 0.5, 0 <= beta <= 1, span >= 1, pulse_sps > 0, num_phases a power of two >= 2)"
+# link=true is NOT transitive: this object composes the whole Ddc chain plus
+# the real-to-complex front end, so every core has to be named here.
+depends_on = [
+  { name = "lo", link = true },
+  { name = "RateConverter", link = true },
+  { name = "resamp", link = true },
+  { name = "hbdecim", link = true },
+  { name = "hbdecim_r2c", link = true },
+  { name = "cic", link = true },
+  { name = "fir", link = true },
+  { name = "resample", link = true },
+]
+
+# close() is the name this type has always had; destroy() stays as an alias
+# (gh-544) so existing callers and the context manager keep working.
+[ddcr.destroy]
+name = "close"
+aliases = ["destroy"]
+
+[[ddcr.init_params]]
+name = "norm_freq"
+type = "double"
+default = "0.0"
+
+[[ddcr.init_params]]
+name = "rate"
+type = "double"
+default = "0.25"
+
+# The matched flavor — the real-input twin of MatchedDDC.
+[[ddcr.views]]
+class_name = "MatchedDdcr"
+create_fn = "ddcr_create_matched"
+init_params = [
+  { name = "norm_freq", type = "double", default = "0.0" },
+  { name = "rate", type = "double", default = "0.25" },
+  { name = "pulse", type = "string_enum:iandd,rrc", default = "rrc" },
+  { name = "beta", type = "double", default = "0.35" },
+  { name = "span", type = "size_t", default = "8" },
+  { name = "pulse_sps", type = "double", default = "2.0" },
+  { name = "num_phases", type = "size_t", default = "1024" },
+]
+
+[[ddcr.methods]]
+name = "execute"
+doc = "Down-convert a block of real float32 samples to CF32 baseband."
+arg_type = "void"
+return_type = "float _Complex"
+variable_output = true
+pass_capacity = true
+nogil = true
+params = [{ name = "x", type = "float[]" }]
+
+[[ddcr.methods]]
+name = "execute_ctrl"
+arg_type = "void"
+return_type = "float _Complex"
+variable_output = true
+pass_capacity = true
+nogil = true
+params = [
+  { name = "x", type = "float[]" },
+  { name = "rate_ctrl", type = "double" },
+  { name = "freq_ctrl", type = "double" },
+]
+
+[[ddcr.methods]]
+name = "execute_ctrl_push"
+arg_type = "void"
+return_type = "float _Complex"
+variable_output = true
+pass_capacity = true
+params = [
+  { name = "x", type = "float" },
+  { name = "rate_ctrl", type = "double" },
+  { name = "freq_ctrl", type = "double" },
+]
+
+[[ddcr.methods]]
+name = "reset"
+doc = "Zero halfband history, LO phase and filter history."
+arg_type = "void"
+return_type = "void"
+
+[[ddcr.properties]]
+name = "norm_freq"
+type = "double"
+writable = true
+
+[[ddcr.properties]]
+name = "rate"
+type = "double"
+
+[[ddcr.properties]]
+name = "clipped"
+type = "bool"

@@ -5,7 +5,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from doppler.ddc import DDC
+from doppler.ddc import DDC, MatchedDDC
 
 N = 4096
 
@@ -232,16 +232,18 @@ def _rrc_bpsk(
     return x, bits
 
 
-def test_pulse_selects_a_matched_terminal_stage():
-    """A pulse is a passthrough to the cascade: the object is otherwise the
-    same DDC, and 'none' is the plain down-converter."""
+def test_matched_is_a_flavor_of_the_same_object():
+    """MatchedDDC is the same object built by a different constructor: same
+    state, same methods, one pulse-shaped terminal stage instead of the
+    Kaiser one."""
     plain = DDC(0.0, 0.125)
-    matched = DDC(0.0, 0.125, pulse="rrc")
+    matched = MatchedDDC(0.0, 0.125, pulse="rrc")
     assert plain.rate == matched.rate == 0.125
     x = np.zeros(1024, dtype=np.complex64)
     assert len(matched.execute(x)) == len(plain.execute(x))
+    assert matched.state_bytes() != plain.state_bytes()  # different plan
     with pytest.raises(ValueError):
-        DDC(0.0, 0.125, pulse="bogus")
+        MatchedDDC(0.0, 0.125, pulse="bogus")
 
 
 def test_freq_port_is_the_lo_axis():
@@ -254,14 +256,14 @@ def test_freq_port_is_the_lo_axis():
     ).astype(np.complex64)
     f = 0.037
 
-    steered = DDC(0.0, 0.125, pulse="rrc").execute_ctrl(x, 0.0, f)
-    tuned = DDC(f, 0.125, pulse="rrc").execute_ctrl(x, 0.0, 0.0)
-    unsteered = DDC(0.0, 0.125, pulse="rrc").execute_ctrl(x, 0.0, 0.0)
+    steered = MatchedDDC(0.0, 0.125, pulse="rrc").execute_ctrl(x, 0.0, f)
+    tuned = MatchedDDC(f, 0.125, pulse="rrc").execute_ctrl(x, 0.0, 0.0)
+    unsteered = MatchedDDC(0.0, 0.125, pulse="rrc").execute_ctrl(x, 0.0, 0.0)
 
     assert np.array_equal(steered, tuned)
     assert not np.allclose(steered, unsteered)  # teeth
 
-    d = DDC(0.0, 0.125, pulse="rrc")
+    d = MatchedDDC(0.0, 0.125, pulse="rrc")
     d.execute_ctrl(x, 0.0, f)
     assert d.norm_freq == 0.0
 
@@ -274,8 +276,8 @@ def test_push_equals_block_on_both_ports():
         0.25 * (rng.standard_normal(2048) + 1j * rng.standard_normal(2048))
     ).astype(np.complex64)
 
-    block = DDC(-0.1, 0.125, pulse="rrc").execute_ctrl(x, 2e-3, 1e-2)
-    pusher = DDC(-0.1, 0.125, pulse="rrc")
+    block = MatchedDDC(-0.1, 0.125, pulse="rrc").execute_ctrl(x, 2e-3, 1e-2)
+    pusher = MatchedDDC(-0.1, 0.125, pulse="rrc")
     pushed = np.concatenate(
         [pusher.execute_ctrl_push(complex(v), 2e-3, 1e-2) for v in x]
     )
@@ -297,7 +299,7 @@ def test_matched_ddc_recovers_symbols():
     """
     fc = 0.09375
     x, bits = _rrc_bpsk(16.0, 400, fc)
-    y = DDC(-fc, 2 / 16, pulse="rrc").execute(x)
+    y = MatchedDDC(-fc, 2 / 16, pulse="rrc").execute(x)
 
     # Best alignment over strobe parity and lag; fit the complex gain.
     best, best_ber = np.inf, 1.0
@@ -326,7 +328,7 @@ def test_carrier_loop_pulls_in_through_the_freq_port():
     carrier loop bandwidth is a small fraction of the symbol rate.
     """
     f0, tuned, rate, mu = 0.05, -0.04, 0.25, 0.01
-    d = DDC(tuned, rate, pulse="rrc")
+    d = MatchedDDC(tuned, rate, pulse="rrc")
     x = (0.25 * np.exp(2j * np.pi * f0 * np.arange(8192))).astype(np.complex64)
 
     freq_ctrl, prev, e = 0.0, None, 0.0
@@ -347,13 +349,13 @@ def test_clipped_forwards_from_the_cascade():
     plans a CIC inherits it, and nothing in the samples says so."""
     x = (2.0 * np.cos(0.11 * np.arange(1024))).astype(np.complex64)
 
-    d = DDC(0.0, 2 / 64, pulse="rrc")  # plans CIC(32)
+    d = MatchedDDC(0.0, 2 / 64, pulse="rrc")  # plans CIC(32)
     assert d.clipped is False
     d.execute(x)
     assert d.clipped is True
     d.reset()
     assert d.clipped is False  # sticky until reset, not forever
 
-    h = DDC(0.0, 0.5, pulse="rrc")  # halfband plan: no CIC, scale-free
+    h = MatchedDDC(0.0, 0.5, pulse="rrc")  # halfband plan: no CIC, scale-free
     h.execute(x)
     assert h.clipped is False

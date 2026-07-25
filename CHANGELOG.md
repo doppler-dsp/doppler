@@ -15,30 +15,41 @@ ______________________________________________________________________
 
 ### Changed
 
-- **`ddc_create` / `ddcr_create` take the pulse arguments (C API).** Both are
-    now the single general constructor —
-    `ddc_create(norm_freq, rate, pulse, beta, span, pulse_sps, num_phases)` —
-    with `RC_PULSE_NONE` selecting exactly the previous plain behaviour and
-    leaving the remaining arguments unused. C callers of the two-argument form
-    add `, RC_PULSE_NONE, 0, 0, 0, 0`. Python is unaffected: every new
-    parameter has a default, so `DDC(-0.1, 0.25)` and `Ddcr(-0.7, 0.25)` are
-    unchanged. One constructor rather than a `create`/`create_matched` pair
-    keeps the binding fully manifest-generated — no hand-written CPython glue
-    and no hand-maintained stub.
+- **`Ddcr` is a module object, not a `kind="handle"` module.** Same class
+    name, same constructor, same methods (`execute(x, out=None)`, `reset()`,
+    `close()`/`destroy()`, the context manager, the state triplet, the GIL
+    release) — but as an object it can carry a *flavor* (below), which a
+    handle cannot. Two behaviour notes: `execute()` now returns its own array
+    when no `out=` is given (the buffer stays optional, not required), and an
+    `out=` buffer of the **wrong dtype is silently not written** — the binding
+    casts it into a temporary and the returned array is still correct, where
+    the retired handle binding raised. That laxness is library-wide for every
+    `out=` object, now pinned by a test and filed upstream. The C core also
+    splits out of `ddc/ddc_core.{h,c}` into `ddcr/ddcr_core.{h,c}`, one core
+    per object as everywhere else.
 
 ### Added
 
-- **`DDC` and `Ddcr` gain a pulse and a second control port — carrier and
-    timing on one object.** `DDC(norm_freq, rate, pulse="rrc"|"iandd", beta,   span, pulse_sps, num_phases)` passes the pulse straight through to the
-    cascade, so a down-converter mixes, decimates *and* matched-filters in the
-    dot products it was already doing. `execute_ctrl(x, rate_ctrl, freq_ctrl)`
-    and the per-input `execute_ctrl_push(x, rate_ctrl, freq_ctrl)` then steer
-    two accumulators that are duals of each other:
+- **A matched *flavor* for both down-converters, and a second control port.**
+    `MatchedDDC` and `MatchedDdcr` are the same objects as `DDC` and `Ddcr`,
+    built by a different C constructor: the cascade's terminal stage carries a
+    pulse-shaped matched-filter bank instead of the Kaiser anti-alias one, so
+    the chain mixes, decimates *and* matched-filters in the dot products it
+    was already doing.
+
+    ```python
+    rx = MatchedDDC(norm_freq=-0.09375, rate=2 / 16, pulse="rrc", span=8)
+    symbols = rx.execute(x)          # 2 samples/symbol, matched-filtered
+    ```
+
+    `execute_ctrl(x, rate_ctrl, freq_ctrl)` and the per-input
+    `execute_ctrl_push(x, rate_ctrl, freq_ctrl)` (both on all four classes)
+    steer two accumulators that are duals of each other:
 
     - **`freq_ctrl` → the LO's phase accumulator** (cycles/sample at the input
-        rate). The LO sits at the input rate, which is where predetection
-        de-rotation belongs — the carrier is wiped off before any filter
-        narrows the band around it.
+        rate; the intermediate rate fs_in/2 for the real chain). The LO sits at
+        the input rate, which is where predetection de-rotation belongs — the
+        carrier is wiped off before any filter narrows the band around it.
     - **`rate_ctrl` → the terminal stage's accumulator** (the timing port
         `RateConverter` already exposed).
 
@@ -47,23 +58,20 @@ ______________________________________________________________________
     holds no loop state. That is what makes carrier recovery *snap in*: it is
     the same `loop_filter` a timing loop uses, on the other port. Measured, a
     first-order loop on `freq_ctrl` parks on a 0.01 cycles/sample mistune to
-    within 1e-9 and leaves the centre frequency untouched.
+    within 1e-9 and leaves the centre frequency untouched — with a small gain,
+    because the loop closes *around* the matched filter and inherits its group
+    delay as dead time.
 
-    Also new on both types: a `clipped` flag forwarded from the cascade (a CIC
+    Also new on all four: a `clipped` flag forwarded from the cascade (a CIC
     bounds its input to ±1.0 and clips silently, costing ~25 dB of EVM that no
     downstream metric attributes to the front end). CIC droop compensation is
-    unconditional on the matched path: the fold is six taps per arm and worth
-    28 dB, so no caller can turn it off.
+    unconditional on the matched flavors: the fold is six taps per arm and
+    worth 28 dB, so no caller can turn it off.
 
     End to end, RRC-BPSK at 16 samples per symbol on a carrier, decimated to
-    two samples per symbol: **−45 dB EVM** on the complex path (its `CIC(8)`
-    alias floor) and **−60 dB** on the real path (whose cascade sees twice the
+    two samples per symbol: **−45 dB EVM** on the complex chain (its `CIC(8)`
+    alias floor) and **−60 dB** on the real one (whose cascade sees twice the
     rate and plans halfbands instead).
-
-    `Ddcr`'s C API has both control ports; its *Python* face has the pulse but
-    not yet the ports, because a jm handle method cannot carry scalars
-    alongside its array arguments (shape (d) hardcodes
-    `fn(h, in, n_in, out, max_out)`). The `DDC` object has all of it.
 
 - **`track.RateSync` — matched filtering and symbol timing in one dot
     product.** Where `SymbolSync` runs a matched FIR and then a Farrow

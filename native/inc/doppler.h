@@ -87,6 +87,8 @@ extern "C" {
 
 #include "ddc/ddc_core.h"
 
+#include "ddcr/ddcr_core.h"
+
 #include "specan/specan_core.h"
 
 #include "Resampler/Resampler_core.h"

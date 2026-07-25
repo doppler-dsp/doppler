@@ -7,7 +7,6 @@ if _sys.platform == "win32" and hasattr(_os, "add_dll_directory"):
     _os.add_dll_directory(_os.path.dirname(_os.path.abspath(__file__)))
 del _os, _sys
 
-from .ddc import DDC  # noqa: E402
-from .ddc_fn import Ddcr  # noqa: E402
+from .ddc import DDC, Ddcr, MatchedDDC, MatchedDdcr  # noqa: E402
 
-__all__ = ["DDC", "Ddcr"]
+__all__ = ["DDC", "Ddcr", "MatchedDDC", "MatchedDdcr"]

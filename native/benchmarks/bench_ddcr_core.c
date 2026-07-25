@@ -1,5 +1,5 @@
-/* bench_ddc_core.c — no step() to benchmark */
-#include "ddc/ddc_core.h"
+/* bench_ddcr_core.c — no step() to benchmark */
+#include "ddcr/ddcr_core.h"
 #include "jm_bench.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -18,15 +18,15 @@ elapsed_sec (struct timespec *t0, struct timespec *t1)
 int
 main (void)
 {
-  ddc_state_t    *obj = ddc_create (0.0, 0.25);
+  ddcr_state_t   *obj = ddcr_create (0.0, 0.25);
   struct timespec t0, t1;
   jm_bench_t      _bench = { 0 };
 
-  printf ("=== ddc benchmark ===\n");
+  printf ("=== ddcr benchmark ===\n");
   printf ("  (no step(); methods below)\n");
   printf ("block = %d samples,  %d iterations\n\n", BENCH_N, ITERATIONS);
 
-  jm_bench_write_json (&_bench, "ddc");
-  ddc_destroy (obj);
+  jm_bench_write_json (&_bench, "ddcr");
+  ddcr_destroy (obj);
   return 0;
 }

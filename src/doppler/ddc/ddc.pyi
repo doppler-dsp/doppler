@@ -1,38 +1,28 @@
 # ddc/ddc.pyi — type stubs for the ddc C extension.
-from typing import final, Literal
+from typing import final
 import numpy as np
 from numpy.typing import NDArray
 
 @final
 class DDC:
-    """Create a complex-input Digital Down-Converter.
+    """Create a complex-input Digital Down-Converter. Allocates internal state for the LO and RateConverter cascade. The RateConverter selects the cheapest multi-stage decimation chain (CIC + optional halfband + polyphase resampler) for the given rate.
 
     Parameters
     ----------
     norm_freq : float, default 0.0
         LO frequency in cycles/sample at the input rate. Set to -f_carrier to shift a carrier at f_carrier to DC.  Any real value is accepted.
     rate : float, default 0.25
-        Output rate / input rate.  Must be > 0.  Values >= 1 are up-sampling; typical use is decimation (0 < rate < 1).  Rate-agnostic: a caller wanting `m` outputs per symbol asks for `rate = m/sps`; the cascade never learns about symbols.
-    pulse : Literal["iandd", "rrc", "none"], default "none"
-        Matched-filter pulse for the cascade's terminal stage: "rrc" (root-raised cosine, roll-off `beta`), "iandd" (unit rectangle one symbol wide -- what an integrate-and-dump computes), or "none" for a plain down-conversion with the default Kaiser anti-alias bank. Anything but "none" makes the chain mix, decimate and matched-filter in the same dot products, and makes that stage's polyphase arm the fractional timing delay `rate_ctrl` steers. CIC droop compensation is unconditional on this path (six taps per arm, worth 28 dB).
-    beta : float, default 0.35
-        RRC roll-off in `[0, 1]` (ignored for the rectangle and for RC_PULSE_NONE).
-    span : int, default 8
-        One-sided RRC span in symbols (ignored for the rectangle, whose support is exactly one symbol).
-    pulse_sps : float, default 2.0
-        The pulse's period in **output** samples (2 = two samples per symbol out).
-    num_phases : int, default 1024
-        Terminal-stage arms; a power of two.  Sets the timing resolution to `1/num_phases` of an output period.
+        Output rate / input rate.  Must be > 0.  Values >= 1 are up-sampling; typical use is decimation (0 < rate < 1).
 
     Examples
     --------
     Create with defaults:
 
     >>> from doppler.ddc import DDC
-    >>> obj = DDC(norm_freq=0.0, rate=0.25, pulse="none", beta=0.35, span=8, pulse_sps=2.0, num_phases=1024)
+    >>> obj = DDC(norm_freq=0.0, rate=0.25)
 
     """
-    def __init__(self, norm_freq: float = ..., rate: float = ..., pulse: Literal["iandd", "rrc", "none"] = "none", beta: float = ..., span: int = ..., pulse_sps: float = ..., num_phases: int = ...) -> None: ...
+    def __init__(self, norm_freq: float = ..., rate: float = ...) -> None: ...
 
     def execute(self, x: NDArray[np.complex64], out: NDArray[np.complex64] | None = None) -> NDArray[np.complex64]:
         """Mix input block with LO, then rate-convert.
@@ -166,5 +156,329 @@ class DDC:
         """Release C resources immediately."""
 
     def __enter__(self) -> "DDC": ...
+
+    def __exit__(self, *args: object) -> None: ...
+
+@final
+class MatchedDDC:
+    """MatchedDDC component.
+
+    Parameters
+    ----------
+    norm_freq : float, default 0.0
+        norm_freq constructor parameter.
+    rate : float, default 0.25
+        rate constructor parameter.
+    pulse : Literal["iandd", "rrc"], default "rrc"
+        pulse constructor parameter.
+    beta : float, default 0.35
+        beta constructor parameter.
+    span : int, default 8
+        span constructor parameter.
+    pulse_sps : float, default 2.0
+        pulse_sps constructor parameter.
+    num_phases : int, default 1024
+        num_phases constructor parameter.
+
+    Examples
+    --------
+    Create with defaults:
+
+    >>> from doppler.ddc import MatchedDDC
+    >>> obj = MatchedDDC(norm_freq=0.0, rate=0.25, pulse="rrc", beta=0.35, span=8, pulse_sps=2.0, num_phases=1024)
+
+    """
+    def __init__(self, norm_freq: float = ..., rate: float = ..., pulse: Literal["iandd", "rrc"] = "rrc", beta: float = ..., span: int = ..., pulse_sps: float = ..., num_phases: int = ...) -> None: ...
+
+    def execute(self, x: NDArray[np.complex64], out: NDArray[np.complex64] | None = None) -> NDArray[np.complex64]:
+        """Mix input block with LO, then rate-convert.
+
+        Parameters
+        ----------
+        x : NDArray[np.complex64]
+            Input.
+
+        Returns
+        -------
+        NDArray[np.complex64]
+            Output.
+        """
+
+    def execute_max_out(self) -> int:
+        """Max output length execute() can produce for the current state."""
+
+    def execute_ctrl(self, x: NDArray[np.complex64], rate_ctrl: float, freq_ctrl: float) -> NDArray[np.complex64]:
+        """Execute ctrl."""
+
+    def execute_ctrl_push(self, x: complex, rate_ctrl: float, freq_ctrl: float) -> NDArray[np.complex64]:
+        """Execute ctrl push."""
+
+    def reset(self) -> None:
+        """Zero LO phase and filter history.
+        """
+
+    def state_bytes(self) -> int:
+        """Serialized state size in bytes."""
+    def get_state(self) -> bytes:
+        """Serialize the engine's mutable state to bytes."""
+    def set_state(self, blob: bytes) -> None:
+        """Restore mutable state from a get_state() blob."""
+
+    @property
+    def norm_freq(self) -> float:
+        """Norm freq."""
+    @norm_freq.setter
+    def norm_freq(self, value: float) -> None: ...
+
+    @property
+    def rate(self) -> float:
+        """Rate."""
+
+    @property
+    def clipped(self) -> bool:
+        """Clipped."""
+
+    def destroy(self) -> None:
+        """Release C resources immediately."""
+
+    def __enter__(self) -> "MatchedDDC": ...
+
+    def __exit__(self, *args: object) -> None: ...
+
+@final
+class Ddcr:
+    """Create a real-input Digital Down-Converter (Architecture D2). The signal chain is: halfband R2C (2:1, bakes in +fs/4 shift) -> fine LO mix at the intermediate rate (fs_in/2) -> RateConverter -> CF32 output.  The halfband stage uses +-1/0 coefficients (no multiplications), making DDCR roughly 2x cheaper than DDC at the same total decimation ratio.
+
+    Parameters
+    ----------
+    norm_freq : float, default 0.0
+        Fine NCO frequency at the intermediate rate (fs_in/2, cycles/sample).  To tune a real tone at normalised input frequency f_c to DC, set norm_freq = -(2*f_c + 0.5).
+    rate : float, default 0.25
+        Total output/input rate.  Must be in (0, 0.5) because the halfband pre-decimates by 2.
+
+    Examples
+    --------
+    Create with defaults:
+
+    >>> from doppler.ddc import Ddcr
+    >>> obj = Ddcr(norm_freq=0.0, rate=0.25)
+
+    """
+    def __init__(self, norm_freq: float = ..., rate: float = ...) -> None: ...
+
+    def execute(self, x: NDArray[np.float32], out: NDArray[np.complex64] | None = None) -> NDArray[np.complex64]:
+        """Down-convert a block of real float32 samples to CF32 baseband.
+
+        Parameters
+        ----------
+        x : NDArray[np.float32]
+            Input.
+
+        Returns
+        -------
+        NDArray[np.complex64]
+            Number of output samples written (C-only).
+
+        Examples
+        --------
+        >>> from doppler.ddc import Ddcr
+        >>> import numpy as np
+        >>> ddcr = Ddcr(norm_freq=-0.7, rate=0.25)
+        >>> t = np.arange(4096)
+        >>> x = np.cos(2 * np.pi * 0.1 * t).astype(np.float32)
+        >>> out = np.empty(len(x), dtype=np.complex64)
+        >>> y = ddcr.execute(x, out)
+        >>> y.shape
+        (1024,)
+        >>> y.dtype
+        dtype('complex64')
+        >>> round(float(abs(y[500])), 2)   # one-sided cosine amplitude ≈ 0.5
+        0.5
+
+        """
+
+    def execute_max_out(self) -> int:
+        """Max output length execute() can produce for the current state."""
+
+    def execute_ctrl(self, x: NDArray[np.float32], rate_ctrl: float, freq_ctrl: float) -> NDArray[np.complex64]:
+        """Process a real block, steering both control ports.
+
+        The control-port form of ddcr_execute(); see ddc_execute_ctrl() for the
+        semantics, which are identical except for where the LO lives.
+
+        Parameters
+        ----------
+        x : NDArray[np.float32]
+            Input.
+        rate_ctrl : float
+            Rate deviation added to the terminal Resampler stage's rate (referenced to the terminal, post-decimation rate).
+        freq_ctrl : float
+            Frequency deviation added to the fine LO, in cycles/sample at the INTERMEDIATE rate (fs_in/2) — the halfband has already decimated by two by the time the mix happens, so a discriminator working in cycles per ADC sample must be doubled before it lands here.
+
+        Returns
+        -------
+        NDArray[np.complex64]
+            Number of output samples written.
+        """
+
+    def execute_ctrl_push(self, x: float, rate_ctrl: float, freq_ctrl: float) -> NDArray[np.complex64]:
+        """Push ONE real input sample; emit whatever outputs it completes.
+
+        The per-input streaming form of ddcr_execute_ctrl(), for a closed loop.
+        The halfband consumes two inputs per intermediate sample, so every other
+        push does no mixing and emits nothing at all — the LO advances (and its
+        control is applied) once per *intermediate* sample, which is the rate
+        the LO runs at.
+
+        Parameters
+        ----------
+        x : float
+            One real float32 input sample.
+        rate_ctrl : float
+            Rate deviation for this input (terminal-stage rate).
+        freq_ctrl : float
+            Frequency deviation, cycles/sample at fs_in/2.
+
+        Returns
+        -------
+        NDArray[np.complex64]
+            Number of outputs written (0, 1, or more).
+        """
+
+    def reset(self) -> None:
+        """Zero halfband history, LO phase and filter history.
+
+        Examples
+        --------
+        >>> from doppler.ddc import Ddcr
+        >>> import numpy as np
+        >>> ddcr = Ddcr(norm_freq=0.0, rate=0.25)
+        >>> x = np.ones(64, dtype=np.float32)
+        >>> out = np.empty(64, dtype=np.complex64)
+        >>> y1 = ddcr.execute(x, out).copy()
+        >>> ddcr.reset()
+        >>> y2 = ddcr.execute(x, out)
+        >>> bool(np.array_equal(y1, y2))
+        True
+
+        """
+
+    def state_bytes(self) -> int:
+        """Serialized state size in bytes."""
+    def get_state(self) -> bytes:
+        """Serialize the engine's mutable state to bytes."""
+    def set_state(self, blob: bytes) -> None:
+        """Restore mutable state from a get_state() blob."""
+
+    @property
+    def norm_freq(self) -> float:
+        """Return the current fine NCO normalised frequency at the intermediate rate (fs_in/2, cycles/sample)."""
+    @norm_freq.setter
+    def norm_freq(self, value: float) -> None: ...
+
+    @property
+    def rate(self) -> float:
+        """Return the total configured rate (fs_out / fs_in, read-only). This is the end-to-end ratio from ADC input to CF32 output.  Change it by destroying and recreating the DDCR."""
+
+    @property
+    def clipped(self) -> bool:
+        """Has the cascade's CIC clipped its input since the last reset?"""
+
+    def close(self) -> None:
+        """Release C resources immediately."""
+
+    def destroy(self) -> None:
+        """Release C resources immediately."""
+
+    def __enter__(self) -> "Ddcr": ...
+
+    def __exit__(self, *args: object) -> None: ...
+
+@final
+class MatchedDdcr:
+    """MatchedDdcr component.
+
+    Parameters
+    ----------
+    norm_freq : float, default 0.0
+        norm_freq constructor parameter.
+    rate : float, default 0.25
+        rate constructor parameter.
+    pulse : Literal["iandd", "rrc"], default "rrc"
+        pulse constructor parameter.
+    beta : float, default 0.35
+        beta constructor parameter.
+    span : int, default 8
+        span constructor parameter.
+    pulse_sps : float, default 2.0
+        pulse_sps constructor parameter.
+    num_phases : int, default 1024
+        num_phases constructor parameter.
+
+    Examples
+    --------
+    Create with defaults:
+
+    >>> from doppler.ddc import MatchedDdcr
+    >>> obj = MatchedDdcr(norm_freq=0.0, rate=0.25, pulse="rrc", beta=0.35, span=8, pulse_sps=2.0, num_phases=1024)
+
+    """
+    def __init__(self, norm_freq: float = ..., rate: float = ..., pulse: Literal["iandd", "rrc"] = "rrc", beta: float = ..., span: int = ..., pulse_sps: float = ..., num_phases: int = ...) -> None: ...
+
+    def execute(self, x: NDArray[np.float32], out: NDArray[np.complex64] | None = None) -> NDArray[np.complex64]:
+        """Down-convert a block of real float32 samples to CF32 baseband.
+
+        Parameters
+        ----------
+        x : NDArray[np.float32]
+            Input.
+
+        Returns
+        -------
+        NDArray[np.complex64]
+            Output.
+        """
+
+    def execute_max_out(self) -> int:
+        """Max output length execute() can produce for the current state."""
+
+    def execute_ctrl(self, x: NDArray[np.float32], rate_ctrl: float, freq_ctrl: float) -> NDArray[np.complex64]:
+        """Execute ctrl."""
+
+    def execute_ctrl_push(self, x: float, rate_ctrl: float, freq_ctrl: float) -> NDArray[np.complex64]:
+        """Execute ctrl push."""
+
+    def reset(self) -> None:
+        """Zero halfband history, LO phase and filter history.
+        """
+
+    def state_bytes(self) -> int:
+        """Serialized state size in bytes."""
+    def get_state(self) -> bytes:
+        """Serialize the engine's mutable state to bytes."""
+    def set_state(self, blob: bytes) -> None:
+        """Restore mutable state from a get_state() blob."""
+
+    @property
+    def norm_freq(self) -> float:
+        """Norm freq."""
+    @norm_freq.setter
+    def norm_freq(self, value: float) -> None: ...
+
+    @property
+    def rate(self) -> float:
+        """Rate."""
+
+    @property
+    def clipped(self) -> bool:
+        """Clipped."""
+
+    def close(self) -> None:
+        """Release C resources immediately."""
+
+    def destroy(self) -> None:
+        """Release C resources immediately."""
+
+    def __enter__(self) -> "MatchedDdcr": ...
 
     def __exit__(self, *args: object) -> None: ...

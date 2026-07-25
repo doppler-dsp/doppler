@@ -6,9 +6,8 @@ no_state = "true"
 no_step = "true"
 class_name = "DDC"
 serializable = "true"
-# One constructor with a pulse knob (RC_PULSE_NONE = plain), so jm generates
-# the whole binding: an object's tp_init always calls <obj>_create with the
-# init_params in order, and a NULL from it means a bad parameter, not OOM.
+# A NULL create means a parameter was out of range, not that the machine ran
+# out of memory (gh-482).
 create_error = "ValueError"
 create_error_message = "DDC: invalid parameter (need rate > 0, 0 <= beta <= 1, span >= 1, pulse_sps > 0, num_phases a power of two >= 2)"
 depends_on = [{ name = "lo", link = true }, { name = "RateConverter", link = true }, { name = "resamp", link = true }, { name = "hbdecim", link = true }, { name = "hbdecim_r2c", link = true }, { name = "cic", link = true }, { name = "fir", link = true }, { name = "resample", link = true }]
@@ -23,31 +22,24 @@ name = "rate"
 type = "double"
 default = "0.25"
 
-[[ddc.init_params]]
-name = "pulse"
-type = "string_enum:iandd,rrc,none"
-default = "none"
-doc = "Matched-filter pulse for the cascade's terminal stage: \"rrc\" (root-raised cosine, roll-off `beta`), \"iandd\" (unit rectangle one symbol wide -- what an integrate-and-dump computes), or \"none\" for a plain down-conversion with the default Kaiser anti-alias bank. Anything but \"none\" makes the chain mix, decimate and matched-filter in the same dot products, and makes that stage's polyphase arm the fractional timing delay `rate_ctrl` steers. CIC droop compensation is unconditional on this path (six taps per arm, worth 28 dB)."
-
-[[ddc.init_params]]
-name = "beta"
-type = "double"
-default = "0.35"
-
-[[ddc.init_params]]
-name = "span"
-type = "size_t"
-default = "8"
-
-[[ddc.init_params]]
-name = "pulse_sps"
-type = "double"
-default = "2.0"
-
-[[ddc.init_params]]
-name = "num_phases"
-type = "size_t"
-default = "1024"
+# The matched FLAVOR (gh-504): same ddc_state_t, same methods, one different
+# constructor. A pulse on the cascade's terminal stage makes the chain mix,
+# decimate and matched-filter in the same dot products, and makes that stage's
+# polyphase arm the fractional timing delay `rate_ctrl` steers -- so the two
+# control ports become a carrier port and a timing port. Droop compensation is
+# unconditional here (six taps per arm, worth 28 dB).
+[[ddc.views]]
+class_name = "MatchedDDC"
+create_fn = "ddc_create_matched"
+init_params = [
+  { name = "norm_freq", type = "double", default = "0.0" },
+  { name = "rate", type = "double", default = "0.25" },
+  { name = "pulse", type = "string_enum:iandd,rrc", default = "rrc" },
+  { name = "beta", type = "double", default = "0.35" },
+  { name = "span", type = "size_t", default = "8" },
+  { name = "pulse_sps", type = "double", default = "2.0" },
+  { name = "num_phases", type = "size_t", default = "1024" },
+]
 
 [[ddc.methods]]
 name = "execute"

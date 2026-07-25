@@ -10,14 +10,19 @@ ______________________________________________________________________
 
 ## Which class to use
 
-| Class  | Input        | Cost        | Use when                      |
-| ------ | ------------ | ----------- | ----------------------------- |
-| `DDC`  | CF32 IQ      | baseline    | complex ADC, already at fs    |
-| `Ddcr` | float32 real | ~2× cheaper | real ADC, direct-sampling SDR |
+Two types, one per input dtype — and each has a **matched flavor** built by a
+different constructor over the same C state:
 
-Both produce CF32 IQ at the decimated output rate. `DDC` owns and pre-allocates
-its output buffer (`y = ddc.execute(x)`); `Ddcr` takes a caller-provided output
-buffer (`y = ddcr.execute(x, out)`) so allocation and buffer reuse are explicit.
+| Class         | Input        | Terminal stage      | Use when                           |
+| ------------- | ------------ | ------------------- | ---------------------------------- |
+| `DDC`         | CF32 IQ      | Kaiser anti-alias   | complex ADC, already at fs         |
+| `MatchedDDC`  | CF32 IQ      | matched-filter bank | recovering symbols from IQ         |
+| `Ddcr`        | float32 real | Kaiser anti-alias   | real ADC, direct-sampling SDR      |
+| `MatchedDdcr` | float32 real | matched-filter bank | recovering symbols from a real ADC |
+
+All four produce CF32 IQ at the decimated output rate, share the same methods,
+and take an optional caller-provided output buffer (`y = ddc.execute(x, out)`)
+when allocation and buffer reuse need to be explicit.
 
 ______________________________________________________________________
 
@@ -66,21 +71,21 @@ for block in iq_stream:     # generator of CF32 arrays
 
 ### Matched mode
 
-The pulse rides the cascade: pass a `pulse` and the cascade's **terminal stage carries the matched filter**
-instead of the default Kaiser anti-alias bank: the same dot products that mix
-and decimate also matched-filter, and that stage's polyphase arm becomes the
-fractional timing delay a loop steers. It is a straight passthrough to
-[`RateConverter`](python-resample.md) — the DDC adds the mix in front of it —
-and it is the *same* constructor: `pulse="none"` is the plain down-converter.
-`Ddcr` takes the identical arguments for the real-input chain.
+`MatchedDDC` is the same object as `DDC` built by a different constructor: the
+cascade's **terminal stage carries the matched filter** instead of the default
+Kaiser anti-alias bank, so the same dot products that mix and decimate also
+matched-filter, and that stage's polyphase arm becomes the fractional timing
+delay a loop steers. It is a straight passthrough to
+[`RateConverter`](python-resample.md) — the DDC adds the mix in front of it.
+`MatchedDdcr` is the identical flavor of the real-input chain.
 
 ```python
-from doppler.ddc import DDC
+from doppler.ddc import MatchedDDC
 import numpy as np
 
 # 16 samples/symbol in, 2 out; carrier at +0.09375·fs wiped off on the way.
-rx = DDC(norm_freq=-0.09375, rate=2 / 16, pulse="rrc", beta=0.35, span=8,
-         pulse_sps=2.0)
+rx = MatchedDDC(norm_freq=-0.09375, rate=2 / 16, pulse="rrc", beta=0.35,
+                span=8, pulse_sps=2.0)
 
 x = (0.25 * np.random.randn(4096)).astype(np.complex64)
 symbols = rx.execute(x)          # matched-filtered, 2 samples/symbol
@@ -112,7 +117,7 @@ is computed *from* the outputs already emitted.
 ```python
 # Carrier recovery: a tone 0.01 cycles/sample off where the LO is tuned.
 f0, tuned, rate, mu = 0.05, -0.04, 0.25, 0.01
-d = DDC(tuned, rate, pulse="rrc")
+d = MatchedDDC(tuned, rate, pulse="rrc")
 x = (0.25 * np.exp(2j * np.pi * f0 * np.arange(8192))).astype(np.complex64)
 
 freq_ctrl, prev = 0.0, None
@@ -148,9 +153,10 @@ multiplications) → LO mix at fs/2 → polyphase resample.
 operates at half the sample rate and the embedded mix costs zero extra
 multiplications.
 
-`Ddcr` is a generated typed handle over the opaque `ddcr_state_t`. `execute()`
-takes a **caller-provided writable `complex64` output buffer** and returns the
-zero-copy view `out[:n_out]`, so allocation and buffer reuse are explicit.
+`Ddcr` wraps `ddcr_state_t`. `execute()` returns its own array, or fills a
+**caller-provided writable `complex64` buffer** and returns the trimmed view
+`out[:n_out]` when one is passed — so allocation and buffer reuse can be made
+explicit for streaming and sharded-worker designs.
 
 **Frequency convention:** `norm_freq = -(2*f_carrier + 0.5)`
 The −0.5 cancels the halfband's embedded −fs/4 shift.
@@ -174,16 +180,28 @@ ______________________________________________________________________
 
 ______________________________________________________________________
 
+::: doppler.ddc.MatchedDDC
+
+______________________________________________________________________
+
 ::: doppler.ddc.Ddcr
+
+______________________________________________________________________
+
+::: doppler.ddc.MatchedDdcr
 
 ______________________________________________________________________
 
 ## `Ddcr` usage patterns
 
-`Ddcr` consolidates the former `DDCR` object and the `ddcr_*` free functions into
-one typed handle. The caller supplies the output buffer, making allocation
-strategy and buffer reuse entirely explicit — ideal for streaming and
-sharded-worker designs.
+Supplying the output buffer makes allocation strategy and buffer reuse
+entirely explicit — ideal for streaming and sharded-worker designs.
+
+!!! warning "Match the buffer's dtype"
+
+    An `out=` buffer of the wrong dtype is **not** written: the binding casts
+    it into a temporary, so the returned array is correct but the caller's
+    buffer stays untouched. Always allocate `complex64`.
 
 ### Buffer sizing
 
@@ -319,10 +337,11 @@ Three stages, each optional or reorderable:
 | Halfband ÷2        | `hbdecim_state_t` | Cheap factor-of-2 decimation                   |
 | Polyphase resample | `resamp_state_t`  | Continuously-variable rate conversion          |
 
-`ddc_create(norm_freq, rate, RC_PULSE_NONE, …)` chains LO + polyphase
-resampler with built-in Kaiser coefficients (passband ≤ 0.4·fs_out, stopband
-≥ 0.6·fs_out, 60 dB rejection). The remaining arguments select a matched-filter
-pulse for the terminal stage instead; see [Matched mode](#matched-mode).
+`ddc_create(norm_freq, rate)` chains LO + polyphase resampler with built-in
+Kaiser coefficients (passband ≤ 0.4·fs_out, stopband ≥ 0.6·fs_out, 60 dB
+rejection); `ddc_create_matched(norm_freq, rate, pulse, …)` puts a
+matched-filter bank on the terminal stage instead — see
+[Matched mode](#matched-mode).
 
 ______________________________________________________________________
 
@@ -332,7 +351,7 @@ ______________________________________________________________________
 CF32 in ──► LO ──► polyphase resample (0.4/0.6, rate r) ──► CF32 out
 ```
 
-`ddc_create(norm_freq, rate, RC_PULSE_NONE, …)` with built-in Kaiser bank.
+`ddc_create(norm_freq, rate)` with built-in Kaiser bank.
 No design step required. One allocation, no intermediate buffers.
 
 **Best for:** prototype, any decimation rate, single-stage simplicity.
@@ -447,8 +466,7 @@ int main(void)
   float _Complex in[4096]  = { 0 };   /* fill with your samples */
   float _Complex out[4096];
 
-  /* RC_PULSE_NONE: plain down-conversion, so the pulse arguments are unused */
-  ddc_state_t *ddc = ddc_create(-0.1, 0.25, RC_PULSE_NONE, 0, 0, 0, 0);
+  ddc_state_t *ddc = ddc_create(-0.1, 0.25);
   size_t n = ddc_execute(ddc, in, 4096, out, 4096);
   (void)n;
   ddc_destroy(ddc);
@@ -467,8 +485,7 @@ step to keep the shape of the composition visible:
 
 ```c
 hbdecim_state_t *hb  = hbdecim_create(num_taps, h);   /* h: Kaiser-designed taps */
-ddc_state_t     *ddc = ddc_create(norm_freq, rate * 2.0,
-                                  RC_PULSE_NONE, 0, 0, 0, 0);
+ddc_state_t     *ddc = ddc_create(norm_freq, rate * 2.0);
 
 float _Complex mid[num_in / 2 + 32];
 float _Complex out[num_in];

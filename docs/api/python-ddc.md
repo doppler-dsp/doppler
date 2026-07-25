@@ -64,9 +64,9 @@ for block in iq_stream:     # generator of CF32 arrays
     process(out)
 ```
 
-### Matched mode — the pulse rides the cascade
+### Matched mode
 
-Pass a `pulse` and the cascade's **terminal stage carries the matched filter**
+The pulse rides the cascade: pass a `pulse` and the cascade's **terminal stage carries the matched filter**
 instead of the default Kaiser anti-alias bank: the same dot products that mix
 and decimate also matched-filter, and that stage's polyphase arm becomes the
 fractional timing delay a loop steers. It is a straight passthrough to
@@ -322,7 +322,7 @@ Three stages, each optional or reorderable:
 `ddc_create(norm_freq, rate, RC_PULSE_NONE, …)` chains LO + polyphase
 resampler with built-in Kaiser coefficients (passband ≤ 0.4·fs_out, stopband
 ≥ 0.6·fs_out, 60 dB rejection). The remaining arguments select a matched-filter
-pulse for the terminal stage instead; see [Matched mode](#matched-mode--the-pulse-rides-the-cascade).
+pulse for the terminal stage instead; see [Matched mode](#matched-mode).
 
 ______________________________________________________________________
 

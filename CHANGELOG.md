@@ -13,6 +13,107 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+## [0.37.3] — 2026-07-24
+
+### Added
+
+- **`background=True` — fold a static source population into ONE `Plan` cache
+    slot.** `Plan` caches every source separately so any one of them stays
+    overridable, at the cost of one full-length buffer each. For a scene
+    dominated by emitters that never move — a crowded uplink, a co-channel user
+    population, an interference field — that buys an override nobody uses: 400
+    users at 122.88 MHz over 10 ms is roughly **4 GB** of cache for a scene in
+    which one interferer actually varies. Marking those sources
+    `background=True` makes `prepare()` fold a contiguous **leading run** of
+    them into a single pre-summed entry, each member pre-weighted by its own
+    `10**(level/20)` so the composite carries `base_gain` 1.0.
+
+    `render()`/`at()` need no special case — the composite is just a cache slot
+    that happens to be pre-summed — so the whole field takes **one** entry in
+    `gains`/`phases`/`enable` and counts as one in `n_sources()`. Scaling,
+    rotating or dropping the entire background is now a single number, a control
+    that did not exist before. Measured on the new gallery example: **67×
+    smaller** cache at 200 users, **~5× faster** to re-render (3 buffers touched
+    instead of 102), and a −10 dB trim scaling the field by 9.98 dB while the
+    wanted signal moves 0.06 dB.
+
+    The background sources must be a **prefix**, and that is load-bearing rather
+    than stylistic: `compose()` sums into a running accumulator in spec order
+    while the composite sums from zero, so the two agree to the last bit only
+    when nothing precedes the folded block. A background source behind a
+    foreground one raises `ValueError` instead of silently costing the
+    bit-exactness contract. Because the sum must stay ordered, the parallelism
+    comes from building a *group* of sources concurrently and then accumulating
+    that group in spec order, with the ordered combine split by **sample** —
+    bit-identical to a serial fold, and still using every core. The group is
+    capped by a memory budget so a 400-source background never materialises 400
+    live buffers. A *bundled* segment (a lone source carrying its own real SNR)
+    folds nothing: its baked-in noise amplitude rides on the `base_gain` the
+    fold would overwrite.
+
+    One semantic worth knowing: for an ordinary slot `gains[k]` *replaces* the
+    level (absolute dBFS), whereas for the composite it is a **trim** — members
+    keep their relative levels and the whole mix scales.
+
+### Fixed
+
+- **A bundled `Plan` segment now renders bit-exactly at a non-zero level.** The
+    composer scales a lone real-SNR source's signal *and* its baked-in noise
+    with a single multiply, `g*(sig+noise)`, while `materialize()` scaled the
+    cached signal and the reconstructed noise separately as `g*sig + g*noise` —
+    identical in exact arithmetic, about an ULP apart in float. At `level=0`
+    (gain exactly 1.0) both forms agree trivially, which is why every existing
+    bundled test passed; at −3 dB it mismatched 696 of 1024 samples. The ON
+    region is now summed at unit gain and scaled once, mirroring the composer.
+
+- **`Plan` seeds its reconstructed noise from the anchor, not `sources[0]`.** A
+    segment carries two different default seeds: the ranged off/delay *draws*
+    key off `sources[0].seed`, while the auto-appended noise source is seeded
+    from the **anchor** — whichever source carries the SNR. `materialize()`
+    passed the former where it needed the latter. Those numbers are equal only
+    when the anchor happens to be `sources[0]`, the idiomatic ordering and the
+    one every test used, so this never surfaced; with the SNR source anywhere
+    else the Plan reconstructed a completely different noise realization (not a
+    rounding difference — full-scale, every sample). A `seed` override still
+    moves both, so `at()`/`monte_carlo()` are unaffected.
+
+### Changed
+
+- **`CMAKE_BUILD_TYPE` now defaults to `Release`.** An unset build type is not
+    "some sensible default" — CMake contributes no `-O` flag at all, so the bare
+    `cmake -B build` documented in the README and the C-API docs built the whole
+    DSP library at `-O0`: scalar, stack-spilled, unvectorised. `make` and the
+    release workflow were always explicit, so nothing published was ever
+    affected; the gap was the hand-typed configure, which is also what people
+    benchmark against. Multi-config generators are untouched, and
+    `-DCMAKE_BUILD_TYPE=Debug` is still honoured.
+
+- **`Plan`'s `accumulate()` takes `restrict` pointers.** Without it the compiler
+    cannot rule out overlap between the render output and a cache slot and
+    settles for a half-width SLP vectorisation (one complex sample per
+    iteration); with it, a full-width loop. No caller aliases them and the
+    operation is element-wise, so results are bit-identical.
+
+### Docs
+
+- **New gallery page: "One Cache Slot for a Whole Background Field"**
+    (`docs/gallery/plan-background.md`), built from the self-validating
+    `plan_background_demo.py` — cache footprint against population size, and a
+    PSD showing one gain moving the entire field while the wanted signal and the
+    interferer stay put.
+
+- **Corrected the `Plan` scope notes.** The gallery page still claimed a single
+    non-ranged segment and that a lone bundled noisy source raises `ValueError`;
+    both have been supported for some time. It now states what `prepare()`
+    actually refuses — a ranged source field, a ranged ON-time, mixed sample
+    rates, an unbounded timeline — and why.
+
+- **`Plan` is serializable** — corrected the stale "not serializable" claim in
+    the wfmgen guide: transport the recipe (the spec JSON), not the rendered
+    cache; save/restore is a checkpoint mechanism.
+
+______________________________________________________________________
+
 ## [0.37.2] — 2026-07-24
 
 ### Added
@@ -3107,6 +3208,7 @@ ______________________________________________________________________
 [0.37.0]: https://github.com/doppler-dsp/doppler/compare/v0.36.0...v0.37.0
 [0.37.1]: https://github.com/doppler-dsp/doppler/compare/v0.37.0...v0.37.1
 [0.37.2]: https://github.com/doppler-dsp/doppler/compare/v0.37.1...v0.37.2
+[0.37.3]: https://github.com/doppler-dsp/doppler/compare/v0.37.2...v0.37.3
 [0.4.0]: https://github.com/doppler-dsp/doppler/compare/v0.3.7...v0.4.0
 [0.4.1]: https://github.com/doppler-dsp/doppler/compare/v0.4.0...v0.4.1
 [0.5.0]: https://github.com/doppler-dsp/doppler/compare/v0.4.1...v0.5.0
@@ -3119,4 +3221,4 @@ ______________________________________________________________________
 [0.7.0]: https://github.com/doppler-dsp/doppler/compare/v0.6.0...v0.7.0
 [0.8.0]: https://github.com/doppler-dsp/doppler/compare/v0.7.0...v0.8.0
 [0.9.0]: https://github.com/doppler-dsp/doppler/compare/v0.8.0...v0.9.0
-[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.37.2...HEAD
+[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.37.3...HEAD

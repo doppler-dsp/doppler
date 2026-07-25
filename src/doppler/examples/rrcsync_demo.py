@@ -77,6 +77,8 @@ def make_signal(sps, tau=0.37, seed=7, snr_db=SNR_DB):
         hi = min(n, int(np.floor((k + SPAN) * sps + tau)) + 1)
         if hi > lo:
             x[lo:hi] += ak * rrc_h(t[lo:hi] - k)
+    if snr_db is None:  # noiseless — for characterising the detector itself
+        return bits, x.astype(np.complex64)
     sigma = np.sqrt(np.mean(x**2) / (2 * 10 ** (snr_db / 10)))
     noise = sigma * (rng.standard_normal(n) + 1j * rng.standard_normal(n))
     return bits, (x + noise).astype(np.complex64)
@@ -124,28 +126,44 @@ def ber_wide(bits, y):
     return float(np.mean(s * d[:m] != tx[lag : lag + m]))
 
 
-def s_curve(points=25, chunks=60):
-    """Measure the timing S-curve from the object itself: hold the loop open
-    at a series of static timing offsets and average the TED error.
+def s_curve(points=21):
+    """Measure the timing S-curve from the object itself: freeze the loop at
+    a series of static timing offsets and average EVERY symbol's TED error,
+    read back through the object's own telemetry.
 
-    The offset is applied as a FRACTIONAL delay when generating the signal.
-    Slicing the sample array instead would quantise the sweep to whole
-    samples, and at a non-integer sps consecutive sweep points would then
-    collapse onto the same timing — plateaus in the curve that are an
-    artefact of the measurement, not of the detector.
+    Three things this measurement has to get right, each of which produced a
+    convincing-looking but wrong curve first:
+
+    * Sweep a **fractional** delay (`tau`, in samples). Slicing the sample
+      array instead quantises the sweep to whole samples, and at a
+      non-integer sps consecutive points then collapse onto the same
+      timing — plateaus that belong to the measurement, not the detector.
+    * Average **every** symbol's error, not `timing_error` sampled at a few
+      chunk boundaries: the per-symbol error has a large data-pattern
+      variance (Gardner only learns from transitions), so a few dozen
+      samples leave enough noise to fake an asymmetric curve.
+    * Measure it **noiseless**. Channel noise adds variance without changing
+      the shape, so it only obscures what is being characterised.
+
+    Done that way the curve is the standard Gardner S-curve: one period per
+    symbol, odd-symmetric, zeros exactly half a symbol apart.
     """
+    from doppler.telemetry import Telemetry
+
     offs = np.linspace(0.0, 1.0, points)
     err = []
     for o in offs:
         # tau is in samples; one symbol of timing == SPS samples
-        _, x = make_signal(SPS, tau=o * SPS, seed=11, snr_db=30.0)
+        _, x = make_signal(SPS, tau=o * SPS, seed=11, snr_db=None)
         # bn = 0 freezes the loop: the strobe stays where the offset put it
         probe = RrcSync(sps=SPS, beta=BETA, span=SPAN, num_phases=1024, bn=0.0)
-        e = []
-        for part in np.array_split(x, chunks):
-            probe.steps(part)
-            e.append(probe.timing_error)
-        err.append(float(np.mean(e[chunks // 4 :])))  # drop the fill transient
+        tlm = Telemetry(1 << 16)
+        probe.set_telemetry(tlm, "s")
+        e_id = tlm.probe_names()["s.e"]
+        probe.steps(x)
+        recs = tlm.read()
+        e = recs["value"][recs["probe"] == e_id]
+        err.append(float(np.mean(e[len(e) // 3 :])))  # drop the fill transient
     return offs, np.asarray(err)
 
 
@@ -194,10 +212,12 @@ def main(out_path="rrcsync_demo.png"):
     offs, err = s_curve()
     ax.plot(offs, err, "-o", ms=3)
     ax.axhline(0, lw=0.8, color="k")
+    zc = offs[np.argmin(np.abs(err))]
     ax.set_title(
-        "Timing S-curve — one stable lock per symbol "
-        "(no half-symbol ambiguity)"
+        f"Timing S-curve — standard Gardner: one period per symbol, "
+        f"odd-symmetric (+{err.max():.2f}/{err.min():.2f})"
     )
+    ax.axvline(zc, ls=":", color="C7", lw=0.8)
     ax.set_xlabel("timing offset [symbols]")
     ax.set_ylabel("mean Gardner error")
     ax.grid(alpha=0.3)

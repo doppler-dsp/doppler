@@ -25,8 +25,11 @@ loop is tracking an *asynchronous, non-integer* clock — `rate` reports the
 truth, which is what a caller disciplining a clock reads.
 
 **Bottom — Timing S-curve.** The Gardner error against timing offset, measured
-from the object itself: exactly **one stable lock per symbol** (the
-negative-going zero) and one unstable point half a symbol away.
+from the object itself (loop frozen, noiseless, every symbol's error averaged
+through its telemetry). It is the **standard Gardner S-curve** — one period per
+symbol, odd-symmetric, with the stable lock (negative-going zero) and the
+unstable point exactly half a symbol apart. Nothing about the fusion changes
+the detector; only the filter it reads from is different.
 
 ## How it works
 

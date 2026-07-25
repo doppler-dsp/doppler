@@ -736,6 +736,164 @@ class SymbolSync:
     def __exit__(self, *args: object) -> None: ...
 
 @final
+class RateSync:
+    """RateSync component.
+
+    Parameters
+    ----------
+    sps : float, default 4.0
+        Nominal samples per symbol. Any double >= `m` -- 17.33389 is as valid as 4, because the terminal stage's accumulator is a double and the loop only has to steer the strobe. That is the real-world case whenever the ADC clock is free-running against the symbol clock.
+    pulse : Literal["iandd", "rrc"], default "rrc"
+        Matched-filter pulse shape: "rrc" (root-raised cosine, roll-off `beta`) or "iandd" (unit rectangle one symbol wide -- the matched filter for a rectangular symbol, and exactly what an integrate-and-dump computes). The rectangle needs far fewer taps, so an NRZ link's matched filter is cheaper.
+    beta : float, default 0.35
+        beta constructor parameter.
+    span : int, default 8
+        span constructor parameter.
+    m : int, default 2
+        Terminal outputs per symbol: even, 2 <= m <= 8. Gardner needs a transition gate half a symbol from the on-time strobe, which is why m must be even and at least 2. The oversampled stream is a by-product of the same dot products, not an extra cost. Use m >= 4 with pulse="iandd": the rectangle is one symbol wide, so at m=2 its matched filter is a 2-tap sum and the eye statistic barely opens (measured lock_stat -0.34 at m=2 against +0.95 at m=4 on the same NRZ stream). The RRC spans many symbols and is unaffected.
+    num_phases : int, default 1024
+        Matched-filter arms; a power of two. Sets the fractional-timing resolution to 1/num_phases of an output period.
+    bn : float, default 0.01
+        bn constructor parameter.
+    zeta : float, default 0.707
+        zeta constructor parameter.
+    ted : Literal["gardner", "dttl"], default "gardner"
+        Timing-error detector: "gardner" (blind, works for any constellation) or "dttl" (decision-directed sign-sign Data Transition Tracking Loop; lower self-noise near lock but degrades faster at low SNR. BPSK/QPSK only -- invalid for 8PSK/QAM).
+
+    Examples
+    --------
+    Create with defaults:
+
+    >>> from doppler.track import RateSync
+    >>> obj = RateSync(sps=4.0, pulse="rrc", beta=0.35, span=8, m=2, num_phases=1024, bn=0.01, zeta=0.707, ted="gardner")
+
+    """
+    def __init__(self, sps: float = ..., pulse: Literal["iandd", "rrc"] = "rrc", beta: float = ..., span: int = ..., m: int = ..., num_phases: int = ..., bn: float = ..., zeta: float = ..., ted: Literal["gardner", "dttl"] = "gardner") -> None: ...
+
+    def steps(self, x: NDArray[np.complex64], out: NDArray[np.complex64] | None = None) -> NDArray[np.complex64]:
+        """Recover symbols from an oversampled cf32 baseband block. The owned RateConverter's terminal stage IS the matched filter, and the polyphase arm its accumulator selects IS the fractional timing delay, so one dot product does the rate conversion, the matched filtering and the interpolation. Every m-th output is an on-time strobe and the output m/2 back is the transition gate; a Gardner or DTTL detector drives a PI loop that steers the terminal stage's control port. State carries across calls, so contiguous blocks give the same symbols as one large block.
+
+        ratesync_step() in a loop, with the TED specialised per detector; state
+        carries across calls, so contiguous blocks give the same symbols as one
+        large block.
+
+        Parameters
+        ----------
+        x : NDArray[np.complex64]
+            Input samples.
+
+        Returns
+        -------
+        NDArray[np.complex64]
+            Symbols written to out.
+        """
+
+    def steps_max_out(self) -> int:
+        """Max output length steps() can produce for the current state."""
+
+    def set_telemetry(self, tlm: object | None, prefix: str, decim: int = 1) -> None:
+        """Attach (or detach) a telemetry context and register the probes.
+
+        Registers five probes, emitted once per recovered symbol and further
+        thinned by decim: "<prefix>.e" (normalised TED error), "<prefix>.ctrl"
+        (the per-input control steering the strobe), "<prefix>.rate" (tracked
+        samples/symbol), "<prefix>.lock" (last block-averaged lock_signal) and
+        "<prefix>.locked" (0/1). Passing NULL detaches. Setup path, never hot:
+        the context is borrowed and must outlive the attachment (SPSC rules in
+        telemetry/telemetry.h).
+
+        Parameters
+        ----------
+        tlm : object | None
+            Telemetry context to attach, or NULL to detach.
+        prefix : str
+            Probe-name prefix, e.g. "sync".
+        decim : int
+            Emit every decim-th symbol; >= 1.
+        """
+
+    def configure(self, bn: float, zeta: float) -> None:
+        """Recompute the loop gains for a new (bn, zeta); preserve the timing estimate.
+
+        Parameters
+        ----------
+        bn : float
+            Input.
+        zeta : float
+            Input.
+        """
+
+    def configure_lock_raw(self, avgs: int, up_thresh: float, down_thresh: float, n_up: int, n_down: int) -> None:
+        """Direct control of the lock detector's geometry: an explicit non-coherent block size (avgs), a split declare/drop threshold pair on lock_stat (level hysteresis), and both verify counts (time hysteresis) independently. Re-tuning clears the in-flight block sum and drops the lock so the next decision uses only looks gathered under the new config. The (pfa, pd) sizing entry point symsync exposes is deliberately not mirrored here: its constants were calibrated against symsync's own geometry by Monte Carlo, and re-exposing the formula for a different front end without repeating that validation would assert a calibration nobody measured.
+
+        The block size (avgs), a split declare/drop threshold pair on lock_stat
+        (level hysteresis) and both verify counts (time hysteresis). Re-tuning
+        clears the in-flight block sum and drops the lock, so the next decision
+        uses only looks gathered under the new config.
+
+        Parameters
+        ----------
+        avgs : int
+            Looks per decision; clamped >= 1.
+        up_thresh : float
+            Declare threshold on lock_stat.
+        down_thresh : float
+            Drop threshold; <= up_thresh for level hysteresis.
+        n_up : int
+            Consecutive above-threshold decisions to declare.
+        n_down : int
+            Consecutive below-threshold decisions to drop.
+        """
+
+    def reset(self) -> None:
+        """Re-seed the timing loop, the cascade's filter memories, the strobe ring and the prime countdown.
+        """
+
+    def state_bytes(self) -> int:
+        """Serialized state size in bytes."""
+    def get_state(self) -> bytes:
+        """Serialize the engine's mutable state to bytes."""
+    def set_state(self, blob: bytes) -> None:
+        """Restore mutable state from a get_state() blob."""
+
+    @property
+    def bn(self) -> float:
+        """Bn."""
+    @bn.setter
+    def bn(self, value: float) -> None: ...
+
+    @property
+    def timing_error(self) -> float:
+        """Last normalised TED error — the loop stress."""
+
+    @property
+    def rate(self) -> float:
+        """Smoothed tracked samples per symbol. Departs from the nominal `sps` by exactly the sample-clock offset being tracked, so it is the estimator a rate-disciplining caller reads."""
+
+    @property
+    def ctrl(self) -> float:
+        """Current per-input rate deviation steering the terminal stage's accumulator."""
+
+    @property
+    def lock_stat(self) -> float:
+        """Last block-averaged lock statistic: mean(2*(|on-time|^2-|mid|^2)/(|on-time|^2+|mid|^2)) over the configured avgs looks. This, not an error-vector magnitude, is the honest lock indicator -- a single cycle slip during acquisition drags a windowed EVM by 20 dB while the eye stays wide open at +0.75."""
+
+    @property
+    def locked(self) -> bool:
+        """Current timing-lock decision: True after the verify count of consecutive above-threshold decisions, False again after the drop count of consecutive below-threshold ones."""
+
+    @property
+    def clipped(self) -> bool:
+        """True if the cascade's CIC stage has clipped its input since the last reset(). A CIC bounds its input to +-1.0 and clips silently past that, which no timing metric reveals -- an overdriven front end degrades EVM by 25 dB with a perfectly healthy lock. Always False when the plan contains no CIC stage."""
+
+    def destroy(self) -> None:
+        """Release C resources immediately."""
+
+    def __enter__(self) -> "RateSync": ...
+
+    def __exit__(self, *args: object) -> None: ...
+
+@final
 class CarrierMpsk:
     """Create an M-PSK carrier loop instance.
 

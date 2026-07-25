@@ -273,6 +273,53 @@ symbols = ss.steps(rx)   # timing-corrected symbols
 ss.rate                  # recovered samples/symbol
 ```
 
+______________________________________________________________________
+
+## RateSync — matched filtering and timing in one dot product
+
+`RateSync` solves the same problem as `SymbolSync` and shares its detectors and
+loop, but it is built the other way round. Instead of a matched FIR followed by
+a Farrow interpolator steered by a timing NCO, it owns a
+[`RateConverter`](python-resample.md) whose **terminal stage carries the
+pulse** — so the cascade's last dot product *is* the matched filter, and the
+polyphase arm that dot product selects *is* the fractional timing delay. One
+filter, no Farrow, no separate matched-filtering pass.
+
+Two things follow from that, and they are the reason to reach for it:
+
+- **`sps` is a `double`.** 4, 17.33389, an irrational ratio, or a slowly
+    drifting clock all work by construction, because the terminal stage's
+    accumulator is a double and the loop only has to steer the strobe. That is
+    the real case whenever the ADC clock free-runs against the symbol clock.
+- **A high input rate is nearly free.** The cascade's HB/CIC stages do the bulk
+    decimation at no multiplies, so the matched-filter bank is sized by the
+    *post-decimation* rate. The bank is the same size at 4 samples per symbol and
+    at 256 — where filtering at the input rate would need thousands of taps per
+    arm.
+
+```python
+from doppler.track import RateSync
+
+rx_sync = RateSync(sps=17.33389, pulse="rrc", beta=0.35, span=8, m=2, bn=0.01)
+symbols = rx_sync.steps(rx)   # one symbol per recovered instant
+rx_sync.rate                  # tracked samples/symbol -- the clock estimate
+rx_sync.locked                # verify-counted timing-lock decision
+```
+
+Judge lock by `lock_stat` / `locked` rather than by an error-vector magnitude:
+a single cycle slip during acquisition drags a windowed EVM by 20 dB while the
+eye is wide open. And check `clipped` at least once against real input — the
+cascade inherits its CIC's ±1.0 input bound, and overdriving it costs ~25 dB
+with a perfectly healthy lock.
+
+Use `m >= 4` with `pulse="iandd"`: the rectangle is one symbol wide, so at
+`m = 2` its matched filter is a two-tap sum and the eye barely opens. The RRC
+spans many symbols and is unaffected.
+
+`SymbolSync` remains the answer when the matched filter is one this family does
+not build, or when the front end is already at a small integer `sps` and a
+Farrow interpolator is the cheaper shape.
+
 ::: doppler.track.LoopFilter
 
 ______________________________________________________________________
@@ -294,6 +341,10 @@ ______________________________________________________________________
 ______________________________________________________________________
 
 ::: doppler.track.SymbolSync
+
+______________________________________________________________________
+
+::: doppler.track.RateSync
 
 ## Related pages
 

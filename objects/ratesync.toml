@@ -22,6 +22,10 @@ depends_on = [
   { name = "telemetry", link = true },
 ]
 serializable = "true"
+# A NULL create here means a parameter was out of range, not that the machine
+# ran out of memory (gh-482). Say so.
+create_error = "ValueError"
+create_error_message = "RateSync: invalid parameter (need sps >= m, 0 <= beta <= 1, span >= 1, m even in [2, 8], num_phases a power of two >= 2, bn >= 0, zeta > 0)"
 
 [[ratesync.init_params]]
 name = "sps"
@@ -49,7 +53,7 @@ default = "8"
 name = "m"
 type = "size_t"
 default = "2"
-doc = "Terminal outputs per symbol: even, 2 <= m <= 8. Gardner needs a transition gate half a symbol from the on-time strobe, which is why m must be even and at least 2. The oversampled stream is a by-product of the same dot products, not an extra cost."
+doc = "Terminal outputs per symbol: even, 2 <= m <= 8. Gardner needs a transition gate half a symbol from the on-time strobe, which is why m must be even and at least 2. The oversampled stream is a by-product of the same dot products, not an extra cost. Use m >= 4 with pulse=\"iandd\": the rectangle is one symbol wide, so at m=2 its matched filter is a 2-tap sum and the eye statistic barely opens (measured lock_stat -0.34 at m=2 against +0.95 at m=4 on the same NRZ stream). The RRC spans many symbols and is unaffected."
 
 [[ratesync.init_params]]
 name = "num_phases"

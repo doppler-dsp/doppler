@@ -66,6 +66,7 @@ from doppler.track import (
     Dll,
     LoopFilter,
     MpskReceiver,
+    RateSync,
     SymbolSync,
 )
 from doppler.wfm import PN, Gold, _SynthEngine
@@ -331,6 +332,14 @@ CASES: dict[str, tuple[Callable[[], Any], _Feed]] = {
     ),
     "SymbolSync": (
         lambda: SymbolSync(sps=8, bn=0.01, zeta=0.707, order="cubic"),
+        _track_feed,
+    ),
+    # RateSync: a composition -- the owned RateConverter cascade and the loop
+    # filter each carry a self-validating child blob, and the strobe ring and
+    # prime countdown are running state too (a resumed instance that forgot
+    # which output was on-time would restart the parity search).
+    "RateSync": (
+        lambda: RateSync(sps=8.0, pulse="rrc", m=2, bn=0.01),
         _track_feed,
     ),
     "Despreader": (

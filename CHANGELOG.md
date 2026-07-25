@@ -15,6 +15,45 @@ ______________________________________________________________________
 
 ### Added
 
+- **`track.RateSync` — matched filtering and symbol timing in one dot
+    product.** Where `SymbolSync` runs a matched FIR and then a Farrow
+    interpolator steered by a timing NCO, `RateSync` owns a `RateConverter`
+    whose **terminal stage carries the pulse**: the cascade's last dot product
+    *is* the matched filter, and the polyphase arm it selects *is* the
+    fractional timing delay. It builds no filters of its own.
+
+    Two consequences, and they are the point:
+
+    - **`sps` is a `double`** — 4, 17.33389, an irrational ratio, or a slowly
+        drifting clock all work by construction, because the terminal stage's
+        accumulator is a double and the loop only steers the strobe. That is
+        the real case whenever the ADC clock free-runs against the symbol
+        clock.
+    - **A high input rate is nearly free.** The cascade's HB/CIC stages do the
+        bulk decimation at no multiplies, so the bank is sized by the
+        post-decimation rate — the same size at 4 samples per symbol as at 256,
+        where filtering at the input rate would need thousands of taps per arm.
+
+    Measured on RRC-BPSK, noiseless, from every initial timing offset:
+    **8/8 lock at all three planned cascade shapes**, EVM −40.1 dB (sps=4,
+    halfband), −37.4 dB (sps=17.333, `CIC(8)` + fractional terminal) and
+    −37.3 dB (sps=64, `CIC(32)`), tracking a ±1000 ppm clock offset to within
+    0.01 samples/symbol. Gardner or DTTL detector, telemetry, a verify-counted
+    lock detector and full state serialization, composing the cascade's and the
+    loop filter's child blobs.
+
+    Two design notes worth reading before use. Judge lock by `lock_stat` /
+    `locked`, not by an error-vector magnitude — a single cycle slip during
+    acquisition drags a windowed EVM by 20 dB while the eye stays wide open.
+    And use `m >= 4` with `pulse="iandd"`: the rectangle is one symbol wide, so
+    at `m = 2` its matched filter is a two-tap sum and the eye barely opens
+    (measured `lock_stat` −0.34 at m=2 against +0.95 at m=4 on the same NRZ
+    stream); the RRC spans many symbols and is unaffected.
+
+    `SymbolSync` is unchanged and remains the answer when the matched filter is
+    not one this family builds, or when the front end is already at a small
+    integer `sps`.
+
 - **`CIC.clipped` / `RateConverter.clipped` — the input bound stops being a
     silent one.** `cic_core` quantizes at its boundary, so its input amplitude
     is bounded to `|Re|, |Im| <= 1.0` and anything past that is clipped before

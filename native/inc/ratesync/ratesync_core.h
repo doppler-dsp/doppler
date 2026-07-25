@@ -223,6 +223,12 @@ extern "C"
    *                    RATESYNC_MAX_M`. Gardner needs the half-symbol gate,
    *                    so m must be even and at least 2. The oversampled
    *                    stream is a by-product, not an extra cost.
+   *                    **Use m >= 4 with RATESYNC_PULSE_IANDD**: the
+   *                    rectangle is one symbol wide, so at m = 2 its matched
+   *                    filter is a two-tap sum and the eye barely opens
+   *                    (measured lock_stat -0.34 at m = 2 against +0.95 at
+   *                    m = 4 on the same NRZ stream). The RRC spans many
+   *                    symbols and is unaffected.
    * @param num_phases  Matched-filter arms; power of two (1024 is a good
    *                    default). Sets the fractional-timing resolution to
    *                    `1/num_phases` of an output period.

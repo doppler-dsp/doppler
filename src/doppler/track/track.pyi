@@ -750,7 +750,7 @@ class RateSync:
     span : int, default 8
         span constructor parameter.
     m : int, default 2
-        Terminal outputs per symbol: even, 2 <= m <= 8. Gardner needs a transition gate half a symbol from the on-time strobe, which is why m must be even and at least 2. The oversampled stream is a by-product of the same dot products, not an extra cost.
+        Terminal outputs per symbol: even, 2 <= m <= 8. Gardner needs a transition gate half a symbol from the on-time strobe, which is why m must be even and at least 2. The oversampled stream is a by-product of the same dot products, not an extra cost. Use m >= 4 with pulse="iandd": the rectangle is one symbol wide, so at m=2 its matched filter is a 2-tap sum and the eye statistic barely opens (measured lock_stat -0.34 at m=2 against +0.95 at m=4 on the same NRZ stream). The RRC spans many symbols and is unaffected.
     num_phases : int, default 1024
         Matched-filter arms; a power of two. Sets the fractional-timing resolution to 1/num_phases of an output period.
     bn : float, default 0.01

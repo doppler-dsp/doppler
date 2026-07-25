@@ -13,8 +13,9 @@
  *
  * The unsigned modular-arithmetic CIC property holds unconditionally for
  * uint64_t: every overflow in the integrators cancels exactly in the comb
- * subtractions.  No saturation logic, no range checks, no floating-point
- * in the inner loop.
+ * subtractions — so the integrator/comb pipeline needs no saturation logic,
+ * no range checks and no floating-point.  Saturation happens once, at the
+ * encoder above, and is the bound the caller sees.
  *
  * The hot path is fully unrolled (CIC_N=4 stages, M=1 comb).
  */

@@ -41,8 +41,11 @@
  *
  * The unsigned modular-arithmetic CIC property guarantees exact outputs:
  * every intermediate overflow in the integrators cancels in the comb
- * stages, provided the true result fits in 64 bits.  No saturation,
- * no range checks, no floating-point in the inner loop.
+ * stages, provided the true result fits in 64 bits.  So the integrator/comb
+ * pipeline itself needs no saturation, no range checks and no
+ * floating-point — the one saturation in the block is at the CF32 encoder,
+ * and it is the +-1.0 input bound described at the top of this file, not an
+ * arithmetic guard.
  *
  * With M=1 and N fixed, the entire comb state is four uint64_t values
  * per channel — no heap allocation beyond the state struct itself.

@@ -1,6 +1,6 @@
-/* bench_rrcsync_core.c — no step() to benchmark */
+/* bench_ratesync_core.c — no step() to benchmark */
 #include "jm_bench.h"
-#include "rrcsync/rrcsync_core.h"
+#include "ratesync/ratesync_core.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
@@ -18,15 +18,17 @@ elapsed_sec (struct timespec *t0, struct timespec *t1)
 int
 main (void)
 {
-  rrcsync_state_t *obj = rrcsync_create (4.0, 0.35, 8, 1024, 0.005, 0.707, 0);
-  struct timespec  t0, t1;
-  jm_bench_t       _bench = { 0 };
+  ratesync_state_t *obj
+      = ratesync_create (4.0, RATESYNC_PULSE_RRC, 0.35, 8, 1024, 0.005, 0.707,
+                         RATESYNC_TED_GARDNER);
+  struct timespec t0, t1;
+  jm_bench_t      _bench = { 0 };
 
-  printf ("=== rrcsync benchmark ===\n");
+  printf ("=== ratesync benchmark ===\n");
   printf ("  (no step(); methods below)\n");
   printf ("block = %d samples,  %d iterations\n\n", BENCH_N, ITERATIONS);
 
-  jm_bench_write_json (&_bench, "rrcsync");
-  rrcsync_destroy (obj);
+  jm_bench_write_json (&_bench, "ratesync");
+  ratesync_destroy (obj);
   return 0;
 }

@@ -1,4 +1,4 @@
-#include "rrcsync/rrcsync_core.h"
+#include "ratesync/ratesync_core.h"
 #include "wfm/wfm_dsp.h"
 
 #include <complex.h>
@@ -96,12 +96,12 @@ test_bank_convention (void)
 {
   const size_t P = 64, span = SPAN;
   const double sps   = 4.0;
-  size_t       ntaps = rrcsync_bank_ntaps (RRCSYNC_PULSE_RRC, sps, span);
+  size_t       ntaps = ratesync_bank_ntaps (RATESYNC_PULSE_RRC, sps, span);
   float       *bank  = malloc (P * ntaps * sizeof (float));
   CHECK (bank != NULL);
   if (!bank)
     return;
-  rrcsync_bank (RRCSYNC_PULSE_RRC, BETA, sps, span, P, ntaps, 0.0, bank);
+  ratesync_bank (RATESYNC_PULSE_RRC, BETA, sps, span, P, ntaps, 0.0, bank);
 
   /* Continuity across the arm wrap: the last arm of tap t sits one arm step
      short of arm 0 of tap t-1 (one full output period earlier == sps taps
@@ -111,8 +111,8 @@ test_bank_convention (void)
   for (size_t p = 0; p < P; p++)
     for (size_t t = 0; t < ntaps; t++)
       {
-        double want = rrcsync_pulse_h (
-            RRCSYNC_PULSE_RRC,
+        double want = ratesync_pulse_h (
+            RATESYNC_PULSE_RRC,
             -(double)t / sps + (double)span + (double)p / (double)P, BETA);
         double got = (double)bank[p * ntaps + t];
         double d   = fabs (got - want);
@@ -149,21 +149,23 @@ test_step_equals_steps (void)
   int8_t        syms[NSYM];
   size_t        n = gen_bpsk (sps, 0.37, NSYM, 12345u, x, 4096, syms);
 
-  rrcsync_state_t *a = rrcsync_create (sps, RRCSYNC_PULSE_RRC, BETA, SPAN, 256,
-                                       0.005, 0.707, RRCSYNC_TED_GARDNER);
-  rrcsync_state_t *b = rrcsync_create (sps, RRCSYNC_PULSE_RRC, BETA, SPAN, 256,
-                                       0.005, 0.707, RRCSYNC_TED_GARDNER);
+  ratesync_state_t *a
+      = ratesync_create (sps, RATESYNC_PULSE_RRC, BETA, SPAN, 256, 0.005,
+                         0.707, RATESYNC_TED_GARDNER);
+  ratesync_state_t *b
+      = ratesync_create (sps, RATESYNC_PULSE_RRC, BETA, SPAN, 256, 0.005,
+                         0.707, RATESYNC_TED_GARDNER);
   CHECK (a && b);
   if (!a || !b)
     return;
 
   float complex ya[2048], yb[2048];
-  size_t        na = rrcsync_steps (a, x, n, ya, 2048);
+  size_t        na = ratesync_steps (a, x, n, ya, 2048);
   size_t        nb = 0;
   for (size_t i = 0; i < n; i++)
     {
       float complex y;
-      if (rrcsync_step (b, x[i], &y) && nb < 2048)
+      if (ratesync_step (b, x[i], &y) && nb < 2048)
         yb[nb++] = y;
     }
   CHECK (na == nb);
@@ -173,8 +175,8 @@ test_step_equals_steps (void)
     if (ya[i] != yb[i])
       exact = 0;
   CHECK (exact);
-  rrcsync_destroy (a);
-  rrcsync_destroy (b);
+  ratesync_destroy (a);
+  ratesync_destroy (b);
 }
 
 /* Arbitrary-rate lock: a non-integer sps, an arbitrary fractional timing
@@ -192,26 +194,26 @@ test_arbitrary_rate_locks (void)
       size_t n
           = gen_bpsk (sps, 0.37, nsym, 999u + (uint32_t)r, x, 200000, syms);
 
-      rrcsync_state_t *s
-          = rrcsync_create (sps, RRCSYNC_PULSE_RRC, BETA, SPAN, 1024, 0.005,
-                            0.707, RRCSYNC_TED_GARDNER);
+      ratesync_state_t *s
+          = ratesync_create (sps, RATESYNC_PULSE_RRC, BETA, SPAN, 1024, 0.005,
+                             0.707, RATESYNC_TED_GARDNER);
       CHECK (s != NULL);
       if (!s)
         return;
       static float complex y[3200];
-      size_t               ny = rrcsync_steps (s, x, n, y, 3200);
+      size_t               ny = ratesync_steps (s, x, n, y, 3200);
       CHECK (ny > nsym / 2);
       /* settled tail only — acquisition is allowed a transient */
       size_t skip = ny / 4;
       double evm  = evm_self (y + skip, ny - skip);
       CHECK (evm < 0.05);
       /* the tracked rate must recover the true samples/symbol */
-      CHECK (fabs (rrcsync_get_rate (s) - sps) < 0.01 * sps);
-      CHECK (rrcsync_get_locked (s) == 1);
+      CHECK (fabs (ratesync_get_rate (s) - sps) < 0.01 * sps);
+      CHECK (ratesync_get_locked (s) == 1);
       if (evm >= 0.05)
         fprintf (stderr, "  sps=%g evm=%g rate=%g\n", sps, evm,
-                 rrcsync_get_rate (s));
-      rrcsync_destroy (s);
+                 ratesync_get_rate (s));
+      ratesync_destroy (s);
     }
 }
 
@@ -256,27 +258,27 @@ test_rectangular_pulse_locks (void)
       size_t nsym = 3000;
       size_t n    = gen_nrz (sps, 0.37, nsym, 555u + (uint32_t)r, x, 120000);
 
-      rrcsync_state_t *s
-          = rrcsync_create (sps, RRCSYNC_PULSE_IANDD, 0.0, 1, 1024, 0.005,
-                            0.707, RRCSYNC_TED_GARDNER);
+      ratesync_state_t *s
+          = ratesync_create (sps, RATESYNC_PULSE_IANDD, 0.0, 1, 1024, 0.005,
+                             0.707, RATESYNC_TED_GARDNER);
       CHECK (s != NULL);
       if (!s)
         return;
       /* one symbol of support, not 2*span — the whole point of the shape */
-      CHECK (rrcsync_bank_ntaps (RRCSYNC_PULSE_IANDD, sps, 8)
-             < rrcsync_bank_ntaps (RRCSYNC_PULSE_RRC, sps, 8) / 4);
+      CHECK (ratesync_bank_ntaps (RATESYNC_PULSE_IANDD, sps, 8)
+             < ratesync_bank_ntaps (RATESYNC_PULSE_RRC, sps, 8) / 4);
 
       static float complex y[3200];
-      size_t               ny = rrcsync_steps (s, x, n, y, 3200);
+      size_t               ny = ratesync_steps (s, x, n, y, 3200);
       CHECK (ny > nsym / 2);
       size_t skip = ny / 4;
       double evm  = evm_self (y + skip, ny - skip);
       CHECK (evm < 0.10);
-      CHECK (fabs (rrcsync_get_rate (s) - sps) < 0.01 * sps);
+      CHECK (fabs (ratesync_get_rate (s) - sps) < 0.01 * sps);
       if (evm >= 0.10)
         fprintf (stderr, "  iandd sps=%g evm=%g rate=%g\n", sps, evm,
-                 rrcsync_get_rate (s));
-      rrcsync_destroy (s);
+                 ratesync_get_rate (s));
+      ratesync_destroy (s);
     }
 }
 
@@ -295,19 +297,19 @@ test_tracks_clock_offset (void)
       int8_t syms[6000];
       size_t n = gen_bpsk (true_sps, 0.11, 6000, 4242u, x, 80000, syms);
 
-      rrcsync_state_t *s
-          = rrcsync_create (nominal, RRCSYNC_PULSE_RRC, BETA, SPAN, 1024,
-                            0.005, 0.707, RRCSYNC_TED_GARDNER);
+      ratesync_state_t *s
+          = ratesync_create (nominal, RATESYNC_PULSE_RRC, BETA, SPAN, 1024,
+                             0.005, 0.707, RATESYNC_TED_GARDNER);
       CHECK (s != NULL);
       if (!s)
         return;
       static float complex y[6400];
-      size_t               ny   = rrcsync_steps (s, x, n, y, 6400);
+      size_t               ny   = ratesync_steps (s, x, n, y, 6400);
       size_t               skip = ny / 3;
       CHECK (evm_self (y + skip, ny - skip) < 0.05);
       /* within 20 ppm of the true rate */
-      CHECK (fabs (rrcsync_get_rate (s) - true_sps) < 20e-6 * nominal * 4.0);
-      rrcsync_destroy (s);
+      CHECK (fabs (ratesync_get_rate (s) - true_sps) < 20e-6 * nominal * 4.0);
+      ratesync_destroy (s);
     }
 }
 
@@ -322,32 +324,34 @@ test_state_roundtrip (void)
   size_t               n    = gen_bpsk (sps, 0.37, 1200, 77u, x, 6000, syms);
   size_t               half = n / 2;
 
-  rrcsync_state_t *a = rrcsync_create (sps, RRCSYNC_PULSE_RRC, BETA, SPAN, 256,
-                                       0.005, 0.707, RRCSYNC_TED_GARDNER);
+  ratesync_state_t *a
+      = ratesync_create (sps, RATESYNC_PULSE_RRC, BETA, SPAN, 256, 0.005,
+                         0.707, RATESYNC_TED_GARDNER);
   CHECK (a != NULL);
   if (!a)
     return;
   static float complex ya[2048], yb[2048];
-  (void)rrcsync_steps (a, x, half, ya, 2048);
+  (void)ratesync_steps (a, x, half, ya, 2048);
 
-  size_t nb   = rrcsync_state_bytes (a);
+  size_t nb   = ratesync_state_bytes (a);
   void  *blob = malloc (nb);
   CHECK (blob != NULL);
   if (!blob)
     return;
-  rrcsync_get_state (a, blob);
+  ratesync_get_state (a, blob);
 
-  rrcsync_state_t *b = rrcsync_create (sps, RRCSYNC_PULSE_RRC, BETA, SPAN, 256,
-                                       0.005, 0.707, RRCSYNC_TED_GARDNER);
+  ratesync_state_t *b
+      = ratesync_create (sps, RATESYNC_PULSE_RRC, BETA, SPAN, 256, 0.005,
+                         0.707, RATESYNC_TED_GARDNER);
   CHECK (b != NULL);
   if (!b)
     return;
-  CHECK (rrcsync_state_bytes (b) == nb);
-  CHECK (rrcsync_set_state (b, blob) == DP_OK);
+  CHECK (ratesync_state_bytes (b) == nb);
+  CHECK (ratesync_set_state (b, blob) == DP_OK);
 
   /* Both continue on the same tail; the symbols must match exactly. */
-  size_t na2 = rrcsync_steps (a, x + half, n - half, ya, 2048);
-  size_t nb2 = rrcsync_steps (b, x + half, n - half, yb, 2048);
+  size_t na2 = ratesync_steps (a, x + half, n - half, ya, 2048);
+  size_t nb2 = ratesync_steps (b, x + half, n - half, yb, 2048);
   CHECK (na2 == nb2);
   int exact = 1;
   for (size_t i = 0; i < na2 && i < nb2; i++)
@@ -365,8 +369,8 @@ test_state_roundtrip (void)
   CHECK (blob_a && blob_b);
   if (blob_a && blob_b)
     {
-      rrcsync_get_state (a, blob_a);
-      rrcsync_get_state (b, blob_b);
+      ratesync_get_state (a, blob_a);
+      ratesync_get_state (b, blob_b);
       CHECK (memcmp (blob_a, blob_b, nb) == 0);
     }
   free (blob_a);
@@ -374,11 +378,11 @@ test_state_roundtrip (void)
 
   /* Envelope reject: clobber the magic. */
   ((uint8_t *)blob)[0] ^= 0xFFu;
-  CHECK (rrcsync_set_state (b, blob) == DP_ERR_INVALID);
+  CHECK (ratesync_set_state (b, blob) == DP_ERR_INVALID);
 
   free (blob);
-  rrcsync_destroy (a);
-  rrcsync_destroy (b);
+  ratesync_destroy (a);
+  ratesync_destroy (b);
 }
 
 /* Constructor validation: every out-of-range parameter must be refused
@@ -386,31 +390,32 @@ test_state_roundtrip (void)
 static void
 test_create_validation (void)
 {
-  CHECK (
-      rrcsync_create (0.5, RRCSYNC_PULSE_RRC, BETA, SPAN, 256, 0.005, 0.707, 0)
-      == NULL);
-  CHECK (
-      rrcsync_create (4.0, RRCSYNC_PULSE_RRC, -0.1, SPAN, 256, 0.005, 0.707, 0)
-      == NULL);
-  CHECK (
-      rrcsync_create (4.0, RRCSYNC_PULSE_RRC, 1.1, SPAN, 256, 0.005, 0.707, 0)
-      == NULL);
-  CHECK (rrcsync_create (4.0, RRCSYNC_PULSE_RRC, BETA, 0, 256, 0.005, 0.707, 0)
+  CHECK (ratesync_create (0.5, RATESYNC_PULSE_RRC, BETA, SPAN, 256, 0.005,
+                          0.707, 0)
+         == NULL);
+  CHECK (ratesync_create (4.0, RATESYNC_PULSE_RRC, -0.1, SPAN, 256, 0.005,
+                          0.707, 0)
+         == NULL);
+  CHECK (ratesync_create (4.0, RATESYNC_PULSE_RRC, 1.1, SPAN, 256, 0.005,
+                          0.707, 0)
          == NULL);
   CHECK (
-      rrcsync_create (4.0, RRCSYNC_PULSE_RRC, BETA, SPAN, 300, 0.005, 0.707, 0)
+      ratesync_create (4.0, RATESYNC_PULSE_RRC, BETA, 0, 256, 0.005, 0.707, 0)
       == NULL);
+  CHECK (ratesync_create (4.0, RATESYNC_PULSE_RRC, BETA, SPAN, 300, 0.005,
+                          0.707, 0)
+         == NULL);
+  CHECK (ratesync_create (4.0, RATESYNC_PULSE_RRC, BETA, SPAN, 256, -1.0,
+                          0.707, 0)
+         == NULL);
   CHECK (
-      rrcsync_create (4.0, RRCSYNC_PULSE_RRC, BETA, SPAN, 256, -1.0, 0.707, 0)
+      ratesync_create (4.0, RATESYNC_PULSE_RRC, BETA, SPAN, 256, 0.005, 0.0, 0)
       == NULL);
-  CHECK (
-      rrcsync_create (4.0, RRCSYNC_PULSE_RRC, BETA, SPAN, 256, 0.005, 0.0, 0)
-      == NULL);
-  CHECK (rrcsync_create (4.0, 7, BETA, SPAN, 256, 0.005, 0.707, 0) == NULL);
+  CHECK (ratesync_create (4.0, 7, BETA, SPAN, 256, 0.005, 0.707, 0) == NULL);
   /* NaN must be refused too, not smuggled through a >= comparison. */
-  CHECK (
-      rrcsync_create (NAN, RRCSYNC_PULSE_RRC, BETA, SPAN, 256, 0.005, 0.707, 0)
-      == NULL);
+  CHECK (ratesync_create (NAN, RATESYNC_PULSE_RRC, BETA, SPAN, 256, 0.005,
+                          0.707, 0)
+         == NULL);
 }
 
 int
@@ -426,9 +431,9 @@ main (void)
 
   if (_fails)
     {
-      fprintf (stderr, "test_rrcsync_core FAILED (%d)\n", _fails);
+      fprintf (stderr, "test_ratesync_core FAILED (%d)\n", _fails);
       return 1;
     }
-  printf ("test_rrcsync_core PASSED\n");
+  printf ("test_ratesync_core PASSED\n");
   return 0;
 }

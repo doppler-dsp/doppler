@@ -736,8 +736,8 @@ class SymbolSync:
     def __exit__(self, *args: object) -> None: ...
 
 @final
-class RrcSync:
-    """Create an RrcSync instance.
+class RateSync:
+    """Create an RateSync instance.
 
     Parameters
     ----------
@@ -762,8 +762,8 @@ class RrcSync:
     --------
     Create with defaults:
 
-    >>> from doppler.track import RrcSync
-    >>> obj = RrcSync(sps=4.0, pulse="rrc", beta=0.35, span=8, num_phases=1024, bn=0.005, zeta=0.707, ted="gardner")
+    >>> from doppler.track import RateSync
+    >>> obj = RateSync(sps=4.0, pulse="rrc", beta=0.35, span=8, num_phases=1024, bn=0.005, zeta=0.707, ted="gardner")
 
     """
     def __init__(self, sps: float = ..., pulse: Literal["iandd", "rrc"] = "rrc", beta: float = ..., span: int = ..., num_phases: int = ..., bn: float = ..., zeta: float = ..., ted: Literal["gardner", "dttl"] = "gardner") -> None: ...
@@ -771,7 +771,7 @@ class RrcSync:
     def steps(self, x: NDArray[np.complex64], out: NDArray[np.complex64] | None = None) -> NDArray[np.complex64]:
         """Recover symbols from an oversampled cf32 baseband block. The polyphase bank IS the root-raised-cosine matched filter and the arm its accumulator selects IS the fractional timing delay, so one dot product per strobe does both jobs -- no separate matched FIR and Farrow interpolator. A second bank displaced half a symbol supplies the Gardner transition-gate sample, which pins the on-time/mid roles structurally instead of by an output parity. Emits one symbol per recovered symbol period.
 
-        rrcsync_step() in a loop, with the TED specialised per detector; state
+        ratesync_step() in a loop, with the TED specialised per detector; state
         carries across calls, so contiguous blocks give the same symbols as one
         large block.
 
@@ -883,7 +883,7 @@ class RrcSync:
     def destroy(self) -> None:
         """Release C resources immediately."""
 
-    def __enter__(self) -> "RrcSync": ...
+    def __enter__(self) -> "RateSync": ...
 
     def __exit__(self, *args: object) -> None: ...
 

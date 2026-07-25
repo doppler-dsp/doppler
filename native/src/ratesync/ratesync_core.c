@@ -1,12 +1,12 @@
 /*
- * rrcsync_core.c — RRC matched filter fused with symbol-timing recovery.
+ * ratesync_core.c — RRC matched filter fused with symbol-timing recovery.
  *
  * The object owns two `resamp` children built from RRC banks that differ
  * only by a half-symbol displacement, both run at rate = 1/sps through the
- * streaming control port. See rrcsync_core.h for why the roles are pinned
+ * streaming control port. See ratesync_core.h for why the roles are pinned
  * that way rather than by an even/odd output parity.
  */
-#include "rrcsync/rrcsync_core.h"
+#include "ratesync/ratesync_core.h"
 
 #include "wfm/wfm_dsp.h" /* wfm_rrc_h — the RRC formula's one home */
 
@@ -28,18 +28,18 @@
  * NOT mirrored here: its constants were calibrated against symsync's own
  * geometry by Monte Carlo, and re-exposing the formula for a different
  * front end without repeating that validation would be asserting a
- * calibration nobody measured. rrcsync_configure_lock_raw() exposes every
+ * calibration nobody measured. ratesync_configure_lock_raw() exposes every
  * knob for a caller that sizes its own, and a validated sizing entry point
  * can be added once the same Monte Carlo is run against this object. */
-#define RRCSYNC_LOCK_DEFAULT_AVGS 133u
-#define RRCSYNC_LOCK_DEFAULT_THRESH 0.311
-#define RRCSYNC_LOCK_DEFAULT_N_UP 1u
-#define RRCSYNC_LOCK_DEFAULT_N_DOWN 8u
+#define RATESYNC_LOCK_DEFAULT_AVGS 133u
+#define RATESYNC_LOCK_DEFAULT_THRESH 0.311
+#define RATESYNC_LOCK_DEFAULT_N_UP 1u
+#define RATESYNC_LOCK_DEFAULT_N_DOWN 8u
 
 double
-rrcsync_pulse_h (int pulse, double t, double beta)
+ratesync_pulse_h (int pulse, double t, double beta)
 {
-  if (pulse == RRCSYNC_PULSE_IANDD)
+  if (pulse == RATESYNC_PULSE_IANDD)
     /* Unit rectangle over one symbol — the matched filter for a rectangular
        symbol, and exactly what an integrate-and-dump computes. Half-open at
        the trailing edge so two adjacent symbols never both claim t = ±0.5. */
@@ -48,25 +48,25 @@ rrcsync_pulse_h (int pulse, double t, double beta)
 }
 
 double
-rrcsync_pulse_support (int pulse, size_t span)
+ratesync_pulse_support (int pulse, size_t span)
 {
   /* The rectangle is one symbol wide whatever `span` says. */
-  return pulse == RRCSYNC_PULSE_IANDD ? 0.5 : (double)span;
+  return pulse == RATESYNC_PULSE_IANDD ? 0.5 : (double)span;
 }
 
 size_t
-rrcsync_bank_ntaps (int pulse, double sps, size_t span)
+ratesync_bank_ntaps (int pulse, double sps, size_t span)
 {
-  double support = rrcsync_pulse_support (pulse, span);
+  double support = ratesync_pulse_support (pulse, span);
   return (size_t)ceil ((2.0 * support + 0.5) * sps) + 1u;
 }
 
 void
-rrcsync_bank (int pulse, double beta, double sps, size_t span,
-              size_t num_phases, size_t num_taps, double offset_sym,
-              float *bank)
+ratesync_bank (int pulse, double beta, double sps, size_t span,
+               size_t num_phases, size_t num_taps, double offset_sym,
+               float *bank)
 {
-  double support = rrcsync_pulse_support (pulse, span);
+  double support = ratesync_pulse_support (pulse, span);
   for (size_t p = 0; p < num_phases; p++)
     {
       /* Arm p moves the sampling instant by p/num_phases of an output
@@ -78,27 +78,27 @@ rrcsync_bank (int pulse, double beta, double sps, size_t span,
         {
           /* tap t multiplies x[n-t]: the delay line is newest-first. */
           double ts = -(double)t / sps + support + offset_sym + arm;
-          bank[p * num_taps + t] = (float)rrcsync_pulse_h (pulse, ts, beta);
+          bank[p * num_taps + t] = (float)ratesync_pulse_h (pulse, ts, beta);
         }
     }
 }
 
-rrcsync_state_t *
-rrcsync_create (double sps, int pulse, double beta, size_t span,
-                size_t num_phases, double bn, double zeta, int ted)
+ratesync_state_t *
+ratesync_create (double sps, int pulse, double beta, size_t span,
+                 size_t num_phases, double bn, double zeta, int ted)
 {
   /* Written as !(x >= y) so a NaN parameter is rejected, not accepted. */
   if (!(sps >= 1.0) || !(beta >= 0.0) || !(beta <= 1.0) || span < 1
       || num_phases < 2u || (num_phases & (num_phases - 1u)) != 0u
       || !(bn >= 0.0) || !(zeta > 0.0)
-      || (pulse != RRCSYNC_PULSE_IANDD && pulse != RRCSYNC_PULSE_RRC))
+      || (pulse != RATESYNC_PULSE_IANDD && pulse != RATESYNC_PULSE_RRC))
     return NULL;
 
-  rrcsync_state_t *s = calloc (1, sizeof (*s));
+  ratesync_state_t *s = calloc (1, sizeof (*s));
   if (!s)
     return NULL;
 
-  size_t ntaps = rrcsync_bank_ntaps (pulse, sps, span);
+  size_t ntaps = ratesync_bank_ntaps (pulse, sps, span);
   float *b_on  = malloc (num_phases * ntaps * sizeof (float));
   float *b_mid = malloc (num_phases * ntaps * sizeof (float));
   if (!b_on || !b_mid)
@@ -109,8 +109,8 @@ rrcsync_create (double sps, int pulse, double beta, size_t span,
       return NULL;
     }
 
-  rrcsync_bank (pulse, beta, sps, span, num_phases, ntaps, 0.0, b_on);
-  rrcsync_bank (pulse, beta, sps, span, num_phases, ntaps, 0.5, b_mid);
+  ratesync_bank (pulse, beta, sps, span, num_phases, ntaps, 0.0, b_on);
+  ratesync_bank (pulse, beta, sps, span, num_phases, ntaps, 0.5, b_mid);
 
   /* ONE common scale for both banks: the TED and the lock statistic compare
      |on| against |mid| directly, so normalising each bank independently
@@ -132,7 +132,7 @@ rrcsync_create (double sps, int pulse, double beta, size_t span,
   free (b_mid);
   if (!s->mf_on || !s->mf_mid)
     {
-      rrcsync_destroy (s);
+      ratesync_destroy (s);
       return NULL;
     }
 
@@ -144,20 +144,21 @@ rrcsync_create (double sps, int pulse, double beta, size_t span,
   s->num_taps   = ntaps;
   s->bn         = bn;
   s->zeta       = zeta;
-  s->ted = (ted == RRCSYNC_TED_DTTL) ? RRCSYNC_TED_DTTL : RRCSYNC_TED_GARDNER;
+  s->ted
+      = (ted == RATESYNC_TED_DTTL) ? RATESYNC_TED_DTTL : RATESYNC_TED_GARDNER;
   s->rate_est = sps;
   s->pwr_avg  = 1.0;
-  s->avgs     = RRCSYNC_LOCK_DEFAULT_AVGS;
+  s->avgs     = RATESYNC_LOCK_DEFAULT_AVGS;
 
   loop_filter_init (&s->lf, bn, zeta, 1.0); /* one update per SYMBOL */
-  lockdet_init (&s->lock, RRCSYNC_LOCK_DEFAULT_THRESH,
-                RRCSYNC_LOCK_DEFAULT_THRESH, RRCSYNC_LOCK_DEFAULT_N_UP,
-                RRCSYNC_LOCK_DEFAULT_N_DOWN);
+  lockdet_init (&s->lock, RATESYNC_LOCK_DEFAULT_THRESH,
+                RATESYNC_LOCK_DEFAULT_THRESH, RATESYNC_LOCK_DEFAULT_N_UP,
+                RATESYNC_LOCK_DEFAULT_N_DOWN);
   return s;
 }
 
 void
-rrcsync_destroy (rrcsync_state_t *s)
+ratesync_destroy (ratesync_state_t *s)
 {
   if (!s)
     return;
@@ -167,7 +168,7 @@ rrcsync_destroy (rrcsync_state_t *s)
 }
 
 void
-rrcsync_reset (rrcsync_state_t *s)
+ratesync_reset (ratesync_state_t *s)
 {
   resamp_reset (s->mf_on);
   resamp_reset (s->mf_mid);
@@ -185,39 +186,39 @@ rrcsync_reset (rrcsync_state_t *s)
 }
 
 size_t
-rrcsync_steps_max_out (rrcsync_state_t *s)
+ratesync_steps_max_out (ratesync_state_t *s)
 {
   (void)s;
   return 0;
 }
 
 size_t
-rrcsync_steps (rrcsync_state_t *s, const float complex *x, size_t x_len,
-               float complex *out, size_t max_out)
+ratesync_steps (ratesync_state_t *s, const float complex *x, size_t x_len,
+                float complex *out, size_t max_out)
 {
   size_t        emitted = 0;
   float complex y;
   /* The TED selection is hoisted out of the hot loop so the force-inlined
      body constant-folds the detector branch away (symsync measured ~30%
      for the same specialisation). */
-  if (s->ted == RRCSYNC_TED_DTTL)
+  if (s->ted == RATESYNC_TED_DTTL)
     {
       for (size_t i = 0; i < x_len && emitted < max_out; i++)
-        if (rrcsync_step_ted (s, x[i], &y, RRCSYNC_TED_DTTL))
+        if (ratesync_step_ted (s, x[i], &y, RATESYNC_TED_DTTL))
           {
             out[emitted++] = y;
             if (s->tlm.ctx)
-              rrcsync_tlm_flush (s);
+              ratesync_tlm_flush (s);
           }
     }
   else
     {
       for (size_t i = 0; i < x_len && emitted < max_out; i++)
-        if (rrcsync_step_ted (s, x[i], &y, RRCSYNC_TED_GARDNER))
+        if (ratesync_step_ted (s, x[i], &y, RATESYNC_TED_GARDNER))
           {
             out[emitted++] = y;
             if (s->tlm.ctx)
-              rrcsync_tlm_flush (s);
+              ratesync_tlm_flush (s);
           }
     }
   return emitted;
@@ -228,7 +229,7 @@ rrcsync_steps (rrcsync_state_t *s, const float complex *x, size_t x_len,
 /* ------------------------------------------------------------------ */
 
 void
-rrcsync_configure (rrcsync_state_t *s, double bn, double zeta)
+ratesync_configure (ratesync_state_t *s, double bn, double zeta)
 {
   if (!(bn >= 0.0) || !(zeta > 0.0))
     return;
@@ -238,50 +239,51 @@ rrcsync_configure (rrcsync_state_t *s, double bn, double zeta)
 }
 
 double
-rrcsync_get_bn (const rrcsync_state_t *s)
+ratesync_get_bn (const ratesync_state_t *s)
 {
   return s->bn;
 }
 
 void
-rrcsync_set_bn (rrcsync_state_t *s, double val)
+ratesync_set_bn (ratesync_state_t *s, double val)
 {
-  rrcsync_configure (s, val, s->zeta);
+  ratesync_configure (s, val, s->zeta);
 }
 
 double
-rrcsync_get_timing_error (const rrcsync_state_t *s)
+ratesync_get_timing_error (const ratesync_state_t *s)
 {
   return s->last_error;
 }
 
 double
-rrcsync_get_rate (const rrcsync_state_t *s)
+ratesync_get_rate (const ratesync_state_t *s)
 {
   return s->rate_est;
 }
 
 double
-rrcsync_get_ctrl (const rrcsync_state_t *s)
+ratesync_get_ctrl (const ratesync_state_t *s)
 {
   return s->ctrl;
 }
 
 double
-rrcsync_get_lock_stat (const rrcsync_state_t *s)
+ratesync_get_lock_stat (const ratesync_state_t *s)
 {
   return s->lock_stat;
 }
 
 int
-rrcsync_get_locked (const rrcsync_state_t *s)
+ratesync_get_locked (const ratesync_state_t *s)
 {
   return s->lock.locked;
 }
 
 void
-rrcsync_configure_lock_raw (rrcsync_state_t *s, size_t avgs, double up_thresh,
-                            double down_thresh, uint32_t n_up, uint32_t n_down)
+ratesync_configure_lock_raw (ratesync_state_t *s, size_t avgs,
+                             double up_thresh, double down_thresh,
+                             uint32_t n_up, uint32_t n_down)
 {
   s->avgs = avgs < 1u ? 1u : avgs;
   lockdet_init (&s->lock, up_thresh, down_thresh, n_up, n_down);
@@ -298,8 +300,8 @@ rrcsync_configure_lock_raw (rrcsync_state_t *s, size_t avgs, double up_thresh,
 /* ------------------------------------------------------------------ */
 
 int
-rrcsync_set_telemetry (rrcsync_state_t *s, dp_tlm_t *tlm, const char *prefix,
-                       uint32_t decim)
+ratesync_set_telemetry (ratesync_state_t *s, dp_tlm_t *tlm, const char *prefix,
+                        uint32_t decim)
 {
   if (!tlm) /* detach: probe sites revert to the single-branch cost */
     {
@@ -330,7 +332,7 @@ rrcsync_set_telemetry (rrcsync_state_t *s, dp_tlm_t *tlm, const char *prefix,
 }
 
 void
-rrcsync_tlm_flush (const rrcsync_state_t *s)
+ratesync_tlm_flush (const ratesync_state_t *s)
 {
   dp_tlm_emit (s->tlm.ctx, s->tlm.id_e, s->last_error);
   dp_tlm_emit (s->tlm.ctx, s->tlm.id_ctrl, s->ctrl);
@@ -344,9 +346,9 @@ rrcsync_tlm_flush (const rrcsync_state_t *s)
 /* ------------------------------------------------------------------ */
 
 size_t
-rrcsync_state_bytes (const rrcsync_state_t *s)
+ratesync_state_bytes (const ratesync_state_t *s)
 {
-  /* Must match rrcsync_get_state() exactly: an over-count leaves
+  /* Must match ratesync_get_state() exactly: an over-count leaves
      uninitialised tail bytes in every blob (they resume fine but compare
      unequal, which is what the Python state matrix asserts on). */
   return sizeof (dp_state_hdr_t)
@@ -359,10 +361,10 @@ rrcsync_state_bytes (const rrcsync_state_t *s)
 }
 
 void
-rrcsync_get_state (const rrcsync_state_t *s, void *blob)
+ratesync_get_state (const ratesync_state_t *s, void *blob)
 {
-  DP_GET_OPEN (RRCSYNC_STATE_MAGIC, RRCSYNC_STATE_VERSION,
-               rrcsync_state_bytes (s));
+  DP_GET_OPEN (RATESYNC_STATE_MAGIC, RATESYNC_STATE_VERSION,
+               ratesync_state_bytes (s));
   dp_w_f64 (&_w, s->ctrl);
   dp_w_f64 (&_w, s->last_error);
   dp_w_f64 (&_w, s->pwr_avg);
@@ -384,10 +386,10 @@ rrcsync_get_state (const rrcsync_state_t *s, void *blob)
 }
 
 int
-rrcsync_set_state (rrcsync_state_t *s, const void *blob)
+ratesync_set_state (ratesync_state_t *s, const void *blob)
 {
-  DP_SET_OPEN (RRCSYNC_STATE_MAGIC, RRCSYNC_STATE_VERSION,
-               rrcsync_state_bytes (s));
+  DP_SET_OPEN (RATESYNC_STATE_MAGIC, RATESYNC_STATE_VERSION,
+               ratesync_state_bytes (s));
   s->ctrl       = dp_r_f64 (&_r);
   s->last_error = dp_r_f64 (&_r);
   s->pwr_avg    = dp_r_f64 (&_r);

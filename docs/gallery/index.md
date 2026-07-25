@@ -59,7 +59,7 @@ FFT, ring buffers, C programs, or the NATS streaming demo? Those live on the
 - [Code Loop Tracking](dll.md) — delay-locked loop code tracking.
 - [DLL Code Loop (theory)](dll-theory.md) — discriminator and loop-filter derivation.
 - [Symbol Timing Recovery](symsync.md) — timing-error-detector-driven resampling.
-- [Arbitrary-Rate Symbol Recovery](rrcsync.md) — matched filter fused with timing recovery at a non-integer samples-per-symbol.
+- [Arbitrary-Rate Symbol Recovery](ratesync.md) — matched filter fused with timing recovery at a non-integer samples-per-symbol.
 - [Timing Loop (theory)](symsync-theory.md) — the timing loop's transfer function.
 - [M-PSK Carrier Loop (theory)](carrier-mpsk.md) — decision-directed carrier recovery.
 - [NDA Carrier Loop (theory)](carrier-nda.md) — non-data-aided carrier recovery.

@@ -1,4 +1,4 @@
-"""RrcSync — RRC matched filter fused with symbol-timing recovery.
+"""RateSync — RRC matched filter fused with symbol-timing recovery.
 
 The headline capability under test is **arbitrary-rate reception**: the
 matched filter rides a double-precision fractional accumulator, so a
@@ -16,7 +16,7 @@ import numpy as np
 import pytest
 
 from doppler.snr import snr_m2m4_db
-from doppler.track import RrcSync
+from doppler.track import RateSync
 from doppler.wfm import rrc_taps
 
 BETA = 0.35
@@ -112,7 +112,7 @@ def test_twin_matches_canonical_taps():
 
 
 def test_create_defaults():
-    rx = RrcSync()
+    rx = RateSync()
     assert rx.rate == pytest.approx(4.0)
     assert rx.locked is False
 
@@ -131,14 +131,14 @@ def test_create_defaults():
     ],
 )
 def test_create_rejects_bad_params(kwargs):
-    with pytest.raises(ValueError, match="RrcSync"):
-        RrcSync(**kwargs)
+    with pytest.raises(ValueError, match="RateSync"):
+        RateSync(**kwargs)
 
 
 def test_context_manager_and_destroy():
-    with RrcSync() as rx:
+    with RateSync() as rx:
         assert rx.steps(np.zeros(64, np.complex64)).dtype == np.complex64
-    rx2 = RrcSync()
+    rx2 = RateSync()
     rx2.destroy()
 
 
@@ -148,7 +148,7 @@ def test_context_manager_and_destroy():
 @pytest.mark.parametrize("sps", [4.0, 6.5, 17.33389, 2.718281828, 9.876543])
 def test_locks_at_arbitrary_sps(sps):
     bits, x = _tx(2500, sps, tau=0.37)
-    rx = RrcSync(sps=sps, beta=BETA, span=SPAN, num_phases=1024, bn=0.005)
+    rx = RateSync(sps=sps, beta=BETA, span=SPAN, num_phases=1024, bn=0.005)
     y = rx.steps(x)
     assert len(y) > 2000
     evm, m2m4, ber = _panel(bits, y, skip=len(y) // 3)
@@ -164,7 +164,7 @@ def test_acquires_from_any_timing_offset(tau):
     """No half-symbol ambiguity: every start lands on the open eye, never on
     the transitions (which would show as EVM ~0.7 and chance BER)."""
     bits, x = _tx(2500, 4.0, tau=tau)
-    rx = RrcSync(sps=4.0, bn=0.005)
+    rx = RateSync(sps=4.0, bn=0.005)
     evm, _m2m4, ber = _panel(bits, rx.steps(x), skip=800)
     assert evm < 0.05
     assert ber == 0.0
@@ -177,7 +177,7 @@ def test_tracks_a_sample_clock_offset(ppm):
     nominal = 4.0
     true_sps = nominal * (1.0 + ppm * 1e-6)
     bits, x = _tx(5000, true_sps, tau=0.11)
-    rx = RrcSync(sps=nominal, bn=0.005)
+    rx = RateSync(sps=nominal, bn=0.005)
     y = rx.steps(x)
     evm, _m2m4, ber = _panel(bits, y, skip=len(y) // 3)
     assert evm < 0.05
@@ -200,7 +200,7 @@ def test_panel_degrades_together_under_awgn():
             + sigma
             * (rng.standard_normal(len(x)) + 1j * rng.standard_normal(len(x)))
         ).astype(np.complex64)
-        rx = RrcSync(sps=4.0, bn=0.005)
+        rx = RateSync(sps=4.0, bn=0.005)
         evm, m2m4, _ber = _panel(bits, rx.steps(noisy), skip=1000)
         # the matched filter's processing gain puts the symbol-rate SNR
         # about 10*log10(sps) above the per-sample SNR fed in
@@ -234,7 +234,7 @@ def test_rectangular_pulse_locks(sps):
     for a rectangular symbol. Integer sps recovers it essentially exactly;
     a fractional sps pays only the rectangle's edge-sample quantisation."""
     bits, x = _tx_nrz(2500, sps, tau=0.37)
-    rx = RrcSync(sps=sps, pulse="iandd", num_phases=1024, bn=0.005)
+    rx = RateSync(sps=sps, pulse="iandd", num_phases=1024, bn=0.005)
     y = rx.steps(x)
     evm, _m2m4, ber = _panel(bits, y, skip=len(y) // 3)
     assert evm < 0.06, f"EVM {evm}"
@@ -246,8 +246,8 @@ def test_rectangular_pulse_locks(sps):
 def test_rectangular_bank_is_far_cheaper_than_rrc():
     """The rectangle spans one symbol, the RRC spans 2*span — so the NRZ
     matched filter costs a small fraction of the taps per arm."""
-    rect = RrcSync(sps=8.0, pulse="iandd", span=8, num_phases=64)
-    rrc = RrcSync(sps=8.0, pulse="rrc", span=8, num_phases=64)
+    rect = RateSync(sps=8.0, pulse="iandd", span=8, num_phases=64)
+    rrc = RateSync(sps=8.0, pulse="rrc", span=8, num_phases=64)
     # state_bytes is dominated by the two banks' delay lines + taps
     assert rect.state_bytes() < rrc.state_bytes() / 4
 
@@ -257,8 +257,8 @@ def test_rrc_signal_through_a_rectangular_filter_is_worse():
     demodulated with the boxcar is measurably worse than with its matched
     RRC (mismatched filtering), even though both may still decode."""
     bits, x = _tx(2500, 4.0, tau=0.37)
-    matched = RrcSync(sps=4.0, pulse="rrc", bn=0.005)
-    mismatched = RrcSync(sps=4.0, pulse="iandd", bn=0.005)
+    matched = RateSync(sps=4.0, pulse="rrc", bn=0.005)
+    mismatched = RateSync(sps=4.0, pulse="iandd", bn=0.005)
     evm_m, _, _ = _panel(bits, matched.steps(x), skip=800)
     evm_x, _, _ = _panel(bits, mismatched.steps(x), skip=800)
     assert evm_m < evm_x
@@ -269,8 +269,8 @@ def test_rrc_signal_through_a_rectangular_filter_is_worse():
 
 def test_chunked_equals_one_block():
     _bits, x = _tx(1200, 4.0, tau=0.37)
-    a = RrcSync(sps=4.0)
-    b = RrcSync(sps=4.0)
+    a = RateSync(sps=4.0)
+    b = RateSync(sps=4.0)
     whole = a.steps(x)
     parts = np.concatenate([b.steps(c) for c in np.array_split(x, 7)])
     assert np.array_equal(whole, parts)
@@ -278,7 +278,7 @@ def test_chunked_equals_one_block():
 
 def test_steps_out_writes_into_callers_buffer():
     _, x = _tx(300, 4.0)
-    rx = RrcSync(sps=4.0)
+    rx = RateSync(sps=4.0)
     out = np.zeros(len(x), dtype=np.complex64)
     y = rx.steps(x, out=out)
     assert np.shares_memory(y, out)
@@ -286,7 +286,7 @@ def test_steps_out_writes_into_callers_buffer():
 
 def test_properties_and_reset():
     _bits, x = _tx(1500, 4.0, tau=0.37)
-    rx = RrcSync(sps=4.0, bn=0.005)
+    rx = RateSync(sps=4.0, bn=0.005)
     rx.steps(x)
     assert rx.locked is True
     assert rx.lock_stat > 0.3
@@ -303,7 +303,7 @@ def test_properties_and_reset():
 
 def test_configure_lock_raw_changes_the_decision():
     _, x = _tx(1500, 4.0, tau=0.37)
-    rx = RrcSync(sps=4.0)
+    rx = RateSync(sps=4.0)
     rx.configure_lock_raw(64, 0.9, 0.9, 1, 8)  # unreachably high threshold
     rx.steps(x)
     assert rx.locked is False
@@ -315,7 +315,7 @@ def test_configure_lock_raw_changes_the_decision():
 
 def test_dttl_ted_also_locks():
     bits, x = _tx(2500, 4.0, tau=0.37)
-    rx = RrcSync(sps=4.0, bn=0.005, ted="dttl")
+    rx = RateSync(sps=4.0, bn=0.005, ted="dttl")
     evm, _m2m4, ber = _panel(bits, rx.steps(x), skip=800)
     assert evm < 0.05
     assert ber == 0.0
@@ -327,18 +327,18 @@ def test_dttl_ted_also_locks():
 def test_state_round_trip_resumes_bit_exactly():
     _, x = _tx(1200, 4.0, tau=0.37)
     half = len(x) // 2
-    a = RrcSync(sps=4.0, num_phases=256)
+    a = RateSync(sps=4.0, num_phases=256)
     a.steps(x[:half])
     blob = a.get_state()
     assert len(blob) == a.state_bytes()
 
-    b = RrcSync(sps=4.0, num_phases=256)
+    b = RateSync(sps=4.0, num_phases=256)
     b.set_state(blob)
     assert np.array_equal(a.steps(x[half:]), b.steps(x[half:]))
 
 
 def test_set_state_rejects_a_clobbered_blob():
-    rx = RrcSync(sps=4.0, num_phases=256)
+    rx = RateSync(sps=4.0, num_phases=256)
     blob = bytearray(rx.get_state())
     blob[0] ^= 0xFF
     with pytest.raises(ValueError):
@@ -356,7 +356,7 @@ def test_telemetry_registers_five_probes():
     from doppler.telemetry import Telemetry
 
     tlm = Telemetry(1 << 14)
-    rx = RrcSync(sps=4.0)
+    rx = RateSync(sps=4.0)
     rx.set_telemetry(tlm, "sync")
     assert sorted(tlm.probe_names()) == [
         "sync.ctrl",

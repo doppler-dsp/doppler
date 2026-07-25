@@ -40,7 +40,7 @@ wfm_rrc_ntaps(int sps, int span)
  * The RRC formula itself, evaluated at an arbitrary continuous time — the
  * single source of truth every RRC consumer samples. `wfm_rrc_taps()` walks
  * this on the uniform `1/sps` grid and normalises; a receiver's polyphase
- * matched-filter bank (see `track.RrcSync`) samples it at
+ * matched-filter bank (see `track.RateSync`) samples it at
  * `num_phases * num_taps` instants that are NOT a uniform sub-multiple of the
  * input grid, which is why the point evaluator is public: an arbitrary
  * (non-integer) samples-per-symbol bank cannot be built by decomposing an

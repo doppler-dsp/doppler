@@ -66,7 +66,7 @@ from doppler.track import (
     Dll,
     LoopFilter,
     MpskReceiver,
-    RrcSync,
+    RateSync,
     SymbolSync,
 )
 from doppler.wfm import PN, Gold, _SynthEngine
@@ -329,8 +329,8 @@ CASES: dict[str, tuple[Callable[[], Any], _Feed]] = {
     ),
     # A composition over two resamp children plus the loop filter and lock
     # detector: the blob nests four self-validating child envelopes.
-    "RrcSync": (
-        lambda: RrcSync(sps=4.0, beta=0.35, span=8, num_phases=256, bn=0.005),
+    "RateSync": (
+        lambda: RateSync(sps=4.0, beta=0.35, span=8, num_phases=256, bn=0.005),
         _track_feed,
     ),
     "Despreader": (

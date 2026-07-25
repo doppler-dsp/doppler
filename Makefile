@@ -594,7 +594,8 @@ docs-check:
 	  "python scripts/check_serializable.py"; do \
 	    echo "=== $$c ==="; uv run $$c || fail=1; \
 	done; \
-	echo "=== zensical build --strict ==="; uv run zensical build --strict || fail=1; \
+	echo "=== zensical build --strict ==="; rm -f zensical.toml; \
+	  uv run --group docs zensical build --strict || fail=1; \
 	echo "=== python scripts/check_site_links.py ==="; \
 	  uv run python scripts/check_site_links.py || fail=1; \
 	if [ "$$fail" = 0 ]; then echo "docs-check: ALL GATES PASS"; \

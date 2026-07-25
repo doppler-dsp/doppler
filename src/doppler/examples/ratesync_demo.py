@@ -1,11 +1,11 @@
-"""rrcsync_demo.py — arbitrary-rate reception with a fused RRC matched filter.
+"""ratesync_demo.py — arbitrary-rate reception with a fused RRC matched filter.
 
 Builds RRC-shaped BPSK at a deliberately awkward **non-integer** samples per
 symbol (17.33389 — an ADC clock with no rational relationship to the symbol
 clock), adds a sample-clock rate offset and noise, and hands it to
-:class:`doppler.track.RrcSync`.
+:class:`doppler.track.RateSync`.
 
-`RrcSync` builds the root-raised-cosine matched filter **as** the polyphase
+`RateSync` builds the root-raised-cosine matched filter **as** the polyphase
 bank of a resampler, so the arm its accumulator selects *is* the fractional
 timing delay — one dot product does matched filtering and retiming together,
 with no Farrow interpolator. Because that accumulator is a `double`, `sps` is
@@ -20,7 +20,7 @@ Three views (saved to a PNG):
     from this very object: one stable lock per symbol, no half-symbol
     ambiguity.
 
-Run:  python -m doppler.examples.rrcsync_demo  [out.png]
+Run:  python -m doppler.examples.ratesync_demo  [out.png]
 """
 
 from __future__ import annotations
@@ -30,7 +30,7 @@ import sys
 # --8<-- [start:signal]
 import numpy as np
 
-from doppler.track import RrcSync
+from doppler.track import RateSync
 
 SPS = 17.33389  # non-integer samples per symbol -- the whole point
 BETA = 0.35
@@ -89,7 +89,7 @@ def make_signal(sps, tau=0.37, seed=7, snr_db=SNR_DB):
 true_sps = SPS * (1.0 + CLOCK_PPM * 1e-6)
 bits, rx_in = make_signal(true_sps)
 
-rx = RrcSync(sps=SPS, beta=BETA, span=SPAN, num_phases=1024, bn=0.005)
+rx = RateSync(sps=SPS, beta=BETA, span=SPAN, num_phases=1024, bn=0.005)
 
 # Fed in chunks purely so the tracked rate can be sampled as it converges —
 # state carries across calls, so this is identical to one steps(rx_in).
@@ -156,7 +156,9 @@ def s_curve(points=21):
         # tau is in samples; one symbol of timing == SPS samples
         _, x = make_signal(SPS, tau=o * SPS, seed=11, snr_db=None)
         # bn = 0 freezes the loop: the strobe stays where the offset put it
-        probe = RrcSync(sps=SPS, beta=BETA, span=SPAN, num_phases=1024, bn=0.0)
+        probe = RateSync(
+            sps=SPS, beta=BETA, span=SPAN, num_phases=1024, bn=0.0
+        )
         tlm = Telemetry(1 << 16)
         probe.set_telemetry(tlm, "s")
         e_id = tlm.probe_names()["s.e"]
@@ -167,7 +169,7 @@ def s_curve(points=21):
     return offs, np.asarray(err)
 
 
-def main(out_path="rrcsync_demo.png"):
+def main(out_path="ratesync_demo.png"):
     import matplotlib
 
     matplotlib.use("Agg")
@@ -245,4 +247,4 @@ def main(out_path="rrcsync_demo.png"):
 
 
 if __name__ == "__main__":
-    main(sys.argv[1] if len(sys.argv) > 1 else "rrcsync_demo.png")
+    main(sys.argv[1] if len(sys.argv) > 1 else "ratesync_demo.png")

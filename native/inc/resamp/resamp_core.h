@@ -211,7 +211,7 @@ extern "C"
    * outputs already emitted. That closes the loop: a timing-recovery or
    * rate-tracking loop reads each emitted output, computes its correction, and
    * feeds it back as the next call's @p ctrl to steer the strobe. This is the
-   * per-output feedback a matched-filter timing loop (track.RrcSync) needs and
+   * per-output feedback a matched-filter timing loop (track.RateSync) needs and
    * the block `execute_ctrl` cannot provide.
    *
    * @param state    Must be non-NULL.

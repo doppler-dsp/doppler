@@ -15,10 +15,10 @@ ______________________________________________________________________
 
 ### Added
 
-- **`track.RrcSync` — a matched filter fused with symbol-timing recovery, at
+- **`track.RateSync` — a matched filter fused with symbol-timing recovery, at
     an arbitrary samples-per-symbol.** `SymbolSync` runs a matched FIR and then
     a separate `Farrow` interpolator steered by an integer timing NCO.
-    `RrcSync` builds the matched filter **as the polyphase bank of a
+    `RateSync` builds the matched filter **as the polyphase bank of a
     `Resampler`**, so the arm the resampler's accumulator selects *is* the
     fractional timing delay — one dot product does both jobs, no Farrow.
     Because that accumulator is a `double`, `sps` is a `double`: `17.33389`, an
@@ -46,7 +46,7 @@ ______________________________________________________________________
     standard serializable state triplet (a composition nesting both resamplers'
     and the loop filter's child envelopes).
 
-    Gallery: [Arbitrary-Rate Symbol Recovery](docs/gallery/rrcsync.md).
+    Gallery: [Arbitrary-Rate Symbol Recovery](docs/gallery/ratesync.md).
 
 ### Changed
 

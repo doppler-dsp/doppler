@@ -1,32 +1,32 @@
 /*
- * track_ext_rrcsync.c — RrcSync type for the track module.
+ * track_ext_ratesync.c — RateSync type for the track module.
  *
  * Included by track_ext.c (the module aggregator).
  * Hand-patches to this file are preserved across jm commands.
  * Do NOT compile this file directly — only track_ext.c is compiled.
  */
 /* ======================================================== */
-/* RrcSyncObject — wraps rrcsync_state_t *       */
+/* RateSyncObject — wraps ratesync_state_t *       */
 /* ======================================================== */
 
-#include "rrcsync/rrcsync_core.h"
+#include "ratesync/ratesync_core.h"
 
 typedef struct
 {
-  PyObject_HEAD rrcsync_state_t *handle;
+  PyObject_HEAD ratesync_state_t *handle;
   float complex *_steps_buf;     /* pre-allocated output for steps */
   size_t         _steps_buf_cap; /* allocated capacity for steps */
   void         **_steps_retired; /* gh-219 deferred free */
   size_t         _steps_retired_n;
   size_t         _steps_retired_cap;
   PyObject      *_steps_view_ref; /* gh-437 last returned view */
-} RrcSyncObject;
+} RateSyncObject;
 
 static void
-RrcSyncObj_dealloc (RrcSyncObject *self)
+RateSyncObj_dealloc (RateSyncObject *self)
 {
   if (self->handle)
-    rrcsync_destroy (self->handle);
+    ratesync_destroy (self->handle);
   free (self->_steps_buf);
   for (size_t _i = 0; _i < self->_steps_retired_n; _i++)
     free (self->_steps_retired[_i]);
@@ -36,16 +36,16 @@ RrcSyncObj_dealloc (RrcSyncObject *self)
 }
 
 static PyObject *
-RrcSyncObj_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
+RateSyncObj_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
-  RrcSyncObject *self = (RrcSyncObject *)type->tp_alloc (type, 0);
+  RateSyncObject *self = (RateSyncObject *)type->tp_alloc (type, 0);
   if (self)
     self->handle = NULL;
   return (PyObject *)self;
 }
 
 static int
-RrcSyncObj_init (RrcSyncObject *self, PyObject *args, PyObject *kwds)
+RateSyncObj_init (RateSyncObject *self, PyObject *args, PyObject *kwds)
 {
   static char       *kwlist[] = { "sps", "pulse", "beta", "span", "num_phases",
                                   "bn",  "zeta",  "ted",  NULL };
@@ -89,16 +89,16 @@ RrcSyncObj_init (RrcSyncObject *self, PyObject *args, PyObject *kwds)
       return -1;
     }
   self->handle
-      = rrcsync_create (sps, pulse, beta, span, num_phases, bn, zeta, ted);
+      = ratesync_create (sps, pulse, beta, span, num_phases, bn, zeta, ted);
   if (!self->handle)
     {
       PyErr_SetString (PyExc_ValueError,
-                       "RrcSync: need sps >= 1, beta in [0, 1], span >= 1, "
+                       "RateSync: need sps >= 1, beta in [0, 1], span >= 1, "
                        "num_phases a power of two >= 2, bn >= 0 and zeta > 0");
       return -1;
     }
   {
-    size_t _max = rrcsync_steps_max_out (self->handle);
+    size_t _max = ratesync_steps_max_out (self->handle);
     if (_max)
       {
         self->_steps_buf = malloc (_max * sizeof (float complex));
@@ -114,18 +114,18 @@ RrcSyncObj_init (RrcSyncObject *self, PyObject *args, PyObject *kwds)
 }
 
 static PyObject *
-RrcSyncObj_steps_max_out (RrcSyncObject *self, PyObject *Py_UNUSED (ignored))
+RateSyncObj_steps_max_out (RateSyncObject *self, PyObject *Py_UNUSED (ignored))
 {
   if (!self->handle)
     {
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromSize_t (rrcsync_steps_max_out (self->handle));
+  return PyLong_FromSize_t (ratesync_steps_max_out (self->handle));
 }
 
 static PyObject *
-RrcSyncObj_steps (RrcSyncObject *self, PyObject *args, PyObject *kwds)
+RateSyncObj_steps (RateSyncObject *self, PyObject *args, PyObject *kwds)
 {
   if (!self->handle)
     {
@@ -154,7 +154,7 @@ RrcSyncObj_steps (RrcSyncObject *self, PyObject *args, PyObject *kwds)
           return NULL;
         }
       size_t _cap     = (size_t)PyArray_SIZE (out_arr);
-      size_t _omax    = rrcsync_steps_max_out (self->handle);
+      size_t _omax    = ratesync_steps_max_out (self->handle);
       size_t _min_cap = _omax > (size_t)PyArray_SIZE (x_arr)
                             ? _omax
                             : ((size_t)PyArray_SIZE (x_arr));
@@ -175,7 +175,7 @@ RrcSyncObj_steps (RrcSyncObject *self, PyObject *args, PyObject *kwds)
       float complex       *_ng2 = (float complex *)PyArray_DATA (out_arr);
       size_t               n_out;
       Py_BEGIN_ALLOW_THREADS
-        n_out = rrcsync_steps (self->handle, _ng0, _ng1, _ng2, _cap);
+        n_out = ratesync_steps (self->handle, _ng0, _ng1, _ng2, _cap);
       Py_END_ALLOW_THREADS
       Py_DECREF (x_arr);
       npy_intp  _odim  = (npy_intp)n_out;
@@ -206,7 +206,7 @@ RrcSyncObj_steps (RrcSyncObject *self, PyObject *args, PyObject *kwds)
     }
   if (!self->_steps_buf || self->_steps_buf_cap < _need || _view_live)
     {
-      size_t _max = rrcsync_steps_max_out (self->handle);
+      size_t _max = ratesync_steps_max_out (self->handle);
       if (!_max || _max < _need)
         _max = _need;
       if (self->_steps_buf
@@ -244,8 +244,8 @@ RrcSyncObj_steps (RrcSyncObject *self, PyObject *args, PyObject *kwds)
   size_t               _ng1 = (size_t)PyArray_SIZE (x_arr);
   size_t               n_out;
   Py_BEGIN_ALLOW_THREADS
-    n_out = rrcsync_steps (self->handle, _ng0, _ng1, self->_steps_buf,
-                           self->_steps_buf_cap);
+    n_out = ratesync_steps (self->handle, _ng0, _ng1, self->_steps_buf,
+                            self->_steps_buf_cap);
   Py_END_ALLOW_THREADS
   npy_intp  dim = (npy_intp)n_out;
   PyObject *arr
@@ -268,7 +268,8 @@ RrcSyncObj_steps (RrcSyncObject *self, PyObject *args, PyObject *kwds)
 }
 
 static PyObject *
-RrcSyncObj_set_telemetry (RrcSyncObject *self, PyObject *args, PyObject *kwds)
+RateSyncObj_set_telemetry (RateSyncObject *self, PyObject *args,
+                           PyObject *kwds)
 {
   if (!self->handle)
     {
@@ -301,7 +302,7 @@ RrcSyncObj_set_telemetry (RrcSyncObject *self, PyObject *args, PyObject *kwds)
         return NULL;
     }
   uint32_t decim = (uint32_t)decim_raw;
-  int      _rc   = rrcsync_set_telemetry (self->handle, tlm, prefix, decim);
+  int      _rc   = ratesync_set_telemetry (self->handle, tlm, prefix, decim);
   if (_rc != 0)
     {
       PyErr_Format (PyExc_ValueError, "set_telemetry failed (rc=%d)", _rc);
@@ -311,7 +312,7 @@ RrcSyncObj_set_telemetry (RrcSyncObject *self, PyObject *args, PyObject *kwds)
 }
 
 static PyObject *
-RrcSyncObj_configure (RrcSyncObject *self, PyObject *args, PyObject *kwds)
+RateSyncObj_configure (RateSyncObject *self, PyObject *args, PyObject *kwds)
 {
   if (!self->handle)
     {
@@ -323,13 +324,13 @@ RrcSyncObj_configure (RrcSyncObject *self, PyObject *args, PyObject *kwds)
   double       zeta      = 0.0;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "dd", _kwlist, &bn, &zeta))
     return NULL;
-  rrcsync_configure (self->handle, bn, zeta);
+  ratesync_configure (self->handle, bn, zeta);
   Py_RETURN_NONE;
 }
 
 static PyObject *
-RrcSyncObj_configure_lock_raw (RrcSyncObject *self, PyObject *args,
-                               PyObject *kwds)
+RateSyncObj_configure_lock_raw (RateSyncObject *self, PyObject *args,
+                                PyObject *kwds)
 {
   if (!self->handle)
     {
@@ -350,52 +351,52 @@ RrcSyncObj_configure_lock_raw (RrcSyncObject *self, PyObject *args,
   size_t   avgs   = (size_t)avgs_raw;
   uint32_t n_up   = (uint32_t)n_up_raw;
   uint32_t n_down = (uint32_t)n_down_raw;
-  rrcsync_configure_lock_raw (self->handle, avgs, up_thresh, down_thresh, n_up,
-                              n_down);
+  ratesync_configure_lock_raw (self->handle, avgs, up_thresh, down_thresh,
+                               n_up, n_down);
   Py_RETURN_NONE;
 }
 
 static PyObject *
-RrcSyncObj_reset (RrcSyncObject *self, PyObject *Py_UNUSED (ignored))
+RateSyncObj_reset (RateSyncObject *self, PyObject *Py_UNUSED (ignored))
 {
   if (!self->handle)
     {
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  rrcsync_reset (self->handle);
+  ratesync_reset (self->handle);
   Py_RETURN_NONE;
 }
 
 static PyObject *
-RrcSyncObj_state_bytes (RrcSyncObject *self, PyObject *Py_UNUSED (ignored))
+RateSyncObj_state_bytes (RateSyncObject *self, PyObject *Py_UNUSED (ignored))
 {
   if (!self->handle)
     {
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromSize_t (rrcsync_state_bytes (self->handle));
+  return PyLong_FromSize_t (ratesync_state_bytes (self->handle));
 }
 
 static PyObject *
-RrcSyncObj_get_state (RrcSyncObject *self, PyObject *Py_UNUSED (ignored))
+RateSyncObj_get_state (RateSyncObject *self, PyObject *Py_UNUSED (ignored))
 {
   if (!self->handle)
     {
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  size_t    _n = rrcsync_state_bytes (self->handle);
+  size_t    _n = ratesync_state_bytes (self->handle);
   PyObject *_b = PyBytes_FromStringAndSize (NULL, (Py_ssize_t)_n);
   if (!_b)
     return NULL;
-  rrcsync_get_state (self->handle, PyBytes_AS_STRING (_b));
+  ratesync_get_state (self->handle, PyBytes_AS_STRING (_b));
   return _b;
 }
 
 static PyObject *
-RrcSyncObj_set_state (RrcSyncObject *self, PyObject *arg)
+RateSyncObj_set_state (RateSyncObject *self, PyObject *arg)
 {
   if (!self->handle)
     {
@@ -407,12 +408,12 @@ RrcSyncObj_set_state (RrcSyncObject *self, PyObject *arg)
       PyErr_SetString (PyExc_TypeError, "set_state expects bytes");
       return NULL;
     }
-  if ((size_t)PyBytes_GET_SIZE (arg) != rrcsync_state_bytes (self->handle))
+  if ((size_t)PyBytes_GET_SIZE (arg) != ratesync_state_bytes (self->handle))
     {
       PyErr_SetString (PyExc_ValueError, "state blob size mismatch");
       return NULL;
     }
-  if (rrcsync_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
+  if (ratesync_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
     {
       PyErr_SetString (PyExc_ValueError, "set_state rejected the blob");
       return NULL;
@@ -420,7 +421,7 @@ RrcSyncObj_set_state (RrcSyncObject *self, PyObject *arg)
   Py_RETURN_NONE;
 }
 static PyObject *
-RrcSync_getprop_bn (RrcSyncObject *self, void *Py_UNUSED (closure))
+RateSync_getprop_bn (RateSyncObject *self, void *Py_UNUSED (closure))
 {
   if (!self->handle)
     {
@@ -428,11 +429,11 @@ RrcSync_getprop_bn (RrcSyncObject *self, void *Py_UNUSED (closure))
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyFloat_FromDouble (rrcsync_get_bn (self->handle));
+  return PyFloat_FromDouble (ratesync_get_bn (self->handle));
 }
 static int
-RrcSync_setprop_bn (RrcSyncObject *self, PyObject *value,
-                    void *Py_UNUSED (closure))
+RateSync_setprop_bn (RateSyncObject *self, PyObject *value,
+                     void *Py_UNUSED (closure))
 {
   if (!self->handle)
     {
@@ -442,11 +443,11 @@ RrcSync_setprop_bn (RrcSyncObject *self, PyObject *value,
   double v = 0.0;
   if (!PyArg_Parse (value, "d", &v))
     return -1;
-  rrcsync_set_bn (self->handle, v);
+  ratesync_set_bn (self->handle, v);
   return 0;
 }
 static PyObject *
-RrcSync_getprop_timing_error (RrcSyncObject *self, void *Py_UNUSED (closure))
+RateSync_getprop_timing_error (RateSyncObject *self, void *Py_UNUSED (closure))
 {
   if (!self->handle)
     {
@@ -454,10 +455,10 @@ RrcSync_getprop_timing_error (RrcSyncObject *self, void *Py_UNUSED (closure))
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyFloat_FromDouble (rrcsync_get_timing_error (self->handle));
+  return PyFloat_FromDouble (ratesync_get_timing_error (self->handle));
 }
 static PyObject *
-RrcSync_getprop_rate (RrcSyncObject *self, void *Py_UNUSED (closure))
+RateSync_getprop_rate (RateSyncObject *self, void *Py_UNUSED (closure))
 {
   if (!self->handle)
     {
@@ -465,10 +466,10 @@ RrcSync_getprop_rate (RrcSyncObject *self, void *Py_UNUSED (closure))
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyFloat_FromDouble (rrcsync_get_rate (self->handle));
+  return PyFloat_FromDouble (ratesync_get_rate (self->handle));
 }
 static PyObject *
-RrcSync_getprop_ctrl (RrcSyncObject *self, void *Py_UNUSED (closure))
+RateSync_getprop_ctrl (RateSyncObject *self, void *Py_UNUSED (closure))
 {
   if (!self->handle)
     {
@@ -476,10 +477,10 @@ RrcSync_getprop_ctrl (RrcSyncObject *self, void *Py_UNUSED (closure))
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyFloat_FromDouble (rrcsync_get_ctrl (self->handle));
+  return PyFloat_FromDouble (ratesync_get_ctrl (self->handle));
 }
 static PyObject *
-RrcSync_getprop_lock_stat (RrcSyncObject *self, void *Py_UNUSED (closure))
+RateSync_getprop_lock_stat (RateSyncObject *self, void *Py_UNUSED (closure))
 {
   if (!self->handle)
     {
@@ -487,10 +488,10 @@ RrcSync_getprop_lock_stat (RrcSyncObject *self, void *Py_UNUSED (closure))
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyFloat_FromDouble (rrcsync_get_lock_stat (self->handle));
+  return PyFloat_FromDouble (ratesync_get_lock_stat (self->handle));
 }
 static PyObject *
-RrcSync_getprop_locked (RrcSyncObject *self, void *Py_UNUSED (closure))
+RateSync_getprop_locked (RateSyncObject *self, void *Py_UNUSED (closure))
 {
   if (!self->handle)
     {
@@ -498,30 +499,30 @@ RrcSync_getprop_locked (RrcSyncObject *self, void *Py_UNUSED (closure))
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyBool_FromLong ((long)(rrcsync_get_locked (self->handle)));
+  return PyBool_FromLong ((long)(ratesync_get_locked (self->handle)));
 }
 
-static PyGetSetDef RrcSync_getset[]
-    = { { "bn", (getter)RrcSync_getprop_bn, (setter)RrcSync_setprop_bn,
+static PyGetSetDef RateSync_getset[]
+    = { { "bn", (getter)RateSync_getprop_bn, (setter)RateSync_setprop_bn,
           "Bn.\n", NULL },
-        { "timing_error", (getter)RrcSync_getprop_timing_error, NULL,
+        { "timing_error", (getter)RateSync_getprop_timing_error, NULL,
           "Last normalised TED error -- the loop stress.\n", NULL },
-        { "rate", (getter)RrcSync_getprop_rate, NULL,
+        { "rate", (getter)RateSync_getprop_rate, NULL,
           "Smoothed tracked samples per symbol. It departs from the nominal "
           "sps by exactly the sample-clock offset being tracked, so a caller "
           "disciplining a clock reads this.\n",
           NULL },
-        { "ctrl", (getter)RrcSync_getprop_ctrl, NULL,
+        { "ctrl", (getter)RateSync_getprop_ctrl, NULL,
           "Current per-input rate deviation steering the strobe (added to the "
           "base rate of 1/sps by the resampler's control port).\n",
           NULL },
-        { "lock_stat", (getter)RrcSync_getprop_lock_stat, NULL,
+        { "lock_stat", (getter)RateSync_getprop_lock_stat, NULL,
           "Last block-averaged lock statistic: "
           "mean(2*(|on-time|^2-|mid|^2)/(|on-time|^2+|mid|^2)) over the "
           "configured avgs looks; compare against the configured threshold "
           "(see configure_lock_raw).\n",
           NULL },
-        { "locked", (getter)RrcSync_getprop_locked, NULL,
+        { "locked", (getter)RateSync_getprop_locked, NULL,
           "Current timing-lock decision: True after the verify count of "
           "consecutive above-threshold decisions, False again after the drop "
           "count of consecutive below-threshold ones.\n",
@@ -529,38 +530,38 @@ static PyGetSetDef RrcSync_getset[]
         { NULL } };
 
 static PyObject *
-RrcSyncObj_destroy (RrcSyncObject *self, PyObject *Py_UNUSED (ignored))
+RateSyncObj_destroy (RateSyncObject *self, PyObject *Py_UNUSED (ignored))
 {
   if (self->handle)
     {
-      rrcsync_destroy (self->handle);
+      ratesync_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;
 }
 
 static PyObject *
-RrcSyncObj_enter (RrcSyncObject *self, PyObject *Py_UNUSED (ignored))
+RateSyncObj_enter (RateSyncObject *self, PyObject *Py_UNUSED (ignored))
 {
   Py_INCREF (self);
   return (PyObject *)self;
 }
 
 static PyObject *
-RrcSyncObj_exit (RrcSyncObject *self, PyObject *args)
+RateSyncObj_exit (RateSyncObject *self, PyObject *args)
 {
   (void)args;
   if (self->handle)
     {
-      rrcsync_destroy (self->handle);
+      ratesync_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;
 }
 
-static PyMethodDef RrcSyncObj_methods[] = {
+static PyMethodDef RateSyncObj_methods[] = {
 
-  { "steps", (PyCFunction)RrcSyncObj_steps, METH_VARARGS | METH_KEYWORDS,
+  { "steps", (PyCFunction)RateSyncObj_steps, METH_VARARGS | METH_KEYWORDS,
     "steps(x) -> ndarray\n"
     "\n"
     "Recover symbols from an oversampled cf32 baseband block. The polyphase "
@@ -573,16 +574,16 @@ static PyMethodDef RrcSyncObj_methods[] = {
     "period.\n"
     "\n"
     "    >>> import numpy as np\n"
-    "    >>> from doppler import RrcSync\n"
-    "    >>> obj = RrcSync(4.0, \"rrc\", 0.35, 8, 1024, 0.005, 0.707, "
+    "    >>> from doppler import RateSync\n"
+    "    >>> obj = RateSync(4.0, \"rrc\", 0.35, 8, 1024, 0.005, 0.707, "
     "\"gardner\")\n"
     "    >>> y = obj.steps(np.zeros(4))\n"
     "    >>> y.dtype\n"
     "    dtype('complex64')\n" },
-  { "steps_max_out", (PyCFunction)RrcSyncObj_steps_max_out, METH_NOARGS,
+  { "steps_max_out", (PyCFunction)RateSyncObj_steps_max_out, METH_NOARGS,
     "steps_max_out() -> int\n\nMax output length steps() can produce for the "
     "current state.\nUse to size the ``out=`` buffer." },
-  { "set_telemetry", (PyCFunction)(void *)RrcSyncObj_set_telemetry,
+  { "set_telemetry", (PyCFunction)(void *)RateSyncObj_set_telemetry,
     METH_VARARGS | METH_KEYWORDS,
     "set_telemetry(tlm, prefix, decim) -> int\n"
     "\n"
@@ -596,12 +597,12 @@ static PyMethodDef RrcSyncObj_methods[] = {
     "attachment.\n"
     "\n"
     "    >>> import numpy as np\n"
-    "    >>> from doppler import RrcSync\n"
-    "    >>> obj = RrcSync(4.0, \"rrc\", 0.35, 8, 1024, 0.005, 0.707, "
+    "    >>> from doppler import RateSync\n"
+    "    >>> obj = RateSync(4.0, \"rrc\", 0.35, 8, 1024, 0.005, 0.707, "
     "\"gardner\")\n"
     "    >>> obj.set_telemetry(0, 0, 0)\n"
     "    0\n" },
-  { "configure", (PyCFunction)(void *)RrcSyncObj_configure,
+  { "configure", (PyCFunction)(void *)RateSyncObj_configure,
     METH_VARARGS | METH_KEYWORDS,
     "configure(bn, zeta) -> None\n"
     "\n"
@@ -609,11 +610,11 @@ static PyMethodDef RrcSyncObj_methods[] = {
     "and so the lock.\n"
     "\n"
     "    >>> import numpy as np\n"
-    "    >>> from doppler import RrcSync\n"
-    "    >>> obj = RrcSync(4.0, \"rrc\", 0.35, 8, 1024, 0.005, 0.707, "
+    "    >>> from doppler import RateSync\n"
+    "    >>> obj = RateSync(4.0, \"rrc\", 0.35, 8, 1024, 0.005, 0.707, "
     "\"gardner\")\n"
     "    >>> obj.configure(0.0, 0.0)\n" },
-  { "configure_lock_raw", (PyCFunction)(void *)RrcSyncObj_configure_lock_raw,
+  { "configure_lock_raw", (PyCFunction)(void *)RateSyncObj_configure_lock_raw,
     METH_VARARGS | METH_KEYWORDS,
     "configure_lock_raw(avgs, up_thresh, down_thresh, n_up, n_down) -> None\n"
     "\n"
@@ -628,41 +629,41 @@ static PyMethodDef RrcSyncObj_methods[] = {
     "object.\n"
     "\n"
     "    >>> import numpy as np\n"
-    "    >>> from doppler import RrcSync\n"
-    "    >>> obj = RrcSync(4.0, \"rrc\", 0.35, 8, 1024, 0.005, 0.707, "
+    "    >>> from doppler import RateSync\n"
+    "    >>> obj = RateSync(4.0, \"rrc\", 0.35, 8, 1024, 0.005, 0.707, "
     "\"gardner\")\n"
     "    >>> obj.configure_lock_raw(0, 0.0, 0.0, 0, 0)\n" },
-  { "reset", (PyCFunction)RrcSyncObj_reset, METH_NOARGS,
+  { "reset", (PyCFunction)RateSyncObj_reset, METH_NOARGS,
     "reset() -> None\n"
     "\n"
     "Re-seed both matched filters, the loop integrator and the lock detector "
     "to their post-create state.\n"
     "\n"
-    "    >>> from doppler import RrcSync\n"
-    "    >>> obj = RrcSync(4.0, \"rrc\", 0.35, 8, 1024, 0.005, 0.707, "
+    "    >>> from doppler import RateSync\n"
+    "    >>> obj = RateSync(4.0, \"rrc\", 0.35, 8, 1024, 0.005, 0.707, "
     "\"gardner\")\n"
     "    >>> obj.reset()\n" },
-  { "state_bytes", (PyCFunction)RrcSyncObj_state_bytes, METH_NOARGS,
+  { "state_bytes", (PyCFunction)RateSyncObj_state_bytes, METH_NOARGS,
     "Serialized state size in bytes." },
-  { "get_state", (PyCFunction)RrcSyncObj_get_state, METH_NOARGS,
+  { "get_state", (PyCFunction)RateSyncObj_get_state, METH_NOARGS,
     "Serialize the engine's mutable state to bytes." },
-  { "set_state", (PyCFunction)RrcSyncObj_set_state, METH_O,
+  { "set_state", (PyCFunction)RateSyncObj_set_state, METH_O,
     "Restore mutable state from a get_state() blob." },
-  { "destroy", (PyCFunction)RrcSyncObj_destroy, METH_NOARGS,
+  { "destroy", (PyCFunction)RateSyncObj_destroy, METH_NOARGS,
     "Release resources." },
-  { "__enter__", (PyCFunction)RrcSyncObj_enter, METH_NOARGS, NULL },
-  { "__exit__", (PyCFunction)RrcSyncObj_exit, METH_VARARGS, NULL },
+  { "__enter__", (PyCFunction)RateSyncObj_enter, METH_NOARGS, NULL },
+  { "__exit__", (PyCFunction)RateSyncObj_exit, METH_VARARGS, NULL },
   { NULL }
 };
 
-static PyTypeObject RrcSyncObjType = {
-  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "track.RrcSync",
-  .tp_basicsize                           = sizeof (RrcSyncObject),
-  .tp_dealloc                             = (destructor)RrcSyncObj_dealloc,
+static PyTypeObject RateSyncObjType = {
+  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "track.RateSync",
+  .tp_basicsize                           = sizeof (RateSyncObject),
+  .tp_dealloc                             = (destructor)RateSyncObj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,
-  .tp_doc                                 = "Create an RrcSync instance.\n",
-  .tp_methods                             = RrcSyncObj_methods,
-  .tp_getset                              = RrcSync_getset,
-  .tp_new                                 = RrcSyncObj_new,
-  .tp_init                                = (initproc)RrcSyncObj_init,
+  .tp_doc                                 = "Create an RateSync instance.\n",
+  .tp_methods                             = RateSyncObj_methods,
+  .tp_getset                              = RateSync_getset,
+  .tp_new                                 = RateSyncObj_new,
+  .tp_init                                = (initproc)RateSyncObj_init,
 };

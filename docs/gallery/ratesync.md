@@ -1,14 +1,14 @@
 # Arbitrary-Rate Symbol Recovery
 
-![Arbitrary-rate matched filter and timing recovery](../assets/rrcsync_demo.png)
+![Arbitrary-rate matched filter and timing recovery](../assets/ratesync_demo.png)
 
-[`track.RrcSync`](../api/python-track.md) recovers symbols from a stream whose
+[`track.RateSync`](../api/python-track.md) recovers symbols from a stream whose
 sample clock has **no integer relationship to the symbol clock** — here
 17.33389 samples per symbol, and 200 ppm off even that.
 
 It does it by fusing the two halves of a conventional timing recovery. Where
 [`SymbolSync`](symsync.md) runs a matched FIR and then a separate
-[`Farrow`](farrow.md) interpolator steered by an integer NCO, `RrcSync` builds
+[`Farrow`](farrow.md) interpolator steered by an integer NCO, `RateSync` builds
 the matched filter **as the polyphase bank of a resampler**, so the arm the
 resampler's accumulator selects *is* the fractional timing delay. One dot
 product does both jobs. Because that accumulator is a `double`, `sps` is a
@@ -58,7 +58,7 @@ fight, turning the effective sampling instant into a sawtooth of one full
 output period that no loop bandwidth can remove.
 
 ```python
---8<-- "src/doppler/examples/rrcsync_demo.py:signal"
+--8<-- "src/doppler/examples/ratesync_demo.py:signal"
 ```
 
 ## The pulse is a parameter
@@ -69,12 +69,12 @@ prototype — `pulse="iandd"`, the unit rectangle over one symbol that an
 integrate-and-dump computes:
 
 ```python
-from doppler.track import RrcSync
+from doppler.track import RateSync
 from doppler.wfm import Synth
 
 # rectangular chips / NRZ data at a fractional samples-per-symbol
 nrz_iq = Synth(type="bpsk", sps=8, snr=20.0, pulse="rect").steps(8192)
-nrz = RrcSync(sps=8.0, pulse="iandd")
+nrz = RateSync(sps=8.0, pulse="iandd")
 nrz_symbols = nrz.steps(nrz_iq)
 assert nrz.locked
 ```
@@ -86,10 +86,10 @@ only the edge-sample quantisation the rectangle's discontinuity implies.
 
 ## Choosing between the two timing loops
 
-Pick `RrcSync` when the sample rate is not an integer multiple of the symbol
+Pick `RateSync` when the sample rate is not an integer multiple of the symbol
 rate, or when the matched filter is RRC (or a boxcar) anyway and you would
 rather pay one filter than two. Pick [`SymbolSync`](symsync.md) when the pulse
 is something else entirely (it takes any upstream matched filter) or when `sps`
 is a small integer and the integer-NCO's slip-free strobe accounting matters.
 
-Source: `src/doppler/examples/rrcsync_demo.py`.
+Source: `src/doppler/examples/ratesync_demo.py`.

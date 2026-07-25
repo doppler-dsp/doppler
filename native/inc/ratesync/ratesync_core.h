@@ -1,10 +1,10 @@
 /**
- * @file rrcsync_core.h
- * @brief RrcSync component API — an RRC matched filter fused with
+ * @file ratesync_core.h
+ * @brief RateSync component API — an RRC matched filter fused with
  *        symbol-timing recovery on one polyphase resampler.
  *
  * Where SymbolSync separates the two jobs (a matched FIR, then a Farrow
- * interpolator steered by a timing NCO), RrcSync does them in a single dot
+ * interpolator steered by a timing NCO), RateSync does them in a single dot
  * product: the polyphase bank IS the root-raised-cosine matched filter, and
  * the arm the resampler's accumulator selects IS the fractional timing
  * delay. One filter, no Farrow.
@@ -31,16 +31,16 @@
  *
  * Example:
  * @code
- * rrcsync_state_t *rx = rrcsync_create (4.0, 0.35, 8, 1024, 0.005, 0.707,
- *                                       RRCSYNC_TED_GARDNER);
+ * ratesync_state_t *rx = ratesync_create (4.0, 0.35, 8, 1024, 0.005, 0.707,
+ *                                       RATESYNC_TED_GARDNER);
  * float complex sym;
- * if (rrcsync_step (rx, x, &sym))
+ * if (ratesync_step (rx, x, &sym))
  *   consume (sym);
- * rrcsync_destroy (rx);
+ * ratesync_destroy (rx);
  * @endcode
  */
-#ifndef RRCSYNC_CORE_H
-#define RRCSYNC_CORE_H
+#ifndef RATESYNC_CORE_H
+#define RATESYNC_CORE_H
 
 #include "clib_common.h"
 #include "dp_state.h"
@@ -56,11 +56,11 @@ extern "C"
 {
 #endif
 
-  /** @brief Timing-error-detector selection for rrcsync_state_t::ted. */
+  /** @brief Timing-error-detector selection for ratesync_state_t::ted. */
   enum
   {
-    RRCSYNC_TED_GARDNER = 0, /**< blind Gardner TED (mid * conj diff).   */
-    RRCSYNC_TED_DTTL    = 1  /**< decision-directed sign-sign DTTL.      */
+    RATESYNC_TED_GARDNER = 0, /**< blind Gardner TED (mid * conj diff).   */
+    RATESYNC_TED_DTTL    = 1  /**< decision-directed sign-sign DTTL.      */
   };
 
   /**
@@ -75,31 +75,31 @@ extern "C"
    */
   enum
   {
-    RRCSYNC_PULSE_IANDD = 0, /**< rectangular: integrate-and-dump boxcar. */
-    RRCSYNC_PULSE_RRC   = 1  /**< root-raised cosine, roll-off `beta`.    */
+    RATESYNC_PULSE_IANDD = 0, /**< rectangular: integrate-and-dump boxcar. */
+    RATESYNC_PULSE_RRC   = 1  /**< root-raised cosine, roll-off `beta`.    */
   };
 
   /**
    * @brief The matched filter's prototype at one instant, in symbol periods.
    *
-   * `RRCSYNC_PULSE_RRC` delegates to the canonical `wfm_rrc_h()`;
-   * `RRCSYNC_PULSE_IANDD` is the unit rectangle over one symbol — matched to
+   * `RATESYNC_PULSE_RRC` delegates to the canonical `wfm_rrc_h()`;
+   * `RATESYNC_PULSE_IANDD` is the unit rectangle over one symbol — matched to
    * a rectangular symbol, and the pulse an integrate-and-dump implements.
    *
-   * @param pulse  RRCSYNC_PULSE_IANDD or RRCSYNC_PULSE_RRC.
+   * @param pulse  RATESYNC_PULSE_IANDD or RATESYNC_PULSE_RRC.
    * @param t      time in symbol periods, relative to the pulse centre.
    * @param beta   RRC roll-off (ignored for the rectangular pulse).
    */
-  double rrcsync_pulse_h (int pulse, double t, double beta);
+  double ratesync_pulse_h (int pulse, double t, double beta);
 
   /** @brief One-sided support of a pulse, in symbols: `span` for the RRC,
    *  always 0.5 for the rectangle (which is one symbol wide, whatever
    *  `span` says). */
-  double rrcsync_pulse_support (int pulse, size_t span);
+  double ratesync_pulse_support (int pulse, size_t span);
 
 /* Numerical guard on the on-time+mid energy sum feeding the lock statistic
  * (not tunable) — mirrors SYMSYNC_LOCK_EPS. */
-#define RRCSYNC_LOCK_EPS 1e-12
+#define RATESYNC_LOCK_EPS 1e-12
 
   /**
    * @brief Telemetry attachment: a borrowed context + this object's probe
@@ -114,12 +114,12 @@ extern "C"
     int32_t   id_rate;   /**< "<prefix>.rate"   — tracked samples/sym  */
     int32_t   id_lock;   /**< "<prefix>.lock"   — lock_signal mean     */
     int32_t   id_locked; /**< "<prefix>.locked" — lockdet flag         */
-  } rrcsync_tlm_t;
+  } ratesync_tlm_t;
 
   /**
-   * @brief RrcSync state.
+   * @brief RateSync state.
    *
-   * Allocate with rrcsync_create(). The two matched filters are heap
+   * Allocate with ratesync_create(). The two matched filters are heap
    * `resamp` children (they own the banks and delay lines); the loop filter
    * and lock detector are embedded by value.
    */
@@ -131,14 +131,14 @@ extern "C"
 
     /* ── config (restored by create(), never packed in a state blob) ── */
     double sps;        /**< nominal samples per symbol (any double >= 1). */
-    int    pulse;      /**< RRCSYNC_PULSE_IANDD / _RRC.                  */
+    int    pulse;      /**< RATESYNC_PULSE_IANDD / _RRC.                  */
     double beta;       /**< RRC roll-off.                                */
     size_t span;       /**< one-sided RRC span, symbols.                 */
     size_t num_phases; /**< bank arms (power of two).                    */
     size_t num_taps;   /**< taps per arm.                                */
     double bn;         /**< loop noise bandwidth (retained).             */
     double zeta;       /**< damping factor (retained).                   */
-    int    ted;        /**< RRCSYNC_TED_GARDNER / _DTTL.                 */
+    int    ted;        /**< RATESYNC_TED_GARDNER / _DTTL.                 */
 
     /* ── running state ──────────────────────────────────────────────── */
     double ctrl;       /**< per-input rate deviation now applied.        */
@@ -155,8 +155,8 @@ extern "C"
     double lock_stat;  /**< last block-averaged lock_signal.             */
     lockdet_state_t lock; /**< declare/drop rule stepped on lock_stat.   */
 
-    rrcsync_tlm_t tlm; /**< live telemetry attachment; zeroed in blobs.  */
-  } rrcsync_state_t;
+    ratesync_tlm_t tlm; /**< live telemetry attachment; zeroed in blobs.  */
+  } ratesync_state_t;
 
   /* ------------------------------------------------------------------
    * Bank construction
@@ -171,11 +171,11 @@ extern "C"
    * `ceil(1.5*sps)+1` taps against the RRC's `ceil((2*span+0.5)*sps)+1`, so
    * an NRZ link's matched filter is dramatically cheaper.
    *
-   * @param pulse  RRCSYNC_PULSE_IANDD or RRCSYNC_PULSE_RRC.
+   * @param pulse  RATESYNC_PULSE_IANDD or RATESYNC_PULSE_RRC.
    * @param sps    samples per symbol (>= 1, any double).
    * @param span   one-sided RRC span in symbols (ignored for the rectangle).
    */
-  size_t rrcsync_bank_ntaps (int pulse, double sps, size_t span);
+  size_t ratesync_bank_ntaps (int pulse, double sps, size_t span);
 
   /**
    * @brief Build one RRC matched-filter arm bank for the ctrl-path convention.
@@ -196,21 +196,21 @@ extern "C"
    * pulse directly rather than decomposing an oversampled prototype the way
    * the TX shaper's `wfm_rrc_polyphase_bank()` can.
    *
-   * @param pulse       RRCSYNC_PULSE_IANDD or RRCSYNC_PULSE_RRC.
+   * @param pulse       RATESYNC_PULSE_IANDD or RATESYNC_PULSE_RRC.
    * @param beta        RRC roll-off in `[0, 1]` (ignored for the rectangle).
    * @param sps         samples per symbol (>= 1).
    * @param span        one-sided RRC span in symbols (ignored for the
    *                    rectangle, whose support is always one symbol).
    * @param num_phases  arms (power of two).
-   * @param num_taps    taps per arm (rrcsync_bank_ntaps()).
+   * @param num_taps    taps per arm (ratesync_bank_ntaps()).
    * @param offset_sym  extra delay in symbols: 0 for on-time, 0.5 for the
    *                    transition gate (half a symbol earlier).
    * @param bank        output, `num_phases * num_taps` floats, row-major.
-   *                    Unnormalised — rrcsync_create() applies one common
+   *                    Unnormalised — ratesync_create() applies one common
    *                    scale to both banks so |on-time| and |mid| stay
    *                    directly comparable.
    */
-  void rrcsync_bank (int pulse, double beta, double sps, size_t span,
+  void ratesync_bank (int pulse, double beta, double sps, size_t span,
                      size_t num_phases, size_t num_taps, double offset_sym,
                      float *bank);
 
@@ -219,12 +219,12 @@ extern "C"
    * ------------------------------------------------------------------ */
 
   /**
-   * @brief Create an RrcSync instance.
+   * @brief Create an RateSync instance.
    *
    * @param sps         Nominal samples per symbol — any double >= 1
    *                    (17.33389 is as valid as 4).
-   * @param pulse       Matched-filter shape: RRCSYNC_PULSE_IANDD
-   *                    (rectangular/NRZ) or RRCSYNC_PULSE_RRC.
+   * @param pulse       Matched-filter shape: RATESYNC_PULSE_IANDD
+   *                    (rectangular/NRZ) or RATESYNC_PULSE_RRC.
    * @param beta        RRC roll-off in `[0, 1]` (default 0.35; ignored for
    *                    the rectangular pulse).
    * @param span        One-sided RRC span in symbols (default 8; ignored for
@@ -234,24 +234,24 @@ extern "C"
    *                    of a symbol.
    * @param bn          Loop noise bandwidth, normalised to the symbol rate.
    * @param zeta        Damping factor (0.707 = critically damped).
-   * @param ted         RRCSYNC_TED_GARDNER (blind) or RRCSYNC_TED_DTTL
+   * @param ted         RATESYNC_TED_GARDNER (blind) or RATESYNC_TED_DTTL
    *                    (decision-directed; BPSK/QPSK only).
    * @return Heap-allocated state, or NULL if a parameter is out of range or
    *         allocation fails.
-   * @note Caller must call rrcsync_destroy() when done.
+   * @note Caller must call ratesync_destroy() when done.
    */
-  rrcsync_state_t *rrcsync_create (double sps, int pulse, double beta,
+  ratesync_state_t *ratesync_create (double sps, int pulse, double beta,
                                    size_t span, size_t num_phases, double bn,
                                    double zeta, int ted);
 
-  /** @brief Destroy an RrcSync instance and release all memory.
+  /** @brief Destroy an RateSync instance and release all memory.
    *  @param state  May be NULL. */
-  void rrcsync_destroy (rrcsync_state_t *state);
+  void ratesync_destroy (ratesync_state_t *state);
 
   /** @brief Reset to the post-create state: both matched filters, the loop
    *         integrator, the lock detector and the TED history.
    *  @param state  Must be non-NULL. */
-  void rrcsync_reset (rrcsync_state_t *state);
+  void ratesync_reset (ratesync_state_t *state);
 
   /* ------------------------------------------------------------------
    * Execute
@@ -260,7 +260,7 @@ extern "C"
   /**
    * @brief Per-input timing step with the TED selection as a parameter.
    *
-   * The workhorse behind rrcsync_step()/rrcsync_steps(). Pushes one input
+   * The workhorse behind ratesync_step()/ratesync_steps(). Pushes one input
    * through both matched filters at the current control deviation; when the
    * accumulator completes a symbol period both emit (their accumulators are
    * bit-identical by construction), the TED compares the transition-gate
@@ -273,12 +273,12 @@ extern "C"
    * @param s      State. Must be non-NULL.
    * @param x      One input sample.
    * @param y_out  Receives the symbol when the return is 1.
-   * @param ted    RRCSYNC_TED_GARDNER or RRCSYNC_TED_DTTL — pass a literal
+   * @param ted    RATESYNC_TED_GARDNER or RATESYNC_TED_DTTL — pass a literal
    *               for a specialised (branch-free) instantiation.
    * @return 1 if a symbol was emitted (into @p y_out), 0 otherwise.
    */
   JM_FORCEINLINE JM_HOT int
-  rrcsync_step_ted (rrcsync_state_t *s, float complex x, float complex *y_out,
+  ratesync_step_ted (ratesync_state_t *s, float complex x, float complex *y_out,
                     int ted)
   {
     float complex on = 0.0f, mid = 0.0f;
@@ -295,7 +295,7 @@ extern "C"
     if (s->have_on)
       {
         double num;
-        if (ted == RRCSYNC_TED_DTTL)
+        if (ted == RATESYNC_TED_DTTL)
           num = dttl_ted (mid, on, s->prev_on);
         else
           num = gardner_ted (mid, on - s->prev_on);
@@ -338,7 +338,7 @@ extern "C"
         double mid_pwr = (double)(crealf (mid) * crealf (mid)
                                   + cimagf (mid) * cimagf (mid));
         double lock_signal = 2.0 * (inst_pwr - mid_pwr)
-                             / (inst_pwr + mid_pwr + RRCSYNC_LOCK_EPS);
+                             / (inst_pwr + mid_pwr + RATESYNC_LOCK_EPS);
         s->lock_sum += lock_signal;
         if (++s->lock_count >= s->avgs)
           {
@@ -366,12 +366,12 @@ extern "C"
    *
    * @param s  State with a non-NULL tlm.ctx (caller-checked).
    */
-  void rrcsync_tlm_flush (const rrcsync_state_t *s);
+  void ratesync_tlm_flush (const ratesync_state_t *s);
 
   /**
    * @brief Per-input timing step (the inline composition API).
    *
-   * The public form of rrcsync_step_ted(): dispatches on the configured
+   * The public form of ratesync_step_ted(): dispatches on the configured
    * detector and flushes telemetry when attached.
    *
    * @param s      State. Must be non-NULL.
@@ -380,23 +380,23 @@ extern "C"
    * @return 1 if a symbol was emitted (into @p y_out), 0 otherwise.
    */
   JM_FORCEINLINE JM_HOT int
-  rrcsync_step (rrcsync_state_t *s, float complex x, float complex *y_out)
+  ratesync_step (ratesync_state_t *s, float complex x, float complex *y_out)
   {
-    int r = rrcsync_step_ted (s, x, y_out, s->ted);
+    int r = ratesync_step_ted (s, x, y_out, s->ted);
     if (r && s->tlm.ctx)
-      rrcsync_tlm_flush (s);
+      ratesync_tlm_flush (s);
     return r;
   }
 
   /** @brief Output-buffer hint for the generated binding; 0 means "the
    *  input length is already a safe bound" — with `sps >= 1` a block can
    *  never yield more symbols than it has samples (mirrors symsync). */
-  size_t rrcsync_steps_max_out (rrcsync_state_t *state);
+  size_t ratesync_steps_max_out (ratesync_state_t *state);
 
   /**
    * @brief Recover symbol timing from a block of oversampled cf32 baseband.
    *
-   * rrcsync_step() in a loop, with the TED specialised per detector; state
+   * ratesync_step() in a loop, with the TED specialised per detector; state
    * carries across calls, so contiguous blocks give the same symbols as one
    * large block.
    *
@@ -407,7 +407,7 @@ extern "C"
    * @param max_out  Capacity of @p out.
    * @return Symbols written to @p out.
    */
-  size_t rrcsync_steps (rrcsync_state_t *state, const float complex *x,
+  size_t ratesync_steps (ratesync_state_t *state, const float complex *x,
                         size_t x_len, float complex *out, size_t max_out);
 
   /* ------------------------------------------------------------------
@@ -415,26 +415,26 @@ extern "C"
    * ------------------------------------------------------------------ */
 
   /** @brief Retune the loop; preserves the integrator (and so the lock). */
-  void   rrcsync_configure (rrcsync_state_t *state, double bn, double zeta);
-  double rrcsync_get_bn (const rrcsync_state_t *state);
-  void   rrcsync_set_bn (rrcsync_state_t *state, double val);
+  void   ratesync_configure (ratesync_state_t *state, double bn, double zeta);
+  double ratesync_get_bn (const ratesync_state_t *state);
+  void   ratesync_set_bn (ratesync_state_t *state, double val);
 
   /** @brief Last normalised TED error — the loop stress. */
-  double rrcsync_get_timing_error (const rrcsync_state_t *state);
+  double ratesync_get_timing_error (const ratesync_state_t *state);
 
   /** @brief Smoothed tracked samples per symbol. Departs from the nominal
    *         `sps` by exactly the sample-clock offset being tracked, so it is
    *         the estimator a rate-disciplining caller reads. */
-  double rrcsync_get_rate (const rrcsync_state_t *state);
+  double ratesync_get_rate (const ratesync_state_t *state);
 
   /** @brief Current per-input control deviation steering the strobe. */
-  double rrcsync_get_ctrl (const rrcsync_state_t *state);
+  double ratesync_get_ctrl (const ratesync_state_t *state);
 
   /** @brief Last block-averaged lock statistic (the eye-opening ratio). */
-  double rrcsync_get_lock_stat (const rrcsync_state_t *state);
+  double ratesync_get_lock_stat (const ratesync_state_t *state);
 
   /** @brief Current lock decision (1 = locked), verify-counted. */
-  int rrcsync_get_locked (const rrcsync_state_t *state);
+  int ratesync_get_locked (const ratesync_state_t *state);
 
   /**
    * @brief Set the lock detector's geometry directly.
@@ -451,7 +451,7 @@ extern "C"
    * @param n_up         Consecutive above-threshold decisions to declare.
    * @param n_down       Consecutive below-threshold decisions to drop.
    */
-  void rrcsync_configure_lock_raw (rrcsync_state_t *state, size_t avgs,
+  void ratesync_configure_lock_raw (ratesync_state_t *state, size_t avgs,
                                    double up_thresh, double down_thresh,
                                    uint32_t n_up, uint32_t n_down);
 
@@ -473,7 +473,7 @@ extern "C"
    * @return DP_OK, or DP_ERR_INVALID when the probe table cannot take all
    *         five probes (the attach fails whole; the object stays detached).
    */
-  int rrcsync_set_telemetry (rrcsync_state_t *state, dp_tlm_t *tlm,
+  int ratesync_set_telemetry (ratesync_state_t *state, dp_tlm_t *tlm,
                              const char *prefix, uint32_t decim);
 
 /* ── Serializable state (standard bytes interface; see dp_state.h) ─────────
@@ -481,19 +481,19 @@ extern "C"
  * the two matched filters' and the loop filter's self-validating child
  * blobs. Config (sps/beta/span/num_phases/bn/zeta/ted) is restored by
  * create(), never packed. */
-#define RRCSYNC_STATE_MAGIC DP_FOURCC ('R', 'R', 'C', 'S')
-#define RRCSYNC_STATE_VERSION 1u
+#define RATESYNC_STATE_MAGIC DP_FOURCC ('R', 'A', 'T', 'S')
+#define RATESYNC_STATE_VERSION 1u
 
-  /** @brief Bytes rrcsync_get_state() writes (envelope + payload + children). */
-  size_t rrcsync_state_bytes (const rrcsync_state_t *state);
+  /** @brief Bytes ratesync_get_state() writes (envelope + payload + children). */
+  size_t ratesync_state_bytes (const ratesync_state_t *state);
   /** @brief Serialize the mutable state into @p blob. */
-  void rrcsync_get_state (const rrcsync_state_t *state, void *blob);
+  void ratesync_get_state (const ratesync_state_t *state, void *blob);
   /** @brief Restore mutable state from @p blob into an identically built
    *  instance. @return DP_OK, or DP_ERR_INVALID if any envelope rejects. */
-  int rrcsync_set_state (rrcsync_state_t *state, const void *blob);
+  int ratesync_set_state (ratesync_state_t *state, const void *blob);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* RRCSYNC_CORE_H */
+#endif /* RATESYNC_CORE_H */

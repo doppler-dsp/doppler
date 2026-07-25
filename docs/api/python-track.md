@@ -273,11 +273,11 @@ symbols = ss.steps(rx)   # timing-corrected symbols
 ss.rate                  # recovered samples/symbol
 ```
 
-## RrcSync — arbitrary-rate matched filter + timing recovery
+## RateSync — arbitrary-rate matched filter + timing recovery
 
-`RrcSync` does `SymbolSync`'s two jobs in **one dot product**. Where
+`RateSync` does `SymbolSync`'s two jobs in **one dot product**. Where
 `SymbolSync` runs a matched FIR and then a separate `Farrow` interpolator
-steered by an integer NCO, `RrcSync` builds the root-raised-cosine matched
+steered by an integer NCO, `RateSync` builds the root-raised-cosine matched
 filter **as** the polyphase bank of a `Resampler`, so the arm the resampler's
 accumulator selects *is* the fractional timing delay. No Farrow, one filter.
 
@@ -308,21 +308,21 @@ being tracked, so a caller disciplining a clock reads it); `locked` /
 `lock_stat` are the always-on eye-opening lock detector.
 
 ```python
-from doppler.track import RrcSync
+from doppler.track import RateSync
 from doppler.wfm import Synth
 
 iq = Synth(type="bpsk", sps=8, snr=20.0, pulse="rrc").steps(8192)
 
-sync = RrcSync(sps=8.0, beta=0.35, span=8)  # sps is a double: 17.33389 is fine
+sync = RateSync(sps=8.0, beta=0.35, span=8)  # sps is a double: 17.33389 is fine
 symbols = sync.steps(iq)                    # matched-filtered AND retimed
 sync.rate                                   # tracked samples/symbol
 sync.locked                                 # timing-lock decision
 
 # the same loop over rectangular chips / NRZ data — one symbol of support
-nrz = RrcSync(sps=11.7391, pulse="iandd")
+nrz = RateSync(sps=11.7391, pulse="iandd")
 ```
 
-Pick `RrcSync` when the sample rate is not an integer multiple of the symbol
+Pick `RateSync` when the sample rate is not an integer multiple of the symbol
 rate, or when the matched filter is RRC anyway and you would rather pay one
 filter than two. Pick `SymbolSync` when the pulse is not RRC (it takes any
 upstream matched filter) or when `sps` is a small integer and the
@@ -352,13 +352,13 @@ ______________________________________________________________________
 
 ______________________________________________________________________
 
-::: doppler.track.RrcSync
+::: doppler.track.RateSync
 
 ## Related pages
 
 <!-- related-pages:start -->
 
-**Gallery** — [Streaming Async Despreader](../gallery/async-despread.md), [Async DSSS Receiver: the SPEC waveform through coupled Doppler](../gallery/async-dsss-receiver-spec.md), [Continuous Async DSSS Receiver](../gallery/async-dsss-receiver.md), [M-PSK Carrier Loop — Theory Validation](../gallery/carrier-mpsk.md), [NDA Carrier Loop — Theory Validation](../gallery/carrier-nda.md), [Costas Loop — Theory Validation](../gallery/costas-theory.md), [Carrier Loop Stress](../gallery/costas.md), [DLL Code Loop — Theory Validation](../gallery/dll-theory.md), [Code Loop Tracking](../gallery/dll.md), [DsssReceiver — the Composed Continuous DSSS Receiver](../gallery/dsss-receiver.md), [Gallery](../gallery/index.md), [Lock Detection: Verify Counts + Hysteresis](../gallery/lockdet.md), [M-PSK Receiver — Pull-in, Lock, and BER](../gallery/mpsk-receiver.md), [Full-Chain Lock-Up](../gallery/receiver-lock.md), [Arbitrary-Rate Symbol Recovery](../gallery/rrcsync.md), [Timing Loop — Theory Validation](../gallery/symsync-theory.md), [Symbol Timing Recovery](../gallery/symsync.md)
+**Gallery** — [Streaming Async Despreader](../gallery/async-despread.md), [Async DSSS Receiver: the SPEC waveform through coupled Doppler](../gallery/async-dsss-receiver-spec.md), [Continuous Async DSSS Receiver](../gallery/async-dsss-receiver.md), [M-PSK Carrier Loop — Theory Validation](../gallery/carrier-mpsk.md), [NDA Carrier Loop — Theory Validation](../gallery/carrier-nda.md), [Costas Loop — Theory Validation](../gallery/costas-theory.md), [Carrier Loop Stress](../gallery/costas.md), [DLL Code Loop — Theory Validation](../gallery/dll-theory.md), [Code Loop Tracking](../gallery/dll.md), [DsssReceiver — the Composed Continuous DSSS Receiver](../gallery/dsss-receiver.md), [Gallery](../gallery/index.md), [Lock Detection: Verify Counts + Hysteresis](../gallery/lockdet.md), [M-PSK Receiver — Pull-in, Lock, and BER](../gallery/mpsk-receiver.md), [Arbitrary-Rate Symbol Recovery](../gallery/ratesync.md), [Full-Chain Lock-Up](../gallery/receiver-lock.md), [Timing Loop — Theory Validation](../gallery/symsync-theory.md), [Symbol Timing Recovery](../gallery/symsync.md)
 **Guides** — [Lock Detection Across `doppler.track`](../guide/lock-detection.md)
 **Design** — [API taxonomy: the DSP building-block hierarchy and its naming axis](../design/api-taxonomy.md), [DsssReceiver Specifications](../design/async-dsss-spec.md), [Asynchronous symbol/code despreading](../design/async-symbol-despreader.md), [MPSK Receiver](../design/mpsk.md), [SymbolSync Timing Lock Detector](../design/timing_lock_detector.md)
 **Contributing** — [Docs Conventions — what's generated, what's hand-owned, and what not to edit](../dev/docs-conventions.md)

@@ -63,6 +63,44 @@ rc.rate = 0.25
 print(rc.stages)               # ['HalfbandDecimator', 'HalfbandDecimator']
 ```
 
+### `MatchedRateConverter` — the cascade IS the matched filter
+
+The same object built by a different constructor: the terminal stage carries a
+pulse-shaped bank instead of the Kaiser anti-alias one, so one dot product does
+the rate conversion *and* the matched filtering, and that stage's polyphase arm
+is the fractional timing delay `execute_ctrl` steers.
+
+```python
+from doppler.resample import MatchedRateConverter
+
+# Two samples per symbol out of a 17.33-samples-per-symbol stream.
+mf = MatchedRateConverter(rate=2 / 17.333333333, pulse="rrc", beta=0.35,
+                          span=8, pulse_sps=2.0)
+print(mf.stages)        # ['CIC(8)', 'Resampler(0.923077,rrc)']
+print(mf.bank_shape)    # [1024, 40] — arms x taps, set by the OUTPUT rate
+y = mf.execute(x)
+```
+
+Three things it does that the plain constructor cannot:
+
+- **The terminal fractional stage always exists.** The ordinary planner drops
+    it for an exact power-of-two decimation, so `rate = 2/64` plans a bare
+    `CIC(32)` with nothing steerable at the end; here it is appended (at rate
+    1.0 if there is no rate left to correct), because that stage is
+    simultaneously the matched filter and the timing element.
+- **The bank is sized by the POST-decimation rate** — the same ~34 taps per
+    arm at 4 input samples per symbol and at 256, where matched-filtering at
+    the input rate would need 4225.
+- **CIC droop folds into the bank**, exactly, at a handful of taps per arm and
+    no extra stage — worth 28 dB of EVM on a CIC plan, which is why
+    `compensate` defaults to 1 here and 0 on the plain converter.
+
+`bank_shape` is `[]` when the cascade ends in an integer decimator and so has
+no bank to describe; `narrow_pulse` (and a `UserWarning` at construction) flags
+the one degenerate configuration — `pulse="iandd"` with fewer than four output
+samples per symbol, where the one-symbol-wide rectangle's matched filter is a
+2–3 tap sum.
+
 ### Streaming
 
 State is preserved across `execute()` calls, so splitting a stream at any block

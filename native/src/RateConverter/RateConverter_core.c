@@ -678,6 +678,9 @@ RateConverter_create_matched (double rate, int compensate, int pulse,
   s->span       = span;
   s->pulse_sps  = pulse_sps;
   s->num_phases = num_phases;
+  /* The rectangle is exactly one symbol wide, so its matched filter is a
+     boxcar of pulse_sps taps — a 2-3 tap sum below four samples per symbol. */
+  s->narrow_pulse = (pulse == RC_PULSE_IANDD && pulse_sps < 4.0);
 
   rc_plan_entry_t plan[RC_MAX_STAGES];
   /* force_terminal: the terminal stage IS the matched filter and the timing
@@ -694,7 +697,7 @@ RateConverter_create_matched (double rate, int compensate, int pulse,
   return s;
 }
 
-int
+bool
 RateConverter_get_clipped (const RateConverter_state_t *s)
 {
   for (int i = 0; i < s->n_stages; i++)
@@ -938,6 +941,66 @@ RateConverter_set_rate (RateConverter_state_t *s, double rate)
 
   if (!_build_stages (s, plan, n))
     s->n_stages = 0;
+}
+
+bool
+RateConverter_get_narrow_pulse (const RateConverter_state_t *s)
+{
+  return s->narrow_pulse;
+}
+
+size_t
+RateConverter_num_stages (const RateConverter_state_t *s)
+{
+  return (size_t)s->n_stages;
+}
+
+const char *
+RateConverter_stages_value (const RateConverter_state_t *s, size_t i)
+{
+  /* Thread-local so concurrent readers cannot tread on each other; the
+     binding converts to a Python string before this thread calls again. */
+  static _Thread_local char buf[64];
+  if (i >= (size_t)s->n_stages)
+    return NULL;
+  /* stage_label takes a mutable state only because it predates this
+     accessor; it reads nothing mutable. */
+  if (!RateConverter_stage_label ((RateConverter_state_t *)s, (int)i, buf,
+                                  sizeof buf))
+    return NULL;
+  return buf;
+}
+
+/* The bank shape is a 2-element sequence, empty when the cascade ends in an
+   integer decimator and therefore has no polyphase bank to describe. */
+size_t
+RateConverter_num_bank_shape (const RateConverter_state_t *s)
+{
+  if (s->n_stages == 0 || s->stage_types[s->n_stages - 1] != RC_STAGE_RESAMP)
+    return 0;
+  return 2;
+}
+
+size_t
+RateConverter_bank_shape_value (const RateConverter_state_t *s, size_t i)
+{
+  const resamp_state_t *r
+      = (const resamp_state_t *)s->stage_ptrs[s->n_stages - 1];
+  return i == 0 ? resamp_get_num_phases (r) : resamp_get_num_taps (r);
+}
+
+size_t
+RateConverter_execute_ctrl_max_out (RateConverter_state_t *s)
+{
+  (void)s;
+  return 0; /* 0 -> the binding sizes the buffer from the input block */
+}
+
+size_t
+RateConverter_execute_ctrl_push_max_out (RateConverter_state_t *s)
+{
+  double rate = s->rate;
+  return (size_t)(rate > 1.0 ? rate : 1.0) + 2;
 }
 
 int

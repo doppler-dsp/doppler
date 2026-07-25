@@ -41,6 +41,7 @@
 #include "dp_state.h"
 
 #include <complex.h>
+#include <stdbool.h>
 #include <stddef.h>
 #include "resamp/resamp_core.h"
 #include "fir/fir_core.h"
@@ -100,6 +101,10 @@ typedef struct
   size_t span;       /**< one-sided RRC span, symbols                 */
   double pulse_sps;  /**< symbol period in OUTPUT samples             */
   size_t num_phases; /**< terminal-stage arms (power of two)          */
+  /** Set when a rectangular pulse was selected with fewer than four output
+      samples per symbol, where its matched filter degenerates to a 2-3 tap
+      sum.  Read by the binding, which turns it into a UserWarning. */
+  bool narrow_pulse;
 } RateConverter_state_t;
 
 /**
@@ -202,7 +207,40 @@ RateConverter_create_matched (double rate, int compensate, int pulse,
  * @param s  Pointer to a valid RateConverter_state_t.
  * @return 1 if any CIC stage has clipped, else 0.
  */
-int RateConverter_get_clipped (const RateConverter_state_t *s);
+bool RateConverter_get_clipped (const RateConverter_state_t *s);
+
+/**
+ * @brief Is this converter's rectangular matched filter degenerately narrow?
+ *
+ * True only for a matched cascade built with RC_PULSE_IANDD and
+ * `pulse_sps < 4`: the rectangle is exactly one symbol wide, so its matched
+ * filter is a 2-3 tap sum there.  It works — it just barely opens the eye
+ * (measured on the timing loop this feeds, a lock statistic of -0.34 at two
+ * samples per symbol against +0.95 at four).  The RRC spans many symbols and
+ * is never affected.  Construction also raises a UserWarning.
+ */
+bool RateConverter_get_narrow_pulse (const RateConverter_state_t *s);
+
+/** @brief Number of planned cascade stages (backs the `stages` property). */
+size_t RateConverter_num_stages (const RateConverter_state_t *s);
+/**
+ * @brief Label of stage @p i, e.g. "CIC(8)+FIR" or "Resampler(0.923,rrc)".
+ *
+ * Points at a per-thread scratch buffer valid until this thread's next call —
+ * the binding converts it to a Python string immediately.  NULL if @p i is
+ * out of range.
+ */
+const char *RateConverter_stages_value (const RateConverter_state_t *s,
+                                        size_t i);
+
+/**
+ * @brief Terminal polyphase bank shape (backs the `bank_shape` property).
+ * @return 2 when the cascade ends in a Resampler stage, else 0.
+ */
+size_t RateConverter_num_bank_shape (const RateConverter_state_t *s);
+/** @brief Element @p i of the bank shape: 0 -> num_phases, 1 -> num_taps. */
+size_t RateConverter_bank_shape_value (const RateConverter_state_t *s,
+                                       size_t i);
 
 /** @brief Free all resources.  NULL is a no-op. */
 void RateConverter_destroy (RateConverter_state_t *s);
@@ -274,6 +312,12 @@ size_t RateConverter_execute (RateConverter_state_t *s,
  * this to pre-allocate the output buffer on the first execute call.
  */
 size_t RateConverter_execute_max_out (RateConverter_state_t *s);
+
+/** @brief As RateConverter_execute_max_out(), for the block control form. */
+size_t RateConverter_execute_ctrl_max_out (RateConverter_state_t *s);
+/** @brief Bound for ONE pushed input: `ceil(rate) + 1` output periods.
+ *  Non-zero because the push form has no input block to size from. */
+size_t RateConverter_execute_ctrl_push_max_out (RateConverter_state_t *s);
 
 /**
  * @brief Convert a block, steering the cascade's fractional stage by @p ctrl.

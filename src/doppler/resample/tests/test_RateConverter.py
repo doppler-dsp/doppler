@@ -5,7 +5,7 @@ import math
 import numpy as np
 import pytest
 
-from doppler.resample import RateConverter, rate_convert
+from doppler.resample import MatchedRateConverter, RateConverter, rate_convert
 
 
 def _dc(n: int) -> np.ndarray:
@@ -362,7 +362,7 @@ def _best_evm_db(y: np.ndarray, syms: np.ndarray) -> float:
 def _sweep_evm_db(sps: float, compensate: int) -> float:
     return min(
         _best_evm_db(
-            RateConverter(
+            MatchedRateConverter(
                 rate=2 / sps,
                 compensate=compensate,
                 pulse="rrc",
@@ -380,7 +380,7 @@ def test_pulse_forces_a_steerable_terminal_stage():
     # The plain planner drops the fractional stage when the integer stages
     # already land the rate -- leaving nothing for a timing loop to steer.
     assert RateConverter(rate=2 / 64).stages == ["CIC(32)"]
-    assert RateConverter(rate=2 / 64, pulse="rrc").stages == [
+    assert MatchedRateConverter(rate=2 / 64, pulse="rrc").stages == [
         "CIC(32)",
         "Resampler(1,rrc)",
     ]
@@ -388,12 +388,12 @@ def test_pulse_forces_a_steerable_terminal_stage():
     # the cascade rather than a stage still to be appended.
     for sps in (4, 8, 16, 17.333333333, 64, 256):
         assert (
-            RateConverter(rate=2 / sps, pulse="rrc")
+            MatchedRateConverter(rate=2 / sps, pulse="rrc")
             .stages[-1]
             .endswith(",rrc)")
         )
     assert (
-        RateConverter(rate=2 / 17.3, pulse="iandd")
+        MatchedRateConverter(rate=2 / 17.3, pulse="iandd")
         .stages[-1]
         .endswith(",iandd)")
     )
@@ -402,13 +402,13 @@ def test_pulse_forces_a_steerable_terminal_stage():
 @pytest.mark.parametrize("pulse", ["sinc", "RRC", ""])
 def test_unknown_pulse_raises(pulse):
     with pytest.raises(ValueError, match="pulse must be"):
-        RateConverter(rate=0.5, pulse=pulse)
+        MatchedRateConverter(rate=0.5, pulse=pulse)
 
 
 @pytest.mark.parametrize(
     "kw",
     [
-        {"beta": 1.5},
+        {"beta": 2.0},
         {"beta": -0.1},
         {"span": 0},
         {"pulse_sps": 0.0},
@@ -416,16 +416,44 @@ def test_unknown_pulse_raises(pulse):
         {"num_phases": 1},
     ],
 )
-def test_invalid_matched_params_raise(kw):
+def test_invalid_matched_params_are_rejected(kw):
+    """Every out-of-range parameter is refused, not silently coerced.
+
+    The exception type is MemoryError rather than ValueError today: a jm view
+    inherits none of its parent's ``create_error`` translation (gh-509 keeps
+    the error context blank for a view deliberately), even though a flavor's
+    constructor has strictly MORE parameters than its parent's and so strictly
+    more ways to fail on a bad argument. Filed upstream; the companion xfail
+    below states the behaviour we want, so the day it lands both update
+    together.
+    """
+    with pytest.raises((ValueError, MemoryError)):
+        MatchedRateConverter(rate=0.5, pulse="rrc", **kw)
+
+
+@pytest.mark.xfail(
+    reason="a jm view gets no create_error translation (gh-509), so a bad "
+    "parameter raises MemoryError instead of the parent's ValueError",
+    strict=True,
+)
+def test_invalid_matched_params_raise_value_error():
     with pytest.raises(ValueError):
-        RateConverter(rate=0.5, pulse="rrc", **kw)
+        MatchedRateConverter(rate=0.5, pulse="rrc", beta=2.0)
+
+
+def test_plain_ctor_still_translates_its_errors():
+    """The parent keeps its create_error, so the gap is the flavor's only."""
+    with pytest.raises(ValueError):
+        RateConverter(rate=-1.0)
 
 
 def test_droop_compensation_folds_into_the_bank():
     # No extra stage, and no "+FIR" on the CIC label: the compensator is a
     # per-arm convolution on the terminal bank's own tap grid.
-    off = RateConverter(rate=2 / 17.333333333, pulse="rrc", compensate=0)
-    on = RateConverter(rate=2 / 17.333333333, pulse="rrc", compensate=1)
+    off = MatchedRateConverter(
+        rate=2 / 17.333333333, pulse="rrc", compensate=0
+    )
+    on = MatchedRateConverter(rate=2 / 17.333333333, pulse="rrc", compensate=1)
     assert len(on.stages) == len(off.stages)
     assert "FIR" not in on.stages[0]
     # And it is worth ~28 dB on a CIC cascade -- not a refinement.
@@ -448,14 +476,29 @@ def test_bank_is_sized_by_the_post_decimation_rate():
     # Matched-filtering at the INPUT rate would cost taps proportional to the
     # input samples per symbol (thousands at sps=256, tens of MB of bank).
     # Sized by the terminal stage's rate it is constant in the input rate.
-    arms4, n4 = RateConverter(rate=2 / 4, pulse="rrc").bank_shape
-    arms256, n256 = RateConverter(rate=2 / 256, pulse="rrc").bank_shape
+    # compensate=0 on both so the comparison isolates the sizing: the droop
+    # fold adds its taps only on a plan that HAS a CIC (2/256 does, 2/4 does
+    # not), which would otherwise show up as a difference here.
+    arms4, n4 = MatchedRateConverter(
+        rate=2 / 4, pulse="rrc", compensate=0
+    ).bank_shape
+    arms256, n256 = MatchedRateConverter(
+        rate=2 / 256, pulse="rrc", compensate=0
+    ).bank_shape
     assert (arms4, n4) == (arms256, n256) == (1024, n256)
     assert n256 < 4 * _MF_SPAN * 2 + 8
+    # The fold costs a handful of taps per arm and no extra stage.
+    folded = MatchedRateConverter(rate=2 / 256, pulse="rrc").bank_shape[1]
+    assert n256 < folded < n256 + 16
     # The rectangle is one symbol wide whatever span says -- smaller still.
-    assert RateConverter(rate=2 / 256, pulse="iandd").bank_shape[1] < n256
+    assert (
+        MatchedRateConverter(
+            rate=2 / 256, pulse="iandd", compensate=0
+        ).bank_shape[1]
+        < n256
+    )
     # An integer-only cascade has no bank at all.
-    assert RateConverter(rate=2 / 64).bank_shape is None
+    assert RateConverter(rate=2 / 64).bank_shape == []
 
 
 @pytest.mark.parametrize("sps", [4.0, 17.333333333, 64.0])
@@ -466,8 +509,8 @@ def test_execute_ctrl_push_matches_block_and_execute(sps):
     # running different filters.
     x, _ = _rrc_bpsk(sps, 0.3)
     kw = {"rate": 2 / sps, "compensate": 1, "pulse": "rrc"}
-    block = np.array(RateConverter(**kw).execute_ctrl(x, 0.0))
-    rc = RateConverter(**kw)
+    block = np.array(MatchedRateConverter(**kw).execute_ctrl(x, 0.0))
+    rc = MatchedRateConverter(**kw)
     push = np.concatenate(
         [rc.execute_ctrl_push(complex(v), 0.0) for v in x]
         + [np.empty(0, np.complex64)]
@@ -476,13 +519,15 @@ def test_execute_ctrl_push_matches_block_and_execute(sps):
     # execute() on a matched cascade must be the SAME algorithm: the pulse
     # bank is laid out for the unified accumulator, while resamp's decimating
     # path is transposed-form and indexes arms the other way.
-    assert np.array_equal(block, np.array(RateConverter(**kw).execute(x)))
+    assert np.array_equal(
+        block, np.array(MatchedRateConverter(**kw).execute(x))
+    )
 
 
 def test_matched_state_round_trips_mid_stream():
     x, _ = _rrc_bpsk(17.333333333, 0.2)
     kw = {"rate": 2 / 17.333333333, "compensate": 1, "pulse": "rrc"}
-    a, b = RateConverter(**kw), RateConverter(**kw)
+    a, b = MatchedRateConverter(**kw), MatchedRateConverter(**kw)
     half = len(x) // 2
     a.execute(x[:half])
     b.set_state(a.get_state())
@@ -494,7 +539,7 @@ def test_matched_state_round_trips_mid_stream():
 def test_set_rate_keeps_the_pulse():
     # The pulse is configuration, not part of the plan, so re-planning must
     # keep it -- including the always-append rule and the fold.
-    rc = RateConverter(rate=2 / 17.333333333, compensate=1, pulse="rrc")
+    rc = MatchedRateConverter(rate=2 / 17.333333333, compensate=1, pulse="rrc")
     rc.rate = 2 / 64
     assert rc.stages == ["CIC(32)", "Resampler(1,rrc)"]
     assert "FIR" not in rc.stages[0]
@@ -572,7 +617,7 @@ def test_clipped_is_false_for_a_scale_free_plan():
 def test_matched_cascade_surfaces_clipping_too():
     # The measured -25 dB EVM detour that motivated all of this: an
     # overdriven matched cascade now says so.
-    rc = RateConverter(rate=2 / 17.333333333, compensate=1, pulse="rrc")
+    rc = MatchedRateConverter(rate=2 / 17.333333333, compensate=1, pulse="rrc")
     x, _ = _rrc_bpsk(17.333333333, 0.0)
     rc.execute(x)
     assert rc.clipped is False

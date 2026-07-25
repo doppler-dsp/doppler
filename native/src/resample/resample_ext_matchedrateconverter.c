@@ -1,12 +1,13 @@
 /*
- * resample_ext_RateConverter.c — RateConverter type for the resample module.
+ * resample_ext_matchedrateconverter.c — MatchedRateConverter type for the
+ * resample module.
  *
  * Included by resample_ext.c (the module aggregator).
  * Hand-patches to this file are preserved across jm commands.
  * Do NOT compile this file directly — only resample_ext.c is compiled.
  */
 /* ======================================================== */
-/* RateConverterObject — wraps RateConverter_state_t *       */
+/* MatchedRateConverterObject — wraps RateConverter_state_t *       */
 /* ======================================================== */
 
 #include "RateConverter/RateConverter_core.h"
@@ -34,10 +35,10 @@ typedef struct
   size_t    _execute_ctrl_push_retired_n;
   size_t    _execute_ctrl_push_retired_cap;
   PyObject *_execute_ctrl_push_view_ref; /* gh-437 last returned view */
-} RateConverterObject;
+} MatchedRateConverterObject;
 
 static void
-RateConverterObj_dealloc (RateConverterObject *self)
+MatchedRateConverterObj_dealloc (MatchedRateConverterObject *self)
 {
   if (self->handle)
     RateConverter_destroy (self->handle);
@@ -60,32 +61,54 @@ RateConverterObj_dealloc (RateConverterObject *self)
 }
 
 static PyObject *
-RateConverterObj_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
+MatchedRateConverterObj_new (PyTypeObject *type, PyObject *args,
+                             PyObject *kwds)
 {
-  RateConverterObject *self = (RateConverterObject *)type->tp_alloc (type, 0);
+  MatchedRateConverterObject *self
+      = (MatchedRateConverterObject *)type->tp_alloc (type, 0);
   if (self)
     self->handle = NULL;
   return (PyObject *)self;
 }
 
 static int
-RateConverterObj_init (RateConverterObject *self, PyObject *args,
-                       PyObject *kwds)
+MatchedRateConverterObj_init (MatchedRateConverterObject *self, PyObject *args,
+                              PyObject *kwds)
 {
-  static char *kwlist[]   = { "rate", "compensate", NULL };
-  double       rate       = 1.0;
-  int          compensate = 0;
+  static char       *kwlist[]   = { "rate", "compensate", "pulse",      "beta",
+                                    "span", "pulse_sps",  "num_phases", NULL };
+  double             rate       = 1.0;
+  int                compensate = 1;
+  const char        *pulse_str  = "rrc";
+  double             beta       = 0.35;
+  unsigned long long span_raw   = 8;
+  double             pulse_sps  = 2.0;
+  unsigned long long num_phases_raw = 1024;
 
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|di", kwlist, &rate,
-                                    &compensate))
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|disdKdK", kwlist, &rate,
+                                    &compensate, &pulse_str, &beta, &span_raw,
+                                    &pulse_sps, &num_phases_raw))
     return -1;
-  self->handle = RateConverter_create (rate, compensate);
+  int pulse = 0;
+  if (strcmp (pulse_str, "iandd") == 0)
+    pulse = 0;
+  else if (strcmp (pulse_str, "rrc") == 0)
+    pulse = 1;
+  else
+    {
+      PyErr_Format (PyExc_ValueError,
+                    "pulse must be one of \"iandd\", \"rrc\", got '%s'",
+                    pulse_str);
+      return -1;
+    }
+  size_t span       = (size_t)span_raw;
+  size_t num_phases = (size_t)num_phases_raw;
+  self->handle = RateConverter_create_matched (rate, compensate, pulse, beta,
+                                               span, pulse_sps, num_phases);
   if (!self->handle)
     {
-      PyErr_SetString (PyExc_ValueError,
-                       "RateConverter: invalid parameter (need rate > 0, 0 "
-                       "<= beta <= 1, span >= 1, pulse_sps > 0, num_phases a "
-                       "power of two >= 2)");
+      PyErr_SetString (PyExc_MemoryError,
+                       "RateConverter_create_matched returned NULL");
       return -1;
     }
   {
@@ -127,12 +150,25 @@ RateConverterObj_init (RateConverterObject *self, PyObject *args,
         self->_execute_ctrl_push_buf_cap = _max;
       }
   }
+  if (self->handle->narrow_pulse)
+    {
+      if (PyErr_WarnEx (PyExc_UserWarning,
+                        "pulse=\"iandd\" with pulse_sps < 4: the rectangle "
+                        "is one symbol wide, so its matched filter is a 2-3 "
+                        "tap sum here and barely opens the eye (measured on "
+                        "the timing loop this feeds: lock statistic -0.34 at "
+                        "2 samples/symbol against +0.95 at 4). Use pulse_sps "
+                        ">= 4, or pulse=\"rrc\".",
+                        1)
+          < 0)
+        return -1;
+    }
   return 0;
 }
 
 static PyObject *
-RateConverterObj_execute_max_out (RateConverterObject *self,
-                                  PyObject            *Py_UNUSED (ignored))
+MatchedRateConverterObj_execute_max_out (MatchedRateConverterObject *self,
+                                         PyObject *Py_UNUSED (ignored))
 {
   if (!self->handle)
     {
@@ -143,8 +179,8 @@ RateConverterObj_execute_max_out (RateConverterObject *self,
 }
 
 static PyObject *
-RateConverterObj_execute (RateConverterObject *self, PyObject *args,
-                          PyObject *kwds)
+MatchedRateConverterObj_execute (MatchedRateConverterObject *self,
+                                 PyObject *args, PyObject *kwds)
 {
   if (!self->handle)
     {
@@ -276,8 +312,8 @@ RateConverterObj_execute (RateConverterObject *self, PyObject *args,
 }
 
 static PyObject *
-RateConverterObj_execute_ctrl (RateConverterObject *self, PyObject *args,
-                               PyObject *kwds)
+MatchedRateConverterObj_execute_ctrl (MatchedRateConverterObject *self,
+                                      PyObject *args, PyObject *kwds)
 {
   if (!self->handle)
     {
@@ -371,8 +407,8 @@ RateConverterObj_execute_ctrl (RateConverterObject *self, PyObject *args,
 }
 
 static PyObject *
-RateConverterObj_execute_ctrl_push (RateConverterObject *self, PyObject *args,
-                                    PyObject *kwds)
+MatchedRateConverterObj_execute_ctrl_push (MatchedRateConverterObject *self,
+                                           PyObject *args, PyObject *kwds)
 {
   if (!self->handle)
     {
@@ -459,8 +495,8 @@ RateConverterObj_execute_ctrl_push (RateConverterObject *self, PyObject *args,
 }
 
 static PyObject *
-RateConverterObj_reset (RateConverterObject *self,
-                        PyObject            *Py_UNUSED (ignored))
+MatchedRateConverterObj_reset (MatchedRateConverterObject *self,
+                               PyObject                   *Py_UNUSED (ignored))
 {
   if (!self->handle)
     {
@@ -472,8 +508,8 @@ RateConverterObj_reset (RateConverterObject *self,
 }
 
 static PyObject *
-RateConverterObj_state_bytes (RateConverterObject *self,
-                              PyObject            *Py_UNUSED (ignored))
+MatchedRateConverterObj_state_bytes (MatchedRateConverterObject *self,
+                                     PyObject *Py_UNUSED (ignored))
 {
   if (!self->handle)
     {
@@ -484,8 +520,8 @@ RateConverterObj_state_bytes (RateConverterObject *self,
 }
 
 static PyObject *
-RateConverterObj_get_state (RateConverterObject *self,
-                            PyObject            *Py_UNUSED (ignored))
+MatchedRateConverterObj_get_state (MatchedRateConverterObject *self,
+                                   PyObject *Py_UNUSED (ignored))
 {
   if (!self->handle)
     {
@@ -501,7 +537,8 @@ RateConverterObj_get_state (RateConverterObject *self,
 }
 
 static PyObject *
-RateConverterObj_set_state (RateConverterObject *self, PyObject *arg)
+MatchedRateConverterObj_set_state (MatchedRateConverterObject *self,
+                                   PyObject                   *arg)
 {
   if (!self->handle)
     {
@@ -527,8 +564,8 @@ RateConverterObj_set_state (RateConverterObject *self, PyObject *arg)
   Py_RETURN_NONE;
 }
 static PyObject *
-RateConverter_getprop_rate (RateConverterObject *self,
-                            void                *Py_UNUSED (closure))
+MatchedRateConverter_getprop_rate (MatchedRateConverterObject *self,
+                                   void *Py_UNUSED (closure))
 {
   if (!self->handle)
     {
@@ -539,8 +576,8 @@ RateConverter_getprop_rate (RateConverterObject *self,
   return PyFloat_FromDouble (RateConverter_get_rate (self->handle));
 }
 static int
-RateConverter_setprop_rate (RateConverterObject *self, PyObject *value,
-                            void *Py_UNUSED (closure))
+MatchedRateConverter_setprop_rate (MatchedRateConverterObject *self,
+                                   PyObject *value, void *Py_UNUSED (closure))
 {
   if (!self->handle)
     {
@@ -554,8 +591,8 @@ RateConverter_setprop_rate (RateConverterObject *self, PyObject *value,
   return 0;
 }
 static PyObject *
-RateConverter_getprop_clipped (RateConverterObject *self,
-                               void                *Py_UNUSED (closure))
+MatchedRateConverter_getprop_clipped (MatchedRateConverterObject *self,
+                                      void *Py_UNUSED (closure))
 {
   if (!self->handle)
     {
@@ -566,8 +603,8 @@ RateConverter_getprop_clipped (RateConverterObject *self,
   return PyBool_FromLong ((long)(RateConverter_get_clipped (self->handle)));
 }
 static PyObject *
-RateConverter_getprop_narrow_pulse (RateConverterObject *self,
-                                    void                *Py_UNUSED (closure))
+MatchedRateConverter_getprop_narrow_pulse (MatchedRateConverterObject *self,
+                                           void *Py_UNUSED (closure))
 {
   if (!self->handle)
     {
@@ -579,8 +616,8 @@ RateConverter_getprop_narrow_pulse (RateConverterObject *self,
       (long)(RateConverter_get_narrow_pulse (self->handle)));
 }
 static PyObject *
-RateConverter_getprop_stages (RateConverterObject *self,
-                              void                *Py_UNUSED (closure))
+MatchedRateConverter_getprop_stages (MatchedRateConverterObject *self,
+                                     void *Py_UNUSED (closure))
 {
   if (!self->handle)
     {
@@ -614,8 +651,8 @@ RateConverter_getprop_stages (RateConverterObject *self,
   return _c;
 }
 static PyObject *
-RateConverter_getprop_bank_shape (RateConverterObject *self,
-                                  void                *Py_UNUSED (closure))
+MatchedRateConverter_getprop_bank_shape (MatchedRateConverterObject *self,
+                                         void *Py_UNUSED (closure))
 {
   if (!self->handle)
     {
@@ -641,26 +678,26 @@ RateConverter_getprop_bank_shape (RateConverterObject *self,
   return _c;
 }
 
-static PyGetSetDef RateConverter_getset[] = {
-  { "rate", (getter)RateConverter_getprop_rate,
-    (setter)RateConverter_setprop_rate,
+static PyGetSetDef MatchedRateConverter_getset[] = {
+  { "rate", (getter)MatchedRateConverter_getprop_rate,
+    (setter)MatchedRateConverter_setprop_rate,
     "Get / set the output-to-input sample rate ratio. The setter rebuilds the "
     "entire cascade (new stage selection, new sub-objects) and resets all "
     "filter memories — equivalent to destroying and recreating with the new "
     "rate. Setting rate <= 0 is silently ignored.\n",
     NULL },
-  { "clipped", (getter)RateConverter_getprop_clipped, NULL,
+  { "clipped", (getter)MatchedRateConverter_getprop_clipped, NULL,
     "Has any planned CIC stage clipped its input since the last reset?\n",
     NULL },
-  { "narrow_pulse", (getter)RateConverter_getprop_narrow_pulse, NULL,
+  { "narrow_pulse", (getter)MatchedRateConverter_getprop_narrow_pulse, NULL,
     "Is this converter's rectangular matched filter degenerately narrow?\n",
     NULL },
-  { "stages", (getter)RateConverter_getprop_stages, NULL,
+  { "stages", (getter)MatchedRateConverter_getprop_stages, NULL,
     "Stage labels for the planned cascade, e.g. `['CIC(8)', "
     "'Resampler(0.8)']`. A terminal stage carrying a pulse-shaped bank names "
     "its pulse: `'Resampler(0.923077,rrc)'`.\n",
     NULL },
-  { "bank_shape", (getter)RateConverter_getprop_bank_shape, NULL,
+  { "bank_shape", (getter)MatchedRateConverter_getprop_bank_shape, NULL,
     "`[num_phases, num_taps]` of the terminal polyphase stage, or `[]` when "
     "the cascade ends in an integer decimator and so has no bank to describe. "
     "`num_taps` is the per-output MAC count and, times `num_phases`, the "
@@ -674,8 +711,8 @@ static PyGetSetDef RateConverter_getset[] = {
 };
 
 static PyObject *
-RateConverterObj_destroy (RateConverterObject *self,
-                          PyObject            *Py_UNUSED (ignored))
+MatchedRateConverterObj_destroy (MatchedRateConverterObject *self,
+                                 PyObject *Py_UNUSED (ignored))
 {
   if (self->handle)
     {
@@ -686,15 +723,15 @@ RateConverterObj_destroy (RateConverterObject *self,
 }
 
 static PyObject *
-RateConverterObj_enter (RateConverterObject *self,
-                        PyObject            *Py_UNUSED (ignored))
+MatchedRateConverterObj_enter (MatchedRateConverterObject *self,
+                               PyObject                   *Py_UNUSED (ignored))
 {
   Py_INCREF (self);
   return (PyObject *)self;
 }
 
 static PyObject *
-RateConverterObj_exit (RateConverterObject *self, PyObject *args)
+MatchedRateConverterObj_exit (MatchedRateConverterObject *self, PyObject *args)
 {
   (void)args;
   if (self->handle)
@@ -705,9 +742,9 @@ RateConverterObj_exit (RateConverterObject *self, PyObject *args)
   Py_RETURN_NONE;
 }
 
-static PyMethodDef RateConverterObj_methods[] = {
+static PyMethodDef MatchedRateConverterObj_methods[] = {
 
-  { "execute", (PyCFunction)RateConverterObj_execute,
+  { "execute", (PyCFunction)MatchedRateConverterObj_execute,
     METH_VARARGS | METH_KEYWORDS,
     "execute(x) -> ndarray\n"
     "\n"
@@ -718,40 +755,41 @@ static PyMethodDef RateConverterObj_methods[] = {
     "approximately n_in * rate.\n"
     "\n"
     "    >>> import numpy as np\n"
-    "    >>> from doppler import RateConverter\n"
-    "    >>> obj = RateConverter(1.0, 0)\n"
+    "    >>> from doppler import MatchedRateConverter\n"
+    "    >>> obj = MatchedRateConverter(1.0, 1, \"rrc\", 0.35, 8, 2.0, 1024)\n"
     "    >>> y = obj.execute(np.zeros(4))\n"
     "    >>> y.dtype\n"
     "    dtype('complex64')\n" },
-  { "execute_max_out", (PyCFunction)RateConverterObj_execute_max_out,
+  { "execute_max_out", (PyCFunction)MatchedRateConverterObj_execute_max_out,
     METH_NOARGS,
     "execute_max_out() -> int\n\nMax output length execute() can produce for "
     "the current state.\nUse to size the ``out=`` buffer." },
-  { "execute_ctrl", (PyCFunction)RateConverterObj_execute_ctrl,
+  { "execute_ctrl", (PyCFunction)MatchedRateConverterObj_execute_ctrl,
     METH_VARARGS | METH_KEYWORDS,
     "execute_ctrl(x) -> ndarray\n"
     "\n"
     "Convert a block, steering the cascade's fractional stage by ctrl.\n"
     "\n"
     "    >>> import numpy as np\n"
-    "    >>> from doppler import RateConverter\n"
-    "    >>> obj = RateConverter(1.0, 0)\n"
+    "    >>> from doppler import MatchedRateConverter\n"
+    "    >>> obj = MatchedRateConverter(1.0, 1, \"rrc\", 0.35, 8, 2.0, 1024)\n"
     "    >>> y = obj.execute_ctrl(np.zeros(4))\n"
     "    >>> y.dtype\n"
     "    dtype('complex64')\n" },
-  { "execute_ctrl_push", (PyCFunction)RateConverterObj_execute_ctrl_push,
+  { "execute_ctrl_push",
+    (PyCFunction)MatchedRateConverterObj_execute_ctrl_push,
     METH_VARARGS | METH_KEYWORDS,
     "execute_ctrl_push(n=1) -> ndarray\n"
     "\n"
     "Push ONE input sample; emit whatever outputs it completes.\n"
     "\n"
     "    >>> import numpy as np\n"
-    "    >>> from doppler import RateConverter\n"
-    "    >>> obj = RateConverter(1.0, 0)\n"
+    "    >>> from doppler import MatchedRateConverter\n"
+    "    >>> obj = MatchedRateConverter(1.0, 1, \"rrc\", 0.35, 8, 2.0, 1024)\n"
     "    >>> y = obj.execute_ctrl_push(np.zeros(4))\n"
     "    >>> y.dtype\n"
     "    dtype('complex64')\n" },
-  { "reset", (PyCFunction)RateConverterObj_reset, METH_NOARGS,
+  { "reset", (PyCFunction)MatchedRateConverterObj_reset, METH_NOARGS,
     "reset() -> None\n"
     "\n"
     "Zero all sub-stage filter memories. Rate, stage count, and stage types "
@@ -759,36 +797,32 @@ static PyMethodDef RateConverterObj_methods[] = {
     "a freshly created converter fed the same input. Use between signal "
     "bursts to suppress transient artefacts from prior filter memory.\n"
     "\n"
-    "    >>> from doppler import RateConverter\n"
-    "    >>> obj = RateConverter(1.0, 0)\n"
+    "    >>> from doppler import MatchedRateConverter\n"
+    "    >>> obj = MatchedRateConverter(1.0, 1, \"rrc\", 0.35, 8, 2.0, 1024)\n"
     "    >>> obj.reset()\n" },
-  { "state_bytes", (PyCFunction)RateConverterObj_state_bytes, METH_NOARGS,
-    "Serialized state size in bytes." },
-  { "get_state", (PyCFunction)RateConverterObj_get_state, METH_NOARGS,
+  { "state_bytes", (PyCFunction)MatchedRateConverterObj_state_bytes,
+    METH_NOARGS, "Serialized state size in bytes." },
+  { "get_state", (PyCFunction)MatchedRateConverterObj_get_state, METH_NOARGS,
     "Serialize the engine's mutable state to bytes." },
-  { "set_state", (PyCFunction)RateConverterObj_set_state, METH_O,
+  { "set_state", (PyCFunction)MatchedRateConverterObj_set_state, METH_O,
     "Restore mutable state from a get_state() blob." },
-  { "destroy", (PyCFunction)RateConverterObj_destroy, METH_NOARGS,
+  { "destroy", (PyCFunction)MatchedRateConverterObj_destroy, METH_NOARGS,
     "Release resources." },
-  { "__enter__", (PyCFunction)RateConverterObj_enter, METH_NOARGS, NULL },
-  { "__exit__", (PyCFunction)RateConverterObj_exit, METH_VARARGS, NULL },
+  { "__enter__", (PyCFunction)MatchedRateConverterObj_enter, METH_NOARGS,
+    NULL },
+  { "__exit__", (PyCFunction)MatchedRateConverterObj_exit, METH_VARARGS,
+    NULL },
   { NULL }
 };
 
-static PyTypeObject RateConverterObjType = {
-  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "resample.RateConverter",
-  .tp_basicsize                           = sizeof (RateConverterObject),
-  .tp_dealloc = (destructor)RateConverterObj_dealloc,
-  .tp_flags   = Py_TPFLAGS_DEFAULT,
-  .tp_doc
-  = "Create a rate converter for the given output/input rate ratio. Selects "
-    "the cheapest cascade of CIC, HalfbandDecimator, and/or polyphase "
-    "Resampler stages at construction time (see file header for the selection "
-    "table). Setting compensate=1 appends a closed-form Molnar-Vucic CIC "
-    "droop-compensating FIR after any CIC stage, which improves passband "
-    "flatness at the cost of one extra FIR stage.\n",
-  .tp_methods = RateConverterObj_methods,
-  .tp_getset  = RateConverter_getset,
-  .tp_new     = RateConverterObj_new,
-  .tp_init    = (initproc)RateConverterObj_init,
+static PyTypeObject MatchedRateConverterObjType = {
+  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "resample.MatchedRateConverter",
+  .tp_basicsize = sizeof (MatchedRateConverterObject),
+  .tp_dealloc   = (destructor)MatchedRateConverterObj_dealloc,
+  .tp_flags     = Py_TPFLAGS_DEFAULT,
+  .tp_doc       = "MatchedRateConverter type.\n",
+  .tp_methods   = MatchedRateConverterObj_methods,
+  .tp_getset    = MatchedRateConverter_getset,
+  .tp_new       = MatchedRateConverterObj_new,
+  .tp_init      = (initproc)MatchedRateConverterObj_init,
 };

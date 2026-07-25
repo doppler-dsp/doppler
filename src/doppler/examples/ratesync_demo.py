@@ -5,10 +5,11 @@ symbol (17.33389 — an ADC clock with no rational relationship to the symbol
 clock), offsets the clock by 200 ppm on top of that, adds noise, and hands the
 stream to :class:`doppler.track.RateSync`.
 
-`RateSync` owns a :class:`doppler.resample.RateConverter` whose **terminal
-stage carries the pulse**, so the cascade's last dot product *is* the matched
-filter and the polyphase arm it selects *is* the fractional timing delay. One
-filter, no Farrow. Two things follow, and they are what this demo shows:
+`RateSync` owns a :class:`doppler.resample.MatchedRateConverter` whose
+**terminal stage carries the pulse**, so the cascade's last dot product *is*
+the matched filter and the polyphase arm it selects *is* the fractional
+timing delay. One filter, no Farrow. Two things follow, and they are what
+this demo shows:
 
   * `sps` is a `double`, because the terminal stage's accumulator is one. No
     integer relationship between the two clocks is required anywhere.
@@ -158,7 +159,7 @@ def track_rate(sps, chunk=4096):
 
 
 # --8<-- [start:cost]
-from doppler.resample import RateConverter  # noqa: E402
+from doppler.resample import MatchedRateConverter  # noqa: E402
 
 
 # Why a high input rate is nearly free: the cascade's HB/CIC stages do the
@@ -168,7 +169,7 @@ def bank_cost(sps_values, span=SPAN, m=2):
     """(taps/arm on the cascade, taps/arm at the input rate) per sps."""
     cascade, at_input = [], []
     for s in sps_values:
-        rc = RateConverter(
+        rc = MatchedRateConverter(
             rate=m / s,
             compensate=1,
             pulse="rrc",

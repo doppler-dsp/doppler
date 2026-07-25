@@ -9,7 +9,7 @@ samples per symbol, and 200 ppm off even that.
 It gets there by inverting the usual arrangement. Where
 [`SymbolSync`](symsync.md) runs a matched FIR and then a separate
 [`Farrow`](farrow.md) interpolator steered by an integer NCO, `RateSync` owns a
-[`RateConverter`](../api/python-resample.md) whose **terminal stage carries the
+[`MatchedRateConverter`](../api/python-resample.md) whose **terminal stage carries the
 pulse**. The cascade's last dot product *is* the matched filter, and the
 polyphase arm that dot product selects *is* the fractional timing delay. One
 filter, no Farrow, no separate matched-filtering pass — and because that
@@ -79,7 +79,7 @@ finds the true one:
 --8<-- "src/doppler/examples/ratesync_demo.py:signal"
 ```
 
-`RateSync` asks its `RateConverter` for `rate = m/sps` and lets the planner
+`RateSync` asks its `MatchedRateConverter` for `rate = m/sps` and lets the planner
 decide the shape. At `sps = 17.33389` with `m = 2` that is `CIC(8)` followed by
 a `Resampler(0.923, rrc)`: the CIC throws away the bulk of the rate for free,
 and the fractional remainder lands on the stage that carries the pulse. Ask for

@@ -15,6 +15,30 @@ ______________________________________________________________________
 
 ### Changed
 
+- **`RateConverter(pulse=…)` is now `MatchedRateConverter(…)`.** The matched
+    cascade is a *flavor* — the same object built by a different C constructor
+    (`RateConverter_create_matched`, unchanged) — which is what lets the whole
+    binding be manifest-generated: the entirely hand-written CPython fragment
+    is gone, and `resample.pyi` comes off `status_allow` (the last big entry).
+    Three consequences for callers:
+
+    - `compensate` defaults to **1** on the matched flavor (0 on the plain
+        converter, unchanged). On a CIC plan the droop fold is worth 28 dB for
+        a handful of taps per arm, so it is the right default where a matched
+        filter is involved.
+    - `bank_shape` is a **list**: `[num_phases, num_taps]`, or `[]` where it
+        was `None` (the cascade ends in an integer decimator, so there is no
+        bank to describe). Unpacking and indexing are unchanged.
+    - An out-of-range parameter raises `MemoryError` rather than `ValueError`
+        on the flavor: a jm view inherits none of its parent's `create_error`
+        translation, even though a flavor's constructor has strictly more
+        parameters and so more ways to fail. Pinned by a strict xfail and
+        filed upstream; the plain converter still raises `ValueError`.
+
+    New alongside: `narrow_pulse` plus a construction `UserWarning` for
+    `pulse="iandd"` with fewer than four output samples per symbol, where the
+    one-symbol-wide rectangle's matched filter degenerates to a 2–3 tap sum.
+
 - **`Ddcr` is a module object, not a `kind="handle"` module.** Same class
     name, same constructor, same methods (`execute(x, out=None)`, `reset()`,
     `close()`/`destroy()`, the context manager, the state triplet, the GIL

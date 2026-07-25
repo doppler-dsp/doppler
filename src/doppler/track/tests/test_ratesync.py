@@ -5,7 +5,7 @@ import math
 import numpy as np
 import pytest
 
-from doppler.resample import RateConverter
+from doppler.resample import MatchedRateConverter
 from doppler.track import RateSync
 
 BETA = 0.35
@@ -128,7 +128,9 @@ def test_bank_is_constant_in_input_rate(sps):
     # HB/CIC stages, so the matched filter is sized by the POST-decimation
     # rate. A 64x span of input rates leaves the bank the same size -- that is
     # what makes a matched filter affordable at 256 samples per symbol.
-    rc = RateConverter(rate=2 / sps, compensate=1, pulse="rrc", pulse_sps=2.0)
+    rc = MatchedRateConverter(
+        rate=2 / sps, compensate=1, pulse="rrc", pulse_sps=2.0
+    )
     arms, taps = rc.bank_shape
     assert arms == 1024
     assert taps < 4 * SPAN * 2 + 16

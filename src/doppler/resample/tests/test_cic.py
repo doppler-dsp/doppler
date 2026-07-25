@@ -215,3 +215,63 @@ class TestSpectralQuality:
         n_drop = N * (R - 1) // R + 4
         rms = float(np.sqrt(np.mean(np.abs(y[n_drop:]) ** 2)))
         assert rms < 1e-3, f"Null tone RMS {rms:.2e} (expected < 1e-3)"
+
+
+# ------------------------------------------------------------------ #
+# Input amplitude bound                                               #
+# ------------------------------------------------------------------ #
+
+
+def test_input_beyond_unity_is_clipped_silently():
+    # The CIC is the one block in doppler that is NOT scale-free: its input
+    # is bounded to |Re|, |Im| <= 1.0 and anything past that is clipped
+    # before filtering. No exception, no NaN -- just a plausible-looking
+    # wrong answer, which is exactly why it is documented so loudly.
+    cic = CIC(R=16)
+    for amp in (0.5, 1.0):
+        y = CIC(R=16).decimate(np.full(256, amp, dtype=np.complex64))
+        assert y[-1].real == pytest.approx(amp, rel=1e-3)
+    for amp in (2.0, 10.0, 1e6):
+        y = CIC(R=16).decimate(np.full(256, amp, dtype=np.complex64))
+        assert np.isfinite(y[-1].real)
+        assert y[-1].real == pytest.approx(1.0, rel=1e-3)
+    # Clipping is per component and symmetric.
+    y = cic.decimate(np.full(256, -5.0 + 5.0j, dtype=np.complex64))
+    assert y[-1].real == pytest.approx(-1.0, rel=1e-3)
+    assert y[-1].imag == pytest.approx(1.0, rel=1e-3)
+
+
+def test_clipped_flag_is_sticky_and_free():
+    # The flag is the only reliable signal, since the sample stream gives
+    # none. It costs nothing: the boundary comparisons run regardless.
+    c = CIC(R=16)
+    assert c.clipped is False
+    c.decimate(np.full(256, 0.9, dtype=np.complex64))
+    assert c.clipped is False
+    c.decimate(np.full(256, 1.5, dtype=np.complex64))
+    assert c.clipped is True
+    # Sticky: a later in-range block does not clear it...
+    c.decimate(np.full(256, 0.1, dtype=np.complex64))
+    assert c.clipped is True
+    # ...only reset() does.
+    c.reset()
+    assert c.clipped is False
+
+
+@pytest.mark.parametrize("bad", [2.0 + 0j, -2.0 + 0j, 0 + 2.0j, 0 - 2.0j])
+def test_clipped_catches_every_component_and_sign(bad):
+    c = CIC(R=16)
+    c.decimate(np.full(256, bad, dtype=np.complex64))
+    assert c.clipped is True
+
+
+def test_clipped_survives_state_round_trip():
+    # `clipped` is running state, not a side-channel diagnostic: a resumed
+    # stream that forgot it had clipped would answer the question wrongly.
+    a = CIC(R=16)
+    a.decimate(np.full(256, 3.0, dtype=np.complex64))
+    assert a.clipped is True
+    b = CIC(R=16)
+    assert b.clipped is False
+    b.set_state(a.get_state())
+    assert b.clipped is True

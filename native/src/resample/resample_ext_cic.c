@@ -291,10 +291,29 @@ CIC_getprop_shift (CICObject *self, void *Py_UNUSED (closure))
   return PyLong_FromUnsignedLong ((unsigned long)self->handle->shift);
 }
 
-static PyGetSetDef CIC_getset[]
-    = { { "R", (getter)CIC_getprop_R, NULL, "R.\n", NULL },
-        { "shift", (getter)CIC_getprop_shift, NULL, "Shift.\n", NULL },
-        { NULL } };
+static PyObject *
+CIC_getprop_clipped (CICObject *self, void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyBool_FromLong ((long)(self->handle->clipped));
+}
+
+static PyGetSetDef CIC_getset[] = {
+  { "R", (getter)CIC_getprop_R, NULL, "R.\n", NULL },
+  { "shift", (getter)CIC_getprop_shift, NULL, "Shift.\n", NULL },
+  { "clipped", (getter)CIC_getprop_clipped, NULL,
+    "True if any input component has exceeded the +-1.0 bound since the last "
+    "reset(). Sticky, and free to read: the CIC's boundary comparisons run on "
+    "every sample anyway, so it records something the sample stream cannot "
+    "tell you -- a clipped stream still looks entirely plausible (finite, no "
+    "NaN, merely distorted), so this flag is the only reliable check.\n",
+    NULL },
+  { NULL }
+};
 
 static PyObject *
 CICObj_destroy (CICObject *self, PyObject *Py_UNUSED (ignored))

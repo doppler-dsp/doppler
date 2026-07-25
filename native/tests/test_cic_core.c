@@ -336,13 +336,19 @@ main (void)
     size_t       sb  = cic_state_bytes (r1);
     CHECK (sb
            == sizeof (dp_state_hdr_t) + 4 * CIC_N * sizeof (uint64_t)
-                  + sizeof (uint32_t));
+                  + sizeof (uint32_t) + sizeof (uint8_t));
+    /* This block's own input runs to +-3, i.e. well past the +-1.0 bound —
+       so the sticky flag must be up, and must survive the round trip.  A
+       resumed stream that forgot it had clipped would answer wrongly. */
+    CHECK (r1->clipped == 1);
     void *blob = malloc (sb);
     cic_get_state (r1, blob);
     cic_destroy (r1);
 
     cic_state_t *r2 = cic_create (R);
+    CHECK (r2->clipped == 0);
     CHECK (cic_set_state (r2, blob) == DP_OK);
+    CHECK (r2->clipped == 1);
     /* standard envelope: a magic-clobbered blob is rejected, r2 untouched */
     ((char *)blob)[0] ^= (char)0xFF;
     CHECK (cic_set_state (r2, blob) == DP_ERR_INVALID);
@@ -354,6 +360,44 @@ main (void)
     CHECK (nA == nB);
     CHECK (nA > 0 && memcmp (outA, outB, nA * sizeof (float complex)) == 0);
     free (in);
+  }
+
+  /* ── sticky clip flag: the only signal that the +-1.0 input bound was
+   *    exceeded, since the sample stream stays finite and plausible ────── */
+  {
+    cic_state_t  *obj = cic_create (16);
+    float complex in[64];
+    CHECK (obj->clipped == 0);
+    for (size_t i = 0; i < 64; i++)
+      in[i] = 0.9f + 0.9f * I;
+    float complex out[8];
+    cic_decimate (obj, in, 64, out);
+    CHECK (obj->clipped == 0); /* in range — no false positive */
+
+    for (size_t i = 0; i < 64; i++)
+      in[i] = 1.5f + 0.0f * I;
+    cic_decimate (obj, in, 64, out);
+    CHECK (obj->clipped == 1);
+
+    for (size_t i = 0; i < 64; i++)
+      in[i] = 0.1f + 0.0f * I;
+    cic_decimate (obj, in, 64, out);
+    CHECK (obj->clipped == 1); /* sticky across later in-range blocks */
+
+    cic_reset (obj);
+    CHECK (obj->clipped == 0); /* cleared only by reset() */
+
+    /* every component and sign is caught */
+    const float complex bad[4] = { 2.0f, -2.0f, 2.0f * I, -2.0f * I };
+    for (size_t k = 0; k < 4; k++)
+      {
+        cic_reset (obj);
+        for (size_t i = 0; i < 64; i++)
+          in[i] = bad[k];
+        cic_decimate (obj, in, 64, out);
+        CHECK (obj->clipped == 1);
+      }
+    cic_destroy (obj);
   }
 
   if (_fails)

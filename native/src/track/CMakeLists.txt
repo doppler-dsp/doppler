@@ -2,7 +2,7 @@ add_library(track_core OBJECT track_core.c)
 target_include_directories(track_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc)
 
 if(BUILD_PYTHON)
-# track Python module — aggregates: LoopFilter, Costas, Dll, SymbolSync, CarrierMpsk, CarrierNda, MpskReceiver
+# track Python module — aggregates: LoopFilter, Costas, Dll, SymbolSync, RateSync, CarrierMpsk, CarrierNda, MpskReceiver
 Python3_add_library(track MODULE WITH_SOABI track_ext.c)
 target_link_libraries(track PRIVATE
     track_core
@@ -10,6 +10,7 @@ target_link_libraries(track PRIVATE
     costas_core
     dll_core
     symsync_core
+    ratesync_core
     carrier_mpsk_core
     carrier_nda_core
     mpsk_receiver_core
@@ -19,10 +20,15 @@ target_link_libraries(track PRIVATE
     detection_core
     nco_core
     farrow_core
+    RateConverter_core
+    resamp_core
+    fir_core
+    hbdecim_core
+    cic_core
+    resample_core
     boxcar_core
     agc_core
     wfm_dsp_core
-    fir_core
     Python3::NumPy)
 target_include_directories(track PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
 set_target_properties(track PROPERTIES

@@ -21,17 +21,38 @@ stage's accumulator is a `double`, `sps` is a `double`.
 while the loop acquires, then clean rails — at a fractional `sps`, with the
 clock 200 ppm off nominal.
 
-The noise is quoted as **Es/N0**, not as an "SNR", because at 17.33 samples per
-symbol those differ by 12 dB and the same number would describe two very
-different links. At Es/N0 = 15 dB a matched filter cannot do better than
-EVM² = 1/(2·Es/N0), i.e. −18.0 dB. This receiver measures **−18.0 dB averaged
-over twelve seeds — 0.03 dB from the bound**. Fusing the matched filter into the
-resampler's polyphase bank costs nothing in detection performance; it is the
-same filter, evaluated at a steered instant.
+The noise is quoted as **Es/N0**, not as an "SNR": at 17.33 samples per symbol
+those differ by more than 12 dB, so the same number would describe two very
+different links. The noise is complex, N0 total — a real receiver's baseband is
+complex and its Q channel carries noise even when the modulation is real.
 
-(A single run's 375-symbol window carries about 0.4 dB of estimator noise, so
-one seed can land either side of the bound. The script asserts ±1.5 dB — three
-sigma — rather than pretending a single measurement is tighter than it is.)
+At the matched-filter output the error vector *is* that complex noise, of total
+variance N0, against a reference of energy Es. So on the I/Q plane
+
+$$
+\\mathrm{EVM}^2 = \\frac{N_0}{E_s}
+\\qquad\\Longleftrightarrow\\qquad
+\\mathrm{EVM},[\\mathrm{dB}] = -\\bigl(E_s/N_0\\bigr)[\\mathrm{dB}]
+$$
+
+(The familiar factor of two belongs to an **I-only** measurement, which
+discards the Q channel. EVM is a plane quantity unless it says otherwise.)
+
+Measured, ten seeds per point:
+
+| Es/N0 | bound    | measured  | offset   |
+| ----- | -------- | --------- | -------- |
+| 10 dB | −10.0 dB | −10.02 dB | −0.02 dB |
+| 15 dB | −15.0 dB | −15.01 dB | −0.01 dB |
+| 20 dB | −20.0 dB | −19.97 dB | +0.03 dB |
+
+So the fused matched filter **is on the bound**, across a 10 dB span — fusing
+it into the resampler's polyphase bank costs nothing in detection performance.
+It is the same filter, evaluated at a steered instant.
+
+(One 375-symbol window carries ~0.3 dB of estimator noise, so a single seed
+lands either side. The script asserts ±1.5 dB at three operating points rather
+than pretending one measurement is tighter than it is.)
 
 **Middle — Tracked clock.** `RateSync.rate` pulling off the nominal it was
 constructed with (dotted) onto the stream's true rate (dashed). The loop is

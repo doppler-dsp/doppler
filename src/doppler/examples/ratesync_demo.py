@@ -74,9 +74,14 @@ def make_signal(sps, tau=0.37, seed=7, es_n0_db=ES_N0_DB):
     Noise is set from **Es/N0**, the symbol energy over the noise density,
     because "SNR" alone is ambiguous here: at 17.33 samples per symbol a
     per-sample SNR is ~12 dB below the Es/N0 the receiver actually sees, so
-    the same number means two very different links. Es = mean per-sample
-    power x sps, and for real baseband AWGN the per-sample variance IS N0/2,
-    so Es/N0 = Es / (2 * sigma^2).
+    the same number means two very different links.
+
+    The noise is **complex**, N0 total (N0/2 per dimension), because a real
+    receiver's baseband is complex and its Q channel carries noise even when
+    the modulation is real. Injecting real-only noise instead is the same
+    thing as discarding Q, and it flatters the reported EVM by 3 dB against
+    the convention everyone else quotes -- EVM is measured on the I/Q plane
+    unless it says otherwise.
 
     Amplitude is kept well inside +-1.0: the planned cascade contains a CIC,
     which bounds its input and clips silently past that (RateSync.clipped is
@@ -98,13 +103,23 @@ def make_signal(sps, tau=0.37, seed=7, es_n0_db=ES_N0_DB):
     # EVM that beats the matched-filter bound, which nothing can do.
     core = x[int(SPAN * sps) : -int(SPAN * sps)]
     es = np.mean(core**2) * sps
-    sigma = np.sqrt(es / (2 * 10 ** (es_n0_db / 10)))
-    return (x + rng.standard_normal(n) * sigma).astype(np.complex64), syms
+    n0 = es / 10 ** (es_n0_db / 10)
+    noise = (rng.standard_normal(n) + 1j * rng.standard_normal(n)) * np.sqrt(
+        n0 / 2
+    )
+    return (x + noise).astype(np.complex64), syms
 
 
 def evm_floor_db(es_n0_db=ES_N0_DB):
-    """Matched-filter EVM bound: EVM^2 = 1 / (2 * Es/N0)."""
-    return -10 * np.log10(2 * 10 ** (es_n0_db / 10))
+    """Matched-filter EVM bound on the I/Q plane.
+
+    At the matched-filter output the error vector is the complex noise, of
+    total variance N0, against a reference of energy Es -- so
+    EVM^2 = N0/Es and the bound in dB is simply -(Es/N0). (The familiar
+    factor of two belongs to an I-only measurement, which discards the Q
+    channel; EVM is a plane quantity unless stated otherwise.)
+    """
+    return -es_n0_db
 
 
 # The receiver: one object, one call. `sps` is the NOMINAL rate -- the loop
@@ -185,8 +200,9 @@ def main(out_path="ratesync_demo.png"):
     axes[0].axhline(0, lw=0.5, color="k", alpha=0.3)
     axes[0].set_title(
         f"Recovered symbols — sps = {SPS} (+{CLOCK_PPM:g} ppm), "
-        f"Es/N0 {ES_N0_DB:g} dB, settled EVM {evm:.1f} dB "
-        f"(matched-filter bound {evm_floor_db():.1f} dB)"
+        f"Es/N0 {ES_N0_DB:g} dB\n"
+        f"settled EVM {evm:.1f} dB   (matched-filter bound "
+        f"{evm_floor_db():.1f} dB)"
     )
     axes[0].set_xlabel("symbol index")
     axes[0].set_ylabel("Re")
@@ -218,7 +234,7 @@ def main(out_path="ratesync_demo.png"):
         label="on the cascade's terminal stage",
     )
     axes[2].set_title(
-        "Matched-filter cost — sized by the post-decimation rate, "
+        "Matched-filter cost\nsized by the post-decimation rate, "
         "not the input rate"
     )
     axes[2].set_xlabel("input samples per symbol")
@@ -253,6 +269,19 @@ def main(out_path="ratesync_demo.png"):
     # relative std of a variance estimate is sqrt(2/N)), so one seed can land
     # either side of the bound; over 12 seeds the mean sits 0.03 dB from it.
     # +-1.5 dB is three sigma on one seed, not a fudge factor.
+    # ...and the RELATION, not just one point: EVM should track -(Es/N0)
+    # across operating points. Two extra points cost ~1 s and turn "it hit
+    # the bound once" into "it is on the bound".
+    for esn0 in (10.0, 20.0):
+        sig, _ = make_signal(SPS * (1 + CLOCK_PPM * 1e-6), es_n0_db=esn0)
+        obj = RateSync(
+            sps=SPS, pulse="rrc", beta=BETA, span=SPAN, m=2, bn=0.005
+        )
+        got = _evm_db(np.asarray(obj.steps(sig)))
+        assert abs(got - evm_floor_db(esn0)) < 1.5, (
+            f"Es/N0 {esn0:g} dB: EVM {got:.1f} dB, bound {-esn0:.1f} dB"
+        )
+
     floor = evm_floor_db()
     assert abs(evm - floor) < 1.5, (
         f"EVM {evm:.1f} dB is {evm - floor:+.1f} dB from the matched-filter "

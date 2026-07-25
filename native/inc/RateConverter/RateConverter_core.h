@@ -16,6 +16,15 @@
  *                                    R* = nearest power-of-2 to D
  *   otherwise (2 <= D < 8, non-int) `[Resampler(rate)]`
  *
+ * **INPUT AMPLITUDE IS BOUNDED whenever the plan contains a CIC stage** —
+ * that is, any decimation by 8 or more: |Re| and |Im| <= 1.0, clipped beyond
+ * that, before any filtering.  `stages` is how you tell: a plan naming
+ * `CIC(...)` is not scale-free, every other plan is.  This is the one
+ * property of this object a caller cannot infer from an output that is finite
+ * and looks plausible — an overdriven RRC-BPSK waveform (peak 1.29)
+ * matched-filters to -25 dB EVM where the same waveform scaled to peak 0.32
+ * reaches -50 dB.
+ *
  * Lifecycle:
  * @code
  *   RateConverter_state_t *rc = RateConverter_create(0.1, 0);
@@ -150,10 +159,9 @@ RateConverter_state_t *RateConverter_create (double rate, int compensate);
  * taps per arm and no extra pass over the data. Folded or appended agree to
  * within 0.6 dB, i.e. the fold gives up nothing to a separate comp FIR.
  *
- * @note Keep the input inside cic_core's Q15 full scale (|x| < 1). A CIC stage
- * quantizes at its boundary, so overdriving it clips: the same signal at peak
- * 1.29 measures -25 dB EVM instead of -50 dB, for reasons that have nothing to
- * do with the matched filter.
+ * @note Keep the INPUT inside +-1.0 whenever the plan contains a CIC stage —
+ * see the file header.  The clip is silent, and it costs 25 dB of the EVM
+ * quoted above for reasons that have nothing to do with the matched filter.
  *
  * @param rate       Output-to-input sample rate ratio (any positive float).
  *                   Rate-agnostic: this object never learns about symbols —
@@ -178,6 +186,23 @@ RateConverter_state_t *
 RateConverter_create_matched (double rate, int compensate, int pulse,
                               double beta, size_t span, double pulse_sps,
                               size_t num_phases);
+
+/**
+ * @brief Has any planned CIC stage clipped its input since the last reset?
+ *
+ * The cascade inherits cic_core's input bound (|Re|, |Im| <= 1.0) whenever the
+ * plan contains a CIC — any decimation by 8 or more — and the clip does not
+ * show up in the samples: the output stays finite and plausible, merely
+ * distorted.  This is the only reliable way to find out, and it is free (the
+ * boundary comparisons run on every sample regardless).
+ *
+ * Sticky, cleared by RateConverter_reset().  Always 0 for a cascade with no
+ * CIC stage, which is the honest answer: those plans are scale-free.
+ *
+ * @param s  Pointer to a valid RateConverter_state_t.
+ * @return 1 if any CIC stage has clipped, else 0.
+ */
+int RateConverter_get_clipped (const RateConverter_state_t *s);
 
 /** @brief Free all resources.  NULL is a no-op. */
 void RateConverter_destroy (RateConverter_state_t *s);

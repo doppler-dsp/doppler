@@ -15,6 +15,29 @@ ______________________________________________________________________
 
 ### Added
 
+- **`CIC.clipped` / `RateConverter.clipped` — the input bound stops being a
+    silent one.** `cic_core` quantizes at its boundary, so its input amplitude
+    is bounded to `|Re|, |Im| <= 1.0` and anything past that is clipped before
+    any filtering. Nothing in the sample stream shows it: no exception, no NaN,
+    just a plausible-looking output that is quietly wrong. This cost real time
+    during the matched-filter work — an overdriven waveform measured −25 dB EVM
+    against −50 dB in range, and the investigation went through droop geometry,
+    alias arithmetic and compensator length before reaching the amplitude.
+
+    Both blocks now carry a sticky `clipped` flag, cleared by `reset()`, in the
+    same convention the quantizing `cvt` converters (`adc`, `f32_to_uq15`, …)
+    already used. **It is free**: the four boundary comparisons run on every
+    sample regardless, so recording that one fired costs a register OR — the
+    flag reports something the samples cannot. It is also serialized, so a
+    resumed stream does not forget it clipped (`CIC_STATE_VERSION` → 2).
+
+    `RateConverter` surfaces it because that is where the trap actually is: the
+    planner selects a CIC for **any decimation by 8 or more**, so
+    `RateConverter(rate=0.1)` inherits the bound without the word "CIC"
+    appearing anywhere in the call. `stages` tells you whether the bound
+    applies — a plan naming `CIC(...)` is not scale-free, every other plan is —
+    and `clipped` tells you whether you hit it.
+
 - **`RateConverter(pulse=…)` — the cascade IS the matched filter.** The
     terminal polyphase stage can now carry a pulse-shaped bank (`"rrc"` /
     `"iandd"`) instead of the default Kaiser anti-alias one, so a single dot
@@ -61,6 +84,14 @@ ______________________________________________________________________
     `bank_shape` now both appear in the type stubs; `stages` previously did not.
 
 ### Changed
+
+- **The `±1.0` input bound is now documented where callers meet it** rather
+    than only as a cast-safety note in `QUANTIZATION.md` §2.4. `cic_core.h`,
+    `RateConverter_core.h`, both classes' Python docstrings and the type stubs
+    now state it plainly, and §8's headroom budget no longer reads as blanket
+    reassurance: "no overflow occurs" describes the integer pipeline, not a
+    licence to feed the block any amplitude. Pinned by tests in both harnesses
+    so the docs and the code cannot drift apart.
 
 - `RateConverter.execute()` on a **matched** cascade routes through the unified
     accumulator (`execute_ctrl` at zero deviation) rather than `resamp`'s

@@ -694,6 +694,16 @@ RateConverter_create_matched (double rate, int compensate, int pulse,
   return s;
 }
 
+int
+RateConverter_get_clipped (const RateConverter_state_t *s)
+{
+  for (int i = 0; i < s->n_stages; i++)
+    if (s->stage_types[i] == RC_STAGE_CIC
+        && ((const rc_cic_stage_t *)s->stage_ptrs[i])->cic->clipped)
+      return 1;
+  return 0;
+}
+
 void
 RateConverter_destroy (RateConverter_state_t *s)
 {

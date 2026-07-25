@@ -33,3 +33,9 @@ field = true
 name = "shift"
 type = "uint32_t"
 field = true
+
+[[cic.properties]]
+name = "clipped"
+type = "bool"
+field = true
+doc = "True if any input component has exceeded the +-1.0 bound since the last reset(). Sticky, and free to read: the CIC's boundary comparisons run on every sample anyway, so it records something the sample stream cannot tell you -- a clipped stream still looks entirely plausible (finite, no NaN, merely distorted), so this flag is the only reliable check."

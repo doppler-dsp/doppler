@@ -498,3 +498,83 @@ def test_set_rate_keeps_the_pulse():
     rc.rate = 2 / 64
     assert rc.stages == ["CIC(32)", "Resampler(1,rrc)"]
     assert "FIR" not in rc.stages[0]
+
+
+# ------------------------------------------------------------------ #
+# Input amplitude bound (inherited from a planned CIC stage)          #
+# ------------------------------------------------------------------ #
+
+
+@pytest.mark.parametrize(
+    "rate,has_cic",
+    [
+        (0.5, False),  # HalfbandDecimator
+        (0.25, False),  # two halfbands
+        (1 / 3, False),  # plain Resampler
+        (2.0, False),  # interpolating Resampler
+        (0.125, True),  # CIC(8)
+        (0.1, True),  # CIC(8) + Resampler(0.8)
+        (1 / 64, True),  # CIC(64)
+    ],
+)
+def test_input_bound_applies_exactly_when_a_cic_is_planned(rate, has_cic):
+    # `stages` is the documented way to tell whether this cascade is
+    # scale-free, so the docs' rule has to be the code's rule.
+    assert any("CIC" in s for s in RateConverter(rate=rate).stages) is has_cic
+
+    # Drive it 4x past full scale and see whether the gain holds.
+    y = RateConverter(rate=rate).execute(
+        np.full(8192, 4.0, dtype=np.complex64)
+    )
+    gain = float(y[-1].real) / 4.0
+    if has_cic:
+        # Clipped at the boundary: unity-amplitude out for a 4x input.
+        assert float(y[-1].real) == pytest.approx(1.0, rel=1e-2)
+        assert gain == pytest.approx(0.25, rel=1e-2)
+    else:
+        assert gain == pytest.approx(1.0, rel=1e-2)
+
+
+def test_input_bound_is_silent_not_an_error():
+    # No exception and no NaN -- the failure mode this documents is that the
+    # output looks entirely plausible.
+    y = RateConverter(rate=0.1).execute(
+        np.full(8192, 50.0, dtype=np.complex64)
+    )
+    assert np.all(np.isfinite(y))
+    assert abs(float(y[-1].real) - 1.0) < 0.01
+
+
+def test_clipped_reports_the_bound_the_cascade_hides():
+    # RateConverter plans a CIC without saying so, so it has to surface the
+    # bound that CIC brings with it.
+    rc = RateConverter(rate=0.1)
+    assert any("CIC" in s for s in rc.stages)
+    assert rc.clipped is False
+    rc.execute(np.full(4096, 0.5, dtype=np.complex64))
+    assert rc.clipped is False
+    rc.execute(np.full(4096, 4.0, dtype=np.complex64))
+    assert rc.clipped is True
+    rc.execute(np.full(4096, 0.5, dtype=np.complex64))
+    assert rc.clipped is True  # sticky
+    rc.reset()
+    assert rc.clipped is False
+
+
+def test_clipped_is_false_for_a_scale_free_plan():
+    # No CIC, no bound -- and False is the honest answer, not a stub.
+    rc = RateConverter(rate=0.5)
+    assert not any("CIC" in s for s in rc.stages)
+    rc.execute(np.full(4096, 1000.0, dtype=np.complex64))
+    assert rc.clipped is False
+
+
+def test_matched_cascade_surfaces_clipping_too():
+    # The measured -25 dB EVM detour that motivated all of this: an
+    # overdriven matched cascade now says so.
+    rc = RateConverter(rate=2 / 17.333333333, compensate=1, pulse="rrc")
+    x, _ = _rrc_bpsk(17.333333333, 0.0)
+    rc.execute(x)
+    assert rc.clipped is False
+    rc.execute((x * 8).astype(np.complex64))
+    assert rc.clipped is True

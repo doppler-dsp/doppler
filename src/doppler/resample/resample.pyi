@@ -204,6 +204,21 @@ class Halfbanddecimator:
 class CIC:
     """Create a 4-stage, M=1 CIC decimation filter. Allocates the state struct on the heap and pre-computes the normalisation right-shift (CIC_N * log2(R) bits). All integrator and comb accumulators are zeroed; the first output arrives after R input samples. Returns NULL for invalid R or OOM.
 
+
+    Input amplitude is bounded: ``|Re|`` and ``|Im|`` <= 1.0. A component
+    beyond +-1.0 is clipped at the boundary before any filtering -- silently,
+    with no error and no NaN. Unlike doppler's floating-point blocks this one
+    is not scale-free: scale the input into range first, and check the sticky
+    ``clipped`` flag, which is free and is the only reliable signal that it
+    happened.
+
+    >>> import numpy as np
+    >>> from doppler.resample import CIC
+    >>> c = CIC(R=16)
+    >>> _ = c.decimate(np.full(256, 2.0, dtype=np.complex64))
+    >>> c.clipped                       # the output looked fine; it wasn't
+    True
+
     Parameters
     ----------
     R : int, default 16
@@ -303,6 +318,22 @@ class CIC:
 
 class RateConverter:
     """Create a rate converter for the given output/input rate ratio. Selects the cheapest cascade of CIC, HalfbandDecimator, and/or polyphase Resampler stages at construction time (see file header for the selection table). Setting compensate=1 appends a closed-form Molnar-Vucic CIC droop-compensating FIR after any CIC stage, which improves passband flatness at the cost of one extra FIR stage.
+
+    Input amplitude is bounded whenever the plan contains a CIC stage -- that
+    is, any decimation by 8 or more: ``|Re|`` and ``|Im|`` <= 1.0, clipped
+    beyond that, before any filtering, silently. ``stages`` is how you tell
+    whether the bound applies; ``clipped`` is how you tell whether you hit it.
+
+    >>> from doppler.resample import RateConverter
+    >>> import numpy as np
+    >>> RateConverter(rate=0.1).stages          # a CIC is planned for you
+    ['CIC(8)', 'Resampler(0.8)']
+    >>> rc = RateConverter(rate=0.1)
+    >>> x = np.full(4096, 2.0, dtype=np.complex64)
+    >>> round(float(rc.execute(x)[-1].real), 3)   # a 2.0 input, unity out
+    1.0
+    >>> rc.clipped
+    True
 
     Parameters
     ----------
@@ -473,6 +504,11 @@ class RateConverter:
     @property
     def stages(self) -> list[str]:
         """Stage labels for the planned cascade, e.g. ``['CIC(8)', 'Resampler(0.8)']``. A terminal stage carrying a pulse-shaped bank names its pulse: ``'Resampler(0.923077,rrc)'``."""
+
+    # jm:hand
+    @property
+    def clipped(self) -> bool:
+        """True if any planned CIC stage has clipped its input since the last ``reset()``. The cascade inherits the CIC's input bound (``|Re|``, ``|Im|`` <= 1.0) whenever ``stages`` names a CIC — any decimation by 8 or more. The clip is invisible in the samples (finite, no NaN, merely distorted), so this is the only reliable check, and it is free: the boundary comparisons run on every sample regardless. Always ``False`` for a cascade with no CIC stage — those plans are scale-free."""
 
     # jm:hand
     @property

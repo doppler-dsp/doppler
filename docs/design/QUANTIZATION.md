@@ -91,6 +91,25 @@ float sr → [saturate to [-32768, 32767]] → (int16_t)sr
          → (int32_t)sr + 32768 → (uint64_t)
 ```
 
+> **What this means for a caller: the CIC's input amplitude is bounded to
+> `|Re|, |Im| <= 1.0`.** That first saturation step is a cast-safety measure
+> here, but from outside the block it is a hard amplitude boundary — a
+> component past ±1.0 is clipped before any filtering, with no exception and
+> no NaN. The CIC is the one block in doppler that is not scale-free, and it
+> is inherited by anything that plans one: `resample.RateConverter` uses a CIC
+> for **any decimation by 8 or more**, so `RateConverter(rate=0.1)` carries
+> the same bound without ever mentioning a CIC. Read `stages` to tell — a plan
+> naming `CIC(...)` is bounded, every other plan is scale-free. Measured cost
+> of ignoring it: an RRC-BPSK waveform at peak 1.29 matched-filters to −25 dB
+> EVM where the same waveform at peak 0.32 reaches −50 dB.
+>
+> Both blocks therefore expose a sticky **`clipped`** flag — `CIC.clipped` and
+> `RateConverter.clipped`, cleared by `reset()`, following the same convention
+> as the quantizing `cvt` converters. It costs nothing: the boundary
+> comparisons execute on every sample whether or not anyone records the
+> result, so the flag is strictly free information about something the sample
+> stream cannot tell you.
+
 1. Saturation makes the `(int16_t)` cast defined (§6.3.1.4 safe zone).
 1. Widen to `int32_t` before adding 32768: range `[-32768+32768, 32767+32768] = [0, 65535]` — no signed overflow (§6.5).
 1. `(uint64_t)` from `int32_t` in `[0, 65535]`: always defined (§6.3.1.3).
@@ -372,6 +391,13 @@ This fits in 63 bits — within the 64-bit uint64 without ambiguity, so the
 modular arithmetic gives exact results for all `R ≤ 4096`. The output
 is right-shifted by `shift = N · log₂(R)` bits before conversion back to
 CF32, restoring unit gain for DC.
+
+Note what this budget does and does not promise. It says the *pipeline* never
+loses a bit for any `R ≤ 4096` — the accumulators are exact. It says nothing
+about the signal arriving intact, because the input was already bounded to
+`|Re|, |Im| ≤ 1.0` at the encoder (§2.4). "No overflow occurs" is a statement
+about the integer arithmetic, not a licence to feed the block whatever
+amplitude you have.
 
 ______________________________________________________________________
 

@@ -2,6 +2,10 @@
  * @file cic_core.c
  * @brief CIC decimation filter — 4-stage, M=1, UQ16 integer pipeline.
  *
+ * Input amplitude is bounded: |Re| and |Im| <= 1.0, clipped beyond that
+ * (see cic_core.h — that constraint is the caller-facing contract; what
+ * follows is how it arises).
+ *
  * Input samples (CF32) are converted to UQ16: the Q15 bit pattern of the
  * int16_t representation, zero-extended into the lower 16 bits of a uint64_t.
  * The upper 48 bits provide accumulation headroom for the pipeline gain of
@@ -9,8 +13,9 @@
  *
  * The unsigned modular-arithmetic CIC property holds unconditionally for
  * uint64_t: every overflow in the integrators cancels exactly in the comb
- * subtractions.  No saturation logic, no range checks, no floating-point
- * in the inner loop.
+ * subtractions — so the integrator/comb pipeline needs no saturation logic,
+ * no range checks and no floating-point.  Saturation happens once, at the
+ * encoder above, and is the bound the caller sees.
  *
  * The hot path is fully unrolled (CIC_N=4 stages, M=1 comb).
  */
@@ -71,7 +76,8 @@ cic_reset (cic_state_t *state)
   memset (state->integ_im, 0, sizeof (state->integ_im));
   memset (state->comb_re, 0, sizeof (state->comb_re));
   memset (state->comb_im, 0, sizeof (state->comb_im));
-  state->phase = 0;
+  state->phase   = 0;
+  state->clipped = 0;
 }
 
 /* ── Serializable state — standard envelope (see dp_state.h) ─────────────────
@@ -82,7 +88,7 @@ cic_state_bytes (const cic_state_t *state)
 {
   (void)state;
   return sizeof (dp_state_hdr_t) + 4 * CIC_N * sizeof (uint64_t)
-         + sizeof (uint32_t);
+         + sizeof (uint32_t) + sizeof (uint8_t);
 }
 
 void
@@ -96,6 +102,7 @@ cic_get_state (const cic_state_t *state, void *blob)
   dp_w_bytes (&w, state->comb_re, ab);
   dp_w_bytes (&w, state->comb_im, ab);
   dp_w_u32 (&w, state->phase);
+  dp_w_bytes (&w, &state->clipped, sizeof state->clipped);
 }
 
 int
@@ -113,6 +120,7 @@ cic_set_state (cic_state_t *state, const void *blob)
   dp_r_bytes (&r, state->comb_re, ab);
   dp_r_bytes (&r, state->comb_im, ab);
   state->phase = dp_r_u32 (&r);
+  dp_r_bytes (&r, &state->clipped, sizeof state->clipped);
   return DP_OK;
 }
 

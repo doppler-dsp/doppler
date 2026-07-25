@@ -2,6 +2,27 @@
  * @file cic_core.h
  * @brief CIC decimation filter — 4-stage, M=1, UQ16 integer pipeline.
  *
+ * **INPUT AMPLITUDE IS BOUNDED: |Re| and |Im| <= 1.0.** A component beyond
+ * +-1.0 is CLIPPED at the boundary, before any filtering happens.  Unlike the
+ * library's floating-point blocks this one is not scale-free — it is the one
+ * place where turning the input gain up changes the answer — and the clip is
+ * silent in the sample stream: no error, no NaN, just a degraded output that
+ * looks plausible.  Measured cost: an RRC-BPSK waveform at peak 1.29
+ * matched-filters to -25 dB EVM where the same waveform at peak 0.32 reaches
+ * -50 dB.
+ *
+ * **So check @c clipped** — a sticky flag raised by any saturating component
+ * and cleared only by cic_reset(), following the same convention as the
+ * quantizing `cvt` converters (adc, f32_to_uq15, ...).  It is free: the four
+ * boundary comparisons run on every sample regardless, so recording that one
+ * fired costs a register OR.  There is no reason to run a CIC without
+ * checking it at least once against real input.
+ *
+ * (Why the input is bounded at all: the pipeline is integer, so the CF32
+ * boundary is quantized.  That is an implementation detail — the input
+ * constraint above is the whole of what a caller needs.  See
+ * `docs/design/QUANTIZATION.md` for the encoding and the headroom budget.)
+ *
  * Fixed design parameters:
  *   N = 4 stages  (~77 dB alias rejection at f_p = 0.1 * f_out)
  *   M = 1         (differential delay — one-sample comb)
@@ -20,8 +41,11 @@
  *
  * The unsigned modular-arithmetic CIC property guarantees exact outputs:
  * every intermediate overflow in the integrators cancels in the comb
- * stages, provided the true result fits in 64 bits.  No saturation,
- * no range checks, no floating-point in the inner loop.
+ * stages, provided the true result fits in 64 bits.  So the integrator/comb
+ * pipeline itself needs no saturation, no range checks and no
+ * floating-point — the one saturation in the block is at the CF32 encoder,
+ * and it is the +-1.0 input bound described at the top of this file, not an
+ * arithmetic guard.
  *
  * With M=1 and N fixed, the entire comb state is four uint64_t values
  * per channel — no heap allocation beyond the state struct itself.
@@ -64,6 +88,7 @@ typedef struct {
     uint32_t R;               /* decimation ratio (power of two)       */
     uint32_t phase;           /* input sample counter 0..R-1           */
     uint32_t shift;           /* CIC_N * log2(R) — right-shift to norm */
+    uint8_t  clipped;         /* sticky: input exceeded +-1.0          */
 } cic_state_t;
 
 /**
@@ -72,6 +97,11 @@ typedef struct {
  * normalisation right-shift (CIC_N * log2(R) bits). All integrator
  * and comb accumulators are zeroed; the first output arrives after
  * R input samples. Returns NULL for invalid R or OOM.
+ * Input amplitude is bounded: |Re| and |Im| <= 1.0. A component beyond
+ * +-1.0 is clipped at the boundary before any filtering; the sample
+ * stream gives no sign of it, so check the sticky @c clipped flag.
+ * Unlike doppler's floating-point blocks this one is not scale-free --
+ * scale the input into range first.
  *
  * @param R  Decimation ratio.  Must be a power of two in `[2, 4096]`.
  *           Returns NULL for R=0, non-power-of-two, or R > 4096.
@@ -106,13 +136,15 @@ void cic_destroy(cic_state_t *state);
 void cic_reset(cic_state_t *state);
 
 /* Serializable state (reusable elastic-resume convention): the integrator and
- * comb accumulators plus the decimation phase counter — R/shift are config
- * (rebuilt from R on the resumed instance). */
+ * comb accumulators, the decimation phase counter and the sticky clip flag —
+ * R/shift are config (rebuilt from R on the resumed instance).  `clipped` is
+ * running state, not a diagnostic bolted on the side: a resumed stream that
+ * silently forgot it had clipped would answer the question wrongly. */
 
 /* Standard bytes interface (see dp_state.h): [dp_state_hdr_t][integ_re/im,
- * comb_re/im (CIC_N u64 each)][u32 phase]. */
+ * comb_re/im (CIC_N u64 each)][u32 phase][u8 clipped]. */
 #define CIC_STATE_MAGIC DP_FOURCC ('C', 'I', 'C', '_')
-#define CIC_STATE_VERSION 1u
+#define CIC_STATE_VERSION 2u
 
 /** @brief Bytes cic_get_state() writes (envelope + payload). */
 size_t cic_state_bytes(const cic_state_t *state);
@@ -140,8 +172,13 @@ size_t cic_decimate_max_out(cic_state_t *state);
  * Feeding blocks that are multiples of R gives predictable output
  * counts (exactly n_in/R samples per block).
  *
+ * @note **Input amplitude is bounded: |Re| and |Im| <= 1.0.** A component
+ * beyond +-1.0 is clipped at the boundary before filtering; the sample stream
+ * gives no sign of it, so check the sticky @c clipped flag. Scale the input
+ * into range first; see the file header.
+ *
  * @param state  Pointer to a valid cic_state_t.
- * @param in     CF32 input block.
+ * @param in     CF32 input block, |Re| and |Im| <= 1.0 (clipped otherwise).
  * @param n_in   Number of input samples.
  * @param out    Output buffer; must hold at least n_in elements.
  * @return       CF32 output array; length is floor((phase + n_in) / R).
@@ -164,15 +201,19 @@ cic_decimate(cic_state_t *state, const float complex *in,
     const uint32_t R     = state->R;
     const uint32_t shift = state->shift;
     size_t n_out = 0;
+    int    clip  = 0;   /* accumulated in a register; folded in once below */
 
     for (size_t i = 0; i < n_in; i++) {
-        /* CF32 → UQ16: saturate to Q15, shift to offset-binary [0, 65535]. */
+        /* CF32 → UQ16: saturate to Q15, shift to offset-binary [0, 65535].
+           The four comparisons run regardless, so noting that one fired
+           costs a register OR — which is the whole reason `clipped` exists
+           rather than a line of documentation asking callers to be careful. */
         float sr = crealf(in[i]) * 32768.0f;
         float si = cimagf(in[i]) * 32768.0f;
-        if (sr >  32767.0f) sr =  32767.0f;
-        if (sr < -32768.0f) sr = -32768.0f;
-        if (si >  32767.0f) si =  32767.0f;
-        if (si < -32768.0f) si = -32768.0f;
+        if (sr >  32767.0f) { sr =  32767.0f; clip = 1; }
+        if (sr < -32768.0f) { sr = -32768.0f; clip = 1; }
+        if (si >  32767.0f) { si =  32767.0f; clip = 1; }
+        if (si < -32768.0f) { si = -32768.0f; clip = 1; }
         uint64_t re = (uint64_t)((int32_t)(int16_t)sr + 32768);
         uint64_t im = (uint64_t)((int32_t)(int16_t)si + 32768);
 
@@ -206,6 +247,7 @@ cic_decimate(cic_state_t *state, const float complex *in,
             ((float)(uint16_t)(re >> shift) - 32768.0f) * (1.0f / 32768.0f),
             ((float)(uint16_t)(im >> shift) - 32768.0f) * (1.0f / 32768.0f));
     }
+    state->clipped |= (uint8_t)clip;   /* sticky; cleared only by reset() */
     return n_out;
 }
 

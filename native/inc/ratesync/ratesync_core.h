@@ -57,6 +57,22 @@
  * pin the roles structurally; measurement showed that buys nothing and costs
  * double the multiplies.)
  *
+ * ## Measured
+ *
+ * RRC-BPSK, noiseless, eight initial timing offsets each, `bn = 0.01`:
+ *
+ * | sps    | planned cascade                  | lock | EVM      |
+ * | ------ | -------------------------------- | ---- | -------- |
+ * | 4      | HB + Resampler(1,rrc)            | 8/8  | -40.1 dB |
+ * | 17.333 | CIC(8) + Resampler(0.923,rrc)    | 8/8  | -37.4 dB |
+ * | 64     | CIC(32) + Resampler(1,rrc)       | 8/8  | -37.3 dB |
+ *
+ * `bn` behaves identically across all three (within ~2 dB at every setting),
+ * which is the point of referencing the control to the terminal rate: the
+ * loop bandwidth means the same thing whatever the planner decided to do in
+ * front of it. `bn = 0.005` measured best here (-46 / -40 / -40 dB); lower
+ * settings acquire too slowly to have settled within the test length.
+ *
  * Lifecycle: `create -> (step / steps / reset)* -> destroy`
  *
  * @code
@@ -72,19 +88,19 @@
 #ifndef RATESYNC_CORE_H
 #define RATESYNC_CORE_H
 
+#include "RateConverter/RateConverter_core.h"
+#include "cic/cic_core.h"
 #include "clib_common.h"
 #include "dp_state.h"
+#include "fir/fir_core.h"
+#include "hbdecim/hbdecim_core.h"
 #include "jm_perf.h"
-#include "RateConverter/RateConverter_core.h"
 #include "lockdet/lockdet_core.h"
 #include "loop_filter/loop_filter_core.h"
+#include "resamp/resamp_core.h"
+#include "resample/resample_core.h"
 #include "symsync/symsync_core.h" /* gardner_ted / dttl_ted — one TED, reused */
 #include "telemetry/telemetry.h"
-#include "resamp/resamp_core.h"
-#include "hbdecim/hbdecim_core.h"
-#include "cic/cic_core.h"
-#include "fir/fir_core.h"
-#include "resample/resample_core.h"
 
 #ifdef __cplusplus
 extern "C"
@@ -152,6 +168,7 @@ extern "C"
     size_t span;       /**< one-sided RRC span, symbols.                  */
     size_t m;          /**< terminal outputs per symbol (>= 2, even).     */
     size_t num_phases; /**< bank arms (power of two).                     */
+    double term_rate;  /**< terminal stage's own rate; the ctrl scale.    */
     double bn;         /**< loop noise bandwidth (retained).              */
     double zeta;       /**< damping factor (retained).                    */
     int    ted;        /**< RATESYNC_TED_GARDNER / _DTTL.                 */
@@ -173,10 +190,10 @@ extern "C"
     float complex prev_on; /**< previous on-time strobe.                  */
 
     /* ── lock detector (always on): tumbling-window block average ───── */
-    double lock_sum;   /**< running sum over the current avgs block.      */
-    size_t lock_count; /**< looks accumulated in the current block.       */
-    size_t avgs;       /**< non-coherent block size (looks/decision).     */
-    double lock_stat;  /**< last block-averaged lock_signal.              */
+    double lock_sum;      /**< running sum over the current avgs block.      */
+    size_t lock_count;    /**< looks accumulated in the current block.       */
+    size_t avgs;          /**< non-coherent block size (looks/decision).     */
+    double lock_stat;     /**< last block-averaged lock_signal.              */
     lockdet_state_t lock; /**< declare/drop rule stepped on lock_stat.    */
 
     ratesync_tlm_t tlm; /**< live telemetry attachment; zeroed in blobs.  */
@@ -234,34 +251,12 @@ extern "C"
    * Execute
    * ------------------------------------------------------------------ */
 
-  /**
-   * @brief Per-input timing step with the TED selection as a parameter.
-   *
-   * The workhorse behind ratesync_step()/ratesync_steps(). Pushes one input
-   * through the cascade at the current control deviation. `rate = m/sps <= 1`
-   * so the terminal stage emits at most one output per input; every m-th
-   * output is an on-time strobe, and the output m/2 back is the transition
-   * gate. On a strobe the TED compares the two, the PI loop steers the next
-   * control, and the on-time sample is the recovered symbol.
-   *
-   * Passing a literal @p ted lets the force-inlined body constant-fold the
-   * detector branch away, exactly as symsync_step_ted() does.
-   *
-   * @param s      State. Must be non-NULL.
-   * @param x      One input sample.
-   * @param y_out  Receives the symbol when the return is 1.
-   * @param ted    RATESYNC_TED_GARDNER or RATESYNC_TED_DTTL — pass a literal
-   *               for a specialised (branch-free) instantiation.
-   * @return 1 if a symbol was emitted (into @p y_out), 0 otherwise.
-   */
+  /** @brief Fold one terminal-stage output into the timing loop.
+   *  @return 1 if this output was an on-time strobe that produced a symbol. */
   JM_FORCEINLINE JM_HOT int
-  ratesync_step_ted (ratesync_state_t *s, float complex x,
-                     float complex *y_out, int ted)
+  ratesync_take_output (ratesync_state_t *s, float complex y,
+                        float complex *y_out, int ted)
   {
-    float complex y;
-    if (RateConverter_execute_ctrl_push (s->mf, x, s->ctrl, &y, 1) == 0)
-      return 0;
-
     /* Newest-first ring: ring[0] is this output, ring[m/2] the gate. */
     const size_t half = s->m >> 1;
     for (size_t i = s->ring_n < half ? s->ring_n : half; i > 0; i--)
@@ -319,13 +314,19 @@ extern "C"
     double e      = num / (s->pwr_avg + RATESYNC_LOCK_EPS);
     s->last_error = e;
 
-    /* loop_filter_step returns a correction in symbols per symbol. `ctrl` is
-       a per-INPUT deviation of an accumulator counting output periods, and an
-       output period is 1/m symbols, so a correction of `c` symbols spread
-       over the sps inputs a symbol spans is `c*m/sps` per input. (At m = 1
-       this is the familiar c/sps.) e > 0 means the strobe is LATE and a
-       positive ctrl advances it — the classic Gardner polarity. */
-    s->ctrl = loop_filter_step (&s->lf, e) * (double)s->m / s->sps;
+    /* loop_filter_step returns a correction in symbols per symbol; `ctrl` is
+       a rate deviation the TERMINAL stage adds to its accumulator once per
+       one of ITS OWN inputs — not once per cascade input. Those differ by the
+       whole integer decimation in front, so scaling by the cascade rate m/sps
+       under-drives the loop by exactly that factor (32x at sps=64 behind a
+       CIC(32), which is why it could barely track).
+         Over one symbol the terminal stage sees N = m/rate_term inputs, so
+       the accumulator gains N*ctrl output periods = N*ctrl/m symbols; setting
+       that equal to the requested correction gives ctrl = correction *
+       rate_term, with no reference to sps or the decimation at all.
+       e > 0 means the strobe is LATE and a positive ctrl advances it — the
+       classic Gardner polarity. */
+    s->ctrl = loop_filter_step (&s->lf, e) * s->term_rate;
 
     /* Tracked samples/symbol from the loop INTEGRATOR, not the instantaneous
        control. The integrator is the rate memory (loop_filter_core.h: "kp*e
@@ -346,8 +347,7 @@ extern "C"
        strobe carries the energy and the transition gate sits near zero.
        Block-averaged over `avgs` looks before the decision (a tumbling
        window, so verify counts stay independent), mirroring symsync/dll. */
-    double lock_signal
-        = 2.0 * (on_pwr - mid_pwr) / (ref + RATESYNC_LOCK_EPS);
+    double lock_signal = 2.0 * (on_pwr - mid_pwr) / (ref + RATESYNC_LOCK_EPS);
     s->lock_sum += lock_signal;
     if (++s->lock_count >= s->avgs)
       {
@@ -360,6 +360,49 @@ extern "C"
     s->prev_on = on;
     *y_out     = on;
     return 1;
+  }
+
+  /**
+   * @brief Per-input timing step with the TED selection as a parameter.
+   *
+   * The workhorse behind ratesync_step()/ratesync_steps(). Pushes one input
+   * through the cascade at the current control deviation. `rate = m/sps <= 1`
+   * so the terminal stage emits at most one output per input; every m-th
+   * output is an on-time strobe, and the output m/2 back is the transition
+   * gate. On a strobe the TED compares the two, the PI loop steers the next
+   * control, and the on-time sample is the recovered symbol.
+   *
+   * Passing a literal @p ted lets the force-inlined body constant-fold the
+   * detector branch away, exactly as symsync_step_ted() does.
+   *
+   * @param s      State. Must be non-NULL.
+   * @param x      One input sample.
+   * @param y_out  Receives the symbol when the return is 1.
+   * @param ted    RATESYNC_TED_GARDNER or RATESYNC_TED_DTTL — pass a literal
+   *               for a specialised (branch-free) instantiation.
+   * @return 1 if a symbol was emitted (into @p y_out), 0 otherwise.
+   */
+  JM_FORCEINLINE JM_HOT int
+  ratesync_step_ted (ratesync_state_t *s, float complex x,
+                     float complex *y_out, int ted)
+  {
+    /* One input can complete MORE THAN ONE output period. It happens
+       whenever the terminal stage's own rate is at or near 1.0 (a cascade
+       like HB + Resampler(1.0), which is what an integer sps plans) and the
+       control has pushed the accumulator over: that input emits two. Asking
+       for only one silently DROPS the second, which permanently shifts the
+       strobe parity and leaves the loop sliding — measured as `rate_est`
+       walking monotonically away while the eye never opens. The cascade rate
+       is m/sps <= 1, so an input can complete at most two output periods, and
+       with m >= 2 those can contain at most one on-time strobe: the
+       single-symbol return of this function is still correct. */
+    float complex ys[4];
+    size_t n = RateConverter_execute_ctrl_push (s->mf, x, s->ctrl, ys,
+                                                sizeof (ys) / sizeof (ys[0]));
+    int    emitted = 0;
+    for (size_t oi = 0; oi < n; oi++)
+      emitted |= ratesync_take_output (s, ys[oi], y_out, ted);
+    return emitted;
   }
 
   /**

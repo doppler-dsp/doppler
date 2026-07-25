@@ -65,8 +65,15 @@ seed (ratesync_state_t *s)
   size_t ntaps = 0;
   int    last  = s->mf->n_stages - 1;
   if (last >= 0 && s->mf->stage_types[last] == RC_STAGE_RESAMP)
-    ntaps = resamp_get_num_taps (
-        (const resamp_state_t *)s->mf->stage_ptrs[last]);
+    {
+      const resamp_state_t *r
+          = (const resamp_state_t *)s->mf->stage_ptrs[last];
+      ntaps = resamp_get_num_taps (r);
+      /* The control is referenced to the TERMINAL stage's rate, because that
+         is the accumulator it steers (see ratesync_step_ted). Cached here so
+         the hot path never walks the cascade. */
+      s->term_rate = resamp_get_rate (r);
+    }
   s->prime_left = ntaps + 1u;
 }
 

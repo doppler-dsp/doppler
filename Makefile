@@ -296,6 +296,23 @@ lint:
 # `uv run just-makeit bench --c-only`.
 BENCH_THRESHOLD ?= 0.30
 
+# Benchmarks reported by the advisory perf gate but never failed by it
+# (jm bench --check --allow). Keep this list SHORT and justified — an
+# exemption is a blind spot, so each entry names why the measurement, not the
+# code, is untrustworthy.
+#
+# test_bench_execute_decim_64k: bimodal on GitHub runners. It lands in one of
+#   two internally-tight states ~1.66x apart (min 1.10 ms vs 1.84 ms, each
+#   with ~1.2% stddev) that track per-process memory layout rather than any
+#   code change. In one CI run two large FIR benchmarks agreed across the two
+#   measurement phases to within 0.15% while this one moved 66%, so it is not
+#   runner throttling or ordering. It has flagged PRs containing no DSP code
+#   at all (#519 docs-only +59.7%, #524 tooling-only +66.5%). Not reproducible
+#   locally: 448 us +/- 0.2% across 8 separate processes. A gate that fires on
+#   documentation changes stops being read, which costs more than the coverage
+#   this one entry gives up.
+BENCH_ALLOW ?= test_bench_execute_decim_64k
+
 bench: pyext
 	uv run just-makeit bench
 
@@ -314,7 +331,8 @@ bench-baseline: build pyext
 
 bench-check: build pyext
 	uv run just-makeit bench --check \
-	    --python-only --baseline base --threshold $(BENCH_THRESHOLD)
+	    --python-only --baseline base --threshold $(BENCH_THRESHOLD) \
+	    $(foreach b,$(BENCH_ALLOW),--allow $(b))
 
 # ── bench-publish / bench-docs / bench-report ─────────────────────────────────
 # Representative published numbers live under benchmarks/published/v<ver>/, two

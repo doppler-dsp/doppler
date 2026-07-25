@@ -184,7 +184,10 @@ extern "C"
     size_t out_count;  /**< terminal outputs seen (mod m: strobe phase).  */
 
     /** Newest-first ring of the last m/2+1 outputs: the transition gate is
-     *  m/2 outputs behind the on-time strobe, so it is simply ring[m/2]. */
+     *  m/2 outputs behind the on-time strobe, so it is simply the element at
+     *  index m/2. (Written without brackets on purpose: mkdoxy renders this
+     *  comment into markdown, where a bare `name[i]` parses as a link
+     *  reference and fails the --strict docs build.) */
     float complex ring[RATESYNC_MAX_M / 2 + 1];
     size_t        ring_n;
     float complex prev_on; /**< previous on-time strobe.                  */

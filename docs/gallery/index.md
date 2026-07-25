@@ -34,7 +34,7 @@ FFT, ring buffers, C programs, or the NATS streaming demo? Those live on the
 
 ## Down-Conversion (DDC)
 
-- [Functional DDCR](ddc-fn.md) — real passband in, complex baseband out, caller-owned buffer, thread-per-shard scaling.
+- [Real-input DDC](ddc-fn.md) — real passband in, complex baseband out, caller-owned buffer, thread-per-shard scaling.
 
 ## Detection & Acquisition
 

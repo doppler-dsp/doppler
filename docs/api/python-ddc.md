@@ -502,7 +502,7 @@ ddc_destroy(ddc);
 
 <!-- related-pages:start -->
 
-**Gallery** — [Ddcr — Real Passband to Baseband](../gallery/ddc-fn.md)
+**Gallery** — [Ddcr — Real Passband to Baseband](../gallery/ddc-fn.md), [Gallery](../gallery/index.md)
 **Guides** — [Power Spectra & Measurements](../guide/spectral-psd.md), [Checkpoint & Resume](../guide/state-serialization.md)
 **Design** — [Design — pure-functional acquisition kernel (elastic fleet)](../design/acq-fn.md), [API taxonomy: the DSP building-block hierarchy and its naming axis](../design/api-taxonomy.md), [State Serialization — the standard bytes interface](../design/state-serialization.md)
 

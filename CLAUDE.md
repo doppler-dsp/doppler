@@ -159,8 +159,10 @@ converters, FFT plans, by-value analyzers) are exempt. See
     this is fully hands-off for every object kind: a **sacred** `_ext_<obj>.c`
     fragment gets the triplet **transplanted** in by `jm apply` (gh-404,
     idempotent — delete any hand-added triplet and let jm own it), and a
-    `kind="handle"` module (`ddc_fn`'s `Ddcr`) generates it over the handle when
-    the flag is on `[module.<name>]` (gh-403). No hand-written triplet glue.
+    `kind="handle"` module generates it over the handle when the flag is on
+    `[module.<name>]` (gh-403; doppler's example was `ddc_fn`'s `Ddcr`, since
+    migrated to a module object — see the `ddc` section below). No
+    hand-written triplet glue.
     (The legacy `DP_PY_STATE_METHODS` macro still works and is left in place on
     fragments that have it; new objects need only the flag.)
 
@@ -262,7 +264,7 @@ the generated file, set the key:
 | Pattern                                                                | Old (hand-patch)                                         | Now (declarative, jm ≥ 0.15.x)                                                                                                           |
 | ---------------------------------------------------------------------- | -------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
 | **Release the GIL** in an execute binding for thread-per-shard scaling | hand-add `Py_BEGIN_ALLOW_THREADS` to `<mod>_ext_<obj>.c` | `nogil = true` on the method (`objects/ddc.toml`, `ddcr.toml`); jm generates the hoist + allow-threads (0.15.2)                          |
-| **Re-export a sibling's symbols** from a package `__init__.py`         | hand-edit `__all__` + `from .ddc_fn import …`            | `reexports = { ddc_fn = [...] }` on `[module.ddc]`; regenerates single-line (0.15.1)                                                     |
+| **Re-export a sibling's symbols** from a package `__init__.py`         | hand-edit `__all__` + `from .<mod> import …`             | `reexports = { <mod> = [...] }` on `[module.<name>]`; regenerates single-line (0.15.1)                                                   |
 | **Runtime `__doc__`** parity with the `.pyi`                           | (was stale fallback)                                     | `jm apply` transplants header-derived docstrings into the sacred fragments' `PyMethodDef`/`tp_doc`/getset slots, scaffold-only (0.14.11) |
 
 Also adopted: `depends_on` auto-includes a dependency's header **only when the
@@ -524,15 +526,37 @@ geometry doubles are declared `params` (with `guard_hz` defaulting to 0.0);
 (delete + `jm apply`). The module composes `fft_core` + `spectral_core`;
 module-level helpers are one TU each. See `docs/design/measurement-suite.md`.
 
-### `ddc_fn` — the functional DDCR API (`kind = "handle"`, jm-generated)
+### `ddc` — two down-converters, each with a matched FLAVOR
 
-`[module.ddc_fn]` is a jm-**generated** `kind = "handle"` module (migrated off
-`no_generate` in gh-306): the typed `Ddcr` handle over the `ddcr` down-converter
-core. jm owns both `ddc_fn_ext.c` (its file header reads "pure generated glue")
-and `ddc_fn.pyi` — delete-and-`jm apply` recreates the binding; it is NOT
-hand-written. `doppler.ddc` re-exports the handle's names via the `reexports`
-key above. See the gallery walkthrough (`docs/gallery/ddc-fn.md`) for the
-streaming/threading model.
+`[module.ddc]` carries two objects and two views: `DDC`/`Ddcr` (complex- and
+real-input) plus `MatchedDDC`/`MatchedDdcr`, built by `<obj>_create_matched`
+over the same state. **This is the model to copy when an object needs a second
+constructor:** a `[[<obj>.views]]` entry (gh-504) gives a second Python class
+over one core — its own `class_name`, `create_fn` and `init_params`, the
+parent's methods shared verbatim (`exclude_properties`/`exclude_methods` trim),
+and jm injects the view's prototype itself. There is no hand-written CPython
+anywhere in the module and no `status_allow` entry.
+
+Two axes decide the mechanism: a difference in CONSTRUCTOR is a flavor (view);
+a difference in METHOD SIGNATURE is a separate type. That is why the input
+dtype (`cf32` vs `f32`) stays two objects — a view shares methods verbatim, so
+one class would have to name the dtype in a method.
+
+`Ddcr` was a `kind = "handle"` module (`ddc_fn`) until Layer 3; **handles
+cannot have views**, so it moved to a module object and its core split out to
+`native/{inc,src}/ddcr/`. Two behaviours changed with the kind: `execute()`'s
+`out=` buffer is optional now, and a wrong-dtype `out=` buffer is silently not
+written (jm's object `out=` casts into a temp — library-wide, pinned by an
+xfail in `test_ddcr.py`). See the gallery walkthrough
+(`docs/gallery/ddc-fn.md`) for the streaming/threading model.
+
+**Diagnostics are declarative too.** `create_error`/`create_error_message`
+(gh-482, what `jm error` writes) turns a NULL `create()` into the exception the
+component actually meant instead of a blanket `MemoryError`; `[[<obj>.warnings]]`
+(gh-481, per-view via gh-509) emits a post-construction `PyErr_WarnEx` gated on
+a **declared** bool field — `narrow_pulse` on the matched flavors is the
+example. jm prints these diagnostics BEFORE its file list, so never read
+`jm apply` output through a `tail`.
 
 ### 0.28.2 adoptions — `jm apply` now honors `status_allow` (jm#441, pin: 0.28.2)
 

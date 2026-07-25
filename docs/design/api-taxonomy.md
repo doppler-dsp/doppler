@@ -215,8 +215,10 @@ family, `Specan`, `SymbolSync`, the measurement suite, `DelayCf64`,
 
 **Out of scope for this survey** (not `class_name`-declared objects in
 `objects/*.toml`): the `wfm_compose` classes (`Synth`, `Segment`, `Timeline`,
-`Composer`, `Plan`) and `Ddcr` (the `ddc_fn` handle module) — worth a follow-up
-pass if this taxonomy should extend there too.
+`Composer`, `Plan`) — worth a follow-up pass if this taxonomy should extend
+there too. `Ddcr` was also out of scope as a handle module; it is now a
+declared object (with a `MatchedDdcr` flavor) and sits on the same axis as
+`DDC`.
 
 ## 6. See also
 

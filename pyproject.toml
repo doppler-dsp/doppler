@@ -103,6 +103,12 @@ dev = [
     "matplotlib>=3.10.9; python_version >= '3.10'",
     "matplotlib<3.10; python_version == '3.9'",
     "jsonschema>=4.18",
+    # jm drives the manifest/codegen and the benchmark suite. Pinned HERE
+    # rather than invoked through uvx: an unpinned `uvx just-makeit` silently
+    # reuses whatever version happens to be installed as a uv TOOL, which is
+    # not "latest" and drifts per machine. Keep in sync with jm_version in
+    # just-makeit.toml.
+    "just-makeit==0.33.12",
 ]
 # Docs toolchain is intentionally separate from dev so wheel builds can
 # uv sync --no-group docs and avoid a docs-dep network blip failing a release.

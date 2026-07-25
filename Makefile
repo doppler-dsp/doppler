@@ -94,6 +94,7 @@ endif
         wheel just-build python-test rust-test test-all lint docs docs-serve docs-relink gen-c-api doxygen \
         specan record-demo gallery \
         bench bench-report bench-publish bench-interleaved bench-docs \
+        drift-check bench-baseline bench-check \
         bench-stream \
         debug release blazing bump-version check-version tag-release \
         release-watch ship docs-check \
@@ -292,9 +293,28 @@ lint:
 # ── bench ─────────────────────────────────────────────────────────────────────
 # Run C + Python benchmarks on THIS machine, snapshot to benchmarks/history/
 # (local scratch, gitignored). Use the CLI directly for options, e.g.
-# `uvx just-makeit bench --c-only`.
+# `uv run just-makeit bench --c-only`.
+BENCH_THRESHOLD ?= 0.30
+
 bench: pyext
-	uvx just-makeit bench
+	uv run just-makeit bench
+
+# The manifest drift gate (CI's `jm manifest drift gate` job). Kept here so the
+# Makefile is the single driver: CI calls `make drift-check`, never a raw jm
+# command. --no-install-project because the gate only reads the manifest, so
+# there is no reason to build the C extension for it.
+drift-check:
+	uv sync --group dev --no-install-project
+	uv run just-makeit status --check
+
+# The advisory perf gate (CI's `perf regression` job), both halves. BASELINE
+# records the PR base under a tag; CHECK benches the head and compares.
+bench-baseline: build pyext
+	uv run just-makeit bench --python-only --tag base
+
+bench-check: build pyext
+	uv run just-makeit bench --check \
+	    --python-only --baseline base --threshold $(BENCH_THRESHOLD)
 
 # ── bench-publish / bench-docs / bench-report ─────────────────────────────────
 # Representative published numbers live under benchmarks/published/v<ver>/, two

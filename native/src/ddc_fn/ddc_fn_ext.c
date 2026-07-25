@@ -27,6 +27,13 @@ _enum_index(const char *const *tab, const char *s)
     return -1;
 }
 
+static const char *const _enum_rc_pulse[] = {
+    "iandd",
+    "rrc",
+    "none",
+    NULL,
+};
+
 typedef struct {
     PyObject_HEAD
     ddcr_state_t *h;
@@ -36,22 +43,34 @@ typedef struct {
 static int
 Ddcr_init(DdcrObject *self, PyObject *args, PyObject *kwds)
 {
-    static char *kwlist[] = {"norm_freq", "rate", NULL};
+    static char *kwlist[] = {"norm_freq", "rate", "pulse", "beta", "span", "pulse_sps", "num_phases", NULL};
     double norm_freq = 0.0;
     double rate = 0.25;
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|dd", kwlist,
-            &norm_freq, &rate)) {
+    const char *pulse = "none";
+    double beta = 0.35;
+    size_t span = 8;
+    double pulse_sps = 2.0;
+    size_t num_phases = 1024;
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|ddsdKdK", kwlist,
+            &norm_freq, &rate, &pulse, &beta, &span, &pulse_sps, &num_phases)) {
         return -1;
     }
-
+    int _arg_pulse = _enum_index(_enum_rc_pulse, pulse);
+    if (_arg_pulse < 0) {
+        PyErr_Format(PyExc_ValueError, "invalid pulse '%s'", pulse);
+        return -1;
+    }
     if (!self->closed && self->h) {
         ddcr_destroy(self->h);
         self->h = NULL;
         self->closed = 1;
     }
-    self->h = ddcr_create(norm_freq, rate);
+    self->h = ddcr_create(norm_freq, rate, _arg_pulse, beta, span, pulse_sps, num_phases);
     if (!self->h) {
-        PyErr_SetString(PyExc_RuntimeError, "ddcr_create failed");
+        PyErr_SetString(PyExc_ValueError,
+                        "Ddcr: invalid parameter (need 0 < rate < 0.5, 0 <= "
+                        "beta <= 1, span >= 1, pulse_sps > 0, num_phases a "
+                        "power of two >= 2)");
         return -1;
     }
     self->closed = 0;
@@ -166,9 +185,23 @@ Ddcr_get_rate(DdcrObject *self, void *closure)
     return PyFloat_FromDouble(tmp);
 }
 
+static PyObject *
+Ddcr_get_clipped(DdcrObject *self, void *closure)
+{
+    (void)closure;
+    bool tmp;
+    if (self->closed) {
+        PyErr_SetString(PyExc_RuntimeError, "Ddcr is closed");
+        return NULL;
+    }
+    tmp = ddcr_get_clipped(self->h);
+    return PyBool_FromLong((long)(tmp));
+}
+
 static PyGetSetDef Ddcr_getset[] = {
     {"norm_freq", (getter)Ddcr_get_norm_freq, (setter)Ddcr_set_norm_freq, NULL, NULL},
     {"rate", (getter)Ddcr_get_rate, NULL, NULL, NULL},
+    {"clipped", (getter)Ddcr_get_clipped, NULL, NULL, NULL},
     {NULL, NULL, NULL, NULL, NULL}
 };
 

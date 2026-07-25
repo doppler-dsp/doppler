@@ -95,7 +95,7 @@ specan_create (double fs, double span, double rbw, double src_center,
    * shifts content up by +norm_freq, so a positive offset needs a negative LO
    * (matching ddc_core's "norm_freq = -f_carrier shifts f_carrier to DC"). */
   double norm_freq = -(center - src_center) / fs;
-  s->ddc           = ddc_create (norm_freq, rate);
+  s->ddc           = ddc_create (norm_freq, rate, RC_PULSE_NONE, 0, 0, 0, 0);
   /* The PSD core owns the 0-dBFS reference (full_scale / bits); the display
    * reads it back as s->psd->full_scale, so dBFS is single-sourced. */
   s->psd = psd_create (n, fs_out, window, (float)beta, SPECAN_PAD, full_scale,

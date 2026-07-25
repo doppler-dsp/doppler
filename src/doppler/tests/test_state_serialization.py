@@ -228,6 +228,14 @@ CASES: dict[str, tuple[Callable[[], Any], _Feed]] = {
         lambda o, seg: np.array(o.steps(seg)),
     ),
     "DDC": (lambda: DDC(-0.1, 0.25), lambda o, seg: np.array(o.execute(seg))),
+    # A matched DDC plans a different cascade (the pulse forces a terminal
+    # fractional stage the plain planner drops), so its blob has its own
+    # shape — and the feed goes through the control port, the path a
+    # receiver actually resumes on.
+    "DDC(pulse=rrc)": (
+        lambda: DDC(-0.1, 2 / 16, pulse="rrc"),
+        lambda o, seg: np.array(o.execute_ctrl(seg, 1e-4, 1e-4)),
+    ),
     # Ddcr (handle module, gh-403): real input + caller-owned output buffer.
     "Ddcr": (
         lambda: Ddcr(0.1, 0.2),

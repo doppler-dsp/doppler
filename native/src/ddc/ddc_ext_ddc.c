@@ -10,13 +10,30 @@
 /* ======================================================== */
 
 #include "ddc/ddc_core.h"
-#include "dp_state_pyhelp.h"
 
 typedef struct
 {
   PyObject_HEAD ddc_state_t *handle;
   float complex *_execute_buf;     /* pre-allocated output for execute */
   size_t         _execute_buf_cap; /* allocated capacity for execute */
+  void         **_execute_retired; /* gh-219 deferred free */
+  size_t         _execute_retired_n;
+  size_t         _execute_retired_cap;
+  PyObject      *_execute_view_ref; /* gh-437 last returned view */
+  float complex *_execute_ctrl_buf; /* pre-allocated output for execute_ctrl */
+  size_t    _execute_ctrl_buf_cap;  /* allocated capacity for execute_ctrl */
+  void    **_execute_ctrl_retired;  /* gh-219 deferred free */
+  size_t    _execute_ctrl_retired_n;
+  size_t    _execute_ctrl_retired_cap;
+  PyObject *_execute_ctrl_view_ref; /* gh-437 last returned view */
+  float complex
+      *_execute_ctrl_push_buf; /* pre-allocated output for execute_ctrl_push */
+  size_t _execute_ctrl_push_buf_cap;    /* allocated capacity for
+                                           execute_ctrl_push */
+  void    **_execute_ctrl_push_retired; /* gh-219 deferred free */
+  size_t    _execute_ctrl_push_retired_n;
+  size_t    _execute_ctrl_push_retired_cap;
+  PyObject *_execute_ctrl_push_view_ref; /* gh-437 last returned view */
 } DDCObject;
 
 static void
@@ -25,6 +42,20 @@ DDCObj_dealloc (DDCObject *self)
   if (self->handle)
     ddc_destroy (self->handle);
   free (self->_execute_buf);
+  for (size_t _i = 0; _i < self->_execute_retired_n; _i++)
+    free (self->_execute_retired[_i]);
+  free (self->_execute_retired);
+  Py_XDECREF (self->_execute_view_ref);
+  free (self->_execute_ctrl_buf);
+  for (size_t _i = 0; _i < self->_execute_ctrl_retired_n; _i++)
+    free (self->_execute_ctrl_retired[_i]);
+  free (self->_execute_ctrl_retired);
+  Py_XDECREF (self->_execute_ctrl_view_ref);
+  free (self->_execute_ctrl_push_buf);
+  for (size_t _i = 0; _i < self->_execute_ctrl_push_retired_n; _i++)
+    free (self->_execute_ctrl_push_retired[_i]);
+  free (self->_execute_ctrl_push_retired);
+  Py_XDECREF (self->_execute_ctrl_push_view_ref);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -40,17 +71,45 @@ DDCObj_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 static int
 DDCObj_init (DDCObject *self, PyObject *args, PyObject *kwds)
 {
-  static char *kwlist[]  = { "norm_freq", "rate", NULL };
+  static char *kwlist[]  = { "norm_freq", "rate",      "pulse",      "beta",
+                             "span",      "pulse_sps", "num_phases", NULL };
   double       norm_freq = 0.0;
   double       rate      = 0.25;
+  const char  *pulse_str = "none";
+  double       beta      = 0.35;
+  unsigned long long span_raw       = 8;
+  double             pulse_sps      = 2.0;
+  unsigned long long num_phases_raw = 1024;
 
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|dd", kwlist, &norm_freq,
-                                    &rate))
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|ddsdKdK", kwlist, &norm_freq,
+                                    &rate, &pulse_str, &beta, &span_raw,
+                                    &pulse_sps, &num_phases_raw))
     return -1;
-  self->handle = ddc_create (norm_freq, rate);
+  int pulse = 0;
+  if (strcmp (pulse_str, "iandd") == 0)
+    pulse = 0;
+  else if (strcmp (pulse_str, "rrc") == 0)
+    pulse = 1;
+  else if (strcmp (pulse_str, "none") == 0)
+    pulse = 2;
+  else
+    {
+      PyErr_Format (
+          PyExc_ValueError,
+          "pulse must be one of \"iandd\", \"rrc\", \"none\", got '%s'",
+          pulse_str);
+      return -1;
+    }
+  size_t span       = (size_t)span_raw;
+  size_t num_phases = (size_t)num_phases_raw;
+  self->handle
+      = ddc_create (norm_freq, rate, pulse, beta, span, pulse_sps, num_phases);
   if (!self->handle)
     {
-      PyErr_SetString (PyExc_MemoryError, "ddc_create returned NULL");
+      PyErr_SetString (PyExc_ValueError,
+                       "DDC: invalid parameter (need rate > 0, 0 <= beta <= "
+                       "1, span >= 1, pulse_sps > 0, num_phases a power of "
+                       "two >= 2)");
       return -1;
     }
   {
@@ -66,39 +125,158 @@ DDCObj_init (DDCObject *self, PyObject *args, PyObject *kwds)
         self->_execute_buf_cap = _max;
       }
   }
+  {
+    size_t _max = ddc_execute_ctrl_max_out (self->handle);
+    if (_max)
+      {
+        self->_execute_ctrl_buf = malloc (_max * sizeof (float complex));
+        if (!self->_execute_ctrl_buf)
+          {
+            PyErr_NoMemory ();
+            return -1;
+          }
+        self->_execute_ctrl_buf_cap = _max;
+      }
+  }
+  {
+    size_t _max = ddc_execute_ctrl_push_max_out (self->handle);
+    if (_max)
+      {
+        self->_execute_ctrl_push_buf = malloc (_max * sizeof (float complex));
+        if (!self->_execute_ctrl_push_buf)
+          {
+            PyErr_NoMemory ();
+            return -1;
+          }
+        self->_execute_ctrl_push_buf_cap = _max;
+      }
+  }
   return 0;
 }
 
 static PyObject *
-DDCObj_execute (DDCObject *self, PyObject *args)
+DDCObj_execute_max_out (DDCObject *self, PyObject *Py_UNUSED (ignored))
 {
   if (!self->handle)
     {
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  PyObject      *x_obj = NULL;
-  PyArrayObject *x_arr = NULL;
-  if (!PyArg_ParseTuple (args, "O", &x_obj))
+  return PyLong_FromSize_t (ddc_execute_max_out (self->handle));
+}
+
+static PyObject *
+DDCObj_execute (DDCObject *self, PyObject *args, PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char   *_kwlist[] = { "x", "out", NULL };
+  PyObject      *x_obj     = NULL;
+  PyArrayObject *x_arr     = NULL;
+  PyObject      *out_obj   = NULL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|O", _kwlist, &x_obj,
+                                    &out_obj))
     return NULL;
   x_arr = (PyArrayObject *)PyArray_FROM_OTF (x_obj, NPY_COMPLEX64,
                                              NPY_ARRAY_C_CONTIGUOUS);
   if (!x_arr)
     return NULL;
-  size_t _need = (size_t)PyArray_SIZE (x_arr);
-  if (!self->_execute_buf || self->_execute_buf_cap < _need)
+  if (out_obj && out_obj != Py_None)
+    {
+      PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
+          out_obj, NPY_COMPLEX64,
+          NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
+      if (!out_arr)
+        {
+          Py_DECREF (x_arr);
+          return NULL;
+        }
+      size_t _cap     = (size_t)PyArray_SIZE (out_arr);
+      size_t _omax    = ddc_execute_max_out (self->handle);
+      size_t _min_cap = _omax > (size_t)PyArray_SIZE (x_arr)
+                            ? _omax
+                            : ((size_t)PyArray_SIZE (x_arr));
+      if (_cap < _min_cap)
+        {
+          PyErr_Format (PyExc_ValueError, "out has %zu elements, need >= %zu",
+                        _cap, _min_cap);
+          Py_DECREF (out_arr);
+          Py_DECREF (x_arr);
+          return NULL;
+        }
+      /* nogil: GIL released across the pure-C kernel — sound only when
+       * this object is not shared across threads concurrently (one
+       * object per stream); the kernel touches only this object's
+       * state/buffers and the caller's input. */
+      const float complex *_ng0 = (const float complex *)PyArray_DATA (x_arr);
+      size_t               _ng1 = (size_t)PyArray_SIZE (x_arr);
+      float complex       *_ng2 = (float complex *)PyArray_DATA (out_arr);
+      size_t               n_out;
+      Py_BEGIN_ALLOW_THREADS
+        n_out = ddc_execute (self->handle, _ng0, _ng1, _ng2, _cap);
+      Py_END_ALLOW_THREADS
+      Py_DECREF (x_arr);
+      npy_intp  _odim  = (npy_intp)n_out;
+      PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_COMPLEX64,
+                                                    PyArray_DATA (out_arr));
+      if (!_oview)
+        {
+          Py_DECREF (out_arr);
+          return NULL;
+        }
+      PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
+      return _oview;
+    }
+  size_t _need      = (size_t)PyArray_SIZE (x_arr);
+  int    _view_live = 0;
+  if (self->_execute_view_ref)
+    {
+#if PY_VERSION_HEX >= 0x030D0000
+      PyObject *_lv = NULL;
+      if (PyWeakref_GetRef (self->_execute_view_ref, &_lv) == 1)
+        {
+          Py_DECREF (_lv);
+          _view_live = 1;
+        }
+#else
+      _view_live = PyWeakref_GetObject (self->_execute_view_ref) != Py_None;
+#endif
+    }
+  if (!self->_execute_buf || self->_execute_buf_cap < _need || _view_live)
     {
       size_t _max = ddc_execute_max_out (self->handle);
       if (!_max || _max < _need)
         _max = _need;
-      float complex *_tmp
-          = realloc (self->_execute_buf, _max * sizeof (float complex));
+      if (self->_execute_buf
+          && self->_execute_retired_n == self->_execute_retired_cap)
+        {
+          size_t _rcap = self->_execute_retired_cap
+                             ? self->_execute_retired_cap * 2
+                             : 4;
+          void **_rt
+              = realloc (self->_execute_retired, _rcap * sizeof (void *));
+          if (!_rt)
+            {
+              Py_DECREF (x_arr);
+              PyErr_NoMemory ();
+              return NULL;
+            }
+          self->_execute_retired     = _rt;
+          self->_execute_retired_cap = _rcap;
+        }
+      float complex *_tmp = malloc (_max * sizeof (float complex));
       if (!_tmp)
         {
           Py_DECREF (x_arr);
           PyErr_NoMemory ();
           return NULL;
         }
+      if (self->_execute_buf)
+        self->_execute_retired[self->_execute_retired_n++]
+            = self->_execute_buf;
       self->_execute_buf     = _tmp;
       self->_execute_buf_cap = _max;
     }
@@ -113,21 +291,216 @@ DDCObj_execute (DDCObject *self, PyObject *args)
     n_out = ddc_execute (self->handle, _ng0, _ng1, self->_execute_buf,
                          self->_execute_buf_cap);
   Py_END_ALLOW_THREADS
-  /* NumPy owns the output: an independent array per call, copied from the
-   * internal grow-on-demand buffer.  Returning a view of _execute_buf instead
-   * dangled when a later, larger execute realloc'd it (the view pins self, not
-   * the buffer) — the gh-219 use-after-free.  Matches the numpy-owned source
-   * objects (lo/nco/awgn). */
   npy_intp  dim = (npy_intp)n_out;
-  PyObject *arr = PyArray_SimpleNew (1, &dim, NPY_COMPLEX64);
+  PyObject *arr
+      = PyArray_SimpleNewFromData (1, &dim, NPY_COMPLEX64, self->_execute_buf);
   if (!arr)
+    return NULL;
+  PyArray_SetBaseObject ((PyArrayObject *)arr, (PyObject *)self);
+  Py_INCREF (self);
+  /* gh-437: remember this view — while the caller holds it the next
+   * call retires the buffer instead of reusing it in place. */
+  Py_XDECREF (self->_execute_view_ref);
+  self->_execute_view_ref = PyWeakref_NewRef (arr, NULL);
+  if (!self->_execute_view_ref)
     {
-      Py_DECREF (x_arr);
+      Py_DECREF (arr);
       return NULL;
     }
-  memcpy (PyArray_DATA ((PyArrayObject *)arr), self->_execute_buf,
-          (size_t)n_out * sizeof (float complex));
   Py_DECREF (x_arr);
+  return arr;
+}
+
+static PyObject *
+DDCObj_execute_ctrl (DDCObject *self, PyObject *args, PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char   *_kwlist[] = { "x", "rate_ctrl", "freq_ctrl", NULL };
+  PyObject      *x_obj     = NULL;
+  PyArrayObject *x_arr     = NULL;
+  double         rate_ctrl = 0;
+  double         freq_ctrl = 0;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "Odd", _kwlist, &x_obj,
+                                    &rate_ctrl, &freq_ctrl))
+    return NULL;
+  x_arr = (PyArrayObject *)PyArray_FROM_OTF (x_obj, NPY_COMPLEX64,
+                                             NPY_ARRAY_C_CONTIGUOUS);
+  if (!x_arr)
+    return NULL;
+  size_t _need      = (size_t)PyArray_SIZE (x_arr);
+  int    _view_live = 0;
+  if (self->_execute_ctrl_view_ref)
+    {
+#if PY_VERSION_HEX >= 0x030D0000
+      PyObject *_lv = NULL;
+      if (PyWeakref_GetRef (self->_execute_ctrl_view_ref, &_lv) == 1)
+        {
+          Py_DECREF (_lv);
+          _view_live = 1;
+        }
+#else
+      _view_live
+          = PyWeakref_GetObject (self->_execute_ctrl_view_ref) != Py_None;
+#endif
+    }
+  if (!self->_execute_ctrl_buf || self->_execute_ctrl_buf_cap < _need
+      || _view_live)
+    {
+      size_t _max = ddc_execute_ctrl_max_out (self->handle);
+      if (!_max || _max < _need)
+        _max = _need;
+      if (self->_execute_ctrl_buf
+          && self->_execute_ctrl_retired_n == self->_execute_ctrl_retired_cap)
+        {
+          size_t _rcap = self->_execute_ctrl_retired_cap
+                             ? self->_execute_ctrl_retired_cap * 2
+                             : 4;
+          void **_rt
+              = realloc (self->_execute_ctrl_retired, _rcap * sizeof (void *));
+          if (!_rt)
+            {
+              Py_DECREF (x_arr);
+              PyErr_NoMemory ();
+              return NULL;
+            }
+          self->_execute_ctrl_retired     = _rt;
+          self->_execute_ctrl_retired_cap = _rcap;
+        }
+      float complex *_tmp = malloc (_max * sizeof (float complex));
+      if (!_tmp)
+        {
+          Py_DECREF (x_arr);
+          PyErr_NoMemory ();
+          return NULL;
+        }
+      if (self->_execute_ctrl_buf)
+        self->_execute_ctrl_retired[self->_execute_ctrl_retired_n++]
+            = self->_execute_ctrl_buf;
+      self->_execute_ctrl_buf     = _tmp;
+      self->_execute_ctrl_buf_cap = _max;
+    }
+  /* nogil: GIL released across the pure-C kernel — sound only when
+   * this object is not shared across threads concurrently (one
+   * object per stream); the kernel touches only this object's
+   * state/buffers and the caller's input. */
+  const float complex *_ng0 = (const float complex *)PyArray_DATA (x_arr);
+  size_t               _ng1 = (size_t)PyArray_SIZE (x_arr);
+  size_t               n_out;
+  Py_BEGIN_ALLOW_THREADS
+    n_out = ddc_execute_ctrl (self->handle, _ng0, _ng1, rate_ctrl, freq_ctrl,
+                              self->_execute_ctrl_buf,
+                              self->_execute_ctrl_buf_cap);
+  Py_END_ALLOW_THREADS
+  npy_intp  dim = (npy_intp)n_out;
+  PyObject *arr = PyArray_SimpleNewFromData (1, &dim, NPY_COMPLEX64,
+                                             self->_execute_ctrl_buf);
+  if (!arr)
+    return NULL;
+  PyArray_SetBaseObject ((PyArrayObject *)arr, (PyObject *)self);
+  Py_INCREF (self);
+  /* gh-437: remember this view — while the caller holds it the next
+   * call retires the buffer instead of reusing it in place. */
+  Py_XDECREF (self->_execute_ctrl_view_ref);
+  self->_execute_ctrl_view_ref = PyWeakref_NewRef (arr, NULL);
+  if (!self->_execute_ctrl_view_ref)
+    {
+      Py_DECREF (arr);
+      return NULL;
+    }
+  Py_DECREF (x_arr);
+  return arr;
+}
+
+static PyObject *
+DDCObj_execute_ctrl_push (DDCObject *self, PyObject *args, PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char *_kwlist[] = { "x", "rate_ctrl", "freq_ctrl", NULL };
+  Py_complex   x_raw     = { 0.0, 0.0 };
+  double       rate_ctrl = 0;
+  double       freq_ctrl = 0;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "Ddd", _kwlist, &x_raw,
+                                    &rate_ctrl, &freq_ctrl))
+    return NULL;
+  float complex x          = (float)x_raw.real + (float)x_raw.imag * I;
+  size_t        _need      = ddc_execute_ctrl_push_max_out (self->handle);
+  int           _view_live = 0;
+  if (self->_execute_ctrl_push_view_ref)
+    {
+#if PY_VERSION_HEX >= 0x030D0000
+      PyObject *_lv = NULL;
+      if (PyWeakref_GetRef (self->_execute_ctrl_push_view_ref, &_lv) == 1)
+        {
+          Py_DECREF (_lv);
+          _view_live = 1;
+        }
+#else
+      _view_live
+          = PyWeakref_GetObject (self->_execute_ctrl_push_view_ref) != Py_None;
+#endif
+    }
+  if (!self->_execute_ctrl_push_buf || self->_execute_ctrl_push_buf_cap < _need
+      || _view_live)
+    {
+      size_t _max = ddc_execute_ctrl_push_max_out (self->handle);
+      if (!_max || _max < _need)
+        _max = _need;
+      if (self->_execute_ctrl_push_buf
+          && self->_execute_ctrl_push_retired_n
+                 == self->_execute_ctrl_push_retired_cap)
+        {
+          size_t _rcap = self->_execute_ctrl_push_retired_cap
+                             ? self->_execute_ctrl_push_retired_cap * 2
+                             : 4;
+          void **_rt   = realloc (self->_execute_ctrl_push_retired,
+                                  _rcap * sizeof (void *));
+          if (!_rt)
+            {
+              PyErr_NoMemory ();
+              return NULL;
+            }
+          self->_execute_ctrl_push_retired     = _rt;
+          self->_execute_ctrl_push_retired_cap = _rcap;
+        }
+      float complex *_tmp = malloc (_max * sizeof (float complex));
+      if (!_tmp)
+        {
+          PyErr_NoMemory ();
+          return NULL;
+        }
+      if (self->_execute_ctrl_push_buf)
+        self->_execute_ctrl_push_retired[self->_execute_ctrl_push_retired_n++]
+            = self->_execute_ctrl_push_buf;
+      self->_execute_ctrl_push_buf     = _tmp;
+      self->_execute_ctrl_push_buf_cap = _max;
+    }
+  size_t n_out  = ddc_execute_ctrl_push (self->handle, x, rate_ctrl, freq_ctrl,
+                                         self->_execute_ctrl_push_buf,
+                                         self->_execute_ctrl_push_buf_cap);
+  npy_intp  dim = (npy_intp)n_out;
+  PyObject *arr = PyArray_SimpleNewFromData (1, &dim, NPY_COMPLEX64,
+                                             self->_execute_ctrl_push_buf);
+  if (!arr)
+    return NULL;
+  PyArray_SetBaseObject ((PyArrayObject *)arr, (PyObject *)self);
+  Py_INCREF (self);
+  /* gh-437: remember this view — while the caller holds it the next
+   * call retires the buffer instead of reusing it in place. */
+  Py_XDECREF (self->_execute_ctrl_push_view_ref);
+  self->_execute_ctrl_push_view_ref = PyWeakref_NewRef (arr, NULL);
+  if (!self->_execute_ctrl_push_view_ref)
+    {
+      Py_DECREF (arr);
+      return NULL;
+    }
   return arr;
 }
 
@@ -140,6 +513,59 @@ DDCObj_reset (DDCObject *self, PyObject *Py_UNUSED (ignored))
       return NULL;
     }
   ddc_reset (self->handle);
+  Py_RETURN_NONE;
+}
+
+static PyObject *
+DDCObj_state_bytes (DDCObject *self, PyObject *Py_UNUSED (ignored))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromSize_t (ddc_state_bytes (self->handle));
+}
+
+static PyObject *
+DDCObj_get_state (DDCObject *self, PyObject *Py_UNUSED (ignored))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  size_t    _n = ddc_state_bytes (self->handle);
+  PyObject *_b = PyBytes_FromStringAndSize (NULL, (Py_ssize_t)_n);
+  if (!_b)
+    return NULL;
+  ddc_get_state (self->handle, PyBytes_AS_STRING (_b));
+  return _b;
+}
+
+static PyObject *
+DDCObj_set_state (DDCObject *self, PyObject *arg)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  if (!PyBytes_Check (arg))
+    {
+      PyErr_SetString (PyExc_TypeError, "set_state expects bytes");
+      return NULL;
+    }
+  if ((size_t)PyBytes_GET_SIZE (arg) != ddc_state_bytes (self->handle))
+    {
+      PyErr_SetString (PyExc_ValueError, "state blob size mismatch");
+      return NULL;
+    }
+  if (ddc_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
+    {
+      PyErr_SetString (PyExc_ValueError, "set_state rejected the blob");
+      return NULL;
+    }
   Py_RETURN_NONE;
 }
 static PyObject *
@@ -179,14 +605,30 @@ DDC_getprop_rate (DDCObject *self, void *Py_UNUSED (closure))
   /* <<IMPLEMENT: return the computed or stored value>> */
   return PyFloat_FromDouble (ddc_get_rate (self->handle));
 }
+static PyObject *
+DDC_getprop_clipped (DDCObject *self, void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  /* <<IMPLEMENT: return the computed or stored value>> */
+  return PyBool_FromLong ((long)(ddc_get_clipped (self->handle)));
+}
 
-static PyGetSetDef DDC_getset[]
-    = { { "norm_freq", (getter)DDC_getprop_norm_freq,
-          (setter)DDC_setprop_norm_freq,
-          "Return the current LO normalised frequency.\n", NULL },
-        { "rate", (getter)DDC_getprop_rate, NULL,
-          "Return the configured output/input rate ratio.\n", NULL },
-        { NULL } };
+static PyGetSetDef DDC_getset[] = {
+  { "norm_freq", (getter)DDC_getprop_norm_freq, (setter)DDC_setprop_norm_freq,
+    "Return the current LO normalised frequency (cycles/sample).\n", NULL },
+  { "rate", (getter)DDC_getprop_rate, NULL,
+    "Return the configured output/input rate ratio (read-only). The rate is "
+    "fixed at create time; change it by destroying and recreating the DDC "
+    "with the new value.\n",
+    NULL },
+  { "clipped", (getter)DDC_getprop_clipped, NULL,
+    "Has the cascade's CIC clipped its input since the last reset?\n", NULL },
+  { NULL }
+};
 
 static PyObject *
 DDCObj_destroy (DDCObject *self, PyObject *Py_UNUSED (ignored))
@@ -218,33 +660,44 @@ DDCObj_exit (DDCObject *self, PyObject *args)
   Py_RETURN_NONE;
 }
 
-/* serializable (gh-400): the standard state triplet, generated by the
- * shared macro (see dp_state_pyhelp.h) — byte-identical to jm's output.
- * The matching PyMethodDef rows are below. */
-DP_PY_STATE_METHODS (DDCObj, DDCObject, self->handle, ddc)
-
-static PyObject *
-DDCObj_execute_max_out (DDCObject *self, PyObject *Py_UNUSED (ignored))
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  return PyLong_FromSize_t (ddc_execute_max_out (self->handle));
-}
-
 static PyMethodDef DDCObj_methods[] = {
 
-  { "execute", (PyCFunction)DDCObj_execute, METH_VARARGS,
+  { "execute", (PyCFunction)DDCObj_execute, METH_VARARGS | METH_KEYWORDS,
     "execute(x) -> ndarray\n"
     "\n"
     "Mix input block with LO, then rate-convert.\n"
     "\n"
     "    >>> import numpy as np\n"
     "    >>> from doppler import DDC\n"
-    "    >>> obj = DDC(0.0, 0.25)\n"
+    "    >>> obj = DDC(0.0, 0.25, \"none\", 0.35, 8, 2.0, 1024)\n"
     "    >>> y = obj.execute(np.zeros(4))\n"
+    "    >>> y.dtype\n"
+    "    dtype('complex64')\n" },
+  { "execute_max_out", (PyCFunction)DDCObj_execute_max_out, METH_NOARGS,
+    "execute_max_out() -> int\n\nMax output length execute() can produce for "
+    "the current state.\nUse to size the ``out=`` buffer." },
+  { "execute_ctrl", (PyCFunction)DDCObj_execute_ctrl,
+    METH_VARARGS | METH_KEYWORDS,
+    "execute_ctrl(x) -> ndarray\n"
+    "\n"
+    "Mix and resample a block, steering both control ports.\n"
+    "\n"
+    "    >>> import numpy as np\n"
+    "    >>> from doppler import DDC\n"
+    "    >>> obj = DDC(0.0, 0.25, \"none\", 0.35, 8, 2.0, 1024)\n"
+    "    >>> y = obj.execute_ctrl(np.zeros(4))\n"
+    "    >>> y.dtype\n"
+    "    dtype('complex64')\n" },
+  { "execute_ctrl_push", (PyCFunction)DDCObj_execute_ctrl_push,
+    METH_VARARGS | METH_KEYWORDS,
+    "execute_ctrl_push(n=1) -> ndarray\n"
+    "\n"
+    "Push ONE input sample; emit whatever outputs it completes.\n"
+    "\n"
+    "    >>> import numpy as np\n"
+    "    >>> from doppler import DDC\n"
+    "    >>> obj = DDC(0.0, 0.25, \"none\", 0.35, 8, 2.0, 1024)\n"
+    "    >>> y = obj.execute_ctrl_push(np.zeros(4))\n"
     "    >>> y.dtype\n"
     "    dtype('complex64')\n" },
   { "reset", (PyCFunction)DDCObj_reset, METH_NOARGS,
@@ -253,7 +706,7 @@ static PyMethodDef DDCObj_methods[] = {
     "Zero LO phase and filter history.\n"
     "\n"
     "    >>> from doppler import DDC\n"
-    "    >>> obj = DDC(0.0, 0.25)\n"
+    "    >>> obj = DDC(0.0, 0.25, \"none\", 0.35, 8, 2.0, 1024)\n"
     "    >>> obj.reset()\n" },
   { "state_bytes", (PyCFunction)DDCObj_state_bytes, METH_NOARGS,
     "Serialized state size in bytes." },
@@ -265,9 +718,6 @@ static PyMethodDef DDCObj_methods[] = {
     "Release resources." },
   { "__enter__", (PyCFunction)DDCObj_enter, METH_NOARGS, NULL },
   { "__exit__", (PyCFunction)DDCObj_exit, METH_VARARGS, NULL },
-  { "execute_max_out", (PyCFunction)DDCObj_execute_max_out, METH_NOARGS,
-    "execute_max_out() -> int\n\nMax output length execute() can produce for "
-    "the current state.\nUse to size the ``out=`` buffer." },
   { NULL }
 };
 
@@ -276,9 +726,9 @@ static PyTypeObject DDCObjType = {
   .tp_basicsize                           = sizeof (DDCObject),
   .tp_dealloc                             = (destructor)DDCObj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,
-  .tp_doc                                 = "Create a complex-input DDC.\n",
-  .tp_methods                             = DDCObj_methods,
-  .tp_getset                              = DDC_getset,
-  .tp_new                                 = DDCObj_new,
-  .tp_init                                = (initproc)DDCObj_init,
+  .tp_doc     = "Create a complex-input Digital Down-Converter.\n",
+  .tp_methods = DDCObj_methods,
+  .tp_getset  = DDC_getset,
+  .tp_new     = DDCObj_new,
+  .tp_init    = (initproc)DDCObj_init,
 };

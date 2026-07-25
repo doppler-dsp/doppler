@@ -6,6 +6,11 @@ no_state = "true"
 no_step = "true"
 class_name = "DDC"
 serializable = "true"
+# One constructor with a pulse knob (RC_PULSE_NONE = plain), so jm generates
+# the whole binding: an object's tp_init always calls <obj>_create with the
+# init_params in order, and a NULL from it means a bad parameter, not OOM.
+create_error = "ValueError"
+create_error_message = "DDC: invalid parameter (need rate > 0, 0 <= beta <= 1, span >= 1, pulse_sps > 0, num_phases a power of two >= 2)"
 depends_on = [{ name = "lo", link = true }, { name = "RateConverter", link = true }, { name = "resamp", link = true }, { name = "hbdecim", link = true }, { name = "hbdecim_r2c", link = true }, { name = "cic", link = true }, { name = "fir", link = true }, { name = "resample", link = true }]
 
 [[ddc.init_params]]
@@ -18,6 +23,32 @@ name = "rate"
 type = "double"
 default = "0.25"
 
+[[ddc.init_params]]
+name = "pulse"
+type = "string_enum:iandd,rrc,none"
+default = "none"
+doc = "Matched-filter pulse for the cascade's terminal stage: \"rrc\" (root-raised cosine, roll-off `beta`), \"iandd\" (unit rectangle one symbol wide -- what an integrate-and-dump computes), or \"none\" for a plain down-conversion with the default Kaiser anti-alias bank. Anything but \"none\" makes the chain mix, decimate and matched-filter in the same dot products, and makes that stage's polyphase arm the fractional timing delay `rate_ctrl` steers. CIC droop compensation is unconditional on this path (six taps per arm, worth 28 dB)."
+
+[[ddc.init_params]]
+name = "beta"
+type = "double"
+default = "0.35"
+
+[[ddc.init_params]]
+name = "span"
+type = "size_t"
+default = "8"
+
+[[ddc.init_params]]
+name = "pulse_sps"
+type = "double"
+default = "2.0"
+
+[[ddc.init_params]]
+name = "num_phases"
+type = "size_t"
+default = "1024"
+
 [[ddc.methods]]
 name = "execute"
 doc = "Mix input block with LO, then rate-convert."
@@ -27,6 +58,31 @@ variable_output = true
 pass_capacity = true
 nogil = true
 params = [{name = "x", type = "float _Complex[]"}]
+
+[[ddc.methods]]
+name = "execute_ctrl"
+arg_type = "void"
+return_type = "float _Complex"
+variable_output = true
+pass_capacity = true
+nogil = true
+params = [
+  { name = "x", type = "float _Complex[]" },
+  { name = "rate_ctrl", type = "double" },
+  { name = "freq_ctrl", type = "double" },
+]
+
+[[ddc.methods]]
+name = "execute_ctrl_push"
+arg_type = "void"
+return_type = "float _Complex"
+variable_output = true
+pass_capacity = true
+params = [
+  { name = "x", type = "float _Complex" },
+  { name = "rate_ctrl", type = "double" },
+  { name = "freq_ctrl", type = "double" },
+]
 
 [[ddc.methods]]
 name = "reset"
@@ -42,3 +98,7 @@ writable = true
 [[ddc.properties]]
 name = "rate"
 type = "double"
+
+[[ddc.properties]]
+name = "clipped"
+type = "bool"

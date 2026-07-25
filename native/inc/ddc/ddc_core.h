@@ -40,6 +40,31 @@
  * because the halfband R2C step has an fs/4 frequency shift baked in at
  * zero extra multiplications — the +/-1/0 coefficients multiply for free.
  *
+ * ### Pulse and the two control ports
+ *
+ * Both constructors take a *pulse* (::RC_PULSE_NONE for none),
+ * which is passed straight through to the cascade: the terminal stage carries
+ * a matched-filter bank instead of the default Kaiser one, so the chain mixes,
+ * decimates and matched-filters in the same dot products it was already doing
+ * (see RateConverter_create_matched()).
+ *
+ * That makes a DDC steerable on **two** ports, which are duals of each other:
+ *
+ * ```
+ *   freq_ctrl ──> LO phase accumulator      (carrier, at the INPUT rate)
+ *   rate_ctrl ──> terminal stage accumulator (timing, at the OUTPUT rate)
+ * ```
+ *
+ * Both are per-input deviations added on top of the configured centre value
+ * for that sample only, so a tracking loop supplies its full filter output
+ * every time and the DDC holds no loop state. A receiver therefore closes a
+ * carrier loop and a timing loop with the same `loop_filter`, one per port —
+ * the object itself contains no loop.
+ *
+ * The LO sits at the input rate (the intermediate rate fs_in/2 for DdcR),
+ * which is where predetection de-rotation belongs: the carrier is wiped off
+ * before any filter narrows the band around it.
+ *
  * ### Retuning vs. rebuilding
  *
  * - **Retune** (centre-frequency change): call ddc_set_norm_freq /
@@ -52,14 +77,14 @@
  *
  * @code
  * // Complex DDC: shift a carrier at +0.1·fs to DC, decimate by 4
- * ddc_state_t *ddc = ddc_create(-0.1, 0.25);
+ * ddc_state_t *ddc = ddc_create(-0.1, 0.25, RC_PULSE_NONE, 0, 0, 0, 0);
  * float _Complex out[4096];
  * size_t n = ddc_execute(ddc, in, 1024, out, 4096);
  * ddc_destroy(ddc);
  *
  * // Real DDC: same carrier and decimation from a real ADC stream
  * // norm_freq at intermediate rate: -(2 * 0.1 + 0.5) = -0.7
- * ddcr_state_t *ddcr = ddcr_create(-0.7, 0.25);
+ * ddcr_state_t *ddcr = ddcr_create(-0.7, 0.25, RC_PULSE_NONE, 0, 0, 0, 0);
  * size_t m = ddcr_execute(ddcr, real_in, 1024, out, 4096);
  * ddcr_destroy(ddcr);
  * @endcode
@@ -68,6 +93,7 @@
 #define DDC_CORE_H
 
 #include <complex.h>
+#include <stdbool.h>
 #include <stddef.h>
 #include "lo/lo_core.h"
 #include "RateConverter/RateConverter_core.h"
@@ -90,17 +116,46 @@ extern "C"
 
   /**
    * @brief Create a complex-input Digital Down-Converter.
-   * Allocates internal state for the LO and RateConverter cascade.
-   * The RateConverter selects the cheapest multi-stage decimation chain
-   * (CIC + optional halfband + polyphase resampler) for the given rate.
+   *
+   * Allocates the LO and the RateConverter cascade, which selects the cheapest
+   * multi-stage decimation chain (CIC + optional halfband + polyphase
+   * resampler) for the requested rate.
+   *
+   * @p pulse is the one knob that changes what the cascade IS.  With
+   * ::RC_PULSE_NONE the terminal stage carries the default Kaiser anti-alias
+   * bank — a plain down-converter, and the remaining arguments are unused.
+   * With a pulse it carries a matched-filter bank instead, so the chain mixes,
+   * decimates and matched-filters in the same dot products, and that stage's
+   * polyphase arm becomes the fractional timing delay ddc_execute_ctrl()
+   * steers.  Everything RateConverter_create_matched() documents holds here
+   * unchanged: the terminal fractional stage always exists, the bank is sized
+   * by the POST-decimation rate, and the CIC droop folds into the bank rather
+   * than costing a stage.
+   *
+   * Droop compensation is not a parameter because it is unconditional on the
+   * matched path: the fold is worth 28 dB of EVM for six taps per arm and no
+   * extra pass over the data, so no operating point wants it off.  The plain
+   * path is uncompensated, exactly as before.
    *
    * @param norm_freq  LO frequency in cycles/sample at the input rate.
    *                   Set to -f_carrier to shift a carrier at f_carrier
    *                   to DC.  Any real value is accepted.
    * @param rate       Output rate / input rate.  Must be > 0.  Values
-   *                   ≥ 1 are up-sampling; typical use is decimation
-   *                   (0 < rate < 1).
-   * @return Non-NULL on success, NULL on OOM or invalid args.
+   *                   >= 1 are up-sampling; typical use is decimation
+   *                   (0 < rate < 1).  Rate-agnostic: a caller wanting `m`
+   *                   outputs per symbol asks for `rate = m/sps`; the cascade
+   *                   never learns about symbols.
+   * @param pulse      RC_PULSE_RRC / RC_PULSE_IANDD for a matched terminal
+   *                   stage, or RC_PULSE_NONE for a plain down-conversion.
+   * @param beta       RRC roll-off in `[0, 1]` (ignored for the rectangle and
+   *                   for RC_PULSE_NONE).
+   * @param span       One-sided RRC span in symbols (ignored for the
+   *                   rectangle, whose support is exactly one symbol).
+   * @param pulse_sps  The pulse's period in **output** samples (2 = two
+   *                   samples per symbol out).
+   * @param num_phases Terminal-stage arms; a power of two.  Sets the timing
+   *                   resolution to `1/num_phases` of an output period.
+   * @return Non-NULL on success, NULL on a bad parameter or OOM.
    *
    * @code
    * >>> from doppler.ddc import DDC
@@ -109,9 +164,11 @@ extern "C"
    * -0.1
    * >>> ddc.rate
    * 0.25
+   * >>> DDC(norm_freq=-0.1, rate=2 / 16, pulse="rrc").rate == 0.125
+   * True
    * @endcode
    */
-ddc_state_t *ddc_create(double norm_freq, double rate);
+ddc_state_t *ddc_create(double norm_freq, double rate, int pulse, double beta, size_t span, double pulse_sps, size_t num_phases);
 
   /**
    * @brief Free all resources held by a DDC instance.
@@ -225,6 +282,75 @@ double ddc_get_rate(const ddc_state_t *state);
    */
 size_t ddc_execute(ddc_state_t *state, const float complex *x, size_t x_len, float complex *out, size_t max_out);
 
+  /**
+   * @brief Mix and resample a block, steering both control ports.
+   *
+   * The control-port form of ddc_execute(): the LO advances by
+   * `phase_inc + freq_ctrl` on every sample of this block, and the cascade's
+   * terminal stage runs at `stage_rate + rate_ctrl`. Neither deviation is
+   * persisted — the centre norm_freq and rate are untouched — so a tracking
+   * loop passes its full filter output on every call and the DDC holds no loop
+   * state of its own.
+   *
+   * Feeding a stream through ddc_execute_ctrl_push() one sample at a time
+   * reproduces this call bit-for-bit when both controls are held constant, so
+   * the cheap block form stays correct for open-loop use (a fixed Doppler
+   * offset, a rate trim) and the push form is what a closed loop uses.
+   *
+   * @param state     Must be non-NULL.
+   * @param x         CF32 input block.
+   * @param x_len     Number of input samples.
+   * @param rate_ctrl Rate deviation added to the terminal Resampler stage's
+   *                  rate. Referenced to the terminal (post-decimation) rate,
+   *                  not the overall rate; ignored by a plan whose last stage
+   *                  is an integer HB/CIC with nothing to steer.
+   * @param freq_ctrl Frequency deviation added to the LO, in cycles/sample at
+   *                  the INPUT rate (any sign).
+   * @param out       CF32 output buffer.
+   * @param max_out   Capacity of @p out in samples.
+   * @return Number of output samples written.
+   */
+  size_t ddc_execute_ctrl (ddc_state_t *state, const float complex *x,
+                           size_t x_len, double rate_ctrl, double freq_ctrl,
+                           float complex *out, size_t max_out);
+
+  /**
+   * @brief Push ONE input sample; emit whatever outputs it completes.
+   *
+   * The per-input streaming form of ddc_execute_ctrl(), and the only form a
+   * closed loop can use: a block call has to know its whole control history up
+   * front, whereas a carrier or timing loop computes each correction *from*
+   * the outputs already emitted. Both loops close once per symbol, so both
+   * ports need this form.
+   *
+   * The mix costs one LO step per input; the cascade then emits 0 outputs (the
+   * common decimating case, between strobes), 1, or several.
+   *
+   * @param state     Must be non-NULL.
+   * @param x         One CF32 input sample.
+   * @param rate_ctrl Rate deviation for this input (terminal-stage rate).
+   * @param freq_ctrl Frequency deviation for this input, cycles/sample at the
+   *                  input rate.
+   * @param out       Output buffer for any emitted samples.
+   * @param max_out   Capacity of @p out (emission stops at this bound).
+   * @return Number of outputs written (0, 1, or more).
+   */
+  size_t ddc_execute_ctrl_push (ddc_state_t *state, float complex x,
+                                double rate_ctrl, double freq_ctrl,
+                                float complex *out, size_t max_out);
+
+  /**
+   * @brief Has the cascade's CIC clipped its input since the last reset?
+   *
+   * Forwarded from RateConverter_get_clipped(): a CIC bounds its input to
+   * `|Re|, |Im| <= 1.0` and clips silently past it — the output stays finite
+   * and plausible, merely distorted, at a cost of ~25 dB of EVM that no
+   * downstream metric attributes to the front end. Sticky until ddc_reset();
+   * always false for a plan with no CIC stage, which is the honest answer since
+   * those plans are scale-free.
+   */
+bool ddc_get_clipped(const ddc_state_t *state);
+
   /* ================================================================== */
   /* DdcR — real-input DDC (Architecture D2)                           */
   /* ================================================================== */
@@ -233,19 +359,34 @@ size_t ddc_execute(ddc_state_t *state, const float complex *x, size_t x_len, flo
 
   /**
    * @brief Create a real-input Digital Down-Converter (Architecture D2).
-   * The signal chain is: halfband R2C (2:1, bakes in +fs/4 shift) →
-   * fine LO mix at the intermediate rate (fs_in/2) → RateConverter →
-   * CF32 output.  The halfband stage uses ±1/0 coefficients (no
-   * multiplications), making DDCR roughly 2× cheaper than DDC at the
-   * same total decimation ratio.
+   *
+   * The signal chain is: halfband R2C (2:1, bakes in +fs/4 shift) -> fine LO
+   * mix at the intermediate rate (fs_in/2) -> RateConverter -> CF32 output.
+   * The halfband stage uses +-1/0 coefficients (no multiplications), making
+   * DDCR roughly 2x cheaper than DDC at the same total decimation ratio.
+   *
+   * @p pulse means exactly what it means in ddc_create() — the halfband front
+   * end is a fixed integer stage, so the pulse still lands on the cascade's
+   * terminal stage and both control ports behave identically.  Note the rate
+   * arithmetic the halfband imposes: the cascade behind it runs at `2*rate`,
+   * and this function does that on the caller's behalf, so a caller wanting
+   * `m` outputs per symbol still passes the TOTAL `rate = m/sps`.
+   * `pulse_sps` is in **output** samples, so the front end does not affect it.
    *
    * @param norm_freq  Fine NCO frequency at the intermediate rate
    *                   (fs_in/2, cycles/sample).  To tune a real tone at
    *                   normalised input frequency f_c to DC, set
    *                   norm_freq = -(2*f_c + 0.5).
-   * @param rate       Total output/input rate.  Must be in (0, 0.5)
-   *                   because the halfband pre-decimates by 2.
-   * @return Non-NULL on success, NULL on OOM or invalid args.
+   * @param rate       Total output/input rate.  Must be in (0, 0.5) because
+   *                   the halfband pre-decimates by 2.
+   * @param pulse      RC_PULSE_RRC / RC_PULSE_IANDD, or RC_PULSE_NONE for a
+   *                   plain down-conversion (remaining arguments unused).
+   * @param beta       RRC roll-off in `[0, 1]` (ignored for the rectangle).
+   * @param span       One-sided RRC span in symbols (ignored for the
+   *                   rectangle).
+   * @param pulse_sps  The pulse's period in **output** samples.
+   * @param num_phases Terminal-stage arms; a power of two.
+   * @return Non-NULL on success, NULL on a bad parameter or OOM.
    *
    * @code
    * >>> from doppler.ddc import Ddcr
@@ -256,7 +397,9 @@ size_t ddc_execute(ddc_state_t *state, const float complex *x, size_t x_len, flo
    * 0.25
    * @endcode
    */
-  ddcr_state_t *ddcr_create (double norm_freq, double rate);
+  ddcr_state_t *ddcr_create (double norm_freq, double rate, int pulse,
+                             double beta, size_t span, double pulse_sps,
+                             size_t num_phases);
 
   /**
    * @brief Free all resources held by a DDCR instance.
@@ -412,6 +555,61 @@ size_t ddc_execute(ddc_state_t *state, const float complex *x, size_t x_len, flo
                        float _Complex *out, size_t max_out);
 
   /**
+   * @brief Process a real block, steering both control ports.
+   *
+   * The control-port form of ddcr_execute(); see ddc_execute_ctrl() for the
+   * semantics, which are identical except for where the LO lives.
+   *
+   * @param s         Must be non-NULL.
+   * @param in        Real float32 input block.
+   * @param n_in      Number of input samples.
+   * @param rate_ctrl Rate deviation added to the terminal Resampler stage's
+   *                  rate (referenced to the terminal, post-decimation rate).
+   * @param freq_ctrl Frequency deviation added to the fine LO, in
+   *                  cycles/sample at the INTERMEDIATE rate (fs_in/2) — the
+   *                  halfband has already decimated by two by the time the
+   *                  mix happens, so a discriminator working in cycles per
+   *                  ADC sample must be doubled before it lands here.
+   * @param out       CF32 output buffer.
+   * @param max_out   Capacity of @p out in samples.
+   * @return Number of output samples written.
+   */
+  size_t ddcr_execute_ctrl (ddcr_state_t *s, const float *in, size_t n_in,
+                            double rate_ctrl, double freq_ctrl,
+                            float _Complex *out, size_t max_out);
+
+  /**
+   * @brief Push ONE real input sample; emit whatever outputs it completes.
+   *
+   * The per-input streaming form of ddcr_execute_ctrl(), for a closed loop.
+   * The halfband consumes two inputs per intermediate sample, so every other
+   * push does no mixing and emits nothing at all — the LO advances (and its
+   * control is applied) once per *intermediate* sample, which is the rate the
+   * LO runs at.
+   *
+   * @param s         Must be non-NULL.
+   * @param x         One real float32 input sample.
+   * @param rate_ctrl Rate deviation for this input (terminal-stage rate).
+   * @param freq_ctrl Frequency deviation, cycles/sample at fs_in/2.
+   * @param out       Output buffer for any emitted samples.
+   * @param max_out   Capacity of @p out.
+   * @return Number of outputs written (0, 1, or more).
+   */
+  size_t ddcr_execute_ctrl_push (ddcr_state_t *s, float x, double rate_ctrl,
+                                 double freq_ctrl, float _Complex *out,
+                                 size_t max_out);
+
+  /**
+   * @brief Has the cascade's CIC clipped its input since the last reset?
+   *
+   * Forwarded from RateConverter_get_clipped(); see ddc_get_clipped(). The
+   * halfband R2C front end has unity passband gain and a real tone lands at
+   * amplitude 0.5 in the analytic output, so a full-scale ADC stream sits
+   * comfortably inside the CIC's bound — but a scaled-up input does not.
+   */
+  bool ddcr_get_clipped (const ddcr_state_t *s);
+
+  /**
    * @brief Return the maximum output samples for one execute call.
    *
    * Returns 0, signalling the Python extension to fall back to
@@ -445,6 +643,8 @@ size_t ddc_execute_max_out(ddc_state_t *state);
                   const float complex *in, size_t n_in, float complex *out,
                   size_t max_out);
 
+size_t ddc_execute_ctrl_max_out(ddc_state_t *state);
+size_t ddc_execute_ctrl_push_max_out(ddc_state_t *state);
 #ifdef __cplusplus
 }
 #endif

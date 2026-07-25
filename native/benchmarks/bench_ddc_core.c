@@ -18,7 +18,7 @@ elapsed_sec (struct timespec *t0, struct timespec *t1)
 int
 main (void)
 {
-  ddc_state_t    *obj = ddc_create (0.0, 0.25);
+  ddc_state_t    *obj = ddc_create (0.0, 0.25, RC_PULSE_NONE, 0, 0, 0, 0);
   struct timespec t0, t1;
   jm_bench_t      _bench = { 0 };
 

@@ -11,7 +11,21 @@ from numpy.typing import NDArray
 
 @final
 class Ddcr:
-    """Create a real-input Digital Down-Converter (Architecture D2). The signal chain is: halfband R2C (2:1, bakes in +fs/4 shift) → fine LO mix at the intermediate rate (fs_in/2) → RateConverter → CF32 output.  The halfband stage uses ±1/0 coefficients (no multiplications), making DDCR roughly 2× cheaper than DDC at the same total decimation ratio.
+    """Create a real-input Digital Down-Converter (Architecture D2).
+
+    The signal chain is: halfband R2C (2:1, bakes in +fs/4 shift) -> fine LO
+    mix at the intermediate rate (fs_in/2) -> RateConverter -> CF32 output.
+    The halfband stage uses +-1/0 coefficients (no multiplications), making
+    DDCR roughly 2x cheaper than DDC at the same total decimation ratio.
+
+    pulse means exactly what it means in ddc_create() — the halfband front
+    end is a fixed integer stage, so the pulse still lands on the cascade's
+    terminal stage and both control ports behave identically. Note the rate
+    arithmetic the halfband imposes: the cascade behind it runs at `2*rate`,
+    and this function does that on the caller's behalf, so a caller wanting
+    `m` outputs per symbol still passes the TOTAL `rate = m/sps`.
+    `pulse_sps` is in **output** samples, so the front end does not affect
+    it.
 
     Parameters
     ----------
@@ -19,8 +33,19 @@ class Ddcr:
         Fine NCO frequency at the intermediate rate (fs_in/2, cycles/sample).  To tune a real tone at normalised input frequency f_c to DC, set norm_freq = -(2*f_c + 0.5).
     rate : float, default 0.25
         Total output/input rate.  Must be in (0, 0.5) because the halfband pre-decimates by 2.
+    pulse : str, default ``"none"``
+        RC_PULSE_RRC / RC_PULSE_IANDD, or RC_PULSE_NONE for a plain down-conversion (remaining arguments unused).
+        One of ``"iandd"``, ``"rrc"``, ``"none"``.
+    beta : float, default 0.35
+        RRC roll-off in `[0, 1]` (ignored for the rectangle).
+    span : int, default 8
+        One-sided RRC span in symbols (ignored for the rectangle).
+    pulse_sps : float, default 2.0
+        The pulse's period in **output** samples.
+    num_phases : int, default 1024
+        Terminal-stage arms; a power of two.
     """
-    def __init__(self, norm_freq: float = ..., rate: float = ...) -> None: ...
+    def __init__(self, norm_freq: float = ..., rate: float = ..., pulse: str = ..., beta: float = ..., span: int = ..., pulse_sps: float = ..., num_phases: int = ...) -> None: ...
     def execute(self, x: NDArray[Any], out: NDArray[Any]) -> NDArray[Any]:
         """Process a block of real float32 samples through the full DDCR signal chain: halfband R2C → LO mix → RateConverter → CF32. The halfband decimates by 2 and applies a built-in +fs/4 frequency shift; the fine NCO then completes the tuning.  State is maintained across calls for contiguous streaming.  Output length ≈ n_in * rate (±1 from polyphase indexing).  A real tone at input normalised frequency f_c has amplitude 0.5 in the baseband output (one-sided spectrum), consistent with analytic signal theory.
 
@@ -78,6 +103,9 @@ class Ddcr:
     @property
     def rate(self) -> float:
         """rate (float)."""
+    @property
+    def clipped(self) -> bool:
+        """clipped (bool)."""
     def state_bytes(self) -> int:
         """Serialized state size in bytes."""
     def get_state(self) -> bytes:

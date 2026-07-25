@@ -13,7 +13,57 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+### Changed
+
+- **`ddc_create` / `ddcr_create` take the pulse arguments (C API).** Both are
+    now the single general constructor —
+    `ddc_create(norm_freq, rate, pulse, beta, span, pulse_sps, num_phases)` —
+    with `RC_PULSE_NONE` selecting exactly the previous plain behaviour and
+    leaving the remaining arguments unused. C callers of the two-argument form
+    add `, RC_PULSE_NONE, 0, 0, 0, 0`. Python is unaffected: every new
+    parameter has a default, so `DDC(-0.1, 0.25)` and `Ddcr(-0.7, 0.25)` are
+    unchanged. One constructor rather than a `create`/`create_matched` pair
+    keeps the binding fully manifest-generated — no hand-written CPython glue
+    and no hand-maintained stub.
+
 ### Added
+
+- **`DDC` and `Ddcr` gain a pulse and a second control port — carrier and
+    timing on one object.** `DDC(norm_freq, rate, pulse="rrc"|"iandd", beta,   span, pulse_sps, num_phases)` passes the pulse straight through to the
+    cascade, so a down-converter mixes, decimates *and* matched-filters in the
+    dot products it was already doing. `execute_ctrl(x, rate_ctrl, freq_ctrl)`
+    and the per-input `execute_ctrl_push(x, rate_ctrl, freq_ctrl)` then steer
+    two accumulators that are duals of each other:
+
+    - **`freq_ctrl` → the LO's phase accumulator** (cycles/sample at the input
+        rate). The LO sits at the input rate, which is where predetection
+        de-rotation belongs — the carrier is wiped off before any filter
+        narrows the band around it.
+    - **`rate_ctrl` → the terminal stage's accumulator** (the timing port
+        `RateConverter` already exposed).
+
+    Neither deviation is persisted — `norm_freq` and `rate` never move — so a
+    tracking loop supplies its full filter output every call and the object
+    holds no loop state. That is what makes carrier recovery *snap in*: it is
+    the same `loop_filter` a timing loop uses, on the other port. Measured, a
+    first-order loop on `freq_ctrl` parks on a 0.01 cycles/sample mistune to
+    within 1e-9 and leaves the centre frequency untouched.
+
+    Also new on both types: a `clipped` flag forwarded from the cascade (a CIC
+    bounds its input to ±1.0 and clips silently, costing ~25 dB of EVM that no
+    downstream metric attributes to the front end). CIC droop compensation is
+    unconditional on the matched path: the fold is six taps per arm and worth
+    28 dB, so no caller can turn it off.
+
+    End to end, RRC-BPSK at 16 samples per symbol on a carrier, decimated to
+    two samples per symbol: **−45 dB EVM** on the complex path (its `CIC(8)`
+    alias floor) and **−60 dB** on the real path (whose cascade sees twice the
+    rate and plans halfbands instead).
+
+    `Ddcr`'s C API has both control ports; its *Python* face has the pulse but
+    not yet the ports, because a jm handle method cannot carry scalars
+    alongside its array arguments (shape (d) hardcodes
+    `fn(h, in, n_in, out, max_out)`). The `DDC` object has all of it.
 
 - **`track.RateSync` — matched filtering and symbol timing in one dot
     product.** Where `SymbolSync` runs a matched FIR and then a Farrow

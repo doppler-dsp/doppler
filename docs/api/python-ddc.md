@@ -64,6 +64,79 @@ for block in iq_stream:     # generator of CF32 arrays
     process(out)
 ```
 
+### Matched mode — the pulse rides the cascade
+
+Pass a `pulse` and the cascade's **terminal stage carries the matched filter**
+instead of the default Kaiser anti-alias bank: the same dot products that mix
+and decimate also matched-filter, and that stage's polyphase arm becomes the
+fractional timing delay a loop steers. It is a straight passthrough to
+[`RateConverter`](python-resample.md) — the DDC adds the mix in front of it —
+and it is the *same* constructor: `pulse="none"` is the plain down-converter.
+`Ddcr` takes the identical arguments for the real-input chain.
+
+```python
+from doppler.ddc import DDC
+import numpy as np
+
+# 16 samples/symbol in, 2 out; carrier at +0.09375·fs wiped off on the way.
+rx = DDC(norm_freq=-0.09375, rate=2 / 16, pulse="rrc", beta=0.35, span=8,
+         pulse_sps=2.0)
+
+x = (0.25 * np.random.randn(4096)).astype(np.complex64)
+symbols = rx.execute(x)          # matched-filtered, 2 samples/symbol
+print(len(symbols), rx.clipped)  # clipped: has any CIC stage clipped?
+```
+
+`pulse_sps` is the pulse's period in **output** samples, so a caller wanting
+`m` samples per symbol at `sps` input samples per symbol asks for
+`rate = m/sps` and `pulse_sps = m`. CIC droop compensation is unconditional on
+this path — the fold costs six taps per arm and is worth 28 dB.
+
+### Two control ports
+
+A matched DDC is steerable on two accumulators, and they are duals of each
+other:
+
+| port        | steers                           | units                               | loop it closes |
+| ----------- | -------------------------------- | ----------------------------------- | -------------- |
+| `freq_ctrl` | the LO's phase accumulator       | cycles/sample at the **input** rate | carrier        |
+| `rate_ctrl` | the terminal stage's accumulator | output periods per terminal input   | timing         |
+
+Neither deviation is persisted — `norm_freq` and `rate` never move — so a
+tracking loop passes its full filter output on every call and the DDC holds no
+loop state of its own. `execute_ctrl` applies both across a block (open loop: a
+fixed Doppler offset, a rate trim); `execute_ctrl_push` applies them one input
+at a time, which is the only form a closed loop can use, since each correction
+is computed *from* the outputs already emitted.
+
+```python
+# Carrier recovery: a tone 0.01 cycles/sample off where the LO is tuned.
+f0, tuned, rate, mu = 0.05, -0.04, 0.25, 0.01
+d = DDC(tuned, rate, pulse="rrc")
+x = (0.25 * np.exp(2j * np.pi * f0 * np.arange(8192))).astype(np.complex64)
+
+freq_ctrl, prev = 0.0, None
+for i, v in enumerate(x):
+    for y in d.execute_ctrl_push(complex(v), 0.0, freq_ctrl):
+        if prev is not None and i > 1024:       # let the cascade prime
+            e = float(np.angle(y * np.conj(prev)) / (2 * np.pi))
+            freq_ctrl -= mu * e * rate          # e is per OUTPUT sample
+        prev = y
+
+assert abs(f0 + tuned + freq_ctrl) < 1e-6       # parked on the mistune
+assert d.norm_freq == tuned                     # the centre never moved
+```
+
+The loop gain is small for a structural reason: the loop closes **around** the
+matched filter, so its dead time is that filter's group delay. Measured on this
+configuration, `mu` of 0.01–0.02 converges, 0.05 is marginal and 0.1 diverges —
+the same reason a real receiver's carrier-loop bandwidth is a small fraction of
+the symbol rate.
+
+The timing port is the other half: wrap a detector and a loop filter around
+`rate_ctrl` and you have [`track.RateSync`](python-track.md), which does exactly
+that over a `RateConverter`.
+
 ______________________________________________________________________
 
 ## `Ddcr` — real input (Architecture D2)
@@ -246,9 +319,10 @@ Three stages, each optional or reorderable:
 | Halfband ÷2        | `hbdecim_state_t` | Cheap factor-of-2 decimation                   |
 | Polyphase resample | `resamp_state_t`  | Continuously-variable rate conversion          |
 
-`ddc_create(norm_freq, rate)` chains LO + polyphase resampler with built-in
-Kaiser coefficients (passband ≤ 0.4·fs_out, stopband ≥ 0.6·fs_out, 60 dB
-rejection).
+`ddc_create(norm_freq, rate, RC_PULSE_NONE, …)` chains LO + polyphase
+resampler with built-in Kaiser coefficients (passband ≤ 0.4·fs_out, stopband
+≥ 0.6·fs_out, 60 dB rejection). The remaining arguments select a matched-filter
+pulse for the terminal stage instead; see [Matched mode](#matched-mode--the-pulse-rides-the-cascade).
 
 ______________________________________________________________________
 
@@ -258,7 +332,7 @@ ______________________________________________________________________
 CF32 in ──► LO ──► polyphase resample (0.4/0.6, rate r) ──► CF32 out
 ```
 
-`ddc_create(norm_freq, rate)` with built-in Kaiser bank.
+`ddc_create(norm_freq, rate, RC_PULSE_NONE, …)` with built-in Kaiser bank.
 No design step required. One allocation, no intermediate buffers.
 
 **Best for:** prototype, any decimation rate, single-stage simplicity.
@@ -373,7 +447,8 @@ int main(void)
   float _Complex in[4096]  = { 0 };   /* fill with your samples */
   float _Complex out[4096];
 
-  ddc_state_t *ddc = ddc_create(-0.1, 0.25);
+  /* RC_PULSE_NONE: plain down-conversion, so the pulse arguments are unused */
+  ddc_state_t *ddc = ddc_create(-0.1, 0.25, RC_PULSE_NONE, 0, 0, 0, 0);
   size_t n = ddc_execute(ddc, in, 4096, out, 4096);
   (void)n;
   ddc_destroy(ddc);
@@ -392,7 +467,8 @@ step to keep the shape of the composition visible:
 
 ```c
 hbdecim_state_t *hb  = hbdecim_create(num_taps, h);   /* h: Kaiser-designed taps */
-ddc_state_t     *ddc = ddc_create(norm_freq, rate * 2.0);
+ddc_state_t     *ddc = ddc_create(norm_freq, rate * 2.0,
+                                  RC_PULSE_NONE, 0, 0, 0, 0);
 
 float _Complex mid[num_in / 2 + 32];
 float _Complex out[num_in];

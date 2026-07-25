@@ -12,6 +12,11 @@
  *
  * RateConverter selects the cheapest cascade (CIC + optional HB +
  * polyphase) at create time, matching the rate automatically.
+ *
+ * The control-port variants replace lo_steps with a per-sample lo_step_ctrl
+ * and RateConverter_execute with RateConverter_execute_ctrl; the push forms
+ * do the same one sample at a time.  Nothing else differs — the two ports are
+ * the LO's and the terminal stage's own accumulators, steered in place.
  */
 #include "ddc/ddc_core.h"
 #include "RateConverter/RateConverter_core.h"
@@ -63,7 +68,8 @@ struct ddc_state
 };
 
 ddc_state_t *
-ddc_create (double norm_freq, double rate)
+ddc_create (double norm_freq, double rate, int pulse, double beta, size_t span,
+            double pulse_sps, size_t num_phases)
 {
   if (rate <= 0.0)
     return NULL;
@@ -76,7 +82,15 @@ ddc_create (double norm_freq, double rate)
       free (s);
       return NULL;
     }
-  s->rc = RateConverter_create (rate, 0);
+  /* RC_PULSE_NONE is a plain down-conversion: the cascade keeps its Kaiser
+     anti-alias bank and the remaining arguments are unused.  With a pulse,
+     compensate = 1 unconditionally -- on a CIC plan the droop fold is worth
+     28 dB for six taps per arm, folded into a bank the cascade already
+     evaluates, so no matched-filter operating point wants it off. */
+  s->rc = (pulse == RC_PULSE_NONE)
+              ? RateConverter_create (rate, 0)
+              : RateConverter_create_matched (rate, 1, pulse, beta, span,
+                                              pulse_sps, num_phases);
   if (!s->rc)
     {
       lo_destroy (s->lo);
@@ -149,6 +163,62 @@ ddc_execute (ddc_state_t *s, const float _Complex *in, size_t n_in,
   return nout;
 }
 
+size_t
+ddc_execute_ctrl_max_out (ddc_state_t *s)
+{
+  (void)s;
+  return 0; /* 0 -> the binding sizes the buffer from the input block */
+}
+
+size_t
+ddc_execute_ctrl_push_max_out (ddc_state_t *s)
+{
+  /* A single input completes at most ceil(rate) + 1 output periods, and the
+     binding has no input block to size its buffer from here — unlike the
+     block forms, whose 0 means "size it from the input". */
+  double rate = ddc_get_rate (s);
+  return (size_t)(rate > 1.0 ? rate : 1.0) + 2;
+}
+
+size_t
+ddc_execute_ctrl (ddc_state_t *s, const float _Complex *in, size_t n_in,
+                  double rate_ctrl, double freq_ctrl, float _Complex *out,
+                  size_t max_out)
+{
+  if (n_in == 0)
+    return 0;
+
+  float _Complex *mix = malloc (n_in * sizeof (float _Complex));
+  if (!mix)
+    return 0;
+
+  /* One LO step per input, carrying the frequency control.  lo_step_ctrl with
+     ctrl == 0 is bit-identical to the vectorised lo_steps() path (both index
+     the same LUT off the same integer accumulator), so no fast path is worth
+     the branch here. */
+  for (size_t i = 0; i < n_in; i++)
+    mix[i] = in[i] * lo_step_ctrl (s->lo, freq_ctrl);
+
+  size_t nout
+      = RateConverter_execute_ctrl (s->rc, mix, n_in, rate_ctrl, out, max_out);
+  free (mix);
+  return nout;
+}
+
+size_t
+ddc_execute_ctrl_push (ddc_state_t *s, float _Complex x, double rate_ctrl,
+                       double freq_ctrl, float _Complex *out, size_t max_out)
+{
+  float _Complex z = x * lo_step_ctrl (s->lo, freq_ctrl);
+  return RateConverter_execute_ctrl_push (s->rc, z, rate_ctrl, out, max_out);
+}
+
+bool
+ddc_get_clipped (const ddc_state_t *s)
+{
+  return RateConverter_get_clipped (s->rc) != 0;
+}
+
 /* ── Serializable state — standard envelope + LO + RateConverter ─────────────
  * Layout: [dp_state_hdr_t][ddc_extra_t][lo][rc]; see dp_state.h. */
 
@@ -194,7 +264,8 @@ struct ddcr_state
 };
 
 ddcr_state_t *
-ddcr_create (double norm_freq, double rate)
+ddcr_create (double norm_freq, double rate, int pulse, double beta,
+             size_t span, double pulse_sps, size_t num_phases)
 {
   if (rate <= 0.0 || rate >= 0.5)
     return NULL;
@@ -216,11 +287,14 @@ ddcr_create (double norm_freq, double rate)
       return NULL;
     }
   /*
-   * The halfband decimates by 2, so the resampler sees fs_in/2.
-   * To achieve total rate = fs_out/fs_in, the resampler must run at
-   * rate_resamp = fs_out / (fs_in/2) = 2 * rate.
+   * The halfband decimates by 2, so the cascade sees fs_in/2.  To achieve
+   * total rate = fs_out/fs_in it must run at 2*rate.  See ddc_create() for
+   * the pulse / compensate contract, which is identical here.
    */
-  s->rc = RateConverter_create (2.0 * rate, 0);
+  s->rc = (pulse == RC_PULSE_NONE)
+              ? RateConverter_create (2.0 * rate, 0)
+              : RateConverter_create_matched (2.0 * rate, 1, pulse, beta, span,
+                                              pulse_sps, num_phases);
   if (!s->rc)
     {
       lo_destroy (s->lo);
@@ -342,4 +416,55 @@ ddcr_execute (ddcr_state_t *s, const float *in, size_t n_in,
   size_t nout = RateConverter_execute (s->rc, mix, n_hb, out, max_out);
   free (mix);
   return nout;
+}
+
+size_t
+ddcr_execute_ctrl (ddcr_state_t *s, const float *in, size_t n_in,
+                   double rate_ctrl, double freq_ctrl, float _Complex *out,
+                   size_t max_out)
+{
+  if (n_in == 0)
+    return 0;
+
+  size_t          hb_max = n_in / 2 + 2;
+  float _Complex *hb_buf = malloc (hb_max * sizeof (float _Complex));
+  if (!hb_buf)
+    return 0;
+
+  size_t n_hb = hbdecim_r2c_execute (s->r2c, in, n_in, hb_buf, hb_max);
+  if (n_hb == 0)
+    {
+      free (hb_buf);
+      return 0;
+    }
+
+  /* The LO runs at the intermediate rate, so the frequency control is applied
+     once per halfband output — not once per ADC sample. */
+  for (size_t i = 0; i < n_hb; i++)
+    hb_buf[i] = hb_buf[i] * lo_step_ctrl (s->lo, freq_ctrl);
+
+  size_t nout = RateConverter_execute_ctrl (s->rc, hb_buf, n_hb, rate_ctrl,
+                                            out, max_out);
+  free (hb_buf);
+  return nout;
+}
+
+size_t
+ddcr_execute_ctrl_push (ddcr_state_t *s, float x, double rate_ctrl,
+                        double freq_ctrl, float _Complex *out, size_t max_out)
+{
+  /* The 2:1 halfband is the block API's own state machine — one sample in,
+     0 or 1 intermediate samples out.  Half the pushes end here. */
+  float _Complex z;
+  if (hbdecim_r2c_execute (s->r2c, &x, 1, &z, 1) == 0)
+    return 0;
+
+  z = z * lo_step_ctrl (s->lo, freq_ctrl);
+  return RateConverter_execute_ctrl_push (s->rc, z, rate_ctrl, out, max_out);
+}
+
+bool
+ddcr_get_clipped (const ddcr_state_t *s)
+{
+  return RateConverter_get_clipped (s->rc) != 0;
 }

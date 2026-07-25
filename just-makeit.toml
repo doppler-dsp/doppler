@@ -1202,6 +1202,8 @@ serializable    = "true"
 context_manager = true
 create_fn       = "ddcr_create"
 close_fn        = "ddcr_destroy"
+create_error         = "ValueError"
+create_error_message = "Ddcr: invalid parameter (need 0 < rate < 0.5, 0 <= beta <= 1, span >= 1, pulse_sps > 0, num_phases a power of two >= 2)"
 # ddcr_create/execute/reset/destroy/get_norm_freq/set_norm_freq/get_rate all live
 # in ddc_core (shared with the Ddc object). The handle sizes its output from the
 # caller's buffer, so it does NOT need ddcr_core's execute_max_out (that hook
@@ -1218,6 +1220,35 @@ default = "0.0"
 name = "rate"
 type = "double"
 default = "0.25"
+
+# The same one-knob constructor as the DDC object: "none" is a plain
+# down-conversion, anything else puts the matched filter on the cascade's
+# terminal stage. The enum SSOT above maps the string to rc_pulse_t.
+[[module.ddc_fn.create_args]]
+name = "pulse"
+type = "int"
+enum = "rc_pulse"
+default = "none"
+
+[[module.ddc_fn.create_args]]
+name = "beta"
+type = "double"
+default = "0.35"
+
+[[module.ddc_fn.create_args]]
+name = "span"
+type = "size_t"
+default = "8"
+
+[[module.ddc_fn.create_args]]
+name = "pulse_sps"
+type = "double"
+default = "2.0"
+
+[[module.ddc_fn.create_args]]
+name = "num_phases"
+type = "size_t"
+default = "1024"
 [[module.ddc_fn.depends_on]]
 name = "ddc"
 link = true
@@ -1282,6 +1313,11 @@ writable_fn = "ddcr_set_norm_freq"
 name = "rate"
 getter = "ddcr_get_rate"
 type = "double"
+
+[[module.ddc_fn.getters.fields]]
+name = "clipped"
+getter = "ddcr_get_clipped"
+type = "bool"
 [module.analyzer]
 objects = ["specan"]
 # Specan composes the Ddc cascade + the PSD averaging-PSD core; specan.toml's
@@ -1929,6 +1965,11 @@ type = "int"
 [[enum]]
 name = "wfm_type"
 values = ["tone", "noise", "pn", "bpsk", "qpsk", "chirp", "bits", "symbols", "dsss"]
+
+[[enum]]
+# Order IS rc_pulse_t (RateConverter_core.h): iandd = 0, rrc = 1, none = 2.
+name = "rc_pulse"
+values = ["iandd", "rrc", "none"]
 
 [[enum]]
 name = "crc"

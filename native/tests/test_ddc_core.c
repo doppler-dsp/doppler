@@ -317,7 +317,15 @@ _test_push_equals_block (void)
   }
 
   { /* DdcR: the halfband consumes two inputs per LO step, so half the pushes
-       emit nothing at all and the parity must survive the split. */
+       emit nothing at all and the parity must survive the split.
+
+       Compared to a tolerance rather than bit-for-bit, unlike the complex
+       path above: the R2C front end's block loop contracts its multiply-adds
+       differently from its one-sample-at-a-time path, so on a machine that
+       contracts (arm64/macOS) the two groupings differ in the last ULP and
+       the cascade carries that through. A real parity or ordering bug is
+       O(1) here — the failure mode is a whole sample out of place, orders of
+       magnitude above this bound. */
     float          *in   = malloc (L * sizeof (float));
     float _Complex *outA = malloc (CAP * sizeof (float _Complex));
     float _Complex *outB = malloc (CAP * sizeof (float _Complex));
@@ -336,8 +344,7 @@ _test_push_equals_block (void)
     CHECK (nA == nB);
     int bad = 0;
     for (size_t i = 0; i < nA && i < nB; i++)
-      if (crealf (outA[i]) != crealf (outB[i])
-          || cimagf (outA[i]) != cimagf (outB[i]))
+      if (!ALMOST_EQ_C (outA[i], outB[i], 1e-5f))
         bad++;
     CHECK (bad == 0);
     ddcr_destroy (a);

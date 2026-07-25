@@ -240,6 +240,13 @@ CASES: dict[str, tuple[Callable[[], Any], _Feed]] = {
         lambda: RateConverter(0.5),
         lambda o, seg: np.array(o.execute(seg)),
     ),
+    # A matched cascade is a different plan (CIC + a pulse-shaped terminal
+    # stage that the plain planner would have dropped), so its blob has a
+    # different shape and needs its own row.
+    "RateConverter(pulse=rrc)": (
+        lambda: RateConverter(2 / 17.333333333, compensate=1, pulse="rrc"),
+        lambda o, seg: np.array(o.execute(seg)),
+    ),
     "Resampler": (
         lambda: Resampler(0.5),
         lambda o, seg: np.array(o.execute(seg)),

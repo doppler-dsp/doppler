@@ -53,6 +53,22 @@ typedef enum
 } rc_stage_t;
 
 /**
+ * @brief Matched-filter pulse selection for the terminal stage.
+ *
+ * A cascade whose terminal stage carries a *pulse-shaped* bank instead of the
+ * default Kaiser anti-alias bank IS the matched filter — the same dot product
+ * does the rate conversion and the matched filtering, and its arm is the
+ * fractional timing delay a downstream loop steers. Values 0/1 match
+ * `MPSK_RX_PULSE_IANDD`/`_RRC` so one vocabulary covers the family.
+ */
+typedef enum
+{
+  RC_PULSE_IANDD = 0, /**< rectangular: integrate-and-dump boxcar.        */
+  RC_PULSE_RRC   = 1, /**< root-raised cosine, roll-off `beta`.           */
+  RC_PULSE_NONE  = 2, /**< default: Kaiser anti-alias (plain conversion). */
+} rc_pulse_t;
+
+/**
  * @brief Cascade state -- owns all sub-stage C objects.
  *
  * Do not initialise directly; use RateConverter_create().
@@ -67,6 +83,14 @@ typedef struct
   /** Ping-pong intermediate buffers, grown lazily on first execute. */
   float _Complex *bufs[2];
   size_t          buf_cap;
+  /* Matched-filter configuration (RC_PULSE_NONE = plain Kaiser terminal
+     bank, i.e. everything RateConverter_create() builds).  Kept so
+     RateConverter_set_rate() can re-plan without losing the pulse. */
+  int    pulse;      /**< rc_pulse_t; RC_PULSE_NONE when not matched  */
+  double beta;       /**< RRC roll-off                                */
+  size_t span;       /**< one-sided RRC span, symbols                 */
+  double pulse_sps;  /**< symbol period in OUTPUT samples             */
+  size_t num_phases; /**< terminal-stage arms (power of two)          */
 } RateConverter_state_t;
 
 /**
@@ -90,6 +114,70 @@ typedef struct
  * @endcode
  */
 RateConverter_state_t *RateConverter_create (double rate, int compensate);
+
+/**
+ * @brief Create a rate converter whose terminal stage IS a matched filter.
+ *
+ * Plans the same cheap cascade as RateConverter_create(), then puts a
+ * pulse-shaped polyphase bank on the **terminal** stage instead of the default
+ * Kaiser one. The cascade therefore does rate conversion and matched filtering
+ * in a single dot product, and that stage's polyphase arm is the fractional
+ * timing delay — which is what makes RateConverter_execute_ctrl() a timing
+ * control port rather than just a Doppler knob.
+ *
+ * Three things this does that plain create() cannot:
+ *
+ * - **The terminal fractional stage always exists.** The ordinary planner drops
+ *   it for an exact power-of-two decimation, and again when the correction
+ *   lands within 1e-6 of 1.0 — so `rate = 2/64` plans a bare `CIC(32)` with
+ *   nothing steerable at the end. Here the terminal stage is simultaneously the
+ *   matched filter and the timing element, so it is appended (at rate 1.0 if
+ *   there is no rate left to correct).
+ * - **The bank is sized by the POST-decimation rate.** Matched-filtering at the
+ *   input rate costs taps proportional to the input samples per symbol (4225
+ *   taps/arm at 256 samples/symbol — 17 MB of bank); after the integer stages
+ *   have done the bulk decimation it is ~`2*span*pulse_sps` taps, constant in
+ *   the input rate.
+ * - **CIC droop folds into the bank**, exactly rather than approximately: the
+ *   Molnar-Vucic compensator (ciccompmf) runs at the decimated rate, which IS
+ *   the terminal stage's tap grid, so the fold is a per-arm convolution and
+ *   costs no extra stage. `compensate` therefore adds no FIR on this path.
+ *
+ * Measured on RRC-BPSK (beta 0.35, span 8, two outputs per symbol), best-case
+ * timing phase, noiseless: a halfband cascade reaches -60 dB EVM; a CIC
+ * cascade reaches **-50 dB with `compensate = 1` and only -22 dB without**, so
+ * on this path compensation is not a refinement — it is 28 dB, for six extra
+ * taps per arm and no extra pass over the data. Folded or appended agree to
+ * within 0.6 dB, i.e. the fold gives up nothing to a separate comp FIR.
+ *
+ * @note Keep the input inside cic_core's Q15 full scale (|x| < 1). A CIC stage
+ * quantizes at its boundary, so overdriving it clips: the same signal at peak
+ * 1.29 measures -25 dB EVM instead of -50 dB, for reasons that have nothing to
+ * do with the matched filter.
+ *
+ * @param rate       Output-to-input sample rate ratio (any positive float).
+ *                   Rate-agnostic: this object never learns about symbols —
+ *                   a caller wanting `m` samples per symbol asks for
+ *                   `rate = m/sps`.
+ * @param compensate Non-zero to correct CIC passband droop (folded into the
+ *                   bank here, not appended as a stage).
+ * @param pulse      RC_PULSE_RRC / RC_PULSE_IANDD. RC_PULSE_NONE is invalid
+ *                   here — use RateConverter_create() for a plain conversion.
+ * @param beta       RRC roll-off in `[0, 1]` (ignored for the rectangle).
+ * @param span       One-sided RRC span in symbols (ignored for the rectangle,
+ *                   whose support is always exactly one symbol).
+ * @param pulse_sps  The pulse's period measured in **output** samples (2 =
+ *                   two samples per symbol out). This is a shape parameter,
+ *                   not a rate-planning one: a matched filter has a symbol
+ *                   duration, and the planner still knows nothing of symbols.
+ * @param num_phases Terminal-stage arms; power of two. Sets the fractional
+ *                   timing resolution to `1/num_phases` of an output period.
+ * @return Non-NULL on success; NULL on a bad parameter or OOM.
+ */
+RateConverter_state_t *
+RateConverter_create_matched (double rate, int compensate, int pulse,
+                              double beta, size_t span, double pulse_sps,
+                              size_t num_phases);
 
 /** @brief Free all resources.  NULL is a no-op. */
 void RateConverter_destroy (RateConverter_state_t *s);
@@ -191,6 +279,34 @@ size_t RateConverter_execute_ctrl (RateConverter_state_t *s,
                                    const float _Complex *in, size_t n_in,
                                    double ctrl, float _Complex *out,
                                    size_t max_out);
+
+/**
+ * @brief Push ONE input sample; emit whatever outputs it completes.
+ *
+ * The per-input streaming form of RateConverter_execute_ctrl(), and the only
+ * form a closed loop can use: a block call must know its whole `ctrl` history
+ * up front, whereas a timing loop computes each correction *from* the outputs
+ * already emitted. Feeding a stream one sample at a time through this
+ * reproduces RateConverter_execute_ctrl() on the same block bit-for-bit when
+ * @p ctrl is held constant (the cascade is block-boundary invariant), so the
+ * cheap block form stays correct for open-loop use.
+ *
+ * The integer HB/CIC stages consume the sample and emit at most one
+ * intermediate sample each; the terminal Resampler stage then emits 0 outputs
+ * (a decimator between strobes — the common case), 1, or several (an
+ * interpolator). A cascade with no terminal Resampler ignores @p ctrl.
+ *
+ * @param s        Pointer to a valid RateConverter_state_t.
+ * @param x        One CF32 input sample.
+ * @param ctrl     Rate deviation added to the terminal stage's rate for this
+ *                 input (referenced to the terminal, post-decimation rate).
+ * @param out      Output buffer for any emitted samples.
+ * @param max_out  Capacity of @p out (emission stops at this bound).
+ * @return Number of outputs written to @p out (0, 1, or more).
+ */
+size_t RateConverter_execute_ctrl_push (RateConverter_state_t *s,
+                                        float _Complex x, double ctrl,
+                                        float _Complex *out, size_t max_out);
 
 /**
  * @brief Get / set the output-to-input sample rate ratio.

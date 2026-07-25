@@ -20,30 +20,13 @@ wfm_rrc_taps (double beta, int sps, int span, float *taps)
   double sumsq  = 0.0;
   for (size_t i = 0; i < n; i++)
     {
-      /* t in symbol periods (T = 1) */
+      /* t in symbol periods (T = 1). The formula itself lives once, in
+         wfm_rrc_h() (wfm_dsp.h) — this walks it on the uniform 1/sps grid;
+         a receiver's matched-filter bank samples the same evaluator at
+         non-uniform instants. */
       double t = ((double)i - center) / (double)sps;
-      double h;
-      if (fabs (t) < 1e-9)
-        {
-          /* limit at t = 0 */
-          h = 1.0 - beta + 4.0 * beta / M_PI;
-        }
-      else if (beta > 0.0 && fabs (fabs (t) - 1.0 / (4.0 * beta)) < 1e-9)
-        {
-          /* limit at t = ±1/(4β) (0/0 in the general form) */
-          double a = M_PI / (4.0 * beta);
-          h = (beta / sqrt (2.0))
-              * ((1.0 + 2.0 / M_PI) * sin (a) + (1.0 - 2.0 / M_PI) * cos (a));
-        }
-      else
-        {
-          double pt  = M_PI * t;
-          double num = sin (pt * (1.0 - beta))
-                       + 4.0 * beta * t * cos (pt * (1.0 + beta));
-          double den = pt * (1.0 - (4.0 * beta * t) * (4.0 * beta * t));
-          h          = num / den;
-        }
-      taps[i] = (float)h;
+      double h = wfm_rrc_h (t, beta);
+      taps[i]  = (float)h;
       sumsq += h * h;
     }
   /* normalise to unit energy */

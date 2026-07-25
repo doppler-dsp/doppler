@@ -10,9 +10,14 @@
  *   - reset() yields reproducible output
  *   - execute_max_out() sanity bound
  *   - compensate flag: CIC+FIR compound stage label
+ *   - matched-filter terminal bank: always-append rule, bank sizing,
+ *     droop fold, symbol recovery, push==block, state, set_rate
  */
 
 #include "RateConverter/RateConverter_core.h"
+
+#include "resamp/resamp_core.h"
+#include "wfm/wfm_dsp.h"
 
 #include <complex.h>
 #include <math.h>
@@ -541,6 +546,421 @@ test_execute_ctrl (void)
   free (oc);
 }
 
+/* ------------------------------------------------------------------ */
+/* Matched-filter terminal bank                                        */
+/* ------------------------------------------------------------------ */
+
+#define _MF_BETA 0.35
+#define _MF_SPAN 8
+#define _MF_NSYM 500
+
+/* Deterministic +-1 BPSK. */
+static int
+_mf_bit (int k)
+{
+  unsigned x = (unsigned)k * 1103515245u + 12345u;
+  return ((x >> 16) & 1) ? 1 : -1;
+}
+
+/* Analytic RRC-shaped BPSK at `sps' samples/symbol, timing phase `phi'
+ * symbols.  Amplitude is kept well inside cic_core's Q15 full scale: a CIC
+ * stage quantizes at its boundary, so overdriving it clips and the measured
+ * EVM collapses for reasons unrelated to the matched filter. */
+static float _Complex *
+_mf_tx (double sps, double phi, size_t *n_out)
+{
+  size_t          n = (size_t)(_MF_NSYM * sps) + 64;
+  float _Complex *x = calloc (n, sizeof *x);
+  if (!x)
+    return NULL;
+  for (size_t i = 0; i < n; i++)
+    {
+      double a = 0.0;
+      for (int k = 0; k < _MF_NSYM; k++)
+        {
+          double t = ((double)i - (k + _MF_SPAN) * sps) / sps - phi;
+          if (fabs (t) > _MF_SPAN)
+            continue;
+          a += _mf_bit (k) * wfm_rrc_h (t, _MF_BETA);
+        }
+      x[i] = (float)(0.25 * a);
+    }
+  *n_out = n;
+  return x;
+}
+
+/* Best EVM over strobe alignment: open loop, the cascade's own strobe phase
+ * is arbitrary, so the minimum isolates the filter from the timing loop that
+ * does not exist yet (that is Layer 2's job). */
+static double
+_mf_evm (const float _Complex *y, size_t ny)
+{
+  double best = 1e9;
+  for (int par = 0; par < 2; par++)
+    for (int lag = 0; lag < 140; lag++)
+      {
+        double num = 0.0;
+        int    cnt = 0;
+        for (int k = 40; k < _MF_NSYM - 40; k++)
+          {
+            size_t i = (size_t)(lag + par + 2 * k);
+            if (i >= ny)
+              break;
+            num += _mf_bit (k) * creal (y[i]);
+            cnt++;
+          }
+        if (cnt < 100)
+          continue;
+        double g = num / cnt, e = 0.0, p = 0.0;
+        for (int k = 40; k < _MF_NSYM - 40; k++)
+          {
+            size_t i = (size_t)(lag + par + 2 * k);
+            if (i >= ny)
+              break;
+            double d = creal (y[i]) - g * _mf_bit (k);
+            e += d * d + cimag (y[i]) * cimag (y[i]);
+            p += g * g;
+          }
+        double v = sqrt (e / p);
+        if (v < best)
+          best = v;
+      }
+  return best;
+}
+
+/* Min EVM in dB over a sweep of transmit timing phases. */
+static double
+_mf_best_evm_db (double sps, int compensate)
+{
+  double best = 1e9;
+  for (int j = 0; j < 16; j++)
+    {
+      size_t          n;
+      float _Complex *x = _mf_tx (sps, j / 16.0, &n);
+      float _Complex *y = calloc (n, sizeof *y);
+      if (!x || !y)
+        {
+          free (x);
+          free (y);
+          return 0.0;
+        }
+      RateConverter_state_t *rc = RateConverter_create_matched (
+          2.0 / sps, compensate, RC_PULSE_RRC, _MF_BETA, _MF_SPAN, 2.0, 1024);
+      CHECK (rc != NULL);
+      if (rc)
+        {
+          size_t ny = RateConverter_execute (rc, x, n, y, n);
+          double e  = _mf_evm (y, ny);
+          if (e < best)
+            best = e;
+          RateConverter_destroy (rc);
+        }
+      free (x);
+      free (y);
+    }
+  return 20.0 * log10 (best);
+}
+
+static size_t
+_mf_terminal_taps (const RateConverter_state_t *s)
+{
+  return resamp_get_num_taps (
+      (const resamp_state_t *)s->stage_ptrs[s->n_stages - 1]);
+}
+
+static void
+test_matched_invalid_params (void)
+{
+  /* rate, beta, span, pulse_sps, num_phases and the pulse tag are all
+     rejected rather than silently coerced. */
+  CHECK (
+      RateConverter_create_matched (0.0, 0, RC_PULSE_RRC, 0.35, 8, 2.0, 1024)
+      == NULL);
+  CHECK (RateConverter_create_matched (0.5, 0, RC_PULSE_RRC, 1.5, 8, 2.0, 1024)
+         == NULL);
+  CHECK (
+      RateConverter_create_matched (0.5, 0, RC_PULSE_RRC, -0.1, 8, 2.0, 1024)
+      == NULL);
+  CHECK (
+      RateConverter_create_matched (0.5, 0, RC_PULSE_RRC, 0.35, 0, 2.0, 1024)
+      == NULL);
+  CHECK (
+      RateConverter_create_matched (0.5, 0, RC_PULSE_RRC, 0.35, 8, 0.0, 1024)
+      == NULL);
+  /* num_phases must be a power of two >= 2 (the arm index is a bit field). */
+  CHECK (
+      RateConverter_create_matched (0.5, 0, RC_PULSE_RRC, 0.35, 8, 2.0, 1000)
+      == NULL);
+  CHECK (RateConverter_create_matched (0.5, 0, RC_PULSE_RRC, 0.35, 8, 2.0, 1)
+         == NULL);
+  /* RC_PULSE_NONE is not a matched filter — use RateConverter_create(). */
+  CHECK (
+      RateConverter_create_matched (0.5, 0, RC_PULSE_NONE, 0.35, 8, 2.0, 1024)
+      == NULL);
+  /* NaN must be rejected, not accepted by a comparison that is false. */
+  CHECK (RateConverter_create_matched (0.5, 0, RC_PULSE_RRC, NAN, 8, 2.0, 1024)
+         == NULL);
+}
+
+static void
+test_matched_always_has_terminal_stage (void)
+{
+  /* The whole point: the plain planner drops the fractional stage whenever
+     the integer stages already land the rate, leaving nothing for a timing
+     loop to steer.  A pulse forces it to exist — at rate 1.0 if need be. */
+  const double sps[] = { 4.0, 8.0, 16.0, 17.333333333, 64.0, 256.0 };
+  char         buf[64];
+  for (size_t i = 0; i < sizeof sps / sizeof sps[0]; i++)
+    {
+      RateConverter_state_t *m = RateConverter_create_matched (
+          2.0 / sps[i], 0, RC_PULSE_RRC, _MF_BETA, _MF_SPAN, 2.0, 1024);
+      CHECK (m != NULL);
+      if (!m)
+        continue;
+      CHECK (m->stage_types[m->n_stages - 1] == RC_STAGE_RESAMP);
+      /* The label names the pulse, so a caller can see the matched filter is
+         IN the cascade rather than a stage still to be appended. */
+      CHECK (RateConverter_stage_label (m, m->n_stages - 1, buf, sizeof buf));
+      CHECK (strstr (buf, "rrc") != NULL);
+      RateConverter_destroy (m);
+    }
+
+  /* rate = 2/64 is the case that motivated the rule: exactly CIC(32) before,
+     CIC(32) + a steerable Resampler(1.0) now. */
+  RateConverter_state_t *p = RateConverter_create (2.0 / 64.0, 0);
+  RateConverter_state_t *m = RateConverter_create_matched (
+      2.0 / 64.0, 0, RC_PULSE_RRC, _MF_BETA, _MF_SPAN, 2.0, 1024);
+  CHECK (p && m);
+  if (p && m)
+    {
+      CHECK (p->n_stages == 1 && p->stage_types[0] == RC_STAGE_CIC);
+      CHECK (m->n_stages == 2 && m->stage_types[1] == RC_STAGE_RESAMP);
+      CHECK (_near (resamp_get_rate ((resamp_state_t *)m->stage_ptrs[1]), 1.0,
+                    1e-12));
+    }
+  RateConverter_destroy (p);
+  RateConverter_destroy (m);
+}
+
+static void
+test_matched_bank_is_constant_in_input_rate (void)
+{
+  /* Sizing the bank by the POST-decimation rate is what makes this usable:
+     matched-filtering at the input rate costs taps proportional to the input
+     samples per symbol (thousands at sps=256).  Here the integer stages have
+     already done the bulk decimation, so the tap count barely moves. */
+  size_t                 t4 = 0, t256 = 0;
+  RateConverter_state_t *a = RateConverter_create_matched (
+      2.0 / 4.0, 0, RC_PULSE_RRC, _MF_BETA, _MF_SPAN, 2.0, 1024);
+  RateConverter_state_t *b = RateConverter_create_matched (
+      2.0 / 256.0, 0, RC_PULSE_RRC, _MF_BETA, _MF_SPAN, 2.0, 1024);
+  CHECK (a && b);
+  if (a && b)
+    {
+      t4   = _mf_terminal_taps (a);
+      t256 = _mf_terminal_taps (b);
+      /* A 64x span of input rates, and the bank does not grow. */
+      CHECK (t4 == t256);
+      /* ~2*span*pulse_sps taps, not ~2*span*sps. */
+      CHECK (t256 < 4 * _MF_SPAN * 2 + 8);
+    }
+  RateConverter_destroy (a);
+  RateConverter_destroy (b);
+
+  /* The rectangle is one symbol wide whatever span says, so it is smaller
+     still. */
+  RateConverter_state_t *r = RateConverter_create_matched (
+      2.0 / 17.333333333, 0, RC_PULSE_IANDD, _MF_BETA, _MF_SPAN, 2.0, 1024);
+  CHECK (r != NULL);
+  if (r)
+    {
+      CHECK (_mf_terminal_taps (r) < t256);
+      RateConverter_destroy (r);
+    }
+}
+
+static void
+test_matched_droop_folds_into_bank (void)
+{
+  RateConverter_state_t *off = RateConverter_create_matched (
+      2.0 / 17.333333333, 0, RC_PULSE_RRC, _MF_BETA, _MF_SPAN, 2.0, 1024);
+  RateConverter_state_t *on = RateConverter_create_matched (
+      2.0 / 17.333333333, 1, RC_PULSE_RRC, _MF_BETA, _MF_SPAN, 2.0, 1024);
+  CHECK (off && on);
+  if (off && on)
+    {
+      char buf[64];
+      /* Same stage count, same shape — compensation costs taps, not a pass
+         over the data.  A separate comp FIR would have made this "CIC(8)+FIR".
+       */
+      CHECK (off->n_stages == on->n_stages);
+      CHECK (RateConverter_stage_label (on, 0, buf, sizeof buf));
+      CHECK (strstr (buf, "FIR") == NULL);
+      /* The fold is a per-arm convolution with the 7-tap compensator. */
+      CHECK (_mf_terminal_taps (on) == _mf_terminal_taps (off) + 6);
+    }
+  RateConverter_destroy (off);
+  RateConverter_destroy (on);
+
+  /* And it works: on a CIC cascade the fold is worth ~28 dB of EVM, which is
+     why `compensate` is effectively mandatory on this path. */
+  double no_comp = _mf_best_evm_db (17.333333333, 0);
+  double comp    = _mf_best_evm_db (17.333333333, 1);
+  CHECK (comp < -45.0);
+  CHECK (comp < no_comp - 20.0);
+  if (!(comp < -45.0) || !(comp < no_comp - 20.0))
+    fprintf (stderr, "  droop fold: comp=%.1f dB  no_comp=%.1f dB\n", comp,
+             no_comp);
+}
+
+static void
+test_matched_recovers_symbols (void)
+{
+  /* A halfband cascade has no quantizing stage, so it shows what the bank
+     itself is worth; the CIC path is limited by the CIC, not by the fold. */
+  double hb  = _mf_best_evm_db (4.0, 0);
+  double cic = _mf_best_evm_db (17.333333333, 1);
+  CHECK (hb < -55.0);
+  CHECK (cic < -45.0);
+  if (!(hb < -55.0) || !(cic < -45.0))
+    fprintf (stderr, "  matched EVM: halfband=%.1f dB  cic=%.1f dB\n", hb,
+             cic);
+}
+
+static void
+test_matched_push_equals_block (void)
+{
+  /* The per-input streaming form is the one a closed loop can use; it has to
+     agree with the cheap block form at constant ctrl or the loop and the
+     open-loop path would be different filters. */
+  const double sps[] = { 4.0, 17.333333333, 64.0 };
+  for (size_t s = 0; s < 3; s++)
+    {
+      size_t          n;
+      float _Complex *x = _mf_tx (sps[s], 0.3, &n);
+      float _Complex *y = calloc (n, sizeof *y);
+      float _Complex *z = calloc (n, sizeof *z);
+      CHECK (x && y && z);
+      if (!x || !y || !z)
+        {
+          free (x);
+          free (y);
+          free (z);
+          continue;
+        }
+      RateConverter_state_t *a = RateConverter_create_matched (
+          2.0 / sps[s], 1, RC_PULSE_RRC, _MF_BETA, _MF_SPAN, 2.0, 1024);
+      RateConverter_state_t *b = RateConverter_create_matched (
+          2.0 / sps[s], 1, RC_PULSE_RRC, _MF_BETA, _MF_SPAN, 2.0, 1024);
+      RateConverter_state_t *c = RateConverter_create_matched (
+          2.0 / sps[s], 1, RC_PULSE_RRC, _MF_BETA, _MF_SPAN, 2.0, 1024);
+      CHECK (a && b && c);
+      if (a && b && c)
+        {
+          size_t ny = RateConverter_execute_ctrl (a, x, n, 0.0, y, n);
+          size_t nz = 0;
+          for (size_t i = 0; i < n; i++)
+            nz += RateConverter_execute_ctrl_push (b, x[i], 0.0, z + nz,
+                                                   n - nz);
+          int same = (ny == nz);
+          for (size_t i = 0; same && i < nz; i++)
+            same = (y[i] == z[i]);
+          CHECK (same);
+
+          /* execute() on a matched cascade must be the SAME algorithm: the
+             pulse bank is laid out for the unified accumulator, while
+             resamp_execute()'s decimating path is transposed-form and indexes
+             arms the other way. */
+          size_t nw    = RateConverter_execute (c, x, n, z, n);
+          int    same2 = (ny == nw);
+          for (size_t i = 0; same2 && i < nw; i++)
+            same2 = (y[i] == z[i]);
+          CHECK (same2);
+        }
+      RateConverter_destroy (a);
+      RateConverter_destroy (b);
+      RateConverter_destroy (c);
+      free (x);
+      free (y);
+      free (z);
+    }
+}
+
+static void
+test_matched_state_roundtrip (void)
+{
+  size_t          n;
+  float _Complex *x = _mf_tx (17.333333333, 0.2, &n);
+  float _Complex *y = calloc (n, sizeof *y);
+  float _Complex *z = calloc (n, sizeof *z);
+  CHECK (x && y && z);
+  if (!x || !y || !z)
+    {
+      free (x);
+      free (y);
+      free (z);
+      return;
+    }
+
+  RateConverter_state_t *a = RateConverter_create_matched (
+      2.0 / 17.333333333, 1, RC_PULSE_RRC, _MF_BETA, _MF_SPAN, 2.0, 1024);
+  RateConverter_state_t *b = RateConverter_create_matched (
+      2.0 / 17.333333333, 1, RC_PULSE_RRC, _MF_BETA, _MF_SPAN, 2.0, 1024);
+  CHECK (a && b);
+  if (a && b)
+    {
+      size_t half = n / 2;
+      /* Run a to mid-stream, hand its state to a fresh b, and require the
+         remainder to match bit-for-bit. */
+      RateConverter_execute (a, x, half, y, n);
+      size_t nb = RateConverter_state_bytes (a);
+      void  *bl = malloc (nb);
+      CHECK (bl != NULL);
+      if (bl)
+        {
+          RateConverter_get_state (a, bl);
+          CHECK (RateConverter_set_state (b, bl) == DP_OK);
+          size_t na   = RateConverter_execute (a, x + half, n - half, y, n);
+          size_t nz   = RateConverter_execute (b, x + half, n - half, z, n);
+          int    same = (na == nz);
+          for (size_t i = 0; same && i < nz; i++)
+            same = (y[i] == z[i]);
+          CHECK (same);
+          /* Envelope reject: a clobbered blob must not be reinterpreted. */
+          ((char *)bl)[0] ^= 0xFF;
+          CHECK (RateConverter_set_state (b, bl) == DP_ERR_INVALID);
+          free (bl);
+        }
+    }
+  RateConverter_destroy (a);
+  RateConverter_destroy (b);
+  free (x);
+  free (y);
+  free (z);
+}
+
+static void
+test_matched_set_rate_keeps_pulse (void)
+{
+  /* set_rate() re-plans; the pulse is configuration, not part of the plan,
+     so it must survive — including the always-append rule. */
+  RateConverter_state_t *m = RateConverter_create_matched (
+      2.0 / 17.333333333, 1, RC_PULSE_RRC, _MF_BETA, _MF_SPAN, 2.0, 1024);
+  CHECK (m != NULL);
+  if (m)
+    {
+      RateConverter_set_rate (m, 2.0 / 64.0);
+      char buf[64];
+      CHECK (m->stage_types[m->n_stages - 1] == RC_STAGE_RESAMP);
+      CHECK (RateConverter_stage_label (m, m->n_stages - 1, buf, sizeof buf));
+      CHECK (strstr (buf, "rrc") != NULL);
+      /* Still folded, still no comp FIR stage. */
+      CHECK (RateConverter_stage_label (m, 0, buf, sizeof buf));
+      CHECK (strstr (buf, "FIR") == NULL);
+      RateConverter_destroy (m);
+    }
+}
+
 int
 main (void)
 {
@@ -554,6 +974,14 @@ main (void)
   test_convert ();
   test_state_roundtrip ();
   test_execute_ctrl ();
+  test_matched_invalid_params ();
+  test_matched_always_has_terminal_stage ();
+  test_matched_bank_is_constant_in_input_rate ();
+  test_matched_droop_folds_into_bank ();
+  test_matched_recovers_symbols ();
+  test_matched_push_equals_block ();
+  test_matched_state_roundtrip ();
+  test_matched_set_rate_keeps_pulse ();
 
   if (_fails)
     {

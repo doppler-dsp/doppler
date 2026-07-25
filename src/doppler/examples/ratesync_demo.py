@@ -41,7 +41,7 @@ BETA = 0.35
 SPAN = 8
 NSYM = 1500
 CLOCK_PPM = 200.0  # the true rate is this far off the nominal
-SNR_DB = 14.0
+ES_N0_DB = 15.0  # symbol energy to noise density -- NOT a per-sample SNR
 
 
 def rrc_h(t, beta=BETA):
@@ -68,8 +68,15 @@ def rrc_h(t, beta=BETA):
     return out
 
 
-def make_signal(sps, tau=0.37, seed=7, snr_db=SNR_DB):
+def make_signal(sps, tau=0.37, seed=7, es_n0_db=ES_N0_DB):
     """RRC-shaped BPSK at a fractional sps, offset by tau, in AWGN.
+
+    Noise is set from **Es/N0**, the symbol energy over the noise density,
+    because "SNR" alone is ambiguous here: at 17.33 samples per symbol a
+    per-sample SNR is ~12 dB below the Es/N0 the receiver actually sees, so
+    the same number means two very different links. Es = mean per-sample
+    power x sps, and for real baseband AWGN the per-sample variance IS N0/2,
+    so Es/N0 = Es / (2 * sigma^2).
 
     Amplitude is kept well inside +-1.0: the planned cascade contains a CIC,
     which bounds its input and clips silently past that (RateSync.clipped is
@@ -85,10 +92,19 @@ def make_signal(sps, tau=0.37, seed=7, snr_db=SNR_DB):
         near = np.abs(t) <= SPAN
         x[near] += a * rrc_h(t[near])
     x *= 0.25 / np.max(np.abs(x))  # headroom for the CIC's +-1.0 bound
-    noise = rng.standard_normal(n) * np.sqrt(
-        np.mean(x**2) / (2 * 10 ** (snr_db / 10))
-    )
-    return (x + noise).astype(np.complex64), syms
+    # Average symbol energy from the STEADY-STATE span only. Including the
+    # ramp-up and the tail padding underestimates the power, which would
+    # quietly set a higher Es/N0 than advertised -- and the giveaway is an
+    # EVM that beats the matched-filter bound, which nothing can do.
+    core = x[int(SPAN * sps) : -int(SPAN * sps)]
+    es = np.mean(core**2) * sps
+    sigma = np.sqrt(es / (2 * 10 ** (es_n0_db / 10)))
+    return (x + rng.standard_normal(n) * sigma).astype(np.complex64), syms
+
+
+def evm_floor_db(es_n0_db=ES_N0_DB):
+    """Matched-filter EVM bound: EVM^2 = 1 / (2 * Es/N0)."""
+    return -10 * np.log10(2 * 10 ** (es_n0_db / 10))
 
 
 # The receiver: one object, one call. `sps` is the NOMINAL rate -- the loop
@@ -169,7 +185,8 @@ def main(out_path="ratesync_demo.png"):
     axes[0].axhline(0, lw=0.5, color="k", alpha=0.3)
     axes[0].set_title(
         f"Recovered symbols — sps = {SPS} (+{CLOCK_PPM:g} ppm), "
-        f"{SNR_DB:g} dB SNR, settled EVM {evm:.1f} dB"
+        f"Es/N0 {ES_N0_DB:g} dB, settled EVM {evm:.1f} dB "
+        f"(matched-filter bound {evm_floor_db():.1f} dB)"
     )
     axes[0].set_xlabel("symbol index")
     axes[0].set_ylabel("Re")
@@ -227,8 +244,20 @@ def main(out_path="ratesync_demo.png"):
         f"tracked rate {sync.rate:.5f} != true {target:.5f}"
     )
     assert abs(sync.rate - SPS) > 1e-4, "rate never moved off the nominal"
-    # Data recovery on the settled tail, at 14 dB SNR.
-    assert evm < -20.0, f"EVM {evm:.1f} dB"
+    # Data recovery on the settled tail, checked against THEORY rather than an
+    # arbitrary threshold: a matched filter cannot beat EVM^2 = 1/(2*Es/N0),
+    # and a correct one gets within a decibel or two of it. The lower bound
+    # matters as much as the upper -- beating the bound would mean the
+    # measurement is wrong, not that the receiver is brilliant.
+    # A single 375-symbol window carries ~0.4 dB of estimator noise (the
+    # relative std of a variance estimate is sqrt(2/N)), so one seed can land
+    # either side of the bound; over 12 seeds the mean sits 0.03 dB from it.
+    # +-1.5 dB is three sigma on one seed, not a fudge factor.
+    floor = evm_floor_db()
+    assert abs(evm - floor) < 1.5, (
+        f"EVM {evm:.1f} dB is {evm - floor:+.1f} dB from the matched-filter "
+        f"bound {floor:.1f} dB"
+    )
     assert (
         len(symbols) == int(NSYM * (1 + CLOCK_PPM * 1e-6))
         or abs(len(symbols) - NSYM) < 0.03 * NSYM
@@ -246,7 +275,8 @@ def main(out_path="ratesync_demo.png"):
     )
     print(
         f"validated: locked (lock_stat {sync.lock_stat:.3f}), rate "
-        f"{sync.rate:.5f} vs true {target:.5f}, EVM {evm:.1f} dB, "
+        f"{sync.rate:.5f} vs true {target:.5f}, EVM {evm:.1f} dB "
+        f"({evm - floor:+.1f} dB from the {floor:.1f} dB bound), "
         f"bank {cascade_taps[0]} taps/arm at every sps "
         f"(vs {input_taps[-1]} at the input rate, sps=256)"
     )

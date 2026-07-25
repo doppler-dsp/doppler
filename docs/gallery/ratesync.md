@@ -18,8 +18,20 @@ stage's accumulator is a `double`, `sps` is a `double`.
 ## What you're seeing
 
 **Top — Recovered symbols.** The real part per symbol index: a short pull-in
-while the loop acquires, then clean rails. The settled EVM is −29.6 dB at 14 dB
-SNR, at a fractional `sps`, with the clock 200 ppm off nominal.
+while the loop acquires, then clean rails — at a fractional `sps`, with the
+clock 200 ppm off nominal.
+
+The noise is quoted as **Es/N0**, not as an "SNR", because at 17.33 samples per
+symbol those differ by 12 dB and the same number would describe two very
+different links. At Es/N0 = 15 dB a matched filter cannot do better than
+EVM² = 1/(2·Es/N0), i.e. −18.0 dB. This receiver measures **−18.0 dB averaged
+over twelve seeds — 0.03 dB from the bound**. Fusing the matched filter into the
+resampler's polyphase bank costs nothing in detection performance; it is the
+same filter, evaluated at a steered instant.
+
+(A single run's 375-symbol window carries about 0.4 dB of estimator noise, so
+one seed can land either side of the bound. The script asserts ±1.5 dB — three
+sigma — rather than pretending a single measurement is tighter than it is.)
 
 **Middle — Tracked clock.** `RateSync.rate` pulling off the nominal it was
 constructed with (dotted) onto the stream's true rate (dashed). The loop is

@@ -47,14 +47,6 @@ static const float s_hb_fir[DDC_HB_TAPS] = {
   0.0f,
 };
 
-struct ddcr_state
-{
-  hbdecim_r2c_state_t   *r2c;
-  lo_state_t            *lo;
-  RateConverter_state_t *rc;
-  double                 rate; /* total fs_out / fs_in */
-};
-
 static ddcr_state_t *
 _ddcr_new (double norm_freq, double rate, int pulse, double beta, size_t span,
            double pulse_sps, size_t num_phases)
@@ -95,6 +87,9 @@ _ddcr_new (double norm_freq, double rate, int pulse, double beta, size_t span,
       return NULL;
     }
   s->rate = rate;
+  /* See ddc_core.c: a one-symbol-wide rectangle sampled fewer than four
+     times per symbol is a two- or three-tap matched filter. */
+  s->narrow_pulse = (pulse == RC_PULSE_IANDD && pulse_sps < 4.0);
   return s;
 }
 
@@ -291,6 +286,12 @@ ddcr_execute_ctrl_push (ddcr_state_t *s, float x, double rate_ctrl,
 
   z = z * lo_step_ctrl (s->lo, freq_ctrl);
   return RateConverter_execute_ctrl_push (s->rc, z, rate_ctrl, out, max_out);
+}
+
+bool
+ddcr_get_narrow_pulse (const ddcr_state_t *s)
+{
+  return s->narrow_pulse;
 }
 
 bool

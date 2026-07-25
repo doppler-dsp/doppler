@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import warnings
+
 import numpy as np
 import pytest
 
@@ -244,6 +246,31 @@ def test_matched_is_a_flavor_of_the_same_object():
     assert matched.state_bytes() != plain.state_bytes()  # different plan
     with pytest.raises(ValueError):
         MatchedDDC(0.0, 0.125, pulse="bogus")
+
+
+def test_narrow_rectangle_warns_at_construction():
+    """A one-symbol-wide rectangle sampled twice per symbol is a two-tap
+    matched filter — it builds, it just barely opens the eye, so the object
+    says so instead of leaving it to be discovered downstream."""
+    with pytest.warns(UserWarning, match="iandd"):
+        MatchedDDC(0.0, 0.125, pulse="iandd", pulse_sps=2.0)
+
+    # Wide enough, or a pulse the caveat does not apply to: silent.
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        wide = MatchedDDC(0.0, 0.125, pulse="iandd", pulse_sps=4.0)
+        rrc = MatchedDDC(0.0, 0.125, pulse="rrc", pulse_sps=2.0)
+
+    # The same condition is readable, not only raisable — the push and pull
+    # halves of one diagnostic.
+    assert not wide.narrow_pulse
+    assert not rrc.narrow_pulse
+    assert not DDC(0.0, 0.125).narrow_pulse
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        assert MatchedDDC(
+            0.0, 0.125, pulse="iandd", pulse_sps=2.0
+        ).narrow_pulse
 
 
 def test_freq_port_is_the_lo_axis():

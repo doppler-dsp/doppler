@@ -25,12 +25,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-struct ddc_state
-{
-  lo_state_t            *lo;
-  RateConverter_state_t *rc;
-};
-
 /* The plain and matched constructors share everything but the terminal
    stage's bank, so they share a body; the two public entry points exist
    because they are different objects to a caller (and different Python
@@ -63,6 +57,12 @@ _ddc_new (double norm_freq, double rate, int pulse, double beta, size_t span,
       free (s);
       return NULL;
     }
+  /* The rectangle is exactly one symbol wide, so its matched filter is a
+     boxcar of pulse_sps taps: at 2 output samples per symbol that is a
+     two-tap sum, which barely opens the eye (measured on the timing loop
+     this feeds: lock statistic -0.34 at 2 against +0.95 at 4). The RRC
+     spans many symbols and is unaffected. */
+  s->narrow_pulse = (pulse == RC_PULSE_IANDD && pulse_sps < 4.0);
   return s;
 }
 
@@ -192,6 +192,12 @@ ddc_execute_ctrl_push (ddc_state_t *s, float _Complex x, double rate_ctrl,
 {
   float _Complex z = x * lo_step_ctrl (s->lo, freq_ctrl);
   return RateConverter_execute_ctrl_push (s->rc, z, rate_ctrl, out, max_out);
+}
+
+bool
+ddc_get_narrow_pulse (const ddc_state_t *s)
+{
+  return s->narrow_pulse;
 }
 
 bool

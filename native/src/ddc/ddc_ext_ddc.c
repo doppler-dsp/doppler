@@ -592,6 +592,18 @@ DDC_getprop_clipped (DDCObject *self, void *Py_UNUSED (closure))
   return PyBool_FromLong ((long)(ddc_get_clipped (self->handle)));
 }
 
+static PyObject *
+DDC_getprop_narrow_pulse (DDCObject *self, void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  /* <<IMPLEMENT: return the computed or stored value>> */
+  return PyBool_FromLong ((long)(ddc_get_narrow_pulse (self->handle)));
+}
+
 static PyGetSetDef DDC_getset[] = {
   { "norm_freq", (getter)DDC_getprop_norm_freq, (setter)DDC_setprop_norm_freq,
     "Return the current LO normalised frequency (cycles/sample).\n", NULL },
@@ -602,6 +614,9 @@ static PyGetSetDef DDC_getset[] = {
     NULL },
   { "clipped", (getter)DDC_getprop_clipped, NULL,
     "Has the cascade's CIC clipped its input since the last reset?\n", NULL },
+  { "narrow_pulse", (getter)DDC_getprop_narrow_pulse, NULL,
+    "Is this object's rectangular matched filter degenerately narrow?\n",
+    NULL },
   { NULL }
 };
 

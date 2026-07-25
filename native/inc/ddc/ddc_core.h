@@ -89,7 +89,21 @@ extern "C"
 {
 #endif
 
-  typedef struct ddc_state ddc_state_t;
+  /**
+   * @brief Ddc state — an LO and the cascade it feeds.
+   *
+   * Do not initialise directly; use ddc_create() or ddc_create_matched().
+   */
+  typedef struct ddc_state
+  {
+    lo_state_t            *lo; /**< carrier wipe-off, at the input rate */
+    RateConverter_state_t *rc; /**< the cascade; matched when a pulse was
+                                    selected at construction              */
+    /** Set when the matched flavor was built with a rectangular pulse too
+     *  narrow to be worth much — see ddc_create_matched(). Read by the
+     *  binding, which turns it into a UserWarning at construction. */
+    bool narrow_pulse;
+  } ddc_state_t;
 
   /**
    * @brief Create a complex-input Digital Down-Converter.
@@ -330,6 +344,19 @@ size_t ddc_execute(ddc_state_t *state, const float complex *x, size_t x_len, flo
   size_t ddc_execute_ctrl_push (ddc_state_t *state, float complex x,
                                 double rate_ctrl, double freq_ctrl,
                                 float complex *out, size_t max_out);
+
+  /**
+   * @brief Is this object's rectangular matched filter degenerately narrow?
+   *
+   * True only for the matched flavor built with `pulse = RC_PULSE_IANDD` and
+   * fewer than four output samples per symbol: the rectangle is exactly one
+   * symbol wide, so its matched filter is a 2-3 tap sum there. It works, it
+   * just barely opens the eye — measured on the timing loop this feeds, a
+   * lock statistic of -0.34 at two samples per symbol against +0.95 at four.
+   * The RRC spans many symbols and is never affected. Construction also
+   * raises a UserWarning, so this is the pull half of the same diagnostic.
+   */
+  bool ddc_get_narrow_pulse (const ddc_state_t *state);
 
   /**
    * @brief Has the cascade's CIC clipped its input since the last reset?

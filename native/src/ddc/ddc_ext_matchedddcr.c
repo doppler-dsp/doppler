@@ -145,6 +145,19 @@ MatchedDdcrObj_init (MatchedDdcrObject *self, PyObject *args, PyObject *kwds)
         self->_execute_ctrl_push_buf_cap = _max;
       }
   }
+  if (self->handle->narrow_pulse)
+    {
+      if (PyErr_WarnEx (PyExc_UserWarning,
+                        "pulse=\"iandd\" with pulse_sps < 4: the rectangle "
+                        "is one symbol wide, so its matched filter is a 2-3 "
+                        "tap sum here and barely opens the eye (measured on "
+                        "the timing loop this feeds: lock statistic -0.34 at "
+                        "2 samples/symbol against +0.95 at 4). Use pulse_sps "
+                        ">= 4, or pulse=\"rrc\".",
+                        1)
+          < 0)
+        return -1;
+    }
   return 0;
 }
 
@@ -618,6 +631,19 @@ MatchedDdcr_getprop_clipped (MatchedDdcrObject *self,
   return PyBool_FromLong ((long)(ddcr_get_clipped (self->handle)));
 }
 
+static PyObject *
+MatchedDdcr_getprop_narrow_pulse (MatchedDdcrObject *self,
+                                  void              *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  /* <<IMPLEMENT: return the computed or stored value>> */
+  return PyBool_FromLong ((long)(ddcr_get_narrow_pulse (self->handle)));
+}
+
 static PyGetSetDef MatchedDdcr_getset[]
     = { { "norm_freq", (getter)MatchedDdcr_getprop_norm_freq,
           (setter)MatchedDdcr_setprop_norm_freq,
@@ -631,6 +657,9 @@ static PyGetSetDef MatchedDdcr_getset[]
           NULL },
         { "clipped", (getter)MatchedDdcr_getprop_clipped, NULL,
           "Has the cascade's CIC clipped its input since the last reset?\n",
+          NULL },
+        { "narrow_pulse", (getter)MatchedDdcr_getprop_narrow_pulse, NULL,
+          "Is this object's rectangular matched filter degenerately narrow?\n",
           NULL },
         { NULL } };
 

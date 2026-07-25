@@ -152,6 +152,10 @@ class DDC:
     def clipped(self) -> bool:
         """Has the cascade's CIC clipped its input since the last reset?"""
 
+    @property
+    def narrow_pulse(self) -> bool:
+        """Is this object's rectangular matched filter degenerately narrow?"""
+
     def destroy(self) -> None:
         """Release C resources immediately."""
 
@@ -237,6 +241,10 @@ class MatchedDDC:
     @property
     def clipped(self) -> bool:
         """Clipped."""
+
+    @property
+    def narrow_pulse(self) -> bool:
+        """Narrow pulse."""
 
     def destroy(self) -> None:
         """Release C resources immediately."""
@@ -384,6 +392,10 @@ class Ddcr:
     def clipped(self) -> bool:
         """Has the cascade's CIC clipped its input since the last reset?"""
 
+    @property
+    def narrow_pulse(self) -> bool:
+        """Is this object's rectangular matched filter degenerately narrow?"""
+
     def close(self) -> None:
         """Release C resources immediately."""
 
@@ -472,6 +484,10 @@ class MatchedDdcr:
     @property
     def clipped(self) -> bool:
         """Clipped."""
+
+    @property
+    def narrow_pulse(self) -> bool:
+        """Narrow pulse."""
 
     def close(self) -> None:
         """Release C resources immediately."""

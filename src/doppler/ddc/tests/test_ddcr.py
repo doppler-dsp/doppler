@@ -8,10 +8,12 @@ zero-copy view out[:n_out].
 
 from __future__ import annotations
 
+import warnings
+
 import numpy as np
 import pytest
 
-from doppler.ddc import Ddcr
+from doppler.ddc import Ddcr, MatchedDdcr
 
 N = 4096
 
@@ -193,3 +195,15 @@ def test_real_tone_to_dc():
         pytest.skip("output too short for spectral check")
     dominant = _dominant_freq(y)
     assert abs(dominant) < 0.05, f"dominant at {dominant:.4f}, expected near 0"
+
+
+def test_narrow_rectangle_warns_at_construction():
+    """The real chain carries the same caveat as MatchedDDC: a rectangle
+    sampled fewer than four times per symbol is a two- or three-tap matched
+    filter."""
+    with pytest.warns(UserWarning, match="iandd"):
+        MatchedDdcr(0.0, 0.125, pulse="iandd", pulse_sps=2.0)
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        MatchedDdcr(0.0, 0.125, pulse="iandd", pulse_sps=4.0)

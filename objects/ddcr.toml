@@ -51,6 +51,9 @@ init_params = [
   { name = "pulse_sps", type = "double", default = "2.0" },
   { name = "num_phases", type = "size_t", default = "1024" },
 ]
+warnings = [
+  { after = "__init__", condition = "narrow_pulse", category = "UserWarning", message = "pulse=\"iandd\" with pulse_sps < 4: the rectangle is one symbol wide, so its matched filter is a 2-3 tap sum here and barely opens the eye (measured on the timing loop this feeds: lock statistic -0.34 at 2 samples/symbol against +0.95 at 4). Use pulse_sps >= 4, or pulse=\"rrc\"." },
+]
 
 [[ddcr.methods]]
 name = "execute"
@@ -104,4 +107,11 @@ type = "double"
 
 [[ddcr.properties]]
 name = "clipped"
+type = "bool"
+
+# Declared so the flag the matched flavor's UserWarning fires on is also
+# readable (and so jm knows the hand-added struct field exists). Always False
+# on the plain flavor and for pulse="rrc".
+[[ddcr.properties]]
+name = "narrow_pulse"
 type = "bool"

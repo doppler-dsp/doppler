@@ -64,9 +64,15 @@ ______________________________________________________________________
 
     Also new on all four: a `clipped` flag forwarded from the cascade (a CIC
     bounds its input to ±1.0 and clips silently, costing ~25 dB of EVM that no
-    downstream metric attributes to the front end). CIC droop compensation is
-    unconditional on the matched flavors: the fold is six taps per arm and
-    worth 28 dB, so no caller can turn it off.
+    downstream metric attributes to the front end), and a `narrow_pulse` flag
+    for the one configuration that builds a degenerate matched filter —
+    `pulse="iandd"` with fewer than four output samples per symbol, where the
+    one-symbol-wide rectangle's matched filter is a 2–3 tap sum (measured on
+    the timing loop this feeds: lock statistic −0.34 at two samples per symbol
+    against +0.95 at four). Constructing one also raises a `UserWarning`, so
+    the same diagnostic is available to push and to pull. CIC droop
+    compensation is unconditional on the matched flavors: the fold is six taps
+    per arm and worth 28 dB, so no caller can turn it off.
 
     End to end, RRC-BPSK at 16 samples per symbol on a carrier, decimated to
     two samples per symbol: **−45 dB EVM** on the complex chain (its `CIC(8)`

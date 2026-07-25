@@ -54,7 +54,21 @@ extern "C"
 {
 #endif
 
-  typedef struct ddcr_state ddcr_state_t;
+  /**
+   * @brief DdcR state — the real-to-complex front end, an LO and a cascade.
+   *
+   * Do not initialise directly; use ddcr_create() or ddcr_create_matched().
+   */
+  typedef struct ddcr_state
+  {
+    hbdecim_r2c_state_t   *r2c;  /**< 2:1 real->complex, fs/4 shift baked in */
+    lo_state_t            *lo;   /**< fine tune, at the intermediate rate    */
+    RateConverter_state_t *rc;   /**< the cascade, running at 2*rate         */
+    double                 rate; /**< total fs_out / fs_in                   */
+    /** As ddc_state_t::narrow_pulse — a rectangular pulse too narrow to be
+     *  worth much, surfaced by the binding as a construction UserWarning. */
+    bool narrow_pulse;
+  } ddcr_state_t;
 
   /**
    * @brief Create a real-input Digital Down-Converter (Architecture D2).
@@ -326,6 +340,16 @@ extern "C"
   size_t ddcr_execute_ctrl_push (ddcr_state_t *s, float x, double rate_ctrl,
                                  double freq_ctrl, float _Complex *out,
                                  size_t max_out);
+
+  /**
+   * @brief Is this object's rectangular matched filter degenerately narrow?
+   *
+   * The real chain's copy of ddc_get_narrow_pulse(): true only for the
+   * matched flavor with `pulse = RC_PULSE_IANDD` and fewer than four output
+   * samples per symbol, where the one-symbol-wide rectangle's matched filter
+   * is a 2-3 tap sum. Construction also raises a UserWarning.
+   */
+  bool ddcr_get_narrow_pulse (const ddcr_state_t *s);
 
   /**
    * @brief Has the cascade's CIC clipped its input since the last reset?

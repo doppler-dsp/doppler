@@ -159,7 +159,7 @@ nav:
           - Farrow Interpolator: gallery/farrow.md
           - "HalfbandDecimatorQ15: Fixed-Point Halfband": gallery/hbdecim_q15.md
       - Down-Conversion (DDC):
-          - Functional DDCR: gallery/ddc-fn.md
+          - Real-input DDC: gallery/ddc-fn.md
       - Detection & Acquisition:
           - Correlation: gallery/corr.md
           - Detection Curves: gallery/detection-curves.md

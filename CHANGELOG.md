@@ -13,7 +13,71 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+### Changed
+
+- **`Ddcr` is a module object, not a `kind="handle"` module.** Same class
+    name, same constructor, same methods (`execute(x, out=None)`, `reset()`,
+    `close()`/`destroy()`, the context manager, the state triplet, the GIL
+    release) — but as an object it can carry a *flavor* (below), which a
+    handle cannot. Two behaviour notes: `execute()` now returns its own array
+    when no `out=` is given (the buffer stays optional, not required), and an
+    `out=` buffer of the **wrong dtype is silently not written** — the binding
+    casts it into a temporary and the returned array is still correct, where
+    the retired handle binding raised. That laxness is library-wide for every
+    `out=` object, now pinned by a test and filed upstream. The C core also
+    splits out of `ddc/ddc_core.{h,c}` into `ddcr/ddcr_core.{h,c}`, one core
+    per object as everywhere else.
+
 ### Added
+
+- **A matched *flavor* for both down-converters, and a second control port.**
+    `MatchedDDC` and `MatchedDdcr` are the same objects as `DDC` and `Ddcr`,
+    built by a different C constructor: the cascade's terminal stage carries a
+    pulse-shaped matched-filter bank instead of the Kaiser anti-alias one, so
+    the chain mixes, decimates *and* matched-filters in the dot products it
+    was already doing.
+
+    ```python
+    rx = MatchedDDC(norm_freq=-0.09375, rate=2 / 16, pulse="rrc", span=8)
+    symbols = rx.execute(x)          # 2 samples/symbol, matched-filtered
+    ```
+
+    `execute_ctrl(x, rate_ctrl, freq_ctrl)` and the per-input
+    `execute_ctrl_push(x, rate_ctrl, freq_ctrl)` (both on all four classes)
+    steer two accumulators that are duals of each other:
+
+    - **`freq_ctrl` → the LO's phase accumulator** (cycles/sample at the input
+        rate; the intermediate rate fs_in/2 for the real chain). The LO sits at
+        the input rate, which is where predetection de-rotation belongs — the
+        carrier is wiped off before any filter narrows the band around it.
+    - **`rate_ctrl` → the terminal stage's accumulator** (the timing port
+        `RateConverter` already exposed).
+
+    Neither deviation is persisted — `norm_freq` and `rate` never move — so a
+    tracking loop supplies its full filter output every call and the object
+    holds no loop state. That is what makes carrier recovery *snap in*: it is
+    the same `loop_filter` a timing loop uses, on the other port. Measured, a
+    first-order loop on `freq_ctrl` parks on a 0.01 cycles/sample mistune to
+    within 1e-9 and leaves the centre frequency untouched — with a small gain,
+    because the loop closes *around* the matched filter and inherits its group
+    delay as dead time.
+
+    Also new on all four: a `clipped` flag forwarded from the cascade (a CIC
+    bounds its input to ±1.0 and clips silently, costing ~25 dB of EVM that no
+    downstream metric attributes to the front end), and a `narrow_pulse` flag
+    for the one configuration that builds a degenerate matched filter —
+    `pulse="iandd"` with fewer than four output samples per symbol, where the
+    one-symbol-wide rectangle's matched filter is a 2–3 tap sum (measured on
+    the timing loop this feeds: lock statistic −0.34 at two samples per symbol
+    against +0.95 at four). Constructing one also raises a `UserWarning`, so
+    the same diagnostic is available to push and to pull. CIC droop
+    compensation is unconditional on the matched flavors: the fold is six taps
+    per arm and worth 28 dB, so no caller can turn it off.
+
+    End to end, RRC-BPSK at 16 samples per symbol on a carrier, decimated to
+    two samples per symbol: **−45 dB EVM** on the complex chain (its `CIC(8)`
+    alias floor) and **−60 dB** on the real one (whose cascade sees twice the
+    rate and plans halfbands instead).
 
 - **`track.RateSync` — matched filtering and symbol timing in one dot
     product.** Where `SymbolSync` runs a matched FIR and then a Farrow

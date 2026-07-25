@@ -1,7 +1,7 @@
 /*
  * ddc_ext.c — Python extension module ddc
  *
- * Objects: DDC
+ * Objects: DDC, Ddcr, MatchedDDC, MatchedDdcr
  * GENERATED — do not hand-edit. Patches belong in the _ext_<obj>.c fragments.
  */
 
@@ -13,6 +13,9 @@
 
 
 #include "ddc_ext_ddc.c"
+#include "ddc_ext_ddcr.c"
+#include "ddc_ext_matchedddc.c"
+#include "ddc_ext_matchedddcr.c"
 
 /* ======================================================== */
 /* Module                                                    */
@@ -31,11 +34,26 @@ PyInit_ddc(void)
 {
     import_array();
     if (PyType_Ready(&DDCObjType) < 0) return NULL;
+    if (PyType_Ready(&DdcrObjType) < 0) return NULL;
+    if (PyType_Ready(&MatchedDDCObjType) < 0) return NULL;
+    if (PyType_Ready(&MatchedDdcrObjType) < 0) return NULL;
     PyObject *m = PyModule_Create(&ddc_moduledef);
     if (!m) return NULL;
     Py_INCREF(&DDCObjType);
     if (PyModule_AddObject(m, "DDC", (PyObject *)&DDCObjType) < 0) {
         Py_DECREF(&DDCObjType); Py_DECREF(m); return NULL;
+    }
+    Py_INCREF(&DdcrObjType);
+    if (PyModule_AddObject(m, "Ddcr", (PyObject *)&DdcrObjType) < 0) {
+        Py_DECREF(&DdcrObjType); Py_DECREF(m); return NULL;
+    }
+    Py_INCREF(&MatchedDDCObjType);
+    if (PyModule_AddObject(m, "MatchedDDC", (PyObject *)&MatchedDDCObjType) < 0) {
+        Py_DECREF(&MatchedDDCObjType); Py_DECREF(m); return NULL;
+    }
+    Py_INCREF(&MatchedDdcrObjType);
+    if (PyModule_AddObject(m, "MatchedDdcr", (PyObject *)&MatchedDdcrObjType) < 0) {
+        Py_DECREF(&MatchedDdcrObjType); Py_DECREF(m); return NULL;
     }
     return m;
 }

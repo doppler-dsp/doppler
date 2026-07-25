@@ -8,10 +8,12 @@ zero-copy view out[:n_out].
 
 from __future__ import annotations
 
+import warnings
+
 import numpy as np
 import pytest
 
-from doppler.ddc import Ddcr
+from doppler.ddc import Ddcr, MatchedDdcr
 
 N = 4096
 
@@ -99,12 +101,29 @@ class TestDdcrExecute:
         with pytest.raises((TypeError, ValueError)):
             r.execute(np.zeros(N, dtype=np.complex64), out)
 
+    @pytest.mark.xfail(
+        reason="jm's generated object out= accepts any dtype and casts into a "
+        "temp copy, so a wrong-dtype buffer is silently NOT written (the "
+        "result still comes back correct). The retired handle binding "
+        "rejected it. Library-wide for every out= object, not specific to "
+        "Ddcr; filed upstream.",
+        strict=True,
+    )
     def test_rejects_wrong_out_dtype(self):
         r = Ddcr(0.0, 0.25)
         with pytest.raises((TypeError, ValueError)):
             r.execute(
                 np.zeros(N, dtype=np.float32), np.empty(N, dtype=np.float32)
             )
+
+    def test_wrong_out_dtype_does_not_write_the_caller_buffer(self):
+        """Pins the behaviour the xfail above describes, so the day jm
+        tightens it this test fails and both get updated together."""
+        r = Ddcr(0.0, 0.25)
+        buf = np.zeros(N, dtype=np.float32)
+        y = r.execute(np.ones(N, dtype=np.float32), buf)
+        assert y.dtype == np.complex64
+        assert not np.any(buf)  # cast to a temp; caller's buffer untouched
 
 
 # ------------------------------------------------------------------ #
@@ -176,3 +195,15 @@ def test_real_tone_to_dc():
         pytest.skip("output too short for spectral check")
     dominant = _dominant_freq(y)
     assert abs(dominant) < 0.05, f"dominant at {dominant:.4f}, expected near 0"
+
+
+def test_narrow_rectangle_warns_at_construction():
+    """The real chain carries the same caveat as MatchedDDC: a rectangle
+    sampled fewer than four times per symbol is a two- or three-tap matched
+    filter."""
+    with pytest.warns(UserWarning, match="iandd"):
+        MatchedDdcr(0.0, 0.125, pulse="iandd", pulse_sps=2.0)
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        MatchedDdcr(0.0, 0.125, pulse="iandd", pulse_sps=4.0)

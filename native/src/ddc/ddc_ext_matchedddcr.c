@@ -1,19 +1,19 @@
 /*
- * ddc_ext_ddc.c — DDC type for the ddc module.
+ * ddc_ext_matchedddcr.c — MatchedDdcr type for the ddc module.
  *
  * Included by ddc_ext.c (the module aggregator).
  * Hand-patches to this file are preserved across jm commands.
  * Do NOT compile this file directly — only ddc_ext.c is compiled.
  */
 /* ======================================================== */
-/* DDCObject — wraps ddc_state_t *       */
+/* MatchedDdcrObject — wraps ddcr_state_t *       */
 /* ======================================================== */
 
-#include "ddc/ddc_core.h"
+#include "ddcr/ddcr_core.h"
 
 typedef struct
 {
-  PyObject_HEAD ddc_state_t *handle;
+  PyObject_HEAD ddcr_state_t *handle;
   float complex *_execute_buf;     /* pre-allocated output for execute */
   size_t         _execute_buf_cap; /* allocated capacity for execute */
   void         **_execute_retired; /* gh-219 deferred free */
@@ -34,13 +34,13 @@ typedef struct
   size_t    _execute_ctrl_push_retired_n;
   size_t    _execute_ctrl_push_retired_cap;
   PyObject *_execute_ctrl_push_view_ref; /* gh-437 last returned view */
-} DDCObject;
+} MatchedDdcrObject;
 
 static void
-DDCObj_dealloc (DDCObject *self)
+MatchedDdcrObj_dealloc (MatchedDdcrObject *self)
 {
   if (self->handle)
-    ddc_destroy (self->handle);
+    ddcr_destroy (self->handle);
   free (self->_execute_buf);
   for (size_t _i = 0; _i < self->_execute_retired_n; _i++)
     free (self->_execute_retired[_i]);
@@ -60,35 +60,54 @@ DDCObj_dealloc (DDCObject *self)
 }
 
 static PyObject *
-DDCObj_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
+MatchedDdcrObj_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
-  DDCObject *self = (DDCObject *)type->tp_alloc (type, 0);
+  MatchedDdcrObject *self = (MatchedDdcrObject *)type->tp_alloc (type, 0);
   if (self)
     self->handle = NULL;
   return (PyObject *)self;
 }
 
 static int
-DDCObj_init (DDCObject *self, PyObject *args, PyObject *kwds)
+MatchedDdcrObj_init (MatchedDdcrObject *self, PyObject *args, PyObject *kwds)
 {
-  static char *kwlist[]  = { "norm_freq", "rate", NULL };
+  static char *kwlist[]  = { "norm_freq", "rate",      "pulse",      "beta",
+                             "span",      "pulse_sps", "num_phases", NULL };
   double       norm_freq = 0.0;
   double       rate      = 0.25;
+  const char  *pulse_str = "rrc";
+  double       beta      = 0.35;
+  unsigned long long span_raw       = 8;
+  double             pulse_sps      = 2.0;
+  unsigned long long num_phases_raw = 1024;
 
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|dd", kwlist, &norm_freq,
-                                    &rate))
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|ddsdKdK", kwlist, &norm_freq,
+                                    &rate, &pulse_str, &beta, &span_raw,
+                                    &pulse_sps, &num_phases_raw))
     return -1;
-  self->handle = ddc_create (norm_freq, rate);
+  int pulse = 0;
+  if (strcmp (pulse_str, "iandd") == 0)
+    pulse = 0;
+  else if (strcmp (pulse_str, "rrc") == 0)
+    pulse = 1;
+  else
+    {
+      PyErr_Format (PyExc_ValueError,
+                    "pulse must be one of \"iandd\", \"rrc\", got '%s'",
+                    pulse_str);
+      return -1;
+    }
+  size_t span       = (size_t)span_raw;
+  size_t num_phases = (size_t)num_phases_raw;
+  self->handle      = ddcr_create_matched (norm_freq, rate, pulse, beta, span,
+                                           pulse_sps, num_phases);
   if (!self->handle)
     {
-      PyErr_SetString (PyExc_ValueError,
-                       "DDC: invalid parameter (need rate > 0, 0 <= beta <= "
-                       "1, span >= 1, pulse_sps > 0, num_phases a power of "
-                       "two >= 2)");
+      PyErr_SetString (PyExc_MemoryError, "ddcr_create_matched returned NULL");
       return -1;
     }
   {
-    size_t _max = ddc_execute_max_out (self->handle);
+    size_t _max = ddcr_execute_max_out (self->handle);
     if (_max)
       {
         self->_execute_buf = malloc (_max * sizeof (float complex));
@@ -101,7 +120,7 @@ DDCObj_init (DDCObject *self, PyObject *args, PyObject *kwds)
       }
   }
   {
-    size_t _max = ddc_execute_ctrl_max_out (self->handle);
+    size_t _max = ddcr_execute_ctrl_max_out (self->handle);
     if (_max)
       {
         self->_execute_ctrl_buf = malloc (_max * sizeof (float complex));
@@ -114,7 +133,7 @@ DDCObj_init (DDCObject *self, PyObject *args, PyObject *kwds)
       }
   }
   {
-    size_t _max = ddc_execute_ctrl_push_max_out (self->handle);
+    size_t _max = ddcr_execute_ctrl_push_max_out (self->handle);
     if (_max)
       {
         self->_execute_ctrl_push_buf = malloc (_max * sizeof (float complex));
@@ -126,22 +145,37 @@ DDCObj_init (DDCObject *self, PyObject *args, PyObject *kwds)
         self->_execute_ctrl_push_buf_cap = _max;
       }
   }
+  if (self->handle->narrow_pulse)
+    {
+      if (PyErr_WarnEx (PyExc_UserWarning,
+                        "pulse=\"iandd\" with pulse_sps < 4: the rectangle "
+                        "is one symbol wide, so its matched filter is a 2-3 "
+                        "tap sum here and barely opens the eye (measured on "
+                        "the timing loop this feeds: lock statistic -0.34 at "
+                        "2 samples/symbol against +0.95 at 4). Use pulse_sps "
+                        ">= 4, or pulse=\"rrc\".",
+                        1)
+          < 0)
+        return -1;
+    }
   return 0;
 }
 
 static PyObject *
-DDCObj_execute_max_out (DDCObject *self, PyObject *Py_UNUSED (ignored))
+MatchedDdcrObj_execute_max_out (MatchedDdcrObject *self,
+                                PyObject          *Py_UNUSED (ignored))
 {
   if (!self->handle)
     {
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromSize_t (ddc_execute_max_out (self->handle));
+  return PyLong_FromSize_t (ddcr_execute_max_out (self->handle));
 }
 
 static PyObject *
-DDCObj_execute (DDCObject *self, PyObject *args, PyObject *kwds)
+MatchedDdcrObj_execute (MatchedDdcrObject *self, PyObject *args,
+                        PyObject *kwds)
 {
   if (!self->handle)
     {
@@ -155,7 +189,7 @@ DDCObj_execute (DDCObject *self, PyObject *args, PyObject *kwds)
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|O", _kwlist, &x_obj,
                                     &out_obj))
     return NULL;
-  x_arr = (PyArrayObject *)PyArray_FROM_OTF (x_obj, NPY_COMPLEX64,
+  x_arr = (PyArrayObject *)PyArray_FROM_OTF (x_obj, NPY_FLOAT,
                                              NPY_ARRAY_C_CONTIGUOUS);
   if (!x_arr)
     return NULL;
@@ -170,7 +204,7 @@ DDCObj_execute (DDCObject *self, PyObject *args, PyObject *kwds)
           return NULL;
         }
       size_t _cap     = (size_t)PyArray_SIZE (out_arr);
-      size_t _omax    = ddc_execute_max_out (self->handle);
+      size_t _omax    = ddcr_execute_max_out (self->handle);
       size_t _min_cap = _omax > (size_t)PyArray_SIZE (x_arr)
                             ? _omax
                             : ((size_t)PyArray_SIZE (x_arr));
@@ -186,12 +220,12 @@ DDCObj_execute (DDCObject *self, PyObject *args, PyObject *kwds)
        * this object is not shared across threads concurrently (one
        * object per stream); the kernel touches only this object's
        * state/buffers and the caller's input. */
-      const float complex *_ng0 = (const float complex *)PyArray_DATA (x_arr);
-      size_t               _ng1 = (size_t)PyArray_SIZE (x_arr);
-      float complex       *_ng2 = (float complex *)PyArray_DATA (out_arr);
-      size_t               n_out;
+      const float   *_ng0 = (const float *)PyArray_DATA (x_arr);
+      size_t         _ng1 = (size_t)PyArray_SIZE (x_arr);
+      float complex *_ng2 = (float complex *)PyArray_DATA (out_arr);
+      size_t         n_out;
       Py_BEGIN_ALLOW_THREADS
-        n_out = ddc_execute (self->handle, _ng0, _ng1, _ng2, _cap);
+        n_out = ddcr_execute (self->handle, _ng0, _ng1, _ng2, _cap);
       Py_END_ALLOW_THREADS
       Py_DECREF (x_arr);
       npy_intp  _odim  = (npy_intp)n_out;
@@ -222,7 +256,7 @@ DDCObj_execute (DDCObject *self, PyObject *args, PyObject *kwds)
     }
   if (!self->_execute_buf || self->_execute_buf_cap < _need || _view_live)
     {
-      size_t _max = ddc_execute_max_out (self->handle);
+      size_t _max = ddcr_execute_max_out (self->handle);
       if (!_max || _max < _need)
         _max = _need;
       if (self->_execute_buf
@@ -259,12 +293,12 @@ DDCObj_execute (DDCObject *self, PyObject *args, PyObject *kwds)
    * this object is not shared across threads concurrently (one
    * object per stream); the kernel touches only this object's
    * state/buffers and the caller's input. */
-  const float complex *_ng0 = (const float complex *)PyArray_DATA (x_arr);
-  size_t               _ng1 = (size_t)PyArray_SIZE (x_arr);
-  size_t               n_out;
+  const float *_ng0 = (const float *)PyArray_DATA (x_arr);
+  size_t       _ng1 = (size_t)PyArray_SIZE (x_arr);
+  size_t       n_out;
   Py_BEGIN_ALLOW_THREADS
-    n_out = ddc_execute (self->handle, _ng0, _ng1, self->_execute_buf,
-                         self->_execute_buf_cap);
+    n_out = ddcr_execute (self->handle, _ng0, _ng1, self->_execute_buf,
+                          self->_execute_buf_cap);
   Py_END_ALLOW_THREADS
   npy_intp  dim = (npy_intp)n_out;
   PyObject *arr
@@ -287,7 +321,8 @@ DDCObj_execute (DDCObject *self, PyObject *args, PyObject *kwds)
 }
 
 static PyObject *
-DDCObj_execute_ctrl (DDCObject *self, PyObject *args, PyObject *kwds)
+MatchedDdcrObj_execute_ctrl (MatchedDdcrObject *self, PyObject *args,
+                             PyObject *kwds)
 {
   if (!self->handle)
     {
@@ -302,7 +337,7 @@ DDCObj_execute_ctrl (DDCObject *self, PyObject *args, PyObject *kwds)
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "Odd", _kwlist, &x_obj,
                                     &rate_ctrl, &freq_ctrl))
     return NULL;
-  x_arr = (PyArrayObject *)PyArray_FROM_OTF (x_obj, NPY_COMPLEX64,
+  x_arr = (PyArrayObject *)PyArray_FROM_OTF (x_obj, NPY_FLOAT,
                                              NPY_ARRAY_C_CONTIGUOUS);
   if (!x_arr)
     return NULL;
@@ -325,7 +360,7 @@ DDCObj_execute_ctrl (DDCObject *self, PyObject *args, PyObject *kwds)
   if (!self->_execute_ctrl_buf || self->_execute_ctrl_buf_cap < _need
       || _view_live)
     {
-      size_t _max = ddc_execute_ctrl_max_out (self->handle);
+      size_t _max = ddcr_execute_ctrl_max_out (self->handle);
       if (!_max || _max < _need)
         _max = _need;
       if (self->_execute_ctrl_buf
@@ -362,13 +397,13 @@ DDCObj_execute_ctrl (DDCObject *self, PyObject *args, PyObject *kwds)
    * this object is not shared across threads concurrently (one
    * object per stream); the kernel touches only this object's
    * state/buffers and the caller's input. */
-  const float complex *_ng0 = (const float complex *)PyArray_DATA (x_arr);
-  size_t               _ng1 = (size_t)PyArray_SIZE (x_arr);
-  size_t               n_out;
+  const float *_ng0 = (const float *)PyArray_DATA (x_arr);
+  size_t       _ng1 = (size_t)PyArray_SIZE (x_arr);
+  size_t       n_out;
   Py_BEGIN_ALLOW_THREADS
-    n_out = ddc_execute_ctrl (self->handle, _ng0, _ng1, rate_ctrl, freq_ctrl,
-                              self->_execute_ctrl_buf,
-                              self->_execute_ctrl_buf_cap);
+    n_out = ddcr_execute_ctrl (self->handle, _ng0, _ng1, rate_ctrl, freq_ctrl,
+                               self->_execute_ctrl_buf,
+                               self->_execute_ctrl_buf_cap);
   Py_END_ALLOW_THREADS
   npy_intp  dim = (npy_intp)n_out;
   PyObject *arr = PyArray_SimpleNewFromData (1, &dim, NPY_COMPLEX64,
@@ -391,7 +426,8 @@ DDCObj_execute_ctrl (DDCObject *self, PyObject *args, PyObject *kwds)
 }
 
 static PyObject *
-DDCObj_execute_ctrl_push (DDCObject *self, PyObject *args, PyObject *kwds)
+MatchedDdcrObj_execute_ctrl_push (MatchedDdcrObject *self, PyObject *args,
+                                  PyObject *kwds)
 {
   if (!self->handle)
     {
@@ -399,15 +435,14 @@ DDCObj_execute_ctrl_push (DDCObject *self, PyObject *args, PyObject *kwds)
       return NULL;
     }
   static char *_kwlist[] = { "x", "rate_ctrl", "freq_ctrl", NULL };
-  Py_complex   x_raw     = { 0.0, 0.0 };
+  float        x         = 0;
   double       rate_ctrl = 0;
   double       freq_ctrl = 0;
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "Ddd", _kwlist, &x_raw,
-                                    &rate_ctrl, &freq_ctrl))
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "fdd", _kwlist, &x, &rate_ctrl,
+                                    &freq_ctrl))
     return NULL;
-  float complex x          = (float)x_raw.real + (float)x_raw.imag * I;
-  size_t        _need      = ddc_execute_ctrl_push_max_out (self->handle);
-  int           _view_live = 0;
+  size_t _need      = ddcr_execute_ctrl_push_max_out (self->handle);
+  int    _view_live = 0;
   if (self->_execute_ctrl_push_view_ref)
     {
 #if PY_VERSION_HEX >= 0x030D0000
@@ -425,7 +460,7 @@ DDCObj_execute_ctrl_push (DDCObject *self, PyObject *args, PyObject *kwds)
   if (!self->_execute_ctrl_push_buf || self->_execute_ctrl_push_buf_cap < _need
       || _view_live)
     {
-      size_t _max = ddc_execute_ctrl_push_max_out (self->handle);
+      size_t _max = ddcr_execute_ctrl_push_max_out (self->handle);
       if (!_max || _max < _need)
         _max = _need;
       if (self->_execute_ctrl_push_buf
@@ -457,7 +492,7 @@ DDCObj_execute_ctrl_push (DDCObject *self, PyObject *args, PyObject *kwds)
       self->_execute_ctrl_push_buf     = _tmp;
       self->_execute_ctrl_push_buf_cap = _max;
     }
-  size_t n_out  = ddc_execute_ctrl_push (self->handle, x, rate_ctrl, freq_ctrl,
+  size_t n_out = ddcr_execute_ctrl_push (self->handle, x, rate_ctrl, freq_ctrl,
                                          self->_execute_ctrl_push_buf,
                                          self->_execute_ctrl_push_buf_cap);
   npy_intp  dim = (npy_intp)n_out;
@@ -480,46 +515,48 @@ DDCObj_execute_ctrl_push (DDCObject *self, PyObject *args, PyObject *kwds)
 }
 
 static PyObject *
-DDCObj_reset (DDCObject *self, PyObject *Py_UNUSED (ignored))
+MatchedDdcrObj_reset (MatchedDdcrObject *self, PyObject *Py_UNUSED (ignored))
 {
   if (!self->handle)
     {
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  ddc_reset (self->handle);
+  ddcr_reset (self->handle);
   Py_RETURN_NONE;
 }
 
 static PyObject *
-DDCObj_state_bytes (DDCObject *self, PyObject *Py_UNUSED (ignored))
+MatchedDdcrObj_state_bytes (MatchedDdcrObject *self,
+                            PyObject          *Py_UNUSED (ignored))
 {
   if (!self->handle)
     {
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromSize_t (ddc_state_bytes (self->handle));
+  return PyLong_FromSize_t (ddcr_state_bytes (self->handle));
 }
 
 static PyObject *
-DDCObj_get_state (DDCObject *self, PyObject *Py_UNUSED (ignored))
+MatchedDdcrObj_get_state (MatchedDdcrObject *self,
+                          PyObject          *Py_UNUSED (ignored))
 {
   if (!self->handle)
     {
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  size_t    _n = ddc_state_bytes (self->handle);
+  size_t    _n = ddcr_state_bytes (self->handle);
   PyObject *_b = PyBytes_FromStringAndSize (NULL, (Py_ssize_t)_n);
   if (!_b)
     return NULL;
-  ddc_get_state (self->handle, PyBytes_AS_STRING (_b));
+  ddcr_get_state (self->handle, PyBytes_AS_STRING (_b));
   return _b;
 }
 
 static PyObject *
-DDCObj_set_state (DDCObject *self, PyObject *arg)
+MatchedDdcrObj_set_state (MatchedDdcrObject *self, PyObject *arg)
 {
   if (!self->handle)
     {
@@ -531,12 +568,12 @@ DDCObj_set_state (DDCObject *self, PyObject *arg)
       PyErr_SetString (PyExc_TypeError, "set_state expects bytes");
       return NULL;
     }
-  if ((size_t)PyBytes_GET_SIZE (arg) != ddc_state_bytes (self->handle))
+  if ((size_t)PyBytes_GET_SIZE (arg) != ddcr_state_bytes (self->handle))
     {
       PyErr_SetString (PyExc_ValueError, "state blob size mismatch");
       return NULL;
     }
-  if (ddc_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
+  if (ddcr_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
     {
       PyErr_SetString (PyExc_ValueError, "set_state rejected the blob");
       return NULL;
@@ -544,7 +581,8 @@ DDCObj_set_state (DDCObject *self, PyObject *arg)
   Py_RETURN_NONE;
 }
 static PyObject *
-DDC_getprop_norm_freq (DDCObject *self, void *Py_UNUSED (closure))
+MatchedDdcr_getprop_norm_freq (MatchedDdcrObject *self,
+                               void              *Py_UNUSED (closure))
 {
   if (!self->handle)
     {
@@ -552,11 +590,11 @@ DDC_getprop_norm_freq (DDCObject *self, void *Py_UNUSED (closure))
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyFloat_FromDouble (ddc_get_norm_freq (self->handle));
+  return PyFloat_FromDouble (ddcr_get_norm_freq (self->handle));
 }
 static int
-DDC_setprop_norm_freq (DDCObject *self, PyObject *value,
-                       void *Py_UNUSED (closure))
+MatchedDdcr_setprop_norm_freq (MatchedDdcrObject *self, PyObject *value,
+                               void *Py_UNUSED (closure))
 {
   if (!self->handle)
     {
@@ -566,11 +604,11 @@ DDC_setprop_norm_freq (DDCObject *self, PyObject *value,
   double v = 0.0;
   if (!PyArg_Parse (value, "d", &v))
     return -1;
-  ddc_set_norm_freq (self->handle, v);
+  ddcr_set_norm_freq (self->handle, v);
   return 0;
 }
 static PyObject *
-DDC_getprop_rate (DDCObject *self, void *Py_UNUSED (closure))
+MatchedDdcr_getprop_rate (MatchedDdcrObject *self, void *Py_UNUSED (closure))
 {
   if (!self->handle)
     {
@@ -578,10 +616,11 @@ DDC_getprop_rate (DDCObject *self, void *Py_UNUSED (closure))
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyFloat_FromDouble (ddc_get_rate (self->handle));
+  return PyFloat_FromDouble (ddcr_get_rate (self->handle));
 }
 static PyObject *
-DDC_getprop_clipped (DDCObject *self, void *Py_UNUSED (closure))
+MatchedDdcr_getprop_clipped (MatchedDdcrObject *self,
+                             void              *Py_UNUSED (closure))
 {
   if (!self->handle)
     {
@@ -589,11 +628,12 @@ DDC_getprop_clipped (DDCObject *self, void *Py_UNUSED (closure))
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyBool_FromLong ((long)(ddc_get_clipped (self->handle)));
+  return PyBool_FromLong ((long)(ddcr_get_clipped (self->handle)));
 }
 
 static PyObject *
-DDC_getprop_narrow_pulse (DDCObject *self, void *Py_UNUSED (closure))
+MatchedDdcr_getprop_narrow_pulse (MatchedDdcrObject *self,
+                                  void              *Py_UNUSED (closure))
 {
   if (!self->handle)
     {
@@ -601,128 +641,131 @@ DDC_getprop_narrow_pulse (DDCObject *self, void *Py_UNUSED (closure))
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyBool_FromLong ((long)(ddc_get_narrow_pulse (self->handle)));
+  return PyBool_FromLong ((long)(ddcr_get_narrow_pulse (self->handle)));
 }
 
-static PyGetSetDef DDC_getset[] = {
-  { "norm_freq", (getter)DDC_getprop_norm_freq, (setter)DDC_setprop_norm_freq,
-    "Return the current LO normalised frequency (cycles/sample).\n", NULL },
-  { "rate", (getter)DDC_getprop_rate, NULL,
-    "Return the configured output/input rate ratio (read-only). The rate is "
-    "fixed at create time; change it by destroying and recreating the DDC "
-    "with the new value.\n",
-    NULL },
-  { "clipped", (getter)DDC_getprop_clipped, NULL,
-    "Has the cascade's CIC clipped its input since the last reset?\n", NULL },
-  { "narrow_pulse", (getter)DDC_getprop_narrow_pulse, NULL,
-    "Is this object's rectangular matched filter degenerately narrow?\n",
-    NULL },
-  { NULL }
-};
+static PyGetSetDef MatchedDdcr_getset[]
+    = { { "norm_freq", (getter)MatchedDdcr_getprop_norm_freq,
+          (setter)MatchedDdcr_setprop_norm_freq,
+          "Return the current fine NCO normalised frequency at the "
+          "intermediate rate (fs_in/2, cycles/sample).\n",
+          NULL },
+        { "rate", (getter)MatchedDdcr_getprop_rate, NULL,
+          "Return the total configured rate (fs_out / fs_in, read-only). This "
+          "is the end-to-end ratio from ADC input to CF32 output.  Change it "
+          "by destroying and recreating the DDCR.\n",
+          NULL },
+        { "clipped", (getter)MatchedDdcr_getprop_clipped, NULL,
+          "Has the cascade's CIC clipped its input since the last reset?\n",
+          NULL },
+        { "narrow_pulse", (getter)MatchedDdcr_getprop_narrow_pulse, NULL,
+          "Is this object's rectangular matched filter degenerately narrow?\n",
+          NULL },
+        { NULL } };
 
 static PyObject *
-DDCObj_destroy (DDCObject *self, PyObject *Py_UNUSED (ignored))
+MatchedDdcrObj_destroy (MatchedDdcrObject *self, PyObject *Py_UNUSED (ignored))
 {
   if (self->handle)
     {
-      ddc_destroy (self->handle);
+      ddcr_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;
 }
 
 static PyObject *
-DDCObj_enter (DDCObject *self, PyObject *Py_UNUSED (ignored))
+MatchedDdcrObj_enter (MatchedDdcrObject *self, PyObject *Py_UNUSED (ignored))
 {
   Py_INCREF (self);
   return (PyObject *)self;
 }
 
 static PyObject *
-DDCObj_exit (DDCObject *self, PyObject *args)
+MatchedDdcrObj_exit (MatchedDdcrObject *self, PyObject *args)
 {
   (void)args;
   if (self->handle)
     {
-      ddc_destroy (self->handle);
+      ddcr_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;
 }
 
-static PyMethodDef DDCObj_methods[] = {
+static PyMethodDef MatchedDdcrObj_methods[] = {
 
-  { "execute", (PyCFunction)DDCObj_execute, METH_VARARGS | METH_KEYWORDS,
+  { "execute", (PyCFunction)MatchedDdcrObj_execute,
+    METH_VARARGS | METH_KEYWORDS,
     "execute(x) -> ndarray\n"
     "\n"
-    "Mix input block with LO, then rate-convert.\n"
+    "Down-convert a block of real float32 samples to CF32 baseband.\n"
     "\n"
     "    >>> import numpy as np\n"
-    "    >>> from doppler import DDC\n"
-    "    >>> obj = DDC(0.0, 0.25)\n"
+    "    >>> from doppler import MatchedDdcr\n"
+    "    >>> obj = MatchedDdcr(0.0, 0.25, \"rrc\", 0.35, 8, 2.0, 1024)\n"
     "    >>> y = obj.execute(np.zeros(4))\n"
     "    >>> y.dtype\n"
     "    dtype('complex64')\n" },
-  { "execute_max_out", (PyCFunction)DDCObj_execute_max_out, METH_NOARGS,
+  { "execute_max_out", (PyCFunction)MatchedDdcrObj_execute_max_out,
+    METH_NOARGS,
     "execute_max_out() -> int\n\nMax output length execute() can produce for "
     "the current state.\nUse to size the ``out=`` buffer." },
-  { "execute_ctrl", (PyCFunction)DDCObj_execute_ctrl,
+  { "execute_ctrl", (PyCFunction)MatchedDdcrObj_execute_ctrl,
     METH_VARARGS | METH_KEYWORDS,
     "execute_ctrl(x) -> ndarray\n"
     "\n"
-    "Mix and resample a block, steering both control ports.\n"
+    "Process a real block, steering both control ports.\n"
     "\n"
     "    >>> import numpy as np\n"
-    "    >>> from doppler import DDC\n"
-    "    >>> obj = DDC(0.0, 0.25)\n"
+    "    >>> from doppler import MatchedDdcr\n"
+    "    >>> obj = MatchedDdcr(0.0, 0.25, \"rrc\", 0.35, 8, 2.0, 1024)\n"
     "    >>> y = obj.execute_ctrl(np.zeros(4))\n"
     "    >>> y.dtype\n"
     "    dtype('complex64')\n" },
-  { "execute_ctrl_push", (PyCFunction)DDCObj_execute_ctrl_push,
+  { "execute_ctrl_push", (PyCFunction)MatchedDdcrObj_execute_ctrl_push,
     METH_VARARGS | METH_KEYWORDS,
     "execute_ctrl_push(n=1) -> ndarray\n"
     "\n"
-    "Push ONE input sample; emit whatever outputs it completes.\n"
+    "Push ONE real input sample; emit whatever outputs it completes.\n"
     "\n"
     "    >>> import numpy as np\n"
-    "    >>> from doppler import DDC\n"
-    "    >>> obj = DDC(0.0, 0.25)\n"
+    "    >>> from doppler import MatchedDdcr\n"
+    "    >>> obj = MatchedDdcr(0.0, 0.25, \"rrc\", 0.35, 8, 2.0, 1024)\n"
     "    >>> y = obj.execute_ctrl_push(np.zeros(4))\n"
     "    >>> y.dtype\n"
     "    dtype('complex64')\n" },
-  { "reset", (PyCFunction)DDCObj_reset, METH_NOARGS,
+  { "reset", (PyCFunction)MatchedDdcrObj_reset, METH_NOARGS,
     "reset() -> None\n"
     "\n"
-    "Zero LO phase and filter history.\n"
+    "Zero halfband history, LO phase and filter history.\n"
     "\n"
-    "    >>> from doppler import DDC\n"
-    "    >>> obj = DDC(0.0, 0.25)\n"
+    "    >>> from doppler import MatchedDdcr\n"
+    "    >>> obj = MatchedDdcr(0.0, 0.25, \"rrc\", 0.35, 8, 2.0, 1024)\n"
     "    >>> obj.reset()\n" },
-  { "state_bytes", (PyCFunction)DDCObj_state_bytes, METH_NOARGS,
+  { "state_bytes", (PyCFunction)MatchedDdcrObj_state_bytes, METH_NOARGS,
     "Serialized state size in bytes." },
-  { "get_state", (PyCFunction)DDCObj_get_state, METH_NOARGS,
+  { "get_state", (PyCFunction)MatchedDdcrObj_get_state, METH_NOARGS,
     "Serialize the engine's mutable state to bytes." },
-  { "set_state", (PyCFunction)DDCObj_set_state, METH_O,
+  { "set_state", (PyCFunction)MatchedDdcrObj_set_state, METH_O,
     "Restore mutable state from a get_state() blob." },
-  { "destroy", (PyCFunction)DDCObj_destroy, METH_NOARGS,
+  { "close", (PyCFunction)MatchedDdcrObj_destroy, METH_NOARGS,
     "Release resources." },
-  { "__enter__", (PyCFunction)DDCObj_enter, METH_NOARGS, NULL },
-  { "__exit__", (PyCFunction)DDCObj_exit, METH_VARARGS, NULL },
+  { "destroy", (PyCFunction)MatchedDdcrObj_destroy, METH_NOARGS,
+    "Release resources." },
+  { "__enter__", (PyCFunction)MatchedDdcrObj_enter, METH_NOARGS, NULL },
+  { "__exit__", (PyCFunction)MatchedDdcrObj_exit, METH_VARARGS, NULL },
   { NULL }
 };
 
-static PyTypeObject DDCObjType = {
-  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "ddc.DDC",
-  .tp_basicsize                           = sizeof (DDCObject),
-  .tp_dealloc                             = (destructor)DDCObj_dealloc,
+static PyTypeObject MatchedDdcrObjType = {
+  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "ddc.MatchedDdcr",
+  .tp_basicsize                           = sizeof (MatchedDdcrObject),
+  .tp_dealloc                             = (destructor)MatchedDdcrObj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,
-  .tp_doc
-  = "Create a complex-input Digital Down-Converter. Allocates internal state "
-    "for the LO and RateConverter cascade. The RateConverter selects the "
-    "cheapest multi-stage decimation chain (CIC + optional halfband + "
-    "polyphase resampler) for the given rate.\n",
-  .tp_methods = DDCObj_methods,
-  .tp_getset  = DDC_getset,
-  .tp_new     = DDCObj_new,
-  .tp_init    = (initproc)DDCObj_init,
+  .tp_doc                                 = "MatchedDdcr type.\n",
+  .tp_methods                             = MatchedDdcrObj_methods,
+  .tp_getset                              = MatchedDdcr_getset,
+  .tp_new                                 = MatchedDdcrObj_new,
+  .tp_init                                = (initproc)MatchedDdcrObj_init,
 };

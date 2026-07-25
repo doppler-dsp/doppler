@@ -43,7 +43,7 @@ from doppler.agc import AGC
 from doppler.analyzer import Specan
 from doppler.arith import AccQ8, AccQ15
 from doppler.cvt import ADC, F32ToI16, F32ToI16U32, F32ToI16U64, F32ToUQ15
-from doppler.ddc import DDC, Ddcr
+from doppler.ddc import DDC, Ddcr, MatchedDDC
 from doppler.delay import DelayCf64
 from doppler.detection import LockDet
 from doppler.dsss import BurstDespreader, Despreader
@@ -228,6 +228,14 @@ CASES: dict[str, tuple[Callable[[], Any], _Feed]] = {
         lambda o, seg: np.array(o.steps(seg)),
     ),
     "DDC": (lambda: DDC(-0.1, 0.25), lambda o, seg: np.array(o.execute(seg))),
+    # The matched flavor plans a different cascade (the pulse forces a
+    # terminal fractional stage the plain planner drops), so its blob has its
+    # own shape — and the feed goes through the control port, the path a
+    # receiver actually resumes on.
+    "MatchedDDC": (
+        lambda: MatchedDDC(-0.1, 2 / 16, pulse="rrc"),
+        lambda o, seg: np.array(o.execute_ctrl(seg, 1e-4, 1e-4)),
+    ),
     # Ddcr (handle module, gh-403): real input + caller-owned output buffer.
     "Ddcr": (
         lambda: Ddcr(0.1, 0.2),

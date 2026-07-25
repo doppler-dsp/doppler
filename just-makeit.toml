@@ -1184,104 +1184,11 @@ no_generate = "true"
 no_generate = "true"
 
 [module.ddc]
-objects = ["ddc"]
+objects = ["ddc", "ddcr"]
 # ddc.toml's depends_on link=true (gh-225) links the composed cores into the ddc
 # .so AND ddc's own C test/bench. Only the non-component libm remains here.
 extra_link_libs = ["m"]
 
-[module.ddc.reexports]
-ddc_fn = ["Ddcr"]
-[module.ddc_fn]
-kind            = "handle"
-backing         = "ddcr"
-handle_type     = "ddcr_state_t"
-header          = "ddc/ddc_core.h"
-package         = "ddc"
-type_name       = "Ddcr"
-serializable    = "true"
-context_manager = true
-create_fn       = "ddcr_create"
-close_fn        = "ddcr_destroy"
-# ddcr_create/execute/reset/destroy/get_norm_freq/set_norm_freq/get_rate all live
-# in ddc_core (shared with the Ddc object). The handle sizes its output from the
-# caller's buffer, so it does NOT need ddcr_core's execute_max_out (that hook
-# existed only for the retired DDCR object's variable_output execute). Links
-# ddc_core + the transitive decimate/mix/resample cores (mirrors ddc.toml's set).
-extra_link_libs = ["m"]
-
-[[module.ddc_fn.create_args]]
-name = "norm_freq"
-type = "double"
-default = "0.0"
-
-[[module.ddc_fn.create_args]]
-name = "rate"
-type = "double"
-default = "0.25"
-[[module.ddc_fn.depends_on]]
-name = "ddc"
-link = true
-
-[[module.ddc_fn.depends_on]]
-name = "lo"
-link = true
-
-[[module.ddc_fn.depends_on]]
-name = "RateConverter"
-link = true
-
-[[module.ddc_fn.depends_on]]
-name = "resamp"
-link = true
-
-[[module.ddc_fn.depends_on]]
-name = "hbdecim"
-link = true
-
-[[module.ddc_fn.depends_on]]
-name = "hbdecim_r2c"
-link = true
-
-[[module.ddc_fn.depends_on]]
-name = "cic"
-link = true
-
-[[module.ddc_fn.depends_on]]
-name = "fir"
-link = true
-
-[[module.ddc_fn.depends_on]]
-name = "resample"
-link = true
-[[module.ddc_fn.methods]]
-name = "execute"
-fn = "ddcr_execute"
-returns = "float _Complex[]"
-nogil = true
-
-[[module.ddc_fn.methods.args]]
-name = "x"
-type = "float[]"
-
-[[module.ddc_fn.methods.args]]
-name = "out"
-type = "float _Complex[]"
-writable = true
-
-[[module.ddc_fn.methods]]
-name = "reset"
-fn = "ddcr_reset"
-[[module.ddc_fn.getters]]
-[[module.ddc_fn.getters.fields]]
-name = "norm_freq"
-getter = "ddcr_get_norm_freq"
-type = "double"
-writable_fn = "ddcr_set_norm_freq"
-
-[[module.ddc_fn.getters.fields]]
-name = "rate"
-getter = "ddcr_get_rate"
-type = "double"
 [module.analyzer]
 objects = ["specan"]
 # Specan composes the Ddc cascade + the PSD averaging-PSD core; specan.toml's
@@ -1929,6 +1836,11 @@ type = "int"
 [[enum]]
 name = "wfm_type"
 values = ["tone", "noise", "pn", "bpsk", "qpsk", "chirp", "bits", "symbols", "dsss"]
+
+[[enum]]
+# Order IS rc_pulse_t (RateConverter_core.h): iandd = 0, rrc = 1, none = 2.
+name = "rc_pulse"
+values = ["iandd", "rrc", "none"]
 
 [[enum]]
 name = "crc"

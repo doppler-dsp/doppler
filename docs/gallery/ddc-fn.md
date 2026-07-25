@@ -23,9 +23,9 @@ carrier via the `norm_freq` property. The tone shifts off DC by
 `0.04 / rate = 0.16` in `fs_out` units, landing at `fn = +0.160` — exactly as
 predicted, and phase-continuously (no filter-history reset).
 
-## One typed handle over opaque C state
+## One object over opaque C state
 
-`Ddcr` is a generated `kind="handle"` class: a typed Python object over an
+`Ddcr` is a generated class: a typed Python object over an
 opaque `ddcr_state_t *`. It unifies what were once two faces (a `DDCR` object
 and `ddcr_*` free functions) into one — it **owns** the C state like an object,
 yet `execute()` writes into a **caller-provided** output buffer like the old
@@ -33,7 +33,7 @@ functional API, so allocation and lifetime stay explicit.
 
 | Aspect   | `Ddcr`                                                      |
 | -------- | ----------------------------------------------------------- |
-| State    | opaque `ddcr_state_t *`, owned by the handle (RAII `close`) |
+| State    | opaque `ddcr_state_t *`, owned by the object (RAII `close`) |
 | Output   | written into a **caller-owned** `complex64` buffer          |
 | Retune   | `ddcr.norm_freq = …` (live, phase-continuous)               |
 | Use when | real-ADC input; you manage your own arrays / want zero      |
@@ -50,7 +50,7 @@ f_carrier = 0.18                            # real tone, normalised to fs_in
 norm_freq = -(2 * f_carrier + 0.5)
 ```
 
-The lifecycle is explicit — the handle is yours to keep, reuse, and release:
+The lifecycle is explicit — the object is yours to keep, reuse, and release:
 
 ```python
 import numpy as np
@@ -70,20 +70,20 @@ ddcr.reset()                                    # zero all history
 ddcr.close()                                    # release C resources
 ```
 
-After `close()`, any further call on the handle raises `RuntimeError`; live
+After `close()`, any further call raises `RuntimeError`; live
 views of earlier output stay valid because they reference the caller's buffer,
 not the state. A `with Ddcr(...) as ddcr:` block closes it automatically.
 
-## Streaming semantics — the handle wraps mutable C state
+## Streaming semantics — the object wraps mutable C state
 
 A `Ddcr` wraps a single C pointer to a struct that is **mutated in place** on
 every call. The actual state (the LO phase, the halfband taps, the polyphase
 resampler banks, the history buffers) lives entirely in C and **never crosses
-the Python/C boundary**: each call passes the handle, not the kilobytes of
+the Python/C boundary**: each call passes the object, not the kilobytes of
 state, so nothing is serialized, marshaled, or copied per call. That is also
-what makes block-by-block processing **phase-continuous** — the same handle
+what makes block-by-block processing **phase-continuous** — the same object
 carries its history forward from one `execute` to the next, so feeding a signal
-as two halves through the *same* handle is bit-identical to processing it in one
+as two halves through the *same* object is bit-identical to processing it in one
 shot:
 
 ```python

@@ -736,6 +736,158 @@ class SymbolSync:
     def __exit__(self, *args: object) -> None: ...
 
 @final
+class RrcSync:
+    """Create an RrcSync instance.
+
+    Parameters
+    ----------
+    sps : float, default 4.0
+        Nominal samples per symbol -- any double >= 1, not just an integer. The matched filter runs on a fractional-rate accumulator, so 17.33389 is as valid as 4: set it to Fs/Fsym and let the loop steer the strobe.
+    pulse : Literal["iandd", "rrc"], default "rrc"
+        Matched-filter pulse shape. The fusion (the polyphase bank IS the matched filter, its arm IS the fractional delay) is a property of the resampler, not of the root-raised cosine, so the rectangular/NRZ case is the same object with a different prototype: "iandd" is the unit rectangle over one symbol -- what an integrate-and-dump computes, and the right matched filter for rectangular chips or NRZ data -- and "rrc" is the root-raised cosine of roll-off `beta` and span `span`. Same vocabulary as MpskReceiver's `pulse`. The rectangle needs only ceil(1.5*sps)+1 taps per arm against the RRC's ceil((2*span+0.5)*sps)+1, so it is far cheaper.
+    beta : float, default 0.35
+        RRC roll-off in [0, 1]. Ignored when pulse="iandd".
+    span : int, default 8
+        One-sided RRC span in symbols. Ignored when pulse="iandd", whose support is always exactly one symbol.
+    num_phases : int, default 1024
+        Matched-filter arms; must be a power of two. Sets the fractional-timing resolution to 1/num_phases of a symbol, and the bank costs num_phases * ceil((2*span + 0.5)*sps) floats.
+    bn : float, default 0.005
+        Loop noise bandwidth, normalised to the SYMBOL rate (the loop updates once per recovered symbol).
+    zeta : float, default 0.707
+        Damping factor (0.707 = critically damped).
+    ted : Literal["gardner", "dttl"], default "gardner"
+        Timing-error detector: "gardner" (blind, works for any constellation) or "dttl" (decision-directed sign-sign Data Transition Tracking Loop; lower self-noise near lock but degrades faster at low SNR. BPSK/QPSK only -- invalid for 8PSK/QAM).
+
+    Examples
+    --------
+    Create with defaults:
+
+    >>> from doppler.track import RrcSync
+    >>> obj = RrcSync(sps=4.0, pulse="rrc", beta=0.35, span=8, num_phases=1024, bn=0.005, zeta=0.707, ted="gardner")
+
+    """
+    def __init__(self, sps: float = ..., pulse: Literal["iandd", "rrc"] = "rrc", beta: float = ..., span: int = ..., num_phases: int = ..., bn: float = ..., zeta: float = ..., ted: Literal["gardner", "dttl"] = "gardner") -> None: ...
+
+    def steps(self, x: NDArray[np.complex64], out: NDArray[np.complex64] | None = None) -> NDArray[np.complex64]:
+        """Recover symbols from an oversampled cf32 baseband block. The polyphase bank IS the root-raised-cosine matched filter and the arm its accumulator selects IS the fractional timing delay, so one dot product per strobe does both jobs -- no separate matched FIR and Farrow interpolator. A second bank displaced half a symbol supplies the Gardner transition-gate sample, which pins the on-time/mid roles structurally instead of by an output parity. Emits one symbol per recovered symbol period.
+
+        rrcsync_step() in a loop, with the TED specialised per detector; state
+        carries across calls, so contiguous blocks give the same symbols as one
+        large block.
+
+        Parameters
+        ----------
+        x : NDArray[np.complex64]
+            Input samples.
+
+        Returns
+        -------
+        NDArray[np.complex64]
+            Symbols written to out.
+        """
+
+    def steps_max_out(self) -> int:
+        """Max output length steps() can produce for the current state."""
+
+    def set_telemetry(self, tlm: object | None, prefix: str, decim: int = 1) -> None:
+        """Attach (or detach, with None) a Telemetry context and register this loop's five probes: "<prefix>.e" (normalised TED error), "<prefix>.ctrl" (the per-input control steering the strobe), "<prefix>.rate" (tracked samples per symbol), "<prefix>.lock" (last block-averaged lock statistic) and "<prefix>.locked" (0/1). Emitted once per recovered symbol, thinned by decim. Setup path: call before the producer thread starts; the context is borrowed and must outlive the attachment.
+
+        Registers five probes, emitted once per recovered symbol and further
+        thinned by decim: "<prefix>.e" (normalised TED error), "<prefix>.ctrl"
+        (the per-input control steering the strobe), "<prefix>.rate" (tracked
+        samples/symbol), "<prefix>.lock" (last block-averaged lock_signal) and
+        "<prefix>.locked" (0/1). Passing NULL detaches. Setup path, never hot:
+        the context is borrowed and must outlive the attachment (SPSC rules in
+        telemetry/telemetry.h).
+
+        Parameters
+        ----------
+        tlm : object | None
+            Telemetry context to attach, or NULL to detach.
+        prefix : str
+            Probe-name prefix, e.g. "sync".
+        decim : int
+            Emit every decim-th symbol; >= 1.
+        """
+
+    def configure(self, bn: float, zeta: float) -> None:
+        """Recompute the loop gains for a new (bn, zeta); preserves the integrator, and so the lock.
+
+        Parameters
+        ----------
+        bn : float
+            Input.
+        zeta : float
+            Input.
+        """
+
+    def configure_lock_raw(self, avgs: int, up_thresh: float, down_thresh: float, n_up: int, n_down: int) -> None:
+        """Set the lock detector's geometry directly: the non-coherent block size (avgs), a split declare/drop threshold pair on lock_stat (level hysteresis), and both verify counts (time hysteresis). Re-tuning clears the in-flight block sum and drops the lock so the next decision uses only looks gathered under the new config. The defaults are SymbolSync's validated operating point for the same eye-opening statistic (avgs=133, threshold=0.311, n_up=1, n_down=8); a (pfa, pd) sizing entry point is deliberately not offered until the same Monte Carlo is run against this object.
+
+        The block size (avgs), a split declare/drop threshold pair on lock_stat
+        (level hysteresis) and both verify counts (time hysteresis). Re-tuning
+        clears the in-flight block sum and drops the lock, so the next decision
+        uses only looks gathered under the new config.
+
+        Parameters
+        ----------
+        avgs : int
+            Looks per decision; clamped >= 1.
+        up_thresh : float
+            Declare threshold on lock_stat.
+        down_thresh : float
+            Drop threshold; <= up_thresh for level hysteresis.
+        n_up : int
+            Consecutive above-threshold decisions to declare.
+        n_down : int
+            Consecutive below-threshold decisions to drop.
+        """
+
+    def reset(self) -> None:
+        """Re-seed both matched filters, the loop integrator and the lock detector to their post-create state.
+        """
+
+    def state_bytes(self) -> int:
+        """Serialized state size in bytes."""
+    def get_state(self) -> bytes:
+        """Serialize the engine's mutable state to bytes."""
+    def set_state(self, blob: bytes) -> None:
+        """Restore mutable state from a get_state() blob."""
+
+    @property
+    def bn(self) -> float:
+        """Bn."""
+    @bn.setter
+    def bn(self, value: float) -> None: ...
+
+    @property
+    def timing_error(self) -> float:
+        """Last normalised TED error -- the loop stress."""
+
+    @property
+    def rate(self) -> float:
+        """Smoothed tracked samples per symbol. It departs from the nominal sps by exactly the sample-clock offset being tracked, so a caller disciplining a clock reads this."""
+
+    @property
+    def ctrl(self) -> float:
+        """Current per-input rate deviation steering the strobe (added to the base rate of 1/sps by the resampler's control port)."""
+
+    @property
+    def lock_stat(self) -> float:
+        """Last block-averaged lock statistic: mean(2*(|on-time|^2-|mid|^2)/(|on-time|^2+|mid|^2)) over the configured avgs looks; compare against the configured threshold (see configure_lock_raw)."""
+
+    @property
+    def locked(self) -> bool:
+        """Current timing-lock decision: True after the verify count of consecutive above-threshold decisions, False again after the drop count of consecutive below-threshold ones."""
+
+    def destroy(self) -> None:
+        """Release C resources immediately."""
+
+    def __enter__(self) -> "RrcSync": ...
+
+    def __exit__(self, *args: object) -> None: ...
+
+@final
 class CarrierMpsk:
     """Create an M-PSK carrier loop instance.
 

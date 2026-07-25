@@ -121,6 +121,8 @@ extern "C" {
 
 #include "symsync/symsync_core.h"
 
+#include "rrcsync/rrcsync_core.h"
+
 #include "carrier_mpsk/carrier_mpsk_core.h"
 
 #include "carrier_nda/carrier_nda_core.h"

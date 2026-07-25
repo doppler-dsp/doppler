@@ -13,6 +13,51 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+### Added
+
+- **`track.RrcSync` — a matched filter fused with symbol-timing recovery, at
+    an arbitrary samples-per-symbol.** `SymbolSync` runs a matched FIR and then
+    a separate `Farrow` interpolator steered by an integer timing NCO.
+    `RrcSync` builds the matched filter **as the polyphase bank of a
+    `Resampler`**, so the arm the resampler's accumulator selects *is* the
+    fractional timing delay — one dot product does both jobs, no Farrow.
+    Because that accumulator is a `double`, `sps` is a `double`: `17.33389`, an
+    irrational ratio, or a drifting sample clock all work by construction. Set
+    `sps = Fs/Fsym` and the loop only has to steer the strobe, which is the
+    ordinary case whenever the ADC clock free-runs against the symbol clock.
+    Measured: locks from any initial timing offset at every rate tried
+    (4, 6.5, 17.33389, e, 9.876543), **−38 dB EVM noiseless**, zero bit errors,
+    and `rate` recovers a ±1000 ppm clock offset it was never told about.
+
+    The Gardner transition-gate sample comes from a **second bank displaced
+    half a symbol**, driven by the same input and the same control, so
+    "on-time" and "mid" are pinned structurally instead of by an output parity.
+    That is what keeps the timing S-curve to one stable lock per symbol: with
+    one bank at `rate = 2/sps` and alternating outputs, the roles are anchored
+    to nothing at the symbol rate, the S-curve has period T/2 with two equally
+    stable equilibria — the wrong one sampling the transitions — and the loop
+    hunts between them instead of locking.
+
+    `pulse` selects the prototype, so the common **rectangular / NRZ** case is
+    the same object: `pulse="iandd"` is the unit rectangle over one symbol that
+    an integrate-and-dump computes (same vocabulary as `MpskReceiver`), needing
+    a small fraction of the RRC's taps per arm. Gardner or DTTL TED, an
+    always-on eye-opening lock detector, five telemetry probes, and the
+    standard serializable state triplet (a composition nesting both resamplers'
+    and the loop filter's child envelopes).
+
+    Gallery: [Arbitrary-Rate Symbol Recovery](docs/gallery/rrcsync.md).
+
+### Changed
+
+- `wfm_rrc_taps()` now walks a public `wfm_rrc_h()` point evaluator (in
+    `wfm/wfm_dsp.h`) instead of inlining the RRC formula. A matched-filter bank
+    at a non-integer samples-per-symbol has to sample the pulse at instants
+    that are not a uniform sub-multiple of the input grid, so it cannot reuse a
+    tap table — and a second copy of the formula is exactly the kind of peer
+    implementation that drifts. Verified bit-exact across 105 (β, sps, span)
+    combinations, so no shaped waveform changes.
+
 ## [0.37.3] — 2026-07-24
 
 ### Added

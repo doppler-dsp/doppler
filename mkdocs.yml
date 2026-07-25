@@ -180,6 +180,7 @@ nav:
           - Code Loop Tracking: gallery/dll.md
           - DLL Code Loop (theory): gallery/dll-theory.md
           - Symbol Timing Recovery: gallery/symsync.md
+          - Arbitrary-Rate Symbol Recovery: gallery/rrcsync.md
           - Timing Loop (theory): gallery/symsync-theory.md
           - M-PSK Carrier Loop (theory): gallery/carrier-mpsk.md
           - NDA Carrier Loop (theory): gallery/carrier-nda.md

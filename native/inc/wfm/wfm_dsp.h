@@ -13,6 +13,12 @@
 
 #include "clib_common.h"
 
+#include <math.h>
+
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -26,6 +32,46 @@ static inline size_t
 wfm_rrc_ntaps(int sps, int span)
 {
     return (size_t)(2 * span * sps + 1);
+}
+
+/**
+ * @brief Analytic root-raised-cosine impulse response at one instant.
+ *
+ * The RRC formula itself, evaluated at an arbitrary continuous time — the
+ * single source of truth every RRC consumer samples. `wfm_rrc_taps()` walks
+ * this on the uniform `1/sps` grid and normalises; a receiver's polyphase
+ * matched-filter bank (see `track.RrcSync`) samples it at
+ * `num_phases * num_taps` instants that are NOT a uniform sub-multiple of the
+ * input grid, which is why the point evaluator is public: an arbitrary
+ * (non-integer) samples-per-symbol bank cannot be built by decomposing an
+ * integer-oversampled prototype, and a second copy of this formula is exactly
+ * the kind of peer implementation that drifts.
+ *
+ * Both removable singularities are handled by their closed-form limits: the
+ * `0/0` at `t = 0`, and the `0/0` at `t = ±1/(4β)` where the denominator's
+ * `1 - (4βt)^2` vanishes.
+ *
+ * @param t     time in SYMBOL periods (T = 1), relative to the pulse centre.
+ * @param beta  roll-off in `[0, 1]`.
+ * @return      `h(t)`, unnormalised (peak ≈ `1 - β + 4β/π` at `t = 0`).
+ */
+static inline double
+wfm_rrc_h(double t, double beta)
+{
+    if (fabs(t) < 1e-9)
+        /* limit at t = 0 */
+        return 1.0 - beta + 4.0 * beta / M_PI;
+    if (beta > 0.0 && fabs(fabs(t) - 1.0 / (4.0 * beta)) < 1e-9)
+    {
+        /* limit at t = ±1/(4β) (0/0 in the general form) */
+        double a = M_PI / (4.0 * beta);
+        return (beta / sqrt(2.0))
+               * ((1.0 + 2.0 / M_PI) * sin(a) + (1.0 - 2.0 / M_PI) * cos(a));
+    }
+    double pt  = M_PI * t;
+    double num = sin(pt * (1.0 - beta)) + 4.0 * beta * t * cos(pt * (1.0 + beta));
+    double den = pt * (1.0 - (4.0 * beta * t) * (4.0 * beta * t));
+    return num / den;
 }
 
 /**

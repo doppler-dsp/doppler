@@ -181,6 +181,7 @@ nav:
           - DLL Code Loop (theory): gallery/dll-theory.md
           - Symbol Timing Recovery: gallery/symsync.md
           - Timing Loop (theory): gallery/symsync-theory.md
+          - Arbitrary-Rate Symbol Recovery: gallery/ratesync.md
           - M-PSK Carrier Loop (theory): gallery/carrier-mpsk.md
           - NDA Carrier Loop (theory): gallery/carrier-nda.md
       - Constellations & Receivers:

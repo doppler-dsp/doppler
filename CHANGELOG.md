@@ -52,7 +52,8 @@ ______________________________________________________________________
 
     `SymbolSync` is unchanged and remains the answer when the matched filter is
     not one this family builds, or when the front end is already at a small
-    integer `sps`.
+    integer `sps`. Worked example: the
+    [Arbitrary-Rate Symbol Recovery](docs/gallery/ratesync.md) gallery page.
 
 - **`CIC.clipped` / `RateConverter.clipped` — the input bound stops being a
     silent one.** `cic_core` quantizes at its boundary, so its input amplitude

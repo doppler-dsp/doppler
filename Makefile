@@ -448,6 +448,7 @@ GALLERY_SCRIPTS := \
     src/doppler/examples/lockdet_demo.py \
     src/doppler/examples/telemetry_fanin_demo.py \
     src/doppler/examples/rate_converter_demo.py \
+    src/doppler/examples/ratesync_demo.py \
     src/doppler/examples/ddc_fn_demo.py \
     src/doppler/examples/ddc_fn_scaling.py \
     src/doppler/examples/adc_demo.py \
@@ -476,7 +477,7 @@ gallery:
 	    printf "  %-45s" "$$script"; \
 	    uv run python $$script > /dev/null 2>&1 && echo "OK" || { echo "FAIL"; exit 1; }; \
 	done
-	@mv -f agc_convergence.png cic_demo_spectrum.png corr_demo.png detection_curves.png detection_sim.png detection2d_demo.png lockdet_demo.png telemetry_fanin_demo.png rate_converter_demo.png ddc_fn_demo.png ddc_fn_scaling.png adc_demo.png hbdecim_q15_demo.png wfmgen_demo.png symbols_demo.png wfm_composition_demo.png wcdma_carriers_demo.png plan_demo.png plan_background_demo.png crowded_band_demo.png measure_demo.png measure_imd_npr_demo.png wfm_write_demo.png doppler_channel_demo.png wfm_io_demo.png dsss_burst_pipeline_demo.png async_dsss_receiver_demo.png async_dsss_receiver_spec_demo.png dsss_receiver_demo.png carrier_acq_rrc_demo.png docs/assets/
+	@mv -f agc_convergence.png cic_demo_spectrum.png corr_demo.png detection_curves.png detection_sim.png detection2d_demo.png lockdet_demo.png telemetry_fanin_demo.png rate_converter_demo.png ratesync_demo.png ddc_fn_demo.png ddc_fn_scaling.png adc_demo.png hbdecim_q15_demo.png wfmgen_demo.png symbols_demo.png wfm_composition_demo.png wcdma_carriers_demo.png plan_demo.png plan_background_demo.png crowded_band_demo.png measure_demo.png measure_imd_npr_demo.png wfm_write_demo.png doppler_channel_demo.png wfm_io_demo.png dsss_burst_pipeline_demo.png async_dsss_receiver_demo.png async_dsss_receiver_spec_demo.png dsss_receiver_demo.png carrier_acq_rrc_demo.png docs/assets/
 	@rm -f burst.blue
 	@echo "Gallery plots written to docs/assets/."
 

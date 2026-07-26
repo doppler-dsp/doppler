@@ -219,9 +219,14 @@ main (void)
     for (int mi = 0; mi < 3; mi++)
       for (int fi = 0; fi < 2; fi++)
         {
-          int                    m  = ms[mi];
+          int m = ms[mi];
+          /* 8PSK hands the carrier over to the decision-directed loop; the
+             other orders stay in NDA the whole way. Its decision margin is
+             only +-pi/8, so the M-th-power discriminator's own phase jitter
+             is the dominant error term -- the same call the BER validation
+             (mpsk_receiver_ber.c) and the Python suite both make. */
           mpsk_receiver_state_t *rx = RX (m, SPS, M_OUT, MPSK_RX_PULSE_IANDD,
-                                          0.02, 0, 0.5, fs[fi], 100);
+                                          0.005, m == 8, 0.3, fs[fi], 100);
           make_mpsk (tx, idx, m, fs[fi], 30.0, 7u + (uint32_t)(mi * 4 + fi));
           size_t k   = mpsk_receiver_steps (rx, tx, NSAMP, out, NSYM);
           double ser = tail_ser (out, k, idx, m, phi0_for (m));
@@ -236,7 +241,7 @@ main (void)
    * pulse-robust; the Python suite drives a true RRC-shaped TX). */
   {
     mpsk_receiver_state_t *rx
-        = RX (4, SPS, M_OUT, MPSK_RX_PULSE_RRC, 0.02, 0, 0.5, 0.0, 200);
+        = RX (4, SPS, M_OUT, MPSK_RX_PULSE_RRC, 0.005, 0, 0.5, 0.0, 200);
     CHECK (rx != NULL);
     make_mpsk (tx, idx, 4, 0.0, 30.0, 21u);
     size_t k   = mpsk_receiver_steps (rx, tx, NSAMP, out, NSYM);
@@ -248,7 +253,7 @@ main (void)
   /* 4. acq_to_track flips NDA acquisition -> decision-directed tracking */
   {
     mpsk_receiver_state_t *rx
-        = RX (4, SPS, M_OUT, MPSK_RX_PULSE_IANDD, 0.03, 1, 0.4, 0.0, 200);
+        = RX (4, SPS, M_OUT, MPSK_RX_PULSE_IANDD, 0.005, 1, 0.4, 0.0, 200);
     make_mpsk (tx, idx, 4, 0.0005, 30.0, 33u);
     size_t k = mpsk_receiver_steps (rx, tx, NSAMP, out, NSYM);
     CHECK (mpsk_receiver_get_tracking (rx) == 1); /* handed over */

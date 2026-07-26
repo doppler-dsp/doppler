@@ -189,97 +189,109 @@ Both now run at the **symbol rate**, on the same strobe, which is why
 `bn_carrier` is symbol-rate normalised (§1.1) and why the handover is a plain
 discriminator swap with no rate change to reconcile.
 
-!!! bug "The rebuild made carrier acquisition depend on **timing** lock"
+!!! info "Carrier acquisition and symbol timing — the coupling, and the way out"
 
-    The original design's headline property was that the NDA path acquires with no
-    data **and no symbol timing** — true of the old free-running boxcar arm, which
-    was timing-independent by construction. It is **not true of this receiver**.
-    The discriminator runs on the on-time strobe, so until the timing loop has
-    converged the strobe is not a symbol and its M-th power is not carrier phase.
+    The original design's headline property was that the NDA path acquires with
+    no data **and no symbol timing** — true of the old free-running boxcar arm,
+    which was timing-independent by construction. Reading the on-time strobe
+    gave that up: until the timing loop converges the strobe is not a symbol, so
+    its M-th power is nothing in particular.
 
-    Measured, QPSK at `sps = 8` from a cold start (`init_norm_freq = 0`): the
-    timing loop takes ~180–240 symbols to converge, and throughout that window the
-    lock statistic reads **0.9 → 1.7 against a QPSK ceiling of 0.62** — the
-    unambiguous sign that the discriminator's input is not a valid constellation.
-    The carrier loop steers on that the whole time. Whether it survives is decided
-    by which way the garbage happened to push it: pushed toward the truth it
-    recovers, pushed the other way past the M-fold boundary the type-2 integrator
-    holds it there and it walks away and never returns. Roughly a third of data
-    seeds fail, and **widening `bn_carrier` makes it worse** — a wider loop
-    integrates more garbage over the same fixed transient — which is how you can
-    tell this is not a pull-in-range limit.
+    Measured, QPSK at `sps = 8` from a cold start: the timing loop takes ~130
+    symbols to declare, and throughout that window the carrier lock statistic
+    reads **0.9 → 1.7 against a QPSK ceiling of 0.62** — the unambiguous sign
+    that the discriminator's input is not a valid constellation. A type-2 loop
+    steering on that integrates a bias for 130 symbols; whichever way it was
+    pushed decided the run, and pushed past the M-fold boundary the integrator
+    simply held it there. About a third of data seeds never recovered, and
+    **widening `bn_carrier` made it worse** — more garbage integrated over the
+    same fixed transient — which is how you can tell it was a transient problem
+    and not a pull-in-range one.
 
-    The fix direction is to **gate the carrier steer on timing lock** (the timing
-    loop already carries a `lockdet`), exactly as `tracking` gates the NDA/DD
-    choice: the discriminator and lock EMA keep running, only the steer waits.
-    Tracked as
-    [doppler-dsp/doppler#536](https://github.com/doppler-dsp/doppler/issues/536).
-    Until then, **seed `init_norm_freq`** — a seeded loop has nothing to integrate
-    toward and simply holds through the transient, which is why the whole test
-    suite (which seeds it) is green.
+    Two things fix it, and they are independent:
 
-    This is the price of the strobe-only rule below, which was itself necessary.
-    The two are in genuine tension and the resolution is the timing gate, not a
-    retreat to a separate timing-independent arm.
+    - **The strobe tap waits for timing.** The steer, the AGC seed and the
+        handover are gated on the timing loop's own `lockdet` (which declares at
+        a data-independent symbol 132). The discriminator and its lock EMA keep
+        running, because the drop-back rule needs them and `lock` must stay
+        observable. Nothing is clamped — the loop declines to act on a value
+        known to be meaningless. Cold acquisition went from a coin flip to 6/6
+        seeds, and the pull-in curve became monotone in `bn_carrier` again.
+    - **The other taps do not have the problem at all.** `mf_all` and `lo_arm`
+        (§2.2.1) are timing-independent by construction, which is the real
+        answer rather than the workaround.
 
-### 2.2.1 The pull-in range collapsed by `sps` — and gained frequency aliases
+    The AGC seed mattered as much as the steer: seeded off a pre-lock strobe the
+    gain latches on a non-symbol and can land far too **low** as easily as too
+    high — measured `lock` = 4.9e-19, a denormal, on a receiver decoding every
+    bit correctly, so the handover never fired.
 
-Moving the discriminator from the sample rate to the symbol rate has a second,
-independent consequence, and this one is **architectural rather than a bug**.
+### 2.2.1 `nda_tap` — the discriminator's tap point IS the pull-in range
 
-An M-th-power discriminator updating at rate `F` is unambiguous only while the
-M-th-power phase advances less than π per update, `|M·Δf| < F/2`:
+An M-th-power discriminator updating at rate `F` is unambiguous only while its
+M-th-power phase advances less than π per update, `|M·Δf| < F/2`. So *where* the
+discriminator reads decides how much frequency error it can even see, and that
+is a real design axis rather than an implementation detail — which is why it is
+a construction parameter, `nda_tap`, and not a hidden policy.
 
-| Discriminator runs at                          | Unambiguous `\|Δf\|` | At `sps = 8`, QPSK |
-| ---------------------------------------------- | -------------------- | ------------------ |
-| sample rate `fs` — old free-running boxcar arm | `fs/(2M)`            | 0.125 cyc/sample   |
-| symbol rate `Rs` — the on-time strobe          | `Rs/(2M)`            | 0.0156 cyc/sample  |
+| `nda_tap`          | Reads                                  | Update rate | Unambiguous `\|Δf\|` | Needs timing? |
+| ------------------ | -------------------------------------- | ----------- | -------------------- | ------------- |
+| `strobe` (default) | the on-time strobe                     | `Rs`        | `Rs/(2M)`            | **yes**       |
+| `mf_all`           | every terminal output                  | `m_out·Rs`  | `m_out·Rs/(2M)`      | no            |
+| `lo_arm`           | post-LO, through a free-running boxcar | LO rate     | `f_lo/(2M)`          | no            |
 
-The ceiling therefore drops by a factor of **`sps`** — 8× at the default rate and
-more at higher oversampling. **The pull-in range is now well below `Rs`, where
-before it was larger than `Rs`.** Measured practical pull-in is tighter still,
-about **0.01·`Rs`**, because an initial error must also survive the timing
-transient above; fixing that gate should recover the gap up to `Rs/(2M)`, but
-nothing recovers the factor of `sps` — that is inherent to discriminating at the
-symbol rate.
+Measured, QPSK at `sps = 8`, `m_out = 4` — the largest seeded frequency error
+each tap can still acquire, at its own best `bn_carrier`:
 
-!!! danger "Stable false lock at `Δf = k·Rs/M`, with a healthy lock statistic"
+| tap      | max acquired `Δf` |
+| -------- | ----------------- |
+| `strobe` | `0.01·Rs`         |
+| `mf_all` | `0.02·Rs`         |
+| `lo_arm` | **`0.08·Rs`**     |
 
-    `Rs/M` is exactly where the symbol-rate M-th power aliases onto zero, so the
-    **M-fold ambiguity is no longer only a phase ambiguity — it is a frequency
-    ambiguity with spacing `Rs/M`.** Measured on QPSK at `sps = 8` with an initial
-    error of `Rs/4`: the loop never moves, ending precisely where it started, and
-    reports a lock statistic of **+0.546** against the 0.62 ceiling.
+`lo_arm` is **8× the strobe**, which is exactly the `sps` factor the theory
+predicts (`fs/Rs = 8` here) — the tap reaches its own Nyquist bound rather than
+stalling at whatever the loop bandwidth allows.
+
+!!! note "`bn_carrier` means the same thing at every tap"
+
+    It stays normalised to the **symbol rate**, so one setting is one loop. What
+    the tap changes is the filter's *update period*; that does not widen the loop
+    by itself, it widens what the discriminator can see and improves the
+    stability margin — which is what then lets you raise `bn_carrier` on purpose.
+    At a *fixed* `bn_carrier` all three taps measure the same `0.01·Rs`, exactly
+    as they should. The table above is "each at its own best `bn`".
+
+!!! warning "`lo_arm` does not work at 8PSK"
+
+    The arm is a short lowpass, not the pulse matched filter, so it pays squaring
+    loss — and the raw M-th-power coherent gain over an arm goes as `Σ g_k^M`,
+    which at 8th power collapses (§2.3's gain-collapse result, made fatal by M).
+    Measured at Es/N0 20 dB: BPSK and QPSK decode cleanly on every tap (SER 0,
+    EVM ≈ −16 dB), while `lo_arm` at 8PSK sits at chance (SER 0.85, lock 0.081
+    against the 0.41 ceiling). Use `strobe` or `mf_all` for 8PSK.
+
+    `mf_all`'s ISI bias is real but survivable with the handover enabled: 8PSK
+    SER 0.001 against `strobe`'s 0.0005.
+
+!!! danger "Stable false lock at `Δf = k·Rs/M`, whatever the tap"
+
+    `Rs/M` is exactly where a symbol-rate M-th power aliases onto zero, so the
+    **M-fold ambiguity is a frequency ambiguity as well as a phase one**.
+    Measured on QPSK at `sps = 8` with an initial error of `Rs/4`: the loop never
+    moves, ending precisely where it started, and reports a lock statistic of
+    **+0.546** against the 0.62 ceiling.
 
     Nothing self-referenced detects this. The constellation is stationary, so a
     self-referenced EVM looks clean and blind M2M4 looks clean; the lock metric
-    looks healthy. It takes an **external** frequency reference, or a sync
-    word / known preamble, to tell `Δf = 0` from `Δf = k·Rs/M`.
+    looks healthy. It takes an **external** frequency reference, or a sync word /
+    known preamble. A faster tap moves the alias out proportionally (`F/M`, not
+    `Rs/M`), which is another reason the wide taps are worth having.
 
-If a wider acquisition range is needed, the answer is a **coarse frequency
-estimate ahead of the loop** — an FFT sweep, or the existing `ppe` 2-D rate×freq
-estimator — handed in via `init_norm_freq`, not a loop retune. That is what
-`init_norm_freq` is for.
-
-!!! warning "The discriminator runs on the strobe **only**"
-
-    The terminal stage emits `m_out` outputs per symbol, and it is tempting to
-    feed the discriminator every one of them — more updates, more averaging. It is
-    wrong: a **non-strobe output straddles two symbols**, so its M-th power is
-    intersymbol interference rather than carrier phase. The error is
-    modulation-dependent and does not average out. Measured on 8PSK this alone
-    held the receiver at chance (SER ≈ 0.85); restricting the discriminator to the
-    on-time strobe fixed it outright, and also deleted the two-rate machinery that
-    had existed only to reconcile a per-output carrier update with a per-symbol
-    timing update.
-
-!!! warning "The lock metric must keep running **while tracking**"
-
-    Gating the whole discriminator on `!tracking` — an easy optimisation, since
-    the NDA *steer* is unused once handed over — makes the lock EMA freeze at
-    whatever it held at handover, so the drop-back path becomes unreachable and a
-    receiver fed pure noise stays in `tracking` forever. The discriminator, the
-    lock EMA and the lock detector run **always**; only the *steer* is gated.
+If you need more range than any tap gives, the answer is a **coarse frequency
+estimate ahead of the loop** — an FFT sweep, or the `ppe` 2-D rate×freq
+estimator — handed in via `init_norm_freq`. That is what the parameter is for,
+and no loop bandwidth substitutes for it.
 
 ### 2.3 The NDA discriminator + lock signal (canonical definition)
 

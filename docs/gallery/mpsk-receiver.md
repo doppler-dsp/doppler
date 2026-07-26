@@ -121,48 +121,51 @@ signature of an inverted carrier error, not a weak one, and the per-M ceilings
 (BPSK ≈ 1, QPSK ≈ 0.62, 8PSK ≈ 0.41) are ceilings — a lock statistic *above* its
 ceiling means the loop gain is wrong, not that the lock is unusually good.
 
-!!! bug "Cold pull-in is currently unreliable — seed `init_norm_freq` if you can"
+### `nda_tap` — buying pull-in range back
 
-    Since the cascade rebuild the carrier loop **acquires reliably when it is
-    seeded** (`init_norm_freq` set at or near the true offset, so the loop only
-    has to hold it) but **not from a cold start** (`init_norm_freq=0`, loop must
-    find the offset). Measured on a clean, noiseless QPSK signal at `sps=8`, cold
-    acquisition succeeds in at best 4 of 6 data seeds, and widening `bn_carrier`
-    past 0.02 makes it worse rather than better — so this is not simply a pull-in
-    range limit. It fails even at offsets small enough that pull-in range cannot
-    be the explanation.
+The carrier discriminator's tap point sets how much frequency error it can even
+*see*: an M-th-power detector updating at rate `F` is unambiguous only for
+`|Δf| < F/(2M)`. Reading the on-time strobe is the cleanest input and the
+narrowest range; two wider taps trade signal quality for range, and both are
+also **timing-independent**, which the strobe tap is not.
 
-    Until it is fixed: **seed `init_norm_freq`** from a coarse frequency estimate
-    if you have one, keep `bn_carrier` modest (`0.002` is a good starting point
-    for a seeded loop), and **verify acquisition with a truth-free metric** (see
-    below) rather than assuming it. Note the example above seeds `init_norm_freq`
-    for exactly this reason.
+| `nda_tap`          | Update rate | Max acquired `Δf` (QPSK, `sps=8`) | Needs timing? |
+| ------------------ | ----------- | --------------------------------- | ------------- |
+| `strobe` (default) | `Rs`        | `0.01·Rs`                         | yes           |
+| `mf_all`           | `m_out·Rs`  | `0.02·Rs`                         | no            |
+| `lo_arm`           | LO rate     | **`0.08·Rs`**                     | no            |
 
-    Tracked as
-    [doppler-dsp/doppler#536](https://github.com/doppler-dsp/doppler/issues/536),
-    which also records a related `sps`-dependent instability: because the cascade
-    plan changes discontinuously with the rate, the largest stable `bn_carrier` is
-    not a smooth function of `sps`.
+`lo_arm` is 8× the strobe — exactly the `sps` factor theory predicts. It is
+fixed at construction, so nothing switches underneath you:
 
-!!! danger "The pull-in range is now below `Rs`, and `Δf = k·Rs/M` false-locks"
+```python
+rx = MpskReceiver(m=4, sps=8, m_out=4, bn_carrier=0.05, nda_tap="lo_arm")
+```
 
-    The discriminator moved from the sample rate to the symbol rate, so the
-    frequency error it can even *observe* shrank by a factor of `sps`: an
-    M-th-power detector is unambiguous only for `|Δf| < F/(2M)` at its update rate
-    `F`, which was `fs/(2M)` and is now `Rs/(2M)`. **Carrier pull-in is now well
-    below the symbol rate, where before it was above it** — measured ~0.01·`Rs`.
+`bn_carrier` keeps its meaning at every tap (symbol-rate normalised). The tap
+does not widen the loop by itself — it widens what the discriminator can see and
+improves the stability margin, which is what lets you then raise `bn_carrier`.
 
-    And `Rs/M` is exactly where the symbol-rate M-th power aliases onto zero, so
-    the M-fold ambiguity is now a **frequency** ambiguity too. At `Δf = k·Rs/M`
-    the loop sits still and still reports a healthy lock (+0.546 against the 0.62
-    QPSK ceiling, measured), with a stationary constellation — so EVM and M2M4
-    both look clean as well. **No self-referenced metric can catch this**; it
-    takes an external frequency reference or a sync word.
+!!! warning "`lo_arm` does not work at 8PSK"
 
-    For a wider acquisition range, put a coarse frequency estimate in front (an
-    FFT sweep, or `dsss.Ppe`) and pass it as
-    `init_norm_freq`. That is what the parameter is for — no loop bandwidth
-    reaches it.
+    Its arm is a short lowpass rather than the pulse matched filter, and the raw
+    M-th-power gain over an arm goes as `Σ g_k^M`, which collapses at 8th power.
+    Measured at Es/N0 20 dB: BPSK and QPSK decode cleanly on every tap (SER 0,
+    EVM ≈ −16 dB); `lo_arm` at 8PSK sits at chance (SER 0.85, lock 0.081 against
+    the 0.41 ceiling). Use `strobe` or `mf_all` for 8PSK.
+
+!!! danger "`Δf = k·F/M` is a stable false lock, at every tap"
+
+    `F/M` is where the M-th power aliases onto zero, so the M-fold ambiguity is a
+    **frequency** ambiguity as well as a phase one. Measured on QPSK with an
+    initial error of `Rs/4`: the loop never moves and still reports a lock of
+    **+0.546** against the 0.62 ceiling, with a stationary constellation — so
+    EVM and blind M2M4 both look clean too. **No self-referenced metric catches
+    this**; it takes an external frequency reference or a sync word. A faster tap
+    pushes the alias out proportionally.
+
+    Beyond any tap's range, put a coarse frequency estimate in front (an FFT
+    sweep, or `dsss.Ppe`) and pass it as `init_norm_freq`.
 
 ## Don't trust one metric — least of all a bit error rate
 

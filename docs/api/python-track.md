@@ -217,15 +217,27 @@ lk   = rx.lock               # carrier lock metric (-> + at lock, every M)
     (polyphase bank instead of a dense FIR, bank arm instead of a Farrow).
     Detection performance is unchanged; exact-output pins are not.
 
-!!! bug "Seed `init_norm_freq` — cold pull-in is currently unreliable"
+!!! tip "`nda_tap` — where the carrier discriminator reads"
 
-    The carrier loop acquires reliably when seeded (`init_norm_freq` at or near
-    the true offset) but not from a cold start (`init_norm_freq=0`), where it
-    succeeds in at best 4 of 6 data seeds on a clean noiseless signal. Widening
-    `bn_carrier` does not fix it. Seed the frequency if you have a coarse
-    estimate, and check acquisition with a truth-free metric rather than assuming
-    it. Tracked as
-    [doppler-dsp/doppler#536](https://github.com/doppler-dsp/doppler/issues/536).
+    An M-th-power discriminator updating at rate `F` can only observe
+    `|Δf| < F/(2M)`, so its tap point *is* its pull-in range. Fixed at
+    construction; measured maxima for QPSK at `sps=8`, `m_out=4`:
+
+    | `nda_tap`            | Update rate | Max acquired `Δf` | Needs symbol timing? |
+    | -------------------- | ----------- | ----------------- | -------------------- |
+    | `"strobe"` (default) | `Rs`        | `0.01·Rs`         | yes                  |
+    | `"mf_all"`           | `m_out·Rs`  | `0.02·Rs`         | no                   |
+    | `"lo_arm"`           | LO rate     | **`0.08·Rs`**     | no                   |
+
+    `bn_carrier` keeps its symbol-rate meaning at every tap — the tap widens what
+    the discriminator can see and the stability margin, which is what lets you
+    then raise `bn_carrier`. **`lo_arm` does not work at 8PSK** (its unmatched
+    arm's 8th-power gain collapses; measured SER 0.85). Beyond any tap's range,
+    pass a coarse frequency estimate as `init_norm_freq`.
+
+    Note `Δf = k·F/M` is a **stable false lock** at every tap, reporting a
+    healthy lock statistic on a stationary constellation that no self-referenced
+    metric can flag — resolving it needs an external reference or a sync word.
 
 ______________________________________________________________________
 

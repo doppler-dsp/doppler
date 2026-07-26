@@ -53,91 +53,53 @@ ______________________________________________________________________
     free-running ADC clock against the symbol clock — is no harder than an integer
     one.
 
-    **Known regression, found while documenting this and not yet fixed: carrier
-    acquisition now depends on timing lock, and cold pull-in is unreliable.** The
-    old NDA discriminator ran on a free-running boxcar arm and so was
-    timing-independent by construction — acquiring "with no data and no symbol
-    timing" was its whole point. The rebuilt discriminator runs on the on-time
-    strobe (it has to: fed every terminal output, 8PSK sat at chance, because a
-    non-strobe output straddles two symbols). Until the timing loop converges the
-    strobe is not a symbol, and the carrier loop integrates an invalid
-    discriminator output through the entire transient.
-
-    Measured at `sps=8`, QPSK, cold (`init_norm_freq=0`): timing takes ~180–240
-    symbols to settle, and across that window the lock statistic reads 0.9–1.7
-    against a QPSK ceiling of 0.62 — proof the discriminator input is not a valid
-    constellation. Whichever way that garbage pushes the loop decides the run;
-    pushed past the M-fold boundary the type-2 integrator holds it there and it
-    never recovers. About a third of data seeds fail, and **widening `bn_carrier`
-    makes it worse**, which is how you can tell it is not a pull-in-range limit.
-
-    **Separately and architecturally, the carrier pull-in range collapsed by a
-    factor of `sps`.** An M-th-power discriminator is unambiguous only while its
-    M-th-power phase advances less than π per update; at the sample rate that
-    bound was `fs/(2M)`, at the symbol rate it is `Rs/(2M)`. **Pull-in is now well
-    below the symbol rate where before it was above it** (measured ~0.01·`Rs`,
-    tighter still because an initial error must also survive the timing
-    transient). Worse, `Rs/M` is where the symbol-rate M-th power aliases onto
-    zero, so **the M-fold ambiguity is now a frequency ambiguity as well as a
-    phase one**: at `Δf = k·Rs/M` the loop sits still and reports a perfectly
-    healthy lock statistic (+0.546 against a 0.62 ceiling, measured), with a
-    stationary constellation that no self-referenced metric can flag. Telling that
-    apart from a true lock needs an external frequency reference or a sync word.
-    If you need a wider acquisition range, put a coarse frequency estimate in
-    front (an FFT sweep, or `ppe`) and hand it in via `init_norm_freq` — that is
-    what the parameter is for; no loop retune reaches it.
-
-    *Seeded* operation is unaffected — a seeded loop has nothing to integrate
-    toward and holds through the transient, which is exactly why the whole test
-    suite (every acquisition case passes the true offset into the constructor) is
-    green. So: **seed `init_norm_freq`** from a coarse estimate where you can, and
-    verify acquisition rather than assuming it. The fix direction is to gate the
-    carrier steer on the timing loop's existing lock detector. Tracked as
-    [#536](https://github.com/doppler-dsp/doppler/issues/536), which also records
-    the `sps`-dependent instability that follows from it (the cascade plan sets
-    the transient's length, and changes discontinuously with the rate).
-    `src/doppler/examples/mpsk_receiver_demo.py` is a cold-pull-in demo and
-    currently fails its own assertion; it has deliberately **not** been retuned to
-    pass.
-
-- **`RateConverter(pulse=…)` is now `MatchedRateConverter(…)`.** The matched
-    cascade is a *flavor* — the same object built by a different C constructor
-    (`RateConverter_create_matched`, unchanged) — which is what lets the whole
-    binding be manifest-generated: the entirely hand-written CPython fragment
-    is gone, and `resample.pyi` comes off `status_allow` (the last big entry).
-    Three consequences for callers:
-
-    - `compensate` defaults to **1** on the matched flavor (0 on the plain
-        converter, unchanged). On a CIC plan the droop fold is worth 28 dB for
-        a handful of taps per arm, so it is the right default where a matched
-        filter is involved.
-    - `bank_shape` is a **list**: `[num_phases, num_taps]`, or `[]` where it
-        was `None` (the cascade ends in an integer decimator, so there is no
-        bank to describe). Unpacking and indexing are unchanged.
-    - An out-of-range parameter raises `MemoryError` rather than `ValueError`
-        on the flavor: a jm view inherits none of its parent's `create_error`
-        translation, even though a flavor's constructor has strictly more
-        parameters and so more ways to fail. Pinned by a strict xfail and
-        filed upstream; the plain converter still raises `ValueError`.
-
-    New alongside: `narrow_pulse` plus a construction `UserWarning` for
-    `pulse="iandd"` with fewer than four output samples per symbol, where the
-    one-symbol-wide rectangle's matched filter degenerates to a 2–3 tap sum.
-
-- **`Ddcr` is a module object, not a `kind="handle"` module.** Same class
-    name, same constructor, same methods (`execute(x, out=None)`, `reset()`,
-    `close()`/`destroy()`, the context manager, the state triplet, the GIL
-    release) — but as an object it can carry a *flavor* (below), which a
-    handle cannot. Two behaviour notes: `execute()` now returns its own array
-    when no `out=` is given (the buffer stays optional, not required), and an
-    `out=` buffer of the **wrong dtype is silently not written** — the binding
-    casts it into a temporary and the returned array is still correct, where
-    the retired handle binding raised. That laxness is library-wide for every
-    `out=` object, now pinned by a test and filed upstream. The C core also
-    splits out of `ddc/ddc_core.{h,c}` into `ddcr/ddcr_core.{h,c}`, one core
-    per object as everywhere else.
+    Two acquisition faults surfaced while documenting this and are **fixed**
+    (see the `nda_tap` entry below and gh#536). Briefly: restricting the
+    discriminator to the on-time strobe had coupled carrier acquisition to
+    symbol timing, so the loop integrated an invalid discriminator output
+    through the ~130-symbol timing transient and failed to acquire for about a
+    third of data seeds; and the first-strobe AGC seed could latch a
+    pathological gain, reporting `lock` = 4.9e-19 on a receiver decoding every
+    bit correctly. The steer, the AGC seed and the handover now wait on the
+    timing loop's own lock detector.
 
 ### Added
+
+- **`nda_tap` — choose where the carrier discriminator reads.** An M-th-power
+    discriminator updating at rate `F` can only observe `|Δf| < F/(2M)`, so its
+    tap point *is* its pull-in range. Symbol-rate-only carrier tracking does not
+    get far without acquisition aid, so both receivers now take a construction
+    parameter selecting the trade:
+
+    | `nda_tap`            | Reads                            | Update rate | Max acquired `Δf` | Needs symbol timing? |
+    | -------------------- | -------------------------------- | ----------- | ----------------- | -------------------- |
+    | `"strobe"` (default) | the on-time strobe               | `Rs`        | `0.01·Rs`         | **yes**              |
+    | `"mf_all"`           | every terminal output            | `m_out·Rs`  | `0.02·Rs`         | no                   |
+    | `"lo_arm"`           | post-LO, free-running boxcar arm | LO rate     | **`0.08·Rs`**     | no                   |
+
+    (Measured, QPSK at `sps=8`, `m_out=4`, each at its own best `bn_carrier`.)
+    `lo_arm` is **8× the strobe** — exactly the `sps` factor theory predicts.
+
+    The second axis matters as much as the range: `strobe` is the only tap that
+    depends on symbol timing, so `mf_all` and `lo_arm` restore the property the
+    NDA path exists for — acquiring with no data *and no symbol timing*.
+
+    `bn_carrier` keeps its symbol-rate meaning at every tap; the tap widens what
+    the discriminator can see and the stability margin, which is what then lets
+    you raise `bn_carrier`. At a *fixed* `bn_carrier` all three taps measure the
+    same `0.01·Rs`. Fixed at construction — nothing switches underneath you.
+
+    **`lo_arm` does not work at 8PSK**: its arm is a short lowpass rather than
+    the pulse matched filter, and the raw M-th-power gain over an arm goes as
+    `Σ g_k^M`, which collapses at 8th power (measured SER 0.85, lock 0.081
+    against the 0.41 ceiling). BPSK and QPSK decode cleanly on every tap.
+
+    Also worth knowing at any tap: `Δf = k·F/M` is a **stable false lock** — the
+    M-fold ambiguity is a frequency ambiguity as well as a phase one. The loop
+    sits still reporting a healthy lock on a stationary constellation, so
+    neither EVM nor blind M2M4 can flag it. Resolving it needs an external
+    frequency reference or a sync word. Beyond any tap's range, pass a coarse
+    estimate as `init_norm_freq`.
 
 - **`track.MpskReceiverR` — the real-input M-PSK receiver.** `MpskReceiver` for a
     real IF: `steps()` and `bits()` take `float32` samples of a real bandpass

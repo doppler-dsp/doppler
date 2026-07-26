@@ -75,7 +75,12 @@ def test_create_defaults():
     assert rx.tracking == 0
     assert rx.segments == 4
     assert rx.sps == 8
-    assert rx.n == 4
+    # `n` lands in MpskReceiver's `m_out` slot, and the cascade rebuild
+    # changed what that means: terminal outputs per symbol now, not the
+    # retired NDA arm's dumps per symbol. So it is derived as the
+    # coherent-bound default (8), not the old "largest divisor of sps in
+    # {4,2,1}" -- which gave 4 here and did not decode at all.
+    assert rx.n == 8
     assert rx.chip_phase == 0.0
 
 

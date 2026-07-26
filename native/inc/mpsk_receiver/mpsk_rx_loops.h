@@ -97,10 +97,26 @@ extern "C"
  */
 #define MPSK_RX_AGC_BW 0.002
 
+/* Usable samples averaged to seed the arm AGC's gain (see mpsk_rx_disc).
+ * One sample is a draw from a random variable and at MPSK_RX_AGC_BW a wrong
+ * seed does not recover inside a short burst; a handful removes that
+ * variance. Kept well under the default warmup_syms (30) so seeding always
+ * finishes before the handover can fire. */
+#define MPSK_RX_AGC_SEED_SAMPS 8
+
 /* Default matched-filter bank arms — the timing resolution is 1/this of an
  * output period. What a composing C caller (the DSSS receivers) passes when it
  * has no reason to want anything else; the Python default matches. */
 #define MPSK_RX_NUM_PHASES 1024u
+
+/* Default terminal outputs per symbol — where an I&D matched filter reaches
+ * the coherent bound (see mpsk_receiver_create's @p m_out for the
+ * measurements). Same role as MPSK_RX_NUM_PHASES above: what a composing C
+ * caller passes when it has no reason to want anything else, so the composed
+ * receivers do not each carry their own copy of the number.
+ * MUST match `default` on m_out in objects/mpsk_receiver{,_r}.toml, which is
+ * what the Python binding uses. */
+#define MPSK_RX_M_OUT_DEFAULT 8
 
 /* Two-way handover rule (see mpsk_rx_loops_init's lock_thresh doc).
  * Declare fast / drop reluctantly: 8 straight above-threshold symbols hand
@@ -347,18 +363,42 @@ extern "C"
        Seeding off a sample that is not yet a symbol is the same bug from the
        other end: the gain can latch far too LOW just as easily. Measured
        before the timing gate below: `lock` = 4.9e-19, a denormal, on a
-       receiver decoding every bit correctly, so the handover never fired. */
-    if (!l->agc_seeded && may_act)
+       receiver decoding every bit correctly, so the handover never fired.
+
+       Average the first MPSK_RX_AGC_SEED_SAMPS usable samples instead of
+       taking ONE. A single sample is a sample of a random variable: a strobe
+       that straddles a transition, or an early one taken while a composing
+       front end is still settling, latches a gain that is simply wrong, and
+       at this bandwidth "wrong" is not self-correcting — the time constant is
+       ~1/MPSK_RX_AGC_BW = 500 symbols, so a burst shorter than that never
+       recovers. Measured in the DSSS stress sweep, which runs 700-symbol
+       bursts: two trials in twelve latched off a bad first sample and stayed
+       there, reporting `lock` = 5.59 and 0.18 against BPSK's ceiling of ~1.0
+       (i.e. ~5.6x hot and ~5x cold) with BER 0.235 and 0.043. Averaging a
+       handful of samples costs nothing and removes the variance that made it
+       a coin flip.
+
+       `agc_seeded` doubles as the counter (it is the only state this needs,
+       so the serialized layout does not change: same field, same type, and a
+       value below the target simply means "still averaging"). */
+    if (l->agc_seeded < MPSK_RX_AGC_SEED_SAMPS && may_act)
       {
         double p0 = (double)(crealf (z) * crealf (z) + cimagf (z) * cimagf (z));
         if (p0 > 0.0)
           {
-            l->car_agc.p_avg   = p0;
-            l->car_agc.gain_db = l->car_agc.ref_db - 10.0 * log10 (p0);
+            /* Exact arithmetic mean of the usable samples seen so far. */
+            int k = l->agc_seeded;
+            l->car_agc.p_avg
+                = (k == 0) ? p0
+                           : l->car_agc.p_avg + (p0 - l->car_agc.p_avg) / (k + 1);
+            l->car_agc.gain_db
+                = l->car_agc.ref_db - 10.0 * log10 (l->car_agc.p_avg);
             l->car_agc.g_last
                 = (float)agc_exp10_ (l->car_agc.gain_db * 0.05);
           }
-        l->agc_seeded = 1;
+        /* Advance even on a zero sample, so a pathological all-zero prefix
+           cannot hold the loop in "seeding" forever. */
+        l->agc_seeded++;
       }
 
     double pe, lk;
@@ -521,7 +561,14 @@ extern "C"
  * loop's and the carrier loop filter's self-validating sub-blobs. The arm AGC
  * is running state too. Config is restored by the owner's create(). */
 #define MPSK_RX_LOOPS_STATE_MAGIC DP_FOURCC ('M', 'R', 'X', 'L')
-#define MPSK_RX_LOOPS_STATE_VERSION 2u
+/* v3: `agc_seeded` became a COUNTER (the AGC seed averages
+ * MPSK_RX_AGC_SEED_SAMPS samples instead of taking one), so the flags word
+ * carries it in bits 8..15 where v2 held a single "seeded" bit. The blob's
+ * SIZE is unchanged — the counter reuses spare bits of an existing u64 — so
+ * only the version distinguishes them, and it must, since a v2 blob's bit 2
+ * read as a count would resume a seeded receiver mid-seeding and corrupt its
+ * gain. Rejected rather than reinterpreted, per the envelope rule. */
+#define MPSK_RX_LOOPS_STATE_VERSION 3u
 
   /** @brief Bytes mpsk_rx_loops_get_state() writes. */
   size_t mpsk_rx_loops_state_bytes (const mpsk_rx_loops_t *l);

@@ -3,16 +3,20 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* Largest divisor of sps in {4, 2, 1} -- MpskReceiver's own carrier-arm
- * count, mirroring dsss_receiver_core.c's own _derive_n(). */
+/* MpskReceiver's terminal outputs per symbol (`m_out`), mirroring
+ * dsss_receiver_core.c's own _derive_m_out() -- see the full rationale
+ * there. Short version: this slot used to hold the retired `n` (the NDA
+ * arm's dumps per symbol, so dividing sps exactly was the point) and the old
+ * divisor rule survived the rename into a parameter that means something
+ * else. It must be EVEN in [2, 8] and need not divide sps, so prefer the
+ * coherent-bound default and step down only as far as sps allows. */
 static int
-_derive_n (size_t sps)
+_derive_m_out (size_t sps)
 {
-  if (sps % 4 == 0)
-    return 4;
-  if (sps % 2 == 0)
-    return 2;
-  return 1;
+  int m = MPSK_RX_M_OUT_DEFAULT;
+  while (m > 2 && (size_t)m > sps)
+    m -= 2;
+  return m;
 }
 
 /* Reset the symbol-lock detector's RUNNING state (config -- alpha, lockdet
@@ -196,9 +200,15 @@ _build_track_chain (async_dsss_receiver_state_t *s, double chip_phase,
    * target_rate=sps*symbol_rate, a much smaller rate than the front end)
    * double-counts and can alias past Nyquist at large offsets, far
    * outside MpskReceiver's own carrier_nda pull-in range. */
+  /* bn_timing 0.005, matching dsss_receiver_core.c's own _build_chain -- see
+     the measurement table there. Short version: the rebuild's timing loop
+     steers RateSync's accumulator rather than a Farrow interpolator, 0.01 is
+     too wide for that on a despread stream, and the value is chosen on
+     steady-state EVM rather than BER (BPSK's BER saturates first, and the
+     BER-optimal 0.001 is ~8 dB worse in EVM). */
   mpsk_receiver_state_t *rx = dp_xnn (mpsk_receiver_create (
       s->m, (double)sps, (size_t)n, MPSK_RX_PULSE_IANDD, 0.35, 8, 0.01, 0.707,
-      0.01, 1, 0.3, 0.0, 30, s->differential, MPSK_RX_NUM_PHASES,
+      0.005, 1, 0.3, 0.0, 30, s->differential, MPSK_RX_NUM_PHASES,
       MPSK_RX_NDA_TAP_STROBE));
 
   /* Per-CODE-PERIOD cadence (tsamps = one whole period), matching
@@ -536,11 +546,11 @@ async_dsss_receiver_create (
                        &obj->refine_rc_out_cap);
   obj->refine_samples_fed = 0;
 
-  _build_track_chain (obj, 0.0, 0.0, segments, sps, _derive_n (sps), &obj->car,
-                      &obj->dll, &obj->rc, &obj->rx);
+  _build_track_chain (obj, 0.0, 0.0, segments, sps, _derive_m_out (sps),
+                      &obj->car, &obj->dll, &obj->rc, &obj->rx);
   obj->segments      = segments;
   obj->sps           = sps;
-  obj->n             = _derive_n (sps);
+  obj->n             = _derive_m_out (sps);
   obj->car_carry_len = 0; /* both placeholder builds share this buffer */
 
   obj->seed_chip_phase     = 0.0;

@@ -46,8 +46,8 @@ seed_agc (mpsk_rx_loops_t *l)
   l->car_agc.gain_update_period = AGC_DECIM_DEFAULT;
   l->car_agc.gain_phase         = 0;
   l->car_agc.clip_lin = (float)agc_exp10_ (l->car_agc.clip_db * 0.05);
-  l->agc_seeded       = 0; /* the first strobe sets the level; see
-                              mpsk_rx_take_output */
+  l->agc_seeded       = 0; /* counts the strobes averaged to set the level;
+                              see mpsk_rx_disc's seeding block */
 }
 
 /* Configure the carrier PI loop. Both discriminators fire once per recovered
@@ -279,9 +279,12 @@ mpsk_rx_loops_get_state (const mpsk_rx_loops_t *l, void *blob)
   dp_w_f64 (&w, l->car_error);
   dp_w_f64 (&w, l->lock);
   dp_w_u64 (&w, (uint64_t)l->sym_count);
+  /* agc_seeded is a COUNTER (0..MPSK_RX_AGC_SEED_SAMPS), not a flag: it rides
+     in bits 8..15 so the blob size stays put. See the v3 note on
+     MPSK_RX_LOOPS_STATE_VERSION. */
   dp_w_u64 (&w,
-            (uint64_t)((l->tracking ? 1u : 0u) | (l->have_prev_idx ? 2u : 0u)
-                       | (l->agc_seeded ? 4u : 0u)));
+            (uint64_t)((l->tracking ? 1u : 0u) | (l->have_prev_idx ? 2u : 0u))
+                | (((uint64_t)l->agc_seeded & 0xFFu) << 8));
   dp_w_u64 (&w, (uint64_t)l->prev_idx);
   dp_w_u32 (&w, l->handover.cnt);
   dp_w_u32 (&w, (uint32_t)l->handover.locked);
@@ -317,7 +320,7 @@ mpsk_rx_loops_set_state (mpsk_rx_loops_t *l, const void *blob)
   l->prev_idx      = (unsigned)dp_r_u64 (&r);
   l->tracking      = (flags & 1u) ? 1 : 0;
   l->have_prev_idx = (flags & 2u) ? 1 : 0;
-  l->agc_seeded    = (flags & 4u) ? 1 : 0;
+  l->agc_seeded    = (int)((flags >> 8) & 0xFFu);
 
   l->handover.cnt    = dp_r_u32 (&r);
   l->handover.locked = (int)dp_r_u32 (&r);

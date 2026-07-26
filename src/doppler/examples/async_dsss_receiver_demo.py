@@ -140,7 +140,12 @@ BN = 0.002  # every validated Dll example in this codebase uses this, not
 # Stage 2's module docstring).
 
 MPSK_SPS = 8  # MpskReceiver's own constructor default -- a "normal" config
-MPSK_N = 4
+# Terminal outputs per symbol. This was `n=4` (the retired NDA arm's dumps
+# per symbol) until the cascade rebuild renamed the slot to `m_out`, which
+# means something else: 4 does not decode this despread stream at all, and 8
+# is where an I&D matched filter reaches the coherent bound. Mirrors what
+# dsss_receiver_core.c's _derive_m_out() picks for the C composition.
+MPSK_M_OUT = 8
 
 
 # --8<-- [start:acq_symbol_rate]
@@ -191,10 +196,13 @@ def _new_chain(chip_phase: float, doppler_hz_est: float):
     rx = MpskReceiver(
         m=2,
         sps=MPSK_SPS,
-        n=MPSK_N,
+        m_out=MPSK_M_OUT,
         pulse="iandd",
         bn_carrier=0.01,
-        bn_timing=0.01,
+        # 0.005, matching the C composition: the rebuild's timing loop steers
+        # RateSync's accumulator, and 0.01 locks less reliably on it. See
+        # dsss_receiver_core.c's _build_chain for the measurement table.
+        bn_timing=0.005,
         acq_to_track=1,
         lock_thresh=0.3,
         init_norm_freq=doppler_hz_est / target_rate,

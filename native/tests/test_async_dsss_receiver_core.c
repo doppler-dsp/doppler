@@ -275,7 +275,10 @@ _test_arg_validation (void)
       CHECK (async_dsss_receiver_get_refining (rx) == 0);
       CHECK (async_dsss_receiver_get_segments (rx) == 4);
       CHECK (async_dsss_receiver_get_sps (rx) == 8);
-      CHECK (async_dsss_receiver_get_n (rx) == 4);
+      /* `n` is MpskReceiver's m_out (terminal outputs per symbol) since the
+         cascade rebuild, so it derives to the coherent-bound default rather
+         than the retired arm rule's "largest divisor of sps in {4,2,1}". */
+      CHECK (async_dsss_receiver_get_n (rx) == MPSK_RX_M_OUT_DEFAULT);
       CHECK (async_dsss_receiver_get_chip_phase (rx) == 0.0);
       CHECK (async_dsss_receiver_get_code_rate (rx) == 1.0);
       async_dsss_receiver_destroy (rx);

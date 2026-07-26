@@ -94,7 +94,11 @@ _test_arg_validation (void)
       CHECK (dsss_receiver_get_tracking (rx) == 0);
       CHECK (dsss_receiver_get_segments (rx) == 4);
       CHECK (dsss_receiver_get_sps (rx) == 8);
-      CHECK (dsss_receiver_get_n (rx) == 4); /* sps=8 -> largest divisor 4 */
+      /* `n` is MpskReceiver's m_out: terminal outputs per symbol since the
+         cascade rebuild, not the retired NDA arm's dumps per symbol. So it
+         derives to the coherent-bound default, not the old "largest divisor
+         of sps in {4,2,1}" (which gave 4 and did not decode). */
+      CHECK (dsss_receiver_get_n (rx) == MPSK_RX_M_OUT_DEFAULT);
       CHECK (dsss_receiver_get_chip_phase (rx) == 0.0);
       CHECK (dsss_receiver_get_code_rate (rx) == 1.0);
       dsss_receiver_destroy (rx);

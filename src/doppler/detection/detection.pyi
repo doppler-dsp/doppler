@@ -310,7 +310,8 @@ def det_snr(dwell: int, pd_min: float, pfa: float) -> float:
     >>> snr = det_snr(dwell=8, pd_min=0.9, pfa=1e-6)
     >>> round(snr, 3)
     1.613
-    >>> det_pd(snr=snr, dwell=8, threshold=det_threshold(pfa=1e-6)) >= 0.9
+    >>> pd = det_pd(snr=snr, dwell=8, threshold=det_threshold(pfa=1e-6))
+    >>> abs(pd - 0.9) < 1e-9   # det_snr inverts det_pd, to solver tolerance
     True
 
     """
@@ -677,8 +678,9 @@ def det_snr_power(dwell: int, pd_min: float, pfa: float) -> float:
     >>> sp = det_snr_power(dwell=8, pd_min=0.9, pfa=1e-6)
     >>> round(sp, 4)
     2.6017
-    >>> det_pd_power(snr_power=sp, dwell=8,
-    ...              power_threshold=det_threshold_power(pfa=1e-6)) >= 0.9
+    >>> pd = det_pd_power(snr_power=sp, dwell=8,
+    ...                   power_threshold=det_threshold_power(pfa=1e-6))
+    >>> abs(pd - 0.9) < 1e-9   # det_snr_power inverts det_pd_power
     True
 
     """

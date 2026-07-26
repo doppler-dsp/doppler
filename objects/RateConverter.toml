@@ -6,6 +6,9 @@ no_state = "true"
 no_step = "true"
 class_name = "RateConverter"
 serializable = "true"
+# A NULL create means a parameter was out of range, not OOM (gh-482).
+create_error = "ValueError"
+create_error_message = "RateConverter: invalid parameter (need rate > 0, 0 <= beta <= 1, span >= 1, pulse_sps > 0, num_phases a power of two >= 2)"
 depends_on = [{ name = "resamp", link = true }, "hbdecim_core", "cic_core", { name = "fir", link = true }, "resample_core"]
 
 [[RateConverter.init_params]]
@@ -18,13 +21,57 @@ name = "compensate"
 type = "int"
 default = "0"
 
+# The matched FLAVOR (gh-504): same RateConverter_state_t, same methods, one
+# different constructor. The terminal stage carries a pulse-shaped bank
+# instead of the Kaiser anti-alias one, so the cascade converts the rate AND
+# matched-filters in a single dot product, and that stage's polyphase arm is
+# the fractional timing delay `execute_ctrl` steers. Droop compensation is
+# folded into the bank rather than appended as a stage.
+[[RateConverter.views]]
+class_name = "MatchedRateConverter"
+create_fn = "RateConverter_create_matched"
+init_params = [
+  { name = "rate", type = "double", default = "1.0" },
+  { name = "compensate", type = "int", default = "1" },
+  { name = "pulse", type = "string_enum:iandd,rrc", default = "rrc" },
+  { name = "beta", type = "double", default = "0.35" },
+  { name = "span", type = "size_t", default = "8" },
+  { name = "pulse_sps", type = "double", default = "2.0" },
+  { name = "num_phases", type = "size_t", default = "1024" },
+]
+warnings = [
+  { after = "__init__", condition = "narrow_pulse", category = "UserWarning", message = "pulse=\"iandd\" with pulse_sps < 4: the rectangle is one symbol wide, so its matched filter is a 2-3 tap sum here and barely opens the eye (measured on the timing loop this feeds: lock statistic -0.34 at 2 samples/symbol against +0.95 at 4). Use pulse_sps >= 4, or pulse=\"rrc\"." },
+]
+
 [[RateConverter.methods]]
 name = "execute"
 arg_type = "void"
 return_type = "float _Complex"
 variable_output = true
 pass_capacity = true
-params = [{name = "x", type = "float _Complex[]"}]
+params = [{ name = "x", type = "float _Complex[]" }]
+
+[[RateConverter.methods]]
+name = "execute_ctrl"
+arg_type = "void"
+return_type = "float _Complex"
+variable_output = true
+pass_capacity = true
+params = [
+  { name = "x", type = "float _Complex[]" },
+  { name = "ctrl", type = "double" },
+]
+
+[[RateConverter.methods]]
+name = "execute_ctrl_push"
+arg_type = "void"
+return_type = "float _Complex"
+variable_output = true
+pass_capacity = true
+params = [
+  { name = "x", type = "float _Complex" },
+  { name = "ctrl", type = "double" },
+]
 
 [[RateConverter.methods]]
 name = "reset"
@@ -35,3 +82,27 @@ return_type = "void"
 name = "rate"
 type = "double"
 writable = true
+
+[[RateConverter.properties]]
+name = "clipped"
+type = "bool"
+doc = "True if any planned CIC stage has clipped its input since the last `reset()`. The cascade inherits the CIC's input bound (`|Re|`, `|Im| <= 1.0`) whenever `stages` names a CIC -- any decimation by 8 or more. The clip is invisible in the samples (finite, no NaN, merely distorted), so this is the only reliable check, and it is free: the boundary comparisons run on every sample regardless. Always False for a cascade with no CIC stage -- those plans are scale-free."
+
+[[RateConverter.properties]]
+name = "narrow_pulse"
+type = "bool"
+doc = "True when a rectangular pulse was selected with fewer than four output samples per symbol, where its matched filter degenerates to a 2-3 tap sum. Construction also raises a UserWarning; this is the same diagnostic to pull rather than catch. Always False for `pulse=\"rrc\"` and for a plain converter."
+
+# Container properties: jm generates the getter over a count/value accessor
+# pair implemented in _core.c (gh-543).
+[[RateConverter.properties]]
+name = "stages"
+type = "list"
+value_type = "const char *"
+doc = "Stage labels for the planned cascade, e.g. `['CIC(8)', 'Resampler(0.8)']`. A terminal stage carrying a pulse-shaped bank names its pulse: `'Resampler(0.923077,rrc)'`."
+
+[[RateConverter.properties]]
+name = "bank_shape"
+type = "list"
+value_type = "size_t"
+doc = "`[num_phases, num_taps]` of the terminal polyphase stage, or `[]` when the cascade ends in an integer decimator and so has no bank to describe. `num_taps` is the per-output MAC count and, times `num_phases`, the bank's size in floats. With a pulse selected it is set by the terminal stage's rate rather than the input rate -- which is what keeps a matched filter affordable at a high input samples-per-symbol: the same 34 taps per arm at 4 samples/symbol and at 256, where filtering at the input rate would need 4225."

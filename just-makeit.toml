@@ -51,13 +51,14 @@ c_deps = ["hbdecim", "resamp", "wfmcompose"]
 # analogous jm gap. spectral.pyi is hand-maintained for FFT/FFT2D's execute*
 # methods and PSD's band_power() for the same reason (plus FFT's execute_ci16/
 # execute_ci8, which are hand-written and never had a stub at all).
-# resample.pyi is hand-maintained for RateConverter.execute(): the fragment
-# itself is entirely hand-written (custom growth/ping-pong logic, a `stages`
-# getset and DP_PY_STATE_METHODS macro not representable in the manifest at
-# all), so out= was added by hand rather than via jm apply/regenerate — the
-# .pyi needs the matching hand-fix for the same reason as the rest of this
-# list. Restore these hand-fixes after every `jm apply` until fixed
-# upstream.
+# resample.pyi came OFF this list with the RateConverter flavor migration:
+# its fragment was entirely hand-written (ctor dispatch between
+# RateConverter_create and _create_matched, a `stages` getset, `bank_shape`,
+# the growth/ping-pong logic) and is now fully manifest-generated — the
+# dispatch is a `[[RateConverter.views]]` flavor (gh-504), `stages` and
+# `bank_shape` are container properties over count/value accessors (gh-543),
+# and the buffer machinery is jm's own. Restore the remaining hand-fixes
+# after every `jm apply` until fixed upstream.
 #
 # source.pyi (NCO/LO.steps_ctrl) and accumulator.pyi (AccTrace.value) came
 # OFF this list on the 0.30.1 pin bump: both were here for the same
@@ -89,7 +90,6 @@ status_allow = [
     "src/doppler/measure/measure.pyi",
     "src/doppler/spectral/spectral.pyi",
     "src/doppler/wfm/wfm.pyi",
-    "src/doppler/resample/resample.pyi",
 ]
 
 # Benchmark only the 64k block (jm-gh-390). doppler dropped the small-block

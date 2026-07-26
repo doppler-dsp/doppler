@@ -1,8 +1,9 @@
 # resample/resample.pyi — type stubs for the resample C extension.
-from typing import Any, Literal
+from typing import Any, final, Literal
 import numpy as np
 from numpy.typing import NDArray
 
+@final
 class Resampler:
     """Create a Resampler with the built-in 4096×19 Kaiser bank. The bank provides ~60 dB alias rejection with 0.4/0.6 pass/stop normalised cutoffs. Pass rate >= 1.0 to interpolate (upsample); pass rate < 1.0 to decimate (downsample). For a custom bank use Resampler_create_custom() instead.
 
@@ -91,8 +92,8 @@ class Resampler:
 
         """
 
-    def execute_ctrl_max_out(self) -> int:
-        """Max output length execute_ctrl() can produce for the current state. Use to size the ``out=`` buffer."""
+    def execute_ctrl_max_out(self, *args: Any, **kwargs: Any) -> Any:
+        """<<MANUAL_STUB>> hand-write this signature/docstring in the .pyi — jm preserves it verbatim on future regens."""
 
     def state_bytes(self) -> int:
         """Serialized state size in bytes."""
@@ -122,12 +123,13 @@ class Resampler:
 
     def __exit__(self, *args: object) -> None: ...
 
+@final
 class Halfbanddecimator:
     """Create a HalfbandDecimator with caller-supplied FIR taps. Implements a 2:1 polyphase halfband decimator over CF32 IQ. The caller provides the FIR branch coefficient array h; use ``doppler.resample.kaiser_num_taps(2, atten, pb, sb)`` to size it and scipy or the built-in bank helper to design the prototype. Output length is approximately x_len / 2 per execute() call.
 
     Parameters
     ----------
-    h : NDArray[np.float32], default ...
+    h : NDArray[np.float32]
         Float32 FIR branch coefficients, length num_taps. Must be a symmetric halfband prototype (antisymmetric even-indexed taps zeroed).
 
     """
@@ -201,23 +203,9 @@ class Halfbanddecimator:
 
     def __exit__(self, *args: object) -> None: ...
 
+@final
 class CIC:
-    """Create a 4-stage, M=1 CIC decimation filter. Allocates the state struct on the heap and pre-computes the normalisation right-shift (CIC_N * log2(R) bits). All integrator and comb accumulators are zeroed; the first output arrives after R input samples. Returns NULL for invalid R or OOM.
-
-
-    Input amplitude is bounded: ``|Re|`` and ``|Im|`` <= 1.0. A component
-    beyond +-1.0 is clipped at the boundary before any filtering -- silently,
-    with no error and no NaN. Unlike doppler's floating-point blocks this one
-    is not scale-free: scale the input into range first, and check the sticky
-    ``clipped`` flag, which is free and is the only reliable signal that it
-    happened.
-
-    >>> import numpy as np
-    >>> from doppler.resample import CIC
-    >>> c = CIC(R=16)
-    >>> _ = c.decimate(np.full(256, 2.0, dtype=np.complex64))
-    >>> c.clipped                       # the output looked fine; it wasn't
-    True
+    """Create a 4-stage, M=1 CIC decimation filter. Allocates the state struct on the heap and pre-computes the normalisation right-shift (CIC_N * log2(R) bits). All integrator and comb accumulators are zeroed; the first output arrives after R input samples. Returns NULL for invalid R or OOM. Input amplitude is bounded: |Re| and |Im| <= 1.0. A component beyond +-1.0 is clipped at the boundary before any filtering; the sample stream gives no sign of it, so check the sticky clipped flag. Unlike doppler's floating-point blocks this one is not scale-free -- scale the input into range first.
 
     Parameters
     ----------
@@ -268,6 +256,11 @@ class CIC:
     def decimate(self, x: NDArray[np.complex64], out: NDArray[np.complex64] | None = None) -> NDArray[np.complex64]:
         """Decimate a block of CF32 samples through the CIC pipeline. Each sample is converted to offset-binary UQ16, pushed through CIC_N integrators (unsigned wrapping), and when the phase counter reaches R the integrated value is passed through CIC_N M=1 comb stages and converted back to CF32.  State persists between calls. Feeding blocks that are multiples of R gives predictable output counts (exactly n_in/R samples per block).
 
+        @note **Input amplitude is bounded: |Re| and |Im| <= 1.0.** A component
+        beyond +-1.0 is clipped at the boundary before filtering; the sample
+        stream gives no sign of it, so check the sticky clipped flag. Scale the
+        input into range first; see the file header.
+
         Parameters
         ----------
         x : NDArray[np.complex64]
@@ -309,6 +302,10 @@ class CIC:
     def shift(self) -> int:
         """Shift."""
 
+    @property
+    def clipped(self) -> bool:
+        """True if any input component has exceeded the +-1.0 bound since the last reset(). Sticky, and free to read: the CIC's boundary comparisons run on every sample anyway, so it records something the sample stream cannot tell you -- a clipped stream still looks entirely plausible (finite, no NaN, merely distorted), so this flag is the only reliable check."""
+
     def destroy(self) -> None:
         """Release C resources immediately."""
 
@@ -316,56 +313,16 @@ class CIC:
 
     def __exit__(self, *args: object) -> None: ...
 
+@final
 class RateConverter:
     """Create a rate converter for the given output/input rate ratio. Selects the cheapest cascade of CIC, HalfbandDecimator, and/or polyphase Resampler stages at construction time (see file header for the selection table). Setting compensate=1 appends a closed-form Molnar-Vucic CIC droop-compensating FIR after any CIC stage, which improves passband flatness at the cost of one extra FIR stage.
-
-    Input amplitude is bounded whenever the plan contains a CIC stage -- that
-    is, any decimation by 8 or more: ``|Re|`` and ``|Im|`` <= 1.0, clipped
-    beyond that, before any filtering, silently. ``stages`` is how you tell
-    whether the bound applies; ``clipped`` is how you tell whether you hit it.
-
-    >>> from doppler.resample import RateConverter
-    >>> import numpy as np
-    >>> RateConverter(rate=0.1).stages          # a CIC is planned for you
-    ['CIC(8)', 'Resampler(0.8)']
-    >>> rc = RateConverter(rate=0.1)
-    >>> x = np.full(4096, 2.0, dtype=np.complex64)
-    >>> round(float(rc.execute(x)[-1].real), 3)   # a 2.0 input, unity out
-    1.0
-    >>> rc.clipped
-    True
 
     Parameters
     ----------
     rate : float, default 1.0
         Output-to-input sample rate ratio. Any positive float.
     compensate : int, default 0
-        Non-zero to correct CIC passband droop. With ``pulse="none"`` this
-        appends a compensating FIR after any CIC stage; with a pulse selected
-        it folds into the bank instead (no extra stage), where it is worth
-        about 28 dB of EVM and should be considered mandatory.
-    pulse : {"none", "rrc", "iandd"}, default "none"
-        Shape of the terminal stage's polyphase bank. ``"none"`` is the plain
-        Kaiser anti-alias bank (pure rate conversion). Anything else makes the
-        cascade its own matched filter: the same dot product converts the rate
-        and matched-filters, and the stage's arm is the fractional timing delay
-        ``execute_ctrl``/``execute_ctrl_push`` steer. Selecting a pulse also
-        guarantees the terminal fractional stage exists — without it,
-        ``rate=2/64`` plans a bare ``CIC(32)`` with nothing steerable at the
-        end.
-    beta : float, default 0.35
-        RRC roll-off in ``[0, 1]``. Ignored for ``"iandd"``.
-    span : int, default 8
-        One-sided RRC span in symbols. Ignored for ``"iandd"``, whose support
-        is always exactly one symbol.
-    pulse_sps : float, default 2.0
-        The pulse's period in **output** samples. A shape parameter, not a
-        rate-planning one: the planner still knows nothing of symbols, so a
-        caller wanting ``m`` samples per symbol at ``sps`` asks for
-        ``rate = m/sps`` and ``pulse_sps = m``.
-    num_phases : int, default 1024
-        Terminal-stage arms; a power of two. Sets the fractional timing
-        resolution to ``1/num_phases`` of an output period.
+        Non-zero to append a CIC passband-droop compensating FIR after any CIC stage.
 
     Examples
     --------
@@ -374,26 +331,8 @@ class RateConverter:
     >>> from doppler.resample import RateConverter
     >>> obj = RateConverter(rate=1.0, compensate=0)
 
-    A matched cascade decimates cheaply and matched-filters in one pass, and
-    keeps a steerable stage at the end even when the rate divides exactly:
-
-    >>> RateConverter(rate=2 / 64).stages
-    ['CIC(32)']
-    >>> RateConverter(rate=2 / 64, pulse="rrc", compensate=1).stages
-    ['CIC(32)', 'Resampler(1,rrc)']
-
     """
-    # jm:hand
-    def __init__(
-        self,
-        rate: float = ...,
-        compensate: int = ...,
-        pulse: str = ...,
-        beta: float = ...,
-        span: int = ...,
-        pulse_sps: float = ...,
-        num_phases: int = ...,
-    ) -> None: ...
+    def __init__(self, rate: float = ..., compensate: int = ...) -> None: ...
 
     def execute(self, x: NDArray[np.complex64], out: NDArray[np.complex64] | None = None) -> NDArray[np.complex64]:
         """Convert a block of CF32 samples through the cascade. Passes input through each stage in order, ping-ponging between two intermediate buffers. State persists between calls, so contiguous calls on sequential blocks give the same result as one large call. Output length is approximately n_in * rate.
@@ -422,56 +361,65 @@ class RateConverter:
     def execute_max_out(self) -> int:
         """Max output length execute() can produce for the current state."""
 
-    # jm:hand
     def execute_ctrl(self, x: NDArray[np.complex64], ctrl: float) -> NDArray[np.complex64]:
-        """Convert a block, steering the cascade's fractional stage by a scalar rate deviation. The fixed integer stages (HalfbandDecimator / CIC) run unchanged; ``ctrl`` is forwarded to the terminal Resampler stage's accumulator, so its effective rate becomes ``stage_rate + ctrl`` for this call. A timing or rate-tracking loop updates ``ctrl`` per block to align strobes after cheap integer decimation. No-op (falls through to ``execute``) when the cascade has no terminal Resampler stage.
+        """Convert a block, steering the cascade's fractional stage by ctrl.
+
+        The control-port form of RateConverter_execute(): the fixed integer
+        stages (HalfbandDecimator / CIC) run unchanged, and the scalar rate
+        deviation ctrl is forwarded to the **terminal polyphase Resampler
+        stage's** accumulator (via resamp_execute_ctrl_push) — so its effective
+        rate becomes `stage_rate + ctrl` for this call. This exposes the
+        fractional tail's control port that RateConverter_execute() hides: a
+        timing/rate-tracking loop can decimate a high input rate cheaply through
+        the HB/CIC stages and then arbitrary-rate + strobe-align in the last
+        stage, updating ctrl per block.
+
+        `ctrl` is referenced to the terminal stage's (post-decimation) rate, not
+        the overall rate. It is meaningful only when the cascade actually ends
+        in a Resampler stage; a pure integer HB/CIC cascade has no fractional
+        stage to steer, so this **falls through to RateConverter_execute()**
+        (ctrl ignored).
 
         Parameters
         ----------
         x : NDArray[np.complex64]
-            Input samples.
+            Input.
         ctrl : float
             Rate deviation added to the terminal Resampler stage's rate.
 
         Returns
         -------
         NDArray[np.complex64]
-            CF32 output array.
-
-        Examples
-        --------
-        >>> from doppler.resample import RateConverter
-        >>> import numpy as np
-        >>> rc = RateConverter(rate=0.5, compensate=0)
-        >>> y = rc.execute_ctrl(np.ones(256, dtype=np.complex64), 0.0)
-        >>> y.dtype == np.complex64
-        True
-
+            CF32 output count.
         """
 
-    # jm:hand
     def execute_ctrl_push(self, x: complex, ctrl: float) -> NDArray[np.complex64]:
-        """Push ONE input sample; return whatever outputs it completes. The per-input form of ``execute_ctrl`` — and the only form a closed loop can use, because a block call has to know its whole ``ctrl`` history up front while a timing loop computes each correction *from* the outputs already emitted. Feeding a stream one sample at a time reproduces ``execute_ctrl`` on the same block bit-for-bit when ``ctrl`` is held constant. Returns 0 samples (a decimator between strobes — the common case), 1, or several; the array is independent, not a view.
+        """Push ONE input sample; emit whatever outputs it completes.
+
+        The per-input streaming form of RateConverter_execute_ctrl(), and the
+        only form a closed loop can use: a block call must know its whole `ctrl`
+        history up front, whereas a timing loop computes each correction *from*
+        the outputs already emitted. Feeding a stream one sample at a time
+        through this reproduces RateConverter_execute_ctrl() on the same block
+        bit-for-bit when ctrl is held constant (the cascade is block-boundary
+        invariant), so the cheap block form stays correct for open-loop use.
+
+        The integer HB/CIC stages consume the sample and emit at most one
+        intermediate sample each; the terminal Resampler stage then emits 0
+        outputs (a decimator between strobes — the common case), 1, or several
+        (an interpolator). A cascade with no terminal Resampler ignores ctrl.
 
         Parameters
         ----------
         x : complex
-            One input sample.
+            One CF32 input sample.
         ctrl : float
-            Rate deviation added to the terminal Resampler stage's rate.
+            Rate deviation added to the terminal stage's rate for this input (referenced to the terminal, post-decimation rate).
 
         Returns
         -------
         NDArray[np.complex64]
-            The outputs this input completed; possibly empty.
-
-        Examples
-        --------
-        >>> from doppler.resample import RateConverter
-        >>> rc = RateConverter(rate=0.5, compensate=0)
-        >>> sum(len(rc.execute_ctrl_push(1 + 0j, 0.0)) for _ in range(256))
-        128
-
+            Number of outputs written to out (0, 1, or more).
         """
 
     def reset(self) -> None:
@@ -500,32 +448,21 @@ class RateConverter:
     @rate.setter
     def rate(self, value: float) -> None: ...
 
-    # jm:hand
-    @property
-    def stages(self) -> list[str]:
-        """Stage labels for the planned cascade, e.g. ``['CIC(8)', 'Resampler(0.8)']``. A terminal stage carrying a pulse-shaped bank names its pulse: ``'Resampler(0.923077,rrc)'``."""
-
-    # jm:hand
     @property
     def clipped(self) -> bool:
-        """True if any planned CIC stage has clipped its input since the last ``reset()``. The cascade inherits the CIC's input bound (``|Re|``, ``|Im|`` <= 1.0) whenever ``stages`` names a CIC — any decimation by 8 or more. The clip is invisible in the samples (finite, no NaN, merely distorted), so this is the only reliable check, and it is free: the boundary comparisons run on every sample regardless. Always ``False`` for a cascade with no CIC stage — those plans are scale-free."""
+        """True if any planned CIC stage has clipped its input since the last `reset()`. The cascade inherits the CIC's input bound (`|Re|`, `|Im| <= 1.0`) whenever `stages` names a CIC -- any decimation by 8 or more. The clip is invisible in the samples (finite, no NaN, merely distorted), so this is the only reliable check, and it is free: the boundary comparisons run on every sample regardless. Always False for a cascade with no CIC stage -- those plans are scale-free."""
 
-    # jm:hand
     @property
-    def bank_shape(self) -> tuple[int, int] | None:
-        """``(num_phases, num_taps)`` of the terminal polyphase stage, or ``None`` when the cascade ends in an integer decimator. ``num_taps`` is the per-output MAC count and, times ``num_phases``, the bank's size in floats. With a pulse selected it is set by the terminal stage's rate rather than the input rate — which is what keeps a matched filter affordable at a high input samples-per-symbol.
+    def narrow_pulse(self) -> bool:
+        """True when a rectangular pulse was selected with fewer than four output samples per symbol, where its matched filter degenerates to a 2-3 tap sum. Construction also raises a UserWarning; this is the same diagnostic to pull rather than catch. Always False for `pulse="rrc"` and for a plain converter."""
 
-        Examples
-        --------
-        >>> from doppler.resample import RateConverter
-        >>> RateConverter(rate=2 / 4, pulse="rrc").bank_shape == RateConverter(
-        ...     rate=2 / 256, pulse="rrc"
-        ... ).bank_shape
-        True
-        >>> RateConverter(rate=2 / 64).bank_shape is None
-        True
+    @property
+    def stages(self) -> list[str]:
+        """Stage labels for the planned cascade, e.g. `['CIC(8)', 'Resampler(0.8)']`. A terminal stage carrying a pulse-shaped bank names its pulse: `'Resampler(0.923077,rrc)'`."""
 
-        """
+    @property
+    def bank_shape(self) -> list[int]:
+        """`[num_phases, num_taps]` of the terminal polyphase stage, or `[]` when the cascade ends in an integer decimator and so has no bank to describe. `num_taps` is the per-output MAC count and, times `num_phases`, the bank's size in floats. With a pulse selected it is set by the terminal stage's rate rather than the input rate -- which is what keeps a matched filter affordable at a high input samples-per-symbol: the same 34 taps per arm at 4 samples/symbol and at 256, where filtering at the input rate would need 4225."""
 
     def destroy(self) -> None:
         """Release C resources immediately."""
@@ -534,6 +471,89 @@ class RateConverter:
 
     def __exit__(self, *args: object) -> None: ...
 
+@final
+class MatchedRateConverter:
+    """MatchedRateConverter component.
+
+    Parameters
+    ----------
+    rate : float, default 1.0
+        rate constructor parameter.
+    compensate : int, default 1
+        compensate constructor parameter.
+    pulse : Literal["iandd", "rrc"], default "rrc"
+        pulse constructor parameter.
+    beta : float, default 0.35
+        beta constructor parameter.
+    span : int, default 8
+        span constructor parameter.
+    pulse_sps : float, default 2.0
+        pulse_sps constructor parameter.
+    num_phases : int, default 1024
+        num_phases constructor parameter.
+
+    Examples
+    --------
+    Create with defaults:
+
+    >>> from doppler.resample import MatchedRateConverter
+    >>> obj = MatchedRateConverter(rate=1.0, compensate=1, pulse="rrc", beta=0.35, span=8, pulse_sps=2.0, num_phases=1024)
+
+    """
+    def __init__(self, rate: float = ..., compensate: int = ..., pulse: Literal["iandd", "rrc"] = "rrc", beta: float = ..., span: int = ..., pulse_sps: float = ..., num_phases: int = ...) -> None: ...
+
+    def execute(self, x: NDArray[np.complex64], out: NDArray[np.complex64] | None = None) -> NDArray[np.complex64]:
+        """Execute."""
+
+    def execute_max_out(self) -> int:
+        """Max output length execute() can produce for the current state."""
+
+    def execute_ctrl(self, x: NDArray[np.complex64], ctrl: float) -> NDArray[np.complex64]:
+        """Execute ctrl."""
+
+    def execute_ctrl_push(self, x: complex, ctrl: float) -> NDArray[np.complex64]:
+        """Execute ctrl push."""
+
+    def reset(self) -> None:
+        """Reset."""
+
+    def state_bytes(self) -> int:
+        """Serialized state size in bytes."""
+    def get_state(self) -> bytes:
+        """Serialize the engine's mutable state to bytes."""
+    def set_state(self, blob: bytes) -> None:
+        """Restore mutable state from a get_state() blob."""
+
+    @property
+    def rate(self) -> float:
+        """Rate."""
+    @rate.setter
+    def rate(self, value: float) -> None: ...
+
+    @property
+    def clipped(self) -> bool:
+        """True if any planned CIC stage has clipped its input since the last `reset()`. The cascade inherits the CIC's input bound (`|Re|`, `|Im| <= 1.0`) whenever `stages` names a CIC -- any decimation by 8 or more. The clip is invisible in the samples (finite, no NaN, merely distorted), so this is the only reliable check, and it is free: the boundary comparisons run on every sample regardless. Always False for a cascade with no CIC stage -- those plans are scale-free."""
+
+    @property
+    def narrow_pulse(self) -> bool:
+        """True when a rectangular pulse was selected with fewer than four output samples per symbol, where its matched filter degenerates to a 2-3 tap sum. Construction also raises a UserWarning; this is the same diagnostic to pull rather than catch. Always False for `pulse="rrc"` and for a plain converter."""
+
+    @property
+    def stages(self) -> list[str]:
+        """Stage labels for the planned cascade, e.g. `['CIC(8)', 'Resampler(0.8)']`. A terminal stage carrying a pulse-shaped bank names its pulse: `'Resampler(0.923077,rrc)'`."""
+
+    @property
+    def bank_shape(self) -> list[int]:
+        """`[num_phases, num_taps]` of the terminal polyphase stage, or `[]` when the cascade ends in an integer decimator and so has no bank to describe. `num_taps` is the per-output MAC count and, times `num_phases`, the bank's size in floats. With a pulse selected it is set by the terminal stage's rate rather than the input rate -- which is what keeps a matched filter affordable at a high input samples-per-symbol: the same 34 taps per arm at 4 samples/symbol and at 256, where filtering at the input rate would need 4225."""
+
+    def destroy(self) -> None:
+        """Release C resources immediately."""
+
+    def __enter__(self) -> "MatchedRateConverter": ...
+
+    def __exit__(self, *args: object) -> None: ...
+
+@final
 class Farrow:
     """Create a Farrow interpolator.
 
@@ -572,8 +592,8 @@ class Farrow:
         """Clear the interpolator delay line.
         """
 
-    def delay_max_out(self) -> int:
-        """Max output length delay() can produce for the current state. Use to size the ``out=`` buffer."""
+    def delay_max_out(self, *args: Any, **kwargs: Any) -> Any:
+        """<<MANUAL_STUB>> hand-write this signature/docstring in the .pyi — jm preserves it verbatim on future regens."""
 
     def state_bytes(self) -> int:
         """Serialized state size in bytes."""
@@ -593,12 +613,13 @@ class Farrow:
 
     def __exit__(self, *args: object) -> None: ...
 
+@final
 class HalfbandDecimatorQ15:
     """Allocate and initialise a fixed-point halfband 2:1 decimator. The FIR branch coefficients are supplied as float and converted internally to Q15 with a x0.5 polyphase rate scaling.  The full halfband prototype is sparse (every other tap is zero); supply only the non-zero FIR branch taps, not the full sparse prototype.
 
     Parameters
     ----------
-    h : NDArray[np.float32], default ...
+    h : NDArray[np.float32]
         Float FIR branch coefficients of length num_taps. Must be symmetric (`h[k]` == `h[num_taps-1-k]`).
 
     """

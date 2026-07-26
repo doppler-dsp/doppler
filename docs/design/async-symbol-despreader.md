@@ -166,7 +166,7 @@ partials deliberately avoid.
 
 ### The same scope rule applies to the DSSS-MPSK composition
 
-`Dll(segments=K) -> MpskReceiver` (`docs/gallery/async-dsss-receiver.md`) is
+`Dll(segments=K) -> MpskReceiver` (`docs/gallery/dsss-receiver.md`) is
 the other downstream composition, and the same rule bites the same way: the
 despreader's partial-correlation output rate is whatever `K*chip_rate/SF`
 comes out to — a sub-multiple of the chip rate, not chosen with
@@ -255,8 +255,8 @@ start of a noise stream.
     composition) is now proven at real physical parameters — a continuous
     1023-chip code at 3 Mchips/s, async 2100 sym/s BPSK data, with a genuine
     `Acquisition` search in front (see the
-    [Continuous Async DSSS Receiver](../gallery/async-dsss-receiver.md)
-    gallery page, `src/doppler/examples/async_dsss_receiver_demo.py`).
+    [DsssReceiver](../gallery/dsss-receiver.md) gallery page,
+    `src/doppler/examples/dsss_receiver_demo.py`).
     One correction to this section's own guidance surfaced doing so: `K=4`
     (§3.3's sweet spot) is tuned for the DLL's own code-discriminator
     variance, not for feeding a downstream matched filter — each partial is

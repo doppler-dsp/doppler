@@ -2,9 +2,7 @@
 
 ![Constellation, running BER, windowed correctness, and carrier pull-in](../assets/dsss_receiver_demo.png)
 
-The single-object payoff of the chain hand-composed in
-[Continuous Async DSSS Receiver](async-dsss-receiver.md):
-`Acquisition -> Dll(segments) -> RateConverter -> MpskReceiver`, now
+The composed form of `Acquisition -> Dll(segments) -> RateConverter -> MpskReceiver`, the four-object continuous async-DSSS receive chain, now
 composed into one C object,
 [`DsssReceiver`](../api/python-dsss.md). Same CCSDS Gold-code signal and
 operating point (CN0=97 dB-Hz, SEED=6) as that page — this page isn't a new
@@ -91,5 +89,5 @@ so a receiver mid-search and one already locked serialize and restore
 through the identical interface.
 
 Source: `src/doppler/examples/dsss_receiver_demo.py`. See also
-[Continuous Async DSSS Receiver](async-dsss-receiver.md)
-(the hand-composed reference this object's C core mirrors).
+[AsyncDsssReceiver: the SPEC Waveform](async-dsss-receiver-spec.md)
+(the same chain packaged for a coupled-Doppler SPEC waveform).

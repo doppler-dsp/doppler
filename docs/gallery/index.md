@@ -47,8 +47,7 @@ FFT, ring buffers, C programs, or the NATS streaming demo? Those live on the
 - [5-Burst DSSS Link (wfmgen's 3 Faces)](dsss-burst-pipeline.md) — every `wfmgen` production path feeding the same full receiver chain.
 - [Streaming Async Despreader](async-despread.md) — `Dll(segments)` PN-epoch despreader.
 - [Full-Chain Lock-Up](receiver-lock.md) — `Dll -> Costas -> SymbolSync` cold-started with no code, carrier, or timing knowledge, watched over one shared `Telemetry` context.
-- [Continuous Async DSSS Receiver](async-dsss-receiver.md) — Stage 3: `Acquisition -> Dll(segments) -> RateConverter -> MpskReceiver` at real chip/symbol rates — the despreader removes the code, an explicit resampler bridges it to a normal demodulator, and `Dll`'s own tracking-optimal `segments=4` decodes cleanly once wired that way.
-- [DsssReceiver — the Composed Continuous DSSS Receiver](dsss-receiver.md) — the single-object payoff: everything Stage 3 hand-composed across four objects, collapsed into one `DsssReceiver` and one `steps()` call.
+- [DsssReceiver — the Composed Continuous DSSS Receiver](dsss-receiver.md) — `Acquisition -> Dll(segments) -> RateConverter -> MpskReceiver` at real chip/symbol rates, collapsed into one `DsssReceiver` and one `steps()` call -- the despreader removes the code and an explicit resampler bridges it to a normal demodulator.
 - [AsyncDsssReceiver: the SPEC Waveform](async-dsss-receiver-spec.md) — the packaged receiver decoding SPEC's own continuous async DSSS (CCSDS Gold-1023, 3.069 Mcps, 2700 bps) through physically-coupled clock Doppler, in both pass regimes (TCA-crossing ramp and ±50 kHz offset extremum), with the pre-despread carrier loop tracking the ramp and a binary symbol-lock indicator.
 - [CarrierAcquisition: RRC Pulse Shaping](carrier-acq-rrc.md) — PSDMF residual-carrier estimation against an RRC-shaped BPSK stream, and why the `psd_template` override matters.
 

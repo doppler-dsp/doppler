@@ -126,12 +126,12 @@ _Composed continuous DSSS receiver: Acquisition -&gt; Dll(segments) -&gt; RateCo
 ## Detailed Description
 
 
-The single-object form of the chain validated across this repo's "continuous async-DSSS receiver" story (`docs/gallery/dsss-acq-async-data.md`, `docs/gallery/dsss-despread-async-data.md`, `docs/gallery/async-dsss-receiver.md`): a continuous, non-bursty spreading code whose data-symbol clock need not be synchronous to the code-epoch clock. `steps()` streams raw samples through whichever child is currently active:
+The single-object form of the chain validated across this repo's "continuous async-DSSS receiver" story (`docs/gallery/dsss-acq-async-data.md`, `docs/gallery/dsss-despread-async-data.md`, `docs/gallery/dsss-receiver.md`): a continuous, non-bursty spreading code whose data-symbol clock need not be synchronous to the code-epoch clock. `steps()` streams raw samples through whichever child is currently active:
 
 
 
 * **searching** (`tracking() == 0`): samples feed the embedded `Acquisition`. Nothing is emitted. On a hit, `Dll`/`RateConverter`/ `MpskReceiver` are built from the hit's code phase and Doppler estimate (the exact `dll_init_chip_from_acq` phase-inversion and `RateConverter`-bridged sample-rate hand-off this repo's gallery pages validated by hand), and the **unconsumed tail** of the same `steps()` call is handed straight to them — no samples are dropped at the transition.
-* **tracking** (`tracking() == 1`): samples feed `Dll -> RateConverter -> MpskReceiver` in sequence, exactly the C-level equivalent of `async_dsss_receiver_demo.py`'s `_receive()` helper, and demodulated symbols are emitted.
+* **tracking** (`tracking() == 1`): samples feed `Dll -> RateConverter -> MpskReceiver` in sequence, the C-level equivalent of hand-composing those four objects, and demodulated symbols are emitted.
 
 
 

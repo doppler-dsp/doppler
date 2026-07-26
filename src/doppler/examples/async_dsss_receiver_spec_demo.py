@@ -4,7 +4,7 @@ asynchronous DSSS waveform end to end, through physically-coupled clock
 Doppler, at a true 10 dB Es/N0.
 
 This is the closing example of the continuous-DSSS story: where
-``async_dsss_receiver_demo.py`` (Stage 3) hand-composes the receive
+``dsss_receiver_demo.py`` (Stage 3) composes the receive
 chain (``Acquisition`` -> ``Dll`` -> ``RateConverter`` -> ``MpskReceiver``)
 to *show the mechanics*, this page drives the single packaged object that
 wraps that whole chain -- search, carrier refine, and live tracking --
@@ -246,14 +246,18 @@ def receive(x: np.ndarray):
 
 
 # --8<-- [start:validate]
-def best_ber(syms: np.ndarray, data: np.ndarray):
-    """Wide lag + polarity search of the back-half hard decisions against the
+def best_ber(syms: np.ndarray, data: np.ndarray, lo: int | None = None):
+    """Wide lag + polarity search of the settled hard decisions against the
     known payload. The lag absorbs the acquisition/refine settling delay
-    (which grows as Es/N0 drops); over a several-hundred-symbol back half a
+    (which grows as Es/N0 drops); over a several-hundred-symbol window a
     spurious sub-0.05 alignment is statistically impossible, so a wide search
-    stays honest. Returns ``(bits, ber, lag, inverted)``."""
+    stays honest. ``lo`` is where the settled window starts (default: the back
+    half) -- a lag search cannot rescue a window that still contains pull-in,
+    because the errors there are real, so the caller picks it per regime (see
+    decode_and_check). Returns ``(bits, ber, lag, inverted)``."""
     bits = np.where(syms.real > 0, 1.0, -1.0)
-    lo, hi = len(bits) // 2, len(bits)
+    hi = len(bits)
+    lo = len(bits) // 2 if lo is None else lo
     best = (1.0, 0, False)
     for lag in range(-300, 301):
         idx = np.arange(lo, hi) + lag
@@ -284,7 +288,11 @@ def self_evm_db(z: np.ndarray) -> float:
 
 
 def decode_and_check(
-    x: np.ndarray, data: np.ndarray, label: str, ber_max: float = 0.02
+    x: np.ndarray,
+    data: np.ndarray,
+    label: str,
+    ber_max: float = 0.02,
+    settle_frac: float = 0.5,
 ):
     """Receive, decode, and validate one capture three ways -- a wide-lag BER
     for the headline, plus the two truth-free metrics (self-EVM, blind M2M4
@@ -301,11 +309,30 @@ def decode_and_check(
     aid carries a small, honest quantization loss the aligned/TCA case does
     not. An EVM gate of -6 dB corresponds to ~2.3% BPSK BER, so the offset
     extremum takes ber_max=0.03 (its EVM/M2M4 still pass with margin); the
-    TCA crossing keeps the strict default."""
+    TCA crossing keeps the strict default.
+
+    ``settle_frac`` is where the measurement window starts, as a fraction of
+    the recovered stream. **The two physical regimes settle at very different
+    times and the window has to follow**, or every metric reports a transient
+    instead of the steady state. Measured per eighth of the stream, with a
+    per-block lag search so a settling lag is not counted as errors:
+
+        TCA             clean from symbol ~500  (BER 0.0000, EVM ~-10 dB)
+        +50 kHz static  clean from symbol ~2950 (BER 0.0000, EVM ~-8.5 dB),
+                        and BER 0.38-0.42 / EVM ~-1.5 dB before ~2460
+
+    The offset extremum is not failing early on, it is still pulling in: its
+    carrier has 50 kHz to walk off. The rotation-blind M2M4 shows that
+    directly by reaching +10 dB by symbol ~980 while EVM stays at -1.5 dB
+    until ~2460 -- amplitude and timing lock early, carrier PHASE is the slow
+    one. So that case measures its last quarter, where it is genuinely
+    settled; the half-stream window straddled ~1000 symbols of pull-in and
+    reported BER 0.143 for a receiver that decodes perfectly once locked."""
     rx, syms, trace = receive(x)
     assert len(syms) > 1000, f"[{label}] receiver never reached tracking"
-    bits, ber, lag, inv = best_ber(syms, data)
-    settled = syms[len(syms) // 2 :]
+    k0 = int(len(syms) * settle_frac)
+    bits, ber, lag, inv = best_ber(syms, data, lo=k0)
+    settled = syms[k0:]
     evm = self_evm_db(settled)
     m2m4 = float(snr_m2m4_db(settled.astype(np.complex64)))
     print(
@@ -353,7 +380,12 @@ def main(out_path: str = "async_dsss_receiver_spec_demo.png") -> None:
     # decodes too; assert it so the example self-validates both, without
     # claiming the two ever coexist.
     xe, de = make_capture(OFFSET_EXTREMUM_HZ, 0.0, SEED)
-    decode_and_check(xe, de, "+50kHz static", ber_max=0.03)
+    # Last quarter, not the back half: this regime's carrier needs ~2950 of
+    # its ~3940 symbols to pull 50 kHz in (decode_and_check's docstring has
+    # the per-block profile). Measured there it is not marginal at all --
+    # BER 0.0000 -- so the bar is the strict default, not the 0.03 the
+    # transient-straddling window needed.
+    decode_and_check(xe, de, "+50kHz static", ber_max=0.02, settle_frac=0.75)
 
     wber = _windowed_ber(bits, data, lag, inv)
     assert np.nanmean(wber[-5:]) < 0.05, "decode did not stay converged"

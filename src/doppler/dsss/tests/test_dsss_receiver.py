@@ -1,8 +1,8 @@
 """DsssReceiver: the single-object form of Acquisition -> Dll(segments) ->
 RateConverter -> MpskReceiver. Uses this repo's own validated CCSDS
-Gold-code/SEED=6/CN0=97dB-Hz signal (`async_dsss_receiver_demo.py`) as the
+Gold-code/SEED=6/CN0=97dB-Hz signal as the
 known-good fixture -- if this test's DsssReceiver-based decode disagrees
-with that hand-composed reference, something in the composed object's
+with that validated operating point, something in the composed object's
 wiring is wrong, not the underlying DSP (already covered by Acquisition/
 Dll/MpskReceiver's own tests). Like `Acquisition` (a frame/push object,
 not a simple block-`execute` shape), the state-serialization round trip is
@@ -101,9 +101,9 @@ def test_only_signal_params_required():
 
 
 def test_acquires_and_decodes():
-    """Streaming the story's own validated signal through one DsssReceiver
-    reproduces async_dsss_receiver_demo.py's hand-composed result: it
-    locks and decodes cleanly."""
+    """Streaming the story's own validated signal through one
+    DsssReceiver locks and decodes cleanly at the operating point the
+    four-object chain was validated at."""
     x, data = _make_signal(CN0_DBHZ, SEED)
     rx = _new_receiver()
 

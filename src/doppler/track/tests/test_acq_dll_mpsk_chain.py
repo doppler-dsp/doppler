@@ -7,9 +7,9 @@ leg ``test_acq_dll_handoff.py`` already covers.
 not exercise ``MpskReceiver`` at all. This is the first test that drives
 ``Acquisition -> Dll(segments) -> RateConverter -> MpskReceiver`` end to
 end with a real acquisition search in front. See
-``src/doppler/examples/async_dsss_receiver_demo.py`` (the gallery
-counterpart, more epochs, plotted, plus the with/without-resample
-comparison) for the full story this pins down as a fast, always-run
+``src/doppler/examples/dsss_receiver_demo.py`` (the gallery counterpart,
+which runs the same chain composed into one ``DsssReceiver``, over more
+epochs and plotted) for the full story this pins down as a fast, always-run
 regression check.
 
 The despreader's job is just to remove the code; ``Dll(segments=K)``'s

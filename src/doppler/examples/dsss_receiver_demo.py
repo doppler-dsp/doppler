@@ -5,7 +5,7 @@ DsssReceiver`.
 
 Same CCSDS Gold-code, continuous-asynchronous-BPSK-data signal and
 operating point (CN0=97 dB-Hz, SEED=6) as
-``async_dsss_receiver_demo.py`` (Stage 3) -- this page is not a new
+the four-object chain (Stage 3) -- this page is not a new
 finding, it's the payoff: everything that page hand-composed across
 four objects (``_new_acq``/``_new_chain``/``_receive``, the phase-
 inversion hand-off, the ``RateConverter`` bridge) is one object and one

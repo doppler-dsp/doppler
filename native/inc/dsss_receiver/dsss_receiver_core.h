@@ -8,7 +8,7 @@
  * "continuous async-DSSS receiver" story
  * (`docs/gallery/dsss-acq-async-data.md`,
  * `docs/gallery/dsss-despread-async-data.md`,
- * `docs/gallery/async-dsss-receiver.md`): a continuous, non-bursty
+ * `docs/gallery/dsss-receiver.md`): a continuous, non-bursty
  * spreading code whose data-symbol clock need not be synchronous to the
  * code-epoch clock. `steps()` streams raw samples through whichever
  * child is currently active:
@@ -31,9 +31,9 @@
  *     period at a time (a small internal carry buffer holds any leftover
  *     partial-period tail across calls -- `steps()` still accepts any
  *     block size), then feed `Dll -> RateConverter -> MpskReceiver` in
- *     sequence, exactly the C-level equivalent of
- *     `async_dsss_receiver_demo.py`'s `_receive()` helper (plus the new
- *     carrier stage), and demodulated symbols are emitted. This is a NEW
+ *     sequence -- the C-level equivalent of hand-composing those four
+ *     objects (plus the new carrier stage) -- and demodulated symbols are
+ *     emitted. This is a NEW
  *     composition living entirely in this object -- deliberately NOT a
  *     swap to the existing `Despreader` object (which fuses Costas+Dll
  *     per-sample), because `Despreader` embeds `Dll` via `dll_init()`,

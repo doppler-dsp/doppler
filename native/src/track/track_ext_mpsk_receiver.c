@@ -59,13 +59,13 @@ static int
 MpskReceiverObj_init (MpskReceiverObject *self, PyObject *args, PyObject *kwds)
 {
   static char *kwlist[]
-      = { "m",           "sps",          "n",           "pulse",
+      = { "m",           "sps",          "m_out",       "pulse",
           "rrc_beta",    "rrc_span",     "bn_carrier",  "zeta",
           "bn_timing",   "acq_to_track", "lock_thresh", "init_norm_freq",
-          "warmup_syms", "differential", NULL };
+          "warmup_syms", "differential", "num_phases",  NULL };
   int                m               = 4;
-  unsigned long long sps_raw         = 8;
-  int                n               = 4;
+  double             sps             = 8.0;
+  unsigned long long m_out_raw       = 4;
   const char        *pulse_str       = "iandd";
   double             rrc_beta        = 0.35;
   int                rrc_span        = 8;
@@ -77,13 +77,15 @@ MpskReceiverObj_init (MpskReceiverObject *self, PyObject *args, PyObject *kwds)
   double             init_norm_freq  = 0.0;
   unsigned long long warmup_syms_raw = 100;
   int                differential    = 0;
+  unsigned long long num_phases_raw  = 1024;
 
   if (!PyArg_ParseTupleAndKeywords (
-          args, kwds, "|iKisdidddiddKi", kwlist, &m, &sps_raw, &n, &pulse_str,
-          &rrc_beta, &rrc_span, &bn_carrier, &zeta, &bn_timing, &acq_to_track,
-          &lock_thresh, &init_norm_freq, &warmup_syms_raw, &differential))
+          args, kwds, "|idKsdidddiddKiK", kwlist, &m, &sps, &m_out_raw,
+          &pulse_str, &rrc_beta, &rrc_span, &bn_carrier, &zeta, &bn_timing,
+          &acq_to_track, &lock_thresh, &init_norm_freq, &warmup_syms_raw,
+          &differential, &num_phases_raw))
     return -1;
-  size_t sps   = (size_t)sps_raw;
+  size_t m_out = (size_t)m_out_raw;
   int    pulse = 0;
   if (strcmp (pulse_str, "iandd") == 0)
     pulse = 0;
@@ -97,13 +99,18 @@ MpskReceiverObj_init (MpskReceiverObject *self, PyObject *args, PyObject *kwds)
       return -1;
     }
   size_t warmup_syms = (size_t)warmup_syms_raw;
+  size_t num_phases  = (size_t)num_phases_raw;
   self->handle       = mpsk_receiver_create (
-      m, sps, n, pulse, rrc_beta, rrc_span, bn_carrier, zeta, bn_timing,
-      acq_to_track, lock_thresh, init_norm_freq, warmup_syms, differential);
+      m, sps, m_out, pulse, rrc_beta, rrc_span, bn_carrier, zeta, bn_timing,
+      acq_to_track, lock_thresh, init_norm_freq, warmup_syms, differential,
+      num_phases);
   if (!self->handle)
     {
-      PyErr_SetString (PyExc_MemoryError,
-                       "mpsk_receiver_create returned NULL");
+      PyErr_SetString (PyExc_ValueError,
+                       "MpskReceiver: invalid parameter (need m in {2,4,8}, "
+                       "sps >= m_out, m_out even in [2, 8], 0 <= rrc_beta <= "
+                       "1, rrc_span >= 1, num_phases a power of two >= 2, bn "
+                       ">= 0, zeta > 0)");
       return -1;
     }
   {
@@ -662,11 +669,11 @@ MpskReceiver_getprop_sps (MpskReceiverObject *self, void *Py_UNUSED (closure))
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyLong_FromUnsignedLongLong (
-      (unsigned long long)mpsk_receiver_get_sps (self->handle));
+  return PyFloat_FromDouble (mpsk_receiver_get_sps (self->handle));
 }
 static PyObject *
-MpskReceiver_getprop_n (MpskReceiverObject *self, void *Py_UNUSED (closure))
+MpskReceiver_getprop_m_out (MpskReceiverObject *self,
+                            void               *Py_UNUSED (closure))
 {
   if (!self->handle)
     {
@@ -674,21 +681,48 @@ MpskReceiver_getprop_n (MpskReceiverObject *self, void *Py_UNUSED (closure))
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyLong_FromLong ((long)mpsk_receiver_get_n (self->handle));
+  return PyLong_FromUnsignedLongLong (
+      (unsigned long long)mpsk_receiver_get_m_out (self->handle));
+}
+static PyObject *
+MpskReceiver_getprop_clipped (MpskReceiverObject *self,
+                              void               *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  /* <<IMPLEMENT: return the computed or stored value>> */
+  return PyLong_FromLong ((long)mpsk_receiver_get_clipped (self->handle));
 }
 
-static PyGetSetDef MpskReceiver_getset[]
-    = { { "norm_freq", (getter)MpskReceiver_getprop_norm_freq,
-          (setter)MpskReceiver_setprop_norm_freq, "Norm freq.\n", NULL },
-        { "lock", (getter)MpskReceiver_getprop_lock, NULL, "Lock.\n", NULL },
-        { "timing_rate", (getter)MpskReceiver_getprop_timing_rate, NULL,
-          "Timing rate.\n", NULL },
-        { "tracking", (getter)MpskReceiver_getprop_tracking, NULL,
-          "Tracking.\n", NULL },
-        { "m", (getter)MpskReceiver_getprop_m, NULL, "M.\n", NULL },
-        { "sps", (getter)MpskReceiver_getprop_sps, NULL, "Sps.\n", NULL },
-        { "n", (getter)MpskReceiver_getprop_n, NULL, "N.\n", NULL },
-        { NULL } };
+static PyGetSetDef MpskReceiver_getset[] = {
+  { "norm_freq", (getter)MpskReceiver_getprop_norm_freq,
+    (setter)MpskReceiver_setprop_norm_freq,
+    "Carrier frequency the receiver is tracking, cycles/sample at the input "
+    "rate: the create-time centre plus the loop's own estimate.\n",
+    NULL },
+  { "lock", (getter)MpskReceiver_getprop_lock, NULL, "Lock.\n", NULL },
+  { "timing_rate", (getter)MpskReceiver_getprop_timing_rate, NULL,
+    "Smoothed tracked samples per symbol — departs from the nominal `sps` by "
+    "exactly the sample-clock offset the timing loop is tracking.\n",
+    NULL },
+  { "tracking", (getter)MpskReceiver_getprop_tracking, NULL, "Tracking.\n",
+    NULL },
+  { "m", (getter)MpskReceiver_getprop_m, NULL, "M.\n", NULL },
+  { "sps", (getter)MpskReceiver_getprop_sps, NULL, "Sps.\n", NULL },
+  { "m_out", (getter)MpskReceiver_getprop_m_out, NULL,
+    "Terminal outputs per symbol (the old `n`, now the cascade's).\n", NULL },
+  { "clipped", (getter)MpskReceiver_getprop_clipped, NULL,
+    "Has the cascade's CIC stage clipped its input since the last reset? A "
+    "CIC bounds its input to |Re|, |Im| <= 1.0 and clips silently past that "
+    "-- the output stays finite and plausible, merely distorted, at a cost of "
+    "~25 dB of EVM that no lock metric reveals. Always 0 for a plan with no "
+    "CIC stage.\n",
+    NULL },
+  { NULL }
+};
 
 static PyObject *
 MpskReceiverObj_destroy (MpskReceiverObject *self,
@@ -729,24 +763,20 @@ static PyMethodDef MpskReceiverObj_methods[] = {
     "\n"
     "Attach (or detach) a telemetry context across the receiver. Registers "
     "the receiver's own \"<prefix>.lock\" probe (the carrier lock EMA) and "
-    "\"<prefix>.tracking\" (the two-way handover decision, 0/1 — the lockdet "
-    "output, so a consumer sees exactly when the carrier was handed to the "
-    "decision-directed discriminator or dropped back to NDA), then forwards "
-    "the attach to both embedded loops: the carrier loop registers "
-    "\"<prefix>.car.lock\" / \".e\" / \".freq\" / \".locked\" (plus its arm "
-    "AGC's \"<prefix>.car.agc.gain_db\") and the symbol-timing loop registers "
-    "\"<prefix>.sync.e\" / \".freq\" / \".rate\" — ten probes total, all "
-    "thinned by decim.  Every probe except the AGC's emits once per recovered "
-    "symbol (the receiver flushes both loops at the symbol strobe, not at the "
-    "carrier loop's sample rate); the AGC's emits at its own amortized "
-    "gain-update rate.  Passing NULL detaches the receiver and both loops.  "
-    "Setup path, never hot; the context is borrowed and must outlive the "
-    "attachment (SPSC rules in telemetry/telemetry.h).\n"
+    "\"<prefix>.tracking\" (the two-way handover decision, 0/1 — so a "
+    "consumer sees exactly when the carrier was handed to the "
+    "decision-directed discriminator or dropped back to NDA), then the "
+    "carrier loop's \"<prefix>.car.e\" / \".freq\" / \".locked\" and the "
+    "symbol-timing loop's \"<prefix>.sync.e\" / \".ctrl\" / \".rate\" / "
+    "\".lock\" / \".locked\" -- ten probes total, all thinned by decim and "
+    "all emitted once per recovered symbol.  Passing NULL detaches "
+    "everything.  Setup path, never hot; the context is borrowed and must "
+    "outlive the attachment (SPSC rules in telemetry/telemetry.h).\n"
     "\n"
     "    >>> import numpy as np\n"
     "    >>> from doppler import MpskReceiver\n"
-    "    >>> obj = MpskReceiver(4, 8, 4, \"iandd\", 0.35, 8, 0.01, 0.707, "
-    "0.01, 0, 0.5, 0.0, 100, 0)\n"
+    "    >>> obj = MpskReceiver(4, 8.0, 4, \"iandd\", 0.35, 8, 0.01, 0.707, "
+    "0.01, 0, 0.5, 0.0, 100, 0, 1024)\n"
     "    >>> obj.set_telemetry(0, 0, 0)\n"
     "    0\n" },
   { "steps", (PyCFunction)MpskReceiverObj_steps, METH_VARARGS | METH_KEYWORDS,
@@ -770,8 +800,8 @@ static PyMethodDef MpskReceiverObj_methods[] = {
     "\n"
     "    >>> import numpy as np\n"
     "    >>> from doppler import MpskReceiver\n"
-    "    >>> obj = MpskReceiver(4, 8, 4, \"iandd\", 0.35, 8, 0.01, 0.707, "
-    "0.01, 0, 0.5, 0.0, 100, 0)\n"
+    "    >>> obj = MpskReceiver(4, 8.0, 4, \"iandd\", 0.35, 8, 0.01, 0.707, "
+    "0.01, 0, 0.5, 0.0, 100, 0, 1024)\n"
     "    >>> y = obj.steps(np.zeros(4))\n"
     "    >>> y.dtype\n"
     "    dtype('complex64')\n" },
@@ -790,8 +820,8 @@ static PyMethodDef MpskReceiverObj_methods[] = {
     "\n"
     "    >>> import numpy as np\n"
     "    >>> from doppler import MpskReceiver\n"
-    "    >>> obj = MpskReceiver(4, 8, 4, \"iandd\", 0.35, 8, 0.01, 0.707, "
-    "0.01, 0, 0.5, 0.0, 100, 0)\n"
+    "    >>> obj = MpskReceiver(4, 8.0, 4, \"iandd\", 0.35, 8, 0.01, 0.707, "
+    "0.01, 0, 0.5, 0.0, 100, 0, 1024)\n"
     "    >>> y = obj.bits(np.zeros(4))\n"
     "    >>> y.dtype\n"
     "    dtype('uint8')\n" },
@@ -814,8 +844,8 @@ static PyMethodDef MpskReceiverObj_methods[] = {
     "\n"
     "    >>> import numpy as np\n"
     "    >>> from doppler import MpskReceiver\n"
-    "    >>> obj = MpskReceiver(4, 8, 4, \"iandd\", 0.35, 8, 0.01, 0.707, "
-    "0.01, 0, 0.5, 0.0, 100, 0)\n"
+    "    >>> obj = MpskReceiver(4, 8.0, 4, \"iandd\", 0.35, 8, 0.01, 0.707, "
+    "0.01, 0, 0.5, 0.0, 100, 0, 1024)\n"
     "    >>> obj.configure_lock(0.0, 0.0, 0, 0)\n" },
   { "reset", (PyCFunction)MpskReceiverObj_reset, METH_NOARGS,
     "reset() -> None\n"
@@ -824,8 +854,8 @@ static PyMethodDef MpskReceiverObj_methods[] = {
     "preserve configuration.\n"
     "\n"
     "    >>> from doppler import MpskReceiver\n"
-    "    >>> obj = MpskReceiver(4, 8, 4, \"iandd\", 0.35, 8, 0.01, 0.707, "
-    "0.01, 0, 0.5, 0.0, 100, 0)\n"
+    "    >>> obj = MpskReceiver(4, 8.0, 4, \"iandd\", 0.35, 8, 0.01, 0.707, "
+    "0.01, 0, 0.5, 0.0, 100, 0, 1024)\n"
     "    >>> obj.reset()\n" },
   { "state_bytes", (PyCFunction)MpskReceiverObj_state_bytes, METH_NOARGS,
     "Serialized state size in bytes." },

@@ -196,9 +196,9 @@ _build_track_chain (async_dsss_receiver_state_t *s, double chip_phase,
    * target_rate=sps*symbol_rate, a much smaller rate than the front end)
    * double-counts and can alias past Nyquist at large offsets, far
    * outside MpskReceiver's own carrier_nda pull-in range. */
-  mpsk_receiver_state_t *rx = dp_xnn (
-      mpsk_receiver_create (s->m, sps, n, MPSK_RX_PULSE_IANDD, 0.35, 8, 0.01,
-                            0.707, 0.01, 1, 0.3, 0.0, 30, s->differential));
+  mpsk_receiver_state_t *rx = dp_xnn (mpsk_receiver_create (
+      s->m, (double)sps, (size_t)n, MPSK_RX_PULSE_IANDD, 0.35, 8, 0.01, 0.707,
+      0.01, 1, 0.3, 0.0, 30, s->differential, MPSK_RX_NUM_PHASES));
 
   /* Per-CODE-PERIOD cadence (tsamps = one whole period), matching
    * dsss_receiver_core.c's own mechanism -- NOT once per dll_steps()

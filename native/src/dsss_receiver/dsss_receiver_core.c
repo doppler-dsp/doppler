@@ -53,9 +53,9 @@ _build_chain (double chip_rate, double symbol_rate, const uint8_t *code,
    * (the NCO only represents frequency mod 1 cycle/sample), landing a
    * wrong seed far outside MpskReceiver's own carrier_nda loop's
    * validated pull-in range (~0.01 cycles/sample, carrier_nda_pullin.c). */
-  mpsk_receiver_state_t *rx = dp_xnn (
-      mpsk_receiver_create (m, sps, n, MPSK_RX_PULSE_IANDD, 0.35, 8, 0.01,
-                            0.707, 0.01, 1, 0.3, 0.0, 30, differential));
+  mpsk_receiver_state_t *rx = dp_xnn (mpsk_receiver_create (
+      m, (double)sps, (size_t)n, MPSK_RX_PULSE_IANDD, 0.35, 8, 0.01, 0.707,
+      0.01, 1, 0.3, 0.0, 30, differential, MPSK_RX_NUM_PHASES));
 
   /* Pre-despread carrier loop: seeded in cycles/sample at the FRONT-END
    * rate (chip_rate*spc) -- the stage that actually owns removing the

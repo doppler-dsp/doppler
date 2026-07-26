@@ -29,6 +29,8 @@ target_link_libraries(track PRIVATE
     boxcar_core
     agc_core
     wfm_dsp_core
+    ddc_core
+    hbdecim_r2c_core
     Python3::NumPy)
 target_include_directories(track PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
 set_target_properties(track PROPERTIES

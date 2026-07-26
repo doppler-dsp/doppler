@@ -26,12 +26,14 @@ target_link_libraries(async_dsss_receiver_core PUBLIC
     fir_core
     resample_core
     mpsk_receiver_core
-    carrier_nda_core
-    boxcar_core
-    agc_core
+    ddc_core
+    hbdecim_r2c_core
+    ratesync_core
     symsync_core
     nco_core
     farrow_core
+    agc_core
+    boxcar_core
     psd_core
     spectral_core
     acc_trace_core
@@ -63,12 +65,14 @@ target_link_libraries(test_async_dsss_receiver_core
     fir_core
     resample_core
     mpsk_receiver_core
-    carrier_nda_core
-    boxcar_core
-    agc_core
+    ddc_core
+    hbdecim_r2c_core
+    ratesync_core
     symsync_core
     nco_core
     farrow_core
+    agc_core
+    boxcar_core
     psd_core
     spectral_core
     acc_trace_core
@@ -105,12 +109,14 @@ target_link_libraries(bench_async_dsss_receiver_core
     fir_core
     resample_core
     mpsk_receiver_core
-    carrier_nda_core
-    boxcar_core
-    agc_core
+    ddc_core
+    hbdecim_r2c_core
+    ratesync_core
     symsync_core
     nco_core
     farrow_core
+    agc_core
+    boxcar_core
     psd_core
     spectral_core
     acc_trace_core

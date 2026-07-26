@@ -204,7 +204,7 @@ test_owns_a_matched_cascade (void)
       /* The control is referenced to the TERMINAL stage's rate, not the
          cascade's; getting that wrong under-drives the loop by the whole
          integer decimation in front. */
-      CHECK (s->term_rate
+      CHECK (s->loop.term_rate
              == resamp_get_rate ((resamp_state_t *)s->mf->stage_ptrs[last]));
       /* The bank is sized by the post-decimation rate, so a 16x span of input
          rates leaves it the same size. */

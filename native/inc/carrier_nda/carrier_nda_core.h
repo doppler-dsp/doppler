@@ -170,6 +170,28 @@ extern "C"
    * @param pe     Receives the phase error.
    * @param lock   Receives the lock signal.
    */
+  /**
+   * @brief Per-M lock-signal scale, normalising the metric across
+   *        constellations (see docs/design/mpsk.md §2.3).
+   *
+   * Public because the discriminator is: every loop that calls
+   * carrier_nda_disc() needs the matching scale, and a second copy of these
+   * three constants elsewhere is exactly the drift this rule exists to
+   * prevent.
+   *
+   * @param m  Constellation order M (2, 4, 8).
+   * @return The scale to pass to carrier_nda_disc().
+   */
+  JM_FORCEINLINE double
+  carrier_nda_lock_scale (int m)
+  {
+    if (m == 2)
+      return 1.0;
+    if (m == 4)
+      return 0.619;
+    return 0.412; /* m == 8 */
+  }
+
   JM_FORCEINLINE void
   carrier_nda_disc (float complex z, int m, double scale, double *pe,
                     double *lock)

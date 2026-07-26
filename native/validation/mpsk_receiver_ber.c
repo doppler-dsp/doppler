@@ -113,9 +113,9 @@ measure_ser (int m, double esn0_db, double foff, uint32_t seed)
    * tracking — essential for 8PSK, whose M-th-power phase noise would
    * otherwise cross the +-pi/8 decision margins. lock_thresh below the per-M
    * lock ceiling (BPSK ~1, QPSK ~0.62, 8PSK ~0.41). */
-  mpsk_receiver_state_t *rx
-      = mpsk_receiver_create (m, SPS, 4, MPSK_RX_PULSE_IANDD, 0.35, 8, 0.005,
-                              0.707, 0.005, 1, 0.3, foff, 300, 0);
+  mpsk_receiver_state_t *rx = mpsk_receiver_create (
+      m, (double)SPS, 4, MPSK_RX_PULSE_IANDD, 0.35, 8, 0.005, 0.707, 0.005, 1,
+      0.3, foff, 300, 0, MPSK_RX_NUM_PHASES);
   size_t nout = mpsk_receiver_steps (rx, tx, NSYM * SPS, out, NSYM);
   mpsk_receiver_destroy (rx);
 

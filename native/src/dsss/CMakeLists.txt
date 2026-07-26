@@ -30,15 +30,17 @@ target_link_libraries(dsss PRIVATE
     resamp_core
     fir_core
     mpsk_receiver_core
-    carrier_nda_core
-    boxcar_core
-    agc_core
+    ddc_core
+    hbdecim_core
+    hbdecim_r2c_core
+    cic_core
+    resample_core
+    ratesync_core
     symsync_core
     nco_core
     farrow_core
-    hbdecim_core
-    cic_core
-    resample_core
+    agc_core
+    boxcar_core
     gold_core
     snr_core
     carrier_acq_core

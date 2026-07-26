@@ -26,9 +26,10 @@
  * this project's own established per-test-file convention).
  */
 #include "async_dsss_receiver/async_dsss_receiver_core.h"
+#include "dp_sym_test.h"
 #include "gold/gold_core.h" /* SPEC Gold-1023 for the Es/N0-floor sweep   */
-#include "snr/snr_core.h"   /* snr_m2m4_db: canonical blind SNR validator  */
-#include "wfm/wfm_dsp.h"    /* wfm_cont_dsss_chips: the wfmgen C API       */
+
+#include "wfm/wfm_dsp.h" /* wfm_cont_dsss_chips: the wfmgen C API       */
 #include <complex.h>
 #include <math.h>
 #include <stdio.h>
@@ -236,58 +237,10 @@ _best_ber (const float complex *syms, size_t n_syms, const double *data,
   return best;
 }
 
-/* Self-referenced EVM (dB) over the back half -- each symbol against its OWN
- * hard decision, with NO lag search and NO link to the true data. De-rotates
- * the constellation by the BPSK squaring angle (M=2, removing any static
- * residual phase Costas left) and normalizes to unit power, then measures
- * RMS(z - nearest +-1) against the |ref|=1 reference. A locked BPSK sits at
- * EVM ~ -Es/N0 dB; a scattered/unlocked constellation sits near 0 dB. This
- * cannot be fooled by a lucky lag/polarity the way a truth-referenced BER can
- * at low Es/N0, so it is the independent lock validator. */
-static double
-_evm_db_hard (const float complex *syms, size_t n_syms)
-{
-  if (n_syms < 20)
-    return 0.0;
-  size_t lo = n_syms / 2, hi = n_syms, n = hi - lo;
-  double c2r = 0.0, c2i = 0.0, p = 0.0;
-  for (size_t i = lo; i < hi; i++)
-    {
-      double re = crealf (syms[i]), im = cimagf (syms[i]);
-      c2r += re * re - im * im; /* Re(z^2) */
-      c2i += 2.0 * re * im;     /* Im(z^2) */
-      p += re * re + im * im;
-    }
-  double scale = sqrt (p / (double)n);
-  if (scale < 1e-20)
-    return 0.0;
-  double phi = 0.5 * atan2 (c2i, c2r); /* constellation rotation */
-  double cr = cos (-phi), sr = sin (-phi);
-  double errsq = 0.0;
-  for (size_t i = lo; i < hi; i++)
-    {
-      double re = crealf (syms[i]), im = cimagf (syms[i]);
-      double dr = (re * cr - im * sr) / scale; /* de-rotated, unit power */
-      double di = (re * sr + im * cr) / scale;
-      double d  = (dr >= 0.0) ? 1.0 : -1.0; /* nearest BPSK point */
-      errsq += (dr - d) * (dr - d) + di * di;
-    }
-  double evm = sqrt (errsq / (double)n); /* |ref| = 1 */
-  return (evm > 0.0) ? 20.0 * log10 (evm) : -120.0;
-}
-
-/* Blind M2M4 Es/N0 (dB) over the back half via the canonical snr_m2m4_db()
- * primitive (native/inc/snr) -- moment-based, NO reference symbols. A second,
- * independent post-despread symbol-SNR validator: a locked stream recovers
- * ~Es/N0; noise-dominated symbols estimate near 0 dB. */
-static double
-_m2m4_snr_db (const float complex *syms, size_t n_syms)
-{
-  if (n_syms < 20)
-    return -120.0;
-  size_t lo = n_syms / 2;
-  return snr_m2m4_db (syms + lo, n_syms - lo);
-}
+/* Both truth-free validators now live in dp_sym_test.h so every receiver
+ * test gets them; see that header for why a BER on its own is not evidence. */
+#define _evm_db_hard dp_test_evm_db_hard
+#define _m2m4_snr_db dp_test_m2m4_snr_db
 
 static int
 _test_arg_validation (void)

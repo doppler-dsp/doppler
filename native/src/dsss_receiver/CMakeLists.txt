@@ -30,7 +30,8 @@ target_link_libraries(dsss_receiver_core PUBLIC
     nco_core
     farrow_core
     agc_core
-    boxcar_core)
+    boxcar_core
+    snr_core)
 
 add_executable(test_dsss_receiver_core
                ${CMAKE_SOURCE_DIR}/native/tests/test_dsss_receiver_core.c)
@@ -62,6 +63,7 @@ target_link_libraries(test_dsss_receiver_core
     farrow_core
     agc_core
     boxcar_core
+    snr_core
     m)
 target_include_directories(test_dsss_receiver_core
                            PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
@@ -98,6 +100,7 @@ target_link_libraries(bench_dsss_receiver_core
     farrow_core
     agc_core
     boxcar_core
+    snr_core
     m)
 target_include_directories(
   bench_dsss_receiver_core PRIVATE ${CMAKE_SOURCE_DIR}/native/inc

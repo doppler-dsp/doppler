@@ -76,6 +76,7 @@
 #include <complex.h>
 #include <stddef.h>
 #include "costas/costas_core.h"
+#include "snr/snr_core.h"
 
 #ifdef __cplusplus
 extern "C"

@@ -21,7 +21,7 @@ stream at a fixed rate — a sub-multiple of the chip rate. `RateConverter`
 (arbitrary output/input ratio) converts that to a clean `sps=8` —
 `MpskReceiver`'s own constructor default, the same config used
 everywhere else in this codebase — and a "normal"
-`MpskReceiver(m=2, sps=8, n=4, ...)` does carrier + symbol-timing
+`MpskReceiver(m=2, sps=8, ...)` does carrier + symbol-timing
 recovery from there. `init_norm_freq` is cycles per `RateConverter`'s
 *output* rate (`sps*symbol_rate`), not the despreader's own partial
 rate. See

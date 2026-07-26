@@ -96,7 +96,6 @@ def main(out_path="telemetry_fanin_demo.png"):
     rx = MpskReceiver(
         m=4,
         sps=SPS,
-        n=4,
         init_norm_freq=FOFF,
         acq_to_track=1,
         lock_thresh=0.4,

@@ -25,7 +25,6 @@ choice of ``segments``.
 import warnings
 
 import numpy as np
-import pytest
 
 from doppler.dsss import Acquisition
 from doppler.dsss.handoff import dll_init_chip_from_acq
@@ -139,7 +138,10 @@ def _chain(x, s0, chip_phase, doppler_hz_est, resample: bool):
         sps=sps,
         m_out=m_out,
         pulse="iandd",
-        bn_carrier=0.01,
+        # Pull-in range scales with bn_carrier, and acquisition hands
+        # off a residual of ~+50 Hz = 0.030*Rs here. 0.01 is too narrow
+        # to close that; 0.02 is the measured knee, 0.04 leaves margin.
+        bn_carrier=0.04,
         bn_timing=0.01,
         acq_to_track=1,
         lock_thresh=0.3,
@@ -164,21 +166,6 @@ def _handoff(x):
     return s0, chip_phase, doppler_hz_est, data_start
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "gh#536 -- the cascade rebuild moved the carrier discriminator from "
-        "the sample rate to the symbol rate, shrinking carrier pull-in by a "
-        "factor of sps to ~0.01*Rs. Acquisition hands off a 0.000 Hz doppler "
-        "estimate while the true residual is ~+50 Hz = 0.030*Rs, which the "
-        "old (~8x wider) discriminator pulled in and this one cannot: seeding "
-        "init_norm_freq +50 Hz gives ber=0.0, so the despreader, resampler "
-        "and handoff are all still correct. A second #536 bug also applies -- "
-        "the first-strobe AGC seed can latch a pathological gain, so rx.lock "
-        "reads ~1e-19 on a perfectly locked receiver and `tracking` never "
-        "fires. NOT retuned to pass; flips green when #536 is fixed."
-    ),
-)
 def test_resampled_chain_decodes():
     """Dll(segments=4) -> RateConverter -> MpskReceiver(sps=8, m_out=4) --
     the correct architecture -- decodes cleanly."""

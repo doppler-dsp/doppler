@@ -28,14 +28,6 @@ loops, same handover, same demapper — literally the same implementation — wi
 baseband. It is a separate type rather than a flavor because `steps()` takes a
 different dtype, and a shared class would have to name the dtype in a method.
 
-!!! warning "The figure below predates the cascade rebuild"
-
-    It shows cold pull-in (`init_norm_freq=0`), which the rebuilt engine no longer
-    does reliably — see the two boxes at the end of this page. The plots are kept
-    because the *shape* of acquisition, lock and the BER curve is unchanged, but
-    the demo that produced them currently fails its own assertion and has
-    deliberately not been retuned to pass.
-
 **Left — Constellation pull-in.** A QPSK signal with a `0.0015` cycles/sample
 carrier offset, with the loop seeded at zero. During acquisition (red) the
 de-rotated symbols sweep a ring — the residual carrier is still rotating them;
@@ -74,8 +66,6 @@ drop-back a swap rather than a cold re-acquisition.
 The drop-back is real, not decorative — the discriminator and the lock metric
 keep running while tracking, so a receiver that loses its signal falls back to
 NDA acquisition instead of sitting in `tracking` forever on stale data.
-
-<!-- docs-snippet: skip=gh#536 cold carrier pull-in regressed by the cascade rebuild; this block asserts rx.tracking == 1 and fails for ~1/3 of data seeds -->
 
 ```python
 --8<-- "src/doppler/examples/mpsk_receiver_demo.py:receiver"

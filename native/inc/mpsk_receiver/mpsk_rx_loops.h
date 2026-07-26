@@ -268,18 +268,12 @@ extern "C"
       return 0;
 
     /* The carrier discriminator sees the ON-TIME STROBE and nothing else.
-       That looks like it gives up the NDA loop's "acquires with no symbol
-       timing" property, and it is worth being precise about why it does not:
-       the strobe fires every m_out-th terminal output whatever the timing
-       loop believes, so before timing lock it is simply a consistent, if
-       arbitrary, phase of the pulse — enough to pull the carrier in. What the
-       OTHER outputs are is the problem. They sit between symbols, where the
-       matched filter is averaging two different ones, so they are not
-       constellation points at all; their M-th power is ISI, not carrier
-       phase. Feeding them in costs nothing visible at QPSK (the loop averages
-       through it) and is fatal at 8PSK, whose decision margin is +-pi/8:
-       measured 0.85 symbol error rate, i.e. chance, against 0 on the strobe
-       alone.
+       The OTHER terminal outputs sit between symbols, where the matched
+       filter is averaging two different ones, so they are not constellation
+       points at all; their M-th power is ISI, not carrier phase. Feeding them
+       in costs nothing visible at QPSK (the loop averages through it) and is
+       fatal at 8PSK, whose decision margin is +-pi/8: measured 0.85 symbol
+       error rate, i.e. chance, against 0 on the strobe alone.
 
        Note also that the discriminator runs in BOTH modes and only the STEER
        is gated. Its lock signal is the handover's input in both directions,
@@ -287,20 +281,53 @@ extern "C"
        the metric could never fall back through the threshold it rose above.
        (Measured exactly that way: a receiver fed pure noise stayed in
        `tracking` forever.) */
-    /* Seed the arm AGC from the first strobe rather than letting it walk
-       there. Its bandwidth is deliberately ~100x below the carrier loop's so
-       it tracks the signal level and never the carrier dynamics — which, with
-       both loops now referenced to the SYMBOL rate, is a time constant of
-       thousands of symbols. That is correct for tracking drift and useless for
-       a cold start, and the cold error here is not small: a matched-filter
-       bank is unit-ENERGY, so its output sits ~sqrt(pulse_sps) above the
+
+    /* THE CARRIER WAITS FOR TIMING. Restricting the discriminator to the
+       strobe bought 8PSK its decision margin, but it also coupled carrier
+       acquisition to symbol timing — the old free-running boxcar arm was
+       timing-independent by construction, which is what let the NDA loop
+       acquire "with no data and no symbol timing". Until the timing loop
+       converges, the strobe is not a symbol: it is a moving, arbitrary phase
+       of the pulse, and its M-th power is nothing in particular.
+
+       That window is not short and not harmless. Measured at sps = 8 the
+       timing loop needs ~130 symbols to declare, and across it the carrier
+       lock statistic reads 0.9 to 1.7 against a QPSK ceiling of 0.62 — proof
+       the input is not a valid constellation. A type-2 loop steering on that
+       integrates a bias for 130 symbols; whichever way it happens to be
+       pushed decides the run, and pushed past the M-fold boundary the
+       integrator simply holds it there. About a third of data seeds never
+       recovered, and a WIDER bn_carrier made it worse, because a wider loop
+       integrates more of the same garbage over the same fixed transient.
+
+       So the steer, the AGC seed and the handover all wait on the timing
+       loop's own lock detector; only the discriminator and its lock EMA keep
+       running, because those must stay observable (the drop-back rule above,
+       and so `lock` still reports during acquisition). Nothing here clamps or
+       fudges a value — it declines to act on one that is known to be
+       meaningless. */
+    const int timing_ok = l->timing.lock.locked;
+
+    /* Seed the AGC from the first strobe rather than letting it walk there —
+       but only once that strobe is a symbol, per the note above. Its
+       bandwidth is deliberately ~100x below the carrier loop's so it tracks
+       the signal level and never the carrier dynamics — which, with both
+       loops referenced to the SYMBOL rate, is a time constant of thousands of
+       symbols. That is correct for tracking drift and useless for a cold
+       start, and the cold error is not small: a matched-filter bank is
+       unit-ENERGY, so its output sits ~sqrt(pulse_sps) above the
        constellation it came from. Left to converge on its own the
        discriminator sees |z| ~ 2, and since its gain goes as |z|^m the carrier
        loop runs 16x hot at QPSK and 256x at 8PSK — measured as a lock
        statistic of 5.2 and 26.4 against ceilings of 0.62 and 0.41, with the
-       loop diverging at any usable bandwidth. One seed makes the whole thing
-       amplitude-invariant, which is what the AGC was there for. */
-    if (!l->agc_seeded)
+       loop diverging at any usable bandwidth.
+
+       Seeding it off a PRE-lock strobe is the same bug from the other end: a
+       gain latched off a sample that is not yet a symbol can land far too low
+       just as easily as too high, and the AGC is far too slow to walk back.
+       Measured before this gate: `lock` reading 4.9e-19 — a denormal — on a
+       receiver decoding every bit correctly, so the handover never fired. */
+    if (!l->agc_seeded && timing_ok)
       {
         double p0 = (double)(crealf (on) * crealf (on)
                              + cimagf (on) * cimagf (on));
@@ -319,7 +346,7 @@ extern "C"
                       &lk);
     l->lock += CARRIER_NDA_LOCK_ALPHA * (lk - l->lock);
     (void)lockdet_step (&l->car_lock, l->lock);
-    if (!l->tracking)
+    if (!l->tracking && timing_ok)
       mpsk_rx_steer (l, pe);
 
     /* The NDA loop's stable points are the 0-grid (z^m = +1), but the QPSK
@@ -344,8 +371,12 @@ extern "C"
     l->sym_count++;
     /* Opt-in two-way handover: after warmup, step the verify-counted detector
        on the carrier lock EMA once per symbol. Its flag IS the discriminator
-       choice — and nothing else, now that both run at the symbol rate. */
-    if (l->acq_to_track && l->sym_count >= l->warmup_syms)
+       choice — and nothing else, now that both run at the symbol rate.
+       Gated on timing too: the pre-lock lock EMA overshoots its own ceiling
+       (0.9-1.7 against 0.62), so an ungated handover with a short warmup would
+       declare on garbage and hand the carrier to a decision-directed loop that
+       has no valid decisions to make. */
+    if (l->acq_to_track && timing_ok && l->sym_count >= l->warmup_syms)
       {
         l->tracking = lockdet_step (&l->handover, l->lock);
       }

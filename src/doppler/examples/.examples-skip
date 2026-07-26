@@ -18,4 +18,3 @@ requester.py: two-process NATS REQ demo (pair of replier.py); needs a live peer
 replier.py: two-process NATS REP demo (pair of requester.py); blocks on recv
 pipeline_send.py: two-process compose-pipeline demo (pair of pipeline_recv.py)
 pipeline_recv.py: two-process compose-pipeline demo (pair of pipeline_send.py)
-mpsk_receiver_demo.py: gh#536 -- demonstrates COLD carrier pull-in (init_norm_freq=0), which the cascade rebuild regressed; its own `assert rx.tracking == 1` fails for ~1/3 of data seeds. Deliberately NOT retuned to pass -- remove this line when #536 is fixed.

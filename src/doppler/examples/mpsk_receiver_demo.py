@@ -32,13 +32,15 @@ iq = (tx * np.exp(2j * np.pi * 0.0015 * k)).astype(np.complex64)
 
 # Acquire blind (M-th-power NDA), then hand the shared LO over to
 # low-jitter decision-directed tracking once locked and warmed up.
-# bn_carrier is normalised to the SYMBOL rate, not the sample rate.
+# bn_carrier is normalised to the SYMBOL rate, not the sample rate, and
+# carrier PULL-IN range scales with it: acquiring a 0.0015 cyc/sample offset
+# from a cold start (init_norm_freq defaults to 0) needs ~0.02 here.
 rx = MpskReceiver(
     m=4,
     sps=8,
     m_out=4,
     pulse="iandd",
-    bn_carrier=0.005,
+    bn_carrier=0.02,
     bn_timing=0.01,
     acq_to_track=1,
     lock_thresh=0.4,
@@ -119,7 +121,7 @@ def main(out_path: str = "mpsk_receiver_demo.png") -> None:
         sps=sps,
         m_out=4,
         init_norm_freq=0.0,
-        bn_carrier=0.005,
+        bn_carrier=0.02,
         bn_timing=0.01,
     )
     # process in fine blocks to log the loop state over time
@@ -187,7 +189,13 @@ def main(out_path: str = "mpsk_receiver_demo.png") -> None:
             rxm = MpskReceiver(
                 m=m,
                 sps=sps,
-                m_out=4,
+                # m_out=8, not the default 4: this panel measures against the
+                # coherent bound, and a one-symbol-wide rectangle sampled only
+                # 4x/symbol leaves 1-2 dB on the table (measured SER/theory
+                # 2.98/2.09/5.04 at m_out=4 against 1.57/1.05/1.39 at 8, with
+                # EVM moving onto -(Es/N0) exactly). Timing-error variance,
+                # not the carrier loop -- the Gardner gate sits m_out/2 back.
+                m_out=8,
                 init_norm_freq=0.0005,
                 bn_carrier=0.005,
                 bn_timing=0.005,

@@ -252,8 +252,14 @@ main (void)
 
   /* 4. acq_to_track flips NDA acquisition -> decision-directed tracking */
   {
+    /* bn_carrier 0.01, not 0.005: this case seeds the LO at 0 and makes the
+       loop ACQUIRE 0.0005 cyc/sample (0.004*Rs), and carrier pull-in range
+       scales with the loop bandwidth. At 0.005 the loop reaches the right
+       frequency but slips -- lock still reads a healthy +0.64 while EVM sits
+       at -8.1 dB against the -18.3 dB the wider loops give, which is exactly
+       why a lock statistic is never read on its own here. */
     mpsk_receiver_state_t *rx
-        = RX (4, SPS, M_OUT, MPSK_RX_PULSE_IANDD, 0.005, 1, 0.4, 0.0, 200);
+        = RX (4, SPS, M_OUT, MPSK_RX_PULSE_IANDD, 0.01, 1, 0.4, 0.0, 200);
     make_mpsk (tx, idx, 4, 0.0005, 30.0, 33u);
     size_t k = mpsk_receiver_steps (rx, tx, NSAMP, out, NSYM);
     CHECK (mpsk_receiver_get_tracking (rx) == 1); /* handed over */

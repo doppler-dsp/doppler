@@ -122,13 +122,6 @@ mpsk_rx_loops_reset (mpsk_rx_loops_t *l)
 }
 
 void
-mpsk_rx_loops_set_cascade (mpsk_rx_loops_t *l, double term_rate,
-                           size_t prime_taps)
-{
-  ratesync_loop_set_cascade (&l->timing, term_rate, prime_taps);
-}
-
-void
 mpsk_rx_configure_lock (mpsk_rx_loops_t *l, double up_thresh,
                         double down_thresh, uint32_t n_up, uint32_t n_down)
 {
@@ -354,10 +347,6 @@ mpsk_receiver_create (int m, double sps, size_t m_out, int pulse,
       return NULL;
     }
   rx->centre_freq = init_norm_freq;
-  rx->pulse       = pulse;
-  rx->rrc_beta    = rrc_beta;
-  rx->rrc_span    = rrc_span;
-  rx->num_phases  = num_phases;
 
   /* A complex front end mixes at the input rate, so the LO sees `sps` samples
      per symbol. (The real-input twin's halfband decimates first, which is why

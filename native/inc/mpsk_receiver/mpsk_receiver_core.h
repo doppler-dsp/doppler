@@ -117,11 +117,10 @@ extern "C"
     mpsk_rx_loops_t l;  /**< carrier + timing loops, handover, demapper.  */
 
     /* ── config (restored by create(), never packed in a state blob) ── */
+    /* The pulse geometry lives in the front end, which is the only thing
+       that uses it; keeping a second copy here would be a shadow of the
+       cascade's own configuration, free to drift out of step with it. */
     double centre_freq; /**< create-time carrier offset (cycles/sample).  */
-    int    pulse;       /**< MPSK_RX_PULSE_IANDD / _RRC.                  */
-    double rrc_beta;    /**< RRC roll-off (pulse == RRC).                 */
-    int    rrc_span;    /**< RRC one-sided span, symbols.                 */
-    size_t num_phases;  /**< terminal-stage bank arms.                    */
   } mpsk_receiver_state_t;
 
   /**

@@ -237,10 +237,8 @@ _best_ber (const float complex *syms, size_t n_syms, const double *data,
   return best;
 }
 
-/* Both truth-free validators now live in dp_sym_test.h so every receiver
- * test gets them; see that header for why a BER on its own is not evidence. */
-#define _evm_db_hard dp_test_evm_db_hard
-#define _m2m4_snr_db dp_test_m2m4_snr_db
+/* Both truth-free validators live in dp_sym_test.h so every receiver test
+ * gets them; see that header for why a BER on its own is not evidence. */
 
 static int
 _test_arg_validation (void)
@@ -328,8 +326,8 @@ _test_acquire_and_decode (void)
   double ber = _best_ber (syms, n_syms, data, n_sym + 4);
   CHECK (ber < 0.05);
   /* Truth-free corroboration: a real lock, not a lucky BER lag/polarity. */
-  CHECK (_evm_db_hard (syms, n_syms) < -8.0);
-  CHECK (_m2m4_snr_db (syms, n_syms) > 8.0);
+  CHECK (dp_test_evm_db_hard (syms, n_syms) < -8.0);
+  CHECK (dp_test_m2m4_snr_db (syms, n_syms) > 8.0);
 
   /* ── state-serialization round trip, while tracking ─────────────────── */
   size_t cb   = async_dsss_receiver_state_bytes (rx);
@@ -527,8 +525,8 @@ _test_spec_ramp_decode (void)
   CHECK (n_syms > (n_sym / 2));
   CHECK (ber < 0.05);
   /* Truth-free corroboration under the ramp: a real lock, not a lucky lag. */
-  CHECK (_evm_db_hard (syms, n_syms) < -8.0);
-  CHECK (_m2m4_snr_db (syms, n_syms) > 8.0);
+  CHECK (dp_test_evm_db_hard (syms, n_syms) < -8.0);
+  CHECK (dp_test_m2m4_snr_db (syms, n_syms) > 8.0);
 
   free (syms);
   free (x);
@@ -692,11 +690,11 @@ _test_awgn_esn0_floor (void)
       float complex *syms   = NULL;
       size_t         n_syms = rx ? _stream (rx, x, tot, sf * spc, &syms) : 0;
       double         ber    = _best_ber (syms, n_syms, dsym, n_data);
-      double         evm    = _evm_db_hard (syms, n_syms); /* no lag/truth */
-      double         snr    = _m2m4_snr_db (syms, n_syms); /* blind M2M4   */
-      ber_at[p]             = ber;
-      evm_at[p]             = evm;
-      snr_at[p]             = snr;
+      double evm = dp_test_evm_db_hard (syms, n_syms); /* no lag/truth */
+      double snr = dp_test_m2m4_snr_db (syms, n_syms); /* blind M2M4   */
+      ber_at[p]  = ber;
+      evm_at[p]  = evm;
+      snr_at[p]  = snr;
       /* Print all three: ber is the truth-referenced number; evm (self-
          referenced, no lag) and the blind M2M4 SNR are the independent
          validators that can't be fooled by a lucky-lag false pass. */

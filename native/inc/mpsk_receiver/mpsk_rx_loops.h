@@ -207,19 +207,6 @@ extern "C"
    *  @param l  Must be non-NULL. */
   void mpsk_rx_loops_reset (mpsk_rx_loops_t *l);
 
-  /**
-   * @brief Point the timing loop at the cascade it steers.
-   *
-   * Forwards to ratesync_loop_set_cascade(); the owner reads the geometry off
-   * its own front end, which is the only party that knows it.
-   *
-   * @param l          Must be non-NULL.
-   * @param term_rate  The terminal stage's own rate.
-   * @param prime_taps The terminal bank's tap count.
-   */
-  void mpsk_rx_loops_set_cascade (mpsk_rx_loops_t *l, double term_rate,
-                                  size_t prime_taps);
-
   /** @brief Re-tune the handover detector; see mpsk_receiver_configure_lock(),
    *  which forwards here. A live handover survives; the verify run restarts. */
   void mpsk_rx_configure_lock (mpsk_rx_loops_t *l, double up_thresh,

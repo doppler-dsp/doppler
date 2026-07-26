@@ -357,7 +357,7 @@ CASES: dict[str, tuple[Callable[[], Any], _Feed]] = {
         lambda: Despreader(code=_CODE, sps=2, periods_per_bit=1),
         _track_feed,
     ),
-    "MpskReceiver": (lambda: MpskReceiver(m=4, sps=8, n=4), _track_feed),
+    "MpskReceiver": (lambda: MpskReceiver(m=4, sps=8, m_out=4), _track_feed),
     # Generators ignore the segment values, emitting len(seg) samples.
     "NCO": (
         lambda: NCO(0.01, 0),

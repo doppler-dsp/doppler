@@ -15,6 +15,91 @@ ______________________________________________________________________
 
 ### Changed
 
+- **`MpskReceiver` is rebuilt on the matched-DDC cascade. Its outputs are no
+    longer bit-identical, and `bn_carrier` changed units.** Read both of those
+    before upgrading — the second one is silent.
+
+    The receiver now owns no filter, no NCO and no interpolator of its own. It is
+    a `MatchedDDC` with two loops closed around its two control ports: the
+    terminal polyphase stage's **bank is the matched filter** and the **arm it
+    selects is the fractional symbol-timing delay**, a carrier loop steers the LO
+    (`freq_ctrl`), and `RateSync`'s own timing loop — reused, not copied — steers
+    the terminal accumulator (`rate_ctrl`). Four pieces went away as a result: the
+    per-sample integer-NCO wipe-off, the separate boxcar NDA arm and its AGC, the
+    dense matched-filter FIR, and the `SymbolSync` Gardner+Farrow loop. All four
+    remain first-class objects in their own right; this receiver just no longer
+    needs them.
+
+    - **Outputs move at the float level.** A polyphase bank is not a dense FIR and
+        a bank arm is not a Farrow. Detection performance is unchanged — the fused
+        matched filter measures on the Es/N0 bound — but exact-output pins are not.
+    - **`bn_carrier` is now normalised to the symbol rate**, like `bn_timing`,
+        rather than to the input sample rate. Old code keeps running and simply
+        gets a much wider carrier loop than it asks for: at the old default
+        `sps = 8`, the same number is an 8× wider loop. Values around
+        `0.005` are where `0.02`–`0.03` used to be.
+    - **`n` is now `m_out`, and means something different.** `n` sized the NDA arm
+        (window = `sps/n`); there is no arm. `m_out` is the terminal stage's
+        **outputs per symbol** (even, 2–8, default 4), setting the Gardner
+        strobe/gate geometry. Use `m_out >= 4` with `pulse="iandd"`: the rectangle
+        is one symbol wide, so at 2 its matched filter degenerates to a two-tap sum
+        (measured lock statistic −0.34 at 2 against +0.95 at 4).
+
+    What the rebuild buys is that **`sps` is a `double` and the front end plans
+    itself**. At `sps = 8` the plan is a halfband or two plus a terminal stage; at
+    `sps = 256` it is a CIC in front of the *same* terminal stage, so the matched
+    filter costs ~34 taps/arm at both ends of a 64× span of input rates, against
+    the ~4225 taps/arm a single-stage design would need. An irrational `sps` — a
+    free-running ADC clock against the symbol clock — is no harder than an integer
+    one.
+
+    **Known regression, found while documenting this and not yet fixed: carrier
+    acquisition now depends on timing lock, and cold pull-in is unreliable.** The
+    old NDA discriminator ran on a free-running boxcar arm and so was
+    timing-independent by construction — acquiring "with no data and no symbol
+    timing" was its whole point. The rebuilt discriminator runs on the on-time
+    strobe (it has to: fed every terminal output, 8PSK sat at chance, because a
+    non-strobe output straddles two symbols). Until the timing loop converges the
+    strobe is not a symbol, and the carrier loop integrates an invalid
+    discriminator output through the entire transient.
+
+    Measured at `sps=8`, QPSK, cold (`init_norm_freq=0`): timing takes ~180–240
+    symbols to settle, and across that window the lock statistic reads 0.9–1.7
+    against a QPSK ceiling of 0.62 — proof the discriminator input is not a valid
+    constellation. Whichever way that garbage pushes the loop decides the run;
+    pushed past the M-fold boundary the type-2 integrator holds it there and it
+    never recovers. About a third of data seeds fail, and **widening `bn_carrier`
+    makes it worse**, which is how you can tell it is not a pull-in-range limit.
+
+    **Separately and architecturally, the carrier pull-in range collapsed by a
+    factor of `sps`.** An M-th-power discriminator is unambiguous only while its
+    M-th-power phase advances less than π per update; at the sample rate that
+    bound was `fs/(2M)`, at the symbol rate it is `Rs/(2M)`. **Pull-in is now well
+    below the symbol rate where before it was above it** (measured ~0.01·`Rs`,
+    tighter still because an initial error must also survive the timing
+    transient). Worse, `Rs/M` is where the symbol-rate M-th power aliases onto
+    zero, so **the M-fold ambiguity is now a frequency ambiguity as well as a
+    phase one**: at `Δf = k·Rs/M` the loop sits still and reports a perfectly
+    healthy lock statistic (+0.546 against a 0.62 ceiling, measured), with a
+    stationary constellation that no self-referenced metric can flag. Telling that
+    apart from a true lock needs an external frequency reference or a sync word.
+    If you need a wider acquisition range, put a coarse frequency estimate in
+    front (an FFT sweep, or `ppe`) and hand it in via `init_norm_freq` — that is
+    what the parameter is for; no loop retune reaches it.
+
+    *Seeded* operation is unaffected — a seeded loop has nothing to integrate
+    toward and holds through the transient, which is exactly why the whole test
+    suite (every acquisition case passes the true offset into the constructor) is
+    green. So: **seed `init_norm_freq`** from a coarse estimate where you can, and
+    verify acquisition rather than assuming it. The fix direction is to gate the
+    carrier steer on the timing loop's existing lock detector. Tracked as
+    [#536](https://github.com/doppler-dsp/doppler/issues/536), which also records
+    the `sps`-dependent instability that follows from it (the cascade plan sets
+    the transient's length, and changes discontinuously with the rate).
+    `src/doppler/examples/mpsk_receiver_demo.py` is a cold-pull-in demo and
+    currently fails its own assertion; it has deliberately **not** been retuned to
+    pass.
+
 - **`RateConverter(pulse=…)` is now `MatchedRateConverter(…)`.** The matched
     cascade is a *flavor* — the same object built by a different C constructor
     (`RateConverter_create_matched`, unchanged) — which is what lets the whole
@@ -53,6 +138,22 @@ ______________________________________________________________________
     per object as everywhere else.
 
 ### Added
+
+- **`track.MpskReceiverR` — the real-input M-PSK receiver.** `MpskReceiver` for a
+    real IF: `steps()` and `bits()` take `float32` samples of a real bandpass
+    signal instead of complex baseband, and a `MatchedDdcr` front end tunes and
+    converts internally. Every loop, discriminator, handover rule and demapper is
+    the *same implementation* shared with the complex type — only the front end
+    and the two rate conversions its halfband forces differ, so a fix to receiver
+    behaviour lands on both by construction.
+
+    It is a separate class rather than a constructor flavor of `MpskReceiver` for
+    the usual reason (a difference in constructor is a flavor, a difference in
+    method signature is a separate type — and `steps()` takes a different dtype).
+    Its one extra constraint is **`sps > 2 * m_out`**: the cascade behind the R2C
+    halfband runs at twice the overall rate. `init_norm_freq` and `norm_freq` are
+    both in cycles/sample at the real input rate; the halfband's baked-in `fs/4`
+    shift and the intermediate-rate conversion are handled internally.
 
 - **A matched *flavor* for both down-converters, and a second control port.**
     `MatchedDDC` and `MatchedDdcr` are the same objects as `DDC` and `Ddcr`,

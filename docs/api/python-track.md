@@ -153,22 +153,34 @@ ______________________________________________________________________
 
 ## MpskReceiver — pulse-shaped M-PSK modem
 
-`MpskReceiver` is a complete per-sample M-PSK demodulator that composes the
-tracking primitives on one shared sample loop: a `CarrierNda` carrier loop
-(per-sample integer-NCO wipe-off + non-data-aided M-th-power acquisition), an
-owned **matched filter** on the de-rotated stream (`pulse="iandd"` integrate-and-
-dump boxcar by default, or `pulse="rrc"` root-raised-cosine for band-limited
-links), and a `SymbolSync` Gardner timing loop. Carrier recovery follows the
-project rule — **predetection de-rotation** (always) and **postdetection
-discrimination**: the NDA loop acquires with no data and no symbol timing, then,
-when `acq_to_track=1` (opt-in) and the loop has locked, the receiver switches the
-shared NCO to a lower-jitter **decision-directed** loop on the recovered symbols
-(essential for 8PSK, whose M-th-power phase noise would otherwise cross the
-±π/8 margins). The loop locks to one of `m` phases (M-fold ambiguity); resolve it
-with `bits(..., differential=1)` or a sync word. `steps()` returns the recovered
-symbols; `bits()` returns hard Gray bits (coherent, or rotation-invariant
-differential). A DSSS-MPSK receiver is `Dll(segments) → MpskReceiver`. All
-constructor parameters are keyword-capable with defaults. See the
+`MpskReceiver` is a complete M-PSK demodulator that owns no filter, no NCO and no
+interpolator of its own: it is a **matched down-converter with two loops closed
+around its two control ports**. A `MatchedDDC` mixes, decimates and
+matched-filters in the dot products it was already doing (`pulse="iandd"`
+integrate-and-dump by default, or `pulse="rrc"` root-raised-cosine for
+band-limited links) — its terminal polyphase stage's **bank is the matched
+filter** and the **arm it selects is the fractional symbol-timing delay**. A
+carrier loop steers the LO (`freq_ctrl`); `RateSync`'s own timing loop, reused
+rather than copied, steers the terminal accumulator (`rate_ctrl`).
+
+Carrier recovery follows the project rule — **predetection de-rotation** (in the
+LO, at the front of the chain) and **postdetection discrimination** (on the
+matched-filtered symbols at the end of it). The NDA M-th-power loop acquires with
+no data; when `acq_to_track=1` (opt-in) and the loop has locked, the receiver
+switches the shared LO to a lower-jitter **decision-directed** loop on the
+recovered symbols (essential for 8PSK, whose M-th-power phase noise would
+otherwise cross the ±π/8 margins). Both discriminators run on the same on-time
+strobe, so the handover is a plain swap and the shared loop filter carries the
+frequency estimate across it in both directions. The loop locks to one of `m`
+phases (M-fold ambiguity); resolve it with `bits(..., differential=1)` or a sync
+word.
+
+Because the front end plans its own cascade, **`sps` is a `float`** — an
+irrational samples-per-symbol (a free-running ADC clock against the symbol clock)
+is no harder than an integer one. `steps()` returns the recovered symbols;
+`bits()` returns hard Gray bits (coherent, or rotation-invariant differential). A
+DSSS-MPSK receiver is `Dll(segments) → MpskReceiver`. All constructor parameters
+are keyword-capable with defaults. See the
 [MPSK receiver gallery](../gallery/mpsk-receiver.md) and the
 [MPSK receiver design](../design/mpsk.md).
 
@@ -179,13 +191,77 @@ from doppler.wfm import Synth
 iq = Synth(type="qpsk", sps=8, snr=20).steps(4096)  # received IQ
 
 # QPSK, 8 samples/symbol, I&D matched filter; NDA acquisition + opt-in switch
-rx = MpskReceiver(m=4, sps=8, n=4, pulse="iandd",
-                  bn_carrier=0.01, bn_timing=0.01,
+rx = MpskReceiver(m=4, sps=8, m_out=4, pulse="iandd",
+                  bn_carrier=0.005, bn_timing=0.01,
                   acq_to_track=1, lock_thresh=0.4)
 sym  = rx.steps(iq)          # recovered symbols (~ len(iq) / sps)
 bits = rx.bits(iq)           # hard Gray bits (LSB-first per symbol)
 f    = rx.norm_freq          # tracked carrier (cycles/sample)
 lk   = rx.lock               # carrier lock metric (-> + at lock, every M)
+```
+
+!!! warning "Two parameters changed meaning in the cascade rebuild"
+
+    - **`n` is now `m_out`**, and it means something different. `n` sized a
+        separate NDA arm (window = `sps/n`); that arm no longer exists. `m_out` is
+        the terminal stage's **outputs per symbol** (even, 2–8, default 4), which
+        sets the Gardner strobe/gate geometry. **Use `m_out >= 4` with
+        `pulse="iandd"`** — the rectangle is one symbol wide, so at 2 its matched
+        filter degenerates to a two-tap sum (measured lock statistic −0.34 at 2
+        against +0.95 at 4).
+    - **`bn_carrier` is normalised to the symbol rate**, like `bn_timing`, rather
+        than to the input sample rate. At `sps = 8` the same number is now an 8×
+        wider loop.
+
+    Outputs are also **no longer bit-identical** to releases before the rebuild
+    (polyphase bank instead of a dense FIR, bank arm instead of a Farrow).
+    Detection performance is unchanged; exact-output pins are not.
+
+!!! bug "Seed `init_norm_freq` — cold pull-in is currently unreliable"
+
+    The carrier loop acquires reliably when seeded (`init_norm_freq` at or near
+    the true offset) but not from a cold start (`init_norm_freq=0`), where it
+    succeeds in at best 4 of 6 data seeds on a clean noiseless signal. Widening
+    `bn_carrier` does not fix it. Seed the frequency if you have a coarse
+    estimate, and check acquisition with a truth-free metric rather than assuming
+    it. Tracked as
+    [doppler-dsp/doppler#536](https://github.com/doppler-dsp/doppler/issues/536).
+
+______________________________________________________________________
+
+## MpskReceiverR — the real-input twin
+
+`MpskReceiverR` is `MpskReceiver` for a **real IF**: `steps()` and `bits()` take
+`float32` samples of a real bandpass signal instead of complex baseband, and a
+`MatchedDdcr` front end tunes and converts it to complex internally. Every loop,
+discriminator, handover rule and demapper is the *same implementation* shared
+with the complex type — only the front end and the two rate conversions its
+halfband forces differ.
+
+It is a separate class rather than a constructor flavor of `MpskReceiver` for the
+usual reason: a difference in **constructor** is a flavor, a difference in
+**method signature** is a separate type, and `steps()` takes a different dtype
+here.
+
+Its one extra constraint is **`sps > 2 * m_out`** — the cascade behind the R2C
+halfband runs at twice the overall rate. `init_norm_freq` and `norm_freq` are
+both in cycles/sample at the **real input** rate; the tuning law and the
+intermediate-rate conversion are handled internally.
+
+```python
+import numpy as np
+from doppler.track import MpskReceiverR
+
+fc = 0.10                                    # real IF, cycles/sample
+rng = np.random.default_rng(3)
+syms = np.exp(2j * np.pi * rng.integers(0, 4, 2000) / 4)
+bb = np.repeat(syms, 24)                     # QPSK, 24 samples/symbol
+n = np.arange(len(bb))
+rf = (bb * np.exp(2j * np.pi * fc * n)).real.astype(np.float32) * 0.5
+
+rx = MpskReceiverR(m=4, sps=24.0, m_out=4, init_norm_freq=fc, bn_carrier=0.002)
+sym = rx.steps(rf)           # recovered symbols
+lk  = rx.lock                # carrier lock metric
 ```
 
 ______________________________________________________________________

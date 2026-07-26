@@ -30,14 +30,15 @@ tx = np.repeat(tx, 8).astype(np.complex64)
 k = np.arange(tx.size)
 iq = (tx * np.exp(2j * np.pi * 0.0015 * k)).astype(np.complex64)
 
-# Acquire blind (M-th-power NDA), then hand the shared NCO over to
+# Acquire blind (M-th-power NDA), then hand the shared LO over to
 # low-jitter decision-directed tracking once locked and warmed up.
+# bn_carrier is normalised to the SYMBOL rate, not the sample rate.
 rx = MpskReceiver(
     m=4,
     sps=8,
-    n=4,
+    m_out=4,
     pulse="iandd",
-    bn_carrier=0.01,
+    bn_carrier=0.005,
     bn_timing=0.01,
     acq_to_track=1,
     lock_thresh=0.4,
@@ -114,7 +115,12 @@ def main(out_path: str = "mpsk_receiver_demo.png") -> None:
     foff = 0.0015
     tx, idx = _signal(4, sps, foff=foff, esn0_db=20, nsym=4000, seed=1)
     rx = MpskReceiver(
-        m=4, sps=sps, n=4, init_norm_freq=0.0, bn_carrier=0.008, bn_timing=0.01
+        m=4,
+        sps=sps,
+        m_out=4,
+        init_norm_freq=0.0,
+        bn_carrier=0.005,
+        bn_timing=0.01,
     )
     # process in fine blocks to log the loop state over time
     freqs, locks = [], []
@@ -181,7 +187,7 @@ def main(out_path: str = "mpsk_receiver_demo.png") -> None:
             rxm = MpskReceiver(
                 m=m,
                 sps=sps,
-                n=4,
+                m_out=4,
                 init_norm_freq=0.0005,
                 bn_carrier=0.005,
                 bn_timing=0.005,

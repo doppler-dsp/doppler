@@ -59,8 +59,8 @@ def test_steps_recovers_symbols(m):
 
 def test_defaults_and_keywords():
     """All ctor params default; keyword construction (no forced positional)."""
-    rx = MpskReceiver()  # QPSK, sps=8, I&D
-    assert rx.m == 4 and rx.sps == 8 and rx.m_out == 4 and rx.tracking == 0
+    rx = MpskReceiver()  # QPSK, sps=8, m_out=8, I&D
+    assert rx.m == 4 and rx.sps == 8 and rx.m_out == 8 and rx.tracking == 0
     rx2 = MpskReceiver(m=2, sps=4, m_out=2, pulse="iandd")
     assert rx2.m == 2 and rx2.sps == 4 and rx2.m_out == 2
 

@@ -31,7 +31,8 @@
  * **`sps` must exceed `2 * m_out`.** The cascade behind the halfband runs at
  * `2 * rate`, and Ddcr requires `rate < 0.5`; the receiver asks for
  * `rate = m_out/sps`, so `sps > 2 * m_out` (against `sps >= m_out` for the
- * complex type). At the default `m_out = 4` that is `sps > 8`.
+ * complex type). At the default `m_out = 8` that is `sps > 16`, which is why
+ * this type's `sps` default is 32.0 where the complex twin's is 8.0.
  *
  * A real-valued IF is the usual output of a single-ended ADC, so this is the
  * type that takes a digitiser's samples directly. Everything downstream —
@@ -102,10 +103,14 @@ extern "C"
    * @param m              Constellation order M, 2/4/8 (default 4 = QPSK).
    * @param sps            Samples per symbol at the REAL input; any double
    *                        **strictly greater than `2 * m_out`** (default
-   *                        16.0). The cascade behind the halfband runs at
+   *                        32.0). The cascade behind the halfband runs at
    *                        twice the overall rate, and Ddcr requires that
    *                        rate below 0.5.
-   * @param m_out          Terminal outputs per symbol: even, 2..8 (default 4).
+   * @param m_out          Terminal outputs per symbol: even, 2..8 (default
+   *                        8) — where an I&D matched filter reaches the
+   *                        coherent bound; see the complex twin's create()
+   *                        for the measurements. It is this default that
+   *                        forces `sps`'s to 32.0.
    * @param pulse          Matched-filter shape (default MPSK_RX_PULSE_IANDD).
    * @param rrc_beta       RRC roll-off in `[0, 1]` (default 0.35; RRC only).
    * @param rrc_span       RRC one-sided span in symbols (default 8; RRC only).
@@ -123,6 +128,20 @@ extern "C"
    * @param warmup_syms    Symbols before the handover is allowed (100).
    * @param differential   bits(): differential demap (default 0).
    * @param num_phases     Terminal-stage bank arms, a power of two (1024).
+   * @param nda_tap        MPSK_RX_NDA_TAP_* — where the NDA carrier
+   *                        discriminator reads, and so its pull-in range:
+   *                        `_STROBE` (0, default) at `Rs` and the only tap
+   *                        needing symbol timing, `_MF_ALL` (1) at
+   *                        `m_out*Rs`, `_LO_ARM` (2) at the LO rate and
+   *                        widest. See mpsk_receiver_create() for the full
+   *                        trade and the measured ranges. Two differences
+   *                        here: `_LO_ARM` taps the arm behind the R2C
+   *                        halfband, at the **halved** internal LO rate
+   *                        rather than the real input rate; and this type
+   *                        does not acquire from a cold zero the way the
+   *                        complex twin does — a real IF must be tuned near,
+   *                        so @p init_norm_freq is the centre and a tap buys
+   *                        pull-in *around* it, not from nothing.
    * @return Heap-allocated state, or NULL on invalid args / allocation
    *         failure.
    * @note Caller must call mpsk_receiver_r_destroy() when done.

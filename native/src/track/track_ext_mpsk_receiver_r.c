@@ -66,8 +66,8 @@ MpskReceiverRObj_init (MpskReceiverRObject *self, PyObject *args,
           "warmup_syms", "differential", "num_phases",  "nda_tap",
           NULL };
   int                m               = 4;
-  double             sps             = 16.0;
-  unsigned long long m_out_raw       = 4;
+  double             sps             = 32.0;
+  unsigned long long m_out_raw       = 8;
   const char        *pulse_str       = "iandd";
   double             rrc_beta        = 0.35;
   int                rrc_span        = 8;

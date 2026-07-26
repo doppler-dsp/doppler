@@ -129,13 +129,21 @@ extern "C"
    * @param m              Constellation order M, 2/4/8 (default 4 = QPSK).
    * @param sps            Samples per symbol; any double >= @p m_out (8.0
    *                        by default, but 17.33389 is equally valid).
-   * @param m_out          Terminal outputs per symbol: even, 2..8. Gardner
-   *                        needs the half-symbol gate. **Use m_out >= 4 with
-   *                        MPSK_RX_PULSE_IANDD** — the rectangle is one symbol
-   *                        wide, so at 2 its matched filter is a two-tap sum
-   *                        and the eye barely opens. Replaces the old `n`
-   *                        (NDA arm dumps/symbol), which the cascade's own
-   *                        outputs now serve.
+   * @param m_out          Terminal outputs per symbol: even, 2..8 (default
+   *                        8). Gardner needs the half-symbol gate. The
+   *                        default is 8 because that is where an I&D matched
+   *                        filter reaches the coherent bound: the rectangle
+   *                        is one symbol wide, so its matched filter is an
+   *                        m_out-tap sum spanning it, and a smaller m_out
+   *                        samples the same integral more coarsely. Measured
+   *                        on QPSK at sps = 8 against EVM_dB =
+   *                        -(Es/N0)_dB, at 18 dB Es/N0: 0.41 dB off the
+   *                        bound at 8, 3.11 dB at 4. **Never pair 2 with
+   *                        MPSK_RX_PULSE_IANDD** — the filter degenerates to
+   *                        a two-tap sum, the eye barely opens and
+   *                        acquisition itself fails about half the time.
+   *                        Replaces the old `n` (NDA arm dumps/symbol),
+   *                        which the cascade's own outputs now serve.
    * @param pulse          Matched-filter shape (default MPSK_RX_PULSE_IANDD).
    * @param rrc_beta       RRC roll-off in `[0, 1]` (default 0.35; RRC only).
    * @param rrc_span       RRC one-sided span in symbols (default 8; RRC only).
@@ -164,6 +172,37 @@ extern "C"
    * @param num_phases     Terminal-stage bank arms; a power of two (default
    *                        1024). Sets the timing resolution to
    *                        `1/num_phases` of an output period.
+   * @param nda_tap        MPSK_RX_NDA_TAP_* — where the NDA carrier
+   *                        discriminator reads, which sets its pull-in range
+   *                        and whether it needs symbol timing at all. An
+   *                        M-th-power detector updating at rate `F` can only
+   *                        observe `|df| < F/(2M)`, so the tap point IS the
+   *                        range:
+   *                        - `MPSK_RX_NDA_TAP_STROBE` (0, default) — the
+   *                          on-time strobe, at `Rs`. Cleanest input,
+   *                          narrowest range, and the ONLY tap that must
+   *                          wait for the timing loop to lock.
+   *                        - `MPSK_RX_NDA_TAP_MF_ALL` (1) — every terminal
+   *                          output, at `m_out*Rs`. No timing dependence,
+   *                          paid for with the ISI the between-symbol
+   *                          outputs carry (worst at 8PSK, where the
+   *                          decision margin is smallest).
+   *                        - `MPSK_RX_NDA_TAP_LO_ARM` (2) — ahead of the
+   *                          cascade, through a free-running half-symbol
+   *                          boxcar at the LO rate. Widest range and fully
+   *                          timing-independent, but unmatched, so it pays
+   *                          squaring loss; it does NOT work at 8PSK (the
+   *                          8th-power gain over a boxcar arm collapses).
+   *                        Measured unaided, QPSK at `sps = 8, m_out = 8`,
+   *                        each at its own best `bn_carrier`: `0.050*Rs`
+   *                        (strobe), `0.033*Rs` (mf_all), `0.090*Rs`
+   *                        (lo_arm). Fixed at construction — nothing
+   *                        switches underneath the caller. Note `df = k*F/M`
+   *                        is a stable FALSE lock at every tap, reporting a
+   *                        healthy lock statistic that no self-referenced
+   *                        metric can flag. For more range than any tap
+   *                        gives, put a coarse frequency estimate in front
+   *                        and pass it as @p init_norm_freq.
    * @return Heap-allocated state, or NULL on invalid args / allocation
    * failure.
    * @note Caller must call mpsk_receiver_destroy() when done.

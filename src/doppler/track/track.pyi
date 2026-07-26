@@ -1176,8 +1176,8 @@ class MpskReceiver:
         Constellation order M, 2/4/8 (default 4 = QPSK).
     sps : float, default 8.0
         Samples per symbol. Any double >= `m_out` -- 17.33389 is as valid as 8, because the front end plans its own cascade and the terminal stage's accumulator is a double. That is the real-world case whenever the ADC clock is free-running against the symbol clock.
-    m_out : int, default 4
-        Terminal outputs per symbol: even, 2..8. The Gardner detector takes every m_out-th output as the on-time strobe and the one m_out/2 back as the transition gate, so the oversampled matched-filtered stream falls out for free. **Use m_out >= 4 with pulse="iandd"** -- the rectangle is one symbol wide, so at 2 its matched filter is a two-tap sum and the eye barely opens (measured lock statistic -0.34 at 2 against +0.95 at 4 on the same NRZ stream). Replaces the old `n` (NDA arm dumps per symbol): the cascade's own outputs now feed the carrier discriminator, so there is no separate arm to size.
+    m_out : int, default 8
+        Terminal outputs per symbol: even, 2..8. The Gardner detector takes every m_out-th output as the on-time strobe and the one m_out/2 back as the transition gate, so the oversampled matched-filtered stream falls out for free. **The default is 8 because that is where the I&D matched filter reaches the coherent bound.** The rectangle is one symbol wide, so its matched filter is an m_out-tap sum spanning it, and a smaller m_out samples that same integral more coarsely. Measured on QPSK at the default sps=8 against the coherent bound EVM_dB = -(Es/N0)_dB: at 18 dB Es/N0, m_out=8 lands 0.41 dB off the bound where m_out=4 loses 3.11 dB; at 14 dB it is 0.25 dB against 1.71 dB -- the gap widens as noise stops hiding it. **Never pair 2 with pulse="iandd"**: the matched filter degenerates to a two-tap sum, the eye barely opens (measured lock statistic -0.34 at 2 against +0.95 at 4 on the same NRZ stream) and acquisition itself fails about half the time (4/8 seeds locked at 14 dB Es/N0, against 8/8 at both 4 and 8). Replaces the old `n` (NDA arm dumps per symbol): the cascade's own outputs now feed the carrier discriminator, so there is no separate arm to size.
     pulse : Literal["iandd", "rrc"], default "iandd"
         Matched-filter shape (default MPSK_RX_PULSE_IANDD).
     rrc_beta : float, default 0.35
@@ -1210,7 +1210,7 @@ class MpskReceiver:
     Create with defaults:
 
     >>> from doppler.track import MpskReceiver
-    >>> obj = MpskReceiver(m=4, sps=8.0, m_out=4, pulse="iandd", rrc_beta=0.35, rrc_span=8, bn_carrier=0.01, zeta=0.707, bn_timing=0.01, acq_to_track=0, lock_thresh=0.5, init_norm_freq=0.0, warmup_syms=100, differential=0, num_phases=1024, nda_tap="strobe")
+    >>> obj = MpskReceiver(m=4, sps=8.0, m_out=8, pulse="iandd", rrc_beta=0.35, rrc_span=8, bn_carrier=0.01, zeta=0.707, bn_timing=0.01, acq_to_track=0, lock_thresh=0.5, init_norm_freq=0.0, warmup_syms=100, differential=0, num_phases=1024, nda_tap="strobe")
 
     """
     def __init__(self, m: int = ..., sps: float = ..., m_out: int = ..., pulse: Literal["iandd", "rrc"] = "iandd", rrc_beta: float = ..., rrc_span: int = ..., bn_carrier: float = ..., zeta: float = ..., bn_timing: float = ..., acq_to_track: int = ..., lock_thresh: float = ..., init_norm_freq: float = ..., warmup_syms: int = ..., differential: int = ..., num_phases: int = ..., nda_tap: Literal["strobe", "mf_all", "lo_arm"] = "strobe") -> None: ...
@@ -1385,10 +1385,10 @@ class MpskReceiverR:
     ----------
     m : int, default 4
         Constellation order M, 2/4/8 (default 4 = QPSK).
-    sps : float, default 16.0
-        Samples per symbol. Any double **strictly greater than `2 * m_out`** (the cascade behind the R2C halfband runs at twice the overall rate, and Ddcr needs that below 0.5) -- 17.33389 is as valid as 16, because the front end plans its own cascade and the terminal stage's accumulator is a double. That is the real-world case whenever the ADC clock is free-running against the symbol clock.
-    m_out : int, default 4
-        Terminal outputs per symbol: even, 2..8. The Gardner detector takes every m_out-th output as the on-time strobe and the one m_out/2 back as the transition gate, so the oversampled matched-filtered stream falls out for free. **Use m_out >= 4 with pulse="iandd"** -- the rectangle is one symbol wide, so at 2 its matched filter is a two-tap sum and the eye barely opens (measured lock statistic -0.34 at 2 against +0.95 at 4 on the same NRZ stream). Replaces the old `n` (NDA arm dumps per symbol): the cascade's own outputs now feed the carrier discriminator, so there is no separate arm to size.
+    sps : float, default 32.0
+        Samples per symbol. Any double **strictly greater than `2 * m_out`** (the cascade behind the R2C halfband runs at twice the overall rate, and Ddcr needs that below 0.5) -- 33.33389 is as valid as 32, because the front end plans its own cascade and the terminal stage's accumulator is a double. That is the real-world case whenever the ADC clock is free-running against the symbol clock. The default is 32 rather than the complex twin's 8 purely to clear that bound: `m_out` defaults to 8, so anything at or below 16 cannot construct.
+    m_out : int, default 8
+        Terminal outputs per symbol: even, 2..8. The Gardner detector takes every m_out-th output as the on-time strobe and the one m_out/2 back as the transition gate, so the oversampled matched-filtered stream falls out for free. **The default is 8 because that is where the I&D matched filter reaches the coherent bound.** The rectangle is one symbol wide, so its matched filter is an m_out-tap sum spanning it, and a smaller m_out samples that same integral more coarsely. Measured on the complex twin at its default sps=8 against the coherent bound EVM_dB = -(Es/N0)_dB: at 18 dB Es/N0, m_out=8 lands 0.41 dB off the bound where m_out=4 loses 3.11 dB; at 14 dB it is 0.25 dB against 1.71 dB -- the gap widens as noise stops hiding it. Because `sps` must clear `2 * m_out` here, this default is also what puts the `sps` default at 32. **Never pair 2 with pulse="iandd"**: the matched filter degenerates to a two-tap sum, the eye barely opens (measured lock statistic -0.34 at 2 against +0.95 at 4 on the same NRZ stream) and acquisition itself fails about half the time. Replaces the old `n` (NDA arm dumps per symbol): the cascade's own outputs now feed the carrier discriminator, so there is no separate arm to size.
     pulse : Literal["iandd", "rrc"], default "iandd"
         Matched-filter shape (default MPSK_RX_PULSE_IANDD).
     rrc_beta : float, default 0.35
@@ -1421,7 +1421,7 @@ class MpskReceiverR:
     Create with defaults:
 
     >>> from doppler.track import MpskReceiverR
-    >>> obj = MpskReceiverR(m=4, sps=16.0, m_out=4, pulse="iandd", rrc_beta=0.35, rrc_span=8, bn_carrier=0.01, zeta=0.707, bn_timing=0.01, acq_to_track=0, lock_thresh=0.5, init_norm_freq=0.0, warmup_syms=100, differential=0, num_phases=1024, nda_tap="strobe")
+    >>> obj = MpskReceiverR(m=4, sps=32.0, m_out=8, pulse="iandd", rrc_beta=0.35, rrc_span=8, bn_carrier=0.01, zeta=0.707, bn_timing=0.01, acq_to_track=0, lock_thresh=0.5, init_norm_freq=0.0, warmup_syms=100, differential=0, num_phases=1024, nda_tap="strobe")
 
     """
     def __init__(self, m: int = ..., sps: float = ..., m_out: int = ..., pulse: Literal["iandd", "rrc"] = "iandd", rrc_beta: float = ..., rrc_span: int = ..., bn_carrier: float = ..., zeta: float = ..., bn_timing: float = ..., acq_to_track: int = ..., lock_thresh: float = ..., init_norm_freq: float = ..., warmup_syms: int = ..., differential: int = ..., num_phases: int = ..., nda_tap: Literal["strobe", "mf_all", "lo_arm"] = "strobe") -> None: ...

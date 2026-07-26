@@ -40,10 +40,22 @@ ______________________________________________________________________
         `0.005` are where `0.02`–`0.03` used to be.
     - **`n` is now `m_out`, and means something different.** `n` sized the NDA arm
         (window = `sps/n`); there is no arm. `m_out` is the terminal stage's
-        **outputs per symbol** (even, 2–8, default 4), setting the Gardner
-        strobe/gate geometry. Use `m_out >= 4` with `pulse="iandd"`: the rectangle
-        is one symbol wide, so at 2 its matched filter degenerates to a two-tap sum
-        (measured lock statistic −0.34 at 2 against +0.95 at 4).
+        **outputs per symbol** (even, 2–8, default 8), setting the Gardner
+        strobe/gate geometry. The default is 8 because that is where an I&D
+        matched filter reaches the coherent bound: the rectangle is one symbol
+        wide, so its matched filter is an `m_out`-tap sum spanning it, and a
+        smaller `m_out` samples the same integral more coarsely. Measured on QPSK
+        at `sps = 8` against `EVM_dB = -(Es/N0)_dB` — at 18 dB Es/N0, `m_out = 8`
+        lands 0.41 dB off the bound where `m_out = 4` loses 3.11 dB; at 14 dB it
+        is 0.25 dB against 1.71 dB, the gap widening as noise stops hiding it.
+        Never pair 2 with `pulse="iandd"`: the matched filter degenerates to a
+        two-tap sum (measured lock statistic −0.34 at 2 against +0.95 at 4) and
+        acquisition itself fails about half the time.
+    - **`MpskReceiverR`'s `sps` default is 32.0, not 16.0.** Forced by the above:
+        that type requires `sps > 2 * m_out`, so an `m_out` of 8 cannot coexist
+        with a 16.0 default — `MpskReceiverR()` would not construct at all. The
+        complex twin's `sps` default is unchanged at 8.0 (`sps >= m_out` there,
+        and a terminal ratio of 1.0 measures 0.42 dB off the bound).
 
     What the rebuild buys is that **`sps` is a `double` and the front end plans
     itself**. At `sps = 8` the plan is a halfband or two plus a terminal stage; at
@@ -71,14 +83,21 @@ ______________________________________________________________________
     get far without acquisition aid, so both receivers now take a construction
     parameter selecting the trade:
 
-    | `nda_tap`            | Reads                            | Update rate | Max acquired `Δf` | Needs symbol timing? |
-    | -------------------- | -------------------------------- | ----------- | ----------------- | -------------------- |
-    | `"strobe"` (default) | the on-time strobe               | `Rs`        | `0.01·Rs`         | **yes**              |
-    | `"mf_all"`           | every terminal output            | `m_out·Rs`  | `0.02·Rs`         | no                   |
-    | `"lo_arm"`           | post-LO, free-running boxcar arm | LO rate     | **`0.08·Rs`**     | no                   |
+    | `nda_tap`            | Reads                            | Update rate | Max acquired `Δf`     | Needs symbol timing? |
+    | -------------------- | -------------------------------- | ----------- | --------------------- | -------------------- |
+    | `"strobe"` (default) | the on-time strobe               | `Rs`        | `0.050·Rs` (`0.010`)  | **yes**              |
+    | `"mf_all"`           | every terminal output            | `m_out·Rs`  | `0.033·Rs` (`0.015`)  | no                   |
+    | `"lo_arm"`           | post-LO, free-running boxcar arm | LO rate     | **`0.090·Rs`** (same) | no                   |
 
-    (Measured, QPSK at `sps=8`, `m_out=4`, each at its own best `bn_carrier`.)
-    `lo_arm` is **8× the strobe** — exactly the `sps` factor theory predicts.
+    (Measured unaided, QPSK at `sps=8`, each at its own best `bn_carrier`, at the
+    default `m_out=8` — `m_out=4` in parentheses, since `m_out` is on this axis
+    too.) `lo_arm` is the one row `m_out` cannot move, which is the check on the
+    mechanism rather than a curiosity: it taps *ahead* of the cascade, so the
+    terminal rate is not in its path. At `m_out=4` it is **9× the strobe**, near
+    the `sps` factor theory predicts; at `m_out=8` the strobe closes most of that
+    gap *without its update rate changing at all*, because a sharper matched
+    filter is a quieter discriminator and that is what raises the largest stable
+    `bn_carrier` (0.01 → 0.05).
 
     The second axis matters as much as the range: `strobe` is the only tap that
     depends on symbol timing, so `mf_all` and `lo_arm` restore the property the

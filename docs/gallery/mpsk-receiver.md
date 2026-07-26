@@ -88,7 +88,10 @@ iq = np.repeat(syms, 8).astype(np.complex64) * 0.5   # 8PSK, 8 samples/symbol
 
 rx = MpskReceiver(m=8, sps=8, differential=1)
 bits = rx.bits(iq)           # rotation-invariant; survives any fixed phase slip
-assert len(bits) == 3 * (len(iq) // 8 - 3)           # log2(8) = 3 bits/symbol
+assert len(bits) % 3 == 0                            # log2(8) = 3 bits/symbol
+# The cascade eats the first couple of symbols as group delay -- how many
+# depends on m_out, so bound it rather than pinning it.
+assert 3 * (len(iq) // 8 - 4) <= len(bits) <= 3 * (len(iq) // 8)
 ```
 
 ## A real IF instead of complex baseband

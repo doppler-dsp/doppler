@@ -66,7 +66,7 @@ MpskReceiverObj_init (MpskReceiverObject *self, PyObject *args, PyObject *kwds)
           NULL };
   int                m               = 4;
   double             sps             = 8.0;
-  unsigned long long m_out_raw       = 4;
+  unsigned long long m_out_raw       = 8;
   const char        *pulse_str       = "iandd";
   double             rrc_beta        = 0.35;
   int                rrc_span        = 8;

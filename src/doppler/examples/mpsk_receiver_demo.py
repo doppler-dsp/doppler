@@ -189,12 +189,15 @@ def main(out_path: str = "mpsk_receiver_demo.png") -> None:
             rxm = MpskReceiver(
                 m=m,
                 sps=sps,
-                # m_out=8, not the default 4: this panel measures against the
-                # coherent bound, and a one-symbol-wide rectangle sampled only
-                # 4x/symbol leaves 1-2 dB on the table (measured SER/theory
-                # 2.98/2.09/5.04 at m_out=4 against 1.57/1.05/1.39 at 8, with
-                # EVM moving onto -(Es/N0) exactly). Timing-error variance,
-                # not the carrier loop -- the Gardner gate sits m_out/2 back.
+                # m_out=8 is the default now, and this panel is the reason it
+                # is: it measures against the coherent bound, and a
+                # one-symbol-wide rectangle sampled only 4x/symbol leaves
+                # 1-2 dB on the table (measured SER/theory 2.98/2.09/5.04 at
+                # m_out=4 against 1.57/1.05/1.39 at 8, with EVM moving onto
+                # -(Es/N0) exactly). Timing-error variance, not the carrier
+                # loop -- the Gardner gate sits m_out/2 back. Passed
+                # explicitly regardless, because this panel's claim is about
+                # this value and should not move if the default ever does.
                 m_out=8,
                 init_norm_freq=0.0005,
                 bn_carrier=0.005,

@@ -240,18 +240,28 @@ a construction parameter, `nda_tap`, and not a hidden policy.
 | `mf_all`           | every terminal output                  | `m_out·Rs`  | `m_out·Rs/(2M)`      | no            |
 | `lo_arm`           | post-LO, through a free-running boxcar | LO rate     | `f_lo/(2M)`          | no            |
 
-Measured, QPSK at `sps = 8`, `m_out = 4` — the largest seeded frequency error
-each tap can still acquire, at its own best `bn_carrier`:
+Measured, QPSK at `sps = 8` — the largest unaided frequency error each tap can
+still acquire, at its own best `bn_carrier`. `m_out` is on this axis, so the
+default's move from 4 to 8 (§4, the coherent-bound default) moves two of the
+three numbers:
 
-| tap      | max acquired `Δf` |
-| -------- | ----------------- |
-| `strobe` | `0.01·Rs`         |
-| `mf_all` | `0.02·Rs`         |
-| `lo_arm` | **`0.08·Rs`**     |
+| tap      | `m_out = 4` | `m_out = 8` (default) |
+| -------- | ----------- | --------------------- |
+| `strobe` | `0.010·Rs`  | **`0.050·Rs`**        |
+| `mf_all` | `0.015·Rs`  | `0.033·Rs`            |
+| `lo_arm` | `0.090·Rs`  | `0.090·Rs`            |
 
-`lo_arm` is **8× the strobe**, which is exactly the `sps` factor the theory
-predicts (`fs/Rs = 8` here) — the tap reaches its own Nyquist bound rather than
-stalling at whatever the loop bandwidth allows.
+`lo_arm` is the one number `m_out` cannot move, and that is the check on the
+mechanism rather than a curiosity: it taps *ahead* of the cascade, so the
+terminal rate is not in its path at all. At `m_out = 4` it is **9× the
+strobe**, near the `sps` factor the theory predicts (`fs/Rs = 8` here) — that
+tap reaches its own Nyquist bound rather than stalling at whatever the loop
+bandwidth allows. At `m_out = 8` the strobe closes most of that gap *without
+its update rate changing at all*: a sharper matched filter is a quieter
+discriminator, which is what raises the largest stable `bn_carrier` (0.01 →
+0.05), and an unaided strobe's pull-in follows the loop bandwidth, not its
+Nyquist bound. It is the same coupling from the other side — the reason a
+too-wide `bn_carrier` used to *lose* acquisitions (gh#536).
 
 !!! note "`bn_carrier` means the same thing at every tap"
 
@@ -616,7 +626,7 @@ ______________________________________________________________________
 - **`n` → `m_out`** — *resolved by the rebuild.* The old `n` sized a separate NDA
     arm (window = `sps/n`); there is no arm any more, so the parameter it was
     replaced by means something different: `m_out` is the terminal stage's
-    **outputs per symbol** (even, 2–8, default 4). It sets the Gardner strobe/gate
+    **outputs per symbol** (even, 2–8, default 8). It sets the Gardner strobe/gate
     geometry and how much oversampled matched-filtered signal the caller gets, not
     a loop rate. See the `m_out >= 4` caveat for I&D in §4.
 - **`bn_carrier` normalisation** — *changed by the rebuild.* Symbol-rate, not

@@ -204,11 +204,15 @@ lk   = rx.lock               # carrier lock metric (-> + at lock, every M)
 
     - **`n` is now `m_out`**, and it means something different. `n` sized a
         separate NDA arm (window = `sps/n`); that arm no longer exists. `m_out` is
-        the terminal stage's **outputs per symbol** (even, 2–8, default 4), which
-        sets the Gardner strobe/gate geometry. **Use `m_out >= 4` with
-        `pulse="iandd"`** — the rectangle is one symbol wide, so at 2 its matched
-        filter degenerates to a two-tap sum (measured lock statistic −0.34 at 2
-        against +0.95 at 4).
+        the terminal stage's **outputs per symbol** (even, 2–8, default 8), which
+        sets the Gardner strobe/gate geometry. The default is 8 because that is
+        where an I&D matched filter reaches the coherent bound: measured on QPSK
+        at `sps = 8` against `EVM_dB = -(Es/N0)_dB`, `m_out = 8` lands 0.41 dB
+        off the bound at 18 dB Es/N0 where `m_out = 4` loses 3.11 dB. **Never
+        pair 2 with `pulse="iandd"`** — the rectangle is one symbol wide, so at 2
+        its matched filter degenerates to a two-tap sum (measured lock statistic
+        −0.34 at 2 against +0.95 at 4) and acquisition itself fails about half
+        the time.
     - **`bn_carrier` is normalised to the symbol rate**, like `bn_timing`, rather
         than to the input sample rate. At `sps = 8` the same number is now an 8×
         wider loop.
@@ -221,13 +225,17 @@ lk   = rx.lock               # carrier lock metric (-> + at lock, every M)
 
     An M-th-power discriminator updating at rate `F` can only observe
     `|Δf| < F/(2M)`, so its tap point *is* its pull-in range. Fixed at
-    construction; measured maxima for QPSK at `sps=8`, `m_out=4`:
+    construction; measured maxima for QPSK at `sps=8`, unaided, at the default
+    `m_out=8` (`m_out=4` in parentheses — it is on this axis too):
 
-    | `nda_tap`            | Update rate | Max acquired `Δf` | Needs symbol timing? |
-    | -------------------- | ----------- | ----------------- | -------------------- |
-    | `"strobe"` (default) | `Rs`        | `0.01·Rs`         | yes                  |
-    | `"mf_all"`           | `m_out·Rs`  | `0.02·Rs`         | no                   |
-    | `"lo_arm"`           | LO rate     | **`0.08·Rs`**     | no                   |
+    | `nda_tap`            | Update rate | Max acquired `Δf`     | Needs symbol timing? |
+    | -------------------- | ----------- | --------------------- | -------------------- |
+    | `"strobe"` (default) | `Rs`        | `0.050·Rs` (`0.010`)  | yes                  |
+    | `"mf_all"`           | `m_out·Rs`  | `0.033·Rs` (`0.015`)  | no                   |
+    | `"lo_arm"`           | LO rate     | **`0.090·Rs`** (same) | no                   |
+
+    `lo_arm` is the one row `m_out` cannot move — it taps ahead of the cascade,
+    so the terminal rate is not in its path.
 
     `bn_carrier` keeps its symbol-rate meaning at every tap — the tap widens what
     the discriminator can see and the stability margin, which is what lets you

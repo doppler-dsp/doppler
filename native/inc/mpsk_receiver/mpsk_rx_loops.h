@@ -319,20 +319,6 @@ extern "C"
   }
 
   /**
-   * @brief Fold one terminal-stage output into both loops.
-   *
-   * The receiver's whole per-output body, shared verbatim by the complex- and
-   * real-input types. On an on-time strobe it writes the recovered symbol and
-   * returns 1.
-   *
-   * @param l    Loops. Must be non-NULL.
-   * @param y    One matched-filtered output from the front end.
-   * @param sym  Receives the recovered symbol when the return is 1.
-   * @param ted  RATESYNC_TED_GARDNER or RATESYNC_TED_DTTL — pass a literal for
-   *             a specialised (branch-free) instantiation.
-   * @return 1 if this output was an on-time strobe, 0 otherwise.
-   */
-  /**
    * @brief Run the NDA discriminator on one tapped sample.
    *
    * Shared by all three tap points so the discriminator, its AGC and its lock
@@ -400,6 +386,20 @@ extern "C"
     mpsk_rx_disc (l, boxcar_step (&l->arm, z), 1);
   }
 
+  /**
+   * @brief Fold one terminal-stage output into both loops.
+   *
+   * The receiver's whole per-output body, shared verbatim by the complex- and
+   * real-input types. On an on-time strobe it writes the recovered symbol and
+   * returns 1.
+   *
+   * @param l    Loops. Must be non-NULL.
+   * @param y    One matched-filtered output from the front end.
+   * @param sym  Receives the recovered symbol when the return is 1.
+   * @param ted  RATESYNC_TED_GARDNER or RATESYNC_TED_DTTL — pass a literal for
+   *             a specialised (branch-free) instantiation.
+   * @return 1 if this output was an on-time strobe, 0 otherwise.
+   */
   JM_FORCEINLINE JM_HOT int
   mpsk_rx_take_output (mpsk_rx_loops_t *l, float complex y, float complex *sym,
                        int ted)

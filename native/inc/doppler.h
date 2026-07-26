@@ -131,6 +131,8 @@ extern "C" {
 
 #include "mpsk_receiver/mpsk_receiver_core.h"
 
+#include "mpsk_receiver_r/mpsk_receiver_r_core.h"
+
 #include "despreader/despreader_core.h"
 
 #include "burst_despreader/burst_despreader_core.h"

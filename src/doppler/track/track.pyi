@@ -1374,3 +1374,169 @@ class MpskReceiver:
     def __enter__(self) -> "MpskReceiver": ...
 
     def __exit__(self, *args: object) -> None: ...
+
+@final
+class MpskReceiverR:
+    """Create a real-input M-PSK receiver.
+
+    Parameters
+    ----------
+    m : int, default 4
+        Constellation order M, 2/4/8 (default 4 = QPSK).
+    sps : float, default 16.0
+        Samples per symbol. Any double **strictly greater than `2 * m_out`** (the cascade behind the R2C halfband runs at twice the overall rate, and Ddcr needs that below 0.5) -- 17.33389 is as valid as 16, because the front end plans its own cascade and the terminal stage's accumulator is a double. That is the real-world case whenever the ADC clock is free-running against the symbol clock.
+    m_out : int, default 4
+        Terminal outputs per symbol: even, 2..8. The Gardner detector takes every m_out-th output as the on-time strobe and the one m_out/2 back as the transition gate, so the oversampled matched-filtered stream falls out for free. **Use m_out >= 4 with pulse="iandd"** -- the rectangle is one symbol wide, so at 2 its matched filter is a two-tap sum and the eye barely opens (measured lock statistic -0.34 at 2 against +0.95 at 4 on the same NRZ stream). Replaces the old `n` (NDA arm dumps per symbol): the cascade's own outputs now feed the carrier discriminator, so there is no separate arm to size.
+    pulse : Literal["iandd", "rrc"], default "iandd"
+        Matched-filter shape (default MPSK_RX_PULSE_IANDD).
+    rrc_beta : float, default 0.35
+        RRC roll-off in `[0, 1]` (default 0.35; RRC only).
+    rrc_span : int, default 8
+        RRC one-sided span in symbols (default 8; RRC only).
+    bn_carrier : float, default 0.01
+        Carrier loop noise bandwidth, normalised to the symbol rate (default 0.005).
+    zeta : float, default 0.707
+        Damping factor for both loops (default 0.707).
+    bn_timing : float, default 0.01
+        Timing loop noise bandwidth, per symbol (0.01).
+    acq_to_track : int, default 0
+        Enable the two-way handover (default 0).
+    lock_thresh : float, default 0.5
+        Handover declare threshold (default 0.5).
+    init_norm_freq : float, default 0.0
+        Carrier frequency to tune to, cycles/sample **at the real input rate** (default 0.0). A real IF at `0.2 * fs` is `0.2`; the halved value the LO actually uses is this object's business, not the caller's.
+    warmup_syms : int, default 100
+        Symbols before the handover is allowed (100).
+    differential : int, default 0
+        bits(): differential demap (default 0).
+    num_phases : int, default 1024
+        Matched-filter bank arms; a power of two. Sets the fractional-timing resolution to 1/num_phases of an output period. The bank is sized by the POST-decimation rate, so this costs the same at sps=8 and sps=256.
+
+    Examples
+    --------
+    Create with defaults:
+
+    >>> from doppler.track import MpskReceiverR
+    >>> obj = MpskReceiverR(m=4, sps=16.0, m_out=4, pulse="iandd", rrc_beta=0.35, rrc_span=8, bn_carrier=0.01, zeta=0.707, bn_timing=0.01, acq_to_track=0, lock_thresh=0.5, init_norm_freq=0.0, warmup_syms=100, differential=0, num_phases=1024)
+
+    """
+    def __init__(self, m: int = ..., sps: float = ..., m_out: int = ..., pulse: Literal["iandd", "rrc"] = "iandd", rrc_beta: float = ..., rrc_span: int = ..., bn_carrier: float = ..., zeta: float = ..., bn_timing: float = ..., acq_to_track: int = ..., lock_thresh: float = ..., init_norm_freq: float = ..., warmup_syms: int = ..., differential: int = ..., num_phases: int = ...) -> None: ...
+
+    def set_telemetry(self, tlm: object | None, prefix: str, decim: int = 1) -> None:
+        """Attach (or detach) telemetry; registers the same ten probes as mpsk_receiver_set_telemetry(), whose contract this shares.
+
+        Parameters
+        ----------
+        tlm : object | None
+            Input.
+        prefix : str
+            Input.
+        decim : int
+            Input.
+        """
+
+    def steps(self, x: NDArray[np.float32], out: NDArray[np.complex64] | None = None) -> NDArray[np.complex64]:
+        """Demodulate a cf32 block and return the recovered M-PSK symbols (one cf32 per recovered symbol period, ~ len(x)/sps outputs). Per sample the receiver de-rotates with the integer-NCO carrier (predetection wipe-off), accumulates a non-data-aided M-th-power I/Q arm at n dumps/symbol to acquire the carrier with no data and no symbol timing, matched-filters the de-rotated stream (integrate-and-dump or RRC), and runs a Gardner symbol-timing loop. With acq_to_track enabled a verify-counted two-way handover steps on the carrier lock metric each symbol: it switches to a lower-jitter decision-directed carrier loop after 8 consecutive above-lock_thresh symbols, and on a sustained lock loss (32 consecutive symbols below 0.8*lock_thresh) drops back to the NDA acquisition steer, the shared NCO carrying the frequency estimate both ways. The loop locks to one of m phases (M-fold ambiguity); resolve it with bits(differential) or a sync word. Read norm_freq for the tracked carrier and lock for the carrier lock metric.
+
+        As mpsk_receiver_steps(), taking real samples: the R2C halfband makes
+        them complex before anything else touches them.
+
+        Parameters
+        ----------
+        x : NDArray[np.float32]
+            Real f32 input samples.
+
+        Returns
+        -------
+        NDArray[np.complex64]
+            Number of symbols written.
+        """
+
+    def steps_max_out(self) -> int:
+        """Max output length steps() can produce for the current state."""
+
+    def bits(self, x: NDArray[np.float32], out: NDArray[np.uint8] | None = None) -> NDArray[np.uint8]:
+        """Demodulate a cf32 block and return hard Gray-coded bits (log2(m) bytes of 0/1 per recovered symbol, LSB-first). Coherent by default; if the receiver was created with differential=1, each symbol's bits come from the phase DIFFERENCE between consecutive symbols (rotation-invariant — resolves the m-fold carrier ambiguity at ~2x the symbol-error rate). Same per-sample carrier/timing recovery as steps().
+
+        As mpsk_receiver_bits(), taking real samples.
+
+        Parameters
+        ----------
+        x : NDArray[np.float32]
+            Real f32 input samples.
+
+        Returns
+        -------
+        NDArray[np.uint8]
+            Number of bits written.
+        """
+
+    def bits_max_out(self) -> int:
+        """Max output length bits() can produce for the current state."""
+
+    def configure_lock(self, up_thresh: float, down_thresh: float, n_up: int, n_down: int) -> None:
+        """Re-tune the acquisition<->tracking handover detector: hands the carrier to the decision-directed discriminator after n_up consecutive symbols with the carrier lock EMA above up_thresh, and falls back to NDA acquisition after n_down consecutive symbols below down_thresh (level + time hysteresis; see detection.LockDet). Previously only settable at construction (lock_thresh, with fixed 0.8x drop / 8-up / 32-down constants) -- this is the post-construction re-tune Dll and Costas both already have. A live handover survives the re-tune; the in-flight verify run restarts.
+
+        Parameters
+        ----------
+        up_thresh : float
+            Input.
+        down_thresh : float
+            Input.
+        n_up : int
+            Input.
+        n_down : int
+            Input.
+        """
+
+    def reset(self) -> None:
+        """Re-seed the carrier and symbol-timing loops to their create-time state; preserve configuration.
+        """
+
+    def state_bytes(self) -> int:
+        """Serialized state size in bytes."""
+    def get_state(self) -> bytes:
+        """Serialize the engine's mutable state to bytes."""
+    def set_state(self, blob: bytes) -> None:
+        """Restore mutable state from a get_state() blob."""
+
+    @property
+    def norm_freq(self) -> float:
+        """Tracked carrier, cycles/sample at the REAL input rate."""
+    @norm_freq.setter
+    def norm_freq(self, value: float) -> None: ...
+
+    @property
+    def lock(self) -> float:
+        """Lock."""
+
+    @property
+    def timing_rate(self) -> float:
+        """Timing rate."""
+
+    @property
+    def tracking(self) -> int:
+        """Tracking."""
+
+    @property
+    def m(self) -> int:
+        """M."""
+
+    @property
+    def sps(self) -> float:
+        """Sps."""
+
+    @property
+    def m_out(self) -> int:
+        """M out."""
+
+    @property
+    def clipped(self) -> int:
+        """Has the cascade's CIC stage clipped its input since the last reset? A CIC bounds its input to |Re|, |Im| <= 1.0 and clips silently past that -- the output stays finite and plausible, merely distorted, at a cost of ~25 dB of EVM that no lock metric reveals. Always 0 for a plan with no CIC stage."""
+
+    def destroy(self) -> None:
+        """Release C resources immediately."""
+
+    def __enter__(self) -> "MpskReceiverR": ...
+
+    def __exit__(self, *args: object) -> None: ...

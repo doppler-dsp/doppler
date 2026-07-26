@@ -1,3 +1,10 @@
+# PEP 604 (`X | None`) in the module-level annotations below is evaluated
+# eagerly at import on Python 3.9, which this project still supports
+# (`requires-python = ">=3.9"`). Deferring annotations keeps them as strings
+# so 3.9 can import this file at all -- and conftest.py is imported by every
+# pytest run, so getting this wrong takes the whole suite down, not one test.
+from __future__ import annotations
+
 import atexit
 import pathlib
 import shutil

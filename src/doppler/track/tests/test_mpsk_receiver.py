@@ -193,6 +193,19 @@ def test_acq_to_track_two_way():
     returning signal re-declares after the carrier is re-seeded (on a real
     drop-back the outer acquisition supplies that seed — during the outage
     the discriminators see only noise and random-walk the shared NCO).
+
+    **The drop-back is asserted as an EVENT, not as the state at the end of
+    the noise.** What the design promises is that a sustained loss drops
+    tracking; it does not promise the receiver then *stays* dropped while
+    being fed noise, and it cannot: with nothing but noise in, the M-th-power
+    lock metric random-walks, and 8 consecutive samples above `lock_thresh`
+    is a bar noise clears from time to time. Measured over this stretch it
+    reaches +0.52 against a 0.4 declare threshold. So the final state after
+    5000 noise symbols is a sample of that walk — it was asserted as 0 here
+    and held only until the arm-AGC seeding changed by a few LSBs, after
+    which it still held on one machine's libm and flipped on CI's. Asserting
+    the transition itself tests the documented behaviour and is immune to
+    where the walk happens to end.
     """
     foff = 0.0008
     tx, _ = _signal(4, foff=foff, snr_db=25, seed=4)
@@ -209,8 +222,15 @@ def test_acq_to_track_two_way():
     )
     rx.steps(tx)
     assert rx.tracking == 1
-    rx.steps(noise)
-    assert rx.tracking == 0  # dropped back to NDA
+
+    # Feed the outage in blocks and watch for the drop-back.
+    blk = len(noise) // 10
+    dropped = False
+    for i in range(10):
+        rx.steps(noise[i * blk : (i + 1) * blk])
+        dropped = dropped or rx.tracking == 0
+    assert dropped, "a sustained lock loss never dropped back to the NDA steer"
+
     rx.norm_freq = foff  # acquisition re-seed
     rx.steps(tx)
     assert rx.tracking == 1  # re-declared

@@ -133,7 +133,7 @@ extern "C"
                           double zeta, double bn_timing, int acq_to_track,
                           double lock_thresh, double init_norm_freq,
                           size_t warmup_syms, int differential,
-                          size_t num_phases);
+                          size_t num_phases, int nda_tap);
 
   /** @brief Destroy and release all memory. @param state May be NULL. */
   void mpsk_receiver_r_destroy (mpsk_receiver_r_state_t *state);
@@ -160,9 +160,15 @@ extern "C"
                             float complex *y_out, int ted)
   {
     float complex ys[4];
-    size_t        n = ddcr_execute_ctrl_push (s->fe, x, s->l.timing.ctrl,
-                                              s->l.freq_ctrl, ys,
-                                              sizeof (ys) / sizeof (ys[0]));
+    float complex zlo;
+    int           n_lo = 0;
+    size_t        n    = ddcr_execute_ctrl_push_tap (
+        s->fe, x, s->l.timing.ctrl, s->l.freq_ctrl, ys,
+        sizeof (ys) / sizeof (ys[0]), &zlo, &n_lo);
+    /* The halfband gates this: n_lo is 0 on every other input, so the arm and
+       its discriminator run at fs_in/2, the LO's own rate. */
+    if (n_lo)
+      mpsk_rx_push_lo (&s->l, zlo);
     int           emitted = 0;
     for (size_t oi = 0; oi < n; oi++)
       emitted |= mpsk_rx_take_output (&s->l, ys[oi], y_out, ted);
@@ -235,7 +241,7 @@ extern "C"
  * composition: the front end's and the loops' self-validating child blobs,
  * exactly as the complex twin. */
 #define MPSK_RECEIVER_R_STATE_MAGIC DP_FOURCC ('M', 'P', 'S', 'R')
-#define MPSK_RECEIVER_R_STATE_VERSION 1u
+#define MPSK_RECEIVER_R_STATE_VERSION 2u
   size_t mpsk_receiver_r_state_bytes (const mpsk_receiver_r_state_t *state);
   void   mpsk_receiver_r_get_state (const mpsk_receiver_r_state_t *state,
                                     void                          *blob);

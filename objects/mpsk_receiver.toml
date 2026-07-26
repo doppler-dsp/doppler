@@ -26,6 +26,7 @@ depends_on = [
   { name = "lockdet", link = true },
   { name = "telemetry", link = true },
   { name = "agc", link = true },
+  { name = "boxcar", link = true },
 ]
 extra_link_libs = ["wfm_dsp_core"]
 serializable = "true"
@@ -111,6 +112,12 @@ name = "num_phases"
 type = "size_t"
 default = "1024"
 doc = "Matched-filter bank arms; a power of two. Sets the fractional-timing resolution to 1/num_phases of an output period. The bank is sized by the POST-decimation rate, so this costs the same at sps=8 and sps=256."
+
+[[mpsk_receiver.init_params]]
+name = "nda_tap"
+type = "string_enum:strobe,mf_all,lo_arm"
+default = "strobe"
+doc = "Where the NDA carrier discriminator reads from, which sets its pull-in range and whether it needs symbol timing at all. An M-th-power detector updating at rate F can only see |df| < F/(2M), so the tap point IS the range. `strobe` (default) reads the on-time strobe at the symbol rate Rs: the cleanest input, the narrowest range (Rs/(2M)), and the only tap that must wait for the timing loop to lock. `mf_all` reads every terminal output at m_out*Rs -- m_out times the range and no timing dependence, paid for with the ISI the between-symbol outputs carry, which hurts most where the decision margin is smallest (8PSK). `lo_arm` reads ahead of the cascade through a free-running half-symbol boxcar at the LO rate -- the widest range and fully timing-independent, but unmatched, so it pays squaring loss. Fixed at construction: nothing switches underneath you. If you need more range than any tap gives, put a coarse frequency estimate in front and pass it as init_norm_freq."
 
 # Telemetry attach (jm gh-432; mirrors objects/agc.toml): registers the
 # receiver's "<prefix>.lock" + "<prefix>.tracking" probes (the latter is

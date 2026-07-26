@@ -114,6 +114,56 @@ extern "C"
 #define MPSK_RX_HANDOVER_N_DOWN 32u
 
   /**
+   * @brief Where the NDA carrier discriminator reads from.
+   *
+   * An M-th-power discriminator updating at rate `F` can only observe a
+   * frequency error of `|df| < F/(2M)` — above that its M-th-power phase
+   * advances more than pi per update and the error folds. So the tap point IS
+   * the pull-in range, and it trades directly against signal quality:
+   *
+   * | tap        | update rate | unambiguous \|df\|  | cost                  |
+   * | ---------- | ----------- | ------------------- | --------------------- |
+   * | `STROBE`   | `Rs`        | `Rs/(2M)`           | needs symbol timing   |
+   * | `MF_ALL`   | `m_out*Rs`  | `m_out*Rs/(2M)`     | inter-symbol ISI bias |
+   * | `LO_ARM`   | LO rate     | `f_lo/(2M)`         | no matched filtering  |
+   *
+   * There is a second axis, and it is the one the cascade rebuild lost.
+   * `STROBE` is the only tap that depends on **symbol timing**: it reads the
+   * one output the timing loop nominates, so before timing lock it is reading
+   * an arbitrary phase of the pulse. `MF_ALL` consumes every terminal output
+   * and so does not care which one is on-time; `LO_ARM` runs a free-running
+   * arm filter ahead of the cascade entirely. Both therefore restore the
+   * property the NDA path exists for — acquiring with no data *and no symbol
+   * timing* — which is why they are not merely "wider".
+   *
+   * Fixed at construction: the caller picks the trade once, and nothing
+   * switches underneath it.
+   */
+  enum
+  {
+    /** On-time strobe only. Cleanest input, narrowest pull-in, and the only
+     *  tap that must wait for symbol timing. */
+    MPSK_RX_NDA_TAP_STROBE = 0,
+    /** Every terminal output. `m_out`x the range, timing-independent, but the
+     *  outputs between symbols are averaging two of them, so their M-th power
+     *  carries an ISI bias — worst where the decision margin is smallest. */
+    MPSK_RX_NDA_TAP_MF_ALL = 1,
+    /** Post-LO, pre-cascade, through a free-running boxcar arm. Widest range
+     *  and fully timing-independent, but unmatched: the arm is a short
+     *  lowpass, not the pulse filter, so it pays squaring loss. This is the
+     *  classic Costas arm-filter placement. */
+    MPSK_RX_NDA_TAP_LO_ARM = 2
+  };
+
+/* Free-running arm window for MPSK_RX_NDA_TAP_LO_ARM, as a fraction of a
+ * symbol at the LO's rate. A half-symbol boxcar is the classic passive arm
+ * filter (Yuen Eq. 8-19 is derived for exactly this window) — long enough to
+ * buy back some SNR, short enough that it still sees mostly ONE symbol, which
+ * is what keeps the tap timing-independent. Clamped into [1, BOXCAR_MAX_LEN].
+ */
+#define MPSK_RX_ARM_DIV 2u
+
+  /**
    * @brief Telemetry attachment for the receiver's own two probes; the timing
    *        and carrier probes ride their own sub-attachments.
    */
@@ -147,6 +197,7 @@ extern "C"
     double lock_scale;  /**< per-M lock-signal scale.                     */
     lockdet_state_t car_lock;   /**< de-chattered binary carrier lock.    */
     int             agc_seeded; /**< arm AGC has taken its first level.   */
+    boxcar_state_t  arm;        /**< free-running arm filter; LO_ARM only. */
 
     /* ── config (restored by the owner's create(), never packed) ─────── */
     int    m;          /**< constellation order M (2, 4, 8).             */
@@ -155,6 +206,8 @@ extern "C"
     size_t m_out;      /**< terminal outputs per symbol.                 */
     double bn_carrier; /**< carrier loop noise bandwidth (per symbol).   */
     double zeta;       /**< damping factor for both loops.               */
+    int    nda_tap;    /**< MPSK_RX_NDA_TAP_* — where the NDA disc reads. */
+    int    tap_timed;  /**< tap depends on symbol timing (STROBE only).  */
 
     /* ── acquisition <-> tracking handover ───────────────────────────── */
     int    acq_to_track; /**< opt-in two-way handover.                   */
@@ -196,12 +249,32 @@ extern "C"
    *                      it, and both directions are verify-counted.
    * @param warmup_syms   Symbols before the handover is allowed.
    * @param differential  bits(): differential (rotation-invariant) demap.
+   * @param nda_tap       MPSK_RX_NDA_TAP_* — where the NDA discriminator
+   *                      reads, which sets its pull-in range and whether it
+   *                      depends on symbol timing at all.
    */
   void mpsk_rx_loops_init (mpsk_rx_loops_t *l, int m, double sps,
                            double lo_sps, size_t m_out, double bn_carrier,
                            double zeta, double bn_timing, int ted,
                            int acq_to_track, double lock_thresh,
-                           size_t warmup_syms, int differential);
+                           size_t warmup_syms, int differential, int nda_tap);
+
+  /**
+   * @brief How many times per symbol the chosen tap updates the carrier loop.
+   *
+   * The tap's whole point, as one number: it is both the factor by which the
+   * discriminator's unambiguous frequency range grows over the symbol-rate
+   * case, and the loop filter's update rate (see config_carrier).
+   */
+  JM_FORCEINLINE double
+  mpsk_rx_updates_per_symbol (const mpsk_rx_loops_t *l)
+  {
+    if (l->nda_tap == MPSK_RX_NDA_TAP_MF_ALL)
+      return (double)l->m_out;
+    if (l->nda_tap == MPSK_RX_NDA_TAP_LO_ARM)
+      return l->lo_sps;
+    return 1.0;
+  }
 
   /** @brief Re-seed both loops to their post-init state; keep configuration.
    *  @param l  Must be non-NULL. */
@@ -259,10 +332,86 @@ extern "C"
    *             a specialised (branch-free) instantiation.
    * @return 1 if this output was an on-time strobe, 0 otherwise.
    */
+  /**
+   * @brief Run the NDA discriminator on one tapped sample.
+   *
+   * Shared by all three tap points so the discriminator, its AGC and its lock
+   * statistic exist exactly once however the caller chose to feed them.
+   *
+   * @param l        Loops.
+   * @param z        The tapped sample.
+   * @param may_act  Whether the steer and the AGC seed are allowed to act on
+   *                 this sample. The discriminator and the lock EMA run
+   *                 regardless — the drop-back rule needs them, and `lock`
+   *                 must stay observable during acquisition.
+   */
+  JM_FORCEINLINE JM_HOT void
+  mpsk_rx_disc (mpsk_rx_loops_t *l, float complex z, int may_act)
+  {
+    /* Seed the AGC from the first usable sample rather than letting it walk
+       there. Its bandwidth is deliberately ~100x below the carrier loop's so
+       it tracks the signal level and never the carrier dynamics — a time
+       constant of thousands of symbols, which is right for tracking drift and
+       useless for a cold start. The cold error is not small: a matched-filter
+       bank is unit-ENERGY, so its output sits ~sqrt(pulse_sps) above the
+       constellation it came from, and since the discriminator's gain goes as
+       |z|^m the loop would run 16x hot at QPSK and 256x at 8PSK (measured lock
+       statistics of 5.2 and 26.4 against ceilings of 0.62 and 0.41).
+
+       Seeding off a sample that is not yet a symbol is the same bug from the
+       other end: the gain can latch far too LOW just as easily. Measured
+       before the timing gate below: `lock` = 4.9e-19, a denormal, on a
+       receiver decoding every bit correctly, so the handover never fired. */
+    if (!l->agc_seeded && may_act)
+      {
+        double p0 = (double)(crealf (z) * crealf (z) + cimagf (z) * cimagf (z));
+        if (p0 > 0.0)
+          {
+            l->car_agc.p_avg   = p0;
+            l->car_agc.gain_db = l->car_agc.ref_db - 10.0 * log10 (p0);
+            l->car_agc.g_last
+                = (float)agc_exp10_ (l->car_agc.gain_db * 0.05);
+          }
+        l->agc_seeded = 1;
+      }
+
+    double pe, lk;
+    carrier_nda_disc (agc_step (&l->car_agc, z), l->m, l->lock_scale, &pe,
+                      &lk);
+    l->lock += CARRIER_NDA_LOCK_ALPHA * (lk - l->lock);
+    (void)lockdet_step (&l->car_lock, l->lock);
+    if (!l->tracking && may_act)
+      mpsk_rx_steer (l, pe);
+  }
+
+  /**
+   * @brief Feed one post-LO, pre-cascade sample to the free-running arm.
+   *
+   * The MPSK_RX_NDA_TAP_LO_ARM path, and a no-op for every other tap. Called
+   * once per LO step by the owning receiver, ahead of the cascade — which is
+   * exactly why this tap needs no symbol timing and reaches the widest
+   * frequency range the front end can offer.
+   */
+  JM_FORCEINLINE JM_HOT void
+  mpsk_rx_push_lo (mpsk_rx_loops_t *l, float complex z)
+  {
+    if (l->nda_tap != MPSK_RX_NDA_TAP_LO_ARM)
+      return;
+    mpsk_rx_disc (l, boxcar_step (&l->arm, z), 1);
+  }
+
   JM_FORCEINLINE JM_HOT int
   mpsk_rx_take_output (mpsk_rx_loops_t *l, float complex y, float complex *sym,
                        int ted)
   {
+    /* MPSK_RX_NDA_TAP_MF_ALL discriminates on EVERY terminal output, so it
+       runs before the strobe test and needs no timing: it does not care which
+       output the timing loop would have nominated. That is the trade — m_out
+       times the frequency range and no timing dependence, paid for with the
+       ISI those between-symbol outputs carry. */
+    if (l->nda_tap == MPSK_RX_NDA_TAP_MF_ALL)
+      mpsk_rx_disc (l, y, 1);
+
     float complex on;
     if (!ratesync_loop_take_output (&l->timing, y, &on, ted))
       return 0;
@@ -308,46 +457,11 @@ extern "C"
        meaningless. */
     const int timing_ok = l->timing.lock.locked;
 
-    /* Seed the AGC from the first strobe rather than letting it walk there —
-       but only once that strobe is a symbol, per the note above. Its
-       bandwidth is deliberately ~100x below the carrier loop's so it tracks
-       the signal level and never the carrier dynamics — which, with both
-       loops referenced to the SYMBOL rate, is a time constant of thousands of
-       symbols. That is correct for tracking drift and useless for a cold
-       start, and the cold error is not small: a matched-filter bank is
-       unit-ENERGY, so its output sits ~sqrt(pulse_sps) above the
-       constellation it came from. Left to converge on its own the
-       discriminator sees |z| ~ 2, and since its gain goes as |z|^m the carrier
-       loop runs 16x hot at QPSK and 256x at 8PSK — measured as a lock
-       statistic of 5.2 and 26.4 against ceilings of 0.62 and 0.41, with the
-       loop diverging at any usable bandwidth.
-
-       Seeding it off a PRE-lock strobe is the same bug from the other end: a
-       gain latched off a sample that is not yet a symbol can land far too low
-       just as easily as too high, and the AGC is far too slow to walk back.
-       Measured before this gate: `lock` reading 4.9e-19 — a denormal — on a
-       receiver decoding every bit correctly, so the handover never fired. */
-    if (!l->agc_seeded && timing_ok)
-      {
-        double p0 = (double)(crealf (on) * crealf (on)
-                             + cimagf (on) * cimagf (on));
-        if (p0 > 0.0)
-          {
-            l->car_agc.p_avg   = p0;
-            l->car_agc.gain_db = l->car_agc.ref_db - 10.0 * log10 (p0);
-            l->car_agc.g_last
-                = (float)agc_exp10_ (l->car_agc.gain_db * 0.05);
-          }
-        l->agc_seeded = 1;
-      }
-
-    double pe, lk;
-    carrier_nda_disc (agc_step (&l->car_agc, on), l->m, l->lock_scale, &pe,
-                      &lk);
-    l->lock += CARRIER_NDA_LOCK_ALPHA * (lk - l->lock);
-    (void)lockdet_step (&l->car_lock, l->lock);
-    if (!l->tracking && timing_ok)
-      mpsk_rx_steer (l, pe);
+    /* MPSK_RX_NDA_TAP_STROBE: the cleanest input there is, and the only tap
+       that has to wait — see the tap enum for why, and the note above for what
+       steering on a pre-lock strobe actually did. */
+    if (l->nda_tap == MPSK_RX_NDA_TAP_STROBE)
+      mpsk_rx_disc (l, on, timing_ok);
 
     /* The NDA loop's stable points are the 0-grid (z^m = +1), but the QPSK
        constellation sits on the pi/4-offset grid, so a raw strobe would land
@@ -407,7 +521,7 @@ extern "C"
  * loop's and the carrier loop filter's self-validating sub-blobs. The arm AGC
  * is running state too. Config is restored by the owner's create(). */
 #define MPSK_RX_LOOPS_STATE_MAGIC DP_FOURCC ('M', 'R', 'X', 'L')
-#define MPSK_RX_LOOPS_STATE_VERSION 1u
+#define MPSK_RX_LOOPS_STATE_VERSION 2u
 
   /** @brief Bytes mpsk_rx_loops_get_state() writes. */
   size_t mpsk_rx_loops_state_bytes (const mpsk_rx_loops_t *l);

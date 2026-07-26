@@ -165,9 +165,10 @@ RX (int m, double sps, size_t m_out, int pulse, double bn_carrier,
     int acq_to_track, double lock_thresh, double init_norm_freq,
     size_t warmup_syms)
 {
-  return mpsk_receiver_create (
-      m, sps, m_out, pulse, 0.35, 8, bn_carrier, 0.707, 0.01, acq_to_track,
-      lock_thresh, init_norm_freq, warmup_syms, 0, MPSK_RX_NUM_PHASES);
+  return mpsk_receiver_create (m, sps, m_out, pulse, 0.35, 8, bn_carrier,
+                               0.707, 0.01, acq_to_track, lock_thresh,
+                               init_norm_freq, warmup_syms, 0,
+                               MPSK_RX_NUM_PHASES, MPSK_RX_NDA_TAP_STROBE);
 }
 
 int

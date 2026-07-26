@@ -33,6 +33,7 @@ target_link_libraries(async_dsss_receiver_core PUBLIC
     nco_core
     farrow_core
     agc_core
+    boxcar_core
     psd_core
     spectral_core
     acc_trace_core
@@ -71,6 +72,7 @@ target_link_libraries(test_async_dsss_receiver_core
     nco_core
     farrow_core
     agc_core
+    boxcar_core
     psd_core
     spectral_core
     acc_trace_core
@@ -114,6 +116,7 @@ target_link_libraries(bench_async_dsss_receiver_core
     nco_core
     farrow_core
     agc_core
+    boxcar_core
     psd_core
     spectral_core
     acc_trace_core

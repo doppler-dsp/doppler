@@ -62,7 +62,8 @@ MpskReceiverObj_init (MpskReceiverObject *self, PyObject *args, PyObject *kwds)
       = { "m",           "sps",          "m_out",       "pulse",
           "rrc_beta",    "rrc_span",     "bn_carrier",  "zeta",
           "bn_timing",   "acq_to_track", "lock_thresh", "init_norm_freq",
-          "warmup_syms", "differential", "num_phases",  NULL };
+          "warmup_syms", "differential", "num_phases",  "nda_tap",
+          NULL };
   int                m               = 4;
   double             sps             = 8.0;
   unsigned long long m_out_raw       = 4;
@@ -78,12 +79,13 @@ MpskReceiverObj_init (MpskReceiverObject *self, PyObject *args, PyObject *kwds)
   unsigned long long warmup_syms_raw = 100;
   int                differential    = 0;
   unsigned long long num_phases_raw  = 1024;
+  const char        *nda_tap_str     = "strobe";
 
   if (!PyArg_ParseTupleAndKeywords (
-          args, kwds, "|idKsdidddiddKiK", kwlist, &m, &sps, &m_out_raw,
+          args, kwds, "|idKsdidddiddKiKs", kwlist, &m, &sps, &m_out_raw,
           &pulse_str, &rrc_beta, &rrc_span, &bn_carrier, &zeta, &bn_timing,
           &acq_to_track, &lock_thresh, &init_norm_freq, &warmup_syms_raw,
-          &differential, &num_phases_raw))
+          &differential, &num_phases_raw, &nda_tap_str))
     return -1;
   size_t m_out = (size_t)m_out_raw;
   int    pulse = 0;
@@ -100,10 +102,25 @@ MpskReceiverObj_init (MpskReceiverObject *self, PyObject *args, PyObject *kwds)
     }
   size_t warmup_syms = (size_t)warmup_syms_raw;
   size_t num_phases  = (size_t)num_phases_raw;
-  self->handle       = mpsk_receiver_create (
+  int    nda_tap     = 0;
+  if (strcmp (nda_tap_str, "strobe") == 0)
+    nda_tap = 0;
+  else if (strcmp (nda_tap_str, "mf_all") == 0)
+    nda_tap = 1;
+  else if (strcmp (nda_tap_str, "lo_arm") == 0)
+    nda_tap = 2;
+  else
+    {
+      PyErr_Format (PyExc_ValueError,
+                    "nda_tap must be one of \"strobe\", \"mf_all\", "
+                    "\"lo_arm\", got '%s'",
+                    nda_tap_str);
+      return -1;
+    }
+  self->handle = mpsk_receiver_create (
       m, sps, m_out, pulse, rrc_beta, rrc_span, bn_carrier, zeta, bn_timing,
       acq_to_track, lock_thresh, init_norm_freq, warmup_syms, differential,
-      num_phases);
+      num_phases, nda_tap);
   if (!self->handle)
     {
       PyErr_SetString (PyExc_ValueError,
@@ -776,7 +793,7 @@ static PyMethodDef MpskReceiverObj_methods[] = {
     "    >>> import numpy as np\n"
     "    >>> from doppler import MpskReceiver\n"
     "    >>> obj = MpskReceiver(4, 8.0, 4, \"iandd\", 0.35, 8, 0.01, 0.707, "
-    "0.01, 0, 0.5, 0.0, 100, 0, 1024)\n"
+    "0.01, 0, 0.5, 0.0, 100, 0, 1024, \"strobe\")\n"
     "    >>> obj.set_telemetry(0, 0, 0)\n"
     "    0\n" },
   { "steps", (PyCFunction)MpskReceiverObj_steps, METH_VARARGS | METH_KEYWORDS,
@@ -784,24 +801,29 @@ static PyMethodDef MpskReceiverObj_methods[] = {
     "\n"
     "Demodulate a cf32 block and return the recovered M-PSK symbols (one cf32 "
     "per recovered symbol period, ~ len(x)/sps outputs). Per sample the "
-    "receiver de-rotates with the integer-NCO carrier (predetection "
-    "wipe-off), accumulates a non-data-aided M-th-power I/Q arm at n "
-    "dumps/symbol to acquire the carrier with no data and no symbol timing, "
-    "matched-filters the de-rotated stream (integrate-and-dump or RRC), and "
-    "runs a Gardner symbol-timing loop. With acq_to_track enabled a "
-    "verify-counted two-way handover steps on the carrier lock metric each "
-    "symbol: it switches to a lower-jitter decision-directed carrier loop "
-    "after 8 consecutive above-lock_thresh symbols, and on a sustained lock "
-    "loss (32 consecutive symbols below 0.8*lock_thresh) drops back to the "
-    "NDA acquisition steer, the shared NCO carrying the frequency estimate "
-    "both ways. The loop locks to one of m phases (M-fold ambiguity); resolve "
-    "it with bits(differential) or a sync word. Read norm_freq for the "
-    "tracked carrier and lock for the carrier lock metric.\n"
+    "receiver pushes x through the matched DDC -- LO mix, decimating cascade, "
+    "and a terminal polyphase stage whose bank IS the matched filter and "
+    "whose selected arm IS the fractional symbol-timing delay -- then folds "
+    "every output that stage produced into two loops: a Gardner symbol-timing "
+    "loop steering the cascade's rate_ctrl port, and a carrier loop steering "
+    "the LO's freq_ctrl port. The carrier discriminator runs on the on-time "
+    "strobe only -- a non-strobe output straddles two symbols, so its M-th "
+    "power is intersymbol interference rather than carrier phase -- and while "
+    "acquiring it is the non-data-aided M-th-power error, needing no data and "
+    "no symbol timing. With acq_to_track enabled a verify-counted two-way "
+    "handover steps on the carrier lock metric each symbol: it switches to a "
+    "lower-jitter decision-directed carrier loop after 8 consecutive "
+    "above-lock_thresh symbols, and on a sustained lock loss (32 consecutive "
+    "symbols below 0.8*lock_thresh) drops back to the NDA acquisition steer, "
+    "the shared loop filter carrying the frequency estimate both ways. The "
+    "loop locks to one of m phases (M-fold ambiguity); resolve it with "
+    "bits(differential) or a sync word. Read norm_freq for the tracked "
+    "carrier and lock for the carrier lock metric.\n"
     "\n"
     "    >>> import numpy as np\n"
     "    >>> from doppler import MpskReceiver\n"
     "    >>> obj = MpskReceiver(4, 8.0, 4, \"iandd\", 0.35, 8, 0.01, 0.707, "
-    "0.01, 0, 0.5, 0.0, 100, 0, 1024)\n"
+    "0.01, 0, 0.5, 0.0, 100, 0, 1024, \"strobe\")\n"
     "    >>> y = obj.steps(np.zeros(4))\n"
     "    >>> y.dtype\n"
     "    dtype('complex64')\n" },
@@ -821,7 +843,7 @@ static PyMethodDef MpskReceiverObj_methods[] = {
     "    >>> import numpy as np\n"
     "    >>> from doppler import MpskReceiver\n"
     "    >>> obj = MpskReceiver(4, 8.0, 4, \"iandd\", 0.35, 8, 0.01, 0.707, "
-    "0.01, 0, 0.5, 0.0, 100, 0, 1024)\n"
+    "0.01, 0, 0.5, 0.0, 100, 0, 1024, \"strobe\")\n"
     "    >>> y = obj.bits(np.zeros(4))\n"
     "    >>> y.dtype\n"
     "    dtype('uint8')\n" },
@@ -845,7 +867,7 @@ static PyMethodDef MpskReceiverObj_methods[] = {
     "    >>> import numpy as np\n"
     "    >>> from doppler import MpskReceiver\n"
     "    >>> obj = MpskReceiver(4, 8.0, 4, \"iandd\", 0.35, 8, 0.01, 0.707, "
-    "0.01, 0, 0.5, 0.0, 100, 0, 1024)\n"
+    "0.01, 0, 0.5, 0.0, 100, 0, 1024, \"strobe\")\n"
     "    >>> obj.configure_lock(0.0, 0.0, 0, 0)\n" },
   { "reset", (PyCFunction)MpskReceiverObj_reset, METH_NOARGS,
     "reset() -> None\n"
@@ -855,7 +877,7 @@ static PyMethodDef MpskReceiverObj_methods[] = {
     "\n"
     "    >>> from doppler import MpskReceiver\n"
     "    >>> obj = MpskReceiver(4, 8.0, 4, \"iandd\", 0.35, 8, 0.01, 0.707, "
-    "0.01, 0, 0.5, 0.0, 100, 0, 1024)\n"
+    "0.01, 0, 0.5, 0.0, 100, 0, 1024, \"strobe\")\n"
     "    >>> obj.reset()\n" },
   { "state_bytes", (PyCFunction)MpskReceiverObj_state_bytes, METH_NOARGS,
     "Serialized state size in bytes." },

@@ -346,6 +346,41 @@ size_t ddc_execute(ddc_state_t *state, const float complex *x, size_t x_len, flo
                                 float complex *out, size_t max_out);
 
   /**
+   * @brief ddc_execute_ctrl_push() that also hands back the post-LO sample.
+   *
+   * Identical in every respect, plus a tap on the signal *between* the mix and
+   * the cascade — de-rotated, but not yet decimated or matched-filtered.
+   *
+   * The tap exists because a carrier discriminator's unambiguous frequency
+   * range is set by the rate it UPDATES at: an M-th-power detector running at
+   * rate `F` can only see `|df| < F/(2M)`. Take it from the terminal stage's
+   * on-time strobe and that rate is the symbol rate, which is the cleanest
+   * possible input and the narrowest possible pull-in. Take it here and the
+   * rate is the full input rate — `sps` times wider — at the cost of no
+   * matched filtering, so a caller wanting SNR back must run its own arm
+   * filter over this stream. That trade is the caller's to make, which is why
+   * this is a tap rather than a mode.
+   *
+   * @param state     Must be non-NULL.
+   * @param x         One CF32 input sample.
+   * @param rate_ctrl Rate deviation for this input (terminal-stage rate).
+   * @param freq_ctrl Frequency deviation for this input, cycles/sample at the
+   *                  input rate.
+   * @param out       Output buffer for any emitted outputs.
+   * @param max_out   Capacity of @p out (emission stops at this bound).
+   * @param lo_out    Receives the post-LO, pre-cascade sample when @p n_lo
+   *                  comes back 1. May be NULL.
+   * @param n_lo      Receives 1 (this front end mixes every input, so always
+   *                  1 here; the real-input twin gates on its halfband and can
+   *                  return 0). May be NULL.
+   * @return Number of terminal outputs written (0, 1, or more).
+   */
+  size_t ddc_execute_ctrl_push_tap (ddc_state_t *state, float complex x,
+                                    double rate_ctrl, double freq_ctrl,
+                                    float complex *out, size_t max_out,
+                                    float complex *lo_out, int *n_lo);
+
+  /**
    * @brief Is this object's rectangular matched filter degenerately narrow?
    *
    * True only for the matched flavor built with `pulse = RC_PULSE_IANDD` and

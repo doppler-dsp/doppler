@@ -342,6 +342,39 @@ extern "C"
                                  size_t max_out);
 
   /**
+   * @brief ddcr_execute_ctrl_push() that also hands back the post-LO sample.
+   *
+   * The real-input twin of ddc_execute_ctrl_push_tap(); see that function for
+   * why the tap exists (a carrier discriminator's unambiguous range is set by
+   * the rate it updates at, so a caller may want the widest, least-filtered
+   * stream rather than the cleanest one).
+   *
+   * The one difference is that this front end does NOT mix every input: the
+   * 2:1 halfband consumes two real inputs per intermediate sample, so @p n_lo
+   * comes back 0 on every other push and @p lo_out is untouched. The tapped
+   * stream therefore runs at `fs_in/2`, the LO's own rate — half as fast as
+   * the complex twin's for the same nominal `sps`, which halves this tap's
+   * frequency range in input-referred terms exactly as it halves everything
+   * else the LO sees.
+   *
+   * @param s         Must be non-NULL.
+   * @param x         One real float32 input sample.
+   * @param rate_ctrl Rate deviation for this input (terminal-stage rate).
+   * @param freq_ctrl Frequency deviation, cycles/sample at fs_in/2.
+   * @param out       Output buffer for any emitted outputs.
+   * @param max_out   Capacity of @p out.
+   * @param lo_out    Receives the post-LO, pre-cascade sample when @p n_lo
+   *                  comes back 1. May be NULL.
+   * @param n_lo      Receives 1 when the halfband fired for this input and the
+   *                  LO stepped, 0 otherwise. May be NULL.
+   * @return Number of terminal outputs written (0, 1, or more).
+   */
+  size_t ddcr_execute_ctrl_push_tap (ddcr_state_t *s, float x,
+                                     double rate_ctrl, double freq_ctrl,
+                                     float _Complex *out, size_t max_out,
+                                     float _Complex *lo_out, int *n_lo);
+
+  /**
    * @brief Is this object's rectangular matched filter degenerately narrow?
    *
    * The real chain's copy of ddc_get_narrow_pulse(): true only for the

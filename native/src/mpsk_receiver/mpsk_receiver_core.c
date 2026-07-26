@@ -60,7 +60,16 @@ seed_agc (mpsk_rx_loops_t *l)
 static void
 config_carrier (mpsk_rx_loops_t *l)
 {
-  loop_filter_init (&l->car_lf, l->bn_carrier, l->zeta, 1.0);
+  /* bn_carrier keeps its meaning — normalised to the SYMBOL rate — whatever
+     tap the caller picked, so one setting means the same loop at every tap.
+     What the tap changes is how often that loop is updated, which is the
+     filter's `t` (its update period, here measured in symbols). A tap that
+     updates m_out or lo_sps times per symbol therefore does NOT silently
+     widen the loop; it widens the range of frequency error the discriminator
+     can still SEE, and improves the stability margin at any given bn, which
+     is what lets a caller then raise bn_carrier on purpose. */
+  double upd = mpsk_rx_updates_per_symbol (l);
+  loop_filter_init (&l->car_lf, l->bn_carrier, l->zeta, 1.0 / upd);
   l->freq_scale = CARRIER_NDA_INV_2PI / l->lo_sps;
 }
 
@@ -68,7 +77,8 @@ void
 mpsk_rx_loops_init (mpsk_rx_loops_t *l, int m, double sps, double lo_sps,
                     size_t m_out, double bn_carrier, double zeta,
                     double bn_timing, int ted, int acq_to_track,
-                    double lock_thresh, size_t warmup_syms, int differential)
+                    double lock_thresh, size_t warmup_syms, int differential,
+                    int nda_tap)
 {
   l->m          = m;
   l->sps        = sps;
@@ -77,6 +87,21 @@ mpsk_rx_loops_init (mpsk_rx_loops_t *l, int m, double sps, double lo_sps,
   l->bn_carrier = bn_carrier;
   l->zeta       = zeta;
   l->lock_scale = carrier_nda_lock_scale (m);
+  l->nda_tap    = nda_tap;
+  /* Only the strobe tap reads an output the timing loop had to nominate; the
+     other two are timing-independent by construction. */
+  l->tap_timed = (nda_tap == MPSK_RX_NDA_TAP_STROBE);
+
+  /* Free-running arm for the LO tap: a half-symbol boxcar at the LO's rate,
+     clamped to what the ring can hold. Unit gain — the AGC downstream is what
+     sets the discriminator's operating level. */
+  {
+    double win = lo_sps / (double)MPSK_RX_ARM_DIV;
+    size_t len = (size_t)(win < 1.0 ? 1.0 : win);
+    if (len > (size_t)BOXCAR_MAX_LEN)
+      len = (size_t)BOXCAR_MAX_LEN;
+    boxcar_init (&l->arm, len, 1.0);
+  }
 
   l->acq_to_track = acq_to_track ? 1 : 0;
   l->warmup_syms  = warmup_syms;
@@ -221,10 +246,12 @@ mpsk_rx_set_telemetry (mpsk_rx_loops_t *l, dp_tlm_t *tlm, const char *prefix,
 
 /* ── Serializable state — the loops ────────────────────────────────────────
  *
- * Scalars, then three self-validating children (timing loop, carrier loop
- * filter, arm AGC). `freq_scale` is pure config — one update rate for both
- * discriminators — so it is restored by the owner's create() and never
- * packed. */
+ * Scalars, then four self-validating children (timing loop, carrier loop
+ * filter, arm AGC, arm boxcar). `freq_scale` and `nda_tap` are pure config —
+ * restored by the owner's create() and never packed. The arm rides along
+ * unconditionally even though only MPSK_RX_NDA_TAP_LO_ARM fills it: a blob
+ * layout that changed shape with the tap would be one more thing to get
+ * wrong, and boxcar_state_bytes is a few hundred bytes once. */
 
 /* freq_ctrl, car_error, lock */
 #define _MRX_DOUBLES 3
@@ -238,8 +265,8 @@ mpsk_rx_loops_state_bytes (const mpsk_rx_loops_t *l)
          + _MRX_U64S * sizeof (uint64_t)
          + 4 * sizeof (uint32_t) /* handover + car_lock cnt/locked */
          + ratesync_loop_state_bytes (&l->timing)
-         + loop_filter_state_bytes (&l->car_lf)
-         + agc_state_bytes (&l->car_agc);
+         + loop_filter_state_bytes (&l->car_lf) + agc_state_bytes (&l->car_agc)
+         + boxcar_state_bytes (&l->arm);
 }
 
 void
@@ -267,6 +294,8 @@ mpsk_rx_loops_get_state (const mpsk_rx_loops_t *l, void *blob)
   loop_filter_get_state (&l->car_lf, p);
   p += loop_filter_state_bytes (&l->car_lf);
   agc_get_state (&l->car_agc, p);
+  p += agc_state_bytes (&l->car_agc);
+  boxcar_get_state (&l->arm, p);
 }
 
 int
@@ -304,7 +333,11 @@ mpsk_rx_loops_set_state (mpsk_rx_loops_t *l, const void *blob)
   if (rc != DP_OK)
     return rc;
   p += loop_filter_state_bytes (&l->car_lf);
-  return agc_set_state (&l->car_agc, p);
+  rc = agc_set_state (&l->car_agc, p);
+  if (rc != DP_OK)
+    return rc;
+  p += agc_state_bytes (&l->car_agc);
+  return boxcar_set_state (&l->arm, p);
 }
 
 /* ==================================================================
@@ -316,7 +349,8 @@ mpsk_receiver_create (int m, double sps, size_t m_out, int pulse,
                       double rrc_beta, int rrc_span, double bn_carrier,
                       double zeta, double bn_timing, int acq_to_track,
                       double lock_thresh, double init_norm_freq,
-                      size_t warmup_syms, int differential, size_t num_phases)
+                      size_t warmup_syms, int differential, size_t num_phases,
+                      int nda_tap)
 {
   if (m != 2 && m != 4 && m != 8)
     return NULL; /* only BPSK / QPSK / 8PSK */
@@ -327,7 +361,8 @@ mpsk_receiver_create (int m, double sps, size_t m_out, int pulse,
       || !(sps >= (double)m_out) || !(rrc_beta >= 0.0) || !(rrc_beta <= 1.0)
       || rrc_span < 1 || !(bn_carrier >= 0.0) || !(bn_timing >= 0.0)
       || !(zeta > 0.0) || num_phases < 2u
-      || (num_phases & (num_phases - 1u)) != 0u)
+      || (num_phases & (num_phases - 1u)) != 0u
+      || nda_tap < MPSK_RX_NDA_TAP_STROBE || nda_tap > MPSK_RX_NDA_TAP_LO_ARM)
     return NULL;
 
   mpsk_receiver_state_t *rx = calloc (1, sizeof (*rx));
@@ -353,7 +388,7 @@ mpsk_receiver_create (int m, double sps, size_t m_out, int pulse,
      lo_sps is a parameter rather than an assumption.) */
   mpsk_rx_loops_init (&rx->l, m, sps, sps, m_out, bn_carrier, zeta, bn_timing,
                       RATESYNC_TED_GARDNER, acq_to_track, lock_thresh,
-                      warmup_syms, differential);
+                      warmup_syms, differential, nda_tap);
   ratesync_loop_bind_cascade (&rx->l.timing, rx->fe->rc);
   return rx;
 }

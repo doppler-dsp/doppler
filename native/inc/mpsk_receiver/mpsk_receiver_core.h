@@ -174,7 +174,7 @@ extern "C"
                         double zeta, double bn_timing, int acq_to_track,
                         double lock_thresh, double init_norm_freq,
                         size_t warmup_syms, int differential,
-                        size_t num_phases);
+                        size_t num_phases, int nda_tap);
 
   /**
    * @brief Destroy an M-PSK receiver and release all memory.
@@ -209,9 +209,15 @@ extern "C"
                           float complex *y_out, int ted)
   {
     float complex ys[4];
-    size_t        n = ddc_execute_ctrl_push (s->fe, x, s->l.timing.ctrl,
-                                             s->l.freq_ctrl, ys,
-                                             sizeof (ys) / sizeof (ys[0]));
+    float complex zlo;
+    int           n_lo = 0;
+    size_t        n    = ddc_execute_ctrl_push_tap (
+        s->fe, x, s->l.timing.ctrl, s->l.freq_ctrl, ys,
+        sizeof (ys) / sizeof (ys[0]), &zlo, &n_lo);
+    /* The widest NDA tap reads here — ahead of the cascade, so it needs no
+       symbol timing. A no-op for every other tap. */
+    if (n_lo)
+      mpsk_rx_push_lo (&s->l, zlo);
     int           emitted = 0;
     for (size_t oi = 0; oi < n; oi++)
       emitted |= mpsk_rx_take_output (&s->l, ys[oi], y_out, ted);
@@ -365,7 +371,7 @@ extern "C"
  * Every scalar this object carries across inputs lives in one of them; the
  * cascade, its banks and the LO centre are restored by create. */
 #define MPSK_RECEIVER_STATE_MAGIC DP_FOURCC ('M', 'P', 'S', 'K')
-#define MPSK_RECEIVER_STATE_VERSION 5u /* v5: rebuilt on the matched DDC */
+#define MPSK_RECEIVER_STATE_VERSION 6u /* v5: rebuilt on the matched DDC */
   size_t mpsk_receiver_state_bytes (const mpsk_receiver_state_t *state);
   void   mpsk_receiver_get_state (const mpsk_receiver_state_t *state,
                                   void                        *blob);

@@ -17,7 +17,7 @@ mpsk_receiver_r_create (int m, double sps, size_t m_out, int pulse,
                         double zeta, double bn_timing, int acq_to_track,
                         double lock_thresh, double init_norm_freq,
                         size_t warmup_syms, int differential,
-                        size_t num_phases)
+                        size_t num_phases, int nda_tap)
 {
   if (m != 2 && m != 4 && m != 8)
     return NULL;
@@ -30,7 +30,8 @@ mpsk_receiver_r_create (int m, double sps, size_t m_out, int pulse,
       || !(sps > 2.0 * (double)m_out) || !(rrc_beta >= 0.0)
       || !(rrc_beta <= 1.0) || rrc_span < 1 || !(bn_carrier >= 0.0)
       || !(bn_timing >= 0.0) || !(zeta > 0.0) || num_phases < 2u
-      || (num_phases & (num_phases - 1u)) != 0u)
+      || (num_phases & (num_phases - 1u)) != 0u
+      || nda_tap < MPSK_RX_NDA_TAP_STROBE || nda_tap > MPSK_RX_NDA_TAP_LO_ARM)
     return NULL;
 
   mpsk_receiver_r_state_t *rx = calloc (1, sizeof (*rx));
@@ -58,7 +59,7 @@ mpsk_receiver_r_create (int m, double sps, size_t m_out, int pulse,
      reason mpsk_rx_loops_init takes lo_sps separately from sps. */
   mpsk_rx_loops_init (&rx->l, m, sps, 0.5 * sps, m_out, bn_carrier, zeta,
                       bn_timing, RATESYNC_TED_GARDNER, acq_to_track,
-                      lock_thresh, warmup_syms, differential);
+                      lock_thresh, warmup_syms, differential, nda_tap);
   ratesync_loop_bind_cascade (&rx->l.timing, rx->fe->rc);
   return rx;
 }

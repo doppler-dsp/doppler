@@ -30,7 +30,6 @@ target_link_libraries(dsss_receiver_core PUBLIC
     nco_core
     farrow_core
     agc_core
-    boxcar_core
     snr_core)
 
 add_executable(test_dsss_receiver_core
@@ -62,7 +61,6 @@ target_link_libraries(test_dsss_receiver_core
     nco_core
     farrow_core
     agc_core
-    boxcar_core
     snr_core
     m)
 target_include_directories(test_dsss_receiver_core
@@ -99,7 +97,6 @@ target_link_libraries(bench_dsss_receiver_core
     nco_core
     farrow_core
     agc_core
-    boxcar_core
     snr_core
     m)
 target_include_directories(

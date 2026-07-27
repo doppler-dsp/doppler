@@ -102,7 +102,6 @@ carrier_nda_init (carrier_nda_state_t *s, double bn, double zeta,
   s->arm_len = s->sps / (size_t)s->n;
   if (s->arm_len == 0)
     s->arm_len = 1;
-  s->lock_scale     = carrier_nda_lock_scale (m);
   s->bn             = bn;
   s->zeta           = zeta;
   s->seed_norm_freq = init_norm_freq;

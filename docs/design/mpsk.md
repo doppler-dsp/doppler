@@ -326,8 +326,10 @@ and no loop bandwidth substitutes for it.
 The M-th-power detector is computed efficiently by **repeated complex squaring**
 of the arm sample `z = i + jq`: `z²` strips BPSK, `z⁴` strips QPSK, `z⁸` strips
 8PSK. Each squaring level yields both a phase error and a lock signal; the
-per-M `lock_scale` normalizes the discriminator/lock gain so the handover
-threshold is M-independent.
+phase-error scale normalizes the discriminator gain so one `bn` behaves
+identically across M, and the lock signal is left **unscaled** so that it reads
+~1.0 at lock for every M -- which is what actually makes the handover threshold
+M-independent.
 
 **Normalization — an AGC, not a per-sample limiter.** The discriminator input
 `z` is driven to unit average power by an embedded log-domain AGC (`agc_core`)
@@ -388,26 +390,23 @@ bpsk_lock = i**2 - q**2          # Re(z^2)
 bpsk_phase_error = 2 * i * q     # Im(z^2)
 
 if mod == "BPSK":
-    lock_scale = 1
     phase_error = bpsk_phase_error
-    lock_signal = lock_scale * bpsk_lock
+    lock_signal = bpsk_lock                                           # Re(z^2)
     # Yuen Eq. 8-19 (passive arm-filter Costas loop), half-symbol boxcar arm.
     # Verified moments: K2 = 5/6, K4 = 23/30, KL = 2/3, Bi/R = 2 (z = Bi/R/2 = 1).
     K2, K4, KL, z = 5 / 6, 23 / 30, 2 / 3, 1
     S_L = K2**2 / (K4 + KL * z / rd)   # high-SNR floor K2**2 / K4 = 0.906 = -0.43 dB
     sq_loss_dB = 10 * np.log10(S_L)
 elif mod == "QPSK":
-    lock_scale = 0.619
     phase_error = bpsk_phase_error * bpsk_lock                        # ~ Im(z^4)
-    lock_signal = lock_scale * (bpsk_lock**2 - bpsk_phase_error**2)   # ~ Re(z^4)
+    lock_signal = bpsk_lock**2 - bpsk_phase_error**2                  # ~ Re(z^4)
     # No clean closed form for the M-th-power passive loop; empirical fit (dB).
     sq_loss_dB = -0.0564724 * esno**2 + 1.90284531 * esno - 15.65792221
 else:  # 8PSK
-    lock_scale = 0.412
     qpsk_phase_error = bpsk_phase_error * bpsk_lock
     qpsk_lock = bpsk_lock**2 - bpsk_phase_error**2
     phase_error = qpsk_phase_error * qpsk_lock                        # ~ Im(z^8)
-    lock_signal = lock_scale * (qpsk_lock**2 - qpsk_phase_error**2)   # ~ Re(z^8)
+    lock_signal = qpsk_lock**2 - qpsk_phase_error**2                  # ~ Re(z^8)
     sq_loss_dB = -0.14285557 * esno**2 + 5.70706958 * esno - 58.13670891
 
 # Coherent (data x squaring) gain of the free-running half-symbol boxcar arm:
@@ -451,11 +450,11 @@ Each subsequent level squares the running pair and reads off its real/imaginary
 parts, so `(lock, phase_error)` climbs the powers `z² → z⁴ → z⁸`. Verified
 exactly (residual 0 over a full phase sweep):
 
-| M   | `phase_error` | `lock_signal`                 |
-| --- | ------------- | ----------------------------- |
-| 2   | `Im(z²)`      | `Re(z²)`                      |
-| 4   | `½·Im(z⁴)`    | `0.619·Re(z⁴)`                |
-| 8   | `¼·Im(z⁸)`    | `0.412·(Re(z⁴)² − ¼·Im(z⁴)²)` |
+| M   | `phase_error` | `lock_signal`         |
+| --- | ------------- | --------------------- |
+| 2   | `Im(z²)`      | `Re(z²)`              |
+| 4   | `½·Im(z⁴)`    | `Re(z⁴)`              |
+| 8   | `¼·Im(z⁸)`    | `Re(z⁴)² − ¼·Im(z⁴)²` |
 
 So **`phase_error` is exactly the M-th-power discriminator** `Im(z^M)`, scaled by
 `1, ½, ¼`. That scale is not arbitrary — it **normalizes the phase-detector gain
@@ -463,7 +462,7 @@ across M**. The S-curve slope at lock is `(slope of Im(z^M)) × scale = M × sca
 BPSK / QPSK / 8PSK. (This is why the recursion carries `ab = Im(z⁴)/2` rather
 than the full `2ab` into the next squaring.)
 
-The **`lock_signal` is `Re(z^M)` exactly for M = 2, 4** (up to `lock_scale`). For
+The **`lock_signal` is `Re(z^M)` exactly for M = 2, 4**, unscaled. For
 **M = 8 it is *not* literally `Re(z⁸)`**: carrying the ½-scaled imaginary arm up
 one more level gives `Re(z⁴)² − ¼·Im(z⁴)²` instead of `Re(z⁸) = Re(z⁴)² − Im(z⁴)²`. The two coincide at lock (`Im(z⁴) → 0` → both peak), so it remains a
 faithful, monotone lock detector — it is simply not the literal 8th-power real
@@ -513,9 +512,9 @@ for now.
 It cannot: `CarrierNda` owns an NCO and a boxcar arm, and the receiver's NCO is
 now the DDC's LO and its "arm" is the cascade's own output. What the receiver
 reuses is the part that matters and that must never fork — the **discriminator**
-(`carrier_nda_disc`) and its per-M normalisation (`carrier_nda_lock_scale`,
-promoted from a file-static to a public inline for exactly this reason, so the
-discriminator and its scale cannot drift apart). `CarrierNda` remains a
+(`carrier_nda_disc`), whose lock signal is normalised by construction — it
+reads ~1.0 at lock for every M, so a threshold means one thing everywhere.
+`CarrierNda` remains a
 first-class standalone object for anyone who wants the complete loop.
 
 ______________________________________________________________________
@@ -591,7 +590,7 @@ ______________________________________________________________________
 | `MatchedDDC` / `MatchedDdcr`                                        | the whole front end — mix, decimate, match           |
 | `RateConverter` terminal polyphase stage                            | matched filter **and** fractional delay, fused       |
 | `ratesync_loop_t`                                                   | timing loop — RateSync's own, factored out for reuse |
-| `carrier_nda_disc` + `carrier_nda_lock_scale`                       | NDA acquisition math — shared with `CarrierNda` (§3) |
+| `carrier_nda_disc`                                                  | NDA acquisition math — shared with `CarrierNda` (§3) |
 | `CarrierMpsk` decision-directed discriminator                       | tracking-path math — reuse the update                |
 | `loop_filter` PI                                                    | every loop embeds it by value — as-is                |
 | `lockdet`                                                           | verify-counted two-way handover gate — as-is         |
@@ -629,8 +628,14 @@ ______________________________________________________________________
 ## 8. Resolved / open review points
 
 - **NDA discriminator form** — *resolved.* Raw M-th-power via repeated squaring
-    (§2.3) on an AGC-normalized arm; `lock_scale` = 1 / 0.619 / 0.412 for
-    M = 2 / 4 / 8. Squaring-loss equations corrected and Yuen-grounded (§2.3).
+    (§2.3) on an AGC-normalized arm, with the lock signal left UNSCALED so it
+    reads ~1.0 at lock for every M. It used to carry a per-M `lock_scale` of
+    1 / 0.619 / 0.412, which made the statistic's ceiling M-dependent and the
+    default handover threshold of 0.5 **unreachable at 8PSK** (ceiling 0.412):
+    `car.locked` could never be set on a perfectly working 8PSK receiver, and
+    every call site that needed a meaningful threshold multiplied the scale
+    back in by hand. Squaring-loss equations corrected and Yuen-grounded
+    (§2.3).
 - **Arm normalization** — *resolved.* Internal `agc_core` AGC (bandwidth locked
     to `0.01·bn`, decimated loop-filter command via `gain_update_period`) + 10 dB
     square clip, not a per-sample limiter (§2.3).
@@ -666,7 +671,7 @@ ______________________________________________________________________
     are timing-independent by construction. See §2.2 and
     [doppler-dsp/doppler#536](https://github.com/doppler-dsp/doppler/issues/536).
 - **An above-ceiling lock statistic is a free diagnostic** — *open.*
-    `lock > carrier_nda_lock_scale(m)` is impossible for a valid constellation, so
+    `lock > 1` is impossible for a valid constellation, so
     it detects "discriminator input is garbage" (unsettled timing, or a gain
     fault) with no new computation. The project rule is to expose a condition the
     code already computes rather than document it; this one is currently only

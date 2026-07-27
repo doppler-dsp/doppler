@@ -25,7 +25,7 @@
  *   - `phase_error` = `Im(z^M)` scaled by `1, ½, ¼` for M = 2, 4, 8 — the
  * scale normalizes the phase-detector gain so the S-curve slope at lock is 2
  * for every M (one `bn` behaves identically across M).
- *   - `lock_signal`  = `Re(z^M)` (× a per-M `lock_scale`) for M ≤ 4, and a
+ *   - `lock_signal`  = `Re(z^M)` for M ≤ 4, and a
  *     faithful monotone lock detector for M = 8 — ~1 when phase-locked, ~0
  * with no carrier. Its EMA (`lock`) is the carrier lock metric. See
  * `docs/design/mpsk.md` §2.3 for the derivation.
@@ -130,7 +130,6 @@ extern "C"
     int                 m;   /**< constellation order M (2, 4, 8).         */
     int                 n;   /**< sets the MA window (= a 1/n-symbol box).  */
     size_t arm_len;          /**< moving-average window length (= sps / n). */
-    double lock_scale;       /**< per-M lock-signal scale (1/0.619/0.412). */
     double seed_norm_freq;   /**< create-time carrier freq, for reset.     */
     double bn;               /**< PLL loop noise bandwidth (retained).     */
     double zeta;             /**< damping factor (retained).               */
@@ -147,27 +146,6 @@ extern "C"
     carrier_nda_tlm_t tlm;   /**< live telemetry attachment; zeroed in blobs */
   } carrier_nda_state_t;
 
-  /**
-   * @brief Per-M lock-signal scale, normalising the metric across
-   *        constellations (see docs/design/mpsk.md §2.3).
-   *
-   * Public because the discriminator is: every loop that calls
-   * carrier_nda_disc() needs the matching scale, and a second copy of these
-   * three constants elsewhere is exactly the drift this rule exists to
-   * prevent.
-   *
-   * @param m  Constellation order M (2, 4, 8).
-   * @return The scale to pass to carrier_nda_disc().
-   */
-  JM_FORCEINLINE double
-  carrier_nda_lock_scale (int m)
-  {
-    if (m == 2)
-      return 1.0;
-    if (m == 4)
-      return 0.619;
-    return 0.412; /* m == 8 */
-  }
 
   /**
    * @brief The M-th-power discriminator on an arm sample (raw, no per-dump
@@ -188,13 +166,11 @@ extern "C"
    *
    * @param z      Arm moving-average sample (AGC-normalized, ~unit at lock).
    * @param m      Constellation order (2, 4, 8).
-   * @param scale  Per-M lock scale (1 / 0.619 / 0.412).
    * @param pe     Receives the phase error.
    * @param lock   Receives the lock signal.
    */
   JM_FORCEINLINE void
-  carrier_nda_disc (float complex z, int m, double scale, double *pe,
-                    double *lock)
+  carrier_nda_disc (float complex z, int m, double *pe, double *lock)
   {
     /* The cascade runs in float: the input is a float complex AGC-normalized
      * to |z|~1 (clip caps it at ~3.16), so even z^8 is O(1)-O(1e4) and float's
@@ -209,7 +185,7 @@ extern "C"
     if (m == 2)
       {
         *pe   = be;
-        *lock = scale * bl;
+        *lock = bl;
         return;
       }
     float ql = bl * bl - be * be; /* Re(z^4)        */
@@ -217,11 +193,11 @@ extern "C"
     if (m == 4)
       {
         *pe   = qe;
-        *lock = scale * ql;
+        *lock = ql;
         return;
       }
     *pe   = qe * ql;                     /* Im(z^8) / 4               */
-    *lock = scale * (ql * ql - qe * qe); /* faithful 8-PSK lock det.  */
+    *lock = ql * ql - qe * qe; /* faithful 8-PSK lock detector      */
   }
 
   /**
@@ -291,7 +267,7 @@ extern "C"
      * discriminator keeps its squaring-loss advantage. */
     float complex y  = boxcar_step (&s->arm, d);
     float complex zn = agc_step (&s->agc, y);
-    carrier_nda_disc (zn, s->m, s->lock_scale, pe, lock);
+    carrier_nda_disc (zn, s->m, pe, lock);
     return 1;
   }
 

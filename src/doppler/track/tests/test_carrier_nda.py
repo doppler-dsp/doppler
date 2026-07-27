@@ -101,9 +101,11 @@ def test_cold_start_unmodulated_carrier(m):
     c = CarrierNda(bn=0.01, zeta=0.707, init_norm_freq=0.0, sps=SPS, n=N, m=m)
     c.steps(_unmod(0.001, 40000))
     assert c.norm_freq == pytest.approx(0.001, abs=5e-4)
-    # lock peaks at the per-M lock_scale (1 / 0.619 / 0.412)
-    peak = {2: 1.0, 4: 0.619, 8: 0.412}[m]
-    assert c.lock > 0.5 * peak
+    # The lock statistic is NORMALISED: ~1.0 at lock for every M, so one
+    # threshold means the same thing at every constellation order. It used
+    # to be scaled per-M (1 / 0.619 / 0.412), which made the default
+    # threshold of 0.5 unreachable at 8PSK -- its ceiling was 0.412.
+    assert c.lock > 0.5
 
 
 @pytest.mark.parametrize("m", [2, 4, 8])

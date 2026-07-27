@@ -86,7 +86,6 @@ mpsk_rx_loops_init (mpsk_rx_loops_t *l, int m, double sps, double lo_sps,
   l->m_out      = m_out;
   l->bn_carrier = bn_carrier;
   l->zeta       = zeta;
-  l->lock_scale = carrier_nda_lock_scale (m);
   l->nda_tap    = nda_tap;
   /* Only the strobe tap reads an output the timing loop had to nominate; the
      other two are timing-independent by construction. */

@@ -77,6 +77,38 @@ ______________________________________________________________________
 
 ### Changed
 
+- **The carrier lock statistic is normalised: it reads ~1.0 at lock for every
+    M.** It used to carry a per-M `lock_scale` of 1 / 0.619 / 0.412, which made
+    the statistic's ceiling M-dependent while `lock_thresh` stayed a single
+    absolute number. Measured settled values were 1.00 / 0.63 / 0.43 for
+    BPSK / QPSK / 8PSK against a default threshold of **0.5** — so:
+
+    - **8PSK could never declare carrier lock.** Its ceiling was below the
+        default threshold, so `car.locked` stayed 0 on a receiver decoding
+        perfectly and `acq_to_track` could never hand over. Worse, the statistic
+        overshoots its own ceiling during the acquisition transient, so at low
+        Es/N0 8PSK *did* declare — the flag was anti-correlated with lock.
+    - **QPSK had 0.13 of margin** and declared intermittently under noise.
+    - Every call site that needed a meaningful threshold multiplied the scale
+        back in by hand: `carrier_nda_pullin.c` computed
+        `get_lock(c) / c->lock_scale /* normalize to ~1 */` and three C tests
+        compared against `0.3 * c->lock_scale`. Those workarounds are gone.
+
+    `carrier_nda_lock_scale()` is removed and `carrier_nda_disc()` loses its
+    `scale` parameter — the lock signal is now `Re(z^M)` unscaled, which reads
+    ~1.0 at lock at every order, so one threshold means one thing everywhere.
+    The phase-error scaling (1, ½, ¼) is untouched: that one genuinely does
+    normalise the discriminator gain so a single `bn` behaves identically across
+    M, and it was never the problem.
+
+    Found by randomising M in a Monte-Carlo characterisation. A fixed
+    QPSK grid does not surface it, because QPSK mostly works.
+
+    **Thresholds you have tuned by hand need rescaling**, since the same number
+    is now a different fraction of the achievable ceiling: divide an existing
+    QPSK threshold by 0.619, an 8PSK one by 0.412. The default 0.5 is unchanged
+    and now means "half of achievable" at every M instead of 50% / 81% / 121%.
+
 - **The carrier's strobe tap no longer waits for timing lock.** An earlier
     revision on this branch gated the carrier steer, the arm AGC seed and the
     two-way handover on the timing loop's own `lockdet`, because a pre-lock

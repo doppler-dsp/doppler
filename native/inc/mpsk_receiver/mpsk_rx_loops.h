@@ -57,7 +57,7 @@
 #define MPSK_RX_LOOPS_H
 
 #include "agc/agc_core.h"
-#include "carrier_nda/carrier_nda_core.h" /* carrier_nda_disc + lock scale */
+#include "carrier_nda/carrier_nda_core.h" /* carrier_nda_disc            */
 #include "clib_common.h"
 #include "dp_state.h"
 #include "jm_perf.h"
@@ -218,7 +218,6 @@ extern "C"
                              to cycles per LO sample, set once at init.   */
     double car_error;   /**< last carrier phase discriminator (stress).   */
     double lock;        /**< EMA of the carrier lock signal.              */
-    double lock_scale;  /**< per-M lock-signal scale.                     */
     lockdet_state_t car_lock;   /**< de-chattered binary carrier lock.    */
     int             agc_seeded; /**< arm AGC has taken its first level.   */
     boxcar_state_t  arm;        /**< free-running arm filter; LO_ARM only. */
@@ -413,8 +412,7 @@ extern "C"
       }
 
     double pe, lk;
-    carrier_nda_disc (agc_step (&l->car_agc, z), l->m, l->lock_scale, &pe,
-                      &lk);
+    carrier_nda_disc (agc_step (&l->car_agc, z), l->m, &pe, &lk);
     l->lock += CARRIER_NDA_LOCK_ALPHA * (lk - l->lock);
     (void)lockdet_step (&l->car_lock, l->lock);
     if (!l->tracking)

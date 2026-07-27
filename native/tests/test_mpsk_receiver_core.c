@@ -260,7 +260,14 @@ main (void)
        at -8.1 dB against the -18.3 dB the wider loops give, which is exactly
        why a lock statistic is never read on its own here. */
     mpsk_receiver_state_t *rx
-        = RX (4, SPS, M_OUT, MPSK_RX_PULSE_IANDD, 0.01, 1, 0.4, 0.0, 200);
+        /* 0.65, not the 0.4 this used before the lock statistic was
+           normalised: the statistic now reads ~1.0 at lock for EVERY M
+           instead of the old per-M 1/0.619/0.412, so a QPSK threshold of
+           0.4 used to mean 0.4/0.619 = 65% of the achievable ceiling and
+           would now mean 40% of it. Rescaling here keeps this test at the
+           same OPERATING POINT so it still measures the handover rather
+           than the units change. */
+        = RX (4, SPS, M_OUT, MPSK_RX_PULSE_IANDD, 0.01, 1, 0.65, 0.0, 200);
     make_mpsk (tx, idx, 4, 0.0005, 30.0, 33u);
     size_t k = mpsk_receiver_steps (rx, tx, NSAMP, out, NSYM);
     CHECK (mpsk_receiver_get_tracking (rx) == 1); /* handed over */

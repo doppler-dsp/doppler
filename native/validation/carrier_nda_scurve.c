@@ -6,13 +6,13 @@
  * For a unit arm sample z = exp(j*phi) the repeated-squaring recursion
  * (carrier_nda_disc) must give:
  *   phase_error = Im(z^M) * {1, 1/2, 1/4}  for M = 2, 4, 8
- *   lock_signal = Re(z^M) * lock_scale     for M = 2, 4  (faithful detector
+ *   lock_signal = Re(z^M)                  for M = 2, 4  (faithful detector
  * M=8) The phase_error scale is chosen so the S-curve slope at lock is 2 for
  * every M (one loop bn behaves identically across BPSK/QPSK/8PSK). See
  * docs/design/mpsk.md §2.3.
  *
  * Validated, per M: e(0)=0; slope 2 at lock; phase_error == Im(z^M)*scale to
- * ~1e-6; lock_signal == Re(z^M)*lock_scale for M<=4; lock peaks at the M lock
+ * ~1e-6; lock_signal == Re(z^M) for M<=4; lock peaks at the M lock
  * phases and is negative between them (a usable detector) for M=8.
  *
  * Usage:  carrier_nda_scurve [--check]
@@ -29,47 +29,45 @@ static int
 check_order (int m)
 {
   double pe_scale = (m == 2) ? 1.0 : (m == 4) ? 0.5 : 0.25;
-  double lk_scale = (m == 2) ? 1.0 : (m == 4) ? 0.619 : 0.412;
   double seg      = TWOPI / m;
   int    fail     = 0;
 
   double e0, l0;
-  carrier_nda_disc (1.0f + 0.0f * I, m, lk_scale, &e0, &l0);
+  carrier_nda_disc (1.0f + 0.0f * I, m, &e0, &l0);
   if (fabs (e0) > 1e-6)
     fail = 1;
 
   /* slope at the origin == 2 for all M (constant-gain property) */
   double h = 1e-4, ep, em, l;
-  carrier_nda_disc ((float complex)cexp (I * h), m, lk_scale, &ep, &l);
-  carrier_nda_disc ((float complex)cexp (-I * h), m, lk_scale, &em, &l);
+  carrier_nda_disc ((float complex)cexp (I * h), m, &ep, &l);
+  carrier_nda_disc ((float complex)cexp (-I * h), m, &em, &l);
   double slope = (ep - em) / (2.0 * h);
   if (fabs (slope - 2.0) > 1e-2)
     fail = 1;
 
-  /* phase_error == Im(z^M)*pe_scale; lock == Re(z^M)*lk_scale (M<=4) */
+  /* phase_error == Im(z^M)*pe_scale; lock == Re(z^M) (M<=4) */
   double max_pe = 0.0, max_lk = 0.0, lk_at_half = 0.0;
   for (double phi = -M_PI; phi < M_PI; phi += 1e-3)
     {
       float complex z = (float complex)cexp (I * phi);
       double        pe, lk;
-      carrier_nda_disc (z, m, lk_scale, &pe, &lk);
+      carrier_nda_disc (z, m, &pe, &lk);
       double imzm = sin (m * phi), rezm = cos (m * phi);
       double dpe = fabs (pe - pe_scale * imzm);
       if (dpe > max_pe)
         max_pe = dpe;
       if (m <= 4)
         {
-          double dlk = fabs (lk - lk_scale * rezm);
+          double dlk = fabs (lk - rezm);
           if (dlk > max_lk)
             max_lk = dlk;
         }
     }
   /* M=8 lock is a detector (not literal Re(z^8)): peaks at 0, dips mid-period
    */
-  carrier_nda_disc ((float complex)cexp (I * (seg / 2)), m, lk_scale,
-                    &lk_at_half, &l);
+  carrier_nda_disc ((float complex)cexp (I * (seg / 2)), m, &lk_at_half, &l);
   double lk0;
-  carrier_nda_disc (1.0f + 0.0f * I, m, lk_scale, &lk0, &l);
+  carrier_nda_disc (1.0f + 0.0f * I, m, &lk0, &l);
 
   if (max_pe > 1e-6)
     fail = 1;
@@ -80,7 +78,7 @@ check_order (int m)
 
   printf ("  M=%d  e(0)=%.2e  slope=%.5f  max|pe-Im(z^M)*%.2f|=%.2e  "
           "max|lk-Re(z^M)*%.3f|=%.2e (M<=4)\n",
-          m, e0, slope, pe_scale, max_pe, lk_scale, max_lk);
+          m, e0, slope, pe_scale, max_pe, 1.0, max_lk);
   return fail;
 }
 

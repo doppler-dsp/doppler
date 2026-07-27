@@ -77,16 +77,35 @@ def _signal(m, sps, foff, esn0_db, nsym, seed):
     return tx.astype(np.complex64), idx
 
 
-def _ser(out, idx, m):
+def _settle_floor(bn_timing, bn_carrier):
+    """Symbols to discard before a steady-state measurement means anything.
+
+    5/Bn per loop, and the two ADD because they are cascaded — the carrier
+    discriminator reads the on-time strobe, so it cannot converge until timing
+    has. Then double it for joint tracking, where each loop sees the other's
+    transient as a disturbance. At this demo's bandwidths that is 1500 symbols,
+    where a window pinned at a fraction of the record (``size // 4`` = 999)
+    starts inside the transient and charges its errors to the steady state.
+    """
+    return int(2.0 * (5.0 / bn_timing + 5.0 / bn_carrier))
+
+
+def _ser(out, idx, m, settle):
+    """Steady-state symbol error rate, measured after ``settle`` symbols.
+
+    Searches lag and constellation rotation because neither is observable from
+    the output alone: the group delay depends on the pulse, the front end and
+    the handover instant, and an NDA receiver locks to any of the M rotations.
+    """
     th = np.angle(out) - PHI0[m]
     oi = np.round(th * m / (2 * np.pi)).astype(int) % m
-    lo, hi = out.size // 4, out.size - out.size // 8
+    lo, hi = settle, out.size - out.size // 8
+    assert hi - lo > 500, "settling budget leaves too few symbols to measure"
     best = 1.0
-    # +-200, not +-30: group delay moves with the pulse, the front end and the
-    # handover instant, and a clipped lag search reports chance SER on a
-    # perfectly healthy decode. It did exactly that when the lock statistic was
-    # normalised -- the handover fired earlier, the lag shifted past 30, and
-    # this read SER 0.75 on a receiver measuring -18.7 dB EVM.
+    # +-200, not +-30: a lag search clipped narrower than the delay it is
+    # searching for reports chance SER on a perfectly healthy decode, which is
+    # indistinguishable from a broken receiver. Cheap insurance -- the winning
+    # lag here is 0, and the cost of being wrong about that is a false defect.
     for lag in range(-200, 201):
         base = np.arange(lo, hi) + lag
         if base.min() < 0 or base.max() >= idx.size:
@@ -124,14 +143,15 @@ def main(out_path: str = "mpsk_receiver_demo.png") -> None:
     # acquisition transient (the cloud) is visible before lock.
     sps = 8
     foff = 0.0015
+    bn_c, bn_t = 0.02, 0.01
     tx, idx = _signal(4, sps, foff=foff, esn0_db=20, nsym=4000, seed=1)
     rx = MpskReceiver(
         m=4,
         sps=sps,
         m_out=4,
         init_norm_freq=0.0,
-        bn_carrier=0.02,
-        bn_timing=0.01,
+        bn_carrier=bn_c,
+        bn_timing=bn_t,
     )
     # process in fine blocks to log the loop state over time
     freqs, locks = [], []
@@ -144,13 +164,18 @@ def main(out_path: str = "mpsk_receiver_demo.png") -> None:
     out = np.concatenate(sym_chunks)
     # ── self-validation: the front-panel receiver really pulls in ────────
     # The tracked carrier must land on the injected offset, the lock
-    # metric must rise well off its cold-start value, and the locked tail
+    # metric must rise well off its cold-start value, and the SETTLED tail
     # must decode the transmitted symbols essentially error-free (the
-    # coherent QPSK SER at Es/N0 = 20 dB is ~1e-23).
-    ser_tail = _ser(out, idx, 4)
+    # coherent QPSK SER at Es/N0 = 20 dB is ~1e-23). "Settled" is the
+    # budget below, not a fraction of the record — measuring from 999
+    # symbols reads SER 3.5e-2 on the same decode that is exactly 0 from
+    # 1500, because the first 1500 are the joint acquisition transient.
+    settle = _settle_floor(bn_t, bn_c)
+    ser_tail = _ser(out, idx, 4, settle)
     print(
         f"QPSK pull-in: freq err {abs(freqs[-1] - foff):.2e} cyc/sample, "
-        f"lock {locks[0]:.2f} -> {locks[-1]:.2f}, tail SER {ser_tail:.2e}"
+        f"lock {locks[0]:.2f} -> {locks[-1]:.2f}, "
+        f"tail SER {ser_tail:.2e} (from symbol {settle})"
     )
     assert abs(freqs[-1] - foff) < 1e-4, "carrier did not converge on f0"
     assert locks[-1] > 0.5, "lock metric never rose"
@@ -216,7 +241,7 @@ def main(out_path: str = "mpsk_receiver_demo.png") -> None:
                 warmup_syms=300,
             )
             out2 = rxm.steps(tx2)
-            ser = _ser(out2, idx2, m)
+            ser = _ser(out2, idx2, m, _settle_floor(0.005, 0.005))
             sers[db] = ser
             bps = {2: 1, 4: 2, 8: 3}[m]
             meas.append(max(ser / bps, 1e-6))  # ~BER via Gray
@@ -248,7 +273,7 @@ def main(out_path: str = "mpsk_receiver_demo.png") -> None:
 
     fig.tight_layout()
     fig.savefig(out_path, dpi=120)
-    print(f"wrote {out_path}  (QPSK tail SER {_ser(out, idx, 4):.2e})")
+    print(f"wrote {out_path}  (QPSK tail SER {ser_tail:.2e})")
 
 
 if __name__ == "__main__":

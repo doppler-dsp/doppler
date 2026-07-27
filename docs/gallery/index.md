@@ -67,6 +67,7 @@ FFT, ring buffers, C programs, or the NATS streaming demo? Those live on the
 
 - [M-PSK Constellation](mpsk.md) — M-PSK mapping and constellation rendering.
 - [M-PSK Receiver](mpsk-receiver.md) — integrated carrier + timing + bit recovery.
+- [M-PSK Receiver: Performance](mpsk-receiver-performance.md) — EVM, SER, lock time, false alarm and level invariance over random geometries.
 
 ## Measurement
 

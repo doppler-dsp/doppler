@@ -186,6 +186,7 @@ nav:
       - Constellations & Receivers:
           - M-PSK Constellation: gallery/mpsk.md
           - M-PSK Receiver: gallery/mpsk-receiver.md
+          - "M-PSK Receiver: Performance": gallery/mpsk-receiver-performance.md
       - Measurement:
           - Measurement Suite: gallery/measure.md
           - "Measurement Suite: IMD & NPR": gallery/measure-imd-npr.md

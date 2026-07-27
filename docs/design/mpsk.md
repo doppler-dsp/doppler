@@ -208,18 +208,36 @@ discriminator swap with no rate change to reconcile.
     same fixed transient — which is how you can tell it was a transient problem
     and not a pull-in-range one.
 
-    Two things fix it, and they are independent:
+    Two things were tried, and only one of them survives:
 
-    - **The strobe tap waits for timing.** The steer, the AGC seed and the
-        handover are gated on the timing loop's own `lockdet` (which declares at
-        a data-independent symbol 132). The discriminator and its lock EMA keep
-        running, because the drop-back rule needs them and `lock` must stay
-        observable. Nothing is clamped — the loop declines to act on a value
-        known to be meaningless. Cold acquisition went from a coin flip to 6/6
-        seeds, and the pull-in curve became monotone in `bn_carrier` again.
     - **The other taps do not have the problem at all.** `mf_all` and `lo_arm`
-        (§2.2.1) are timing-independent by construction, which is the real
-        answer rather than the workaround.
+        (§2.2.1) are timing-independent by construction. This is the answer: the
+        tap point is a declared, caller-visible choice, and a link whose carrier
+        must acquire before its timing does should not be reading the strobe.
+
+    - **Gating the strobe tap on timing lock — tried, measured, removed.** The
+        steer, the AGC seed and the handover were gated on the timing loop's own
+        `lockdet` (which declares at a data-independent symbol 132). At the
+        operating point that motivated it — `sps=8`, `m_out=4` — it worked:
+        cold acquisition went from a coin flip to 6/6 seeds and the pull-in
+        curve became monotone in `bn_carrier` again.
+
+        It is no longer the default, for three reasons. Across a 24-cell sweep
+        (sps × `m_out` × `bn_carrier`) removing it changed **exactly one cell**,
+        `sps=8, m_out=4, bn_carrier=0.04`, which went to 5/24 — every other
+        cell is identical gated or not. `m_out` now defaults to 8, so that cell
+        is off the default path. And what the gate mainly bought was
+        *measurability*: with the steer frozen until timing declares, the
+        carrier transient starts at a known instant, which is convenient for
+        instrumenting an acquisition and is not a property of a working
+        receiver.
+
+        The deeper objection is structural. A tap that needs timing it cannot
+        wait for is a reason to choose a different tap; resolving that inside
+        the receiver hid a real trade behind a coupling the caller could
+        neither see nor override, and made the default receiver's cold-start
+        behaviour depend on a second loop's lock detector. If cold acquisition
+        fails at `m_out=4`, reach for `nda_tap="mf_all"` or `"lo_arm"`.
 
     The AGC seed mattered as much as the steer: seeded off a pre-lock strobe the
     gain latches on a non-symbol and can land far too **low** as easily as too
@@ -637,11 +655,15 @@ ______________________________________________________________________
     rather than carrying a residual matched-filter/timing loss.
 - **Real-input support** — *resolved, shipped.* `track.MpskReceiverR` (§1.2), a
     separate type sharing every loop with the complex one.
-- **Cold carrier pull-in** — *open, a regression.* The strobe-only discriminator
-    made carrier acquisition depend on timing lock, so the loop integrates an
-    invalid discriminator output through the timing transient and fails to acquire
-    for roughly a third of data seeds. Seeded operation is unaffected. Fix
-    direction: gate the carrier steer on the timing loop's `lockdet`. See §2.2 and
+- **Cold carrier pull-in on the strobe tap** — *open, by choice.* The
+    strobe-only discriminator makes carrier acquisition quality depend on symbol
+    timing, so on a cold start the loop integrates an invalid discriminator
+    output through the timing transient; at `sps=8, m_out=4` that cost roughly a
+    third of data seeds. Seeded operation is unaffected. Gating the steer on the
+    timing loop's `lockdet` fixes that operating point and was implemented, then
+    removed as a default — it changed one cell of a 24-cell sweep and mostly
+    bought measurability (§2.2). The remedy is `nda_tap`: `mf_all` and `lo_arm`
+    are timing-independent by construction. See §2.2 and
     [doppler-dsp/doppler#536](https://github.com/doppler-dsp/doppler/issues/536).
 - **An above-ceiling lock statistic is a free diagnostic** — *open.*
     `lock > carrier_nda_lock_scale(m)` is impossible for a valid constellation, so

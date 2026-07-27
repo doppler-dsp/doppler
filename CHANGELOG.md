@@ -75,6 +75,29 @@ ______________________________________________________________________
     bit correctly. The steer, the AGC seed and the handover now wait on the
     timing loop's own lock detector.
 
+### Changed
+
+- **The carrier's strobe tap no longer waits for timing lock.** An earlier
+    revision on this branch gated the carrier steer, the arm AGC seed and the
+    two-way handover on the timing loop's own `lockdet`, because a pre-lock
+    strobe is an arbitrary phase of the pulse. Measured, the gate does not buy
+    what it appeared to: across a 24-cell sweep (sps × `m_out` × `bn_carrier`)
+    removing it changes **exactly one cell** — `sps=8, m_out=4,   bn_carrier=0.04`, which goes to 5/24 — and `m_out` now defaults to 8, so
+    that cell is off the default path. What it mainly bought was
+    *measurability*: with the steer frozen until timing declares, the carrier
+    transient starts at a known instant, which is convenient for instrumenting
+    an acquisition and is not a property of a working receiver.
+
+    The structural objection is the deciding one. A tap that needs timing it
+    cannot wait for is a reason to choose a **different tap** — `nda_tap`
+    exists precisely for that, and `mf_all`/`lo_arm` are timing-independent by
+    construction. Resolving it inside the receiver hid a real trade behind a
+    coupling the caller could neither see nor override, and made the default
+    receiver's cold-start behaviour depend on a second loop's lock detector.
+    `mpsk_rx_disc()`'s `may_act` parameter is gone with it (every call site
+    passed the same value once the gate went). If cold acquisition fails at
+    `m_out=4`, reach for `nda_tap="mf_all"` or `"lo_arm"`.
+
 ### Added
 
 - **`sync.mu` — the timing NCO's phase is now observable.** Every other timing

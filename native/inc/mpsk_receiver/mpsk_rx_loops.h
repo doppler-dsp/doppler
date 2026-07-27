@@ -152,13 +152,21 @@ extern "C"
    * property the NDA path exists for — acquiring with no data *and no symbol
    * timing* — which is why they are not merely "wider".
    *
+   * No tap waits. `STROBE` steers from its first strobe whether or not the
+   * timing loop has declared, so its dependency is a reason to CHOOSE another
+   * tap when the carrier must acquire before timing does — not something the
+   * receiver resolves behind the caller's back. Gating it was tried and
+   * measured: across a 24-cell sweep it moved one cell, because what it
+   * really bought was a carrier transient that started at a known instant and
+   * was therefore easier to measure.
+   *
    * Fixed at construction: the caller picks the trade once, and nothing
    * switches underneath it.
    */
   enum
   {
     /** On-time strobe only. Cleanest input, narrowest pull-in, and the only
-     *  tap that must wait for symbol timing. */
+     *  tap whose input quality depends on symbol timing. */
     MPSK_RX_NDA_TAP_STROBE = 0,
     /** Every terminal output. `m_out`x the range, timing-independent, but the
      *  outputs between symbols are averaging two of them, so their M-th power
@@ -340,15 +348,15 @@ extern "C"
    * Shared by all three tap points so the discriminator, its AGC and its lock
    * statistic exist exactly once however the caller chose to feed them.
    *
+   * The discriminator and its lock EMA run on every sample it is handed — the
+   * drop-back rule needs them, and `lock` must stay observable throughout
+   * acquisition. The steer runs whenever the loop is not already tracking.
+   *
    * @param l        Loops.
    * @param z        The tapped sample.
-   * @param may_act  Whether the steer and the AGC seed are allowed to act on
-   *                 this sample. The discriminator and the lock EMA run
-   *                 regardless — the drop-back rule needs them, and `lock`
-   *                 must stay observable during acquisition.
    */
   JM_FORCEINLINE JM_HOT void
-  mpsk_rx_disc (mpsk_rx_loops_t *l, float complex z, int may_act)
+  mpsk_rx_disc (mpsk_rx_loops_t *l, float complex z)
   {
     /* Seed the AGC from the first usable sample rather than letting it walk
        there. Its bandwidth is deliberately ~100x below the carrier loop's so
@@ -361,9 +369,12 @@ extern "C"
        statistics of 5.2 and 26.4 against ceilings of 0.62 and 0.41).
 
        Seeding off a sample that is not yet a symbol is the same bug from the
-       other end: the gain can latch far too LOW just as easily. Measured
-       before the timing gate below: `lock` = 4.9e-19, a denormal, on a
-       receiver decoding every bit correctly, so the handover never fired.
+       other end: the gain can latch far too LOW just as easily. Measured on a
+       single-sample seed taken during acquisition: `lock` = 4.9e-19, a
+       denormal, on a receiver decoding every bit correctly, so the handover
+       never fired. The averaging below is what defends against this — nothing
+       waits for symbol timing here (see the strobe tap in
+       mpsk_rx_take_output), so the seed samples ARE acquisition samples.
 
        Average the first MPSK_RX_AGC_SEED_SAMPS usable samples instead of
        taking ONE. A single sample is a sample of a random variable: a strobe
@@ -381,7 +392,7 @@ extern "C"
        `agc_seeded` doubles as the counter (it is the only state this needs,
        so the serialized layout does not change: same field, same type, and a
        value below the target simply means "still averaging"). */
-    if (l->agc_seeded < MPSK_RX_AGC_SEED_SAMPS && may_act)
+    if (l->agc_seeded < MPSK_RX_AGC_SEED_SAMPS)
       {
         double p0 = (double)(crealf (z) * crealf (z) + cimagf (z) * cimagf (z));
         if (p0 > 0.0)
@@ -406,7 +417,7 @@ extern "C"
                       &lk);
     l->lock += CARRIER_NDA_LOCK_ALPHA * (lk - l->lock);
     (void)lockdet_step (&l->car_lock, l->lock);
-    if (!l->tracking && may_act)
+    if (!l->tracking)
       mpsk_rx_steer (l, pe);
   }
 
@@ -423,7 +434,7 @@ extern "C"
   {
     if (l->nda_tap != MPSK_RX_NDA_TAP_LO_ARM)
       return;
-    mpsk_rx_disc (l, boxcar_step (&l->arm, z), 1);
+    mpsk_rx_disc (l, boxcar_step (&l->arm, z));
   }
 
   /**
@@ -450,7 +461,7 @@ extern "C"
        times the frequency range and no timing dependence, paid for with the
        ISI those between-symbol outputs carry. */
     if (l->nda_tap == MPSK_RX_NDA_TAP_MF_ALL)
-      mpsk_rx_disc (l, y, 1);
+      mpsk_rx_disc (l, y);
 
     float complex on;
     if (!ratesync_loop_take_output (&l->timing, y, &on, ted))
@@ -471,37 +482,29 @@ extern "C"
        (Measured exactly that way: a receiver fed pure noise stayed in
        `tracking` forever.) */
 
-    /* THE CARRIER WAITS FOR TIMING. Restricting the discriminator to the
-       strobe bought 8PSK its decision margin, but it also coupled carrier
-       acquisition to symbol timing — the old free-running boxcar arm was
-       timing-independent by construction, which is what let the NDA loop
-       acquire "with no data and no symbol timing". Until the timing loop
-       converges, the strobe is not a symbol: it is a moving, arbitrary phase
-       of the pulse, and its M-th power is nothing in particular.
+    /* MPSK_RX_NDA_TAP_STROBE: the cleanest input there is, and the one tap
+       whose quality depends on symbol timing — see the tap enum. It acts on
+       every strobe from the first, locked or not.
 
-       That window is not short and not harmless. Measured at sps = 8 the
-       timing loop needs ~130 symbols to declare, and across it the carrier
-       lock statistic reads 0.9 to 1.7 against a QPSK ceiling of 0.62 — proof
-       the input is not a valid constellation. A type-2 loop steering on that
-       integrates a bias for 130 symbols; whichever way it happens to be
-       pushed decides the run, and pushed past the M-fold boundary the
-       integrator simply holds it there. About a third of data seeds never
-       recovered, and a WIDER bn_carrier made it worse, because a wider loop
-       integrates more of the same garbage over the same fixed transient.
+       An earlier revision gated the steer, the AGC seed and the handover on
+       the timing loop's lock detector, on the grounds that a pre-lock strobe
+       is an arbitrary phase of the pulse and its M-th power is nothing in
+       particular. The reasoning is sound and the transient is real (at sps = 8
+       the timing loop needs ~130 symbols to declare, and across that window
+       the carrier lock statistic reads 0.9 to 1.7 against a QPSK ceiling of
+       0.62 — the input is provably not a constellation). But the gate was
+       measured and it does not buy what it was supposed to: across a 24-cell
+       sweep it changed exactly one cell, and the reason it looked helpful was
+       that it made carrier acquisition easier to MEASURE, not easier to
+       achieve — with the steer frozen until timing declares, the carrier's
+       transient starts from a known instant.
 
-       So the steer, the AGC seed and the handover all wait on the timing
-       loop's own lock detector; only the discriminator and its lock EMA keep
-       running, because those must stay observable (the drop-back rule above,
-       and so `lock` still reports during acquisition). Nothing here clamps or
-       fudges a value — it declines to act on one that is known to be
-       meaningless. */
-    const int timing_ok = l->timing.lock.locked;
-
-    /* MPSK_RX_NDA_TAP_STROBE: the cleanest input there is, and the only tap
-       that has to wait — see the tap enum for why, and the note above for what
-       steering on a pre-lock strobe actually did. */
+       A tap that needs timing it cannot wait for is a reason to pick a
+       different tap, which is what nda_tap is for: MF_ALL and LO_ARM are
+       timing-independent by construction. Gating the default hid that choice
+       behind a coupling the caller could not see or override. */
     if (l->nda_tap == MPSK_RX_NDA_TAP_STROBE)
-      mpsk_rx_disc (l, on, timing_ok);
+      mpsk_rx_disc (l, on);
 
     /* The NDA loop's stable points are the 0-grid (z^m = +1), but the QPSK
        constellation sits on the pi/4-offset grid, so a raw strobe would land
@@ -526,11 +529,12 @@ extern "C"
     /* Opt-in two-way handover: after warmup, step the verify-counted detector
        on the carrier lock EMA once per symbol. Its flag IS the discriminator
        choice — and nothing else, now that both run at the symbol rate.
-       Gated on timing too: the pre-lock lock EMA overshoots its own ceiling
-       (0.9-1.7 against 0.62), so an ungated handover with a short warmup would
-       declare on garbage and hand the carrier to a decision-directed loop that
-       has no valid decisions to make. */
-    if (l->acq_to_track && timing_ok && l->sym_count >= l->warmup_syms)
+       `warmup_syms` is the whole guard: the pre-lock lock EMA overshoots its
+       own ceiling (0.9-1.7 against 0.62), so a warmup shorter than the timing
+       loop's own settling can declare on garbage and hand the carrier to a
+       decision-directed loop with no valid decisions to make. Size it from the
+       timing loop's bandwidth (~5/bn_timing symbols), not from the carrier's. */
+    if (l->acq_to_track && l->sym_count >= l->warmup_syms)
       {
         l->tracking = lockdet_step (&l->handover, l->lock);
       }

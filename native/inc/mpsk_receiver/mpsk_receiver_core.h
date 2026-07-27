@@ -180,8 +180,10 @@ extern "C"
    *                        range:
    *                        - `MPSK_RX_NDA_TAP_STROBE` (0, default) — the
    *                          on-time strobe, at `Rs`. Cleanest input,
-   *                          narrowest range, and the ONLY tap that must
-   *                          wait for the timing loop to lock.
+   *                          narrowest range, and the ONLY tap whose input
+   *                          quality depends on the timing loop — it steers
+   *                          from the first strobe regardless, so pick
+   *                          another tap if the carrier must acquire first.
    *                        - `MPSK_RX_NDA_TAP_MF_ALL` (1) — every terminal
    *                          output, at `m_out*Rs`. No timing dependence,
    *                          paid for with the ISI the between-symbol

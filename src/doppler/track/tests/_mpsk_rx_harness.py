@@ -30,6 +30,8 @@ In particular
 
 from __future__ import annotations
 
+import math
+
 import numpy as np
 
 from doppler.telemetry import Telemetry
@@ -304,12 +306,81 @@ def settle_from(probes, floor=SETTLE_SYMS):
     return out
 
 
+def coherent_errors(y, idx, m, settle, lag_span=40):
+    """Coherent symbol errors over the settled window: `(errors, symbols)`.
+
+    Returns COUNTS, not a rate, because the sensible way to measure a symbol
+    error rate is to run until a fixed number of ERRORS and let the symbol
+    count be the random variable (inverse binomial sampling) -- and a rate
+    alone cannot be accumulated across bursts. See `ser_confidence()`.
+
+    De-rotates by the estimated M-th-power phase first, which removes the
+    arbitrary phase the loop settled at; the residual ambiguity is then exactly
+    the `m` discrete rotations, searched here along with the lag. Skipping that
+    de-rotation is not a small error: QPSK lands on its decision boundaries and
+    reads ~0.5 regardless of how clean the constellation is.
+
+    Returns `None` if the window is too short to judge.
+    """
+    z = y[settle:]
+    if z.size < 500:
+        return None
+    z = z * np.exp(-1j * np.angle(np.mean(z.astype(np.complex128) ** m)) / m)
+    step = 2.0 * np.pi / m
+    dec = np.round(np.angle(z) / step).astype(int) % m
+    best = None
+    for lag in range(-lag_span, lag_span + 1):
+        b = np.arange(settle, settle + z.size) + lag
+        if b.min() < 0 or b.max() >= idx.size:
+            continue
+        for rot in range(m):
+            e = int(np.count_nonzero(((dec - idx[b] - rot) % m) != 0))
+            if best is None or e < best:
+                best = e
+    return (best, z.size) if best is not None else None
+
+
+def ser_confidence(errors, symbols, z=1.96):
+    """`(p_hat, lo, hi)` for a run stopped on an ERROR count.
+
+    Under inverse binomial sampling -- fix the number of errors `r`, let the
+    number of symbols `N` be what falls out -- `N` is negative-binomially
+    distributed, not the errors. Two consequences the fixed-`N` habit misses:
+
+    * the naive `r/N` is **biased**; the unbiased estimator is `(r-1)/(N-1)`;
+    * the relative standard error is `1/sqrt(r)` and depends ONLY on the error
+      count, which is exactly why stopping on errors gives a consistent
+      measurement while stopping on symbols does not. At a target SER of 1e-3,
+      a 20 000-symbol burst yields ~20 errors and ~22% relative error -- big
+      enough to look like real seed-to-seed variation in the receiver, which is
+      how it was first misread here.
+
+    The interval is the large-`r` log-normal form `p_hat * exp(+-z/sqrt(r))`,
+    accurate for `r >= 100`. For small `r` use the exact Poisson/Gamma relation
+    instead: `p` in `[chi2_{a/2}(2r) / 2N, chi2_{1-a/2}(2r) / 2N]`.
+    """
+    if errors < 2 or symbols < 2:
+        return float("nan"), 0.0, float("inf")
+    p = (errors - 1) / (symbols - 1)
+    rel = 1.0 / math.sqrt(errors)
+    return p, p * math.exp(-z * rel), p * math.exp(z * rel)
+
+
 def symbol_metrics(y, idx, m=4, settle=SETTLE_SYMS):
-    """EVM (dB) and differential SER over the SETTLED part of the burst.
+    """EVM (dB) and DIFFERENTIAL SER over the SETTLED part of the burst.
 
     Both are M-fold-ambiguity-invariant: the constellation is de-rotated by the
     mean M-th-power phase before EVM, and the SER is computed on symbol
     DIFFERENCES so it needs only a lag, not an absolute rotation.
+
+    **Do not compare this SER against a coherent bound.** A differential
+    decision fails when either of its two symbols is wrong, so at high SNR one
+    symbol error produces TWO differential errors and this reads ~2x a coherent
+    SER -- measured 1.88 to 2.11 across orders and both paths. Comparing it to
+    `theory_ser()` cost a whole session's worth of imagined implementation loss
+    (2-4.75x the bound, "fixed" by loosening a tolerance to 10) where the
+    coherent measurement is 1.2-2.4x, i.e. 0.3-1.0 dB. Use `coherent_errors()`
+    when the reference is a coherent curve.
 
     Returns `(evm_db, ser, lag)`. `lag` is the winning offset; if it sits at
     either end of the +-200 search the search saturated and the SER is not

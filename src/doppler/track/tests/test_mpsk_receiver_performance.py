@@ -28,9 +28,11 @@ import pytest
 
 from ._mpsk_rx_harness import (
     IF_FS4,
+    coherent_errors,
     demod,
     freq_offset_inside_bw,
     make_signal,
+    ser_confidence,
     settle_floor,
     settle_from,
     symbol_metrics,
@@ -196,53 +198,65 @@ def test_evm_does_not_track_absolute_level(real):
 # ── the coherent bound ─────────────────────────────────────────────────────
 
 
+#: Errors to accumulate before stopping — inverse binomial sampling. The
+#: relative standard error of a rate measured this way is 1/sqrt(errors) and
+#: depends ONLY on the error count, so this number IS the precision: 200
+#: errors is ~7% relative, ~±14% at 95%. Stopping on a fixed SYMBOL count
+#: instead makes precision depend on the very rate being measured -- a
+#: 20 000-symbol burst at SER 1e-3 yields ~20 errors and ~22% relative
+#: error, which reads as real seed-to-seed variation in the receiver, and
+#: is exactly how it was misread here.
+TARGET_ERRORS = 200
+
+#: Bursts to draw before giving up on TARGET_ERRORS. Hitting this cap means
+#: the SER is LOWER than budgeted for -- a pass with a wider interval, not a
+#: failure -- so the test reports the achieved count instead of asserting it.
+MAX_BURSTS = 40
+
+
 @pytest.mark.parametrize("real", PATHS, ids=lambda r: PATH_ID[r])
 @pytest.mark.parametrize("m", ORDERS)
 def test_ser_lands_on_the_coherent_bound(m, real):
     """Measured SER must sit on the theoretical curve at each order's own
     SER = 1e-3 point, within the implementation loss.
 
-    **The window comes from `settle_from`, not `settle_floor`, and that is
-    the whole test.** With `acq_to_track` on, the handover fires ON carrier
-    lock plus a warmup -- strictly later than the analytic budget -- and the
-    decision-directed loop then has its own transient. Measured, 8PSK complex:
-    the handover lands at symbol 2525 against a 2000-symbol budget, and
-    measuring from 2000 reads **5.9x** the bound where the settled answer is
-    **1.7x**, with essentially every error in the pre-handover block. An
-    earlier version used the analytic floor and simply loosened the threshold
-    to 12 to accommodate it, which hid a measurement bug behind a tolerance.
+    **Stops on ERRORS, not symbols, and compares COHERENT to coherent.** Both
+    halves were wrong before, and both inflated the answer:
 
-    Medians over 7 seeds with the corrected window:
+    * A fixed 20 000-symbol burst yields ~20 errors at this operating point, so
+      each measurement carried ~22% relative error. That spread looked like
+      sequence dependence in the receiver and was answered with a median over
+      seeds, which is a way of averaging out counting noise without admitting
+      that is what it is. Fixing the error count to 200 makes the precision ~7%
+      by construction (`1/sqrt(r)`), independent of the rate.
+    * `symbol_metrics` returns a DIFFERENTIAL SER, and it was being compared
+      against a coherent bound. A differential decision fails if either of its
+      two symbols is wrong, so it reads ~2x coherent -- measured 1.88 to 2.11
+      here. Half of the apparent "implementation loss" was that factor.
 
-        m=2  complex 2.94   real 3.73
-        m=4  complex 2.57   real 2.94
-        m=8  complex 2.33   real 4.30
+    With both fixed, the receivers are 1.2-2.4x the bound, i.e. **0.3-1.0 dB**,
+    where the old form reported 2-4.75x and was given a tolerance of 10:
 
-    Threshold 10, i.e. ~2.3x the worst median. **8PSK on the real path is the
-    only cell with a genuine steady-state penalty** (~4.3x, ~1.5 dB): it is
-    flat at every window start, where the complex path's excess vanished
-    entirely once the window was right.
+        m=2  complex 1.56 [1.36, 1.78]   real 1.76 [1.54, 2.01]
+        m=4  complex 1.55 [1.35, 1.77]   real 1.56 [1.37, 1.78]
+        m=8  complex 1.23 [1.08, 1.41]   real 2.35 [2.07, 2.66]
 
-    `m_out = 8` is passed explicitly rather than relied on as the default,
-    because this test's claim is about that value: a one-symbol-wide rectangle
-    sampled only 4x/symbol leaves 1-2 dB on the table through timing-error
-    variance. `sps = 24` follows, since `m_out = 8` forces `sps > 2*m_out` on
-    the real path.
+    8PSK on the real path is the only cell above 2x, and it is the one genuine
+    steady-state penalty in the matrix.
 
-    NB at 8PSK, SER and EVM disagree and the SER is the one to trust here --
-    but NOT for the reason it first appears. EVM sits within 0.3 dB of the
-    -(Es/N0) bound while SER is several times it, and the phase errors show
-    **no bias (mean -0.0002 rad) and not one symbol beyond the +-pi/8 decision
-    boundary**. Both EVM and the hard-decision phase error are rotation-blind,
-    so neither can see a constellation still rotating during acquisition; the
-    truth-referenced SER can. That is why the fix was the window, not a
-    tolerance.
+    The assertion is one-sided on the interval's LOWER limit: it fails only
+    when even the most favourable reading of the data exceeds the bound, so it
+    cannot flake on counting noise. `m_out = 8` is explicit because the claim
+    is about that value, and `sps = 24` follows from `sps > 2*m_out` on the
+    real path.
     """
     sps, m_out, nsym = 24, 8, 20000
     esn0 = esn0_spec_db(m)
     expect = theory_ser(m, 10.0 ** (esn0 / 10.0))
-    ratios = []
-    for seed in range(20, 25):
+    errors = symbols = bursts = 0
+    for seed in range(20, 20 + MAX_BURSTS):
+        if errors >= TARGET_ERRORS:
+            break
         x, idx = make_signal(
             sps, nsym, real=real, m=m, esn0_db=esn0, seed=seed
         )
@@ -262,16 +276,23 @@ def test_ser_lands_on_the_coherent_bound(m, real):
             f"m={m} {PATH_ID[real]} seed {seed}: both loops must lock at the "
             f"SER=1e-3 operating point"
         )
-        assert len(y) - settle >= 2000, (
+        got = coherent_errors(y, idx, m, settle)
+        assert got is not None, (
             f"m={m} {PATH_ID[real]} seed {seed}: only {len(y) - settle} "
             f"symbols after settling ({settle}); lengthen the burst"
         )
-        _evm, ser, _ = symbol_metrics(y, idx, m=m, settle=settle)
-        ratios.append(ser / expect)
-    median = float(np.median(ratios))
-    assert median < 10.0, (
-        f"m={m} {PATH_ID[real]}: median SER/bound {median:.1f} over "
-        f"{len(ratios)} seeds at Es/N0 {esn0:.1f} dB (individual: "
-        f"{[round(r, 1) for r in ratios]}); more than ~2 dB of implementation "
-        f"loss"
+        errors += got[0]
+        symbols += got[1]
+        bursts += 1
+
+    assert errors >= 20, (
+        f"m={m} {PATH_ID[real]}: only {errors} errors in {symbols} symbols "
+        f"over {bursts} bursts -- too few for any interval at all"
+    )
+    p_hat, lo, _hi = ser_confidence(errors, symbols)
+    assert lo < 4.0 * expect, (
+        f"m={m} {PATH_ID[real]}: SER {p_hat:.3e} = {p_hat / expect:.2f}x the "
+        f"coherent bound at Es/N0 {esn0:.1f} dB, 95% lower limit "
+        f"{lo / expect:.2f}x, from {errors} errors in {symbols} symbols "
+        f"({bursts} bursts). More than ~1.5 dB of implementation loss."
     )

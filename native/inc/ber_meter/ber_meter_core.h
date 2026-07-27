@@ -111,8 +111,17 @@ extern "C"
    * alignment simply cannot clear the threshold and reports `ok = 0` — the
    * intended behaviour, and the opposite of returning a plausible wrong lag.
    *
-   * @param lag_span  Search half-width; 0 selects BER_LAG_SPAN.
-   * @param pfa       Whole-search false-alarm probability; 0 selects 1e-6.
+   * @param rx         Recovered symbols.
+   * @param rx_len      How many.
+   * @param truth       Transmitted symbol indices (0..m-1).
+   * @param truth_len   How many.
+   * @param m           Constellation order.
+   * @param t0          Truth index of the marker's first occurrence.
+   * @param n_marker    Marker length in symbols; 0 selects BER_SYNC_SYMS.
+   * @param period      Repeat period in symbols; 0 for a single occurrence.
+   * @param lag_span    Search half-width; 0 selects BER_LAG_SPAN.
+   * @param pfa         Whole-search false-alarm probability; 0 selects 1e-6.
+   * @return            The alignment, with `ok` saying whether to believe it.
    */
   ber_align_t ber_align_detect (const float complex *rx, size_t rx_len,
                                 const uint8_t *truth, size_t truth_len, int m,
@@ -151,17 +160,12 @@ extern "C"
                            size_t truth_len);
 
   /**
-   * @brief Detect the (lag, phase) alignment of @p rx against a marker.
+   * @brief Pure detection: returns the alignment without touching state.
    *
-   * The marker is `truth[t0 .. t0 + n_marker)`, optionally repeating every
-   * @p period symbols (0 for a single occurrence, e.g. a preamble); repeats are
-   * combined NON-COHERENTLY, which raises the processing gain and exposes cycle
-   * slips. The noise floor is estimated from the off-peak lags themselves (a
-   * CFAR reference), so no knowledge of the Es/N0 is needed.
+   * ber_meter_align() is the stateful spelling the Python binding uses. The
+   * marker comes from the truth installed by ber_meter_set_truth().
    *
-   * The processing gain is `sqrt(2*K*L)`, so a marker that is too short simply
-   * cannot clear the threshold and reports `ok = 0` — the intended behaviour.
-   *
+   * @param state     Must be non-NULL, with truth installed.
    * @param rx        Recovered symbols.
    * @param rx_len    How many.
    * @param t0        Truth index of the marker's first occurrence.
@@ -169,9 +173,8 @@ extern "C"
    * @param period    Repeat period in symbols; 0 for a single occurrence.
    * @param lag_span  Search half-width; 0 selects BER_LAG_SPAN.
    * @param pfa       Whole-search false-alarm probability; 0 selects 1e-6.
+   * @return          The alignment, with `ok` saying whether to believe it.
    */
-  /** @brief Pure detection: returns the alignment without touching state.
-   *  ber_meter_align() is the stateful spelling the Python binding uses. */
   ber_align_t ber_meter_detect (const ber_meter_state_t *state,
                                 const float complex *rx, size_t rx_len,
                                 size_t t0, size_t n_marker, size_t period,

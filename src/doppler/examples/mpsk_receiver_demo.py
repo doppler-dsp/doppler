@@ -43,7 +43,11 @@ rx = MpskReceiver(
     bn_carrier=0.02,
     bn_timing=0.01,
     acq_to_track=1,
-    lock_thresh=0.4,
+    # The lock statistic is normalised: ~1.0 at lock for every M, so this is a
+    # plain fraction of what a locked constellation reads. It used to be scaled
+    # per-M (QPSK peaked at 0.619), where 0.4 meant 0.4/0.619 = 65% of the
+    # ceiling -- so 0.65 here is the SAME operating point, not a retune.
+    lock_thresh=0.65,
     warmup_syms=200,
 )
 sym = rx.steps(iq)  # recovered symbols (~ len(iq) / sps)
@@ -78,7 +82,12 @@ def _ser(out, idx, m):
     oi = np.round(th * m / (2 * np.pi)).astype(int) % m
     lo, hi = out.size // 4, out.size - out.size // 8
     best = 1.0
-    for lag in range(-30, 31):
+    # +-200, not +-30: group delay moves with the pulse, the front end and the
+    # handover instant, and a clipped lag search reports chance SER on a
+    # perfectly healthy decode. It did exactly that when the lock statistic was
+    # normalised -- the handover fired earlier, the lag shifted past 30, and
+    # this read SER 0.75 on a receiver measuring -18.7 dB EVM.
+    for lag in range(-200, 201):
         base = np.arange(lo, hi) + lag
         if base.min() < 0 or base.max() >= idx.size:
             continue

@@ -67,16 +67,23 @@ from ._mpsk_rx_harness import (
 # (label, sps, m_out, bn, nsym)
 #
 # `sps` must clear `sps > 2 * m_out` for the real path, so the low end is 20 at
-# m_out = 8. The very-high case widens BOTH loops to 0.04: the settling budget
-# is 2*(5/bn + 5/bn), so 0.04 costs 500 symbols where 0.01 costs 2000, and at
-# sps = 4096 that is the difference between a 3.7 M-sample stimulus and a 15 M
-# one. Widening the loops is the right lever -- shortening the window would
-# just measure the transient.
+# m_out = 8.
+#
+# **Every ratio uses the SAME loop bandwidth.** Loop bandwidth is normalised to
+# the symbol rate, so the settling budget is a fixed number of SYMBOLS at every
+# oversampling ratio -- which means a high-`sps` case needs proportionally more
+# SAMPLES for the same measurement, and at `sps = 2048` that is ~4.9 M of them.
+# Widening `bn` to shorten the record is not an economy, it is a different
+# receiver: it changes the loop under test, its settling, its jitter and its
+# pull-in range all at once, so the numbers would no longer describe the
+# configuration anyone runs. Long records are simply the cost of characterising
+# a heavily oversampled front end (and `wfmgen` exists for the ones too long to
+# build in a test).
 RATIOS = [
     ("low", 20, 8, 0.01, 2400),
     ("med", 64, 8, 0.01, 2400),
     ("high", 512, 8, 0.01, 2400),
-    ("very-high", 4096, 8, 0.04, 900),
+    ("very-high", 2048, 8, 0.01, 2400),
 ]
 
 PATHS = [("R", True), ("C", False)]

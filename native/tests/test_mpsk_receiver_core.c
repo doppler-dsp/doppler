@@ -20,6 +20,7 @@
  * that edge. See mpsk_receiver_get_clipped().
  */
 #include "dp_state_test.h"
+#include "dp_sym_test.h"
 #include "mpsk_receiver/mpsk_receiver_core.h"
 #include <complex.h>
 #include <math.h>
@@ -126,11 +127,19 @@ decide (float complex y, int m, double phi0)
 /* Symbol error rate over a locked middle window, tolerant of the unknown
  * M-fold rotation and a small symbol lag (acquisition transient + filter
  * delay). */
+/* @p settle is the symbol at which the measurement may start --
+ * dp_test_settle_syms() of the two loop bandwidths in use, NOT a fraction of
+ * the record. A fraction is what this used to be (`nout / 3`), and at the
+ * bandwidths section 2 runs (bn_timing 0.01, bn_carrier 0.005 -> a 3000-symbol
+ * budget) `nout / 3` = 2000 began 1000 symbols INSIDE the joint acquisition
+ * transient, scoring unsettled symbols against a steady-state threshold. */
 static double
 tail_ser (const float complex *out, size_t nout, const int *idx, int m,
-          double phi0)
+          double phi0, size_t settle)
 {
-  size_t lo = nout / 3, hi = 2 * nout / 3;
+  if (settle + 400 >= nout)
+    return 1.0; /* record too short to hold a settled window */
+  size_t lo = settle, hi = nout - nout / 8;
   double best = 1.0;
   for (int lag = -40; lag <= 40; lag++)
     {
@@ -230,9 +239,15 @@ main (void)
                                           0.005, m == 8, 0.3, fs[fi], 100);
           make_mpsk (tx, idx, m, fs[fi], 30.0, 7u + (uint32_t)(mi * 4 + fi));
           size_t k   = mpsk_receiver_steps (rx, tx, NSAMP, out, NSYM);
-          double ser = tail_ser (out, k, idx, m, phi0_for (m));
+          double ser = tail_ser (out, k, idx, m, phi0_for (m),
+                                 dp_test_settle_syms (0.01, 0.005));
           CHECK (ser < 0.01); /* clean recovery       */
-          CHECK (mpsk_receiver_get_lock (rx) > 0.15); /* locked, lock > 0 */
+          /* The lock EMA's noise-only sd is CARRIER_NDA_LOCK_NORM_SD (0.1132)
+             at EVERY m, so a threshold is meaningfully stated in sigmas. The
+             shipped default lock_thresh of 0.5 is 4.42 sigma (per-look Pfa
+             5e-6); assert that here rather than the old 0.15, which was only
+             1.3 sigma -- a value a noise-only run reaches routinely. */
+          CHECK (mpsk_receiver_get_lock (rx) > 0.5);
           mpsk_receiver_destroy (rx);
         }
   }
@@ -246,7 +261,8 @@ main (void)
     CHECK (rx != NULL);
     make_mpsk (tx, idx, 4, 0.0, 30.0, 21u);
     size_t k   = mpsk_receiver_steps (rx, tx, NSAMP, out, NSYM);
-    double ser = tail_ser (out, k, idx, 4, phi0_for (4));
+    double ser = tail_ser (out, k, idx, 4, phi0_for (4),
+                           dp_test_settle_syms (0.01, 0.005));
     CHECK (ser < 0.02);
     mpsk_receiver_destroy (rx);
   }
@@ -271,7 +287,8 @@ main (void)
     make_mpsk (tx, idx, 4, 0.0005, 30.0, 33u);
     size_t k = mpsk_receiver_steps (rx, tx, NSAMP, out, NSYM);
     CHECK (mpsk_receiver_get_tracking (rx) == 1); /* handed over */
-    double ser = tail_ser (out, k, idx, 4, phi0_for (4));
+    double ser = tail_ser (out, k, idx, 4, phi0_for (4),
+                           dp_test_settle_syms (0.01, 0.01));
     CHECK (ser < 0.01);
 
     /* two-way: a sustained lock loss (noise-dominated input collapses the

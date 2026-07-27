@@ -100,6 +100,51 @@ ______________________________________________________________________
 
 ### Added
 
+- **Functional and performance tests for `MpskReceiverR`.** The real-IF
+    receiver had none: both test files were untouched jm scaffolds — 95 Python
+    lines and 58 C lines of construction checks, `test_getter_setter` and
+    `test_reset` literally `pass` — so nothing had ever put a signal through
+    it. Two things had been hiding behind that, and both are now pinned:
+
+    - **`Ddcr`'s usable band.** The R2C halfband's image rejection is past
+        −100 dB across roughly 0.06…0.44 of the input rate but only −7 dB at
+        0.01 and −14 dB at 0.02, symmetric about fs/4. The constraint is on the
+        signal's **occupied band**, not its centre: a rectangular pulse spans
+        `fc ± 1/sps`, and when that reaches an edge the folded image lands on
+        the wanted signal. This presents as a receiver bug at low oversampling
+        — at `sps=10` an IF at 0.10 reaches DC and EVM collapses to −4 dB,
+        while the *same geometry* at fs/4 measures −23 dB.
+    - **The noiseless EVM floor, and where it lives.** ~−24 dB, and it is
+        **not** the real path's fault: the complex twin measures the same
+        −24.5 dB whenever its cascade also contains an integer decimation
+        stage, which at any realistic oversampling it does. Both are limited by
+        the shared CIC/halfband chain aliasing a rectangular pulse's sinc
+        sidelobes. At `sps=2048` the two paths measure −24.5 and −24.6 dB.
+
+    The new `test_mpsk_receiver_oversampling.py` measures **both** receivers for
+    EVM and lock time at low/med/high/very-high oversampling (sps 20 → 4096),
+    since "R is worse" and "both share a limit" look identical until measured
+    together. Three measurement rules are encoded in the shared harness because
+    each one, omitted, produces a confident wrong number:
+
+    - the settling budget is `2 · (5/bn_timing + 5/bn_carrier)` — the two loops
+        are **cascaded** (the carrier reads the strobe, so it cannot start
+        converging until timing has), so the budgets **add**, and joint tracking
+        **doubles** the sum. At the defaults that is 2000 symbols, not 500;
+        using `max(5/bn)` reads −9.0 dB where the settled answer is −23.2 dB;
+    - every case presents an offset **inside** the loop bandwidth (half of
+        `Bn` on each loop). Seeded exactly on truth the carrier loop never
+        leaves its initial state and any lock time measured is meaningless;
+        asserted **outside** `Bn` the test measures luck. Characterised, not
+        asserted: carrier lock takes 39/157 symbols at 0.25·Bn, 1376/1701 at
+        1·Bn, and **never happens** at 2·Bn — identically on both paths, which
+        makes pull-in a property of the shared symbol-rate NDA discriminator
+        rather than of either front end;
+    - lock time is read from the receivers' own verify-counted detectors, as a
+        sustained run rather than a final contiguous one — under AWGN a detector
+        legitimately dips, and dating the lock by its last dropout reported
+        2286 instead of 415 and looked like a receiver that never locked.
+
 - **`sync.mu` — the timing NCO's phase is now observable.** Every other timing
     probe is an *error* (`sync.e`) or a *correction* (`sync.ctrl`, `sync.rate`);
     `mu` is where the sampling instant actually ended up — the terminal

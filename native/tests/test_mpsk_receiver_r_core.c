@@ -379,27 +379,37 @@ main (void)
            clean and the edge visibly degraded.
 
            The MAGNITUDE here is deliberately weak (2 dB), and the reason is
-           worth knowing: it depends on the symbol source, not on the receiver.
-           The leaked image is the signal's own conjugate, so the damage is a
-           deterministic function of the symbol SEQUENCE, and this file's
-           xorshift32 `prbs()` produces a stream that barely excites it.
-           Measured at this exact geometry, noiseless, identical receiver and
-           amplitude, differing only in the symbol source:
+           NOT the receiver. The leaked image is the signal's own conjugate, so
+           the resulting ISI is a deterministic function of the symbol
+           SEQUENCE, and the penalty varies enormously with it. Measured over
+           8 seeds at this exact geometry, noiseless, identical receiver:
 
-               xorshift32 prbs()   edge -19.9 dB   centre -22.8 dB    2.9 dB
-               numpy PCG64         edge  -4.5 dB   centre -22.8 dB   18.4 dB
+               symbol source              min   median    max
+               pn_core MLS, length 64     2.7     11.9   18.5   dB
+               numpy PCG64              -11.1      2.8   18.6   dB
+               this file's xorshift32      --       2.9     --   dB
 
-           Both streams are uniform over the four symbols with a lag-1
-           autocorrelation near 0.01, and all three bit-selections from the
-           xorshift state (low 16, high 16, top 3) give the same 2.9 dB -- so
-           this is the generator, not the bit choice.
+           So NO symbol source reliably excites it, and a test asserting a
+           large penalty on one sequence is asserting a property of that
+           sequence. An earlier version of this comment claimed the xorshift
+           source under-excited the impairment by 15 dB relative to PCG64;
+           that compared ONE seed against ONE seed and the PCG64 draw happened
+           to be favourable -- on medians PCG64 is the worse source. Corrected.
 
-           **The Python twin is authoritative for the magnitude** --
-           test_usable_band_is_the_input_constraint asserts 10 dB and measures
-           18.3. This C test pins the weaker, always-true form: the centre is
-           clean and the edge is worse. If the edge ever matches the centre,
-           the halfband's edge behaviour changed and the documented input
-           constraint needs re-measuring, not deleting. */
+           Likely mechanism, if this is ever tightened: an m-sequence is white
+           to SECOND order but its higher-order joint statistics are
+           constrained by the linear recurrence, and this impairment depends on
+           symbol PAIRS -- so second-order whiteness is not the property that
+           matters, which is why "uniform, decorrelated at lag 1" says nothing
+           here.
+
+           This test therefore pins the always-true form: the centre is clean,
+           the edge is worse. **The Python twin
+           (test_usable_band_is_the_input_constraint) asserts 10 dB on a single
+           seed and is fragile for exactly this reason** -- it should average
+           over seeds. If the edge ever matches the centre, the halfband's edge
+           behaviour changed and the documented input constraint needs
+           re-measuring, not deleting. */
         CHECK (evm_ctr < -15.0);
         CHECK (evm_edge > evm_ctr + 2.0);
         printf ("  usable band: EVM %.1f dB at fc=0.10 vs %.1f dB at fs/4\n",

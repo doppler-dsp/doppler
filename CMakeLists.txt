@@ -176,6 +176,9 @@ enable_testing()
 add_subdirectory(native/src/hbdecim)
 add_subdirectory(native/src/resamp)
 add_subdirectory(native/src/wfmcompose)
+add_subdirectory(native/src/ber_meter)
+target_sources(doppler_lib PRIVATE $<TARGET_OBJECTS:ber_meter_core>)
+target_sources(doppler_lib_static PRIVATE $<TARGET_OBJECTS:ber_meter_core>)
 add_subdirectory(native/src/carrier_acq)
 add_subdirectory(native/src/async_dsss_receiver)
 target_sources(doppler_lib PRIVATE $<TARGET_OBJECTS:carrier_acq_core>)
@@ -209,6 +212,8 @@ add_subdirectory(native/src/mpsk_receiver_r)
 target_sources(doppler_lib PRIVATE $<TARGET_OBJECTS:mpsk_receiver_r_core>)
 target_sources(doppler_lib_static PRIVATE $<TARGET_OBJECTS:mpsk_receiver_r_core>)
 add_subdirectory(native/src/mpsk_receiver)
+target_sources(doppler_lib PRIVATE $<TARGET_OBJECTS:ber_core>)
+target_sources(doppler_lib_static PRIVATE $<TARGET_OBJECTS:ber_core>)
 target_sources(doppler_lib PRIVATE $<TARGET_OBJECTS:mpsk_receiver_core>)
 target_sources(doppler_lib_static PRIVATE $<TARGET_OBJECTS:mpsk_receiver_core>)
 add_subdirectory(native/src/carrier_nda)
@@ -373,6 +378,7 @@ target_sources(doppler_lib PRIVATE $<TARGET_OBJECTS:f32_to_i16_core>)
 target_sources(doppler_lib_static PRIVATE $<TARGET_OBJECTS:f32_to_i16_core>)
 
 # ── Modules (add_subdirectory lines appended here by just-makeit) ─────────────
+add_subdirectory(native/src/ber)
 add_subdirectory(native/src/acquire)
 add_subdirectory(native/src/dsss)
 add_subdirectory(native/src/track)
@@ -441,6 +447,22 @@ target_link_libraries(test_detection_core PRIVATE detection_core m)
 target_include_directories(test_detection_core
                            PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
 add_test(NAME test_detection_core COMMAND test_detection_core)
+
+# native/tests/dp_ber_test.h is the error-rate measurement harness every
+# receiver test scores through -- the settling window, the Pfa-gated alignment,
+# inverse binomial sampling and the exact confidence interval. It is header-
+# only and belongs to no object, so its self-test is registered here. It is
+# also the instrument the other tests trust, so it is tested harder than they
+# are: Monte-Carlo interval coverage, false-alarm rate of the sync detector,
+# and assertions that fail if a `min over (lag, rotation)` search is ever
+# reintroduced into the scoring path.
+add_executable(test_dp_ber native/tests/test_dp_ber.c)
+target_link_libraries(test_dp_ber PRIVATE ber_core ber_meter_core detection_core snr_core m)
+target_include_directories(test_dp_ber
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                   ${CMAKE_SOURCE_DIR}/native/tests)
+target_compile_options(test_dp_ber PRIVATE -O2)
+add_test(NAME test_dp_ber COMMAND test_dp_ber)
 
 # ── Hand-managed modules (not controlled by just-makeit) ─────────────────────
 

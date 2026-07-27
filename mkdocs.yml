@@ -190,6 +190,7 @@ nav:
       - Measurement:
           - Measurement Suite: gallery/measure.md
           - "Measurement Suite: IMD & NPR": gallery/measure-imd-npr.md
+          - "Measuring an Error Rate, Defensibly": gallery/ber-awgn.md
       - Quantization & Fixed-Point:
           - ADC Quantisation: gallery/adc.md
           - Q15 vs UQ15: gallery/q15-uq15.md

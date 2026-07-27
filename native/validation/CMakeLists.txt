@@ -88,14 +88,30 @@ target_compile_options(validate_carrier_nda_step_response PRIVATE -O3)
 add_test(NAME validate_carrier_nda_step_response
          COMMAND validate_carrier_nda_step_response --check)
 
+# The two M-PSK BER validators share one stimulus + measurement harness
+# (mpsk_ber_common.h) so the complex and real paths stay comparable, and both
+# score through native/tests/dp_ber_test.h -- hence the extra include dir.
+# dp_ber_test.h needs detection_core + snr_core, which doppler_lib_static
+# already carries.
 add_executable(validate_mpsk_receiver_ber
                ${CMAKE_CURRENT_SOURCE_DIR}/mpsk_receiver_ber.c)
 target_include_directories(validate_mpsk_receiver_ber
-                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                   ${CMAKE_SOURCE_DIR}/native/tests)
 target_link_libraries(validate_mpsk_receiver_ber PRIVATE doppler_lib_static m)
 target_compile_options(validate_mpsk_receiver_ber PRIVATE -O3 -funroll-loops)
 add_test(NAME validate_mpsk_receiver_ber
          COMMAND validate_mpsk_receiver_ber --check)
+
+add_executable(validate_mpsk_receiver_r_ber
+               ${CMAKE_CURRENT_SOURCE_DIR}/mpsk_receiver_r_ber.c)
+target_include_directories(validate_mpsk_receiver_r_ber
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                   ${CMAKE_SOURCE_DIR}/native/tests)
+target_link_libraries(validate_mpsk_receiver_r_ber PRIVATE doppler_lib_static m)
+target_compile_options(validate_mpsk_receiver_r_ber PRIVATE -O3 -funroll-loops)
+add_test(NAME validate_mpsk_receiver_r_ber
+         COMMAND validate_mpsk_receiver_r_ber --check)
 
 add_executable(validate_symsync_lock
                ${CMAKE_CURRENT_SOURCE_DIR}/symsync_lock.c)

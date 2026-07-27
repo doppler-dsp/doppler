@@ -21,25 +21,24 @@ import sys
 
 import numpy as np
 
+from doppler.ber import ber_theory_ber
 from doppler.mpsk import mpsk_bits_per_symbol, mpsk_demap, mpsk_map
+
+
+def _theory_ber(m, ebn0):
+    """Gray-coded M-PSK BER at Eb/N0 (linear).
+
+    Delegates to the C curve, which is parameterised by
+    `Es/N0 = Eb/N0 * log2(M)`.
+    """
+    return ber_theory_ber(m, ebn0 * (m.bit_length() - 1))
+
 
 M_LIST = [
     (2, "BPSK", "#1f77b4"),
     (4, "QPSK", "#2ca02c"),
     (8, "8PSK", "#d62728"),
 ]
-
-
-def _qfunc(x):
-    return 0.5 * math.erfc(x / math.sqrt(2.0))
-
-
-def _theory_ber(m, ebn0):
-    bps = mpsk_bits_per_symbol(m)
-    if m <= 4:
-        return _qfunc(math.sqrt(2 * ebn0))  # BPSK == Gray QPSK
-    esn0 = ebn0 * bps
-    return 2 * _qfunc(math.sqrt(2 * esn0) * math.sin(math.pi / 8)) / bps
 
 
 def _sim_ber(m, ebn0_db, rng, n=300_000):

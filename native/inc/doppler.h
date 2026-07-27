@@ -151,6 +151,8 @@ extern "C" {
 
 #include "carrier_acq/carrier_acq_core.h"
 
+#include "ber_meter/ber_meter_core.h"
+
 #ifdef __cplusplus
 }
 #endif

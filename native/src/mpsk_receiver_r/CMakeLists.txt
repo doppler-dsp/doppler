@@ -5,6 +5,7 @@ target_include_directories(
                             ${CMAKE_SOURCE_DIR}/native/inc/mpsk_receiver_r)
 target_link_libraries(mpsk_receiver_r_core PUBLIC
     wfm_dsp_core
+    ber_core
     ddcr_core
     lo_core
     RateConverter_core
@@ -30,6 +31,7 @@ add_executable(test_mpsk_receiver_r_core
                ${CMAKE_SOURCE_DIR}/native/tests/test_mpsk_receiver_r_core.c)
 target_link_libraries(test_mpsk_receiver_r_core
                       PRIVATE mpsk_receiver_r_core wfm_dsp_core
+    ber_core
     ddcr_core
     lo_core
     RateConverter_core
@@ -60,6 +62,7 @@ add_executable(
   ${CMAKE_SOURCE_DIR}/native/benchmarks/bench_mpsk_receiver_r_core.c)
 target_link_libraries(bench_mpsk_receiver_r_core
                       PRIVATE mpsk_receiver_r_core wfm_dsp_core
+    ber_core
     ddcr_core
     lo_core
     RateConverter_core

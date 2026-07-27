@@ -73,6 +73,7 @@ FFT, ring buffers, C programs, or the NATS streaming demo? Those live on the
 
 - [Measurement Suite](measure.md) — SNR / SINAD / THD / SFDR / ENOB from `ToneMeasure`.
 - [Measurement Suite: IMD & NPR](measure-imd-npr.md) — two-tone IMD/IM3, TOI, and notched-noise NPR.
+- [Measuring an Error Rate, Defensibly](ber-awgn.md) — `BerMeter` on AWGN: detected alignment, inverse binomial sampling, and the exact confidence interval.
 
 ## Quantization & Fixed-Point
 

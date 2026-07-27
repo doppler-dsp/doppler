@@ -13,6 +13,79 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+### Added
+
+- **`doppler.ber` — error-rate measurement as a first-class module.** An error
+    rate is a measurement, and this is its instrument: the settled window, a
+    detected alignment, inverse binomial sampling and an exact confidence
+    interval, in C once with a thin Python face.
+
+    - `BerMeter` accumulates errors across bursts and stops on a fixed **error**
+        count rather than a fixed symbol count. Under inverse binomial sampling
+        the relative standard error is `1/sqrt(r)` — a function of the error
+        count alone — so the error target *is* the precision. Stopping on
+        symbols makes precision depend on the very rate being measured: 20 000
+        symbols at SER 1e-3 yields ~20 errors and ~22% relative error.
+    - `BerMeter.align()` **detects** where a recovered stream sits against
+        truth, by correlating a known marker (sync word, PN period, or a
+        stretch of the truth sequence) and gating the peak on a false-alarm
+        probability. It does not search for the lag and rotation that minimise
+        the error count — that is an optimisation over the answer, and it both
+        false-passes on a lucky alignment and false-floors when the true lag
+        falls outside the span. A marker too short to identify an alignment
+        reports `ok=False` rather than a plausible wrong lag, and the marker's
+        own symbols are excluded from scoring.
+    - `ser()` / `ber()` / `interval()` return a `BerInterval` record whose
+        limits are the **exact** Gamma/chi-square interval — no normal
+        approximation, so it stays honest down to a single error. Its quantiles
+        come from `detection.det_threshold_noncoherent`, doppler's own inverse
+        regularized incomplete gamma, and are bit-identical to SciPy's
+        `chi2.ppf` at r = 1, 2, 20, 200 and 1000. Assert on `lo`, never on
+        `p_hat`.
+    - Free functions: `ber_theory_ser` / `ber_theory_ber` (the coherent M-PSK
+        bound), `ber_esn0_db_for_ser` (quote implementation loss in dB, which
+        is comparable across M; a ratio of rates is not), `ber_evm_db`,
+        `ber_evm_scatter_floor_db`, `ber_settle_syms`, `ber_settle_from` and
+        `ber_lock_symbol`.
+
+- **`ber_evm_scatter_floor_db(m)` — the EVM floor a scattered constellation
+    actually reads.** `2 - 2 sin(pi/M)/(pi/M)`: **−1.4 dB at BPSK, −7.0 at
+    QPSK, −12.9 at 8PSK**. The familiar "a scattered constellation reads ~0 dB"
+    is the BPSK limit only. At 8PSK a stream with no carrier recovery at all
+    reads the same −12.9 dB a perfectly healthy 13 dB link does, so any fixed
+    EVM threshold must be stated against this floor and never against zero.
+
+- **A real-IF BER validator** (`native/validation/mpsk_receiver_r_ber.c`), the
+    twin of the complex-path one, sharing one stimulus and one measurement so
+    the two paths stay comparable. Measured implementation loss at each M's
+    SER=1e-3 anchor: 0.56 / 0.53 / 1.02 dB real against 0.61 / 0.60 / 0.68 dB
+    complex, i.e. the R2C front end costs **~0.38 dB at 8PSK** and nothing
+    measurable below it — corroborated to 0.03 dB by the EVM gap.
+
+- **Gallery: "Measuring an Error Rate, Defensibly"** — `BerMeter` on AWGN with
+    no receiver in the loop, so the instrument is what is on trial.
+
+### Changed
+
+- **`mpsk_receiver_create()`'s `m_out` documentation now gives the second, and
+    at high M dominant, reason the default is 8.** Raising to the M-th power
+    auto-convolves the spectrum M times, spreading energy over ~`M*Rs`, and
+    whatever exceeds the update rate folds back onto itself; a clean strobe
+    raises to a constant with nothing to fold, but every departure from clean
+    is splattered M-fold and aliased. So the discriminator's tolerance for a
+    coarse matched filter **collapses as M grows**. The matched-filter reason
+    documented before is M-independent and predicts the same penalty at every
+    order; measured, halving `m_out` from 8 to 4 costs BPSK 1.7 dB, QPSK 1.6 dB
+    and **8PSK 3.0 dB**, the last also landing 0.87 dB from the fully-scattered
+    EVM floor. `m_out = 8` is not optional at M = 8.
+
+### Fixed
+
+- **An 8PSK EVM assertion that could not fail.** `test_mpsk_receiver_r_core.c`
+    asserted `evm < -12.0` at every M, but the 8PSK scatter floor is −12.9 dB —
+    so a constellation with no carrier recovery whatsoever satisfied it. It is
+    now gated on the floor as well as on absolute quality.
+
 ## [0.38.0] — 2026-07-27
 
 ### Added

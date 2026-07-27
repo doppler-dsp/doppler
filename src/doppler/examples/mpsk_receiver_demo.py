@@ -20,6 +20,7 @@ import sys
 # --8<-- [start:receiver]
 import numpy as np
 
+from doppler.ber import ber_settle_syms, ber_theory_ser
 from doppler.track import MpskReceiver
 
 # A QPSK signal at 8 samples/symbol with a residual carrier offset.
@@ -78,16 +79,13 @@ def _signal(m, sps, foff, esn0_db, nsym, seed):
 
 
 def _settle_floor(bn_timing, bn_carrier):
-    """Symbols to discard before a steady-state measurement means anything.
+    """Symbols to allow for settling: `2*(5/bn_t + 5/bn_c)`.
 
-    5/Bn per loop, and the two ADD because they are cascaded — the carrier
-    discriminator reads the on-time strobe, so it cannot converge until timing
-    has. Then double it for joint tracking, where each loop sees the other's
-    transient as a disturbance. At this demo's bandwidths that is 1500 symbols,
-    where a window pinned at a fraction of the record (``size // 4`` = 999)
-    starts inside the transient and charges its errors to the steady state.
+    Delegates to `ber.ber_settle_syms` -- the C implementation is the only
+    one. 5/Bn per loop, the two budgets ADD because the loops are cascaded,
+    and the sum DOUBLES for joint tracking.
     """
-    return int(2.0 * (5.0 / bn_timing + 5.0 / bn_carrier))
+    return ber_settle_syms(bn_timing, bn_carrier)
 
 
 def _ser(out, idx, m, settle):
@@ -114,20 +112,6 @@ def _ser(out, idx, m, settle):
         for r in range(m):
             best = min(best, float(np.mean(((a - b - r) % m) != 0)))
     return best
-
-
-def _qfunc(x):
-    from math import erfc, sqrt
-
-    return 0.5 * erfc(x / sqrt(2.0))
-
-
-def _theory_ser(m, esn0):
-    if m == 2:
-        return _qfunc(np.sqrt(2 * esn0))
-    if m == 4:
-        return 2 * _qfunc(np.sqrt(esn0))
-    return 2 * _qfunc(np.sqrt(2 * esn0) * np.sin(np.pi / 8))
 
 
 def main(out_path: str = "mpsk_receiver_demo.png") -> None:
@@ -253,11 +237,14 @@ def main(out_path: str = "mpsk_receiver_demo.png") -> None:
         # orders of magnitude.
         assert sers[db_grid[-1]] < 2e-3, f"{name} did not decode at 16 dB"
         chk = {2: 6.0, 4: 8.0, 8: 14.0}[m]
-        ratio = sers[chk] / _theory_ser(m, 10 ** (chk / 10))
+        ratio = sers[chk] / ber_theory_ser(m, 10 ** (chk / 10))
         print(f"{name}: SER/theory at Es/N0 {chk:.0f} dB = {ratio:.2f}")
         assert 0.3 < ratio < 3.0, f"{name} SER departs from the bound"
         th = [
-            max(_theory_ser(m, 10 ** (d / 10)) / {2: 1, 4: 2, 8: 3}[m], 1e-12)
+            max(
+                ber_theory_ser(m, 10 ** (d / 10)) / {2: 1, 4: 2, 8: 3}[m],
+                1e-12,
+            )
             for d in db_grid
         ]
         ax_b.semilogy(db_grid, meas, "o", color=col, label=f"{name} meas")

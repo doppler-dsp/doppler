@@ -290,25 +290,47 @@ too-wide `bn_carrier` used to *lose* acquisitions (gh#536).
     At a *fixed* `bn_carrier` all three taps measure the same `0.01·Rs`, exactly
     as they should. The table above is "each at its own best `bn`".
 
-!!! warning "`lo_arm` does not work at 8PSK"
+!!! warning "`mf_all` needs `m_out = 8`; the gain collapse lands on it, not on `lo_arm`"
 
-    The arm is a short lowpass, not the pulse matched filter, so it pays squaring
-    loss — and the raw M-th-power coherent gain over an arm goes as `Σ g_k^M`,
-    which at 8th power collapses (§2.3's gain-collapse result, made fatal by M).
-    Measured at Es/N0 20 dB: BPSK and QPSK decode cleanly on every tap (SER 0,
-    EVM ≈ −16 dB), while `lo_arm` at 8PSK sits at chance (SER 0.85, lock 0.081
-    against the 0.41 ceiling). Use `strobe` or `mf_all` for 8PSK.
+    §2.3's `Σ g_k^M` gain-collapse result — the raw M-th-power coherent gain over a
+    set of taps, made fatal by M = 8 — applies to the tap that sums the M-th power
+    over **all `m_out` matched-filter outputs**, badly-timed ones included. Measured
+    at Es/N0 20 dB, `sps = 8`, `bn_carrier = 0.005`, median over 5 seeds, both with
+    and without `acq_to_track`:
 
-    `mf_all`'s ISI bias is real but survivable with the handover enabled: 8PSK
-    SER 0.001 against `strobe`'s 0.0005.
+    | tap      | `m_out = 8` (default), M ∈ {2,4,8} | `m_out = 4`, QPSK | `m_out = 4`, 8PSK       |
+    | -------- | ---------------------------------- | ----------------- | ----------------------- |
+    | `strobe` | SER 0, EVM −19.7 dB                | SER 0, −15.9 dB   | SER 0.002, −15.9 dB     |
+    | `mf_all` | SER 0, EVM −19.7 dB                | SER 0, −16.0 dB   | **SER 0.851, −11.9 dB** |
+    | `lo_arm` | SER 0, EVM −19.7 dB                | SER 0, −16.0 dB   | SER 0.001, −16.0 dB     |
+
+    **At the default `m_out = 8` every tap decodes every order cleanly**, so the
+    warning is conditional on `m_out`, not on the tap alone. At `m_out = 4` the arms
+    cover half as much of each symbol, and at 8th power that is enough to put
+    `mf_all` at chance. `lo_arm` shows no failure at any setting measured here.
+
+    Two second-order effects, both at `m_out = 4`: `mf_all`/8PSK fails while
+    reporting lock +0.94 (+3.90 at `bn_carrier = 0.05`) — a false lock, consistent
+    with §the lock statistic being undetectable at M = 8 — and `mf_all` +
+    `acq_to_track` at *QPSK* falls to 2/5 decodes (SER 0.295, EVM −7.5 dB) against
+    5/5 for pure NDA, because the handover fires off an unreliable statistic.
+    `lo_arm` + `acq_to_track` costs EVM without costing SER (−19.7 → −15.4 dB at
+    `m_out = 8`), which is the decision-directed error running on a
+    non-matched-filtered arm.
+
+    **Correction.** This box named `lo_arm` as the failing tap until 2026-07-27. Its
+    numbers came from a lag search clipped to ±30 and an SER window that started
+    inside the settling transient — the two defects fixed in `30c76c6d`; both report
+    chance SER on a decode that is in fact error-free.
 
 !!! danger "Stable false lock at `Δf = k·Rs/M`, whatever the tap"
 
     `Rs/M` is exactly where a symbol-rate M-th power aliases onto zero, so the
     **M-fold ambiguity is a frequency ambiguity as well as a phase one**.
     Measured on QPSK at `sps = 8` with an initial error of `Rs/4`: the loop never
-    moves, ending precisely where it started, and reports a lock statistic of
-    **+0.546** against the 0.62 ceiling.
+    moves, ending precisely where it started (tracked frequency 2e-6 against a true
+    0.03125), and reports a lock statistic of **+0.83** against the ≈ 1.0 a real
+    lock reads.
 
     Nothing self-referenced detects this. The constellation is stationary, so a
     self-referenced EVM looks clean and blind M2M4 looks clean; the lock metric
@@ -353,9 +375,13 @@ captured/scaled baseband (and the DSSS despreader's known correlation gain).
     - **It is seeded from the first strobe.** The bank is unit-*energy*, so its
         output sits roughly `√(pulse_sps)` above the constellation the AGC expects.
         Left to converge from a cold gain, the loop ran 16× hot at QPSK and 256× at
-        8PSK — the measured lock statistic reached 5.2 and 26.4 against ceilings of
-        0.62 and 0.41, which is the fingerprint to recognise: **a lock metric above
-        its per-M ceiling is a gain fault, not a good lock.**
+        8PSK — the measured lock statistic reached 5.2 and 26.4 (in the pre-`5159d5e0`
+        units, against ceilings of 0.62 and 0.41), which is the fingerprint to
+        recognise: **a lock metric far above the ≈ 1.0 of a real lock is a gain
+        fault, not a good lock.** The statistic is normalised now, so the rule of
+        thumb is absolute — but note it is only a clean rule at BPSK and QPSK: at
+        8PSK the statistic is positively biased on noise alone (mean +16), so a
+        large reading there is not by itself evidence of a gain fault.
     - **Its bandwidth is `MPSK_RX_AGC_BW = 0.002` outright**, not `0.01·bn`. The
         old proportional rule was a *per-sample* convention; on a discriminator now
         running at the symbol rate it spans thousands of symbols and never settles.

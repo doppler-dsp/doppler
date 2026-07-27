@@ -39,9 +39,11 @@ the on-time strobe.
 
 **Middle — Carrier acquisition + lock.** The tracked frequency (green) snaps from
 zero onto the true offset (black dashed) within tens of symbols, and the lock
-metric (purple) rises and holds. The lock metric is orientation-normalised, so it
-reads `~+` at lock for every M (BPSK ≈ 1, QPSK ≈ 0.62, 8PSK ≈ 0.41) and is what
-the opt-in `acq_to_track` switch thresholds on.
+metric (purple) rises and holds. The metric is `Re(z^M)` on the de-rotated
+symbols, normalised so that **it reads ≈ 1.0 at lock for every M** (measured
+1.00 / 1.02 / 1.05) — one threshold means one thing at every order, and
+`lock_thresh` is a plain fraction of what a locked constellation reads. That is
+what the opt-in `acq_to_track` switch thresholds on.
 
 **Right — BER vs Es/N0.** Bit error rate against the coherent M-PSK bound, using
 NDA acquisition followed by decision-directed tracking (`acq_to_track=1`). BPSK
@@ -116,13 +118,44 @@ out = rx.steps(rf)
 
 print(f"{len(out)} symbols, lock {rx.lock:.2f}")
 assert len(out) > 3000            # ~ one symbol per sps input samples
-assert rx.lock > 0.4              # QPSK locks toward the 0.62 ceiling
+assert rx.lock > 0.4              # normalised: ~1.0 at lock, every M
 ```
 
 Read `rx.lock`'s **sign** as well as its magnitude: a steady negative lock is the
-signature of an inverted carrier error, not a weak one, and the per-M ceilings
-(BPSK ≈ 1, QPSK ≈ 0.62, 8PSK ≈ 0.41) are ceilings — a lock statistic *above* its
-ceiling means the loop gain is wrong, not that the lock is unusually good.
+signature of an inverted carrier error, not a weak one. Magnitude is a weaker
+signal than it looks, and how much weaker depends sharply on M.
+
+### How much the lock statistic is worth, per M
+
+`Re(z^M)` reads ≈ 1.0 at lock for every order, but *how far it sits above noise*
+is not remotely equal across M. Measured on **noise only** (no signal, 2000
+symbols/trial, 8 trials) against the ≈ 1.0 it reads at lock:
+
+| M    | noise mean | noise σ | single-look margin at `lock_thresh=0.5` |
+| ---- | ---------- | ------- | --------------------------------------- |
+| BPSK | +0.08      | 0.18    | ~2.3 σ — usable on one look             |
+| QPSK | +0.01      | 0.84    | ~0.6 σ — **needs averaging**            |
+| 8PSK | **+16.05** | 17.84   | none — noise reads **higher than lock** |
+
+Two things follow, and neither is a tuning problem:
+
+- **QPSK is variance-limited.** A single look at `0.5` has a false-alarm rate
+    near 30%; the fix is to average, which is what the detector's EMA is for, and
+    the averaging gain it needs should come from a false-alarm budget rather
+    than a constant (see [`detection`](../api/python-detection.md):
+    `det_threshold(pfa)`, `det_ema_alpha`).
+- **8PSK is bias-limited, and averaging cannot fix a bias.** `|z|` is not
+    normalised before the M-th power, so noise peaks enter as `|z|^8` and the
+    statistic's *mean* on noise (+16) lands an order of magnitude above its value
+    at lock (+1.05). No threshold separates those two distributions and no amount
+    of integration will make one. It also explains the sign of the error seen in
+    practice: at low Es/N0 8PSK declares lock readily, and at high Es/N0 it does
+    not — the flag is anti-correlated with actual lock.
+
+So treat `rx.lock` as a genuine detector at BPSK, as a statistic needing
+integration at QPSK, and at 8PSK as **not yet a lock detector at all** — use
+`acq_to_track` there only with a `lock_thresh` you have measured for your own
+geometry, or drive the handover from an external indicator.
 
 ### `nda_tap` — buying pull-in range back
 
@@ -149,21 +182,45 @@ rx = MpskReceiver(m=4, sps=8, m_out=4, bn_carrier=0.05, nda_tap="lo_arm")
 does not widen the loop by itself — it widens what the discriminator can see and
 improves the stability margin, which is what lets you then raise `bn_carrier`.
 
-!!! warning "`lo_arm` does not work at 8PSK"
+!!! warning "`mf_all` needs `m_out = 8` — it is the tap that pays for a coarse strobe"
 
-    Its arm is a short lowpass rather than the pulse matched filter, and the raw
-    M-th-power gain over an arm goes as `Σ g_k^M`, which collapses at 8th power.
-    Measured at Es/N0 20 dB: BPSK and QPSK decode cleanly on every tap (SER 0,
-    EVM ≈ −16 dB); `lo_arm` at 8PSK sits at chance (SER 0.85, lock 0.081 against
-    the 0.41 ceiling). Use `strobe` or `mf_all` for 8PSK.
+    Measured at Es/N0 20 dB, `sps = 8`, `bn_carrier = 0.005`, median SER / EVM over
+    5 seeds, with and without the handover:
+
+    | tap      | `m_out=8` (default), any M | `m_out=4`, QPSK | `m_out=4`, 8PSK         |
+    | -------- | -------------------------- | --------------- | ----------------------- |
+    | `strobe` | SER 0, −19.7 dB            | SER 0, −15.9 dB | SER 0.002, −15.9 dB     |
+    | `mf_all` | SER 0, −19.7 dB            | SER 0, −16.0 dB | **SER 0.851, −11.9 dB** |
+    | `lo_arm` | SER 0, −19.7 dB            | SER 0, −16.0 dB | SER 0.001, −16.0 dB     |
+
+    **At the default `m_out = 8` all three taps decode every order cleanly.** Every
+    failure in this table lives at `m_out = 4`, and it is `mf_all` that fails —
+    which is what the `Σ g_k^M` gain-collapse argument actually predicts, because
+    `mf_all` is the tap that averages the M-th power over **all `m_out`
+    matched-filter outputs**, including the badly-timed ones. Halving `m_out`
+    halves how much of each symbol those arms cover, and at 8th power that is
+    fatal. `lo_arm` is unaffected at every setting measured.
+
+    Two ways it bites beyond raw SER, both at `m_out = 4`: `mf_all` at 8PSK fails
+    **while reporting a healthy lock** (+0.94, and +3.90 at `bn_carrier = 0.05`) —
+    a false lock the per-M table above already says is undetectable at M = 8 — and
+    `mf_all` + `acq_to_track` at *QPSK* drops to 2/5 decodes (SER 0.295, EVM
+    −7.5 dB) where pure NDA is 5/5, because an unreliable lock statistic hands the
+    LO over at the wrong moment.
+
+    This box previously named `lo_arm` as the failing tap, on numbers taken with a
+    lag search clipped to ±30 and a window inside the settling transient — the two
+    defects fixed in `30c76c6d`. Both report chance SER on a healthy decode, which
+    is how a measurement bug comes to read as a DSP defect.
 
 !!! danger "`Δf = k·F/M` is a stable false lock, at every tap"
 
     `F/M` is where the M-th power aliases onto zero, so the M-fold ambiguity is a
     **frequency** ambiguity as well as a phase one. Measured on QPSK with an
-    initial error of `Rs/4`: the loop never moves and still reports a lock of
-    **+0.546** against the 0.62 ceiling, with a stationary constellation — so
-    EVM and blind M2M4 both look clean too. **No self-referenced metric catches
+    initial error of `Rs/4`: the loop never moves (tracked frequency 2e-6 against
+    a true 0.03125) and still reports a lock of **+0.83** against the ≈ 1.0 it
+    reads at a real lock, with a stationary constellation — so EVM and blind M2M4
+    both look clean too. **No self-referenced metric catches
     this**; it takes an external frequency reference or a sync word. A faster tap
     pushes the alias out proportionally.
 

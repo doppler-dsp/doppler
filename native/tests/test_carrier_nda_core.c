@@ -156,9 +156,8 @@ main (void)
   {
     for (int mi = 0; mi < 3; mi++)
       {
-        int    m     = (mi == 0) ? 2 : (mi == 1) ? 4 : 8;
-        double scale = (m == 2) ? 1.0 : (m == 4) ? 0.619 : 0.412;
-        double seg   = TWOPI / m;
+        int    m   = (mi == 0) ? 2 : (mi == 1) ? 4 : 8;
+        double seg = TWOPI / m;
         double pe0, lk0;
         carrier_nda_disc (1.0f + 0.0f * I, m, &pe0, &lk0);
         CHECK (fabs (pe0) < 1e-9); /* e(0) = 0          */

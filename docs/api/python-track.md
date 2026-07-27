@@ -146,7 +146,7 @@ from doppler.track import CarrierNda
 c = CarrierNda(bn=0.01, zeta=0.707, init_norm_freq=0.0, sps=8, n=4, m=4)
 derot  = c.steps(rx)         # de-rotated samples (one per input sample)
 f_est  = c.norm_freq         # tracked carrier (cycles/sample)
-locked = c.lock              # M-th-power lock metric (→ lock_scale when locked)
+locked = c.lock              # M-th-power lock metric (normalised: ~1.0 at lock)
 ```
 
 ______________________________________________________________________

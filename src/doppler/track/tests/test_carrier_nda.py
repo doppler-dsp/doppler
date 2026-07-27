@@ -114,8 +114,11 @@ def test_cold_start_modulated_no_timing(m):
     c = CarrierNda(bn=0.01, zeta=0.707, init_norm_freq=0.0, sps=SPS, n=N, m=m)
     c.steps(_moddata(m, 0.001, 6000))
     assert c.norm_freq == pytest.approx(0.001, abs=5e-4)
-    peak = {2: 1.0, 4: 0.619, 8: 0.412}[m]
-    assert c.lock > 0.4 * peak
+    # One threshold for every M -- the statistic is normalised, so the old
+    # `0.4 * peak` with peak = {1, 0.619, 0.412} is not a rescale of this, it
+    # is a WEAKER test at M > 2 (0.165 at 8PSK) that the normalisation left
+    # behind silently.
+    assert c.lock > 0.4
 
 
 def test_reset_reproducible():

@@ -56,29 +56,30 @@ check_order (int m)
       double dpe = fabs (pe - pe_scale * imzm);
       if (dpe > max_pe)
         max_pe = dpe;
-      if (m <= 4)
-        {
-          double dlk = fabs (lk - rezm);
-          if (dlk > max_lk)
-            max_lk = dlk;
-        }
+      /* Every M, including 8: the lock signal is literally Re(z^M). This used
+         to exclude M=8, because `ql*ql - qe*qe` with qe = Im(z^4)/2 is not
+         Re(z^8) -- it is Re(z^4)^2 - Im(z^4)^2/4, which agrees at phi=0 (both
+         1.0) and nowhere else. Restoring the factor of 4 makes the identity
+         exact at every phase, so the check covers all three orders and this
+         line is what pins it. */
+      double dlk = fabs (lk - rezm);
+      if (dlk > max_lk)
+        max_lk = dlk;
     }
-  /* M=8 lock is a detector (not literal Re(z^8)): peaks at 0, dips mid-period
-   */
   carrier_nda_disc ((float complex)cexp (I * (seg / 2)), m, &lk_at_half, &l);
   double lk0;
   carrier_nda_disc (1.0f + 0.0f * I, m, &lk0, &l);
 
   if (max_pe > 1e-6)
     fail = 1;
-  if (m <= 4 && max_lk > 1e-6)
+  if (max_lk > 1e-6)
     fail = 1;
   if (!(l0 > 0.0))
     fail = 1; /* lock peaks at phi=0 */
 
   printf ("  M=%d  e(0)=%.2e  slope=%.5f  max|pe-Im(z^M)*%.2f|=%.2e  "
-          "max|lk-Re(z^M)*%.3f|=%.2e (M<=4)\n",
-          m, e0, slope, pe_scale, max_pe, 1.0, max_lk);
+          "max|lk-Re(z^M)|=%.2e\n",
+          m, e0, slope, pe_scale, max_pe, max_lk);
   return fail;
 }
 

@@ -25,10 +25,10 @@
  *   - `phase_error` = `Im(z^M)` scaled by `1, ½, ¼` for M = 2, 4, 8 — the
  * scale normalizes the phase-detector gain so the S-curve slope at lock is 2
  * for every M (one `bn` behaves identically across M).
- *   - `lock_signal`  = `Re(z^M)` for M ≤ 4, and a
- *     faithful monotone lock detector for M = 8 — ~1 when phase-locked, ~0
- * with no carrier. Its EMA (`lock`) is the carrier lock metric. See
- * `docs/design/mpsk.md` §2.3 for the derivation.
+ *   - `lock_signal`  = `Re(z^M)`, unscaled, for **every** M — ~1 when
+ * phase-locked and zero-mean with no carrier, which is what makes one
+ * threshold mean one thing at every order. Its EMA (`lock`) is the carrier
+ * lock metric. See `docs/design/mpsk.md` §2.3 for the derivation.
  *
  * The block API (carrier_nda_steps) is the Python face and emits the
  * de-rotated sample stream; the JM_FORCEINLINE
@@ -196,8 +196,20 @@ extern "C"
         *lock = ql;
         return;
       }
-    *pe   = qe * ql;                     /* Im(z^8) / 4               */
-    *lock = ql * ql - qe * qe; /* faithful 8-PSK lock detector      */
+    *pe = qe * ql; /* Im(z^8) / 4                             */
+    /* Re(z^8) = Re(z^4)^2 - Im(z^4)^2, and `qe` is HALF of Im(z^4) -- that
+     * half being the deliberate {1, 1/2, 1/4} phase-error scaling which
+     * equalises the S-curve slope across M. So reconstructing Re(z^8) from it
+     * needs the 2 squared back: ql*ql - (2*qe)^2. Without the 4 the statistic is
+     * Re(z^4)^2 - Im(z^4)^2/4, which is NOT Re(z^8) and, unlike it, is not
+     * zero-mean on noise -- E[Re(z^4)^2] = E[Im(z^4)^2] for circular noise, so
+     * the shortfall leaves a positive residual of (3/4)E[Im(z^4)^2]. Measured
+     * on unit-power complex Gaussian noise, 4e5 samples: mean +8.94 without
+     * the 4, -0.11 with it (and bit-identical to Re(z^8) computed directly).
+     * The value AT LOCK is +1.0000 either way, which is why this hid: it
+     * corrupted only the noise-only tail, i.e. exactly the false-alarm
+     * behaviour a lock detector is thresholded on. */
+    *lock = ql * ql - 4.0f * qe * qe; /* Re(z^8)                      */
   }
 
   /**

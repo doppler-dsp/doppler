@@ -432,7 +432,11 @@ else:  # 8PSK
     qpsk_phase_error = bpsk_phase_error * bpsk_lock
     qpsk_lock = bpsk_lock**2 - bpsk_phase_error**2
     phase_error = qpsk_phase_error * qpsk_lock                        # ~ Im(z^8)
-    lock_signal = qpsk_lock**2 - qpsk_phase_error**2                  # ~ Re(z^8)
+    # The 4 is load-bearing: qpsk_phase_error is HALF of Im(z^4), so squaring it
+    # needs the 2 squared back for this to be Re(z^8). Without it the statistic
+    # is Re(z^4)**2 - Im(z^4)**2/4 -- equal to Re(z^8) at phi=0 and nowhere else,
+    # and biased positive on noise where Re(z^8) is zero-mean.
+    lock_signal = qpsk_lock**2 - 4 * qpsk_phase_error**2              # Re(z^8)
     sq_loss_dB = -0.14285557 * esno**2 + 5.70706958 * esno - 58.13670891
 
 # Coherent (data x squaring) gain of the free-running half-symbol boxcar arm:

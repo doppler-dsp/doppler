@@ -1238,7 +1238,7 @@ class MpskReceiver:
         >>> import numpy as np
         >>> from doppler.track import MpskReceiver
         >>> from doppler.telemetry import Telemetry
-        >>> tlm = Telemetry(1 << 12)
+        >>> tlm = Telemetry(1 << 14)   # 11 probes x ~512 symbols, with headroom
         >>> rx = MpskReceiver(m=4, sps=4, m_out=2)
         >>> rx.set_telemetry(tlm, "rx")
         >>> len(tlm.probe_names())
@@ -1248,6 +1248,8 @@ class MpskReceiver:
         >>> x = np.repeat(syms, 4)
         >>> _ = rx.steps(x)
         >>> recs = tlm.read()
+        >>> tlm.dropped        # size the ring, or the counts below diverge
+        0
         >>> n_sync = len(recs[recs["probe"] == tlm.probe_id("rx.sync.e")])
         >>> n_car = len(recs[recs["probe"] == tlm.probe_id("rx.car.e")])
         >>> n_sync > 0 and n_sync == n_car

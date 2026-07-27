@@ -269,7 +269,11 @@ extern "C"
    * @param acq_to_track  Enable the two-way NDA<->decision handover.
    * @param lock_thresh   Handover declare threshold on the carrier lock EMA;
    *                      the drop threshold sits at MPSK_RX_HANDOVER_DOWN x
-   *                      it, and both directions are verify-counted.
+   *                      it, and both directions are verify-counted. The EMA's
+   *                      H0 sd is CARRIER_NDA_LOCK_NORM_SD (0.1132) for every
+   *                      M, so this divided by that is the threshold in noise
+   *                      sigmas and its per-look Pfa is Q(that) — 0.5 is
+   *                      4.42 sigma, Pfa 5e-6. See carrier_nda_core.h.
    * @param warmup_syms   Symbols before the handover is allowed.
    * @param differential  bits(): differential (rotation-invariant) demap.
    * @param nda_tap       MPSK_RX_NDA_TAP_* — where the NDA discriminator
@@ -487,10 +491,12 @@ extern "C"
        An earlier revision gated the steer, the AGC seed and the handover on
        the timing loop's lock detector, on the grounds that a pre-lock strobe
        is an arbitrary phase of the pulse and its M-th power is nothing in
-       particular. The reasoning is sound and the transient is real (at sps = 8
-       the timing loop needs ~130 symbols to declare, and across that window
-       the carrier lock statistic reads 0.9 to 1.7 against a QPSK ceiling of
-       0.62 — the input is provably not a constellation). But the gate was
+       particular. The reasoning is sound and the transient is real (measured
+       QPSK, sps = 8, Es/N0 20 dB, 5 seeds: the timing loop declares at symbol
+       185 on average, range 132-265, and across that window the carrier lock
+       statistic swings between -0.947 and +0.888 where a settled lock reads
+       +0.906 — a statistic ranging over nearly its whole span, sign included,
+       is proof the input is not a constellation). But the gate was
        measured and it does not buy what it was supposed to: across a 24-cell
        sweep it changed exactly one cell, and the reason it looked helpful was
        that it made carrier acquisition easier to MEASURE, not easier to

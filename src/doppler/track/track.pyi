@@ -1199,7 +1199,7 @@ class MpskReceiver:
     acq_to_track : int, default 0
         Enable the two-way NDA<->decision-directed handover (default 0).
     lock_thresh : float, default 0.5
-        Handover declare threshold on the carrier lock metric (default 0.5); the drop threshold sits at 0.8x for level hysteresis, and both directions are verify-counted (8 symbols up / 32 down).
+        Handover declare threshold on the carrier lock metric (default 0.5); the drop threshold sits at 0.8x for level hysteresis, and both directions are verify-counted (8 symbols up / 32 down). The metric is `Re((z/|z|)^M)` smoothed by an EMA, whose noise-only sd is 0.1132 for **every** M, so the threshold is `0.5 / 0.1132` = 4.42 noise sigmas — a per-look false-alarm probability of 5e-6. Pick a value by dividing your Pfa's z-score into 0.1132 rather than by feel; see carrier_nda_core.h for the derivation and the measured verification.
     init_norm_freq : float, default 0.0
         Seed carrier frequency, cycles/sample at the input rate (default 0.0). This is the centre the LO is tuned to; the loop tracks the residual around it.
     warmup_syms : int, default 100

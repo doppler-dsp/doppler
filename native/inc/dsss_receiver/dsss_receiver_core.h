@@ -179,7 +179,13 @@ extern "C"
    * here) and `zeta=0.707`, `spacing=0.5`; `MpskReceiver` always uses
    * `pulse=iandd`, `bn_carrier=bn_timing=0.01`, `zeta=0.707`,
    * `acq_to_track=1`, `lock_thresh=0.3`, `warmup_syms=30` — this story's
-   * own validated values throughout. `n` (MpskReceiver's carrier-arm
+   * own validated values throughout. `lock_thresh=0.3` predates the
+   * lock statistic becoming a calibrated detector and is retained because it
+   * is validated here, but it now has a derivable reading: the carrier lock
+   * EMA's noise-only sd is 0.1132 at every M, so 0.3 is **2.65 noise sigmas**,
+   * a per-look Pfa of ~4e-3 — looser than `MpskReceiver`'s own 0.5 default
+   * (4.42 sigma, 5e-6) and still ~6 sigma clear of the +0.99 a locked BPSK
+   * constellation reads, which is why it holds. See `carrier_nda_core.h`. `n` (MpskReceiver's carrier-arm
    * count) is derived from `sps`: the largest divisor of `sps` in
    * `{4, 2, 1}`.
    *

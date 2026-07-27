@@ -203,35 +203,72 @@ def test_usable_band_is_the_input_constraint():
 
     This is the defect that hid behind the missing tests, and it presents as a
     receiver bug at low oversampling: at `sps = 10` the pulse is +-0.1 wide, so
-    an IF at 0.10 reaches DC and EVM collapses to -4 dB, while the SAME
-    geometry at fs/4 recovers to -23 dB. Pin both so a future reader sees that
-    the geometry is fine and the placement was not.
+    an IF at 0.10 reaches DC and EVM collapses, while the SAME geometry at fs/4
+    is clean. Pin both, so a future reader sees that the geometry is fine and
+    the placement was not.
+
+    **Averaged over seeds, because the penalty is bimodal.** The leaked image
+    is the signal's own conjugate, so the damage depends on the symbol sequence
+    and on which of the M rotations the carrier loop settles into. Measured
+    over 12 usable seeds it lands in one of two states -- ~18 dB (9 seeds) or
+    ~2.6 dB (3 seeds) -- with median 18.1 and mean 14.1. A single-seed
+    assertion of "> 10 dB" therefore passes or fails on the draw; this asserted
+    exactly that on seed 3 until 2026-07-27, and was green only because seed 3
+    is one of the favourable nine. The median over several seeds is stable;
+    individual seeds are not.
     """
     # 3000 symbols: the settling budget alone is 2000 (see settle_floor), and
     # this geometry's timing detector does not declare until symbol ~1063, so a
     # shorter burst leaves no settled window to judge.
     sps, m_out, nsym = 10, 4, 3000
-    edge_x, edge_idx = make_signal(sps, nsym, real=True, fc=0.10)
-    edge_y, _edge_pr = demod(edge_x, real=True, sps=sps, m_out=m_out, fc=0.10)
+    penalties, centres = [], []
+    for seed in range(2, 11):
+        ctr_x, ctr_idx = make_signal(
+            sps, nsym, real=True, fc=IF_FS4, seed=seed
+        )
+        ctr_y, ctr_pr = demod(
+            ctr_x, real=True, sps=sps, m_out=m_out, fc=IF_FS4
+        )
+        ctr_settle = settle_from(ctr_pr)
+        if ctr_settle is None:
+            # `make_signal` without `esn0_db` is perfectly noiseless, and
+            # seeded exactly on centre the M-th-power loop can sit at its
+            # measure-zero unstable equilibrium and never declare. That is the
+            # documented reason the C twin adds light noise -- not a placement
+            # effect -- so such a seed says nothing about the band edge.
+            continue
+        ctr_evm, ctr_ser, _ = symbol_metrics(ctr_y, ctr_idx, settle=ctr_settle)
 
-    ctr_x, ctr_idx = make_signal(sps, nsym, real=True, fc=IF_FS4)
-    ctr_y, ctr_pr = demod(ctr_x, real=True, sps=sps, m_out=m_out, fc=IF_FS4)
-    ctr_settle = settle_from(ctr_pr)
-    assert ctr_settle is not None, "the fs/4 case must lock"
-    ctr_evm, ctr_ser, _ = symbol_metrics(ctr_y, ctr_idx, settle=ctr_settle)
+        edge_x, edge_idx = make_signal(
+            sps, nsym, real=True, fc=0.10, seed=seed
+        )
+        edge_y, _pr = demod(edge_x, real=True, sps=sps, m_out=m_out, fc=0.10)
+        # Judged over the SAME window as its centre twin, so the comparison is
+        # not confounded by two different measurement intervals.
+        edge_evm, _, _ = symbol_metrics(edge_y, edge_idx, settle=ctr_settle)
 
-    # The edge case is judged over the SAME window, so the comparison is not
-    # confounded by two different measurement intervals. If it never locks at
-    # all, that is a stronger version of the same finding.
-    edge_evm, _, _ = symbol_metrics(edge_y, edge_idx, settle=ctr_settle)
+        assert ctr_evm < -18.0, (
+            f"seed {seed}: at fs/4 EVM should be good, got {ctr_evm:.1f} dB"
+        )
+        assert ctr_ser == 0.0, (
+            f"seed {seed}: at fs/4 SER should be 0, {ctr_ser}"
+        )
+        centres.append(ctr_evm)
+        penalties.append(edge_evm - ctr_evm)
 
-    assert ctr_evm < -18.0, f"at fs/4 EVM should be good, got {ctr_evm:.1f} dB"
-    assert ctr_ser == 0.0, f"at fs/4 SER should be 0, got {ctr_ser}"
-    assert edge_evm > ctr_evm + 10.0, (
-        f"an occupied band reaching DC ({edge_evm:.1f} dB) should be far "
-        f"worse than the same geometry at fs/4 ({ctr_evm:.1f} dB); if these "
-        f"are now equal the halfband's edge behaviour changed and the "
-        f"documented input constraint needs revisiting"
+    assert len(penalties) >= 6, (
+        f"only {len(penalties)} of 9 seeds locked at the design centre; too "
+        f"few to judge a median"
+    )
+    median = float(np.median(penalties))
+    assert median > 10.0, (
+        f"median edge penalty {median:.1f} dB over {len(penalties)} seeds "
+        f"(individual: {[round(p, 1) for p in penalties]}); an occupied band "
+        f"reaching DC should be far worse than the same geometry at fs/4. If "
+        f"this has collapsed the halfband's edge behaviour changed and the "
+        f"documented input constraint needs revisiting -- but check the "
+        f"INDIVIDUAL values first, since roughly a quarter of seeds "
+        f"legitimately land in the low state."
     )
 
 

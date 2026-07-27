@@ -13,180 +13,7 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
-### Changed
-
-- **`MpskReceiver` is rebuilt on the matched-DDC cascade. Its outputs are no
-    longer bit-identical, and `bn_carrier` changed units.** Read both of those
-    before upgrading — the second one is silent.
-
-    The receiver now owns no filter, no NCO and no interpolator of its own. It is
-    a `MatchedDDC` with two loops closed around its two control ports: the
-    terminal polyphase stage's **bank is the matched filter** and the **arm it
-    selects is the fractional symbol-timing delay**, a carrier loop steers the LO
-    (`freq_ctrl`), and `RateSync`'s own timing loop — reused, not copied — steers
-    the terminal accumulator (`rate_ctrl`). Four pieces went away as a result: the
-    per-sample integer-NCO wipe-off, the separate boxcar NDA arm and its AGC, the
-    dense matched-filter FIR, and the `SymbolSync` Gardner+Farrow loop. All four
-    remain first-class objects in their own right; this receiver just no longer
-    needs them.
-
-    - **Outputs move at the float level.** A polyphase bank is not a dense FIR and
-        a bank arm is not a Farrow. Detection performance is unchanged — the fused
-        matched filter measures on the Es/N0 bound — but exact-output pins are not.
-    - **`bn_carrier` is now normalised to the symbol rate**, like `bn_timing`,
-        rather than to the input sample rate. Old code keeps running and simply
-        gets a much wider carrier loop than it asks for: at the old default
-        `sps = 8`, the same number is an 8× wider loop. Values around
-        `0.005` are where `0.02`–`0.03` used to be.
-    - **`n` is now `m_out`, and means something different.** `n` sized the NDA arm
-        (window = `sps/n`); there is no arm. `m_out` is the terminal stage's
-        **outputs per symbol** (even, 2–8, default 8), setting the Gardner
-        strobe/gate geometry. The default is 8 because that is where an I&D
-        matched filter reaches the coherent bound: the rectangle is one symbol
-        wide, so its matched filter is an `m_out`-tap sum spanning it, and a
-        smaller `m_out` samples the same integral more coarsely. Measured on QPSK
-        at `sps = 8` against `EVM_dB = -(Es/N0)_dB` — at 18 dB Es/N0, `m_out = 8`
-        lands 0.41 dB off the bound where `m_out = 4` loses 3.11 dB; at 14 dB it
-        is 0.25 dB against 1.71 dB, the gap widening as noise stops hiding it.
-        Never pair 2 with `pulse="iandd"`: the matched filter degenerates to a
-        two-tap sum (measured lock statistic −0.34 at 2 against +0.95 at 4) and
-        acquisition itself fails about half the time.
-    - **`MpskReceiverR`'s `sps` default is 32.0, not 16.0.** Forced by the above:
-        that type requires `sps > 2 * m_out`, so an `m_out` of 8 cannot coexist
-        with a 16.0 default — `MpskReceiverR()` would not construct at all. The
-        complex twin's `sps` default is unchanged at 8.0 (`sps >= m_out` there,
-        and a terminal ratio of 1.0 measures 0.42 dB off the bound).
-
-    What the rebuild buys is that **`sps` is a `double` and the front end plans
-    itself**. At `sps = 8` the plan is a halfband or two plus a terminal stage; at
-    `sps = 256` it is a CIC in front of the *same* terminal stage, so the matched
-    filter costs ~34 taps/arm at both ends of a 64× span of input rates, against
-    the ~4225 taps/arm a single-stage design would need. An irrational `sps` — a
-    free-running ADC clock against the symbol clock — is no harder than an integer
-    one.
-
-    Two acquisition faults surfaced while documenting this and are **fixed**
-    (see the `nda_tap` entry below and gh#536). Briefly: restricting the
-    discriminator to the on-time strobe had coupled carrier acquisition to
-    symbol timing, so the loop integrated an invalid discriminator output
-    through the ~130-symbol timing transient and failed to acquire for about a
-    third of data seeds; and the first-strobe AGC seed could latch a
-    pathological gain, reporting `lock` = 4.9e-19 on a receiver decoding every
-    bit correctly. The steer, the AGC seed and the handover now wait on the
-    timing loop's own lock detector.
-
-### Changed
-
-- **The carrier lock statistic is normalised: it reads ~1.0 at lock for every
-    M.** It used to carry a per-M `lock_scale` of 1 / 0.619 / 0.412, which made
-    the statistic's ceiling M-dependent while `lock_thresh` stayed a single
-    absolute number. Measured settled values were 1.00 / 0.63 / 0.43 for
-    BPSK / QPSK / 8PSK against a default threshold of **0.5** — so:
-
-    - **8PSK could never declare carrier lock.** Its ceiling was below the
-        default threshold, so `car.locked` stayed 0 on a receiver decoding
-        perfectly and `acq_to_track` could never hand over. Worse, the statistic
-        overshoots its own ceiling during the acquisition transient, so at low
-        Es/N0 8PSK *did* declare — the flag was anti-correlated with lock.
-    - **QPSK had 0.13 of margin** and declared intermittently under noise.
-    - Every call site that needed a meaningful threshold multiplied the scale
-        back in by hand: `carrier_nda_pullin.c` computed
-        `get_lock(c) / c->lock_scale /* normalize to ~1 */` and three C tests
-        compared against `0.3 * c->lock_scale`. Those workarounds are gone.
-
-    `carrier_nda_lock_scale()` is removed and `carrier_nda_disc()` loses its
-    `scale` parameter — the lock signal is now `Re(z^M)` unscaled, which reads
-    ~1.0 at lock at every order, so one threshold means one thing everywhere.
-    The phase-error scaling (1, ½, ¼) is untouched: that one genuinely does
-    normalise the discriminator gain so a single `bn` behaves identically across
-    M, and it was never the problem.
-
-- **The carrier lock statistic is now `Re((z/|z|)^M)` — the M-th power of a
-    *limited* sample — so `lock_thresh` maps to a false-alarm probability, at
-    every M.** Normalising the value at lock (above) was necessary but not
-    sufficient: the *noise* distribution still depended on M, because `|z|^M` on
-    Gaussian noise is unbounded and grows fast with M. Limiting fixes it, because
-    under H0 the phase is uniform and `Var[Re(e^{jMθ})] = ½` for every M.
-
-    The threshold chain is now derived rather than picked:
-    `α = det_ema_alpha(0, 15.9) = 0.05` (`N_eff = 39` looks) →
-    `σ_H0 = sqrt(½·α/(2−α)) = 0.1132` analytically, **0.1132 measured** → the
-    unchanged default of `0.5` is 4.42 σ, a per-look Pfa of **5.0e-6**. Measured
-    on noise only, 200 trials × 4000 symbols: σ 0.1133 / 0.1071 / 0.1138 for
-    BPSK / QPSK / 8PSK, 0/200 over threshold at every order; and end to end with
-    `acq_to_track=1`, 100 runs × 20 000 symbols, **0/100 false declares** at
-    every order.
-
-    This also fixed two real behaviours, not just the number. At `m_out = 4`,
-    `mf_all`/8PSK decodes at chance (a `Σ g_k^M` gain collapse) and used to
-    report lock **+0.94** while doing it — a false lock; it now reports
-    **−0.069**, correctly not locked. And `mf_all` + `acq_to_track` at QPSK
-    recovered from 2/5 decodes (SER 0.295) to **5/5** (SER 0.0000), because the
-    handover is no longer fired by a meaningless statistic.
-
-    Detectability `d' = (μ_H1 − μ_H0)/σ_H0` at Es/N0 = 10 / 20 dB, before →
-    after: BPSK 5.70/6.21 → 7.95/8.75, QPSK 1.50/1.78 → 5.81/8.47, 8PSK
-    0.02/0.04 → 1.76/7.52. Limiting *costs* H1 (it discards the `|z|^M` boost at
-    low SNR) and wins at every M and Es/N0 anyway. Before it, only BPSK ever
-    cleared a 1e-3 Pfa, so for M ≥ 4 there was no Pfa-derived threshold to be
-    had.
-
-    **What this costs you:** `rx.lock` is amplitude-blind and bounded in ±1, so
-    a reading above 1 is no longer possible and the "lock statistic far above its
-    ceiling means an AGC gain fault" diagnostic is gone. Only the lock path is
-    limited — `phase_error` keeps its raw `|z|^M` weighting, which is the correct
-    matched weighting on a pulse-shaped signal.
-
-### Fixed
-
-- **The M = 8 lock signal was missing a factor of 4, so it was not `Re(z^8)`.**
-    The recursion carries `qe = ½·Im(z^4)` (that half being the deliberate
-    `{1, ½, ¼}` phase-error scaling), so `Re(z^8) = ql² − (2·qe)²` — but the lock
-    signal read `ql² − qe²`, i.e. `Re(z^4)² − ¼·Im(z^4)²`. The two are exactly
-    +1.0000 at `φ = 0` and differ everywhere else, so every *locked* measurement
-    agreed and the error lived entirely in the noise-only tail — the one region
-    that sets a detector's false-alarm rate. `Re(z^8)` is zero-mean on circular
-    noise; the shortfall is not, leaving a positive bias of `¾·E[Im(z^4)²]`
-    (measured mean **+8.94** where it should be **−0.11**, on unit-power complex
-    Gaussian noise).
-
-    The design note had recorded this as an acceptable trade — *"making it exact
-    would require doubling the carried imaginary term, which would break the
-    constant-gain property"* — which is false: the 4 belongs in the lock
-    expression, where it cannot affect the phase-detector gain at all.
-    `carrier_nda_scurve.c` had encoded the same conclusion as `if (m <= 4)`
-    around its `|lk − Re(z^M)| < 1e-6` assertion, excusing the validator from
-    the only order that was broken. That guard is gone, so the identity is now
-    pinned at all three orders (residuals 1.16e-07 / 2.59e-07 / 4.89e-07).
-
-    Found by randomising M in a Monte-Carlo characterisation. A fixed
-    QPSK grid does not surface it, because QPSK mostly works.
-
-    **Thresholds you have tuned by hand need rescaling**, since the same number
-    is now a different fraction of the achievable ceiling: divide an existing
-    QPSK threshold by 0.619, an 8PSK one by 0.412. The default 0.5 is unchanged
-    and now means "half of achievable" at every M instead of 50% / 81% / 121%.
-
-- **The carrier's strobe tap no longer waits for timing lock.** An earlier
-    revision on this branch gated the carrier steer, the arm AGC seed and the
-    two-way handover on the timing loop's own `lockdet`, because a pre-lock
-    strobe is an arbitrary phase of the pulse. Measured, the gate does not buy
-    what it appeared to: across a 24-cell sweep (sps × `m_out` × `bn_carrier`)
-    removing it changes **exactly one cell** — `sps=8, m_out=4,   bn_carrier=0.04`, which goes to 5/24 — and `m_out` now defaults to 8, so
-    that cell is off the default path. What it mainly bought was
-    *measurability*: with the steer frozen until timing declares, the carrier
-    transient starts at a known instant, which is convenient for instrumenting
-    an acquisition and is not a property of a working receiver.
-
-    The structural objection is the deciding one. A tap that needs timing it
-    cannot wait for is a reason to choose a **different tap** — `nda_tap`
-    exists precisely for that, and `mf_all`/`lo_arm` are timing-independent by
-    construction. Resolving it inside the receiver hid a real trade behind a
-    coupling the caller could neither see nor override, and made the default
-    receiver's cold-start behaviour depend on a second loop's lock detector.
-    `mpsk_rx_disc()`'s `may_act` parameter is gone with it (every call site
-    passed the same value once the gate went). If cold acquisition fails at
-    `m_out=4`, reach for `nda_tap="mf_all"` or `"lo_arm"`.
+## [0.38.0] — 2026-07-27
 
 ### Added
 
@@ -471,6 +298,126 @@ ______________________________________________________________________
 
 ### Changed
 
+- **`MpskReceiver` is rebuilt on the matched-DDC cascade. Its outputs are no
+    longer bit-identical, and `bn_carrier` changed units.** Read both of those
+    before upgrading — the second one is silent.
+
+    The receiver now owns no filter, no NCO and no interpolator of its own. It is
+    a `MatchedDDC` with two loops closed around its two control ports: the
+    terminal polyphase stage's **bank is the matched filter** and the **arm it
+    selects is the fractional symbol-timing delay**, a carrier loop steers the LO
+    (`freq_ctrl`), and `RateSync`'s own timing loop — reused, not copied — steers
+    the terminal accumulator (`rate_ctrl`). Four pieces went away as a result: the
+    per-sample integer-NCO wipe-off, the separate boxcar NDA arm and its AGC, the
+    dense matched-filter FIR, and the `SymbolSync` Gardner+Farrow loop. All four
+    remain first-class objects in their own right; this receiver just no longer
+    needs them.
+
+    - **Outputs move at the float level.** A polyphase bank is not a dense FIR and
+        a bank arm is not a Farrow. Detection performance is unchanged — the fused
+        matched filter measures on the Es/N0 bound — but exact-output pins are not.
+    - **`bn_carrier` is now normalised to the symbol rate**, like `bn_timing`,
+        rather than to the input sample rate. Old code keeps running and simply
+        gets a much wider carrier loop than it asks for: at the old default
+        `sps = 8`, the same number is an 8× wider loop. Values around
+        `0.005` are where `0.02`–`0.03` used to be.
+    - **`n` is now `m_out`, and means something different.** `n` sized the NDA arm
+        (window = `sps/n`); there is no arm. `m_out` is the terminal stage's
+        **outputs per symbol** (even, 2–8, default 8), setting the Gardner
+        strobe/gate geometry. The default is 8 because that is where an I&D
+        matched filter reaches the coherent bound: the rectangle is one symbol
+        wide, so its matched filter is an `m_out`-tap sum spanning it, and a
+        smaller `m_out` samples the same integral more coarsely. Measured on QPSK
+        at `sps = 8` against `EVM_dB = -(Es/N0)_dB` — at 18 dB Es/N0, `m_out = 8`
+        lands 0.41 dB off the bound where `m_out = 4` loses 3.11 dB; at 14 dB it
+        is 0.25 dB against 1.71 dB, the gap widening as noise stops hiding it.
+        Never pair 2 with `pulse="iandd"`: the matched filter degenerates to a
+        two-tap sum (measured lock statistic −0.34 at 2 against +0.95 at 4) and
+        acquisition itself fails about half the time.
+    - **`MpskReceiverR`'s `sps` default is 32.0, not 16.0.** Forced by the above:
+        that type requires `sps > 2 * m_out`, so an `m_out` of 8 cannot coexist
+        with a 16.0 default — `MpskReceiverR()` would not construct at all. The
+        complex twin's `sps` default is unchanged at 8.0 (`sps >= m_out` there,
+        and a terminal ratio of 1.0 measures 0.42 dB off the bound).
+
+    What the rebuild buys is that **`sps` is a `double` and the front end plans
+    itself**. At `sps = 8` the plan is a halfband or two plus a terminal stage; at
+    `sps = 256` it is a CIC in front of the *same* terminal stage, so the matched
+    filter costs ~34 taps/arm at both ends of a 64× span of input rates, against
+    the ~4225 taps/arm a single-stage design would need. An irrational `sps` — a
+    free-running ADC clock against the symbol clock — is no harder than an integer
+    one.
+
+    Two acquisition faults surfaced while documenting this and are **fixed**
+    (see the `nda_tap` entry below and gh#536). Briefly: restricting the
+    discriminator to the on-time strobe had coupled carrier acquisition to
+    symbol timing, so the loop integrated an invalid discriminator output
+    through the ~130-symbol timing transient and failed to acquire for about a
+    third of data seeds; and the first-strobe AGC seed could latch a
+    pathological gain, reporting `lock` = 4.9e-19 on a receiver decoding every
+    bit correctly. The steer, the AGC seed and the handover now wait on the
+    timing loop's own lock detector.
+
+- **The carrier lock statistic is normalised: it reads ~1.0 at lock for every
+    M.** It used to carry a per-M `lock_scale` of 1 / 0.619 / 0.412, which made
+    the statistic's ceiling M-dependent while `lock_thresh` stayed a single
+    absolute number. Measured settled values were 1.00 / 0.63 / 0.43 for
+    BPSK / QPSK / 8PSK against a default threshold of **0.5** — so:
+
+    - **8PSK could never declare carrier lock.** Its ceiling was below the
+        default threshold, so `car.locked` stayed 0 on a receiver decoding
+        perfectly and `acq_to_track` could never hand over. Worse, the statistic
+        overshoots its own ceiling during the acquisition transient, so at low
+        Es/N0 8PSK *did* declare — the flag was anti-correlated with lock.
+    - **QPSK had 0.13 of margin** and declared intermittently under noise.
+    - Every call site that needed a meaningful threshold multiplied the scale
+        back in by hand: `carrier_nda_pullin.c` computed
+        `get_lock(c) / c->lock_scale /* normalize to ~1 */` and three C tests
+        compared against `0.3 * c->lock_scale`. Those workarounds are gone.
+
+    `carrier_nda_lock_scale()` is removed and `carrier_nda_disc()` loses its
+    `scale` parameter — the lock signal is now `Re(z^M)` unscaled, which reads
+    ~1.0 at lock at every order, so one threshold means one thing everywhere.
+    The phase-error scaling (1, ½, ¼) is untouched: that one genuinely does
+    normalise the discriminator gain so a single `bn` behaves identically across
+    M, and it was never the problem.
+
+- **The carrier lock statistic is now `Re((z/|z|)^M)` — the M-th power of a
+    *limited* sample — so `lock_thresh` maps to a false-alarm probability, at
+    every M.** Normalising the value at lock (above) was necessary but not
+    sufficient: the *noise* distribution still depended on M, because `|z|^M` on
+    Gaussian noise is unbounded and grows fast with M. Limiting fixes it, because
+    under H0 the phase is uniform and `Var[Re(e^{jMθ})] = ½` for every M.
+
+    The threshold chain is now derived rather than picked:
+    `α = det_ema_alpha(0, 15.9) = 0.05` (`N_eff = 39` looks) →
+    `σ_H0 = sqrt(½·α/(2−α)) = 0.1132` analytically, **0.1132 measured** → the
+    unchanged default of `0.5` is 4.42 σ, a per-look Pfa of **5.0e-6**. Measured
+    on noise only, 200 trials × 4000 symbols: σ 0.1133 / 0.1071 / 0.1138 for
+    BPSK / QPSK / 8PSK, 0/200 over threshold at every order; and end to end with
+    `acq_to_track=1`, 100 runs × 20 000 symbols, **0/100 false declares** at
+    every order.
+
+    This also fixed two real behaviours, not just the number. At `m_out = 4`,
+    `mf_all`/8PSK decodes at chance (a `Σ g_k^M` gain collapse) and used to
+    report lock **+0.94** while doing it — a false lock; it now reports
+    **−0.069**, correctly not locked. And `mf_all` + `acq_to_track` at QPSK
+    recovered from 2/5 decodes (SER 0.295) to **5/5** (SER 0.0000), because the
+    handover is no longer fired by a meaningless statistic.
+
+    Detectability `d' = (μ_H1 − μ_H0)/σ_H0` at Es/N0 = 10 / 20 dB, before →
+    after: BPSK 5.70/6.21 → 7.95/8.75, QPSK 1.50/1.78 → 5.81/8.47, 8PSK
+    0.02/0.04 → 1.76/7.52. Limiting *costs* H1 (it discards the `|z|^M` boost at
+    low SNR) and wins at every M and Es/N0 anyway. Before it, only BPSK ever
+    cleared a 1e-3 Pfa, so for M ≥ 4 there was no Pfa-derived threshold to be
+    had.
+
+    **What this costs you:** `rx.lock` is amplitude-blind and bounded in ±1, so
+    a reading above 1 is no longer possible and the "lock statistic far above its
+    ceiling means an AGC gain fault" diagnostic is gone. Only the lock path is
+    limited — `phase_error` keeps its raw `|z|^M` weighting, which is the correct
+    matched weighting on a pulse-shaped signal.
+
 - **The `±1.0` input bound is now documented where callers meet it** rather
     than only as a cast-safety note in `QUANTIZATION.md` §2.4. `cic_core.h`,
     `RateConverter_core.h`, both classes' Python docstrings and the type stubs
@@ -503,6 +450,57 @@ ______________________________________________________________________
     polyphase arms in opposite directions, and a pulse-shaped bank is laid out
     for the accumulator; mixing them yields a one-output-period sawtooth in the
     effective sampling instant. Plain (`pulse="none"`) cascades are unchanged.
+
+### Fixed
+
+- **The M = 8 lock signal was missing a factor of 4, so it was not `Re(z^8)`.**
+    The recursion carries `qe = ½·Im(z^4)` (that half being the deliberate
+    `{1, ½, ¼}` phase-error scaling), so `Re(z^8) = ql² − (2·qe)²` — but the lock
+    signal read `ql² − qe²`, i.e. `Re(z^4)² − ¼·Im(z^4)²`. The two are exactly
+    +1.0000 at `φ = 0` and differ everywhere else, so every *locked* measurement
+    agreed and the error lived entirely in the noise-only tail — the one region
+    that sets a detector's false-alarm rate. `Re(z^8)` is zero-mean on circular
+    noise; the shortfall is not, leaving a positive bias of `¾·E[Im(z^4)²]`
+    (measured mean **+8.94** where it should be **−0.11**, on unit-power complex
+    Gaussian noise).
+
+    The design note had recorded this as an acceptable trade — *"making it exact
+    would require doubling the carried imaginary term, which would break the
+    constant-gain property"* — which is false: the 4 belongs in the lock
+    expression, where it cannot affect the phase-detector gain at all.
+    `carrier_nda_scurve.c` had encoded the same conclusion as `if (m <= 4)`
+    around its `|lk − Re(z^M)| < 1e-6` assertion, excusing the validator from
+    the only order that was broken. That guard is gone, so the identity is now
+    pinned at all three orders (residuals 1.16e-07 / 2.59e-07 / 4.89e-07).
+
+    Found by randomising M in a Monte-Carlo characterisation. A fixed
+    QPSK grid does not surface it, because QPSK mostly works.
+
+    **Thresholds you have tuned by hand need rescaling**, since the same number
+    is now a different fraction of the achievable ceiling: divide an existing
+    QPSK threshold by 0.619, an 8PSK one by 0.412. The default 0.5 is unchanged
+    and now means "half of achievable" at every M instead of 50% / 81% / 121%.
+
+- **The carrier's strobe tap no longer waits for timing lock.** An earlier
+    revision on this branch gated the carrier steer, the arm AGC seed and the
+    two-way handover on the timing loop's own `lockdet`, because a pre-lock
+    strobe is an arbitrary phase of the pulse. Measured, the gate does not buy
+    what it appeared to: across a 24-cell sweep (sps × `m_out` × `bn_carrier`)
+    removing it changes **exactly one cell** — `sps=8, m_out=4,   bn_carrier=0.04`, which goes to 5/24 — and `m_out` now defaults to 8, so
+    that cell is off the default path. What it mainly bought was
+    *measurability*: with the steer frozen until timing declares, the carrier
+    transient starts at a known instant, which is convenient for instrumenting
+    an acquisition and is not a property of a working receiver.
+
+    The structural objection is the deciding one. A tap that needs timing it
+    cannot wait for is a reason to choose a **different tap** — `nda_tap`
+    exists precisely for that, and `mf_all`/`lo_arm` are timing-independent by
+    construction. Resolving it inside the receiver hid a real trade behind a
+    coupling the caller could neither see nor override, and made the default
+    receiver's cold-start behaviour depend on a second loop's lock detector.
+    `mpsk_rx_disc()`'s `may_act` parameter is gone with it (every call site
+    passed the same value once the gate went). If cold acquisition fails at
+    `m_out=4`, reach for `nda_tap="mf_all"` or `"lo_arm"`.
 
 ## [0.37.3] — 2026-07-24
 

@@ -309,11 +309,16 @@ too-wide `bn_carrier` used to *lose* acquisitions (gh#536).
     cover half as much of each symbol, and at 8th power that is enough to put
     `mf_all` at chance. `lo_arm` shows no failure at any setting measured here.
 
-    Two second-order effects, both at `m_out = 4`: `mf_all`/8PSK fails while
-    reporting lock +0.94 (+3.90 at `bn_carrier = 0.05`) — a false lock, consistent
-    with §the lock statistic being undetectable at M = 8 — and `mf_all` +
-    `acq_to_track` at *QPSK* falls to 2/5 decodes (SER 0.295, EVM −7.5 dB) against
-    5/5 for pure NDA, because the handover fires off an unreliable statistic.
+    `mf_all`/8PSK at `m_out = 4` used to fail *while reporting a healthy lock*
+    (+0.94, and +3.90 at `bn_carrier = 0.05`) — a false lock. Since the lock
+    statistic was limited it reports **−0.069** on the same failure, i.e. it now
+    correctly says "not locked" on a receiver that is not decoding, and the two
+    downstream consequences went with it: `mf_all` + `acq_to_track` at *QPSK*
+    recovered from 2/5 decodes (SER 0.295) to **5/5** (SER 0.0000), because the
+    handover no longer fires off a bogus statistic; and the `bn_carrier = 0.05`
+    failures read +0.175 / +0.045 instead of +3.90. The decode failure itself is
+    unchanged — that is the `Σ g_k^M` collapse, not a detector problem.
+
     `lo_arm` + `acq_to_track` costs EVM without costing SER (−19.7 → −15.4 dB at
     `m_out = 8`), which is the decision-directed error running on a
     non-matched-filtered arm.
@@ -375,13 +380,20 @@ captured/scaled baseband (and the DSSS despreader's known correlation gain).
     - **It is seeded from the first strobe.** The bank is unit-*energy*, so its
         output sits roughly `√(pulse_sps)` above the constellation the AGC expects.
         Left to converge from a cold gain, the loop ran 16× hot at QPSK and 256× at
-        8PSK — the measured lock statistic reached 5.2 and 26.4 (in the pre-`5159d5e0`
-        units, against ceilings of 0.62 and 0.41), which is the fingerprint to
-        recognise: **a lock metric far above the ≈ 1.0 of a real lock is a gain
-        fault, not a good lock.** The statistic is normalised now, so the rule of
-        thumb is absolute — but note it is only a clean rule at BPSK and QPSK: at
-        8PSK the statistic is positively biased on noise alone (mean +16), so a
-        large reading there is not by itself evidence of a gain fault.
+        8PSK — the measured lock statistic reached 5.2 and 26.4 (in the units of the
+        time, against ceilings of 0.62 and 0.41), which was the fingerprint to
+        recognise: a lock metric far above a real lock's value meant a gain fault,
+        not a good lock.
+
+        **That fingerprint no longer exists, and this is what limiting the lock
+        signal cost.** `Re((z/|z|)^M)` is amplitude-blind by construction and
+        bounded in ±1, so a hot AGC cannot inflate it and a reading of 5.2 is now
+        unreachable. The diagnostic was real and is gone; the bug it pointed at is
+        fixed and pinned by the seeding test, so nothing regresses silently, but a
+        *future* gain fault will have to be caught by the AGC's own gain rather
+        than by this statistic. Retires the "above-ceiling lock statistic is a free
+        diagnostic" idea in §6.
+
     - **Its bandwidth is `MPSK_RX_AGC_BW = 0.002` outright**, not `0.01·bn`. The
         old proportional rule was a *per-sample* convention; on a discriminator now
         running at the symbol rate it spans thousands of symbols and never settles.
@@ -436,6 +448,9 @@ else:  # 8PSK
     # needs the 2 squared back for this to be Re(z^8). Without it the statistic
     # is Re(z^4)**2 - Im(z^4)**2/4 -- equal to Re(z^8) at phi=0 and nowhere else,
     # and biased positive on noise where Re(z^8) is zero-mean.
+    # NB the shipped lock signal LIMITS first (divides by |z|^M) so its H0
+    # variance is 1/2 at every M; see "the lock statistic" below. Only the
+    # phase error keeps the raw |z|^M weighting.
     lock_signal = qpsk_lock**2 - 4 * qpsk_phase_error**2              # Re(z^8)
     sq_loss_dB = -0.14285557 * esno**2 + 5.70706958 * esno - 58.13670891
 
@@ -449,9 +464,11 @@ mod_loss_dB = 10 * np.log10(1 / (5 / 6))
     M-fold phase ambiguity (consistent with the `CarrierMpsk` S-curve). It steers
     the NCO; the M-fold ambiguity is resolved downstream (differential demap or a
     sync word), same as the decision-directed loop.
-- `lock_signal` ≈ `Re(z^M)` (scaled) — large and positive when phase-locked,
-    ~0 with no carrier. It is **the lock metric that drives handover** and is the
-    receiver's carrier lock indicator.
+- `lock_signal` = `Re((z/|z|)^M)` — the M-th power of a **limited** sample: ≈ 1
+    when phase-locked, zero-mean with no carrier, bounded in ±1, and with an H0
+    variance of ½ at **every** M. It is **the lock metric that drives handover**
+    and the receiver's carrier lock indicator; that M-independence is what makes
+    one threshold one Pfa (see "Limiting" below).
 
 The squaring-loss/noise behaviour worsens with M (each squaring multiplies
 noise), so the NDA loop is the *acquisition* aid; decision-directed tracking
@@ -480,11 +497,11 @@ Each subsequent level squares the running pair and reads off its real/imaginary
 parts, so `(lock, phase_error)` climbs the powers `z² → z⁴ → z⁸`. Verified
 exactly (residual 0 over a full phase sweep):
 
-| M   | `phase_error` | `lock_signal`         |
-| --- | ------------- | --------------------- |
-| 2   | `Im(z²)`      | `Re(z²)`              |
-| 4   | `½·Im(z⁴)`    | `Re(z⁴)`              |
-| 8   | `¼·Im(z⁸)`    | `Re(z⁴)² − ¼·Im(z⁴)²` |
+| M   | `phase_error` | `lock_signal` (before limiting) |
+| --- | ------------- | ------------------------------- |
+| 2   | `Im(z²)`      | `Re(z²)`                        |
+| 4   | `½·Im(z⁴)`    | `Re(z⁴)`                        |
+| 8   | `¼·Im(z⁸)`    | `Re(z⁴)² − 4·(½·Im(z⁴))²`       |
 
 So **`phase_error` is exactly the M-th-power discriminator** `Im(z^M)`, scaled by
 `1, ½, ¼`. That scale is not arbitrary — it **normalizes the phase-detector gain
@@ -492,13 +509,66 @@ across M**. The S-curve slope at lock is `(slope of Im(z^M)) × scale = M × sca
 BPSK / QPSK / 8PSK. (This is why the recursion carries `ab = Im(z⁴)/2` rather
 than the full `2ab` into the next squaring.)
 
-The **`lock_signal` is `Re(z^M)` exactly for M = 2, 4**, unscaled. For
-**M = 8 it is *not* literally `Re(z⁸)`**: carrying the ½-scaled imaginary arm up
-one more level gives `Re(z⁴)² − ¼·Im(z⁴)²` instead of `Re(z⁸) = Re(z⁴)² − Im(z⁴)²`. The two coincide at lock (`Im(z⁴) → 0` → both peak), so it remains a
-faithful, monotone lock detector — it is simply not the literal 8th-power real
-part. Making it exact would require doubling the carried imaginary term, which
-would break the constant-gain property above, so for a thresholded handover
-detector the form as written is the right trade.
+The **`lock_signal` is `Re(z^M)` at every M**, and the recursion's ½ has to be
+undone to get there. Because the carried imaginary term is `qe = ½·Im(z⁴)`, the
+8th-power real part is `Re(z⁸) = Re(z⁴)² − Im(z⁴)² = ql² − (2·qe)²`, so the lock
+expression needs the **factor of 4** written out explicitly.
+
+!!! bug "This was wrong until 2026-07-27, and the reasoning that kept it wrong"
+
+    The lock signal read `ql² − qe²` — i.e. `Re(z⁴)² − ¼·Im(z⁴)²` — and this
+    section argued the shortfall was an acceptable trade: *"the two coincide at
+    lock, so it remains a faithful monotone lock detector; making it exact would
+    require doubling the carried imaginary term, which would break the
+    constant-gain property."*
+
+    The premise is false. Making it exact requires multiplying by 4 **inside the
+    lock expression**, which does not touch the carried term and so cannot affect
+    the phase-detector gain at all. The two quantities are computed on separate
+    lines from the same pair; there was never a trade to make.
+
+    And "coincides at lock" was the wrong test. Both forms are exactly +1.0000 at
+    `φ = 0`, so every locked measurement agreed and the error was invisible where
+    anyone looked. It differed everywhere *else* — including on noise, where
+    `Re(z⁸)` is zero-mean but `Re(z⁴)² − ¼·Im(z⁴)²` is not, since
+    `E[Re(z⁴)²] = E[Im(z⁴)²]` leaves a positive residual of `¾·E[Im(z⁴)²]`.
+    Measured on unit-power complex Gaussian noise: mean **+8.94** instead of
+    **−0.11**. A lock detector is thresholded against its noise-only
+    distribution, so the one region the form was wrong in was the only region
+    that sets its false-alarm rate. `carrier_nda_scurve.c` had encoded the
+    conclusion as `if (m <= 4)` around its `|lk − Re(z^M)| < 1e-6` check, so the
+    validator was excused from the one order that was broken.
+
+#### Limiting — what makes the threshold a Pfa
+
+`Re(z^M)` on a raw sample is unbounded and its noise variance grows with M: at
+M = 8, `|z|⁸` on Gaussian noise gives it an sd of **137 per look** against a
+value of 1.0 at lock. The shipped lock signal therefore **limits first**:
+
+```text
+lock_signal = Re((z / |z|)^M)
+```
+
+Under H0 the phase is uniform, so `Var[Re(e^{jMθ})] = ½` for **every** M — the
+statistic is bounded in ±1 and its H0 law is M-independent, which is precisely
+what lets a single `lock_thresh` mean a single false-alarm probability at every
+constellation order. With `α = det_ema_alpha(0, 15.9) = 0.05` (`N_eff = 39`
+looks), `σ_H0 = sqrt(½·α/(2−α)) = 0.1132` analytically and 0.1132 measured, so
+the default threshold of 0.5 is 4.42 σ — a per-look Pfa of 5e-6. Measured
+end to end with `acq_to_track=1`, 100 noise-only runs × 20 000 symbols:
+**0/100 false declares at every M**.
+
+This costs H1 — limiting discards the `|z|^M` weighting that helps at low SNR —
+and is still a large net win at every order, because H0's variance falls by much
+more than H1's mean does. Detectability `d' = (μ_H1 − μ_H0)/σ_H0` at
+Es/N0 = 10 / 20 dB, raw → limited: BPSK 5.70/6.21 → 7.95/8.75, QPSK
+1.50/1.78 → 5.81/8.47, 8PSK 0.02/0.04 → 1.76/7.52. With the raw form only BPSK
+ever cleared a 1e-3 Pfa, so for M ≥ 4 there was no Pfa-derived threshold
+available at all.
+
+Only the **lock** path is limited. The `phase_error` keeps its raw `|z|^M`
+weighting, which is the natural matched weighting on a pulse-shaped signal and
+must not be flattened (see the AGC note in §2.3).
 
 ### 2.4 Opt-in auto-handover
 
@@ -700,12 +770,15 @@ ______________________________________________________________________
     bought measurability (§2.2). The remedy is `nda_tap`: `mf_all` and `lo_arm`
     are timing-independent by construction. See §2.2 and
     [doppler-dsp/doppler#536](https://github.com/doppler-dsp/doppler/issues/536).
-- **An above-ceiling lock statistic is a free diagnostic** — *open.*
-    `lock > 1` is impossible for a valid constellation, so
-    it detects "discriminator input is garbage" (unsettled timing, or a gain
-    fault) with no new computation. The project rule is to expose a condition the
-    code already computes rather than document it; this one is currently only
-    documented.
+- **An above-ceiling lock statistic is a free diagnostic** — *retired,
+    2026-07-27, by limiting the lock signal.* The idea was that `lock > 1` is
+    impossible for a valid constellation, so it detects "discriminator input is
+    garbage" (unsettled timing, or a gain fault) with no new computation. Limiting
+    made `Re((z/|z|)^M)` amplitude-blind and hard-bounded in ±1, so the condition
+    can no longer arise — the diagnostic is gone, deliberately, in exchange for a
+    threshold that maps to a false-alarm probability at every M (§2.3). Worth
+    knowing this was a real cost: a *future* AGC gain fault has to be caught from
+    the AGC's own gain, not from this statistic.
 - **DSSS re-measurement** — *open.* Both DSSS receivers sit downstream of this
     engine and have not been re-tuned for it. This is **not** a retune: the
     localisation says the DSSS fault is unrecovered carrier phase in the

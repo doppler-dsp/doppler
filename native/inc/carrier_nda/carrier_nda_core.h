@@ -25,10 +25,12 @@
  *   - `phase_error` = `Im(z^M)` scaled by `1, ½, ¼` for M = 2, 4, 8 — the
  * scale normalizes the phase-detector gain so the S-curve slope at lock is 2
  * for every M (one `bn` behaves identically across M).
- *   - `lock_signal`  = `Re(z^M)`, unscaled, for **every** M — ~1 when
- * phase-locked and zero-mean with no carrier, which is what makes one
- * threshold mean one thing at every order. Its EMA (`lock`) is the carrier
- * lock metric. See `docs/design/mpsk.md` §2.3 for the derivation.
+ *   - `lock_signal`  = `Re((z/|z|)^M)` — the M-th power of a **limited**
+ * sample, so it is bounded in ±1 and its H0 variance is 1/2 for **every** M.
+ * ~1 when phase-locked, zero-mean with no carrier. That M-independence is what
+ * makes one `lock_thresh` mean one Pfa at every order; the threshold chain is
+ * derived above `CARRIER_NDA_LOCK_ALPHA`. Its EMA (`lock`) is the carrier lock
+ * metric. See `docs/design/mpsk.md` §2.3 for the derivation.
  *
  * The block API (carrier_nda_steps) is the Python face and emits the
  * de-rotated sample stream; the JM_FORCEINLINE
@@ -77,8 +79,48 @@ extern "C"
 #define CARRIER_NDA_EPS 1e-12
 /* rad/sample -> cycles/sample for the NCO control port (replaces /(2*pi)). */
 #define CARRIER_NDA_INV_2PI 0.15915494309189535 /* 1 / (2*pi) */
-/* EMA smoothing for the lock metric (status diagnostic / handover input). */
+/* ── The lock statistic, and where its threshold comes from ──────────────
+ *
+ * `lock_signal = Re((z/|z|)^M)` -- the M-th power of a LIMITED sample. The
+ * limiter is on this path only; the phase error keeps the raw |z|^M weighting,
+ * which is deliberate (it is the natural matched weighting on a pulse-shaped
+ * signal, and flattening it corrupts the phase estimate). Limiting the lock
+ * signal is what makes it a detector you can put a number on:
+ *
+ *   - **Bounded.** Each look is Re(e^{j M theta}) in [-1, 1], so the EMA is too.
+ *     The raw form is unbounded and, at M = 8, |z|^8 on Gaussian noise gives it
+ *     an sd of 137 per look against a value of 1.0 at lock.
+ *   - **M-independent.** Under H0 (no carrier) theta is uniform, so
+ *     Var[Re(e^{j M theta})] = 1/2 for EVERY M. One threshold is one Pfa at
+ *     every constellation order -- which is the property that makes a single
+ *     `lock_thresh` mean one thing, and which the unlimited statistic does not
+ *     have at any scaling.
+ *   - **Detectable.** Measured d' = (mu_H1 - mu_H0)/sd_H0 post-EMA, raw vs
+ *     limited, at Es/N0 = 10 / 20 dB: BPSK 5.70/6.21 -> 7.95/8.75,
+ *     QPSK 1.50/1.78 -> 5.81/8.47, 8PSK 0.02/0.04 -> 1.76/7.52. The limiter
+ *     costs H1 (it discards the |z|^M boost at low SNR) and wins anyway,
+ *     everywhere, because it cuts H0's variance by far more than it cuts H1.
+ *     With the raw form only BPSK ever clears a 1e-3 Pfa, so no Pfa-derived
+ *     threshold existed for M >= 4 at all.
+ *
+ * The chain, all three numbers derived rather than picked:
+ *
+ *   alpha  = det_ema_alpha(0.0, 15.9 dB) = 0.05  -> N_eff = (2-a)/a = 39 looks
+ *   sd_H0  = sqrt(1/2 * alpha/(2-alpha))  = 0.1132   (analytic; measured 0.1132)
+ *   thresh = eta * sd_H0, eta from the Pfa budget
+ *
+ * `CARRIER_NDA_LOCK_DEFAULT_UP` = 0.5 is eta = 4.416, i.e. a per-look
+ * Pfa of 5e-6 -- so the long-standing default turns out to BE the Pfa-derived
+ * value once the statistic is M-independent. It was only ever meaningful at
+ * BPSK before: the same 0.5 was eta = 0.9 at QPSK and eta = 0.02 at 8PSK.
+ */
+/* EMA smoothing for the lock metric: alpha = det_ema_alpha(0.0, 15.9), giving
+ * N_eff = (2-alpha)/alpha = 39 effective looks (>= the 30-look floor). */
 #define CARRIER_NDA_LOCK_ALPHA 0.05
+/* Analytic H0 sd of the limited lock statistic AFTER the EMA above:
+ * sqrt(Var_look * alpha/(2-alpha)) with Var_look = 1/2 exactly, for every M.
+ * A threshold of `eta * this` has per-look Pfa = Q(eta). */
+#define CARRIER_NDA_LOCK_NORM_SD 0.11322770341445956
 /* Arm AGC (the embedded log-domain agc_core primitive) — drives the
  * phase-detector input to unit average power so the loop gain is amplitude-
  * invariant. The AGC runs once per moving-average output and MUST stay slow
@@ -180,12 +222,16 @@ extern "C"
      */
     float i  = crealf (z);    /* raw I (AGC-normalized upstream) */
     float q  = cimagf (z);    /* raw Q                          */
+    float p  = i * i + q * q; /* |z|^2                          */
     float bl = i * i - q * q; /* Re(z^2) */
     float be = 2.0f * i * q;  /* Im(z^2) */
+    /* The LOCK signal is limited, the PHASE ERROR is not -- see the two
+     * paragraphs below carrier_nda_lock_norm_sd. |z|^M is a power of p for
+     * every M we support, so limiting costs one divide and no sqrt. */
     if (m == 2)
       {
         *pe   = be;
-        *lock = bl;
+        *lock = (p > CARRIER_NDA_EPS) ? bl / p : 0.0; /* Re((z/|z|)^2) */
         return;
       }
     float ql = bl * bl - be * be; /* Re(z^4)        */
@@ -193,7 +239,7 @@ extern "C"
     if (m == 4)
       {
         *pe   = qe;
-        *lock = ql;
+        *lock = (p > CARRIER_NDA_EPS) ? ql / (p * p) : 0.0; /* Re((z/|z|)^4) */
         return;
       }
     *pe = qe * ql; /* Im(z^8) / 4                             */
@@ -209,7 +255,9 @@ extern "C"
      * The value AT LOCK is +1.0000 either way, which is why this hid: it
      * corrupted only the noise-only tail, i.e. exactly the false-alarm
      * behaviour a lock detector is thresholded on. */
-    *lock = ql * ql - 4.0f * qe * qe; /* Re(z^8)                      */
+    float p4 = p * p * p * p; /* |z|^8 */
+    *lock    = (p4 > CARRIER_NDA_EPS) ? (ql * ql - 4.0f * qe * qe) / p4
+                                      : 0.0; /* Re((z/|z|)^8) */
   }
 
   /**

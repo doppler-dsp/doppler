@@ -19,11 +19,12 @@ sawtooth of period `2π/M` (the M-fold phase ambiguity). The `{1, ½, ¼}` scale
 not cosmetic — it makes the **S-curve slope at lock equal 2 for every M**, so one
 loop `bn` behaves identically across BPSK / QPSK / 8PSK. The measured curve
 matches the analytic M-th power to **~9e-8**. The lock signal (not plotted) is
-`Re(z^M)`, unscaled, so it reads ≈ 1.0 at lock for every M — one threshold means
-one thing at every order. Its EMA is the carrier lock metric that drives
-handover. It is a clean detector at M ≤ 4; at M = 8 it is positively biased on
-noise (mean +16 against +1.05 at lock), so it is **not** a usable lock detector
-there — see the [receiver page](mpsk-receiver.md).
+`Re((z/|z|)^M)` — the M-th power of a **limited** sample, so it is bounded in ±1
+and its H0 variance is exactly 1/2 at every M. It reads ≈ 1.0 at lock, and that
+M-independence is what lets one threshold mean one false-alarm probability at
+every order (`σ` after the EMA is 0.1132, so the default 0.5 is 4.42 σ, a
+per-look Pfa of 5e-6). Its EMA is the carrier lock metric that drives handover;
+the derivation is on the [receiver page](mpsk-receiver.md).
 
 **Right — Cold-start acquisition.** A carrier step `f0 = 0.0015` cycles/sample on
 an **unmodulated** carrier (no data, no timing): the tracked frequency snaps onto
@@ -51,7 +52,7 @@ squaring-loss equations.
 The C harnesses `native/validation/carrier_nda_scurve.c`,
 `carrier_nda_pullin.c`, and `carrier_nda_step_response.c` (ctest `--check`)
 prove: `phase_error = Im(z^M)·{1,½,¼}` and slope 2 for all M (to ~1e-7);
-`lock_signal = Re(z^M)` unscaled, ≈ 1.0 at lock; cold-start frequency pull-in on an
+`lock_signal = Re((z/|z|)^M)`, ≈ 1.0 at lock; cold-start frequency pull-in on an
 unmodulated carrier per M; lock on modulated M-PSK data **with no symbol
 timing**; closed-loop frequency jitter that grows with `bn`; and a closed-loop
 step response that locks on both constant-modulus and pulse-shaped (RRC) inputs.

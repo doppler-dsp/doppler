@@ -180,6 +180,6 @@ ______________________________________________________________________
 
 **Gallery** — [Streaming Async Despreader](../gallery/async-despread.md), [CarrierAcquisition: RRC Pulse Shaping](../gallery/carrier-acq-rrc.md), [Detection Theory Curves](../gallery/detection-curves.md), [Monte Carlo vs Marcum Q Theory](../gallery/detection-sim.md), [Lock Detection: Verify Counts + Hysteresis](../gallery/lockdet.md), [M-PSK Receiver — Pull-in, Lock, and BER](../gallery/mpsk-receiver.md)
 **Guides** — [DSSS Burst Acquisition](../guide/dsss-acquisition.md), [Lock Detection Across `doppler.track`](../guide/lock-detection.md)
-**Design** — [Asynchronous symbol/code despreading](../design/async-symbol-despreader.md), [DSSS acquisition: stateless, parallel, dynamics-capable](../design/dsss-acquisition.md)
+**Design** — [Asynchronous symbol/code despreading](../design/async-symbol-despreader.md), [DSSS acquisition: stateless, parallel, dynamics-capable](../design/dsss-acquisition.md), [MPSK Receiver](../design/mpsk.md)
 
 <!-- related-pages:end -->

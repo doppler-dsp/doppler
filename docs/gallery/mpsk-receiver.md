@@ -122,40 +122,78 @@ assert rx.lock > 0.4              # normalised: ~1.0 at lock, every M
 ```
 
 Read `rx.lock`'s **sign** as well as its magnitude: a steady negative lock is the
-signature of an inverted carrier error, not a weak one. Magnitude is a weaker
-signal than it looks, and how much weaker depends sharply on M.
+signature of an inverted carrier error, not a weak one. The magnitude means the
+same thing at every M — see how its threshold is derived below.
 
-### How much the lock statistic is worth, per M
+### Where `lock_thresh` comes from — a Pfa, not a guess
 
-`Re(z^M)` reads ≈ 1.0 at lock for every order, but *how far it sits above noise*
-is not remotely equal across M. Measured on **noise only** (no signal, 2000
-symbols/trial, 8 trials) against the ≈ 1.0 it reads at lock:
+The lock statistic is `Re((z/|z|)^M)`: the M-th power of a **limited** sample,
+smoothed by an EMA. The limiter is on this path only — the phase error keeps its
+raw `|z|^M` weighting, which is the natural matched weighting on a pulse-shaped
+signal. Limiting the *lock* signal is what makes it a detector you can put a
+number on, because under H0 (no carrier) the phase is uniform and so
 
-| M    | noise mean | noise σ | single-look margin at `lock_thresh=0.5` |
-| ---- | ---------- | ------- | --------------------------------------- |
-| BPSK | +0.08      | 0.18    | ~2.3 σ — usable on one look             |
-| QPSK | +0.01      | 0.84    | ~0.6 σ — **needs averaging**            |
-| 8PSK | **+16.05** | 17.84   | none — noise reads **higher than lock** |
+```text
+Var[Re(e^{jMtheta})] = 1/2   for EVERY M
+```
 
-Two things follow, and neither is a tuning problem:
+One threshold is therefore one false-alarm probability at every constellation
+order. The whole chain is derived, none of it picked:
 
-- **QPSK is variance-limited.** A single look at `0.5` has a false-alarm rate
-    near 30%; the fix is to average, which is what the detector's EMA is for, and
-    the averaging gain it needs should come from a false-alarm budget rather
-    than a constant (see [`detection`](../api/python-detection.md):
-    `det_threshold(pfa)`, `det_ema_alpha`).
-- **8PSK is bias-limited, and averaging cannot fix a bias.** `|z|` is not
-    normalised before the M-th power, so noise peaks enter as `|z|^8` and the
-    statistic's *mean* on noise (+16) lands an order of magnitude above its value
-    at lock (+1.05). No threshold separates those two distributions and no amount
-    of integration will make one. It also explains the sign of the error seen in
-    practice: at low Es/N0 8PSK declares lock readily, and at high Es/N0 it does
-    not — the flag is anti-correlated with actual lock.
+| quantity  | value  | from                                              |
+| --------- | ------ | ------------------------------------------------- |
+| `α` (EMA) | 0.05   | `det_ema_alpha(0.0, 15.9)` → `N_eff = 39` looks   |
+| `σ_H0`    | 0.1132 | `sqrt(½·α/(2−α))`, analytic — measured **0.1132** |
+| `0.5`     | 4.42 σ | per-look Pfa = `Q(4.42)` = **5.0e-6**             |
 
-So treat `rx.lock` as a genuine detector at BPSK, as a statistic needing
-integration at QPSK, and at 8PSK as **not yet a lock detector at all** — use
-`acq_to_track` there only with a `lock_thresh` you have measured for your own
-geometry, or drive the handover from an external indicator.
+Measured on noise only, 200 trials × 4000 symbols, against that analytic
+`σ_H0`:
+
+| M    | noise mean | noise σ    | max seen | over 0.5 |
+| ---- | ---------- | ---------- | -------- | -------- |
+| BPSK | +0.006     | **0.1133** | +0.342   | 0 / 200  |
+| QPSK | +0.004     | **0.1071** | +0.292   | 0 / 200  |
+| 8PSK | −0.009     | **0.1138** | +0.358   | 0 / 200  |
+
+and end to end, with `acq_to_track=1` over 100 noise-only runs of 20 000 symbols
+each, `tracking` went high **0/100 times at every order** — peak lock 0.371 /
+0.467 / 0.376 against the 0.5 threshold.
+
+!!! note "What the limiter bought"
+
+    Without it the statistic is unbounded and its H0 variance depends on M, so the
+    *same* `lock_thresh = 0.5` was 4.4 σ at BPSK, 0.9 σ at QPSK and 0.02 σ at 8PSK
+    — one number meaning three different Pfas, one of them meaningless.
+    Detectability `d' = (μ_H1 − μ_H0)/σ_H0` at Es/N0 = 10 / 20 dB, raw → limited:
+
+    | M    | raw         | limited         |
+    | ---- | ----------- | --------------- |
+    | BPSK | 5.70 / 6.21 | 7.95 / 8.75     |
+    | QPSK | 1.50 / 1.78 | 5.81 / 8.47     |
+    | 8PSK | 0.02 / 0.04 | 1.76 / **7.52** |
+
+    The limiter *costs* H1 — it discards the `|z|^M` boost that helps at low SNR —
+    and wins anyway at every M and every Es/N0, because it cuts H0's variance by
+    far more than it cuts H1. With the raw form only BPSK ever cleared a 1e-3 Pfa,
+    so for M ≥ 4 there was no Pfa-derived threshold to be had at all.
+
+!!! warning "`0.5` is calibrated for the `strobe` tap"
+
+    `σ_H0` is tap-independent, but the value at lock is not: a tap that averages
+    badly-timed samples has small `|z|` on some of them, and limiting promotes
+    those to full weight. Measured at Es/N0 20 dB, `m_out = 8`, with all nine
+    combinations decoding at SER 0.0000, the *lock reading* is
+
+    | tap      | BPSK   | QPSK   | 8PSK       |
+    | -------- | ------ | ------ | ---------- |
+    | `strobe` | +0.989 | +0.956 | +0.862     |
+    | `mf_all` | +0.904 | +0.384 | **+0.209** |
+    | `lo_arm` | +0.926 | +0.677 | +0.551     |
+
+    So on `mf_all` or `lo_arm` at higher M the receiver can decode perfectly and
+    still not declare, because 0.5 sits above where that tap's statistic settles.
+    Scale `lock_thresh` by the reading for your tap and order — the Pfa mapping
+    (`thresh / 0.1132` in σ) is unchanged; you are only trading margin.
 
 ### `nda_tap` — buying pull-in range back
 
@@ -201,12 +239,13 @@ improves the stability margin, which is what lets you then raise `bn_carrier`.
     halves how much of each symbol those arms cover, and at 8th power that is
     fatal. `lo_arm` is unaffected at every setting measured.
 
-    Two ways it bites beyond raw SER, both at `m_out = 4`: `mf_all` at 8PSK fails
-    **while reporting a healthy lock** (+0.94, and +3.90 at `bn_carrier = 0.05`) —
-    a false lock the per-M table above already says is undetectable at M = 8 — and
-    `mf_all` + `acq_to_track` at *QPSK* drops to 2/5 decodes (SER 0.295, EVM
-    −7.5 dB) where pure NDA is 5/5, because an unreliable lock statistic hands the
-    LO over at the wrong moment.
+    The decode failure is `Σ g_k^M`; it used to come with a **false lock** on top,
+    and that part is fixed. At `m_out = 4`, `mf_all`/8PSK reported +0.94 (+3.90 at
+    `bn_carrier = 0.05`) while decoding at chance; since the lock statistic was
+    limited it reports **−0.069** on the identical failure — correctly not locked.
+    `mf_all` + `acq_to_track` at *QPSK* recovered with it, from 2/5 decodes (SER
+    0.295) to **5/5** (SER 0.0000), because the handover is no longer triggered by
+    a statistic that meant nothing.
 
     This box previously named `lo_arm` as the failing tap, on numbers taken with a
     lag search clipped to ±30 and a window inside the settling transient — the two

@@ -32,6 +32,7 @@ from ._mpsk_rx_harness import (
     freq_offset_inside_bw,
     make_signal,
     settle_floor,
+    settle_from,
     symbol_metrics,
 )
 
@@ -201,19 +202,26 @@ def test_ser_lands_on_the_coherent_bound(m, real):
     """Measured SER must sit on the theoretical curve at each order's own
     SER = 1e-3 point, within the implementation loss.
 
-    **The median over seeds, not one seed.** The ratio to the bound varies with
-    the data, and at 8PSK it varies a lot -- measured over 7 seeds:
+    **The window comes from `settle_from`, not `settle_floor`, and that is
+    the whole test.** With `acq_to_track` on, the handover fires ON carrier
+    lock plus a warmup -- strictly later than the analytic budget -- and the
+    decision-directed loop then has its own transient. Measured, 8PSK complex:
+    the handover lands at symbol 2525 against a 2000-symbol budget, and
+    measuring from 2000 reads **5.9x** the bound where the settled answer is
+    **1.7x**, with essentially every error in the pre-handover block. An
+    earlier version used the analytic floor and simply loosened the threshold
+    to 12 to accommodate it, which hid a measurement bug behind a tolerance.
 
-        m=2  complex 2.6-4.1   real 2.3-4.7
-        m=4  complex 2.3-4.3   real 2.7-4.7
-        m=8  complex 2.7-9.1   real 3.4-5.6
+    Medians over 7 seeds with the corrected window:
 
-    A single-seed assertion at ratio 8 is what this test shipped with, and it
-    passed locally at 5.9 and failed in CI at 10.3 -- 1.35x of margin over one
-    measurement, crossed by nothing more than a different build of the same
-    code on the same architecture. The threshold is 12 (~2.2 dB of loss at this
-    slope), which is ~2x the worst local median rather than a hair above one
-    draw.
+        m=2  complex 2.94   real 3.73
+        m=4  complex 2.57   real 2.94
+        m=8  complex 2.33   real 4.30
+
+    Threshold 10, i.e. ~2.3x the worst median. **8PSK on the real path is the
+    only cell with a genuine steady-state penalty** (~4.3x, ~1.5 dB): it is
+    flat at every window start, where the complex path's excess vanished
+    entirely once the window was right.
 
     `m_out = 8` is passed explicitly rather than relied on as the default,
     because this test's claim is about that value: a one-symbol-wide rectangle
@@ -221,21 +229,24 @@ def test_ser_lands_on_the_coherent_bound(m, real):
     variance. `sps = 24` follows, since `m_out = 8` forces `sps > 2*m_out` on
     the real path.
 
-    NB at 8PSK expect SER and EVM to DISAGREE, and trust the SER: measured EVM
-    sits within 0.3 dB of the -(Es/N0) bound while SER is ~6x it. The decision
-    margin is only +-pi/8, so a small residual phase bias (the handover leaves
-    one) costs symbol errors while barely moving an rms error vector.
+    NB at 8PSK, SER and EVM disagree and the SER is the one to trust here --
+    but NOT for the reason it first appears. EVM sits within 0.3 dB of the
+    -(Es/N0) bound while SER is several times it, and the phase errors show
+    **no bias (mean -0.0002 rad) and not one symbol beyond the +-pi/8 decision
+    boundary**. Both EVM and the hard-decision phase error are rotation-blind,
+    so neither can see a constellation still rotating during acquisition; the
+    truth-referenced SER can. That is why the fix was the window, not a
+    tolerance.
     """
     sps, m_out, nsym = 24, 8, 20000
     esn0 = esn0_spec_db(m)
     expect = theory_ser(m, 10.0 ** (esn0 / 10.0))
-    settle = settle_floor()
     ratios = []
     for seed in range(20, 25):
         x, idx = make_signal(
             sps, nsym, real=real, m=m, esn0_db=esn0, seed=seed
         )
-        y, _pr = demod(
+        y, pr = demod(
             x,
             real=real,
             sps=sps,
@@ -246,12 +257,21 @@ def test_ser_lands_on_the_coherent_bound(m, real):
             lock_thresh=0.3,
             warmup_syms=300,
         )
+        settle = settle_from(pr)
+        assert settle is not None, (
+            f"m={m} {PATH_ID[real]} seed {seed}: both loops must lock at the "
+            f"SER=1e-3 operating point"
+        )
+        assert len(y) - settle >= 2000, (
+            f"m={m} {PATH_ID[real]} seed {seed}: only {len(y) - settle} "
+            f"symbols after settling ({settle}); lengthen the burst"
+        )
         _evm, ser, _ = symbol_metrics(y, idx, m=m, settle=settle)
         ratios.append(ser / expect)
     median = float(np.median(ratios))
-    assert median < 12.0, (
+    assert median < 10.0, (
         f"m={m} {PATH_ID[real]}: median SER/bound {median:.1f} over "
         f"{len(ratios)} seeds at Es/N0 {esn0:.1f} dB (individual: "
-        f"{[round(r, 1) for r in ratios]}); more than ~2.2 dB of "
-        f"implementation loss"
+        f"{[round(r, 1) for r in ratios]}); more than ~2 dB of implementation "
+        f"loss"
     )

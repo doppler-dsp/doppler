@@ -276,6 +276,17 @@ def settle_from(probes, floor=SETTLE_SYMS):
     declares on a statistic that crossed a threshold, not on a settled loop.
     `max(budget, timing lock, carrier lock)`: whatever settles last decides.
 
+    **With `acq_to_track` on, the handover is what settles last.** It fires ON
+    carrier lock plus a warmup, so it is strictly after everything else this
+    function looks at, and the decision-directed loop then has its own
+    transient -- the shared loop filter carries the frequency estimate across,
+    so it is shorter than a cold start, but not zero. Measured on 8PSK at its
+    SER = 1e-3 anchor, complex path: the handover fires at symbol 2525 against
+    a 2000-symbol budget, and measuring from 2000 reads SER 5.9x the coherent
+    bound where the settled answer is **1.7x** -- nearly every error in that
+    window is pre-handover. So a handover adds `floor` again on top of its own
+    instant.
+
     Returns `None` when either loop is not locked at the end of the burst;
     there is no valid steady-state window in that case and the caller must say
     so rather than quietly measuring the transient.
@@ -284,7 +295,13 @@ def settle_from(probes, floor=SETTLE_SYMS):
     c = lock_symbol(probes["car.locked"])
     if t is None or c is None:
         return None
-    return max(floor, t, c)
+    out = max(floor, t, c)
+    # `tracking` stays 0 when acq_to_track is off, so this contributes nothing
+    # for a pure-NDA receiver.
+    h = lock_symbol(probes["tracking"]) if "tracking" in probes else None
+    if h is not None:
+        out = max(out, h + floor)
+    return out
 
 
 def symbol_metrics(y, idx, m=4, settle=SETTLE_SYMS):

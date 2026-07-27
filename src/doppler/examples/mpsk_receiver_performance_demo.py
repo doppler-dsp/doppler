@@ -18,7 +18,16 @@ front end's image rejection collapses, and EVM falls to -4 dB. A grid of
 "reasonable" cases never drew it. Random draws over the documented input
 domain do, and they either show a clean distribution or hand you the outlier.
 
-Eight panels, each independently selectable (see `--only`):
+The committed gallery figure is **three panels** -- does it meet the bound
+(`evm`, `ber`) and how long does it take (`lock`). Five more exist and are
+plottable on demand (`--only falsealarm,telemetry`, or `--only all`), but they
+answer PASS/FAIL questions that a plot is the wrong shape for: level and
+sample-rate invariance are flat lines, false alarm is a count of zero, chunking
+is a bar chart of exact zeros, telemetry is two bars. Those five are assertions
+now -- `src/doppler/track/tests/test_mpsk_receiver_performance.py` and the
+`bench_mpsk_receiver*.py` pair -- which is where a pass/fail property belongs.
+
+All eight panels:
 
     evm         EVM against the coherent bound, EVM_dB = -(Es/N0)_dB
     ber         symbol error rate against the theoretical M-PSK bound
@@ -936,6 +945,19 @@ ALL_PANELS = (
     "telemetry",
 )
 
+#: What the committed gallery figure shows, and the default when no `--only` is
+#: given. The three panels a reader actually has a question about: does it meet
+#: the bound (evm, ber) and how long does it take (lock).
+#:
+#: The other five answer PASS/FAIL questions, and a plot is the wrong shape for
+#: those -- level invariance and sample-rate invariance are flat lines,
+#: false alarm is a count of zero, chunking is a bar chart of exact zeros, and
+#: telemetry is two bars. All five are assertions now, in
+#: `src/doppler/track/tests/test_mpsk_receiver_performance.py` and the
+#: `bench_mpsk_receiver*.py` pair, which is where a pass/fail property belongs.
+#: They stay plottable on demand -- `--only falsealarm,telemetry` etc.
+GALLERY_PANELS = ("evm", "ber", "lock")
+
 #: Chunking plans exercised by the `chunking` panel. Fixed powers of two are
 #: the
 #: common case; the random plan is the one that matters, because it produces
@@ -981,7 +1003,9 @@ def measure_chunking(rng):
 
 
 def main(
-    out_path="mpsk_receiver_performance_demo.png", only=ALL_PANELS, trials=6
+    out_path="mpsk_receiver_performance_demo.png",
+    only=GALLERY_PANELS,
+    trials=6,
 ):
     import matplotlib
 
@@ -1199,14 +1223,19 @@ if __name__ == "__main__":
     )
     ap.add_argument(
         "--only",
-        default=",".join(ALL_PANELS),
-        help=f"comma-separated subset of {','.join(ALL_PANELS)}",
+        default=",".join(GALLERY_PANELS),
+        help=(
+            f"comma-separated subset of {','.join(ALL_PANELS)} "
+            f"(default {','.join(GALLERY_PANELS)}; 'all' for every panel)"
+        ),
     )
     ap.add_argument(
         "--trials", type=int, default=6, help="trials per (Es/N0, path) cell"
     )
     a = ap.parse_args()
     sel = tuple(p.strip() for p in a.only.split(",") if p.strip())
+    if sel == ("all",):
+        sel = ALL_PANELS
     bad = set(sel) - set(ALL_PANELS)
     if bad:
         sys.exit(f"unknown panel(s): {', '.join(sorted(bad))}")

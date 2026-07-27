@@ -36,50 +36,55 @@ receiver's test harness encode.
 | **Never widen `bn` for a shorter record** | `bn` is normalised to the **symbol** rate, so settling is a fixed number of symbols at any sample rate. Widening does not buy samples, it changes the receiver. A heavily oversampled case simply needs millions of samples — that is what [`wfmgen`](wfmgen.md) is for.                                           |
 | **Anchor at SER = 1e-3**                  | Per-M that is 6.8 / 10.3 / 15.7 dB, which asks "does it meet its bound" at the same place on the curve for every order, instead of at one arbitrary Es/N0.                                                                                                                                                         |
 
-## The panels
+## The three panels
 
 **EVM vs the coherent bound.** Self-referenced EVM — each symbol against its own
 hard decision — against `EVM_dB = −(Es/N0)_dB`. EVM is an I/Q-plane quantity, so
-there is no factor of two, and an EVM *beating* the bound means the measurement is
-wrong. Median margin over the whole random sweep: **+0.1 dB**.
+there is no factor of two, and an EVM *beating* the bound means the measurement
+is wrong. Median margin over the whole random sweep: **+0.1 dB**.
 
 **SER vs the theoretical M-PSK bound.** Truth-referenced, with a lag and rotation
 search, red for the real IF and blue for complex baseband. Paired with EVM
 deliberately: a bit error rate alone is fragile in both directions, and it is the
-**disagreement** between a truth-referenced rate and a truth-free EVM that carries
-the diagnosis.
+**disagreement** between a truth-referenced rate and a truth-free EVM that
+carries the diagnosis — see the warning below for a case where that disagreement
+was the whole story.
 
 **Lock time against each trial's own budget.** Not an absolute symbol count — a
-*fraction* of that trial's `2·(5/bn_t + 5/bn_c)`, which is the only way to compare
-trials with different bandwidths. The demo asserts every trial at or above its own
-SER = 1e-3 anchor declares lock.
+*fraction* of that trial's `2·(5/bn_t + 5/bn_c)`, which is the only way to
+compare trials with different bandwidths.
 
-**Loop bandwidth is sample-rate invariant.** Lock time in **symbols** against
-samples per symbol — this panel must be **flat**. It is the direct check that `bn`
-is normalised to the symbol rate, and the reason a heavily oversampled geometry
-needs a longer record rather than a wider loop.
+!!! note "Five more panels exist, on demand"
 
-**False alarm on noise only.** Noise in, no signal: how often either detector
-wrongly declares lock. Since the carrier lock statistic was
-[limited](mpsk-receiver.md#where-lock_thresh-comes-from-a-pfa-not-a-guess) its
-threshold maps to a false-alarm probability at every M — the default 0.5 is
-4.42 σ, a per-look Pfa of 5.0e-6 — and this panel is where that is checked
-end to end rather than asserted.
+    `--only falsealarm,level,invariance,chunking,telemetry`, or `--only all`.
+    They are not in the committed figure because a plot is the wrong shape for
+    what they measure: level invariance and sample-rate invariance are flat
+    lines, false alarm is a count of zero, chunking is a bar chart of exact
+    zeros, and telemetry is two bars. All five are **assertions** now —
+    `src/doppler/track/tests/test_mpsk_receiver_performance.py` for false alarm,
+    level invariance and the coherent bound, and the `bench_mpsk_receiver*.py`
+    pair for the telemetry cost (+10.5% complex, +11.6% real). A pass/fail
+    property belongs in a test, where it runs on every commit, rather than in a
+    figure nobody re-reads.
 
-**Level invariance.** EVM across three decades of absolute input level. Both
-receivers AGC-normalise internally, so EVM **must not track level**; a slope here
-is a gain-staging bug.
+!!! warning "A rotation-blind metric cannot check your measurement window"
 
-**Streaming: chunk size is a buffering choice.** The same input pushed through in
-arbitrary chunk sizes must produce a bit-identical output stream. Odd-length
-chunks are included on purpose — they cross the real path's R2C halfband parity,
-which is where a chunking bug would actually live.
+    Self-referenced EVM and the hard-decision phase error both estimate the
+    constellation rotation from the data, so a constellation that is still
+    *rotating* reads clean on both while decoding to the wrong symbols. Measured
+    on 8PSK: EVM within 0.3 dB of the bound, phase-error mean −0.0002 rad, and
+    **not one symbol beyond the ±π/8 decision boundary** — beside an SER six
+    times the bound. Two independent truth-free validators agreed with each
+    other and both were blind to it.
 
-**Cost of always-on telemetry.** Throughput with all 11 probes attached versus
-fully detached: one 16-byte ring write per probe per symbol. Measured
-**+8%** (complex) and **+9%** (real) — the interleaved, warmed-up numbers. A naive
-A-then-B benchmark on this reported telemetry as 43% *faster*, because the lazy
-output-buffer allocation is charged to whichever runs first.
+    The cause was the window, and specifically the **handover**: with
+    `acq_to_track` enabled it fires on carrier lock plus a warmup, which is later
+    than the analytic `5/Bn` budget *and* later than every lock indicator, and
+    the decision-directed loop then has its own transient. The handover landed at
+    symbol 2525 against a 2000-symbol budget; measuring from 2000 read 5.95× the
+    bound where the settled answer is **1.68×**. Localise a suspected window
+    fault by asking **where** the errors are — an error rate per block across the
+    record — not by adding another truth-free metric.
 
 ## Streaming a real capture in
 
@@ -95,11 +100,14 @@ arrives in whatever blocks your transport hands you.
 Every panel is independently selectable, so a single question is cheap to ask:
 
 ```bash
-# all eight panels
+# the three panels above (the default, and what the figure is)
 python src/doppler/examples/mpsk_receiver_performance_demo.py
 
-# just the two that answer "does it meet its bound?"
-python src/doppler/examples/mpsk_receiver_performance_demo.py --only evm,ber
+# every panel, including the five pass/fail ones
+python src/doppler/examples/mpsk_receiver_performance_demo.py --only all
+
+# one question at a time
+python src/doppler/examples/mpsk_receiver_performance_demo.py --only falsealarm
 
 # more draws for a tighter distribution
 python src/doppler/examples/mpsk_receiver_performance_demo.py --trials 400

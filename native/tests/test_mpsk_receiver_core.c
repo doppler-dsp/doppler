@@ -332,17 +332,37 @@ main (void)
     CHECK (dp_tlm_lookup (tlm, "rx.car.locked") == a->l.tlm.id_locked);
     CHECK (dp_tlm_lookup (tlm, "rx.sync.e") == a->l.timing.tlm.id_e);
     CHECK (dp_tlm_lookup (tlm, "rx.sync.locked") == a->l.timing.tlm.id_locked);
-    CHECK (dp_tlm_probe_count (tlm) == 10);
+    CHECK (dp_tlm_lookup (tlm, "rx.sync.mu") == a->l.timing.tlm.id_mu);
+    CHECK (dp_tlm_probe_count (tlm) == 11);
 
     size_t n_sym = mpsk_receiver_steps (a, tx, 512, out, 80);
     CHECK (n_sym > 0);
     dp_tlm_rec_t recs[2048];
     size_t       n_rec = dp_tlm_read (tlm, recs, 2048);
-    /* lock + tracking + car(e,freq,locked) + sync(e,ctrl,rate,lock,locked):
-     * ten records per recovered symbol, all flushed at the strobe. The arm
+    /* lock + tracking + car(e,freq,locked) + sync(e,ctrl,rate,lock,locked,mu):
+     * eleven records per recovered symbol, all flushed at the strobe. The arm
      * AGC is not attached -- it is an internal normaliser on the
      * discriminator's input, not a receiver diagnostic. */
-    CHECK (n_rec == 10 * n_sym);
+    CHECK (n_rec == 11 * n_sym);
+
+    /* `mu` is the timing NCO's phase, so it is a FRACTION: every record must
+       land in [0, 1) whatever the loop is doing, and it must actually vary
+       (a frozen mu would mean the steering never reached the accumulator). */
+    {
+      int    n_mu = 0;
+      double mn = 2.0, mx = -1.0;
+      for (size_t i = 0; i < n_rec; i++)
+        if (recs[i].probe == (uint16_t)a->l.timing.tlm.id_mu)
+          {
+            double v = (double)recs[i].value;
+            CHECK (v >= 0.0 && v < 1.0);
+            mn = v < mn ? v : mn;
+            mx = v > mx ? v : mx;
+            n_mu++;
+          }
+      CHECK (n_mu == (int)n_sym);
+      CHECK (mx > mn);
+    }
 
     /* Detach cascades to both embedded loops (and the AGC). */
     CHECK (mpsk_receiver_set_telemetry (a, NULL, "rx", 1) == DP_OK);
@@ -371,7 +391,7 @@ main (void)
     CHECK (b->l.tlm.ctx == NULL);
 
     /* Partial registration failure unwinds: leave exactly six slots — the
-     * receiver's own five probes fit, the five-probe timing forward cannot,
+     * receiver's own five probes fit, the six-probe timing forward cannot,
      * and the whole attach fails with everything detached again. */
     dp_tlm_t *tlm2 = dp_tlm_create (256);
     CHECK (tlm2 != NULL);

@@ -50,6 +50,7 @@ ratesync_loop_init (ratesync_loop_t *l, double sps, size_t m, double bn,
   l->ted        = ted;
   l->term_rate  = 0.0;
   l->prime_taps = 0;
+  l->term       = NULL;
   /* Loop update period is one symbol: the TED fires once per on-time strobe,
      and bn is normalised to the symbol rate. */
   loop_filter_init (&l->lf, bn, zeta, 1.0);
@@ -68,6 +69,10 @@ ratesync_loop_set_cascade (ratesync_loop_t *l, double term_rate,
   l->term_rate  = term_rate;
   l->prime_taps = prime_taps;
   l->prime_left = prime_taps + 1u;
+  /* Geometry given by hand: there is no stage to read `mu` from, and keeping
+     a pointer bound by an earlier cascade would report another object's
+     phase. The probe reports 0 instead. */
+  l->term = NULL;
 }
 
 /* Describe the cascade's terminal stage to the loop: the rate `ctrl` is
@@ -77,16 +82,21 @@ void
 ratesync_loop_bind_cascade (ratesync_loop_t             *l,
                             const RateConverter_state_t *rc)
 {
-  size_t ntaps     = 0;
-  double term_rate = 0.0;
-  int    last      = rc->n_stages - 1;
+  size_t                ntaps     = 0;
+  double                term_rate = 0.0;
+  const resamp_state_t *term      = NULL;
+  int                   last      = rc->n_stages - 1;
   if (last >= 0 && rc->stage_types[last] == RC_STAGE_RESAMP)
     {
-      const resamp_state_t *r = (const resamp_state_t *)rc->stage_ptrs[last];
-      ntaps                   = resamp_get_num_taps (r);
-      term_rate               = resamp_get_rate (r);
+      term      = (const resamp_state_t *)rc->stage_ptrs[last];
+      ntaps     = resamp_get_num_taps (term);
+      term_rate = resamp_get_rate (term);
     }
   ratesync_loop_set_cascade (l, term_rate, ntaps);
+  /* AFTER set_cascade, which clears it: keep the stage itself for the `mu`
+     probe. The loop steers this accumulator, so its phase is the loop's own
+     output, but the cascade does not report it any other way. */
+  l->term = term;
 }
 
 void
@@ -152,6 +162,10 @@ ratesync_loop_tlm_flush (const ratesync_loop_t *l)
   dp_tlm_emit (l->tlm.ctx, l->tlm.id_rate, l->rate_est);
   dp_tlm_emit (l->tlm.ctx, l->tlm.id_lock, l->lock_stat);
   dp_tlm_emit (l->tlm.ctx, l->tlm.id_locked, (double)l->lock.locked);
+  /* The sampling phase this steering produced. 0 when the geometry was bound
+     by hand and there is no stage to read (see ratesync_loop_t::term). */
+  dp_tlm_emit (l->tlm.ctx, l->tlm.id_mu,
+               l->term ? resamp_get_ctrl_acc (l->term) : 0.0);
 }
 
 int
@@ -175,13 +189,17 @@ ratesync_loop_set_telemetry (ratesync_loop_t *l, dp_tlm_t *tlm,
   int id_lock = dp_tlm_probe (tlm, name, decim);
   (void)snprintf (name, sizeof (name), "%s.locked", p);
   int id_locked = dp_tlm_probe (tlm, name, decim);
-  if (id_e < 0 || id_ctrl < 0 || id_rate < 0 || id_lock < 0 || id_locked < 0)
+  (void)snprintf (name, sizeof (name), "%s.mu", p);
+  int id_mu = dp_tlm_probe (tlm, name, decim);
+  if (id_e < 0 || id_ctrl < 0 || id_rate < 0 || id_lock < 0 || id_locked < 0
+      || id_mu < 0)
     return DP_ERR_INVALID; /* table full / bad prefix: attach fails whole */
   l->tlm.id_e      = id_e;
   l->tlm.id_ctrl   = id_ctrl;
   l->tlm.id_rate   = id_rate;
   l->tlm.id_lock   = id_lock;
   l->tlm.id_locked = id_locked;
+  l->tlm.id_mu     = id_mu;
   l->tlm.ctx       = tlm; /* set last: emit sites gate on ctx */
   return DP_OK;
 }

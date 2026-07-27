@@ -779,7 +779,7 @@ static PyMethodDef MpskReceiverRObj_methods[] = {
     METH_VARARGS | METH_KEYWORDS,
     "set_telemetry(tlm, prefix, decim) -> int\n"
     "\n"
-    "Attach (or detach) telemetry; registers the same ten probes as "
+    "Attach (or detach) telemetry; registers the same eleven probes as "
     "mpsk_receiver_set_telemetry(), whose contract this shares.\n"
     "\n"
     "    >>> import numpy as np\n"

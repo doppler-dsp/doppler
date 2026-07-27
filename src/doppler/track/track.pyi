@@ -794,13 +794,19 @@ class RateSync:
     def set_telemetry(self, tlm: object | None, prefix: str, decim: int = 1) -> None:
         """Attach (or detach) a telemetry context and register the probes.
 
-        Registers five probes, emitted once per recovered symbol and further
+        Registers six probes, emitted once per recovered symbol and further
         thinned by decim: "<prefix>.e" (normalised TED error), "<prefix>.ctrl"
         (the per-input control steering the strobe), "<prefix>.rate" (tracked
-        samples/symbol), "<prefix>.lock" (last block-averaged lock_signal) and
-        "<prefix>.locked" (0/1). Passing NULL detaches. Setup path, never hot:
-        the context is borrowed and must outlive the attachment (SPSC rules in
-        telemetry/telemetry.h).
+        samples/symbol), "<prefix>.lock" (last block-averaged lock_signal),
+        "<prefix>.locked" (0/1) and "<prefix>.mu" (the timing NCO's fractional
+        phase — see resamp_get_ctrl_acc()). Passing NULL detaches. Setup path,
+        never hot: the context is borrowed and must outlive the attachment (SPSC
+        rules in telemetry/telemetry.h).
+
+        The three form one readable picture of the loop: `e` is what the
+        detector saw, `ctrl` is what the filter did about it, and `mu` is where
+        the sampling instant ended up as a result — the only one of the three
+        that is a physical position rather than a correction.
 
         Parameters
         ----------
@@ -1216,7 +1222,7 @@ class MpskReceiver:
     def __init__(self, m: int = ..., sps: float = ..., m_out: int = ..., pulse: Literal["iandd", "rrc"] = "iandd", rrc_beta: float = ..., rrc_span: int = ..., bn_carrier: float = ..., zeta: float = ..., bn_timing: float = ..., acq_to_track: int = ..., lock_thresh: float = ..., init_norm_freq: float = ..., warmup_syms: int = ..., differential: int = ..., num_phases: int = ..., nda_tap: Literal["strobe", "mf_all", "lo_arm"] = "strobe") -> None: ...
 
     def set_telemetry(self, tlm: object | None, prefix: str, decim: int = 1) -> None:
-        """Attach (or detach) a telemetry context across the receiver. Registers the receiver's own "<prefix>.lock" probe (the carrier lock EMA) and "<prefix>.tracking" (the two-way handover decision, 0/1 — so a consumer sees exactly when the carrier was handed to the decision-directed discriminator or dropped back to NDA), then the carrier loop's "<prefix>.car.e" / ".freq" / ".locked" and the symbol-timing loop's "<prefix>.sync.e" / ".ctrl" / ".rate" / ".lock" / ".locked" -- ten probes total, all thinned by decim and all emitted once per recovered symbol.  Passing NULL detaches everything.  Setup path, never hot; the context is borrowed and must outlive the attachment (SPSC rules in telemetry/telemetry.h).
+        """Attach (or detach) a telemetry context across the receiver. Registers the receiver's own "<prefix>.lock" probe (the carrier lock EMA) and "<prefix>.tracking" (the two-way handover decision, 0/1 — so a consumer sees exactly when the carrier was handed to the decision-directed discriminator or dropped back to NDA), then the carrier loop's "<prefix>.car.e" / ".freq" / ".locked" and the symbol-timing loop's "<prefix>.sync.e" / ".ctrl" / ".rate" / ".lock" / ".locked" / ".mu" -- eleven probes total, all thinned by decim and all emitted once per recovered symbol.  Passing NULL detaches everything. Setup path, never hot; the context is borrowed and must outlive the attachment (SPSC rules in telemetry/telemetry.h).
 
         Parameters
         ----------
@@ -1236,7 +1242,7 @@ class MpskReceiver:
         >>> rx = MpskReceiver(m=4, sps=4, m_out=2)
         >>> rx.set_telemetry(tlm, "rx")
         >>> len(tlm.probe_names())
-        10
+        11
         >>> rng = np.random.default_rng(7)
         >>> syms = (1 - 2 * rng.integers(0, 2, 512)).astype(np.complex64)
         >>> x = np.repeat(syms, 4)
@@ -1427,7 +1433,7 @@ class MpskReceiverR:
     def __init__(self, m: int = ..., sps: float = ..., m_out: int = ..., pulse: Literal["iandd", "rrc"] = "iandd", rrc_beta: float = ..., rrc_span: int = ..., bn_carrier: float = ..., zeta: float = ..., bn_timing: float = ..., acq_to_track: int = ..., lock_thresh: float = ..., init_norm_freq: float = ..., warmup_syms: int = ..., differential: int = ..., num_phases: int = ..., nda_tap: Literal["strobe", "mf_all", "lo_arm"] = "strobe") -> None: ...
 
     def set_telemetry(self, tlm: object | None, prefix: str, decim: int = 1) -> None:
-        """Attach (or detach) telemetry; registers the same ten probes as mpsk_receiver_set_telemetry(), whose contract this shares.
+        """Attach (or detach) telemetry; registers the same eleven probes as mpsk_receiver_set_telemetry(), whose contract this shares.
 
         Parameters
         ----------

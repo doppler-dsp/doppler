@@ -360,16 +360,16 @@ extern "C"
    * decision-directed discriminator or dropped back to NDA), then the
    * carrier loop's "<prefix>.car.e" / ".freq" / ".locked" and the
    * symbol-timing loop's "<prefix>.sync.e" / ".ctrl" / ".rate" / ".lock" /
-   * ".locked" -- ten probes total, all thinned by @p decim and all emitted
-   * once per recovered symbol.  Passing NULL detaches everything.  Setup
-   * path, never hot; the context is borrowed and must outlive the
+   * ".locked" / ".mu" -- eleven probes total, all thinned by @p decim and all
+   * emitted once per recovered symbol.  Passing NULL detaches everything.
+   * Setup path, never hot; the context is borrowed and must outlive the
    * attachment (SPSC rules in telemetry/telemetry.h).
    * @param state  Must be non-NULL.
    * @param tlm    Telemetry context to attach, or NULL to detach.
    * @param prefix Probe-name prefix, e.g. "rx".
    * @param decim  Emit every decim-th symbol; >= 1.
    * @return DP_OK, or DP_ERR_INVALID when the probe table cannot take the
-   *         ten probes (the attach fails whole; everything detached).
+   *         eleven probes (the attach fails whole; everything detached).
    * @code
    * >>> import numpy as np
    * >>> from doppler.track import MpskReceiver
@@ -378,7 +378,7 @@ extern "C"
    * >>> rx = MpskReceiver(m=4, sps=4, m_out=2)
    * >>> rx.set_telemetry(tlm, "rx")
    * >>> len(tlm.probe_names())
-   * 10
+   * 11
    * >>> rng = np.random.default_rng(7)
    * >>> syms = (1 - 2 * rng.integers(0, 2, 512)).astype(np.complex64)
    * >>> x = np.repeat(syms, 4)

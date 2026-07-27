@@ -240,6 +240,21 @@ extern "C"
   size_t resamp_get_num_phases (const resamp_state_t *state);
   size_t resamp_get_num_taps (const resamp_state_t *state);
 
+  /** @brief The control accumulator's fractional phase, in [0, 1).
+   *
+   *  This is the timing NCO's state, and observing it is the only way to see
+   *  what a closed timing loop is actually doing to the sampling instant: the
+   *  arm the last output read is `floor(mu * num_phases)`, so `mu` IS the
+   *  fractional delay applied to the stream, in output periods. A steady `mu`
+   *  means the loop has settled on a sampling phase; a `mu` that slews and
+   *  wraps means a residual RATE error the loop has not absorbed, and one
+   *  cycle of wrap is one output period of slip.
+   *
+   *  Reported after the last output this stage emitted, which for a decimating
+   *  terminal stage (`rate <= 1`) is the phase the next output will read from.
+   */
+  double resamp_get_ctrl_acc (const resamp_state_t *state);
+
 #ifdef __cplusplus
 }
 #endif

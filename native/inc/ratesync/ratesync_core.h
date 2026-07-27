@@ -147,6 +147,7 @@ extern "C"
     int32_t   id_rate;   /**< "<prefix>.rate"   — tracked samples/sym  */
     int32_t   id_lock;   /**< "<prefix>.lock"   — lock_signal mean     */
     int32_t   id_locked; /**< "<prefix>.locked" — lockdet flag         */
+    int32_t   id_mu;     /**< "<prefix>.mu"     — timing NCO phase     */
   } ratesync_tlm_t;
 
   /**
@@ -180,6 +181,13 @@ extern "C"
     size_t m;          /**< terminal outputs per symbol (>= 2, even).     */
     double term_rate;  /**< terminal stage's own rate; the ctrl scale.    */
     size_t prime_taps; /**< terminal bank taps; sets the prime length.    */
+    /** The terminal stage itself, borrowed for TELEMETRY ONLY: the loop
+     *  steers this accumulator but does not own it, and `mu` — the sampling
+     *  phase the steering produces — is otherwise unobservable from outside
+     *  the cascade. NULL when the owner bound the geometry by hand
+     *  (ratesync_loop_set_cascade()) rather than from a cascade; the probe
+     *  then reports 0. Never dereferenced on the hot path. */
+    const resamp_state_t *term;
     double bn;         /**< loop noise bandwidth (retained).              */
     double zeta;       /**< damping factor (retained).                    */
     int    ted;        /**< RATESYNC_TED_GARDNER / _DTTL.                 */
@@ -296,7 +304,7 @@ extern "C"
                                          double up_thresh, double down_thresh,
                                          uint32_t n_up, uint32_t n_down);
 
-  /** @brief Register the five timing probes; see ratesync_set_telemetry(),
+  /** @brief Register the six timing probes; see ratesync_set_telemetry(),
    *         which forwards here. NULL @p tlm detaches. */
   int ratesync_loop_set_telemetry (ratesync_loop_t *l, dp_tlm_t *tlm,
                                    const char *prefix, uint32_t decim);
@@ -650,20 +658,26 @@ extern "C"
   /**
    * @brief Attach (or detach) a telemetry context and register the probes.
    *
-   * Registers five probes, emitted once per recovered symbol and further
+   * Registers six probes, emitted once per recovered symbol and further
    * thinned by @p decim: "<prefix>.e" (normalised TED error),
    * "<prefix>.ctrl" (the per-input control steering the strobe),
    * "<prefix>.rate" (tracked samples/symbol), "<prefix>.lock" (last
-   * block-averaged lock_signal) and "<prefix>.locked" (0/1). Passing NULL
-   * detaches. Setup path, never hot: the context is borrowed and must
+   * block-averaged lock_signal), "<prefix>.locked" (0/1) and "<prefix>.mu"
+   * (the timing NCO's fractional phase — see resamp_get_ctrl_acc()). Passing
+   * NULL detaches. Setup path, never hot: the context is borrowed and must
    * outlive the attachment (SPSC rules in telemetry/telemetry.h).
+   *
+   * The three form one readable picture of the loop: `e` is what the detector
+   * saw, `ctrl` is what the filter did about it, and `mu` is where the
+   * sampling instant ended up as a result — the only one of the three that is
+   * a physical position rather than a correction.
    *
    * @param state  Must be non-NULL.
    * @param tlm    Telemetry context to attach, or NULL to detach.
    * @param prefix Probe-name prefix, e.g. "sync".
    * @param decim  Emit every decim-th symbol; >= 1.
    * @return DP_OK, or DP_ERR_INVALID when the probe table cannot take all
-   *         five probes (the attach fails whole; the object stays detached).
+   *         six probes (the attach fails whole; the object stays detached).
    */
   int ratesync_set_telemetry (ratesync_state_t *state, dp_tlm_t *tlm,
                               const char *prefix, uint32_t decim);

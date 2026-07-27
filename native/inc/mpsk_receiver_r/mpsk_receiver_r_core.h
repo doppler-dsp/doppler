@@ -243,7 +243,7 @@ extern "C"
   void mpsk_receiver_r_configure_lock (mpsk_receiver_r_state_t *state,
                                        double up_thresh, double down_thresh,
                                        uint32_t n_up, uint32_t n_down);
-  /** @brief Attach (or detach) telemetry; registers the same ten probes as
+  /** @brief Attach (or detach) telemetry; registers the same eleven probes as
    *  mpsk_receiver_set_telemetry(), whose contract this shares. */
   int mpsk_receiver_r_set_telemetry (mpsk_receiver_r_state_t *state,
                                      dp_tlm_t *tlm, const char *prefix,

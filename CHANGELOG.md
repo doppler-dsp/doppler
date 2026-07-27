@@ -77,6 +77,24 @@ ______________________________________________________________________
 
 ### Added
 
+- **`sync.mu` — the timing NCO's phase is now observable.** Every other timing
+    probe is an *error* (`sync.e`) or a *correction* (`sync.ctrl`, `sync.rate`);
+    `mu` is where the sampling instant actually ended up — the terminal
+    resampler's control accumulator, in `[0, 1)` output periods, so the
+    polyphase arm the last output read is `mu * num_phases`. A steady `mu` means
+    the loop settled on a sampling phase, one that slews and wraps means a
+    residual *rate* error still unabsorbed (one wrap is one output period of
+    slip), and hash means the loop is being driven by something that is not a
+    timing error. It lives on the shared `ratesync_loop_t`, so `RateSync` and
+    both `MpskReceiver`s gain it at once — six timing probes now, eleven on a
+    receiver — and `resamp_get_ctrl_acc()` exposes the same quantity in C.
+
+    This is a diagnostic that pays for itself immediately: on the gh#536
+    `sps=10` investigation it ruled the NCO out as the cause in one plot (rate
+    parked 0.03% off nominal, `mu` steady, cumulative slip an eighth of one
+    output period across 3000 symbols) after several sessions of hypotheses
+    about the accumulator.
+
 - **`nda_tap` — choose where the carrier discriminator reads.** An M-th-power
     discriminator updating at rate `F` can only observe `|Δf| < F/(2M)`, so its
     tap point *is* its pull-in range. Symbol-rate-only carrier tracking does not
@@ -302,6 +320,24 @@ ______________________________________________________________________
     reassurance: "no overflow occurs" describes the integer pipeline, not a
     licence to feed the block any amplitude. Pinned by tests in both harnesses
     so the docs and the code cannot drift apart.
+
+- **`Ddcr`'s "roughly 2x cheaper than DDC" claim is corrected — it was never
+    measured, and it is wrong.** Against `DDC` fed the same stream promoted to
+    complex, the front end alone measures 1.04x-1.40x end to end at total rates
+    0.25/0.125/0.0625, and 0.74x-1.13x once the real→complex promote is charged
+    to `DDC`, with the ratio wandering by block size the way a memory-bound
+    measurement does. The multiply-free ±1/0 coefficients are real, but they buy
+    the *fs/4 shift*, not the halfband's own FIR — which does multiply
+    (one output component is an FIR, the other a single scaled delay tap).
+
+    Where the half rate does pay is a whole receiver, because it halves the
+    sample rate ahead of the polyphase matched filter: `MpskReceiverR` against
+    `MpskReceiver` on the same stream measures 1.13x at `sps=20`/`m_out=8`,
+    1.50x at 32/8, 1.69x at 64/8, 1.50x at 20/4 and 1.74x at 40/4. It rises
+    toward 2x as more of the total cost sits ahead of the terminal stage, and
+    cannot reach it: both paths fire the same `m_out` terminal dot products per
+    symbol, and those dominate at low `sps`. Choose `Ddcr` because the input IS
+    real, not for a factor of two.
 
 - `RateConverter.execute()` on a **matched** cascade routes through the unified
     accumulator (`execute_ctrl` at zero deviation) rather than `resamp`'s

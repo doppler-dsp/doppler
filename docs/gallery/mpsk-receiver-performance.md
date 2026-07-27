@@ -36,36 +36,54 @@ receiver's test harness encode.
 | **Never widen `bn` for a shorter record** | `bn` is normalised to the **symbol** rate, so settling is a fixed number of symbols at any sample rate. Widening does not buy samples, it changes the receiver. A heavily oversampled case simply needs millions of samples — that is what [`wfmgen`](wfmgen.md) is for.                                           |
 | **Anchor at SER = 1e-3**                  | Per-M that is 6.8 / 10.3 / 15.7 dB, which asks "does it meet its bound" at the same place on the curve for every order, instead of at one arbitrary Es/N0.                                                                                                                                                         |
 
-## The three panels
+## The two panels
 
 **EVM vs the coherent bound.** Self-referenced EVM — each symbol against its own
 hard decision — against `EVM_dB = −(Es/N0)_dB`. EVM is an I/Q-plane quantity, so
 there is no factor of two, and an EVM *beating* the bound means the measurement
 is wrong. Median margin over the whole random sweep: **+0.1 dB**.
 
-**SER vs the theoretical M-PSK bound.** Truth-referenced, with a lag and rotation
-search, red for the real IF and blue for complex baseband. Paired with EVM
-deliberately: a bit error rate alone is fragile in both directions, and it is the
-**disagreement** between a truth-referenced rate and a truth-free EVM that
-carries the diagnosis — see the warning below for a case where that disagreement
-was the whole story.
-
 **Lock time against each trial's own budget.** Not an absolute symbol count — a
 *fraction* of that trial's `2·(5/bn_t + 5/bn_c)`, which is the only way to
-compare trials with different bandwidths.
+compare trials with different loop bandwidths.
 
-!!! note "Five more panels exist, on demand"
+!!! note "Six more panels exist, on demand"
 
-    `--only falsealarm,level,invariance,chunking,telemetry`, or `--only all`.
-    They are not in the committed figure because a plot is the wrong shape for
-    what they measure: level invariance and sample-rate invariance are flat
-    lines, false alarm is a count of zero, chunking is a bar chart of exact
-    zeros, and telemetry is two bars. All five are **assertions** now —
-    `src/doppler/track/tests/test_mpsk_receiver_performance.py` for false alarm,
-    level invariance and the coherent bound, and the `bench_mpsk_receiver*.py`
-    pair for the telemetry cost (+10.5% complex, +11.6% real). A pass/fail
-    property belongs in a test, where it runs on every commit, rather than in a
-    figure nobody re-reads.
+    `--only ber,falsealarm,level,invariance,chunking,telemetry`, or
+    `--only all`. They are not in the committed figure because each answers a
+    PASS/FAIL question, and a plot is the wrong shape for one: level and
+    sample-rate invariance are flat lines, false alarm is a count of zero,
+    chunking is a bar chart of exact zeros, telemetry is two bars, and `ber`
+    restates `evm` on a log axis.
+
+    All six are **assertions** instead, which is where a pass/fail property
+    belongs — it then runs on every commit rather than sitting in a PNG:
+    `src/doppler/track/tests/test_mpsk_receiver_performance.py` covers false
+    alarm, level invariance and the coherent bound, and the
+    `bench_mpsk_receiver*.py` pair covers the telemetry cost (+10.5% complex,
+    +11.6% real).
+
+!!! tip "How the SER is measured, since it is easy to get wrong"
+
+    The bound test stops on a fixed number of **errors**, not symbols. Under
+    inverse binomial sampling the symbol count is the random variable
+    (negative-binomially distributed) and the relative standard error is
+    `1/√r` — dependent only on the error count, so the target error count *is*
+    the precision. 200 errors gives ~7% relative, ±14% at 95%. A fixed
+    20 000-symbol burst at SER 1e-3 yields ~20 errors and ~22% relative error,
+    which reads as real seed-to-seed variation in the receiver.
+
+    Two consequences a fixed-`N` measurement misses: the naive `r/N` is
+    **biased** (the unbiased estimator is `(r−1)/(N−1)`), and the interval comes
+    from the negative binomial rather than a binomial on a fixed `N`.
+
+    Also compare like with like: a **differential** SER is rotation-free, and
+    therefore convenient, but a differential decision fails if either of its two
+    symbols is wrong — so it reads ~2× a coherent SER (measured 1.88–2.11 here).
+    Comparing one against a coherent curve invents a factor of two of
+    "implementation loss". Measured coherently, both receivers sit **1.2–2.4×
+    the bound, i.e. 0.3–1.0 dB**, with 8PSK on the real IF the only cell above
+    2×.
 
 !!! warning "A rotation-blind metric cannot check your measurement window"
 
@@ -100,10 +118,10 @@ arrives in whatever blocks your transport hands you.
 Every panel is independently selectable, so a single question is cheap to ask:
 
 ```bash
-# the three panels above (the default, and what the figure is)
+# the two panels above (the default, and what the figure is)
 python src/doppler/examples/mpsk_receiver_performance_demo.py
 
-# every panel, including the five pass/fail ones
+# every panel, including the six pass/fail ones
 python src/doppler/examples/mpsk_receiver_performance_demo.py --only all
 
 # one question at a time

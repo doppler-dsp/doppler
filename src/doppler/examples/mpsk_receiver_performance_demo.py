@@ -946,17 +946,20 @@ ALL_PANELS = (
 )
 
 #: What the committed gallery figure shows, and the default when no `--only` is
-#: given. The three panels a reader actually has a question about: does it meet
-#: the bound (evm, ber) and how long does it take (lock).
+#: given. Two panels: how close to the bound (`evm`) and how long to get there
+#: (`lock`). Those are the two questions a reader of a receiver page has.
 #:
-#: The other five answer PASS/FAIL questions, and a plot is the wrong shape for
-#: those -- level invariance and sample-rate invariance are flat lines,
-#: false alarm is a count of zero, chunking is a bar chart of exact zeros, and
-#: telemetry is two bars. All five are assertions now, in
-#: `src/doppler/track/tests/test_mpsk_receiver_performance.py` and the
-#: `bench_mpsk_receiver*.py` pair, which is where a pass/fail property belongs.
-#: They stay plottable on demand -- `--only falsealarm,telemetry` etc.
-GALLERY_PANELS = ("evm", "ber", "lock")
+#: The other six are plottable on demand (`--only ber,falsealarm`, or
+#: `--only all`) but are not in the figure, because each is a PASS/FAIL
+#: property and a plot is the wrong shape for one: level and sample-rate
+#: invariance are flat lines, false alarm is a count of zero, chunking is a bar
+#: chart of exact zeros, telemetry is two bars, and `ber` restates `evm` on a
+#: log axis. All six
+#: are assertions instead -- `test_mpsk_receiver_performance.py` (false alarm,
+#: level invariance, and the coherent bound via inverse binomial sampling) and
+#: the `bench_mpsk_receiver*.py` pair (telemetry) -- which is where a pass/fail
+#: property belongs, since it then runs on every commit.
+GALLERY_PANELS = ("evm", "lock")
 
 #: Chunking plans exercised by the `chunking` panel. Fixed powers of two are
 #: the
@@ -1168,15 +1171,9 @@ def main(
         nrow, ncol, figsize=(6.0 * ncol, 4.6 * nrow), squeeze=False
     )
     fig.suptitle(
-        "M-PSK receiver performance — Monte Carlo over random geometries.\n"
-        "Every trial draws M, m_out, a non-integer sps, IF placement, both "
-        "loop bandwidths (capped at 0.01 and narrowed to hold 20 dB of loop "
-        "SNR), carrier and clock offsets inside the loop bandwidth, level and "
-        "data.\nRed = MpskReceiverR (real IF), "
-        "blue = MpskReceiver (complex baseband).",
+        "M-PSK receiver performance — random geometry per trial.  "
+        "Blue = complex baseband, red = real IF.",
         fontsize=10,
-        y=0.997,
-        wrap=True,
     )
 
     for ax, name in zip(np.ravel(axes), panels):

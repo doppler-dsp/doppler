@@ -187,11 +187,24 @@ ddc_execute_ctrl (ddc_state_t *s, const float _Complex *in, size_t n_in,
 }
 
 size_t
+ddc_execute_ctrl_push_tap (ddc_state_t *s, float _Complex x, double rate_ctrl,
+                           double freq_ctrl, float _Complex *out,
+                           size_t max_out, float _Complex *lo_out, int *n_lo)
+{
+  float _Complex z = x * lo_step_ctrl (s->lo, freq_ctrl);
+  if (lo_out)
+    *lo_out = z;
+  if (n_lo)
+    *n_lo = 1; /* a complex front end mixes every input it is given */
+  return RateConverter_execute_ctrl_push (s->rc, z, rate_ctrl, out, max_out);
+}
+
+size_t
 ddc_execute_ctrl_push (ddc_state_t *s, float _Complex x, double rate_ctrl,
                        double freq_ctrl, float _Complex *out, size_t max_out)
 {
-  float _Complex z = x * lo_step_ctrl (s->lo, freq_ctrl);
-  return RateConverter_execute_ctrl_push (s->rc, z, rate_ctrl, out, max_out);
+  return ddc_execute_ctrl_push_tap (s, x, rate_ctrl, freq_ctrl, out, max_out,
+                                    NULL, NULL);
 }
 
 bool

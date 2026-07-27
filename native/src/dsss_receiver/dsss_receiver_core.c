@@ -3,17 +3,36 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* Largest divisor of sps in {4, 2, 1} -- MpskReceiver's own carrier-arm
- * count, mirroring the Python story's `next(c for c in (4,2,1) if sps % c
- * == 0)`. */
+/* MpskReceiver's terminal outputs per symbol (`m_out`).
+ *
+ * This used to be "largest divisor of sps in {4, 2, 1}", sized for the old
+ * `n`: the NDA arm's dumps per symbol, whose window was sps/n, so dividing
+ * sps exactly was the whole point. The cascade rebuild retired that arm --
+ * the parameter in this slot is now `m_out`, terminal outputs per symbol,
+ * which must be EVEN and in [2, 8] and need NOT divide sps (the front end
+ * plans its own cascade from a double sps). The old rule survived the
+ * rename and produced values that are wrong under the new meaning:
+ *
+ *   - `sps=8` gave 4, which does not decode this despread stream at all
+ *     (measured BER 0.44 at CN0=110 dB-Hz, i.e. noiseless, where m_out=8
+ *     gives 0.0000; Doppler-independent, so not a rate/pull-in effect);
+ *   - any ODD sps gave 1, which is not a legal m_out, so create() returned
+ *     NULL and dp_xnn() ABORTED the process -- `sps=5` was a SIGABRT with
+ *     no exception and no message.
+ *
+ * So: prefer 8, the coherent-bound default (an m_out-tap sum spans the
+ * symbol, and 8 samples that integral finely enough to land ~0.4 dB off
+ * the bound where 4 loses ~3 dB -- see mpsk_receiver_create), and step down
+ * by 2 only as far as `sps` allows, since MpskReceiver requires
+ * sps >= m_out. Every result is even and >= 2 for any sps >= 2, so the
+ * abort is structurally gone rather than merely unlikely. */
 static int
-_derive_n (size_t sps)
+_derive_m_out (size_t sps)
 {
-  if (sps % 4 == 0)
-    return 4;
-  if (sps % 2 == 0)
-    return 2;
-  return 1;
+  int m = MPSK_RX_M_OUT_DEFAULT;
+  while (m > 2 && (size_t)m > sps)
+    m -= 2;
+  return m;
 }
 
 /* Allocate a fresh Dll/RateConverter/MpskReceiver triple (+ seed the
@@ -53,9 +72,48 @@ _build_chain (double chip_rate, double symbol_rate, const uint8_t *code,
    * (the NCO only represents frequency mod 1 cycle/sample), landing a
    * wrong seed far outside MpskReceiver's own carrier_nda loop's
    * validated pull-in range (~0.01 cycles/sample, carrier_nda_pullin.c). */
-  mpsk_receiver_state_t *rx = dp_xnn (
-      mpsk_receiver_create (m, sps, n, MPSK_RX_PULSE_IANDD, 0.35, 8, 0.01,
-                            0.707, 0.01, 1, 0.3, 0.0, 30, differential));
+  /* bn_timing is 0.005, not the 0.01 this call used before the cascade
+     rebuild, which moved what the timing loop steers: RateSync's terminal
+     accumulator now, not a Farrow interpolator behind a dense FIR.
+     Measured on 4000-symbol bursts, aligned ONCE on the whole stream, with
+     settling excluded at max(5/Bn, the symbol where this object's own `lock`
+     rises past 0.5 and stays) -- 8 seeds across the C/N0 sweep's middle
+     bucket, against the coherent bound EVM_dB = -(Es/N0)_dB:
+
+       bn_timing  lock settle (med/max)  steady EVM  loss  steady BER>1e-3
+         0.02        593 / 1261 sym       -22.81 dB  +5.07     2/8
+         0.01         573 /  593 sym      -22.72 dB  +5.18     0/8
+         0.005        581 /  594 sym      -22.79 dB  +5.27     0/8
+         0.002        922 / 1533 sym      -22.69 dB  +5.28     0/8
+
+     So bn_timing does NOT set steady-state quality over 0.002..0.02: EVM is
+     flat at ~-22.7 dB, which is this chain's own implementation floor (the
+     2x replica's matched-filter loss + the async-symbol straddle + NCO
+     quantisation, ~5 dB off the bound), and steady-state BER is exactly 0.
+     What it sets is how fast and how reliably the loop LOCKS: 0.02 is
+     erratic (2 of 8 seeds never reach a clean BER, lock as late as 1261
+     symbols) and 0.002 is slow (median 922). 0.01 and 0.005 are the fast,
+     consistent tier and are indistinguishable in steady state; 0.005 is
+     taken because it is what makes the 700-symbol stress burst decode.
+
+     ⚠ Two measurement traps, both of which made this look like a tracking
+     problem when it is a settling one. (1) A loop needs ~5/Bn symbols to
+     settle, so at these bandwidths NO window inside a 700-symbol burst is
+     steady state -- lock alone takes ~575 symbols. Whole-burst BER on that
+     harness is therefore transient-dominated, and the earlier reading that
+     "0.002 is 8 dB worse in EVM" was purely unsettled loop. (2) Sliding the
+     output offset without sliding the truth offset makes BER measure a
+     misalignment; that reported BER > 1e-3 on every seed at -22.7 dB EVM,
+     which is impossible for BPSK and is the tell.
+
+     bn_carrier is NOT implicated (0.005 and 0.002 change nothing while
+     bn_timing stays at 0.01), so it keeps its value. EVM and the
+     rotation-blind M2M4 agree within ~1-3 dB, so the residual is not a
+     phase fault. */
+  mpsk_receiver_state_t *rx = dp_xnn (mpsk_receiver_create (
+      m, (double)sps, (size_t)n, MPSK_RX_PULSE_IANDD, 0.35, 8, 0.01, 0.707,
+      0.005, 1, 0.3, 0.0, 30, differential, MPSK_RX_NUM_PHASES,
+      MPSK_RX_NDA_TAP_STROBE));
 
   /* Pre-despread carrier loop: seeded in cycles/sample at the FRONT-END
    * rate (chip_rate*spc) -- the stage that actually owns removing the
@@ -284,11 +342,11 @@ dsss_receiver_create (const uint8_t *code, size_t code_len, double chip_rate,
    * for real the moment a hit fires (see the state struct's own doc
    * comment for why). */
   _build_chain (chip_rate, symbol_rate, obj->code, code_len, spc, m,
-                differential, 0.0, 0.0, segments, sps, _derive_n (sps),
+                differential, 0.0, 0.0, segments, sps, _derive_m_out (sps),
                 &obj->car, &obj->dll, &obj->rc, &obj->rx);
   obj->segments = segments;
   obj->sps      = sps;
-  obj->n        = _derive_n (sps);
+  obj->n        = _derive_m_out (sps);
   return obj;
 }
 

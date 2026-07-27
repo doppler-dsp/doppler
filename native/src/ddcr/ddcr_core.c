@@ -275,17 +275,35 @@ ddcr_execute_ctrl (ddcr_state_t *s, const float *in, size_t n_in,
 }
 
 size_t
+ddcr_execute_ctrl_push_tap (ddcr_state_t *s, float x, double rate_ctrl,
+                            double freq_ctrl, float _Complex *out,
+                            size_t max_out, float _Complex *lo_out, int *n_lo)
+{
+  /* The 2:1 halfband is the block API's own state machine — one sample in,
+     0 or 1 intermediate samples out.  Half the pushes end here, and on those
+     the LO does not step at all, so there is no post-LO sample to tap. */
+  float _Complex z;
+  if (hbdecim_r2c_execute (s->r2c, &x, 1, &z, 1) == 0)
+    {
+      if (n_lo)
+        *n_lo = 0;
+      return 0;
+    }
+
+  z = z * lo_step_ctrl (s->lo, freq_ctrl);
+  if (lo_out)
+    *lo_out = z;
+  if (n_lo)
+    *n_lo = 1;
+  return RateConverter_execute_ctrl_push (s->rc, z, rate_ctrl, out, max_out);
+}
+
+size_t
 ddcr_execute_ctrl_push (ddcr_state_t *s, float x, double rate_ctrl,
                         double freq_ctrl, float _Complex *out, size_t max_out)
 {
-  /* The 2:1 halfband is the block API's own state machine — one sample in,
-     0 or 1 intermediate samples out.  Half the pushes end here. */
-  float _Complex z;
-  if (hbdecim_r2c_execute (s->r2c, &x, 1, &z, 1) == 0)
-    return 0;
-
-  z = z * lo_step_ctrl (s->lo, freq_ctrl);
-  return RateConverter_execute_ctrl_push (s->rc, z, rate_ctrl, out, max_out);
+  return ddcr_execute_ctrl_push_tap (s, x, rate_ctrl, freq_ctrl, out, max_out,
+                                     NULL, NULL);
 }
 
 bool

@@ -18,8 +18,9 @@ elapsed_sec (struct timespec *t0, struct timespec *t1)
 int
 main (void)
 {
-  mpsk_receiver_state_t *obj = mpsk_receiver_create (
-      4, 8, 4, 0, 0.35, 8, 0.01, 0.707, 0.01, 0, 0.5, 0.0, 100, 0);
+  mpsk_receiver_state_t *obj
+      = mpsk_receiver_create (4, 8.0, 4, 0, 0.35, 8, 0.01, 0.707, 0.01, 0, 0.5,
+                              0.0, 100, 0, 1024, MPSK_RX_NDA_TAP_STROBE);
   struct timespec t0, t1;
   jm_bench_t      _bench = { 0 };
 

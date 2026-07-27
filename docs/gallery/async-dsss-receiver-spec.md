@@ -3,8 +3,8 @@
 ![Constellation, loop-1 carrier-ramp tracking, windowed correctness, and binary symbol lock](../assets/async_dsss_receiver_spec_demo.png)
 
 Where
-[Continuous Async DSSS Receiver](async-dsss-receiver.md) (Stage 3)
-hand-composes the receive chain — `Acquisition` → `Dll` →
+[DsssReceiver — the Composed Continuous DSSS Receiver](dsss-receiver.md)
+(Stage 3) composes the receive chain — `Acquisition` → `Dll` →
 `RateConverter` → `MpskReceiver` — to *show the mechanics*, this page
 drives the single packaged object that wraps that whole chain,
 [`dsss.AsyncDsssReceiver`](../api/python-dsss.md), against the literal

@@ -13,6 +13,7 @@
  */
 #include "costas/costas_core.h"
 #include "dll/dll_core.h"
+#include "dp_sym_test.h"
 #include "dsss_receiver/dsss_receiver_core.h"
 #include <complex.h>
 #include <math.h>
@@ -93,7 +94,11 @@ _test_arg_validation (void)
       CHECK (dsss_receiver_get_tracking (rx) == 0);
       CHECK (dsss_receiver_get_segments (rx) == 4);
       CHECK (dsss_receiver_get_sps (rx) == 8);
-      CHECK (dsss_receiver_get_n (rx) == 4); /* sps=8 -> largest divisor 4 */
+      /* `n` is MpskReceiver's m_out: terminal outputs per symbol since the
+         cascade rebuild, not the retired NDA arm's dumps per symbol. So it
+         derives to the coherent-bound default, not the old "largest divisor
+         of sps in {4,2,1}" (which gave 4 and did not decode). */
+      CHECK (dsss_receiver_get_n (rx) == MPSK_RX_M_OUT_DEFAULT);
       CHECK (dsss_receiver_get_chip_phase (rx) == 0.0);
       CHECK (dsss_receiver_get_code_rate (rx) == 1.0);
       dsss_receiver_destroy (rx);
@@ -562,7 +567,17 @@ _test_sustained_doppler_rate (void)
    * ~4x past it) would emit far fewer symbols than the run's own length;
    * staying locked through most of it is the actual claim under test. */
   CHECK (n_syms4 > (n_sym / 2));
+  /* BER is scored by searching an unknown lag and polarity, so it is never
+     asserted alone (see dp_sym_test.h): both truth-free validators must agree
+     that the constellation is actually clean. Printed as well as asserted --
+     a regression that moves these is worth seeing, not just failing on. */
+  double evm4 = dp_test_evm_db_hard (syms4, n_syms4);
+  double snr4 = dp_test_m2m4_snr_db (syms4, n_syms4);
+  printf ("  segments=4: n=%zu ber=%.4f evm=%.1f dB m2m4=%.1f dB\n", n_syms4,
+          ber4, evm4, snr4);
   CHECK (ber4 < 0.05);
+  CHECK (evm4 < -8.0);
+  CHECK (snr4 > 8.0);
   /* The async-lookback mechanism must be NEEDED, not incidental: on the
    * IDENTICAL genuinely-async (~1.111 periods/symbol) signal, `segments=1`
    * (no lookback -- a plain coherent full-epoch dump) must decode

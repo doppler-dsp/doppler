@@ -67,6 +67,7 @@ from doppler.track import (
     Dll,
     LoopFilter,
     MpskReceiver,
+    MpskReceiverR,
     RateSync,
     SymbolSync,
 )
@@ -357,7 +358,13 @@ CASES: dict[str, tuple[Callable[[], Any], _Feed]] = {
         lambda: Despreader(code=_CODE, sps=2, periods_per_bit=1),
         _track_feed,
     ),
-    "MpskReceiver": (lambda: MpskReceiver(m=4, sps=8, n=4), _track_feed),
+    "MpskReceiver": (lambda: MpskReceiver(m=4, sps=8, m_out=4), _track_feed),
+    # sps > 2*m_out for the real twin: the cascade behind its R2C halfband
+    # runs at twice the overall rate, and Ddcr needs that below 0.5.
+    "MpskReceiverR": (
+        lambda: MpskReceiverR(m=4, sps=16, m_out=4),
+        lambda o, x: o.steps(x.real.astype(np.float32)),
+    ),
     # Generators ignore the segment values, emitting len(seg) samples.
     "NCO": (
         lambda: NCO(0.01, 0),

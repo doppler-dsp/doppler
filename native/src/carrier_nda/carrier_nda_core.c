@@ -29,18 +29,6 @@
 #define CARRIER_NDA_LOCK_DEFAULT_N_UP 64u
 #define CARRIER_NDA_LOCK_DEFAULT_N_DOWN 32u
 
-/* Per-M lock-signal scale: normalizes the lock metric across constellations
- * (see docs/design/mpsk.md §2.3). */
-static double
-lock_scale_for (int m)
-{
-  if (m == 2)
-    return 1.0;
-  if (m == 4)
-    return 0.619;
-  return 0.412; /* m == 8 */
-}
-
 /* Seed the loop integrator so the per-sample frequency estimate (lf.integ,
  * rad/sample) matches the requested carrier offset, and point the NCO at the
  * same frequency — de-rotation is correct from the first sample, before any
@@ -114,7 +102,6 @@ carrier_nda_init (carrier_nda_state_t *s, double bn, double zeta,
   s->arm_len = s->sps / (size_t)s->n;
   if (s->arm_len == 0)
     s->arm_len = 1;
-  s->lock_scale     = lock_scale_for (m);
   s->bn             = bn;
   s->zeta           = zeta;
   s->seed_norm_freq = init_norm_freq;

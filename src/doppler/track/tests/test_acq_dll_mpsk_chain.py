@@ -7,9 +7,9 @@ leg ``test_acq_dll_handoff.py`` already covers.
 not exercise ``MpskReceiver`` at all. This is the first test that drives
 ``Acquisition -> Dll(segments) -> RateConverter -> MpskReceiver`` end to
 end with a real acquisition search in front. See
-``src/doppler/examples/async_dsss_receiver_demo.py`` (the gallery
-counterpart, more epochs, plotted, plus the with/without-resample
-comparison) for the full story this pins down as a fast, always-run
+``src/doppler/examples/dsss_receiver_demo.py`` (the gallery counterpart,
+which runs the same chain composed into one ``DsssReceiver``, over more
+epochs and plotted) for the full story this pins down as a fast, always-run
 regression check.
 
 The despreader's job is just to remove the code; ``Dll(segments=K)``'s
@@ -48,7 +48,7 @@ _CSIGN = np.where(CODE & 1, -1.0, 1.0)
 CN0_DBHZ = 97.0  # matches the gallery example's operating point
 K = 4  # Dll's own tracking-optimal segments (Stage 2)
 MPSK_SPS = 8  # MpskReceiver's own constructor default
-MPSK_N = 4
+MPSK_M_OUT = 4  # terminal outputs/symbol (was `n`, the retired NDA arm)
 
 
 def _make_signal(n_sym, seed):
@@ -124,19 +124,24 @@ def _chain(x, s0, chip_phase, doppler_hz_est, resample: bool):
         rc = RateConverter(rate=target_rate / partial_rate)
         stream = rc.execute(part)
         norm_freq = doppler_hz_est / target_rate
-        sps, n_arm = MPSK_SPS, MPSK_N
+        sps, m_out = MPSK_SPS, MPSK_M_OUT
     else:
         stream = part
         norm_freq = doppler_hz_est / partial_rate
         sps = round(K * TSYM / TE)
-        n_arm = next(c for c in (4, 2, 1) if sps % c == 0)
+        # m_out must be EVEN and 2..8 (Gardner needs a half-symbol gate),
+        # and the terminal stage cannot interpolate, so m_out <= sps.
+        m_out = next(c for c in (4, 2) if sps % c == 0 and sps >= c)
 
     rx = MpskReceiver(
         m=2,
         sps=sps,
-        n=n_arm,
+        m_out=m_out,
         pulse="iandd",
-        bn_carrier=0.01,
+        # Pull-in range scales with bn_carrier, and acquisition hands
+        # off a residual of ~+50 Hz = 0.030*Rs here. 0.01 is too narrow
+        # to close that; 0.02 is the measured knee, 0.04 leaves margin.
+        bn_carrier=0.04,
         bn_timing=0.01,
         acq_to_track=1,
         lock_thresh=0.3,
@@ -162,7 +167,7 @@ def _handoff(x):
 
 
 def test_resampled_chain_decodes():
-    """Dll(segments=4) -> RateConverter -> MpskReceiver(sps=8, n=4) --
+    """Dll(segments=4) -> RateConverter -> MpskReceiver(sps=8, m_out=4) --
     the correct architecture -- decodes cleanly."""
     x, data = _make_signal(n_sym=1500, seed=6)
     s0, chip_phase, doppler_hz_est, data_start = _handoff(x)

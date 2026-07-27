@@ -170,7 +170,6 @@ nav:
           - 5-Burst DSSS Link (wfmgen's 3 Faces): gallery/dsss-burst-pipeline.md
           - Streaming Async Despreader: gallery/async-despread.md
           - Full-Chain Lock-Up: gallery/receiver-lock.md
-          - Continuous Async DSSS Receiver: gallery/async-dsss-receiver.md
           - DsssReceiver (Composed Object): gallery/dsss-receiver.md
           - "AsyncDsssReceiver: the SPEC Waveform": gallery/async-dsss-receiver-spec.md
           - "CarrierAcquisition: RRC Pulse Shaping": gallery/carrier-acq-rrc.md
@@ -187,6 +186,7 @@ nav:
       - Constellations & Receivers:
           - M-PSK Constellation: gallery/mpsk.md
           - M-PSK Receiver: gallery/mpsk-receiver.md
+          - "M-PSK Receiver: Performance": gallery/mpsk-receiver-performance.md
       - Measurement:
           - Measurement Suite: gallery/measure.md
           - "Measurement Suite: IMD & NPR": gallery/measure-imd-npr.md

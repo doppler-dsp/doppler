@@ -64,7 +64,7 @@ acq_unmod (int m, double f0, double bn, size_t n, float sigma, uint32_t seed)
         }
     }
   int ok = fabs (carrier_nda_get_norm_freq (c) - f0) < 5e-4
-           && carrier_nda_get_lock (c) > 0.5 * c->lock_scale;
+           && carrier_nda_get_lock (c) > 0.5;
   carrier_nda_destroy (c);
   return ok;
 }
@@ -111,7 +111,7 @@ acq_moddata (int m, double f0, float sigma, double *out_lock)
             }
         }
     }
-  *out_lock  = carrier_nda_get_lock (c) / c->lock_scale; /* normalize to ~1 */
+  *out_lock  = carrier_nda_get_lock (c); /* already normalised to ~1 */
   double err = fabs (carrier_nda_get_norm_freq (c) - f0);
   carrier_nda_destroy (c);
   return err;

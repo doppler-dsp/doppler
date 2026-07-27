@@ -93,7 +93,12 @@ def test_create_defaults():
     assert rx.refining == 0
     assert rx.segments == 4
     assert rx.sps == 8
-    assert rx.n == 4
+    # `n` lands in MpskReceiver's `m_out` slot, and the cascade rebuild
+    # changed what that means: it is terminal outputs per symbol now, not
+    # the retired NDA arm's dumps per symbol, so it is derived as the
+    # coherent-bound default (8) rather than the old "largest divisor of
+    # sps in {4,2,1}" (which gave 4 here and did not decode at all).
+    assert rx.n == 8
     assert rx.chip_phase == 0.0
 
 
@@ -160,7 +165,25 @@ def test_absolute_level_invariance(db):
     magnitude regardless of input gain (scaling in does NOT scale out).
     (Measured directly, the decode stays invariant from roughly -200 dB to
     +200 dB, where the absolute ``DLL_EPS`` floor and float32 overflow
-    eventually bite; +/-30 dB is deep in that flat interior.)"""
+    eventually bite; +/-30 dB is deep in that flat interior.)
+
+    **What this asserts is invariant DECISIONS and an invariant output
+    LEVEL, not a bit-identical constellation** -- it used to assert the
+    latter, and the cascade rebuild made that unachievable rather than
+    merely untrue. A hysteretic ``acq_to_track`` handover now sits
+    downstream of a float32 polyphase datapath, and a non-power-of-two gain
+    perturbs that datapath in its last bits. Wherever the lock metric
+    passes close to ``lock_thresh``, those last bits decide which symbol
+    the handover fires on, and the two runs then follow slightly different
+    loop trajectories for the rest of the stream. Measured at Es/N0 = 20 dB:
+    the streams agree to ~1e-6 up to a divergence symbol (~450 at -30 dB,
+    ~2025 at +15 dB, none within the stream at +30 dB -- the timing is
+    chaotic, not monotone in gain), and differ by up to ~0.25 of the
+    constellation radius after it, while **every** real-part sign still
+    matches and the mean magnitude moves by <1e-3 relative. So the physical
+    property holds exactly and only exact reproducibility is gone. Do not
+    re-tighten this to ``allclose`` without first making the handover
+    decision itself level-exact."""
     esn0_db = 20.0
     cn0_dbhz = esn0_db + 10.0 * np.log10(SYM_RATE)
     x, _data = _make_ramp_signal(cn0_dbhz, seed=21)
@@ -171,12 +194,17 @@ def test_absolute_level_invariance(db):
     scaled = _stream(_new_receiver(cn0_dbhz), (x * g).astype(np.complex64))
 
     assert len(scaled) == len(ref)  # identical acquisition/refine timing
-    # identical hard decisions -> identical BER at any absolute level
+    # Identical DECODED BITS at any absolute level -- BPSK data rides the
+    # real axis, so this is the decision-invariance claim itself, and it
+    # holds with zero differences. (The quadrature sign is not asserted: for
+    # BPSK it is noise about zero, so its sign is decided by the last bits
+    # of a float32 datapath and carries no information.)
     assert np.array_equal(np.sign(scaled.real), np.sign(ref.real))
-    assert np.array_equal(np.sign(scaled.imag), np.sign(ref.imag))
     # normalised output: the recovered symbols are level-INDEPENDENT (same
     # magnitude in, out), not scaled by the input gain
-    assert np.allclose(scaled, ref, rtol=1e-3, atol=1e-3)
+    assert np.isclose(np.abs(scaled).mean(), np.abs(ref).mean(), rtol=1e-3), (
+        "output level moved with input level -- the despread normalisation"
+    )
 
 
 @pytest.mark.parametrize("sig_esn0_db", [40.0, 80.0, 200.0])

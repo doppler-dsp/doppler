@@ -109,7 +109,7 @@ main (void)
     carrier_nda_init (&v, 0.01, 0.707, 0.01, 8, 4, 4);
     CHECK (v.lf.kp == c->lf.kp && v.lf.ki == c->lf.ki);
     CHECK (v.nco.phase_inc == c->nco.phase_inc);
-    CHECK (v.arm_len == c->arm_len && v.lock_scale == c->lock_scale);
+    CHECK (v.arm_len == c->arm_len && v.m == c->m);
     carrier_nda_destroy (c);
 
     /* M in {2,4,8}; sps % n == 0; n > 0; sps > 0 */
@@ -156,24 +156,22 @@ main (void)
   {
     for (int mi = 0; mi < 3; mi++)
       {
-        int    m     = (mi == 0) ? 2 : (mi == 1) ? 4 : 8;
-        double scale = (m == 2) ? 1.0 : (m == 4) ? 0.619 : 0.412;
-        double seg   = TWOPI / m;
+        int    m   = (mi == 0) ? 2 : (mi == 1) ? 4 : 8;
+        double seg = TWOPI / m;
         double pe0, lk0;
-        carrier_nda_disc (1.0f + 0.0f * I, m, scale, &pe0, &lk0);
+        carrier_nda_disc (1.0f + 0.0f * I, m, &pe0, &lk0);
         CHECK (fabs (pe0) < 1e-9); /* e(0) = 0          */
         CHECK (lk0 > 0.0);         /* lock peaks at 0   */
         /* constant-gain property: phase_error slope at 0 is ~2 for all M */
         double h = 1e-3 / m, peh, pemh, lk;
-        carrier_nda_disc ((float complex)cexp (I * h), m, scale, &peh, &lk);
-        carrier_nda_disc ((float complex)cexp (-I * h), m, scale, &pemh, &lk);
+        carrier_nda_disc ((float complex)cexp (I * h), m, &peh, &lk);
+        carrier_nda_disc ((float complex)cexp (-I * h), m, &pemh, &lk);
         double slope = (peh - pemh) / (2.0 * h);
         CHECK (fabs (slope - 2.0) < 2e-2);
         /* sawtooth period 2pi/M: e(phi) == e(phi + 2pi/M) */
         double pa, pb;
-        carrier_nda_disc ((float complex)cexp (I * 0.05), m, scale, &pa, &lk);
-        carrier_nda_disc ((float complex)cexp (I * (0.05 + seg)), m, scale,
-                          &pb, &lk);
+        carrier_nda_disc ((float complex)cexp (I * 0.05), m, &pa, &lk);
+        carrier_nda_disc ((float complex)cexp (I * (0.05 + seg)), m, &pb, &lk);
         CHECK (fabs (pa - pb) < 1e-6);
       }
   }
@@ -196,8 +194,8 @@ main (void)
             = carrier_nda_create (0.01, 0.707, 0.0, 8, 4, ms[mi]);
         double f, lk;
         run (c, rx, N, &f, &lk);
-        CHECK (fabs (f - f0) < 5e-4);     /* acquired the bare carrier */
-        CHECK (lk > 0.3 * c->lock_scale); /* locked (scaled metric)    */
+        CHECK (fabs (f - f0) < 5e-4); /* acquired the bare carrier */
+        CHECK (lk > 0.3);             /* locked (normalised: ~1)   */
         carrier_nda_destroy (c);
       }
     free (rx);
@@ -232,7 +230,7 @@ main (void)
         double f, lk;
         run (c, rx, N, &f, &lk);
         CHECK (fabs (f - f0) < 5e-4); /* locked despite NO timing  */
-        CHECK (lk > 0.3 * c->lock_scale);
+        CHECK (lk > 0.3);
         carrier_nda_destroy (c);
       }
     free (rx);
@@ -370,8 +368,8 @@ main (void)
             = carrier_nda_create (0.01, 0.707, 0.0, 8, 4, 4);
         double f, lk;
         run (c, rs, N, &f, &lk);
-        CHECK (fabs (f - f0) < 5e-4);     /* converges at any in-range scale */
-        CHECK (lk > 0.3 * c->lock_scale); /* lock metric scale-invariant     */
+        CHECK (fabs (f - f0) < 5e-4); /* converges at any in-range scale */
+        CHECK (lk > 0.3);             /* lock metric level-invariant     */
         fs[si] = f;
         carrier_nda_destroy (c);
       }

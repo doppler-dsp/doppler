@@ -23,6 +23,10 @@ depends_on = [
     { name = "hbdecim", link = true },
     { name = "cic", link = true },
     { name = "resample", link = true },
+    # snr: the blind M2M4 estimator this object's C test uses as a truth-free
+    # validator alongside BER (native/tests/dp_sym_test.h). Bare, not
+    # link=true -- the test/bench need the symbol, the .so does not.
+    { name = "snr" },
 ]
 # wfm_dsp_core: the RRC matched-filter kernel behind mpsk_receiver's own RRC
 # pulse option -- a wfmcompose-internal OBJECT lib, not a jm component, so it

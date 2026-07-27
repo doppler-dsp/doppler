@@ -723,8 +723,12 @@ static PyTypeObject DdcrObjType = {
   = "Create a real-input Digital Down-Converter (Architecture D2). The signal "
     "chain is: halfband R2C (2:1, bakes in +fs/4 shift) -> fine LO mix at the "
     "intermediate rate (fs_in/2) -> RateConverter -> CF32 output.  The "
-    "halfband stage uses +-1/0 coefficients (no multiplications), making DDCR "
-    "roughly 2x cheaper than DDC at the same total decimation ratio.\n",
+    "halfband stage uses +-1/0 coefficients (no multiplications) and puts the "
+    "fine LO and the cascade at fs_in/2.  That is worth ~1.1-1.7x in a whole "
+    "receiver (it halves the rate ahead of the polyphase matched filter, so "
+    "the gain grows with samples/symbol) and close to nothing for the front "
+    "end alone -- see the file header for the measurements.  Use it because "
+    "the input IS real.\n",
   .tp_methods = DdcrObj_methods,
   .tp_getset  = Ddcr_getset,
   .tp_new     = DdcrObj_new,

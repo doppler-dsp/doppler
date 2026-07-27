@@ -303,6 +303,12 @@ resamp_get_num_taps (const resamp_state_t *s)
   return s->num_taps;
 }
 
+double
+resamp_get_ctrl_acc (const resamp_state_t *s)
+{
+  return s->ctrl_acc;
+}
+
 /* ------------------------------------------------------------------ */
 /* Overflow detection                                                  */
 /* ------------------------------------------------------------------ */

@@ -44,15 +44,17 @@ Every tracking loop (and the AGC) exposes
 their embedded loops under a dotted sub-prefix. `None` detaches
 everything the attach armed.
 
-| Object               | Probes under `<prefix>`                                            | Event rate                  |
-| -------------------- | ------------------------------------------------------------------ | --------------------------- |
-| `agc.AGC`            | `.gain_db`                                                         | per gain update (amortized) |
-| `track.Costas`       | `.lock`, `.e`, `.freq`, `.locked`                                  | per dumped symbol           |
-| `track.Dll`          | `.e`, `.rate`, `.lock`, `.locked`                                  | per code epoch              |
-| `track.CarrierNda`   | `.lock`, `.e`, `.freq` + `.agc.gain_db`                            | per sample — use `decim`    |
-| `track.SymbolSync`   | `.e`, `.freq`, `.rate`, `.lock`, `.locked`                         | per recovered symbol        |
-| `track.MpskReceiver` | `.lock`, `.tracking` + `.car.*` (+ `.car.agc.gain_db`) + `.sync.*` | per recovered symbol        |
-| `dsss.Despreader`    | `.car.*` (Costas) + `.code.*` (DLL)                                | per code period             |
+| Object                | Probes under `<prefix>`                                 | Event rate                  |
+| --------------------- | ------------------------------------------------------- | --------------------------- |
+| `agc.AGC`             | `.gain_db`                                              | per gain update (amortized) |
+| `track.Costas`        | `.lock`, `.e`, `.freq`, `.locked`                       | per dumped symbol           |
+| `track.Dll`           | `.e`, `.rate`, `.lock`, `.locked`                       | per code epoch              |
+| `track.CarrierNda`    | `.lock`, `.e`, `.freq` + `.agc.gain_db`                 | per sample — use `decim`    |
+| `track.SymbolSync`    | `.e`, `.freq`, `.rate`, `.lock`, `.locked`              | per recovered symbol        |
+| `track.RateSync`      | `.e`, `.ctrl`, `.rate`, `.lock`, `.locked`, `.mu`       | per recovered symbol        |
+| `track.MpskReceiver`  | `.lock`, `.tracking` + `.car.*` + `.sync.*` (11 probes) | per recovered symbol        |
+| `track.MpskReceiverR` | `.lock`, `.tracking` + `.car.*` + `.sync.*` (11 probes) | per recovered symbol        |
+| `dsss.Despreader`     | `.car.*` (Costas) + `.code.*` (DLL)                     | per code period             |
 
 The decision probes pair with their statistic probes by design:
 `Dll`'s `.locked` is the verify-counted
@@ -61,6 +63,17 @@ the `.lock` CFAR statistic it is judging, and `MpskReceiver`'s
 `.tracking` is the two-way handover state next to the `.lock` carrier
 metric — plot the pair and you see exactly where the declare/drop rule
 fired, without re-deriving thresholds consumer-side.
+
+`RateSync`'s `.mu` (also `MpskReceiver`'s `.sync.mu`) is the odd one out:
+every other timing probe is an *error* or a *correction*, while `.mu` is
+the timing NCO's own phase — the terminal resampler's accumulator, in
+`[0, 1)` output periods, so the polyphase arm the last output read is
+`mu * num_phases`. It answers a question the error signals cannot: a
+steady `.mu` means the loop has settled on a sampling phase, one that
+slews and wraps means a residual *rate* error still unabsorbed (one wrap
+is one output period of slip), and hash means the loop is being driven by
+something that is not a timing error. Read it alongside `.e` and `.ctrl`
+and the three give cause, response, and result.
 
 ## Threading model
 

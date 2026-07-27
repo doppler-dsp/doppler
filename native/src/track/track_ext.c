@@ -1,7 +1,7 @@
 /*
  * track_ext.c — Python extension module track
  *
- * Objects: LoopFilter, Costas, Dll, SymbolSync, RateSync, CarrierMpsk, CarrierNda, MpskReceiver
+ * Objects: LoopFilter, Costas, Dll, SymbolSync, RateSync, CarrierMpsk, CarrierNda, MpskReceiver, MpskReceiverR
  * GENERATED — do not hand-edit. Patches belong in the _ext_<obj>.c fragments.
  */
 
@@ -20,6 +20,7 @@
 #include "track_ext_carrier_mpsk.c"
 #include "track_ext_carrier_nda.c"
 #include "track_ext_mpsk_receiver.c"
+#include "track_ext_mpsk_receiver_r.c"
 
 /* ======================================================== */
 /* Module                                                    */
@@ -45,6 +46,7 @@ PyInit_track(void)
     if (PyType_Ready(&CarrierMpskObjType) < 0) return NULL;
     if (PyType_Ready(&CarrierNdaObjType) < 0) return NULL;
     if (PyType_Ready(&MpskReceiverObjType) < 0) return NULL;
+    if (PyType_Ready(&MpskReceiverRObjType) < 0) return NULL;
     PyObject *m = PyModule_Create(&track_moduledef);
     if (!m) return NULL;
     Py_INCREF(&LoopFilterObjType);
@@ -78,6 +80,10 @@ PyInit_track(void)
     Py_INCREF(&MpskReceiverObjType);
     if (PyModule_AddObject(m, "MpskReceiver", (PyObject *)&MpskReceiverObjType) < 0) {
         Py_DECREF(&MpskReceiverObjType); Py_DECREF(m); return NULL;
+    }
+    Py_INCREF(&MpskReceiverRObjType);
+    if (PyModule_AddObject(m, "MpskReceiverR", (PyObject *)&MpskReceiverRObjType) < 0) {
+        Py_DECREF(&MpskReceiverRObjType); Py_DECREF(m); return NULL;
     }
     return m;
 }

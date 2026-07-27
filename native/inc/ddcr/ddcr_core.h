@@ -16,9 +16,25 @@
  *             set norm_freq = -(2*f_carrier + 0.5).
  *             Total output rate: fs_out = rate * fs_in  (rate < 0.5).
  *
- * DdcR is approximately 2x cheaper than Ddc at equivalent total decimation
- * because the halfband R2C step has an fs/4 frequency shift baked in at
- * zero extra multiplications — the +/-1/0 coefficients multiply for free.
+ * The halfband R2C step has an fs/4 frequency shift baked in at zero extra
+ * multiplications — the +/-1/0 coefficients multiply for free — and everything
+ * after it (the fine LO and the whole cascade) runs at fs_in/2.
+ *
+ * What that is worth, measured rather than assumed: for the FRONT END alone,
+ * against Ddc fed the same stream promoted to complex, essentially nothing —
+ * 1.04x to 1.40x end to end at total rates 0.25/0.125/0.0625, and 0.74x to
+ * 1.13x once the real->complex promote is charged to Ddc, with the ratio
+ * wandering by block size the way a memory-bound measurement does. The free
+ * coefficients are real; multiplies are simply not what this path pays for.
+ *
+ * Where the half rate DOES pay is a whole receiver, because it halves the
+ * sample rate ahead of the polyphase matched filter: MpskReceiverR against
+ * MpskReceiver on the same stream measures 1.13x at sps=20/m_out=8, 1.50x at
+ * sps=32/m_out=8 and 1.69x at sps=64/m_out=8. It rises toward 2x with sps
+ * (more of the total cost is then pre-MF) but cannot reach it, since both
+ * paths fire the same m_out terminal dot products per symbol and those
+ * dominate at low sps. Choose DdcR because your input IS real, not for a
+ * factor of two.
  *
  * Like Ddc it has a matched *flavor* (ddcr_create_matched, Python
  * `MatchedDdcr`) that puts the pulse on the cascade's terminal stage, and the
@@ -75,8 +91,11 @@ extern "C"
    * The signal chain is: halfband R2C (2:1, bakes in +fs/4 shift) ->
    * fine LO mix at the intermediate rate (fs_in/2) -> RateConverter ->
    * CF32 output.  The halfband stage uses +-1/0 coefficients (no
-   * multiplications), making DDCR roughly 2x cheaper than DDC at the
-   * same total decimation ratio.
+   * multiplications) and puts the fine LO and the cascade at fs_in/2.  That
+   * is worth ~1.1-1.7x in a whole receiver (it halves the rate ahead of the
+   * polyphase matched filter, so the gain grows with samples/symbol) and
+   * close to nothing for the front end alone -- see the file header for the
+   * measurements.  Use it because the input IS real.
    *
    * @param norm_freq  Fine NCO frequency at the intermediate rate
    *                   (fs_in/2, cycles/sample).  To tune a real tone at
@@ -340,6 +359,39 @@ extern "C"
   size_t ddcr_execute_ctrl_push (ddcr_state_t *s, float x, double rate_ctrl,
                                  double freq_ctrl, float _Complex *out,
                                  size_t max_out);
+
+  /**
+   * @brief ddcr_execute_ctrl_push() that also hands back the post-LO sample.
+   *
+   * The real-input twin of ddc_execute_ctrl_push_tap(); see that function for
+   * why the tap exists (a carrier discriminator's unambiguous range is set by
+   * the rate it updates at, so a caller may want the widest, least-filtered
+   * stream rather than the cleanest one).
+   *
+   * The one difference is that this front end does NOT mix every input: the
+   * 2:1 halfband consumes two real inputs per intermediate sample, so @p n_lo
+   * comes back 0 on every other push and @p lo_out is untouched. The tapped
+   * stream therefore runs at `fs_in/2`, the LO's own rate — half as fast as
+   * the complex twin's for the same nominal `sps`, which halves this tap's
+   * frequency range in input-referred terms exactly as it halves everything
+   * else the LO sees.
+   *
+   * @param s         Must be non-NULL.
+   * @param x         One real float32 input sample.
+   * @param rate_ctrl Rate deviation for this input (terminal-stage rate).
+   * @param freq_ctrl Frequency deviation, cycles/sample at fs_in/2.
+   * @param out       Output buffer for any emitted outputs.
+   * @param max_out   Capacity of @p out.
+   * @param lo_out    Receives the post-LO, pre-cascade sample when @p n_lo
+   *                  comes back 1. May be NULL.
+   * @param n_lo      Receives 1 when the halfband fired for this input and the
+   *                  LO stepped, 0 otherwise. May be NULL.
+   * @return Number of terminal outputs written (0, 1, or more).
+   */
+  size_t ddcr_execute_ctrl_push_tap (ddcr_state_t *s, float x,
+                                     double rate_ctrl, double freq_ctrl,
+                                     float _Complex *out, size_t max_out,
+                                     float _Complex *lo_out, int *n_lo);
 
   /**
    * @brief Is this object's rectangular matched filter degenerately narrow?

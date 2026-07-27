@@ -12,6 +12,7 @@ class_name = "MpskReceiver"
 # (the canonical rrc kernel behind the matched bank) is a wfmcompose-internal
 # OBJECT lib, not a jm component, so it rides extra_link_libs.
 depends_on = [
+    { name = "ber" }, # dp_sym_test.h delegates here
   { name = "ddc", link = true },
   { name = "ratesync", link = true },
   { name = "RateConverter", link = true },

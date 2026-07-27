@@ -61,6 +61,11 @@ import time
 
 import numpy as np
 
+from doppler.ber import (
+    ber_lock_symbol,
+    ber_settle_syms,
+    ber_theory_ser,
+)
 from doppler.telemetry import Telemetry
 from doppler.track import MpskReceiver, MpskReceiverR
 
@@ -212,7 +217,7 @@ def esn0_spec(m, ser_spec=SER_SPEC):
     lo, hi = -10.0, 40.0
     for _ in range(60):
         mid = 0.5 * (lo + hi)
-        if theory_ser(m, mid) > ser_spec:
+        if ber_theory_ser(m, 10 ** (mid / 10.0)) > ser_spec:
             lo = mid
         else:
             hi = mid
@@ -220,8 +225,14 @@ def esn0_spec(m, ser_spec=SER_SPEC):
 
 
 def settle_floor(bn_timing, bn_carrier):
-    """Symbols before any metric means anything. See rule 1 above."""
-    return int(2.0 * (5.0 / bn_timing + 5.0 / bn_carrier))
+    """Symbols to allow for settling: `2*(5/bn_t + 5/bn_c)`.
+
+    Delegates to `ber.ber_settle_syms` -- the C implementation is the only
+    one. 5/Bn per loop, the two budgets ADD because the loops are cascaded
+    (the carrier discriminator reads the on-time strobe), and the sum DOUBLES
+    for joint tracking.
+    """
+    return ber_settle_syms(bn_timing, bn_carrier)
 
 
 def draw_geometry(rng, real):
@@ -352,26 +363,17 @@ def demod(x, g, real, telemetry=True):
 
 
 def lock_symbol(flag, sustain=200, min_frac=0.9):
-    """First symbol from which a verify-counted flag is SUSTAINED.
+    """Symbol index from which a verify-counted flag is SUSTAINED.
 
-    A run of `sustain` high AND at least `min_frac` of the remainder high.
-    Dating a lock by its FINAL contiguous run is wrong under noise, where a
-    detector legitimately dips: one late dip reported 2286 instead of 415.
+    Delegates to `ber.ber_lock_symbol`. `sustain` consecutive symbols high AND
+    at least `min_frac` of everything after that point high too -- the run
+    rejects a single lucky decision, the fraction rejects a detector that
+    declares early then flaps. Returns `None` for "never locked".
     """
-    ones = flag > 0.5
-    if ones.size == 0 or not ones.any():
-        return None
-    csum = np.concatenate(([0], np.cumsum(ones)))
-    n = ones.size
-    for i in range(n):
-        end = min(i + sustain, n)
-        if csum[end] - csum[i] < end - i:
-            continue
-        if n - i < sustain:
-            return None
-        if (csum[n] - csum[i]) / (n - i) >= min_frac:
-            return int(i)
-    return None
+    idx = ber_lock_symbol(
+        np.asarray(flag, dtype=np.float64) > 0.5, sustain, min_frac
+    )
+    return None if idx < 0 else int(idx)
 
 
 def metrics(y, idx, m, settle):
@@ -471,23 +473,6 @@ def run_chunked(g, real, nsym, chunk_plan, seed=11):
     return whole, out, counts
 
 
-def _qfunc(x):
-    from math import erfc, sqrt
-
-    return 0.5 * erfc(x / sqrt(2.0))
-
-
-def theory_ser(m, esn0_db):
-    """Coherent M-PSK symbol error rate, the same expressions the C validator
-    (`native/validation/mpsk_receiver_ber.c`) checks against."""
-    e = 10 ** (esn0_db / 10.0)
-    if m == 2:
-        return _qfunc(np.sqrt(2 * e))
-    if m == 4:
-        return 2 * _qfunc(np.sqrt(e))
-    return 2 * _qfunc(np.sqrt(2 * e) * np.sin(np.pi / 8))
-
-
 def implementation_loss_db(m, esn0_db, ser):
     """dB by which Es/N0 would have to be RAISED for theory to predict `ser`.
 
@@ -504,7 +489,7 @@ def implementation_loss_db(m, esn0_db, ser):
     lo, hi = -10.0, 40.0
     for _ in range(60):
         mid = 0.5 * (lo + hi)
-        if theory_ser(m, mid) > ser:
+        if ber_theory_ser(m, 10 ** (mid / 10.0)) > ser:
             lo = mid
         else:
             hi = mid
@@ -624,7 +609,7 @@ def panel_ber(ax, trials):
         g = np.linspace(ESN0_GRID[0], ESN0_GRID[-1], 40)
         ax.plot(
             g,
-            [theory_ser(m, d) for d in g],
+            [ber_theory_ser(m, 10 ** (d / 10.0)) for d in g],
             lw=1.2,
             ls="--",
             label=f"{m}-PSK theory",

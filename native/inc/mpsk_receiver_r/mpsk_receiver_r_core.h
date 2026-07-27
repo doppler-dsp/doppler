@@ -76,6 +76,7 @@
 #include "agc/agc_core.h"
 #include "boxcar/boxcar_core.h"
 #include "telemetry/telemetry.h"
+#include "ber/ber_core.h"
 #ifdef __cplusplus
 extern "C"
 {

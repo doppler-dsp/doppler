@@ -1,0 +1,188 @@
+# ber_meter — the error-rate accumulator, and the Python face of ber_core.
+#
+# Block-I/O object (opaque heap state). Owns the transmitted reference, the
+# running error counters, the marker-based alignment detector and the exact
+# confidence interval, so a caller loops bursts until the ERROR target is met
+# and reads a defensible rate off the end.
+#
+# Two records come back as PyStructSequences: BerAlign (where the stream sits
+# against truth, and whether that was actually detected rather than guessed)
+# and BerInterval (the rate with its exact Gamma/chi-square limits). Module
+# functions cannot return records in jm -- only object methods can -- which is
+# why `confidence` lives here rather than beside the other free functions.
+#
+# Composes detection_core (the exact incomplete-gamma quantiles, reused rather
+# than re-derived) and the header-only mpsk Gray/constellation helpers.
+
+[ber_meter]
+arg_type = "float _Complex"
+return_type = "float _Complex"
+mutable = "true"
+no_state = "true"
+no_step = "true"
+class_name = "BerMeter"
+serializable = "true"
+create_error = "ValueError"
+create_error_message = "m must be 2, 4 or 8 and conf must lie in (0, 1)"
+depends_on = [{ name = "detection", link = true }, { name = "ber" }]
+
+[[ber_meter.init_params]]
+name = "m"
+type = "int"
+default = "4"
+
+[[ber_meter.init_params]]
+name = "target_errors"
+type = "size_t"
+default = "200"
+
+[[ber_meter.init_params]]
+name = "conf"
+type = "double"
+default = "0.99"
+
+[[ber_meter.methods]]
+name = "set_truth"
+doc = "Install the transmitted symbol INDICES (0..m-1, not Gray labels) this meter scores against. Copied, so the caller's buffer need not outlive the call, and reused across every burst. Raises ValueError if any index is outside 0..m-1."
+arg_type = "void"
+return_type = "int"
+error = "ValueError"
+check_return = true
+params = [{ name = "truth", type = "uint8_t[]" }]
+
+[[ber_meter.methods]]
+name = "align"
+doc = "Detect where the recovered symbols sit against truth, returning a BerAlign. The alignment is DETECTED by correlating a known marker -- truth[t0 : t0+n_marker], optionally repeating every `period` symbols -- and gated by a false-alarm probability, NOT searched by minimising the error count. That distinction is the whole point: a min-over-(lag, rotation) search is an optimisation over the answer, and it both false-passes on a lucky alignment and false-floors when the true lag falls outside the span. A marker too short to identify an alignment returns ok=False rather than a plausible wrong lag. Repeats are combined non-coherently, which raises the processing gain and exposes cycle slips."
+arg_type = "void"
+return_type = "int"
+nogil = true
+params = [{ name = "rx", type = "float _Complex[]" }, { name = "t0", type = "size_t", default = "0" }, { name = "n_marker", type = "size_t", default = "0" }, { name = "period", type = "size_t", default = "0" }, { name = "lag_span", type = "int", default = "0" }, { name = "pfa", type = "double", default = "0.0" }]
+
+[[ber_meter.properties]]
+name = "errors"
+type = "size_t"
+doc = "Symbol errors counted so far."
+
+[[ber_meter.properties]]
+name = "symbols"
+type = "size_t"
+doc = "Symbols scored so far."
+
+[[ber_meter.properties]]
+name = "bit_errors"
+type = "size_t"
+doc = "Gray-coded bit errors counted so far."
+
+[[ber_meter.properties]]
+name = "bits"
+type = "size_t"
+doc = "Bits scored so far."
+
+[[ber_meter.properties]]
+name = "skipped"
+type = "size_t"
+doc = "Symbols skipped: covered by a marker occurrence, or with a truth index outside the installed sequence. Marker symbols are excluded on purpose -- they are known, so scoring them would flatter the rate with symbols that had no chance of being wrong."
+
+[[ber_meter.properties]]
+name = "m"
+type = "int"
+doc = "Constellation order."
+
+[[ber_meter.properties]]
+name = "target_errors"
+type = "size_t"
+doc = "The inverse-binomial stop condition."
+
+[[ber_meter.properties]]
+name = "conf"
+type = "double"
+doc = "Two-sided confidence level used by ser() and ber()."
+
+[[ber_meter.properties]]
+name = "enough"
+type = "int"
+doc = "True once target_errors have been counted. THE stop condition for a measurement loop: fix the ERROR count and let the symbol count fall out (inverse binomial sampling), so the relative standard error is 1/sqrt(r) -- a function of the error count alone. Stopping on a fixed symbol count instead makes the precision depend on the very rate being measured: 20000 symbols at SER 1e-3 gives ~20 errors and ~22% relative error, which reads as real seed-to-seed variation in the receiver and is not."
+
+[[ber_meter.methods]]
+name = "score"
+doc = "Score rx[lo:hi] against the truth and accumulate; returns the symbols scored. Uses the supplied alignment VERBATIM -- no lag search, no rotation search, no minimisation of any kind over the answer. Uses the alignment align() last detected, together with the marker geometry that found it, so a measurement cannot be handed an alignment belonging to a different burst. Symbols covered by a marker occurrence are excluded, as are any whose truth index falls outside the installed sequence; both land in `skipped`."
+arg_type = "void"
+return_type = "size_t"
+nogil = true
+params = [{ name = "rx", type = "float _Complex[]" }, { name = "lo", type = "size_t", default = "0" }, { name = "hi", type = "size_t", default = "0" }]
+
+[[ber_meter.methods]]
+name = "ser"
+doc = "Symbol error rate with its EXACT confidence interval, as a BerInterval. Assert on `lo`, never on `p_hat`: comparing the lower limit against a spec is the form that cannot flake on counting noise. The interval is the Gamma/chi-square one for inverse binomial sampling -- no normal approximation anywhere, so it stays honest at the small error counts where a Wald interval is worst -- and its quantiles come from doppler's own detection primitives rather than a second copy of an incomplete-gamma kernel."
+arg_type = "void"
+return_type = "ber_interval_t"
+result_fields = [{name = "p_hat", type = "double"}, {name = "lo", type = "double"}, {name = "hi", type = "double"}, {name = "rel", type = "double"}, {name = "conf", type = "double"}, {name = "errors", type = "size_t"}, {name = "symbols", type = "size_t"}]
+single = true
+record_name = "BerInterval"
+record_module = "doppler.ber"
+
+[[ber_meter.methods]]
+name = "ber"
+doc = "Gray-coded bit error rate with its EXACT confidence interval, as a BerInterval. Same statistics as ser(), counted over bits."
+arg_type = "void"
+return_type = "ber_interval_t"
+result_fields = [{name = "p_hat", type = "double"}, {name = "lo", type = "double"}, {name = "hi", type = "double"}, {name = "rel", type = "double"}, {name = "conf", type = "double"}, {name = "errors", type = "size_t"}, {name = "symbols", type = "size_t"}]
+single = true
+record_name = "BerInterval"
+record_module = "doppler.ber"
+
+[[ber_meter.properties]]
+name = "lag"
+type = "int"
+doc = "Alignment from the last align(): rx[i] carries truth[i + lag]."
+
+[[ber_meter.properties]]
+name = "phase"
+type = "double"
+doc = "Absolute residual constellation rotation from the last align(), radians. The marker resolves this outright, so there is no M-fold ambiguity left to search over."
+
+[[ber_meter.properties]]
+name = "align_stat"
+type = "double"
+doc = "Detection statistic at the correlation peak, in threshold units."
+
+[[ber_meter.properties]]
+name = "align_margin_db"
+type = "double"
+doc = "20*log10(stat/threshold) -- headroom over the false-alarm gate. Negative means the alignment was NOT detected."
+
+[[ber_meter.properties]]
+name = "align_runner_db"
+type = "double"
+doc = "Peak over the best runner-up lag, dB. Under ~3 dB the peak is ambiguous and the alignment is rejected."
+
+[[ber_meter.properties]]
+name = "align_occurrences"
+type = "size_t"
+doc = "Marker occurrences combined non-coherently."
+
+[[ber_meter.properties]]
+name = "align_slips"
+type = "size_t"
+doc = "Occurrences whose phase disagreed with the peak by more than half a decision sector -- cycle slips."
+
+[[ber_meter.properties]]
+name = "align_saturated"
+type = "int"
+doc = "True when the peak sat on an edge of the lag search: lag_span is too small and the result is not trustworthy."
+
+[[ber_meter.properties]]
+name = "align_ok"
+type = "int"
+doc = "True when the last align() was detected, unambiguous and unsaturated. score() is meaningless unless this is True."
+
+[[ber_meter.methods]]
+name = "interval"
+doc = "The exact confidence interval for error/trial counts gathered elsewhere, at this meter's confidence level. Same statistics as ser(): the Gamma/chi-square interval for inverse binomial sampling, with quantiles from doppler's own inverse regularized incomplete gamma rather than a normal approximation, so it stays honest at the small error counts where a Wald interval is worst. Assert on `lo`, never on `p_hat`."
+arg_type = "void"
+return_type = "ber_interval_t"
+params = [{ name = "errors", type = "size_t" }, { name = "symbols", type = "size_t" }]
+result_fields = [{name = "p_hat", type = "double"}, {name = "lo", type = "double"}, {name = "hi", type = "double"}, {name = "rel", type = "double"}, {name = "conf", type = "double"}, {name = "errors", type = "size_t"}, {name = "symbols", type = "size_t"}]
+single = true
+record_name = "BerInterval"
+record_module = "doppler.ber"

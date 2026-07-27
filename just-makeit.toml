@@ -1898,3 +1898,137 @@ objects = ["despreader", "burst_despreader", "acq", "burst_acq", "ppe", "burst_d
 
 [module.acquire]
 objects = ["carrier_acq"]
+
+# ── ber — error-rate measurement (the one tool) ──────────────────────────────
+# The settled window, the Pfa-gated alignment, inverse binomial sampling and
+# the exact Gamma/chi-square interval, in C once. Python is the thin face.
+[module.ber]
+objects = ["ber_meter"]
+
+[[module.ber.functions]]
+name = "ber_theory_ser"
+doc = "Coherent M-PSK symbol error rate at matched-filter Es/N0 (LINEAR, not dB). BPSK Q(sqrt(2 Es/N0)); QPSK 2Q(sqrt(Es/N0)); 8PSK 2Q(sqrt(2 Es/N0) sin(pi/8)). This is a COHERENT bound: a differentially-decoded rate is ~2x it, so pairing a differential measurement with this curve invents a factor of two of implementation loss."
+return_type = "double"
+
+[[module.ber.functions.params]]
+name = "m"
+type = "int"
+
+[[module.ber.functions.params]]
+name = "esn0"
+type = "double"
+
+[[module.ber.functions]]
+name = "ber_theory_ber"
+doc = "Coherent GRAY-coded M-PSK bit error rate at Es/N0 (LINEAR). BPSK and Gray QPSK are exactly Q(sqrt(2 Eb/N0)); 8PSK uses SER/log2(M)."
+return_type = "double"
+
+[[module.ber.functions.params]]
+name = "m"
+type = "int"
+
+[[module.ber.functions.params]]
+name = "esn0"
+type = "double"
+
+[[module.ber.functions]]
+name = "ber_esn0_db_for_ser"
+doc = "Es/N0 (dB) at which the coherent bound equals `ser`. How an implementation loss is quoted honestly: convert the MEASURED rate to the Es/N0 theory would need to produce it, and subtract. A loss in dB is comparable across M and across operating points; a ratio of rates is not."
+return_type = "double"
+
+[[module.ber.functions.params]]
+name = "m"
+type = "int"
+
+[[module.ber.functions.params]]
+name = "ser"
+type = "double"
+
+[[module.ber.functions]]
+name = "ber_evm_scatter_floor_db"
+doc = "EVM (dB) of an M-PSK constellation at a UNIFORMLY RANDOM rotation -- the FLOOR of a self-referenced EVM, i.e. what a completely destroyed constellation reads: -1.4 dB at BPSK, -7.0 at QPSK, -12.9 at 8PSK. ANY fixed EVM threshold must be stated against this, never against 0 dB: 'scattered reads ~0 dB' is the BPSK limit only, and at 8PSK a stream with no carrier recovery reads the same -12.9 dB a healthy 13 dB link does, so a `< -12.0` assertion is satisfied by pure noise. The room between 'on the bound at the SER=1e-3 anchor' and 'completely broken' collapses as M grows (5.4 / 3.3 / 2.8 dB), so at high M the EVM cannot carry a verdict alone. Not to be confused with the NOISE floor -(Es/N0)."
+return_type = "double"
+
+[[module.ber.functions.params]]
+name = "m"
+type = "int"
+
+[[module.ber.functions]]
+name = "ber_settle_syms"
+doc = "Symbols to discard before a steady-state measurement means anything: 2*(5/bn_timing + 5/bn_carrier). Three factors, and skipping any produces a confident wrong number -- 5/Bn per loop is the standard second-order settling time (in SYMBOLS, since both bn are symbol-rate normalised); the two budgets ADD because the loops are cascaded (the carrier discriminator reads the on-time strobe, so it cannot converge until timing has); and the sum DOUBLES for joint tracking. This is a FLOOR, not the answer: take the max of it and every lock indicator the receiver publishes, plus the handover instant again if one is enabled. Pass a loop's bn as 0 if it is not running."
+return_type = "size_t"
+
+[[module.ber.functions.params]]
+name = "bn_timing"
+type = "double"
+
+[[module.ber.functions.params]]
+name = "bn_carrier"
+type = "double"
+
+[[module.ber.functions]]
+name = "ber_lock_symbol"
+doc = "First symbol from which a verify-counted lock flag is SUSTAINED, or -1 for 'never locked'. Sustained means `sustain` consecutive symbols high AND at least `min_frac` of everything after that point high too: the run rejects a single lucky decision, the fraction rejects a detector that declares early then flaps. Dating the lock by the FINAL contiguous run instead is right with no noise and badly wrong with it -- one late dip once moved a reported lock from 415 to 2286 and left no measurement window at all. The -1 is deliberate: it forces the caller to say 'never locked' rather than quietly measure a transient."
+return_type = "int"
+
+[[module.ber.functions.params]]
+name = "flags"
+type = "uint8_t[]"
+
+[[module.ber.functions.params]]
+name = "sustain"
+type = "size_t"
+default = "200"
+
+[[module.ber.functions.params]]
+name = "min_frac"
+type = "double"
+default = "0.9"
+
+[[module.ber.functions]]
+name = "ber_evm_db"
+doc = "Self-referenced EVM (dB) over an EXPLICIT window [lo, hi): each symbol against the stream's OWN hard decision, with the constellation rotation estimated from the data. References neither the transmitted symbols nor a lag, so it cannot be fooled by an alignment search. A locked matched-filter output reads EVM_dB ~ -(Es/N0)_dB (an I/Q-plane quantity -- no factor of two; quoting one flatters the result by 3 dB). Read it against ber_evm_scatter_floor_db(m), NEVER against 0 dB. The window is explicit because BER and EVM must be measured on the SAME one: a convenience back-half default scores a different window than the error rate did, and the two eventually disagree in a way that reads as a receiver defect rather than the harness bug it is. Returns 0.0 for a window under 20 symbols."
+return_type = "double"
+
+[[module.ber.functions.params]]
+name = "rx"
+type = "float _Complex[]"
+
+[[module.ber.functions.params]]
+name = "lo"
+type = "size_t"
+default = "0"
+
+[[module.ber.functions.params]]
+name = "hi"
+type = "size_t"
+default = "0"
+
+[[module.ber.functions.params]]
+name = "m"
+type = "int"
+default = "4"
+
+[[module.ber.functions]]
+name = "ber_settle_from"
+doc = "Where a steady-state measurement may start: max(budget, timing lock, carrier lock, handover + budget). The analytic budget and the receiver's own indicators are both fallible in the SAME direction, so whichever settles last decides. A handover settles last of all -- it fires on carrier lock plus a warmup, strictly after every other term, and the decision-directed loop then has its own transient, so it contributes its instant PLUS the budget again (measured on 8PSK: handover at symbol 2525 against a 2000-symbol budget, SER 5.95x the coherent bound from 2000 versus 1.68x from 4525). Pass -1 for an indicator the receiver does not publish, which is what ber_lock_symbol() returns for 'never locked'. A -1 timing or carrier lock means there is NO valid steady-state window -- check that yourself before trusting the return; a -1 handover is not a failure, since a pure-NDA receiver never publishes one."
+return_type = "size_t"
+
+[[module.ber.functions.params]]
+name = "budget"
+type = "size_t"
+
+[[module.ber.functions.params]]
+name = "timing_lock"
+type = "int"
+default = "-1"
+
+[[module.ber.functions.params]]
+name = "carrier_lock"
+type = "int"
+default = "-1"
+
+[[module.ber.functions.params]]
+name = "handover"
+type = "int"
+default = "-1"

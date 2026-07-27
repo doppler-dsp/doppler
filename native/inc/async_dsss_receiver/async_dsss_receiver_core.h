@@ -98,6 +98,7 @@
 #include "corr/corr_core.h"
 #include "fft/fft_core.h"
 #include "acc_trace/acc_trace_core.h"
+#include "ber/ber_core.h"
 
 #ifdef __cplusplus
 extern "C"

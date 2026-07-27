@@ -1,204 +1,154 @@
 /**
  * @file mpsk_receiver_ber.c
- * @brief Symbol-error-rate validation for the pulse-shaped M-PSK receiver.
+ * @brief Symbol-error-rate validation for the complex-baseband M-PSK receiver.
  *
  * Drives MpskReceiver with a rectangular (I&D-matched) BPSK/QPSK/8PSK signal
- * at a carrier offset, over a sweep of matched-filter-output Es/N0, and
- * compares the genie-aligned symbol error rate to the theoretical coherent
- * M-PSK bound. The receiver acquires the carrier non-data-aided (M-th power)
- * and recovers symbol timing (Gardner); the only genie is resolving the
- * inherent M-fold phase ambiguity and the fixed loop/filter lag when scoring.
- *
- *   theory:  BPSK  SER = Q(sqrt(2*Es/N0))
- *            QPSK  SER ~ 2*Q(sqrt(Es/N0))
- *            8PSK  SER ~ 2*Q(sqrt(2*Es/N0)*sin(pi/8))
- *
- * Build sets the matched-filter-output Es/N0 directly: a rectangular symbol of
- * unit amplitude through the length-`sps` boxcar matched filter has output
- * noise power N0_out = sigma_w^2 / sps, so sigma_quad^2 = sps / (2 *
- * Es/N0_lin).
+ * at a carrier offset and measures how far its symbol error rate sits from the
+ * coherent bound. The receiver acquires the carrier non-data-aided (M-th
+ * power) and recovers symbol timing (Gardner); nothing is given to it but the
+ * samples.
  *
  * Usage:
- *   mpsk_receiver_ber           # print the SER vs Es/N0 sweep per M
- *   mpsk_receiver_ber --check   # assert implementation loss <= LOSS_DB, exit
- * 1 on fail
+ *   validate_mpsk_receiver_ber           full report at every M
+ *   validate_mpsk_receiver_ber --check   the same, asserting the loss bound
+ *
+ * ## What changed, and why the old numbers are not comparable
+ *
+ * This validator used to measure a fixed 40 000 symbols, score them over a
+ * `nout/4 .. 7*nout/8` window, and take the **minimum error count over a
+ * +-30 lag and M-fold rotation search**. Every one of those is a documented
+ * way to produce a confident wrong number:
+ *
+ *   - a window pinned to a FRACTION of the record measures the acquisition
+ *     transient whenever settling is longer than the fraction (here the
+ *     settling budget is 3000 symbols against a 10 000-symbol quarter, so it
+ *     was inside it for the slower geometries);
+ *   - a `min over (lag, rotation)` is an optimisation over the answer, not a
+ *     measurement of the receiver. It false-PASSES on a lucky alignment and
+ *     false-FLOORS when the true lag falls outside the span — this project has
+ *     shipped both, including a committed "~12 dB floor" that was really 5 dB;
+ *   - a fixed symbol count makes the precision depend on the very rate being
+ *     measured. 40 000 symbols at SER 1e-3 is ~40 errors, ~16% relative, which
+ *     reads as receiver variation and is not.
+ *
+ * All three are now the harness's job (`native/tests/dp_ber_test.h`): the
+ * window comes from the receiver's own carrier lock and handover plus the
+ * analytic loop budget, the alignment is DETECTED against a marker under a
+ * false-alarm gate rather than searched, and the run stops on a fixed ERROR
+ * count so the interval width is `1/sqrt(r)` regardless of the rate. The
+ * result carries a 99% confidence interval and is cross-checked against EVM,
+ * the blind M2M4 Es/N0 and theory before it is called a result at all.
+ *
+ * ## The operating point
+ *
+ * Each M is measured at its own **SER = 1e-3** anchor (6.8 / 10.3 / 15.7 dB),
+ * so every constellation is asked the same question at the same place on its
+ * curve. The gate is stated as an **implementation loss in dB** — the Es/N0
+ * theory would need to produce the measured rate, subtracted from the Es/N0
+ * actually applied — because a loss in dB is comparable across M and across
+ * operating points while a ratio of rates is not.
+ *
+ * The assertion is on the interval's LOWER limit, so counting noise cannot
+ * flake it: we fail only when the receiver is worse than the bound with 99%
+ * confidence, not when a draw happened to land badly.
  */
-#include "mpsk_receiver/mpsk_receiver_core.h"
-#include <complex.h>
-#include <math.h>
-#include <stdio.h>
-#include <stdlib.h>
+#include "mpsk_ber_common.h"
 #include <string.h>
 
-#define NSYM 40000
-#define SPS 8
-#define LOSS_DB 2.0 /* max tolerated implementation loss vs the bound */
+/** @brief Tolerated implementation loss vs the coherent bound, dB. */
+#define LOSS_DB 2.0
 
-static uint32_t
-xorshift (uint32_t *s)
-{
-  uint32_t x = *s;
-  x ^= x << 13;
-  x ^= x >> 17;
-  x ^= x << 5;
-  *s = x;
-  return x;
-}
-
-static double
-uni (uint32_t *s)
-{
-  return ((double)xorshift (s) + 1.0) / 4294967297.0;
-}
-
-static double
-gauss (uint32_t *s)
-{
-  return sqrt (-2.0 * log (uni (s))) * cos (2.0 * M_PI * uni (s));
-}
-
-static double
-qfunc (double x)
-{
-  return 0.5 * erfc (x / sqrt (2.0));
-}
-
-static double
-phi0_for (int m)
-{
-  return (m == 4) ? (M_PI / 4.0) : 0.0;
-}
-
-/* Theoretical coherent M-PSK symbol error rate at matched-filter Es/N0 (lin).
- */
-static double
-theory_ser (int m, double esn0)
-{
-  if (m == 2)
-    return qfunc (sqrt (2.0 * esn0));
-  if (m == 4)
-    return 2.0 * qfunc (sqrt (esn0));
-  return 2.0 * qfunc (sqrt (2.0 * esn0) * sin (M_PI / 8.0)); /* 8PSK */
-}
-
-/* Run one (m, Es/N0) point; return the genie-aligned tail SER. */
-static double
-measure_ser (int m, double esn0_db, double foff, uint32_t seed)
-{
-  double   esn0  = pow (10.0, esn0_db / 10.0);
-  double   sigma = sqrt ((double)SPS / (2.0 * esn0)); /* per-quadrature */
-  double   phi0  = phi0_for (m);
-  uint32_t st    = seed;
-
-  float complex *tx  = malloc (NSYM * SPS * sizeof (*tx));
-  int           *idx = malloc (NSYM * sizeof (int));
-  float complex *out = malloc (NSYM * sizeof (*out));
-  for (size_t k = 0; k < NSYM; k++)
-    {
-      int ki           = (int)(xorshift (&st) % (uint32_t)m);
-      idx[k]           = ki;
-      double        th = 2.0 * M_PI * (double)ki / (double)m + phi0;
-      float complex s  = (float)cos (th) + (float)sin (th) * I;
-      for (size_t j = 0; j < SPS; j++)
-        {
-          size_t        n  = k * SPS + j;
-          double        ph = 2.0 * M_PI * foff * (double)n;
-          float complex c  = (float)cos (ph) + (float)sin (ph) * I;
-          float complex w  = (float)(sigma * gauss (&st))
-                             + (float)(sigma * gauss (&st)) * I;
-          tx[n]            = s * c + w;
-        }
-    }
-  /* Acquire non-data-aided, then hand over to low-jitter decision-directed
-   * tracking — essential for 8PSK, whose M-th-power phase noise would
-   * otherwise cross the +-pi/8 decision margins. lock_thresh below the per-M
-   * lock ceiling (BPSK ~1, QPSK ~0.62, 8PSK ~0.41). */
-  mpsk_receiver_state_t *rx = mpsk_receiver_create (
-      m, (double)SPS, 4, MPSK_RX_PULSE_IANDD, 0.35, 8, 0.005, 0.707, 0.005, 1,
-      0.3, foff, 300, 0, MPSK_RX_NUM_PHASES, MPSK_RX_NDA_TAP_STROBE);
-  size_t nout = mpsk_receiver_steps (rx, tx, NSYM * SPS, out, NSYM);
-  mpsk_receiver_destroy (rx);
-
-  /* genie: best over the M-fold rotation and a small lag, on the locked tail
-   */
-  size_t lo = nout / 4, hi = nout - nout / 8;
-  double best = 1.0;
-  for (int lag = -30; lag <= 30; lag++)
-    for (int rot = 0; rot < m; rot++)
-      {
-        long err = 0, cnt = 0;
-        for (size_t i = lo; i < hi; i++)
-          {
-            long j = (long)i + lag;
-            if (j < 0 || j >= (long)NSYM)
-              continue;
-            double th
-                = atan2 ((double)cimagf (out[i]), (double)crealf (out[i]))
-                  - phi0;
-            int d
-                = (int)((lround (th * (double)m / (2.0 * M_PI)) % m + m) % m);
-            if (((d - idx[j] - rot) % m + m) % m != 0)
-              err++;
-            cnt++;
-          }
-        if (cnt > 1000)
-          {
-            double s = (double)err / (double)cnt;
-            if (s < best)
-              best = s;
-          }
-      }
-  free (tx);
-  free (idx);
-  free (out);
-  return best;
-}
+/** @brief Errors per point. ~7% relative standard error (`1/sqrt(r)`). */
+#define TARGET_ERRORS 200uL
 
 int
 main (int argc, char **argv)
 {
   int check = (argc > 1 && strcmp (argv[1], "--check") == 0);
   int ms[3] = { 2, 4, 8 };
-  /* one mid-SNR check point per M where the bound is well above the noise
-   * floor yet small enough that 2 dB of loss is clearly measurable. */
-  double chk_db[3] = { 8.0, 11.0, 15.0 };
-  int    rc        = 0;
+  int rc    = 0;
 
-  if (!check)
-    printf ("# M  Es/N0(dB)  measured_SER  theory_SER\n");
+  printf ("MpskReceiver symbol error rate vs the coherent bound\n");
+  printf ("  complex baseband, rectangular pulse, I&D matched filter\n");
+  printf ("  each M at its own SER=1e-3 anchor, %lu errors per point\n\n",
+          TARGET_ERRORS);
+
   for (int mi = 0; mi < 3; mi++)
     {
-      int m = ms[mi];
+      mpsk_ber_cfg_t    c;
+      mpsk_ber_result_t r;
+      double            esn0_db, loss_lo;
+      char              label[48];
+
+      c.real  = 0;
+      c.m     = ms[mi];
+      c.sps   = 8.0;
+      c.m_out = 8;
+      c.fc    = 0.0;
+      /* An offset INSIDE the loop bandwidth, so the carrier loop has real work
+         to do and the measurement says something about it. Seeded exactly on
+         truth the loop never leaves its initial state and any conclusion drawn
+         about it is void; asserted OUTSIDE Bn the test measures luck.
+         `bn_carrier` is symbol-rate normalised, so half the loop bandwidth is
+         `0.5 * bn / sps` cycles/sample. */
+      c.bn_timing  = 0.01;
+      c.bn_carrier = 0.005;
+      c.foff       = 0.5 * c.bn_carrier / c.sps;
+      /* 8PSK hands over to decision-directed tracking, because its decision
+         margin is only +-pi/8 and the M-th-power discriminator's own phase
+         noise eats into it. Measured, though, the handover is worth far less
+         at this operating point than that reasoning suggests: turning it off
+         moves 8PSK from 0.44 dB to 0.53 dB of loss. It is kept on because it
+         is the shipped configuration for M=8 and because the margin only
+         narrows at lower Es/N0 -- not because the number here demands it.
+         (Its real cost is the WINDOW: the handover fires around symbol 8500,
+         so it more than doubles the settling budget.) */
+      c.acq_to_track = (c.m == 8);
+      c.nda_tap      = MPSK_RX_NDA_TAP_STROBE;
+
+      esn0_db = dp_ber_esn0_db_for_ser (c.m, DP_BER_TARGET_SER);
+      r = mpsk_ber_measure (&c, esn0_db, TARGET_ERRORS, 2024u + (unsigned)mi);
+
+      snprintf (label, sizeof label, "M=%d @%.1f dB", c.m, esn0_db);
+      dp_ber_print (label, &r.rep);
+      printf ("%-24s   %d burst(s), %d unsettled, clipped=%d\n\n", "",
+              r.bursts, r.unsettled, r.clipped);
+
       if (!check)
+        continue;
+
+      /* The gate: the implementation loss implied by the interval's LOWER
+         limit (the receiver's best defensible rate) must clear LOSS_DB. Using
+         the limit rather than the point estimate is what stops counting noise
+         flaking this. */
+      loss_lo = esn0_db - dp_ber_esn0_db_for_ser (c.m, r.rep.ser.lo);
+      if (r.clipped)
         {
-          for (double db = 4.0; db <= 16.0; db += 2.0)
-            {
-              double meas = measure_ser (m, db, 0.0005, 2024u + (unsigned)mi);
-              printf ("%2d   %6.1f     %.3e   %.3e\n", m, db, meas,
-                      theory_ser (m, pow (10.0, db / 10.0)));
-            }
-          continue;
+          printf ("  M=%d FAIL: front end clipped\n", c.m);
+          rc = 1;
         }
-      double db   = chk_db[mi];
-      double meas = measure_ser (m, db, 0.0005, 2024u + (unsigned)mi);
-      /* implementation-loss bound: no worse than the theory at (Es/N0 - LOSS).
-       */
-      double bound = theory_ser (m, pow (10.0, (db - LOSS_DB) / 10.0));
-      int    ok    = meas <= bound;
-      /* 8PSK is advisory only: the NDA carrier loop now updates every sample
-       * (moving-average arm), and the downstream MpskReceiver's symbol-timing
-       * handover to decision-directed tracking is not yet robust to that for
-       * M=8 (occasional acquisition-phase cycle slips). This is an
-       * MpskReceiver timing/handover follow-up, not a CarrierNda matter — the
-       * carrier loop itself locks for M=8 (validate_carrier_nda_*). BPSK/QPSK
-       * gate as before.
-       */
-      const char *tag = (m == 8) ? "ADVISORY" : (ok ? "OK" : "FAIL");
-      printf ("M=%d Es/N0=%.1fdB SER=%.3e  bound@-%.0fdB=%.3e  %s\n", m, db,
-              meas, LOSS_DB, bound, tag);
-      if (!ok && m != 8)
-        rc = 1;
+      else if (!r.rep.sane)
+        {
+          printf ("  M=%d FAIL: %s\n", c.m, r.rep.why);
+          rc = 1;
+        }
+      else if (!r.rep.enough)
+        {
+          printf ("  M=%d FAIL: only %lu of %lu errors in %d bursts\n", c.m,
+                  r.rep.ser.errors, TARGET_ERRORS, r.bursts);
+          rc = 1;
+        }
+      else if (loss_lo > LOSS_DB)
+        {
+          printf ("  M=%d FAIL: loss %.2f dB (99%% lower limit) > %.1f dB\n",
+                  c.m, loss_lo, LOSS_DB);
+          rc = 1;
+        }
+      else
+        printf ("  M=%d OK: loss %.2f dB (point %.2f), bound %.1f dB\n\n", c.m,
+                loss_lo, r.rep.loss_db, LOSS_DB);
     }
+
   if (check)
     printf (rc ? "mpsk_receiver_ber FAILED\n" : "mpsk_receiver_ber PASSED\n");
   return rc;

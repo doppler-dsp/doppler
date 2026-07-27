@@ -25,6 +25,7 @@ no_step = "true"
 class_name = "AsyncDsssReceiver"
 serializable = "true"
 depends_on = [
+    { name = "ber" }, # dp_sym_test.h delegates here
     { name = "acq", link = true },
     { name = "carrier_acq", link = true },
     { name = "dll", link = true },

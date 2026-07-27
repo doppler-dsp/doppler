@@ -264,9 +264,35 @@ main (void)
            the shipped default's per-look Pfa of 5e-6. */
         CHECK (mpsk_receiver_r_get_lock (rx) > 0.5);
         /* Truth-free corroboration -- a BER alone can false-pass through its
-           own lag/rotation search (see dp_sym_test.h). */
+           own lag/rotation search (see dp_sym_test.h).
+
+           TWO assertions, because one of them used to be vacuous. This read
+           `evm < -12.0` for every M until 2026-07-27, and the 8PSK scatter
+           floor is **-12.9 dB** (dp_test_evm_scatter_floor_db) -- so a
+           constellation with no carrier recovery whatsoever satisfied it, and
+           the check had no discriminating power at M = 8 at all.
+
+             - the absolute gate is the quality bar (measured -18.1 / -17.7 /
+               -18.2 dB at M = 2 / 4 / 8, so ~2 dB of margin);
+             - the floor-relative gate is what makes the absolute one provably
+               non-vacuous, and it is the one that fires first if another M is
+               ever added -- at M = 16 the floor rises to -19.0 dB and a fixed
+               -16.0 would silently go vacuous again.
+
+           Note how little room there is at M = 8: 5.3 dB between a healthy
+           receiver and pure noise. The self-referenced EVM cannot carry this
+           verdict alone at high M, which is why `ser < 0.01` above is the
+           primary check and this is corroboration. */
         if (k > settle)
-          CHECK (dp_test_evm_db_hard_m (out + settle, k - settle, m) < -12.0);
+          {
+            double evm = dp_test_evm_db_hard_m (out + settle, k - settle, m);
+            double flr = dp_test_evm_scatter_floor_db (m);
+            printf ("  M=%d: evm=%6.1f dB (scatter floor %5.1f, "
+                    "margin %4.1f dB)\n",
+                    m, evm, flr, flr - evm);
+            CHECK (evm < -16.0);
+            CHECK (evm < flr - 3.0);
+          }
         CHECK (mpsk_receiver_r_get_clipped (rx) == 0);
         mpsk_receiver_r_destroy (rx);
       }

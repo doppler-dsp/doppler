@@ -10,6 +10,7 @@ serializable = "true"
 # RateConverter (resample) -- the same cross-module composition shape
 # despreader.toml already uses for Costas+Dll.
 depends_on = [
+    { name = "ber" }, # dp_sym_test.h delegates here
     { name = "acq", link = true },
     { name = "dll", link = true },
     { name = "costas", link = true },

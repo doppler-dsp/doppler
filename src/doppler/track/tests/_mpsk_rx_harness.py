@@ -30,10 +30,15 @@ In particular
 
 from __future__ import annotations
 
-import math
-
 import numpy as np
 
+from doppler.ber import (
+    BerMeter,
+    ber_evm_scatter_floor_db,
+    ber_lock_symbol,
+    ber_settle_from,
+    ber_settle_syms,
+)
 from doppler.telemetry import Telemetry
 from doppler.track import MpskReceiver, MpskReceiverR
 
@@ -53,32 +58,24 @@ BN_CARRIER = 0.01
 def settle_floor(bn_timing=BN_TIMING, bn_carrier=BN_CARRIER):
     """Symbols to allow for settling before any metric is meaningful.
 
-    Three factors, and skipping any of them produces a confident wrong number:
+    `2 * (5/bn_timing + 5/bn_carrier)`. Three factors, and skipping any of
+    them produces a confident wrong number: 5/Bn per loop is the standard
+    second-order settling time (in SYMBOLS, since both `bn` are symbol-rate
+    normalised); the two budgets ADD because the loops are CASCADED (the
+    carrier discriminator reads the on-time strobe, so it cannot converge
+    until timing has); and the sum DOUBLES for joint tracking, where each loop
+    sees the other's transient as a disturbance.
 
-    1. **5/Bn per loop.** The standard second-order-loop rule of thumb.
-    2. **The two budgets ADD, they do not max.** The loops are CASCADED: the
-       carrier discriminator reads the on-time strobe, which is not a
-       constellation point until the timing loop has converged, so the carrier
-       cannot begin settling until timing has finished. `5/bn_timing` THEN
-       `5/bn_carrier`.
-    3. **Double it for JOINT tracking.** Both loops are closed at once, so each
-       sees the other's transient as a disturbance rather than converging into
-       a quiet channel. The sequential sum is a floor on the joint case, not an
-       estimate of it.
-
-    At the defaults: `2 * (500 + 500) = 2000` symbols. The measured lock times
-    sit inside that envelope -- at `sps=10, m_out=4` timing declares at 1063
-    and
-    the carrier at 832 -- which is the check that the budget is not fantasy.
-    Taking `max(5/bn)` instead gives 500 and reads -9.0 dB where the settled
-    answer is -23.2 dB.
-
-    Burst length follows from this: a test needs `settle_floor(...)` plus a few
-    hundred symbols of window, so widening the loops is the way to test high
-    oversampling without a multi-million-sample stimulus.
+    Delegates to `ber.ber_settle_syms` -- the C implementation is the only
+    one. At the defaults this is 2000 symbols; taking `max(5/bn)` instead
+    gives 500 and reads -9.0 dB EVM where the settled answer is -23.2 dB.
     """
-    return int(2.0 * (5.0 / bn_timing + 5.0 / bn_carrier))
+    return ber_settle_syms(bn_timing, bn_carrier)
 
+
+#: A configuration-only meter used purely as the entry point to the exact
+#: confidence interval; it accumulates nothing itself.
+_CI_METER = BerMeter(m=2, target_errors=1, conf=0.99)
 
 #: The default-bandwidth budget, for tests that do not retune the loops.
 SETTLE_SYMS = settle_floor()
@@ -137,6 +134,20 @@ def make_signal(sps, nsym, *, real, m=4, fc=IF_FS4, esn0_db=None, seed=3):
             rng.standard_normal(x.size) + 1j * rng.standard_normal(x.size)
         ) * np.sqrt(var / 2)
     return np.ascontiguousarray(x.astype(np.complex64)), idx
+
+
+def evm_scatter_floor_db(m):
+    """EVM (dB) of an M-PSK constellation at a UNIFORMLY RANDOM rotation.
+
+    -1.4 dB at BPSK, -7.0 at QPSK, -12.9 at 8PSK. **Any fixed EVM threshold
+    must be stated against this, never against 0 dB** -- "scattered reads
+    ~0 dB" is the BPSK limit only, and at 8PSK a stream with no carrier
+    recovery reads the same -12.9 dB a healthy 13 dB link does.
+
+    Delegates to `ber.ber_evm_scatter_floor_db`. Not to be confused with the
+    NOISE floor -(Es/N0).
+    """
+    return ber_evm_scatter_floor_db(m)
 
 
 def freq_offset_inside_bw(bn, sps, frac=0.5):
@@ -232,138 +243,114 @@ def demod(
 def lock_symbol(flag, sustain=200, min_frac=0.9):
     """Symbol index from which a verify-counted flag is SUSTAINED.
 
-    "Sustained" is `sustain` consecutive symbols high, and at least `min_frac`
-    of everything after that point high too. Both halves are load-bearing: the
-    run rejects a single lucky decision, and the fraction rejects a detector
-    that declares early and then spends the burst flapping.
+    `sustain` consecutive symbols high, and at least `min_frac` of everything
+    after that point high too. Both halves are load-bearing: the run rejects a
+    single lucky decision, the fraction rejects a detector that declares early
+    then flaps. Dating the lock by the FINAL contiguous run is right with no
+    noise and badly wrong with it -- one late dip once moved a reported lock
+    from 415 to 2286 and left no measurement window at all.
 
-    An earlier version dated the lock by the FINAL contiguous run of ones,
-    which is right with no noise -- a dropout there is a real defect -- and
-    badly wrong with it. A verify-counted detector legitimately dips under
-    AWGN: at Es/N0 = 12 dB the carrier flag reads high 81-90% of the burst with
-    the tail above 90%, and one late dip made this report 2286 instead of 415,
-    which then left no measurement window and looked like a receiver that never
-    locked.
-
-    Returns `None` when no such point exists, which is the honest answer for
-    "never locked" and forces the caller to handle it rather than measuring a
-    transient.
+    Delegates to `ber.ber_lock_symbol`. Returns `None` for "never locked",
+    which forces the caller to handle it rather than measure a transient.
     """
-    ones = flag > 0.5
-    if ones.size == 0 or not ones.any():
-        return None
-    # cumulative sum lets both conditions be checked in one pass
-    csum = np.concatenate(([0], np.cumsum(ones)))
-    n = ones.size
-    for i in range(n):
-        end = min(i + sustain, n)
-        if csum[end] - csum[i] < end - i:  # a zero inside the run
-            continue
-        if n - i < sustain:  # not enough burst left to judge
-            return None
-        if (csum[n] - csum[i]) / (n - i) >= min_frac:
-            return int(i)
-    return None
+    idx = ber_lock_symbol(
+        np.asarray(flag, dtype=np.float64) > 0.5, sustain, min_frac
+    )
+    return None if idx < 0 else int(idx)
 
 
 def settle_from(probes, floor=SETTLE_SYMS):
     """Where the measurement window may start, from the receiver's own locks.
 
-    The analytic budget (`settle_floor`) and the reported locks are both
-    fallible in the same direction, so take whichever is later. The budget can
-    be optimistic when a geometry converges slowly for reasons bandwidth does
-    not capture -- at `sps = 10, m_out = 4` the timing detector does not
-    declare
-    until symbol 1063 -- and the locks can be optimistic because a detector
-    declares on a statistic that crossed a threshold, not on a settled loop.
-    `max(budget, timing lock, carrier lock)`: whatever settles last decides.
+    `max(budget, timing lock, carrier lock, handover + budget)` -- the
+    analytic budget and the reported locks are both fallible in the SAME
+    direction, so whichever settles last decides. **With `acq_to_track` on the
+    handover is what settles last**: it fires on carrier lock plus a warmup,
+    strictly after everything else, and the decision-directed loop then has
+    its own transient, so it contributes its instant PLUS the budget again.
+    Measured on 8PSK at its SER=1e-3 anchor: handover at symbol 2525 against a
+    2000-symbol budget, SER 5.9x the coherent bound from 2000 versus 1.7x from
+    4525.
 
-    **With `acq_to_track` on, the handover is what settles last.** It fires ON
-    carrier lock plus a warmup, so it is strictly after everything else this
-    function looks at, and the decision-directed loop then has its own
-    transient -- the shared loop filter carries the frequency estimate across,
-    so it is shorter than a cold start, but not zero. Measured on 8PSK at its
-    SER = 1e-3 anchor, complex path: the handover fires at symbol 2525 against
-    a 2000-symbol budget, and measuring from 2000 reads SER 5.9x the coherent
-    bound where the settled answer is **1.7x** -- nearly every error in that
-    window is pre-handover. So a handover adds `floor` again on top of its own
-    instant.
-
-    Returns `None` when either loop is not locked at the end of the burst;
-    there is no valid steady-state window in that case and the caller must say
-    so rather than quietly measuring the transient.
+    Delegates the policy to `ber.ber_settle_from`. Returns `None` when either
+    loop is not locked at the end of the burst -- there is no valid
+    steady-state window then, and the caller must say so.
     """
     t = lock_symbol(probes["sync.locked"])
     c = lock_symbol(probes["car.locked"])
     if t is None or c is None:
         return None
-    out = max(floor, t, c)
-    # `tracking` stays 0 when acq_to_track is off, so this contributes nothing
-    # for a pure-NDA receiver.
     h = lock_symbol(probes["tracking"]) if "tracking" in probes else None
-    if h is not None:
-        out = max(out, h + floor)
-    return out
+    return int(ber_settle_from(floor, t, c, -1 if h is None else h))
 
 
 def coherent_errors(y, idx, m, settle, lag_span=40):
     """Coherent symbol errors over the settled window: `(errors, symbols)`.
 
-    Returns COUNTS, not a rate, because the sensible way to measure a symbol
-    error rate is to run until a fixed number of ERRORS and let the symbol
-    count be the random variable (inverse binomial sampling) -- and a rate
-    alone cannot be accumulated across bursts. See `ser_confidence()`.
+    Returns COUNTS, not a rate, because the sensible way to measure an error
+    rate is to run until a fixed number of ERRORS and let the symbol count be
+    the random variable -- and a rate alone cannot be accumulated across
+    bursts. See `ser_confidence()`.
 
-    De-rotates by the estimated M-th-power phase first, which removes the
-    arbitrary phase the loop settled at; the residual ambiguity is then exactly
-    the `m` discrete rotations, searched here along with the lag. Skipping that
-    de-rotation is not a small error: QPSK lands on its decision boundaries and
-    reads ~0.5 regardless of how clean the constellation is.
+    **The alignment is DETECTED, not searched.** This used to take the minimum
+    error count over a lag and rotation search, which is an optimisation over
+    the answer rather than a measurement: it can find a lucky alignment on
+    garbage, and it can miss the true one on a healthy stream and report
+    chance. `BerMeter.align()` correlates a known marker -- here a stretch of
+    the truth sequence, taken from the FRONT of the window so the symbols that
+    fix the alignment are disjoint from the ones scored -- and gates the peak
+    on a false-alarm probability.
 
-    Returns `None` if the window is too short to judge.
+    Returns `None` if the window is too short to judge, or if no alignment
+    could be detected in it.
     """
-    z = y[settle:]
-    if z.size < 500:
+    if y.size - settle < 500:
         return None
-    z = z * np.exp(-1j * np.angle(np.mean(z.astype(np.complex128) ** m)) / m)
-    step = 2.0 * np.pi / m
-    dec = np.round(np.angle(z) / step).astype(int) % m
-    best = None
-    for lag in range(-lag_span, lag_span + 1):
-        b = np.arange(settle, settle + z.size) + lag
-        if b.min() < 0 or b.max() >= idx.size:
-            continue
-        for rot in range(m):
-            e = int(np.count_nonzero(((dec - idx[b] - rot) % m) != 0))
-            if best is None or e < best:
-                best = e
-    return (best, z.size) if best is not None else None
+    rx = np.ascontiguousarray(y, dtype=np.complex64)
+    truth = np.ascontiguousarray(idx, dtype=np.uint8)
+    # `rx` is NOT sliced: the meter's convention is rx[i] <-> truth[i + lag],
+    # so slicing off `settle` from one side only would make the true lag
+    # `settle` itself -- thousands of symbols outside any sane search.
+    t0 = settle + lag_span
+    n_marker = 256
+    if t0 + n_marker >= truth.size:
+        return None
+    meter = BerMeter(m=m, target_errors=10**9)
+    meter.set_truth(truth)
+    if not meter.align(rx, t0=t0, n_marker=n_marker, lag_span=lag_span):
+        return None
+    # Score from just past the marker: the symbols that fixed the alignment
+    # must not also be scored, or they flatter the rate.
+    lo = t0 + n_marker - meter.lag
+    meter.score(rx, lo=lo, hi=rx.size)
+    return (int(meter.errors), int(meter.symbols)) if meter.symbols else None
 
 
 def ser_confidence(errors, symbols, z=1.96):
     """`(p_hat, lo, hi)` for a run stopped on an ERROR count.
 
-    Under inverse binomial sampling -- fix the number of errors `r`, let the
-    number of symbols `N` be what falls out -- `N` is negative-binomially
-    distributed, not the errors. Two consequences the fixed-`N` habit misses:
+    Under inverse binomial sampling -- fix the errors `r`, let the trials `N`
+    be what falls out -- `N` is negative-binomially distributed, not the
+    errors. Two consequences the fixed-`N` habit misses: the naive `r/N` is
+    **biased** (unbiased is `(r-1)/(N-1)`), and the relative standard error is
+    `1/sqrt(r)`, depending ONLY on the error count. That is exactly why
+    stopping on errors gives a consistent measurement and stopping on symbols
+    does not: 20 000 symbols at SER 1e-3 yields ~20 errors and ~22% relative
+    error, which reads as real seed-to-seed variation in the receiver.
 
-    * the naive `r/N` is **biased**; the unbiased estimator is `(r-1)/(N-1)`;
-    * the relative standard error is `1/sqrt(r)` and depends ONLY on the error
-      count, which is exactly why stopping on errors gives a consistent
-      measurement while stopping on symbols does not. At a target SER of 1e-3,
-      a 20 000-symbol burst yields ~20 errors and ~22% relative error -- big
-      enough to look like real seed-to-seed variation in the receiver, which is
-      how it was first misread here.
+    Delegates to `BerMeter.interval()`, which is the EXACT Gamma/chi-square
+    interval at every error count including 1 -- no normal approximation, so
+    it stays honest where a Wald interval is worst.
 
-    The interval is the large-`r` log-normal form `p_hat * exp(+-z/sqrt(r))`,
-    accurate for `r >= 100`. For small `r` use the exact Poisson/Gamma relation
-    instead: `p` in `[chi2_{a/2}(2r) / 2N, chi2_{1-a/2}(2r) / 2N]`.
+    `z` is accepted for backward compatibility and IGNORED: the C side is
+    parameterised by a confidence level (0.99 here), and the exact interval is
+    not symmetric, so a two-sided z-score has nothing to multiply.
     """
+    del z
     if errors < 2 or symbols < 2:
         return float("nan"), 0.0, float("inf")
-    p = (errors - 1) / (symbols - 1)
-    rel = 1.0 / math.sqrt(errors)
-    return p, p * math.exp(-z * rel), p * math.exp(z * rel)
+    r = _CI_METER.interval(errors, symbols)
+    return r.p_hat, r.lo, r.hi
 
 
 def symbol_metrics(y, idx, m=4, settle=SETTLE_SYMS):

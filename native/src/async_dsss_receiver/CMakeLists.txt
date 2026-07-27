@@ -7,6 +7,7 @@ target_link_libraries(async_dsss_receiver_core PUBLIC
     wfm_dsp_core
     gold_core
     snr_core
+    ber_core
     acq_core
     corr2d_core
     fft2d_core
@@ -46,6 +47,7 @@ target_link_libraries(test_async_dsss_receiver_core
                       PRIVATE async_dsss_receiver_core wfm_dsp_core
     gold_core
     snr_core
+    ber_core
     acq_core
     corr2d_core
     fft2d_core
@@ -90,6 +92,7 @@ target_link_libraries(bench_async_dsss_receiver_core
                       PRIVATE async_dsss_receiver_core wfm_dsp_core
     gold_core
     snr_core
+    ber_core
     acq_core
     corr2d_core
     fft2d_core

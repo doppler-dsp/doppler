@@ -17,11 +17,20 @@
  *   - dp_test_evm_db_hard_m() — EVM against the stream's OWN hard decisions,
  *     with the constellation rotation estimated from the data. No lag, no
  *     truth. At the matched-filter output the error vector IS the complex
- *     noise, so a locked stream reads EVM[dB] ~ -(Es/N0)[dB] and a scattered
- *     one sits near 0 dB. (EVM is an I/Q-plane quantity: there is no factor of
- *     two — that belongs to an I-only measurement, and quoting it flatters the
- *     result by 3 dB.) **Pass the real `m`**; dp_test_evm_db_hard() is the
- *     BPSK spelling of it.
+ *     noise, so a locked stream reads EVM[dB] ~ -(Es/N0)[dB]. (EVM is an
+ *     I/Q-plane quantity: there is no factor of two — that belongs to an
+ *     I-only measurement, and quoting it flatters the result by 3 dB.)
+ *     **Pass the real `m`**; dp_test_evm_db_hard() is the BPSK spelling.
+ *
+ *     **A scattered stream does NOT read 0 dB except at BPSK.** Slicing a
+ *     unit-modulus point at a uniformly random phase to its nearest of M
+ *     neighbours leaves `E|e|^2 = 2 - 2 sin(pi/M)/(pi/M)`, so the floor is
+ *     -1.4 dB at BPSK, -7.0 dB at QPSK and **-12.9 dB at 8PSK** — the last
+ *     being what a perfectly healthy 13 dB link also reads. So an 8PSK EVM
+ *     has under 3 dB of range between "on the bound at its SER=1e-3 anchor"
+ *     and "no carrier recovery at all", and cannot carry a verdict by itself.
+ *     dp_test_evm_scatter_floor_db() below computes the floor, and
+ *     dp_ber_report() gates on it.
  *   - dp_test_m2m4_snr_db() — the blind moment-based estimator, via the
  *     canonical snr_m2m4_db() primitive. Fully independent of the above: a
  *     locked stream recovers ~Es/N0, noise-dominated symbols estimate near 0.
@@ -38,10 +47,36 @@
 #ifndef DP_SYM_TEST_H
 #define DP_SYM_TEST_H
 
+#include "ber/ber_core.h" /* the EVM / scatter-floor / settling primitives */
 #include "snr/snr_core.h" /* snr_m2m4_db — the canonical blind estimator */
 #include <complex.h>
 #include <math.h>
 #include <stddef.h>
+
+/**
+ * @brief Self-referenced EVM (dB) over an EXPLICIT window `[lo, hi)`.
+ *
+ * The range-taking form of dp_test_evm_db_hard_m(); see that function for what
+ * the number means. Use this one whenever the EVM must be reported beside a
+ * symbol error rate: **BER and EVM must be measured on the SAME window**, and
+ * the convenience back-half spelling silently scores a different one (the back
+ * half of whatever you handed it, which is the back QUARTER of a record if you
+ * already sliced off the settling transient). An EVM and a BER taken over
+ * different windows will eventually disagree, and the disagreement reads as a
+ * receiver defect rather than as the harness bug it is.
+ *
+ * @param syms  Recovered symbols.
+ * @param lo    First symbol scored.
+ * @param hi    One past the last symbol scored.
+ * @param m     Constellation order (2, 4, 8, ...); < 2 is treated as 2.
+ * @return      EVM in dB, or 0.0 ("no lock") for a window under 20 symbols.
+ */
+static inline double
+dp_test_evm_db_hard_range (const float complex *syms, size_t lo, size_t hi,
+                           int m)
+{
+  return ber_evm_db (syms, hi, lo, hi, m);
+}
 
 /**
  * @brief Self-referenced EVM (dB) over the back half, for an M-PSK stream.
@@ -50,8 +85,10 @@
  * constellation rotation estimated from the data — so it references neither
  * the transmitted symbols nor a lag, and cannot be fooled by an alignment
  * search. At a matched-filter output the error vector IS the complex noise, so
- * a locked stream reads `EVM[dB] ~ -(Es/N0)[dB]` and a scattered one sits near
- * 0 dB. (EVM is an I/Q-plane quantity: no factor of two.)
+ * a locked stream reads `EVM[dB] ~ -(Es/N0)[dB]`. (EVM is an I/Q-plane
+ * quantity: no factor of two.) A SCATTERED stream reads
+ * dp_test_evm_scatter_floor_db(m), which is 0 dB only in the BPSK limit — see
+ * that function before writing any fixed threshold against this.
  *
  * The rotation estimate is the M-fold generalisation of the familiar BPSK one:
  * `phi = arg(sum z^m) / m`, which at `m = 2` is exactly `0.5*atan2(Im z^2,
@@ -64,6 +101,9 @@
  * error rate is that mistake, not a receiver fault. (This function was
  * BPSK-only until 2026-07-27, which is exactly how that reading was produced.)
  *
+ * The back half is a convenience default, not a measurement window: prefer
+ * dp_test_evm_db_hard_range() with the same `[lo, hi)` the error rate uses.
+ *
  * @param syms    Recovered symbols.
  * @param n_syms  How many; the back half is scored.
  * @param m       Constellation order (2, 4, 8, ...); < 2 is treated as 2.
@@ -74,45 +114,7 @@ dp_test_evm_db_hard_m (const float complex *syms, size_t n_syms, int m)
 {
   if (n_syms < 20)
     return 0.0;
-  if (m < 2)
-    m = 2;
-  size_t lo = n_syms / 2, hi = n_syms, n = hi - lo;
-  /* sum z^m (by repeated squaring/multiply — m is 2, 4 or 8 in practice) and
-     the mean power, in one pass. */
-  double smr = 0.0, smi = 0.0, p = 0.0;
-  for (size_t i = lo; i < hi; i++)
-    {
-      double re = crealf (syms[i]), im = cimagf (syms[i]);
-      p += re * re + im * im;
-      double zr = re, zi = im; /* z^1 */
-      for (int q = 1; q < m; q++)
-        {
-          double nr = zr * re - zi * im;
-          zi        = zr * im + zi * re;
-          zr        = nr;
-        }
-      smr += zr;
-      smi += zi;
-    }
-  double scale = sqrt (p / (double)n);
-  if (scale < 1e-20)
-    return 0.0;
-  double phi = atan2 (smi, smr) / (double)m; /* constellation rotation */
-  double cr = cos (-phi), sr = sin (-phi);
-  double step  = 2.0 * M_PI / (double)m;
-  double errsq = 0.0;
-  for (size_t i = lo; i < hi; i++)
-    {
-      double re = crealf (syms[i]), im = cimagf (syms[i]);
-      double dr = (re * cr - im * sr) / scale; /* de-rotated, unit power */
-      double di = (re * sr + im * cr) / scale;
-      /* nearest of the m unit-modulus points */
-      double th = step * (double)lround (atan2 (di, dr) / step);
-      double er = dr - cos (th), ei = di - sin (th);
-      errsq += er * er + ei * ei;
-    }
-  double evm = sqrt (errsq / (double)n); /* |ref| = 1 */
-  return (evm > 0.0) ? 20.0 * log10 (evm) : -120.0;
+  return dp_test_evm_db_hard_range (syms, n_syms / 2, n_syms, m);
 }
 
 /* BPSK spelling, kept because most callers here are BPSK (the DSSS receivers)
@@ -123,16 +125,61 @@ dp_test_evm_db_hard (const float complex *syms, size_t n_syms)
   return dp_test_evm_db_hard_m (syms, n_syms, 2);
 }
 
-/* Blind M2M4 Es/N0 (dB) over the back half. Returns -120.0 for a stream too
- * short to judge, so a symbol famine reads as an obvious sentinel rather than
- * a plausible number. */
+/**
+ * @brief EVM (dB) of an M-PSK constellation at a UNIFORMLY RANDOM rotation.
+ *
+ * The FLOOR of dp_test_evm_db_hard_m(): what a completely destroyed
+ * constant-modulus constellation reads. Slicing a unit-modulus point at a
+ * uniformly random phase to its nearest of M neighbours leaves
+ * `E|e|^2 = 2 - 2 sin(pi/M)/(pi/M)`, so
+ *
+ *     M = 2  ->   -1.4 dB
+ *     M = 4  ->   -7.0 dB
+ *     M = 8  ->  -12.9 dB
+ *
+ * **Any fixed EVM threshold MUST be stated against this, never against 0 dB.**
+ * A `< -12.0` assertion is meaningless at 8PSK — a stream with no carrier
+ * recovery at all passes it — and that is not hypothetical: it was live in
+ * test_mpsk_receiver_r_core.c's every-M loop until 2026-07-27. The room
+ * between "on the bound at the SER=1e-3 anchor" and "completely broken"
+ * shrinks fast with M:
+ *
+ *     M = 2:  -6.8 dB anchor vs  -1.4 floor  ->  5.4 dB of range
+ *     M = 4: -10.3 dB anchor vs  -7.0 floor  ->  3.3 dB
+ *     M = 8: -15.7 dB anchor vs -12.9 floor  ->  2.8 dB
+ *
+ * So at 8PSK the self-referenced EVM cannot carry a verdict alone; pair it
+ * with the truth-referenced error rate, which is what dp_ber_test.h does.
+ *
+ * @param m  Constellation order (2, 4, 8, ...); < 2 is treated as 2.
+ * @return   The scatter floor in dB (negative).
+ */
+static inline double
+dp_test_evm_scatter_floor_db (int m)
+{
+  return ber_evm_scatter_floor_db (m);
+}
+
+/* Blind M2M4 Es/N0 (dB) over an EXPLICIT window — the twin of
+ * dp_test_evm_db_hard_range(), for the same reason: pair it with the window
+ * the error rate used, not with a fraction of the record. Returns -120.0 for
+ * a window too short to judge, so a symbol famine reads as an obvious
+ * sentinel rather than a plausible number. */
+static inline double
+dp_test_m2m4_snr_db_range (const float complex *syms, size_t lo, size_t hi)
+{
+  if (hi <= lo || hi - lo < 20)
+    return -120.0;
+  return snr_m2m4_db (syms + lo, hi - lo);
+}
+
+/* Blind M2M4 Es/N0 (dB) over the back half. */
 static inline double
 dp_test_m2m4_snr_db (const float complex *syms, size_t n_syms)
 {
   if (n_syms < 20)
     return -120.0;
-  size_t lo = n_syms / 2;
-  return snr_m2m4_db (syms + lo, n_syms - lo);
+  return dp_test_m2m4_snr_db_range (syms, n_syms / 2, n_syms);
 }
 
 /**
@@ -167,12 +214,7 @@ dp_test_m2m4_snr_db (const float complex *syms, size_t n_syms)
 static inline size_t
 dp_test_settle_syms (double bn_timing, double bn_carrier)
 {
-  double s = 0.0;
-  if (bn_timing > 0.0)
-    s += 5.0 / bn_timing;
-  if (bn_carrier > 0.0)
-    s += 5.0 / bn_carrier;
-  return (size_t)(2.0 * s);
+  return ber_settle_syms (bn_timing, bn_carrier);
 }
 
 #endif /* DP_SYM_TEST_H */

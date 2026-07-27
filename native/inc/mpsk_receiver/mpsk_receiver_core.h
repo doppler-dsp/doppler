@@ -99,6 +99,7 @@
 #include "agc/agc_core.h"
 #include "boxcar/boxcar_core.h"
 #include "telemetry/telemetry.h"
+#include "ber/ber_core.h"
 #ifdef __cplusplus
 extern "C"
 {
@@ -131,14 +132,33 @@ extern "C"
    *                        by default, but 17.33389 is equally valid).
    * @param m_out          Terminal outputs per symbol: even, 2..8 (default
    *                        8). Gardner needs the half-symbol gate. The
-   *                        default is 8 because that is where an I&D matched
-   *                        filter reaches the coherent bound: the rectangle
-   *                        is one symbol wide, so its matched filter is an
-   *                        m_out-tap sum spanning it, and a smaller m_out
-   *                        samples the same integral more coarsely. Measured
-   *                        on QPSK at sps = 8 against EVM_dB =
-   *                        -(Es/N0)_dB, at 18 dB Es/N0: 0.41 dB off the
-   *                        bound at 8, 3.11 dB at 4. **Never pair 2 with
+   *                        default is 8 for two reasons. The matched
+   *                        filter: the rectangle is one symbol wide, so its
+   *                        filter is an m_out-tap sum spanning it, and a
+   *                        smaller m_out samples the same integral more
+   *                        coarsely. Measured on QPSK at sps = 8 against
+   *                        EVM_dB = -(Es/N0)_dB, at 18 dB Es/N0: 0.41 dB off
+   *                        the bound at 8, 3.11 dB at 4.
+   *                        And the M-th-power discriminator: `z^M`
+   *                        auto-convolves the spectrum M times, spreading
+   *                        energy over ~`M*Rs`, and whatever exceeds the
+   *                        update rate folds back onto itself. A clean strobe
+   *                        raises to a constant with nothing to fold, but
+   *                        every departure from clean (ISI, timing error,
+   *                        noise) is splattered M-fold and aliased — so the
+   *                        nonlinearity's tolerance for a coarse matched
+   *                        filter COLLAPSES as M grows. The first reason is
+   *                        M-independent; the second is not. Measured
+   *                        (halving m_out from 8 to 4, each M at its own
+   *                        SER=1e-3 anchor): BPSK 1.7 dB, QPSK 1.6 dB, **8PSK
+   *                        3.0 dB** — the last also sitting 0.87 dB from the
+   *                        fully-scattered EVM floor, i.e. barely
+   *                        distinguishable from noise. **So m_out = 8 is not
+   *                        optional at M = 8.** At `MPSK_RX_NDA_TAP_MF_ALL`,
+   *                        where the M-th power runs on the oversampled pulse
+   *                        rather than the strobe, the requirement is the
+   *                        blunt `m_out >= M`; since m_out maxes at 8, 8PSK
+   *                        there is exactly critically sampled. **Never pair 2 with
    *                        MPSK_RX_PULSE_IANDD** — the filter degenerates to
    *                        a two-tap sum, the eye barely opens and
    *                        acquisition itself fails about half the time.

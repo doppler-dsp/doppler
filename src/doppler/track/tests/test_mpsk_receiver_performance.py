@@ -26,6 +26,8 @@ import math
 import numpy as np
 import pytest
 
+from doppler.ber import ber_theory_ser
+
 from ._mpsk_rx_harness import (
     IF_FS4,
     coherent_errors,
@@ -60,19 +62,6 @@ def _noise(n, *, real, rng):
     ).astype(np.complex64)
 
 
-def _qfunc(x):
-    return 0.5 * math.erfc(x / math.sqrt(2.0))
-
-
-def theory_ser(m, esn0_lin):
-    """Coherent M-PSK symbol error rate."""
-    if m == 2:
-        return _qfunc(math.sqrt(2.0 * esn0_lin))
-    if m == 4:
-        return 2.0 * _qfunc(math.sqrt(esn0_lin))
-    return 2.0 * _qfunc(math.sqrt(2.0 * esn0_lin) * math.sin(math.pi / 8.0))
-
-
 def esn0_spec_db(m, target=1e-3):
     """The Es/N0 where coherent M-PSK reaches `target` SER, by bisection.
 
@@ -83,7 +72,7 @@ def esn0_spec_db(m, target=1e-3):
     lo, hi = 0.0, 30.0
     for _ in range(60):
         mid = 0.5 * (lo + hi)
-        if theory_ser(m, 10.0 ** (mid / 10.0)) > target:
+        if ber_theory_ser(m, 10.0 ** (mid / 10.0)) > target:
             lo = mid
         else:
             hi = mid
@@ -252,7 +241,7 @@ def test_ser_lands_on_the_coherent_bound(m, real):
     """
     sps, m_out, nsym = 24, 8, 20000
     esn0 = esn0_spec_db(m)
-    expect = theory_ser(m, 10.0 ** (esn0 / 10.0))
+    expect = ber_theory_ser(m, 10.0 ** (esn0 / 10.0))
     errors = symbols = bursts = 0
     for seed in range(20, 20 + MAX_BURSTS):
         if errors >= TARGET_ERRORS:

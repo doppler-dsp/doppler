@@ -20,6 +20,7 @@
  *   ber_despreader --check      fast CI assert vs theory at 2..6 dB, ~2 s
  */
 #include "awgn/awgn_core.h"
+#include "ber/ber_core.h"
 #include "pn/pn_core.h"
 #include "wfm_synth/wfm_synth_core.h"
 #include <complex.h>
@@ -31,12 +32,6 @@
 #include <time.h>
 
 #define BATCHC (1 << 20) /* complex noise samples per AWGN refill */
-
-static double
-qfunc (double x)
-{
-  return 0.5 * erfc (x / sqrt (2.0));
-}
 
 /* One BER point: NSYM synchronous symbols at the given Es/N0, MLS length n. */
 static double
@@ -107,7 +102,7 @@ main (int argc, char **argv)
   for (int p = 0; p < np; p++)
     {
       double meas = ber_point (codef, L, g, nb, db[p], nsym, &dst);
-      double th   = qfunc (sqrt (2.0 * pow (10.0, db[p] / 10.0)));
+      double th   = ber_theory_ser (2, pow (10.0, db[p] / 10.0));
       double r    = meas / th;
       printf ("   %5.1f     %.3e    %.3e    %.3f\n", db[p], meas, th, r);
       if (check && (r < 0.85 || r > 1.15)) /* ~few-% CI at these counts */

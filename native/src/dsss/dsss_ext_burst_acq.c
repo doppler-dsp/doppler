@@ -92,10 +92,19 @@ BurstAcquisitionObj_init (BurstAcquisitionObject *self, PyObject *args,
       PyErr_SetString (PyExc_MemoryError, "burst_acq_create returned NULL");
       return -1;
     }
-  /* Hand-patch (sacred fragment): C cannot raise a Python warning, so surface
-   * an under-powered search here -- the auto-config built a best-effort grid
-   * (bounded by the internal non-coherent-look safety valve) whose
-   * pd_predicted falls short of the requested pd. */
+  /* Hand-patch (sacred fragment): the ONLY non-declarative line in this
+   * file. objects/acq.toml declares the identical warning with a `warnings`
+   * block (gh-481), but `warnings.condition` must be a bare C identifier
+   * naming a bool field on the state struct, and burst_acq_state_t holds
+   * nothing but the engine pointer -- so the reach every property here makes
+   * through `engine->` via `expr` is exactly what the condition needs and
+   * cannot have. Filed upstream; delete this and add the `warnings` block to
+   * objects/burst_acq.toml once the condition accepts an expression.
+   *
+   * C cannot raise a Python warning, so surface an under-powered search
+   * here: the auto-config still built a best-effort grid (bounded by the
+   * internal non-coherent-look safety valve), it just cannot reach the
+   * requested pd. */
   if (self->handle->engine->underpowered)
     {
       if (PyErr_WarnEx (PyExc_UserWarning,
@@ -272,13 +281,10 @@ BurstAcquisition_getprop_doppler_bins (BurstAcquisitionObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* Unified property: whichever mechanism is active -- coherent_bins for
-   * a within-native-span build, window_bins for the wideband fallback.
-   * Same shared formula as Acquisition's identical getter. */
-  size_t db = (self->handle->engine->window_bins > 1)
-                  ? self->handle->engine->window_bins
-                  : self->handle->engine->coherent_bins;
-  return PyLong_FromUnsignedLongLong ((unsigned long long)db);
+  return PyLong_FromUnsignedLongLong (
+      (unsigned long long)((self->handle->engine->window_bins > 1)
+                               ? self->handle->engine->window_bins
+                               : self->handle->engine->coherent_bins));
 }
 static PyObject *
 BurstAcquisition_getprop_sf (BurstAcquisitionObject *self,
@@ -569,7 +575,10 @@ static PyGetSetDef BurstAcquisition_getset[] = {
   { "pd", (getter)BurstAcquisition_getprop_pd, NULL,
     "Target detection probability.\n", NULL },
   { "underpowered", (getter)BurstAcquisition_getprop_underpowered, NULL,
-    "True when pd_predicted < pd (the search cannot meet the target).\n",
+    "True when pd_predicted < pd -- the search cannot meet the target pd at "
+    "this cn0_dbhz and geometry. The engine still builds a best-effort grid "
+    "rather than failing; because C cannot raise a Python warning from a "
+    "successful create, construction also emits a UserWarning in this case.\n",
     NULL },
   { NULL }
 };

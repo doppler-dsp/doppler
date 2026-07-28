@@ -6,6 +6,14 @@ no_state = "true"
 no_step = "true"
 class_name = "BurstAcquisition"
 serializable = "true"
+# NOTE: no `warnings` block here, unlike its sibling objects/acq.toml. The
+# under-powered UserWarning is the one thing in this object that cannot be
+# declared: `warnings.condition` must be a bare C identifier naming a bool
+# field on the state struct, while a property `expr` takes arbitrary C. Every
+# property below has to reach through `engine->` because burst_acq_state_t
+# holds nothing but that pointer, so the same reach is exactly what the
+# condition needs and cannot have. Filed upstream; the warning is a documented
+# hand-patch in native/src/dsss/dsss_ext_burst_acq.c until that lands.
 # Composes acq's shared engine (acq_state_t/acq_core.c) -- this class is the
 # BURST front door (see docs/design/async-dsss-spec.md's Acquisition/
 # BurstAcquisition split); today's existing pre-split Acquisition behavior,
@@ -97,131 +105,131 @@ params = [
 [[burst_acq.properties]]
 name = "code_bins"
 type = "size_t"
-field = true
+expr = "self->handle->engine->code_bins"
 doc = "Code-phase hypotheses searched (= sf*spc, one code period)."
 
 [[burst_acq.properties]]
 name = "doppler_bins"
 type = "size_t"
-field = true
+expr = "((self->handle->engine->window_bins > 1) ? self->handle->engine->window_bins : self->handle->engine->coherent_bins)"
 doc = "Coherent depth chosen: the slow-time FFT length in code reps (<= reps), unless doppler_uncertainty exceeds the native span, in which case this reports the wideband window-tile count instead (coherent depth forced to 1 -- see acq_core.h's file doc comment)."
 
 [[burst_acq.properties]]
 name = "sf"
 type = "size_t"
-field = true
+expr = "self->handle->engine->sf"
 doc = "Chips per PN segment, inferred from len(code)."
 
 [[burst_acq.properties]]
 name = "spc"
 type = "size_t"
-field = true
+expr = "self->handle->engine->spc"
 doc = "Samples per chip (chip-rate oversample factor)."
 
 [[burst_acq.properties]]
 name = "reps"
 type = "size_t"
-field = true
+expr = "self->handle->engine->reps"
 doc = "Max coherent code repetitions (the coherence ceiling)."
 
 [[burst_acq.properties]]
 name = "n_noncoh"
 type = "size_t"
-field = true
+expr = "self->handle->engine->n_noncoh"
 doc = "Non-coherent looks per detection (1 = pure coherent)."
 
 [[burst_acq.properties]]
 name = "ring_cap"
 type = "size_t"
-field = true
+expr = "self->handle->engine->ring_cap"
 doc = "Input ring capacity in complex samples."
 
 [[burst_acq.properties]]
 name = "noise_lo"
 type = "size_t"
-field = true
+expr = "self->handle->engine->noise_lo"
 doc = "First CFAR reference bin (inclusive)."
 
 [[burst_acq.properties]]
 name = "noise_hi"
 type = "size_t"
-field = true
+expr = "self->handle->engine->noise_hi"
 doc = "Last CFAR reference bin (inclusive)."
 
 [[burst_acq.properties]]
 name = "threshold"
 type = "float"
-field = true
+expr = "self->handle->engine->threshold"
 doc = "CFAR gate on the test statistic (coherent path)."
 
 [[burst_acq.properties]]
 name = "eta"
 type = "float"
-field = true
+expr = "self->handle->engine->eta"
 doc = "Raw per-cell Rayleigh amplitude threshold."
 
 [[burst_acq.properties]]
 name = "eta_nc"
 type = "float"
-field = true
+expr = "self->handle->engine->eta_nc"
 doc = "Non-coherent CFAR threshold (order-N_nc Marcum)."
 
 [[burst_acq.properties]]
 name = "pfa_cell"
 type = "double"
-field = true
+expr = "self->handle->engine->pfa_cell"
 doc = "Bonferroni per-cell false-alarm probability over the searched cells."
 
 [[burst_acq.properties]]
 name = "pd_predicted"
 type = "double"
-field = true
+expr = "self->handle->engine->pd_predicted"
 doc = "Predicted Pd at cn0_dbhz and the chosen grid: the average Pd over the straddle priors (slow-time scalloping, intra-segment rotation, code-phase sample offset - quadrature over uniform priors), matching what the Monte-Carlo characterization measures rather than the on-grid best case."
 
 [[burst_acq.properties]]
 name = "straddle_loss"
 type = "double"
-field = true
+expr = "self->handle->engine->straddle_loss"
 doc = "Mean amplitude derating of the correlation peak from grid straddle (slow-time Doppler scalloping x intra-segment rotation x code-phase sample offset, each averaged over a uniform prior) - a diagnostic summary; 20*log10(straddle_loss) is the loss in dB. Sizing and pd_predicted average Pd itself over the priors (Pd at this mean amplitude would overstate the mean Pd)."
 
 [[burst_acq.properties]]
 name = "fs"
 type = "double"
-field = true
+expr = "self->handle->engine->fs"
 doc = "Sample rate (Hz) = chip_rate * spc."
 
 [[burst_acq.properties]]
 name = "chip_rate"
 type = "double"
-field = true
+expr = "self->handle->engine->chip_rate"
 doc = "Chip rate (Hz)."
 
 [[burst_acq.properties]]
 name = "cn0_dbhz"
 type = "double"
-field = true
+expr = "self->handle->engine->cn0_dbhz"
 doc = "Carrier-to-noise density used to size the search (dB-Hz)."
 
 [[burst_acq.properties]]
 name = "doppler_span_hz"
 type = "double"
-field = true
+expr = "self->handle->engine->doppler_span_hz"
 doc = "Native unambiguous Doppler half-range = +/- chip_rate/(2*sf) Hz."
 
 [[burst_acq.properties]]
 name = "doppler_res_hz"
 type = "double"
-field = true
+expr = "self->handle->engine->doppler_res_hz"
 doc = "Doppler bin width = chip_rate/(sf*doppler_bins) Hz."
 
 [[burst_acq.properties]]
 name = "pd"
 type = "double"
-field = true
+expr = "self->handle->engine->pd"
 doc = "Target detection probability."
 
 [[burst_acq.properties]]
 name = "underpowered"
 type = "bool"
-field = true
+expr = "self->handle->engine->underpowered"
 doc = "True when pd_predicted < pd -- the search cannot meet the target pd at this cn0_dbhz and geometry. The engine still builds a best-effort grid rather than failing; because C cannot raise a Python warning from a successful create, construction also emits a UserWarning in this case."

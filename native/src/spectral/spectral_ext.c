@@ -49,6 +49,15 @@ _bind_kaiser_window(PyObject *self, PyObject *args, PyObject *kwds)
     if (!PyArg_ParseTupleAndKeywords(args, kwds, "Of",
             _kwlist, &w_obj, &beta))
         return NULL;
+    /* Require the exact output dtype — no silent cast (a cast writes
+     * into a temp copy instead of the caller's buffer). */
+    if (!PyArray_Check(w_obj) ||
+        PyArray_TYPE((PyArrayObject *)w_obj) != NPY_FLOAT ||
+        !PyArray_ISWRITEABLE((PyArrayObject *)w_obj)) {
+        PyErr_SetString(PyExc_TypeError,
+            "w must be a writable ndarray of the output dtype");
+        return NULL;
+    }
     PyArrayObject *w_arr = (PyArrayObject *)PyArray_FROM_OTF(
         w_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
     if (!w_arr) { return NULL; }
@@ -80,6 +89,15 @@ _bind_hann_window(PyObject *self, PyObject *args, PyObject *kwds)
     if (!PyArg_ParseTupleAndKeywords(args, kwds, "O",
             _kwlist, &w_obj))
         return NULL;
+    /* Require the exact output dtype — no silent cast (a cast writes
+     * into a temp copy instead of the caller's buffer). */
+    if (!PyArray_Check(w_obj) ||
+        PyArray_TYPE((PyArrayObject *)w_obj) != NPY_FLOAT ||
+        !PyArray_ISWRITEABLE((PyArrayObject *)w_obj)) {
+        PyErr_SetString(PyExc_TypeError,
+            "w must be a writable ndarray of the output dtype");
+        return NULL;
+    }
     PyArrayObject *w_arr = (PyArrayObject *)PyArray_FROM_OTF(
         w_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
     if (!w_arr) { return NULL; }
@@ -99,6 +117,15 @@ _bind_blackman_harris_window(PyObject *self, PyObject *args, PyObject *kwds)
     if (!PyArg_ParseTupleAndKeywords(args, kwds, "O",
             _kwlist, &w_obj))
         return NULL;
+    /* Require the exact output dtype — no silent cast (a cast writes
+     * into a temp copy instead of the caller's buffer). */
+    if (!PyArray_Check(w_obj) ||
+        PyArray_TYPE((PyArrayObject *)w_obj) != NPY_FLOAT ||
+        !PyArray_ISWRITEABLE((PyArrayObject *)w_obj)) {
+        PyErr_SetString(PyExc_TypeError,
+            "w must be a writable ndarray of the output dtype");
+        return NULL;
+    }
     PyArrayObject *w_arr = (PyArrayObject *)PyArray_FROM_OTF(
         w_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
     if (!w_arr) { return NULL; }

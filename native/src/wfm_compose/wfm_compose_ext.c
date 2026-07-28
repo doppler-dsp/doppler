@@ -2048,7 +2048,7 @@ _wfm_compose_segments_to_list(const wfm_segment_t *src, size_t n)
                 Py_DECREF(list);
                 return NULL;
             }
-            syn->src = src[i].sources[k]; /* scalars + bits ptr */
+            syn->src = src[i].sources[k]; /* scalars + bytes ptrs */
             syn->fs = src[i].fs;
             if (syn->src.bits && syn->src.n_bits) {
                 uint8_t *copy = (uint8_t *)malloc(syn->src.n_bits);
@@ -2058,6 +2058,33 @@ _wfm_compose_segments_to_list(const wfm_segment_t *src, size_t n)
             } else {
                 syn->src.bits = NULL;
                 syn->src.n_bits = 0;
+            }
+            if (syn->src.acq_code && syn->src.n_acq_code) {
+                uint8_t *copy = (uint8_t *)malloc(syn->src.n_acq_code);
+                if (copy)
+                    memcpy(copy, syn->src.acq_code, syn->src.n_acq_code);
+                syn->src.acq_code = copy;
+            } else {
+                syn->src.acq_code = NULL;
+                syn->src.n_acq_code = 0;
+            }
+            if (syn->src.data_code && syn->src.n_data_code) {
+                uint8_t *copy = (uint8_t *)malloc(syn->src.n_data_code);
+                if (copy)
+                    memcpy(copy, syn->src.data_code, syn->src.n_data_code);
+                syn->src.data_code = copy;
+            } else {
+                syn->src.data_code = NULL;
+                syn->src.n_data_code = 0;
+            }
+            if (syn->src.sync && syn->src.n_sync) {
+                uint8_t *copy = (uint8_t *)malloc(syn->src.n_sync);
+                if (copy)
+                    memcpy(copy, syn->src.sync, syn->src.n_sync);
+                syn->src.sync = copy;
+            } else {
+                syn->src.sync = NULL;
+                syn->src.n_sync = 0;
             }
             PyList_SET_ITEM(srclist, (Py_ssize_t)k, (PyObject *)syn);
         }

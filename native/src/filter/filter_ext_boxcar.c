@@ -94,6 +94,18 @@ MovingAverage_steps (MovingAverageObject *self, PyObject *args, PyObject *kwds)
 
   if (out_obj && out_obj != Py_None)
     {
+      /* Require the exact output dtype — no silent cast (a cast writes
+       * into a temp copy instead of the caller's buffer). */
+      if (!PyArray_Check (out_obj)
+          || PyArray_TYPE ((PyArrayObject *)out_obj) != NPY_COMPLEX64
+          || !PyArray_ISWRITEABLE ((PyArrayObject *)out_obj))
+        {
+          PyErr_SetString (
+              PyExc_TypeError,
+              "out must be a writable ndarray of the output dtype");
+          Py_DECREF (in_arr);
+          return NULL;
+        }
       PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
           out_obj, NPY_COMPLEX64,
           NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);

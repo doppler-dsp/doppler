@@ -103,7 +103,10 @@ MatchedDdcrObj_init (MatchedDdcrObject *self, PyObject *args, PyObject *kwds)
                                            pulse_sps, num_phases);
   if (!self->handle)
     {
-      PyErr_SetString (PyExc_MemoryError, "ddcr_create_matched returned NULL");
+      PyErr_SetString (PyExc_ValueError,
+                       "Ddcr: invalid parameter (need 0 < rate < 0.5, 0 <= "
+                       "beta <= 1, span >= 1, pulse_sps > 0, num_phases a "
+                       "power of two >= 2)");
       return -1;
     }
   {
@@ -195,6 +198,18 @@ MatchedDdcrObj_execute (MatchedDdcrObject *self, PyObject *args,
     return NULL;
   if (out_obj && out_obj != Py_None)
     {
+      /* Require the exact output dtype — no silent cast (a cast writes
+       * into a temp copy instead of the caller's buffer). */
+      if (!PyArray_Check (out_obj)
+          || PyArray_TYPE ((PyArrayObject *)out_obj) != NPY_COMPLEX64
+          || !PyArray_ISWRITEABLE ((PyArrayObject *)out_obj))
+        {
+          PyErr_SetString (
+              PyExc_TypeError,
+              "out must be a writable ndarray of the output dtype");
+          Py_DECREF (x_arr);
+          return NULL;
+        }
       PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
           out_obj, NPY_COMPLEX64,
           NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
@@ -630,7 +645,6 @@ MatchedDdcr_getprop_clipped (MatchedDdcrObject *self,
   /* <<IMPLEMENT: return the computed or stored value>> */
   return PyBool_FromLong ((long)(ddcr_get_clipped (self->handle)));
 }
-
 static PyObject *
 MatchedDdcr_getprop_narrow_pulse (MatchedDdcrObject *self,
                                   void              *Py_UNUSED (closure))

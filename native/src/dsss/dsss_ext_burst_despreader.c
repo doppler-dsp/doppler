@@ -157,6 +157,18 @@ BurstDespreaderObj_steps (BurstDespreaderObject *self, PyObject *args,
     return NULL;
   if (out_obj && out_obj != Py_None)
     {
+      /* Require the exact output dtype — no silent cast (a cast writes
+       * into a temp copy instead of the caller's buffer). */
+      if (!PyArray_Check (out_obj)
+          || PyArray_TYPE ((PyArrayObject *)out_obj) != NPY_COMPLEX64
+          || !PyArray_ISWRITEABLE ((PyArrayObject *)out_obj))
+        {
+          PyErr_SetString (
+              PyExc_TypeError,
+              "out must be a writable ndarray of the output dtype");
+          Py_DECREF (x_arr);
+          return NULL;
+        }
       PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
           out_obj, NPY_COMPLEX64,
           NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
@@ -313,6 +325,18 @@ BurstDespreaderObj_bits (BurstDespreaderObject *self, PyObject *args,
     return NULL;
   if (out_obj && out_obj != Py_None)
     {
+      /* Require the exact output dtype — no silent cast (a cast writes
+       * into a temp copy instead of the caller's buffer). */
+      if (!PyArray_Check (out_obj)
+          || PyArray_TYPE ((PyArrayObject *)out_obj) != NPY_UINT8
+          || !PyArray_ISWRITEABLE ((PyArrayObject *)out_obj))
+        {
+          PyErr_SetString (
+              PyExc_TypeError,
+              "out must be a writable ndarray of the output dtype");
+          Py_DECREF (x_arr);
+          return NULL;
+        }
       PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
           out_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
       if (!out_arr)
@@ -702,9 +726,11 @@ static PyGetSetDef BurstDespreader_getset[] = {
   { "lock_stat", (getter)BurstDespreader_getprop_lock_stat, NULL,
     "Calibrated whole-burst lock statistic R = sqrt(stat_n * sum Re^2 / sum "
     "Im^2) — the one-shot analog of the tracking loops' verify-counted "
-    "detectors, in the same family as the DLL/acquisition CFAR tests. Gate "
-    "with R > det_threshold_noncoherent(pfa, stat_n // 2); approximations are "
-    "mild for stat_n >= 16.\n",
+    "detectors. Because the noise reference is estimated from as many samples "
+    "as the signal sum, the exact H0 law is R^2 = stat_n * F(stat_n, stat_n): "
+    "gate with R > sqrt(stat_n * det_threshold_f(pfa, stat_n)) — exact for "
+    "every stat_n (a chi-square gate would realize tens of times the priced "
+    "pfa). Payload prompts only; reset() re-arms.\n",
     NULL },
   { "stat_n", (getter)BurstDespreader_getprop_stat_n, NULL,
     "Number of prompts folded into the burst statistics so far.\n", NULL },

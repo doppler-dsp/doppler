@@ -19,6 +19,7 @@ typedef struct
   void         **_decimate_retired; /* gh-219 deferred free */
   size_t         _decimate_retired_n;
   size_t         _decimate_retired_cap;
+  PyObject      *_decimate_view_ref; /* gh-437 last returned view */
 } CICObject;
 
 static void
@@ -30,6 +31,7 @@ CICObj_dealloc (CICObject *self)
   for (size_t _i = 0; _i < self->_decimate_retired_n; _i++)
     free (self->_decimate_retired[_i]);
   free (self->_decimate_retired);
+  Py_XDECREF (self->_decimate_view_ref);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -134,6 +136,18 @@ CICObj_decimate (CICObject *self, PyObject *args, PyObject *kwds)
   Py_ssize_t n = PyArray_SIZE (in_arr);
   if (out_obj && out_obj != Py_None)
     {
+      /* Require the exact output dtype — no silent cast (a cast writes
+       * into a temp copy instead of the caller's buffer). */
+      if (!PyArray_Check (out_obj)
+          || PyArray_TYPE ((PyArrayObject *)out_obj) != NPY_COMPLEX64
+          || !PyArray_ISWRITEABLE ((PyArrayObject *)out_obj))
+        {
+          PyErr_SetString (
+              PyExc_TypeError,
+              "out must be a writable ndarray of the output dtype");
+          Py_DECREF (in_arr);
+          return NULL;
+        }
       PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
           out_obj, NPY_COMPLEX64,
           NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
@@ -142,13 +156,13 @@ CICObj_decimate (CICObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (in_arr);
           return NULL;
         }
-      size_t _cap  = (size_t)PyArray_SIZE (out_arr);
-      size_t _omax = cic_decimate_max_out (self->handle);
-      if (_cap < _omax)
+      size_t _cap     = (size_t)PyArray_SIZE (out_arr);
+      size_t _omax    = cic_decimate_max_out (self->handle);
+      size_t _min_cap = _omax > (size_t)n ? _omax : ((size_t)n);
+      if (_cap < _min_cap)
         {
-          PyErr_Format (PyExc_ValueError,
-                        "out has %zu elements, need >= %zu (decimate_max_out)",
-                        _cap, _omax);
+          PyErr_Format (PyExc_ValueError, "out has %zu elements, need >= %zu",
+                        _cap, _min_cap);
           Py_DECREF (out_arr);
           Py_DECREF (in_arr);
           return NULL;
@@ -168,8 +182,22 @@ CICObj_decimate (CICObject *self, PyObject *args, PyObject *kwds)
       PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
       return _oview;
     }
-  size_t _need = (size_t)n;
-  if (!self->_decimate_buf || self->_decimate_buf_cap < _need)
+  size_t _need      = (size_t)n;
+  int    _view_live = 0;
+  if (self->_decimate_view_ref)
+    {
+#if PY_VERSION_HEX >= 0x030D0000
+      PyObject *_lv = NULL;
+      if (PyWeakref_GetRef (self->_decimate_view_ref, &_lv) == 1)
+        {
+          Py_DECREF (_lv);
+          _view_live = 1;
+        }
+#else
+      _view_live = PyWeakref_GetObject (self->_decimate_view_ref) != Py_None;
+#endif
+    }
+  if (!self->_decimate_buf || self->_decimate_buf_cap < _need || _view_live)
     {
       size_t _max = cic_decimate_max_out (self->handle);
       if (!_max || _max < _need)
@@ -214,6 +242,15 @@ CICObj_decimate (CICObject *self, PyObject *args, PyObject *kwds)
     return NULL;
   PyArray_SetBaseObject ((PyArrayObject *)arr, (PyObject *)self);
   Py_INCREF (self);
+  /* gh-437: remember this view — while the caller holds it the next
+   * call retires the buffer instead of reusing it in place. */
+  Py_XDECREF (self->_decimate_view_ref);
+  self->_decimate_view_ref = PyWeakref_NewRef (arr, NULL);
+  if (!self->_decimate_view_ref)
+    {
+      Py_DECREF (arr);
+      return NULL;
+    }
   Py_DECREF (in_arr);
   return arr;
 }
@@ -290,7 +327,6 @@ CIC_getprop_shift (CICObject *self, void *Py_UNUSED (closure))
     }
   return PyLong_FromUnsignedLong ((unsigned long)self->handle->shift);
 }
-
 static PyObject *
 CIC_getprop_clipped (CICObject *self, void *Py_UNUSED (closure))
 {
@@ -401,11 +437,16 @@ static PyTypeObject CICObjType = {
   .tp_basicsize                           = sizeof (CICObject),
   .tp_dealloc                             = (destructor)CICObj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,
-  .tp_doc = "Create a 4-stage, M=1 CIC decimation filter. Allocates the state "
-            "struct on the heap and pre-computes the normalisation "
-            "right-shift (CIC_N * log2(R) bits). All integrator and comb "
-            "accumulators are zeroed; the first output arrives after R input "
-            "samples. Returns NULL for invalid R or OOM.\n",
+  .tp_doc
+  = "Create a 4-stage, M=1 CIC decimation filter. Allocates the state struct "
+    "on the heap and pre-computes the normalisation right-shift (CIC_N * "
+    "log2(R) bits). All integrator and comb accumulators are zeroed; the "
+    "first output arrives after R input samples. Returns NULL for invalid R "
+    "or OOM. Input amplitude is bounded: |Re| and |Im| <= 1.0. A component "
+    "beyond +-1.0 is clipped at the boundary before any filtering; the sample "
+    "stream gives no sign of it, so check the sticky clipped flag. Unlike "
+    "doppler's floating-point blocks this one is not scale-free -- scale the "
+    "input into range first.\n",
   .tp_methods = CICObj_methods,
   .tp_getset  = CIC_getset,
   .tp_new     = CICObj_new,

@@ -159,6 +159,18 @@ DespreaderObj_steps (DespreaderObject *self, PyObject *args, PyObject *kwds)
     return NULL;
   if (out_obj && out_obj != Py_None)
     {
+      /* Require the exact output dtype — no silent cast (a cast writes
+       * into a temp copy instead of the caller's buffer). */
+      if (!PyArray_Check (out_obj)
+          || PyArray_TYPE ((PyArrayObject *)out_obj) != NPY_COMPLEX64
+          || !PyArray_ISWRITEABLE ((PyArrayObject *)out_obj))
+        {
+          PyErr_SetString (
+              PyExc_TypeError,
+              "out must be a writable ndarray of the output dtype");
+          Py_DECREF (x_arr);
+          return NULL;
+        }
       PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
           out_obj, NPY_COMPLEX64,
           NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
@@ -314,6 +326,18 @@ DespreaderObj_bits (DespreaderObject *self, PyObject *args, PyObject *kwds)
     return NULL;
   if (out_obj && out_obj != Py_None)
     {
+      /* Require the exact output dtype — no silent cast (a cast writes
+       * into a temp copy instead of the caller's buffer). */
+      if (!PyArray_Check (out_obj)
+          || PyArray_TYPE ((PyArrayObject *)out_obj) != NPY_UINT8
+          || !PyArray_ISWRITEABLE ((PyArrayObject *)out_obj))
+        {
+          PyErr_SetString (
+              PyExc_TypeError,
+              "out must be a writable ndarray of the output dtype");
+          Py_DECREF (x_arr);
+          return NULL;
+        }
       PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
           out_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
       if (!out_arr)
@@ -473,6 +497,59 @@ DespreaderObj_set_telemetry (DespreaderObject *self, PyObject *args,
   if (_rc != 0)
     {
       PyErr_Format (PyExc_ValueError, "set_telemetry failed (rc=%d)", _rc);
+      return NULL;
+    }
+  Py_RETURN_NONE;
+}
+
+static PyObject *
+DespreaderObj_configure_carrier_lock (DespreaderObject *self, PyObject *args,
+                                      PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char *_kwlist[]
+      = { "up_thresh", "down_thresh", "n_up", "n_down", NULL };
+  double        up_thresh   = 0.0;
+  double        down_thresh = 0.0;
+  unsigned long n_up_raw    = 0UL;
+  unsigned long n_down_raw  = 0UL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "ddkk", _kwlist, &up_thresh,
+                                    &down_thresh, &n_up_raw, &n_down_raw))
+    return NULL;
+  uint32_t n_up   = (uint32_t)n_up_raw;
+  uint32_t n_down = (uint32_t)n_down_raw;
+  despreader_configure_carrier_lock (self->handle, up_thresh, down_thresh,
+                                     n_up, n_down);
+  Py_RETURN_NONE;
+}
+
+static PyObject *
+DespreaderObj_configure_code_lock (DespreaderObject *self, PyObject *args,
+                                   PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char       *_kwlist[]   = { "pfa", "n_looks", "ref_snr_db", NULL };
+  double             pfa         = 0.0;
+  unsigned long long n_looks_raw = 0ULL;
+  double             ref_snr_db  = 0.0;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "dK|d", _kwlist, &pfa,
+                                    &n_looks_raw, &ref_snr_db))
+    return NULL;
+  size_t n_looks = (size_t)n_looks_raw;
+  int    _rc     = despreader_configure_code_lock (self->handle, pfa, n_looks,
+                                                   ref_snr_db);
+  if (_rc != 0)
+    {
+      PyErr_Format (PyExc_ValueError, "configure_code_lock failed (rc=%d)",
+                    _rc);
       return NULL;
     }
   Py_RETURN_NONE;
@@ -756,59 +833,6 @@ DespreaderObj_exit (DespreaderObject *self, PyObject *args)
   Py_RETURN_NONE;
 }
 
-static PyObject *
-DespreaderObj_configure_carrier_lock (DespreaderObject *self, PyObject *args,
-                                      PyObject *kwds)
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  static char *_kwlist[]
-      = { "up_thresh", "down_thresh", "n_up", "n_down", NULL };
-  double        up_thresh   = 0.0;
-  double        down_thresh = 0.0;
-  unsigned long n_up_raw    = 0UL;
-  unsigned long n_down_raw  = 0UL;
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "ddkk", _kwlist, &up_thresh,
-                                    &down_thresh, &n_up_raw, &n_down_raw))
-    return NULL;
-  uint32_t n_up   = (uint32_t)n_up_raw;
-  uint32_t n_down = (uint32_t)n_down_raw;
-  despreader_configure_carrier_lock (self->handle, up_thresh, down_thresh,
-                                     n_up, n_down);
-  Py_RETURN_NONE;
-}
-
-static PyObject *
-DespreaderObj_configure_code_lock (DespreaderObject *self, PyObject *args,
-                                   PyObject *kwds)
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  static char       *_kwlist[]   = { "pfa", "n_looks", "ref_snr_db", NULL };
-  double             pfa         = 0.0;
-  unsigned long long n_looks_raw = 0ULL;
-  double             ref_snr_db  = 0.0;
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "dK|d", _kwlist, &pfa,
-                                    &n_looks_raw, &ref_snr_db))
-    return NULL;
-  size_t n_looks = (size_t)n_looks_raw;
-  int    _rc     = despreader_configure_code_lock (self->handle, pfa, n_looks,
-                                                   ref_snr_db);
-  if (_rc != 0)
-    {
-      PyErr_Format (PyExc_ValueError, "configure_code_lock failed (rc=%d)",
-                    _rc);
-      return NULL;
-    }
-  Py_RETURN_NONE;
-}
-
 static PyMethodDef DespreaderObj_methods[] = {
 
   { "steps", (PyCFunction)DespreaderObj_steps, METH_VARARGS | METH_KEYWORDS,
@@ -868,25 +892,6 @@ static PyMethodDef DespreaderObj_methods[] = {
     "0.005, 0.0, 0.707, 0.5, 1)\n"
     "    >>> obj.set_telemetry(0, 0, 0)\n"
     "    0\n" },
-  { "reset", (PyCFunction)DespreaderObj_reset, METH_NOARGS,
-    "reset() -> None\n"
-    "\n"
-    "Re-seed both loops to the create-time frequency/phase; preserve config.\n"
-    "\n"
-    "    >>> from doppler import Despreader\n"
-    "    >>> obj = Despreader(np.zeros(1, dtype=np.uint8), 4, 0.0, 0.0, 0.05, "
-    "0.005, 0.0, 0.707, 0.5, 1)\n"
-    "    >>> obj.reset()\n" },
-  { "state_bytes", (PyCFunction)DespreaderObj_state_bytes, METH_NOARGS,
-    "Serialized state size in bytes." },
-  { "get_state", (PyCFunction)DespreaderObj_get_state, METH_NOARGS,
-    "Serialize the engine's mutable state to bytes." },
-  { "set_state", (PyCFunction)DespreaderObj_set_state, METH_O,
-    "Restore mutable state from a get_state() blob." },
-  { "destroy", (PyCFunction)DespreaderObj_destroy, METH_NOARGS,
-    "Release resources." },
-  { "__enter__", (PyCFunction)DespreaderObj_enter, METH_NOARGS, NULL },
-  { "__exit__", (PyCFunction)DespreaderObj_exit, METH_VARARGS, NULL },
   { "configure_carrier_lock",
     (PyCFunction)(void *)DespreaderObj_configure_carrier_lock,
     METH_VARARGS | METH_KEYWORDS,
@@ -923,6 +928,25 @@ static PyMethodDef DespreaderObj_methods[] = {
     "0.005, 0.0, 0.707, 0.5, 1)\n"
     "    >>> obj.configure_code_lock(0.0, 0, 0.0)\n"
     "    0\n" },
+  { "reset", (PyCFunction)DespreaderObj_reset, METH_NOARGS,
+    "reset() -> None\n"
+    "\n"
+    "Re-seed both loops to the create-time frequency/phase; preserve config.\n"
+    "\n"
+    "    >>> from doppler import Despreader\n"
+    "    >>> obj = Despreader(np.zeros(1, dtype=np.uint8), 4, 0.0, 0.0, 0.05, "
+    "0.005, 0.0, 0.707, 0.5, 1)\n"
+    "    >>> obj.reset()\n" },
+  { "state_bytes", (PyCFunction)DespreaderObj_state_bytes, METH_NOARGS,
+    "Serialized state size in bytes." },
+  { "get_state", (PyCFunction)DespreaderObj_get_state, METH_NOARGS,
+    "Serialize the engine's mutable state to bytes." },
+  { "set_state", (PyCFunction)DespreaderObj_set_state, METH_O,
+    "Restore mutable state from a get_state() blob." },
+  { "destroy", (PyCFunction)DespreaderObj_destroy, METH_NOARGS,
+    "Release resources." },
+  { "__enter__", (PyCFunction)DespreaderObj_enter, METH_NOARGS, NULL },
+  { "__exit__", (PyCFunction)DespreaderObj_exit, METH_VARARGS, NULL },
   { NULL }
 };
 

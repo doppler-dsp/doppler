@@ -15,30 +15,34 @@ typedef struct
 {
   PyObject_HEAD fft2d_state_t *handle;
   double complex
-        *_execute_cf64_buf;     /* pre-allocated output for execute_cf64 */
-  size_t _execute_cf64_buf_cap; /* allocated capacity for execute_cf64 */
-  void **_execute_cf64_retired; /* gh-219 deferred free */
-  size_t _execute_cf64_retired_n;
-  size_t _execute_cf64_retired_cap;
+           *_execute_cf64_buf;     /* pre-allocated output for execute_cf64 */
+  size_t    _execute_cf64_buf_cap; /* allocated capacity for execute_cf64 */
+  void    **_execute_cf64_retired; /* gh-219 deferred free */
+  size_t    _execute_cf64_retired_n;
+  size_t    _execute_cf64_retired_cap;
+  PyObject *_execute_cf64_view_ref; /* gh-437 last returned view */
   float complex *_execute_cf32_buf; /* pre-allocated output for execute_cf32 */
-  size_t _execute_cf32_buf_cap;     /* allocated capacity for execute_cf32 */
-  void **_execute_cf32_retired;     /* gh-219 deferred free */
-  size_t _execute_cf32_retired_n;
-  size_t _execute_cf32_retired_cap;
-  double complex *_execute_inplace_cf64_buf;    /* pre-allocated output for
-                                                   execute_inplace_cf64 */
-  size_t _execute_inplace_cf64_buf_cap;         /* allocated capacity for
-                                                   execute_inplace_cf64 */
-  void         **_execute_inplace_cf64_retired; /* gh-219 deferred free */
-  size_t         _execute_inplace_cf64_retired_n;
-  size_t         _execute_inplace_cf64_retired_cap;
+  size_t    _execute_cf32_buf_cap;  /* allocated capacity for execute_cf32 */
+  void    **_execute_cf32_retired;  /* gh-219 deferred free */
+  size_t    _execute_cf32_retired_n;
+  size_t    _execute_cf32_retired_cap;
+  PyObject *_execute_cf32_view_ref;          /* gh-437 last returned view */
+  double complex *_execute_inplace_cf64_buf; /* pre-allocated output for
+                                                execute_inplace_cf64 */
+  size_t _execute_inplace_cf64_buf_cap;      /* allocated capacity for
+                                                execute_inplace_cf64 */
+  void    **_execute_inplace_cf64_retired;   /* gh-219 deferred free */
+  size_t    _execute_inplace_cf64_retired_n;
+  size_t    _execute_inplace_cf64_retired_cap;
+  PyObject *_execute_inplace_cf64_view_ref; /* gh-437 last returned view */
   float complex *_execute_inplace_cf32_buf; /* pre-allocated output for
                                                execute_inplace_cf32 */
   size_t _execute_inplace_cf32_buf_cap;     /* allocated capacity for
                                                execute_inplace_cf32 */
-  void **_execute_inplace_cf32_retired;     /* gh-219 deferred free */
-  size_t _execute_inplace_cf32_retired_n;
-  size_t _execute_inplace_cf32_retired_cap;
+  void    **_execute_inplace_cf32_retired;  /* gh-219 deferred free */
+  size_t    _execute_inplace_cf32_retired_n;
+  size_t    _execute_inplace_cf32_retired_cap;
+  PyObject *_execute_inplace_cf32_view_ref; /* gh-437 last returned view */
 } FFT2DObject;
 
 static void
@@ -50,18 +54,22 @@ FFT2DObj_dealloc (FFT2DObject *self)
   for (size_t _i = 0; _i < self->_execute_cf64_retired_n; _i++)
     free (self->_execute_cf64_retired[_i]);
   free (self->_execute_cf64_retired);
+  Py_XDECREF (self->_execute_cf64_view_ref);
   free (self->_execute_cf32_buf);
   for (size_t _i = 0; _i < self->_execute_cf32_retired_n; _i++)
     free (self->_execute_cf32_retired[_i]);
   free (self->_execute_cf32_retired);
+  Py_XDECREF (self->_execute_cf32_view_ref);
   free (self->_execute_inplace_cf64_buf);
   for (size_t _i = 0; _i < self->_execute_inplace_cf64_retired_n; _i++)
     free (self->_execute_inplace_cf64_retired[_i]);
   free (self->_execute_inplace_cf64_retired);
+  Py_XDECREF (self->_execute_inplace_cf64_view_ref);
   free (self->_execute_inplace_cf32_buf);
   for (size_t _i = 0; _i < self->_execute_inplace_cf32_retired_n; _i++)
     free (self->_execute_inplace_cf32_retired[_i]);
   free (self->_execute_inplace_cf32_retired);
+  Py_XDECREF (self->_execute_inplace_cf32_view_ref);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -196,6 +204,18 @@ FFT2DObj_execute_cf64 (FFT2DObject *self, PyObject *args, PyObject *kwds)
   Py_ssize_t n = PyArray_SIZE (in_arr);
   if (out_obj && out_obj != Py_None)
     {
+      /* Require the exact output dtype — no silent cast (a cast writes
+       * into a temp copy instead of the caller's buffer). */
+      if (!PyArray_Check (out_obj)
+          || PyArray_TYPE ((PyArrayObject *)out_obj) != NPY_COMPLEX128
+          || !PyArray_ISWRITEABLE ((PyArrayObject *)out_obj))
+        {
+          PyErr_SetString (
+              PyExc_TypeError,
+              "out must be a writable ndarray of the output dtype");
+          Py_DECREF (in_arr);
+          return NULL;
+        }
       PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
           out_obj, NPY_COMPLEX128,
           NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
@@ -230,8 +250,24 @@ FFT2DObj_execute_cf64 (FFT2DObject *self, PyObject *args, PyObject *kwds)
       PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
       return _oview;
     }
-  size_t _need = (size_t)n;
-  if (!self->_execute_cf64_buf || self->_execute_cf64_buf_cap < _need)
+  size_t _need      = (size_t)n;
+  int    _view_live = 0;
+  if (self->_execute_cf64_view_ref)
+    {
+#if PY_VERSION_HEX >= 0x030D0000
+      PyObject *_lv = NULL;
+      if (PyWeakref_GetRef (self->_execute_cf64_view_ref, &_lv) == 1)
+        {
+          Py_DECREF (_lv);
+          _view_live = 1;
+        }
+#else
+      _view_live
+          = PyWeakref_GetObject (self->_execute_cf64_view_ref) != Py_None;
+#endif
+    }
+  if (!self->_execute_cf64_buf || self->_execute_cf64_buf_cap < _need
+      || _view_live)
     {
       size_t _max = fft2d_execute_cf64_max_out (self->handle);
       if (!_max || _max < _need)
@@ -276,6 +312,15 @@ FFT2DObj_execute_cf64 (FFT2DObject *self, PyObject *args, PyObject *kwds)
     return NULL;
   PyArray_SetBaseObject ((PyArrayObject *)arr, (PyObject *)self);
   Py_INCREF (self);
+  /* gh-437: remember this view — while the caller holds it the next
+   * call retires the buffer instead of reusing it in place. */
+  Py_XDECREF (self->_execute_cf64_view_ref);
+  self->_execute_cf64_view_ref = PyWeakref_NewRef (arr, NULL);
+  if (!self->_execute_cf64_view_ref)
+    {
+      Py_DECREF (arr);
+      return NULL;
+    }
   Py_DECREF (in_arr);
   return arr;
 }
@@ -313,6 +358,18 @@ FFT2DObj_execute_cf32 (FFT2DObject *self, PyObject *args, PyObject *kwds)
   Py_ssize_t n = PyArray_SIZE (in_arr);
   if (out_obj && out_obj != Py_None)
     {
+      /* Require the exact output dtype — no silent cast (a cast writes
+       * into a temp copy instead of the caller's buffer). */
+      if (!PyArray_Check (out_obj)
+          || PyArray_TYPE ((PyArrayObject *)out_obj) != NPY_COMPLEX64
+          || !PyArray_ISWRITEABLE ((PyArrayObject *)out_obj))
+        {
+          PyErr_SetString (
+              PyExc_TypeError,
+              "out must be a writable ndarray of the output dtype");
+          Py_DECREF (in_arr);
+          return NULL;
+        }
       PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
           out_obj, NPY_COMPLEX64,
           NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
@@ -347,8 +404,24 @@ FFT2DObj_execute_cf32 (FFT2DObject *self, PyObject *args, PyObject *kwds)
       PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
       return _oview;
     }
-  size_t _need = (size_t)n;
-  if (!self->_execute_cf32_buf || self->_execute_cf32_buf_cap < _need)
+  size_t _need      = (size_t)n;
+  int    _view_live = 0;
+  if (self->_execute_cf32_view_ref)
+    {
+#if PY_VERSION_HEX >= 0x030D0000
+      PyObject *_lv = NULL;
+      if (PyWeakref_GetRef (self->_execute_cf32_view_ref, &_lv) == 1)
+        {
+          Py_DECREF (_lv);
+          _view_live = 1;
+        }
+#else
+      _view_live
+          = PyWeakref_GetObject (self->_execute_cf32_view_ref) != Py_None;
+#endif
+    }
+  if (!self->_execute_cf32_buf || self->_execute_cf32_buf_cap < _need
+      || _view_live)
     {
       size_t _max = fft2d_execute_cf32_max_out (self->handle);
       if (!_max || _max < _need)
@@ -393,6 +466,15 @@ FFT2DObj_execute_cf32 (FFT2DObject *self, PyObject *args, PyObject *kwds)
     return NULL;
   PyArray_SetBaseObject ((PyArrayObject *)arr, (PyObject *)self);
   Py_INCREF (self);
+  /* gh-437: remember this view — while the caller holds it the next
+   * call retires the buffer instead of reusing it in place. */
+  Py_XDECREF (self->_execute_cf32_view_ref);
+  self->_execute_cf32_view_ref = PyWeakref_NewRef (arr, NULL);
+  if (!self->_execute_cf32_view_ref)
+    {
+      Py_DECREF (arr);
+      return NULL;
+    }
   Py_DECREF (in_arr);
   return arr;
 }
@@ -431,6 +513,18 @@ FFT2DObj_execute_inplace_cf64 (FFT2DObject *self, PyObject *args,
   Py_ssize_t n = PyArray_SIZE (in_arr);
   if (out_obj && out_obj != Py_None)
     {
+      /* Require the exact output dtype — no silent cast (a cast writes
+       * into a temp copy instead of the caller's buffer). */
+      if (!PyArray_Check (out_obj)
+          || PyArray_TYPE ((PyArrayObject *)out_obj) != NPY_COMPLEX128
+          || !PyArray_ISWRITEABLE ((PyArrayObject *)out_obj))
+        {
+          PyErr_SetString (
+              PyExc_TypeError,
+              "out must be a writable ndarray of the output dtype");
+          Py_DECREF (in_arr);
+          return NULL;
+        }
       PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
           out_obj, NPY_COMPLEX128,
           NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
@@ -465,9 +559,24 @@ FFT2DObj_execute_inplace_cf64 (FFT2DObject *self, PyObject *args,
       PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
       return _oview;
     }
-  size_t _need = (size_t)n;
+  size_t _need      = (size_t)n;
+  int    _view_live = 0;
+  if (self->_execute_inplace_cf64_view_ref)
+    {
+#if PY_VERSION_HEX >= 0x030D0000
+      PyObject *_lv = NULL;
+      if (PyWeakref_GetRef (self->_execute_inplace_cf64_view_ref, &_lv) == 1)
+        {
+          Py_DECREF (_lv);
+          _view_live = 1;
+        }
+#else
+      _view_live = PyWeakref_GetObject (self->_execute_inplace_cf64_view_ref)
+                   != Py_None;
+#endif
+    }
   if (!self->_execute_inplace_cf64_buf
-      || self->_execute_inplace_cf64_buf_cap < _need)
+      || self->_execute_inplace_cf64_buf_cap < _need || _view_live)
     {
       size_t _max = fft2d_execute_inplace_cf64_max_out (self->handle);
       if (!_max || _max < _need)
@@ -514,6 +623,15 @@ FFT2DObj_execute_inplace_cf64 (FFT2DObject *self, PyObject *args,
     return NULL;
   PyArray_SetBaseObject ((PyArrayObject *)arr, (PyObject *)self);
   Py_INCREF (self);
+  /* gh-437: remember this view — while the caller holds it the next
+   * call retires the buffer instead of reusing it in place. */
+  Py_XDECREF (self->_execute_inplace_cf64_view_ref);
+  self->_execute_inplace_cf64_view_ref = PyWeakref_NewRef (arr, NULL);
+  if (!self->_execute_inplace_cf64_view_ref)
+    {
+      Py_DECREF (arr);
+      return NULL;
+    }
   Py_DECREF (in_arr);
   return arr;
 }
@@ -552,6 +670,18 @@ FFT2DObj_execute_inplace_cf32 (FFT2DObject *self, PyObject *args,
   Py_ssize_t n = PyArray_SIZE (in_arr);
   if (out_obj && out_obj != Py_None)
     {
+      /* Require the exact output dtype — no silent cast (a cast writes
+       * into a temp copy instead of the caller's buffer). */
+      if (!PyArray_Check (out_obj)
+          || PyArray_TYPE ((PyArrayObject *)out_obj) != NPY_COMPLEX64
+          || !PyArray_ISWRITEABLE ((PyArrayObject *)out_obj))
+        {
+          PyErr_SetString (
+              PyExc_TypeError,
+              "out must be a writable ndarray of the output dtype");
+          Py_DECREF (in_arr);
+          return NULL;
+        }
       PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
           out_obj, NPY_COMPLEX64,
           NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
@@ -586,9 +716,24 @@ FFT2DObj_execute_inplace_cf32 (FFT2DObject *self, PyObject *args,
       PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
       return _oview;
     }
-  size_t _need = (size_t)n;
+  size_t _need      = (size_t)n;
+  int    _view_live = 0;
+  if (self->_execute_inplace_cf32_view_ref)
+    {
+#if PY_VERSION_HEX >= 0x030D0000
+      PyObject *_lv = NULL;
+      if (PyWeakref_GetRef (self->_execute_inplace_cf32_view_ref, &_lv) == 1)
+        {
+          Py_DECREF (_lv);
+          _view_live = 1;
+        }
+#else
+      _view_live = PyWeakref_GetObject (self->_execute_inplace_cf32_view_ref)
+                   != Py_None;
+#endif
+    }
   if (!self->_execute_inplace_cf32_buf
-      || self->_execute_inplace_cf32_buf_cap < _need)
+      || self->_execute_inplace_cf32_buf_cap < _need || _view_live)
     {
       size_t _max = fft2d_execute_inplace_cf32_max_out (self->handle);
       if (!_max || _max < _need)
@@ -635,6 +780,15 @@ FFT2DObj_execute_inplace_cf32 (FFT2DObject *self, PyObject *args,
     return NULL;
   PyArray_SetBaseObject ((PyArrayObject *)arr, (PyObject *)self);
   Py_INCREF (self);
+  /* gh-437: remember this view — while the caller holds it the next
+   * call retires the buffer instead of reusing it in place. */
+  Py_XDECREF (self->_execute_inplace_cf32_view_ref);
+  self->_execute_inplace_cf32_view_ref = PyWeakref_NewRef (arr, NULL);
+  if (!self->_execute_inplace_cf32_view_ref)
+    {
+      Py_DECREF (arr);
+      return NULL;
+    }
   Py_DECREF (in_arr);
   return arr;
 }

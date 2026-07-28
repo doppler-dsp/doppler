@@ -14,11 +14,12 @@
 typedef struct
 {
   PyObject_HEAD nprmeas_state_t *handle;
-  float *_spectrum_dbfs_buf;     /* pre-allocated output for spectrum_dbfs */
-  size_t _spectrum_dbfs_buf_cap; /* allocated capacity for spectrum_dbfs */
-  void **_spectrum_dbfs_retired; /* gh-219 deferred free */
-  size_t _spectrum_dbfs_retired_n;
-  size_t _spectrum_dbfs_retired_cap;
+  float    *_spectrum_dbfs_buf; /* pre-allocated output for spectrum_dbfs */
+  size_t    _spectrum_dbfs_buf_cap; /* allocated capacity for spectrum_dbfs */
+  void    **_spectrum_dbfs_retired; /* gh-219 deferred free */
+  size_t    _spectrum_dbfs_retired_n;
+  size_t    _spectrum_dbfs_retired_cap;
+  PyObject *_spectrum_dbfs_view_ref; /* gh-437 last returned view */
 } NPRMeasureObject;
 
 static void
@@ -30,6 +31,7 @@ NPRMeasureObj_dealloc (NPRMeasureObject *self)
   for (size_t _i = 0; _i < self->_spectrum_dbfs_retired_n; _i++)
     free (self->_spectrum_dbfs_retired[_i]);
   free (self->_spectrum_dbfs_retired);
+  Py_XDECREF (self->_spectrum_dbfs_view_ref);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -200,6 +202,18 @@ NPRMeasureObj_spectrum_dbfs (NPRMeasureObject *self, PyObject *args,
     return NULL;
   if (out_obj && out_obj != Py_None)
     {
+      /* Require the exact output dtype — no silent cast (a cast writes
+       * into a temp copy instead of the caller's buffer). */
+      if (!PyArray_Check (out_obj)
+          || PyArray_TYPE ((PyArrayObject *)out_obj) != NPY_FLOAT
+          || !PyArray_ISWRITEABLE ((PyArrayObject *)out_obj))
+        {
+          PyErr_SetString (
+              PyExc_TypeError,
+              "out must be a writable ndarray of the output dtype");
+          Py_DECREF (x_arr);
+          return NULL;
+        }
       PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
           out_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
       if (!out_arr)
@@ -235,8 +249,24 @@ NPRMeasureObj_spectrum_dbfs (NPRMeasureObject *self, PyObject *args,
       PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
       return _oview;
     }
-  size_t _need = (size_t)PyArray_SIZE (x_arr);
-  if (!self->_spectrum_dbfs_buf || self->_spectrum_dbfs_buf_cap < _need)
+  size_t _need      = (size_t)PyArray_SIZE (x_arr);
+  int    _view_live = 0;
+  if (self->_spectrum_dbfs_view_ref)
+    {
+#if PY_VERSION_HEX >= 0x030D0000
+      PyObject *_lv = NULL;
+      if (PyWeakref_GetRef (self->_spectrum_dbfs_view_ref, &_lv) == 1)
+        {
+          Py_DECREF (_lv);
+          _view_live = 1;
+        }
+#else
+      _view_live
+          = PyWeakref_GetObject (self->_spectrum_dbfs_view_ref) != Py_None;
+#endif
+    }
+  if (!self->_spectrum_dbfs_buf || self->_spectrum_dbfs_buf_cap < _need
+      || _view_live)
     {
       size_t _max = nprmeas_spectrum_dbfs_max_out (self->handle);
       if (!_max || _max < _need)
@@ -282,6 +312,15 @@ NPRMeasureObj_spectrum_dbfs (NPRMeasureObject *self, PyObject *args,
     return NULL;
   PyArray_SetBaseObject ((PyArrayObject *)arr, (PyObject *)self);
   Py_INCREF (self);
+  /* gh-437: remember this view — while the caller holds it the next
+   * call retires the buffer instead of reusing it in place. */
+  Py_XDECREF (self->_spectrum_dbfs_view_ref);
+  self->_spectrum_dbfs_view_ref = PyWeakref_NewRef (arr, NULL);
+  if (!self->_spectrum_dbfs_view_ref)
+    {
+      Py_DECREF (arr);
+      return NULL;
+    }
   Py_DECREF (x_arr);
   return arr;
 }

@@ -19,6 +19,7 @@ typedef struct
   void         **_execute_retired; /* gh-219 deferred free */
   size_t         _execute_retired_n;
   size_t         _execute_retired_cap;
+  PyObject      *_execute_view_ref; /* gh-437 last returned view */
 } CorrObject;
 
 static void
@@ -30,6 +31,7 @@ CorrObj_dealloc (CorrObject *self)
   for (size_t _i = 0; _i < self->_execute_retired_n; _i++)
     free (self->_execute_retired[_i]);
   free (self->_execute_retired);
+  Py_XDECREF (self->_execute_view_ref);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -131,6 +133,18 @@ CorrObj_execute (CorrObject *self, PyObject *args, PyObject *kwds)
   Py_ssize_t n = PyArray_SIZE (in_arr);
   if (out_obj && out_obj != Py_None)
     {
+      /* Require the exact output dtype — no silent cast (a cast writes
+       * into a temp copy instead of the caller's buffer). */
+      if (!PyArray_Check (out_obj)
+          || PyArray_TYPE ((PyArrayObject *)out_obj) != NPY_COMPLEX64
+          || !PyArray_ISWRITEABLE ((PyArrayObject *)out_obj))
+        {
+          PyErr_SetString (
+              PyExc_TypeError,
+              "out must be a writable ndarray of the output dtype");
+          Py_DECREF (in_arr);
+          return NULL;
+        }
       PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
           out_obj, NPY_COMPLEX64,
           NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
@@ -139,13 +153,13 @@ CorrObj_execute (CorrObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (in_arr);
           return NULL;
         }
-      size_t _cap  = (size_t)PyArray_SIZE (out_arr);
-      size_t _omax = corr_execute_max_out (self->handle);
-      if (_cap < _omax)
+      size_t _cap     = (size_t)PyArray_SIZE (out_arr);
+      size_t _omax    = corr_execute_max_out (self->handle);
+      size_t _min_cap = _omax > (size_t)n ? _omax : ((size_t)n);
+      if (_cap < _min_cap)
         {
-          PyErr_Format (PyExc_ValueError,
-                        "out has %zu elements, need >= %zu (execute_max_out)",
-                        _cap, _omax);
+          PyErr_Format (PyExc_ValueError, "out has %zu elements, need >= %zu",
+                        _cap, _min_cap);
           Py_DECREF (out_arr);
           Py_DECREF (in_arr);
           return NULL;
@@ -170,8 +184,22 @@ CorrObj_execute (CorrObject *self, PyObject *args, PyObject *kwds)
       PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
       return _oview;
     }
-  size_t _need = (size_t)n;
-  if (!self->_execute_buf || self->_execute_buf_cap < _need)
+  size_t _need      = (size_t)n;
+  int    _view_live = 0;
+  if (self->_execute_view_ref)
+    {
+#if PY_VERSION_HEX >= 0x030D0000
+      PyObject *_lv = NULL;
+      if (PyWeakref_GetRef (self->_execute_view_ref, &_lv) == 1)
+        {
+          Py_DECREF (_lv);
+          _view_live = 1;
+        }
+#else
+      _view_live = PyWeakref_GetObject (self->_execute_view_ref) != Py_None;
+#endif
+    }
+  if (!self->_execute_buf || self->_execute_buf_cap < _need || _view_live)
     {
       size_t _max = corr_execute_max_out (self->handle);
       if (!_max || _max < _need)
@@ -218,8 +246,70 @@ CorrObj_execute (CorrObject *self, PyObject *args, PyObject *kwds)
     return NULL;
   PyArray_SetBaseObject ((PyArrayObject *)arr, (PyObject *)self);
   Py_INCREF (self);
+  /* gh-437: remember this view — while the caller holds it the next
+   * call retires the buffer instead of reusing it in place. */
+  Py_XDECREF (self->_execute_view_ref);
+  self->_execute_view_ref = PyWeakref_NewRef (arr, NULL);
+  if (!self->_execute_view_ref)
+    {
+      Py_DECREF (arr);
+      return NULL;
+    }
   Py_DECREF (in_arr);
   return arr;
+}
+
+static PyObject *
+CorrObj_state_bytes (CorrObject *self, PyObject *Py_UNUSED (ignored))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromSize_t (corr_state_bytes (self->handle));
+}
+
+static PyObject *
+CorrObj_get_state (CorrObject *self, PyObject *Py_UNUSED (ignored))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  size_t    _n = corr_state_bytes (self->handle);
+  PyObject *_b = PyBytes_FromStringAndSize (NULL, (Py_ssize_t)_n);
+  if (!_b)
+    return NULL;
+  corr_get_state (self->handle, PyBytes_AS_STRING (_b));
+  return _b;
+}
+
+static PyObject *
+CorrObj_set_state (CorrObject *self, PyObject *arg)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  if (!PyBytes_Check (arg))
+    {
+      PyErr_SetString (PyExc_TypeError, "set_state expects bytes");
+      return NULL;
+    }
+  if ((size_t)PyBytes_GET_SIZE (arg) != corr_state_bytes (self->handle))
+    {
+      PyErr_SetString (PyExc_ValueError, "state blob size mismatch");
+      return NULL;
+    }
+  if (corr_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
+    {
+      PyErr_SetString (PyExc_ValueError, "set_state rejected the blob");
+      return NULL;
+    }
+  Py_RETURN_NONE;
 }
 static PyObject *
 Corr_getprop_n (CorrObject *self, void *Py_UNUSED (closure))
@@ -299,59 +389,6 @@ CorrObj_exit (CorrObject *self, PyObject *args)
   Py_RETURN_NONE;
 }
 
-static PyObject *
-CorrObj_state_bytes (CorrObject *self, PyObject *Py_UNUSED (ignored))
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  return PyLong_FromSize_t (corr_state_bytes (self->handle));
-}
-
-static PyObject *
-CorrObj_get_state (CorrObject *self, PyObject *Py_UNUSED (ignored))
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  size_t    _n = corr_state_bytes (self->handle);
-  PyObject *_b = PyBytes_FromStringAndSize (NULL, (Py_ssize_t)_n);
-  if (!_b)
-    return NULL;
-  corr_get_state (self->handle, PyBytes_AS_STRING (_b));
-  return _b;
-}
-
-static PyObject *
-CorrObj_set_state (CorrObject *self, PyObject *arg)
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  if (!PyBytes_Check (arg))
-    {
-      PyErr_SetString (PyExc_TypeError, "set_state expects bytes");
-      return NULL;
-    }
-  if ((size_t)PyBytes_GET_SIZE (arg) != corr_state_bytes (self->handle))
-    {
-      PyErr_SetString (PyExc_ValueError, "state blob size mismatch");
-      return NULL;
-    }
-  if (corr_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
-    {
-      PyErr_SetString (PyExc_ValueError, "set_state rejected the blob");
-      return NULL;
-    }
-  Py_RETURN_NONE;
-}
-
 static PyMethodDef CorrObj_methods[] = {
   { "reset", (PyCFunction)CorrObj_reset, METH_NOARGS,
     "Reset state to post-create defaults." },
@@ -365,10 +402,10 @@ static PyMethodDef CorrObj_methods[] = {
     "the frequency domain and inverting once is exactly the per-frame inverse "
     "summed, by linearity of the IFFT — valid because the dwell is "
     "**coherent** (a complex sum); a non-coherent (magnitude) integration "
-    "could not defer the inverse. On the @p dwell-th call @p out is written, "
-    "the accumulator is zeroed, and the counter resets; the function returns "
-    "n_out.  All other calls return 0 and leave @p out unmodified.  In "
-    "Python, a dump returns an ndarray and a no-dump returns None.\n"
+    "could not defer the inverse. On the dwell-th call out is written, the "
+    "accumulator is zeroed, and the counter resets; the function returns "
+    "n_out.  All other calls return 0 and leave out unmodified.  In Python, a "
+    "dump returns an ndarray and a no-dump returns None.\n"
     "\n"
     "    >>> import numpy as np\n"
     "    >>> from doppler import Corr\n"
@@ -379,16 +416,16 @@ static PyMethodDef CorrObj_methods[] = {
   { "execute_max_out", (PyCFunction)CorrObj_execute_max_out, METH_NOARGS,
     "execute_max_out() -> int\n\nMax output length execute() can produce for "
     "the current state.\nUse to size the ``out=`` buffer." },
-  { "destroy", (PyCFunction)CorrObj_destroy, METH_NOARGS,
-    "Release resources." },
-  { "__enter__", (PyCFunction)CorrObj_enter, METH_NOARGS, NULL },
-  { "__exit__", (PyCFunction)CorrObj_exit, METH_VARARGS, NULL },
   { "state_bytes", (PyCFunction)CorrObj_state_bytes, METH_NOARGS,
     "Serialized state size in bytes." },
   { "get_state", (PyCFunction)CorrObj_get_state, METH_NOARGS,
     "Serialize the engine's mutable state to bytes." },
   { "set_state", (PyCFunction)CorrObj_set_state, METH_O,
     "Restore mutable state from a get_state() blob." },
+  { "destroy", (PyCFunction)CorrObj_destroy, METH_NOARGS,
+    "Release resources." },
+  { "__enter__", (PyCFunction)CorrObj_enter, METH_NOARGS, NULL },
+  { "__exit__", (PyCFunction)CorrObj_exit, METH_VARARGS, NULL },
   { NULL }
 };
 
@@ -400,9 +437,9 @@ static PyTypeObject CorrObjType = {
   .tp_doc
   = "Allocate a 1-D FFT correlator with coherent integrate-and-dump. "
     "Pre-computes conj(FFT(ref)) once at construction so each execute() call "
-    "costs only two FFTs and n complex multiplies.  @p ref may be freed after "
-    "this returns.  With @p dwell == 1 every call produces output; with "
-    "larger values the accumulator absorbs @p dwell frames before dumping.\n",
+    "costs only two FFTs and n complex multiplies.  ref may be freed after "
+    "this returns.  With dwell == 1 every call produces output; with larger "
+    "values the accumulator absorbs dwell frames before dumping.\n",
   .tp_methods = CorrObj_methods,
   .tp_getset  = Corr_getset,
   .tp_new     = CorrObj_new,

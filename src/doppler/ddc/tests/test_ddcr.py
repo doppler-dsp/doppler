@@ -101,29 +101,21 @@ class TestDdcrExecute:
         with pytest.raises((TypeError, ValueError)):
             r.execute(np.zeros(N, dtype=np.complex64), out)
 
-    @pytest.mark.xfail(
-        reason="jm's generated object out= accepts any dtype and casts into a "
-        "temp copy, so a wrong-dtype buffer is silently NOT written (the "
-        "result still comes back correct). The retired handle binding "
-        "rejected it. Library-wide for every out= object, not specific to "
-        "Ddcr; filed upstream.",
-        strict=True,
-    )
     def test_rejects_wrong_out_dtype(self):
+        """A wrong-dtype out= buffer is refused, not silently cast.
+
+        Until jm 0.33.13 the generated object out= path cast a mismatched
+        buffer into a temporary: the kernel wrote the temporary, the return
+        value looked correct, and the caller's buffer — the whole reason for
+        passing out= — was never touched. Silent, and invisible to a caller
+        that only reads the return. Now a TypeError (doppler-filed, jm
+        gh-581); the handle generator had always rejected it.
+        """
         r = Ddcr(0.0, 0.25)
         with pytest.raises((TypeError, ValueError)):
             r.execute(
                 np.zeros(N, dtype=np.float32), np.empty(N, dtype=np.float32)
             )
-
-    def test_wrong_out_dtype_does_not_write_the_caller_buffer(self):
-        """Pins the behaviour the xfail above describes, so the day jm
-        tightens it this test fails and both get updated together."""
-        r = Ddcr(0.0, 0.25)
-        buf = np.zeros(N, dtype=np.float32)
-        y = r.execute(np.ones(N, dtype=np.float32), buf)
-        assert y.dtype == np.complex64
-        assert not np.any(buf)  # cast to a temp; caller's buffer untouched
 
 
 # ------------------------------------------------------------------ #

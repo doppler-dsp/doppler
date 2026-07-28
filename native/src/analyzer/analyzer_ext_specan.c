@@ -14,11 +14,12 @@
 typedef struct
 {
   PyObject_HEAD specan_state_t *handle;
-  float *_execute_buf;     /* pre-allocated output for execute */
-  size_t _execute_buf_cap; /* allocated capacity for execute */
-  void **_execute_retired; /* gh-219 deferred free */
-  size_t _execute_retired_n;
-  size_t _execute_retired_cap;
+  float    *_execute_buf;     /* pre-allocated output for execute */
+  size_t    _execute_buf_cap; /* allocated capacity for execute */
+  void    **_execute_retired; /* gh-219 deferred free */
+  size_t    _execute_retired_n;
+  size_t    _execute_retired_cap;
+  PyObject *_execute_view_ref; /* gh-437 last returned view */
 } SpecanObject;
 
 static void
@@ -30,6 +31,7 @@ SpecanObj_dealloc (SpecanObject *self)
   for (size_t _i = 0; _i < self->_execute_retired_n; _i++)
     free (self->_execute_retired[_i]);
   free (self->_execute_retired);
+  Py_XDECREF (self->_execute_view_ref);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -46,24 +48,25 @@ static int
 SpecanObj_init (SpecanObject *self, PyObject *args, PyObject *kwds)
 {
   static char *kwlist[]
-      = { "fs",        "span",       "rbw",  "window", "src_center", "center",
-          "offset_db", "full_scale", "bits", "navg",   NULL };
+      = { "fs",         "span", "rbw",    "src_center", "center", "offset_db",
+          "full_scale", "bits", "window", "navg",       NULL };
   double             fs         = 2.048e6;
   double             span       = 200e3;
   double             rbw        = 500.0;
-  const char        *window_str = "kaiser";
   double             src_center = 0.0;
   double             center     = 0.0;
   double             offset_db  = 0.0;
   double             full_scale = 1.0;
   unsigned long long bits_raw   = 0;
+  const char        *window_str = "kaiser";
   unsigned long long navg_raw   = 1;
 
   if (!PyArg_ParseTupleAndKeywords (
-          args, kwds, "ddd|sddddKK", kwlist, &fs, &span, &rbw, &window_str,
-          &src_center, &center, &offset_db, &full_scale, &bits_raw, &navg_raw))
+          args, kwds, "ddd|ddddKsK", kwlist, &fs, &span, &rbw, &src_center,
+          &center, &offset_db, &full_scale, &bits_raw, &window_str, &navg_raw))
     return -1;
-  int window = 0;
+  size_t bits   = (size_t)bits_raw;
+  int    window = 0;
   if (strcmp (window_str, "hann") == 0)
     window = 0;
   else if (strcmp (window_str, "kaiser") == 0)
@@ -75,7 +78,6 @@ SpecanObj_init (SpecanObject *self, PyObject *args, PyObject *kwds)
                     window_str);
       return -1;
     }
-  size_t bits  = (size_t)bits_raw;
   size_t navg  = (size_t)navg_raw;
   self->handle = specan_create (fs, span, rbw, src_center, center, offset_db,
                                 full_scale, bits, window, navg);
@@ -132,6 +134,18 @@ SpecanObj_execute (SpecanObject *self, PyObject *args, PyObject *kwds)
     return NULL;
   if (out_obj && out_obj != Py_None)
     {
+      /* Require the exact output dtype — no silent cast (a cast writes
+       * into a temp copy instead of the caller's buffer). */
+      if (!PyArray_Check (out_obj)
+          || PyArray_TYPE ((PyArrayObject *)out_obj) != NPY_FLOAT
+          || !PyArray_ISWRITEABLE ((PyArrayObject *)out_obj))
+        {
+          PyErr_SetString (
+              PyExc_TypeError,
+              "out must be a writable ndarray of the output dtype");
+          Py_DECREF (x_arr);
+          return NULL;
+        }
       PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
           out_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
       if (!out_arr)
@@ -180,8 +194,22 @@ SpecanObj_execute (SpecanObject *self, PyObject *args, PyObject *kwds)
       PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
       return _oview;
     }
-  size_t _need = (size_t)PyArray_SIZE (x_arr);
-  if (!self->_execute_buf || self->_execute_buf_cap < _need)
+  size_t _need      = (size_t)PyArray_SIZE (x_arr);
+  int    _view_live = 0;
+  if (self->_execute_view_ref)
+    {
+#if PY_VERSION_HEX >= 0x030D0000
+      PyObject *_lv = NULL;
+      if (PyWeakref_GetRef (self->_execute_view_ref, &_lv) == 1)
+        {
+          Py_DECREF (_lv);
+          _view_live = 1;
+        }
+#else
+      _view_live = PyWeakref_GetObject (self->_execute_view_ref) != Py_None;
+#endif
+    }
+  if (!self->_execute_buf || self->_execute_buf_cap < _need || _view_live)
     {
       size_t _max = specan_execute_max_out (self->handle);
       if (!_max || _max < _need)
@@ -236,6 +264,15 @@ SpecanObj_execute (SpecanObject *self, PyObject *args, PyObject *kwds)
     return NULL;
   PyArray_SetBaseObject ((PyArrayObject *)arr, (PyObject *)self);
   Py_INCREF (self);
+  /* gh-437: remember this view — while the caller holds it the next
+   * call retires the buffer instead of reusing it in place. */
+  Py_XDECREF (self->_execute_view_ref);
+  self->_execute_view_ref = PyWeakref_NewRef (arr, NULL);
+  if (!self->_execute_view_ref)
+    {
+      Py_DECREF (arr);
+      return NULL;
+    }
   Py_DECREF (x_arr);
   return arr;
 }
@@ -466,8 +503,8 @@ static PyMethodDef SpecanObj_methods[] = {
     "\n"
     "    >>> import numpy as np\n"
     "    >>> from doppler import Specan\n"
-    "    >>> obj = Specan(2.048e6, 200e3, 500.0, \"kaiser\", 0.0, 0.0, 0.0, "
-    "1.0, 0, 1)\n"
+    "    >>> obj = Specan(2.048e6, 200e3, 500.0, 0.0, 0.0, 0.0, 1.0, 0, "
+    "\"kaiser\", 1)\n"
     "    >>> y = obj.execute(np.zeros(4))\n"
     "    >>> y.dtype\n"
     "    dtype('float32')\n" },
@@ -482,8 +519,8 @@ static PyMethodDef SpecanObj_methods[] = {
     "\n"
     "    >>> import numpy as np\n"
     "    >>> from doppler import Specan\n"
-    "    >>> obj = Specan(2.048e6, 200e3, 500.0, \"kaiser\", 0.0, 0.0, 0.0, "
-    "1.0, 0, 1)\n"
+    "    >>> obj = Specan(2.048e6, 200e3, 500.0, 0.0, 0.0, 0.0, 1.0, 0, "
+    "\"kaiser\", 1)\n"
     "    >>> obj.retune(0.0)\n" },
   { "reset", (PyCFunction)SpecanObj_reset, METH_NOARGS,
     "reset() -> None\n"
@@ -491,8 +528,8 @@ static PyMethodDef SpecanObj_methods[] = {
     "Drop pending samples and the running average; zero LO/filter history.\n"
     "\n"
     "    >>> from doppler import Specan\n"
-    "    >>> obj = Specan(2.048e6, 200e3, 500.0, \"kaiser\", 0.0, 0.0, 0.0, "
-    "1.0, 0, 1)\n"
+    "    >>> obj = Specan(2.048e6, 200e3, 500.0, 0.0, 0.0, 0.0, 1.0, 0, "
+    "\"kaiser\", 1)\n"
     "    >>> obj.reset()\n" },
   { "state_bytes", (PyCFunction)SpecanObj_state_bytes, METH_NOARGS,
     "Serialized state size in bytes." },

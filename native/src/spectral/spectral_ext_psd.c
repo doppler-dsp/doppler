@@ -15,30 +15,35 @@ typedef struct
 {
   PyObject_HEAD psd_state_t *handle;
   float                     *_psd_db_buf; /* pre-allocated output for psd_db */
-  size_t _psd_db_buf_cap;                 /* allocated capacity for psd_db */
-  void **_psd_db_retired;                 /* gh-219 deferred free */
-  size_t _psd_db_retired_n;
-  size_t _psd_db_retired_cap;
-  float *_psd_dbhz_buf;     /* pre-allocated output for psd_dbhz */
-  size_t _psd_dbhz_buf_cap; /* allocated capacity for psd_dbhz */
-  void **_psd_dbhz_retired; /* gh-219 deferred free */
-  size_t _psd_dbhz_retired_n;
-  size_t _psd_dbhz_retired_cap;
-  float *_power_twosided_buf;     /* pre-allocated output for power_twosided */
+  size_t    _psd_db_buf_cap;              /* allocated capacity for psd_db */
+  void    **_psd_db_retired;              /* gh-219 deferred free */
+  size_t    _psd_db_retired_n;
+  size_t    _psd_db_retired_cap;
+  PyObject *_psd_db_view_ref;  /* gh-437 last returned view */
+  float    *_psd_dbhz_buf;     /* pre-allocated output for psd_dbhz */
+  size_t    _psd_dbhz_buf_cap; /* allocated capacity for psd_dbhz */
+  void    **_psd_dbhz_retired; /* gh-219 deferred free */
+  size_t    _psd_dbhz_retired_n;
+  size_t    _psd_dbhz_retired_cap;
+  PyObject *_psd_dbhz_view_ref;   /* gh-437 last returned view */
+  float    *_power_twosided_buf;  /* pre-allocated output for power_twosided */
   size_t _power_twosided_buf_cap; /* allocated capacity for power_twosided */
   void **_power_twosided_retired; /* gh-219 deferred free */
   size_t _power_twosided_retired_n;
   size_t _power_twosided_retired_cap;
-  float *_power_onesided_buf;     /* pre-allocated output for power_onesided */
+  PyObject *_power_twosided_view_ref; /* gh-437 last returned view */
+  float    *_power_onesided_buf;  /* pre-allocated output for power_onesided */
   size_t _power_onesided_buf_cap; /* allocated capacity for power_onesided */
   void **_power_onesided_retired; /* gh-219 deferred free */
   size_t _power_onesided_retired_n;
   size_t _power_onesided_retired_cap;
-  float *_band_power_buf;     /* pre-allocated output for band_power */
-  size_t _band_power_buf_cap; /* allocated capacity for band_power */
-  void **_band_power_retired; /* gh-219 deferred free */
-  size_t _band_power_retired_n;
-  size_t _band_power_retired_cap;
+  PyObject *_power_onesided_view_ref; /* gh-437 last returned view */
+  float    *_band_power_buf;          /* pre-allocated output for band_power */
+  size_t    _band_power_buf_cap;      /* allocated capacity for band_power */
+  void    **_band_power_retired;      /* gh-219 deferred free */
+  size_t    _band_power_retired_n;
+  size_t    _band_power_retired_cap;
+  PyObject *_band_power_view_ref; /* gh-437 last returned view */
 } PSDObject;
 
 static void
@@ -50,22 +55,27 @@ PSDObj_dealloc (PSDObject *self)
   for (size_t _i = 0; _i < self->_psd_db_retired_n; _i++)
     free (self->_psd_db_retired[_i]);
   free (self->_psd_db_retired);
+  Py_XDECREF (self->_psd_db_view_ref);
   free (self->_psd_dbhz_buf);
   for (size_t _i = 0; _i < self->_psd_dbhz_retired_n; _i++)
     free (self->_psd_dbhz_retired[_i]);
   free (self->_psd_dbhz_retired);
+  Py_XDECREF (self->_psd_dbhz_view_ref);
   free (self->_power_twosided_buf);
   for (size_t _i = 0; _i < self->_power_twosided_retired_n; _i++)
     free (self->_power_twosided_retired[_i]);
   free (self->_power_twosided_retired);
+  Py_XDECREF (self->_power_twosided_view_ref);
   free (self->_power_onesided_buf);
   for (size_t _i = 0; _i < self->_power_onesided_retired_n; _i++)
     free (self->_power_onesided_retired[_i]);
   free (self->_power_onesided_retired);
+  Py_XDECREF (self->_power_onesided_view_ref);
   free (self->_band_power_buf);
   for (size_t _i = 0; _i < self->_band_power_retired_n; _i++)
     free (self->_band_power_retired[_i]);
   free (self->_band_power_retired);
+  Py_XDECREF (self->_band_power_view_ref);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -81,23 +91,24 @@ PSDObj_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 static int
 PSDObj_init (PSDObject *self, PyObject *args, PyObject *kwds)
 {
-  static char *kwlist[]    = { "window", "mode",       "n",    "fs",    "beta",
-                               "pad",    "full_scale", "bits", "alpha", NULL };
-  const char  *window_str  = "hann";
-  const char  *mode_str    = "mean";
+  static char *kwlist[]    = { "n",          "fs",   "window", "beta",  "pad",
+                               "full_scale", "bits", "mode",   "alpha", NULL };
   unsigned long long n_raw = 1024;
   double             fs    = 1.0;
-  float              beta  = 0.0f;
+  const char        *window_str = "hann";
+  float              beta       = 0.0f;
   unsigned long long pad_raw    = 1;
   double             full_scale = 1.0;
   unsigned long long bits_raw   = 0;
+  const char        *mode_str   = "mean";
   double             alpha      = 0.1;
 
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|ssKdfKdKd", kwlist,
-                                    &window_str, &mode_str, &n_raw, &fs, &beta,
-                                    &pad_raw, &full_scale, &bits_raw, &alpha))
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|KdsfKdKsd", kwlist, &n_raw,
+                                    &fs, &window_str, &beta, &pad_raw,
+                                    &full_scale, &bits_raw, &mode_str, &alpha))
     return -1;
-  int window = 0;
+  size_t n      = (size_t)n_raw;
+  int    window = 0;
   if (strcmp (window_str, "hann") == 0)
     window = 0;
   else if (strcmp (window_str, "kaiser") == 0)
@@ -112,7 +123,9 @@ PSDObj_init (PSDObject *self, PyObject *args, PyObject *kwds)
                     window_str);
       return -1;
     }
-  int mode = 0;
+  size_t pad  = (size_t)pad_raw;
+  size_t bits = (size_t)bits_raw;
+  int    mode = 0;
   if (strcmp (mode_str, "mean") == 0)
     mode = 0;
   else if (strcmp (mode_str, "exp") == 0)
@@ -129,9 +142,6 @@ PSDObj_init (PSDObject *self, PyObject *args, PyObject *kwds)
                     mode_str);
       return -1;
     }
-  size_t n    = (size_t)n_raw;
-  size_t pad  = (size_t)pad_raw;
-  size_t bits = (size_t)bits_raw;
   self->handle
       = psd_create (n, fs, window, beta, pad, full_scale, bits, mode, alpha);
   if (!self->handle)
@@ -295,6 +305,17 @@ PSDObj_psd_db (PSDObject *self, PyObject *args, PyObject *kwds)
     return NULL;
   if (out_obj && out_obj != Py_None)
     {
+      /* Require the exact output dtype — no silent cast (a cast writes
+       * into a temp copy instead of the caller's buffer). */
+      if (!PyArray_Check (out_obj)
+          || PyArray_TYPE ((PyArrayObject *)out_obj) != NPY_FLOAT
+          || !PyArray_ISWRITEABLE ((PyArrayObject *)out_obj))
+        {
+          PyErr_SetString (
+              PyExc_TypeError,
+              "out must be a writable ndarray of the output dtype");
+          return NULL;
+        }
       PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
           out_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
       if (!out_arr)
@@ -329,8 +350,22 @@ PSDObj_psd_db (PSDObject *self, PyObject *args, PyObject *kwds)
       PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
       return _oview;
     }
-  size_t _need = (size_t)n;
-  if (!self->_psd_db_buf || self->_psd_db_buf_cap < _need)
+  size_t _need      = (size_t)n;
+  int    _view_live = 0;
+  if (self->_psd_db_view_ref)
+    {
+#if PY_VERSION_HEX >= 0x030D0000
+      PyObject *_lv = NULL;
+      if (PyWeakref_GetRef (self->_psd_db_view_ref, &_lv) == 1)
+        {
+          Py_DECREF (_lv);
+          _view_live = 1;
+        }
+#else
+      _view_live = PyWeakref_GetObject (self->_psd_db_view_ref) != Py_None;
+#endif
+    }
+  if (!self->_psd_db_buf || self->_psd_db_buf_cap < _need || _view_live)
     {
       size_t _max = psd_psd_db_max_out (self->handle);
       if (!_max || _max < _need)
@@ -371,6 +406,15 @@ PSDObj_psd_db (PSDObject *self, PyObject *args, PyObject *kwds)
     return NULL;
   PyArray_SetBaseObject ((PyArrayObject *)arr, (PyObject *)self);
   Py_INCREF (self);
+  /* gh-437: remember this view — while the caller holds it the next
+   * call retires the buffer instead of reusing it in place. */
+  Py_XDECREF (self->_psd_db_view_ref);
+  self->_psd_db_view_ref = PyWeakref_NewRef (arr, NULL);
+  if (!self->_psd_db_view_ref)
+    {
+      Py_DECREF (arr);
+      return NULL;
+    }
   return arr;
 }
 
@@ -400,6 +444,17 @@ PSDObj_psd_dbhz (PSDObject *self, PyObject *args, PyObject *kwds)
     return NULL;
   if (out_obj && out_obj != Py_None)
     {
+      /* Require the exact output dtype — no silent cast (a cast writes
+       * into a temp copy instead of the caller's buffer). */
+      if (!PyArray_Check (out_obj)
+          || PyArray_TYPE ((PyArrayObject *)out_obj) != NPY_FLOAT
+          || !PyArray_ISWRITEABLE ((PyArrayObject *)out_obj))
+        {
+          PyErr_SetString (
+              PyExc_TypeError,
+              "out must be a writable ndarray of the output dtype");
+          return NULL;
+        }
       PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
           out_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
       if (!out_arr)
@@ -434,8 +489,22 @@ PSDObj_psd_dbhz (PSDObject *self, PyObject *args, PyObject *kwds)
       PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
       return _oview;
     }
-  size_t _need = (size_t)n;
-  if (!self->_psd_dbhz_buf || self->_psd_dbhz_buf_cap < _need)
+  size_t _need      = (size_t)n;
+  int    _view_live = 0;
+  if (self->_psd_dbhz_view_ref)
+    {
+#if PY_VERSION_HEX >= 0x030D0000
+      PyObject *_lv = NULL;
+      if (PyWeakref_GetRef (self->_psd_dbhz_view_ref, &_lv) == 1)
+        {
+          Py_DECREF (_lv);
+          _view_live = 1;
+        }
+#else
+      _view_live = PyWeakref_GetObject (self->_psd_dbhz_view_ref) != Py_None;
+#endif
+    }
+  if (!self->_psd_dbhz_buf || self->_psd_dbhz_buf_cap < _need || _view_live)
     {
       size_t _max = psd_psd_dbhz_max_out (self->handle);
       if (!_max || _max < _need)
@@ -478,6 +547,15 @@ PSDObj_psd_dbhz (PSDObject *self, PyObject *args, PyObject *kwds)
     return NULL;
   PyArray_SetBaseObject ((PyArrayObject *)arr, (PyObject *)self);
   Py_INCREF (self);
+  /* gh-437: remember this view — while the caller holds it the next
+   * call retires the buffer instead of reusing it in place. */
+  Py_XDECREF (self->_psd_dbhz_view_ref);
+  self->_psd_dbhz_view_ref = PyWeakref_NewRef (arr, NULL);
+  if (!self->_psd_dbhz_view_ref)
+    {
+      Py_DECREF (arr);
+      return NULL;
+    }
   return arr;
 }
 
@@ -507,6 +585,17 @@ PSDObj_power_twosided (PSDObject *self, PyObject *args, PyObject *kwds)
     return NULL;
   if (out_obj && out_obj != Py_None)
     {
+      /* Require the exact output dtype — no silent cast (a cast writes
+       * into a temp copy instead of the caller's buffer). */
+      if (!PyArray_Check (out_obj)
+          || PyArray_TYPE ((PyArrayObject *)out_obj) != NPY_FLOAT
+          || !PyArray_ISWRITEABLE ((PyArrayObject *)out_obj))
+        {
+          PyErr_SetString (
+              PyExc_TypeError,
+              "out must be a writable ndarray of the output dtype");
+          return NULL;
+        }
       PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
           out_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
       if (!out_arr)
@@ -541,8 +630,24 @@ PSDObj_power_twosided (PSDObject *self, PyObject *args, PyObject *kwds)
       PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
       return _oview;
     }
-  size_t _need = (size_t)n;
-  if (!self->_power_twosided_buf || self->_power_twosided_buf_cap < _need)
+  size_t _need      = (size_t)n;
+  int    _view_live = 0;
+  if (self->_power_twosided_view_ref)
+    {
+#if PY_VERSION_HEX >= 0x030D0000
+      PyObject *_lv = NULL;
+      if (PyWeakref_GetRef (self->_power_twosided_view_ref, &_lv) == 1)
+        {
+          Py_DECREF (_lv);
+          _view_live = 1;
+        }
+#else
+      _view_live
+          = PyWeakref_GetObject (self->_power_twosided_view_ref) != Py_None;
+#endif
+    }
+  if (!self->_power_twosided_buf || self->_power_twosided_buf_cap < _need
+      || _view_live)
     {
       size_t _max = psd_power_twosided_max_out (self->handle);
       if (!_max || _max < _need)
@@ -587,6 +692,15 @@ PSDObj_power_twosided (PSDObject *self, PyObject *args, PyObject *kwds)
     return NULL;
   PyArray_SetBaseObject ((PyArrayObject *)arr, (PyObject *)self);
   Py_INCREF (self);
+  /* gh-437: remember this view — while the caller holds it the next
+   * call retires the buffer instead of reusing it in place. */
+  Py_XDECREF (self->_power_twosided_view_ref);
+  self->_power_twosided_view_ref = PyWeakref_NewRef (arr, NULL);
+  if (!self->_power_twosided_view_ref)
+    {
+      Py_DECREF (arr);
+      return NULL;
+    }
   return arr;
 }
 
@@ -616,6 +730,17 @@ PSDObj_power_onesided (PSDObject *self, PyObject *args, PyObject *kwds)
     return NULL;
   if (out_obj && out_obj != Py_None)
     {
+      /* Require the exact output dtype — no silent cast (a cast writes
+       * into a temp copy instead of the caller's buffer). */
+      if (!PyArray_Check (out_obj)
+          || PyArray_TYPE ((PyArrayObject *)out_obj) != NPY_FLOAT
+          || !PyArray_ISWRITEABLE ((PyArrayObject *)out_obj))
+        {
+          PyErr_SetString (
+              PyExc_TypeError,
+              "out must be a writable ndarray of the output dtype");
+          return NULL;
+        }
       PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
           out_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
       if (!out_arr)
@@ -650,8 +775,24 @@ PSDObj_power_onesided (PSDObject *self, PyObject *args, PyObject *kwds)
       PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
       return _oview;
     }
-  size_t _need = (size_t)n;
-  if (!self->_power_onesided_buf || self->_power_onesided_buf_cap < _need)
+  size_t _need      = (size_t)n;
+  int    _view_live = 0;
+  if (self->_power_onesided_view_ref)
+    {
+#if PY_VERSION_HEX >= 0x030D0000
+      PyObject *_lv = NULL;
+      if (PyWeakref_GetRef (self->_power_onesided_view_ref, &_lv) == 1)
+        {
+          Py_DECREF (_lv);
+          _view_live = 1;
+        }
+#else
+      _view_live
+          = PyWeakref_GetObject (self->_power_onesided_view_ref) != Py_None;
+#endif
+    }
+  if (!self->_power_onesided_buf || self->_power_onesided_buf_cap < _need
+      || _view_live)
     {
       size_t _max = psd_power_onesided_max_out (self->handle);
       if (!_max || _max < _need)
@@ -696,6 +837,15 @@ PSDObj_power_onesided (PSDObject *self, PyObject *args, PyObject *kwds)
     return NULL;
   PyArray_SetBaseObject ((PyArrayObject *)arr, (PyObject *)self);
   Py_INCREF (self);
+  /* gh-437: remember this view — while the caller holds it the next
+   * call retires the buffer instead of reusing it in place. */
+  Py_XDECREF (self->_power_onesided_view_ref);
+  self->_power_onesided_view_ref = PyWeakref_NewRef (arr, NULL);
+  if (!self->_power_onesided_view_ref)
+    {
+      Py_DECREF (arr);
+      return NULL;
+    }
   return arr;
 }
 
@@ -731,6 +881,18 @@ PSDObj_band_power (PSDObject *self, PyObject *args, PyObject *kwds)
     return NULL;
   if (out_obj && out_obj != Py_None)
     {
+      /* Require the exact output dtype — no silent cast (a cast writes
+       * into a temp copy instead of the caller's buffer). */
+      if (!PyArray_Check (out_obj)
+          || PyArray_TYPE ((PyArrayObject *)out_obj) != NPY_FLOAT
+          || !PyArray_ISWRITEABLE ((PyArrayObject *)out_obj))
+        {
+          PyErr_SetString (
+              PyExc_TypeError,
+              "out must be a writable ndarray of the output dtype");
+          Py_DECREF (bands_arr);
+          return NULL;
+        }
       PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
           out_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
       if (!out_arr)
@@ -766,8 +928,23 @@ PSDObj_band_power (PSDObject *self, PyObject *args, PyObject *kwds)
       PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
       return _oview;
     }
-  size_t _need = (size_t)PyArray_SIZE (bands_arr);
-  if (!self->_band_power_buf || self->_band_power_buf_cap < _need)
+  size_t _need      = (size_t)PyArray_SIZE (bands_arr);
+  int    _view_live = 0;
+  if (self->_band_power_view_ref)
+    {
+#if PY_VERSION_HEX >= 0x030D0000
+      PyObject *_lv = NULL;
+      if (PyWeakref_GetRef (self->_band_power_view_ref, &_lv) == 1)
+        {
+          Py_DECREF (_lv);
+          _view_live = 1;
+        }
+#else
+      _view_live = PyWeakref_GetObject (self->_band_power_view_ref) != Py_None;
+#endif
+    }
+  if (!self->_band_power_buf || self->_band_power_buf_cap < _need
+      || _view_live)
     {
       size_t _max = psd_band_power_max_out (self->handle);
       if (!_max || _max < _need)
@@ -812,6 +989,15 @@ PSDObj_band_power (PSDObject *self, PyObject *args, PyObject *kwds)
     return NULL;
   PyArray_SetBaseObject ((PyArrayObject *)arr, (PyObject *)self);
   Py_INCREF (self);
+  /* gh-437: remember this view — while the caller holds it the next
+   * call retires the buffer instead of reusing it in place. */
+  Py_XDECREF (self->_band_power_view_ref);
+  self->_band_power_view_ref = PyWeakref_NewRef (arr, NULL);
+  if (!self->_band_power_view_ref)
+    {
+      Py_DECREF (arr);
+      return NULL;
+    }
   Py_DECREF (bands_arr);
   return arr;
 }
@@ -1100,7 +1286,7 @@ static PyMethodDef PSDObj_methods[] = {
     "\n"
     "    >>> import numpy as np\n"
     "    >>> from doppler import PSD\n"
-    "    >>> obj = PSD(\"hann\", \"mean\", 1024, 1.0, 0.0, 1, 1.0, 0, 0.1)\n"
+    "    >>> obj = PSD(1024, 1.0, \"hann\", 0.0, 1, 1.0, 0, \"mean\", 0.1)\n"
     "    >>> obj.accumulate(np.zeros(4, dtype=np.complex64))\n" },
   { "accumulate_real", (PyCFunction)(void *)PSDObj_accumulate_real,
     METH_VARARGS | METH_KEYWORDS,
@@ -1111,7 +1297,7 @@ static PyMethodDef PSDObj_methods[] = {
     "\n"
     "    >>> import numpy as np\n"
     "    >>> from doppler import PSD\n"
-    "    >>> obj = PSD(\"hann\", \"mean\", 1024, 1.0, 0.0, 1, 1.0, 0, 0.1)\n"
+    "    >>> obj = PSD(1024, 1.0, \"hann\", 0.0, 1, 1.0, 0, \"mean\", 0.1)\n"
     "    >>> obj.accumulate_real(np.zeros(4, dtype=np.float32))\n" },
   { "reset", (PyCFunction)PSDObj_reset, METH_NOARGS,
     "reset() -> None\n"
@@ -1119,7 +1305,7 @@ static PyMethodDef PSDObj_methods[] = {
     "Discard the running average; counters return to zero.\n"
     "\n"
     "    >>> from doppler import PSD\n"
-    "    >>> obj = PSD(\"hann\", \"mean\", 1024, 1.0, 0.0, 1, 1.0, 0, 0.1)\n"
+    "    >>> obj = PSD(1024, 1.0, \"hann\", 0.0, 1, 1.0, 0, \"mean\", 0.1)\n"
     "    >>> obj.reset()\n" },
   { "psd_db", (PyCFunction)PSDObj_psd_db, METH_VARARGS | METH_KEYWORDS,
     "psd_db(n=1) -> ndarray\n"
@@ -1128,7 +1314,7 @@ static PyMethodDef PSDObj_methods[] = {
     "\n"
     "    >>> import numpy as np\n"
     "    >>> from doppler import PSD\n"
-    "    >>> obj = PSD(\"hann\", \"mean\", 1024, 1.0, 0.0, 1, 1.0, 0, 0.1)\n"
+    "    >>> obj = PSD(1024, 1.0, \"hann\", 0.0, 1, 1.0, 0, \"mean\", 0.1)\n"
     "    >>> y = obj.psd_db(4)\n"
     "    >>> y.dtype\n"
     "    dtype('float32')\n" },
@@ -1142,7 +1328,7 @@ static PyMethodDef PSDObj_methods[] = {
     "\n"
     "    >>> import numpy as np\n"
     "    >>> from doppler import PSD\n"
-    "    >>> obj = PSD(\"hann\", \"mean\", 1024, 1.0, 0.0, 1, 1.0, 0, 0.1)\n"
+    "    >>> obj = PSD(1024, 1.0, \"hann\", 0.0, 1, 1.0, 0, \"mean\", 0.1)\n"
     "    >>> y = obj.psd_dbhz(4)\n"
     "    >>> y.dtype\n"
     "    dtype('float32')\n" },
@@ -1158,7 +1344,7 @@ static PyMethodDef PSDObj_methods[] = {
     "\n"
     "    >>> import numpy as np\n"
     "    >>> from doppler import PSD\n"
-    "    >>> obj = PSD(\"hann\", \"mean\", 1024, 1.0, 0.0, 1, 1.0, 0, 0.1)\n"
+    "    >>> obj = PSD(1024, 1.0, \"hann\", 0.0, 1, 1.0, 0, \"mean\", 0.1)\n"
     "    >>> y = obj.power_twosided(4)\n"
     "    >>> y.dtype\n"
     "    dtype('float32')\n" },
@@ -1175,7 +1361,7 @@ static PyMethodDef PSDObj_methods[] = {
     "\n"
     "    >>> import numpy as np\n"
     "    >>> from doppler import PSD\n"
-    "    >>> obj = PSD(\"hann\", \"mean\", 1024, 1.0, 0.0, 1, 1.0, 0, 0.1)\n"
+    "    >>> obj = PSD(1024, 1.0, \"hann\", 0.0, 1, 1.0, 0, \"mean\", 0.1)\n"
     "    >>> y = obj.power_onesided(4)\n"
     "    >>> y.dtype\n"
     "    dtype('float32')\n" },
@@ -1190,7 +1376,7 @@ static PyMethodDef PSDObj_methods[] = {
     "\n"
     "    >>> import numpy as np\n"
     "    >>> from doppler import PSD\n"
-    "    >>> obj = PSD(\"hann\", \"mean\", 1024, 1.0, 0.0, 1, 1.0, 0, 0.1)\n"
+    "    >>> obj = PSD(1024, 1.0, \"hann\", 0.0, 1, 1.0, 0, \"mean\", 0.1)\n"
     "    >>> y = obj.band_power(np.zeros(4))\n"
     "    >>> y.dtype\n"
     "    dtype('float32')\n" },
@@ -1205,7 +1391,7 @@ static PyMethodDef PSDObj_methods[] = {
     "\n"
     "    >>> import numpy as np\n"
     "    >>> from doppler import PSD\n"
-    "    >>> obj = PSD(\"hann\", \"mean\", 1024, 1.0, 0.0, 1, 1.0, 0, 0.1)\n"
+    "    >>> obj = PSD(1024, 1.0, \"hann\", 0.0, 1, 1.0, 0, \"mean\", 0.1)\n"
     "    >>> obj.total_band_power(np.zeros(4, dtype=np.float64))\n"
     "    0.0\n" },
   { "occupied_bw", (PyCFunction)(void *)PSDObj_occupied_bw,
@@ -1216,7 +1402,7 @@ static PyMethodDef PSDObj_methods[] = {
     "\n"
     "    >>> import numpy as np\n"
     "    >>> from doppler import PSD\n"
-    "    >>> obj = PSD(\"hann\", \"mean\", 1024, 1.0, 0.0, 1, 1.0, 0, 0.1)\n"
+    "    >>> obj = PSD(1024, 1.0, \"hann\", 0.0, 1, 1.0, 0, \"mean\", 0.1)\n"
     "    >>> obj.occupied_bw(0.0)\n"
     "    0.0\n" },
   { "noise_floor", (PyCFunction)PSDObj_noise_floor, METH_NOARGS,
@@ -1225,7 +1411,7 @@ static PyMethodDef PSDObj_methods[] = {
     "Median of the averaged dB trace (noise-floor estimate).\n"
     "\n"
     "    >>> from doppler import PSD\n"
-    "    >>> obj = PSD(\"hann\", \"mean\", 1024, 1.0, 0.0, 1, 1.0, 0, 0.1)\n"
+    "    >>> obj = PSD(1024, 1.0, \"hann\", 0.0, 1, 1.0, 0, \"mean\", 0.1)\n"
     "    >>> obj.noise_floor()\n"
     "    0.0\n" },
   { "snr", (PyCFunction)(void *)PSDObj_snr, METH_VARARGS | METH_KEYWORDS,
@@ -1235,7 +1421,7 @@ static PyMethodDef PSDObj_methods[] = {
     "\n"
     "    >>> import numpy as np\n"
     "    >>> from doppler import PSD\n"
-    "    >>> obj = PSD(\"hann\", \"mean\", 1024, 1.0, 0.0, 1, 1.0, 0, 0.1)\n"
+    "    >>> obj = PSD(1024, 1.0, \"hann\", 0.0, 1, 1.0, 0, \"mean\", 0.1)\n"
     "    >>> obj.snr(0.0, 0.0)\n"
     "    0.0\n" },
   { "sfdr", (PyCFunction)(void *)PSDObj_sfdr, METH_VARARGS | METH_KEYWORDS,
@@ -1245,7 +1431,7 @@ static PyMethodDef PSDObj_methods[] = {
     "\n"
     "    >>> import numpy as np\n"
     "    >>> from doppler import PSD\n"
-    "    >>> obj = PSD(\"hann\", \"mean\", 1024, 1.0, 0.0, 1, 1.0, 0, 0.1)\n"
+    "    >>> obj = PSD(1024, 1.0, \"hann\", 0.0, 1, 1.0, 0, \"mean\", 0.1)\n"
     "    >>> obj.sfdr(0.0)\n"
     "    0.0\n" },
   { "state_bytes", (PyCFunction)PSDObj_state_bytes, METH_NOARGS,

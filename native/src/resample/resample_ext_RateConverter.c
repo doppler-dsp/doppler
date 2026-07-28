@@ -164,6 +164,18 @@ RateConverterObj_execute (RateConverterObject *self, PyObject *args,
     return NULL;
   if (out_obj && out_obj != Py_None)
     {
+      /* Require the exact output dtype — no silent cast (a cast writes
+       * into a temp copy instead of the caller's buffer). */
+      if (!PyArray_Check (out_obj)
+          || PyArray_TYPE ((PyArrayObject *)out_obj) != NPY_COMPLEX64
+          || !PyArray_ISWRITEABLE ((PyArrayObject *)out_obj))
+        {
+          PyErr_SetString (
+              PyExc_TypeError,
+              "out must be a writable ndarray of the output dtype");
+          Py_DECREF (x_arr);
+          return NULL;
+        }
       PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
           out_obj, NPY_COMPLEX64,
           NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
@@ -650,10 +662,20 @@ static PyGetSetDef RateConverter_getset[] = {
     "rate. Setting rate <= 0 is silently ignored.\n",
     NULL },
   { "clipped", (getter)RateConverter_getprop_clipped, NULL,
-    "Has any planned CIC stage clipped its input since the last reset?\n",
+    "True if any planned CIC stage has clipped its input since the last "
+    "`reset()`. The cascade inherits the CIC's input bound (`|Re|`, `|Im| <= "
+    "1.0`) whenever `stages` names a CIC -- any decimation by 8 or more. The "
+    "clip is invisible in the samples (finite, no NaN, merely distorted), so "
+    "this is the only reliable check, and it is free: the boundary "
+    "comparisons run on every sample regardless. Always False for a cascade "
+    "with no CIC stage -- those plans are scale-free.\n",
     NULL },
   { "narrow_pulse", (getter)RateConverter_getprop_narrow_pulse, NULL,
-    "Is this converter's rectangular matched filter degenerately narrow?\n",
+    "True when a rectangular pulse was selected with fewer than four output "
+    "samples per symbol, where its matched filter degenerates to a 2-3 tap "
+    "sum. Construction also raises a UserWarning; this is the same diagnostic "
+    "to pull rather than catch. Always False for `pulse=\"rrc\"` and for a "
+    "plain converter.\n",
     NULL },
   { "stages", (getter)RateConverter_getprop_stages, NULL,
     "Stage labels for the planned cascade, e.g. `['CIC(8)', "

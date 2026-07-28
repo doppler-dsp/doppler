@@ -102,6 +102,18 @@ F32ToI16U64_steps (F32ToI16U64Object *self, PyObject *args, PyObject *kwds)
 
   if (out_obj && out_obj != Py_None)
     {
+      /* Require the exact output dtype — no silent cast (a cast writes
+       * into a temp copy instead of the caller's buffer). */
+      if (!PyArray_Check (out_obj)
+          || PyArray_TYPE ((PyArrayObject *)out_obj) != NPY_UINT64
+          || !PyArray_ISWRITEABLE ((PyArrayObject *)out_obj))
+        {
+          PyErr_SetString (
+              PyExc_TypeError,
+              "out must be a writable ndarray of the output dtype");
+          Py_DECREF (in_arr);
+          return NULL;
+        }
       PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
           out_obj, NPY_UINT64, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
       if (!out_arr)
@@ -137,54 +149,6 @@ F32ToI16U64_steps (F32ToI16U64Object *self, PyObject *args, PyObject *kwds)
 
   Py_DECREF (in_arr);
   return out_arr;
-}
-
-static PyObject *
-F32ToI16U64_getprop_clipped (F32ToI16U64Object *self,
-                             void              *Py_UNUSED (closure))
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  return PyBool_FromLong ((long)(self->handle->clipped));
-}
-
-static PyGetSetDef F32ToI16U64_getset[]
-    = { { "clipped", (getter)F32ToI16U64_getprop_clipped, NULL,
-          "True if any sample has been saturated since the last reset().\n",
-          NULL },
-        { NULL } };
-
-static PyObject *
-F32ToI16U64Obj_destroy (F32ToI16U64Object *self, PyObject *Py_UNUSED (ignored))
-{
-  if (self->handle)
-    {
-      f32_to_i16u64_destroy (self->handle);
-      self->handle = NULL;
-    }
-  Py_RETURN_NONE;
-}
-
-static PyObject *
-F32ToI16U64Obj_enter (F32ToI16U64Object *self, PyObject *Py_UNUSED (ignored))
-{
-  Py_INCREF (self);
-  return (PyObject *)self;
-}
-
-static PyObject *
-F32ToI16U64Obj_exit (F32ToI16U64Object *self, PyObject *args)
-{
-  (void)args;
-  if (self->handle)
-    {
-      f32_to_i16u64_destroy (self->handle);
-      self->handle = NULL;
-    }
-  Py_RETURN_NONE;
 }
 
 static PyObject *
@@ -242,6 +206,53 @@ F32ToI16U64Obj_set_state (F32ToI16U64Object *self, PyObject *arg)
     }
   Py_RETURN_NONE;
 }
+static PyObject *
+F32ToI16U64_getprop_clipped (F32ToI16U64Object *self,
+                             void              *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyBool_FromLong ((long)(self->handle->clipped));
+}
+
+static PyGetSetDef F32ToI16U64_getset[]
+    = { { "clipped", (getter)F32ToI16U64_getprop_clipped, NULL,
+          "True if any sample has been saturated since the last reset().\n",
+          NULL },
+        { NULL } };
+
+static PyObject *
+F32ToI16U64Obj_destroy (F32ToI16U64Object *self, PyObject *Py_UNUSED (ignored))
+{
+  if (self->handle)
+    {
+      f32_to_i16u64_destroy (self->handle);
+      self->handle = NULL;
+    }
+  Py_RETURN_NONE;
+}
+
+static PyObject *
+F32ToI16U64Obj_enter (F32ToI16U64Object *self, PyObject *Py_UNUSED (ignored))
+{
+  Py_INCREF (self);
+  return (PyObject *)self;
+}
+
+static PyObject *
+F32ToI16U64Obj_exit (F32ToI16U64Object *self, PyObject *args)
+{
+  (void)args;
+  if (self->handle)
+    {
+      f32_to_i16u64_destroy (self->handle);
+      self->handle = NULL;
+    }
+  Py_RETURN_NONE;
+}
 
 static PyMethodDef F32ToI16U64Obj_methods[]
     = { { "reset", (PyCFunction)F32ToI16U64Obj_reset, METH_NOARGS,
@@ -270,16 +281,16 @@ static PyMethodDef F32ToI16U64Obj_methods[]
           "    >>> y.dtype\n"
           "    dtype('uint64')\n" },
 
-        { "destroy", (PyCFunction)F32ToI16U64Obj_destroy, METH_NOARGS,
-          "Release resources." },
-        { "__enter__", (PyCFunction)F32ToI16U64Obj_enter, METH_NOARGS, NULL },
-        { "__exit__", (PyCFunction)F32ToI16U64Obj_exit, METH_VARARGS, NULL },
         { "state_bytes", (PyCFunction)F32ToI16U64Obj_state_bytes, METH_NOARGS,
           "Serialized state size in bytes." },
         { "get_state", (PyCFunction)F32ToI16U64Obj_get_state, METH_NOARGS,
           "Serialize the engine's mutable state to bytes." },
         { "set_state", (PyCFunction)F32ToI16U64Obj_set_state, METH_O,
           "Restore mutable state from a get_state() blob." },
+        { "destroy", (PyCFunction)F32ToI16U64Obj_destroy, METH_NOARGS,
+          "Release resources." },
+        { "__enter__", (PyCFunction)F32ToI16U64Obj_enter, METH_NOARGS, NULL },
+        { "__exit__", (PyCFunction)F32ToI16U64Obj_exit, METH_VARARGS, NULL },
         { NULL } };
 
 static PyTypeObject F32ToI16U64ObjType = {

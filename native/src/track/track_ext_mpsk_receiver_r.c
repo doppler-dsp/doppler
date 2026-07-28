@@ -238,6 +238,18 @@ MpskReceiverRObj_steps (MpskReceiverRObject *self, PyObject *args,
     return NULL;
   if (out_obj && out_obj != Py_None)
     {
+      /* Require the exact output dtype — no silent cast (a cast writes
+       * into a temp copy instead of the caller's buffer). */
+      if (!PyArray_Check (out_obj)
+          || PyArray_TYPE ((PyArrayObject *)out_obj) != NPY_COMPLEX64
+          || !PyArray_ISWRITEABLE ((PyArrayObject *)out_obj))
+        {
+          PyErr_SetString (
+              PyExc_TypeError,
+              "out must be a writable ndarray of the output dtype");
+          Py_DECREF (x_arr);
+          return NULL;
+        }
       PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
           out_obj, NPY_COMPLEX64,
           NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
@@ -394,6 +406,18 @@ MpskReceiverRObj_bits (MpskReceiverRObject *self, PyObject *args,
     return NULL;
   if (out_obj && out_obj != Py_None)
     {
+      /* Require the exact output dtype — no silent cast (a cast writes
+       * into a temp copy instead of the caller's buffer). */
+      if (!PyArray_Check (out_obj)
+          || PyArray_TYPE ((PyArrayObject *)out_obj) != NPY_UINT8
+          || !PyArray_ISWRITEABLE ((PyArrayObject *)out_obj))
+        {
+          PyErr_SetString (
+              PyExc_TypeError,
+              "out must be a writable ndarray of the output dtype");
+          Py_DECREF (x_arr);
+          return NULL;
+        }
       PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
           out_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
       if (!out_arr)
@@ -784,7 +808,7 @@ static PyMethodDef MpskReceiverRObj_methods[] = {
     "\n"
     "    >>> import numpy as np\n"
     "    >>> from doppler import MpskReceiverR\n"
-    "    >>> obj = MpskReceiverR(4, 16.0, 4, \"iandd\", 0.35, 8, 0.01, 0.707, "
+    "    >>> obj = MpskReceiverR(4, 32.0, 8, \"iandd\", 0.35, 8, 0.01, 0.707, "
     "0.01, 0, 0.5, 0.0, 100, 0, 1024, \"strobe\")\n"
     "    >>> obj.set_telemetry(0, 0, 0)\n"
     "    0\n" },
@@ -814,7 +838,7 @@ static PyMethodDef MpskReceiverRObj_methods[] = {
     "\n"
     "    >>> import numpy as np\n"
     "    >>> from doppler import MpskReceiverR\n"
-    "    >>> obj = MpskReceiverR(4, 16.0, 4, \"iandd\", 0.35, 8, 0.01, 0.707, "
+    "    >>> obj = MpskReceiverR(4, 32.0, 8, \"iandd\", 0.35, 8, 0.01, 0.707, "
     "0.01, 0, 0.5, 0.0, 100, 0, 1024, \"strobe\")\n"
     "    >>> y = obj.steps(np.zeros(4))\n"
     "    >>> y.dtype\n"
@@ -834,7 +858,7 @@ static PyMethodDef MpskReceiverRObj_methods[] = {
     "\n"
     "    >>> import numpy as np\n"
     "    >>> from doppler import MpskReceiverR\n"
-    "    >>> obj = MpskReceiverR(4, 16.0, 4, \"iandd\", 0.35, 8, 0.01, 0.707, "
+    "    >>> obj = MpskReceiverR(4, 32.0, 8, \"iandd\", 0.35, 8, 0.01, 0.707, "
     "0.01, 0, 0.5, 0.0, 100, 0, 1024, \"strobe\")\n"
     "    >>> y = obj.bits(np.zeros(4))\n"
     "    >>> y.dtype\n"
@@ -858,7 +882,7 @@ static PyMethodDef MpskReceiverRObj_methods[] = {
     "\n"
     "    >>> import numpy as np\n"
     "    >>> from doppler import MpskReceiverR\n"
-    "    >>> obj = MpskReceiverR(4, 16.0, 4, \"iandd\", 0.35, 8, 0.01, 0.707, "
+    "    >>> obj = MpskReceiverR(4, 32.0, 8, \"iandd\", 0.35, 8, 0.01, 0.707, "
     "0.01, 0, 0.5, 0.0, 100, 0, 1024, \"strobe\")\n"
     "    >>> obj.configure_lock(0.0, 0.0, 0, 0)\n" },
   { "reset", (PyCFunction)MpskReceiverRObj_reset, METH_NOARGS,
@@ -868,7 +892,7 @@ static PyMethodDef MpskReceiverRObj_methods[] = {
     "preserve configuration.\n"
     "\n"
     "    >>> from doppler import MpskReceiverR\n"
-    "    >>> obj = MpskReceiverR(4, 16.0, 4, \"iandd\", 0.35, 8, 0.01, 0.707, "
+    "    >>> obj = MpskReceiverR(4, 32.0, 8, \"iandd\", 0.35, 8, 0.01, 0.707, "
     "0.01, 0, 0.5, 0.0, 100, 0, 1024, \"strobe\")\n"
     "    >>> obj.reset()\n" },
   { "state_bytes", (PyCFunction)MpskReceiverRObj_state_bytes, METH_NOARGS,

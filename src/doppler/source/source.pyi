@@ -453,18 +453,13 @@ class AWGN:
     def generate_max_out(self) -> int:
         """Max output length generate() can produce for the current state."""
 
-    def reseed(self, seed: int) -> complex:
+    def reseed(self, seed: int) -> None:
         """Reseed the RNG and reset all xoshiro256++ state. Equivalent to calling awgn_destroy() and awgn_create(seed, amplitude) but reuses the existing allocation.  amplitude is unchanged.
 
         Parameters
         ----------
         seed : int
             New 64-bit RNG seed.
-
-        Returns
-        -------
-        complex
-            Output.
 
         Examples
         --------

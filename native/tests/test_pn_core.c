@@ -4,6 +4,7 @@
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #define CHECK(cond)                                                           \
   do                                                                          \
@@ -128,22 +129,38 @@ main (void)
   {
     pn_state_t *a = pn_create (96, 1, 7, PN_GALOIS);
     uint8_t     ref[64], got[64];
-    pn_generate (a, 9, ref); /* advance */
+    pn_generate (a, 9, ref, 9); /* advance */
     size_t sb   = pn_state_bytes (a);
     void  *blob = malloc (sb);
     pn_get_state (a, blob);
-    pn_generate (a, 64, ref); /* reference continuation */
+    pn_generate (a, 64, ref, 64); /* reference continuation */
 
     pn_state_t *b = pn_create (96, 1, 7, PN_GALOIS);
     CHECK (pn_set_state (b, blob) == DP_OK);
     ((char *)blob)[0] ^= (char)0xFF;
     CHECK (pn_set_state (b, blob) == DP_ERR_INVALID);
-    pn_generate (b, 64, got);
+    pn_generate (b, 64, got, 64);
     for (int i = 0; i < 64; i++)
       CHECK (got[i] == ref[i]);
     pn_destroy (a);
     pn_destroy (b);
     free (blob);
+  }
+
+  /* ── pass_capacity: emission stops at max_out (jm gh-138) ────────── */
+  {
+    pn_state_t *g = pn_create (0, 1, 7, 0);
+    uint8_t     out[16];
+    memset (out, 0xAA, sizeof out);
+    /* Ask for 16, allow 5: exactly 5 written, the rest untouched. */
+    CHECK (pn_generate (g, 16, out, 5) == 5);
+    for (int i = 5; i < 16; i++)
+      CHECK (out[i] == 0xAA);
+    /* Zero capacity emits nothing and does not advance the register. */
+    uint64_t reg_before = g->reg;
+    CHECK (pn_generate (g, 16, out, 0) == 0);
+    CHECK (g->reg == reg_before);
+    pn_destroy (g);
   }
 
   if (_fails)

@@ -129,7 +129,7 @@ main (void)
     gold_state_t *ex
         = gold_create (TAPS_A, SEED_A_EXAMPLE, TAPS_B, SEED_B, 10);
     uint8_t chips[SF];
-    gold_generate (ex, SF, chips);
+    gold_generate (ex, SF, chips, SF);
     static const uint8_t expected[15]
         = { 0, 1, 0, 0, 0, 1, 0, 1, 1, 1, 0, 1, 1, 1, 1 };
     for (int i = 0; i < 15; i++)
@@ -149,8 +149,8 @@ main (void)
         = gold_create (TAPS_A, SEED_A_EXAMPLE, TAPS_B, SEED_B, 10);
     gold_state_t *g2 = gold_create (TAPS_A, SEED_A_OTHER, TAPS_B, SEED_B, 10);
     uint8_t       c1[SF], c2[SF];
-    gold_generate (g1, SF, c1);
-    gold_generate (g2, SF, c2);
+    gold_generate (g1, SF, c1, SF);
+    gold_generate (g2, SF, c2, SF);
 
     int acorr[SF];
     xcorr_values (c1, c1, acorr);
@@ -170,9 +170,9 @@ main (void)
   /* ── reset ── */
   {
     uint8_t before[8], after[8];
-    gold_generate (g, 8, before);
+    gold_generate (g, 8, before, 8);
     gold_reset (g);
-    gold_generate (g, 8, after);
+    gold_generate (g, 8, after, 8);
     for (int i = 0; i < 8; i++)
       CHECK (before[i] == after[i]);
   }
@@ -185,18 +185,18 @@ main (void)
   {
     gold_state_t *a = gold_create (TAPS_A, SEED_A_EXAMPLE, TAPS_B, SEED_B, 10);
     uint8_t       ref[64], got[64];
-    gold_generate (a, 17,
-                   ref); /* advance mid-stream, off any epoch boundary */
+    gold_generate (a, 17, ref,
+                   17); /* advance mid-stream, off any epoch boundary */
     size_t sb   = gold_state_bytes (a);
     void  *blob = malloc (sb);
     gold_get_state (a, blob);
-    gold_generate (a, 64, ref); /* reference continuation */
+    gold_generate (a, 64, ref, 64); /* reference continuation */
 
     gold_state_t *b = gold_create (TAPS_A, SEED_A_EXAMPLE, TAPS_B, SEED_B, 10);
     CHECK (gold_set_state (b, blob) == DP_OK);
     ((char *)blob)[0] ^= (char)0xFF;
     CHECK (gold_set_state (b, blob) == DP_ERR_INVALID);
-    gold_generate (b, 64, got);
+    gold_generate (b, 64, got, 64);
     for (int i = 0; i < 64; i++)
       CHECK (got[i] == ref[i]);
     gold_destroy (a);

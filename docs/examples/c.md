@@ -219,15 +219,15 @@ int main(void) {
     awgn_state_t *g = awgn_create(42, 1.0f);   /* seed, amplitude */
 
     float complex buf[4096];
-    awgn_generate(g, 4096, buf);                /* fill buf */
+    awgn_generate(g, 4096, buf, 4096);                /* fill buf */
 
     /* Retune amplitude without disturbing RNG state */
     awgn_set_amplitude(g, 0.5f);
-    awgn_generate(g, 4096, buf);
+    awgn_generate(g, 4096, buf, 4096);
 
     /* Deterministic replay */
     awgn_reset(g);
-    awgn_generate(g, 4096, buf);               /* identical to first call */
+    awgn_generate(g, 4096, buf, 4096);               /* identical to first call */
 
     awgn_destroy(g);
     return 0;
@@ -250,7 +250,7 @@ int main(void) {
 
     float complex carrier[N], n[N], rx[N];
     lo_steps(lo, N, carrier);
-    awgn_generate(noise, N, n);
+    awgn_generate(noise, N, n, N);
     for (size_t i = 0; i < N; i++)
         rx[i] = carrier[i] + n[i];
     printf("rx[0]: %.3f + %.3fi\n", crealf(rx[0]), cimagf(rx[0]));

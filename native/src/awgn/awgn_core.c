@@ -390,8 +390,12 @@ generate_avx512 (awgn_state_t *state, size_t n, float complex *out)
 /* ================================================================== */
 
 size_t
-awgn_generate (awgn_state_t *state, size_t n, float complex *out)
+awgn_generate (awgn_state_t *state, size_t n, float complex *out,
+               size_t max_out)
 {
+  /* Emission stops at the caller's capacity (jm gh-138). */
+  if (n > max_out)
+    n = max_out;
 #ifdef AWGN_X86_DISPATCH
   /* Cache the one-time probe: need both AVX-512 *and* a resolved vector-log
    * (weak symbol) — features don't change at run time. */
@@ -416,7 +420,7 @@ awgn (uint64_t seed, float amplitude, size_t n, float complex *out)
   awgn_state_t *g = awgn_create (seed, amplitude);
   if (!g)
     return DP_ERR_MEMORY;
-  awgn_generate (g, n, out);
+  awgn_generate (g, n, out, n);
   awgn_destroy (g);
   return DP_OK;
 }

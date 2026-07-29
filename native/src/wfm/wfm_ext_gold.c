@@ -128,9 +128,9 @@ GoldObj_generate (GoldObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (out_arr);
           return NULL;
         }
-      size_t    n_out  = gold_generate (self->handle, (size_t)n,
-                                        (uint8_t *)PyArray_DATA (out_arr));
-      npy_intp  _odim  = (npy_intp)n_out;
+      size_t   n_out = gold_generate (self->handle, (size_t)n,
+                                      (uint8_t *)PyArray_DATA (out_arr), _cap);
+      npy_intp _odim = (npy_intp)n_out;
       PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_UINT8,
                                                     PyArray_DATA (out_arr));
       if (!_oview)
@@ -152,7 +152,7 @@ GoldObj_generate (GoldObject *self, PyObject *args, PyObject *kwds)
       return NULL;
     }
   uint8_t *_d0   = (uint8_t *)PyArray_DATA ((PyArrayObject *)arr0);
-  size_t   n_out = gold_generate (self->handle, (size_t)n, _d0);
+  size_t   n_out = gold_generate (self->handle, (size_t)n, _d0, _cap);
   if ((size_t)n_out == _cap)
     {
       return arr0;

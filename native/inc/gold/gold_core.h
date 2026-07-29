@@ -19,7 +19,7 @@
  * @code
  * gold_state_t *obj = gold_create(934, 350, 567, 73, 10);
  * uint8_t chips[16];
- * gold_generate(obj, 16, chips);
+ * gold_generate (obj, 16, chips, 16);
  * gold_destroy(obj);
  * @endcode
  */
@@ -190,7 +190,8 @@ size_t gold_generate_max_out(gold_state_t *state);
  * 1023
  * @endcode
  */
-size_t gold_generate(gold_state_t *state, size_t n, uint8_t *out);
+size_t gold_generate(gold_state_t *state, size_t n, uint8_t *out,
+                     size_t max_out);
 #ifdef __cplusplus
 }
 #endif

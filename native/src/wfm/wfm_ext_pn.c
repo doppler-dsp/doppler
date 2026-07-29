@@ -143,7 +143,7 @@ PNObj_generate (PNObject *self, PyObject *args, PyObject *kwds)
           return NULL;
         }
       size_t    n_out  = pn_generate (self->handle, (size_t)n,
-                                      (uint8_t *)PyArray_DATA (out_arr));
+                                      (uint8_t *)PyArray_DATA (out_arr), _cap);
       npy_intp  _odim  = (npy_intp)n_out;
       PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_UINT8,
                                                     PyArray_DATA (out_arr));
@@ -166,7 +166,7 @@ PNObj_generate (PNObject *self, PyObject *args, PyObject *kwds)
       return NULL;
     }
   uint8_t *_d0   = (uint8_t *)PyArray_DATA ((PyArrayObject *)arr0);
-  size_t   n_out = pn_generate (self->handle, (size_t)n, _d0);
+  size_t   n_out = pn_generate (self->handle, (size_t)n, _d0, _cap);
   if ((size_t)n_out == _cap)
     {
       return arr0;

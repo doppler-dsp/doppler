@@ -129,7 +129,7 @@ if (state->lo) {
 }
 float complex noise = 0.0f + 0.0f * I;
 if (state->awgn)
-    awgn_generate(state->awgn, 1, &noise);
+    awgn_generate(state->awgn, 1, &noise, 1);
 return sym * carrier + noise;
 """
 create_impl = """

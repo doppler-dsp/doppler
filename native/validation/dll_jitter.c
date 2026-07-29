@@ -131,7 +131,7 @@ disc_var (double gamma, const uint8_t *code, const float complex *sig,
         {
           if (pos >= NBLK)
             {
-              awgn_generate (g, NBLK, nb);
+              awgn_generate (g, NBLK, nb, NBLK);
               pos = 0;
             }
           dll_accumulate (&d, sig[i] + nb[pos++]);
@@ -181,7 +181,7 @@ phase_var (double gamma, double bn, const uint8_t *code,
         {
           if (pos >= NBLK)
             {
-              awgn_generate (g, NBLK, nb);
+              awgn_generate (g, NBLK, nb, NBLK);
               pos = 0;
             }
           int wrapped = dll_accumulate (&d, sig[i] + nb[pos++]);

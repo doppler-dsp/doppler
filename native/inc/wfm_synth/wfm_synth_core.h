@@ -751,7 +751,7 @@ wfm_synth_step(wfm_synth_state_t *state)
     }
     float complex noise = 0.0f + 0.0f * I;
     if (state->awgn)
-        awgn_generate(state->awgn, 1, &noise);
+        awgn_generate(state->awgn, 1, &noise, 1);
     return sym * carrier + noise;
 }
 

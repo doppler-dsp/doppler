@@ -62,7 +62,7 @@ test_zero_amplitude (void)
   printf ("\n-- Zero amplitude --\n");
   awgn_state_t *g = awgn_create (0, 0.0f);
   float complex buf[N_SMALL];
-  awgn_generate (g, N_SMALL, buf);
+  awgn_generate (g, N_SMALL, buf, N_SMALL);
   int all_zero = 1;
   for (int i = 0; i < N_SMALL; i++)
     if (buf[i] != 0.0f + 0.0f * I)
@@ -81,9 +81,9 @@ test_reset_reproducible (void)
   awgn_state_t *g = awgn_create (42, 1.0f);
   float complex a[N_SMALL], b[N_SMALL];
 
-  awgn_generate (g, N_SMALL, a);
+  awgn_generate (g, N_SMALL, a, N_SMALL);
   awgn_reset (g);
-  awgn_generate (g, N_SMALL, b);
+  awgn_generate (g, N_SMALL, b, N_SMALL);
 
   CHECK (memcmp (a, b, N_SMALL * sizeof *a) == 0);
   awgn_destroy (g);
@@ -99,9 +99,9 @@ test_reseed (void)
   awgn_state_t *g = awgn_create (1, 1.0f);
   float complex a[N_SMALL], b[N_SMALL];
 
-  awgn_generate (g, N_SMALL, a);
+  awgn_generate (g, N_SMALL, a, N_SMALL);
   awgn_reseed (g, 2);
-  awgn_generate (g, N_SMALL, b);
+  awgn_generate (g, N_SMALL, b, N_SMALL);
 
   int differs = 0;
   for (int i = 0; i < N_SMALL; i++)
@@ -112,7 +112,7 @@ test_reseed (void)
   /* reseed back to 1 should reproduce stream a */
   awgn_reseed (g, 1);
   float complex c[N_SMALL];
-  awgn_generate (g, N_SMALL, c);
+  awgn_generate (g, N_SMALL, c, N_SMALL);
   CHECK (memcmp (a, c, N_SMALL * sizeof *a) == 0);
   awgn_destroy (g);
 }
@@ -128,7 +128,7 @@ test_statistics (void)
   awgn_state_t *g   = awgn_create (7, amp);
 
   float complex *buf = malloc (N_STAT * sizeof *buf);
-  awgn_generate (g, N_STAT, buf);
+  awgn_generate (g, N_STAT, buf, N_STAT);
 
   double sum_re = 0, sum_im = 0;
   double sum_re2 = 0, sum_im2 = 0;
@@ -171,14 +171,14 @@ test_split_block (void)
 
   /* Full block */
   awgn_state_t *g = awgn_create (99, 1.0f);
-  awgn_generate (g, N_SMALL, full);
+  awgn_generate (g, N_SMALL, full, N_SMALL);
   awgn_destroy (g);
 
   /* Two halves */
   g           = awgn_create (99, 1.0f);
   size_t half = N_SMALL / 2;
-  awgn_generate (g, half, part);
-  awgn_generate (g, half, part + half);
+  awgn_generate (g, half, part, half);
+  awgn_generate (g, half, part + half, half);
   awgn_destroy (g);
 
   CHECK (memcmp (full, part, N_SMALL * sizeof *full) == 0);
@@ -195,7 +195,7 @@ test_oneshot (void)
   float complex ref[N_SMALL];
   awgn_state_t *g = awgn_create (42, 0.7f);
   CHECK (g != NULL);
-  awgn_generate (g, N_SMALL, ref);
+  awgn_generate (g, N_SMALL, ref, N_SMALL);
   awgn_destroy (g);
 
   float complex out[N_SMALL];
@@ -216,17 +216,17 @@ test_state_roundtrip (void)
   float complex ref[M], got[M];
 
   awgn_state_t *a = awgn_create (123, 1.0f);
-  awgn_generate (a, M, ref); /* advance past the seed state */
+  awgn_generate (a, M, ref, M); /* advance past the seed state */
   size_t sb   = awgn_state_bytes (a);
   void  *blob = malloc (sb);
   awgn_get_state (a, blob);
-  awgn_generate (a, M, ref); /* reference continuation */
+  awgn_generate (a, M, ref, M); /* reference continuation */
 
   awgn_state_t *b = awgn_create (123, 1.0f);
   CHECK (awgn_set_state (b, blob) == DP_OK);
   ((char *)blob)[0] ^= (char)0xFF;
   CHECK (awgn_set_state (b, blob) == DP_ERR_INVALID);
-  awgn_generate (b, M, got);
+  awgn_generate (b, M, got, M);
   CHECK (memcmp (ref, got, sizeof ref) == 0);
 
   awgn_destroy (a);

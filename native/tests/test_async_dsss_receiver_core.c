@@ -641,7 +641,7 @@ _test_awgn_esn0_floor (void)
 
   uint8_t      *code = malloc (sf);
   gold_state_t *g    = gold_create (934, 350, 567, 73, 10);
-  gold_generate (g, sf, code);
+  gold_generate (g, sf, code, sf);
   gold_destroy (g);
   size_t ones = 0;
   for (size_t i = 0; i < sf; i++)

@@ -48,7 +48,7 @@ class NCO:
         Returns
         -------
         NDArray[np.uint32]
-            n (always).
+            min(n, max_out) samples.
 
         Examples
         --------
@@ -71,7 +71,7 @@ class NCO:
         Returns
         -------
         NDArray[np.uint32]
-            n (always).
+            min(n, max_out) samples.
 
         Examples
         --------
@@ -94,7 +94,7 @@ class NCO:
         Returns
         -------
         tuple[NDArray[np.uint32], NDArray[np.uint8]]
-            n (always).
+            min(n, max_out) samples.
 
         Examples
         --------
@@ -141,7 +141,7 @@ class NCO:
         Returns
         -------
         NDArray[np.uint32]
-            ctrl_len (always).
+            min(ctrl_len, max_out) samples.
 
         Examples
         --------
@@ -179,7 +179,7 @@ class NCO:
         Returns
         -------
         NDArray[np.uint32]
-            ctrl_len (always).
+            min(ctrl_len, max_out) samples.
 
         Examples
         --------
@@ -218,7 +218,7 @@ class NCO:
         Returns
         -------
         tuple[NDArray[np.uint32], NDArray[np.uint8]]
-            ctrl_len (always).
+            min(ctrl_len, max_out) samples.
 
         Examples
         --------
@@ -307,7 +307,7 @@ class LO:
         Returns
         -------
         NDArray[np.complex64]
-            n (always).
+            min(n, max_out) samples.
 
         Examples
         --------
@@ -337,7 +337,7 @@ class LO:
         Returns
         -------
         NDArray[np.complex64]
-            ctrl_len (always).
+            min(ctrl_len, max_out) samples.
 
         Examples
         --------
@@ -431,7 +431,7 @@ class AWGN:
         Returns
         -------
         NDArray[np.complex64]
-            n (always).
+            min(n, max_out) samples.
 
         Examples
         --------

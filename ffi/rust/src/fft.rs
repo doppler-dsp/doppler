@@ -40,24 +40,28 @@ extern "C" {
         input: *const Complex64,
         n_in: usize,
         output: *mut Complex64,
+        max_out: usize,
     ) -> usize;
     pub fn fft_execute_cf32(
         state: *mut FftStateRaw,
         input: *const Complex<f32>,
         n_in: usize,
         output: *mut Complex<f32>,
+        max_out: usize,
     ) -> usize;
     pub fn fft_execute_inplace_cf64(
         state: *mut FftStateRaw,
         input: *const Complex64,
         n_in: usize,
         output: *mut Complex64,
+        max_out: usize,
     ) -> usize;
     pub fn fft_execute_inplace_cf32(
         state: *mut FftStateRaw,
         input: *const Complex<f32>,
         n_in: usize,
         output: *mut Complex<f32>,
+        max_out: usize,
     ) -> usize;
 }
 
@@ -124,6 +128,7 @@ impl Fft {
                 input.as_ptr(),
                 self.n,
                 output.as_mut_ptr(),
+                output.len(),
             );
         }
     }
@@ -145,6 +150,7 @@ impl Fft {
                 input.as_ptr(),
                 self.n,
                 output.as_mut_ptr(),
+                output.len(),
             );
         }
     }

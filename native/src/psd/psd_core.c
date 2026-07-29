@@ -155,7 +155,7 @@ psd_fold_frame (psd_state_t *state)
   const size_t nfft = state->nfft;
   const size_t half = nfft / 2; /* fftshift roll: bin 0 -> index nfft/2 */
 
-  fft_execute_cf32 (state->fft, state->frame, nfft, state->spec);
+  fft_execute_cf32 (state->fft, state->frame, nfft, state->spec, nfft);
 
   for (size_t k = 0; k < nfft; k++)
     {

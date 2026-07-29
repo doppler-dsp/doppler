@@ -475,7 +475,7 @@ class AccTrace:
         Returns
         -------
         NDArray[np.float32]
-            Number of samples written (n, or 0 if empty).
+            min(n, max_out) samples, or 0 if empty.
 
         Examples
         --------

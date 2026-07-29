@@ -471,7 +471,7 @@ _stage_exec (rc_stage_t type, void *ptr, const float _Complex *in, size_t n_in,
     case RC_STAGE_CIC:
       {
         rc_cic_stage_t *cs = (rc_cic_stage_t *)ptr;
-        size_t          n  = cic_decimate (cs->cic, in, n_in, out);
+        size_t          n  = cic_decimate (cs->cic, in, n_in, out, max_out);
         if (cs->fir)
           {
             /* Compensation FIR in-place: CIC output is already in out.

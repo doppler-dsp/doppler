@@ -201,7 +201,10 @@ size_t corr2d_execute_max_out(corr2d_state_t *state);
  * @param n_in   Number of input samples; must equal ny*nx.
  * @param out    Output buffer for the correlation map (CF32, length ny*nx);
  *               written only on a dump call.
- * @return ny*nx on a dump, 0 otherwise (None in Python).
+ * @param max_out Capacity of @p out in elements. Emission stops there, so the
+ *               return value is the number actually written.
+ * @return ny*nx on a dump (or max_out if smaller), 0 otherwise
+ *         (None in Python).
  * @code
  * >>> from doppler.spectral import Corr2D
  * >>> import numpy as np

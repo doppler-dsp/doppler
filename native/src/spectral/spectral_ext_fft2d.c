@@ -135,7 +135,7 @@ FFT2DObj_execute_cf64 (FFT2DObject *self, PyObject *args, PyObject *kwds)
         }
       size_t n_out = fft2d_execute_cf64 (
           self->handle, (const double complex *)PyArray_DATA (in_arr),
-          (size_t)n, (double complex *)PyArray_DATA (out_arr));
+          (size_t)n, (double complex *)PyArray_DATA (out_arr), _cap);
       Py_DECREF (in_arr);
       npy_intp  _odim  = (npy_intp)n_out;
       PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_COMPLEX128,
@@ -162,7 +162,7 @@ FFT2DObj_execute_cf64 (FFT2DObject *self, PyObject *args, PyObject *kwds)
   double complex *_d0 = (double complex *)PyArray_DATA ((PyArrayObject *)arr0);
   size_t          n_out = fft2d_execute_cf64 (
       self->handle, (const double complex *)PyArray_DATA (in_arr), (size_t)n,
-      _d0);
+      _d0, _cap);
   Py_DECREF (in_arr);
   if ((size_t)n_out == _cap)
     {
@@ -247,7 +247,7 @@ FFT2DObj_execute_cf32 (FFT2DObject *self, PyObject *args, PyObject *kwds)
         }
       size_t n_out = fft2d_execute_cf32 (
           self->handle, (const float complex *)PyArray_DATA (in_arr),
-          (size_t)n, (float complex *)PyArray_DATA (out_arr));
+          (size_t)n, (float complex *)PyArray_DATA (out_arr), _cap);
       Py_DECREF (in_arr);
       npy_intp  _odim  = (npy_intp)n_out;
       PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_COMPLEX64,
@@ -274,7 +274,7 @@ FFT2DObj_execute_cf32 (FFT2DObject *self, PyObject *args, PyObject *kwds)
   float complex *_d0   = (float complex *)PyArray_DATA ((PyArrayObject *)arr0);
   size_t         n_out = fft2d_execute_cf32 (
       self->handle, (const float complex *)PyArray_DATA (in_arr), (size_t)n,
-      _d0);
+      _d0, _cap);
   Py_DECREF (in_arr);
   if ((size_t)n_out == _cap)
     {
@@ -360,7 +360,7 @@ FFT2DObj_execute_inplace_cf64 (FFT2DObject *self, PyObject *args,
         }
       size_t n_out = fft2d_execute_inplace_cf64 (
           self->handle, (const double complex *)PyArray_DATA (in_arr),
-          (size_t)n, (double complex *)PyArray_DATA (out_arr));
+          (size_t)n, (double complex *)PyArray_DATA (out_arr), _cap);
       Py_DECREF (in_arr);
       npy_intp  _odim  = (npy_intp)n_out;
       PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_COMPLEX128,
@@ -387,7 +387,7 @@ FFT2DObj_execute_inplace_cf64 (FFT2DObject *self, PyObject *args,
   double complex *_d0 = (double complex *)PyArray_DATA ((PyArrayObject *)arr0);
   size_t          n_out = fft2d_execute_inplace_cf64 (
       self->handle, (const double complex *)PyArray_DATA (in_arr), (size_t)n,
-      _d0);
+      _d0, _cap);
   Py_DECREF (in_arr);
   if ((size_t)n_out == _cap)
     {
@@ -473,7 +473,7 @@ FFT2DObj_execute_inplace_cf32 (FFT2DObject *self, PyObject *args,
         }
       size_t n_out = fft2d_execute_inplace_cf32 (
           self->handle, (const float complex *)PyArray_DATA (in_arr),
-          (size_t)n, (float complex *)PyArray_DATA (out_arr));
+          (size_t)n, (float complex *)PyArray_DATA (out_arr), _cap);
       Py_DECREF (in_arr);
       npy_intp  _odim  = (npy_intp)n_out;
       PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_COMPLEX64,
@@ -500,7 +500,7 @@ FFT2DObj_execute_inplace_cf32 (FFT2DObject *self, PyObject *args,
   float complex *_d0   = (float complex *)PyArray_DATA ((PyArrayObject *)arr0);
   size_t         n_out = fft2d_execute_inplace_cf32 (
       self->handle, (const float complex *)PyArray_DATA (in_arr), (size_t)n,
-      _d0);
+      _d0, _cap);
   Py_DECREF (in_arr);
   if ((size_t)n_out == _cap)
     {

@@ -38,7 +38,8 @@ main (void)
   size_t (*flt) (fir_state_t *, const float complex *, size_t,
                  float complex *)
       = fir_execute;
-  size_t (*win) (delay_state_t *, size_t, double complex *) = delay_ptr;
+  size_t (*win) (delay_state_t *, size_t, double complex *, size_t)
+      = delay_ptr;
 
   printf ("out-parameter blocks: %d\n", (gen != 0) + (flt != 0) + (win != 0));
   return 0;

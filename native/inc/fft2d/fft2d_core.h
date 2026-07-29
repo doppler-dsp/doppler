@@ -11,7 +11,7 @@
  * @code
  * fft2d_state_t *fft = fft2d_create(64, 64, -1, 1);
  * double complex out[64 * 64];
- * fft2d_execute_cf64(fft, in, 64 * 64, out);
+ * fft2d_execute_cf64(fft, in, 64 * 64, out, 64 * 64);
  * fft2d_destroy(fft);
  * @endcode
  */
@@ -33,6 +33,13 @@ extern "C"
     size_t ny;                /**< Row count.     */
     size_t nx;                /**< Column count.  */
     int sign;                 /**< -1 forward, +1 inverse. */
+    /** Scratch for a short `out`.  A pocketfft 2-D plan is fixed at
+     *  ny*nx and writes the whole surface, so it cannot be pointed at a
+     *  smaller buffer; a truncating call transforms here and copies the
+     *  prefix.  Sized for the widest element (CF64) so one buffer serves
+     *  both plans, and allocated lazily -- max_out is ny*nx on every
+     *  sized call, which is everything the Python binding does. */
+    double complex *work_trunc;
   } fft2d_state_t;
 
   /**
@@ -82,7 +89,10 @@ extern "C"
    * @param in     Flat row-major CF64 input, length ny*nx.
    * @param n_in   Number of input samples; must equal ny*nx.
    * @param out    Flat row-major CF64 output, length >= ny*nx (caller-allocated).
-   * @return ny*nx (number of samples written).
+   * @param max_out Capacity of @p out in samples.  Normally ny*nx; if it is
+   *                smaller the first max_out samples of the transform are
+   *                written and the rest is discarded.
+   * @return min(ny*nx, max_out) samples.
    * @code
    * >>> from doppler.spectral import FFT2D
    * >>> import numpy as np
@@ -96,7 +106,8 @@ extern "C"
    * @endcode
    */
   size_t fft2d_execute_cf64 (fft2d_state_t *state, const double complex *in,
-                             size_t n_in, double complex *out);
+                             size_t n_in, double complex *out,
+                             size_t max_out);
 
   /** @brief Maximum output samples for CF32 execute (ny * nx). */
   size_t fft2d_execute_cf32_max_out (fft2d_state_t *state);
@@ -111,7 +122,10 @@ extern "C"
    * @param in     Flat row-major CF32 input, length ny*nx.
    * @param n_in   Number of input samples; must equal ny*nx.
    * @param out    Flat row-major CF32 output, length >= ny*nx (caller-allocated).
-   * @return ny*nx (number of samples written).
+   * @param max_out Capacity of @p out in samples.  Normally ny*nx; if it is
+   *                smaller the first max_out samples of the transform are
+   *                written and the rest is discarded.
+   * @return min(ny*nx, max_out) samples.
    * @code
    * >>> from doppler.spectral import FFT2D
    * >>> import numpy as np
@@ -125,7 +139,8 @@ extern "C"
    * @endcode
    */
   size_t fft2d_execute_cf32 (fft2d_state_t *state, const float complex *in,
-                             size_t n_in, float complex *out);
+                             size_t n_in, float complex *out,
+                             size_t max_out);
 
   /** @brief Maximum output samples for inplace CF64 execute (ny * nx). */
   size_t fft2d_execute_inplace_cf64_max_out (fft2d_state_t *state);
@@ -140,7 +155,10 @@ extern "C"
    * @param in     Source, ny*nx CF64 flat row-major; not modified.
    * @param n_in   Number of input samples; must equal ny*nx.
    * @param out    Destination, length >= ny*nx; must not alias in.
-   * @return ny*nx (number of samples written).
+   * @param max_out Capacity of @p out in samples.  Normally ny*nx; if it is
+   *                smaller the copy-and-transform happens in scratch and
+   *                only the first max_out samples reach @p out.
+   * @return min(ny*nx, max_out) samples.
    * @code
    * >>> from doppler.spectral import FFT2D
    * >>> import numpy as np
@@ -153,7 +171,7 @@ extern "C"
    */
   size_t fft2d_execute_inplace_cf64 (fft2d_state_t *state,
                                      const double complex *in, size_t n_in,
-                                     double complex *out);
+                                     double complex *out, size_t max_out);
 
   /** @brief Maximum output samples for inplace CF32 execute (ny * nx). */
   size_t fft2d_execute_inplace_cf32_max_out (fft2d_state_t *state);
@@ -167,7 +185,10 @@ extern "C"
    * @param in     Source, ny*nx CF32 flat row-major; not modified.
    * @param n_in   Number of input samples; must equal ny*nx.
    * @param out    Destination, length >= ny*nx; must not alias in.
-   * @return ny*nx (number of samples written).
+   * @param max_out Capacity of @p out in samples.  Normally ny*nx; if it is
+   *                smaller the copy-and-transform happens in scratch and
+   *                only the first max_out samples reach @p out.
+   * @return min(ny*nx, max_out) samples.
    * @code
    * >>> from doppler.spectral import FFT2D
    * >>> import numpy as np
@@ -180,7 +201,7 @@ extern "C"
    */
   size_t fft2d_execute_inplace_cf32 (fft2d_state_t *state,
                                      const float complex *in, size_t n_in,
-                                     float complex *out);
+                                     float complex *out, size_t max_out);
 
 #ifdef __cplusplus
 }

@@ -63,7 +63,7 @@ corr_create (const float complex *ref, size_t n, size_t dwell, int nthreads,
     }
 
   /* Pre-compute conjugate reference spectrum: ref_spec = conj(FFT(ref)). */
-  fft_execute_cf32 (state->fwd, ref, n, state->ref_spec);
+  fft_execute_cf32 (state->fwd, ref, n, state->ref_spec, n);
   for (size_t k = 0; k < n; k++)
     state->ref_spec[k] = conjf (state->ref_spec[k]);
 
@@ -132,7 +132,7 @@ corr_set_state (corr_state_t *s, const void *blob)
 void
 corr_set_ref (corr_state_t *state, const float complex *ref)
 {
-  fft_execute_cf32 (state->fwd, ref, state->n, state->ref_spec);
+  fft_execute_cf32 (state->fwd, ref, state->n, state->ref_spec, state->n);
   for (size_t k = 0; k < state->n; k++)
     state->ref_spec[k] = conjf (state->ref_spec[k]);
   corr_reset (state);
@@ -157,7 +157,7 @@ corr_execute (corr_state_t *state, const float complex *in, size_t n_in,
    * applied once) — and only because the dwell is COHERENT (a complex sum); a
    * non- coherent (Σ_k |IFFT(P_k)|²) integration is nonlinear and must invert
    * per frame. */
-  fft_execute_cf32 (state->fwd, in, state->n, state->work_fft);
+  fft_execute_cf32 (state->fwd, in, state->n, state->work_fft, state->n);
 
   for (size_t k = 0; k < state->n; k++)
     state->accum[k] += state->work_fft[k] * state->ref_spec[k];
@@ -190,7 +190,7 @@ corr_execute (corr_state_t *state, const float complex *in, size_t n_in,
           dst   = state->work_trunc;
           n_out = max_out;
         }
-      fft_execute_cf32 (state->inv, src, state->n_out, dst);
+      fft_execute_cf32 (state->inv, src, state->n_out, dst, state->n_out);
       const float inv_n = 1.0f / (float)state->n;
       for (size_t k = 0; k < n_out; k++)
         dst[k] *= inv_n;

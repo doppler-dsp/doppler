@@ -113,7 +113,10 @@ extern "C"
    *               half-rate output; odd lengths write floor(x_len/2).
    * @param x_len  Number of input samples.
    * @param out    Output buffer; must hold at least floor(x_len/2) samples.
-   * @return       CF32 decimated output; length == floor(x_len / 2).
+   * @param max_out Capacity of @p out in elements. Emission stops there, so
+   *                the return value is the number actually written.
+   * @return       CF32 decimated output; length is
+   *               min(floor(x_len / 2), max_out).
    *
    * @code
    * >>> from doppler.resample import HalfbandDecimator

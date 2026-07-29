@@ -23,18 +23,9 @@
  * ### Usage
  *
  * @code
- * awgn_state_t *g = awgn_create(42, 1.0f, 1]  (top 24 bits of first 64-bit word, +1 offset, /2^24)
- *   u2 ∈ [0, 1)  (top 24 bits of second 64-bit word, /2^24)
- *   r     = amplitude * sqrt(−2 · ln u1)
- *   θ     = 2π · u2
- *   out   = r·cos θ  +  j·r·sin θ
- *
- * ### Usage
- *
- * @code
- * awgn_state_t *g = awgn_create(42);
+ * awgn_state_t *g = awgn_create(42, 1.0f);
  * float complex out[1024];
- * awgn_generate (g, 1024, out, 1024);
+ * awgn_generate(g, 1024, out, 1024);
  * awgn_destroy(g);
  * @endcode
  */
@@ -173,7 +164,9 @@ extern "C"
    * @param state  Generator state returned by awgn_create().
    * @param n      Number of samples to generate.
    * @param out    Output buffer; must hold at least n float complex values.
-   * @return n (always).
+   * @param max_out Capacity of @p out in elements. Emission stops there, so
+   *                the return value is the number actually written.
+   * @return min(n, max_out) samples.
    * @code
    * >>> import numpy as np
    * >>> from doppler.source import AWGN

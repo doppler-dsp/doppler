@@ -342,7 +342,7 @@ int main(void) {
     for (size_t i = 0; i < N; i++)
         in[i] = cos(2.0 * M_PI * 10.0 * i / N) + 0.0 * I;
 
-    fft_execute_cf64(fft, in, N, out);
+    fft_execute_cf64(fft, in, N, out, N);
     printf("DC bin: %.4f + %.4fi\n", creal(out[0]), cimag(out[0]));
 
     fft_destroy(fft);
@@ -365,8 +365,8 @@ int main(void) {
     for (size_t i = 0; i < N; i++)
         in32[i] = cosf(2.0f * M_PI * 10.0f * i / N) + 0.0f * I;
 
-    fft_execute_cf32(fft, in32, N, out32);           // out-of-place
-    fft_execute_inplace_cf32(fft, in32, N, out32b);  // copy in -> out32b, transform out32b
+    fft_execute_cf32(fft, in32, N, out32, N);           // out-of-place
+    fft_execute_inplace_cf32(fft, in32, N, out32b, N);  // copy in -> out32b, then transform
 
     fft_destroy(fft);
     return 0;
@@ -383,10 +383,10 @@ int main(void) {
     fft2d_state_t *fft2d = fft2d_create(64, 64, -1, 1);
 
     double complex in2d[64 * 64], out2d[64 * 64];
-    fft2d_execute_cf64(fft2d, in2d, 64 * 64, out2d);
+    fft2d_execute_cf64(fft2d, in2d, 64 * 64, out2d, 64 * 64);
 
     float complex in32_2d[64 * 64], out32_2d[64 * 64];
-    fft2d_execute_cf32(fft2d, in32_2d, 64 * 64, out32_2d);
+    fft2d_execute_cf32(fft2d, in32_2d, 64 * 64, out32_2d, 64 * 64);
 
     fft2d_destroy(fft2d);
     return 0;

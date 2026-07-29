@@ -119,7 +119,10 @@ extern "C"
    * @param x      CF32 input samples.
    * @param x_len  Number of input samples.
    * @param out    Output buffer; must hold at least RESAMPLER_MAX_OUT samples.
-   * @return       CF32 output array; length is approximately x_len * rate.
+   * @param max_out Capacity of @p out in elements. Emission stops there, so
+   *                the return value is the number actually written.
+   * @return       CF32 output array; length is approximately x_len * rate,
+   *               capped at max_out.
    *
    * @code
    * >>> from doppler.resample import Resampler
@@ -152,8 +155,10 @@ extern "C"
    *                  used as a per-sample rate addend.
    * @param ctrl_len  Number of control samples; must equal x_len.
    * @param out       Output buffer; must hold at least RESAMPLER_MAX_OUT samples.
+   * @param max_out Capacity of @p out in elements. Emission stops there, so
+   *                the return value is the number actually written.
    * @return          CF32 output array; length depends on accumulated
-   *                  rate deviations.
+   *                  rate deviations, capped at max_out.
    *
    * @code
    * >>> from doppler.resample import Resampler

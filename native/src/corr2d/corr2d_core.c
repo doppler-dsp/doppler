@@ -98,7 +98,7 @@ corr2d_create (const float complex *ref, size_t ny, size_t nx, size_t dwell,
         goto fail;
       /* row_ref_spec = conj(FFT_nx(ref row 0)) — ref's rows 1..ny-1 are all
        * zero (just checked above), so only row 0 need be transformed. */
-      fft_execute_cf32 (state->fwd1d, ref, nx, state->row_ref_spec);
+      fft_execute_cf32 (state->fwd1d, ref, nx, state->row_ref_spec, nx);
       for (size_t k = 0; k < nx; k++)
         state->row_ref_spec[k] = conjf (state->row_ref_spec[k]);
 
@@ -133,7 +133,7 @@ corr2d_create (const float complex *ref, size_t ny, size_t nx, size_t dwell,
 
       /* Pre-compute conjugate reference spectrum: ref_spec = conj(FFT2(ref)).
        */
-      fft2d_execute_cf32 (state->fwd, ref, n, state->ref_spec);
+      fft2d_execute_cf32 (state->fwd, ref, n, state->ref_spec, n);
       for (size_t k = 0; k < n; k++)
         state->ref_spec[k] = conjf (state->ref_spec[k]);
     }
@@ -224,13 +224,15 @@ corr2d_set_ref (corr2d_state_t *state, const float complex *ref)
        * longer fits the single-row assumption row_ref_spec relies on. */
       if (!_is_single_row_ref (ref, state->ny, state->nx))
         return -1;
-      fft_execute_cf32 (state->fwd1d, ref, state->nx, state->row_ref_spec);
+      fft_execute_cf32 (state->fwd1d, ref, state->nx, state->row_ref_spec,
+                        state->nx);
       for (size_t k = 0; k < state->nx; k++)
         state->row_ref_spec[k] = conjf (state->row_ref_spec[k]);
     }
   else
     {
-      fft2d_execute_cf32 (state->fwd, ref, state->n, state->ref_spec);
+      fft2d_execute_cf32 (state->fwd, ref, state->n, state->ref_spec,
+                          state->n);
       for (size_t k = 0; k < state->n; k++)
         state->ref_spec[k] = conjf (state->ref_spec[k]);
     }
@@ -260,7 +262,8 @@ _execute_fast (corr2d_state_t *state, const float complex *in,
   const size_t ny = state->ny, nx = state->nx, nxo = state->nx_out;
 
   for (size_t i = 0; i < ny; i++)
-    fft_execute_cf32 (state->fwd1d, in + i * nx, nx, state->work_fft + i * nx);
+    fft_execute_cf32 (state->fwd1d, in + i * nx, nx, state->work_fft + i * nx,
+                      nx);
 
   for (size_t i = 0; i < ny; i++)
     for (size_t v = 0; v < nx; v++)
@@ -274,7 +277,7 @@ _execute_fast (corr2d_state_t *state, const float complex *in,
         {
           for (size_t i = 0; i < ny; i++)
             fft_execute_cf32 (state->inv1d, state->accum + i * nx, nx,
-                              out + i * nx);
+                              out + i * nx, nx);
         }
       else
         {
@@ -283,7 +286,7 @@ _execute_fast (corr2d_state_t *state, const float complex *in,
                          nxo);
           for (size_t i = 0; i < ny; i++)
             fft_execute_cf32 (state->inv1d, state->work_pad + i * nxo, nxo,
-                              out + i * nxo);
+                              out + i * nxo, nxo);
         }
       for (size_t k = 0; k < state->n_out; k++)
         out[k] *= inv_nx;
@@ -350,7 +353,7 @@ corr2d_execute (corr2d_state_t *state, const float complex *in, size_t n_in,
    *
    * Equivalence is exact in real arithmetic; in cf32 it differs from the
    * per-frame sum only by accumulation-order rounding (~1e-5 relative). */
-  fft2d_execute_cf32 (state->fwd, in, state->n, state->work_fft);
+  fft2d_execute_cf32 (state->fwd, in, state->n, state->work_fft, state->n);
 
   for (size_t k = 0; k < state->n; k++)
     state->accum[k] += state->work_fft[k] * state->ref_spec[k];
@@ -368,7 +371,7 @@ corr2d_execute (corr2d_state_t *state, const float complex *in, size_t n_in,
           _zeropad_2d (state, state->accum, state->work_pad);
           src = state->work_pad;
         }
-      fft2d_execute_cf32 (state->inv, src, state->n_out, dst);
+      fft2d_execute_cf32 (state->inv, src, state->n_out, dst, state->n_out);
       const float inv_n = 1.0f / (float)state->n;
       for (size_t k = 0; k < state->n_out; k++)
         dst[k] *= inv_n;

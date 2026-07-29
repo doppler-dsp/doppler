@@ -127,7 +127,9 @@ size_t acc_trace_value_max_out(acc_trace_state_t *state);
  * @param state  Must be non-NULL.
  * @param n      Caller buffer capacity (ignored; buffer is pre-sized to n).
  * @param out    Destination, at least n float32 elements.
- * @return Number of samples written (n, or 0 if empty).
+ * @param max_out Capacity of @p out in elements. Emission stops there, so the
+ *               return value is the number actually written.
+ * @return min(n, max_out) samples, or 0 if empty.
  *
  * @code
  * >>> import numpy as np

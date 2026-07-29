@@ -159,10 +159,13 @@ void hbdecim_q15_reset(hbdecim_q15_state_t *r);
  * @param in      Interleaved int16_t IQ input array of 2*n_in elements
  *                (I₀ Q₀ I₁ Q₁ …).
  * @param n_in    Number of complex input pairs (half the int16 element count).
- * @param out     Output buffer; caller must provide space for max_out int16_t
- *                values.
- * @param max_out Capacity of out in int16_t elements (>= n_in).
- * @return        Number of int16_t values written to out.
+ * @param out     Output buffer; caller must provide space for 2*max_out
+ *                int16_t values (one interleaved I/Q pair per output).
+ * @param max_out Capacity of out in COMPLEX samples -- half its int16_t
+ *                element count.  The loop guards on the complex index, so
+ *                a value in int16 units would let it write 2x the buffer.
+ * @return        min(available, max_out) COMPLEX samples -- twice that
+ *                many int16_t values.
  * @code
  * >>> import numpy as np
  * >>> from doppler.resample import HalfbandDecimatorQ15

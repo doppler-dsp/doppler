@@ -104,7 +104,9 @@ extern "C"
    * @param in     Points to evaluate, length @p n_in.
    * @param n_in   Number of points.
    * @param out    Output buffer; must hold at least n_in values.
-   * @return n_in (always).
+   * @param max_out Capacity of @p out in elements. Emission stops there, so
+   *                the return value is the number actually written.
+   * @return min(n_in, max_out) interpolated points.
    * @code
    * >>> from doppler.interp import InterpolatedTable
    * >>> import numpy as np

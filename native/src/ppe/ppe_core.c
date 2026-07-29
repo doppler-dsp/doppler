@@ -109,7 +109,7 @@ row_peak (ppe_state_t *s, const float complex *y, size_t len, double r,
   for (size_t m = len; m < nfft; m++)
     s->buf[m] = 0.0f;
 
-  fft_execute_cf32 (s->fft, s->buf, nfft, s->spec);
+  fft_execute_cf32 (s->fft, s->buf, nfft, s->spec, nfft);
   magnitude_db_cf32 (s->spec, nfft, s->mag, 1e-20f, 0.0f);
 
   /* find_peaks_f32 expects a DC-centred spectrum; swap halves in place. */

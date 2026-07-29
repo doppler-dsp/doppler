@@ -23,12 +23,16 @@ name = "ptr"
 arg_type = "void"
 return_type = "double _Complex"
 variable_output = true
+# Snapshot is truncated to the caller's capacity (jm gh-138).
+pass_capacity = true
 
 [[delay.methods]]
 name = "push_ptr"
 arg_type = "void"
 return_type = "double _Complex"
 variable_output = true
+# The push lands regardless; only the snapshot truncates (jm gh-138).
+pass_capacity = true
 params = [{name = "x", type = "double _Complex"}]
 
 [[delay.methods]]

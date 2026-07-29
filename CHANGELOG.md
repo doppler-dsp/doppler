@@ -13,6 +13,80 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+### Breaking
+
+- **Every block-output C kernel now takes a trailing `size_t max_out`.**
+    71 functions across the library — `fft_execute_*`, `fft2d_execute_*`,
+    `lo_steps`, `nco_steps_u32*`, `pn_generate`, `gold_generate`,
+    `awgn_generate`, `cic_decimate`, `delay_ptr`, `delay_push_ptr`,
+    `psd_*`, `corr_execute`, `corr2d_execute`, `interp_table_execute`,
+    `Resampler_execute*`, `HalfbandDecimator_execute`, `acc_trace_value`
+    and the rest — gained an explicit output capacity. Emission stops at
+    that bound and the return value is the number actually written, so an
+    under-reporting `*_max_out()` truncates instead of overrunning the
+    caller's buffer. **C callers must add the argument**; it is normally
+    the same length you already passed for the output buffer. The Python
+    API is unchanged — the bindings pass the real buffer size.
+- **A wrong-dtype `out=` buffer now raises `TypeError`** instead of
+    silently marshalling through a temporary copy, so the caller's array
+    was never written. `out=` must be a writable, C-contiguous ndarray of
+    the output dtype.
+- **`CorrDetector` / `CorrDetector2D` positional argument order** now
+    matches the documented signature. 0.38.1 shipped a binding whose
+    order disagreed with its own type stub, so the call a type checker
+    blessed raised `TypeError` and the call that worked was undocumented.
+    Code written against the stub now works; code written against the
+    shipped binding must swap to the documented order.
+
+### Changed
+
+- **`execute()` / `steps()` results are NumPy-owned.** Each call returns
+    an independent array instead of a view over a reused internal buffer,
+    so holding a result no longer risks it being overwritten — or freed —
+    by a later call. Holding 3000 x 64k results went from 1,548,388 KiB of
+    RSS growth to 1,376 KiB, and the hold path got 82% faster.
+- **`wfm.Writer` places non-standard keywords in the extended header.**
+    BLUE 1.1 3.4 reserves the 92-byte HCB keyword area for six named
+    keywords (`CREATOR`, `IO`, `PACKET`, `PKT_BYTE_COUNT`, `TC_PREC`,
+    `VER`); X-Midas and NeXtMidas *delete* user keywords found there when
+    the block fills. Anything else now goes where it survives.
+
+### Added
+
+- **`wfm.Reader.header`** — the 512-byte header control block as a
+    `{field: value}` dict, under the names the format itself uses
+    (`version`, `data_rep`, `data_start`, `type`, `timecode`, … plus the
+    type-1000 adjunct `xstart` / `xdelta` / `xunits`). Nothing renamed,
+    nothing omitted.
+- **`wfm.Reader.keywords` now includes the HCB keyword area**, which was
+    previously parsed only from the extended header and silently dropped
+    otherwise.
+- **`wfm_kw_check_standard()`** — an advisory conformance check for the
+    BLUE 3.4.2 standard keywords. It reports and refuses nothing: the
+    spec leaves their effect to individual processing systems, so a caller
+    reproducing an odd Platinum-era value must be able to.
+- **`docs/memory_management.md`** — who owns each buffer and for how
+    long, across the C API, the bindings and `out=`. Its C signature
+    listings are compile-checked against the real headers.
+
+### Fixed
+
+- **A doubled `@code` block in `awgn_core.h`** that broke the strict docs
+    build, and **22 undocumented `max_out` parameters** across 12 headers
+    that broke the zero-warning doxygen gate. The affected functions also
+    still promised `@return n (always)`, which truncation had made untrue.
+- **Eight rotted benchmark fixtures** that had drifted from the APIs they
+    construct, plus a test that builds every fixture in every bench module
+    so the blind spot cannot reopen.
+- **A leak in the hand-owned `Resampler` and `HalfbandDecimator`
+    bindings**, neither of which freed its output buffer on dealloc
+    (~512 KB and ~256 KB per object).
+
+### Internal
+
+- just-makeit pin 0.33.13 → 0.33.15; `dsss.Acquisition` and
+    `BurstAcquisition` are now declared rather than hand-bound.
+
 ## [0.38.1] — 2026-07-27
 
 ### Added

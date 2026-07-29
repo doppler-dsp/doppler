@@ -235,23 +235,56 @@ The corollary is that the cheapest buffer is often bigger than the data. Three
 places in doppler deliberately allocate more than they use, and the extra space
 is the whole point:
 
-- **`delay` and `hbdecim` allocate twice the capacity** and keep two copies of
-    the window, so *any* `num_taps`-length span is contiguous and a read is one
-    `memcpy` with no wrap-around branch. `delay` first rounds capacity up to a
-    power of two so the index wrap is a mask rather than a modulo — a 33-tap
-    line allocates 128 slots to hold 33.
+- **The polyphase resampler's delay line is a power-of-two dual buffer.**
+    `resamp` rounds capacity up to a power of two (so the index wrap is a mask,
+    not a modulo) and then allocates *twice* that, writing every input sample
+    into both halves:
+
+    ```text
+    s->delay_head = (s->delay_head - 1) & s->delay_mask;
+    s->delay_buf[s->delay_head]                = x;
+    s->delay_buf[s->delay_head + s->delay_cap] = x;   /* mirror */
+    ```
+
+    That is one extra store per input sample. What it buys is the read side:
+    `dl_ptr()` hands back a **plain `const float _Complex *`**, so each arm's
+    dot product is a straight contiguous walk — no mask in the inner loop, no
+    split into two segments, and a shape a vectorizer can actually use. An
+    interpolating resampler runs that dot product several times per input, so
+    the read side is what dominates.
+
+- **`delay` and `hbdecim` use the same trick** for the same reason: any
+    `num_taps`-length span is contiguous, so a window read is one `memcpy` with
+    no wrap-around branch. A 33-tap `delay` line allocates 128 slots to hold 33.
+
 - **The ring buffer separates `head`, `tail` and `dropped` by a full cache
     line** (`DP_ALIGN(DP_CACHELINE)`). Packed together they would share a line,
     and producer and consumer would invalidate each other's copy on every
     update — the false-sharing ping-pong.
+
 - **The ring buffer's storage is double-mapped** into adjacent virtual pages,
     which costs address space to buy a consumer view that never wraps.
 
 The pattern is the same each time: spend memory to make the *access pattern*
-regular. A power-of-two stride is not always the win, though — when many rows
-share one stride, a power of two makes them collide in the same cache sets, and
-padding the stride to break that up is the fix. Measure the access pattern, not
-just the footprint.
+regular, so the hot loop gets a shape the compiler and the prefetcher can both
+exploit.
+
+Two cautions, because neither of these is a rule you can apply blind.
+
+**The win is conditional on the loop it feeds.** Isolating the dual buffer in a
+synthetic dot product, the contiguous form beats masked indexing by ~1.5× at
+32–64 taps — but *loses* below 16 taps, where the extra store costs more than
+the mask saves, and the margin narrows again once the working set outgrows L1.
+It pays when the loop vectorizes and the read is repeated per input sample,
+which is exactly the polyphase case and not, say, a one-shot copy.
+
+**A power-of-two stride is not automatically the win either.** It makes the
+wrap a mask, which is why the delay lines use it — but when many *rows* share
+one power-of-two stride they collide in the same cache sets, and there the fix
+is the opposite: pad the stride to break the collision up. Same principle
+(shape the addresses), opposite adjustment.
+
+Measure the access pattern, not the footprint.
 
 ______________________________________________________________________
 

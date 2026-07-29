@@ -1,4 +1,6 @@
 #include "corr2d/corr2d_core.h"
+
+#include "clib_common.h"
 #include <string.h>
 
 /* 1-D spectral zero-pad: q (length m >= n) is the band-limited (Dirichlet)
@@ -170,6 +172,7 @@ corr2d_destroy (corr2d_state_t *state)
   free (state->work_fft);
   free (state->accum);
   free (state->work_pad);
+  free (state->work_trunc);
   free (state->ztmp);
   free (state->zcol);
   free (state->zcolout);
@@ -293,12 +296,38 @@ _execute_fast (corr2d_state_t *state, const float complex *in,
 
 size_t
 corr2d_execute (corr2d_state_t *state, const float complex *in, size_t n_in,
-                float complex *out)
+                float complex *out, size_t max_out)
 {
   (void)n_in;
 
+  /* Emission stops at the caller's capacity (jm gh-138). Neither path can
+   * serve a short buffer by writing less -- the 2-D inverse plan is fixed at
+   * n_out, and the fast path writes ny whole rows -- so a short `out` is
+   * served by writing the full surface into a bounce buffer and copying the
+   * prefix. Decided here, once, because BOTH paths write through `dst`; the
+   * fast path is a separate write site and a clamp applied only to the slow
+   * one would leave it unguarded. */
+  float complex *dst = out;
+  size_t         cap = state->n_out;
+  if (max_out < state->n_out)
+    {
+      if (!state->work_trunc)
+        state->work_trunc = (float complex *)dp_xcalloc (
+            state->n_out, sizeof *state->work_trunc);
+      dst = state->work_trunc;
+      cap = max_out;
+    }
+
   if (state->fast_path)
-    return _execute_fast (state, in, out);
+    {
+      size_t n = _execute_fast (state, in, dst);
+      if (n && dst != out)
+        {
+          memcpy (out, dst, cap * sizeof *out);
+          n = cap;
+        }
+      return n;
+    }
 
   /* Frequency-domain coherent accumulation.  Accumulate the per-frame cross-
    * spectrum  P_k = FFT2(x_k) · conj(FFT2(ref))  and invert once on dump,
@@ -339,13 +368,15 @@ corr2d_execute (corr2d_state_t *state, const float complex *in, size_t n_in,
           _zeropad_2d (state, state->accum, state->work_pad);
           src = state->work_pad;
         }
-      fft2d_execute_cf32 (state->inv, src, state->n_out, out);
+      fft2d_execute_cf32 (state->inv, src, state->n_out, dst);
       const float inv_n = 1.0f / (float)state->n;
       for (size_t k = 0; k < state->n_out; k++)
-        out[k] *= inv_n;
+        dst[k] *= inv_n;
+      if (dst != out)
+        memcpy (out, dst, cap * sizeof *out);
       memset (state->accum, 0, state->n * sizeof (*state->accum));
       state->count = 0;
-      return state->n_out;
+      return cap;
     }
   return 0;
 }

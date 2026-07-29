@@ -31,7 +31,7 @@
  * corr2d_state_t *c = corr2d_create(ref, NY, NX, 4, 1);
  * float complex out[NY * NX];
  * for (int i = 0; i < 4; i++) {
- *     size_t n_out = corr2d_execute(c, frame[i], NY*NX, out);
+ *     size_t n_out = corr2d_execute(c, frame[i], NY*NX, out, NY*NX);
  *     if (n_out) process_2d(out, NY, NX);   // fires once, on i == 3
  * }
  * corr2d_destroy(c);
@@ -99,6 +99,12 @@ typedef struct {
   size_t n_out;             /**< ny_out * nx_out — output element count.  */
   size_t dwell;             /**< Integration depth.                       */
   size_t count;             /**< Frames accumulated (0 … dwell-1).        */
+  /** Bounce buffer for a dump into an under-sized `out` (jm gh-138).
+   *  Both execute paths -- the 2-D inverse and the per-row fast path --
+   *  write the full n_out surface, so a short `out` is served by writing
+   *  here and copying the prefix. Allocated lazily; the sized path never
+   *  touches it. */
+  float complex *work_trunc;
 } corr2d_state_t;
 
 /**
@@ -209,7 +215,7 @@ size_t corr2d_execute_max_out(corr2d_state_t *state);
  * @endcode
  */
 size_t corr2d_execute(corr2d_state_t *state, const float complex *in,
-                      size_t n_in, float complex *out);
+                      size_t n_in, float complex *out, size_t max_out);
 
 /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
  * running 2-D product-spectrum accumulator + frame count;

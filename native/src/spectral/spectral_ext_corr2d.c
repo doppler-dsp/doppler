@@ -159,7 +159,7 @@ Corr2DObj_execute (Corr2DObject *self, PyObject *args, PyObject *kwds)
         }
       size_t n_out = corr2d_execute (
           self->handle, (const float complex *)PyArray_DATA (in_arr),
-          (size_t)n, (float complex *)PyArray_DATA (out_arr));
+          (size_t)n, (float complex *)PyArray_DATA (out_arr), _cap);
       Py_DECREF (in_arr);
       if (!n_out)
         {
@@ -191,7 +191,7 @@ Corr2DObj_execute (Corr2DObject *self, PyObject *args, PyObject *kwds)
   float complex *_d0 = (float complex *)PyArray_DATA ((PyArrayObject *)arr0);
   size_t n_out = corr2d_execute (self->handle,
                                  (const float complex *)PyArray_DATA (in_arr),
-                                 (size_t)n, _d0);
+                                 (size_t)n, _d0, _cap);
   Py_DECREF (in_arr);
   if (!n_out)
     {

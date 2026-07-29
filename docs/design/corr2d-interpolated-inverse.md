@@ -98,8 +98,8 @@ main (void)
       = corr2d_create;
   /* ny_out/nx_out: inverse/output size; 0 => use ny/nx. Must be >= ny/nx. */
   size_t (*execute) (corr2d_state_t *, const float complex *, size_t,
-                     float complex *)
-      = corr2d_execute; /* writes ny_out*nx_out */
+                     float complex *, size_t)
+      = corr2d_execute; /* writes min(ny_out*nx_out, max_out) */
   size_t (*max_out) (corr2d_state_t *) = corr2d_execute_max_out;
 
   printf ("corr2d API: %d\n",

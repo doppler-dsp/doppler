@@ -895,7 +895,7 @@ acq_push (acq_state_t *st, const float complex *in, size_t n_in,
                   for (size_t i = 0; i < ny; i++)
                     st->yframe[i * nx + j] = st->colout[i];
                 }
-              n_out = corr2d_execute (st->corr, st->yframe, n, st->out_buf);
+              n_out = corr2d_execute (st->corr, st->yframe, n, st->out_buf, n);
             }
           dp_f32_consume (st->ring, frame_n);
           st->samples_consumed += frame_n;

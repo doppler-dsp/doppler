@@ -209,7 +209,7 @@ _bind_find_peaks_f32(PyObject *self, PyObject *args, PyObject *kwds)
     PyObject *_lst = PyList_New((Py_ssize_t)_n);
     if (!_lst) { free(_results); return NULL; }
     for (size_t _i = 0; _i < _n; _i++) {
-        PyObject *_tup = Py_BuildValue("(ff)", _results[_i].freq_norm, _results[_i].amplitude_db);
+        PyObject *_tup = Py_BuildValue("(NN)", PyFloat_FromDouble((double)_results[_i].freq_norm), PyFloat_FromDouble((double)_results[_i].amplitude_db));
         if (!_tup) { free(_results); Py_DECREF(_lst); return NULL; }
         PyList_SET_ITEM(_lst, (Py_ssize_t)_i, _tup);
     }

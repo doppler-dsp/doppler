@@ -9,7 +9,7 @@
  * @code
  *   Resampler_state_t *r = Resampler_create(0.5);
  *   float complex out[4096];
- *   size_t n = Resampler_execute(r, in, 1024, out);
+ *   size_t n = Resampler_execute(r, in, 1024, out, 1024);
  *   Resampler_destroy(r);
  * @endcode
  *
@@ -131,7 +131,8 @@ extern "C"
    * @endcode
    */
   size_t Resampler_execute (Resampler_state_t *state, const float complex *x,
-                            size_t x_len, float complex *out);
+                            size_t x_len, float complex *out,
+                            size_t max_out);
 
   /** Always returns RESAMPLER_MAX_OUT. */
   size_t Resampler_execute_ctrl_max_out (Resampler_state_t *state);
@@ -168,7 +169,7 @@ extern "C"
   size_t Resampler_execute_ctrl (Resampler_state_t *state,
                                  const float complex *x, size_t x_len,
                                  const float complex *ctrl, size_t ctrl_len,
-                                 float complex *out);
+                                 float complex *out, size_t max_out);
 
   /* ------------------------------------------------------------------ */
   /* Properties                                                          */

@@ -12,7 +12,7 @@
  *   HalfbandDecimator_state_t *r =
  *       HalfbandDecimator_create(num_taps, h);
  *   float complex out[512];
- *   size_t n = HalfbandDecimator_execute(r, in, 1024, out);
+ *   size_t n = HalfbandDecimator_execute(r, in, 1024, out, 1024);
  *   HalfbandDecimator_destroy(r);
  * @endcode
  */
@@ -128,7 +128,7 @@ extern "C"
    */
   size_t HalfbandDecimator_execute (HalfbandDecimator_state_t *state,
                                     const float complex *x, size_t x_len,
-                                    float complex *out);
+                                    float complex *out, size_t max_out);
 
   /* ------------------------------------------------------------------ */
   /* Properties                                                          */

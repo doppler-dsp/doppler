@@ -60,11 +60,11 @@ main (void)
           = (float)cos (0.03 * (double)i) + I * (float)sin (0.03 * (double)i);
 
     Resampler_state_t *ra = Resampler_create (0.5);
-    size_t             nA = Resampler_execute (ra, in, L, outA);
+    size_t             nA = Resampler_execute (ra, in, L, outA, L);
     Resampler_destroy (ra);
 
     Resampler_state_t *r1   = Resampler_create (0.5);
-    size_t             nB   = Resampler_execute (r1, in, cut, outB);
+    size_t             nB   = Resampler_execute (r1, in, cut, outB, cut);
     size_t             sb   = Resampler_state_bytes (r1);
     void              *blob = malloc (sb);
     Resampler_get_state (r1, blob);
@@ -75,7 +75,7 @@ main (void)
     ((char *)blob)[0] ^= (char)0xFF; /* clobber envelope -> reject */
     CHECK (Resampler_set_state (r2, blob) == DP_ERR_INVALID);
     ((char *)blob)[0] ^= (char)0xFF;
-    nB += Resampler_execute (r2, in + cut, L - cut, outB + nB);
+    nB += Resampler_execute (r2, in + cut, L - cut, outB + nB, L - cut);
     Resampler_destroy (r2);
     free (blob);
 
@@ -87,6 +87,34 @@ main (void)
     free (outA);
     free (outB);
   }
+  /* ── pass_capacity: emission stops at max_out (jm gh-138) ────────── */
+  {
+    /* The wrapper used to hand the leaf a fixed RESAMPLER_MAX_OUT no
+     * matter what the caller had allocated; it now forwards the real
+     * capacity, so an under-sized buffer truncates instead of overruns. */
+    Resampler_state_t *r = Resampler_create (1.0);
+    float complex      in[64], out[64];
+    CHECK (r != NULL);
+    for (int i = 0; i < 64; i++)
+      {
+        in[i]  = (float)i + 0.0f * I;
+        out[i] = 42.0f + 42.0f * I;
+      }
+    size_t n = Resampler_execute (r, in, 64, out, 5);
+    CHECK (n <= 5);
+    for (size_t i = n; i < 64; i++)
+      CHECK (out[i] == 42.0f + 42.0f * I); /* tail untouched */
+
+    /* Zero capacity emits nothing at all. */
+    CHECK (Resampler_execute (r, in, 64, out, 0) == 0);
+
+    float complex ctrl[64];
+    for (int i = 0; i < 64; i++)
+      ctrl[i] = 0.0f + 0.0f * I;
+    CHECK (Resampler_execute_ctrl (r, in, 64, ctrl, 64, out, 3) <= 3);
+    Resampler_destroy (r);
+  }
+
   if (_fails)
     {
       fprintf (stderr, "test_Resampler_core FAILED (%d)\n", _fails);

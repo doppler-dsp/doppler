@@ -115,7 +115,8 @@ extern "C"
    * @endcode
    */
   size_t interp_table_execute (interp_table_state_t *state, const double *in,
-                               size_t n_in, double complex *out);
+                               size_t n_in, double complex *out,
+                               size_t max_out);
 
 #ifdef __cplusplus
 }

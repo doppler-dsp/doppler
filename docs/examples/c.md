@@ -417,7 +417,9 @@ int main(void) {
     float _Complex in[N_IN], out[N_IN / 2];
     /* ... fill in[] with your signal ... */
 
-    size_t n_out = HalfbandDecimator_execute(dec, in, N_IN, out);
+    /* Last argument is out's capacity, not the input count: a 2:1
+       decimator emits N_IN/2, which is exactly how out is sized. */
+    size_t n_out = HalfbandDecimator_execute(dec, in, N_IN, out, N_IN / 2);
     printf("output samples: %zu\n", n_out);   /* 16 */
 
     HalfbandDecimator_destroy(dec);

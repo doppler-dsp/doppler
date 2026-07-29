@@ -159,7 +159,7 @@ InterpolatedTableObj_execute (InterpolatedTableObject *self, PyObject *args,
         }
       size_t n_out = interp_table_execute (
           self->handle, (const double *)PyArray_DATA (in_arr), (size_t)n,
-          (double complex *)PyArray_DATA (out_arr));
+          (double complex *)PyArray_DATA (out_arr), _cap);
       Py_DECREF (in_arr);
       npy_intp  _odim  = (npy_intp)n_out;
       PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_COMPLEX128,
@@ -184,8 +184,9 @@ InterpolatedTableObj_execute (InterpolatedTableObject *self, PyObject *args,
       return NULL;
     }
   double complex *_d0 = (double complex *)PyArray_DATA ((PyArrayObject *)arr0);
-  size_t          n_out = interp_table_execute (
-      self->handle, (const double *)PyArray_DATA (in_arr), (size_t)n, _d0);
+  size_t n_out = interp_table_execute (self->handle,
+                                       (const double *)PyArray_DATA (in_arr),
+                                       (size_t)n, _d0, _cap);
   Py_DECREF (in_arr);
   if ((size_t)n_out == _cap)
     {

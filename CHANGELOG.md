@@ -16,12 +16,14 @@ ______________________________________________________________________
 ### Breaking
 
 - **Every block-output C kernel now takes a trailing `size_t max_out`.**
-    71 functions across the library — `fft_execute_*`, `fft2d_execute_*`,
+    38 more functions gained one this release (78 of them now have it) —
+    `fft_execute_*`, `fft2d_execute_*`,
     `lo_steps`, `nco_steps_u32*`, `pn_generate`, `gold_generate`,
     `awgn_generate`, `cic_decimate`, `delay_ptr`, `delay_push_ptr`,
     `psd_*`, `corr_execute`, `corr2d_execute`, `interp_table_execute`,
-    `Resampler_execute*`, `HalfbandDecimator_execute`, `acc_trace_value`
-    and the rest — gained an explicit output capacity. Emission stops at
+    `Resampler_execute*`, `HalfbandDecimator_execute`, `acc_trace_value`,
+    `wfm_reader_read` and the measure `*_spectrum_dbfs` — carry an
+    explicit output capacity. Emission stops at
     that bound and the return value is the number actually written, so an
     under-reporting `*_max_out()` truncates instead of overrunning the
     caller's buffer. **C callers must add the argument**; it is normally

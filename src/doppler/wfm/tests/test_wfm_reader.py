@@ -238,3 +238,78 @@ def test_keywords_merge_the_hcb_area_and_the_extended_header(tmp_path):
     h = r.header
     assert h["keylength"] > 0  # the HCB area was used
     assert h["ext_start"] > 0  # and so was the extended header
+
+
+def _blue_with_slack(path, *, ext_before, gap, trailing, shrink=0):
+    """A BLUE file with NON-ZERO slack in every gap the spec permits.
+
+    BLUE 1.1 3.3 allows empty space between HCB and Data, between Data and
+    the Extended Header, and after the last section -- and explicitly does
+    NOT require it to be zero-filled, so that HEADERMOD can shorten the Data
+    section without rewriting the data. Filling the gaps with garbage is
+    therefore the honest test, not zeros.
+    """
+    import struct
+
+    ext = _encode_keyword("SRATE", "D", struct.pack("<d", 2.048e6))
+    data = np.arange(1, 9, dtype=np.float32).view(np.complex64).tobytes()
+    garb = bytes(range(1, 256)) * 8
+
+    h = bytearray(512)
+    h[0:4], h[4:8], h[8:12] = b"BLUE", b"EEEI", b"EEEI"
+    struct.pack_into("<i", h, 48, 1000)
+    h[52], h[53] = ord("C"), ord("F")
+    struct.pack_into("<d", h, 264, 1e-6)
+
+    body = bytearray()
+    if ext_before:
+        ext_off = 512
+        body += ext + garb[: 512 - len(ext)]
+        data_off = 1024 + gap
+        body += garb[:gap] + data
+    else:
+        data_off = 512 + gap
+        body += garb[:gap] + data
+        pad = (512 - ((data_off + len(data)) % 512)) % 512
+        body += garb[:pad]
+        ext_off = data_off + len(data) + pad
+        body += ext
+    body += garb[:trailing]
+
+    struct.pack_into("<i", h, 24, ext_off // 512)
+    struct.pack_into("<i", h, 28, len(ext))
+    struct.pack_into("<d", h, 32, float(data_off))
+    struct.pack_into("<d", h, 40, float(len(data) - shrink))
+    path.write_bytes(bytes(h) + bytes(body))
+    return path
+
+
+@pytest.mark.parametrize("ext_before", [False, True])
+def test_non_zero_slack_between_sections_is_ignored(tmp_path, ext_before):
+    """Garbage in the permitted gaps must not reach the caller.
+
+    Neither as samples nor as keywords -- the sections are located by
+    data_start/data_size and ext_start/ext_size, so whatever lies between
+    them is none of the reader's business.
+    """
+    f = _blue_with_slack(
+        tmp_path / "s.blue", ext_before=ext_before, gap=512, trailing=300
+    )
+    r = Reader(str(f))
+    assert r.keywords == {"SRATE": 2.048e6}
+    got = r.read(64)
+    assert got.real.astype(int).tolist() == [1, 3, 5, 7]
+
+
+def test_data_size_bounds_the_read_after_a_headermod_shrink(tmp_path):
+    """HEADERMOD shortens data_size without rewriting the data.
+
+    The bytes of the old final sample are still on disk; the header says
+    they are no longer payload, and the header wins. Returning them would be
+    silent corruption -- the caller gets a sample that is not in the capture.
+    """
+    f = _blue_with_slack(
+        tmp_path / "hm.blue", ext_before=False, gap=0, trailing=0, shrink=8
+    )  # one cf32 sample fewer
+    got = Reader(str(f)).read(64)
+    assert got.real.astype(int).tolist() == [1, 3, 5]

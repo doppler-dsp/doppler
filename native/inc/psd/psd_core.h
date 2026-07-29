@@ -160,7 +160,8 @@ size_t psd_power_twosided_max_out(psd_state_t *state);
  * @param out    Destination, at least nfft float32 elements.
  * @return nfft, or 0 if empty.
  */
-size_t psd_power_twosided(psd_state_t *state, size_t cap, float *out);
+size_t psd_power_twosided(psd_state_t *state, size_t cap, float *out,
+                          size_t max_out);
 
 /** @brief Output capacity hint for psd_power_onesided(); equals nfft/2+1. */
 size_t psd_power_onesided_max_out(psd_state_t *state);
@@ -177,7 +178,8 @@ size_t psd_power_onesided_max_out(psd_state_t *state);
  * @param out    Destination, at least nfft/2 + 1 float32 elements.
  * @return nfft/2 + 1, or 0 if empty.
  */
-size_t psd_power_onesided(psd_state_t *state, size_t cap, float *out);
+size_t psd_power_onesided(psd_state_t *state, size_t cap, float *out,
+                          size_t max_out);
 
 /** @brief Output capacity hint for psd_db(); equals nfft. */
 size_t psd_psd_db_max_out(psd_state_t *state);
@@ -193,7 +195,8 @@ size_t psd_psd_db_max_out(psd_state_t *state);
  * @param out    Destination, at least n float32 elements.
  * @return n, or 0 if empty.
  */
-size_t psd_psd_db(psd_state_t *state, size_t n, float *out);
+size_t psd_psd_db(psd_state_t *state, size_t n, float *out,
+                  size_t max_out);
 
 /** @brief Output capacity hint for psd_dbhz(); equals n. */
 size_t psd_psd_dbhz_max_out(psd_state_t *state);
@@ -214,7 +217,8 @@ size_t psd_psd_dbhz_max_out(psd_state_t *state);
  * True
  * @endcode
  */
-size_t psd_psd_dbhz(psd_state_t *state, size_t n, float *out);
+size_t psd_psd_dbhz(psd_state_t *state, size_t n, float *out,
+                    size_t max_out);
 
 /** @brief Output capacity hint for band_power(); 0 (binding sizes from bands). */
 size_t psd_band_power_max_out(psd_state_t *state);
@@ -243,7 +247,7 @@ size_t psd_band_power_max_out(psd_state_t *state);
  * @endcode
  */
 size_t psd_band_power(psd_state_t *state, const double *bands,
-                        size_t bands_len, float *out);
+                        size_t bands_len, float *out, size_t max_out);
 
 /**
  * @brief Total integrated power across all bands in dB.

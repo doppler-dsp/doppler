@@ -163,7 +163,7 @@ AccTraceObj_value (AccTraceObject *self, PyObject *args, PyObject *kwds)
           return NULL;
         }
       size_t n_out = acc_trace_value (self->handle, (size_t)n,
-                                      (float *)PyArray_DATA (out_arr));
+                                      (float *)PyArray_DATA (out_arr), _cap);
       if (!n_out)
         {
           Py_DECREF (out_arr);
@@ -191,7 +191,7 @@ AccTraceObj_value (AccTraceObject *self, PyObject *args, PyObject *kwds)
       return NULL;
     }
   float *_d0   = (float *)PyArray_DATA ((PyArrayObject *)arr0);
-  size_t n_out = acc_trace_value (self->handle, (size_t)n, _d0);
+  size_t n_out = acc_trace_value (self->handle, (size_t)n, _d0, _cap);
   if (!n_out)
     {
       Py_DECREF (arr0);

@@ -214,7 +214,7 @@ PSDObj_psd_db (PSDObject *self, PyObject *args, PyObject *kwds)
           return NULL;
         }
       size_t n_out = psd_psd_db (self->handle, (size_t)n,
-                                 (float *)PyArray_DATA (out_arr));
+                                 (float *)PyArray_DATA (out_arr), _cap);
       if (!n_out)
         {
           Py_DECREF (out_arr);
@@ -242,7 +242,7 @@ PSDObj_psd_db (PSDObject *self, PyObject *args, PyObject *kwds)
       return NULL;
     }
   float *_d0   = (float *)PyArray_DATA ((PyArrayObject *)arr0);
-  size_t n_out = psd_psd_db (self->handle, (size_t)n, _d0);
+  size_t n_out = psd_psd_db (self->handle, (size_t)n, _d0, _cap);
   if (!n_out)
     {
       Py_DECREF (arr0);
@@ -319,7 +319,7 @@ PSDObj_psd_dbhz (PSDObject *self, PyObject *args, PyObject *kwds)
           return NULL;
         }
       size_t n_out = psd_psd_dbhz (self->handle, (size_t)n,
-                                   (float *)PyArray_DATA (out_arr));
+                                   (float *)PyArray_DATA (out_arr), _cap);
       if (!n_out)
         {
           Py_DECREF (out_arr);
@@ -347,7 +347,7 @@ PSDObj_psd_dbhz (PSDObject *self, PyObject *args, PyObject *kwds)
       return NULL;
     }
   float *_d0   = (float *)PyArray_DATA ((PyArrayObject *)arr0);
-  size_t n_out = psd_psd_dbhz (self->handle, (size_t)n, _d0);
+  size_t n_out = psd_psd_dbhz (self->handle, (size_t)n, _d0, _cap);
   if (!n_out)
     {
       Py_DECREF (arr0);
@@ -423,8 +423,8 @@ PSDObj_power_twosided (PSDObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (out_arr);
           return NULL;
         }
-      size_t n_out = psd_power_twosided (self->handle, (size_t)n,
-                                         (float *)PyArray_DATA (out_arr));
+      size_t n_out = psd_power_twosided (
+          self->handle, (size_t)n, (float *)PyArray_DATA (out_arr), _cap);
       if (!n_out)
         {
           Py_DECREF (out_arr);
@@ -452,7 +452,7 @@ PSDObj_power_twosided (PSDObject *self, PyObject *args, PyObject *kwds)
       return NULL;
     }
   float *_d0   = (float *)PyArray_DATA ((PyArrayObject *)arr0);
-  size_t n_out = psd_power_twosided (self->handle, (size_t)n, _d0);
+  size_t n_out = psd_power_twosided (self->handle, (size_t)n, _d0, _cap);
   if (!n_out)
     {
       Py_DECREF (arr0);
@@ -528,8 +528,8 @@ PSDObj_power_onesided (PSDObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (out_arr);
           return NULL;
         }
-      size_t n_out = psd_power_onesided (self->handle, (size_t)n,
-                                         (float *)PyArray_DATA (out_arr));
+      size_t n_out = psd_power_onesided (
+          self->handle, (size_t)n, (float *)PyArray_DATA (out_arr), _cap);
       if (!n_out)
         {
           Py_DECREF (out_arr);
@@ -557,7 +557,7 @@ PSDObj_power_onesided (PSDObject *self, PyObject *args, PyObject *kwds)
       return NULL;
     }
   float *_d0   = (float *)PyArray_DATA ((PyArrayObject *)arr0);
-  size_t n_out = psd_power_onesided (self->handle, (size_t)n, _d0);
+  size_t n_out = psd_power_onesided (self->handle, (size_t)n, _d0, _cap);
   if (!n_out)
     {
       Py_DECREF (arr0);
@@ -644,9 +644,10 @@ PSDObj_band_power (PSDObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (bands_arr);
           return NULL;
         }
-      size_t n_out = psd_band_power (
-          self->handle, (const double *)PyArray_DATA (bands_arr),
-          (size_t)PyArray_SIZE (bands_arr), (float *)PyArray_DATA (out_arr));
+      size_t n_out = psd_band_power (self->handle,
+                                     (const double *)PyArray_DATA (bands_arr),
+                                     (size_t)PyArray_SIZE (bands_arr),
+                                     (float *)PyArray_DATA (out_arr), _cap);
       Py_DECREF (bands_arr);
       npy_intp  _odim  = (npy_intp)n_out;
       PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_FLOAT,
@@ -673,7 +674,7 @@ PSDObj_band_power (PSDObject *self, PyObject *args, PyObject *kwds)
   float *_d0 = (float *)PyArray_DATA ((PyArrayObject *)arr0);
   size_t n_out
       = psd_band_power (self->handle, (const double *)PyArray_DATA (bands_arr),
-                        (size_t)PyArray_SIZE (bands_arr), _d0);
+                        (size_t)PyArray_SIZE (bands_arr), _d0, _cap);
   Py_DECREF (bands_arr);
   if ((size_t)n_out == _cap)
     {

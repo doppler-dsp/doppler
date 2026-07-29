@@ -91,6 +91,9 @@ doc = "Averaged power spectrum in dB (None before any accumulate)."
 arg_type = "void"
 return_type = "float"
 variable_output = true
+# Kernel is told its write limit (jm gh-138): an under-reporting
+# max_out truncates the emission instead of overrunning `out`.
+pass_capacity = true
 none_on_empty = true
 
 [[psd.methods]]
@@ -99,6 +102,9 @@ doc = "Averaged power spectral density in dB/Hz (None before any accumulate)."
 arg_type = "void"
 return_type = "float"
 variable_output = true
+# Kernel is told its write limit (jm gh-138): an under-reporting
+# max_out truncates the emission instead of overrunning `out`.
+pass_capacity = true
 none_on_empty = true
 
 [[psd.methods]]
@@ -107,6 +113,9 @@ doc = "Averaged linear power, DC-centred two-sided (length nfft); cg^2-normalise
 arg_type = "void"
 return_type = "float"
 variable_output = true
+# Kernel is told its write limit (jm gh-138): an under-reporting
+# max_out truncates the emission instead of overrunning `out`.
+pass_capacity = true
 none_on_empty = true
 
 [[psd.methods]]
@@ -115,6 +124,9 @@ doc = "Averaged linear power, one-sided fold (length nfft/2+1); cg^2-normalised.
 arg_type = "void"
 return_type = "float"
 variable_output = true
+# Kernel is told its write limit (jm gh-138): an under-reporting
+# max_out truncates the emission instead of overrunning `out`.
+pass_capacity = true
 none_on_empty = true
 
 [[psd.methods]]
@@ -123,6 +135,9 @@ doc = "Integrated power per band in dB; bands = [lo0,hi0,lo1,hi1,...] Hz."
 arg_type = "void"
 return_type = "float"
 variable_output = true
+# Kernel is told its write limit (jm gh-138): an under-reporting
+# max_out truncates the emission instead of overrunning `out`.
+pass_capacity = true
 params = [{name = "bands", type = "double[]"}]
 
 [[psd.methods]]

@@ -274,7 +274,7 @@ _process_block (carrier_acq_state_t *s, const float complex *block)
   if (!do_test)
     return;
 
-  size_t got = psd_power_twosided (s->psd, s->nfft, s->pwr_buf);
+  size_t got = psd_power_twosided (s->psd, s->nfft, s->pwr_buf, s->nfft);
   if (got == 0)
     return;
   for (size_t k = 0; k < s->nfft; k++)

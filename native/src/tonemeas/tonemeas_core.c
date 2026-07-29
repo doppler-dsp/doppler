@@ -130,7 +130,7 @@ build_real (tonemeas_state_t *s, const float *x, size_t n_in)
 {
   psd_reset (s->psd);
   psd_accumulate_real (s->psd, x, n_in);
-  return psd_power_onesided (s->psd, s->nfft / 2 + 1, s->pwr);
+  return psd_power_onesided (s->psd, s->nfft / 2 + 1, s->pwr, s->nfft / 2 + 1);
 }
 
 /* Average a complex capture over its segments, return the DC-centred two-sided
@@ -140,7 +140,7 @@ build_complex (tonemeas_state_t *s, const float complex *x, size_t n_in)
 {
   psd_reset (s->psd);
   psd_accumulate (s->psd, x, n_in);
-  return psd_power_twosided (s->psd, s->nfft, s->pwr);
+  return psd_power_twosided (s->psd, s->nfft, s->pwr, s->nfft);
 }
 
 /* Fold harmonic frequency k*f0 into the analysed band.
@@ -397,7 +397,8 @@ tonemeas_spectrum_dbfs (tonemeas_state_t *state, const float *x, size_t x_len,
    * the same averaged PSD the metrics use, scaled to the 0-dBFS reference. */
   psd_reset (state->psd);
   psd_accumulate_real (state->psd, x, x_len);
-  size_t nfft = psd_power_twosided (state->psd, state->nfft, state->pwr);
+  size_t nfft
+      = psd_power_twosided (state->psd, state->nfft, state->pwr, state->nfft);
   if (nfft == 0)
     return 0;
   double ref = state->psd->full_scale * state->psd->full_scale;

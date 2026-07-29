@@ -217,7 +217,8 @@ psd_pull_power (psd_state_t *s)
 {
   if (s->avg->count == 0)
     return 0;
-  return acc_trace_value (s->avg, s->nfft, s->pwr);
+  /* s->pwr is allocated at nfft, and s->avg is a length-nfft trace. */
+  return acc_trace_value (s->avg, s->nfft, s->pwr, s->nfft);
 }
 
 /* dBFS reference: cg^2 (coherent gain) times the 0-dBFS amplitude squared.
@@ -229,19 +230,23 @@ psd_db_ref (const psd_state_t *s)
   return s->cg * s->cg * s->full_scale * s->full_scale;
 }
 
-/* Fill out[0..nfft-1] with the averaged power spectrum in dBFS. */
-static int
-psd_fill_db (psd_state_t *s, float *out)
+/* Fill out[0..n-1] with the averaged power spectrum in dBFS, where n is
+ * min(nfft, max_out).  Returns the count written, 0 if nothing has been
+ * accumulated yet.  The internal callers pass state->dbbuf, which is
+ * allocated at nfft, so they pass nfft as the capacity. */
+static size_t
+psd_fill_db (psd_state_t *s, float *out, size_t max_out)
 {
   if (!psd_pull_power (s))
     return 0;
-  const double ref = psd_db_ref (s);
-  for (size_t i = 0; i < s->nfft; i++)
+  const double ref   = psd_db_ref (s);
+  const size_t n_out = s->nfft < max_out ? s->nfft : max_out;
+  for (size_t i = 0; i < n_out; i++)
     {
       double p = (double)s->pwr[i] / ref;
       out[i]   = (float)(10.0 * log10 (fmax (p, PSD_FLOOR)));
     }
-  return 1;
+  return n_out;
 }
 
 /* ── linear-power accessors (raw spectral estimate for measurement) ────── */
@@ -253,15 +258,17 @@ psd_power_twosided_max_out (psd_state_t *state)
 }
 
 size_t
-psd_power_twosided (psd_state_t *state, size_t cap, float *out)
+psd_power_twosided (psd_state_t *state, size_t cap, float *out, size_t max_out)
 {
   (void)cap;
   if (!psd_pull_power (state))
     return 0;
   const double cg2 = state->cg * state->cg;
-  for (size_t i = 0; i < state->nfft; i++)
+  /* Emission stops at the caller's capacity (jm gh-138). */
+  const size_t n_out = state->nfft < max_out ? state->nfft : max_out;
+  for (size_t i = 0; i < n_out; i++)
     out[i] = (float)((double)state->pwr[i] / cg2);
-  return state->nfft;
+  return n_out;
 }
 
 size_t
@@ -271,7 +278,7 @@ psd_power_onesided_max_out (psd_state_t *state)
 }
 
 size_t
-psd_power_onesided (psd_state_t *state, size_t cap, float *out)
+psd_power_onesided (psd_state_t *state, size_t cap, float *out, size_t max_out)
 {
   (void)cap;
   if (!psd_pull_power (state))
@@ -280,14 +287,23 @@ psd_power_onesided (psd_state_t *state, size_t cap, float *out)
   const size_t nfft = state->nfft;
   const size_t half = nfft / 2; /* DC sits at index half in pwr[] */
 
+  /* Emission stops at the caller's capacity (jm gh-138). Unlike the other
+   * readouts this one writes out[0] and out[half] OUTSIDE the loop, so the
+   * clamp has to guard those two stores individually -- bounding the loop
+   * alone would still overrun on a short buffer. */
+  const size_t n_out = (half + 1) < max_out ? (half + 1) : max_out;
+  if (n_out == 0)
+    return 0;
+
   /* DC and Nyquist have no mirror partner; interior bins fold +k with -k. */
-  out[0]    = (float)((double)state->pwr[half] / cg2);
-  out[half] = (float)((double)state->pwr[0] / cg2);
-  for (size_t m = 1; m < half; m++)
+  out[0] = (float)((double)state->pwr[half] / cg2);
+  if (half < n_out)
+    out[half] = (float)((double)state->pwr[0] / cg2);
+  for (size_t m = 1; m < half && m < n_out; m++)
     out[m]
         = (float)(((double)state->pwr[half + m] + (double)state->pwr[half - m])
                   / cg2);
-  return half + 1;
+  return n_out;
 }
 
 /* Map a [lo,hi] Hz band to inclusive DC-centred bin indices.  Returns 0 if the
@@ -350,12 +366,11 @@ psd_psd_db_max_out (psd_state_t *state)
 }
 
 size_t
-psd_psd_db (psd_state_t *state, size_t n, float *out)
+psd_psd_db (psd_state_t *state, size_t n, float *out, size_t max_out)
 {
   (void)n;
-  if (!psd_fill_db (state, out))
-    return 0;
-  return state->nfft;
+  /* psd_fill_db does the clamping and returns what it wrote. */
+  return psd_fill_db (state, out, max_out);
 }
 
 size_t
@@ -365,16 +380,19 @@ psd_psd_dbhz_max_out (psd_state_t *state)
 }
 
 size_t
-psd_psd_dbhz (psd_state_t *state, size_t n, float *out)
+psd_psd_dbhz (psd_state_t *state, size_t n, float *out, size_t max_out)
 {
-  if (!psd_psd_db (state, n, out))
+  /* Offset only what psd_psd_db actually wrote -- walking to nfft here
+   * would read past the clamp. */
+  const size_t n_out = psd_psd_db (state, n, out, max_out);
+  if (!n_out)
     return 0;
   /* dB/Hz differs from the dBFS spectrum by a constant. */
   const double off
       = 10.0 * log10 (state->fs * state->s2 / (state->cg * state->cg));
-  for (size_t i = 0; i < state->nfft; i++)
+  for (size_t i = 0; i < n_out; i++)
     out[i] = (float)((double)out[i] - off);
-  return state->nfft;
+  return n_out;
 }
 
 /* ── band power ────────────────────────────────────────────────────────── */
@@ -388,11 +406,15 @@ psd_band_power_max_out (psd_state_t *state)
 
 size_t
 psd_band_power (psd_state_t *state, const double *bands, size_t bands_len,
-                float *out)
+                float *out, size_t max_out)
 {
   if (!psd_pull_power (state))
     return 0;
-  const size_t nb = bands_len / 2;
+  /* One output per BAND, i.e. per pair of edges -- so the capacity a
+   * caller needs is bands_len/2, not bands_len (jm gh-138). */
+  size_t nb = bands_len / 2;
+  if (nb > max_out)
+    nb = max_out;
   for (size_t b = 0; b < nb; b++)
     {
       double lp = psd_band_lin (state, bands[2 * b], bands[2 * b + 1]);
@@ -457,7 +479,7 @@ psd_occupied_bw (psd_state_t *state, double fraction)
 double
 psd_noise_floor (psd_state_t *state)
 {
-  if (!psd_fill_db (state, state->dbbuf))
+  if (!psd_fill_db (state, state->dbbuf, state->nfft))
     return 0.0;
   return noise_floor_db (state->dbbuf, state->nfft);
 }
@@ -465,7 +487,7 @@ psd_noise_floor (psd_state_t *state)
 double
 psd_snr (psd_state_t *state, double lo_hz, double hi_hz)
 {
-  if (!psd_fill_db (state, state->dbbuf))
+  if (!psd_fill_db (state, state->dbbuf, state->nfft))
     return 0.0;
   const double floor = noise_floor_db (state->dbbuf, state->nfft);
 
@@ -482,7 +504,7 @@ psd_snr (psd_state_t *state, double lo_hz, double hi_hz)
 double
 psd_sfdr (psd_state_t *state, float min_db)
 {
-  if (!psd_fill_db (state, state->dbbuf))
+  if (!psd_fill_db (state, state->dbbuf, state->nfft))
     return 0.0;
   dp_peak_t    pk[16];
   const size_t np = find_peaks_f32 (state->dbbuf, state->nfft, 16, min_db, pk);

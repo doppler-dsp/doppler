@@ -236,6 +236,7 @@ nav:
       - "Python: Interp (InterpolatedTable)": api/python-interp.md
       - "Python: Utilities": api/python-util.md
   - Type System: types.md
+  - Memory Management: memory_management.md
   - Benchmarks: benchmarks.md
   - Guides:
       - Guides: guide/index.md

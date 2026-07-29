@@ -175,6 +175,33 @@ promise can be kept.
 companion the C API uses. An undersized buffer raises `ValueError` rather than
 truncating.
 
+!!! warning "`*_max_out()` can demand far more than the data"
+
+    That second rule is currently a sharp edge, and it cuts against the
+    placement use case above. `*_max_out()` is not a per-call bound: it returns
+    either `0` (no information — the binding then sizes from the input length)
+    or a **fixed internal cap** unrelated to your call. For the resampler that
+    cap is 65,536, so:
+
+    ```pycon
+    >>> from doppler.resample import Resampler
+    >>> r = Resampler(0.5)
+    >>> r.execute(np.ones(1024, np.complex64), out=np.empty(512, np.complex64))
+    Traceback (most recent call last):
+        ...
+    ValueError: out has 512 elements, need >= 65536
+    ```
+
+    512 KiB of buffer to receive 512 samples — 128× the data. The check is
+    correct given today's contract (without a per-call bound the binding cannot
+    know 512 is safe), but it means a ring slot or `mmap` window sized to the
+    data is rejected, which is exactly what `out=` exists to serve.
+
+    Until this is fixed, size placement buffers with
+    `max(obj.<method>_max_out(), n_in)` and accept the over-allocation, or use
+    the plain form for blocks whose cap is disproportionate. Tracked upstream
+    as just-makeit issue 607, which changes the contract to a per-call bound.
+
 #### Reach for it for placement, or for determinism — not for speed
 
 `out=` exists so you can decide *where* the samples land: an `mmap`, a shared

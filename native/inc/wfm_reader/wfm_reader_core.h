@@ -21,7 +21,7 @@
  * wfm_reader_info(r, &info);                 // info.fs, info.sample_type, ...
  * float _Complex buf[4096];
  * size_t n;
- * while ((n = wfm_reader_read(r, 4096, buf)) > 0)   // (state, count, out)
+ * while ((n = wfm_reader_read(r, 4096, buf, 4096)) > 0)   // (state, count, out)
  *   consume(buf, n);
  * wfm_reader_destroy(r);
  * @endcode
@@ -98,7 +98,8 @@ wfm_reader_state_t *wfm_reader_create(const char *path, int sample_type, int end
    * `float _Complex`), converting from the wire type. Returns the count read;
    * 0 at end of file, and never more than the container's declared payload.
    */
-size_t wfm_reader_read(wfm_reader_state_t *state, size_t n, float complex *out);
+size_t wfm_reader_read(wfm_reader_state_t *state, size_t n,
+                       float complex *out, size_t max_out);
 
   /** @brief Upper bound on one read()'s output, or 0 for "unbounded".
    *

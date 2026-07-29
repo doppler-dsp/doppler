@@ -73,7 +73,7 @@ roundtrip (const char *path, int ft, int stype, double fs, double tol)
   CHECK (info.num_samples == 0 || info.num_samples == N, "num_samples");
 
   size_t total = 0, n;
-  while ((n = wfm_reader_read (r, N - total, y + total)) > 0)
+  while ((n = wfm_reader_read (r, N - total, y + total, N - total)) > 0)
     total += n;
   wfm_reader_destroy (r);
   CHECK (total == N, "read back N samples");
@@ -163,7 +163,7 @@ test_detached_header_entry (void)
       wfm_reader_info (r, &info);
       CHECK (info.file_type == WFM_FT_BLUE, "detached header detects BLUE");
       CHECK (info.num_samples == N, "detached num_samples from data_size");
-      size_t got = wfm_reader_read (r, N, y);
+      size_t got = wfm_reader_read (r, N, y, N);
       wfm_reader_destroy (r);
       /* the whole payload -- NOT the 512-byte header as 64 samples */
       CHECK (got == N, "detached header yields the full payload");
@@ -226,7 +226,7 @@ test_blue_format_mode (void)
   wfm_reader_info (r, &info);
   CHECK (info.mode == WFM_MODE_SCALAR, "mode is scalar");
   CHECK (info.num_samples == N, "scalar num_samples is not halved");
-  size_t got = wfm_reader_read (r, N, y);
+  size_t got = wfm_reader_read (r, N, y, N);
   wfm_reader_destroy (r);
   CHECK (got == N, "scalar yields every sample, not half");
   for (size_t k = 0; k < N; k++)
@@ -243,7 +243,7 @@ test_blue_format_mode (void)
   wfm_reader_info (r, &info);
   CHECK (info.mode == WFM_MODE_COMPLEX, "mode is complex");
   CHECK (info.num_samples == N, "complex num_samples");
-  got = wfm_reader_read (r, N, y);
+  got = wfm_reader_read (r, N, y, N);
   wfm_reader_destroy (r);
   CHECK (got == N, "complex yields every sample");
   for (size_t k = 0; k < N; k++)
@@ -365,10 +365,10 @@ test_keyword_roundtrip (void)
          runs dry would hand the caller keyword bytes as IQ -- silently, and
          only for files that carry metadata. */
       size_t total = 0, got;
-      while ((got = wfm_reader_read (r, N - total, y + total)) > 0)
+      while ((got = wfm_reader_read (r, N - total, y + total, N - total)) > 0)
         total += got;
       CHECK (total == N, "drains to exactly the declared payload");
-      CHECK (wfm_reader_read (r, N, y) == 0, "and stays at end of data");
+      CHECK (wfm_reader_read (r, N, y, N) == 0, "and stays at end of data");
       for (size_t i = 0; i < N; i++)
         CHECK (cabsf (y[i] - x[i]) < 1e-6f, "samples unaffected");
       wfm_reader_destroy (r);
@@ -423,7 +423,7 @@ test_keyword_roundtrip (void)
       CHECK (k != NULL, "F_C present");
       memcpy (&d, k->value, 8);
       CHECK (d == KW_D, "detached keyword value");
-      CHECK (wfm_reader_read (r, N, y) == N, "detached samples still read");
+      CHECK (wfm_reader_read (r, N, y, N) == N, "detached samples still read");
       wfm_reader_destroy (r);
     }
   return 0;
@@ -468,7 +468,8 @@ test_keyword_absent_and_corrupt (void)
           ? wfm_reader_create ("dp_kw_bad.blue", 0, 0)
           : NULL;
   CHECK (r != NULL, "a bad keyword region does not fail the open");
-  CHECK (wfm_reader_read (r, N, y) == N, "samples survive a bad ext header");
+  CHECK (wfm_reader_read (r, N, y, N) == N,
+         "samples survive a bad ext header");
   wfm_reader_destroy (r);
   return 0;
 }
@@ -503,10 +504,11 @@ test_reset_rewinds_to_the_first_sample (void)
 
       wfm_reader_state_t *r = wfm_reader_create (PATHS[i], 0, 0);
       CHECK (r != NULL, "open for reset");
-      CHECK (wfm_reader_read (r, N, a) == N, "first pass");
+      CHECK (wfm_reader_read (r, N, a, N) == N, "first pass");
       wfm_reader_reset (r);
-      CHECK (wfm_reader_read (r, N, b) == N, "second pass reads N again");
-      CHECK (wfm_reader_read (r, 1, b + N - 1) == 0, "and stops at the end");
+      CHECK (wfm_reader_read (r, N, b, N) == N, "second pass reads N again");
+      CHECK (wfm_reader_read (r, 1, b + N - 1, 1) == 0,
+             "and stops at the end");
       wfm_reader_destroy (r);
       for (size_t k = 0; k + 1 < N; k++)
         CHECK (a[k] == b[k], "reset replays the identical samples");
@@ -515,14 +517,38 @@ test_reset_rewinds_to_the_first_sample (void)
   /* detached: payload is byte 0 of the .det, header is elsewhere */
   wfm_reader_state_t *r = wfm_reader_create ("dp_kw_det.hdr", 0, 0);
   CHECK (r != NULL, "open detached");
-  CHECK (wfm_reader_read (r, N, a) == N, "detached first pass");
+  CHECK (wfm_reader_read (r, N, a, N) == N, "detached first pass");
   wfm_reader_reset (r);
-  CHECK (wfm_reader_read (r, N, b) == N, "detached second pass");
+  CHECK (wfm_reader_read (r, N, b, N) == N, "detached second pass");
   CHECK (wfm_reader_num_keywords (r) == 2, "keywords survive a reset");
   wfm_reader_destroy (r);
   for (size_t k = 0; k < N; k++)
     CHECK (a[k] == b[k], "detached reset replays identically");
   return 0;
+}
+
+/* pass_capacity: emission stops at max_out (jm gh-138).
+   wfm_reader_read_max_out() returns 0 ("no fixed bound"), so before this the
+   kernel's only limit was the caller's own count argument -- a caller with a
+   buffer smaller than the count it asked for had no way to say so. */
+static int
+test_read_capacity (void)
+{
+  int                 _fails = 0;
+  wfm_reader_state_t *r      = wfm_reader_create ("dp_reader.blue", 0, 0);
+  float _Complex y[16];
+  CHECK (r, "reopen the BLUE capture");
+  for (size_t i = 0; i < 16; i++)
+    y[i] = 42.0f + 42.0f * I;
+
+  CHECK (wfm_reader_read (r, 16, y, 3) == 3, "read stops at max_out");
+  for (size_t i = 3; i < 16; i++)
+    CHECK (y[i] == 42.0f + 42.0f * I, "tail untouched");
+
+  /* Zero capacity reads nothing. */
+  CHECK (wfm_reader_read (r, 16, y, 0) == 0, "zero capacity reads nothing");
+  wfm_reader_destroy (r);
+  return _fails;
 }
 
 int
@@ -553,6 +579,8 @@ main (void)
   if (test_keyword_absent_and_corrupt ())
     return 1;
   if (test_reset_rewinds_to_the_first_sample ())
+    return 1;
+  if (test_read_capacity ())
     return 1;
   printf ("test_wfm_reader: all passed\n");
   return 0;

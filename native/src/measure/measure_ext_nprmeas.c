@@ -215,7 +215,7 @@ NPRMeasureObj_spectrum_dbfs (NPRMeasureObject *self, PyObject *args,
         }
       size_t n_out = nprmeas_spectrum_dbfs (
           self->handle, (const float *)PyArray_DATA (x_arr),
-          (size_t)PyArray_SIZE (x_arr), (float *)PyArray_DATA (out_arr));
+          (size_t)PyArray_SIZE (x_arr), (float *)PyArray_DATA (out_arr), _cap);
       Py_DECREF (x_arr);
       npy_intp  _odim  = (npy_intp)n_out;
       PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_FLOAT,
@@ -240,9 +240,9 @@ NPRMeasureObj_spectrum_dbfs (NPRMeasureObject *self, PyObject *args,
       return NULL;
     }
   float *_d0   = (float *)PyArray_DATA ((PyArrayObject *)arr0);
-  size_t n_out = nprmeas_spectrum_dbfs (self->handle,
-                                        (const float *)PyArray_DATA (x_arr),
-                                        (size_t)PyArray_SIZE (x_arr), _d0);
+  size_t n_out = nprmeas_spectrum_dbfs (
+      self->handle, (const float *)PyArray_DATA (x_arr),
+      (size_t)PyArray_SIZE (x_arr), _d0, _cap);
   Py_DECREF (x_arr);
   if ((size_t)n_out == _cap)
     {

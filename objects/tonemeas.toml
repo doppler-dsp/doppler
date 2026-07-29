@@ -91,6 +91,9 @@ doc = "DC-centred dBFS magnitude spectrum of a capture (length nfft, for plots).
 arg_type = "void"
 return_type = "float"
 variable_output = true
+# Kernel is told its write limit (jm gh-138): an under-reporting
+# max_out truncates the emission instead of overrunning `out`.
+pass_capacity = true
 params = [{name = "x", type = "float[]"}]
 
 [[tonemeas.properties]]

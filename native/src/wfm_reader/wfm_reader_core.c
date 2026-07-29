@@ -508,8 +508,13 @@ read_csv (wfm_reader_state_t *r, float _Complex *out, size_t max)
 }
 
 size_t
-wfm_reader_read (wfm_reader_state_t *r, size_t max, float _Complex *out)
+wfm_reader_read (wfm_reader_state_t *r, size_t max, float _Complex *out,
+                 size_t max_out)
 {
+  /* Emission stops at the caller's capacity (jm gh-138). Clamped before
+     the CSV branch so read_csv inherits the bound too. */
+  if (max > max_out)
+    max = max_out;
   if (max == 0)
     return 0;
   if (r->file_type == WFM_FT_CSV)

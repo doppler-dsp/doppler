@@ -15,7 +15,13 @@ BLOCK_64K = 65_536
 @pytest.fixture
 def obj():
     return CorrDetector(
-        np.zeros(N, dtype=np.complex64), "mean", 4, 1, N - 2, 0.0, 1
+        np.zeros(N, dtype=np.complex64),
+        dwell=4,
+        noise_lo=1,
+        noise_hi=N - 2,
+        noise_mode="mean",
+        threshold=0.0,
+        nthreads=1,
     )
 
 

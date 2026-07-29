@@ -14,12 +14,6 @@
 typedef struct
 {
   PyObject_HEAD burst_demod_state_t *handle;
-  uint8_t  *_demod_buf;     /* pre-allocated output for demod */
-  size_t    _demod_buf_cap; /* allocated capacity for demod */
-  void    **_demod_retired; /* gh-219 deferred free */
-  size_t    _demod_retired_n;
-  size_t    _demod_retired_cap;
-  PyObject *_demod_view_ref; /* gh-437 last returned view */
 } BurstDemodObject;
 
 static void
@@ -27,11 +21,6 @@ BurstDemodObj_dealloc (BurstDemodObject *self)
 {
   if (self->handle)
     burst_demod_destroy (self->handle);
-  free (self->_demod_buf);
-  for (size_t _i = 0; _i < self->_demod_retired_n; _i++)
-    free (self->_demod_retired[_i]);
-  free (self->_demod_retired);
-  Py_XDECREF (self->_demod_view_ref);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -81,19 +70,6 @@ BurstDemodObj_init (BurstDemodObject *self, PyObject *args, PyObject *kwds)
       PyErr_SetString (PyExc_MemoryError, "burst_demod_create returned NULL");
       return -1;
     }
-  {
-    size_t _max = burst_demod_demod_max_out (self->handle);
-    if (_max)
-      {
-        self->_demod_buf = malloc (_max * sizeof (uint8_t));
-        if (!self->_demod_buf)
-          {
-            PyErr_NoMemory ();
-            return -1;
-          }
-        self->_demod_buf_cap = _max;
-      }
-  }
   return 0;
 }
 
@@ -216,15 +192,16 @@ BurstDemodObj_demod (BurstDemodObject *self, PyObject *args, PyObject *kwds)
     return NULL;
   if (out_obj && out_obj != Py_None)
     {
-      /* Require the exact output dtype — no silent cast (a cast writes
-       * into a temp copy instead of the caller's buffer). */
+      /* Require the exact dtype AND C-contiguity — either mismatch makes
+       * the marshal write into a temp copy, not the caller's buffer. */
       if (!PyArray_Check (out_obj)
           || PyArray_TYPE ((PyArrayObject *)out_obj) != NPY_UINT8
+          || !PyArray_IS_C_CONTIGUOUS ((PyArrayObject *)out_obj)
           || !PyArray_ISWRITEABLE ((PyArrayObject *)out_obj))
         {
-          PyErr_SetString (
-              PyExc_TypeError,
-              "out must be a writable ndarray of the output dtype");
+          PyErr_SetString (PyExc_TypeError,
+                           "out must be a writable, C-contiguous"
+                           " ndarray of the output dtype");
           Py_DECREF (x_arr);
           return NULL;
         }
@@ -271,53 +248,18 @@ BurstDemodObj_demod (BurstDemodObject *self, PyObject *args, PyObject *kwds)
       PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
       return _oview;
     }
-  size_t _need      = (size_t)PyArray_SIZE (x_arr);
-  int    _view_live = 0;
-  if (self->_demod_view_ref)
+  size_t _need = (size_t)PyArray_SIZE (x_arr);
+  size_t _cap  = burst_demod_demod_max_out (self->handle);
+  if (!_cap || _cap < _need)
+    _cap = _need;
+  npy_intp  _adim = (npy_intp)_cap;
+  PyObject *arr0  = PyArray_SimpleNew (1, &_adim, NPY_UINT8);
+  if (!arr0)
     {
-#if PY_VERSION_HEX >= 0x030D0000
-      PyObject *_lv = NULL;
-      if (PyWeakref_GetRef (self->_demod_view_ref, &_lv) == 1)
-        {
-          Py_DECREF (_lv);
-          _view_live = 1;
-        }
-#else
-      _view_live = PyWeakref_GetObject (self->_demod_view_ref) != Py_None;
-#endif
+      Py_DECREF (x_arr);
+      return NULL;
     }
-  if (!self->_demod_buf || self->_demod_buf_cap < _need || _view_live)
-    {
-      size_t _max = burst_demod_demod_max_out (self->handle);
-      if (!_max || _max < _need)
-        _max = _need;
-      if (self->_demod_buf
-          && self->_demod_retired_n == self->_demod_retired_cap)
-        {
-          size_t _rcap
-              = self->_demod_retired_cap ? self->_demod_retired_cap * 2 : 4;
-          void **_rt = realloc (self->_demod_retired, _rcap * sizeof (void *));
-          if (!_rt)
-            {
-              Py_DECREF (x_arr);
-              PyErr_NoMemory ();
-              return NULL;
-            }
-          self->_demod_retired     = _rt;
-          self->_demod_retired_cap = _rcap;
-        }
-      uint8_t *_tmp = malloc (_max * sizeof (uint8_t));
-      if (!_tmp)
-        {
-          Py_DECREF (x_arr);
-          PyErr_NoMemory ();
-          return NULL;
-        }
-      if (self->_demod_buf)
-        self->_demod_retired[self->_demod_retired_n++] = self->_demod_buf;
-      self->_demod_buf     = _tmp;
-      self->_demod_buf_cap = _max;
-    }
+  uint8_t *_d0 = (uint8_t *)PyArray_DATA ((PyArrayObject *)arr0);
   /* nogil: GIL released across the pure-C kernel — sound only when
    * this object is not shared across threads concurrently (one
    * object per stream); the kernel touches only this object's
@@ -326,27 +268,23 @@ BurstDemodObj_demod (BurstDemodObject *self, PyObject *args, PyObject *kwds)
   size_t               _ng1 = (size_t)PyArray_SIZE (x_arr);
   size_t               n_out;
   Py_BEGIN_ALLOW_THREADS
-    n_out = burst_demod_demod (self->handle, _ng0, _ng1, self->_demod_buf,
-                               self->_demod_buf_cap);
+    n_out = burst_demod_demod (self->handle, _ng0, _ng1, _d0, _cap);
   Py_END_ALLOW_THREADS
-  npy_intp  dim = (npy_intp)n_out;
-  PyObject *arr
-      = PyArray_SimpleNewFromData (1, &dim, NPY_UINT8, self->_demod_buf);
-  if (!arr)
-    return NULL;
-  PyArray_SetBaseObject ((PyArrayObject *)arr, (PyObject *)self);
-  Py_INCREF (self);
-  /* gh-437: remember this view — while the caller holds it the next
-   * call retires the buffer instead of reusing it in place. */
-  Py_XDECREF (self->_demod_view_ref);
-  self->_demod_view_ref = PyWeakref_NewRef (arr, NULL);
-  if (!self->_demod_view_ref)
+  Py_DECREF (x_arr);
+  if ((size_t)n_out == _cap)
     {
-      Py_DECREF (arr);
+      return arr0;
+    }
+  npy_intp     _odim = (npy_intp)n_out;
+  PyArray_Dims _rs0  = { &_odim, 1 };
+  PyObject *v0 = PyArray_Resize ((PyArrayObject *)arr0, &_rs0, 0, NPY_CORDER);
+  if (!v0)
+    {
+      Py_DECREF (arr0);
       return NULL;
     }
-  Py_DECREF (x_arr);
-  return arr;
+  Py_DECREF (v0);
+  return arr0;
 }
 static PyObject *
 BurstDemod_getprop_frame_valid (BurstDemodObject *self,
@@ -476,68 +414,69 @@ BurstDemodObj_exit (BurstDemodObject *self, PyObject *args)
   Py_RETURN_NONE;
 }
 
-static PyMethodDef BurstDemodObj_methods[] = {
-  { "reset", (PyCFunction)BurstDemodObj_reset, METH_NOARGS,
-    "Reset state to post-create defaults." },
+static PyMethodDef BurstDemodObj_methods[]
+    = { { "reset", (PyCFunction)BurstDemodObj_reset, METH_NOARGS,
+          "Reset state to post-create defaults." },
 
-  { "set_preamble", (PyCFunction)(void *)BurstDemodObj_set_preamble,
-    METH_VARARGS | METH_KEYWORDS,
-    "set_preamble(acq_code, reps) -> None\n"
-    "\n"
-    "Set the (unmodulated) acquisition preamble code + repetition count used "
-    "for the feedforward (f0, rate) estimate.\n"
-    "\n"
-    "    >>> import numpy as np\n"
-    "    >>> from doppler import BurstDemod\n"
-    "    >>> obj = BurstDemod(np.zeros(1, dtype=np.uint8), 4, 1.0e6, 0.0, "
-    "0.0, 0, 10)\n"
-    "    >>> obj.set_preamble(np.zeros(4, dtype=np.uint8), 0)\n" },
-  { "set_sync", (PyCFunction)(void *)BurstDemodObj_set_sync,
-    METH_VARARGS | METH_KEYWORDS,
-    "set_sync(sync) -> None\n"
-    "\n"
-    "Set the known frame-sync word (0/1 BPSK symbols) used for frame "
-    "alignment + phase/sign resolution.\n"
-    "\n"
-    "    >>> import numpy as np\n"
-    "    >>> from doppler import BurstDemod\n"
-    "    >>> obj = BurstDemod(np.zeros(1, dtype=np.uint8), 4, 1.0e6, 0.0, "
-    "0.0, 0, 10)\n"
-    "    >>> obj.set_sync(np.zeros(4, dtype=np.uint8))\n" },
-  { "set_prior", (PyCFunction)(void *)BurstDemodObj_set_prior,
-    METH_VARARGS | METH_KEYWORDS,
-    "set_prior(f0_coarse, start) -> None\n"
-    "\n"
-    "Seed from acquisition: coarse Doppler (cycles/sample at the input rate) "
-    "and the preamble start sample.\n"
-    "\n"
-    "    >>> import numpy as np\n"
-    "    >>> from doppler import BurstDemod\n"
-    "    >>> obj = BurstDemod(np.zeros(1, dtype=np.uint8), 4, 1.0e6, 0.0, "
-    "0.0, 0, 10)\n"
-    "    >>> obj.set_prior(0.0, 0)\n" },
-  { "demod", (PyCFunction)BurstDemodObj_demod, METH_VARARGS | METH_KEYWORDS,
-    "demod(x) -> ndarray\n"
-    "\n"
-    "Demodulate a burst (preamble + frame); return the payload bits. "
-    "Read-back properties report the estimates + CRC validity.\n"
-    "\n"
-    "    >>> import numpy as np\n"
-    "    >>> from doppler import BurstDemod\n"
-    "    >>> obj = BurstDemod(np.zeros(1, dtype=np.uint8), 4, 1.0e6, 0.0, "
-    "0.0, 0, 10)\n"
-    "    >>> y = obj.demod(np.zeros(4))\n"
-    "    >>> y.dtype\n"
-    "    dtype('uint8')\n" },
-  { "demod_max_out", (PyCFunction)BurstDemodObj_demod_max_out, METH_NOARGS,
-    "demod_max_out() -> int\n\nMax output length demod() can produce for the "
-    "current state.\nUse to size the ``out=`` buffer." },
-  { "destroy", (PyCFunction)BurstDemodObj_destroy, METH_NOARGS,
-    "Release resources." },
-  { "__enter__", (PyCFunction)BurstDemodObj_enter, METH_NOARGS, NULL },
-  { "__exit__", (PyCFunction)BurstDemodObj_exit, METH_VARARGS, NULL },
-  { NULL }
-};
+        { "set_preamble", (PyCFunction)(void *)BurstDemodObj_set_preamble,
+          METH_VARARGS | METH_KEYWORDS,
+          "set_preamble(acq_code, reps) -> None\n"
+          "\n"
+          "Set the (unmodulated) acquisition preamble code + repetition count "
+          "used for the feedforward (f0, rate) estimate.\n"
+          "\n"
+          "    >>> import numpy as np\n"
+          "    >>> from doppler import BurstDemod\n"
+          "    >>> obj = BurstDemod(np.zeros(1, dtype=np.uint8), 4, 1.0e6, "
+          "0.0, 0.0, 0, 10)\n"
+          "    >>> obj.set_preamble(np.zeros(4, dtype=np.uint8), 0)\n" },
+        { "set_sync", (PyCFunction)(void *)BurstDemodObj_set_sync,
+          METH_VARARGS | METH_KEYWORDS,
+          "set_sync(sync) -> None\n"
+          "\n"
+          "Set the known frame-sync word (0/1 BPSK symbols) used for frame "
+          "alignment + phase/sign resolution.\n"
+          "\n"
+          "    >>> import numpy as np\n"
+          "    >>> from doppler import BurstDemod\n"
+          "    >>> obj = BurstDemod(np.zeros(1, dtype=np.uint8), 4, 1.0e6, "
+          "0.0, 0.0, 0, 10)\n"
+          "    >>> obj.set_sync(np.zeros(4, dtype=np.uint8))\n" },
+        { "set_prior", (PyCFunction)(void *)BurstDemodObj_set_prior,
+          METH_VARARGS | METH_KEYWORDS,
+          "set_prior(f0_coarse, start) -> None\n"
+          "\n"
+          "Seed from acquisition: coarse Doppler (cycles/sample at the input "
+          "rate) and the preamble start sample.\n"
+          "\n"
+          "    >>> import numpy as np\n"
+          "    >>> from doppler import BurstDemod\n"
+          "    >>> obj = BurstDemod(np.zeros(1, dtype=np.uint8), 4, 1.0e6, "
+          "0.0, 0.0, 0, 10)\n"
+          "    >>> obj.set_prior(0.0, 0)\n" },
+        { "demod", (PyCFunction)(void *)BurstDemodObj_demod,
+          METH_VARARGS | METH_KEYWORDS,
+          "demod(x) -> ndarray\n"
+          "\n"
+          "Demodulate a burst (preamble + frame); return the payload bits. "
+          "Read-back properties report the estimates + CRC validity.\n"
+          "\n"
+          "    >>> import numpy as np\n"
+          "    >>> from doppler import BurstDemod\n"
+          "    >>> obj = BurstDemod(np.zeros(1, dtype=np.uint8), 4, 1.0e6, "
+          "0.0, 0.0, 0, 10)\n"
+          "    >>> y = obj.demod(np.zeros(4))\n"
+          "    >>> y.dtype\n"
+          "    dtype('uint8')\n" },
+        { "demod_max_out", (PyCFunction)BurstDemodObj_demod_max_out,
+          METH_NOARGS,
+          "demod_max_out() -> int\n\nMax output length demod() can produce "
+          "for the current state.\nUse to size the ``out=`` buffer." },
+        { "destroy", (PyCFunction)BurstDemodObj_destroy, METH_NOARGS,
+          "Release resources." },
+        { "__enter__", (PyCFunction)BurstDemodObj_enter, METH_NOARGS, NULL },
+        { "__exit__", (PyCFunction)BurstDemodObj_exit, METH_VARARGS, NULL },
+        { NULL } };
 
 static PyTypeObject BurstDemodObjType = {
   PyVarObject_HEAD_INIT (NULL, 0).tp_name = "dsss.BurstDemod",

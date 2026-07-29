@@ -49,13 +49,15 @@ _bind_kaiser_window(PyObject *self, PyObject *args, PyObject *kwds)
     if (!PyArg_ParseTupleAndKeywords(args, kwds, "Of",
             _kwlist, &w_obj, &beta))
         return NULL;
-    /* Require the exact output dtype — no silent cast (a cast writes
-     * into a temp copy instead of the caller's buffer). */
+    /* Require the exact dtype AND C-contiguity — either mismatch makes
+     * the marshal write into a temp copy, not the caller's buffer. */
     if (!PyArray_Check(w_obj) ||
         PyArray_TYPE((PyArrayObject *)w_obj) != NPY_FLOAT ||
+        !PyArray_IS_C_CONTIGUOUS((PyArrayObject *)w_obj) ||
         !PyArray_ISWRITEABLE((PyArrayObject *)w_obj)) {
         PyErr_SetString(PyExc_TypeError,
-            "w must be a writable ndarray of the output dtype");
+            "w must be a writable, C-contiguous"
+            " ndarray of the output dtype");
         return NULL;
     }
     PyArrayObject *w_arr = (PyArrayObject *)PyArray_FROM_OTF(
@@ -89,13 +91,15 @@ _bind_hann_window(PyObject *self, PyObject *args, PyObject *kwds)
     if (!PyArg_ParseTupleAndKeywords(args, kwds, "O",
             _kwlist, &w_obj))
         return NULL;
-    /* Require the exact output dtype — no silent cast (a cast writes
-     * into a temp copy instead of the caller's buffer). */
+    /* Require the exact dtype AND C-contiguity — either mismatch makes
+     * the marshal write into a temp copy, not the caller's buffer. */
     if (!PyArray_Check(w_obj) ||
         PyArray_TYPE((PyArrayObject *)w_obj) != NPY_FLOAT ||
+        !PyArray_IS_C_CONTIGUOUS((PyArrayObject *)w_obj) ||
         !PyArray_ISWRITEABLE((PyArrayObject *)w_obj)) {
         PyErr_SetString(PyExc_TypeError,
-            "w must be a writable ndarray of the output dtype");
+            "w must be a writable, C-contiguous"
+            " ndarray of the output dtype");
         return NULL;
     }
     PyArrayObject *w_arr = (PyArrayObject *)PyArray_FROM_OTF(
@@ -117,13 +121,15 @@ _bind_blackman_harris_window(PyObject *self, PyObject *args, PyObject *kwds)
     if (!PyArg_ParseTupleAndKeywords(args, kwds, "O",
             _kwlist, &w_obj))
         return NULL;
-    /* Require the exact output dtype — no silent cast (a cast writes
-     * into a temp copy instead of the caller's buffer). */
+    /* Require the exact dtype AND C-contiguity — either mismatch makes
+     * the marshal write into a temp copy, not the caller's buffer. */
     if (!PyArray_Check(w_obj) ||
         PyArray_TYPE((PyArrayObject *)w_obj) != NPY_FLOAT ||
+        !PyArray_IS_C_CONTIGUOUS((PyArrayObject *)w_obj) ||
         !PyArray_ISWRITEABLE((PyArrayObject *)w_obj)) {
         PyErr_SetString(PyExc_TypeError,
-            "w must be a writable ndarray of the output dtype");
+            "w must be a writable, C-contiguous"
+            " ndarray of the output dtype");
         return NULL;
     }
     PyArrayObject *w_arr = (PyArrayObject *)PyArray_FROM_OTF(

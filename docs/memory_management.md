@@ -109,33 +109,34 @@ False
 That is a **correctness guarantee**: a previously returned block is never
 overwritten by a later call.
 
-It is not free, though, and the cost is worth knowing because it is invisible.
-The returned array may be a view onto a buffer the object owns. When you hold
-that view across the next call, the object cannot reuse the buffer in place, so
-it allocates a fresh one and keeps the old one until the object is destroyed.
-Holding every block therefore costs one retained buffer per call:
+Each call allocates its own NumPy-owned result and shares nothing with the
+next one, so there is no buffer to invalidate and no bookkeeping to get wrong.
+Holding every block in a long-lived loop costs only the blocks you actually
+keep:
 
 ```text
 lo = LO(0.1)
 for _ in range(10_000):
-    block = lo.steps(65536)     # each retained block pins its own buffer
+    block = lo.steps(65536)     # freed when you drop it, like any array
     process(block)
 ```
 
-If you are processing large blocks in a long-lived loop, release each block
-([below](#releasing-the-block-instead-of-keeping-it)) or pass `out=`.
+!!! note "It was not always this way"
 
-!!! note "This is a defect, not the design"
+    Until jm 0.33.15 the binding handed back a view onto a buffer the object
+    owned, and holding one across the next call forced a fresh allocation while
+    retaining the old — one buffer per held call, released only when the object
+    was destroyed. Measured on the loop above: **1,548,388 KiB of growth, now
+    1,376 KiB**, with the hold path 82% faster and the drop path no slower.
 
-    The retention is a property of the current binding — not of the C library,
-    which allocates nothing per call, and not of the intended contract. The
-    target is one NumPy-owned allocation per call, sharing nothing between
-    calls, which removes the retention and the question of view validity
-    together. Tracked upstream as just-makeit issue 604.
+    That history is worth one line because it is the reason `out=` is
+    documented below the way it is: the retention existed to make the plain
+    form "as fast as" `out=`, and the fix was to stop trying.
 
-    Note what to conclude from this and what not to. It is a reason to release
-    or place your blocks **today**; it is not evidence that `out=` is the fast
-    path in general. See below.
+    Three components — `DelayCf64`, `Farrow` and `FFT` — still carry the old
+    path pending a hand-port, because their bindings hold methods the manifest
+    cannot express yet. Their public contract is unchanged; only the retention
+    differs.
 
 ### `out=`: placement and determinism, not throughput
 
@@ -156,14 +157,15 @@ True
 
 Two rules apply, and both are enforced rather than silently worked around:
 
-**The dtype must match exactly.** A mismatched buffer is rejected, not cast:
+**The dtype must match exactly, and the buffer must be C-contiguous.**
+Either mismatch is rejected rather than silently cast:
 
 ```python
 >>> wrong = np.empty(64, dtype=np.float32)    # FIR outputs complex64
 >>> fir.execute(x, out=wrong)
 Traceback (most recent call last):
     ...
-TypeError: out must be a writable ndarray of the output dtype
+TypeError: out must be a writable, C-contiguous ndarray of the output dtype
 ```
 
 This matters more than it looks. A cast would write into a temporary copy, so

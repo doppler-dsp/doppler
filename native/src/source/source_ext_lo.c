@@ -14,18 +14,6 @@
 typedef struct
 {
   PyObject_HEAD lo_state_t *handle;
-  float complex            *_steps_buf; /* pre-allocated output for steps */
-  size_t                    _steps_buf_cap; /* allocated capacity for steps */
-  void                    **_steps_retired; /* gh-219 deferred free */
-  size_t                    _steps_retired_n;
-  size_t                    _steps_retired_cap;
-  PyObject                 *_steps_view_ref; /* gh-437 last returned view */
-  float complex *_steps_ctrl_buf;     /* pre-allocated output for steps_ctrl */
-  size_t         _steps_ctrl_buf_cap; /* allocated capacity for steps_ctrl */
-  void         **_steps_ctrl_retired; /* gh-219 deferred free */
-  size_t         _steps_ctrl_retired_n;
-  size_t         _steps_ctrl_retired_cap;
-  PyObject      *_steps_ctrl_view_ref; /* gh-437 last returned view */
 } LOObject;
 
 static void
@@ -33,16 +21,6 @@ LOObj_dealloc (LOObject *self)
 {
   if (self->handle)
     lo_destroy (self->handle);
-  free (self->_steps_buf);
-  for (size_t _i = 0; _i < self->_steps_retired_n; _i++)
-    free (self->_steps_retired[_i]);
-  free (self->_steps_retired);
-  Py_XDECREF (self->_steps_view_ref);
-  free (self->_steps_ctrl_buf);
-  for (size_t _i = 0; _i < self->_steps_ctrl_retired_n; _i++)
-    free (self->_steps_ctrl_retired[_i]);
-  free (self->_steps_ctrl_retired);
-  Py_XDECREF (self->_steps_ctrl_view_ref);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -69,32 +47,6 @@ LOObj_init (LOObject *self, PyObject *args, PyObject *kwds)
       PyErr_SetString (PyExc_MemoryError, "lo_create returned NULL");
       return -1;
     }
-  {
-    size_t _max = lo_steps_max_out (self->handle);
-    if (_max)
-      {
-        self->_steps_buf = malloc (_max * sizeof (float complex));
-        if (!self->_steps_buf)
-          {
-            PyErr_NoMemory ();
-            return -1;
-          }
-        self->_steps_buf_cap = _max;
-      }
-  }
-  {
-    size_t _max = lo_steps_ctrl_max_out (self->handle);
-    if (_max)
-      {
-        self->_steps_ctrl_buf = malloc (_max * sizeof (float complex));
-        if (!self->_steps_ctrl_buf)
-          {
-            PyErr_NoMemory ();
-            return -1;
-          }
-        self->_steps_ctrl_buf_cap = _max;
-      }
-  }
   return 0;
 }
 
@@ -136,15 +88,16 @@ LOObj_steps (LOObject *self, PyObject *args, PyObject *kwds)
     return NULL;
   if (out_obj && out_obj != Py_None)
     {
-      /* Require the exact output dtype — no silent cast (a cast writes
-       * into a temp copy instead of the caller's buffer). */
+      /* Require the exact dtype AND C-contiguity — either mismatch makes
+       * the marshal write into a temp copy, not the caller's buffer. */
       if (!PyArray_Check (out_obj)
           || PyArray_TYPE ((PyArrayObject *)out_obj) != NPY_COMPLEX64
+          || !PyArray_IS_C_CONTIGUOUS ((PyArrayObject *)out_obj)
           || !PyArray_ISWRITEABLE ((PyArrayObject *)out_obj))
         {
-          PyErr_SetString (
-              PyExc_TypeError,
-              "out must be a writable ndarray of the output dtype");
+          PyErr_SetString (PyExc_TypeError,
+                           "out must be a writable, C-contiguous"
+                           " ndarray of the output dtype");
           return NULL;
         }
       PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
@@ -177,69 +130,32 @@ LOObj_steps (LOObject *self, PyObject *args, PyObject *kwds)
       PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
       return _oview;
     }
-  size_t _need      = (size_t)n;
-  int    _view_live = 0;
-  if (self->_steps_view_ref)
+  size_t _need = (size_t)n;
+  size_t _cap  = lo_steps_max_out (self->handle);
+  if (!_cap || _cap < _need)
+    _cap = _need;
+  npy_intp  _adim = (npy_intp)_cap;
+  PyObject *arr0  = PyArray_SimpleNew (1, &_adim, NPY_COMPLEX64);
+  if (!arr0)
     {
-#if PY_VERSION_HEX >= 0x030D0000
-      PyObject *_lv = NULL;
-      if (PyWeakref_GetRef (self->_steps_view_ref, &_lv) == 1)
-        {
-          Py_DECREF (_lv);
-          _view_live = 1;
-        }
-#else
-      _view_live = PyWeakref_GetObject (self->_steps_view_ref) != Py_None;
-#endif
-    }
-  if (!self->_steps_buf || self->_steps_buf_cap < _need || _view_live)
-    {
-      size_t _max = lo_steps_max_out (self->handle);
-      if (!_max || _max < _need)
-        _max = _need;
-      if (self->_steps_buf
-          && self->_steps_retired_n == self->_steps_retired_cap)
-        {
-          size_t _rcap
-              = self->_steps_retired_cap ? self->_steps_retired_cap * 2 : 4;
-          void **_rt = realloc (self->_steps_retired, _rcap * sizeof (void *));
-          if (!_rt)
-            {
-              PyErr_NoMemory ();
-              return NULL;
-            }
-          self->_steps_retired     = _rt;
-          self->_steps_retired_cap = _rcap;
-        }
-      float complex *_tmp = malloc (_max * sizeof (float complex));
-      if (!_tmp)
-        {
-          PyErr_NoMemory ();
-          return NULL;
-        }
-      if (self->_steps_buf)
-        self->_steps_retired[self->_steps_retired_n++] = self->_steps_buf;
-      self->_steps_buf     = _tmp;
-      self->_steps_buf_cap = _max;
-    }
-  size_t    n_out = lo_steps (self->handle, (size_t)n, self->_steps_buf);
-  npy_intp  dim   = (npy_intp)n_out;
-  PyObject *arr
-      = PyArray_SimpleNewFromData (1, &dim, NPY_COMPLEX64, self->_steps_buf);
-  if (!arr)
-    return NULL;
-  PyArray_SetBaseObject ((PyArrayObject *)arr, (PyObject *)self);
-  Py_INCREF (self);
-  /* gh-437: remember this view — while the caller holds it the next
-   * call retires the buffer instead of reusing it in place. */
-  Py_XDECREF (self->_steps_view_ref);
-  self->_steps_view_ref = PyWeakref_NewRef (arr, NULL);
-  if (!self->_steps_view_ref)
-    {
-      Py_DECREF (arr);
       return NULL;
     }
-  return arr;
+  float complex *_d0   = (float complex *)PyArray_DATA ((PyArrayObject *)arr0);
+  size_t         n_out = lo_steps (self->handle, (size_t)n, _d0);
+  if ((size_t)n_out == _cap)
+    {
+      return arr0;
+    }
+  npy_intp     _odim = (npy_intp)n_out;
+  PyArray_Dims _rs0  = { &_odim, 1 };
+  PyObject *v0 = PyArray_Resize ((PyArrayObject *)arr0, &_rs0, 0, NPY_CORDER);
+  if (!v0)
+    {
+      Py_DECREF (arr0);
+      return NULL;
+    }
+  Py_DECREF (v0);
+  return arr0;
 }
 
 static PyObject *
@@ -274,15 +190,16 @@ LOObj_steps_ctrl (LOObject *self, PyObject *args, PyObject *kwds)
     return NULL;
   if (out_obj && out_obj != Py_None)
     {
-      /* Require the exact output dtype — no silent cast (a cast writes
-       * into a temp copy instead of the caller's buffer). */
+      /* Require the exact dtype AND C-contiguity — either mismatch makes
+       * the marshal write into a temp copy, not the caller's buffer. */
       if (!PyArray_Check (out_obj)
           || PyArray_TYPE ((PyArrayObject *)out_obj) != NPY_COMPLEX64
+          || !PyArray_IS_C_CONTIGUOUS ((PyArrayObject *)out_obj)
           || !PyArray_ISWRITEABLE ((PyArrayObject *)out_obj))
         {
-          PyErr_SetString (
-              PyExc_TypeError,
-              "out must be a writable ndarray of the output dtype");
+          PyErr_SetString (PyExc_TypeError,
+                           "out must be a writable, C-contiguous"
+                           " ndarray of the output dtype");
           Py_DECREF (ctrl_arr);
           return NULL;
         }
@@ -323,78 +240,36 @@ LOObj_steps_ctrl (LOObject *self, PyObject *args, PyObject *kwds)
       PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
       return _oview;
     }
-  size_t _need      = (size_t)PyArray_SIZE (ctrl_arr);
-  int    _view_live = 0;
-  if (self->_steps_ctrl_view_ref)
+  size_t _need = (size_t)PyArray_SIZE (ctrl_arr);
+  size_t _cap  = lo_steps_ctrl_max_out (self->handle);
+  if (!_cap || _cap < _need)
+    _cap = _need;
+  npy_intp  _adim = (npy_intp)_cap;
+  PyObject *arr0  = PyArray_SimpleNew (1, &_adim, NPY_COMPLEX64);
+  if (!arr0)
     {
-#if PY_VERSION_HEX >= 0x030D0000
-      PyObject *_lv = NULL;
-      if (PyWeakref_GetRef (self->_steps_ctrl_view_ref, &_lv) == 1)
-        {
-          Py_DECREF (_lv);
-          _view_live = 1;
-        }
-#else
-      _view_live = PyWeakref_GetObject (self->_steps_ctrl_view_ref) != Py_None;
-#endif
-    }
-  if (!self->_steps_ctrl_buf || self->_steps_ctrl_buf_cap < _need
-      || _view_live)
-    {
-      size_t _max = lo_steps_ctrl_max_out (self->handle);
-      if (!_max || _max < _need)
-        _max = _need;
-      if (self->_steps_ctrl_buf
-          && self->_steps_ctrl_retired_n == self->_steps_ctrl_retired_cap)
-        {
-          size_t _rcap = self->_steps_ctrl_retired_cap
-                             ? self->_steps_ctrl_retired_cap * 2
-                             : 4;
-          void **_rt
-              = realloc (self->_steps_ctrl_retired, _rcap * sizeof (void *));
-          if (!_rt)
-            {
-              Py_DECREF (ctrl_arr);
-              PyErr_NoMemory ();
-              return NULL;
-            }
-          self->_steps_ctrl_retired     = _rt;
-          self->_steps_ctrl_retired_cap = _rcap;
-        }
-      float complex *_tmp = malloc (_max * sizeof (float complex));
-      if (!_tmp)
-        {
-          Py_DECREF (ctrl_arr);
-          PyErr_NoMemory ();
-          return NULL;
-        }
-      if (self->_steps_ctrl_buf)
-        self->_steps_ctrl_retired[self->_steps_ctrl_retired_n++]
-            = self->_steps_ctrl_buf;
-      self->_steps_ctrl_buf     = _tmp;
-      self->_steps_ctrl_buf_cap = _max;
-    }
-  size_t n_out
-      = lo_steps_ctrl (self->handle, (const float *)PyArray_DATA (ctrl_arr),
-                       (size_t)PyArray_SIZE (ctrl_arr), self->_steps_ctrl_buf);
-  npy_intp  dim = (npy_intp)n_out;
-  PyObject *arr = PyArray_SimpleNewFromData (1, &dim, NPY_COMPLEX64,
-                                             self->_steps_ctrl_buf);
-  if (!arr)
-    return NULL;
-  PyArray_SetBaseObject ((PyArrayObject *)arr, (PyObject *)self);
-  Py_INCREF (self);
-  /* gh-437: remember this view — while the caller holds it the next
-   * call retires the buffer instead of reusing it in place. */
-  Py_XDECREF (self->_steps_ctrl_view_ref);
-  self->_steps_ctrl_view_ref = PyWeakref_NewRef (arr, NULL);
-  if (!self->_steps_ctrl_view_ref)
-    {
-      Py_DECREF (arr);
+      Py_DECREF (ctrl_arr);
       return NULL;
     }
+  float complex *_d0 = (float complex *)PyArray_DATA ((PyArrayObject *)arr0);
+  size_t         n_out
+      = lo_steps_ctrl (self->handle, (const float *)PyArray_DATA (ctrl_arr),
+                       (size_t)PyArray_SIZE (ctrl_arr), _d0);
   Py_DECREF (ctrl_arr);
-  return arr;
+  if ((size_t)n_out == _cap)
+    {
+      return arr0;
+    }
+  npy_intp     _odim = (npy_intp)n_out;
+  PyArray_Dims _rs0  = { &_odim, 1 };
+  PyObject *v0 = PyArray_Resize ((PyArrayObject *)arr0, &_rs0, 0, NPY_CORDER);
+  if (!v0)
+    {
+      Py_DECREF (arr0);
+      return NULL;
+    }
+  Py_DECREF (v0);
+  return arr0;
 }
 
 static PyObject *
@@ -567,7 +442,7 @@ static PyMethodDef LOObj_methods[] = {
   { "reset", (PyCFunction)LOObj_reset, METH_NOARGS,
     "Reset state to post-create defaults." },
 
-  { "steps", (PyCFunction)LOObj_steps, METH_VARARGS | METH_KEYWORDS,
+  { "steps", (PyCFunction)(void *)LOObj_steps, METH_VARARGS | METH_KEYWORDS,
     "steps(n=1) -> ndarray\n"
     "\n"
     "Generate n CF32 phasors at the current norm_freq. Each sample is cos(θ) "
@@ -584,7 +459,8 @@ static PyMethodDef LOObj_methods[] = {
   { "steps_max_out", (PyCFunction)LOObj_steps_max_out, METH_NOARGS,
     "steps_max_out() -> int\n\nMax output length steps() can produce for the "
     "current state.\nUse to size the ``out=`` buffer." },
-  { "steps_ctrl", (PyCFunction)LOObj_steps_ctrl, METH_VARARGS | METH_KEYWORDS,
+  { "steps_ctrl", (PyCFunction)(void *)LOObj_steps_ctrl,
+    METH_VARARGS | METH_KEYWORDS,
     "steps_ctrl(ctrl) -> ndarray\n"
     "\n"
     "Generate CF32 phasors with per-sample FM deviation. For each sample i, "

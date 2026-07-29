@@ -133,3 +133,56 @@ wfm_kw_decode (const uint8_t *p, size_t avail, int be, wfm_keyword_t *out,
   out->count     = count;
   return 0;
 }
+
+/* Validate the standard EXTENDED-header keywords (BLUE 1.1 3.4.2). These
+   have defined value formats, and a malformed one survives the round trip
+   to be rejected -- or silently misread -- by whatever consumes the capture.
+
+   ADVISORY, not enforced. 3.4.2 says the effect of these keywords "is
+   determined by individual processing systems", so doppler reports rather
+   than refuses: a caller that means to reproduce an odd Platinum-era value
+   verbatim must be able to. Returns 0 if @p tag is not standard (anything
+   user-defined is the caller's business), 1 if it is and the value conforms,
+   -1 if it is and the value does not.
+
+   ACQDATE and ACQTIME are fixed-width ASCII; 3.4.2.1 permits YYYYMMDD as a
+   Platinum-compatibility alternate to YY.DDD, so both widths are accepted.
+   SUBREC_DEF/SUBREC_DESCRIP (type 6000) and T4INDEX (type 4000) describe
+   structures a type-1000 file does not have, and doppler writes type 1000
+   only -- emitting one would describe a layout that is not there. */
+int
+wfm_kw_check_standard (const char *tag, char type, const void *value,
+                       size_t count)
+{
+  const char *v = (const char *)value;
+  if (strcmp (tag, "ACQDATE") == 0)
+    {
+      if (type != 'A' || (count != 6 && count != 8))
+        return -1;
+      if (count == 6 && v[2] != '.') /* YY.DDD */
+        return -1;
+      for (size_t i = 0; i < count; i++)
+        if (v[i] != '.' && (v[i] < '0' || v[i] > '9'))
+          return -1;
+      return 1;
+    }
+  if (strcmp (tag, "ACQTIME") == 0)
+    {
+      if (type != 'A' || count != 8) /* HH:MM:SS */
+        return -1;
+      if (v[2] != ':' || v[5] != ':')
+        return -1;
+      for (size_t i = 0; i < 8; i++)
+        if (i != 2 && i != 5 && (v[i] < '0' || v[i] > '9'))
+          return -1;
+      return 1;
+    }
+  if (strcmp (tag, "COMMENT") == 0)
+    return (type == 'A') ? 1 : -1; /* free-form, but text */
+  if (strcmp (tag, "TIMELINE") == 0)
+    return (type == 'A') ? 1 : -1;
+  if (strcmp (tag, "SUBREC_DEF") == 0 || strcmp (tag, "SUBREC_DESCRIP") == 0
+      || strcmp (tag, "T4INDEX") == 0)
+    return -1; /* type 6000 / 4000 only; doppler writes type 1000 */
+  return 0;    /* user-defined: not ours to police */
+}

@@ -331,12 +331,15 @@ jobs:
         jbx just-bashit:install-deps -g docs -s apt
 
     - name: Run doxygen (zero warnings)
-      run: |
-        doxygen Doxyfile 2>&1 | tee doxygen.log
-        if grep -q 'warning:' doxygen.log; then
-          echo "Doxygen produced warnings — failing."
-          exit 1
-        fi
+      # `make doxygen-check`, never an inline doxygen invocation: the Makefile
+      # is the single driver, so `make doxygen-check` locally is this job. When
+      # this was inline, the only local target (`make doxygen`) merely printed
+      # warnings and exited 0 — 88 accumulated over a long branch before the
+      # job was ever looked at. The target pins DOXYGEN_VERSION to this
+      # runner's doxygen and dockerises when a developer's differs, because
+      # versions disagree about what counts as a warning. Bump
+      # DOXYGEN_VERSION in the Makefile when this runner image changes.
+      run: make doxygen-check
 
   # ------------------------------------------------------------------
   # Specan demo frames staleness check

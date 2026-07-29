@@ -98,6 +98,7 @@ endif
         bench-stream \
         debug release blazing bump-version check-version tag-release \
         release-watch ship docs-check \
+        doxygen-check doxygen-warn-gate changelog-check gates \
         test-examples test-examples-python install-deps setup clean help
 
 # ── default ──────────────────────────────────────────────────────────────────
@@ -423,8 +424,84 @@ gen-c-api:
 # ── doxygen ───────────────────────────────────────────────────────────────────
 # Generates XML (consumed by mkdocstrings) and HTML in docs/doxygen/.
 # HTML_OUTPUT and XML_OUTPUT are relative to the Doxyfile location.
+#
+# NOTE this target only BUILDS — it prints warnings and exits 0. The gate is
+# `doxygen-check` below. Keeping them separate is deliberate: the docs build
+# needs the XML even when a warning is outstanding.
 doxygen:
 	doxygen Doxyfile
+
+# CI's `Doxygen` job as a target, so local and CI cannot diverge (the step used
+# to be an inline `doxygen | grep warning:` in ci.yml, which is exactly how 88
+# warnings accumulated unnoticed across a long branch — `make doxygen` looked
+# like the gate and wasn't).
+#
+# Version matters more than it looks: doxygen releases disagree about what
+# counts as a warning, so checking with a different version than CI's gives a
+# different answer. This runs natively when the local doxygen matches CI's and
+# otherwise inside $(DOXYGEN_IMAGE), which pins it. Override DOXYGEN_VERSION
+# when the CI runner image changes.
+DOXYGEN_VERSION ?= 1.9.8
+DOXYGEN_IMAGE   ?= ubuntu:24.04
+
+doxygen-check:
+	@have=$$(doxygen --version 2>/dev/null | cut -d' ' -f1); \
+	if [ "$$have" = "$(DOXYGEN_VERSION)" ]; then \
+	  $(MAKE) -s doxygen-warn-gate; \
+	else \
+	  echo "doxygen-check: local $${have:-none} != CI's $(DOXYGEN_VERSION), using $(DOXYGEN_IMAGE)"; \
+	  docker run --rm -v "$(CURDIR)":/w:ro -w /w $(DOXYGEN_IMAGE) sh -c \
+	    'apt-get update -qq >/dev/null 2>&1 && \
+	     apt-get install -y -qq --no-install-recommends doxygen make >/dev/null 2>&1 && \
+	     make -s doxygen-warn-gate'; \
+	fi
+
+# The gate proper. Split out so the Docker branch above can re-enter it with
+# the pinned doxygen on PATH.
+#
+# Writes NOTHING into the tree: the container mounts the repo read-only, so
+# both the generated XML/HTML and the log go to a scratch dir instead. The
+# earlier version tee'd doxygen.log into the repo, and because the container
+# runs as root that left a root-owned file the user could not delete. A gate
+# that mutates the tree it is checking is a bug, docker or not.
+doxygen-warn-gate:
+	@out=$$(mktemp -d); \
+	{ cat Doxyfile; \
+	  echo "OUTPUT_DIRECTORY=$$out"; \
+	  echo "WARN_LOGFILE="; } | doxygen - > $$out/stdout.log 2>&1; \
+	n=$$(grep -c 'warning:' $$out/stdout.log || true); \
+	if [ "$$n" != "0" ]; then \
+	  grep 'warning:' $$out/stdout.log; \
+	  echo "doxygen-check: $$n warning(s) — FAIL"; rm -rf $$out; exit 1; \
+	fi; \
+	rm -rf $$out; \
+	echo "doxygen-check: 0 warnings"
+
+# ── changelog-check ───────────────────────────────────────────────────────────
+# Fails when code has shipped since the last tag but [Unreleased] is empty.
+# keep-a-changelog says the entry lands with the change, not at release time;
+# without a gate a long branch reaches release day with nothing to promote and
+# the notes get reconstructed from commit messages (github-release's awk turns
+# that section into the published notes verbatim).
+changelog-check:
+	@t=$$(git describe --tags --abbrev=0 2>/dev/null || true); \
+	n=$$(git log --oneline $${t:+$$t..}HEAD -- src native objects ffi 2>/dev/null | wc -l); \
+	e=$$(awk '/^## \[Unreleased\]/{f=1;next} f&&/^## /{exit} f' CHANGELOG.md \
+	     | grep -c '^- ' || true); \
+	if [ "$$n" -gt 0 ] && [ "$$e" -eq 0 ]; then \
+	  echo "changelog-check: $$n code commit(s) since $${t:-repo start}, [Unreleased] is empty — FAIL"; \
+	  exit 1; \
+	fi; \
+	echo "changelog-check: $$e entry/entries for $$n code commit(s) since $${t:-repo start}"
+
+# ── gates ─────────────────────────────────────────────────────────────────────
+# "Would CI pass?" — every gate the required jobs run, fail-fast, cheapest
+# first. Run this before pushing. It exists because the individual targets
+# already did: the failure mode is not a missing check, it is running six of
+# seven and not noticing which one you skipped.
+gates: lint changelog-check drift-check doxygen-check docs-check test-all
+	@echo ""
+	@echo "gates: ALL PASS"
 
 # ── specan ────────────────────────────────────────────────────────────────────
 specan:
@@ -654,7 +731,16 @@ help:
 	@echo "  make specan              Launch live spectrum analyzer in browser"
 	@echo "  make record-demo         Re-record specan demo frames (docs/specan/frames.json)"
 	@echo "  make gallery             Run plot examples and copy PNGs to docs/assets/"
+	@echo ""
+	@echo "  make gates         *** RUN THIS BEFORE PUSHING *** every gate CI"
+	@echo "                     requires, fail-fast: lint changelog-check"
+	@echo "                     drift-check doxygen-check docs-check test-all"
 	@echo "  make lint          Run pre-commit hooks on all files"
+	@echo "  make drift-check   jm manifest drift gate (CI's 'jm manifest drift')"
+	@echo "  make docs-check    Every gate CI's Docs job runs, all failures at once"
+	@echo "  make doxygen-check Doxygen at CI's pinned version, 0 warnings or FAIL"
+	@echo "  make changelog-check  [Unreleased] must not be empty if code shipped"
+	@echo ""
 	@echo "  make docs          Build the docs site (zensical)"
 	@echo "  make docs-serve    Serve the docs site locally (zensical)"
 	@echo "  make docs-relink   Regenerate docs/api/*.md's Related pages blocks"

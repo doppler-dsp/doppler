@@ -35,6 +35,12 @@ struct wfm_reader_state
   size_t         scratch_cap;
   wfm_keyword_t *kw; /* decoded extended-header keywords (BLUE only) */
   size_t         nkw;
+  /* Every field of the 512-byte HCB, decoded and carried as keyword entries
+     so the existing tag/value codec serves the header dict too -- no second
+     marshaller, and `header` and `keywords` can never disagree about how a
+     double or an ASCII field is turned into a Python object. */
+  wfm_keyword_t *hdr;
+  size_t         nhdr;
   /* BLUE declares its payload length, and anything after it (an extended
      header, X-Midas slack) is NOT samples. `bounded` says the limit is known;
      `remaining` counts down the samples still owed. Raw/CSV/SigMF run to EOF,
@@ -187,6 +193,150 @@ parse_blue_hcb (const uint8_t h[512], blue_hcb_t *o)
   return 0;
 }
 
+/* Append a keyword to r->kw, taking a copy of the value. Shared by the two
+   sources -- the HCB's own keyword area and the extended header -- so a
+   caller cannot tell which block a key arrived from. */
+static void
+kw_append (wfm_reader_state_t *r, const char *tag, char type, size_t count,
+           const uint8_t *value)
+{
+  size_t esz = wfm_kw_elem_size (type);
+  if (esz == 0 || count == 0)
+    return;
+  wfm_keyword_t *p
+      = (wfm_keyword_t *)realloc (r->kw, (r->nkw + 1) * sizeof *p);
+  if (!p)
+    return;
+  r->kw            = p;
+  wfm_keyword_t *k = &r->kw[r->nkw];
+  k->value         = (uint8_t *)malloc (count * esz);
+  if (!k->value)
+    return;
+  snprintf (k->tag, sizeof k->tag, "%s", tag);
+  k->type      = type;
+  k->elem_size = esz;
+  k->count     = count;
+  memcpy (k->value, value, count * esz);
+  r->nkw++;
+}
+
+/* Append one decoded HCB field. `src` is the raw header bytes; numeric types
+   are swapped to host order, ASCII is copied verbatim. Best-effort: a failed
+   allocation drops that one field rather than the whole header. */
+static void
+hdr_add (wfm_reader_state_t *r, const char *tag, char type, size_t count,
+         const uint8_t *src, int be)
+{
+  size_t esz = wfm_kw_elem_size (type);
+  if (esz == 0 || count == 0)
+    return;
+  wfm_keyword_t *p
+      = (wfm_keyword_t *)realloc (r->hdr, (r->nhdr + 1) * sizeof *p);
+  if (!p)
+    return;
+  r->hdr             = p;
+  wfm_keyword_t *k   = &r->hdr[r->nhdr];
+  size_t         nby = count * esz;
+  k->value           = (uint8_t *)malloc (nby);
+  if (!k->value)
+    return;
+  snprintf (k->tag, sizeof k->tag, "%s", tag);
+  k->type      = type;
+  k->elem_size = esz;
+  k->count     = count;
+  if (type == 'A')
+    memcpy (k->value, src, nby); /* ASCII is not byte-order dependent */
+  else
+    for (size_t e = 0; e < count; e++)
+      swab_copy (k->value + e * esz, src + e * esz, esz, be);
+  r->nhdr++;
+}
+
+/* Decode the whole 512-byte HCB into r->hdr under the field names the format
+   itself uses (Midas BLUE 1.1 §3.1.1) -- callers asked to see what is in the
+   file, not a curated subset, so nothing is dropped or renamed. */
+static void
+load_header_fields (wfm_reader_state_t *r, const uint8_t h[512], int be)
+{
+  hdr_add (r, "version", 'A', 4, h + 0, be);
+  hdr_add (r, "head_rep", 'A', 4, h + 4, be);
+  hdr_add (r, "data_rep", 'A', 4, h + 8, be);
+  hdr_add (r, "detached", 'L', 1, h + 12, be);
+  hdr_add (r, "protected", 'L', 1, h + 16, be);
+  hdr_add (r, "pipe", 'L', 1, h + 20, be);
+  hdr_add (r, "ext_start", 'L', 1, h + 24, be);
+  hdr_add (r, "ext_size", 'L', 1, h + 28, be);
+  hdr_add (r, "data_start", 'D', 1, h + 32, be);
+  hdr_add (r, "data_size", 'D', 1, h + 40, be);
+  hdr_add (r, "type", 'L', 1, h + 48, be);
+  hdr_add (r, "format", 'A', 2, h + 52, be);
+  hdr_add (r, "flagmask", 'I', 1, h + 54, be);
+  hdr_add (r, "timecode", 'D', 1, h + 56, be);
+  hdr_add (r, "inlet", 'I', 1, h + 64, be);
+  hdr_add (r, "outlets", 'I', 1, h + 66, be);
+  hdr_add (r, "outmask", 'L', 1, h + 68, be);
+  hdr_add (r, "pipeloc", 'L', 1, h + 72, be);
+  hdr_add (r, "pipesize", 'L', 1, h + 76, be);
+  hdr_add (r, "in_byte", 'D', 1, h + 80, be);
+  hdr_add (r, "out_byte", 'D', 1, h + 88, be);
+  hdr_add (r, "outbytes", 'D', 8, h + 96, be);
+  hdr_add (r, "keylength", 'L', 1, h + 160, be);
+  /* type-1000 adjunct (bytes 256+). doppler reads and writes type 1000 only
+     -- parse_blue_hcb has already rejected anything else -- so the adjunct
+     layout is not in question here. */
+  hdr_add (r, "xstart", 'D', 1, h + 256, be);
+  hdr_add (r, "xdelta", 'D', 1, h + 264, be);
+  hdr_add (r, "xunits", 'L', 1, h + 272, be);
+}
+
+/* Decode the HCB's own keyword area (`keylength` at 160, `keywords` at 164,
+   92 bytes) -- "KEY=VALUE" pairs separated by NUL, all values ASCII. This is
+   where X-Midas commonly puts small metadata, and doppler used to ignore it
+   entirely: such a file read back with no keywords at all and no indication
+   that anything had been skipped. Values land as type 'A', same as an
+   extended-header string, so callers cannot tell which block a key came
+   from -- which is the point. */
+static void
+load_hcb_keywords (wfm_reader_state_t *r, const uint8_t h[512], int be)
+{
+  int32_t klen = 0;
+  swab_copy (&klen, h + 160, 4, be);
+  if (klen <= 0)
+    return;
+  size_t n = (size_t)klen;
+  if (n > 92u) /* the area is 92 bytes; a larger keylength is malformed */
+    n = 92u;
+  const char *p   = (const char *)(h + 164);
+  size_t      off = 0;
+  while (off < n)
+    {
+      size_t end = off;
+      while (end < n && p[end] != '\0')
+        end++;
+      size_t len = end - off;
+      if (len == 0)
+        {
+          off = end + 1;
+          continue;
+        }
+      const char *eq = (const char *)memchr (p + off, '=', len);
+      if (eq)
+        {
+          size_t klen2 = (size_t)(eq - (p + off));
+          size_t vlen  = len - klen2 - 1;
+          char   tag[WFM_KW_MAX_TAG + 1];
+          if (klen2 > 0 && klen2 <= WFM_KW_MAX_TAG)
+            {
+              memcpy (tag, p + off, klen2);
+              tag[klen2] = '\0';
+              kw_append (r, tag, 'A', vlen ? vlen : 1,
+                         (const uint8_t *)(eq + 1));
+            }
+        }
+      off = end + 1;
+    }
+}
+
 /* Decode the extended header at [ext_off, ext_off + ext_size) of @p hf into
    r->kw. Best-effort by design: a file whose keyword region is truncated or
    malformed still yields its samples (and any keywords decoded before the bad
@@ -207,7 +357,7 @@ load_keywords (wfm_reader_state_t *r, FILE *hf, long ext_off, size_t ext_size)
   if (save >= 0)
     fseek (hf, save, SEEK_SET);
 
-  size_t off = 0, cap = 0;
+  size_t off = 0;
   while (off + 8 <= got)
     {
       wfm_keyword_t kw;
@@ -218,20 +368,13 @@ load_keywords (wfm_reader_state_t *r, FILE *hf, long ext_off, size_t ext_size)
       off += used;
       if (rc > 0)
         continue; /* unsupported type: skipped, not fatal */
-      if (r->nkw == cap)
-        {
-          size_t         ncap = cap ? cap * 2 : 8;
-          wfm_keyword_t *p
-              = (wfm_keyword_t *)realloc (r->kw, ncap * sizeof *p);
-          if (!p)
-            {
-              free (kw.value);
-              break;
-            }
-          r->kw = p;
-          cap   = ncap;
-        }
-      r->kw[r->nkw++] = kw;
+      /* Goes through the SAME append helper as the HCB keyword area. This
+         used to grow r->kw with its own doubling `cap`, which was correct
+         only while it was the sole writer: once load_hcb_keywords could
+         append first, `cap` started at 0 against a non-empty array and the
+         next write ran off the end. One array, one append path. */
+      kw_append (r, kw.tag, kw.type, kw.count, kw.value);
+      free (kw.value);
     }
   free (blob);
 }
@@ -409,6 +552,8 @@ wfm_reader_create (const char *path, int hint_stype, int hint_endian)
       apply_hcb (r, &hcb);
       /* the extended header lives in the HEADER file, which is not the file
          the samples come from — decode it before letting go of hf. */
+      load_header_fields (r, h, hcb.endian);
+      load_hcb_keywords (r, h, hcb.endian);
       load_keywords (r, hf, hcb.ext_off, hcb.ext_size);
       fclose (hf);
       r->file_type = WFM_FT_BLUE;
@@ -443,6 +588,8 @@ wfm_reader_create (const char *path, int hint_stype, int hint_endian)
       r->file_type = WFM_FT_BLUE;
       /* this file IS the header (attached or detached), so its extended
          header is here regardless of where the samples end up. */
+      load_header_fields (r, h, hcb.endian);
+      load_hcb_keywords (r, h, hcb.endian);
       load_keywords (r, r->fp, hcb.ext_off, hcb.ext_size);
       if (hcb.detached != 0)
         {
@@ -641,6 +788,37 @@ wfm_reader_keyword_tag (const wfm_reader_state_t *r, size_t i)
   return r->kw[i].tag;
 }
 
+size_t
+wfm_reader_num_header_fields (const wfm_reader_state_t *r)
+{
+  return r->nhdr;
+}
+
+/* entry_fn for the `.header` dict property: the i-th decoded HCB field. */
+const wfm_keyword_t *
+wfm_reader_header_field (const wfm_reader_state_t *r, size_t i)
+{
+  return (i < r->nhdr) ? &r->hdr[i] : NULL;
+}
+
+/* key_fn for `.header`: the field's name as the format spells it. */
+const char *
+wfm_reader_header_tag (const wfm_reader_state_t *r, size_t i)
+{
+  return r->hdr[i].tag;
+}
+
+/* Look a header field up by name, for callers that want one value rather
+   than the whole dict. */
+const wfm_keyword_t *
+wfm_reader_find_header_field (const wfm_reader_state_t *r, const char *name)
+{
+  for (size_t i = 0; i < r->nhdr; i++)
+    if (strcmp (r->hdr[i].tag, name) == 0)
+      return &r->hdr[i];
+  return NULL;
+}
+
 const wfm_keyword_t *
 wfm_reader_find_keyword (const wfm_reader_state_t *r, const char *tag)
 {
@@ -660,6 +838,9 @@ wfm_reader_destroy (wfm_reader_state_t *r)
   for (size_t i = 0; i < r->nkw; i++)
     free (r->kw[i].value);
   free (r->kw);
+  for (size_t i = 0; i < r->nhdr; i++)
+    free (r->hdr[i].value);
+  free (r->hdr);
   free (r->scratch);
   free (r);
 }

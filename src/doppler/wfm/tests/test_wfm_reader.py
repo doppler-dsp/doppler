@@ -176,3 +176,65 @@ def test_close_is_idempotent_and_aliases_destroy(capture):
     r.close()
     r.close()  # idempotent
     r.destroy()  # the generated name, same effect
+
+
+def test_header_exposes_the_hcb_under_the_format_s_own_names(tmp_path):
+    """`header` is the 512-byte HCB, decoded, nothing renamed or omitted.
+
+    The reader used to keep six fields out of the header and discard the
+    rest, so from Python you could not tell whether a field was absent from
+    the file or merely dropped on the way out.
+    """
+    p = tmp_path / "h.blue"
+    w = Writer(str(p), file_type="blue", sample_type="cf32")
+    w.write(np.ones(8, dtype=np.complex64))
+    w.close()
+
+    h = Reader(str(p)).header
+    # The names are the format's, not ours.
+    for name in (
+        "version",
+        "head_rep",
+        "data_rep",
+        "detached",
+        "ext_start",
+        "ext_size",
+        "data_start",
+        "data_size",
+        "type",
+        "format",
+        "keylength",
+        "xstart",
+        "xdelta",
+        "xunits",
+    ):
+        assert name in h, name
+    # Each value arrives as the type its BLUE code declares.
+    assert h["version"] == "BLUE"
+    assert h["type"] == 1000 and isinstance(h["type"], int)
+    assert isinstance(h["data_start"], float)
+    assert isinstance(h["outbytes"], list) and len(h["outbytes"]) == 8
+
+
+def test_keywords_merge_the_hcb_area_and_the_extended_header(tmp_path):
+    """A key is a key: the caller cannot tell which block carried it.
+
+    An ASCII keyword is steered into the HCB's own keyword area (no extra
+    block, and every BLUE reader finds it there); a typed one still needs the
+    extended header, because that area has no type field. Both come back
+    from `.keywords`, with the numeric one still numeric.
+    """
+    p = tmp_path / "kw.blue"
+    w = Writer(str(p), file_type="blue", sample_type="cf32")
+    w.add_keyword("NAME", "A", "hello")  # -> HCB keyword area
+    w.add_keyword("SRATE", "D", 2.048e6)  # -> extended header
+    w.write(np.ones(8, dtype=np.complex64))
+    w.close()
+
+    r = Reader(str(p))
+    assert r.keywords == {"NAME": "hello", "SRATE": 2.048e6}
+    assert isinstance(r.keywords["SRATE"], float)  # type survived
+    # And the header shows where each went.
+    h = r.header
+    assert h["keylength"] > 0  # the HCB area was used
+    assert h["ext_start"] > 0  # and so was the extended header

@@ -551,6 +551,106 @@ test_read_capacity (void)
   return _fails;
 }
 
+/* The extended header at the END of an ATTACHED file -- the layout doppler's
+   own writer produces, because a stream's length is not known until close
+   (BLUE 3.3 permits it explicitly). Two things have to hold at once: the
+   keywords decode, AND read() must stop at data_size rather than handing back
+   the extended-header bytes as samples. The second is the one that would fail
+   silently, so it is asserted on the sample values, not just the count. */
+static int
+test_ext_header_at_end_of_attached_file (void)
+{
+  int    _fails = 0;
+  size_t n      = 8;
+  double sr     = 2.048e6;
+
+  FILE *fp = fopen ("dp_extend.blue", "wb");
+  CHECK (fp, "open for write");
+  wfm_writer_state_t *w = wfm_writer_open (fp, WFM_FT_BLUE, 0, 0, sr, 0.0, n);
+  CHECK (w, "writer open");
+  CHECK (wfm_writer_add_keyword (w, "SRATE", 'D', &sr, 1) == 0, "typed kw");
+  float _Complex xs[8];
+  for (size_t i = 0; i < n; i++)
+    xs[i] = (float)(i + 1) + 0.0f * I;
+  CHECK (wfm_writer_write (w, xs, n) == (int)n, "write samples");
+  CHECK (wfm_writer_close (w) == 0, "close");
+  fclose (fp);
+
+  /* The extended header must sit AFTER the data, on a 512-byte boundary. */
+  wfm_reader_state_t *r = wfm_reader_create ("dp_extend.blue", 0, 0);
+  CHECK (r, "reader open");
+  const wfm_keyword_t *es = wfm_reader_find_header_field (r, "ext_start");
+  const wfm_keyword_t *ds = wfm_reader_find_header_field (r, "data_start");
+  CHECK (es && ds, "ext_start/data_start present in the header dict");
+  if (es && ds)
+    {
+      int32_t blocks;
+      double  dstart;
+      memcpy (&blocks, es->value, sizeof blocks);
+      memcpy (&dstart, ds->value, sizeof dstart);
+      CHECK ((long)blocks * 512L > (long)dstart,
+             "ext header follows the data");
+    }
+
+  /* The keyword decodes, and its TYPE survives (a double, not a string). */
+  const wfm_keyword_t *kw = wfm_reader_find_keyword (r, "SRATE");
+  CHECK (kw && kw->type == 'D' && kw->count == 1, "SRATE is a 1-element D");
+  if (kw)
+    {
+      double got;
+      memcpy (&got, kw->value, sizeof got);
+      CHECK (fabs (got - sr) < 1.0, "SRATE value round-trips");
+    }
+
+  /* And the payload stops at data_size: the extended header is NOT samples. */
+  float _Complex y[16];
+  size_t got = wfm_reader_read (r, 16, y, 16);
+  CHECK (got == n, "read returns exactly the declared sample count");
+  for (size_t i = 0; i < got; i++)
+    CHECK (crealf (y[i]) == (float)(i + 1), "sample values intact");
+  CHECK (wfm_reader_read (r, 16, y, 16) == 0, "and stops at the payload end");
+  wfm_reader_destroy (r);
+  return _fails;
+}
+
+/* The HCB's own keyword area (keylength@160, keywords@164): where X-Midas
+   commonly puts short metadata, and what doppler used to drop on the floor. */
+static int
+test_hcb_keyword_area (void)
+{
+  int   _fails = 0;
+  FILE *fp     = fopen ("dp_hcbkw.blue", "wb");
+  CHECK (fp, "open for write");
+  wfm_writer_state_t *w = wfm_writer_open (fp, WFM_FT_BLUE, 0, 0, 1e6, 0.0, 4);
+  CHECK (w, "writer open");
+  /* ASCII goes to the HCB area; a numeric keyword still needs the extended
+     header, because the area has no type field. */
+  CHECK (wfm_writer_add_keyword (w, "NAME", 'A', "hello", 5) == 0, "ascii kw");
+  double sr = 1e6;
+  CHECK (wfm_writer_add_keyword (w, "SRATE", 'D', &sr, 1) == 0, "typed kw");
+  float _Complex xs[4] = { 1, 2, 3, 4 };
+  CHECK (wfm_writer_write (w, xs, 4) == 4, "write");
+  CHECK (wfm_writer_close (w) == 0, "close");
+  fclose (fp);
+
+  wfm_reader_state_t  *r  = wfm_reader_create ("dp_hcbkw.blue", 0, 0);
+  const wfm_keyword_t *kl = wfm_reader_find_header_field (r, "keylength");
+  CHECK (r && kl, "reader open, keylength present");
+  if (kl)
+    {
+      int32_t v;
+      memcpy (&v, kl->value, sizeof v);
+      CHECK (v > 0, "keylength patched into the HCB");
+    }
+  /* Both sources merge: the caller cannot tell which block a key came from. */
+  const wfm_keyword_t *a = wfm_reader_find_keyword (r, "NAME");
+  const wfm_keyword_t *d = wfm_reader_find_keyword (r, "SRATE");
+  CHECK (a && a->type == 'A', "HCB-area keyword decoded");
+  CHECK (d && d->type == 'D', "extended-header keyword decoded, type intact");
+  wfm_reader_destroy (r);
+  return _fails;
+}
+
 int
 main (void)
 {
@@ -581,6 +681,10 @@ main (void)
   if (test_reset_rewinds_to_the_first_sample ())
     return 1;
   if (test_read_capacity ())
+    return 1;
+  if (test_ext_header_at_end_of_attached_file ())
+    return 1;
+  if (test_hcb_keyword_area ())
     return 1;
   printf ("test_wfm_reader: all passed\n");
   return 0;

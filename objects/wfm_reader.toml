@@ -123,6 +123,20 @@ entry_fn = "wfm_reader_keyword"
 entry_type = "wfm_keyword_t"
 doc = """The BLUE extended header as a {tag: value} dict, in file order; empty when the capture carries no extended header. Values follow the keyword type: a str for A, an int/float for a single-element numeric keyword, a list for a multi-element one. For a detached capture these come from the HEADER file."""
 
+# The 512-byte header control block, decoded field-by-field. Same codec and
+# same cursor shape as `keywords` above: the C side carries each HCB field as a
+# wfm_keyword_t, so the header and the keywords share one tag/value marshaller
+# rather than growing a second one that could disagree with it.
+[[wfm_reader.properties]]
+name = "header"
+type = "dict"
+codec = "blue_keyword"
+count_fn = "wfm_reader_num_header_fields"
+key_fn = "wfm_reader_header_tag"
+entry_fn = "wfm_reader_header_field"
+entry_type = "wfm_keyword_t"
+doc = """The BLUE header control block as a {field: value} dict, under the names the format itself uses -- `version`, `head_rep`, `data_rep`, `detached`, `protected`, `pipe`, `ext_start`, `ext_size`, `data_start`, `data_size`, `type`, `format`, `flagmask`, `timecode`, `inlet`, `outlets`, `outmask`, `pipeloc`, `pipesize`, `in_byte`, `out_byte`, `outbytes`, `keylength`, and the type-1000 adjunct `xstart`, `xdelta`, `xunits`. Empty for a non-BLUE container. Nothing is renamed or omitted, so what you see is what the file holds; the decoded keywords are in `keywords`."""
+
 # close() is the name this type has always released its file under, and every
 # caller and doc example uses it. gh-544 names the destructor; `destroy()` (jm's
 # default) stays as an alias. Void -- a reader's close cannot fail.

@@ -142,6 +142,36 @@ const char *wfm_reader_keyword_tag(const wfm_reader_state_t *state, size_t i);
    *
    * Tags are not required to be unique; this returns the earliest match.
    */
+  /**
+   * @brief Number of decoded HCB fields (0 for a non-BLUE container).
+   */
+  size_t wfm_reader_num_header_fields(const wfm_reader_state_t *state);
+
+  /**
+   * @brief The i-th decoded HCB field, or NULL if @p i is out of range.
+   *
+   * Every field of the 512-byte header control block is carried as a
+   * `wfm_keyword_t`, under the name the format itself uses -- `data_start`,
+   * `ext_size`, `xdelta` and so on (Midas BLUE 1.1 3.1.1). Reusing the
+   * keyword struct means the header and the keywords share one tag/value
+   * codec, so a double or an ASCII field can never be turned into a Python
+   * object two different ways.
+   */
+  const wfm_keyword_t *wfm_reader_header_field(const wfm_reader_state_t *state,
+                                               size_t i);
+
+  /**
+   * @brief The i-th HCB field's name, for the `.header` dict binding.
+   */
+  const char *wfm_reader_header_tag(const wfm_reader_state_t *state, size_t i);
+
+  /**
+   * @brief Look up one HCB field by name, or NULL if absent.
+   */
+  const wfm_keyword_t *
+  wfm_reader_find_header_field(const wfm_reader_state_t *state,
+                               const char *name);
+
   const wfm_keyword_t *wfm_reader_find_keyword (const wfm_reader_state_t *r,
                                                 const char        *tag);
 

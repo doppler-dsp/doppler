@@ -41,6 +41,13 @@ struct wfm_writer_state
   float    gain;  /* output gain (headroom); 1.0 = no-op */
   uint8_t *kw;    /* encoded extended-header keywords, written at close */
   size_t   kwlen, kwcap;
+  /* The HCB's own keyword area (92 bytes at offset 164, length at 160) holds
+     ASCII "KEY=VALUE" pairs. It is the first choice for a string keyword --
+     it costs no extra block and every BLUE reader looks there -- but it
+     cannot carry a type, so a numeric keyword still goes to the extended
+     header where its type survives the round trip. */
+  char   hcbkw[92];
+  size_t hcbkwlen;
 };
 
 /* Update the running peak (always) and, when opted in for an integer wire
@@ -131,7 +138,8 @@ wfm_blue_write_hcb (FILE *fp, int sample_type, int endian, double fs,
   h[53] = FMTCH[sample_type];  /* format type: B/I/L/F/D */
   /* flagmask (54), timecode (56), inlet (64), outlets (66), outmask (68),
      pipeloc (72), pipesize (76), in_byte (80), out_byte (88),
-     outbytes[8] (96), keylength (160), keywords (164) = 0 */
+     outbytes[8] (96) = 0. keylength (160) / keywords (164) are patched in
+     by wfm_writer_close once the caller's keywords are known. */
 
   /* ── type-1000 adjunct (bytes 256..511) ─────────────────────────────── */
   f64 = 0.0;
@@ -270,6 +278,28 @@ wfm_writer_add_keyword (wfm_writer_state_t *w, const char *tag, char type,
   size_t esz = wfm_kw_elem_size (type);
   if (esz == 0 || !tag || !value || count == 0)
     return -1;
+  /* HCB keyword area first (the caller's preference: it is what a plain BLUE
+     reader finds without parsing an extended header). Only ASCII qualifies --
+     the area has no type field, so a numeric value written here would come
+     back as a string. Anything that does not fit falls through to the
+     extended header below, which is why this is a silent preference and not
+     an error. */
+  if (type == 'A')
+    {
+      size_t tl = strlen (tag);
+      size_t nb = tl + 1u + count + 1u; /* TAG '=' VALUE NUL */
+      if (tl > 0 && w->hcbkwlen + nb <= sizeof w->hcbkw)
+        {
+          char *d = w->hcbkw + w->hcbkwlen;
+          memcpy (d, tag, tl);
+          d[tl] = '=';
+          memcpy (d + tl + 1, value, count);
+          d[tl + 1 + count] = '\0';
+          w->hcbkwlen += nb;
+          return 0;
+        }
+    }
+
   size_t need = wfm_kw_entry_size (strlen (tag), count * esz);
   if (w->kwlen + need > w->kwcap)
     {
@@ -289,6 +319,24 @@ wfm_writer_add_keyword (wfm_writer_state_t *w, const char *tag, char type,
     return -1;
   w->kwlen += got;
   return 0;
+}
+
+/* Patch the HCB's own keyword area (keylength at 160, keywords at 164) with
+   whatever add_keyword steered there. Written at close for symmetry with the
+   extended header, though unlike that one it needs no new blocks -- the area
+   is part of the 512-byte header that is already on disk. */
+static int
+write_hcb_keywords (wfm_writer_state_t *w)
+{
+  uint8_t  b[4];
+  int32_t  klen = (int32_t)w->hcbkwlen;
+  uint8_t *q    = b;
+  put (&q, &klen, 4, w->be);
+  if (fseek (w->fp, 160, SEEK_SET) != 0 || fwrite (b, 1, 4, w->fp) != 4)
+    return -1;
+  if (fwrite (w->hcbkw, 1, w->hcbkwlen, w->fp) != w->hcbkwlen)
+    return -1;
+  return fseek (w->fp, 0, SEEK_END);
 }
 
 /* Append the buffered keywords as the extended header and patch ext_start /
@@ -363,6 +411,8 @@ wfm_writer_close (wfm_writer_state_t *w)
           if (fwrite (b, 1, 8, w->fp) != 8)
             rc = -1;
           fseek (w->fp, 0, SEEK_END);
+          if (w->hcbkwlen && write_hcb_keywords (w) != 0)
+            rc = -1;
           if (w->kwlen && write_ext_header (w) != 0)
             rc = -1;
         }

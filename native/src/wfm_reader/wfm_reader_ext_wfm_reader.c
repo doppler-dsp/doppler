@@ -522,26 +522,206 @@ Reader_getprop_keywords (ReaderObject *self, void *Py_UNUSED (closure))
     }
   return _c;
 }
+static PyObject *
+Reader_decode_header (const wfm_keyword_t *_e)
+{
+  size_t _esz      = 0;
+  int    _is_float = 0, _is_bytes = 0;
+  switch (_e->type)
+    {
+    case 'A':
+      _is_bytes = 1;
+      break;
+    case 'B':
+      _esz = sizeof (int8_t);
+      break;
+    case 'I':
+      _esz = sizeof (int16_t);
+      break;
+    case 'L':
+      _esz = sizeof (int32_t);
+      break;
+    case 'T':
+      _esz = sizeof (int32_t);
+      break;
+    case 'X':
+      _esz = sizeof (int64_t);
+      break;
+    case 'F':
+      _esz      = sizeof (float);
+      _is_float = 1;
+      break;
+    case 'D':
+      _esz      = sizeof (double);
+      _is_float = 1;
+      break;
+    default:
+      PyErr_Format (PyExc_ValueError, "unknown code '%c'", _e->type);
+      return NULL;
+    }
+  if (_is_bytes)
+    return PyUnicode_FromStringAndSize ((const char *)_e->value,
+                                        (Py_ssize_t)_e->count);
+  PyObject *_lst = PyList_New ((Py_ssize_t)_e->count);
+  if (!_lst)
+    return NULL;
+  for (size_t _k = 0; _k < _e->count; _k++)
+    {
+      const uint8_t *_p  = (const uint8_t *)_e->value + _k * _esz;
+      PyObject      *_it = NULL;
+      if (_is_float)
+        {
+          switch (_e->type)
+            {
+            case 'F':
+              {
+                float _v;
+                memcpy (&_v, _p, sizeof _v);
+                _it = PyFloat_FromDouble ((double)_v);
+                break;
+              }
+            case 'D':
+              {
+                double _v;
+                memcpy (&_v, _p, sizeof _v);
+                _it = PyFloat_FromDouble ((double)_v);
+                break;
+              }
+            default:
+              break;
+            }
+        }
+      else
+        {
+          switch (_e->type)
+            {
+            case 'B':
+              {
+                int8_t _v;
+                memcpy (&_v, _p, sizeof _v);
+                _it = PyLong_FromLongLong ((long long)_v);
+                break;
+              }
+            case 'I':
+              {
+                int16_t _v;
+                memcpy (&_v, _p, sizeof _v);
+                _it = PyLong_FromLongLong ((long long)_v);
+                break;
+              }
+            case 'L':
+              {
+                int32_t _v;
+                memcpy (&_v, _p, sizeof _v);
+                _it = PyLong_FromLongLong ((long long)_v);
+                break;
+              }
+            case 'T':
+              {
+                int32_t _v;
+                memcpy (&_v, _p, sizeof _v);
+                _it = PyLong_FromLongLong ((long long)_v);
+                break;
+              }
+            case 'X':
+              {
+                int64_t _v;
+                memcpy (&_v, _p, sizeof _v);
+                _it = PyLong_FromLongLong ((long long)_v);
+                break;
+              }
+            default:
+              break;
+            }
+        }
+      if (!_it)
+        {
+          Py_DECREF (_lst);
+          return NULL;
+        }
+      PyList_SET_ITEM (_lst, (Py_ssize_t)_k, _it);
+    }
+  if (_e->count == 1)
+    {
+      PyObject *_s = PyList_GET_ITEM (_lst, 0);
+      Py_INCREF (_s);
+      Py_DECREF (_lst);
+      return _s;
+    }
+  return _lst;
+}
 
-static PyGetSetDef Reader_getset[]
-    = { { "file_type", (getter)Reader_getprop_file_type, NULL, "File type.\n",
-          NULL },
-        { "sample_type", (getter)Reader_getprop_sample_type, NULL,
-          "Sample type.\n", NULL },
-        { "mode", (getter)Reader_getprop_mode, NULL, "Mode.\n", NULL },
-        { "endian", (getter)Reader_getprop_endian, NULL, "Endian.\n", NULL },
-        { "fs", (getter)Reader_getprop_fs, NULL, "Fs.\n", NULL },
-        { "fc", (getter)Reader_getprop_fc, NULL, "Fc.\n", NULL },
-        { "num_samples", (getter)Reader_getprop_num_samples, NULL,
-          "Num samples.\n", NULL },
-        { "keywords", (getter)Reader_getprop_keywords, NULL,
-          "The BLUE extended header as a {tag: value} dict, in file order; "
-          "empty when the capture carries no extended header. Values follow "
-          "the keyword type: a str for A, an int/float for a single-element "
-          "numeric keyword, a list for a multi-element one. For a detached "
-          "capture these come from the HEADER file.\n",
-          NULL },
-        { NULL } };
+static PyObject *
+Reader_getprop_header (ReaderObject *self, void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  size_t    _n = wfm_reader_num_header_fields (self->handle);
+  PyObject *_c = PyDict_New ();
+  if (!_c)
+    return NULL;
+  for (size_t _i = 0; _i < _n; _i++)
+    {
+      const char *_k = wfm_reader_header_tag (self->handle, _i);
+      if (!_k)
+        {
+          PyErr_Format (
+              PyExc_RuntimeError,
+              "header: wfm_reader_header_tag returned NULL at index %zu", _i);
+          Py_DECREF (_c);
+          return NULL;
+        }
+      PyObject *_v
+          = Reader_decode_header (wfm_reader_header_field (self->handle, _i));
+      if (!_v)
+        {
+          Py_DECREF (_c);
+          return NULL;
+        }
+      if (PyDict_SetItemString (_c, _k, _v) != 0)
+        {
+          Py_DECREF (_v);
+          Py_DECREF (_c);
+          return NULL;
+        }
+      Py_DECREF (_v);
+    }
+  return _c;
+}
+
+static PyGetSetDef Reader_getset[] = {
+  { "file_type", (getter)Reader_getprop_file_type, NULL, "File type.\n",
+    NULL },
+  { "sample_type", (getter)Reader_getprop_sample_type, NULL, "Sample type.\n",
+    NULL },
+  { "mode", (getter)Reader_getprop_mode, NULL, "Mode.\n", NULL },
+  { "endian", (getter)Reader_getprop_endian, NULL, "Endian.\n", NULL },
+  { "fs", (getter)Reader_getprop_fs, NULL, "Fs.\n", NULL },
+  { "fc", (getter)Reader_getprop_fc, NULL, "Fc.\n", NULL },
+  { "num_samples", (getter)Reader_getprop_num_samples, NULL, "Num samples.\n",
+    NULL },
+  { "keywords", (getter)Reader_getprop_keywords, NULL,
+    "The BLUE extended header as a {tag: value} dict, in file order; empty "
+    "when the capture carries no extended header. Values follow the keyword "
+    "type: a str for A, an int/float for a single-element numeric keyword, a "
+    "list for a multi-element one. For a detached capture these come from the "
+    "HEADER file.\n",
+    NULL },
+  { "header", (getter)Reader_getprop_header, NULL,
+    "The BLUE header control block as a {field: value} dict, under the names "
+    "the format itself uses -- `version`, `head_rep`, `data_rep`, `detached`, "
+    "`protected`, `pipe`, `ext_start`, `ext_size`, `data_start`, `data_size`, "
+    "`type`, `format`, `flagmask`, `timecode`, `inlet`, `outlets`, `outmask`, "
+    "`pipeloc`, `pipesize`, `in_byte`, `out_byte`, `outbytes`, `keylength`, "
+    "and the type-1000 adjunct `xstart`, `xdelta`, `xunits`. Empty for a "
+    "non-BLUE container. Nothing is renamed or omitted, so what you see is "
+    "what the file holds; the decoded keywords are in `keywords`.\n",
+    NULL },
+  { NULL }
+};
 
 static PyObject *
 ReaderObj_destroy (ReaderObject *self, PyObject *Py_UNUSED (ignored))

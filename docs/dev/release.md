@@ -288,9 +288,22 @@ verbatim as the release notes.
 Worked examples: 0.6.0 (waveform generator), 0.7.0 (`read_iq`), 0.8.0 (the
 Python composer subsystem), and 0.9.0 (the `timing` pacing/timestamping
 subsystem) are all **feature** bumps. A bug-fix-only release off 0.8.0 would
-have been 0.8.1. 0.39.0 is a feature bump (`wfm.Reader.header`,
-`wfm_kw_check_standard()`) that *also* changed 38 C kernel signatures — the
-breakage is documented under `### Breaking` and had no bearing on the digit.
+have been 0.8.1.
+
+A release can be a feature bump *and* carry breakage: the one that added
+`wfm.Reader.header` and `wfm_kw_check_standard()` also changed 38 C kernel
+signatures. It took the FEATURE digit because it added functionality — the
+breakage went under `### Breaking` in the changelog and had no bearing on
+which digit moved.
+
+!!! warning "Don't hand-type the version you are about to release"
+
+    `scripts/check_version_strings.py` greps hand-owned docs for the literal
+    version in `pyproject.toml` and fires at *introduction* time. Naming the
+    next version here would pass today and then fail **the release bump PR
+    itself**, once `pyproject.toml` catches up. Describe releases by what they
+    contained, not by their number — historical numbers (0.8.0 above) are
+    fine, because they never match the current one.
 
 !!! note "Authoritative record"
 

@@ -25,7 +25,7 @@
  * corr_state_t *c = corr_create(ref, N, 8, 1);   // 8-frame coherent dwell
  * float complex out[N];
  * for (int i = 0; i < 8; i++) {
- *     size_t n_out = corr_execute(c, frame[i], N, out);
+ *     size_t n_out = corr_execute(c, frame[i], N, out, N);
  *     if (n_out) process(out, N);   // fires once, on i == 7
  * }
  * corr_destroy(c);
@@ -63,6 +63,12 @@ typedef struct {
   size_t n_out;             /**< Output length (== n unless decoupled).    */
   size_t dwell;             /**< Integration depth; dump every dwell calls. */
   size_t count;             /**< Frames accumulated so far (0 … dwell-1). */
+  /** Bounce buffer for a dump into an under-sized `out` (jm gh-138).
+   *  The inverse FFT's plan is fixed at n_out, so it cannot write a
+   *  partial surface -- a short `out` has to be served by inverting
+   *  here and copying the prefix. Allocated lazily, because the sized
+   *  path (everything the Python binding does) never needs it. */
+  float complex *work_trunc;
 } corr_state_t;
 
 /**
@@ -152,7 +158,10 @@ size_t corr_execute_max_out(corr_state_t *state);
  * @param n_in   Number of input samples; must equal state->n.
  * @param out    Output buffer for the correlation map (CF32, length n_out);
  *               written only on a dump call.
- * @return n_out on a dump call, 0 otherwise (None in Python).
+ * @param max_out Capacity of @p out in elements. Emission stops there, so the
+ *               return value is the number actually written.
+ * @return n_out on a dump call (or max_out if smaller), 0 otherwise
+ *         (None in Python).
  * @code
  * >>> from doppler.spectral import Corr
  * >>> import numpy as np
@@ -166,7 +175,7 @@ size_t corr_execute_max_out(corr_state_t *state);
  * @endcode
  */
 size_t corr_execute(corr_state_t *state, const float complex *in, size_t n_in,
-                    float complex *out);
+                    float complex *out, size_t max_out);
 
 /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
  * running product-spectrum accumulator + frame count;

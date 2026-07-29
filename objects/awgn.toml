@@ -23,8 +23,14 @@ arg_type = "void"
 return_type = "float _Complex"
 variable_output = true
 
+# Kernel is told its write limit (jm gh-138): an under-reporting max_out
+# truncates the emission instead of overrunning `out`.
+pass_capacity = true
 [[awgn.methods]]
 name = "reseed"
+# awgn_reseed returns void; without this jm inherits the object's
+# `float _Complex` return and generates an assignment that will not compile.
+return_type = "void"
 params = [{name = "seed", type = "uint64_t"}]
 
 [[awgn.properties]]

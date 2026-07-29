@@ -14,11 +14,6 @@
 typedef struct
 {
   PyObject_HEAD imdmeas_state_t *handle;
-  float *_spectrum_dbfs_buf;     /* pre-allocated output for spectrum_dbfs */
-  size_t _spectrum_dbfs_buf_cap; /* allocated capacity for spectrum_dbfs */
-  void **_spectrum_dbfs_retired; /* gh-219 deferred free */
-  size_t _spectrum_dbfs_retired_n;
-  size_t _spectrum_dbfs_retired_cap;
 } IMDMeasureObject;
 
 static void
@@ -26,10 +21,6 @@ IMDMeasureObj_dealloc (IMDMeasureObject *self)
 {
   if (self->handle)
     imdmeas_destroy (self->handle);
-  free (self->_spectrum_dbfs_buf);
-  for (size_t _i = 0; _i < self->_spectrum_dbfs_retired_n; _i++)
-    free (self->_spectrum_dbfs_retired[_i]);
-  free (self->_spectrum_dbfs_retired);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -64,19 +55,6 @@ IMDMeasureObj_init (IMDMeasureObject *self, PyObject *args, PyObject *kwds)
       PyErr_SetString (PyExc_MemoryError, "imdmeas_create returned NULL");
       return -1;
     }
-  {
-    size_t _max = imdmeas_spectrum_dbfs_max_out (self->handle);
-    if (_max)
-      {
-        self->_spectrum_dbfs_buf = malloc (_max * sizeof (float));
-        if (!self->_spectrum_dbfs_buf)
-          {
-            PyErr_NoMemory ();
-            return -1;
-          }
-        self->_spectrum_dbfs_buf_cap = _max;
-      }
-  }
   return 0;
 }
 
@@ -190,6 +168,19 @@ IMDMeasureObj_spectrum_dbfs (IMDMeasureObject *self, PyObject *args,
     return NULL;
   if (out_obj && out_obj != Py_None)
     {
+      /* Require the exact dtype AND C-contiguity — either mismatch makes
+       * the marshal write into a temp copy, not the caller's buffer. */
+      if (!PyArray_Check (out_obj)
+          || PyArray_TYPE ((PyArrayObject *)out_obj) != NPY_FLOAT
+          || !PyArray_IS_C_CONTIGUOUS ((PyArrayObject *)out_obj)
+          || !PyArray_ISWRITEABLE ((PyArrayObject *)out_obj))
+        {
+          PyErr_SetString (PyExc_TypeError,
+                           "out must be a writable, C-contiguous"
+                           " ndarray of the output dtype");
+          Py_DECREF (x_arr);
+          return NULL;
+        }
       PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
           out_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
       if (!out_arr)
@@ -212,7 +203,7 @@ IMDMeasureObj_spectrum_dbfs (IMDMeasureObject *self, PyObject *args,
         }
       size_t n_out = imdmeas_spectrum_dbfs (
           self->handle, (const float *)PyArray_DATA (x_arr),
-          (size_t)PyArray_SIZE (x_arr), (float *)PyArray_DATA (out_arr));
+          (size_t)PyArray_SIZE (x_arr), (float *)PyArray_DATA (out_arr), _cap);
       Py_DECREF (x_arr);
       npy_intp  _odim  = (npy_intp)n_out;
       PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_FLOAT,
@@ -226,54 +217,35 @@ IMDMeasureObj_spectrum_dbfs (IMDMeasureObject *self, PyObject *args,
       return _oview;
     }
   size_t _need = (size_t)PyArray_SIZE (x_arr);
-  if (!self->_spectrum_dbfs_buf || self->_spectrum_dbfs_buf_cap < _need)
+  size_t _cap  = imdmeas_spectrum_dbfs_max_out (self->handle);
+  if (!_cap || _cap < _need)
+    _cap = _need;
+  npy_intp  _adim = (npy_intp)_cap;
+  PyObject *arr0  = PyArray_SimpleNew (1, &_adim, NPY_FLOAT);
+  if (!arr0)
     {
-      size_t _max = imdmeas_spectrum_dbfs_max_out (self->handle);
-      if (!_max || _max < _need)
-        _max = _need;
-      if (self->_spectrum_dbfs_buf
-          && self->_spectrum_dbfs_retired_n
-                 == self->_spectrum_dbfs_retired_cap)
-        {
-          size_t _rcap = self->_spectrum_dbfs_retired_cap
-                             ? self->_spectrum_dbfs_retired_cap * 2
-                             : 4;
-          void **_rt   = realloc (self->_spectrum_dbfs_retired,
-                                  _rcap * sizeof (void *));
-          if (!_rt)
-            {
-              Py_DECREF (x_arr);
-              PyErr_NoMemory ();
-              return NULL;
-            }
-          self->_spectrum_dbfs_retired     = _rt;
-          self->_spectrum_dbfs_retired_cap = _rcap;
-        }
-      float *_tmp = malloc (_max * sizeof (float));
-      if (!_tmp)
-        {
-          Py_DECREF (x_arr);
-          PyErr_NoMemory ();
-          return NULL;
-        }
-      if (self->_spectrum_dbfs_buf)
-        self->_spectrum_dbfs_retired[self->_spectrum_dbfs_retired_n++]
-            = self->_spectrum_dbfs_buf;
-      self->_spectrum_dbfs_buf     = _tmp;
-      self->_spectrum_dbfs_buf_cap = _max;
+      Py_DECREF (x_arr);
+      return NULL;
     }
+  float *_d0   = (float *)PyArray_DATA ((PyArrayObject *)arr0);
   size_t n_out = imdmeas_spectrum_dbfs (
       self->handle, (const float *)PyArray_DATA (x_arr),
-      (size_t)PyArray_SIZE (x_arr), self->_spectrum_dbfs_buf);
-  npy_intp  dim = (npy_intp)n_out;
-  PyObject *arr = PyArray_SimpleNewFromData (1, &dim, NPY_FLOAT,
-                                             self->_spectrum_dbfs_buf);
-  if (!arr)
-    return NULL;
-  PyArray_SetBaseObject ((PyArrayObject *)arr, (PyObject *)self);
-  Py_INCREF (self);
+      (size_t)PyArray_SIZE (x_arr), _d0, _cap);
   Py_DECREF (x_arr);
-  return arr;
+  if ((size_t)n_out == _cap)
+    {
+      return arr0;
+    }
+  npy_intp     _odim = (npy_intp)n_out;
+  PyArray_Dims _rs0  = { &_odim, 1 };
+  PyObject *v0 = PyArray_Resize ((PyArrayObject *)arr0, &_rs0, 0, NPY_CORDER);
+  if (!v0)
+    {
+      Py_DECREF (arr0);
+      return NULL;
+    }
+  Py_DECREF (v0);
+  return arr0;
 }
 static PyObject *
 IMDMeasure_getprop_n (IMDMeasureObject *self, void *Py_UNUSED (closure))
@@ -350,7 +322,7 @@ static PyMethodDef IMDMeasureObj_methods[] = {
     "analyze(x) -> IMDMetrics record (f1, f2, p1_dbfs, p2_dbfs, imd2_dbc, "
     "imd3_dbc, imd2_freq, imd3_lo_freq, imd3_hi_freq, toi_dbfs, soi_dbfs, "
     "rbw_hz)." },
-  { "spectrum_dbfs", (PyCFunction)IMDMeasureObj_spectrum_dbfs,
+  { "spectrum_dbfs", (PyCFunction)(void *)IMDMeasureObj_spectrum_dbfs,
     METH_VARARGS | METH_KEYWORDS,
     "spectrum_dbfs(x) -> ndarray\n"
     "\n"

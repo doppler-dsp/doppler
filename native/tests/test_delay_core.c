@@ -73,7 +73,7 @@ main (void)
     delay_push (obj, 2.0 + 0.0 * I);
     delay_push (obj, 3.0 + 0.0 * I);
 
-    size_t n = delay_ptr (obj, 3, win);
+    size_t n = delay_ptr (obj, 3, win, 3);
     CHECK (n == 3);
     CHECK (ceq (win[0], 3.0 + 0.0 * I));
     CHECK (ceq (win[1], 2.0 + 0.0 * I));
@@ -87,7 +87,7 @@ main (void)
     double complex win[2];
 
     delay_push (obj, 10.0 + 0.0 * I);
-    size_t n = delay_push_ptr (obj, 20.0 + 0.0 * I, win);
+    size_t n = delay_push_ptr (obj, 20.0 + 0.0 * I, win, 2);
     CHECK (n == 2);
     CHECK (ceq (win[0], 20.0 + 0.0 * I));
     CHECK (ceq (win[1], 10.0 + 0.0 * I));
@@ -105,7 +105,7 @@ main (void)
       delay_push (obj, (double)i + 0.0 * I);
 
     /* Last 4 pushes: 5 6 7 8 → window = [8, 7, 6, 5] */
-    delay_ptr (obj, 4, win);
+    delay_ptr (obj, 4, win, 4);
     CHECK (ceq (win[0], 8.0 + 0.0 * I));
     CHECK (ceq (win[1], 7.0 + 0.0 * I));
     CHECK (ceq (win[2], 6.0 + 0.0 * I));
@@ -123,7 +123,7 @@ main (void)
     delay_write (obj, 2.0 + 0.0 * I);
     delay_write (obj, 3.0 + 0.0 * I);
 
-    delay_ptr (obj, 3, win);
+    delay_ptr (obj, 3, win, 3);
     CHECK (ceq (win[0], 3.0 + 0.0 * I));
     CHECK (ceq (win[1], 2.0 + 0.0 * I));
     CHECK (ceq (win[2], 1.0 + 0.0 * I));
@@ -141,7 +141,7 @@ main (void)
 
     /* After reset everything should be zero and head should be 0. */
     CHECK (obj->head == 0);
-    delay_ptr (obj, 4, win);
+    delay_ptr (obj, 4, win, 4);
     for (int i = 0; i < 4; i++)
       CHECK (ceq (win[i], 0.0 + 0.0 * I));
     delay_destroy (obj);
@@ -163,9 +163,48 @@ main (void)
     delay_push (obj, 1.5 + 2.5 * I);
     delay_push (obj, -3.0 + 4.0 * I);
 
-    delay_ptr (obj, 2, win);
+    delay_ptr (obj, 2, win, 2);
     CHECK (ceq (win[0], -3.0 + 4.0 * I));
     CHECK (ceq (win[1], 1.5 + 2.5 * I));
+    delay_destroy (obj);
+  }
+
+  /* ── short out: snapshot truncates, the ring still advances ─────────
+   * delay_ptr() is a pure read, so a short buffer just yields fewer
+   * samples.  delay_push_ptr() also MUTATES: the push has to land even
+   * when there is no room to report it back, or the window falls out of
+   * step with the sample stream.  Both are checked here. */
+  {
+    delay_state_t       *obj = delay_create (4);
+    double complex       win[4];
+    const double complex CANARY = -999.0 - 111.0 * I;
+
+    for (int i = 1; i <= 4; i++)
+      delay_push (obj, (double)i + 0.0 * I); /* window = [4, 3, 2, 1] */
+
+    for (size_t k = 0; k < 4; k++)
+      win[k] = CANARY;
+    CHECK (delay_ptr (obj, 4, win, 2) == 2);
+    CHECK (ceq (win[0], 4.0 + 0.0 * I));
+    CHECK (ceq (win[1], 3.0 + 0.0 * I));
+    CHECK (ceq (win[2], CANARY)); /* past capacity: untouched */
+    CHECK (ceq (win[3], CANARY));
+
+    /* max_out == 0 writes nothing. */
+    for (size_t k = 0; k < 4; k++)
+      win[k] = CANARY;
+    CHECK (delay_ptr (obj, 4, win, 0) == 0);
+    for (size_t k = 0; k < 4; k++)
+      CHECK (ceq (win[k], CANARY));
+
+    /* push_ptr with no room: the snapshot is empty, but sample 5 is in. */
+    CHECK (delay_push_ptr (obj, 5.0 + 0.0 * I, win, 0) == 0);
+    for (size_t k = 0; k < 4; k++)
+      CHECK (ceq (win[k], CANARY));
+    CHECK (delay_ptr (obj, 4, win, 4) == 4);
+    CHECK (ceq (win[0], 5.0 + 0.0 * I)); /* the push landed */
+    CHECK (ceq (win[1], 4.0 + 0.0 * I));
+
     delay_destroy (obj);
   }
 

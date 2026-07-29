@@ -62,11 +62,11 @@ main (void)
           = (float)cos (0.05 * (double)i) + I * (float)sin (0.05 * (double)i);
 
     HalfbandDecimator_state_t *ra = HalfbandDecimator_create (3, h);
-    size_t nA = HalfbandDecimator_execute (ra, in, L, outA);
+    size_t nA = HalfbandDecimator_execute (ra, in, L, outA, L);
     HalfbandDecimator_destroy (ra);
 
     HalfbandDecimator_state_t *r1 = HalfbandDecimator_create (3, h);
-    size_t nB   = HalfbandDecimator_execute (r1, in, cut, outB);
+    size_t nB   = HalfbandDecimator_execute (r1, in, cut, outB, cut);
     size_t sb   = HalfbandDecimator_state_bytes (r1);
     void  *blob = malloc (sb);
     HalfbandDecimator_get_state (r1, blob);
@@ -77,7 +77,8 @@ main (void)
     ((char *)blob)[0] ^= (char)0xFF; /* clobber envelope -> reject */
     CHECK (HalfbandDecimator_set_state (r2, blob) == DP_ERR_INVALID);
     ((char *)blob)[0] ^= (char)0xFF;
-    nB += HalfbandDecimator_execute (r2, in + cut, L - cut, outB + nB);
+    nB += HalfbandDecimator_execute (r2, in + cut, L - cut, outB + nB,
+                                     L - cut);
     HalfbandDecimator_destroy (r2);
     free (blob);
 
@@ -89,6 +90,29 @@ main (void)
     free (outA);
     free (outB);
   }
+  /* ── pass_capacity: emission stops at max_out (jm gh-138) ────────── */
+  {
+    /* 2:1 decimation: 64 inputs would emit 32, but the caller only has
+     * room for 5. The wrapper used to pass a fixed HBDECIM_MAX_OUT. */
+    float                      h[3] = { 0.25f, 0.5f, 0.25f };
+    HalfbandDecimator_state_t *d    = HalfbandDecimator_create (3, h);
+    float complex              in[64], out[64];
+    CHECK (d != NULL);
+    for (int i = 0; i < 64; i++)
+      {
+        in[i]  = (float)i + 0.0f * I;
+        out[i] = 42.0f + 42.0f * I;
+      }
+    size_t n = HalfbandDecimator_execute (d, in, 64, out, 5);
+    CHECK (n <= 5);
+    for (size_t i = n; i < 64; i++)
+      CHECK (out[i] == 42.0f + 42.0f * I); /* tail untouched */
+
+    /* Zero capacity emits nothing at all. */
+    CHECK (HalfbandDecimator_execute (d, in, 64, out, 0) == 0);
+    HalfbandDecimator_destroy (d);
+  }
+
   if (_fails)
     {
       fprintf (stderr, "test_HalfbandDecimator_core FAILED (%d)\n", _fails);

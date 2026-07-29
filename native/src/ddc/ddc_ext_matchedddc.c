@@ -14,26 +14,6 @@
 typedef struct
 {
   PyObject_HEAD ddc_state_t *handle;
-  float complex *_execute_buf;     /* pre-allocated output for execute */
-  size_t         _execute_buf_cap; /* allocated capacity for execute */
-  void         **_execute_retired; /* gh-219 deferred free */
-  size_t         _execute_retired_n;
-  size_t         _execute_retired_cap;
-  PyObject      *_execute_view_ref; /* gh-437 last returned view */
-  float complex *_execute_ctrl_buf; /* pre-allocated output for execute_ctrl */
-  size_t    _execute_ctrl_buf_cap;  /* allocated capacity for execute_ctrl */
-  void    **_execute_ctrl_retired;  /* gh-219 deferred free */
-  size_t    _execute_ctrl_retired_n;
-  size_t    _execute_ctrl_retired_cap;
-  PyObject *_execute_ctrl_view_ref; /* gh-437 last returned view */
-  float complex
-      *_execute_ctrl_push_buf; /* pre-allocated output for execute_ctrl_push */
-  size_t _execute_ctrl_push_buf_cap;    /* allocated capacity for
-                                           execute_ctrl_push */
-  void    **_execute_ctrl_push_retired; /* gh-219 deferred free */
-  size_t    _execute_ctrl_push_retired_n;
-  size_t    _execute_ctrl_push_retired_cap;
-  PyObject *_execute_ctrl_push_view_ref; /* gh-437 last returned view */
 } MatchedDDCObject;
 
 static void
@@ -41,21 +21,6 @@ MatchedDDCObj_dealloc (MatchedDDCObject *self)
 {
   if (self->handle)
     ddc_destroy (self->handle);
-  free (self->_execute_buf);
-  for (size_t _i = 0; _i < self->_execute_retired_n; _i++)
-    free (self->_execute_retired[_i]);
-  free (self->_execute_retired);
-  Py_XDECREF (self->_execute_view_ref);
-  free (self->_execute_ctrl_buf);
-  for (size_t _i = 0; _i < self->_execute_ctrl_retired_n; _i++)
-    free (self->_execute_ctrl_retired[_i]);
-  free (self->_execute_ctrl_retired);
-  Py_XDECREF (self->_execute_ctrl_view_ref);
-  free (self->_execute_ctrl_push_buf);
-  for (size_t _i = 0; _i < self->_execute_ctrl_push_retired_n; _i++)
-    free (self->_execute_ctrl_push_retired[_i]);
-  free (self->_execute_ctrl_push_retired);
-  Py_XDECREF (self->_execute_ctrl_push_view_ref);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -103,48 +68,12 @@ MatchedDDCObj_init (MatchedDDCObject *self, PyObject *args, PyObject *kwds)
                                           pulse_sps, num_phases);
   if (!self->handle)
     {
-      PyErr_SetString (PyExc_MemoryError, "ddc_create_matched returned NULL");
+      PyErr_SetString (PyExc_ValueError,
+                       "DDC: invalid parameter (need rate > 0, 0 <= beta <= "
+                       "1, span >= 1, pulse_sps > 0, num_phases a power of "
+                       "two >= 2)");
       return -1;
     }
-  {
-    size_t _max = ddc_execute_max_out (self->handle);
-    if (_max)
-      {
-        self->_execute_buf = malloc (_max * sizeof (float complex));
-        if (!self->_execute_buf)
-          {
-            PyErr_NoMemory ();
-            return -1;
-          }
-        self->_execute_buf_cap = _max;
-      }
-  }
-  {
-    size_t _max = ddc_execute_ctrl_max_out (self->handle);
-    if (_max)
-      {
-        self->_execute_ctrl_buf = malloc (_max * sizeof (float complex));
-        if (!self->_execute_ctrl_buf)
-          {
-            PyErr_NoMemory ();
-            return -1;
-          }
-        self->_execute_ctrl_buf_cap = _max;
-      }
-  }
-  {
-    size_t _max = ddc_execute_ctrl_push_max_out (self->handle);
-    if (_max)
-      {
-        self->_execute_ctrl_push_buf = malloc (_max * sizeof (float complex));
-        if (!self->_execute_ctrl_push_buf)
-          {
-            PyErr_NoMemory ();
-            return -1;
-          }
-        self->_execute_ctrl_push_buf_cap = _max;
-      }
-  }
   if (self->handle->narrow_pulse)
     {
       if (PyErr_WarnEx (PyExc_UserWarning,
@@ -194,6 +123,19 @@ MatchedDDCObj_execute (MatchedDDCObject *self, PyObject *args, PyObject *kwds)
     return NULL;
   if (out_obj && out_obj != Py_None)
     {
+      /* Require the exact dtype AND C-contiguity — either mismatch makes
+       * the marshal write into a temp copy, not the caller's buffer. */
+      if (!PyArray_Check (out_obj)
+          || PyArray_TYPE ((PyArrayObject *)out_obj) != NPY_COMPLEX64
+          || !PyArray_IS_C_CONTIGUOUS ((PyArrayObject *)out_obj)
+          || !PyArray_ISWRITEABLE ((PyArrayObject *)out_obj))
+        {
+          PyErr_SetString (PyExc_TypeError,
+                           "out must be a writable, C-contiguous"
+                           " ndarray of the output dtype");
+          Py_DECREF (x_arr);
+          return NULL;
+        }
       PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
           out_obj, NPY_COMPLEX64,
           NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
@@ -238,56 +180,18 @@ MatchedDDCObj_execute (MatchedDDCObject *self, PyObject *args, PyObject *kwds)
       PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
       return _oview;
     }
-  size_t _need      = (size_t)PyArray_SIZE (x_arr);
-  int    _view_live = 0;
-  if (self->_execute_view_ref)
+  size_t _need = (size_t)PyArray_SIZE (x_arr);
+  size_t _cap  = ddc_execute_max_out (self->handle);
+  if (!_cap || _cap < _need)
+    _cap = _need;
+  npy_intp  _adim = (npy_intp)_cap;
+  PyObject *arr0  = PyArray_SimpleNew (1, &_adim, NPY_COMPLEX64);
+  if (!arr0)
     {
-#if PY_VERSION_HEX >= 0x030D0000
-      PyObject *_lv = NULL;
-      if (PyWeakref_GetRef (self->_execute_view_ref, &_lv) == 1)
-        {
-          Py_DECREF (_lv);
-          _view_live = 1;
-        }
-#else
-      _view_live = PyWeakref_GetObject (self->_execute_view_ref) != Py_None;
-#endif
+      Py_DECREF (x_arr);
+      return NULL;
     }
-  if (!self->_execute_buf || self->_execute_buf_cap < _need || _view_live)
-    {
-      size_t _max = ddc_execute_max_out (self->handle);
-      if (!_max || _max < _need)
-        _max = _need;
-      if (self->_execute_buf
-          && self->_execute_retired_n == self->_execute_retired_cap)
-        {
-          size_t _rcap = self->_execute_retired_cap
-                             ? self->_execute_retired_cap * 2
-                             : 4;
-          void **_rt
-              = realloc (self->_execute_retired, _rcap * sizeof (void *));
-          if (!_rt)
-            {
-              Py_DECREF (x_arr);
-              PyErr_NoMemory ();
-              return NULL;
-            }
-          self->_execute_retired     = _rt;
-          self->_execute_retired_cap = _rcap;
-        }
-      float complex *_tmp = malloc (_max * sizeof (float complex));
-      if (!_tmp)
-        {
-          Py_DECREF (x_arr);
-          PyErr_NoMemory ();
-          return NULL;
-        }
-      if (self->_execute_buf)
-        self->_execute_retired[self->_execute_retired_n++]
-            = self->_execute_buf;
-      self->_execute_buf     = _tmp;
-      self->_execute_buf_cap = _max;
-    }
+  float complex *_d0 = (float complex *)PyArray_DATA ((PyArrayObject *)arr0);
   /* nogil: GIL released across the pure-C kernel — sound only when
    * this object is not shared across threads concurrently (one
    * object per stream); the kernel touches only this object's
@@ -296,27 +200,23 @@ MatchedDDCObj_execute (MatchedDDCObject *self, PyObject *args, PyObject *kwds)
   size_t               _ng1 = (size_t)PyArray_SIZE (x_arr);
   size_t               n_out;
   Py_BEGIN_ALLOW_THREADS
-    n_out = ddc_execute (self->handle, _ng0, _ng1, self->_execute_buf,
-                         self->_execute_buf_cap);
+    n_out = ddc_execute (self->handle, _ng0, _ng1, _d0, _cap);
   Py_END_ALLOW_THREADS
-  npy_intp  dim = (npy_intp)n_out;
-  PyObject *arr
-      = PyArray_SimpleNewFromData (1, &dim, NPY_COMPLEX64, self->_execute_buf);
-  if (!arr)
-    return NULL;
-  PyArray_SetBaseObject ((PyArrayObject *)arr, (PyObject *)self);
-  Py_INCREF (self);
-  /* gh-437: remember this view — while the caller holds it the next
-   * call retires the buffer instead of reusing it in place. */
-  Py_XDECREF (self->_execute_view_ref);
-  self->_execute_view_ref = PyWeakref_NewRef (arr, NULL);
-  if (!self->_execute_view_ref)
+  Py_DECREF (x_arr);
+  if ((size_t)n_out == _cap)
     {
-      Py_DECREF (arr);
+      return arr0;
+    }
+  npy_intp     _odim = (npy_intp)n_out;
+  PyArray_Dims _rs0  = { &_odim, 1 };
+  PyObject *v0 = PyArray_Resize ((PyArrayObject *)arr0, &_rs0, 0, NPY_CORDER);
+  if (!v0)
+    {
+      Py_DECREF (arr0);
       return NULL;
     }
-  Py_DECREF (x_arr);
-  return arr;
+  Py_DECREF (v0);
+  return arr0;
 }
 
 static PyObject *
@@ -340,58 +240,18 @@ MatchedDDCObj_execute_ctrl (MatchedDDCObject *self, PyObject *args,
                                              NPY_ARRAY_C_CONTIGUOUS);
   if (!x_arr)
     return NULL;
-  size_t _need      = (size_t)PyArray_SIZE (x_arr);
-  int    _view_live = 0;
-  if (self->_execute_ctrl_view_ref)
+  size_t _need = (size_t)PyArray_SIZE (x_arr);
+  size_t _cap  = ddc_execute_ctrl_max_out (self->handle);
+  if (!_cap || _cap < _need)
+    _cap = _need;
+  npy_intp  _adim = (npy_intp)_cap;
+  PyObject *arr0  = PyArray_SimpleNew (1, &_adim, NPY_COMPLEX64);
+  if (!arr0)
     {
-#if PY_VERSION_HEX >= 0x030D0000
-      PyObject *_lv = NULL;
-      if (PyWeakref_GetRef (self->_execute_ctrl_view_ref, &_lv) == 1)
-        {
-          Py_DECREF (_lv);
-          _view_live = 1;
-        }
-#else
-      _view_live
-          = PyWeakref_GetObject (self->_execute_ctrl_view_ref) != Py_None;
-#endif
+      Py_DECREF (x_arr);
+      return NULL;
     }
-  if (!self->_execute_ctrl_buf || self->_execute_ctrl_buf_cap < _need
-      || _view_live)
-    {
-      size_t _max = ddc_execute_ctrl_max_out (self->handle);
-      if (!_max || _max < _need)
-        _max = _need;
-      if (self->_execute_ctrl_buf
-          && self->_execute_ctrl_retired_n == self->_execute_ctrl_retired_cap)
-        {
-          size_t _rcap = self->_execute_ctrl_retired_cap
-                             ? self->_execute_ctrl_retired_cap * 2
-                             : 4;
-          void **_rt
-              = realloc (self->_execute_ctrl_retired, _rcap * sizeof (void *));
-          if (!_rt)
-            {
-              Py_DECREF (x_arr);
-              PyErr_NoMemory ();
-              return NULL;
-            }
-          self->_execute_ctrl_retired     = _rt;
-          self->_execute_ctrl_retired_cap = _rcap;
-        }
-      float complex *_tmp = malloc (_max * sizeof (float complex));
-      if (!_tmp)
-        {
-          Py_DECREF (x_arr);
-          PyErr_NoMemory ();
-          return NULL;
-        }
-      if (self->_execute_ctrl_buf)
-        self->_execute_ctrl_retired[self->_execute_ctrl_retired_n++]
-            = self->_execute_ctrl_buf;
-      self->_execute_ctrl_buf     = _tmp;
-      self->_execute_ctrl_buf_cap = _max;
-    }
+  float complex *_d0 = (float complex *)PyArray_DATA ((PyArrayObject *)arr0);
   /* nogil: GIL released across the pure-C kernel — sound only when
    * this object is not shared across threads concurrently (one
    * object per stream); the kernel touches only this object's
@@ -401,27 +261,23 @@ MatchedDDCObj_execute_ctrl (MatchedDDCObject *self, PyObject *args,
   size_t               n_out;
   Py_BEGIN_ALLOW_THREADS
     n_out = ddc_execute_ctrl (self->handle, _ng0, _ng1, rate_ctrl, freq_ctrl,
-                              self->_execute_ctrl_buf,
-                              self->_execute_ctrl_buf_cap);
+                              _d0, _cap);
   Py_END_ALLOW_THREADS
-  npy_intp  dim = (npy_intp)n_out;
-  PyObject *arr = PyArray_SimpleNewFromData (1, &dim, NPY_COMPLEX64,
-                                             self->_execute_ctrl_buf);
-  if (!arr)
-    return NULL;
-  PyArray_SetBaseObject ((PyArrayObject *)arr, (PyObject *)self);
-  Py_INCREF (self);
-  /* gh-437: remember this view — while the caller holds it the next
-   * call retires the buffer instead of reusing it in place. */
-  Py_XDECREF (self->_execute_ctrl_view_ref);
-  self->_execute_ctrl_view_ref = PyWeakref_NewRef (arr, NULL);
-  if (!self->_execute_ctrl_view_ref)
+  Py_DECREF (x_arr);
+  if ((size_t)n_out == _cap)
     {
-      Py_DECREF (arr);
+      return arr0;
+    }
+  npy_intp     _odim = (npy_intp)n_out;
+  PyArray_Dims _rs0  = { &_odim, 1 };
+  PyObject *v0 = PyArray_Resize ((PyArrayObject *)arr0, &_rs0, 0, NPY_CORDER);
+  if (!v0)
+    {
+      Py_DECREF (arr0);
       return NULL;
     }
-  Py_DECREF (x_arr);
-  return arr;
+  Py_DECREF (v0);
+  return arr0;
 }
 
 static PyObject *
@@ -440,78 +296,34 @@ MatchedDDCObj_execute_ctrl_push (MatchedDDCObject *self, PyObject *args,
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "Ddd", _kwlist, &x_raw,
                                     &rate_ctrl, &freq_ctrl))
     return NULL;
-  float complex x          = (float)x_raw.real + (float)x_raw.imag * I;
-  size_t        _need      = ddc_execute_ctrl_push_max_out (self->handle);
-  int           _view_live = 0;
-  if (self->_execute_ctrl_push_view_ref)
+  float complex x     = (float)x_raw.real + (float)x_raw.imag * I;
+  size_t        _need = ddc_execute_ctrl_push_max_out (self->handle);
+  size_t        _cap  = ddc_execute_ctrl_push_max_out (self->handle);
+  if (!_cap || _cap < _need)
+    _cap = _need;
+  npy_intp  _adim = (npy_intp)_cap;
+  PyObject *arr0  = PyArray_SimpleNew (1, &_adim, NPY_COMPLEX64);
+  if (!arr0)
     {
-#if PY_VERSION_HEX >= 0x030D0000
-      PyObject *_lv = NULL;
-      if (PyWeakref_GetRef (self->_execute_ctrl_push_view_ref, &_lv) == 1)
-        {
-          Py_DECREF (_lv);
-          _view_live = 1;
-        }
-#else
-      _view_live
-          = PyWeakref_GetObject (self->_execute_ctrl_push_view_ref) != Py_None;
-#endif
-    }
-  if (!self->_execute_ctrl_push_buf || self->_execute_ctrl_push_buf_cap < _need
-      || _view_live)
-    {
-      size_t _max = ddc_execute_ctrl_push_max_out (self->handle);
-      if (!_max || _max < _need)
-        _max = _need;
-      if (self->_execute_ctrl_push_buf
-          && self->_execute_ctrl_push_retired_n
-                 == self->_execute_ctrl_push_retired_cap)
-        {
-          size_t _rcap = self->_execute_ctrl_push_retired_cap
-                             ? self->_execute_ctrl_push_retired_cap * 2
-                             : 4;
-          void **_rt   = realloc (self->_execute_ctrl_push_retired,
-                                  _rcap * sizeof (void *));
-          if (!_rt)
-            {
-              PyErr_NoMemory ();
-              return NULL;
-            }
-          self->_execute_ctrl_push_retired     = _rt;
-          self->_execute_ctrl_push_retired_cap = _rcap;
-        }
-      float complex *_tmp = malloc (_max * sizeof (float complex));
-      if (!_tmp)
-        {
-          PyErr_NoMemory ();
-          return NULL;
-        }
-      if (self->_execute_ctrl_push_buf)
-        self->_execute_ctrl_push_retired[self->_execute_ctrl_push_retired_n++]
-            = self->_execute_ctrl_push_buf;
-      self->_execute_ctrl_push_buf     = _tmp;
-      self->_execute_ctrl_push_buf_cap = _max;
-    }
-  size_t n_out  = ddc_execute_ctrl_push (self->handle, x, rate_ctrl, freq_ctrl,
-                                         self->_execute_ctrl_push_buf,
-                                         self->_execute_ctrl_push_buf_cap);
-  npy_intp  dim = (npy_intp)n_out;
-  PyObject *arr = PyArray_SimpleNewFromData (1, &dim, NPY_COMPLEX64,
-                                             self->_execute_ctrl_push_buf);
-  if (!arr)
-    return NULL;
-  PyArray_SetBaseObject ((PyArrayObject *)arr, (PyObject *)self);
-  Py_INCREF (self);
-  /* gh-437: remember this view — while the caller holds it the next
-   * call retires the buffer instead of reusing it in place. */
-  Py_XDECREF (self->_execute_ctrl_push_view_ref);
-  self->_execute_ctrl_push_view_ref = PyWeakref_NewRef (arr, NULL);
-  if (!self->_execute_ctrl_push_view_ref)
-    {
-      Py_DECREF (arr);
       return NULL;
     }
-  return arr;
+  float complex *_d0 = (float complex *)PyArray_DATA ((PyArrayObject *)arr0);
+  size_t n_out = ddc_execute_ctrl_push (self->handle, x, rate_ctrl, freq_ctrl,
+                                        _d0, _cap);
+  if ((size_t)n_out == _cap)
+    {
+      return arr0;
+    }
+  npy_intp     _odim = (npy_intp)n_out;
+  PyArray_Dims _rs0  = { &_odim, 1 };
+  PyObject *v0 = PyArray_Resize ((PyArrayObject *)arr0, &_rs0, 0, NPY_CORDER);
+  if (!v0)
+    {
+      Py_DECREF (arr0);
+      return NULL;
+    }
+  Py_DECREF (v0);
+  return arr0;
 }
 
 static PyObject *
@@ -628,7 +440,6 @@ MatchedDDC_getprop_clipped (MatchedDDCObject *self, void *Py_UNUSED (closure))
   /* <<IMPLEMENT: return the computed or stored value>> */
   return PyBool_FromLong ((long)(ddc_get_clipped (self->handle)));
 }
-
 static PyObject *
 MatchedDDC_getprop_narrow_pulse (MatchedDDCObject *self,
                                  void             *Py_UNUSED (closure))
@@ -691,7 +502,7 @@ MatchedDDCObj_exit (MatchedDDCObject *self, PyObject *args)
 
 static PyMethodDef MatchedDDCObj_methods[] = {
 
-  { "execute", (PyCFunction)MatchedDDCObj_execute,
+  { "execute", (PyCFunction)(void *)MatchedDDCObj_execute,
     METH_VARARGS | METH_KEYWORDS,
     "execute(x) -> ndarray\n"
     "\n"
@@ -706,7 +517,7 @@ static PyMethodDef MatchedDDCObj_methods[] = {
   { "execute_max_out", (PyCFunction)MatchedDDCObj_execute_max_out, METH_NOARGS,
     "execute_max_out() -> int\n\nMax output length execute() can produce for "
     "the current state.\nUse to size the ``out=`` buffer." },
-  { "execute_ctrl", (PyCFunction)MatchedDDCObj_execute_ctrl,
+  { "execute_ctrl", (PyCFunction)(void *)MatchedDDCObj_execute_ctrl,
     METH_VARARGS | METH_KEYWORDS,
     "execute_ctrl(x) -> ndarray\n"
     "\n"
@@ -718,7 +529,7 @@ static PyMethodDef MatchedDDCObj_methods[] = {
     "    >>> y = obj.execute_ctrl(np.zeros(4))\n"
     "    >>> y.dtype\n"
     "    dtype('complex64')\n" },
-  { "execute_ctrl_push", (PyCFunction)MatchedDDCObj_execute_ctrl_push,
+  { "execute_ctrl_push", (PyCFunction)(void *)MatchedDDCObj_execute_ctrl_push,
     METH_VARARGS | METH_KEYWORDS,
     "execute_ctrl_push(n=1) -> ndarray\n"
     "\n"

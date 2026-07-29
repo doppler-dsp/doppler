@@ -1,9 +1,11 @@
 # wfm_compose.pyi — composer OO types (jm; gh-287).
 from __future__ import annotations
 from typing import Any, Iterator
+from typing_extensions import disjoint_base
 import numpy as np
 from numpy.typing import NDArray
 
+@disjoint_base
 class Synth:
     """Synth.
 
@@ -69,7 +71,32 @@ class Synth:
         Sample rate in Hz — one per segment (all sources share it).
     """
     def __init__(self, type: str = ..., freq: float | tuple[float, float] = ..., snr: float | tuple[float, float] = ..., snr_mode: str = ..., seed: int = ..., sps: int = ..., pn_length: int = ..., pn_poly: int = ..., lfsr: str = ..., level: float | tuple[float, float] = ..., background: int = ..., f_end: float | tuple[float, float] = ..., bits: bytes | None = ..., modulation: str = ..., pulse: str = ..., rrc_beta: float = ..., rrc_span: int = ..., symbols: NDArray[np.complex64] | None = ..., acq_code: bytes | None = ..., acq_reps: int = ..., data_code: bytes | None = ..., sync: bytes | None = ..., crc: str = ..., symbol_rate: float = ..., dsss_code_only: int = ..., fs: float = ...) -> None: ...
-    def __getattr__(self, name: str) -> Any: ...
+    type: str
+    freq: float | tuple[float, float]
+    snr: float | tuple[float, float]
+    snr_mode: str
+    seed: int
+    sps: int
+    pn_length: int
+    pn_poly: int
+    lfsr: str
+    level: float | tuple[float, float]
+    background: int
+    f_end: float | tuple[float, float]
+    bits: bytes | None
+    modulation: str
+    pulse: str
+    rrc_beta: float
+    rrc_span: int
+    symbols: NDArray[np.complex64] | None
+    acq_code: bytes | None
+    acq_reps: int
+    data_code: bytes | None
+    sync: bytes | None
+    crc: str
+    symbol_rate: float
+    dsss_code_only: int
+    fs: float
     def steps(self, n: int) -> NDArray[np.complex64]:
         """Generate *n* complex samples."""
     def step(self) -> complex:
@@ -77,6 +104,7 @@ class Synth:
     def reset(self) -> None:
         """Reset to initial state."""
 
+@disjoint_base
 class Segment:
     """Segment.
 
@@ -153,6 +181,12 @@ class Segment:
         One of ``"auto"``, ``"off"``.
     """
     sources: list[Synth]
+    fs: float
+    num_samples: int | tuple[int, int]
+    off_samples: int | tuple[int, int]
+    repeats: int
+    delay_samples: int | tuple[int, int]
+    gap_noise: str
     type: str
     freq: float
     snr: float
@@ -185,16 +219,18 @@ class Segment:
     def add(self, *others: Segment) -> Timeline:
         """Append segments; return a Timeline."""
 
+@disjoint_base
 class Timeline:
     """Timeline."""
     segments: list[Segment]
     def __init__(self, segments: list[Segment]) -> None: ...
     def add(self, *segments: Segment) -> Timeline:
         """Append and return self."""
-    def __iter__(self): ...
+    def __iter__(self) -> Iterator[Segment]: ...
     def __len__(self) -> int: ...
-    def __getitem__(self, i): ...
+    def __getitem__(self, i: int, /) -> Segment: ...
 
+@disjoint_base
 class Composer:
     """Composer.
 

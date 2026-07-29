@@ -81,7 +81,7 @@ demo_corr_1d (void)
     x[k] = ref[(k + N - LAG) % N];
 
   corr_state_t *c = corr_create (ref, N, 1, 1, 0);
-  corr_execute (c, x, N, out);
+  corr_execute (c, x, N, out, N);
   corr_destroy (c);
 
   /* Find peak. */
@@ -135,7 +135,7 @@ demo_corr_dwell (void)
   corr_state_t *c = corr_create (ref, N, DWELL, 1, 0);
   for (size_t i = 0; i < DWELL; i++)
     {
-      size_t n_out = corr_execute (c, ref, N, out);
+      size_t n_out = corr_execute (c, ref, N, out, N);
       if (n_out == 0)
         printf ("  frame %zu/%zu : accumulating  (count=%zu)\n", i + 1, DWELL,
                 c->count);
@@ -161,7 +161,7 @@ demo_corr2d (void)
   circ_shift_2d (x, ref, NY, NX, DR, DC);
 
   corr2d_state_t *c = corr2d_create (ref, NY, NX, 1, 1, 0, 0);
-  corr2d_execute (c, x, N, out);
+  corr2d_execute (c, x, N, out, N);
   corr2d_destroy (c);
 
   size_t peak_flat = 0;

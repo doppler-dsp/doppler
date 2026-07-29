@@ -255,8 +255,8 @@ detector_push (detector_state_t *state, const float complex *in, size_t n_in,
           float complex *frame
               = (float complex *)(state->ring->data
                                   + (t & state->ring->mask) * 2);
-          size_t n_out
-              = corr_execute (state->corr, frame, state->n, state->out_buf);
+          size_t n_out = corr_execute (state->corr, frame, state->n,
+                                       state->out_buf, state->n);
           dp_f32_consume (state->ring, state->n);
 
           if (n_out == 0)

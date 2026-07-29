@@ -14,18 +14,13 @@ BLOCK_64K = 65_536
 @pytest.fixture
 def obj():
     return DsssReceiver(
-        np.zeros(1, dtype=np.uint8),
-        1000000.0,
-        1000.0,
-        2,
-        2,
-        55.0,
-        1e-3,
-        0.9,
-        100.0,
-        16,
-        8,
-        4,
-        8,
-        0,
+        code=np.zeros(1023, dtype=np.uint8),
+        chip_rate=1.0e6,
+        symbol_rate=1000.0,
+        spc=2,
+        m=2,
+        cn0_dbhz=55.0,
+        doppler_uncertainty=100.0,
+        segments=4,
+        sps=8,
     )

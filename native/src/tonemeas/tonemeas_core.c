@@ -130,7 +130,7 @@ build_real (tonemeas_state_t *s, const float *x, size_t n_in)
 {
   psd_reset (s->psd);
   psd_accumulate_real (s->psd, x, n_in);
-  return psd_power_onesided (s->psd, s->nfft / 2 + 1, s->pwr);
+  return psd_power_onesided (s->psd, s->nfft / 2 + 1, s->pwr, s->nfft / 2 + 1);
 }
 
 /* Average a complex capture over its segments, return the DC-centred two-sided
@@ -140,7 +140,7 @@ build_complex (tonemeas_state_t *s, const float complex *x, size_t n_in)
 {
   psd_reset (s->psd);
   psd_accumulate (s->psd, x, n_in);
-  return psd_power_twosided (s->psd, s->nfft, s->pwr);
+  return psd_power_twosided (s->psd, s->nfft, s->pwr, s->nfft);
 }
 
 /* Fold harmonic frequency k*f0 into the analysed band.
@@ -391,15 +391,21 @@ tonemeas_spectrum_dbfs_max_out (tonemeas_state_t *state)
 
 size_t
 tonemeas_spectrum_dbfs (tonemeas_state_t *state, const float *x, size_t x_len,
-                        float *out)
+                        float *out, size_t max_out)
 {
   /* DC-centred two-sided dBFS view of a real capture (analyzer display):
    * the same averaged PSD the metrics use, scaled to the 0-dBFS reference. */
   psd_reset (state->psd);
   psd_accumulate_real (state->psd, x, x_len);
-  size_t nfft = psd_power_twosided (state->psd, state->nfft, state->pwr);
+  size_t nfft
+      = psd_power_twosided (state->psd, state->nfft, state->pwr, state->nfft);
   if (nfft == 0)
     return 0;
+  /* Emission stops at the caller's capacity (jm gh-138). The count
+     argument above is the INPUT capture length; the output length is
+     the analyser's nfft, so this is the only real bound. */
+  if (nfft > max_out)
+    nfft = max_out;
   double ref = state->psd->full_scale * state->psd->full_scale;
   for (size_t i = 0; i < nfft; i++)
     out[i] = (float)(10.0 * log10 ((double)state->pwr[i] / ref + TM_EPS));

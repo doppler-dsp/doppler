@@ -79,6 +79,31 @@ extern "C"
   size_t wfm_kw_elem_size (char type);
 
   /**
+   * @brief Advisory conformance check for the standard BLUE keywords.
+   *
+   * The keywords of Midas BLUE 1.1 3.4.2 have defined value formats --
+   * `ACQDATE` is `YY.DDD` or (Platinum-compatibility) `YYYYMMDD`, `ACQTIME`
+   * is `HH:MM:SS`, `COMMENT` and `TIMELINE` are free-form text -- while
+   * `SUBREC_DEF`, `SUBREC_DESCRIP` and `T4INDEX` describe type-6000/4000
+   * structures a type-1000 file does not have.
+   *
+   * This is ADVISORY. 3.4.2 leaves the effect of these keywords to the
+   * consuming system, so nothing here refuses to write one; the check exists
+   * so a caller can find out before committing a capture.
+   *
+   * @return 1 conforms, -1 does not, 0 the tag is not a standard keyword.
+   *
+   * @code
+   * wfm_kw_check_standard("ACQTIME", 'A', "12:34:56", 8);  // 1
+   * wfm_kw_check_standard("ACQTIME", 'A', "12:34", 5);     // -1
+   * wfm_kw_check_standard("MY_TAG",  'A', "anything", 8);  // 0
+   * @endcode
+   */
+  int wfm_kw_check_standard(const char *tag, char type, const void *value,
+                            size_t count);
+
+
+  /**
    * @brief Total encoded size (`lkey`) of a keyword, including padding.
    *
    * @param ltag   tag length in characters (1..WFM_KW_MAX_TAG).

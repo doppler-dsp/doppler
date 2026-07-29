@@ -549,7 +549,7 @@ wfm_synth_steps (wfm_synth_state_t *state, float complex *output, size_t n)
       size_t         m   = (n - done < (size_t)CH) ? (n - done) : (size_t)CH;
       float complex *out = output + done;
       if (has_lo)
-        lo_steps (state->lo, m, carrier);
+        lo_steps (state->lo, m, carrier, m);
       else if (is_chirp)
         /* Swept carrier, generated per sample with the same phase recurrence
          * as wfm_synth_step() — identical doubles, identical cexpf, so the
@@ -568,7 +568,7 @@ wfm_synth_steps (wfm_synth_state_t *state, float complex *output, size_t n)
             state->chirp_n++;
           }
       if (has_awgn)
-        awgn_generate (state->awgn, m, noise);
+        awgn_generate (state->awgn, m, noise, m);
 
       if (state->shaper)
         {
@@ -782,7 +782,7 @@ wfm_synth_steps (wfm_synth_state_t *state, float complex *output, size_t n)
       size_t    first = (sym_pos == 0) ? 0 : (size_t)(nsps - sym_pos);
       size_t    nb    = (first < m) ? 1 + (m - 1 - first) / (size_t)nsps : 0;
       if (nb)
-        pn_generate (state->pn, nb * (size_t)bps, chips);
+        pn_generate (state->pn, nb * (size_t)bps, chips, nb * (size_t)bps);
 
       if (state->fir)
         {
@@ -909,7 +909,7 @@ wfm_synth_noise_steps (wfm_synth_state_t *state, float complex *output,
   for (size_t done = 0; done < n;)
     {
       size_t m = (n - done < (size_t)CH) ? (n - done) : (size_t)CH;
-      awgn_generate (state->awgn, m, output + done);
+      awgn_generate (state->awgn, m, output + done, m);
       done += m;
     }
 }

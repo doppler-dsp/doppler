@@ -21,13 +21,13 @@ bench_n (int n, int iters, jm_bench_t *bench)
   float complex *buf = malloc ((size_t)n * sizeof *buf);
   double         times[ITERATIONS];
 
-  awgn_generate (g, (size_t)n, buf); /* warm up */
+  awgn_generate (g, (size_t)n, buf, (size_t)n); /* warm up */
 
   struct timespec t0, t1;
   for (int i = 0; i < iters; i++)
     {
       clock_gettime (CLOCK_MONOTONIC, &t0);
-      awgn_generate (g, (size_t)n, buf);
+      awgn_generate (g, (size_t)n, buf, (size_t)n);
       clock_gettime (CLOCK_MONOTONIC, &t1);
       times[i] = elapsed_sec (&t0, &t1);
     }

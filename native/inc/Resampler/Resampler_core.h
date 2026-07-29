@@ -9,7 +9,7 @@
  * @code
  *   Resampler_state_t *r = Resampler_create(0.5);
  *   float complex out[4096];
- *   size_t n = Resampler_execute(r, in, 1024, out);
+ *   size_t n = Resampler_execute(r, in, 1024, out, 1024);
  *   Resampler_destroy(r);
  * @endcode
  *
@@ -119,7 +119,10 @@ extern "C"
    * @param x      CF32 input samples.
    * @param x_len  Number of input samples.
    * @param out    Output buffer; must hold at least RESAMPLER_MAX_OUT samples.
-   * @return       CF32 output array; length is approximately x_len * rate.
+   * @param max_out Capacity of @p out in elements. Emission stops there, so
+   *                the return value is the number actually written.
+   * @return       CF32 output array; length is approximately x_len * rate,
+   *               capped at max_out.
    *
    * @code
    * >>> from doppler.resample import Resampler
@@ -131,7 +134,8 @@ extern "C"
    * @endcode
    */
   size_t Resampler_execute (Resampler_state_t *state, const float complex *x,
-                            size_t x_len, float complex *out);
+                            size_t x_len, float complex *out,
+                            size_t max_out);
 
   /** Always returns RESAMPLER_MAX_OUT. */
   size_t Resampler_execute_ctrl_max_out (Resampler_state_t *state);
@@ -151,8 +155,10 @@ extern "C"
    *                  used as a per-sample rate addend.
    * @param ctrl_len  Number of control samples; must equal x_len.
    * @param out       Output buffer; must hold at least RESAMPLER_MAX_OUT samples.
+   * @param max_out Capacity of @p out in elements. Emission stops there, so
+   *                the return value is the number actually written.
    * @return          CF32 output array; length depends on accumulated
-   *                  rate deviations.
+   *                  rate deviations, capped at max_out.
    *
    * @code
    * >>> from doppler.resample import Resampler
@@ -168,7 +174,7 @@ extern "C"
   size_t Resampler_execute_ctrl (Resampler_state_t *state,
                                  const float complex *x, size_t x_len,
                                  const float complex *ctrl, size_t ctrl_len,
-                                 float complex *out);
+                                 float complex *out, size_t max_out);
 
   /* ------------------------------------------------------------------ */
   /* Properties                                                          */

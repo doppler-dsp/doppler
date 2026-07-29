@@ -80,11 +80,11 @@ main (void)
     size_t n_drop = CIC_N * (R - 1) / R + 1;
     size_t n_meas = n_out - n_drop;
 
-    size_t n        = cic_decimate (cic, in_pass, n_in, out);
+    size_t n        = cic_decimate (cic, in_pass, n_in, out, n_out);
     double rms_pass = rms (out + n_drop, n_meas);
 
     cic_reset (cic);
-    n                = cic_decimate (cic, in_alias, n_in, out);
+    n                = cic_decimate (cic, in_alias, n_in, out, n_out);
     double rms_alias = rms (out + n_drop, n_meas);
 
     double rejection_db = 20.0 * log10 (rms_pass / (rms_alias + 1e-300));
@@ -145,11 +145,11 @@ main (void)
     cic_state_t *split = cic_create (R);
 
     /* Whole: one call of 4R samples → 4 outputs. */
-    cic_decimate (whole, in, n_in, out_whole);
+    cic_decimate (whole, in, n_in, out_whole, 4);
 
     /* Split: two calls of 2R samples each → 2 outputs per call. */
-    cic_decimate (split, in, 2 * R, out_split);
-    cic_decimate (split, in + 2 * R, 2 * R, out_split + 2);
+    cic_decimate (split, in, 2 * R, out_split, 4);
+    cic_decimate (split, in + 2 * R, 2 * R, out_split + 2, 2);
 
     int ok = memcmp (out_whole, out_split, sizeof (out_whole)) == 0;
     printf ("  whole vs split output: %s\n", ok ? "MATCH" : "MISMATCH");

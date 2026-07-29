@@ -91,8 +91,11 @@ pn_generate_max_out (pn_state_t *state)
 }
 
 size_t
-pn_generate (pn_state_t *state, size_t n, uint8_t *out)
+pn_generate (pn_state_t *state, size_t n, uint8_t *out, size_t max_out)
 {
+  /* Emission stops at the caller's capacity (jm gh-138). */
+  if (n > max_out)
+    n = max_out;
   uint64_t       reg  = state->reg;
   const uint64_t poly = state->poly;
   const uint64_t mask = state->mask;

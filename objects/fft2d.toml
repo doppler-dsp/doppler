@@ -32,24 +32,36 @@ name = "execute_cf64"
 arg_type = "double _Complex"
 return_type = "double _Complex"
 variable_output = true
+# The pocketfft plan is fixed-size, so a short buffer is served from
+# scratch and truncated (jm gh-138) rather than overrunning `out`.
+pass_capacity = true
 
 [[fft2d.methods]]
 name = "execute_cf32"
 arg_type = "float _Complex"
 return_type = "float _Complex"
 variable_output = true
+# The pocketfft plan is fixed-size, so a short buffer is served from
+# scratch and truncated (jm gh-138) rather than overrunning `out`.
+pass_capacity = true
 
 [[fft2d.methods]]
 name = "execute_inplace_cf64"
 arg_type = "double _Complex"
 return_type = "double _Complex"
 variable_output = true
+# The pocketfft plan is fixed-size, so a short buffer is served from
+# scratch and truncated (jm gh-138) rather than overrunning `out`.
+pass_capacity = true
 
 [[fft2d.methods]]
 name = "execute_inplace_cf32"
 arg_type = "float _Complex"
 return_type = "float _Complex"
 variable_output = true
+# The pocketfft plan is fixed-size, so a short buffer is served from
+# scratch and truncated (jm gh-138) rather than overrunning `out`.
+pass_capacity = true
 
 [[fft2d.properties]]
 name = "ny"

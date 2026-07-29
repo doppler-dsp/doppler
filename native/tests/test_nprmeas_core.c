@@ -79,6 +79,38 @@ main (void)
 
   nprmeas_destroy (m);
   free (x);
+  /* ── pass_capacity: emission stops at max_out (jm gh-138) ────────── */
+  {
+    /* The count argument is the INPUT capture length; the output length is
+     * the analyser's nfft, so max_out is the only real bound here.
+     * NB: feed a FULL capture (NCAP), not a short one -- with fewer samples
+     * than one frame nothing accumulates, spectrum_dbfs returns 0, and a
+     * "<= max_out" assertion would hold whether or not the clamp exists. */
+    nprmeas_state_t *m   = nprmeas_create (NCAP, 1.0, 1.0, 0, 90.0);
+    size_t           cap = nprmeas_spectrum_dbfs_max_out (m); /* == nfft */
+    float           *xs  = (float *)malloc (NCAP * sizeof (float));
+    float           *o   = (float *)malloc (cap * sizeof (float));
+    CHECK (m && xs && o);
+    for (size_t i = 0; i < NCAP; i++)
+      xs[i] = (float)sin (0.05 * (double)i);
+    for (size_t i = 0; i < cap; i++)
+      o[i] = 42.0f;
+
+    CHECK (nprmeas_spectrum_dbfs (m, xs, NCAP, o, 5) == 5);
+    for (size_t i = 5; i < cap; i++)
+      CHECK (o[i] == 42.0f); /* tail untouched */
+
+    /* Zero capacity emits nothing. */
+    for (size_t i = 0; i < cap; i++)
+      o[i] = 42.0f;
+    CHECK (nprmeas_spectrum_dbfs (m, xs, NCAP, o, 0) == 0);
+    for (size_t i = 0; i < cap; i++)
+      CHECK (o[i] == 42.0f);
+    free (xs);
+    free (o);
+    nprmeas_destroy (m);
+  }
+
   if (_fails)
     {
       fprintf (stderr, "test_nprmeas_core FAILED (%d)\n", _fails);

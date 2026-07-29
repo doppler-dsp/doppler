@@ -74,7 +74,7 @@ disc_var (double snr, awgn_state_t *g, float *nb, long n)
     {
       if (pos + 2 > have)
         {
-          awgn_generate (g, NB, (float complex *)nb);
+          awgn_generate (g, NB, (float complex *)nb, NB);
           have = 2 * NB;
           pos  = 0;
         }
@@ -102,7 +102,7 @@ phase_var (double snr, double bn, awgn_state_t *g, float *nb, long n)
     {
       if (pos + 2 > have)
         {
-          awgn_generate (g, NB, (float complex *)nb);
+          awgn_generate (g, NB, (float complex *)nb, NB);
           have = 2 * NB;
           pos  = 0;
         }

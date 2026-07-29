@@ -284,7 +284,7 @@ main (int argc, char *argv[])
       dp_msg_free (msg);
 
       apply_hann (win_buf, fft_size);
-      fft_execute_cf64 (fft, win_buf, fft_size, fft_out);
+      fft_execute_cf64 (fft, win_buf, fft_size, fft_out, fft_size);
       power_db (fft_out, db_buf, fft_size);
       fftshift (db_buf, fft_size);
 

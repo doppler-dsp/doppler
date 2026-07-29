@@ -62,7 +62,7 @@ main (void)
     CHECK (obj != NULL);
 
     float complex out[16];
-    size_t        n_out = corr_execute (obj, ref, N, out);
+    size_t        n_out = corr_execute (obj, ref, N, out, N);
 
     CHECK (n_out == N);                    /* dwell=1 → always dumps */
     CHECK (ceq (out[0], 1.0f + 0.0f * I)); /* peak at lag 0           */
@@ -86,7 +86,7 @@ main (void)
 
     corr_state_t *obj = corr_create (ref, N, 1, 1, 0);
     float complex out[16];
-    corr_execute (obj, ref, N, out);
+    corr_execute (obj, ref, N, out, N);
 
     /* out[τ] = N · ref[τ]; magnitude at every lag should be N. */
     for (size_t k = 0; k < N; k++)
@@ -109,15 +109,15 @@ main (void)
     corr_state_t *obj = corr_create (ref, N, 3, 1, 0);
     float complex out[16];
 
-    size_t n1 = corr_execute (obj, ref, N, out);
+    size_t n1 = corr_execute (obj, ref, N, out, N);
     CHECK (n1 == 0);
     CHECK (obj->count == 1);
 
-    size_t n2 = corr_execute (obj, ref, N, out);
+    size_t n2 = corr_execute (obj, ref, N, out, N);
     CHECK (n2 == 0);
     CHECK (obj->count == 2);
 
-    size_t n3 = corr_execute (obj, ref, N, out);
+    size_t n3 = corr_execute (obj, ref, N, out, N);
     CHECK (n3 == N);         /* dump on third call */
     CHECK (obj->count == 0); /* counter reset */
 
@@ -125,7 +125,7 @@ main (void)
     CHECK (crealf (out[0]) > 2.9f && crealf (out[0]) < 3.1f);
 
     /* Immediate fourth call starts fresh — returns 0 */
-    size_t n4 = corr_execute (obj, ref, N, out);
+    size_t n4 = corr_execute (obj, ref, N, out, N);
     CHECK (n4 == 0);
     CHECK (obj->count == 1);
 
@@ -140,9 +140,9 @@ main (void)
     corr_state_t *obj = corr_create (ref, N, 4, 1, 0);
     float complex out[16];
 
-    corr_execute (obj, ref, N, out); /* count = 1 */
-    corr_execute (obj, ref, N, out); /* count = 2 */
-    corr_reset (obj);                /* back to 0 */
+    corr_execute (obj, ref, N, out, N); /* count = 1 */
+    corr_execute (obj, ref, N, out, N); /* count = 2 */
+    corr_reset (obj);                   /* back to 0 */
     CHECK (obj->count == 0);
     CHECK (ceq (obj->accum[0], 0.0f + 0.0f * I));
 
@@ -162,13 +162,13 @@ main (void)
     /* Correlate ref_b (impulse at 1) against ref_a (impulse at 0).
      * R[τ] = IFFT(FFT(δ[n-1]) · conj(FFT(δ[n]))) / N
      *       = δ[τ-1]  → peak at index 1.                         */
-    corr_execute (obj, ref_b, N, out);
+    corr_execute (obj, ref_b, N, out, N);
     CHECK (ceq (out[1], 1.0f + 0.0f * I));
 
     /* Switch to ref_b; correlate ref_b against itself → peak at lag 0. */
     corr_set_ref (obj, ref_b);
     CHECK (obj->count == 0);
-    corr_execute (obj, ref_b, N, out);
+    corr_execute (obj, ref_b, N, out, N);
     CHECK (ceq (out[0], 1.0f + 0.0f * I));
 
     corr_destroy (obj);
@@ -196,7 +196,7 @@ main (void)
     CHECK (corr_execute_max_out (obj) == 32);
 
     float complex out[32];
-    size_t        no = corr_execute (obj, in, N, out);
+    size_t        no = corr_execute (obj, in, N, out, 32);
     CHECK (no == 32);
     size_t pk = 0;
     for (size_t k = 1; k < 32; k++)
@@ -204,6 +204,41 @@ main (void)
         pk = k;
     CHECK (pk == 2);
     corr_destroy (obj);
+  }
+
+  /* ── pass_capacity: emission stops at max_out (jm gh-138) ────────── */
+  {
+    /* This block cannot serve a short buffer by writing less -- the inverse
+     * FFT plan is fixed at n_out and writes all of it -- so a short `out` is
+     * served from a bounce buffer. The prefix must still be bit-identical to
+     * the unclamped surface, which is what makes truncation a prefix rather
+     * than a different answer. */
+    float complex ref[16] = { 0 }, in[16] = { 0 };
+    ref[0]          = 1.0f;
+    in[2]           = 1.0f;
+    corr_state_t *a = corr_create (ref, 16, 1, 1, 0);
+    corr_state_t *b = corr_create (ref, 16, 1, 1, 0);
+    float complex full[16], part[16];
+    CHECK (a != NULL && b != NULL);
+    for (int i = 0; i < 16; i++)
+      part[i] = 42.0f + 42.0f * I;
+
+    CHECK (corr_execute (a, in, 16, full, 16) == 16);
+    CHECK (corr_execute (b, in, 16, part, 5) == 5);
+    for (int i = 0; i < 5; i++)
+      CHECK (ceq (part[i], full[i])); /* prefix is the same surface */
+    for (int i = 5; i < 16; i++)
+      CHECK (ceq (part[i], 42.0f + 42.0f * I)); /* tail untouched */
+
+    /* Zero capacity writes nothing, and the dump still consumes -- the
+     * frames are spent either way, so `count` must not desynchronise. */
+    for (int i = 0; i < 16; i++)
+      part[i] = 42.0f + 42.0f * I;
+    CHECK (corr_execute (b, in, 16, part, 0) == 0);
+    for (int i = 0; i < 16; i++)
+      CHECK (ceq (part[i], 42.0f + 42.0f * I));
+    corr_destroy (a);
+    corr_destroy (b);
   }
 
   if (_fails)
@@ -223,7 +258,7 @@ main (void)
     corr_state_t *a = corr_create (ref, 16, 3, 1, 0);
     corr_state_t *b = corr_create (ref, 16, 3, 1, 0);
     CHECK (a != NULL && b != NULL);
-    (void)corr_execute (a, in, 16, out);
+    (void)corr_execute (a, in, 16, out, 16);
     DP_STATE_ROUNDTRIP_TEST (corr, a, b);
     CHECK (b->count == a->count && b->accum[0] == a->accum[0]);
     corr_destroy (a);

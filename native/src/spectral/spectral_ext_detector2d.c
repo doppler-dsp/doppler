@@ -38,19 +38,25 @@ static int
 CorrDetector2DObj_init (CorrDetector2DObject *self, PyObject *args,
                         PyObject *kwds)
 {
-  static char *kwlist[] = { "ref",      "noise_mode", "dwell",    "noise_lo",
-                            "noise_hi", "threshold",  "nthreads", NULL };
+  /* Hand-patch (sacred fragment): the parameter ORDER here must track
+     objects/detector.toml, because the .pyi is hand-owned and states that
+     order. An older jm hoisted the string_enum `noise_mode` to the front;
+     it no longer does, but this fragment is hand-owned for the 2-D ref
+     marshaling below, so it never picked the fix up and the stub and the
+     binding disagreed. Keep the two in step by hand. */
+  static char *kwlist[] = { "ref",        "dwell",     "noise_lo", "noise_hi",
+                            "noise_mode", "threshold", "nthreads", NULL };
   PyObject    *ref_obj  = NULL;
-  const char  *noise_mode_str     = "mean";
-  unsigned long long dwell_raw    = 1ULL;
-  unsigned long long noise_lo_raw = 0ULL;
-  unsigned long long noise_hi_raw = (unsigned long long)-1ULL;
-  float              threshold    = 0.0f;
-  int                nthreads     = 1;
+  unsigned long long dwell_raw      = 1ULL;
+  unsigned long long noise_lo_raw   = 0ULL;
+  unsigned long long noise_hi_raw   = (unsigned long long)-1ULL;
+  const char        *noise_mode_str = "mean";
+  float              threshold      = 0.0f;
+  int                nthreads       = 1;
 
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|sKKKfi", kwlist, &ref_obj,
-                                    &noise_mode_str, &dwell_raw, &noise_lo_raw,
-                                    &noise_hi_raw, &threshold, &nthreads))
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|KKKsfi", kwlist, &ref_obj,
+                                    &dwell_raw, &noise_lo_raw, &noise_hi_raw,
+                                    &noise_mode_str, &threshold, &nthreads))
     return -1;
   int noise_mode = 0;
   if (strcmp (noise_mode_str, "mean") == 0)

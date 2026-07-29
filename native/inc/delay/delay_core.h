@@ -146,8 +146,11 @@ size_t delay_ptr_max_out(delay_state_t *state);
    *
    * @param state  Must be non-NULL.
    * @param n      Number of samples to copy; clamped to num_taps.
-   * @param out    Output buffer; must hold at least min(n, num_taps) elements.
-   * @return       Number of samples written.
+   * @param out    Output buffer; must hold at least max_out elements.
+   * @param max_out Capacity of @p out in samples.  Normally num_taps (what
+   *               delay_ptr_max_out() reports); a smaller value truncates
+   *               the snapshot instead of overrunning the buffer.
+   * @return       min(n, num_taps, max_out) samples.
    * @code
    * >>> from doppler.delay import DelayCf64
    * >>> d = DelayCf64(num_taps=3)
@@ -162,7 +165,7 @@ size_t delay_ptr_max_out(delay_state_t *state);
    * (3,)
    * @endcode
    */
-size_t delay_ptr(delay_state_t *state, size_t n, double complex *out);
+size_t delay_ptr(delay_state_t *state, size_t n, double complex *out, size_t max_out);
 
   /**
    * @brief Return the maximum output capacity for delay_push_ptr().
@@ -183,8 +186,12 @@ size_t delay_push_ptr_max_out(delay_state_t *state);
    *
    * @param state  Must be non-NULL.
    * @param x      New complex sample to insert.
-   * @param out    Output buffer; must hold at least num_taps elements.
-   * @return       num_taps (always equal to the window length).
+   * @param out    Output buffer; must hold at least max_out elements.
+   * @param max_out Capacity of @p out in samples.  Normally num_taps.  The
+   *               push happens either way -- the ring is a running window
+   *               and cannot be left un-advanced -- but a smaller capacity
+   *               truncates the snapshot that is handed back.
+   * @return       min(num_taps, max_out) samples.
    * @code
    * >>> from doppler.delay import DelayCf64
    * >>> d = DelayCf64(num_taps=3)
@@ -194,8 +201,8 @@ size_t delay_push_ptr_max_out(delay_state_t *state);
    * [(2+0j), (1+0j), 0j]
    * @endcode
    */
-  size_t delay_push_ptr (delay_state_t *state, double complex x,
-                         double complex *out);
+size_t delay_push_ptr(delay_state_t *state, double complex x,
+                      double complex *out, size_t max_out);
 
   /**
    * @brief Alias for delay_push(); insert a sample without reading back.
@@ -215,7 +222,6 @@ size_t delay_push_ptr_max_out(delay_state_t *state);
    */
 void delay_write(delay_state_t *state, double complex x);
 
-size_t delay_push_ptr(delay_state_t *state, double complex x, double complex *out);
 /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
  * Field-wise: pack running ring buffer + head; capacity/mask/num_taps restored by create. */
 #define DELAY_STATE_MAGIC DP_FOURCC ('D','L','A','Y')

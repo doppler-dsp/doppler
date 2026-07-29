@@ -156,6 +156,19 @@ DelayCf64Obj_ptr (DelayCf64Object *self, PyObject *args, PyObject *kwds)
     return NULL;
   if (out_obj && out_obj != Py_None)
     {
+      /* Require the exact output dtype — no silent cast (a cast writes
+       * into a temp copy instead of the caller's buffer). Hand-written
+       * here because this fragment stays hand-owned; keep in step with
+       * jm's generated form (gh-581). */
+      if (!PyArray_Check (out_obj)
+          || PyArray_TYPE ((PyArrayObject *)out_obj) != NPY_COMPLEX128
+          || !PyArray_ISWRITEABLE ((PyArrayObject *)out_obj))
+        {
+          PyErr_SetString (
+              PyExc_TypeError,
+              "out must be a writable ndarray of the output dtype");
+          return NULL;
+        }
       PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
           out_obj, NPY_COMPLEX128,
           NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
@@ -173,8 +186,9 @@ DelayCf64Obj_ptr (DelayCf64Object *self, PyObject *args, PyObject *kwds)
           Py_DECREF (out_arr);
           return NULL;
         }
-      size_t    n_out  = delay_ptr (self->handle, (size_t)n,
-                                    (double complex *)PyArray_DATA (out_arr));
+      size_t n_out
+          = delay_ptr (self->handle, (size_t)n,
+                       (double complex *)PyArray_DATA (out_arr), _cap);
       npy_intp  _odim  = (npy_intp)n_out;
       PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_COMPLEX128,
                                                     PyArray_DATA (out_arr));
@@ -216,7 +230,8 @@ DelayCf64Obj_ptr (DelayCf64Object *self, PyObject *args, PyObject *kwds)
       self->_ptr_buf     = _tmp;
       self->_ptr_buf_cap = _max;
     }
-  size_t    n_out = delay_ptr (self->handle, (size_t)n, self->_ptr_buf);
+  size_t    n_out = delay_ptr (self->handle, (size_t)n, self->_ptr_buf,
+                               self->_ptr_buf_cap);
   npy_intp  dim   = (npy_intp)n_out;
   PyObject *arr
       = PyArray_SimpleNewFromData (1, &dim, NPY_COMPLEX128, self->_ptr_buf);
@@ -258,29 +273,50 @@ DelayCf64Obj_push_ptr (DelayCf64Object *self, PyObject *args, PyObject *kwds)
                                     &out_obj))
     return NULL;
   double complex x = x_raw.real + x_raw.imag * I;
-  /* delay_push_ptr(state, x, out) always writes exactly num_taps elements —
-   * no max_out clamp inside the kernel — so out= validation must be exact,
-   * not >=, and must run before the kernel call (no second chance). */
+  /* delay_push_ptr() clamps to its max_out (jm gh-138), so out= only has to
+   * be big enough, not exactly num_taps — the same >= rule jm generates for
+   * every other object.  The push itself lands regardless of capacity. */
   size_t _need = delay_push_ptr_max_out (self->handle);
   if (out_obj && out_obj != Py_None)
     {
+      /* Require the exact output dtype — no silent cast (a cast writes
+       * into a temp copy instead of the caller's buffer). Hand-written
+       * here because this fragment stays hand-owned; keep in step with
+       * jm's generated form (gh-581). */
+      if (!PyArray_Check (out_obj)
+          || PyArray_TYPE ((PyArrayObject *)out_obj) != NPY_COMPLEX128
+          || !PyArray_ISWRITEABLE ((PyArrayObject *)out_obj))
+        {
+          PyErr_SetString (
+              PyExc_TypeError,
+              "out must be a writable ndarray of the output dtype");
+          return NULL;
+        }
       PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
           out_obj, NPY_COMPLEX128,
           NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
       if (!out_arr)
         return NULL;
       size_t _cap = (size_t)PyArray_SIZE (out_arr);
-      if (_cap != _need)
+      if (_cap < _need)
         {
-          PyErr_Format (PyExc_ValueError,
-                        "out length %zu != required length %zu (num_taps)",
+          PyErr_Format (PyExc_ValueError, "out has %zu elements, need >= %zu",
                         _cap, _need);
           Py_DECREF (out_arr);
           return NULL;
         }
-      delay_push_ptr (self->handle, x,
-                      (double complex *)PyArray_DATA (out_arr));
-      return (PyObject *)out_arr;
+      size_t n_out = delay_push_ptr (
+          self->handle, x, (double complex *)PyArray_DATA (out_arr), _cap);
+      npy_intp  _odim  = (npy_intp)n_out;
+      PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_COMPLEX128,
+                                                    PyArray_DATA (out_arr));
+      if (!_oview)
+        {
+          Py_DECREF (out_arr);
+          return NULL;
+        }
+      PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
+      return _oview;
     }
   if (!self->_push_ptr_buf || self->_push_ptr_buf_cap < _need)
     {
@@ -313,7 +349,8 @@ DelayCf64Obj_push_ptr (DelayCf64Object *self, PyObject *args, PyObject *kwds)
       self->_push_ptr_buf     = _tmp;
       self->_push_ptr_buf_cap = _max;
     }
-  size_t    n_out = delay_push_ptr (self->handle, x, self->_push_ptr_buf);
+  size_t    n_out = delay_push_ptr (self->handle, x, self->_push_ptr_buf,
+                                    self->_push_ptr_buf_cap);
   npy_intp  dim   = (npy_intp)n_out;
   PyObject *arr   = PyArray_SimpleNewFromData (1, &dim, NPY_COMPLEX128,
                                                self->_push_ptr_buf);

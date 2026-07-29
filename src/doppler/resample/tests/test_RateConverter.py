@@ -417,28 +417,16 @@ def test_unknown_pulse_raises(pulse):
     ],
 )
 def test_invalid_matched_params_are_rejected(kw):
-    """Every out-of-range parameter is refused, not silently coerced.
+    """Every out-of-range parameter is refused with the parent's ValueError.
 
-    The exception type is MemoryError rather than ValueError today: a jm view
-    inherits none of its parent's ``create_error`` translation (gh-509 keeps
-    the error context blank for a view deliberately), even though a flavor's
-    constructor has strictly MORE parameters than its parent's and so strictly
-    more ways to fail on a bad argument. Filed upstream; the companion xfail
-    below states the behaviour we want, so the day it lands both update
-    together.
+    A flavor's constructor has strictly MORE parameters than its parent's, so
+    strictly more ways to fail on a bad argument — and it now reports them the
+    same way. Until jm 0.33.13 a view inherited none of its parent's
+    ``create_error`` translation and these surfaced as a blanket MemoryError
+    (doppler-filed, jm gh-580).
     """
-    with pytest.raises((ValueError, MemoryError)):
-        MatchedRateConverter(rate=0.5, pulse="rrc", **kw)
-
-
-@pytest.mark.xfail(
-    reason="a jm view gets no create_error translation (gh-509), so a bad "
-    "parameter raises MemoryError instead of the parent's ValueError",
-    strict=True,
-)
-def test_invalid_matched_params_raise_value_error():
     with pytest.raises(ValueError):
-        MatchedRateConverter(rate=0.5, pulse="rrc", beta=2.0)
+        MatchedRateConverter(rate=0.5, pulse="rrc", **kw)
 
 
 def test_plain_ctor_still_translates_its_errors():

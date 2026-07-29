@@ -68,7 +68,7 @@ main (void)
   {
     lo_state_t   *lo = lo_create (0.0);
     float complex out[8];
-    lo_steps (lo, 8, out);
+    lo_steps (lo, 8, out, 8);
     for (int i = 0; i < 8; i++)
       CHECK (near_c (out[i], 1.0f + 0.0f * I));
     lo_destroy (lo);
@@ -87,7 +87,7 @@ main (void)
   {
     lo_state_t   *lo = lo_create (0.25);
     float complex out[8];
-    lo_steps (lo, 8, out);
+    lo_steps (lo, 8, out, 8);
     CHECK (near_c (out[0], 1.0f + 0.0f * I));
     CHECK (near_c (out[1], 0.0f + 1.0f * I));
     CHECK (near_c (out[2], -1.0f + 0.0f * I));
@@ -108,11 +108,11 @@ main (void)
     lo_state_t   *a = lo_create (0.1);
     lo_state_t   *b = lo_create (0.1);
     float complex ref[16], blk[8];
-    lo_steps (a, 16, ref);
-    lo_steps (b, 8, blk);
+    lo_steps (a, 16, ref, 16);
+    lo_steps (b, 8, blk, 8);
     for (int i = 0; i < 8; i++)
       CHECK (near_c (blk[i], ref[i]));
-    lo_steps (b, 8, blk);
+    lo_steps (b, 8, blk, 8);
     for (int i = 0; i < 8; i++)
       CHECK (near_c (blk[i], ref[8 + i]));
     lo_destroy (a);
@@ -138,8 +138,8 @@ main (void)
       ctrl[i] = 0.25f;
 
     float complex out_ctrl[8], out_ref[8];
-    lo_steps_ctrl (lo_ctrl, ctrl, 8, out_ctrl);
-    lo_steps (lo_ref, 8, out_ref);
+    lo_steps_ctrl (lo_ctrl, ctrl, 8, out_ctrl, 8);
+    lo_steps (lo_ref, 8, out_ref, 8);
 
     for (int i = 0; i < 8; i++)
       CHECK (near_c (out_ctrl[i], out_ref[i]));
@@ -160,7 +160,7 @@ main (void)
   {
     lo_state_t   *lo = lo_create (0.25);
     float complex out[4];
-    lo_steps (lo, 4, out);
+    lo_steps (lo, 4, out, 4);
     for (int k = 0; k < 4; k++)
       {
         float mag2 = crealf (out[k]) * crealf (out[k])
@@ -210,7 +210,7 @@ main (void)
     lo_init (&stp, 0.123456);
 
     float complex ref[257], got[257];
-    lo_steps (blk, N, ref);
+    lo_steps (blk, N, ref, N);
     for (size_t i = 0; i < N; i++)
       got[i] = lo_step (&stp);
 
@@ -237,7 +237,7 @@ main (void)
     CHECK (byval.norm_freq == heap->norm_freq);
 
     float complex a[64], b[64];
-    lo_steps (heap, 64, a);
+    lo_steps (heap, 64, a, 64);
     for (int i = 0; i < 64; i++)
       b[i] = lo_step (&byval);
     int exact = 1;
@@ -333,7 +333,7 @@ main (void)
 
     lo_state_t   *ref = lo_create (-0.25);
     float complex a[16], b[16];
-    lo_steps (ref, 16, a);
+    lo_steps (ref, 16, a, 16);
     for (int i = 0; i < 16; i++)
       b[i] = lo_step (&neg);
     int exact = 1;
@@ -355,12 +355,12 @@ main (void)
     const size_t  N = 100, M = 156;
     lo_state_t   *ref = lo_create (0.123456);
     float complex full[256];
-    lo_steps (ref, N + M, full);
+    lo_steps (ref, N + M, full, N + M);
     lo_destroy (ref);
 
     lo_state_t   *a = lo_create (0.123456);
     float complex tmp[256];
-    lo_steps (a, N, tmp); /* advance N */
+    lo_steps (a, N, tmp, N); /* advance N */
 
     CHECK (lo_state_bytes (a) == sizeof (dp_state_hdr_t) + sizeof (uint32_t));
     unsigned char blob[32];
@@ -370,7 +370,7 @@ main (void)
     lo_state_t *b = lo_create (0.123456); /* fresh, from the descriptor */
     CHECK (lo_set_state (b, blob) == DP_OK);
     float complex resumed[256];
-    lo_steps (b, M, resumed);
+    lo_steps (b, M, resumed, M);
     lo_destroy (b);
 
     int exact = 1;
@@ -386,7 +386,7 @@ main (void)
   {
     lo_state_t *a = lo_create (0.2);
     lo_state_t *b = lo_create (0.2);
-    lo_steps (a, 37, (float complex[37]){ 0 });
+    lo_steps (a, 37, (float complex[37]){ 0 }, 37);
     DP_STATE_ROUNDTRIP_TEST (lo, a, b);
     lo_destroy (a);
     lo_destroy (b);
@@ -443,6 +443,46 @@ main (void)
     CHECK (actual51 <= 51.0 + 1e-9); /* truncation never overshoots */
     CHECK (fabs (actual51 - 51.0) <= step_hz + 1e-9);
     lo_destroy (lo51);
+  }
+
+  /* ── pass_capacity: emission stops at max_out (jm gh-138) ────────── */
+  {
+    /* Asking for more than the buffer holds truncates rather than
+     * overruns, and the generator advances only by what it emitted --
+     * so a truncated call leaves a resumable, not a corrupted, phase. */
+    lo_state_t   *lo  = lo_create (0.01);
+    lo_state_t   *ref = lo_create (0.01);
+    float complex out[16];
+    float complex expect[5];
+    for (int i = 0; i < 16; i++)
+      out[i] = 42.0f + 42.0f * I;
+
+    CHECK (lo_steps (lo, 16, out, 5) == 5);
+    for (int i = 5; i < 16; i++)
+      CHECK (out[i] == 42.0f + 42.0f * I); /* tail untouched */
+    lo_steps (ref, 5, expect, 5);
+    for (int i = 0; i < 5; i++)
+      CHECK (out[i] == expect[i]);
+    CHECK (lo_get_phase (lo)
+           == lo_get_phase (ref)); /* advanced by 5, not 16 */
+
+    /* Zero capacity emits nothing and does not advance the phase. */
+    uint32_t before = lo_get_phase (lo);
+    CHECK (lo_steps (lo, 16, out, 0) == 0);
+    CHECK (lo_get_phase (lo) == before);
+
+    /* The control-port form clamps on the same rule: ctrl_len is the
+     * request, max_out the capacity, and the shorter one wins. */
+    const float   ctrl[8] = { 0, 0, 0, 0, 0, 0, 0, 0 };
+    float complex cout[8];
+    for (int i = 0; i < 8; i++)
+      cout[i] = 42.0f + 42.0f * I;
+    CHECK (lo_steps_ctrl (lo, ctrl, 8, cout, 3) == 3);
+    for (int i = 3; i < 8; i++)
+      CHECK (cout[i] == 42.0f + 42.0f * I);
+
+    lo_destroy (lo);
+    lo_destroy (ref);
   }
 
   if (_fails)

@@ -135,7 +135,7 @@ ddc_execute (ddc_state_t *s, const float _Complex *in, size_t n_in,
     return 0;
 
   /* Generate LO phasors and multiply with input in one pass. */
-  lo_steps (s->lo, n_in, mix);
+  lo_steps (s->lo, n_in, mix, n_in);
   for (size_t i = 0; i < n_in; i++)
     mix[i] = in[i] * mix[i];
 

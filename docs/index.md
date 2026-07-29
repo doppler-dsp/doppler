@@ -121,7 +121,7 @@ int main(void)
   float complex out[1024];
 
   fft_state_t *fft = fft_create(1024, -1, 1);  /* n, sign, nthreads */
-  fft_execute_cf32(fft, in, 1024, out);        /* in,out: float complex[1024] */
+  fft_execute_cf32(fft, in, 1024, out, 1024);  /* in,out: float complex[1024] */
   fft_destroy(fft);
   printf("FFT: 1024 samples in -> 1024 complex bins out\n");
   return 0;

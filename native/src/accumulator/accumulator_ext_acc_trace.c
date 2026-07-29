@@ -14,11 +14,6 @@
 typedef struct
 {
   PyObject_HEAD acc_trace_state_t *handle;
-  float *_value_buf;     /* pre-allocated output for value */
-  size_t _value_buf_cap; /* allocated capacity for value */
-  void **_value_retired; /* gh-219 deferred free */
-  size_t _value_retired_n;
-  size_t _value_retired_cap;
 } AccTraceObject;
 
 static void
@@ -26,10 +21,6 @@ AccTraceObj_dealloc (AccTraceObject *self)
 {
   if (self->handle)
     acc_trace_destroy (self->handle);
-  free (self->_value_buf);
-  for (size_t _i = 0; _i < self->_value_retired_n; _i++)
-    free (self->_value_retired[_i]);
-  free (self->_value_retired);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -45,15 +36,16 @@ AccTraceObj_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 static int
 AccTraceObj_init (AccTraceObject *self, PyObject *args, PyObject *kwds)
 {
-  static char       *kwlist[] = { "mode", "n", "alpha", NULL };
-  const char        *mode_str = "mean";
+  static char       *kwlist[] = { "n", "mode", "alpha", NULL };
   unsigned long long n_raw    = 1024;
+  const char        *mode_str = "mean";
   double             alpha    = 0.1;
 
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|sKd", kwlist, &mode_str,
-                                    &n_raw, &alpha))
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|Ksd", kwlist, &n_raw,
+                                    &mode_str, &alpha))
     return -1;
-  int mode = 0;
+  size_t n    = (size_t)n_raw;
+  int    mode = 0;
   if (strcmp (mode_str, "mean") == 0)
     mode = 0;
   else if (strcmp (mode_str, "exp") == 0)
@@ -70,26 +62,12 @@ AccTraceObj_init (AccTraceObject *self, PyObject *args, PyObject *kwds)
                     mode_str);
       return -1;
     }
-  size_t n     = (size_t)n_raw;
   self->handle = acc_trace_create (n, mode, alpha);
   if (!self->handle)
     {
       PyErr_SetString (PyExc_MemoryError, "acc_trace_create returned NULL");
       return -1;
     }
-  {
-    size_t _max = acc_trace_value_max_out (self->handle);
-    if (_max)
-      {
-        self->_value_buf = malloc (_max * sizeof (float));
-        if (!self->_value_buf)
-          {
-            PyErr_NoMemory ();
-            return -1;
-          }
-        self->_value_buf_cap = _max;
-      }
-  }
   return 0;
 }
 
@@ -156,6 +134,18 @@ AccTraceObj_value (AccTraceObject *self, PyObject *args, PyObject *kwds)
     return NULL;
   if (out_obj && out_obj != Py_None)
     {
+      /* Require the exact dtype AND C-contiguity — either mismatch makes
+       * the marshal write into a temp copy, not the caller's buffer. */
+      if (!PyArray_Check (out_obj)
+          || PyArray_TYPE ((PyArrayObject *)out_obj) != NPY_FLOAT
+          || !PyArray_IS_C_CONTIGUOUS ((PyArrayObject *)out_obj)
+          || !PyArray_ISWRITEABLE ((PyArrayObject *)out_obj))
+        {
+          PyErr_SetString (PyExc_TypeError,
+                           "out must be a writable, C-contiguous"
+                           " ndarray of the output dtype");
+          return NULL;
+        }
       PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
           out_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
       if (!out_arr)
@@ -173,7 +163,7 @@ AccTraceObj_value (AccTraceObject *self, PyObject *args, PyObject *kwds)
           return NULL;
         }
       size_t n_out = acc_trace_value (self->handle, (size_t)n,
-                                      (float *)PyArray_DATA (out_arr));
+                                      (float *)PyArray_DATA (out_arr), _cap);
       if (!n_out)
         {
           Py_DECREF (out_arr);
@@ -191,47 +181,36 @@ AccTraceObj_value (AccTraceObject *self, PyObject *args, PyObject *kwds)
       return _oview;
     }
   size_t _need = (size_t)n;
-  if (!self->_value_buf || self->_value_buf_cap < _need)
+  size_t _cap  = acc_trace_value_max_out (self->handle);
+  if (!_cap || _cap < _need)
+    _cap = _need;
+  npy_intp  _adim = (npy_intp)_cap;
+  PyObject *arr0  = PyArray_SimpleNew (1, &_adim, NPY_FLOAT);
+  if (!arr0)
     {
-      size_t _max = acc_trace_value_max_out (self->handle);
-      if (!_max || _max < _need)
-        _max = _need;
-      if (self->_value_buf
-          && self->_value_retired_n == self->_value_retired_cap)
-        {
-          size_t _rcap
-              = self->_value_retired_cap ? self->_value_retired_cap * 2 : 4;
-          void **_rt = realloc (self->_value_retired, _rcap * sizeof (void *));
-          if (!_rt)
-            {
-              PyErr_NoMemory ();
-              return NULL;
-            }
-          self->_value_retired     = _rt;
-          self->_value_retired_cap = _rcap;
-        }
-      float *_tmp = malloc (_max * sizeof (float));
-      if (!_tmp)
-        {
-          PyErr_NoMemory ();
-          return NULL;
-        }
-      if (self->_value_buf)
-        self->_value_retired[self->_value_retired_n++] = self->_value_buf;
-      self->_value_buf     = _tmp;
-      self->_value_buf_cap = _max;
+      return NULL;
     }
-  size_t n_out = acc_trace_value (self->handle, (size_t)n, self->_value_buf);
+  float *_d0   = (float *)PyArray_DATA ((PyArrayObject *)arr0);
+  size_t n_out = acc_trace_value (self->handle, (size_t)n, _d0, _cap);
   if (!n_out)
-    Py_RETURN_NONE;
-  npy_intp  dim = (npy_intp)n_out;
-  PyObject *arr
-      = PyArray_SimpleNewFromData (1, &dim, NPY_FLOAT, self->_value_buf);
-  if (!arr)
-    return NULL;
-  PyArray_SetBaseObject ((PyArrayObject *)arr, (PyObject *)self);
-  Py_INCREF (self);
-  return arr;
+    {
+      Py_DECREF (arr0);
+      Py_RETURN_NONE;
+    }
+  if ((size_t)n_out == _cap)
+    {
+      return arr0;
+    }
+  npy_intp     _odim = (npy_intp)n_out;
+  PyArray_Dims _rs0  = { &_odim, 1 };
+  PyObject *v0 = PyArray_Resize ((PyArrayObject *)arr0, &_rs0, 0, NPY_CORDER);
+  if (!v0)
+    {
+      Py_DECREF (arr0);
+      return NULL;
+    }
+  Py_DECREF (v0);
+  return arr0;
 }
 
 static PyObject *
@@ -391,7 +370,7 @@ static PyMethodDef AccTraceObj_methods[] = {
     "\n"
     "    >>> import numpy as np\n"
     "    >>> from doppler import AccTrace\n"
-    "    >>> obj = AccTrace(\"mean\", 1024, 0.1)\n"
+    "    >>> obj = AccTrace(1024, \"mean\", 0.1)\n"
     "    >>> obj.accumulate(np.zeros(4, dtype=np.float32))\n" },
   { "reset", (PyCFunction)AccTraceObj_reset, METH_NOARGS,
     "reset() -> None\n"
@@ -399,16 +378,17 @@ static PyMethodDef AccTraceObj_methods[] = {
     "Discard the running trace; the next accumulate re-seeds it.\n"
     "\n"
     "    >>> from doppler import AccTrace\n"
-    "    >>> obj = AccTrace(\"mean\", 1024, 0.1)\n"
+    "    >>> obj = AccTrace(1024, \"mean\", 0.1)\n"
     "    >>> obj.reset()\n" },
-  { "value", (PyCFunction)AccTraceObj_value, METH_VARARGS | METH_KEYWORDS,
+  { "value", (PyCFunction)(void *)AccTraceObj_value,
+    METH_VARARGS | METH_KEYWORDS,
     "value(n=1) -> ndarray\n"
     "\n"
     "Copy the current averaged trace (None before any accumulate).\n"
     "\n"
     "    >>> import numpy as np\n"
     "    >>> from doppler import AccTrace\n"
-    "    >>> obj = AccTrace(\"mean\", 1024, 0.1)\n"
+    "    >>> obj = AccTrace(1024, \"mean\", 0.1)\n"
     "    >>> y = obj.value(4)\n"
     "    >>> y.dtype\n"
     "    dtype('float32')\n" },

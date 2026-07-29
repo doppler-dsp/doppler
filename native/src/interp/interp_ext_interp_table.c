@@ -125,6 +125,19 @@ InterpolatedTableObj_execute (InterpolatedTableObject *self, PyObject *args,
   Py_ssize_t n = PyArray_SIZE (in_arr);
   if (out_obj && out_obj != Py_None)
     {
+      /* Require the exact dtype AND C-contiguity — either mismatch makes
+       * the marshal write into a temp copy, not the caller's buffer. */
+      if (!PyArray_Check (out_obj)
+          || PyArray_TYPE ((PyArrayObject *)out_obj) != NPY_COMPLEX128
+          || !PyArray_IS_C_CONTIGUOUS ((PyArrayObject *)out_obj)
+          || !PyArray_ISWRITEABLE ((PyArrayObject *)out_obj))
+        {
+          PyErr_SetString (PyExc_TypeError,
+                           "out must be a writable, C-contiguous"
+                           " ndarray of the output dtype");
+          Py_DECREF (in_arr);
+          return NULL;
+        }
       PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
           out_obj, NPY_COMPLEX128,
           NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
@@ -146,7 +159,7 @@ InterpolatedTableObj_execute (InterpolatedTableObject *self, PyObject *args,
         }
       size_t n_out = interp_table_execute (
           self->handle, (const double *)PyArray_DATA (in_arr), (size_t)n,
-          (double complex *)PyArray_DATA (out_arr));
+          (double complex *)PyArray_DATA (out_arr), _cap);
       Py_DECREF (in_arr);
       npy_intp  _odim  = (npy_intp)n_out;
       PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_COMPLEX128,
@@ -159,27 +172,36 @@ InterpolatedTableObj_execute (InterpolatedTableObject *self, PyObject *args,
       PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
       return _oview;
     }
-  /* NumPy owns the output: allocate exactly n and write into it, fresh
-   * every call (see NCOObj_steps_u32's identical comment in
-   * source_ext_nco.c) -- jm's default cached-buffer + gh-437
-   * weakref-gated retire scheme leaks unboundedly under the natural
-   * `x = obj.method(...)` loop pattern: Python only decrefs a call's
-   * PREVIOUS return value AFTER evaluating the new call, so the "is
-   * the last view still alive" check is true on nearly every call in
-   * a loop, and the retired buffer is never reclaimed until the
-   * object is destroyed. */
-  npy_intp  dim = (npy_intp)n;
-  PyObject *arr = PyArray_SimpleNew (1, &dim, NPY_COMPLEX128);
-  if (!arr)
+  size_t _need = (size_t)n;
+  size_t _cap  = interp_table_execute_max_out (self->handle);
+  if (!_cap || _cap < _need)
+    _cap = _need;
+  npy_intp  _adim = (npy_intp)_cap;
+  PyObject *arr0  = PyArray_SimpleNew (1, &_adim, NPY_COMPLEX128);
+  if (!arr0)
     {
       Py_DECREF (in_arr);
       return NULL;
     }
-  interp_table_execute (self->handle, (const double *)PyArray_DATA (in_arr),
-                        (size_t)n,
-                        (double complex *)PyArray_DATA ((PyArrayObject *)arr));
+  double complex *_d0 = (double complex *)PyArray_DATA ((PyArrayObject *)arr0);
+  size_t n_out = interp_table_execute (self->handle,
+                                       (const double *)PyArray_DATA (in_arr),
+                                       (size_t)n, _d0, _cap);
   Py_DECREF (in_arr);
-  return arr;
+  if ((size_t)n_out == _cap)
+    {
+      return arr0;
+    }
+  npy_intp     _odim = (npy_intp)n_out;
+  PyArray_Dims _rs0  = { &_odim, 1 };
+  PyObject *v0 = PyArray_Resize ((PyArrayObject *)arr0, &_rs0, 0, NPY_CORDER);
+  if (!v0)
+    {
+      Py_DECREF (arr0);
+      return NULL;
+    }
+  Py_DECREF (v0);
+  return arr0;
 }
 static PyObject *
 InterpolatedTable_getprop_n (InterpolatedTableObject *self,
@@ -234,12 +256,11 @@ static PyMethodDef InterpolatedTableObj_methods[] = {
   { "reset", (PyCFunction)InterpolatedTableObj_reset, METH_NOARGS,
     "Reset state to post-create defaults." },
 
-  { "execute", (PyCFunction)InterpolatedTableObj_execute,
+  { "execute", (PyCFunction)(void *)InterpolatedTableObj_execute,
     METH_VARARGS | METH_KEYWORDS,
     "execute(x) -> ndarray\n"
     "\n"
-    "Independently NumPy-owned per call; safe to keep across calls with no "
-    "aliasing risk.\n"
+    "Evaluate the table at each of n_in points via periodic interpolation.\n"
     "\n"
     "    >>> import numpy as np\n"
     "    >>> from doppler import InterpolatedTable\n"

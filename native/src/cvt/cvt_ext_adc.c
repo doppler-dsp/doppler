@@ -104,6 +104,18 @@ ADC_steps (ADCObject *self, PyObject *args, PyObject *kwds)
 
   if (out_obj && out_obj != Py_None)
     {
+      /* Require the exact output dtype — no silent cast (a cast writes
+       * into a temp copy instead of the caller's buffer). */
+      if (!PyArray_Check (out_obj)
+          || PyArray_TYPE ((PyArrayObject *)out_obj) != NPY_INT64
+          || !PyArray_ISWRITEABLE ((PyArrayObject *)out_obj))
+        {
+          PyErr_SetString (
+              PyExc_TypeError,
+              "out must be a writable ndarray of the output dtype");
+          Py_DECREF (in_arr);
+          return NULL;
+        }
       PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
           out_obj, NPY_INT64, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
       if (!out_arr)
@@ -140,6 +152,58 @@ ADC_steps (ADCObject *self, PyObject *args, PyObject *kwds)
   return out_arr;
 }
 
+static PyObject *
+ADCObj_state_bytes (ADCObject *self, PyObject *Py_UNUSED (ignored))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromSize_t (adc_state_bytes (self->handle));
+}
+
+static PyObject *
+ADCObj_get_state (ADCObject *self, PyObject *Py_UNUSED (ignored))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  size_t    _n = adc_state_bytes (self->handle);
+  PyObject *_b = PyBytes_FromStringAndSize (NULL, (Py_ssize_t)_n);
+  if (!_b)
+    return NULL;
+  adc_get_state (self->handle, PyBytes_AS_STRING (_b));
+  return _b;
+}
+
+static PyObject *
+ADCObj_set_state (ADCObject *self, PyObject *arg)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  if (!PyBytes_Check (arg))
+    {
+      PyErr_SetString (PyExc_TypeError, "set_state expects bytes");
+      return NULL;
+    }
+  if ((size_t)PyBytes_GET_SIZE (arg) != adc_state_bytes (self->handle))
+    {
+      PyErr_SetString (PyExc_ValueError, "state blob size mismatch");
+      return NULL;
+    }
+  if (adc_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
+    {
+      PyErr_SetString (PyExc_ValueError, "set_state rejected the blob");
+      return NULL;
+    }
+  Py_RETURN_NONE;
+}
 static PyObject *
 ADC_getprop_clipped (ADCObject *self, void *Py_UNUSED (closure))
 {
@@ -207,59 +271,6 @@ ADCObj_exit (ADCObject *self, PyObject *args)
   Py_RETURN_NONE;
 }
 
-static PyObject *
-ADCObj_state_bytes (ADCObject *self, PyObject *Py_UNUSED (ignored))
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  return PyLong_FromSize_t (adc_state_bytes (self->handle));
-}
-
-static PyObject *
-ADCObj_get_state (ADCObject *self, PyObject *Py_UNUSED (ignored))
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  size_t    _n = adc_state_bytes (self->handle);
-  PyObject *_b = PyBytes_FromStringAndSize (NULL, (Py_ssize_t)_n);
-  if (!_b)
-    return NULL;
-  adc_get_state (self->handle, PyBytes_AS_STRING (_b));
-  return _b;
-}
-
-static PyObject *
-ADCObj_set_state (ADCObject *self, PyObject *arg)
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  if (!PyBytes_Check (arg))
-    {
-      PyErr_SetString (PyExc_TypeError, "set_state expects bytes");
-      return NULL;
-    }
-  if ((size_t)PyBytes_GET_SIZE (arg) != adc_state_bytes (self->handle))
-    {
-      PyErr_SetString (PyExc_ValueError, "state blob size mismatch");
-      return NULL;
-    }
-  if (adc_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
-    {
-      PyErr_SetString (PyExc_ValueError, "set_state rejected the blob");
-      return NULL;
-    }
-  Py_RETURN_NONE;
-}
-
 static PyMethodDef ADCObj_methods[]
     = { { "reset", (PyCFunction)ADCObj_reset, METH_NOARGS,
           "Reset state to post-create defaults." },
@@ -287,16 +298,16 @@ static PyMethodDef ADCObj_methods[]
           "    >>> y.dtype\n"
           "    dtype('int64')\n" },
 
-        { "destroy", (PyCFunction)ADCObj_destroy, METH_NOARGS,
-          "Release resources." },
-        { "__enter__", (PyCFunction)ADCObj_enter, METH_NOARGS, NULL },
-        { "__exit__", (PyCFunction)ADCObj_exit, METH_VARARGS, NULL },
         { "state_bytes", (PyCFunction)ADCObj_state_bytes, METH_NOARGS,
           "Serialized state size in bytes." },
         { "get_state", (PyCFunction)ADCObj_get_state, METH_NOARGS,
           "Serialize the engine's mutable state to bytes." },
         { "set_state", (PyCFunction)ADCObj_set_state, METH_O,
           "Restore mutable state from a get_state() blob." },
+        { "destroy", (PyCFunction)ADCObj_destroy, METH_NOARGS,
+          "Release resources." },
+        { "__enter__", (PyCFunction)ADCObj_enter, METH_NOARGS, NULL },
+        { "__exit__", (PyCFunction)ADCObj_exit, METH_VARARGS, NULL },
         { NULL } };
 
 static PyTypeObject ADCObjType = {

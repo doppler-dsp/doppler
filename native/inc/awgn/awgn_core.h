@@ -11,7 +11,7 @@
  * RNG: xoshiro256++ — four 64-bit state words, seeded via SplitMix64
  * from the user-supplied uint64 seed.  Period 2^256 − 1.
  *
- * Transform: Box-Muller.  Each call to awgn_generate() consumes two
+ * Transform: Box-Muller.  Each call to awgn_generate () consumes two
  * 64-bit RNG outputs per complex output sample:
  *
  *   u1 ∈ (0, 1]  (top 24 bits of first 64-bit word, +1 offset, /2^24)
@@ -25,7 +25,7 @@
  * @code
  * awgn_state_t *g = awgn_create(42, 1.0f);
  * float complex out[1024];
- * awgn_generate(g, 1024, out);
+ * awgn_generate(g, 1024, out, 1024);
  * awgn_destroy(g);
  * @endcode
  */
@@ -164,7 +164,9 @@ extern "C"
    * @param state  Generator state returned by awgn_create().
    * @param n      Number of samples to generate.
    * @param out    Output buffer; must hold at least n float complex values.
-   * @return n (always).
+   * @param max_out Capacity of @p out in elements. Emission stops there, so
+   *                the return value is the number actually written.
+   * @return min(n, max_out) samples.
    * @code
    * >>> import numpy as np
    * >>> from doppler.source import AWGN
@@ -180,7 +182,8 @@ extern "C"
    * 1.0
    * @endcode
    */
-  size_t awgn_generate (awgn_state_t *state, size_t n, float complex *out);
+  size_t awgn_generate (awgn_state_t *state, size_t n, float complex *out,
+                        size_t max_out);
 
   /**
    * @brief One-shot AWGN generation — no persistent state required.
@@ -189,7 +192,7 @@ extern "C"
    * Equivalent to:
    * @code
    * awgn_state_t *g = awgn_create(seed, amplitude);
-   * awgn_generate(g, n, out);
+   * awgn_generate (g, n, out, n);
    * awgn_destroy(g);
    * @endcode
    *

@@ -127,8 +127,11 @@ nco_steps_u32_max_out (nco_state_t *state)
    duplicated in each of these six loop bodies. */
 
 size_t
-nco_steps_u32 (nco_state_t *state, size_t n, uint32_t *out)
+nco_steps_u32 (nco_state_t *state, size_t n, uint32_t *out, size_t max_out)
 {
+  /* Emission stops at the caller's capacity (jm gh-138). */
+  if (n > max_out)
+    n = max_out;
   for (size_t i = 0; i < n; i++)
     out[i] = nco_step_u32 (state);
   return n;
@@ -142,8 +145,12 @@ nco_steps_u32_scaled_max_out (nco_state_t *state)
 }
 
 size_t
-nco_steps_u32_scaled (nco_state_t *state, size_t n, uint32_t *out)
+nco_steps_u32_scaled (nco_state_t *state, size_t n, uint32_t *out,
+                      size_t max_out)
 {
+  /* Emission stops at the caller's capacity (jm gh-138). */
+  if (n > max_out)
+    n = max_out;
   for (size_t i = 0; i < n; i++)
     out[i] = nco_step_u32_scaled (state);
   return n;
@@ -157,8 +164,12 @@ nco_steps_u32_ovf_max_out (nco_state_t *state)
 }
 
 size_t
-nco_steps_u32_ovf (nco_state_t *state, size_t n, uint32_t *out, uint8_t *out1)
+nco_steps_u32_ovf (nco_state_t *state, size_t n, uint32_t *out, uint8_t *out1,
+                   size_t max_out)
 {
+  /* Emission stops at the caller's capacity (jm gh-138). */
+  if (n > max_out)
+    n = max_out;
   for (size_t i = 0; i < n; i++)
     out[i] = nco_step_u32_ovf (state, &out1[i]);
   return n;
@@ -173,8 +184,11 @@ nco_steps_u32_ctrl_max_out (nco_state_t *state)
 
 size_t
 nco_steps_u32_ctrl (nco_state_t *state, const float *ctrl, size_t ctrl_len,
-                    uint32_t *out)
+                    uint32_t *out, size_t max_out)
 {
+  /* Emission stops at the caller's capacity (jm gh-138). */
+  if (ctrl_len > max_out)
+    ctrl_len = max_out;
   for (size_t i = 0; i < ctrl_len; i++)
     out[i] = nco_step_u32_ctrl (state, (double)ctrl[i]);
   return ctrl_len;
@@ -189,8 +203,11 @@ nco_steps_u32_scaled_ctrl_max_out (nco_state_t *state)
 
 size_t
 nco_steps_u32_scaled_ctrl (nco_state_t *state, const float *ctrl,
-                           size_t ctrl_len, uint32_t *out)
+                           size_t ctrl_len, uint32_t *out, size_t max_out)
 {
+  /* Emission stops at the caller's capacity (jm gh-138). */
+  if (ctrl_len > max_out)
+    ctrl_len = max_out;
   for (size_t i = 0; i < ctrl_len; i++)
     out[i] = nco_step_u32_scaled_ctrl (state, (double)ctrl[i]);
   return ctrl_len;
@@ -205,8 +222,11 @@ nco_steps_u32_ovf_ctrl_max_out (nco_state_t *state)
 
 size_t
 nco_steps_u32_ovf_ctrl (nco_state_t *state, const float *ctrl, size_t ctrl_len,
-                        uint32_t *out, uint8_t *out1)
+                        uint32_t *out, uint8_t *out1, size_t max_out)
 {
+  /* Emission stops at the caller's capacity (jm gh-138). */
+  if (ctrl_len > max_out)
+    ctrl_len = max_out;
   for (size_t i = 0; i < ctrl_len; i++)
     out[i] = nco_step_u32_ovf_ctrl (state, (double)ctrl[i], &out1[i]);
   return ctrl_len;

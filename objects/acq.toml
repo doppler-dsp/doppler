@@ -6,6 +6,17 @@ no_state = "true"
 no_step = "true"
 class_name = "Acquisition"
 serializable = "true"
+doc = "Create a streaming DSSS acquisition engine."
+# The continuous front door is a second constructor over the shared engine,
+# not the default acq_create() (gh-509).
+create_fn = "acq_create_continuous"
+# C cannot raise a Python warning from a successful create, so the
+# under-powered search is surfaced declaratively after construction (gh-481):
+# the auto-config still built a best-effort grid (bounded by the internal
+# non-coherent-look safety valve), it just cannot reach the requested pd.
+warnings = [
+  { after = "__init__", condition = "underpowered", category = "UserWarning", message = "Acquisition is under-powered: pd_predicted < pd at this cn0_dbhz. Raise cn0_dbhz or narrow doppler_uncertainty." },
+]
 # OBJECT-library object files do not propagate transitively through corr2d, so
 # fft2d/fft must be linked explicitly (as the spectral module does) for the
 # slow-time fft_create + corr2d FFTs. detection_core supplies det_threshold/
@@ -112,10 +123,15 @@ type = "size_t"
 field = true
 doc = "Code-phase hypotheses searched (= sf*spc, one code period)."
 
+# Unified property: whichever mechanism is active. Always window_bins for this
+# (continuous) engine -- coherent_bins is pinned to 1 -- but written with the
+# same shared formula BurstAcquisition's identical getter uses, for consistency.
 [[acq.properties]]
 name = "doppler_bins"
 type = "size_t"
-field = true
+# Outer parens are load-bearing: jm renders `expr` as `(cast)<expr>`, so a
+# bare ternary would bind the cast to the condition alone.
+expr = "((self->handle->window_bins > 1) ? self->handle->window_bins : self->handle->coherent_bins)"
 doc = "Effective Doppler search granularity this engine picked: the window-tile count (this engine always window-tiles -- see acq_core.h's file doc comment -- so this is window_bins, never a coherent-depth axis)."
 
 [[acq.properties]]

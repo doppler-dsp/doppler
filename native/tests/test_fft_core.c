@@ -61,8 +61,8 @@ main (void)
     for (size_t i = 0; i < N; i++)
       in[i] = (double)(i + 1) + 0.0 * I;
 
-    fft_execute_cf64 (fwd, in, N, spec);
-    fft_execute_cf64 (inv, spec, N, rec);
+    fft_execute_cf64 (fwd, in, N, spec, N);
+    fft_execute_cf64 (inv, spec, N, rec, N);
 
     /* IDFT without normalisation: rec[k] == N * in[k] */
     for (size_t i = 0; i < N; i++)
@@ -82,8 +82,8 @@ main (void)
     for (size_t i = 0; i < N; i++)
       in[i] = (float)(i + 1) + 0.0f * I;
 
-    fft_execute_cf32 (fwd, in, N, spec);
-    fft_execute_cf32 (inv, spec, N, rec);
+    fft_execute_cf32 (fwd, in, N, spec, N);
+    fft_execute_cf32 (inv, spec, N, rec, N);
 
     for (size_t i = 0; i < N; i++)
       CHECK (ceq32 (rec[i], (float)N * in[i]));
@@ -98,7 +98,7 @@ main (void)
     double complex in[16], out[16];
     for (size_t i = 0; i < N; i++)
       in[i] = 1.0 + 0.0 * I;
-    fft_execute_cf64 (obj, in, N, out);
+    fft_execute_cf64 (obj, in, N, out, N);
 
     /* bin 0 = N; all others = 0 */
     CHECK (ceq64 (out[0], (double)N + 0.0 * I));
@@ -114,8 +114,8 @@ main (void)
     for (size_t i = 0; i < N; i++)
       in[i] = (double)i - 7.5 + (double)i * I;
 
-    fft_execute_cf64 (obj, in, N, out_oop);
-    fft_execute_inplace_cf64 (obj, in, N, out_ip);
+    fft_execute_cf64 (obj, in, N, out_oop, N);
+    fft_execute_inplace_cf64 (obj, in, N, out_ip, N);
 
     for (size_t k = 0; k < N; k++)
       CHECK (ceq64 (out_ip[k], out_oop[k]));
@@ -129,8 +129,8 @@ main (void)
     for (size_t i = 0; i < N; i++)
       in[i] = (float)i - 7.5f + (float)i * I;
 
-    fft_execute_cf32 (obj, in, N, out_oop);
-    fft_execute_inplace_cf32 (obj, in, N, out_ip);
+    fft_execute_cf32 (obj, in, N, out_oop, N);
+    fft_execute_inplace_cf32 (obj, in, N, out_ip, N);
 
     for (size_t k = 0; k < N; k++)
       CHECK (ceq32 (out_ip[k], out_oop[k]));
@@ -144,6 +144,69 @@ main (void)
     CHECK (fft_execute_cf32_max_out (obj) == N);
     CHECK (fft_execute_inplace_cf64_max_out (obj) == N);
     CHECK (fft_execute_inplace_cf32_max_out (obj) == N);
+    fft_destroy (obj);
+  }
+
+  /* ── short out: prefix of the full transform, nothing past max_out ──
+   * The plan is fixed at n and writes all n bins, so a short buffer is
+   * served from scratch and truncated -- see fft_core.c.  The canary
+   * proves the tail is never touched. */
+  {
+    fft_state_t   *obj = fft_create (N, -1, 1);
+    double complex in[16], full[16], part[16];
+    float complex  in32[16], full32[16], part32[16];
+    for (size_t i = 0; i < N; i++)
+      {
+        in[i]   = (double)(i % 7) - 3.0 + (double)(i % 5) * I;
+        in32[i] = (float)(i % 7) - 3.0f + (float)(i % 5) * I;
+      }
+    const double complex CANARY   = -12345.0 - 6789.0 * I;
+    const float complex  CANARY32 = -12345.0f - 6789.0f * I;
+    const size_t         K        = 4;
+
+    fft_execute_cf64 (obj, in, N, full, N);
+    for (size_t k = 0; k < N; k++)
+      part[k] = CANARY;
+    CHECK (fft_execute_cf64 (obj, in, N, part, K) == K);
+    for (size_t k = 0; k < K; k++)
+      CHECK (ceq64 (part[k], full[k]));
+    for (size_t k = K; k < N; k++)
+      CHECK (ceq64 (part[k], CANARY));
+
+    fft_execute_inplace_cf64 (obj, in, N, full, N);
+    for (size_t k = 0; k < N; k++)
+      part[k] = CANARY;
+    CHECK (fft_execute_inplace_cf64 (obj, in, N, part, K) == K);
+    for (size_t k = 0; k < K; k++)
+      CHECK (ceq64 (part[k], full[k]));
+    for (size_t k = K; k < N; k++)
+      CHECK (ceq64 (part[k], CANARY));
+
+    fft_execute_cf32 (obj, in32, N, full32, N);
+    for (size_t k = 0; k < N; k++)
+      part32[k] = CANARY32;
+    CHECK (fft_execute_cf32 (obj, in32, N, part32, K) == K);
+    for (size_t k = 0; k < K; k++)
+      CHECK (ceq32 (part32[k], full32[k]));
+    for (size_t k = K; k < N; k++)
+      CHECK (ceq32 (part32[k], CANARY32));
+
+    fft_execute_inplace_cf32 (obj, in32, N, full32, N);
+    for (size_t k = 0; k < N; k++)
+      part32[k] = CANARY32;
+    CHECK (fft_execute_inplace_cf32 (obj, in32, N, part32, K) == K);
+    for (size_t k = 0; k < K; k++)
+      CHECK (ceq32 (part32[k], full32[k]));
+    for (size_t k = K; k < N; k++)
+      CHECK (ceq32 (part32[k], CANARY32));
+
+    /* max_out == 0 writes nothing at all. */
+    for (size_t k = 0; k < N; k++)
+      part[k] = CANARY;
+    CHECK (fft_execute_cf64 (obj, in, N, part, 0) == 0);
+    for (size_t k = 0; k < N; k++)
+      CHECK (ceq64 (part[k], CANARY));
+
     fft_destroy (obj);
   }
 

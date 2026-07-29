@@ -14,12 +14,6 @@
 typedef struct
 {
   PyObject_HEAD dll_state_t *handle;
-  float complex             *_steps_buf; /* pre-allocated output for steps */
-  size_t                     _steps_buf_cap; /* allocated capacity for steps */
-  void                     **_steps_retired; /* gh-219 deferred free */
-  size_t                     _steps_retired_n;
-  size_t                     _steps_retired_cap;
-  PyObject                  *_steps_view_ref; /* gh-437 last returned view */
 } DllObject;
 
 static void
@@ -27,11 +21,6 @@ DllObj_dealloc (DllObject *self)
 {
   if (self->handle)
     dll_destroy (self->handle);
-  free (self->_steps_buf);
-  for (size_t _i = 0; _i < self->_steps_retired_n; _i++)
-    free (self->_steps_retired[_i]);
-  free (self->_steps_retired);
-  Py_XDECREF (self->_steps_view_ref);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -79,19 +68,6 @@ DllObj_init (DllObject *self, PyObject *args, PyObject *kwds)
       PyErr_SetString (PyExc_MemoryError, "dll_create returned NULL");
       return -1;
     }
-  {
-    size_t _max = dll_steps_max_out (self->handle);
-    if (_max)
-      {
-        self->_steps_buf = malloc (_max * sizeof (float complex));
-        if (!self->_steps_buf)
-          {
-            PyErr_NoMemory ();
-            return -1;
-          }
-        self->_steps_buf_cap = _max;
-      }
-  }
   return 0;
 }
 
@@ -127,6 +103,19 @@ DllObj_steps (DllObject *self, PyObject *args, PyObject *kwds)
     return NULL;
   if (out_obj && out_obj != Py_None)
     {
+      /* Require the exact dtype AND C-contiguity — either mismatch makes
+       * the marshal write into a temp copy, not the caller's buffer. */
+      if (!PyArray_Check (out_obj)
+          || PyArray_TYPE ((PyArrayObject *)out_obj) != NPY_COMPLEX64
+          || !PyArray_IS_C_CONTIGUOUS ((PyArrayObject *)out_obj)
+          || !PyArray_ISWRITEABLE ((PyArrayObject *)out_obj))
+        {
+          PyErr_SetString (PyExc_TypeError,
+                           "out must be a writable, C-contiguous"
+                           " ndarray of the output dtype");
+          Py_DECREF (x_arr);
+          return NULL;
+        }
       PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
           out_obj, NPY_COMPLEX64,
           NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
@@ -171,53 +160,18 @@ DllObj_steps (DllObject *self, PyObject *args, PyObject *kwds)
       PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
       return _oview;
     }
-  size_t _need      = (size_t)PyArray_SIZE (x_arr);
-  int    _view_live = 0;
-  if (self->_steps_view_ref)
+  size_t _need = (size_t)PyArray_SIZE (x_arr);
+  size_t _cap  = dll_steps_max_out (self->handle);
+  if (!_cap || _cap < _need)
+    _cap = _need;
+  npy_intp  _adim = (npy_intp)_cap;
+  PyObject *arr0  = PyArray_SimpleNew (1, &_adim, NPY_COMPLEX64);
+  if (!arr0)
     {
-#if PY_VERSION_HEX >= 0x030D0000
-      PyObject *_lv = NULL;
-      if (PyWeakref_GetRef (self->_steps_view_ref, &_lv) == 1)
-        {
-          Py_DECREF (_lv);
-          _view_live = 1;
-        }
-#else
-      _view_live = PyWeakref_GetObject (self->_steps_view_ref) != Py_None;
-#endif
+      Py_DECREF (x_arr);
+      return NULL;
     }
-  if (!self->_steps_buf || self->_steps_buf_cap < _need || _view_live)
-    {
-      size_t _max = dll_steps_max_out (self->handle);
-      if (!_max || _max < _need)
-        _max = _need;
-      if (self->_steps_buf
-          && self->_steps_retired_n == self->_steps_retired_cap)
-        {
-          size_t _rcap
-              = self->_steps_retired_cap ? self->_steps_retired_cap * 2 : 4;
-          void **_rt = realloc (self->_steps_retired, _rcap * sizeof (void *));
-          if (!_rt)
-            {
-              Py_DECREF (x_arr);
-              PyErr_NoMemory ();
-              return NULL;
-            }
-          self->_steps_retired     = _rt;
-          self->_steps_retired_cap = _rcap;
-        }
-      float complex *_tmp = malloc (_max * sizeof (float complex));
-      if (!_tmp)
-        {
-          Py_DECREF (x_arr);
-          PyErr_NoMemory ();
-          return NULL;
-        }
-      if (self->_steps_buf)
-        self->_steps_retired[self->_steps_retired_n++] = self->_steps_buf;
-      self->_steps_buf     = _tmp;
-      self->_steps_buf_cap = _max;
-    }
+  float complex *_d0 = (float complex *)PyArray_DATA ((PyArrayObject *)arr0);
   /* nogil: GIL released across the pure-C kernel — sound only when
    * this object is not shared across threads concurrently (one
    * object per stream); the kernel touches only this object's
@@ -226,27 +180,23 @@ DllObj_steps (DllObject *self, PyObject *args, PyObject *kwds)
   size_t               _ng1 = (size_t)PyArray_SIZE (x_arr);
   size_t               n_out;
   Py_BEGIN_ALLOW_THREADS
-    n_out = dll_steps (self->handle, _ng0, _ng1, self->_steps_buf,
-                       self->_steps_buf_cap);
+    n_out = dll_steps (self->handle, _ng0, _ng1, _d0, _cap);
   Py_END_ALLOW_THREADS
-  npy_intp  dim = (npy_intp)n_out;
-  PyObject *arr
-      = PyArray_SimpleNewFromData (1, &dim, NPY_COMPLEX64, self->_steps_buf);
-  if (!arr)
-    return NULL;
-  PyArray_SetBaseObject ((PyArrayObject *)arr, (PyObject *)self);
-  Py_INCREF (self);
-  /* gh-437: remember this view — while the caller holds it the next
-   * call retires the buffer instead of reusing it in place. */
-  Py_XDECREF (self->_steps_view_ref);
-  self->_steps_view_ref = PyWeakref_NewRef (arr, NULL);
-  if (!self->_steps_view_ref)
+  Py_DECREF (x_arr);
+  if ((size_t)n_out == _cap)
     {
-      Py_DECREF (arr);
+      return arr0;
+    }
+  npy_intp     _odim = (npy_intp)n_out;
+  PyArray_Dims _rs0  = { &_odim, 1 };
+  PyObject *v0 = PyArray_Resize ((PyArrayObject *)arr0, &_rs0, 0, NPY_CORDER);
+  if (!v0)
+    {
+      Py_DECREF (arr0);
       return NULL;
     }
-  Py_DECREF (x_arr);
-  return arr;
+  Py_DECREF (v0);
+  return arr0;
 }
 
 static PyObject *
@@ -310,6 +260,22 @@ DllObj_configure (DllObject *self, PyObject *args, PyObject *kwds)
 }
 
 static PyObject *
+DllObj_set_rate_aid (DllObject *self, PyObject *args, PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char *_kwlist[] = { "rate_aid", NULL };
+  double       rate_aid  = 0.0;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "d", _kwlist, &rate_aid))
+    return NULL;
+  dll_set_rate_aid (self->handle, rate_aid);
+  Py_RETURN_NONE;
+}
+
+static PyObject *
 DllObj_configure_lock (DllObject *self, PyObject *args, PyObject *kwds)
 {
   if (!self->handle)
@@ -331,6 +297,34 @@ DllObj_configure_lock (DllObject *self, PyObject *args, PyObject *kwds)
       PyErr_Format (PyExc_ValueError, "configure_lock failed (rc=%d)", _rc);
       return NULL;
     }
+  Py_RETURN_NONE;
+}
+
+static PyObject *
+DllObj_configure_lock_raw (DllObject *self, PyObject *args, PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char *_kwlist[]   = { "up_thresh", "down_thresh", "n_looks", "alpha",
+                               "n_up",      "n_down",      NULL };
+  double       up_thresh   = 0.0;
+  double       down_thresh = 0.0;
+  unsigned long long n_looks_raw = 0ULL;
+  double             alpha       = 0.0;
+  unsigned long      n_up_raw    = 0UL;
+  unsigned long      n_down_raw  = 0UL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "ddKdkk", _kwlist, &up_thresh,
+                                    &down_thresh, &n_looks_raw, &alpha,
+                                    &n_up_raw, &n_down_raw))
+    return NULL;
+  size_t   n_looks = (size_t)n_looks_raw;
+  uint32_t n_up    = (uint32_t)n_up_raw;
+  uint32_t n_down  = (uint32_t)n_down_raw;
+  dll_configure_lock_raw (self->handle, up_thresh, down_thresh, n_looks, alpha,
+                          n_up, n_down);
   Py_RETURN_NONE;
 }
 
@@ -511,8 +505,9 @@ static PyGetSetDef Dll_getset[] = {
     NULL },
   { "segments", (getter)Dll_getprop_segments, NULL, "Segments.\n", NULL },
   { "locked", (getter)Dll_getprop_locked, NULL,
-    "True when the code-lock detector's statistic exceeds its CFAR threshold "
-    "(latched at each n_looks-look decision; see configure_lock).\n",
+    "Current lock decision: True after the verify count of consecutive "
+    "above-threshold N-look decisions, False again after the drop count of "
+    "consecutive below-threshold ones (see configure_lock).\n",
     NULL },
   { "lock_stat", (getter)Dll_getprop_lock_stat, NULL,
     "Last code-lock test statistic R = sqrt(2*sum|P|^2 / E|O|^2); compare "
@@ -555,53 +550,9 @@ DllObj_exit (DllObject *self, PyObject *args)
   Py_RETURN_NONE;
 }
 
-static PyObject *
-DllObj_configure_lock_raw (DllObject *self, PyObject *args, PyObject *kwds)
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  static char *_kwlist[]   = { "up_thresh", "down_thresh", "n_looks", "alpha",
-                               "n_up",      "n_down",      NULL };
-  double       up_thresh   = 0.0;
-  double       down_thresh = 0.0;
-  unsigned long long n_looks_raw = 0ULL;
-  double             alpha       = 0.0;
-  unsigned long      n_up_raw    = 0UL;
-  unsigned long      n_down_raw  = 0UL;
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "ddKdkk", _kwlist, &up_thresh,
-                                    &down_thresh, &n_looks_raw, &alpha,
-                                    &n_up_raw, &n_down_raw))
-    return NULL;
-  size_t   n_looks = (size_t)n_looks_raw;
-  uint32_t n_up    = (uint32_t)n_up_raw;
-  uint32_t n_down  = (uint32_t)n_down_raw;
-  dll_configure_lock_raw (self->handle, up_thresh, down_thresh, n_looks, alpha,
-                          n_up, n_down);
-  Py_RETURN_NONE;
-}
-
-static PyObject *
-DllObj_set_rate_aid (DllObject *self, PyObject *args, PyObject *kwds)
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  static char *_kwlist[] = { "rate_aid", NULL };
-  double       rate_aid  = 0.0;
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "d", _kwlist, &rate_aid))
-    return NULL;
-  dll_set_rate_aid (self->handle, rate_aid);
-  Py_RETURN_NONE;
-}
-
 static PyMethodDef DllObj_methods[] = {
 
-  { "steps", (PyCFunction)DllObj_steps, METH_VARARGS | METH_KEYWORDS,
+  { "steps", (PyCFunction)(void *)DllObj_steps, METH_VARARGS | METH_KEYWORDS,
     "steps(x) -> ndarray\n"
     "\n"
     "Correlate a cf32 block against the local code with early/prompt/late "
@@ -636,15 +587,17 @@ static PyMethodDef DllObj_methods[] = {
     "set_telemetry(tlm, prefix, decim) -> int\n"
     "\n"
     "Attach (or detach) a telemetry context and register the code loop's "
-    "probes on it. Registers three probes, emitted once per code epoch "
+    "probes on it. Registers four probes, emitted once per code epoch "
     "(period) and further thinned by decim: \"<prefix>.e\" (the "
     "early-minus-late envelope discriminator — the loop stress), "
     "\"<prefix>.rate\" (the tracked code rate, chips advanced per nominal "
-    "chip, ~1.0 at lock) and \"<prefix>.lock\" (the CFAR lock statistic R; "
-    "compare against the configured threshold).  Passing NULL detaches.  "
-    "Setup path, never hot: call before the producer thread starts stepping; "
-    "the context is borrowed and must outlive the attachment (SPSC rules in "
-    "telemetry/telemetry.h).\n"
+    "chip, ~1.0 at lock), \"<prefix>.lock\" (the CFAR lock statistic R; "
+    "compare against the configured threshold) and \"<prefix>.locked\" (the "
+    "verify-counted lock decision, 0/1 — the lockdet output, so a consumer "
+    "sees where the declare/drop rule fired without re-deriving it from the "
+    "statistic).  Passing NULL detaches. Setup path, never hot: call before "
+    "the producer thread starts stepping; the context is borrowed and must "
+    "outlive the attachment (SPSC rules in telemetry/telemetry.h).\n"
     "\n"
     "    >>> import numpy as np\n"
     "    >>> from doppler import Dll\n"
@@ -664,6 +617,24 @@ static PyMethodDef DllObj_methods[] = {
     "    >>> obj = Dll(np.zeros(1, dtype=np.uint8), 2, 0.0, 0.01, 0.707, 0.5, "
     "1)\n"
     "    >>> obj.configure(0.0, 0.0)\n" },
+  { "set_rate_aid", (PyCFunction)(void *)DllObj_set_rate_aid,
+    METH_VARARGS | METH_KEYWORDS,
+    "set_rate_aid(rate_aid) -> None\n"
+    "\n"
+    "Set the carrier-aiding code-rate deviation (ratio; 0 = off): a fixed "
+    "fractional rate bias summed into the code NCO's phase_inc every epoch, "
+    "on top of the loop's own control. For physically-coupled Doppler, pass "
+    "carrier_offset_hz / carrier_freq_hz so the code NCO rides the code-rate "
+    "dilation the discriminator alone can't pull in at low SNR. Applied "
+    "continuously across the epoch (not a phase pulse), and nudges the "
+    "current phase_inc so the aid takes effect before the first period "
+    "update. code_rate stays the loop's own observable and is unaffected.\n"
+    "\n"
+    "    >>> import numpy as np\n"
+    "    >>> from doppler import Dll\n"
+    "    >>> obj = Dll(np.zeros(1, dtype=np.uint8), 2, 0.0, 0.01, 0.707, 0.5, "
+    "1)\n"
+    "    >>> obj.set_rate_aid(0.0)\n" },
   { "configure_lock", (PyCFunction)(void *)DllObj_configure_lock,
     METH_VARARGS | METH_KEYWORDS,
     "configure_lock(pfa, n_looks, ref_snr_db) -> int\n"
@@ -672,16 +643,22 @@ static PyMethodDef DllObj_methods[] = {
     "detector reuses acquisition's non-coherent statistic R = sqrt(2*sum|P|^2 "
     "/ E|O|^2), where the prompt powers of n_looks consecutive looks are "
     "summed and E|O|^2 is an EMA of a random off-peak (noise) correlation "
-    "re-drawn each epoch; it declares lock when R exceeds "
+    "re-drawn each epoch; a decision compares R against "
     "det_threshold_noncoherent(pfa, n_looks). Size n_looks with "
     "detection.det_n_noncoh(snr, ...) for your operating C/N0. The EMA "
     "bandwidth is sized probabilistically (detection.det_ema_alpha): "
     "ref_snr_db sets the noise reference's estimator SNR (mean^2/variance of "
     "the EMA output); the default 0.0 derives it from n_looks so the "
     "reference's std stays an eighth of the statistic's intrinsic H0 spread, "
-    "floored at ~33 dB. The default config is pfa=1e-3 over 20 looks. Raises "
-    "ValueError for pfa outside (0, 1). Read the result from the locked / "
-    "lock_stat / noise_est properties.\n"
+    "floored at ~33 dB. Decisions feed a verify-counted lock detector rather "
+    "than a single-comparison latch: locked flips up only after "
+    "det_verify_count(pfa, pfa*1e-3) consecutive above-threshold decisions (2 "
+    "for the default pfa=1e-3, compounding the false-declare rate three "
+    "decades under pfa) and drops only after 2 consecutive below-threshold "
+    "decisions, so a statistic grazing the threshold cannot chatter the flag. "
+    "The default config is pfa=1e-3 over 20 looks. Raises ValueError for pfa "
+    "outside (0, 1). Read the result from the locked / lock_stat / noise_est "
+    "properties.\n"
     "\n"
     "    >>> import numpy as np\n"
     "    >>> from doppler import Dll\n"
@@ -689,25 +666,6 @@ static PyMethodDef DllObj_methods[] = {
     "1)\n"
     "    >>> obj.configure_lock(0.0, 0, 0.0)\n"
     "    0\n" },
-  { "reset", (PyCFunction)DllObj_reset, METH_NOARGS,
-    "reset() -> None\n"
-    "\n"
-    "Re-seed the loop to the create-time code phase; preserve config.\n"
-    "\n"
-    "    >>> from doppler import Dll\n"
-    "    >>> obj = Dll(np.zeros(1, dtype=np.uint8), 2, 0.0, 0.01, 0.707, 0.5, "
-    "1)\n"
-    "    >>> obj.reset()\n" },
-  { "state_bytes", (PyCFunction)DllObj_state_bytes, METH_NOARGS,
-    "Serialized state size in bytes." },
-  { "get_state", (PyCFunction)DllObj_get_state, METH_NOARGS,
-    "Serialize the engine's mutable state to bytes." },
-  { "set_state", (PyCFunction)DllObj_set_state, METH_O,
-    "Restore mutable state from a get_state() blob." },
-  { "destroy", (PyCFunction)DllObj_destroy, METH_NOARGS,
-    "Release resources." },
-  { "__enter__", (PyCFunction)DllObj_enter, METH_NOARGS, NULL },
-  { "__exit__", (PyCFunction)DllObj_exit, METH_VARARGS, NULL },
   { "configure_lock_raw", (PyCFunction)(void *)DllObj_configure_lock_raw,
     METH_VARARGS | METH_KEYWORDS,
     "configure_lock_raw(up_thresh, down_thresh, n_looks, alpha, n_up, n_down) "
@@ -731,24 +689,25 @@ static PyMethodDef DllObj_methods[] = {
     "    >>> obj = Dll(np.zeros(1, dtype=np.uint8), 2, 0.0, 0.01, 0.707, 0.5, "
     "1)\n"
     "    >>> obj.configure_lock_raw(0.0, 0.0, 0, 0.0, 0, 0)\n" },
-  { "set_rate_aid", (PyCFunction)(void *)DllObj_set_rate_aid,
-    METH_VARARGS | METH_KEYWORDS,
-    "set_rate_aid(rate_aid) -> None\n"
+  { "reset", (PyCFunction)DllObj_reset, METH_NOARGS,
+    "reset() -> None\n"
     "\n"
-    "Set the carrier-aiding code-rate deviation (ratio; 0 = off): a fixed "
-    "fractional rate bias summed into the code NCO's phase_inc every epoch, "
-    "on top of the loop's own control. For physically-coupled Doppler, pass "
-    "carrier_offset_hz / carrier_freq_hz so the code NCO rides the code-rate "
-    "dilation the discriminator alone can't pull in at low SNR. Applied "
-    "continuously across the epoch (not a phase pulse), and nudges the "
-    "current phase_inc so the aid takes effect before the first period "
-    "update. code_rate stays the loop's own observable and is unaffected.\n"
+    "Re-seed the loop to the create-time code phase; preserve config.\n"
     "\n"
-    "    >>> import numpy as np\n"
     "    >>> from doppler import Dll\n"
     "    >>> obj = Dll(np.zeros(1, dtype=np.uint8), 2, 0.0, 0.01, 0.707, 0.5, "
     "1)\n"
-    "    >>> obj.set_rate_aid(0.0)\n" },
+    "    >>> obj.reset()\n" },
+  { "state_bytes", (PyCFunction)DllObj_state_bytes, METH_NOARGS,
+    "Serialized state size in bytes." },
+  { "get_state", (PyCFunction)DllObj_get_state, METH_NOARGS,
+    "Serialize the engine's mutable state to bytes." },
+  { "set_state", (PyCFunction)DllObj_set_state, METH_O,
+    "Restore mutable state from a get_state() blob." },
+  { "destroy", (PyCFunction)DllObj_destroy, METH_NOARGS,
+    "Release resources." },
+  { "__enter__", (PyCFunction)DllObj_enter, METH_NOARGS, NULL },
+  { "__exit__", (PyCFunction)DllObj_exit, METH_VARARGS, NULL },
   { NULL }
 };
 

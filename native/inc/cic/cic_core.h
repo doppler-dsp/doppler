@@ -56,7 +56,7 @@
  *
  * @code
  * cic_state_t *cic = cic_create(16);   // R=16, N=4, M=1
- * size_t n_out = cic_decimate(cic, in, 1024, out);
+ * size_t n_out = cic_decimate(cic, in, 1024, out, 1024);
  * cic_destroy(cic);
  * @endcode
  */
@@ -180,8 +180,15 @@ size_t cic_decimate_max_out(cic_state_t *state);
  * @param state  Pointer to a valid cic_state_t.
  * @param in     CF32 input block, |Re| and |Im| <= 1.0 (clipped otherwise).
  * @param n_in   Number of input samples.
- * @param out    Output buffer; must hold at least n_in elements.
- * @return       CF32 output array; length is floor((phase + n_in) / R).
+ * @param out    Output buffer; must hold at least max_out elements.
+ * @param max_out Capacity of @p out in samples.  Normally n_in (the loosest
+ *               bound: at most one output per input).  If it is smaller the
+ *               integrators and combs still advance over every input sample
+ *               -- the pipeline is a running filter and cannot be left
+ *               half-fed -- but emission stops, so the samples past the
+ *               capacity are dropped rather than written past the end.
+ * @return       CF32 output array; length is
+ *               min(floor((phase + n_in) / R), max_out).
  *
  * @code
  * >>> from doppler.resample import CIC
@@ -196,7 +203,7 @@ size_t cic_decimate_max_out(cic_state_t *state);
  */
 JM_FORCEINLINE JM_HOT size_t
 cic_decimate(cic_state_t *state, const float complex *in,
-             size_t n_in, float complex *out)
+             size_t n_in, float complex *out, size_t max_out)
 {
     const uint32_t R     = state->R;
     const uint32_t shift = state->shift;
@@ -241,6 +248,13 @@ cic_decimate(cic_state_t *state, const float complex *in,
         t = state->comb_im[1]; state->comb_im[1] = im; im -= t;
         t = state->comb_im[2]; state->comb_im[2] = im; im -= t;
         t = state->comb_im[3]; state->comb_im[3] = im; im -= t;
+
+        /* Capacity reached: keep running the filter (the integrator and
+           comb state must stay in step with the input stream) but stop
+           writing.  Guarding the store, not the loop, is the difference
+           between a truncated block and a corrupted filter. */
+        if (n_out >= max_out)
+            continue;
 
         /* UQ16 → CF32: right-shift to normalise, remove offset-binary bias. */
         out[n_out++] = CMPLXF(

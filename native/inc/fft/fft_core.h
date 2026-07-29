@@ -10,7 +10,7 @@
  * @code
  * fft_state_t *fft = fft_create(1024, -1, 1);
  * double complex out[1024];
- * fft_execute_cf64(fft, in, 1024, out);
+ * fft_execute_cf64(fft, in, 1024, out, 1024);
  * fft_destroy(fft);
  * @endcode
  */
@@ -31,6 +31,13 @@ extern "C"
     pocketfft_plan *plan_f32; /**< CF32 1-D plan. */
     size_t n;                 /**< Transform length (samples). */
     int sign;                 /**< -1 forward, +1 inverse.    */
+    /** Scratch for a short `out`.  A pocketfft plan is fixed at n and
+     *  writes all n bins, so it cannot be pointed at a smaller buffer;
+     *  a truncating call transforms here and copies the prefix.  Sized
+     *  for the widest element (CF64) so one buffer serves both plans.
+     *  Allocated lazily -- max_out is n on every sized call, which is
+     *  everything the Python binding and every in-tree caller does. */
+    double complex *work_trunc;
   } fft_state_t;
 
   /**
@@ -77,7 +84,10 @@ extern "C"
    * @param in     Input buffer of length state->n (CF64, row-major).
    * @param n_in   Number of input samples; must equal state->n.
    * @param out    Output buffer of length >= state->n (CF64, caller-allocated).
-   * @return n (number of samples written).
+   * @param max_out Capacity of @p out in samples.  Normally state->n; if it
+   *                is smaller the first max_out bins are written and the
+   *                rest of the transform is discarded.
+   * @return min(state->n, max_out) bins.
    * @code
    * >>> from doppler.spectral import FFT
    * >>> import numpy as np
@@ -88,7 +98,7 @@ extern "C"
    * @endcode
    */
   size_t fft_execute_cf64 (fft_state_t *state, const double complex *in,
-                           size_t n_in, double complex *out);
+                           size_t n_in, double complex *out, size_t max_out);
 
   /** @brief Maximum output samples for CF32 execute (always == n). */
   size_t fft_execute_cf32_max_out (fft_state_t *state);
@@ -103,7 +113,10 @@ extern "C"
    * @param in     Input buffer of length state->n (CF32, row-major).
    * @param n_in   Number of input samples; must equal state->n.
    * @param out    Output buffer of length >= state->n (CF32, caller-allocated).
-   * @return n (number of samples written).
+   * @param max_out Capacity of @p out in samples.  Normally state->n; if it
+   *                is smaller the first max_out bins are written and the
+   *                rest of the transform is discarded.
+   * @return min(state->n, max_out) bins.
    * @code
    * >>> from doppler.spectral import FFT
    * >>> import numpy as np
@@ -114,7 +127,7 @@ extern "C"
    * @endcode
    */
   size_t fft_execute_cf32 (fft_state_t *state, const float complex *in,
-                           size_t n_in, float complex *out);
+                           size_t n_in, float complex *out, size_t max_out);
 
   /** @brief Maximum output samples for inplace CF64 (always == n). */
   size_t fft_execute_inplace_cf64_max_out (fft_state_t *state);
@@ -130,7 +143,10 @@ extern "C"
    * @param in     Source buffer, state->n CF64 samples; not modified.
    * @param n_in   Number of input samples; must equal state->n.
    * @param out    Destination buffer, length >= state->n; must not alias in.
-   * @return n (number of samples written).
+   * @param max_out Capacity of @p out in samples.  Normally state->n; if it
+   *                is smaller the copy-and-transform happens in scratch and
+   *                only the first max_out bins reach @p out.
+   * @return min(state->n, max_out) bins.
    * @code
    * >>> from doppler.spectral import FFT
    * >>> import numpy as np
@@ -142,7 +158,7 @@ extern "C"
    */
   size_t fft_execute_inplace_cf64 (fft_state_t *state,
                                    const double complex *in, size_t n_in,
-                                   double complex *out);
+                                   double complex *out, size_t max_out);
 
   /** @brief Maximum output samples for inplace CF32 (always == n). */
   size_t fft_execute_inplace_cf32_max_out (fft_state_t *state);
@@ -157,7 +173,10 @@ extern "C"
    * @param in     Source buffer, state->n CF32 samples; not modified.
    * @param n_in   Number of input samples; must equal state->n.
    * @param out    Destination buffer, length >= state->n; must not alias in.
-   * @return n (number of samples written).
+   * @param max_out Capacity of @p out in samples.  Normally state->n; if it
+   *                is smaller the copy-and-transform happens in scratch and
+   *                only the first max_out bins reach @p out.
+   * @return min(state->n, max_out) bins.
    * @code
    * >>> from doppler.spectral import FFT
    * >>> import numpy as np
@@ -168,7 +187,8 @@ extern "C"
    * @endcode
    */
   size_t fft_execute_inplace_cf32 (fft_state_t *state, const float complex *in,
-                                   size_t n_in, float complex *out);
+                                   size_t n_in, float complex *out,
+                                   size_t max_out);
 
   /** @brief Maximum output samples for the ci16 execute (always == n). */
   size_t fft_execute_ci16_max_out (fft_state_t *state);

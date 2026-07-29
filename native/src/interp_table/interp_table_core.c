@@ -58,8 +58,13 @@ wrap_index (double floor_pt, size_t n)
 
 size_t
 interp_table_execute (interp_table_state_t *state, const double *in,
-                      size_t n_in, double complex *out)
+                      size_t n_in, double complex *out, size_t max_out)
 {
+  /* Emission stops at the caller's capacity (jm gh-138). This block is
+     1:1 and stateless, so a truncated call simply drops the tail --
+     there is no delay line to desynchronise. */
+  if (n_in > max_out)
+    n_in = max_out;
   const double complex *table = state->table;
   size_t                n     = state->n;
   for (size_t i = 0; i < n_in; i++)

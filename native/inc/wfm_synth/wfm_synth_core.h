@@ -733,7 +733,7 @@ wfm_synth_step(wfm_synth_state_t *state)
     }
     float complex carrier = 1.0f + 0.0f * I;
     if (state->lo) {
-        lo_steps(state->lo, 1, &carrier);
+        lo_steps(state->lo, 1, &carrier, 1);
     } else if (state->wtype == WFM_SYNTH_CHIRP) {
         /* Sweeping carrier: f(n) = f0 + k*n (normalised cycles/sample), held at
          * f_end once the span is reached. Phase accumulates in cycles, wrapped to
@@ -751,7 +751,7 @@ wfm_synth_step(wfm_synth_state_t *state)
     }
     float complex noise = 0.0f + 0.0f * I;
     if (state->awgn)
-        awgn_generate(state->awgn, 1, &noise);
+        awgn_generate(state->awgn, 1, &noise, 1);
     return sym * carrier + noise;
 }
 

@@ -246,7 +246,7 @@ specan_execute (specan_state_t *state, const float complex *x, size_t x_len,
   memmove (state->pend, state->pend + need,
            state->pend_len * sizeof *state->pend);
 
-  psd_power_twosided (state->psd, state->nfft, state->pwr);
+  psd_power_twosided (state->psd, state->nfft, state->pwr, state->nfft);
 
   /* Crop the central display band and convert to dBFS (+ application offset).
    * The 0-dBFS reference is the PSD core's full_scale (single source). */

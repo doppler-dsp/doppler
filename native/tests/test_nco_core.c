@@ -58,7 +58,7 @@ main (void)
   {
     nco_state_t *nco = nco_create (0.0, 0);
     uint32_t     out[8];
-    nco_steps_u32 (nco, 8, out);
+    nco_steps_u32 (nco, 8, out, 8);
     for (int i = 0; i < 8; i++)
       CHECK (out[i] == 0u);
     nco_destroy (nco);
@@ -77,7 +77,7 @@ main (void)
     nco_state_t *nco = nco_create (0.25, 0);
     CHECK (nco_get_phase_inc (nco) == 0x40000000u);
     uint32_t out[4];
-    nco_steps_u32 (nco, 4, out);
+    nco_steps_u32 (nco, 4, out, 4);
     CHECK (out[0] == 0x00000000u);
     CHECK (out[1] == 0x40000000u);
     CHECK (out[2] == 0x80000000u);
@@ -95,11 +95,11 @@ main (void)
     nco_state_t *a = nco_create (0.1, 0);
     nco_state_t *b = nco_create (0.1, 0);
     uint32_t     ref[16], blk[8];
-    nco_steps_u32 (a, 16, ref);
-    nco_steps_u32 (b, 8, blk);
+    nco_steps_u32 (a, 16, ref, 16);
+    nco_steps_u32 (b, 8, blk, 8);
     for (int i = 0; i < 8; i++)
       CHECK (blk[i] == ref[i]);
-    nco_steps_u32 (b, 8, blk);
+    nco_steps_u32 (b, 8, blk, 8);
     for (int i = 0; i < 8; i++)
       CHECK (blk[i] == ref[8 + i]);
     nco_destroy (a);
@@ -115,7 +115,7 @@ main (void)
   {
     nco_state_t *nco = nco_create (0.25, 4);
     uint32_t     out[5];
-    nco_steps_u32_scaled (nco, 5, out);
+    nco_steps_u32_scaled (nco, 5, out, 5);
     CHECK (out[0] == 0u);
     CHECK (out[1] == 1u);
     CHECK (out[2] == 2u);
@@ -144,7 +144,7 @@ main (void)
     nco_state_t *nco = nco_create (0.25, 0);
     uint32_t     ph[8];
     uint8_t      ov[8];
-    nco_steps_u32_ovf (nco, 8, ph, ov);
+    nco_steps_u32_ovf (nco, 8, ph, ov, 8);
     CHECK (ph[0] == 0x00000000u);
     CHECK (ov[0] == 0);
     CHECK (ph[1] == 0x40000000u);
@@ -197,17 +197,17 @@ main (void)
   {
     nco_state_t *a = nco_create (0.123, 0);
     uint32_t     ref[16], got[16];
-    nco_steps_u32 (a, 5, ref); /* advance, then snapshot */
+    nco_steps_u32 (a, 5, ref, 5); /* advance, then snapshot */
     size_t sb   = nco_state_bytes (a);
     void  *blob = malloc (sb);
     nco_get_state (a, blob);
-    nco_steps_u32 (a, 16, ref); /* reference continuation */
+    nco_steps_u32 (a, 16, ref, 16); /* reference continuation */
 
     nco_state_t *b = nco_create (0.123, 0);
     CHECK (nco_set_state (b, blob) == DP_OK);
     ((char *)blob)[0] ^= (char)0xFF;
     CHECK (nco_set_state (b, blob) == DP_ERR_INVALID);
-    nco_steps_u32 (b, 16, got);
+    nco_steps_u32 (b, 16, got, 16);
     for (int i = 0; i < 16; i++)
       CHECK (got[i] == ref[i]);
     nco_destroy (a);
@@ -231,8 +231,8 @@ main (void)
       ctrl[i] = 0.25f;
 
     uint32_t out_ctrl[8], out_ref[8];
-    nco_steps_u32_ctrl (nco_ctrl, ctrl, 8, out_ctrl);
-    nco_steps_u32 (nco_ref, 8, out_ref);
+    nco_steps_u32_ctrl (nco_ctrl, ctrl, 8, out_ctrl, 8);
+    nco_steps_u32 (nco_ref, 8, out_ref, 8);
 
     for (int i = 0; i < 8; i++)
       CHECK (out_ctrl[i] == out_ref[i]);
@@ -261,8 +261,8 @@ main (void)
       ctrl[i] = 0.25f;
 
     uint32_t out_ctrl[8], out_ref[8];
-    nco_steps_u32_scaled_ctrl (nco_ctrl, ctrl, 8, out_ctrl);
-    nco_steps_u32_scaled (nco_ref, 8, out_ref);
+    nco_steps_u32_scaled_ctrl (nco_ctrl, ctrl, 8, out_ctrl, 8);
+    nco_steps_u32_scaled (nco_ref, 8, out_ref, 8);
 
     for (int i = 0; i < 8; i++)
       CHECK (out_ctrl[i] == out_ref[i]);
@@ -272,9 +272,9 @@ main (void)
     /* nmax == 0 falls back to raw, identical to steps_u32_ctrl. */
     nco_state_t *nco_raw = nco_create (0.0, 0);
     uint32_t     out_raw[8], out_plain[8];
-    nco_steps_u32_scaled_ctrl (nco_raw, ctrl, 8, out_raw);
+    nco_steps_u32_scaled_ctrl (nco_raw, ctrl, 8, out_raw, 8);
     nco_state_t *nco_plain = nco_create (0.0, 0);
-    nco_steps_u32_ctrl (nco_plain, ctrl, 8, out_plain);
+    nco_steps_u32_ctrl (nco_plain, ctrl, 8, out_plain, 8);
     for (int i = 0; i < 8; i++)
       CHECK (out_raw[i] == out_plain[i]);
 
@@ -301,8 +301,8 @@ main (void)
       ctrl[i] = 0.25f;
     uint32_t ph_ctrl[8], ph_ref[8];
     uint8_t  ov_ctrl[8], ov_ref[8];
-    nco_steps_u32_ovf_ctrl (nco_ctrl, ctrl, 8, ph_ctrl, ov_ctrl);
-    nco_steps_u32_ovf (nco_ref, 8, ph_ref, ov_ref);
+    nco_steps_u32_ovf_ctrl (nco_ctrl, ctrl, 8, ph_ctrl, ov_ctrl, 8);
+    nco_steps_u32_ovf (nco_ref, 8, ph_ref, ov_ref, 8);
     for (int i = 0; i < 8; i++)
       {
         CHECK (ph_ctrl[i] == ph_ref[i]);
@@ -324,7 +324,7 @@ main (void)
       big_ctrl[i] = 0.9f;
     uint32_t ph_big[4];
     uint8_t  ov_big[4];
-    nco_steps_u32_ovf_ctrl (nco_big, big_ctrl, 4, ph_big, ov_big);
+    nco_steps_u32_ovf_ctrl (nco_big, big_ctrl, 4, ph_big, ov_big, 4);
     for (int i = 0; i < 4; i++)
       CHECK (ov_big[i] == 1); /* every step wraps at least once */
     nco_destroy (nco_big);
@@ -343,7 +343,7 @@ main (void)
     nco_state_t *batch  = nco_create (0.1, 5);
     nco_state_t *single = nco_create (0.1, 5);
     uint32_t     bout[8];
-    nco_steps_u32 (batch, 8, bout);
+    nco_steps_u32 (batch, 8, bout, 8);
     for (int i = 0; i < 8; i++)
       CHECK (nco_step_u32 (single) == bout[i]);
     nco_destroy (batch);
@@ -353,7 +353,7 @@ main (void)
     nco_state_t *batch  = nco_create (0.1, 5);
     nco_state_t *single = nco_create (0.1, 5);
     uint32_t     bout[8];
-    nco_steps_u32_scaled (batch, 8, bout);
+    nco_steps_u32_scaled (batch, 8, bout, 8);
     for (int i = 0; i < 8; i++)
       CHECK (nco_step_u32_scaled (single) == bout[i]);
     nco_destroy (batch);
@@ -364,7 +364,7 @@ main (void)
     nco_state_t *single = nco_create (0.37, 0);
     uint32_t     bout[8];
     uint8_t      bov[8];
-    nco_steps_u32_ovf (batch, 8, bout, bov);
+    nco_steps_u32_ovf (batch, 8, bout, bov, 8);
     for (int i = 0; i < 8; i++)
       {
         uint8_t carry;
@@ -382,7 +382,7 @@ main (void)
       ctrl[i] = 0.05f * (float)i;
     uint32_t bout[8];
     CHECK (nco_steps_u32_ctrl_max_out (batch) >= 8);
-    nco_steps_u32_ctrl (batch, ctrl, 8, bout);
+    nco_steps_u32_ctrl (batch, ctrl, 8, bout, 8);
     for (int i = 0; i < 8; i++)
       CHECK (nco_step_u32_ctrl (single, (double)ctrl[i]) == bout[i]);
     nco_destroy (batch);
@@ -396,7 +396,7 @@ main (void)
       ctrl[i] = 0.05f * (float)i;
     uint32_t bout[8];
     CHECK (nco_steps_u32_scaled_ctrl_max_out (batch) >= 8);
-    nco_steps_u32_scaled_ctrl (batch, ctrl, 8, bout);
+    nco_steps_u32_scaled_ctrl (batch, ctrl, 8, bout, 8);
     for (int i = 0; i < 8; i++)
       CHECK (nco_step_u32_scaled_ctrl (single, (double)ctrl[i]) == bout[i]);
     nco_destroy (batch);
@@ -411,7 +411,7 @@ main (void)
     uint32_t bout[8];
     uint8_t  bov[8];
     CHECK (nco_steps_u32_ovf_ctrl_max_out (batch) >= 8);
-    nco_steps_u32_ovf_ctrl (batch, ctrl, 8, bout, bov);
+    nco_steps_u32_ovf_ctrl (batch, ctrl, 8, bout, bov, 8);
     for (int i = 0; i < 8; i++)
       {
         uint8_t carry;
@@ -421,6 +421,43 @@ main (void)
       }
     nco_destroy (batch);
     nco_destroy (single);
+  }
+
+  /* ── pass_capacity: emission stops at max_out (jm gh-138) ────────── */
+  {
+    /* Every stepper in the family clamps to the caller's capacity and
+     * advances only by what it emitted. */
+    nco_state_t *nco = nco_create (0.01, 0);
+    nco_state_t *ref = nco_create (0.01, 0);
+    uint32_t     out[16], expect[5];
+    uint8_t      carry[16];
+    for (int i = 0; i < 16; i++)
+      out[i] = 0xDEADBEEFu;
+
+    CHECK (nco_steps_u32 (nco, 16, out, 5) == 5);
+    for (int i = 5; i < 16; i++)
+      CHECK (out[i] == 0xDEADBEEFu); /* tail untouched */
+    nco_steps_u32 (ref, 5, expect, 5);
+    for (int i = 0; i < 5; i++)
+      CHECK (out[i] == expect[i]);
+    CHECK (nco_get_phase (nco) == nco_get_phase (ref));
+
+    /* Zero capacity emits nothing and does not advance the phase. */
+    uint32_t before = nco_get_phase (nco);
+    CHECK (nco_steps_u32 (nco, 16, out, 0) == 0);
+    CHECK (nco_get_phase (nco) == before);
+
+    CHECK (nco_steps_u32_scaled (nco, 16, out, 4) == 4);
+    CHECK (nco_steps_u32_ovf (nco, 16, out, carry, 4) == 4);
+
+    /* Control-port forms: ctrl_len is the request, max_out the capacity. */
+    const float ctrl[8] = { 0, 0, 0, 0, 0, 0, 0, 0 };
+    CHECK (nco_steps_u32_ctrl (nco, ctrl, 8, out, 3) == 3);
+    CHECK (nco_steps_u32_scaled_ctrl (nco, ctrl, 8, out, 3) == 3);
+    CHECK (nco_steps_u32_ovf_ctrl (nco, ctrl, 8, out, carry, 3) == 3);
+
+    nco_destroy (nco);
+    nco_destroy (ref);
   }
 
   if (_fails)

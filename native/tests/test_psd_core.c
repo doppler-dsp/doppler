@@ -91,7 +91,7 @@ main (void)
 
     /* psd_db before any frame → 0 (None in Python). */
     float db[64];
-    CHECK (psd_psd_db (w, N, db) == 0);
+    CHECK (psd_psd_db (w, N, db, N) == 0);
     psd_destroy (w);
   }
 
@@ -103,7 +103,7 @@ main (void)
       x[i] = 1.0f + 0.0f * I;
     psd_accumulate (w, x, N);
     float db[64];
-    CHECK (psd_psd_db (w, N, db) == N);
+    CHECK (psd_psd_db (w, N, db, N) == N);
     CHECK (argmax (db, N) == N / 2); /* DC at index n/2 */
     psd_destroy (w);
   }
@@ -124,7 +124,7 @@ main (void)
     psd_accumulate (w, buf, 3 * N + 7);
     CHECK (w->avg->count == 3);
     float db[64];
-    psd_psd_db (w, N, db);
+    psd_psd_db (w, N, db, N);
     CHECK (argmax (db, N) == N / 2 + (size_t)k);
     psd_destroy (w);
   }
@@ -136,8 +136,8 @@ main (void)
     fill_tone (x, 32, 5);
     psd_accumulate (w, x, 32);
     float a[32], b[32];
-    psd_psd_db (w, 32, a);
-    psd_psd_dbhz (w, 32, b);
+    psd_psd_db (w, 32, a, 32);
+    psd_psd_dbhz (w, 32, b, 32);
     float off0 = a[0] - b[0];
     for (size_t i = 0; i < 32; i++)
       CHECK (fabsf ((a[i] - b[i]) - off0) < 1e-3f);
@@ -155,7 +155,7 @@ main (void)
     /* whole span split into two halves */
     double bands[4] = { -0.5, 0.0, 0.0, 0.5 };
     float  per[2];
-    size_t nb = psd_band_power (w, bands, 4, per);
+    size_t nb = psd_band_power (w, bands, 4, per, 2); /* per[2] */
     CHECK (nb == 2);
     double total = psd_total_band_power (w, bands, 4);
     /* total power = sum of the two halves' linear powers */
@@ -165,7 +165,7 @@ main (void)
     /* a band entirely outside the span integrates to the floor */
     double far[2] = { 10.0, 11.0 };
     float  pf[1];
-    psd_band_power (w, far, 2, pf);
+    psd_band_power (w, far, 2, pf, 1); /* pf[1] */
     CHECK (pf[0] < -150.0f);
     psd_destroy (w);
   }
@@ -232,7 +232,7 @@ main (void)
     psd_reset (w);
     CHECK (w->avg->count == 0);
     float db[64];
-    CHECK (psd_psd_db (w, N, db) == 0);
+    CHECK (psd_psd_db (w, N, db, N) == 0);
     psd_destroy (w);
   }
 
@@ -248,11 +248,11 @@ main (void)
         psd_state_t *w = psd_create (N, 1.0, 0, 0.0f, pad, 1.0, 0, 0, 0.1);
         psd_accumulate_real (w, x, N);
         float  two[128];
-        size_t nfft = psd_power_twosided (w, w->nfft, two);
+        size_t nfft = psd_power_twosided (w, w->nfft, two, w->nfft);
         CHECK (nfft == w->nfft);
         CHECK (fabs (two[w->nfft / 2] - A * A) < 1e-3); /* DC bin */
         float one[65];
-        psd_power_onesided (w, w->nfft / 2 + 1, one);
+        psd_power_onesided (w, w->nfft / 2 + 1, one, w->nfft / 2 + 1);
         CHECK (fabs (one[0] - A * A) < 1e-3); /* one-sided DC */
         psd_destroy (w);
       }
@@ -275,8 +275,8 @@ main (void)
     fill_real_tone (x, N, 7, 0.5);
     psd_accumulate_real (w, x, N);
     float two[64], one[33];
-    psd_power_twosided (w, N, two);
-    size_t no = psd_power_onesided (w, N / 2 + 1, one);
+    psd_power_twosided (w, N, two, N);
+    size_t no = psd_power_onesided (w, N / 2 + 1, one, N / 2 + 1);
     CHECK (no == N / 2 + 1);
     double st = 0.0, so = 0.0;
     for (size_t i = 0; i < N; i++)
@@ -297,7 +297,7 @@ main (void)
         psd_state_t *w = psd_create (N, 1.0, 0, 0.0f, pad, 1.0, 0, 0, 0.1);
         psd_accumulate_real (w, x, N);
         float  two[128];
-        size_t nfft = psd_power_twosided (w, w->nfft, two);
+        size_t nfft = psd_power_twosided (w, w->nfft, two, w->nfft);
         for (size_t i = 0; i < nfft; i++)
           tot[pad] += two[i];
         psd_destroy (w);
@@ -313,7 +313,7 @@ main (void)
     psd_state_t *w = psd_create (N, 1.0, 0, 0.0f, 1, 1.0, 0, 0, 0.1);
     psd_accumulate_real (w, x, N);
     float a[33];
-    psd_power_onesided (w, N / 2 + 1, a);
+    psd_power_onesided (w, N / 2 + 1, a, N / 2 + 1);
     psd_reset (w);
     float buf[64 * 5];
     for (size_t f = 0; f < 5; f++)
@@ -321,7 +321,7 @@ main (void)
         buf[f * N + i] = x[i];
     psd_accumulate_real (w, buf, 5 * N);
     float b[33];
-    psd_power_onesided (w, N / 2 + 1, b);
+    psd_power_onesided (w, N / 2 + 1, b, N / 2 + 1);
     for (size_t i = 0; i < N / 2 + 1; i++)
       CHECK (fabsf (a[i] - b[i]) < 1e-6f * (fabsf (a[i]) + 1e-6f));
     psd_destroy (w);
@@ -345,8 +345,8 @@ main (void)
     psd_accumulate_real (mx, buf, 2 * N);
     psd_accumulate_real (mn, buf, 2 * N);
     float pmx[64], pmn[64];
-    psd_power_twosided (mx, N, pmx);
-    psd_power_twosided (mn, N, pmn);
+    psd_power_twosided (mx, N, pmx, N);
+    psd_power_twosided (mn, N, pmn, N);
     for (size_t i = 0; i < N; i++)
       CHECK (pmx[i] >= pmn[i] - 1e-6f);
     psd_destroy (mx);
@@ -366,13 +366,68 @@ main (void)
     psd_accumulate_real (w1, buf, N);     /* 1 frame  */
     psd_accumulate_real (wK, buf, K * N); /* K frames */
     float p1[64], pK[64];
-    psd_power_twosided (w1, N, p1);
-    psd_power_twosided (wK, N, pK);
+    psd_power_twosided (w1, N, p1, N);
+    psd_power_twosided (wK, N, pK, N);
     /* white noise: the K-averaged spectrum is flatter (smaller spread). */
     CHECK (stddev (pK, 1, N) < stddev (p1, 1, N));
     free (buf);
     psd_destroy (w1);
     psd_destroy (wK);
+  }
+
+  /* ── pass_capacity: emission stops at max_out (jm gh-138) ────────── */
+  {
+    /* Every readout here used to ignore its count argument entirely and
+     * write state->nfft floats regardless of what the caller owned. */
+    const size_t  N = 64;
+    psd_state_t  *w = psd_create (N, 1.0, 0, 0.0f, 1, 1.0, 0, 0, 0.1);
+    float complex x[64];
+    float         buf[64];
+    CHECK (w != NULL);
+    fill_tone (x, N, 10);
+    psd_accumulate (w, x, N);
+
+    for (size_t i = 0; i < N; i++)
+      buf[i] = 42.0f;
+    CHECK (psd_power_twosided (w, N, buf, 5) == 5);
+    for (size_t i = 5; i < N; i++)
+      CHECK (buf[i] == 42.0f); /* tail untouched */
+
+    for (size_t i = 0; i < N; i++)
+      buf[i] = 42.0f;
+    CHECK (psd_psd_db (w, N, buf, 3) == 3);
+    for (size_t i = 3; i < N; i++)
+      CHECK (buf[i] == 42.0f);
+
+    for (size_t i = 0; i < N; i++)
+      buf[i] = 42.0f;
+    CHECK (psd_psd_dbhz (w, N, buf, 3) == 3);
+    for (size_t i = 3; i < N; i++)
+      CHECK (buf[i] == 42.0f);
+
+    /* power_onesided writes out[0] and out[half] OUTSIDE its loop, so a
+     * loop-only clamp would still scribble at index half (== 32 here). */
+    for (size_t i = 0; i < N; i++)
+      buf[i] = 42.0f;
+    CHECK (psd_power_onesided (w, N / 2 + 1, buf, 4) == 4);
+    for (size_t i = 4; i < N; i++)
+      CHECK (buf[i] == 42.0f); /* in particular buf[32], the half index */
+
+    /* Zero capacity emits nothing from any of them. */
+    for (size_t i = 0; i < N; i++)
+      buf[i] = 42.0f;
+    CHECK (psd_power_twosided (w, N, buf, 0) == 0);
+    CHECK (psd_power_onesided (w, N / 2 + 1, buf, 0) == 0);
+    CHECK (psd_psd_db (w, N, buf, 0) == 0);
+    for (size_t i = 0; i < N; i++)
+      CHECK (buf[i] == 42.0f);
+
+    /* band_power emits one value per BAND -- half the edge count. */
+    double bands[4] = { -0.5, 0.0, 0.0, 0.5 };
+    float  per[2]   = { 42.0f, 42.0f };
+    CHECK (psd_band_power (w, bands, 4, per, 1) == 1);
+    CHECK (per[1] == 42.0f);
+    psd_destroy (w);
   }
 
   if (_fails)

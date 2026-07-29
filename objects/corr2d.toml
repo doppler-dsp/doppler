@@ -41,6 +41,9 @@ name = "execute"
 arg_type = "float _Complex"
 return_type = "float _Complex"
 variable_output = true
+# Kernel is told its write limit (jm gh-138): an under-reporting
+# max_out truncates the emission instead of overrunning `out`.
+pass_capacity = true
 none_on_empty = true
 
 [[corr2d.properties]]

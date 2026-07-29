@@ -23,6 +23,9 @@ name = "decimate"
 arg_type = "float _Complex"
 return_type = "float _Complex"
 variable_output = true
+# The integrators/combs advance over every input sample regardless of
+# emission, so a short buffer guards the STORE, not the loop (jm gh-138).
+pass_capacity = true
 
 [[cic.properties]]
 name = "R"

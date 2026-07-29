@@ -13,4 +13,4 @@ BLOCK_64K = 65_536
 
 @pytest.fixture
 def obj():
-    return ToneMeasure("kaiser", 8192, 1.0, 12.0, 2, 8, 1.0, 0)
+    return ToneMeasure(n=8192, fs=1.0, n_harmonics=8, full_scale=1.0)

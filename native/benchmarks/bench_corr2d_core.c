@@ -66,11 +66,11 @@ main (void)
       ref[j] = _rand_uniform (&seed) + _rand_uniform (&seed) * I;
 
     corr2d_state_t *obj = corr2d_create (ref, ny, nx, 1, 1, 0, 0);
-    corr2d_execute (obj, in, n, out); /* warmup */
+    corr2d_execute (obj, in, n, out, n); /* warmup */
     for (int r = 0; r < ITERATIONS; r++)
       {
         clock_gettime (CLOCK_MONOTONIC, &t0);
-        corr2d_execute (obj, in, n, out);
+        corr2d_execute (obj, in, n, out, n);
         clock_gettime (CLOCK_MONOTONIC, &t1);
         times[r] = elapsed_sec (&t0, &t1);
       }
@@ -92,11 +92,11 @@ main (void)
       ref[k] = _rand_uniform (&seed) + _rand_uniform (&seed) * I;
 
     corr2d_state_t *obj = corr2d_create (ref, ny, nx, 1, 1, 0, 0);
-    corr2d_execute (obj, in, n, out); /* warmup */
+    corr2d_execute (obj, in, n, out, n); /* warmup */
     for (int r = 0; r < ITERATIONS; r++)
       {
         clock_gettime (CLOCK_MONOTONIC, &t0);
-        corr2d_execute (obj, in, n, out);
+        corr2d_execute (obj, in, n, out, n);
         clock_gettime (CLOCK_MONOTONIC, &t1);
         times[r] = elapsed_sec (&t0, &t1);
       }

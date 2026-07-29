@@ -36,21 +36,24 @@ CorrDetectorObj_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 static int
 CorrDetectorObj_init (CorrDetectorObject *self, PyObject *args, PyObject *kwds)
 {
-  static char *kwlist[] = { "ref",      "noise_mode", "dwell",    "noise_lo",
-                            "noise_hi", "threshold",  "nthreads", NULL };
+  static char *kwlist[] = { "ref",        "dwell",     "noise_lo", "noise_hi",
+                            "noise_mode", "threshold", "nthreads", NULL };
   PyObject    *ref_obj  = NULL;
-  const char  *noise_mode_str     = "mean";
-  unsigned long long dwell_raw    = 1ULL;
-  unsigned long long noise_lo_raw = 0ULL;
-  unsigned long long noise_hi_raw = (unsigned long long)-1ULL;
-  float              threshold    = 0.0f;
-  int                nthreads     = 1;
+  unsigned long long dwell_raw      = 1;
+  unsigned long long noise_lo_raw   = 0;
+  unsigned long long noise_hi_raw   = (unsigned long long)-1ULL;
+  const char        *noise_mode_str = "mean";
+  float              threshold      = 0.0f;
+  int                nthreads       = 1;
 
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|sKKKfi", kwlist, &ref_obj,
-                                    &noise_mode_str, &dwell_raw, &noise_lo_raw,
-                                    &noise_hi_raw, &threshold, &nthreads))
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|KKKsfi", kwlist, &ref_obj,
+                                    &dwell_raw, &noise_lo_raw, &noise_hi_raw,
+                                    &noise_mode_str, &threshold, &nthreads))
     return -1;
-  int noise_mode = 0;
+  size_t dwell      = (size_t)dwell_raw;
+  size_t noise_lo   = (size_t)noise_lo_raw;
+  size_t noise_hi   = (size_t)noise_hi_raw;
+  int    noise_mode = 0;
   if (strcmp (noise_mode_str, "mean") == 0)
     noise_mode = 0;
   else if (strcmp (noise_mode_str, "median") == 0)
@@ -67,10 +70,7 @@ CorrDetectorObj_init (CorrDetectorObject *self, PyObject *args, PyObject *kwds)
                     noise_mode_str);
       return -1;
     }
-  size_t         dwell    = (size_t)dwell_raw;
-  size_t         noise_lo = (size_t)noise_lo_raw;
-  size_t         noise_hi = (size_t)noise_hi_raw;
-  PyArrayObject *ref_arr  = (PyArrayObject *)PyArray_FROM_OTF (
+  PyArrayObject *ref_arr = (PyArrayObject *)PyArray_FROM_OTF (
       ref_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS);
   if (!ref_arr)
     {
@@ -128,8 +128,11 @@ CorrDetectorObj_push (CorrDetectorObject *self, PyObject *args)
   for (size_t i = 0; i < n_out; i++)
     {
       PyObject *tup = Py_BuildValue (
-          "(Kfff)", (unsigned long long)results[i].lag, results[i].peak_mag,
-          results[i].noise_est, results[i].test_stat);
+          "(NNNN)",
+          PyLong_FromUnsignedLongLong ((unsigned long long)results[i].lag),
+          PyFloat_FromDouble ((double)results[i].peak_mag),
+          PyFloat_FromDouble ((double)results[i].noise_est),
+          PyFloat_FromDouble ((double)results[i].test_stat));
       if (!tup)
         {
           Py_DECREF (lst);
@@ -138,6 +141,61 @@ CorrDetectorObj_push (CorrDetectorObject *self, PyObject *args)
       PyList_SET_ITEM (lst, (Py_ssize_t)i, tup);
     }
   return lst;
+}
+
+static PyObject *
+CorrDetectorObj_state_bytes (CorrDetectorObject *self,
+                             PyObject           *Py_UNUSED (ignored))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromSize_t (detector_state_bytes (self->handle));
+}
+
+static PyObject *
+CorrDetectorObj_get_state (CorrDetectorObject *self,
+                           PyObject           *Py_UNUSED (ignored))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  size_t    _n = detector_state_bytes (self->handle);
+  PyObject *_b = PyBytes_FromStringAndSize (NULL, (Py_ssize_t)_n);
+  if (!_b)
+    return NULL;
+  detector_get_state (self->handle, PyBytes_AS_STRING (_b));
+  return _b;
+}
+
+static PyObject *
+CorrDetectorObj_set_state (CorrDetectorObject *self, PyObject *arg)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  if (!PyBytes_Check (arg))
+    {
+      PyErr_SetString (PyExc_TypeError, "set_state expects bytes");
+      return NULL;
+    }
+  if ((size_t)PyBytes_GET_SIZE (arg) != detector_state_bytes (self->handle))
+    {
+      PyErr_SetString (PyExc_ValueError, "state blob size mismatch");
+      return NULL;
+    }
+  if (detector_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
+    {
+      PyErr_SetString (PyExc_ValueError, "set_state rejected the blob");
+      return NULL;
+    }
+  Py_RETURN_NONE;
 }
 static PyObject *
 CorrDetector_getprop_n (CorrDetectorObject *self, void *Py_UNUSED (closure))
@@ -242,19 +300,23 @@ CorrDetector_getprop_last_corr (CorrDetectorObject *self,
 }
 
 static PyGetSetDef CorrDetector_getset[] = {
-  { "n", (getter)CorrDetector_getprop_n, NULL, NULL, NULL },
-  { "dwell", (getter)CorrDetector_getprop_dwell, NULL, NULL, NULL },
-  { "count", (getter)CorrDetector_getprop_count, NULL, NULL, NULL },
-  { "ring_cap", (getter)CorrDetector_getprop_ring_cap, NULL, NULL, NULL },
-  { "noise_lo", (getter)CorrDetector_getprop_noise_lo, NULL, NULL, NULL },
-  { "noise_hi", (getter)CorrDetector_getprop_noise_hi, NULL, NULL, NULL },
-  { "threshold", (getter)CorrDetector_getprop_threshold, NULL, NULL, NULL },
+  { "n", (getter)CorrDetector_getprop_n, NULL, "N.\n", NULL },
+  { "dwell", (getter)CorrDetector_getprop_dwell, NULL, "Dwell.\n", NULL },
+  { "count", (getter)CorrDetector_getprop_count, NULL, "Count.\n", NULL },
+  { "ring_cap", (getter)CorrDetector_getprop_ring_cap, NULL, "Ring cap.\n",
+    NULL },
+  { "noise_lo", (getter)CorrDetector_getprop_noise_lo, NULL, "Noise lo.\n",
+    NULL },
+  { "noise_hi", (getter)CorrDetector_getprop_noise_hi, NULL, "Noise hi.\n",
+    NULL },
+  { "threshold", (getter)CorrDetector_getprop_threshold, NULL, "Threshold.\n",
+    NULL },
   { "last_corr", (getter)CorrDetector_getprop_last_corr, NULL,
     "The correlation vector from the most recent push() that produced a "
-    "result (None before that). This is a zero-copy view into a buffer "
-    "owned by the detector and reused every push() -- the next push() "
-    "(even one that doesn't produce a result) overwrites it in place. "
-    "Copy the array before the next push() if you need to retain it.\n",
+    "result (None before that). This is a zero-copy view into a buffer owned "
+    "by the detector and reused every push() -- the next push() (even one "
+    "that doesn't produce a result) overwrites it in place. Copy the array "
+    "before the next push() if you need to retain it.\n",
     NULL },
   { NULL }
 };
@@ -290,96 +352,46 @@ CorrDetectorObj_exit (CorrDetectorObject *self, PyObject *args)
   Py_RETURN_NONE;
 }
 
-static PyObject *
-CorrDetectorObj_state_bytes (CorrDetectorObject *self,
-                             PyObject           *Py_UNUSED (ignored))
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  return PyLong_FromSize_t (detector_state_bytes (self->handle));
-}
+static PyMethodDef CorrDetectorObj_methods[]
+    = { { "reset", (PyCFunction)CorrDetectorObj_reset, METH_NOARGS,
+          "Reset state to post-create defaults." },
 
-static PyObject *
-CorrDetectorObj_get_state (CorrDetectorObject *self,
-                           PyObject           *Py_UNUSED (ignored))
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  size_t    _n = detector_state_bytes (self->handle);
-  PyObject *_b = PyBytes_FromStringAndSize (NULL, (Py_ssize_t)_n);
-  if (!_b)
-    return NULL;
-  detector_get_state (self->handle, PyBytes_AS_STRING (_b));
-  return _b;
-}
-
-static PyObject *
-CorrDetectorObj_set_state (CorrDetectorObject *self, PyObject *arg)
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  if (!PyBytes_Check (arg))
-    {
-      PyErr_SetString (PyExc_TypeError, "set_state expects bytes");
-      return NULL;
-    }
-  if ((size_t)PyBytes_GET_SIZE (arg) != detector_state_bytes (self->handle))
-    {
-      PyErr_SetString (PyExc_ValueError, "state blob size mismatch");
-      return NULL;
-    }
-  if (detector_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
-    {
-      PyErr_SetString (PyExc_ValueError, "set_state rejected the blob");
-      return NULL;
-    }
-  Py_RETURN_NONE;
-}
-
-static PyMethodDef CorrDetectorObj_methods[] = {
-  { "reset", (PyCFunction)CorrDetectorObj_reset, METH_NOARGS,
-    "Reset state to post-create defaults." },
-
-  { "push", (PyCFunction)CorrDetectorObj_push, METH_VARARGS,
-    "push(x) -> list[tuple]\n"
-    "\n"
-    "Returns list of (lag, peak_mag, noise_est, test_stat,) tuples.\n"
-    "\n"
-    "    >>> import numpy as np\n"
-    "    >>> from doppler import CorrDetector\n"
-    "    >>> obj = CorrDetector(np.zeros(1, dtype=np.complex64), \"mean\", "
-    "1, 0, n-1, 0.0, 1)\n"
-    "    >>> results = obj.push(np.zeros(4, dtype=np.complex64))\n"
-    "    >>> isinstance(results, list)\n"
-    "    True\n" },
-  { "destroy", (PyCFunction)CorrDetectorObj_destroy, METH_NOARGS,
-    "Release resources." },
-  { "__enter__", (PyCFunction)CorrDetectorObj_enter, METH_NOARGS, NULL },
-  { "__exit__", (PyCFunction)CorrDetectorObj_exit, METH_VARARGS, NULL },
-  { "state_bytes", (PyCFunction)CorrDetectorObj_state_bytes, METH_NOARGS,
-    "Serialized state size in bytes." },
-  { "get_state", (PyCFunction)CorrDetectorObj_get_state, METH_NOARGS,
-    "Serialize the engine's mutable state to bytes." },
-  { "set_state", (PyCFunction)CorrDetectorObj_set_state, METH_O,
-    "Restore mutable state from a get_state() blob." },
-  { NULL }
-};
+        { "push", (PyCFunction)CorrDetectorObj_push, METH_VARARGS,
+          "push(x) -> list[tuple]\n"
+          "\n"
+          "Returns list of (lag, peak_mag, noise_est, test_stat,) tuples.\n"
+          "\n"
+          "    >>> import numpy as np\n"
+          "    >>> from doppler import CorrDetector\n"
+          "    >>> obj = CorrDetector(np.zeros(1, dtype=np.complex64), 1, 0, "
+          "n-1, \"mean\", 0.0, 1)\n"
+          "    >>> results = obj.push(np.zeros(4, dtype=np.complex64))\n"
+          "    >>> isinstance(results, list)\n"
+          "    True\n" },
+        { "state_bytes", (PyCFunction)CorrDetectorObj_state_bytes, METH_NOARGS,
+          "Serialized state size in bytes." },
+        { "get_state", (PyCFunction)CorrDetectorObj_get_state, METH_NOARGS,
+          "Serialize the engine's mutable state to bytes." },
+        { "set_state", (PyCFunction)CorrDetectorObj_set_state, METH_O,
+          "Restore mutable state from a get_state() blob." },
+        { "destroy", (PyCFunction)CorrDetectorObj_destroy, METH_NOARGS,
+          "Release resources." },
+        { "__enter__", (PyCFunction)CorrDetectorObj_enter, METH_NOARGS, NULL },
+        { "__exit__", (PyCFunction)CorrDetectorObj_exit, METH_VARARGS, NULL },
+        { NULL } };
 
 static PyTypeObject CorrDetectorObjType = {
   PyVarObject_HEAD_INIT (NULL, 0).tp_name = "spectral.CorrDetector",
   .tp_basicsize                           = sizeof (CorrDetectorObject),
   .tp_dealloc = (destructor)CorrDetectorObj_dealloc,
   .tp_flags   = Py_TPFLAGS_DEFAULT,
-  .tp_doc     = "Create a 1-D signal detector.\n",
+  .tp_doc     = "Allocate a 1-D streaming signal detector backed by an FFT "
+                "correlator. Combines a corr_state_t with a double-mapped ring "
+                "buffer so that arbitrary chunk sizes can be pushed.  After every "
+                "int-dump the peak-to-noise test statistic is compared against "
+                "threshold; a det_result_t is emitted when it passes.  Setting "
+                "threshold to 0.0 unconditionally fires on every dump. The ring "
+                "capacity is next_pow2(max(n, 512)) complex samples.\n",
   .tp_methods = CorrDetectorObj_methods,
   .tp_getset  = CorrDetector_getset,
   .tp_new     = CorrDetectorObj_new,

@@ -51,9 +51,11 @@ HalfbandDecimator_execute_max_out (HalfbandDecimator_state_t *state)
 size_t
 HalfbandDecimator_execute (HalfbandDecimator_state_t *state,
                            const float complex *x, size_t x_len,
-                           float complex *out)
+                           float complex *out, size_t max_out)
 {
-  return hbdecim_execute (state, x, x_len, out, HBDECIM_MAX_OUT);
+  /* The leaf already clamps; hand it the caller's real capacity instead
+     of the fixed cap (jm gh-138). */
+  return hbdecim_execute (state, x, x_len, out, max_out);
 }
 
 double

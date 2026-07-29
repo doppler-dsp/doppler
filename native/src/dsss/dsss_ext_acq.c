@@ -90,17 +90,13 @@ AcquisitionObj_init (AcquisitionObject *self, PyObject *args, PyObject *kwds)
                        "acq_create_continuous returned NULL");
       return -1;
     }
-  /* Hand-patch (sacred fragment): C cannot raise a Python warning, so surface
-   * an under-powered search here — the auto-config built a best-effort grid
-   * (bounded by the internal non-coherent-look safety valve) whose
-   * pd_predicted falls short of the requested pd. */
   if (self->handle->underpowered)
     {
-      if (PyErr_WarnEx (
-              PyExc_UserWarning,
-              "Acquisition is under-powered: pd_predicted < pd at this "
-              "cn0_dbhz. Raise cn0_dbhz or narrow doppler_uncertainty.",
-              1)
+      if (PyErr_WarnEx (PyExc_UserWarning,
+                        "Acquisition is under-powered: pd_predicted < pd at "
+                        "this cn0_dbhz. Raise cn0_dbhz or narrow "
+                        "doppler_uncertainty.",
+                        1)
           < 0)
         return -1;
     }
@@ -268,13 +264,10 @@ Acquisition_getprop_doppler_bins (AcquisitionObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* Unified property: whichever mechanism is active. Always window_bins for
-   * this (continuous) engine -- coherent_bins is pinned to 1 -- but written
-   * with the same shared formula BurstAcquisition's identical getter uses,
-   * for consistency. */
-  size_t db = (self->handle->window_bins > 1) ? self->handle->window_bins
-                                              : self->handle->coherent_bins;
-  return PyLong_FromUnsignedLongLong ((unsigned long long)db);
+  return PyLong_FromUnsignedLongLong (
+      (unsigned long long)((self->handle->window_bins > 1)
+                               ? self->handle->window_bins
+                               : self->handle->coherent_bins));
 }
 static PyObject *
 Acquisition_getprop_sf (AcquisitionObject *self, void *Py_UNUSED (closure))
@@ -505,14 +498,14 @@ Acquisition_getprop_epochs_per_symbol (AcquisitionObject *self,
     }
   return PyFloat_FromDouble (self->handle->epochs_per_symbol);
 }
+
 static PyGetSetDef Acquisition_getset[] = {
   { "code_bins", (getter)Acquisition_getprop_code_bins, NULL,
     "Code-phase hypotheses searched (= sf*spc, one code period).\n", NULL },
   { "doppler_bins", (getter)Acquisition_getprop_doppler_bins, NULL,
-    "Effective Doppler search granularity this engine picked: the "
-    "window-tile count (this engine always window-tiles -- see "
-    "acq_core.h's file doc comment -- so this is window_bins, never a "
-    "coherent-depth axis).\n",
+    "Effective Doppler search granularity this engine picked: the window-tile "
+    "count (this engine always window-tiles -- see acq_core.h's file doc "
+    "comment -- so this is window_bins, never a coherent-depth axis).\n",
     NULL },
   { "sf", (getter)Acquisition_getprop_sf, NULL,
     "Chips per PN segment, inferred from len(code).\n", NULL },
@@ -564,7 +557,10 @@ static PyGetSetDef Acquisition_getset[] = {
   { "pd", (getter)Acquisition_getprop_pd, NULL,
     "Target detection probability.\n", NULL },
   { "underpowered", (getter)Acquisition_getprop_underpowered, NULL,
-    "True when pd_predicted < pd (the search cannot meet the target).\n",
+    "True when pd_predicted < pd -- the search cannot meet the target pd at "
+    "this cn0_dbhz and geometry. The engine still builds a best-effort grid "
+    "rather than failing; because C cannot raise a Python warning from a "
+    "successful create, construction also emits a UserWarning in this case.\n",
     NULL },
   { "symbol_rate", (getter)Acquisition_getprop_symbol_rate, NULL,
     "Continuous data-symbol rate (Hz) this engine was built with -- "

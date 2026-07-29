@@ -547,7 +547,7 @@ _regrid (acq_state_t *st, size_t new_db, size_t new_nc, size_t new_freq_bins,
               || !new_wide_spec || !new_wide_prod)
             goto fail;
           /* Precompute conj(FFT(replica)) once -- reused every epoch. */
-          fft_execute_cf32 (new_wide_fwd, new_ref, cb, new_wide_ref_spec);
+          fft_execute_cf32 (new_wide_fwd, new_ref, cb, new_wide_ref_spec, cb);
           for (size_t j = 0; j < cb; j++)
             new_wide_ref_spec[j] = conjf (new_wide_ref_spec[j]);
         }
@@ -868,7 +868,7 @@ acq_push (acq_state_t *st, const float complex *in, size_t n_in,
                * side (window_bins is always << nx: window_bins tiles the
                * requested uncertainty, nx = sf*spc is the full code
                * length). */
-              fft_execute_cf32 (st->wide_fwd, frame, nx, st->wide_spec);
+              fft_execute_cf32 (st->wide_fwd, frame, nx, st->wide_spec, nx);
               for (size_t r = 0; r < st->window_bins; r++)
                 {
                   long signed_r = acq_bin_to_signed (r, st->window_bins);
@@ -878,7 +878,7 @@ acq_push (acq_state_t *st, const float complex *in, size_t n_in,
                     st->wide_prod[j] = st->wide_spec[(j + roll) % nx]
                                        * st->wide_ref_spec[j];
                   fft_execute_cf32 (st->wide_inv, st->wide_prod, nx,
-                                    st->out_buf + r * nx);
+                                    st->out_buf + r * nx, nx);
                 }
               n_out = n;
             }
@@ -891,11 +891,12 @@ acq_push (acq_state_t *st, const float complex *in, size_t n_in,
                 {
                   for (size_t i = 0; i < ny; i++)
                     st->colbuf[i] = frame[i * nx + j];
-                  fft_execute_cf32 (st->slow_fft, st->colbuf, ny, st->colout);
+                  fft_execute_cf32 (st->slow_fft, st->colbuf, ny, st->colout,
+                                    ny);
                   for (size_t i = 0; i < ny; i++)
                     st->yframe[i * nx + j] = st->colout[i];
                 }
-              n_out = corr2d_execute (st->corr, st->yframe, n, st->out_buf);
+              n_out = corr2d_execute (st->corr, st->yframe, n, st->out_buf, n);
             }
           dp_f32_consume (st->ring, frame_n);
           st->samples_consumed += frame_n;

@@ -33,7 +33,7 @@ class Resampler:
         Returns
         -------
         NDArray[np.complex64]
-            CF32 output array; length is approximately x_len * rate.
+            CF32 output array; length is approximately x_len * rate, capped at max_out.
 
         Examples
         --------
@@ -62,7 +62,7 @@ class Resampler:
         Returns
         -------
         NDArray[np.complex64]
-            CF32 output array; length depends on accumulated rate deviations.
+            CF32 output array; length depends on accumulated rate deviations, capped at max_out.
 
         Examples
         --------
@@ -146,7 +146,7 @@ class Halfbanddecimator:
         Returns
         -------
         NDArray[np.complex64]
-            CF32 decimated output; length == floor(x_len / 2).
+            CF32 decimated output; length is min(floor(x_len / 2), max_out).
 
         Examples
         --------
@@ -269,7 +269,7 @@ class CIC:
         Returns
         -------
         NDArray[np.complex64]
-            CF32 output array; length is floor((phase + n_in) / R).
+            CF32 output array; length is min(floor((phase + n_in) / R), max_out).
 
         Examples
         --------
@@ -636,7 +636,7 @@ class HalfbandDecimatorQ15:
         Returns
         -------
         NDArray[np.int16]
-            Number of int16_t values written to out.
+            min(available, max_out) COMPLEX samples -- twice that many int16_t values.
 
         Examples
         --------

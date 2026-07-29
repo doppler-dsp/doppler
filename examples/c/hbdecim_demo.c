@@ -66,7 +66,7 @@ main (void)
   printf ("Input RMS:  %.2f dBFS\n\n", rms_db (in, N_IN));
 
   float _Complex out[32];
-  size_t n_out = HalfbandDecimator_execute (dec, in, N_IN, out);
+  size_t n_out = HalfbandDecimator_execute (dec, in, N_IN, out, N_IN);
 
   printf ("Output: %zu samples (2:1 decimation)\n", n_out);
   printf ("Output RMS: %.2f dBFS\n\n", rms_db (out, n_out));

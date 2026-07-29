@@ -16,6 +16,13 @@ name = "execute"
 arg_type = "void"
 return_type = "int16_t"
 variable_output = true
+# NO `pass_capacity` here, deliberately -- this is jm#612 case 3. The kernel
+# already takes a 5th max_out arg, but its units are COMPLEX samples while the
+# declared array is int16_t[] (interleaved I/Q, 2 elements per sample). jm
+# would generate an element-count capacity, which compiles and then writes
+# twice as far as intended. The hand-owned fragment does the /2 and *2 itself
+# (resample_ext_hbdecim_q15.c). Flip this on only once jm can express
+# elements_per_sample.
 params = [{name = "x", type = "int16_t[]"}]
 
 [[hbdecim_q15.methods]]

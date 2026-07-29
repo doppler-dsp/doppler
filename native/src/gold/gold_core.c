@@ -92,8 +92,11 @@ gold_generate_max_out (gold_state_t *state)
 }
 
 size_t
-gold_generate (gold_state_t *state, size_t n, uint8_t *out)
+gold_generate (gold_state_t *state, size_t n, uint8_t *out, size_t max_out)
 {
+  /* Emission stops at the caller's capacity (jm gh-138). */
+  if (n > max_out)
+    n = max_out;
   uint64_t       a      = state->reg_a;
   uint64_t       b      = state->reg_b;
   const uint64_t taps_a = state->taps_a;

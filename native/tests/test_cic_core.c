@@ -53,12 +53,12 @@ _ceq (float complex a, float complex b, float tol)
  */
 static float complex
 dc_last (cic_state_t *obj, float complex sample, float complex *out,
-         size_t n_in)
+         size_t n_in, size_t cap)
 {
   float complex *in = (float complex *)malloc (n_in * sizeof (float complex));
   for (size_t i = 0; i < n_in; i++)
     in[i] = sample;
-  size_t n = cic_decimate (obj, in, n_in, out);
+  size_t n = cic_decimate (obj, in, n_in, out, cap);
   free (in);
   return out[n - 1];
 }
@@ -102,14 +102,14 @@ main (void)
     for (int k = 1; k <= 4; k++)
       {
         cic_reset (obj);
-        size_t n = cic_decimate (obj, in, (size_t)k * R, out);
+        size_t n = cic_decimate (obj, in, (size_t)k * R, out, 256);
         CHECK (n == (size_t)k);
       }
     /* Partial block: R-1 inputs → 0 outputs */
     cic_reset (obj);
-    CHECK (cic_decimate (obj, in, R - 1, out) == 0);
+    CHECK (cic_decimate (obj, in, R - 1, out, 256) == 0);
     /* Then 1 more input completes the first decimation cycle */
-    CHECK (cic_decimate (obj, in, 1, out) == 1);
+    CHECK (cic_decimate (obj, in, 1, out, 256) == 1);
     cic_destroy (obj);
   }
 
@@ -122,7 +122,7 @@ main (void)
     cic_state_t *obj = cic_create (4);
     CHECK (obj != NULL);
     float complex in[64] = { 0 }, out[64];
-    size_t        n      = cic_decimate (obj, in, 64, out);
+    size_t        n      = cic_decimate (obj, in, 64, out, 64);
     CHECK (n == 16);
     for (size_t i = CIC_N; i < n; i++)
       CHECK (FEQC (out[i], 0.0f, 0.0f));
@@ -137,7 +137,8 @@ main (void)
     CHECK (obj != NULL);
     size_t         n_in = 8 * R * CIC_N;
     float complex *out  = malloc ((n_in / R + 1) * sizeof (float complex));
-    float complex  last = dc_last (obj, 1.0f + 0.0f * I, out, n_in);
+    float complex  last
+        = dc_last (obj, 1.0f + 0.0f * I, out, n_in, n_in / R + 1);
     CHECK (FEQC (last, 1.0f + 0.0f * I, 4e-5f));
     free (out);
     cic_destroy (obj);
@@ -150,7 +151,8 @@ main (void)
     CHECK (obj != NULL);
     size_t         n_in = 8 * R * CIC_N;
     float complex *out  = malloc ((n_in / R + 1) * sizeof (float complex));
-    float complex  last = dc_last (obj, -1.0f + 0.0f * I, out, n_in);
+    float complex  last
+        = dc_last (obj, -1.0f + 0.0f * I, out, n_in, n_in / R + 1);
     CHECK (FEQC (last, -1.0f + 0.0f * I, 4e-5f));
     free (out);
     cic_destroy (obj);
@@ -163,7 +165,8 @@ main (void)
     CHECK (obj != NULL);
     size_t         n_in = 8 * R * CIC_N;
     float complex *out  = malloc ((n_in / R + 1) * sizeof (float complex));
-    float complex  last = dc_last (obj, 0.0f + 1.0f * I, out, n_in);
+    float complex  last
+        = dc_last (obj, 0.0f + 1.0f * I, out, n_in, n_in / R + 1);
     CHECK (FEQC (last, 0.0f + 1.0f * I, 4e-5f));
     free (out);
     cic_destroy (obj);
@@ -177,7 +180,8 @@ main (void)
     CHECK (obj != NULL);
     size_t         n_in = 12 * R * CIC_N;
     float complex *out  = malloc ((n_in / R + 1) * sizeof (float complex));
-    float complex  last = dc_last (obj, 0.5f + 0.5f * I, out, n_in);
+    float complex  last
+        = dc_last (obj, 0.5f + 0.5f * I, out, n_in, n_in / R + 1);
     CHECK (FEQC (last, 0.5f + 0.5f * I, 4e-5f));
     free (out);
     cic_destroy (obj);
@@ -196,9 +200,9 @@ main (void)
     for (size_t i = 0; i < n_in; i++)
       in[i] = (float)i * 0.01f + 0.5f * I;
 
-    size_t n1 = cic_decimate (obj, in, n_in, out1);
+    size_t n1 = cic_decimate (obj, in, n_in, out1, n_in);
     cic_reset (obj);
-    size_t n2 = cic_decimate (obj, in, n_in, out2);
+    size_t n2 = cic_decimate (obj, in, n_in, out2, n_in);
     CHECK (n1 == n2);
     CHECK (memcmp (out1, out2, n1 * sizeof (float complex)) == 0);
 
@@ -217,7 +221,7 @@ main (void)
       in[i] = 1.0f;
 
     /* warm up with R=4 */
-    cic_decimate (obj, in, 32, out);
+    cic_decimate (obj, in, 32, out, 256);
 
     /* reconfigure to R=8 */
     cic_reconfigure (obj, 8);
@@ -225,7 +229,7 @@ main (void)
     CHECK (obj->shift == 12); /* CIC_N=4, log2(8)=3 */
 
     /* output count must reflect new R */
-    size_t n = cic_decimate (obj, in, 8 * 8 * CIC_N, out);
+    size_t n = cic_decimate (obj, in, 8 * 8 * CIC_N, out, 256);
     CHECK (n == (size_t)(8 * CIC_N));
 
     /* settled output must be 1.0 */
@@ -259,11 +263,11 @@ main (void)
     CHECK (a && b);
 
     /* whole: 2R in one call */
-    cic_decimate (b, in, 2 * R, out_whole);
+    cic_decimate (b, in, 2 * R, out_whole, 4);
 
     /* split: R then R */
-    cic_decimate (a, in, R, out_split);
-    cic_decimate (a, in + R, R, out_split + 1);
+    cic_decimate (a, in, R, out_split, 4);
+    cic_decimate (a, in + R, R, out_split + 1, 3);
 
     CHECK (FEQC (out_split[0], out_whole[0], 0.0f));
     CHECK (FEQC (out_split[1], out_whole[1], 0.0f));
@@ -290,7 +294,7 @@ main (void)
     for (size_t i = 0; i < n_in; i++)
       in[i] = 1.0f + 0.0f * I;
     cic_state_t *obj = cic_create (R);
-    cic_decimate (obj, in, n_in, out);
+    cic_decimate (obj, in, n_in, out, n_out);
     double pwr_pass = 0.0;
     for (size_t i = n_drop; i < n_out; i++)
       pwr_pass += (double)cabsf (out[i]) * cabsf (out[i]);
@@ -301,7 +305,7 @@ main (void)
     for (size_t i = 0; i < n_in; i++)
       in[i] = CMPLXF ((float)cos (2 * M_PI * f_alias * i),
                       (float)sin (2 * M_PI * f_alias * i));
-    cic_decimate (obj, in, n_in, out);
+    cic_decimate (obj, in, n_in, out, n_out);
     double pwr_alias = 0.0;
     for (size_t i = n_drop; i < n_out; i++)
       pwr_alias += (double)cabsf (out[i]) * cabsf (out[i]);
@@ -327,12 +331,12 @@ main (void)
     float complex outA[64], outB[64];
 
     cic_state_t *ra = cic_create (R);
-    size_t       nA = cic_decimate (ra, in, L, outA);
+    size_t       nA = cic_decimate (ra, in, L, outA, 64);
     cic_destroy (ra);
 
     const size_t cut = 173; /* not a multiple of R → mid-cycle phase */
     cic_state_t *r1  = cic_create (R);
-    size_t       nB  = cic_decimate (r1, in, cut, outB);
+    size_t       nB  = cic_decimate (r1, in, cut, outB, 64);
     size_t       sb  = cic_state_bytes (r1);
     CHECK (sb
            == sizeof (dp_state_hdr_t) + 4 * CIC_N * sizeof (uint64_t)
@@ -353,7 +357,7 @@ main (void)
     ((char *)blob)[0] ^= (char)0xFF;
     CHECK (cic_set_state (r2, blob) == DP_ERR_INVALID);
     ((char *)blob)[0] ^= (char)0xFF;
-    nB += cic_decimate (r2, in + cut, L - cut, outB + nB);
+    nB += cic_decimate (r2, in + cut, L - cut, outB + nB, 64 - nB);
     cic_destroy (r2);
     free (blob);
 
@@ -371,17 +375,17 @@ main (void)
     for (size_t i = 0; i < 64; i++)
       in[i] = 0.9f + 0.9f * I;
     float complex out[8];
-    cic_decimate (obj, in, 64, out);
+    cic_decimate (obj, in, 64, out, 8);
     CHECK (obj->clipped == 0); /* in range — no false positive */
 
     for (size_t i = 0; i < 64; i++)
       in[i] = 1.5f + 0.0f * I;
-    cic_decimate (obj, in, 64, out);
+    cic_decimate (obj, in, 64, out, 8);
     CHECK (obj->clipped == 1);
 
     for (size_t i = 0; i < 64; i++)
       in[i] = 0.1f + 0.0f * I;
-    cic_decimate (obj, in, 64, out);
+    cic_decimate (obj, in, 64, out, 8);
     CHECK (obj->clipped == 1); /* sticky across later in-range blocks */
 
     cic_reset (obj);
@@ -394,10 +398,52 @@ main (void)
         cic_reset (obj);
         for (size_t i = 0; i < 64; i++)
           in[i] = bad[k];
-        cic_decimate (obj, in, 64, out);
+        cic_decimate (obj, in, 64, out, 8);
         CHECK (obj->clipped == 1);
       }
     cic_destroy (obj);
+  }
+
+  /* ── short out: the filter still runs, only emission truncates ──────
+   * The integrators and combs must advance over every input sample even
+   * when there is no room to write the result -- otherwise the pipeline
+   * desynchronises from the stream.  Feed the same input twice, once with
+   * room and once without, and check the STATE lands in the same place. */
+  {
+    const uint32_t R    = 4;
+    const size_t   n_in = 64, n_full = n_in / R; /* 16 outputs */
+    float complex  in[64];
+    for (size_t i = 0; i < n_in; i++)
+      in[i] = CMPLXF ((float)cos (2 * M_PI * 0.05 * (double)i) * 0.5f,
+                      (float)sin (2 * M_PI * 0.05 * (double)i) * 0.5f);
+
+    float complex       full[16], part[16];
+    const float complex CANARY = -1234.0f - 567.0f * I;
+    const size_t        K      = 5;
+
+    cic_state_t *a = cic_create (R);
+    CHECK (cic_decimate (a, in, n_in, full, n_full) == n_full);
+
+    cic_state_t *b = cic_create (R);
+    for (size_t k = 0; k < n_full; k++)
+      part[k] = CANARY;
+    CHECK (cic_decimate (b, in, n_in, part, K) == K);
+    /* what was written is the true prefix ... */
+    for (size_t k = 0; k < K; k++)
+      CHECK (FEQC (part[k], full[k], 0.0f));
+    /* ... and nothing past the capacity was touched. */
+    for (size_t k = K; k < n_full; k++)
+      CHECK (FEQC (part[k], CANARY, 0.0f));
+    /* ... and both filters are in the SAME state: the next block agrees. */
+    float complex nextA[16], nextB[16];
+    size_t        nA = cic_decimate (a, in, n_in, nextA, n_full);
+    size_t        nB = cic_decimate (b, in, n_in, nextB, n_full);
+    CHECK (nA == nB);
+    for (size_t k = 0; k < nA; k++)
+      CHECK (FEQC (nextA[k], nextB[k], 0.0f));
+
+    cic_destroy (a);
+    cic_destroy (b);
   }
 
   if (_fails)

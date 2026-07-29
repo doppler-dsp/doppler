@@ -37,7 +37,7 @@ main (void)
 
     /* value before any frame → 0 (None in Python). */
     float out[8];
-    CHECK (acc_trace_value (obj, 8, out) == 0);
+    CHECK (acc_trace_value (obj, 8, out, 8) == 0);
     acc_trace_destroy (obj);
   }
 
@@ -51,7 +51,7 @@ main (void)
     acc_trace_accumulate (obj, b, 4);
     CHECK (obj->count == 2);
     float out[4];
-    CHECK (acc_trace_value (obj, 4, out) == 4);
+    CHECK (acc_trace_value (obj, 4, out, 4) == 4);
     const float want[4] = { 2, 4, 6, 8 };
     for (int i = 0; i < 4; i++)
       CHECK (fabsf (out[i] - want[i]) < TOL);
@@ -59,7 +59,7 @@ main (void)
     /* reset clears the running trace and counter. */
     acc_trace_reset (obj);
     CHECK (obj->count == 0);
-    CHECK (acc_trace_value (obj, 4, out) == 0);
+    CHECK (acc_trace_value (obj, 4, out, 4) == 0);
     acc_trace_destroy (obj);
   }
 
@@ -73,7 +73,7 @@ main (void)
     acc_trace_accumulate (obj, f1, 2);
     acc_trace_accumulate (obj, f2, 2);
     float out[2];
-    acc_trace_value (obj, 2, out);
+    acc_trace_value (obj, 2, out, 2);
     CHECK (fabsf (out[0] - 5.0f) < TOL);  /* (0+6+9)/3    */
     CHECK (fabsf (out[1] - 60.0f) < TOL); /* (30+60+90)/3 */
     acc_trace_destroy (obj);
@@ -87,7 +87,7 @@ main (void)
     acc_trace_accumulate (obj, s, 2); /* seeds acc = s */
     acc_trace_accumulate (obj, u, 2); /* 0.5*u + 0.5*s */
     float out[2];
-    acc_trace_value (obj, 2, out);
+    acc_trace_value (obj, 2, out, 2);
     CHECK (fabsf (out[0] - 6.0f) < TOL);  /* 0.5*2 + 0.5*10 */
     CHECK (fabsf (out[1] - 12.0f) < TOL); /* 0.5*4 + 0.5*20 */
     acc_trace_destroy (obj);
@@ -104,8 +104,8 @@ main (void)
     acc_trace_accumulate (mn, p0, 3);
     acc_trace_accumulate (mn, p1, 3);
     float omx[3], omn[3];
-    acc_trace_value (mx, 3, omx);
-    acc_trace_value (mn, 3, omn);
+    acc_trace_value (mx, 3, omx, 3);
+    acc_trace_value (mn, 3, omn, 3);
     const float wmx[3] = { 4, 5, 6 };
     const float wmn[3] = { 1, 3, 2 };
     for (int i = 0; i < 3; i++)
@@ -124,6 +124,29 @@ main (void)
     acc_trace_accumulate (obj, shrt, 2); /* p_len < n → no-op */
     CHECK (obj->count == 0);
     acc_trace_destroy (obj);
+  }
+
+  /* ── pass_capacity: emission stops at max_out (jm gh-138) ────────── */
+  {
+    acc_trace_state_t *a    = acc_trace_create (8, 0, 0.1);
+    const float        p[8] = { 1, 2, 3, 4, 5, 6, 7, 8 };
+    float              out[8];
+    CHECK (a != NULL);
+    acc_trace_accumulate (a, p, 8);
+
+    for (int i = 0; i < 8; i++)
+      out[i] = 42.0f;
+    CHECK (acc_trace_value (a, 8, out, 3) == 3);
+    for (int i = 3; i < 8; i++)
+      CHECK (out[i] == 42.0f); /* tail untouched */
+
+    /* Zero capacity emits nothing. */
+    for (int i = 0; i < 8; i++)
+      out[i] = 42.0f;
+    CHECK (acc_trace_value (a, 8, out, 0) == 0);
+    for (int i = 0; i < 8; i++)
+      CHECK (out[i] == 42.0f);
+    acc_trace_destroy (a);
   }
 
   if (_fails)

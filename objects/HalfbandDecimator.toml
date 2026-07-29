@@ -17,6 +17,9 @@ arg_type = "void"
 return_type = "float _Complex"
 variable_output = true
 params = [{name = "x", type = "float _Complex[]"}]
+# Kernel is told its write limit (jm gh-138): an under-reporting
+# max_out truncates the emission instead of overrunning `out`.
+pass_capacity = true
 
 [[HalfbandDecimator.methods]]
 name = "reset"

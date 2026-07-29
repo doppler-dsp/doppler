@@ -18,12 +18,12 @@ BLOCK_64K = 65_536
 def obj():
     return CorrDetector2D(
         np.zeros((NY, NX), dtype=np.complex64),
-        "mean",
-        4,
-        1,
-        NY * NX - 2,
-        0.0,
-        1,
+        dwell=4,
+        noise_lo=1,
+        noise_hi=NY * NX - 2,
+        noise_mode="mean",
+        threshold=0.0,
+        nthreads=1,
     )
 
 

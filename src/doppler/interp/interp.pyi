@@ -39,7 +39,7 @@ class InterpolatedTable:
         Returns
         -------
         NDArray[np.complex128]
-            n_in (always).
+            min(n_in, max_out) interpolated points.
 
         Examples
         --------

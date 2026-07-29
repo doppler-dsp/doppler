@@ -113,7 +113,8 @@ imdmeas_analyze (imdmeas_state_t *s, const float *x, size_t n_in)
   memset (&r, 0, sizeof (r));
   psd_reset (s->psd);
   psd_accumulate_real (s->psd, x, n_in);
-  size_t nbins = psd_power_onesided (s->psd, s->nfft / 2 + 1, s->pwr);
+  size_t nbins
+      = psd_power_onesided (s->psd, s->nfft / 2 + 1, s->pwr, s->nfft / 2 + 1);
   if (nbins == 0)
     return r; /* capture holds no full frame */
   double df = s->fs / (double)s->nfft;
@@ -192,15 +193,21 @@ imdmeas_spectrum_dbfs_max_out (imdmeas_state_t *state)
 
 size_t
 imdmeas_spectrum_dbfs (imdmeas_state_t *state, const float *x, size_t x_len,
-                       float *out)
+                       float *out, size_t max_out)
 {
   /* DC-centred two-sided dBFS view of the capture (analyzer display): the same
    * averaged PSD the metrics use, scaled to the shared 0-dBFS reference. */
   psd_reset (state->psd);
   psd_accumulate_real (state->psd, x, x_len);
-  size_t nfft = psd_power_twosided (state->psd, state->nfft, state->pwr);
+  size_t nfft
+      = psd_power_twosided (state->psd, state->nfft, state->pwr, state->nfft);
   if (nfft == 0)
     return 0;
+  /* Emission stops at the caller's capacity (jm gh-138). The count
+     argument above is the INPUT capture length; the output length is
+     the analyser's nfft, so this is the only real bound. */
+  if (nfft > max_out)
+    nfft = max_out;
   double ref = state->psd->full_scale * state->psd->full_scale;
   for (size_t i = 0; i < nfft; i++)
     out[i] = (float)(10.0 * log10 ((double)state->pwr[i] / ref + IMD_EPS));

@@ -1,4 +1,6 @@
 #include "corr/corr_core.h"
+
+#include "clib_common.h"
 #include <string.h>
 
 /* 1-D spectral zero-pad: q (length m >= n) is the band-limited (Dirichlet)
@@ -61,7 +63,7 @@ corr_create (const float complex *ref, size_t n, size_t dwell, int nthreads,
     }
 
   /* Pre-compute conjugate reference spectrum: ref_spec = conj(FFT(ref)). */
-  fft_execute_cf32 (state->fwd, ref, n, state->ref_spec);
+  fft_execute_cf32 (state->fwd, ref, n, state->ref_spec, n);
   for (size_t k = 0; k < n; k++)
     state->ref_spec[k] = conjf (state->ref_spec[k]);
 
@@ -89,6 +91,7 @@ corr_destroy (corr_state_t *state)
   free (state->work_fft);
   free (state->accum);
   free (state->work_pad);
+  free (state->work_trunc);
   free (state);
 }
 
@@ -129,7 +132,7 @@ corr_set_state (corr_state_t *s, const void *blob)
 void
 corr_set_ref (corr_state_t *state, const float complex *ref)
 {
-  fft_execute_cf32 (state->fwd, ref, state->n, state->ref_spec);
+  fft_execute_cf32 (state->fwd, ref, state->n, state->ref_spec, state->n);
   for (size_t k = 0; k < state->n; k++)
     state->ref_spec[k] = conjf (state->ref_spec[k]);
   corr_reset (state);
@@ -143,7 +146,7 @@ corr_execute_max_out (corr_state_t *state)
 
 size_t
 corr_execute (corr_state_t *state, const float complex *in, size_t n_in,
-              float complex *out)
+              float complex *out, size_t max_out)
 {
   (void)n_in; /* must equal state->n; caller's responsibility */
 
@@ -154,7 +157,7 @@ corr_execute (corr_state_t *state, const float complex *in, size_t n_in,
    * applied once) — and only because the dwell is COHERENT (a complex sum); a
    * non- coherent (Σ_k |IFFT(P_k)|²) integration is nonlinear and must invert
    * per frame. */
-  fft_execute_cf32 (state->fwd, in, state->n, state->work_fft);
+  fft_execute_cf32 (state->fwd, in, state->n, state->work_fft, state->n);
 
   for (size_t k = 0; k < state->n; k++)
     state->accum[k] += state->work_fft[k] * state->ref_spec[k];
@@ -170,13 +173,32 @@ corr_execute (corr_state_t *state, const float complex *in, size_t n_in,
           _zeropad_1d (state->accum, state->n, state->work_pad, state->n_out);
           src = state->work_pad;
         }
-      fft_execute_cf32 (state->inv, src, state->n_out, out);
+      /* Emission stops at the caller's capacity (jm gh-138). This block
+       * cannot serve a short buffer by writing less: the inverse plan is
+       * fixed at n_out and writes all of it. So a short `out` is served by
+       * inverting into a bounce buffer and copying the prefix -- the dump
+       * still completes and the accumulator still resets, because the
+       * frames have been consumed either way and pretending otherwise
+       * would desynchronise `count` from the stream. */
+      size_t         n_out = state->n_out;
+      float complex *dst   = out;
+      if (max_out < n_out)
+        {
+          if (!state->work_trunc)
+            state->work_trunc = (float complex *)dp_xcalloc (
+                state->n_out, sizeof *state->work_trunc);
+          dst   = state->work_trunc;
+          n_out = max_out;
+        }
+      fft_execute_cf32 (state->inv, src, state->n_out, dst, state->n_out);
       const float inv_n = 1.0f / (float)state->n;
-      for (size_t k = 0; k < state->n_out; k++)
-        out[k] *= inv_n;
+      for (size_t k = 0; k < n_out; k++)
+        dst[k] *= inv_n;
+      if (dst != out)
+        memcpy (out, dst, n_out * sizeof *out);
       memset (state->accum, 0, state->n * sizeof (*state->accum));
       state->count = 0;
-      return state->n_out;
+      return n_out;
     }
   return 0;
 }

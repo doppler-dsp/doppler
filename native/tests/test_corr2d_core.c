@@ -110,7 +110,7 @@ main (void)
 
     corr2d_state_t *obj = corr2d_create (ref, NY, NX, 1, 1, 0, 0);
     float complex   out[16];
-    size_t          n_out = corr2d_execute (obj, ref, N, out);
+    size_t          n_out = corr2d_execute (obj, ref, N, out, N);
 
     CHECK (n_out == N);
     CHECK (ceq (out[0], 1.0f + 0.0f * I));
@@ -128,11 +128,11 @@ main (void)
     corr2d_state_t *obj = corr2d_create (ref, NY, NX, 2, 1, 0, 0);
     float complex   out[16];
 
-    size_t n1 = corr2d_execute (obj, ref, N, out);
+    size_t n1 = corr2d_execute (obj, ref, N, out, N);
     CHECK (n1 == 0);
     CHECK (obj->count == 1);
 
-    size_t n2 = corr2d_execute (obj, ref, N, out);
+    size_t n2 = corr2d_execute (obj, ref, N, out, N);
     CHECK (n2 == N); /* dump on second call */
     CHECK (obj->count == 0);
 
@@ -154,7 +154,7 @@ main (void)
 
     corr2d_state_t *obj = corr2d_create (ref, NY, NX, 1, 1, 0, 0);
     float complex   out[16];
-    corr2d_execute (obj, in, N, out);
+    corr2d_execute (obj, in, N, out, N);
 
     /* Peak should be at row=1, col=0 → flat index = 1*NX + 0 = NX */
     size_t peak_idx = NX;
@@ -195,7 +195,7 @@ main (void)
     CHECK (corr2d_execute_max_out (obj) == 64);
 
     float complex out[64];
-    size_t        no = corr2d_execute (obj, in, N, out);
+    size_t        no = corr2d_execute (obj, in, N, out, 64);
     CHECK (no == 64);
     size_t pk = 0;
     for (size_t k = 1; k < 64; k++)
@@ -218,7 +218,7 @@ main (void)
     /* single-row ref -> fast path */
     corr2d_state_t *fast = corr2d_create (dense_ref, ny, nx, 1, 1, 0, 0);
     CHECK (fast != NULL && fast->fast_path == 1);
-    corr2d_execute (fast, dense_in, n, out);
+    corr2d_execute (fast, dense_in, n, out, n);
     _brute_corr2d (dense_in, dense_ref, ny, nx, expect);
     for (size_t k = 0; k < n; k++)
       CHECK (ceq (out[k], expect[k]));
@@ -231,7 +231,7 @@ main (void)
       dense_ref2[k] = _rand_uniform (&seed) + _rand_uniform (&seed) * I;
     corr2d_state_t *slow = corr2d_create (dense_ref2, ny, nx, 1, 1, 0, 0);
     CHECK (slow != NULL && slow->fast_path == 0);
-    corr2d_execute (slow, dense_in, n, out);
+    corr2d_execute (slow, dense_in, n, out, n);
     _brute_corr2d (dense_in, dense_ref2, ny, nx, expect);
     for (size_t k = 0; k < n; k++)
       CHECK (ceq (out[k], expect[k]));
@@ -253,7 +253,7 @@ main (void)
     CHECK (corr2d_execute_max_out (obj) == NY * 8);
 
     float complex out[32];
-    size_t        no = corr2d_execute (obj, in, N, out);
+    size_t        no = corr2d_execute (obj, in, N, out, 32);
     CHECK (no == NY * 8);
     size_t pk = 0;
     for (size_t k = 1; k < NY * 8; k++)
@@ -279,16 +279,61 @@ main (void)
     float complex in[16] = { 0 };
     in[1]                = 1.0f; /* row 0, col 1 -- matches ref2's replica */
     float complex out[16];
-    corr2d_execute (obj, in, N, out);
+    corr2d_execute (obj, in, N, out, N);
     CHECK (ceq (out[0], 1.0f + 0.0f * I));
 
     /* reject: no longer single-row -- object's ref/spectrum must be left
      * completely untouched (execute() still reflects ref2, not bad_ref). */
     CHECK (corr2d_set_ref (obj, bad_ref) == -1);
-    corr2d_execute (obj, in, N, out);
+    corr2d_execute (obj, in, N, out, N);
     CHECK (ceq (out[0], 1.0f + 0.0f * I));
 
     corr2d_destroy (obj);
+  }
+
+  /* ── pass_capacity: emission stops at max_out (jm gh-138) ────────── */
+  {
+    /* corr2d has TWO write paths -- the 2-D inverse and the per-row fast
+     * path -- and the fast one bypasses the slow path entirely, so both are
+     * exercised here. A clamp applied to only one would leave the other
+     * overrunning, which is the shape of the bug this guards. */
+    const size_t  ny = 5, nx = 7, n = ny * nx;
+    uint32_t      seed        = 999u;
+    float complex row_ref[35] = { 0 }, full_ref[35], input[35];
+    float complex full[35], part[35];
+    for (size_t j = 0; j < nx; j++)
+      row_ref[j] = _rand_uniform (&seed) + _rand_uniform (&seed) * I;
+    for (size_t k = 0; k < n; k++)
+      {
+        full_ref[k] = _rand_uniform (&seed) + _rand_uniform (&seed) * I;
+        input[k]    = _rand_uniform (&seed) + _rand_uniform (&seed) * I;
+      }
+
+    for (int which = 0; which < 2; which++)
+      {
+        const float complex *rf = which ? full_ref : row_ref;
+        corr2d_state_t      *a  = corr2d_create (rf, ny, nx, 1, 1, 0, 0);
+        corr2d_state_t      *b  = corr2d_create (rf, ny, nx, 1, 1, 0, 0);
+        CHECK (a != NULL && b != NULL);
+        CHECK (a->fast_path == (which ? 0 : 1)); /* both paths covered */
+        for (size_t k = 0; k < n; k++)
+          part[k] = 42.0f + 42.0f * I;
+
+        CHECK (corr2d_execute (a, input, n, full, n) == n);
+        CHECK (corr2d_execute (b, input, n, part, 6) == 6);
+        for (size_t k = 0; k < 6; k++)
+          CHECK (ceq (part[k], full[k])); /* prefix is the same surface */
+        for (size_t k = 6; k < n; k++)
+          CHECK (ceq (part[k], 42.0f + 42.0f * I)); /* tail untouched */
+
+        for (size_t k = 0; k < n; k++)
+          part[k] = 42.0f + 42.0f * I;
+        CHECK (corr2d_execute (b, input, n, part, 0) == 0);
+        for (size_t k = 0; k < n; k++)
+          CHECK (ceq (part[k], 42.0f + 42.0f * I));
+        corr2d_destroy (a);
+        corr2d_destroy (b);
+      }
   }
 
   if (_fails)
@@ -308,7 +353,7 @@ main (void)
     corr2d_state_t *a = corr2d_create (ref, 4, 4, 3, 1, 0, 0);
     corr2d_state_t *b = corr2d_create (ref, 4, 4, 3, 1, 0, 0);
     CHECK (a != NULL && b != NULL);
-    (void)corr2d_execute (a, in, 16, out);
+    (void)corr2d_execute (a, in, 16, out, 16);
     DP_STATE_ROUNDTRIP_TEST (corr2d, a, b);
     CHECK (b->count == a->count && b->accum[0] == a->accum[0]);
     corr2d_destroy (a);
@@ -328,7 +373,7 @@ main (void)
     corr2d_state_t *b = corr2d_create (ref, 4, 4, 3, 1, 0, 0);
     CHECK (a != NULL && b != NULL);
     CHECK (a->fast_path == 1 && b->fast_path == 1);
-    (void)corr2d_execute (a, in, 16, out);
+    (void)corr2d_execute (a, in, 16, out, 16);
     DP_STATE_ROUNDTRIP_TEST (corr2d, a, b);
     CHECK (b->count == a->count && b->accum[0] == a->accum[0]);
     corr2d_destroy (a);

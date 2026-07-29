@@ -139,12 +139,15 @@ acc_trace_value_max_out (acc_trace_state_t *state)
 }
 
 size_t
-acc_trace_value (acc_trace_state_t *state, size_t n, float *out)
+acc_trace_value (acc_trace_state_t *state, size_t n, float *out,
+                 size_t max_out)
 {
-  (void)n; /* buffer is pre-sized to state->n by the binding */
+  (void)n; /* the trace length is state->n; n is vestigial */
   if (state->count == 0)
     return 0;
-  for (size_t i = 0; i < state->n; i++)
+  /* Emission stops at the caller's capacity (jm gh-138). */
+  size_t n_out = state->n < max_out ? state->n : max_out;
+  for (size_t i = 0; i < n_out; i++)
     out[i] = (float)state->acc[i];
-  return state->n;
+  return n_out;
 }

@@ -45,7 +45,7 @@ main (void)
           }
         cic_reset (obj);
         clock_gettime (CLOCK_MONOTONIC, &t0);
-        cic_decimate (obj, in, BENCH_N, out);
+        cic_decimate (obj, in, BENCH_N, out, BENCH_N);
         clock_gettime (CLOCK_MONOTONIC, &t1);
         times[r] = elapsed_sec (&t0, &t1);
       }

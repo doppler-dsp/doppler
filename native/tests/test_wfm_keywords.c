@@ -246,6 +246,55 @@ test_encode_guards (void)
   return 0;
 }
 
+/* The standard-keyword conformance check (BLUE 1.1 3.4.2). Advisory: it
+   reports, and nothing in the writer refuses on its say-so, because 3.4.2
+   leaves the effect of these keywords to the consuming system. */
+static int
+test_standard_keyword_conformance (void)
+{
+  /* ACQDATE: YY.DDD, or YYYYMMDD as the Platinum-era alternate 3.4.2.1
+     explicitly permits. */
+  CHECK (wfm_kw_check_standard ("ACQDATE", 'A', "13.322", 6) == 1, "YY.DDD");
+  CHECK (wfm_kw_check_standard ("ACQDATE", 'A', "20131118", 8) == 1,
+         "YYYYMMDD alternate");
+  CHECK (wfm_kw_check_standard ("ACQDATE", 'A', "13/322", 6) == -1,
+         "wrong separator");
+  CHECK (wfm_kw_check_standard ("ACQDATE", 'A', "13.32", 5) == -1,
+         "wrong width");
+  CHECK (wfm_kw_check_standard ("ACQDATE", 'D', "13.322", 6) == -1,
+         "wrong type");
+
+  /* ACQTIME: exactly HH:MM:SS, leading zeros required. */
+  CHECK (wfm_kw_check_standard ("ACQTIME", 'A', "12:34:56", 8) == 1,
+         "HH:MM:SS");
+  CHECK (wfm_kw_check_standard ("ACQTIME", 'A', "1:34:56", 7) == -1,
+         "leading zero required");
+  CHECK (wfm_kw_check_standard ("ACQTIME", 'A', "12-34-56", 8) == -1,
+         "wrong separator");
+
+  /* Free-form, but text. */
+  CHECK (wfm_kw_check_standard ("COMMENT", 'A', "anything", 8) == 1,
+         "COMMENT is free-form");
+  CHECK (wfm_kw_check_standard ("COMMENT", 'L', "\0\0\0\0", 1) == -1,
+         "COMMENT must be text");
+  CHECK (wfm_kw_check_standard ("TIMELINE", 'A', "x", 1) == 1, "TIMELINE");
+
+  /* Structures a type-1000 file does not have. */
+  CHECK (wfm_kw_check_standard ("SUBREC_DEF", 'A', "x", 1) == -1,
+         "type 6000 only");
+  CHECK (wfm_kw_check_standard ("SUBREC_DESCRIP", 'A', "x", 1) == -1,
+         "type 6000 only");
+  CHECK (wfm_kw_check_standard ("T4INDEX", 'L', "\0\0\0\0", 1) == -1,
+         "type 4000 only");
+
+  /* A user keyword is nobody's business but the caller's. */
+  CHECK (wfm_kw_check_standard ("MY_TAG", 'A', "whatever", 8) == 0,
+         "user tag unpoliced");
+  CHECK (wfm_kw_check_standard ("SRATE", 'D', "\0\0\0\0\0\0\0\0", 1) == 0,
+         "user numeric unpoliced");
+  return 0;
+}
+
 int
 main (void)
 {
@@ -260,6 +309,8 @@ main (void)
   if (test_malformed_is_rejected ())
     return 1;
   if (test_encode_guards ())
+    return 1;
+  if (test_standard_keyword_conformance ())
     return 1;
   printf ("test_wfm_keywords: all passed\n");
   return 0;

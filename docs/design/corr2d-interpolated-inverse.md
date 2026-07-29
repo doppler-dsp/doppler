@@ -79,16 +79,33 @@ Add two **optional** output dimensions to the constructor; `0` means "native"
 
 C:
 
-<!-- docs-snippet: skip=API signature sketch (design spec), not a compilable usage example -->
+```c title="corr2d interpolated-inverse API"
+#include <complex.h>
+#include <stddef.h>
+#include <stdio.h>
 
-```c
-/* ny_out/nx_out: inverse/output size; 0 => use ny/nx. Must be >= ny/nx. */
-corr2d_state_t *corr2d_create(const float complex *ref, size_t ny, size_t nx,
-                              size_t ny_out, size_t nx_out,
-                              size_t dwell, int nthreads);
-size_t corr2d_execute(corr2d_state_t *state, const float complex *in,
-                      size_t n_in, float complex *out);   /* writes ny_out*nx_out */
-size_t corr2d_execute_max_out(corr2d_state_t *state);     /* == ny_out*nx_out */
+#include "corr2d/corr2d_core.h"
+
+int
+main (void)
+{
+  /* Spelled out so this listing stops compiling if a signature drifts --
+     ny_out/nx_out trail dwell/nthreads, and every one of those four is an
+     integer, so a stale parameter ORDER would still compile at the call
+     site and silently misconfigure the correlator. */
+  corr2d_state_t *(*create) (const float complex *, size_t, size_t, size_t,
+                             int, size_t, size_t)
+      = corr2d_create;
+  /* ny_out/nx_out: inverse/output size; 0 => use ny/nx. Must be >= ny/nx. */
+  size_t (*execute) (corr2d_state_t *, const float complex *, size_t,
+                     float complex *, size_t)
+      = corr2d_execute; /* writes min(ny_out*nx_out, max_out) */
+  size_t (*max_out) (corr2d_state_t *) = corr2d_execute_max_out;
+
+  printf ("corr2d API: %d\n",
+          (create != 0) + (execute != 0) + (max_out != 0));
+  return 0;
+}
 ```
 
 Manifest (`objects/corr2d.toml`) — two new init params after `nx`, default `0`:

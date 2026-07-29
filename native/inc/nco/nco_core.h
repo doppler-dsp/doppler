@@ -26,7 +26,7 @@
  * @code
  * nco_state_t *nco = nco_create(0.25, 0);
  * uint32_t out[4];
- * nco_steps_u32(nco, 4, out);
+ * nco_steps_u32 (nco, 4, out, 4);
  * // out[0]=0x00000000, out[1]=0x40000000,
  * // out[2]=0x80000000, out[3]=0xC0000000
  * nco_destroy(nco);
@@ -384,7 +384,9 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
    * @param state  NCO state returned by nco_create().
    * @param n      Number of samples to generate.
    * @param out    Output buffer; must hold at least n uint32_t values.
-   * @return n (always).
+   * @param max_out Capacity of @p out in elements. Emission stops there, so
+   *                the return value is the number actually written.
+   * @return min(n, max_out) samples.
    * @code
    * >>> from doppler.source import NCO
    * >>> nco = NCO(0.25, 0)
@@ -395,7 +397,8 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
    * [0, 1073741824, 2147483648, 3221225472]
    * @endcode
    */
-  size_t nco_steps_u32 (nco_state_t *state, size_t n, uint32_t *out);
+  size_t nco_steps_u32 (nco_state_t *state, size_t n, uint32_t *out,
+                        size_t max_out);
 
   size_t nco_steps_u32_scaled_max_out (nco_state_t *state);
 
@@ -411,7 +414,9 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
    * @param state  NCO state returned by nco_create().
    * @param n      Number of samples to generate.
    * @param out    Output buffer; must hold at least n uint32_t values.
-   * @return n (always).
+   * @param max_out Capacity of @p out in elements. Emission stops there, so
+   *                the return value is the number actually written.
+   * @return min(n, max_out) samples.
    * @code
    * >>> from doppler.source import NCO
    * >>> nco = NCO(0.25, 4)
@@ -422,7 +427,8 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
    * [0, 1, 2, 3]
    * @endcode
    */
-  size_t nco_steps_u32_scaled (nco_state_t *state, size_t n, uint32_t *out);
+  size_t nco_steps_u32_scaled (nco_state_t *state, size_t n, uint32_t *out,
+                               size_t max_out);
 
   size_t nco_steps_u32_ovf_max_out (nco_state_t *state);
 
@@ -439,7 +445,10 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
    * @param n      Number of samples to generate.
    * @param out    Phase output buffer; must hold at least n uint32_t values.
    * @param out1   Carry output buffer; must hold at least n uint8_t values.
-   * @return n (always).
+   * @param max_out Capacity of @p out and @p out1 in elements (both receive
+   *                the same count). Emission stops there, so the return
+   *                value is the number actually written.
+   * @return min(n, max_out) samples.
    * @code
    * >>> from doppler.source import NCO
    * >>> nco = NCO(0.5, 0)
@@ -453,7 +462,7 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
    * @endcode
    */
   size_t nco_steps_u32_ovf (nco_state_t *state, size_t n, uint32_t *out,
-                            uint8_t *out1);
+                            uint8_t *out1, size_t max_out);
 
   size_t nco_steps_u32_ctrl_max_out (nco_state_t *state);
 
@@ -488,7 +497,9 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
    * @param ctrl_len  Number of elements in ctrl; equals output length.
    * @param out       Output buffer; must hold at least ctrl_len uint32_t
    *                  values.
-   * @return ctrl_len (always).
+   * @param max_out Capacity of @p out in elements. Emission stops there, so
+   *                the return value is the number actually written.
+   * @return min(ctrl_len, max_out) samples.
    * @code
    * >>> from doppler.source import NCO
    * >>> import numpy as np
@@ -502,7 +513,8 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
    * @endcode
    */
   size_t nco_steps_u32_ctrl (nco_state_t *state, const float *ctrl,
-                             size_t ctrl_len, uint32_t *out);
+                             size_t ctrl_len, uint32_t *out,
+                             size_t max_out);
 
   size_t nco_steps_u32_scaled_ctrl_max_out (nco_state_t *state);
 
@@ -525,7 +537,9 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
    * @param ctrl_len  Number of elements in ctrl; equals output length.
    * @param out       Output buffer; must hold at least ctrl_len uint32_t
    *                  values.
-   * @return ctrl_len (always).
+   * @param max_out Capacity of @p out in elements. Emission stops there, so
+   *                the return value is the number actually written.
+   * @return min(ctrl_len, max_out) samples.
    * @code
    * >>> from doppler.source import NCO
    * >>> import numpy as np
@@ -537,7 +551,8 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
    * @endcode
    */
   size_t nco_steps_u32_scaled_ctrl (nco_state_t *state, const float *ctrl,
-                                    size_t ctrl_len, uint32_t *out);
+                                    size_t ctrl_len, uint32_t *out,
+                                    size_t max_out);
 
   size_t nco_steps_u32_ovf_ctrl_max_out (nco_state_t *state);
 
@@ -566,7 +581,10 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
    *                  uint32_t values.
    * @param out1      Carry output buffer; must hold at least ctrl_len
    *                  uint8_t values.
-   * @return ctrl_len (always).
+   * @param max_out Capacity of @p out and @p out1 in elements (both receive
+   *                the same count). Emission stops there, so the return
+   *                value is the number actually written.
+   * @return min(ctrl_len, max_out) samples.
    * @code
    * >>> from doppler.source import NCO
    * >>> import numpy as np
@@ -581,7 +599,7 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
    */
   size_t nco_steps_u32_ovf_ctrl (nco_state_t *state, const float *ctrl,
                                  size_t ctrl_len, uint32_t *out,
-                                 uint8_t *out1);
+                                 uint8_t *out1, size_t max_out);
 
 #ifdef __cplusplus
 }

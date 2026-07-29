@@ -73,7 +73,7 @@ roundtrip (const char *path, int ft, int stype, double fs, double tol)
   CHECK (info.num_samples == 0 || info.num_samples == N, "num_samples");
 
   size_t total = 0, n;
-  while ((n = wfm_reader_read (r, N - total, y + total)) > 0)
+  while ((n = wfm_reader_read (r, N - total, y + total, N - total)) > 0)
     total += n;
   wfm_reader_destroy (r);
   CHECK (total == N, "read back N samples");
@@ -163,7 +163,7 @@ test_detached_header_entry (void)
       wfm_reader_info (r, &info);
       CHECK (info.file_type == WFM_FT_BLUE, "detached header detects BLUE");
       CHECK (info.num_samples == N, "detached num_samples from data_size");
-      size_t got = wfm_reader_read (r, N, y);
+      size_t got = wfm_reader_read (r, N, y, N);
       wfm_reader_destroy (r);
       /* the whole payload -- NOT the 512-byte header as 64 samples */
       CHECK (got == N, "detached header yields the full payload");
@@ -226,7 +226,7 @@ test_blue_format_mode (void)
   wfm_reader_info (r, &info);
   CHECK (info.mode == WFM_MODE_SCALAR, "mode is scalar");
   CHECK (info.num_samples == N, "scalar num_samples is not halved");
-  size_t got = wfm_reader_read (r, N, y);
+  size_t got = wfm_reader_read (r, N, y, N);
   wfm_reader_destroy (r);
   CHECK (got == N, "scalar yields every sample, not half");
   for (size_t k = 0; k < N; k++)
@@ -243,7 +243,7 @@ test_blue_format_mode (void)
   wfm_reader_info (r, &info);
   CHECK (info.mode == WFM_MODE_COMPLEX, "mode is complex");
   CHECK (info.num_samples == N, "complex num_samples");
-  got = wfm_reader_read (r, N, y);
+  got = wfm_reader_read (r, N, y, N);
   wfm_reader_destroy (r);
   CHECK (got == N, "complex yields every sample");
   for (size_t k = 0; k < N; k++)
@@ -365,10 +365,10 @@ test_keyword_roundtrip (void)
          runs dry would hand the caller keyword bytes as IQ -- silently, and
          only for files that carry metadata. */
       size_t total = 0, got;
-      while ((got = wfm_reader_read (r, N - total, y + total)) > 0)
+      while ((got = wfm_reader_read (r, N - total, y + total, N - total)) > 0)
         total += got;
       CHECK (total == N, "drains to exactly the declared payload");
-      CHECK (wfm_reader_read (r, N, y) == 0, "and stays at end of data");
+      CHECK (wfm_reader_read (r, N, y, N) == 0, "and stays at end of data");
       for (size_t i = 0; i < N; i++)
         CHECK (cabsf (y[i] - x[i]) < 1e-6f, "samples unaffected");
       wfm_reader_destroy (r);
@@ -423,7 +423,7 @@ test_keyword_roundtrip (void)
       CHECK (k != NULL, "F_C present");
       memcpy (&d, k->value, 8);
       CHECK (d == KW_D, "detached keyword value");
-      CHECK (wfm_reader_read (r, N, y) == N, "detached samples still read");
+      CHECK (wfm_reader_read (r, N, y, N) == N, "detached samples still read");
       wfm_reader_destroy (r);
     }
   return 0;
@@ -468,7 +468,8 @@ test_keyword_absent_and_corrupt (void)
           ? wfm_reader_create ("dp_kw_bad.blue", 0, 0)
           : NULL;
   CHECK (r != NULL, "a bad keyword region does not fail the open");
-  CHECK (wfm_reader_read (r, N, y) == N, "samples survive a bad ext header");
+  CHECK (wfm_reader_read (r, N, y, N) == N,
+         "samples survive a bad ext header");
   wfm_reader_destroy (r);
   return 0;
 }
@@ -503,10 +504,11 @@ test_reset_rewinds_to_the_first_sample (void)
 
       wfm_reader_state_t *r = wfm_reader_create (PATHS[i], 0, 0);
       CHECK (r != NULL, "open for reset");
-      CHECK (wfm_reader_read (r, N, a) == N, "first pass");
+      CHECK (wfm_reader_read (r, N, a, N) == N, "first pass");
       wfm_reader_reset (r);
-      CHECK (wfm_reader_read (r, N, b) == N, "second pass reads N again");
-      CHECK (wfm_reader_read (r, 1, b + N - 1) == 0, "and stops at the end");
+      CHECK (wfm_reader_read (r, N, b, N) == N, "second pass reads N again");
+      CHECK (wfm_reader_read (r, 1, b + N - 1, 1) == 0,
+             "and stops at the end");
       wfm_reader_destroy (r);
       for (size_t k = 0; k + 1 < N; k++)
         CHECK (a[k] == b[k], "reset replays the identical samples");
@@ -515,14 +517,143 @@ test_reset_rewinds_to_the_first_sample (void)
   /* detached: payload is byte 0 of the .det, header is elsewhere */
   wfm_reader_state_t *r = wfm_reader_create ("dp_kw_det.hdr", 0, 0);
   CHECK (r != NULL, "open detached");
-  CHECK (wfm_reader_read (r, N, a) == N, "detached first pass");
+  CHECK (wfm_reader_read (r, N, a, N) == N, "detached first pass");
   wfm_reader_reset (r);
-  CHECK (wfm_reader_read (r, N, b) == N, "detached second pass");
+  CHECK (wfm_reader_read (r, N, b, N) == N, "detached second pass");
   CHECK (wfm_reader_num_keywords (r) == 2, "keywords survive a reset");
   wfm_reader_destroy (r);
   for (size_t k = 0; k < N; k++)
     CHECK (a[k] == b[k], "detached reset replays identically");
   return 0;
+}
+
+/* pass_capacity: emission stops at max_out (jm gh-138).
+   wfm_reader_read_max_out() returns 0 ("no fixed bound"), so before this the
+   kernel's only limit was the caller's own count argument -- a caller with a
+   buffer smaller than the count it asked for had no way to say so. */
+static int
+test_read_capacity (void)
+{
+  int                 _fails = 0;
+  wfm_reader_state_t *r      = wfm_reader_create ("dp_reader.blue", 0, 0);
+  float _Complex y[16];
+  CHECK (r, "reopen the BLUE capture");
+  for (size_t i = 0; i < 16; i++)
+    y[i] = 42.0f + 42.0f * I;
+
+  CHECK (wfm_reader_read (r, 16, y, 3) == 3, "read stops at max_out");
+  for (size_t i = 3; i < 16; i++)
+    CHECK (y[i] == 42.0f + 42.0f * I, "tail untouched");
+
+  /* Zero capacity reads nothing. */
+  CHECK (wfm_reader_read (r, 16, y, 0) == 0, "zero capacity reads nothing");
+  wfm_reader_destroy (r);
+  return _fails;
+}
+
+/* The extended header at the END of an ATTACHED file -- the layout doppler's
+   own writer produces, because a stream's length is not known until close
+   (BLUE 3.3 permits it explicitly). Two things have to hold at once: the
+   keywords decode, AND read() must stop at data_size rather than handing back
+   the extended-header bytes as samples. The second is the one that would fail
+   silently, so it is asserted on the sample values, not just the count. */
+static int
+test_ext_header_at_end_of_attached_file (void)
+{
+  int    _fails = 0;
+  size_t n      = 8;
+  double sr     = 2.048e6;
+
+  FILE *fp = fopen ("dp_extend.blue", "wb");
+  CHECK (fp, "open for write");
+  wfm_writer_state_t *w = wfm_writer_open (fp, WFM_FT_BLUE, 0, 0, sr, 0.0, n);
+  CHECK (w, "writer open");
+  CHECK (wfm_writer_add_keyword (w, "SRATE", 'D', &sr, 1) == 0, "typed kw");
+  float _Complex xs[8];
+  for (size_t i = 0; i < n; i++)
+    xs[i] = (float)(i + 1) + 0.0f * I;
+  CHECK (wfm_writer_write (w, xs, n) == (int)n, "write samples");
+  CHECK (wfm_writer_close (w) == 0, "close");
+  fclose (fp);
+
+  /* The extended header must sit AFTER the data, on a 512-byte boundary. */
+  wfm_reader_state_t *r = wfm_reader_create ("dp_extend.blue", 0, 0);
+  CHECK (r, "reader open");
+  const wfm_keyword_t *es = wfm_reader_find_header_field (r, "ext_start");
+  const wfm_keyword_t *ds = wfm_reader_find_header_field (r, "data_start");
+  CHECK (es && ds, "ext_start/data_start present in the header dict");
+  if (es && ds)
+    {
+      int32_t blocks;
+      double  dstart;
+      memcpy (&blocks, es->value, sizeof blocks);
+      memcpy (&dstart, ds->value, sizeof dstart);
+      CHECK ((long)blocks * 512L > (long)dstart,
+             "ext header follows the data");
+    }
+
+  /* The keyword decodes, and its TYPE survives (a double, not a string). */
+  const wfm_keyword_t *kw = wfm_reader_find_keyword (r, "SRATE");
+  CHECK (kw && kw->type == 'D' && kw->count == 1, "SRATE is a 1-element D");
+  if (kw)
+    {
+      double got;
+      memcpy (&got, kw->value, sizeof got);
+      CHECK (fabs (got - sr) < 1.0, "SRATE value round-trips");
+    }
+
+  /* And the payload stops at data_size: the extended header is NOT samples. */
+  float _Complex y[16];
+  size_t got = wfm_reader_read (r, 16, y, 16);
+  CHECK (got == n, "read returns exactly the declared sample count");
+  for (size_t i = 0; i < got; i++)
+    CHECK (crealf (y[i]) == (float)(i + 1), "sample values intact");
+  CHECK (wfm_reader_read (r, 16, y, 16) == 0, "and stops at the payload end");
+  wfm_reader_destroy (r);
+  return _fails;
+}
+
+/* The HCB's own keyword area (keylength@160, keywords@164): where X-Midas
+   commonly puts short metadata, and what doppler used to drop on the floor. */
+static int
+test_hcb_keyword_area (void)
+{
+  int   _fails = 0;
+  FILE *fp     = fopen ("dp_hcbkw.blue", "wb");
+  CHECK (fp, "open for write");
+  wfm_writer_state_t *w = wfm_writer_open (fp, WFM_FT_BLUE, 0, 0, 1e6, 0.0, 4);
+  CHECK (w, "writer open");
+  /* Only the six standard main-header keywords (BLUE 1.1 3.4.1) go to the
+     HCB area, and only as ASCII. A user keyword -- even an ASCII one -- goes
+     to the extended header, because 3.4 reserves the 92-byte area and lets
+     other systems delete user keywords found there. */
+  CHECK (wfm_writer_add_keyword (w, "VER", 'A', "1.1", 3) == 0, "std kw");
+  CHECK (wfm_writer_add_keyword (w, "NAME", 'A', "hello", 5) == 0, "user kw");
+  double sr = 1e6;
+  CHECK (wfm_writer_add_keyword (w, "SRATE", 'D', &sr, 1) == 0, "typed kw");
+  float _Complex xs[4] = { 1, 2, 3, 4 };
+  CHECK (wfm_writer_write (w, xs, 4) == 4, "write");
+  CHECK (wfm_writer_close (w) == 0, "close");
+  fclose (fp);
+
+  wfm_reader_state_t  *r  = wfm_reader_create ("dp_hcbkw.blue", 0, 0);
+  const wfm_keyword_t *kl = wfm_reader_find_header_field (r, "keylength");
+  CHECK (r && kl, "reader open, keylength present");
+  if (kl)
+    {
+      int32_t v;
+      memcpy (&v, kl->value, sizeof v);
+      CHECK (v > 0, "keylength patched into the HCB");
+    }
+  /* Both sources merge: the caller cannot tell which block a key came from. */
+  const wfm_keyword_t *v = wfm_reader_find_keyword (r, "VER");
+  const wfm_keyword_t *a = wfm_reader_find_keyword (r, "NAME");
+  const wfm_keyword_t *d = wfm_reader_find_keyword (r, "SRATE");
+  CHECK (v && v->type == 'A', "HCB-area keyword decoded");
+  CHECK (a && a->type == 'A', "user ASCII keyword decoded (ext header)");
+  CHECK (d && d->type == 'D', "extended-header keyword decoded, type intact");
+  wfm_reader_destroy (r);
+  return _fails;
 }
 
 int
@@ -553,6 +684,12 @@ main (void)
   if (test_keyword_absent_and_corrupt ())
     return 1;
   if (test_reset_rewinds_to_the_first_sample ())
+    return 1;
+  if (test_read_capacity ())
+    return 1;
+  if (test_ext_header_at_end_of_attached_file ())
+    return 1;
+  if (test_hcb_keyword_area ())
     return 1;
   printf ("test_wfm_reader: all passed\n");
   return 0;

@@ -21,7 +21,7 @@
  * @code
  * lo_state_t *lo = lo_create(0.25);
  * float complex out[4];
- * lo_steps(lo, 4, out);
+ * lo_steps (lo, 4, out, 4);
  * // out ≈ { 1+0j, 0+1j, -1+0j, 0-1j }
  * lo_destroy(lo);
  * @endcode
@@ -282,7 +282,9 @@ extern "C"
    * @param state  LO state returned by lo_create().
    * @param n      Number of phasors to generate.
    * @param out    Output buffer; must hold at least n float complex values.
-   * @return n (always).
+   * @param max_out Capacity of @p out in elements. Emission stops there, so
+   *                the return value is the number actually written.
+   * @return min(n, max_out) samples.
    * @code
    * >>> from doppler.source import LO
    * >>> lo = LO(0.25)
@@ -295,7 +297,8 @@ extern "C"
    * [1.0, 1.0, 1.0, 1.0]
    * @endcode
    */
-  size_t lo_steps (lo_state_t *state, size_t n, float complex *out);
+  size_t lo_steps (lo_state_t *state, size_t n, float complex *out,
+                   size_t max_out);
 
   size_t lo_steps_ctrl_max_out (lo_state_t *state);
 
@@ -316,7 +319,9 @@ extern "C"
    * @param ctrl_len  Number of elements in ctrl; equals output length.
    * @param out       Output buffer; must hold at least ctrl_len float complex
    *                  values.
-   * @return ctrl_len (always).
+   * @param max_out Capacity of @p out in elements. Emission stops there, so
+   *                the return value is the number actually written.
+   * @return min(ctrl_len, max_out) samples.
    * @code
    * >>> import numpy as np
    * >>> from doppler.source import LO
@@ -332,7 +337,7 @@ extern "C"
    * @endcode
    */
   size_t lo_steps_ctrl (lo_state_t *state, const float *ctrl, size_t ctrl_len,
-                        float complex *out);
+                        float complex *out, size_t max_out);
 
 #ifdef __cplusplus
 }

@@ -76,7 +76,7 @@ main (void)
 
     /* sign = +1 → forward DFT; nthreads = 1 */
     fft_state_t *fft = fft_create (N, +1, 1);
-    fft_execute_cf64 (fft, x, N, y);
+    fft_execute_cf64 (fft, x, N, y, N);
     print_spectrum (y, N, 3);
     fft_destroy (fft);
 
@@ -105,7 +105,7 @@ main (void)
       x[i] = sin (2.0 * M_PI * (double)i / (double)N);
 
     fft_state_t *fft = fft_create (N, +1, 1);
-    fft_execute_cf64 (fft, x, N, y);
+    fft_execute_cf64 (fft, x, N, y, N);
     print_spectrum (y, N, 3);
     fft_destroy (fft);
 
@@ -140,10 +140,10 @@ main (void)
     fft_state_t *fwd = fft_create (N, +1, 1);
     fft_state_t *inv = fft_create (N, -1, 1);
 
-    fft_execute_cf64 (fwd, x, N, mid);
+    fft_execute_cf64 (fwd, x, N, mid, N);
 
     /* IFFT output needs 1/N normalisation */
-    fft_execute_cf64 (inv, mid, N, out);
+    fft_execute_cf64 (inv, mid, N, out, N);
     for (size_t i = 0; i < N; i++)
       out[i] /= (double)N;
 

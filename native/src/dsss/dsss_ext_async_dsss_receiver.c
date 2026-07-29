@@ -14,12 +14,6 @@
 typedef struct
 {
   PyObject_HEAD async_dsss_receiver_state_t *handle;
-  float complex *_steps_buf;     /* pre-allocated output for steps */
-  size_t         _steps_buf_cap; /* allocated capacity for steps */
-  void         **_steps_retired; /* gh-219 deferred free */
-  size_t         _steps_retired_n;
-  size_t         _steps_retired_cap;
-  PyObject      *_steps_view_ref; /* gh-437 last returned view */
 } AsyncDsssReceiverObject;
 
 static void
@@ -27,11 +21,6 @@ AsyncDsssReceiverObj_dealloc (AsyncDsssReceiverObject *self)
 {
   if (self->handle)
     async_dsss_receiver_destroy (self->handle);
-  free (self->_steps_buf);
-  for (size_t _i = 0; _i < self->_steps_retired_n; _i++)
-    free (self->_steps_retired[_i]);
-  free (self->_steps_retired);
-  Py_XDECREF (self->_steps_view_ref);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -127,19 +116,6 @@ AsyncDsssReceiverObj_init (AsyncDsssReceiverObject *self, PyObject *args,
                        "async_dsss_receiver_create returned NULL");
       return -1;
     }
-  {
-    size_t _max = async_dsss_receiver_steps_max_out (self->handle);
-    if (_max)
-      {
-        self->_steps_buf = malloc (_max * sizeof (float complex));
-        if (!self->_steps_buf)
-          {
-            PyErr_NoMemory ();
-            return -1;
-          }
-        self->_steps_buf_cap = _max;
-      }
-  }
   return 0;
 }
 
@@ -177,6 +153,19 @@ AsyncDsssReceiverObj_steps (AsyncDsssReceiverObject *self, PyObject *args,
     return NULL;
   if (out_obj && out_obj != Py_None)
     {
+      /* Require the exact dtype AND C-contiguity — either mismatch makes
+       * the marshal write into a temp copy, not the caller's buffer. */
+      if (!PyArray_Check (out_obj)
+          || PyArray_TYPE ((PyArrayObject *)out_obj) != NPY_COMPLEX64
+          || !PyArray_IS_C_CONTIGUOUS ((PyArrayObject *)out_obj)
+          || !PyArray_ISWRITEABLE ((PyArrayObject *)out_obj))
+        {
+          PyErr_SetString (PyExc_TypeError,
+                           "out must be a writable, C-contiguous"
+                           " ndarray of the output dtype");
+          Py_DECREF (x_arr);
+          return NULL;
+        }
       PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
           out_obj, NPY_COMPLEX64,
           NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
@@ -222,53 +211,18 @@ AsyncDsssReceiverObj_steps (AsyncDsssReceiverObject *self, PyObject *args,
       PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
       return _oview;
     }
-  size_t _need      = (size_t)PyArray_SIZE (x_arr);
-  int    _view_live = 0;
-  if (self->_steps_view_ref)
+  size_t _need = (size_t)PyArray_SIZE (x_arr);
+  size_t _cap  = async_dsss_receiver_steps_max_out (self->handle);
+  if (!_cap || _cap < _need)
+    _cap = _need;
+  npy_intp  _adim = (npy_intp)_cap;
+  PyObject *arr0  = PyArray_SimpleNew (1, &_adim, NPY_COMPLEX64);
+  if (!arr0)
     {
-#if PY_VERSION_HEX >= 0x030D0000
-      PyObject *_lv = NULL;
-      if (PyWeakref_GetRef (self->_steps_view_ref, &_lv) == 1)
-        {
-          Py_DECREF (_lv);
-          _view_live = 1;
-        }
-#else
-      _view_live = PyWeakref_GetObject (self->_steps_view_ref) != Py_None;
-#endif
+      Py_DECREF (x_arr);
+      return NULL;
     }
-  if (!self->_steps_buf || self->_steps_buf_cap < _need || _view_live)
-    {
-      size_t _max = async_dsss_receiver_steps_max_out (self->handle);
-      if (!_max || _max < _need)
-        _max = _need;
-      if (self->_steps_buf
-          && self->_steps_retired_n == self->_steps_retired_cap)
-        {
-          size_t _rcap
-              = self->_steps_retired_cap ? self->_steps_retired_cap * 2 : 4;
-          void **_rt = realloc (self->_steps_retired, _rcap * sizeof (void *));
-          if (!_rt)
-            {
-              Py_DECREF (x_arr);
-              PyErr_NoMemory ();
-              return NULL;
-            }
-          self->_steps_retired     = _rt;
-          self->_steps_retired_cap = _rcap;
-        }
-      float complex *_tmp = malloc (_max * sizeof (float complex));
-      if (!_tmp)
-        {
-          Py_DECREF (x_arr);
-          PyErr_NoMemory ();
-          return NULL;
-        }
-      if (self->_steps_buf)
-        self->_steps_retired[self->_steps_retired_n++] = self->_steps_buf;
-      self->_steps_buf     = _tmp;
-      self->_steps_buf_cap = _max;
-    }
+  float complex *_d0 = (float complex *)PyArray_DATA ((PyArrayObject *)arr0);
   /* nogil: GIL released across the pure-C kernel — sound only when
    * this object is not shared across threads concurrently (one
    * object per stream); the kernel touches only this object's
@@ -277,27 +231,23 @@ AsyncDsssReceiverObj_steps (AsyncDsssReceiverObject *self, PyObject *args,
   size_t               _ng1 = (size_t)PyArray_SIZE (x_arr);
   size_t               n_out;
   Py_BEGIN_ALLOW_THREADS
-    n_out = async_dsss_receiver_steps (self->handle, _ng0, _ng1,
-                                       self->_steps_buf, self->_steps_buf_cap);
+    n_out = async_dsss_receiver_steps (self->handle, _ng0, _ng1, _d0, _cap);
   Py_END_ALLOW_THREADS
-  npy_intp  dim = (npy_intp)n_out;
-  PyObject *arr
-      = PyArray_SimpleNewFromData (1, &dim, NPY_COMPLEX64, self->_steps_buf);
-  if (!arr)
-    return NULL;
-  PyArray_SetBaseObject ((PyArrayObject *)arr, (PyObject *)self);
-  Py_INCREF (self);
-  /* gh-437: remember this view — while the caller holds it the next
-   * call retires the buffer instead of reusing it in place. */
-  Py_XDECREF (self->_steps_view_ref);
-  self->_steps_view_ref = PyWeakref_NewRef (arr, NULL);
-  if (!self->_steps_view_ref)
+  Py_DECREF (x_arr);
+  if ((size_t)n_out == _cap)
     {
-      Py_DECREF (arr);
+      return arr0;
+    }
+  npy_intp     _odim = (npy_intp)n_out;
+  PyArray_Dims _rs0  = { &_odim, 1 };
+  PyObject *v0 = PyArray_Resize ((PyArrayObject *)arr0, &_rs0, 0, NPY_CORDER);
+  if (!v0)
+    {
+      Py_DECREF (arr0);
       return NULL;
     }
-  Py_DECREF (x_arr);
-  return arr;
+  Py_DECREF (v0);
+  return arr0;
 }
 
 static PyObject *
@@ -603,6 +553,7 @@ AsyncDsssReceiver_getprop_nco_freq (AsyncDsssReceiverObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
+  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyFloat_FromDouble (async_dsss_receiver_get_nco_freq (self->handle));
 }
 static PyObject *
@@ -614,54 +565,8 @@ AsyncDsssReceiver_getprop_locked (AsyncDsssReceiverObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyBool_FromLong (async_dsss_receiver_get_locked (self->handle));
-}
-static PyObject *
-AsyncDsssReceiver_getprop_code_locked (AsyncDsssReceiverObject *self,
-                                       void *Py_UNUSED (closure))
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  return PyBool_FromLong (async_dsss_receiver_get_code_locked (self->handle));
-}
-static PyObject *
-AsyncDsssReceiver_getprop_car_last_error (AsyncDsssReceiverObject *self,
-                                          void *Py_UNUSED (closure))
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  return PyFloat_FromDouble (
-      async_dsss_receiver_get_car_last_error (self->handle));
-}
-static PyObject *
-AsyncDsssReceiver_getprop_car_nco_freq (AsyncDsssReceiverObject *self,
-                                        void *Py_UNUSED (closure))
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  return PyFloat_FromDouble (
-      async_dsss_receiver_get_car_nco_freq (self->handle));
-}
-static PyObject *
-AsyncDsssReceiver_getprop_mpsk_last_error (AsyncDsssReceiverObject *self,
-                                           void *Py_UNUSED (closure))
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  return PyFloat_FromDouble (
-      async_dsss_receiver_get_mpsk_last_error (self->handle));
+  /* <<IMPLEMENT: return the computed or stored value>> */
+  return PyLong_FromLong ((long)async_dsss_receiver_get_locked (self->handle));
 }
 static PyObject *
 AsyncDsssReceiver_getprop_lock_metric (AsyncDsssReceiverObject *self,
@@ -672,6 +577,7 @@ AsyncDsssReceiver_getprop_lock_metric (AsyncDsssReceiverObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
+  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyFloat_FromDouble (
       async_dsss_receiver_get_lock_metric (self->handle));
 }
@@ -684,8 +590,61 @@ AsyncDsssReceiver_getprop_lock_threshold (AsyncDsssReceiverObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
+  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyFloat_FromDouble (
       async_dsss_receiver_get_lock_threshold (self->handle));
+}
+static PyObject *
+AsyncDsssReceiver_getprop_car_last_error (AsyncDsssReceiverObject *self,
+                                          void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  /* <<IMPLEMENT: return the computed or stored value>> */
+  return PyFloat_FromDouble (
+      async_dsss_receiver_get_car_last_error (self->handle));
+}
+static PyObject *
+AsyncDsssReceiver_getprop_car_nco_freq (AsyncDsssReceiverObject *self,
+                                        void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  /* <<IMPLEMENT: return the computed or stored value>> */
+  return PyFloat_FromDouble (
+      async_dsss_receiver_get_car_nco_freq (self->handle));
+}
+static PyObject *
+AsyncDsssReceiver_getprop_mpsk_last_error (AsyncDsssReceiverObject *self,
+                                           void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  /* <<IMPLEMENT: return the computed or stored value>> */
+  return PyFloat_FromDouble (
+      async_dsss_receiver_get_mpsk_last_error (self->handle));
+}
+static PyObject *
+AsyncDsssReceiver_getprop_code_locked (AsyncDsssReceiverObject *self,
+                                       void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  /* <<IMPLEMENT: return the computed or stored value>> */
+  return PyLong_FromLong (
+      (long)async_dsss_receiver_get_code_locked (self->handle));
 }
 
 static PyGetSetDef AsyncDsssReceiver_getset[] = {
@@ -694,8 +653,8 @@ static PyGetSetDef AsyncDsssReceiver_getset[] = {
     "searching or refining.\n",
     NULL },
   { "refining", (getter)AsyncDsssReceiver_getprop_refining, NULL,
-    "1 while the refine stage (CarrierAcquisition collection) is "
-    "active; 0 while searching or tracking.\n",
+    "1 while the refine stage (CarrierAcquisition collection) is active; 0 "
+    "while searching or tracking.\n",
     NULL },
   { "doppler_hz", (getter)AsyncDsssReceiver_getprop_doppler_hz, NULL,
     "The current best Doppler estimate: the coarse handoff value while "
@@ -714,14 +673,13 @@ static PyGetSetDef AsyncDsssReceiver_getset[] = {
   { "lock", (getter)AsyncDsssReceiver_getprop_lock, NULL, "Lock.\n", NULL },
   { "norm_freq", (getter)AsyncDsssReceiver_getprop_norm_freq, NULL,
     "Smoothed carrier estimate (integrator only, cycles/sample of the "
-    "MpskReceiver output rate); lags a Doppler ramp by the constant "
-    "Type-II ramp error.\n",
+    "MpskReceiver output rate); lags a Doppler ramp by the constant Type-II "
+    "ramp error.\n",
     NULL },
   { "nco_freq", (getter)AsyncDsssReceiver_getprop_nco_freq, NULL,
-    "Live carrier loop-filter output = NCO frequency command "
-    "(cycles/sample of the MpskReceiver output rate): its mean tracks a "
-    "Doppler ramp with no lag, its variance is the carrier loop "
-    "stress.\n",
+    "Live carrier loop-filter output = NCO frequency command (cycles/sample "
+    "of the MpskReceiver output rate): its mean tracks a Doppler ramp with no "
+    "lag, its variance is the carrier loop stress.\n",
     NULL },
   { "locked", (getter)AsyncDsssReceiver_getprop_locked, NULL,
     "Binary receiver lock: the hysteretic (up/down verify-counted) lock "
@@ -738,23 +696,24 @@ static PyGetSetDef AsyncDsssReceiver_getset[] = {
     "The lock_metric declare threshold `locked` latches above (the lockdet "
     "up_thresh); exposed alongside lock_metric for engineering debug.\n",
     NULL },
-  { "code_locked", (getter)AsyncDsssReceiver_getprop_code_locked, NULL,
-    "Binary code-lock flag from the live tracking Dll's own "
-    "verify-counted (pfa-tuned) lock detector -- the fundamental DSSS "
-    "\"am I despreading\" lock, de-chattered by up/down hysteresis.\n",
-    NULL },
   { "car_last_error", (getter)AsyncDsssReceiver_getprop_car_last_error, NULL,
-    "Pre-despread Costas phase discriminator (rad): the residual "
-    "carrier phase loop 1 (de-rotates before the Dll) is not "
-    "nulling.\n",
+    "Pre-despread Costas phase discriminator (rad): the residual carrier "
+    "phase loop 1 (de-rotates before the Dll) is not nulling. Engineering "
+    "debug.\n",
     NULL },
   { "car_nco_freq", (getter)AsyncDsssReceiver_getprop_car_nco_freq, NULL,
-    "Loop 1 (pre-despread Costas) loop-filter output = NCO frequency "
-    "command, cycles/sample of the front-end (chip_rate*spc) rate.\n",
+    "Loop 1 (pre-despread Costas) loop-filter output = NCO frequency command, "
+    "cycles/sample of the front-end (chip_rate*spc) rate. Engineering "
+    "debug.\n",
     NULL },
   { "mpsk_last_error", (getter)AsyncDsssReceiver_getprop_mpsk_last_error, NULL,
-    "MpskReceiver carrier phase discriminator (rad): the residual "
-    "carrier phase loop 2 (post-despread) is not nulling.\n",
+    "MpskReceiver carrier phase discriminator (rad): the residual carrier "
+    "phase loop 2 (post-despread) is not nulling. Engineering debug.\n",
+    NULL },
+  { "code_locked", (getter)AsyncDsssReceiver_getprop_code_locked, NULL,
+    "Binary code-lock flag from the live tracking Dll's own verify-counted "
+    "(pfa-tuned) lock detector -- the fundamental DSSS \"am I despreading\" "
+    "lock, de-chattered by up/down hysteresis.\n",
     NULL },
   { NULL }
 };
@@ -793,7 +752,7 @@ AsyncDsssReceiverObj_exit (AsyncDsssReceiverObject *self, PyObject *args)
 
 static PyMethodDef AsyncDsssReceiverObj_methods[] = {
 
-  { "steps", (PyCFunction)AsyncDsssReceiverObj_steps,
+  { "steps", (PyCFunction)(void *)AsyncDsssReceiverObj_steps,
     METH_VARARGS | METH_KEYWORDS,
     "steps(x) -> ndarray\n"
     "\n"
@@ -812,8 +771,8 @@ static PyMethodDef AsyncDsssReceiverObj_methods[] = {
     "    >>> import numpy as np\n"
     "    >>> from doppler import AsyncDsssReceiver\n"
     "    >>> obj = AsyncDsssReceiver(np.zeros(1, dtype=np.uint8), 1000000.0, "
-    "1000.0, 2, 2, 55.0, 1e-3, 0.9, 100.0, 4, 8, 0, 100.0, 4, 14.0, 64, 8, "
-    "false, 100000)\n"
+    "1000.0, 2, 2, 55.0, 1e-3, 0.9, 100.0, 4, 8, 0, 0.5, 4, 14.0, 64, 8, "
+    "false, 100000, 0.0)\n"
     "    >>> y = obj.steps(np.zeros(4))\n"
     "    >>> y.dtype\n"
     "    dtype('complex64')\n" },
@@ -832,8 +791,8 @@ static PyMethodDef AsyncDsssReceiverObj_methods[] = {
     "    >>> import numpy as np\n"
     "    >>> from doppler import AsyncDsssReceiver\n"
     "    >>> obj = AsyncDsssReceiver(np.zeros(1, dtype=np.uint8), 1000000.0, "
-    "1000.0, 2, 2, 55.0, 1e-3, 0.9, 100.0, 4, 8, 0, 100.0, 4, 14.0, 64, 8, "
-    "false, 100000)\n"
+    "1000.0, 2, 2, 55.0, 1e-3, 0.9, 100.0, 4, 8, 0, 0.5, 4, 14.0, 64, 8, "
+    "false, 100000, 0.0)\n"
     "    >>> obj.configure_search_raw(0, 0)\n"
     "    0\n" },
   { "configure_lock_raw",
@@ -849,8 +808,8 @@ static PyMethodDef AsyncDsssReceiverObj_methods[] = {
     "    >>> import numpy as np\n"
     "    >>> from doppler import AsyncDsssReceiver\n"
     "    >>> obj = AsyncDsssReceiver(np.zeros(1, dtype=np.uint8), 1000000.0, "
-    "1000.0, 2, 2, 55.0, 1e-3, 0.9, 100.0, 4, 8, 0, 100.0, 4, 14.0, 64, 8, "
-    "false, 100000)\n"
+    "1000.0, 2, 2, 55.0, 1e-3, 0.9, 100.0, 4, 8, 0, 0.5, 4, 14.0, 64, 8, "
+    "false, 100000, 0.0)\n"
     "    >>> obj.configure_lock_raw(0.0, 0.0, 0, 0.0, 0, 0)\n" },
   { "configure_chain_raw",
     (PyCFunction)(void *)AsyncDsssReceiverObj_configure_chain_raw,
@@ -865,8 +824,8 @@ static PyMethodDef AsyncDsssReceiverObj_methods[] = {
     "    >>> import numpy as np\n"
     "    >>> from doppler import AsyncDsssReceiver\n"
     "    >>> obj = AsyncDsssReceiver(np.zeros(1, dtype=np.uint8), 1000000.0, "
-    "1000.0, 2, 2, 55.0, 1e-3, 0.9, 100.0, 4, 8, 0, 100.0, 4, 14.0, 64, 8, "
-    "false, 100000)\n"
+    "1000.0, 2, 2, 55.0, 1e-3, 0.9, 100.0, 4, 8, 0, 0.5, 4, 14.0, 64, 8, "
+    "false, 100000, 0.0)\n"
     "    >>> obj.configure_chain_raw(0, 0, 0)\n"
     "    0\n" },
   { "reset", (PyCFunction)AsyncDsssReceiverObj_reset, METH_NOARGS,
@@ -878,8 +837,8 @@ static PyMethodDef AsyncDsssReceiverObj_methods[] = {
     "\n"
     "    >>> from doppler import AsyncDsssReceiver\n"
     "    >>> obj = AsyncDsssReceiver(np.zeros(1, dtype=np.uint8), 1000000.0, "
-    "1000.0, 2, 2, 55.0, 1e-3, 0.9, 100.0, 4, 8, 0, 100.0, 4, 14.0, 64, 8, "
-    "false, 100000)\n"
+    "1000.0, 2, 2, 55.0, 1e-3, 0.9, 100.0, 4, 8, 0, 0.5, 4, 14.0, 64, 8, "
+    "false, 100000, 0.0)\n"
     "    >>> obj.reset()\n" },
   { "state_bytes", (PyCFunction)AsyncDsssReceiverObj_state_bytes, METH_NOARGS,
     "Serialized state size in bytes." },

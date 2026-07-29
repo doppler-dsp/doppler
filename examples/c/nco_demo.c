@@ -46,7 +46,7 @@ main (void)
 
   lo_state_t *lo = lo_create (0.25);
   float _Complex out[N_FREE];
-  lo_steps (lo, N_FREE, out);
+  lo_steps (lo, N_FREE, out, N_FREE);
 
   for (int i = 0; i < N_FREE; i++)
     printf ("%-6d  %+9.6f  %+9.6f\n", i, (double)crealf (out[i]),
@@ -71,7 +71,7 @@ main (void)
 
   lo_state_t *fm = lo_create (0.1);
   float _Complex fmo[N_FM];
-  lo_steps_ctrl (fm, ctrl, N_FM, fmo);
+  lo_steps_ctrl (fm, ctrl, N_FM, fmo, N_FM);
 
   for (int i = 0; i < N_FM; i++)
     printf ("%-6d  %+9.6f  %+9.6f  %+9.6f\n", i, (double)crealf (fmo[i]),
@@ -90,7 +90,7 @@ main (void)
   nco_state_t *nco = nco_create (0.25, 0);
   uint32_t     phase[N_NCO];
   uint8_t      carry[N_NCO];
-  nco_steps_u32_ovf (nco, N_NCO, phase, carry);
+  nco_steps_u32_ovf (nco, N_NCO, phase, carry, N_NCO);
 
   for (int i = 0; i < N_NCO; i++)
     printf ("%-6d  %12u  %5u\n", i, phase[i], carry[i]);

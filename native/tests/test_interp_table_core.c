@@ -65,7 +65,7 @@ main (void)
     interp_table_state_t *obj   = interp_table_create (t, 3, 0);
     double                in[3] = { 0.9, 1.9, 2.9 };
     double complex        out[3];
-    CHECK (interp_table_execute (obj, in, 3, out) == 3);
+    CHECK (interp_table_execute (obj, in, 3, out, 3) == 3);
     CHECK (ALMOST_EQ_C (out[0], 10.0));
     CHECK (ALMOST_EQ_C (out[1], 20.0));
     CHECK (ALMOST_EQ_C (out[2], 30.0));
@@ -80,7 +80,7 @@ main (void)
     interp_table_state_t *obj   = interp_table_create (t, 3, 1);
     double                in[3] = { 0.4, 0.6, 1.5 };
     double complex        out[3];
-    CHECK (interp_table_execute (obj, in, 3, out) == 3);
+    CHECK (interp_table_execute (obj, in, 3, out, 3) == 3);
     CHECK (ALMOST_EQ_C (out[0], 10.0)); /* frac=0.4 <= 0.5 -> lo */
     CHECK (ALMOST_EQ_C (out[1], 20.0)); /* frac=0.6 >  0.5 -> hi */
     CHECK (ALMOST_EQ_C (out[2], 20.0)); /* frac=0.5 exactly -> lo (tie) */
@@ -97,7 +97,7 @@ main (void)
     interp_table_state_t *obj   = interp_table_create (t, 3, 2);
     double                in[3] = { 0.25, 2.75, -0.5 };
     double complex        out[3];
-    CHECK (interp_table_execute (obj, in, 3, out) == 3);
+    CHECK (interp_table_execute (obj, in, 3, out, 3) == 3);
     CHECK (ALMOST_EQ_C (out[0], 12.5)); /* 10 + 0.25*(20-10) */
     CHECK (ALMOST_EQ_C (out[1], 15.0)); /* wraps: 30 + 0.75*(10-30) */
     CHECK (ALMOST_EQ_C (out[2], 20.0)); /* floor(-0.5)=-1 -> idx 2;
@@ -114,8 +114,34 @@ main (void)
     t[0] = 999.0; /* mutate the caller's own array after create() */
     double         in[1] = { 0.0 };
     double complex out[1];
-    interp_table_execute (obj, in, 1, out);
+    interp_table_execute (obj, in, 1, out, 1);
     CHECK (ALMOST_EQ_C (out[0], 1.0)); /* unaffected by the mutation */
+    interp_table_destroy (obj);
+  }
+
+  /* ── pass_capacity: emission stops at max_out (jm gh-138) ────────── */
+  {
+    /* interp_table is 1:1 and stateless, so a truncated call simply drops
+     * the tail: the emitted prefix is bit-identical to an unclamped run
+     * and there is no delay line left mid-stream. */
+    double complex        tab[4] = { 1.0, 2.0, 3.0, 4.0 };
+    interp_table_state_t *obj    = interp_table_create (tab, 4, 2);
+    const double          in[6]  = { 0.0, 1.0, 2.0, 3.0, 0.5, 1.5 };
+    double complex        out[6], full[6];
+    CHECK (obj != NULL);
+    for (int i = 0; i < 6; i++)
+      out[i] = 42.0 + 42.0 * I;
+
+    CHECK (interp_table_execute (obj, in, 6, full, 6) == 6);
+    CHECK (interp_table_execute (obj, in, 6, out, 2) == 2);
+    for (int i = 0; i < 2; i++)
+      CHECK (ALMOST_EQ_C (out[i], creal (full[i])));
+    for (int i = 2; i < 6; i++)
+      CHECK (out[i] == 42.0 + 42.0 * I); /* tail untouched */
+
+    /* Zero capacity emits nothing. */
+    CHECK (interp_table_execute (obj, in, 6, out, 0) == 0);
+    CHECK (out[0] == full[0]); /* still holds the earlier write */
     interp_table_destroy (obj);
   }
 

@@ -73,6 +73,10 @@ class Reader:
     def keywords(self) -> dict[str, str | int | float | list[int] | list[float]]:
         """The BLUE extended header as a {tag: value} dict, in file order; empty when the capture carries no extended header. Values follow the keyword type: a str for A, an int/float for a single-element numeric keyword, a list for a multi-element one. For a detached capture these come from the HEADER file."""
 
+    @property
+    def header(self) -> dict[str, str | int | float | list[int] | list[float]]:
+        """The BLUE header control block as a {field: value} dict, under the names the format itself uses -- `version`, `head_rep`, `data_rep`, `detached`, `protected`, `pipe`, `ext_start`, `ext_size`, `data_start`, `data_size`, `type`, `format`, `flagmask`, `timecode`, `inlet`, `outlets`, `outmask`, `pipeloc`, `pipesize`, `in_byte`, `out_byte`, `outbytes`, `keylength`, and the type-1000 adjunct `xstart`, `xdelta`, `xunits`. Empty for a non-BLUE container. Nothing is renamed or omitted, so what you see is what the file holds; the decoded keywords are in `keywords`."""
+
     def close(self) -> None:
         """Release C resources immediately."""
 

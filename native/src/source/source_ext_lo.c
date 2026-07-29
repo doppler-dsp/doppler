@@ -88,6 +88,18 @@ LOObj_steps (LOObject *self, PyObject *args, PyObject *kwds)
     return NULL;
   if (out_obj && out_obj != Py_None)
     {
+      /* Require the exact dtype AND C-contiguity — either mismatch makes
+       * the marshal write into a temp copy, not the caller's buffer. */
+      if (!PyArray_Check (out_obj)
+          || PyArray_TYPE ((PyArrayObject *)out_obj) != NPY_COMPLEX64
+          || !PyArray_IS_C_CONTIGUOUS ((PyArrayObject *)out_obj)
+          || !PyArray_ISWRITEABLE ((PyArrayObject *)out_obj))
+        {
+          PyErr_SetString (PyExc_TypeError,
+                           "out must be a writable, C-contiguous"
+                           " ndarray of the output dtype");
+          return NULL;
+        }
       PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
           out_obj, NPY_COMPLEX64,
           NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
@@ -105,8 +117,8 @@ LOObj_steps (LOObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (out_arr);
           return NULL;
         }
-      size_t    n_out  = lo_steps (self->handle, (size_t)n,
-                                   (float complex *)PyArray_DATA (out_arr));
+      size_t n_out = lo_steps (self->handle, (size_t)n,
+                               (float complex *)PyArray_DATA (out_arr), _cap);
       npy_intp  _odim  = (npy_intp)n_out;
       PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_COMPLEX64,
                                                     PyArray_DATA (out_arr));
@@ -118,21 +130,32 @@ LOObj_steps (LOObject *self, PyObject *args, PyObject *kwds)
       PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
       return _oview;
     }
-  /* NumPy owns the output: allocate exactly n and write into it, fresh
-   * every call (see NCOObj_steps_u32's identical comment in
-   * source_ext_nco.c) -- a cached buffer reused in place (the previous
-   * scheme here) silently corrupts a still-referenced prior return
-   * value the moment a second call is made, since Python only drops the
-   * old reference AFTER the new call finishes evaluating. Confirmed:
-   * calling steps() twice changed the FIRST call's already-returned
-   * array's data out from under it. */
-  npy_intp  dim = (npy_intp)n;
-  PyObject *arr = PyArray_SimpleNew (1, &dim, NPY_COMPLEX64);
-  if (!arr)
-    return NULL;
-  lo_steps (self->handle, (size_t)n,
-            (float complex *)PyArray_DATA ((PyArrayObject *)arr));
-  return arr;
+  size_t _need = (size_t)n;
+  size_t _cap  = lo_steps_max_out (self->handle);
+  if (!_cap || _cap < _need)
+    _cap = _need;
+  npy_intp  _adim = (npy_intp)_cap;
+  PyObject *arr0  = PyArray_SimpleNew (1, &_adim, NPY_COMPLEX64);
+  if (!arr0)
+    {
+      return NULL;
+    }
+  float complex *_d0   = (float complex *)PyArray_DATA ((PyArrayObject *)arr0);
+  size_t         n_out = lo_steps (self->handle, (size_t)n, _d0, _cap);
+  if ((size_t)n_out == _cap)
+    {
+      return arr0;
+    }
+  npy_intp     _odim = (npy_intp)n_out;
+  PyArray_Dims _rs0  = { &_odim, 1 };
+  PyObject *v0 = PyArray_Resize ((PyArrayObject *)arr0, &_rs0, 0, NPY_CORDER);
+  if (!v0)
+    {
+      Py_DECREF (arr0);
+      return NULL;
+    }
+  Py_DECREF (v0);
+  return arr0;
 }
 
 static PyObject *
@@ -167,6 +190,19 @@ LOObj_steps_ctrl (LOObject *self, PyObject *args, PyObject *kwds)
     return NULL;
   if (out_obj && out_obj != Py_None)
     {
+      /* Require the exact dtype AND C-contiguity — either mismatch makes
+       * the marshal write into a temp copy, not the caller's buffer. */
+      if (!PyArray_Check (out_obj)
+          || PyArray_TYPE ((PyArrayObject *)out_obj) != NPY_COMPLEX64
+          || !PyArray_IS_C_CONTIGUOUS ((PyArrayObject *)out_obj)
+          || !PyArray_ISWRITEABLE ((PyArrayObject *)out_obj))
+        {
+          PyErr_SetString (PyExc_TypeError,
+                           "out must be a writable, C-contiguous"
+                           " ndarray of the output dtype");
+          Py_DECREF (ctrl_arr);
+          return NULL;
+        }
       PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
           out_obj, NPY_COMPLEX64,
           NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
@@ -188,10 +224,10 @@ LOObj_steps_ctrl (LOObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (ctrl_arr);
           return NULL;
         }
-      size_t n_out = lo_steps_ctrl (self->handle,
-                                    (const float *)PyArray_DATA (ctrl_arr),
-                                    (size_t)PyArray_SIZE (ctrl_arr),
-                                    (float complex *)PyArray_DATA (out_arr));
+      size_t n_out = lo_steps_ctrl (
+          self->handle, (const float *)PyArray_DATA (ctrl_arr),
+          (size_t)PyArray_SIZE (ctrl_arr),
+          (float complex *)PyArray_DATA (out_arr), _cap);
       Py_DECREF (ctrl_arr);
       npy_intp  _odim  = (npy_intp)n_out;
       PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_COMPLEX64,
@@ -204,23 +240,36 @@ LOObj_steps_ctrl (LOObject *self, PyObject *args, PyObject *kwds)
       PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
       return _oview;
     }
-  /* NumPy owns the output: allocate exactly ctrl_len and write into it,
-   * fresh every call -- same reasoning as the no-out= path in steps()
-   * above (a cached buffer reused in place silently corrupts a prior,
-   * still-referenced return value on the next call). */
-  size_t    ctrl_len = (size_t)PyArray_SIZE (ctrl_arr);
-  npy_intp  dim      = (npy_intp)ctrl_len;
-  PyObject *arr      = PyArray_SimpleNew (1, &dim, NPY_COMPLEX64);
-  if (!arr)
+  size_t _need = (size_t)PyArray_SIZE (ctrl_arr);
+  size_t _cap  = lo_steps_ctrl_max_out (self->handle);
+  if (!_cap || _cap < _need)
+    _cap = _need;
+  npy_intp  _adim = (npy_intp)_cap;
+  PyObject *arr0  = PyArray_SimpleNew (1, &_adim, NPY_COMPLEX64);
+  if (!arr0)
     {
       Py_DECREF (ctrl_arr);
       return NULL;
     }
-  lo_steps_ctrl (self->handle, (const float *)PyArray_DATA (ctrl_arr),
-                 ctrl_len,
-                 (float complex *)PyArray_DATA ((PyArrayObject *)arr));
+  float complex *_d0 = (float complex *)PyArray_DATA ((PyArrayObject *)arr0);
+  size_t         n_out
+      = lo_steps_ctrl (self->handle, (const float *)PyArray_DATA (ctrl_arr),
+                       (size_t)PyArray_SIZE (ctrl_arr), _d0, _cap);
   Py_DECREF (ctrl_arr);
-  return arr;
+  if ((size_t)n_out == _cap)
+    {
+      return arr0;
+    }
+  npy_intp     _odim = (npy_intp)n_out;
+  PyArray_Dims _rs0  = { &_odim, 1 };
+  PyObject *v0 = PyArray_Resize ((PyArrayObject *)arr0, &_rs0, 0, NPY_CORDER);
+  if (!v0)
+    {
+      Py_DECREF (arr0);
+      return NULL;
+    }
+  Py_DECREF (v0);
+  return arr0;
 }
 
 static PyObject *
@@ -393,7 +442,7 @@ static PyMethodDef LOObj_methods[] = {
   { "reset", (PyCFunction)LOObj_reset, METH_NOARGS,
     "Reset state to post-create defaults." },
 
-  { "steps", (PyCFunction)LOObj_steps, METH_VARARGS | METH_KEYWORDS,
+  { "steps", (PyCFunction)(void *)LOObj_steps, METH_VARARGS | METH_KEYWORDS,
     "steps(n=1) -> ndarray\n"
     "\n"
     "Generate n CF32 phasors at the current norm_freq. Each sample is cos(θ) "
@@ -410,7 +459,8 @@ static PyMethodDef LOObj_methods[] = {
   { "steps_max_out", (PyCFunction)LOObj_steps_max_out, METH_NOARGS,
     "steps_max_out() -> int\n\nMax output length steps() can produce for the "
     "current state.\nUse to size the ``out=`` buffer." },
-  { "steps_ctrl", (PyCFunction)LOObj_steps_ctrl, METH_VARARGS | METH_KEYWORDS,
+  { "steps_ctrl", (PyCFunction)(void *)LOObj_steps_ctrl,
+    METH_VARARGS | METH_KEYWORDS,
     "steps_ctrl(ctrl) -> ndarray\n"
     "\n"
     "Generate CF32 phasors with per-sample FM deviation. For each sample i, "

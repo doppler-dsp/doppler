@@ -14,11 +14,6 @@
 typedef struct
 {
   PyObject_HEAD corr_state_t *handle;
-  float complex *_execute_buf;     /* pre-allocated output for execute */
-  size_t         _execute_buf_cap; /* allocated capacity for execute */
-  void         **_execute_retired; /* gh-219 deferred free */
-  size_t         _execute_retired_n;
-  size_t         _execute_retired_cap;
 } CorrObject;
 
 static void
@@ -26,10 +21,6 @@ CorrObj_dealloc (CorrObject *self)
 {
   if (self->handle)
     corr_destroy (self->handle);
-  free (self->_execute_buf);
-  for (size_t _i = 0; _i < self->_execute_retired_n; _i++)
-    free (self->_execute_retired[_i]);
-  free (self->_execute_retired);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -71,19 +62,6 @@ CorrObj_init (CorrObject *self, PyObject *args, PyObject *kwds)
       PyErr_SetString (PyExc_MemoryError, "corr_create returned NULL");
       return -1;
     }
-  {
-    size_t _max = corr_execute_max_out (self->handle);
-    if (_max)
-      {
-        self->_execute_buf = malloc (_max * sizeof (float complex));
-        if (!self->_execute_buf)
-          {
-            PyErr_NoMemory ();
-            return -1;
-          }
-        self->_execute_buf_cap = _max;
-      }
-  }
   return 0;
 }
 
@@ -131,6 +109,19 @@ CorrObj_execute (CorrObject *self, PyObject *args, PyObject *kwds)
   Py_ssize_t n = PyArray_SIZE (in_arr);
   if (out_obj && out_obj != Py_None)
     {
+      /* Require the exact dtype AND C-contiguity — either mismatch makes
+       * the marshal write into a temp copy, not the caller's buffer. */
+      if (!PyArray_Check (out_obj)
+          || PyArray_TYPE ((PyArrayObject *)out_obj) != NPY_COMPLEX64
+          || !PyArray_IS_C_CONTIGUOUS ((PyArrayObject *)out_obj)
+          || !PyArray_ISWRITEABLE ((PyArrayObject *)out_obj))
+        {
+          PyErr_SetString (PyExc_TypeError,
+                           "out must be a writable, C-contiguous"
+                           " ndarray of the output dtype");
+          Py_DECREF (in_arr);
+          return NULL;
+        }
       PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
           out_obj, NPY_COMPLEX64,
           NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
@@ -139,20 +130,20 @@ CorrObj_execute (CorrObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (in_arr);
           return NULL;
         }
-      size_t _cap  = (size_t)PyArray_SIZE (out_arr);
-      size_t _omax = corr_execute_max_out (self->handle);
-      if (_cap < _omax)
+      size_t _cap     = (size_t)PyArray_SIZE (out_arr);
+      size_t _omax    = corr_execute_max_out (self->handle);
+      size_t _min_cap = _omax > (size_t)n ? _omax : ((size_t)n);
+      if (_cap < _min_cap)
         {
-          PyErr_Format (PyExc_ValueError,
-                        "out has %zu elements, need >= %zu (execute_max_out)",
-                        _cap, _omax);
+          PyErr_Format (PyExc_ValueError, "out has %zu elements, need >= %zu",
+                        _cap, _min_cap);
           Py_DECREF (out_arr);
           Py_DECREF (in_arr);
           return NULL;
         }
       size_t n_out = corr_execute (
           self->handle, (const float complex *)PyArray_DATA (in_arr),
-          (size_t)n, (float complex *)PyArray_DATA (out_arr));
+          (size_t)n, (float complex *)PyArray_DATA (out_arr), _cap);
       Py_DECREF (in_arr);
       if (!n_out)
         {
@@ -171,55 +162,93 @@ CorrObj_execute (CorrObject *self, PyObject *args, PyObject *kwds)
       return _oview;
     }
   size_t _need = (size_t)n;
-  if (!self->_execute_buf || self->_execute_buf_cap < _need)
+  size_t _cap  = corr_execute_max_out (self->handle);
+  if (!_cap || _cap < _need)
+    _cap = _need;
+  npy_intp  _adim = (npy_intp)_cap;
+  PyObject *arr0  = PyArray_SimpleNew (1, &_adim, NPY_COMPLEX64);
+  if (!arr0)
     {
-      size_t _max = corr_execute_max_out (self->handle);
-      if (!_max || _max < _need)
-        _max = _need;
-      if (self->_execute_buf
-          && self->_execute_retired_n == self->_execute_retired_cap)
-        {
-          size_t _rcap = self->_execute_retired_cap
-                             ? self->_execute_retired_cap * 2
-                             : 4;
-          void **_rt
-              = realloc (self->_execute_retired, _rcap * sizeof (void *));
-          if (!_rt)
-            {
-              Py_DECREF (in_arr);
-              PyErr_NoMemory ();
-              return NULL;
-            }
-          self->_execute_retired     = _rt;
-          self->_execute_retired_cap = _rcap;
-        }
-      float complex *_tmp = malloc (_max * sizeof (float complex));
-      if (!_tmp)
-        {
-          Py_DECREF (in_arr);
-          PyErr_NoMemory ();
-          return NULL;
-        }
-      if (self->_execute_buf)
-        self->_execute_retired[self->_execute_retired_n++]
-            = self->_execute_buf;
-      self->_execute_buf     = _tmp;
-      self->_execute_buf_cap = _max;
+      Py_DECREF (in_arr);
+      return NULL;
     }
+  float complex *_d0 = (float complex *)PyArray_DATA ((PyArrayObject *)arr0);
   size_t n_out = corr_execute (self->handle,
                                (const float complex *)PyArray_DATA (in_arr),
-                               (size_t)n, self->_execute_buf);
-  if (!n_out)
-    Py_RETURN_NONE;
-  npy_intp  dim = (npy_intp)n_out;
-  PyObject *arr
-      = PyArray_SimpleNewFromData (1, &dim, NPY_COMPLEX64, self->_execute_buf);
-  if (!arr)
-    return NULL;
-  PyArray_SetBaseObject ((PyArrayObject *)arr, (PyObject *)self);
-  Py_INCREF (self);
+                               (size_t)n, _d0, _cap);
   Py_DECREF (in_arr);
-  return arr;
+  if (!n_out)
+    {
+      Py_DECREF (arr0);
+      Py_RETURN_NONE;
+    }
+  if ((size_t)n_out == _cap)
+    {
+      return arr0;
+    }
+  npy_intp     _odim = (npy_intp)n_out;
+  PyArray_Dims _rs0  = { &_odim, 1 };
+  PyObject *v0 = PyArray_Resize ((PyArrayObject *)arr0, &_rs0, 0, NPY_CORDER);
+  if (!v0)
+    {
+      Py_DECREF (arr0);
+      return NULL;
+    }
+  Py_DECREF (v0);
+  return arr0;
+}
+
+static PyObject *
+CorrObj_state_bytes (CorrObject *self, PyObject *Py_UNUSED (ignored))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromSize_t (corr_state_bytes (self->handle));
+}
+
+static PyObject *
+CorrObj_get_state (CorrObject *self, PyObject *Py_UNUSED (ignored))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  size_t    _n = corr_state_bytes (self->handle);
+  PyObject *_b = PyBytes_FromStringAndSize (NULL, (Py_ssize_t)_n);
+  if (!_b)
+    return NULL;
+  corr_get_state (self->handle, PyBytes_AS_STRING (_b));
+  return _b;
+}
+
+static PyObject *
+CorrObj_set_state (CorrObject *self, PyObject *arg)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  if (!PyBytes_Check (arg))
+    {
+      PyErr_SetString (PyExc_TypeError, "set_state expects bytes");
+      return NULL;
+    }
+  if ((size_t)PyBytes_GET_SIZE (arg) != corr_state_bytes (self->handle))
+    {
+      PyErr_SetString (PyExc_ValueError, "state blob size mismatch");
+      return NULL;
+    }
+  if (corr_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
+    {
+      PyErr_SetString (PyExc_ValueError, "set_state rejected the blob");
+      return NULL;
+    }
+  Py_RETURN_NONE;
 }
 static PyObject *
 Corr_getprop_n (CorrObject *self, void *Py_UNUSED (closure))
@@ -299,64 +328,12 @@ CorrObj_exit (CorrObject *self, PyObject *args)
   Py_RETURN_NONE;
 }
 
-static PyObject *
-CorrObj_state_bytes (CorrObject *self, PyObject *Py_UNUSED (ignored))
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  return PyLong_FromSize_t (corr_state_bytes (self->handle));
-}
-
-static PyObject *
-CorrObj_get_state (CorrObject *self, PyObject *Py_UNUSED (ignored))
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  size_t    _n = corr_state_bytes (self->handle);
-  PyObject *_b = PyBytes_FromStringAndSize (NULL, (Py_ssize_t)_n);
-  if (!_b)
-    return NULL;
-  corr_get_state (self->handle, PyBytes_AS_STRING (_b));
-  return _b;
-}
-
-static PyObject *
-CorrObj_set_state (CorrObject *self, PyObject *arg)
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  if (!PyBytes_Check (arg))
-    {
-      PyErr_SetString (PyExc_TypeError, "set_state expects bytes");
-      return NULL;
-    }
-  if ((size_t)PyBytes_GET_SIZE (arg) != corr_state_bytes (self->handle))
-    {
-      PyErr_SetString (PyExc_ValueError, "state blob size mismatch");
-      return NULL;
-    }
-  if (corr_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
-    {
-      PyErr_SetString (PyExc_ValueError, "set_state rejected the blob");
-      return NULL;
-    }
-  Py_RETURN_NONE;
-}
-
 static PyMethodDef CorrObj_methods[] = {
   { "reset", (PyCFunction)CorrObj_reset, METH_NOARGS,
     "Reset state to post-create defaults." },
 
-  { "execute", (PyCFunction)CorrObj_execute, METH_VARARGS | METH_KEYWORDS,
+  { "execute", (PyCFunction)(void *)CorrObj_execute,
+    METH_VARARGS | METH_KEYWORDS,
     "execute(x) -> ndarray\n"
     "\n"
     "Correlate one frame and optionally dump the coherent accumulator. Runs: "
@@ -365,10 +342,10 @@ static PyMethodDef CorrObj_methods[] = {
     "the frequency domain and inverting once is exactly the per-frame inverse "
     "summed, by linearity of the IFFT — valid because the dwell is "
     "**coherent** (a complex sum); a non-coherent (magnitude) integration "
-    "could not defer the inverse. On the @p dwell-th call @p out is written, "
-    "the accumulator is zeroed, and the counter resets; the function returns "
-    "n_out.  All other calls return 0 and leave @p out unmodified.  In "
-    "Python, a dump returns an ndarray and a no-dump returns None.\n"
+    "could not defer the inverse. On the dwell-th call out is written, the "
+    "accumulator is zeroed, and the counter resets; the function returns "
+    "n_out.  All other calls return 0 and leave out unmodified.  In Python, a "
+    "dump returns an ndarray and a no-dump returns None.\n"
     "\n"
     "    >>> import numpy as np\n"
     "    >>> from doppler import Corr\n"
@@ -379,16 +356,16 @@ static PyMethodDef CorrObj_methods[] = {
   { "execute_max_out", (PyCFunction)CorrObj_execute_max_out, METH_NOARGS,
     "execute_max_out() -> int\n\nMax output length execute() can produce for "
     "the current state.\nUse to size the ``out=`` buffer." },
-  { "destroy", (PyCFunction)CorrObj_destroy, METH_NOARGS,
-    "Release resources." },
-  { "__enter__", (PyCFunction)CorrObj_enter, METH_NOARGS, NULL },
-  { "__exit__", (PyCFunction)CorrObj_exit, METH_VARARGS, NULL },
   { "state_bytes", (PyCFunction)CorrObj_state_bytes, METH_NOARGS,
     "Serialized state size in bytes." },
   { "get_state", (PyCFunction)CorrObj_get_state, METH_NOARGS,
     "Serialize the engine's mutable state to bytes." },
   { "set_state", (PyCFunction)CorrObj_set_state, METH_O,
     "Restore mutable state from a get_state() blob." },
+  { "destroy", (PyCFunction)CorrObj_destroy, METH_NOARGS,
+    "Release resources." },
+  { "__enter__", (PyCFunction)CorrObj_enter, METH_NOARGS, NULL },
+  { "__exit__", (PyCFunction)CorrObj_exit, METH_VARARGS, NULL },
   { NULL }
 };
 
@@ -400,9 +377,9 @@ static PyTypeObject CorrObjType = {
   .tp_doc
   = "Allocate a 1-D FFT correlator with coherent integrate-and-dump. "
     "Pre-computes conj(FFT(ref)) once at construction so each execute() call "
-    "costs only two FFTs and n complex multiplies.  @p ref may be freed after "
-    "this returns.  With @p dwell == 1 every call produces output; with "
-    "larger values the accumulator absorbs @p dwell frames before dumping.\n",
+    "costs only two FFTs and n complex multiplies.  ref may be freed after "
+    "this returns.  With dwell == 1 every call produces output; with larger "
+    "values the accumulator absorbs dwell frames before dumping.\n",
   .tp_methods = CorrObj_methods,
   .tp_getset  = Corr_getset,
   .tp_new     = CorrObj_new,

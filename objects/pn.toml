@@ -10,17 +10,20 @@ serializable = "true"
 [[pn.init_params]]
 name = "poly"
 type = "uint64_t"
-default = "96"
+# 0 selects the MLS primitive polynomial for `length` (#191), matching the
+# Synth(pn_poly=0) convention. The old 96/1/7 defaults predated that fix and
+# never matched shipped behaviour.
+default = "0"
 
 [[pn.init_params]]
 name = "seed"
 type = "uint64_t"
-default = "1"
+default = "0"
 
 [[pn.init_params]]
 name = "length"
 type = "uint32_t"
-default = "7"
+default = "0"
 
 [[pn.init_params]]
 name = "lfsr"
@@ -32,3 +35,6 @@ name = "generate"
 arg_type = "void"
 return_type = "uint8_t"
 variable_output = true
+# Kernel is told its write limit (jm gh-138): an under-reporting max_out
+# truncates the emission instead of overrunning `out`.
+pass_capacity = true

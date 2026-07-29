@@ -103,7 +103,7 @@ size_t nprmeas_spectrum_dbfs_max_out(nprmeas_state_t *state);
  * The same averaged PSD the metrics use, for an analyzer-display backdrop.
  */
 size_t nprmeas_spectrum_dbfs(nprmeas_state_t *state, const float *x,
-                             size_t x_len, float *out);
+                             size_t x_len, float *out, size_t max_out);
 
 #ifdef __cplusplus
 }

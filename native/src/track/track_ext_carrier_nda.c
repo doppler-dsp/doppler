@@ -14,12 +14,6 @@
 typedef struct
 {
   PyObject_HEAD carrier_nda_state_t *handle;
-  float complex *_steps_buf;     /* pre-allocated output for steps */
-  size_t         _steps_buf_cap; /* allocated capacity for steps */
-  void         **_steps_retired; /* gh-219 deferred free */
-  size_t         _steps_retired_n;
-  size_t         _steps_retired_cap;
-  PyObject      *_steps_view_ref; /* gh-437 last returned view */
 } CarrierNdaObject;
 
 static void
@@ -27,11 +21,6 @@ CarrierNdaObj_dealloc (CarrierNdaObject *self)
 {
   if (self->handle)
     carrier_nda_destroy (self->handle);
-  free (self->_steps_buf);
-  for (size_t _i = 0; _i < self->_steps_retired_n; _i++)
-    free (self->_steps_retired[_i]);
-  free (self->_steps_retired);
-  Py_XDECREF (self->_steps_view_ref);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -66,19 +55,6 @@ CarrierNdaObj_init (CarrierNdaObject *self, PyObject *args, PyObject *kwds)
       PyErr_SetString (PyExc_MemoryError, "carrier_nda_create returned NULL");
       return -1;
     }
-  {
-    size_t _max = carrier_nda_steps_max_out (self->handle);
-    if (_max)
-      {
-        self->_steps_buf = malloc (_max * sizeof (float complex));
-        if (!self->_steps_buf)
-          {
-            PyErr_NoMemory ();
-            return -1;
-          }
-        self->_steps_buf_cap = _max;
-      }
-  }
   return 0;
 }
 
@@ -115,6 +91,19 @@ CarrierNdaObj_steps (CarrierNdaObject *self, PyObject *args, PyObject *kwds)
     return NULL;
   if (out_obj && out_obj != Py_None)
     {
+      /* Require the exact dtype AND C-contiguity — either mismatch makes
+       * the marshal write into a temp copy, not the caller's buffer. */
+      if (!PyArray_Check (out_obj)
+          || PyArray_TYPE ((PyArrayObject *)out_obj) != NPY_COMPLEX64
+          || !PyArray_IS_C_CONTIGUOUS ((PyArrayObject *)out_obj)
+          || !PyArray_ISWRITEABLE ((PyArrayObject *)out_obj))
+        {
+          PyErr_SetString (PyExc_TypeError,
+                           "out must be a writable, C-contiguous"
+                           " ndarray of the output dtype");
+          Py_DECREF (x_arr);
+          return NULL;
+        }
       PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
           out_obj, NPY_COMPLEX64,
           NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
@@ -159,53 +148,18 @@ CarrierNdaObj_steps (CarrierNdaObject *self, PyObject *args, PyObject *kwds)
       PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
       return _oview;
     }
-  size_t _need      = (size_t)PyArray_SIZE (x_arr);
-  int    _view_live = 0;
-  if (self->_steps_view_ref)
+  size_t _need = (size_t)PyArray_SIZE (x_arr);
+  size_t _cap  = carrier_nda_steps_max_out (self->handle);
+  if (!_cap || _cap < _need)
+    _cap = _need;
+  npy_intp  _adim = (npy_intp)_cap;
+  PyObject *arr0  = PyArray_SimpleNew (1, &_adim, NPY_COMPLEX64);
+  if (!arr0)
     {
-#if PY_VERSION_HEX >= 0x030D0000
-      PyObject *_lv = NULL;
-      if (PyWeakref_GetRef (self->_steps_view_ref, &_lv) == 1)
-        {
-          Py_DECREF (_lv);
-          _view_live = 1;
-        }
-#else
-      _view_live = PyWeakref_GetObject (self->_steps_view_ref) != Py_None;
-#endif
+      Py_DECREF (x_arr);
+      return NULL;
     }
-  if (!self->_steps_buf || self->_steps_buf_cap < _need || _view_live)
-    {
-      size_t _max = carrier_nda_steps_max_out (self->handle);
-      if (!_max || _max < _need)
-        _max = _need;
-      if (self->_steps_buf
-          && self->_steps_retired_n == self->_steps_retired_cap)
-        {
-          size_t _rcap
-              = self->_steps_retired_cap ? self->_steps_retired_cap * 2 : 4;
-          void **_rt = realloc (self->_steps_retired, _rcap * sizeof (void *));
-          if (!_rt)
-            {
-              Py_DECREF (x_arr);
-              PyErr_NoMemory ();
-              return NULL;
-            }
-          self->_steps_retired     = _rt;
-          self->_steps_retired_cap = _rcap;
-        }
-      float complex *_tmp = malloc (_max * sizeof (float complex));
-      if (!_tmp)
-        {
-          Py_DECREF (x_arr);
-          PyErr_NoMemory ();
-          return NULL;
-        }
-      if (self->_steps_buf)
-        self->_steps_retired[self->_steps_retired_n++] = self->_steps_buf;
-      self->_steps_buf     = _tmp;
-      self->_steps_buf_cap = _max;
-    }
+  float complex *_d0 = (float complex *)PyArray_DATA ((PyArrayObject *)arr0);
   /* nogil: GIL released across the pure-C kernel — sound only when
    * this object is not shared across threads concurrently (one
    * object per stream); the kernel touches only this object's
@@ -214,27 +168,23 @@ CarrierNdaObj_steps (CarrierNdaObject *self, PyObject *args, PyObject *kwds)
   size_t               _ng1 = (size_t)PyArray_SIZE (x_arr);
   size_t               n_out;
   Py_BEGIN_ALLOW_THREADS
-    n_out = carrier_nda_steps (self->handle, _ng0, _ng1, self->_steps_buf,
-                               self->_steps_buf_cap);
+    n_out = carrier_nda_steps (self->handle, _ng0, _ng1, _d0, _cap);
   Py_END_ALLOW_THREADS
-  npy_intp  dim = (npy_intp)n_out;
-  PyObject *arr
-      = PyArray_SimpleNewFromData (1, &dim, NPY_COMPLEX64, self->_steps_buf);
-  if (!arr)
-    return NULL;
-  PyArray_SetBaseObject ((PyArrayObject *)arr, (PyObject *)self);
-  Py_INCREF (self);
-  /* gh-437: remember this view — while the caller holds it the next
-   * call retires the buffer instead of reusing it in place. */
-  Py_XDECREF (self->_steps_view_ref);
-  self->_steps_view_ref = PyWeakref_NewRef (arr, NULL);
-  if (!self->_steps_view_ref)
+  Py_DECREF (x_arr);
+  if ((size_t)n_out == _cap)
     {
-      Py_DECREF (arr);
+      return arr0;
+    }
+  npy_intp     _odim = (npy_intp)n_out;
+  PyArray_Dims _rs0  = { &_odim, 1 };
+  PyObject *v0 = PyArray_Resize ((PyArrayObject *)arr0, &_rs0, 0, NPY_CORDER);
+  if (!v0)
+    {
+      Py_DECREF (arr0);
       return NULL;
     }
-  Py_DECREF (x_arr);
-  return arr;
+  Py_DECREF (v0);
+  return arr0;
 }
 
 static PyObject *
@@ -543,7 +493,8 @@ CarrierNdaObj_exit (CarrierNdaObject *self, PyObject *args)
 
 static PyMethodDef CarrierNdaObj_methods[] = {
 
-  { "steps", (PyCFunction)CarrierNdaObj_steps, METH_VARARGS | METH_KEYWORDS,
+  { "steps", (PyCFunction)(void *)CarrierNdaObj_steps,
+    METH_VARARGS | METH_KEYWORDS,
     "steps(x) -> ndarray\n"
     "\n"
     "De-rotate a cf32 block with the integer-NCO carrier and return the "

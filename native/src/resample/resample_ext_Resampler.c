@@ -16,7 +16,9 @@ typedef struct
 {
   PyObject_HEAD Resampler_state_t *handle;
   float complex *_execute_buf;      /* pre-allocated output for execute */
+  size_t         _execute_buf_cap;  /* elements allocated above */
   float complex *_execute_ctrl_buf; /* pre-allocated output for execute_ctrl */
+  size_t         _execute_ctrl_buf_cap; /* elements allocated above */
 } ResamplerObject;
 
 static void
@@ -24,6 +26,8 @@ ResamplerObj_dealloc (ResamplerObject *self)
 {
   if (self->handle)
     Resampler_destroy (self->handle);
+  free (self->_execute_buf);
+  free (self->_execute_ctrl_buf);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -112,6 +116,20 @@ ResamplerObj_execute (ResamplerObject *self, PyObject *args, PyObject *kwds)
 
   if (out_obj && out_obj != Py_None)
     {
+      /* Require the exact output dtype — no silent cast (a cast writes
+       * into a temp copy instead of the caller's buffer). Hand-written
+       * here because this fragment stays hand-owned; keep in step with
+       * jm's generated form (gh-581). */
+      if (!PyArray_Check (out_obj)
+          || PyArray_TYPE ((PyArrayObject *)out_obj) != NPY_COMPLEX64
+          || !PyArray_ISWRITEABLE ((PyArrayObject *)out_obj))
+        {
+          PyErr_SetString (
+              PyExc_TypeError,
+              "out must be a writable ndarray of the output dtype");
+          Py_DECREF (x_arr);
+          return NULL;
+        }
       PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
           out_obj, NPY_COMPLEX64,
           NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
@@ -134,7 +152,7 @@ ResamplerObj_execute (ResamplerObject *self, PyObject *args, PyObject *kwds)
         }
       size_t n_out = Resampler_execute (
           self->handle, (const float complex *)PyArray_DATA (x_arr), _n_in,
-          (float complex *)PyArray_DATA (out_arr));
+          (float complex *)PyArray_DATA (out_arr), _cap);
       Py_DECREF (x_arr);
       npy_intp  _odim  = (npy_intp)n_out;
       PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_COMPLEX64,
@@ -157,7 +175,8 @@ ResamplerObj_execute (ResamplerObject *self, PyObject *args, PyObject *kwds)
       size_t _max = Resampler_execute_max_out (self->handle);
       if (!_max)
         _max = (size_t)PyArray_SIZE (x_arr);
-      self->_execute_buf = malloc (_max * sizeof (float complex));
+      self->_execute_buf     = malloc (_max * sizeof (float complex));
+      self->_execute_buf_cap = _max;
       if (!self->_execute_buf)
         {
           Py_DECREF (x_arr);
@@ -167,7 +186,8 @@ ResamplerObj_execute (ResamplerObject *self, PyObject *args, PyObject *kwds)
     }
   size_t n_out = Resampler_execute (
       self->handle, (const float complex *)PyArray_DATA (x_arr),
-      (size_t)PyArray_SIZE (x_arr), self->_execute_buf);
+      (size_t)PyArray_SIZE (x_arr), self->_execute_buf,
+      self->_execute_buf_cap);
   npy_intp  dim = (npy_intp)n_out;
   PyObject *arr
       = PyArray_SimpleNewFromData (1, &dim, NPY_COMPLEX64, self->_execute_buf);
@@ -230,6 +250,21 @@ ResamplerObj_execute_ctrl (ResamplerObject *self, PyObject *args,
 
   if (out_obj && out_obj != Py_None)
     {
+      /* Require the exact output dtype — no silent cast (a cast writes
+       * into a temp copy instead of the caller's buffer). Hand-written
+       * here because this fragment stays hand-owned; keep in step with
+       * jm's generated form (gh-581). */
+      if (!PyArray_Check (out_obj)
+          || PyArray_TYPE ((PyArrayObject *)out_obj) != NPY_COMPLEX64
+          || !PyArray_ISWRITEABLE ((PyArrayObject *)out_obj))
+        {
+          PyErr_SetString (
+              PyExc_TypeError,
+              "out must be a writable ndarray of the output dtype");
+          Py_DECREF (x_arr);
+          Py_DECREF (ctrl_arr);
+          return NULL;
+        }
       PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
           out_obj, NPY_COMPLEX64,
           NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
@@ -256,7 +291,7 @@ ResamplerObj_execute_ctrl (ResamplerObject *self, PyObject *args,
           self->handle, (const float complex *)PyArray_DATA (x_arr), _n_in,
           (const float complex *)PyArray_DATA (ctrl_arr),
           (size_t)PyArray_SIZE (ctrl_arr),
-          (float complex *)PyArray_DATA (out_arr));
+          (float complex *)PyArray_DATA (out_arr), _cap);
       Py_DECREF (x_arr);
       Py_DECREF (ctrl_arr);
       npy_intp  _odim  = (npy_intp)n_out;
@@ -279,7 +314,8 @@ ResamplerObj_execute_ctrl (ResamplerObject *self, PyObject *args,
       size_t _max = Resampler_execute_ctrl_max_out (self->handle);
       if (!_max)
         _max = (size_t)PyArray_SIZE (x_arr);
-      self->_execute_ctrl_buf = malloc (_max * sizeof (float complex));
+      self->_execute_ctrl_buf     = malloc (_max * sizeof (float complex));
+      self->_execute_ctrl_buf_cap = _max;
       if (!self->_execute_ctrl_buf)
         {
           Py_DECREF (x_arr);
@@ -292,7 +328,8 @@ ResamplerObj_execute_ctrl (ResamplerObject *self, PyObject *args,
       self->handle, (const float complex *)PyArray_DATA (x_arr),
       (size_t)PyArray_SIZE (x_arr),
       (const float complex *)PyArray_DATA (ctrl_arr),
-      (size_t)PyArray_SIZE (ctrl_arr), self->_execute_ctrl_buf);
+      (size_t)PyArray_SIZE (ctrl_arr), self->_execute_ctrl_buf,
+      self->_execute_ctrl_buf_cap);
   npy_intp  dim = (npy_intp)n_out;
   PyObject *arr = PyArray_SimpleNewFromData (1, &dim, NPY_COMPLEX64,
                                              self->_execute_ctrl_buf);

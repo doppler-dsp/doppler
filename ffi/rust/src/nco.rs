@@ -30,17 +30,20 @@ extern "C" {
         nco: *mut NcoStateRaw,
         n: usize,
         out: *mut u32,
+        max_out: usize,
     ) -> usize;
     pub fn nco_steps_u32_scaled(
         nco: *mut NcoStateRaw,
         n: usize,
         out: *mut u32,
+        max_out: usize,
     ) -> usize;
     pub fn nco_steps_u32_ovf(
         nco: *mut NcoStateRaw,
         n: usize,
         out: *mut u32,
         out1: *mut u8,
+        max_out: usize,
     ) -> usize;
 }
 
@@ -95,13 +98,20 @@ impl Nco {
 
     /// Write `n` raw 32-bit accumulator values into `out`.
     pub fn steps_u32(&mut self, out: &mut [u32]) {
-        unsafe { nco_steps_u32(self.ptr, out.len(), out.as_mut_ptr()) };
+        unsafe {
+            nco_steps_u32(self.ptr, out.len(), out.as_mut_ptr(), out.len())
+        };
     }
 
     /// Write `n` accumulator values scaled to `[0, nmax)` into `out`.
     pub fn steps_u32_scaled(&mut self, out: &mut [u32]) {
         unsafe {
-            nco_steps_u32_scaled(self.ptr, out.len(), out.as_mut_ptr())
+            nco_steps_u32_scaled(
+                self.ptr,
+                out.len(),
+                out.as_mut_ptr(),
+                out.len(),
+            )
         };
     }
 
@@ -124,6 +134,7 @@ impl Nco {
                 out.len(),
                 out.as_mut_ptr(),
                 carry.as_mut_ptr(),
+                out.len(),
             )
         };
     }

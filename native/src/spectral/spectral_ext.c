@@ -49,6 +49,17 @@ _bind_kaiser_window(PyObject *self, PyObject *args, PyObject *kwds)
     if (!PyArg_ParseTupleAndKeywords(args, kwds, "Of",
             _kwlist, &w_obj, &beta))
         return NULL;
+    /* Require the exact dtype AND C-contiguity — either mismatch makes
+     * the marshal write into a temp copy, not the caller's buffer. */
+    if (!PyArray_Check(w_obj) ||
+        PyArray_TYPE((PyArrayObject *)w_obj) != NPY_FLOAT ||
+        !PyArray_IS_C_CONTIGUOUS((PyArrayObject *)w_obj) ||
+        !PyArray_ISWRITEABLE((PyArrayObject *)w_obj)) {
+        PyErr_SetString(PyExc_TypeError,
+            "w must be a writable, C-contiguous"
+            " ndarray of the output dtype");
+        return NULL;
+    }
     PyArrayObject *w_arr = (PyArrayObject *)PyArray_FROM_OTF(
         w_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
     if (!w_arr) { return NULL; }
@@ -80,6 +91,17 @@ _bind_hann_window(PyObject *self, PyObject *args, PyObject *kwds)
     if (!PyArg_ParseTupleAndKeywords(args, kwds, "O",
             _kwlist, &w_obj))
         return NULL;
+    /* Require the exact dtype AND C-contiguity — either mismatch makes
+     * the marshal write into a temp copy, not the caller's buffer. */
+    if (!PyArray_Check(w_obj) ||
+        PyArray_TYPE((PyArrayObject *)w_obj) != NPY_FLOAT ||
+        !PyArray_IS_C_CONTIGUOUS((PyArrayObject *)w_obj) ||
+        !PyArray_ISWRITEABLE((PyArrayObject *)w_obj)) {
+        PyErr_SetString(PyExc_TypeError,
+            "w must be a writable, C-contiguous"
+            " ndarray of the output dtype");
+        return NULL;
+    }
     PyArrayObject *w_arr = (PyArrayObject *)PyArray_FROM_OTF(
         w_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
     if (!w_arr) { return NULL; }
@@ -99,6 +121,17 @@ _bind_blackman_harris_window(PyObject *self, PyObject *args, PyObject *kwds)
     if (!PyArg_ParseTupleAndKeywords(args, kwds, "O",
             _kwlist, &w_obj))
         return NULL;
+    /* Require the exact dtype AND C-contiguity — either mismatch makes
+     * the marshal write into a temp copy, not the caller's buffer. */
+    if (!PyArray_Check(w_obj) ||
+        PyArray_TYPE((PyArrayObject *)w_obj) != NPY_FLOAT ||
+        !PyArray_IS_C_CONTIGUOUS((PyArrayObject *)w_obj) ||
+        !PyArray_ISWRITEABLE((PyArrayObject *)w_obj)) {
+        PyErr_SetString(PyExc_TypeError,
+            "w must be a writable, C-contiguous"
+            " ndarray of the output dtype");
+        return NULL;
+    }
     PyArrayObject *w_arr = (PyArrayObject *)PyArray_FROM_OTF(
         w_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
     if (!w_arr) { return NULL; }
@@ -182,7 +215,7 @@ _bind_find_peaks_f32(PyObject *self, PyObject *args, PyObject *kwds)
     PyObject *_lst = PyList_New((Py_ssize_t)_n);
     if (!_lst) { free(_results); return NULL; }
     for (size_t _i = 0; _i < _n; _i++) {
-        PyObject *_tup = Py_BuildValue("(ff)", _results[_i].freq_norm, _results[_i].amplitude_db);
+        PyObject *_tup = Py_BuildValue("(NN)", PyFloat_FromDouble((double)_results[_i].freq_norm), PyFloat_FromDouble((double)_results[_i].amplitude_db));
         if (!_tup) { free(_results); Py_DECREF(_lst); return NULL; }
         PyList_SET_ITEM(_lst, (Py_ssize_t)_i, _tup);
     }

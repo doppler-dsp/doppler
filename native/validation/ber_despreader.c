@@ -47,7 +47,7 @@ ber_point (const float *codef, int L, awgn_state_t *g, float *nb,
     {
       if (pos + L > have)
         {
-          awgn_generate (g, BATCHC, (float complex *)nb);
+          awgn_generate (g, BATCHC, (float complex *)nb, BATCHC);
           have = 2 * BATCHC;
           pos  = 0;
         }

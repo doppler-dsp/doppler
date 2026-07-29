@@ -153,7 +153,7 @@ int main(void) {
     lo_state_t *lo = lo_create(0.25);  // quarter-rate tone
 
     float complex out[8];
-    lo_steps(lo, 8, out);
+    lo_steps(lo, 8, out, 8);
 
     for (int i = 0; i < 8; i++)
         printf("out[%d]: %.3f + %.3fi\n", i, crealf(out[i]), cimagf(out[i]));
@@ -184,7 +184,7 @@ int main(void) {
         ctrl[i] = 0.002f * sinf(2.0f * (float)M_PI * 0.01f * i);
 
     float complex out[1024];
-    lo_steps_ctrl(lo, ctrl, 1024, out);
+    lo_steps_ctrl(lo, ctrl, 1024, out, 1024);
     // base freq unchanged; reset restores clean phase
     lo_destroy(lo);
     return 0;
@@ -219,15 +219,15 @@ int main(void) {
     awgn_state_t *g = awgn_create(42, 1.0f);   /* seed, amplitude */
 
     float complex buf[4096];
-    awgn_generate(g, 4096, buf);                /* fill buf */
+    awgn_generate(g, 4096, buf, 4096);                /* fill buf */
 
     /* Retune amplitude without disturbing RNG state */
     awgn_set_amplitude(g, 0.5f);
-    awgn_generate(g, 4096, buf);
+    awgn_generate(g, 4096, buf, 4096);
 
     /* Deterministic replay */
     awgn_reset(g);
-    awgn_generate(g, 4096, buf);               /* identical to first call */
+    awgn_generate(g, 4096, buf, 4096);               /* identical to first call */
 
     awgn_destroy(g);
     return 0;
@@ -249,8 +249,8 @@ int main(void) {
     awgn_state_t *noise = awgn_create(0, 0.3f);   /* σ=0.3 per component */
 
     float complex carrier[N], n[N], rx[N];
-    lo_steps(lo, N, carrier);
-    awgn_generate(noise, N, n);
+    lo_steps(lo, N, carrier, N);
+    awgn_generate(noise, N, n, N);
     for (size_t i = 0; i < N; i++)
         rx[i] = carrier[i] + n[i];
     printf("rx[0]: %.3f + %.3fi\n", crealf(rx[0]), cimagf(rx[0]));
@@ -278,7 +278,7 @@ int main(void) {
 
     uint32_t phase[16];
     uint8_t  carry[16];
-    nco_steps_u32_ovf(nco, 16, phase, carry);
+    nco_steps_u32_ovf(nco, 16, phase, carry, 16);
     // carry fires at indices 3, 7, 11, 15 (once per full cycle)
 
     nco_destroy(nco);
@@ -342,7 +342,7 @@ int main(void) {
     for (size_t i = 0; i < N; i++)
         in[i] = cos(2.0 * M_PI * 10.0 * i / N) + 0.0 * I;
 
-    fft_execute_cf64(fft, in, N, out);
+    fft_execute_cf64(fft, in, N, out, N);
     printf("DC bin: %.4f + %.4fi\n", creal(out[0]), cimag(out[0]));
 
     fft_destroy(fft);
@@ -365,8 +365,8 @@ int main(void) {
     for (size_t i = 0; i < N; i++)
         in32[i] = cosf(2.0f * M_PI * 10.0f * i / N) + 0.0f * I;
 
-    fft_execute_cf32(fft, in32, N, out32);           // out-of-place
-    fft_execute_inplace_cf32(fft, in32, N, out32b);  // copy in -> out32b, transform out32b
+    fft_execute_cf32(fft, in32, N, out32, N);           // out-of-place
+    fft_execute_inplace_cf32(fft, in32, N, out32b, N);  // copy in -> out32b, then transform
 
     fft_destroy(fft);
     return 0;
@@ -383,10 +383,10 @@ int main(void) {
     fft2d_state_t *fft2d = fft2d_create(64, 64, -1, 1);
 
     double complex in2d[64 * 64], out2d[64 * 64];
-    fft2d_execute_cf64(fft2d, in2d, 64 * 64, out2d);
+    fft2d_execute_cf64(fft2d, in2d, 64 * 64, out2d, 64 * 64);
 
     float complex in32_2d[64 * 64], out32_2d[64 * 64];
-    fft2d_execute_cf32(fft2d, in32_2d, 64 * 64, out32_2d);
+    fft2d_execute_cf32(fft2d, in32_2d, 64 * 64, out32_2d, 64 * 64);
 
     fft2d_destroy(fft2d);
     return 0;
@@ -417,7 +417,9 @@ int main(void) {
     float _Complex in[N_IN], out[N_IN / 2];
     /* ... fill in[] with your signal ... */
 
-    size_t n_out = HalfbandDecimator_execute(dec, in, N_IN, out);
+    /* Last argument is out's capacity, not the input count: a 2:1
+       decimator emits N_IN/2, which is exactly how out is sized. */
+    size_t n_out = HalfbandDecimator_execute(dec, in, N_IN, out, N_IN / 2);
     printf("output samples: %zu\n", n_out);   /* 16 */
 
     HalfbandDecimator_destroy(dec);

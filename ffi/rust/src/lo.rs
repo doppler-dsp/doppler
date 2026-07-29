@@ -35,12 +35,14 @@ extern "C" {
         lo: *mut LoStateRaw,
         n: usize,
         out: *mut Complex<f32>,
+        max_out: usize,
     ) -> usize;
     pub fn lo_steps_ctrl(
         lo: *mut LoStateRaw,
         ctrl: *const f32,
         ctrl_len: usize,
         out: *mut Complex<f32>,
+        max_out: usize,
     ) -> usize;
 }
 
@@ -82,7 +84,9 @@ impl Lo {
 
     /// Generate `out.len()` complex CF32 phasors.
     pub fn steps(&mut self, out: &mut [Complex<f32>]) {
-        unsafe { lo_steps(self.ptr, out.len(), out.as_mut_ptr()) };
+        unsafe {
+            lo_steps(self.ptr, out.len(), out.as_mut_ptr(), out.len())
+        };
     }
 
     /// Generate phasors with per-sample FM frequency deviation.
@@ -108,6 +112,7 @@ impl Lo {
                 ctrl.as_ptr(),
                 ctrl.len(),
                 out.as_mut_ptr(),
+                out.len(),
             )
         };
     }

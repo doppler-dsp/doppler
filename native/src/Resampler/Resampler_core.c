@@ -55,9 +55,11 @@ Resampler_execute_max_out (Resampler_state_t *state)
 
 size_t
 Resampler_execute (Resampler_state_t *state, const float complex *x,
-                   size_t x_len, float complex *out)
+                   size_t x_len, float complex *out, size_t max_out)
 {
-  return resamp_execute (state, x, x_len, out, RESAMPLER_MAX_OUT);
+  /* The leaf already clamps; hand it the caller's real capacity instead
+     of the fixed cap (jm gh-138). */
+  return resamp_execute (state, x, x_len, out, max_out);
 }
 
 size_t
@@ -70,10 +72,12 @@ Resampler_execute_ctrl_max_out (Resampler_state_t *state)
 size_t
 Resampler_execute_ctrl (Resampler_state_t *state, const float complex *x,
                         size_t x_len, const float complex *ctrl,
-                        size_t ctrl_len, float complex *out)
+                        size_t ctrl_len, float complex *out, size_t max_out)
 {
   size_t n = x_len < ctrl_len ? x_len : ctrl_len;
-  return resamp_execute_ctrl (state, x, ctrl, n, out, RESAMPLER_MAX_OUT);
+  /* The leaf already clamps; hand it the caller's real capacity instead
+     of the fixed cap (jm gh-138). */
+  return resamp_execute_ctrl (state, x, ctrl, n, out, max_out);
 }
 
 double

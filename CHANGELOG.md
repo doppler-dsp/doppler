@@ -13,6 +13,8 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+## [0.39.0] — 2026-07-29
+
 ### Breaking
 
 - **Every block-output C kernel now takes a trailing `size_t max_out`.**
@@ -3851,6 +3853,7 @@ ______________________________________________________________________
 [0.37.3]: https://github.com/doppler-dsp/doppler/compare/v0.37.2...v0.37.3
 [0.38.0]: https://github.com/doppler-dsp/doppler/compare/v0.37.3...v0.38.0
 [0.38.1]: https://github.com/doppler-dsp/doppler/compare/v0.38.0...v0.38.1
+[0.39.0]: https://github.com/doppler-dsp/doppler/compare/v0.38.1...v0.39.0
 [0.4.0]: https://github.com/doppler-dsp/doppler/compare/v0.3.7...v0.4.0
 [0.4.1]: https://github.com/doppler-dsp/doppler/compare/v0.4.0...v0.4.1
 [0.5.0]: https://github.com/doppler-dsp/doppler/compare/v0.4.1...v0.5.0
@@ -3863,4 +3866,4 @@ ______________________________________________________________________
 [0.7.0]: https://github.com/doppler-dsp/doppler/compare/v0.6.0...v0.7.0
 [0.8.0]: https://github.com/doppler-dsp/doppler/compare/v0.7.0...v0.8.0
 [0.9.0]: https://github.com/doppler-dsp/doppler/compare/v0.8.0...v0.9.0
-[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.38.1...HEAD
+[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.39.0...HEAD

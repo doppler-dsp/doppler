@@ -219,20 +219,22 @@ def test_header_exposes_the_hcb_under_the_format_s_own_names(tmp_path):
 def test_keywords_merge_the_hcb_area_and_the_extended_header(tmp_path):
     """A key is a key: the caller cannot tell which block carried it.
 
-    An ASCII keyword is steered into the HCB's own keyword area (no extra
-    block, and every BLUE reader finds it there); a typed one still needs the
-    extended header, because that area has no type field. Both come back
-    from `.keywords`, with the numeric one still numeric.
+    BLUE 1.1 3.4 reserves the 92-byte HCB keyword area for six standard
+    keywords and puts everything else in the extended header -- other
+    systems are licensed to delete user keywords found there. So `VER`
+    goes to the HCB area and `NAME`/`SRATE` to the extended header, and
+    all three come back from `.keywords`, the numeric one still numeric.
     """
     p = tmp_path / "kw.blue"
     w = Writer(str(p), file_type="blue", sample_type="cf32")
-    w.add_keyword("NAME", "A", "hello")  # -> HCB keyword area
-    w.add_keyword("SRATE", "D", 2.048e6)  # -> extended header
+    w.add_keyword("VER", "A", "1.1")  # standard -> HCB keyword area
+    w.add_keyword("NAME", "A", "hello")  # user -> extended header
+    w.add_keyword("SRATE", "D", 2.048e6)  # typed -> extended header
     w.write(np.ones(8, dtype=np.complex64))
     w.close()
 
     r = Reader(str(p))
-    assert r.keywords == {"NAME": "hello", "SRATE": 2.048e6}
+    assert r.keywords == {"VER": "1.1", "NAME": "hello", "SRATE": 2.048e6}
     assert isinstance(r.keywords["SRATE"], float)  # type survived
     # And the header shows where each went.
     h = r.header

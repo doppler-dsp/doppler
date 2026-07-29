@@ -201,6 +201,20 @@ write_csv (wfm_writer_state_t *w, const float _Complex *iq, size_t n)
   return n;
 }
 
+/* The keywords BLUE 1.1 3.4.1 places in the HCB keyword area, so that a
+   reader can find them without parsing an extended header. The list is
+   closed: everything else belongs in the extended header. */
+static int
+is_hcb_keyword (const char *tag)
+{
+  static const char *const HCB_KW[]
+      = { "CREATOR", "IO", "PACKET", "PKT_BYTE_COUNT", "TC_PREC", "VER" };
+  for (size_t i = 0; i < sizeof HCB_KW / sizeof *HCB_KW; i++)
+    if (strcmp (tag, HCB_KW[i]) == 0)
+      return 1;
+  return 0;
+}
+
 /* raw / blue body: interleaved I/Q in the wire type + byte order. */
 static size_t
 write_binary (wfm_writer_state_t *w, const float _Complex *iq, size_t n)
@@ -278,13 +292,18 @@ wfm_writer_add_keyword (wfm_writer_state_t *w, const char *tag, char type,
   size_t esz = wfm_kw_elem_size (type);
   if (esz == 0 || !tag || !value || count == 0)
     return -1;
-  /* HCB keyword area first (the caller's preference: it is what a plain BLUE
-     reader finds without parsing an extended header). Only ASCII qualifies --
-     the area has no type field, so a numeric value written here would come
-     back as a string. Anything that does not fit falls through to the
-     extended header below, which is why this is a silent preference and not
-     an error. */
-  if (type == 'A')
+  /* The HCB keyword area is NOT general-purpose storage. BLUE 1.1 3.4 is
+     explicit: "only those keywords explicitly listed below belong in the HCB
+     keywords area; all other keywords belong in the Extended Header", the
+     area being 92 bytes total. Steering a user keyword there is not merely
+     discouraged -- 3.4 also says that when the block fills, X-Midas and
+     NeXtMidas "will delete (or refuse to insert) user-defined keywords in
+     the HCB in order to make room" for IO and VER. So a user keyword put
+     here is one another tool is licensed to silently drop.
+     Only the six standard main-header keywords qualify, and only as ASCII
+     (the area has no type field, so a numeric value would come back a
+     string). Everything else goes to the extended header below. */
+  if (type == 'A' && is_hcb_keyword (tag))
     {
       size_t tl = strlen (tag);
       size_t nb = tl + 1u + count + 1u; /* TAG '=' VALUE NUL */

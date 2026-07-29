@@ -623,9 +623,12 @@ test_hcb_keyword_area (void)
   CHECK (fp, "open for write");
   wfm_writer_state_t *w = wfm_writer_open (fp, WFM_FT_BLUE, 0, 0, 1e6, 0.0, 4);
   CHECK (w, "writer open");
-  /* ASCII goes to the HCB area; a numeric keyword still needs the extended
-     header, because the area has no type field. */
-  CHECK (wfm_writer_add_keyword (w, "NAME", 'A', "hello", 5) == 0, "ascii kw");
+  /* Only the six standard main-header keywords (BLUE 1.1 3.4.1) go to the
+     HCB area, and only as ASCII. A user keyword -- even an ASCII one -- goes
+     to the extended header, because 3.4 reserves the 92-byte area and lets
+     other systems delete user keywords found there. */
+  CHECK (wfm_writer_add_keyword (w, "VER", 'A', "1.1", 3) == 0, "std kw");
+  CHECK (wfm_writer_add_keyword (w, "NAME", 'A', "hello", 5) == 0, "user kw");
   double sr = 1e6;
   CHECK (wfm_writer_add_keyword (w, "SRATE", 'D', &sr, 1) == 0, "typed kw");
   float _Complex xs[4] = { 1, 2, 3, 4 };
@@ -643,9 +646,11 @@ test_hcb_keyword_area (void)
       CHECK (v > 0, "keylength patched into the HCB");
     }
   /* Both sources merge: the caller cannot tell which block a key came from. */
+  const wfm_keyword_t *v = wfm_reader_find_keyword (r, "VER");
   const wfm_keyword_t *a = wfm_reader_find_keyword (r, "NAME");
   const wfm_keyword_t *d = wfm_reader_find_keyword (r, "SRATE");
-  CHECK (a && a->type == 'A', "HCB-area keyword decoded");
+  CHECK (v && v->type == 'A', "HCB-area keyword decoded");
+  CHECK (a && a->type == 'A', "user ASCII keyword decoded (ext header)");
   CHECK (d && d->type == 'D', "extended-header keyword decoded, type intact");
   wfm_reader_destroy (r);
   return _fails;

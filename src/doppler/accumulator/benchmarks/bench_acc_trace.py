@@ -14,4 +14,4 @@ BLOCK_64K = 65_536
 
 @pytest.fixture
 def obj():
-    return AccTrace("mean", 1024, 0.1)
+    return AccTrace(n=1024, mode="mean", alpha=0.1)

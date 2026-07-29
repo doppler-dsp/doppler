@@ -13,4 +13,4 @@ BLOCK_64K = 65_536
 
 @pytest.fixture
 def obj():
-    return PSD("hann", "mean", 1024, 1.0, 0.0, 0.1)
+    return PSD(n=1024, fs=1.0, window="hann", mode="mean", alpha=0.1)

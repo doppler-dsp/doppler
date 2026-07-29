@@ -13,4 +13,4 @@ BLOCK_64K = 65_536
 
 @pytest.fixture
 def obj():
-    return NPRMeasure("kaiser", 8192, 1.0, 12.0, 2, 1.0)
+    return NPRMeasure(n=8192, fs=1.0, full_scale=1.0)

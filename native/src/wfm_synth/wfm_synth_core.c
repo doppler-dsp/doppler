@@ -549,7 +549,7 @@ wfm_synth_steps (wfm_synth_state_t *state, float complex *output, size_t n)
       size_t         m   = (n - done < (size_t)CH) ? (n - done) : (size_t)CH;
       float complex *out = output + done;
       if (has_lo)
-        lo_steps (state->lo, m, carrier);
+        lo_steps (state->lo, m, carrier, m);
       else if (is_chirp)
         /* Swept carrier, generated per sample with the same phase recurrence
          * as wfm_synth_step() — identical doubles, identical cexpf, so the

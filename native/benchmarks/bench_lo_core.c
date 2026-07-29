@@ -79,13 +79,13 @@ main (void)
   /* --- steps: block generator (SIMD bulk path) --- */
   {
     lo_state_t *lo = lo_create (0.123);
-    lo_steps (lo, 16, out); /* warmup */
+    lo_steps (lo, 16, out, 16); /* warmup */
 
     double times[ITERATIONS];
     for (int r = 0; r < ITERATIONS; r++)
       {
         clock_gettime (CLOCK_MONOTONIC, &t0);
-        lo_steps (lo, BENCH_N, out);
+        lo_steps (lo, BENCH_N, out, BENCH_N);
         clock_gettime (CLOCK_MONOTONIC, &t1);
         times[r] = elapsed_sec (&t0, &t1);
       }

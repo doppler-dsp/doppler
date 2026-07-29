@@ -216,7 +216,7 @@ is a compiled program and the fence fails CI the moment a signature drifts:
 int
 main (void)
 {
-  size_t (*gen) (lo_state_t *, size_t, float complex *) = lo_steps;
+  size_t (*gen) (lo_state_t *, size_t, float complex *, size_t) = lo_steps;
   printf ("pinned: %d\n", gen != 0);
   return 0;
 }

@@ -34,7 +34,7 @@ main (void)
 {
   /* Binding each to a spelled-out function pointer means this listing
      stops compiling if any of these signatures ever drifts. */
-  size_t (*gen) (lo_state_t *, size_t, float complex *) = lo_steps;
+  size_t (*gen) (lo_state_t *, size_t, float complex *, size_t) = lo_steps;
   size_t (*flt) (fir_state_t *, const float complex *, size_t,
                  float complex *)
       = fir_execute;
@@ -74,7 +74,7 @@ int main (void)
   /* Reuse the same buffer every call: no allocation in the loop. */
   for (int i = 0; i < 4; i++)
     {
-      size_t n = lo_steps (lo, 256, out);
+      size_t n = lo_steps (lo, 256, out, 256);
       printf ("block %d: %zu samples\n", i, n);
     }
 

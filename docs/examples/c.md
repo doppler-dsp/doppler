@@ -153,7 +153,7 @@ int main(void) {
     lo_state_t *lo = lo_create(0.25);  // quarter-rate tone
 
     float complex out[8];
-    lo_steps(lo, 8, out);
+    lo_steps(lo, 8, out, 8);
 
     for (int i = 0; i < 8; i++)
         printf("out[%d]: %.3f + %.3fi\n", i, crealf(out[i]), cimagf(out[i]));
@@ -184,7 +184,7 @@ int main(void) {
         ctrl[i] = 0.002f * sinf(2.0f * (float)M_PI * 0.01f * i);
 
     float complex out[1024];
-    lo_steps_ctrl(lo, ctrl, 1024, out);
+    lo_steps_ctrl(lo, ctrl, 1024, out, 1024);
     // base freq unchanged; reset restores clean phase
     lo_destroy(lo);
     return 0;
@@ -249,7 +249,7 @@ int main(void) {
     awgn_state_t *noise = awgn_create(0, 0.3f);   /* σ=0.3 per component */
 
     float complex carrier[N], n[N], rx[N];
-    lo_steps(lo, N, carrier);
+    lo_steps(lo, N, carrier, N);
     awgn_generate(noise, N, n, N);
     for (size_t i = 0; i < N; i++)
         rx[i] = carrier[i] + n[i];
@@ -278,7 +278,7 @@ int main(void) {
 
     uint32_t phase[16];
     uint8_t  carry[16];
-    nco_steps_u32_ovf(nco, 16, phase, carry);
+    nco_steps_u32_ovf(nco, 16, phase, carry, 16);
     // carry fires at indices 3, 7, 11, 15 (once per full cycle)
 
     nco_destroy(nco);

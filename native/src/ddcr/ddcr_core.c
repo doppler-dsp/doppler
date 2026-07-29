@@ -232,7 +232,7 @@ ddcr_execute (ddcr_state_t *s, const float *in, size_t n_in,
       free (hb_buf);
       return 0;
     }
-  lo_steps (s->lo, n_hb, mix);
+  lo_steps (s->lo, n_hb, mix, n_hb);
   for (size_t i = 0; i < n_hb; i++)
     mix[i] = hb_buf[i] * mix[i];
   free (hb_buf);

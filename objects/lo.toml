@@ -17,12 +17,18 @@ name = "steps"
 arg_type = "void"
 return_type = "float _Complex"
 variable_output = true
+# Kernel is told its write limit (jm gh-138): an under-reporting
+# max_out truncates the emission instead of overrunning `out`.
+pass_capacity = true
 
 [[lo.methods]]
 name = "steps_ctrl"
 arg_type = "void"
 return_type = "float _Complex"
 variable_output = true
+# Kernel is told its write limit (jm gh-138): an under-reporting
+# max_out truncates the emission instead of overrunning `out`.
+pass_capacity = true
 params = [{name = "ctrl", type = "float[]"}]
 
 [[lo.properties]]

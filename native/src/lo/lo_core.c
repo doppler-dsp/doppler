@@ -180,8 +180,11 @@ lo_steps_ctrl_max_out (lo_state_t *state)
 #ifdef __AVX512F__
 
 size_t
-lo_steps (lo_state_t *state, size_t n, float complex *out)
+lo_steps (lo_state_t *state, size_t n, float complex *out, size_t max_out)
 {
+  /* Emission stops at the caller's capacity (jm gh-138). */
+  if (n > max_out)
+    n = max_out;
   uint32_t ph  = state->phase;
   uint32_t inc = state->phase_inc;
 
@@ -240,8 +243,11 @@ lo_steps (lo_state_t *state, size_t n, float complex *out)
 #else /* scalar fallback */
 
 size_t
-lo_steps (lo_state_t *state, size_t n, float complex *out)
+lo_steps (lo_state_t *state, size_t n, float complex *out, size_t max_out)
 {
+  /* Emission stops at the caller's capacity (jm gh-138). */
+  if (n > max_out)
+    n = max_out;
   uint32_t ph  = state->phase;
   uint32_t inc = state->phase_inc;
   for (size_t i = 0; i < n; i++)
@@ -283,8 +289,11 @@ lo_steps (lo_state_t *state, size_t n, float complex *out)
  */
 size_t
 lo_steps_ctrl (lo_state_t *state, const float *ctrl, size_t ctrl_len,
-               float complex *out)
+               float complex *out, size_t max_out)
 {
+  /* Emission stops at the caller's capacity (jm gh-138). */
+  if (ctrl_len > max_out)
+    ctrl_len = max_out;
   uint32_t ph  = state->phase;
   uint32_t inc = state->phase_inc;
 
@@ -368,8 +377,11 @@ lo_steps_ctrl (lo_state_t *state, const float *ctrl, size_t ctrl_len,
 
 size_t
 lo_steps_ctrl (lo_state_t *state, const float *ctrl, size_t ctrl_len,
-               float complex *out)
+               float complex *out, size_t max_out)
 {
+  /* Emission stops at the caller's capacity (jm gh-138). */
+  if (ctrl_len > max_out)
+    ctrl_len = max_out;
   uint32_t ph  = state->phase;
   uint32_t inc = state->phase_inc;
   for (size_t i = 0; i < ctrl_len; i++)

@@ -21,7 +21,7 @@
  * @code
  * lo_state_t *lo = lo_create(0.25);
  * float complex out[4];
- * lo_steps(lo, 4, out);
+ * lo_steps (lo, 4, out, 4);
  * // out ≈ { 1+0j, 0+1j, -1+0j, 0-1j }
  * lo_destroy(lo);
  * @endcode
@@ -295,7 +295,8 @@ extern "C"
    * [1.0, 1.0, 1.0, 1.0]
    * @endcode
    */
-  size_t lo_steps (lo_state_t *state, size_t n, float complex *out);
+  size_t lo_steps (lo_state_t *state, size_t n, float complex *out,
+                   size_t max_out);
 
   size_t lo_steps_ctrl_max_out (lo_state_t *state);
 
@@ -332,7 +333,7 @@ extern "C"
    * @endcode
    */
   size_t lo_steps_ctrl (lo_state_t *state, const float *ctrl, size_t ctrl_len,
-                        float complex *out);
+                        float complex *out, size_t max_out);
 
 #ifdef __cplusplus
 }

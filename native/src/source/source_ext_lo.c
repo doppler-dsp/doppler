@@ -117,8 +117,8 @@ LOObj_steps (LOObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (out_arr);
           return NULL;
         }
-      size_t    n_out  = lo_steps (self->handle, (size_t)n,
-                                   (float complex *)PyArray_DATA (out_arr));
+      size_t n_out = lo_steps (self->handle, (size_t)n,
+                               (float complex *)PyArray_DATA (out_arr), _cap);
       npy_intp  _odim  = (npy_intp)n_out;
       PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_COMPLEX64,
                                                     PyArray_DATA (out_arr));
@@ -141,7 +141,7 @@ LOObj_steps (LOObject *self, PyObject *args, PyObject *kwds)
       return NULL;
     }
   float complex *_d0   = (float complex *)PyArray_DATA ((PyArrayObject *)arr0);
-  size_t         n_out = lo_steps (self->handle, (size_t)n, _d0);
+  size_t         n_out = lo_steps (self->handle, (size_t)n, _d0, _cap);
   if ((size_t)n_out == _cap)
     {
       return arr0;
@@ -224,10 +224,10 @@ LOObj_steps_ctrl (LOObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (ctrl_arr);
           return NULL;
         }
-      size_t n_out = lo_steps_ctrl (self->handle,
-                                    (const float *)PyArray_DATA (ctrl_arr),
-                                    (size_t)PyArray_SIZE (ctrl_arr),
-                                    (float complex *)PyArray_DATA (out_arr));
+      size_t n_out = lo_steps_ctrl (
+          self->handle, (const float *)PyArray_DATA (ctrl_arr),
+          (size_t)PyArray_SIZE (ctrl_arr),
+          (float complex *)PyArray_DATA (out_arr), _cap);
       Py_DECREF (ctrl_arr);
       npy_intp  _odim  = (npy_intp)n_out;
       PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_COMPLEX64,
@@ -254,7 +254,7 @@ LOObj_steps_ctrl (LOObject *self, PyObject *args, PyObject *kwds)
   float complex *_d0 = (float complex *)PyArray_DATA ((PyArrayObject *)arr0);
   size_t         n_out
       = lo_steps_ctrl (self->handle, (const float *)PyArray_DATA (ctrl_arr),
-                       (size_t)PyArray_SIZE (ctrl_arr), _d0);
+                       (size_t)PyArray_SIZE (ctrl_arr), _d0, _cap);
   Py_DECREF (ctrl_arr);
   if ((size_t)n_out == _cap)
     {

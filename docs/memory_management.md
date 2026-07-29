@@ -122,16 +122,22 @@ for _ in range(10_000):
     process(block)
 ```
 
-If you are processing large blocks in a long-lived loop, prefer one of the two
-forms below.
+If you are processing large blocks in a long-lived loop, release each block
+([below](#releasing-the-block-instead-of-keeping-it)) or pass `out=`.
 
-!!! note
+!!! note "This is a defect, not the design"
 
-    This retention is a property of the current binding, not of the C library
-    (which allocates nothing per call) and not of the API contract. It is
-    tracked upstream as just-makeit issue 604.
+    The retention is a property of the current binding — not of the C library,
+    which allocates nothing per call, and not of the intended contract. The
+    target is one NumPy-owned allocation per call, sharing nothing between
+    calls, which removes the retention and the question of view validity
+    together. Tracked upstream as just-makeit issue 604.
 
-### `out=`: the C contract, exposed to Python
+    Note what to conclude from this and what not to. It is a reason to release
+    or place your blocks **today**; it is not evidence that `out=` is the fast
+    path in general. See below.
+
+### `out=`: placement and determinism, not throughput
 
 Every block method that returns an array also accepts `out=`, which makes
 Python behave exactly like C — you allocate, the kernel fills it, nothing is
@@ -168,6 +174,47 @@ promise can be kept.
 **The buffer must be large enough**, sized with the same `*_max_out()`
 companion the C API uses. An undersized buffer raises `ValueError` rather than
 truncating.
+
+#### Reach for it for placement, or for determinism — not for speed
+
+`out=` exists so you can decide *where* the samples land: an `mmap`, a shared
+segment, a slot in a ring you already own, a buffer another library will read
+without a copy. That is a capability the plain form cannot offer at any price.
+
+The second real reason is jitter. `out=` means **no allocator call inside the
+loop**, so the allocator leaves the tail of your latency distribution. If you
+have a deadline rather than a throughput target, that can matter more than the
+mean.
+
+What it is *not* is a throughput optimization. Against letting the binding
+allocate the result, passing `out=` is consistently **slower** — the binding
+still has to validate the buffer, check its capacity and build a view over it:
+
+| n      | binding allocates | `out=`    | cost of `out=` |
+| ------ | ----------------- | --------- | -------------- |
+| 64     | 85 ns             | 157 ns    | +72 ns         |
+| 1,024  | 377 ns            | 420 ns    | +43 ns         |
+| 65,536 | 16,934 ns         | 17,003 ns | +69 ns         |
+
+It is a roughly **fixed ~60 ns per call**, so it reads as 85% overhead on a
+64-sample block and 0.4% on a 64k one. Either way, allocation is not what makes
+a block call expensive — the kernel is.
+
+This distinction is worth being pedantic about, because getting it wrong has
+already cost real work: `out=` being *described* as the fast path is what
+motivated an internal reuse buffer to make the plain form "just as fast",
+which bought a returned view that aliased object state, which needed deferred
+frees and liveness tracking to stay safe, which is [issue
+604](https://github.com/just-buildit/just-makeit/issues/604). The chain starts
+with treating an allocation as the thing to eliminate.
+
+!!! warning "If you place it, align it"
+
+    The buffers `out=` exists to serve — `mmap` regions, shared segments, ring
+    slots — are exactly the ones most likely to be misaligned or offset, and
+    a NumPy **slice** is misaligned too. That costs 16% on an FFT (see
+    [Alignment](#alignment)). Allocate placement buffers whole, on a 16-byte
+    boundary.
 
 ### Releasing the block instead of keeping it
 
@@ -310,9 +357,21 @@ ______________________________________________________________________
 
 - **Writing C** — allocate once with `*_max_out()`, reuse it, forget about
     lifetimes. There is nothing else to know.
-- **Writing Python, small blocks or throwaway results** — use the plain form.
-    It is the clearest, and a block that dies before the next call costs nothing.
-- **Writing Python, large blocks in a long-lived loop** — use `out=`. It is the
-    C contract with a numpy face: one allocation, no retention, no surprises.
+- **Writing Python** — use the plain form. It is the clearest, it is the
+    fastest, and the result is yours to keep. This is the default and it should
+    stay the default.
+- **You need the samples in a particular place** — `mmap`, a shared segment, a
+    ring slot, a buffer another library reads without copying — use `out=`.
+    Allocate it whole and 16-byte aligned.
+- **You have a latency deadline, not a throughput target** — use `out=` to keep
+    the allocator out of the loop, accepting ~60 ns on the mean to shorten the
+    tail.
+- **You are holding large blocks in a long-lived loop today** — release each
+    block, or pass `out=`, until [604](https://github.com/just-buildit/just-makeit/issues/604)
+    lands. This one is a workaround with an expiry date, not a rule.
 - **Streaming between threads** — use `doppler.buffer`, and copy anything that
     must outlive `consume(n)`.
+
+The through-line: reach for `out=` when you need control over *where* memory is
+or *when* it is acquired. Reaching for it to avoid an allocation is optimizing
+the one term that was never the expensive part.

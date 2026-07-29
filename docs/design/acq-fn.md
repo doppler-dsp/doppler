@@ -42,7 +42,8 @@ alongside** the OO API, never a replacement.
     needs." Threaded in → out each call via `state_in` / `state_out`.
 - **scratch** — per-worker workspace; holds no meaning (reused, never state).
     In the shipped engine this lives inside `acq_state_t` alongside the mutable
-    state; the descriptor (`acq_create` args) plays the **config** role.
+    state; the descriptor (the `acq_create_burst`/`acq_create_continuous` args)
+    plays the **config** role.
 
 ## State blobs (flat, versioned POD)
 
@@ -58,28 +59,50 @@ alongside** the OO API, never a replacement.
 ## C API shape (acq)
 
 The engine stays one opaque `acq_state_t` (descriptor = config, built by
-`acq_create`; scratch + mutable state live inside it). The pure face is the
+`acq_create_burst` or `acq_create_continuous`; scratch + mutable state live
+inside it). The pure face is the
 serializable triplet + `acq_run`, mirroring `ddcr`:
 
-<!-- docs-snippet: skip=API signature sketch (design spec), not a compilable usage example -->
+```c title="acq_fn C surface"
+#include <complex.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <stdio.h>
 
-```c
-/* config: build once per pod from the physics descriptor (see acq_create). */
-acq_state_t *acq_create (const uint8_t *code, size_t code_len, size_t reps,
-                         size_t spc, double chip_rate, double cn0_dbhz,
-                         double doppler_uncertainty, double pfa, double pd,
-                         int noise_mode, size_t max_noncoh);
+#include "acq/acq_core.h"
 
-/* serializable state (jm `serializable` flag generates the Python triplet). */
-size_t acq_state_bytes (const acq_state_t *);
-void   acq_get_state   (const acq_state_t *, void *blob);
-int    acq_set_state   (acq_state_t *, const void *blob); /* 0 ok / -1 reject */
+int
+main (void)
+{
+  /* config: build once per pod from the physics descriptor. Two
+     constructors over one engine -- burst combines coherently across code
+     repetitions, continuous never does. (There is no bare acq_create, and
+     no max_noncoh: non-coherent looks are auto-selected against the
+     internal ACQ_N_NONCOH_SAFETY_CEILING.) */
+  acq_state_t *(*create_burst) (const uint8_t *, size_t, size_t, size_t,
+                                double, double, double, double, double, int)
+      = acq_create_burst;
+  acq_state_t *(*create_cont) (const uint8_t *, size_t, size_t, double,
+                               double, double, double, double, double, int)
+      = acq_create_continuous;
 
-/* pure run: (state_in, input) -> (state_out, hits). Either blob may be NULL
- * (NULL in = fresh; NULL out = discard). */
-size_t acq_run (acq_state_t *, const void *state_in, void *state_out,
-                const float complex *in, size_t n_in,
-                acq_result_t *hits, size_t max_hits);
+  /* serializable state (jm `serializable` flag generates the Python
+     triplet). */
+  size_t (*bytes) (const acq_state_t *) = acq_state_bytes;
+  void (*get) (const acq_state_t *, void *) = acq_get_state;
+  int (*set) (acq_state_t *, const void *) = acq_set_state; /* 0 ok / -1 */
+
+  /* pure run: (state_in, input) -> (state_out, hits). Either blob may be
+     NULL (NULL in = fresh; NULL out = discard). */
+  size_t (*run) (acq_state_t *, const void *, void *, const float complex *,
+                 size_t, acq_result_t *, size_t)
+      = acq_run;
+
+  printf ("acq_fn surface: %d\n",
+          (create_burst != 0) + (create_cont != 0) + (bytes != 0)
+              + (get != 0) + (set != 0) + (run != 0));
+  return 0;
+}
 ```
 
 `Acquisition` (the object) owns one `acq_state_t` and forwards `push` →

@@ -192,8 +192,56 @@ over skipping. A complete program that only can't *run* headless takes
 `no-run=` (blocking `recv()` on a live peer) or `broker=` (needs only a
 broker — CI provides one), both of which still compile it with the full
 `-Werror` consumer recipe; `skip=` drops even the compile check, so it is
-for genuine fragments only (a struct-layout or signature-only excerpt
-never meant to stand alone).
+for genuine fragments only (a struct-layout excerpt, or a listing of
+placeholder names like `dp_foo_create` that no header declares).
+
+### Signature listings — pin them, don't quote them
+
+A quoted prototype is the most rot-prone thing a page can contain. It reads
+as authoritative, nothing links to it, and it can be wrong for a year
+before anyone notices — `skip=` is exactly the marker that lets it happen,
+because it turns off the only check that would have caught it.
+
+If the functions are **real and declared in a header**, don't quote them.
+Bind each to a spelled-out function pointer inside a `main()`, so the page
+is a compiled program and the fence fails CI the moment a signature drifts:
+
+```c title="a self-verifying signature listing"
+#include <complex.h>
+#include <stddef.h>
+#include <stdio.h>
+
+#include "lo/lo_core.h"
+
+int
+main (void)
+{
+  size_t (*gen) (lo_state_t *, size_t, float complex *) = lo_steps;
+  printf ("pinned: %d\n", gen != 0);
+  return 0;
+}
+```
+
+The types must be written out rather than inferred — that is what makes the
+compiler compare them against the header. It costs about four lines over a
+quoted prototype and converts a comment into a gate.
+
+This is not hypothetical. Converting the two listings that qualified found
+both of them already wrong:
+
+- `corr2d-interpolated-inverse.md` had `corr2d_create`'s parameters in a
+    stale **order** (`ny_out, nx_out` before `dwell, nthreads`; the header has
+    them after). All four are integers, so code copied from the page would
+    have compiled and silently misconfigured the correlator.
+- `acq-fn.md` documented a bare `acq_create` that no longer exists — it was
+    split into `acq_create_burst`/`acq_create_continuous` — carrying a
+    `max_noncoh` parameter that had been removed outright.
+
+Reserve `skip=` for listings that *cannot* be pinned: placeholder names
+(`dp_foo_*`, `<component>_*`), struct layouts, and proposed API that no
+header declares yet. When you use it for a signature listing, say which of
+those it is in the reason, so the next reader can tell "not pinnable" from
+"nobody got round to it".
 
 ## The burn-down backlog
 

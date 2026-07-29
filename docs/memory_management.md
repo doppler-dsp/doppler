@@ -183,6 +183,78 @@ True
 
 ______________________________________________________________________
 
+## The address matters, not just the ownership
+
+"The memory is yours" settles *who frees it*. It does not settle where it
+lives, and for a DSP kernel the address is part of the performance contract.
+Two consequences are worth knowing, because both are silent.
+
+### Alignment
+
+doppler's float FFT path is [PFFFT](https://bitbucket.org/jpommier/pffft),
+which requires 16-byte-aligned buffers. `pocketfft_execute_1d_cf32` checks
+`aligned16(in) && aligned16(out)` and transforms straight in→out when both
+qualify; otherwise it bounces the unaligned side through internal aligned
+scratch. The 2-D path never touches caller alignment at all — it copies into
+`pffft_aligned_malloc`'d storage first, and its per-row sub-pointers stay
+aligned because `nx`/`ny` are multiples of 16.
+
+**Results are identical either way.** The cost is speed:
+
+| `FFT(4096).execute_cf32(x, out=…)` | ns/call      |
+| ---------------------------------- | ------------ |
+| 16-byte-aligned `out`              | 5,756        |
+| misaligned `out`                   | 6,681 (+16%) |
+
+A fresh NumPy array is suitably aligned; a **slice is not**. `buf[1:n+1]` is
+offset by 8 bytes, so it takes the bounce path with nothing to tell you:
+
+```python
+>>> import numpy as np
+>>> base = np.empty(4100, dtype=np.complex64)
+>>> base.__array_interface__["data"][0] % 16     # a fresh array: aligned
+0
+>>> base[1:4097].__array_interface__["data"][0] % 16   # a slice: not
+8
+```
+
+If you are pre-allocating an `out=` buffer for a hot loop, allocate it whole
+rather than slicing it out of something larger.
+
+!!! note
+
+    This is the tamer cousin of a classic FFTW footgun, where the *planner*
+    takes the buffer pointers and specialises the plan to their alignment, so
+    executing against a differently-aligned array is undefined rather than
+    merely slow. doppler cannot reproduce that: `fft_create(n, sign, nthreads)`
+    takes no pointers, so a plan is never tied to one.
+
+### Over-allocating on purpose
+
+The corollary is that the cheapest buffer is often bigger than the data. Three
+places in doppler deliberately allocate more than they use, and the extra space
+is the whole point:
+
+- **`delay` and `hbdecim` allocate twice the capacity** and keep two copies of
+    the window, so *any* `num_taps`-length span is contiguous and a read is one
+    `memcpy` with no wrap-around branch. `delay` first rounds capacity up to a
+    power of two so the index wrap is a mask rather than a modulo — a 33-tap
+    line allocates 128 slots to hold 33.
+- **The ring buffer separates `head`, `tail` and `dropped` by a full cache
+    line** (`DP_ALIGN(DP_CACHELINE)`). Packed together they would share a line,
+    and producer and consumer would invalidate each other's copy on every
+    update — the false-sharing ping-pong.
+- **The ring buffer's storage is double-mapped** into adjacent virtual pages,
+    which costs address space to buy a consumer view that never wraps.
+
+The pattern is the same each time: spend memory to make the *access pattern*
+regular. A power-of-two stride is not always the win, though — when many rows
+share one stride, a power of two makes them collide in the same cache sets, and
+padding the stride to break that up is the fix. Measure the access pattern, not
+just the footprint.
+
+______________________________________________________________________
+
 ## Ring buffers: the one genuine zero-copy contract
 
 `doppler.buffer` is the exception, and the only place where "use it before you

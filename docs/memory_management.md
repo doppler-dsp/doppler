@@ -181,10 +181,37 @@ truncating.
 segment, a slot in a ring you already own, a buffer another library will read
 without a copy. That is a capability the plain form cannot offer at any price.
 
-The second real reason is jitter. `out=` means **no allocator call inside the
-loop**, so the allocator leaves the tail of your latency distribution. If you
-have a deadline rather than a throughput target, that can matter more than the
-mean.
+The second real reason is jitter, **and only for large blocks**. `out=` means
+no allocator call inside the loop, so whatever the allocator was contributing
+to the tail of your latency distribution goes away. Whether that is worth
+anything depends entirely on whether the allocator had a tail to begin with:
+
+| `LO.steps`             | p50    | p99    | max    |
+| ---------------------- | ------ | ------ | ------ |
+| n = 65,536, allocating | 13,184 | 39,503 | 58,570 |
+| n = 65,536, `out=`     | 13,244 | 15,350 | 19,116 |
+| n = 1,024, allocating  | —      | 1,172  | —      |
+| n = 1,024, `out=`      | —      | 1,543  | —      |
+
+At 64k (512 KiB per block) the allocator goes to the OS — `mmap`/`munmap` and
+the page faults that follow — and `out=` buys **2.6× on p99 and 3× on the max**
+for the usual ~60 ns on the median. At 1k (8 KiB) the allocator never leaves
+its free list, so there is no tail to remove and `out=` is worse at p99 *as
+well as* p50: you pay the validation cost and get nothing back.
+
+So the deadline argument is a large-block argument. Do not carry it down to
+small blocks, where it inverts.
+
+!!! note "Don't expect a clean threshold"
+
+    The mechanism is the allocator's `mmap` cutoff — 128 KiB by default in
+    glibc — but that cutoff is **dynamic**: glibc raises it (up to 32 MiB) once
+    it sees mmap'd blocks being freed, precisely so a steady-state loop stops
+    paying for `mmap`. The tail can therefore be large early in a run and
+    shrink later, and the crossover moves with allocation size, run length and
+    what else the process is doing. Treat the two rows above as the shape of
+    the effect, not as a lookup table, and measure your own workload if a
+    deadline depends on it.
 
 What it is *not* is a throughput optimization. Against letting the binding
 allocate the result, passing `out=` is consistently **slower** — the binding
@@ -363,9 +390,10 @@ ______________________________________________________________________
 - **You need the samples in a particular place** — `mmap`, a shared segment, a
     ring slot, a buffer another library reads without copying — use `out=`.
     Allocate it whole and 16-byte aligned.
-- **You have a latency deadline, not a throughput target** — use `out=` to keep
-    the allocator out of the loop, accepting ~60 ns on the mean to shorten the
-    tail.
+- **You have a latency deadline and your blocks are large** — use `out=` to keep
+    the allocator out of the loop, accepting ~60 ns on the median to cut p99 by
+    ~2.6×. For small blocks this argument does not apply: `out=` is worse at
+    p99 too, because there is no allocator tail to remove.
 - **You are holding large blocks in a long-lived loop today** — release each
     block, or pass `out=`, until [604](https://github.com/just-buildit/just-makeit/issues/604)
     lands. This one is a workaround with an expiry date, not a rule.

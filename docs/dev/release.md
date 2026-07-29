@@ -23,6 +23,19 @@ gh pr checks <last-merged-pr>  # spot-check CI was actually green, if in doubt
 just-makeit bench --python-only --tag vX.Y.Z   # local fallback; CI commits automatically on tag push
 ```
 
+!!! tip "`make gates` is the pre-push command — use it on the *work*, not here"
+
+    Every gate CI requires, fail-fast, in one command: `lint changelog-check drift-check doxygen-check docs-check test-all`. Run it before pushing a
+    feature branch, not at release time — by release time it is too late for
+    the cheap ones to help.
+
+    The failure mode it exists for is not a missing check; every one of those
+    targets already existed. It is running six of seven and not noticing which
+    one you skipped. A long branch once reached release day with **88 doxygen
+    warnings** and an **empty `[Unreleased]`**, both introduced ~25 commits
+    earlier, because the doxygen gate lived inline in `ci.yml` with no local
+    equivalent and nothing watched the changelog at all.
+
 ______________________________________________________________________
 
 ## 2. Check examples
@@ -249,20 +262,35 @@ last released version between releases (no post-release dev bump).
 ### Pre-1.0 (where we are)
 
 The **MAJOR** digit stays `0` until we commit to a stable public API and cut
-`1.0.0`. So every current version is **`0.FEATURE.PATCH`**, and — per
-[SemVer §4](https://semver.org/#spec-item-4) — while pre-1.0 a *breaking* change
-also bumps the FEATURE digit (there is nowhere else for it to go yet):
+`1.0.0`, and that has a consequence sharper than it first looks.
+[SemVer §4](https://semver.org/#spec-item-4) says of `0.y.z`: *"Anything MAY
+change at any time. The public API SHOULD NOT be considered stable."* So the
+words "backward compatible" in the table above **do not apply pre-1.0** — the
+qualifier presupposes a stable public API, and there isn't one yet. There is no
+such thing as a backward-compatible-or-not `0.y.z` release.
 
-| Increment       | Pre-1.0 meaning                                               |
-| --------------- | ------------------------------------------------------------- |
-| **MINOR** (`Y`) | a new feature / module / public API, **or** a breaking change |
-| **PATCH** (`Z`) | a backward-compatible bug fix or small additive tweak         |
-| **MAJOR** (`X`) | unused before `1.0.0`                                         |
+Which leaves exactly two questions:
+
+| Increment       | Pre-1.0 meaning                |
+| --------------- | ------------------------------ |
+| **MINOR** (`Y`) | the release adds functionality |
+| **PATCH** (`Z`) | the release only fixes bugs    |
+| **MAJOR** (`X`) | unused before `1.0.0`          |
+
+**Breaking changes do not affect the version.** They are not a tiebreaker, not
+an escalation, and not a reason to hesitate over the bump: `0.y.z` has already
+told users the API is unstable. A release that breaks every signature in the
+library and adds one feature is a MINOR; one that breaks the same signatures
+and only fixes bugs is a PATCH. The whole obligation is to **say so in a
+`### Breaking` section of `CHANGELOG.md`**, which `github-release` publishes
+verbatim as the release notes.
 
 Worked examples: 0.6.0 (waveform generator), 0.7.0 (`read_iq`), 0.8.0 (the
 Python composer subsystem), and 0.9.0 (the `timing` pacing/timestamping
 subsystem) are all **feature** bumps. A bug-fix-only release off 0.8.0 would
-have been 0.8.1.
+have been 0.8.1. 0.39.0 is a feature bump (`wfm.Reader.header`,
+`wfm_kw_check_standard()`) that *also* changed 38 C kernel signatures — the
+breakage is documented under `### Breaking` and had no bearing on the digit.
 
 !!! note "Authoritative record"
 

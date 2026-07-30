@@ -1,5 +1,5 @@
 /*
- * wfm_writer.c — output containers (raw / csv / BLUE-1000) + SigMF meta.
+ * wfm_writer.c — output file types (raw / csv / BLUE-1000) + SigMF meta.
  *
  * Host is assumed little-endian (doppler's targets); big-endian output is
  * produced by reversing each element on the way out.
@@ -7,6 +7,7 @@
 #include "wfm_writer/wfm_writer_core.h"
 
 #include "wfm/wfm_keywords.h"
+#include "wfm/wfm_path.h"
 
 #include <complex.h>
 #include <math.h>
@@ -48,6 +49,12 @@ struct wfm_writer_state
      header where its type survives the round trip. */
   char   hcbkw[92];
   size_t hcbkwlen;
+  /* Kept for the SigMF sidecar, which cannot be written until close() knows
+     the capture completed. A SIGMF writer opened by path also remembers that
+     path, because the sidecar's name is derived from it -- an fp-only writer
+     has no name to derive from and leaves the sidecar to its caller. */
+  double fs, fc;
+  char  *sigmf_path;
 };
 
 /* Update the running peak (always) and, when opted in for an integer wire
@@ -103,6 +110,27 @@ grow (wfm_writer_state_t *w, size_t need)
   return 0;
 }
 
+/* Pack "FREQ=<value>\0" for the HCB keyword area, returning the bytes written
+   (terminator included) or 0 if there is nothing to write.
+
+   ONE formatter, because two different code paths emit this same pair and
+   they must produce identical bytes: the HCB layout below (which also serves
+   the DETACHED header, where there is no writer state and therefore no
+   extended header to hold a typed copy) and the streaming writer's keyword
+   area, whose close()-time patch would otherwise rewrite — or drop — what the
+   header already said. */
+static size_t
+fc_hcb_pair (char *out, size_t cap, double fc)
+{
+  if (fc == 0.0)
+    return 0; /* also the default for "not supplied"; indistinguishable here */
+  int n = snprintf (out, cap, "FREQ=%.17g", fc);
+  if (n <= 0 || (size_t)n + 1u > cap)
+    return 0;
+  out[n] = '\0';
+  return (size_t)n + 1u;
+}
+
 /* Write a complete 512-byte BLUE/Platinum type-1000 Header Control Block.
    data_start = 512 for an attached file (data follows the header), 0 for a
    detached file (data is a separate .det starting at byte 0). detached sets
@@ -114,7 +142,6 @@ wfm_blue_write_hcb (FILE *fp, int sample_type, int endian, double fs,
                     double fc, double data_start, size_t total_samples,
                     int detached)
 {
-  (void)fc; /* no standard centre-frequency field in a type-1000 HCB */
   if (!fp || sample_type < 0 || sample_type > 4)
     return -1;
   int     be     = endian ? 1 : 0;
@@ -138,8 +165,17 @@ wfm_blue_write_hcb (FILE *fp, int sample_type, int endian, double fs,
   h[53] = FMTCH[sample_type];  /* format type: B/I/L/F/D */
   /* flagmask (54), timecode (56), inlet (64), outlets (66), outmask (68),
      pipeloc (72), pipesize (76), in_byte (80), out_byte (88),
-     outbytes[8] (96) = 0. keylength (160) / keywords (164) are patched in
-     by wfm_writer_close once the caller's keywords are known. */
+     outbytes[8] (96) = 0. keylength (160) / keywords (164) start with the
+     centre frequency, if there is one, and are patched again by
+     wfm_writer_close once the caller's own keywords are known. */
+  char   kwarea[92];
+  size_t klen = fc_hcb_pair (kwarea, sizeof kwarea, fc);
+  if (klen)
+    {
+      i32 = (int32_t)klen;
+      put_at (h, 160, &i32, 4, be);
+      memcpy (h + 164, kwarea, klen);
+    }
 
   /* ── type-1000 adjunct (bytes 256..511) ─────────────────────────────── */
   f64 = 0.0;
@@ -153,11 +189,67 @@ wfm_blue_write_hcb (FILE *fp, int sample_type, int endian, double fs,
   return fwrite (h, 1, 512, fp) == 512 ? 0 : -1;
 }
 
+/* Append one ASCII "TAG=VALUE\0" pair to the HCB keyword area (BLUE 1.1
+   3.1.1.24.1). Returns 0 if it fit, -1 if it did not -- the area is a fixed
+   92 bytes inside the header that is already on disk, so there is no growing
+   it. Callers decide what a non-fit means; nothing here silently drops a
+   keyword without telling them. */
+static int
+hcb_kw_append (wfm_writer_state_t *w, const char *tag, const char *value,
+               size_t count)
+{
+  size_t tl = strlen (tag);
+  size_t nb = tl + 1u + count + 1u; /* TAG '=' VALUE NUL */
+  if (tl == 0 || w->hcbkwlen + nb > sizeof w->hcbkw)
+    return -1;
+  char *d = w->hcbkw + w->hcbkwlen;
+  memcpy (d, tag, tl);
+  d[tl] = '=';
+  memcpy (d + tl + 1, value, count);
+  d[tl + 1 + count] = '\0';
+  w->hcbkwlen += nb;
+  return 0;
+}
+
+/* Record a BLUE capture's centre frequency, in BOTH places a reader looks.
+
+   Type-1000 has no HCB field for it -- the adjunct's xstart/xdelta/xunits
+   describe the abscissa, not the RF -- so it travels as a keyword, and there
+   is no standard tag: 3.1.2.6.4.4 defines FREQ only as a type-6000 COLUMN
+   name, explicitly "not keyword names". FREQ is nonetheless what captures in
+   the wild carry, and they carry it in the HCB keyword area as ASCII.
+
+   So both copies are written, deliberately:
+
+   - The extended header gets a typed 'D'. This is the 3.4-compliant home for
+     a non-standard keyword, it survives at full double precision, and it does
+     not compete for the 92-byte HCB area.
+   - The HCB area gets an ASCII mirror, which is where an X-Midas reader will
+     actually look. 3.4 reserves that area for six standard keywords and warns
+     that X-Midas may DELETE a user keyword found there to make room for
+     IO/VER -- which is exactly why it is the mirror and not the original. If
+     it is dropped, or does not fit, the typed copy is still there.
+
+   The reader resolves the pair by preferring the typed value, so the two can
+   never be read as disagreeing. This is why is_hcb_keyword's closed list is
+   not widened: a general user keyword still has no business in that area, and
+   this one exception is a documented interop concession, not a policy change.
+   fc == 0.0 writes nothing -- it is also the default for "not supplied", and
+   the two are indistinguishable at this layer. */
+static void
+emit_fc_keyword (wfm_writer_state_t *w, double fc)
+{
+  (void)wfm_writer_add_keyword (w, "FREQ", 'D', &fc, 1);
+  /* Seed the keyword area with exactly the bytes wfm_blue_write_hcb has just
+     put on disk, so that a close()-time re-patch (which any other HCB keyword
+     triggers) rewrites it unchanged rather than overwriting it away. */
+  w->hcbkwlen = fc_hcb_pair (w->hcbkw, sizeof w->hcbkw, fc);
+}
+
 wfm_writer_state_t *
 wfm_writer_open (FILE *fp, wfm_filetype_t ft, int sample_type, int endian,
                  double fs, double fc, size_t total_samples)
 {
-  (void)fc;
   if (!fp || sample_type < 0 || sample_type > 4 || ft < 0 || ft > 3)
     return NULL;
   wfm_writer_state_t *w = calloc (1, sizeof (*w));
@@ -168,6 +260,8 @@ wfm_writer_open (FILE *fp, wfm_filetype_t ft, int sample_type, int endian,
   w->stype = sample_type;
   w->be    = endian ? 1 : 0;
   w->gain  = 1.0f;
+  w->fs    = fs;
+  w->fc    = fc;
   if (ft == WFM_FT_BLUE
       && wfm_blue_write_hcb (fp, sample_type, w->be, fs, fc, 512.0,
                              total_samples, 0))
@@ -175,6 +269,8 @@ wfm_writer_open (FILE *fp, wfm_filetype_t ft, int sample_type, int endian,
       free (w);
       return NULL;
     }
+  if (ft == WFM_FT_BLUE && fc != 0.0)
+    emit_fc_keyword (w, fc);
   return w;
 }
 
@@ -303,21 +399,12 @@ wfm_writer_add_keyword (wfm_writer_state_t *w, const char *tag, char type,
      Only the six standard main-header keywords qualify, and only as ASCII
      (the area has no type field, so a numeric value would come back a
      string). Everything else goes to the extended header below. */
-  if (type == 'A' && is_hcb_keyword (tag))
-    {
-      size_t tl = strlen (tag);
-      size_t nb = tl + 1u + count + 1u; /* TAG '=' VALUE NUL */
-      if (tl > 0 && w->hcbkwlen + nb <= sizeof w->hcbkw)
-        {
-          char *d = w->hcbkw + w->hcbkwlen;
-          memcpy (d, tag, tl);
-          d[tl] = '=';
-          memcpy (d + tl + 1, value, count);
-          d[tl + 1 + count] = '\0';
-          w->hcbkwlen += nb;
-          return 0;
-        }
-    }
+  if (type == 'A' && is_hcb_keyword (tag)
+      && hcb_kw_append (w, tag, (const char *)value, count) == 0)
+    return 0;
+  /* A standard keyword that did not fit falls through to the extended header
+     rather than being lost — its meaning is defined by its tag, and 3.4's
+     own remedy for a full HCB area is to move keywords out of it. */
 
   size_t need = wfm_kw_entry_size (strlen (tag), count * esz);
   if (w->kwlen + need > w->kwcap)
@@ -414,6 +501,38 @@ wfm_writer_get_clipped (const wfm_writer_state_t *w)
   return wfm_writer_peak (w) > 1.0 && w->stype >= 2;
 }
 
+/* Emit the `<base>.sigmf-meta` sidecar for a path-opened SigMF writer.
+
+   SigMF is a PAIR: the data half is undecodable on its own, because the
+   datatype, sample rate and centre frequency live only in the sidecar. A
+   writer that emits one half is not writing a lean capture, it is writing an
+   unreadable one — which is what this used to do unless the caller went
+   through Composer and produced the JSON itself.
+
+   Written at close, not at open, because the annotations describe a completed
+   capture. A plain Writer has no scene to annotate, so `annotations` comes out
+   empty; wfmgen and Composer pass their segments and get the labelled version.
+   Returns 0 on success. */
+static int
+write_sigmf_sidecar (wfm_writer_state_t *w)
+{
+  char meta_path[1024];
+  wfm_swap_ext (w->sigmf_path, ".sigmf-meta", meta_path, sizeof meta_path);
+  char *json = wfm_sigmf_meta_json (w->stype, w->be, w->fs, w->fc, NULL, 0);
+  if (!json)
+    return -1;
+  FILE *mf = fopen (meta_path, "w");
+  int   rc = -1;
+  if (mf)
+    {
+      rc = (fputs (json, mf) >= 0) ? 0 : -1;
+      if (fclose (mf) != 0)
+        rc = -1;
+    }
+  free (json);
+  return rc;
+}
+
 int
 wfm_writer_close (wfm_writer_state_t *w)
 {
@@ -455,6 +574,12 @@ wfm_writer_close (wfm_writer_state_t *w)
         }
       else if (w->fp && fflush (w->fp) != 0)
         rc = -1;
+      /* After the data half is safely down: a sidecar advertising a capture
+         that failed to write would be worse than no sidecar at all. */
+      if (rc == 0 && w->ft == WFM_FT_SIGMF && w->sigmf_path
+          && write_sigmf_sidecar (w) != 0)
+        rc = -1;
+      free (w->sigmf_path);
       free (w->kw);
       free (w->buf);
       free (w);
@@ -482,6 +607,17 @@ wfm_writer_create (const char *path, int file_type, int sample_type,
                    int endian, double fs, double fc, size_t total,
                    double headroom)
 {
+  /* A SigMF capture is a PAIR whose two halves are found by name:
+     `<base>.sigmf-data` holds the samples, `<base>.sigmf-meta` holds the
+     datatype without which they cannot be decoded. Naming is part of the
+     format, not decoration, so the extension is required rather than
+     silently corrected -- writing `other.bin` plus `other.sigmf-meta` would
+     produce a pair no SigMF reader looks for, and rewriting the caller's path
+     under them would be a worse surprise than saying so. */
+  if (file_type == WFM_FT_SIGMF
+      && !(strlen (path) >= 11
+           && strcmp (path + strlen (path) - 11, ".sigmf-data") == 0))
+    return NULL;
   FILE *fp = fopen (path, "wb");
   if (!fp)
     return NULL;
@@ -493,6 +629,16 @@ wfm_writer_create (const char *path, int file_type, int sample_type,
       return NULL;
     }
   w->owns_fp = 1;
+  /* A path-opened SigMF writer can derive its sidecar's name, so it owns the
+     whole pair. (wfm_writer_open takes a FILE* with no name attached and
+     cannot, which is why the sidecar is a create()-only guarantee.) */
+  if (w->ft == WFM_FT_SIGMF)
+    {
+      size_t n      = strlen (path) + 1u;
+      w->sigmf_path = (char *)malloc (n);
+      if (w->sigmf_path)
+        memcpy (w->sigmf_path, path, n);
+    }
   /* headroom dB → a single output gain (10^(-H/20)); 0 dB is a no-op. Folded
    * in here so headroom is a plain ctor arg, not a create_post over a non-ctor
    * param the generated create-call would mis-pass. */

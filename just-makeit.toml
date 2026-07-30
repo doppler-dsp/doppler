@@ -1883,6 +1883,13 @@ values = ["le", "be"]
 name = "sample_mode"
 values = ["complex", "scalar"]
 
+# Where Reader.fc was read from. Order IS wfm_fc_source_t
+# (wfm_reader_core.h): "none" is index 0, then one entry per tag in the
+# reader's FC_TAGS search order, then the SigMF JSON key.
+[[enum]]
+name = "fc_source"
+values = ["none", "FREQ", "RF_FREQ", "CENTER_FREQ", "F_C", "core:frequency"]
+
 [[enum]]
 name = "interp_method"
 values = ["floor", "nearest", "linear"]

@@ -72,7 +72,7 @@ a **shared noise floor**. A one-source Segment is essentially "a Synth with a
 duration". So the rule of thumb:
 
 - **Just need samples of one waveform?** Build a `Synth`, call `.steps(n)`.
-- **Need mixing, timing, sequencing, or a container?** Wrap Synths in
+- **Need mixing, timing, sequencing, or a file type?** Wrap Synths in
     `Segment` → `Timeline` → `Composer`.
 
 ______________________________________________________________________

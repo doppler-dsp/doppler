@@ -238,6 +238,10 @@ static const char *const _enum_Reader_endian[] = {
   NULL,
 };
 
+static const char *const _enum_Reader_fc_source[] = {
+  "none", "FREQ", "RF_FREQ", "CENTER_FREQ", "F_C", "core:frequency", NULL,
+};
+
 static PyObject *
 Reader_getprop_file_type (ReaderObject *self, void *Py_UNUSED (closure))
 {
@@ -351,6 +355,38 @@ Reader_getprop_num_samples (ReaderObject *self, void *Py_UNUSED (closure))
   /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromUnsignedLongLong (
       (unsigned long long)wfm_reader_get_num_samples (self->handle));
+}
+static PyObject *
+Reader_getprop_fc_source (ReaderObject *self, void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  /* <<IMPLEMENT: return the computed or stored value>> */
+  long _v = (long)(wfm_reader_get_fc_source (self->handle));
+  if (_v < 0 || _v >= 6)
+    {
+      PyErr_Format (PyExc_ValueError,
+                    "fc_source holds out-of-range fc_source value %ld"
+                    " (valid: 0..5)",
+                    _v);
+      return NULL;
+    }
+  return PyUnicode_FromString (_enum_Reader_fc_source[_v]);
+}
+static PyObject *
+Reader_getprop_trailing_bytes (ReaderObject *self, void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  /* <<IMPLEMENT: return the computed or stored value>> */
+  return PyLong_FromUnsignedLongLong (
+      (unsigned long long)wfm_reader_get_trailing_bytes (self->handle));
 }
 static PyObject *
 Reader_decode_keywords (const wfm_keyword_t *_e)
@@ -693,15 +729,78 @@ Reader_getprop_header (ReaderObject *self, void *Py_UNUSED (closure))
 }
 
 static PyGetSetDef Reader_getset[] = {
-  { "file_type", (getter)Reader_getprop_file_type, NULL, "File type.\n",
+  { "file_type", (getter)Reader_getprop_file_type, NULL,
+    "Which file type the capture turned out to be -- `\"raw\"`, `\"csv\"`, "
+    "`\"blue\"` or `\"sigmf\"`. Detected from the file's CONTENT, not its "
+    "name, so a CSV called `capture.dat` reports `\"csv\"` and a BLUE file "
+    "called `capture.csv` reports `\"blue\"`. `\"raw\"` is also the fallback "
+    "for a file nothing else recognised, so it means \"headerless interleaved "
+    "I/Q at the sample_type you passed\" rather than a positive "
+    "identification.\n",
     NULL },
-  { "sample_type", (getter)Reader_getprop_sample_type, NULL, "Sample type.\n",
+  { "sample_type", (getter)Reader_getprop_sample_type, NULL,
+    "The wire sample type the samples are being decoded FROM -- `\"cf32\"`, "
+    "`\"cf64\"`, `\"ci32\"`, `\"ci16\"` or `\"ci8\"`. For BLUE and SigMF this "
+    "was read from the file's metadata and is authoritative; for raw and CSV "
+    "it is simply the hint passed to the constructor, echoed back. `read()` "
+    "returns `complex64` at unit scale regardless.\n",
     NULL },
-  { "mode", (getter)Reader_getprop_mode, NULL, "Mode.\n", NULL },
-  { "endian", (getter)Reader_getprop_endian, NULL, "Endian.\n", NULL },
-  { "fs", (getter)Reader_getprop_fs, NULL, "Fs.\n", NULL },
-  { "fc", (getter)Reader_getprop_fc, NULL, "Fc.\n", NULL },
-  { "num_samples", (getter)Reader_getprop_num_samples, NULL, "Num samples.\n",
+  { "mode", (getter)Reader_getprop_mode, NULL,
+    "Components per wire sample: `\"complex\"` for interleaved I/Q, "
+    "`\"scalar\"` for a real capture. Only BLUE carries this (its `format` "
+    "field's mode designator, `C` or `S`); every other file type is complex. "
+    "A scalar capture still reads back as `complex64` -- the imaginary part "
+    "is exactly 0, so a real signal lands on the real axis.\n",
+    NULL },
+  { "endian", (getter)Reader_getprop_endian, NULL,
+    "Byte order of the samples on the wire, `\"le\"` or `\"be\"`. Read from "
+    "the metadata for BLUE (the HCB's `head_rep`) and SigMF (the `_be`/`_le` "
+    "datatype suffix); for raw it is the constructor hint echoed back. CSV is "
+    "text and ignores it.\n",
+    NULL },
+  { "fs", (getter)Reader_getprop_fs, NULL,
+    "Sample rate in Hz, or 0.0 when the container does not carry one. BLUE "
+    "derives it from the header's `xdelta` (fs = 1/xdelta); SigMF reads "
+    "`core:sample_rate`. Raw and CSV have nowhere to record a rate, so they "
+    "always report 0.0 -- whatever rate the capture was taken at has to "
+    "travel with it by other means.\n",
+    NULL },
+  { "fc", (getter)Reader_getprop_fc, NULL,
+    "Centre frequency in Hz, or 0.0 when nothing in the capture declares one. "
+    "**0.0 is ambiguous on its own** -- a genuine baseband capture and a "
+    "capture whose frequency could not be found report the same number -- so "
+    "read `fc_source` alongside it: `\"none\"` there is what distinguishes "
+    "them. SigMF takes it from `captures[0][\"core:frequency\"]`; BLUE from a "
+    "`FREQ` keyword (see `fc_source` for the tags tried), in either the ASCII "
+    "HCB keyword area or the typed extended header. Raw and CSV carry no "
+    "metadata at all.\n",
+    NULL },
+  { "num_samples", (getter)Reader_getprop_num_samples, NULL,
+    "Total samples in the capture, or 0 when the container cannot say. BLUE "
+    "takes it from the header's `data_size`; raw and SigMF divide the file "
+    "length by the sample stride. A CSV has to be counted, so the first read "
+    "of this property scans the file once (the scan is exact -- it parses "
+    "rows the same way `read` does -- and leaves the read position alone); "
+    "every later read is free.\n",
+    NULL },
+  { "fc_source", (getter)Reader_getprop_fc_source, NULL,
+    "Which piece of metadata `fc` was read from -- the keyword's own tag "
+    "(`\"FREQ\"`, `\"RF_FREQ\"`, `\"CENTER_FREQ\"`, `\"F_C\"`), "
+    "`\"core:frequency\"` for SigMF, or `\"none\"` when nothing carried it. "
+    "Check this before trusting `fc == 0.0`: `\"none\"` means not found, "
+    "anything else means the capture really does say 0 Hz. BLUE type-1000 has "
+    "no header field for centre frequency, so an RF capture conveys it as a "
+    "keyword; `FREQ` in the HCB keyword area is the X-Midas convention and is "
+    "tried first.\n",
+    NULL },
+  { "trailing_bytes", (getter)Reader_getprop_trailing_bytes, NULL,
+    "Payload bytes left over after the last whole sample; 0 for a capture "
+    "whose declared sample type and mode match its content, and always 0 for "
+    "CSV. Non-zero means either the `sample_type`/`endian` hint is wrong for "
+    "a headerless container or the capture is truncated -- the reader cannot "
+    "tell which, and stops at the last complete sample either way. This is "
+    "the only signal available for a raw file: a wrong hint does not fail, it "
+    "returns plausible garbage at the wrong stride.\n",
     NULL },
   { "keywords", (getter)Reader_getprop_keywords, NULL,
     "The BLUE extended header as a {tag: value} dict, in file order; empty "
@@ -787,7 +886,7 @@ static PyTypeObject ReaderObjType = {
   .tp_basicsize                           = sizeof (ReaderObject),
   .tp_dealloc                             = (destructor)ReaderObj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,
-  .tp_doc     = "Open a capture, auto-detecting its container.\n",
+  .tp_doc = "Open a capture, auto-detecting its container from its content.\n",
   .tp_methods = ReaderObj_methods,
   .tp_getset  = Reader_getset,
   .tp_new     = ReaderObj_new,

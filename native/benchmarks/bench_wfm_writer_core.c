@@ -1,4 +1,4 @@
-/* bench_wfm_writer_core.c — container write throughput (MSa/s) per format.
+/* bench_wfm_writer_core.c — file type write throughput (MSa/s) per format.
  *
  * Isolates the codec (quantise + byte order + framing) from disk by writing to
  * an in-memory stream (open_memstream), so the numbers reflect conversion

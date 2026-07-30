@@ -1,4 +1,4 @@
-# wfm_writer — the output-container Writer (raw / CSV / BLUE-1000 / SigMF).
+# wfm_writer — the output-side Writer (raw / CSV / BLUE-1000 / SigMF).
 #
 # The dual of wfm_reader, migrated the same way. Its state struct stays private:
 # the three statistics are computed properties, so jm declares the accessors and
@@ -11,7 +11,7 @@ no_state = "true"
 no_step = "true"
 class_name = "Writer"
 create_error = "OSError"
-create_error_message = "cannot open the capture for writing (check the path, the directory, and permissions)"
+create_error_message = "cannot open the capture for writing: check the path, the directory, and permissions -- and note that file_type=\"sigmf\" requires a path ending in .sigmf-data, since a SigMF capture is a <base>.sigmf-data + <base>.sigmf-meta pair found by name"
 # A writer has nothing coherent to reset -- the samples are on disk and the
 # written count drives the BLUE data_size patch that close() applies. gh-542
 # removes the method entirely rather than shipping a no-op or a hand-written
@@ -120,11 +120,14 @@ params = [
 [[wfm_writer.properties]]
 name = "clip_fraction"
 type = "double"
+doc = """Fraction (0..1) of I/Q components that saturated. Always 0.0 unless `track_clipping()` was enabled before writing -- the counter is the one extra per-sample compare, so it is opt-in. `peak_dbfs` is always tracked and is enough to tell you clipping happened; this tells you how much."""
 
 [[wfm_writer.properties]]
 name = "peak_dbfs"
 type = "double"
+doc = """Largest per-axis magnitude written so far, in dBFS (full scale = 0 dBFS, so a value above 0 means an integer capture clipped). Always tracked. It is also the remedy: back off by `ceil(peak_dbfs)` dB of `headroom` and the capture fits. Float wire types never clip but still report a peak. `-inf` before anything is written."""
 
 [[wfm_writer.properties]]
 name = "clipped"
 type = "bool"
+doc = """True if an integer capture saturated -- `peak_dbfs > 0` and the wire type is one of `ci32`/`ci16`/`ci8`. Always False for `cf32`/`cf64`, which cannot clip: a float sample above full scale is merely loud."""

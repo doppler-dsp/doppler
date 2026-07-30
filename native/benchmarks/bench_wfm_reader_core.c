@@ -1,4 +1,4 @@
-/* bench_wfm_reader_core.c — container read throughput (MSa/s) per format.
+/* bench_wfm_reader_core.c — file type read throughput (MSa/s) per format.
  *
  * The dual of bench_wfm_writer. Each config is written once to a temp file
  * (page-cache-warm), then the timed loop opens + drains it, so the numbers

@@ -1,9 +1,9 @@
-# Waveform I/O — One Capture, Four Containers
+# Waveform I/O — One Capture, Four File Types
 
 ![waveform I/O demo](../assets/wfm_io_demo.png)
 
 A waveform has to land somewhere. `doppler.wfm` writes the same `complex64`
-samples to four containers and reads each back — the same C codec behind the
+samples to four file types and reads each back — the same C codec behind the
 `wfmgen` CLI's `--file-type`. The trade is metadata for size and simplicity.
 
 ## What you're seeing
@@ -11,7 +11,7 @@ samples to four containers and reads each back — the same C codec behind the
 The same QPSK capture written to **raw**, **CSV**, **BLUE type-1000**, and
 **SigMF**, then read back; each panel overlays the round-tripped spectrum on the
 original (they coincide — the codec is lossless for `cf32`) and annotates the
-on-disk size and the metadata the container recovered:
+on-disk size and the metadata the file type recovered:
 
 - **raw** — bare interleaved I/Q. Smallest and fastest, but **no metadata**: the
     reader must be *told* the sample type, and `fs`/`fc` are not stored.
@@ -28,7 +28,7 @@ on-disk size and the metadata the container recovered:
 - **SigMF** — a `.sigmf-data` + `.sigmf-meta` JSON pair; the most self-describing,
     recovering **both** `fs` and `fc` (and one annotation per segment).
 
-`Reader` auto-detects the container (BLUE magic / `.sigmf-meta` sidecar / `.csv`
+`Reader` auto-detects the file type (BLUE magic / `.sigmf-meta` sidecar / `.csv`
 extension / else raw); raw is the one case that needs a `sample_type` hint.
 
 ## Building it
@@ -43,7 +43,7 @@ x = comp.compose()
 # BLUE: one self-describing file — fs/fc tagged on write, recovered on read.
 with Writer("cap.blue", file_type="blue", sample_type="cf32", fs=1e6, fc=2.4e9) as w:
     w.write(x)
-with Reader("cap.blue") as r:                 # container auto-detected
+with Reader("cap.blue") as r:                 # file type auto-detected
     y, fs = r.read(r.num_samples), r.fs        # fs recovered from the header
 
 # SigMF is a pair: Writer lays down .sigmf-data; Composer.to_sigmf() the sidecar.
@@ -54,7 +54,7 @@ open("cap.sigmf-meta", "w").write(
 )
 ```
 
-The CLI writes the same containers — `wfmgen --file-type raw|csv|blue|sigmf` —
+The CLI writes the same file types — `wfmgen --file-type raw|csv|blue|sigmf` —
 byte-for-byte identical to the Python `Writer`.
 
 ## BLUE detached (`.hdr` + `.det`)
@@ -132,7 +132,7 @@ print(clock.samples, clock.underruns, clock.max_lateness)
 ## Reproduce
 
 ```sh
-python src/doppler/examples/wfm_io_demo.py          # the four-container figure (.png)
+python src/doppler/examples/wfm_io_demo.py          # the four-file type figure (.png)
 python src/doppler/examples/wfm_realtime_stream.py  # paced NATS publish + recv stats
 ```
 
@@ -141,7 +141,7 @@ for the full `Writer` / `Reader` surface.
 
 ## See also
 
-- [Guide: Output & containers](../guide/wfmgen/output.md#containers) — the
-    flag/parameter reference for the four containers shown here.
+- [Guide: Output & file types](../guide/wfmgen/output.md#file-types) — the
+    flag/parameter reference for the four file types shown here.
 - [Guide: Streaming](../guide/wfmgen/streaming.md) — real-time pacing for the
     NATS sink used above.

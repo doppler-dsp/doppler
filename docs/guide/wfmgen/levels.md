@@ -55,7 +55,7 @@ So clipping is governed by **PAPR**, not by something being "signal" vs "noise":
     just carry envelope-varying signals as a **float** type (`cf32` / `cf64`),
     which never clips.
 
-`Reader` (see [Output & containers](output.md)) inverts the same map, so a float
+`Reader` (see [Output & file types](output.md)) inverts the same map, so a float
 round-trip is exact and an integer round-trip is exact only where it neither
 clipped nor truncated.
 

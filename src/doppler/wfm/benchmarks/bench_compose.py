@@ -1,6 +1,6 @@
-"""Benchmark for the Writer / Reader container codecs.
+"""Benchmark for the Writer / Reader file type codecs.
 
-Round-trip throughput per container and sample type: the Writer quantises +
+Round-trip throughput per file type and sample type: the Writer quantises +
 frames, the Reader parses + dequantises. Both delegate the hot loop to C.
 
 Run: pytest src/doppler/wfm/benchmarks/bench_compose.py --benchmark-only

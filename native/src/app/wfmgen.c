@@ -2,7 +2,7 @@
  * wfmgen.c — the waveform-generator composer CLI (Phase C, hand-written).
  *
  * The rich sibling of the generated `wavegen` single-shot tool: it sequences
- * multi-segment specs (`--from-file`), emits any output container
+ * multi-segment specs (`--from-file`), emits any output file type
  * (raw/csv/BLUE/SigMF, `--file-type`) in any wire type / byte order, streams
  * to a file, stdout, or a NATS PUB subject (`--output nats://…`), and writes a
  * JSON record of exactly what it produced (`--record`). All of it is thin glue
@@ -1110,7 +1110,7 @@ doppler_wfmgen (int   argc, /* NOLINT(readability-function-size) */
     }
   else
     {
-      /* file / stdout container. SigMF writes <base>.sigmf-data + -meta. */
+      /* file / stdout destination. SigMF writes <base>.sigmf-data + -meta. */
       int   sigmf = (file_type == 3);
       FILE *fp;
       char  data_path[1024];

@@ -269,6 +269,7 @@ nav:
       - Waveforms: guide/wfmgen/waveforms.md
       - Levels & SNR: guide/wfmgen/levels.md
       - Output & Containers: guide/wfmgen/output.md
+      - Reading Captures: guide/wfmgen/reading.md
       - Scenes: guide/wfmgen/scenes.md
       - DSSS Bursts: guide/wfmgen/dsss-bursts.md
       - Streaming: guide/wfmgen/streaming.md

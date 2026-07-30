@@ -9,7 +9,7 @@ golden-path proof that what a user `pip install`s actually works on Python 3.9:
      the bundled C binary runs under 3.9;
   3. generate every waveform type via `Synth`/factories; FFT-verify the tone
      peak and the noise power (loose tolerances);
-  4. `Composer` -> write all four containers (raw / csv / blue / sigmf) across
+  4. `Composer` -> write all four file types (raw / csv / blue / sigmf) across
      representative sample types -> `Reader` round-trip, asserting
      sample count, dtype, and a correlation check;
   5. `to_json` -> `from_json` parity; `to_sigmf` JSON parses with the expected
@@ -227,7 +227,7 @@ def _write_sigmf(
 
 
 def _roundtrip(file_type: str, sample_type: str) -> None:
-    """Write a tone capture in one container/dtype and read it back."""
+    """Write a tone capture in one file type/dtype and read it back."""
     n = 512
     with tempfile.TemporaryDirectory() as d:
         if file_type == "sigmf":
@@ -263,8 +263,8 @@ def _roundtrip(file_type: str, sample_type: str) -> None:
         assert corr > 0.999, f"{file_type}/{sample_type}: corr {corr:.4f}"
 
 
-@check("container round-trips (raw/csv/blue/sigmf)")
-def _containers() -> str:
+@check("file type round-trips (raw/csv/blue/sigmf)")
+def _file_types() -> str:
     for ft, st in (
         ("raw", "cf32"),
         ("raw", "ci16"),
@@ -273,7 +273,7 @@ def _containers() -> str:
         ("sigmf", "ci16"),
     ):
         _roundtrip(ft, st)
-    return "5 container/dtype combos"
+    return "5 file type/dtype combos"
 
 
 @check("Reader across sample types")

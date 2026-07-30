@@ -60,10 +60,18 @@ repos:
         # (see the note in this file's header), so the resolved versions drift
         # between a warm local cache and a fresh CI env.
         exclude: '^docs/(c-api/|benchmarks\.md$)|^docs/.*/archive/|^examples/[^/]+/docs/'
+        # PINNED, like every `rev:` above. Unpinned, these resolve at hook-env
+        # creation time — so a warm local cache and a fresh CI runner can hold
+        # different versions and disagree about the SAME file. That is not
+        # theoretical: it landed a `docs/api.md` that passed `make lint`
+        # locally and failed the CI pre-commit job, and the two renderings
+        # differed in whether an mkdocstrings `options:` block kept its
+        # indentation. Bump these deliberately (with `pre-commit autoupdate`
+        # for the revs, and by hand here), never incidentally.
         additional_dependencies:
-          - mdformat-gfm
-          - mdformat-gfm-alerts
-          - mdformat-mkdocs
+          - mdformat-gfm==1.0.0
+          - mdformat-gfm-alerts==2.1.0
+          - mdformat-mkdocs==5.2.1
 
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0

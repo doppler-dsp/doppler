@@ -271,14 +271,19 @@ anchor. To snapshot a specific non-release commit, trigger it manually:
 gh workflow run benchmark.yml -f tag=<label>
 ```
 
-**Per-PR regression gate.** A second workflow,
-[`perf-regression.yml`](https://github.com/doppler-dsp/doppler/blob/main/.github/workflows/perf-regression.yml),
-benchmarks the PR base (`main`) and the PR head on the *same* runner and
-flags any entry that regresses past its threshold (30%) via
-`just-makeit bench --check`. It is **advisory** (`continue-on-error`):
-microbenchmark wall-times are too noisy in shared CI to block a merge, so
-it surfaces regressions for a human to judge rather than failing the
-build.
+**There is no per-PR regression gate.** There was one — a
+`perf-regression.yml` workflow that benchmarked the PR base and head on one
+runner and flagged anything past 30% — and it was removed, because it reported
+regressions whose sign reversed when the same comparison was run locally
+([#543](https://github.com/doppler-dsp/doppler/issues/543)). An advisory gate
+nobody trusts costs attention and buys nothing.
+
+What replaced it is the local path, which is sound: **`make bench-interleaved VERSION=X.Y.Z`** builds both sides in worktrees and runs them *alternately*
+K times (K=5), keeping the per-benchmark best, so drift on the machine cannot
+be charged to one side. That alternation is exactly what the CI gate lacked —
+it always ran base first and head second. `make bench-baseline` and
+`make bench-check` are still here for a two-point comparison you drive
+yourself.
 
 **Local runs are throwaway.** Run `just-makeit bench` locally to
 spot-check a change before you push, but **do not commit the result**.

@@ -13,6 +13,23 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+### Removed
+
+- **The per-PR performance regression gate (`perf-regression.yml`).** It
+    reported regressions whose sign reversed when the same comparison was run
+    locally, and being advisory (`continue-on-error`) it could not be trusted
+    in either direction — an advisory gate nobody believes costs attention and
+    buys nothing. It was never a required status check, so no PR behaviour
+    changes. See [#543](https://github.com/doppler-dsp/doppler/issues/543).
+
+    **Benchmarking is unaffected.** `make bench-interleaved` remains the sound
+    comparison — it builds both sides in worktrees and runs them *alternately*,
+    keeping the per-benchmark best, which is precisely what the CI gate lacked
+    (it always ran base first and head second, charging any drift on the runner
+    to the head). `make bench-baseline`, `make bench-check` and
+    `[project.bench]` are all kept: the fault was in the harness, not in the
+    comparison.
+
 ## [0.39.0] — 2026-07-29
 
 ### Breaking

@@ -18,8 +18,8 @@ their order change under a regeneration (``PSD``, ``Specan``,
 ``AccTrace`` -- string-enum params stopped sorting to the front) and five
 more drifted in arity. All eight lived in fixture-only files, so the suite
 stayed green while ``make bench`` could not have run; the perf-regression
-workflow is ``continue-on-error``, so it never reported the breakage
-either.
+workflow (since removed) was ``continue-on-error``, so it never reported
+the breakage either.
 
 The fix in the fixtures themselves is to construct with **keywords**,
 which no reorder can touch. This gate is the backstop that keeps the

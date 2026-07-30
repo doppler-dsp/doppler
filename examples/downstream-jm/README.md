@@ -135,9 +135,9 @@ located declaratively rather than by hand-editing CMake.
 
 ______________________________________________________________________
 
-## Two just-makeit gotchas this example hit
+## Three just-makeit gotchas this example hit
 
-Worth knowing before you write your own manifest — both cost real time here:
+Worth knowing before you write your own manifest — each cost real time here:
 
 - **A property `doc` must be a single physical line.** jm 0.33.15 escapes
     embedded quotes when it emits the doc into the C `PyGetSetDef`, but not
@@ -149,6 +149,36 @@ Worth knowing before you write your own manifest — both cost real time here:
 - **`_ext_<obj>.c` fragments are sacred**, so editing a `doc` (or anything else
     that only affects them) and re-running `jm apply` changes nothing. Delete
     the fragment and re-apply to pick the change up.
+- **`[project] c_style = "clang-format"` is incompatible with
+    `jm status --check`.** `jm apply` formats the regenerated `*_ext.c`
+    aggregator, but `status` compares against an *unformatted* regeneration, so
+    the formatted file it just wrote reads as permanently stale and the drift
+    gate can never pass. This example therefore does **not** set `c_style`; the
+    aggregator stays in jm's own style and is excluded from doppler's
+    clang-format (`_ext\.c$`), which is the same posture doppler itself takes.
+    Filed as
+    [jm#635](https://github.com/just-buildit/just-makeit/issues/635).
+    The per-object `_ext_<obj>.c` fragments *are* formatted — jm treats
+    fragment bodies as sacred and does not diff them, so that causes no drift.
+
+______________________________________________________________________
+
+## How this is gated
+
+The example is built and tested by doppler's own CI, so it cannot rot:
+
+| gate                                  | what it covers                                          | where it runs                                                                                      |
+| ------------------------------------- | ------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `make test-example-downstream`        | configure + build + CTest, **`BUILD_PYTHON=OFF`**       | inside `make test-examples` — ubuntu, macOS, **and the glibc 2.28 container**, which has no Python |
+| `make test-example-downstream-python` | builds the extension, runs this project's pytest        | inside `make test-examples-python` — the Python matrix job                                         |
+| `make drift-check`                    | `jm status --check` **for this project's own manifest** | the `jm manifest drift gate` job                                                                   |
+
+The C half is deliberately Python-free so the question that matters most —
+*can a downstream project link `libdoppler.a`?* — is answered on three
+platforms including an ancient glibc, not just where NumPy happens to exist.
+
+The drift gate uses **doppler's pinned jm** (`uv run --project <repo>`), so
+this example cannot silently document a jm version doppler is not on.
 
 ______________________________________________________________________
 

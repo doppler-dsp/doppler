@@ -99,7 +99,8 @@ endif
         debug release blazing bump-version check-version tag-release \
         release-watch ship docs-check \
         doxygen-check doxygen-warn-gate changelog-check gates \
-        test-examples test-examples-python install-deps setup clean help
+        test-examples test-examples-python test-example-downstream \
+        test-example-downstream-python install-deps setup clean help
 
 # ── default ──────────────────────────────────────────────────────────────────
 all: build
@@ -254,7 +255,44 @@ test-examples: build
 	else \
 	    echo "FAIL"; exit 1; \
 	fi
+	@$(MAKE) --no-print-directory test-example-downstream
 	@echo "All C example smoke tests passed."
+
+# ── test-example-downstream ───────────────────────────────────────────────────
+# The downstream just-makeit project (examples/downstream-jm) built the way a
+# real consumer builds it: `find_package(doppler)` against this build tree, and
+# linking libdoppler.a. Its own CTest suite writes captures with doppler's
+# writer and reads them back through the façade, so it exercises the whole
+# consume-doppler path, not just the link line.
+#
+# BUILD_PYTHON=OFF deliberately: this target runs inside `test-examples`, which
+# CI also runs in the debian:buster-slim glibc container where there is no
+# Python and no NumPy. The Python half of the example is gated separately in
+# test-examples-python. Keeping the C half Python-free means the "can a
+# downstream link libdoppler.a" question gets answered on ubuntu, macOS AND
+# glibc 2.28.
+DOWNSTREAM_DIR := examples/downstream-jm
+# Build trees live under doppler's BUILD_DIR, not inside the example: the
+# example is a jm project and `jm status` walks its tree, so a build dir there
+# would be scanned on every drift check.
+DOWNSTREAM_BUILD_DIR := $(BUILD_DIR)/downstream-jm
+test-example-downstream: build
+	@echo "Building downstream jm example (C only, links libdoppler.a)..."
+	@cmake -B $(DOWNSTREAM_BUILD_DIR) $(DOWNSTREAM_DIR) \
+	    -Ddoppler_DIR=$(abspath $(BUILD_DIR)) \
+	    -DBUILD_PYTHON=OFF \
+	    -DCMAKE_BUILD_TYPE=Release \
+	    > /dev/null 2>&1 || { echo "  configure FAILED"; exit 1; }
+	@cmake --build $(DOWNSTREAM_BUILD_DIR) --parallel $(NPROC) \
+	    > /dev/null 2>&1 || { echo "  build FAILED"; exit 1; }
+	@printf "  %-20s" "downstream-jm"; \
+	if $(CTEST) --test-dir $(DOWNSTREAM_BUILD_DIR) > /dev/null 2>&1; then \
+	    echo "PASS"; \
+	else \
+	    echo "FAIL"; \
+	    $(CTEST) --test-dir $(DOWNSTREAM_BUILD_DIR) --output-on-failure; \
+	    exit 1; \
+	fi
 
 
 # Fail-closed: every src/doppler/examples/*.py (plus the standalone
@@ -263,6 +301,28 @@ test-examples: build
 # mandatory). See src/doppler/tests/test_examples.py.
 test-examples-python:
 	uv run pytest -m examples -q src/doppler/tests/test_examples.py
+	@$(MAKE) --no-print-directory test-example-downstream-python
+
+# The Python half of the downstream example: build its extension against the
+# same interpreter pytest will use, then run its own suite. Separate from the
+# C half because `test-examples` also runs in a Python-free CI container.
+#
+# The suite is the point of the example, not a smoke test -- it pins that the
+# jm `view` really is a second constructor over one core (`RawCapture` reads a
+# headerless capture correctly where `Capture` silently reads half of it), so a
+# regression in jm's view codegen fails here rather than in someone's project.
+test-example-downstream-python:
+	@echo "Building downstream jm example (Python extension)..."
+	@cmake -B $(DOWNSTREAM_BUILD_DIR)-py $(DOWNSTREAM_DIR) \
+	    -Ddoppler_DIR=$(abspath $(BUILD_DIR)) \
+	    -DBUILD_PYTHON=ON \
+	    -DPython3_EXECUTABLE=$$(uv run python -c 'import sys; print(sys.executable)') \
+	    -DCMAKE_BUILD_TYPE=Release \
+	    > /dev/null 2>&1 || { echo "  configure FAILED"; exit 1; }
+	@cmake --build $(DOWNSTREAM_BUILD_DIR)-py --parallel $(NPROC) \
+	    > /dev/null 2>&1 || { echo "  build FAILED"; exit 1; }
+	PYTHONPATH=$(abspath $(DOWNSTREAM_DIR))/src \
+	    uv run pytest -q $(DOWNSTREAM_DIR)/src/iqtools/capture/tests/
 
 # ── test-all ──────────────────────────────────────────────────────────────────
 test-all: test test-examples python-test test-examples-python
@@ -324,6 +384,14 @@ bench: pyext
 drift-check:
 	uv sync --group dev --no-install-project
 	uv run just-makeit status --check
+	@echo "── downstream jm example ──"
+# The example is a just-makeit project in its own right, so its generated
+# bindings/stubs/CMake can drift from its manifest exactly like doppler's can.
+# Checked with the SAME pinned jm (`uv run` from this project), so the example
+# cannot silently document a jm version doppler is not on. `cd` in a recipe
+# line is scoped to that line's subshell, so this does not affect the rule
+# above.
+	cd $(DOWNSTREAM_DIR) && uv run --project $(CURDIR) just-makeit status --check
 
 # The advisory perf gate (CI's `perf regression` job), both halves. BASELINE
 # records the PR base under a tag; CHECK benches the head and compares.

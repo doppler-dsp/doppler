@@ -85,7 +85,7 @@ in time. No `+`/`-` operators.
     reference. One known-stale entry: `sigmf_meta` (row below) no longer
     exists as a standalone function — it's the generated
     `Composer.to_sigmf()` method (see
-    [Output guide](../../guide/wfmgen/output.md)).
+    [Output guide](../../guide/wfm-io/writing.md)).
 
 ### A · CLI flags (`wavegen`/`wfmgen`)
 

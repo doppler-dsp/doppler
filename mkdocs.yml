@@ -216,6 +216,7 @@ nav:
       - "Python: Source (NCO / LO / AWGN)": api/python-nco.md
       - "Python: Impairment (DopplerChannel)": api/python-impairment.md
       - "Python: Waveform Generator (Synth / PN)": api/python-wfmgen.md
+      - "Python: Capture I/O (Reader / Writer)": api/python-wfm-io.md
       - "Python: FIR Filter": api/python-filter.md
       - "Python: DDC": api/python-ddc.md
       - "Python: Resample": api/python-resample.md
@@ -268,14 +269,16 @@ nav:
       - Concepts: guide/wfmgen/concepts.md
       - Waveforms: guide/wfmgen/waveforms.md
       - Levels & SNR: guide/wfmgen/levels.md
-      - Output & Containers: guide/wfmgen/output.md
-      - Reading Captures: guide/wfmgen/reading.md
       - Scenes: guide/wfmgen/scenes.md
       - DSSS Bursts: guide/wfmgen/dsss-bursts.md
       - Streaming: guide/wfmgen/streaming.md
       - Python API: guide/wfmgen/python.md
       - Prepare Once, Sweep Many (Plan): guide/wfmgen/plan.md
       - Recipes: guide/wfmgen/recipes.md
+  - Capture I/O:
+      - Capture I/O: guide/wfm-io/index.md
+      - Writing Captures: guide/wfm-io/writing.md
+      - Reading Captures: guide/wfm-io/reading.md
   - Spectrum Analyzer: specan/index.md
   - CLI & Pipelines:
       - CLI & Pipelines: cli/index.md

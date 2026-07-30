@@ -1,7 +1,7 @@
 # Recipes
 
 Copy-paste starting points. Every flag is documented in
-[Waveforms](waveforms.md), [Output & file types](output.md), and
+[Waveforms](waveforms.md), [Output & file types](../wfm-io/writing.md), and
 [Scenes](scenes.md).
 
 ```sh

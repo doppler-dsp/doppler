@@ -16,6 +16,10 @@ Source:
 These same C cores back the one command-line tool, `wfmgen` — see the
 [Waveform Generator guide](../guide/wfmgen/index.md).
 
+**Reading or writing a capture file is on its own page** — [Python: Capture
+I/O](python-wfm-io.md) covers `Reader`, `Writer` and `write_blue_header`, with
+the [Capture I/O guide](../guide/wfm-io/index.md) as the narrative version.
+
 ______________________________________________________________________
 
 ## `Synth` — the eight-type waveform engine
@@ -304,28 +308,15 @@ sweep; a `bits(...)` plays a user pattern); or construct `Synth(...)` directly.
 In a `Segment.sum` the per-synth `snr` resolves
 into one shared noise floor, and each synth's `level` (dBFS) sets its share.
 
-`Reader` is the **dual of `Writer`** — it reads a capture back to `complex64`,
-auto-detecting the file type (BLUE magic / `.sigmf-meta` sidecar / `.csv` / raw)
-and recovering `fs`/`fc`/sample type from BLUE and SigMF metadata. All parsing
-and conversion is in C:
+**Getting samples into and out of a file is its own topic** — `Writer`, its dual
+`Reader`, content-based file-type detection, and what metadata each file type
+survives are all on [Python: Capture I/O](python-wfm-io.md). For SigMF, pair a
+`Writer(..., file_type="sigmf")` data file with `Composer(...).to_sigmf(...)`,
+which is the piece that knows the scene and can therefore annotate it.
 
-```python
-from doppler.wfm import Composer, Writer, Reader
-
-iq = Composer(type="qpsk", sps=8, num_samples=4096).compose()
-with Writer("capture.blue", file_type="blue") as w:  # write a BLUE file type
-    w.write(iq)
-with Reader("capture.blue") as r:          # file type auto-detected
-    print(r.file_type, r.fs, r.num_samples)
-    x = r.read(r.num_samples)               # or block-wise: r.read(4096)
-```
-
-`Writer` pairs with `Reader` for a full round-trip; for SigMF, pair a
-`Writer(..., file_type="sigmf")` data file with
-`Composer(...).to_sigmf(...)`, and for detached BLUE use `write_blue_header(...)`. The
-`StreamSink` is POSIX-only. DSP
-helpers `rrc_taps(beta, sps, span)` and `dsss_spread(syms, code, sf)` expose the
-pulse-shaping and spreading primitives.
+The `StreamSink` is POSIX-only. DSP helpers `rrc_taps(beta, sps, span)` and
+`dsss_spread(syms, code, sf)` expose the pulse-shaping and spreading
+primitives.
 
 `SampleClock` (POSIX) paces and timestamps a stream against an ideal `fs`-Hz
 clock — the same C core behind the `wfmgen --realtime` CLI flag. Use it to
@@ -360,10 +351,6 @@ and `SampleClock(fs, resync=True)` re-anchors to "now" on each underrun.
 
 ::: doppler.wfm.compose.Timeline
 
-::: doppler.wfm.compose.Writer
-
-::: doppler.wfm.compose.Reader
-
 ::: doppler.wfm.compose.StreamSink
 
 ::: doppler.wfm.compose.SampleClock
@@ -371,9 +358,8 @@ and `SampleClock(fs, resync=True)` re-anchors to "now" on each underrun.
 ### Module-level helpers
 
 The SigMF sidecar is now `Composer(...).to_sigmf(...)` — see the `Composer`
-class above.
-
-::: doppler.wfm.write_blue_header
+class above. `write_blue_header` (detached BLUE headers) is on [Python: Capture
+I/O](python-wfm-io.md#module-level-helpers).
 
 ::: doppler.wfm.rrc_taps
 
@@ -433,8 +419,7 @@ rather than returning wrong samples).
 <!-- related-pages:start -->
 
 **Gallery** — [Async DSSS Receiver: the SPEC waveform through coupled Doppler](../gallery/async-dsss-receiver-spec.md), [CarrierAcquisition: RRC Pulse Shaping](../gallery/carrier-acq-rrc.md), [A Crowded Band — Many Signals, One Parallel `prepare`](../gallery/crowded-band.md), [DSSS Acquisition — Pd / Pfa vs Es/N0](../gallery/dsss-acq-characterization.md), [A 5-Burst DSSS Link — wfmgen's Three Faces, the Full Receiver Chain](../gallery/dsss-burst-pipeline.md), [Gallery](../gallery/index.md), [One Cache Slot for a Whole Background Field](../gallery/plan-background.md), [Prepare Once, Sweep Many — the `Plan` stimulus engine](../gallery/plan.md), [type="symbols" — Bring Your Own Constellation](../gallery/symbols.md), [Composing a Scene — `.sum()`, `.add()`, and Headroom](../gallery/wfm-composition.md), [Waveform I/O — One Capture, Four File Types](../gallery/wfm-io.md), [Waveform Write — Compose, Write, Read Back](../gallery/wfm-write.md), [wfmgen — One Engine, Every Waveform](../gallery/wfmgen.md)
-**Guides** — [Real-Time Pacing & Timestamping](../guide/timing.md), [Concepts — the object model](../guide/wfmgen/concepts.md), [DSSS bursts — a burst train in one declaration](../guide/wfmgen/dsss-bursts.md), [Waveform Generator — `wfmgen`](../guide/wfmgen/index.md), [Levels & SNR](../guide/wfmgen/levels.md), [Output & file types](../guide/wfmgen/output.md), [Prepare Once, Sweep Many — the `Plan` engine](../guide/wfmgen/plan.md), [Python API](../guide/wfmgen/python.md), [Reading captures](../guide/wfmgen/reading.md), [Scenes — multi-segment specs](../guide/wfmgen/scenes.md), [Streaming — real-time pacing](../guide/wfmgen/streaming.md), [Waveforms](../guide/wfmgen/waveforms.md)
+**Guides** — [Real-Time Pacing & Timestamping](../guide/timing.md), [Reading captures](../guide/wfm-io/reading.md), [Writing captures — output & file types](../guide/wfm-io/writing.md), [Concepts — the object model](../guide/wfmgen/concepts.md), [DSSS bursts — a burst train in one declaration](../guide/wfmgen/dsss-bursts.md), [Waveform Generator — `wfmgen`](../guide/wfmgen/index.md), [Prepare Once, Sweep Many — the `Plan` engine](../guide/wfmgen/plan.md), [Python API](../guide/wfmgen/python.md), [Scenes — multi-segment specs](../guide/wfmgen/scenes.md), [Streaming — real-time pacing](../guide/wfmgen/streaming.md), [Waveforms](../guide/wfmgen/waveforms.md)
 **Design** — [API taxonomy: the DSP building-block hierarchy and its naming axis](../design/api-taxonomy.md), [DsssReceiver Specifications](../design/async-dsss-spec.md), [Design](../design/index.md), [MPSK Receiver](../design/mpsk.md), [Waveform amplitude & composition](../design/wfmgen-composition.md)
-**Contributing** — [Release Checklist](../dev/release.md)
 
 <!-- related-pages:end -->

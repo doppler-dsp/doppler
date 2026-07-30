@@ -44,13 +44,18 @@ ______________________________________________________________________
 | [Concepts](concepts.md)                    | The object model — **Synth · Segment · Timeline · Composer**. Read this first. |
 | [Waveforms](waveforms.md)                  | The eight `--type`s, PN/MLS codes, RRC pulse shaping.                          |
 | [Levels & SNR](levels.md)                  | Unit-average-power, full-scale, clipping, headroom, the SNR model.             |
-| [Output & file types](output.md)           | Sample types, raw/CSV/BLUE/SigMF, byte order, sinks.                           |
-| [Reading captures](reading.md)             | `Reader`, file type auto-detection, what metadata each file type carries.      |
 | [Scenes](scenes.md)                        | Multi-segment specs, `sum`/`add`, seeds, ranged values, `--record`.            |
 | [Streaming](streaming.md)                  | Real-time pacing and streaming to NATS.                                        |
 | [Python API](python.md)                    | The `Synth` class, the composer builders, reading captures back.               |
 | [Prepare Once, Sweep Many (Plan)](plan.md) | Bit-exact sweep cache — fast Monte Carlo / BER curves, no re-synthesis.        |
 | [Recipes](recipes.md)                      | Copy-paste one-liners and how `wfmgen` is packaged.                            |
+
+**Getting the samples into a file, and back out again, is
+[Capture I/O](../wfm-io/index.md)** — a section of its own, because reading a
+capture has nothing to do with generating one and most captures worth reading
+were not generated here. [Writing captures](../wfm-io/writing.md) has the
+`--sample-type` / `--file-type` / `--endian` / `--output` reference for the
+flags above.
 
 ______________________________________________________________________
 

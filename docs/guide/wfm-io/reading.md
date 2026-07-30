@@ -1,6 +1,6 @@
 # Reading captures
 
-`doppler.wfm.Reader` is the dual of [`Writer`](output.md): it opens a capture,
+`doppler.wfm.Reader` is the dual of [`Writer`](writing.md): it opens a capture,
 works out what file type it is, and streams unit-scale `complex64` samples out
 of it.
 
@@ -206,6 +206,6 @@ tmpdir.cleanup()
 
 For a capture with per-segment **annotations** — ground truth for scoring a
 detector — build it through
-[`Composer`](python.md), which knows the scene; a plain `Writer` has nothing to
+[`Composer`](../wfmgen/python.md), which knows the scene; a plain `Writer` has nothing to
 annotate and emits an empty `annotations` array. The sidecar's schema is
-documented in [Output & file types](output.md#sigmf-sidecar-schema).
+documented in [Output & file types](writing.md#sigmf-sidecar-schema).

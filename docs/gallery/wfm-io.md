@@ -141,7 +141,7 @@ for the full `Writer` / `Reader` surface.
 
 ## See also
 
-- [Guide: Output & file types](../guide/wfmgen/output.md#file-types) — the
+- [Guide: Output & file types](../guide/wfm-io/writing.md#file-types) — the
     flag/parameter reference for the four file types shown here.
 - [Guide: Streaming](../guide/wfmgen/streaming.md) — real-time pacing for the
     NATS sink used above.

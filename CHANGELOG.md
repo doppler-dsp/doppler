@@ -13,6 +13,31 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+### Changed
+
+- **Capture I/O is documented as its own topic, not as part of the waveform
+    generator.** `Reader` and `Writer` rendered on a page titled *"Python:
+    Waveform Generator (Synth / PN)"* and their guides sat under the
+    *"Waveform Generator (wfmgen)"* nav section, so someone holding an IQ file
+    had no path to the class that opens it — and most captures worth reading
+    were not generated here in the first place. Reading a capture and
+    generating a waveform are now independently findable:
+
+    - new **[Python: Capture I/O](docs/api/python-wfm-io.md)** API page holds
+        `Reader`, `Writer` and `write_blue_header`;
+    - new top-level **Capture I/O** guide section holds
+        [Writing captures](docs/guide/wfm-io/writing.md) (moved from
+        `guide/wfmgen/output.md`) and
+        [Reading captures](docs/guide/wfm-io/reading.md) (moved from
+        `guide/wfmgen/reading.md`), with a landing page covering the round
+        trip and the two ambiguities a capture reader has to know about.
+
+    **Two guide URLs changed**, since there is no redirects plugin:
+    `guide/wfmgen/output.md` → `guide/wfm-io/writing.md` and
+    `guide/wfmgen/reading.md` → `guide/wfm-io/reading.md`. Every in-repo link
+    was updated; the `wfmgen` guide and API pages now point into the new
+    section. See [#545](https://github.com/doppler-dsp/doppler/issues/545).
+
 ### Added
 
 - **`Reader.fc` now reads a BLUE capture's centre frequency**, and

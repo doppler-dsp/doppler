@@ -37,6 +37,17 @@ ______________________________________________________________________
     from a reading. The C core is pure glue — every function forwards into
     `wfm_reader_*`, so no DSP is duplicated.
 
+    **It is gated in CI, so it cannot rot.** Three gates, all driven from the
+    Makefile and folded into jobs that already exist:
+    `make test-example-downstream` (configure + build + CTest, deliberately
+    `BUILD_PYTHON=OFF` so it also runs in the Python-free glibc 2.28
+    container — answering "can a downstream link `libdoppler.a`?" on three
+    platforms); `make test-example-downstream-python` (builds the extension,
+    runs the example's own suite, which is what pins the view's behaviour); and
+    `make drift-check`, which now also runs `jm status --check` against the
+    example's *own* manifest using doppler's pinned jm. Each was verified to
+    fail when its subject breaks, not merely to pass today.
+
 ### Changed
 
 - **Capture I/O is documented as its own topic, not as part of the waveform

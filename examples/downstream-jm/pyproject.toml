@@ -1,0 +1,19 @@
+[build-system]
+requires = ["just-buildit", "numpy"]
+build-backend = "just_buildit"
+
+[project]
+name = "iqtools"
+version = "0.1.0"
+description = "TODO: describe your project."
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "numpy",
+]
+
+[tool.just-buildit]
+command = "make just-build"
+
+[tool.pytest.ini_options]
+testpaths = ["src"]

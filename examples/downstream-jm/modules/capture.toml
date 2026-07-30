@@ -1,0 +1,16 @@
+# The one extension module this example ships.
+#
+# `extra_link_libs` is what makes this a *downstream* project: the module's .so
+# links doppler's STATIC library and compiles against its public headers.
+# Nothing of doppler is rebuilt, vendored or copied in here.
+#
+# `doppler::doppler-static` is an imported CMake target from the
+# `find_package(doppler REQUIRED)` that `[project] find_packages` generates
+# into the root CMakeLists. It carries its own INTERFACE_INCLUDE_DIRECTORIES,
+# so there is no `extra_include_dirs` to keep in sync — pointing at doppler is
+# one line, in one place, and entirely declarative.
+#
+# Swap to `doppler::doppler` for the shared library instead.
+[module.capture]
+objects = ["capture"]
+extra_link_libs = ["doppler::doppler-static", "m"]

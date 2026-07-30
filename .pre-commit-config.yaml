@@ -35,7 +35,14 @@ repos:
         # formatted (jm never rewrites those). The vendored FFT cores
         # (Reinecke pocketfft / Pommier PFFFT) live under vendor/ and are
         # excluded globally above — kept pristine.
-        exclude: '^native/inc/|_ext\.c$'
+        #
+        # `(^|/)` rather than `^`: examples/downstream-jm is a SEPARATE jm
+        # project living in-tree, with its own native/inc that `jm apply`
+        # regenerates the same way. An anchored pattern misses it, and
+        # clang-format then ping-pongs with jm over its generated iqtools.h
+        # forever (reproduced: format, apply reverts, repeat). Any future
+        # nested jm project is covered by the same pattern.
+        exclude: '(^|/)native/inc/|_ext\.c$'
 
   - repo: https://github.com/hukkin/mdformat
     rev: 1.0.0
@@ -46,7 +53,13 @@ repos:
         # its tables on every regen → spurious diffs). Archived docs under
         # docs/**/archive/ are frozen snapshots — not reformatted (and one trips
         # a plugin render-consistency bug across mdformat-gfm versions).
-        exclude: '^docs/(c-api/|benchmarks\.md$)|^docs/.*/archive/'
+        #
+        # examples/*/docs/ is the docs stub `jm new` scaffolds for a nested jm
+        # project; `jm apply` recreates it, so mdformat must not own it. It also
+        # formatted differently here than in CI — these plugins are unpinned
+        # (see the note in this file's header), so the resolved versions drift
+        # between a warm local cache and a fresh CI env.
+        exclude: '^docs/(c-api/|benchmarks\.md$)|^docs/.*/archive/|^examples/[^/]+/docs/'
         additional_dependencies:
           - mdformat-gfm
           - mdformat-gfm-alerts
@@ -65,9 +78,9 @@ repos:
       - id: check-merge-conflict
       - id: end-of-file-fixer
         # generated glue is byte-owned by jm; don't let whitespace fixers drift it
-        exclude: '\.pyi$|^native/inc/|_ext\.c$|^native/src/[^/]+/CMakeLists\.txt$'
+        exclude: '\.pyi$|(^|/)native/inc/|_ext\.c$|(^|/)native/src/[^/]+/CMakeLists\.txt$'
       - id: trailing-whitespace
-        exclude: '\.pyi$|^native/inc/|_ext\.c$|^native/src/[^/]+/CMakeLists\.txt$'
+        exclude: '\.pyi$|(^|/)native/inc/|_ext\.c$|(^|/)native/src/[^/]+/CMakeLists\.txt$'
 
   - repo: local
     hooks:
@@ -79,7 +92,9 @@ repos:
         entry: clang-tidy
         language: system
         types_or: [c]
-        exclude: '^native/inc/|_ext\.c$'
+        # same `(^|/)` generalisation as clang-format above — a nested jm
+        # project's native/inc is generated too.
+        exclude: '(^|/)native/inc/|_ext\.c$'
         stages: [pre-push]
 
       # Generated-doc drift: the `## Related pages` blocks (docs/api/*.md),

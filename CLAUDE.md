@@ -207,6 +207,24 @@ git add src/doppler/tests/test_state_serialization.py
 
 ______________________________________________________________________
 
+## CI gates — current state
+
+The adoption sections below are **dated notes**, kept as a record. Many of
+them say the jm drift gate is pinned in `ci.yml` + `perf-regression.yml`; that
+was true when each was written.
+
+**As of 2026-07-30 there is no `perf-regression.yml`.** It was removed
+([#543](https://github.com/doppler-dsp/doppler/issues/543)) — it reported
+regressions whose sign reversed locally, and being `continue-on-error` it
+could not be trusted either way. The jm pin therefore lives in `ci.yml` alone
+(plus `just-makeit.toml`'s `jm_version` and `pyproject.toml`'s dev-group pin).
+
+Benchmarking did not go away: `make bench-interleaved` is the sound
+comparison (alternating repeats across two worktrees), and `bench-baseline` /
+`bench-check` remain. See `docs/dev/benchmarking.md`.
+
+______________________________________________________________________
+
 ## Known post-apply patches
 
 These apply to all block-I/O objects (`--preset blockwise`/`generator`):

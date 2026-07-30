@@ -13,6 +13,38 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+### Added
+
+- **`Reader.fc` now reads a BLUE capture's centre frequency**, and
+    **`Reader.fc_source`** says where it came from. Type-1000 has no HCB
+    field for centre frequency, so an RF capture carries it as a keyword —
+    doppler ignored every one of them and reported `0.0`, indistinguishable
+    from a genuine baseband capture, on files it did not write. Both
+    encodings are accepted: ASCII in the HCB keyword area (BLUE 1.1
+    §3.1.1.24.1, which is where captures in the wild put it) and a typed
+    value in the extended header. The conventional tags are tried in order —
+    `FREQ`, `RF_FREQ`, `CENTER_FREQ`, `F_C` — and `fc_source` reports which
+    answered, or `"none"`. Check it before trusting `fc == 0.0`: `"none"` is
+    the only thing that distinguishes "not found" from a capture that really
+    does declare 0 Hz. A value that is not a bare number (`FREQ=2.4 GHz`) is
+    left alone rather than guessed at, and stays visible in `.keywords`.
+- **`Writer(..., fc=...)` now records it for BLUE**, in both places a reader
+    looks: a typed `FREQ` in the extended header (§3.4-compliant, full
+    double precision) and an ASCII `FREQ=<value>` mirror in the HCB keyword
+    area (where X-Midas looks, and where §3.4 warns it may be deleted to make
+    room for `IO`/`VER` — hence the mirror, not the original). Detached
+    headers written by `write_blue_header` carry it too. `fc=0.0` writes
+    nothing, since it is also the default for "not supplied".
+- **`Reader.trailing_bytes`** — payload bytes past the last whole sample.
+    Non-zero means the `sample_type`/`endian` hint is wrong for a headerless
+    container, or the capture is truncated. A headerless container cannot
+    check a hint against the file, so a wrong one does not fail; it returns
+    plausible garbage at the wrong stride, and this is the only signal there
+    was none of.
+- **[Reading captures](docs/guide/wfmgen/reading.md)** — a new guide, with a
+    table of what metadata each container actually preserves in each
+    direction.
+
 ### Removed
 
 - **The per-PR performance regression gate (`perf-regression.yml`).** It
@@ -32,6 +64,22 @@ ______________________________________________________________________
 
 ### Fixed
 
+- **`Reader` now detects the container from the file's CONTENT**, not its
+    extension. A CSV called `capture.dat` reads as CSV instead of being
+    decoded as binary IQ; a BLUE file called `capture.csv` reads as BLUE. The
+    name is still consulted where content cannot decide — a `.det` payload,
+    and a CSV whose first line is a column header.
+- **`Reader.num_samples` is no longer 0 for a CSV**, which read as "empty
+    capture". The count is exact (rows are parsed the way `read` parses them)
+    and lazy: the scan happens on the first read of the property, so opening
+    stays O(1) and a caller that never asks never pays.
+- **`Writer(file_type="sigmf")` writes its `.sigmf-meta` sidecar.** It used
+    to emit only the samples, and the datatype lives exclusively in the
+    sidecar — so the result was not a lean capture but an undecodable one,
+    and a working pair required going through `Composer`. Because both halves
+    are found by name, the path must now end in `.sigmf-data`; anything else
+    is refused with a message saying so, rather than silently producing a
+    pair no SigMF reader will find.
 - **`make changelog-check` no longer fails on every release PR.** Promotion
     moves each entry out of `[Unreleased]` and into `## [X.Y.Z]`, so the notes
     exist — they are simply no longer where the gate looked, and it failed the

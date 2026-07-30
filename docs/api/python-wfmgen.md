@@ -261,7 +261,7 @@ flowchart LR
 
 A `Composer` turns a `Segment` / `Timeline` / segment-list into samples,
 optionally looping (`repeat`) or running forever (`continuous`); `Writer`
-serialises to the four containers (raw / CSV / BLUE type-1000 / SigMF), and
+serialises to the four file types (raw / CSV / BLUE type-1000 / SigMF), and
 `StreamSink` publishes over NATS (requires a `nats-server` reachable at the
 endpoint). The resolved spec round-trips through JSON, so a
 capture is fully reproducible.
@@ -305,7 +305,7 @@ In a `Segment.sum` the per-synth `snr` resolves
 into one shared noise floor, and each synth's `level` (dBFS) sets its share.
 
 `Reader` is the **dual of `Writer`** — it reads a capture back to `complex64`,
-auto-detecting the container (BLUE magic / `.sigmf-meta` sidecar / `.csv` / raw)
+auto-detecting the file type (BLUE magic / `.sigmf-meta` sidecar / `.csv` / raw)
 and recovering `fs`/`fc`/sample type from BLUE and SigMF metadata. All parsing
 and conversion is in C:
 
@@ -313,9 +313,9 @@ and conversion is in C:
 from doppler.wfm import Composer, Writer, Reader
 
 iq = Composer(type="qpsk", sps=8, num_samples=4096).compose()
-with Writer("capture.blue", file_type="blue") as w:  # write a BLUE container
+with Writer("capture.blue", file_type="blue") as w:  # write a BLUE file type
     w.write(iq)
-with Reader("capture.blue") as r:          # container auto-detected
+with Reader("capture.blue") as r:          # file type auto-detected
     print(r.file_type, r.fs, r.num_samples)
     x = r.read(r.num_samples)               # or block-wise: r.read(4096)
 ```
@@ -432,8 +432,8 @@ rather than returning wrong samples).
 
 <!-- related-pages:start -->
 
-**Gallery** — [Async DSSS Receiver: the SPEC waveform through coupled Doppler](../gallery/async-dsss-receiver-spec.md), [CarrierAcquisition: RRC Pulse Shaping](../gallery/carrier-acq-rrc.md), [A Crowded Band — Many Signals, One Parallel `prepare`](../gallery/crowded-band.md), [DSSS Acquisition — Pd / Pfa vs Es/N0](../gallery/dsss-acq-characterization.md), [A 5-Burst DSSS Link — wfmgen's Three Faces, the Full Receiver Chain](../gallery/dsss-burst-pipeline.md), [Gallery](../gallery/index.md), [One Cache Slot for a Whole Background Field](../gallery/plan-background.md), [Prepare Once, Sweep Many — the `Plan` stimulus engine](../gallery/plan.md), [type="symbols" — Bring Your Own Constellation](../gallery/symbols.md), [Composing a Scene — `.sum()`, `.add()`, and Headroom](../gallery/wfm-composition.md), [Waveform I/O — One Capture, Four Containers](../gallery/wfm-io.md), [Waveform Write — Compose, Write, Read Back](../gallery/wfm-write.md), [wfmgen — One Engine, Every Waveform](../gallery/wfmgen.md)
-**Guides** — [Real-Time Pacing & Timestamping](../guide/timing.md), [Concepts — the object model](../guide/wfmgen/concepts.md), [DSSS bursts — a burst train in one declaration](../guide/wfmgen/dsss-bursts.md), [Waveform Generator — `wfmgen`](../guide/wfmgen/index.md), [Levels & SNR](../guide/wfmgen/levels.md), [Output & containers](../guide/wfmgen/output.md), [Prepare Once, Sweep Many — the `Plan` engine](../guide/wfmgen/plan.md), [Python API](../guide/wfmgen/python.md), [Scenes — multi-segment specs](../guide/wfmgen/scenes.md), [Streaming — real-time pacing](../guide/wfmgen/streaming.md), [Waveforms](../guide/wfmgen/waveforms.md)
+**Gallery** — [Async DSSS Receiver: the SPEC waveform through coupled Doppler](../gallery/async-dsss-receiver-spec.md), [CarrierAcquisition: RRC Pulse Shaping](../gallery/carrier-acq-rrc.md), [A Crowded Band — Many Signals, One Parallel `prepare`](../gallery/crowded-band.md), [DSSS Acquisition — Pd / Pfa vs Es/N0](../gallery/dsss-acq-characterization.md), [A 5-Burst DSSS Link — wfmgen's Three Faces, the Full Receiver Chain](../gallery/dsss-burst-pipeline.md), [Gallery](../gallery/index.md), [One Cache Slot for a Whole Background Field](../gallery/plan-background.md), [Prepare Once, Sweep Many — the `Plan` stimulus engine](../gallery/plan.md), [type="symbols" — Bring Your Own Constellation](../gallery/symbols.md), [Composing a Scene — `.sum()`, `.add()`, and Headroom](../gallery/wfm-composition.md), [Waveform I/O — One Capture, Four File Types](../gallery/wfm-io.md), [Waveform Write — Compose, Write, Read Back](../gallery/wfm-write.md), [wfmgen — One Engine, Every Waveform](../gallery/wfmgen.md)
+**Guides** — [Real-Time Pacing & Timestamping](../guide/timing.md), [Concepts — the object model](../guide/wfmgen/concepts.md), [DSSS bursts — a burst train in one declaration](../guide/wfmgen/dsss-bursts.md), [Waveform Generator — `wfmgen`](../guide/wfmgen/index.md), [Levels & SNR](../guide/wfmgen/levels.md), [Output & file types](../guide/wfmgen/output.md), [Prepare Once, Sweep Many — the `Plan` engine](../guide/wfmgen/plan.md), [Python API](../guide/wfmgen/python.md), [Reading captures](../guide/wfmgen/reading.md), [Scenes — multi-segment specs](../guide/wfmgen/scenes.md), [Streaming — real-time pacing](../guide/wfmgen/streaming.md), [Waveforms](../guide/wfmgen/waveforms.md)
 **Design** — [API taxonomy: the DSP building-block hierarchy and its naming axis](../design/api-taxonomy.md), [DsssReceiver Specifications](../design/async-dsss-spec.md), [Design](../design/index.md), [MPSK Receiver](../design/mpsk.md), [Waveform amplitude & composition](../design/wfmgen-composition.md)
 **Contributing** — [Release Checklist](../dev/release.md)
 

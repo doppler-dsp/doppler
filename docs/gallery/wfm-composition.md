@@ -88,7 +88,7 @@ wfmgen --from-file run.json                                  -o b.cf32
 ## See also
 
 - [Waveform Generator guide](../guide/wfmgen/index.md) — the full flag/parameter
-    reference, containers (BLUE/SigMF), and the
+    reference, file types (BLUE/SigMF), and the
     [mixing/sequencing](../guide/wfmgen/scenes.md#mixing-sources-sum-and-sequencing-them-add)
     section.
 - [Waveform amplitude & composition](../design/wfmgen-composition.md) — the

@@ -5,7 +5,7 @@ engine behind the ``wfmgen`` CLI, exposed here as classes. A
 :class:`Composer` strings :class:`Segment` specs (tone / noise / PN / BPSK /
 QPSK, each with its own on-time and trailing gap) into one stream, optionally
 looping (``repeat``) or running forever (``continuous``). :class:`Writer`
-serialises samples to the same containers as the CLI (raw interleaved I/Q,
+serialises samples to the same file types as the CLI (raw interleaved I/Q,
 CSV, BLUE type-1000, SigMF), and :class:`StreamSink` publishes them over
 NATS. The composer's resolved spec round-trips through JSON
 (:meth:`Composer.to_json` / :meth:`Composer.from_json`), so a capture is
@@ -21,7 +21,7 @@ composer lives entirely in the ``.so``; ``jm`` owns the binding). They are
 sample generation
 (:meth:`Synth.steps`), the ``pattern`` / ``f_start`` input sugar, the flat
 single-source :class:`Segment` view, :meth:`Composer.stream`, and the resolved
-:meth:`Composer.to_dict` are all generated. The container writers/readers
+:meth:`Composer.to_dict` are all generated. The file type writers/readers
 (:class:`Writer` / :class:`Reader` / :class:`StreamSink`), the sample clock,
 and :func:`write_blue_header` are likewise generated extension types/functions
 re-exported here; the :class:`Plan` wrapper (with its save/restore factories)

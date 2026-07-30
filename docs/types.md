@@ -142,7 +142,7 @@ integer types, the scale too — so it's worth knowing what each type costs:
 There is no complex-integer dtype, so integer captures deinterleave and rescale
 to `complex64` (±1.0) on read; the float types are already the memory layout of
 a complex array. [`Reader`](api/python-wfmgen.md) does the conversion in C — any
-wire type to unit-scale `complex64` — and auto-detects the container (BLUE /
+wire type to unit-scale `complex64` — and auto-detects the file type (BLUE /
 SigMF / CSV / raw), so it also recovers `fs`/`fc`/sample-type from a
 self-describing header:
 
@@ -155,7 +155,7 @@ from doppler.wfm import Reader
 with Reader("capture.iq", sample_type="ci16") as r:
     iq = r.read(r.num_samples)                     # complex64, rescaled to ±1.0
 
-# self-describing container: sample_type comes from the metadata
+# self-describing file type: sample_type comes from the metadata
 with Reader("capture.blue") as r:
     iq = r.read(r.num_samples)
 

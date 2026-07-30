@@ -1,8 +1,8 @@
 /*
- * wfm_reader.c — input containers for generated IQ (the dual of wfm_writer).
+ * wfm_reader.c — input file types for generated IQ (the dual of wfm_writer).
  *
  * Auto-detects raw / CSV / BLUE type-1000 (attached or detached) / SigMF and
- * yields unit-scale float complex samples. Container parsing and the wire→unit
+ * yields unit-scale float complex samples. File-type parsing and the wire→unit
  * conversion live here, in C; the Python `Reader` is a thin binding.
  */
 #include "wfm_reader/wfm_reader_core.h"
@@ -14,6 +14,7 @@
 
 #include "cJSON.h"
 #include "wfm/wfm_keywords.h"
+#include "wfm/wfm_path.h"
 
 /* per sample_type (0 cf32, 1 cf64, 2 ci32, 3 ci16, 4 ci8) — mirror wfm_writer
  */
@@ -31,7 +32,7 @@ struct wfm_reader_state
   int            endian;      /* 0 le, 1 be */
   double         fs, fc;      /* Hz; 0 if unknown */
   size_t         num_samples; /* total complex samples; 0 if unknown */
-  uint8_t       *scratch;     /* read buffer for binary containers */
+  uint8_t       *scratch;     /* read buffer for binary file types */
   size_t         scratch_cap;
   wfm_keyword_t *kw; /* decoded extended-header keywords (BLUE only) */
   size_t         nkw;
@@ -47,7 +48,11 @@ struct wfm_reader_state
      which for them is the same thing. */
   int    bounded;
   size_t remaining;
-  long   data_off; /* byte offset of the first sample, for reset() */
+  long   data_off;    /* byte offset of the first sample, for reset() */
+  size_t data_bytes;  /* declared payload length in BYTES; 0 = run to EOF */
+  int    fc_source;   /* wfm_fc_source_t: which tag `fc` came from */
+  size_t trailing;    /* payload bytes past the last whole sample */
+  int    csv_counted; /* CSV num_samples has been scanned for (lazy) */
 };
 
 /* Copy sz bytes of *src into *dst, reversing on big-endian so the host (LE on
@@ -65,20 +70,6 @@ ends_with (const char *s, const char *suffix)
 {
   size_t ls = strlen (s), lx = strlen (suffix);
   return ls >= lx && strcmp (s + ls - lx, suffix) == 0;
-}
-
-/* Swap @p path's final extension for @p ext (e.g. "foo/cap.prm" -> "foo/
-   cap.det"). A path whose basename carries no dot just gains the extension.
-   The dot must be in the basename, so a dotted DIRECTORY ("../cap") is not
-   mistaken for an extension. */
-static void
-swap_ext (const char *path, const char *ext, char *out, size_t cap)
-{
-  const char *dot   = strrchr (path, '.');
-  const char *slash = strrchr (path, '/');
-  size_t      base  = (dot && (!slash || dot > slash)) ? (size_t)(dot - path)
-                                                       : strlen (path);
-  snprintf (out, cap, "%.*s%s", (int)base, path, ext);
 }
 
 /* Decode ONE wire component (an I, or a Q, or a scalar-mode real sample) into
@@ -132,8 +123,9 @@ typedef struct
   double fs;
   double data_start; /* bytes from the start of the DATA file */
   size_t nsamples;
-  long   ext_off;  /* bytes from the start of the HEADER file; 0 = none */
-  size_t ext_size; /* extended-header length in bytes; 0 = none */
+  size_t data_bytes; /* the HCB's data_size, unrounded */
+  long   ext_off;    /* bytes from the start of the HEADER file; 0 = none */
+  size_t ext_size;   /* extended-header length in bytes; 0 = none */
 } blue_hcb_t;
 
 /* Parse a 512-byte BLUE type-1000 HCB. Returns 0 on success, -1 if this is not
@@ -182,9 +174,12 @@ parse_blue_hcb (const uint8_t h[512], blue_hcb_t *o)
   o->fs         = (xdelta != 0.0) ? 1.0 / xdelta : 0.0;
   o->data_start = ds;
   /* data_size is BYTES; a scalar file packs one component per sample, so
-     dividing by the complex size would under-count by 2x. */
-  o->nsamples = (size_t)(dsz / (double)(comps (md) * ELEM[st]));
-  o->detached = (int)det;
+     dividing by the complex size would under-count by 2x. Both forms are
+     kept: the sample count is what callers want, the unrounded byte count is
+     what shows a payload that does not divide into whole samples. */
+  o->data_bytes = (dsz > 0.0) ? (size_t)dsz : 0u;
+  o->nsamples   = (size_t)(dsz / (double)(comps (md) * ELEM[st]));
+  o->detached   = (int)det;
   /* ext_start counts 512-byte BLOCKS from the start of the file; ext_size is
      in BYTES (§3.1.1.7/.8). Both live in the HEADER file, which for a detached
      capture is not the file the samples come from. */
@@ -379,6 +374,204 @@ load_keywords (wfm_reader_state_t *r, FILE *hf, long ext_off, size_t ext_size)
   free (blob);
 }
 
+/* Tags that carry a capture's centre frequency, most-conventional first. The
+   array index plus one IS the wfm_fc_source_t value, so the enum and the
+   search order cannot drift apart.
+
+   BLUE type-1000 has no HCB field for centre frequency -- the adjunct's
+   xstart/xdelta/xunits describe the abscissa, not the RF -- so an RF capture
+   has to convey it as a keyword, and no tag for it is standardised: 1.1
+   3.1.2.6.4.4 defines FREQ only as a type-6000 COLUMN name, under a heading
+   that says those names "are not keyword names". FREQ in the HCB keyword area
+   is nonetheless what captures in the wild carry, so it leads. */
+static const char *const FC_TAGS[]
+    = { "FREQ", "RF_FREQ", "CENTER_FREQ", "F_C" };
+
+/* Read one keyword's value as a double, or -1 if it is not a lone number.
+
+   BLUE has two encodings for the same quantity and a capture may use either.
+   The HCB keyword area is ASCII by definition (3.1.1.24.1: "KEY=VALUE" text,
+   NUL-terminated, no type field), so a frequency there arrives as characters
+   and has to be parsed; an extended-header keyword is typed and binary, and
+   has already been swapped to host order by the decoder. Both are accepted
+   because both occur. */
+static int
+kw_as_double (const wfm_keyword_t *k, double *out)
+{
+  if (!k || !k->value || k->count == 0)
+    return -1;
+  if (k->type == 'A')
+    {
+      /* An 'A' value is a character count, not a C string -- copy before
+         handing it to strtod. */
+      char   buf[64];
+      size_t n = (k->count < sizeof buf - 1) ? k->count : sizeof buf - 1;
+      memcpy (buf, k->value, n);
+      buf[n]     = '\0';
+      char  *end = NULL;
+      double v   = strtod (buf, &end);
+      if (end == buf)
+        return -1; /* no number at all */
+      while (*end == ' ' || *end == '\t' || *end == '\r' || *end == '\n')
+        end++;
+      if (*end != '\0')
+        return -1; /* "2.4e9 Hz" is not a bare frequency; do not guess */
+      *out = v;
+      return 0;
+    }
+  if (k->elem_size != wfm_kw_elem_size (k->type))
+    return -1;
+  switch (k->type)
+    {
+    case 'B':
+      {
+        int8_t v;
+        memcpy (&v, k->value, 1);
+        *out = v;
+        return 0;
+      }
+    case 'I':
+      {
+        int16_t v;
+        memcpy (&v, k->value, 2);
+        *out = v;
+        return 0;
+      }
+    case 'L':
+    case 'T': /* deprecated 32-bit integer alias */
+      {
+        int32_t v;
+        memcpy (&v, k->value, 4);
+        *out = v;
+        return 0;
+      }
+    case 'X':
+      {
+        int64_t v;
+        memcpy (&v, k->value, 8);
+        *out = (double)v;
+        return 0;
+      }
+    case 'F':
+      {
+        float v;
+        memcpy (&v, k->value, 4);
+        *out = v;
+        return 0;
+      }
+    case 'D':
+      {
+        double v;
+        memcpy (&v, k->value, 8);
+        *out = v;
+        return 0;
+      }
+    default:
+      return -1;
+    }
+}
+
+/* Resolve the centre frequency from the decoded keywords, and record WHICH
+   tag it came from. Without the provenance, fc == 0.0 is ambiguous: a genuine
+   baseband capture and a capture whose frequency we failed to find report the
+   same number, and a caller has no way to ask which happened.
+
+   Precedence is tag order first (every FREQ beats any RF_FREQ), then, within
+   one tag, a TYPED value over an ASCII one, then the later occurrence over
+   the earlier. The two inner rules agree for a file this library wrote: the
+   HCB's ASCII copy is appended first and the extended header's typed copy
+   last, and the typed copy is the one that did not round-trip through a
+   decimal string.
+
+   Note that a keyword saying zero IS a reading -- FREQ=0 declares baseband,
+   and fc_source records that it was declared rather than defaulted. */
+static void
+load_fc (wfm_reader_state_t *r)
+{
+  for (size_t t = 0; t < sizeof FC_TAGS / sizeof *FC_TAGS; t++)
+    {
+      double best = 0.0;
+      int    have = 0, have_typed = 0;
+      for (size_t i = 0; i < r->nkw; i++)
+        {
+          double v;
+          if (strcmp (r->kw[i].tag, FC_TAGS[t]) != 0)
+            continue;
+          if (kw_as_double (&r->kw[i], &v) != 0)
+            continue;
+          int typed = (r->kw[i].type != 'A');
+          if (have && have_typed && !typed)
+            continue; /* an ASCII copy never displaces a typed one */
+          best       = v;
+          have       = 1;
+          have_typed = have_typed || typed;
+        }
+      if (have)
+        {
+          r->fc        = best;
+          r->fc_source = (int)t + 1; /* FC_TAGS[0] is WFM_FC_FREQ */
+          return;
+        }
+    }
+}
+
+/* Does this head look like the CSV this reader parses -- a first line that
+   scans as "<number> , <number>"? Deciding by CONTENT rather than by the
+   `.csv` extension is what stops a CSV called `capture.dat` from being read
+   as binary IQ, which returns plausible garbage and says nothing.
+
+   A NUL anywhere in the head disqualifies it immediately: no text file holds
+   one and binary IQ very often does, which is the cheap half of the test. The
+   expensive half is the same scan read_csv itself performs, so detection and
+   parsing cannot disagree about what CSV is. */
+/* Is @p line exactly "<number> , <number>"? strtod rather than sscanf both
+   because it reports where it stopped -- a trailing third column means this
+   is somebody else's CSV, and guessing at that would be worse than reading
+   the file as raw -- and because it cannot silently mis-convert. */
+static int
+is_iq_line (const char *line)
+{
+  const char *p   = line;
+  char       *end = NULL;
+  (void)strtod (p, &end);
+  if (end == p)
+    return 0;
+  p = end;
+  while (*p == ' ' || *p == '\t')
+    p++;
+  if (*p != ',')
+    return 0;
+  p = end = (char *)(p + 1);
+  (void)strtod (p, &end);
+  if (end == p)
+    return 0;
+  p = end;
+  while (*p == ' ' || *p == '\t')
+    p++;
+  return *p == '\0';
+}
+
+static int
+looks_like_csv (const uint8_t *h, size_t n)
+{
+  if (n == 0)
+    return 0;
+  for (size_t i = 0; i < n; i++)
+    if (h[i] == '\0')
+      return 0;
+
+  char   line[256];
+  size_t i = 0, k = 0;
+  while (i < n && (h[i] == '\n' || h[i] == '\r'))
+    i++; /* leading blank lines are not evidence either way */
+  while (i < n && h[i] != '\n' && h[i] != '\r' && k + 1 < sizeof line)
+    line[k++] = (char)h[i++];
+  if (k + 1 >= sizeof line)
+    return 0; /* a first "line" this long is not one of ours */
+  line[k] = '\0';
+  return is_iq_line (line);
+}
+
 /* Map a SigMF datatype string ("cf32_le", "ci16_be", "ci8", …) to type/endian.
  */
 static int
@@ -404,10 +597,13 @@ sigmf_datatype (const char *dt, int *stype, int *endian)
   return -1;
 }
 
-/* Parse a SigMF .sigmf-meta sidecar for type/endian/fs/fc. Returns 0 on ok. */
+/* Parse a SigMF .sigmf-meta sidecar for type/endian/fs/fc. Returns 0 on ok.
+   @p has_fc distinguishes a sidecar that declares `core:frequency` from one
+   that omits it -- both leave *fc at 0.0, and only the first of those is a
+   reading. */
 static int
 parse_sigmf_meta (const char *meta_path, int *stype, int *endian, double *fs,
-                  double *fc)
+                  double *fc, int *has_fc)
 {
   FILE *mf = fopen (meta_path, "rb");
   if (!mf)
@@ -443,13 +639,17 @@ parse_sigmf_meta (const char *meta_path, int *stype, int *endian, double *fs,
       cJSON *sr   = cJSON_GetObjectItem (global, "core:sample_rate");
       *fs         = (sr && cJSON_IsNumber (sr)) ? sr->valuedouble : 0.0;
       *fc         = 0.0;
+      *has_fc     = 0;
       cJSON *caps = cJSON_GetObjectItem (root, "captures");
       if (caps && cJSON_GetArraySize (caps) > 0)
         {
           cJSON *c0 = cJSON_GetArrayItem (caps, 0);
           cJSON *fr = cJSON_GetObjectItem (c0, "core:frequency");
           if (fr && cJSON_IsNumber (fr))
-            *fc = fr->valuedouble;
+            {
+              *fc     = fr->valuedouble;
+              *has_fc = 1;
+            }
         }
       rc = 0;
     }
@@ -483,18 +683,96 @@ apply_hcb (wfm_reader_state_t *r, const blue_hcb_t *h)
   r->endian      = h->endian;
   r->fs          = h->fs;
   r->num_samples = h->nsamples;
+  r->data_bytes  = h->data_bytes;
   r->bounded     = 1;
   r->remaining   = h->nsamples;
 }
 
+/* Measure the payload bytes that do not complete a sample.
+
+   Taken from what is actually on disk and then clamped to the declared
+   payload, so one measurement catches both failure modes: a stride that does
+   not divide the file (the sample_type hint is wrong for a headerless
+   file type, or a BLUE data_size was written mid-sample) and a capture that
+   was cut short of what its header promises. Called once the file is
+   positioned at the first sample, and it leaves the position where it found
+   it. */
+static void
+compute_trailing (wfm_reader_state_t *r)
+{
+  if (!r->fp || r->file_type == WFM_FT_CSV)
+    return; /* CSV is delimited, not strided: there is no partial sample */
+  long cur = ftell (r->fp);
+  if (cur < 0 || fseek (r->fp, 0, SEEK_END) != 0)
+    return;
+  long end = ftell (r->fp);
+  if (fseek (r->fp, cur, SEEK_SET) != 0 || end < cur)
+    return;
+  size_t avail  = (size_t)(end - cur);
+  size_t stride = comps (r->mode) * ELEM[r->sample_type];
+  if (r->data_bytes && r->data_bytes < avail)
+    avail = r->data_bytes;
+  r->trailing = avail % stride;
+}
+
+/* Count the samples a CSV holds, parsing exactly the way read_csv does so the
+   count and the read can never disagree, then put the file position back.
+
+   Called lazily from the num_samples getter rather than at open: a CSV has no
+   header to declare its length, the only way to know is to walk the whole
+   file, and a caller streaming a large capture should not pay for a scan it
+   never asked for. Opening stays O(1). */
+static void
+count_csv (wfm_reader_state_t *r)
+{
+  long cur = ftell (r->fp);
+  if (cur < 0 || fseek (r->fp, r->data_off, SEEK_SET) != 0)
+    return;
+  size_t n = 0;
+  double a, b;
+  while (fscanf (r->fp, " %lf , %lf", &a, &b) == 2)
+    n++;
+  clearerr (r->fp); /* the scan ends at EOF by design; that is not an error */
+  if (fseek (r->fp, cur, SEEK_SET) != 0)
+    return;
+  r->num_samples = n;
+  r->csv_counted = 1;
+}
+
+/* Open @p path as SigMF, taking its metadata from @p meta. Shared by the two
+   ways a SigMF capture is reached: the `.sigmf-data` name, and any other name
+   that turns out to have a `<base>.sigmf-meta` sidecar beside it. Returns 0
+   on success. */
+static int
+open_sigmf (wfm_reader_state_t *r, const char *path, const char *meta)
+{
+  int has_fc = 0;
+  if (parse_sigmf_meta (meta, &r->sample_type, &r->endian, &r->fs, &r->fc,
+                        &has_fc)
+      != 0)
+    return -1;
+  if (has_fc)
+    r->fc_source = WFM_FC_SIGMF;
+  r->file_type = WFM_FT_SIGMF;
+  if (r->fp)
+    fclose (r->fp);
+  r->fp = fopen (path, "rb");
+  if (!r->fp)
+    return -1;
+  fill_nsamples (r);
+  return 0;
+}
+
 /* Record where the samples begin, so reset() can rewind to exactly here. The
-   offset differs per container (512 into an attached BLUE, 0 for a .det, raw
-   or SigMF payload), so it is captured once each path is positioned. */
+   offset differs per file type (512 into an attached BLUE, 0 for a .det, raw
+   or SigMF payload), so it is captured once each path is positioned -- which
+   is also the moment the payload can be measured. */
 static wfm_reader_state_t *
 ready (wfm_reader_state_t *r)
 {
   long p      = ftell (r->fp);
   r->data_off = (p > 0) ? p : 0;
+  compute_trailing (r);
   return r;
 }
 
@@ -508,21 +786,19 @@ wfm_reader_create (const char *path, int hint_stype, int hint_endian)
     return NULL;
   r->sample_type = hint_stype;
   r->endian      = hint_endian ? 1 : 0;
-  size_t plen    = strlen (path);
-  char   side[1024];
+  char side[1024];
 
-  /* SigMF: <base>.sigmf-data + <base>.sigmf-meta sidecar. */
+  /* SigMF named as such: <base>.sigmf-data REQUIRES its <base>.sigmf-meta
+     sidecar. A .sigmf-data with no sidecar is not a capture with missing
+     metadata, it is half a capture -- the datatype lives only in the sidecar,
+     so there is nothing to fall back to. (A file reached under any other name
+     that happens to have a sidecar is picked up further down; there, falling
+     back to raw is reasonable.) */
   if (ends_with (path, ".sigmf-data"))
     {
-      snprintf (side, sizeof side, "%.*s.sigmf-meta", (int)(plen - 11), path);
-      if (parse_sigmf_meta (side, &r->sample_type, &r->endian, &r->fs, &r->fc)
-          != 0)
+      wfm_swap_ext (path, ".sigmf-meta", side, sizeof side);
+      if (open_sigmf (r, path, side) != 0)
         goto fail;
-      r->file_type = WFM_FT_SIGMF;
-      r->fp        = fopen (path, "rb");
-      if (!r->fp)
-        goto fail;
-      fill_nsamples (r);
       return ready (r);
     }
 
@@ -536,7 +812,7 @@ wfm_reader_create (const char *path, int hint_stype, int hint_endian)
       FILE                    *hf        = NULL;
       for (size_t i = 0; i < sizeof HDR_EXT / sizeof *HDR_EXT && !hf; i++)
         {
-          swap_ext (path, HDR_EXT[i], side, sizeof side);
+          wfm_swap_ext (path, HDR_EXT[i], side, sizeof side);
           hf = fopen (side, "rb");
         }
       if (!hf)
@@ -555,6 +831,7 @@ wfm_reader_create (const char *path, int hint_stype, int hint_endian)
       load_header_fields (r, h, hcb.endian);
       load_hcb_keywords (r, h, hcb.endian);
       load_keywords (r, hf, hcb.ext_off, hcb.ext_size);
+      load_fc (r); /* after BOTH keyword blocks: either may carry it */
       fclose (hf);
       r->file_type = WFM_FT_BLUE;
       r->fp        = fopen (path, "rb"); /* .det is raw from byte 0 */
@@ -563,17 +840,11 @@ wfm_reader_create (const char *path, int hint_stype, int hint_endian)
       return ready (r);
     }
 
-  /* CSV by extension. */
-  if (ends_with (path, ".csv"))
-    {
-      r->file_type = WFM_FT_CSV;
-      r->fp        = fopen (path, "r");
-      if (!r->fp)
-        goto fail;
-      return ready (r);
-    }
-
-  /* Otherwise peek for the BLUE magic; fall back to raw. */
+  /* Everything else is decided by looking INSIDE the file. The name is only
+     consulted where the content cannot settle it (below), because a capture
+     that got renamed, or saved with whatever extension a tool felt like, is
+     still the capture -- and the failure mode of guessing wrong here is not
+     an error, it is plausible garbage at the wrong stride. */
   r->fp = fopen (path, "rb");
   if (!r->fp)
     goto fail;
@@ -591,6 +862,7 @@ wfm_reader_create (const char *path, int hint_stype, int hint_endian)
       load_header_fields (r, h, hcb.endian);
       load_hcb_keywords (r, h, hcb.endian);
       load_keywords (r, r->fp, hcb.ext_off, hcb.ext_size);
+      load_fc (r); /* after BOTH keyword blocks: either may carry it */
       if (hcb.detached != 0)
         {
           /* Detached (spec 3.1.1.4): this file holds ONLY the header +
@@ -603,7 +875,7 @@ wfm_reader_create (const char *path, int hint_stype, int hint_endian)
              collocated file and fail loudly rather than misread. WITHOUT this
              branch data_start (0 for a detached capture) seeks back to byte 0
              of the HEADER file and the 512-byte HCB is returned as IQ. */
-          swap_ext (path, ".det", side, sizeof side);
+          wfm_swap_ext (path, ".det", side, sizeof side);
           fclose (r->fp);
           r->fp = fopen (side, "rb");
           if (!r->fp)
@@ -613,6 +885,32 @@ wfm_reader_create (const char *path, int hint_stype, int hint_endian)
       fseek (r->fp, (long)hcb.data_start, SEEK_SET);
       return ready (r);
     }
+
+  /* No sidecar probe here, deliberately. Sniffing for `<base>.sigmf-meta`
+     beside any file would make a SigMF pair readable whatever the data half
+     is called -- but the base name is shared, so `cap.csv` sitting next to an
+     unrelated `cap.sigmf-meta` would be read with that capture's datatype.
+     Verified: it hijacked two files in the very first round of testing. The
+     `.sigmf-data` name is part of the format, so it is required on both
+     sides; wfm_writer_create rejects a SigMF path that does not use it. */
+
+  /* Text that parses as `I,Q` is CSV, whatever the file is called -- checked
+     after BLUE, so a BLUE capture misnamed `.csv` still reads as BLUE.
+
+     The extension stays as a fallback rather than being dropped: a CSV whose
+     first line is a column header ("I,Q") fails the content test, and reading
+     such a file as binary IQ would be a regression on the old behaviour.
+     Content decides; the name still gets a vote. */
+  if (looks_like_csv (h, got) || ends_with (path, ".csv"))
+    {
+      fclose (r->fp);
+      r->file_type = WFM_FT_CSV;
+      r->fp        = fopen (path, "r");
+      if (!r->fp)
+        goto fail;
+      return ready (r);
+    }
+
   rewind (r->fp);
   r->file_type = WFM_FT_RAW;
   fill_nsamples (r);
@@ -634,7 +932,11 @@ wfm_reader_info (const wfm_reader_state_t *r, wfm_reader_info_t *info)
   info->endian      = r->endian;
   info->fs          = r->fs;
   info->fc          = r->fc;
-  info->num_samples = r->num_samples;
+  /* through the getter, so a CSV reports its length here too rather than the
+     0 that means "not counted yet" */
+  info->num_samples    = wfm_reader_get_num_samples (r);
+  info->fc_source      = r->fc_source;
+  info->trailing_bytes = r->trailing;
 }
 
 /* CSV: one "I,Q" per line; integer wire types are divided back by full-scale.
@@ -764,7 +1066,27 @@ wfm_reader_get_fc (const wfm_reader_state_t *r)
 size_t
 wfm_reader_get_num_samples (const wfm_reader_state_t *r)
 {
+  /* Every other file type declares its length in a header; a CSV's has to be
+     counted, so it is counted here, once, on the first caller who asks. The
+     const cast is the price of that laziness behind jm's const getter --
+     nothing observable changes, count_csv restores the file position, and the
+     alternative is either a full scan of every CSV at open or the 0 this used
+     to return, which reads as "empty capture". */
+  if (r->file_type == WFM_FT_CSV && !r->csv_counted)
+    count_csv ((wfm_reader_state_t *)r);
   return r->num_samples;
+}
+
+int
+wfm_reader_get_fc_source (const wfm_reader_state_t *r)
+{
+  return r->fc_source;
+}
+
+size_t
+wfm_reader_get_trailing_bytes (const wfm_reader_state_t *r)
+{
+  return r->trailing;
 }
 
 size_t

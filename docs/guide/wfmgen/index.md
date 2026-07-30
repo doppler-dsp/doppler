@@ -6,7 +6,7 @@ doppler ships a C-first **waveform generator**: one declarative synth engine
 - **Scenes** — multi-segment specs, in JSON or Python, that mix sources,
     sequence them in time, and can **randomize** a parameter (frequency, SNR,
     gap length) per repeat instead of holding it fixed.
-- **Self-describing containers & streaming** — raw / CSV / **BLUE type-1000** /
+- **Self-describing file types & streaming** — raw / CSV / **BLUE type-1000** /
     **SigMF**, plus real-time-paced streaming to **NATS**.
 - **`Plan`** — a bit-exact sweep cache: prepare a scene once, then re-render it
     at any SNR/gain/phase/seed as a cheap re-weighted sum instead of
@@ -44,7 +44,8 @@ ______________________________________________________________________
 | [Concepts](concepts.md)                    | The object model — **Synth · Segment · Timeline · Composer**. Read this first. |
 | [Waveforms](waveforms.md)                  | The eight `--type`s, PN/MLS codes, RRC pulse shaping.                          |
 | [Levels & SNR](levels.md)                  | Unit-average-power, full-scale, clipping, headroom, the SNR model.             |
-| [Output & containers](output.md)           | Sample types, raw/CSV/BLUE/SigMF, byte order, sinks.                           |
+| [Output & file types](output.md)           | Sample types, raw/CSV/BLUE/SigMF, byte order, sinks.                           |
+| [Reading captures](reading.md)             | `Reader`, file type auto-detection, what metadata each file type carries.      |
 | [Scenes](scenes.md)                        | Multi-segment specs, `sum`/`add`, seeds, ranged values, `--record`.            |
 | [Streaming](streaming.md)                  | Real-time pacing and streaming to NATS.                                        |
 | [Python API](python.md)                    | The `Synth` class, the composer builders, reading captures back.               |

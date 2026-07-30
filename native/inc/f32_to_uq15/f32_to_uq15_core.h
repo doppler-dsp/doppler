@@ -15,7 +15,7 @@
  *   u     = (uint16_t)((int32_t)v_Q15 + 32768)
  * @endcode
  *
- * This is the unsigned wire format used by some DAC and file-container
+ * This is the unsigned wire format used by some DAC and file-format
  * conventions that cannot represent negative integer values.  UQ15ToF32
  * performs the exact inverse.  A sticky @c clipped flag is raised on
  * saturation and cleared only by reset().

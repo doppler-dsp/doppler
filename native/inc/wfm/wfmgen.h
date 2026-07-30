@@ -23,7 +23,7 @@ extern "C" {
  * @brief Run the wfmgen composer CLI in-process (argv in, exit code out).
  *
  * Parses @p argv exactly as the `wfmgen` binary does (`--type`, `--count`,
- * `--from-file`, `--output`, `--record`, the container/wire/endian flags, the
+ * `--from-file`, `--output`, `--record`, the file-type/wire/endian flags, the
  * `nats://` sink, `--realtime` pacing, …), composes the waveform, and writes it
  * to the chosen destination (a file, stdout, or a NATS PUB subject). Output is
  * byte-identical to invoking the CLI with the same arguments — it is the same

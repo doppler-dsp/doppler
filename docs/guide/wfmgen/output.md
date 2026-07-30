@@ -1,6 +1,6 @@
-# Output & containers
+# Output & file types
 
-The sample **type** (the datatype), the **container** (the file format), and the
+The sample **type** (the datatype), the **file type** (the file format), and the
 **byte order** are three orthogonal choices.
 
 ## Output parameter reference
@@ -8,7 +8,7 @@ The sample **type** (the datatype), the **container** (the file format), and the
 | Flag              | Values                    | Default | Meaning                                                           |
 | ----------------- | ------------------------- | ------- | ----------------------------------------------------------------- |
 | `--sample-type`   | `cf32 cf64 ci32 ci16 ci8` | `cf32`  | wire type; integers are full-scale ±1.0                           |
-| `--file-type`     | `raw csv blue sigmf`      | `raw`   | container (below)                                                 |
+| `--file-type`     | `raw csv blue sigmf`      | `raw`   | file type (below)                                                 |
 | `--endian`        | `le be`                   | `le`    | byte order (raw/BLUE only; csv is text)                           |
 | `--output` / `-o` | path *(or `nats://…`)*    | stdout  | sink                                                              |
 | `--record`        | path                      | —       | write a JSON record of the resolved run (see [Scenes](scenes.md)) |
@@ -16,9 +16,12 @@ The sample **type** (the datatype), the **container** (the file format), and the
 The integer sample types map ±1.0 → ±max-code (and can clip on PAPR > 0 dB
 content); see [Levels & SNR → Scaling to the wire](levels.md#scaling-to-the-wire-and-headroom).
 
+Reading these back — and what metadata each file type actually preserves — is
+[Reading captures](reading.md).
+
 ______________________________________________________________________
 
-## Containers
+## File Types
 
 | `--file-type` | Output                                        | Notes                                                      |
 | ------------- | --------------------------------------------- | ---------------------------------------------------------- |
@@ -120,7 +123,7 @@ ______________________________________________________________________
 
 ## Reading a capture back
 
-The `raw` container is **interleaved** I/Q in the chosen `--sample-type`, so a
+The `raw` file type is **interleaved** I/Q in the chosen `--sample-type`, so a
 naive `np.fromfile` gets the layout (and, for integers, the scale) wrong.
 `Reader` does the right thing entirely in C — deinterleaving and rescaling any
 wire type to unit-scale `complex64` — and auto-detects BLUE/SigMF/CSV/raw,
@@ -133,7 +136,7 @@ from doppler.wfm import Reader
 
 with Reader("capture.iq", sample_type="ci16") as r:  # hint for headerless raw
     iq = r.read(r.num_samples)                        # → complex64, ±1.0
-with Reader("capture.blue") as r:                     # container auto-detected
+with Reader("capture.blue") as r:                     # file type auto-detected
     print(r.file_type, r.fs, r.num_samples)
     x = r.read(r.num_samples)                          # or block-wise: r.read(4096)
 ```
@@ -147,6 +150,6 @@ ______________________________________________________________________
 ## See also
 
 - [Gallery: Waveform I/O](../../gallery/wfm-io.md) — round-tripping one capture
-    through all four containers, visually confirmed lossless.
+    through all four file types, visually confirmed lossless.
 - [Gallery: Waveform Write](../../gallery/wfm-write.md) — a minimal
     Composer → Writer → Reader walkthrough.

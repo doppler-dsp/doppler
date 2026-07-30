@@ -121,8 +121,12 @@ WriterObj_init (WriterObject *self, PyObject *args, PyObject *kwds)
   if (!self->handle)
     {
       PyErr_SetString (PyExc_OSError,
-                       "cannot open the capture for writing (check the path, "
-                       "the directory, and permissions)");
+                       "cannot open the capture for writing: check the path, "
+                       "the directory, and permissions -- and note that "
+                       "file_type=\"sigmf\" requires a path ending in "
+                       ".sigmf-data, since a SigMF capture is a "
+                       "<base>.sigmf-data + <base>.sigmf-meta pair found by "
+                       "name");
       return -1;
     }
   return 0;
@@ -382,14 +386,27 @@ Writer_getprop_clipped (WriterObject *self, void *Py_UNUSED (closure))
   return PyBool_FromLong ((long)(wfm_writer_get_clipped (self->handle)));
 }
 
-static PyGetSetDef Writer_getset[]
-    = { { "clip_fraction", (getter)Writer_getprop_clip_fraction, NULL,
-          "Clip fraction.\n", NULL },
-        { "peak_dbfs", (getter)Writer_getprop_peak_dbfs, NULL, "Peak dbfs.\n",
-          NULL },
-        { "clipped", (getter)Writer_getprop_clipped, NULL, "Clipped.\n",
-          NULL },
-        { NULL } };
+static PyGetSetDef Writer_getset[] = {
+  { "clip_fraction", (getter)Writer_getprop_clip_fraction, NULL,
+    "Fraction (0..1) of I/Q components that saturated. Always 0.0 unless "
+    "`track_clipping()` was enabled before writing -- the counter is the one "
+    "extra per-sample compare, so it is opt-in. `peak_dbfs` is always tracked "
+    "and is enough to tell you clipping happened; this tells you how much.\n",
+    NULL },
+  { "peak_dbfs", (getter)Writer_getprop_peak_dbfs, NULL,
+    "Largest per-axis magnitude written so far, in dBFS (full scale = 0 dBFS, "
+    "so a value above 0 means an integer capture clipped). Always tracked. It "
+    "is also the remedy: back off by `ceil(peak_dbfs)` dB of `headroom` and "
+    "the capture fits. Float wire types never clip but still report a peak. "
+    "`-inf` before anything is written.\n",
+    NULL },
+  { "clipped", (getter)Writer_getprop_clipped, NULL,
+    "True if an integer capture saturated -- `peak_dbfs > 0` and the wire "
+    "type is one of `ci32`/`ci16`/`ci8`. Always False for `cf32`/`cf64`, "
+    "which cannot clip: a float sample above full scale is merely loud.\n",
+    NULL },
+  { NULL }
+};
 
 static PyObject *
 WriterObj_destroy (WriterObject *self, PyObject *Py_UNUSED (ignored))

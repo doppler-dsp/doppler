@@ -1,4 +1,4 @@
-# wfm_reader — the input-container Reader (raw / CSV / BLUE-1000 / SigMF).
+# wfm_reader — the input-side Reader (raw / CSV / BLUE-1000 / SigMF).
 #
 # A file-backed object: no step(), a hand-written state struct, and a streaming
 # read(). Migrated from kind="handle" once jm could express what the handle
@@ -12,7 +12,7 @@ no_state = "true"
 no_step = "true"
 class_name = "Reader"
 create_error = "ValueError"
-create_error_message = "cannot open capture: no such file, unrecognised container, or an unsupported BLUE format mode (only S and C are supported)"
+create_error_message = "cannot open capture: no such file, unrecognised file type, or an unsupported BLUE format mode (only S and C are supported)"
 
 # The CORE's own dependencies. gh-254 makes link=true additive for a collocated
 # module-object, so these land on the object's core/test/bench AND the .so.
@@ -71,33 +71,55 @@ pass_capacity = true
 name = "file_type"
 type = "int"
 enum = "ftype"
+doc = """Which file type the capture turned out to be -- `"raw"`, `"csv"`, `"blue"` or `"sigmf"`. Detected from the file's CONTENT, not its name, so a CSV called `capture.dat` reports `"csv"` and a BLUE file called `capture.csv` reports `"blue"`. `"raw"` is also the fallback for a file nothing else recognised, so it means "headerless interleaved I/Q at the sample_type you passed" rather than a positive identification."""
 
 [[wfm_reader.properties]]
 name = "sample_type"
 type = "int"
 enum = "stype"
+doc = """The wire sample type the samples are being decoded FROM -- `"cf32"`, `"cf64"`, `"ci32"`, `"ci16"` or `"ci8"`. For BLUE and SigMF this was read from the file's metadata and is authoritative; for raw and CSV it is simply the hint passed to the constructor, echoed back. `read()` returns `complex64` at unit scale regardless."""
 
 [[wfm_reader.properties]]
 name = "mode"
 type = "int"
 enum = "sample_mode"
+doc = """Components per wire sample: `"complex"` for interleaved I/Q, `"scalar"` for a real capture. Only BLUE carries this (its `format` field's mode designator, `C` or `S`); every other file type is complex. A scalar capture still reads back as `complex64` -- the imaginary part is exactly 0, so a real signal lands on the real axis."""
 
 [[wfm_reader.properties]]
 name = "endian"
 type = "int"
 enum = "endian"
+doc = """Byte order of the samples on the wire, `"le"` or `"be"`. Read from the metadata for BLUE (the HCB's `head_rep`) and SigMF (the `_be`/`_le` datatype suffix); for raw it is the constructor hint echoed back. CSV is text and ignores it."""
 
 [[wfm_reader.properties]]
 name = "fs"
 type = "double"
+doc = """Sample rate in Hz, or 0.0 when the file type does not carry one. BLUE derives it from the header's `xdelta` (fs = 1/xdelta); SigMF reads `core:sample_rate`. Raw and CSV have nowhere to record a rate, so they always report 0.0 -- whatever rate the capture was taken at has to travel with it by other means."""
 
 [[wfm_reader.properties]]
 name = "fc"
 type = "double"
+doc = """Centre frequency in Hz, or 0.0 when nothing in the capture declares one. **0.0 is ambiguous on its own** -- a genuine baseband capture and a capture whose frequency could not be found report the same number -- so read `fc_source` alongside it: `"none"` there is what distinguishes them. SigMF takes it from `captures[0]["core:frequency"]`; BLUE from a `FREQ` keyword (see `fc_source` for the tags tried), in either the ASCII HCB keyword area or the typed extended header. Raw and CSV carry no metadata at all."""
 
 [[wfm_reader.properties]]
 name = "num_samples"
 type = "size_t"
+doc = """Total samples in the capture, or 0 when the file type cannot say. BLUE takes it from the header's `data_size`; raw and SigMF divide the file length by the sample stride. A CSV has to be counted, so the first read of this property scans the file once (the scan is exact -- it parses rows the same way `read` does -- and leaves the read position alone); every later read is free."""
+
+# Where `fc` came from. Declared as its own property rather than folded into
+# fc's docstring because 0.0 is a legitimate centre frequency: without this,
+# a baseband capture and a capture whose FREQ keyword we failed to parse are
+# the same answer. gh-519 decodes the int to the tag's own name.
+[[wfm_reader.properties]]
+name = "fc_source"
+type = "int"
+enum = "fc_source"
+doc = """Which piece of metadata `fc` was read from -- the keyword's own tag (`"FREQ"`, `"RF_FREQ"`, `"CENTER_FREQ"`, `"F_C"`), `"core:frequency"` for SigMF, or `"none"` when nothing carried it. Check this before trusting `fc == 0.0`: `"none"` means not found, anything else means the capture really does say 0 Hz. BLUE type-1000 has no header field for centre frequency, so an RF capture conveys it as a keyword; `FREQ` in the HCB keyword area is the X-Midas convention and is tried first."""
+
+[[wfm_reader.properties]]
+name = "trailing_bytes"
+type = "size_t"
+doc = """Payload bytes left over after the last whole sample; 0 for a capture whose declared sample type and mode match its content, and always 0 for CSV. Non-zero means either the `sample_type`/`endian` hint is wrong for a headerless file type or the capture is truncated -- the reader cannot tell which, and stops at the last complete sample either way. This is the only signal available for a raw file: a wrong hint does not fail, it returns plausible garbage at the wrong stride."""
 
 # `.keywords` — the BLUE extended header as a {tag: value} dict (gh-543). jm
 # generates the dict loop, refcounting and every error path; the per-keyword
@@ -135,7 +157,7 @@ count_fn = "wfm_reader_num_header_fields"
 key_fn = "wfm_reader_header_tag"
 entry_fn = "wfm_reader_header_field"
 entry_type = "wfm_keyword_t"
-doc = """The BLUE header control block as a {field: value} dict, under the names the format itself uses -- `version`, `head_rep`, `data_rep`, `detached`, `protected`, `pipe`, `ext_start`, `ext_size`, `data_start`, `data_size`, `type`, `format`, `flagmask`, `timecode`, `inlet`, `outlets`, `outmask`, `pipeloc`, `pipesize`, `in_byte`, `out_byte`, `outbytes`, `keylength`, and the type-1000 adjunct `xstart`, `xdelta`, `xunits`. Empty for a non-BLUE container. Nothing is renamed or omitted, so what you see is what the file holds; the decoded keywords are in `keywords`."""
+doc = """The BLUE header control block as a {field: value} dict, under the names the format itself uses -- `version`, `head_rep`, `data_rep`, `detached`, `protected`, `pipe`, `ext_start`, `ext_size`, `data_start`, `data_size`, `type`, `format`, `flagmask`, `timecode`, `inlet`, `outlets`, `outmask`, `pipeloc`, `pipesize`, `in_byte`, `out_byte`, `outbytes`, `keylength`, and the type-1000 adjunct `xstart`, `xdelta`, `xunits`. Empty for a non-BLUE file type. Nothing is renamed or omitted, so what you see is what the file holds; the decoded keywords are in `keywords`."""
 
 # close() is the name this type has always released its file under, and every
 # caller and doc example uses it. gh-544 names the destructor; `destroy()` (jm's

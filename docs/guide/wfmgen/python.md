@@ -31,7 +31,7 @@ scene = Segment.sum(qpsk(snr=15, sps=8, level=-10), tone(freq=2e5, level=-3),
                     num_samples=65536)
 iq = Composer(scene).compose()                 # one complex64 array
 
-# Stream block-by-block into a container (empty block marks the end):
+# Stream block-by-block into a file type (empty block marks the end):
 c = Composer(scene)
 with Writer("frame.cf32", sample_type="cf32") as w:
     while len(blk := c.execute(4096)):
@@ -64,7 +64,7 @@ iq = Synth(type="symbols", symbols=stream, sps=8, pulse="rrc").steps(64 * 8)
 
 ## Reading a capture back
 
-The `raw` container is **interleaved** I/Q in the chosen sample type, so a naive
+The `raw` file type is **interleaved** I/Q in the chosen sample type, so a naive
 `np.fromfile` gets the layout (and, for integers, the scale) wrong. `Reader`
 does the right thing entirely in C — deinterleaving and rescaling any wire type
 to unit-scale `complex64` — and auto-detects BLUE/SigMF/CSV/raw, recovering
@@ -77,7 +77,7 @@ from doppler.wfm import Reader
 
 with Reader("capture.iq", sample_type="ci16") as r:  # hint for headerless raw
     iq = r.read(r.num_samples)                        # → complex64, ±1.0
-with Reader("capture.blue") as r:                     # container auto-detected
+with Reader("capture.blue") as r:                     # file type auto-detected
     print(r.file_type, r.fs, r.num_samples)
     x = r.read(r.num_samples)
 ```

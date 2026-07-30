@@ -464,7 +464,7 @@ class TestQuantization:
             wr.write(x)
         with w.Reader(str(p), sample_type=stype) as r:
             y = r.read(len(x))
-        # Float containers are a bit-exact re-interpretation of cf32 input.
+        # Float file types are a bit-exact re-interpretation of cf32 input.
         assert np.allclose(y, x, atol=1e-6)
 
     def test_clip_tracking(self, tmp_path) -> None:

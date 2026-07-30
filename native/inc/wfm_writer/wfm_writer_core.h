@@ -1,13 +1,21 @@
 /**
  * @file wfm_writer_core.h
- * @brief Output containers for generated IQ: raw / csv / BLUE-1000 + SigMF meta.
+ * @brief Output file types for generated IQ: raw / csv / BLUE-1000 + SigMF meta.
  *
  * A streaming writer over a FILE* that serialises cf32 blocks into one of three
- * on-disk containers, in the chosen wire sample type and byte order. The fourth
+ * on-disk file types, in the chosen wire sample type and byte order. The fourth
  * file-type, SigMF, writes its samples as `raw` (into `<base>.sigmf-data`) and
- * pairs with a sidecar `<base>.sigmf-meta` JSON emitted by wfm_sigmf_meta_json().
+ * pairs with a sidecar `<base>.sigmf-meta` JSON from wfm_sigmf_meta_json().
  *
- * Axes (orthogonal to the container):
+ * A writer opened by PATH (wfm_writer_create) emits that sidecar itself, at
+ * close, so `sigmf` produces a readable pair with no further work — and for
+ * that reason it REQUIRES a path ending in `.sigmf-data`, since both halves
+ * of a SigMF capture are found by name. A writer opened on a FILE*
+ * (wfm_writer_open) has no name to derive the sidecar's from, so the caller
+ * owns it — that is the path wfmgen and Composer take, and it is also how
+ * they attach their per-segment annotations.
+ *
+ * Axes (orthogonal to the file type):
  *   - sample_type (wavegen order): 0 cf32, 1 cf64, 2 ci32, 3 ci16, 4 ci8.
  *     Integer types quantise full-scale ±1.0 (ci32 2^31-1, ci16 32767, ci8 127).
  *   - endian: 0 little, 1 big (csv is text, so endian is ignored there).
@@ -31,7 +39,7 @@
 extern "C" {
 #endif
 
-/** Output container. */
+/** Output file type. */
 typedef enum {
     WFM_FT_RAW = 0,  /**< interleaved I/Q, no header. */
     WFM_FT_CSV = 1,  /**< text, one complex sample per line. */
@@ -46,11 +54,13 @@ typedef struct wfm_writer_state wfm_writer_state_t;
 /**
  * @brief Open a writer on an already-open stream.
  * @param fp            destination (binary mode for raw/blue; text-safe for csv).
- * @param ft            container; SIGMF is treated as RAW here.
+ * @param ft            file type; SIGMF is treated as RAW here.
  * @param sample_type   wire type (wavegen order); see file header.
  * @param endian        0 little, 1 big (ignored for csv).
  * @param fs            sample rate (Hz) — BLUE xdelta = 1/fs.
- * @param fc            center frequency (Hz) — reserved (BLUE/raw ignore it).
+ * @param fc            centre frequency (Hz). BLUE records it as a `FREQ`
+ *                      keyword — see wfm_writer_create; raw and CSV have
+ *                      nowhere to put it and drop it.
  * @param total_samples expected complex-sample count for the BLUE header
  *                      (0 if unknown; close() patches the actual count when fp
  *                      is seekable).
@@ -62,8 +72,32 @@ wfm_writer_state_t *wfm_writer_open(FILE *fp, wfm_filetype_t ft, int sample_type
                              size_t total_samples);
 
 /**
- * @brief Convert and write `n` complex samples.
- * @return Number of complex samples written (== n on success, else short).
+ * @brief Convert and write a block of samples.
+ *
+ * Takes `complex64` at unit scale and emits it in the writer's wire type.
+ * Call as many times as you like; the capture is the concatenation.
+ *
+ * @return the number of samples that actually landed — equal to what you
+ *         passed on success, fewer if the write was short (a full disk, a
+ *         quota). A short return is the per-block signal; close() reports the
+ *         same failure for the capture as a whole.
+ *
+ * @code
+ * >>> import pathlib, tempfile
+ * >>> from doppler.wfm import Composer, Reader, Segment, Writer
+ * >>> tmp = tempfile.TemporaryDirectory()
+ * >>> p = pathlib.Path(tmp.name) / "capture.blue"
+ * >>> x = Composer([Segment("qpsk", sps=8, num_samples=1024)]).compose()
+ * >>> with Writer(p, file_type="blue", sample_type="ci16",
+ * ...             fs=2.4e6, fc=1.2e9) as w:
+ * ...     w.write(x)
+ * 1024
+ * >>> r = Reader(p)
+ * >>> r.fs, r.fc, r.num_samples
+ * (2400000.0, 1200000000.0, 1024)
+ * >>> r.close()
+ * >>> tmp.cleanup()   # directory and contents removed
+ * @endcode
  */
 size_t wfm_writer_write(wfm_writer_state_t *state, const float complex *x, size_t x_len);
 
@@ -77,7 +111,7 @@ size_t wfm_writer_write(wfm_writer_state_t *state, const float complex *x, size_
  * before or between writes; order is preserved, and duplicate tags are
  * allowed (the format permits them).
  *
- * @param w     an open BLUE writer (any other container returns an error —
+ * @param w     an open BLUE writer (any other file type returns an error —
  *              only BLUE has an extended header).
  * @param tag   NUL-terminated tag, 1..255 characters. Upper-case is strongly
  *              preferred: lower-case has limited support across the Midas
@@ -89,7 +123,7 @@ size_t wfm_writer_write(wfm_writer_state_t *state, const float complex *x, size_
  * @param value @p count elements in host byte order; for `A`, @p count
  *              characters (no NUL is written or required).
  * @param count element count; must be non-zero.
- * @return 0 on success, non-zero if the container is not BLUE, the arguments
+ * @return 0 on success, non-zero if the file type is not BLUE, the arguments
  *         are invalid, or the buffer could not grow.
  *
  * @code
@@ -154,15 +188,48 @@ double wfm_writer_peak(const wfm_writer_state_t *w);
  *  wfm_writer_track_clipping() was enabled. */
 double wfm_writer_clip_fraction(const wfm_writer_state_t *w);
 
-/** Path-opening + FILE-owning ctor for the generated `Writer` handle (jm
- *  kind="handle"): opens `path` ("wb"), delegates to wfm_writer_open, and marks
- *  the FILE owned so wfm_writer_close fclose's it. Returns NULL on open failure. */
+/**
+ * @brief Open a capture for writing.
+ *
+ * Streams `complex64` blocks to disk in the chosen file type, wire sample type
+ * and byte order, quantising to full scale (±1.0) for the integer types.
+ * Finish with close(): a BLUE capture's `data_size` and extended header are
+ * only written there, so a capture that is never closed is incomplete.
+ *
+ * @param path        where to write -- a `str` or any `os.PathLike` from
+ *                    Python. For `file_type="sigmf"` this MUST end in
+ *                    `.sigmf-data`: a SigMF capture is a
+ *                    `<base>.sigmf-data` + `<base>.sigmf-meta` pair found by
+ *                    name, and close() writes the sidecar beside it.
+ * @param file_type   `"raw"` (headerless interleaved I/Q), `"csv"` (one
+ *                    `I,Q` line per sample), `"blue"` (self-describing
+ *                    X-Midas/REDHAWK type-1000) or `"sigmf"`. Only BLUE and
+ *                    SigMF record `fs`/`fc`; raw and CSV have nowhere to put
+ *                    them.
+ * @param sample_type wire type: `"cf32"`, `"cf64"`, `"ci32"`, `"ci16"` or
+ *                    `"ci8"`. The integer types quantise ±1.0 to full scale
+ *                    and can clip -- see track_clipping()/peak_dbfs.
+ * @param endian      `"le"` or `"be"`; ignored for CSV, which is text.
+ * @param fs          sample rate (Hz). BLUE stores it as `xdelta = 1/fs`,
+ *                    SigMF as `core:sample_rate`.
+ * @param fc          centre frequency (Hz). BLUE records it as a `FREQ`
+ *                    keyword, SigMF as `captures[0]["core:frequency"]`; raw
+ *                    and CSV drop it. 0.0 writes nothing.
+ * @param total       expected sample count, for the BLUE header; close()
+ *                    patches the real count, so 0 is fine when unknown.
+ * @param headroom    dB of output backoff (gain = 10^(-H/20)) applied before
+ *                    quantisation. A single scale, so it does not change any
+ *                    power ratio -- only the absolute level. 0 is a bit-exact
+ *                    no-op.
+ * @return a writer, or NULL if the path cannot be opened for writing (or is
+ *         a SigMF path not ending in `.sigmf-data`).
+ */
 wfm_writer_state_t *wfm_writer_create(const char *path, int file_type, int sample_type, int endian, double fs, double fc, size_t total, double headroom);
 
 /**
  * @brief Write a complete 512-byte BLUE/Platinum type-1000 Header Control Block.
  *
- * Used for the `blue` container — both attached (the writer calls this with
+ * Used for the `blue` file type — both attached (the writer calls this with
  * `data_start = 512`, `detached = 0`, then streams the data after it) and
  * detached (the caller writes the data to a separate `.det` file and this HCB to
  * a `.hdr` file with `data_start = 0`, `detached = 1`). Every standard field is
@@ -172,7 +239,9 @@ wfm_writer_state_t *wfm_writer_create(const char *path, int file_type, int sampl
  * @param sample_type   wire type (wavegen order) → BLUE format char C{B,I,L,F,D}.
  * @param endian        0 little (`EEEI`) / 1 big (`IEEE`).
  * @param fs            sample rate (Hz) → `xdelta = 1/fs`.
- * @param fc            reserved (no standard type-1000 field).
+ * @param fc            centre frequency (Hz). Type 1000 has no HCB field for
+ *                      it, so a non-zero value is written as an ASCII
+ *                      `FREQ=<value>` pair in the HCB keyword area.
  * @param data_start    `data_start` field: 512 attached, 0 detached.
  * @param total_samples complex-sample count → `data_size`.
  * @param detached      non-zero sets the HCB `detached` flag.

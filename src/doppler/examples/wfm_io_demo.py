@@ -1,9 +1,9 @@
-"""wfm_io_demo.py — write a waveform once, read it back from any container.
+"""wfm_io_demo.py — write a waveform once, read it back from any file type.
 
 The waveform I/O layer (``doppler.wfm.Writer`` / ``Reader``)
 is the
 same C codec behind the ``wfmgen`` CLI's ``--file-type``. This demo writes one
-QPSK capture to all four containers and reads each back, showing the headline
+QPSK capture to all four file types and reads each back, showing the headline
 distinction between them:
 
 - **raw** — bare interleaved I/Q. Smallest, fastest, but carries
@@ -19,7 +19,7 @@ distinction between them:
 
 Each panel overlays the round-tripped spectrum on the original (they coincide —
 the codec is lossless for ``cf32``) and annotates the on-disk size and the
-metadata the container recovered. ``Reader`` auto-detects the container; raw is
+metadata the file type recovered. ``Reader`` auto-detects the file type; raw is
 the one case that needs a ``sample_type`` hint.
 
 Run:
@@ -65,7 +65,7 @@ x = Composer([seg]).compose()
 
 work = tempfile.mkdtemp()
 # (file_type, filename, how to open the Reader). Raw has no magic/metadata, so
-# the reader is given the sample type; the rest auto-detect from the container.
+# the reader is given the sample type; the rest auto-detect from the file type.
 formats = [
     ("raw", "cap.cf32", {"sample_type": "cf32"}),
     ("csv", "cap.csv", {}),
@@ -96,12 +96,12 @@ for file_type, name, read_kw in formats:
     err = float(np.max(np.abs(y - x))) if len(y) == len(x) else float("nan")
     results.append((file_type, y, size, meta, err))
 
-# ── plot: one panel per container, round-trip overlaid + metadata recovered ──
+# ── plot: one panel per file type, round-trip overlaid + metadata recovered ──
 f = np.linspace(-0.5, 0.5, 1024) * FS / 1e3  # kHz
 orig_db = psd_db(x)
 fig, axes = plt.subplots(2, 2, figsize=(12, 9))
 fig.suptitle(
-    "wfm I/O — one waveform, four containers, lossless round-trip",
+    "wfm I/O — one waveform, four file types, lossless round-trip",
     fontsize=14,
     fontweight="bold",
 )
@@ -113,7 +113,7 @@ for ax, (file_type, y, size, meta, err) in zip(axes.ravel(), results):
     ax.set_ylabel("dB (rel. peak)")
     ax.set_ylim(-80, 5)
     ax.grid(alpha=0.3)
-    # fs/fc recovered from the container (raw/csv store none → 0 / not tagged)
+    # fs/fc recovered from the file type (raw/csv store none → 0 / not tagged)
     fs_txt = f"{meta['fs'] / 1e6:.1f} MS/s" if meta["fs"] else "— (hint)"
     fc_txt = f"{meta['fc'] / 1e9:.2f} GHz" if meta["fc"] else "— (not stored)"
     ax.text(
@@ -137,7 +137,7 @@ for ax, (file_type, y, size, meta, err) in zip(axes.ravel(), results):
 
 fig.tight_layout(rect=[0, 0, 1, 0.97])
 fig.savefig("wfm_io_demo.png", dpi=110)
-print("Wrote the same QPSK capture to four containers, read each back:")
+print("Wrote the same QPSK capture to four file types, read each back:")
 for file_type, _, size, meta, err in results:
     print(
         f"  {file_type:5s}  {size / 1024:6.0f} KiB"
@@ -150,24 +150,24 @@ print("→ wfm_io_demo.png")
 # ── validate ─────────────────────────────────────────────────────────────────
 metas = {}
 for file_type, y, _size, meta, err in results:
-    # Every container returns the full capture, auto-detected (raw hinted).
+    # Every file type returns the full capture, auto-detected (raw hinted).
     assert len(y) == N, f"{file_type}: read {len(y)} of {N} samples"
     assert meta["file_type"] == file_type, f"{file_type} detected as {meta}"
     if file_type == "csv":
-        # Text container: samples round-trip through their decimal repr —
+        # Text file type: samples round-trip through their decimal repr —
         # not bit-exact, but well inside a float32 ulp of full scale.
         assert err < 1e-6, f"csv round-trip error {err:.1e}"
     else:
-        # Binary cf32 containers are bit-exact.
+        # Binary cf32 file types are bit-exact.
         assert err == 0.0, f"{file_type} round-trip error {err:.1e}"
     metas[file_type] = meta
-# Self-describing containers recover the tagged sample rate with no hints;
+# Self-describing file types recover the tagged sample rate with no hints;
 # SigMF's JSON sidecar also carries the centre frequency. Raw stores no
 # metadata at all — its fs must come back unset (the reader was told).
 assert metas["blue"]["fs"] == FS and metas["sigmf"]["fs"] == FS
 assert metas["sigmf"]["fc"] == FC
-assert not metas["raw"]["fs"], "raw container should carry no fs"
+assert not metas["raw"]["fs"], "raw file type should carry no fs"
 print(
-    "validated: 4 containers round-trip losslessly, "
+    "validated: 4 file types round-trip losslessly, "
     "blue/sigmf recover fs, sigmf recovers fc"
 )

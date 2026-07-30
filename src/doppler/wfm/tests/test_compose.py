@@ -684,17 +684,17 @@ def test_sampleclock_nonpositive_fs_is_safe():
         ("blue", "blue", "ci16", 1e-3),
     ],
 )
-def test_reader_roundtrips_each_container(
+def test_reader_roundtrips_each_file_type(
     tmp_path, file_type, ext, stype, tol
 ):
-    """Writer → Reader round-trips per container; auto-detection recovers
+    """Writer → Reader round-trips per file type; auto-detection recovers
     it."""
     x = Composer(type="tone", freq=1e5, num_samples=1000).compose()
     p = tmp_path / f"cap.{ext}"
     with Writer(p, file_type=file_type, sample_type=stype, fs=1e6) as w:
         w.write(x)
     with Reader(p, sample_type=stype) as r:
-        assert r.file_type == file_type  # container auto-detected
+        assert r.file_type == file_type  # file type auto-detected
         assert r.sample_type == stype
         y = _read_all(r)
     assert len(y) == len(x)
@@ -711,10 +711,10 @@ def test_reader_roundtrips_each_container(
         ("sigmf", False, "cap", "cap.sigmf-data"),  # + .sigmf-meta sidecar
     ],
 )
-def test_reader_reads_back_wfmgen_cli_container(
+def test_reader_reads_back_wfmgen_cli_file_type(
     tmp_path, file_type, detached, out_name, read_name
 ):
-    """The self-describing containers the *CLI* writes are readable, end to
+    """The self-describing file types the *CLI* writes are readable, end to
     end.
 
     The other coverage is transitive: wfmgen_cli_test.cmake asserts only size
@@ -750,7 +750,7 @@ def test_reader_reads_back_wfmgen_cli_container(
     subprocess.run(cmd, check=True, capture_output=True)
 
     with Reader(tmp_path / read_name) as r:
-        # container auto-detected (BLUE magic / .sigmf-meta sidecar), and the
+        # file type auto-detected (BLUE magic / .sigmf-meta sidecar), and the
         # sample type + rate recovered from its own metadata -- no hints.
         assert r.file_type == file_type
         assert r.sample_type == "cf32"
@@ -759,7 +759,7 @@ def test_reader_reads_back_wfmgen_cli_container(
 
     ref = Synth(type="tone", freq=freq, fs=fs, snr=100.0).steps(n)
     assert len(y) == n
-    assert np.max(np.abs(y - ref)) == 0.0  # bit-exact through the container
+    assert np.max(np.abs(y - ref)) == 0.0  # bit-exact through the file type
 
 
 @_needs_wfmgen

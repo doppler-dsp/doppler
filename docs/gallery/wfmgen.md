@@ -36,7 +36,7 @@ it:
 | ---------- | --------------------------------------------------- |
 | Scope      | one waveform from flags, *or* a multi-segment scene |
 | Spec       | flags **or** `--from-file spec.json`                |
-| Containers | `raw`, `csv`, **BLUE-1000**, **SigMF**              |
+| File Types | `raw`, `csv`, **BLUE-1000**, **SigMF**              |
 | Output     | file / stdout / **`nats://`**                       |
 | Provenance | `--record run.json` (replays byte-identically)      |
 
@@ -59,10 +59,10 @@ wfmgen --type pn --pn-length 9      # length-9 MLS, primitive poly chosen for yo
     it.
 - `--pn-poly 0` picks the maximum-length polynomial for `--pn-length`.
 
-## Containers, sample types, byte order
+## File Types, sample types, byte order
 
 The sample *type* (`--sample-type cf32|cf64|ci32|ci16|ci8`, full-scale ±1.0 for
-the integer types) is orthogonal to the *container* and *byte order*:
+the integer types) is orthogonal to the *file type* and *byte order*:
 
 ```sh
 # 16-bit I/Q, big-endian, into a self-describing BLUE type-1000 file
@@ -138,7 +138,7 @@ per segment.
 
 ## Detached BLUE headers
 
-`--detached` (BLUE only) splits the container into a header + data pair —
+`--detached` (BLUE only) splits the file type into a header + data pair —
 `<out>.hdr` (the 512-byte HCB, with `detached=1` / `data_start=0`) and
 `<out>.det` (the raw samples). Attached output keeps whatever extension you give
 `-o` (`.blue` / `.prm` / …).
@@ -192,5 +192,5 @@ with Writer("frame.cf32", sample_type="cf32") as w:
 ```
 
 See the [Python composer API](../api/python-wfmgen.md#compose-multi-segment-composition-writers-and-a-nats-sink)
-for `Writer` containers (raw / CSV / BLUE / SigMF), the `StreamSink`, JSON
+for `Writer` file types (raw / CSV / BLUE / SigMF), the `StreamSink`, JSON
 round-tripping, and the `rrc_taps` / `dsss_spread` / `mls_poly` helpers.

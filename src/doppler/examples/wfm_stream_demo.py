@@ -1,6 +1,6 @@
 """wfm_stream_demo.py — stream a capture to and from a BLUE file.
 
-Every other container example writes a whole array in one call and reads the
+Every other file type example writes a whole array in one call and reads the
 whole capture back in one call. Real captures do not work that way: a source
 delivers whatever size buffer it happens to have, the total length is not known
 when the file is opened, and a reader has to drain to end-of-file without being

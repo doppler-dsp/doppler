@@ -1,7 +1,7 @@
 """wfm_write_demo.py — generate a waveform and write it to a file.
 
 Composes a short burst (tone → BPSK → silence) with the doppler wfm
-Composer, writes it to a BLUE type-1000 container via ``Writer``, reads
+Composer, writes it to a BLUE type-1000 file type via ``Writer``, reads
 it back with ``Reader``, and plots the time-domain magnitude of both.
 The traces coincide — the codec is lossless for cf32.
 

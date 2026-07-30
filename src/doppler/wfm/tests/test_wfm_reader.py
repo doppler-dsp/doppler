@@ -11,7 +11,7 @@ preserve, each of which needed a jm feature to survive:
   * enum properties that return strings       (jm gh-519)
   * the class staying at ``doppler.wfm``      (jm gh-523)
 
-The container-level behaviour (mode parsing, detached captures, keywords) is
+The file-format behaviour (mode parsing, detached captures, keywords) is
 covered in test_compose.py; this file is about the binding.
 """
 
@@ -315,3 +315,238 @@ def test_data_size_bounds_the_read_after_a_headermod_shrink(tmp_path):
     )  # one cf32 sample fewer
     got = Reader(str(f)).read(64)
     assert got.real.astype(int).tolist() == [1, 3, 5]
+
+
+# ── centre frequency ─────────────────────────────────────────────────────────
+#
+# BLUE type-1000 has no HCB field for centre frequency, so an RF capture
+# conveys it as a keyword. `Reader.fc` used to ignore every one of them and
+# return 0.0 -- indistinguishable from a genuine baseband capture, on files
+# doppler did not write and could not have known were wrong.
+
+
+def _blue_with_hcb_keyword(path, pair: bytes, *, fs=1e6):
+    """A minimal attached BLUE cf32 capture whose ONLY metadata is one ASCII
+    `KEY=VALUE\\0` pair in the HCB keyword area (BLUE 1.1 3.1.1.24.1).
+
+    This is the shape a real X-Midas type-1000 capture arrives in: no extended
+    header at all, the frequency sitting in the 92 bytes at offset 164 as text.
+    Built by hand rather than via `Writer` precisely so it is not a test of our
+    own writer -- it is a test of reading somebody else's file.
+    """
+    data = np.arange(1, 9, dtype=np.float32).view(np.complex64).tobytes()
+    h = bytearray(512)
+    h[0:4], h[4:8], h[8:12] = b"BLUE", b"EEEI", b"EEEI"
+    struct.pack_into("<i", h, 48, 1000)
+    struct.pack_into("<d", h, 32, 512.0)
+    struct.pack_into("<d", h, 40, float(len(data)))
+    h[52], h[53] = ord("C"), ord("F")
+    struct.pack_into("<i", h, 160, len(pair))  # keylength
+    h[164 : 164 + len(pair)] = pair
+    struct.pack_into("<d", h, 264, 1.0 / fs)
+    path.write_bytes(bytes(h) + data)
+    return path
+
+
+def test_fc_round_trips_through_a_blue_capture(tmp_path):
+    """What the Writer was handed comes back out."""
+    p = tmp_path / "rf.blue"
+    with Writer(
+        p, file_type="blue", sample_type="ci16", fs=1e6, fc=2.4e9
+    ) as w:
+        w.write(np.zeros(8, dtype=np.complex64))
+    with Reader(p) as r:
+        assert r.fc == pytest.approx(2.4e9)
+        assert r.fc_source == "FREQ"
+
+
+def test_fc_is_read_from_the_hcb_keyword_area_alone(tmp_path):
+    """The wild-file case: ASCII text in the HCB, no extended header.
+
+    Values in that area have no type field (3.1.1.24.1 makes them ASCII by
+    definition), so the reader has to parse the characters -- reading only the
+    typed extended-header form would miss every capture in this shape.
+    """
+    p = _blue_with_hcb_keyword(tmp_path / "wild.blue", b"FREQ=2400000000\x00")
+    with Reader(p) as r:
+        assert r.keywords == {
+            "FREQ": "2400000000"
+        }  # a str, as the area implies
+        assert r.fc == pytest.approx(2.4e9)
+        assert r.fc_source == "FREQ"
+
+
+@pytest.mark.parametrize(
+    "tag,text,want",
+    [
+        ("FREQ", "1.5e9", 1.5e9),
+        ("RF_FREQ", "1420405751.768", 1420405751.768),
+        ("CENTER_FREQ", "70e6", 70e6),
+        ("F_C", "-3", -3.0),
+    ],
+)
+def test_fc_accepts_each_conventional_tag(tmp_path, tag, text, want):
+    """No tag for this is standardised -- 3.1.2.6.4.4 defines FREQ only as a
+    type-6000 column name -- so the reader tries the conventional set."""
+    p = _blue_with_hcb_keyword(
+        tmp_path / f"{tag}.blue", f"{tag}={text}".encode() + b"\x00"
+    )
+    with Reader(p) as r:
+        assert r.fc == pytest.approx(want)
+        assert r.fc_source == tag
+
+
+def test_fc_source_separates_declared_baseband_from_not_found(tmp_path):
+    """0.0 is a legitimate centre frequency, which is the whole reason
+    `fc_source` exists: without it the two cases below are one answer."""
+    declared = _blue_with_hcb_keyword(tmp_path / "zero.blue", b"FREQ=0\x00")
+    with Reader(declared) as r:
+        assert r.fc == 0.0
+        assert r.fc_source == "FREQ"  # the capture SAYS baseband
+
+    silent = _blue_with_hcb_keyword(tmp_path / "none.blue", b"COMMENT=hi\x00")
+    with Reader(silent) as r:
+        assert r.keywords == {"COMMENT": "hi"}  # a keyword block, just not one
+        assert r.fc == 0.0
+        assert r.fc_source == "none"  # nothing said anything
+
+
+def test_fc_is_not_guessed_from_a_value_that_is_not_a_bare_number(tmp_path):
+    """A units suffix means the file's convention is not one we understand.
+
+    Reporting 2.4e9 from "2.4e9 Hz" would be luck; reporting it from "2.4 GHz"
+    would be wrong by a factor of a billion. The value stays visible in
+    `.keywords` for a caller who knows what it means.
+    """
+    p = _blue_with_hcb_keyword(tmp_path / "units.blue", b"FREQ=2.4e9 Hz\x00")
+    with Reader(p) as r:
+        assert r.keywords == {"FREQ": "2.4e9 Hz"}  # present, so not vacuous
+        assert r.fc_source == "none"
+        assert r.fc == 0.0
+
+
+def test_the_typed_copy_wins_over_the_ascii_mirror(tmp_path):
+    """A capture we wrote carries FREQ twice -- ASCII in the HCB area, typed
+    in the extended header -- so that both an X-Midas reader and a
+    full-precision one find it. They must never be read as disagreeing: the
+    typed copy is the one that did not round-trip through a decimal string.
+    """
+    p = tmp_path / "both.blue"
+    fc = 1234567890.123456
+    with Writer(p, file_type="blue", sample_type="cf32", fc=fc) as w:
+        w.write(np.zeros(8, dtype=np.complex64))
+    raw = p.read_bytes()
+    keylength = struct.unpack_from("<i", raw, 160)[0]
+    assert keylength > 0, "the ASCII mirror should be in the HCB area"
+    assert raw[164 : 164 + keylength].startswith(b"FREQ=")
+    with Reader(p) as r:
+        assert struct.unpack_from("<i", raw, 28)[0] > 0  # extended header too
+        assert r.fc == fc  # exactly, not merely approximately
+        assert r.fc_source == "FREQ"
+
+
+def test_detached_header_carries_fc(tmp_path):
+    """A detached capture's header is written without any writer state, by a
+    different function -- so it is a separate chance to drop the frequency."""
+    from doppler.wfm import write_blue_header
+
+    hdr = tmp_path / "d.hdr"
+    write_blue_header(
+        hdr,
+        sample_type="ci16",
+        endian="le",
+        fs=1e6,
+        fc=915e6,
+        data_start=0.0,
+        total=8,
+        detached=1,
+    )
+    (tmp_path / "d.det").write_bytes(b"\x00" * 32)
+    with Reader(hdr) as r:
+        assert r.fc == pytest.approx(915e6)
+        assert r.fc_source == "FREQ"
+        assert r.num_samples == 8
+
+
+# ── file type detection, by content ──────────────────────────────────────────
+
+
+def test_csv_is_detected_by_content_not_by_extension(tmp_path):
+    """A capture that got renamed is still the capture."""
+    p = tmp_path / "capture.dat"  # no .csv anywhere
+    p.write_text("1.0,2.0\n3.0,4.0\n5.0,6.0\n")
+    with Reader(p) as r:
+        assert r.file_type == "csv"
+        assert r.read(8).tolist() == [1 + 2j, 3 + 4j, 5 + 6j]
+
+
+def test_a_blue_capture_named_csv_is_still_blue(tmp_path):
+    """The other direction: the magic outranks the name."""
+    p = tmp_path / "capture.csv"
+    with Writer(p, file_type="blue", sample_type="cf32", fs=1e6) as w:
+        w.write(np.ones(8, dtype=np.complex64))
+    with Reader(p) as r:
+        assert r.file_type == "blue"
+        assert r.num_samples == 8
+
+
+def test_a_csv_with_a_header_row_still_opens_as_csv(tmp_path):
+    """Content decides, but the name still gets a vote.
+
+    A leading column header fails the content test; falling through to raw
+    would read the text as binary IQ, which is worse than what the extension
+    already told us.
+    """
+    p = tmp_path / "headed.csv"
+    p.write_text("I,Q\n1.0,2.0\n")
+    with Reader(p) as r:
+        assert r.file_type == "csv"
+
+
+# ── length and the wrong-hint tell ───────────────────────────────────────────
+
+
+def test_csv_reports_its_length(tmp_path):
+    """`num_samples` was 0 for every CSV -- which reads as "empty capture"."""
+    p = tmp_path / "n.csv"
+    p.write_text("".join(f"{i}.0,{i}.5\n" for i in range(37)))
+    with Reader(p) as r:
+        assert r.num_samples == 37
+        # counting must not disturb the read position, in either order
+        assert len(r.read(37)) == 37
+        assert r.num_samples == 37
+
+
+def test_trailing_bytes_is_zero_when_the_hint_is_right(tmp_path):
+    """The baseline the next two tests are measured against."""
+    p = tmp_path / "ok.raw"
+    with Writer(p, file_type="raw", sample_type="ci8") as w:
+        w.write(np.zeros(5, dtype=np.complex64))
+    with Reader(p, sample_type="ci8") as r:
+        assert r.trailing_bytes == 0
+        assert r.num_samples == 5
+
+
+def test_trailing_bytes_flags_a_wrong_sample_type_hint(tmp_path):
+    """A headerless file type cannot check the hint against the file, so a
+    wrong one does not fail -- it returns garbage at the wrong stride. The
+    leftover bytes are the only signal there is."""
+    p = tmp_path / "hint.raw"
+    with Writer(p, file_type="raw", sample_type="ci8") as w:
+        w.write(np.zeros(5, dtype=np.complex64))  # 10 bytes on the wire
+    with Reader(p, sample_type="cf32") as r:  # would need 8 bytes/sample
+        assert r.trailing_bytes == 2
+        assert r.num_samples == 1
+
+
+def test_trailing_bytes_flags_a_capture_cut_mid_sample(tmp_path):
+    """The other thing leftover bytes can mean; the reader cannot tell which,
+    and says so rather than picking one."""
+    p = tmp_path / "cut.raw"
+    with Writer(p, file_type="raw", sample_type="cf32") as w:
+        w.write(np.zeros(8, dtype=np.complex64))
+    with p.open("r+b") as f:
+        f.truncate(p.stat().st_size - 3)
+    with Reader(p) as r:
+        assert r.trailing_bytes == 5  # 8 bytes/sample, 3 of them gone
+        assert r.num_samples == 7

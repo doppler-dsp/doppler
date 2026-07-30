@@ -1,6 +1,6 @@
 /*
  * test_wfm_reader.c — round-trip wfm_writer → wfm_reader across every
- * container, plus container auto-detection and the BLUE-magic gate.
+ * file type, plus file type auto-detection and the BLUE-magic gate.
  */
 #include "wfm/wfm_keywords.h"
 #include "wfm_reader/wfm_reader_core.h"
@@ -8,6 +8,7 @@
 
 #include <complex.h>
 #include <math.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -32,7 +33,7 @@ make_signal (float _Complex *x, size_t n)
     x[i] = (float)(0.9 * sin (0.1 * i)) + (float)(0.8 * cos (0.07 * i)) * I;
 }
 
-/* Write x through a writer of the given container, then read it back and check
+/* Write x through a writer of the given file type, then read it back and check
    the samples match within tol and the metadata is recovered. */
 static int
 roundtrip (const char *path, int ft, int stype, double fs, double tol)
@@ -70,7 +71,9 @@ roundtrip (const char *path, int ft, int stype, double fs, double tol)
   CHECK (info.sample_type == stype, "sample_type recovered");
   if (ft == WFM_FT_BLUE || ft == WFM_FT_SIGMF)
     CHECK (fabs (info.fs - fs) < 1.0, "fs recovered from metadata");
-  CHECK (info.num_samples == 0 || info.num_samples == N, "num_samples");
+  /* Exact for every file type now: CSV used to be the one that could
+     only say 0, which reads as an empty capture. */
+  CHECK (info.num_samples == N, "num_samples");
 
   size_t total = 0, n;
   while ((n = wfm_reader_read (r, N - total, y + total, N - total)) > 0)
@@ -477,7 +480,7 @@ test_keyword_absent_and_corrupt (void)
 /* reset() rewinds to the first SAMPLE, not to byte 0 of the file. Getting that
    wrong on an attached BLUE capture would replay the 512-byte HCB as IQ -- the
    same failure the detached-header bug produced -- so this checks the second
-   pass is bit-identical to the first across every container, including the
+   pass is bit-identical to the first across every file type, including the
    detached split (where the payload genuinely does start at byte 0 of another
    file) and a capture carrying an extended header (where the data does not run
    to EOF). */
@@ -656,6 +659,238 @@ test_hcb_keyword_area (void)
   return _fails;
 }
 
+/* ── centre frequency ─────────────────────────────────────────────────────
+ *
+ * Type-1000 has no HCB field for it, so it travels as a keyword — and the
+ * captures that carry one put it in the HCB keyword area as ASCII, which the
+ * reader ignored entirely. These build such a file by hand rather than through
+ * wfm_writer, because the point is reading somebody ELSE'S capture.
+ */
+
+/* A minimal attached cf32 BLUE capture whose only metadata is one ASCII
+   "KEY=VALUE\0" pair in the HCB keyword area (BLUE 1.1 3.1.1.24.1). */
+static int
+write_hcb_only_capture (const char *path, const char *pair)
+{
+  uint8_t h[512] = { 0 };
+  float _Complex data[4]
+      = { 1.0f + 2.0f * I, 3.0f + 4.0f * I, 5.0f + 6.0f * I, 7.0f + 8.0f * I };
+  memcpy (h + 0, "BLUE", 4);
+  memcpy (h + 4, "EEEI", 4);
+  memcpy (h + 8, "EEEI", 4);
+  int32_t i32 = 1000;
+  memcpy (h + 48, &i32, 4);
+  double f64 = 512.0;
+  memcpy (h + 32, &f64, 8);
+  f64 = (double)sizeof data;
+  memcpy (h + 40, &f64, 8);
+  h[52]       = 'C';
+  h[53]       = 'F';
+  size_t klen = strlen (pair) + 1u; /* the NUL terminator counts */
+  i32         = (int32_t)klen;
+  memcpy (h + 160, &i32, 4);
+  memcpy (h + 164, pair, klen);
+  f64 = 1e-6;
+  memcpy (h + 264, &f64, 8);
+
+  FILE *fp = fopen (path, "wb");
+  if (!fp)
+    return -1;
+  int ok = fwrite (h, 1, 512, fp) == 512
+           && fwrite (data, 1, sizeof data, fp) == sizeof data;
+  fclose (fp);
+  return ok ? 0 : -1;
+}
+
+/* One ASCII HCB keyword in, one resolved (fc, fc_source) out. */
+static int
+fc_from_pair (const char *pair, double *fc, int *src)
+{
+  const char *path = "dp_reader_fc.blue";
+  if (write_hcb_only_capture (path, pair))
+    return -1;
+  wfm_reader_state_t *r = wfm_reader_create (path, 0, 0);
+  if (!r)
+    return -1;
+  wfm_reader_info_t info;
+  wfm_reader_info (r, &info);
+  *fc  = info.fc;
+  *src = info.fc_source;
+  wfm_reader_destroy (r);
+  return 0;
+}
+
+static int
+test_fc_from_keywords (void)
+{
+  double fc;
+  int    src;
+
+  /* Every conventional tag, ASCII, in the HCB area. */
+  CHECK (fc_from_pair ("FREQ=2400000000", &fc, &src) == 0, "FREQ capture");
+  CHECK (fc == 2.4e9 && src == WFM_FC_FREQ, "FREQ resolves");
+  CHECK (fc_from_pair ("RF_FREQ=1.5e9", &fc, &src) == 0, "RF_FREQ capture");
+  CHECK (fc == 1.5e9 && src == WFM_FC_RF_FREQ, "RF_FREQ resolves");
+  CHECK (fc_from_pair ("CENTER_FREQ=70e6", &fc, &src) == 0, "CENTER capture");
+  CHECK (fc == 70e6 && src == WFM_FC_CENTER_FREQ, "CENTER_FREQ resolves");
+  CHECK (fc_from_pair ("F_C=-3", &fc, &src) == 0, "F_C capture");
+  CHECK (fc == -3.0 && src == WFM_FC_F_C, "F_C resolves");
+
+  /* An explicit zero is a READING, and must not read as "not found" -- that
+     distinction is the entire reason fc_source exists. */
+  CHECK (fc_from_pair ("FREQ=0", &fc, &src) == 0, "baseband capture");
+  CHECK (fc == 0.0 && src == WFM_FC_FREQ, "declared baseband");
+
+  /* Nothing to read, and nothing invented. */
+  CHECK (fc_from_pair ("COMMENT=hi", &fc, &src) == 0, "no-freq capture");
+  CHECK (fc == 0.0 && src == WFM_FC_NONE, "absent stays absent");
+
+  /* A value we cannot interpret is left alone rather than guessed at: "2.4
+     GHz" parsed as a bare number would be wrong by a factor of a billion. */
+  CHECK (fc_from_pair ("FREQ=2.4 GHz", &fc, &src) == 0, "united capture");
+  CHECK (fc == 0.0 && src == WFM_FC_NONE, "a units suffix is not a number");
+  return 0;
+}
+
+/* The writer's two copies must never be readable as disagreeing. */
+static int
+test_fc_write_side (void)
+{
+  const char *path     = "dp_reader_fcw.blue";
+  double      fc       = 1234567890.123456;
+  float _Complex xs[4] = { 0 };
+
+  FILE *fp = fopen (path, "wb");
+  CHECK (fp, "open for write");
+  wfm_writer_state_t *w = wfm_writer_open (fp, WFM_FT_BLUE, 0, 0, 1e6, fc, 4);
+  CHECK (w, "writer open");
+  /* A standard HCB keyword makes close() rewrite the whole 92-byte area --
+     the path on which a frequency written at open could be lost. */
+  CHECK (wfm_writer_add_keyword (w, "VER", 'A', "1.1", 3) == 0, "std kw");
+  CHECK (wfm_writer_write (w, xs, 4) == 4, "write");
+  CHECK (wfm_writer_close (w) == 0, "close");
+  fclose (fp);
+
+  wfm_reader_state_t *r = wfm_reader_create (path, 0, 0);
+  CHECK (r, "reader open");
+  wfm_reader_info_t info;
+  wfm_reader_info (r, &info);
+  /* Exactly, not approximately: the typed extended-header copy is preferred
+     precisely because it did not round-trip through a decimal string. */
+  CHECK (info.fc == fc, "fc survives to full precision");
+  CHECK (info.fc_source == WFM_FC_FREQ, "and knows where it came from");
+  CHECK (wfm_reader_find_keyword (r, "VER") != NULL, "VER survived too");
+  wfm_reader_destroy (r);
+  return 0;
+}
+
+/* ── the wrong-hint tell ──────────────────────────────────────────────────*/
+
+static int
+test_trailing_bytes (void)
+{
+  const char *path = "dp_reader_trail.raw";
+  int8_t      raw[10]; /* 5 ci8 samples */
+  memset (raw, 0, sizeof raw);
+  FILE *fp = fopen (path, "wb");
+  CHECK (fp, "open for write");
+  CHECK (fwrite (raw, 1, sizeof raw, fp) == sizeof raw, "write raw");
+  fclose (fp);
+
+  wfm_reader_info_t info;
+  /* Right hint: the file divides exactly. */
+  wfm_reader_state_t *r = wfm_reader_create (path, 4, 0); /* ci8 */
+  CHECK (r, "reader open ci8");
+  wfm_reader_info (r, &info);
+  CHECK (info.trailing_bytes == 0 && info.num_samples == 5, "ci8 divides");
+  wfm_reader_destroy (r);
+
+  /* Wrong hint: 10 bytes is one cf32 sample and two bytes nobody can use.
+     Nothing fails -- a headerless file type cannot check a hint -- so the
+     remainder is the only thing that says so. */
+  r = wfm_reader_create (path, 0, 0); /* cf32 */
+  CHECK (r, "reader open cf32");
+  wfm_reader_info (r, &info);
+  CHECK (info.trailing_bytes == 2, "wrong stride leaves a remainder");
+  CHECK (info.num_samples == 1, "and only whole samples are counted");
+  wfm_reader_destroy (r);
+  return 0;
+}
+
+/* ── detection by content ─────────────────────────────────────────────────*/
+
+static int
+test_detects_by_content_not_extension (void)
+{
+  wfm_reader_info_t info;
+
+  /* A CSV that got renamed is still a CSV. */
+  const char *csv = "dp_reader_named.dat";
+  FILE       *fp  = fopen (csv, "w");
+  CHECK (fp, "open csv");
+  fputs ("1.0,2.0\n3.0,4.0\n5.0,6.0\n", fp);
+  fclose (fp);
+  wfm_reader_state_t *r = wfm_reader_create (csv, 0, 0);
+  CHECK (r, "reader open renamed csv");
+  wfm_reader_info (r, &info);
+  CHECK (info.file_type == WFM_FT_CSV, "text I,Q is CSV whatever it is named");
+  CHECK (info.num_samples == 3, "and its length is counted");
+  float _Complex y[4];
+  CHECK (wfm_reader_read (r, 4, y, 4) == 3, "reads as CSV");
+  CHECK (crealf (y[0]) == 1.0f && cimagf (y[2]) == 6.0f, "values intact");
+  wfm_reader_destroy (r);
+
+  /* And the reverse: the BLUE magic outranks a .csv name. */
+  CHECK (write_hcb_only_capture ("dp_reader_named.csv", "COMMENT=x") == 0,
+         "write blue as .csv");
+  r = wfm_reader_create ("dp_reader_named.csv", 0, 0);
+  CHECK (r, "reader open misnamed blue");
+  wfm_reader_info (r, &info);
+  CHECK (info.file_type == WFM_FT_BLUE, "the magic wins over the name");
+  CHECK (info.num_samples == 4, "and the payload is located correctly");
+  wfm_reader_destroy (r);
+  return 0;
+}
+
+/* ── SigMF is a pair ──────────────────────────────────────────────────────*/
+
+static int
+test_sigmf_pair_from_create (void)
+{
+  const char *path     = "dp_reader_pair.sigmf-data";
+  float _Complex xs[4] = { 0 };
+  /* A path-opened writer owns BOTH halves; the sidecar carries the datatype,
+     so emitting only the samples produces an undecodable capture. */
+  wfm_writer_state_t *w
+      = wfm_writer_create (path, WFM_FT_SIGMF, 3, 0, 2e6, 1.2e9, 4, 0.0);
+  CHECK (w, "writer create");
+  CHECK (wfm_writer_write (w, xs, 4) == 4, "write");
+  CHECK (wfm_writer_close (w) == 0, "close");
+
+  wfm_reader_state_t *r = wfm_reader_create (path, 0, 0);
+  CHECK (r, "reader open — the sidecar must exist");
+  wfm_reader_info_t info;
+  wfm_reader_info (r, &info);
+  CHECK (info.file_type == WFM_FT_SIGMF, "detected as SigMF");
+  CHECK (info.sample_type == 3, "ci16 recovered from the sidecar");
+  CHECK (info.fs == 2e6 && info.fc == 1.2e9, "fs/fc recovered");
+  CHECK (info.fc_source == WFM_FC_SIGMF, "and attributed to the sidecar");
+  wfm_reader_destroy (r);
+
+  /* Both halves are found by NAME, so the name is part of the format. The
+     control proves the refusal is about the extension and not about the path
+     being unwritable -- otherwise this pair of checks would pass vacuously. */
+  wfm_writer_state_t *ok = wfm_writer_create ("dp_reader_pair.bin", WFM_FT_RAW,
+                                              3, 0, 2e6, 0.0, 4, 0.0);
+  CHECK (ok != NULL, "the same path is writable as raw");
+  CHECK (wfm_writer_close (ok) == 0, "control close");
+  CHECK (wfm_writer_create ("dp_reader_pair.bin", WFM_FT_SIGMF, 3, 0, 2e6, 0.0,
+                            4, 0.0)
+             == NULL,
+         "a SigMF path must end in .sigmf-data");
+  return 0;
+}
+
 int
 main (void)
 {
@@ -690,6 +925,16 @@ main (void)
   if (test_ext_header_at_end_of_attached_file ())
     return 1;
   if (test_hcb_keyword_area ())
+    return 1;
+  if (test_fc_from_keywords ())
+    return 1;
+  if (test_fc_write_side ())
+    return 1;
+  if (test_trailing_bytes ())
+    return 1;
+  if (test_detects_by_content_not_extension ())
+    return 1;
+  if (test_sigmf_pair_from_create ())
     return 1;
   printf ("test_wfm_reader: all passed\n");
   return 0;

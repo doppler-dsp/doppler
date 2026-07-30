@@ -13,6 +13,20 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+### Fixed
+
+- **The mdformat plugins are pinned, so local and CI cannot disagree about a
+    file.** `additional_dependencies` resolve when the hook environment is
+    created, not when the config is written — so a warm local cache and a fresh
+    CI runner could hold different versions and format the same markdown
+    differently, while the config still read as fully pinned. Measured
+    directly: the stale local environments held `mdformat-gfm-alerts` 2.0.0 and
+    `mdformat-mkdocs` 5.1.4 where CI resolved 2.1.0 and 5.2.1. That is what put
+    a `docs/api.md` through `make lint` cleanly and then failed the CI
+    pre-commit job. All three are now pinned (to the versions CI was already
+    resolving, so nothing in the tree reformats), and bumping them is a
+    deliberate edit rather than a side effect of a cold cache.
+
 ### Added
 
 - **[`examples/downstream-jm/`](examples/downstream-jm/) — a worked example of

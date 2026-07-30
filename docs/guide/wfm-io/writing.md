@@ -1,20 +1,23 @@
-# Output & file types
+# Writing captures — output & file types
 
 The sample **type** (the datatype), the **file type** (the file format), and the
-**byte order** are three orthogonal choices.
+**byte order** are three orthogonal choices. This page is the write side of
+capture I/O; [Reading captures](reading.md) is the read side, and its
+[metadata table](reading.md#what-each-file-type-actually-carries) is the one to
+check before assuming a field survives the round trip.
 
 ## Output parameter reference
 
-| Flag              | Values                    | Default | Meaning                                                           |
-| ----------------- | ------------------------- | ------- | ----------------------------------------------------------------- |
-| `--sample-type`   | `cf32 cf64 ci32 ci16 ci8` | `cf32`  | wire type; integers are full-scale ±1.0                           |
-| `--file-type`     | `raw csv blue sigmf`      | `raw`   | file type (below)                                                 |
-| `--endian`        | `le be`                   | `le`    | byte order (raw/BLUE only; csv is text)                           |
-| `--output` / `-o` | path *(or `nats://…`)*    | stdout  | sink                                                              |
-| `--record`        | path                      | —       | write a JSON record of the resolved run (see [Scenes](scenes.md)) |
+| Flag              | Values                    | Default | Meaning                                                                     |
+| ----------------- | ------------------------- | ------- | --------------------------------------------------------------------------- |
+| `--sample-type`   | `cf32 cf64 ci32 ci16 ci8` | `cf32`  | wire type; integers are full-scale ±1.0                                     |
+| `--file-type`     | `raw csv blue sigmf`      | `raw`   | file type (below)                                                           |
+| `--endian`        | `le be`                   | `le`    | byte order (raw/BLUE only; csv is text)                                     |
+| `--output` / `-o` | path *(or `nats://…`)*    | stdout  | sink                                                                        |
+| `--record`        | path                      | —       | write a JSON record of the resolved run (see [Scenes](../wfmgen/scenes.md)) |
 
 The integer sample types map ±1.0 → ±max-code (and can clip on PAPR > 0 dB
-content); see [Levels & SNR → Scaling to the wire](levels.md#scaling-to-the-wire-and-headroom).
+content); see [Levels & SNR → Scaling to the wire](../wfmgen/levels.md#scaling-to-the-wire-and-headroom).
 
 Reading these back — and what metadata each file type actually preserves — is
 [Reading captures](reading.md).
@@ -117,7 +120,7 @@ wfmgen --type tone --continuous --output nats://127.0.0.1:4222/iq  # stream fore
 
 A `dp_sub_*` subscriber (e.g. `examples/c/spectrum_analyzer`) reads the NATS
 stream. For pacing a live stream to the true sample rate, see
-[Streaming](streaming.md).
+[Streaming](../wfmgen/streaming.md).
 
 ______________________________________________________________________
 
@@ -143,7 +146,7 @@ with Reader("capture.blue") as r:                     # file type auto-detected
 
 `generate → Reader.read` is bit-faithful. See
 [Type System → Reading interleaved I/Q](../../types.md#reading-interleaved-iq-in-python)
-and the [Python API](python.md) page.
+and the [Python API](../wfmgen/python.md) page.
 
 ______________________________________________________________________
 

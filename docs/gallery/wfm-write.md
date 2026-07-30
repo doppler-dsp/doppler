@@ -33,4 +33,4 @@ python src/doppler/examples/wfm_write_demo.py   # → burst.blue + wfm_write_dem
 
 For four file types side by side — raw, CSV, BLUE, and SigMF — see
 [Waveform I/O](wfm-io.md). For the flag/parameter reference behind `Writer`
-and `Reader`, see [Guide: Output & file types](../guide/wfmgen/output.md).
+and `Reader`, see [Guide: Output & file types](../guide/wfm-io/writing.md).

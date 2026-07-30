@@ -278,13 +278,18 @@ DOWNSTREAM_DIR := examples/downstream-jm
 DOWNSTREAM_BUILD_DIR := $(BUILD_DIR)/downstream-jm
 test-example-downstream: build
 	@echo "Building downstream jm example (C only, links libdoppler.a)..."
+# Output is captured rather than discarded: a gate that hides why it failed
+# costs a whole CI round-trip to diagnose, which this one did on its first
+# macOS run. Quiet on success, the real compiler/linker error on failure.
 	@cmake -B $(DOWNSTREAM_BUILD_DIR) $(DOWNSTREAM_DIR) \
 	    -Ddoppler_DIR=$(abspath $(BUILD_DIR)) \
 	    -DBUILD_PYTHON=OFF \
 	    -DCMAKE_BUILD_TYPE=Release \
-	    > /dev/null 2>&1 || { echo "  configure FAILED"; exit 1; }
+	    > $(DOWNSTREAM_BUILD_DIR).log 2>&1 \
+	    || { echo "  configure FAILED"; cat $(DOWNSTREAM_BUILD_DIR).log; exit 1; }
 	@cmake --build $(DOWNSTREAM_BUILD_DIR) --parallel $(NPROC) \
-	    > /dev/null 2>&1 || { echo "  build FAILED"; exit 1; }
+	    > $(DOWNSTREAM_BUILD_DIR).log 2>&1 \
+	    || { echo "  build FAILED"; cat $(DOWNSTREAM_BUILD_DIR).log; exit 1; }
 	@printf "  %-20s" "downstream-jm"; \
 	if $(CTEST) --test-dir $(DOWNSTREAM_BUILD_DIR) > /dev/null 2>&1; then \
 	    echo "PASS"; \
@@ -318,9 +323,11 @@ test-example-downstream-python:
 	    -DBUILD_PYTHON=ON \
 	    -DPython3_EXECUTABLE=$$(uv run python -c 'import sys; print(sys.executable)') \
 	    -DCMAKE_BUILD_TYPE=Release \
-	    > /dev/null 2>&1 || { echo "  configure FAILED"; exit 1; }
+	    > $(DOWNSTREAM_BUILD_DIR)-py.log 2>&1 \
+	    || { echo "  configure FAILED"; cat $(DOWNSTREAM_BUILD_DIR)-py.log; exit 1; }
 	@cmake --build $(DOWNSTREAM_BUILD_DIR)-py --parallel $(NPROC) \
-	    > /dev/null 2>&1 || { echo "  build FAILED"; exit 1; }
+	    > $(DOWNSTREAM_BUILD_DIR)-py.log 2>&1 \
+	    || { echo "  build FAILED"; cat $(DOWNSTREAM_BUILD_DIR)-py.log; exit 1; }
 	PYTHONPATH=$(abspath $(DOWNSTREAM_DIR))/src \
 	    uv run pytest -q $(DOWNSTREAM_DIR)/src/iqtools/capture/tests/
 

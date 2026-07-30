@@ -73,6 +73,20 @@ target_sources(iqtools_lib_static PRIVATE $<TARGET_OBJECTS:capture_core>)
 
 # ── Hand-owned targets ───────────────────────────────────────────────────────
 # Outside every just-makeit marker block, so `jm apply` leaves it alone.
+
+# The `target_sources(... $<TARGET_OBJECTS:capture_core>)` lines above add
+# capture_core's OBJECT FILES to the combined library but NOT its link
+# libraries — generator-expression object sources carry no usage requirements.
+# Without this, libiqtools is built with undefined `wfm_reader_*` symbols and
+# no reference to doppler at all.
+#
+# Linux links a shared object with undefined symbols happily (they resolve at
+# load time); macOS's linker treats them as a hard error, so this only shows up
+# there. Verified both ways: before, `nm -D --undefined-only libiqtools.so`
+# listed 6 `wfm_reader_*` symbols and the only DT_NEEDED was libc.
+target_link_libraries(iqtools_lib PUBLIC doppler::doppler-static)
+target_link_libraries(iqtools_lib_static PUBLIC doppler::doppler-static)
+
 add_subdirectory(tools)
 
 # ── Install ──────────────────────────────────────────────────────────────────

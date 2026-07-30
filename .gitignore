@@ -38,7 +38,12 @@ benchmarks/history/*
 html/
 xml/
 
-# jm re-materializes this Zensical scaffold file, but the site uses mkdocs.yml.
-zensical.toml
+# jm re-materializes this Zensical scaffold file, but the site uses mkdocs.yml
+# (`make docs` deletes it, since a stale one shadows mkdocs.yml).
+#
+# Anchored to the ROOT: unanchored, it also swallowed the copy jm scaffolds for
+# the nested project in examples/downstream-jm/, whose own drift gate then
+# reported it permanently missing. This rule is about doppler's own file.
+/zensical.toml
 build-cov/
 .mkdoxy/

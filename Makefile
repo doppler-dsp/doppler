@@ -483,11 +483,29 @@ doxygen-warn-gate:
 # without a gate a long branch reaches release day with nothing to promote and
 # the notes get reconstructed from commit messages (github-release's awk turns
 # that section into the published notes verbatim).
+#
+# The RELEASE PR is the one legitimate empty-[Unreleased] state: promotion
+# moves every entry into `## [X.Y.Z]`, so the notes exist — they are just no
+# longer under [Unreleased]. Without an exemption this gate fails on every
+# release PR, which trains people to ignore it.
+#
+# The exemption is deliberately narrow: pyproject's version must HAVE a
+# changelog section AND its tag must NOT exist yet. That second clause is what
+# stops the exemption becoming permanent — once vX.Y.Z is tagged, the section
+# is still there forever, so without it every later feature branch would
+# inherit the pass and the gate would never fire again.
 changelog-check:
 	@t=$$(git describe --tags --abbrev=0 2>/dev/null || true); \
 	n=$$(git log --oneline $${t:+$$t..}HEAD -- src native objects ffi 2>/dev/null | wc -l); \
 	e=$$(awk '/^## \[Unreleased\]/{f=1;next} f&&/^## /{exit} f' CHANGELOG.md \
 	     | grep -c '^- ' || true); \
+	v=$$(awk -F'"' '/^version = /{print $$2; exit}' pyproject.toml); \
+	if [ "$$n" -gt 0 ] && [ "$$e" -eq 0 ] \
+	   && grep -q "^## \[$$v\]" CHANGELOG.md \
+	   && ! git rev-parse -q --verify "refs/tags/v$$v" >/dev/null 2>&1; then \
+	  echo "changelog-check: release PR for $$v — notes are promoted into [$$v], v$$v not yet tagged — OK"; \
+	  exit 0; \
+	fi; \
 	if [ "$$n" -gt 0 ] && [ "$$e" -eq 0 ]; then \
 	  echo "changelog-check: $$n code commit(s) since $${t:-repo start}, [Unreleased] is empty — FAIL"; \
 	  exit 1; \

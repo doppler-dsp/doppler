@@ -30,6 +30,17 @@ ______________________________________________________________________
     `[project.bench]` are all kept: the fault was in the harness, not in the
     comparison.
 
+### Fixed
+
+- **`make changelog-check` no longer fails on every release PR.** Promotion
+    moves each entry out of `[Unreleased]` and into `## [X.Y.Z]`, so the notes
+    exist — they are simply no longer where the gate looked, and it failed the
+    one PR that had done exactly the right thing. It now passes when
+    pyproject's version has a changelog section **and** its tag does not exist
+    yet. That second condition is what keeps the exemption from becoming
+    permanent: the section stays in the file forever, so without it every
+    later branch would inherit the pass and the gate would never fire again.
+
 ## [0.39.0] — 2026-07-29
 
 ### Breaking

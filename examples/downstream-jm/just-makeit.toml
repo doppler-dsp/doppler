@@ -1,0 +1,30 @@
+include = ["objects/*.toml", "modules/*.toml"]
+
+[project]
+name = "iqtools"
+version = "0.1.0"
+build = "cmake"
+perf = "false"
+pytest = "true"
+pytest_benchmark = "false"
+schema = "7"
+jm_version = "0.33.15"
+# This example targets the same platforms doppler does; omitting "windows"
+# drops jm's per-component MinGW DLL-copy boilerplate (jm gh-213).
+platforms = ["linux", "macos"]
+# Located by the root CMakeLists — either an installed doppler
+# (`find_package(doppler)`) or a build tree (`-Ddoppler_DIR=...`).
+find_packages = ["doppler"]
+# Format the regenerated `*_ext.c` glue as it is emitted, so jm's output is
+# already in this repo's C style and the two never rewrite each other.
+# `clang-format --style=file` walks up and finds doppler's `.clang-format` at
+# the repo root, so there is deliberately no local one: the example is styled
+# by the same config as the code around it.
+c_style = "clang-format"
+
+# `metadata_source` is the enum behind the property of the same name. Declared
+# once here and referenced by `enum = "metadata_source"` on the property, so the
+# C side and the Python strings cannot drift.
+[[enum]]
+name = "metadata_source"
+values = ["none", "file", "supplied"]

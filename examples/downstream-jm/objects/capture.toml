@@ -1,0 +1,85 @@
+# capture — a downstream façade over doppler's wfm_reader.
+#
+# This object owns NO DSP. Its state is a small struct holding doppler's opaque
+# `wfm_reader_state_t *` plus the metadata a headerless capture cannot carry;
+# every method delegates straight into `wfm_reader_*` from libdoppler.a. That
+# is the whole point of the example — a downstream project reuses doppler's C
+# core exactly once and adds only its own presentation.
+#
+#   no_state — the state struct is hand-written (it wraps a doppler handle,
+#              which jm has no way to infer)
+#   no_step  — a file is not a per-sample transducer
+[capture]
+arg_type = "float _Complex"
+return_type = "float _Complex"
+mutable = "true"
+no_state = "true"
+no_step = "true"
+class_name = "Capture"
+create_error = "ValueError"
+create_error_message = "cannot open capture: no such file, or an unrecognised file type"
+
+[[capture.init_params]]
+name = "path"
+type = "path"
+required = true
+
+# ── The view: a SECOND constructor over the SAME core ────────────────────────
+#
+# `Capture(path)` detects everything from the file. That is the right default
+# and it is exactly wrong for a headerless capture, where there is nothing to
+# detect: raw and CSV carry no sample type, no fs and no fc, so `Capture` has
+# to guess and silently gets it wrong.
+#
+# `RawCapture(...)` is the honest constructor for that case — it REQUIRES the
+# metadata the file cannot hold, so the parameters you must already know are
+# named in the signature instead of defaulted behind your back. Same C state,
+# same methods, same `.so`; only the way in differs. That is precisely what a
+# jm view is for (gh-504), and it costs no hand-written CPython.
+[[capture.views]]
+class_name = "RawCapture"
+create_fn = "capture_open_raw"
+init_params = [
+  { name = "path", type = "path", required = true },
+  { name = "sample_type", type = "string_enum:cf32,cf64,ci32,ci16,ci8", default = "ci16" },
+  { name = "endian", type = "string_enum:le,be", default = "le" },
+  { name = "fs", type = "double", default = "1.0" },
+  { name = "fc", type = "double", default = "0.0" },
+]
+
+# ── Methods ──────────────────────────────────────────────────────────────────
+[[capture.methods]]
+name = "read"
+arg_type = "void"
+return_type = "float _Complex"
+variable_output = true
+pass_capacity = true
+doc = "Read up to `count` samples as unit-scale complex64; an empty array at end of file."
+
+# ── Properties ───────────────────────────────────────────────────────────────
+# Computed (no `field`), so jm declares `capture_get_<name>()` for the core to
+# implement and the hand-written state struct stays private to capture_core.c.
+[[capture.properties]]
+name = "fs"
+type = "double"
+doc = "Sample rate in Hz. Read from the file for BLUE/SigMF; supplied by you for a `RawCapture`."
+
+[[capture.properties]]
+name = "fc"
+type = "double"
+doc = "Centre frequency in Hz. Read from the file for BLUE/SigMF; supplied by you for a `RawCapture`."
+
+[[capture.properties]]
+name = "num_samples"
+type = "size_t"
+doc = "Total samples in the capture."
+
+[[capture.properties]]
+name = "metadata_source"
+type = "int"
+enum = "metadata_source"
+# NB: kept on ONE physical line deliberately. jm 0.33.15 escapes embedded
+# quotes when it emits a property `doc` into the C PyGetSetDef, but NOT
+# newlines, so a doc that really spans lines produces an unterminated string
+# literal and the module will not compile — jm#633. Re-wrap once that ships.
+doc = """Where `fs`/`fc` came from -- `"file"` when the capture declared them (BLUE, SigMF), `"supplied"` when you passed them to `RawCapture`, or `"none"` when neither. This is the property the view exists to make honest: with a plain `Capture` over a headerless file the numbers are defaults, and without this you cannot tell a default from a reading."""

@@ -1,0 +1,13 @@
+build/
+dist/
+*.egg-info/
+__pycache__/
+*.pyc
+*.so
+*.pyd
+.venv/
+compile_commands.json
+site/
+docs/doxygen/
+docs/coverage/
+.coverage

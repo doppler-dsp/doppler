@@ -13,6 +13,30 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+### Added
+
+- **[`examples/downstream-jm/`](examples/downstream-jm/) — a worked example of
+    building *on* doppler from another just-makeit project.** It answers two
+    questions the docs did not: how to link `libdoppler.a` from a separate
+    project, and how to put your own Python API over a doppler C core without
+    hand-writing any CPython.
+
+    It links doppler declaratively — `extra_link_libs = ["doppler::doppler-static"]`
+    in the module manifest, resolved by `find_package(doppler)`, which works
+    against an install *or* a build tree (`-Ddoppler_DIR=…`) with nothing else
+    changing. And it declares a **jm view**: `Capture(path)` auto-detects a
+    self-describing capture, while `RawCapture(path, sample_type=…, fs=…, fc=…)`
+    is the honest constructor for a headerless one — two Python classes, one C
+    core, no hand-written binding.
+
+    The view earns its place rather than demonstrating syntax. On the same
+    headerless ci16 file, `Capture` reports **half** the samples and raises
+    nothing (it falls back to cf32 and reads at the wrong stride); `RawCapture`,
+    told the sample type, recovers the true length. Both behaviours are pinned
+    by tests, as is the `metadata_source` property that distinguishes a default
+    from a reading. The C core is pure glue — every function forwards into
+    `wfm_reader_*`, so no DSP is duplicated.
+
 ### Changed
 
 - **Capture I/O is documented as its own topic, not as part of the waveform

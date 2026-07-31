@@ -70,12 +70,17 @@ STD_SHELL ?= /bin/sh
 SHELL      = $(STD_SHELL)
 
 # The vendored file the drift gate compares, and where it compares against.
-# STANDARD_URL is deliberately EMPTY until P1 publishes canonical: an
-# unreachable reference must fail the gate (see `standard-check`), so pointing
-# at a URL that does not exist yet would fail every `make lint` in the org.
-# Setting it is the one-line change that arms the gate.
+#
+# The URL is the DEFAULT, not something each adopter opts into, because the
+# opt-in version fails open: a repo that vendors this file and forgets the one
+# line has no drift protection at all, and says so only as a cheerful "inert"
+# notice that reads like a pass. Armed on vendoring is the only default that
+# cannot be silently skipped.
+#
+# A repo can still opt out deliberately with `STANDARD_URL =` in its Makefile,
+# which is greppable across the org — unlike an omission.
 STANDARD_FILE ?= standard.mk
-STANDARD_URL  ?=
+STANDARD_URL  ?= https://just-buildit.github.io/standard.mk
 
 # ── Tooling ──────────────────────────────────────────────────────────────────
 # The ONLY place a tool binary is named. Versions live in pyproject.toml's dev
@@ -509,7 +514,9 @@ _STD_DESC = d=$$(sed -n "s/^$$t:.*\#\# *//p" $(MAKEFILE_LIST) | head -1); \
 # across every repo at once with nothing going red.
 standard-check: ## Verify the vendored standard.mk matches canonical
 	@if [ -z "$(STANDARD_URL)" ]; then \
-	    echo "standard-check: inert — STANDARD_URL unset (armed by P1)"; \
+	    echo "standard-check: OFF — STANDARD_URL is empty, so drift is NOT"; \
+	    echo "  checked in this repo. That is a deliberate opt-out, not a"; \
+	    echo "  pass; unset it only if you mean it."; \
 	    exit 0; \
 	fi; \
 	tmp=$$(mktemp); \

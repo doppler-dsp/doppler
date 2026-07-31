@@ -58,12 +58,20 @@ jobs:
         run: sudo apt-get install -y --no-install-recommends doxygen graphviz
 
       - name: Generate C API docs
-        run: |
-          uv run mkdocs build -f mkdocs-capi.yml
-          cp -r .mkdoxy/doppler/c-api/. docs/c-api/
-          rm -rf .mkdoxy .capi-site
-          # mkdoxy doesn't generate index.md; restore the committed landing page
-          git checkout -- docs/c-api/index.md
+        # `make gen-c-api`, not an inline copy. This step WAS a fourth
+        # implementation of the generated-docs family, and it had already
+        # diverged from the target in two ways that matter:
+        #
+        #   env:    `uv run mkdocs` here vs `uv run --group docs mkdocs` in the
+        #           Makefile -- and a bare `uv run` re-syncs to the DEFAULT
+        #           groups, which can drop the docs group it needs.
+        #   stale:  `cp -r .../c-api/.` MERGED into the existing tree, while the
+        #           target does `rm -rf docs/c-api` first and REPLACES it. So a
+        #           deleted C symbol's page lived on forever in the deployed
+        #           site while vanishing locally.
+        #
+        # Nobody decided that; it accumulated, which is the whole argument.
+        run: make gen-c-api
 
       - name: Build site
         # `make docs`, not an inline `zensical build`: this was the THIRD

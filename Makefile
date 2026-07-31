@@ -388,6 +388,7 @@ LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
                 test-example-downstream-python \
                 test-stubs test-api-docs test-snippets \
                 abi-check link-check glibc-check specan-check \
+                wheel-check wheel-smoke release-smoke \
                 bench-interleaved bench-publish bench-docs bench-stream \
                 bench-report
 
@@ -610,6 +611,87 @@ test-example-downstream: build ## Build the downstream jm example (C only)
 	    $(CTEST) --test-dir $(DOWNSTREAM_BUILD_DIR) --output-on-failure; \
 	    exit 1; \
 	fi
+
+# ── The release-path gates ───────────────────────────────────────────────────
+# These guard what users actually download. They ran only inside release.yml,
+# so they could not be rehearsed: the first time you learn a release gate is
+# wrong is while a release is failing. Each is now a target, and each was run
+# for real against v0.40.0 before being wired in.
+
+WHEEL_DIR ?= dist
+
+# A distributed wheel must run on any CPU of its arch. `-march=native` on the
+# build host sprays AVX2/AVX-512 across every function and SIGILLs on older
+# hardware -- doppler 0.5.1 shipped exactly that bug. Wide SIMD is legitimate
+# ONLY inside runtime-dispatched functions, which carry the ISA in their name
+# and sit behind a __builtin_cpu_supports() check.
+#
+# One target, not two: the x86 and aarch64 scans were separate CI steps with
+# separate `if:` conditions, but they differ only in the register pattern and
+# the allowed function-name substring. Detecting the arch here deletes the
+# duplication and the condition with it.
+wheel-check: ## Verify built wheels carry no -march/-mcpu=native SIMD leak
+	@arch="$$(uname -m)"; \
+	 case "$$arch" in \
+	   x86_64)  pat='%zmm[0-9]|%ymm[0-9]';        ok='avx512'; isa='AVX2/AVX-512';; \
+	   aarch64|arm64) pat='[ ,](z[0-9]+\.[bhsdq]|p[0-9]+/[mz])'; ok='sve'; isa='SVE';; \
+	   *) echo "wheel-check: no SIMD-leak pattern for $$arch — skipping"; exit 0;; \
+	 esac; \
+	 ls $(WHEEL_DIR)/*.whl > /dev/null 2>&1 \
+	   || { echo "wheel-check: no wheel in $(WHEEL_DIR)/ — run 'make wheel'"; exit 1; }; \
+	 fail=0; tmp="$$(mktemp -d)"; \
+	 for whl in $(WHEEL_DIR)/*.whl; do \
+	     unzip -q -o "$$whl" -d "$$tmp/x"; \
+	     while IFS= read -r so; do \
+	         bad=$$(objdump -d "$$so" 2>/dev/null | awk -v pat="$$pat" -v ok="$$ok" ' \
+	           /^[0-9a-f]+ <.*>:/ { fn=$$2; gsub(/[<>:]/, "", fn) } \
+	           $$0 ~ pat { if (fn !~ ok) { print fn; exit } }'); \
+	         if [ -n "$$bad" ]; then \
+	             echo "  FAIL $$(basename $$whl): $$(basename $$so) has $$isa in"; \
+	             echo "       non-dispatched function '$$bad' (built with -native?)"; \
+	             fail=1; \
+	         fi; \
+	     done < <(find "$$tmp/x" \( -name '*.cpython-*.so' -o -path '*/wfm/_bin/wfmgen' \)); \
+	     rm -rf "$$tmp/x"; \
+	 done; \
+	 rm -rf "$$tmp"; \
+	 if [ "$$fail" -ne 0 ]; then \
+	     echo "wheel-check: refusing a non-portable wheel — build without -DDOPPLER_NATIVE"; \
+	     exit 1; \
+	 fi; \
+	 echo "wheel-check: portable — $$isa only in runtime-dispatched *$$ok* functions"
+
+# Installs the built wheel into a THROWAWAY venv and runs the end-to-end from a
+# clean cwd, so `import doppler` can only resolve to the wheel and never to
+# ./src. CI installed into the job environment instead; a temp venv is what
+# makes the same check safe to run on a dev machine.
+#
+# The venv's bin/ must be on PATH, not just its python: two of the e2e's ten
+# checks shell out to the `wfmgen` CONSOLE SCRIPT, and calling
+# venv/bin/python directly leaves that off PATH. Running the target before
+# wiring it is what caught that -- it read as "the wheel is broken" (8/10)
+# when it was the harness.
+wheel-smoke: ## Install the built wheel in a temp venv and run the e2e
+	@ls $(WHEEL_DIR)/*.whl > /dev/null 2>&1 \
+	   || { echo "wheel-smoke: no wheel in $(WHEEL_DIR)/ — run 'make wheel'"; exit 1; }; \
+	 tmp="$$(mktemp -d)"; \
+	 $(UV) venv --quiet "$$tmp/venv"; \
+	 VIRTUAL_ENV="$$tmp/venv" $(UV) pip install --quiet $(WHEEL_DIR)/*.whl; \
+	 ( cd "$$tmp" && PATH="$$tmp/venv/bin:$$PATH" \
+	     "$$tmp/venv/bin/python" $(CURDIR)/deploy/validation/wfm_e2e.py ) \
+	   && "$$tmp/venv/bin/python" -c 'import doppler; print("doppler", doppler.__version__)' \
+	   && { rm -rf "$$tmp"; echo "wheel-smoke: OK"; } \
+	   || { rm -rf "$$tmp"; echo "wheel-smoke: FAILED"; exit 1; }
+
+# The published C tarball, fetched and exercised the way a consumer would.
+# Runnable against any released version, which is what makes it rehearsable:
+# `make release-smoke VERSION=0.40.0` after a release, or before touching the
+# script.
+release-smoke: ## Smoke-test a PUBLISHED C tarball (VERSION=x.y.z)
+ifndef VERSION
+	@echo "usage: make release-smoke VERSION=<x.y.z>"; exit 1
+endif
+	bash tests/install/release-smoke.sh "$(VERSION)"
 
 # ── The binary-hygiene gates ─────────────────────────────────────────────────
 # These inspect what the build actually produced, and each one exists because

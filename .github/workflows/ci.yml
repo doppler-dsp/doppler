@@ -70,63 +70,17 @@ jobs:
     # so any %ymm/%zmm outside a runtime-dispatched *avx512* function means
     # -march=native (or a stray wide-SIMD flag) leaked into the default build.
     # x86_64 Linux only: macOS is arm64 (NEON, no AVX) and Windows isn't shipped.
-    - name: Verify portable SIMD (no leaked AVX2/AVX-512)
+    - name: Verify portable SIMD + C++-free build
+      # Wide SIMD outside a runtime-dispatched *avx512* function means a flag
+      # leaked into the default build -- a wheel that SIGILLs on a user's CPU.
+      # The C++ check keeps the library pure C: no libstdc++, no CXXABI, -lm
+      # only. Both read ELF, hence Linux only; the link smoke below is not.
       if: startsWith(matrix.os, 'ubuntu')
-      run: |
-        bad=$(objdump -d build/libdoppler.so 2>/dev/null | awk '
-          /^[0-9a-f]+ <.*>:/ { fn=$2; gsub(/[<>:]/, "", fn) }
-          /%zmm[0-9]|%ymm[0-9]/ { if (fn !~ /avx512/) { print fn; exit } }
-        ')
-        if [ -n "$bad" ]; then
-          echo "::error::libdoppler.so has wide SIMD in non-dispatched function '${bad}' — non-portable (a wide-SIMD flag leaked into the default build?)"
-          exit 1
-        fi
-        echo "OK — wide SIMD only in runtime-dispatched *avx512* functions."
+      run: make abi-check
 
-    # The core libdoppler is pure C and must link only -lm — no libstdc++/CXXABI.
-    # pocketfft is C99 (no longer C++). This gate catches any C++ creeping back
-    # into the core (e.g. a new .cc TU), which would re-break downstreams that
-    # cannot supply a matching libstdc++. ZMQ (the only C++ ever in this repo)
-    # was removed entirely, so libdoppler_stream (the optional NATS component)
-    # is checked here too — the whole build is pure C now, not just the core.
-    # NB: __cxa_finalize@GLIBC is a libc symbol (not libstdc++) and is excluded by
-    # matching only GLIBCXX_/CXXABI_/std::/operator new|delete.
-    - name: Verify C++-free build (no libstdc++/CXXABI anywhere)
-      if: startsWith(matrix.os, 'ubuntu')
-      run: |
-        pat='GLIBCXX_|CXXABI_|std::|operator new|operator delete'
-        bad=$(nm -CD build/libdoppler.so 2>/dev/null | grep -E "$pat" || true)
-        bad="$bad$(nm -C build/libdoppler.a 2>/dev/null | grep -E "$pat" || true)"
-        bad="$bad$(nm -CD build/libdoppler_stream.so 2>/dev/null | grep -E "$pat" || true)"
-        bad="$bad$(nm -C build/libdoppler_stream.a 2>/dev/null | grep -E "$pat" || true)"
-        if [ -n "$bad" ]; then
-          echo "::error::doppler references the C++ runtime — the whole build must be pure C:"
-          echo "$bad" | head -20
-          exit 1
-        fi
-        if ldd build/libdoppler.so | grep -qi 'libstdc++'; then
-          echo "::error::libdoppler.so has a dynamic libstdc++ dependency"
-          exit 1
-        fi
-        if ldd build/libdoppler_stream.so | grep -qi 'libstdc++'; then
-          echo "::error::libdoppler_stream.so has a dynamic libstdc++ dependency"
-          exit 1
-        fi
-        echo "OK — doppler is C++-free everywhere (libstdc++/CXXABI absent; links -lm only)."
-
-    # Statically link the core archive into a downstream C program with just -lm
-    # — no -lstdc++, no special linker flags — on EVERY platform. This is the
-    # consumer scenario the release C-tarball smoke checks, hoisted into CI so a
-    # regression (e.g. an undefined-symbol seam that only ld64 rejects) is caught
-    # on macOS *before* a release rather than after the PyPI publish. The
-    # consumer drives doppler_wfmgen (file output), exercising the
-    # wfm_stream_sink_* weak-stub seam that keeps libdoppler.a self-contained.
     - name: Smoke-test static link (libdoppler.a -lm)
-      run: |
-        cc examples/consumer/main.c -Inative/inc -Ibuild/native/inc \
-           build/libdoppler.a -lm -o "${RUNNER_TEMP}/consumer_smoke"
-        ( cd "${RUNNER_TEMP}" && ./consumer_smoke )
-        echo "OK — libdoppler.a links into a downstream with only -lm on ${{ matrix.os }}."
+      # The question a downstream actually asks, answered on every platform.
+      run: make link-check
 
     - name: Smoke-test the three consumer faces (cc / CMake / pkg-config)
       # Installs the fresh build to a scratch prefix and builds the
@@ -285,17 +239,10 @@ jobs:
       run: make test-examples
 
     - name: Verify no glibc symbols > 2.28
-      run: |
-        BAD=$(objdump -T build/libdoppler.so \
-              | grep -oP 'GLIBC_\K[0-9.]+' \
-              | sort -Vu \
-              | awk -F. '$1 > 2 || ($1 == 2 && $2 > 28)')
-        if [ -n "$BAD" ]; then
-          echo "ERROR: libdoppler.so references glibc > 2.28: $BAD"
-          objdump -T build/libdoppler.so | grep 'GLIBC_' | grep -v 'GLIBC_2\.[0-9]\b\|GLIBC_2\.1[0-9]\b\|GLIBC_2\.2[0-8]\b'
-          exit 1
-        fi
-        echo "OK — all glibc symbols ≤ 2.28"
+      # Built in the Debian 10 container above, so this asserts the floor a
+      # released .so must hold. On a modern distro it fails on the local
+      # build's newer symbols -- that is the check working, not a bug.
+      run: make glibc-check
 
   # ------------------------------------------------------------------
   # Doxygen C API docs — zero warnings required
@@ -342,15 +289,8 @@ jobs:
 
     - name: Check frames kept in sync with specan source
       run: |
-        BASE=${{ github.event.pull_request.base.sha || 'HEAD^' }}
-        SPECAN=$(git diff --name-only "$BASE"...HEAD -- src/specan/doppler_specan/ | wc -l)
-        FRAMES=$(git diff --name-only "$BASE"...HEAD -- docs/specan/frames.json | wc -l)
-        if [ "$SPECAN" -gt 0 ] && [ "$FRAMES" -eq 0 ]; then
-          echo "src/specan/doppler_specan/ changed but docs/specan/frames.json was not updated."
-          echo "Run 'make record-demo' and commit the result."
-          exit 1
-        fi
-        echo "OK (specan_changes=$SPECAN frames_changes=$FRAMES)"
+        make specan-check \
+          SPECAN_BASE="${{ github.event.pull_request.base.sha || 'HEAD^' }}"
 
   # ------------------------------------------------------------------
   # Documentation build (zensical)

@@ -386,6 +386,7 @@ LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
                 test-examples-c test-examples-python test-example-downstream \
                 test-example-downstream-python \
                 test-stubs test-api-docs test-snippets \
+                abi-check link-check glibc-check specan-check \
                 bench-interleaved bench-publish bench-docs bench-stream \
                 bench-report
 
@@ -608,6 +609,86 @@ test-example-downstream: build ## Build the downstream jm example (C only)
 	    $(CTEST) --test-dir $(DOWNSTREAM_BUILD_DIR) --output-on-failure; \
 	    exit 1; \
 	fi
+
+# ── The binary-hygiene gates ─────────────────────────────────────────────────
+# These inspect what the build actually produced, and each one exists because
+# the property it checks is invisible in source and expensive to discover late:
+# a wheel that SIGILLs on a user's CPU, a C library that drags in libstdc++, an
+# archive a downstream cannot link. They were inline CI steps, so none could be
+# run before pushing.
+
+# Linux-only: both inspect ELF with objdump/nm/ldd. The link smoke below is
+# the cross-platform one.
+abi-check: ## Verify the built libraries are portable and C++-free (Linux)
+	@fail=0; \
+	 echo "=== portable SIMD (no leaked AVX2/AVX-512) ==="; \
+	 bad=$$(objdump -d $(BUILD_DIR)/libdoppler.so 2>/dev/null | awk ' \
+	   /^[0-9a-f]+ <.*>:/ { fn=$$2; gsub(/[<>:]/, "", fn) } \
+	   /%zmm[0-9]|%ymm[0-9]/ { if (fn !~ /avx512/) { print fn; exit } }'); \
+	 if [ -n "$$bad" ]; then \
+	     echo "  FAIL: wide SIMD in non-dispatched function '$$bad' —"; \
+	     echo "        a wide-SIMD flag leaked into the default build?"; \
+	     fail=1; \
+	 else echo "  OK — wide SIMD only in runtime-dispatched *avx512* functions."; fi; \
+	 echo "=== C++-free (no libstdc++ / CXXABI anywhere) ==="; \
+	 pat='GLIBCXX_|CXXABI_|std::|operator new|operator delete'; \
+	 bad=$$(nm -CD $(BUILD_DIR)/libdoppler.so 2>/dev/null | grep -E "$$pat" || true); \
+	 bad="$$bad$$(nm -C $(BUILD_DIR)/libdoppler.a 2>/dev/null | grep -E "$$pat" || true)"; \
+	 bad="$$bad$$(nm -CD $(BUILD_DIR)/libdoppler_stream.so 2>/dev/null | grep -E "$$pat" || true)"; \
+	 bad="$$bad$$(nm -C $(BUILD_DIR)/libdoppler_stream.a 2>/dev/null | grep -E "$$pat" || true)"; \
+	 if [ -n "$$bad" ]; then \
+	     echo "  FAIL: doppler references the C++ runtime — the build must be pure C:"; \
+	     echo "$$bad" | head -20; fail=1; \
+	 elif ldd $(BUILD_DIR)/libdoppler.so 2>/dev/null | grep -qi 'libstdc++' \
+	   || ldd $(BUILD_DIR)/libdoppler_stream.so 2>/dev/null | grep -qi 'libstdc++'; then \
+	     echo "  FAIL: a dynamic libstdc++ dependency"; fail=1; \
+	 else echo "  OK — C++-free everywhere; links -lm only."; fi; \
+	 if [ "$$fail" = 0 ]; then echo "abi-check: ALL PASS"; \
+	 else echo "abi-check: FAILURES above"; exit 1; fi
+
+# Cross-platform, unlike abi-check: this is the question a downstream actually
+# asks — does libdoppler.a link with nothing but -lm? — and it is answered on
+# Linux and macOS both.
+link-check: ## Smoke-test that a downstream links libdoppler.a with only -lm
+	@t=$$(mktemp -d); \
+	 if cc examples/consumer/main.c -Inative/inc -I$(BUILD_DIR)/native/inc \
+	       $(BUILD_DIR)/libdoppler.a -lm -o "$$t/consumer_smoke" \
+	    && ( cd "$$t" && ./consumer_smoke > /dev/null ); then \
+	     echo "link-check: OK — libdoppler.a links with only -lm."; \
+	     rm -rf "$$t"; \
+	 else \
+	     echo "link-check: FAIL — a downstream cannot link libdoppler.a with -lm"; \
+	     rm -rf "$$t"; exit 1; \
+	 fi
+
+# The oldest glibc a released .so may reference. Only meaningful against a
+# build made on that glibc — CI runs this in a Debian 10 container, and running
+# it on a modern distro will fail on the local build's newer symbols, which is
+# the check working, not a bug.
+GLIBC_MAX ?= 2.28
+glibc-check: ## Verify no glibc symbol newer than $(GLIBC_MAX) (needs an old-glibc build)
+	@BAD=$$(objdump -T $(BUILD_DIR)/libdoppler.so \
+	        | grep -oP 'GLIBC_\K[0-9.]+' | sort -Vu \
+	        | awk -F. -v mx="$(GLIBC_MAX)" \
+	            'BEGIN{split(mx,m,".")} $$1 > m[1] || ($$1 == m[1] && $$2 > m[2])'); \
+	 if [ -n "$$BAD" ]; then \
+	     echo "glibc-check: libdoppler.so references glibc > $(GLIBC_MAX): $$BAD"; \
+	     exit 1; \
+	 fi; \
+	 echo "glibc-check: all glibc symbols <= $(GLIBC_MAX)"
+
+# The recorded specan demo frames are a projection of the specan source, so a
+# change to one without the other ships a demo that no longer matches the code.
+SPECAN_BASE ?= HEAD^
+specan-check: ## Fail if specan changed without re-recording its demo frames
+	@s=$$(git diff --name-only "$(SPECAN_BASE)"...HEAD -- src/specan/doppler_specan/ | wc -l); \
+	 f=$$(git diff --name-only "$(SPECAN_BASE)"...HEAD -- docs/specan/frames.json | wc -l); \
+	 if [ "$$s" -gt 0 ] && [ "$$f" -eq 0 ]; then \
+	     echo "specan-check: src/specan/doppler_specan/ changed but"; \
+	     echo "  docs/specan/frames.json was not — run 'make record-demo'"; \
+	     exit 1; \
+	 fi; \
+	 echo "specan-check: OK (specan=$$s frames=$$f)"
 
 # ── The doc gates ────────────────────────────────────────────────────────────
 # These four existed ONLY as inline CI steps, so none could be run locally by

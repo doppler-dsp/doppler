@@ -34,6 +34,10 @@ DOCS = ROOT / "docs"
 EXCLUDED_PARTS = {"c-api", "archive"}
 EXCLUDED_RELPATHS = {"benchmarks.md"}
 
+# Delimiters of a generated version region -- see scripts/gen_doc_versions.py.
+DOC_VERSION_START = "<!-- doc-version:start -->"
+DOC_VERSION_END = "<!-- doc-version:end -->"
+
 
 def current_version() -> str:
     text = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
@@ -73,9 +77,24 @@ def main() -> int:
 
     hits: list[str] = []
     for page in pages:
+        # Lines inside a `doc-version` region are GENERATED from
+        # pyproject.toml by scripts/gen_doc_versions.py and gated by its
+        # own --check, so they are the one place the current version is
+        # allowed to appear literally. Without this the two gates
+        # contradict each other: one requires the version, the other
+        # forbids it, and there is no tree that satisfies both.
+        generated = False
         for lineno, line in enumerate(
             page.read_text(encoding="utf-8").splitlines(), start=1
         ):
+            if DOC_VERSION_START in line:
+                generated = True
+                continue
+            if DOC_VERSION_END in line:
+                generated = False
+                continue
+            if generated:
+                continue
             if needle.search(line):
                 rel = page.relative_to(ROOT)
                 hits.append(f"  {rel}:{lineno}: {line.strip()}")

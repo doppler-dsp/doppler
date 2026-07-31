@@ -65,7 +65,7 @@ normal way to consume it:
 <!-- doc-version:start -->
 
 ```bash
-VER=0.39.0
+VER=0.40.0
 PLAT=linux-x86_64          # or linux-aarch64, macos-arm64
 
 curl -fsSL -O https://github.com/doppler-dsp/doppler/releases/download/v$VER/doppler-$VER-$PLAT.tar.gz

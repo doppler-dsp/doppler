@@ -61,7 +61,7 @@ jobs:
       run: make test-examples
 
     - name: Rust FFI tests
-      run: make rust-test
+      run: make test-rust
 
     # Early portability signal: the release pipeline already objdumps every
     # wheel .so for leaked AVX (release.yml), but only on tags — too late to

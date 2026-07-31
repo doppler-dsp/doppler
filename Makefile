@@ -1,25 +1,34 @@
-# doppler — project wrapper Makefile
+# doppler — development control centre
 #
-# All build artifacts go to BUILD_DIR/ (never to the repo root).
+# CONFIGURATION ONLY. Every shared target lives in `standard.mk`, vendored from
+# https://just-buildit.github.io/standard.mk and never edited in place — per-repo
+# variation is the variables below, because a local edit is a fork. Design RFC:
+# doppler-dsp/doppler#555. Plan + criteria: the just-buildit/.github README.
+#
+# `make help` is GENERATED from the `##` comment on each target's rule line, so
+# there is no hand-written target list here. There used to be, and it advertised
+# `make wheel` (which had no rule and exited 0 having done nothing) and
+# `make gen-pyext` (which did not exist), while omitting 20 targets that did.
 #
 # Overrides (pass on the command line or export from the environment):
 #   BUILD_DIR    Build directory            (default: build)
 #   BUILD_TYPE   CMake build type           (default: Release)
 #   NPROC        Parallel build jobs        (default: nproc || 4)
-#
-# Examples:
-#   make                          # configure + build
-#   make test                     # run CTest suite (native/ unit tests)
-#   make pyext                    # build Python C extensions
-#   make python-test              # pytest
-#   make bench                    # run C + Python benchmarks, snapshot to benchmarks/history/
-#   make test-all                 # CTest + pytest
-#   make debug                    # clean + Debug build
-#   make release                  # clean + Release build
-#   make clean                    # remove build/ and Python .so files
-#   make help                     # show this message
+#   CMAKE_ARGS   Extra -D flags for every configure step
 
-SHELL        = /bin/sh
+# ── Feature flags ────────────────────────────────────────────────────────────
+# doppler is the demanding consumer: every group is on.
+HAS_C        = 1
+HAS_PYTHON   = 1
+HAS_RUST     = 1
+HAS_DOCS     = 1
+HAS_DOXYGEN  = 1
+HAS_BENCH    = 1
+HAS_COVERAGE = 1
+HAS_RELEASE  = 1
+HAS_EXAMPLES = 1
+
+# ── Layout ───────────────────────────────────────────────────────────────────
 BUILD_DIR   ?= build
 BUILD_TYPE  ?= Release
 PREFIX      ?= /usr/local
@@ -31,23 +40,7 @@ NPROC       ?= $(shell nproc 2>/dev/null || \
                        sysctl -n hw.logicalcpu 2>/dev/null || echo 4)
 CTEST       := ctest
 CMAKE       := cmake
-# ── coverage (clang source-based) ─────────────────────────────────────────────
-# `make coverage` builds a dedicated instrumented tree and merges the harness
-# .profraw into one llvm-cov report. clang + matching llvm tools required;
-# override the tool names if they are version-suffixed (e.g. llvm-cov-22).
-COV_DIR       ?= build-cov
-LLVM_PROFDATA ?= llvm-profdata
-LLVM_COV      ?= llvm-cov
-# Excluded from the report: vendored code, jm-generated binding aggregators
-# (`<mod>_ext.c`) and per-object fragments (`<mod>_ext_<obj>.c`), and the
-# test/bench harnesses themselves — only first-party _core.c counts.
-# `native/src/app/` (the wfmgen CLI) is excluded too: its body (wfmgen_core) is
-# an OBJECT lib compiled into BOTH the `wfmgen` executable and a `.so`, but the
-# report attributes only to the `.so` — whose copy is never executed (nothing
-# calls `doppler_wfmgen()` through the `.so`), so the CLI's real coverage from
-# the `wfmgen_cli` ctest can't be attributed. The CLI is instead byte-parity
-# integration-tested (the `wfmgen_cli` ctest + test_compose byte-parity gate).
-COV_IGNORE    ?= (^|/)(vendor|build|build-cov|native/src/app)/|_ext(_[a-z0-9_]+)?\.c$$|/(tests|benchmarks)/
+
 # Python executable used when building extensions with `make pyext`.
 # Defaults to the uv-managed venv Python so the extension suffix always
 # matches the active interpreter.  Override on the command line:
@@ -55,9 +48,11 @@ COV_IGNORE    ?= (^|/)(vendor|build|build-cov|native/src/app)/|_ext(_[a-z0-9_]+)
 PYTHON_EXECUTABLE ?= $(shell uv run python -c \
     'import sys; print(sys.executable)' 2>/dev/null || which python3)
 PYTHON_EXECUTABLE := $(or $(JUST_BUILDIT_PYTHON),$(PYTHON_EXECUTABLE))
+
 # Extra cmake args passed through to every configure step.
 # Example: make build CMAKE_ARGS="-DENABLE_SIMD=OFF"
 CMAKE_ARGS  ?=
+
 # Everyday `make build` / `make pyext` target a PORTABLE baseline
 # (x86-64-v2) — the same flags every released wheel uses, so a local build
 # can never behave differently from what ships.  For host-tuned speed, use
@@ -90,278 +85,148 @@ ifneq ($(filter UCRT64 MINGW64 MINGW32 CLANG64,$(MSYSTEM)),)
   endif
 endif
 
-.PHONY: all build test coverage coverage-gate pyext \
-        wheel just-build python-test rust-test test-all lint docs docs-serve docs-relink gen-c-api doxygen \
-        specan record-demo gallery \
-        bench bench-report bench-publish bench-interleaved bench-docs \
-        drift-check bench-baseline bench-check \
-        bench-stream \
-        debug release blazing bump-version check-version tag-release \
-        release-watch ship docs-check \
-        doxygen-check doxygen-warn-gate changelog-check gates \
-        test-examples test-examples-python test-example-downstream \
-        test-example-downstream-python install-deps setup clean help
+# ── Tooling ──────────────────────────────────────────────────────────────────
+# The ONLY place a tool binary is named or given flags. Humans, the pre-commit
+# hooks and CI all reach the tools through standard.mk's targets, so a flag
+# change is a one-line edit here. Versions live in pyproject.toml's `dev` group
+# and are pinned by uv.lock — which is what makes local and CI resolve
+# identically, and why the hook config resolves no lock-managed tool itself.
+UV         = uv
+DEV_RUN    = $(UV) run --group dev
+RUFF       = $(DEV_RUN) ruff
+MDFORMAT   = $(DEV_RUN) mdformat
+PRE_COMMIT = $(DEV_RUN) pre-commit
+SYNC_CMD   = $(UV) sync
 
-# ── default ──────────────────────────────────────────────────────────────────
-all: build
+# ── lint-<tool> dispatch ─────────────────────────────────────────────────────
+# LINT_TOOLS stamps out one `lint-<tool>` target each; .pre-commit-config.yaml
+# calls `make -s lint-<tool>`, so a hook cannot run a tool differently from the
+# way `make format` runs it. That is what closes the "same command, different
+# environment" class of drift: the tool comes from `--group dev` and uv.lock
+# owns the version, so there is no `additional_dependencies` left to drift.
+LINT_TOOLS   = ruff ruff-format mdformat
+FORMAT_TOOLS = ruff-format ruff mdformat
 
-# ── configure (internal) ─────────────────────────────────────────────────────
-$(BUILD_DIR)/CMakeCache.txt:
-	$(CMAKE) -B $(BUILD_DIR) -S . \
-		-DCMAKE_BUILD_TYPE=$(BUILD_TYPE) \
-		-DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
-		-DPython3_EXECUTABLE=$(PYTHON_EXECUTABLE) \
-		$(CMAKE_ARGS)
+RUFF_PATHS = .
+# mdformat's own --exclude needs Python >=3.13 (it uses glob.translate), so the
+# file list is built from `git ls-files` minus this regex instead. docs/c-api/
+# is mkdoxy output and vendor/ is not ours.
+MD_EXCLUDE_RE = ^(vendor/|docs/c-api/|examples/[^/]+/docs/)
 
-# ── build ─────────────────────────────────────────────────────────────────────
-build: $(BUILD_DIR)/CMakeCache.txt
-	$(CMAKE) --build $(BUILD_DIR) --parallel $(NPROC)
+LINT_ruff        = $(RUFF) check --fix --unsafe-fixes $(RUFF_PATHS)
+LINT_ruff-format = $(RUFF) format $(RUFF_PATHS)
 
-# ── test (CTest — native/ unit tests) ────────────────────────────────────────
-# Requires BUILD_PYTHON=ON (pyext configures native/ which registers tests).
-test:
-	$(CTEST) --test-dir $(BUILD_DIR) --output-on-failure
+define LINT_mdformat
+@git ls-files '*.md' \
+    | grep -Ev '$(MD_EXCLUDE_RE)' \
+    | xargs -r $(MDFORMAT)
+endef
 
-# ── coverage (clang source-based; phases 1+2 = C tests ∪ Python → merged) ─────
-# Instruments every first-party C object once (DOPPLER_COVERAGE). The same
-# OBJECT libs flow into the C-test exes AND the Python .so, so both harnesses
-# emit .profraw that merge into one report attributed back to the hand-written
-# _core.c. clang and matching llvm-profdata/llvm-cov are required. The
-# Python .so is staged into a throwaway package ($(COV_DIR)/pkg) so the
-# instrumented build never clobbers the dev's src/doppler/ .so. Phase 3
-# (Rust) folds cargo .profraw into the same merge.
-coverage:
-	$(CMAKE) -B $(COV_DIR) -S . \
-		-DCMAKE_BUILD_TYPE=Debug \
-		-DCMAKE_C_COMPILER=clang \
-		-DDOPPLER_COVERAGE=ON -DBUILD_PYTHON=ON \
-		-DPython3_EXECUTABLE=$(PYTHON_EXECUTABLE) \
-		-DPYTHON_PACKAGE_DIR=$(CURDIR)/$(COV_DIR)/pkg/doppler \
-		-DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
-		$(CMAKE_ARGS)
-	$(CMAKE) --build $(COV_DIR) --parallel $(NPROC)
-	# Stage an importable package: the instrumented .so are already in
-	# pkg/doppler/<mod>/; layer the Python source (everything but .so) over them
-	# so pytest imports the instrumented extension. GNU tar (Linux coverage job).
-	mkdir -p $(COV_DIR)/pkg/doppler
-	(cd src/doppler && tar cf - --exclude='*.so' .) \
-		| (cd $(COV_DIR)/pkg/doppler && tar xf -)
-	rm -rf $(COV_DIR)/prof && mkdir -p $(COV_DIR)/prof
-	# C tests → per-process .profraw.
-	cd $(COV_DIR) && LLVM_PROFILE_FILE="$(CURDIR)/$(COV_DIR)/prof/c-%p-%m.profraw" \
-		$(CTEST) --output-on-failure
-	# Python tests against the instrumented .so. Coverage is not a correctness
-	# gate (the test jobs are), so a failing assert still counts the C lines it
-	# executed — don't abort the merge on it (leading `-`).
-	-LLVM_PROFILE_FILE="$(CURDIR)/$(COV_DIR)/prof/py-%p-%m.profraw" \
-		PYTHONPATH="$(CURDIR)/$(COV_DIR)/pkg" \
-		$(PYTHON_EXECUTABLE) -m pytest $(COV_DIR)/pkg/doppler \
-		-q -p no:cacheprovider --ignore-glob='*/benchmarks/*'
-	# Rust FFI tests against the instrumented libdoppler.so. DOPPLER_BUILD_DIR
-	# points build.rs at build-cov; the .so self-writes its C .profraw via its
-	# own profile runtime (no Rust instrumentation needed — and rustc's LLVM
-	# matches clang's, so the .profraw merges). Skipped gracefully if no cargo.
-	-DOPPLER_BUILD_DIR="$(CURDIR)/$(COV_DIR)" \
-		LLVM_PROFILE_FILE="$(CURDIR)/$(COV_DIR)/prof/rs-%p-%m.profraw" \
-		cargo test --manifest-path $(RUST_DIR)/Cargo.toml
-	# Merge C ∪ Python ∪ Rust and report against libdoppler.so + every module
-	# .so (the cores live in all; listing the .so captures lines only a wrapper
-	# reaches).
-	@objs="$(COV_DIR)/libdoppler.so $$(ls $(COV_DIR)/pkg/doppler/*/*.so \
-		2>/dev/null | sed 's/^/-object /' | tr '\n' ' ')"; \
-	$(LLVM_PROFDATA) merge -sparse $(COV_DIR)/prof/*.profraw \
-		-o $(COV_DIR)/doppler.profdata; \
-	$(LLVM_COV) report $$objs -instr-profile=$(COV_DIR)/doppler.profdata \
-		-ignore-filename-regex='$(COV_IGNORE)'; \
-	$(LLVM_COV) show $$objs -instr-profile=$(COV_DIR)/doppler.profdata \
-		-ignore-filename-regex='$(COV_IGNORE)' \
-		-format=html -output-dir=$(COV_DIR)/html; \
-	$(LLVM_COV) export $$objs -instr-profile=$(COV_DIR)/doppler.profdata \
-		-ignore-filename-regex='$(COV_IGNORE)' -format=lcov \
-		> $(COV_DIR)/coverage.lcov
-	# Relativize the SF: paths (llvm-cov emits absolute) so the patch gate's
-	# git-relative diff paths match — see `make coverage-gate`.
-	sed -i 's|SF:$(CURDIR)/|SF:|' $(COV_DIR)/coverage.lcov
-	@echo "coverage: HTML -> $(COV_DIR)/html/index.html  lcov -> $(COV_DIR)/coverage.lcov"
+# ── Test ─────────────────────────────────────────────────────────────────────
+# `test` is CTest (native/ unit tests); the Python suite is `test-python`.
+TEST_CMD      = $(CTEST) --test-dir $(BUILD_DIR) --output-on-failure
+TEST_FAST_CMD = $(CTEST) --test-dir $(BUILD_DIR) --output-on-failure \
+                    --stop-on-failure
+TEST_PYTHON_CMD = uv run pytest src/ -v
+TEST_RUST_CMD   = cargo test --manifest-path $(RUST_DIR)/Cargo.toml
 
-# ── coverage-gate (phase 4: diff-cover patch gate) ────────────────────────────
-# Fail if the C lines a PR adds/changes aren't covered by the merged report at
-# >= COV_PATCH_MIN%. Compares the working tree to COV_BASE (origin/main in CI).
-# Run after `make coverage`. .py/.rs changes carry no C coverage data and are
-# simply not counted here (no false failures); C is where the algorithms live.
-COV_BASE      ?= origin/main
-COV_PATCH_MIN ?= 90
-coverage-gate:
-	uvx diff-cover $(COV_DIR)/coverage.lcov \
-		--compare-branch=$(COV_BASE) \
-		--fail-under=$(COV_PATCH_MIN) \
-		--format html:$(COV_DIR)/patch.html \
-		--format markdown:$(COV_DIR)/patch.md
+# Fail-closed: every src/doppler/examples/*.py (plus the standalone example) is
+# discovered and run by the pytest gate -- no hand list to rot. Skips live in
+# src/doppler/examples/.examples-skip (reasons mandatory).
+TEST_EXAMPLES_CMD = $(MAKE) --no-print-directory test-examples-c
 
-# ── pyext ─────────────────────────────────────────────────────────────────────
-# Build Python C extensions into src/doppler/**/.
-# Re-configures with BUILD_PYTHON=ON (default is OFF for C-only builds).
+TEST_ALL_DEPS = test test-examples test-python test-examples-python
+GATES_DEPS    = lint changelog-check drift-check doxygen-check docs-check \
+                test-all
+
+# ── Build ────────────────────────────────────────────────────────────────────
+CMAKE_FLAGS = -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+              -DPython3_EXECUTABLE=$(PYTHON_EXECUTABLE) $(CMAKE_ARGS)
+
+# `CMAKE_FLAGS` reaches the CONFIGURE step only, and the standard's `build`
+# ends with a bare `cmake --build $(BUILD_DIR)` — so there is no flag surface
+# for `--parallel`, and doppler's build would drop from $(NPROC) jobs to one.
+# CMake's own environment knob covers it, and covers it better: it applies to
+# every `cmake --build` in the tree, including `pyext` and both downstream
+# example builds, instead of only the one recipe a flag would reach.
+export CMAKE_BUILD_PARALLEL_LEVEL = $(NPROC)
+
+# Re-configures with BUILD_PYTHON=ON (default is OFF for C-only builds), then
+# syncs so the venv sees the freshly built extensions.
 #
 # UV_SYNC_FLAGS can be overridden by dependents (e.g. just-build passes
 # --no-group docs so the wheel build path never downloads the docs toolchain).
 UV_SYNC_FLAGS ?=
-pyext:
-	$(CMAKE) -B $(BUILD_DIR) -S . \
-		-DCMAKE_BUILD_TYPE=$(BUILD_TYPE) \
-		-DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
-		-DPython3_EXECUTABLE=$(PYTHON_EXECUTABLE) \
-		-DBUILD_PYTHON=ON \
-		$(CMAKE_ARGS)
-	$(CMAKE) --build $(BUILD_DIR) --parallel $(NPROC)
-	uv sync $(UV_SYNC_FLAGS)
+define PYEXT_CMD
+$(CMAKE) -B $(BUILD_DIR) -S . -DCMAKE_BUILD_TYPE=$(BUILD_TYPE) \
+    $(CMAKE_FLAGS) -DBUILD_PYTHON=ON
+$(CMAKE) --build $(BUILD_DIR) --parallel $(NPROC)
+uv sync $(UV_SYNC_FLAGS)
+endef
 
-# ── just-build ────────────────────────────────────────────────────────────────
-# PEP 517 build hook for just-buildit.
-# just-buildit sets JUST_BUILDIT_OUTPUT_DIR and JUST_BUILDIT_PYTHON before
-# calling this target. The package tree is copied there to be packaged.
-#
-# Exclude the docs group: a docs-dep network blip must not fail a wheel build.
-just-build: UV_SYNC_FLAGS = --no-group docs
-just-build: pyext
-	mkdir -p $(JUST_BUILDIT_OUTPUT_DIR)
-	cp -r $(PYEXT_DIR) $(JUST_BUILDIT_OUTPUT_DIR)/doppler
+# `wheel` used to be a .PHONY with no rule: advertised in help, exiting 0 with
+# no wheel produced. This is what it should always have been.
+WHEEL_CMD = $(UV) build --wheel
 
-# ── test-examples ─────────────────────────────────────────────────────────────
-# Smoke-test every standalone C example. Excluded (each needs a live
-# NATS peer or terminal interaction, not just a broker): transmitter,
-# receiver, pipeline_demo, spectrum_analyzer.
-EXAMPLE_BIN_DIR := $(BUILD_DIR)/examples/c
-STANDALONE_BUILD_DIR := examples/standalone/build
-test-examples: build
-	@echo "Running C example smoke tests..."
-	@for ex in nco_demo fir_demo hbdecim_demo fft_demo \
-	           agc_demo cic_demo corr_demo rate_converter_demo; do \
-	    printf "  %-20s" "$$ex"; \
-	    if $(EXAMPLE_BIN_DIR)/$$ex > /dev/null 2>&1; then \
-	        echo "PASS"; \
-	    else \
-	        echo "FAIL"; exit 1; \
-	    fi; \
-	done
-	@echo "Building standalone example..."
-	@cmake -B $(STANDALONE_BUILD_DIR) examples/standalone \
-	    -DDOPPLER_BUILD_DIR=$(abspath $(BUILD_DIR)) \
-	    -DCMAKE_BUILD_TYPE=Release \
-	    > /dev/null 2>&1
-	@cmake --build $(STANDALONE_BUILD_DIR) > /dev/null 2>&1
-	@printf "  %-20s" "awgn_example"; \
-	if $(STANDALONE_BUILD_DIR)/awgn_example > /dev/null 2>&1; then \
-	    echo "PASS"; \
-	else \
-	    echo "FAIL"; exit 1; \
-	fi
-	@$(MAKE) --no-print-directory test-example-downstream
-	@echo "All C example smoke tests passed."
+# ── Docs ─────────────────────────────────────────────────────────────────────
+# zensical reads mkdocs.yml natively. The docs toolchain lives in the `docs`
+# dependency group, which is NOT auto-synced — hence `--group docs` on every
+# invocation, so a clean checkout renders identically to CI. A stale local
+# zensical.toml (gitignored, absent in CI) shadows mkdocs.yml and silently
+# truncates the nav, so it is removed before every build.
+ZENSICAL     = $(UV) run --group docs zensical
+DOCS_PREPARE = @rm -f zensical.toml
 
-# ── test-example-downstream ───────────────────────────────────────────────────
-# The downstream just-makeit project (examples/downstream-jm) built the way a
-# real consumer builds it: `find_package(doppler)` against this build tree, and
-# linking libdoppler.a. Its own CTest suite writes captures with doppler's
-# writer and reads them back through the façade, so it exercises the whole
-# consume-doppler path, not just the link line.
-#
-# BUILD_PYTHON=OFF deliberately: this target runs inside `test-examples`, which
-# CI also runs in the debian:buster-slim glibc container where there is no
-# Python and no NumPy. The Python half of the example is gated separately in
-# test-examples-python. Keeping the C half Python-free means the "can a
-# downstream link libdoppler.a" question gets answered on ubuntu, macOS AND
-# glibc 2.28.
-DOWNSTREAM_DIR := examples/downstream-jm
-# Build trees live under doppler's BUILD_DIR, not inside the example: the
-# example is a jm project and `jm status` walks its tree, so a build dir there
-# would be scanned on every drift check.
-DOWNSTREAM_BUILD_DIR := $(BUILD_DIR)/downstream-jm
-test-example-downstream: build
-	@echo "Building downstream jm example (C only, links libdoppler.a)..."
-# Output is captured rather than discarded: a gate that hides why it failed
-# costs a whole CI round-trip to diagnose, which this one did on its first
-# macOS run. Quiet on success, the real compiler/linker error on failure.
-	@cmake -B $(DOWNSTREAM_BUILD_DIR) $(DOWNSTREAM_DIR) \
-	    -Ddoppler_DIR=$(abspath $(BUILD_DIR)) \
-	    -DBUILD_PYTHON=OFF \
-	    -DCMAKE_BUILD_TYPE=Release \
-	    > $(DOWNSTREAM_BUILD_DIR).log 2>&1 \
-	    || { echo "  configure FAILED"; cat $(DOWNSTREAM_BUILD_DIR).log; exit 1; }
-	@cmake --build $(DOWNSTREAM_BUILD_DIR) --parallel $(NPROC) \
-	    > $(DOWNSTREAM_BUILD_DIR).log 2>&1 \
-	    || { echo "  build FAILED"; cat $(DOWNSTREAM_BUILD_DIR).log; exit 1; }
-	@printf "  %-20s" "downstream-jm"; \
-	if $(CTEST) --test-dir $(DOWNSTREAM_BUILD_DIR) > /dev/null 2>&1; then \
-	    echo "PASS"; \
-	else \
-	    echo "FAIL"; \
-	    $(CTEST) --test-dir $(DOWNSTREAM_BUILD_DIR) --output-on-failure; \
-	    exit 1; \
-	fi
+# doppler's docs gate runs EVERY check and reports ALL failures in one pass —
+# the CI job stops at the first, so a later red can hide behind an earlier one.
+# That ordering is why the strict build lives in here rather than in
+# DOCS_CHECK_BUILD_CMD: the cheap script gates run first, the site is built in
+# the middle, and check_site_links runs last because it needs a built site.
+DOCS_CHECK_BUILD_CMD = :
+define DOCS_CHECK_CMD
+@fail=0; \
+for c in \
+  "python scripts/check_api_docs.py" \
+  "python scripts/check_nav_index.py" \
+  "python scripts/gen_related_pages.py --check" \
+  "python scripts/gen_readme.py --check" \
+  "python scripts/gen_install_scripts.py --check" \
+  "python scripts/gen_doc_versions.py --check" \
+  "python scripts/check_version_strings.py" \
+  "python scripts/check_serializable.py"; do \
+    echo "=== $$c ==="; uv run $$c || fail=1; \
+done; \
+echo "=== zensical build --strict ==="; rm -f zensical.toml; \
+  $(ZENSICAL) build --strict || fail=1; \
+echo "=== python scripts/check_site_links.py ==="; \
+  uv run python scripts/check_site_links.py || fail=1; \
+if [ "$$fail" = 0 ]; then echo "docs-check: ALL GATES PASS"; \
+else echo "docs-check: FAILURES above — fix, or run 'make docs-relink' for drift"; exit 1; fi
+endef
 
+# ── Doxygen ──────────────────────────────────────────────────────────────────
+# Version matters more than it looks: doxygen releases disagree about what
+# counts as a warning, so checking with a different version than CI's gives a
+# different answer. Runs natively when the local doxygen matches CI's, and
+# otherwise inside DOXYGEN_IMAGE, which pins it.
+DOXYGEN_VERSION ?= 1.9.8
+DOXYGEN_IMAGE   ?= ubuntu:24.04
+DOXYGEN_CMD      = doxygen Doxyfile
 
-# Fail-closed: every src/doppler/examples/*.py (plus the standalone
-# example) is discovered and run by the pytest gate -- no hand list to
-# rot. Skips live in src/doppler/examples/.examples-skip (reasons
-# mandatory). See src/doppler/tests/test_examples.py.
-test-examples-python:
-	uv run pytest -m examples -q src/doppler/tests/test_examples.py
-	@$(MAKE) --no-print-directory test-example-downstream-python
+define DOXYGEN_CHECK_CMD
+@have=$$(doxygen --version 2>/dev/null | cut -d' ' -f1); \
+if [ "$$have" = "$(DOXYGEN_VERSION)" ]; then \
+  $(MAKE) -s doxygen-warn-gate; \
+else \
+  echo "doxygen-check: local $${have:-none} != CI's $(DOXYGEN_VERSION), using $(DOXYGEN_IMAGE)"; \
+  docker run --rm -v "$(CURDIR)":/w:ro -w /w $(DOXYGEN_IMAGE) sh -c \
+    'apt-get update -qq >/dev/null 2>&1 && \
+     apt-get install -y -qq --no-install-recommends doxygen make >/dev/null 2>&1 && \
+     make -s doxygen-warn-gate'; \
+fi
+endef
 
-# The Python half of the downstream example: build its extension against the
-# same interpreter pytest will use, then run its own suite. Separate from the
-# C half because `test-examples` also runs in a Python-free CI container.
-#
-# The suite is the point of the example, not a smoke test -- it pins that the
-# jm `view` really is a second constructor over one core (`RawCapture` reads a
-# headerless capture correctly where `Capture` silently reads half of it), so a
-# regression in jm's view codegen fails here rather than in someone's project.
-test-example-downstream-python:
-	@echo "Building downstream jm example (Python extension)..."
-	@cmake -B $(DOWNSTREAM_BUILD_DIR)-py $(DOWNSTREAM_DIR) \
-	    -Ddoppler_DIR=$(abspath $(BUILD_DIR)) \
-	    -DBUILD_PYTHON=ON \
-	    -DPython3_EXECUTABLE=$$(uv run python -c 'import sys; print(sys.executable)') \
-	    -DCMAKE_BUILD_TYPE=Release \
-	    > $(DOWNSTREAM_BUILD_DIR)-py.log 2>&1 \
-	    || { echo "  configure FAILED"; cat $(DOWNSTREAM_BUILD_DIR)-py.log; exit 1; }
-	@cmake --build $(DOWNSTREAM_BUILD_DIR)-py --parallel $(NPROC) \
-	    > $(DOWNSTREAM_BUILD_DIR)-py.log 2>&1 \
-	    || { echo "  build FAILED"; cat $(DOWNSTREAM_BUILD_DIR)-py.log; exit 1; }
-	PYTHONPATH=$(abspath $(DOWNSTREAM_DIR))/src \
-	    uv run pytest -q $(DOWNSTREAM_DIR)/src/iqtools/capture/tests/
-
-# ── test-all ──────────────────────────────────────────────────────────────────
-test-all: test test-examples python-test test-examples-python
-
-# ── python-test ───────────────────────────────────────────────────────────────
-python-test:
-	uv run pytest src/ -v
-
-# ── install-deps ─────────────────────────────────────────────────────────────
-# Bootstraps jbx (to $HOME/.local/bin, same as CI) if it isn't already on
-# PATH, then installs system build deps (detects OS/distro). The bootstrap
-# runs `| bash`, not `. <(...)`, so the installed binary persists across
-# make's per-recipe-line subshells; the PATH prefix on the second line
-# covers a jbx that was *just* installed in the first line's own subshell.
-install-deps:
-	@command -v jbx >/dev/null 2>&1 || curl -sSL https://just-buildit.github.io/get-jb.sh | bash
-	PATH="$$HOME/.local/bin:$$PATH" jbx install-deps
-
-# ── setup ─────────────────────────────────────────────────────────────────────
-setup:
-	uv sync
-	pre-commit install
-
-# ── lint ──────────────────────────────────────────────────────────────────────
-lint:
-	@test -f .git/hooks/pre-commit || pre-commit install
-	uv run pre-commit run --all-files
-
-# ── bench ─────────────────────────────────────────────────────────────────────
-# Run C + Python benchmarks on THIS machine, snapshot to benchmarks/history/
-# (local scratch, gitignored). Use the CLI directly for options, e.g.
-# `uv run just-makeit bench --c-only`.
+# ── Bench ────────────────────────────────────────────────────────────────────
 BENCH_THRESHOLD ?= 0.30
 
 # Benchmarks reported by the advisory perf gate but never failed by it
@@ -372,241 +237,144 @@ BENCH_THRESHOLD ?= 0.30
 # test_bench_execute_decim_64k: bimodal on GitHub runners. It lands in one of
 #   two internally-tight states ~1.66x apart (min 1.10 ms vs 1.84 ms, each
 #   with ~1.2% stddev) that track per-process memory layout rather than any
-#   code change. In one CI run two large FIR benchmarks agreed across the two
-#   measurement phases to within 0.15% while this one moved 66%, so it is not
-#   runner throttling or ordering. It has flagged PRs containing no DSP code
-#   at all (#519 docs-only +59.7%, #524 tooling-only +66.5%). Not reproducible
-#   locally: 448 us +/- 0.2% across 8 separate processes. A gate that fires on
-#   documentation changes stops being read, which costs more than the coverage
-#   this one entry gives up.
+#   code change. It has flagged PRs containing no DSP code at all (#519
+#   docs-only +59.7%, #524 tooling-only +66.5%). Not reproducible locally:
+#   448 us +/- 0.2% across 8 separate processes. A gate that fires on
+#   documentation changes stops being read.
 BENCH_ALLOW ?= test_bench_execute_decim_64k
 
-bench: pyext
-	uv run just-makeit bench
+BENCH_CMD         = uv run just-makeit bench
+BENCH_SAVE_CMD    = uv run just-makeit bench --python-only --tag base
+BENCH_COMPARE_CMD = uv run just-makeit bench --check \
+                        --python-only --baseline base \
+                        --threshold $(BENCH_THRESHOLD) \
+                        $(foreach b,$(BENCH_ALLOW),--allow $(b))
 
-# The manifest drift gate (CI's `jm manifest drift gate` job). Kept here so the
-# Makefile is the single driver: CI calls `make drift-check`, never a raw jm
-# command. --no-install-project because the gate only reads the manifest, so
-# there is no reason to build the C extension for it.
-drift-check:
-	uv sync --group dev --no-install-project
-	uv run just-makeit status --check
-	@echo "── downstream jm example ──"
-# The example is a just-makeit project in its own right, so its generated
-# bindings/stubs/CMake can drift from its manifest exactly like doppler's can.
-# Checked with the SAME pinned jm (`uv run` from this project), so the example
-# cannot silently document a jm version doppler is not on. `cd` in a recipe
-# line is scoped to that line's subshell, so this does not affect the rule
-# above.
-	cd $(DOWNSTREAM_DIR) && uv run --project $(CURDIR) just-makeit status --check
+# ── Coverage ─────────────────────────────────────────────────────────────────
+# `coverage` builds a dedicated clang-instrumented tree and merges the C,
+# Python and Rust .profraw into one llvm-cov report; `coverage-gate` fails when
+# the C lines a PR adds aren't covered. clang + matching llvm tools required;
+# override the tool names if they are version-suffixed (e.g. llvm-cov-22).
+COV_DIR       ?= build-cov
+LLVM_PROFDATA ?= llvm-profdata
+LLVM_COV      ?= llvm-cov
+COV_BASE      ?= origin/main
+COV_PATCH_MIN ?= 90
+# Excluded from the report: vendored code, jm-generated binding aggregators
+# (`<mod>_ext.c`) and per-object fragments, and the test/bench harnesses — only
+# first-party _core.c counts. `native/src/app/` (the wfmgen CLI) is excluded
+# too: its body is an OBJECT lib compiled into BOTH the executable and a `.so`,
+# but the report attributes only to the `.so`, whose copy is never executed.
+COV_IGNORE    ?= (^|/)(vendor|build|build-cov|native/src/app)/|_ext(_[a-z0-9_]+)?\.c$$|/(tests|benchmarks)/
 
-# The advisory perf gate (CI's `perf regression` job), both halves. BASELINE
-# records the PR base under a tag; CHECK benches the head and compares.
-bench-baseline: build pyext
-	uv run just-makeit bench --python-only --tag base
+define COVERAGE_CMD
+$(CMAKE) -B $(COV_DIR) -S . \
+    -DCMAKE_BUILD_TYPE=Debug \
+    -DCMAKE_C_COMPILER=clang \
+    -DDOPPLER_COVERAGE=ON -DBUILD_PYTHON=ON \
+    -DPython3_EXECUTABLE=$(PYTHON_EXECUTABLE) \
+    -DPYTHON_PACKAGE_DIR=$(CURDIR)/$(COV_DIR)/pkg/doppler \
+    -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+    $(CMAKE_ARGS)
+$(CMAKE) --build $(COV_DIR) --parallel $(NPROC)
+mkdir -p $(COV_DIR)/pkg/doppler
+(cd src/doppler && tar cf - --exclude='*.so' .) \
+    | (cd $(COV_DIR)/pkg/doppler && tar xf -)
+rm -rf $(COV_DIR)/prof && mkdir -p $(COV_DIR)/prof
+cd $(COV_DIR) && LLVM_PROFILE_FILE="$(CURDIR)/$(COV_DIR)/prof/c-%p-%m.profraw" \
+    $(CTEST) --output-on-failure
+-LLVM_PROFILE_FILE="$(CURDIR)/$(COV_DIR)/prof/py-%p-%m.profraw" \
+    PYTHONPATH="$(CURDIR)/$(COV_DIR)/pkg" \
+    $(PYTHON_EXECUTABLE) -m pytest $(COV_DIR)/pkg/doppler \
+    -q -p no:cacheprovider --ignore-glob='*/benchmarks/*'
+-DOPPLER_BUILD_DIR="$(CURDIR)/$(COV_DIR)" \
+    LLVM_PROFILE_FILE="$(CURDIR)/$(COV_DIR)/prof/rs-%p-%m.profraw" \
+    cargo test --manifest-path $(RUST_DIR)/Cargo.toml
+@objs="$(COV_DIR)/libdoppler.so $$(ls $(COV_DIR)/pkg/doppler/*/*.so \
+    2>/dev/null | sed 's/^/-object /' | tr '\n' ' ')"; \
+$(LLVM_PROFDATA) merge -sparse $(COV_DIR)/prof/*.profraw \
+    -o $(COV_DIR)/doppler.profdata; \
+$(LLVM_COV) report $$objs -instr-profile=$(COV_DIR)/doppler.profdata \
+    -ignore-filename-regex='$(COV_IGNORE)'; \
+$(LLVM_COV) show $$objs -instr-profile=$(COV_DIR)/doppler.profdata \
+    -ignore-filename-regex='$(COV_IGNORE)' \
+    -format=html -output-dir=$(COV_DIR)/html; \
+$(LLVM_COV) export $$objs -instr-profile=$(COV_DIR)/doppler.profdata \
+    -ignore-filename-regex='$(COV_IGNORE)' -format=lcov \
+    > $(COV_DIR)/coverage.lcov
+sed -i 's|SF:$(CURDIR)/|SF:|' $(COV_DIR)/coverage.lcov
+@echo "coverage: HTML -> $(COV_DIR)/html/index.html  lcov -> $(COV_DIR)/coverage.lcov"
+endef
 
-bench-check: build pyext
-	uv run just-makeit bench --check \
-	    --python-only --baseline base --threshold $(BENCH_THRESHOLD) \
-	    $(foreach b,$(BENCH_ALLOW),--allow $(b))
+define COVERAGE_GATE_CMD
+uvx diff-cover $(COV_DIR)/coverage.lcov \
+    --compare-branch=$(COV_BASE) \
+    --fail-under=$(COV_PATCH_MIN) \
+    --format html:$(COV_DIR)/patch.html \
+    --format markdown:$(COV_DIR)/patch.md
+endef
 
-# ── bench-publish / bench-docs / bench-report ─────────────────────────────────
-# Representative published numbers live under benchmarks/published/v<ver>/, two
-# builds per release (portable = the wheel, native = -DDOPPLER_NATIVE=ON), each
-# stamped with the compiler + flags. Measure on a REAL machine, not CI.
-#
-#   make bench-interleaved VERSION=X.Y.Z   # measure BOTH builds, denoised
-#   make bench-docs                        # render docs/benchmarks.md
-#   make bench-report                      # portable trend across releases
-#
-# bench-interleaved is the canonical path: it builds portable + native in two
-# git worktrees and runs them alternately K times (K=5; override with K=N),
-# keeping the per-benchmark best so the *from src* column isn't corrupted by
-# cross-run drift. bench-publish stamps a single build by hand if you need it.
-bench-interleaved:
-ifndef VERSION
-	@echo "usage: make bench-interleaved VERSION=X.Y.Z [K=5]"; exit 1
-endif
-	uv run python scripts/bench_interleaved.py $(VERSION) $(if $(K),-k $(K),)
+# ── Release ──────────────────────────────────────────────────────────────────
+# Five places carry the version; `version-check` probes three of them (uv.lock's
+# copy is re-synced by `uv lock` in the bump, and CHANGELOG is prose).
+define VERSION_PROBES
+pyproject.toml|grep '^version' pyproject.toml | head -1 | sed 's/version = "\(.*\)"/\1/'
+CMakeLists.txt|grep '^project(doppler VERSION' CMakeLists.txt | sed 's/.*VERSION \([0-9.]*\).*/\1/'
+Cargo.toml|grep '^version' $(RUST_DIR)/Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/'
+endef
 
-bench-publish:
-ifndef VERSION
-	@echo "usage: make bench-publish VERSION=X.Y.Z BUILD=portable|native"; exit 1
-endif
-	uv run python scripts/bench_report.py --publish $(VERSION) \
-		--build $(or $(BUILD),portable)
+# CMake and Cargo reject a Python pre-release suffix (1.2.3rc1), so those two
+# get the numeric prefix while pyproject keeps the full string.
+define BUMP_VERSION_CMD
+sed -i 's/^version = "[^"]*"/version = "$(VERSION)"/' pyproject.toml
+sed -i "s/^version = \"[0-9.]*/version = \"$$(echo $(VERSION) | sed 's/[^0-9.].*//g')/" $(RUST_DIR)/Cargo.toml
+sed -i "s/^project(doppler VERSION [0-9.]*/project(doppler VERSION $$(echo $(VERSION) | sed 's/[^0-9.].*//g')/" CMakeLists.txt
+uv lock
+@$(MAKE) --no-print-directory docs-relink
+endef
 
-bench-docs:
-	uv run python scripts/bench_report.py --page --out docs/benchmarks.md
+define RELEASE_BRANCH_NOTES
+@echo "  - if perf-relevant code changed since the last release (release.md"
+@echo "    §2b): make bench-interleaved VERSION=$(VERSION) && make bench-docs"
+@echo "    (on a representative machine), then commit benchmarks/published +"
+@echo "    docs/benchmarks.md"
+endef
 
-# ── bench-stream ──────────────────────────────────────────────────────────────
-# Transport (P0) bench: NATS firehose throughput + status-plane RTT via
-# the bench_stream C harness. Self-contained — starts a JetStream broker on an
-# isolated port (temp store) and tears it down. Prints a table; pass
-# VERSION=X.Y.Z to stamp benchmarks/published/v<ver>/stream.json (rendered into
-# the Transport section of docs/benchmarks.md by `make bench-docs`).
-#
-#   make bench-stream                    # scratch run, prints the table
-#   make bench-stream VERSION=0.21.0     # publish stream.json for the release
-bench-stream:
-	uv run python scripts/bench_stream.py $(if $(VERSION),--publish $(VERSION),)
+RELEASE_WATCH_CMD = @REPO=doppler-dsp/doppler scripts/release-watch.sh \
+                        "$(VERSION)"
 
-bench-report:
-	uv run python scripts/bench_report.py
+# ── Clean ────────────────────────────────────────────────────────────────────
+CLEAN_PATHS = $(BUILD_DIR) $(PY_BUILD_DIR) docs/doxygen/ site/ \
+              *.png bench_*.json zensical.toml __pycache__
 
+define CLEAN_CMD
+@find $(PYEXT_DIR) -name '*.cpython-*.so' -delete
+@find $(PYEXT_DIR) -name '__pycache__' -type d -exec rm -rf {} + 2>/dev/null || true
+endef
 
-# ── rust-test ─────────────────────────────────────────────────────────────────
-rust-test: build
-	cargo test --manifest-path $(RUST_DIR)/Cargo.toml
+# ── Repo-local targets ───────────────────────────────────────────────────────
+# Named here so they land in `.PHONY` and in generated `help`, and so the same
+# gates cover them: criterion 2 is "help lists EVERY target", not "every
+# standard target" — a local target help omits is exactly as invisible.
+LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
+                docs-relink drift-check changelog-check doxygen-warn-gate \
+                test-examples-c test-examples-python test-example-downstream \
+                test-example-downstream-python \
+                bench-interleaved bench-publish bench-docs bench-stream \
+                bench-report
 
-# ── docs ──────────────────────────────────────────────────────────────────────
-# zensical reads mkdocs.yml natively — no config migration required.
-# The docs toolchain (zensical + its bundled material theme, mkdocstrings,
-# mkdoxy) lives in the `docs` dependency group, which is NOT auto-synced — pass
-# `--group docs` on every invocation so a clean checkout renders identically to
-# CI (`uv sync --group dev --group docs`). Without it, `uv run zensical` relies
-# on incidental venv state and can fall back to a themeless (no-left-nav) build.
-# A stale local `zensical.toml` (gitignored, absent in CI) shadows mkdocs.yml
-# and silently truncates the nav, so remove it first.
-# gen-c-api is a separate step; docs/c-api/ is committed and only needs
-# regeneration when native/inc/ headers change.
-docs:
-	rm -f zensical.toml
-	uv run --group docs zensical build --clean --strict
+include standard.mk
 
-docs-serve:
-	rm -f zensical.toml
-	uv run --group docs zensical serve
+# ── Everything below is genuinely doppler's own ──────────────────────────────
 
-# Regenerates the "## Related pages" block on every docs/api/*.md page from
-# gallery/guide/design/dev cross-links (scripts/gen_related_pages.py),
-# README.md's synced body from docs/index.md (scripts/gen_readme.py),
-# and tests/install/build-*-deps.sh from jb.toml (scripts/gen_install_scripts.py).
-docs-relink:
-	uv run python scripts/gen_related_pages.py --write
-	uv run python scripts/gen_readme.py --write
-	uv run python scripts/gen_install_scripts.py --write
-	uv run python scripts/gen_doc_versions.py --write
-
-gen-c-api:
-	rm -rf docs/c-api .mkdoxy .capi-site
-	uv run --group docs mkdocs build -f mkdocs-capi.yml
-	cp -r .mkdoxy/doppler/c-api docs/c-api
-	# index.md is a hand-written landing page mkdoxy doesn't emit — restore it
-	# after the regen wipes it (matches the CI docs.yml step).
-	git checkout -- docs/c-api/index.md
-	rm -rf .mkdoxy .capi-site
-
-# ── doxygen ───────────────────────────────────────────────────────────────────
-# Generates XML (consumed by mkdocstrings) and HTML in docs/doxygen/.
-# HTML_OUTPUT and XML_OUTPUT are relative to the Doxyfile location.
-#
-# NOTE this target only BUILDS — it prints warnings and exits 0. The gate is
-# `doxygen-check` below. Keeping them separate is deliberate: the docs build
-# needs the XML even when a warning is outstanding.
-doxygen:
-	doxygen Doxyfile
-
-# CI's `Doxygen` job as a target, so local and CI cannot diverge (the step used
-# to be an inline `doxygen | grep warning:` in ci.yml, which is exactly how 88
-# warnings accumulated unnoticed across a long branch — `make doxygen` looked
-# like the gate and wasn't).
-#
-# Version matters more than it looks: doxygen releases disagree about what
-# counts as a warning, so checking with a different version than CI's gives a
-# different answer. This runs natively when the local doxygen matches CI's and
-# otherwise inside $(DOXYGEN_IMAGE), which pins it. Override DOXYGEN_VERSION
-# when the CI runner image changes.
-DOXYGEN_VERSION ?= 1.9.8
-DOXYGEN_IMAGE   ?= ubuntu:24.04
-
-doxygen-check:
-	@have=$$(doxygen --version 2>/dev/null | cut -d' ' -f1); \
-	if [ "$$have" = "$(DOXYGEN_VERSION)" ]; then \
-	  $(MAKE) -s doxygen-warn-gate; \
-	else \
-	  echo "doxygen-check: local $${have:-none} != CI's $(DOXYGEN_VERSION), using $(DOXYGEN_IMAGE)"; \
-	  docker run --rm -v "$(CURDIR)":/w:ro -w /w $(DOXYGEN_IMAGE) sh -c \
-	    'apt-get update -qq >/dev/null 2>&1 && \
-	     apt-get install -y -qq --no-install-recommends doxygen make >/dev/null 2>&1 && \
-	     make -s doxygen-warn-gate'; \
-	fi
-
-# The gate proper. Split out so the Docker branch above can re-enter it with
-# the pinned doxygen on PATH.
-#
-# Writes NOTHING into the tree: the container mounts the repo read-only, so
-# both the generated XML/HTML and the log go to a scratch dir instead. The
-# earlier version tee'd doxygen.log into the repo, and because the container
-# runs as root that left a root-owned file the user could not delete. A gate
-# that mutates the tree it is checking is a bug, docker or not.
-doxygen-warn-gate:
-	@out=$$(mktemp -d); \
-	{ cat Doxyfile; \
-	  echo "OUTPUT_DIRECTORY=$$out"; \
-	  echo "WARN_LOGFILE="; } | doxygen - > $$out/stdout.log 2>&1; \
-	n=$$(grep -c 'warning:' $$out/stdout.log || true); \
-	if [ "$$n" != "0" ]; then \
-	  grep 'warning:' $$out/stdout.log; \
-	  echo "doxygen-check: $$n warning(s) — FAIL"; rm -rf $$out; exit 1; \
-	fi; \
-	rm -rf $$out; \
-	echo "doxygen-check: 0 warnings"
-
-# ── changelog-check ───────────────────────────────────────────────────────────
-# Fails when code has shipped since the last tag but [Unreleased] is empty.
-# keep-a-changelog says the entry lands with the change, not at release time;
-# without a gate a long branch reaches release day with nothing to promote and
-# the notes get reconstructed from commit messages (github-release's awk turns
-# that section into the published notes verbatim).
-#
-# The RELEASE PR is the one legitimate empty-[Unreleased] state: promotion
-# moves every entry into `## [X.Y.Z]`, so the notes exist — they are just no
-# longer under [Unreleased]. Without an exemption this gate fails on every
-# release PR, which trains people to ignore it.
-#
-# The exemption is deliberately narrow: pyproject's version must HAVE a
-# changelog section AND its tag must NOT exist yet. That second clause is what
-# stops the exemption becoming permanent — once vX.Y.Z is tagged, the section
-# is still there forever, so without it every later feature branch would
-# inherit the pass and the gate would never fire again.
-changelog-check:
-	@t=$$(git describe --tags --abbrev=0 2>/dev/null || true); \
-	n=$$(git log --oneline $${t:+$$t..}HEAD -- src native objects ffi 2>/dev/null | wc -l); \
-	e=$$(awk '/^## \[Unreleased\]/{f=1;next} f&&/^## /{exit} f' CHANGELOG.md \
-	     | grep -c '^- ' || true); \
-	v=$$(awk -F'"' '/^version = /{print $$2; exit}' pyproject.toml); \
-	if [ "$$n" -gt 0 ] && [ "$$e" -eq 0 ] \
-	   && grep -q "^## \[$$v\]" CHANGELOG.md \
-	   && ! git rev-parse -q --verify "refs/tags/v$$v" >/dev/null 2>&1; then \
-	  echo "changelog-check: release PR for $$v — notes are promoted into [$$v], v$$v not yet tagged — OK"; \
-	  exit 0; \
-	fi; \
-	if [ "$$n" -gt 0 ] && [ "$$e" -eq 0 ]; then \
-	  echo "changelog-check: $$n code commit(s) since $${t:-repo start}, [Unreleased] is empty — FAIL"; \
-	  exit 1; \
-	fi; \
-	echo "changelog-check: $$e entry/entries for $$n code commit(s) since $${t:-repo start}"
-
-# ── gates ─────────────────────────────────────────────────────────────────────
-# "Would CI pass?" — every gate the required jobs run, fail-fast, cheapest
-# first. Run this before pushing. It exists because the individual targets
-# already did: the failure mode is not a missing check, it is running six of
-# seven and not noticing which one you skipped.
-gates: lint changelog-check drift-check doxygen-check docs-check test-all
-	@echo ""
-	@echo "gates: ALL PASS"
-
-# ── specan ────────────────────────────────────────────────────────────────────
-specan:
+specan: ## Launch the live spectrum analyzer in a browser
 	uv run doppler-specan
 
-record-demo:
+record-demo: ## Re-record the specan demo frames (docs/specan/frames.json)
 	uv run python -m doppler.specan.record_demo \
 	    --frames 120 --fft-size 512 \
 	    -o docs/specan/frames.json
 
-# ── gallery ───────────────────────────────────────────────────────────────────
 # Run all plot-generating examples and copy output PNGs to docs/assets/.
 # Run before releasing whenever src/doppler/examples/ has changed.
 GALLERY_SCRIPTS := \
@@ -644,7 +412,7 @@ GALLERY_SCRIPTS := \
     src/doppler/examples/mpsk_receiver_demo.py \
     src/doppler/examples/mpsk_receiver_performance_demo.py
 
-gallery:
+gallery: ## Run the plot examples and copy their PNGs to docs/assets/
 	@echo "Regenerating gallery plots..."
 	@for script in $(GALLERY_SCRIPTS); do \
 	    printf "  %-45s" "$$script"; \
@@ -654,14 +422,8 @@ gallery:
 	@rm -f burst.blue
 	@echo "Gallery plots written to docs/assets/."
 
-# ── debug / release ───────────────────────────────────────────────────────────
-debug: clean
-	$(MAKE) build BUILD_TYPE=Debug
-
-release: clean
-	$(MAKE) build BUILD_TYPE=Release
-
-blazing: clean
+blazing: ## Clean + Release + -march=native (max speed; never packaged)
+	@$(MAKE) --no-print-directory clean
 	$(CMAKE) -B $(BUILD_DIR) -S . \
 		-DCMAKE_BUILD_TYPE=Release \
 		-DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
@@ -670,188 +432,213 @@ blazing: clean
 		$(CMAKE_ARGS)
 	$(CMAKE) --build $(BUILD_DIR) --parallel $(NPROC)
 
-# ── bump-version ──────────────────────────────────────────────────────────────
-# Update version in all five places atomically.
-#   make bump-version VERSION=0.2.1
-bump-version:
+gen-c-api: ## Regenerate docs/c-api/ from the headers (mkdoxy)
+	rm -rf docs/c-api .mkdoxy .capi-site
+	uv run --group docs mkdocs build -f mkdocs-capi.yml
+	cp -r .mkdoxy/doppler/c-api docs/c-api
+	# index.md is a hand-written landing page mkdoxy doesn't emit — restore it
+	# after the regen wipes it (matches the CI docs.yml step).
+	git checkout -- docs/c-api/index.md
+	rm -rf .mkdoxy .capi-site
+
+# PEP 517 build hook for just-buildit. It sets JUST_BUILDIT_OUTPUT_DIR and
+# JUST_BUILDIT_PYTHON before calling this target; the package tree is copied
+# there to be packaged. The docs group is excluded so a docs-dep network blip
+# cannot fail a wheel build.
+just-build: UV_SYNC_FLAGS = --no-group docs
+just-build: pyext ## PEP 517 build hook for just-buildit
+	mkdir -p $(JUST_BUILDIT_OUTPUT_DIR)
+	cp -r $(PYEXT_DIR) $(JUST_BUILDIT_OUTPUT_DIR)/doppler
+
+# Regenerates every generated doc region: the "## Related pages" blocks on
+# docs/api/*.md, README.md's synced body from docs/index.md, the per-distro
+# install scripts from jb.toml, and the release version stamped into
+# doc-version regions.
+docs-relink: ## Regenerate every generated doc region
+	uv run python scripts/gen_related_pages.py --write
+	uv run python scripts/gen_readme.py --write
+	uv run python scripts/gen_install_scripts.py --write
+	uv run python scripts/gen_doc_versions.py --write
+
+# The jm manifest drift gate. --no-install-project because the gate only reads
+# the manifest, so there is no reason to build the C extension for it.
+drift-check: ## jm manifest drift gate (CI's 'jm manifest drift')
+	uv sync --group dev --no-install-project
+	uv run just-makeit status --check
+	@echo "── downstream jm example ──"
+# The example is a just-makeit project in its own right, so its generated
+# bindings/stubs/CMake can drift from its manifest exactly like doppler's can.
+# Checked with the SAME pinned jm, so the example cannot silently document a jm
+# version doppler is not on.
+	cd $(DOWNSTREAM_DIR) && uv run --project $(CURDIR) just-makeit status --check
+
+# Fails when code has shipped since the last tag but [Unreleased] is empty.
+# keep-a-changelog says the entry lands with the change, not at release time.
+# The RELEASE PR is the one legitimate empty state: promotion moves every entry
+# into `## [X.Y.Z]`, so the notes exist, just not under [Unreleased]. That
+# exemption is narrow on purpose — the version must HAVE a section AND its tag
+# must NOT exist yet, which is what stops it becoming permanent.
+changelog-check: ## [Unreleased] must not be empty if code shipped
+	@t=$$(git describe --tags --abbrev=0 2>/dev/null || true); \
+	n=$$(git log --oneline $${t:+$$t..}HEAD -- src native objects ffi 2>/dev/null | wc -l); \
+	e=$$(awk '/^## \[Unreleased\]/{f=1;next} f&&/^## /{exit} f' CHANGELOG.md \
+	     | grep -c '^- ' || true); \
+	v=$$(awk -F'"' '/^version = /{print $$2; exit}' pyproject.toml); \
+	if [ "$$n" -gt 0 ] && [ "$$e" -eq 0 ] \
+	   && grep -q "^## \[$$v\]" CHANGELOG.md \
+	   && ! git rev-parse -q --verify "refs/tags/v$$v" >/dev/null 2>&1; then \
+	  echo "changelog-check: release PR for $$v — notes are promoted into [$$v], v$$v not yet tagged — OK"; \
+	  exit 0; \
+	fi; \
+	if [ "$$n" -gt 0 ] && [ "$$e" -eq 0 ]; then \
+	  echo "changelog-check: $$n code commit(s) since $${t:-repo start}, [Unreleased] is empty — FAIL"; \
+	  exit 1; \
+	fi; \
+	echo "changelog-check: $$e entry/entries for $$n code commit(s) since $${t:-repo start}"
+
+# The doxygen gate proper. Split out so doxygen-check's Docker branch can
+# re-enter it with the pinned doxygen on PATH. Writes NOTHING into the tree:
+# the container mounts the repo read-only, so the generated XML/HTML and the
+# log go to a scratch dir. A gate that mutates the tree it checks is a bug.
+doxygen-warn-gate: ## The doxygen warning gate proper (re-entered in Docker)
+	@out=$$(mktemp -d); \
+	{ cat Doxyfile; \
+	  echo "OUTPUT_DIRECTORY=$$out"; \
+	  echo "WARN_LOGFILE="; } | doxygen - > $$out/stdout.log 2>&1; \
+	n=$$(grep -c 'warning:' $$out/stdout.log || true); \
+	if [ "$$n" != "0" ]; then \
+	  grep 'warning:' $$out/stdout.log; \
+	  echo "doxygen-check: $$n warning(s) — FAIL"; rm -rf $$out; exit 1; \
+	fi; \
+	rm -rf $$out; \
+	echo "doxygen-check: 0 warnings"
+
+# ── Examples ─────────────────────────────────────────────────────────────────
+# Smoke-test every standalone C example. Excluded (each needs a live NATS peer
+# or terminal interaction, not just a broker): transmitter, receiver,
+# pipeline_demo, spectrum_analyzer.
+EXAMPLE_BIN_DIR := $(BUILD_DIR)/examples/c
+STANDALONE_BUILD_DIR := examples/standalone/build
+DOWNSTREAM_DIR := examples/downstream-jm
+# Build trees live under doppler's BUILD_DIR, not inside the example: the
+# example is a jm project and `jm status` walks its tree, so a build dir there
+# would be scanned on every drift check.
+DOWNSTREAM_BUILD_DIR := $(BUILD_DIR)/downstream-jm
+
+test-examples-c: build ## Smoke-test every standalone C example
+	@echo "Running C example smoke tests..."
+	@for ex in nco_demo fir_demo hbdecim_demo fft_demo \
+	           agc_demo cic_demo corr_demo rate_converter_demo; do \
+	    printf "  %-20s" "$$ex"; \
+	    if $(EXAMPLE_BIN_DIR)/$$ex > /dev/null 2>&1; then \
+	        echo "PASS"; \
+	    else \
+	        echo "FAIL"; exit 1; \
+	    fi; \
+	done
+	@echo "Building standalone example..."
+	@cmake -B $(STANDALONE_BUILD_DIR) examples/standalone \
+	    -DDOPPLER_BUILD_DIR=$(abspath $(BUILD_DIR)) \
+	    -DCMAKE_BUILD_TYPE=Release \
+	    > /dev/null 2>&1
+	@cmake --build $(STANDALONE_BUILD_DIR) > /dev/null 2>&1
+	@printf "  %-20s" "awgn_example"; \
+	if $(STANDALONE_BUILD_DIR)/awgn_example > /dev/null 2>&1; then \
+	    echo "PASS"; \
+	else \
+	    echo "FAIL"; exit 1; \
+	fi
+	@$(MAKE) --no-print-directory test-example-downstream
+	@echo "All C example smoke tests passed."
+
+# The downstream just-makeit project built the way a real consumer builds it:
+# `find_package(doppler)` against this build tree, linking libdoppler.a. Its
+# own CTest suite writes captures with doppler's writer and reads them back
+# through the façade, so it exercises the whole consume-doppler path.
+#
+# BUILD_PYTHON=OFF deliberately: this runs inside test-examples-c, which CI
+# also runs in the debian:buster-slim glibc container where there is no Python
+# and no NumPy. Keeping the C half Python-free means "can a downstream link
+# libdoppler.a" gets answered on ubuntu, macOS AND glibc 2.28.
+test-example-downstream: build ## Build the downstream jm example (C only)
+	@echo "Building downstream jm example (C only, links libdoppler.a)..."
+# Output is captured rather than discarded: a gate that hides why it failed
+# costs a whole CI round-trip to diagnose, which this one did on its first
+# macOS run. Quiet on success, the real compiler/linker error on failure.
+	@cmake -B $(DOWNSTREAM_BUILD_DIR) $(DOWNSTREAM_DIR) \
+	    -Ddoppler_DIR=$(abspath $(BUILD_DIR)) \
+	    -DBUILD_PYTHON=OFF \
+	    -DCMAKE_BUILD_TYPE=Release \
+	    > $(DOWNSTREAM_BUILD_DIR).log 2>&1 \
+	    || { echo "  configure FAILED"; cat $(DOWNSTREAM_BUILD_DIR).log; exit 1; }
+	@cmake --build $(DOWNSTREAM_BUILD_DIR) --parallel $(NPROC) \
+	    > $(DOWNSTREAM_BUILD_DIR).log 2>&1 \
+	    || { echo "  build FAILED"; cat $(DOWNSTREAM_BUILD_DIR).log; exit 1; }
+	@printf "  %-20s" "downstream-jm"; \
+	if $(CTEST) --test-dir $(DOWNSTREAM_BUILD_DIR) > /dev/null 2>&1; then \
+	    echo "PASS"; \
+	else \
+	    echo "FAIL"; \
+	    $(CTEST) --test-dir $(DOWNSTREAM_BUILD_DIR) --output-on-failure; \
+	    exit 1; \
+	fi
+
+test-examples-python: ## Run the Python example gate (requires pyext)
+	uv run pytest -m examples -q src/doppler/tests/test_examples.py
+	@$(MAKE) --no-print-directory test-example-downstream-python
+
+# The Python half of the downstream example: build its extension against the
+# same interpreter pytest will use, then run its own suite. Separate from the C
+# half because test-examples-c also runs in a Python-free CI container.
+#
+# The suite is the point of the example, not a smoke test -- it pins that the
+# jm `view` really is a second constructor over one core, so a regression in
+# jm's view codegen fails here rather than in someone's project.
+test-example-downstream-python: ## Build + test the downstream example (Python)
+	@echo "Building downstream jm example (Python extension)..."
+	@cmake -B $(DOWNSTREAM_BUILD_DIR)-py $(DOWNSTREAM_DIR) \
+	    -Ddoppler_DIR=$(abspath $(BUILD_DIR)) \
+	    -DBUILD_PYTHON=ON \
+	    -DPython3_EXECUTABLE=$$(uv run python -c 'import sys; print(sys.executable)') \
+	    -DCMAKE_BUILD_TYPE=Release \
+	    > $(DOWNSTREAM_BUILD_DIR)-py.log 2>&1 \
+	    || { echo "  configure FAILED"; cat $(DOWNSTREAM_BUILD_DIR)-py.log; exit 1; }
+	@cmake --build $(DOWNSTREAM_BUILD_DIR)-py --parallel $(NPROC) \
+	    > $(DOWNSTREAM_BUILD_DIR)-py.log 2>&1 \
+	    || { echo "  build FAILED"; cat $(DOWNSTREAM_BUILD_DIR)-py.log; exit 1; }
+	PYTHONPATH=$(abspath $(DOWNSTREAM_DIR))/src \
+	    uv run pytest -q $(DOWNSTREAM_DIR)/src/iqtools/capture/tests/
+
+# ── Bench scripts that are not save/compare ──────────────────────────────────
+# Representative published numbers live under benchmarks/published/v<ver>/, two
+# builds per release (portable = the wheel, native = -DDOPPLER_NATIVE=ON), each
+# stamped with the compiler + flags. Measure on a REAL machine, not CI.
+#
+# bench-interleaved is the canonical path: it builds portable + native in two
+# git worktrees and runs them alternately K times (K=5; override with K=N),
+# keeping the per-benchmark best so the *from src* column isn't corrupted by
+# cross-run drift. bench-publish stamps a single build by hand if you need it.
+bench-interleaved: ## Measure portable + native alternately, denoised (VERSION=)
 ifndef VERSION
-	@echo "usage: make bump-version VERSION=<x.y.z>"
-	@exit 1
+	@echo "usage: make bench-interleaved VERSION=X.Y.Z [K=5]"; exit 1
 endif
-	sed -i 's/^version = "[^"]*"/version = "$(VERSION)"/' pyproject.toml
-	sed -i "s/^version = \"[0-9.]*/version = \"$$(echo $(VERSION) | sed 's/[^0-9.].*//g')/" $(RUST_DIR)/Cargo.toml
-	sed -i "s/^project(doppler VERSION [0-9.]*/project(doppler VERSION $$(echo $(VERSION) | sed 's/[^0-9.].*//g')/" CMakeLists.txt
-	uv lock      # sync uv.lock's editable doppler-dsp version (else it drifts)
-	@echo "Bumped to $(VERSION) in pyproject.toml, Cargo.toml, CMakeLists.txt, uv.lock"
-	@echo "Next: edit CHANGELOG.md, commit, push the branch, open a PR, get CI"
-	@echo "      green, merge — then on main: make tag-release VERSION=$(VERSION)"
+	uv run python scripts/bench_interleaved.py $(VERSION) $(if $(K),-k $(K),)
 
-# ── check-version ─────────────────────────────────────────────────────────────
-# Verify that all five version locations agree.  Run before tagging.
-check-version:
-	@PY=$$(grep '^version' pyproject.toml | head -1 | sed 's/version = "\(.*\)"/\1/'); \
-	 CM=$$(grep '^project(doppler VERSION' CMakeLists.txt | sed 's/.*VERSION \([0-9.]*\).*/\1/'); \
-	 RS=$$(grep '^version' $(RUST_DIR)/Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/'); \
-	 echo "pyproject.toml : $$PY"; \
-	 echo "CMakeLists.txt : $$CM"; \
-	 echo "Cargo.toml     : $$RS"; \
-	 if [ "$$PY" = "$$CM" ] && [ "$$PY" = "$$RS" ]; then \
-	     echo "OK — all versions match ($$PY)"; \
-	 else \
-	     echo "ERROR — version mismatch; run: make bump-version VERSION=<x.y.z>"; \
-	     exit 1; \
-	 fi
-
-# ── release-branch ────────────────────────────────────────────────────────────
-# Start a release: branch off origin/main, bump the version. Then edit
-# CHANGELOG.md, commit, push, open a PR, and let CI gate it — main is never
-# pushed to directly.  The explicit origin/main start point matters: a bare
-# `checkout -b` forks from whatever HEAD the invoker happens to be on (a
-# feature branch, a stale main), silently building the release on the wrong
-# base — the bump then misses anything merged since.
-#   make release-branch VERSION=0.2.0
-release-branch:
+bench-publish: ## Stamp one build's numbers for a release (VERSION= BUILD=)
 ifndef VERSION
-	@echo "usage: make release-branch VERSION=<x.y.z>"
-	@exit 1
+	@echo "usage: make bench-publish VERSION=X.Y.Z BUILD=portable|native"; exit 1
 endif
-	git fetch origin main
-	git checkout -b chore/release-$(VERSION) origin/main
-	$(MAKE) bump-version VERSION=$(VERSION)
-	@echo ""
-	@echo "Now:"
-	@echo "  - edit CHANGELOG.md ([Unreleased] -> [$(VERSION)] + compare links)"
-	@echo "  - if perf-relevant code changed since the last release (release.md"
-	@echo "    §2b): make bench-interleaved VERSION=$(VERSION) && make bench-docs"
-	@echo "    (on a representative machine), then commit benchmarks/published +"
-	@echo "    docs/benchmarks.md"
-	@echo "  - git commit -am 'chore: release v$(VERSION)', git push -u origin HEAD"
-	@echo "  - gh pr create --fill, merge once the required checks are green"
-	@echo "  - then: git checkout main && git pull && make tag-release VERSION=$(VERSION)"
+	uv run python scripts/bench_report.py --publish $(VERSION) \
+		--build $(or $(BUILD),portable)
 
-# ── tag-release ───────────────────────────────────────────────────────────────
-# Tag an already-merged, CI-green main commit and push ONLY the tag (the bump +
-# CHANGELOG land via a PR first — see release-branch). main is never pushed to
-# directly, so the tag always points at code the required checks already passed.
-# Triggers release.yml.
-#   make tag-release VERSION=0.2.0
-tag-release:
-ifndef VERSION
-	@echo "usage: make tag-release VERSION=<x.y.z>"
-	@exit 1
-endif
-	@test "$$(git rev-parse --abbrev-ref HEAD)" = "main" || \
-	  { echo "ERROR: not on main — release tags only point at merged main"; exit 1; }
-	git fetch --quiet origin main
-	@test "$$(git rev-parse HEAD)" = "$$(git rev-parse origin/main)" || \
-	  { echo "ERROR: local main != origin/main — git pull first"; exit 1; }
-	$(MAKE) check-version VERSION=$(VERSION)
-	git tag -a "v$(VERSION)" -m "Release v$(VERSION)"
-	git push origin "v$(VERSION)"
-	@echo "Tagged v$(VERSION) on merged main — release workflow starting on GitHub"
+bench-docs: ## Render docs/benchmarks.md from the published numbers
+	uv run python scripts/bench_report.py --page --out docs/benchmarks.md
 
-# ── release-watch ─────────────────────────────────────────────────────────────
-# Watch release.yml through to VERIFIED: stream job outcomes, auto-recover ONE
-# pre-publish flake (rerun a failed job / cancel+rerun a hung one — safe because
-# publish is gated behind smoke), then verify the real artifacts (PyPI
-# per-version then latest, GitHub Release published with notes + C tarballs).
-#   make release-watch VERSION=0.37.0
-release-watch:
-ifndef VERSION
-	@echo "usage: make release-watch VERSION=<x.y.z>"
-	@exit 1
-endif
-	@REPO=doppler-dsp/doppler scripts/release-watch.sh "$(VERSION)"
+# Transport (P0) bench: NATS firehose throughput + status-plane RTT via the
+# bench_stream C harness. Self-contained — starts a JetStream broker on an
+# isolated port (temp store) and tears it down.
+bench-stream: ## Transport bench: NATS firehose + status-plane RTT
+	uv run python scripts/bench_stream.py $(if $(VERSION),--publish $(VERSION),)
 
-# ── ship ──────────────────────────────────────────────────────────────────────
-# tag-release then release-watch — the whole tag→publish→verify loop in one
-# command. (Named `ship`, not `release`, so it never collides with a cmake
-# Release build.) Run on merged, CI-green main.
-#   make ship VERSION=0.37.0
-ship: tag-release release-watch
-
-# ── docs-check ────────────────────────────────────────────────────────────────
-# Run EVERY gate the CI Docs job runs, locally, and report ALL failures in one
-# pass (the CI job stops at the first, so a later red can hide behind an earlier
-# one — this does not). Run before pushing any docs/api or generated-doc change.
-docs-check:
-	@fail=0; \
-	for c in \
-	  "python scripts/check_api_docs.py" \
-	  "python scripts/check_nav_index.py" \
-	  "python scripts/gen_related_pages.py --check" \
-	  "python scripts/gen_readme.py --check" \
-	  "python scripts/gen_install_scripts.py --check" \
-	  "python scripts/gen_doc_versions.py --check" \
-	  "python scripts/check_version_strings.py" \
-	  "python scripts/check_serializable.py"; do \
-	    echo "=== $$c ==="; uv run $$c || fail=1; \
-	done; \
-	echo "=== zensical build --strict ==="; rm -f zensical.toml; \
-	  uv run --group docs zensical build --strict || fail=1; \
-	echo "=== python scripts/check_site_links.py ==="; \
-	  uv run python scripts/check_site_links.py || fail=1; \
-	if [ "$$fail" = 0 ]; then echo "docs-check: ALL GATES PASS"; \
-	else echo "docs-check: FAILURES above — fix, or run 'make docs-relink' for drift"; exit 1; fi
-
-# ── clean ─────────────────────────────────────────────────────────────────────
-clean:
-	rm -rf $(BUILD_DIR) $(PY_BUILD_DIR)
-	rm -rf docs/doxygen/
-	rm -rf site/
-	find $(PYEXT_DIR) -name '*.cpython-*.so' -delete
-	find $(PYEXT_DIR) -name '__pycache__' -type d -exec rm -rf {} + 2>/dev/null || true
-	# stray artifacts demo/bench scripts and jm leave in the repo root
-	rm -f *.png bench_*.json zensical.toml
-	rm -rf __pycache__
-
-# ── help ──────────────────────────────────────────────────────────────────────
-help:
-	@echo ""
-	@echo "doppler build targets"
-	@echo "====================="
-	@echo ""
-	@echo "  make install-deps  Bootstrap jbx (if missing) + install system build deps"
-	@echo "  make setup         One-time per clone: uv sync + pre-commit install"
-	@echo "  make               Configure + build ($(BUILD_TYPE))"
-	@echo "  make build         Same as above"
-	@echo "  make test          Run CTest suite (native/ unit tests; requires pyext)"
-	@echo "  make pyext         Build Python C extensions"
-	@echo "  make wheel         Build + auditwheel-repair doppler-dsp wheel (Linux)"
-	@echo "  make test-all      Run all test suites (CTest + pytest)"
-	@echo "  make test-examples Run C example binaries (build first)"
-	@echo "  make test-examples-python  Run Python example smoke tests (requires pyext)"
-	@echo "  make python-test   Run pytest"
-	@echo "  make bench         Run C + Python benchmarks; snapshot to benchmarks/history/"
-	@echo "  make specan              Launch live spectrum analyzer in browser"
-	@echo "  make record-demo         Re-record specan demo frames (docs/specan/frames.json)"
-	@echo "  make gallery             Run plot examples and copy PNGs to docs/assets/"
-	@echo ""
-	@echo "  make gates         *** RUN THIS BEFORE PUSHING *** every gate CI"
-	@echo "                     requires, fail-fast: lint changelog-check"
-	@echo "                     drift-check doxygen-check docs-check test-all"
-	@echo "  make lint          Run pre-commit hooks on all files"
-	@echo "  make drift-check   jm manifest drift gate (CI's 'jm manifest drift')"
-	@echo "  make docs-check    Every gate CI's Docs job runs, all failures at once"
-	@echo "  make doxygen-check Doxygen at CI's pinned version, 0 warnings or FAIL"
-	@echo "  make changelog-check  [Unreleased] must not be empty if code shipped"
-	@echo ""
-	@echo "  make docs          Build the docs site (zensical)"
-	@echo "  make docs-serve    Serve the docs site locally (zensical)"
-	@echo "  make docs-relink   Regenerate docs/api/*.md's Related pages blocks"
-	@echo "  make doxygen       Generate C API docs (XML + HTML via Doxygen)"
-	@echo "  make debug         Clean + Debug build"
-	@echo "  make release       Clean + Release build"
-	@echo "  make blazing       Clean + Release + -march=native (max speed)"
-	@echo "  make gen-pyext MOD=fir  Generate Python C extension for a module"
-	@echo "  make bump-version VERSION=x.y.z  Update version everywhere"
-	@echo "  make tag-release  VERSION=x.y.z  Commit + tag + push release"
-	@echo "  make clean         Remove build/ and Python .so files"
-	@echo "  make help          Show this message"
-	@echo ""
-	@echo "Overrides:"
-	@echo "  BUILD_DIR=$(BUILD_DIR)  BUILD_TYPE=$(BUILD_TYPE)"
-	@echo "  NPROC=$(NPROC)"
-	@echo "  CMAKE_ARGS=        Extra cmake -D flags passed to all configure steps"
-	@echo "  BLAZING_CFLAGS=    C flags for 'make blazing' (default: -march=native)"
-	@echo ""
+bench-report: ## Portable-build trend across releases
+	uv run python scripts/bench_report.py

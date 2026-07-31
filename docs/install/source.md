@@ -87,9 +87,9 @@ Example — build Python extensions against a specific interpreter:
 | `make`             | Configure + build (Release)                   |
 | `make pyext`       | Build Python extensions into `src/doppler/`   |
 | `make test`        | Run CTest suite (requires `make pyext` first) |
-| `make python-test` | Run pytest                                    |
+| `make test-python` | Run pytest                                    |
 | `make test-all`    | CTest + pytest + example smoke tests          |
-| `make rust-test`   | Build C library + run Rust FFI tests          |
+| `make test-rust`   | Build C library + run Rust FFI tests          |
 | `make bench`       | Run C + Python benchmarks on this machine     |
 | `make debug`       | Clean + Debug build                           |
 | `make release`     | Clean + Release build                         |

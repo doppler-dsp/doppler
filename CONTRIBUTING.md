@@ -317,13 +317,13 @@ nav:
   - "Python: Foo": api/python-foo.md
 ```
 
-Run `make docs-build` to verify it renders. No hand-written API table
+Run `make docs` to verify it renders. No hand-written API table
 is needed — the stub docstrings are the source of truth.
 
 ### Verify
 
 ```sh
-make pyext && make python-test && make docs-build
+make pyext && make test-python && make docs
 ```
 
 ______________________________________________________________________
@@ -397,7 +397,7 @@ Add tests inline or in `ffi/rust/tests/`.
 ### Verify
 
 ```sh
-make rust-test    # single-threaded — see Gotchas
+make test-rust    # single-threaded — see Gotchas
 ```
 
 ______________________________________________________________________
@@ -435,10 +435,10 @@ ______________________________________________________________________
 | `make blazing`     | Release + `-march=native`                |
 | `make test`        | CTest (C tests)                          |
 | `make pyext`       | Build + copy Python C extensions         |
-| `make python-test` | pytest with coverage + doctest           |
-| `make rust-test`   | `cargo test -- --test-threads=1`         |
+| `make test-python` | pytest with coverage + doctest           |
+| `make test-rust`   | `cargo test -- --test-threads=1`         |
 | `make install`     | System install                           |
-| `make docs-build`  | Build documentation site                 |
+| `make docs`        | Build documentation site                 |
 
 ______________________________________________________________________
 

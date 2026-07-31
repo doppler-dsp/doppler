@@ -18,7 +18,7 @@ Two dev packages are deliberately excluded from the docs projection
 * ``patchelf`` -- only the ``pip install .`` wheel build+repair path
   (auditwheel) touches it; ``make``/``make pyext``, the flow these docs
   describe, never does.
-* ``rust`` -- only ``make rust-test`` needs a Rust toolchain; the
+* ``rust`` -- only ``make test-rust`` needs a Rust toolchain; the
   build-from-source walkthrough doesn't run the Rust FFI tests.
 
 Usage

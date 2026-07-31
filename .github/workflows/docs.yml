@@ -3,9 +3,27 @@ name: Docs
 on:
   push:
     branches: [main]
-  # Unfiltered so stacked PRs (non-main base) build docs too; the deploy job
-  # is already gated on push-to-main.
+  # On a PR, only when the C API pipeline itself could break.
+  #
+  # This trigger used to be unfiltered, so that stacked PRs would build the
+  # docs too. ci.yml's Docs job now does that on EVERY PR — it runs
+  # `make docs-check`, which builds the site strictly and runs every docs gate,
+  # and it is inside the required `CI passed` aggregator. So an unfiltered
+  # trigger here just built the same site a second time on every PR, from a
+  # second configuration (criterion 6 of the Makefile-standard plan,
+  # doppler-dsp/doppler#555).
+  #
+  # What this job uniquely covers is the mkdoxy regeneration below, which
+  # ci.yml does not run — and only these inputs can break it. Header *content*
+  # is already gated on every PR by ci.yml's `doxygen` job (0 warnings at CI's
+  # pinned version), so this is about the generation pipeline, not the docs it
+  # generates.
   pull_request:
+    paths:
+      - 'native/inc/**'
+      - 'Doxyfile'
+      - 'mkdocs-capi.yml'
+      - '.github/workflows/docs.yml'
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true

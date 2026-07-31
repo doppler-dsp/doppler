@@ -60,6 +60,17 @@ def main() -> int:
             continue
         pages.append(page)
 
+    # examples/*/README.md too. These were the blind spot: an example's page is
+    # the most likely place to hand-type a version, because it is where install
+    # instructions live -- and `examples/downstream-jm/README.md` promptly did,
+    # writing today's release into a `curl` line. A page nobody scans is where
+    # the rot this gate exists to stop goes to hide. Their own build trees are
+    # skipped; nothing generated lives there.
+    for page in sorted((ROOT / "examples").rglob("*.md")):
+        if "build" in page.relative_to(ROOT).parts:
+            continue
+        pages.append(page)
+
     hits: list[str] = []
     for page in pages:
         for lineno, line in enumerate(

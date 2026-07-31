@@ -63,12 +63,23 @@ a self-contained C SDK for each platform — about 1.8 MB — and that is the
 normal way to consume it:
 
 ```bash
-VER=0.39.0
 PLAT=linux-x86_64          # or linux-aarch64, macos-arm64
+
+# Resolve the current release rather than hard-coding one: a version typed
+# into a page is stale at the next tag.
+VER=$(curl -fsSL https://api.github.com/repos/doppler-dsp/doppler/releases/latest \
+      | sed -n 's/.*"tag_name": *"v\([^"]*\)".*/\1/p')
 
 curl -fsSL -O https://github.com/doppler-dsp/doppler/releases/download/v$VER/doppler-$VER-$PLAT.tar.gz
 mkdir -p ~/.local/doppler
 tar xzf doppler-$VER-$PLAT.tar.gz -C ~/.local/doppler
+```
+
+With the GitHub CLI it is one line, on the same principle — no version named:
+
+```bash
+gh release download --repo doppler-dsp/doppler \
+   --pattern "doppler-*-$PLAT.tar.gz" --dir /tmp
 ```
 
 What is in it:
@@ -85,13 +96,17 @@ bin/wfmgen                the waveform generator CLI
 Nothing else is required — no Python, no toolchain beyond a C compiler, and no
 doppler checkout.
 
-> **This example needs doppler newer than v0.39.0.** `Reader.fc` — reading a
-> BLUE capture's centre frequency — landed after that release and is still
-> unreleased. Against v0.39.0 the example configures, builds and *links*
-> cleanly, and then `test_capture_core` fails at
-> `capture_get_fc (obj) == FC`, because the installed reader returns 0.0. Until
-> the next release, use the from-source path below. Everything else on this
-> page holds either way.
+> **If your doppler is too old, `cmake` says so and stops.** This example needs
+> a reader that resolves a capture's centre frequency, which arrived after the
+> release current when this page was written. You do not have to know that: the
+> configure step probes for the capability and fails with both the reason and
+> the fix. Nothing here names a version, so nothing here goes stale — the check
+> starts passing by itself once a release carries the feature.
+>
+> The probe is by symbol rather than by version, because a too-old doppler
+> **links perfectly well**: `wfm_reader_get_fc` has existed for ages and simply
+> returns 0.0. Before the check, the example built clean and failed a test at
+> `capture_get_fc (obj) == FC`, which tells a newcomer nothing.
 
 ### Building the example against it
 

@@ -468,7 +468,7 @@ def test_step_steps_consistency():
 Run the Python suite:
 
 ```sh
-make python-test
+make test-python
 ```
 
 ______________________________________________________________________
@@ -540,7 +540,7 @@ ______________________________________________________________________
 
 ```sh
 cmake --build build --target <module>   # rebuild just this .so
-make python-test                        # full pytest suite
+make test-python                        # full pytest suite
 ```
 
 If you changed `objects/<component>.toml` (or `just-makeit.toml`) after
@@ -566,7 +566,7 @@ Before opening a PR:
 
 - [ ] `make test` — all C tests pass
 - [ ] `python -m doctest -v src/doppler/<module>/<module>.pyi` — all examples pass
-- [ ] `make python-test` — all Python tests pass
+- [ ] `make test-python` — all Python tests pass
 - [ ] `make bench` — C and Python benchmarks run and JSON snapshots are saved
 - [ ] `jm status --check` — zero manifest drift
 - [ ] `__init__.py` contains only re-exports and `__all__`

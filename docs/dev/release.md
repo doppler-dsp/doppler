@@ -11,7 +11,7 @@ ______________________________________________________________________
 plus the docs build on every commit that landed there — step 5's PR merge
 is the real correctness gate (see the callout below), and step 7's
 `verify-ci` explicitly does **not** re-test, only confirms. Re-running
-`make test-all` / `make docs-build` locally here just repeats work CI
+`make test-all` / `make docs` locally here just repeats work CI
 already did on the exact same tree; skip it unless you have a specific
 reason to distrust CI (a suspected environment-specific flake, or extra
 confidence before an unusually disruptive release).

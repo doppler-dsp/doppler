@@ -161,89 +161,18 @@ jobs:
               \$PYTHON -m build --no-isolation --wheel --outdir dist/
             "
 
-      - name: Verify wheel is portable (no -march=native AVX2/AVX-512)
-        if: matrix.arch.tag == 'x86_64'
-        run: |
-          # Defense in depth: a distributed wheel must run on any x86-64 CPU.
-          # -march=native on the build host would spray AVX2 (%ymm) / AVX-512
-          # (%zmm) across every function and SIGILL on older hardware
-          # (doppler-dsp 0.5.1 shipped exactly this bug).
-          #
-          # Wide SIMD is allowed ONLY inside runtime-dispatched functions whose
-          # name contains "avx512" (e.g. awgn's generate_avx512). Those carry a
-          # per-function target attribute and are reached only behind a
-          # __builtin_cpu_supports() check — present in the binary but never
-          # executed on a baseline CPU. Wide SIMD in any other function means
-          # -march=native leaked in → reject.
-          #
-          # Scan ONLY doppler's own compiled extensions (*.cpython-*.so), not
-          # the third-party libraries auditwheel/delocate vendor into the
-          # `<dist>.libs/` (Linux) or `.dylibs/` (macOS) bundle dir. Those
-          # vendored libs are not ours to make portable: glibc's libmvec, for
-          # instance, ships AVX vector-math variants (e.g. _ZGVcN4v_cos) that
-          # are ifunc-/caller-ISA-selected and never executed on a baseline
-          # CPU — scanning them is a guaranteed false positive (it flagged the
-          # cp39 wheel, whose build happened to vendor libmvec).
-          fail=0
-          tmp="$(mktemp -d)"
-          for whl in dist/*.whl; do
-            unzip -q -o "$whl" -d "$tmp/extract"
-            while IFS= read -r so; do
-              bad=$(objdump -d "$so" 2>/dev/null | awk '
-                /^[0-9a-f]+ <.*>:/ { fn=$2; gsub(/[<>:]/, "", fn) }
-                /%zmm[0-9]|%ymm[0-9]/ { if (fn !~ /avx512/) { print fn; exit } }
-              ')
-              if [ -n "$bad" ]; then
-                echo "::error::$(basename "$whl"): $(basename "$so") has wide SIMD in non-dispatched function '${bad}' — non-portable (built with -march=native?)"
-                fail=1
-              fi
-              # The bundled wfmgen CLI binary (wfm/_bin/wfmgen) gets the same
-              # scan — it links the runtime-dispatched AWGN, so wide SIMD is
-              # only legal in *avx512* functions, exactly like the extensions.
-            done < <(find "$tmp/extract" \( -name '*.cpython-*.so' -o -path '*/wfm/_bin/wfmgen' \))
-            rm -rf "$tmp/extract"
-          done
-          rm -rf "$tmp"
-          if [ "$fail" -ne 0 ]; then
-            echo "Refusing to publish a non-portable wheel. Build the wheel WITHOUT -DDOPPLER_NATIVE." >&2
-            exit 1
-          fi
-          echo "Portable: wide SIMD only in runtime-dispatched *avx512* functions."
-
-      - name: Verify wheel is portable (no -mcpu=native SVE)
-        if: matrix.arch.tag == 'aarch64'
-        run: |
-          # The aarch64 analogue of the AVX check above. Baseline for the
-          # wheel is ARMv8.0 — NEON is architecturally guaranteed, so it
-          # needs no scan. What -mcpu=native on a Neoverse build host
-          # would leak is SVE/SVE2 (z vector registers, p predicate
-          # registers), which SIGILLs on non-SVE cores (Raspberry Pi,
-          # Apple Silicon under Docker). doppler has no SVE runtime
-          # dispatch today, so any SVE instruction is a leak; the *sve*
-          # function-name allowance mirrors *avx512* for when it grows
-          # one. Same scan surface: our own extensions + bundled wfmgen.
-          fail=0
-          tmp="$(mktemp -d)"
-          for whl in dist/*.whl; do
-            unzip -q -o "$whl" -d "$tmp/extract"
-            while IFS= read -r so; do
-              bad=$(objdump -d "$so" 2>/dev/null | awk '
-                /^[0-9a-f]+ <.*>:/ { fn=$2; gsub(/[<>:]/, "", fn) }
-                /[ ,](z[0-9]+\.[bhsdq]|p[0-9]+\/[mz])/ { if (fn !~ /sve/) { print fn; exit } }
-              ')
-              if [ -n "$bad" ]; then
-                echo "::error::$(basename "$whl"): $(basename "$so") has SVE in non-dispatched function '${bad}' — non-portable (built with -mcpu=native?)"
-                fail=1
-              fi
-            done < <(find "$tmp/extract" \( -name '*.cpython-*.so' -o -path '*/wfm/_bin/wfmgen' \))
-            rm -rf "$tmp/extract"
-          done
-          rm -rf "$tmp"
-          if [ "$fail" -ne 0 ]; then
-            echo "Refusing to publish a non-portable wheel. Build the wheel WITHOUT -DDOPPLER_NATIVE." >&2
-            exit 1
-          fi
-          echo "Portable: no SVE outside runtime-dispatched *sve* functions."
+      - name: Verify wheel is portable (no -native SIMD leak)
+        # A distributed wheel must run on any CPU of its arch: `-march=native`
+        # (x86) or `-mcpu=native` (aarch64) on the build host sprays wide SIMD
+        # across every function and SIGILLs on older hardware — doppler 0.5.1
+        # shipped exactly that bug. Wide SIMD is legitimate only inside
+        # runtime-dispatched functions, which carry the ISA in their name and
+        # sit behind a __builtin_cpu_supports() check.
+        #
+        # ONE step, not two: `make wheel-check` detects the arch, so the x86
+        # and aarch64 scans — identical but for the register pattern and the
+        # allowed function-name substring — no longer need a condition each.
+        run: make wheel-check
 
       - name: Upload wheel (${{ matrix.python }})
         uses: actions/upload-artifact@v4
@@ -471,14 +400,13 @@ jobs:
           path: dist/
 
       - name: Install the built wheel + run the e2e from a clean dir
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install dist/*.whl
-          # cd out of the repo so `import doppler` resolves to the installed
-          # wheel, not the ./src tree.
-          cd "${RUNNER_TEMP}"
-          python "${GITHUB_WORKSPACE}/deploy/validation/wfm_e2e.py"
-          python -c "import doppler; print('doppler', doppler.__version__)"
+        # Installs into a THROWAWAY venv and runs from a clean cwd, so
+        # `import doppler` can only resolve to the wheel and never to ./src.
+        # The venv's bin/ goes on PATH because two of the e2e's ten checks
+        # shell out to the `wfmgen` console script — running the target before
+        # wiring it is what caught that, and it read as "the wheel is broken"
+        # (8/10) when it was the harness.
+        run: make wheel-smoke
 
   publish-python:
     name: Publish to PyPI
@@ -667,4 +595,4 @@ jobs:
       - name: Smoke-test the published tarball
         env:
           GH_TOKEN: ${{ github.token }}
-        run: bash tests/install/release-smoke.sh "${{ needs.verify-version.outputs.version }}"
+        run: make release-smoke VERSION="${{ needs.verify-version.outputs.version }}"

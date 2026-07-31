@@ -281,8 +281,8 @@ nobody trusts costs attention and buys nothing.
 What replaced it is the local path, which is sound: **`make bench-interleaved VERSION=X.Y.Z`** builds both sides in worktrees and runs them *alternately*
 K times (K=5), keeping the per-benchmark best, so drift on the machine cannot
 be charged to one side. That alternation is exactly what the CI gate lacked —
-it always ran base first and head second. `make bench-baseline` and
-`make bench-check` are still here for a two-point comparison you drive
+it always ran base first and head second. `make bench-save` and
+`make bench-compare` are still here for a two-point comparison you drive
 yourself.
 
 **Local runs are throwaway.** Run `just-makeit bench` locally to

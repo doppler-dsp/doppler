@@ -429,16 +429,17 @@ ______________________________________________________________________
 
 ## Build commands
 
-| Command            | What it does                             |
-| ------------------ | ---------------------------------------- |
-| `make build`       | cmake configure + build (RelWithDebInfo) |
-| `make blazing`     | Release + `-march=native`                |
-| `make test`        | CTest (C tests)                          |
-| `make pyext`       | Build + copy Python C extensions         |
-| `make test-python` | pytest with coverage + doctest           |
-| `make test-rust`   | `cargo test -- --test-threads=1`         |
-| `make install`     | System install                           |
-| `make docs`        | Build documentation site                 |
+| Command            | What it does                              |
+| ------------------ | ----------------------------------------- |
+| `make help`        | **every** target — generated, never stale |
+| `make build`       | cmake configure + build (Release)         |
+| `make blazing`     | Release + `-march=native`                 |
+| `make test`        | CTest (C tests)                           |
+| `make pyext`       | Build + copy Python C extensions          |
+| `make test-python` | pytest, the same selection CI runs        |
+| `make test-rust`   | Rust FFI tests (`cargo test`)             |
+| `make docs`        | Build documentation site                  |
+| `make gates`       | every gate CI requires — run before push  |
 
 ______________________________________________________________________
 

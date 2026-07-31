@@ -109,6 +109,32 @@ dev = [
     # not "latest" and drifts per machine. Keep in sync with jm_version in
     # just-makeit.toml.
     "just-makeit==0.33.15",
+    # The lint/format toolchain. It lives HERE, not in
+    # .pre-commit-config.yaml's `additional_dependencies`, because that is what
+    # makes local and CI resolve identically: the hooks dispatch to
+    # `make -s lint-<tool>`, the Makefile invokes `$(DEV_RUN) <tool>`, and
+    # uv.lock pins the version. An `additional_dependencies` list resolves at
+    # hook-env creation time instead, so a warm local cache and a fresh CI
+    # runner can hold different versions and disagree about the same file —
+    # which is exactly what landed a docs/api.md that passed `make lint`
+    # locally and failed CI.
+    #
+    # Exact pins, not floors: these rewrite source, so an upgrade reformats the
+    # tree and must be a deliberate commit rather than a side effect of
+    # `uv lock --upgrade`. The versions match the `rev:`/`additional_dependencies`
+    # they replace, so this change reformats nothing.
+    #
+    # mdformat 1.x requires Python >=3.10 while doppler still supports 3.9, so
+    # it carries a marker and `make lint-mdformat` self-skips where it is
+    # absent. The CI lint job runs a modern Python, so markdown is still
+    # enforced — it just is not enforced twice on an interpreter that cannot
+    # install the formatter.
+    "ruff==0.15.21",
+    "mdformat==1.0.0; python_version >= '3.10'",
+    "mdformat-gfm==1.0.0; python_version >= '3.10'",
+    "mdformat-gfm-alerts==2.1.0; python_version >= '3.10'",
+    "mdformat-mkdocs==5.2.1; python_version >= '3.10'",
+    "pre-commit>=4.0",
 ]
 # Docs toolchain is intentionally separate from dev so wheel builds can
 # uv sync --no-group docs and avoid a docs-dep network blip failing a release.

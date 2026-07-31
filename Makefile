@@ -107,19 +107,36 @@ SYNC_CMD   = $(UV) sync
 LINT_TOOLS   = ruff ruff-format mdformat
 FORMAT_TOOLS = ruff-format ruff mdformat
 
+# ruff reads its own excludes from pyproject's [tool.ruff] extend-exclude
+# (*.pyi, vendor, the re-export __init__.py shims), so the path list is just
+# the tree.
 RUFF_PATHS = .
+
 # mdformat's own --exclude needs Python >=3.13 (it uses glob.translate), so the
-# file list is built from `git ls-files` minus this regex instead. docs/c-api/
-# is mkdoxy output and vendor/ is not ours.
-MD_EXCLUDE_RE = ^(vendor/|docs/c-api/|examples/[^/]+/docs/)
+# file list is built from `git ls-files` minus this regex instead — which also
+# keeps the exclusions in ONE place rather than mirrored into the hook config.
+# Generated, not hand-written: docs/c-api/ is mkdoxy output from the C headers;
+# docs/benchmarks.md is `make bench-docs` output (mdformat would realign its
+# tables on every regen -> spurious diffs); docs/**/archive/ are frozen
+# snapshots (and one trips a plugin render-consistency bug across mdformat-gfm
+# versions); examples/*/docs/ is the docs stub `jm new` scaffolds for a nested
+# jm project, which `jm apply` recreates. vendor/ is not ours.
+MD_EXCLUDE_RE = ^(vendor/|docs/c-api/|docs/benchmarks\.md$$|docs/.*/archive/|examples/[^/]+/docs/)
 
 LINT_ruff        = $(RUFF) check --fix --unsafe-fixes $(RUFF_PATHS)
 LINT_ruff-format = $(RUFF) format $(RUFF_PATHS)
 
+# mdformat needs Python >=3.10 (see pyproject's dev group, where it carries a
+# marker). On a 3.9 dev env it is simply absent, so skip with a notice rather
+# than failing — the CI lint job runs a modern Python and enforces it there.
 define LINT_mdformat
-@git ls-files '*.md' \
-    | grep -Ev '$(MD_EXCLUDE_RE)' \
-    | xargs -r $(MDFORMAT)
+@if $(MDFORMAT) --version > /dev/null 2>&1; then \
+    git ls-files '*.md' \
+        | grep -Ev '$(MD_EXCLUDE_RE)' \
+        | xargs -r $(MDFORMAT); \
+else \
+    echo "mdformat unavailable (needs Python >=3.10) — skipping"; \
+fi
 endef
 
 # ── Test ─────────────────────────────────────────────────────────────────────

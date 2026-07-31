@@ -48,7 +48,12 @@ jobs:
           git checkout -- docs/c-api/index.md
 
       - name: Build site
-        run: uv run zensical build --strict
+        # `make docs`, not an inline `zensical build`: this was the THIRD
+        # implementation of the strict build (with ci.yml's and the Makefile's),
+        # and the only one of the three that removed a stale `zensical.toml`
+        # first was the Makefile. One implementation now, in the place the
+        # drift gate watches.
+        run: make docs
 
       - name: Configure Pages
         if: github.ref == 'refs/heads/main'

@@ -486,6 +486,7 @@ docs-relink:
 	uv run python scripts/gen_related_pages.py --write
 	uv run python scripts/gen_readme.py --write
 	uv run python scripts/gen_install_scripts.py --write
+	uv run python scripts/gen_doc_versions.py --write
 
 gen-c-api:
 	rm -rf docs/c-api .mkdoxy .capi-site
@@ -781,6 +782,7 @@ docs-check:
 	  "python scripts/gen_related_pages.py --check" \
 	  "python scripts/gen_readme.py --check" \
 	  "python scripts/gen_install_scripts.py --check" \
+	  "python scripts/gen_doc_versions.py --check" \
 	  "python scripts/check_version_strings.py" \
 	  "python scripts/check_serializable.py"; do \
 	    echo "=== $$c ==="; uv run $$c || fail=1; \

@@ -62,25 +62,22 @@ ______________________________________________________________________
 a self-contained C SDK for each platform — about 1.8 MB — and that is the
 normal way to consume it:
 
-```bash
-PLAT=linux-x86_64          # or linux-aarch64, macos-arm64
+<!-- doc-version:start -->
 
-# Resolve the current release rather than hard-coding one: a version typed
-# into a page is stale at the next tag.
-VER=$(curl -fsSL https://api.github.com/repos/doppler-dsp/doppler/releases/latest \
-      | sed -n 's/.*"tag_name": *"v\([^"]*\)".*/\1/p')
+```bash
+VER=0.39.0
+PLAT=linux-x86_64          # or linux-aarch64, macos-arm64
 
 curl -fsSL -O https://github.com/doppler-dsp/doppler/releases/download/v$VER/doppler-$VER-$PLAT.tar.gz
 mkdir -p ~/.local/doppler
 tar xzf doppler-$VER-$PLAT.tar.gz -C ~/.local/doppler
 ```
 
-With the GitHub CLI it is one line, on the same principle — no version named:
+<!-- doc-version:end -->
 
-```bash
-gh release download --repo doppler-dsp/doppler \
-   --pattern "doppler-*-$PLAT.tar.gz" --dir /tmp
-```
+(That version is generated from `pyproject.toml` by `make docs-relink` and
+gated by `docs-check`, so it cannot fall behind a release. Prefer not to pin at
+all? `gh release download --repo doppler-dsp/doppler --pattern "doppler-*-$PLAT.tar.gz"` always takes the newest.)
 
 What is in it:
 

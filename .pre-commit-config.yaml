@@ -1,5 +1,14 @@
 # Auto-lint/format for hand-written code and docs.
 #
+# This file decides WHEN a check runs (which paths trigger it) and in what
+# order. It does NOT decide how a tool is invoked or which version it is: the
+# Makefile owns invocation, pyproject.toml's `dev` group owns versions, and
+# uv.lock pins them. Python-tool hooks therefore call `make -s lint-<tool>`
+# rather than repeating a command line that can drift from `make format`.
+#
+# clang-format and cmake-format stay on their upstream mirrors: they are not
+# Python project dependencies, so pinning them in pyproject would be a lie.
+#
 # doppler is a just-makeit poster child: the .pyi stubs, per-module `*_ext.c`
 # binding aggregators, `native/inc/**` headers (jm injects the public decls),
 # and per-module `CMakeLists.txt` are GENERATED and their formatting is owned by
@@ -17,12 +26,42 @@
 exclude: '^vendor/|^docs/c-api/'
 
 repos:
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.15.21
+  # Python + markdown formatting DISPATCHES INWARD: the hook calls a Makefile
+  # target rather than resolving the tool itself, so `make format`, the hook and
+  # CI cannot run the tool differently. The version comes from pyproject's `dev`
+  # group and is pinned by uv.lock — which is what closes the "same command,
+  # different environment" class of drift that unpinned
+  # `additional_dependencies` opened here. This file decides WHEN a check runs;
+  # the Makefile decides HOW.
+  #
+  # Each runs over the whole tree (`pass_filenames: false`) because that is what
+  # its make target does: a hook scoped to staged files could pass while `make
+  # lint`, which checks everything, fails on the same commit. Scope lives in the
+  # tools' own config — ruff's `extend-exclude` in pyproject, mdformat's
+  # MD_EXCLUDE_RE in the Makefile — so it is stated once rather than mirrored
+  # here.
+  - repo: local
     hooks:
       - id: ruff
-        args: [--fix, --unsafe-fixes]
+        name: ruff
+        entry: make -s lint-ruff
+        language: system
+        pass_filenames: false
+        types_or: [python, pyi]
+
       - id: ruff-format
+        name: ruff format
+        entry: make -s lint-ruff-format
+        language: system
+        pass_filenames: false
+        types_or: [python, pyi]
+
+      - id: mdformat
+        name: mdformat
+        entry: make -s lint-mdformat
+        language: system
+        pass_filenames: false
+        types: [markdown]
 
   - repo: https://github.com/pre-commit/mirrors-clang-format
     rev: v22.1.8
@@ -43,35 +82,6 @@ repos:
         # forever (reproduced: format, apply reverts, repeat). Any future
         # nested jm project is covered by the same pattern.
         exclude: '(^|/)native/inc/|_ext\.c$'
-
-  - repo: https://github.com/hukkin/mdformat
-    rev: 1.0.0
-    hooks:
-      - id: mdformat
-        # Generated, not hand-written: docs/c-api is mkdoxy from the C headers;
-        # docs/benchmarks.md is `make bench-docs` output (mdformat would realign
-        # its tables on every regen → spurious diffs). Archived docs under
-        # docs/**/archive/ are frozen snapshots — not reformatted (and one trips
-        # a plugin render-consistency bug across mdformat-gfm versions).
-        #
-        # examples/*/docs/ is the docs stub `jm new` scaffolds for a nested jm
-        # project; `jm apply` recreates it, so mdformat must not own it. It also
-        # formatted differently here than in CI — these plugins are unpinned
-        # (see the note in this file's header), so the resolved versions drift
-        # between a warm local cache and a fresh CI env.
-        exclude: '^docs/(c-api/|benchmarks\.md$)|^docs/.*/archive/|^examples/[^/]+/docs/'
-        # PINNED, like every `rev:` above. Unpinned, these resolve at hook-env
-        # creation time — so a warm local cache and a fresh CI runner can hold
-        # different versions and disagree about the SAME file. That is not
-        # theoretical: it landed a `docs/api.md` that passed `make lint`
-        # locally and failed the CI pre-commit job, and the two renderings
-        # differed in whether an mkdocstrings `options:` block kept its
-        # indentation. Bump these deliberately (with `pre-commit autoupdate`
-        # for the revs, and by hand here), never incidentally.
-        additional_dependencies:
-          - mdformat-gfm==1.0.0
-          - mdformat-gfm-alerts==2.1.0
-          - mdformat-mkdocs==5.2.1
 
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0

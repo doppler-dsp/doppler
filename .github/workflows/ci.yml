@@ -197,54 +197,41 @@ jobs:
       # Run their synthesized examples against the freshly built extensions so
       # a doc that no longer matches the API fails CI ("passing examples
       # everywhere"). Only the .pyi files are collected as doctest sources.
-      run: |
-        uv run python -m pytest --doctest-glob='*.pyi' -q \
-          $(find src/doppler -name '*.pyi')
+      run: make test-stubs
 
     - name: Doctest API reference pages
       # jm synthesizes .pyi docstrings for *objects* but not module-level free
       # functions (detection, spectral helpers, ...), so those modules' runnable
       # examples live in their curated docs/api/*.md page instead. Gate them the
       # same way: any `>>>` example on an API page must pass against the build.
-      run: uv run python -m pytest --doctest-glob='*.md' -q docs/api/
+      run: make test-api-docs
 
-    - name: Doc snippet drift gate
-      # Fail-closed: every ```python fence in docs/ (guides, gallery, prose) is
-      # executed or output-checked, discovered — not registered — so a NEW page
-      # is gated on arrival. Version-independent, so run it once. Backlog of
-      # not-yet-gated pages: docs/.doc-snippet-ignore. See docs/dev/doc-examples.md.
-      if: matrix.python-version == '3.12'
-      run: uv run python -m pytest -m docs_snippets -q src/doppler/tests/test_doc_snippets.py
-
-    - name: C doc snippet drift gate
-      # Same fail-closed philosophy, for every ```c fence in docs/: compiled
-      # and run against the freshly built build/libdoppler.a (+
-      # libdoppler_stream.a when a snippet needs the NATS wire layer).
-      # Version-independent (C, not Python), so run it once alongside the
-      # Python gate. Backlog: docs/.c-doc-snippet-ignore. See
+    - name: Doc fence gates (python + C + shell)
+      # Fail-closed, and discovered rather than registered, so a NEW page is
+      # gated on arrival: every ```python fence under docs/ is executed or
+      # output-checked; every ```c fence is compiled and run against the freshly
+      # built build/libdoppler.a; every documented CLI line is parsed against the
+      # real argparse parser and the safe ones execute end-to-end under bash -e.
+      # Backlogs: docs/.doc-snippet-ignore, docs/.c-doc-snippet-ignore. See
       # docs/dev/doc-examples.md.
+      #
+      # All three are version-independent, so they run once rather than on all
+      # six interpreters. One target rather than three steps because they fail
+      # as a group -- a broken page usually breaks more than one fence class,
+      # and `make test-snippets` reports all three instead of stopping at the
+      # first, which is a whole CI round trip per class.
       if: matrix.python-version == '3.12'
-      run: uv run python -m pytest -m docs_snippets -q src/doppler/tests/test_c_doc_snippets.py
-
-    - name: Shell doc snippet drift gate
-      # Third fence class: documented CLI invocations. Every doppler /
-      # doppler-specan line in a sh/bash/console fence is parsed against
-      # the CLI's real argparse parser (build_parser()), and fences whose
-      # commands are all safe (wfmgen, cat, ...) execute end-to-end under
-      # bash -e in a throwaway cwd -- the #458 compose bugs were exactly
-      # this class. See src/doppler/tests/test_sh_doc_snippets.py.
-      if: matrix.python-version == '3.12'
-      run: uv run python -m pytest -m docs_snippets -q src/doppler/tests/test_sh_doc_snippets.py
+      run: make test-snippets
 
     - name: Test with coverage
-      # The doc-snippet gate is version-independent and has its own step above
-      # (3.12 only), so exclude it here to avoid running it on all 6 versions
-      # and to keep a slow/hanging snippet out of the coverage matrix.
+      # The fence gates are version-independent and have their own step above
+      # (3.12 only); `make test-python` excludes those markers by definition, so
+      # local and CI select exactly the same tests. PYTEST_ARGS adds only the
+      # coverage REPORTING, which is CI's business, not a different test run.
       run: |
-        uv run pytest src/ -v -m "not docs_snippets and not examples" \
-          --cov \
+        make test-python PYTEST_ARGS="--cov \
           --cov-report=term-missing \
-          --cov-report=xml:coverage.xml
+          --cov-report=xml:coverage.xml"
 
     - name: Stop NATS broker
       if: always()

@@ -144,7 +144,15 @@ endef
 TEST_CMD      = $(CTEST) --test-dir $(BUILD_DIR) --output-on-failure
 TEST_FAST_CMD = $(CTEST) --test-dir $(BUILD_DIR) --output-on-failure \
                     --stop-on-failure
-TEST_PYTHON_CMD = uv run pytest src/ -v
+# The SELECTION must match CI's exactly, or `make test-python` means one thing
+# locally and another in CI — which it did: local ran everything under src/,
+# CI excluded the `docs_snippets` and `examples` markers. Those two markers have
+# their own targets (`test-snippets`, `test-examples-python`), so excluding them
+# here is what makes the suites add up instead of overlapping. PYTEST_ARGS is
+# how CI adds its coverage reporting without changing what runs.
+PYTEST_ARGS     ?=
+TEST_PYTHON_CMD = uv run pytest src/ -v \
+                      -m "not docs_snippets and not examples" $(PYTEST_ARGS)
 TEST_RUST_CMD   = cargo test --manifest-path $(RUST_DIR)/Cargo.toml
 
 # Fail-closed: every src/doppler/examples/*.py (plus the standalone example) is
@@ -377,6 +385,7 @@ LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
                 docs-relink drift-check changelog-check doxygen-warn-gate \
                 test-examples-c test-examples-python test-example-downstream \
                 test-example-downstream-python \
+                test-stubs test-api-docs test-snippets \
                 bench-interleaved bench-publish bench-docs bench-stream \
                 bench-report
 
@@ -599,6 +608,34 @@ test-example-downstream: build ## Build the downstream jm example (C only)
 	    $(CTEST) --test-dir $(DOWNSTREAM_BUILD_DIR) --output-on-failure; \
 	    exit 1; \
 	fi
+
+# ── The doc gates ────────────────────────────────────────────────────────────
+# These four existed ONLY as inline CI steps, so none could be run locally by
+# name — you found out a docstring example was broken by pushing. The RFC
+# counted them as five gates with no target (#555); they are three targets
+# because the snippet trio always runs together, under one CI condition.
+
+test-stubs: ## Doctest every generated .pyi stub
+	uv run python -m pytest --doctest-glob='*.pyi' -q \
+	    $$(find $(PYEXT_DIR) -name '*.pyi')
+
+test-api-docs: ## Doctest the docs/api/*.md reference pages
+	uv run python -m pytest --doctest-glob='*.md' -q docs/api/
+
+# python/C/shell fences under docs/. Run as one target and reported together:
+# a page usually breaks all three the same way, and stopping at the first costs
+# a whole round trip to see the rest. The C gate compiles every fence against
+# build/libdoppler.a, so `make build` first; the python gate's `broker=` fences
+# need a NATS broker on :4222 and skip without one.
+test-snippets: ## Run the python/C/shell doc-fence gates
+	@fail=0; \
+	 for t in test_doc_snippets test_c_doc_snippets test_sh_doc_snippets; do \
+	     echo "=== $$t ==="; \
+	     uv run python -m pytest -m docs_snippets -q \
+	         src/doppler/tests/$$t.py || fail=1; \
+	 done; \
+	 if [ "$$fail" = 0 ]; then echo "test-snippets: ALL FENCE GATES PASS"; \
+	 else echo "test-snippets: FAILURES above"; exit 1; fi
 
 test-examples-python: ## Run the Python example gate (requires pyext)
 	uv run pytest -m examples -q src/doppler/tests/test_examples.py

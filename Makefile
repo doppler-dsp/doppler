@@ -218,6 +218,7 @@ for c in \
   "python scripts/gen_install_scripts.py --check" \
   "python scripts/gen_doc_versions.py --check" \
   "python scripts/check_version_strings.py" \
+  "python scripts/check_doc_targets.py" \
   "python scripts/check_serializable.py"; do \
     echo "=== $$c ==="; uv run $$c || fail=1; \
 done; \

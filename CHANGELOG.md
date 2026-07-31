@@ -13,19 +13,7 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
-### Fixed
-
-- **The mdformat plugins are pinned, so local and CI cannot disagree about a
-    file.** `additional_dependencies` resolve when the hook environment is
-    created, not when the config is written — so a warm local cache and a fresh
-    CI runner could hold different versions and format the same markdown
-    differently, while the config still read as fully pinned. Measured
-    directly: the stale local environments held `mdformat-gfm-alerts` 2.0.0 and
-    `mdformat-mkdocs` 5.1.4 where CI resolved 2.1.0 and 5.2.1. That is what put
-    a `docs/api.md` through `make lint` cleanly and then failed the CI
-    pre-commit job. All three are now pinned (to the versions CI was already
-    resolving, so nothing in the tree reformats), and bumping them is a
-    deliberate edit rather than a side effect of a cold cache.
+## [0.40.0] — 2026-07-31
 
 ### Added
 
@@ -62,6 +50,39 @@ ______________________________________________________________________
     example's *own* manifest using doppler's pinned jm. Each was verified to
     fail when its subject breaks, not merely to pass today.
 
+- **`Reader.fc` now reads a BLUE capture's centre frequency**, and
+    **`Reader.fc_source`** says where it came from. Type-1000 has no HCB
+    field for centre frequency, so an RF capture carries it as a keyword —
+    doppler ignored every one of them and reported `0.0`, indistinguishable
+    from a genuine baseband capture, on files it did not write. Both
+    encodings are accepted: ASCII in the HCB keyword area (BLUE 1.1
+    §3.1.1.24.1, which is where captures in the wild put it) and a typed
+    value in the extended header. The conventional tags are tried in order —
+    `FREQ`, `RF_FREQ`, `CENTER_FREQ`, `F_C` — and `fc_source` reports which
+    answered, or `"none"`. Check it before trusting `fc == 0.0`: `"none"` is
+    the only thing that distinguishes "not found" from a capture that really
+    does declare 0 Hz. A value that is not a bare number (`FREQ=2.4 GHz`) is
+    left alone rather than guessed at, and stays visible in `.keywords`.
+
+- **`Writer(..., fc=...)` now records it for BLUE**, in both places a reader
+    looks: a typed `FREQ` in the extended header (§3.4-compliant, full
+    double precision) and an ASCII `FREQ=<value>` mirror in the HCB keyword
+    area (where X-Midas looks, and where §3.4 warns it may be deleted to make
+    room for `IO`/`VER` — hence the mirror, not the original). Detached
+    headers written by `write_blue_header` carry it too. `fc=0.0` writes
+    nothing, since it is also the default for "not supplied".
+
+- **`Reader.trailing_bytes`** — payload bytes past the last whole sample.
+    Non-zero means the `sample_type`/`endian` hint is wrong for a headerless
+    container, or the capture is truncated. A headerless container cannot
+    check a hint against the file, so a wrong one does not fail; it returns
+    plausible garbage at the wrong stride, and this is the only signal there
+    was none of.
+
+- **[Reading captures](docs/guide/wfmgen/reading.md)** — a new guide, with a
+    table of what metadata each container actually preserves in each
+    direction.
+
 ### Changed
 
 - **Capture I/O is documented as its own topic, not as part of the waveform
@@ -87,37 +108,39 @@ ______________________________________________________________________
     was updated; the `wfmgen` guide and API pages now point into the new
     section. See [#545](https://github.com/doppler-dsp/doppler/issues/545).
 
-### Added
+- **The Makefile now includes a shared `standard.mk`, and three targets were
+    renamed.** doppler adopted the cross-org Makefile standard
+    ([#555](https://github.com/doppler-dsp/doppler/issues/555)): the shared
+    targets live in a vendored `standard.mk` fetched from
+    <https://just-buildit.github.io/standard.mk>, and doppler's own Makefile is
+    configuration plus the 25 targets that are genuinely its own. What this
+    changes for a contributor:
 
-- **`Reader.fc` now reads a BLUE capture's centre frequency**, and
-    **`Reader.fc_source`** says where it came from. Type-1000 has no HCB
-    field for centre frequency, so an RF capture carries it as a keyword —
-    doppler ignored every one of them and reported `0.0`, indistinguishable
-    from a genuine baseband capture, on files it did not write. Both
-    encodings are accepted: ASCII in the HCB keyword area (BLUE 1.1
-    §3.1.1.24.1, which is where captures in the wild put it) and a typed
-    value in the extended header. The conventional tags are tried in order —
-    `FREQ`, `RF_FREQ`, `CENTER_FREQ`, `F_C` — and `fc_source` reports which
-    answered, or `"none"`. Check it before trusting `fc == 0.0`: `"none"` is
-    the only thing that distinguishes "not found" from a capture that really
-    does declare 0 Hz. A value that is not a bare number (`FREQ=2.4 GHz`) is
-    left alone rather than guessed at, and stays visible in `.keywords`.
-- **`Writer(..., fc=...)` now records it for BLUE**, in both places a reader
-    looks: a typed `FREQ` in the extended header (§3.4-compliant, full
-    double precision) and an ASCII `FREQ=<value>` mirror in the HCB keyword
-    area (where X-Midas looks, and where §3.4 warns it may be deleted to make
-    room for `IO`/`VER` — hence the mirror, not the original). Detached
-    headers written by `write_blue_header` carry it too. `fc=0.0` writes
-    nothing, since it is also the default for "not supplied".
-- **`Reader.trailing_bytes`** — payload bytes past the last whole sample.
-    Non-zero means the `sample_type`/`endian` hint is wrong for a headerless
-    container, or the capture is truncated. A headerless container cannot
-    check a hint against the file, so a wrong one does not fail; it returns
-    plausible garbage at the wrong stride, and this is the only signal there
-    was none of.
-- **[Reading captures](docs/guide/wfmgen/reading.md)** — a new guide, with a
-    table of what metadata each container actually preserves in each
-    direction.
+    - **`make python-test` → `make test-python`**, **`make rust-test` →
+        `make test-rust`**, **`make check-version` → `make version-check`** —
+        the noun leads, so `make test-<TAB>` completes the whole family.
+    - **`make docs-build` is gone**; it never existed as a rule, though
+        CONTRIBUTING named it in three places. Use `make docs`.
+    - **`make wheel` now builds a wheel.** It was a `.PHONY` with no rule:
+        advertised in `make help`, exiting 0, producing nothing.
+    - **`make help` is generated** from each target's `##` comment and lists
+        all 67 targets, where the hand-written list showed 30 of 50 and
+        advertised two that did not work.
+    - **Gates that were CI-only are runnable locally by name**: `abi-check`,
+        `link-check`, `glibc-check`, `specan-check`, `test-stubs`,
+        `test-api-docs`, `test-snippets`.
+    - **`make lint` now also fails** on a target with no doc comment, a
+        `.PHONY` with no recipe, or a vendored `standard.mk` that differs from
+        canonical.
+    - **`make test-python` selects exactly what CI selects.** It used to run
+        everything under `src/` locally while CI excluded the `docs_snippets`
+        and `examples` markers — the same target name meaning two different
+        things depending on where you stood.
+
+    The lint/format toolchain moved into `pyproject.toml`'s `dev` group and is
+    pinned by `uv.lock`; the pre-commit hooks dispatch into the Makefile rather
+    than resolving tools themselves, which is what makes local and CI resolve
+    identically. Versions are unchanged, so nothing in the tree reformats.
 
 ### Removed
 
@@ -138,15 +161,29 @@ ______________________________________________________________________
 
 ### Fixed
 
+- **The mdformat plugins are pinned, so local and CI cannot disagree about a
+    file.** `additional_dependencies` resolve when the hook environment is
+    created, not when the config is written — so a warm local cache and a fresh
+    CI runner could hold different versions and format the same markdown
+    differently, while the config still read as fully pinned. Measured
+    directly: the stale local environments held `mdformat-gfm-alerts` 2.0.0 and
+    `mdformat-mkdocs` 5.1.4 where CI resolved 2.1.0 and 5.2.1. That is what put
+    a `docs/api.md` through `make lint` cleanly and then failed the CI
+    pre-commit job. All three are now pinned (to the versions CI was already
+    resolving, so nothing in the tree reformats), and bumping them is a
+    deliberate edit rather than a side effect of a cold cache.
+
 - **`Reader` now detects the container from the file's CONTENT**, not its
     extension. A CSV called `capture.dat` reads as CSV instead of being
     decoded as binary IQ; a BLUE file called `capture.csv` reads as BLUE. The
     name is still consulted where content cannot decide — a `.det` payload,
     and a CSV whose first line is a column header.
+
 - **`Reader.num_samples` is no longer 0 for a CSV**, which read as "empty
     capture". The count is exact (rows are parsed the way `read` parses them)
     and lazy: the scan happens on the first read of the property, so opening
     stays O(1) and a caller that never asks never pays.
+
 - **`Writer(file_type="sigmf")` writes its `.sigmf-meta` sidecar.** It used
     to emit only the samples, and the datatype lives exclusively in the
     sidecar — so the result was not a lean capture but an undecodable one,
@@ -154,6 +191,7 @@ ______________________________________________________________________
     are found by name, the path must now end in `.sigmf-data`; anything else
     is refused with a message saying so, rather than silently producing a
     pair no SigMF reader will find.
+
 - **`make changelog-check` no longer fails on every release PR.** Promotion
     moves each entry out of `[Unreleased]` and into `## [X.Y.Z]`, so the notes
     exist — they are simply no longer where the gate looked, and it failed the
@@ -4006,6 +4044,7 @@ ______________________________________________________________________
 [0.39.0]: https://github.com/doppler-dsp/doppler/compare/v0.38.1...v0.39.0
 [0.4.0]: https://github.com/doppler-dsp/doppler/compare/v0.3.7...v0.4.0
 [0.4.1]: https://github.com/doppler-dsp/doppler/compare/v0.4.0...v0.4.1
+[0.40.0]: https://github.com/doppler-dsp/doppler/compare/v0.39.0...v0.40.0
 [0.5.0]: https://github.com/doppler-dsp/doppler/compare/v0.4.1...v0.5.0
 [0.5.1]: https://github.com/doppler-dsp/doppler/compare/v0.5.0...v0.5.1
 [0.5.2]: https://github.com/doppler-dsp/doppler/compare/v0.5.1...v0.5.2
@@ -4016,4 +4055,4 @@ ______________________________________________________________________
 [0.7.0]: https://github.com/doppler-dsp/doppler/compare/v0.6.0...v0.7.0
 [0.8.0]: https://github.com/doppler-dsp/doppler/compare/v0.7.0...v0.8.0
 [0.9.0]: https://github.com/doppler-dsp/doppler/compare/v0.8.0...v0.9.0
-[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.39.0...HEAD
+[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.40.0...HEAD

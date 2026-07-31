@@ -56,30 +56,98 @@ told the truth, recovers the real length. Both behaviours are pinned by tests
 
 ______________________________________________________________________
 
-## Building
+## Getting doppler
 
-doppler must be built or installed first. Then, from this directory:
+**You need neither doppler's source nor a doppler build.** Every release ships
+a self-contained C SDK for each platform — about 1.8 MB — and that is the
+normal way to consume it:
 
 ```bash
-# Against a doppler BUILD TREE (doppler exports a build-tree package config):
-cmake -B build . -Ddoppler_DIR=/path/to/doppler/build
-cmake --build build -j
+VER=0.39.0
+PLAT=linux-x86_64          # or linux-aarch64, macos-arm64
 
-# Against an INSTALLED doppler (release artifact or `cmake --install`):
-cmake -B build .
+curl -fsSL -O https://github.com/doppler-dsp/doppler/releases/download/v$VER/doppler-$VER-$PLAT.tar.gz
+mkdir -p ~/.local/doppler
+tar xzf doppler-$VER-$PLAT.tar.gz -C ~/.local/doppler
+```
+
+What is in it:
+
+```text
+lib/libdoppler.a          the static library this example links
+lib/libdoppler.so         the shared one, if you prefer it
+lib/cmake/doppler/        the find_package(doppler) package config
+lib/pkgconfig/doppler.pc  for builds that are not CMake
+include/                  the public headers
+bin/wfmgen                the waveform generator CLI
+```
+
+Nothing else is required — no Python, no toolchain beyond a C compiler, and no
+doppler checkout.
+
+> **This example needs doppler newer than v0.39.0.** `Reader.fc` — reading a
+> BLUE capture's centre frequency — landed after that release and is still
+> unreleased. Against v0.39.0 the example configures, builds and *links*
+> cleanly, and then `test_capture_core` fails at
+> `capture_get_fc (obj) == FC`, because the installed reader returns 0.0. Until
+> the next release, use the from-source path below. Everything else on this
+> page holds either way.
+
+### Building the example against it
+
+From this directory:
+
+```bash
+cmake -B build . -DCMAKE_PREFIX_PATH=$HOME/.local/doppler
 cmake --build build -j
 ```
 
-Then:
+Untar into `/usr/local` instead and even that flag goes away —
+`find_package(doppler REQUIRED)` searches the default prefixes.
+
+### From source, or against a doppler build tree
+
+For doppler developers, and currently the only way to run this example's full
+suite:
+
+```bash
+# an install, from a doppler checkout
+cmake -B build -S . -DCMAKE_INSTALL_PREFIX=$HOME/.local/doppler
+cmake --build build -j && cmake --install build
+
+# or point straight at the build tree — doppler exports a build-tree config
+cmake -B build . -Ddoppler_DIR=/path/to/doppler/build
+```
+
+`CMAKE_PREFIX_PATH` / `doppler_DIR` is all that changes between the modes — the
+manifest, the generated CMake and the code are identical.
+
+### If your project is not CMake
+
+The tarball ships a pkg-config file, so nothing here is CMake-specific:
+
+```bash
+export PKG_CONFIG_PATH=$HOME/.local/doppler/lib/pkgconfig
+
+# shared
+cc myapp.c $(pkg-config --cflags --libs doppler) -o myapp
+
+# static — name the archive to get a binary with no doppler runtime dependency
+cc myapp.c -I$HOME/.local/doppler/include \
+   $HOME/.local/doppler/lib/libdoppler.a -lm -o myapp
+```
+
+`-ldoppler` resolves to the **shared** library when both are present, so naming
+`libdoppler.a` explicitly is how you link it statically. `-lm` is doppler's only
+runtime dependency.
+
+## Running it
 
 ```bash
 ctest --test-dir build            # the C tests
 PYTHONPATH=src python -m pytest src/iqtools/capture/tests/
 ./build/tools/iq_info capture.blue
 ```
-
-`doppler_DIR` is all that changes between the two modes — the manifest, the
-generated CMake and the code are identical.
 
 ______________________________________________________________________
 

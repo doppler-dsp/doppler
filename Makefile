@@ -202,32 +202,30 @@ WHEEL_CMD = $(UV) build --wheel
 ZENSICAL     = $(UV) run --group docs zensical
 DOCS_PREPARE = @rm -f zensical.toml
 
-# doppler's docs gate runs EVERY check and reports ALL failures in one pass —
-# the CI job stops at the first, so a later red can hide behind an earlier one.
-# That ordering is why the strict build lives in here rather than in
-# DOCS_CHECK_BUILD_CMD: the cheap script gates run first, the site is built in
-# the middle, and check_site_links runs last because it needs a built site.
-DOCS_CHECK_BUILD_CMD = :
-define DOCS_CHECK_CMD
-@fail=0; \
-for c in \
-  "python scripts/check_api_docs.py" \
-  "python scripts/check_nav_index.py" \
-  "python scripts/gen_related_pages.py --check" \
-  "python scripts/gen_readme.py --check" \
-  "python scripts/gen_install_scripts.py --check" \
-  "python scripts/gen_doc_versions.py --check" \
-  "python scripts/check_version_strings.py" \
-  "python scripts/check_doc_targets.py" \
-  "python scripts/check_serializable.py"; do \
-    echo "=== $$c ==="; uv run $$c || fail=1; \
-done; \
-echo "=== zensical build --strict ==="; rm -f zensical.toml; \
-  $(ZENSICAL) build --strict || fail=1; \
-echo "=== python scripts/check_site_links.py ==="; \
-  uv run python scripts/check_site_links.py || fail=1; \
-if [ "$$fail" = 0 ]; then echo "docs-check: ALL GATES PASS"; \
-else echo "docs-check: FAILURES above — fix, or run 'make docs-relink' for drift"; exit 1; fi
+# The docs gate: every check runs, every failure is reported in one pass. The
+# ordering is the point — cheap script gates first, so a drifted generated file
+# is reported without paying for a site build; then the strict build; then
+# check_site_links, which walks the freshly built site/ and cannot run before
+# it exists.
+#
+# These were one hand-rolled accumulator loop, with DOCS_CHECK_BUILD_CMD
+# neutered to `:` so the recipe could own the build's position. The standard
+# now expresses the shape directly, so the build line goes back to being the
+# standard's — one implementation again, which is what criterion 5 asked for.
+define DOCS_CHECK_PRE_CMDS
+uv run python scripts/check_api_docs.py
+uv run python scripts/check_nav_index.py
+uv run python scripts/gen_related_pages.py --check
+uv run python scripts/gen_readme.py --check
+uv run python scripts/gen_install_scripts.py --check
+uv run python scripts/gen_doc_versions.py --check
+uv run python scripts/check_version_strings.py
+uv run python scripts/check_doc_targets.py
+uv run python scripts/check_serializable.py
+endef
+
+define DOCS_CHECK_POST_CMDS
+uv run python scripts/check_site_links.py
 endef
 
 # ── Doxygen ──────────────────────────────────────────────────────────────────

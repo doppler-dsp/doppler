@@ -287,18 +287,35 @@ ZENSICAL        ?= $(DEV_RUN) zensical
 DOCS_PREPARE    ?=
 DOCS_BUILD_CMD  ?= $(ZENSICAL) build --clean --strict
 DOCS_SERVE_CMD  ?= $(ZENSICAL) serve
-DOCS_CHECK_CMD  ?=
 # The strict build for `docs-check`, as a variable so CI calls this target
 # instead of carrying its own copy of the command — the duplication that put
 # `zensical build --strict` in three disagreeing places (criterion 5).
 #
-# NOT yet sufficient for doppler: its docs-check runs the build and seven
-# script gates in ONE pass that accumulates failures (and `check_site_links`
-# needs the built site), where these are separate recipe lines, so the first
-# failure aborts the rest. Expressing that needs ordered pre/post lists with
-# accumulate-don't-abort semantics — deferred to P2, where doppler's real
-# gates can validate the design rather than a guess at it.
+# Exported, not interpolated into the recipe: a value containing quotes
+# would otherwise be re-parsed by the shell and break. make hands it over.
 DOCS_CHECK_BUILD_CMD ?= $(ZENSICAL) build --strict
+export DOCS_CHECK_BUILD_CMD
+
+# Gates that run around the build, in order, one shell command per line.
+# PRE runs before it, POST after — `check_site_links`-shaped checks need a
+# built site, cheap script gates want to fail before you pay for a build.
+#
+# They ACCUMULATE: every command runs, every failure is reported, and the
+# target fails at the end if any did. A gate that stops at the first failure
+# lets a later red hide behind an earlier one, so you fix one thing, push, and
+# discover the next — which is how a docs gate teaches people to stop running
+# it locally.
+DOCS_CHECK_PRE_CMDS  ?=
+DOCS_CHECK_POST_CMDS ?=
+export DOCS_CHECK_PRE_CMDS
+export DOCS_CHECK_POST_CMDS
+
+# Legacy: a single canned recipe run after everything above. Superseded by
+# DOCS_CHECK_POST_CMDS, and kept because it may be a `define` beginning with a
+# recipe prefix (`@`), which only works as a recipe line and cannot be folded
+# into the accumulator. It runs only if the accumulator passed; migrate to
+# POST to get accumulate-don't-abort for it too.
+DOCS_CHECK_CMD  ?=
 
 docs: ## Build the docs site
 	$(DOCS_PREPARE)
@@ -311,7 +328,17 @@ docs-serve: ## Build and serve the docs with live reload
 docs-check: ## Pre-push docs gate: strict build + docs invariants
 	@echo "Docs gate: strict build (broken anchors) + docs invariants..."
 	$(DOCS_PREPARE)
-	$(DOCS_CHECK_BUILD_CMD)
+	@tmp=$$($(_STD_TMP)); trap 'rm -f "$$tmp"' EXIT; fail=0; \
+	 run() { echo "=== $$1 ==="; sh -c "$$1" || fail=1; }; \
+	 printf '%s\n' "$$DOCS_CHECK_PRE_CMDS" >"$$tmp"; \
+	 while IFS= read -r c; do [ -n "$$c" ] && run "$$c"; done <"$$tmp"; \
+	 run "$$DOCS_CHECK_BUILD_CMD"; \
+	 printf '%s\n' "$$DOCS_CHECK_POST_CMDS" >"$$tmp"; \
+	 while IFS= read -r c; do [ -n "$$c" ] && run "$$c"; done <"$$tmp"; \
+	 if [ "$$fail" != 0 ]; then \
+	     echo "docs-check: FAILURES above — every gate ran, all reported"; \
+	     exit 1; \
+	 fi
 	$(DOCS_CHECK_CMD)
 endif
 

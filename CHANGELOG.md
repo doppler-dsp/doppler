@@ -113,7 +113,7 @@ ______________________________________________________________________
     ([#555](https://github.com/doppler-dsp/doppler/issues/555)): the shared
     targets live in a vendored `standard.mk` fetched from
     <https://just-buildit.github.io/standard.mk>, and doppler's own Makefile is
-    configuration plus the 25 targets that are genuinely its own. What this
+    configuration plus the 26 targets that are genuinely its own. What this
     changes for a contributor:
 
     - **`make python-test` → `make test-python`**, **`make rust-test` →

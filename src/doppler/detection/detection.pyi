@@ -62,17 +62,27 @@ class LockDet:
         """
 
     def steps(self, x: NDArray[np.float64], out: NDArray[np.int32] | None = None) -> NDArray[np.int32]:
-        """Run a block of lock-metric looks through the detector.
+        """Run a block of lock-metric looks through the detector. Applies lockdet_step() to each look in turn, so the decision flag and the in-flight verify run carry across the block exactly as they would look by look — a signal can be processed in frames of any size with no seam.
 
         Parameters
         ----------
         x : NDArray[np.float64]
-            Input.
+            Lock-metric looks, one scalar per look (length >= n).
 
         Returns
         -------
         NDArray[np.int32]
             Output.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.detection import LockDet
+        >>> d = LockDet(up_thresh=1.5, down_thresh=1.2, n_up=2, n_down=2)
+        >>> x = np.array([2.0, 2.0, 1.0, 2.0])   # declares on the 2nd straight hit
+        >>> d.steps(x).tolist()
+        [0, 1, 1, 1]
+
         """
 
     def configure(self, up_thresh: float, down_thresh: float, n_up: int, n_down: int) -> None:
@@ -92,10 +102,32 @@ class LockDet:
             Consecutive hits to declare; clamped to >= 1.
         n_down : int
             Consecutive misses to drop; clamped to >= 1.
+
+        Examples
+        --------
+        >>> from doppler.detection import LockDet
+        >>> d = LockDet(up_thresh=1.5, down_thresh=1.2, n_up=2, n_down=2)
+        >>> d.configure(up_thresh=3.0, down_thresh=2.5, n_up=1, n_down=1)
+        >>> d.up_thresh          # thresholds re-tuned in place
+        3.0
+        >>> d.step(4.0)          # a single hit now declares (n_up=1)
+        1
+
         """
 
     def reset(self) -> None:
         """Drop the lock and clear the verify counter; keep the config.
+
+        Examples
+        --------
+        >>> from doppler.detection import LockDet
+        >>> d = LockDet(up_thresh=1.5, down_thresh=1.2, n_up=1, n_down=1)
+        >>> d.step(2.0)          # one hit declares lock (n_up=1)
+        1
+        >>> d.reset()            # drop it and clear the verify run
+        >>> d.locked
+        False
+
         """
 
     def state_bytes(self) -> int:

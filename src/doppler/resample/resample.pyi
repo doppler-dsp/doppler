@@ -378,14 +378,27 @@ class RateConverter:
         Parameters
         ----------
         x : NDArray[np.complex64]
-            Input.
+            CF32 input block.
         ctrl : float
             Rate deviation added to the terminal Resampler stage's rate.
 
         Returns
         -------
         NDArray[np.complex64]
-            CF32 output count.
+            CF32 output array; length tracks the accumulated effective rate.
+
+        Examples
+        --------
+        >>> from doppler.resample import RateConverter
+        >>> import numpy as np
+        >>> rc = RateConverter(rate=0.8, compensate=0)   # ends in Resampler(0.8)
+        >>> x = np.ones(1000, dtype=np.complex64)
+        >>> rc.execute_ctrl(x, 0.0).shape[0]             # base rate: 1000 -> 800
+        800
+        >>> rc2 = RateConverter(rate=0.8, compensate=0)
+        >>> rc2.execute_ctrl(x, 0.05).shape[0]           # +ctrl speeds the tail up
+        850
+
         """
 
     def execute_ctrl_push(self, x: complex, ctrl: float) -> NDArray[np.complex64]:
@@ -414,7 +427,18 @@ class RateConverter:
         Returns
         -------
         NDArray[np.complex64]
-            Number of outputs written to out (0, 1, or more).
+            CF32 array of the outputs completed by this input (0, 1, or more).
+
+        Examples
+        --------
+        >>> from doppler.resample import RateConverter
+        >>> import numpy as np
+        >>> rc = RateConverter(rate=0.8, compensate=0)   # ends in Resampler(0.8)
+        >>> x = (np.arange(10, dtype=np.float32) + 1).astype(np.complex64)
+        >>> # a decimator emits 0 between strobes, 1 on a strobe:
+        >>> [rc.execute_ctrl_push(complex(v), 0.0).shape[0] for v in x]
+        [0, 1, 1, 1, 1, 0, 1, 1, 1, 1]
+
         """
 
     def reset(self) -> None:
@@ -570,21 +594,61 @@ class Farrow:
     def delay(self, x: NDArray[np.complex64], mu: float) -> NDArray[np.complex64]:
         """Apply a constant fractional delay of `mu` samples to a cf32 block via the Farrow interpolator; output[i] is the input interpolated at i - group_delay + mu. The first group_delay samples are filling-transient.
 
+        Pushes each input sample through the delay line and evaluates the
+        interpolator at the same fixed offset, so the whole block is delayed by
+        a constant, non-integer amount. Output sample i is the input
+        interpolated at `i - group_delay + mu`, i.e. the stream shifted later by
+        `group_delay - mu` samples; the first group_delay outputs are the
+        delay-line filling transient and should be discarded. Because the offset
+        is held constant this is the open-loop use of the interpolator — a
+        timing loop instead steers mu per sample via
+        farrow_push()/farrow_eval().
+
         Parameters
         ----------
         x : NDArray[np.complex64]
-            Input.
+            CF32 input samples.
         mu : float
-            Input.
+            Fractional delay in samples; the offset in `[0,1)` into the interpolation interval (values outside extrapolate).
 
         Returns
         -------
         NDArray[np.complex64]
-            Output.
+            CF32 output array, same length as x, each sample delayed by `group_delay - mu`.
+
+        Examples
+        --------
+        >>> from doppler.resample import Farrow
+        >>> import numpy as np
+        >>> f = Farrow(order="cubic")
+        >>> x = np.arange(8, dtype=np.complex64)   # a ramp: exactly interpolable
+        >>> y = f.delay(x, 0.5)                     # delay by group_delay - 0.5
+        >>> [round(float(v.real), 4) for v in y]    # first 2 are fill transient
+        [0.0, -0.0625, 0.4375, 1.5, 2.5, 3.5, 4.5, 5.5]
+
         """
 
     def reset(self) -> None:
         """Clear the interpolator delay line.
+
+        Zeroes the 4-tap delay line so the next block starts from a filling
+        transient again, exactly as a freshly created interpolator would. The
+        order (linear / parabolic / cubic) is preserved, so the same object can
+        be reused across independent bursts without rebuilding the polynomial.
+        Call it between unrelated signal segments to stop the tail of one
+        leaking into the head of the next.
+
+        Examples
+        --------
+        >>> from doppler.resample import Farrow
+        >>> import numpy as np
+        >>> f = Farrow(order="cubic")
+        >>> _ = f.delay(np.ones(8, dtype=np.complex64), 0.25)  # leaves state
+        >>> f.reset()                                          # back to pristine
+        >>> x = np.arange(8, dtype=np.complex64)
+        >>> f.delay(x, 0.5)[3:].real.tolist()   # steady part == ramp shifted 1.5
+        [1.5, 2.5, 3.5, 4.5, 5.5]
+
         """
 
     def delay_max_out(self, *args: Any, **kwargs: Any) -> Any:

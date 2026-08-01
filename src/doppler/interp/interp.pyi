@@ -19,6 +19,21 @@ class InterpolatedTable:
 
     def reset(self) -> None:
         """No-op: InterpolatedTable is purely a function of (table, method, point) with no running state to reset.
+
+        Present only to satisfy the common object interface; each execute()
+        depends solely on its inputs, so a call before or after reset() returns
+        identical samples.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.interp import InterpolatedTable
+        >>> table = InterpolatedTable(
+        ...     np.array([0.0, 1.0, 2.0], dtype=np.complex128))
+        >>> table.reset()                     # no running state to clear
+        >>> table.execute(np.array([1.5]))    # unchanged: purely (table, point)
+        array([1.5+0.j])
+
         """
 
     def execute(self, x: NDArray[np.float64], out: NDArray[np.complex128] | None = None) -> NDArray[np.complex128]:

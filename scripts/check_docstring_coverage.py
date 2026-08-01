@@ -133,11 +133,33 @@ def tag_leaks(text: str | None) -> list[str]:
 # --------------------------------------------------------------------------- #
 # Stub-face parsing (static, no import)
 # --------------------------------------------------------------------------- #
+# jm injects an optional ``out=`` output buffer on block/variable_output
+# methods. Its contract is uniform library-wide (a pre-allocated buffer of the
+# output dtype, or None to allocate — gated by ``test_out_param_dtype.py``), jm
+# does not render it into the ``.pyi``, and the derivation convention
+# (just-makeit#666) treats jm-injected plumbing as optional to document. So it
+# is not a *documentable* parameter for coverage — requiring it would make FULL
+# unreachable for every block method through the header. Excluded only when it
+# is optional (has a default); a hypothetical required ``out`` still counts.
+_OPTIONAL_PLUMBING = frozenset({"out"})
+
+
 def _params_of(fn: ast.FunctionDef) -> list[str]:
-    """Documentable parameter names of a def (drops self/cls, *args, **kw)."""
+    """Documentable parameter names of a def (drops self/cls, *args, **kw,
+    and the jm-injected optional ``out=`` plumbing buffer)."""
     a = fn.args
+    pos = [*a.posonlyargs, *a.args]
+    optional = {p.arg for p in pos[len(pos) - len(a.defaults) :]}
+    optional |= {
+        p.arg for p, d in zip(a.kwonlyargs, a.kw_defaults) if d is not None
+    }
     names = [p.arg for p in (*a.posonlyargs, *a.args, *a.kwonlyargs)]
-    return [n for n in names if n not in ("self", "cls")]
+    return [
+        n
+        for n in names
+        if n not in ("self", "cls")
+        and not (n in _OPTIONAL_PLUMBING and n in optional)
+    ]
 
 
 def _has_return(fn: ast.FunctionDef) -> bool:

@@ -199,6 +199,18 @@ void doppler_channel_destroy(doppler_channel_state_t *state);
  * configured `fs`/`carrier_hz`/`doppler_ppm`/`doppler_rate_ppm_s` are kept.
  *
  * @param state  Must be non-NULL.
+ * @code
+ * >>> import numpy as np
+ * >>> from doppler.impairment import DopplerChannel
+ * >>> ch = DopplerChannel(fs=1e6, carrier_hz=2.5e9, doppler_ppm=20.0)
+ * >>> _ = ch.execute(np.ones(1000, dtype=np.complex64))
+ * >>> round(ch.elapsed_s, 6)    # receive time consumed: 999 / 1e6
+ * 0.000999
+ * >>> ch.reset()                # both sample clocks back to zero
+ * >>> ch.elapsed_s
+ * 0.0
+ *
+ * @endcode
  */
 void doppler_channel_reset(doppler_channel_state_t *state);
 
@@ -240,6 +252,17 @@ size_t doppler_channel_execute_max_out(doppler_channel_state_t *state);
  * @param out      Output buffer.
  * @param max_out  Capacity of @p out; production stops there.
  * @return Samples written to @p out.
+ * @code
+ * >>> import numpy as np
+ * >>> from doppler.impairment import DopplerChannel
+ * >>> ch = DopplerChannel(fs=1e6, carrier_hz=2.5e9, doppler_ppm=20.0)
+ * >>> y = ch.execute(np.ones(1000, dtype=np.complex64))
+ * >>> y.shape                   # ~ 1000 / (1 + 20e-6): the time-base dilation
+ * (999,)
+ * >>> round(ch.offset_hz, 1)    # fc * d = 2.5e9 * 20e-6, in Hz
+ * 50000.0
+ *
+ * @endcode
  */
 size_t doppler_channel_execute(doppler_channel_state_t *state, const float complex *x, size_t x_len, float complex *out, size_t max_out);
 

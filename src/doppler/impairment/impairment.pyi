@@ -49,6 +49,18 @@ class DopplerChannel:
         -------
         NDArray[np.complex64]
             Samples written to out.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.impairment import DopplerChannel
+        >>> ch = DopplerChannel(fs=1e6, carrier_hz=2.5e9, doppler_ppm=20.0)
+        >>> y = ch.execute(np.ones(1000, dtype=np.complex64))
+        >>> y.shape                   # ~ 1000 / (1 + 20e-6): the time-base dilation
+        (999,)
+        >>> round(ch.offset_hz, 1)    # fc * d = 2.5e9 * 20e-6, in Hz
+        50000.0
+
         """
 
     def execute_max_out(self, x_len: int) -> int:
@@ -61,6 +73,19 @@ class DopplerChannel:
         at 0) and clears the resampler's delay line and fractional accumulator.
         The configured `fs`/`carrier_hz`/`doppler_ppm`/`doppler_rate_ppm_s` are
         kept.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.impairment import DopplerChannel
+        >>> ch = DopplerChannel(fs=1e6, carrier_hz=2.5e9, doppler_ppm=20.0)
+        >>> _ = ch.execute(np.ones(1000, dtype=np.complex64))
+        >>> round(ch.elapsed_s, 6)    # receive time consumed: 999 / 1e6
+        0.000999
+        >>> ch.reset()                # both sample clocks back to zero
+        >>> ch.elapsed_s
+        0.0
+
         """
 
     def state_bytes(self) -> int:

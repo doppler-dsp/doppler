@@ -826,7 +826,7 @@ _resamp_exec_ctrl (resamp_state_t *r, const float _Complex *in, size_t n_in,
 }
 
 size_t
-RateConverter_execute_ctrl (RateConverter_state_t *s, const float _Complex *in,
+RateConverter_execute_ctrl (RateConverter_state_t *s, const float _Complex *x,
                             size_t n_in, double ctrl, float _Complex *out,
                             size_t max_out)
 {
@@ -836,7 +836,7 @@ RateConverter_execute_ctrl (RateConverter_state_t *s, const float _Complex *in,
   /* Only a terminal Resampler stage has a steerable fractional accumulator; a
      pure integer HB/CIC cascade has nothing to steer → un-steered execute. */
   if (s->stage_types[last] != RC_STAGE_RESAMP)
-    return RateConverter_execute (s, in, n_in, out, max_out);
+    return RateConverter_execute (s, x, n_in, out, max_out);
 
   /* Grow ping-pong buffers lazily to n_in (mirrors RateConverter_execute). */
   if (n_in > s->buf_cap)
@@ -857,11 +857,11 @@ RateConverter_execute_ctrl (RateConverter_state_t *s, const float _Complex *in,
     }
 
   if (s->n_stages == 1)
-    return _resamp_exec_ctrl ((resamp_state_t *)s->stage_ptrs[0], in, n_in,
+    return _resamp_exec_ctrl ((resamp_state_t *)s->stage_ptrs[0], x, n_in,
                               ctrl, out, max_out);
 
   /* Upstream integer stages run plain; the terminal Resampler is steered. */
-  const float _Complex *src  = in;
+  const float _Complex *src  = x;
   size_t                n    = n_in;
   int                   ping = 0;
   for (int i = 0; i < last; i++)

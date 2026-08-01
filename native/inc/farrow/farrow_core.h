@@ -125,10 +125,66 @@ farrow_state_t *farrow_create(int order);
 /** @brief Destroy a Farrow interpolator.  @param state May be NULL. */
 void farrow_destroy(farrow_state_t *state);
 
-/** @brief Clear the delay line; keep the order. */
+/**
+ * @brief Clear the interpolator delay line; keep the order.
+ *
+ * Zeroes the 4-tap delay line so the next block starts from a filling
+ * transient again, exactly as a freshly created interpolator would. The
+ * order (linear / parabolic / cubic) is preserved, so the same object can be
+ * reused across independent bursts without rebuilding the polynomial. Call it
+ * between unrelated signal segments to stop the tail of one leaking into the
+ * head of the next.
+ *
+ * @param state  Must be non-NULL.
+ *
+ * @code
+ * >>> from doppler.resample import Farrow
+ * >>> import numpy as np
+ * >>> f = Farrow(order="cubic")
+ * >>> _ = f.delay(np.ones(8, dtype=np.complex64), 0.25)  # leaves state
+ * >>> f.reset()                                          # back to pristine
+ * >>> x = np.arange(8, dtype=np.complex64)
+ * >>> f.delay(x, 0.5)[3:].real.tolist()   # steady part == ramp shifted 1.5
+ * [1.5, 2.5, 3.5, 4.5, 5.5]
+ *
+ * @endcode
+ */
 void farrow_reset(farrow_state_t *state);
 
 size_t farrow_delay_max_out(farrow_state_t *state);
+/**
+ * @brief Apply a constant fractional delay of @p mu samples to a CF32 block.
+ *
+ * Pushes each input sample through the delay line and evaluates the
+ * interpolator at the same fixed offset, so the whole block is delayed by a
+ * constant, non-integer amount. Output sample i is the input interpolated at
+ * `i - group_delay + mu`, i.e. the stream shifted later by
+ * `group_delay - mu` samples; the first @c group_delay outputs are the
+ * delay-line filling transient and should be discarded. Because the offset is
+ * held constant this is the open-loop use of the interpolator — a timing loop
+ * instead steers @c mu per sample via farrow_push()/farrow_eval().
+ *
+ * @param state    Pointer to a valid farrow_state_t.
+ * @param x        CF32 input samples.
+ * @param x_len    Number of input samples.
+ * @param mu       Fractional delay in samples; the offset in `[0,1)` into the
+ *                 interpolation interval (values outside extrapolate).
+ * @param out      Output buffer; one output per input sample.
+ * @param max_out  Capacity of @p out in samples.
+ * @return CF32 output array, same length as @p x, each sample delayed by
+ *         `group_delay - mu`.
+ *
+ * @code
+ * >>> from doppler.resample import Farrow
+ * >>> import numpy as np
+ * >>> f = Farrow(order="cubic")
+ * >>> x = np.arange(8, dtype=np.complex64)   # a ramp: exactly interpolable
+ * >>> y = f.delay(x, 0.5)                     # delay by group_delay - 0.5
+ * >>> [round(float(v.real), 4) for v in y]    # first 2 are fill transient
+ * [0.0, -0.0625, 0.4375, 1.5, 2.5, 3.5, 4.5, 5.5]
+ *
+ * @endcode
+ */
 size_t farrow_delay(farrow_state_t *state, const float complex *x, size_t x_len, double mu, float complex *out, size_t max_out);
 size_t farrow_get_group_delay(const farrow_state_t *state);
 /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────

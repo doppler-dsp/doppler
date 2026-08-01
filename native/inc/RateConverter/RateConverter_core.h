@@ -337,15 +337,28 @@ size_t RateConverter_execute_ctrl_push_max_out (RateConverter_state_t *s);
  * steer, so this **falls through to RateConverter_execute()** (ctrl ignored).
  *
  * @param s        Pointer to a valid RateConverter_state_t.
- * @param in       CF32 input block.
+ * @param x        CF32 input block.
  * @param n_in     Number of input samples.
  * @param ctrl     Rate deviation added to the terminal Resampler stage's rate.
  * @param out      Output buffer; must hold at least max_out samples.
  * @param max_out  Capacity of out in samples.
- * @return CF32 output count.
+ * @return CF32 output array; length tracks the accumulated effective rate.
+ *
+ * @code
+ * >>> from doppler.resample import RateConverter
+ * >>> import numpy as np
+ * >>> rc = RateConverter(rate=0.8, compensate=0)   # ends in Resampler(0.8)
+ * >>> x = np.ones(1000, dtype=np.complex64)
+ * >>> rc.execute_ctrl(x, 0.0).shape[0]             # base rate: 1000 -> 800
+ * 800
+ * >>> rc2 = RateConverter(rate=0.8, compensate=0)
+ * >>> rc2.execute_ctrl(x, 0.05).shape[0]           # +ctrl speeds the tail up
+ * 850
+ *
+ * @endcode
  */
 size_t RateConverter_execute_ctrl (RateConverter_state_t *s,
-                                   const float _Complex *in, size_t n_in,
+                                   const float _Complex *x, size_t n_in,
                                    double ctrl, float _Complex *out,
                                    size_t max_out);
 
@@ -371,7 +384,18 @@ size_t RateConverter_execute_ctrl (RateConverter_state_t *s,
  *                 input (referenced to the terminal, post-decimation rate).
  * @param out      Output buffer for any emitted samples.
  * @param max_out  Capacity of @p out (emission stops at this bound).
- * @return Number of outputs written to @p out (0, 1, or more).
+ * @return CF32 array of the outputs completed by this input (0, 1, or more).
+ *
+ * @code
+ * >>> from doppler.resample import RateConverter
+ * >>> import numpy as np
+ * >>> rc = RateConverter(rate=0.8, compensate=0)   # ends in Resampler(0.8)
+ * >>> x = (np.arange(10, dtype=np.float32) + 1).astype(np.complex64)
+ * >>> # a decimator emits 0 between strobes, 1 on a strobe:
+ * >>> [rc.execute_ctrl_push(complex(v), 0.0).shape[0] for v in x]
+ * [0, 1, 1, 1, 1, 0, 1, 1, 1, 1]
+ *
+ * @endcode
  */
 size_t RateConverter_execute_ctrl_push (RateConverter_state_t *s,
                                         float _Complex x, double ctrl,

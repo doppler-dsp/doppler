@@ -315,6 +315,20 @@ size_t ddc_execute(ddc_state_t *state, const float complex *x, size_t x_len, flo
    * @param out       CF32 output buffer.
    * @param max_out   Capacity of @p out in samples.
    * @return Number of output samples written.
+   *
+   * @code
+   * >>> from doppler.ddc import DDC
+   * >>> import numpy as np
+   * >>> ddc = DDC(norm_freq=0.0, rate=0.25)      # LO centred at DC
+   * >>> t = np.arange(4096)
+   * >>> x = np.exp(1j * 2 * np.pi * 0.1 * t).astype(np.complex64)
+   * >>> y = ddc.execute_ctrl(x, 0.0, -0.1)       # freq_ctrl steers +0.1 to DC
+   * >>> y.shape
+   * (1024,)
+   * >>> round(float(abs(y[100:].mean())), 2)     # settled output sits at DC
+   * 1.0
+   *
+   * @endcode
    */
   size_t ddc_execute_ctrl (ddc_state_t *state, const float complex *x,
                            size_t x_len, double rate_ctrl, double freq_ctrl,
@@ -340,6 +354,20 @@ size_t ddc_execute(ddc_state_t *state, const float complex *x, size_t x_len, flo
    * @param out       Output buffer for any emitted samples.
    * @param max_out   Capacity of @p out (emission stops at this bound).
    * @return Number of outputs written (0, 1, or more).
+   *
+   * @code
+   * >>> from doppler.ddc import DDC
+   * >>> import numpy as np
+   * >>> ddc = DDC(norm_freq=-0.1, rate=0.25)
+   * >>> t = np.arange(64)
+   * >>> x = np.exp(1j * 2 * np.pi * 0.1 * t).astype(np.complex64)
+   * >>> outs = [ddc.execute_ctrl_push(complex(s), 0.0, 0.0) for s in x]
+   * >>> int(sum(len(o) for o in outs))   # 64 inputs, rate 1/4 -> 16 outs
+   * 16
+   * >>> [len(o) for o in outs[:4]]        # 0 outs until a strobe completes
+   * [0, 0, 0, 1]
+   *
+   * @endcode
    */
   size_t ddc_execute_ctrl_push (ddc_state_t *state, float complex x,
                                 double rate_ctrl, double freq_ctrl,

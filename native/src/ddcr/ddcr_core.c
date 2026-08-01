@@ -244,7 +244,7 @@ ddcr_execute (ddcr_state_t *s, const float *in, size_t n_in,
 }
 
 size_t
-ddcr_execute_ctrl (ddcr_state_t *s, const float *in, size_t n_in,
+ddcr_execute_ctrl (ddcr_state_t *s, const float *x, size_t n_in,
                    double rate_ctrl, double freq_ctrl, float _Complex *out,
                    size_t max_out)
 {
@@ -256,7 +256,7 @@ ddcr_execute_ctrl (ddcr_state_t *s, const float *in, size_t n_in,
   if (!hb_buf)
     return 0;
 
-  size_t n_hb = hbdecim_r2c_execute (s->r2c, in, n_in, hb_buf, hb_max);
+  size_t n_hb = hbdecim_r2c_execute (s->r2c, x, n_in, hb_buf, hb_max);
   if (n_hb == 0)
     {
       free (hb_buf);

@@ -322,7 +322,7 @@ extern "C"
    * semantics, which are identical except for where the LO lives.
    *
    * @param s         Must be non-NULL.
-   * @param in        Real float32 input block.
+   * @param x         Real float32 input block.
    * @param n_in      Number of input samples.
    * @param rate_ctrl Rate deviation added to the terminal Resampler stage's
    *                  rate (referenced to the terminal, post-decimation rate).
@@ -334,8 +334,22 @@ extern "C"
    * @param out       CF32 output buffer.
    * @param max_out   Capacity of @p out in samples.
    * @return Number of output samples written.
+   *
+   * @code
+   * >>> from doppler.ddc import Ddcr
+   * >>> import numpy as np
+   * >>> ddcr = Ddcr(norm_freq=-0.5, rate=0.25)   # fine LO 0.2 short of tune
+   * >>> t = np.arange(4096)
+   * >>> x = np.cos(2 * np.pi * 0.1 * t).astype(np.float32)
+   * >>> y = ddcr.execute_ctrl(x, 0.0, -0.2)      # freq_ctrl completes the tune
+   * >>> y.shape
+   * (1024,)
+   * >>> round(float(abs(y[100:].mean())), 2)     # real tone -> DC, amp 0.5
+   * 0.5
+   *
+   * @endcode
    */
-  size_t ddcr_execute_ctrl (ddcr_state_t *s, const float *in, size_t n_in,
+  size_t ddcr_execute_ctrl (ddcr_state_t *s, const float *x, size_t n_in,
                             double rate_ctrl, double freq_ctrl,
                             float _Complex *out, size_t max_out);
 
@@ -355,6 +369,19 @@ extern "C"
    * @param out       Output buffer for any emitted samples.
    * @param max_out   Capacity of @p out.
    * @return Number of outputs written (0, 1, or more).
+   *
+   * @code
+   * >>> from doppler.ddc import Ddcr
+   * >>> import numpy as np
+   * >>> ddcr = Ddcr(norm_freq=-0.7, rate=0.25)
+   * >>> x = np.cos(2 * np.pi * 0.1 * np.arange(128)).astype(np.float32)
+   * >>> outs = [ddcr.execute_ctrl_push(float(s), 0.0, 0.0) for s in x]
+   * >>> int(sum(len(o) for o in outs))   # 128 real inputs, rate 1/4 -> 32
+   * 32
+   * >>> [len(o) for o in outs[:4]]        # halfband + decim: 0 until a strobe
+   * [0, 0, 0, 1]
+   *
+   * @endcode
    */
   size_t ddcr_execute_ctrl_push (ddcr_state_t *s, float x, double rate_ctrl,
                                  double freq_ctrl, float _Complex *out,

@@ -87,25 +87,50 @@ f32_to_uq15_state_t *f32_to_uq15_create(float scale);
 void f32_to_uq15_destroy(f32_to_uq15_state_t *state);
 
 /**
- * @brief Reset f32_to_uq15 to its post-create state.
+ * @brief Clear the sticky clip flag, starting a fresh saturation history.
  *
- * Clears the sticky @c clipped flag.  The @c scale is preserved.
+ * Zeroes @c clipped so a subsequent clipped query reflects only samples seen
+ * after this call; the immutable @c scale is preserved. Call it at a buffer or
+ * segment boundary so a saturation on one block does not leak into the next.
  *
  * @param state  Must be non-NULL.
+ *
+ * @code
+ * >>> from doppler.cvt import F32ToUQ15
+ * >>> c = F32ToUQ15()
+ * >>> c.step(2.0)          # out of range -> saturates to 0xFFFF, latches clip
+ * 65535
+ * >>> c.reset()            # forget the clip history
+ * >>> c.clipped
+ * False
+ *
+ * @endcode
  */
 void f32_to_uq15_reset(f32_to_uq15_state_t *state);
 
 /**
- * @brief Process one input sample.
+ * @brief Scale one float sample to an offset-binary UQ15 uint16 code.
  *
- * Computes @c round(x * scale), clamps to `[-32768, 32767]`, then adds 32768
- * to produce the offset-binary uint16 result.  Sets @c clipped if
- * saturation occurred before clamping.
+ * Computes @c round(x * scale), clamps to `[-32768, 32767]`, then adds the
+ * 32768 offset-binary bias so the signed float domain maps onto the full
+ * unsigned uint16 range. Latches the sticky @c clipped flag if the scaled
+ * value saturated before clamping. Suits DAC and file formats that store only
+ * unsigned integers.
  *
  * @param state  Must be non-NULL.
- * @param x      Normalised float input sample.
- * @return Offset-binary uint16 in `[0, 65535]`:
- *         x = -1.0 → 0x0000, x = 0.0 → 0x8000, x ≈ +1.0 → 0xFFFF.
+ * @param x      Input sample, normally a normalised float in `[-1, +1]`.
+ * @return Offset-binary uint16 in `[0, 65535]`: -1.0 -> 0, 0.0 -> 32768,
+ *         +1.0 -> 65535.
+ *
+ * @code
+ * >>> from doppler.cvt import F32ToUQ15
+ * >>> c = F32ToUQ15(scale=32768.0)
+ * >>> c.step(0.0)          # midscale maps to the offset-binary bias
+ * 32768
+ * >>> c.step(-1.0)         # full-negative maps to code 0
+ * 0
+ *
+ * @endcode
  */
 JM_FORCEINLINE JM_HOT uint16_t
 f32_to_uq15_step(f32_to_uq15_state_t *state, float x)

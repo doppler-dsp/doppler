@@ -62,24 +62,46 @@ i16_to_f32_state_t *i16_to_f32_create(float scale);
 void i16_to_f32_destroy(i16_to_f32_state_t *state);
 
 /**
- * @brief Reset i16_to_f32 to its post-create state.
+ * @brief No-op reset, provided only for lifecycle symmetry.
  *
- * This converter has no accumulating state beyond the immutable @c iscale
- * field, so reset is a no-op in practice; it exists for lifecycle symmetry.
+ * This converter carries no running state beyond the immutable @c iscale, so
+ * there is nothing to clear; the method exists so every converter in the
+ * module presents the same create / step / reset / destroy lifecycle.
  *
  * @param state  Must be non-NULL.
+ *
+ * @code
+ * >>> from doppler.cvt import I16ToF32
+ * >>> c = I16ToF32()
+ * >>> c.reset()             # stateless converter -> reset changes nothing
+ * >>> round(c.step(-32768), 4)
+ * -1.0
+ *
+ * @endcode
  */
 void i16_to_f32_reset(i16_to_f32_state_t *state);
 
 /**
- * @brief Process one input sample.
+ * @brief Convert one signed int16 sample to a normalised float via @c 1/scale.
  *
- * Returns @c (float)x * iscale.  No saturation or clipping possible — the
- * int16 range maps cleanly to float32.
+ * Returns @c (float)x * iscale, a single multiply on the hot path. No
+ * saturation or clipping is possible — every int16 code maps cleanly to
+ * float32. At the default scale of 32768 the full Q15 range recovers
+ * `[-1.0, ~+1.0)`, the exact inverse of F32ToI16.
  *
  * @param state  Must be non-NULL.
- * @param x      Signed int16 input sample.
- * @return Scaled float output.
+ * @param x      Signed int16 code, normally a Q15 sample in `[-32768, 32767]`.
+ * @return Normalised float, `x / scale`.
+ *
+ * @code
+ * >>> from doppler.cvt import I16ToF32
+ * >>> c = I16ToF32(scale=32768.0)   # Q15 int16 -> normalised float
+ * >>> round(c.step(16384), 4)        # 16384 / 32768
+ * 0.5
+ * >>> round(c.step(-32768), 4)       # full-negative code -> -1.0
+ * -1.0
+ *
+ * @endcode
  */
 JM_FORCEINLINE JM_HOT float
 i16_to_f32_step(const i16_to_f32_state_t *state, int16_t x)

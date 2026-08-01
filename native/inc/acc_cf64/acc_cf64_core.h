@@ -137,8 +137,11 @@ extern "C"
    * >>> from doppler.accumulator import AccCf64
    * >>> obj = AccCf64(0j)
    * >>> obj.step(1+2j)
-   * >>> obj.get_acc()
+   * >>> obj.get_acc()          # non-destructive read
    * (1+2j)
+   * >>> obj.get_acc()          # still there — get_acc never drains
+   * (1+2j)
+   *
    * @endcode
    */
   double _Complex acc_cf64_get_acc (const acc_cf64_state_t *state);
@@ -146,19 +149,22 @@ extern "C"
   /**
    * @brief Overwrite the accumulator with a new complex value.
    * Useful for seeding the accumulator to a known baseline before
-   * processing a new segment without a full ``reset``.
+   * processing a new segment without a full ``reset``; subsequent
+   * ``step`` / ``steps`` samples accumulate on top of the seeded value.
    *
    * @param state  Must be non-NULL.
-   * @param acc    New accumulator value (complex).
+   * @param value  New accumulator value (complex).
    * @code
    * >>> from doppler.accumulator import AccCf64
    * >>> obj = AccCf64(0j)
-   * >>> obj.set_acc(5+6j)
+   * >>> obj.set_acc(5+6j)      # seed a complex baseline
+   * >>> obj.step(1+1j)         # later samples fold in on top
    * >>> obj.get_acc()
-   * (5+6j)
+   * (6+7j)
+   *
    * @endcode
    */
-  void acc_cf64_set_acc (acc_cf64_state_t *state, double _Complex acc);
+  void acc_cf64_set_acc (acc_cf64_state_t *state, double _Complex value);
 
   /**
    * @brief Return the current accumulated sum without resetting state.

@@ -124,24 +124,65 @@ class MovingAverage:
         -------
         complex
             The gained window mean after admitting x.
+
+        Examples
+        --------
+        >>> from doppler.filter import MovingAverage
+        >>> ma = MovingAverage(2)   # 2-sample sliding window, unit gain
+        >>> [round(ma.step(v).real, 4) for v in (1 + 0j, 3 + 0j, 3 + 0j)]
+        [0.5, 2.0, 3.0]
+
         """
 
     def steps(self, x: NDArray[np.complex64], out: NDArray[np.complex64] | None = None) -> NDArray[np.complex64]:
         """Filter a block: write the gained moving average of each sample.
 
+        Applies boxcar_step() to each input sample in turn, so the window sum
+        and ring carry across the block exactly as they would sample by sample —
+        a stream can be processed in frames of any size with no seam.
+        Immediately after a reset the first len-1 outputs average over a partial
+        (still filling) window and ramp in.
+
         Parameters
         ----------
         x : NDArray[np.complex64]
-            Input.
+            Input samples.
 
         Returns
         -------
         NDArray[np.complex64]
             Output.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.filter import MovingAverage
+        >>> ma = MovingAverage(3)                          # 3-sample window
+        >>> x = np.ones(5, np.complex64)                   # unit step input
+        >>> [round(v, 4) for v in ma.steps(x).real.tolist()]
+        [0.3333, 0.6667, 1.0, 1.0, 1.0]
+
         """
 
     def reset(self) -> None:
         """Clear the window (zero the ring and the running sum); keep the configured length and gain.
+
+        Returns the filter to its just-constructed state: the delay ring and the
+        running window sum are zeroed while len and gain are preserved, so the
+        next len-1 outputs ramp in over a partial window exactly as they did on
+        a fresh instance. Call it at a segment boundary so samples from one
+        capture do not average into an unrelated next one.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.filter import MovingAverage
+        >>> ma = MovingAverage(2)                         # 2-sample window
+        >>> _ = ma.steps(np.ones(4, np.complex64))        # fill the window
+        >>> ma.reset()                                    # clear it
+        >>> round(ma.step(1 + 0j).real, 4)                # ramps in from empty
+        0.5
+
         """
 
     def state_bytes(self) -> int:

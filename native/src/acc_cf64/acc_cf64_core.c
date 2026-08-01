@@ -51,9 +51,9 @@ double _Complex acc_cf64_get_acc (const acc_cf64_state_t *state)
 }
 
 void
-acc_cf64_set_acc (acc_cf64_state_t *state, double _Complex acc)
+acc_cf64_set_acc (acc_cf64_state_t *state, double _Complex value)
 {
-  state->acc = acc;
+  state->acc = value;
 }
 
 double complex

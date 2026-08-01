@@ -23,10 +23,55 @@ class F32ToI16:
     def __init__(self, scale: float = ...) -> None: ...
 
     def reset(self) -> None:
-        """Reset state to post-create defaults."""
+        """Clear the sticky clip flag, starting a fresh saturation history.
+
+        Zeroes clipped so a subsequent clipped query reflects only samples seen
+        after this call; the immutable scale is preserved. Call it at a buffer
+        or segment boundary so a saturation on one block does not leak into the
+        next.
+
+        Examples
+        --------
+        >>> from doppler.cvt import F32ToI16
+        >>> c = F32ToI16()
+        >>> c.step(9.0)          # out of range -> saturates, latches clipped
+        32767
+        >>> c.reset()            # forget the clip history
+        >>> c.clipped
+        False
+
+        """
 
     def step(self, x: float) -> int:
-        """Process one input sample."""
+        """Scale one float sample by scale, round, and saturate to int16.
+
+        Computes round(x * scale), clamps to the int16 range `[-32768, 32767]`,
+        and latches the sticky clipped flag if the scaled value fell outside
+        that range before clamping. At the default scale of 32768 a normalised
+        `[-1, +1]` input maps to the full Q15 code range.
+
+        Parameters
+        ----------
+        x : float
+            Input sample, normally a normalised float in `[-1, +1]`.
+
+        Returns
+        -------
+        int
+            Saturated int16 code in `[-32768, 32767]`.
+
+        Examples
+        --------
+        >>> from doppler.cvt import F32ToI16
+        >>> c = F32ToI16(scale=32768.0)   # normalised float -> full-scale Q15
+        >>> c.step(0.5)                    # 0.5 * 32768
+        16384
+        >>> c.step(2.0)                    # beyond +1.0 -> saturates to int16 max
+        32767
+        >>> c.clipped                      # sticky flag latched by the clip
+        True
+
+        """
 
     def steps(self, x: NDArray[np.float32], out: NDArray[np.int16] | None = None) -> NDArray[np.int16]:
         """Process a block of float samples to int16.
@@ -94,10 +139,50 @@ class I16ToF32:
     def __init__(self, scale: float = ...) -> None: ...
 
     def reset(self) -> None:
-        """Reset state to post-create defaults."""
+        """No-op reset, provided only for lifecycle symmetry.
+
+        This converter carries no running state beyond the immutable iscale, so
+        there is nothing to clear; the method exists so every converter in the
+        module presents the same create / step / reset / destroy lifecycle.
+
+        Examples
+        --------
+        >>> from doppler.cvt import I16ToF32
+        >>> c = I16ToF32()
+        >>> c.reset()             # stateless converter -> reset changes nothing
+        >>> round(c.step(-32768), 4)
+        -1.0
+
+        """
 
     def step(self, x: int) -> float:
-        """Process one input sample."""
+        """Convert one signed int16 sample to a normalised float via 1/scale.
+
+        Returns (float)x * iscale, a single multiply on the hot path. No
+        saturation or clipping is possible — every int16 code maps cleanly to
+        float32. At the default scale of 32768 the full Q15 range recovers
+        `[-1.0, ~+1.0)`, the exact inverse of F32ToI16.
+
+        Parameters
+        ----------
+        x : int
+            Signed int16 code, normally a Q15 sample in `[-32768, 32767]`.
+
+        Returns
+        -------
+        float
+            Normalised float, `x / scale`.
+
+        Examples
+        --------
+        >>> from doppler.cvt import I16ToF32
+        >>> c = I16ToF32(scale=32768.0)   # Q15 int16 -> normalised float
+        >>> round(c.step(16384), 4)        # 16384 / 32768
+        0.5
+        >>> round(c.step(-32768), 4)       # full-negative code -> -1.0
+        -1.0
+
+        """
 
     def steps(self, x: NDArray[np.int16], out: NDArray[np.float32] | None = None) -> NDArray[np.float32]:
         """Process a block of int16 samples to float32.
@@ -151,14 +236,50 @@ class I32ToF32:
     def __init__(self, scale: float = ...) -> None: ...
 
     def reset(self) -> None:
-        """Reset I32ToF32 to its post-create state.
+        """No-op reset, provided only for lifecycle symmetry.
 
-        No mutable state exists beyond the immutable iscale; reset is a no-op
-        provided for lifecycle symmetry with other converters.
+        No mutable state exists beyond the immutable iscale, so there is nothing
+        to clear; the method exists so every converter in the module presents
+        the same create / step / reset / destroy lifecycle.
+
+        Examples
+        --------
+        >>> from doppler.cvt import I32ToF32
+        >>> c = I32ToF32()
+        >>> c.reset()             # stateless converter -> reset changes nothing
+        >>> round(c.step(-2**31), 4)
+        -1.0
+
         """
 
     def step(self, x: int) -> float:
-        """Process one input sample."""
+        """Convert one signed int32 sample to a normalised float via 1/scale.
+
+        Returns (float)x * iscale, a single multiply on the hot path. At the
+        default scale of 2^31 the full int32 range recovers `[-1.0, ~+1.0)`.
+        Note that float32 carries only 23 mantissa bits, so int32 magnitudes
+        beyond 2^24 are rounded to the nearest representable float.
+
+        Parameters
+        ----------
+        x : int
+            Signed int32 code, normally a full-range fixed-point sample.
+
+        Returns
+        -------
+        float
+            Normalised float, `x / scale`.
+
+        Examples
+        --------
+        >>> from doppler.cvt import I32ToF32
+        >>> c = I32ToF32(scale=2147483648.0)  # 2**31: full-range int32 -> [-1, 1)
+        >>> round(c.step(2**30), 4)            # quarter-scale code -> 0.5
+        0.5
+        >>> round(c.step(-2**31), 4)           # full-negative code -> -1.0
+        -1.0
+
+        """
 
     def steps(self, x: NDArray[np.int32], out: NDArray[np.float32] | None = None) -> NDArray[np.float32]:
         """Process a block of int32 samples to float32.
@@ -212,14 +333,50 @@ class I8ToF32:
     def __init__(self, scale: float = ...) -> None: ...
 
     def reset(self) -> None:
-        """Reset I8ToF32 to its post-create state.
+        """No-op reset, provided only for lifecycle symmetry.
 
-        No mutable state exists beyond the immutable iscale; reset is a no-op
-        provided for lifecycle symmetry with other converters.
+        No mutable state exists beyond the immutable iscale, so there is nothing
+        to clear; the method exists so every converter in the module presents
+        the same create / step / reset / destroy lifecycle.
+
+        Examples
+        --------
+        >>> from doppler.cvt import I8ToF32
+        >>> c = I8ToF32()
+        >>> c.reset()             # stateless converter -> reset changes nothing
+        >>> round(c.step(-128), 4)
+        -1.0
+
         """
 
     def step(self, x: int) -> float:
-        """Process one input sample."""
+        """Convert one signed int8 sample to a normalised float via 1/scale.
+
+        Returns (float)x * iscale, a single multiply on the hot path. At the
+        default scale of 128 the full int8 range recovers `[-1.0, ~+1.0)` — the
+        front end of an 8-bit IQ path (e.g. a signed-8 RTL-SDR stream) into
+        normalised floats.
+
+        Parameters
+        ----------
+        x : int
+            Signed int8 code in `[-128, 127]`.
+
+        Returns
+        -------
+        float
+            Normalised float, `x / scale`.
+
+        Examples
+        --------
+        >>> from doppler.cvt import I8ToF32
+        >>> c = I8ToF32(scale=128.0)   # signed 8-bit -> normalised float
+        >>> round(c.step(64), 4)        # 64 / 128
+        0.5
+        >>> round(c.step(-128), 4)      # full-negative code -> -1.0
+        -1.0
+
+        """
 
     def steps(self, x: NDArray[np.int8], out: NDArray[np.float32] | None = None) -> NDArray[np.float32]:
         """Process a block of int8 samples to float32.
@@ -273,10 +430,53 @@ class F32ToI16U32:
     def __init__(self, scale: float = ...) -> None: ...
 
     def reset(self) -> None:
-        """Reset state to post-create defaults."""
+        """Clear the sticky clip flag, starting a fresh saturation history.
+
+        Zeroes clipped so a subsequent clipped query reflects only samples seen
+        after this call; the immutable scale is preserved. Call it at a buffer
+        or segment boundary so a saturation on one block does not leak into the
+        next.
+
+        Examples
+        --------
+        >>> from doppler.cvt import F32ToI16U32
+        >>> c = F32ToI16U32()
+        >>> c.step(5.0)          # out of range -> saturates, latches clipped
+        32767
+        >>> c.reset()            # forget the clip history
+        >>> c.clipped
+        False
+
+        """
 
     def step(self, x: float) -> int:
-        """Process one input sample."""
+        """Scale one float sample to a saturated Q15 code packed in a uint32.
+
+        Computes round(x * scale), saturates to `[-32768, 32767]`, then
+        zero-extends the 16-bit two's-complement pattern into the lower 16 bits
+        of a uint32 (upper 16 bits are always zero — headroom for the CIC
+        integrator cascade). Latches the sticky clipped flag on saturation.
+
+        Parameters
+        ----------
+        x : float
+            Input sample, normally a normalised float in `[-1, +1]`.
+
+        Returns
+        -------
+        int
+            Q15 code in the low 16 bits of a uint32; e.g. -32768 -> 0x8000.
+
+        Examples
+        --------
+        >>> from doppler.cvt import F32ToI16U32
+        >>> c = F32ToI16U32(scale=32768.0)
+        >>> c.step(0.5)              # 0.5 -> Q15 16384, upper 16 bits zero
+        16384
+        >>> hex(c.step(-1.0))        # -32768 as an unsigned low-16 pattern
+        '0x8000'
+
+        """
 
     def steps(self, x: NDArray[np.float32], out: NDArray[np.uint32] | None = None) -> NDArray[np.uint32]:
         """Process a block of float samples to Q15-in-uint32.
@@ -342,10 +542,53 @@ class F32ToI16U64:
     def __init__(self, scale: float = ...) -> None: ...
 
     def reset(self) -> None:
-        """Reset state to post-create defaults."""
+        """Clear the sticky clip flag, starting a fresh saturation history.
+
+        Zeroes clipped so a subsequent clipped query reflects only samples seen
+        after this call; the immutable scale is preserved. Call it at a buffer
+        or segment boundary so a saturation on one block does not leak into the
+        next.
+
+        Examples
+        --------
+        >>> from doppler.cvt import F32ToI16U64
+        >>> c = F32ToI16U64()
+        >>> c.step(5.0)          # out of range -> saturates, latches clipped
+        32767
+        >>> c.reset()            # forget the clip history
+        >>> c.clipped
+        False
+
+        """
 
     def step(self, x: float) -> int:
-        """Process one input sample."""
+        """Scale one float sample to a saturated Q15 code packed in a uint64.
+
+        Computes round(x * scale), saturates to `[-32768, 32767]`, then
+        zero-extends the 16-bit two's-complement pattern into the lower 16 bits
+        of a uint64 (upper 48 bits are always zero — headroom for the NCO phase
+        accumulator). Latches the sticky clipped flag on saturation.
+
+        Parameters
+        ----------
+        x : float
+            Input sample, normally a normalised float in `[-1, +1]`.
+
+        Returns
+        -------
+        int
+            Q15 code in the low 16 bits of a uint64; e.g. -32768 -> 0x8000.
+
+        Examples
+        --------
+        >>> from doppler.cvt import F32ToI16U64
+        >>> c = F32ToI16U64(scale=32768.0)
+        >>> c.step(0.5)              # 0.5 -> Q15 16384, upper 48 bits zero
+        16384
+        >>> hex(c.step(-1.0))        # -32768 as an unsigned low-16 pattern
+        '0x8000'
+
+        """
 
     def steps(self, x: NDArray[np.float32], out: NDArray[np.uint64] | None = None) -> NDArray[np.uint64]:
         """Process a block of float samples to Q15-in-uint64.
@@ -411,10 +654,50 @@ class I16U32ToF32:
     def __init__(self, scale: float = ...) -> None: ...
 
     def reset(self) -> None:
-        """Reset state to post-create defaults."""
+        """No-op reset, provided only for lifecycle symmetry.
+
+        No mutable state exists beyond the immutable iscale, so there is nothing
+        to clear; the method exists so every converter in the module presents
+        the same create / step / reset / destroy lifecycle.
+
+        Examples
+        --------
+        >>> from doppler.cvt import I16U32ToF32
+        >>> c = I16U32ToF32()
+        >>> c.reset()             # stateless converter -> reset changes nothing
+        >>> round(c.step(16384), 4)
+        0.5
+
+        """
 
     def step(self, x: int) -> float:
-        """Process one input sample."""
+        """Unpack a Q15 code from a uint32's low 16 bits to a normalised float.
+
+        Masks off the lower 16 bits, reinterprets them as a signed int16 (two's
+        complement), then multiplies by iscale — a single multiply after the
+        extraction. The upper 16 bits (which may carry CIC bit-growth headroom)
+        are ignored. Exact inverse of F32ToI16U32 at the same scale.
+
+        Parameters
+        ----------
+        x : int
+            uint32 carrying a Q15 code in its low 16 bits.
+
+        Returns
+        -------
+        float
+            Normalised float recovered from the low-16 Q15 code.
+
+        Examples
+        --------
+        >>> from doppler.cvt import I16U32ToF32
+        >>> c = I16U32ToF32(scale=32768.0)
+        >>> round(c.step(16384), 4)         # low-16 Q15 16384 -> 0.5
+        0.5
+        >>> round(c.step(0x8000), 4)        # 0x8000 reinterpreted as -32768 -> -1.0
+        -1.0
+
+        """
 
     def steps(self, x: NDArray[np.uint32], out: NDArray[np.float32] | None = None) -> NDArray[np.float32]:
         """Process a block of Q15-in-uint32 samples to float32.
@@ -468,10 +751,50 @@ class I16U64ToF32:
     def __init__(self, scale: float = ...) -> None: ...
 
     def reset(self) -> None:
-        """Reset state to post-create defaults."""
+        """No-op reset, provided only for lifecycle symmetry.
+
+        No mutable state exists beyond the immutable iscale, so there is nothing
+        to clear; the method exists so every converter in the module presents
+        the same create / step / reset / destroy lifecycle.
+
+        Examples
+        --------
+        >>> from doppler.cvt import I16U64ToF32
+        >>> c = I16U64ToF32()
+        >>> c.reset()             # stateless converter -> reset changes nothing
+        >>> round(c.step(16384), 4)
+        0.5
+
+        """
 
     def step(self, x: int) -> float:
-        """Process one input sample."""
+        """Unpack a Q15 code from a uint64's low 16 bits to a normalised float.
+
+        Masks off the lower 16 bits, reinterprets them as a signed int16 (two's
+        complement), then multiplies by iscale — a single multiply after the
+        extraction. The upper 48 bits (which may carry NCO phase-accumulator
+        headroom) are ignored. Exact inverse of F32ToI16U64 at the same scale.
+
+        Parameters
+        ----------
+        x : int
+            uint64 carrying a Q15 code in its low 16 bits.
+
+        Returns
+        -------
+        float
+            Normalised float recovered from the low-16 Q15 code.
+
+        Examples
+        --------
+        >>> from doppler.cvt import I16U64ToF32
+        >>> c = I16U64ToF32(scale=32768.0)
+        >>> round(c.step(16384), 4)         # low-16 Q15 16384 -> 0.5
+        0.5
+        >>> round(c.step(0x8000), 4)        # 0x8000 reinterpreted as -32768 -> -1.0
+        -1.0
+
+        """
 
     def steps(self, x: NDArray[np.uint64], out: NDArray[np.float32] | None = None) -> NDArray[np.float32]:
         """Process a block of Q15-in-uint64 samples to float32.
@@ -525,10 +848,54 @@ class F32ToUQ15:
     def __init__(self, scale: float = ...) -> None: ...
 
     def reset(self) -> None:
-        """Reset state to post-create defaults."""
+        """Clear the sticky clip flag, starting a fresh saturation history.
+
+        Zeroes clipped so a subsequent clipped query reflects only samples seen
+        after this call; the immutable scale is preserved. Call it at a buffer
+        or segment boundary so a saturation on one block does not leak into the
+        next.
+
+        Examples
+        --------
+        >>> from doppler.cvt import F32ToUQ15
+        >>> c = F32ToUQ15()
+        >>> c.step(2.0)          # out of range -> saturates to 0xFFFF, latches clip
+        65535
+        >>> c.reset()            # forget the clip history
+        >>> c.clipped
+        False
+
+        """
 
     def step(self, x: float) -> int:
-        """Process one input sample."""
+        """Scale one float sample to an offset-binary UQ15 uint16 code.
+
+        Computes round(x * scale), clamps to `[-32768, 32767]`, then adds the
+        32768 offset-binary bias so the signed float domain maps onto the full
+        unsigned uint16 range. Latches the sticky clipped flag if the scaled
+        value saturated before clamping. Suits DAC and file formats that store
+        only unsigned integers.
+
+        Parameters
+        ----------
+        x : float
+            Input sample, normally a normalised float in `[-1, +1]`.
+
+        Returns
+        -------
+        int
+            Offset-binary uint16 in `[0, 65535]`: -1.0 -> 0, 0.0 -> 32768, +1.0 -> 65535.
+
+        Examples
+        --------
+        >>> from doppler.cvt import F32ToUQ15
+        >>> c = F32ToUQ15(scale=32768.0)
+        >>> c.step(0.0)          # midscale maps to the offset-binary bias
+        32768
+        >>> c.step(-1.0)         # full-negative maps to code 0
+        0
+
+        """
 
     def steps(self, x: NDArray[np.float32], out: NDArray[np.uint16] | None = None) -> NDArray[np.uint16]:
         """Process a block of float samples to UQ15 uint16.
@@ -594,10 +961,50 @@ class UQ15ToF32:
     def __init__(self, scale: float = ...) -> None: ...
 
     def reset(self) -> None:
-        """Reset state to post-create defaults."""
+        """No-op reset, provided only for lifecycle symmetry.
+
+        No mutable state exists beyond the immutable iscale, so there is nothing
+        to clear; the method exists so every converter in the module presents
+        the same create / step / reset / destroy lifecycle.
+
+        Examples
+        --------
+        >>> from doppler.cvt import UQ15ToF32
+        >>> c = UQ15ToF32()
+        >>> c.reset()             # stateless converter -> reset changes nothing
+        >>> round(c.step(32768), 4)
+        0.0
+
+        """
 
     def step(self, x: int) -> float:
-        """Process one input sample."""
+        """Decode one offset-binary UQ15 uint16 code to a normalised float.
+
+        Computes ((int32_t)x - 32768) * iscale — removes the 32768 offset-binary
+        bias and applies 1/scale. The int32_t cast prevents signed overflow when
+        x is 0 (which yields -32768 after bias removal). Exact inverse of
+        F32ToUQ15 at the same scale.
+
+        Parameters
+        ----------
+        x : int
+            UQ15 offset-binary uint16 code: 0 -> -1.0, 32768 -> 0.0, 65535 -> +32767/32768.
+
+        Returns
+        -------
+        float
+            Normalised float in `[-1.0, ~+1.0)`.
+
+        Examples
+        --------
+        >>> from doppler.cvt import UQ15ToF32
+        >>> c = UQ15ToF32(scale=32768.0)
+        >>> round(c.step(32768), 4)   # midscale code -> 0.0
+        0.0
+        >>> round(c.step(0), 4)       # zero code -> -1.0
+        -1.0
+
+        """
 
     def steps(self, x: NDArray[np.uint16], out: NDArray[np.float32] | None = None) -> NDArray[np.float32]:
         """Process a block of UQ15 samples to float32.
@@ -656,10 +1063,56 @@ class ADC:
     def __init__(self, bits: int = ..., dbfs: float = ..., dithering: int = ...) -> None: ...
 
     def reset(self) -> None:
-        """Reset state to post-create defaults."""
+        """Clear the clip flag and re-seed the dither PRNG for a reproducible run.
+
+        Zeroes the sticky clipped flag and re-seeds the xorshift32 dither PRNG
+        to its fixed initial value, so a dithered capture restarted after
+        reset() is bit-for-bit reproducible. The immutable configuration (bits,
+        scale, clip bounds) is preserved.
+
+        Examples
+        --------
+        >>> from doppler.cvt import ADC
+        >>> adc = ADC(bits=8, dbfs=0.0, dithering=0)
+        >>> adc.step(9.0)            # beyond full scale -> saturates, latches clip
+        127
+        >>> adc.reset()             # clear clip history and re-seed the dither PRNG
+        >>> adc.clipped
+        False
+
+        """
 
     def step(self, x: float) -> int:
-        """Process one input sample."""
+        """Quantise one float sample to a signed N-bit ADC code.
+
+        Multiplies x by the pre-computed double-precision scale, optionally adds
+        TPDF dither (when the object was built with dithering enabled), rounds
+        with llround, and clamps to the signed integer range `[clip_min,
+        clip_max]`. Latches the sticky clipped flag if the sample saturated. A
+        sample at amplitude 10^(dbfs/20) reaches full scale.
+
+        Parameters
+        ----------
+        x : float
+            Input sample, normally a normalised float in `[-1, +1]`.
+
+        Returns
+        -------
+        int
+            Signed ADC code in `[-(2^(bits-1)), 2^(bits-1)-1]`.
+
+        Examples
+        --------
+        >>> from doppler.cvt import ADC
+        >>> adc = ADC(bits=8, dbfs=0.0, dithering=0)  # 8-bit, full scale at 0 dBFS
+        >>> adc.step(0.5)            # 0.5 * 128 codes
+        64
+        >>> adc.step(2.0)            # beyond full scale -> clamps to +127
+        127
+        >>> adc.clipped              # sticky flag latched by the clamp
+        True
+
+        """
 
     def steps(self, x: NDArray[np.float32], out: NDArray[np.int64] | None = None) -> NDArray[np.int64]:
         """Process a block of float samples to int64.

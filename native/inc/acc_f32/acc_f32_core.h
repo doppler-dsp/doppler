@@ -136,8 +136,11 @@ extern "C"
    * >>> from doppler.accumulator import AccF32
    * >>> obj = AccF32(0.0)
    * >>> obj.step(4.0)
-   * >>> obj.get_acc()
+   * >>> obj.get_acc()          # non-destructive read
    * 4.0
+   * >>> obj.get_acc()          # still there — get_acc never drains
+   * 4.0
+   *
    * @endcode
    */
   float acc_f32_get_acc (const acc_f32_state_t *state);
@@ -145,19 +148,22 @@ extern "C"
   /**
    * @brief Overwrite the accumulator with a new value.
    * Useful for seeding the accumulator to a known baseline before
-   * processing a new segment without a full ``reset``.
+   * processing a new segment without a full ``reset``; subsequent
+   * ``step`` / ``steps`` samples accumulate on top of the seeded value.
    *
    * @param state  Must be non-NULL.
-   * @param acc    New accumulator value.
+   * @param value  New accumulator value.
    * @code
    * >>> from doppler.accumulator import AccF32
    * >>> obj = AccF32(0.0)
-   * >>> obj.set_acc(10.0)
+   * >>> obj.set_acc(10.0)      # seed a running baseline
+   * >>> obj.step(2.5)          # later samples fold in on top
    * >>> obj.get_acc()
-   * 10.0
+   * 12.5
+   *
    * @endcode
    */
-  void acc_f32_set_acc (acc_f32_state_t *state, float acc);
+  void acc_f32_set_acc (acc_f32_state_t *state, float value);
 
   /**
    * @brief Return the current accumulated sum without resetting state.

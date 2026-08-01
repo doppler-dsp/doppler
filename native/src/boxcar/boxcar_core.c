@@ -46,11 +46,11 @@ boxcar_reset (boxcar_state_t *s)
 }
 
 void
-boxcar_steps (boxcar_state_t *s, const float complex *input,
-              float complex *output, size_t n)
+boxcar_steps (boxcar_state_t *s, const float complex *x, float complex *out,
+              size_t n)
 {
   for (size_t i = 0; i < n; i++)
-    output[i] = boxcar_step (s, input[i]);
+    out[i] = boxcar_step (s, x[i]);
 }
 
 /* Serializable state — pointer-free POD whole-struct snapshot

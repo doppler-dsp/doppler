@@ -89,7 +89,26 @@ tonemeas_state_t *tonemeas_create(size_t n, double fs, size_t n_harmonics,
 /** @brief Destroy a ToneMeasure analyser. @param state May be NULL. */
 void tonemeas_destroy(tonemeas_state_t *state);
 
-/** @brief Reset (no-op: the analyser is stateless between calls). */
+/**
+ * @brief Reset the analyser (a no-op: it holds no state between calls).
+ *
+ * Every analyze() / analyze_complex() / time_stats() / spectrum_dbfs() call
+ * re-windows and re-transforms its own capture from scratch, so there is
+ * nothing carried between calls to clear.  The method exists only so
+ * ToneMeasure honours the same reset() contract as every other doppler object,
+ * letting a generic pipeline reset each stage uniformly.
+ *
+ * @param state  The analyser (left unchanged).
+ *
+ * @code
+ * >>> from doppler.measure import ToneMeasure
+ * >>> m = ToneMeasure(n=4096, fs=1.0)
+ * >>> m.reset()            # stateless: provided only for API uniformity
+ * >>> m.reset() is None    # returns nothing; safe to call anytime
+ * True
+ *
+ * @endcode
+ */
 void tonemeas_reset(tonemeas_state_t *state);
 
 /**
@@ -153,7 +172,31 @@ size_t tonemeas_spectrum_dbfs_max_out(tonemeas_state_t *state);
 
 /**
  * @brief DC-centred dBFS magnitude spectrum of a real capture (length nfft).
- * @return Number of samples written (nfft).
+ *
+ * The windowed, zero-padded magnitude spectrum behind the metrics, laid out
+ * DC-centred (fftshifted) and normalised to dBFS so it drops straight under an
+ * analyzer trace.  Use it to eyeball where the fundamental, harmonics and
+ * spurs that analyze() quantifies actually sit.
+ *
+ * @param state    The analyser.
+ * @param x        Real time-domain capture (length @p x_len).
+ * @param x_len    Number of input samples.
+ * @param out      Destination buffer (length >= @p max_out).
+ * @param max_out  Capacity of @p out (== nfft).
+ * @return DC-centred dBFS magnitude spectrum, one value per FFT bin (nfft).
+ *
+ * @code
+ * >>> from doppler.measure import ToneMeasure
+ * >>> import numpy as np
+ * >>> t = np.arange(4096)
+ * >>> x = np.cos(2*np.pi*300*t/4096).astype(np.float32)   # full-scale tone
+ * >>> s = ToneMeasure(n=4096, fs=1.0).spectrum_dbfs(x)   # DC-centred spectrum
+ * >>> s.shape                              # zero-padded to next power of two
+ * (8192,)
+ * >>> round(float(s.max()), 1)   # split across two real images, ~6 dB each
+ * -6.0
+ *
+ * @endcode
  */
 size_t tonemeas_spectrum_dbfs(tonemeas_state_t *state, const float *x,
                               size_t x_len, float *out, size_t max_out);

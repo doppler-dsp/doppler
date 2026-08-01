@@ -1,0 +1,8 @@
+# Symbols intentionally exempt from the docstring-coverage meter
+# (scripts/check_docstring_coverage.py). One fully-qualified name per line;
+# '#' starts a comment. Keep this list SMALL and reason-annotated — the goal
+# is 100% documented public surface, so an entry here is a deliberate
+# exception, not a backlog. Prefer documenting the symbol over exempting it.
+#
+# Example:
+#   doppler.foo.Bar.legacy_method   # deprecated, removal scheduled for v0.42

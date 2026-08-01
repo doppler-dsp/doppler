@@ -214,6 +214,7 @@ DOCS_PREPARE = @rm -f zensical.toml
 # standard's — one implementation again, which is what criterion 5 asked for.
 define DOCS_CHECK_PRE_CMDS
 uv run python scripts/check_api_docs.py
+uv run python scripts/check_docstring_coverage.py --check
 uv run python scripts/check_nav_index.py
 uv run python scripts/gen_related_pages.py --check
 uv run python scripts/gen_readme.py --check
@@ -385,6 +386,7 @@ LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
                 test-examples-c test-examples-python test-example-downstream \
                 test-example-downstream-python \
                 test-stubs test-api-docs test-snippets \
+                check-docstring-coverage \
                 abi-check link-check glibc-check specan-check \
                 wheel-check wheel-smoke release-smoke \
                 bench-interleaved bench-publish bench-docs bench-stream \
@@ -780,6 +782,18 @@ specan-check: ## Fail if specan changed without re-recording its demo frames
 test-stubs: ## Doctest every generated .pyi stub
 	uv run python -m pytest --doctest-glob='*.pyi' -q \
 	    $$(find $(PYEXT_DIR) -name '*.pyi')
+
+# Docstring-coverage burn-down meter. Scores BOTH doc faces: the .pyi stubs
+# (static, always) and the runtime __doc__ (needs the built extension, so this
+# reads both only after `make build`/`make pyext`; without a build it reports
+# the stub face and notes the runtime face was skipped). This target is the
+# human-facing both-face REPORT; the no-regression ratchet
+# (`--check` against docs/.docstring-coverage-baseline) runs inside the
+# docs-check gate (DOCS_CHECK_PRE_CMDS above), green from baseline and failing
+# only on backsliding. Refresh the baseline after improving coverage with
+# `python scripts/check_docstring_coverage.py --update-baseline`.
+check-docstring-coverage: ## Report docstring coverage across both Python faces
+	uv run python scripts/check_docstring_coverage.py
 
 test-api-docs: ## Doctest the docs/api/*.md reference pages
 	uv run python -m pytest --doctest-glob='*.md' -q docs/api/

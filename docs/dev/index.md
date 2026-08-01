@@ -10,6 +10,7 @@ The pages a contributor actually needs, in reading order:
 - [DSSS Acquisition Use Cases](dsss-use-cases.md) — the two wide-Doppler operating regimes driving the acquisition design
 - [Benchmarking](benchmarking.md) — running and interpreting benchmark results
 - [Doc Examples](doc-examples.md) — every docs code snippet is discovered and tested, no opt-in list
+- [Docstring Authoring](docstring-authoring.md) — write the C header Doxygen so `jm` derives top-notch Python docstrings on both faces
 - [Docs Conventions](docs-conventions.md) — what's generated vs. hand-owned under `docs/`, and the nav-index/Related-pages CI gates
 
 ## Maintainer internals

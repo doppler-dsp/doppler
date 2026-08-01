@@ -56,9 +56,8 @@ DP_DEFINE_POD_STATE (lockdet, lockdet_state_t, LOCKDET_STATE_MAGIC,
                      LOCKDET_STATE_VERSION)
 
 void
-lockdet_steps (lockdet_state_t *state, const double *input, int *output,
-               size_t n)
+lockdet_steps (lockdet_state_t *state, const double *x, int *out, size_t n)
 {
   for (size_t i = 0; i < n; i++)
-    output[i] = lockdet_step (state, input[i]);
+    out[i] = lockdet_step (state, x[i]);
 }

@@ -1005,14 +1005,14 @@ wfm_reader_read (wfm_reader_state_t *r, size_t max, float _Complex *out,
 }
 
 size_t
-wfm_reader_read_max_out (wfm_reader_state_t *r)
+wfm_reader_read_max_out (wfm_reader_state_t *r, size_t n)
 {
-  /* 0 = "no fixed upper bound": jm's variable_output machinery then sizes its
-     buffer from whatever the caller asks for and grows on demand. A reader
-     streams, so declaring nsamples here would allocate the whole capture the
-     moment the object is constructed. */
+  /* gh-607: a read(n) yields at most n samples (fewer at EOF), so report n
+     as the per-call bound; the binding sizes its buffer to this and resizes
+     down to the actual count read. A reader streams, so it never needs the
+     whole capture pre-allocated. */
   (void)r;
-  return 0;
+  return n;
 }
 
 void

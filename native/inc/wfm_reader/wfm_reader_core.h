@@ -187,12 +187,12 @@ wfm_reader_state_t *wfm_reader_create(const char *path, int sample_type, int end
 size_t wfm_reader_read(wfm_reader_state_t *state, size_t n,
                        float complex *out, size_t max_out);
 
-  /** @brief Upper bound on one read()'s output, or 0 for "unbounded".
+  /** @brief Maximum samples one read(n) yields: n (fewer at EOF).
    *
-   *  A reader streams, so it declares no bound and the generated binding sizes
-   *  its buffer from the caller's request instead of pre-allocating the whole
-   *  capture at construction. */
-size_t wfm_reader_read_max_out(wfm_reader_state_t *state);
+   *  A reader streams, so a read of n produces at most n samples; the binding
+   *  sizes its buffer to this per-call bound (gh-607) and resizes down to the
+   *  actual count, never pre-allocating the whole capture. */
+size_t wfm_reader_read_max_out(wfm_reader_state_t *state, size_t n);
 
   /**
    * @brief Number of extended-header keywords recovered from the capture.

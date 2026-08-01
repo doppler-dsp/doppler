@@ -29,7 +29,7 @@ class CarrierAcquisition:
         pd constructor parameter.
     design_snr : float, default 2.0
         design_snr constructor parameter.
-    sequential : bool, default true
+    sequential : bool, default True
         sequential constructor parameter.
     max_n_blocks : int, default 100000
         max_n_blocks constructor parameter.

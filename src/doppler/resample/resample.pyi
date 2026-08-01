@@ -46,8 +46,8 @@ class Resampler:
 
         """
 
-    def execute_max_out(self) -> int:
-        """Max output length execute() can produce for the current state."""
+    def execute_max_out(self, x_len: int) -> int:
+        """Max output length execute() can produce for x_len."""
 
     def execute_ctrl(self, x: NDArray[np.complex64], ctrl: NDArray[np.complex64]) -> NDArray[np.complex64]:
         """Resample with per-sample additive rate deviations. Effective rate for sample i is base_rate + real(`ctrl[i]`). Uses a unified double-precision accumulator that handles both interpolation and decimation in a single code path — suitable for Doppler-shift simulation and fractional-sample timing correction. ctrl and x must have the same length.
@@ -124,7 +124,7 @@ class Resampler:
     def __exit__(self, *args: object) -> None: ...
 
 @final
-class Halfbanddecimator:
+class HalfbandDecimator:
     """Create a HalfbandDecimator with caller-supplied FIR taps. Implements a 2:1 polyphase halfband decimator over CF32 IQ. The caller provides the FIR branch coefficient array h; use ``doppler.resample.kaiser_num_taps(2, atten, pb, sb)`` to size it and scipy or the built-in bank helper to design the prototype. Output length is approximately x_len / 2 per execute() call.
 
     Parameters
@@ -133,7 +133,7 @@ class Halfbanddecimator:
         Float32 FIR branch coefficients, length num_taps. Must be a symmetric halfband prototype (antisymmetric even-indexed taps zeroed).
 
     """
-    def __init__(self, h: NDArray[np.float32] = ...) -> None: ...
+    def __init__(self, h: NDArray[np.float32]) -> None: ...
 
     def execute(self, x: NDArray[np.complex64], out: NDArray[np.complex64] | None = None) -> NDArray[np.complex64]:
         """Decimate x by 2 using the polyphase halfband FIR filter. Processes every second input sample through the FIR branch and passes the other branch through the all-pass (zero-delay) path. State persists between calls — contiguous blocks give identical output to one large block. Output length is floor(x_len / 2).
@@ -161,8 +161,8 @@ class Halfbanddecimator:
 
         """
 
-    def execute_max_out(self) -> int:
-        """Max output length execute() can produce for the current state."""
+    def execute_max_out(self, x_len: int) -> int:
+        """Max output length execute() can produce for x_len."""
 
     def reset(self) -> None:
         """Zero all delay lines.  Coefficients and num_taps preserved. Call between signal bursts to suppress transient ringing from prior filter state. The next execute() after reset produces the same output as a freshly created decimator fed the same input.
@@ -199,7 +199,7 @@ class Halfbanddecimator:
     def destroy(self) -> None:
         """Release C resources immediately."""
 
-    def __enter__(self) -> "Halfbanddecimator": ...
+    def __enter__(self) -> "HalfbandDecimator": ...
 
     def __exit__(self, *args: object) -> None: ...
 
@@ -256,11 +256,6 @@ class CIC:
     def decimate(self, x: NDArray[np.complex64], out: NDArray[np.complex64] | None = None) -> NDArray[np.complex64]:
         """Decimate a block of CF32 samples through the CIC pipeline. Each sample is converted to offset-binary UQ16, pushed through CIC_N integrators (unsigned wrapping), and when the phase counter reaches R the integrated value is passed through CIC_N M=1 comb stages and converted back to CF32.  State persists between calls. Feeding blocks that are multiples of R gives predictable output counts (exactly n_in/R samples per block).
 
-        @note **Input amplitude is bounded: |Re| and |Im| <= 1.0.** A component
-        beyond +-1.0 is clipped at the boundary before filtering; the sample
-        stream gives no sign of it, so check the sticky clipped flag. Scale the
-        input into range first; see the file header.
-
         Parameters
         ----------
         x : NDArray[np.complex64]
@@ -284,8 +279,8 @@ class CIC:
 
         """
 
-    def decimate_max_out(self) -> int:
-        """Max output length decimate() can produce for the current state."""
+    def decimate_max_out(self, n_in: int) -> int:
+        """Max output length decimate() can produce for n_in."""
 
     def state_bytes(self) -> int:
         """Serialized state size in bytes."""
@@ -358,8 +353,8 @@ class RateConverter:
 
         """
 
-    def execute_max_out(self) -> int:
-        """Max output length execute() can produce for the current state."""
+    def execute_max_out(self, x_len: int) -> int:
+        """Max output length execute() can produce for x_len."""
 
     def execute_ctrl(self, x: NDArray[np.complex64], ctrl: float) -> NDArray[np.complex64]:
         """Convert a block, steering the cascade's fractional stage by ctrl.
@@ -505,8 +500,8 @@ class MatchedRateConverter:
     def execute(self, x: NDArray[np.complex64], out: NDArray[np.complex64] | None = None) -> NDArray[np.complex64]:
         """Execute."""
 
-    def execute_max_out(self) -> int:
-        """Max output length execute() can produce for the current state."""
+    def execute_max_out(self, x_len: int) -> int:
+        """Max output length execute() can produce for x_len."""
 
     def execute_ctrl(self, x: NDArray[np.complex64], ctrl: float) -> NDArray[np.complex64]:
         """Execute ctrl."""
@@ -623,7 +618,7 @@ class HalfbandDecimatorQ15:
         Float FIR branch coefficients of length num_taps. Must be symmetric (`h[k]` == `h[num_taps-1-k]`).
 
     """
-    def __init__(self, h: NDArray[np.float32] = ...) -> None: ...
+    def __init__(self, h: NDArray[np.float32]) -> None: ...
 
     def execute(self, x: NDArray[np.int16], out: NDArray[np.int16] | None = None) -> NDArray[np.int16]:
         """Decimate a block of interleaved IQ int16 samples by 2. Input must be interleaved int16_t IQ pairs (I₀ Q₀ I₁ Q₁ …); pass a 1-D array of 2*n_complex elements.  Each pair of complex input samples produces one complex output sample, so an array of length 2N yields at most N output pairs (2N int16 output values).  If n_in is odd the trailing IQ pair is buffered and consumed on the next call.
@@ -655,8 +650,8 @@ class HalfbandDecimatorQ15:
 
         """
 
-    def execute_max_out(self) -> int:
-        """Max output length execute() can produce for the current state."""
+    def execute_max_out(self, x_len: int) -> int:
+        """Max output length execute() can produce for x_len."""
 
     def reset(self) -> None:
         """Zero all delay rings and clear the pending-sample flag. After a reset the decimator behaves identically to a freshly constructed instance: the four dual-write delay rings are zeroed and has_pending is cleared, so no partial IQ pair carries over.  Call this between unrelated signal segments to prevent inter-segment leakage.

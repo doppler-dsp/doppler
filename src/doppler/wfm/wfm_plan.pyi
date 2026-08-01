@@ -6,6 +6,7 @@ from __future__ import annotations
 
 from typing import Any, final
 
+import os
 import numpy as np
 from numpy.typing import NDArray
 
@@ -108,12 +109,12 @@ class Plan:
         bytes
             Output.
         """
-    def dump(self, path: str) -> None:
+    def dump(self, path: str | os.PathLike) -> None:
         """Save a Plan to a file (wfm_plan_save() bytes at path).
 
         Parameters
         ----------
-        path : str
+        path : str | os.PathLike
             Input.
         """
     def close(self) -> None:
@@ -126,5 +127,5 @@ class Plan:
 def PlanFromBlob(blob: bytes) -> Plan:
     """Construct a Plan via wfm_plan_restore."""
 
-def PlanFromFile(path: str) -> Plan:
+def PlanFromFile(path: str | os.PathLike) -> Plan:
     """Construct a Plan via wfm_plan_load."""

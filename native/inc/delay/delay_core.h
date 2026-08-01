@@ -127,14 +127,15 @@ void delay_reset(delay_state_t *state);
 void delay_push(delay_state_t *state, double complex x);
 
   /**
-   * @brief Return the maximum output capacity for delay_ptr().
-   * Returns num_taps; the Python binding uses this to pre-allocate the
-   * output buffer before calling delay_ptr().
+   * @brief Maximum samples delay_ptr() writes for a request of n.
+   * delay_ptr() returns min(n, num_taps), so this reports that tight per-call
+   * bound (gh-607); the binding pre-allocates the output buffer to it.
    *
    * @param state  Must be non-NULL.
-   * @return       num_taps (maximum samples delay_ptr() can write).
+   * @param n      Number of samples the matching delay_ptr() call requests.
+   * @return       min(n, num_taps).
    */
-size_t delay_ptr_max_out(delay_state_t *state);
+size_t delay_ptr_max_out(delay_state_t *state, size_t n);
 
   /**
    * @brief Return a zero-copy view of the n most recent samples.

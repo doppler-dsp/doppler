@@ -117,10 +117,14 @@ ddc_get_rate (const ddc_state_t *s)
 }
 
 size_t
-ddc_execute_max_out (ddc_state_t *s)
+ddc_execute_max_out (ddc_state_t *s, size_t x_len)
 {
+  /* gh-607: the binding sizes the output buffer to this per-call bound and
+     resizes down to the actual count. A DDC decimates (or passes at unity),
+     so the output never exceeds the input length — x_len is a safe upper
+     bound, matching the old n_in fallback exactly. */
   (void)s;
-  return 0;
+  return x_len;
 }
 
 size_t
@@ -145,10 +149,11 @@ ddc_execute (ddc_state_t *s, const float _Complex *in, size_t n_in,
 }
 
 size_t
-ddc_execute_ctrl_max_out (ddc_state_t *s)
+ddc_execute_ctrl_max_out (ddc_state_t *s, size_t x_len)
 {
+  /* Output never exceeds the input length (see ddc_execute_max_out). */
   (void)s;
-  return 0; /* 0 -> the binding sizes the buffer from the input block */
+  return x_len;
 }
 
 size_t

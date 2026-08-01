@@ -13,7 +13,7 @@ class FIR:
         Array of num_taps CF32 coefficients (I+jQ each), copied.
 
     """
-    def __init__(self, taps: NDArray[np.complex64] = ...) -> None: ...
+    def __init__(self, taps: NDArray[np.complex64]) -> None: ...
 
     def reset(self) -> None:
         """Zero the delay line; preserve taps and scratch capacity. After a reset the filter behaves identically to a freshly constructed instance of the same length, without paying the allocation cost again. Call this between unrelated signal segments to prevent inter-segment leakage through the delay line.
@@ -63,8 +63,8 @@ class FIR:
 
         """
 
-    def execute_max_out(self) -> int:
-        """Max output length execute() can produce for the current state."""
+    def execute_max_out(self, n_in: int) -> int:
+        """Max output length execute() can produce for n_in."""
 
     def state_bytes(self) -> int:
         """Serialized state size in bytes."""

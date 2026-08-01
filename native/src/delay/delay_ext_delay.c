@@ -67,7 +67,7 @@ DelayCf64Obj_init (DelayCf64Object *self, PyObject *args, PyObject *kwds)
       return -1;
     }
   {
-    size_t _max = delay_ptr_max_out (self->handle);
+    size_t _max = delay_ptr_max_out (self->handle, self->handle->num_taps);
     if (_max)
       {
         self->_ptr_buf = malloc (_max * sizeof (double complex));
@@ -132,7 +132,8 @@ DelayCf64Obj_ptr_max_out (DelayCf64Object *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromSize_t (delay_ptr_max_out (self->handle));
+  return PyLong_FromSize_t (
+      delay_ptr_max_out (self->handle, self->handle->num_taps));
 }
 
 static PyObject *
@@ -176,8 +177,8 @@ DelayCf64Obj_ptr (DelayCf64Object *self, PyObject *args, PyObject *kwds)
         {
           return NULL;
         }
-      size_t _cap     = (size_t)PyArray_SIZE (out_arr);
-      size_t _omax    = delay_ptr_max_out (self->handle);
+      size_t _cap  = (size_t)PyArray_SIZE (out_arr);
+      size_t _omax = delay_ptr_max_out (self->handle, self->handle->num_taps);
       size_t _min_cap = _omax > (size_t)n ? _omax : ((size_t)n);
       if (_cap < _min_cap)
         {
@@ -203,7 +204,7 @@ DelayCf64Obj_ptr (DelayCf64Object *self, PyObject *args, PyObject *kwds)
   size_t _need = (size_t)n;
   if (!self->_ptr_buf || self->_ptr_buf_cap < _need)
     {
-      size_t _max = delay_ptr_max_out (self->handle);
+      size_t _max = delay_ptr_max_out (self->handle, self->handle->num_taps);
       if (!_max || _max < _need)
         _max = _need;
       if (self->_ptr_buf && self->_ptr_retired_n == self->_ptr_retired_cap)

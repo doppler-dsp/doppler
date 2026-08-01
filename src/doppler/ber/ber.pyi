@@ -69,7 +69,7 @@ class BerMeter:
         Returns
         -------
         int
-            Output.
+            1 when the detection passed its false-alarm gate, else 0.
         """
 
     def score(self, rx: NDArray[np.complex64], lo: int = 0, hi: int = 0) -> int:

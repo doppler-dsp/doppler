@@ -54,8 +54,8 @@ class DDC:
 
         """
 
-    def execute_max_out(self) -> int:
-        """Max output length execute() can produce for the current state."""
+    def execute_max_out(self, x_len: int) -> int:
+        """Max output length execute() can produce for x_len."""
 
     def execute_ctrl(self, x: NDArray[np.complex64], rate_ctrl: float, freq_ctrl: float) -> NDArray[np.complex64]:
         """Mix and resample a block, steering both control ports.
@@ -208,8 +208,8 @@ class MatchedDDC:
             Output.
         """
 
-    def execute_max_out(self) -> int:
-        """Max output length execute() can produce for the current state."""
+    def execute_max_out(self, x_len: int) -> int:
+        """Max output length execute() can produce for x_len."""
 
     def execute_ctrl(self, x: NDArray[np.complex64], rate_ctrl: float, freq_ctrl: float) -> NDArray[np.complex64]:
         """Execute ctrl."""
@@ -305,8 +305,8 @@ class Ddcr:
 
         """
 
-    def execute_max_out(self) -> int:
-        """Max output length execute() can produce for the current state."""
+    def execute_max_out(self, x_len: int) -> int:
+        """Max output length execute() can produce for x_len."""
 
     def execute_ctrl(self, x: NDArray[np.float32], rate_ctrl: float, freq_ctrl: float) -> NDArray[np.complex64]:
         """Process a real block, steering both control ports.
@@ -451,8 +451,8 @@ class MatchedDdcr:
             Output.
         """
 
-    def execute_max_out(self) -> int:
-        """Max output length execute() can produce for the current state."""
+    def execute_max_out(self, x_len: int) -> int:
+        """Max output length execute() can produce for x_len."""
 
     def execute_ctrl(self, x: NDArray[np.float32], rate_ctrl: float, freq_ctrl: float) -> NDArray[np.complex64]:
         """Execute ctrl."""

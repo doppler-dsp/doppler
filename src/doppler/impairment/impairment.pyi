@@ -51,8 +51,8 @@ class DopplerChannel:
             Samples written to out.
         """
 
-    def execute_max_out(self) -> int:
-        """Max output length execute() can produce for the current state."""
+    def execute_max_out(self, x_len: int) -> int:
+        """Max output length execute() can produce for x_len."""
 
     def reset(self) -> None:
         """Reset DopplerChannel to its post-create state.

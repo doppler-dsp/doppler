@@ -627,6 +627,7 @@ void wfm_synth_noise_steps(wfm_synth_state_t *state, float complex *output,
 JM_FORCEINLINE JM_HOT float complex
 wfm_synth_step(wfm_synth_state_t *state)
 {
+    /* jm: body sourced from [wfm_synth] impl/impl_file in objects/wfm_synth.toml — edit there, not here; `jm apply` overwrites this. */
     float complex sym;
     if (state->shaper) {
         /* Polyphase RRC pulse shaping (power-of-two sps). The single shaping

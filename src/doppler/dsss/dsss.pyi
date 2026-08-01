@@ -31,7 +31,7 @@ class Despreader:
         periods_per_bit constructor parameter.
 
     """
-    def __init__(self, code: NDArray[np.uint8] = ..., sps: int = ..., init_norm_freq: float = ..., init_chip: float = ..., bn_carrier: float = ..., bn_code: float = ..., bn_fll: float = ..., zeta: float = ..., spacing: float = ..., periods_per_bit: int = ...) -> None: ...
+    def __init__(self, code: NDArray[np.uint8], sps: int = ..., init_norm_freq: float = ..., init_chip: float = ..., bn_carrier: float = ..., bn_code: float = ..., bn_fll: float = ..., zeta: float = ..., spacing: float = ..., periods_per_bit: int = ...) -> None: ...
 
     # jm:hand
     def steps(
@@ -271,7 +271,7 @@ class BurstDespreader:
         Code (DLL) loop noise bandwidth, normalized to the symbol rate (default: 0.01).
 
     """
-    def __init__(self, code: NDArray[np.uint8] = ..., sf: int = ..., sps: int = ..., init_norm_freq: float = ..., init_chip_phase: float = ..., bn_carrier: float = ..., bn_code: float = ...) -> None: ...
+    def __init__(self, code: NDArray[np.uint8], sf: int = ..., sps: int = ..., init_norm_freq: float = ..., init_chip_phase: float = ..., bn_carrier: float = ..., bn_code: float = ...) -> None: ...
 
     # jm:hand
     def steps(
@@ -428,31 +428,31 @@ class BurstDespreader:
 
 @final
 class Acquisition:
-    """Acquisition component.
+    """Create a continuous-mode acquisition engine: always wideband window-tiling, never coherent multi-epoch combining.
 
     Parameters
     ----------
     code : NDArray[np.uint8]
-        code constructor parameter.
+        PN chips (0/1), length code_len.
     spc : int, default 4
-        spc constructor parameter.
+        Samples per chip (>= 1).
     chip_rate : float, default 1000000.0
-        chip_rate constructor parameter.
+        Chip rate in Hz (> 0).
     symbol_rate : float, default 1000.0
-        symbol_rate constructor parameter.
+        Continuous data-symbol rate in Hz; <= 0 means no known clock. Diagnostic only (exposed via acq_state_t::epochs_per_symbol), doesn't feed sizing: this engine never coherently combines regardless of the data-modulation clock.
     cn0_dbhz : float, default 50.0
-        cn0_dbhz constructor parameter.
+        Carrier-to-noise density in dB-Hz (> 0).
     doppler_uncertainty : float, default 0.0
-        doppler_uncertainty constructor parameter.
+        One-sided Doppler search half-range in Hz; 0 uses the full native span +/- chip_rate/(2*sf) (still window-tiled, at window_bins=1).
     pfa : float, default 1e-3
-        pfa constructor parameter.
+        Target system (max-of-N) false-alarm probability (0,1).
     pd : float, default 0.9
-        pd constructor parameter.
+        Target detection probability (0,1).
     noise_mode : Literal["mean", "median", "min", "max"], default "mean"
-        noise_mode constructor parameter.
+        CFAR mode index: 0=mean, 1=median, 2=min, 3=max.
 
     """
-    def __init__(self, code: NDArray[np.uint8] = ..., spc: int = ..., chip_rate: float = ..., symbol_rate: float = ..., cn0_dbhz: float = ..., doppler_uncertainty: float = ..., pfa: float = ..., pd: float = ..., noise_mode: Literal["mean", "median", "min", "max"] = "mean") -> None: ...
+    def __init__(self, code: NDArray[np.uint8], spc: int = ..., chip_rate: float = ..., symbol_rate: float = ..., cn0_dbhz: float = ..., doppler_uncertainty: float = ..., pfa: float = ..., pd: float = ..., noise_mode: Literal["mean", "median", "min", "max"] = "mean") -> None: ...
 
     def reset(self) -> None:
         """Drain the input ring and reset the coherent accumulator.
@@ -629,10 +629,10 @@ class BurstAcquisition:
         CFAR mode index: 0=mean, 1=median, 2=min, 3=max.
 
     """
-    def __init__(self, code: NDArray[np.uint8] = ..., reps: int = ..., spc: int = ..., chip_rate: float = ..., cn0_dbhz: float = ..., doppler_uncertainty: float = ..., pfa: float = ..., pd: float = ..., noise_mode: Literal["mean", "median", "min", "max"] = "mean") -> None: ...
+    def __init__(self, code: NDArray[np.uint8], reps: int = ..., spc: int = ..., chip_rate: float = ..., cn0_dbhz: float = ..., doppler_uncertainty: float = ..., pfa: float = ..., pd: float = ..., noise_mode: Literal["mean", "median", "min", "max"] = "mean") -> None: ...
 
     def reset(self) -> None:
-        """Drain the input ring and reset the coherent accumulator. @param state Must be non-NULL.
+        """Drain the input ring and reset the coherent accumulator.
         """
 
     def push(self, x: complex) -> list[tuple[int, int, float, float, float, float, int]]:
@@ -846,7 +846,7 @@ class BurstDemod:
         Partial correlations per acq period (segmentation for the feedforward estimate; larger tolerates more rate).
 
     """
-    def __init__(self, data_code: NDArray[np.uint8] = ..., spc: int = ..., chip_rate: float = ..., carrier_hz: float = ..., max_rate: float = ..., payload_len: int = ..., est_segments: int = ...) -> None: ...
+    def __init__(self, data_code: NDArray[np.uint8], spc: int = ..., chip_rate: float = ..., carrier_hz: float = ..., max_rate: float = ..., payload_len: int = ..., est_segments: int = ...) -> None: ...
 
     def reset(self) -> None:
         """Clear the read-backs (config is preserved).
@@ -978,7 +978,7 @@ class DsssReceiver:
         MpskReceiver's differential (rotation- invariant) demap; default 0 (coherent).
 
     """
-    def __init__(self, code: NDArray[np.uint8] = ..., chip_rate: float = ..., symbol_rate: float = ..., spc: int = ..., m: int = ..., cn0_dbhz: float = ..., pfa: float = ..., pd: float = ..., doppler_uncertainty: float = ..., segments: int = ..., sps: int = ..., differential: int = ...) -> None: ...
+    def __init__(self, code: NDArray[np.uint8], chip_rate: float = ..., symbol_rate: float = ..., spc: int = ..., m: int = ..., cn0_dbhz: float = ..., pfa: float = ..., pd: float = ..., doppler_uncertainty: float = ..., segments: int = ..., sps: int = ..., differential: int = ...) -> None: ...
 
     def steps(self, x: NDArray[np.complex64], out: NDArray[np.complex64] | None = None) -> NDArray[np.complex64]:
         """Stream raw cf32 samples through the receiver. While searching, samples feed the embedded Acquisition and nothing is emitted (an empty array is normal, not an error). The moment a hit fires, Dll/RateConverter/MpskReceiver are built and seeded from it -- the same phase-inversion hand-off and rate-bridging this project's async-DSSS-receiver gallery story validated by hand -- and the unconsumed tail of this same call is handed straight to them, so no samples are dropped at the transition. While tracking, samples feed Dll -> RateConverter -> MpskReceiver in sequence and demodulated symbols are returned. Accepts any block size; state carries across calls.
@@ -1005,8 +1005,8 @@ class DsssReceiver:
             Number of symbols written (0 while searching, or while tracking with not yet a full symbol's worth of input).
         """
 
-    def steps_max_out(self) -> int:
-        """Max output length steps() can produce for the current state."""
+    def steps_max_out(self, x_len: int) -> int:
+        """Max output length steps() can produce for x_len."""
 
     def configure_search_raw(self, doppler_bins: int, n_noncoh: int) -> None:
         """Pin the embedded Acquisition's search grid directly, bypassing the symbol_rate-driven auto-sizing -- the escape hatch for a power user who wants a specific (doppler_bins, n_noncoh). Only meaningful while searching.
@@ -1163,7 +1163,7 @@ class AsyncDsssReceiver:
         CarrierAcquisition's own block size; default 64.
     refine_zero_pad : int, default 8
         CarrierAcquisition's own zero_pad; default 8.
-    refine_sequential : bool, default false
+    refine_sequential : bool, default False
         CarrierAcquisition's own sequential mode; default false -- sequential mode's early per-block test fires on far too little averaging at SPEC's own Es/N0 floor (confirmed: as few as 4 blocks, 150-200+ Hz off); false waits the full design_snr-derived dwell_target, matching freq_refine.refine_seed_ carrier_acq()'s own validated default.
     refine_max_n_blocks : int, default 100000
         CarrierAcquisition's own give-up cap in sequential mode; default 100000.
@@ -1171,7 +1171,7 @@ class AsyncDsssReceiver:
         Nominal RF carrier frequency, Hz, enabling carrier->code aiding; 0.0 (default) = off. When > 0, the coupled code-rate Doppler (carrier_offset/carrier_freq) is fed to the tracking Dll via dll_set_rate_aid() so the code loop rides a dilated clock the discriminator alone can't pull in at low SNR. Set to the receiver's own downlink RF frequency for a physically-coupled Doppler capture.
 
     """
-    def __init__(self, code: NDArray[np.uint8] = ..., chip_rate: float = ..., symbol_rate: float = ..., spc: int = ..., m: int = ..., cn0_dbhz: float = ..., pfa: float = ..., pd: float = ..., doppler_uncertainty: float = ..., segments: int = ..., sps: int = ..., differential: int = ..., refine_max_error_db: float = ..., refine_samples_per_symbol: int = ..., refine_design_margin_db: float = ..., refine_n_fft: int = ..., refine_zero_pad: int = ..., refine_sequential: bool = ..., refine_max_n_blocks: int = ..., carrier_freq_hz: float = ...) -> None: ...
+    def __init__(self, code: NDArray[np.uint8], chip_rate: float = ..., symbol_rate: float = ..., spc: int = ..., m: int = ..., cn0_dbhz: float = ..., pfa: float = ..., pd: float = ..., doppler_uncertainty: float = ..., segments: int = ..., sps: int = ..., differential: int = ..., refine_max_error_db: float = ..., refine_samples_per_symbol: int = ..., refine_design_margin_db: float = ..., refine_n_fft: int = ..., refine_zero_pad: int = ..., refine_sequential: bool = ..., refine_max_n_blocks: int = ..., carrier_freq_hz: float = ...) -> None: ...
 
     def steps(self, x: NDArray[np.complex64], out: NDArray[np.complex64] | None = None) -> NDArray[np.complex64]:
         """Stream raw cf32 samples through the receiver. While searching, samples feed the embedded Acquisition and nothing is emitted. On a hit, the refine stage (a frozen-carrier Dll collection feeding CarrierAcquisition) is built and seeded from it, and the unconsumed tail of this call is handed straight to it -- no samples dropped. Once CarrierAcquisition reports ready (or its own give-up cap is reached), the live tracking chain (Dll + per-partial Costas + RateConverter + MpskReceiver) is built fresh, seeded from the ORIGINAL handoff chip phase and the refined-or-unrefined Doppler estimate, and demodulated symbols are returned from then on. Accepts any block size; state carries across calls.
@@ -1187,8 +1187,8 @@ class AsyncDsssReceiver:
             Number of symbols written (0 while searching/refining, or while tracking with not yet a full symbol's worth of input).
         """
 
-    def steps_max_out(self) -> int:
-        """Max output length steps() can produce for the current state."""
+    def steps_max_out(self, x_len: int) -> int:
+        """Max output length steps() can produce for x_len."""
 
     def configure_search_raw(self, doppler_bins: int, n_noncoh: int) -> None:
         """Pin the embedded Acquisition's search grid directly, bypassing the symbol_rate-driven auto-sizing. Only meaningful while searching.

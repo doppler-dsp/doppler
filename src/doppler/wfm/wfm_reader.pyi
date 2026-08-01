@@ -1,5 +1,6 @@
 # wfm/wfm_reader.pyi — type stubs for the wfm_reader C extension.
 from typing import Any, final, Literal
+import os
 import numpy as np
 from numpy.typing import NDArray
 
@@ -9,7 +10,7 @@ class Reader:
 
     Parameters
     ----------
-    path : str
+    path : str | os.PathLike
         file to read -- a `str` or any `os.PathLike` from Python. For a DETACHED BLUE capture this is normally the HEADER file -- `<base>.tmp` or `<base>.prm` per BLUE 3.1.1.4 (this library's own writer emits `<base>.hdr`) -- whose HCB `detached` field points at the collocated `<base>.det` payload; the extension does not decide, `detached` does. Passing the `<base>.det` directly also works (its header sibling is resolved). A SigMF `.sigmf-data` file resolves its `.sigmf-meta` sidecar the same way.
     sample_type : Literal["cf32", "cf64", "ci32", "ci16", "ci8"], default "cf32"
         the wire sample type, used only as a HINT for the headerless file types (raw, CSV) -- BLUE and SigMF carry their own and ignore it. `"cf32"`, `"cf64"`, `"ci32"`, `"ci16"` or `"ci8"` from Python; the matching 0..4 from C. A wrong hint does not fail; see ::wfm_reader_get_trailing_bytes.
@@ -17,7 +18,7 @@ class Reader:
         byte order, likewise a hint that only headerless raw uses; `"le"` or `"be"` from Python, 0 or 1 from C.
 
     """
-    def __init__(self, path: str, sample_type: Literal["cf32", "cf64", "ci32", "ci16", "ci8"] = "cf32", endian: Literal["le", "be"] = "le") -> None: ...
+    def __init__(self, path: str | os.PathLike, sample_type: Literal["cf32", "cf64", "ci32", "ci16", "ci8"] = "cf32", endian: Literal["le", "be"] = "le") -> None: ...
 
     def reset(self) -> None:
         """Rewind to the first sample of the capture.
@@ -69,8 +70,8 @@ class Reader:
 
         """
 
-    def read_max_out(self) -> int:
-        """Max output length read() can produce for the current state."""
+    def read_max_out(self, n: int) -> int:
+        """Max output length read() can produce for n."""
 
     @property
     def file_type(self) -> Literal["raw", "csv", "blue", "sigmf"]:

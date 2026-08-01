@@ -1,0 +1,236 @@
+# Authoring docstrings — write the C header, get the Python docs
+
+doppler's Python documentation is **derived**, not written. You write Doxygen
+comments in a `native/inc/<obj>/<obj>_core.h` header; `jm` turns them into the
+numpy docstrings that land in the `.pyi` type stubs (what IDEs, type-checkers,
+and the mkdocstrings site read) and, increasingly, into the runtime `__doc__`
+that `help()` shows. Write the header once, well, and both faces improve
+together.
+
+This page is the house style for that header. Its goal is uniformity: every
+header should derive the same shape of top-notch doc, so the API reads as one
+system. The mechanism itself is documented on the `jm` side
+(`just-makeit`'s `docs/developers/docstring-derivation.md`); this page is about
+*what to write*. Coverage is measured by `make check-docstring-coverage` (see
+[Docs Conventions](docs-conventions.md) for the gate landscape).
+
+______________________________________________________________________
+
+## The two faces
+
+Both come from the **same** header — you never author them separately:
+
+| Face                    | What it is                                                    | Who reads it                                         |
+| ----------------------- | ------------------------------------------------------------- | ---------------------------------------------------- |
+| **stub** (`.pyi`)       | full numpy block — brief, body, Parameters, Returns, Examples | IDEs, `mypy`, the mkdocstrings API site (via griffe) |
+| **runtime** (`__doc__`) | what `help(obj)` prints                                       | anyone at a REPL                                     |
+
+The stub face is rich today. The runtime face is reaching parity through `jm`
+(Parameters/Returns/Notes into the C literals). You do not author for one or the
+other: you author the header, and each face renders as much of it as its
+pipeline currently supports. **Header text is release-stable** — nothing you
+write here needs revisiting when a `jm` capability lands.
+
+______________________________________________________________________
+
+## Anatomy of a documented declaration
+
+The template every public declaration should match:
+
+```text
+/**
+ * @brief One-sentence summary, as a real sentence.
+ * Extended description: how it works, what the intent is, any non-obvious
+ * mechanics. Continuation lines flow into one paragraph; a blank ` *` line
+ * starts a new paragraph.
+ *
+ * @param foo  What foo means — units, valid range, constraints. Not its type.
+ * @param bar  What bar means.
+ * @return     What comes back, and its units/shape.
+ * @code
+ * >>> from doppler.mymod import MyObj
+ * >>> obj = MyObj(foo=0.5, bar=4)
+ * >>> round(obj.method(1.0), 3)
+ * 0.5
+ * @endcode
+ */
+```
+
+Each tag maps to a numpy section: `@brief`+body → the summary and extended
+description, `@param` → **Parameters**, `@return` → **Returns**, `@code` →
+**Examples**.
+
+______________________________________________________________________
+
+## The rules, tag by tag
+
+- **`@brief`** — a real one-sentence summary. A bare scaffold verb
+    (`@brief Steps the object.`) is treated as *empty* and jm falls back to a
+    name stub. Write a sentence that says what the thing does.
+- **Body** (untagged prose after `@brief`) — the extended description. Verbose
+    is good: explain how it works and why, per the
+    [code principles](repository-map.md). Continuation lines join into one
+    paragraph; a blank ` *` line is a paragraph break. Do **not** put a blank
+    line between every line — that double-spaces the render.
+- **`@param <name>`** — one per parameter, and the name must match the
+    (jm-injected) signature. Describe **meaning, units, range, constraints** —
+    not the type (jm supplies the type). `@param loop_bw  Loop noise bandwidth in cycles/sample; keep below 1/(4*decim).`
+- **`@return`** — whenever the function returns a value. (Exception: a
+    constructor — `<obj>_create()` — does not get a Returns section; jm renders
+    the class from it but omits Returns by design.)
+- **`@code … @endcode`** — a **runnable, verified** doctest. See
+    [Doctests](#doctests-that-run) below. This is the single highest-value tag:
+    it becomes the Examples section *and* is executed in CI.
+- **`@note` / `@warning` / `@see` / `@retval` / `@pre`** — **write these now.**
+    They are dropped from the rendered docstring today and will begin rendering
+    into numpy **Notes** / **Warnings** / **See Also** / **Raises** when the
+    section-mapping work lands upstream — with **no header rework** in between.
+    Treat them exactly as you would for Doxygen.
+- **Inline `@c` / `@p` / `@a` / `@ref`** — code/parameter cross-references, safe
+    to use: jm strips the marker and keeps the word (`@c clip_db` → `clip_db`,
+    `@p n` → `n`). Use `@c` for a literal or expression, `@p` for a parameter
+    name.
+
+______________________________________________________________________
+
+## Doctests that run { #doctests-that-run }
+
+Every `@code` block is executed in CI by `make test-stubs`
+(`pytest --doctest-glob='*.pyi'`) against the freshly built extension. A doc
+whose printed value no longer matches the API **fails the build** — which is
+the point: passing examples everywhere.
+
+- **Deterministic, printable output.** Round floats (`round(x, 3)`), seed any
+    RNG, never print a wall-clock or an address.
+- **Score it, don't eyeball it.** The printed value must be the *physically
+    correct* answer — compute it, don't write down what looks plausible. A
+    magnitude that "looks about right" but is wrong sails through review and
+    fails a user. (This is the same discipline the DSP work follows: lock the
+    number against ground truth.)
+- **Keep it small.** The example demonstrates the API, not a Monte-Carlo sweep.
+    One construct + one call + one checked result is ideal.
+
+Good:
+
+```text
+ * @code
+ * >>> from doppler.agc import AGC
+ * >>> agc = AGC(ref_db=0.0, loop_bw=0.0025, alpha=0.05)
+ * >>> agc.step(1.0+0.0j)            # unity gain at start
+ * (1+0j)
+ * >>> round(agc.gain_db, 6)         # loop has begun to drive
+ * 0.0
+ * @endcode
+```
+
+______________________________________________________________________
+
+## Per-surface guidance
+
+| Python surface                              | Where the doc comes from           | Notes                                                           |
+| ------------------------------------------- | ---------------------------------- | --------------------------------------------------------------- |
+| **Class**                                   | `<obj>_create()` block             | `@brief` + body + `@param` (ctor args) + `@code`. No `@return`. |
+| **Method**                                  | `<obj>_<method>()` block           | The full template.                                              |
+| **Built-ins** `reset`/`step`/`steps`        | `@brief` on that C declaration     | A real sentence, not the scaffold.                              |
+| **Property** (field)                        | the struct field's trailing `/**<` | See [struct fields](#struct-fields) below.                      |
+| **Module free function**                    | the module-header function block   | Same as a method.                                               |
+| **Module docstring**, **structseq records** | *no header source yet*             | Need new upstream surfaces; not authorable in the header today. |
+
+______________________________________________________________________
+
+## Lists and tables in prose
+
+When the prose enumerates **modes or flags** — most often for an enum-valued
+parameter — reach for a markdown bullet list in the body. It is preserved in
+the render:
+
+```text
+ * @param mode  Interpolation kernel:
+ *   - floor:   nearest sample at or below the point
+ *   - nearest: nearest sample either side
+ *   - linear:  linear blend of the two bracketing samples
+```
+
+A comparison across options is a markdown pipe table. Prefer prose for a single
+idea; reach for a list/table only when you are genuinely enumerating.
+
+______________________________________________________________________
+
+## Struct fields → properties { #struct-fields }
+
+A struct field that becomes a Python property is most naturally documented right
+where it is declared, with a trailing member comment:
+
+```text
+typedef struct myobj_state
+{
+    double gain_db;   /**< Current loop gain, in dB (unity = 0). */
+    size_t decim;     /**< Envelope decimation factor. */
+} myobj_state_t;
+```
+
+That `/**<` text is the doc a property should carry. Keep it accurate — a stale
+member comment becomes a stale property doc. doppler already documents ~500
+fields this way; keep new fields consistent.
+
+______________________________________________________________________
+
+## The workflow
+
+1. Edit `native/inc/<obj>/<obj>_core.h`.
+1. Run `jm apply` (scoped — `jm apply objects/<obj>.toml` — when a sacred
+    `_ext_<obj>.c` fragment exists), which regenerates the `.pyi` from the
+    header.
+1. `make test-stubs` — runs every `@code` doctest against the build.
+1. `make check-docstring-coverage` — confirm the module's incomplete count
+    dropped and no tag leaked.
+1. Check Doxygen at **CI's version** (older than a typical local one) — the
+    zero-warnings gate is version-sensitive.
+1. Commit the header **and** the regenerated `.pyi` together — the
+    manifest-drift gate fails on a header edit without its stub.
+
+**Never hand-edit a generated `.pyi` or `_ext.c`.** They are owned by `jm apply`
+and guarded by the drift gate; a manual edit is reverted on the next apply and
+flagged by CI. The header is the source of truth.
+
+______________________________________________________________________
+
+## What "documented" means (the meter)
+
+`scripts/check_docstring_coverage.py` scores every public callable on **both
+faces**:
+
+- **FULL** — summary + a `Parameters` entry for every parameter + `Returns`
+    (when it returns) + at least one `>>>` example. A property needs only a
+    non-empty docstring.
+- **PARTIAL** — a summary and some sections, but missing a required one.
+- **STUB** — no docstring, or a bare summary.
+
+The gate **ratchets**: a module's incomplete count may drop but never rise, and
+a raw Doxygen tag surviving into rendered text is zero-tolerance. So each
+authoring PR lowers a number, and nothing backslides.
+
+______________________________________________________________________
+
+## Don'ts
+
+- Don't leave a scaffold `@brief` (`"Reset the state."`) — it renders as an
+    empty stub.
+- Don't restate the type in `@param` — describe meaning, units, and range.
+- Don't write an example you have not run and verified.
+- Don't use `///`, `//!`, or `/*!` comment forms — jm sees only `/** … */`, so
+    those derive **nothing**, silently. doppler is 100% `/** */`; keep it that
+    way.
+- Don't hand-edit the generated `.pyi` or `_ext.c`.
+
+______________________________________________________________________
+
+## See also
+
+- [Docs Conventions](docs-conventions.md) — what's generated vs. hand-owned,
+    and every docs gate.
+- [Doc Examples](doc-examples.md) — how the fence and `.pyi` doctest gates work.
+- [Adding a Module](adding-a-module.md) — the full `jm` workflow a new object
+    goes through.
+- `just-makeit`'s `docs/developers/docstring-derivation.md` — the derivation
+    pipeline itself (the source of truth for the mechanism).

@@ -292,6 +292,7 @@ nav:
       - "DSSS acquisition use cases": dev/dsss-use-cases.md
       - Benchmarking: dev/benchmarking.md
       - Doc Examples (tested): dev/doc-examples.md
+      - Docstring Authoring: dev/docstring-authoring.md
       - Docs Conventions: dev/docs-conventions.md
       - Maintainer internals:
           - Release: dev/release.md

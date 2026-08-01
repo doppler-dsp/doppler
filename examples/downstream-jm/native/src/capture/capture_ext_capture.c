@@ -70,14 +70,17 @@ CaptureObj_reset (CaptureObject *self, PyObject *Py_UNUSED (ignored))
 }
 
 static PyObject *
-CaptureObj_read_max_out (CaptureObject *self, PyObject *Py_UNUSED (ignored))
+CaptureObj_read_max_out (CaptureObject *self, PyObject *args)
 {
   if (!self->handle)
     {
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromSize_t (capture_read_max_out (self->handle));
+  Py_ssize_t n = 0;
+  if (!PyArg_ParseTuple (args, "n", &n))
+    return NULL;
+  return PyLong_FromSize_t (capture_read_max_out (self->handle, (size_t)n));
 }
 
 static PyObject *
@@ -115,8 +118,8 @@ CaptureObj_read (CaptureObject *self, PyObject *args, PyObject *kwds)
           return NULL;
         }
       size_t _cap     = (size_t)PyArray_SIZE (out_arr);
-      size_t _omax    = capture_read_max_out (self->handle);
-      size_t _min_cap = _omax > (size_t)n ? _omax : ((size_t)n);
+      size_t _omax    = capture_read_max_out (self->handle, (size_t)n);
+      size_t _min_cap = _omax;
       if (_cap < _min_cap)
         {
           PyErr_Format (PyExc_ValueError, "out has %zu elements, need >= %zu",
@@ -139,9 +142,8 @@ CaptureObj_read (CaptureObject *self, PyObject *args, PyObject *kwds)
       return _oview;
     }
   size_t _need = (size_t)n;
-  size_t _cap  = capture_read_max_out (self->handle);
-  if (!_cap || _cap < _need)
-    _cap = _need;
+  size_t _cap  = capture_read_max_out (self->handle, (size_t)n);
+  (void)_need;
   npy_intp  _adim = (npy_intp)_cap;
   PyObject *arr0  = PyArray_SimpleNew (1, &_adim, NPY_COMPLEX64);
   if (!arr0)
@@ -301,20 +303,20 @@ static PyMethodDef CaptureObj_methods[]
 
         { "read", (PyCFunction)(void *)CaptureObj_read,
           METH_VARARGS | METH_KEYWORDS,
-          "read(n=1) -> ndarray\n"
+          "read(count=1) -> ndarray\n"
           "\n"
           "Read up to `count` samples as unit-scale complex64; an empty array "
           "at end of file.\n"
           "\n"
           "    >>> import numpy as np\n"
           "    >>> from iqtools import Capture\n"
-          "    >>> obj = Capture(...)\n"
+          "    >>> obj = Capture(path=...)\n"
           "    >>> y = obj.read(4)\n"
           "    >>> y.dtype\n"
           "    dtype('complex64')\n" },
-        { "read_max_out", (PyCFunction)CaptureObj_read_max_out, METH_NOARGS,
-          "read_max_out() -> int\n\nMax output length read() can produce for "
-          "the current state.\nUse to size the ``out=`` buffer." },
+        { "read_max_out", (PyCFunction)CaptureObj_read_max_out, METH_VARARGS,
+          "read_max_out(n) -> int\n\nMax output length read() can produce for "
+          "n.\nUse to size the ``out=`` buffer." },
         { "destroy", (PyCFunction)CaptureObj_destroy, METH_NOARGS,
           "Release resources." },
         { "__enter__", (PyCFunction)CaptureObj_enter, METH_NOARGS, NULL },

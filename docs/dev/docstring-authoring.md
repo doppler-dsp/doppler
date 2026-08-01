@@ -64,9 +64,13 @@ ______________________________________________________________________
 
 ## The rules, tag by tag
 
-- **`@brief`** — a real one-sentence summary. A bare scaffold verb
-    (`@brief Steps the object.`) is treated as *empty* and jm falls back to a
-    name stub. Write a sentence that says what the thing does.
+- **`@brief`** — a real one-sentence summary. jm suppresses **only** a brief
+    that restates the function name (its scaffold form — `@brief fir_step.`,
+    matched ignoring `_`, case, and spacing), falling back to a name stub.
+    A vague-but-sentence-shaped brief like `Steps the object.` is treated as
+    real documentation and rendered **as-is** — so it is the coverage meter,
+    not jm, that catches a lazy brief. Write a sentence that says what the
+    thing *does*.
 - **Body** (untagged prose after `@brief`) — the extended description. Verbose
     is good: explain how it works and why, per the
     [code principles](repository-map.md). Continuation lines join into one
@@ -75,6 +79,9 @@ ______________________________________________________________________
 - **`@param <name>`** — one per parameter, and the name must match the
     (jm-injected) signature. Describe **meaning, units, range, constraints** —
     not the type (jm supplies the type). `@param loop_bw  Loop noise bandwidth in cycles/sample; keep below 1/(4*decim).`
+    A mismatched name is **not** an error: jm falls back to a positional zip of
+    the leftover descriptions, so a typo'd name silently renders attached to the
+    *wrong* parameter. Get the names right (jm#667 will lint this).
 - **`@return`** — whenever the function returns a value. (Exception: a
     constructor — `<obj>_create()` — does not get a Returns section; jm renders
     the class from it but omits Returns by design.)
@@ -89,7 +96,8 @@ ______________________________________________________________________
 - **Inline `@c` / `@p` / `@a` / `@ref`** — code/parameter cross-references, safe
     to use: jm strips the marker and keeps the word (`@c clip_db` → `clip_db`,
     `@p n` → `n`). Use `@c` for a literal or expression, `@p` for a parameter
-    name.
+    name. Non-word arguments (`@c -1`, `@c "A"`, `@c +/-10^(x)`) only strip
+    cleanly from **jm v0.35.0** — the version doppler pins as of this pass.
 
 ______________________________________________________________________
 
@@ -127,32 +135,38 @@ ______________________________________________________________________
 
 ## Per-surface guidance
 
-| Python surface                              | Where the doc comes from           | Notes                                                           |
-| ------------------------------------------- | ---------------------------------- | --------------------------------------------------------------- |
-| **Class**                                   | `<obj>_create()` block             | `@brief` + body + `@param` (ctor args) + `@code`. No `@return`. |
-| **Method**                                  | `<obj>_<method>()` block           | The full template.                                              |
-| **Built-ins** `reset`/`step`/`steps`        | `@brief` on that C declaration     | A real sentence, not the scaffold.                              |
-| **Property** (field)                        | the struct field's trailing `/**<` | See [struct fields](#struct-fields) below.                      |
-| **Module free function**                    | the module-header function block   | Same as a method.                                               |
-| **Module docstring**, **structseq records** | *no header source yet*             | Need new upstream surfaces; not authorable in the header today. |
+| Python surface                              | Where the doc comes from                                                       | Notes                                                                                                                                                                                                               |
+| ------------------------------------------- | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Class**                                   | `<obj>_create()` block                                                         | `@brief` + `@param` (ctor args) reach it today. Body and `@code` are **not yet** rendered on a class (jm#624) — a synthesised construction demo replaces `@code`; write both anyway (release-stable). No `@return`. |
+| **Method**                                  | `<obj>_<method>()` block                                                       | The full template.                                                                                                                                                                                                  |
+| **Built-ins** `reset`/`step`/`steps`        | `@brief` on that C declaration                                                 | A real sentence, not the scaffold.                                                                                                                                                                                  |
+| **Property** (field)                        | manifest `doc=` today; the struct field's trailing `/**<` **not yet** (jm#671) | See [struct fields](#struct-fields) below.                                                                                                                                                                          |
+| **Module free function**                    | the module-header function block                                               | Same as a method.                                                                                                                                                                                                   |
+| **Module docstring**, **structseq records** | *no header source yet*                                                         | Need new upstream surfaces; not authorable in the header today.                                                                                                                                                     |
 
 ______________________________________________________________________
 
 ## Lists and tables in prose
 
 When the prose enumerates **modes or flags** — most often for an enum-valued
-parameter — reach for a markdown bullet list in the body. It is preserved in
-the render:
+parameter — reach for a markdown bullet list in the **body** (not inside a
+`@param` description):
 
 ```text
- * @param mode  Interpolation kernel:
+ * @brief Interpolate a sample from the table.
+ * The kernel selects how a fractional index is resolved:
  *   - floor:   nearest sample at or below the point
  *   - nearest: nearest sample either side
  *   - linear:  linear blend of the two bracketing samples
 ```
 
-A comparison across options is a markdown pipe table. Prefer prose for a single
-idea; reach for a list/table only when you are genuinely enumerating.
+**This renders flattened onto one line today** — jm's paragraph grouper
+space-joins adjacent lines, and list preservation is jm#653 (scheduled, not yet
+shipped). Author it correctly now anyway: the header text needs no rework when
+#653 lands. Keep lists in the **body**, because `@param` continuation lines are
+joined even after #653 (that issue is about the body, not param descriptions).
+A comparison across options is a markdown pipe table — same "correct now,
+renders flat until #653" caveat.
 
 ______________________________________________________________________
 
@@ -169,9 +183,14 @@ typedef struct myobj_state
 } myobj_state_t;
 ```
 
-That `/**<` text is the doc a property should carry. Keep it accurate — a stale
-member comment becomes a stale property doc. doppler already documents ~500
-fields this way; keep new fields consistent.
+That `/**<` text is the doc a property *should* carry. **jm cannot see it
+yet** — extraction reads only `/** … */` blocks preceding a declaration, so a
+trailing member comment derives nothing today (jm#671, filed off doppler's own
+grep: ~518 struct-field comments; scheduled, not shipped). Until it lands, a
+property's rendered doc comes from the manifest `doc=` (or a documented
+getter). Author the `/**<` anyway — it is the right home, it is release-stable,
+and it is where jm#671 will read from. Keep it accurate: a stale member comment
+becomes a stale property doc the moment #671 ships.
 
 ______________________________________________________________________
 
@@ -214,8 +233,9 @@ ______________________________________________________________________
 
 ## Don'ts
 
-- Don't leave a scaffold `@brief` (`"Reset the state."`) — it renders as an
-    empty stub.
+- Don't ship a vague `@brief` (`"Reset the state."`). jm will *not* flag it —
+    it only suppresses a brief that restates the function name, so a vague
+    sentence renders verbatim; the coverage meter is what catches it.
 - Don't restate the type in `@param` — describe meaning, units, and range.
 - Don't write an example you have not run and verified.
 - Don't use `///`, `//!`, or `/*!` comment forms — jm sees only `/** … */`, so

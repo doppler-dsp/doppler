@@ -88,8 +88,9 @@ size_t
 delay_ptr_max_out (delay_state_t *state, size_t n)
 {
   /* gh-607: delay_ptr() returns min(n, num_taps) samples, so report that
-     tight per-call bound — an out= buffer sized to the request is accepted,
-     not rejected against the full ring length. */
+     tight per-call bound. (delay's binding is hand-owned and still validates
+     out= against num_taps, so it does not itself exploit the tighter bound;
+     the value is nonetheless correct for any caller that consults it.) */
   return n < state->num_taps ? n : state->num_taps;
 }
 

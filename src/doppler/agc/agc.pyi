@@ -54,7 +54,7 @@ class AGC:
         Returns
         -------
         complex
-            Gained, clipped output sample x * 10^(gain_db/20) with each component independently clamped to @c +/-10^(clip_db/20).
+            Gained, clipped output sample x * 10^(gain_db/20) with each component independently clamped to +/-10^(clip_db/20).
 
         Examples
         --------

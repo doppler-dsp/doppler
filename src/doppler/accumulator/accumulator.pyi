@@ -17,7 +17,7 @@ class AccF32:
     Create with defaults:
 
     >>> from doppler.accumulator import AccF32
-    >>> obj = AccF32(0.0)
+    >>> obj = AccF32(acc=0.0)
     >>> obj.get_acc()
     0.0
 
@@ -221,7 +221,7 @@ class AccCf64:
     Create with defaults:
 
     >>> from doppler.accumulator import AccCf64
-    >>> obj = AccCf64(0j)
+    >>> obj = AccCf64(acc=0j)
     >>> obj.get_acc()
     0j
 
@@ -489,8 +489,8 @@ class AccTrace:
 
         """
 
-    def value_max_out(self) -> int:
-        """Max output length value() can produce for the current state."""
+    def value_max_out(self, n: int) -> int:
+        """Max output length value() can produce for n."""
 
     def state_bytes(self) -> int:
         """Serialized state size in bytes."""

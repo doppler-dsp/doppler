@@ -62,8 +62,8 @@ class NCO:
 
         """
 
-    def steps_u32_max_out(self) -> int:
-        """Max output length steps_u32() can produce for the current state."""
+    def steps_u32_max_out(self, n: int) -> int:
+        """Max output length steps_u32() can produce for n."""
 
     def steps_u32_scaled(self, count: int = 1, out: NDArray[np.uint32] | None = None) -> NDArray[np.uint32]:
         """Advance n samples; values scaled to `[0, nmax)`. Uses the branchless fixed-point identity `out[i]` = (uint64_t)phase * nmax >> 32 to map the full accumulator range uniformly onto [0, nmax) without a modulo operation.  When nmax == 0 falls back to the raw accumulator (identical to nco_steps_u32).  Useful for polyphase filter bank indexing and direct LUT addressing.  Returns n.
@@ -85,8 +85,8 @@ class NCO:
 
         """
 
-    def steps_u32_scaled_max_out(self) -> int:
-        """Max output length steps_u32_scaled() can produce for the current state."""
+    def steps_u32_scaled_max_out(self, n: int) -> int:
+        """Max output length steps_u32_scaled() can produce for n."""
 
     def steps_u32_ovf(self, count: int = 1) -> tuple[NDArray[np.uint32], NDArray[np.uint8]]:
         """Advance n samples; write raw phase values and per-sample carry. Identical to nco_steps_u32 for the phase array, but simultaneously fills a parallel uint8 carry buffer: `out1[i]` is 1 if the add that produced `out[i]`'s post-increment phase wrapped past 2^32, else 0. The carry marks the exact boundary of one input period and is the primitive for polyphase sample-clock and rational resampling engines. Returns n.
@@ -157,8 +157,8 @@ class NCO:
 
         """
 
-    def steps_u32_ctrl_max_out(self) -> int:
-        """Max output length steps_u32_ctrl() can produce for the current state."""
+    def steps_u32_ctrl_max_out(self, ctrl_len: int) -> int:
+        """Max output length steps_u32_ctrl() can produce for ctrl_len."""
 
     def steps_u32_scaled_ctrl(self, ctrl: NDArray[np.float32], out: NDArray[np.uint32] | None = None) -> NDArray[np.uint32]:
         """Advance ctrl_len samples; values scaled to `[0, nmax)`, with a per-sample control offset added on top of phase_inc.
@@ -193,8 +193,8 @@ class NCO:
 
         """
 
-    def steps_u32_scaled_ctrl_max_out(self) -> int:
-        """Max output length steps_u32_scaled_ctrl() can produce for the current state."""
+    def steps_u32_scaled_ctrl_max_out(self, ctrl_len: int) -> int:
+        """Max output length steps_u32_scaled_ctrl() can produce for ctrl_len."""
 
     def steps_u32_ovf_ctrl(self, ctrl: NDArray[np.float32]) -> tuple[NDArray[np.uint32], NDArray[np.uint8]]:
         """Advance ctrl_len samples; raw phase + per-sample carry, with a per-sample control offset added on top of phase_inc.
@@ -323,8 +323,8 @@ class LO:
 
         """
 
-    def steps_max_out(self) -> int:
-        """Max output length steps() can produce for the current state."""
+    def steps_max_out(self, n: int) -> int:
+        """Max output length steps() can produce for n."""
 
     def steps_ctrl(self, ctrl: NDArray[np.float32], out: NDArray[np.complex64] | None = None) -> NDArray[np.complex64]:
         """Generate CF32 phasors with per-sample FM deviation. For each sample i, `ctrl[i]`'s fractional part is converted to a delta phase-increment (delta = floor(frac(`ctrl[i]`) × 2^32)) that is added on top of the base phase_inc for that one step only.  The base norm_freq and phase_inc are NOT modified; the deviation is transient per sample, making this the natural API for FM synthesis and frequency-hopping.  Output length equals ctrl_len.  Returns ctrl_len.
@@ -355,8 +355,8 @@ class LO:
 
         """
 
-    def steps_ctrl_max_out(self) -> int:
-        """Max output length steps_ctrl() can produce for the current state."""
+    def steps_ctrl_max_out(self, ctrl_len: int) -> int:
+        """Max output length steps_ctrl() can produce for ctrl_len."""
 
     def state_bytes(self) -> int:
         """Serialized state size in bytes."""
@@ -450,8 +450,8 @@ class AWGN:
 
         """
 
-    def generate_max_out(self) -> int:
-        """Max output length generate() can produce for the current state."""
+    def generate_max_out(self, n: int) -> int:
+        """Max output length generate() can produce for n."""
 
     def reseed(self, seed: int) -> None:
         """Reseed the RNG and reset all xoshiro256++ state. Equivalent to calling awgn_destroy() and awgn_create(seed, amplitude) but reuses the existing allocation.  amplitude is unchanged.

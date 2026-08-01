@@ -194,7 +194,17 @@ _PARAMS = ("name", "make", "invoke", "dt", "max_out_attr", "floor")
 
 def _out_len(obj: Any, max_out_attr: str, floor: int) -> int:
     """Length the binding demands: its published cap, or the block length."""
-    cap = getattr(obj, max_out_attr)() if max_out_attr else 0
+    if not max_out_attr:
+        cap = 0
+    else:
+        fn = getattr(obj, max_out_attr)
+        # gh-607: a per-call max_out() takes the call's count; older ones
+        # take none. Ask for a block of `floor`, falling back to the no-arg
+        # form for objects whose max_out did not gain a count.
+        try:
+            cap = fn(floor)
+        except TypeError:
+            cap = fn()
     return max(int(cap), floor)
 
 

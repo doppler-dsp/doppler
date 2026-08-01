@@ -56,14 +56,17 @@ DDCObj_init (DDCObject *self, PyObject *args, PyObject *kwds)
 }
 
 static PyObject *
-DDCObj_execute_max_out (DDCObject *self, PyObject *Py_UNUSED (ignored))
+DDCObj_execute_max_out (DDCObject *self, PyObject *args)
 {
   if (!self->handle)
     {
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromSize_t (ddc_execute_max_out (self->handle));
+  Py_ssize_t x_len = 0;
+  if (!PyArg_ParseTuple (args, "n", &x_len))
+    return NULL;
+  return PyLong_FromSize_t (ddc_execute_max_out (self->handle, (size_t)x_len));
 }
 
 static PyObject *
@@ -108,11 +111,10 @@ DDCObj_execute (DDCObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (x_arr);
           return NULL;
         }
-      size_t _cap     = (size_t)PyArray_SIZE (out_arr);
-      size_t _omax    = ddc_execute_max_out (self->handle);
-      size_t _min_cap = _omax > (size_t)PyArray_SIZE (x_arr)
-                            ? _omax
-                            : ((size_t)PyArray_SIZE (x_arr));
+      size_t _cap = (size_t)PyArray_SIZE (out_arr);
+      size_t _omax
+          = ddc_execute_max_out (self->handle, (size_t)PyArray_SIZE (x_arr));
+      size_t _min_cap = _omax;
       if (_cap < _min_cap)
         {
           PyErr_Format (PyExc_ValueError, "out has %zu elements, need >= %zu",
@@ -145,9 +147,9 @@ DDCObj_execute (DDCObject *self, PyObject *args, PyObject *kwds)
       return _oview;
     }
   size_t _need = (size_t)PyArray_SIZE (x_arr);
-  size_t _cap  = ddc_execute_max_out (self->handle);
-  if (!_cap || _cap < _need)
-    _cap = _need;
+  size_t _cap
+      = ddc_execute_max_out (self->handle, (size_t)PyArray_SIZE (x_arr));
+  (void)_need;
   npy_intp  _adim = (npy_intp)_cap;
   PyObject *arr0  = PyArray_SimpleNew (1, &_adim, NPY_COMPLEX64);
   if (!arr0)
@@ -204,9 +206,9 @@ DDCObj_execute_ctrl (DDCObject *self, PyObject *args, PyObject *kwds)
   if (!x_arr)
     return NULL;
   size_t _need = (size_t)PyArray_SIZE (x_arr);
-  size_t _cap  = ddc_execute_ctrl_max_out (self->handle);
-  if (!_cap || _cap < _need)
-    _cap = _need;
+  size_t _cap
+      = ddc_execute_ctrl_max_out (self->handle, (size_t)PyArray_SIZE (x_arr));
+  (void)_need;
   npy_intp  _adim = (npy_intp)_cap;
   PyObject *arr0  = PyArray_SimpleNew (1, &_adim, NPY_COMPLEX64);
   if (!arr0)
@@ -261,8 +263,7 @@ DDCObj_execute_ctrl_push (DDCObject *self, PyObject *args, PyObject *kwds)
   float complex x     = (float)x_raw.real + (float)x_raw.imag * I;
   size_t        _need = ddc_execute_ctrl_push_max_out (self->handle);
   size_t        _cap  = ddc_execute_ctrl_push_max_out (self->handle);
-  if (!_cap || _cap < _need)
-    _cap = _need;
+  (void)_need;
   npy_intp  _adim = (npy_intp)_cap;
   PyObject *arr0  = PyArray_SimpleNew (1, &_adim, NPY_COMPLEX64);
   if (!arr0)
@@ -468,13 +469,13 @@ static PyMethodDef DDCObj_methods[] = {
     "\n"
     "    >>> import numpy as np\n"
     "    >>> from doppler import DDC\n"
-    "    >>> obj = DDC(0.0, 0.25)\n"
+    "    >>> obj = DDC(norm_freq=0.0, rate=0.25)\n"
     "    >>> y = obj.execute(np.zeros(4))\n"
     "    >>> y.dtype\n"
     "    dtype('complex64')\n" },
-  { "execute_max_out", (PyCFunction)DDCObj_execute_max_out, METH_NOARGS,
-    "execute_max_out() -> int\n\nMax output length execute() can produce for "
-    "the current state.\nUse to size the ``out=`` buffer." },
+  { "execute_max_out", (PyCFunction)DDCObj_execute_max_out, METH_VARARGS,
+    "execute_max_out(x_len) -> int\n\nMax output length execute() can produce "
+    "for x_len.\nUse to size the ``out=`` buffer." },
   { "execute_ctrl", (PyCFunction)(void *)DDCObj_execute_ctrl,
     METH_VARARGS | METH_KEYWORDS,
     "execute_ctrl(x) -> ndarray\n"
@@ -483,7 +484,7 @@ static PyMethodDef DDCObj_methods[] = {
     "\n"
     "    >>> import numpy as np\n"
     "    >>> from doppler import DDC\n"
-    "    >>> obj = DDC(0.0, 0.25)\n"
+    "    >>> obj = DDC(norm_freq=0.0, rate=0.25)\n"
     "    >>> y = obj.execute_ctrl(np.zeros(4))\n"
     "    >>> y.dtype\n"
     "    dtype('complex64')\n" },
@@ -495,7 +496,7 @@ static PyMethodDef DDCObj_methods[] = {
     "\n"
     "    >>> import numpy as np\n"
     "    >>> from doppler import DDC\n"
-    "    >>> obj = DDC(0.0, 0.25)\n"
+    "    >>> obj = DDC(norm_freq=0.0, rate=0.25)\n"
     "    >>> y = obj.execute_ctrl_push(np.zeros(4))\n"
     "    >>> y.dtype\n"
     "    dtype('complex64')\n" },
@@ -505,7 +506,7 @@ static PyMethodDef DDCObj_methods[] = {
     "Zero LO phase and filter history.\n"
     "\n"
     "    >>> from doppler import DDC\n"
-    "    >>> obj = DDC(0.0, 0.25)\n"
+    "    >>> obj = DDC(norm_freq=0.0, rate=0.25)\n"
     "    >>> obj.reset()\n" },
   { "state_bytes", (PyCFunction)DDCObj_state_bytes, METH_NOARGS,
     "Serialized state size in bytes." },

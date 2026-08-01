@@ -406,12 +406,17 @@ size_t ddc_execute(ddc_state_t *state, const float complex *x, size_t x_len, flo
 bool ddc_get_clipped(const ddc_state_t *state);
 
   /**
-   * @brief Return the maximum output samples for one execute call.
+   * @brief Maximum output samples one execute() of x_len inputs can produce.
    *
-   * Returns 0, signalling the Python extension to fall back to
-   * allocating n_in samples — always sufficient for a decimating DDC.
+   * A DDC decimates (or passes at unity), so the output never exceeds the
+   * input length: returns x_len. The binding sizes the output buffer to this
+   * per-call bound and resizes down to the actual count (gh-607).
+   *
+   * @param state  Must be non-NULL.
+   * @param x_len  Number of input samples the matching execute() call sees.
+   * @return       x_len (a safe upper bound on the produced samples).
    */
-size_t ddc_execute_max_out(ddc_state_t *state);
+size_t ddc_execute_max_out(ddc_state_t *state, size_t x_len);
 
   /* ── Serializable state — complex DDC (LO + RateConverter) ─────────────────
    * Standard bytes interface (see dp_state.h):
@@ -439,7 +444,7 @@ size_t ddc_execute_max_out(ddc_state_t *state);
                   const float complex *in, size_t n_in, float complex *out,
                   size_t max_out);
 
-size_t ddc_execute_ctrl_max_out(ddc_state_t *state);
+size_t ddc_execute_ctrl_max_out(ddc_state_t *state, size_t x_len);
 size_t ddc_execute_ctrl_push_max_out(ddc_state_t *state);
 #ifdef __cplusplus
 }

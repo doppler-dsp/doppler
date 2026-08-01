@@ -15,7 +15,7 @@ class InterpolatedTable:
         0 = floor, 1 = nearest, 2 = linear.
 
     """
-    def __init__(self, table: NDArray[np.complex128] = ..., method: Literal["floor", "nearest", "linear"] = "linear") -> None: ...
+    def __init__(self, table: NDArray[np.complex128], method: Literal["floor", "nearest", "linear"] = "linear") -> None: ...
 
     def reset(self) -> None:
         """No-op: InterpolatedTable is purely a function of (table, method, point) with no running state to reset.
@@ -52,8 +52,8 @@ class InterpolatedTable:
 
         """
 
-    def execute_max_out(self) -> int:
-        """Max output length execute() can produce for the current state."""
+    def execute_max_out(self, n_in: int) -> int:
+        """Max output length execute() can produce for n_in."""
 
     @property
     def n(self) -> int:

@@ -150,7 +150,10 @@ main (void)
   /* ── ptr_max_out / push_ptr_max_out ─────────────────────────────── */
   {
     delay_state_t *obj = delay_create (7);
-    CHECK (delay_ptr_max_out (obj) == 7);
+    /* gh-607: delay_ptr_max_out(n) is the tight per-call bound min(n,taps). */
+    CHECK (delay_ptr_max_out (obj, 7) == 7);   /* n == num_taps      */
+    CHECK (delay_ptr_max_out (obj, 100) == 7); /* clamped to num_taps */
+    CHECK (delay_ptr_max_out (obj, 3) == 3);   /* tight: n < num_taps */
     CHECK (delay_push_ptr_max_out (obj) == 7);
     delay_destroy (obj);
   }

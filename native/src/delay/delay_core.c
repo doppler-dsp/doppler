@@ -85,9 +85,12 @@ delay_push (delay_state_t *state, double complex x)
 }
 
 size_t
-delay_ptr_max_out (delay_state_t *state)
+delay_ptr_max_out (delay_state_t *state, size_t n)
 {
-  return state->num_taps;
+  /* gh-607: delay_ptr() returns min(n, num_taps) samples, so report that
+     tight per-call bound — an out= buffer sized to the request is accepted,
+     not rejected against the full ring length. */
+  return n < state->num_taps ? n : state->num_taps;
 }
 
 size_t

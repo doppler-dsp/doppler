@@ -11,7 +11,7 @@ class Writer:
 
     Parameters
     ----------
-    path : str
+    path : str | os.PathLike
         where to write -- a `str` or any `os.PathLike` from Python. For `file_type="sigmf"` this MUST end in `.sigmf-data`: a SigMF capture is a `<base>.sigmf-data` + `<base>.sigmf-meta` pair found by name, and close() writes the sidecar beside it.
     file_type : Literal["raw", "csv", "blue", "sigmf"], default "raw"
         `"raw"` (headerless interleaved I/Q), `"csv"` (one `I,Q` line per sample), `"blue"` (self-describing X-Midas/REDHAWK type-1000) or `"sigmf"`. Only BLUE and SigMF record `fs`/`fc`; raw and CSV have nowhere to put them.
@@ -29,7 +29,7 @@ class Writer:
         dB of output backoff (gain = 10^(-H/20)) applied before quantisation. A single scale, so it does not change any power ratio -- only the absolute level. 0 is a bit-exact no-op.
 
     """
-    def __init__(self, path: str, file_type: Literal["raw", "csv", "blue", "sigmf"] = "raw", sample_type: Literal["cf32", "cf64", "ci32", "ci16", "ci8"] = "cf32", endian: Literal["le", "be"] = "le", fs: float = ..., fc: float = ..., total: int = ..., headroom: float = ...) -> None: ...
+    def __init__(self, path: str | os.PathLike, file_type: Literal["raw", "csv", "blue", "sigmf"] = "raw", sample_type: Literal["cf32", "cf64", "ci32", "ci16", "ci8"] = "cf32", endian: Literal["le", "be"] = "le", fs: float = ..., fc: float = ..., total: int = ..., headroom: float = ...) -> None: ...
 
     def write(self, x: NDArray[np.complex64]) -> int:
         """Convert and write a block of samples.

@@ -17,7 +17,7 @@ class AccQ15:
     Create with defaults:
 
     >>> from doppler.arith import AccQ15
-    >>> obj = AccQ15(0)
+    >>> obj = AccQ15(acc=0)
     >>> obj.get_acc()
     0
 
@@ -179,7 +179,7 @@ class AccQ8:
     Create with defaults:
 
     >>> from doppler.arith import AccQ8
-    >>> obj = AccQ8(0)
+    >>> obj = AccQ8(acc=0)
     >>> obj.get_acc()
     0
 

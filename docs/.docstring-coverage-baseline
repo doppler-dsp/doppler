@@ -4,7 +4,7 @@
 # 'incomplete' = PARTIAL + STUB (not yet FULL). May only DROP.
 # __leaks__ = raw Doxygen tags surviving in rendered docs; target 0, may only DROP.
 
-__leaks__ count=2
+__leaks__ count=0
 
 doppler.accumulator stub=25 runtime=45
 doppler.acquire stub=10 runtime=9
@@ -23,7 +23,7 @@ doppler.impairment stub=10 runtime=10
 doppler.interp stub=8 runtime=8
 doppler.measure stub=23 runtime=31
 doppler.mpsk stub=1 runtime=6
-doppler.resample stub=66 runtime=64
+doppler.resample stub=66 runtime=73
 doppler.snr stub=3 runtime=5
 doppler.source stub=34 runtime=42
 doppler.spectral stub=84 runtime=110

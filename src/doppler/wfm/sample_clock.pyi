@@ -71,9 +71,6 @@ class SampleClock:
         reconciled observations as literal replay-safe state — always resync
         from an ARRIVING message, not a cached one.
 
-        @return Nonzero if this call adopted or re-anchored the epoch; 0 if it
-        was accepted as already consistent, or rejected as stale.
-
         Parameters
         ----------
         observed_timestamp_ns : int
@@ -86,7 +83,7 @@ class SampleClock:
         Returns
         -------
         int
-            Output.
+            Nonzero if this call adopted or re-anchored the epoch; 0 if it was accepted as already consistent, or rejected as stale.
         """
     def reset(self) -> None:
         """Re-capture both epochs and zero the counters — a fresh clock at n=0.

@@ -112,16 +112,14 @@ capture_reset (capture_state_t *state)
 }
 
 size_t
-capture_read_max_out (capture_state_t *state)
+capture_read_max_out (capture_state_t *state, size_t n)
 {
-  /* A capture is an unbounded stream with no fixed per-call cap, so this
-     object declares no bound: 0 tells its own binding to size from the
-     caller's request. (Not wfm_reader_read_max_out(r, 0): under gh-607 that
-     is the literal count 0 — zero samples — not a sentinel. Keeping the "no
-     bound" convention local to capture avoids overloading the reader's
-     per-call count.) */
-  (void)state;
-  return 0;
+  /* A read(n) delegates straight into wfm_reader_read, so capture's per-call
+     bound IS the reader's: report whatever the canonical primitive reports for
+     n rather than reimplementing the rule. Under gh-607 the binding sizes its
+     buffer to exactly this value (no clamp up to the request), so it must be
+     the true cap — n, not a 0 sentinel. */
+  return wfm_reader_read_max_out (state->r, n);
 }
 
 size_t

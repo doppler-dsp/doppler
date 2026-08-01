@@ -1,5 +1,6 @@
 # capture/capture.pyi — type stubs for the capture C extension.
 from typing import final, Literal
+import os
 import numpy as np
 from numpy.typing import NDArray
 
@@ -9,11 +10,11 @@ class Capture:
 
     Parameters
     ----------
-    path : str
+    path : str | os.PathLike
         path constructor parameter (required).
 
     """
-    def __init__(self, path: str) -> None: ...
+    def __init__(self, path: str | os.PathLike) -> None: ...
 
     def reset(self) -> None:
         """Reset state to post-create defaults."""
@@ -27,8 +28,8 @@ class Capture:
             Output.
         """
 
-    def read_max_out(self) -> int:
-        """Max output length read() can produce for the current state."""
+    def read_max_out(self, n: int) -> int:
+        """Max output length read() can produce for n."""
 
     @property
     def fs(self) -> float:
@@ -59,7 +60,7 @@ class RawCapture:
 
     Parameters
     ----------
-    path : str
+    path : str | os.PathLike
         path constructor parameter (required).
     sample_type : Literal["cf32", "cf64", "ci32", "ci16", "ci8"], default "ci16"
         sample_type constructor parameter.
@@ -71,7 +72,7 @@ class RawCapture:
         fc constructor parameter.
 
     """
-    def __init__(self, path: str, sample_type: Literal["cf32", "cf64", "ci32", "ci16", "ci8"] = "ci16", endian: Literal["le", "be"] = "le", fs: float = ..., fc: float = ...) -> None: ...
+    def __init__(self, path: str | os.PathLike, sample_type: Literal["cf32", "cf64", "ci32", "ci16", "ci8"] = "ci16", endian: Literal["le", "be"] = "le", fs: float = ..., fc: float = ...) -> None: ...
 
     def reset(self) -> None:
         """Reset state to post-create defaults."""
@@ -85,8 +86,8 @@ class RawCapture:
             Output.
         """
 
-    def read_max_out(self) -> int:
-        """Max output length read() can produce for the current state."""
+    def read_max_out(self, n: int) -> int:
+        """Max output length read() can produce for n."""
 
     @property
     def fs(self) -> float:

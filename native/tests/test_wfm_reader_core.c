@@ -531,9 +531,9 @@ test_reset_rewinds_to_the_first_sample (void)
 }
 
 /* pass_capacity: emission stops at max_out (jm gh-138).
-   wfm_reader_read_max_out() returns 0 ("no fixed bound"), so before this the
-   kernel's only limit was the caller's own count argument -- a caller with a
-   buffer smaller than the count it asked for had no way to say so. */
+   wfm_reader_read_max_out(n) reports n (the read count is the per-call bound,
+   gh-607), so the kernel's limit is the caller's count argument -- a caller
+   with a buffer smaller than the count it asked for is rejected. */
 static int
 test_read_capacity (void)
 {

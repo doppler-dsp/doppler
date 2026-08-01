@@ -18,7 +18,15 @@ ______________________________________________________________________
 
 ## The two faces
 
-Both come from the **same** header — you never author them separately:
+!!! warning "One source, two faces — never author them separately"
+
+    Both the `.pyi` stub and the runtime `__doc__` are derived from the
+    **same** header. You never write either by hand: each is regenerated from
+    the header on the next `jm apply`, so a hand-edit is silently overwritten
+    (and flagged by the manifest-drift gate). Author the header once — both
+    faces improve together.
+
+The two faces it derives:
 
 | Face                    | What it is                                                    | Who reads it                                         |
 | ----------------------- | ------------------------------------------------------------- | ---------------------------------------------------- |
@@ -85,9 +93,10 @@ ______________________________________________________________________
 - **`@return`** — whenever the function returns a value. (Exception: a
     constructor — `<obj>_create()` — does not get a Returns section; jm renders
     the class from it but omits Returns by design.)
-- **`@code … @endcode`** — a **runnable, verified** doctest. See
-    [Doctests](#doctests-that-run) below. This is the single highest-value tag:
-    it becomes the Examples section *and* is executed in CI.
+- **`@code … @endcode`** — a **usage example** a reader learns from, which also
+    runs in CI. See [Examples](#doctests-that-run) below. This is the single
+    highest-value tag: it becomes the Examples section a user copies from *and*
+    is executed against the real API, so it can never mislead.
 - **`@note` / `@warning` / `@see` / `@retval` / `@pre`** — **write these now.**
     They are dropped from the rendered docstring today and will begin rendering
     into numpy **Notes** / **Warnings** / **See Also** / **Raises** when the
@@ -101,24 +110,41 @@ ______________________________________________________________________
 
 ______________________________________________________________________
 
-## Doctests that run { #doctests-that-run }
+## Examples — teach usage first { #doctests-that-run }
 
-Every `@code` block is executed in CI by `make test-stubs`
-(`pytest --doctest-glob='*.pyi'`) against the freshly built extension. A doc
-whose printed value no longer matches the API **fails the build** — which is
-the point: passing examples everywhere.
+An `@code` block becomes the numpy **Examples** section a reader lands on to
+learn how to *use* the thing. **That is its job.** The example exists to show a
+user how to leverage the function — realistic arguments, a representative call,
+and a result that reveals what the call actually does — so someone reading the
+API page comes away knowing how to wire it into their own code.
 
-- **Deterministic, printable output.** Round floats (`round(x, 3)`), seed any
-    RNG, never print a wall-clock or an address.
+That every block is *also* executed in CI by `make test-stubs`
+(`pytest --doctest-glob='*.pyi'`, against the freshly built extension) is the
+bonus that keeps the teaching honest: a printed value that no longer matches
+the API **fails the build**, so the usage a reader copies can never have
+silently rotted. Documentation first; the test is what stops it drifting.
+
+- **Show real usage, not construction.** A bare `>>> obj = MyObj()` with no
+    meaningful call teaches nothing — it proves the constructor exists and
+    stops there. Write the smallest example that shows the object *doing its
+    job*: feed it a representative input, make the call the method is *for*,
+    and print a result that makes the behaviour legible. If a reader could not
+    infer how to use the API from your example, it isn't done.
 - **Score it, don't eyeball it.** The printed value must be the *physically
     correct* answer — compute it, don't write down what looks plausible. A
     magnitude that "looks about right" but is wrong sails through review and
     fails a user. (This is the same discipline the DSP work follows: lock the
     number against ground truth.)
-- **Keep it small.** The example demonstrates the API, not a Monte-Carlo sweep.
-    One construct + one call + one checked result is ideal.
+- **Deterministic, printable output.** Round floats (`round(x, 3)`), seed any
+    RNG, never print a wall-clock or an address — so the example a reader
+    trusts is also reproducible.
+- **Small, but never trivial.** One construct + one meaningful call + one
+    checked result is ideal; a Monte-Carlo sweep is not. "Small" trims noise,
+    it does not mean "omit the part that shows how to use it".
 
-Good:
+Good — constructs the AGC, drives it with a sample, and prints results that
+show both the passthrough and the loop starting to act, so a reader sees the
+call pattern *and* what to expect back:
 
 ```text
  * @code
@@ -237,6 +263,9 @@ ______________________________________________________________________
     it only suppresses a brief that restates the function name, so a vague
     sentence renders verbatim; the coverage meter is what catches it.
 - Don't restate the type in `@param` — describe meaning, units, and range.
+- Don't ship a construct-only example (`>>> obj = MyObj()` and nothing more).
+    It passes the doctest and teaches a reader nothing; the example's job is to
+    show the API *doing its job*. Make the call the method is for.
 - Don't write an example you have not run and verified.
 - Don't use `///`, `//!`, or `/*!` comment forms — jm sees only `/** … */`, so
     those derive **nothing**, silently. doppler is 100% `/** */`; keep it that

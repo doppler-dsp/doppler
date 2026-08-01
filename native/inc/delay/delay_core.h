@@ -128,8 +128,7 @@ void delay_push(delay_state_t *state, double complex x);
 
   /**
    * @brief Maximum samples delay_ptr() writes for a request of n.
-   * delay_ptr() returns min(n, num_taps), so this reports that tight per-call
-   * bound (gh-607); the binding pre-allocates the output buffer to it.
+   * Returns min(n, num_taps) — the tight per-call bound (gh-607).
    *
    * @param state  Must be non-NULL.
    * @param n      Number of samples the matching delay_ptr() call requests.

@@ -78,6 +78,13 @@ extern "C"
    * @param s  Boxcar state. Must be non-NULL.
    * @param x  One input sample.
    * @return The gained window mean after admitting @p x.
+   * @code
+   * >>> from doppler.filter import MovingAverage
+   * >>> ma = MovingAverage(2)   # 2-sample sliding window, unit gain
+   * >>> [round(ma.step(v).real, 4) for v in (1 + 0j, 3 + 0j, 3 + 0j)]
+   * [0.5, 2.0, 3.0]
+   *
+   * @endcode
    */
   JM_FORCEINLINE JM_HOT float complex
   boxcar_step (boxcar_state_t *s, float complex x)
@@ -128,19 +135,55 @@ extern "C"
   /** @brief Destroy a boxcar instance. @param s May be NULL. */
   void boxcar_destroy (boxcar_state_t *s);
 
-  /** @brief Clear the window (zero the ring and the running sum); keep config.
+  /**
+   * @brief Clear the window (zero the ring and the running sum); keep the
+   *        configured length and gain.
+   *
+   * Returns the filter to its just-constructed state: the delay ring and the
+   * running window sum are zeroed while @c len and @c gain are preserved, so
+   * the next @c len-1 outputs ramp in over a partial window exactly as they did
+   * on a fresh instance. Call it at a segment boundary so samples from one
+   * capture do not average into an unrelated next one.
+   *
+   * @param s  Boxcar state. Must be non-NULL.
+   * @code
+   * >>> import numpy as np
+   * >>> from doppler.filter import MovingAverage
+   * >>> ma = MovingAverage(2)                         # 2-sample window
+   * >>> _ = ma.steps(np.ones(4, np.complex64))        # fill the window
+   * >>> ma.reset()                                    # clear it
+   * >>> round(ma.step(1 + 0j).real, 4)                # ramps in from empty
+   * 0.5
+   *
+   * @endcode
    */
   void boxcar_reset (boxcar_state_t *s);
 
   /**
    * @brief Filter a block: write the gained moving average of each sample.
-   * @param s       Boxcar state. Must be non-NULL.
-   * @param input   Input samples.
-   * @param output  Output (gained window means); may alias @p input.
-   * @param n       Number of samples.
+   *
+   * Applies boxcar_step() to each input sample in turn, so the window sum and
+   * ring carry across the block exactly as they would sample by sample — a
+   * stream can be processed in frames of any size with no seam. Immediately
+   * after a reset the first @c len-1 outputs average over a partial (still
+   * filling) window and ramp in.
+   *
+   * @param s    Boxcar state. Must be non-NULL.
+   * @param x    Input samples.
+   * @param out  Output (gained window means); may alias @p x.
+   * @param n    Number of samples.
+   * @code
+   * >>> import numpy as np
+   * >>> from doppler.filter import MovingAverage
+   * >>> ma = MovingAverage(3)                          # 3-sample window
+   * >>> x = np.ones(5, np.complex64)                   # unit step input
+   * >>> [round(v, 4) for v in ma.steps(x).real.tolist()]
+   * [0.3333, 0.6667, 1.0, 1.0, 1.0]
+   *
+   * @endcode
    */
-  void boxcar_steps (boxcar_state_t *s, const float complex *input,
-                     float complex *output, size_t n);
+  void boxcar_steps (boxcar_state_t *s, const float complex *x,
+                     float complex *out, size_t n);
 
   /* ── Serializable state (standard bytes interface; see dp_state.h)
    * ────────── Pointer-free POD struct, so a whole-struct snapshot resumes

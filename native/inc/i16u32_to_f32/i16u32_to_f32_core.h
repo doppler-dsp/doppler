@@ -68,24 +68,46 @@ i16u32_to_f32_state_t *i16u32_to_f32_create(float scale);
 void i16u32_to_f32_destroy(i16u32_to_f32_state_t *state);
 
 /**
- * @brief Reset i16u32_to_f32 to its post-create state.
+ * @brief No-op reset, provided only for lifecycle symmetry.
  *
- * No mutable state exists beyond the immutable @c iscale; reset is a no-op
- * provided for lifecycle symmetry.
+ * No mutable state exists beyond the immutable @c iscale, so there is nothing
+ * to clear; the method exists so every converter in the module presents the
+ * same create / step / reset / destroy lifecycle.
  *
  * @param state  Must be non-NULL.
+ *
+ * @code
+ * >>> from doppler.cvt import I16U32ToF32
+ * >>> c = I16U32ToF32()
+ * >>> c.reset()             # stateless converter -> reset changes nothing
+ * >>> round(c.step(16384), 4)
+ * 0.5
+ *
+ * @endcode
  */
 void i16u32_to_f32_reset(i16u32_to_f32_state_t *state);
 
 /**
- * @brief Process one input sample.
+ * @brief Unpack a Q15 code from a uint32's low 16 bits to a normalised float.
  *
- * Masks the lower 16 bits, sign-extends to int16, then multiplies by iscale.
- * Upper 16 bits are ignored.
+ * Masks off the lower 16 bits, reinterprets them as a signed int16 (two's
+ * complement), then multiplies by @c iscale — a single multiply after the
+ * extraction. The upper 16 bits (which may carry CIC bit-growth headroom) are
+ * ignored. Exact inverse of F32ToI16U32 at the same scale.
  *
  * @param state  Must be non-NULL.
- * @param x      uint32 carrying a Q15 sample in its lower 16 bits.
- * @return Scaled float32 output.
+ * @param x      uint32 carrying a Q15 code in its low 16 bits.
+ * @return Normalised float recovered from the low-16 Q15 code.
+ *
+ * @code
+ * >>> from doppler.cvt import I16U32ToF32
+ * >>> c = I16U32ToF32(scale=32768.0)
+ * >>> round(c.step(16384), 4)         # low-16 Q15 16384 -> 0.5
+ * 0.5
+ * >>> round(c.step(0x8000), 4)        # 0x8000 reinterpreted as -32768 -> -1.0
+ * -1.0
+ *
+ * @endcode
  */
 JM_FORCEINLINE JM_HOT float
 i16u32_to_f32_step(const i16u32_to_f32_state_t *state, uint32_t x)

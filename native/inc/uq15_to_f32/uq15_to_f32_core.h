@@ -69,25 +69,47 @@ uq15_to_f32_state_t *uq15_to_f32_create(float scale);
 void uq15_to_f32_destroy(uq15_to_f32_state_t *state);
 
 /**
- * @brief Reset uq15_to_f32 to its post-create state.
+ * @brief No-op reset, provided only for lifecycle symmetry.
  *
- * No mutable state exists beyond the immutable @c iscale; reset is a no-op
- * provided for lifecycle symmetry with other converters.
+ * No mutable state exists beyond the immutable @c iscale, so there is nothing
+ * to clear; the method exists so every converter in the module presents the
+ * same create / step / reset / destroy lifecycle.
  *
  * @param state  Must be non-NULL.
+ *
+ * @code
+ * >>> from doppler.cvt import UQ15ToF32
+ * >>> c = UQ15ToF32()
+ * >>> c.reset()             # stateless converter -> reset changes nothing
+ * >>> round(c.step(32768), 4)
+ * 0.0
+ *
+ * @endcode
  */
 void uq15_to_f32_reset(uq15_to_f32_state_t *state);
 
 /**
- * @brief Process one input sample.
+ * @brief Decode one offset-binary UQ15 uint16 code to a normalised float.
  *
- * Computes @c ((int32_t)x - 32768) * iscale.  The int32_t cast prevents
- * signed overflow when @p x is 0 (which yields -32768 after bias removal).
+ * Computes @c ((int32_t)x - 32768) * iscale — removes the 32768 offset-binary
+ * bias and applies @c 1/scale. The int32_t cast prevents signed overflow when
+ * @p x is 0 (which yields -32768 after bias removal). Exact inverse of
+ * F32ToUQ15 at the same scale.
  *
  * @param state  Must be non-NULL.
- * @param x      UQ15 offset-binary uint16 sample:
- *               0x0000 → -1.0f, 0x8000 → 0.0f, 0xFFFF → +32767/32768.
- * @return Decoded float sample in `[-1.0, ~+1.0)`.
+ * @param x      UQ15 offset-binary uint16 code: 0 -> -1.0, 32768 -> 0.0,
+ *               65535 -> +32767/32768.
+ * @return Normalised float in `[-1.0, ~+1.0)`.
+ *
+ * @code
+ * >>> from doppler.cvt import UQ15ToF32
+ * >>> c = UQ15ToF32(scale=32768.0)
+ * >>> round(c.step(32768), 4)   # midscale code -> 0.0
+ * 0.0
+ * >>> round(c.step(0), 4)       # zero code -> -1.0
+ * -1.0
+ *
+ * @endcode
  */
 JM_FORCEINLINE JM_HOT float
 uq15_to_f32_step(const uq15_to_f32_state_t *state, uint16_t x)

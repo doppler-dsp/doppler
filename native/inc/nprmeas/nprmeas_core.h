@@ -59,7 +59,25 @@ nprmeas_state_t *nprmeas_create(size_t n, double fs, double full_scale,
 /** @brief Destroy an NPRMeasure analyser. @param state May be NULL. */
 void nprmeas_destroy(nprmeas_state_t *state);
 
-/** @brief Reset (no-op: each analyze() call is independent). */
+/**
+ * @brief Reset the analyser (a no-op: each analyze() call is independent).
+ *
+ * Every analyze() / spectrum_dbfs() call re-windows and re-transforms its own
+ * capture from scratch, so nothing is carried between calls to clear.  The
+ * method exists only so NPRMeasure honours the same reset() contract as every
+ * other doppler object, letting a generic pipeline reset each stage uniformly.
+ *
+ * @param state  The analyser (left unchanged).
+ *
+ * @code
+ * >>> from doppler.measure import NPRMeasure
+ * >>> m = NPRMeasure(n=8192, fs=1.0)
+ * >>> m.reset()            # stateless: provided only for API uniformity
+ * >>> m.reset() is None    # returns nothing; safe to call anytime
+ * True
+ *
+ * @endcode
+ */
 void nprmeas_reset(nprmeas_state_t *state);
 
 /**
@@ -100,7 +118,31 @@ size_t nprmeas_spectrum_dbfs_max_out(nprmeas_state_t *state);
 
 /**
  * @brief DC-centred dBFS magnitude spectrum of a capture (length nfft).
- * The same averaged PSD the metrics use, for an analyzer-display backdrop.
+ *
+ * The same windowed, zero-padded PSD the NPR metrics are read off, laid out
+ * DC-centred (fftshifted) and normalised to dBFS for an analyzer-display
+ * backdrop.  Use it to see the notch and the active band that analyze()
+ * integrates over.
+ *
+ * @param state    The analyser.
+ * @param x        Real time-domain capture (length @p x_len).
+ * @param x_len    Number of input samples.
+ * @param out      Destination buffer (length >= @p max_out).
+ * @param max_out  Capacity of @p out (== nfft).
+ * @return DC-centred dBFS magnitude spectrum, one value per FFT bin (nfft).
+ *
+ * @code
+ * >>> from doppler.measure import NPRMeasure
+ * >>> import numpy as np
+ * >>> rng = np.random.default_rng(0)
+ * >>> x = (0.3*rng.standard_normal(8192)).astype(np.float32)   # noise capture
+ * >>> s = NPRMeasure(n=8192, fs=1.0).spectrum_dbfs(x)      # DC-centred dBFS
+ * >>> s.shape                                              # zero-padded nfft
+ * (16384,)
+ * >>> round(float(np.median(s)), 0)   # broadband floor, well below 0 dBFS
+ * -48.0
+ *
+ * @endcode
  */
 size_t nprmeas_spectrum_dbfs(nprmeas_state_t *state, const float *x,
                              size_t x_len, float *out, size_t max_out);

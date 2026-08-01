@@ -79,23 +79,50 @@ f32_to_i16_state_t *f32_to_i16_create(float scale);
 void f32_to_i16_destroy(f32_to_i16_state_t *state);
 
 /**
- * @brief Reset f32_to_i16 to its post-create state.
+ * @brief Clear the sticky clip flag, starting a fresh saturation history.
  *
- * Clears the sticky @c clipped flag.  The @c scale is preserved.
+ * Zeroes @c clipped so a subsequent clipped query reflects only samples seen
+ * after this call; the immutable @c scale is preserved. Call it at a buffer or
+ * segment boundary so a saturation on one block does not leak into the next.
  *
  * @param state  Must be non-NULL.
+ *
+ * @code
+ * >>> from doppler.cvt import F32ToI16
+ * >>> c = F32ToI16()
+ * >>> c.step(9.0)          # out of range -> saturates, latches clipped
+ * 32767
+ * >>> c.reset()            # forget the clip history
+ * >>> c.clipped
+ * False
+ *
+ * @endcode
  */
 void f32_to_i16_reset(f32_to_i16_state_t *state);
 
 /**
- * @brief Process one input sample.
+ * @brief Scale one float sample by @c scale, round, and saturate to int16.
  *
- * Computes @c round(x * scale), saturates to `[-32768, 32767]`, and sets the
- * sticky @c clipped flag if saturation occurred.
+ * Computes @c round(x * scale), clamps to the int16 range `[-32768, 32767]`,
+ * and latches the sticky @c clipped flag if the scaled value fell outside that
+ * range before clamping. At the default scale of 32768 a normalised `[-1, +1]`
+ * input maps to the full Q15 code range.
  *
  * @param state  Must be non-NULL.
- * @param x      Normalised float input sample.
- * @return Saturated int16 output in `[-32768, 32767]`.
+ * @param x      Input sample, normally a normalised float in `[-1, +1]`.
+ * @return Saturated int16 code in `[-32768, 32767]`.
+ *
+ * @code
+ * >>> from doppler.cvt import F32ToI16
+ * >>> c = F32ToI16(scale=32768.0)   # normalised float -> full-scale Q15
+ * >>> c.step(0.5)                    # 0.5 * 32768
+ * 16384
+ * >>> c.step(2.0)                    # beyond +1.0 -> saturates to int16 max
+ * 32767
+ * >>> c.clipped                      # sticky flag latched by the clip
+ * True
+ *
+ * @endcode
  */
 JM_FORCEINLINE JM_HOT int16_t
 f32_to_i16_step(f32_to_i16_state_t *state, float x)

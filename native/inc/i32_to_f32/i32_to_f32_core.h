@@ -65,23 +65,46 @@ i32_to_f32_state_t *i32_to_f32_create(float scale);
 void i32_to_f32_destroy(i32_to_f32_state_t *state);
 
 /**
- * @brief Reset I32ToF32 to its post-create state.
+ * @brief No-op reset, provided only for lifecycle symmetry.
  *
- * No mutable state exists beyond the immutable @c iscale; reset is a no-op
- * provided for lifecycle symmetry with other converters.
+ * No mutable state exists beyond the immutable @c iscale, so there is nothing
+ * to clear; the method exists so every converter in the module presents the
+ * same create / step / reset / destroy lifecycle.
  *
  * @param state  Must be non-NULL.
+ *
+ * @code
+ * >>> from doppler.cvt import I32ToF32
+ * >>> c = I32ToF32()
+ * >>> c.reset()             # stateless converter -> reset changes nothing
+ * >>> round(c.step(-2**31), 4)
+ * -1.0
+ *
+ * @endcode
  */
 void i32_to_f32_reset(i32_to_f32_state_t *state);
 
 /**
- * @brief Process one input sample.
+ * @brief Convert one signed int32 sample to a normalised float via @c 1/scale.
  *
- * Returns @c (float)x * iscale.
+ * Returns @c (float)x * iscale, a single multiply on the hot path. At the
+ * default scale of 2^31 the full int32 range recovers `[-1.0, ~+1.0)`. Note
+ * that float32 carries only 23 mantissa bits, so int32 magnitudes beyond
+ * 2^24 are rounded to the nearest representable float.
  *
  * @param state  Must be non-NULL.
- * @param x      Signed int32 input sample.
- * @return Scaled float32 output.
+ * @param x      Signed int32 code, normally a full-range fixed-point sample.
+ * @return Normalised float, `x / scale`.
+ *
+ * @code
+ * >>> from doppler.cvt import I32ToF32
+ * >>> c = I32ToF32(scale=2147483648.0)  # 2**31: full-range int32 -> [-1, 1)
+ * >>> round(c.step(2**30), 4)            # quarter-scale code -> 0.5
+ * 0.5
+ * >>> round(c.step(-2**31), 4)           # full-negative code -> -1.0
+ * -1.0
+ *
+ * @endcode
  */
 JM_FORCEINLINE JM_HOT float
 i32_to_f32_step(const i32_to_f32_state_t *state, int32_t x)

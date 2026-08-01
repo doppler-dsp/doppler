@@ -59,7 +59,25 @@ imdmeas_state_t *imdmeas_create(size_t n, double fs, double full_scale,
 /** @brief Destroy an IMDMeasure analyser. @param state May be NULL. */
 void imdmeas_destroy(imdmeas_state_t *state);
 
-/** @brief Reset (no-op: each analyze() call is independent). */
+/**
+ * @brief Reset the analyser (a no-op: each analyze() call is independent).
+ *
+ * Every analyze() / spectrum_dbfs() call re-windows and re-transforms its own
+ * capture from scratch, so nothing is carried between calls to clear.  The
+ * method exists only so IMDMeasure honours the same reset() contract as every
+ * other doppler object, letting a generic pipeline reset each stage uniformly.
+ *
+ * @param state  The analyser (left unchanged).
+ *
+ * @code
+ * >>> from doppler.measure import IMDMeasure
+ * >>> m = IMDMeasure(n=4096, fs=1.0)
+ * >>> m.reset()            # stateless: provided only for API uniformity
+ * >>> m.reset() is None    # returns nothing; safe to call anytime
+ * True
+ *
+ * @endcode
+ */
 void imdmeas_reset(imdmeas_state_t *state);
 
 /**
@@ -87,7 +105,32 @@ size_t imdmeas_spectrum_dbfs_max_out(imdmeas_state_t *state);
 
 /**
  * @brief DC-centred dBFS magnitude spectrum of a capture (length nfft).
- * The same averaged PSD the metrics use, for an analyzer-display backdrop.
+ *
+ * The same windowed, zero-padded PSD the IMD metrics are read off, laid out
+ * DC-centred (fftshifted) and normalised to dBFS for an analyzer-display
+ * backdrop.  Use it to see the two fundamentals and the intermodulation
+ * products that analyze() integrates.
+ *
+ * @param state    The analyser.
+ * @param x        Real time-domain capture (length @p x_len).
+ * @param x_len    Number of input samples.
+ * @param out      Destination buffer (length >= @p max_out).
+ * @param max_out  Capacity of @p out (== nfft).
+ * @return DC-centred dBFS magnitude spectrum, one value per FFT bin (nfft).
+ *
+ * @code
+ * >>> from doppler.measure import IMDMeasure
+ * >>> import numpy as np
+ * >>> t = np.arange(4096)
+ * >>> x = (0.5*np.cos(2*np.pi*200*t/4096)
+ * ...      + 0.5*np.cos(2*np.pi*250*t/4096)).astype(np.float32)   # two tones
+ * >>> s = IMDMeasure(n=4096, fs=1.0).spectrum_dbfs(x)   # DC-centred spectrum
+ * >>> s.shape
+ * (8192,)
+ * >>> round(float(s.max()), 1)   # each half-scale tone splits into two images
+ * -12.0
+ *
+ * @endcode
  */
 size_t imdmeas_spectrum_dbfs(imdmeas_state_t *state, const float *x,
                              size_t x_len, float *out, size_t max_out);

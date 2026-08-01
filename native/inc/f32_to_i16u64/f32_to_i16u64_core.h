@@ -76,24 +76,48 @@ f32_to_i16u64_state_t *f32_to_i16u64_create(float scale);
 void f32_to_i16u64_destroy(f32_to_i16u64_state_t *state);
 
 /**
- * @brief Reset f32_to_i16u64 to its post-create state.
+ * @brief Clear the sticky clip flag, starting a fresh saturation history.
  *
- * Clears the sticky @c clipped flag.  The @c scale is preserved.
+ * Zeroes @c clipped so a subsequent clipped query reflects only samples seen
+ * after this call; the immutable @c scale is preserved. Call it at a buffer or
+ * segment boundary so a saturation on one block does not leak into the next.
  *
  * @param state  Must be non-NULL.
+ *
+ * @code
+ * >>> from doppler.cvt import F32ToI16U64
+ * >>> c = F32ToI16U64()
+ * >>> c.step(5.0)          # out of range -> saturates, latches clipped
+ * 32767
+ * >>> c.reset()            # forget the clip history
+ * >>> c.clipped
+ * False
+ *
+ * @endcode
  */
 void f32_to_i16u64_reset(f32_to_i16u64_state_t *state);
 
 /**
- * @brief Process one input sample.
+ * @brief Scale one float sample to a saturated Q15 code packed in a uint64.
  *
  * Computes @c round(x * scale), saturates to `[-32768, 32767]`, then
- * zero-extends the int16 bit pattern into the lower 16 bits of a uint64.
- * The @c clipped flag is set if saturation occurred.
+ * zero-extends the 16-bit two's-complement pattern into the lower 16 bits of a
+ * uint64 (upper 48 bits are always zero — headroom for the NCO phase
+ * accumulator). Latches the sticky @c clipped flag on saturation.
  *
  * @param state  Must be non-NULL.
- * @param x      Normalised float input sample.
- * @return Q15 value packed into the lower 16 bits of a uint64.
+ * @param x      Input sample, normally a normalised float in `[-1, +1]`.
+ * @return Q15 code in the low 16 bits of a uint64; e.g. -32768 -> 0x8000.
+ *
+ * @code
+ * >>> from doppler.cvt import F32ToI16U64
+ * >>> c = F32ToI16U64(scale=32768.0)
+ * >>> c.step(0.5)              # 0.5 -> Q15 16384, upper 48 bits zero
+ * 16384
+ * >>> hex(c.step(-1.0))        # -32768 as an unsigned low-16 pattern
+ * '0x8000'
+ *
+ * @endcode
  */
 JM_FORCEINLINE JM_HOT uint64_t
 f32_to_i16u64_step(f32_to_i16u64_state_t *state, float x)

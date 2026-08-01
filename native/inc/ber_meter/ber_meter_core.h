@@ -145,16 +145,61 @@ extern "C"
   ber_meter_state_t *ber_meter_create (int m, size_t target_errors,
                                        double conf);
   void               ber_meter_destroy (ber_meter_state_t *state);
-  /** @brief Zero the counters; keeps the configuration and the truth. */
+  /**
+   * @brief Zero the running counters; keep the configuration and the truth.
+   *
+   * Returns the meter to a fresh count while preserving @c m, the error
+   * target, the confidence level and the installed truth sequence, so one
+   * meter can measure independent captures back to back without reinstalling
+   * truth. The last detected alignment is left untouched; call align() again
+   * for the next capture before scoring it.
+   *
+   * @param state  Must be non-NULL.
+   * @code
+   * >>> import numpy as np
+   * >>> from doppler.ber import BerMeter
+   * >>> rng = np.random.default_rng(0)
+   * >>> truth = rng.integers(0, 4, size=400).astype(np.uint8)
+   * >>> ang = 2 * np.pi * truth / 4 + np.pi / 4
+   * >>> rx = np.exp(1j * ang).astype(np.complex64)
+   * >>> met = BerMeter(m=4)
+   * >>> met.set_truth(truth)
+   * 0
+   * >>> met.align(rx, n_marker=64)
+   * 1
+   * >>> met.score(rx, hi=truth.size)
+   * 336
+   * >>> met.symbols
+   * 336
+   * >>> met.reset()               # reuse the meter for the next capture
+   * >>> (met.errors, met.symbols)
+   * (0, 0)
+   *
+   * @endcode
+   */
   void ber_meter_reset (ber_meter_state_t *state);
 
   /**
    * @brief Install the transmitted symbol sequence this meter scores against.
    *
    * Copied, so the caller's buffer need not outlive the call, and reused across
-   * every burst. Values are symbol INDICES in `0..m-1` (not Gray labels).
+   * every burst. Values are symbol INDICES in `0..m-1` (not Gray labels): the
+   * meter Gray-encodes each side itself when it counts bit errors, so handing
+   * it Gray labels would double-encode and inflate the rate.
    *
+   * @param state      Must be non-NULL.
+   * @param truth      Transmitted symbol indices, each in `0..m-1`.
+   * @param truth_len  How many symbols the reference holds.
    * @return DP_OK, or DP_ERR_INVALID if any index is outside `0..m-1`.
+   * @code
+   * >>> import numpy as np
+   * >>> from doppler.ber import BerMeter
+   * >>> met = BerMeter(m=4)
+   * >>> truth = np.array([0, 3, 1, 2, 2, 0], dtype=np.uint8)  # indices, 0..3
+   * >>> met.set_truth(truth)
+   * 0
+   *
+   * @endcode
    */
   int ber_meter_set_truth (ber_meter_state_t *state, const uint8_t *truth,
                            size_t truth_len);
@@ -180,22 +225,83 @@ extern "C"
                                 size_t t0, size_t n_marker, size_t period,
                                 int lag_span, double pfa);
 
-  /** @brief Detect the alignment and REMEMBER it (with its marker geometry)
-   *  so ber_meter_score() cannot be handed one from a different burst.
-   *  @return 1 when the detection passed its false-alarm gate, else 0. */
+  /**
+   * @brief Detect where @p rx sits against truth and REMEMBER that alignment.
+   *
+   * Correlates the known marker `truth[t0 .. t0 + n_marker)` against @p rx
+   * over a span of lags, gates the peak with a false-alarm probability, and
+   * stores the winning lag, absolute carrier phase and marker geometry on the
+   * meter so score() later uses exactly this detection — never a lag searched to
+   * minimise the error count. The peak's phase is the ABSOLUTE constellation
+   * rotation, so no M-fold ambiguity is left to resolve; a marker too short to
+   * clear the gate reports failure rather than a plausible wrong lag. Read the
+   * outcome through @c align_ok, @c lag, @c phase and @c align_margin_db.
+   *
+   * @param state     Must be non-NULL, with truth installed by set_truth().
+   * @param rx        Recovered symbols to align against the truth.
+   * @param rx_len    How many recovered symbols.
+   * @param t0        Truth index of the marker's first occurrence.
+   * @param n_marker  Marker length in symbols; 0 selects BER_SYNC_SYMS.
+   * @param period    Repeat period in symbols; 0 for a single occurrence.
+   * @param lag_span  Search half-width in symbols; 0 selects BER_LAG_SPAN.
+   * @param pfa       Whole-search false-alarm probability; 0 selects 1e-6.
+   * @return 1 when the detection passed its false-alarm gate, else 0.
+   * @code
+   * >>> import numpy as np
+   * >>> from doppler.ber import BerMeter
+   * >>> rng = np.random.default_rng(0)
+   * >>> truth = rng.integers(0, 4, size=600).astype(np.uint8)
+   * >>> ang = 2 * np.pi * truth / 4 + np.pi / 4
+   * >>> rx = np.exp(1j * ang).astype(np.complex64)
+   * >>> met = BerMeter(m=4)
+   * >>> met.set_truth(truth)
+   * 0
+   * >>> met.align(rx, n_marker=64)     # correlate a 64-symbol marker
+   * 1
+   * >>> met.lag, met.align_ok          # detected, so score() may be trusted
+   * (0, 1)
+   *
+   * @endcode
+   */
   int ber_meter_align (ber_meter_state_t *state, const float complex *rx,
                        size_t rx_len, size_t t0, size_t n_marker,
                        size_t period, int lag_span, double pfa);
 
   /**
-   * @brief Score `rx[lo .. hi)` against the truth and accumulate.
+   * @brief Score `rx[lo .. hi)` against the truth and accumulate the counters.
    *
-   * Uses the supplied alignment verbatim — no lag search, no rotation search,
-   * no minimisation of any kind over the answer. Symbols covered by a marker
-   * occurrence are excluded, as are any whose truth index falls outside the
-   * installed sequence.
+   * Demodulates each symbol in the window under the alignment the last align()
+   * detected — its lag and absolute phase — and tallies symbol and Gray-coded
+   * bit errors against the installed truth. The alignment is used VERBATIM: no
+   * lag search, no rotation search, no minimisation of any kind over the answer.
+   * Symbols covered by a marker occurrence are excluded, as are any whose truth
+   * index falls outside the installed sequence; both land in @c skipped.
    *
-   * @return Symbols scored.
+   * @param state   Must be non-NULL, with an alignment set by align().
+   * @param rx      Recovered symbols to score.
+   * @param rx_len  How many recovered symbols.
+   * @param lo      First symbol index to score (inclusive).
+   * @param hi      One past the last symbol index to score; clamped to rx_len.
+   *               `hi = 0` scores nothing, so pass the window's true end.
+   * @return Symbols actually scored (window length minus skipped symbols).
+   * @code
+   * >>> import numpy as np
+   * >>> from doppler.ber import BerMeter
+   * >>> rng = np.random.default_rng(1)
+   * >>> truth = rng.integers(0, 4, size=800).astype(np.uint8)
+   * >>> ang = 2 * np.pi * truth / 4 + np.pi / 4
+   * >>> rx = np.exp(1j * ang).astype(np.complex64)
+   * >>> met = BerMeter(m=4)
+   * >>> met.set_truth(truth)
+   * 0
+   * >>> met.align(rx, n_marker=64)
+   * 1
+   * >>> met.score(rx, hi=truth.size)   # the 64 marker symbols are excluded
+   * 736
+   * >>> met.errors, met.skipped
+   * (0, 64)
+   *
+   * @endcode
    */
   size_t ber_meter_score (ber_meter_state_t *state, const float complex *rx,
                           size_t rx_len, size_t lo, size_t hi);
@@ -217,15 +323,102 @@ extern "C"
   /** @brief Has the error target been reached? The inverse-binomial stop. */
   int ber_meter_get_enough (const ber_meter_state_t *state);
 
-  /** @brief The exact interval for counts gathered ELSEWHERE, at this
-   *  meter's confidence level. The pure-function face of ber_confidence(),
-   *  reachable from Python (a jm module function cannot return a record). */
+  /**
+   * @brief Exact confidence interval for error/trial counts from ELSEWHERE.
+   *
+   * The pure-function face of the meter's statistics, at this meter's own
+   * confidence level: hand it any error and trial counts and it returns the
+   * same exact Gamma/chi-square interval ser() would, with quantiles from
+   * doppler's own inverse regularized incomplete gamma rather than a normal
+   * approximation, so it stays honest at the small error counts where a Wald
+   * interval is worst. Assert on @c lo, never on @c p_hat.
+   *
+   * @param state    Must be non-NULL.
+   * @param errors   Errors counted, `r`.
+   * @param symbols  Trials counted, `N` (symbols, or bits for a BER).
+   * @return A BerInterval record — `(p_hat, lo, hi, rel, conf, errors,
+   *         symbols)` — the unbiased rate with its exact two-sided limits.
+   * @code
+   * >>> from doppler.ber import BerMeter
+   * >>> met = BerMeter(m=4, conf=0.99)
+   * >>> ci = met.interval(errors=8, symbols=20000)   # counts from elsewhere
+   * >>> round(ci.p_hat, 6), round(ci.lo, 6), round(ci.hi, 6)
+   * (0.00035, 0.000129, 0.000857)
+   *
+   * @endcode
+   */
   ber_interval_t ber_meter_interval (const ber_meter_state_t *state,
                                      size_t errors, size_t symbols);
 
-  /** @brief Symbol error rate with its exact interval. */
+  /**
+   * @brief Symbol error rate over the scored symbols, with its exact interval.
+   *
+   * Divides the accumulated symbol-error count by the symbols scored and wraps
+   * it in the exact Gamma/chi-square interval for inverse binomial sampling —
+   * no normal approximation anywhere. Assert on @c lo, never on @c p_hat:
+   * comparing the lower limit against a spec is the form that cannot flake on
+   * counting noise.
+   *
+   * @param state  Must be non-NULL.
+   * @return A BerInterval record — `(p_hat, lo, hi, rel, conf, errors,
+   *         symbols)` — the symbol error rate with its exact two-sided limits.
+   * @code
+   * >>> import numpy as np
+   * >>> from doppler.ber import BerMeter
+   * >>> rng = np.random.default_rng(1)
+   * >>> truth = rng.integers(0, 4, size=800).astype(np.uint8)
+   * >>> ang = 2 * np.pi * truth / 4 + np.pi / 4
+   * >>> rx = np.exp(1j * ang).astype(np.complex64)
+   * >>> rx[200:260:5] *= -1            # corrupt 12 symbols (pi rotation)
+   * >>> met = BerMeter(m=4)
+   * >>> met.set_truth(truth)
+   * 0
+   * >>> met.align(rx, n_marker=64)
+   * 1
+   * >>> _ = met.score(rx, hi=truth.size)
+   * >>> r = met.ser()
+   * >>> r.errors, r.symbols
+   * (12, 736)
+   * >>> round(r.lo, 4)                 # assert on lo, never on p_hat
+   * 0.0067
+   *
+   * @endcode
+   */
   ber_interval_t ber_meter_ser (const ber_meter_state_t *state);
-  /** @brief Gray-coded bit error rate with its exact interval. */
+
+  /**
+   * @brief Gray-coded bit error rate over the scored bits, with its interval.
+   *
+   * The same exact statistics as ser(), counted over Gray-coded bits rather
+   * than symbols, so a QPSK/8PSK symbol error contributes as many bit errors
+   * as its Gray labels differ by. Assert on @c lo, never on @c p_hat.
+   *
+   * @param state  Must be non-NULL.
+   * @return A BerInterval record — `(p_hat, lo, hi, rel, conf, errors,
+   *         symbols)` — the bit error rate with its exact two-sided limits
+   *         (`errors` and `symbols` are bit counts here).
+   * @code
+   * >>> import numpy as np
+   * >>> from doppler.ber import BerMeter
+   * >>> rng = np.random.default_rng(1)
+   * >>> truth = rng.integers(0, 4, size=800).astype(np.uint8)
+   * >>> ang = 2 * np.pi * truth / 4 + np.pi / 4
+   * >>> rx = np.exp(1j * ang).astype(np.complex64)
+   * >>> rx[200:260:5] *= -1            # corrupt 12 symbols
+   * >>> met = BerMeter(m=4)
+   * >>> met.set_truth(truth)
+   * 0
+   * >>> met.align(rx, n_marker=64)
+   * 1
+   * >>> _ = met.score(rx, hi=truth.size)
+   * >>> r = met.ber()                  # same statistics as ser(), over bits
+   * >>> r.errors, r.symbols
+   * (24, 1472)
+   * >>> round(r.lo, 4)
+   * 0.009
+   *
+   * @endcode
+   */
   ber_interval_t ber_meter_ber (const ber_meter_state_t *state);
 
   size_t ber_meter_get_errors (const ber_meter_state_t *state);

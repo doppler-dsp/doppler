@@ -61,9 +61,9 @@ acc_f32_get_acc (const acc_f32_state_t *state)
 }
 
 void
-acc_f32_set_acc (acc_f32_state_t *state, float acc)
+acc_f32_set_acc (acc_f32_state_t *state, float value)
 {
-  state->acc = acc;
+  state->acc = value;
 }
 
 float

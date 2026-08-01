@@ -27,7 +27,35 @@ class BerMeter:
     def __init__(self, m: int = ..., target_errors: int = ..., conf: float = ...) -> None: ...
 
     def reset(self) -> None:
-        """Zero the counters; keeps the configuration and the truth.
+        """Zero the running counters; keep the configuration and the truth.
+
+        Returns the meter to a fresh count while preserving m, the error target,
+        the confidence level and the installed truth sequence, so one meter can
+        measure independent captures back to back without reinstalling truth.
+        The last detected alignment is left untouched; call align() again for
+        the next capture before scoring it.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.ber import BerMeter
+        >>> rng = np.random.default_rng(0)
+        >>> truth = rng.integers(0, 4, size=400).astype(np.uint8)
+        >>> ang = 2 * np.pi * truth / 4 + np.pi / 4
+        >>> rx = np.exp(1j * ang).astype(np.complex64)
+        >>> met = BerMeter(m=4)
+        >>> met.set_truth(truth)
+        0
+        >>> met.align(rx, n_marker=64)
+        1
+        >>> met.score(rx, hi=truth.size)
+        336
+        >>> met.symbols
+        336
+        >>> met.reset()               # reuse the meter for the next capture
+        >>> (met.errors, met.symbols)
+        (0, 0)
+
         """
 
     def set_truth(self, truth: NDArray[np.uint8]) -> int:
@@ -35,98 +63,229 @@ class BerMeter:
 
         Copied, so the caller's buffer need not outlive the call, and reused
         across every burst. Values are symbol INDICES in `0..m-1` (not Gray
-        labels).
+        labels): the meter Gray-encodes each side itself when it counts bit
+        errors, so handing it Gray labels would double-encode and inflate the
+        rate.
 
         Parameters
         ----------
         truth : NDArray[np.uint8]
-            Input.
+            Transmitted symbol indices, each in `0..m-1`.
 
         Returns
         -------
         int
             DP_OK, or DP_ERR_INVALID if any index is outside `0..m-1`.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.ber import BerMeter
+        >>> met = BerMeter(m=4)
+        >>> truth = np.array([0, 3, 1, 2, 2, 0], dtype=np.uint8)  # indices, 0..3
+        >>> met.set_truth(truth)
+        0
+
         """
 
     def align(self, rx: NDArray[np.complex64], t0: int = 0, n_marker: int = 0, period: int = 0, lag_span: int = 0, pfa: float = 0.0) -> int:
         """Detect where the recovered symbols sit against truth, returning a BerAlign. The alignment is DETECTED by correlating a known marker -- truth[t0 : t0+n_marker], optionally repeating every `period` symbols -- and gated by a false-alarm probability, NOT searched by minimising the error count. That distinction is the whole point: a min-over-(lag, rotation) search is an optimisation over the answer, and it both false-passes on a lucky alignment and false-floors when the true lag falls outside the span. A marker too short to identify an alignment returns ok=False rather than a plausible wrong lag. Repeats are combined non-coherently, which raises the processing gain and exposes cycle slips.
 
+        Correlates the known marker `truth[t0 .. t0 + n_marker)` against rx over
+        a span of lags, gates the peak with a false-alarm probability, and
+        stores the winning lag, absolute carrier phase and marker geometry on
+        the meter so score() later uses exactly this detection — never a lag
+        searched to minimise the error count. The peak's phase is the ABSOLUTE
+        constellation rotation, so no M-fold ambiguity is left to resolve; a
+        marker too short to clear the gate reports failure rather than a
+        plausible wrong lag. Read the outcome through align_ok, lag, phase and
+        align_margin_db.
+
         Parameters
         ----------
         rx : NDArray[np.complex64]
-            Input.
+            Recovered symbols to align against the truth.
         t0 : int
-            Input.
+            Truth index of the marker's first occurrence.
         n_marker : int
-            Input.
+            Marker length in symbols; 0 selects BER_SYNC_SYMS.
         period : int
-            Input.
+            Repeat period in symbols; 0 for a single occurrence.
         lag_span : int
-            Input.
+            Search half-width in symbols; 0 selects BER_LAG_SPAN.
         pfa : float
-            Input.
+            Whole-search false-alarm probability; 0 selects 1e-6.
 
         Returns
         -------
         int
             1 when the detection passed its false-alarm gate, else 0.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.ber import BerMeter
+        >>> rng = np.random.default_rng(0)
+        >>> truth = rng.integers(0, 4, size=600).astype(np.uint8)
+        >>> ang = 2 * np.pi * truth / 4 + np.pi / 4
+        >>> rx = np.exp(1j * ang).astype(np.complex64)
+        >>> met = BerMeter(m=4)
+        >>> met.set_truth(truth)
+        0
+        >>> met.align(rx, n_marker=64)     # correlate a 64-symbol marker
+        1
+        >>> met.lag, met.align_ok          # detected, so score() may be trusted
+        (0, 1)
+
         """
 
     def score(self, rx: NDArray[np.complex64], lo: int = 0, hi: int = 0) -> int:
         """Score rx[lo:hi] against the truth and accumulate; returns the symbols scored. Uses the supplied alignment VERBATIM -- no lag search, no rotation search, no minimisation of any kind over the answer. Uses the alignment align() last detected, together with the marker geometry that found it, so a measurement cannot be handed an alignment belonging to a different burst. Symbols covered by a marker occurrence are excluded, as are any whose truth index falls outside the installed sequence; both land in `skipped`.
 
-        Uses the supplied alignment verbatim — no lag search, no rotation
-        search, no minimisation of any kind over the answer. Symbols covered by
-        a marker occurrence are excluded, as are any whose truth index falls
-        outside the installed sequence.
+        Demodulates each symbol in the window under the alignment the last
+        align() detected — its lag and absolute phase — and tallies symbol and
+        Gray-coded bit errors against the installed truth. The alignment is used
+        VERBATIM: no lag search, no rotation search, no minimisation of any kind
+        over the answer. Symbols covered by a marker occurrence are excluded, as
+        are any whose truth index falls outside the installed sequence; both
+        land in skipped.
 
         Parameters
         ----------
         rx : NDArray[np.complex64]
-            Input.
+            Recovered symbols to score.
         lo : int
-            Input.
+            First symbol index to score (inclusive).
         hi : int
-            Input.
+            One past the last symbol index to score; clamped to rx_len. `hi = 0` scores nothing, so pass the window's true end.
 
         Returns
         -------
         int
-            Symbols scored.
+            Symbols actually scored (window length minus skipped symbols).
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.ber import BerMeter
+        >>> rng = np.random.default_rng(1)
+        >>> truth = rng.integers(0, 4, size=800).astype(np.uint8)
+        >>> ang = 2 * np.pi * truth / 4 + np.pi / 4
+        >>> rx = np.exp(1j * ang).astype(np.complex64)
+        >>> met = BerMeter(m=4)
+        >>> met.set_truth(truth)
+        0
+        >>> met.align(rx, n_marker=64)
+        1
+        >>> met.score(rx, hi=truth.size)   # the 64 marker symbols are excluded
+        736
+        >>> met.errors, met.skipped
+        (0, 64)
+
         """
 
     def ser(self) -> tuple[float, float, float, float, float, int, int]:
         """Symbol error rate with its EXACT confidence interval, as a BerInterval. Assert on `lo`, never on `p_hat`: comparing the lower limit against a spec is the form that cannot flake on counting noise. The interval is the Gamma/chi-square one for inverse binomial sampling -- no normal approximation anywhere, so it stays honest at the small error counts where a Wald interval is worst -- and its quantiles come from doppler's own detection primitives rather than a second copy of an incomplete-gamma kernel.
 
+        Divides the accumulated symbol-error count by the symbols scored and
+        wraps it in the exact Gamma/chi-square interval for inverse binomial
+        sampling — no normal approximation anywhere. Assert on lo, never on
+        p_hat: comparing the lower limit against a spec is the form that cannot
+        flake on counting noise.
+
         Returns
         -------
         tuple[float, float, float, float, float, int, int]
-            Output.
+            A BerInterval record — `(p_hat, lo, hi, rel, conf, errors, symbols)` — the symbol error rate with its exact two-sided limits.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.ber import BerMeter
+        >>> rng = np.random.default_rng(1)
+        >>> truth = rng.integers(0, 4, size=800).astype(np.uint8)
+        >>> ang = 2 * np.pi * truth / 4 + np.pi / 4
+        >>> rx = np.exp(1j * ang).astype(np.complex64)
+        >>> rx[200:260:5] *= -1            # corrupt 12 symbols (pi rotation)
+        >>> met = BerMeter(m=4)
+        >>> met.set_truth(truth)
+        0
+        >>> met.align(rx, n_marker=64)
+        1
+        >>> _ = met.score(rx, hi=truth.size)
+        >>> r = met.ser()
+        >>> r.errors, r.symbols
+        (12, 736)
+        >>> round(r.lo, 4)                 # assert on lo, never on p_hat
+        0.0067
+
         """
 
     def ber(self) -> tuple[float, float, float, float, float, int, int]:
         """Gray-coded bit error rate with its EXACT confidence interval, as a BerInterval. Same statistics as ser(), counted over bits.
 
+        The same exact statistics as ser(), counted over Gray-coded bits rather
+        than symbols, so a QPSK/8PSK symbol error contributes as many bit errors
+        as its Gray labels differ by. Assert on lo, never on p_hat.
+
         Returns
         -------
         tuple[float, float, float, float, float, int, int]
-            Output.
+            A BerInterval record — `(p_hat, lo, hi, rel, conf, errors, symbols)` — the bit error rate with its exact two-sided limits (`errors` and `symbols` are bit counts here).
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.ber import BerMeter
+        >>> rng = np.random.default_rng(1)
+        >>> truth = rng.integers(0, 4, size=800).astype(np.uint8)
+        >>> ang = 2 * np.pi * truth / 4 + np.pi / 4
+        >>> rx = np.exp(1j * ang).astype(np.complex64)
+        >>> rx[200:260:5] *= -1            # corrupt 12 symbols
+        >>> met = BerMeter(m=4)
+        >>> met.set_truth(truth)
+        0
+        >>> met.align(rx, n_marker=64)
+        1
+        >>> _ = met.score(rx, hi=truth.size)
+        >>> r = met.ber()                  # same statistics as ser(), over bits
+        >>> r.errors, r.symbols
+        (24, 1472)
+        >>> round(r.lo, 4)
+        0.009
+
         """
 
     def interval(self, errors: int, symbols: int) -> tuple[float, float, float, float, float, int, int]:
         """The exact confidence interval for error/trial counts gathered elsewhere, at this meter's confidence level. Same statistics as ser(): the Gamma/chi-square interval for inverse binomial sampling, with quantiles from doppler's own inverse regularized incomplete gamma rather than a normal approximation, so it stays honest at the small error counts where a Wald interval is worst. Assert on `lo`, never on `p_hat`.
 
+        The pure-function face of the meter's statistics, at this meter's own
+        confidence level: hand it any error and trial counts and it returns the
+        same exact Gamma/chi-square interval ser() would, with quantiles from
+        doppler's own inverse regularized incomplete gamma rather than a normal
+        approximation, so it stays honest at the small error counts where a Wald
+        interval is worst. Assert on lo, never on p_hat.
+
         Parameters
         ----------
         errors : int
-            Input.
+            Errors counted, `r`.
         symbols : int
-            Input.
+            Trials counted, `N` (symbols, or bits for a BER).
 
         Returns
         -------
         tuple[float, float, float, float, float, int, int]
-            Output.
+            A BerInterval record — `(p_hat, lo, hi, rel, conf, errors, symbols)` — the unbiased rate with its exact two-sided limits.
+
+        Examples
+        --------
+        >>> from doppler.ber import BerMeter
+        >>> met = BerMeter(m=4, conf=0.99)
+        >>> ci = met.interval(errors=8, symbols=20000)   # counts from elsewhere
+        >>> round(ci.p_hat, 6), round(ci.lo, 6), round(ci.hi, 6)
+        (0.00035, 0.000129, 0.000857)
+
         """
 
     def state_bytes(self) -> int:

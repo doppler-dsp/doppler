@@ -63,23 +63,46 @@ i8_to_f32_state_t *i8_to_f32_create(float scale);
 void i8_to_f32_destroy(i8_to_f32_state_t *state);
 
 /**
- * @brief Reset I8ToF32 to its post-create state.
+ * @brief No-op reset, provided only for lifecycle symmetry.
  *
- * No mutable state exists beyond the immutable @c iscale; reset is a no-op
- * provided for lifecycle symmetry with other converters.
+ * No mutable state exists beyond the immutable @c iscale, so there is nothing
+ * to clear; the method exists so every converter in the module presents the
+ * same create / step / reset / destroy lifecycle.
  *
  * @param state  Must be non-NULL.
+ *
+ * @code
+ * >>> from doppler.cvt import I8ToF32
+ * >>> c = I8ToF32()
+ * >>> c.reset()             # stateless converter -> reset changes nothing
+ * >>> round(c.step(-128), 4)
+ * -1.0
+ *
+ * @endcode
  */
 void i8_to_f32_reset(i8_to_f32_state_t *state);
 
 /**
- * @brief Process one input sample.
+ * @brief Convert one signed int8 sample to a normalised float via @c 1/scale.
  *
- * Returns @c (float)x * iscale.
+ * Returns @c (float)x * iscale, a single multiply on the hot path. At the
+ * default scale of 128 the full int8 range recovers `[-1.0, ~+1.0)` — the
+ * front end of an 8-bit IQ path (e.g. a signed-8 RTL-SDR stream) into
+ * normalised floats.
  *
  * @param state  Must be non-NULL.
- * @param x      Signed int8 input sample.
- * @return Scaled float32 output.
+ * @param x      Signed int8 code in `[-128, 127]`.
+ * @return Normalised float, `x / scale`.
+ *
+ * @code
+ * >>> from doppler.cvt import I8ToF32
+ * >>> c = I8ToF32(scale=128.0)   # signed 8-bit -> normalised float
+ * >>> round(c.step(64), 4)        # 64 / 128
+ * 0.5
+ * >>> round(c.step(-128), 4)      # full-negative code -> -1.0
+ * -1.0
+ *
+ * @endcode
  */
 JM_FORCEINLINE JM_HOT float
 i8_to_f32_step(const i8_to_f32_state_t *state, int8_t x)

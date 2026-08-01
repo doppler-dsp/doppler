@@ -482,9 +482,11 @@ class AccTrace:
         >>> import numpy as np
         >>> from doppler.accumulator import AccTrace
         >>> acc = AccTrace(n=3, mode="maxhold")
+        >>> acc.value() is None            # empty until the first frame
+        True
         >>> acc.accumulate(np.array([1, 5, 2], dtype=np.float32))
         >>> acc.accumulate(np.array([4, 3, 6], dtype=np.float32))
-        >>> acc.value().tolist()
+        >>> acc.value().tolist()           # per-bin running maximum
         [4.0, 5.0, 6.0]
 
         """

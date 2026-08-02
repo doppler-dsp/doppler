@@ -467,6 +467,13 @@ class CIC:
             CF32 output array; length is min(floor((phase + n_in) / R),
             max_out).
 
+        Notes
+        -----
+        **Input amplitude is bounded: |Re| and |Im| <= 1.0.** A component beyond
+        +-1.0 is clipped at the boundary before filtering; the sample stream
+        gives no sign of it, so check the sticky clipped flag. Scale the input
+        into range first; see the file header.
+
         Examples
         --------
         >>> from doppler.resample import CIC

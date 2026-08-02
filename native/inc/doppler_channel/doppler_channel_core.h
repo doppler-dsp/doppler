@@ -195,7 +195,7 @@ void doppler_channel_destroy(doppler_channel_state_t *state);
  * @brief Reset DopplerChannel to its post-create state.
  *
  * Zeroes both sample clocks (so `elapsed_s` and the carrier phase restart at
- * 0) and clears the resampler's delay line and fractional accumulator. The
+ * zero) and clears the resampler's delay line and fractional accumulator. The
  * configured `fs`/`carrier_hz`/`doppler_ppm`/`doppler_rate_ppm_s` are kept.
  *
  * @param state  Must be non-NULL.

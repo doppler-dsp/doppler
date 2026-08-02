@@ -1,7 +1,7 @@
 include = ["objects/*.toml"]
 
 [project]
-jm_version = "0.37.1"
+jm_version = "0.38.0"
 name = "doppler"
 version = "0.1.0"
 build = "cmake"
@@ -464,12 +464,47 @@ type = "bool"
 returns = "double"
 expr = "tmp > 1.0 && self->sample_type >= 2"
 [module.cvt]
+doc = """
+Sample-format conversion: vectorized converters between float32 IQ and fixed-point integer formats (int8/16/32, unsigned Q15), plus a scaling ADC front end.
+
+Examples
+--------
+>>> import numpy as np
+>>> from doppler.cvt import F32ToI16, I16ToF32
+>>> x = np.array([0.5, -0.25], np.float32)
+>>> I16ToF32().steps(F32ToI16().steps(x)).round(3).tolist()
+[0.5, -0.25]
+
+"""
 objects = ["f32_to_i16", "i16_to_f32", "i32_to_f32", "i8_to_f32", "f32_to_i16u32", "f32_to_i16u64", "i16u32_to_f32", "i16u64_to_f32", "f32_to_uq15", "uq15_to_f32", "adc"]
 
 [module.accumulator]
+doc = """
+Running accumulators: single- and double-precision complex scalar sums (AccF32, AccCf64) and a per-tap trace accumulator (AccTrace), each carrying a running total across calls.
+
+Examples
+--------
+>>> from doppler.accumulator import AccF32
+>>> a = AccF32()
+>>> a.step(1.5); a.step(2.5)
+>>> a.get()
+4.0
+
+"""
 objects = ["acc_f32", "acc_cf64", "acc_trace"]
 
 [module.filter]
+doc = """
+FIR filtering: a direct-form complex or real FIR (FIR) and an O(1) boxcar moving average (MovingAverage).
+
+Examples
+--------
+>>> import numpy as np
+>>> from doppler.filter import MovingAverage
+>>> MovingAverage(2).steps(np.ones(3, np.complex64)).real.tolist()
+[0.5, 1.0, 1.0]
+
+"""
 objects = ["fir", "boxcar"]
 # resample_core: kaiser_num_taps/kaiser_beta (FIR-design sizing/beta) for
 # design_lowpass. spectral_core: kaiser_window (formula-agnostic generator).
@@ -498,6 +533,16 @@ type = "double"
 default = "60.0"
 
 [module.source]
+doc = """
+Signal sources: sample generators comprising a 32-bit phase-accumulator NCO (NCO), a quadrature local oscillator (LO), and an AWGN generator (AWGN).
+
+Examples
+--------
+>>> from doppler.source import NCO
+>>> NCO(norm_freq=0.25).steps_u32(4).tolist()
+[0, 1073741824, 2147483648, 3221225472]
+
+"""
 objects = ["nco", "lo", "awgn"]
 # libmvec backs AWGN's AVX2 vectorized log() (_ZGVdN8v_logf, weak-resolved at
 # runtime per awgn_core.c) — an x86 vector-call ABI, and glibc only ships
@@ -507,6 +552,16 @@ objects = ["nco", "lo", "awgn"]
 extra_link_libs = ["$<$<AND:$<PLATFORM_ID:Linux>,$<STREQUAL:${CMAKE_SYSTEM_PROCESSOR},x86_64>>:mvec>"]
 
 [module.wfm]
+doc = """
+Waveform generation: PN and CCSDS Gold code generators (PN, Gold) and a configurable modulated-symbol synthesizer, with BLUE/SigMF writers and readers re-exported.
+
+Examples
+--------
+>>> from doppler.wfm import Gold
+>>> Gold().generate(1023)[:15].tolist()   # CCSDS Code #365
+[0, 1, 0, 0, 0, 1, 0, 1, 1, 1, 0, 1, 1, 1, 1]
+
+"""
 objects = ["pn", "wfm_synth", "gold"]
 # wfm_synth.toml's depends_on link=true (gh-225) links lo/awgn/fir _core into the
 # wfm .so; pn is in-module (linked via objects). Replaces extra_link_libs.
@@ -972,6 +1027,19 @@ name = "fc"
 type = "double"
 default = "0.0"
 [module.delay]
+doc = """
+Fractional and integer sample delay: a delay line (DelayCf64) with a windowed tap view for building matched filters and correlators.
+
+Examples
+--------
+>>> from doppler.delay import DelayCf64
+>>> d = DelayCf64(num_taps=3)
+>>> for v in (1, 2, 3):
+...     d.push(complex(v))
+>>> d.ptr(3).real.tolist()   # most-recent-first tap snapshot
+[3.0, 2.0, 1.0]
+
+"""
 objects = ["delay"]
 
 [module.spectral]
@@ -1173,15 +1241,61 @@ type = "double"
 name = "N"
 type = "size_t"
 [module.buffer]
+doc = """
+Sample buffering: lock-free ring buffers for handing IQ blocks between producer and consumer stages.
+
+Examples
+--------
+>>> import numpy as np
+>>> from doppler.buffer import F32Buffer
+>>> b = F32Buffer(16)
+>>> b.write(np.ones(4, np.complex64))
+True
+>>> b.wait(4).shape
+(4,)
+
+"""
 no_generate = "true"
 
 [module.telemetry]
+doc = """
+Telemetry: lightweight in-band probes (Telemetry) that record loop internals -- error, control, lock -- to a sink for offline analysis.
+
+Examples
+--------
+>>> from doppler.telemetry import Telemetry
+>>> t = Telemetry()
+>>> t.probe('loop.err')
+0
+
+"""
 no_generate = "true"
 
 [module.stream]
+doc = """
+Streaming transport: NATS-backed publish/subscribe, push/pull, and request/reply of IQ sample blocks with a shared wire header, for multi-process pipelines.
+
+Examples
+--------
+>>> from doppler.stream import get_timestamp_ns
+>>> get_timestamp_ns() > 0
+True
+
+"""
 no_generate = "true"
 
 [module.ddc]
+doc = """
+Digital down-conversion: complex- and real-input down-converters (DDC, Ddcr) that mix to baseband, filter, and decimate in one pass, with matched-filter flavors.
+
+Examples
+--------
+>>> import numpy as np
+>>> from doppler.ddc import DDC
+>>> DDC(norm_freq=0.1).execute(np.ones(16, np.complex64)).size
+4
+
+"""
 objects = ["ddc", "ddcr"]
 # ddc.toml's depends_on link=true (gh-225) links the composed cores into the ddc
 # .so AND ddc's own C test/bench. Only the non-component libm remains here.
@@ -1196,6 +1310,17 @@ objects = ["specan"]
 extra_link_libs = ["m"]
 
 [module.resample]
+doc = """
+Sample-rate conversion: polyphase resampling (Resampler, RateConverter), halfband decimation (HalfbandDecimator), CIC decimation, and Farrow fractional resampling.
+
+Examples
+--------
+>>> import numpy as np
+>>> from doppler.resample import Resampler
+>>> Resampler(rate=2.0).execute(np.ones(100, np.complex64)).size
+200
+
+"""
 objects = ["Resampler", "HalfbandDecimator", "cic", "RateConverter", "farrow", "hbdecim_q15"]
 extra_types = ["HalfbandDecimatorDp", "HalfbandDecimatorR2C"]
 # Composed cores reach the resample .so via per-object depends_on link=true
@@ -1249,6 +1374,17 @@ type = "double"
 name = "sb"
 type = "double"
 [module.detection]
+doc = """
+Detection primitives: a portable lock detector (LockDet) applying level and time hysteresis to any scalar lock metric.
+
+Examples
+--------
+>>> from doppler.detection import LockDet
+>>> d = LockDet(up_thresh=1.5, down_thresh=1.2, n_up=2, n_down=2)
+>>> [d.step(2.0), d.step(2.0)]
+[0, 1]
+
+"""
 objects = ["lockdet"]
 
 [[module.detection.functions]]
@@ -1492,6 +1628,21 @@ name = "pfa"
 type = "double"
 
 [module.snr]
+doc = """
+Signal-to-noise estimation: data-aided and moment-based (M2M4) SNR / Es-N0 estimators for a recovered symbol stream.
+
+Examples
+--------
+>>> import numpy as np
+>>> from doppler.snr import snr_m2m4_db
+>>> rng = np.random.default_rng(0)
+>>> sym = (2 * rng.integers(0, 2, 20000) - 1).astype(np.complex64)
+>>> sym += 0.1 * (rng.standard_normal(20000)
+...              + 1j * rng.standard_normal(20000)).astype(np.complex64)
+>>> bool(15 < snr_m2m4_db(sym) < 25)
+True
+
+"""
 objects = []
 
 [[module.snr.functions]]
@@ -1551,6 +1702,18 @@ name = "window"
 type = "size_t"
 
 [module.mpsk]
+doc = """
+M-ary PSK mapping: hard and soft, including differential, symbol map/demap for BPSK, QPSK, and 8-PSK constellations.
+
+Examples
+--------
+>>> import numpy as np
+>>> from doppler.mpsk import mpsk_map, mpsk_demap
+>>> bits = np.array([0, 1, 1, 0], np.uint8)
+>>> np.array_equal(mpsk_demap(mpsk_map(bits, 4), 4), bits)
+True
+
+"""
 objects = []
 
 # M-PSK constellation map/demap (Gray-coded; BPSK/QPSK/8PSK). Element-wise free
@@ -1620,6 +1783,18 @@ type = "int"
 default = "4"
 
 [module.agc]
+doc = """
+Automatic gain control: a log-domain feedback AGC (AGC) that drives signal power toward a reference level.
+
+Examples
+--------
+>>> import numpy as np
+>>> from doppler.agc import AGC
+>>> y = AGC(ref_db=0.0, loop_bw=0.05).steps(0.1 * np.ones(200, np.complex64))
+>>> bool(abs(y[-1]) > abs(y[0]))
+True
+
+"""
 objects = ["agc"]
 
 # Propagation impairments: things that TRANSFORM a signal on its way from
@@ -1629,9 +1804,31 @@ objects = ["agc"]
 # resamp_core into the impairment .so — the dilation is resamp_execute_ctrl,
 # not a hand-rolled resampler.
 [module.impairment]
+doc = """
+Channel impairments: a DopplerChannel applying carrier offset, delay, and additive white Gaussian noise to a signal for test and simulation.
+
+Examples
+--------
+>>> import numpy as np
+>>> from doppler.impairment import DopplerChannel
+>>> ch = DopplerChannel(fs=1e6, carrier_hz=1e5, doppler_ppm=10.0)
+>>> bool(ch.execute(np.ones(64, np.complex64)).size > 0)
+True
+
+"""
 objects = ["doppler_channel"]
 
 [module.util]
+doc = """
+Shared numeric utilities used across the doppler modules.
+
+Examples
+--------
+>>> from doppler.util import square_clip
+>>> square_clip(2 + 0j, 1.0)
+(1+0j)
+
+"""
 objects = []
 
 [[module.util.functions]]
@@ -1647,6 +1844,18 @@ type = "float _Complex"
 name = "lin"
 type = "float"
 [module.arith]
+doc = """
+Fixed-point accumulators: Q8 and Q15 scalar sums (AccQ8, AccQ15) with exact integer arithmetic for bit-true pipelines.
+
+Examples
+--------
+>>> from doppler.arith import AccQ15
+>>> a = AccQ15()
+>>> a.step(100); a.step(50)
+>>> a.get()
+150
+
+"""
 objects = ["acc_q15", "acc_q8"]
 
 [[module.arith.functions]]
@@ -1893,21 +2102,87 @@ name = "interp_method"
 values = ["floor", "nearest", "linear"]
 
 [module.interp]
+doc = """
+Interpolation: a table-driven resampling interpolator (InterpolatedTable) for fractional-delay and rate-change lookups.
+
+Examples
+--------
+>>> import numpy as np
+>>> from doppler.interp import InterpolatedTable
+>>> t = InterpolatedTable(np.arange(4, dtype=np.complex128))
+>>> t.execute(np.array([1.5], np.float64)).real.round(2).tolist()
+[1.5]
+
+"""
 objects = ["interp_table"]
 
 [module.track]
+doc = """
+Carrier and timing tracking: loop filters, Costas / non-data-aided / MPSK carrier recovery, DLL code tracking, symbol-timing and rate sync, and full MPSK receivers.
+
+Examples
+--------
+>>> import numpy as np
+>>> from doppler.track import LoopFilter
+>>> y = LoopFilter(bn=0.05, zeta=0.707).steps(np.ones(50))
+>>> bool(y[-1] > y[0])
+True
+
+"""
 objects = ["loop_filter", "costas", "dll", "symsync", "ratesync", "carrier_mpsk", "carrier_nda", "mpsk_receiver", "mpsk_receiver_r"]
 
 [module.dsss]
+doc = """
+Direct-sequence spread-spectrum: the full chain from acquisition (Acquisition, BurstAcquisition) through despreading (Despreader, BurstDespreader) and polynomial-phase estimation to end-to-end receivers (DsssReceiver, AsyncDsssReceiver).
+
+Examples
+--------
+>>> import numpy as np
+>>> from doppler.dsss import Despreader
+>>> rng = np.random.default_rng(0)
+>>> code = rng.integers(0, 2, 31).astype(np.uint8)
+>>> csign = np.where(code & 1, -1.0, 1.0)
+>>> tx = np.repeat(np.tile(csign, 20), 2).astype(np.complex64)
+>>> bool(Despreader(code, sps=2).steps(tx).size >= 19)
+True
+
+"""
 objects = ["despreader", "burst_despreader", "acq", "burst_acq", "ppe", "burst_demod", "dsss_receiver", "async_dsss_receiver"]
 
 [module.acquire]
+doc = """
+Cold-start carrier acquisition: a coarse frequency/phase search (CarrierAcquisition) that seeds a downstream tracking loop.
+
+Examples
+--------
+>>> import numpy as np
+>>> from doppler.acquire import CarrierAcquisition
+>>> ca = CarrierAcquisition(sample_rate_hz=8000.0, symbol_rate_hz=1000.0,
+...                          resolution_hz=5.0)
+>>> ca.ready()
+False
+
+"""
 objects = ["carrier_acq"]
 
 # ── ber — error-rate measurement (the one tool) ──────────────────────────────
 # The settled window, the Pfa-gated alignment, inverse binomial sampling and
 # the exact Gamma/chi-square interval, in C once. Python is the thin face.
 [module.ber]
+doc = """
+Bit-error-rate measurement: a BerMeter that aligns a recovered bit stream to a reference and scores errors.
+
+Examples
+--------
+>>> import numpy as np
+>>> from doppler.ber import BerMeter
+>>> truth = (np.arange(64) & 1).astype(np.uint8)
+>>> m = BerMeter()
+>>> _ = m.set_truth(truth)
+>>> m.score((1.0 - 2.0 * truth).astype(np.complex64))
+0
+
+"""
 objects = ["ber_meter"]
 
 [[module.ber.functions]]

@@ -1,3 +1,11 @@
+"""Waveform generation: PN and CCSDS Gold code generators (PN, Gold) and a configurable modulated-symbol synthesizer, with BLUE/SigMF writers and readers re-exported.
+
+Examples
+--------
+>>> from doppler.wfm import Gold
+>>> Gold().generate(1023)[:15].tolist()   # CCSDS Code #365
+[0, 1, 0, 0, 0, 1, 0, 1, 1, 1, 0, 1, 1, 1, 1]"""
+
 # wfm/__init__.py — re-export all types from the C extension.
 import os as _os
 import sys as _sys

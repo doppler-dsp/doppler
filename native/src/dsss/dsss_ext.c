@@ -28,7 +28,18 @@
 static PyModuleDef dsss_moduledef = {
     PyModuleDef_HEAD_INIT,
     .m_name    = "dsss",
-    .m_doc     = "Dsss module.",
+    .m_doc     = "Direct-sequence spread-spectrum: the full chain from acquisition (Acquisition, BurstAcquisition) through despreading (Despreader, BurstDespreader) and polynomial-phase estimation to end-to-end receivers (DsssReceiver, AsyncDsssReceiver).\n"
+     "\n"
+     "Examples\n"
+     "--------\n"
+     ">>> import numpy as np\n"
+     ">>> from doppler.dsss import Despreader\n"
+     ">>> rng = np.random.default_rng(0)\n"
+     ">>> code = rng.integers(0, 2, 31).astype(np.uint8)\n"
+     ">>> csign = np.where(code & 1, -1.0, 1.0)\n"
+     ">>> tx = np.repeat(np.tile(csign, 20), 2).astype(np.complex64)\n"
+     ">>> bool(Despreader(code, sps=2).steps(tx).size >= 19)\n"
+     "True\n",
     .m_size    = -1,
     .m_methods = NULL,
 };

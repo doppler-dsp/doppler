@@ -21,7 +21,15 @@
 static PyModuleDef impairment_moduledef = {
     PyModuleDef_HEAD_INIT,
     .m_name    = "impairment",
-    .m_doc     = "Impairment module.",
+    .m_doc     = "Channel impairments: a DopplerChannel applying carrier offset, delay, and additive white Gaussian noise to a signal for test and simulation.\n"
+     "\n"
+     "Examples\n"
+     "--------\n"
+     ">>> import numpy as np\n"
+     ">>> from doppler.impairment import DopplerChannel\n"
+     ">>> ch = DopplerChannel(fs=1e6, carrier_hz=1e5, doppler_ppm=10.0)\n"
+     ">>> bool(ch.execute(np.ones(64, np.complex64)).size > 0)\n"
+     "True\n",
     .m_size    = -1,
     .m_methods = NULL,
 };

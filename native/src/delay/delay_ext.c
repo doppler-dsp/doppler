@@ -21,7 +21,16 @@
 static PyModuleDef delay_moduledef = {
     PyModuleDef_HEAD_INIT,
     .m_name    = "delay",
-    .m_doc     = "Delay module.",
+    .m_doc     = "Fractional and integer sample delay: a delay line (DelayCf64) with a windowed tap view for building matched filters and correlators.\n"
+     "\n"
+     "Examples\n"
+     "--------\n"
+     ">>> from doppler.delay import DelayCf64\n"
+     ">>> d = DelayCf64(num_taps=3)\n"
+     ">>> for v in (1, 2, 3):\n"
+     "...     d.push(complex(v))\n"
+     ">>> d.ptr(3).real.tolist()   # most-recent-first tap snapshot\n"
+     "[3.0, 2.0, 1.0]\n",
     .m_size    = -1,
     .m_methods = NULL,
 };

@@ -40,14 +40,22 @@ _bind_design_lowpass(PyObject *self, PyObject *args, PyObject *kwds)
 /* ======================================================== */
 
 static PyMethodDef filter_module_methods[] = {
-    {"design_lowpass", (PyCFunction)(void *)_bind_design_lowpass, METH_VARARGS | METH_KEYWORDS, "Kaiser-windowed-sinc lowpass FIR taps, auto-sized by kaiser_num_taps (Nyquist-normalised fpass/fstop band edges, unit-DC-gain float32 taps)."},
+    {"design_lowpass", (PyCFunction)(void *)_bind_design_lowpass, METH_VARARGS | METH_KEYWORDS,
+     "Kaiser-windowed-sinc lowpass FIR taps, auto-sized by kaiser_num_taps (Nyquist-normalised fpass/fstop band edges, unit-DC-gain float32 taps).\n"},
     {NULL, NULL, 0, NULL}
 };
 
 static PyModuleDef filter_moduledef = {
     PyModuleDef_HEAD_INIT,
     .m_name    = "filter",
-    .m_doc     = "Filter module.",
+    .m_doc     = "FIR filtering: a direct-form complex or real FIR (FIR) and an O(1) boxcar moving average (MovingAverage).\n"
+     "\n"
+     "Examples\n"
+     "--------\n"
+     ">>> import numpy as np\n"
+     ">>> from doppler.filter import MovingAverage\n"
+     ">>> MovingAverage(2).steps(np.ones(3, np.complex64)).real.tolist()\n"
+     "[0.5, 1.0, 1.0]\n",
     .m_size    = -1,
     .m_methods = filter_module_methods,
 };

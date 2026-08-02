@@ -1,3 +1,13 @@
+"""Fixed-point accumulators: Q8 and Q15 scalar sums (AccQ8, AccQ15) with exact integer arithmetic for bit-true pipelines.
+
+Examples
+--------
+>>> from doppler.arith import AccQ15
+>>> a = AccQ15()
+>>> a.step(100); a.step(50)
+>>> a.get()
+150"""
+
 # arith/__init__.py — re-export all types from the C extension.
 import os as _os
 import sys as _sys

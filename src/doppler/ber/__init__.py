@@ -1,3 +1,15 @@
+"""Bit-error-rate measurement: a BerMeter that aligns a recovered bit stream to a reference and scores errors.
+
+Examples
+--------
+>>> import numpy as np
+>>> from doppler.ber import BerMeter
+>>> truth = (np.arange(64) & 1).astype(np.uint8)
+>>> m = BerMeter()
+>>> _ = m.set_truth(truth)
+>>> m.score((1.0 - 2.0 * truth).astype(np.complex64))
+0"""
+
 # ber/__init__.py — re-export all types from the C extension.
 import os as _os
 import sys as _sys

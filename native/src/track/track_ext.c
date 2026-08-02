@@ -29,7 +29,15 @@
 static PyModuleDef track_moduledef = {
     PyModuleDef_HEAD_INIT,
     .m_name    = "track",
-    .m_doc     = "Track module.",
+    .m_doc     = "Carrier and timing tracking: loop filters, Costas / non-data-aided / MPSK carrier recovery, DLL code tracking, symbol-timing and rate sync, and full MPSK receivers.\n"
+     "\n"
+     "Examples\n"
+     "--------\n"
+     ">>> import numpy as np\n"
+     ">>> from doppler.track import LoopFilter\n"
+     ">>> y = LoopFilter(bn=0.05, zeta=0.707).steps(np.ones(50))\n"
+     ">>> bool(y[-1] > y[0])\n"
+     "True\n",
     .m_size    = -1,
     .m_methods = NULL,
 };

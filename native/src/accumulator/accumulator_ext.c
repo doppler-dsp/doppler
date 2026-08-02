@@ -23,7 +23,15 @@
 static PyModuleDef accumulator_moduledef = {
     PyModuleDef_HEAD_INIT,
     .m_name    = "accumulator",
-    .m_doc     = "Accumulator module.",
+    .m_doc     = "Running accumulators: single- and double-precision complex scalar sums (AccF32, AccCf64) and a per-tap trace accumulator (AccTrace), each carrying a running total across calls.\n"
+     "\n"
+     "Examples\n"
+     "--------\n"
+     ">>> from doppler.accumulator import AccF32\n"
+     ">>> a = AccF32()\n"
+     ">>> a.step(1.5); a.step(2.5)\n"
+     ">>> a.get()\n"
+     "4.0\n",
     .m_size    = -1,
     .m_methods = NULL,
 };

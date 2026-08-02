@@ -4,6 +4,32 @@ import numpy as np
 from numpy.typing import NDArray
 
 @final
+class PolynomialPhaseEstimate(tuple[float, float, float]):
+    """Polynomial-phase estimate: carrier frequency, chirp rate, and a rough SNR confidence.
+
+    Attributes
+    ----------
+    freq_norm : float
+        Frequency [cycles/sample], in [-0.5, 0.5).
+    rate_norm : float
+        Chirp rate [cycles/sample^2].
+    snr_db : float
+        Winning-row peak-to-mean ratio [dB] (rough confidence).
+    """
+
+    @property
+    def freq_norm(self) -> float:
+        """Frequency [cycles/sample], in [-0.5, 0.5)."""
+
+    @property
+    def rate_norm(self) -> float:
+        """Chirp rate [cycles/sample^2]."""
+
+    @property
+    def snr_db(self) -> float:
+        """Winning-row peak-to-mean ratio [dB] (rough confidence)."""
+
+@final
 class Despreader:
     """Create a continuous DSSS despreader (COPIES code).
 
@@ -1382,7 +1408,7 @@ class PolynomialPhaseEstimator:
 
         """
 
-    def estimate(self, x: complex) -> tuple[float, float, float]:
+    def estimate(self, x: complex) -> PolynomialPhaseEstimate:
         """Estimate (freq, chirp-rate) of a complex sequence via the 2-lag HAF.
 
         Runs the full 2-D matched-filter search in one shot: for each chirp-rate
@@ -1405,7 +1431,7 @@ class PolynomialPhaseEstimator:
 
         Returns
         -------
-        tuple[float, float, float]
+        PolynomialPhaseEstimate
             The estimate; all fields are zeroed if n_in is out of range.
 
         Examples

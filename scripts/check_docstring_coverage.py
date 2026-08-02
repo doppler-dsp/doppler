@@ -104,6 +104,30 @@ def _is_boilerplate(name: str) -> bool:
     return name in BOILERPLATE or name.endswith("_max_out")
 
 
+def _is_record_class(cls: ast.ClassDef) -> bool:
+    """A ``single = true`` result record — ``class X(tuple[...])``.
+
+    jm emits one of these for a by-value metric record (gh-646:
+    ``ToneMetrics``/``NPRMetrics``/…). It is not user-constructable — a method
+    returns it — so it can carry no ``>>>`` example; it is documented by its
+    ``record_doc`` (the class summary) plus an ``Attributes`` table whose
+    entries are the field properties, and those fields are counted separately
+    as properties. So the class itself is scored WITHOUT the example, exactly
+    like generated glue: fully documented *for what it is*. Detected by a
+    ``tuple[...]`` base, which is the fixed-length-tuple subclass jm generates.
+    """
+    for base in cls.bases:
+        node = base.value if isinstance(base, ast.Subscript) else base
+        name = (
+            node.id
+            if isinstance(node, ast.Name)
+            else getattr(node, "attr", None)
+        )
+        if name == "tuple":
+            return True
+    return False
+
+
 FULL, PARTIAL, STUB = "FULL", "PARTIAL", "STUB"
 
 # Raw Doxygen tags that must never survive into a rendered docstring. jm is
@@ -258,6 +282,7 @@ class Sym:
         has_return: bool,
         is_property: bool,
         stub_doc: str | None,
+        record: bool = False,
     ):
         self.qual = qual
         self.kind = kind  # class | method | property | function | module
@@ -268,6 +293,9 @@ class Sym:
         self.runtime_doc: str | None = None
         self.runtime_seen = False  # was the runtime object found?
         self.boilerplate = _is_boilerplate(qual.rsplit(".", 1)[-1])
+        # A single=true structseq record class: documented like glue (no
+        # example possible), scored on the same no-example bar.
+        self.record = record
 
     def status(self, face: str) -> str:
         """Strict FULL/PARTIAL/STUB — the END-STATE (ideal) bar."""
@@ -282,7 +310,7 @@ class Sym:
             self.params,
             self.has_return,
             self.is_property,
-            self.boilerplate,
+            self.boilerplate or self.record,
         )
 
     def leaks(self, face: str) -> list[str]:
@@ -353,6 +381,7 @@ def _class_syms(mod: str, cls: ast.ClassDef) -> list[Sym]:
             False,
             False,
             ast.get_docstring(cls),
+            record=_is_record_class(cls),
         )
     ]
     for node in cls.body:

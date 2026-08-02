@@ -316,7 +316,7 @@ IMDMeasureObj_exit (IMDMeasureObject *self, PyObject *args)
 
 static PyMethodDef IMDMeasureObj_methods[] = {
   { "reset", (PyCFunction)IMDMeasureObj_reset, METH_NOARGS,
-    "Reset state to post-create defaults." },
+    "Reset the analyser (a no-op: each analyze() call is independent)." },
 
   { "analyze", (PyCFunction)IMDMeasureObj_analyze, METH_VARARGS,
     "analyze(x) -> IMDMetrics record (f1, f2, p1_dbfs, p2_dbfs, imd2_dbc, "

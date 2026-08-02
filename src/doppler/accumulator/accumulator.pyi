@@ -14,16 +14,13 @@ class AccF32:
 
     Examples
     --------
-    Create with defaults:
-
     >>> from doppler.accumulator import AccF32
-    >>> obj = AccF32(acc=0.0)
+    >>> obj = AccF32(0.0)
     >>> obj.get_acc()
     0.0
-
-    Reset restores defaults:
-
-    >>> obj.set_acc(1.0)
+    >>> obj.set_acc(5.0)
+    >>> obj.get_acc()
+    5.0
     >>> obj.reset()
     >>> obj.get_acc()
     0.0
@@ -240,10 +237,43 @@ class AccF32:
             A `get_state()` blob from this type, exactly `state_bytes()` long.
         """
     def get_acc(self) -> float:
-        """Return current acc."""
+        """Return the current accumulator value without modifying state. Use this when you need to read the running sum mid-accumulation without disturbing it. For a read-and-reset in one call use ``acc_f32_dump``.
+
+        Returns
+        -------
+        float
+            Current value of ``acc`` (float).
+
+        Examples
+        --------
+        >>> from doppler.accumulator import AccF32
+        >>> obj = AccF32(0.0)
+        >>> obj.step(4.0)
+        >>> obj.get_acc()          # non-destructive read
+        4.0
+        >>> obj.get_acc()          # still there — get_acc never drains
+        4.0
+
+        """
 
     def set_acc(self, value: float) -> None:
-        """Set acc."""
+        """Overwrite the accumulator with a new value. Useful for seeding the accumulator to a known baseline before processing a new segment without a full ``reset``; subsequent ``step`` / ``steps`` samples accumulate on top of the seeded value.
+
+        Parameters
+        ----------
+        value : float
+            New accumulator value.
+
+        Examples
+        --------
+        >>> from doppler.accumulator import AccF32
+        >>> obj = AccF32(0.0)
+        >>> obj.set_acc(10.0)      # seed a running baseline
+        >>> obj.step(2.5)          # later samples fold in on top
+        >>> obj.get_acc()
+        12.5
+
+        """
 
     def destroy(self) -> None:
         """Release the underlying C resources immediately.
@@ -297,16 +327,13 @@ class AccCf64:
 
     Examples
     --------
-    Create with defaults:
-
     >>> from doppler.accumulator import AccCf64
-    >>> obj = AccCf64(acc=0j)
+    >>> obj = AccCf64(0j)
     >>> obj.get_acc()
     0j
-
-    Reset restores defaults:
-
-    >>> obj.set_acc(0.0)
+    >>> obj.set_acc(3+4j)
+    >>> obj.get_acc()
+    (3+4j)
     >>> obj.reset()
     >>> obj.get_acc()
     0j
@@ -523,10 +550,43 @@ class AccCf64:
             A `get_state()` blob from this type, exactly `state_bytes()` long.
         """
     def get_acc(self) -> complex:
-        """Return current acc."""
+        """Return the current accumulator value without modifying state. Use this when you need to read the running sum mid-accumulation without disturbing it. For a read-and-reset in one call use ``acc_cf64_dump``.
+
+        Returns
+        -------
+        complex
+            Current value of ``acc`` (complex).
+
+        Examples
+        --------
+        >>> from doppler.accumulator import AccCf64
+        >>> obj = AccCf64(0j)
+        >>> obj.step(1+2j)
+        >>> obj.get_acc()          # non-destructive read
+        (1+2j)
+        >>> obj.get_acc()          # still there — get_acc never drains
+        (1+2j)
+
+        """
 
     def set_acc(self, value: complex) -> None:
-        """Set acc."""
+        """Overwrite the accumulator with a new complex value. Useful for seeding the accumulator to a known baseline before processing a new segment without a full ``reset``; subsequent ``step`` / ``steps`` samples accumulate on top of the seeded value.
+
+        Parameters
+        ----------
+        value : complex
+            New accumulator value (complex).
+
+        Examples
+        --------
+        >>> from doppler.accumulator import AccCf64
+        >>> obj = AccCf64(0j)
+        >>> obj.set_acc(5+6j)      # seed a complex baseline
+        >>> obj.step(1+1j)         # later samples fold in on top
+        >>> obj.get_acc()
+        (6+7j)
+
+        """
 
     def destroy(self) -> None:
         """Release the underlying C resources immediately.
@@ -584,10 +644,10 @@ class AccTrace:
 
     Examples
     --------
-    Create with defaults:
-
     >>> from doppler.accumulator import AccTrace
-    >>> obj = AccTrace(n=1024, mode="mean", alpha=0.1)
+    >>> acc = AccTrace(n=8, mode="mean")
+    >>> acc.n, acc.count
+    (8, 0)
 
     """
     def __init__(self, n: int = ..., mode: Literal["mean", "exp", "maxhold", "minhold"] = "mean", alpha: float = ...) -> None: ...
@@ -650,7 +710,18 @@ class AccTrace:
         """
 
     def value_max_out(self, n: int) -> int:
-        """Max output length value() can produce for n."""
+        """Output capacity hint for value(); equals the trace length n.
+
+        Parameters
+        ----------
+        n : int
+            Input.
+
+        Returns
+        -------
+        int
+            Output.
+        """
 
     def state_bytes(self) -> int:
         """Size in bytes of this object's serialized state.

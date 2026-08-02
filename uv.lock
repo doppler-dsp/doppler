@@ -713,7 +713,7 @@ provides-extras = ["cli", "specan", "specan-web"]
 [package.metadata.requires-dev]
 dev = [
     { name = "jsonschema", specifier = ">=4.18" },
-    { name = "just-makeit", specifier = "==0.36.0" },
+    { name = "just-makeit", specifier = "==0.37.1" },
     { name = "matplotlib", marker = "python_full_version == '3.9.*'", specifier = "<3.10" },
     { name = "matplotlib", marker = "python_full_version >= '3.10'", specifier = ">=3.10.9" },
     { name = "mdformat", marker = "python_full_version >= '3.10'", specifier = "==1.0.0" },
@@ -1173,14 +1173,14 @@ wheels = [
 
 [[package]]
 name = "just-makeit"
-version = "0.36.0"
+version = "0.37.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "tomli", marker = "python_full_version < '3.11'" },
     { name = "tomlkit" },
 ]
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/ee/02/67d96050e2f978f97a530034e6916c2b11f298fc92c712f7166ba2f90de4/just_makeit-0.36.0-py3-none-any.whl", hash = "sha256:1605fd38c49a2c0a590a39987881f08daf95daffae04d18ed4db6c7fe8fefdaa", size = 860090, upload-time = "2026-08-01T22:27:40.443Z" },
+    { url = "https://files.pythonhosted.org/packages/4f/8c/be8fc04cac1af49ea0f83eb3c55735d7939a3ab04f975067e0170c10d390/just_makeit-0.37.1-py3-none-any.whl", hash = "sha256:c9aa1487e6bdf15ebf223db863f49c57ed26d148c49947c85bf6b021bbba6f1b", size = 868792, upload-time = "2026-08-02T08:47:37.171Z" },
 ]
 
 [[package]]

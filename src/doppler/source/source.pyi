@@ -16,10 +16,10 @@ class NCO:
 
     Examples
     --------
-    Create with defaults:
-
     >>> from doppler.source import NCO
-    >>> obj = NCO(norm_freq=0.0, nmax=0)
+    >>> nco = NCO(norm_freq=0.25, nmax=0)
+    >>> nco.phase_inc
+    1073741824
 
     """
     def __init__(self, norm_freq: float = ..., nmax: int = ...) -> None: ...
@@ -63,7 +63,22 @@ class NCO:
         """
 
     def steps_u32_max_out(self, n: int) -> int:
-        """Max output length steps_u32() can produce for n."""
+        """Maximum samples per call (determines pre-allocated buffer size).
+
+        The Python extension pre-allocates output buffers of this size at
+
+        create time. Requesting more samples per call is undefined behaviour.
+
+        Parameters
+        ----------
+        n : int
+            Input.
+
+        Returns
+        -------
+        int
+            Output.
+        """
 
     def steps_u32_scaled(self, count: int = 1, out: NDArray[np.uint32] | None = None) -> NDArray[np.uint32]:
         """Advance n samples; values scaled to `[0, nmax)`. Uses the branchless fixed-point identity `out[i]` = (uint64_t)phase * nmax >> 32 to map the full accumulator range uniformly onto [0, nmax) without a modulo operation.  When nmax == 0 falls back to the raw accumulator (identical to nco_steps_u32).  Useful for polyphase filter bank indexing and direct LUT addressing.  Returns n.
@@ -86,7 +101,23 @@ class NCO:
         """
 
     def steps_u32_scaled_max_out(self, n: int) -> int:
-        """Max output length steps_u32_scaled() can produce for n."""
+        """Largest number of samples steps_u32_scaled() can return for n inputs.
+
+        Size an `out=` buffer with this before calling steps_u32_scaled(), or
+        use it to allocate one up front. The bound is this object's own: what it
+        depends on is a property of the algorithm, so a header block on
+        steps_u32_scaled_max_out() replaces this text.
+
+        Parameters
+        ----------
+        n : int
+            Number of input samples steps_u32_scaled() will be given.
+
+        Returns
+        -------
+        int
+            Upper bound on the output length; the actual call may return fewer.
+        """
 
     def steps_u32_ovf(self, count: int = 1) -> tuple[NDArray[np.uint32], NDArray[np.uint8]]:
         """Advance n samples; write raw phase values and per-sample carry. Identical to nco_steps_u32 for the phase array, but simultaneously fills a parallel uint8 carry buffer: `out1[i]` is 1 if the add that produced `out[i]`'s post-increment phase wrapped past 2^32, else 0. The carry marks the exact boundary of one input period and is the primitive for polyphase sample-clock and rational resampling engines. Returns n.
@@ -159,7 +190,23 @@ class NCO:
         """
 
     def steps_u32_ctrl_max_out(self, ctrl_len: int) -> int:
-        """Max output length steps_u32_ctrl() can produce for ctrl_len."""
+        """Largest number of samples steps_u32_ctrl() can return for ctrl_len inputs.
+
+        Size an `out=` buffer with this before calling steps_u32_ctrl(), or use
+        it to allocate one up front. The bound is this object's own: what it
+        depends on is a property of the algorithm, so a header block on
+        steps_u32_ctrl_max_out() replaces this text.
+
+        Parameters
+        ----------
+        ctrl_len : int
+            Number of input samples steps_u32_ctrl() will be given.
+
+        Returns
+        -------
+        int
+            Upper bound on the output length; the actual call may return fewer.
+        """
 
     def steps_u32_scaled_ctrl(self, ctrl: NDArray[np.float32], out: NDArray[np.uint32] | None = None) -> NDArray[np.uint32]:
         """Advance ctrl_len samples; values scaled to `[0, nmax)`, with a per-sample control offset added on top of phase_inc.
@@ -196,7 +243,23 @@ class NCO:
         """
 
     def steps_u32_scaled_ctrl_max_out(self, ctrl_len: int) -> int:
-        """Max output length steps_u32_scaled_ctrl() can produce for ctrl_len."""
+        """Largest number of samples steps_u32_scaled_ctrl() can return for ctrl_len inputs.
+
+        Size an `out=` buffer with this before calling steps_u32_scaled_ctrl(),
+        or use it to allocate one up front. The bound is this object's own: what
+        it depends on is a property of the algorithm, so a header block on
+        steps_u32_scaled_ctrl_max_out() replaces this text.
+
+        Parameters
+        ----------
+        ctrl_len : int
+            Number of input samples steps_u32_scaled_ctrl() will be given.
+
+        Returns
+        -------
+        int
+            Upper bound on the output length; the actual call may return fewer.
+        """
 
     def steps_u32_ovf_ctrl(self, ctrl: NDArray[np.float32]) -> tuple[NDArray[np.uint32], NDArray[np.uint8]]:
         """Advance ctrl_len samples; raw phase + per-sample carry, with a per-sample control offset added on top of phase_inc.
@@ -357,10 +420,10 @@ class LO:
 
     Examples
     --------
-    Create with defaults:
-
     >>> from doppler.source import LO
-    >>> obj = LO(norm_freq=0.0)
+    >>> lo = LO(norm_freq=0.25)
+    >>> lo.phase_inc
+    1073741824
 
     """
     def __init__(self, norm_freq: float = ...) -> None: ...
@@ -406,7 +469,18 @@ class LO:
         """
 
     def steps_max_out(self, n: int) -> int:
-        """Max output length steps() can produce for n."""
+        """Maximum samples per call (determines pre-allocated buffer size).
+
+        Parameters
+        ----------
+        n : int
+            Input.
+
+        Returns
+        -------
+        int
+            Output.
+        """
 
     def steps_ctrl(self, ctrl: NDArray[np.float32], out: NDArray[np.complex64] | None = None) -> NDArray[np.complex64]:
         """Generate CF32 phasors with per-sample FM deviation. For each sample i, `ctrl[i]`'s fractional part is converted to a delta phase-increment (delta = floor(frac(`ctrl[i]`) × 2^32)) that is added on top of the base phase_inc for that one step only.  The base norm_freq and phase_inc are NOT modified; the deviation is transient per sample, making this the natural API for FM synthesis and frequency-hopping.  Output length equals ctrl_len.  Returns ctrl_len.
@@ -439,7 +513,23 @@ class LO:
         """
 
     def steps_ctrl_max_out(self, ctrl_len: int) -> int:
-        """Max output length steps_ctrl() can produce for ctrl_len."""
+        """Largest number of samples steps_ctrl() can return for ctrl_len inputs.
+
+        Size an `out=` buffer with this before calling steps_ctrl(), or use it
+        to allocate one up front. The bound is this object's own: what it
+        depends on is a property of the algorithm, so a header block on
+        steps_ctrl_max_out() replaces this text.
+
+        Parameters
+        ----------
+        ctrl_len : int
+            Number of input samples steps_ctrl() will be given.
+
+        Returns
+        -------
+        int
+            Upper bound on the output length; the actual call may return fewer.
+        """
 
     def state_bytes(self) -> int:
         """Size in bytes of this object's serialized state.
@@ -563,10 +653,10 @@ class AWGN:
 
     Examples
     --------
-    Create with defaults:
-
     >>> from doppler.source import AWGN
-    >>> obj = AWGN(seed=0, amplitude=1.0)
+    >>> gen = AWGN(seed=0, amplitude=1.0)
+    >>> gen.amplitude
+    1.0
 
     """
     def __init__(self, seed: int = ..., amplitude: float = ...) -> None: ...
@@ -613,7 +703,22 @@ class AWGN:
         """
 
     def generate_max_out(self, n: int) -> int:
-        """Max output length generate() can produce for n."""
+        """Conservative upper bound on generate() output size.
+
+        Returns 65536. The Python extension uses this for the initial
+
+        buffer allocation; the buffer grows on demand if n > 65536.
+
+        Parameters
+        ----------
+        n : int
+            Input.
+
+        Returns
+        -------
+        int
+            Output.
+        """
 
     def reseed(self, seed: int) -> None:
         """Reseed the RNG and reset all xoshiro256++ state. Equivalent to calling awgn_destroy() and awgn_create(seed, amplitude) but reuses the existing allocation.  amplitude is unchanged.

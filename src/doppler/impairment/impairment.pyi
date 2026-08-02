@@ -64,7 +64,23 @@ class DopplerChannel:
         """
 
     def execute_max_out(self, x_len: int) -> int:
-        """Max output length execute() can produce for x_len."""
+        """Upper bound on the output of one execute() call.
+
+        Assumes an input of at most `DOPPLER_CHANNEL_MAX_BLOCK` samples — see
+        that
+
+        macro for why the bound cannot depend on the actual input length.
+
+        Parameters
+        ----------
+        x_len : int
+            Input.
+
+        Returns
+        -------
+        int
+            Output.
+        """
 
     def reset(self) -> None:
         """Reset DopplerChannel to its post-create state.

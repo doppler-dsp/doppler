@@ -272,7 +272,9 @@ AccQ8_set_state (AccQ8Object *self, PyObject *arg)
 
 static PyMethodDef AccQ8_methods[] = {
   { "reset", (PyCFunction)AccQ8_reset, METH_NOARGS,
-    "Reset state to post-create defaults." },
+    "Reset the accumulator to zero, mirroring the post-create state. Always "
+    "resets to zero regardless of the original constructor value, so it is "
+    "safe to call at the start of any new accumulation window." },
   { "step", (PyCFunction)AccQ8_step, METH_VARARGS,
     "step(x) -> None\n"
     "\n"
@@ -295,8 +297,13 @@ static PyMethodDef AccQ8_methods[] = {
     "    >>> obj = AccQ8(0)\n"
     "    >>> y = obj.steps(np.zeros(4, dtype=np.int8))\n" },
 
-  { "get_acc", (PyCFunction)AccQ8_get_acc, METH_NOARGS, "Get acc." },
-  { "set_acc", (PyCFunction)AccQ8_set_acc, METH_VARARGS, "Set acc." },
+  { "get_acc", (PyCFunction)AccQ8_get_acc, METH_NOARGS,
+    "Read the current accumulator value without modifying it. Permits "
+    "repeated snapshots of the running sum mid-stream.\n" },
+  { "set_acc", (PyCFunction)AccQ8_set_acc, METH_VARARGS,
+    "Overwrite the accumulator with a new value. Useful for applying a bias "
+    "before a new accumulation window, or for restoring a checkpointed "
+    "accumulator state.\n" },
   { "get", (PyCFunction)AccQ8_get, METH_NOARGS,
     "get() -> int\n"
     "\n"

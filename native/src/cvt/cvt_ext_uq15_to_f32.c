@@ -183,7 +183,7 @@ UQ15ToF32Obj_exit (UQ15ToF32Object *self, PyObject *args)
 
 static PyMethodDef UQ15ToF32Obj_methods[]
     = { { "reset", (PyCFunction)UQ15ToF32Obj_reset, METH_NOARGS,
-          "Reset state to post-create defaults." },
+          "No-op reset, provided only for lifecycle symmetry." },
         { "step", (PyCFunction)UQ15ToF32_step, METH_VARARGS,
           "step(x) -> float\n"
           "\n"

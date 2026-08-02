@@ -483,7 +483,12 @@ AGCObj_exit (AGCObject *self, PyObject *args)
 
 static PyMethodDef AGCObj_methods[] = {
   { "reset", (PyCFunction)AGCObj_reset, METH_NOARGS,
-    "Reset state to post-create defaults." },
+    "Reset the AGC loop state to its post-create condition. Sets gain_db back "
+    "to 0 dB (unity), clears g_last, and re-seeds the power-detector EMA "
+    "p_avg from the current ref_db so that the first post-reset block "
+    "produces no transient.  All configuration fields (ref_db, loop_bw, "
+    "alpha, decim, clip_db) are left untouched.  Use this to process a new, "
+    "independent signal segment without re-allocating." },
   { "step", (PyCFunction)AGC_step, METH_VARARGS,
     "step(x) -> float complex\n"
     "\n"

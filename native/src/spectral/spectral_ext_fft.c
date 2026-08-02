@@ -640,7 +640,7 @@ FFTObj_exit (FFTObject *self, PyObject *args)
 
 static PyMethodDef FFTObj_methods[] = {
   { "reset", (PyCFunction)FFTObj_reset, METH_NOARGS,
-    "Reset state to post-create defaults." },
+    "No-op reset (plans are immutable after creation)." },
 
   { "execute_cf64", (PyCFunction)(void *)FFTObj_execute_cf64,
     METH_VARARGS | METH_KEYWORDS,

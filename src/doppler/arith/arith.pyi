@@ -14,19 +14,10 @@ class AccQ15:
 
     Examples
     --------
-    Create with defaults:
-
     >>> from doppler.arith import AccQ15
-    >>> obj = AccQ15(acc=0)
+    >>> obj = AccQ15(100)
     >>> obj.get_acc()
-    0
-
-    Reset restores defaults:
-
-    >>> obj.set_acc(42)
-    >>> obj.reset()
-    >>> obj.get_acc()
-    0
+    100
 
     """
     def __init__(self, acc: int = ...) -> None: ...
@@ -198,10 +189,43 @@ class AccQ15:
             A `get_state()` blob from this type, exactly `state_bytes()` long.
         """
     def get_acc(self) -> int:
-        """Return current acc."""
+        """Read the current accumulator value without modifying it. Use this when you need to snapshot the running total mid-stream and continue accumulating afterward.
+
+        Returns
+        -------
+        int
+            Output.
+
+        Examples
+        --------
+        >>> from doppler.arith import AccQ15
+        >>> obj = AccQ15(0)
+        >>> obj.step(100)
+        >>> obj.get()
+        100
+        >>> obj.step(200)
+        >>> obj.get()
+        300
+
+        """
 
     def set_acc(self, value: int) -> None:
-        """Set acc."""
+        """Overwrite the accumulator with a new value. Useful for setting a bias before a new accumulation window, or for restoring a previously checkpointed value.
+
+        Parameters
+        ----------
+        value : int
+            Input.
+
+        Examples
+        --------
+        >>> from doppler.arith import AccQ15
+        >>> obj = AccQ15(0)
+        >>> obj.set_acc(1000)
+        >>> obj.get_acc()
+        1000
+
+        """
 
     def destroy(self) -> None:
         """Release the underlying C resources immediately.
@@ -255,19 +279,10 @@ class AccQ8:
 
     Examples
     --------
-    Create with defaults:
-
     >>> from doppler.arith import AccQ8
-    >>> obj = AccQ8(acc=0)
+    >>> obj = AccQ8(10)
     >>> obj.get_acc()
-    0
-
-    Reset restores defaults:
-
-    >>> obj.set_acc(42)
-    >>> obj.reset()
-    >>> obj.get_acc()
-    0
+    10
 
     """
     def __init__(self, acc: int = ...) -> None: ...
@@ -439,10 +454,40 @@ class AccQ8:
             A `get_state()` blob from this type, exactly `state_bytes()` long.
         """
     def get_acc(self) -> int:
-        """Return current acc."""
+        """Read the current accumulator value without modifying it. Permits repeated snapshots of the running sum mid-stream.
+
+        Returns
+        -------
+        int
+            Output.
+
+        Examples
+        --------
+        >>> from doppler.arith import AccQ8
+        >>> obj = AccQ8(0)
+        >>> obj.step(10)
+        >>> obj.get_acc()
+        10
+
+        """
 
     def set_acc(self, value: int) -> None:
-        """Set acc."""
+        """Overwrite the accumulator with a new value. Useful for applying a bias before a new accumulation window, or for restoring a checkpointed accumulator state.
+
+        Parameters
+        ----------
+        value : int
+            Input.
+
+        Examples
+        --------
+        >>> from doppler.arith import AccQ8
+        >>> obj = AccQ8(0)
+        >>> obj.set_acc(50)
+        >>> obj.get_acc()
+        50
+
+        """
 
     def destroy(self) -> None:
         """Release the underlying C resources immediately.

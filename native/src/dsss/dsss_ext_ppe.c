@@ -218,7 +218,7 @@ PolynomialPhaseEstimatorObj_exit (PolynomialPhaseEstimatorObject *self,
 
 static PyMethodDef PolynomialPhaseEstimatorObj_methods[] = {
   { "reset", (PyCFunction)PolynomialPhaseEstimatorObj_reset, METH_NOARGS,
-    "Reset state to post-create defaults." },
+    "Do nothing — the estimator keeps no running state between calls." },
 
   { "estimate", (PyCFunction)PolynomialPhaseEstimatorObj_estimate,
     METH_VARARGS,

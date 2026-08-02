@@ -296,7 +296,10 @@ AWGNObj_exit (AWGNObject *self, PyObject *args)
 
 static PyMethodDef AWGNObj_methods[]
     = { { "reset", (PyCFunction)AWGNObj_reset, METH_NOARGS,
-          "Reset state to post-create defaults." },
+          "Reset RNG to the seed supplied at create time. Re-runs the "
+          "SplitMix64 seeding procedure with the original seed so the next "
+          "awgn_generate() call produces exactly the same samples as the "
+          "first call after awgn_create().  amplitude is not changed." },
 
         { "generate", (PyCFunction)(void *)AWGNObj_generate,
           METH_VARARGS | METH_KEYWORDS,

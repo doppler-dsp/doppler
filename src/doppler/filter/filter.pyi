@@ -12,6 +12,17 @@ class FIR:
     taps : NDArray[np.complex64]
         Array of num_taps CF32 coefficients (I+jQ each), copied.
 
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from doppler.filter import FIR
+    >>> taps = np.array([0.25+0j, 0.5+0j, 0.25+0j], dtype=np.complex64)
+    >>> fir = FIR(taps)
+    >>> fir.num_taps
+    3
+    >>> fir.is_real
+    False
+
     """
     def __init__(self, taps: NDArray[np.complex64]) -> None: ...
 
@@ -64,7 +75,26 @@ class FIR:
         """
 
     def execute_max_out(self, n_in: int) -> int:
-        """Max output length execute() can produce for n_in."""
+        """Always 0 -- FIR is a 1:1 transform, not a bounded-capacity one.
+
+        fir_execute() always writes exactly n_in samples; there is no
+
+        call-independent upper bound smaller than the input length for this
+
+        function to report. An `out=` buffer must be sized to exactly
+
+        `len(x)`, not to this function's return value.
+
+        Parameters
+        ----------
+        n_in : int
+            Input.
+
+        Returns
+        -------
+        int
+            Output.
+        """
 
     def state_bytes(self) -> int:
         """Size in bytes of this object's serialized state.

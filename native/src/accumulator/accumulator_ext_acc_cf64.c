@@ -332,7 +332,11 @@ AccCf64_set_state (AccCf64Object *self, PyObject *arg)
 
 static PyMethodDef AccCf64_methods[]
     = { { "reset", (PyCFunction)AccCf64_reset, METH_NOARGS,
-          "Reset state to post-create defaults." },
+          "Zero the accumulator, restoring the same state as a fresh "
+          "``AccCf64(0j)`` — regardless of the value supplied to "
+          "``acc_cf64_create``. Both the real and imaginary parts are set to "
+          "0.0. Subsequent ``get`` / ``dump`` calls return ``0j`` until new "
+          "samples are processed." },
         { "step", (PyCFunction)AccCf64_step, METH_VARARGS,
           "step(x) -> None\n"
           "\n"
@@ -355,8 +359,16 @@ static PyMethodDef AccCf64_methods[]
           "    >>> obj = AccCf64(0j)\n"
           "    >>> y = obj.steps(np.zeros(4, dtype=np.complex128))\n" },
 
-        { "get_acc", (PyCFunction)AccCf64_get_acc, METH_NOARGS, "Get acc." },
-        { "set_acc", (PyCFunction)AccCf64_set_acc, METH_VARARGS, "Set acc." },
+        { "get_acc", (PyCFunction)AccCf64_get_acc, METH_NOARGS,
+          "Return the current accumulator value without modifying state. Use "
+          "this when you need to read the running sum mid-accumulation "
+          "without disturbing it. For a read-and-reset in one call use "
+          "``acc_cf64_dump``.\n" },
+        { "set_acc", (PyCFunction)AccCf64_set_acc, METH_VARARGS,
+          "Overwrite the accumulator with a new complex value. Useful for "
+          "seeding the accumulator to a known baseline before processing a "
+          "new segment without a full ``reset``; subsequent ``step`` / "
+          "``steps`` samples accumulate on top of the seeded value.\n" },
         { "get", (PyCFunction)AccCf64_get, METH_NOARGS,
           "get() -> complex\n"
           "\n"

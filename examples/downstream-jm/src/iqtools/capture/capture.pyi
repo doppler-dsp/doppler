@@ -29,7 +29,23 @@ class Capture:
         """
 
     def read_max_out(self, n: int) -> int:
-        """Max output length read() can produce for n."""
+        """Largest number of samples read() can return for n inputs.
+
+        Size an `out=` buffer with this before calling read(), or use it to
+        allocate one up front. The bound is this object's own: what it depends
+        on is a property of the algorithm, so a header block on read_max_out()
+        replaces this text.
+
+        Parameters
+        ----------
+        n : int
+            Number of input samples read() will be given.
+
+        Returns
+        -------
+        int
+            Upper bound on the output length; the actual call may return fewer.
+        """
 
     @property
     def fs(self) -> float:
@@ -121,7 +137,23 @@ class RawCapture:
         """
 
     def read_max_out(self, n: int) -> int:
-        """Max output length read() can produce for n."""
+        """Largest number of samples read() can return for n inputs.
+
+        Size an `out=` buffer with this before calling read(), or use it to
+        allocate one up front. The bound is this object's own: what it depends
+        on is a property of the algorithm, so a header block on read_max_out()
+        replaces this text.
+
+        Parameters
+        ----------
+        n : int
+            Number of input samples read() will be given.
+
+        Returns
+        -------
+        int
+            Upper bound on the output length; the actual call may return fewer.
+        """
 
     @property
     def fs(self) -> float:

@@ -381,7 +381,9 @@ Corr2DObj_exit (Corr2DObject *self, PyObject *args)
 
 static PyMethodDef Corr2DObj_methods[] = {
   { "reset", (PyCFunction)Corr2DObj_reset, METH_NOARGS,
-    "Reset state to post-create defaults." },
+    "Zero the accumulator and reset the integration counter to 0. Equivalent "
+    "to starting a fresh dwell cycle without rebuilding FFT plans or "
+    "recomputing ref_spec." },
 
   { "execute", (PyCFunction)(void *)Corr2DObj_execute,
     METH_VARARGS | METH_KEYWORDS,

@@ -14,10 +14,13 @@ class Resampler:
 
     Examples
     --------
-    Create with defaults:
-
     >>> from doppler.resample import Resampler
-    >>> obj = Resampler(rate=0.0)
+    >>> import numpy as np
+    >>> r = Resampler(rate=2.0)
+    >>> r.num_phases, r.num_taps
+    (4096, 19)
+    >>> r.rate
+    2.0
 
     """
     def __init__(self, rate: float = ...) -> None: ...
@@ -48,7 +51,18 @@ class Resampler:
         """
 
     def execute_max_out(self, x_len: int) -> int:
-        """Max output length execute() can produce for x_len."""
+        """Always returns RESAMPLER_MAX_OUT.
+
+        Parameters
+        ----------
+        x_len : int
+            Input.
+
+        Returns
+        -------
+        int
+            Output.
+        """
 
     def execute_ctrl(self, x: NDArray[np.complex64], ctrl: NDArray[np.complex64]) -> NDArray[np.complex64]:
         """Resample with per-sample additive rate deviations. Effective rate for sample i is base_rate + real(`ctrl[i]`). Uses a unified double-precision accumulator that handles both interpolation and decimation in a single code path — suitable for Doppler-shift simulation and fractional-sample timing correction. ctrl and x must have the same length.
@@ -214,6 +228,16 @@ class HalfbandDecimator:
     h : NDArray[np.float32]
         Float32 FIR branch coefficients, length num_taps. Must be a symmetric halfband prototype (antisymmetric even-indexed taps zeroed).
 
+    Examples
+    --------
+    >>> from doppler.resample import HalfbandDecimator
+    >>> import numpy as np
+    >>> h = np.array([0.0625, 0.25, 0.375, 0.25, 0.0625],
+    ...              dtype=np.float32)
+    >>> hb = HalfbandDecimator(h=h)
+    >>> hb.num_taps, hb.rate
+    (5, 0.5)
+
     """
     def __init__(self, h: NDArray[np.float32]) -> None: ...
 
@@ -245,7 +269,18 @@ class HalfbandDecimator:
         """
 
     def execute_max_out(self, x_len: int) -> int:
-        """Max output length execute() can produce for x_len."""
+        """Always returns HBDECIM_MAX_OUT.
+
+        Parameters
+        ----------
+        x_len : int
+            Input.
+
+        Returns
+        -------
+        int
+            Output.
+        """
 
     def reset(self) -> None:
         """Zero all delay lines.  Coefficients and num_taps preserved. Call between signal bursts to suppress transient ringing from prior filter state. The next execute() after reset produces the same output as a freshly created decimator fed the same input.
@@ -379,10 +414,10 @@ class CIC:
 
     Examples
     --------
-    Create with defaults:
-
     >>> from doppler.resample import CIC
-    >>> obj = CIC(R=16)
+    >>> cic = CIC(R=16)
+    >>> cic.R, cic.shift
+    (16, 16)
 
     """
     def __init__(self, R: int = ...) -> None: ...
@@ -446,7 +481,24 @@ class CIC:
         """
 
     def decimate_max_out(self, n_in: int) -> int:
-        """Max output length decimate() can produce for n_in."""
+        """Upper bound on decimate output — returns 0 (lazy-alloc signal).
+
+        The Python extension allocates n_in elements on the first call.
+
+        Since n_in >= ceil(n_in/R) = n_out for all R >= 1, the buffer is
+
+        always large enough as long as block size stays consistent.
+
+        Parameters
+        ----------
+        n_in : int
+            Input.
+
+        Returns
+        -------
+        int
+            Output.
+        """
 
     def state_bytes(self) -> int:
         """Size in bytes of this object's serialized state.
@@ -566,10 +618,10 @@ class RateConverter:
 
     Examples
     --------
-    Create with defaults:
-
     >>> from doppler.resample import RateConverter
-    >>> obj = RateConverter(rate=1.0, compensate=0)
+    >>> rc = RateConverter(rate=0.5, compensate=0)
+    >>> rc.rate
+    0.5
 
     """
     def __init__(self, rate: float = ..., compensate: int = ...) -> None: ...
@@ -599,7 +651,22 @@ class RateConverter:
         """
 
     def execute_max_out(self, x_len: int) -> int:
-        """Max output length execute() can produce for x_len."""
+        """Upper bound on execute output for a standard 65536-sample block.
+
+        Returns (size_t)(65536 * max(rate, 1.0)) + 2. The Python extension uses
+
+        this to pre-allocate the output buffer on the first execute call.
+
+        Parameters
+        ----------
+        x_len : int
+            Input.
+
+        Returns
+        -------
+        int
+            Output.
+        """
 
     def execute_ctrl(self, x: NDArray[np.complex64], ctrl: float) -> NDArray[np.complex64]:
         """Convert a block, steering the cascade's fractional stage by ctrl.
@@ -817,14 +884,14 @@ class RateConverter:
 
 @final
 class MatchedRateConverter:
-    """MatchedRateConverter component.
+    """Create a rate converter for the given output/input rate ratio. Selects the cheapest cascade of CIC, HalfbandDecimator, and/or polyphase Resampler stages at construction time (see file header for the selection table). Setting compensate=1 appends a closed-form Molnar-Vucic CIC droop-compensating FIR after any CIC stage, which improves passband flatness at the cost of one extra FIR stage.
 
     Parameters
     ----------
     rate : float, default 1.0
-        rate constructor parameter.
+        Output-to-input sample rate ratio. Any positive float.
     compensate : int, default 1
-        compensate constructor parameter.
+        Non-zero to append a CIC passband-droop compensating FIR after any CIC stage.
     pulse : Literal["iandd", "rrc"], default "rrc"
         pulse constructor parameter.
     beta : float, default 0.35
@@ -838,28 +905,154 @@ class MatchedRateConverter:
 
     Examples
     --------
-    Create with defaults:
-
-    >>> from doppler.resample import MatchedRateConverter
-    >>> obj = MatchedRateConverter(rate=1.0, compensate=1, pulse="rrc", beta=0.35, span=8, pulse_sps=2.0, num_phases=1024)
+    >>> from doppler.resample import RateConverter
+    >>> rc = RateConverter(rate=0.5, compensate=0)
+    >>> rc.rate
+    0.5
 
     """
     def __init__(self, rate: float = ..., compensate: int = ..., pulse: Literal["iandd", "rrc"] = "rrc", beta: float = ..., span: int = ..., pulse_sps: float = ..., num_phases: int = ...) -> None: ...
 
     def execute(self, x: NDArray[np.complex64], out: NDArray[np.complex64] | None = None) -> NDArray[np.complex64]:
-        """Execute."""
+        """Convert a block of CF32 samples through the cascade. Passes input through each stage in order, ping-ponging between two intermediate buffers. State persists between calls, so contiguous calls on sequential blocks give the same result as one large call. Output length is approximately n_in * rate.
+
+        Parameters
+        ----------
+        x : NDArray[np.complex64]
+            Input.
+
+        Returns
+        -------
+        NDArray[np.complex64]
+            CF32 output array; length is approximately n_in * rate.
+
+        Examples
+        --------
+        >>> from doppler.resample import RateConverter
+        >>> import numpy as np
+        >>> rc = RateConverter(rate=0.5, compensate=0)
+        >>> y = rc.execute(np.zeros(1024, dtype=np.complex64))
+        >>> y.shape, y.dtype
+        ((512,), dtype('complex64'))
+
+        """
 
     def execute_max_out(self, x_len: int) -> int:
-        """Max output length execute() can produce for x_len."""
+        """Upper bound on execute output for a standard 65536-sample block.
+
+        Returns (size_t)(65536 * max(rate, 1.0)) + 2. The Python extension uses
+
+        this to pre-allocate the output buffer on the first execute call.
+
+        Parameters
+        ----------
+        x_len : int
+            Input.
+
+        Returns
+        -------
+        int
+            Output.
+        """
 
     def execute_ctrl(self, x: NDArray[np.complex64], ctrl: float) -> NDArray[np.complex64]:
-        """Execute ctrl."""
+        """Convert a block, steering the cascade's fractional stage by ctrl.
+
+        The control-port form of RateConverter_execute(): the fixed integer
+        stages (HalfbandDecimator / CIC) run unchanged, and the scalar rate
+        deviation ctrl is forwarded to the **terminal polyphase Resampler
+        stage's** accumulator (via resamp_execute_ctrl_push) — so its effective
+        rate becomes `stage_rate + ctrl` for this call. This exposes the
+        fractional tail's control port that RateConverter_execute() hides: a
+        timing/rate-tracking loop can decimate a high input rate cheaply through
+        the HB/CIC stages and then arbitrary-rate + strobe-align in the last
+        stage, updating ctrl per block.
+
+        `ctrl` is referenced to the terminal stage's (post-decimation) rate, not
+        the overall rate. It is meaningful only when the cascade actually ends
+        in a Resampler stage; a pure integer HB/CIC cascade has no fractional
+        stage to steer, so this **falls through to RateConverter_execute()**
+        (ctrl ignored).
+
+        Parameters
+        ----------
+        x : NDArray[np.complex64]
+            CF32 input block.
+        ctrl : float
+            Rate deviation added to the terminal Resampler stage's rate.
+
+        Returns
+        -------
+        NDArray[np.complex64]
+            CF32 output array; length tracks the accumulated effective rate.
+
+        Examples
+        --------
+        >>> from doppler.resample import RateConverter
+        >>> import numpy as np
+        >>> rc = RateConverter(rate=0.8, compensate=0)   # ends in Resampler(0.8)
+        >>> x = np.ones(1000, dtype=np.complex64)
+        >>> rc.execute_ctrl(x, 0.0).shape[0]             # base rate: 1000 -> 800
+        800
+        >>> rc2 = RateConverter(rate=0.8, compensate=0)
+        >>> rc2.execute_ctrl(x, 0.05).shape[0]           # +ctrl speeds the tail up
+        850
+
+        """
 
     def execute_ctrl_push(self, x: complex, ctrl: float) -> NDArray[np.complex64]:
-        """Execute ctrl push."""
+        """Push ONE input sample; emit whatever outputs it completes.
+
+        The per-input streaming form of RateConverter_execute_ctrl(), and the
+        only form a closed loop can use: a block call must know its whole `ctrl`
+        history up front, whereas a timing loop computes each correction *from*
+        the outputs already emitted. Feeding a stream one sample at a time
+        through this reproduces RateConverter_execute_ctrl() on the same block
+        bit-for-bit when ctrl is held constant (the cascade is block-boundary
+        invariant), so the cheap block form stays correct for open-loop use.
+
+        The integer HB/CIC stages consume the sample and emit at most one
+        intermediate sample each; the terminal Resampler stage then emits 0
+        outputs (a decimator between strobes — the common case), 1, or several
+        (an interpolator). A cascade with no terminal Resampler ignores ctrl.
+
+        Parameters
+        ----------
+        x : complex
+            One CF32 input sample.
+        ctrl : float
+            Rate deviation added to the terminal stage's rate for this input
+            (referenced to the terminal, post-decimation rate).
+
+        Returns
+        -------
+        NDArray[np.complex64]
+            CF32 array of the outputs completed by this input (0, 1, or more).
+
+        Examples
+        --------
+        >>> from doppler.resample import RateConverter
+        >>> import numpy as np
+        >>> rc = RateConverter(rate=0.8, compensate=0)   # ends in Resampler(0.8)
+        >>> x = (np.arange(10, dtype=np.float32) + 1).astype(np.complex64)
+        >>> # a decimator emits 0 between strobes, 1 on a strobe:
+        >>> [rc.execute_ctrl_push(complex(v), 0.0).shape[0] for v in x]
+        [0, 1, 1, 1, 1, 0, 1, 1, 1, 1]
+
+        """
 
     def reset(self) -> None:
-        """Reset."""
+        """Zero all sub-stage filter memories. Rate, stage count, and stage types are preserved. Processing from a reset state produces the same output as a freshly created converter fed the same input. Use between signal bursts to suppress transient artefacts from prior filter memory.
+
+        Examples
+        --------
+        >>> from doppler.resample import RateConverter
+        >>> rc = RateConverter(rate=0.5, compensate=0)
+        >>> rc.reset()
+        >>> rc.rate
+        0.5
+
+        """
 
     def state_bytes(self) -> int:
         """Size in bytes of this object's serialized state.
@@ -917,7 +1110,7 @@ class MatchedRateConverter:
 
     @property
     def rate(self) -> float:
-        """Rate."""
+        """Get / set the output-to-input sample rate ratio. The setter rebuilds the entire cascade (new stage selection, new sub-objects) and resets all filter memories — equivalent to destroying and recreating with the new rate. Setting rate <= 0 is silently ignored."""
     @rate.setter
     def rate(self, value: float) -> None: ...
 
@@ -1169,6 +1362,17 @@ class HalfbandDecimatorQ15:
     h : NDArray[np.float32]
         Float FIR branch coefficients of length num_taps. Must be symmetric (`h[k]` == `h[num_taps-1-k]`).
 
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from doppler.resample import HalfbandDecimatorQ15
+    >>> h = np.array([0.25, 0.5, 0.25], dtype=np.float32)
+    >>> dec = HalfbandDecimatorQ15(h)
+    >>> dec.num_taps
+    3
+    >>> dec.rate
+    0.5
+
     """
     def __init__(self, h: NDArray[np.float32]) -> None: ...
 
@@ -1204,7 +1408,23 @@ class HalfbandDecimatorQ15:
         """
 
     def execute_max_out(self, x_len: int) -> int:
-        """Max output length execute() can produce for x_len."""
+        """Maximum output samples for a given input length.
+
+        Returns 0 to trigger the lazy-alloc path in the Python glue: the
+
+        output buffer is sized to n_in on first call (always sufficient for
+        2:1).
+
+        Parameters
+        ----------
+        x_len : int
+            Input.
+
+        Returns
+        -------
+        int
+            Output.
+        """
 
     def reset(self) -> None:
         """Zero all delay rings and clear the pending-sample flag. After a reset the decimator behaves identically to a freshly constructed instance: the four dual-write delay rings are zeroed and has_pending is cleared, so no partial IQ pair carries over.  Call this between unrelated signal segments to prevent inter-segment leakage.

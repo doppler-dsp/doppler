@@ -16,10 +16,12 @@ class DDC:
 
     Examples
     --------
-    Create with defaults:
-
     >>> from doppler.ddc import DDC
-    >>> obj = DDC(norm_freq=0.0, rate=0.25)
+    >>> ddc = DDC(norm_freq=-0.1, rate=0.25)
+    >>> ddc.norm_freq
+    -0.1
+    >>> ddc.rate
+    0.25
 
     """
     def __init__(self, norm_freq: float = ..., rate: float = ...) -> None: ...
@@ -55,7 +57,24 @@ class DDC:
         """
 
     def execute_max_out(self, x_len: int) -> int:
-        """Max output length execute() can produce for x_len."""
+        """Maximum output samples one execute() of x_len inputs can produce.
+
+        A DDC decimates (or passes at unity), so the output never exceeds the
+
+        input length: returns x_len. The binding sizes the output buffer to this
+
+        per-call bound and resizes down to the actual count (gh-607).
+
+        Parameters
+        ----------
+        x_len : int
+            Number of input samples the matching execute() call sees.
+
+        Returns
+        -------
+        int
+            x_len (a safe upper bound on the produced samples).
+        """
 
     def execute_ctrl(self, x: NDArray[np.complex64], rate_ctrl: float, freq_ctrl: float) -> NDArray[np.complex64]:
         """Mix and resample a block, steering both control ports.
@@ -276,14 +295,14 @@ class DDC:
 
 @final
 class MatchedDDC:
-    """MatchedDDC component.
+    """Create a complex-input Digital Down-Converter. Allocates internal state for the LO and RateConverter cascade. The RateConverter selects the cheapest multi-stage decimation chain (CIC + optional halfband + polyphase resampler) for the given rate.
 
     Parameters
     ----------
     norm_freq : float, default 0.0
-        norm_freq constructor parameter.
+        LO frequency in cycles/sample at the input rate. Set to -f_carrier to shift a carrier at f_carrier to DC.  Any real value is accepted.
     rate : float, default 0.25
-        rate constructor parameter.
+        Output rate / input rate.  Must be > 0.  Values >= 1 are up-sampling; typical use is decimation (0 < rate < 1).
     pulse : Literal["iandd", "rrc"], default "rrc"
         pulse constructor parameter.
     beta : float, default 0.35
@@ -297,10 +316,12 @@ class MatchedDDC:
 
     Examples
     --------
-    Create with defaults:
-
-    >>> from doppler.ddc import MatchedDDC
-    >>> obj = MatchedDDC(norm_freq=0.0, rate=0.25, pulse="rrc", beta=0.35, span=8, pulse_sps=2.0, num_phases=1024)
+    >>> from doppler.ddc import DDC
+    >>> ddc = DDC(norm_freq=-0.1, rate=0.25)
+    >>> ddc.norm_freq
+    -0.1
+    >>> ddc.rate
+    0.25
 
     """
     def __init__(self, norm_freq: float = ..., rate: float = ..., pulse: Literal["iandd", "rrc"] = "rrc", beta: float = ..., span: int = ..., pulse_sps: float = ..., num_phases: int = ...) -> None: ...
@@ -311,25 +332,154 @@ class MatchedDDC:
         Parameters
         ----------
         x : NDArray[np.complex64]
-            Input.
+            CF32 input block; accepted as float32 (auto-cast).
 
         Returns
         -------
         NDArray[np.complex64]
-            Output.
+            Number of output samples written (C-only).
+
+        Examples
+        --------
+        >>> from doppler.ddc import DDC
+        >>> import numpy as np
+        >>> ddc = DDC(norm_freq=-0.1, rate=0.25)
+        >>> t = np.arange(4096)
+        >>> x = np.exp(1j * 2 * np.pi * 0.1 * t).astype(np.complex64)
+        >>> y = ddc.execute(x)
+        >>> y.shape
+        (1024,)
+        >>> y.dtype
+        dtype('complex64')
+        >>> round(float(abs(y[500])), 2)   # shifted to DC; amplitude ≈ 1
+        1.0
+
         """
 
     def execute_max_out(self, x_len: int) -> int:
-        """Max output length execute() can produce for x_len."""
+        """Maximum output samples one execute() of x_len inputs can produce.
+
+        A DDC decimates (or passes at unity), so the output never exceeds the
+
+        input length: returns x_len. The binding sizes the output buffer to this
+
+        per-call bound and resizes down to the actual count (gh-607).
+
+        Parameters
+        ----------
+        x_len : int
+            Number of input samples the matching execute() call sees.
+
+        Returns
+        -------
+        int
+            x_len (a safe upper bound on the produced samples).
+        """
 
     def execute_ctrl(self, x: NDArray[np.complex64], rate_ctrl: float, freq_ctrl: float) -> NDArray[np.complex64]:
-        """Execute ctrl."""
+        """Mix and resample a block, steering both control ports.
+
+        The control-port form of ddc_execute(): the LO advances by `phase_inc +
+        freq_ctrl` on every sample of this block, and the cascade's terminal
+        stage runs at `stage_rate + rate_ctrl`. Neither deviation is persisted —
+        the centre norm_freq and rate are untouched — so a tracking loop passes
+        its full filter output on every call and the DDC holds no loop state of
+        its own.
+
+        Feeding a stream through ddc_execute_ctrl_push() one sample at a time
+        reproduces this call bit-for-bit when both controls are held constant,
+        so the cheap block form stays correct for open-loop use (a fixed Doppler
+        offset, a rate trim) and the push form is what a closed loop uses.
+
+        Parameters
+        ----------
+        x : NDArray[np.complex64]
+            CF32 input block.
+        rate_ctrl : float
+            Rate deviation added to the terminal Resampler stage's rate.
+            Referenced to the terminal (post-decimation) rate, not the overall
+            rate; ignored by a plan whose last stage is an integer HB/CIC with
+            nothing to steer.
+        freq_ctrl : float
+            Frequency deviation added to the LO, in cycles/sample at the INPUT
+            rate (any sign).
+
+        Returns
+        -------
+        NDArray[np.complex64]
+            Number of output samples written.
+
+        Examples
+        --------
+        >>> from doppler.ddc import DDC
+        >>> import numpy as np
+        >>> ddc = DDC(norm_freq=0.0, rate=0.25)      # LO centred at DC
+        >>> t = np.arange(4096)
+        >>> x = np.exp(1j * 2 * np.pi * 0.1 * t).astype(np.complex64)
+        >>> y = ddc.execute_ctrl(x, 0.0, -0.1)       # freq_ctrl steers +0.1 to DC
+        >>> y.shape
+        (1024,)
+        >>> round(float(abs(y[100:].mean())), 2)     # settled output sits at DC
+        1.0
+
+        """
 
     def execute_ctrl_push(self, x: complex, rate_ctrl: float, freq_ctrl: float) -> NDArray[np.complex64]:
-        """Execute ctrl push."""
+        """Push ONE input sample; emit whatever outputs it completes.
+
+        The per-input streaming form of ddc_execute_ctrl(), and the only form a
+        closed loop can use: a block call has to know its whole control history
+        up front, whereas a carrier or timing loop computes each correction
+        *from* the outputs already emitted. Both loops close once per symbol, so
+        both ports need this form.
+
+        The mix costs one LO step per input; the cascade then emits 0 outputs
+        (the common decimating case, between strobes), 1, or several.
+
+        Parameters
+        ----------
+        x : complex
+            One CF32 input sample.
+        rate_ctrl : float
+            Rate deviation for this input (terminal-stage rate).
+        freq_ctrl : float
+            Frequency deviation for this input, cycles/sample at the input rate.
+
+        Returns
+        -------
+        NDArray[np.complex64]
+            Number of outputs written (0, 1, or more).
+
+        Examples
+        --------
+        >>> from doppler.ddc import DDC
+        >>> import numpy as np
+        >>> ddc = DDC(norm_freq=-0.1, rate=0.25)
+        >>> t = np.arange(64)
+        >>> x = np.exp(1j * 2 * np.pi * 0.1 * t).astype(np.complex64)
+        >>> outs = [ddc.execute_ctrl_push(complex(s), 0.0, 0.0) for s in x]
+        >>> int(sum(len(o) for o in outs))   # 64 inputs, rate 1/4 -> 16 outs
+        16
+        >>> [len(o) for o in outs[:4]]        # 0 outs until a strobe completes
+        [0, 0, 0, 1]
+
+        """
 
     def reset(self) -> None:
         """Zero LO phase and filter history.
+
+        Examples
+        --------
+        >>> from doppler.ddc import DDC
+        >>> import numpy as np
+        >>> ddc = DDC(norm_freq=0.0, rate=0.25)
+        >>> x = np.ones(64, dtype=np.complex64)
+        >>> y1 = ddc.execute(x)
+        >>> ddc.reset()
+        >>> y2 = ddc.execute(x)
+        >>> bool(np.array_equal(y1, y2))
+        True
+
         """
 
     def state_bytes(self) -> int:
@@ -386,21 +536,21 @@ class MatchedDDC:
 
     @property
     def norm_freq(self) -> float:
-        """Norm freq."""
+        """Return the current LO normalised frequency (cycles/sample)."""
     @norm_freq.setter
     def norm_freq(self, value: float) -> None: ...
 
     @property
     def rate(self) -> float:
-        """Rate."""
+        """Return the configured output/input rate ratio (read-only). The rate is fixed at create time; change it by destroying and recreating the DDC with the new value."""
 
     @property
     def clipped(self) -> bool:
-        """Clipped."""
+        """Has the cascade's CIC clipped its input since the last reset?"""
 
     @property
     def narrow_pulse(self) -> bool:
-        """Narrow pulse."""
+        """Is this object's rectangular matched filter degenerately narrow?"""
 
     def destroy(self) -> None:
         """Release the underlying C resources immediately.
@@ -456,10 +606,12 @@ class Ddcr:
 
     Examples
     --------
-    Create with defaults:
-
     >>> from doppler.ddc import Ddcr
-    >>> obj = Ddcr(norm_freq=0.0, rate=0.25)
+    >>> ddcr = Ddcr(norm_freq=-0.7, rate=0.25)
+    >>> ddcr.norm_freq
+    -0.7
+    >>> ddcr.rate
+    0.25
 
     """
     def __init__(self, norm_freq: float = ..., rate: float = ...) -> None: ...
@@ -496,7 +648,18 @@ class Ddcr:
         """
 
     def execute_max_out(self, x_len: int) -> int:
-        """Max output length execute() can produce for x_len."""
+        """Upper bound on one execute call's output, or 0 to let the caller size it from the input block (a decimator never exceeds its input).
+
+        Parameters
+        ----------
+        x_len : int
+            Input.
+
+        Returns
+        -------
+        int
+            Output.
+        """
 
     def execute_ctrl(self, x: NDArray[np.float32], rate_ctrl: float, freq_ctrl: float) -> NDArray[np.complex64]:
         """Process a real block, steering both control ports.
@@ -716,14 +879,14 @@ class Ddcr:
 
 @final
 class MatchedDdcr:
-    """MatchedDdcr component.
+    """Create a real-input Digital Down-Converter (Architecture D2). The signal chain is: halfband R2C (2:1, bakes in +fs/4 shift) -> fine LO mix at the intermediate rate (fs_in/2) -> RateConverter -> CF32 output.  The halfband stage uses +-1/0 coefficients (no multiplications) and puts the fine LO and the cascade at fs_in/2.  That is worth ~1.1-1.7x in a whole receiver (it halves the rate ahead of the polyphase matched filter, so the gain grows with samples/symbol) and close to nothing for the front end alone -- see the file header for the measurements.  Use it because the input IS real.
 
     Parameters
     ----------
     norm_freq : float, default 0.0
-        norm_freq constructor parameter.
+        Fine NCO frequency at the intermediate rate (fs_in/2, cycles/sample).  To tune a real tone at normalised input frequency f_c to DC, set norm_freq = -(2*f_c + 0.5).
     rate : float, default 0.25
-        rate constructor parameter.
+        Total output/input rate.  Must be in (0, 0.5) because the halfband pre-decimates by 2.
     pulse : Literal["iandd", "rrc"], default "rrc"
         pulse constructor parameter.
     beta : float, default 0.35
@@ -737,10 +900,12 @@ class MatchedDdcr:
 
     Examples
     --------
-    Create with defaults:
-
-    >>> from doppler.ddc import MatchedDdcr
-    >>> obj = MatchedDdcr(norm_freq=0.0, rate=0.25, pulse="rrc", beta=0.35, span=8, pulse_sps=2.0, num_phases=1024)
+    >>> from doppler.ddc import Ddcr
+    >>> ddcr = Ddcr(norm_freq=-0.7, rate=0.25)
+    >>> ddcr.norm_freq
+    -0.7
+    >>> ddcr.rate
+    0.25
 
     """
     def __init__(self, norm_freq: float = ..., rate: float = ..., pulse: Literal["iandd", "rrc"] = "rrc", beta: float = ..., span: int = ..., pulse_sps: float = ..., num_phases: int = ...) -> None: ...
@@ -756,20 +921,132 @@ class MatchedDdcr:
         Returns
         -------
         NDArray[np.complex64]
-            Output.
+            Number of output samples written (C-only).
+
+        Examples
+        --------
+        >>> from doppler.ddc import Ddcr
+        >>> import numpy as np
+        >>> ddcr = Ddcr(norm_freq=-0.7, rate=0.25)
+        >>> t = np.arange(4096)
+        >>> x = np.cos(2 * np.pi * 0.1 * t).astype(np.float32)
+        >>> out = np.empty(len(x), dtype=np.complex64)
+        >>> y = ddcr.execute(x, out)
+        >>> y.shape
+        (1024,)
+        >>> y.dtype
+        dtype('complex64')
+        >>> round(float(abs(y[500])), 2)   # one-sided cosine amplitude ≈ 0.5
+        0.5
+
         """
 
     def execute_max_out(self, x_len: int) -> int:
-        """Max output length execute() can produce for x_len."""
+        """Upper bound on one execute call's output, or 0 to let the caller size it from the input block (a decimator never exceeds its input).
+
+        Parameters
+        ----------
+        x_len : int
+            Input.
+
+        Returns
+        -------
+        int
+            Output.
+        """
 
     def execute_ctrl(self, x: NDArray[np.float32], rate_ctrl: float, freq_ctrl: float) -> NDArray[np.complex64]:
-        """Execute ctrl."""
+        """Process a real block, steering both control ports.
+
+        The control-port form of ddcr_execute(); see ddc_execute_ctrl() for the
+        semantics, which are identical except for where the LO lives.
+
+        Parameters
+        ----------
+        x : NDArray[np.float32]
+            Real float32 input block.
+        rate_ctrl : float
+            Rate deviation added to the terminal Resampler stage's rate
+            (referenced to the terminal, post-decimation rate).
+        freq_ctrl : float
+            Frequency deviation added to the fine LO, in cycles/sample at the
+            INTERMEDIATE rate (fs_in/2) — the halfband has already decimated by
+            two by the time the mix happens, so a discriminator working in
+            cycles per ADC sample must be doubled before it lands here.
+
+        Returns
+        -------
+        NDArray[np.complex64]
+            Number of output samples written.
+
+        Examples
+        --------
+        >>> from doppler.ddc import Ddcr
+        >>> import numpy as np
+        >>> ddcr = Ddcr(norm_freq=-0.5, rate=0.25)   # fine LO 0.2 short of tune
+        >>> t = np.arange(4096)
+        >>> x = np.cos(2 * np.pi * 0.1 * t).astype(np.float32)
+        >>> y = ddcr.execute_ctrl(x, 0.0, -0.2)      # freq_ctrl completes the tune
+        >>> y.shape
+        (1024,)
+        >>> round(float(abs(y[100:].mean())), 2)     # real tone -> DC, amp 0.5
+        0.5
+
+        """
 
     def execute_ctrl_push(self, x: float, rate_ctrl: float, freq_ctrl: float) -> NDArray[np.complex64]:
-        """Execute ctrl push."""
+        """Push ONE real input sample; emit whatever outputs it completes.
+
+        The per-input streaming form of ddcr_execute_ctrl(), for a closed loop.
+        The halfband consumes two inputs per intermediate sample, so every other
+        push does no mixing and emits nothing at all — the LO advances (and its
+        control is applied) once per *intermediate* sample, which is the rate
+        the LO runs at.
+
+        Parameters
+        ----------
+        x : float
+            One real float32 input sample.
+        rate_ctrl : float
+            Rate deviation for this input (terminal-stage rate).
+        freq_ctrl : float
+            Frequency deviation, cycles/sample at fs_in/2.
+
+        Returns
+        -------
+        NDArray[np.complex64]
+            Number of outputs written (0, 1, or more).
+
+        Examples
+        --------
+        >>> from doppler.ddc import Ddcr
+        >>> import numpy as np
+        >>> ddcr = Ddcr(norm_freq=-0.7, rate=0.25)
+        >>> x = np.cos(2 * np.pi * 0.1 * np.arange(128)).astype(np.float32)
+        >>> outs = [ddcr.execute_ctrl_push(float(s), 0.0, 0.0) for s in x]
+        >>> int(sum(len(o) for o in outs))   # 128 real inputs, rate 1/4 -> 32
+        32
+        >>> [len(o) for o in outs[:4]]        # halfband + decim: 0 until a strobe
+        [0, 0, 0, 1]
+
+        """
 
     def reset(self) -> None:
         """Zero halfband history, LO phase and filter history.
+
+        Examples
+        --------
+        >>> from doppler.ddc import Ddcr
+        >>> import numpy as np
+        >>> ddcr = Ddcr(norm_freq=0.0, rate=0.25)
+        >>> x = np.ones(64, dtype=np.float32)
+        >>> out = np.empty(64, dtype=np.complex64)
+        >>> y1 = ddcr.execute(x, out).copy()
+        >>> ddcr.reset()
+        >>> y2 = ddcr.execute(x, out)
+        >>> bool(np.array_equal(y1, y2))
+        True
+
         """
 
     def state_bytes(self) -> int:
@@ -826,21 +1103,21 @@ class MatchedDdcr:
 
     @property
     def norm_freq(self) -> float:
-        """Norm freq."""
+        """Return the current fine NCO normalised frequency at the intermediate rate (fs_in/2, cycles/sample)."""
     @norm_freq.setter
     def norm_freq(self, value: float) -> None: ...
 
     @property
     def rate(self) -> float:
-        """Rate."""
+        """Return the total configured rate (fs_out / fs_in, read-only). This is the end-to-end ratio from ADC input to CF32 output.  Change it by destroying and recreating the DDCR."""
 
     @property
     def clipped(self) -> bool:
-        """Clipped."""
+        """Has the cascade's CIC clipped its input since the last reset?"""
 
     @property
     def narrow_pulse(self) -> bool:
-        """Narrow pulse."""
+        """Is this object's rectangular matched filter degenerately narrow?"""
 
     def close(self) -> None:
         """Release the underlying C resources immediately.

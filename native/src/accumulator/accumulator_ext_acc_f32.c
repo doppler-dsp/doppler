@@ -328,7 +328,10 @@ AccF32_set_state (AccF32Object *self, PyObject *arg)
 
 static PyMethodDef AccF32_methods[] = {
   { "reset", (PyCFunction)AccF32_reset, METH_NOARGS,
-    "Reset state to post-create defaults." },
+    "Zero the accumulator, restoring the same state as a fresh "
+    "``AccF32(0.0)`` — regardless of the value supplied to "
+    "``acc_f32_create``. Subsequent ``get`` / ``dump`` calls return ``0.0`` "
+    "until new samples are processed." },
   { "step", (PyCFunction)AccF32_step, METH_VARARGS,
     "step(x) -> None\n"
     "\n"
@@ -353,8 +356,16 @@ static PyMethodDef AccF32_methods[] = {
     "    >>> obj = AccF32(0.0)\n"
     "    >>> y = obj.steps(np.zeros(4, dtype=np.float32))\n" },
 
-  { "get_acc", (PyCFunction)AccF32_get_acc, METH_NOARGS, "Get acc." },
-  { "set_acc", (PyCFunction)AccF32_set_acc, METH_VARARGS, "Set acc." },
+  { "get_acc", (PyCFunction)AccF32_get_acc, METH_NOARGS,
+    "Return the current accumulator value without modifying state. Use this "
+    "when you need to read the running sum mid-accumulation without "
+    "disturbing it. For a read-and-reset in one call use "
+    "``acc_f32_dump``.\n" },
+  { "set_acc", (PyCFunction)AccF32_set_acc, METH_VARARGS,
+    "Overwrite the accumulator with a new value. Useful for seeding the "
+    "accumulator to a known baseline before processing a new segment without "
+    "a full ``reset``; subsequent ``step`` / ``steps`` samples accumulate on "
+    "top of the seeded value.\n" },
   { "get", (PyCFunction)AccF32_get, METH_NOARGS,
     "get() -> float\n"
     "\n"

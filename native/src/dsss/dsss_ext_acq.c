@@ -606,7 +606,7 @@ AcquisitionObj_exit (AcquisitionObject *self, PyObject *args)
 
 static PyMethodDef AcquisitionObj_methods[] = {
   { "reset", (PyCFunction)AcquisitionObj_reset, METH_NOARGS,
-    "Reset state to post-create defaults." },
+    "Drain the input ring and reset the coherent accumulator." },
 
   { "push", (PyCFunction)AcquisitionObj_push, METH_VARARGS,
     "push(x) -> list[tuple]\n"

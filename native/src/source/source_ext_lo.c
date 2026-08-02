@@ -440,7 +440,8 @@ LOObj_exit (LOObject *self, PyObject *args)
 
 static PyMethodDef LOObj_methods[] = {
   { "reset", (PyCFunction)LOObj_reset, METH_NOARGS,
-    "Reset state to post-create defaults." },
+    "Zero the phase accumulator. Sets phase to 0 so the next lo_steps call "
+    "starts at angle 0 (1+0j). norm_freq and phase_inc are unchanged." },
 
   { "steps", (PyCFunction)(void *)LOObj_steps, METH_VARARGS | METH_KEYWORDS,
     "steps(n=1) -> ndarray\n"

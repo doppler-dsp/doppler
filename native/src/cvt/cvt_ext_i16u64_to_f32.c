@@ -185,7 +185,7 @@ I16U64ToF32Obj_exit (I16U64ToF32Object *self, PyObject *args)
 
 static PyMethodDef I16U64ToF32Obj_methods[]
     = { { "reset", (PyCFunction)I16U64ToF32Obj_reset, METH_NOARGS,
-          "Reset state to post-create defaults." },
+          "No-op reset, provided only for lifecycle symmetry." },
         { "step", (PyCFunction)I16U64ToF32_step, METH_VARARGS,
           "step(x) -> float\n"
           "\n"

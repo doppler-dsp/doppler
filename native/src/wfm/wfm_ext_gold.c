@@ -254,7 +254,9 @@ GoldObj_exit (GoldObject *self, PyObject *args)
 
 static PyMethodDef GoldObj_methods[] = {
   { "reset", (PyCFunction)GoldObj_reset, METH_NOARGS,
-    "Reset state to post-create defaults." },
+    "Reset Gold to its post-create state. Reloads both LFSR registers from "
+    "their original seeds so the sequence restarts from chip 0. Useful for "
+    "reproducible captures without re-allocating." },
 
   { "generate", (PyCFunction)(void *)GoldObj_generate,
     METH_VARARGS | METH_KEYWORDS,

@@ -254,7 +254,8 @@ InterpolatedTableObj_exit (InterpolatedTableObject *self, PyObject *args)
 
 static PyMethodDef InterpolatedTableObj_methods[] = {
   { "reset", (PyCFunction)InterpolatedTableObj_reset, METH_NOARGS,
-    "Reset state to post-create defaults." },
+    "No-op: InterpolatedTable is purely a function of (table, method, point) "
+    "with no running state to reset." },
 
   { "execute", (PyCFunction)(void *)InterpolatedTableObj_execute,
     METH_VARARGS | METH_KEYWORDS,

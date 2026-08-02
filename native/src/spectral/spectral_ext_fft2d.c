@@ -586,7 +586,7 @@ FFT2DObj_exit (FFT2DObject *self, PyObject *args)
 
 static PyMethodDef FFT2DObj_methods[] = {
   { "reset", (PyCFunction)FFT2DObj_reset, METH_NOARGS,
-    "Reset state to post-create defaults." },
+    "No-op reset (plans are immutable after creation)." },
 
   { "execute_cf64", (PyCFunction)(void *)FFT2DObj_execute_cf64,
     METH_VARARGS | METH_KEYWORDS,

@@ -595,7 +595,7 @@ ToneMeasureObj_exit (ToneMeasureObject *self, PyObject *args)
 
 static PyMethodDef ToneMeasureObj_methods[] = {
   { "reset", (PyCFunction)ToneMeasureObj_reset, METH_NOARGS,
-    "Reset state to post-create defaults." },
+    "Reset the analyser (a no-op: it holds no state between calls)." },
 
   { "analyze", (PyCFunction)ToneMeasureObj_analyze, METH_VARARGS,
     "analyze(x) -> ToneMetrics record (snr, sinad, thd, thd_pct, thd_n, "

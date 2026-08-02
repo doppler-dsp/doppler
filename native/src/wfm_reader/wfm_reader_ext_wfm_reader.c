@@ -856,7 +856,7 @@ ReaderObj_exit (ReaderObject *self, PyObject *args)
 
 static PyMethodDef ReaderObj_methods[] = {
   { "reset", (PyCFunction)ReaderObj_reset, METH_NOARGS,
-    "Reset state to post-create defaults." },
+    "Rewind to the first sample of the capture." },
 
   { "read", (PyCFunction)(void *)ReaderObj_read, METH_VARARGS | METH_KEYWORDS,
     "read(count=1) -> ndarray\n"

@@ -617,7 +617,7 @@ BurstAcquisitionObj_exit (BurstAcquisitionObject *self, PyObject *args)
 
 static PyMethodDef BurstAcquisitionObj_methods[] = {
   { "reset", (PyCFunction)BurstAcquisitionObj_reset, METH_NOARGS,
-    "Reset state to post-create defaults." },
+    "Drain the input ring and reset the coherent accumulator." },
 
   { "push", (PyCFunction)BurstAcquisitionObj_push, METH_VARARGS,
     "push(x) -> list[tuple]\n"

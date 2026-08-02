@@ -780,7 +780,10 @@ NCOObj_exit (NCOObject *self, PyObject *args)
 
 static PyMethodDef NCOObj_methods[] = {
   { "reset", (PyCFunction)NCOObj_reset, METH_NOARGS,
-    "Reset state to post-create defaults." },
+    "Zero the phase accumulator. Sets phase to 0 so the next nco_steps_u32 "
+    "call starts from the beginning of the cycle.  norm_freq, phase_inc, and "
+    "nmax are unchanged; the NCO is ready to generate samples again "
+    "immediately." },
 
   { "steps_u32", (PyCFunction)(void *)NCOObj_steps_u32,
     METH_VARARGS | METH_KEYWORDS,

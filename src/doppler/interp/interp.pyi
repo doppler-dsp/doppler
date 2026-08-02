@@ -14,6 +14,15 @@ class InterpolatedTable:
     method : Literal["floor", "nearest", "linear"], default "linear"
         0 = floor, 1 = nearest, 2 = linear.
 
+    Examples
+    --------
+    >>> from doppler.interp import InterpolatedTable
+    >>> import numpy as np
+    >>> t = InterpolatedTable(
+    ...     np.array([0.0, 1.0, 2.0], dtype=np.complex128), method="linear")
+    >>> t.n
+    3
+
     """
     def __init__(self, table: NDArray[np.complex128], method: Literal["floor", "nearest", "linear"] = "linear") -> None: ...
 
@@ -68,7 +77,18 @@ class InterpolatedTable:
         """
 
     def execute_max_out(self, n_in: int) -> int:
-        """Max output length execute() can produce for n_in."""
+        """No fixed cap -- execute()'s output is always sized to exactly match its own input length, so an `out=` buffer only ever needs to be at least that many elements (never a larger, unrelated minimum).
+
+        Parameters
+        ----------
+        n_in : int
+            Input.
+
+        Returns
+        -------
+        int
+            Output.
+        """
 
     @property
     def n(self) -> int:

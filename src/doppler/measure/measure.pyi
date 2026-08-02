@@ -4,6 +4,320 @@ import numpy as np
 from numpy.typing import NDArray
 
 @final
+class ToneMetrics(tuple[float, float, float, float, float, float, float, float, float, float, float, float, float, float, int, float, float, float, int, int, float, float, float]):
+    """Single-tone ADC/converter dynamic metrics (SNR, SINAD, THD, SFDR, ENOB) plus the analysis-grid accuracy fields.
+
+    Attributes
+    ----------
+    snr : float
+        Signal-to-noise ratio, 10log10(P_fund / P_noise) [dB].
+    sinad : float
+        Signal-to-noise-and-distortion, 10log10(P_fund / (P_noise + P_harm)) [dB].
+    thd : float
+        Total harmonic distortion, 10log10(P_harm / P_fund) [dBc].
+    thd_pct : float
+        Total harmonic distortion, 100*sqrt(P_harm / P_fund) [%].
+    thd_n : float
+        THD+N, 10log10((P_noise+P_harm)/P_fund) = -SINAD [dB].
+    sfdr_dbc : float
+        Spurious-free dynamic range: fundamental - worst spur [dBc].
+    sfdr_dbfs : float
+        Spurious-free dynamic range: full scale - worst spur [dBFS].
+    enob : float
+        Effective number of bits, (SINAD - 1.76)/6.02.
+    enob_fs : float
+        Full-scale-corrected ENOB.
+    noise_floor_dbfs : float
+        Mean per-bin noise power [dBFS].
+    fund_freq : float
+        Fundamental frequency [Hz].
+    fund_dbfs : float
+        Fundamental level [dBFS].
+    worst_spur_freq : float
+        Worst spur frequency [Hz].
+    worst_spur_dbc : float
+        Worst spur level relative to the fundamental [dBc].
+    worst_spur_is_harm : int
+        1 if the worst spur is a harmonic, else 0.
+    rbw_hz : float
+        Resolution bandwidth = enbw*fs/n [Hz].
+    enbw_hz : float
+        Equivalent noise bandwidth [Hz] (= rbw_hz).
+    bin_hz : float
+        FFT bin spacing = fs/nfft [Hz].
+    lobe_bins : int
+        Window main-lobe half-width L [bins].
+    n_noise_bins : int
+        Number of bins counted as noise.
+    proc_gain_db : float
+        FFT processing gain = 10log10(nfft/2) [dB].
+    amp_uncert_db : float
+        Amplitude-read uncertainty bound [dB].
+    floor_uncert_db : float
+        Noise-floor standard error [dB].
+    """
+
+    @property
+    def snr(self) -> float:
+        """Signal-to-noise ratio, 10log10(P_fund / P_noise) [dB]."""
+
+    @property
+    def sinad(self) -> float:
+        """Signal-to-noise-and-distortion, 10log10(P_fund / (P_noise + P_harm)) [dB]."""
+
+    @property
+    def thd(self) -> float:
+        """Total harmonic distortion, 10log10(P_harm / P_fund) [dBc]."""
+
+    @property
+    def thd_pct(self) -> float:
+        """Total harmonic distortion, 100*sqrt(P_harm / P_fund) [%]."""
+
+    @property
+    def thd_n(self) -> float:
+        """THD+N, 10log10((P_noise+P_harm)/P_fund) = -SINAD [dB]."""
+
+    @property
+    def sfdr_dbc(self) -> float:
+        """Spurious-free dynamic range: fundamental - worst spur [dBc]."""
+
+    @property
+    def sfdr_dbfs(self) -> float:
+        """Spurious-free dynamic range: full scale - worst spur [dBFS]."""
+
+    @property
+    def enob(self) -> float:
+        """Effective number of bits, (SINAD - 1.76)/6.02."""
+
+    @property
+    def enob_fs(self) -> float:
+        """Full-scale-corrected ENOB."""
+
+    @property
+    def noise_floor_dbfs(self) -> float:
+        """Mean per-bin noise power [dBFS]."""
+
+    @property
+    def fund_freq(self) -> float:
+        """Fundamental frequency [Hz]."""
+
+    @property
+    def fund_dbfs(self) -> float:
+        """Fundamental level [dBFS]."""
+
+    @property
+    def worst_spur_freq(self) -> float:
+        """Worst spur frequency [Hz]."""
+
+    @property
+    def worst_spur_dbc(self) -> float:
+        """Worst spur level relative to the fundamental [dBc]."""
+
+    @property
+    def worst_spur_is_harm(self) -> int:
+        """1 if the worst spur is a harmonic, else 0."""
+
+    @property
+    def rbw_hz(self) -> float:
+        """Resolution bandwidth = enbw*fs/n [Hz]."""
+
+    @property
+    def enbw_hz(self) -> float:
+        """Equivalent noise bandwidth [Hz] (= rbw_hz)."""
+
+    @property
+    def bin_hz(self) -> float:
+        """FFT bin spacing = fs/nfft [Hz]."""
+
+    @property
+    def lobe_bins(self) -> int:
+        """Window main-lobe half-width L [bins]."""
+
+    @property
+    def n_noise_bins(self) -> int:
+        """Number of bins counted as noise."""
+
+    @property
+    def proc_gain_db(self) -> float:
+        """FFT processing gain = 10log10(nfft/2) [dB]."""
+
+    @property
+    def amp_uncert_db(self) -> float:
+        """Amplitude-read uncertainty bound [dB]."""
+
+    @property
+    def floor_uncert_db(self) -> float:
+        """Noise-floor standard error [dB]."""
+
+@final
+class TimeStats(tuple[float, float, float, float, float, float]):
+    """AC-coupled time-domain capture statistics (crest factor / PAPR).
+
+    Attributes
+    ----------
+    rms : float
+        Root-mean-square amplitude (DC included).
+    peak : float
+        Peak deviation, max|x - DC|.
+    crest_db : float
+        Crest factor, 20log10(peak_ac / rms_ac) [dB].
+    papr_db : float
+        Peak-to-average power ratio (= crest) [dB].
+    dc_offset : float
+        DC offset, mean(x).
+    fs_util_pct : float
+        Full-scale utilization, 100 * max|x| / full_scale [%].
+    """
+
+    @property
+    def rms(self) -> float:
+        """Root-mean-square amplitude (DC included)."""
+
+    @property
+    def peak(self) -> float:
+        """Peak deviation, max|x - DC|."""
+
+    @property
+    def crest_db(self) -> float:
+        """Crest factor, 20log10(peak_ac / rms_ac) [dB]."""
+
+    @property
+    def papr_db(self) -> float:
+        """Peak-to-average power ratio (= crest) [dB]."""
+
+    @property
+    def dc_offset(self) -> float:
+        """DC offset, mean(x)."""
+
+    @property
+    def fs_util_pct(self) -> float:
+        """Full-scale utilization, 100 * max|x| / full_scale [%]."""
+
+@final
+class NPRMetrics(tuple[float, float, float, int, int, float]):
+    """Noise-power-ratio metrics from a notched-noise-loading test.
+
+    Attributes
+    ----------
+    npr_db : float
+        Noise power ratio, 10log10(mean in-band PSD / mean notch PSD) [dB].
+    inband_psd_dbfs : float
+        Mean in-band noise power per bin [dBFS].
+    notch_psd_dbfs : float
+        Mean power that folded into the notch [dBFS].
+    n_inband_bins : int
+        Number of bins averaged in the active band.
+    n_notch_bins : int
+        Number of bins averaged inside the notch.
+    rbw_hz : float
+        Resolution bandwidth [Hz].
+    """
+
+    @property
+    def npr_db(self) -> float:
+        """Noise power ratio, 10log10(mean in-band PSD / mean notch PSD) [dB]."""
+
+    @property
+    def inband_psd_dbfs(self) -> float:
+        """Mean in-band noise power per bin [dBFS]."""
+
+    @property
+    def notch_psd_dbfs(self) -> float:
+        """Mean power that folded into the notch [dBFS]."""
+
+    @property
+    def n_inband_bins(self) -> int:
+        """Number of bins averaged in the active band."""
+
+    @property
+    def n_notch_bins(self) -> int:
+        """Number of bins averaged inside the notch."""
+
+    @property
+    def rbw_hz(self) -> float:
+        """Resolution bandwidth [Hz]."""
+
+@final
+class IMDMetrics(tuple[float, float, float, float, float, float, float, float, float, float, float, float]):
+    """Two-tone intermodulation metrics (IMD2, IMD3, second/third-order intercepts).
+
+    Attributes
+    ----------
+    f1 : float
+        Lower tone frequency [Hz].
+    f2 : float
+        Upper tone frequency [Hz].
+    p1_dbfs : float
+        Lower tone level [dBFS].
+    p2_dbfs : float
+        Upper tone level [dBFS].
+    imd2_dbc : float
+        2nd-order product (f2-f1) vs mean tone [dBc].
+    imd3_dbc : float
+        Worst 3rd-order product vs mean tone [dBc].
+    imd2_freq : float
+        2nd-order product frequency [Hz].
+    imd3_lo_freq : float
+        3rd-order (2f1-f2) product frequency [Hz].
+    imd3_hi_freq : float
+        3rd-order (2f2-f1) product frequency [Hz].
+    toi_dbfs : float
+        Third-order intercept [dBFS].
+    soi_dbfs : float
+        Second-order intercept [dBFS].
+    rbw_hz : float
+        Resolution bandwidth [Hz].
+    """
+
+    @property
+    def f1(self) -> float:
+        """Lower tone frequency [Hz]."""
+
+    @property
+    def f2(self) -> float:
+        """Upper tone frequency [Hz]."""
+
+    @property
+    def p1_dbfs(self) -> float:
+        """Lower tone level [dBFS]."""
+
+    @property
+    def p2_dbfs(self) -> float:
+        """Upper tone level [dBFS]."""
+
+    @property
+    def imd2_dbc(self) -> float:
+        """2nd-order product (f2-f1) vs mean tone [dBc]."""
+
+    @property
+    def imd3_dbc(self) -> float:
+        """Worst 3rd-order product vs mean tone [dBc]."""
+
+    @property
+    def imd2_freq(self) -> float:
+        """2nd-order product frequency [Hz]."""
+
+    @property
+    def imd3_lo_freq(self) -> float:
+        """3rd-order (2f1-f2) product frequency [Hz]."""
+
+    @property
+    def imd3_hi_freq(self) -> float:
+        """3rd-order (2f2-f1) product frequency [Hz]."""
+
+    @property
+    def toi_dbfs(self) -> float:
+        """Third-order intercept [dBFS]."""
+
+    @property
+    def soi_dbfs(self) -> float:
+        """Second-order intercept [dBFS]."""
+
+    @property
+    def rbw_hz(self) -> float:
+        """Resolution bandwidth [Hz]."""
+
+@final
 class ToneMeasure:
     """Create a ToneMeasure analyser (auto Kaiser window).
 
@@ -53,7 +367,7 @@ class ToneMeasure:
 
         """
 
-    def analyze(self, x: float) -> tuple[float, float, float, float, float, float, float, float, float, float, float, float, float, float, int, float, float, float, int, int, float, float, float]:
+    def analyze(self, x: float) -> ToneMetrics:
         """Analyze a real time-domain capture; returns a ToneMetrics result.
 
         Parameters
@@ -63,7 +377,7 @@ class ToneMeasure:
 
         Returns
         -------
-        tuple[float, float, float, float, float, float, float, float, float, float, float, float, float, float, int, float, float, float, int, int, float, float, float]
+        ToneMetrics
             the metric record (by value).
 
         Examples
@@ -82,7 +396,7 @@ class ToneMeasure:
 
         """
 
-    def analyze_complex(self, x: complex) -> tuple[float, float, float, float, float, float, float, float, float, float, float, float, float, float, int, float, float, float, int, int, float, float, float]:
+    def analyze_complex(self, x: complex) -> ToneMetrics:
         """Analyze a complex baseband capture (two-sided spectrum).
 
         Parameters
@@ -92,7 +406,7 @@ class ToneMeasure:
 
         Returns
         -------
-        tuple[float, float, float, float, float, float, float, float, float, float, float, float, float, float, int, float, float, float, int, int, float, float, float]
+        ToneMetrics
             Output.
 
         Examples
@@ -107,7 +421,7 @@ class ToneMeasure:
 
         """
 
-    def time_stats(self, x: float) -> tuple[float, float, float, float, float, float]:
+    def time_stats(self, x: float) -> TimeStats:
         """Time-domain stats: RMS, peak, crest/PAPR, DC offset, FS utilisation.
 
         Parameters
@@ -117,7 +431,7 @@ class ToneMeasure:
 
         Returns
         -------
-        tuple[float, float, float, float, float, float]
+        TimeStats
             Output.
 
         Examples
@@ -305,7 +619,7 @@ class NPRMeasure:
 
         """
 
-    def analyze(self, x: float, active_lo: float, active_hi: float, notch_lo: float, notch_hi: float, guard_hz: float = 0.0) -> tuple[float, float, float, int, int, float]:
+    def analyze(self, x: float, active_lo: float, active_hi: float, notch_lo: float, notch_hi: float, guard_hz: float = 0.0) -> NPRMetrics:
         """NPR of a notched-noise capture over [active_lo,active_hi] with a notch [notch_lo,notch_hi] (Hz) and guard keep-out.
 
         Parameters
@@ -325,7 +639,7 @@ class NPRMeasure:
 
         Returns
         -------
-        tuple[float, float, float, int, int, float]
+        NPRMetrics
             the NPR metric record (by value).
 
         Examples
@@ -495,7 +809,7 @@ class IMDMeasure:
 
         """
 
-    def analyze(self, x: float) -> tuple[float, float, float, float, float, float, float, float, float, float, float, float]:
+    def analyze(self, x: float) -> IMDMetrics:
         """Two-tone IMD/TOI of a real capture (finds the two strongest tones).
 
         Parameters
@@ -505,7 +819,7 @@ class IMDMeasure:
 
         Returns
         -------
-        tuple[float, float, float, float, float, float, float, float, float, float, float, float]
+        IMDMetrics
             the IMD metric record (by value; zeroed if no two tones are found).
 
         Examples

@@ -47,9 +47,17 @@ arg_type = "float"
 return_type = "npr_meas_t"
 nogil = true
 params = [{name = "active_lo", type = "double"}, {name = "active_hi", type = "double"}, {name = "notch_lo", type = "double"}, {name = "notch_hi", type = "double"}, {name = "guard_hz", type = "double", default = "0.0"}]
-result_fields = [{name = "npr_db", type = "double"}, {name = "inband_psd_dbfs", type = "double"}, {name = "notch_psd_dbfs", type = "double"}, {name = "n_inband_bins", type = "size_t"}, {name = "n_notch_bins", type = "size_t"}, {name = "rbw_hz", type = "double"}]
+result_fields = [
+    {name = "npr_db", type = "double", doc = "Noise power ratio, 10log10(mean in-band PSD / mean notch PSD) [dB]."},
+    {name = "inband_psd_dbfs", type = "double", doc = "Mean in-band noise power per bin [dBFS]."},
+    {name = "notch_psd_dbfs", type = "double", doc = "Mean power that folded into the notch [dBFS]."},
+    {name = "n_inband_bins", type = "size_t", doc = "Number of bins averaged in the active band."},
+    {name = "n_notch_bins", type = "size_t", doc = "Number of bins averaged inside the notch."},
+    {name = "rbw_hz", type = "double", doc = "Resolution bandwidth [Hz]."},
+]
 single = true
 record_name = "NPRMetrics"
+record_doc = "Noise-power-ratio metrics from a notched-noise-loading test."
 record_module = "doppler.measure"
 
 [[nprmeas.methods]]

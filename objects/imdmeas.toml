@@ -44,9 +44,23 @@ doc = "Two-tone IMD/TOI of a real capture (finds the two strongest tones)."
 arg_type = "float"
 return_type = "imd_meas_t"
 nogil = true
-result_fields = [{name = "f1", type = "double"}, {name = "f2", type = "double"}, {name = "p1_dbfs", type = "double"}, {name = "p2_dbfs", type = "double"}, {name = "imd2_dbc", type = "double"}, {name = "imd3_dbc", type = "double"}, {name = "imd2_freq", type = "double"}, {name = "imd3_lo_freq", type = "double"}, {name = "imd3_hi_freq", type = "double"}, {name = "toi_dbfs", type = "double"}, {name = "soi_dbfs", type = "double"}, {name = "rbw_hz", type = "double"}]
+result_fields = [
+    {name = "f1", type = "double", doc = "Lower tone frequency [Hz]."},
+    {name = "f2", type = "double", doc = "Upper tone frequency [Hz]."},
+    {name = "p1_dbfs", type = "double", doc = "Lower tone level [dBFS]."},
+    {name = "p2_dbfs", type = "double", doc = "Upper tone level [dBFS]."},
+    {name = "imd2_dbc", type = "double", doc = "2nd-order product (f2-f1) vs mean tone [dBc]."},
+    {name = "imd3_dbc", type = "double", doc = "Worst 3rd-order product vs mean tone [dBc]."},
+    {name = "imd2_freq", type = "double", doc = "2nd-order product frequency [Hz]."},
+    {name = "imd3_lo_freq", type = "double", doc = "3rd-order (2f1-f2) product frequency [Hz]."},
+    {name = "imd3_hi_freq", type = "double", doc = "3rd-order (2f2-f1) product frequency [Hz]."},
+    {name = "toi_dbfs", type = "double", doc = "Third-order intercept [dBFS]."},
+    {name = "soi_dbfs", type = "double", doc = "Second-order intercept [dBFS]."},
+    {name = "rbw_hz", type = "double", doc = "Resolution bandwidth [Hz]."},
+]
 single = true
 record_name = "IMDMetrics"
+record_doc = "Two-tone intermodulation metrics (IMD2, IMD3, second/third-order intercepts)."
 record_module = "doppler.measure"
 
 [[imdmeas.methods]]

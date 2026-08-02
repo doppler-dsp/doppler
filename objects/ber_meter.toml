@@ -116,9 +116,18 @@ name = "ser"
 doc = "Symbol error rate with its EXACT confidence interval, as a BerInterval. Assert on `lo`, never on `p_hat`: comparing the lower limit against a spec is the form that cannot flake on counting noise. The interval is the Gamma/chi-square one for inverse binomial sampling -- no normal approximation anywhere, so it stays honest at the small error counts where a Wald interval is worst -- and its quantiles come from doppler's own detection primitives rather than a second copy of an incomplete-gamma kernel."
 arg_type = "void"
 return_type = "ber_interval_t"
-result_fields = [{name = "p_hat", type = "double"}, {name = "lo", type = "double"}, {name = "hi", type = "double"}, {name = "rel", type = "double"}, {name = "conf", type = "double"}, {name = "errors", type = "size_t"}, {name = "symbols", type = "size_t"}]
+result_fields = [
+    {name = "p_hat", type = "double", doc = "Unbiased point estimate of the error rate, (r-1)/(N-1)."},
+    {name = "lo", type = "double", doc = "Lower confidence limit."},
+    {name = "hi", type = "double", doc = "Upper confidence limit."},
+    {name = "rel", type = "double", doc = "Relative standard error, 1/sqrt(r)."},
+    {name = "conf", type = "double", doc = "Confidence level used."},
+    {name = "errors", type = "size_t", doc = "Symbol (or bit) errors counted, r."},
+    {name = "symbols", type = "size_t", doc = "Symbols (or bits) scored, N."},
+]
 single = true
 record_name = "BerInterval"
+record_doc = "Error-rate point estimate with a Gamma/chi-square confidence interval. Assert on `lo`, never `p_hat`."
 record_module = "doppler.ber"
 
 [[ber_meter.methods]]
@@ -126,9 +135,18 @@ name = "ber"
 doc = "Gray-coded bit error rate with its EXACT confidence interval, as a BerInterval. Same statistics as ser(), counted over bits."
 arg_type = "void"
 return_type = "ber_interval_t"
-result_fields = [{name = "p_hat", type = "double"}, {name = "lo", type = "double"}, {name = "hi", type = "double"}, {name = "rel", type = "double"}, {name = "conf", type = "double"}, {name = "errors", type = "size_t"}, {name = "symbols", type = "size_t"}]
+result_fields = [
+    {name = "p_hat", type = "double", doc = "Unbiased point estimate of the error rate, (r-1)/(N-1)."},
+    {name = "lo", type = "double", doc = "Lower confidence limit."},
+    {name = "hi", type = "double", doc = "Upper confidence limit."},
+    {name = "rel", type = "double", doc = "Relative standard error, 1/sqrt(r)."},
+    {name = "conf", type = "double", doc = "Confidence level used."},
+    {name = "errors", type = "size_t", doc = "Symbol (or bit) errors counted, r."},
+    {name = "symbols", type = "size_t", doc = "Symbols (or bits) scored, N."},
+]
 single = true
 record_name = "BerInterval"
+record_doc = "Error-rate point estimate with a Gamma/chi-square confidence interval. Assert on `lo`, never `p_hat`."
 record_module = "doppler.ber"
 
 [[ber_meter.properties]]
@@ -182,7 +200,16 @@ doc = "The exact confidence interval for error/trial counts gathered elsewhere, 
 arg_type = "void"
 return_type = "ber_interval_t"
 params = [{ name = "errors", type = "size_t" }, { name = "symbols", type = "size_t" }]
-result_fields = [{name = "p_hat", type = "double"}, {name = "lo", type = "double"}, {name = "hi", type = "double"}, {name = "rel", type = "double"}, {name = "conf", type = "double"}, {name = "errors", type = "size_t"}, {name = "symbols", type = "size_t"}]
+result_fields = [
+    {name = "p_hat", type = "double", doc = "Unbiased point estimate of the error rate, (r-1)/(N-1)."},
+    {name = "lo", type = "double", doc = "Lower confidence limit."},
+    {name = "hi", type = "double", doc = "Upper confidence limit."},
+    {name = "rel", type = "double", doc = "Relative standard error, 1/sqrt(r)."},
+    {name = "conf", type = "double", doc = "Confidence level used."},
+    {name = "errors", type = "size_t", doc = "Symbol (or bit) errors counted, r."},
+    {name = "symbols", type = "size_t", doc = "Symbols (or bits) scored, N."},
+]
 single = true
 record_name = "BerInterval"
+record_doc = "Error-rate point estimate with a Gamma/chi-square confidence interval. Assert on `lo`, never `p_hat`."
 record_module = "doppler.ber"

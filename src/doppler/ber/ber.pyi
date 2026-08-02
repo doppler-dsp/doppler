@@ -4,6 +4,56 @@ import numpy as np
 from numpy.typing import NDArray
 
 @final
+class BerInterval(tuple[float, float, float, float, float, int, int]):
+    """Error-rate point estimate with a Gamma/chi-square confidence interval. Assert on `lo`, never `p_hat`.
+
+    Attributes
+    ----------
+    p_hat : float
+        Unbiased point estimate of the error rate, (r-1)/(N-1).
+    lo : float
+        Lower confidence limit.
+    hi : float
+        Upper confidence limit.
+    rel : float
+        Relative standard error, 1/sqrt(r).
+    conf : float
+        Confidence level used.
+    errors : int
+        Symbol (or bit) errors counted, r.
+    symbols : int
+        Symbols (or bits) scored, N.
+    """
+
+    @property
+    def p_hat(self) -> float:
+        """Unbiased point estimate of the error rate, (r-1)/(N-1)."""
+
+    @property
+    def lo(self) -> float:
+        """Lower confidence limit."""
+
+    @property
+    def hi(self) -> float:
+        """Upper confidence limit."""
+
+    @property
+    def rel(self) -> float:
+        """Relative standard error, 1/sqrt(r)."""
+
+    @property
+    def conf(self) -> float:
+        """Confidence level used."""
+
+    @property
+    def errors(self) -> int:
+        """Symbol (or bit) errors counted, r."""
+
+    @property
+    def symbols(self) -> int:
+        """Symbols (or bits) scored, N."""
+
+@final
 class BerMeter:
     """Create a meter for constellation m stopping at target_errors.
 
@@ -185,7 +235,7 @@ class BerMeter:
 
         """
 
-    def ser(self) -> tuple[float, float, float, float, float, int, int]:
+    def ser(self) -> BerInterval:
         """Symbol error rate with its EXACT confidence interval, as a BerInterval. Assert on `lo`, never on `p_hat`: comparing the lower limit against a spec is the form that cannot flake on counting noise. The interval is the Gamma/chi-square one for inverse binomial sampling -- no normal approximation anywhere, so it stays honest at the small error counts where a Wald interval is worst -- and its quantiles come from doppler's own detection primitives rather than a second copy of an incomplete-gamma kernel.
 
         Divides the accumulated symbol-error count by the symbols scored and
@@ -196,7 +246,7 @@ class BerMeter:
 
         Returns
         -------
-        tuple[float, float, float, float, float, int, int]
+        BerInterval
             A BerInterval record — `(p_hat, lo, hi, rel, conf, errors, symbols)`
             — the symbol error rate with its exact two-sided limits.
 
@@ -223,7 +273,7 @@ class BerMeter:
 
         """
 
-    def ber(self) -> tuple[float, float, float, float, float, int, int]:
+    def ber(self) -> BerInterval:
         """Gray-coded bit error rate with its EXACT confidence interval, as a BerInterval. Same statistics as ser(), counted over bits.
 
         The same exact statistics as ser(), counted over Gray-coded bits rather
@@ -232,7 +282,7 @@ class BerMeter:
 
         Returns
         -------
-        tuple[float, float, float, float, float, int, int]
+        BerInterval
             A BerInterval record — `(p_hat, lo, hi, rel, conf, errors, symbols)`
             — the bit error rate with its exact two-sided limits (`errors` and
             `symbols` are bit counts here).
@@ -260,7 +310,7 @@ class BerMeter:
 
         """
 
-    def interval(self, errors: int, symbols: int) -> tuple[float, float, float, float, float, int, int]:
+    def interval(self, errors: int, symbols: int) -> BerInterval:
         """The exact confidence interval for error/trial counts gathered elsewhere, at this meter's confidence level. Same statistics as ser(): the Gamma/chi-square interval for inverse binomial sampling, with quantiles from doppler's own inverse regularized incomplete gamma rather than a normal approximation, so it stays honest at the small error counts where a Wald interval is worst. Assert on `lo`, never on `p_hat`.
 
         The pure-function face of the meter's statistics, at this meter's own
@@ -279,7 +329,7 @@ class BerMeter:
 
         Returns
         -------
-        tuple[float, float, float, float, float, int, int]
+        BerInterval
             A BerInterval record — `(p_hat, lo, hi, rel, conf, errors, symbols)`
             — the unbiased rate with its exact two-sided limits.
 

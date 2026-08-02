@@ -521,6 +521,20 @@ STD_TARGETS += standard-check help-check ghost-check
 # is far too big to hold in a shell variable comfortably.
 _STD_TMP = mktemp "$${TMPDIR:-/tmp}/std.XXXXXX"
 
+# The goal the gates hand to their database dump, and the only reason it
+# exists. `-p` prints the full database whatever the goal is, but with NO goal
+# named the sub-make builds `.DEFAULT_GOAL` — and `-n` still EXECUTES recipe
+# lines containing $(MAKE), by the documented recursion rule. In a repo that
+# configures `ALL_DEPS` to reach `lint` (which skills://makefile-convention
+# prescribes for shell repos: `all: lint test`), the gates then re-enter
+# themselves, twice per level, until the machine gives up — measured at ~900
+# processes on a bare `make`. Naming an inert goal pins the dump to something
+# with no prerequisites, so the default goal is irrelevant.
+#
+# Dot-prefixed so both gates' scrapes skip it, as they already do for make's
+# own special targets, and so it never reaches `help`.
+.std-db-goal: ; @:
+
 # Resolve one target's help text, for both `help` and `help-check`. Defined
 # once here so the two can never disagree about what counts as documented.
 #
@@ -578,7 +592,7 @@ standard-check: ## Verify the vendored standard.mk matches canonical
 help-check: ## Verify help documents every target, and every target is listed
 	@rc=0; \
 	 db=$$($(_STD_TMP)); trap 'rm -f "$$db"' EXIT; \
-	 $(MAKE) -rpn --no-print-directory >"$$db" 2>/dev/null; \
+	 $(MAKE) -rpn --no-print-directory .std-db-goal >"$$db" 2>/dev/null; \
 	 for t in $(ALL_TARGETS); do \
 	     $(_STD_DESC); \
 	     if [ -z "$$d" ]; then \
@@ -619,7 +633,7 @@ help-check: ## Verify help documents every target, and every target is listed
 ghost-check: ## Verify every .PHONY target has a recipe
 	@db=$$($(_STD_TMP)); phony=$$($(_STD_TMP)); norecipe=$$($(_STD_TMP)); \
 	 trap 'rm -f "$$db" "$$phony" "$$norecipe"' EXIT; \
-	 $(MAKE) -rpn --no-print-directory >"$$db" 2>/dev/null; \
+	 $(MAKE) -rpn --no-print-directory .std-db-goal >"$$db" 2>/dev/null; \
 	 sed -n 's/^\.PHONY:[ ]*//p' "$$db" | tr ' ' '\n' | sed '/^$$/d' \
 	     | sort -u >"$$phony"; \
 	 awk '/^[a-zA-Z0-9_.-]+:/ { n = $$0; sub(/:.*/, "", n); \

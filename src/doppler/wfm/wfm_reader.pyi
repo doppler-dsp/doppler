@@ -17,6 +17,30 @@ class Reader:
     endian : Literal["le", "be"], default "le"
         byte order, likewise a hint that only headerless raw uses; `"le"` or `"be"` from Python, 0 or 1 from C.
 
+    Examples
+    --------
+    >>> import pathlib, tempfile
+    >>> from doppler.wfm import Composer, Reader, Segment, Writer
+    >>> tmp = tempfile.TemporaryDirectory()
+    >>> p = pathlib.Path(tmp.name) / "capture.blue"
+    >>> x = Composer([Segment("qpsk", sps=8, num_samples=1024)]).compose()
+    >>> w = Writer(p, file_type="blue", sample_type="ci16", fs=2.4e6)
+    >>> w.add_keyword("NAME", "A", "demo")   # tag the header
+    >>> _ = w.write(x)
+    >>> w.close()
+    >>> r = Reader(p)                         # file type auto-detected
+    >>> r.file_type, r.sample_type, r.fs
+    ('blue', 'ci16', 2400000.0)
+    >>> r.keywords["NAME"]                    # keyword round-trips
+    'demo'
+    >>> total = 0
+    >>> while len(block := r.read(256)):      # read returns 0 at EOF
+    ...     total += len(block)
+    >>> total == r.num_samples == 1024
+    True
+    >>> r.close()
+    >>> tmp.cleanup()
+
     """
     def __init__(self, path: str | os.PathLike, sample_type: Literal["cf32", "cf64", "ci32", "ci16", "ci8"] = "cf32", endian: Literal["le", "be"] = "le") -> None: ...
 

@@ -223,6 +223,29 @@ double wfm_writer_clip_fraction(const wfm_writer_state_t *w);
  *                    no-op.
  * @return a writer, or NULL if the path cannot be opened for writing (or is
  *         a SigMF path not ending in `.sigmf-data`).
+ *
+ * @code
+ * >>> import pathlib, tempfile
+ * >>> import numpy as np
+ * >>> from doppler.wfm import Reader, Writer
+ * >>> tmp = tempfile.TemporaryDirectory()
+ * >>> p = pathlib.Path(tmp.name) / "capture.blue"
+ * >>> x = np.arange(1024, dtype=np.complex64) / 1024.0
+ * >>> with Writer(p, file_type="blue", sample_type="cf32",
+ * ...             fs=2.4e6, fc=1.2e9) as w:
+ * ...     w.write(x)                              # samples in
+ * ...     w.add_keyword("COMMENT", "A", "demo")   # tag the header
+ * 1024
+ * >>> p.exists()
+ * True
+ * >>> with Reader(p) as r:                        # everything round-trips
+ * ...     back = r.read(len(x))
+ * ...     r.fs, r.fc, r.num_samples, r.keywords["COMMENT"]
+ * (2400000.0, 1200000000.0, 1024, 'demo')
+ * >>> bool(np.array_equal(back, x))
+ * True
+ * >>> tmp.cleanup()
+ * @endcode
  */
 wfm_writer_state_t *wfm_writer_create(const char *path, int file_type, int sample_type, int endian, double fs, double fc, size_t total, double headroom);
 

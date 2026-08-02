@@ -164,7 +164,16 @@ static PyMethodDef measure_module_methods[] = {
 static PyModuleDef measure_moduledef = {
     PyModuleDef_HEAD_INIT,
     .m_name    = "measure",
-    .m_doc     = "Measure module.",
+    .m_doc     = "ADC and tone-quality metrics: ToneMeasure, NPRMeasure and IMDMeasure return named records — ENOB, SFDR, SINAD, THD and more — from a single-tone, noise-power-ratio, or two-tone intermodulation capture.\n"
+     "\n"
+     "Examples\n"
+     "--------\n"
+     ">>> import numpy as np\n"
+     ">>> from doppler.measure import ToneMeasure\n"
+     ">>> tm = ToneMeasure(n=4096, fs=1.024e6)\n"
+     ">>> x = np.cos(2 * np.pi * 200 / 4096 * np.arange(4096)).astype(np.float32)\n"
+     ">>> bool(tm.analyze(x).enob > 10)\n"
+     "True\n",
     .m_size    = -1,
     .m_methods = measure_module_methods,
 };

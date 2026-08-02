@@ -1040,6 +1040,19 @@ Examples
 objects = ["delay"]
 
 [module.spectral]
+doc = """
+Spectral transforms: reusable FFT and FFT2D engines (fixed length, pocketfft plans cached at construction) plus Corr / Corr2D cross-correlators and PSD power-spectrum estimators.
+
+Examples
+--------
+>>> import numpy as np
+>>> from doppler.spectral import FFT
+>>> f = FFT(n=1024)
+>>> X = f.execute_cf32(np.ones(1024, np.complex64))
+>>> bool(abs(X[0].real - 1024) < 1)
+True
+
+"""
 objects = ["fft", "fft2d", "corr", "corr2d", "detector", "detector2d", "psd"]
 # psd_core composes acc_trace_core (the AccTrace averager); its OBJECT symbols
 # are linked into the spectral .so via psd.toml's depends_on link=true (gh-225).
@@ -1169,6 +1182,19 @@ return_type = "double"
 name = "db"
 type = "float[]"
 [module.measure]
+doc = """
+ADC and tone-quality metrics: ToneMeasure, NPRMeasure and IMDMeasure return named records — ENOB, SFDR, SINAD, THD and more — from a single-tone, noise-power-ratio, or two-tone intermodulation capture.
+
+Examples
+--------
+>>> import numpy as np
+>>> from doppler.measure import ToneMeasure
+>>> tm = ToneMeasure(n=4096, fs=1.024e6)
+>>> x = np.cos(2 * np.pi * 200 / 4096 * np.arange(4096)).astype(np.float32)
+>>> bool(tm.analyze(x).enob > 10)
+True
+
+"""
 objects = ["tonemeas", "nprmeas", "imdmeas"]
 # measure objects compose fft_core + the spectral_core window / find_peaks free
 # functions; tonemeas.toml's depends_on link=true (gh-225) links both OBJECT
@@ -1299,6 +1325,20 @@ objects = ["ddc", "ddcr"]
 extra_link_libs = ["m"]
 
 [module.analyzer]
+doc = """
+Spectrum analysis: Specan renders a windowed, averaged power spectral density (dBFS) over a chosen span and resolution bandwidth, mirroring a hardware spectrum analyser's span / RBW / averaging controls.
+
+Examples
+--------
+>>> import numpy as np
+>>> from doppler.analyzer import Specan
+>>> sp = Specan(fs=1.024e6, span=200e3, rbw=2e3, src_center=0.0,
+...             center=0.0, offset_db=0.0, full_scale=1.0, bits=0,
+...             window="kaiser", navg=1)
+>>> sp.execute(np.ones(4096, np.complex64)).shape
+(201,)
+
+"""
 objects = ["specan"]
 # Specan composes the Ddc cascade + the PSD averaging-PSD core; specan.toml's
 # depends_on link=true (gh-225) links every composed OBJECT core into the

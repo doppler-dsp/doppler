@@ -455,7 +455,16 @@ static PyMethodDef spectral_module_methods[] = {
 static PyModuleDef spectral_moduledef = {
     PyModuleDef_HEAD_INIT,
     .m_name    = "spectral",
-    .m_doc     = "Spectral module.",
+    .m_doc     = "Spectral transforms: reusable FFT and FFT2D engines (fixed length, pocketfft plans cached at construction) plus Corr / Corr2D cross-correlators and PSD power-spectrum estimators.\n"
+     "\n"
+     "Examples\n"
+     "--------\n"
+     ">>> import numpy as np\n"
+     ">>> from doppler.spectral import FFT\n"
+     ">>> f = FFT(n=1024)\n"
+     ">>> X = f.execute_cf32(np.ones(1024, np.complex64))\n"
+     ">>> bool(abs(X[0].real - 1024) < 1)\n"
+     "True\n",
     .m_size    = -1,
     .m_methods = spectral_module_methods,
 };

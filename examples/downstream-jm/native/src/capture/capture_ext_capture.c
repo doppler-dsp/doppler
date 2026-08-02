@@ -297,36 +297,69 @@ CaptureObj_exit (CaptureObject *self, PyObject *args)
   Py_RETURN_NONE;
 }
 
-static PyMethodDef CaptureObj_methods[]
-    = { { "reset", (PyCFunction)CaptureObj_reset, METH_NOARGS,
-          "Reset state to post-create defaults." },
+static PyMethodDef CaptureObj_methods[] = {
+  { "reset", (PyCFunction)CaptureObj_reset, METH_NOARGS,
+    "Reset state to post-create defaults." },
 
-        { "read", (PyCFunction)(void *)CaptureObj_read,
-          METH_VARARGS | METH_KEYWORDS,
-          "read(count=1) -> ndarray\n"
-          "\n"
-          "Read up to `count` samples as unit-scale complex64; an empty array "
-          "at end of file.\n"
-          "\n"
-          "Returns\n"
-          "-------\n"
-          "NDArray[np.complex64]\n"
-          "    Output.\n"
-          "\n"
-          "    >>> import numpy as np\n"
-          "    >>> from iqtools import Capture\n"
-          "    >>> obj = Capture(path=...)\n"
-          "    >>> y = obj.read(4)\n"
-          "    >>> y.dtype\n"
-          "    dtype('complex64')\n" },
-        { "read_max_out", (PyCFunction)CaptureObj_read_max_out, METH_VARARGS,
-          "read_max_out(n) -> int\n\nMax output length read() can produce for "
-          "n.\nUse to size the ``out=`` buffer." },
-        { "destroy", (PyCFunction)CaptureObj_destroy, METH_NOARGS,
-          "Release resources." },
-        { "__enter__", (PyCFunction)CaptureObj_enter, METH_NOARGS, NULL },
-        { "__exit__", (PyCFunction)CaptureObj_exit, METH_VARARGS, NULL },
-        { NULL } };
+  { "read", (PyCFunction)(void *)CaptureObj_read, METH_VARARGS | METH_KEYWORDS,
+    "read(count=1) -> ndarray\n"
+    "\n"
+    "Read up to `count` samples as unit-scale complex64; an empty array "
+    "at end of file.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "NDArray[np.complex64]\n"
+    "    Output.\n"
+    "\n"
+    "    >>> import numpy as np\n"
+    "    >>> from iqtools import Capture\n"
+    "    >>> obj = Capture(path=...)\n"
+    "    >>> y = obj.read(4)\n"
+    "    >>> y.dtype\n"
+    "    dtype('complex64')\n" },
+  { "read_max_out", (PyCFunction)CaptureObj_read_max_out, METH_VARARGS,
+    "read_max_out(n) -> int\n\nMax output length read() can produce for "
+    "n.\nUse to size the ``out=`` buffer." },
+  { "destroy", (PyCFunction)CaptureObj_destroy, METH_NOARGS,
+    "Release the underlying C resources immediately.\n"
+    "\n"
+    "Ordinarily unnecessary: the resources are freed when the object is\n"
+    "garbage-collected. Call this to release them at a definite point\n"
+    "instead, or use the object as a context manager, which calls it on "
+    "exit.\n"
+    "\n"
+    "Idempotent: calling it again on an already-released object does "
+    "nothing.\n"
+    "Every other method raises ``RuntimeError`` once it has run.\n" },
+  { "__enter__", (PyCFunction)CaptureObj_enter, METH_NOARGS,
+    "Enter a context manager, returning this object.\n"
+    "\n"
+    "Lets a Capture be used in a `with` statement so its C resources are\n"
+    "released deterministically on exit rather than at collection time.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "Capture\n"
+    "    This same object, not a copy.\n" },
+  { "__exit__", (PyCFunction)CaptureObj_exit, METH_VARARGS,
+    "Exit a context manager, releasing the Capture.\n"
+    "\n"
+    "Equivalent to calling `destroy()`. Returns ``None``, so an exception\n"
+    "raised inside the `with` body propagates normally; this never "
+    "suppresses\n"
+    "one.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "exc_type : object | None\n"
+    "    Exception class, or None. Ignored.\n"
+    "exc : object | None\n"
+    "    Exception instance, or None. Ignored.\n"
+    "tb : object | None\n"
+    "    Traceback object, or None. Ignored.\n" },
+  { NULL }
+};
 
 static PyTypeObject CaptureObjType = {
   PyVarObject_HEAD_INIT (NULL, 0).tp_name = "capture.Capture",

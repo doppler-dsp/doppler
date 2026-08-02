@@ -492,11 +492,67 @@ static PyMethodDef WriterObj_methods[] = {
     METH_VARARGS | METH_KEYWORDS,
     "add_keyword(...) -- add a codec-typed value." },
   { "close", (PyCFunction)WriterObj_destroy, METH_NOARGS,
-    "Release resources." },
+    "Release the underlying C resources immediately.\n"
+    "\n"
+    "Ordinarily unnecessary: the resources are freed when the object is\n"
+    "garbage-collected. Call this to release them at a definite point\n"
+    "instead, or use the object as a context manager, which calls it on "
+    "exit.\n"
+    "\n"
+    "Idempotent: calling it again on an already-released object does "
+    "nothing.\n"
+    "Every other method raises ``RuntimeError`` once it has run.\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "OSError\n"
+    "    If the C destructor reports failure. Raised from an explicit call "
+    "and from ``__exit__`` alike, so a failing teardown propagates out of a "
+    "``with`` block (gh-541).\n" },
   { "destroy", (PyCFunction)WriterObj_destroy, METH_NOARGS,
-    "Release resources." },
-  { "__enter__", (PyCFunction)WriterObj_enter, METH_NOARGS, NULL },
-  { "__exit__", (PyCFunction)WriterObj_exit, METH_VARARGS, NULL },
+    "Release the underlying C resources immediately.\n"
+    "\n"
+    "Ordinarily unnecessary: the resources are freed when the object is\n"
+    "garbage-collected. Call this to release them at a definite point\n"
+    "instead, or use the object as a context manager, which calls it on "
+    "exit.\n"
+    "\n"
+    "Idempotent: calling it again on an already-released object does "
+    "nothing.\n"
+    "Every other method raises ``RuntimeError`` once it has run.\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "OSError\n"
+    "    If the C destructor reports failure. Raised from an explicit call "
+    "and from ``__exit__`` alike, so a failing teardown propagates out of a "
+    "``with`` block (gh-541).\n" },
+  { "__enter__", (PyCFunction)WriterObj_enter, METH_NOARGS,
+    "Enter a context manager, returning this object.\n"
+    "\n"
+    "Lets a WfmWriter be used in a `with` statement so its C resources are\n"
+    "released deterministically on exit rather than at collection time.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "WfmWriter\n"
+    "    This same object, not a copy.\n" },
+  { "__exit__", (PyCFunction)WriterObj_exit, METH_VARARGS,
+    "Exit a context manager, releasing the WfmWriter.\n"
+    "\n"
+    "Equivalent to calling `close()`. Returns ``None``, so an exception\n"
+    "raised inside the `with` body propagates normally; this never "
+    "suppresses\n"
+    "one.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "exc_type : object | None\n"
+    "    Exception class, or None. Ignored.\n"
+    "exc : object | None\n"
+    "    Exception instance, or None. Ignored.\n"
+    "tb : object | None\n"
+    "    Traceback object, or None. Ignored.\n" },
   { NULL }
 };
 

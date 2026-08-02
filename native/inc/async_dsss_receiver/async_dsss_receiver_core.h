@@ -386,7 +386,24 @@ extern "C"
 
   /**
    * @brief Return to the searching state.
+   * Resets the embedded Acquisition and rebuilds both the refine-stage and
+   * live-tracking chains back to their placeholder seed (phase 0, no
+   * Doppler). A receiver that has locked cannot be "reset back to tracking
+   * the same signal," only back to searching — matching every other
+   * object's reset() semantics in this codebase.
    * @param state Must be non-NULL.
+   * @code
+   * >>> import numpy as np
+   * >>> from doppler.dsss import AsyncDsssReceiver
+   * >>> from doppler.wfm import Gold
+   * >>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
+   * >>> rx = AsyncDsssReceiver(code, chip_rate=3.069e6, symbol_rate=2700.0,
+   * ...                        spc=2, doppler_uncertainty=500.0)
+   * >>> rx.reset()                        # abort any lock, hunt from scratch
+   * >>> (rx.tracking, rx.refining, rx.chip_phase)   # all cleared
+   * (0, 0, 0.0)
+   *
+   * @endcode
    */
   void async_dsss_receiver_reset (async_dsss_receiver_state_t *state);
 
@@ -394,6 +411,18 @@ extern "C"
 
   /**
    * @brief Stream raw cf32 samples; emit demodulated symbols once tracking.
+   *
+   * Drives the search -> refine -> track state machine. While searching or
+   * refining, nothing is emitted (an empty return is normal, not an error):
+   * a hit seeds the frozen-carrier refine chain, `CarrierAcquisition`
+   * sharpens the coarse Doppler estimate, and only once it is ready (or
+   * gives up) is the live tracking chain built and demodulation begins.
+   * Accepts any block size; state carries across calls, so a capture can be
+   * fed in frames of any length with no seam. Under SPEC's coupled offset +
+   * 500 Hz/s Doppler ramp the pre-despread Costas removes the full carrier
+   * dynamics before the code loop, so the recovered constellation lands
+   * cleanly on the BPSK real axis.
+   *
    * @param state    Must be non-NULL.
    * @param x        Input cf32 samples.
    * @param x_len    Number of input samples.
@@ -401,23 +430,147 @@ extern "C"
    * @param max_out  Output capacity.
    * @return Number of symbols written (0 while searching/refining, or
    *         while tracking with not yet a full symbol's worth of input).
+   * @code
+   * >>> import numpy as np
+   * >>> from doppler.dsss import AsyncDsssReceiver
+   * >>> from doppler.wfm import Gold
+   * >>> sf, chip, sym, spc = 1023, 3.069e6, 2700.0, 2
+   * >>> fs, te, tsym = chip * spc, sf * spc, chip * spc / sym
+   * >>> code = np.asarray(Gold().generate(sf)).astype(np.uint8)
+   * >>> csign = np.where(code & 1, -1.0, 1.0)
+   * >>> rng = np.random.default_rng(21)
+   * >>> n = int(600 * tsym) + 4 * te            # 600 async BPSK symbols
+   * >>> idx = np.arange(n)
+   * >>> data = (rng.integers(0, 2, 604) * 2 - 1).astype(float)
+   * >>> si = np.clip((idx / tsym).astype(int), 0, 603)
+   * >>> t = idx / fs
+   * >>> sig = (data[si] * csign[(idx // spc) % sf]           # DSSS chips
+   * ...        * np.exp(1j * 2 * np.pi * 0.5 * 500.0 * t * t))  # 500 Hz/s ramp
+   * >>> cn0 = 20.0 + 10 * np.log10(sym)         # Es/N0 = 20 dB
+   * >>> sigma = np.sqrt(fs / 10 ** (cn0 / 10))
+   * >>> pre = 5 * te                            # noise-only lead-in
+   * >>> noise = (sigma / np.sqrt(2)) * (rng.standard_normal(pre + n)
+   * ...          + 1j * rng.standard_normal(pre + n))
+   * >>> x = (np.concatenate([np.zeros(pre), sig]).astype(np.complex64)
+   * ...      + noise.astype(np.complex64))
+   * >>> rx = AsyncDsssReceiver(code, chip_rate=chip, symbol_rate=sym,
+   * ...                        spc=spc, cn0_dbhz=cn0, doppler_uncertainty=500.0)
+   * >>> syms = [rx.steps(x[p:p + te]) for p in range(0, len(x) - te, te)]
+   * >>> syms = np.concatenate([s for s in syms if len(s)])
+   * >>> rx.tracking                       # searched, refined, now tracking
+   * 1
+   * >>> len(syms) > 300                    # symbols recovered under the ramp
+   * True
+   * >>> bool(np.mean(syms.real**2) > 10 * np.mean(syms.imag**2))  # BPSK on I
+   * True
+   *
+   * @endcode
    */
   size_t async_dsss_receiver_steps (async_dsss_receiver_state_t *state,
                                     const float complex *x, size_t x_len,
                                     float complex *out, size_t max_out);
 
-  /** @brief Pin the embedded Acquisition's search grid directly. */
+  /**
+   * @brief Pin the embedded Acquisition's search grid directly.
+   * Forwards to `acq_configure_search_raw()` — the escape hatch under this
+   * object's `symbol_rate`-driven auto-sizing, for a power user who wants a
+   * specific `(doppler_bins, n_noncoh)`. Only meaningful while searching;
+   * the acquisition search does not run again until the next `reset()`.
+   *
+   * @param state         Must be non-NULL.
+   * @param doppler_bins  Number of Doppler window tiles to search (>= 1);
+   *                      capped by the create-time `doppler_uncertainty`
+   *                      span (one tile per code-epoch Doppler bin width).
+   * @param n_noncoh      Non-coherent looks accumulated per grid cell
+   *                      (1..256); more looks buys sensitivity at the cost
+   *                      of dwell, replacing the auto-sized count.
+   * @return 0 on success, -1 on invalid grid (see acq_configure_search_raw).
+   * @code
+   * >>> import numpy as np
+   * >>> from doppler.dsss import AsyncDsssReceiver
+   * >>> from doppler.wfm import Gold
+   * >>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
+   * >>> rx = AsyncDsssReceiver(code, chip_rate=3.069e6, symbol_rate=2700.0,
+   * ...                        spc=2, doppler_uncertainty=500.0)
+   * >>> rx.configure_search_raw(doppler_bins=1, n_noncoh=16)  # pin the grid
+   * >>> rx.refining                       # still searching, on the pinned grid
+   * 0
+   *
+   * @endcode
+   */
   int async_dsss_receiver_configure_search_raw (
       async_dsss_receiver_state_t *state, size_t doppler_bins,
       size_t n_noncoh);
 
-  /** @brief Re-tune the live-tracking Dll's code-lock detector directly. */
+  /**
+   * @brief Re-tune the live-tracking Dll's code-lock detector directly.
+   * Forwards to `dll_configure_lock_raw()` on the live tracking Dll (the one
+   * behind `get_code_locked()`), NOT the refine-stage collection Dll. Only
+   * meaningful once tracking has begun; a no-op while searching or refining.
+   * The detector is the hysteretic lockdet over the DLL's per-N-look CFAR
+   * statistic — the levels and verify counts trade declare latency against
+   * false-alarm rate.
+   *
+   * @param state        Must be non-NULL.
+   * @param up_thresh    CFAR-statistic level to declare code lock (hit
+   *                     when the statistic exceeds it).
+   * @param down_thresh  Level below which a look is a miss; choose
+   *                     <= @p up_thresh for level hysteresis.
+   * @param n_looks      Looks per decision — the DLL's non-coherent
+   *                     integration depth feeding one statistic.
+   * @param alpha        EMA smoothing coefficient on the lock statistic
+   *                     (0..1); smaller is smoother/slower.
+   * @param n_up         Consecutive hits required to declare lock.
+   * @param n_down       Consecutive misses required to drop lock.
+   * @code
+   * >>> import numpy as np
+   * >>> from doppler.dsss import AsyncDsssReceiver
+   * >>> from doppler.wfm import Gold
+   * >>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
+   * >>> rx = AsyncDsssReceiver(code, chip_rate=3.069e6, symbol_rate=2700.0,
+   * ...                        spc=2, doppler_uncertainty=500.0)
+   * >>> rx.configure_lock_raw(up_thresh=0.4, down_thresh=0.2, n_looks=20,
+   * ...                       alpha=0.1, n_up=5, n_down=3)
+   * >>> rx.tracking                       # a no-op until tracking begins
+   * 0
+   *
+   * @endcode
+   */
   void async_dsss_receiver_configure_lock_raw (
       async_dsss_receiver_state_t *state, double up_thresh,
       double down_thresh, size_t n_looks, double alpha, uint32_t n_up,
       uint32_t n_down);
 
-  /** @brief Pin the live-tracking despread/resample/demod grid directly. */
+  /**
+   * @brief Pin the live-tracking despread/resample/demod grid directly.
+   * The escape hatch for the composition-specific knob: `segments` (the
+   * live Dll's tracking parameter) and `sps`/`n` (MpskReceiver's
+   * sample-rate/carrier-arm parameters) are independently overridable,
+   * still bridged by a freshly-sized `RateConverter` and never coupled to
+   * each other. While searching/refining it re-pins the grid used to build
+   * the next tracking chain; once tracking it rebuilds `dll`/`rc`/`rx` in
+   * place, allocating every replacement before adopting it so a failed pin
+   * leaves the receiver usable on its prior grid.
+   *
+   * @param state     Must be non-NULL.
+   * @param segments  Live-tracking Dll segments per code period.
+   * @param sps       MpskReceiver samples per symbol (the resample target).
+   * @param n         MpskReceiver's carrier-arm count; must divide @p sps.
+   * @return 0 on success, -1 on invalid grid or an allocation failure
+   *         (the receiver is left usable at its prior grid on failure).
+   * @code
+   * >>> import numpy as np
+   * >>> from doppler.dsss import AsyncDsssReceiver
+   * >>> from doppler.wfm import Gold
+   * >>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
+   * >>> rx = AsyncDsssReceiver(code, chip_rate=3.069e6, symbol_rate=2700.0,
+   * ...                        spc=2, doppler_uncertainty=500.0)
+   * >>> rx.configure_chain_raw(segments=6, sps=8, n=8)  # re-pin the chain
+   * >>> rx.segments                       # tracking grid updated in place
+   * 6
+   *
+   * @endcode
+   */
   int async_dsss_receiver_configure_chain_raw (
       async_dsss_receiver_state_t *state, size_t segments, size_t sps,
       int n);

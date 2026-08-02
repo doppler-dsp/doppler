@@ -27,37 +27,75 @@ class LoopFilter:
     def __init__(self, bn: float = ..., zeta: float = ..., t: float = ...) -> None: ...
 
     def step(self, x: float) -> float:
-        """Advance the loop one update with error x; return the control.
+        """Advance the loop one update with error x and return the control value the tracker should apply.
 
-        `integ += ki*x; return integ + kp*x`.
+        The PI recurrence is `integ += ki*x; control = integ + kp*x`: the
+        integrator accumulates the running frequency/rate estimate while the
+        proportional term kp*x is the instantaneous phase nudge. Fed a constant
+        error the integrator ramps linearly and the control converges to the
+        steady-state estimate — the behaviour that pulls a Costas/DLL/timing
+        loop into lock.
 
         Parameters
         ----------
         x : float
-            Loop error.
+            Loop error (discriminator output) for this update.
 
         Returns
         -------
         float
-            Control value (integ + kp*x).
+            Control value integ+kp*x to drive the NCO / interpolator.
+
+        Examples
+        --------
+        >>> from doppler.track import LoopFilter
+        >>> lf = LoopFilter(bn=0.02, zeta=0.707, t=1.0)
+        >>> round(lf.step(1.0), 6)   # unit error: control = ki + kp
+        0.05331
+        >>> round(lf.integ, 6)       # integrator now holds ki
+        0.001385
+
         """
 
     def steps(self, x: NDArray[np.float64], out: NDArray[np.float64] | None = None) -> NDArray[np.float64]:
-        """Run a block of errors through the loop.
+        """Filter a whole block of loop errors, returning the control value for each update.
+
+        Equivalent to calling loop_filter_step() once per element of x in order,
+        carrying the integrator across the block, so the loop's memory and lock
+        state persist from one call to the next. This is the vectorized path
+        used to run a captured error sequence through the filter in one shot.
 
         Parameters
         ----------
         x : NDArray[np.float64]
-            Input.
+            Loop-error array, one discriminator sample per update.
 
         Returns
         -------
         NDArray[np.float64]
             Output.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.track import LoopFilter
+        >>> lf = LoopFilter(bn=0.05, zeta=0.707, t=1.0)
+        >>> ctl = lf.steps(np.full(50, 0.1))   # constant error into the loop
+        >>> round(float(ctl[0]), 4)            # first control nudge
+        0.0133
+        >>> round(float(ctl[-1]), 4)           # converging toward the estimate
+        0.0541
+
         """
 
     def configure(self, bn: float, zeta: float, t: float) -> None:
         """Recompute the loop gains for a new (bn, zeta, t); preserves the integrator.
+
+        Recomputes the proportional and integral gains from the standard
+        2nd-order form but leaves integ untouched, so a loop can be widened for
+        fast acquisition and then narrowed for steady-state tracking while
+        holding its accumulated frequency/rate estimate — the retune preserves
+        lock.
 
         Parameters
         ----------
@@ -67,10 +105,41 @@ class LoopFilter:
             Damping factor (typically 0.707).
         t : float
             Update period in samples (> 0).
+
+        Examples
+        --------
+        >>> from doppler.track import LoopFilter
+        >>> lf = LoopFilter(bn=0.01, zeta=0.707, t=1.0)
+        >>> _ = lf.step(1.0)
+        >>> before = round(lf.integ, 6)
+        >>> lf.configure(0.05, 0.707, 1.0)   # widen the loop, keep lock
+        >>> round(lf.integ, 6) == before     # integrator preserved
+        True
+        >>> round(lf.kp, 6)                  # proportional gain rose
+        0.124728
+
         """
 
     def reset(self) -> None:
         """Zero the integrator; keep the configured gains.
+
+        Clears the accumulated frequency/rate estimate (integ) back to zero but
+        leaves kp / ki as configured, so the loop reacquires from a clean slate
+        at its current bandwidth — the right thing when a tracker drops lock and
+        must restart, without re-deriving gains.
+
+        Examples
+        --------
+        >>> from doppler.track import LoopFilter
+        >>> lf = LoopFilter(bn=0.02, zeta=0.707, t=1.0)
+        >>> for _ in range(10):
+        ...     _ = lf.step(1.0)             # ramp the integrator
+        >>> round(lf.integ, 6)
+        0.013849
+        >>> lf.reset()
+        >>> lf.integ                          # integrator cleared, gains kept
+        0.0
+
         """
 
     def state_bytes(self) -> int:
@@ -222,15 +291,45 @@ class Costas:
     def steps(self, x: NDArray[np.complex64], out: NDArray[np.complex64] | None = None) -> NDArray[np.complex64]:
         """De-rotate a cf32 block with the integer-NCO carrier, coherently integrate over each tsamps-sample symbol, run the decision-directed Costas discriminator, and emit one complex prompt symbol per symbol.
 
+        The streaming Python face of the loop. For every input sample it wipes
+        the (tracked) carrier off x with the integer-phase NCO, sums the result
+        into the coherent integrate-and-dump accumulator, and on each symbol
+        boundary (one every tsamps samples) dumps the accumulator as the prompt,
+        runs the BPSK Costas discriminator to steer the NCO frequency and phase,
+        and appends the mean-scaled prompt to the output. Loop state carries
+        across calls, so a long capture can be fed block by block; exactly one
+        prompt symbol comes out per tsamps input samples.
+
         Parameters
         ----------
         x : NDArray[np.complex64]
-            Input.
+            Input samples, one complex baseband sample each.
 
         Returns
         -------
         NDArray[np.complex64]
-            Output.
+            Number of prompt symbols written to out (one per tsamps input
+            samples). On the Python face this is the recovered-symbol array.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.track import Costas
+        >>> tsamps = 16
+        >>> rng = np.random.default_rng(1)
+        >>> bits = rng.integers(0, 2, 4000) * 2 - 1
+        >>> sig = np.repeat(bits.astype(np.complex64), tsamps)
+        >>> k = np.arange(len(sig))
+        >>> rx = (sig * np.exp(2j * np.pi * 0.003 * k)).astype(np.complex64)
+        >>> c = Costas(bn=0.05, zeta=0.707, tsamps=tsamps)
+        >>> sym = c.steps(rx)             # one prompt symbol per tsamps samples
+        >>> sym.shape
+        (4000,)
+        >>> round(c.norm_freq, 4)         # pulled onto the 0.003 cyc/sample residual
+        0.003
+        >>> c.lock_metric > 0.9
+        True
+
         """
 
     def steps_max_out(self, x_len: int) -> int:
@@ -269,12 +368,27 @@ class Costas:
     def configure(self, bn: float, zeta: float) -> None:
         """Recompute the loop gains for a new (bn, zeta); preserves the frequency/phase estimate.
 
+        Re-derives the PI coefficients from the loop bandwidth and damping and
+        installs them live. The NCO frequency, phase and loop integrator are
+        left untouched, so a converged loop keeps tracking straight through the
+        re-tune — narrow the bandwidth once pulled in for lower phase jitter, or
+        widen it to chase a faster-moving residual.
+
         Parameters
         ----------
         bn : float
-            Input.
+            Loop noise bandwidth, normalised to the symbol rate.
         zeta : float
-            Input.
+            Damping factor (0.707 = critically damped).
+
+        Examples
+        --------
+        >>> from doppler.track import Costas
+        >>> c = Costas(bn=0.05, zeta=0.707, init_norm_freq=0.01, tsamps=16)
+        >>> c.configure(0.02, 1.0)                    # narrow the loop, over-damp
+        >>> (round(c.bn, 3), round(c.norm_freq, 3))   # new gains, estimate kept
+        (0.02, 0.01)
+
         """
 
     def configure_lock(self, up_thresh: float, down_thresh: float, n_up: int, n_down: int) -> None:
@@ -318,6 +432,33 @@ class Costas:
 
     def reset(self) -> None:
         """Re-seed the loop to the create-time frequency/phase; preserve config.
+
+        Drops the lock and rewinds the NCO, loop integrator and
+        integrate-and-dump accumulators to the create-time seed frequency, while
+        retaining the configured loop bandwidth, damping and lock-detector
+        thresholds. Reprocess the same input after a reset and the output is
+        bit-identical.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.track import Costas
+        >>> tsamps = 16
+        >>> rng = np.random.default_rng(3)
+        >>> bits = rng.integers(0, 2, 1500) * 2 - 1
+        >>> sig = np.repeat(bits.astype(np.complex64), tsamps)
+        >>> k = np.arange(len(sig))
+        >>> rx = (sig * np.exp(2j * np.pi * 0.002 * k)).astype(np.complex64)
+        >>> c = Costas(bn=0.05, zeta=0.707, tsamps=tsamps)
+        >>> _ = c.steps(rx)
+        >>> round(c.norm_freq, 4) != 0.0     # loop pulled onto the residual
+        True
+        >>> c.reset()
+        >>> c.norm_freq                       # back to the create-time seed
+        0.0
+        >>> c.lock_metric
+        0.0
+
         """
 
     def state_bytes(self) -> int:
@@ -445,7 +586,7 @@ class Costas:
 
 @final
 class Dll:
-    """Create a DLL instance (COPIES code).
+    """Create a code/timing delay-locked loop over a spreading code.
 
     Parameters
     ----------
@@ -470,15 +611,45 @@ class Dll:
     def steps(self, x: NDArray[np.complex64], out: NDArray[np.complex64] | None = None) -> NDArray[np.complex64]:
         """Correlate a cf32 block against the local code with early/prompt/late taps and steer the code NCO each code period on the non-coherent (sum|E|-sum|L|)/(sum|E|+sum|L|) discriminator. With segments=1 (default) this is a coherent full-epoch integrate-and-dump: one prompt symbol per period. With segments>1 each epoch is split into that many sub-epoch partial correlations: it emits that many partial prompts per period (a stream at ~segments samples/symbol when the symbol rate is near the code rate) and tracks the code non-coherently across the partials, which a data flip cannot collapse (robust to an asynchronous data-symbol clock). segments>1 is the streaming despreader: it removes the PN code and outputs samples. The non-coherent loop is carrier-blind, so it tracks with a residual carrier still on the input; carrier recovery (Costas) and symbol-timing recovery (SymbolSync) are downstream stages fed from the partial output. Returned blocks are safe to keep across calls (block-size invariant): a block whose array is still referenced is never overwritten by a later call (jm gh-437).
 
+        The Python face of the loop. Each code period the early/prompt/late
+        correlators dump, the power-domain non-coherent early-minus-late
+        discriminator runs, and the fixed-point code-phase NCO is re-steered;
+        the prompt correlator value is emitted as one output symbol per period
+        (or `segments` partial prompts per period when `segments > 1`). The loop
+        is carrier-blind — it tracks with a residual carrier still on the input,
+        so carrier recovery (Costas) and symbol-timing recovery are downstream
+        stages fed from this output. Returned blocks are block-size invariant
+        and safe to keep across calls (a block still referenced is never
+        overwritten, jm gh-437).
+
         Parameters
         ----------
         x : NDArray[np.complex64]
-            Input.
+            Carrier-wiped input samples (one contiguous block).
 
         Returns
         -------
         NDArray[np.complex64]
-            Output.
+            Number of prompt symbols written — one per completed code period
+            (`segments` per period when `segments > 1`) — up to max_out.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.track import Dll
+        >>> rng = np.random.default_rng(1)
+        >>> code = rng.integers(0, 2, 31).astype(np.uint8)
+        >>> chip = np.where(code & 1, -1.0, 1.0)             # BPSK spreading code
+        >>> x = np.tile(np.repeat(chip, 2), 40).astype(np.complex64)  # 40 clean periods
+        >>> d = Dll(code=code, sps=2)
+        >>> sym = d.steps(x)                                 # one prompt per code period
+        >>> sym.dtype
+        dtype('complex64')
+        >>> round(float(np.mean(sym.real[-10:])), 1)         # despread to a clean +1
+        1.0
+        >>> round(d.code_rate, 3)                            # locked at the nominal rate
+        1.0
+
         """
 
     def steps_max_out(self, x_len: int) -> int:
@@ -518,12 +689,30 @@ class Dll:
     def configure(self, bn: float, zeta: float) -> None:
         """Recompute the loop gains for a new (bn, zeta); preserves the code phase/rate.
 
+        Re-derives the 2nd-order loop filter's proportional and integral gains
+        for a new noise bandwidth and damping, leaving the tracked code phase,
+        code rate and correlator accumulators untouched — retune the loop
+        mid-run (e.g. narrow the bandwidth once pulled in) without dropping
+        lock.
+
         Parameters
         ----------
         bn : float
-            Input.
+            Loop noise bandwidth, normalised to the code-period rate.
         zeta : float
-            Input.
+            Damping factor (0.707 = critically damped).
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.track import Dll
+        >>> rng = np.random.default_rng(1)
+        >>> code = rng.integers(0, 2, 31).astype(np.uint8)
+        >>> d = Dll(code=code, sps=2, bn=0.01)
+        >>> d.configure(bn=0.02, zeta=0.707)   # widen the loop bandwidth mid-run
+        >>> round(d.bn, 3)
+        0.02
+
         """
 
     def set_rate_aid(self, rate_aid: float) -> None:
@@ -542,6 +731,26 @@ class Dll:
         ----------
         rate_aid : float
             Fractional code-rate deviation (e.g. 8e-6). 0 disables.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.track import Dll
+        >>> rng = np.random.default_rng(11)
+        >>> code = rng.integers(0, 2, 63).astype(np.uint8)
+        >>> delta = 5e-4                                   # code-rate Doppler
+        >>> idx = (np.arange(63 * 4 * 300) * (1 + delta) / 4).astype(np.int64) % 63
+        >>> x = np.where(code[idx] & 1, -1.0, 1.0).astype(np.complex64)
+        >>> plain = Dll(code, sps=4, bn=0.005)
+        >>> _ = plain.steps(x)
+        >>> round(plain.code_rate, 4)      # loop had to pull the whole Doppler
+        1.0005
+        >>> aided = Dll(code, sps=4, bn=0.005)
+        >>> aided.set_rate_aid(delta)      # feed the Doppler forward instead
+        >>> _ = aided.steps(x)
+        >>> round(aided.code_rate, 4)      # loop integrator stays at nominal
+        1.0
+
         """
 
     def configure_lock(self, pfa: float, n_looks: int, ref_snr_db: float = 0.0) -> None:
@@ -641,10 +850,51 @@ class Dll:
             1.
         n_down : int
             Consecutive below-threshold decisions to drop it; clamped to >= 1.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.track import Dll
+        >>> rng = np.random.default_rng(1)
+        >>> code = rng.integers(0, 2, 63).astype(np.uint8)   # >= 7 chips for a lock
+        >>> chip = np.where(code & 1, -1.0, 1.0)
+        >>> x = np.tile(np.repeat(chip, 4), 400).astype(np.complex64)  # clean signal
+        >>> d = Dll(code, sps=4, bn=0.005)
+        >>> # raw geometry: declare at R>3, drop at R<2.5, 8-look, 2-of-2 hysteresis
+        >>> d.configure_lock_raw(3.0, 2.5, 8, 1.0 / 1024, 2, 2)
+        >>> _ = d.steps(x)
+        >>> d.locked                       # statistic cleared the declare threshold
+        True
+        >>> bool(d.lock_stat > 3.0)
+        True
+
         """
 
     def reset(self) -> None:
         """Re-seed the loop to the create-time code phase; preserve config.
+
+        Restores the code phase, loop filter, correlator accumulators and lock
+        detector to their post-construction state while preserving the tuned
+        configuration (bn/zeta, spacing, segments, lock geometry). Re-running
+        the same input after a reset therefore reproduces the same tracked state
+        bit-for-bit — the basis of a deterministic replay.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.track import Dll
+        >>> rng = np.random.default_rng(21)
+        >>> code = rng.integers(0, 2, 63).astype(np.uint8)
+        >>> idx = (np.arange(63 * 4 * 300) * (1 + 3e-4) / 4).astype(np.int64) % 63
+        >>> x = np.where(code[idx] & 1, -1.0, 1.0).astype(np.complex64)
+        >>> d = Dll(code, sps=4, bn=0.005)
+        >>> _ = d.steps(x)
+        >>> first = round(d.code_rate, 6)
+        >>> d.reset()                       # back to the create-time code phase
+        >>> _ = d.steps(x)                  # same input -> same tracked rate
+        >>> round(d.code_rate, 6) == first
+        True
+
         """
 
     def state_bytes(self) -> int:
@@ -804,15 +1054,39 @@ class SymbolSync:
     def steps(self, x: NDArray[np.complex64], out: NDArray[np.complex64] | None = None) -> NDArray[np.complex64]:
         """Recover symbol timing from an oversampled cf32 baseband block: a timing-error detector (Gardner or DTTL, see the `ted` param) drives an integer timing NCO whose post-wrap value gives the interpolation fraction for free, and a Farrow interpolator emits one symbol-rate sample per recovered symbol instant.
 
+        symsync_step() in a loop, with the TED specialised per detector. Each
+        input sample feeds the Farrow interpolator and advances the integer
+        timing NCO; on a mid-symbol crossing the transition-gate interpolant is
+        stored, and on a wrap the on-time interpolant is formed, the selected
+        TED (Gardner or DTTL) measures the timing error, the PI loop steers the
+        NCO rate, and one symbol-rate sample is emitted at the recovered
+        instant. State carries across calls, so contiguous blocks give the same
+        symbols as one large block.
+
         Parameters
         ----------
         x : NDArray[np.complex64]
-            Input.
+            Oversampled input samples (~sps samples per symbol).
 
         Returns
         -------
         NDArray[np.complex64]
-            Output.
+            Number of recovered symbols written to out.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.track import SymbolSync
+        >>> ss = SymbolSync(sps=4, bn=0.02, zeta=0.707)
+        >>> x = np.repeat([1.0, -1.0, 1.0, -1.0], 4 * 32).astype(np.complex64)
+        >>> y = ss.steps(x)                # oversampled -> one sample per symbol
+        >>> y.shape[0]
+        127
+        >>> sorted(set(np.where(y.real >= 0, 1, -1).tolist()))   # recovered +/-1
+        [-1, 1]
+        >>> round(ss.rate, 1)              # tracked samples/symbol
+        4.0
+
         """
 
     def steps_max_out(self, x_len: int) -> int:
@@ -851,12 +1125,27 @@ class SymbolSync:
     def configure(self, bn: float, zeta: float) -> None:
         """Recompute the loop gains for a new (bn, zeta); preserve the timing estimate.
 
+        Retunes the PI timing loop in place: the proportional/integral gains are
+        recomputed from the new noise bandwidth and damping, while the NCO
+        phase, tracked rate and loop-filter integrator carry over — so a locked
+        loop is re-bandwidthed (e.g. narrowed after acquisition) without losing
+        lock.
+
         Parameters
         ----------
         bn : float
-            Input.
+            Loop noise bandwidth, normalised to the symbol rate (>= 0).
         zeta : float
-            Input.
+            Damping factor (0.707 = critically damped).
+
+        Examples
+        --------
+        >>> from doppler.track import SymbolSync
+        >>> ss = SymbolSync(sps=4, bn=0.01, zeta=0.707)
+        >>> ss.configure(bn=0.05, zeta=1.0)   # widen and over-damp for acquisition
+        >>> round(ss.bn, 3)
+        0.05
+
         """
 
     def configure_lock(self, rolloff: float, esno_min_db: float, pfa: float, pd: float) -> None:
@@ -936,10 +1225,41 @@ class SymbolSync:
             Consecutive above-threshold decisions to declare; clamped >= 1.
         n_down : int
             Consecutive below-threshold decisions to drop; clamped >= 1.
+
+        Examples
+        --------
+        >>> from doppler.track import SymbolSync
+        >>> ss = SymbolSync(sps=4, bn=0.01, zeta=0.707)
+        >>> ss.configure_lock_raw(64, 0.3, 0.3, 1, 8)   # 64-look block, 8-drop
+        >>> ss.locked
+        False
+        >>> round(ss.lock_stat, 3)
+        0.0
+
         """
 
     def reset(self) -> None:
         """Re-seed the timing loop to its nominal rate and zero phase.
+
+        Restores the object to its post-create state: the timing NCO is zeroed
+        to the nominal one-wrap-per-symbol rate, the Farrow history and TED
+        state are cleared, the loop-filter integrator is emptied and the lock
+        detector is dropped. The configured (bn, zeta), TED selection and any
+        lock geometry are preserved, so the same object can be re-run on a fresh
+        stream.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.track import SymbolSync
+        >>> ss = SymbolSync(sps=4, bn=0.02, zeta=0.707)
+        >>> _ = ss.steps(np.repeat([1.0, -1.0], 4 * 40).astype(np.complex64))
+        >>> ss.reset()
+        >>> round(ss.rate, 1)              # back to the nominal sps
+        4.0
+        >>> round(ss.timing_error, 3)      # loop stress cleared
+        0.0
+
         """
 
     def state_bytes(self) -> int:
@@ -1108,6 +1428,21 @@ class RateSync:
         -------
         NDArray[np.complex64]
             Symbols written to out.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.track import RateSync
+        >>> syms = np.where(np.random.default_rng(3).integers(0, 2, 3000) > 0,
+        ...                 1.0, -1.0)
+        >>> x = (0.25 * np.repeat(syms, 8)).astype(np.complex64)  # 8 samp/sym
+        >>> rs = RateSync(sps=8.0, pulse="iandd", m=4, bn=0.01)
+        >>> y = rs.steps(x)             # one symbol per transmitted symbol
+        >>> round(rs.rate, 2)           # tracked samples per symbol
+        8.0
+        >>> bool(rs.lock_stat > 0.55)   # the timing loop has locked
+        True
+
         """
 
     def steps_max_out(self, x_len: int) -> int:
@@ -1138,17 +1473,53 @@ class RateSync:
             Probe-name prefix, e.g. "sync".
         decim : int
             Emit every decim-th symbol; >= 1.
+
+        Examples
+        --------
+        >>> from doppler.track import RateSync
+        >>> from doppler.telemetry import Telemetry
+        >>> tlm = Telemetry(1 << 14)
+        >>> rs = RateSync(sps=8.0, pulse="iandd", m=4, bn=0.01)
+        >>> rs.set_telemetry(tlm, "sync")   # register the six timing probes
+        >>> tlm.probe_count
+        6
+        >>> "sync.rate" in tlm.probe_names()   # tracked samples/symbol
+        True
+
         """
 
     def configure(self, bn: float, zeta: float) -> None:
         """Recompute the loop gains for a new (bn, zeta); preserve the timing estimate.
 
+        Only the PI coefficients change; the integrator, and therefore the
+        tracked rate and the lock, carries through untouched. Use it to narrow
+        the loop after acquisition (a wide bn pulls in fast, a narrow one tracks
+        with less jitter) without forcing a re-acquire.
+
         Parameters
         ----------
         bn : float
-            Input.
+            Loop noise bandwidth, normalised to the symbol rate.
         zeta : float
-            Input.
+            Damping factor (0.707 = critically damped).
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.track import RateSync
+        >>> syms = np.where(np.random.default_rng(3).integers(0, 2, 3000) > 0,
+        ...                 1.0, -1.0)
+        >>> x = (0.25 * np.repeat(syms, 8)).astype(np.complex64)  # 8 samp/sym
+        >>> rs = RateSync(sps=8.0, pulse="iandd", m=4, bn=0.01)
+        >>> _ = rs.steps(x)              # acquire and lock
+        >>> rs.locked
+        True
+        >>> rs.configure(0.002, 0.707)   # narrow the loop; the lock is preserved
+        >>> round(rs.bn, 3)
+        0.002
+        >>> rs.locked
+        True
+
         """
 
     def configure_lock_raw(self, avgs: int, up_thresh: float, down_thresh: float, n_up: int, n_down: int) -> None:
@@ -1171,10 +1542,48 @@ class RateSync:
             Consecutive above-threshold decisions to declare.
         n_down : int
             Consecutive below-threshold decisions to drop.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.track import RateSync
+        >>> syms = np.where(np.random.default_rng(3).integers(0, 2, 3000) > 0,
+        ...                 1.0, -1.0)
+        >>> x = (0.25 * np.repeat(syms, 8)).astype(np.complex64)
+        >>> rs = RateSync(sps=8.0, pulse="iandd", m=4, bn=0.01)
+        >>> _ = rs.steps(x)
+        >>> rs.locked
+        True
+        >>> rs.configure_lock_raw(64, 0.5, 0.4, 2, 4)  # drops the lock
+        >>> rs.locked
+        False
+        >>> rs.lock_stat                 # the in-flight block was cleared
+        0.0
+
         """
 
     def reset(self) -> None:
         """Re-seed the timing loop, the cascade's filter memories, the strobe ring and the prime countdown.
+
+        Configuration (sps, pulse, bank, bn, zeta, ted, lock geometry) is kept;
+        only the running state is cleared, so a re-run of the same stream from a
+        reset object reproduces its first-run symbols bit for bit.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.track import RateSync
+        >>> syms = np.where(np.random.default_rng(3).integers(0, 2, 3000) > 0,
+        ...                 1.0, -1.0)
+        >>> x = (0.25 * np.repeat(syms, 8)).astype(np.complex64)
+        >>> rs = RateSync(sps=8.0, pulse="iandd", m=4, bn=0.01)
+        >>> first = np.array(rs.steps(x))
+        >>> rs.reset()
+        >>> rs.ctrl, rs.locked           # back to the post-create state
+        (0.0, False)
+        >>> bool(np.array_equal(first, np.array(rs.steps(x))))  # reproducible
+        True
+
         """
 
     def state_bytes(self) -> int:
@@ -1332,15 +1741,54 @@ class CarrierMpsk:
     def steps(self, x: NDArray[np.complex64], out: NDArray[np.complex64] | None = None) -> NDArray[np.complex64]:
         """De-rotate a cf32 block with the integer-NCO carrier, coherently integrate over each tsamps-sample symbol, run the decision-directed M-PSK discriminator (slice to the nearest constellation point, error Im(P*conj(ahat))/|P|), and emit one complex prompt symbol per symbol. The loop tracks a small residual carrier (bulk Doppler removed upstream); it locks to one of m phases, so resolve the M-fold ambiguity downstream (mpsk_diff_demap or a sync word). At m=2 this is exactly the BPSK Costas loop.
 
+        The block form of the inline wipeoff/update pair: for each input sample
+        it de-rotates by the carrier NCO and accumulates the coherent
+        integrate-and-dump; every tsamps samples it dumps the prompt, runs the
+        decision-directed M-PSK discriminator (slice to the nearest
+        constellation point, error `Im(P conj(ahat))/|P|`, plus the optional
+        cross-product FLL assist), filters the error, and steers the NCO
+        frequency and phase. Exactly one de-rotated prompt is emitted per
+        completed symbol; a trailing partial symbol is carried in the
+        accumulator to the next call, so a stream can be fed in blocks of any
+        length with no seam.
+
+        The loop locks to one of m carrier phases — an M-fold ambiguity on the
+        absolute constellation orientation. Resolve it downstream (differential
+        demapping or a sync word); this call only recovers the carrier and
+        returns the prompts. At m = 2 it is exactly the BPSK Costas loop.
+
         Parameters
         ----------
         x : NDArray[np.complex64]
-            Input.
+            Input block, one complex baseband sample per element.
 
         Returns
         -------
         NDArray[np.complex64]
-            Output.
+            One de-rotated prompt symbol per completed integrate-and-dump
+            period; the count is `x_len / tsamps`.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.mpsk import mpsk_map
+        >>> from doppler.track import CarrierMpsk
+        >>> rng = np.random.default_rng(0)
+        >>> sps = 16
+        >>> labels = rng.integers(0, 4, 400).astype(np.uint8)
+        >>> sig = np.repeat(mpsk_map(labels, 4), sps).astype(np.complex64)
+        >>> k = np.arange(len(sig))
+        >>> rx = (sig * np.exp(2j * np.pi * 0.002 * k)).astype(np.complex64)
+        >>> c = CarrierMpsk(bn=0.04, zeta=0.707, init_norm_freq=0.0,
+        ...                 tsamps=sps, bn_fll=0.02, m=4)
+        >>> prompts = c.steps(rx)          # one prompt per symbol
+        >>> prompts.shape
+        (400,)
+        >>> round(c.norm_freq, 4)          # tracked the residual carrier f0=0.002
+        0.002
+        >>> round(c.lock_metric, 2)        # decision-aligned lock metric -> 1
+        1.0
+
         """
 
     def steps_max_out(self, x_len: int) -> int:
@@ -1349,16 +1797,64 @@ class CarrierMpsk:
     def configure(self, bn: float, zeta: float) -> None:
         """Recompute the loop gains for a new (bn, zeta); preserves the frequency/phase estimate.
 
+        Re-derives the proportional/integral gains of the embedded 2nd-order
+        loop filter for the new noise bandwidth and damping, leaving the running
+        frequency and phase estimate (the NCO and the loop integrator) untouched
+        — a live lock survives a re-tune. Use it to widen the loop for fast
+        pull-in and then narrow it for low-jitter tracking, mid-stream.
+
         Parameters
         ----------
         bn : float
-            Input.
+            Loop noise bandwidth, normalised to the symbol rate.
         zeta : float
-            Input.
+            Damping factor (0.707 = critically damped).
+
+        Examples
+        --------
+        >>> from doppler.track import CarrierMpsk
+        >>> c = CarrierMpsk(bn=0.02, zeta=0.707, init_norm_freq=0.01,
+        ...                 tsamps=16, bn_fll=0.0, m=4)
+        >>> round(c.bn, 3)
+        0.02
+        >>> c.configure(bn=0.05, zeta=1.0)   # widen the loop mid-stream
+        >>> round(c.bn, 3)
+        0.05
+        >>> round(c.norm_freq, 3)            # frequency estimate preserved
+        0.01
+
         """
 
     def reset(self) -> None:
         """Re-seed the loop to the create-time frequency/phase; preserve config.
+
+        Returns the NCO to the seed carrier passed at construction, zeroes the
+        integrate-and-dump accumulator, the FLL history, and the lock/error
+        diagnostics, and re-primes the loop integrator to the matching
+        per-symbol frequency — the exact state a fresh carrier_mpsk_create()
+        leaves. The tuning (bn, zeta, bn_fll, tsamps, m) is untouched. Call it
+        at a capture boundary so a lock reached on one segment does not bias an
+        unrelated next one.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.mpsk import mpsk_map
+        >>> from doppler.track import CarrierMpsk
+        >>> rng = np.random.default_rng(1)
+        >>> sig = np.repeat(mpsk_map(rng.integers(0, 4, 100).astype(np.uint8), 4),
+        ...                 16).astype(np.complex64)
+        >>> rx = (sig * np.exp(2j * np.pi * 0.003 * np.arange(len(sig)))
+        ...       ).astype(np.complex64)
+        >>> c = CarrierMpsk(bn=0.04, zeta=0.707, init_norm_freq=0.0,
+        ...                 tsamps=16, bn_fll=0.02, m=4)
+        >>> _ = c.steps(rx)
+        >>> round(c.norm_freq, 3)   # loop pulled onto the residual carrier
+        0.003
+        >>> c.reset()               # back to the create-time seed
+        >>> round(c.norm_freq, 3)
+        0.0
+
         """
 
     def state_bytes(self) -> int:
@@ -1516,15 +2012,44 @@ class CarrierNda:
     def steps(self, x: NDArray[np.complex64], out: NDArray[np.complex64] | None = None) -> NDArray[np.complex64]:
         """De-rotate a cf32 block with the integer-NCO carrier and return the de-rotated samples (one per input sample). Internally the loop runs a non-data-aided M-th-power discriminator on an I/Q arm integrate-and-dump at n dumps per symbol and steers the NCO, so it acquires the carrier with no symbol timing and no data present (it strips the M-PSK modulation by raising the arm sample to the Mth power). It locks to one of m phases (M-fold ambiguity), resolved downstream. Read norm_freq for the tracked carrier and lock for the carrier lock metric.
 
+        Runs the non-data-aided carrier loop over the block: each sample is
+        wiped off by the integer-phase NCO, the de-rotated sample slides the I/Q
+        moving-average arm, and the M-th-power discriminator (which strips the
+        M-PSK data modulation) steers the NCO frequency and phase. Because the
+        discriminator is data- and timing-independent, this acquires the carrier
+        with no symbol timing and no data present — a bare carrier, or a
+        modulated carrier before timing lock. It resolves to one of m carrier
+        phases (M-fold ambiguity, resolved downstream). Read norm_freq for the
+        tracked carrier (cycles/sample) and lock for the carrier lock metric.
+
         Parameters
         ----------
         x : NDArray[np.complex64]
-            Input.
+            Input samples (average power at or below unity).
 
         Returns
         -------
         NDArray[np.complex64]
-            Output.
+            Number of de-rotated samples written to out (equals x_len).
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.track import CarrierNda
+        >>> c = CarrierNda(bn=0.01, zeta=0.707, init_norm_freq=0.0, sps=8, n=4, m=4)
+        >>> rng = np.random.default_rng(0)
+        >>> k = np.arange(40000)
+        >>> x = (np.exp(2j * np.pi * 0.001 * k) + 0.05 * (
+        ...      rng.standard_normal(k.size)
+        ...      + 1j * rng.standard_normal(k.size))).astype(np.complex64)
+        >>> y = c.steps(x)                 # de-rotated toward DC
+        >>> y.shape[0]
+        40000
+        >>> round(c.norm_freq, 4)          # tracked carrier, cycles/sample
+        0.001
+        >>> c.lock > 0.5                    # carrier lock metric, ~1 at lock
+        True
+
         """
 
     def steps_max_out(self, x_len: int) -> int:
@@ -1600,6 +2125,31 @@ class CarrierNda:
 
     def reset(self) -> None:
         """Re-seed the loop to the create-time frequency/phase; preserve config.
+
+        Restores the object to its post-create state: the carrier NCO is reset
+        to the seed frequency it was constructed with (init_norm_freq) with zero
+        phase, the moving-average arm, AGC, loop-filter integrator and lock EMA
+        are cleared, and the lock detector is dropped. The configured (bn,
+        zeta), the arm geometry (sps, n) and the constellation order m are
+        preserved, so the same object can re-acquire a fresh capture.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.track import CarrierNda
+        >>> c = CarrierNda(bn=0.01, zeta=0.707, init_norm_freq=0.0, sps=8, n=4, m=4)
+        >>> rng = np.random.default_rng(0)
+        >>> k = np.arange(40000)
+        >>> x = (np.exp(2j * np.pi * 0.001 * k) + 0.05 * (
+        ...      rng.standard_normal(k.size)
+        ...      + 1j * rng.standard_normal(k.size))).astype(np.complex64)
+        >>> _ = c.steps(x)
+        >>> round(c.norm_freq, 4), round(c.lock, 2)   # acquired the carrier
+        (0.001, 0.99)
+        >>> c.reset()
+        >>> round(c.norm_freq, 4), round(c.lock, 2)   # back to the seed, unlocked
+        (0.0, 0.0)
+
         """
 
     def state_bytes(self) -> int:
@@ -1833,6 +2383,22 @@ class MpskReceiver:
         -------
         NDArray[np.complex64]
             Number of symbols written.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.track import MpskReceiver
+        >>> rng = np.random.default_rng(0)
+        >>> idx = rng.integers(0, 4, 3000)                  # QPSK symbols
+        >>> tx = np.repeat(np.exp(1j * (2 * np.pi * idx / 4 + np.pi / 4)), 8)
+        >>> tx = tx.astype(np.complex64)                    # 8 samples/symbol
+        >>> rx = MpskReceiver(m=4, sps=8, m_out=4, bn_carrier=0.02)
+        >>> sym = rx.steps(tx)                              # blind NDA acquire
+        >>> sym.size                                        # ~ x_len / sps
+        2997
+        >>> round(rx.lock, 2)                               # carrier locked
+        0.91
+
         """
 
     def steps_max_out(self, x_len: int) -> int:
@@ -1857,6 +2423,23 @@ class MpskReceiver:
         -------
         NDArray[np.uint8]
             Number of bits written.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.track import MpskReceiver
+        >>> rng = np.random.default_rng(3)
+        >>> idx = rng.integers(0, 2, 3000)                  # BPSK payload bits
+        >>> tx = np.repeat(np.exp(1j * np.pi * idx), 8).astype(np.complex64)
+        >>> rx = MpskReceiver(m=2, sps=8, m_out=4, bn_carrier=0.005)
+        >>> b = rx.bits(tx)                                 # 1 hard bit/symbol
+        >>> b.size
+        2997
+        >>> # settled tail matches the payload up to the BPSK inversion ambiguity
+        >>> tail = np.mean(b[1000:2000] != idx[1000:2000])
+        >>> round(float(min(tail, 1 - tail)), 3)
+        0.0
+
         """
 
     def bits_max_out(self, x_len: int) -> int:
@@ -1896,6 +2479,27 @@ class MpskReceiver:
 
     def reset(self) -> None:
         """Re-seed the carrier and symbol-timing loops to their create-time state; preserve configuration.
+
+        Clears the cascade's filter memory, the carrier and timing NCOs, the
+        loop-filter integrators and the lock detectors, and returns the carrier
+        estimate to init_norm_freq. The configuration (order, rate, pulse,
+        bandwidths) is untouched, so the same input fed twice around a reset
+        reproduces the same output bit-for-bit.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.track import MpskReceiver
+        >>> rng = np.random.default_rng(0)
+        >>> idx = rng.integers(0, 4, 300)
+        >>> tx = np.repeat(np.exp(1j * (2 * np.pi * idx / 4 + np.pi / 4)), 8)
+        >>> tx = tx.astype(np.complex64)
+        >>> rx = MpskReceiver(m=4, sps=8, m_out=4)
+        >>> first = rx.steps(tx)
+        >>> rx.reset()                                # back to the cold state
+        >>> np.array_equal(first, rx.steps(tx))       # same input, same output
+        True
+
         """
 
     def state_bytes(self) -> int:
@@ -2075,16 +2679,50 @@ class MpskReceiverR:
     def __init__(self, m: int = ..., sps: float = ..., m_out: int = ..., pulse: Literal["iandd", "rrc"] = "iandd", rrc_beta: float = ..., rrc_span: int = ..., bn_carrier: float = ..., zeta: float = ..., bn_timing: float = ..., acq_to_track: int = ..., lock_thresh: float = ..., init_norm_freq: float = ..., warmup_syms: int = ..., differential: int = ..., num_phases: int = ..., nda_tap: Literal["strobe", "mf_all", "lo_arm"] = "strobe") -> None: ...
 
     def set_telemetry(self, tlm: object | None, prefix: str, decim: int = 1) -> None:
-        """Attach (or detach) telemetry; registers the same eleven probes as mpsk_receiver_set_telemetry(), whose contract this shares.
+        """Attach (or detach) a telemetry context across the receiver.
+
+        Registers the same eleven probes as mpsk_receiver_set_telemetry(), whose
+        contract it shares: the receiver's own "<prefix>.lock" and
+        "<prefix>.tracking", the carrier loop's "<prefix>.car.e" / ".freq" /
+        ".locked", and the symbol-timing loop's "<prefix>.sync.e" / ".ctrl" /
+        ".rate" / ".lock" / ".locked" / ".mu" — all thinned by decim and emitted
+        once per recovered symbol. Passing NULL detaches everything. Setup path,
+        never hot; the context is borrowed and must outlive the attachment.
 
         Parameters
         ----------
         tlm : object | None
-            Input.
+            Telemetry context to attach, or NULL to detach.
         prefix : str
-            Input.
+            Probe-name prefix, e.g. "rx".
         decim : int
-            Input.
+            Emit every decim-th symbol; >= 1.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.track import MpskReceiverR
+        >>> from doppler.telemetry import Telemetry
+        >>> tlm = Telemetry(1 << 14)
+        >>> rx = MpskReceiverR(m=4, sps=10, m_out=2, init_norm_freq=0.25)
+        >>> rx.set_telemetry(tlm, "rx")
+        >>> len(tlm.probe_names())
+        11
+        >>> rng = np.random.default_rng(7)
+        >>> idx = rng.integers(0, 4, 512)
+        >>> bb = np.repeat(np.exp(2j * np.pi * idx / 4), 10)
+        >>> n = np.arange(bb.size)
+        >>> x = (0.4 * bb * np.exp(2j * np.pi * 0.25 * n)).real
+        >>> x = np.ascontiguousarray(x.astype(np.float32))
+        >>> _ = rx.steps(x)
+        >>> recs = tlm.read()
+        >>> tlm.dropped            # size the ring, or the counts below diverge
+        0
+        >>> n_sync = len(recs[recs["probe"] == tlm.probe_id("rx.sync.e")])
+        >>> n_car = len(recs[recs["probe"] == tlm.probe_id("rx.car.e")])
+        >>> n_sync > 0 and n_sync == n_car
+        True
+
         """
 
     def steps(self, x: NDArray[np.float32], out: NDArray[np.complex64] | None = None) -> NDArray[np.complex64]:
@@ -2102,6 +2740,24 @@ class MpskReceiverR:
         -------
         NDArray[np.complex64]
             Number of symbols written.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.track import MpskReceiverR
+        >>> rng = np.random.default_rng(3)
+        >>> idx = rng.integers(0, 4, 2400)                  # QPSK symbols
+        >>> bb = np.repeat(np.exp(2j * np.pi * idx / 4), 32)  # 32 samples/symbol
+        >>> n = np.arange(bb.size)
+        >>> x = (0.4 * bb * np.exp(2j * np.pi * 0.25 * n)).real   # real IF, fs/4
+        >>> x = np.ascontiguousarray(x.astype(np.float32))
+        >>> rx = MpskReceiverR(m=4, sps=32, m_out=8, init_norm_freq=0.25)
+        >>> sym = rx.steps(x)
+        >>> sym.size                                        # ~ x_len / sps
+        2398
+        >>> round(rx.lock, 2)                               # carrier locked
+        0.99
+
         """
 
     def steps_max_out(self, x_len: int) -> int:
@@ -2121,6 +2777,27 @@ class MpskReceiverR:
         -------
         NDArray[np.uint8]
             Number of bits written.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.track import MpskReceiverR
+        >>> rng = np.random.default_rng(3)
+        >>> idx = rng.integers(0, 2, 2400)                  # BPSK payload bits
+        >>> bb = np.repeat(np.exp(1j * np.pi * idx), 32)
+        >>> n = np.arange(bb.size)
+        >>> x = (0.4 * bb * np.exp(2j * np.pi * 0.25 * n)).real   # real IF, fs/4
+        >>> x = np.ascontiguousarray(x.astype(np.float32))
+        >>> rx = MpskReceiverR(m=2, sps=32, m_out=8, init_norm_freq=0.25,
+        ...                    bn_carrier=0.005)
+        >>> b = rx.bits(x)                                  # 1 hard bit/symbol
+        >>> b.size
+        2398
+        >>> # settled tail matches the payload up to the BPSK inversion ambiguity
+        >>> tail = np.mean(b[1500:2300] != idx[1500:2300])
+        >>> round(float(min(tail, 1 - tail)), 3)
+        0.0
+
         """
 
     def bits_max_out(self, x_len: int) -> int:
@@ -2129,20 +2806,59 @@ class MpskReceiverR:
     def configure_lock(self, up_thresh: float, down_thresh: float, n_up: int, n_down: int) -> None:
         """Re-tune the acquisition<->tracking handover detector: hands the carrier to the decision-directed discriminator after n_up consecutive symbols with the carrier lock EMA above up_thresh, and falls back to NDA acquisition after n_down consecutive symbols below down_thresh (level + time hysteresis; see detection.LockDet). Previously only settable at construction (lock_thresh, with fixed 0.8x drop / 8-up / 32-down constants) -- this is the post-construction re-tune Dll and Costas both already have. A live handover survives the re-tune; the in-flight verify run restarts.
 
+        The real-input twin of mpsk_receiver_configure_lock(), whose contract it
+        shares exactly: a split declare/drop threshold pair on the carrier lock
+        EMA (level hysteresis) plus both verify counts (time hysteresis). A live
+        handover survives the re-tune; the in-flight verify run restarts.
+
         Parameters
         ----------
         up_thresh : float
-            Input.
+            Declare threshold on the carrier lock EMA.
         down_thresh : float
-            Input.
+            Drop threshold; choose <= up_thresh for level hysteresis.
         n_up : int
-            Input.
+            Consecutive above-threshold symbols to hand over to the
+            decision-directed discriminator; clamped >= 1.
         n_down : int
-            Input.
+            Consecutive below-threshold symbols to fall back to NDA acquisition;
+            clamped >= 1.
+
+        Examples
+        --------
+        >>> from doppler.track import MpskReceiverR
+        >>> rx = MpskReceiverR(m=4, sps=10, m_out=2, acq_to_track=1)
+        >>> rx.tracking
+        0
+        >>> rx.configure_lock(0.9, 0.72, 4, 16)   # tighter declare, faster drop
+
         """
 
     def reset(self) -> None:
         """Re-seed the carrier and symbol-timing loops to their create-time state; preserve configuration.
+
+        Identical in effect to mpsk_receiver_reset() — clears the R2C halfband
+        and cascade memory, the carrier and timing NCOs, the loop integrators
+        and the lock detectors, and returns the carrier estimate to
+        init_norm_freq. Configuration is untouched, so a burst fed twice around
+        a reset reproduces bit-for-bit.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.track import MpskReceiverR
+        >>> rng = np.random.default_rng(0)
+        >>> idx = rng.integers(0, 4, 300)
+        >>> bb = np.repeat(np.exp(2j * np.pi * idx / 4), 32)
+        >>> n = np.arange(bb.size)
+        >>> x = (0.4 * bb * np.exp(2j * np.pi * 0.25 * n)).real   # real IF, fs/4
+        >>> x = np.ascontiguousarray(x.astype(np.float32))
+        >>> rx = MpskReceiverR(m=4, sps=32, m_out=8, init_norm_freq=0.25)
+        >>> first = rx.steps(x)
+        >>> rx.reset()                                # back to the cold state
+        >>> np.array_equal(first, rx.steps(x))        # same input, same output
+        True
+
         """
 
     def state_bytes(self) -> int:

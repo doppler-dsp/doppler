@@ -5,30 +5,30 @@ from numpy.typing import NDArray
 
 @final
 class Despreader:
-    """Create a despreader (COPIES code).
+    """Create a continuous DSSS despreader (COPIES code).
 
     Parameters
     ----------
     code : NDArray[np.uint8]
-        code constructor parameter.
+        Spreading code (0/1 chips), one period; copied.
     sps : int, default 4
-        sps constructor parameter.
+        Samples per chip.
     init_norm_freq : float, default 0.0
-        init_norm_freq constructor parameter.
+        Seed carrier frequency, cycles/sample (the acquisition estimate).
     init_chip : float, default 0.0
-        init_chip constructor parameter.
+        Seed code phase, chips (the acquisition estimate).
     bn_carrier : float, default 0.05
-        bn_carrier constructor parameter.
+        Carrier loop noise bandwidth, normalized to the code-period (symbol) rate.
     bn_code : float, default 0.005
-        bn_code constructor parameter.
+        Code loop noise bandwidth, normalized to the code-period rate.
     bn_fll : float, default 0.0
-        bn_fll constructor parameter.
+        Carrier FLL-assist bandwidth (0 = pure PLL); set > 0 for FLL-assisted carrier pull-in.
     zeta : float, default 0.707
-        zeta constructor parameter.
+        Damping factor shared by both second-order loops.
     spacing : float, default 0.5
-        spacing constructor parameter.
+        DLL early/late correlator tap offset, chips.
     periods_per_bit : int, default 1
-        periods_per_bit constructor parameter.
+        Code periods per data bit (1 = one bit per period).
 
     """
     def __init__(self, code: NDArray[np.uint8], sps: int = ..., init_norm_freq: float = ..., init_chip: float = ..., bn_carrier: float = ..., bn_code: float = ..., bn_fll: float = ..., zeta: float = ..., spacing: float = ..., periods_per_bit: int = ...) -> None: ...
@@ -192,6 +192,29 @@ class Despreader:
 
     def reset(self) -> None:
         """Re-seed both loops to the create-time frequency/phase; preserve config.
+
+        Restores the carrier NCO to init_norm_freq and the code phase to
+        init_chip, zeroes the loop-filter accumulators and the bit-sync
+        histogram, and clears the lock detectors — the spreading code and every
+        configured bandwidth are preserved. Use it to re-run the same despreader
+        over an independent stream and get a fresh instance's result.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.dsss import Despreader
+        >>> rng = np.random.default_rng(3)
+        >>> code = rng.integers(0, 2, 31).astype(np.uint8)
+        >>> chips = np.where(code & 1, -1.0, 1.0)
+        >>> syms = np.where(rng.integers(0, 2, 40) == 1, -1.0, 1.0)
+        >>> rx = np.concatenate(
+        ...     [s * np.repeat(chips, 4) for s in syms]).astype(np.complex64)
+        >>> d = Despreader(code=code, sps=4)
+        >>> first = d.bits(rx)
+        >>> d.reset()                          # re-seed to acquisition
+        >>> np.array_equal(first, d.bits(rx))  # same result as a fresh object
+        True
+
         """
 
     def state_bytes(self) -> int:
@@ -448,10 +471,58 @@ class BurstDespreader:
             Acquisition code (0/1), length acq_code_len; copied.
         acq_reps : int
             Number of acq-code periods in the preamble.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.dsss import BurstDespreader
+        >>> rng = np.random.default_rng(5)
+        >>> acq = rng.integers(0, 2, 128).astype(np.uint8)    # long acq code
+        >>> data_code = rng.integers(0, 2, 32).astype(np.uint8)
+        >>> pbits = rng.integers(0, 2, 40).astype(np.uint8)
+        >>> asig = np.where(acq & 1, -1.0, 1.0)
+        >>> dch = np.where(data_code & 1, -1.0, 1.0)
+        >>> psyms = np.where(pbits == 1, -1.0, 1.0)
+        >>> pre = np.concatenate([np.repeat(asig, 4) for _ in range(4)])
+        >>> pay = np.concatenate([np.repeat(s * dch, 4) for s in psyms])
+        >>> burst = np.concatenate([pre, pay]).astype(np.complex64)
+        >>> d = BurstDespreader(data_code, sf=32, sps=4)
+        >>> d.set_acq(acq, 4)                    # 4 preamble reps, pulls loops in
+        >>> out = d.bits(burst)                  # preamble emits nothing
+        >>> out.shape                            # only the payload symbols come out
+        (40,)
+        >>> e = np.mean(out != pbits)
+        >>> round(float(min(e, 1.0 - e)), 4)
+        0.0
+
         """
 
     def reset(self) -> None:
         """Re-seed the loops to the create-time phase/frequency; preserve config.
+
+        Restores the carrier NCO to the seed frequency and the code phase to the
+        seed chip, zeroes the loop accumulators, and clears the cumulative burst
+        read-backs (lock_metric / snr_est / lock_stat / stat_n) — the spreading
+        code and bandwidths are kept. Call it between bursts so each burst's
+        statistics start clean; a prior burst_despreader_set_acq() preamble is
+        also re-armed.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.dsss import BurstDespreader
+        >>> rng = np.random.default_rng(1)
+        >>> code = rng.integers(0, 2, 31).astype(np.uint8)
+        >>> chips = np.where(code & 1, -1.0, 1.0)
+        >>> syms = np.where(rng.integers(0, 2, 30) == 1, -1.0, 1.0)
+        >>> tx = np.concatenate(
+        ...     [np.repeat(s * chips, 4) for s in syms]).astype(np.complex64)
+        >>> d = BurstDespreader(code, sf=31, sps=4)
+        >>> first = d.bits(tx)
+        >>> d.reset()                              # re-arm for a new burst
+        >>> np.array_equal(first, d.bits(tx))      # same result as a fresh object
+        True
+
         """
 
     def state_bytes(self) -> int:
@@ -617,26 +688,69 @@ class Acquisition:
 
     def reset(self) -> None:
         """Drain the input ring and reset the coherent accumulator.
+
+        Discards any buffered samples that have not yet completed a frame and
+        clears the non-coherent power accumulator and dwell bookkeeping, so the
+        next push() begins a fresh search from an empty ring. The construction
+        parameters — grid, thresholds, and PN reference — are untouched; only
+        the in-flight streaming state is dropped.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.dsss import Acquisition
+        >>> from doppler.wfm import PN, mls_poly
+        >>> code = np.asarray(PN(poly=mls_poly(5), seed=1,
+        ...                      length=5).generate(31)).astype(np.uint8)
+        >>> s0 = np.repeat(np.where(code & 1, -1.0, 1.0), 4).astype(np.complex64)
+        >>> burst = np.tile(np.roll(s0, 17), 23).astype(np.complex64)
+        >>> a = Acquisition(code, spc=4, chip_rate=1e6, cn0_dbhz=50.0)
+        >>> _ = a.push(burst[:100])   # a partial frame, now buffered mid-stream
+        >>> a.reset()                 # drop it before it can bias a detection
+        >>> a.push(burst)[0][:2]      # (Doppler bin, code phase)
+        (0, 17)
+
         """
 
     def push(self, x: complex) -> list[tuple[int, int, float, float, float, float, int]]:
         """Stream raw samples; emit one event per CFAR dump above threshold.
 
-        Buffers in, then for every complete frame applies the slow-time Doppler
+        Buffers x, then for every complete frame applies the slow-time Doppler
         FFT, correlates against the PN reference, dumps the coherent surface
         (or, when n_noncoh > 1, accumulates |·|² over n_noncoh looks first),
         gates the peak on the auto-configured threshold, and appends an
+        acq_result_t. Each event carries the peak's Doppler bin and code phase
+        (the two search axes), its CFAR statistic, and an estimated C/N0 — see
         acq_result_t.
 
         Parameters
         ----------
         x : complex
-            Input.
+            Raw input, interleaved CF32, n_in complex samples.
 
         Returns
         -------
         list[tuple[int, int, float, float, float, float, int]]
             Number of events written (0 … max_results).
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.dsss import Acquisition
+        >>> from doppler.wfm import PN, mls_poly
+        >>> code = np.asarray(PN(poly=mls_poly(5), seed=1,
+        ...                      length=5).generate(31)).astype(np.uint8)
+        >>> s0 = np.repeat(np.where(code & 1, -1.0, 1.0), 4).astype(np.complex64)
+        >>> a = Acquisition(code, spc=4, chip_rate=1e6, cn0_dbhz=50.0,
+        ...                 doppler_uncertainty=40e3)
+        >>> fs = 1e6 * 4                    # sample rate = chip_rate * spc
+        >>> t = np.arange(a.code_bins * a.n_noncoh)
+        >>> carrier = np.exp(2j * np.pi * (a.doppler_res_hz / fs) * t)
+        >>> sig = (np.tile(np.roll(s0, 17), a.n_noncoh)
+        ...        * carrier).astype(np.complex64)
+        >>> a.push(sig)[0][:2]              # (Doppler-window bin, code phase)
+        (1, 17)
+
         """
 
     def configure_search_raw(self, doppler_bins: int, n_noncoh: int) -> None:
@@ -657,6 +771,23 @@ class Acquisition:
         n_noncoh : int
             Non-coherent look count to pin, in `[1,
             ACQ_N_NONCOH_SAFETY_CEILING]`.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.dsss import Acquisition
+        >>> from doppler.wfm import PN, mls_poly
+        >>> code = np.asarray(PN(poly=mls_poly(5), seed=1,
+        ...                      length=5).generate(31)).astype(np.uint8)
+        >>> s0 = np.repeat(np.where(code & 1, -1.0, 1.0), 4).astype(np.complex64)
+        >>> a = Acquisition(code, spc=4, chip_rate=1e6, cn0_dbhz=50.0)
+        >>> a.configure_search_raw(doppler_bins=1, n_noncoh=4)  # pin the grid
+        >>> a.doppler_bins, a.n_noncoh
+        (1, 4)
+        >>> burst = np.tile(np.roll(s0, 17), 4).astype(np.complex64)
+        >>> a.push(burst)[0][:2]      # detects at the pinned grid
+        (0, 17)
+
         """
 
     def state_bytes(self) -> int:
@@ -874,31 +1005,98 @@ class BurstAcquisition:
 
     def reset(self) -> None:
         """Drain the input ring and reset the coherent accumulator.
+
+        Forwards to acq_reset() on the embedded engine: discards any buffered
+        samples that have not yet completed a frame and clears the non-coherent
+        power accumulator and dwell bookkeeping, so the next push() begins a
+        fresh search from an empty ring. Construction parameters are untouched.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.dsss import BurstAcquisition
+        >>> from doppler.wfm import PN, mls_poly
+        >>> code = np.asarray(PN(poly=mls_poly(5), seed=1,
+        ...                      length=5).generate(31)).astype(np.uint8)
+        >>> s0 = np.repeat(np.where(code & 1, -1.0, 1.0), 4).astype(np.complex64)
+        >>> burst = np.tile(np.roll(s0, 17), 24).astype(np.complex64)
+        >>> b = BurstAcquisition(code, reps=8, spc=4, chip_rate=1e6,
+        ...                      cn0_dbhz=50.0)
+        >>> _ = b.push(burst[:100])   # a partial frame, now buffered mid-stream
+        >>> b.reset()                 # drop it before it can bias a detection
+        >>> b.push(burst)[0][:2]      # (Doppler bin, code phase)
+        (0, 17)
+
         """
 
     def push(self, x: complex) -> list[tuple[int, int, float, float, float, float, int]]:
-        """Stream raw samples; emit one event per CFAR dump above threshold. Forwards to acq_push() -- see its doc comment.
+        """Stream raw samples; emit one event per CFAR dump above threshold.
+
+        Forwards to acq_push() on the embedded engine (see its doc comment in
+        acq_core.h for the framing/CFAR mechanics). Each event carries the
+        peak's Doppler bin and code phase (the two search axes), its CFAR
+        statistic, and an estimated C/N0 — see acq_result_t.
 
         Parameters
         ----------
         x : complex
-            Input.
+            Raw input, interleaved CF32, n_in complex samples.
 
         Returns
         -------
         list[tuple[int, int, float, float, float, float, int]]
-            Output.
+            Number of events written (0 … max_results).
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.dsss import BurstAcquisition
+        >>> from doppler.wfm import PN, mls_poly
+        >>> code = np.asarray(PN(poly=mls_poly(5), seed=1,
+        ...                      length=5).generate(31)).astype(np.uint8)
+        >>> s0 = np.repeat(np.where(code & 1, -1.0, 1.0), 4).astype(np.complex64)
+        >>> burst = np.tile(np.roll(s0, 17), 24).astype(np.complex64)
+        >>> b = BurstAcquisition(code, reps=8, spc=4, chip_rate=1e6,
+        ...                      cn0_dbhz=50.0)
+        >>> b.push(burst)[0][:2]      # (Doppler bin, code phase)
+        (0, 17)
+
         """
 
     def configure_search_raw(self, doppler_bins: int, n_noncoh: int) -> None:
         """Pin the search grid directly, bypassing both auto-sizing searches -- the advanced escape hatch (mirrors Dll.configure_lock_raw/Costas.configure_lock). Resizes every buffer/plan that depends on the grid (the slow-time FFT, the code correlator, the reference, and every per-frame scratch buffer), re-derives the threshold ladder for the pinned grid from the same physics __init__ used, and clears in-flight accumulation (ring contents, the non-coherent power accumulator, dwell bookkeeping) -- call between push() calls, never a substitute for one. Raises ValueError if doppler_bins is outside [1, reps] or n_noncoh is outside [1, 256] (the internal non-coherent-look safety-valve ceiling).
 
+        Forwards to acq_configure_search_raw() on the embedded engine (see its
+        doc comment in acq_core.h): resizes every grid-dependent buffer/plan,
+        re-derives the threshold ladder for the pinned grid, and clears
+        in-flight accumulation — call between push() calls, never a substitute
+        for one.
+
         Parameters
         ----------
         doppler_bins : int
-            Input.
+            Coherent depth to pin, in `[1, reps]`.
         n_noncoh : int
-            Input.
+            Non-coherent look count to pin, in `[1,
+            ACQ_N_NONCOH_SAFETY_CEILING]`.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.dsss import BurstAcquisition
+        >>> from doppler.wfm import PN, mls_poly
+        >>> code = np.asarray(PN(poly=mls_poly(5), seed=1,
+        ...                      length=5).generate(31)).astype(np.uint8)
+        >>> s0 = np.repeat(np.where(code & 1, -1.0, 1.0), 4).astype(np.complex64)
+        >>> b = BurstAcquisition(code, reps=8, spc=4, chip_rate=1e6,
+        ...                      cn0_dbhz=50.0)
+        >>> b.configure_search_raw(doppler_bins=4, n_noncoh=2)  # pin the grid
+        >>> b.doppler_bins, b.n_noncoh
+        (4, 2)
+        >>> burst = np.tile(np.roll(s0, 17), 8).astype(np.complex64)
+        >>> b.push(burst)[0][:2]      # detects at the pinned grid
+        (0, 17)
+
         """
 
     def state_bytes(self) -> int:
@@ -1106,21 +1304,59 @@ class PolynomialPhaseEstimator:
     def __init__(self, max_len: int = ..., max_rate: float = ...) -> None: ...
 
     def reset(self) -> None:
-        """No-op (the estimator carries no running state).
+        """Do nothing — the estimator keeps no running state between calls.
+
+        A feedforward analyzer computes each estimate purely from the segment it
+        is handed, so there is nothing to clear. The method exists only to
+        satisfy the common object protocol; calling it is always safe and has no
+        effect.
+
+        Examples
+        --------
+        >>> from doppler.dsss import PolynomialPhaseEstimator
+        >>> p = PolynomialPhaseEstimator(max_len=512, max_rate=0.0)
+        >>> p.reset()   # no-op: a fresh estimate depends only on the next segment
+
         """
 
     def estimate(self, x: complex) -> tuple[float, float, float]:
         """Estimate (freq, chirp-rate) of a complex sequence via the 2-lag HAF.
 
+        Runs the full 2-D matched-filter search in one shot: for each chirp-rate
+        hypothesis the segment is dechirped and FFT-ed, and the peak of the
+        resulting surface — refined sub-bin by parabolic interpolation on both
+        axes — gives the estimate. With max_rate = 0 the rate axis collapses to
+        a single FFT (pure Doppler) and the returned rate is forced to exactly
+        0.
+
+        Feed a segment whose modulation has already been stripped (data-aided by
+        the known symbols, or non-data-aided by the M-th-power trick —
+        remembering that raising to the M-th power scales both returned values
+        by M). The result carries freq_norm (cycles/sample), rate_norm
+        (cycles/sample^2), and snr_db (a rough peak-to-mean confidence).
+
         Parameters
         ----------
         x : complex
-            Input.
+            Complex segment (modulation already stripped by the caller).
 
         Returns
         -------
         tuple[float, float, float]
-            The estimate; zeroed if n_in is out of range.
+            The estimate; all fields are zeroed if n_in is out of range.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.dsss import PolynomialPhaseEstimator
+        >>> m = np.arange(512)
+        >>> f, r = 0.05, 1e-5                        # true Doppler + chirp rate
+        >>> x = np.exp(2j*np.pi*(f*m + 0.5*r*m*m)).astype(np.complex64)
+        >>> p = PolynomialPhaseEstimator(max_len=512, max_rate=5e-5)
+        >>> e = p.estimate(x)                        # one-shot coherent search
+        >>> round(e.freq_norm, 4), round(e.rate_norm, 7)
+        (0.0501, 1e-05)
+
         """
 
     @property
@@ -1183,16 +1419,16 @@ class PolynomialPhaseEstimator:
 
 @final
 class BurstDemod:
-    """Create a burst demodulator.
+    """Create a feedforward BPSK DSSS burst demodulator.
 
     Parameters
     ----------
     data_code : NDArray[np.uint8]
-        Data spreading code (0/1); copied.
+        Data spreading code, one 0/1 chip per element; copied into the object (its length is the data spreading factor, chips/symbol).
     spc : int, default 4
-        Samples per chip.
+        Samples per chip (front-end oversample).
     chip_rate : float, default 1.0e6
-        Chip rate (Hz).
+        Chip rate (Hz); sets the sample rate as spc*chip_rate.
     carrier_hz : float, default 0.0
         RF carrier (Hz) for code-Doppler scaling; 0 = ignore.
     max_rate : float, default 0.0
@@ -1206,38 +1442,102 @@ class BurstDemod:
     def __init__(self, data_code: NDArray[np.uint8], spc: int = ..., chip_rate: float = ..., carrier_hz: float = ..., max_rate: float = ..., payload_len: int = ..., est_segments: int = ...) -> None: ...
 
     def reset(self) -> None:
-        """Clear the read-backs (config is preserved).
+        """Clear the per-burst read-backs, leaving the configuration intact.
+
+        Zeros the after-demod fields (frame_valid, frame_offset, n_symbols, and
+        the est_* estimates) so a stale result cannot be mistaken for a fresh
+        one. The spreading codes, sync word, and prior set up before the first
+        burst are preserved, so the object is immediately ready to demodulate
+        the next burst.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.dsss import BurstDemod
+        >>> dcode = (np.arange(50) & 1).astype(np.uint8)
+        >>> d = BurstDemod(dcode, spc=4, chip_rate=1e6, payload_len=64)
+        >>> d.reset()               # clears est_ fields + frame_valid, keeps config
+        >>> d.frame_valid
+        0
+
         """
 
     def set_preamble(self, acq_code: NDArray[np.uint8], reps: int) -> None:
         """Set the (unmodulated) acquisition preamble code + repetition count used for the feedforward (f0, rate) estimate.
 
+        The preamble is the acq spreading code transmitted reps times with no
+        data modulation; demod() segment-despreads it into partial correlations
+        and feeds those to the polynomial-phase estimator to recover the coarse
+        (frequency, chirp-rate). Call once after construction; the code is
+        copied.
+
         Parameters
         ----------
         acq_code : NDArray[np.uint8]
-            Input.
+            Acq preamble spreading code, one 0/1 chip per element; copied into
+            the object.
         reps : int
-            Input.
+            Number of preamble repetitions in the burst.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.dsss import BurstDemod
+        >>> dcode = (np.arange(50) & 1).astype(np.uint8)
+        >>> d = BurstDemod(dcode, spc=4, chip_rate=1e6, payload_len=64)
+        >>> acode = (np.arange(500) & 1).astype(np.uint8)   # unmodulated preamble
+        >>> d.set_preamble(acode, reps=5)   # 5 repeats drive the (f0, rate) fit
+
         """
 
     def set_sync(self, sync: NDArray[np.uint8]) -> None:
         """Set the known frame-sync word (0/1 BPSK symbols) used for frame alignment + phase/sign resolution.
 
+        After the data section is despread to soft BPSK symbols, demod()
+        correlates them against this word; the complex correlation peak locates
+        the frame (its frame_offset) and its phase resolves the residual carrier
+        rotation and the BPSK sign ambiguity before slicing. Pass the word as
+        0/1 symbols; it is copied and stored internally as +/-1.
+
         Parameters
         ----------
         sync : NDArray[np.uint8]
-            Input.
+            Frame-sync word, one 0/1 symbol per element; copied.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.dsss import BurstDemod
+        >>> dcode = (np.arange(50) & 1).astype(np.uint8)
+        >>> d = BurstDemod(dcode, spc=4, chip_rate=1e6, payload_len=64)
+        >>> sync = np.array([0, 0, 0, 0, 0, 1, 1, 0, 0, 1, 0, 1, 0], np.uint8)
+        >>> d.set_sync(sync)   # Barker-13: frame alignment + phase/sign resolution
+
         """
 
     def set_prior(self, f0_coarse: float, start: int) -> None:
         """Seed from acquisition: coarse Doppler (cycles/sample at the input rate) and the preamble start sample.
 
+        These come from the upstream acquisition stage: f0_coarse centres the
+        feedforward frequency search near the true Doppler, and start tells
+        demod() where the preamble begins within the burst so it despreads the
+        right samples. Call once per burst before demod().
+
         Parameters
         ----------
         f0_coarse : float
-            Input.
+            Coarse Doppler prior (cycles/sample at the input rate).
         start : int
-            Input.
+            Preamble start sample index within the burst.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.dsss import BurstDemod
+        >>> dcode = (np.arange(50) & 1).astype(np.uint8)
+        >>> d = BurstDemod(dcode, spc=4, chip_rate=1e6, payload_len=64)
+        >>> d.set_prior(0.012, start=0)   # coarse Doppler + preamble start from acq
+
         """
 
     # jm:hand
@@ -1395,6 +1695,40 @@ class DsssReceiver:
         NDArray[np.complex64]
             Number of symbols written (0 while searching, or while tracking with
             not yet a full symbol's worth of input).
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.dsss import DsssReceiver
+        >>> from doppler.wfm import Gold
+        >>> sf, chip, sym, spc = 1023, 3.0e6, 2100.0, 2
+        >>> fs, te, tsym = chip * spc, sf * spc, chip * spc / sym
+        >>> code = np.asarray(Gold().generate(sf)).astype(np.uint8)
+        >>> csign = np.where(code & 1, -1.0, 1.0)
+        >>> rng = np.random.default_rng(6)
+        >>> n = int(400 * tsym) + 2 * te            # 400 BPSK data symbols
+        >>> idx = np.arange(n)
+        >>> data = (rng.integers(0, 2, 404) * 2 - 1).astype(float)
+        >>> si = np.clip((idx / tsym).astype(int), 0, 403)
+        >>> spread = data[si] * csign[(idx // spc) % sf]        # DSSS chips
+        >>> sig = spread * np.exp(2j * np.pi * (50.0 / fs) * idx)  # +50 Hz
+        >>> pre = 3 * te                            # pre-signal noise-only lead-in
+        >>> sigma = np.sqrt(fs / 10 ** (90.0 / 10))            # ~90 dB-Hz C/N0
+        >>> noise = (sigma / np.sqrt(2)) * (rng.standard_normal(pre + n)
+        ...          + 1j * rng.standard_normal(pre + n))
+        >>> x = (np.concatenate([np.zeros(pre), sig]).astype(np.complex64)
+        ...      + noise.astype(np.complex64))
+        >>> rx = DsssReceiver(code, chip_rate=chip, symbol_rate=sym, spc=spc,
+        ...                   cn0_dbhz=55.0, doppler_uncertainty=100.0)
+        >>> syms = [rx.steps(x[p:p + te]) for p in range(0, len(x) - te, te)]
+        >>> syms = np.concatenate([s for s in syms if len(s)])
+        >>> rx.tracking                       # acquired and now demodulating
+        1
+        >>> len(syms) > 300                    # a few hundred symbols recovered
+        True
+        >>> bool(np.mean(syms.real**2) > 10 * np.mean(syms.imag**2))  # BPSK on I
+        True
+
         """
 
     def steps_max_out(self, x_len: int) -> int:
@@ -1406,9 +1740,25 @@ class DsssReceiver:
         Parameters
         ----------
         doppler_bins : int
-            Input.
+            Number of Doppler window tiles to search (>= 1); capped by the
+            create-time `doppler_uncertainty` span (one tile per code-epoch
+            Doppler bin width).
         n_noncoh : int
-            Input.
+            Non-coherent looks accumulated per grid cell (1..256); more looks
+            buys sensitivity at the cost of dwell, replacing the auto-sized
+            count.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.dsss import DsssReceiver
+        >>> from doppler.wfm import Gold
+        >>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
+        >>> rx = DsssReceiver(code, chip_rate=3.0e6, symbol_rate=2100.0, spc=2)
+        >>> rx.configure_search_raw(doppler_bins=1, n_noncoh=16)  # pin the grid
+        >>> rx.tracking                       # still searching, on the pinned grid
+        0
+
         """
 
     def configure_lock_raw(self, up_thresh: float, down_thresh: float, n_looks: int, alpha: float, n_up: int, n_down: int) -> None:
@@ -1417,17 +1767,34 @@ class DsssReceiver:
         Parameters
         ----------
         up_thresh : float
-            Input.
+            CFAR-statistic level to declare code lock (hit when the statistic
+            exceeds it).
         down_thresh : float
-            Input.
+            Level below which a look is a miss; choose <= up_thresh for level
+            hysteresis.
         n_looks : int
-            Input.
+            Looks per decision — the DLL's non-coherent integration depth
+            feeding one statistic.
         alpha : float
-            Input.
+            EMA smoothing coefficient on the lock statistic (0..1); smaller is
+            smoother/slower.
         n_up : int
-            Input.
+            Consecutive hits required to declare lock.
         n_down : int
-            Input.
+            Consecutive misses required to drop lock.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.dsss import DsssReceiver
+        >>> from doppler.wfm import Gold
+        >>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
+        >>> rx = DsssReceiver(code, chip_rate=3.0e6, symbol_rate=2100.0, spc=2)
+        >>> rx.configure_lock_raw(up_thresh=0.4, down_thresh=0.2, n_looks=20,
+        ...                       alpha=0.1, n_up=5, n_down=3)
+        >>> rx.tracking                       # a no-op until a hit builds the Dll
+        0
+
         """
 
     def configure_chain_raw(self, segments: int, sps: int, n: int) -> None:
@@ -1455,10 +1822,34 @@ class DsssReceiver:
             MpskReceiver samples per symbol (the resample target).
         n : int
             MpskReceiver's carrier-arm count; must divide sps.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.dsss import DsssReceiver
+        >>> from doppler.wfm import Gold
+        >>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
+        >>> rx = DsssReceiver(code, chip_rate=3.0e6, symbol_rate=2100.0, spc=2)
+        >>> rx.configure_chain_raw(segments=6, sps=8, n=8)  # re-pin the chain
+        >>> rx.segments                       # tracking grid updated in place
+        6
+
         """
 
     def reset(self) -> None:
         """Return to the searching state: resets the embedded Acquisition and frees Dll/RateConverter/MpskReceiver (rebuilt from scratch on the next hit).
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.dsss import DsssReceiver
+        >>> from doppler.wfm import Gold
+        >>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
+        >>> rx = DsssReceiver(code, chip_rate=3.0e6, symbol_rate=2100.0, spc=2)
+        >>> rx.reset()                        # abort any lock, hunt from scratch
+        >>> (rx.tracking, rx.chip_phase)      # back to searching, state cleared
+        (0, 0.0)
+
         """
 
     def state_bytes(self) -> int:
@@ -1647,6 +2038,17 @@ class AsyncDsssReceiver:
     def steps(self, x: NDArray[np.complex64], out: NDArray[np.complex64] | None = None) -> NDArray[np.complex64]:
         """Stream raw cf32 samples through the receiver. While searching, samples feed the embedded Acquisition and nothing is emitted. On a hit, the refine stage (a frozen-carrier Dll collection feeding CarrierAcquisition) is built and seeded from it, and the unconsumed tail of this call is handed straight to it -- no samples dropped. Once CarrierAcquisition reports ready (or its own give-up cap is reached), the live tracking chain (Dll + per-partial Costas + RateConverter + MpskReceiver) is built fresh, seeded from the ORIGINAL handoff chip phase and the refined-or-unrefined Doppler estimate, and demodulated symbols are returned from then on. Accepts any block size; state carries across calls.
 
+        Drives the search -> refine -> track state machine. While searching or
+        refining, nothing is emitted (an empty return is normal, not an error):
+        a hit seeds the frozen-carrier refine chain, `CarrierAcquisition`
+        sharpens the coarse Doppler estimate, and only once it is ready (or
+        gives up) is the live tracking chain built and demodulation begins.
+        Accepts any block size; state carries across calls, so a capture can be
+        fed in frames of any length with no seam. Under SPEC's coupled offset +
+        500 Hz/s Doppler ramp the pre-despread Costas removes the full carrier
+        dynamics before the code loop, so the recovered constellation lands
+        cleanly on the BPSK real axis.
+
         Parameters
         ----------
         x : NDArray[np.complex64]
@@ -1657,6 +2059,42 @@ class AsyncDsssReceiver:
         NDArray[np.complex64]
             Number of symbols written (0 while searching/refining, or while
             tracking with not yet a full symbol's worth of input).
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.dsss import AsyncDsssReceiver
+        >>> from doppler.wfm import Gold
+        >>> sf, chip, sym, spc = 1023, 3.069e6, 2700.0, 2
+        >>> fs, te, tsym = chip * spc, sf * spc, chip * spc / sym
+        >>> code = np.asarray(Gold().generate(sf)).astype(np.uint8)
+        >>> csign = np.where(code & 1, -1.0, 1.0)
+        >>> rng = np.random.default_rng(21)
+        >>> n = int(600 * tsym) + 4 * te            # 600 async BPSK symbols
+        >>> idx = np.arange(n)
+        >>> data = (rng.integers(0, 2, 604) * 2 - 1).astype(float)
+        >>> si = np.clip((idx / tsym).astype(int), 0, 603)
+        >>> t = idx / fs
+        >>> sig = (data[si] * csign[(idx // spc) % sf]           # DSSS chips
+        ...        * np.exp(1j * 2 * np.pi * 0.5 * 500.0 * t * t))  # 500 Hz/s ramp
+        >>> cn0 = 20.0 + 10 * np.log10(sym)         # Es/N0 = 20 dB
+        >>> sigma = np.sqrt(fs / 10 ** (cn0 / 10))
+        >>> pre = 5 * te                            # noise-only lead-in
+        >>> noise = (sigma / np.sqrt(2)) * (rng.standard_normal(pre + n)
+        ...          + 1j * rng.standard_normal(pre + n))
+        >>> x = (np.concatenate([np.zeros(pre), sig]).astype(np.complex64)
+        ...      + noise.astype(np.complex64))
+        >>> rx = AsyncDsssReceiver(code, chip_rate=chip, symbol_rate=sym,
+        ...                        spc=spc, cn0_dbhz=cn0, doppler_uncertainty=500.0)
+        >>> syms = [rx.steps(x[p:p + te]) for p in range(0, len(x) - te, te)]
+        >>> syms = np.concatenate([s for s in syms if len(s)])
+        >>> rx.tracking                       # searched, refined, now tracking
+        1
+        >>> len(syms) > 300                    # symbols recovered under the ramp
+        True
+        >>> bool(np.mean(syms.real**2) > 10 * np.mean(syms.imag**2))  # BPSK on I
+        True
+
         """
 
     def steps_max_out(self, x_len: int) -> int:
@@ -1668,9 +2106,26 @@ class AsyncDsssReceiver:
         Parameters
         ----------
         doppler_bins : int
-            Input.
+            Number of Doppler window tiles to search (>= 1); capped by the
+            create-time `doppler_uncertainty` span (one tile per code-epoch
+            Doppler bin width).
         n_noncoh : int
-            Input.
+            Non-coherent looks accumulated per grid cell (1..256); more looks
+            buys sensitivity at the cost of dwell, replacing the auto-sized
+            count.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.dsss import AsyncDsssReceiver
+        >>> from doppler.wfm import Gold
+        >>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
+        >>> rx = AsyncDsssReceiver(code, chip_rate=3.069e6, symbol_rate=2700.0,
+        ...                        spc=2, doppler_uncertainty=500.0)
+        >>> rx.configure_search_raw(doppler_bins=1, n_noncoh=16)  # pin the grid
+        >>> rx.refining                       # still searching, on the pinned grid
+        0
+
         """
 
     def configure_lock_raw(self, up_thresh: float, down_thresh: float, n_looks: int, alpha: float, n_up: int, n_down: int) -> None:
@@ -1679,17 +2134,35 @@ class AsyncDsssReceiver:
         Parameters
         ----------
         up_thresh : float
-            Input.
+            CFAR-statistic level to declare code lock (hit when the statistic
+            exceeds it).
         down_thresh : float
-            Input.
+            Level below which a look is a miss; choose <= up_thresh for level
+            hysteresis.
         n_looks : int
-            Input.
+            Looks per decision — the DLL's non-coherent integration depth
+            feeding one statistic.
         alpha : float
-            Input.
+            EMA smoothing coefficient on the lock statistic (0..1); smaller is
+            smoother/slower.
         n_up : int
-            Input.
+            Consecutive hits required to declare lock.
         n_down : int
-            Input.
+            Consecutive misses required to drop lock.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.dsss import AsyncDsssReceiver
+        >>> from doppler.wfm import Gold
+        >>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
+        >>> rx = AsyncDsssReceiver(code, chip_rate=3.069e6, symbol_rate=2700.0,
+        ...                        spc=2, doppler_uncertainty=500.0)
+        >>> rx.configure_lock_raw(up_thresh=0.4, down_thresh=0.2, n_looks=20,
+        ...                       alpha=0.1, n_up=5, n_down=3)
+        >>> rx.tracking                       # a no-op until tracking begins
+        0
+
         """
 
     def configure_chain_raw(self, segments: int, sps: int, n: int) -> None:
@@ -1698,15 +2171,41 @@ class AsyncDsssReceiver:
         Parameters
         ----------
         segments : int
-            Input.
+            Live-tracking Dll segments per code period.
         sps : int
-            Input.
+            MpskReceiver samples per symbol (the resample target).
         n : int
-            Input.
+            MpskReceiver's carrier-arm count; must divide sps.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.dsss import AsyncDsssReceiver
+        >>> from doppler.wfm import Gold
+        >>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
+        >>> rx = AsyncDsssReceiver(code, chip_rate=3.069e6, symbol_rate=2700.0,
+        ...                        spc=2, doppler_uncertainty=500.0)
+        >>> rx.configure_chain_raw(segments=6, sps=8, n=8)  # re-pin the chain
+        >>> rx.segments                       # tracking grid updated in place
+        6
+
         """
 
     def reset(self) -> None:
         """Return to the searching state: resets the embedded Acquisition and frees every refine-stage/track-stage child (rebuilt from scratch on the next hit).
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.dsss import AsyncDsssReceiver
+        >>> from doppler.wfm import Gold
+        >>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
+        >>> rx = AsyncDsssReceiver(code, chip_rate=3.069e6, symbol_rate=2700.0,
+        ...                        spc=2, doppler_uncertainty=500.0)
+        >>> rx.reset()                        # abort any lock, hunt from scratch
+        >>> (rx.tracking, rx.refining, rx.chip_phase)   # all cleared
+        (0, 0, 0.0)
+
         """
 
     def state_bytes(self) -> int:

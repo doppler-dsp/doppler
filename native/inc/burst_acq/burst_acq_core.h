@@ -70,18 +70,99 @@ extern "C"
   /** @brief Destroy and free an instance.  @param state May be NULL. */
   void burst_acq_destroy (burst_acq_state_t *state);
 
-  /** @brief Drain the input ring and reset the coherent accumulator.
-   *  @param state Must be non-NULL. */
+  /**
+   * @brief Drain the input ring and reset the coherent accumulator.
+   *
+   * Forwards to acq_reset() on the embedded engine: discards any buffered
+   * samples that have not yet completed a frame and clears the non-coherent
+   * power accumulator and dwell bookkeeping, so the next push() begins a
+   * fresh search from an empty ring.  Construction parameters are untouched.
+   *
+   * @param state Must be non-NULL.
+   * @code
+   * >>> import numpy as np
+   * >>> from doppler.dsss import BurstAcquisition
+   * >>> from doppler.wfm import PN, mls_poly
+   * >>> code = np.asarray(PN(poly=mls_poly(5), seed=1,
+   * ...                      length=5).generate(31)).astype(np.uint8)
+   * >>> s0 = np.repeat(np.where(code & 1, -1.0, 1.0), 4).astype(np.complex64)
+   * >>> burst = np.tile(np.roll(s0, 17), 24).astype(np.complex64)
+   * >>> b = BurstAcquisition(code, reps=8, spc=4, chip_rate=1e6,
+   * ...                      cn0_dbhz=50.0)
+   * >>> _ = b.push(burst[:100])   # a partial frame, now buffered mid-stream
+   * >>> b.reset()                 # drop it before it can bias a detection
+   * >>> b.push(burst)[0][:2]      # (Doppler bin, code phase)
+   * (0, 17)
+   *
+   * @endcode
+   */
   void burst_acq_reset (burst_acq_state_t *state);
 
-  /** @brief Stream raw samples; emit one event per CFAR dump above
-   *         threshold. Forwards to acq_push() -- see its doc comment. */
-  size_t burst_acq_push (burst_acq_state_t *state, const float complex *in,
+  /**
+   * @brief Stream raw samples; emit one event per CFAR dump above threshold.
+   *
+   * Forwards to acq_push() on the embedded engine (see its doc comment in
+   * acq_core.h for the framing/CFAR mechanics).  Each event carries the
+   * peak's Doppler bin and code phase (the two search axes), its CFAR
+   * statistic, and an estimated C/N0 — see @ref acq_result_t.
+   *
+   * @param state        Allocated engine (non-NULL).
+   * @param x            Raw input, interleaved CF32, @p n_in complex samples.
+   * @param n_in         Number of complex input samples.
+   * @param result       Output array for detection events.
+   * @param max_results  Capacity of @p result.
+   * @return Number of events written (0 … max_results).
+   * @code
+   * >>> import numpy as np
+   * >>> from doppler.dsss import BurstAcquisition
+   * >>> from doppler.wfm import PN, mls_poly
+   * >>> code = np.asarray(PN(poly=mls_poly(5), seed=1,
+   * ...                      length=5).generate(31)).astype(np.uint8)
+   * >>> s0 = np.repeat(np.where(code & 1, -1.0, 1.0), 4).astype(np.complex64)
+   * >>> burst = np.tile(np.roll(s0, 17), 24).astype(np.complex64)
+   * >>> b = BurstAcquisition(code, reps=8, spc=4, chip_rate=1e6,
+   * ...                      cn0_dbhz=50.0)
+   * >>> b.push(burst)[0][:2]      # (Doppler bin, code phase)
+   * (0, 17)
+   *
+   * @endcode
+   */
+  size_t burst_acq_push (burst_acq_state_t *state, const float complex *x,
                          size_t n_in, acq_result_t *result,
                          size_t max_results);
 
-  /** @brief Pin the search grid directly. Forwards to
-   *         acq_configure_search_raw() -- see its doc comment. */
+  /**
+   * @brief Pin the search grid directly, bypassing the auto-sizing search.
+   *
+   * Forwards to acq_configure_search_raw() on the embedded engine (see its
+   * doc comment in acq_core.h): resizes every grid-dependent buffer/plan,
+   * re-derives the threshold ladder for the pinned grid, and clears in-flight
+   * accumulation — call between push() calls, never a substitute for one.
+   *
+   * @param state        Allocated engine (non-NULL).
+   * @param doppler_bins Coherent depth to pin, in `[1, reps]`.
+   * @param n_noncoh     Non-coherent look count to pin, in
+   *                     `[1, ACQ_N_NONCOH_SAFETY_CEILING]`.
+   * @return 0 on success, -1 if either argument is out of range or an
+   *         allocation fails (the engine keeps its prior grid on failure).
+   * @code
+   * >>> import numpy as np
+   * >>> from doppler.dsss import BurstAcquisition
+   * >>> from doppler.wfm import PN, mls_poly
+   * >>> code = np.asarray(PN(poly=mls_poly(5), seed=1,
+   * ...                      length=5).generate(31)).astype(np.uint8)
+   * >>> s0 = np.repeat(np.where(code & 1, -1.0, 1.0), 4).astype(np.complex64)
+   * >>> b = BurstAcquisition(code, reps=8, spc=4, chip_rate=1e6,
+   * ...                      cn0_dbhz=50.0)
+   * >>> b.configure_search_raw(doppler_bins=4, n_noncoh=2)  # pin the grid
+   * >>> b.doppler_bins, b.n_noncoh
+   * (4, 2)
+   * >>> burst = np.tile(np.roll(s0, 17), 8).astype(np.complex64)
+   * >>> b.push(burst)[0][:2]      # detects at the pinned grid
+   * (0, 17)
+   *
+   * @endcode
+   */
   int burst_acq_configure_search_raw (burst_acq_state_t *state,
                                       size_t doppler_bins, size_t n_noncoh);
 

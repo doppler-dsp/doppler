@@ -242,6 +242,17 @@ extern "C"
    * be "reset back to tracking the same signal," only back to searching,
    * matching every other object's reset() semantics in this codebase.
    * @param state Must be non-NULL.
+   * @code
+   * >>> import numpy as np
+   * >>> from doppler.dsss import DsssReceiver
+   * >>> from doppler.wfm import Gold
+   * >>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
+   * >>> rx = DsssReceiver(code, chip_rate=3.0e6, symbol_rate=2100.0, spc=2)
+   * >>> rx.reset()                        # abort any lock, hunt from scratch
+   * >>> (rx.tracking, rx.chip_phase)      # back to searching, state cleared
+   * (0, 0.0)
+   *
+   * @endcode
    */
   void dsss_receiver_reset (dsss_receiver_state_t *state);
 
@@ -268,6 +279,39 @@ extern "C"
    * @param max_out  Output capacity.
    * @return Number of symbols written (0 while searching, or while
    *         tracking with not yet a full symbol's worth of input).
+   * @code
+   * >>> import numpy as np
+   * >>> from doppler.dsss import DsssReceiver
+   * >>> from doppler.wfm import Gold
+   * >>> sf, chip, sym, spc = 1023, 3.0e6, 2100.0, 2
+   * >>> fs, te, tsym = chip * spc, sf * spc, chip * spc / sym
+   * >>> code = np.asarray(Gold().generate(sf)).astype(np.uint8)
+   * >>> csign = np.where(code & 1, -1.0, 1.0)
+   * >>> rng = np.random.default_rng(6)
+   * >>> n = int(400 * tsym) + 2 * te            # 400 BPSK data symbols
+   * >>> idx = np.arange(n)
+   * >>> data = (rng.integers(0, 2, 404) * 2 - 1).astype(float)
+   * >>> si = np.clip((idx / tsym).astype(int), 0, 403)
+   * >>> spread = data[si] * csign[(idx // spc) % sf]        # DSSS chips
+   * >>> sig = spread * np.exp(2j * np.pi * (50.0 / fs) * idx)  # +50 Hz
+   * >>> pre = 3 * te                            # pre-signal noise-only lead-in
+   * >>> sigma = np.sqrt(fs / 10 ** (90.0 / 10))            # ~90 dB-Hz C/N0
+   * >>> noise = (sigma / np.sqrt(2)) * (rng.standard_normal(pre + n)
+   * ...          + 1j * rng.standard_normal(pre + n))
+   * >>> x = (np.concatenate([np.zeros(pre), sig]).astype(np.complex64)
+   * ...      + noise.astype(np.complex64))
+   * >>> rx = DsssReceiver(code, chip_rate=chip, symbol_rate=sym, spc=spc,
+   * ...                   cn0_dbhz=55.0, doppler_uncertainty=100.0)
+   * >>> syms = [rx.steps(x[p:p + te]) for p in range(0, len(x) - te, te)]
+   * >>> syms = np.concatenate([s for s in syms if len(s)])
+   * >>> rx.tracking                       # acquired and now demodulating
+   * 1
+   * >>> len(syms) > 300                    # a few hundred symbols recovered
+   * True
+   * >>> bool(np.mean(syms.real**2) > 10 * np.mean(syms.imag**2))  # BPSK on I
+   * True
+   *
+   * @endcode
    */
   size_t dsss_receiver_steps (dsss_receiver_state_t *state,
                               const float complex *x, size_t x_len,
@@ -281,7 +325,26 @@ extern "C"
    * meaningful while searching (a no-op has already happened once
    * tracking has begun; the acquisition search doesn't run again until
    * the next `reset()`).
+   *
+   * @param state         Must be non-NULL.
+   * @param doppler_bins  Number of Doppler window tiles to search (>= 1);
+   *                      capped by the create-time `doppler_uncertainty`
+   *                      span (one tile per code-epoch Doppler bin width).
+   * @param n_noncoh      Non-coherent looks accumulated per grid cell
+   *                      (1..256); more looks buys sensitivity at the cost
+   *                      of dwell, replacing the auto-sized count.
    * @return 0 on success, -1 on invalid grid (see acq_configure_search_raw).
+   * @code
+   * >>> import numpy as np
+   * >>> from doppler.dsss import DsssReceiver
+   * >>> from doppler.wfm import Gold
+   * >>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
+   * >>> rx = DsssReceiver(code, chip_rate=3.0e6, symbol_rate=2100.0, spc=2)
+   * >>> rx.configure_search_raw(doppler_bins=1, n_noncoh=16)  # pin the grid
+   * >>> rx.tracking                       # still searching, on the pinned grid
+   * 0
+   *
+   * @endcode
    */
   int dsss_receiver_configure_search_raw (dsss_receiver_state_t *state,
                                           size_t                 doppler_bins,
@@ -291,7 +354,34 @@ extern "C"
    * @brief Re-tune the embedded Dll's code-lock detector directly.
    * Forwards to `dll_configure_lock_raw()`. Only meaningful once
    * tracking has begun (`dll` is NULL before then); a no-op while
-   * searching.
+   * searching. The detector is the hysteretic lockdet over the DLL's
+   * per-N-look CFAR statistic — @p up_thresh / @p down_thresh set the
+   * declare/drop levels and @p n_up / @p n_down the consecutive-look
+   * verify counts, trading declare latency against false-alarm rate.
+   *
+   * @param state        Must be non-NULL.
+   * @param up_thresh    CFAR-statistic level to declare code lock (hit
+   *                     when the statistic exceeds it).
+   * @param down_thresh  Level below which a look is a miss; choose
+   *                     <= @p up_thresh for level hysteresis.
+   * @param n_looks      Looks per decision — the DLL's non-coherent
+   *                     integration depth feeding one statistic.
+   * @param alpha        EMA smoothing coefficient on the lock statistic
+   *                     (0..1); smaller is smoother/slower.
+   * @param n_up         Consecutive hits required to declare lock.
+   * @param n_down       Consecutive misses required to drop lock.
+   * @code
+   * >>> import numpy as np
+   * >>> from doppler.dsss import DsssReceiver
+   * >>> from doppler.wfm import Gold
+   * >>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
+   * >>> rx = DsssReceiver(code, chip_rate=3.0e6, symbol_rate=2100.0, spc=2)
+   * >>> rx.configure_lock_raw(up_thresh=0.4, down_thresh=0.2, n_looks=20,
+   * ...                       alpha=0.1, n_up=5, n_down=3)
+   * >>> rx.tracking                       # a no-op until a hit builds the Dll
+   * 0
+   *
+   * @endcode
    */
   void dsss_receiver_configure_lock_raw (dsss_receiver_state_t *state,
                                          double up_thresh, double down_thresh,
@@ -322,6 +412,17 @@ extern "C"
    * @param n         MpskReceiver's carrier-arm count; must divide @p sps.
    * @return 0 on success, -1 on invalid grid or an allocation failure
    *         (the receiver is left usable at its prior grid on failure).
+   * @code
+   * >>> import numpy as np
+   * >>> from doppler.dsss import DsssReceiver
+   * >>> from doppler.wfm import Gold
+   * >>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
+   * >>> rx = DsssReceiver(code, chip_rate=3.0e6, symbol_rate=2100.0, spc=2)
+   * >>> rx.configure_chain_raw(segments=6, sps=8, n=8)  # re-pin the chain
+   * >>> rx.segments                       # tracking grid updated in place
+   * 6
+   *
+   * @endcode
    */
   int dsss_receiver_configure_chain_raw (dsss_receiver_state_t *state,
                                          size_t segments, size_t sps, int n);

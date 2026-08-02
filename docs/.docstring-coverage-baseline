@@ -17,7 +17,7 @@ doppler.cvt stub=1 runtime=82
 doppler.ddc stub=13 runtime=41
 doppler.delay stub=8 runtime=14
 doppler.detection stub=1 runtime=26
-doppler.dsss stub=45 runtime=79
+doppler.dsss stub=20 runtime=79
 doppler.filter stub=4 runtime=19
 doppler.impairment stub=2 runtime=9
 doppler.interp stub=3 runtime=7
@@ -29,6 +29,6 @@ doppler.source stub=13 runtime=39
 doppler.spectral stub=65 runtime=103
 doppler.stream stub=7 runtime=34
 doppler.telemetry stub=7 runtime=9
-doppler.track stub=46 runtime=100
+doppler.track stub=12 runtime=100
 doppler.util stub=1 runtime=2
 doppler.wfm stub=72 runtime=96

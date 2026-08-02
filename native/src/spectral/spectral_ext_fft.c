@@ -795,9 +795,43 @@ static PyMethodDef FFTObj_methods[] = {
     "execute_inplace_cf32() can produce for the current state.\nUse to size "
     "the ``out=`` buffer." },
   { "destroy", (PyCFunction)FFTObj_destroy, METH_NOARGS,
-    "Release resources." },
-  { "__enter__", (PyCFunction)FFTObj_enter, METH_NOARGS, NULL },
-  { "__exit__", (PyCFunction)FFTObj_exit, METH_VARARGS, NULL },
+    "Release the underlying C resources immediately.\n"
+    "\n"
+    "Ordinarily unnecessary: the resources are freed when the object is\n"
+    "garbage-collected. Call this to release them at a definite point\n"
+    "instead, or use the object as a context manager, which calls it on "
+    "exit.\n"
+    "\n"
+    "Idempotent: calling it again on an already-released object does "
+    "nothing.\n"
+    "Every other method raises ``RuntimeError`` once it has run.\n" },
+  { "__enter__", (PyCFunction)FFTObj_enter, METH_NOARGS,
+    "Enter a context manager, returning this object.\n"
+    "\n"
+    "Lets a Fft be used in a `with` statement so its C resources are "
+    "released\n"
+    "deterministically on exit rather than at collection time.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "Fft\n"
+    "    This same object, not a copy.\n" },
+  { "__exit__", (PyCFunction)FFTObj_exit, METH_VARARGS,
+    "Exit a context manager, releasing the Fft.\n"
+    "\n"
+    "Equivalent to calling `destroy()`. Returns ``None``, so an exception\n"
+    "raised inside the `with` body propagates normally; this never "
+    "suppresses\n"
+    "one.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "exc_type : object | None\n"
+    "    Exception class, or None. Ignored.\n"
+    "exc : object | None\n"
+    "    Exception instance, or None. Ignored.\n"
+    "tb : object | None\n"
+    "    Traceback object, or None. Ignored.\n" },
   { NULL }
 };
 

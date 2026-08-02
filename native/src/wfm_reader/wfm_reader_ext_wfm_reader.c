@@ -902,11 +902,53 @@ static PyMethodDef ReaderObj_methods[] = {
     "read_max_out(n) -> int\n\nMax output length read() can produce for "
     "n.\nUse to size the ``out=`` buffer." },
   { "close", (PyCFunction)ReaderObj_destroy, METH_NOARGS,
-    "Release resources." },
+    "Release the underlying C resources immediately.\n"
+    "\n"
+    "Ordinarily unnecessary: the resources are freed when the object is\n"
+    "garbage-collected. Call this to release them at a definite point\n"
+    "instead, or use the object as a context manager, which calls it on "
+    "exit.\n"
+    "\n"
+    "Idempotent: calling it again on an already-released object does "
+    "nothing.\n"
+    "Every other method raises ``RuntimeError`` once it has run.\n" },
   { "destroy", (PyCFunction)ReaderObj_destroy, METH_NOARGS,
-    "Release resources." },
-  { "__enter__", (PyCFunction)ReaderObj_enter, METH_NOARGS, NULL },
-  { "__exit__", (PyCFunction)ReaderObj_exit, METH_VARARGS, NULL },
+    "Release the underlying C resources immediately.\n"
+    "\n"
+    "Ordinarily unnecessary: the resources are freed when the object is\n"
+    "garbage-collected. Call this to release them at a definite point\n"
+    "instead, or use the object as a context manager, which calls it on "
+    "exit.\n"
+    "\n"
+    "Idempotent: calling it again on an already-released object does "
+    "nothing.\n"
+    "Every other method raises ``RuntimeError`` once it has run.\n" },
+  { "__enter__", (PyCFunction)ReaderObj_enter, METH_NOARGS,
+    "Enter a context manager, returning this object.\n"
+    "\n"
+    "Lets a WfmReader be used in a `with` statement so its C resources are\n"
+    "released deterministically on exit rather than at collection time.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "WfmReader\n"
+    "    This same object, not a copy.\n" },
+  { "__exit__", (PyCFunction)ReaderObj_exit, METH_VARARGS,
+    "Exit a context manager, releasing the WfmReader.\n"
+    "\n"
+    "Equivalent to calling `close()`. Returns ``None``, so an exception\n"
+    "raised inside the `with` body propagates normally; this never "
+    "suppresses\n"
+    "one.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "exc_type : object | None\n"
+    "    Exception class, or None. Ignored.\n"
+    "exc : object | None\n"
+    "    Exception instance, or None. Ignored.\n"
+    "tb : object | None\n"
+    "    Traceback object, or None. Ignored.\n" },
   { NULL }
 };
 

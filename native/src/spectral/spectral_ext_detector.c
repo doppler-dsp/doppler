@@ -352,58 +352,136 @@ CorrDetectorObj_exit (CorrDetectorObject *self, PyObject *args)
   Py_RETURN_NONE;
 }
 
-static PyMethodDef CorrDetectorObj_methods[]
-    = { { "reset", (PyCFunction)CorrDetectorObj_reset, METH_NOARGS,
-          "Reset the correlator, ring buffer, and last-corr flag. Discards "
-          "any partial frame buffered in the ring and zeroes the coherent "
-          "accumulator.  Equivalent to starting fresh from the same reference "
-          "without rebuilding any internal object." },
+static PyMethodDef CorrDetectorObj_methods[] = {
+  { "reset", (PyCFunction)CorrDetectorObj_reset, METH_NOARGS,
+    "Reset the correlator, ring buffer, and last-corr flag. Discards "
+    "any partial frame buffered in the ring and zeroes the coherent "
+    "accumulator.  Equivalent to starting fresh from the same reference "
+    "without rebuilding any internal object." },
 
-        { "push", (PyCFunction)CorrDetectorObj_push, METH_VARARGS,
-          "push(x) -> list[tuple]\n"
-          "\n"
-          "Stream an arbitrary-length CF32 chunk through the detector "
-          "pipeline. Writes samples into the ring buffer, drains complete "
-          "n-sample frames through the correlator, and on every int-dump "
-          "computes the test statistic peak_mag / noise_est.  Detections that "
-          "pass the threshold are appended to the Python return list as (lag, "
-          "peak_mag, noise_est, test_stat) tuples. In Python the result is "
-          "always a list, even when empty.\n"
-          "\n"
-          "Parameters\n"
-          "----------\n"
-          "x : complex\n"
-          "    Input.\n"
-          "\n"
-          "Returns\n"
-          "-------\n"
-          "list[tuple]\n"
-          "    Number of det_result_t entries written to result.\n"
-          "\n"
-          "Examples\n"
-          "--------\n"
-          ">>> from doppler.spectral import CorrDetector\n"
-          ">>> import numpy as np\n"
-          ">>> ref = np.zeros(8, dtype=np.complex64); ref[0] = 1.0\n"
-          ">>> det = CorrDetector(ref=ref, dwell=1, noise_lo=1, noise_hi=7,\n"
-          "...                noise_mode=\"mean\", threshold=0.0)\n"
-          ">>> results = det.push(np.ones(8, dtype=np.complex64))\n"
-          ">>> len(results)\n"
-          "1\n"
-          ">>> lag, peak, noise, stat = results[0]\n"
-          ">>> lag, round(peak, 4), round(noise, 4), round(stat, 4)\n"
-          "(0, 1.0, 1.0, 1.0)\n" },
-        { "state_bytes", (PyCFunction)CorrDetectorObj_state_bytes, METH_NOARGS,
-          "Serialized state size in bytes." },
-        { "get_state", (PyCFunction)CorrDetectorObj_get_state, METH_NOARGS,
-          "Serialize the engine's mutable state to bytes." },
-        { "set_state", (PyCFunction)CorrDetectorObj_set_state, METH_O,
-          "Restore mutable state from a get_state() blob." },
-        { "destroy", (PyCFunction)CorrDetectorObj_destroy, METH_NOARGS,
-          "Release resources." },
-        { "__enter__", (PyCFunction)CorrDetectorObj_enter, METH_NOARGS, NULL },
-        { "__exit__", (PyCFunction)CorrDetectorObj_exit, METH_VARARGS, NULL },
-        { NULL } };
+  { "push", (PyCFunction)CorrDetectorObj_push, METH_VARARGS,
+    "push(x) -> list[tuple]\n"
+    "\n"
+    "Stream an arbitrary-length CF32 chunk through the detector "
+    "pipeline. Writes samples into the ring buffer, drains complete "
+    "n-sample frames through the correlator, and on every int-dump "
+    "computes the test statistic peak_mag / noise_est.  Detections that "
+    "pass the threshold are appended to the Python return list as (lag, "
+    "peak_mag, noise_est, test_stat) tuples. In Python the result is "
+    "always a list, even when empty.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "x : complex\n"
+    "    Input.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "list[tuple]\n"
+    "    Number of det_result_t entries written to result.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.spectral import CorrDetector\n"
+    ">>> import numpy as np\n"
+    ">>> ref = np.zeros(8, dtype=np.complex64); ref[0] = 1.0\n"
+    ">>> det = CorrDetector(ref=ref, dwell=1, noise_lo=1, noise_hi=7,\n"
+    "...                noise_mode=\"mean\", threshold=0.0)\n"
+    ">>> results = det.push(np.ones(8, dtype=np.complex64))\n"
+    ">>> len(results)\n"
+    "1\n"
+    ">>> lag, peak, noise, stat = results[0]\n"
+    ">>> lag, round(peak, 4), round(noise, 4), round(stat, 4)\n"
+    "(0, 1.0, 1.0, 1.0)\n" },
+  { "state_bytes", (PyCFunction)CorrDetectorObj_state_bytes, METH_NOARGS,
+    "Size in bytes of this object's serialized state.\n"
+    "\n"
+    "The exact length `get_state` returns and `set_state` requires. It\n"
+    "depends on how the object was constructed (state arrays are sized at\n"
+    "construction), so read it from the instance rather than assuming a\n"
+    "constant.\n"
+    "\n"
+    "Raises ``RuntimeError`` if the CorrDetectorObj has already been\n"
+    "destroyed.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "int\n"
+    "    Byte length of one serialized state blob.\n" },
+  { "get_state", (PyCFunction)CorrDetectorObj_get_state, METH_NOARGS,
+    "Serialize this object's mutable state to bytes.\n"
+    "\n"
+    "Captures exactly the state that evolves as the object runs, so a blob\n"
+    "taken now and restored later resumes from this point. Construction\n"
+    "parameters are not included: restore into an object built the same way.\n"
+    "\n"
+    "The blob is opaque and always `state_bytes()` long. Its layout is an\n"
+    "implementation detail of the C core and is not a stable format across\n"
+    "builds.\n"
+    "\n"
+    "Raises ``RuntimeError`` if the CorrDetectorObj has already been\n"
+    "destroyed.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "bytes\n"
+    "    Opaque snapshot, `state_bytes()` bytes long.\n" },
+  { "set_state", (PyCFunction)CorrDetectorObj_set_state, METH_O,
+    "Restore mutable state from a `get_state()` blob.\n"
+    "\n"
+    "Overwrites the live state in place; the object keeps the parameters it\n"
+    "was constructed with. Length is validated against `state_bytes()` "
+    "before\n"
+    "the blob is handed to the C core, and the core may reject it as well.\n"
+    "\n"
+    "Raises ``TypeError`` if *blob* is not bytes, ``ValueError`` if its\n"
+    "length differs from `state_bytes()` or the core rejects it, and\n"
+    "``RuntimeError`` if the CorrDetectorObj has already been destroyed.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "blob : bytes\n"
+    "    A `get_state()` blob from this type, exactly `state_bytes()` "
+    "long.\n" },
+  { "destroy", (PyCFunction)CorrDetectorObj_destroy, METH_NOARGS,
+    "Release the underlying C resources immediately.\n"
+    "\n"
+    "Ordinarily unnecessary: the resources are freed when the object is\n"
+    "garbage-collected. Call this to release them at a definite point\n"
+    "instead, or use the object as a context manager, which calls it on "
+    "exit.\n"
+    "\n"
+    "Idempotent: calling it again on an already-released object does "
+    "nothing.\n"
+    "Every other method raises ``RuntimeError`` once it has run.\n" },
+  { "__enter__", (PyCFunction)CorrDetectorObj_enter, METH_NOARGS,
+    "Enter a context manager, returning this object.\n"
+    "\n"
+    "Lets a Detector be used in a `with` statement so its C resources are\n"
+    "released deterministically on exit rather than at collection time.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "Detector\n"
+    "    This same object, not a copy.\n" },
+  { "__exit__", (PyCFunction)CorrDetectorObj_exit, METH_VARARGS,
+    "Exit a context manager, releasing the Detector.\n"
+    "\n"
+    "Equivalent to calling `destroy()`. Returns ``None``, so an exception\n"
+    "raised inside the `with` body propagates normally; this never "
+    "suppresses\n"
+    "one.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "exc_type : object | None\n"
+    "    Exception class, or None. Ignored.\n"
+    "exc : object | None\n"
+    "    Exception instance, or None. Ignored.\n"
+    "tb : object | None\n"
+    "    Traceback object, or None. Ignored.\n" },
+  { NULL }
+};
 
 static PyTypeObject CorrDetectorObjType = {
   PyVarObject_HEAD_INIT (NULL, 0).tp_name = "spectral.CorrDetector",

@@ -7,7 +7,9 @@ def square_clip(y: complex, lin: float) -> complex:
     y : complex
         Complex CF32 input sample.
     lin : float
-        Per-component clip threshold (linear amplitude, >= 0). Values outside `[-lin, lin]` are clamped; values on the boundary are preserved exactly.
+        Per-component clip threshold (linear amplitude, >= 0). Values
+        outside `[-lin, lin]` are clamped; values on the boundary are
+        preserved exactly.
 
     Returns
     -------

@@ -474,6 +474,23 @@ dll_update(dll_state_t *s)
  *                   rate, so choose >= 2 for symbol-timing recovery.
  * @return Heap-allocated state, or NULL on allocation failure.
  * @note Caller must call dll_destroy() when done.
+ * @code
+ * >>> import numpy as np
+ * >>> from doppler.track import Dll
+ * >>> rng = np.random.default_rng(1)
+ * >>> code = rng.integers(0, 2, 31).astype(np.uint8)   # a 31-chip PN code
+ * >>> chip = np.where(code & 1, -1.0, 1.0)              # BPSK spreading code
+ * >>> x = np.tile(np.repeat(chip, 2), 60).astype(np.complex64)  # 60 periods
+ * >>> d = Dll(code=code, sps=2)                         # 2 samples/chip loop
+ * >>> sym = d.steps(x)                                  # one prompt per period
+ * >>> sym.shape                                         # 60 despread symbols
+ * (60,)
+ * >>> round(float(np.mean(sym.real[-10:])), 1)          # despread to a clean +1
+ * 1.0
+ * >>> round(d.code_rate, 3)                             # code NCO at nominal rate
+ * 1.0
+ *
+ * @endcode
  */
 dll_state_t *dll_create(const uint8_t *code, size_t code_len, size_t sps, double init_chip, double bn, double zeta, double spacing, size_t segments);
 

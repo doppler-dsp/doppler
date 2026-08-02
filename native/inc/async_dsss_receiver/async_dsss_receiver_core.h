@@ -368,8 +368,41 @@ extern "C"
    *                                   at low SNR. Set to the receiver's own
    *                                   downlink RF frequency for a
    *                                   physically-coupled Doppler capture.
-   * @return Heap-allocated state, or NULL on invalid args / allocation
-   *         failure.
+   * @code
+   * >>> import numpy as np
+   * >>> from doppler.dsss import AsyncDsssReceiver
+   * >>> from doppler.wfm import Gold
+   * >>> sf, chip, sym, spc = 1023, 3.069e6, 2700.0, 2
+   * >>> fs, te, tsym = chip * spc, sf * spc, chip * spc / sym
+   * >>> code = np.asarray(Gold().generate(sf)).astype(np.uint8)
+   * >>> csign = np.where(code & 1, -1.0, 1.0)
+   * >>> rng = np.random.default_rng(21)
+   * >>> n = int(600 * tsym) + 4 * te            # 600 async BPSK symbols
+   * >>> idx = np.arange(n)
+   * >>> data = (rng.integers(0, 2, 604) * 2 - 1).astype(float)
+   * >>> si = np.clip((idx / tsym).astype(int), 0, 603)
+   * >>> t = idx / fs
+   * >>> sig = (data[si] * csign[(idx // spc) % sf]           # DSSS chips
+   * ...        * np.exp(1j * 2 * np.pi * 0.5 * 500.0 * t * t))  # 500 Hz/s ramp
+   * >>> cn0 = 20.0 + 10 * np.log10(sym)         # Es/N0 = 20 dB
+   * >>> sigma = np.sqrt(fs / 10 ** (cn0 / 10))
+   * >>> pre = 5 * te                            # noise-only lead-in
+   * >>> noise = (sigma / np.sqrt(2)) * (rng.standard_normal(pre + n)
+   * ...          + 1j * rng.standard_normal(pre + n))
+   * >>> x = (np.concatenate([np.zeros(pre), sig]).astype(np.complex64)
+   * ...      + noise.astype(np.complex64))
+   * >>> rx = AsyncDsssReceiver(code, chip_rate=chip, symbol_rate=sym,
+   * ...                        spc=spc, cn0_dbhz=cn0, doppler_uncertainty=500.0)
+   * >>> syms = [rx.steps(x[p:p + te]) for p in range(0, len(x) - te, te)]
+   * >>> syms = np.concatenate([s for s in syms if len(s)])
+   * >>> rx.tracking                       # searched, refined, now tracking
+   * 1
+   * >>> len(syms) > 300                    # symbols recovered under the ramp
+   * True
+   * >>> bool(np.mean(syms.real**2) > 10 * np.mean(syms.imag**2))  # BPSK on I
+   * True
+   *
+   * @endcode
    */
   async_dsss_receiver_state_t *async_dsss_receiver_create (
       const uint8_t *code, size_t code_len, double chip_rate,

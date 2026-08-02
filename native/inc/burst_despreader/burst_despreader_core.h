@@ -86,6 +86,25 @@ typedef struct
  *              symbol rate (default: 0.01).
  * @return Heap-allocated state, or NULL on allocation failure.
  * @note Caller must call burst_despreader_destroy() when done.
+ * @code
+ * >>> import numpy as np
+ * >>> from doppler.dsss import BurstDespreader
+ * >>> rng = np.random.default_rng(1)
+ * >>> code = rng.integers(0, 2, 31).astype(np.uint8)    # length-31 chip code
+ * >>> chips = np.where(code & 1, -1.0, 1.0)             # 0 -> +1, 1 -> -1
+ * >>> bits = rng.integers(0, 2, 30).astype(np.uint8)    # payload bits
+ * >>> syms = np.where(bits == 1, -1.0, 1.0)             # BPSK symbols
+ * >>> tx = np.concatenate(
+ * ...     [np.repeat(s * chips, 4) for s in syms]).astype(np.complex64)
+ * >>> b = BurstDespreader(code, sf=31, sps=4)           # 31 chips/symbol
+ * >>> sym = b.steps(tx)                                 # one prompt/symbol
+ * >>> sym.shape
+ * (30,)
+ * >>> hard = (sym.real < 0).astype(np.uint8)            # BPSK decision
+ * >>> float(np.mean(hard != bits))                      # payload recovered
+ * 0.0
+ *
+ * @endcode
  */
 burst_despreader_state_t *burst_despreader_create(const uint8_t *code, size_t code_len, size_t sf, size_t sps, double init_norm_freq, double init_chip_phase, double bn_carrier, double bn_code);
 

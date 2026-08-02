@@ -131,11 +131,56 @@ class LockDet:
         """
 
     def state_bytes(self) -> int:
-        """Serialized state size in bytes."""
+        """Size in bytes of this object's serialized state.
+
+        The exact length `get_state` returns and `set_state` requires. It
+        depends on how the object was constructed (state arrays are sized at
+        construction), so read it from the instance rather than assuming a
+        constant.
+
+        Raises ``RuntimeError`` if the LockDet has already been destroyed.
+
+        Returns
+        -------
+        int
+            Byte length of one serialized state blob.
+        """
+
     def get_state(self) -> bytes:
-        """Serialize the engine's mutable state to bytes."""
+        """Serialize this object's mutable state to bytes.
+
+        Captures exactly the state that evolves as the object runs, so a blob
+        taken now and restored later resumes from this point. Construction
+        parameters are not included: restore into an object built the same way.
+
+        The blob is opaque and always `state_bytes()` long. Its layout is an
+        implementation detail of the C core and is not a stable format across
+        builds.
+
+        Raises ``RuntimeError`` if the LockDet has already been destroyed.
+
+        Returns
+        -------
+        bytes
+            Opaque snapshot, `state_bytes()` bytes long.
+        """
+
     def set_state(self, blob: bytes) -> None:
-        """Restore mutable state from a get_state() blob."""
+        """Restore mutable state from a `get_state()` blob.
+
+        Overwrites the live state in place; the object keeps the parameters it
+        was constructed with. Length is validated against `state_bytes()` before
+        the blob is handed to the C core, and the core may reject it as well.
+
+        Raises ``TypeError`` if *blob* is not bytes, ``ValueError`` if its
+        length differs from `state_bytes()` or the core rejects it, and
+        ``RuntimeError`` if the LockDet has already been destroyed.
+
+        Parameters
+        ----------
+        blob : bytes
+            A `get_state()` blob from this type, exactly `state_bytes()` long.
+        """
 
     @property
     def up_thresh(self) -> float:
@@ -166,11 +211,45 @@ class LockDet:
         """Current decision (True = locked)."""
 
     def destroy(self) -> None:
-        """Release C resources immediately."""
+        """Release the underlying C resources immediately.
 
-    def __enter__(self) -> "LockDet": ...
+        Ordinarily unnecessary: the resources are freed when the object is
+        garbage-collected. Call this to release them at a definite point
+        instead, or use the object as a context manager, which calls it on exit.
 
-    def __exit__(self, *args: object) -> None: ...
+        Idempotent: calling it again on an already-released object does nothing.
+        Every other method raises ``RuntimeError`` once it has run.
+        """
+
+
+    def __enter__(self) -> "LockDet":
+        """Enter a context manager, returning this object.
+
+        Lets a LockDet be used in a `with` statement so its C resources are
+        released deterministically on exit rather than at collection time.
+
+        Returns
+        -------
+        LockDet
+            This same object, not a copy.
+        """
+
+    def __exit__(self, exc_type: object | None = ..., exc: object | None = ..., tb: object | None = ...) -> None:
+        """Exit a context manager, releasing the LockDet.
+
+        Equivalent to calling `destroy()`. Returns ``None``, so an exception
+        raised inside the `with` body propagates normally; this never suppresses
+        one.
+
+        Parameters
+        ----------
+        exc_type : object | None
+            Exception class, or None. Ignored.
+        exc : object | None
+            Exception instance, or None. Ignored.
+        tb : object | None
+            Traceback object, or None. Ignored.
+        """
 
 def marcum_q(m: int, a: float, b: float) -> float:
     """Marcum Q function Q_M(a, b) for integer M >= 1.
@@ -200,7 +279,7 @@ def marcum_q(m: int, a: float, b: float) -> float:
     m : int
         Integration order; must be >= 1.
     a : float
-        Non-centrality parameter (signal strength).  a = 0 for H0.
+        Non-centrality parameter (signal strength). a = 0 for H0.
     b : float
         Threshold (same units as test_stat).
 
@@ -262,7 +341,8 @@ def det_pd(snr: float, dwell: int, threshold: float) -> float:
     Parameters
     ----------
     snr : float
-        Per-sample amplitude SNR (signal / noise amplitude, linear).  snr = 0 gives Pd = Pfa.
+        Per-sample amplitude SNR (signal / noise amplitude, linear). snr = 0
+        gives Pd = Pfa.
     dwell : int
         Coherent integration depth; must be >= 1.
     threshold : float
@@ -639,7 +719,8 @@ def det_pd_power(snr_power: float, dwell: int, power_threshold: float) -> float:
     Parameters
     ----------
     snr_power : float
-        Per-sample power SNR (signal power / noise power at the correlator output, linear).  0 gives Pd = Pfa.
+        Per-sample power SNR (signal power / noise power at the correlator
+        output, linear). 0 gives Pd = Pfa.
     dwell : int
         Coherent integration depth; must be >= 1.
     power_threshold : float

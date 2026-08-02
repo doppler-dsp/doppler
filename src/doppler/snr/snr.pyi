@@ -21,7 +21,8 @@ def snr_data_aided_db(soft: NDArray[np.complex64], sign_bits: NDArray[np.uint8])
     Returns
     -------
     float
-        Es/N0 in dB over ``min(soft_len, sign_bits_len)`` paired samples, or NaN if that count is 0 or the residual power is exactly 0.
+        Es/N0 in dB over ``min(soft_len, sign_bits_len)`` paired samples, or
+        NaN if that count is 0 or the residual power is exactly 0.
 
     Examples
     --------
@@ -47,12 +48,15 @@ def snr_m2m4_db(x: NDArray[np.complex64]) -> float:
     Parameters
     ----------
     x : NDArray[np.complex64]
-        Complex baseband samples (post-carrier-lock; residual phase does not bias the moment-based estimate).
+        Complex baseband samples (post-carrier-lock; residual phase does not
+        bias the moment-based estimate).
 
     Returns
     -------
     float
-        Es/N0 in dB, 0-linear for pure noise, +inf for a noiseless constant-modulus signal, or NaN if x_len is 0 or the block has zero power.
+        Es/N0 in dB, 0-linear for pure noise, +inf for a noiseless
+        constant-modulus signal, or NaN if x_len is 0 or the block has zero
+        power.
 
     Examples
     --------

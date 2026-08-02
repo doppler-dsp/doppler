@@ -273,6 +273,35 @@ here, so `jm apply` is now fully idempotent with **no allowlist**:
 from the prior round also stands. The only remaining non-jm surface is
 `ffi/rust/` (jm emits CPython only) — maintained by hand against the C ABI.
 
+### 0.36.0 adoptions — gh-647 glue docstrings + the docstring-coverage pass (pin: 0.36.0)
+
+The CI drift gate now pins **0.36.0** (`ci.yml` via `make drift-check`);
+`jm_version` is stamped 0.36.0 (main + `examples/downstream-jm`). Drive doppler
+with `.venv/bin/just-makeit …` (or `uv run --group dev just-makeit …`).
+
+0.36.0 ships **gh-647** (doppler-driven): the jm-generated glue methods
+(`state_bytes`/`get_state`/`set_state`, `destroy`/`close`, `__enter__`/
+`__exit__`) now carry real numpy docstrings on **both** faces, from one
+definition rendered twice — no more canned one-liners or `NULL` context-manager
+docs. `jm apply` flowed them into 20 module `.pyi` + 11 sacred `_ext` fragments
+(clang-format the fragments after — jm emits K&R, doppler is GNU 2-space). It
+also carries gh-645 (module-docstring source), gh-624 (class Examples, in
+flight), gh-676/644 (built-in/runtime brief parity), gh-678/679 (`@param`
+wrapping). Verified: full build, `jm status --check` clean (main 11512 /
+downstream 41), downstream compiles, `make test-stubs` 28 passed. Doxygen
+unaffected (no headers changed).
+
+**The coverage meter is settled as ONE gate** (`scripts/check_docstring_coverage.py`):
+a surface is *covered* on the best docstring achievable for its kind — strict
+FULL for anything a human authors (real/built-in methods, classes, module
+functions/docstrings), and jm's generated prose **without an example** for
+boilerplate glue (the lifecycle/serialization set **plus** the `*_max_out`
+capacity accessors — you cannot `>>>` a generic object's `state_bytes` or
+capacity). It reaches 100% once authoring is done and jm documents the
+remaining glue. The full surface taxonomy + the three open jm asks (extend
+gh-647 to `*_max_out`; view-method doc inheritance; field-accessor derivation)
+are in RFC #568.
+
 ### 0.15.x adoptions — formerly-manual patterns are now declarative (pin: 0.15.4)
 
 doppler drove a second round of jm features; with the pin at **0.15.4**, three

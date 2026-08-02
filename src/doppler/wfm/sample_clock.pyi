@@ -83,7 +83,8 @@ class SampleClock:
         Returns
         -------
         int
-            Nonzero if this call adopted or re-anchored the epoch; 0 if it was accepted as already consistent, or rejected as stale.
+            Nonzero if this call adopted or re-anchored the epoch; 0 if it was
+            accepted as already consistent, or rejected as stale.
         """
     def reset(self) -> None:
         """Re-capture both epochs and zero the counters — a fresh clock at n=0.

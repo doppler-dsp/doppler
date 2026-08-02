@@ -45,7 +45,10 @@ class Writer:
         Returns
         -------
         int
-            the number of samples that actually landed — equal to what you passed on success, fewer if the write was short (a full disk, a quota). A short return is the per-block signal; close() reports the same failure for the capture as a whole.
+            the number of samples that actually landed — equal to what you
+            passed on success, fewer if the write was short (a full disk, a
+            quota). A short return is the per-block signal; close() reports the
+            same failure for the capture as a whole.
 
         Examples
         --------
@@ -91,32 +94,66 @@ class Writer:
         """True if an integer capture saturated -- `peak_dbfs > 0` and the wire type is one of `ci32`/`ci16`/`ci8`. Always False for `cf32`/`cf64`, which cannot clip: a float sample above full scale is merely loud."""
 
     def close(self) -> None:
-        """Release C resources immediately.
+        """Release the underlying C resources immediately.
+
+        Ordinarily unnecessary: the resources are freed when the object is
+        garbage-collected. Call this to release them at a definite point
+        instead, or use the object as a context manager, which calls it on exit.
+
+        Idempotent: calling it again on an already-released object does nothing.
+        Every other method raises ``RuntimeError`` once it has run.
 
         Raises
         ------
         OSError
-            If the C destructor reports failure. Raised from
-            an explicit call and from ``__exit__`` alike, so a
-            failing teardown propagates out of a ``with``
-            block (gh-541).
+            If the C destructor reports failure. Raised from an explicit call and from ``__exit__`` alike, so a failing teardown propagates out of a ``with`` block (gh-541).
         """
 
     def destroy(self) -> None:
-        """Release C resources immediately.
+        """Release the underlying C resources immediately.
+
+        Ordinarily unnecessary: the resources are freed when the object is
+        garbage-collected. Call this to release them at a definite point
+        instead, or use the object as a context manager, which calls it on exit.
+
+        Idempotent: calling it again on an already-released object does nothing.
+        Every other method raises ``RuntimeError`` once it has run.
 
         Raises
         ------
         OSError
-            If the C destructor reports failure. Raised from
-            an explicit call and from ``__exit__`` alike, so a
-            failing teardown propagates out of a ``with``
-            block (gh-541).
+            If the C destructor reports failure. Raised from an explicit call and from ``__exit__`` alike, so a failing teardown propagates out of a ``with`` block (gh-541).
         """
 
-    def __enter__(self) -> "Writer": ...
 
-    def __exit__(self, *args: object) -> None: ...
+    def __enter__(self) -> "Writer":
+        """Enter a context manager, returning this object.
+
+        Lets a Writer be used in a `with` statement so its C resources are
+        released deterministically on exit rather than at collection time.
+
+        Returns
+        -------
+        Writer
+            This same object, not a copy.
+        """
+
+    def __exit__(self, exc_type: object | None = ..., exc: object | None = ..., tb: object | None = ...) -> None:
+        """Exit a context manager, releasing the Writer.
+
+        Equivalent to calling `close()`. Returns ``None``, so an exception
+        raised inside the `with` body propagates normally; this never suppresses
+        one.
+
+        Parameters
+        ----------
+        exc_type : object | None
+            Exception class, or None. Ignored.
+        exc : object | None
+            Exception instance, or None. Ignored.
+        tb : object | None
+            Traceback object, or None. Ignored.
+        """
 
 def write_blue_header(path: str | os.PathLike, sample_type: str = 'cf32', endian: str = 'le', fs: float = 1e6, fc: float = 0.0, data_start: float = 0.0, total: int = 0, detached: int = 1) -> None:
     """Write a standalone BLUE type-1000 HCB header (the detached .hdr): 512 bytes carrying the BLUE magic, byte order, data_size (total x bytes-per-sample), the type-1000 tag and xdelta = 1/fs. Pair it with a detached .det body of raw interleaved I/Q. Raises on a failed write."""

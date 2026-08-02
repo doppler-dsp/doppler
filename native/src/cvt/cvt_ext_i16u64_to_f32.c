@@ -221,8 +221,8 @@ static PyTypeObject I16U64ToF32ObjType = {
   .tp_basicsize                           = sizeof (I16U64ToF32Object),
   .tp_dealloc                             = (destructor)I16U64ToF32Obj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,
-  .tp_doc                                 = "I16U64ToF32 type.\n",
-  .tp_methods                             = I16U64ToF32Obj_methods,
-  .tp_new                                 = I16U64ToF32Obj_new,
-  .tp_init                                = (initproc)I16U64ToF32Obj_init,
+  .tp_doc     = "Create a i16u64_to_f32 instance.\n",
+  .tp_methods = I16U64ToF32Obj_methods,
+  .tp_new     = I16U64ToF32Obj_new,
+  .tp_init    = (initproc)I16U64ToF32Obj_init,
 };

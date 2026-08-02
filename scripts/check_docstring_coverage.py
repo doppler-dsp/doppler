@@ -23,8 +23,25 @@ a Returns section is required) is derived once from the authoritative ``.pyi``
 signature and applied to **both** faces, so the two scores are directly
 comparable.
 
-Classification
---------------
+Coverage — one bar
+------------------
+A surface is *covered* (:func:`covered`, the gate ``--check`` ratchets) when it
+carries the best docstring achievable for its kind:
+
+* anything a human authors — real/built-in methods, classes, module functions
+  and docstrings — must be strict FULL (below);
+* jm's generated glue (the ``state_bytes``/``get_state``/``set_state`` triplet,
+  ``destroy``/``close``, the ``__enter__``/``__exit__`` pair, and the
+  ``*_max_out`` capacity accessors) is scored on jm's prose **without** the
+  example a real method needs — you cannot ``>>>`` a generic object's
+  ``state_bytes`` or capacity. jm owns those docstrings (gh-647), so they are
+  documented-by-jm, not a human authoring target.
+
+The single number reaches 100% once the authoring is done and jm documents the
+remaining glue — no separate aspirational meter, because covered *is* the goal.
+
+Classification (the strict per-surface verdict for authored surfaces)
+---------------------------------------------------------------------
 FULL
     Summary line, a ``Parameters`` entry for every signature parameter, a
     ``Returns`` section when the callable returns a value, and at least one
@@ -65,10 +82,12 @@ IGNORE_FILE = os.path.join(ROOT, "docs", ".docstring-coverage-ignore")
 # _pydocs.SKIP_TOP so this meter and check_api_docs agree on "what is public".
 SKIP_TOP = {"cli", "specan", "tests", "benchmarks"}
 
-# Generated lifecycle / serialization glue: uniform one-liners jm emits for
-# its own machinery. They still count toward literal 100%, but are tagged so
-# the report can show the real-DSP burn-down separately, and so the upstream
-# jm "template these" feature (plan item F7) has a precise target.
+# Generated glue jm emits for its own machinery — the lifecycle/serialization
+# triplet, the context-manager pair, and the `*_max_out` capacity accessors.
+# jm owns their docstrings end to end (gh-647), so they are not a human
+# authoring target and are scored WITHOUT the example a real DSP method needs
+# (you cannot `>>>` a generic object's state_bytes / capacity). They still
+# count toward 100% — just as "documented by jm", not "authored by us".
 BOILERPLATE = {
     "state_bytes",
     "get_state",
@@ -78,6 +97,12 @@ BOILERPLATE = {
     "__enter__",
     "__exit__",
 }
+
+
+def _is_boilerplate(name: str) -> bool:
+    """A generated-glue method: the lifecycle set or a capacity accessor."""
+    return name in BOILERPLATE or name.endswith("_max_out")
+
 
 FULL, PARTIAL, STUB = "FULL", "PARTIAL", "STUB"
 
@@ -121,6 +146,43 @@ def classify(
     if not (has_params or has_returns or has_example):
         return STUB
     return PARTIAL
+
+
+def covered(
+    text: str | None,
+    params: list[str],
+    has_return: bool,
+    is_property: bool,
+    boilerplate: bool,
+) -> bool:
+    """Does ``text`` meet the CURRENT (achievable-today) bar — the gate?
+
+    The strict FULL bar (see :func:`classify`) requires a ``>>>`` example. That
+    is right for a real DSP method, but jm's generated glue
+    (``state_bytes``/``get_state``/``set_state``/``destroy``/``__enter__``/
+    ``__exit__``) carries a complete numpy docstring with **no** example by
+    design (gh-647: you cannot ``>>>`` a generic object's ``state_bytes``
+    without constructing it). Such a method is fully documented *for what it
+    is*, yet can never reach strict FULL. So glue is scored on the FULL shape
+    **minus** the example, and everything else on strict FULL — a single gate
+    that reaches 100% once authoring is done and jm documents the glue.
+    """
+    if is_property:
+        return bool(text and text.strip())
+    if not boilerplate:
+        return classify(text, params, has_return, is_property) == FULL
+    if not text or not text.strip():
+        return False
+    ok = True
+    if params:
+        ok = (
+            ok
+            and "Parameters" in text
+            and all(_param_documented(text, p) for p in params)
+        )
+    if has_return:
+        ok = ok and "Returns" in text
+    return ok
 
 
 def tag_leaks(text: str | None) -> list[str]:
@@ -205,11 +267,23 @@ class Sym:
         self.stub_doc = stub_doc
         self.runtime_doc: str | None = None
         self.runtime_seen = False  # was the runtime object found?
-        self.boilerplate = qual.rsplit(".", 1)[-1] in BOILERPLATE
+        self.boilerplate = _is_boilerplate(qual.rsplit(".", 1)[-1])
 
     def status(self, face: str) -> str:
+        """Strict FULL/PARTIAL/STUB — the END-STATE (ideal) bar."""
         text = self.stub_doc if face == "stub" else self.runtime_doc
         return classify(text, self.params, self.has_return, self.is_property)
+
+    def covered(self, face: str) -> bool:
+        """Meets the CURRENT (achievable-today) bar — the gate."""
+        text = self.stub_doc if face == "stub" else self.runtime_doc
+        return covered(
+            text,
+            self.params,
+            self.has_return,
+            self.is_property,
+            self.boilerplate,
+        )
 
     def leaks(self, face: str) -> list[str]:
         return tag_leaks(self.stub_doc if face == "stub" else self.runtime_doc)
@@ -357,14 +431,19 @@ def load_ignore() -> set[str]:
 
 
 def incomplete_counts(syms: list[Sym], face: str, ignore: set[str]) -> int:
-    """Callables not yet FULL on ``face`` (PARTIAL + STUB), ignoring exempt."""
+    """Callables not yet COVERED on ``face`` — the CURRENT-bar gate count.
+
+    "Covered" is the achievable-today bar (:func:`covered`): strict FULL for
+    real surfaces, FULL-minus-example for generated glue. This is what the
+    ratchet enforces (may only DROP), and it can reach 0.
+    """
     n = 0
     for s in syms:
         if s.qual in ignore:
             continue
         if face == "runtime" and not s.runtime_seen:
             continue  # can't score what the build didn't expose
-        if s.status(face) != FULL:
+        if not s.covered(face):
             n += 1
     return n
 
@@ -443,6 +522,31 @@ def print_table(rows: dict, have_runtime: bool) -> None:
             "\nNote: doppler not importable — runtime (help()) face "
             "skipped. Build + re-run to score it."
         )
+
+
+def print_coverage(mods: dict, ignore: set[str]) -> None:
+    """The single coverage line — the gate, which can reach 100%.
+
+    A surface is covered (:func:`covered`) when it carries the best docstring
+    achievable for its kind: strict FULL for anything a human authors, and
+    jm's generated prose (no example) for boilerplate glue. It reaches 100%
+    once the authoring is done and jm documents the remaining glue.
+    """
+    total = cov = 0
+    for syms in mods.values():
+        for s in syms:
+            if s.qual in ignore:
+                continue
+            total += 1
+            cov += s.covered("stub")
+    if not total:
+        return
+    print()
+    print(
+        f"Coverage: {cov}/{total} = {100 * cov / total:.1f}%  "
+        f"(incomplete {total - cov}; ratchets to 0). "
+        f"Boilerplate glue is scored on jm's prose (no example)."
+    )
 
 
 def write_baseline(rows: dict, have_runtime: bool, n_leaks: int) -> None:
@@ -541,6 +645,7 @@ def main() -> int:
         return 0
 
     print_table(rows, have_runtime)
+    print_coverage(mods, ignore)
 
     if not args.check:
         if leaks:

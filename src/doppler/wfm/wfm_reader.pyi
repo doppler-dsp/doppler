@@ -118,11 +118,53 @@ class Reader:
         """The BLUE header control block as a {field: value} dict, under the names the format itself uses -- `version`, `head_rep`, `data_rep`, `detached`, `protected`, `pipe`, `ext_start`, `ext_size`, `data_start`, `data_size`, `type`, `format`, `flagmask`, `timecode`, `inlet`, `outlets`, `outmask`, `pipeloc`, `pipesize`, `in_byte`, `out_byte`, `outbytes`, `keylength`, and the type-1000 adjunct `xstart`, `xdelta`, `xunits`. Empty for a non-BLUE file type. Nothing is renamed or omitted, so what you see is what the file holds; the decoded keywords are in `keywords`."""
 
     def close(self) -> None:
-        """Release C resources immediately."""
+        """Release the underlying C resources immediately.
+
+        Ordinarily unnecessary: the resources are freed when the object is
+        garbage-collected. Call this to release them at a definite point
+        instead, or use the object as a context manager, which calls it on exit.
+
+        Idempotent: calling it again on an already-released object does nothing.
+        Every other method raises ``RuntimeError`` once it has run.
+        """
 
     def destroy(self) -> None:
-        """Release C resources immediately."""
+        """Release the underlying C resources immediately.
 
-    def __enter__(self) -> "Reader": ...
+        Ordinarily unnecessary: the resources are freed when the object is
+        garbage-collected. Call this to release them at a definite point
+        instead, or use the object as a context manager, which calls it on exit.
 
-    def __exit__(self, *args: object) -> None: ...
+        Idempotent: calling it again on an already-released object does nothing.
+        Every other method raises ``RuntimeError`` once it has run.
+        """
+
+
+    def __enter__(self) -> "Reader":
+        """Enter a context manager, returning this object.
+
+        Lets a Reader be used in a `with` statement so its C resources are
+        released deterministically on exit rather than at collection time.
+
+        Returns
+        -------
+        Reader
+            This same object, not a copy.
+        """
+
+    def __exit__(self, exc_type: object | None = ..., exc: object | None = ..., tb: object | None = ...) -> None:
+        """Exit a context manager, releasing the Reader.
+
+        Equivalent to calling `close()`. Returns ``None``, so an exception
+        raised inside the `with` body propagates normally; this never suppresses
+        one.
+
+        Parameters
+        ----------
+        exc_type : object | None
+            Exception class, or None. Ignored.
+        exc : object | None
+            Exception instance, or None. Ignored.
+        tb : object | None
+            Traceback object, or None. Ignored.
+        """

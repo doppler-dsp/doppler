@@ -1,8 +1,9 @@
 # analyzer/analyzer.pyi — type stubs for the analyzer C extension.
-from typing import Literal
+from typing import final, Literal
 import numpy as np
 from numpy.typing import NDArray
 
+@final
 class Specan:
     """Create a natural-parameter spectrum analyzer.
 
@@ -31,10 +32,12 @@ class Specan:
 
     Examples
     --------
-    Create with defaults:
-
     >>> from doppler.analyzer import Specan
-    >>> obj = Specan(fs=2.048e6, span=200e3, rbw=500.0, src_center=0.0, center=0.0, offset_db=0.0, full_scale=1.0, bits=0, window="kaiser", navg=1)
+    >>> sa = Specan(fs=2.048e6, span=200e3, rbw=500.0)
+    >>> sa.fs_out
+    256000.0
+    >>> sa.nfft == 2 * sa.n
+    True
 
     """
     def __init__(self, fs: float, span: float, rbw: float, src_center: float = ..., center: float = ..., offset_db: float = ..., full_scale: float = ..., bits: int = ..., window: Literal["hann", "kaiser"] = "kaiser", navg: int = ...) -> None: ...
@@ -71,8 +74,19 @@ class Specan:
 
         """
 
-    def execute_max_out(self) -> int:
-        """Max output length execute() can produce for the current state."""
+    def execute_max_out(self, x_len: int) -> int:
+        """Output capacity hint for specan_execute(); equals disp_n.
+
+        Parameters
+        ----------
+        x_len : int
+            Input.
+
+        Returns
+        -------
+        int
+            Output.
+        """
 
     def retune(self, center: float) -> None:
         """Move the display center frequency (seamless LO retune; no rebuild).
@@ -93,11 +107,56 @@ class Specan:
         """
 
     def state_bytes(self) -> int:
-        """Serialized state size in bytes."""
+        """Size in bytes of this object's serialized state.
+
+        The exact length `get_state` returns and `set_state` requires. It
+        depends on how the object was constructed (state arrays are sized at
+        construction), so read it from the instance rather than assuming a
+        constant.
+
+        Raises ``RuntimeError`` if the Specan has already been destroyed.
+
+        Returns
+        -------
+        int
+            Byte length of one serialized state blob.
+        """
+
     def get_state(self) -> bytes:
-        """Serialize the engine's mutable state to bytes."""
+        """Serialize this object's mutable state to bytes.
+
+        Captures exactly the state that evolves as the object runs, so a blob
+        taken now and restored later resumes from this point. Construction
+        parameters are not included: restore into an object built the same way.
+
+        The blob is opaque and always `state_bytes()` long. Its layout is an
+        implementation detail of the C core and is not a stable format across
+        builds.
+
+        Raises ``RuntimeError`` if the Specan has already been destroyed.
+
+        Returns
+        -------
+        bytes
+            Opaque snapshot, `state_bytes()` bytes long.
+        """
+
     def set_state(self, blob: bytes) -> None:
-        """Restore mutable state from a get_state() blob."""
+        """Restore mutable state from a `get_state()` blob.
+
+        Overwrites the live state in place; the object keeps the parameters it
+        was constructed with. Length is validated against `state_bytes()` before
+        the blob is handed to the C core, and the core may reject it as well.
+
+        Raises ``TypeError`` if *blob* is not bytes, ``ValueError`` if its
+        length differs from `state_bytes()` or the core rejects it, and
+        ``RuntimeError`` if the Specan has already been destroyed.
+
+        Parameters
+        ----------
+        blob : bytes
+            A `get_state()` blob from this type, exactly `state_bytes()` long.
+        """
 
     @property
     def fs_out(self) -> float:
@@ -136,8 +195,42 @@ class Specan:
         """Display size."""
 
     def destroy(self) -> None:
-        """Release C resources immediately."""
+        """Release the underlying C resources immediately.
 
-    def __enter__(self) -> "Specan": ...
+        Ordinarily unnecessary: the resources are freed when the object is
+        garbage-collected. Call this to release them at a definite point
+        instead, or use the object as a context manager, which calls it on exit.
 
-    def __exit__(self, *args: object) -> None: ...
+        Idempotent: calling it again on an already-released object does nothing.
+        Every other method raises ``RuntimeError`` once it has run.
+        """
+
+
+    def __enter__(self) -> "Specan":
+        """Enter a context manager, returning this object.
+
+        Lets a Specan be used in a `with` statement so its C resources are
+        released deterministically on exit rather than at collection time.
+
+        Returns
+        -------
+        Specan
+            This same object, not a copy.
+        """
+
+    def __exit__(self, exc_type: object | None = ..., exc: object | None = ..., tb: object | None = ...) -> None:
+        """Exit a context manager, releasing the Specan.
+
+        Equivalent to calling `destroy()`. Returns ``None``, so an exception
+        raised inside the `with` body propagates normally; this never suppresses
+        one.
+
+        Parameters
+        ----------
+        exc_type : object | None
+            Exception class, or None. Ignored.
+        exc : object | None
+            Exception instance, or None. Ignored.
+        tb : object | None
+            Traceback object, or None. Ignored.
+        """

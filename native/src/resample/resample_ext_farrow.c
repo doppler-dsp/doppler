@@ -369,9 +369,25 @@ static PyMethodDef FarrowObj_methods[] = {
     "\n"
     "Clear the interpolator delay line.\n"
     "\n"
-    "    >>> from doppler import Farrow\n"
-    "    >>> obj = Farrow(\"cubic\")\n"
-    "    >>> obj.reset()\n" },
+    "Zeroes the 4-tap delay line so the next block starts from a filling\n"
+    "transient again, exactly as a freshly created interpolator would. The\n"
+    "order (linear / parabolic / cubic) is preserved, so the same object can\n"
+    "be reused across independent bursts without rebuilding the polynomial.\n"
+    "Call it between unrelated signal segments to stop the tail of one\n"
+    "leaking into the head of the next.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.resample import Farrow\n"
+    ">>> import numpy as np\n"
+    ">>> f = Farrow(order=\"cubic\")\n"
+    ">>> _ = f.delay(np.ones(8, dtype=np.complex64), 0.25)  # leaves state\n"
+    ">>> f.reset()                                          # back to "
+    "pristine\n"
+    ">>> x = np.arange(8, dtype=np.complex64)\n"
+    ">>> f.delay(x, 0.5)[3:].real.tolist()   # steady part == ramp shifted "
+    "1.5\n"
+    "[1.5, 2.5, 3.5, 4.5, 5.5]\n" },
   { "state_bytes", (PyCFunction)FarrowObj_state_bytes, METH_NOARGS,
     "Serialized state size in bytes." },
   { "get_state", (PyCFunction)FarrowObj_get_state, METH_NOARGS,

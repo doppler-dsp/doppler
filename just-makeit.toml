@@ -1,7 +1,7 @@
 include = ["objects/*.toml"]
 
 [project]
-jm_version = "0.38.0"
+jm_version = "0.38.2"
 name = "doppler"
 version = "0.1.0"
 build = "cmake"
@@ -85,9 +85,6 @@ c_deps = ["hbdecim", "resamp", "wfmcompose"]
 # satisfies the manifest again.
 status_allow = [
     "zensical.toml",
-    "src/doppler/analyzer/analyzer.pyi",
-    "src/doppler/measure/measure.pyi",
-    "src/doppler/spectral/spectral.pyi",
 ]
 
 # Benchmark only the 64k block (jm-gh-390). doppler dropped the small-block

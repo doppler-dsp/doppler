@@ -467,12 +467,30 @@ static PyMethodDef DDCObj_methods[] = {
     "\n"
     "Mix input block with LO, then rate-convert.\n"
     "\n"
-    "    >>> import numpy as np\n"
-    "    >>> from doppler import DDC\n"
-    "    >>> obj = DDC(norm_freq=0.0, rate=0.25)\n"
-    "    >>> y = obj.execute(np.zeros(4))\n"
-    "    >>> y.dtype\n"
-    "    dtype('complex64')\n" },
+    "Parameters\n"
+    "----------\n"
+    "x : NDArray[np.complex64]\n"
+    "    CF32 input block; accepted as float32 (auto-cast).\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "NDArray[np.complex64]\n"
+    "    Number of output samples written (C-only).\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.ddc import DDC\n"
+    ">>> import numpy as np\n"
+    ">>> ddc = DDC(norm_freq=-0.1, rate=0.25)\n"
+    ">>> t = np.arange(4096)\n"
+    ">>> x = np.exp(1j * 2 * np.pi * 0.1 * t).astype(np.complex64)\n"
+    ">>> y = ddc.execute(x)\n"
+    ">>> y.shape\n"
+    "(1024,)\n"
+    ">>> y.dtype\n"
+    "dtype('complex64')\n"
+    ">>> round(float(abs(y[500])), 2)   # shifted to DC; amplitude ≈ 1\n"
+    "1.0\n" },
   { "execute_max_out", (PyCFunction)DDCObj_execute_max_out, METH_VARARGS,
     "execute_max_out(x_len) -> int\n\nMax output length execute() can produce "
     "for x_len.\nUse to size the ``out=`` buffer." },
@@ -505,9 +523,17 @@ static PyMethodDef DDCObj_methods[] = {
     "\n"
     "Zero LO phase and filter history.\n"
     "\n"
-    "    >>> from doppler import DDC\n"
-    "    >>> obj = DDC(norm_freq=0.0, rate=0.25)\n"
-    "    >>> obj.reset()\n" },
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.ddc import DDC\n"
+    ">>> import numpy as np\n"
+    ">>> ddc = DDC(norm_freq=0.0, rate=0.25)\n"
+    ">>> x = np.ones(64, dtype=np.complex64)\n"
+    ">>> y1 = ddc.execute(x)\n"
+    ">>> ddc.reset()\n"
+    ">>> y2 = ddc.execute(x)\n"
+    ">>> bool(np.array_equal(y1, y2))\n"
+    "True\n" },
   { "state_bytes", (PyCFunction)DDCObj_state_bytes, METH_NOARGS,
     "Serialized state size in bytes." },
   { "get_state", (PyCFunction)DDCObj_get_state, METH_NOARGS,

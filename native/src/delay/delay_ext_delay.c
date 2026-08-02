@@ -508,10 +508,19 @@ static PyMethodDef DelayCf64Obj_methods[] = {
     "any num_taps-length window starting at head is contiguous without an "
     "extra copy.\n"
     "\n"
-    "    >>> import numpy as np\n"
-    "    >>> from doppler import DelayCf64\n"
-    "    >>> obj = DelayCf64(1)\n"
-    "    >>> obj.push(0j)\n" },
+    "Parameters\n"
+    "----------\n"
+    "x : complex\n"
+    "    New complex sample to insert.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.delay import DelayCf64\n"
+    ">>> d = DelayCf64(num_taps=3)\n"
+    ">>> d.push(1+2j)\n"
+    ">>> d.push(3+4j)\n"
+    ">>> d.ptr().tolist()\n"
+    "[(3+4j), (1+2j), 0j]\n" },
   { "ptr", (PyCFunction)(void *)DelayCf64Obj_ptr, METH_VARARGS | METH_KEYWORDS,
     "ptr(n=num_taps, out=None) -> ndarray\n"
     "\n"
@@ -564,10 +573,18 @@ static PyMethodDef DelayCf64Obj_methods[] = {
     "decouple sample ingestion from window inspection. Internally delegates "
     "to delay_push() with no additional overhead.\n"
     "\n"
-    "    >>> import numpy as np\n"
-    "    >>> from doppler import DelayCf64\n"
-    "    >>> obj = DelayCf64(1)\n"
-    "    >>> obj.write(1.0 + 0.0j)\n" },
+    "Parameters\n"
+    "----------\n"
+    "x : complex\n"
+    "    New complex sample to insert.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.delay import DelayCf64\n"
+    ">>> d = DelayCf64(num_taps=2)\n"
+    ">>> d.write(5+6j)\n"
+    ">>> d.ptr().tolist()\n"
+    "[(5+6j), 0j]\n" },
   { "state_bytes", (PyCFunction)DelayCf64Obj_state_bytes, METH_NOARGS,
     "Serialized state size in bytes." },
   { "get_state", (PyCFunction)DelayCf64Obj_get_state, METH_NOARGS,

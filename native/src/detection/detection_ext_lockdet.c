@@ -367,61 +367,112 @@ LockDetObj_exit (LockDetObject *self, PyObject *args)
   Py_RETURN_NONE;
 }
 
-static PyMethodDef LockDetObj_methods[]
-    = { { "step", (PyCFunction)LockDet_step, METH_VARARGS,
-          "step(x) -> int\n"
-          "\n"
-          "Feed one look of the lock metric; return the current decision.\n"
-          "\n"
-          "    >>> from doppler import LockDet\n"
-          "    >>> obj = LockDet(1.0, 1.0, 1, 1)\n"
-          "    >>> obj.step(1.0)\n"
-          "    0\n" },
-        { "steps", (PyCFunction)(void *)LockDet_steps,
-          METH_VARARGS | METH_KEYWORDS,
-          "steps(x[, out]) -> ndarray\n"
-          "\n"
-          "Run a block of lock-metric looks through the detector.\n"
-          "\n"
-          "    >>> import numpy as np\n"
-          "    >>> from doppler import LockDet\n"
-          "    >>> obj = LockDet(1.0, 1.0, 1, 1)\n"
-          "    >>> y = obj.steps(np.zeros(4, dtype=np.float64))\n"
-          "    >>> y.shape\n"
-          "    (4,)\n"
-          "    >>> y.dtype\n"
-          "    dtype('int32')\n" },
+static PyMethodDef LockDetObj_methods[] = {
+  { "step", (PyCFunction)LockDet_step, METH_VARARGS,
+    "step(x) -> int\n"
+    "\n"
+    "Feed one look of the lock metric; return the current decision.\n"
+    "\n"
+    "Unlocked: a hit (`x > up_thresh`) advances the verify run and the\n"
+    "n_up-th consecutive hit declares lock; any miss resets the run. Locked:\n"
+    "a miss (`x < down_thresh`) advances the run and the n_down-th\n"
+    "consecutive miss drops the lock; any hit (`x >= down_thresh`) resets "
+    "it.\n"
+    "A metric inside the `[down_thresh, up_thresh]` band is sticky — it\n"
+    "neither advances a declare nor a drop.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "x : float\n"
+    "    Lock metric for this look.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "int\n"
+    "    Decision after this look (1 = locked, 0 = not).\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.detection import LockDet\n"
+    ">>> d = LockDet(up_thresh=1.5, down_thresh=1.2, n_up=2, n_down=3)\n"
+    ">>> [d.step(2.0), d.step(2.0)]     # declared on the 2nd straight hit\n"
+    "[0, 1]\n"
+    ">>> d.step(1.3)                    # in the hysteresis band: stays up\n"
+    "1\n"
+    ">>> [d.step(1.0), d.step(1.0), d.step(1.0)]  # 3rd straight miss drops\n"
+    "[1, 1, 0]\n"
+    "\n" },
+  { "steps", (PyCFunction)(void *)LockDet_steps, METH_VARARGS | METH_KEYWORDS,
+    "steps(x[, out]) -> ndarray\n"
+    "\n"
+    "Run a block of lock-metric looks through the detector.\n"
+    "\n"
+    "    >>> import numpy as np\n"
+    "    >>> from doppler import LockDet\n"
+    "    >>> obj = LockDet(1.0, 1.0, 1, 1)\n"
+    "    >>> y = obj.steps(np.zeros(4, dtype=np.float64))\n"
+    "    >>> y.shape\n"
+    "    (4,)\n"
+    "    >>> y.dtype\n"
+    "    dtype('int32')\n" },
 
-        { "configure", (PyCFunction)(void *)LockDetObj_configure,
-          METH_VARARGS | METH_KEYWORDS,
-          "configure(up_thresh, down_thresh, n_up, n_down) -> None\n"
-          "\n"
-          "Re-tune thresholds and verify counts; a live lock survives, the "
-          "in-flight verify run restarts under the new config.\n"
-          "\n"
-          "    >>> import numpy as np\n"
-          "    >>> from doppler import LockDet\n"
-          "    >>> obj = LockDet(1.0, 1.0, 1, 1)\n"
-          "    >>> obj.configure(0.0, 0.0, 0, 0)\n" },
-        { "reset", (PyCFunction)LockDetObj_reset, METH_NOARGS,
-          "reset() -> None\n"
-          "\n"
-          "Drop the lock and clear the verify counter; keep the config.\n"
-          "\n"
-          "    >>> from doppler import LockDet\n"
-          "    >>> obj = LockDet(1.0, 1.0, 1, 1)\n"
-          "    >>> obj.reset()\n" },
-        { "state_bytes", (PyCFunction)LockDetObj_state_bytes, METH_NOARGS,
-          "Serialized state size in bytes." },
-        { "get_state", (PyCFunction)LockDetObj_get_state, METH_NOARGS,
-          "Serialize the engine's mutable state to bytes." },
-        { "set_state", (PyCFunction)LockDetObj_set_state, METH_O,
-          "Restore mutable state from a get_state() blob." },
-        { "destroy", (PyCFunction)LockDetObj_destroy, METH_NOARGS,
-          "Release resources." },
-        { "__enter__", (PyCFunction)LockDetObj_enter, METH_NOARGS, NULL },
-        { "__exit__", (PyCFunction)LockDetObj_exit, METH_VARARGS, NULL },
-        { NULL } };
+  { "configure", (PyCFunction)(void *)LockDetObj_configure,
+    METH_VARARGS | METH_KEYWORDS,
+    "configure(up_thresh, down_thresh, n_up, n_down) -> None\n"
+    "\n"
+    "Re-tune thresholds and verify counts; a live lock survives, the "
+    "in-flight verify run restarts under the new config.\n"
+    "\n"
+    "The current locked flag survives (a live lock is not dropped by a\n"
+    "re-tune); the in-flight verify counter is cleared so the next run is\n"
+    "counted entirely under the new config.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "up_thresh : float\n"
+    "    Declare threshold (hit when metric > up_thresh).\n"
+    "down_thresh : float\n"
+    "    Drop threshold (miss when metric < down_thresh).\n"
+    "n_up : int\n"
+    "    Consecutive hits to declare; clamped to >= 1.\n"
+    "n_down : int\n"
+    "    Consecutive misses to drop; clamped to >= 1.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.detection import LockDet\n"
+    ">>> d = LockDet(up_thresh=1.5, down_thresh=1.2, n_up=2, n_down=2)\n"
+    ">>> d.configure(up_thresh=3.0, down_thresh=2.5, n_up=1, n_down=1)\n"
+    ">>> d.up_thresh          # thresholds re-tuned in place\n"
+    "3.0\n"
+    ">>> d.step(4.0)          # a single hit now declares (n_up=1)\n"
+    "1\n" },
+  { "reset", (PyCFunction)LockDetObj_reset, METH_NOARGS,
+    "reset() -> None\n"
+    "\n"
+    "Drop the lock and clear the verify counter; keep the config.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.detection import LockDet\n"
+    ">>> d = LockDet(up_thresh=1.5, down_thresh=1.2, n_up=1, n_down=1)\n"
+    ">>> d.step(2.0)          # one hit declares lock (n_up=1)\n"
+    "1\n"
+    ">>> d.reset()            # drop it and clear the verify run\n"
+    ">>> d.locked\n"
+    "False\n" },
+  { "state_bytes", (PyCFunction)LockDetObj_state_bytes, METH_NOARGS,
+    "Serialized state size in bytes." },
+  { "get_state", (PyCFunction)LockDetObj_get_state, METH_NOARGS,
+    "Serialize the engine's mutable state to bytes." },
+  { "set_state", (PyCFunction)LockDetObj_set_state, METH_O,
+    "Restore mutable state from a get_state() blob." },
+  { "destroy", (PyCFunction)LockDetObj_destroy, METH_NOARGS,
+    "Release resources." },
+  { "__enter__", (PyCFunction)LockDetObj_enter, METH_NOARGS, NULL },
+  { "__exit__", (PyCFunction)LockDetObj_exit, METH_VARARGS, NULL },
+  { NULL }
+};
 
 static PyTypeObject LockDetObjType = {
   PyVarObject_HEAD_INIT (NULL, 0).tp_name = "detection.LockDet",

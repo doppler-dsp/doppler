@@ -368,18 +368,34 @@ static PyMethodDef AccTraceObj_methods[] = {
     "\n"
     "Fold one length-n frame into the running trace.\n"
     "\n"
-    "    >>> import numpy as np\n"
-    "    >>> from doppler import AccTrace\n"
-    "    >>> obj = AccTrace(1024, \"mean\", 0.1)\n"
-    "    >>> obj.accumulate(np.zeros(4, dtype=np.float32))\n" },
+    "Parameters\n"
+    "----------\n"
+    "p : NDArray[np.float32]\n"
+    "    Input frame (float32).\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.accumulator import AccTrace\n"
+    ">>> acc = AccTrace(n=4, mode=\"mean\")\n"
+    ">>> acc.accumulate(np.array([1, 3, 5, 7], dtype=np.float32))\n"
+    ">>> acc.accumulate(np.array([3, 5, 7, 9], dtype=np.float32))\n"
+    ">>> acc.value().tolist()\n"
+    "[2.0, 4.0, 6.0, 8.0]\n" },
   { "reset", (PyCFunction)AccTraceObj_reset, METH_NOARGS,
     "reset() -> None\n"
     "\n"
     "Discard the running trace; the next accumulate re-seeds it.\n"
     "\n"
-    "    >>> from doppler import AccTrace\n"
-    "    >>> obj = AccTrace(1024, \"mean\", 0.1)\n"
-    "    >>> obj.reset()\n" },
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.accumulator import AccTrace\n"
+    ">>> acc = AccTrace(n=4, mode=\"mean\")\n"
+    ">>> acc.accumulate(np.ones(4, dtype=np.float32))\n"
+    ">>> acc.reset()\n"
+    ">>> acc.count\n"
+    "0\n" },
   { "value", (PyCFunction)(void *)AccTraceObj_value,
     METH_VARARGS | METH_KEYWORDS,
     "value(n=1) -> ndarray\n"

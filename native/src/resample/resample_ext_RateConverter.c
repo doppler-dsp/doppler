@@ -536,12 +536,24 @@ static PyMethodDef RateConverterObj_methods[] = {
     "blocks give the same result as one large call. Output length is "
     "approximately n_in * rate.\n"
     "\n"
-    "    >>> import numpy as np\n"
-    "    >>> from doppler import RateConverter\n"
-    "    >>> obj = RateConverter(1.0, 0)\n"
-    "    >>> y = obj.execute(np.zeros(4))\n"
-    "    >>> y.dtype\n"
-    "    dtype('complex64')\n" },
+    "Parameters\n"
+    "----------\n"
+    "x : NDArray[np.complex64]\n"
+    "    Input.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "NDArray[np.complex64]\n"
+    "    CF32 output array; length is approximately n_in * rate.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.resample import RateConverter\n"
+    ">>> import numpy as np\n"
+    ">>> rc = RateConverter(rate=0.5, compensate=0)\n"
+    ">>> y = rc.execute(np.zeros(1024, dtype=np.complex64))\n"
+    ">>> y.shape, y.dtype\n"
+    "((512,), dtype('complex64'))\n" },
   { "execute_max_out", (PyCFunction)RateConverterObj_execute_max_out,
     METH_NOARGS,
     "execute_max_out() -> int\n\nMax output length execute() can produce for "
@@ -579,9 +591,13 @@ static PyMethodDef RateConverterObj_methods[] = {
     "a freshly created converter fed the same input. Use between signal "
     "bursts to suppress transient artefacts from prior filter memory.\n"
     "\n"
-    "    >>> from doppler import RateConverter\n"
-    "    >>> obj = RateConverter(1.0, 0)\n"
-    "    >>> obj.reset()\n" },
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.resample import RateConverter\n"
+    ">>> rc = RateConverter(rate=0.5, compensate=0)\n"
+    ">>> rc.reset()\n"
+    ">>> rc.rate\n"
+    "0.5\n" },
   { "state_bytes", (PyCFunction)RateConverterObj_state_bytes, METH_NOARGS,
     "Serialized state size in bytes." },
   { "get_state", (PyCFunction)RateConverterObj_get_state, METH_NOARGS,

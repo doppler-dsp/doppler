@@ -342,61 +342,98 @@ LoopFilterObj_exit (LoopFilterObject *self, PyObject *args)
   Py_RETURN_NONE;
 }
 
-static PyMethodDef LoopFilterObj_methods[]
-    = { { "step", (PyCFunction)LoopFilter_step, METH_VARARGS,
-          "step(x) -> double\n"
-          "\n"
-          "Advance the loop one update with error x; return the control.\n"
-          "\n"
-          "    >>> from doppler import LoopFilter\n"
-          "    >>> obj = LoopFilter(0.01, 0.707, 1.0)\n"
-          "    >>> obj.step(1.0)\n"
-          "    0.0\n" },
-        { "steps", (PyCFunction)(void *)LoopFilter_steps,
-          METH_VARARGS | METH_KEYWORDS,
-          "steps(x[, out]) -> ndarray\n"
-          "\n"
-          "Run a block of errors through the loop.\n"
-          "\n"
-          "    >>> import numpy as np\n"
-          "    >>> from doppler import LoopFilter\n"
-          "    >>> obj = LoopFilter(0.01, 0.707, 1.0)\n"
-          "    >>> y = obj.steps(np.zeros(4, dtype=np.float64))\n"
-          "    >>> y.shape\n"
-          "    (4,)\n"
-          "    >>> y.dtype\n"
-          "    dtype('float64')\n" },
+static PyMethodDef LoopFilterObj_methods[] = {
+  { "step", (PyCFunction)LoopFilter_step, METH_VARARGS,
+    "step(x) -> double\n"
+    "\n"
+    "Advance the loop one update with error x; return the control.\n"
+    "\n"
+    "    >>> from doppler import LoopFilter\n"
+    "    >>> obj = LoopFilter(0.01, 0.707, 1.0)\n"
+    "    >>> obj.step(1.0)\n"
+    "    0.0\n" },
+  { "steps", (PyCFunction)(void *)LoopFilter_steps,
+    METH_VARARGS | METH_KEYWORDS,
+    "steps(x[, out]) -> ndarray\n"
+    "\n"
+    "Run a block of errors through the loop.\n"
+    "\n"
+    "    >>> import numpy as np\n"
+    "    >>> from doppler import LoopFilter\n"
+    "    >>> obj = LoopFilter(0.01, 0.707, 1.0)\n"
+    "    >>> y = obj.steps(np.zeros(4, dtype=np.float64))\n"
+    "    >>> y.shape\n"
+    "    (4,)\n"
+    "    >>> y.dtype\n"
+    "    dtype('float64')\n" },
 
-        { "configure", (PyCFunction)(void *)LoopFilterObj_configure,
-          METH_VARARGS | METH_KEYWORDS,
-          "configure(bn, zeta, t) -> None\n"
-          "\n"
-          "Recompute the loop gains for a new (bn, zeta, t); preserves the "
-          "integrator.\n"
-          "\n"
-          "    >>> import numpy as np\n"
-          "    >>> from doppler import LoopFilter\n"
-          "    >>> obj = LoopFilter(0.01, 0.707, 1.0)\n"
-          "    >>> obj.configure(0.0, 0.0, 0.0)\n" },
-        { "reset", (PyCFunction)LoopFilterObj_reset, METH_NOARGS,
-          "reset() -> None\n"
-          "\n"
-          "Zero the integrator; keep the configured gains.\n"
-          "\n"
-          "    >>> from doppler import LoopFilter\n"
-          "    >>> obj = LoopFilter(0.01, 0.707, 1.0)\n"
-          "    >>> obj.reset()\n" },
-        { "state_bytes", (PyCFunction)LoopFilterObj_state_bytes, METH_NOARGS,
-          "Serialized state size in bytes." },
-        { "get_state", (PyCFunction)LoopFilterObj_get_state, METH_NOARGS,
-          "Serialize the engine's mutable state to bytes." },
-        { "set_state", (PyCFunction)LoopFilterObj_set_state, METH_O,
-          "Restore mutable state from a get_state() blob." },
-        { "destroy", (PyCFunction)LoopFilterObj_destroy, METH_NOARGS,
-          "Release resources." },
-        { "__enter__", (PyCFunction)LoopFilterObj_enter, METH_NOARGS, NULL },
-        { "__exit__", (PyCFunction)LoopFilterObj_exit, METH_VARARGS, NULL },
-        { NULL } };
+  { "configure", (PyCFunction)(void *)LoopFilterObj_configure,
+    METH_VARARGS | METH_KEYWORDS,
+    "configure(bn, zeta, t) -> None\n"
+    "\n"
+    "Recompute the loop gains for a new (bn, zeta, t); preserves the "
+    "integrator.\n"
+    "\n"
+    "Recomputes the proportional and integral gains from the standard\n"
+    "2nd-order form but leaves integ untouched, so a loop can be widened for\n"
+    "fast acquisition and then narrowed for steady-state tracking while\n"
+    "holding its accumulated frequency/rate estimate — the retune preserves\n"
+    "lock.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "bn : float\n"
+    "    Loop noise bandwidth, normalized cycles/sample (>= 0).\n"
+    "zeta : float\n"
+    "    Damping factor (typically 0.707).\n"
+    "t : float\n"
+    "    Update period in samples (> 0).\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.track import LoopFilter\n"
+    ">>> lf = LoopFilter(bn=0.01, zeta=0.707, t=1.0)\n"
+    ">>> _ = lf.step(1.0)\n"
+    ">>> before = round(lf.integ, 6)\n"
+    ">>> lf.configure(0.05, 0.707, 1.0)   # widen the loop, keep lock\n"
+    ">>> round(lf.integ, 6) == before     # integrator preserved\n"
+    "True\n"
+    ">>> round(lf.kp, 6)                  # proportional gain rose\n"
+    "0.124728\n" },
+  { "reset", (PyCFunction)LoopFilterObj_reset, METH_NOARGS,
+    "reset() -> None\n"
+    "\n"
+    "Zero the integrator; keep the configured gains.\n"
+    "\n"
+    "Clears the accumulated frequency/rate estimate (integ) back to zero but\n"
+    "leaves kp / ki as configured, so the loop reacquires from a clean slate\n"
+    "at its current bandwidth — the right thing when a tracker drops lock "
+    "and\n"
+    "must restart, without re-deriving gains.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.track import LoopFilter\n"
+    ">>> lf = LoopFilter(bn=0.02, zeta=0.707, t=1.0)\n"
+    ">>> for _ in range(10):\n"
+    "...     _ = lf.step(1.0)             # ramp the integrator\n"
+    ">>> round(lf.integ, 6)\n"
+    "0.013849\n"
+    ">>> lf.reset()\n"
+    ">>> lf.integ                          # integrator cleared, gains kept\n"
+    "0.0\n" },
+  { "state_bytes", (PyCFunction)LoopFilterObj_state_bytes, METH_NOARGS,
+    "Serialized state size in bytes." },
+  { "get_state", (PyCFunction)LoopFilterObj_get_state, METH_NOARGS,
+    "Serialize the engine's mutable state to bytes." },
+  { "set_state", (PyCFunction)LoopFilterObj_set_state, METH_O,
+    "Restore mutable state from a get_state() blob." },
+  { "destroy", (PyCFunction)LoopFilterObj_destroy, METH_NOARGS,
+    "Release resources." },
+  { "__enter__", (PyCFunction)LoopFilterObj_enter, METH_NOARGS, NULL },
+  { "__exit__", (PyCFunction)LoopFilterObj_exit, METH_VARARGS, NULL },
+  { NULL }
+};
 
 static PyTypeObject LoopFilterObjType = {
   PyVarObject_HEAD_INIT (NULL, 0).tp_name = "track.LoopFilter",

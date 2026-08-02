@@ -354,7 +354,10 @@ CorrDetectorObj_exit (CorrDetectorObject *self, PyObject *args)
 
 static PyMethodDef CorrDetectorObj_methods[]
     = { { "reset", (PyCFunction)CorrDetectorObj_reset, METH_NOARGS,
-          "Reset state to post-create defaults." },
+          "Reset the correlator, ring buffer, and last-corr flag. Discards "
+          "any partial frame buffered in the ring and zeroes the coherent "
+          "accumulator.  Equivalent to starting fresh from the same reference "
+          "without rebuilding any internal object." },
 
         { "push", (PyCFunction)CorrDetectorObj_push, METH_VARARGS,
           "push(x) -> list[tuple]\n"

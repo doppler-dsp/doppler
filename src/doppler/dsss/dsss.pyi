@@ -1732,7 +1732,23 @@ class DsssReceiver:
         """
 
     def steps_max_out(self, x_len: int) -> int:
-        """Max output length steps() can produce for x_len."""
+        """Largest number of samples steps() can return for x_len inputs.
+
+        Size an `out=` buffer with this before calling steps(), or use it to
+        allocate one up front. The bound is this object's own: what it depends
+        on is a property of the algorithm, so a header block on steps_max_out()
+        replaces this text.
+
+        Parameters
+        ----------
+        x_len : int
+            Number of input samples steps() will be given.
+
+        Returns
+        -------
+        int
+            Upper bound on the output length; the actual call may return fewer.
+        """
 
     def configure_search_raw(self, doppler_bins: int, n_noncoh: int) -> None:
         """Pin the embedded Acquisition's search grid directly, bypassing the symbol_rate-driven auto-sizing -- the escape hatch for a power user who wants a specific (doppler_bins, n_noncoh). Only meaningful while searching.
@@ -2098,7 +2114,23 @@ class AsyncDsssReceiver:
         """
 
     def steps_max_out(self, x_len: int) -> int:
-        """Max output length steps() can produce for x_len."""
+        """Largest number of samples steps() can return for x_len inputs.
+
+        Size an `out=` buffer with this before calling steps(), or use it to
+        allocate one up front. The bound is this object's own: what it depends
+        on is a property of the algorithm, so a header block on steps_max_out()
+        replaces this text.
+
+        Parameters
+        ----------
+        x_len : int
+            Number of input samples steps() will be given.
+
+        Returns
+        -------
+        int
+            Upper bound on the output length; the actual call may return fewer.
+        """
 
     def configure_search_raw(self, doppler_bins: int, n_noncoh: int) -> None:
         """Pin the embedded Acquisition's search grid directly, bypassing the symbol_rate-driven auto-sizing. Only meaningful while searching.

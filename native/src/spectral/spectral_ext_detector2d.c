@@ -390,7 +390,9 @@ CorrDetector2DObj_set_state (CorrDetector2DObject *self, PyObject *arg)
 
 static PyMethodDef CorrDetector2DObj_methods[] = {
   { "reset", (PyCFunction)CorrDetector2DObj_reset, METH_NOARGS,
-    "Reset state to post-create defaults." },
+    "Reset the 2-D correlator, ring buffer, and last-corr flag. Discards any "
+    "partial frame buffered in the ring and zeroes the coherent accumulator.  "
+    "The reference spectrum and FFT plans are preserved." },
 
   { "push", (PyCFunction)CorrDetector2DObj_push, METH_VARARGS,
     "push(x) -> list[tuple]\n"

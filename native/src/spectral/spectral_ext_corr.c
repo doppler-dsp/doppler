@@ -330,7 +330,10 @@ CorrObj_exit (CorrObject *self, PyObject *args)
 
 static PyMethodDef CorrObj_methods[] = {
   { "reset", (PyCFunction)CorrObj_reset, METH_NOARGS,
-    "Reset state to post-create defaults." },
+    "Zero the accumulator and reset the integration counter to 0. Equivalent "
+    "to starting a fresh dwell cycle without tearing down the FFT plans.  "
+    "Does NOT recompute ref_spec; use corr_set_ref() to replace the "
+    "reference." },
 
   { "execute", (PyCFunction)(void *)CorrObj_execute,
     METH_VARARGS | METH_KEYWORDS,

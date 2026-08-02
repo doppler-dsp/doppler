@@ -183,7 +183,7 @@ I8ToF32Obj_exit (I8ToF32Object *self, PyObject *args)
 
 static PyMethodDef I8ToF32Obj_methods[]
     = { { "reset", (PyCFunction)I8ToF32Obj_reset, METH_NOARGS,
-          "Reset state to post-create defaults." },
+          "No-op reset, provided only for lifecycle symmetry." },
         { "step", (PyCFunction)I8ToF32_step, METH_VARARGS,
           "step(x) -> float\n"
           "\n"

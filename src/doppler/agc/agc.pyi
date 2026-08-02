@@ -18,10 +18,14 @@ class AGC:
 
     Examples
     --------
-    Create with defaults:
-
     >>> from doppler.agc import AGC
-    >>> obj = AGC(ref_db=0.0, loop_bw=0.0025, alpha=0.05)
+    >>> agc = AGC(ref_db=0.0, loop_bw=0.0025, alpha=0.05)
+    >>> agc.ref_db, agc.loop_bw, agc.alpha
+    (0.0, 0.0025, 0.05)
+    >>> agc.gain_db, agc.applied_gain_db
+    (0.0, 0.0)
+    >>> agc.decim, agc.clip_db
+    (8, 120.0)
 
     """
     def __init__(self, ref_db: float = ..., loop_bw: float = ..., alpha: float = ...) -> None: ...

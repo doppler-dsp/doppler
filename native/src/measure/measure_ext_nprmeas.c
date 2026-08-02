@@ -340,7 +340,7 @@ NPRMeasureObj_exit (NPRMeasureObject *self, PyObject *args)
 
 static PyMethodDef NPRMeasureObj_methods[] = {
   { "reset", (PyCFunction)NPRMeasureObj_reset, METH_NOARGS,
-    "Reset state to post-create defaults." },
+    "Reset the analyser (a no-op: each analyze() call is independent)." },
 
   { "analyze", (PyCFunction)(void *)NPRMeasureObj_analyze,
     METH_VARARGS | METH_KEYWORDS,

@@ -268,7 +268,9 @@ PNObj_exit (PNObject *self, PyObject *args)
 
 static PyMethodDef PNObj_methods[]
     = { { "reset", (PyCFunction)PNObj_reset, METH_NOARGS,
-          "Reset state to post-create defaults." },
+          "Reset PN to its post-create state. Reloads the LFSR register from "
+          "the original seed so the sequence restarts from chip 0.  Useful "
+          "for reproducible captures without re-allocating." },
 
         { "generate", (PyCFunction)(void *)PNObj_generate,
           METH_VARARGS | METH_KEYWORDS,

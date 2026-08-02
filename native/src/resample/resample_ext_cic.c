@@ -319,7 +319,10 @@ CICObj_exit (CICObject *self, PyObject *args)
 
 static PyMethodDef CICObj_methods[] = {
   { "reset", (PyCFunction)CICObj_reset, METH_NOARGS,
-    "Reset state to post-create defaults." },
+    "Zero all integrator and comb accumulators; preserve R and shift. The "
+    "first output sample after reset arrives after R more input samples, "
+    "matching post-create behaviour. Use between signal bursts to eliminate "
+    "transient artefacts caused by residual pipeline state." },
 
   { "reconfigure", (PyCFunction)(void *)CICObj_reconfigure,
     METH_VARARGS | METH_KEYWORDS,

@@ -640,7 +640,7 @@ BerMeterObj_exit (BerMeterObject *self, PyObject *args)
 
 static PyMethodDef BerMeterObj_methods[] = {
   { "reset", (PyCFunction)BerMeterObj_reset, METH_NOARGS,
-    "Reset state to post-create defaults." },
+    "Zero the running counters; keep the configuration and the truth." },
 
   { "set_truth", (PyCFunction)(void *)BerMeterObj_set_truth,
     METH_VARARGS | METH_KEYWORDS,

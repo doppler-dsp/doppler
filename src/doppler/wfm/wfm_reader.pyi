@@ -71,7 +71,24 @@ class Reader:
         """
 
     def read_max_out(self, n: int) -> int:
-        """Max output length read() can produce for n."""
+        """Maximum samples one read(n) yields: n (fewer at EOF).
+
+        A reader streams, so a read of n produces at most n samples; the binding
+
+        sizes its buffer to this per-call bound (gh-607) and resizes down to the
+
+        actual count, never pre-allocating the whole capture.
+
+        Parameters
+        ----------
+        n : int
+            Input.
+
+        Returns
+        -------
+        int
+            Output.
+        """
 
     @property
     def file_type(self) -> Literal["raw", "csv", "blue", "sigmf"]:

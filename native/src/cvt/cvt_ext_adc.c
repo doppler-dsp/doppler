@@ -273,7 +273,8 @@ ADCObj_exit (ADCObject *self, PyObject *args)
 
 static PyMethodDef ADCObj_methods[]
     = { { "reset", (PyCFunction)ADCObj_reset, METH_NOARGS,
-          "Reset state to post-create defaults." },
+          "Clear the clip flag and re-seed the dither PRNG for a reproducible "
+          "run." },
         { "step", (PyCFunction)ADC_step, METH_VARARGS,
           "step(x) -> int64_t\n"
           "\n"

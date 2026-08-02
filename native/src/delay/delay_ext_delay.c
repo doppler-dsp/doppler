@@ -492,7 +492,10 @@ DelayCf64Obj_exit (DelayCf64Object *self, PyObject *args)
 
 static PyMethodDef DelayCf64Obj_methods[] = {
   { "reset", (PyCFunction)DelayCf64Obj_reset, METH_NOARGS,
-    "Reset state to post-create defaults." },
+    "Reset the delay line to its post-create state. Zeroes the entire dual "
+    "buffer and resets the write pointer to 0, discarding all previously "
+    "pushed samples.  The num_taps and capacity are preserved; only the "
+    "sample history is cleared." },
 
   { "push", (PyCFunction)(void *)DelayCf64Obj_push,
     METH_VARARGS | METH_KEYWORDS,

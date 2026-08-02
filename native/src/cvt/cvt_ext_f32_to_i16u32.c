@@ -256,7 +256,7 @@ F32ToI16U32Obj_exit (F32ToI16U32Object *self, PyObject *args)
 
 static PyMethodDef F32ToI16U32Obj_methods[]
     = { { "reset", (PyCFunction)F32ToI16U32Obj_reset, METH_NOARGS,
-          "Reset state to post-create defaults." },
+          "Clear the sticky clip flag, starting a fresh saturation history." },
         { "step", (PyCFunction)F32ToI16U32_step, METH_VARARGS,
           "step(x) -> uint32_t\n"
           "\n"

@@ -327,7 +327,11 @@ FIRObj_exit (FIRObject *self, PyObject *args)
 
 static PyMethodDef FIRObj_methods[] = {
   { "reset", (PyCFunction)FIRObj_reset, METH_NOARGS,
-    "Reset state to post-create defaults." },
+    "Zero the delay line; preserve taps and scratch capacity. After a reset "
+    "the filter behaves identically to a freshly constructed instance of the "
+    "same length, without paying the allocation cost again. Call this between "
+    "unrelated signal segments to prevent inter-segment leakage through the "
+    "delay line." },
 
   { "execute", (PyCFunction)(void *)FIRObj_execute,
     METH_VARARGS | METH_KEYWORDS,

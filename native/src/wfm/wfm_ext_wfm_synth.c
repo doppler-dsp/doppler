@@ -626,7 +626,9 @@ _SynthEngine_set_state (_SynthEngineObject *self, PyObject *arg)
 
 static PyMethodDef _SynthEngine_methods[] = {
   { "reset", (PyCFunction)_SynthEngine_reset, METH_NOARGS,
-    "Reset state to post-create defaults." },
+    "Reset Synth to its post-create state. Resets the LO phase accumulator, "
+    "AWGN internal state, and PN LFSR register to their initial values so the "
+    "output sequence is perfectly reproducible from sample 0." },
   { "step", (PyCFunction)_SynthEngine_step, METH_NOARGS,
     "step() -> float complex\n"
     "\n"
@@ -693,24 +695,45 @@ static PyMethodDef _SynthEngine_methods[] = {
     "Attach a user bit pattern (array of 0/1) to a type='bits' synth.\n"
     "modulation: 0=none (0/1), 1=bpsk (+-1), 2=qpsk (2 bits/symbol).\n" },
   { "get_wtype", (PyCFunction)_SynthEngine_get_wtype, METH_NOARGS,
-    "Get wtype." },
+    "Return the active waveform type discriminant. Maps to the WFM_SYNTH_* "
+    "enum: 0=tone, 1=noise, 2=pn, 3=bpsk, 4=qpsk. Use this to inspect which "
+    "synthesis path is active at runtime.\n" },
   { "set_wtype", (PyCFunction)_SynthEngine_set_wtype, METH_VARARGS,
-    "Set wtype." },
-  { "get_nsps", (PyCFunction)_SynthEngine_get_nsps, METH_NOARGS, "Get nsps." },
+    "Override the waveform type discriminant in-place. Changing wtype does "
+    "not reinitialise sub-objects; use with care.\n" },
+  { "get_nsps", (PyCFunction)_SynthEngine_get_nsps, METH_NOARGS,
+    "Return the samples-per-symbol count. For modulated types (BPSK, QPSK, "
+    "PN) each symbol is held for nsps consecutive output samples.  For "
+    "tone/noise this field is present but unused by the synthesis path.\n" },
   { "set_nsps", (PyCFunction)_SynthEngine_set_nsps, METH_VARARGS,
-    "Set nsps." },
+    "Override the samples-per-symbol count in-place. Does not flush the "
+    "symbol-position counter (sym_pos); set sym_pos=0 as well when changing "
+    "sps mid-stream.\n" },
   { "get_sym_pos", (PyCFunction)_SynthEngine_get_sym_pos, METH_NOARGS,
-    "Get sym_pos." },
+    "Return the current position within the current symbol (0..nsps-1). "
+    "Reaches nsps and wraps to 0 each time a new symbol is consumed from the "
+    "PN LFSR.  Useful for frame alignment: sym_pos==0 on a step boundary "
+    "means the very next sample begins a fresh symbol.\n" },
   { "set_sym_pos", (PyCFunction)_SynthEngine_set_sym_pos, METH_VARARGS,
-    "Set sym_pos." },
+    "Override the symbol-position counter in-place. Injecting 0 forces the "
+    "next wfm_synth_step() to latch a new PN chip; any other value "
+    "fast-forwards into the middle of the current symbol hold.\n" },
   { "get_cur_re", (PyCFunction)_SynthEngine_get_cur_re, METH_NOARGS,
-    "Get cur_re." },
+    "Return the real part of the current held symbol. For modulated types "
+    "this is the I component latched at the last symbol boundary (±1 for "
+    "BPSK/PN, ±1/√2 for QPSK).  For tone the synthesiser initialises cur_re "
+    "to 1.0 so that the held symbol is a clean unit-power carrier; for noise "
+    "it is 0.0 (noise has no held symbol).\n" },
   { "set_cur_re", (PyCFunction)_SynthEngine_set_cur_re, METH_VARARGS,
-    "Set cur_re." },
+    "Override the held-symbol real (I) component in-place. Takes effect on "
+    "the next wfm_synth_step() within the current symbol hold.\n" },
   { "get_cur_im", (PyCFunction)_SynthEngine_get_cur_im, METH_NOARGS,
-    "Get cur_im." },
+    "Return the imaginary part of the current held symbol. For QPSK this is "
+    "the Q component (±1/√2); for BPSK/PN it is always 0; for tone/noise it "
+    "is 0.\n" },
   { "set_cur_im", (PyCFunction)_SynthEngine_set_cur_im, METH_VARARGS,
-    "Set cur_im." },
+    "Override the held-symbol imaginary (Q) component in-place. Takes effect "
+    "on the next wfm_synth_step() within the current symbol hold.\n" },
   { "destroy", (PyCFunction)_SynthEngine_destroy, METH_NOARGS,
     "Release resources." },
   { "__enter__", (PyCFunction)_SynthEngine_enter, METH_NOARGS, NULL },

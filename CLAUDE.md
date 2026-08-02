@@ -273,6 +273,40 @@ here, so `jm apply` is now fully idempotent with **no allowlist**:
 from the prior round also stands. The only remaining non-jm surface is
 `ffi/rust/` (jm emits CPython only) — maintained by hand against the C ABI.
 
+### 0.37.1 adoptions — class `@code` Examples + built-in/accessor derivation (pin: 0.37.1)
+
+The CI drift gate now pins **0.37.1** (`ci.yml` via `make drift-check`);
+`jm_version` stamped 0.37.1 (main + `examples/downstream-jm`). Drive doppler
+with `.venv/bin/just-makeit …`. The bump is pure tooling — `jm apply` reconciled
+12 `.pyi` + 41 sacred `_ext` fragments (clang-format them after — jm emits K&R),
+**no `_core` / no signature drift**. Meter jumped **78.2% → 82.4%** (1140/1384).
+
+0.37.0 shipped three doppler-driven features; **0.37.1 is the patch that made
+them adoptable** (fixes the 0.37.0 regression below):
+
+- **gh-624** — an authored `@code` on `create()` becomes the class's `Examples`
+    section, **honoured even for an unseedable ctor** (array / required-no-default
+    / `path` arg) which previously got no Examples at all. This is what lets the
+    25 PARTIAL classes with a required `code`/`taps` array (Dll, FIR, Corr, all
+    despreaders/receivers) reach FULL — **the class-authoring wave is now
+    unblocked** (author `@code` on their `create()` headers).
+- **gh-684** — `*_max_out` + the state `get_`/`set_` accessors derive their
+    docstring from the header (both faces, jm prose fallback). This + the
+    built-in `create`/`reset`/`step`/`steps` runtime-doc derivation is what
+    transplanted rich docstrings into the 41 fragments (the runtime-face finally
+    catches the stub face on those surfaces).
+- **gh-645** — `[module.X] doc` documents a module on both faces (the 26 module
+    docstrings — author next).
+
+**gh-691 (doppler-filed, fixed in 0.37.1).** 0.37.0's authored-class `@code`
+path (gh-624) emitted the closing `"""` with **no blank line before it**, so a
+text-mode `.pyi` doctest (`pytest --doctest-glob`) swallowed the terminator +
+next decl into the last example's expected output — broke `make test-stubs` on
+8 modules. Auto-adoption of 0.37.0 caught it, held, filed jm#691, reviewed the
+fix (jm PR #692, verified 28/28 stubs pass), and adopted 0.37.1 once tagged. NB:
+the meter did NOT catch it (it checks `>>>` presence, not execution) — the
+doctest gate did; keep BOTH gates.
+
 ### 0.36.0 adoptions — gh-647 glue docstrings + the docstring-coverage pass (pin: 0.36.0)
 
 The CI drift gate now pins **0.36.0** (`ci.yml` via `make drift-check`);

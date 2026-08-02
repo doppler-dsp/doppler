@@ -270,73 +270,82 @@ AccQ15_set_state (AccQ15Object *self, PyObject *arg)
   Py_RETURN_NONE;
 }
 
-static PyMethodDef AccQ15_methods[]
-    = { { "reset", (PyCFunction)AccQ15_reset, METH_NOARGS,
-          "Reset state to post-create defaults." },
-        { "step", (PyCFunction)AccQ15_step, METH_VARARGS,
-          "step(x) -> None\n"
-          "\n"
-          "Accumulate one Q15 sample into the running total. The sample is "
-          "sign-extended to 64 bits before addition, ensuring that negative "
-          "samples subtract correctly from the accumulator without wrap.\n"
-          "\n"
-          "    >>> from doppler import AccQ15\n"
-          "    >>> obj = AccQ15(0)\n"
-          "    >>> obj.step(1)\n" },
-        { "steps", (PyCFunction)AccQ15_steps, METH_VARARGS,
-          "steps(x[, out]) -> ndarray\n"
-          "\n"
-          "Accumulate a contiguous block of Q15 samples. Equivalent to "
-          "calling step() n times but faster for large arrays because the "
-          "loop can be auto-vectorised by the compiler.\n"
-          "\n"
-          "    >>> import numpy as np\n"
-          "    >>> from doppler import AccQ15\n"
-          "    >>> obj = AccQ15(0)\n"
-          "    >>> y = obj.steps(np.zeros(4, dtype=np.int16))\n" },
+static PyMethodDef AccQ15_methods[] = {
+  { "reset", (PyCFunction)AccQ15_reset, METH_NOARGS,
+    "Reset the accumulator to zero, mirroring the post-create state. Does not "
+    "re-initialise to the constructor's acc value — always resets to zero, "
+    "matching the default initial state for a clean sweep." },
+  { "step", (PyCFunction)AccQ15_step, METH_VARARGS,
+    "step(x) -> None\n"
+    "\n"
+    "Accumulate one Q15 sample into the running total. The sample is "
+    "sign-extended to 64 bits before addition, ensuring that negative "
+    "samples subtract correctly from the accumulator without wrap.\n"
+    "\n"
+    "    >>> from doppler import AccQ15\n"
+    "    >>> obj = AccQ15(0)\n"
+    "    >>> obj.step(1)\n" },
+  { "steps", (PyCFunction)AccQ15_steps, METH_VARARGS,
+    "steps(x[, out]) -> ndarray\n"
+    "\n"
+    "Accumulate a contiguous block of Q15 samples. Equivalent to "
+    "calling step() n times but faster for large arrays because the "
+    "loop can be auto-vectorised by the compiler.\n"
+    "\n"
+    "    >>> import numpy as np\n"
+    "    >>> from doppler import AccQ15\n"
+    "    >>> obj = AccQ15(0)\n"
+    "    >>> y = obj.steps(np.zeros(4, dtype=np.int16))\n" },
 
-        { "get_acc", (PyCFunction)AccQ15_get_acc, METH_NOARGS, "Get acc." },
-        { "set_acc", (PyCFunction)AccQ15_set_acc, METH_VARARGS, "Set acc." },
-        { "get", (PyCFunction)AccQ15_get, METH_NOARGS,
-          "get() -> int\n"
-          "\n"
-          "Return the current accumulated value without resetting.\n"
-          "\n"
-          "    >>> from doppler import AccQ15\n"
-          "    >>> obj = AccQ15(0)\n"
-          "    >>> obj.get()\n"
-          "    0\n" },
-        { "dump", (PyCFunction)AccQ15_dump, METH_NOARGS,
-          "dump() -> int\n"
-          "\n"
-          "Return the accumulated value and reset to zero.\n"
-          "\n"
-          "    >>> from doppler import AccQ15\n"
-          "    >>> obj = AccQ15(0)\n"
-          "    >>> obj.dump()\n"
-          "    0\n" },
-        { "madd", (PyCFunction)AccQ15_madd, METH_VARARGS,
-          "madd(a, b) -> None\n"
-          "\n"
-          "Multiply-accumulate: acc += sum(a[i] * b[i]) for i in [0, len(a)). "
-          "Uses AVX2 when available.\n"
-          "\n"
-          "    >>> import numpy as np\n"
-          "    >>> from doppler import AccQ15\n"
-          "    >>> obj = AccQ15(0)\n"
-          "    >>> obj.madd(np.zeros(4, dtype=np.int16), np.zeros(4, "
-          "dtype=np.int16))\n" },
-        { "destroy", (PyCFunction)AccQ15_destroy, METH_NOARGS,
-          "Release resources." },
-        { "__enter__", (PyCFunction)AccQ15_enter, METH_NOARGS, NULL },
-        { "__exit__", (PyCFunction)AccQ15_exit, METH_VARARGS, NULL },
-        { "state_bytes", (PyCFunction)AccQ15_state_bytes, METH_NOARGS,
-          "Serialized state size in bytes." },
-        { "get_state", (PyCFunction)AccQ15_get_state, METH_NOARGS,
-          "Serialize the engine's mutable state to bytes." },
-        { "set_state", (PyCFunction)AccQ15_set_state, METH_O,
-          "Restore mutable state from a get_state() blob." },
-        { NULL } };
+  { "get_acc", (PyCFunction)AccQ15_get_acc, METH_NOARGS,
+    "Read the current accumulator value without modifying it. Use this when "
+    "you need to snapshot the running total mid-stream and continue "
+    "accumulating afterward.\n" },
+  { "set_acc", (PyCFunction)AccQ15_set_acc, METH_VARARGS,
+    "Overwrite the accumulator with a new value. Useful for setting a bias "
+    "before a new accumulation window, or for restoring a previously "
+    "checkpointed value.\n" },
+  { "get", (PyCFunction)AccQ15_get, METH_NOARGS,
+    "get() -> int\n"
+    "\n"
+    "Return the current accumulated value without resetting.\n"
+    "\n"
+    "    >>> from doppler import AccQ15\n"
+    "    >>> obj = AccQ15(0)\n"
+    "    >>> obj.get()\n"
+    "    0\n" },
+  { "dump", (PyCFunction)AccQ15_dump, METH_NOARGS,
+    "dump() -> int\n"
+    "\n"
+    "Return the accumulated value and reset to zero.\n"
+    "\n"
+    "    >>> from doppler import AccQ15\n"
+    "    >>> obj = AccQ15(0)\n"
+    "    >>> obj.dump()\n"
+    "    0\n" },
+  { "madd", (PyCFunction)AccQ15_madd, METH_VARARGS,
+    "madd(a, b) -> None\n"
+    "\n"
+    "Multiply-accumulate: acc += sum(a[i] * b[i]) for i in [0, len(a)). "
+    "Uses AVX2 when available.\n"
+    "\n"
+    "    >>> import numpy as np\n"
+    "    >>> from doppler import AccQ15\n"
+    "    >>> obj = AccQ15(0)\n"
+    "    >>> obj.madd(np.zeros(4, dtype=np.int16), np.zeros(4, "
+    "dtype=np.int16))\n" },
+  { "destroy", (PyCFunction)AccQ15_destroy, METH_NOARGS,
+    "Release resources." },
+  { "__enter__", (PyCFunction)AccQ15_enter, METH_NOARGS, NULL },
+  { "__exit__", (PyCFunction)AccQ15_exit, METH_VARARGS, NULL },
+  { "state_bytes", (PyCFunction)AccQ15_state_bytes, METH_NOARGS,
+    "Serialized state size in bytes." },
+  { "get_state", (PyCFunction)AccQ15_get_state, METH_NOARGS,
+    "Serialize the engine's mutable state to bytes." },
+  { "set_state", (PyCFunction)AccQ15_set_state, METH_O,
+    "Restore mutable state from a get_state() blob." },
+  { NULL }
+};
 
 static PyTypeObject AccQ15Type = {
   PyVarObject_HEAD_INIT (NULL, 0).tp_name = "arith.AccQ15",

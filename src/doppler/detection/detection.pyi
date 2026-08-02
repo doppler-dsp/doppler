@@ -271,8 +271,10 @@ def marcum_q(m: int, a: float, b: float) -> float:
     Q_n(0,b) + exp(-v)*v^n/n!. Total cost: O(K) where K ~ max(u, M) + safety
     margin.
 
-    Special cases: - a = 0: Q_M(0, b) = exp(-b^2/2) * sum_{j=0}^{M-1}
-    (b^2/2)^j/j! - b <= 0: Q_M(a, b) = 1.0
+    Special cases:
+
+    - a = 0:   Q_M(0, b) = exp(-b^2/2) * sum_{j=0}^{M-1} (b^2/2)^j/j!
+    - b <= 0:  Q_M(a, b) = 1.0
 
     Parameters
     ----------
@@ -612,7 +614,7 @@ def det_threshold_f(pfa: float, n: int) -> float:
     """
 
 def det_pd_noncoherent(snr: float, n_coh: int, n_noncoh: int, threshold: float) -> float:
-    """Detection probability for n_noncoh non-coherent looks.
+    r"""Detection probability for n_noncoh non-coherent looks.
 
     Computes Pd = Q_{n_noncoh}(a, threshold) with the non-centrality a =
     sqrt(2 * n_coh * n_noncoh) * snr. At n_noncoh = 1 this is exactly

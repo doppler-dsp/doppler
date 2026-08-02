@@ -49,11 +49,11 @@ class InterpolatedTable:
         """Evaluate the table at each of n_in points via periodic interpolation.
 
         Each point is wrapped mod the table length (any real value, any sign)
-        and evaluated per the configured method: - floor: `table[floor(point)
-        mod n]` - nearest: the floor or the next index, whichever `point` is
-        closer to (an exact 0.5 tie selects the floor index) - linear: linear
-        interpolation between the floor index and the next one, at the
-        fractional position between them
+        and evaluated per the configured method:
+
+        - floor:   nearest index below (`table[floor(point) mod n]`)
+        - nearest: closer of the floor/next index (0.5 ties pick floor)
+        - linear:  linear fit across the two bracketing indices
 
         Parameters
         ----------

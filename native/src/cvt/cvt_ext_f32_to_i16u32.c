@@ -254,44 +254,79 @@ F32ToI16U32Obj_exit (F32ToI16U32Object *self, PyObject *args)
   Py_RETURN_NONE;
 }
 
-static PyMethodDef F32ToI16U32Obj_methods[]
-    = { { "reset", (PyCFunction)F32ToI16U32Obj_reset, METH_NOARGS,
-          "Clear the sticky clip flag, starting a fresh saturation history." },
-        { "step", (PyCFunction)F32ToI16U32_step, METH_VARARGS,
-          "step(x) -> uint32_t\n"
-          "\n"
-          "Process one input sample.\n"
-          "\n"
-          "    >>> from doppler import F32ToI16U32\n"
-          "    >>> obj = F32ToI16U32(32768.0)\n"
-          "    >>> obj.step(1.0)\n"
-          "    0\n" },
-        { "steps", (PyCFunction)(void *)F32ToI16U32_steps,
-          METH_VARARGS | METH_KEYWORDS,
-          "steps(x[, out]) -> ndarray\n"
-          "\n"
-          "Process a block of float samples to Q15-in-uint32.\n"
-          "\n"
-          "    >>> import numpy as np\n"
-          "    >>> from doppler import F32ToI16U32\n"
-          "    >>> obj = F32ToI16U32(32768.0)\n"
-          "    >>> y = obj.steps(np.zeros(4, dtype=np.float32))\n"
-          "    >>> y.shape\n"
-          "    (4,)\n"
-          "    >>> y.dtype\n"
-          "    dtype('uint32')\n" },
+static PyMethodDef F32ToI16U32Obj_methods[] = {
+  { "reset", (PyCFunction)F32ToI16U32Obj_reset, METH_NOARGS,
+    "Clear the sticky clip flag, starting a fresh saturation history." },
+  { "step", (PyCFunction)F32ToI16U32_step, METH_VARARGS,
+    "step(x) -> uint32_t\n"
+    "\n"
+    "Scale one float sample to a saturated Q15 code packed in a uint32.\n"
+    "\n"
+    "Computes round(x * scale), saturates to `[-32768, 32767]`, then\n"
+    "zero-extends the 16-bit two's-complement pattern into the lower 16 bits\n"
+    "of a uint32 (upper 16 bits are always zero — headroom for the CIC\n"
+    "integrator cascade). Latches the sticky clipped flag on saturation.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "x : float\n"
+    "    Input sample, normally a normalised float in `[-1, +1]`.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "int\n"
+    "    Q15 code in the low 16 bits of a uint32; e.g. -32768 -> 0x8000.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.cvt import F32ToI16U32\n"
+    ">>> c = F32ToI16U32(scale=32768.0)\n"
+    ">>> c.step(0.5)              # 0.5 -> Q15 16384, upper 16 bits zero\n"
+    "16384\n"
+    ">>> hex(c.step(-1.0))        # -32768 as an unsigned low-16 pattern\n"
+    "'0x8000'\n"
+    "\n" },
+  { "steps", (PyCFunction)(void *)F32ToI16U32_steps,
+    METH_VARARGS | METH_KEYWORDS,
+    "steps(x[, out]) -> ndarray\n"
+    "\n"
+    "Process a block of float samples to Q15-in-uint32.\n"
+    "\n"
+    "Applies step() to every element. The clipped flag is updated\n"
+    "cumulatively across the block. Accepts an optional pre-allocated output\n"
+    "array; allocates a fresh one when output is NULL.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "x : NDArray[np.float32]\n"
+    "    Input sample.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "NDArray[np.uint32]\n"
+    "    Output sample.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.cvt import F32ToI16U32\n"
+    ">>> import numpy as np\n"
+    ">>> F32ToI16U32().steps(np.array([0.0, 0.5], "
+    "dtype=np.float32)).tolist()\n"
+    "[0, 16384]\n"
+    "\n" },
 
-        { "state_bytes", (PyCFunction)F32ToI16U32Obj_state_bytes, METH_NOARGS,
-          "Serialized state size in bytes." },
-        { "get_state", (PyCFunction)F32ToI16U32Obj_get_state, METH_NOARGS,
-          "Serialize the engine's mutable state to bytes." },
-        { "set_state", (PyCFunction)F32ToI16U32Obj_set_state, METH_O,
-          "Restore mutable state from a get_state() blob." },
-        { "destroy", (PyCFunction)F32ToI16U32Obj_destroy, METH_NOARGS,
-          "Release resources." },
-        { "__enter__", (PyCFunction)F32ToI16U32Obj_enter, METH_NOARGS, NULL },
-        { "__exit__", (PyCFunction)F32ToI16U32Obj_exit, METH_VARARGS, NULL },
-        { NULL } };
+  { "state_bytes", (PyCFunction)F32ToI16U32Obj_state_bytes, METH_NOARGS,
+    "Serialized state size in bytes." },
+  { "get_state", (PyCFunction)F32ToI16U32Obj_get_state, METH_NOARGS,
+    "Serialize the engine's mutable state to bytes." },
+  { "set_state", (PyCFunction)F32ToI16U32Obj_set_state, METH_O,
+    "Restore mutable state from a get_state() blob." },
+  { "destroy", (PyCFunction)F32ToI16U32Obj_destroy, METH_NOARGS,
+    "Release resources." },
+  { "__enter__", (PyCFunction)F32ToI16U32Obj_enter, METH_NOARGS, NULL },
+  { "__exit__", (PyCFunction)F32ToI16U32Obj_exit, METH_VARARGS, NULL },
+  { NULL }
+};
 
 static PyTypeObject F32ToI16U32ObjType = {
   PyVarObject_HEAD_INIT (NULL, 0).tp_name = "cvt.F32ToI16U32",

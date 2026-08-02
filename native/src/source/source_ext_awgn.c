@@ -329,10 +329,22 @@ static PyMethodDef AWGNObj_methods[]
           "calling awgn_destroy() and awgn_create(seed, amplitude) but reuses "
           "the existing allocation.  amplitude is unchanged.\n"
           "\n"
-          "    >>> import numpy as np\n"
-          "    >>> from doppler import AWGN\n"
-          "    >>> obj = AWGN(0, 1.0)\n"
-          "    >>> obj.reseed(0)\n" },
+          "Parameters\n"
+          "----------\n"
+          "seed : int\n"
+          "    New 64-bit RNG seed.\n"
+          "\n"
+          "Examples\n"
+          "--------\n"
+          ">>> import numpy as np\n"
+          ">>> from doppler.source import AWGN\n"
+          ">>> gen = AWGN(seed=0, amplitude=1.0)\n"
+          ">>> gen.reseed(42)\n"
+          ">>> out1 = gen.generate(4)\n"
+          ">>> gen2 = AWGN(seed=42, amplitude=1.0)\n"
+          ">>> out2 = gen2.generate(4)\n"
+          ">>> bool(np.all(out1 == out2))\n"
+          "True\n" },
         { "state_bytes", (PyCFunction)AWGNObj_state_bytes, METH_NOARGS,
           "Serialized state size in bytes." },
         { "get_state", (PyCFunction)AWGNObj_get_state, METH_NOARGS,

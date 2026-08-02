@@ -181,38 +181,76 @@ UQ15ToF32Obj_exit (UQ15ToF32Object *self, PyObject *args)
   Py_RETURN_NONE;
 }
 
-static PyMethodDef UQ15ToF32Obj_methods[]
-    = { { "reset", (PyCFunction)UQ15ToF32Obj_reset, METH_NOARGS,
-          "No-op reset, provided only for lifecycle symmetry." },
-        { "step", (PyCFunction)UQ15ToF32_step, METH_VARARGS,
-          "step(x) -> float\n"
-          "\n"
-          "Process one input sample.\n"
-          "\n"
-          "    >>> from doppler import UQ15ToF32\n"
-          "    >>> obj = UQ15ToF32(32768.0)\n"
-          "    >>> obj.step(1)\n"
-          "    0.0\n" },
-        { "steps", (PyCFunction)(void *)UQ15ToF32_steps,
-          METH_VARARGS | METH_KEYWORDS,
-          "steps(x[, out]) -> ndarray\n"
-          "\n"
-          "Process a block of UQ15 samples to float32.\n"
-          "\n"
-          "    >>> import numpy as np\n"
-          "    >>> from doppler import UQ15ToF32\n"
-          "    >>> obj = UQ15ToF32(32768.0)\n"
-          "    >>> y = obj.steps(np.zeros(4, dtype=np.uint16))\n"
-          "    >>> y.shape\n"
-          "    (4,)\n"
-          "    >>> y.dtype\n"
-          "    dtype('float32')\n" },
+static PyMethodDef UQ15ToF32Obj_methods[] = {
+  { "reset", (PyCFunction)UQ15ToF32Obj_reset, METH_NOARGS,
+    "No-op reset, provided only for lifecycle symmetry." },
+  { "step", (PyCFunction)UQ15ToF32_step, METH_VARARGS,
+    "step(x) -> float\n"
+    "\n"
+    "Decode one offset-binary UQ15 uint16 code to a normalised float.\n"
+    "\n"
+    "Computes ((int32_t)x - 32768) * iscale — removes the 32768 "
+    "offset-binary\n"
+    "bias and applies 1/scale. The int32_t cast prevents signed overflow "
+    "when\n"
+    "x is 0 (which yields -32768 after bias removal). Exact inverse of\n"
+    "F32ToUQ15 at the same scale.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "x : int\n"
+    "    UQ15 offset-binary uint16 code: 0 -> -1.0, 32768 -> 0.0, 65535 ->\n"
+    "    +32767/32768.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "float\n"
+    "    Normalised float in `[-1.0, ~+1.0)`.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.cvt import UQ15ToF32\n"
+    ">>> c = UQ15ToF32(scale=32768.0)\n"
+    ">>> round(c.step(32768), 4)   # midscale code -> 0.0\n"
+    "0.0\n"
+    ">>> round(c.step(0), 4)       # zero code -> -1.0\n"
+    "-1.0\n"
+    "\n" },
+  { "steps", (PyCFunction)(void *)UQ15ToF32_steps,
+    METH_VARARGS | METH_KEYWORDS,
+    "steps(x[, out]) -> ndarray\n"
+    "\n"
+    "Process a block of UQ15 samples to float32.\n"
+    "\n"
+    "Applies step() to every element. State is not mutated (no clipped "
+    "flag).\n"
+    "Accepts an optional pre-allocated output array; allocates a fresh one\n"
+    "when output is NULL.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "x : NDArray[np.uint16]\n"
+    "    Input sample.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "NDArray[np.float32]\n"
+    "    Output sample.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.cvt import UQ15ToF32\n"
+    ">>> import numpy as np\n"
+    ">>> UQ15ToF32().steps(np.array([0, 32768], dtype=np.uint16)).tolist()\n"
+    "[-1.0, 0.0]\n"
+    "\n" },
 
-        { "destroy", (PyCFunction)UQ15ToF32Obj_destroy, METH_NOARGS,
-          "Release resources." },
-        { "__enter__", (PyCFunction)UQ15ToF32Obj_enter, METH_NOARGS, NULL },
-        { "__exit__", (PyCFunction)UQ15ToF32Obj_exit, METH_VARARGS, NULL },
-        { NULL } };
+  { "destroy", (PyCFunction)UQ15ToF32Obj_destroy, METH_NOARGS,
+    "Release resources." },
+  { "__enter__", (PyCFunction)UQ15ToF32Obj_enter, METH_NOARGS, NULL },
+  { "__exit__", (PyCFunction)UQ15ToF32Obj_exit, METH_VARARGS, NULL },
+  { NULL }
+};
 
 static PyTypeObject UQ15ToF32ObjType = {
   PyVarObject_HEAD_INIT (NULL, 0).tp_name = "cvt.UQ15ToF32",

@@ -183,38 +183,72 @@ I16U64ToF32Obj_exit (I16U64ToF32Object *self, PyObject *args)
   Py_RETURN_NONE;
 }
 
-static PyMethodDef I16U64ToF32Obj_methods[]
-    = { { "reset", (PyCFunction)I16U64ToF32Obj_reset, METH_NOARGS,
-          "No-op reset, provided only for lifecycle symmetry." },
-        { "step", (PyCFunction)I16U64ToF32_step, METH_VARARGS,
-          "step(x) -> float\n"
-          "\n"
-          "Process one input sample.\n"
-          "\n"
-          "    >>> from doppler import I16U64ToF32\n"
-          "    >>> obj = I16U64ToF32(32768.0)\n"
-          "    >>> obj.step(1)\n"
-          "    0.0\n" },
-        { "steps", (PyCFunction)(void *)I16U64ToF32_steps,
-          METH_VARARGS | METH_KEYWORDS,
-          "steps(x[, out]) -> ndarray\n"
-          "\n"
-          "Process a block of Q15-in-uint64 samples to float32.\n"
-          "\n"
-          "    >>> import numpy as np\n"
-          "    >>> from doppler import I16U64ToF32\n"
-          "    >>> obj = I16U64ToF32(32768.0)\n"
-          "    >>> y = obj.steps(np.zeros(4, dtype=np.uint64))\n"
-          "    >>> y.shape\n"
-          "    (4,)\n"
-          "    >>> y.dtype\n"
-          "    dtype('float32')\n" },
+static PyMethodDef I16U64ToF32Obj_methods[] = {
+  { "reset", (PyCFunction)I16U64ToF32Obj_reset, METH_NOARGS,
+    "No-op reset, provided only for lifecycle symmetry." },
+  { "step", (PyCFunction)I16U64ToF32_step, METH_VARARGS,
+    "step(x) -> float\n"
+    "\n"
+    "Unpack a Q15 code from a uint64's low 16 bits to a normalised float.\n"
+    "\n"
+    "Masks off the lower 16 bits, reinterprets them as a signed int16 (two's\n"
+    "complement), then multiplies by iscale — a single multiply after the\n"
+    "extraction. The upper 48 bits (which may carry NCO phase-accumulator\n"
+    "headroom) are ignored. Exact inverse of F32ToI16U64 at the same scale.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "x : int\n"
+    "    uint64 carrying a Q15 code in its low 16 bits.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "float\n"
+    "    Normalised float recovered from the low-16 Q15 code.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.cvt import I16U64ToF32\n"
+    ">>> c = I16U64ToF32(scale=32768.0)\n"
+    ">>> round(c.step(16384), 4)         # low-16 Q15 16384 -> 0.5\n"
+    "0.5\n"
+    ">>> round(c.step(0x8000), 4)        # 0x8000 reinterpreted as -32768 -> "
+    "-1.0\n"
+    "-1.0\n"
+    "\n" },
+  { "steps", (PyCFunction)(void *)I16U64ToF32_steps,
+    METH_VARARGS | METH_KEYWORDS,
+    "steps(x[, out]) -> ndarray\n"
+    "\n"
+    "Process a block of Q15-in-uint64 samples to float32.\n"
+    "\n"
+    "Applies step() to every element. Accepts an optional pre-allocated\n"
+    "output array; allocates a fresh one when output is NULL.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "x : NDArray[np.uint64]\n"
+    "    Input sample.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "NDArray[np.float32]\n"
+    "    Output sample.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.cvt import I16U64ToF32\n"
+    ">>> import numpy as np\n"
+    ">>> I16U64ToF32().steps(np.array([0, 16384], dtype=np.uint64)).tolist()\n"
+    "[0.0, 0.5]\n"
+    "\n" },
 
-        { "destroy", (PyCFunction)I16U64ToF32Obj_destroy, METH_NOARGS,
-          "Release resources." },
-        { "__enter__", (PyCFunction)I16U64ToF32Obj_enter, METH_NOARGS, NULL },
-        { "__exit__", (PyCFunction)I16U64ToF32Obj_exit, METH_VARARGS, NULL },
-        { NULL } };
+  { "destroy", (PyCFunction)I16U64ToF32Obj_destroy, METH_NOARGS,
+    "Release resources." },
+  { "__enter__", (PyCFunction)I16U64ToF32Obj_enter, METH_NOARGS, NULL },
+  { "__exit__", (PyCFunction)I16U64ToF32Obj_exit, METH_VARARGS, NULL },
+  { NULL }
+};
 
 static PyTypeObject I16U64ToF32ObjType = {
   PyVarObject_HEAD_INIT (NULL, 0).tp_name = "cvt.I16U64ToF32",

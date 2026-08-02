@@ -249,44 +249,81 @@ F32ToUQ15Obj_exit (F32ToUQ15Object *self, PyObject *args)
   Py_RETURN_NONE;
 }
 
-static PyMethodDef F32ToUQ15Obj_methods[]
-    = { { "reset", (PyCFunction)F32ToUQ15Obj_reset, METH_NOARGS,
-          "Clear the sticky clip flag, starting a fresh saturation history." },
-        { "step", (PyCFunction)F32ToUQ15_step, METH_VARARGS,
-          "step(x) -> uint16_t\n"
-          "\n"
-          "Process one input sample.\n"
-          "\n"
-          "    >>> from doppler import F32ToUQ15\n"
-          "    >>> obj = F32ToUQ15(32768.0)\n"
-          "    >>> obj.step(1.0)\n"
-          "    0\n" },
-        { "steps", (PyCFunction)(void *)F32ToUQ15_steps,
-          METH_VARARGS | METH_KEYWORDS,
-          "steps(x[, out]) -> ndarray\n"
-          "\n"
-          "Process a block of float samples to UQ15 uint16.\n"
-          "\n"
-          "    >>> import numpy as np\n"
-          "    >>> from doppler import F32ToUQ15\n"
-          "    >>> obj = F32ToUQ15(32768.0)\n"
-          "    >>> y = obj.steps(np.zeros(4, dtype=np.float32))\n"
-          "    >>> y.shape\n"
-          "    (4,)\n"
-          "    >>> y.dtype\n"
-          "    dtype('uint16')\n" },
+static PyMethodDef F32ToUQ15Obj_methods[] = {
+  { "reset", (PyCFunction)F32ToUQ15Obj_reset, METH_NOARGS,
+    "Clear the sticky clip flag, starting a fresh saturation history." },
+  { "step", (PyCFunction)F32ToUQ15_step, METH_VARARGS,
+    "step(x) -> uint16_t\n"
+    "\n"
+    "Scale one float sample to an offset-binary UQ15 uint16 code.\n"
+    "\n"
+    "Computes round(x * scale), clamps to `[-32768, 32767]`, then adds the\n"
+    "32768 offset-binary bias so the signed float domain maps onto the full\n"
+    "unsigned uint16 range. Latches the sticky clipped flag if the scaled\n"
+    "value saturated before clamping. Suits DAC and file formats that store\n"
+    "only unsigned integers.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "x : float\n"
+    "    Input sample, normally a normalised float in `[-1, +1]`.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "int\n"
+    "    Offset-binary uint16 in `[0, 65535]`: -1.0 -> 0, 0.0 -> 32768, +1.0\n"
+    "    -> 65535.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.cvt import F32ToUQ15\n"
+    ">>> c = F32ToUQ15(scale=32768.0)\n"
+    ">>> c.step(0.0)          # midscale maps to the offset-binary bias\n"
+    "32768\n"
+    ">>> c.step(-1.0)         # full-negative maps to code 0\n"
+    "0\n"
+    "\n" },
+  { "steps", (PyCFunction)(void *)F32ToUQ15_steps,
+    METH_VARARGS | METH_KEYWORDS,
+    "steps(x[, out]) -> ndarray\n"
+    "\n"
+    "Process a block of float samples to UQ15 uint16.\n"
+    "\n"
+    "Applies step() to every element. The clipped flag is updated\n"
+    "cumulatively across the block. Accepts an optional pre-allocated output\n"
+    "array; allocates a fresh one when output is NULL.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "x : NDArray[np.float32]\n"
+    "    Input sample.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "NDArray[np.uint16]\n"
+    "    Output sample.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.cvt import F32ToUQ15\n"
+    ">>> import numpy as np\n"
+    ">>> F32ToUQ15().steps(np.array([-1.0, 0.0, 0.999], "
+    "dtype=np.float32)).tolist()\n"
+    "[0, 32768, 65503]\n"
+    "\n" },
 
-        { "state_bytes", (PyCFunction)F32ToUQ15Obj_state_bytes, METH_NOARGS,
-          "Serialized state size in bytes." },
-        { "get_state", (PyCFunction)F32ToUQ15Obj_get_state, METH_NOARGS,
-          "Serialize the engine's mutable state to bytes." },
-        { "set_state", (PyCFunction)F32ToUQ15Obj_set_state, METH_O,
-          "Restore mutable state from a get_state() blob." },
-        { "destroy", (PyCFunction)F32ToUQ15Obj_destroy, METH_NOARGS,
-          "Release resources." },
-        { "__enter__", (PyCFunction)F32ToUQ15Obj_enter, METH_NOARGS, NULL },
-        { "__exit__", (PyCFunction)F32ToUQ15Obj_exit, METH_VARARGS, NULL },
-        { NULL } };
+  { "state_bytes", (PyCFunction)F32ToUQ15Obj_state_bytes, METH_NOARGS,
+    "Serialized state size in bytes." },
+  { "get_state", (PyCFunction)F32ToUQ15Obj_get_state, METH_NOARGS,
+    "Serialize the engine's mutable state to bytes." },
+  { "set_state", (PyCFunction)F32ToUQ15Obj_set_state, METH_O,
+    "Restore mutable state from a get_state() blob." },
+  { "destroy", (PyCFunction)F32ToUQ15Obj_destroy, METH_NOARGS,
+    "Release resources." },
+  { "__enter__", (PyCFunction)F32ToUQ15Obj_enter, METH_NOARGS, NULL },
+  { "__exit__", (PyCFunction)F32ToUQ15Obj_exit, METH_VARARGS, NULL },
+  { NULL }
+};
 
 static PyTypeObject F32ToUQ15ObjType = {
   PyVarObject_HEAD_INIT (NULL, 0).tp_name = "cvt.F32ToUQ15",

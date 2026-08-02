@@ -288,52 +288,101 @@ MovingAverageObj_exit (MovingAverageObject *self, PyObject *args)
   Py_RETURN_NONE;
 }
 
-static PyMethodDef MovingAverageObj_methods[]
-    = { { "step", (PyCFunction)MovingAverage_step, METH_VARARGS,
-          "step(x) -> float complex\n"
-          "\n"
-          "Slide the window by one sample; return the gained moving average.\n"
-          "\n"
-          "    >>> from doppler import MovingAverage\n"
-          "    >>> obj = MovingAverage(4, 1.0)\n"
-          "    >>> obj.step(1.0 + 0.0j)\n"
-          "    0j\n" },
-        { "steps", (PyCFunction)(void *)MovingAverage_steps,
-          METH_VARARGS | METH_KEYWORDS,
-          "steps(x[, out]) -> ndarray\n"
-          "\n"
-          "Filter a block: write the gained moving average of each sample.\n"
-          "\n"
-          "    >>> import numpy as np\n"
-          "    >>> from doppler import MovingAverage\n"
-          "    >>> obj = MovingAverage(4, 1.0)\n"
-          "    >>> y = obj.steps(np.zeros(4, dtype=np.complex64))\n"
-          "    >>> y.shape\n"
-          "    (4,)\n"
-          "    >>> y.dtype\n"
-          "    dtype('complex64')\n" },
+static PyMethodDef MovingAverageObj_methods[] = {
+  { "step", (PyCFunction)MovingAverage_step, METH_VARARGS,
+    "step(x) -> float complex\n"
+    "\n"
+    "Slide the window by one sample; return the gained moving average.\n"
+    "\n"
+    "O(1): add x, drop the sample leaving the window, return `acc · scale` "
+    "(=\n"
+    "`gain · acc / len`) — one multiply.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "x : complex\n"
+    "    One input sample.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "complex\n"
+    "    The gained window mean after admitting x.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.filter import MovingAverage\n"
+    ">>> ma = MovingAverage(2)   # 2-sample sliding window, unit gain\n"
+    ">>> [round(ma.step(v).real, 4) for v in (1 + 0j, 3 + 0j, 3 + 0j)]\n"
+    "[0.5, 2.0, 3.0]\n"
+    "\n" },
+  { "steps", (PyCFunction)(void *)MovingAverage_steps,
+    METH_VARARGS | METH_KEYWORDS,
+    "steps(x[, out]) -> ndarray\n"
+    "\n"
+    "Filter a block: write the gained moving average of each sample.\n"
+    "\n"
+    "Applies boxcar_step() to each input sample in turn, so the window sum\n"
+    "and ring carry across the block exactly as they would sample by sample "
+    "—\n"
+    "a stream can be processed in frames of any size with no seam.\n"
+    "Immediately after a reset the first len-1 outputs average over a "
+    "partial\n"
+    "(still filling) window and ramp in.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "x : NDArray[np.complex64]\n"
+    "    Input samples.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "NDArray[np.complex64]\n"
+    "    Output sample.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.filter import MovingAverage\n"
+    ">>> ma = MovingAverage(3)                          # 3-sample window\n"
+    ">>> x = np.ones(5, np.complex64)                   # unit step input\n"
+    ">>> [round(v, 4) for v in ma.steps(x).real.tolist()]\n"
+    "[0.3333, 0.6667, 1.0, 1.0, 1.0]\n"
+    "\n" },
 
-        { "reset", (PyCFunction)MovingAverageObj_reset, METH_NOARGS,
-          "reset() -> None\n"
-          "\n"
-          "Clear the window (zero the ring and the running sum); keep the "
-          "configured length and gain.\n"
-          "\n"
-          "    >>> from doppler import MovingAverage\n"
-          "    >>> obj = MovingAverage(4, 1.0)\n"
-          "    >>> obj.reset()\n" },
-        { "state_bytes", (PyCFunction)MovingAverageObj_state_bytes,
-          METH_NOARGS, "Serialized state size in bytes." },
-        { "get_state", (PyCFunction)MovingAverageObj_get_state, METH_NOARGS,
-          "Serialize the engine's mutable state to bytes." },
-        { "set_state", (PyCFunction)MovingAverageObj_set_state, METH_O,
-          "Restore mutable state from a get_state() blob." },
-        { "destroy", (PyCFunction)MovingAverageObj_destroy, METH_NOARGS,
-          "Release resources." },
-        { "__enter__", (PyCFunction)MovingAverageObj_enter, METH_NOARGS,
-          NULL },
-        { "__exit__", (PyCFunction)MovingAverageObj_exit, METH_VARARGS, NULL },
-        { NULL } };
+  { "reset", (PyCFunction)MovingAverageObj_reset, METH_NOARGS,
+    "reset() -> None\n"
+    "\n"
+    "Clear the window (zero the ring and the running sum); keep the "
+    "configured length and gain.\n"
+    "\n"
+    "Returns the filter to its just-constructed state: the delay ring and "
+    "the\n"
+    "running window sum are zeroed while len and gain are preserved, so the\n"
+    "next len-1 outputs ramp in over a partial window exactly as they did on\n"
+    "a fresh instance. Call it at a segment boundary so samples from one\n"
+    "capture do not average into an unrelated next one.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.filter import MovingAverage\n"
+    ">>> ma = MovingAverage(2)                         # 2-sample window\n"
+    ">>> _ = ma.steps(np.ones(4, np.complex64))        # fill the window\n"
+    ">>> ma.reset()                                    # clear it\n"
+    ">>> round(ma.step(1 + 0j).real, 4)                # ramps in from empty\n"
+    "0.5\n" },
+  { "state_bytes", (PyCFunction)MovingAverageObj_state_bytes, METH_NOARGS,
+    "Serialized state size in bytes." },
+  { "get_state", (PyCFunction)MovingAverageObj_get_state, METH_NOARGS,
+    "Serialize the engine's mutable state to bytes." },
+  { "set_state", (PyCFunction)MovingAverageObj_set_state, METH_O,
+    "Restore mutable state from a get_state() blob." },
+  { "destroy", (PyCFunction)MovingAverageObj_destroy, METH_NOARGS,
+    "Release resources." },
+  { "__enter__", (PyCFunction)MovingAverageObj_enter, METH_NOARGS, NULL },
+  { "__exit__", (PyCFunction)MovingAverageObj_exit, METH_VARARGS, NULL },
+  { NULL }
+};
 
 static PyTypeObject MovingAverageObjType = {
   PyVarObject_HEAD_INIT (NULL, 0).tp_name = "filter.MovingAverage",

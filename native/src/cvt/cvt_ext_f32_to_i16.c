@@ -249,44 +249,84 @@ F32ToI16Obj_exit (F32ToI16Object *self, PyObject *args)
   Py_RETURN_NONE;
 }
 
-static PyMethodDef F32ToI16Obj_methods[]
-    = { { "reset", (PyCFunction)F32ToI16Obj_reset, METH_NOARGS,
-          "Clear the sticky clip flag, starting a fresh saturation history." },
-        { "step", (PyCFunction)F32ToI16_step, METH_VARARGS,
-          "step(x) -> int16_t\n"
-          "\n"
-          "Process one input sample.\n"
-          "\n"
-          "    >>> from doppler import F32ToI16\n"
-          "    >>> obj = F32ToI16(32768.0)\n"
-          "    >>> obj.step(1.0)\n"
-          "    0\n" },
-        { "steps", (PyCFunction)(void *)F32ToI16_steps,
-          METH_VARARGS | METH_KEYWORDS,
-          "steps(x[, out]) -> ndarray\n"
-          "\n"
-          "Process a block of float samples to int16.\n"
-          "\n"
-          "    >>> import numpy as np\n"
-          "    >>> from doppler import F32ToI16\n"
-          "    >>> obj = F32ToI16(32768.0)\n"
-          "    >>> y = obj.steps(np.zeros(4, dtype=np.float32))\n"
-          "    >>> y.shape\n"
-          "    (4,)\n"
-          "    >>> y.dtype\n"
-          "    dtype('int16')\n" },
+static PyMethodDef F32ToI16Obj_methods[] = {
+  { "reset", (PyCFunction)F32ToI16Obj_reset, METH_NOARGS,
+    "Clear the sticky clip flag, starting a fresh saturation history." },
+  { "step", (PyCFunction)F32ToI16_step, METH_VARARGS,
+    "step(x) -> int16_t\n"
+    "\n"
+    "Scale one float sample by scale, round, and saturate to int16.\n"
+    "\n"
+    "Computes round(x * scale), clamps to the int16 range `[-32768, 32767]`,\n"
+    "and latches the sticky clipped flag if the scaled value fell outside\n"
+    "that range before clamping. At the default scale of 32768 a normalised\n"
+    "`[-1, +1]` input maps to the full Q15 code range.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "x : float\n"
+    "    Input sample, normally a normalised float in `[-1, +1]`.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "int\n"
+    "    Saturated int16 code in `[-32768, 32767]`.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.cvt import F32ToI16\n"
+    ">>> c = F32ToI16(scale=32768.0)   # normalised float -> full-scale Q15\n"
+    ">>> c.step(0.5)                    # 0.5 * 32768\n"
+    "16384\n"
+    ">>> c.step(2.0)                    # beyond +1.0 -> saturates to int16 "
+    "max\n"
+    "32767\n"
+    ">>> c.clipped                      # sticky flag latched by the clip\n"
+    "True\n"
+    "\n" },
+  { "steps", (PyCFunction)(void *)F32ToI16_steps, METH_VARARGS | METH_KEYWORDS,
+    "steps(x[, out]) -> ndarray\n"
+    "\n"
+    "Process a block of float samples to int16.\n"
+    "\n"
+    "Applies step() to every element. The clipped flag is updated\n"
+    "cumulatively across the block — a single saturating sample raises it "
+    "for\n"
+    "the entire call. Accepts an optional pre-allocated output array;\n"
+    "allocates a fresh one when output is NULL.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "x : NDArray[np.float32]\n"
+    "    Input sample.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "NDArray[np.int16]\n"
+    "    Output sample.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.cvt import F32ToI16\n"
+    ">>> import numpy as np\n"
+    ">>> x = np.array([0.0, 0.5, -1.0, 0.999], dtype=np.float32)\n"
+    ">>> F32ToI16().steps(x).tolist()   # default scale=32768 -> full-scale "
+    "int16\n"
+    "[0, 16384, -32768, 32735]\n"
+    "\n" },
 
-        { "state_bytes", (PyCFunction)F32ToI16Obj_state_bytes, METH_NOARGS,
-          "Serialized state size in bytes." },
-        { "get_state", (PyCFunction)F32ToI16Obj_get_state, METH_NOARGS,
-          "Serialize the engine's mutable state to bytes." },
-        { "set_state", (PyCFunction)F32ToI16Obj_set_state, METH_O,
-          "Restore mutable state from a get_state() blob." },
-        { "destroy", (PyCFunction)F32ToI16Obj_destroy, METH_NOARGS,
-          "Release resources." },
-        { "__enter__", (PyCFunction)F32ToI16Obj_enter, METH_NOARGS, NULL },
-        { "__exit__", (PyCFunction)F32ToI16Obj_exit, METH_VARARGS, NULL },
-        { NULL } };
+  { "state_bytes", (PyCFunction)F32ToI16Obj_state_bytes, METH_NOARGS,
+    "Serialized state size in bytes." },
+  { "get_state", (PyCFunction)F32ToI16Obj_get_state, METH_NOARGS,
+    "Serialize the engine's mutable state to bytes." },
+  { "set_state", (PyCFunction)F32ToI16Obj_set_state, METH_O,
+    "Restore mutable state from a get_state() blob." },
+  { "destroy", (PyCFunction)F32ToI16Obj_destroy, METH_NOARGS,
+    "Release resources." },
+  { "__enter__", (PyCFunction)F32ToI16Obj_enter, METH_NOARGS, NULL },
+  { "__exit__", (PyCFunction)F32ToI16Obj_exit, METH_VARARGS, NULL },
+  { NULL }
+};
 
 static PyTypeObject F32ToI16ObjType = {
   PyVarObject_HEAD_INIT (NULL, 0).tp_name = "cvt.F32ToI16",

@@ -1,8 +1,9 @@
 # spectral/spectral.pyi — type stubs for the spectral C extension.
-from typing import Any, Literal
+from typing import Any, final, Literal
 import numpy as np
 from numpy.typing import NDArray
 
+@final
 class FFT:
     """Allocate a reusable 1-D FFT engine for a fixed length and sign. Two pocketfft plans are created at construction time — one for CF64 and one for CF32 — so execute calls carry no plan-setup overhead.  The same instance may be called repeatedly for independent input vectors of the same length.  nthreads is accepted for API parity but is ignored; pocketfft plans are single-threaded.
 
@@ -17,10 +18,14 @@ class FFT:
 
     Examples
     --------
-    Create with defaults:
-
     >>> from doppler.spectral import FFT
-    >>> obj = FFT(n=1024, sign=-1, nthreads=1)
+    >>> import numpy as np
+    >>> fft = FFT(n=4, sign=-1, nthreads=1)
+    >>> fft.n, fft.sign
+    (4, -1)
+    >>> x = np.array([1, 0, 0, 0], dtype=np.complex64)
+    >>> fft.execute_cf32(x).tolist()
+    [(1+0j), (1+0j), (1+0j), (1+0j)]
 
     """
     def __init__(self, n: int = ..., sign: int = ..., nthreads: int = ...) -> None: ...
@@ -40,7 +45,7 @@ class FFT:
         Returns
         -------
         NDArray[np.complex128]
-            n (number of samples written).
+            min(state->n, max_out) bins.
 
         Examples
         --------
@@ -53,8 +58,19 @@ class FFT:
 
         """
 
-    def execute_cf64_max_out(self) -> int:
-        """Max output length execute_cf64() can produce for the current state."""
+    def execute_cf64_max_out(self, n_in: int) -> int:
+        """Maximum output samples per execute call (always == n).
+
+        Parameters
+        ----------
+        n_in : int
+            Input.
+
+        Returns
+        -------
+        int
+            Output.
+        """
 
     def execute_cf32(self, x: NDArray[np.complex64], out: NDArray[np.complex64] | None = None) -> NDArray[np.complex64]:
         """Compute an out-of-place 1-D DFT on a single-precision complex input. Identical to fft_execute_cf64() but operates on float complex (CF32) buffers, halving memory bandwidth relative to the double-precision variant. Output is unnormalised; in and out must not alias.
@@ -67,7 +83,7 @@ class FFT:
         Returns
         -------
         NDArray[np.complex64]
-            n (number of samples written).
+            min(state->n, max_out) bins.
 
         Examples
         --------
@@ -80,8 +96,19 @@ class FFT:
 
         """
 
-    def execute_cf32_max_out(self) -> int:
-        """Max output length execute_cf32() can produce for the current state."""
+    def execute_cf32_max_out(self, n_in: int) -> int:
+        """Maximum output samples for CF32 execute (always == n).
+
+        Parameters
+        ----------
+        n_in : int
+            Input.
+
+        Returns
+        -------
+        int
+            Output.
+        """
 
     def execute_inplace_cf64(self, x: NDArray[np.complex128], out: NDArray[np.complex128] | None = None) -> NDArray[np.complex128]:
         """Copy in into out, then transform out in-place (CF64). The copy step lets callers preserve their input while keeping the output buffer hot in cache.  Semantically identical to fft_execute_cf64() for separate in / out pointers; use this variant when the caller already owns out and wants the result there without a second allocation.
@@ -94,7 +121,7 @@ class FFT:
         Returns
         -------
         NDArray[np.complex128]
-            n (number of samples written).
+            min(state->n, max_out) bins.
 
         Examples
         --------
@@ -107,8 +134,19 @@ class FFT:
 
         """
 
-    def execute_inplace_cf64_max_out(self) -> int:
-        """Max output length execute_inplace_cf64() can produce for the current state."""
+    def execute_inplace_cf64_max_out(self, n_in: int) -> int:
+        """Maximum output samples for inplace CF64 (always == n).
+
+        Parameters
+        ----------
+        n_in : int
+            Input.
+
+        Returns
+        -------
+        int
+            Output.
+        """
 
     def execute_inplace_cf32(self, x: NDArray[np.complex64], out: NDArray[np.complex64] | None = None) -> NDArray[np.complex64]:
         """Copy in into out, then transform out in-place (CF32). Single-precision variant of fft_execute_inplace_cf64().  Copies state->n CF32 samples from in to out, then transforms out with the CF32 pocketfft plan.  in is left unmodified.
@@ -121,7 +159,7 @@ class FFT:
         Returns
         -------
         NDArray[np.complex64]
-            n (number of samples written).
+            min(state->n, max_out) bins.
 
         Examples
         --------
@@ -134,8 +172,19 @@ class FFT:
 
         """
 
-    def execute_inplace_cf32_max_out(self) -> int:
-        """Max output length execute_inplace_cf32() can produce for the current state."""
+    def execute_inplace_cf32_max_out(self, n_in: int) -> int:
+        """Maximum output samples for inplace CF32 (always == n).
+
+        Parameters
+        ----------
+        n_in : int
+            Input.
+
+        Returns
+        -------
+        int
+            Output.
+        """
 
     def execute_ci16(self, iq: NDArray[np.int16]) -> NDArray[np.complex64]:
         """Out-of-place 1-D FFT directly on interleaved int16 I/Q (CF32 out). The int16->float convert (v/32768, full-scale +/-1.0) is fused into the transform, so it is faster than i16_to_f32 then execute_cf32.
@@ -174,12 +223,47 @@ class FFT:
         """Sign."""
 
     def destroy(self) -> None:
-        """Release C resources immediately."""
+        """Release the underlying C resources immediately.
 
-    def __enter__(self) -> "FFT": ...
+        Ordinarily unnecessary: the resources are freed when the object is
+        garbage-collected. Call this to release them at a definite point
+        instead, or use the object as a context manager, which calls it on exit.
 
-    def __exit__(self, *args: object) -> None: ...
+        Idempotent: calling it again on an already-released object does nothing.
+        Every other method raises ``RuntimeError`` once it has run.
+        """
 
+
+    def __enter__(self) -> "FFT":
+        """Enter a context manager, returning this object.
+
+        Lets a FFT be used in a `with` statement so its C resources are released
+        deterministically on exit rather than at collection time.
+
+        Returns
+        -------
+        FFT
+            This same object, not a copy.
+        """
+
+    def __exit__(self, exc_type: object | None = ..., exc: object | None = ..., tb: object | None = ...) -> None:
+        """Exit a context manager, releasing the FFT.
+
+        Equivalent to calling `destroy()`. Returns ``None``, so an exception
+        raised inside the `with` body propagates normally; this never suppresses
+        one.
+
+        Parameters
+        ----------
+        exc_type : object | None
+            Exception class, or None. Ignored.
+        exc : object | None
+            Exception instance, or None. Ignored.
+        tb : object | None
+            Traceback object, or None. Ignored.
+        """
+
+@final
 class FFT2D:
     """Allocate a reusable 2-D FFT engine for a fixed ny×nx grid. Two pocketfft 2-D plans are built at construction time — one CF64, one CF32.  All execute calls accept and return flat row-major arrays of length ny*nx; the Python layer may reshape them with .reshape(ny, nx). nthreads is accepted for API parity but ignored.
 
@@ -196,10 +280,17 @@ class FFT2D:
 
     Examples
     --------
-    Create with defaults:
-
     >>> from doppler.spectral import FFT2D
-    >>> obj = FFT2D(ny=64, nx=64, sign=-1, nthreads=1)
+    >>> import numpy as np
+    >>> fft2d = FFT2D(ny=4, nx=4, sign=-1, nthreads=1)
+    >>> fft2d.ny, fft2d.nx, fft2d.sign
+    (4, 4, -1)
+    >>> x = np.zeros(16, dtype=np.complex64); x[0] = 1.0
+    >>> out = fft2d.execute_cf32(x)
+    >>> out.shape, out.dtype
+    ((16,), dtype('complex64'))
+    >>> bool(np.allclose(out, 1.0))
+    True
 
     """
     def __init__(self, ny: int = ..., nx: int = ..., sign: int = ..., nthreads: int = ...) -> None: ...
@@ -219,7 +310,7 @@ class FFT2D:
         Returns
         -------
         NDArray[np.complex128]
-            ny*nx (number of samples written).
+            min(ny*nx, max_out) samples.
 
         Examples
         --------
@@ -235,8 +326,19 @@ class FFT2D:
 
         """
 
-    def execute_cf64_max_out(self) -> int:
-        """Max output length execute_cf64() can produce for the current state."""
+    def execute_cf64_max_out(self, n_in: int) -> int:
+        """Maximum output samples per execute call (ny * nx).
+
+        Parameters
+        ----------
+        n_in : int
+            Input.
+
+        Returns
+        -------
+        int
+            Output.
+        """
 
     def execute_cf32(self, x: NDArray[np.complex64], out: NDArray[np.complex64] | None = None) -> NDArray[np.complex64]:
         """Compute an out-of-place 2-D DFT on a single-precision complex grid. Single-precision variant of fft2d_execute_cf64().  Accepts and returns flat row-major CF32 arrays of length ny*nx.  Output is unnormalised; in and out must not alias.
@@ -249,7 +351,7 @@ class FFT2D:
         Returns
         -------
         NDArray[np.complex64]
-            ny*nx (number of samples written).
+            min(ny*nx, max_out) samples.
 
         Examples
         --------
@@ -265,8 +367,19 @@ class FFT2D:
 
         """
 
-    def execute_cf32_max_out(self) -> int:
-        """Max output length execute_cf32() can produce for the current state."""
+    def execute_cf32_max_out(self, n_in: int) -> int:
+        """Maximum output samples for CF32 execute (ny * nx).
+
+        Parameters
+        ----------
+        n_in : int
+            Input.
+
+        Returns
+        -------
+        int
+            Output.
+        """
 
     def execute_inplace_cf64(self, x: NDArray[np.complex128], out: NDArray[np.complex128] | None = None) -> NDArray[np.complex128]:
         """Copy in into out, then transform out in-place (CF64 2-D). The ny*nx CF64 samples from in are first memcpy'd to out; the 2-D DFT is then applied to out in-place.  in is left unmodified. Useful when the caller owns out and wants to preserve in.
@@ -279,7 +392,7 @@ class FFT2D:
         Returns
         -------
         NDArray[np.complex128]
-            ny*nx (number of samples written).
+            min(ny*nx, max_out) samples.
 
         Examples
         --------
@@ -293,8 +406,19 @@ class FFT2D:
 
         """
 
-    def execute_inplace_cf64_max_out(self) -> int:
-        """Max output length execute_inplace_cf64() can produce for the current state."""
+    def execute_inplace_cf64_max_out(self, n_in: int) -> int:
+        """Maximum output samples for inplace CF64 execute (ny * nx).
+
+        Parameters
+        ----------
+        n_in : int
+            Input.
+
+        Returns
+        -------
+        int
+            Output.
+        """
 
     def execute_inplace_cf32(self, x: NDArray[np.complex64], out: NDArray[np.complex64] | None = None) -> NDArray[np.complex64]:
         """Copy in into out, then transform out in-place (CF32 2-D). Single-precision variant of fft2d_execute_inplace_cf64().  Copies ny*nx CF32 samples then applies the CF32 2-D pocketfft plan to out.
@@ -307,7 +431,7 @@ class FFT2D:
         Returns
         -------
         NDArray[np.complex64]
-            ny*nx (number of samples written).
+            min(ny*nx, max_out) samples.
 
         Examples
         --------
@@ -321,8 +445,19 @@ class FFT2D:
 
         """
 
-    def execute_inplace_cf32_max_out(self) -> int:
-        """Max output length execute_inplace_cf32() can produce for the current state."""
+    def execute_inplace_cf32_max_out(self, n_in: int) -> int:
+        """Maximum output samples for inplace CF32 execute (ny * nx).
+
+        Parameters
+        ----------
+        n_in : int
+            Input.
+
+        Returns
+        -------
+        int
+            Output.
+        """
 
     @property
     def ny(self) -> int:
@@ -337,18 +472,53 @@ class FFT2D:
         """Sign."""
 
     def destroy(self) -> None:
-        """Release C resources immediately."""
+        """Release the underlying C resources immediately.
 
-    def __enter__(self) -> "FFT2D": ...
+        Ordinarily unnecessary: the resources are freed when the object is
+        garbage-collected. Call this to release them at a definite point
+        instead, or use the object as a context manager, which calls it on exit.
 
-    def __exit__(self, *args: object) -> None: ...
+        Idempotent: calling it again on an already-released object does nothing.
+        Every other method raises ``RuntimeError`` once it has run.
+        """
 
+
+    def __enter__(self) -> "FFT2D":
+        """Enter a context manager, returning this object.
+
+        Lets a FFT2D be used in a `with` statement so its C resources are
+        released deterministically on exit rather than at collection time.
+
+        Returns
+        -------
+        FFT2D
+            This same object, not a copy.
+        """
+
+    def __exit__(self, exc_type: object | None = ..., exc: object | None = ..., tb: object | None = ...) -> None:
+        """Exit a context manager, releasing the FFT2D.
+
+        Equivalent to calling `destroy()`. Returns ``None``, so an exception
+        raised inside the `with` body propagates normally; this never suppresses
+        one.
+
+        Parameters
+        ----------
+        exc_type : object | None
+            Exception class, or None. Ignored.
+        exc : object | None
+            Exception instance, or None. Ignored.
+        tb : object | None
+            Traceback object, or None. Ignored.
+        """
+
+@final
 class Corr:
     """Allocate a 1-D FFT correlator with coherent integrate-and-dump. Pre-computes conj(FFT(ref)) once at construction so each execute() call costs only two FFTs and n complex multiplies.  ref may be freed after this returns.  With dwell == 1 every call produces output; with larger values the accumulator absorbs dwell frames before dumping.
 
     Parameters
     ----------
-    ref : NDArray[np.complex64], default ...
+    ref : NDArray[np.complex64]
         Reference signal, CF32, length n.
     dwell : int, default 1
         Integration depth; must be >= 1.  Pass 1 for immediate output on every call.
@@ -357,8 +527,17 @@ class Corr:
     n_out : int, default 0
         Inverse/output length; 0 => native (n).  Must be >= n.  A larger value zero-pads the cross-spectrum before the inverse, returning the band-limited (Dirichlet) interpolation of the correlation on a finer length-n_out grid — same peak, sub-bin lag resolution.  Native is bit-exact and allocates no extra buffer.
 
+    Examples
+    --------
+    >>> from doppler.spectral import Corr
+    >>> import numpy as np
+    >>> ref = np.zeros(4, dtype=np.complex64); ref[0] = 1.0
+    >>> corr = Corr(ref=ref, dwell=1, nthreads=1)
+    >>> corr.n, corr.dwell, corr.count
+    (4, 1, 0)
+
     """
-    def __init__(self, ref: NDArray[np.complex64] = ..., dwell: int = ..., nthreads: int = ..., n_out: int = ...) -> None: ...
+    def __init__(self, ref: NDArray[np.complex64], dwell: int = ..., nthreads: int = ..., n_out: int = ...) -> None: ...
 
     def reset(self) -> None:
         """Zero the accumulator and reset the integration counter to 0. Equivalent to starting a fresh dwell cycle without tearing down the FFT plans.  Does NOT recompute ref_spec; use corr_set_ref() to replace the reference.
@@ -389,7 +568,8 @@ class Corr:
         Returns
         -------
         NDArray[np.complex64]
-            n_out on a dump call, 0 otherwise (None in Python).
+            n_out on a dump call (or max_out if smaller), 0 otherwise (None in
+            Python).
 
         Examples
         --------
@@ -405,15 +585,71 @@ class Corr:
 
         """
 
-    def execute_max_out(self) -> int:
-        """Max output length execute() can produce for the current state."""
+    def execute_max_out(self, n_in: int) -> int:
+        """Maximum output samples per execute call (== n_out).
+
+        Parameters
+        ----------
+        n_in : int
+            Input.
+
+        Returns
+        -------
+        int
+            Output.
+        """
 
     def state_bytes(self) -> int:
-        """Serialized state size in bytes."""
+        """Size in bytes of this object's serialized state.
+
+        The exact length `get_state` returns and `set_state` requires. It
+        depends on how the object was constructed (state arrays are sized at
+        construction), so read it from the instance rather than assuming a
+        constant.
+
+        Raises ``RuntimeError`` if the Corr has already been destroyed.
+
+        Returns
+        -------
+        int
+            Byte length of one serialized state blob.
+        """
+
     def get_state(self) -> bytes:
-        """Serialize the engine's mutable state to bytes."""
+        """Serialize this object's mutable state to bytes.
+
+        Captures exactly the state that evolves as the object runs, so a blob
+        taken now and restored later resumes from this point. Construction
+        parameters are not included: restore into an object built the same way.
+
+        The blob is opaque and always `state_bytes()` long. Its layout is an
+        implementation detail of the C core and is not a stable format across
+        builds.
+
+        Raises ``RuntimeError`` if the Corr has already been destroyed.
+
+        Returns
+        -------
+        bytes
+            Opaque snapshot, `state_bytes()` bytes long.
+        """
+
     def set_state(self, blob: bytes) -> None:
-        """Restore mutable state from a get_state() blob."""
+        """Restore mutable state from a `get_state()` blob.
+
+        Overwrites the live state in place; the object keeps the parameters it
+        was constructed with. Length is validated against `state_bytes()` before
+        the blob is handed to the C core, and the core may reject it as well.
+
+        Raises ``TypeError`` if *blob* is not bytes, ``ValueError`` if its
+        length differs from `state_bytes()` or the core rejects it, and
+        ``RuntimeError`` if the Corr has already been destroyed.
+
+        Parameters
+        ----------
+        blob : bytes
+            A `get_state()` blob from this type, exactly `state_bytes()` long.
+        """
 
     @property
     def n(self) -> int:
@@ -432,18 +668,53 @@ class Corr:
         """Count."""
 
     def destroy(self) -> None:
-        """Release C resources immediately."""
+        """Release the underlying C resources immediately.
 
-    def __enter__(self) -> "Corr": ...
+        Ordinarily unnecessary: the resources are freed when the object is
+        garbage-collected. Call this to release them at a definite point
+        instead, or use the object as a context manager, which calls it on exit.
 
-    def __exit__(self, *args: object) -> None: ...
+        Idempotent: calling it again on an already-released object does nothing.
+        Every other method raises ``RuntimeError`` once it has run.
+        """
 
+
+    def __enter__(self) -> "Corr":
+        """Enter a context manager, returning this object.
+
+        Lets a Corr be used in a `with` statement so its C resources are
+        released deterministically on exit rather than at collection time.
+
+        Returns
+        -------
+        Corr
+            This same object, not a copy.
+        """
+
+    def __exit__(self, exc_type: object | None = ..., exc: object | None = ..., tb: object | None = ...) -> None:
+        """Exit a context manager, releasing the Corr.
+
+        Equivalent to calling `destroy()`. Returns ``None``, so an exception
+        raised inside the `with` body propagates normally; this never suppresses
+        one.
+
+        Parameters
+        ----------
+        exc_type : object | None
+            Exception class, or None. Ignored.
+        exc : object | None
+            Exception instance, or None. Ignored.
+        tb : object | None
+            Traceback object, or None. Ignored.
+        """
+
+@final
 class Corr2D:
     """Allocate a 2-D FFT correlator with coherent integrate-and-dump. Two-dimensional extension of corr_create().  The reference is a flat row-major ny×nx CF32 array; its conjugate spectrum is pre-computed once so each execute() call costs two 2-D FFTs plus ny*nx complex multiplies. The Python wrapper requires ref to be a 2-D ndarray with shape (ny, nx); it passes a flat view to C.
 
     Parameters
     ----------
-    ref : NDArray[np.complex64], default ...
+    ref : NDArray[np.complex64]
         Reference image, 2-D (ny, nx) CF32 ndarray in Python.
     dwell : int, default 1
         Integration depth; must be >= 1.
@@ -454,8 +725,17 @@ class Corr2D:
     nx_out : int, default 0
         Inverse/output columns; 0 => native (nx).  Must be >= nx.
 
+    Examples
+    --------
+    >>> from doppler.spectral import Corr2D
+    >>> import numpy as np
+    >>> ref = np.zeros((4, 4), dtype=np.complex64); ref[0, 0] = 1.0
+    >>> c = Corr2D(ref=ref, dwell=1, nthreads=1)
+    >>> c.ny, c.nx, c.dwell, c.count
+    (4, 4, 1, 0)
+
     """
-    def __init__(self, ref: NDArray[np.complex64] = ..., dwell: int = ..., nthreads: int = ..., ny_out: int = ..., nx_out: int = ...) -> None: ...
+    def __init__(self, ref: NDArray[np.complex64], dwell: int = ..., nthreads: int = ..., ny_out: int = ..., nx_out: int = ...) -> None: ...
 
     def reset(self) -> None:
         """Zero the accumulator and reset the integration counter to 0. Equivalent to starting a fresh dwell cycle without rebuilding FFT plans or recomputing ref_spec.
@@ -486,7 +766,8 @@ class Corr2D:
         Returns
         -------
         NDArray[np.complex64]
-            ny*nx on a dump, 0 otherwise (None in Python).
+            ny*nx on a dump (or max_out if smaller), 0 otherwise (None in
+            Python).
 
         Examples
         --------
@@ -502,15 +783,71 @@ class Corr2D:
 
         """
 
-    def execute_max_out(self) -> int:
-        """Max output length execute() can produce for the current state."""
+    def execute_max_out(self, n_in: int) -> int:
+        """Maximum output samples per execute call (always == ny*nx).
+
+        Parameters
+        ----------
+        n_in : int
+            Input.
+
+        Returns
+        -------
+        int
+            Output.
+        """
 
     def state_bytes(self) -> int:
-        """Serialized state size in bytes."""
+        """Size in bytes of this object's serialized state.
+
+        The exact length `get_state` returns and `set_state` requires. It
+        depends on how the object was constructed (state arrays are sized at
+        construction), so read it from the instance rather than assuming a
+        constant.
+
+        Raises ``RuntimeError`` if the Corr2D has already been destroyed.
+
+        Returns
+        -------
+        int
+            Byte length of one serialized state blob.
+        """
+
     def get_state(self) -> bytes:
-        """Serialize the engine's mutable state to bytes."""
+        """Serialize this object's mutable state to bytes.
+
+        Captures exactly the state that evolves as the object runs, so a blob
+        taken now and restored later resumes from this point. Construction
+        parameters are not included: restore into an object built the same way.
+
+        The blob is opaque and always `state_bytes()` long. Its layout is an
+        implementation detail of the C core and is not a stable format across
+        builds.
+
+        Raises ``RuntimeError`` if the Corr2D has already been destroyed.
+
+        Returns
+        -------
+        bytes
+            Opaque snapshot, `state_bytes()` bytes long.
+        """
+
     def set_state(self, blob: bytes) -> None:
-        """Restore mutable state from a get_state() blob."""
+        """Restore mutable state from a `get_state()` blob.
+
+        Overwrites the live state in place; the object keeps the parameters it
+        was constructed with. Length is validated against `state_bytes()` before
+        the blob is handed to the C core, and the core may reject it as well.
+
+        Raises ``TypeError`` if *blob* is not bytes, ``ValueError`` if its
+        length differs from `state_bytes()` or the core rejects it, and
+        ``RuntimeError`` if the Corr2D has already been destroyed.
+
+        Parameters
+        ----------
+        blob : bytes
+            A `get_state()` blob from this type, exactly `state_bytes()` long.
+        """
 
     @property
     def ny(self) -> int:
@@ -541,18 +878,53 @@ class Corr2D:
         """Count."""
 
     def destroy(self) -> None:
-        """Release C resources immediately."""
+        """Release the underlying C resources immediately.
 
-    def __enter__(self) -> "Corr2D": ...
+        Ordinarily unnecessary: the resources are freed when the object is
+        garbage-collected. Call this to release them at a definite point
+        instead, or use the object as a context manager, which calls it on exit.
 
-    def __exit__(self, *args: object) -> None: ...
+        Idempotent: calling it again on an already-released object does nothing.
+        Every other method raises ``RuntimeError`` once it has run.
+        """
 
+
+    def __enter__(self) -> "Corr2D":
+        """Enter a context manager, returning this object.
+
+        Lets a Corr2D be used in a `with` statement so its C resources are
+        released deterministically on exit rather than at collection time.
+
+        Returns
+        -------
+        Corr2D
+            This same object, not a copy.
+        """
+
+    def __exit__(self, exc_type: object | None = ..., exc: object | None = ..., tb: object | None = ...) -> None:
+        """Exit a context manager, releasing the Corr2D.
+
+        Equivalent to calling `destroy()`. Returns ``None``, so an exception
+        raised inside the `with` body propagates normally; this never suppresses
+        one.
+
+        Parameters
+        ----------
+        exc_type : object | None
+            Exception class, or None. Ignored.
+        exc : object | None
+            Exception instance, or None. Ignored.
+        tb : object | None
+            Traceback object, or None. Ignored.
+        """
+
+@final
 class CorrDetector:
     """Allocate a 1-D streaming signal detector backed by an FFT correlator. Combines a corr_state_t with a double-mapped ring buffer so that arbitrary chunk sizes can be pushed.  After every int-dump the peak-to-noise test statistic is compared against threshold; a det_result_t is emitted when it passes.  Setting threshold to 0.0 unconditionally fires on every dump. The ring capacity is next_pow2(max(n, 512)) complex samples.
 
     Parameters
     ----------
-    ref : NDArray[np.complex64], default ...
+    ref : NDArray[np.complex64]
         Reference signal, CF32 ndarray of length n.
     dwell : int, default 1
         Int-dump depth; must be >= 1.
@@ -567,8 +939,18 @@ class CorrDetector:
     nthreads : int, default 1
         Accepted for API compatibility; ignored.
 
+    Examples
+    --------
+    >>> from doppler.spectral import CorrDetector
+    >>> import numpy as np
+    >>> ref = np.zeros(8, dtype=np.complex64); ref[0] = 1.0
+    >>> det = CorrDetector(ref=ref, dwell=1, noise_lo=1, noise_hi=7,
+    ...                noise_mode="mean", threshold=0.0)
+    >>> det.n, det.dwell, det.ring_cap
+    (8, 1, 512)
+
     """
-    def __init__(self, ref: NDArray[np.complex64] = ..., dwell: int = ..., noise_lo: int = ..., noise_hi: int = ..., noise_mode: Literal["mean", "median", "min", "max"] = "mean", threshold: float = ..., nthreads: int = ...) -> None: ...
+    def __init__(self, ref: NDArray[np.complex64], dwell: int = ..., noise_lo: int = ..., noise_hi: int = ..., noise_mode: Literal["mean", "median", "min", "max"] = "mean", threshold: float = ..., nthreads: int = ...) -> None: ...
 
     def reset(self) -> None:
         """Reset the correlator, ring buffer, and last-corr flag. Discards any partial frame buffered in the ring and zeroes the coherent accumulator.  Equivalent to starting fresh from the same reference without rebuilding any internal object.
@@ -617,11 +999,56 @@ class CorrDetector:
         """
 
     def state_bytes(self) -> int:
-        """Serialized state size in bytes."""
+        """Size in bytes of this object's serialized state.
+
+        The exact length `get_state` returns and `set_state` requires. It
+        depends on how the object was constructed (state arrays are sized at
+        construction), so read it from the instance rather than assuming a
+        constant.
+
+        Raises ``RuntimeError`` if the CorrDetector has already been destroyed.
+
+        Returns
+        -------
+        int
+            Byte length of one serialized state blob.
+        """
+
     def get_state(self) -> bytes:
-        """Serialize the engine's mutable state to bytes."""
+        """Serialize this object's mutable state to bytes.
+
+        Captures exactly the state that evolves as the object runs, so a blob
+        taken now and restored later resumes from this point. Construction
+        parameters are not included: restore into an object built the same way.
+
+        The blob is opaque and always `state_bytes()` long. Its layout is an
+        implementation detail of the C core and is not a stable format across
+        builds.
+
+        Raises ``RuntimeError`` if the CorrDetector has already been destroyed.
+
+        Returns
+        -------
+        bytes
+            Opaque snapshot, `state_bytes()` bytes long.
+        """
+
     def set_state(self, blob: bytes) -> None:
-        """Restore mutable state from a get_state() blob."""
+        """Restore mutable state from a `get_state()` blob.
+
+        Overwrites the live state in place; the object keeps the parameters it
+        was constructed with. Length is validated against `state_bytes()` before
+        the blob is handed to the C core, and the core may reject it as well.
+
+        Raises ``TypeError`` if *blob* is not bytes, ``ValueError`` if its
+        length differs from `state_bytes()` or the core rejects it, and
+        ``RuntimeError`` if the CorrDetector has already been destroyed.
+
+        Parameters
+        ----------
+        blob : bytes
+            A `get_state()` blob from this type, exactly `state_bytes()` long.
+        """
 
     @property
     def n(self) -> int:
@@ -656,18 +1083,53 @@ class CorrDetector:
         """The correlation vector from the most recent push() that produced a result (None before that). This is a zero-copy view into a buffer owned by the detector and reused every push() -- the next push() (even one that doesn't produce a result) overwrites it in place. Copy the array before the next push() if you need to retain it."""
 
     def destroy(self) -> None:
-        """Release C resources immediately."""
+        """Release the underlying C resources immediately.
 
-    def __enter__(self) -> "CorrDetector": ...
+        Ordinarily unnecessary: the resources are freed when the object is
+        garbage-collected. Call this to release them at a definite point
+        instead, or use the object as a context manager, which calls it on exit.
 
-    def __exit__(self, *args: object) -> None: ...
+        Idempotent: calling it again on an already-released object does nothing.
+        Every other method raises ``RuntimeError`` once it has run.
+        """
 
+
+    def __enter__(self) -> "CorrDetector":
+        """Enter a context manager, returning this object.
+
+        Lets a CorrDetector be used in a `with` statement so its C resources are
+        released deterministically on exit rather than at collection time.
+
+        Returns
+        -------
+        CorrDetector
+            This same object, not a copy.
+        """
+
+    def __exit__(self, exc_type: object | None = ..., exc: object | None = ..., tb: object | None = ...) -> None:
+        """Exit a context manager, releasing the CorrDetector.
+
+        Equivalent to calling `destroy()`. Returns ``None``, so an exception
+        raised inside the `with` body propagates normally; this never suppresses
+        one.
+
+        Parameters
+        ----------
+        exc_type : object | None
+            Exception class, or None. Ignored.
+        exc : object | None
+            Exception instance, or None. Ignored.
+        tb : object | None
+            Traceback object, or None. Ignored.
+        """
+
+@final
 class CorrDetector2D:
     """Allocate a 2-D streaming signal detector backed by a 2-D correlator. Two-dimensional extension of detector_create().  Input frames are flat row-major CF32 arrays of length ny*nx streamed through a ring buffer.  On every int-dump the peak flat index is decomposed into (row, col) and a det_result2d_t is emitted when test_stat > threshold.  The Python wrapper accepts a (ny, nx) CF32 ndarray for both ref and the push input.
 
     Parameters
     ----------
-    ref : NDArray[np.complex64], default ...
+    ref : NDArray[np.complex64]
         2-D reference image, (ny, nx) CF32 ndarray in Python.
     dwell : int, default 1
         Int-dump depth; must be >= 1.
@@ -682,8 +1144,18 @@ class CorrDetector2D:
     nthreads : int, default 1
         Accepted for API compatibility; ignored.
 
+    Examples
+    --------
+    >>> from doppler.spectral import CorrDetector2D
+    >>> import numpy as np
+    >>> ref = np.zeros((4, 4), dtype=np.complex64); ref[0, 0] = 1.0
+    >>> det = CorrDetector2D(ref=ref, dwell=1, noise_lo=1, noise_hi=15,
+    ...                  noise_mode="mean", threshold=0.0)
+    >>> det.ny, det.nx, det.n, det.dwell
+    (4, 4, 16, 1)
+
     """
-    def __init__(self, ref: NDArray[np.complex64] = ..., dwell: int = ..., noise_lo: int = ..., noise_hi: int = ..., noise_mode: Literal["mean", "median", "min", "max"] = "mean", threshold: float = ..., nthreads: int = ...) -> None: ...
+    def __init__(self, ref: NDArray[np.complex64], dwell: int = ..., noise_lo: int = ..., noise_hi: int = ..., noise_mode: Literal["mean", "median", "min", "max"] = "mean", threshold: float = ..., nthreads: int = ...) -> None: ...
 
     def reset(self) -> None:
         """Reset the 2-D correlator, ring buffer, and last-corr flag. Discards any partial frame buffered in the ring and zeroes the coherent accumulator.  The reference spectrum and FFT plans are preserved.
@@ -732,11 +1204,58 @@ class CorrDetector2D:
         """
 
     def state_bytes(self) -> int:
-        """Serialized state size in bytes."""
+        """Size in bytes of this object's serialized state.
+
+        The exact length `get_state` returns and `set_state` requires. It
+        depends on how the object was constructed (state arrays are sized at
+        construction), so read it from the instance rather than assuming a
+        constant.
+
+        Raises ``RuntimeError`` if the CorrDetector2D has already been
+        destroyed.
+
+        Returns
+        -------
+        int
+            Byte length of one serialized state blob.
+        """
+
     def get_state(self) -> bytes:
-        """Serialize the engine's mutable state to bytes."""
+        """Serialize this object's mutable state to bytes.
+
+        Captures exactly the state that evolves as the object runs, so a blob
+        taken now and restored later resumes from this point. Construction
+        parameters are not included: restore into an object built the same way.
+
+        The blob is opaque and always `state_bytes()` long. Its layout is an
+        implementation detail of the C core and is not a stable format across
+        builds.
+
+        Raises ``RuntimeError`` if the CorrDetector2D has already been
+        destroyed.
+
+        Returns
+        -------
+        bytes
+            Opaque snapshot, `state_bytes()` bytes long.
+        """
+
     def set_state(self, blob: bytes) -> None:
-        """Restore mutable state from a get_state() blob."""
+        """Restore mutable state from a `get_state()` blob.
+
+        Overwrites the live state in place; the object keeps the parameters it
+        was constructed with. Length is validated against `state_bytes()` before
+        the blob is handed to the C core, and the core may reject it as well.
+
+        Raises ``TypeError`` if *blob* is not bytes, ``ValueError`` if its
+        length differs from `state_bytes()` or the core rejects it, and
+        ``RuntimeError`` if the CorrDetector2D has already been destroyed.
+
+        Parameters
+        ----------
+        blob : bytes
+            A `get_state()` blob from this type, exactly `state_bytes()` long.
+        """
 
     @property
     def ny(self) -> int:
@@ -779,12 +1298,47 @@ class CorrDetector2D:
         """The correlation vector from the most recent push() that produced a result (None before that). This is a zero-copy view into a buffer owned by the detector and reused every push() -- the next push() (even one that doesn't produce a result) overwrites it in place. Copy the array before the next push() if you need to retain it."""
 
     def destroy(self) -> None:
-        """Release C resources immediately."""
+        """Release the underlying C resources immediately.
 
-    def __enter__(self) -> "CorrDetector2D": ...
+        Ordinarily unnecessary: the resources are freed when the object is
+        garbage-collected. Call this to release them at a definite point
+        instead, or use the object as a context manager, which calls it on exit.
 
-    def __exit__(self, *args: object) -> None: ...
+        Idempotent: calling it again on an already-released object does nothing.
+        Every other method raises ``RuntimeError`` once it has run.
+        """
 
+
+    def __enter__(self) -> "CorrDetector2D":
+        """Enter a context manager, returning this object.
+
+        Lets a CorrDetector2D be used in a `with` statement so its C resources
+        are released deterministically on exit rather than at collection time.
+
+        Returns
+        -------
+        CorrDetector2D
+            This same object, not a copy.
+        """
+
+    def __exit__(self, exc_type: object | None = ..., exc: object | None = ..., tb: object | None = ...) -> None:
+        """Exit a context manager, releasing the CorrDetector2D.
+
+        Equivalent to calling `destroy()`. Returns ``None``, so an exception
+        raised inside the `with` body propagates normally; this never suppresses
+        one.
+
+        Parameters
+        ----------
+        exc_type : object | None
+            Exception class, or None. Ignored.
+        exc : object | None
+            Exception instance, or None. Ignored.
+        tb : object | None
+            Traceback object, or None. Ignored.
+        """
+
+@final
 class PSD:
     """Create an averaging PSD estimator.
 
@@ -811,10 +1365,12 @@ class PSD:
 
     Examples
     --------
-    Create with defaults:
-
     >>> from doppler.spectral import PSD
-    >>> obj = PSD(n=1024, fs=1.0, window="hann", beta=0.0, pad=1, full_scale=1.0, bits=0, mode="mean", alpha=0.1)
+    >>> w = PSD(n=1024, fs=1.0e6, window="kaiser", beta=8.0, mode="mean")
+    >>> w.n, w.fs
+    (1024, 1000000.0)
+    >>> round(w.rbw / (w.fs / w.n), 3) == round(w.enbw, 3)
+    True
 
     """
     def __init__(self, n: int = ..., fs: float = ..., window: Literal["hann", "kaiser", "blackman-harris"] = "hann", beta: float = ..., pad: int = ..., full_scale: float = ..., bits: int = ..., mode: Literal["mean", "exp", "maxhold", "minhold"] = "mean", alpha: float = ...) -> None: ...
@@ -860,19 +1416,30 @@ class PSD:
         """Discard the running average; counters return to zero.
         """
 
-    def psd_db(self, out: NDArray[np.float32] | None = None) -> NDArray[np.float32]:
+    def psd_db(self, count: int = 1, out: NDArray[np.float32] | None = None) -> NDArray[np.float32]:
         """Averaged power spectrum in dB (None before any accumulate).
 
         Returns
         -------
         NDArray[np.float32]
-            n, or 0 if empty.
+            min(n, max_out), or 0 if empty.
         """
 
-    def psd_db_max_out(self) -> int:
-        """Max output length psd_db() can produce for the current state."""
+    def psd_db_max_out(self, n: int) -> int:
+        """Output capacity hint for psd_db(); equals nfft.
 
-    def psd_dbhz(self, out: NDArray[np.float32] | None = None) -> NDArray[np.float32]:
+        Parameters
+        ----------
+        n : int
+            Input.
+
+        Returns
+        -------
+        int
+            Output.
+        """
+
+    def psd_dbhz(self, count: int = 1, out: NDArray[np.float32] | None = None) -> NDArray[np.float32]:
         """Averaged power spectral density in dB/Hz (None before any accumulate).
 
         Returns
@@ -892,32 +1459,65 @@ class PSD:
 
         """
 
-    def psd_dbhz_max_out(self) -> int:
-        """Max output length psd_dbhz() can produce for the current state."""
+    def psd_dbhz_max_out(self, n: int) -> int:
+        """Output capacity hint for psd_dbhz(); equals n.
 
-    def power_twosided(self, out: NDArray[np.float32] | None = None) -> NDArray[np.float32]:
+        Parameters
+        ----------
+        n : int
+            Input.
+
+        Returns
+        -------
+        int
+            Output.
+        """
+
+    def power_twosided(self, count: int = 1, out: NDArray[np.float32] | None = None) -> NDArray[np.float32]:
         """Averaged linear power, DC-centred two-sided (length nfft); cg^2-normalised.
 
         Returns
         -------
         NDArray[np.float32]
-            nfft, or 0 if empty.
+            min(nfft, max_out), or 0 if empty.
         """
 
-    def power_twosided_max_out(self) -> int:
-        """Max output length power_twosided() can produce for the current state."""
+    def power_twosided_max_out(self, n: int) -> int:
+        """Output capacity hint for psd_power_twosided(); equals nfft.
 
-    def power_onesided(self, out: NDArray[np.float32] | None = None) -> NDArray[np.float32]:
+        Parameters
+        ----------
+        n : int
+            Input.
+
+        Returns
+        -------
+        int
+            Output.
+        """
+
+    def power_onesided(self, count: int = 1, out: NDArray[np.float32] | None = None) -> NDArray[np.float32]:
         """Averaged linear power, one-sided fold (length nfft/2+1); cg^2-normalised.
 
         Returns
         -------
         NDArray[np.float32]
-            nfft/2 + 1, or 0 if empty.
+            min(nfft/2 + 1, max_out), or 0 if empty.
         """
 
-    def power_onesided_max_out(self) -> int:
-        """Max output length power_onesided() can produce for the current state."""
+    def power_onesided_max_out(self, n: int) -> int:
+        """Output capacity hint for psd_power_onesided(); equals nfft/2+1.
+
+        Parameters
+        ----------
+        n : int
+            Input.
+
+        Returns
+        -------
+        int
+            Output.
+        """
 
     def band_power(self, bands: NDArray[np.float64], out: NDArray[np.float32] | None = None) -> NDArray[np.float32]:
         """Integrated power per band in dB; bands = [lo0,hi0,lo1,hi1,...] Hz.
@@ -930,7 +1530,7 @@ class PSD:
         Returns
         -------
         NDArray[np.float32]
-            n_bands, or 0 if empty.
+            min(n_bands, max_out), or 0 if empty.
 
         Examples
         --------
@@ -944,8 +1544,19 @@ class PSD:
 
         """
 
-    def band_power_max_out(self) -> int:
-        """Max output length band_power() can produce for the current state."""
+    def band_power_max_out(self, bands_len: int) -> int:
+        """Output capacity hint for band_power(); 0 (binding sizes from bands).
+
+        Parameters
+        ----------
+        bands_len : int
+            Input.
+
+        Returns
+        -------
+        int
+            Output.
+        """
 
     def total_band_power(self, bands: NDArray[np.float64]) -> float:
         """Total integrated power across all bands in dB.
@@ -1015,11 +1626,56 @@ class PSD:
         """
 
     def state_bytes(self) -> int:
-        """Serialized state size in bytes."""
+        """Size in bytes of this object's serialized state.
+
+        The exact length `get_state` returns and `set_state` requires. It
+        depends on how the object was constructed (state arrays are sized at
+        construction), so read it from the instance rather than assuming a
+        constant.
+
+        Raises ``RuntimeError`` if the PSD has already been destroyed.
+
+        Returns
+        -------
+        int
+            Byte length of one serialized state blob.
+        """
+
     def get_state(self) -> bytes:
-        """Serialize the engine's mutable state to bytes."""
+        """Serialize this object's mutable state to bytes.
+
+        Captures exactly the state that evolves as the object runs, so a blob
+        taken now and restored later resumes from this point. Construction
+        parameters are not included: restore into an object built the same way.
+
+        The blob is opaque and always `state_bytes()` long. Its layout is an
+        implementation detail of the C core and is not a stable format across
+        builds.
+
+        Raises ``RuntimeError`` if the PSD has already been destroyed.
+
+        Returns
+        -------
+        bytes
+            Opaque snapshot, `state_bytes()` bytes long.
+        """
+
     def set_state(self, blob: bytes) -> None:
-        """Restore mutable state from a get_state() blob."""
+        """Restore mutable state from a `get_state()` blob.
+
+        Overwrites the live state in place; the object keeps the parameters it
+        was constructed with. Length is validated against `state_bytes()` before
+        the blob is handed to the C core, and the core may reject it as well.
+
+        Raises ``TypeError`` if *blob* is not bytes, ``ValueError`` if its
+        length differs from `state_bytes()` or the core rejects it, and
+        ``RuntimeError`` if the PSD has already been destroyed.
+
+        Parameters
+        ----------
+        blob : bytes
+            A `get_state()` blob from this type, exactly `state_bytes()` long.
+        """
 
     @property
     def n(self) -> int:
@@ -1058,11 +1714,45 @@ class PSD:
         """Mode."""
 
     def destroy(self) -> None:
-        """Release C resources immediately."""
+        """Release the underlying C resources immediately.
 
-    def __enter__(self) -> "PSD": ...
+        Ordinarily unnecessary: the resources are freed when the object is
+        garbage-collected. Call this to release them at a definite point
+        instead, or use the object as a context manager, which calls it on exit.
 
-    def __exit__(self, *args: object) -> None: ...
+        Idempotent: calling it again on an already-released object does nothing.
+        Every other method raises ``RuntimeError`` once it has run.
+        """
+
+
+    def __enter__(self) -> "PSD":
+        """Enter a context manager, returning this object.
+
+        Lets a PSD be used in a `with` statement so its C resources are released
+        deterministically on exit rather than at collection time.
+
+        Returns
+        -------
+        PSD
+            This same object, not a copy.
+        """
+
+    def __exit__(self, exc_type: object | None = ..., exc: object | None = ..., tb: object | None = ...) -> None:
+        """Exit a context manager, releasing the PSD.
+
+        Equivalent to calling `destroy()`. Returns ``None``, so an exception
+        raised inside the `with` body propagates normally; this never suppresses
+        one.
+
+        Parameters
+        ----------
+        exc_type : object | None
+            Exception class, or None. Ignored.
+        exc : object | None
+            Exception instance, or None. Ignored.
+        tb : object | None
+            Traceback object, or None. Ignored.
+        """
 
 def kaiser_enbw(w: NDArray[np.float32]) -> float:
     """Compute the equivalent noise bandwidth of a window in bins. ENBW = N * sum(w²) / (sum(w))² quantifies how many noise bins the window smears into the main lobe.  A rectangular window has ENBW = 1.0; tapered windows are > 1.0.  Works with any window type, not just Kaiser.

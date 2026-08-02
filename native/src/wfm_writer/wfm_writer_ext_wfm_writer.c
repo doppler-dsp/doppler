@@ -478,9 +478,15 @@ static PyMethodDef WriterObj_methods[] = {
     "Enable the per-component clip *counter* (off by default; peak is always "
     "on).\n"
     "\n"
+    "Parameters\n"
+    "----------\n"
+    "on : int\n"
+    "    Input.\n"
+    "\n"
     "    >>> import numpy as np\n"
     "    >>> from doppler import Writer\n"
-    "    >>> obj = Writer(..., \"raw\", \"cf32\", \"le\", 1e6, 0.0, 0, 0.0)\n"
+    "    >>> obj = Writer(path=..., file_type=\"raw\", sample_type=\"cf32\", "
+    "endian=\"le\", fs=1e6, fc=0.0, total=0, headroom=0.0)\n"
     "    >>> obj.track_clipping(0)\n" },
   { "add_keyword", (PyCFunction)(void *)WriterObj_add_keyword,
     METH_VARARGS | METH_KEYWORDS,

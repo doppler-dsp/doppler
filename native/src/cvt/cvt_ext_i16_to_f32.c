@@ -181,38 +181,71 @@ I16ToF32Obj_exit (I16ToF32Object *self, PyObject *args)
   Py_RETURN_NONE;
 }
 
-static PyMethodDef I16ToF32Obj_methods[]
-    = { { "reset", (PyCFunction)I16ToF32Obj_reset, METH_NOARGS,
-          "No-op reset, provided only for lifecycle symmetry." },
-        { "step", (PyCFunction)I16ToF32_step, METH_VARARGS,
-          "step(x) -> float\n"
-          "\n"
-          "Process one input sample.\n"
-          "\n"
-          "    >>> from doppler import I16ToF32\n"
-          "    >>> obj = I16ToF32(32768.0)\n"
-          "    >>> obj.step(1)\n"
-          "    0.0\n" },
-        { "steps", (PyCFunction)(void *)I16ToF32_steps,
-          METH_VARARGS | METH_KEYWORDS,
-          "steps(x[, out]) -> ndarray\n"
-          "\n"
-          "Process a block of int16 samples to float32.\n"
-          "\n"
-          "    >>> import numpy as np\n"
-          "    >>> from doppler import I16ToF32\n"
-          "    >>> obj = I16ToF32(32768.0)\n"
-          "    >>> y = obj.steps(np.zeros(4, dtype=np.int16))\n"
-          "    >>> y.shape\n"
-          "    (4,)\n"
-          "    >>> y.dtype\n"
-          "    dtype('float32')\n" },
+static PyMethodDef I16ToF32Obj_methods[] = {
+  { "reset", (PyCFunction)I16ToF32Obj_reset, METH_NOARGS,
+    "No-op reset, provided only for lifecycle symmetry." },
+  { "step", (PyCFunction)I16ToF32_step, METH_VARARGS,
+    "step(x) -> float\n"
+    "\n"
+    "Convert one signed int16 sample to a normalised float via 1/scale.\n"
+    "\n"
+    "Returns (float)x * iscale, a single multiply on the hot path. No\n"
+    "saturation or clipping is possible — every int16 code maps cleanly to\n"
+    "float32. At the default scale of 32768 the full Q15 range recovers\n"
+    "`[-1.0, ~+1.0)`, the exact inverse of F32ToI16.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "x : int\n"
+    "    Signed int16 code, normally a Q15 sample in `[-32768, 32767]`.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "float\n"
+    "    Normalised float, `x / scale`.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.cvt import I16ToF32\n"
+    ">>> c = I16ToF32(scale=32768.0)   # Q15 int16 -> normalised float\n"
+    ">>> round(c.step(16384), 4)        # 16384 / 32768\n"
+    "0.5\n"
+    ">>> round(c.step(-32768), 4)       # full-negative code -> -1.0\n"
+    "-1.0\n"
+    "\n" },
+  { "steps", (PyCFunction)(void *)I16ToF32_steps, METH_VARARGS | METH_KEYWORDS,
+    "steps(x[, out]) -> ndarray\n"
+    "\n"
+    "Process a block of int16 samples to float32.\n"
+    "\n"
+    "Applies step() to every element. Accepts an optional pre-allocated\n"
+    "output array; allocates a fresh one when output is NULL.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "x : NDArray[np.int16]\n"
+    "    Input sample.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "NDArray[np.float32]\n"
+    "    Output sample.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.cvt import I16ToF32\n"
+    ">>> import numpy as np\n"
+    ">>> I16ToF32().steps(np.array([0, 16384, -32768], "
+    "dtype=np.int16)).tolist()\n"
+    "[0.0, 0.5, -1.0]\n"
+    "\n" },
 
-        { "destroy", (PyCFunction)I16ToF32Obj_destroy, METH_NOARGS,
-          "Release resources." },
-        { "__enter__", (PyCFunction)I16ToF32Obj_enter, METH_NOARGS, NULL },
-        { "__exit__", (PyCFunction)I16ToF32Obj_exit, METH_VARARGS, NULL },
-        { NULL } };
+  { "destroy", (PyCFunction)I16ToF32Obj_destroy, METH_NOARGS,
+    "Release resources." },
+  { "__enter__", (PyCFunction)I16ToF32Obj_enter, METH_NOARGS, NULL },
+  { "__exit__", (PyCFunction)I16ToF32Obj_exit, METH_VARARGS, NULL },
+  { NULL }
+};
 
 static PyTypeObject I16ToF32ObjType = {
   PyVarObject_HEAD_INIT (NULL, 0).tp_name = "cvt.I16ToF32",

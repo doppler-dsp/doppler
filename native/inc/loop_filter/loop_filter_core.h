@@ -80,18 +80,57 @@ extern "C"
   void loop_filter_destroy(loop_filter_state_t *state);
 
   /**
-   * @brief Recompute @c kp / @c ki for a new (bn, zeta, t); preserve @c integ.
+   * @brief Retune the loop gains @c kp / @c ki for a new (bn, zeta, t) without
+   *        disturbing the integrator.
+   *
+   * Recomputes the proportional and integral gains from the standard 2nd-order
+   * form but leaves @c integ untouched, so a loop can be widened for fast
+   * acquisition and then narrowed for steady-state tracking while holding its
+   * accumulated frequency/rate estimate — the retune preserves lock.
+   *
    * @param state  Must be non-NULL.
    * @param bn     Loop noise bandwidth, normalized cycles/sample (>= 0).
    * @param zeta   Damping factor (typically 0.707).
    * @param t      Update period in samples (> 0).
+   *
+   * @code
+   * >>> from doppler.track import LoopFilter
+   * >>> lf = LoopFilter(bn=0.01, zeta=0.707, t=1.0)
+   * >>> _ = lf.step(1.0)
+   * >>> before = round(lf.integ, 6)
+   * >>> lf.configure(0.05, 0.707, 1.0)   # widen the loop, keep lock
+   * >>> round(lf.integ, 6) == before     # integrator preserved
+   * True
+   * >>> round(lf.kp, 6)                  # proportional gain rose
+   * 0.124728
+   *
+   * @endcode
    */
   void loop_filter_configure(loop_filter_state_t *state, double bn, double zeta,
                              double t);
 
   /**
-   * @brief Zero the integrator; keep the configured gains.
+   * @brief Zero the integrator memory while keeping the configured gains.
+   *
+   * Clears the accumulated frequency/rate estimate (@c integ) back to zero but
+   * leaves @c kp / @c ki as configured, so the loop reacquires from a clean
+   * slate at its current bandwidth — the right thing when a tracker drops lock
+   * and must restart, without re-deriving gains.
+   *
    * @param state  Must be non-NULL.
+   *
+   * @code
+   * >>> from doppler.track import LoopFilter
+   * >>> lf = LoopFilter(bn=0.02, zeta=0.707, t=1.0)
+   * >>> for _ in range(10):
+   * ...     _ = lf.step(1.0)             # ramp the integrator
+   * >>> round(lf.integ, 6)
+   * 0.013849
+   * >>> lf.reset()
+   * >>> lf.integ                          # integrator cleared, gains kept
+   * 0.0
+   *
+   * @endcode
    */
   void loop_filter_reset(loop_filter_state_t *state);
 
@@ -110,13 +149,29 @@ extern "C"
   int loop_filter_set_state(loop_filter_state_t *state, const void *blob);
 
   /**
-   * @brief Advance the loop one update with error @p x; return the control.
+   * @brief Advance the loop one update with error @p x and return the control
+   *        value the tracker should apply.
    *
-   * `integ += ki*x; return integ + kp*x`.
+   * The PI recurrence is `integ += ki*x; control = integ + kp*x`: the
+   * integrator accumulates the running frequency/rate estimate while the
+   * proportional term @c kp*x is the instantaneous phase nudge. Fed a constant
+   * error the integrator ramps linearly and the control converges to the
+   * steady-state estimate — the behaviour that pulls a Costas/DLL/timing loop
+   * into lock.
    *
    * @param state  Must be non-NULL.
-   * @param x      Loop error.
-   * @return Control value (integ + kp*x).
+   * @param x      Loop error (discriminator output) for this update.
+   * @return Control value @c integ+kp*x to drive the NCO / interpolator.
+   *
+   * @code
+   * >>> from doppler.track import LoopFilter
+   * >>> lf = LoopFilter(bn=0.02, zeta=0.707, t=1.0)
+   * >>> round(lf.step(1.0), 6)   # unit error: control = ki + kp
+   * 0.05331
+   * >>> round(lf.integ, 6)       # integrator now holds ki
+   * 0.001385
+   *
+   * @endcode
    */
   JM_FORCEINLINE JM_HOT double
   loop_filter_step (loop_filter_state_t *state, double x)
@@ -126,14 +181,33 @@ extern "C"
   }
 
   /**
-   * @brief Run a block of errors through the loop.
-   * @param state   Component state (mutated).
-   * @param input   Error array (length >= n).
-   * @param output  Control array (length >= n; may alias input).
-   * @param n       Number of updates.
+   * @brief Filter a whole block of loop errors, returning the control value
+   *        for each update.
+   *
+   * Equivalent to calling loop_filter_step() once per element of @p x in order,
+   * carrying the integrator across the block, so the loop's memory and lock
+   * state persist from one call to the next. This is the vectorized path used
+   * to run a captured error sequence through the filter in one shot.
+   *
+   * @param state  Component state (mutated across the block).
+   * @param x      Loop-error array, one discriminator sample per update.
+   * @param out    Control-value array (length >= n; may alias @p x).
+   * @param n      Number of updates.
+   *
+   * @code
+   * >>> import numpy as np
+   * >>> from doppler.track import LoopFilter
+   * >>> lf = LoopFilter(bn=0.05, zeta=0.707, t=1.0)
+   * >>> ctl = lf.steps(np.full(50, 0.1))   # constant error into the loop
+   * >>> round(float(ctl[0]), 4)            # first control nudge
+   * 0.0133
+   * >>> round(float(ctl[-1]), 4)           # converging toward the estimate
+   * 0.0541
+   *
+   * @endcode
    */
-  void loop_filter_steps (loop_filter_state_t *state, const double *input,
-                          double *output, size_t n);
+  void loop_filter_steps (loop_filter_state_t *state, const double *x,
+                          double *out, size_t n);
 
 #ifdef __cplusplus
 }

@@ -185,7 +185,34 @@ void carrier_mpsk_destroy(carrier_mpsk_state_t *state);
 
 /**
  * @brief Re-seed the loop to its create-time frequency/phase; keep config.
+ *
+ * Returns the NCO to the seed carrier passed at construction, zeroes the
+ * integrate-and-dump accumulator, the FLL history, and the lock/error
+ * diagnostics, and re-primes the loop integrator to the matching per-symbol
+ * frequency — the exact state a fresh carrier_mpsk_create() leaves. The tuning
+ * (bn, zeta, bn_fll, tsamps, m) is untouched. Call it at a capture boundary so
+ * a lock reached on one segment does not bias an unrelated next one.
+ *
  * @param state  Must be non-NULL.
+ * @code
+ * >>> import numpy as np
+ * >>> from doppler.mpsk import mpsk_map
+ * >>> from doppler.track import CarrierMpsk
+ * >>> rng = np.random.default_rng(1)
+ * >>> sig = np.repeat(mpsk_map(rng.integers(0, 4, 100).astype(np.uint8), 4),
+ * ...                 16).astype(np.complex64)
+ * >>> rx = (sig * np.exp(2j * np.pi * 0.003 * np.arange(len(sig)))
+ * ...       ).astype(np.complex64)
+ * >>> c = CarrierMpsk(bn=0.04, zeta=0.707, init_norm_freq=0.0,
+ * ...                 tsamps=16, bn_fll=0.02, m=4)
+ * >>> _ = c.steps(rx)
+ * >>> round(c.norm_freq, 3)   # loop pulled onto the residual carrier
+ * 0.003
+ * >>> c.reset()               # back to the create-time seed
+ * >>> round(c.norm_freq, 3)
+ * 0.0
+ *
+ * @endcode
  */
 void carrier_mpsk_reset(carrier_mpsk_state_t *state);
 
@@ -203,7 +230,82 @@ void carrier_mpsk_get_state(const carrier_mpsk_state_t *state, void *blob);
 int carrier_mpsk_set_state(carrier_mpsk_state_t *state, const void *blob);
 
 size_t carrier_mpsk_steps_max_out(carrier_mpsk_state_t *state);
+
+/**
+ * @brief Track the residual carrier over a block, one prompt per symbol.
+ *
+ * The block form of the inline wipeoff/update pair: for each input sample it
+ * de-rotates by the carrier NCO and accumulates the coherent
+ * integrate-and-dump; every @c tsamps samples it dumps the prompt, runs the
+ * decision-directed M-PSK discriminator (slice to the nearest constellation
+ * point, error `Im(P conj(ahat))/|P|`, plus the optional cross-product FLL
+ * assist), filters the error, and steers the NCO frequency and phase. Exactly
+ * one de-rotated prompt is emitted per completed symbol; a trailing partial
+ * symbol is carried in the accumulator to the next call, so a stream can be
+ * fed in blocks of any length with no seam.
+ *
+ * The loop locks to one of @c m carrier phases — an M-fold ambiguity on the
+ * absolute constellation orientation. Resolve it downstream (differential
+ * demapping or a sync word); this call only recovers the carrier and returns
+ * the prompts. At @c m = 2 it is exactly the BPSK Costas loop.
+ *
+ * @param state    Carrier loop state (mutated). Must be non-NULL.
+ * @param x        Input block, one complex baseband sample per element.
+ * @param x_len    Number of input samples.
+ * @param out      Prompt output buffer written by the binding.
+ * @param max_out  Capacity of @p out, in symbols.
+ * @return One de-rotated prompt symbol per completed integrate-and-dump
+ *         period; the count is `x_len / tsamps`.
+ * @code
+ * >>> import numpy as np
+ * >>> from doppler.mpsk import mpsk_map
+ * >>> from doppler.track import CarrierMpsk
+ * >>> rng = np.random.default_rng(0)
+ * >>> sps = 16
+ * >>> labels = rng.integers(0, 4, 400).astype(np.uint8)
+ * >>> sig = np.repeat(mpsk_map(labels, 4), sps).astype(np.complex64)
+ * >>> k = np.arange(len(sig))
+ * >>> rx = (sig * np.exp(2j * np.pi * 0.002 * k)).astype(np.complex64)
+ * >>> c = CarrierMpsk(bn=0.04, zeta=0.707, init_norm_freq=0.0,
+ * ...                 tsamps=sps, bn_fll=0.02, m=4)
+ * >>> prompts = c.steps(rx)          # one prompt per symbol
+ * >>> prompts.shape
+ * (400,)
+ * >>> round(c.norm_freq, 4)          # tracked the residual carrier f0=0.002
+ * 0.002
+ * >>> round(c.lock_metric, 2)        # decision-aligned lock metric -> 1
+ * 1.0
+ *
+ * @endcode
+ */
 size_t carrier_mpsk_steps(carrier_mpsk_state_t *state, const float complex *x, size_t x_len, float complex *out, size_t max_out);
+
+/**
+ * @brief Recompute the loop gains for a new (bn, zeta); keep the estimate.
+ *
+ * Re-derives the proportional/integral gains of the embedded 2nd-order loop
+ * filter for the new noise bandwidth and damping, leaving the running
+ * frequency and phase estimate (the NCO and the loop integrator) untouched — a
+ * live lock survives a re-tune. Use it to widen the loop for fast pull-in and
+ * then narrow it for low-jitter tracking, mid-stream.
+ *
+ * @param state  Must be non-NULL.
+ * @param bn     Loop noise bandwidth, normalised to the symbol rate.
+ * @param zeta   Damping factor (0.707 = critically damped).
+ * @code
+ * >>> from doppler.track import CarrierMpsk
+ * >>> c = CarrierMpsk(bn=0.02, zeta=0.707, init_norm_freq=0.01,
+ * ...                 tsamps=16, bn_fll=0.0, m=4)
+ * >>> round(c.bn, 3)
+ * 0.02
+ * >>> c.configure(bn=0.05, zeta=1.0)   # widen the loop mid-stream
+ * >>> round(c.bn, 3)
+ * 0.05
+ * >>> round(c.norm_freq, 3)            # frequency estimate preserved
+ * 0.01
+ *
+ * @endcode
+ */
 void carrier_mpsk_configure(carrier_mpsk_state_t *state, double bn, double zeta);
 double carrier_mpsk_get_bn(const carrier_mpsk_state_t *state);
 void carrier_mpsk_set_bn(carrier_mpsk_state_t *state, double val);

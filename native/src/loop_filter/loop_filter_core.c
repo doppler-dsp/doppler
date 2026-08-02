@@ -54,9 +54,9 @@ DP_DEFINE_POD_STATE (loop_filter, loop_filter_state_t, LOOP_FILTER_STATE_MAGIC,
                      LOOP_FILTER_STATE_VERSION)
 
 void
-loop_filter_steps (loop_filter_state_t *state, const double *input,
-                   double *output, size_t n)
+loop_filter_steps (loop_filter_state_t *state, const double *x, double *out,
+                   size_t n)
 {
   for (size_t i = 0; i < n; i++)
-    output[i] = loop_filter_step (state, input[i]);
+    out[i] = loop_filter_step (state, x[i]);
 }

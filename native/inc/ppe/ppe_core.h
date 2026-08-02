@@ -81,17 +81,57 @@ extern "C"
   /** @brief Destroy an estimator.  @param state May be NULL. */
   void ppe_destroy (ppe_state_t *state);
 
-  /** @brief No-op (the estimator carries no running state). */
+  /**
+   * @brief Do nothing — the estimator keeps no running state between calls.
+   *
+   * A feedforward analyzer computes each estimate purely from the segment it is
+   * handed, so there is nothing to clear. The method exists only to satisfy the
+   * common object protocol; calling it is always safe and has no effect.
+   *
+   * @param state  Estimator handle (unused).
+   * @code
+   * >>> from doppler.dsss import PolynomialPhaseEstimator
+   * >>> p = PolynomialPhaseEstimator(max_len=512, max_rate=0.0)
+   * >>> p.reset()   # no-op: a fresh estimate depends only on the next segment
+   *
+   * @endcode
+   */
   void ppe_reset (ppe_state_t *state);
 
   /**
-   * @brief Estimate (frequency, chirp rate) of @p in via the coherent surface.
-   * @param state  Must be non-NULL.
-   * @param in     Complex sequence (modulation already stripped by the caller).
-   * @param n_in   Length, in `[4, max_len]`.
-   * @return The estimate; zeroed if @p n_in is out of range.
+   * @brief Estimate the normalized frequency and chirp rate of a complex
+   *        segment via the coherent (chirp-rate x frequency) surface.
+   *
+   * Runs the full 2-D matched-filter search in one shot: for each chirp-rate
+   * hypothesis the segment is dechirped and FFT-ed, and the peak of the
+   * resulting surface — refined sub-bin by parabolic interpolation on both
+   * axes — gives the estimate. With @c max_rate = 0 the rate axis collapses to
+   * a single FFT (pure Doppler) and the returned rate is forced to exactly 0.
+   *
+   * Feed a segment whose modulation has already been stripped (data-aided by
+   * the known symbols, or non-data-aided by the M-th-power trick — remembering
+   * that raising to the M-th power scales both returned values by M). The
+   * result carries @c freq_norm (cycles/sample), @c rate_norm
+   * (cycles/sample^2), and @c snr_db (a rough peak-to-mean confidence).
+   *
+   * @param state  Estimator handle; must be non-NULL.
+   * @param x      Complex segment (modulation already stripped by the caller).
+   * @param n_in   Segment length, in `[4, max_len]`.
+   * @return The estimate; all fields are zeroed if @p n_in is out of range.
+   * @code
+   * >>> import numpy as np
+   * >>> from doppler.dsss import PolynomialPhaseEstimator
+   * >>> m = np.arange(512)
+   * >>> f, r = 0.05, 1e-5                        # true Doppler + chirp rate
+   * >>> x = np.exp(2j*np.pi*(f*m + 0.5*r*m*m)).astype(np.complex64)
+   * >>> p = PolynomialPhaseEstimator(max_len=512, max_rate=5e-5)
+   * >>> e = p.estimate(x)                        # one-shot coherent search
+   * >>> round(e.freq_norm, 4), round(e.rate_norm, 7)
+   * (0.0501, 1e-05)
+   *
+   * @endcode
    */
-  ppe_result_t ppe_estimate (ppe_state_t *state, const float complex *in,
+  ppe_result_t ppe_estimate (ppe_state_t *state, const float complex *x,
                              size_t n_in);
 
 #ifdef __cplusplus

@@ -203,7 +203,33 @@ void costas_destroy(costas_state_t *state);
 
 /**
  * @brief Re-seed the loop to its create-time frequency/phase; keep config.
+ *
+ * Drops the lock and rewinds the NCO, loop integrator and integrate-and-dump
+ * accumulators to the create-time seed frequency, while retaining the
+ * configured loop bandwidth, damping and lock-detector thresholds.  Reprocess
+ * the same input after a reset and the output is bit-identical.
+ *
  * @param state  Must be non-NULL.
+ * @code
+ * >>> import numpy as np
+ * >>> from doppler.track import Costas
+ * >>> tsamps = 16
+ * >>> rng = np.random.default_rng(3)
+ * >>> bits = rng.integers(0, 2, 1500) * 2 - 1
+ * >>> sig = np.repeat(bits.astype(np.complex64), tsamps)
+ * >>> k = np.arange(len(sig))
+ * >>> rx = (sig * np.exp(2j * np.pi * 0.002 * k)).astype(np.complex64)
+ * >>> c = Costas(bn=0.05, zeta=0.707, tsamps=tsamps)
+ * >>> _ = c.steps(rx)
+ * >>> round(c.norm_freq, 4) != 0.0     # loop pulled onto the residual
+ * True
+ * >>> c.reset()
+ * >>> c.norm_freq                       # back to the create-time seed
+ * 0.0
+ * >>> c.lock_metric
+ * 0.0
+ *
+ * @endcode
  */
 void costas_reset(costas_state_t *state);
 
@@ -239,7 +265,71 @@ void costas_get_state(const costas_state_t *state, void *blob);
 int costas_set_state(costas_state_t *state, const void *blob);
 
 size_t costas_steps_max_out(costas_state_t *state);
+
+/**
+ * @brief De-rotate a cf32 block with the carrier NCO, integrate-and-dump each
+ * symbol, and emit one decision-directed Costas prompt per symbol.
+ *
+ * The streaming Python face of the loop.  For every input sample it wipes the
+ * (tracked) carrier off @p x with the integer-phase NCO, sums the result into
+ * the coherent integrate-and-dump accumulator, and on each symbol boundary
+ * (one every tsamps samples) dumps the accumulator as the prompt, runs the
+ * BPSK Costas discriminator to steer the NCO frequency and phase, and appends
+ * the mean-scaled prompt to the output.  Loop state carries across calls, so a
+ * long capture can be fed block by block; exactly one prompt symbol comes out
+ * per tsamps input samples.
+ *
+ * @param state    Costas state.  Must be non-NULL.
+ * @param x        Input samples, one complex baseband sample each.
+ * @param x_len    Number of input samples in @p x.
+ * @param out      Prompt-symbol output buffer.
+ * @param max_out  Capacity of @p out, in symbols.
+ * @return Number of prompt symbols written to @p out (one per @c tsamps input
+ *         samples). On the Python face this is the recovered-symbol array.
+ * @code
+ * >>> import numpy as np
+ * >>> from doppler.track import Costas
+ * >>> tsamps = 16
+ * >>> rng = np.random.default_rng(1)
+ * >>> bits = rng.integers(0, 2, 4000) * 2 - 1
+ * >>> sig = np.repeat(bits.astype(np.complex64), tsamps)
+ * >>> k = np.arange(len(sig))
+ * >>> rx = (sig * np.exp(2j * np.pi * 0.003 * k)).astype(np.complex64)
+ * >>> c = Costas(bn=0.05, zeta=0.707, tsamps=tsamps)
+ * >>> sym = c.steps(rx)             # one prompt symbol per tsamps samples
+ * >>> sym.shape
+ * (4000,)
+ * >>> round(c.norm_freq, 4)         # pulled onto the 0.003 cyc/sample residual
+ * 0.003
+ * >>> c.lock_metric > 0.9
+ * True
+ *
+ * @endcode
+ */
 size_t costas_steps(costas_state_t *state, const float complex *x, size_t x_len, float complex *out, size_t max_out);
+
+/**
+ * @brief Recompute the loop-filter gains for a new (@p bn, @p zeta) without
+ * disturbing the frequency/phase estimate.
+ *
+ * Re-derives the PI coefficients from the loop bandwidth and damping and
+ * installs them live.  The NCO frequency, phase and loop integrator are left
+ * untouched, so a converged loop keeps tracking straight through the re-tune —
+ * narrow the bandwidth once pulled in for lower phase jitter, or widen it to
+ * chase a faster-moving residual.
+ *
+ * @param state  Costas state.  Must be non-NULL.
+ * @param bn     Loop noise bandwidth, normalised to the symbol rate.
+ * @param zeta   Damping factor (0.707 = critically damped).
+ * @code
+ * >>> from doppler.track import Costas
+ * >>> c = Costas(bn=0.05, zeta=0.707, init_norm_freq=0.01, tsamps=16)
+ * >>> c.configure(0.02, 1.0)                    # narrow the loop, over-damp
+ * >>> (round(c.bn, 3), round(c.norm_freq, 3))   # new gains, estimate kept
+ * (0.02, 0.01)
+ *
+ * @endcode
+ */
 void costas_configure(costas_state_t *state, double bn, double zeta);
 double costas_get_bn(const costas_state_t *state);
 void costas_set_bn(costas_state_t *state, double val);

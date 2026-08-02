@@ -252,7 +252,28 @@ extern "C"
 
   /**
    * @brief Re-seed the front end and both loops to their create-time state.
+   *
+   * Clears the cascade's filter memory, the carrier and timing NCOs, the
+   * loop-filter integrators and the lock detectors, and returns the carrier
+   * estimate to @p init_norm_freq. The configuration (order, rate, pulse,
+   * bandwidths) is untouched, so the same input fed twice around a reset
+   * reproduces the same output bit-for-bit.
+   *
    * @param state  Must be non-NULL.
+   * @code
+   * >>> import numpy as np
+   * >>> from doppler.track import MpskReceiver
+   * >>> rng = np.random.default_rng(0)
+   * >>> idx = rng.integers(0, 4, 300)
+   * >>> tx = np.repeat(np.exp(1j * (2 * np.pi * idx / 4 + np.pi / 4)), 8)
+   * >>> tx = tx.astype(np.complex64)
+   * >>> rx = MpskReceiver(m=4, sps=8, m_out=4)
+   * >>> first = rx.steps(tx)
+   * >>> rx.reset()                                # back to the cold state
+   * >>> np.array_equal(first, rx.steps(tx))       # same input, same output
+   * True
+   *
+   * @endcode
    */
   void mpsk_receiver_reset (mpsk_receiver_state_t *state);
 
@@ -307,6 +328,21 @@ extern "C"
    * @param out      Output symbols; caller provides @p max_out capacity.
    * @param max_out  Output capacity.
    * @return Number of symbols written.
+   * @code
+   * >>> import numpy as np
+   * >>> from doppler.track import MpskReceiver
+   * >>> rng = np.random.default_rng(0)
+   * >>> idx = rng.integers(0, 4, 3000)                  # QPSK symbols
+   * >>> tx = np.repeat(np.exp(1j * (2 * np.pi * idx / 4 + np.pi / 4)), 8)
+   * >>> tx = tx.astype(np.complex64)                    # 8 samples/symbol
+   * >>> rx = MpskReceiver(m=4, sps=8, m_out=4, bn_carrier=0.02)
+   * >>> sym = rx.steps(tx)                              # blind NDA acquire
+   * >>> sym.size                                        # ~ x_len / sps
+   * 2997
+   * >>> round(rx.lock, 2)                               # carrier locked
+   * 0.91
+   *
+   * @endcode
    */
   size_t mpsk_receiver_steps (mpsk_receiver_state_t *state,
                               const float complex *x, size_t x_len,
@@ -329,6 +365,22 @@ extern "C"
    * @param out      Output bytes (0/1); caller provides @p max_out capacity.
    * @param max_out  Output capacity.
    * @return Number of bits written.
+   * @code
+   * >>> import numpy as np
+   * >>> from doppler.track import MpskReceiver
+   * >>> rng = np.random.default_rng(3)
+   * >>> idx = rng.integers(0, 2, 3000)                  # BPSK payload bits
+   * >>> tx = np.repeat(np.exp(1j * np.pi * idx), 8).astype(np.complex64)
+   * >>> rx = MpskReceiver(m=2, sps=8, m_out=4, bn_carrier=0.005)
+   * >>> b = rx.bits(tx)                                 # 1 hard bit/symbol
+   * >>> b.size
+   * 2997
+   * >>> # settled tail matches the payload up to the BPSK inversion ambiguity
+   * >>> tail = np.mean(b[1000:2000] != idx[1000:2000])
+   * >>> round(float(min(tail, 1 - tail)), 3)
+   * 0.0
+   *
+   * @endcode
    */
   size_t mpsk_receiver_bits (mpsk_receiver_state_t *state,
                              const float complex *x, size_t x_len,

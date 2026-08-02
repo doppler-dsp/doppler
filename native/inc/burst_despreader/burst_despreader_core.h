@@ -105,6 +105,29 @@ burst_despreader_state_t *burst_despreader_create(const uint8_t *code, size_t co
  * @param acq_code      Acquisition code (0/1), length acq_code_len; copied.
  * @param acq_code_len  Acquisition code length in chips.
  * @param acq_reps      Number of acq-code periods in the preamble.
+ * @code
+ * >>> import numpy as np
+ * >>> from doppler.dsss import BurstDespreader
+ * >>> rng = np.random.default_rng(5)
+ * >>> acq = rng.integers(0, 2, 128).astype(np.uint8)    # long acq code
+ * >>> data_code = rng.integers(0, 2, 32).astype(np.uint8)
+ * >>> pbits = rng.integers(0, 2, 40).astype(np.uint8)
+ * >>> asig = np.where(acq & 1, -1.0, 1.0)
+ * >>> dch = np.where(data_code & 1, -1.0, 1.0)
+ * >>> psyms = np.where(pbits == 1, -1.0, 1.0)
+ * >>> pre = np.concatenate([np.repeat(asig, 4) for _ in range(4)])
+ * >>> pay = np.concatenate([np.repeat(s * dch, 4) for s in psyms])
+ * >>> burst = np.concatenate([pre, pay]).astype(np.complex64)
+ * >>> d = BurstDespreader(data_code, sf=32, sps=4)
+ * >>> d.set_acq(acq, 4)                    # 4 preamble reps, pulls loops in
+ * >>> out = d.bits(burst)                  # preamble emits nothing
+ * >>> out.shape                            # only the payload symbols come out
+ * (40,)
+ * >>> e = np.mean(out != pbits)
+ * >>> round(float(min(e, 1.0 - e)), 4)
+ * 0.0
+ *
+ * @endcode
  */
 void burst_despreader_set_acq(burst_despreader_state_t *state, const uint8_t *acq_code,
                         size_t acq_code_len, size_t acq_reps);
@@ -116,8 +139,33 @@ void burst_despreader_set_acq(burst_despreader_state_t *state, const uint8_t *ac
 void burst_despreader_destroy(burst_despreader_state_t *state);
 
 /**
- * @brief Reset BurstDespreader to its post-create state.
+ * @brief Re-seed the loops to the create-time phase/frequency and re-arm the
+ *        burst statistics; preserve config.
+ *
+ * Restores the carrier NCO to the seed frequency and the code phase to the
+ * seed chip, zeroes the loop accumulators, and clears the cumulative burst
+ * read-backs (lock_metric / snr_est / lock_stat / stat_n) — the spreading
+ * code and bandwidths are kept. Call it between bursts so each burst's
+ * statistics start clean; a prior burst_despreader_set_acq() preamble is also
+ * re-armed.
+ *
  * @param state  Must be non-NULL.
+ * @code
+ * >>> import numpy as np
+ * >>> from doppler.dsss import BurstDespreader
+ * >>> rng = np.random.default_rng(1)
+ * >>> code = rng.integers(0, 2, 31).astype(np.uint8)
+ * >>> chips = np.where(code & 1, -1.0, 1.0)
+ * >>> syms = np.where(rng.integers(0, 2, 30) == 1, -1.0, 1.0)
+ * >>> tx = np.concatenate(
+ * ...     [np.repeat(s * chips, 4) for s in syms]).astype(np.complex64)
+ * >>> d = BurstDespreader(code, sf=31, sps=4)
+ * >>> first = d.bits(tx)
+ * >>> d.reset()                              # re-arm for a new burst
+ * >>> np.array_equal(first, d.bits(tx))      # same result as a fresh object
+ * True
+ *
+ * @endcode
  */
 void burst_despreader_reset(burst_despreader_state_t *state);
 
@@ -147,15 +195,26 @@ size_t burst_despreader_steps_max_out (burst_despreader_state_t *state);
  * @param x_len    Number of input samples.
  * @param out      Output buffer for prompt symbols (>= max_out).
  * @param max_out  Capacity of @p out in symbols.
- * @return Number of symbols written.
+ * @return Number of prompt symbols written into @p out.
  *
  * @code
- * // seed from acquisition (norm_freq cyc/sample, chip phase in chips):
- * burst_despreader_state_t *d = burst_despreader_create(code, n, 32, 2, f0, chip, .05, .01);
- * float complex sym[256];
- * size_t k = burst_despreader_steps(d, rx, rx_len, sym, 256);
- * // hard bit of sym[i] = crealf(sym[i]) >= 0
- * burst_despreader_destroy(d);
+ * >>> import numpy as np
+ * >>> from doppler.dsss import BurstDespreader
+ * >>> rng = np.random.default_rng(1)
+ * >>> code = rng.integers(0, 2, 31).astype(np.uint8)   # length-31 chip code
+ * >>> bits = rng.integers(0, 2, 30).astype(np.uint8)   # payload bits
+ * >>> chips = np.where(code & 1, -1.0, 1.0)             # 0 -> +1, 1 -> -1
+ * >>> syms = np.where(bits == 1, -1.0, 1.0)             # BPSK symbols
+ * >>> tx = np.concatenate(
+ * ...     [np.repeat(s * chips, 4) for s in syms]).astype(np.complex64)
+ * >>> d = BurstDespreader(code, sf=31, sps=4)
+ * >>> sym = d.steps(tx)                                 # one prompt per symbol
+ * >>> sym.shape
+ * (30,)
+ * >>> hard = (sym.real < 0).astype(np.uint8)            # BPSK decision
+ * >>> float(np.mean(hard != bits))                      # payload recovered
+ * 0.0
+ *
  * @endcode
  */
 size_t burst_despreader_steps (burst_despreader_state_t *state, const float complex *x,
@@ -176,7 +235,28 @@ size_t burst_despreader_bits_max_out (burst_despreader_state_t *state);
  * @param x_len    Number of input samples.
  * @param out      Output buffer for bits (>= max_out).
  * @param max_out  Capacity of @p out in bits.
- * @return Number of bits written.
+ * @return Number of hard bits written into @p out.
+ * @code
+ * >>> import numpy as np
+ * >>> from doppler.dsss import BurstDespreader
+ * >>> rng = np.random.default_rng(1)
+ * >>> code = rng.integers(0, 2, 31).astype(np.uint8)
+ * >>> bits = rng.integers(0, 2, 30).astype(np.uint8)
+ * >>> chips = np.where(code & 1, -1.0, 1.0)
+ * >>> syms = np.where(bits == 1, -1.0, 1.0)
+ * >>> tx = np.concatenate(
+ * ...     [np.repeat(s * chips, 4) for s in syms]).astype(np.complex64)
+ * >>> d = BurstDespreader(code, sf=31, sps=4)
+ * >>> rec = d.bits(tx)                             # hard 0/1 per symbol
+ * >>> rec.shape
+ * (30,)
+ * >>> e = np.mean(rec != bits)                     # up to a BPSK sign flip
+ * >>> round(float(min(e, 1.0 - e)), 4)
+ * 0.0
+ * >>> round(d.lock_metric, 3)
+ * 1.0
+ *
+ * @endcode
  */
 size_t burst_despreader_bits (burst_despreader_state_t *state, const float complex *x,
                         size_t x_len, uint8_t *out, size_t max_out);

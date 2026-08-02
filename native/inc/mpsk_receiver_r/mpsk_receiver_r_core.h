@@ -158,8 +158,33 @@ extern "C"
   /** @brief Destroy and release all memory. @param state May be NULL. */
   void mpsk_receiver_r_destroy (mpsk_receiver_r_state_t *state);
 
-  /** @brief Re-seed the front end and both loops to their create-time state.
-   *  @param state Must be non-NULL. */
+  /**
+   * @brief Re-seed the front end and both loops to their create-time state.
+   *
+   * Identical in effect to mpsk_receiver_reset() — clears the R2C halfband and
+   * cascade memory, the carrier and timing NCOs, the loop integrators and the
+   * lock detectors, and returns the carrier estimate to @p init_norm_freq.
+   * Configuration is untouched, so a burst fed twice around a reset reproduces
+   * bit-for-bit.
+   *
+   * @param state  Must be non-NULL.
+   * @code
+   * >>> import numpy as np
+   * >>> from doppler.track import MpskReceiverR
+   * >>> rng = np.random.default_rng(0)
+   * >>> idx = rng.integers(0, 4, 300)
+   * >>> bb = np.repeat(np.exp(2j * np.pi * idx / 4), 32)
+   * >>> n = np.arange(bb.size)
+   * >>> x = (0.4 * bb * np.exp(2j * np.pi * 0.25 * n)).real   # real IF, fs/4
+   * >>> x = np.ascontiguousarray(x.astype(np.float32))
+   * >>> rx = MpskReceiverR(m=4, sps=32, m_out=8, init_norm_freq=0.25)
+   * >>> first = rx.steps(x)
+   * >>> rx.reset()                                # back to the cold state
+   * >>> np.array_equal(first, rx.steps(x))        # same input, same output
+   * True
+   *
+   * @endcode
+   */
   void mpsk_receiver_r_reset (mpsk_receiver_r_state_t *state);
 
   /**
@@ -208,6 +233,23 @@ extern "C"
    * @param out      Output symbols; caller provides @p max_out capacity.
    * @param max_out  Output capacity.
    * @return Number of symbols written.
+   * @code
+   * >>> import numpy as np
+   * >>> from doppler.track import MpskReceiverR
+   * >>> rng = np.random.default_rng(3)
+   * >>> idx = rng.integers(0, 4, 2400)                  # QPSK symbols
+   * >>> bb = np.repeat(np.exp(2j * np.pi * idx / 4), 32)  # 32 samples/symbol
+   * >>> n = np.arange(bb.size)
+   * >>> x = (0.4 * bb * np.exp(2j * np.pi * 0.25 * n)).real   # real IF, fs/4
+   * >>> x = np.ascontiguousarray(x.astype(np.float32))
+   * >>> rx = MpskReceiverR(m=4, sps=32, m_out=8, init_norm_freq=0.25)
+   * >>> sym = rx.steps(x)
+   * >>> sym.size                                        # ~ x_len / sps
+   * 2398
+   * >>> round(rx.lock, 2)                               # carrier locked
+   * 0.99
+   *
+   * @endcode
    */
   size_t mpsk_receiver_r_steps (mpsk_receiver_r_state_t *state, const float *x,
                                 size_t x_len, float complex *out,
@@ -225,6 +267,26 @@ extern "C"
    * @param out      Output bytes (0/1); caller provides @p max_out capacity.
    * @param max_out  Output capacity.
    * @return Number of bits written.
+   * @code
+   * >>> import numpy as np
+   * >>> from doppler.track import MpskReceiverR
+   * >>> rng = np.random.default_rng(3)
+   * >>> idx = rng.integers(0, 2, 2400)                  # BPSK payload bits
+   * >>> bb = np.repeat(np.exp(1j * np.pi * idx), 32)
+   * >>> n = np.arange(bb.size)
+   * >>> x = (0.4 * bb * np.exp(2j * np.pi * 0.25 * n)).real   # real IF, fs/4
+   * >>> x = np.ascontiguousarray(x.astype(np.float32))
+   * >>> rx = MpskReceiverR(m=2, sps=32, m_out=8, init_norm_freq=0.25,
+   * ...                    bn_carrier=0.005)
+   * >>> b = rx.bits(x)                                  # 1 hard bit/symbol
+   * >>> b.size
+   * 2398
+   * >>> # settled tail matches the payload up to the BPSK inversion ambiguity
+   * >>> tail = np.mean(b[1500:2300] != idx[1500:2300])
+   * >>> round(float(min(tail, 1 - tail)), 3)
+   * 0.0
+   *
+   * @endcode
    */
   size_t mpsk_receiver_r_bits (mpsk_receiver_r_state_t *state, const float *x,
                                size_t x_len, uint8_t *out, size_t max_out);
@@ -239,13 +301,77 @@ extern "C"
   double mpsk_receiver_r_get_lock (const mpsk_receiver_r_state_t *state);
   int    mpsk_receiver_r_get_locked (const mpsk_receiver_r_state_t *state);
   double mpsk_receiver_r_get_last_error (const mpsk_receiver_r_state_t *state);
-  /** @brief Re-tune the handover detector; see
-   *  mpsk_receiver_configure_lock(), whose contract this shares. */
+  /**
+   * @brief Re-tune the acquisition<->tracking handover detector directly.
+   *
+   * The real-input twin of mpsk_receiver_configure_lock(), whose contract it
+   * shares exactly: a split declare/drop threshold pair on the carrier lock EMA
+   * (level hysteresis) plus both verify counts (time hysteresis). A live
+   * handover survives the re-tune; the in-flight verify run restarts.
+   *
+   * @param state        Must be non-NULL.
+   * @param up_thresh    Declare threshold on the carrier lock EMA.
+   * @param down_thresh  Drop threshold; choose <= up_thresh for level
+   *                     hysteresis.
+   * @param n_up         Consecutive above-threshold symbols to hand over to
+   *                     the decision-directed discriminator; clamped >= 1.
+   * @param n_down       Consecutive below-threshold symbols to fall back to
+   *                     NDA acquisition; clamped >= 1.
+   * @code
+   * >>> from doppler.track import MpskReceiverR
+   * >>> rx = MpskReceiverR(m=4, sps=10, m_out=2, acq_to_track=1)
+   * >>> rx.tracking
+   * 0
+   * >>> rx.configure_lock(0.9, 0.72, 4, 16)   # tighter declare, faster drop
+   *
+   * @endcode
+   */
   void mpsk_receiver_r_configure_lock (mpsk_receiver_r_state_t *state,
                                        double up_thresh, double down_thresh,
                                        uint32_t n_up, uint32_t n_down);
-  /** @brief Attach (or detach) telemetry; registers the same eleven probes as
-   *  mpsk_receiver_set_telemetry(), whose contract this shares. */
+  /**
+   * @brief Attach (or detach) a telemetry context across the receiver.
+   *
+   * Registers the same eleven probes as mpsk_receiver_set_telemetry(), whose
+   * contract it shares: the receiver's own "<prefix>.lock" and
+   * "<prefix>.tracking", the carrier loop's "<prefix>.car.e" / ".freq" /
+   * ".locked", and the symbol-timing loop's "<prefix>.sync.e" / ".ctrl" /
+   * ".rate" / ".lock" / ".locked" / ".mu" — all thinned by @p decim and
+   * emitted once per recovered symbol. Passing NULL detaches everything. Setup
+   * path, never hot; the context is borrowed and must outlive the attachment.
+   *
+   * @param state  Must be non-NULL.
+   * @param tlm    Telemetry context to attach, or NULL to detach.
+   * @param prefix Probe-name prefix, e.g. "rx".
+   * @param decim  Emit every decim-th symbol; >= 1.
+   * @return DP_OK, or DP_ERR_INVALID when the probe table cannot take the
+   *         eleven probes (the attach fails whole; everything detached).
+   * @code
+   * >>> import numpy as np
+   * >>> from doppler.track import MpskReceiverR
+   * >>> from doppler.telemetry import Telemetry
+   * >>> tlm = Telemetry(1 << 14)
+   * >>> rx = MpskReceiverR(m=4, sps=10, m_out=2, init_norm_freq=0.25)
+   * >>> rx.set_telemetry(tlm, "rx")
+   * >>> len(tlm.probe_names())
+   * 11
+   * >>> rng = np.random.default_rng(7)
+   * >>> idx = rng.integers(0, 4, 512)
+   * >>> bb = np.repeat(np.exp(2j * np.pi * idx / 4), 10)
+   * >>> n = np.arange(bb.size)
+   * >>> x = (0.4 * bb * np.exp(2j * np.pi * 0.25 * n)).real
+   * >>> x = np.ascontiguousarray(x.astype(np.float32))
+   * >>> _ = rx.steps(x)
+   * >>> recs = tlm.read()
+   * >>> tlm.dropped            # size the ring, or the counts below diverge
+   * 0
+   * >>> n_sync = len(recs[recs["probe"] == tlm.probe_id("rx.sync.e")])
+   * >>> n_car = len(recs[recs["probe"] == tlm.probe_id("rx.car.e")])
+   * >>> n_sync > 0 and n_sync == n_car
+   * True
+   *
+   * @endcode
+   */
   int mpsk_receiver_r_set_telemetry (mpsk_receiver_r_state_t *state,
                                      dp_tlm_t *tlm, const char *prefix,
                                      uint32_t decim);

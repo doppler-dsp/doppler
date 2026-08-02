@@ -385,7 +385,32 @@ extern "C"
 
   /**
    * @brief Re-seed the loop to its create-time frequency/phase; keep config.
+   *
+   * Restores the object to its post-create state: the carrier NCO is reset to
+   * the seed frequency it was constructed with (init_norm_freq) with zero
+   * phase, the moving-average arm, AGC, loop-filter integrator and lock EMA are
+   * cleared, and the lock detector is dropped. The configured (bn, zeta), the
+   * arm geometry (sps, n) and the constellation order m are preserved, so the
+   * same object can re-acquire a fresh capture.
+   *
    * @param state  Must be non-NULL.
+   * @code
+   * >>> import numpy as np
+   * >>> from doppler.track import CarrierNda
+   * >>> c = CarrierNda(bn=0.01, zeta=0.707, init_norm_freq=0.0, sps=8, n=4, m=4)
+   * >>> rng = np.random.default_rng(0)
+   * >>> k = np.arange(40000)
+   * >>> x = (np.exp(2j * np.pi * 0.001 * k) + 0.05 * (
+   * ...      rng.standard_normal(k.size)
+   * ...      + 1j * rng.standard_normal(k.size))).astype(np.complex64)
+   * >>> _ = c.steps(x)
+   * >>> round(c.norm_freq, 4), round(c.lock, 2)   # acquired the carrier
+   * (0.001, 0.99)
+   * >>> c.reset()
+   * >>> round(c.norm_freq, 4), round(c.lock, 2)   # back to the seed, unlocked
+   * (0.0, 0.0)
+   *
+   * @endcode
    */
   void carrier_nda_reset (carrier_nda_state_t *state);
 
@@ -510,6 +535,46 @@ extern "C"
   int carrier_nda_set_state (carrier_nda_state_t *state, const void *blob);
 
   size_t carrier_nda_steps_max_out (carrier_nda_state_t *state);
+
+  /**
+   * @brief De-rotate a cf32 block with the recovered carrier and return the
+   * de-rotated stream (one output per input sample).
+   *
+   * Runs the non-data-aided carrier loop over the block: each sample is
+   * wiped off by the integer-phase NCO, the de-rotated sample slides the I/Q
+   * moving-average arm, and the M-th-power discriminator (which strips the
+   * M-PSK data modulation) steers the NCO frequency and phase. Because the
+   * discriminator is data- and timing-independent, this acquires the carrier
+   * with no symbol timing and no data present — a bare carrier, or a modulated
+   * carrier before timing lock. It resolves to one of m carrier phases (M-fold
+   * ambiguity, resolved downstream). Read norm_freq for the tracked carrier
+   * (cycles/sample) and lock for the carrier lock metric.
+   *
+   * @param state    Must be non-NULL.
+   * @param x        Input samples (average power at or below unity).
+   * @param x_len    Number of input samples.
+   * @param out      De-rotated samples, one per input.
+   * @param max_out  Capacity of @p out.
+   * @return Number of de-rotated samples written to @p out (equals @p x_len).
+   * @code
+   * >>> import numpy as np
+   * >>> from doppler.track import CarrierNda
+   * >>> c = CarrierNda(bn=0.01, zeta=0.707, init_norm_freq=0.0, sps=8, n=4, m=4)
+   * >>> rng = np.random.default_rng(0)
+   * >>> k = np.arange(40000)
+   * >>> x = (np.exp(2j * np.pi * 0.001 * k) + 0.05 * (
+   * ...      rng.standard_normal(k.size)
+   * ...      + 1j * rng.standard_normal(k.size))).astype(np.complex64)
+   * >>> y = c.steps(x)                 # de-rotated toward DC
+   * >>> y.shape[0]
+   * 40000
+   * >>> round(c.norm_freq, 4)          # tracked carrier, cycles/sample
+   * 0.001
+   * >>> c.lock > 0.5                    # carrier lock metric, ~1 at lock
+   * True
+   *
+   * @endcode
+   */
   size_t carrier_nda_steps (carrier_nda_state_t *state, const float complex *x,
                             size_t x_len, float complex *out, size_t max_out);
   double carrier_nda_get_norm_freq (const carrier_nda_state_t *state);

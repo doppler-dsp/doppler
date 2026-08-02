@@ -810,7 +810,7 @@ acq_reset (acq_state_t *st)
 /* ── Stream push ────────────────────────────────────────────────────────── */
 
 size_t
-acq_push (acq_state_t *st, const float complex *in, size_t n_in,
+acq_push (acq_state_t *st, const float complex *x, size_t n_in,
           acq_result_t *result, size_t max_results)
 {
   size_t       ndet     = 0;
@@ -832,7 +832,7 @@ acq_push (acq_state_t *st, const float complex *in, size_t n_in,
 
       if (to_write > 0)
         {
-          dp_f32_write (st->ring, (const float *)(in + off), to_write);
+          dp_f32_write (st->ring, (const float *)(x + off), to_write);
           off += to_write;
         }
 

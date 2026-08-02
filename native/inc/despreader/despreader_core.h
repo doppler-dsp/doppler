@@ -105,7 +105,32 @@ extern "C"
                         size_t periods_per_bit);
 
   /**
-   * @brief Create a despreader (COPIES @p code).
+   * @brief Create a continuous DSSS despreader (COPIES @p code).
+   *
+   * A complete tracking despreader for a continuous DSSS-BPSK stream: it
+   * composes a Costas carrier loop and an early/prompt/late DLL code loop over
+   * a single shared per-sample integrate-and-dump. Seed it from acquisition
+   * (the coarse carrier frequency and code phase) and the loops track the
+   * residual; steps() emits one prompt symbol per code period, and bits()
+   * bit-syncs those prompts into hard data bits (a data bit spans
+   * @p periods_per_bit code periods).
+   *
+   * @param code             Spreading code (0/1 chips), one period; copied.
+   * @param code_len         Code length (chips per period); >= 1.
+   * @param sps              Samples per chip.
+   * @param init_norm_freq   Seed carrier frequency, cycles/sample (the
+   *                         acquisition estimate).
+   * @param init_chip        Seed code phase, chips (the acquisition estimate).
+   * @param bn_carrier       Carrier loop noise bandwidth, normalized to the
+   *                         code-period (symbol) rate.
+   * @param bn_code          Code loop noise bandwidth, normalized to the
+   *                         code-period rate.
+   * @param bn_fll           Carrier FLL-assist bandwidth (0 = pure PLL);
+   *                         set > 0 for FLL-assisted carrier pull-in.
+   * @param zeta             Damping factor shared by both second-order loops.
+   * @param spacing          DLL early/late correlator tap offset, chips.
+   * @param periods_per_bit  Code periods per data bit (1 = one bit per
+   *                         period).
    * @return Heap-allocated state, or NULL on allocation failure.
    * @note Caller must call despreader_destroy() when done.
    */
@@ -124,14 +149,110 @@ extern "C"
 
   /**
    * @brief Re-seed both loops to the create-time frequency/phase; keep config.
+   *
+   * Restores the carrier NCO to @c init_norm_freq and the code phase to
+   * @c init_chip, zeroes the loop-filter accumulators and the bit-sync
+   * histogram, and clears the lock detectors — the spreading code and every
+   * configured bandwidth are preserved. Use it to re-run the same despreader
+   * over an independent stream and get a fresh instance's result.
+   *
    * @param state  Must be non-NULL.
+   * @code
+   * >>> import numpy as np
+   * >>> from doppler.dsss import Despreader
+   * >>> rng = np.random.default_rng(3)
+   * >>> code = rng.integers(0, 2, 31).astype(np.uint8)
+   * >>> chips = np.where(code & 1, -1.0, 1.0)
+   * >>> syms = np.where(rng.integers(0, 2, 40) == 1, -1.0, 1.0)
+   * >>> rx = np.concatenate(
+   * ...     [s * np.repeat(chips, 4) for s in syms]).astype(np.complex64)
+   * >>> d = Despreader(code=code, sps=4)
+   * >>> first = d.bits(rx)
+   * >>> d.reset()                          # re-seed to acquisition
+   * >>> np.array_equal(first, d.bits(rx))  # same result as a fresh object
+   * True
+   *
+   * @endcode
    */
   void despreader_reset (despreader_state_t *state);
 
   size_t despreader_steps_max_out (despreader_state_t *state);
+
+  /**
+   * @brief Track carrier and code and despread a CF32 block, one prompt symbol
+   *        per code period.
+   *
+   * The continuous kernel: per input sample it wipes the carrier (Costas NCO)
+   * and correlates the de-rotated sample against the early/prompt/late code
+   * taps (DLL); per code period it dumps the prompt integrate-and-dump, updates
+   * the code loop on the early/late envelopes and the carrier loop on the same
+   * prompt, and emits that prompt. A partial period is carried in state across
+   * calls, so a long stream can be fed in blocks. Each emitted symbol's sign is
+   * the BPSK decision; its phase and magnitude are the soft information.
+   *
+   * @param state    Must be non-NULL.
+   * @param x        Input CF32 samples.
+   * @param x_len    Number of input samples.
+   * @param out      Output buffer for prompt symbols (>= @p max_out).
+   * @param max_out  Capacity of @p out in symbols.
+   * @return Number of prompt symbols written into @p out.
+   * @code
+   * >>> import numpy as np
+   * >>> from doppler.dsss import Despreader
+   * >>> rng = np.random.default_rng(3)
+   * >>> code = rng.integers(0, 2, 31).astype(np.uint8)  # one code period
+   * >>> chips = np.where(code & 1, -1.0, 1.0)            # 0 -> +1, 1 -> -1
+   * >>> bits = rng.integers(0, 2, 40).astype(np.uint8)  # 1 bit / period
+   * >>> syms = np.where(bits == 1, -1.0, 1.0)
+   * >>> rx = np.concatenate(
+   * ...     [s * np.repeat(chips, 4) for s in syms]).astype(np.complex64)
+   * >>> d = Despreader(code=code, sps=4)
+   * >>> prompt = d.steps(rx)                    # one prompt per code period
+   * >>> hard = (prompt.real < 0).astype(np.uint8)
+   * >>> e = np.mean(hard != bits[:hard.size])   # payload recovered
+   * >>> round(float(min(e, 1.0 - e)), 4)
+   * 0.0
+   *
+   * @endcode
+   */
   size_t despreader_steps (despreader_state_t *state, const float complex *x,
                            size_t x_len, float complex *out, size_t max_out);
   size_t despreader_bits_max_out (despreader_state_t *state);
+
+  /**
+   * @brief Despread a CF32 block and bit-sync the prompts into hard data bits.
+   *
+   * The same tracking kernel as despreader_steps(), followed by bit
+   * synchronisation: the per-period prompts are coherently summed across each
+   * detected bit boundary (a data bit spans @c periods_per_bit code periods)
+   * and one hard 0/1 bit is emitted per data bit. The bit boundary is estimated
+   * on-line from the prompt sign-flip histogram, so the phase is a BPSK
+   * ambiguity — a globally inverted decision stream is equally correct.
+   *
+   * @param state    Must be non-NULL.
+   * @param x        Input CF32 samples.
+   * @param x_len    Number of input samples.
+   * @param out      Output buffer for hard bits, 0/1 (>= @p max_out).
+   * @param max_out  Capacity of @p out in bits.
+   * @return Number of data bits written into @p out.
+   * @code
+   * >>> import numpy as np
+   * >>> from doppler.dsss import Despreader
+   * >>> rng = np.random.default_rng(3)
+   * >>> code = rng.integers(0, 2, 31).astype(np.uint8)
+   * >>> chips = np.where(code & 1, -1.0, 1.0)
+   * >>> bits = rng.integers(0, 2, 40).astype(np.uint8)
+   * >>> syms = np.where(bits == 1, -1.0, 1.0)
+   * >>> rx = np.concatenate(
+   * ...     [s * np.repeat(chips, 4) for s in syms]).astype(np.complex64)
+   * >>> d = Despreader(code=code, sps=4)
+   * >>> data = d.bits(rx)                       # hard data bits
+   * >>> e = np.mean(data != bits[:data.size])   # up to a BPSK sign flip
+   * >>> round(float(min(e, 1.0 - e)), 4)
+   * 0.0
+   *
+   * @endcode
+   */
   size_t despreader_bits (despreader_state_t *state, const float complex *x,
                           size_t x_len, uint8_t *out, size_t max_out);
   double despreader_get_norm_freq (const despreader_state_t *state);

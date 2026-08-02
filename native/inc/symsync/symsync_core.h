@@ -334,14 +334,88 @@ extern "C"
   void symsync_destroy (symsync_state_t *state);
 
   /**
-   * @brief Reset SymbolSync to its post-create state.
+   * @brief Re-seed the timing loop to its nominal rate and zero phase.
+   *
+   * Restores the object to its post-create state: the timing NCO is zeroed to
+   * the nominal one-wrap-per-symbol rate, the Farrow history and TED state are
+   * cleared, the loop-filter integrator is emptied and the lock detector is
+   * dropped. The configured (bn, zeta), TED selection and any lock geometry
+   * are preserved, so the same object can be re-run on a fresh stream.
+   *
    * @param state  Must be non-NULL.
+   * @code
+   * >>> import numpy as np
+   * >>> from doppler.track import SymbolSync
+   * >>> ss = SymbolSync(sps=4, bn=0.02, zeta=0.707)
+   * >>> _ = ss.steps(np.repeat([1.0, -1.0], 4 * 40).astype(np.complex64))
+   * >>> ss.reset()
+   * >>> round(ss.rate, 1)              # back to the nominal sps
+   * 4.0
+   * >>> round(ss.timing_error, 3)      # loop stress cleared
+   * 0.0
+   *
+   * @endcode
    */
   void symsync_reset (symsync_state_t *state);
 
   size_t symsync_steps_max_out (symsync_state_t *state);
+
+  /**
+   * @brief Recover symbol timing from an oversampled cf32 baseband block.
+   *
+   * symsync_step() in a loop, with the TED specialised per detector. Each input
+   * sample feeds the Farrow interpolator and advances the integer timing NCO;
+   * on a mid-symbol crossing the transition-gate interpolant is stored, and on a
+   * wrap the on-time interpolant is formed, the selected TED (Gardner or DTTL)
+   * measures the timing error, the PI loop steers the NCO rate, and one
+   * symbol-rate sample is emitted at the recovered instant. State carries across
+   * calls, so contiguous blocks give the same symbols as one large block.
+   *
+   * @param state    Must be non-NULL.
+   * @param x        Oversampled input samples (~sps samples per symbol).
+   * @param x_len    Number of input samples.
+   * @param out      Recovered symbol-rate samples.
+   * @param max_out  Capacity of @p out.
+   * @return Number of recovered symbols written to @p out.
+   * @code
+   * >>> import numpy as np
+   * >>> from doppler.track import SymbolSync
+   * >>> ss = SymbolSync(sps=4, bn=0.02, zeta=0.707)
+   * >>> x = np.repeat([1.0, -1.0, 1.0, -1.0], 4 * 32).astype(np.complex64)
+   * >>> y = ss.steps(x)                # oversampled -> one sample per symbol
+   * >>> y.shape[0]
+   * 127
+   * >>> sorted(set(np.where(y.real >= 0, 1, -1).tolist()))   # recovered +/-1
+   * [-1, 1]
+   * >>> round(ss.rate, 1)              # tracked samples/symbol
+   * 4.0
+   *
+   * @endcode
+   */
   size_t symsync_steps (symsync_state_t *state, const float complex *x,
                         size_t x_len, float complex *out, size_t max_out);
+
+  /**
+   * @brief Recompute the loop gains for a new (bn, zeta); preserve the timing
+   * estimate.
+   *
+   * Retunes the PI timing loop in place: the proportional/integral gains are
+   * recomputed from the new noise bandwidth and damping, while the NCO phase,
+   * tracked rate and loop-filter integrator carry over — so a locked loop is
+   * re-bandwidthed (e.g. narrowed after acquisition) without losing lock.
+   *
+   * @param state  Must be non-NULL.
+   * @param bn     Loop noise bandwidth, normalised to the symbol rate (>= 0).
+   * @param zeta   Damping factor (0.707 = critically damped).
+   * @code
+   * >>> from doppler.track import SymbolSync
+   * >>> ss = SymbolSync(sps=4, bn=0.01, zeta=0.707)
+   * >>> ss.configure(bn=0.05, zeta=1.0)   # widen and over-damp for acquisition
+   * >>> round(ss.bn, 3)
+   * 0.05
+   *
+   * @endcode
+   */
   void   symsync_configure (symsync_state_t *state, double bn, double zeta);
   double symsync_get_bn (const symsync_state_t *state);
   void   symsync_set_bn (symsync_state_t *state, double val);
@@ -433,6 +507,16 @@ extern "C"
    *                     clamped >= 1.
    * @param n_down       Consecutive below-threshold decisions to drop;
    *                     clamped >= 1.
+   * @code
+   * >>> from doppler.track import SymbolSync
+   * >>> ss = SymbolSync(sps=4, bn=0.01, zeta=0.707)
+   * >>> ss.configure_lock_raw(64, 0.3, 0.3, 1, 8)   # 64-look block, 8-drop
+   * >>> ss.locked
+   * False
+   * >>> round(ss.lock_stat, 3)
+   * 0.0
+   *
+   * @endcode
    */
   void symsync_configure_lock_raw (symsync_state_t *state, size_t avgs,
                                    double up_thresh, double down_thresh,

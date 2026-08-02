@@ -90,9 +90,17 @@ ______________________________________________________________________
     A mismatched name is **not** an error: jm falls back to a positional zip of
     the leftover descriptions, so a typo'd name silently renders attached to the
     *wrong* parameter. Get the names right (jm#667 will lint this).
-- **`@return`** — whenever the function returns a value. (Exception: a
-    constructor — `<obj>_create()` — does not get a Returns section; jm renders
-    the class from it but omits Returns by design.)
+- **`@return`** — **only when the C function itself returns non-void.** Read
+    the C signature, not the Python one: `size_t <obj>_execute_max_out(...)` /
+    `float <obj>_step(...)` → add `@return`; `void <obj>_steps(..., out, n)` →
+    **do NOT**, even though the *Python* method returns an array. A
+    `variable_output` method has a `void` C function that writes into an `out`
+    param; Doxygen's zero-warnings gate FAILS on a documented `@return` there
+    (`found documented return type for X that does not return anything`), and jm
+    synthesises the Python `Returns` section itself — so the method still reaches
+    FULL with no header `@return`. Put any real return semantics in the body
+    prose. (Exception, separate: a constructor — `<obj>_create()` — does not get
+    a Returns section; jm renders the class from it but omits Returns by design.)
 - **`@code … @endcode`** — a **usage example** a reader learns from, which also
     runs in CI. See [Examples](#doctests-that-run) below. This is the single
     highest-value tag: it becomes the Examples section a user copies from *and*

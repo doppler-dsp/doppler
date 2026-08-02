@@ -441,7 +441,21 @@ dll_update(dll_state_t *s)
 }
 
 /**
- * @brief Create a DLL instance (COPIES @p code).
+ * @brief Create a code/timing delay-locked loop over a spreading code.
+ *
+ * A non-coherent early/prompt/late DLL that tracks the code phase of a
+ * repeating spreading sequence (PN / Gold) on a carrier-wiped sample stream.
+ * Each code period it correlates the input against three replica taps —
+ * early (`+spacing` chips), prompt, late (`-spacing` chips) — runs the
+ * power-domain early-minus-late discriminator, filters it through a 2nd-order
+ * loop, and steers a fixed-point code-phase NCO. With `segments == 1` it emits
+ * one prompt symbol per period (a coherent full-epoch integrate-and-dump);
+ * with `segments > 1` it splits each epoch into that many partial correlations
+ * and tracks non-coherently across them, robust to an asynchronous data-symbol
+ * clock. An always-on CFAR lock detector (see @ref dll_configure_lock) reports
+ * whether the loop is tracking; carrier-aiding (@ref dll_set_rate_aid) lets the
+ * code NCO ride a physically-coupled Doppler the discriminator alone cannot
+ * pull in at low SNR.
  *
  * @param code       Spreading code (0/1 chips), one period; copied internally.
  * @param code_len   Code length (chips per period).
@@ -496,12 +510,99 @@ void dll_destroy(dll_state_t *state);
 
 /**
  * @brief Re-seed the loop to its create-time code phase; keep config.
+ *
+ * Restores the code phase, loop filter, correlator accumulators and lock
+ * detector to their post-construction state while preserving the tuned
+ * configuration (bn/zeta, spacing, segments, lock geometry). Re-running the
+ * same input after a reset therefore reproduces the same tracked state
+ * bit-for-bit — the basis of a deterministic replay.
+ *
  * @param state  Must be non-NULL.
+ * @code
+ * >>> import numpy as np
+ * >>> from doppler.track import Dll
+ * >>> rng = np.random.default_rng(21)
+ * >>> code = rng.integers(0, 2, 63).astype(np.uint8)
+ * >>> idx = (np.arange(63 * 4 * 300) * (1 + 3e-4) / 4).astype(np.int64) % 63
+ * >>> x = np.where(code[idx] & 1, -1.0, 1.0).astype(np.complex64)
+ * >>> d = Dll(code, sps=4, bn=0.005)
+ * >>> _ = d.steps(x)
+ * >>> first = round(d.code_rate, 6)
+ * >>> d.reset()                       # back to the create-time code phase
+ * >>> _ = d.steps(x)                  # same input -> same tracked rate
+ * >>> round(d.code_rate, 6) == first
+ * True
+ *
+ * @endcode
  */
 void dll_reset(dll_state_t *state);
 
 size_t dll_steps_max_out(dll_state_t *state);
+
+/**
+ * @brief Correlate a carrier-wiped block against the local code and steer the
+ * code NCO once per code period.
+ *
+ * The Python face of the loop. Each code period the early/prompt/late
+ * correlators dump, the power-domain non-coherent early-minus-late
+ * discriminator runs, and the fixed-point code-phase NCO is re-steered; the
+ * prompt correlator value is emitted as one output symbol per period (or
+ * `segments` partial prompts per period when `segments > 1`). The loop is
+ * carrier-blind — it tracks with a residual carrier still on the input, so
+ * carrier recovery (Costas) and symbol-timing recovery are downstream stages
+ * fed from this output. Returned blocks are block-size invariant and safe to
+ * keep across calls (a block still referenced is never overwritten, jm gh-437).
+ *
+ * @param state    DLL state.  Must be non-NULL.
+ * @param x        Carrier-wiped input samples (one contiguous block).
+ * @param x_len    Number of input samples.
+ * @param out      Output buffer for the emitted prompt symbols.
+ * @param max_out  Capacity of @p out in elements; emission stops there.
+ * @return Number of prompt symbols written — one per completed code period
+ *         (`segments` per period when `segments > 1`) — up to @p max_out.
+ * @code
+ * >>> import numpy as np
+ * >>> from doppler.track import Dll
+ * >>> rng = np.random.default_rng(1)
+ * >>> code = rng.integers(0, 2, 31).astype(np.uint8)
+ * >>> chip = np.where(code & 1, -1.0, 1.0)             # BPSK spreading code
+ * >>> x = np.tile(np.repeat(chip, 2), 40).astype(np.complex64)  # 40 clean periods
+ * >>> d = Dll(code=code, sps=2)
+ * >>> sym = d.steps(x)                                 # one prompt per code period
+ * >>> sym.dtype
+ * dtype('complex64')
+ * >>> round(float(np.mean(sym.real[-10:])), 1)         # despread to a clean +1
+ * 1.0
+ * >>> round(d.code_rate, 3)                            # locked at the nominal rate
+ * 1.0
+ *
+ * @endcode
+ */
 size_t dll_steps(dll_state_t *state, const float complex *x, size_t x_len, float complex *out, size_t max_out);
+
+/**
+ * @brief Recompute the loop gains for a new (bn, zeta); keep the code state.
+ *
+ * Re-derives the 2nd-order loop filter's proportional and integral gains for a
+ * new noise bandwidth and damping, leaving the tracked code phase, code rate
+ * and correlator accumulators untouched — retune the loop mid-run (e.g. narrow
+ * the bandwidth once pulled in) without dropping lock.
+ *
+ * @param state  DLL state.  Must be non-NULL.
+ * @param bn     Loop noise bandwidth, normalised to the code-period rate.
+ * @param zeta   Damping factor (0.707 = critically damped).
+ * @code
+ * >>> import numpy as np
+ * >>> from doppler.track import Dll
+ * >>> rng = np.random.default_rng(1)
+ * >>> code = rng.integers(0, 2, 31).astype(np.uint8)
+ * >>> d = Dll(code=code, sps=2, bn=0.01)
+ * >>> d.configure(bn=0.02, zeta=0.707)   # widen the loop bandwidth mid-run
+ * >>> round(d.bn, 3)
+ * 0.02
+ *
+ * @endcode
+ */
 void dll_configure(dll_state_t *state, double bn, double zeta);
 double dll_get_bn(const dll_state_t *state);
 void dll_set_bn(dll_state_t *state, double val);
@@ -520,6 +621,25 @@ void dll_set_bn(dll_state_t *state, double val);
  *
  * @param state     DLL state. Must be non-NULL.
  * @param rate_aid  Fractional code-rate deviation (e.g. 8e-6). 0 disables.
+ * @code
+ * >>> import numpy as np
+ * >>> from doppler.track import Dll
+ * >>> rng = np.random.default_rng(11)
+ * >>> code = rng.integers(0, 2, 63).astype(np.uint8)
+ * >>> delta = 5e-4                                   # code-rate Doppler
+ * >>> idx = (np.arange(63 * 4 * 300) * (1 + delta) / 4).astype(np.int64) % 63
+ * >>> x = np.where(code[idx] & 1, -1.0, 1.0).astype(np.complex64)
+ * >>> plain = Dll(code, sps=4, bn=0.005)
+ * >>> _ = plain.steps(x)
+ * >>> round(plain.code_rate, 4)      # loop had to pull the whole Doppler
+ * 1.0005
+ * >>> aided = Dll(code, sps=4, bn=0.005)
+ * >>> aided.set_rate_aid(delta)      # feed the Doppler forward instead
+ * >>> _ = aided.steps(x)
+ * >>> round(aided.code_rate, 4)      # loop integrator stays at nominal
+ * 1.0
+ *
+ * @endcode
  */
 void dll_set_rate_aid(dll_state_t *state, double rate_aid);
 double dll_get_code_phase(const dll_state_t *state);
@@ -615,6 +735,23 @@ int dll_configure_lock(dll_state_t *state, double pfa, size_t n_looks, double re
  *                     lock; clamped to >= 1.
  * @param n_down       Consecutive below-threshold decisions to drop it;
  *                     clamped to >= 1.
+ * @code
+ * >>> import numpy as np
+ * >>> from doppler.track import Dll
+ * >>> rng = np.random.default_rng(1)
+ * >>> code = rng.integers(0, 2, 63).astype(np.uint8)   # >= 7 chips for a lock
+ * >>> chip = np.where(code & 1, -1.0, 1.0)
+ * >>> x = np.tile(np.repeat(chip, 4), 400).astype(np.complex64)  # clean signal
+ * >>> d = Dll(code, sps=4, bn=0.005)
+ * >>> # raw geometry: declare at R>3, drop at R<2.5, 8-look, 2-of-2 hysteresis
+ * >>> d.configure_lock_raw(3.0, 2.5, 8, 1.0 / 1024, 2, 2)
+ * >>> _ = d.steps(x)
+ * >>> d.locked                       # statistic cleared the declare threshold
+ * True
+ * >>> bool(d.lock_stat > 3.0)
+ * True
+ *
+ * @endcode
  */
 void dll_configure_lock_raw(dll_state_t *state, double up_thresh,
                             double down_thresh, size_t n_looks, double alpha,

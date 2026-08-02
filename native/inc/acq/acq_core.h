@@ -407,7 +407,29 @@ extern "C"
 
   /**
    * @brief Drain the input ring and reset the coherent accumulator.
+   *
+   * Discards any buffered samples that have not yet completed a frame and
+   * clears the non-coherent power accumulator and dwell bookkeeping, so the
+   * next push() begins a fresh search from an empty ring.  The construction
+   * parameters — grid, thresholds, and PN reference — are untouched; only the
+   * in-flight streaming state is dropped.
+   *
    * @param state Must be non-NULL.
+   * @code
+   * >>> import numpy as np
+   * >>> from doppler.dsss import Acquisition
+   * >>> from doppler.wfm import PN, mls_poly
+   * >>> code = np.asarray(PN(poly=mls_poly(5), seed=1,
+   * ...                      length=5).generate(31)).astype(np.uint8)
+   * >>> s0 = np.repeat(np.where(code & 1, -1.0, 1.0), 4).astype(np.complex64)
+   * >>> burst = np.tile(np.roll(s0, 17), 23).astype(np.complex64)
+   * >>> a = Acquisition(code, spc=4, chip_rate=1e6, cn0_dbhz=50.0)
+   * >>> _ = a.push(burst[:100])   # a partial frame, now buffered mid-stream
+   * >>> a.reset()                 # drop it before it can bias a detection
+   * >>> a.push(burst)[0][:2]      # (Doppler bin, code phase)
+   * (0, 17)
+   *
+   * @endcode
    */
   void acq_reset (acq_state_t *state);
 
@@ -431,6 +453,22 @@ extern "C"
    * @return 0 on success, -1 if either argument is out of range or an
    *         allocation fails (the engine is left usable at its prior grid
    *         on failure).
+   * @code
+   * >>> import numpy as np
+   * >>> from doppler.dsss import Acquisition
+   * >>> from doppler.wfm import PN, mls_poly
+   * >>> code = np.asarray(PN(poly=mls_poly(5), seed=1,
+   * ...                      length=5).generate(31)).astype(np.uint8)
+   * >>> s0 = np.repeat(np.where(code & 1, -1.0, 1.0), 4).astype(np.complex64)
+   * >>> a = Acquisition(code, spc=4, chip_rate=1e6, cn0_dbhz=50.0)
+   * >>> a.configure_search_raw(doppler_bins=1, n_noncoh=4)  # pin the grid
+   * >>> a.doppler_bins, a.n_noncoh
+   * (1, 4)
+   * >>> burst = np.tile(np.roll(s0, 17), 4).astype(np.complex64)
+   * >>> a.push(burst)[0][:2]      # detects at the pinned grid
+   * (0, 17)
+   *
+   * @endcode
    */
   int acq_configure_search_raw (acq_state_t *state, size_t doppler_bins,
                                 size_t n_noncoh);
@@ -438,19 +476,39 @@ extern "C"
   /**
    * @brief Stream raw samples; emit one event per CFAR dump above threshold.
    *
-   * Buffers @p in, then for every complete frame applies the slow-time Doppler
+   * Buffers @p x, then for every complete frame applies the slow-time Doppler
    * FFT, correlates against the PN reference, dumps the coherent surface (or,
    * when n_noncoh > 1, accumulates |·|² over n_noncoh looks first), gates the
-   * peak on the auto-configured threshold, and appends an acq_result_t.
+   * peak on the auto-configured threshold, and appends an acq_result_t.  Each
+   * event carries the peak's Doppler bin and code phase (the two search axes),
+   * its CFAR statistic, and an estimated C/N0 — see @ref acq_result_t.
    *
    * @param state        Allocated engine (non-NULL).
-   * @param in           Raw input, interleaved CF32, @p n_in complex samples.
+   * @param x            Raw input, interleaved CF32, @p n_in complex samples.
    * @param n_in         Number of complex input samples.
    * @param result       Output array for detection events.
    * @param max_results  Capacity of @p result.
    * @return Number of events written (0 … max_results).
+   * @code
+   * >>> import numpy as np
+   * >>> from doppler.dsss import Acquisition
+   * >>> from doppler.wfm import PN, mls_poly
+   * >>> code = np.asarray(PN(poly=mls_poly(5), seed=1,
+   * ...                      length=5).generate(31)).astype(np.uint8)
+   * >>> s0 = np.repeat(np.where(code & 1, -1.0, 1.0), 4).astype(np.complex64)
+   * >>> a = Acquisition(code, spc=4, chip_rate=1e6, cn0_dbhz=50.0,
+   * ...                 doppler_uncertainty=40e3)
+   * >>> fs = 1e6 * 4                    # sample rate = chip_rate * spc
+   * >>> t = np.arange(a.code_bins * a.n_noncoh)
+   * >>> carrier = np.exp(2j * np.pi * (a.doppler_res_hz / fs) * t)
+   * >>> sig = (np.tile(np.roll(s0, 17), a.n_noncoh)
+   * ...        * carrier).astype(np.complex64)
+   * >>> a.push(sig)[0][:2]              # (Doppler-window bin, code phase)
+   * (1, 17)
+   *
+   * @endcode
    */
-  size_t acq_push (acq_state_t *state, const float complex *in, size_t n_in,
+  size_t acq_push (acq_state_t *state, const float complex *x, size_t n_in,
                    acq_result_t *result, size_t max_results);
 
   /**

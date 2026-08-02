@@ -384,9 +384,31 @@ extern "C"
    *  @param state  May be NULL. */
   void ratesync_destroy (ratesync_state_t *state);
 
-  /** @brief Reset to the post-create state: the cascade, the loop integrator,
-   *         the lock detector, the strobe ring and the prime countdown.
-   *  @param state  Must be non-NULL. */
+  /**
+   * @brief Reset to the post-create state: the cascade, the loop integrator,
+   *        the lock detector, the strobe ring and the prime countdown.
+   *
+   * Configuration (sps, pulse, bank, bn, zeta, ted, lock geometry) is kept;
+   * only the running state is cleared, so a re-run of the same stream from a
+   * reset object reproduces its first-run symbols bit for bit.
+   *
+   * @param state  Must be non-NULL.
+   * @code
+   * >>> import numpy as np
+   * >>> from doppler.track import RateSync
+   * >>> syms = np.where(np.random.default_rng(3).integers(0, 2, 3000) > 0,
+   * ...                 1.0, -1.0)
+   * >>> x = (0.25 * np.repeat(syms, 8)).astype(np.complex64)
+   * >>> rs = RateSync(sps=8.0, pulse="iandd", m=4, bn=0.01)
+   * >>> first = np.array(rs.steps(x))
+   * >>> rs.reset()
+   * >>> rs.ctrl, rs.locked           # back to the post-create state
+   * (0.0, False)
+   * >>> bool(np.array_equal(first, np.array(rs.steps(x))))  # reproducible
+   * True
+   *
+   * @endcode
+   */
   void ratesync_reset (ratesync_state_t *state);
 
   /* ------------------------------------------------------------------
@@ -596,6 +618,20 @@ extern "C"
    * @param out      Recovered symbols.
    * @param max_out  Capacity of @p out.
    * @return Symbols written to @p out.
+   * @code
+   * >>> import numpy as np
+   * >>> from doppler.track import RateSync
+   * >>> syms = np.where(np.random.default_rng(3).integers(0, 2, 3000) > 0,
+   * ...                 1.0, -1.0)
+   * >>> x = (0.25 * np.repeat(syms, 8)).astype(np.complex64)  # 8 samp/sym
+   * >>> rs = RateSync(sps=8.0, pulse="iandd", m=4, bn=0.01)
+   * >>> y = rs.steps(x)             # one symbol per transmitted symbol
+   * >>> round(rs.rate, 2)           # tracked samples per symbol
+   * 8.0
+   * >>> bool(rs.lock_stat > 0.55)   # the timing loop has locked
+   * True
+   *
+   * @endcode
    */
   size_t ratesync_steps (ratesync_state_t *state, const float complex *x,
                          size_t x_len, float complex *out, size_t max_out);
@@ -604,7 +640,36 @@ extern "C"
    * Properties / configuration
    * ------------------------------------------------------------------ */
 
-  /** @brief Retune the loop; preserves the integrator (and so the lock). */
+  /**
+   * @brief Recompute the loop gains for a new bandwidth/damping, keeping the
+   *        timing estimate.
+   *
+   * Only the PI coefficients change; the integrator, and therefore the tracked
+   * rate and the lock, carries through untouched. Use it to narrow the loop
+   * after acquisition (a wide @p bn pulls in fast, a narrow one tracks with
+   * less jitter) without forcing a re-acquire.
+   *
+   * @param state  Must be non-NULL.
+   * @param bn     Loop noise bandwidth, normalised to the symbol rate.
+   * @param zeta   Damping factor (0.707 = critically damped).
+   * @code
+   * >>> import numpy as np
+   * >>> from doppler.track import RateSync
+   * >>> syms = np.where(np.random.default_rng(3).integers(0, 2, 3000) > 0,
+   * ...                 1.0, -1.0)
+   * >>> x = (0.25 * np.repeat(syms, 8)).astype(np.complex64)  # 8 samp/sym
+   * >>> rs = RateSync(sps=8.0, pulse="iandd", m=4, bn=0.01)
+   * >>> _ = rs.steps(x)              # acquire and lock
+   * >>> rs.locked
+   * True
+   * >>> rs.configure(0.002, 0.707)   # narrow the loop; the lock is preserved
+   * >>> round(rs.bn, 3)
+   * 0.002
+   * >>> rs.locked
+   * True
+   *
+   * @endcode
+   */
   void   ratesync_configure (ratesync_state_t *state, double bn, double zeta);
   double ratesync_get_bn (const ratesync_state_t *state);
   void   ratesync_set_bn (ratesync_state_t *state, double val);
@@ -650,6 +715,23 @@ extern "C"
    * @param down_thresh  Drop threshold; <= up_thresh for level hysteresis.
    * @param n_up         Consecutive above-threshold decisions to declare.
    * @param n_down       Consecutive below-threshold decisions to drop.
+   * @code
+   * >>> import numpy as np
+   * >>> from doppler.track import RateSync
+   * >>> syms = np.where(np.random.default_rng(3).integers(0, 2, 3000) > 0,
+   * ...                 1.0, -1.0)
+   * >>> x = (0.25 * np.repeat(syms, 8)).astype(np.complex64)
+   * >>> rs = RateSync(sps=8.0, pulse="iandd", m=4, bn=0.01)
+   * >>> _ = rs.steps(x)
+   * >>> rs.locked
+   * True
+   * >>> rs.configure_lock_raw(64, 0.5, 0.4, 2, 4)  # drops the lock
+   * >>> rs.locked
+   * False
+   * >>> rs.lock_stat                 # the in-flight block was cleared
+   * 0.0
+   *
+   * @endcode
    */
   void ratesync_configure_lock_raw (ratesync_state_t *state, size_t avgs,
                                     double up_thresh, double down_thresh,
@@ -678,6 +760,18 @@ extern "C"
    * @param decim  Emit every decim-th symbol; >= 1.
    * @return DP_OK, or DP_ERR_INVALID when the probe table cannot take all
    *         six probes (the attach fails whole; the object stays detached).
+   * @code
+   * >>> from doppler.track import RateSync
+   * >>> from doppler.telemetry import Telemetry
+   * >>> tlm = Telemetry(1 << 14)
+   * >>> rs = RateSync(sps=8.0, pulse="iandd", m=4, bn=0.01)
+   * >>> rs.set_telemetry(tlm, "sync")   # register the six timing probes
+   * >>> tlm.probe_count
+   * 6
+   * >>> "sync.rate" in tlm.probe_names()   # tracked samples/symbol
+   * True
+   *
+   * @endcode
    */
   int ratesync_set_telemetry (ratesync_state_t *state, dp_tlm_t *tlm,
                               const char *prefix, uint32_t decim);

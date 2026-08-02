@@ -603,10 +603,11 @@ FFT_getprop_sign (FFTObject *self, void *Py_UNUSED (closure))
   return PyLong_FromLong ((long)self->handle->sign);
 }
 
-static PyGetSetDef FFT_getset[]
-    = { { "n", (getter)FFT_getprop_n, NULL, "N.\n", NULL },
-        { "sign", (getter)FFT_getprop_sign, NULL, "Sign.\n", NULL },
-        { NULL } };
+static PyGetSetDef FFT_getset[] = { { "n", (getter)FFT_getprop_n, NULL,
+                                      "Transform length (samples).\n", NULL },
+                                    { "sign", (getter)FFT_getprop_sign, NULL,
+                                      "-1 forward, +1 inverse.\n", NULL },
+                                    { NULL } };
 
 static PyObject *
 FFTObj_destroy (FFTObject *self, PyObject *Py_UNUSED (ignored))

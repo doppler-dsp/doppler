@@ -369,19 +369,19 @@ BurstDemod_getprop_payload_len (BurstDemodObject *self,
 
 static PyGetSetDef BurstDemod_getset[]
     = { { "frame_valid", (getter)BurstDemod_getprop_frame_valid, NULL,
-          "Frame valid.\n", NULL },
+          "1 if the CRC-16 trailer matched.\n", NULL },
         { "frame_offset", (getter)BurstDemod_getprop_frame_offset, NULL,
-          "Frame offset.\n", NULL },
+          "symbol offset of the sync word.\n", NULL },
         { "n_symbols", (getter)BurstDemod_getprop_n_symbols, NULL,
-          "N symbols.\n", NULL },
+          "despread data symbols produced.\n", NULL },
         { "est_freq_hz", (getter)BurstDemod_getprop_est_freq_hz, NULL,
-          "Est freq hz.\n", NULL },
+          "estimated residual Doppler (Hz).\n", NULL },
         { "est_rate_hz", (getter)BurstDemod_getprop_est_rate_hz, NULL,
-          "Est rate hz.\n", NULL },
+          "estimated Doppler rate (Hz/s).\n", NULL },
         { "est_snr_db", (getter)BurstDemod_getprop_est_snr_db, NULL,
-          "Est snr db.\n", NULL },
+          "estimator confidence (dB).\n", NULL },
         { "payload_len", (getter)BurstDemod_getprop_payload_len, NULL,
-          "Payload len.\n", NULL },
+          "payload data symbols (bits).\n", NULL },
         { NULL } };
 
 static PyObject *

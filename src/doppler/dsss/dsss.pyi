@@ -314,7 +314,7 @@ class Despreader:
 
     @property
     def bit_phase(self) -> int:
-        """Bit phase."""
+        """detected bit boundary (argmax flip_hist)."""
 
     @property
     def bn_carrier(self) -> float:
@@ -1424,19 +1424,19 @@ class PolynomialPhaseEstimator:
 
     @property
     def max_len(self) -> int:
-        """Max len."""
+        """max input length (sizes the plan/scratch)."""
 
     @property
     def nfft(self) -> int:
-        """Nfft."""
+        """zero-padded transform length (next pow2 of max_len)."""
 
     @property
     def max_rate(self) -> float:
-        """Max rate."""
+        """chirp-rate search half-span (cycles/sample^2)."""
 
     @property
     def n_rate(self) -> int:
-        """N rate."""
+        """number of chirp-rate hypotheses (1 if max_rate=0)."""
 
     def destroy(self) -> None:
         """Release the underlying C resources immediately.
@@ -1667,31 +1667,31 @@ class BurstDemod:
 
     @property
     def frame_valid(self) -> int:
-        """Frame valid."""
+        """1 if the CRC-16 trailer matched."""
 
     @property
     def frame_offset(self) -> int:
-        """Frame offset."""
+        """symbol offset of the sync word."""
 
     @property
     def n_symbols(self) -> int:
-        """N symbols."""
+        """despread data symbols produced."""
 
     @property
     def est_freq_hz(self) -> float:
-        """Est freq hz."""
+        """estimated residual Doppler (Hz)."""
 
     @property
     def est_rate_hz(self) -> float:
-        """Est rate hz."""
+        """estimated Doppler rate (Hz/s)."""
 
     @property
     def est_snr_db(self) -> float:
-        """Est snr db."""
+        """estimator confidence (dB)."""
 
     @property
     def payload_len(self) -> int:
-        """Payload len."""
+        """payload data symbols (bits)."""
 
     def destroy(self) -> None:
         """Release the underlying C resources immediately.
@@ -2052,7 +2052,7 @@ class DsssReceiver:
 
     @property
     def tracking(self) -> int:
-        """Tracking."""
+        """0 = searching, 1 = locked and demodulating."""
 
     @property
     def doppler_hz(self) -> float:
@@ -2060,19 +2060,19 @@ class DsssReceiver:
 
     @property
     def cn0_dbhz_est(self) -> float:
-        """Cn0 dbhz est."""
+        """Cached from the winning acquisition hit."""
 
     @property
     def segments(self) -> int:
-        """Segments."""
+        """Dll's own tracking parameter."""
 
     @property
     def sps(self) -> int:
-        """Sps."""
+        """MpskReceiver's own samples/symbol."""
 
     @property
     def n(self) -> int:
-        """N."""
+        """MpskReceiver's own carrier-arm count."""
 
     @property
     def chip_phase(self) -> float:
@@ -2473,19 +2473,19 @@ class AsyncDsssReceiver:
 
     @property
     def cn0_dbhz_est(self) -> float:
-        """Cn0 dbhz est."""
+        """Cached from the winning acquisition hit."""
 
     @property
     def segments(self) -> int:
-        """Segments."""
+        """Live-tracking Dll's own segments -- distinct from refine_segments above (see the module docstring / dll_lookback_segments()'s own doc on the WINDOWS vs TRACK_WINDOWS split)."""
 
     @property
     def sps(self) -> int:
-        """Sps."""
+        """MpskReceiver's own samples/symbol."""
 
     @property
     def n(self) -> int:
-        """N."""
+        """MpskReceiver's own carrier-arm count."""
 
     @property
     def chip_phase(self) -> float:

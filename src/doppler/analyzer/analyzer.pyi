@@ -160,35 +160,35 @@ class Specan:
 
     @property
     def fs_out(self) -> float:
-        """Fs out."""
+        """Decimated rate, Hz (= span·1.28, ≤ fs_in)."""
 
     @property
     def span(self) -> float:
-        """Span."""
+        """Display span, Hz."""
 
     @property
     def rbw(self) -> float:
-        """Rbw."""
+        """Requested resolution bandwidth, Hz."""
 
     @property
     def center(self) -> float:
-        """Center."""
+        """Display center frequency, Hz."""
 
     @property
     def beta(self) -> float:
-        """Beta."""
+        """Kaiser beta realising rbw."""
 
     @property
     def n(self) -> int:
-        """N."""
+        """Segment / window length (samples)."""
 
     @property
     def nfft(self) -> int:
-        """Nfft."""
+        """Zero-padded transform length."""
 
     @property
     def navg(self) -> int:
-        """Navg."""
+        """Segments averaged per emitted frame."""
 
     @property
     def display_size(self) -> int:

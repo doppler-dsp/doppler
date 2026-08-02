@@ -196,29 +196,29 @@ class LoopFilter:
 
     @property
     def kp(self) -> float:
-        """Kp."""
+        """proportional gain (derived from bn, zeta, t)."""
 
     @property
     def ki(self) -> float:
-        """Ki."""
+        """integral gain (derived from bn, zeta, t)."""
 
     @property
     def integ(self) -> float:
-        """Integ."""
+        """integrator memory = running rate/freq estimate."""
     @integ.setter
     def integ(self, value: float) -> None: ...
 
     @property
     def bn(self) -> float:
-        """Bn."""
+        """loop noise bandwidth, normalized cycles/sample."""
 
     @property
     def zeta(self) -> float:
-        """Zeta."""
+        """damping factor (0.707 = critically damped)."""
 
     @property
     def t(self) -> float:
-        """T."""
+        """update period in samples."""
 
     def destroy(self) -> None:
         """Release the underlying C resources immediately.
@@ -531,7 +531,7 @@ class Costas:
 
     @property
     def bn(self) -> float:
-        """Bn."""
+        """PLL loop noise bandwidth (retained)."""
     @bn.setter
     def bn(self, value: float) -> None: ...
 
@@ -543,7 +543,7 @@ class Costas:
 
     @property
     def lock_metric(self) -> float:
-        """Lock metric."""
+        """EMA of |Re P|/|P| (1 = locked)."""
 
     @property
     def locked(self) -> bool:
@@ -551,11 +551,11 @@ class Costas:
 
     @property
     def last_error(self) -> float:
-        """Last error."""
+        """last PLL discriminator (loop stress)."""
 
     @property
     def bn_fll(self) -> float:
-        """Bn fll."""
+        """FLL-assist bandwidth (0 = pure PLL)."""
     @bn_fll.setter
     def bn_fll(self, value: float) -> None: ...
 
@@ -1000,7 +1000,7 @@ class Dll:
 
     @property
     def bn(self) -> float:
-        """Bn."""
+        """loop noise bandwidth (retained)."""
     @bn.setter
     def bn(self, value: float) -> None: ...
 
@@ -1010,15 +1010,15 @@ class Dll:
 
     @property
     def code_rate(self) -> float:
-        """Code rate."""
+        """chips advanced per nominal chip (~1.0)."""
 
     @property
     def last_error(self) -> float:
-        """Last error."""
+        """last discriminator output (loop stress)."""
 
     @property
     def segments(self) -> int:
-        """Segments."""
+        """partial correlations per epoch (1 = full)."""
 
     @property
     def locked(self) -> bool:
@@ -1381,7 +1381,7 @@ class SymbolSync:
 
     @property
     def bn(self) -> float:
-        """Bn."""
+        """loop noise bandwidth (retained)."""
     @bn.setter
     def bn(self, value: float) -> None: ...
 
@@ -1716,7 +1716,7 @@ class RateSync:
 
     @property
     def bn(self) -> float:
-        """Bn."""
+        """loop noise bandwidth (retained)."""
     @bn.setter
     def bn(self, value: float) -> None: ...
 
@@ -2003,7 +2003,7 @@ class CarrierMpsk:
 
     @property
     def bn(self) -> float:
-        """Bn."""
+        """PLL loop noise bandwidth (retained)."""
     @bn.setter
     def bn(self, value: float) -> None: ...
 
@@ -2015,21 +2015,21 @@ class CarrierMpsk:
 
     @property
     def lock_metric(self) -> float:
-        """Lock metric."""
+        """EMA of Re(P conj a)/|P| (1 = locked)."""
 
     @property
     def last_error(self) -> float:
-        """Last error."""
+        """last PLL discriminator (loop stress)."""
 
     @property
     def bn_fll(self) -> float:
-        """Bn fll."""
+        """FLL-assist bandwidth (0 = pure PLL)."""
     @bn_fll.setter
     def bn_fll(self, value: float) -> None: ...
 
     @property
     def m(self) -> int:
-        """M."""
+        """constellation order M (2, 4, 8)."""
 
     def destroy(self) -> None:
         """Release the underlying C resources immediately.
@@ -2320,7 +2320,7 @@ class CarrierNda:
 
     @property
     def lock(self) -> float:
-        """Lock."""
+        """EMA of the lock signal (1 = locked)."""
 
     @property
     def locked(self) -> bool:
@@ -2328,25 +2328,25 @@ class CarrierNda:
 
     @property
     def last_error(self) -> float:
-        """Last error."""
+        """last phase discriminator (loop stress)."""
 
     @property
     def bn(self) -> float:
-        """Bn."""
+        """PLL loop noise bandwidth (retained)."""
     @bn.setter
     def bn(self, value: float) -> None: ...
 
     @property
     def m(self) -> int:
-        """M."""
+        """constellation order M (2, 4, 8)."""
 
     @property
     def n(self) -> int:
-        """N."""
+        """sets the MA window (= a 1/n-symbol box)."""
 
     @property
     def sps(self) -> int:
-        """Sps."""
+        """samples per symbol."""
 
     def destroy(self) -> None:
         """Release the underlying C resources immediately.

@@ -469,7 +469,7 @@ SymbolSync_getprop_locked (SymbolSyncObject *self, void *Py_UNUSED (closure))
 
 static PyGetSetDef SymbolSync_getset[]
     = { { "bn", (getter)SymbolSync_getprop_bn, (setter)SymbolSync_setprop_bn,
-          "Bn.\n", NULL },
+          "loop noise bandwidth (retained).\n", NULL },
         { "timing_error", (getter)SymbolSync_getprop_timing_error, NULL,
           "Timing error.\n", NULL },
         { "rate", (getter)SymbolSync_getprop_rate, NULL, "Rate.\n", NULL },

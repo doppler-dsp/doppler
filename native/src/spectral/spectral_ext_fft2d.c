@@ -549,9 +549,10 @@ FFT2D_getprop_sign (FFT2DObject *self, void *Py_UNUSED (closure))
 }
 
 static PyGetSetDef FFT2D_getset[]
-    = { { "ny", (getter)FFT2D_getprop_ny, NULL, "Ny.\n", NULL },
-        { "nx", (getter)FFT2D_getprop_nx, NULL, "Nx.\n", NULL },
-        { "sign", (getter)FFT2D_getprop_sign, NULL, "Sign.\n", NULL },
+    = { { "ny", (getter)FFT2D_getprop_ny, NULL, "Row count.\n", NULL },
+        { "nx", (getter)FFT2D_getprop_nx, NULL, "Column count.\n", NULL },
+        { "sign", (getter)FFT2D_getprop_sign, NULL,
+          "-1 forward, +1 inverse.\n", NULL },
         { NULL } };
 
 static PyObject *

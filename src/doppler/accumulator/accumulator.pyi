@@ -777,21 +777,21 @@ class AccTrace:
 
     @property
     def n(self) -> int:
-        """N."""
+        """Trace length (bins)."""
 
     @property
     def alpha(self) -> float:
-        """Alpha."""
+        """EMA smoothing factor (exp mode)."""
     @alpha.setter
     def alpha(self, value: float) -> None: ...
 
     @property
     def count(self) -> int:
-        """Count."""
+        """Frames folded in so far."""
 
     @property
     def mode(self) -> int:
-        """Mode."""
+        """Reduction mode."""
 
     def destroy(self) -> None:
         """Release the underlying C resources immediately.

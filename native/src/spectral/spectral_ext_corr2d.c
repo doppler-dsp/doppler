@@ -340,13 +340,18 @@ Corr2D_getprop_count (Corr2DObject *self, void *Py_UNUSED (closure))
 }
 
 static PyGetSetDef Corr2D_getset[]
-    = { { "ny", (getter)Corr2D_getprop_ny, NULL, "Ny.\n", NULL },
-        { "nx", (getter)Corr2D_getprop_nx, NULL, "Nx.\n", NULL },
-        { "ny_out", (getter)Corr2D_getprop_ny_out, NULL, "Ny out.\n", NULL },
-        { "nx_out", (getter)Corr2D_getprop_nx_out, NULL, "Nx out.\n", NULL },
-        { "n_out", (getter)Corr2D_getprop_n_out, NULL, "N out.\n", NULL },
-        { "dwell", (getter)Corr2D_getprop_dwell, NULL, "Dwell.\n", NULL },
-        { "count", (getter)Corr2D_getprop_count, NULL, "Count.\n", NULL },
+    = { { "ny", (getter)Corr2D_getprop_ny, NULL, "Row count.\n", NULL },
+        { "nx", (getter)Corr2D_getprop_nx, NULL, "Column count.\n", NULL },
+        { "ny_out", (getter)Corr2D_getprop_ny_out, NULL,
+          "Output rows (== ny unless decoupled).\n", NULL },
+        { "nx_out", (getter)Corr2D_getprop_nx_out, NULL,
+          "Output columns (== nx unless decoupled).\n", NULL },
+        { "n_out", (getter)Corr2D_getprop_n_out, NULL,
+          "ny_out * nx_out — output element count.\n", NULL },
+        { "dwell", (getter)Corr2D_getprop_dwell, NULL, "Integration depth.\n",
+          NULL },
+        { "count", (getter)Corr2D_getprop_count, NULL,
+          "Frames accumulated (0 … dwell-1).\n", NULL },
         { NULL } };
 
 static PyObject *

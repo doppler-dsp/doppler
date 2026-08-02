@@ -671,8 +671,8 @@ static PyGetSetDef Despreader_getset[] = {
     "(True = locked; see Dll.configure_lock). Live in composition — the "
     "despreader runs the same always-on detector Dll.steps does.\n",
     NULL },
-  { "bit_phase", (getter)Despreader_getprop_bit_phase, NULL, "Bit phase.\n",
-    NULL },
+  { "bit_phase", (getter)Despreader_getprop_bit_phase, NULL,
+    "detected bit boundary (argmax flip_hist).\n", NULL },
   { "bn_carrier", (getter)Despreader_getprop_bn_carrier,
     (setter)Despreader_setprop_bn_carrier, "Bn carrier.\n", NULL },
   { "bn_code", (getter)Despreader_getprop_bn_code,

@@ -390,16 +390,18 @@ CarrierMpsk_getprop_m (CarrierMpskObject *self, void *Py_UNUSED (closure))
 
 static PyGetSetDef CarrierMpsk_getset[]
     = { { "bn", (getter)CarrierMpsk_getprop_bn, (setter)CarrierMpsk_setprop_bn,
-          "Bn.\n", NULL },
+          "PLL loop noise bandwidth (retained).\n", NULL },
         { "norm_freq", (getter)CarrierMpsk_getprop_norm_freq,
           (setter)CarrierMpsk_setprop_norm_freq, "Norm freq.\n", NULL },
         { "lock_metric", (getter)CarrierMpsk_getprop_lock_metric, NULL,
-          "Lock metric.\n", NULL },
+          "EMA of Re(P conj a)/|P| (1 = locked).\n", NULL },
         { "last_error", (getter)CarrierMpsk_getprop_last_error, NULL,
-          "Last error.\n", NULL },
+          "last PLL discriminator (loop stress).\n", NULL },
         { "bn_fll", (getter)CarrierMpsk_getprop_bn_fll,
-          (setter)CarrierMpsk_setprop_bn_fll, "Bn fll.\n", NULL },
-        { "m", (getter)CarrierMpsk_getprop_m, NULL, "M.\n", NULL },
+          (setter)CarrierMpsk_setprop_bn_fll,
+          "FLL-assist bandwidth (0 = pure PLL).\n", NULL },
+        { "m", (getter)CarrierMpsk_getprop_m, NULL,
+          "constellation order M (2, 4, 8).\n", NULL },
         { NULL } };
 
 static PyObject *

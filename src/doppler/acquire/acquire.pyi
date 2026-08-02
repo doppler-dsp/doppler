@@ -5,34 +5,52 @@ from numpy.typing import NDArray
 
 @final
 class CarrierAcquisition:
-    """CarrierAcquisition component.
+    """Create a carrier_acq instance.
 
     Parameters
     ----------
     sample_rate_hz : float
-        sample_rate_hz constructor parameter.
+        Sample rate of the input stream, Hz (required).
     symbol_rate_hz : float
-        symbol_rate_hz constructor parameter.
+        Symbol rate, Hz -- builds the default template (required).
     resolution_hz : float, default 0.0
-        resolution_hz constructor parameter.
+        Desired FFT frequency resolution, Hz. <= 0.0 is a sentinel meaning "auto": symbol_rate_hz/10.0.
     zero_pad : int, default 4
-        zero_pad constructor parameter.
+        PSD zero-pad factor (>= 1); see psd_core.h.
     window : Literal["hann", "kaiser", "blackman-harris"], default "hann"
-        window constructor parameter.
+        Enum index; 0=hann, 1=kaiser, 2=blackman-harris.
     beta : float, default 0.0
-        beta constructor parameter.
+        Kaiser beta (ignored for hann/blackman-harris).
     psd_template : NDArray[np.float32], default ...
-        psd_template constructor parameter.
+        Known PSD-shape template override, length must equal nfft = next_pow2(round(sample_rate_hz /resolution_hz) * zero_pad); NULL/length-0 means "not supplied" -- the default rectangular-pulse sinc^2 template (from symbol_rate_hz) is used.
     pfa : float, default 1e-3
-        pfa constructor parameter.
+        Target per-test false-alarm probability.
     pd : float, default 0.9
-        pd constructor parameter.
+        Target detection probability.
     design_snr : float, default 2.0
-        design_snr constructor parameter.
+        Assumed per-sample amplitude SNR used ONLY to precompute dwell_target via det_n_noncoh(); not a live measurement. An optimistic guess only affects NON-sequential mode (which trusts this one-shot wait count outright) -- sequential mode's own give-up bound is max_n_blocks, not dwell_target, precisely so a wrong design_snr can't stop it from trying more blocks once real data shows it needs to.
     sequential : bool, default True
-        sequential constructor parameter.
+        True: test for a detection after EVERY block (the per-block CFAR ratio threshold -- see _ratio_threshold() in carrier_acq_core.c -- tightens as more looks accumulate), stopping the moment one fires or max_n_blocks is reached. False: accumulate silently and test once, at dwell_target.
     max_n_blocks : int, default 100000
-        max_n_blocks constructor parameter.
+        Sequential mode's own give-up cap (ignored by non-sequential mode, which stops at dwell_target instead) -- deliberately a SEPARATE, generous bound from dwell_target; capping sequential mode at design_snr's own point estimate would defeat the reason to test every block in the first place.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from doppler.acquire import CarrierAcquisition
+    >>> rng = np.random.default_rng(12345)
+    >>> bits = np.where(rng.integers(0, 2, 4000), 1.0, -1.0)
+    >>> data = np.repeat(bits, 8)                 # 8 samples/symbol BPSK
+    >>> t = np.arange(len(data))
+    >>> x = (data * np.exp(2j * np.pi * 123.0 * t / 8000.0)).astype(
+    ...     np.complex64)                         # residual carrier at 123 Hz
+    >>> ca = CarrierAcquisition(sample_rate_hz=8000.0, symbol_rate_hz=1000.0,
+    ...                         psd_template=np.array([], dtype=np.float32))
+    >>> ca.steps(x)                   # fold the stream, testing each block
+    >>> ca.ready                      # detection fired
+    True
+    >>> round(ca.residual_hz, 0)      # recovered residual carrier, Hz
+    123.0
 
     """
     def __init__(self, sample_rate_hz: float = ..., symbol_rate_hz: float = ..., resolution_hz: float = ..., zero_pad: int = ..., window: Literal["hann", "kaiser", "blackman-harris"] = "hann", beta: float = ..., psd_template: NDArray[np.float32] = ..., pfa: float = ..., pd: float = ..., design_snr: float = ..., sequential: bool = ..., max_n_blocks: int = ...) -> None: ...

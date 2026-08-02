@@ -395,6 +395,19 @@ extern "C"
    * @param noise_mode  CFAR mode index: 0=mean, 1=median, 2=min, 3=max.
    * @return Heap-allocated state, or NULL on bad arguments / allocation
    * failure.
+   * @code
+   * >>> import numpy as np
+   * >>> from doppler.dsss import Acquisition
+   * >>> from doppler.wfm import PN, mls_poly
+   * >>> code = np.asarray(PN(poly=mls_poly(5), seed=1,
+   * ...                      length=5).generate(31)).astype(np.uint8)
+   * >>> s0 = np.repeat(np.where(code & 1, -1.0, 1.0), 4).astype(np.complex64)
+   * >>> burst = np.tile(np.roll(s0, 17), 23).astype(np.complex64)  # phase 17
+   * >>> a = Acquisition(code, spc=4, chip_rate=1e6, cn0_dbhz=50.0)
+   * >>> a.push(burst)[0][:2]      # detects (Doppler-window bin, code phase)
+   * (0, 17)
+   *
+   * @endcode
    */
   acq_state_t *acq_create_continuous (const uint8_t *code, size_t code_len,
                                       size_t spc, double chip_rate,

@@ -155,6 +155,24 @@ typedef struct {
  * @return Heap-allocated state, or NULL on invalid argument or
  *         allocation failure.
  * @note Caller must call carrier_acq_destroy() when done.
+ * @code
+ * >>> import numpy as np
+ * >>> from doppler.acquire import CarrierAcquisition
+ * >>> rng = np.random.default_rng(12345)
+ * >>> bits = np.where(rng.integers(0, 2, 4000), 1.0, -1.0)
+ * >>> data = np.repeat(bits, 8)                 # 8 samples/symbol BPSK
+ * >>> t = np.arange(len(data))
+ * >>> x = (data * np.exp(2j * np.pi * 123.0 * t / 8000.0)).astype(
+ * ...     np.complex64)                         # residual carrier at 123 Hz
+ * >>> ca = CarrierAcquisition(sample_rate_hz=8000.0, symbol_rate_hz=1000.0,
+ * ...                         psd_template=np.array([], dtype=np.float32))
+ * >>> ca.steps(x)                   # fold the stream, testing each block
+ * >>> ca.ready                      # detection fired
+ * True
+ * >>> round(ca.residual_hz, 0)      # recovered residual carrier, Hz
+ * 123.0
+ *
+ * @endcode
  */
 carrier_acq_state_t *carrier_acq_create(
     double sample_rate_hz, double symbol_rate_hz, double resolution_hz,

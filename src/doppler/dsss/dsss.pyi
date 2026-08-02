@@ -30,6 +30,23 @@ class Despreader:
     periods_per_bit : int, default 1
         Code periods per data bit (1 = one bit per period).
 
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from doppler.dsss import Despreader
+    >>> rng = np.random.default_rng(3)
+    >>> code = rng.integers(0, 2, 31).astype(np.uint8)   # one code period
+    >>> chips = np.where(code & 1, -1.0, 1.0)             # 0 -> +1, 1 -> -1
+    >>> bits = rng.integers(0, 2, 40).astype(np.uint8)   # 1 data bit/period
+    >>> syms = np.where(bits == 1, -1.0, 1.0)
+    >>> rx = np.concatenate(
+    ...     [s * np.repeat(chips, 4) for s in syms]).astype(np.complex64)
+    >>> d = Despreader(code, sps=4)              # seed a fresh tracking loop
+    >>> data = d.bits(rx)                        # hard data bits, 1/period
+    >>> e = np.mean(data != bits[:data.size])    # up to a global BPSK flip
+    >>> round(float(min(e, 1.0 - e)), 4)
+    0.0
+
     """
     def __init__(self, code: NDArray[np.uint8], sps: int = ..., init_norm_freq: float = ..., init_chip: float = ..., bn_carrier: float = ..., bn_code: float = ..., bn_fll: float = ..., zeta: float = ..., spacing: float = ..., periods_per_bit: int = ...) -> None: ...
 
@@ -354,24 +371,43 @@ class Despreader:
 
 @final
 class BurstDespreader:
-    """BurstDespreader component.
+    """Create a burst despreader instance.
 
     Parameters
     ----------
     code : NDArray[np.uint8]
-        code constructor parameter.
+        Data spreading code (0/1 chips), length code_len; copied.
     sf : int, default 1
-        sf constructor parameter.
+        Spreading factor: chips integrated per prompt symbol (default: 1).
     sps : int, default 2
-        sps constructor parameter.
+        Samples per chip (default: 2).
     init_norm_freq : float, default 0.0
-        init_norm_freq constructor parameter.
+        Seed carrier frequency, cycles/sample — the acquisition estimate (default: 0.0).
     init_chip_phase : float, default 0.0
-        init_chip_phase constructor parameter.
+        Seed code phase, chips (default: 0.0).
     bn_carrier : float, default 0.05
-        bn_carrier constructor parameter.
+        Carrier (Costas) loop noise bandwidth, normalized to the symbol rate (default: 0.05).
     bn_code : float, default 0.01
-        bn_code constructor parameter.
+        Code (DLL) loop noise bandwidth, normalized to the symbol rate (default: 0.01).
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from doppler.dsss import BurstDespreader
+    >>> rng = np.random.default_rng(1)
+    >>> code = rng.integers(0, 2, 31).astype(np.uint8)    # length-31 chip code
+    >>> chips = np.where(code & 1, -1.0, 1.0)             # 0 -> +1, 1 -> -1
+    >>> bits = rng.integers(0, 2, 30).astype(np.uint8)    # payload bits
+    >>> syms = np.where(bits == 1, -1.0, 1.0)             # BPSK symbols
+    >>> tx = np.concatenate(
+    ...     [np.repeat(s * chips, 4) for s in syms]).astype(np.complex64)
+    >>> b = BurstDespreader(code, sf=31, sps=4)           # 31 chips/symbol
+    >>> sym = b.steps(tx)                                 # one prompt/symbol
+    >>> sym.shape
+    (30,)
+    >>> hard = (sym.real < 0).astype(np.uint8)            # BPSK decision
+    >>> float(np.mean(hard != bits))                      # payload recovered
+    0.0
 
     """
     def __init__(self, code: NDArray[np.uint8], sf: int = ..., sps: int = ..., init_norm_freq: float = ..., init_chip_phase: float = ..., bn_carrier: float = ..., bn_code: float = ...) -> None: ...
@@ -682,6 +718,19 @@ class Acquisition:
         Target detection probability (0,1).
     noise_mode : Literal["mean", "median", "min", "max"], default "mean"
         CFAR mode index: 0=mean, 1=median, 2=min, 3=max.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from doppler.dsss import Acquisition
+    >>> from doppler.wfm import PN, mls_poly
+    >>> code = np.asarray(PN(poly=mls_poly(5), seed=1,
+    ...                      length=5).generate(31)).astype(np.uint8)
+    >>> s0 = np.repeat(np.where(code & 1, -1.0, 1.0), 4).astype(np.complex64)
+    >>> burst = np.tile(np.roll(s0, 17), 23).astype(np.complex64)  # phase 17
+    >>> a = Acquisition(code, spc=4, chip_rate=1e6, cn0_dbhz=50.0)
+    >>> a.push(burst)[0][:2]      # detects (Doppler-window bin, code phase)
+    (0, 17)
 
     """
     def __init__(self, code: NDArray[np.uint8], spc: int = ..., chip_rate: float = ..., symbol_rate: float = ..., cn0_dbhz: float = ..., doppler_uncertainty: float = ..., pfa: float = ..., pd: float = ..., noise_mode: Literal["mean", "median", "min", "max"] = "mean") -> None: ...
@@ -999,6 +1048,20 @@ class BurstAcquisition:
         Target detection probability (0,1).
     noise_mode : Literal["mean", "median", "min", "max"], default "mean"
         CFAR mode index: 0=mean, 1=median, 2=min, 3=max.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from doppler.dsss import BurstAcquisition
+    >>> from doppler.wfm import PN, mls_poly
+    >>> code = np.asarray(PN(poly=mls_poly(5), seed=1,
+    ...                      length=5).generate(31)).astype(np.uint8)
+    >>> s0 = np.repeat(np.where(code & 1, -1.0, 1.0), 4).astype(np.complex64)
+    >>> burst = np.tile(np.roll(s0, 17), 24).astype(np.complex64)  # phase 17
+    >>> b = BurstAcquisition(code, reps=8, spc=4, chip_rate=1e6,
+    ...                      cn0_dbhz=50.0)
+    >>> b.push(burst)[0][:2]      # detects (Doppler bin, code phase)
+    (0, 17)
 
     """
     def __init__(self, code: NDArray[np.uint8], reps: int = ..., spc: int = ..., chip_rate: float = ..., cn0_dbhz: float = ..., doppler_uncertainty: float = ..., pfa: float = ..., pd: float = ..., noise_mode: Literal["mean", "median", "min", "max"] = "mean") -> None: ...
@@ -1438,6 +1501,40 @@ class BurstDemod:
     est_segments : int, default 10
         Partial correlations per acq period (segmentation for the feedforward estimate; larger tolerates more rate).
 
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from doppler.dsss import BurstDemod
+    >>> spc, acq_sf, reps, data_sf = 4, 500, 5, 50
+    >>> sync = np.array([0, 0, 0, 0, 0, 1, 1, 0, 0, 1, 0, 1, 0], np.uint8)
+    >>> acode = ((np.arange(acq_sf) * 2654435761 >> 13) & 1).astype(np.uint8)
+    >>> dcode = ((np.arange(data_sf) * 40503 >> 7) & 1).astype(np.uint8)
+    >>> payload = ((np.arange(64) * 7 + 3) & 1).astype(np.uint8)
+    >>> def crc16(bits):
+    ...     c = 0xFFFF
+    ...     for b in bits:
+    ...         c ^= (int(b) & 1) << 15
+    ...         c = (((c << 1) ^ 0x1021) & 0xFFFF
+    ...              if c & 0x8000 else (c << 1) & 0xFFFF)
+    ...     return c
+    >>> crc = crc16(payload)
+    >>> crc_bits = np.array([(crc >> (15 - j)) & 1 for j in range(16)], np.uint8)
+    >>> frame = np.concatenate([sync, payload, crc_bits])
+    >>> csign = lambda b: np.where(np.asarray(b) & 1, -1.0, 1.0)
+    >>> chips = ([np.tile(csign(acode), reps)]
+    ...          + [csign(b) * csign(dcode) for b in frame])
+    >>> bb = np.repeat(np.concatenate(chips), spc).astype(np.complex64)
+    >>> n = np.arange(len(bb))
+    >>> f0 = 0.012
+    >>> x = (bb * np.exp(2j * np.pi * f0 * n)).astype(np.complex64)
+    >>> d = BurstDemod(dcode, spc=spc, chip_rate=1e6, payload_len=64)
+    >>> d.set_preamble(acode, reps)   # unmodulated (f0, rate) preamble
+    >>> d.set_sync(sync)              # Barker-13 frame-sync word
+    >>> d.set_prior(f0, 0)           # coarse Doppler + preamble start
+    >>> bits = d.demod(x)           # estimate -> dechirp -> despread -> slice
+    >>> int(d.frame_valid), bool(np.array_equal(bits, payload))
+    (1, True)
+
     """
     def __init__(self, data_code: NDArray[np.uint8], spc: int = ..., chip_rate: float = ..., carrier_hz: float = ..., max_rate: float = ..., payload_len: int = ..., est_segments: int = ...) -> None: ...
 
@@ -1667,6 +1764,39 @@ class DsssReceiver:
         MpskReceiver's samples/symbol, reached by an internal RateConverter bridging the despreader's own partial rate to this rate; default 8, MpskReceiver's own constructor default.
     differential : int, default 0
         MpskReceiver's differential (rotation- invariant) demap; default 0 (coherent).
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from doppler.dsss import DsssReceiver
+    >>> from doppler.wfm import Gold
+    >>> sf, chip, sym, spc = 1023, 3.0e6, 2100.0, 2
+    >>> fs, te, tsym = chip * spc, sf * spc, chip * spc / sym
+    >>> code = np.asarray(Gold().generate(sf)).astype(np.uint8)
+    >>> csign = np.where(code & 1, -1.0, 1.0)
+    >>> rng = np.random.default_rng(6)
+    >>> n = int(400 * tsym) + 2 * te            # 400 BPSK data symbols
+    >>> idx = np.arange(n)
+    >>> data = (rng.integers(0, 2, 404) * 2 - 1).astype(float)
+    >>> si = np.clip((idx / tsym).astype(int), 0, 403)
+    >>> spread = data[si] * csign[(idx // spc) % sf]        # DSSS chips
+    >>> sig = spread * np.exp(2j * np.pi * (50.0 / fs) * idx)  # +50 Hz
+    >>> pre = 3 * te                            # pre-signal noise-only lead-in
+    >>> sigma = np.sqrt(fs / 10 ** (90.0 / 10))            # ~90 dB-Hz C/N0
+    >>> noise = (sigma / np.sqrt(2)) * (rng.standard_normal(pre + n)
+    ...          + 1j * rng.standard_normal(pre + n))
+    >>> x = (np.concatenate([np.zeros(pre), sig]).astype(np.complex64)
+    ...      + noise.astype(np.complex64))
+    >>> rx = DsssReceiver(code, chip_rate=chip, symbol_rate=sym, spc=spc,
+    ...                   cn0_dbhz=55.0, doppler_uncertainty=100.0)
+    >>> syms = [rx.steps(x[p:p + te]) for p in range(0, len(x) - te, te)]
+    >>> syms = np.concatenate([s for s in syms if len(s)])
+    >>> rx.tracking                       # acquired, now demodulating
+    1
+    >>> len(syms) > 300                    # a few hundred symbols recovered
+    True
+    >>> bool(np.mean(syms.real**2) > 10 * np.mean(syms.imag**2))  # BPSK on I
+    True
 
     """
     def __init__(self, code: NDArray[np.uint8], chip_rate: float = ..., symbol_rate: float = ..., spc: int = ..., m: int = ..., cn0_dbhz: float = ..., pfa: float = ..., pd: float = ..., doppler_uncertainty: float = ..., segments: int = ..., sps: int = ..., differential: int = ...) -> None: ...
@@ -2047,6 +2177,41 @@ class AsyncDsssReceiver:
         CarrierAcquisition's own give-up cap in sequential mode; default 100000.
     carrier_freq_hz : float, default 0.0
         Nominal RF carrier frequency, Hz, enabling carrier->code aiding; 0.0 (default) = off. When > 0, the coupled code-rate Doppler (carrier_offset/carrier_freq) is fed to the tracking Dll via dll_set_rate_aid() so the code loop rides a dilated clock the discriminator alone can't pull in at low SNR. Set to the receiver's own downlink RF frequency for a physically-coupled Doppler capture.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from doppler.dsss import AsyncDsssReceiver
+    >>> from doppler.wfm import Gold
+    >>> sf, chip, sym, spc = 1023, 3.069e6, 2700.0, 2
+    >>> fs, te, tsym = chip * spc, sf * spc, chip * spc / sym
+    >>> code = np.asarray(Gold().generate(sf)).astype(np.uint8)
+    >>> csign = np.where(code & 1, -1.0, 1.0)
+    >>> rng = np.random.default_rng(21)
+    >>> n = int(600 * tsym) + 4 * te            # 600 async BPSK symbols
+    >>> idx = np.arange(n)
+    >>> data = (rng.integers(0, 2, 604) * 2 - 1).astype(float)
+    >>> si = np.clip((idx / tsym).astype(int), 0, 603)
+    >>> t = idx / fs
+    >>> sig = (data[si] * csign[(idx // spc) % sf]           # DSSS chips
+    ...        * np.exp(1j * 2 * np.pi * 0.5 * 500.0 * t * t))  # 500 Hz/s ramp
+    >>> cn0 = 20.0 + 10 * np.log10(sym)         # Es/N0 = 20 dB
+    >>> sigma = np.sqrt(fs / 10 ** (cn0 / 10))
+    >>> pre = 5 * te                            # noise-only lead-in
+    >>> noise = (sigma / np.sqrt(2)) * (rng.standard_normal(pre + n)
+    ...          + 1j * rng.standard_normal(pre + n))
+    >>> x = (np.concatenate([np.zeros(pre), sig]).astype(np.complex64)
+    ...      + noise.astype(np.complex64))
+    >>> rx = AsyncDsssReceiver(code, chip_rate=chip, symbol_rate=sym,
+    ...                        spc=spc, cn0_dbhz=cn0, doppler_uncertainty=500.0)
+    >>> syms = [rx.steps(x[p:p + te]) for p in range(0, len(x) - te, te)]
+    >>> syms = np.concatenate([s for s in syms if len(s)])
+    >>> rx.tracking                       # searched, refined, now tracking
+    1
+    >>> len(syms) > 300                    # symbols recovered under the ramp
+    True
+    >>> bool(np.mean(syms.real**2) > 10 * np.mean(syms.imag**2))  # BPSK on I
+    True
 
     """
     def __init__(self, code: NDArray[np.uint8], chip_rate: float = ..., symbol_rate: float = ..., spc: int = ..., m: int = ..., cn0_dbhz: float = ..., pfa: float = ..., pd: float = ..., doppler_uncertainty: float = ..., segments: int = ..., sps: int = ..., differential: int = ..., refine_max_error_db: float = ..., refine_samples_per_symbol: int = ..., refine_design_margin_db: float = ..., refine_n_fft: int = ..., refine_zero_pad: int = ..., refine_sequential: bool = ..., refine_max_n_blocks: int = ..., carrier_freq_hz: float = ...) -> None: ...

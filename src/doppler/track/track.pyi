@@ -621,6 +621,23 @@ class Dll:
     segments : int, default 1
         Partial correlations per code epoch (default 1). 1 = a coherent full-epoch integrate-and-dump (one prompt/period). >1 splits each epoch into that many sub-epoch partials: it emits that many partial prompts/period and tracks the code non-coherently across them (robust to an asynchronous data-symbol clock). segments/epoch ~ samples/symbol at a downstream SymbolSync when the symbol rate is near the code rate, so choose >= 2 for symbol-timing recovery.
 
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from doppler.track import Dll
+    >>> rng = np.random.default_rng(1)
+    >>> code = rng.integers(0, 2, 31).astype(np.uint8)   # a 31-chip PN code
+    >>> chip = np.where(code & 1, -1.0, 1.0)              # BPSK spreading code
+    >>> x = np.tile(np.repeat(chip, 2), 60).astype(np.complex64)  # 60 periods
+    >>> d = Dll(code=code, sps=2)                         # 2 samples/chip loop
+    >>> sym = d.steps(x)                                  # one prompt per period
+    >>> sym.shape                                         # 60 despread symbols
+    (60,)
+    >>> round(float(np.mean(sym.real[-10:])), 1)          # despread to a clean +1
+    1.0
+    >>> round(d.code_rate, 3)                             # code NCO at nominal rate
+    1.0
+
     """
     def __init__(self, code: NDArray[np.uint8], sps: int = ..., init_chip: float = ..., bn: float = ..., zeta: float = ..., spacing: float = ..., segments: int = ...) -> None: ...
 

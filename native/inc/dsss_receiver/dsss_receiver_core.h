@@ -222,8 +222,39 @@ extern "C"
    *                             constructor default.
    * @param differential         MpskReceiver's differential (rotation-
    *                             invariant) demap; default 0 (coherent).
-   * @return Heap-allocated state, or NULL on invalid args / allocation
-   *         failure.
+   * @code
+   * >>> import numpy as np
+   * >>> from doppler.dsss import DsssReceiver
+   * >>> from doppler.wfm import Gold
+   * >>> sf, chip, sym, spc = 1023, 3.0e6, 2100.0, 2
+   * >>> fs, te, tsym = chip * spc, sf * spc, chip * spc / sym
+   * >>> code = np.asarray(Gold().generate(sf)).astype(np.uint8)
+   * >>> csign = np.where(code & 1, -1.0, 1.0)
+   * >>> rng = np.random.default_rng(6)
+   * >>> n = int(400 * tsym) + 2 * te            # 400 BPSK data symbols
+   * >>> idx = np.arange(n)
+   * >>> data = (rng.integers(0, 2, 404) * 2 - 1).astype(float)
+   * >>> si = np.clip((idx / tsym).astype(int), 0, 403)
+   * >>> spread = data[si] * csign[(idx // spc) % sf]        # DSSS chips
+   * >>> sig = spread * np.exp(2j * np.pi * (50.0 / fs) * idx)  # +50 Hz
+   * >>> pre = 3 * te                            # pre-signal noise-only lead-in
+   * >>> sigma = np.sqrt(fs / 10 ** (90.0 / 10))            # ~90 dB-Hz C/N0
+   * >>> noise = (sigma / np.sqrt(2)) * (rng.standard_normal(pre + n)
+   * ...          + 1j * rng.standard_normal(pre + n))
+   * >>> x = (np.concatenate([np.zeros(pre), sig]).astype(np.complex64)
+   * ...      + noise.astype(np.complex64))
+   * >>> rx = DsssReceiver(code, chip_rate=chip, symbol_rate=sym, spc=spc,
+   * ...                   cn0_dbhz=55.0, doppler_uncertainty=100.0)
+   * >>> syms = [rx.steps(x[p:p + te]) for p in range(0, len(x) - te, te)]
+   * >>> syms = np.concatenate([s for s in syms if len(s)])
+   * >>> rx.tracking                       # acquired, now demodulating
+   * 1
+   * >>> len(syms) > 300                    # a few hundred symbols recovered
+   * True
+   * >>> bool(np.mean(syms.real**2) > 10 * np.mean(syms.imag**2))  # BPSK on I
+   * True
+   *
+   * @endcode
    */
   dsss_receiver_state_t *
   dsss_receiver_create (const uint8_t *code, size_t code_len, double chip_rate,

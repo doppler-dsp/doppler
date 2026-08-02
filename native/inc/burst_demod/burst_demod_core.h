@@ -101,7 +101,40 @@ extern "C"
    * @param payload_len    Number of payload data symbols (bits) in a frame.
    * @param est_segments   Partial correlations per acq period (segmentation for
    *                       the feedforward estimate; larger tolerates more rate).
-   * @return Heap state, or NULL on bad args / allocation failure.
+   * @code
+   * >>> import numpy as np
+   * >>> from doppler.dsss import BurstDemod
+   * >>> spc, acq_sf, reps, data_sf = 4, 500, 5, 50
+   * >>> sync = np.array([0, 0, 0, 0, 0, 1, 1, 0, 0, 1, 0, 1, 0], np.uint8)
+   * >>> acode = ((np.arange(acq_sf) * 2654435761 >> 13) & 1).astype(np.uint8)
+   * >>> dcode = ((np.arange(data_sf) * 40503 >> 7) & 1).astype(np.uint8)
+   * >>> payload = ((np.arange(64) * 7 + 3) & 1).astype(np.uint8)
+   * >>> def crc16(bits):
+   * ...     c = 0xFFFF
+   * ...     for b in bits:
+   * ...         c ^= (int(b) & 1) << 15
+   * ...         c = (((c << 1) ^ 0x1021) & 0xFFFF
+   * ...              if c & 0x8000 else (c << 1) & 0xFFFF)
+   * ...     return c
+   * >>> crc = crc16(payload)
+   * >>> crc_bits = np.array([(crc >> (15 - j)) & 1 for j in range(16)], np.uint8)
+   * >>> frame = np.concatenate([sync, payload, crc_bits])
+   * >>> csign = lambda b: np.where(np.asarray(b) & 1, -1.0, 1.0)
+   * >>> chips = ([np.tile(csign(acode), reps)]
+   * ...          + [csign(b) * csign(dcode) for b in frame])
+   * >>> bb = np.repeat(np.concatenate(chips), spc).astype(np.complex64)
+   * >>> n = np.arange(len(bb))
+   * >>> f0 = 0.012
+   * >>> x = (bb * np.exp(2j * np.pi * f0 * n)).astype(np.complex64)
+   * >>> d = BurstDemod(dcode, spc=spc, chip_rate=1e6, payload_len=64)
+   * >>> d.set_preamble(acode, reps)   # unmodulated (f0, rate) preamble
+   * >>> d.set_sync(sync)              # Barker-13 frame-sync word
+   * >>> d.set_prior(f0, 0)           # coarse Doppler + preamble start
+   * >>> bits = d.demod(x)           # estimate -> dechirp -> despread -> slice
+   * >>> int(d.frame_valid), bool(np.array_equal(bits, payload))
+   * (1, True)
+   *
+   * @endcode
    */
   burst_demod_state_t *burst_demod_create (const uint8_t *data_code,
                                            size_t data_code_len, size_t spc,

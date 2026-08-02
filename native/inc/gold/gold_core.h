@@ -57,7 +57,12 @@ typedef struct {
  * bit per chip: the new bit (parity of the tapped stages, read *before* the
  * shift) enters at stage 1 (bit 0), and the old stage-``length`` bit is
  * discarded after being XORed into the output. The sequence period is
- * ``2^length - 1`` for primitive ``taps_a``/``taps_b``.
+ * ``2^length - 1`` for primitive ``taps_a``/``taps_b``. With the CCSDS
+ * default polynomials the two m-sequences form a genuine "preferred pair" —
+ * their XOR family has a strict three-valued periodic
+ * autocorrelation/cross-correlation set ``{-1, -65, 63}`` — so varying
+ * ``seed_a`` (User dependent per the standard) walks the whole 2**length
+ * -member Gold-code family while Register B stays fixed.
  *
  * @param taps_a  Register A feedback-tap mask; bit k set means stage k+1 is
  *              XORed into the feedback. Default 934 (stages 2,3,6,8,9,10 —

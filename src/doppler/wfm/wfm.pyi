@@ -1,28 +1,33 @@
 # wfm/wfm.pyi — type stubs for the wfm C extension.
-from typing import Literal
+from typing import final, Literal
 import numpy as np
 from numpy.typing import NDArray
 
+@final
 class PN:
     """Allocate and initialise a maximal-length-sequence LFSR. The register is seeded from ``seed`` and will produce a pseudo-random binary sequence with period 2^length - 1 for any primitive ``poly``. Both Galois and Fibonacci realizations share the same primitive polynomial and therefore the same period; they differ only in chip ordering/phase.
 
     Parameters
     ----------
-    poly : int, default 96
+    poly : int, default 0
         Galois feedback tap polynomial (right-shift convention). The LSB is the tap at position 0 (always 1 for a primitive poly); bit k=1 means tap at position k. Default 96 (0x60) is primitive for length=7, giving period 127. The Fibonacci taps are derived automatically so you only supply one value.
-    seed : int, default 1
+    seed : int, default 0
         Initial LFSR register state; must be non-zero (the all-zero state is a fixed point). Default 1.
-    length : int, default 7
+    length : int, default 0
         Register width in bits, 1..64. The sequence period is 2^length - 1 for a primitive polynomial. Default 7.
     lfsr : Literal["galois", "fibonacci"], default "galois"
         Realization: PN_GALOIS (0, default) or PN_FIBONACCI (1).
 
     Examples
     --------
-    Create with defaults:
-
     >>> from doppler.wfm import PN
-    >>> obj = PN(poly=96, seed=1, length=7, lfsr="galois")
+    >>> import numpy as np
+    >>> p = PN(poly=96, seed=1, length=7)
+    >>> chips = p.generate(127)
+    >>> chips.dtype
+    dtype('uint8')
+    >>> int(chips.sum())   # 64 ones per MLS period (2^(n-1))
+    64
 
     """
     def __init__(self, poly: int = ..., seed: int = ..., length: int = ..., lfsr: Literal["galois", "fibonacci"] = "galois") -> None: ...
@@ -42,13 +47,13 @@ class PN:
 
         """
 
-    def generate(self, out: NDArray[np.uint8] | None = None) -> NDArray[np.uint8]:
+    def generate(self, count: int = 1, out: NDArray[np.uint8] | None = None) -> NDArray[np.uint8]:
         """Generate ``n`` chips into ``out`` and advance the LFSR by ``n`` positions.  Each element of ``out`` is 0 or 1.  Requesting more than one MLS period is valid — the sequence simply wraps around.  The Python binding returns a zero-copy NumPy uint8 view over a pre-allocated buffer; copy the result before calling generate again if you need a snapshot.
 
         Returns
         -------
         NDArray[np.uint8]
-            ``n`` (the number of chips written; always equal to the request).
+            min(n, max_out) chips.
 
         Examples
         --------
@@ -63,23 +68,119 @@ class PN:
 
         """
 
-    def generate_max_out(self) -> int:
-        """Max output length generate() can produce for the current state."""
+    def generate_max_out(self, n: int) -> int:
+        """Largest number of samples generate() can return for n inputs.
+
+        Size an `out=` buffer with this before calling generate(), or use it to
+        allocate one up front. The bound is this object's own: what it depends
+        on is a property of the algorithm, so a header block on
+        generate_max_out() replaces this text.
+
+        Parameters
+        ----------
+        n : int
+            Number of input samples generate() will be given.
+
+        Returns
+        -------
+        int
+            Upper bound on the output length; the actual call may return fewer.
+        """
 
     def state_bytes(self) -> int:
-        """Serialized state size in bytes."""
+        """Size in bytes of this object's serialized state.
+
+        The exact length `get_state` returns and `set_state` requires. It
+        depends on how the object was constructed (state arrays are sized at
+        construction), so read it from the instance rather than assuming a
+        constant.
+
+        Raises ``RuntimeError`` if the PN has already been destroyed.
+
+        Returns
+        -------
+        int
+            Byte length of one serialized state blob.
+        """
+
     def get_state(self) -> bytes:
-        """Serialize the engine's mutable state to bytes."""
+        """Serialize this object's mutable state to bytes.
+
+        Captures exactly the state that evolves as the object runs, so a blob
+        taken now and restored later resumes from this point. Construction
+        parameters are not included: restore into an object built the same way.
+
+        The blob is opaque and always `state_bytes()` long. Its layout is an
+        implementation detail of the C core and is not a stable format across
+        builds.
+
+        Raises ``RuntimeError`` if the PN has already been destroyed.
+
+        Returns
+        -------
+        bytes
+            Opaque snapshot, `state_bytes()` bytes long.
+        """
+
     def set_state(self, blob: bytes) -> None:
-        """Restore mutable state from a get_state() blob."""
+        """Restore mutable state from a `get_state()` blob.
+
+        Overwrites the live state in place; the object keeps the parameters it
+        was constructed with. Length is validated against `state_bytes()` before
+        the blob is handed to the C core, and the core may reject it as well.
+
+        Raises ``TypeError`` if *blob* is not bytes, ``ValueError`` if its
+        length differs from `state_bytes()` or the core rejects it, and
+        ``RuntimeError`` if the PN has already been destroyed.
+
+        Parameters
+        ----------
+        blob : bytes
+            A `get_state()` blob from this type, exactly `state_bytes()` long.
+        """
 
     def destroy(self) -> None:
-        """Release C resources immediately."""
+        """Release the underlying C resources immediately.
 
-    def __enter__(self) -> "PN": ...
+        Ordinarily unnecessary: the resources are freed when the object is
+        garbage-collected. Call this to release them at a definite point
+        instead, or use the object as a context manager, which calls it on exit.
 
-    def __exit__(self, *args: object) -> None: ...
+        Idempotent: calling it again on an already-released object does nothing.
+        Every other method raises ``RuntimeError`` once it has run.
+        """
 
+
+    def __enter__(self) -> "PN":
+        """Enter a context manager, returning this object.
+
+        Lets a PN be used in a `with` statement so its C resources are released
+        deterministically on exit rather than at collection time.
+
+        Returns
+        -------
+        PN
+            This same object, not a copy.
+        """
+
+    def __exit__(self, exc_type: object | None = ..., exc: object | None = ..., tb: object | None = ...) -> None:
+        """Exit a context manager, releasing the PN.
+
+        Equivalent to calling `destroy()`. Returns ``None``, so an exception
+        raised inside the `with` body propagates normally; this never suppresses
+        one.
+
+        Parameters
+        ----------
+        exc_type : object | None
+            Exception class, or None. Ignored.
+        exc : object | None
+            Exception instance, or None. Ignored.
+        tb : object | None
+            Traceback object, or None. Ignored.
+        """
+
+@final
 class _SynthEngine:
     """Allocate and configure a waveform synthesiser. The synthesiser combines a local oscillator (LO), optional AWGN, and an optional PN LFSR into a single streaming source.  One call to wfm_synth_step() or wfm_synth_steps() advances all sub-components in lock-step. SNR >= WFM_SYNTH_SNR_CLEAN (100 dB) skips AWGN entirely — clean waveforms pay no noise overhead.  When ``snr_mode`` is "auto" the library picks the natural reference: Es/No for modulated types (BPSK, QPSK), fs-band SNR for tone/noise/PN.
 
@@ -110,19 +211,17 @@ class _SynthEngine:
 
     Examples
     --------
-    Create with defaults:
-
     >>> from doppler.wfm import _SynthEngine
-    >>> obj = _SynthEngine(type="tone", fs=1000000.0, freq=0.0, snr=100.0, snr_mode="auto", seed=1, sps=8, pn_length=7, pn_poly=0, lfsr="galois", f_end=0.0)
-    >>> obj.get_wtype()
-    0
-    >>> obj.get_nsps()
-    8
-    >>> obj.get_sym_pos()
-    0
+    >>> import numpy as np
+    >>> s = _SynthEngine(type="tone", fs=1.0, freq=0.0, snr=100.0)
+    >>> x = s.steps(4)
+    >>> x.dtype
+    dtype('complex64')
+    >>> x.tolist()
+    [(1+0j), (1+0j), (1+0j), (1+0j)]
 
     """
-    def __init__(self, wtype: int = ..., nsps: int = ..., sym_pos: int = ..., cur_re: float = ..., cur_im: float = ...) -> None: ...
+    def __init__(self, type: Literal["tone", "noise", "pn", "bpsk", "qpsk", "chirp", "bits", "symbols", "dsss"] = "tone", fs: float = ..., freq: float = ..., snr: float = ..., snr_mode: Literal["auto", "fs", "ebno", "esno"] = "auto", seed: int = ..., sps: int = ..., pn_length: int = ..., pn_poly: int = ..., lfsr: Literal["galois", "fibonacci"] = "galois", f_end: float = ...) -> None: ...
 
     def reset(self) -> None:
         """Reset Synth to its post-create state. Resets the LO phase accumulator, AWGN internal state, and PN LFSR register to their initial values so the output sequence is perfectly reproducible from sample 0.
@@ -183,21 +282,190 @@ class _SynthEngine:
         """
 
     def state_bytes(self) -> int:
-        """Serialized state size in bytes."""
+        """Size in bytes of this object's serialized state.
+
+        The exact length `get_state` returns and `set_state` requires. It
+        depends on how the object was constructed (state arrays are sized at
+        construction), so read it from the instance rather than assuming a
+        constant.
+
+        Raises ``RuntimeError`` if the _SynthEngine has already been destroyed.
+
+        Returns
+        -------
+        int
+            Byte length of one serialized state blob.
+        """
+
     def get_state(self) -> bytes:
-        """Serialize the engine's mutable state to bytes."""
+        """Serialize this object's mutable state to bytes.
+
+        Captures exactly the state that evolves as the object runs, so a blob
+        taken now and restored later resumes from this point. Construction
+        parameters are not included: restore into an object built the same way.
+
+        The blob is opaque and always `state_bytes()` long. Its layout is an
+        implementation detail of the C core and is not a stable format across
+        builds.
+
+        Raises ``RuntimeError`` if the _SynthEngine has already been destroyed.
+
+        Returns
+        -------
+        bytes
+            Opaque snapshot, `state_bytes()` bytes long.
+        """
+
     def set_state(self, blob: bytes) -> None:
-        """Restore mutable state from a get_state() blob."""
+        """Restore mutable state from a `get_state()` blob.
+
+        Overwrites the live state in place; the object keeps the parameters it
+        was constructed with. Length is validated against `state_bytes()` before
+        the blob is handed to the C core, and the core may reject it as well.
+
+        Raises ``TypeError`` if *blob* is not bytes, ``ValueError`` if its
+        length differs from `state_bytes()` or the core rejects it, and
+        ``RuntimeError`` if the _SynthEngine has already been destroyed.
+
+        Parameters
+        ----------
+        blob : bytes
+            A `get_state()` blob from this type, exactly `state_bytes()` long.
+        """
+    def get_wtype(self) -> int:
+        """Return the active waveform type discriminant. Maps to the WFM_SYNTH_* enum: 0=tone, 1=noise, 2=pn, 3=bpsk, 4=qpsk. Use this to inspect which synthesis path is active at runtime.
+
+        Returns
+        -------
+        int
+            Integer waveform type index (WFM_SYNTH_TONE .. WFM_SYNTH_QPSK).
+        """
+
+    def set_wtype(self, value: int) -> None:
+        """Override the waveform type discriminant in-place. Changing wtype does not reinitialise sub-objects; use with care.
+
+        Parameters
+        ----------
+        value : int
+            Input.
+        """
+
+    def get_nsps(self) -> int:
+        """Return the samples-per-symbol count. For modulated types (BPSK, QPSK, PN) each symbol is held for nsps consecutive output samples.  For tone/noise this field is present but unused by the synthesis path.
+
+        Returns
+        -------
+        int
+            Samples per symbol (nsps >= 1).
+        """
+
+    def set_nsps(self, value: int) -> None:
+        """Override the samples-per-symbol count in-place. Does not flush the symbol-position counter (sym_pos); set sym_pos=0 as well when changing sps mid-stream.
+
+        Parameters
+        ----------
+        value : int
+            Input.
+        """
+
+    def get_sym_pos(self) -> int:
+        """Return the current position within the current symbol (0..nsps-1). Reaches nsps and wraps to 0 each time a new symbol is consumed from the PN LFSR.  Useful for frame alignment: sym_pos==0 on a step boundary means the very next sample begins a fresh symbol.
+
+        Returns
+        -------
+        int
+            Symbol position counter (0 <= sym_pos < nsps).
+        """
+
+    def set_sym_pos(self, value: int) -> None:
+        """Override the symbol-position counter in-place. Injecting 0 forces the next wfm_synth_step() to latch a new PN chip; any other value fast-forwards into the middle of the current symbol hold.
+
+        Parameters
+        ----------
+        value : int
+            Input.
+        """
+
+    def get_cur_re(self) -> float:
+        """Return the real part of the current held symbol. For modulated types this is the I component latched at the last symbol boundary (±1 for BPSK/PN, ±1/√2 for QPSK).  For tone the synthesiser initialises cur_re to 1.0 so that the held symbol is a clean unit-power carrier; for noise it is 0.0 (noise has no held symbol).
+
+        Returns
+        -------
+        float
+            Current symbol real (I) component.
+        """
+
+    def set_cur_re(self, value: float) -> None:
+        """Override the held-symbol real (I) component in-place. Takes effect on the next wfm_synth_step() within the current symbol hold.
+
+        Parameters
+        ----------
+        value : float
+            Input.
+        """
+
+    def get_cur_im(self) -> float:
+        """Return the imaginary part of the current held symbol. For QPSK this is the Q component (±1/√2); for BPSK/PN it is always 0; for tone/noise it is 0.
+
+        Returns
+        -------
+        float
+            Current symbol imaginary (Q) component.
+        """
+
+    def set_cur_im(self, value: float) -> None:
+        """Override the held-symbol imaginary (Q) component in-place. Takes effect on the next wfm_synth_step() within the current symbol hold.
+
+        Parameters
+        ----------
+        value : float
+            Input.
+        """
 
     def destroy(self) -> None:
-        """Release C resources immediately."""
+        """Release the underlying C resources immediately.
 
-    def __enter__(self) -> "_SynthEngine": ...
+        Ordinarily unnecessary: the resources are freed when the object is
+        garbage-collected. Call this to release them at a definite point
+        instead, or use the object as a context manager, which calls it on exit.
 
-    def __exit__(self, *args: object) -> None: ...
+        Idempotent: calling it again on an already-released object does nothing.
+        Every other method raises ``RuntimeError`` once it has run.
+        """
 
+
+    def __enter__(self) -> "_SynthEngine":
+        """Enter a context manager, returning this object.
+
+        Lets a _SynthEngine be used in a `with` statement so its C resources are
+        released deterministically on exit rather than at collection time.
+
+        Returns
+        -------
+        _SynthEngine
+            This same object, not a copy.
+        """
+
+    def __exit__(self, exc_type: object | None = ..., exc: object | None = ..., tb: object | None = ...) -> None:
+        """Exit a context manager, releasing the _SynthEngine.
+
+        Equivalent to calling `destroy()`. Returns ``None``, so an exception
+        raised inside the `with` body propagates normally; this never suppresses
+        one.
+
+        Parameters
+        ----------
+        exc_type : object | None
+            Exception class, or None. Ignored.
+        exc : object | None
+            Exception instance, or None. Ignored.
+        tb : object | None
+            Traceback object, or None. Ignored.
+        """
+
+@final
 class Gold:
-    """CCSDS Command Link Gold Code Generator (CCSDS 415.0-G-1 5.2.2.4, Figure 5-1). Two same-clocked Fibonacci LFSRs ("Register A" and "Register B"), each with its own fixed feedback-tap polynomial, XOR-combined chip-by-chip into a single 1023-chip (length=10) Gold code. The two m-sequences form a genuine "preferred pair" — their XOR family has a strict three-valued periodic autocorrelation/cross-correlation set {-1, -65, 63}. Register A's initial condition is "User dependent" per the standard — varying ``seed_a`` walks the whole Gold-code family (2**length members); Register B's taps and initial condition are both fixed by the standard.
+    """Allocate and initialise a CCSDS-style Gold code generator. Two independent Fibonacci LFSRs of the same ``length`` free-run in lock-step; each output chip is the XOR of both registers' current top-bit (stage ``length``, i.e. bit ``length-1``). Both registers shift left one bit per chip: the new bit (parity of the tapped stages, read *before* the shift) enters at stage 1 (bit 0), and the old stage-``length`` bit is discarded after being XORed into the output. The sequence period is ``2^length - 1`` for primitive ``taps_a``/``taps_b``. With the CCSDS default polynomials the two m-sequences form a genuine "preferred pair" — their XOR family has a strict three-valued periodic autocorrelation/cross-correlation set ``{-1, -65, 63}`` — so varying ``seed_a`` (User dependent per the standard) walks the whole 2**length -member Gold-code family while Register B stays fixed.
 
     Parameters
     ----------
@@ -243,13 +511,13 @@ class Gold:
 
         """
 
-    def generate(self, out: NDArray[np.uint8] | None = None) -> NDArray[np.uint8]:
-        """Generate ``n`` chips into ``out`` and advance both LFSRs by ``n`` positions. Each element of ``out`` is 0 or 1. Requesting more than one period is valid — the sequence simply wraps around. Returns a zero-copy NumPy uint8 view over a pre-allocated buffer; copy the result before calling generate again if you need a snapshot.
+    def generate(self, count: int = 1, out: NDArray[np.uint8] | None = None) -> NDArray[np.uint8]:
+        """Generate ``n`` chips into ``out`` and advance both LFSRs by ``n`` positions. Each element of ``out`` is 0 or 1. Requesting more than one period is valid — the sequence simply wraps around. The Python binding returns a zero-copy NumPy uint8 view over a pre-allocated buffer; copy the result before calling generate again if you need a snapshot.
 
         Returns
         -------
         NDArray[np.uint8]
-            ``n`` chips (0 or 1 each).
+            min(n, max_out) chips.
 
         Examples
         --------
@@ -262,22 +530,117 @@ class Gold:
 
         """
 
-    def generate_max_out(self) -> int:
-        """Max output length generate() can produce for the current state."""
+    def generate_max_out(self, n: int) -> int:
+        """Largest number of samples generate() can return for n inputs.
+
+        Size an `out=` buffer with this before calling generate(), or use it to
+        allocate one up front. The bound is this object's own: what it depends
+        on is a property of the algorithm, so a header block on
+        generate_max_out() replaces this text.
+
+        Parameters
+        ----------
+        n : int
+            Number of input samples generate() will be given.
+
+        Returns
+        -------
+        int
+            Upper bound on the output length; the actual call may return fewer.
+        """
 
     def state_bytes(self) -> int:
-        """Serialized state size in bytes."""
+        """Size in bytes of this object's serialized state.
+
+        The exact length `get_state` returns and `set_state` requires. It
+        depends on how the object was constructed (state arrays are sized at
+        construction), so read it from the instance rather than assuming a
+        constant.
+
+        Raises ``RuntimeError`` if the Gold has already been destroyed.
+
+        Returns
+        -------
+        int
+            Byte length of one serialized state blob.
+        """
+
     def get_state(self) -> bytes:
-        """Serialize both LFSR registers to bytes."""
+        """Serialize this object's mutable state to bytes.
+
+        Captures exactly the state that evolves as the object runs, so a blob
+        taken now and restored later resumes from this point. Construction
+        parameters are not included: restore into an object built the same way.
+
+        The blob is opaque and always `state_bytes()` long. Its layout is an
+        implementation detail of the C core and is not a stable format across
+        builds.
+
+        Raises ``RuntimeError`` if the Gold has already been destroyed.
+
+        Returns
+        -------
+        bytes
+            Opaque snapshot, `state_bytes()` bytes long.
+        """
+
     def set_state(self, blob: bytes) -> None:
-        """Restore both LFSR registers from a get_state() blob."""
+        """Restore mutable state from a `get_state()` blob.
+
+        Overwrites the live state in place; the object keeps the parameters it
+        was constructed with. Length is validated against `state_bytes()` before
+        the blob is handed to the C core, and the core may reject it as well.
+
+        Raises ``TypeError`` if *blob* is not bytes, ``ValueError`` if its
+        length differs from `state_bytes()` or the core rejects it, and
+        ``RuntimeError`` if the Gold has already been destroyed.
+
+        Parameters
+        ----------
+        blob : bytes
+            A `get_state()` blob from this type, exactly `state_bytes()` long.
+        """
 
     def destroy(self) -> None:
-        """Release C resources immediately."""
+        """Release the underlying C resources immediately.
 
-    def __enter__(self) -> "Gold": ...
+        Ordinarily unnecessary: the resources are freed when the object is
+        garbage-collected. Call this to release them at a definite point
+        instead, or use the object as a context manager, which calls it on exit.
 
-    def __exit__(self, *args: object) -> None: ...
+        Idempotent: calling it again on an already-released object does nothing.
+        Every other method raises ``RuntimeError`` once it has run.
+        """
+
+
+    def __enter__(self) -> "Gold":
+        """Enter a context manager, returning this object.
+
+        Lets a Gold be used in a `with` statement so its C resources are
+        released deterministically on exit rather than at collection time.
+
+        Returns
+        -------
+        Gold
+            This same object, not a copy.
+        """
+
+    def __exit__(self, exc_type: object | None = ..., exc: object | None = ..., tb: object | None = ...) -> None:
+        """Exit a context manager, releasing the Gold.
+
+        Equivalent to calling `destroy()`. Returns ``None``, so an exception
+        raised inside the `with` body propagates normally; this never suppresses
+        one.
+
+        Parameters
+        ----------
+        exc_type : object | None
+            Exception class, or None. Ignored.
+        exc : object | None
+            Exception instance, or None. Ignored.
+        tb : object | None
+            Traceback object, or None. Ignored.
+        """
 
 def bpsk_map(bits: NDArray[np.uint8]) -> NDArray[np.complex64]:
     """Map bits {0,1} to BPSK symbols {+1,-1} (cf32).
@@ -308,7 +671,8 @@ def qpsk_map(syms: NDArray[np.uint8]) -> NDArray[np.complex64]:
     Parameters
     ----------
     syms : NDArray[np.uint8]
-        Array of uint8 symbol indices; values must be in {0,1,2,3}. Bits above position 1 are ignored.
+        Array of uint8 symbol indices; values must be in {0,1,2,3}. Bits
+        above position 1 are ignored.
 
     Returns
     -------
@@ -336,7 +700,8 @@ def wfm_awgn_amplitude(snr_db: float, signal_power: float) -> float:
     snr_db : float
         Target SNR in dB, referenced to the full sample rate.
     signal_power : float
-        RMS power of the signal (e.g. 1.0 for unit-power complex tones or unit-energy BPSK/QPSK symbols).
+        RMS power of the signal (e.g. 1.0 for unit-power complex tones or
+        unit-energy BPSK/QPSK symbols).
 
     Returns
     -------

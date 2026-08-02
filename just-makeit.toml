@@ -86,10 +86,8 @@ c_deps = ["hbdecim", "resamp", "wfmcompose"]
 status_allow = [
     "zensical.toml",
     "src/doppler/analyzer/analyzer.pyi",
-    "src/doppler/delay/delay.pyi",
     "src/doppler/measure/measure.pyi",
     "src/doppler/spectral/spectral.pyi",
-    "src/doppler/wfm/wfm.pyi",
 ]
 
 # Benchmark only the 64k block (jm-gh-390). doppler dropped the small-block

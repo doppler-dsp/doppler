@@ -184,23 +184,23 @@ class LockDet:
 
     @property
     def up_thresh(self) -> float:
-        """Up thresh."""
+        """declare side: hit when metric > up_thresh."""
     @up_thresh.setter
     def up_thresh(self, value: float) -> None: ...
 
     @property
     def down_thresh(self) -> float:
-        """Down thresh."""
+        """drop side: miss when metric < down_thresh."""
     @down_thresh.setter
     def down_thresh(self, value: float) -> None: ...
 
     @property
     def n_up(self) -> int:
-        """N up."""
+        """consecutive hits required to declare (>= 1)."""
 
     @property
     def n_down(self) -> int:
-        """N down."""
+        """consecutive misses required to drop (>= 1)."""
 
     @property
     def cnt(self) -> int:

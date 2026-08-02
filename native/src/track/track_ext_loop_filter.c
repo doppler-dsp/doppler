@@ -303,13 +303,19 @@ LoopFilter_getprop_t (LoopFilterObject *self, void *Py_UNUSED (closure))
 }
 
 static PyGetSetDef LoopFilter_getset[]
-    = { { "kp", (getter)LoopFilter_getprop_kp, NULL, "Kp.\n", NULL },
-        { "ki", (getter)LoopFilter_getprop_ki, NULL, "Ki.\n", NULL },
+    = { { "kp", (getter)LoopFilter_getprop_kp, NULL,
+          "proportional gain (derived from bn, zeta, t).\n", NULL },
+        { "ki", (getter)LoopFilter_getprop_ki, NULL,
+          "integral gain (derived from bn, zeta, t).\n", NULL },
         { "integ", (getter)LoopFilter_getprop_integ,
-          (setter)LoopFilter_setprop_integ, "Integ.\n", NULL },
-        { "bn", (getter)LoopFilter_getprop_bn, NULL, "Bn.\n", NULL },
-        { "zeta", (getter)LoopFilter_getprop_zeta, NULL, "Zeta.\n", NULL },
-        { "t", (getter)LoopFilter_getprop_t, NULL, "T.\n", NULL },
+          (setter)LoopFilter_setprop_integ,
+          "integrator memory = running rate/freq estimate.\n", NULL },
+        { "bn", (getter)LoopFilter_getprop_bn, NULL,
+          "loop noise bandwidth, normalized cycles/sample.\n", NULL },
+        { "zeta", (getter)LoopFilter_getprop_zeta, NULL,
+          "damping factor (0.707 = critically damped).\n", NULL },
+        { "t", (getter)LoopFilter_getprop_t, NULL,
+          "update period in samples.\n", NULL },
         { NULL } };
 
 static PyObject *

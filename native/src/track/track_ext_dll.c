@@ -497,13 +497,16 @@ Dll_getprop_noise_est (DllObject *self, void *Py_UNUSED (closure))
 }
 
 static PyGetSetDef Dll_getset[] = {
-  { "bn", (getter)Dll_getprop_bn, (setter)Dll_setprop_bn, "Bn.\n", NULL },
+  { "bn", (getter)Dll_getprop_bn, (setter)Dll_setprop_bn,
+    "loop noise bandwidth (retained).\n", NULL },
   { "code_phase", (getter)Dll_getprop_code_phase, NULL, "Code phase.\n",
     NULL },
-  { "code_rate", (getter)Dll_getprop_code_rate, NULL, "Code rate.\n", NULL },
-  { "last_error", (getter)Dll_getprop_last_error, NULL, "Last error.\n",
-    NULL },
-  { "segments", (getter)Dll_getprop_segments, NULL, "Segments.\n", NULL },
+  { "code_rate", (getter)Dll_getprop_code_rate, NULL,
+    "chips advanced per nominal chip (~1.0).\n", NULL },
+  { "last_error", (getter)Dll_getprop_last_error, NULL,
+    "last discriminator output (loop stress).\n", NULL },
+  { "segments", (getter)Dll_getprop_segments, NULL,
+    "partial correlations per epoch (1 = full).\n", NULL },
   { "locked", (getter)Dll_getprop_locked, NULL,
     "Current lock decision: True after the verify count of consecutive "
     "above-threshold N-look decisions, False again after the drop count of "

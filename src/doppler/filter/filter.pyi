@@ -348,7 +348,7 @@ class MovingAverage:
 
     @property
     def len(self) -> int:
-        """Len."""
+        """window length (1 .. BOXCAR_MAX_LEN)."""
 
     @property
     def gain(self) -> float:

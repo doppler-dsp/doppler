@@ -300,17 +300,18 @@ CorrDetector_getprop_last_corr (CorrDetectorObject *self,
 }
 
 static PyGetSetDef CorrDetector_getset[] = {
-  { "n", (getter)CorrDetector_getprop_n, NULL, "N.\n", NULL },
+  { "n", (getter)CorrDetector_getprop_n, NULL,
+    "Frame / FFT length in complex samples.\n", NULL },
   { "dwell", (getter)CorrDetector_getprop_dwell, NULL, "Dwell.\n", NULL },
   { "count", (getter)CorrDetector_getprop_count, NULL, "Count.\n", NULL },
-  { "ring_cap", (getter)CorrDetector_getprop_ring_cap, NULL, "Ring cap.\n",
-    NULL },
-  { "noise_lo", (getter)CorrDetector_getprop_noise_lo, NULL, "Noise lo.\n",
-    NULL },
-  { "noise_hi", (getter)CorrDetector_getprop_noise_hi, NULL, "Noise hi.\n",
-    NULL },
-  { "threshold", (getter)CorrDetector_getprop_threshold, NULL, "Threshold.\n",
-    NULL },
+  { "ring_cap", (getter)CorrDetector_getprop_ring_cap, NULL,
+    "Ring buffer capacity in complex samples.\n", NULL },
+  { "noise_lo", (getter)CorrDetector_getprop_noise_lo, NULL,
+    "Noise bin range lower bound (inclusive).\n", NULL },
+  { "noise_hi", (getter)CorrDetector_getprop_noise_hi, NULL,
+    "Noise bin range upper bound (inclusive).\n", NULL },
+  { "threshold", (getter)CorrDetector_getprop_threshold, NULL,
+    "0 = always fire; >0 = gate on test_stat.\n", NULL },
   { "last_corr", (getter)CorrDetector_getprop_last_corr, NULL,
     "The correlation vector from the most recent push() that produced a "
     "result (None before that). This is a zero-copy view into a buffer owned "

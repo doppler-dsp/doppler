@@ -174,13 +174,13 @@ PolynomialPhaseEstimator_getprop_n_rate (PolynomialPhaseEstimatorObject *self,
 
 static PyGetSetDef PolynomialPhaseEstimator_getset[]
     = { { "max_len", (getter)PolynomialPhaseEstimator_getprop_max_len, NULL,
-          "Max len.\n", NULL },
+          "max input length (sizes the plan/scratch).\n", NULL },
         { "nfft", (getter)PolynomialPhaseEstimator_getprop_nfft, NULL,
-          "Nfft.\n", NULL },
+          "zero-padded transform length (next pow2 of max_len).\n", NULL },
         { "max_rate", (getter)PolynomialPhaseEstimator_getprop_max_rate, NULL,
-          "Max rate.\n", NULL },
+          "chirp-rate search half-span (cycles/sample^2).\n", NULL },
         { "n_rate", (getter)PolynomialPhaseEstimator_getprop_n_rate, NULL,
-          "N rate.\n", NULL },
+          "number of chirp-rate hypotheses (1 if max_rate=0).\n", NULL },
         { NULL } };
 
 static PyObject *

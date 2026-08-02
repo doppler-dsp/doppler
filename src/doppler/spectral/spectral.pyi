@@ -216,11 +216,11 @@ class FFT:
 
     @property
     def n(self) -> int:
-        """N."""
+        """Transform length (samples)."""
 
     @property
     def sign(self) -> int:
-        """Sign."""
+        """-1 forward, +1 inverse."""
 
     def destroy(self) -> None:
         """Release the underlying C resources immediately.
@@ -461,15 +461,15 @@ class FFT2D:
 
     @property
     def ny(self) -> int:
-        """Ny."""
+        """Row count."""
 
     @property
     def nx(self) -> int:
-        """Nx."""
+        """Column count."""
 
     @property
     def sign(self) -> int:
-        """Sign."""
+        """-1 forward, +1 inverse."""
 
     def destroy(self) -> None:
         """Release the underlying C resources immediately.
@@ -653,19 +653,19 @@ class Corr:
 
     @property
     def n(self) -> int:
-        """N."""
+        """FFT / reference length (samples)."""
 
     @property
     def n_out(self) -> int:
-        """N out."""
+        """Output length (== n unless decoupled)."""
 
     @property
     def dwell(self) -> int:
-        """Dwell."""
+        """Integration depth; dump every dwell calls."""
 
     @property
     def count(self) -> int:
-        """Count."""
+        """Frames accumulated so far (0 … dwell-1)."""
 
     def destroy(self) -> None:
         """Release the underlying C resources immediately.
@@ -851,31 +851,31 @@ class Corr2D:
 
     @property
     def ny(self) -> int:
-        """Ny."""
+        """Row count."""
 
     @property
     def nx(self) -> int:
-        """Nx."""
+        """Column count."""
 
     @property
     def ny_out(self) -> int:
-        """Ny out."""
+        """Output rows (== ny unless decoupled)."""
 
     @property
     def nx_out(self) -> int:
-        """Nx out."""
+        """Output columns (== nx unless decoupled)."""
 
     @property
     def n_out(self) -> int:
-        """N out."""
+        """ny_out * nx_out — output element count."""
 
     @property
     def dwell(self) -> int:
-        """Dwell."""
+        """Integration depth."""
 
     @property
     def count(self) -> int:
-        """Count."""
+        """Frames accumulated (0 … dwell-1)."""
 
     def destroy(self) -> None:
         """Release the underlying C resources immediately.
@@ -1052,7 +1052,7 @@ class CorrDetector:
 
     @property
     def n(self) -> int:
-        """N."""
+        """Frame / FFT length in complex samples."""
 
     @property
     def dwell(self) -> int:
@@ -1064,19 +1064,19 @@ class CorrDetector:
 
     @property
     def ring_cap(self) -> int:
-        """Ring cap."""
+        """Ring buffer capacity in complex samples."""
 
     @property
     def noise_lo(self) -> int:
-        """Noise lo."""
+        """Noise bin range lower bound (inclusive)."""
 
     @property
     def noise_hi(self) -> int:
-        """Noise hi."""
+        """Noise bin range upper bound (inclusive)."""
 
     @property
     def threshold(self) -> float:
-        """Threshold."""
+        """0 = always fire; >0 = gate on test_stat."""
 
     @property
     def last_corr(self) -> NDArray[np.complex64]:
@@ -1259,15 +1259,15 @@ class CorrDetector2D:
 
     @property
     def ny(self) -> int:
-        """Ny."""
+        """Number of rows."""
 
     @property
     def nx(self) -> int:
-        """Nx."""
+        """Number of columns."""
 
     @property
     def n(self) -> int:
-        """N."""
+        """ny * nx — total frame length."""
 
     @property
     def dwell(self) -> int:
@@ -1279,19 +1279,19 @@ class CorrDetector2D:
 
     @property
     def ring_cap(self) -> int:
-        """Ring cap."""
+        """Ring buffer capacity in complex samples."""
 
     @property
     def noise_lo(self) -> int:
-        """Noise lo."""
+        """Noise bin range lower bound (inclusive)."""
 
     @property
     def noise_hi(self) -> int:
-        """Noise hi."""
+        """Noise bin range upper bound (inclusive)."""
 
     @property
     def threshold(self) -> float:
-        """Threshold."""
+        """0 = always fire; >0 = gate on test_stat."""
 
     @property
     def last_corr(self) -> NDArray[np.complex64]:
@@ -1679,27 +1679,27 @@ class PSD:
 
     @property
     def n(self) -> int:
-        """N."""
+        """Window / frame length (samples)."""
 
     @property
     def nfft(self) -> int:
-        """Nfft."""
+        """Zero-padded transform length."""
 
     @property
     def fs(self) -> float:
-        """Fs."""
+        """Sample rate, Hz."""
 
     @property
     def full_scale(self) -> float:
-        """Full scale."""
+        """Amplitude that reads 0 dBFS."""
 
     @property
     def bits(self) -> int:
-        """Bits."""
+        """ADC depth that set full_scale, else 0."""
 
     @property
     def enbw(self) -> float:
-        """Enbw."""
+        """Equivalent noise bandwidth, bins."""
 
     @property
     def rbw(self) -> float:

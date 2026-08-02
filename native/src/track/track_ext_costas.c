@@ -445,21 +445,22 @@ Costas_setprop_bn_fll (CostasObject *self, PyObject *value,
 }
 
 static PyGetSetDef Costas_getset[]
-    = { { "bn", (getter)Costas_getprop_bn, (setter)Costas_setprop_bn, "Bn.\n",
-          NULL },
+    = { { "bn", (getter)Costas_getprop_bn, (setter)Costas_setprop_bn,
+          "PLL loop noise bandwidth (retained).\n", NULL },
         { "norm_freq", (getter)Costas_getprop_norm_freq,
           (setter)Costas_setprop_norm_freq, "Norm freq.\n", NULL },
         { "lock_metric", (getter)Costas_getprop_lock_metric, NULL,
-          "Lock metric.\n", NULL },
+          "EMA of |Re P|/|P| (1 = locked).\n", NULL },
         { "locked", (getter)Costas_getprop_locked, NULL,
           "Current carrier lock decision: True after the verify count of "
           "consecutive above-threshold symbols, False again after the drop "
           "count of consecutive below-threshold ones (see configure_lock).\n",
           NULL },
         { "last_error", (getter)Costas_getprop_last_error, NULL,
-          "Last error.\n", NULL },
+          "last PLL discriminator (loop stress).\n", NULL },
         { "bn_fll", (getter)Costas_getprop_bn_fll,
-          (setter)Costas_setprop_bn_fll, "Bn fll.\n", NULL },
+          (setter)Costas_setprop_bn_fll,
+          "FLL-assist bandwidth (0 = pure PLL).\n", NULL },
         { NULL } };
 
 static PyObject *

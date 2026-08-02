@@ -251,7 +251,8 @@ MovingAverage_setprop_gain (MovingAverageObject *self, PyObject *value,
 }
 
 static PyGetSetDef MovingAverage_getset[]
-    = { { "len", (getter)MovingAverage_getprop_len, NULL, "Len.\n", NULL },
+    = { { "len", (getter)MovingAverage_getprop_len, NULL,
+          "window length (1 .. BOXCAR_MAX_LEN).\n", NULL },
         { "gain", (getter)MovingAverage_getprop_gain,
           (setter)MovingAverage_setprop_gain, "Current output gain.\n", NULL },
         { NULL } };

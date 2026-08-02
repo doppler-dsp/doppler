@@ -322,13 +322,15 @@ AccTrace_getprop_mode (AccTraceObject *self, void *Py_UNUSED (closure))
   return PyLong_FromLong ((long)(int)self->handle->mode);
 }
 
-static PyGetSetDef AccTrace_getset[]
-    = { { "n", (getter)AccTrace_getprop_n, NULL, "N.\n", NULL },
-        { "alpha", (getter)AccTrace_getprop_alpha,
-          (setter)AccTrace_setprop_alpha, "Alpha.\n", NULL },
-        { "count", (getter)AccTrace_getprop_count, NULL, "Count.\n", NULL },
-        { "mode", (getter)AccTrace_getprop_mode, NULL, "Mode.\n", NULL },
-        { NULL } };
+static PyGetSetDef AccTrace_getset[] = {
+  { "n", (getter)AccTrace_getprop_n, NULL, "Trace length (bins).\n", NULL },
+  { "alpha", (getter)AccTrace_getprop_alpha, (setter)AccTrace_setprop_alpha,
+    "EMA smoothing factor (exp mode).\n", NULL },
+  { "count", (getter)AccTrace_getprop_count, NULL,
+    "Frames folded in so far.\n", NULL },
+  { "mode", (getter)AccTrace_getprop_mode, NULL, "Reduction mode.\n", NULL },
+  { NULL }
+};
 
 static PyObject *
 AccTraceObj_destroy (AccTraceObject *self, PyObject *Py_UNUSED (ignored))

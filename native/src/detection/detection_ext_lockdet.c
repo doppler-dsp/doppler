@@ -324,11 +324,15 @@ LockDet_getprop_locked (LockDetObject *self, void *Py_UNUSED (closure))
 
 static PyGetSetDef LockDet_getset[]
     = { { "up_thresh", (getter)LockDet_getprop_up_thresh,
-          (setter)LockDet_setprop_up_thresh, "Up thresh.\n", NULL },
+          (setter)LockDet_setprop_up_thresh,
+          "declare side: hit when metric > up_thresh.\n", NULL },
         { "down_thresh", (getter)LockDet_getprop_down_thresh,
-          (setter)LockDet_setprop_down_thresh, "Down thresh.\n", NULL },
-        { "n_up", (getter)LockDet_getprop_n_up, NULL, "N up.\n", NULL },
-        { "n_down", (getter)LockDet_getprop_n_down, NULL, "N down.\n", NULL },
+          (setter)LockDet_setprop_down_thresh,
+          "drop side: miss when metric < down_thresh.\n", NULL },
+        { "n_up", (getter)LockDet_getprop_n_up, NULL,
+          "consecutive hits required to declare (>= 1).\n", NULL },
+        { "n_down", (getter)LockDet_getprop_n_down, NULL,
+          "consecutive misses required to drop (>= 1).\n", NULL },
         { "cnt", (getter)LockDet_getprop_cnt, NULL,
           "Running consecutive-look verify counter: hits toward a declare "
           "while unlocked, misses toward a drop while locked.\n",

@@ -292,10 +292,14 @@ Corr_getprop_count (CorrObject *self, void *Py_UNUSED (closure))
 }
 
 static PyGetSetDef Corr_getset[]
-    = { { "n", (getter)Corr_getprop_n, NULL, "N.\n", NULL },
-        { "n_out", (getter)Corr_getprop_n_out, NULL, "N out.\n", NULL },
-        { "dwell", (getter)Corr_getprop_dwell, NULL, "Dwell.\n", NULL },
-        { "count", (getter)Corr_getprop_count, NULL, "Count.\n", NULL },
+    = { { "n", (getter)Corr_getprop_n, NULL,
+          "FFT / reference length (samples).\n", NULL },
+        { "n_out", (getter)Corr_getprop_n_out, NULL,
+          "Output length (== n unless decoupled).\n", NULL },
+        { "dwell", (getter)Corr_getprop_dwell, NULL,
+          "Integration depth; dump every dwell calls.\n", NULL },
+        { "count", (getter)Corr_getprop_count, NULL,
+          "Frames accumulated so far (0 … dwell-1).\n", NULL },
         { NULL } };
 
 static PyObject *

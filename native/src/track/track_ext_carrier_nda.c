@@ -446,19 +446,23 @@ CarrierNda_getprop_sps (CarrierNdaObject *self, void *Py_UNUSED (closure))
 static PyGetSetDef CarrierNda_getset[]
     = { { "norm_freq", (getter)CarrierNda_getprop_norm_freq,
           (setter)CarrierNda_setprop_norm_freq, "Norm freq.\n", NULL },
-        { "lock", (getter)CarrierNda_getprop_lock, NULL, "Lock.\n", NULL },
+        { "lock", (getter)CarrierNda_getprop_lock, NULL,
+          "EMA of the lock signal (1 = locked).\n", NULL },
         { "locked", (getter)CarrierNda_getprop_locked, NULL,
           "Current lock decision: True after the verify count of consecutive "
           "above-threshold samples, False again after the drop count of "
           "consecutive below-threshold ones (see configure_lock).\n",
           NULL },
         { "last_error", (getter)CarrierNda_getprop_last_error, NULL,
-          "Last error.\n", NULL },
+          "last phase discriminator (loop stress).\n", NULL },
         { "bn", (getter)CarrierNda_getprop_bn, (setter)CarrierNda_setprop_bn,
-          "Bn.\n", NULL },
-        { "m", (getter)CarrierNda_getprop_m, NULL, "M.\n", NULL },
-        { "n", (getter)CarrierNda_getprop_n, NULL, "N.\n", NULL },
-        { "sps", (getter)CarrierNda_getprop_sps, NULL, "Sps.\n", NULL },
+          "PLL loop noise bandwidth (retained).\n", NULL },
+        { "m", (getter)CarrierNda_getprop_m, NULL,
+          "constellation order M (2, 4, 8).\n", NULL },
+        { "n", (getter)CarrierNda_getprop_n, NULL,
+          "sets the MA window (= a 1/n-symbol box).\n", NULL },
+        { "sps", (getter)CarrierNda_getprop_sps, NULL, "samples per symbol.\n",
+          NULL },
         { NULL } };
 
 static PyObject *

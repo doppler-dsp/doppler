@@ -281,25 +281,31 @@ CorrDetector2D_getprop_last_corr (CorrDetector2DObject *self,
   return arr;
 }
 
-static PyGetSetDef CorrDetector2D_getset[] = {
-  { "ny", (getter)CorrDetector2D_getprop_ny, NULL, NULL, NULL },
-  { "nx", (getter)CorrDetector2D_getprop_nx, NULL, NULL, NULL },
-  { "n", (getter)CorrDetector2D_getprop_n, NULL, NULL, NULL },
-  { "dwell", (getter)CorrDetector2D_getprop_dwell, NULL, NULL, NULL },
-  { "count", (getter)CorrDetector2D_getprop_count, NULL, NULL, NULL },
-  { "ring_cap", (getter)CorrDetector2D_getprop_ring_cap, NULL, NULL, NULL },
-  { "noise_lo", (getter)CorrDetector2D_getprop_noise_lo, NULL, NULL, NULL },
-  { "noise_hi", (getter)CorrDetector2D_getprop_noise_hi, NULL, NULL, NULL },
-  { "threshold", (getter)CorrDetector2D_getprop_threshold, NULL, NULL, NULL },
-  { "last_corr", (getter)CorrDetector2D_getprop_last_corr, NULL,
-    "The correlation vector from the most recent push() that produced a "
-    "result (None before that). This is a zero-copy view into a buffer "
-    "owned by the detector and reused every push() -- the next push() "
-    "(even one that doesn't produce a result) overwrites it in place. "
-    "Copy the array before the next push() if you need to retain it.\n",
-    NULL },
-  { NULL }
-};
+static PyGetSetDef CorrDetector2D_getset[]
+    = { { "ny", (getter)CorrDetector2D_getprop_ny, NULL, "Number of rows.\n",
+          NULL },
+        { "nx", (getter)CorrDetector2D_getprop_nx, NULL,
+          "Number of columns.\n", NULL },
+        { "n", (getter)CorrDetector2D_getprop_n, NULL,
+          "ny * nx — total frame length.\n", NULL },
+        { "dwell", (getter)CorrDetector2D_getprop_dwell, NULL, NULL, NULL },
+        { "count", (getter)CorrDetector2D_getprop_count, NULL, NULL, NULL },
+        { "ring_cap", (getter)CorrDetector2D_getprop_ring_cap, NULL,
+          "Ring buffer capacity in complex samples.\n", NULL },
+        { "noise_lo", (getter)CorrDetector2D_getprop_noise_lo, NULL,
+          "Noise bin range lower bound (inclusive).\n", NULL },
+        { "noise_hi", (getter)CorrDetector2D_getprop_noise_hi, NULL,
+          "Noise bin range upper bound (inclusive).\n", NULL },
+        { "threshold", (getter)CorrDetector2D_getprop_threshold, NULL,
+          "0 = always fire; >0 = gate on test_stat.\n", NULL },
+        { "last_corr", (getter)CorrDetector2D_getprop_last_corr, NULL,
+          "The correlation vector from the most recent push() that produced a "
+          "result (None before that). This is a zero-copy view into a buffer "
+          "owned by the detector and reused every push() -- the next push() "
+          "(even one that doesn't produce a result) overwrites it in place. "
+          "Copy the array before the next push() if you need to retain it.\n",
+          NULL },
+        { NULL } };
 
 static PyObject *
 CorrDetector2DObj_destroy (CorrDetector2DObject *self,

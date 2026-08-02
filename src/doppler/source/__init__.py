@@ -1,3 +1,11 @@
+"""Signal sources: sample generators comprising a 32-bit phase-accumulator NCO (NCO), a quadrature local oscillator (LO), and an AWGN generator (AWGN).
+
+Examples
+--------
+>>> from doppler.source import NCO
+>>> NCO(norm_freq=0.25).steps_u32(4).tolist()
+[0, 1073741824, 2147483648, 3221225472]"""
+
 # source/__init__.py — re-export all types from the C extension.
 import os as _os
 import sys as _sys

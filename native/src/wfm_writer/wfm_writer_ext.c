@@ -88,7 +88,8 @@ _bind_write_blue_header(PyObject *self, PyObject *args, PyObject *kwds)
 /* ======================================================== */
 
 static PyMethodDef wfm_writer_module_methods[] = {
-    {"write_blue_header", (PyCFunction)(void *)_bind_write_blue_header, METH_VARARGS | METH_KEYWORDS, "Write a standalone BLUE type-1000 HCB header (the detached .hdr): 512 bytes carrying the BLUE magic, byte order, data_size (total x bytes-per-sample), the type-1000 tag and xdelta = 1/fs. Pair it with a detached .det body of raw interleaved I/Q. Raises on a failed write."},
+    {"write_blue_header", (PyCFunction)(void *)_bind_write_blue_header, METH_VARARGS | METH_KEYWORDS,
+     "Write a standalone BLUE type-1000 HCB header (the detached .hdr): 512 bytes carrying the BLUE magic, byte order, data_size (total x bytes-per-sample), the type-1000 tag and xdelta = 1/fs. Pair it with a detached .det body of raw interleaved I/Q. Raises on a failed write.\n"},
     {NULL, NULL, 0, NULL}
 };
 

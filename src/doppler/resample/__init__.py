@@ -1,4 +1,11 @@
-"""resample — Polyphase resampler and halfband decimator types."""
+"""Sample-rate conversion: polyphase resampling (Resampler, RateConverter), halfband decimation (HalfbandDecimator), CIC decimation, and Farrow fractional resampling.
+
+Examples
+--------
+>>> import numpy as np
+>>> from doppler.resample import Resampler
+>>> Resampler(rate=2.0).execute(np.ones(100, np.complex64)).size
+200"""
 
 import math
 import os as _os

@@ -31,7 +31,15 @@
 static PyModuleDef cvt_moduledef = {
     PyModuleDef_HEAD_INIT,
     .m_name    = "cvt",
-    .m_doc     = "Cvt module.",
+    .m_doc     = "Sample-format conversion: vectorized converters between float32 IQ and fixed-point integer formats (int8/16/32, unsigned Q15), plus a scaling ADC front end.\n"
+     "\n"
+     "Examples\n"
+     "--------\n"
+     ">>> import numpy as np\n"
+     ">>> from doppler.cvt import F32ToI16, I16ToF32\n"
+     ">>> x = np.array([0.5, -0.25], np.float32)\n"
+     ">>> I16ToF32().steps(F32ToI16().steps(x)).round(3).tolist()\n"
+     "[0.5, -0.25]\n",
     .m_size    = -1,
     .m_methods = NULL,
 };

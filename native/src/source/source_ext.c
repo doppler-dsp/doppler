@@ -23,7 +23,13 @@
 static PyModuleDef source_moduledef = {
     PyModuleDef_HEAD_INIT,
     .m_name    = "source",
-    .m_doc     = "Source module.",
+    .m_doc     = "Signal sources: sample generators comprising a 32-bit phase-accumulator NCO (NCO), a quadrature local oscillator (LO), and an AWGN generator (AWGN).\n"
+     "\n"
+     "Examples\n"
+     "--------\n"
+     ">>> from doppler.source import NCO\n"
+     ">>> NCO(norm_freq=0.25).steps_u32(4).tolist()\n"
+     "[0, 1073741824, 2147483648, 3221225472]\n",
     .m_size    = -1,
     .m_methods = NULL,
 };

@@ -1,3 +1,13 @@
+"""Sample-format conversion: vectorized converters between float32 IQ and fixed-point integer formats (int8/16/32, unsigned Q15), plus a scaling ADC front end.
+
+Examples
+--------
+>>> import numpy as np
+>>> from doppler.cvt import F32ToI16, I16ToF32
+>>> x = np.array([0.5, -0.25], np.float32)
+>>> I16ToF32().steps(F32ToI16().steps(x)).round(3).tolist()
+[0.5, -0.25]"""
+
 # cvt/__init__.py — re-export all types from the C extension.
 import os as _os
 import sys as _sys

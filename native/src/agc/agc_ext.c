@@ -21,7 +21,15 @@
 static PyModuleDef agc_moduledef = {
     PyModuleDef_HEAD_INIT,
     .m_name    = "agc",
-    .m_doc     = "Agc module.",
+    .m_doc     = "Automatic gain control: a log-domain feedback AGC (AGC) that drives signal power toward a reference level.\n"
+     "\n"
+     "Examples\n"
+     "--------\n"
+     ">>> import numpy as np\n"
+     ">>> from doppler.agc import AGC\n"
+     ">>> y = AGC(ref_db=0.0, loop_bw=0.05).steps(0.1 * np.ones(200, np.complex64))\n"
+     ">>> bool(abs(y[-1]) > abs(y[0]))\n"
+     "True\n",
     .m_size    = -1,
     .m_methods = NULL,
 };

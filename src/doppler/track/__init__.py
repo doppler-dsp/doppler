@@ -1,3 +1,13 @@
+"""Carrier and timing tracking: loop filters, Costas / non-data-aided / MPSK carrier recovery, DLL code tracking, symbol-timing and rate sync, and full MPSK receivers.
+
+Examples
+--------
+>>> import numpy as np
+>>> from doppler.track import LoopFilter
+>>> y = LoopFilter(bn=0.05, zeta=0.707).steps(np.ones(50))
+>>> bool(y[-1] > y[0])
+True"""
+
 # track/__init__.py — re-export all types from the C extension.
 import os as _os
 import sys as _sys

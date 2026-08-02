@@ -21,7 +21,15 @@
 static PyModuleDef interp_moduledef = {
     PyModuleDef_HEAD_INIT,
     .m_name    = "interp",
-    .m_doc     = "Interp module.",
+    .m_doc     = "Interpolation: a table-driven resampling interpolator (InterpolatedTable) for fractional-delay and rate-change lookups.\n"
+     "\n"
+     "Examples\n"
+     "--------\n"
+     ">>> import numpy as np\n"
+     ">>> from doppler.interp import InterpolatedTable\n"
+     ">>> t = InterpolatedTable(np.arange(4, dtype=np.complex128))\n"
+     ">>> t.execute(np.array([1.5], np.float64)).real.round(2).tolist()\n"
+     "[1.5]\n",
     .m_size    = -1,
     .m_methods = NULL,
 };

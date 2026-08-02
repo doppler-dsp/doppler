@@ -173,21 +173,152 @@ _bind_dsss_spread(PyObject *self, PyObject *args, PyObject *kwds)
 /* ======================================================== */
 
 static PyMethodDef wfm_module_methods[] = {
-    {"bpsk_map", (PyCFunction)(void *)_bind_bpsk_map, METH_VARARGS | METH_KEYWORDS, "Map bits {0,1} to BPSK symbols {+1,-1} (cf32)."},
-    {"qpsk_map", (PyCFunction)(void *)_bind_qpsk_map, METH_VARARGS | METH_KEYWORDS, "Map QPSK symbol indices {0,1,2,3} to Gray-coded symbols (cf32)."},
-    {"wfm_awgn_amplitude", (PyCFunction)(void *)_bind_wfm_awgn_amplitude, METH_VARARGS | METH_KEYWORDS, "AWGN amplitude for a target SNR (dB, over fs) given signal power."},
-    {"wfm_ebno_to_snr_db", (PyCFunction)(void *)_bind_wfm_ebno_to_snr_db, METH_VARARGS | METH_KEYWORDS, "Convert Eb/No (dB) to SNR (dB over fs)."},
-    {"mls_poly", (PyCFunction)(void *)_bind_mls_poly, METH_VARARGS | METH_KEYWORDS, "Maximal-length-sequence primitive polynomial for an LFSR of length n."},
-    {"crc16", (PyCFunction)(void *)_bind_crc16, METH_VARARGS | METH_KEYWORDS, "CRC-16-CCITT (poly 0x1021, init 0xFFFF) over an unpacked 0/1 bit array, MSB-first — the DSSS burst frame trailer wfmgen appends and BurstDemod validates."},
-    {"rrc_taps", (PyCFunction)(void *)_bind_rrc_taps, METH_VARARGS | METH_KEYWORDS, "Root-raised-cosine pulse-shaping taps (2*span*sps+1 unit-energy cf32 taps)."},
-    {"dsss_spread", (PyCFunction)(void *)_bind_dsss_spread, METH_VARARGS | METH_KEYWORDS, "Direct-sequence spread syms by the ±1 chip code; yields len(syms)*sf chips."},
+    {"bpsk_map", (PyCFunction)(void *)_bind_bpsk_map, METH_VARARGS | METH_KEYWORDS,
+     "Map bits {0,1} to BPSK symbols {+1,-1} (cf32).\n"
+     "\n"
+     "Parameters\n"
+     "----------\n"
+     "bits : NDArray[np.uint8]\n"
+     "    Array of uint8 values; only the LSB of each byte is used.\n"
+     "\n"
+     "Returns\n"
+     "-------\n"
+     "NDArray[np.complex64]\n"
+     "    Output.\n"
+     "\n"
+     "Examples\n"
+     "--------\n"
+     ">>> from doppler.wfm import bpsk_map\n"
+     ">>> import numpy as np\n"
+     ">>> bits = np.array([0, 1, 0, 1], dtype=np.uint8)\n"
+     ">>> bpsk_map(bits).tolist()\n"
+     "[(1+0j), (-1+0j), (1+0j), (-1+0j)]\n"},
+    {"qpsk_map", (PyCFunction)(void *)_bind_qpsk_map, METH_VARARGS | METH_KEYWORDS,
+     "Map QPSK symbol indices {0,1,2,3} to Gray-coded symbols (cf32).\n"
+     "\n"
+     "Parameters\n"
+     "----------\n"
+     "syms : NDArray[np.uint8]\n"
+     "    Array of uint8 symbol indices; values must be in {0,1,2,3}. Bits\n"
+     "    above position 1 are ignored.\n"
+     "\n"
+     "Returns\n"
+     "-------\n"
+     "NDArray[np.complex64]\n"
+     "    Output.\n"
+     "\n"
+     "Examples\n"
+     "--------\n"
+     ">>> from doppler.wfm import qpsk_map\n"
+     ">>> import numpy as np\n"
+     ">>> idx = np.array([0, 1, 2, 3], dtype=np.uint8)\n"
+     ">>> out = qpsk_map(idx)\n"
+     ">>> [round(float(v.real), 4) for v in out]\n"
+     "[0.7071, -0.7071, 0.7071, -0.7071]\n"
+     ">>> [round(float(v.imag), 4) for v in out]\n"
+     "[0.7071, 0.7071, -0.7071, -0.7071]\n"},
+    {"wfm_awgn_amplitude", (PyCFunction)(void *)_bind_wfm_awgn_amplitude, METH_VARARGS | METH_KEYWORDS,
+     "AWGN amplitude for a target SNR (dB, over fs) given signal power.\n"
+     "\n"
+     "Parameters\n"
+     "----------\n"
+     "snr_db : float\n"
+     "    Target SNR in dB, referenced to the full sample rate.\n"
+     "signal_power : float\n"
+     "    RMS power of the signal (e.g. 1.0 for unit-power complex tones or\n"
+     "    unit-energy BPSK/QPSK symbols).\n"
+     "\n"
+     "Returns\n"
+     "-------\n"
+     "float\n"
+     "    Per-component AWGN amplitude (sigma for one I or Q channel).\n"
+     "\n"
+     "Examples\n"
+     "--------\n"
+     ">>> from doppler.wfm import wfm_awgn_amplitude\n"
+     ">>> round(float(wfm_awgn_amplitude(10.0, 1.0)), 6)\n"
+     "0.223607\n"
+     ">>> round(float(wfm_awgn_amplitude(0.0, 1.0)), 6)\n"
+     "0.707107\n"},
+    {"wfm_ebno_to_snr_db", (PyCFunction)(void *)_bind_wfm_ebno_to_snr_db, METH_VARARGS | METH_KEYWORDS,
+     "Convert Eb/No (dB) to SNR (dB over fs).\n"
+     "\n"
+     "Parameters\n"
+     "----------\n"
+     "ebno_db : float\n"
+     "    Eb/No in dB (energy per bit over noise spectral density).\n"
+     "bits_per_symbol : int\n"
+     "    Bits carried per modulation symbol: 1 for BPSK, 2 for QPSK.\n"
+     "samples_per_symbol : float\n"
+     "    Oversampling ratio (sps), e.g. 8.0.\n"
+     "\n"
+     "Returns\n"
+     "-------\n"
+     "float\n"
+     "    SNR in dB measured over the full sample-rate bandwidth.\n"
+     "\n"
+     "Examples\n"
+     "--------\n"
+     ">>> from doppler.wfm import wfm_ebno_to_snr_db\n"
+     ">>> round(float(wfm_ebno_to_snr_db(10.0, 2, 8.0)), 4)\n"
+     "3.9794\n"
+     ">>> round(float(wfm_ebno_to_snr_db(10.0, 1, 8.0)), 4)\n"
+     "0.9691\n"},
+    {"mls_poly", (PyCFunction)(void *)_bind_mls_poly, METH_VARARGS | METH_KEYWORDS,
+     "Maximal-length-sequence primitive polynomial for an LFSR of length n.\n"
+     "\n"
+     "Parameters\n"
+     "----------\n"
+     "n : int\n"
+     "    LFSR length in stages (2..64).\n"
+     "\n"
+     "Returns\n"
+     "-------\n"
+     "int\n"
+     "    Primitive-polynomial tap mask, or 0 if n is out of range.\n"
+     "\n"
+     "Examples\n"
+     "--------\n"
+     ">>> from doppler.wfm import mls_poly\n"
+     ">>> hex(mls_poly(7))\n"
+     "'0x41'\n"},
+    {"crc16", (PyCFunction)(void *)_bind_crc16, METH_VARARGS | METH_KEYWORDS,
+     "CRC-16-CCITT (poly 0x1021, init 0xFFFF) over an unpacked 0/1 bit array, MSB-first — the DSSS burst frame trailer wfmgen appends and BurstDemod validates.\n"
+     "\n"
+     "Parameters\n"
+     "----------\n"
+     "bits : NDArray[np.uint8]\n"
+     "    Array of 0/1 bit values (one per byte).\n"
+     "\n"
+     "Returns\n"
+     "-------\n"
+     "int\n"
+     "    The 16-bit CRC.\n"
+     "\n"
+     "Examples\n"
+     "--------\n"
+     ">>> import numpy as np\n"
+     ">>> from doppler.wfm import crc16\n"
+     ">>> ascii_bits = np.unpackbits(np.frombuffer(b\"123456789\", np.uint8))\n"
+     ">>> hex(crc16(ascii_bits))   # the standard CCITT check vector\n"
+     "'0x29b1'\n"},
+    {"rrc_taps", (PyCFunction)(void *)_bind_rrc_taps, METH_VARARGS | METH_KEYWORDS,
+     "Root-raised-cosine pulse-shaping taps (2*span*sps+1 unit-energy cf32 taps).\n"},
+    {"dsss_spread", (PyCFunction)(void *)_bind_dsss_spread, METH_VARARGS | METH_KEYWORDS,
+     "Direct-sequence spread syms by the ±1 chip code; yields len(syms)*sf chips.\n"},
     {NULL, NULL, 0, NULL}
 };
 
 static PyModuleDef wfm_moduledef = {
     PyModuleDef_HEAD_INIT,
     .m_name    = "wfm",
-    .m_doc     = "Wfm module.",
+    .m_doc     = "Waveform generation: PN and CCSDS Gold code generators (PN, Gold) and a configurable modulated-symbol synthesizer, with BLUE/SigMF writers and readers re-exported.\n"
+     "\n"
+     "Examples\n"
+     "--------\n"
+     ">>> from doppler.wfm import Gold\n"
+     ">>> Gold().generate(1023)[:15].tolist()   # CCSDS Code #365\n"
+     "[0, 1, 0, 0, 0, 1, 0, 1, 1, 1, 0, 1, 1, 1, 1]\n",
     .m_size    = -1,
     .m_methods = wfm_module_methods,
 };

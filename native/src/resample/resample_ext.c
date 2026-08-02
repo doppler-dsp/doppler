@@ -76,16 +76,90 @@ _bind_kaiser_num_taps(PyObject *self, PyObject *args, PyObject *kwds)
 /* ======================================================== */
 
 static PyMethodDef resample_module_methods[] = {
-    {"ciccompmf", (PyCFunction)(void *)_bind_ciccompmf, METH_VARARGS | METH_KEYWORDS, "ciccompmf."},
-    {"kaiser_beta", (PyCFunction)(void *)_bind_kaiser_beta, METH_VARARGS | METH_KEYWORDS, "kaiser_beta."},
-    {"kaiser_num_taps", (PyCFunction)(void *)_bind_kaiser_num_taps, METH_VARARGS | METH_KEYWORDS, "kaiser_num_taps."},
+    {"ciccompmf", (PyCFunction)(void *)_bind_ciccompmf, METH_VARARGS | METH_KEYWORDS,
+     "Design a CIC passband-droop compensator FIR filter. Implements the closed-form Bernoulli-series maximally-flat-error method from Molnar & Vucic (IEEE TCAS-II 58(12):926-930, 2011, DOI 10.1109/TCSII.2011.2172522). The compensator runs at the *decimated* (output) rate and should be applied after the CIC stage. DC gain is exactly 1.0. Odd M gives symmetric linear-phase taps; even M gives half-sample-shifted linear-phase taps.\n"
+     "\n"
+     "Parameters\n"
+     "----------\n"
+     "N : int\n"
+     "    CIC filter order (number of integrator/comb stages, >= 1).\n"
+     "R : int\n"
+     "    CIC decimation factor (>= 2).\n"
+     "M : int\n"
+     "    Number of compensator taps in `[1, 19]` (odd or even).\n"
+     "\n"
+     "Returns\n"
+     "-------\n"
+     "NDArray[np.float64]\n"
+     "    Output.\n"
+     "\n"
+     "Examples\n"
+     "--------\n"
+     ">>> from doppler.resample import ciccompmf\n"
+     ">>> import numpy as np\n"
+     ">>> h = ciccompmf(4, 16, 5)\n"
+     ">>> h.shape, h.dtype\n"
+     "((5,), dtype('float64'))\n"
+     ">>> [round(float(v), 4) for v in h]\n"
+     "[0.029, -0.282, 1.5061, -0.282, 0.029]\n"},
+    {"kaiser_beta", (PyCFunction)(void *)_bind_kaiser_beta, METH_VARARGS | METH_KEYWORDS,
+     "Compute the Kaiser window beta parameter from stopband attenuation. Uses the standard Kaiser-Hamming formulae: atten > 50  dB: beta = 0.1102 * (atten - 8.7) 21 <= atten <= 50 dB: beta = 0.5842*(atten-21)^0.4 + 0.07886*(atten-21) atten < 21  dB: beta = 0.0 (rectangular window)\n"
+     "\n"
+     "Parameters\n"
+     "----------\n"
+     "atten : float\n"
+     "    Desired stopband attenuation in dB (positive value).\n"
+     "\n"
+     "Returns\n"
+     "-------\n"
+     "float\n"
+     "    Kaiser beta parameter (>= 0.0).\n"
+     "\n"
+     "Examples\n"
+     "--------\n"
+     ">>> from doppler.resample import kaiser_beta\n"
+     ">>> round(kaiser_beta(60.0), 4)\n"
+     "5.6533\n"
+     ">>> kaiser_beta(20.0)\n"
+     "0.0\n"},
+    {"kaiser_num_taps", (PyCFunction)(void *)_bind_kaiser_num_taps, METH_VARARGS | METH_KEYWORDS,
+     "Estimate the taps-per-phase count for a polyphase Kaiser FIR bank. Applies the Kaiser length formula to the per-phase normalised prototype (pb/num_phases, sb/num_phases), rounds up to the next odd symmetrical length, then divides by num_phases to give taps per branch. The result is the minimum num_taps argument to pass to Resampler_create_custom().\n"
+     "\n"
+     "Parameters\n"
+     "----------\n"
+     "num_phases : int\n"
+     "    Number of polyphase branches (power of two).\n"
+     "atten : float\n"
+     "    Desired stopband attenuation in dB.\n"
+     "pb : float\n"
+     "    Normalised passband edge (0 < pb < sb < 1).\n"
+     "sb : float\n"
+     "    Normalised stopband edge.\n"
+     "\n"
+     "Returns\n"
+     "-------\n"
+     "int\n"
+     "    Taps per polyphase branch (>= 1).\n"
+     "\n"
+     "Examples\n"
+     "--------\n"
+     ">>> from doppler.resample import kaiser_num_taps\n"
+     ">>> kaiser_num_taps(4096, 60.0, 0.4, 0.6)\n"
+     "19\n"},
     {NULL, NULL, 0, NULL}
 };
 
 static PyModuleDef resample_moduledef = {
     PyModuleDef_HEAD_INIT,
     .m_name    = "resample",
-    .m_doc     = "Resample module.",
+    .m_doc     = "Sample-rate conversion: polyphase resampling (Resampler, RateConverter), halfband decimation (HalfbandDecimator), CIC decimation, and Farrow fractional resampling.\n"
+     "\n"
+     "Examples\n"
+     "--------\n"
+     ">>> import numpy as np\n"
+     ">>> from doppler.resample import Resampler\n"
+     ">>> Resampler(rate=2.0).execute(np.ones(100, np.complex64)).size\n"
+     "200\n",
     .m_size    = -1,
     .m_methods = resample_module_methods,
 };

@@ -21,7 +21,16 @@
 static PyModuleDef acquire_moduledef = {
     PyModuleDef_HEAD_INIT,
     .m_name    = "acquire",
-    .m_doc     = "Acquire module.",
+    .m_doc     = "Cold-start carrier acquisition: a coarse frequency/phase search (CarrierAcquisition) that seeds a downstream tracking loop.\n"
+     "\n"
+     "Examples\n"
+     "--------\n"
+     ">>> import numpy as np\n"
+     ">>> from doppler.acquire import CarrierAcquisition\n"
+     ">>> ca = CarrierAcquisition(sample_rate_hz=8000.0, symbol_rate_hz=1000.0,\n"
+     "...                          resolution_hz=5.0)\n"
+     ">>> ca.ready()\n"
+     "False\n",
     .m_size    = -1,
     .m_methods = NULL,
 };

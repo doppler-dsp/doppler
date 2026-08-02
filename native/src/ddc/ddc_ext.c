@@ -24,7 +24,14 @@
 static PyModuleDef ddc_moduledef = {
     PyModuleDef_HEAD_INIT,
     .m_name    = "ddc",
-    .m_doc     = "Ddc module.",
+    .m_doc     = "Digital down-conversion: complex- and real-input down-converters (DDC, Ddcr) that mix to baseband, filter, and decimate in one pass, with matched-filter flavors.\n"
+     "\n"
+     "Examples\n"
+     "--------\n"
+     ">>> import numpy as np\n"
+     ">>> from doppler.ddc import DDC\n"
+     ">>> DDC(norm_freq=0.1).execute(np.ones(16, np.complex64)).size\n"
+     "4\n",
     .m_size    = -1,
     .m_methods = NULL,
 };

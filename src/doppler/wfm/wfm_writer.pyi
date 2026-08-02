@@ -28,6 +28,29 @@ class Writer:
     headroom : float, default 0.0
         dB of output backoff (gain = 10^(-H/20)) applied before quantisation. A single scale, so it does not change any power ratio -- only the absolute level. 0 is a bit-exact no-op.
 
+    Examples
+    --------
+    >>> import pathlib, tempfile
+    >>> import numpy as np
+    >>> from doppler.wfm import Reader, Writer
+    >>> tmp = tempfile.TemporaryDirectory()
+    >>> p = pathlib.Path(tmp.name) / "capture.blue"
+    >>> x = np.arange(1024, dtype=np.complex64) / 1024.0
+    >>> with Writer(p, file_type="blue", sample_type="cf32",
+    ...             fs=2.4e6, fc=1.2e9) as w:
+    ...     w.write(x)                              # samples in
+    ...     w.add_keyword("COMMENT", "A", "demo")   # tag the header
+    1024
+    >>> p.exists()
+    True
+    >>> with Reader(p) as r:                        # everything round-trips
+    ...     back = r.read(len(x))
+    ...     r.fs, r.fc, r.num_samples, r.keywords["COMMENT"]
+    (2400000.0, 1200000000.0, 1024, 'demo')
+    >>> bool(np.array_equal(back, x))
+    True
+    >>> tmp.cleanup()
+
     """
     def __init__(self, path: str | os.PathLike, file_type: Literal["raw", "csv", "blue", "sigmf"] = "raw", sample_type: Literal["cf32", "cf64", "ci32", "ci16", "ci8"] = "cf32", endian: Literal["le", "be"] = "le", fs: float = ..., fc: float = ..., total: int = ..., headroom: float = ...) -> None: ...
 

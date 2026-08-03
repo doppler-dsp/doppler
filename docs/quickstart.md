@@ -37,7 +37,7 @@ instead — see [C Library](install/c.md#install-from-a-release-tarball).
     ```
 
     Built for both `linux/amd64` and `linux/arm64`. See
-    [Docker](install/docker.md#published-container) for details.
+    [Docker](install/docker.md#runtime-try-it) for details.
 
 ______________________________________________________________________
 

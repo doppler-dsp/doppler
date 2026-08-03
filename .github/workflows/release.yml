@@ -422,6 +422,12 @@ jobs:
 
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          # Idempotent publish: a later job in this release failing (e.g. the
+          # container smoke-test) must be recoverable by re-running the run.
+          # Without this, the re-run's publish aborts on the already-uploaded
+          # files and the release can never reach the GitHub-release job.
+          skip-existing: true
 
   # ------------------------------------------------------------------
   # Publish a "pull and run" container: ghcr.io/doppler-dsp/doppler:X.Y.Z
@@ -550,7 +556,7 @@ jobs:
             docker run --rm --platform "linux/$arch" \
               "ghcr.io/${{ github.repository }}-downstream-jm:${{ needs.verify-version.outputs.version }}" \
               python3 -c "from iqtools.capture import Capture, RawCapture; \
-                          print('doppler-downstream-jm ('"$arch"')', Capture.__name__)"
+                          print('doppler-downstream-jm ($arch)', Capture.__name__)"
           done
 
   # ------------------------------------------------------------------

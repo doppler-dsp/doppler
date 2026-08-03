@@ -179,19 +179,23 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install uv
+      - name: Install uv + Python ${{ matrix.python }}
         uses: astral-sh/setup-uv@v4
+        with:
+          python-version: ${{ matrix.python }}
 
       - name: Install system dependencies
         run: make install-deps
 
       - name: Build wheel (Python ${{ matrix.python }})
-        run: |
-          uv python install ${{ matrix.python }}
-          uv venv .venv --python ${{ matrix.python }}
-          uv pip install --python .venv/bin/python numpy build just-buildit
-          mkdir -p dist
-          .venv/bin/python -m build --no-isolation --wheel --outdir dist/
+        # Build through the make target, the same way CI builds the extension
+        # (make pyext). `make wheel` runs `uv build --wheel`, whose just-buildit
+        # backend calls `make just-build` (cmake + pyext) and delocate-repairs
+        # the macOS wheel. UV_PYTHON — set by setup-uv's python-version above —
+        # selects the interpreter, so each matrix job emits its own cpXYZ wheel.
+        # No hand-rolled `uv venv`/`uv pip`: the make target owns the build env,
+        # so there is no stray `.venv` for a later step to collide with.
+        run: make wheel
 
       - name: Upload wheel (Python ${{ matrix.python }})
         uses: actions/upload-artifact@v4

@@ -36,20 +36,11 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: Install jbx
-      run: |
-        curl -sSL https://just-buildit.github.io/get-jb.sh | bash
-        echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-
-    - name: Install dependencies (Ubuntu)
-      if: startsWith(matrix.os, 'ubuntu')
-      run: |
-        sudo apt-get update
-        jbx just-bashit:install-deps -g runtime,dev -s apt
-
-    - name: Install dependencies (macOS)
-      if: startsWith(matrix.os, 'macos')
-      run: jbx just-bashit:install-deps -g runtime,dev -s brew
+    # `make install-deps` is the one dep command a developer also runs: it
+    # self-bootstraps jbx and installs jb.toml's runtime+dev groups, auto-
+    # detecting apt vs brew — so one step covers Ubuntu and macOS both.
+    - name: Install system dependencies
+      run: make install-deps
 
     - name: Build
       run: make build
@@ -87,12 +78,10 @@ jobs:
       # core+stream consumer via all three documented faces, asserting
       # identical output. The docs' "Compile it — three ways" snippets
       # are --8<-- included from build-three-ways.sh itself, so this
-      # step proves exactly what readers copy. release-smoke.sh repeats
-      # it against the published tarball on every release (x86_64,
-      # aarch64, macOS).
-      run: |
-        cmake --install build --prefix "${RUNNER_TEMP}/pfx"
-        bash tests/install/stream-consumer/build-three-ways.sh "${RUNNER_TEMP}/pfx"
+      # proves exactly what readers copy. Same target a dev runs;
+      # release-smoke.sh runs the same script against the published
+      # tarball on every release (x86_64, aarch64, macOS).
+      run: make consumer-faces-check
 
   # ------------------------------------------------------------------
   # Python package build + pytest
@@ -108,15 +97,8 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: Install jbx
-      run: |
-        curl -sSL https://just-buildit.github.io/get-jb.sh | bash
-        echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-
-    - name: Install system deps
-      run: |
-        sudo apt-get update
-        jbx just-bashit:install-deps -g runtime,dev -s apt
+    - name: Install system dependencies
+      run: make install-deps
 
     - name: Install uv + Python + package deps
       uses: astral-sh/setup-uv@v4
@@ -254,15 +236,8 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: Install jbx
-      run: |
-        curl -sSL https://just-buildit.github.io/get-jb.sh | bash
-        echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-
     - name: Install doxygen + LaTeX
-      run: |
-        sudo apt-get update
-        jbx just-bashit:install-deps -g docs -s apt
+      run: make install-docs-deps
 
     - name: Run doxygen (zero warnings)
       # `make doxygen-check`, never an inline doxygen invocation: the Makefile
@@ -417,16 +392,11 @@ jobs:
         # Full history so the patch gate can diff against origin/main.
         fetch-depth: 0
 
-    - name: Install jbx
-      run: |
-        curl -sSL https://just-buildit.github.io/get-jb.sh | bash
-        echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-
     - name: Install system deps
       run: |
-        sudo apt-get update
-        jbx just-bashit:install-deps -g runtime,dev -s apt
-        # clang + the matching llvm tools (llvm-profdata / llvm-cov).
+        make install-deps
+        # clang + the matching llvm tools (llvm-profdata / llvm-cov) — coverage
+        # tooling, not build deps, so it stays out of jb.toml's dev group.
         sudo apt-get install -y clang llvm
 
     - name: Install uv + Python + package deps

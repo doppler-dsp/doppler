@@ -666,6 +666,8 @@ wheel-check: ## Verify built wheels carry no -march/-mcpu=native SIMD leak
 	 fail=0; tmp="$$(mktemp -d)"; \
 	 for whl in $(WHEEL_DIR)/*.whl; do \
 	     unzip -q -o "$$whl" -d "$$tmp/x"; \
+	     find "$$tmp/x" \( -name '*.cpython-*.so' \
+	           -o -path '*/wfm/_bin/wfmgen' \) > "$$tmp/solist"; \
 	     while IFS= read -r so; do \
 	         bad=$$(objdump -d "$$so" 2>/dev/null | awk -v pat="$$pat" -v ok="$$ok" ' \
 	           /^[0-9a-f]+ <.*>:/ { fn=$$2; gsub(/[<>:]/, "", fn) } \
@@ -675,7 +677,7 @@ wheel-check: ## Verify built wheels carry no -march/-mcpu=native SIMD leak
 	             echo "       non-dispatched function '$$bad' (built with -native?)"; \
 	             fail=1; \
 	         fi; \
-	     done < <(find "$$tmp/x" \( -name '*.cpython-*.so' -o -path '*/wfm/_bin/wfmgen' \)); \
+	     done < "$$tmp/solist"; \
 	     rm -rf "$$tmp/x"; \
 	 done; \
 	 rm -rf "$$tmp"; \

@@ -26,6 +26,10 @@
 
 #include "clib_common.h"
 
+/* The CaptureSummary record lives in its own header; the field docs derive
+   from it across this include (just-makeit gh-724) with no manifest prose. */
+#include "capture/capture_summary.h"
+
 #ifdef __cplusplus
 extern "C"
 {
@@ -67,6 +71,7 @@ size_t capture_read_max_out(capture_state_t *state, size_t n);
   double capture_get_fc (const capture_state_t *state);
   size_t capture_get_num_samples (const capture_state_t *state);
   int    capture_get_metadata_source (const capture_state_t *state);
+  capture_summary_t capture_summary (const capture_state_t *state);
   capture_state_t *capture_open_raw (const char *path, int sample_type,
                                      int endian, double fs, double fc);
 #ifdef __cplusplus

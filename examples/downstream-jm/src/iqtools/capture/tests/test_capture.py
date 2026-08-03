@@ -230,6 +230,38 @@ def test_context_manager_closes(blue):
         assert cap.num_samples == NUM_SAMPLES
 
 
+def test_summary_returns_a_named_record(blue):
+    """`summary()` is a `single = true` method: one call, one named record.
+
+    The `CaptureSummary` class, its `.pyi`, and every field docstring are
+    generated — no hand-written CPython. The field prose comes from the `///<`
+    comments on `capture_summary_t` in `capture_summary.h`, reached across the
+    `#include` in `capture_core.h` (just-makeit gh-724).
+    """
+    s = Capture(str(blue)).summary()
+
+    # Named access, and it still unpacks like the tuple it subclasses.
+    assert s.num_samples == NUM_SAMPLES
+    assert s.fs_hz == FS
+    assert s.fc_hz == FC
+    n, fs, fc = s
+    assert (n, fs, fc) == (NUM_SAMPLES, FS, FC)
+
+    # The record type carries its identity and its docs at runtime, too.
+    assert type(s).__name__ == "CaptureSummary"
+    assert type(s).__module__ == "iqtools.capture"
+    assert "Sample rate" in type(s).fs_hz.__doc__
+
+
+def test_summary_reflects_what_the_view_was_told(raw):
+    """A headerless capture read through the view: the record shows the
+    supplied tuning, the same numbers the individual accessors report."""
+    cap = RawCapture(str(raw), sample_type="ci16", fs=FS, fc=FC)
+    s = cap.summary()
+    assert (s.fs_hz, s.fc_hz) == (cap.fs, cap.fc)
+    assert s.num_samples == cap.num_samples
+
+
 def test_missing_file_raises_the_declared_error(tmp_path):
     """From `create_error = "ValueError"`, not a bare MemoryError."""
     with pytest.raises(ValueError):

@@ -92,6 +92,16 @@ main (void)
       CHECK (capture_get_metadata_source (obj) == CAPTURE_META_FILE);
       CHECK (capture_read (obj, NUM_SAMPLES, out, NUM_SAMPLES) == NUM_SAMPLES);
 
+      /* The one-call CaptureSummary record: the same three numbers, by value.
+         reset() first so the read above does not perturb the sample count. */
+      capture_reset (obj);
+      {
+        capture_summary_t s = capture_summary (obj);
+        CHECK (s.num_samples == NUM_SAMPLES);
+        CHECK (s.fs_hz == FS);
+        CHECK (s.fc_hz == FC);
+      }
+
       /* reset rewinds the cursor and leaves the metadata alone. */
       capture_reset (obj);
       CHECK (capture_read (obj, NUM_SAMPLES, out, NUM_SAMPLES) == NUM_SAMPLES);

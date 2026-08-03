@@ -155,3 +155,18 @@ capture_get_metadata_source (const capture_state_t *state)
 {
   return state->meta;
 }
+
+capture_summary_t
+capture_summary (const capture_state_t *state)
+{
+  /* One call for the three numbers a caller reaches for first — length and
+     the resolved tuning — returned by value as a CaptureSummary record. */
+  wfm_reader_info_t info;
+  capture_summary_t s;
+
+  wfm_reader_info (state->r, &info);
+  s.num_samples = info.num_samples;
+  s.fs_hz       = state->fs;
+  s.fc_hz       = state->fc;
+  return s;
+}

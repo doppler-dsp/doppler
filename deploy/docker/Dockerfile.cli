@@ -1,6 +1,7 @@
 # syntax=docker/dockerfile:1
-# deploy/docker/Dockerfile.cli — published every release as
-# ghcr.io/doppler-dsp/doppler:X.Y.Z (+ :latest), linux/amd64 + linux/arm64.
+# deploy/docker/Dockerfile.cli — the runtime "try doppler" image, published
+# every release as ghcr.io/doppler-dsp/doppler:X.Y.Z (+ :latest),
+# linux/amd64 + linux/arm64.
 #
 # Both architectures install the published PyPI wheel: release.yml builds
 # manylinux_2_28 wheels for x86_64 AND aarch64 (the latter natively on
@@ -16,10 +17,16 @@
 # platform is ever missing from PyPI, pip errors out instead of silently
 # falling back to an sdist source build.
 #
+# On top of the wheel this image adds the scientific stack the gallery demos
+# need (numpy is already a wheel dep; matplotlib + scipy are not) and COPYs
+# the example scripts — which ship in the repo but NOT in the wheel — so a
+# `docker run` lands you among runnable demos instead of a bare help screen.
+#
 # Usage:
-#   docker run --rm ghcr.io/doppler-dsp/doppler:0.32.0 wfmgen --help
-#   docker run --rm ghcr.io/doppler-dsp/doppler:0.32.0 \
-#       python -c "import doppler; print(doppler.__version__)"
+#   docker run --rm -it ghcr.io/doppler-dsp/doppler:latest   # shell in /examples
+#   docker run --rm ghcr.io/doppler-dsp/doppler:latest python awgn_demo.py
+#   docker run --rm ghcr.io/doppler-dsp/doppler:latest doppler --help
+#   docker run --rm ghcr.io/doppler-dsp/doppler:latest wfmgen --help
 FROM python:3.12-slim
 ARG DOPPLER_VERSION
 
@@ -28,14 +35,30 @@ ARG DOPPLER_VERSION
 # a potentially different (not-yet-purged) CDN edge — the v0.29.0 release
 # hit exactly that: the runner saw the version, the build's simple-index
 # shard still ended at the previous release.
+#
+# Only doppler-dsp is pinned to --only-binary (fail-closed on a missing
+# wheel); matplotlib/scipy resolve their own wheels normally. They are
+# installed in the SAME retrying step so a not-yet-indexed release can't
+# leave a half-provisioned image.
 RUN ok=""; \
     for i in 1 2 3 4 5 6; do \
         pip install --no-cache-dir --only-binary doppler-dsp \
             "doppler-dsp[cli,specan-web]==${DOPPLER_VERSION}" \
+            matplotlib scipy \
             && { ok=1; break; }; \
         echo "PyPI index not caught up (attempt $i/6); retrying..."; \
         sleep 30; \
     done; \
     [ -n "$ok" ]
 
-CMD ["doppler", "--help"]
+# The demos live in the repo but are excluded from the wheel, so COPY them
+# from the build context (release.yml builds with context=.). A headless
+# Agg backend lets every matplotlib `savefig` demo run without a display.
+ENV MPLBACKEND=Agg
+COPY src/doppler/examples/ /examples/
+COPY deploy/docker/runtime-README.md /examples/README.md
+WORKDIR /examples
+
+# Land in a shell among the demos by default; the CLIs are still one word away
+# (`doppler --help`, `wfmgen --help`) since they're on PATH from the wheel.
+CMD ["/bin/bash"]

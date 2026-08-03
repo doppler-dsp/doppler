@@ -320,7 +320,12 @@ jobs:
       run: make docs-check
 
   # ------------------------------------------------------------------
-  # Docker image build + container tests
+  # Docker images — build + smoke the three build-on-doppler shapes
+  # (sdk / downstream-jm / stream-services). One shared builder compiles
+  # doppler once; each target's smoke IS its gate (the SDK links a consumer
+  # from scratch, downstream-jm runs iqtools' whole suite during its build,
+  # stream-services proves the streaming binaries ship on PATH). Driven
+  # through the Makefile, the single driver for every docker build here.
   # ------------------------------------------------------------------
   docker:
     name: Docker
@@ -329,20 +334,8 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: Build image
-      run: docker build -t doppler:test .
-
-    - name: Run C unit tests
-      run: |
-        docker run --rm doppler:test sh -c '
-          rc=0
-          for t in /app/test_*; do
-            echo "--- $t ---"
-            "$t"
-            tc=$?
-            if [ "$tc" -ne 0 ] && [ "$tc" -ne 77 ]; then rc=$tc; fi
-          done
-          exit $rc'
+    - name: Build + smoke the build-on-doppler images
+      run: make docker-examples
 
   # ------------------------------------------------------------------
   # just-makeit manifest drift gate

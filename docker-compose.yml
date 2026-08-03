@@ -10,13 +10,23 @@ services:
       - doppler-net
     restart: unless-stopped
 
-  # Transmitter — generates and publishes signal samples
+  # Transmitter — generates and publishes signal samples.
+  #
+  # All four C services share one lean image: the stream-services target of
+  # deploy/docker/Dockerfile.examples, which carries just the statically-linked
+  # examples/c streaming binaries on PATH. The anchor below defines that build
+  # once and the shared `image:` name means compose builds it a single time and
+  # reuses it for every service.
   transmitter:
-    build: .
+    build: &stream-build
+      context: .
+      dockerfile: deploy/docker/Dockerfile.examples
+      target: stream-services
+    image: doppler-stream-services:compose
     container_name: doppler-tx
     depends_on:
       - nats
-    command: ./transmitter nats://nats:4222/iq cf64
+    command: transmitter nats://nats:4222/iq cf64
     networks:
       - doppler-net
     stop_signal: SIGTERM
@@ -24,11 +34,12 @@ services:
 
   # Receiver — subscribes and prints signal stats
   receiver-1:
-    build: .
+    build: *stream-build
+    image: doppler-stream-services:compose
     container_name: doppler-rx-1
     depends_on:
       - transmitter
-    command: ./receiver nats://nats:4222/iq
+    command: receiver nats://nats:4222/iq
     networks:
       - doppler-net
     stop_signal: SIGTERM
@@ -36,11 +47,12 @@ services:
 
   # Second receiver (demonstrates PUB/SUB fan-out)
   receiver-2:
-    build: .
+    build: *stream-build
+    image: doppler-stream-services:compose
     container_name: doppler-rx-2
     depends_on:
       - transmitter
-    command: ./receiver nats://nats:4222/iq
+    command: receiver nats://nats:4222/iq
     networks:
       - doppler-net
     stop_signal: SIGTERM
@@ -48,25 +60,16 @@ services:
 
   # Spectrum analyzer — ASCII spectrum display
   spectrum-analyzer:
-    build: .
+    build: *stream-build
+    image: doppler-stream-services:compose
     container_name: doppler-spectrum
     depends_on:
       - transmitter
-    command: ./spectrum_analyzer nats://nats:4222/iq 512
+    command: spectrum_analyzer nats://nats:4222/iq 512
     networks:
       - doppler-net
     stop_signal: SIGTERM
     restart: unless-stopped
-
-  # Run unit tests (one-shot)
-  tests:
-    build: .
-    container_name: doppler-tests
-    command: sh -c 'for t in /app/test_*; do echo "--- $$t ---" && "$$t" || exit 1; done'
-    profiles:
-      - test
-    networks:
-      - doppler-net
 
 networks:
   doppler-net:

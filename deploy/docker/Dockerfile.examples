@@ -1,0 +1,118 @@
+# syntax=docker/dockerfile:1
+#
+# deploy/docker/Dockerfile.examples — the "build ON doppler" images.
+#
+# Prefer the Makefile, which is the single driver for every docker build here:
+#
+#   make docker-sdk             # → the SDK / develop image
+#   make docker-downstream      # → the iqtools showcase image
+#   make docker-stream          # → the lean compose streaming-services image
+#
+# The raw equivalents (what those targets run) are:
+#
+#   docker build -f deploy/docker/Dockerfile.examples --target sdk           -t doppler-sdk .
+#   docker build -f deploy/docker/Dockerfile.examples --target downstream-jm -t doppler-downstream-jm .
+#   docker build -f deploy/docker/Dockerfile.examples --target stream-services -t doppler-stream-services .
+#
+# One shared builder (`doppler-build`) compiles and *installs* THIS checkout's
+# doppler exactly once; every image below copies from it, so all three are
+# version-locked to the same source — a downstream `find_package(doppler)`
+# resolves the very library that was built beside it, never a drifting pin.
+#
+# Targets:
+#   sdk             — dev toolchain + uv + the pinned just-makeit + doppler
+#                     installed to /usr/local, and every consuming example's
+#                     SOURCE under /workspace. "Everything you need to build
+#                     on doppler."
+#   downstream-jm   — the iqtools showcase: doppler installed, iqtools already
+#                     built and its full suite green, jm ready to re-generate.
+#                     Lands you in /iqtools.
+#   stream-services — a lean runtime carrying just the examples/c streaming
+#                     binaries (transmitter / receiver / spectrum_analyzer)
+#                     that docker-compose.yml runs. No toolchain, no Python.
+# ---------------------------------------------------------------------------
+
+# ── Stage 1: build + install doppler from this checkout ────────────────────
+# BUILD_PYTHON=OFF: none of these images need doppler's own Python extension
+# (the SDK builds downstream *bindings*, not doppler's), so the builder stays
+# a pure C toolchain. The build tree is kept in the stage so stream-services
+# can lift the examples/c streaming binaries straight out of it.
+FROM ubuntu:24.04 AS doppler-build
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        build-essential cmake ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+WORKDIR /src
+COPY . .
+RUN cmake -B build -S . -DBUILD_PYTHON=OFF -DCMAKE_BUILD_TYPE=Release \
+ && cmake --build build -j"$(nproc)" \
+ && cmake --install build --prefix /opt/doppler
+
+# ── Stage 2: the dev base shared by sdk + downstream-jm ─────────────────────
+# doppler is copied in exactly as `cmake --install` laid it out, so /usr/local
+# is a real find_package prefix (headers + both libs + cmake config + .pc) —
+# that is the C SDK a downstream links.
+#
+# doppler's PYTHON package is installed separately from PyPI: a real downstream
+# uses BOTH faces — it LINKS the C SDK (version-locked, built from source above)
+# and IMPORTS the doppler Python API (iqtools' own tests write captures with
+# doppler.wfm.Writer and read them back). Only the linked C SDK must be
+# byte-locked; the Python package is a test-helper dependency, so it floats at
+# latest — which also keeps this build green during a release's version-bump
+# window, when the source is briefly ahead of PyPI. numpy + pytest ride in as
+# doppler-dsp's deps / a one-liner; PEP-668 is waived with --break-system-packages
+# since this is a single-purpose image, not a distro.
+FROM ubuntu:24.04 AS dev-base
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        build-essential cmake pkg-config git ca-certificates curl \
+        python3 python3-dev python3-pip \
+    && rm -rf /var/lib/apt/lists/*
+COPY --from=doppler-build /opt/doppler/ /usr/local/
+RUN ldconfig
+RUN pip install --no-cache-dir --break-system-packages \
+        numpy pytest doppler-dsp
+# uv → /usr/local/bin; the pinned jm as a uv tool, also on PATH. Keep this
+# version in lock-step with just-makeit.toml's jm_version.
+ARG JM_VERSION=0.43.0
+ENV UV_INSTALL_DIR=/usr/local/bin \
+    UV_TOOL_BIN_DIR=/usr/local/bin \
+    UV_TOOL_DIR=/opt/uv-tools
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh \
+ && uv tool install --python python3 "just-makeit==${JM_VERSION}"
+
+# ── Target: SDK / develop image ────────────────────────────────────────────
+# Every consuming example's SOURCE, nothing pre-built — you drive the builds,
+# which is the point. doppler is on the default find_package path, so each
+# example configures with no -Ddoppler_DIR.
+FROM dev-base AS sdk
+COPY examples/ /workspace/examples/
+COPY deploy/docker/sdk-README.md /workspace/README.md
+WORKDIR /workspace
+CMD ["/bin/bash"]
+
+# ── Target: iqtools showcase image ─────────────────────────────────────────
+# The flagship downstream project, built and tested against the installed
+# doppler the same way `make test-example-downstream` does — then left in
+# place so `python3 -c "import iqtools"` works and `just-makeit apply` can
+# re-generate the bindings live. Building here is also the image's own smoke
+# test: if iqtools ever stops consuming doppler cleanly, this layer fails.
+FROM dev-base AS downstream-jm
+COPY examples/downstream-jm/ /iqtools/
+COPY deploy/docker/downstream-README.md /iqtools/DOCKER-README.md
+WORKDIR /iqtools
+ENV PYTHONPATH=/iqtools/src
+RUN make test
+CMD ["/bin/bash"]
+
+# ── Target: streaming services for docker-compose ──────────────────────────
+# The examples/c streaming binaries link doppler statically (doppler_lib_static
+# + the folded-in stream tier + nats.c), so they are self-contained — this
+# runtime needs only libc/libm/pthread from the slim base. Binaries land on
+# PATH; docker-compose.yml invokes them by bare name.
+FROM debian:bookworm-slim AS stream-services
+COPY --from=doppler-build \
+        /src/build/examples/c/transmitter \
+        /src/build/examples/c/receiver \
+        /src/build/examples/c/spectrum_analyzer \
+        /usr/local/bin/
+WORKDIR /app
+# No ENTRYPOINT: docker-compose sets each service's command explicitly.

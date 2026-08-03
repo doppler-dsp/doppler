@@ -936,8 +936,9 @@ static PyGetSetDef PSD_getset[]
         { "enbw", (getter)PSD_getprop_enbw, NULL,
           "Equivalent noise bandwidth, bins.\n", NULL },
         { "rbw", (getter)PSD_getprop_rbw, NULL, "Rbw.\n", NULL },
-        { "count", (getter)PSD_getprop_count, NULL, "Count.\n", NULL },
-        { "mode", (getter)PSD_getprop_mode, NULL, "Mode.\n", NULL },
+        { "count", (getter)PSD_getprop_count, NULL,
+          "Frames folded in so far.\n", NULL },
+        { "mode", (getter)PSD_getprop_mode, NULL, "Reduction mode.\n", NULL },
         { NULL } };
 
 static PyObject *

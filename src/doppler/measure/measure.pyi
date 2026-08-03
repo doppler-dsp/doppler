@@ -10,21 +10,21 @@ class ToneMetrics(tuple[float, float, float, float, float, float, float, float, 
     Attributes
     ----------
     snr : float
-        Signal-to-noise ratio, 10log10(P_fund / P_noise) [dB].
+        SNR = 10log10(P_fund / P_noise) [dB].
     sinad : float
-        Signal-to-noise-and-distortion, 10log10(P_fund / (P_noise + P_harm)) [dB].
+        SINAD = 10log10(fund/(noise+harm)) [dB].
     thd : float
-        Total harmonic distortion, 10log10(P_harm / P_fund) [dBc].
+        THD = 10log10(P_harm / P_fund) [dBc].
     thd_pct : float
-        Total harmonic distortion, 100*sqrt(P_harm / P_fund) [%].
+        THD = 100 sqrt(P_harm / P_fund) [%].
     thd_n : float
-        THD+N, 10log10((P_noise+P_harm)/P_fund) = -SINAD [dB].
+        THD+N = 10log10((noise+harm)/fund) = -SINAD.
     sfdr_dbc : float
-        Spurious-free dynamic range: fundamental - worst spur [dBc].
+        SFDR: fundamental - worst spur [dBc].
     sfdr_dbfs : float
-        Spurious-free dynamic range: full scale - worst spur [dBFS].
+        SFDR: full scale - worst spur [dBFS].
     enob : float
-        Effective number of bits, (SINAD - 1.76)/6.02.
+        ENOB = (SINAD - 1.76)/6.02.
     enob_fs : float
         Full-scale-corrected ENOB.
     noise_floor_dbfs : float
@@ -36,7 +36,7 @@ class ToneMetrics(tuple[float, float, float, float, float, float, float, float, 
     worst_spur_freq : float
         Worst spur frequency [Hz].
     worst_spur_dbc : float
-        Worst spur level relative to the fundamental [dBc].
+        Worst spur level vs the fundamental [dBc].
     worst_spur_is_harm : int
         1 if the worst spur is a harmonic, else 0.
     rbw_hz : float
@@ -59,35 +59,35 @@ class ToneMetrics(tuple[float, float, float, float, float, float, float, float, 
 
     @property
     def snr(self) -> float:
-        """Signal-to-noise ratio, 10log10(P_fund / P_noise) [dB]."""
+        """SNR = 10log10(P_fund / P_noise) [dB]."""
 
     @property
     def sinad(self) -> float:
-        """Signal-to-noise-and-distortion, 10log10(P_fund / (P_noise + P_harm)) [dB]."""
+        """SINAD = 10log10(fund/(noise+harm)) [dB]."""
 
     @property
     def thd(self) -> float:
-        """Total harmonic distortion, 10log10(P_harm / P_fund) [dBc]."""
+        """THD = 10log10(P_harm / P_fund) [dBc]."""
 
     @property
     def thd_pct(self) -> float:
-        """Total harmonic distortion, 100*sqrt(P_harm / P_fund) [%]."""
+        """THD = 100 sqrt(P_harm / P_fund) [%]."""
 
     @property
     def thd_n(self) -> float:
-        """THD+N, 10log10((P_noise+P_harm)/P_fund) = -SINAD [dB]."""
+        """THD+N = 10log10((noise+harm)/fund) = -SINAD."""
 
     @property
     def sfdr_dbc(self) -> float:
-        """Spurious-free dynamic range: fundamental - worst spur [dBc]."""
+        """SFDR: fundamental - worst spur [dBc]."""
 
     @property
     def sfdr_dbfs(self) -> float:
-        """Spurious-free dynamic range: full scale - worst spur [dBFS]."""
+        """SFDR: full scale - worst spur [dBFS]."""
 
     @property
     def enob(self) -> float:
-        """Effective number of bits, (SINAD - 1.76)/6.02."""
+        """ENOB = (SINAD - 1.76)/6.02."""
 
     @property
     def enob_fs(self) -> float:
@@ -111,7 +111,7 @@ class ToneMetrics(tuple[float, float, float, float, float, float, float, float, 
 
     @property
     def worst_spur_dbc(self) -> float:
-        """Worst spur level relative to the fundamental [dBc]."""
+        """Worst spur level vs the fundamental [dBc]."""
 
     @property
     def worst_spur_is_harm(self) -> int:
@@ -166,7 +166,7 @@ class TimeStats(tuple[float, float, float, float, float, float]):
     dc_offset : float
         DC offset, mean(x).
     fs_util_pct : float
-        Full-scale utilization, 100 * max|x| / full_scale [%].
+        Full-scale use, 100*max|x|/full_scale [%].
     """
 
     @property
@@ -191,7 +191,7 @@ class TimeStats(tuple[float, float, float, float, float, float]):
 
     @property
     def fs_util_pct(self) -> float:
-        """Full-scale utilization, 100 * max|x| / full_scale [%]."""
+        """Full-scale use, 100*max|x|/full_scale [%]."""
 
 @final
 class NPRMetrics(tuple[float, float, float, int, int, float]):
@@ -200,22 +200,22 @@ class NPRMetrics(tuple[float, float, float, int, int, float]):
     Attributes
     ----------
     npr_db : float
-        Noise power ratio, 10log10(mean in-band PSD / mean notch PSD) [dB].
+        NPR = 10log10(in-band PSD / notch PSD) [dB].
     inband_psd_dbfs : float
         Mean in-band noise power per bin [dBFS].
     notch_psd_dbfs : float
-        Mean power that folded into the notch [dBFS].
+        Mean power folded into the notch [dBFS].
     n_inband_bins : int
-        Number of bins averaged in the active band.
+        Bins averaged in the active band.
     n_notch_bins : int
-        Number of bins averaged inside the notch.
+        Bins averaged inside the notch.
     rbw_hz : float
-        Resolution bandwidth [Hz].
+        Resolution bandwidth = enbw*fs/n [Hz].
     """
 
     @property
     def npr_db(self) -> float:
-        """Noise power ratio, 10log10(mean in-band PSD / mean notch PSD) [dB]."""
+        """NPR = 10log10(in-band PSD / notch PSD) [dB]."""
 
     @property
     def inband_psd_dbfs(self) -> float:
@@ -223,19 +223,19 @@ class NPRMetrics(tuple[float, float, float, int, int, float]):
 
     @property
     def notch_psd_dbfs(self) -> float:
-        """Mean power that folded into the notch [dBFS]."""
+        """Mean power folded into the notch [dBFS]."""
 
     @property
     def n_inband_bins(self) -> int:
-        """Number of bins averaged in the active band."""
+        """Bins averaged in the active band."""
 
     @property
     def n_notch_bins(self) -> int:
-        """Number of bins averaged inside the notch."""
+        """Bins averaged inside the notch."""
 
     @property
     def rbw_hz(self) -> float:
-        """Resolution bandwidth [Hz]."""
+        """Resolution bandwidth = enbw*fs/n [Hz]."""
 
 @final
 class IMDMetrics(tuple[float, float, float, float, float, float, float, float, float, float, float, float]):
@@ -266,7 +266,7 @@ class IMDMetrics(tuple[float, float, float, float, float, float, float, float, f
     soi_dbfs : float
         Second-order intercept [dBFS].
     rbw_hz : float
-        Resolution bandwidth [Hz].
+        Resolution bandwidth = enbw*fs/n [Hz].
     """
 
     @property
@@ -315,7 +315,7 @@ class IMDMetrics(tuple[float, float, float, float, float, float, float, float, f
 
     @property
     def rbw_hz(self) -> float:
-        """Resolution bandwidth [Hz]."""
+        """Resolution bandwidth = enbw*fs/n [Hz]."""
 
 @final
 class ToneMeasure:
@@ -494,23 +494,23 @@ class ToneMeasure:
 
     @property
     def n(self) -> int:
-        """N."""
+        """Window / frame length (samples)."""
 
     @property
     def nfft(self) -> int:
-        """Nfft."""
+        """Zero-padded transform length."""
 
     @property
     def fs(self) -> float:
-        """Fs."""
+        """Sample rate, Hz."""
 
     @property
     def enbw(self) -> float:
-        """Enbw."""
+        """Equivalent noise bandwidth, bins."""
 
     @property
     def lobe_bins(self) -> int:
-        """Lobe bins."""
+        """Window main-lobe half-width L [bins]."""
 
     @property
     def spur_guard_bins(self) -> int:
@@ -526,11 +526,11 @@ class ToneMeasure:
 
     @property
     def bin_hz(self) -> float:
-        """Bin hz."""
+        """FFT bin spacing = fs/nfft [Hz]."""
 
     @property
     def proc_gain_db(self) -> float:
-        """Proc gain db."""
+        """FFT processing gain = 10log10(nfft/2) [dB]."""
 
     def destroy(self) -> None:
         """Release the underlying C resources immediately.
@@ -708,15 +708,15 @@ class NPRMeasure:
 
     @property
     def n(self) -> int:
-        """N."""
+        """Window / frame length (samples)."""
 
     @property
     def nfft(self) -> int:
-        """Nfft."""
+        """Zero-padded transform length."""
 
     @property
     def fs(self) -> float:
-        """Fs."""
+        """Sample rate, Hz."""
 
     @property
     def rbw(self) -> float:
@@ -886,15 +886,15 @@ class IMDMeasure:
 
     @property
     def n(self) -> int:
-        """N."""
+        """Window / frame length (samples)."""
 
     @property
     def nfft(self) -> int:
-        """Nfft."""
+        """Zero-padded transform length."""
 
     @property
     def fs(self) -> float:
-        """Fs."""
+        """Sample rate, Hz."""
 
     def destroy(self) -> None:
         """Release the underlying C resources immediately.

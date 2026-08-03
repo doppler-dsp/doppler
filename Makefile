@@ -400,6 +400,7 @@ endef
 # gates cover them: criterion 2 is "help lists EVERY target", not "every
 # standard target" — a local target help omits is exactly as invisible.
 LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
+                package-c sdist \
                 docs-relink drift-check changelog-check doxygen-warn-gate \
                 test-examples-c test-examples-python test-example-downstream \
                 test-example-downstream-python \
@@ -511,6 +512,31 @@ just-build: UV_SYNC_FLAGS = --no-group docs
 just-build: pyext ## PEP 517 build hook for just-buildit
 	mkdir -p $(JUST_BUILDIT_OUTPUT_DIR)
 	cp -r $(PYEXT_DIR) $(JUST_BUILDIT_OUTPUT_DIR)/doppler
+
+# The relocatable C-library package: Release, no Python extension, headers +
+# static/shared libs + the cmake/pkg-config config, installed to PREFIX. This is
+# the ONE definition of the C tarball build — release.yml's three
+# Package-C-library jobs (linux x86_64/aarch64, macOS) each call it, so the
+# install layout lives in one place. LIBDIR=lib (not the RHEL/manylinux lib64
+# default) so a consumer's find_package/CMAKE_PREFIX_PATH resolves the config on
+# every distro (CMake searches lib/ universally; lib64/ only where the platform
+# opts in). Tarball naming stays in the caller — it is per-platform and trivial.
+package-c: ## PREFIX=<dir> — build+install the relocatable C library (no Python)
+ifndef PREFIX
+	@echo "usage: make package-c PREFIX=<dir>"; exit 1
+endif
+	$(CMAKE) -S . -B $(BUILD_DIR) -DCMAKE_BUILD_TYPE=Release \
+	    -DBUILD_PYTHON=OFF -DCMAKE_INSTALL_LIBDIR=lib $(CMAKE_ARGS)
+	$(CMAKE) --build $(BUILD_DIR) --parallel $(NPROC)
+	$(CMAKE) --install $(BUILD_DIR) --prefix $(PREFIX)
+
+# Source distribution, sibling of standard.mk's `wheel` (= uv build --wheel).
+# release.yml's build-sdist job calls this instead of hand-rolling a
+# uv-venv/pip/`python -m build --sdist` bootstrap.
+sdist: ## Build a source distribution into dist/
+	$(UV) build --sdist
+	@echo ""
+	@ls -lh dist/*.tar.gz
 
 # Regenerates every generated doc region: the "## Related pages" blocks on
 # docs/api/*.md, README.md's synced body from docs/index.md, the per-distro
@@ -925,23 +951,21 @@ bench-report: ## Portable-build trend across releases
 # AND smoke-runs its image, so the target is the whole gate — CI just calls it.
 # Raw `docker build` is never invoked outside these rules; the flags live here.
 
+# Each target builds its image, then smoke-tests it via scripts/smoke-image.sh
+# — the SAME script release.yml runs against the pushed image, so the local
+# gate and the published-image gate cannot drift (see the script header).
+
 docker-runtime: ## Build+smoke the runtime "try it" image (needs the wheel on PyPI)
 	docker build -f deploy/docker/Dockerfile.cli \
 	    --build-arg DOPPLER_VERSION=$(DOCKER_VERSION) \
 	    -t $(DOCKER_IMAGE):$(DOCKER_TAG) .
-	docker run --rm $(DOCKER_IMAGE):$(DOCKER_TAG) \
-	    python -c "import doppler; print('doppler', doppler.__version__)"
+	bash scripts/smoke-image.sh runtime $(DOCKER_IMAGE):$(DOCKER_TAG)
 
 docker-sdk: ## Build+smoke the SDK / develop image (doppler-sdk)
 	docker build -f $(EXAMPLES_DOCKERFILE) --target sdk \
 	    --build-arg JM_VERSION=$(JM_VERSION) \
 	    -t $(DOCKER_IMAGE)-sdk:$(DOCKER_TAG) .
-# The install is real only if a downstream can find + link it: build the
-# smallest consumer against it, from scratch, and run the result.
-	docker run --rm $(DOCKER_IMAGE)-sdk:$(DOCKER_TAG) bash -c \
-	    'pkg-config --modversion doppler && \
-	     cd examples/consumer && cmake -B build >/dev/null && \
-	     cmake --build build >/dev/null && ./build/consumer_shared'
+	bash scripts/smoke-image.sh sdk $(DOCKER_IMAGE)-sdk:$(DOCKER_TAG)
 
 docker-downstream: ## Build+smoke the iqtools showcase image (doppler-downstream-jm)
 # The build itself runs `make test` inside the image, so a green build IS the
@@ -949,16 +973,14 @@ docker-downstream: ## Build+smoke the iqtools showcase image (doppler-downstream
 	docker build -f $(EXAMPLES_DOCKERFILE) --target downstream-jm \
 	    --build-arg JM_VERSION=$(JM_VERSION) \
 	    -t $(DOCKER_IMAGE)-downstream-jm:$(DOCKER_TAG) .
-	docker run --rm $(DOCKER_IMAGE)-downstream-jm:$(DOCKER_TAG) \
-	    python3 -c "from iqtools.capture import Capture, RawCapture; \
-	                print('iqtools ok:', Capture.__name__, RawCapture.__name__)"
+	bash scripts/smoke-image.sh downstream \
+	    $(DOCKER_IMAGE)-downstream-jm:$(DOCKER_TAG)
 
 docker-stream: ## Build+smoke the lean compose streaming-services image
 	docker build -f $(EXAMPLES_DOCKERFILE) --target stream-services \
 	    -t $(DOCKER_IMAGE)-stream-services:$(DOCKER_TAG) .
-	docker run --rm $(DOCKER_IMAGE)-stream-services:$(DOCKER_TAG) sh -c \
-	    'command -v transmitter && command -v receiver && \
-	     command -v spectrum_analyzer'
+	bash scripts/smoke-image.sh stream \
+	    $(DOCKER_IMAGE)-stream-services:$(DOCKER_TAG)
 
 docker-examples: docker-sdk docker-downstream docker-stream ## Build+smoke all build-on-doppler images
 	@echo "All build-on-doppler images built and smoked."

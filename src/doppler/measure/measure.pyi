@@ -10,68 +10,68 @@ class ToneMetrics(tuple[float, float, float, float, float, float, float, float, 
     Attributes
     ----------
     snr : float
-        SNR = 10log10(P_fund / P_noise) [dB].
+        SNR = 10log10(P_fund / P_noise) (dB).
     sinad : float
-        SINAD = 10log10(fund/(noise+harm)) [dB].
+        SINAD = 10log10(fund/(noise+harm)) (dB).
     thd : float
-        THD = 10log10(P_harm / P_fund) [dBc].
+        THD = 10log10(P_harm / P_fund) (dBc).
     thd_pct : float
-        THD = 100 sqrt(P_harm / P_fund) [%].
+        THD = 100 sqrt(P_harm / P_fund) (%).
     thd_n : float
         THD+N = 10log10((noise+harm)/fund) = -SINAD.
     sfdr_dbc : float
-        SFDR: fundamental - worst spur [dBc].
+        SFDR: fundamental - worst spur (dBc).
     sfdr_dbfs : float
-        SFDR: full scale - worst spur [dBFS].
+        SFDR: full scale - worst spur (dBFS).
     enob : float
         ENOB = (SINAD - 1.76)/6.02.
     enob_fs : float
         Full-scale-corrected ENOB.
     noise_floor_dbfs : float
-        Mean per-bin noise power [dBFS].
+        Mean per-bin noise power (dBFS).
     fund_freq : float
-        Fundamental frequency [Hz].
+        Fundamental frequency (Hz).
     fund_dbfs : float
-        Fundamental level [dBFS].
+        Fundamental level (dBFS).
     worst_spur_freq : float
-        Worst spur frequency [Hz].
+        Worst spur frequency (Hz).
     worst_spur_dbc : float
-        Worst spur level vs the fundamental [dBc].
+        Worst spur level vs the fundamental (dBc).
     worst_spur_is_harm : int
         1 if the worst spur is a harmonic, else 0.
     rbw_hz : float
-        Resolution bandwidth = enbw*fs/n [Hz].
+        Resolution bandwidth = enbw*fs/n (Hz).
     enbw_hz : float
-        Equivalent noise bandwidth [Hz] (= rbw_hz).
+        Equivalent noise bandwidth (Hz) (= rbw_hz).
     bin_hz : float
-        FFT bin spacing = fs/nfft [Hz].
+        FFT bin spacing = fs/nfft (Hz).
     lobe_bins : int
-        Window main-lobe half-width L [bins].
+        Window main-lobe half-width L (bins).
     n_noise_bins : int
         Number of bins counted as noise.
     proc_gain_db : float
-        FFT processing gain = 10log10(nfft/2) [dB].
+        FFT processing gain = 10log10(nfft/2) (dB).
     amp_uncert_db : float
-        Amplitude-read uncertainty bound [dB].
+        Amplitude-read uncertainty bound (dB).
     floor_uncert_db : float
-        Noise-floor standard error [dB].
+        Noise-floor standard error (dB).
     """
 
     @property
     def snr(self) -> float:
-        """SNR = 10log10(P_fund / P_noise) [dB]."""
+        """SNR = 10log10(P_fund / P_noise) (dB)."""
 
     @property
     def sinad(self) -> float:
-        """SINAD = 10log10(fund/(noise+harm)) [dB]."""
+        """SINAD = 10log10(fund/(noise+harm)) (dB)."""
 
     @property
     def thd(self) -> float:
-        """THD = 10log10(P_harm / P_fund) [dBc]."""
+        """THD = 10log10(P_harm / P_fund) (dBc)."""
 
     @property
     def thd_pct(self) -> float:
-        """THD = 100 sqrt(P_harm / P_fund) [%]."""
+        """THD = 100 sqrt(P_harm / P_fund) (%)."""
 
     @property
     def thd_n(self) -> float:
@@ -79,11 +79,11 @@ class ToneMetrics(tuple[float, float, float, float, float, float, float, float, 
 
     @property
     def sfdr_dbc(self) -> float:
-        """SFDR: fundamental - worst spur [dBc]."""
+        """SFDR: fundamental - worst spur (dBc)."""
 
     @property
     def sfdr_dbfs(self) -> float:
-        """SFDR: full scale - worst spur [dBFS]."""
+        """SFDR: full scale - worst spur (dBFS)."""
 
     @property
     def enob(self) -> float:
@@ -95,23 +95,23 @@ class ToneMetrics(tuple[float, float, float, float, float, float, float, float, 
 
     @property
     def noise_floor_dbfs(self) -> float:
-        """Mean per-bin noise power [dBFS]."""
+        """Mean per-bin noise power (dBFS)."""
 
     @property
     def fund_freq(self) -> float:
-        """Fundamental frequency [Hz]."""
+        """Fundamental frequency (Hz)."""
 
     @property
     def fund_dbfs(self) -> float:
-        """Fundamental level [dBFS]."""
+        """Fundamental level (dBFS)."""
 
     @property
     def worst_spur_freq(self) -> float:
-        """Worst spur frequency [Hz]."""
+        """Worst spur frequency (Hz)."""
 
     @property
     def worst_spur_dbc(self) -> float:
-        """Worst spur level vs the fundamental [dBc]."""
+        """Worst spur level vs the fundamental (dBc)."""
 
     @property
     def worst_spur_is_harm(self) -> int:
@@ -119,19 +119,19 @@ class ToneMetrics(tuple[float, float, float, float, float, float, float, float, 
 
     @property
     def rbw_hz(self) -> float:
-        """Resolution bandwidth = enbw*fs/n [Hz]."""
+        """Resolution bandwidth = enbw*fs/n (Hz)."""
 
     @property
     def enbw_hz(self) -> float:
-        """Equivalent noise bandwidth [Hz] (= rbw_hz)."""
+        """Equivalent noise bandwidth (Hz) (= rbw_hz)."""
 
     @property
     def bin_hz(self) -> float:
-        """FFT bin spacing = fs/nfft [Hz]."""
+        """FFT bin spacing = fs/nfft (Hz)."""
 
     @property
     def lobe_bins(self) -> int:
-        """Window main-lobe half-width L [bins]."""
+        """Window main-lobe half-width L (bins)."""
 
     @property
     def n_noise_bins(self) -> int:
@@ -139,15 +139,15 @@ class ToneMetrics(tuple[float, float, float, float, float, float, float, float, 
 
     @property
     def proc_gain_db(self) -> float:
-        """FFT processing gain = 10log10(nfft/2) [dB]."""
+        """FFT processing gain = 10log10(nfft/2) (dB)."""
 
     @property
     def amp_uncert_db(self) -> float:
-        """Amplitude-read uncertainty bound [dB]."""
+        """Amplitude-read uncertainty bound (dB)."""
 
     @property
     def floor_uncert_db(self) -> float:
-        """Noise-floor standard error [dB]."""
+        """Noise-floor standard error (dB)."""
 
 @final
 class TimeStats(tuple[float, float, float, float, float, float]):
@@ -160,13 +160,13 @@ class TimeStats(tuple[float, float, float, float, float, float]):
     peak : float
         Peak deviation, max|x - DC|.
     crest_db : float
-        Crest factor, 20log10(peak_ac / rms_ac) [dB].
+        Crest factor, 20log10(peak_ac / rms_ac) (dB).
     papr_db : float
-        Peak-to-average power ratio (= crest) [dB].
+        Peak-to-average power ratio (= crest) (dB).
     dc_offset : float
         DC offset, mean(x).
     fs_util_pct : float
-        Full-scale use, 100*max|x|/full_scale [%].
+        Full-scale use, 100*max|x|/full_scale (%).
     """
 
     @property
@@ -179,11 +179,11 @@ class TimeStats(tuple[float, float, float, float, float, float]):
 
     @property
     def crest_db(self) -> float:
-        """Crest factor, 20log10(peak_ac / rms_ac) [dB]."""
+        """Crest factor, 20log10(peak_ac / rms_ac) (dB)."""
 
     @property
     def papr_db(self) -> float:
-        """Peak-to-average power ratio (= crest) [dB]."""
+        """Peak-to-average power ratio (= crest) (dB)."""
 
     @property
     def dc_offset(self) -> float:
@@ -191,7 +191,7 @@ class TimeStats(tuple[float, float, float, float, float, float]):
 
     @property
     def fs_util_pct(self) -> float:
-        """Full-scale use, 100*max|x|/full_scale [%]."""
+        """Full-scale use, 100*max|x|/full_scale (%)."""
 
 @final
 class NPRMetrics(tuple[float, float, float, int, int, float]):
@@ -200,30 +200,30 @@ class NPRMetrics(tuple[float, float, float, int, int, float]):
     Attributes
     ----------
     npr_db : float
-        NPR = 10log10(in-band PSD / notch PSD) [dB].
+        NPR = 10log10(in-band PSD / notch PSD) (dB).
     inband_psd_dbfs : float
-        Mean in-band noise power per bin [dBFS].
+        Mean in-band noise power per bin (dBFS).
     notch_psd_dbfs : float
-        Mean power folded into the notch [dBFS].
+        Mean power folded into the notch (dBFS).
     n_inband_bins : int
         Bins averaged in the active band.
     n_notch_bins : int
         Bins averaged inside the notch.
     rbw_hz : float
-        Resolution bandwidth = enbw*fs/n [Hz].
+        Resolution bandwidth = enbw*fs/n (Hz).
     """
 
     @property
     def npr_db(self) -> float:
-        """NPR = 10log10(in-band PSD / notch PSD) [dB]."""
+        """NPR = 10log10(in-band PSD / notch PSD) (dB)."""
 
     @property
     def inband_psd_dbfs(self) -> float:
-        """Mean in-band noise power per bin [dBFS]."""
+        """Mean in-band noise power per bin (dBFS)."""
 
     @property
     def notch_psd_dbfs(self) -> float:
-        """Mean power folded into the notch [dBFS]."""
+        """Mean power folded into the notch (dBFS)."""
 
     @property
     def n_inband_bins(self) -> int:
@@ -235,7 +235,7 @@ class NPRMetrics(tuple[float, float, float, int, int, float]):
 
     @property
     def rbw_hz(self) -> float:
-        """Resolution bandwidth = enbw*fs/n [Hz]."""
+        """Resolution bandwidth = enbw*fs/n (Hz)."""
 
 @final
 class IMDMetrics(tuple[float, float, float, float, float, float, float, float, float, float, float, float]):
@@ -244,78 +244,78 @@ class IMDMetrics(tuple[float, float, float, float, float, float, float, float, f
     Attributes
     ----------
     f1 : float
-        Lower tone frequency [Hz].
+        Lower tone frequency (Hz).
     f2 : float
-        Upper tone frequency [Hz].
+        Upper tone frequency (Hz).
     p1_dbfs : float
-        Lower tone level [dBFS].
+        Lower tone level (dBFS).
     p2_dbfs : float
-        Upper tone level [dBFS].
+        Upper tone level (dBFS).
     imd2_dbc : float
-        2nd-order product (f2-f1) vs mean tone [dBc].
+        2nd-order product (f2-f1) vs mean tone (dBc).
     imd3_dbc : float
-        Worst 3rd-order product vs mean tone [dBc].
+        Worst 3rd-order product vs mean tone (dBc).
     imd2_freq : float
-        2nd-order product frequency [Hz].
+        2nd-order product frequency (Hz).
     imd3_lo_freq : float
-        3rd-order (2f1-f2) product frequency [Hz].
+        3rd-order (2f1-f2) product frequency (Hz).
     imd3_hi_freq : float
-        3rd-order (2f2-f1) product frequency [Hz].
+        3rd-order (2f2-f1) product frequency (Hz).
     toi_dbfs : float
-        Third-order intercept [dBFS].
+        Third-order intercept (dBFS).
     soi_dbfs : float
-        Second-order intercept [dBFS].
+        Second-order intercept (dBFS).
     rbw_hz : float
-        Resolution bandwidth = enbw*fs/n [Hz].
+        Resolution bandwidth = enbw*fs/n (Hz).
     """
 
     @property
     def f1(self) -> float:
-        """Lower tone frequency [Hz]."""
+        """Lower tone frequency (Hz)."""
 
     @property
     def f2(self) -> float:
-        """Upper tone frequency [Hz]."""
+        """Upper tone frequency (Hz)."""
 
     @property
     def p1_dbfs(self) -> float:
-        """Lower tone level [dBFS]."""
+        """Lower tone level (dBFS)."""
 
     @property
     def p2_dbfs(self) -> float:
-        """Upper tone level [dBFS]."""
+        """Upper tone level (dBFS)."""
 
     @property
     def imd2_dbc(self) -> float:
-        """2nd-order product (f2-f1) vs mean tone [dBc]."""
+        """2nd-order product (f2-f1) vs mean tone (dBc)."""
 
     @property
     def imd3_dbc(self) -> float:
-        """Worst 3rd-order product vs mean tone [dBc]."""
+        """Worst 3rd-order product vs mean tone (dBc)."""
 
     @property
     def imd2_freq(self) -> float:
-        """2nd-order product frequency [Hz]."""
+        """2nd-order product frequency (Hz)."""
 
     @property
     def imd3_lo_freq(self) -> float:
-        """3rd-order (2f1-f2) product frequency [Hz]."""
+        """3rd-order (2f1-f2) product frequency (Hz)."""
 
     @property
     def imd3_hi_freq(self) -> float:
-        """3rd-order (2f2-f1) product frequency [Hz]."""
+        """3rd-order (2f2-f1) product frequency (Hz)."""
 
     @property
     def toi_dbfs(self) -> float:
-        """Third-order intercept [dBFS]."""
+        """Third-order intercept (dBFS)."""
 
     @property
     def soi_dbfs(self) -> float:
-        """Second-order intercept [dBFS]."""
+        """Second-order intercept (dBFS)."""
 
     @property
     def rbw_hz(self) -> float:
-        """Resolution bandwidth = enbw*fs/n [Hz]."""
+        """Resolution bandwidth = enbw*fs/n (Hz)."""
 
 @final
 class ToneMeasure:
@@ -510,7 +510,7 @@ class ToneMeasure:
 
     @property
     def lobe_bins(self) -> int:
-        """Window main-lobe half-width L [bins]."""
+        """Window main-lobe half-width L (bins)."""
 
     @property
     def spur_guard_bins(self) -> int:
@@ -526,11 +526,11 @@ class ToneMeasure:
 
     @property
     def bin_hz(self) -> float:
-        """FFT bin spacing = fs/nfft [Hz]."""
+        """FFT bin spacing = fs/nfft (Hz)."""
 
     @property
     def proc_gain_db(self) -> float:
-        """FFT processing gain = 10log10(nfft/2) [dB]."""
+        """FFT processing gain = 10log10(nfft/2) (dB)."""
 
     def destroy(self) -> None:
         """Release the underlying C resources immediately.

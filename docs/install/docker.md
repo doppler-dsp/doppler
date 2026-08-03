@@ -33,7 +33,7 @@ Pin a release instead of `latest`, or drive a streaming pipeline at a reachable
 `nats-server`:
 
 ```sh
-docker run --rm ghcr.io/doppler-dsp/doppler:0.40.0 doppler --help
+docker run --rm ghcr.io/doppler-dsp/doppler:X.Y.Z doppler --help
 docker run --rm --network host ghcr.io/doppler-dsp/doppler \
     wfmgen --type qpsk --count 4096 --output nats://127.0.0.1:4222/iq
 ```

@@ -25,16 +25,24 @@ just-makeit bench --python-only --tag vX.Y.Z   # local fallback; CI commits auto
 
 !!! tip "`make gates` is the pre-push command — use it on the *work*, not here"
 
-    Every gate CI requires, fail-fast, in one command: `lint changelog-check drift-check doxygen-check docs-check test-all`. Run it before pushing a
-    feature branch, not at release time — by release time it is too late for
-    the cheap ones to help.
+    Every gate CI requires, fail-fast, in one command. `make gates` runs the
+    full set — `lint`, the changelog / drift / doxygen / docs checks,
+    `test-all`, the stub / api-docs / snippet doc-test gates, `test-rust`, the
+    ABI / link / consumer-faces / glibc / specan portability checks, `coverage`
+    and its gate, and `docker-examples`. Run it before pushing a feature
+    branch, not at release time — by release time it is too late for the cheap
+    ones to help.
+
+    You do not curate that list by hand. `make gates-check` (part of `make lint`, from the vendored `standard.mk`) scans `ci.yml` and fails if `gates`
+    omits any target CI actually runs — so the pre-push command is
+    correct-by-construction and cannot silently drift behind CI.
 
     The failure mode it exists for is not a missing check; every one of those
-    targets already existed. It is running six of seven and not noticing which
-    one you skipped. A long branch once reached release day with **88 doxygen
-    warnings** and an **empty `[Unreleased]`**, both introduced ~25 commits
-    earlier, because the doxygen gate lived inline in `ci.yml` with no local
-    equivalent and nothing watched the changelog at all.
+    targets already existed. It is running all but one of them and not noticing
+    which one you skipped. A long branch once reached release day with **88
+    doxygen warnings** and an **empty `[Unreleased]`**, both introduced ~25
+    commits earlier, because the doxygen gate lived inline in `ci.yml` with no
+    local equivalent and nothing watched the changelog at all.
 
 ______________________________________________________________________
 
@@ -166,8 +174,8 @@ verify-ci       ──  poll the "CI passed" aggregator on the tagged SHA
     │                 NOT re-test here, we confirm it was green)
     ▼
 build-python         ──  manylinux_2_28 x86_64 + aarch64 wheels, one docker run per cp3x/arch
-build-macos          ──  macOS arm64 wheels, one `uv venv` per Python version
-build-sdist          ──  source distribution
+build-macos          ──  macOS arm64 wheels, `make wheel` per Python version
+build-sdist          ──  source distribution (`make sdist`)
 build-c-linux        ──  C library tarball (linux-x86_64)
 build-c-linux-arm64  ──  C library tarball (linux-aarch64)
 build-c-macos        ──  C library tarball (macos-arm64)
@@ -204,10 +212,15 @@ minimal PEP 517 backend driving the whole thing):
     the FFT was fully vendored and ZMQ was removed — see CHANGELOG) plus
     `numpy`/`uv`/`build`/`just-buildit`, then `python -m build --no-isolation  --wheel`. The aarch64 leg runs **natively** on a `ubuntu-24.04-arm` runner
     (free for public repos) — no QEMU or cross-toolchain anywhere.
-1. **macOS (`build-macos`, a separate job)** — a `uv venv` per Python version
-    natively on `macos-14` (arm64), same `python -m build` invocation, system
-    deps from `jbx just-bashit:install-deps` (reads `jb.toml`, the single
-    source of truth for doppler's system deps).
+1. **macOS (`build-macos`, a separate job)** — natively on a macOS arm64
+    runner. `astral-sh/setup-uv` selects the Python, **`make install-deps`**
+    installs the system deps (reads `jb.toml`, the single source of truth for
+    doppler's system deps), and **`make wheel`** (= `uv build --wheel`) drives
+    the same `just-buildit` backend as the Linux leg — no hand-rolled `uv  venv` / `python -m build` bootstrap to drift from CI. The job pins
+    `MACOSX_DEPLOYMENT_TARGET=11.0` and
+    `_PYTHON_HOST_PLATFORM=macosx-11.0-arm64` so `delocate` tags the wheel
+    `arm64`: cmake emits an arm64-only `.so` on this runner, and without the
+    override `delocate` fails demanding the absent `x86_64` slice.
 1. `just-buildit`'s backend (`make just-build` → cmake + pyext) assembles the
     wheel from the build's output dir, detects the platform tag from the `.so`
     suffix, and runs `auditwheel repair` (Linux, via `uvx`) / `delocate-wheel`

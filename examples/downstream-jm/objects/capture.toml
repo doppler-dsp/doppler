@@ -56,6 +56,25 @@ variable_output = true
 pass_capacity = true
 doc = "Read up to `count` samples as unit-scale complex64; an empty array at end of file."
 
+# A one-call snapshot, returned by value as a named `CaptureSummary` record
+# (`single = true` + `result_fields`). jm generates the PyStructSequence class,
+# its `.pyi`, and each field's docstring — the field prose comes from the
+# `///<` comments on `capture_summary_t` in capture_summary.h (gh-724), so it
+# is written once, in C, and never restated here.
+[[capture.methods]]
+name = "summary"
+arg_type = "void"
+return_type = "capture_summary_t"
+single = true
+record_name = "CaptureSummary"
+record_module = "iqtools.capture"
+record_doc = "A capture at a glance: sample count and the resolved fs/fc."
+result_fields = [
+  { name = "num_samples", type = "size_t" },
+  { name = "fs_hz", type = "double" },
+  { name = "fc_hz", type = "double" },
+]
+
 # ── Properties ───────────────────────────────────────────────────────────────
 # Computed (no `field`), so jm declares `capture_get_<name>()` for the core to
 # implement and the hand-written state struct stays private to capture_core.c.

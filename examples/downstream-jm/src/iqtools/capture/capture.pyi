@@ -5,6 +5,32 @@ import numpy as np
 from numpy.typing import NDArray
 
 @final
+class CaptureSummary(tuple[int, float, float]):
+    """A capture at a glance: sample count and the resolved fs/fc.
+
+    Attributes
+    ----------
+    num_samples : int
+        Samples the reader decoded from the capture.
+    fs_hz : float
+        Sample rate (Hz); 0 if the file never stated it.
+    fc_hz : float
+        Centre frequency (Hz); 0 if the file was silent.
+    """
+
+    @property
+    def num_samples(self) -> int:
+        """Samples the reader decoded from the capture."""
+
+    @property
+    def fs_hz(self) -> float:
+        """Sample rate (Hz); 0 if the file never stated it."""
+
+    @property
+    def fc_hz(self) -> float:
+        """Centre frequency (Hz); 0 if the file was silent."""
+
+@final
 class Capture:
     """Capture component.
 
@@ -46,6 +72,9 @@ class Capture:
         int
             Upper bound on the output length; the actual call may return fewer.
         """
+
+    def summary(self) -> CaptureSummary:
+        """Summary."""
 
     @property
     def fs(self) -> float:
@@ -154,6 +183,9 @@ class RawCapture:
         int
             Upper bound on the output length; the actual call may return fewer.
         """
+
+    def summary(self) -> CaptureSummary:
+        """Summary."""
 
     @property
     def fs(self) -> float:

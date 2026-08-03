@@ -1,21 +1,45 @@
 # iqtools — a downstream project built on doppler
 
-An example of consuming doppler from *another* just-makeit project. It does two
-things that are awkward to work out from the docs alone:
+Proof of how little it takes to build on doppler. `iqtools` is a real IQ-capture
+reader — a Python package **and** a C library, fully typed, documented and
+tested — and it is roughly **140 lines of C glue plus a few manifest tables**.
+There is no hand-written CPython anywhere: `jm apply` generates every binding,
+`.pyi`, per-module `CMakeLists.txt` and `__init__.py`. You write the C that is
+genuinely yours and declare the rest.
 
-1. **Links `libdoppler.a`** — the static library and the public C headers, from
-    a build tree or an install. No doppler source is vendored, copied or
-    rebuilt here.
-1. **Declares a just-makeit `view`** over doppler's reader, exposing a second
-    Python class with a *different constructor* over the same C core — with no
-    hand-written CPython anywhere in the project.
+It shows off three things a downstream project actually needs — each one
+table-driven, none of them obvious from the docs alone:
 
-`jm apply` generates the bindings, the per-module `CMakeLists.txt`, and the
-`__init__.py`/`.pyi` under `src/iqtools/` from **three** manifest files:
-`just-makeit.toml` (project + the shared enum), `objects/capture.toml` (the
-object and its view) and `modules/capture.toml` (the module — and the one line
-that links doppler). The C core and the tests are hand-written; see
-[Hand-owned files](#hand-owned-files) for the full map.
+1. **Link `libdoppler.a`** — the static library and public headers, from a build
+    tree or an install. No doppler source is vendored, copied or rebuilt here.
+1. **A second constructor, via a `view`** — one C core, two Python classes
+    (`Capture` and `RawCapture`), a different way in, the methods shared verbatim.
+1. **A documented result record** — `capture.summary()` returns a named
+    `CaptureSummary`; its class, its `.pyi` and every field's docstring are
+    generated, the field prose derived straight from `///<` comments in C.
+
+Three manifest files drive it: `just-makeit.toml` (project + the shared enum),
+`objects/capture.toml` (the object, its view and its record) and
+`modules/capture.toml` (the module — and the one line that links doppler). The C
+core and the tests are hand-written; see [Hand-owned files](#hand-owned-files).
+
+```mermaid
+flowchart LR
+    subgraph INP["you write"]
+        direction TB
+        MAN["manifest tables"]
+        CORE["C core"]
+    end
+    MAN -->|<b>jm apply</b>| GEN["generated glue<br/>bindings · .pyi · CMake"]
+    GEN --> MAKE(["<b>make</b>"])
+    CORE --> MAKE
+    DOP[("libdoppler.a")] -->|linked · one manifest line| MAKE
+    MAKE --> OUT["iqtools<br/>--------<br/>Python package<br/>+<br/>C library"]
+```
+
+You write only the two boxes on the left. Then two commands do the rest —
+**`jm apply`** generates the glue and **`make`** builds and links it, with
+`libdoppler.a` pulled in by the one manifest line that declares it.
 
 ______________________________________________________________________
 
@@ -82,12 +106,14 @@ all? `gh release download --repo doppler-dsp/doppler --pattern "doppler-*-$PLAT.
 What is in it:
 
 ```text
-lib/libdoppler.a          the static library this example links
-lib/libdoppler.so         the shared one, if you prefer it
-lib/cmake/doppler/        the find_package(doppler) package config
-lib/pkgconfig/doppler.pc  for builds that are not CMake
-include/                  the public headers
-bin/wfmgen                the waveform generator CLI
+doppler/
+├── lib/
+│   ├── libdoppler.a          the static library this example links
+│   ├── libdoppler.so         the shared one, if you prefer it
+│   ├── cmake/doppler/        the find_package(doppler) package config
+│   └── pkgconfig/doppler.pc  for builds that are not CMake
+├── include/                  the public headers
+└── bin/wfmgen                the waveform generator CLI
 ```
 
 Nothing else is required — no Python, no toolchain beyond a C compiler, and no
@@ -195,10 +221,56 @@ init_params = [
 jm injects the `capture_open_raw` prototype into `capture_core.h` itself; you
 write that one C function, and the second Python class appears.
 
+**The record is a table and three comments.** `capture.summary()` is a
+`single = true` method (`objects/capture.toml`):
+
+```toml
+[[capture.methods]]
+name = "summary"
+single = true
+record_name = "CaptureSummary"
+result_fields = [
+  { name = "num_samples", type = "size_t" },
+  { name = "fs_hz", type = "double" },
+  { name = "fc_hz", type = "double" },
+]
+```
+
+The C kernel returns the struct by value; jm generates the `PyStructSequence`
+class, its `.pyi`, and the docstrings. The field prose is *not* in the manifest
+— it derives from the `///<` comments on `capture_summary_t`, which lives in its
+own header that `capture_core.h` includes. just-makeit follows the include and
+reads the member docs across it (gh-724), so each field is documented once, in
+C, and lands on **both** faces:
+
+```pycon
+>>> s = Capture("capture.blue").summary()
+>>> s
+CaptureSummary(num_samples=8192, fs_hz=2400000.0, fc_hz=1200000000.0)
+>>> s.fs_hz                        # named and typed, not tuple[1]
+2400000.0
+>>> type(s).fs_hz.__doc__          # documented at runtime, from the C ///<
+'Sample rate (Hz); 0 if the file never stated it.'
+```
+
+Add a field by adding a struct member with a `///<` and a `result_fields` row —
+no CPython, no docstring plumbing.
+
 **The C core owns no DSP.** `capture_core.c` is ~140 lines, all of it
 forwarding into `wfm_reader_*`. The state struct holds doppler's opaque handle
 plus the supplied metadata — `no_state = "true"` in the manifest is what hands
 that struct to you rather than having jm infer one.
+
+One core, three ways in and out — every arrow below is generated:
+
+```mermaid
+flowchart TD
+    DOP[("libdoppler.a<br/>wfm_reader_*")] --> CORE
+    CORE["capture_core.c<br/>one C core, no DSP"]
+    CORE --> CAP["Capture(path)<br/>auto-detect"]
+    CORE --> RAW["RawCapture(path, sample_type, …)<br/>view: 2nd constructor"]
+    CORE --> SUM["summary() → CaptureSummary<br/>named, documented record"]
+```
 
 ### Hand-owned files
 
@@ -206,6 +278,7 @@ that struct to you rather than having jm infer one.
 | ------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
 | `objects/*.toml`, `modules/*.toml`, `just-makeit.toml`                                                  | you — the source of truth                  |
 | `native/inc/capture/capture_core.h`                                                                     | you (jm injects prototypes into it)        |
+| `native/inc/capture/capture_summary.h`                                                                  | you — the record struct + its `///<` docs  |
 | `native/src/capture/capture_core.c`                                                                     | you — sacred, `jm apply` never rewrites it |
 | `native/tests/`, `tools/`                                                                               | you                                        |
 | `native/src/capture/capture_ext*.c`, `src/iqtools/**/*.pyi`, `__init__.py`, per-module `CMakeLists.txt` | **jm** — regenerated; do not edit          |
@@ -219,31 +292,23 @@ located declaratively rather than by hand-editing CMake.
 
 ______________________________________________________________________
 
-## Three just-makeit gotchas this example hit
+## Two things worth knowing
 
-Worth knowing before you write your own manifest — each cost real time here:
-
-- **A property `doc` must be a single physical line.** jm 0.33.15 escapes
-    embedded quotes when it emits the doc into the C `PyGetSetDef`, but not
-    newlines, so a genuinely multi-line `doc = """…"""` produces an
-    unterminated string literal and the module will not compile. The
-    `metadata_source` doc in `objects/capture.toml` is kept on one line for
-    this reason. Filed as
-    [jm#633](https://github.com/just-buildit/just-makeit/issues/633).
-- **`_ext_<obj>.c` fragments are sacred**, so editing a `doc` (or anything else
-    that only affects them) and re-running `jm apply` changes nothing. Delete
-    the fragment and re-apply to pick the change up.
-- **`[project] c_style = "clang-format"` is incompatible with
-    `jm status --check`.** `jm apply` formats the regenerated `*_ext.c`
-    aggregator, but `status` compares against an *unformatted* regeneration, so
-    the formatted file it just wrote reads as permanently stale and the drift
-    gate can never pass. This example therefore does **not** set `c_style`; the
-    aggregator stays in jm's own style and is excluded from doppler's
-    clang-format (`_ext\.c$`), which is the same posture doppler itself takes.
-    Filed as
-    [jm#635](https://github.com/just-buildit/just-makeit/issues/635).
-    The per-object `_ext_<obj>.c` fragments *are* formatted — jm treats
-    fragment bodies as sacred and does not diff them, so that causes no drift.
+- **`_ext_<obj>.c` fragments are sacred.** A fresh `jm apply` *adds* a new
+    method or record to a fragment, but it will not rewrite generated code that
+    is already there — so to pick up a change to an existing method (or to
+    regenerate a whole method cleanly), delete the fragment and re-apply. That
+    is how `CaptureSummary` was added: `objects/capture.toml` grew a method,
+    the fragment was deleted, and `jm apply` rebuilt it — `capture_core.c` and
+    the tests untouched.
+- **This example does not set `[project] c_style`.** `jm apply` would format
+    the regenerated `*_ext.c` aggregator while `jm status --check` compares
+    against an *unformatted* regeneration, so the drift gate could never pass
+    ([jm#635](https://github.com/just-buildit/just-makeit/issues/635)). The
+    aggregator stays in jm's own style and is excluded from clang-format
+    (`_ext\.c$`) — the same posture doppler itself takes. The per-object
+    fragments *are* formatted; jm treats their bodies as sacred and does not
+    diff them, so that causes no drift.
 
 ______________________________________________________________________
 
@@ -268,13 +333,25 @@ ______________________________________________________________________
 
 ## Layout
 
+`(you)` = hand-written source of truth; `(jm)` = generated by `jm apply`.
+
 ```text
-just-makeit.toml           project + the metadata_source enum
-modules/capture.toml       the module -> links doppler::doppler-static
-objects/capture.toml       the object + the RawCapture VIEW
-native/inc/capture/        hand-written header (state typedef + jm's decls)
-native/src/capture/        hand-written core; jm-generated bindings
-native/tests/              C tests (fixtures written with doppler's writer)
-tools/iq_info.c            C demo — links libdoppler.a, no Python
-src/iqtools/capture/       generated package + .pyi; hand-written tests
+iqtools/
+├── just-makeit.toml             project + the metadata_source enum          (you)
+├── objects/capture.toml         the object, its view and its record         (you)
+├── modules/capture.toml         the module — links doppler::doppler-static  (you)
+├── native/
+│   ├── inc/capture/
+│   │   ├── capture_core.h        state typedef; jm injects prototypes here   (you)
+│   │   └── capture_summary.h     the CaptureSummary record + its ///< docs   (you)
+│   ├── src/capture/
+│   │   ├── capture_core.c        ~140 lines of glue over wfm_reader_*        (you)
+│   │   ├── capture_ext.c         binding aggregator                          (jm)
+│   │   └── capture_ext_*.c       per-object CPython bindings                 (jm)
+│   └── tests/                    C tests (fixtures via doppler's writer)     (you)
+├── tools/iq_info.c              C demo — links libdoppler.a, no Python       (you)
+└── src/iqtools/capture/
+    ├── __init__.py              re-export shim                               (jm)
+    ├── capture.pyi              typed + documented stubs                     (jm)
+    └── tests/                   Python tests                                 (you)
 ```

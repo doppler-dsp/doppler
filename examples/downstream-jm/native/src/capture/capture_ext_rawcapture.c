@@ -207,6 +207,44 @@ RawCaptureObj_read (RawCaptureObject *self, PyObject *args, PyObject *kwds)
   Py_DECREF (v0);
   return arr0;
 }
+
+static PyStructSequence_Field RawCaptureObj_summary_fields[] = {
+  { "num_samples", "Samples the reader decoded from the capture." },
+  { "fs_hz", "Sample rate (Hz); 0 if the file never stated it." },
+  { "fc_hz", "Centre frequency (Hz); 0 if the file was silent." },
+  { NULL, NULL },
+};
+static PyStructSequence_Desc RawCaptureObj_summary_desc
+    = { "iqtools.capture.CaptureSummary",
+        "A capture at a glance: sample count and the resolved fs/fc.",
+        RawCaptureObj_summary_fields, 3 };
+static PyTypeObject *RawCaptureObj_summary_type = NULL;
+
+static PyObject *
+RawCaptureObj_summary (RawCaptureObject *self, PyObject *args)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  if (!RawCaptureObj_summary_type)
+    {
+      RawCaptureObj_summary_type
+          = PyStructSequence_NewType (&RawCaptureObj_summary_desc);
+      if (!RawCaptureObj_summary_type)
+        return NULL;
+    }
+  capture_summary_t _r = capture_summary (self->handle);
+  PyObject         *_o = PyStructSequence_New (RawCaptureObj_summary_type);
+  if (!_o)
+    return NULL;
+  PyStructSequence_SET_ITEM (
+      _o, 0, PyLong_FromUnsignedLongLong ((unsigned long long)_r.num_samples));
+  PyStructSequence_SET_ITEM (_o, 1, PyFloat_FromDouble (_r.fs_hz));
+  PyStructSequence_SET_ITEM (_o, 2, PyFloat_FromDouble (_r.fc_hz));
+  return _o;
+}
 /* gh-519: strcmp for the enum lookup below. Python.h already
  * pulls in <string.h>, but the include is explicit so the block
  * stands on its own wherever it is spliced. */
@@ -340,14 +378,14 @@ RawCaptureObj_exit (RawCaptureObject *self, PyObject *args)
 
 static PyMethodDef RawCaptureObj_methods[] = {
   { "reset", (PyCFunction)RawCaptureObj_reset, METH_NOARGS,
-    "Reset state to post-create defaults." },
+    "Reset state to post-create defaults.\n" },
 
   { "read", (PyCFunction)(void *)RawCaptureObj_read,
     METH_VARARGS | METH_KEYWORDS,
     "read(count=1) -> ndarray\n"
     "\n"
-    "Read up to `count` samples as unit-scale complex64; an empty array "
-    "at end of file.\n"
+    "Read up to `count` samples as unit-scale complex64; an empty array at "
+    "end of file.\n"
     "\n"
     "Returns\n"
     "-------\n"
@@ -356,14 +394,33 @@ static PyMethodDef RawCaptureObj_methods[] = {
     "\n"
     "    >>> import numpy as np\n"
     "    >>> from iqtools import RawCapture\n"
-    "    >>> obj = RawCapture(path=..., sample_type=\"ci16\", "
-    "endian=\"le\", fs=1.0, fc=0.0)\n"
+    "    >>> obj = RawCapture(path=..., sample_type=\"ci16\", endian=\"le\", "
+    "fs=1.0, fc=0.0)\n"
     "    >>> y = obj.read(4)\n"
     "    >>> y.dtype\n"
     "    dtype('complex64')\n" },
   { "read_max_out", (PyCFunction)RawCaptureObj_read_max_out, METH_VARARGS,
-    "read_max_out(n) -> int\n\nMax output length read() can produce for "
-    "n.\nUse to size the ``out=`` buffer." },
+    "read_max_out(n) -> int\n"
+    "\n"
+    "Largest number of samples read() can return for n inputs.\n"
+    "\n"
+    "Size an `out=` buffer with this before calling read(), or use it to\n"
+    "allocate one up front. The bound is this object's own: what it depends\n"
+    "on is a property of the algorithm, so a header block on read_max_out()\n"
+    "replaces this text.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "n : int\n"
+    "    Number of input samples read() will be given.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "int\n"
+    "    Upper bound on the output length; the actual call may return "
+    "fewer.\n" },
+  { "summary", (PyCFunction)RawCaptureObj_summary, METH_VARARGS,
+    "summary() -> CaptureSummary record (num_samples, fs_hz, fc_hz)." },
   { "destroy", (PyCFunction)RawCaptureObj_destroy, METH_NOARGS,
     "Release the underlying C resources immediately.\n"
     "\n"

@@ -115,12 +115,7 @@ jobs:
       # Started here, before any build/test step, because the "Doctest
       # generated stubs" step below now needs a live broker too (stream.pyi's
       # examples create real nats:// Publisher/Push/etc. handles).
-      run: |
-        docker run -d --name nats -p 4222:4222 nats:2.10 -js
-        for _ in $(seq 1 50); do
-          (exec 3<>/dev/tcp/127.0.0.1/4222) 2>/dev/null && break || sleep 0.2
-        done
-        echo "NATS JetStream broker ready on 127.0.0.1:4222"
+      run: bash scripts/start-nats.sh
 
     - name: Build C library
       run: make build
@@ -410,12 +405,7 @@ jobs:
     - name: Start NATS JetStream broker (covers the nats:// stream path)
       # The stream suite's nats:// tests self-skip when 127.0.0.1:4222 is
       # unreachable; start a JetStream broker so stream_nats.c is exercised.
-      run: |
-        docker run -d --name nats -p 4222:4222 nats:2.10 -js
-        for _ in $(seq 1 50); do
-          (exec 3<>/dev/tcp/127.0.0.1/4222) 2>/dev/null && break || sleep 0.2
-        done
-        echo "NATS JetStream broker ready on 127.0.0.1:4222"
+      run: bash scripts/start-nats.sh
 
     - name: Coverage (clang source-based; C ∪ Python ∪ Rust)
       run: make coverage | tee coverage.txt

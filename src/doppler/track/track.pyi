@@ -2702,7 +2702,7 @@ class MpskReceiver:
 
     @property
     def lock(self) -> float:
-        """Lock."""
+        """EMA of the carrier lock signal."""
 
     @property
     def timing_rate(self) -> float:
@@ -2710,15 +2710,15 @@ class MpskReceiver:
 
     @property
     def tracking(self) -> int:
-        """Tracking."""
+        """0 = NDA acquire, 1 = decision."""
 
     @property
     def m(self) -> int:
-        """M."""
+        """constellation order M (2, 4, 8)."""
 
     @property
     def sps(self) -> float:
-        """Sps."""
+        """samples per symbol at the receiver's input."""
 
     @property
     def m_out(self) -> int:
@@ -3093,7 +3093,7 @@ class MpskReceiverR:
 
     @property
     def lock(self) -> float:
-        """Lock."""
+        """EMA of the carrier lock signal."""
 
     @property
     def timing_rate(self) -> float:
@@ -3101,19 +3101,19 @@ class MpskReceiverR:
 
     @property
     def tracking(self) -> int:
-        """Tracking."""
+        """0 = NDA acquire, 1 = decision."""
 
     @property
     def m(self) -> int:
-        """M."""
+        """constellation order M (2, 4, 8)."""
 
     @property
     def sps(self) -> float:
-        """Sps."""
+        """samples per symbol at the receiver's input."""
 
     @property
     def m_out(self) -> int:
-        """M out."""
+        """terminal outputs per symbol."""
 
     @property
     def clipped(self) -> int:

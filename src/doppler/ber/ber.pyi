@@ -10,24 +10,24 @@ class BerInterval(tuple[float, float, float, float, float, int, int]):
     Attributes
     ----------
     p_hat : float
-        Unbiased point estimate of the error rate, (r-1)/(N-1).
+        Unbiased point estimate `(r-1)/(N-1)`.
     lo : float
         Lower confidence limit.
     hi : float
         Upper confidence limit.
     rel : float
-        Relative standard error, 1/sqrt(r).
+        Relative standard error `1/sqrt(r)`.
     conf : float
-        Confidence level used.
+        Two-sided confidence level.
     errors : int
-        Symbol (or bit) errors counted, r.
+        Symbol errors counted.
     symbols : int
-        Symbols (or bits) scored, N.
+        Symbols scored.
     """
 
     @property
     def p_hat(self) -> float:
-        """Unbiased point estimate of the error rate, (r-1)/(N-1)."""
+        """Unbiased point estimate `(r-1)/(N-1)`."""
 
     @property
     def lo(self) -> float:
@@ -39,19 +39,19 @@ class BerInterval(tuple[float, float, float, float, float, int, int]):
 
     @property
     def rel(self) -> float:
-        """Relative standard error, 1/sqrt(r)."""
+        """Relative standard error `1/sqrt(r)`."""
 
     @property
     def conf(self) -> float:
-        """Confidence level used."""
+        """Two-sided confidence level."""
 
     @property
     def errors(self) -> int:
-        """Symbol (or bit) errors counted, r."""
+        """Symbol errors counted."""
 
     @property
     def symbols(self) -> int:
-        """Symbols (or bits) scored, N."""
+        """Symbols scored."""
 
 @final
 class BerMeter:

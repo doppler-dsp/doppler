@@ -547,20 +547,24 @@ ToneMeasure_getprop_proc_gain_db (ToneMeasureObject *self,
 }
 
 static PyGetSetDef ToneMeasure_getset[]
-    = { { "n", (getter)ToneMeasure_getprop_n, NULL, "N.\n", NULL },
-        { "nfft", (getter)ToneMeasure_getprop_nfft, NULL, "Nfft.\n", NULL },
-        { "fs", (getter)ToneMeasure_getprop_fs, NULL, "Fs.\n", NULL },
-        { "enbw", (getter)ToneMeasure_getprop_enbw, NULL, "Enbw.\n", NULL },
+    = { { "n", (getter)ToneMeasure_getprop_n, NULL,
+          "Window / frame length (samples).\n", NULL },
+        { "nfft", (getter)ToneMeasure_getprop_nfft, NULL,
+          "Zero-padded transform length.\n", NULL },
+        { "fs", (getter)ToneMeasure_getprop_fs, NULL, "Sample rate, Hz.\n",
+          NULL },
+        { "enbw", (getter)ToneMeasure_getprop_enbw, NULL,
+          "Equivalent noise bandwidth, bins.\n", NULL },
         { "lobe_bins", (getter)ToneMeasure_getprop_lobe_bins, NULL,
-          "Lobe bins.\n", NULL },
+          "Window main-lobe half-width L [bins].\n", NULL },
         { "spur_guard_bins", (getter)ToneMeasure_getprop_spur_guard_bins, NULL,
           "Spur guard bins.\n", NULL },
         { "beta", (getter)ToneMeasure_getprop_beta, NULL, "Beta.\n", NULL },
         { "rbw", (getter)ToneMeasure_getprop_rbw, NULL, "Rbw.\n", NULL },
-        { "bin_hz", (getter)ToneMeasure_getprop_bin_hz, NULL, "Bin hz.\n",
-          NULL },
+        { "bin_hz", (getter)ToneMeasure_getprop_bin_hz, NULL,
+          "FFT bin spacing = fs/nfft [Hz].\n", NULL },
         { "proc_gain_db", (getter)ToneMeasure_getprop_proc_gain_db, NULL,
-          "Proc gain db.\n", NULL },
+          "FFT processing gain = 10log10(nfft/2) [dB].\n", NULL },
         { NULL } };
 
 static PyObject *

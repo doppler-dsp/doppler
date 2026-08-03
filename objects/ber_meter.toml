@@ -117,13 +117,13 @@ doc = "Symbol error rate with its EXACT confidence interval, as a BerInterval. A
 arg_type = "void"
 return_type = "ber_interval_t"
 result_fields = [
-    {name = "p_hat", type = "double", doc = "Unbiased point estimate of the error rate, (r-1)/(N-1)."},
-    {name = "lo", type = "double", doc = "Lower confidence limit."},
-    {name = "hi", type = "double", doc = "Upper confidence limit."},
-    {name = "rel", type = "double", doc = "Relative standard error, 1/sqrt(r)."},
-    {name = "conf", type = "double", doc = "Confidence level used."},
-    {name = "errors", type = "size_t", doc = "Symbol (or bit) errors counted, r."},
-    {name = "symbols", type = "size_t", doc = "Symbols (or bits) scored, N."},
+    {name = "p_hat", type = "double"},
+    {name = "lo", type = "double"},
+    {name = "hi", type = "double"},
+    {name = "rel", type = "double"},
+    {name = "conf", type = "double"},
+    {name = "errors", type = "size_t"},
+    {name = "symbols", type = "size_t"},
 ]
 single = true
 record_name = "BerInterval"
@@ -136,13 +136,13 @@ doc = "Gray-coded bit error rate with its EXACT confidence interval, as a BerInt
 arg_type = "void"
 return_type = "ber_interval_t"
 result_fields = [
-    {name = "p_hat", type = "double", doc = "Unbiased point estimate of the error rate, (r-1)/(N-1)."},
-    {name = "lo", type = "double", doc = "Lower confidence limit."},
-    {name = "hi", type = "double", doc = "Upper confidence limit."},
-    {name = "rel", type = "double", doc = "Relative standard error, 1/sqrt(r)."},
-    {name = "conf", type = "double", doc = "Confidence level used."},
-    {name = "errors", type = "size_t", doc = "Symbol (or bit) errors counted, r."},
-    {name = "symbols", type = "size_t", doc = "Symbols (or bits) scored, N."},
+    {name = "p_hat", type = "double"},
+    {name = "lo", type = "double"},
+    {name = "hi", type = "double"},
+    {name = "rel", type = "double"},
+    {name = "conf", type = "double"},
+    {name = "errors", type = "size_t"},
+    {name = "symbols", type = "size_t"},
 ]
 single = true
 record_name = "BerInterval"
@@ -201,13 +201,13 @@ arg_type = "void"
 return_type = "ber_interval_t"
 params = [{ name = "errors", type = "size_t" }, { name = "symbols", type = "size_t" }]
 result_fields = [
-    {name = "p_hat", type = "double", doc = "Unbiased point estimate of the error rate, (r-1)/(N-1)."},
-    {name = "lo", type = "double", doc = "Lower confidence limit."},
-    {name = "hi", type = "double", doc = "Upper confidence limit."},
-    {name = "rel", type = "double", doc = "Relative standard error, 1/sqrt(r)."},
-    {name = "conf", type = "double", doc = "Confidence level used."},
-    {name = "errors", type = "size_t", doc = "Symbol (or bit) errors counted, r."},
-    {name = "symbols", type = "size_t", doc = "Symbols (or bits) scored, N."},
+    {name = "p_hat", type = "double"},
+    {name = "lo", type = "double"},
+    {name = "hi", type = "double"},
+    {name = "rel", type = "double"},
+    {name = "conf", type = "double"},
+    {name = "errors", type = "size_t"},
+    {name = "symbols", type = "size_t"},
 ]
 single = true
 record_name = "BerInterval"

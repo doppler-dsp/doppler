@@ -302,9 +302,12 @@ NPRMeasure_getprop_rbw (NPRMeasureObject *self, void *Py_UNUSED (closure))
 }
 
 static PyGetSetDef NPRMeasure_getset[]
-    = { { "n", (getter)NPRMeasure_getprop_n, NULL, "N.\n", NULL },
-        { "nfft", (getter)NPRMeasure_getprop_nfft, NULL, "Nfft.\n", NULL },
-        { "fs", (getter)NPRMeasure_getprop_fs, NULL, "Fs.\n", NULL },
+    = { { "n", (getter)NPRMeasure_getprop_n, NULL,
+          "Window / frame length (samples).\n", NULL },
+        { "nfft", (getter)NPRMeasure_getprop_nfft, NULL,
+          "Zero-padded transform length.\n", NULL },
+        { "fs", (getter)NPRMeasure_getprop_fs, NULL, "Sample rate, Hz.\n",
+          NULL },
         { "rbw", (getter)NPRMeasure_getprop_rbw, NULL, "Rbw.\n", NULL },
         { NULL } };
 

@@ -10,24 +10,24 @@ class PolynomialPhaseEstimate(tuple[float, float, float]):
     Attributes
     ----------
     freq_norm : float
-        Frequency [cycles/sample], in [-0.5, 0.5).
+        Normalised frequency −0.5..+0.5 (DC-centred).
     rate_norm : float
-        Chirp rate [cycles/sample^2].
+        chirp rate, cycles/sample^2.
     snr_db : float
-        Winning-row peak-to-mean ratio [dB] (rough confidence).
+        winning-row peak-to-mean (rough confidence).
     """
 
     @property
     def freq_norm(self) -> float:
-        """Frequency [cycles/sample], in [-0.5, 0.5)."""
+        """Normalised frequency −0.5..+0.5 (DC-centred)."""
 
     @property
     def rate_norm(self) -> float:
-        """Chirp rate [cycles/sample^2]."""
+        """chirp rate, cycles/sample^2."""
 
     @property
     def snr_db(self) -> float:
-        """Winning-row peak-to-mean ratio [dB] (rough confidence)."""
+        """winning-row peak-to-mean (rough confidence)."""
 
 @final
 class Despreader:
@@ -324,11 +324,11 @@ class Despreader:
 
     @property
     def code_rate(self) -> float:
-        """Code rate."""
+        """chips advanced per nominal chip (~1.0)."""
 
     @property
     def lock_metric(self) -> float:
-        """Lock metric."""
+        """EMA of |Re P|/|P| (1 = locked)."""
 
     @property
     def carrier_locked(self) -> bool:
@@ -2515,15 +2515,15 @@ class AsyncDsssReceiver:
 
     @property
     def chip_phase(self) -> float:
-        """Chip phase."""
+        """Chips, Dll's own instantaneous-phase convention (the mirror image of acq_result_t::code_phase's correlation-lag convention -- see acq_build_handoff()'s doc comment)."""
 
     @property
     def code_rate(self) -> float:
-        """Code rate."""
+        """chips advanced per nominal chip (~1.0)."""
 
     @property
     def lock(self) -> float:
-        """Lock."""
+        """decision rule on lock_metric: thresholds + verify counters, stepped per symbol."""
 
     @property
     def norm_freq(self) -> float:

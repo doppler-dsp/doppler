@@ -672,10 +672,16 @@ static PyGetSetDef AsyncDsssReceiver_getset[] = {
   { "n", (getter)AsyncDsssReceiver_getprop_n, NULL,
     "MpskReceiver's own carrier-arm count.\n", NULL },
   { "chip_phase", (getter)AsyncDsssReceiver_getprop_chip_phase, NULL,
-    "Chip phase.\n", NULL },
+    "Chips, Dll's own instantaneous-phase convention (the mirror image of "
+    "acq_result_t::code_phase's correlation-lag convention -- see "
+    "acq_build_handoff()'s doc comment).\n",
+    NULL },
   { "code_rate", (getter)AsyncDsssReceiver_getprop_code_rate, NULL,
-    "Code rate.\n", NULL },
-  { "lock", (getter)AsyncDsssReceiver_getprop_lock, NULL, "Lock.\n", NULL },
+    "chips advanced per nominal chip (~1.0).\n", NULL },
+  { "lock", (getter)AsyncDsssReceiver_getprop_lock, NULL,
+    "decision rule on lock_metric: thresholds + verify counters, stepped per "
+    "symbol.\n",
+    NULL },
   { "norm_freq", (getter)AsyncDsssReceiver_getprop_norm_freq, NULL,
     "Smoothed carrier estimate (integrator only, cycles/sample of the "
     "MpskReceiver output rate); lags a Doppler ramp by the constant Type-II "

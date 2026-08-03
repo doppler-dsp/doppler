@@ -443,7 +443,7 @@ static PyGetSetDef AGC_getset[]
         { "alpha", (getter)AGC_getprop_alpha, (setter)AGC_setprop_alpha,
           "Alpha.\n", NULL },
         { "decim", (getter)AGC_getprop_decim, (setter)AGC_setprop_decim,
-          "Decim.\n", NULL },
+          "Emit every decim-th event, >= 1.\n", NULL },
         { "clip_db", (getter)AGC_getprop_clip_db, (setter)AGC_setprop_clip_db,
           "Clip db.\n", NULL },
         { "gain_update_period", (getter)AGC_getprop_gain_update_period,

@@ -657,10 +657,10 @@ static PyGetSetDef Despreader_getset[] = {
     (setter)Despreader_setprop_norm_freq, "Norm freq.\n", NULL },
   { "code_phase", (getter)Despreader_getprop_code_phase, NULL, "Code phase.\n",
     NULL },
-  { "code_rate", (getter)Despreader_getprop_code_rate, NULL, "Code rate.\n",
-    NULL },
+  { "code_rate", (getter)Despreader_getprop_code_rate, NULL,
+    "chips advanced per nominal chip (~1.0).\n", NULL },
   { "lock_metric", (getter)Despreader_getprop_lock_metric, NULL,
-    "Lock metric.\n", NULL },
+    "EMA of |Re P|/|P| (1 = locked).\n", NULL },
   { "carrier_locked", (getter)Despreader_getprop_carrier_locked, NULL,
     "Carrier lock decision: the embedded Costas loop's verify-counted "
     "detector on its lock-metric EMA (True = locked; see "

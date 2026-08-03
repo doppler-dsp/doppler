@@ -43,9 +43,9 @@ record_name = "PolynomialPhaseEstimate"
 record_doc = "Polynomial-phase estimate: carrier frequency, chirp rate, and a rough SNR confidence."
 record_module = "doppler.dsss"
 result_fields = [
-    { name = "freq_norm", type = "double", doc = "Frequency [cycles/sample], in [-0.5, 0.5)." },
-    { name = "rate_norm", type = "double", doc = "Chirp rate [cycles/sample^2]." },
-    { name = "snr_db", type = "double", doc = "Winning-row peak-to-mean ratio [dB] (rough confidence)." },
+    { name = "freq_norm", type = "double" },
+    { name = "rate_norm", type = "double" },
+    { name = "snr_db", type = "double" },
 ]
 
 [[ppe.properties]]

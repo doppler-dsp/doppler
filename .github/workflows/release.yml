@@ -370,6 +370,11 @@ jobs:
         with:
           python-version: '3.12'
 
+      # `make wheel-smoke` builds the throwaway venv with uv (a make target,
+      # not the old inline step), so uv must be on PATH — setup-python alone is
+      # not enough.
+      - uses: astral-sh/setup-uv@v4
+
       - name: Download the cp312 wheel
         uses: actions/download-artifact@v4
         with:

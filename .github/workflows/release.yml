@@ -535,6 +535,34 @@ jobs:
               sh -c 'echo "doppler-sdk ('"$arch"') installs $(pkg-config --modversion doppler)"'
           done
 
+      # The iqtools showcase (ghcr.io/doppler-dsp/doppler-downstream-jm) — the
+      # flagship worked downstream, shipped already built with its whole suite
+      # green (the build RUNs `make test`). Like the SDK it compiles doppler
+      # from source, so the arm64 layer additionally runs iqtools' ctest+pytest
+      # under emulation — a slower leg, paid once per release.
+      - name: Build and push the downstream-jm showcase image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/docker/Dockerfile.examples
+          target: downstream-jm
+          platforms: linux/amd64,linux/arm64
+          build-args: |
+            JM_VERSION=${{ needs.verify-version.outputs.jm_version }}
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}-downstream-jm:${{ needs.verify-version.outputs.version }}
+            ghcr.io/${{ github.repository }}-downstream-jm:latest
+
+      - name: Smoke-test the pushed downstream-jm image (both architectures)
+        run: |
+          for arch in amd64 arm64; do
+            docker run --rm --platform "linux/$arch" \
+              "ghcr.io/${{ github.repository }}-downstream-jm:${{ needs.verify-version.outputs.version }}" \
+              python3 -c "from iqtools.capture import Capture, RawCapture; \
+                          print('doppler-downstream-jm ('"$arch"')', Capture.__name__)"
+          done
+
   # ------------------------------------------------------------------
   # GitHub Release with auto-generated notes
   # ------------------------------------------------------------------

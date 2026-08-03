@@ -13,6 +13,54 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+## [0.41.0] — 2026-08-03
+
+### Added
+
+- **Every public Python surface now carries a full docstring on both faces.**
+    Class, method, property, module-function and result-record-field
+    documentation is derived once from the C `_core.h` Doxygen and rendered to
+    both the `.pyi` stubs and the runtime `help()` — Parameters, Returns, and a
+    runnable example wherever the shape allows. A ratcheted coverage meter
+    (`make check-docstring-coverage`, wired into the docs gate) prevents
+    regressions; coverage is 91.2%, the remainder being jm-generated
+    boilerplate glue that has no example to show.
+
+- **A family of purpose-built container images** (see
+    [`docs/install/docker.md`](docs/install/docker.md)):
+
+    - `ghcr.io/doppler-dsp/doppler` — the runtime "try it" image: the CLIs plus
+        the runnable example gallery, so `docker run` lands you among demos.
+    - `ghcr.io/doppler-dsp/doppler-sdk` — doppler installed (headers, static +
+        shared library, CMake config, `.pc`) with the toolchain and
+        `just-makeit`, for building your own C / jm project on doppler.
+    - `ghcr.io/doppler-dsp/doppler-downstream-jm` — the iqtools showcase, shipped
+        already built with its whole suite green.
+
+    All three are built from one shared stage, so they are version-locked to the
+    same doppler source.
+
+### Changed
+
+- **Adopted just-makeit 0.35.0 → 0.43.0.** The both-faces docstring derivation
+    above is the headline; the run also brought result records
+    (`single = true` structseq), included-header field-doc derivation, block-tag
+    and list/table rendering, and glue-method runtime docs.
+- **The Makefile is the single driver for CI.** System-dependency install
+    (`make install-deps` / `install-docs-deps`), the manifest version-consistency
+    check (`make version-check`), and the three-consumer-faces smoke
+    (`make consumer-faces-check`, building against cc / CMake / pkg-config) now
+    run through make in CI exactly as a developer runs them; the container
+    images build through `make docker-*` targets.
+- The glibc-2.28 floor job now builds in the manylinux image doppler actually
+    ships from, retiring the EOL-Debian archive-mirror workaround.
+
+### Removed
+
+- **The binary-dump root `Dockerfile`.** Its role (teaching by shipping stripped
+    binaries) is replaced by the SDK image, which ships consuming-project
+    *sources*; `docker-compose` now runs a lean streaming-services image.
+
 ## [0.40.0] — 2026-07-31
 
 ### Added
@@ -4045,6 +4093,7 @@ ______________________________________________________________________
 [0.4.0]: https://github.com/doppler-dsp/doppler/compare/v0.3.7...v0.4.0
 [0.4.1]: https://github.com/doppler-dsp/doppler/compare/v0.4.0...v0.4.1
 [0.40.0]: https://github.com/doppler-dsp/doppler/compare/v0.39.0...v0.40.0
+[0.41.0]: https://github.com/doppler-dsp/doppler/compare/v0.40.0...v0.41.0
 [0.5.0]: https://github.com/doppler-dsp/doppler/compare/v0.4.1...v0.5.0
 [0.5.1]: https://github.com/doppler-dsp/doppler/compare/v0.5.0...v0.5.1
 [0.5.2]: https://github.com/doppler-dsp/doppler/compare/v0.5.1...v0.5.2
@@ -4055,4 +4104,4 @@ ______________________________________________________________________
 [0.7.0]: https://github.com/doppler-dsp/doppler/compare/v0.6.0...v0.7.0
 [0.8.0]: https://github.com/doppler-dsp/doppler/compare/v0.7.0...v0.8.0
 [0.9.0]: https://github.com/doppler-dsp/doppler/compare/v0.8.0...v0.9.0
-[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.40.0...HEAD
+[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.41.0...HEAD

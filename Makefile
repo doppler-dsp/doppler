@@ -170,8 +170,17 @@ TEST_RUST_CMD   = cargo test --manifest-path $(RUST_DIR)/Cargo.toml
 TEST_EXAMPLES_CMD = $(MAKE) --no-print-directory test-examples-c
 
 TEST_ALL_DEPS = test test-examples test-python test-examples-python
+
+# `gates` must run every gate CI does — enforced by `gates-check` (standard.mk),
+# which scans ci.yml and fails on any `make <target>` CI runs that `gates`
+# cannot reach. Every such target is here or in GATES_PROVISION; nothing is
+# silently omitted. GATES_PROVISION is the setup/build steps a dev runs BEFORE
+# gating (install the deps, build the tree), not gates themselves.
+GATES_PROVISION = install-deps install-docs-deps build pyext
 GATES_DEPS    = lint changelog-check drift-check doxygen-check docs-check \
-                test-all
+                test-all test-stubs test-api-docs test-snippets test-rust \
+                abi-check link-check consumer-faces-check glibc-check \
+                specan-check coverage coverage-gate docker-examples
 
 # ── Build ────────────────────────────────────────────────────────────────────
 CMAKE_FLAGS = -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \

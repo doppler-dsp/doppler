@@ -131,6 +131,17 @@ FORMAT_TOOLS ?= $(LINT_TOOLS)
 TEST_ALL_DEPS ?= test
 GATES_DEPS    ?= lint test-all
 
+# `gates` promises "every gate that guards a merge", but only the repo knows its
+# CI job list — so this list, defaulted or hand-set, can silently omit one (it
+# lacked `coverage-gate` in more than one repo). Rather than require the list
+# (which forces a declaration, not a correct one), `gates-check` verifies it:
+# every make target CI runs must be reachable from `gates`. GATES_PROVISION
+# names the CI make-targets that are setup, not gates (install-deps, a build
+# step), excluded by name so adding one is deliberate. GATES_CI_FILE is the
+# workflow scanned; the check skips where it is absent.
+GATES_CI_FILE   ?= .github/workflows/ci.yml
+GATES_PROVISION ?= install-deps
+
 $(call _std_require,TEST_CMD,every repo)
 $(call _std_require,TEST_FAST_CMD,every repo)
 # `clean` needs at least one of the two to be doing anything at all.
@@ -155,7 +166,7 @@ test-fast: ## Run tests, stopping at the first failure
 # `lint` is the gate — CI runs exactly this and nothing else. The three
 # consistency gates come first because they are near-free and catch the class
 # of rot that review demonstrably does not.
-lint: standard-check help-check ghost-check ## Run the full lint gate (CI runs this)
+lint: standard-check help-check ghost-check gates-check ## Run the full lint gate (CI runs this)
 	@hook=$$(git rev-parse --git-path hooks/pre-commit 2>/dev/null); \
 	 if [ -n "$$hook" ] && [ ! -f "$$hook" ]; then \
 	     $(PRE_COMMIT) install >/dev/null 2>&1 \
@@ -202,13 +213,59 @@ $(foreach _t,$(LINT_TOOLS),$(eval $(call _std_lint_rule,$(_t))))
 
 # ── Aggregates ───────────────────────────────────────────────────────────────
 
-STD_TARGETS += test-all gates
+STD_TARGETS += test-all gates gates-check
 
 test-all: $(TEST_ALL_DEPS) ## Run every test suite in the repo
 
 gates: $(GATES_DEPS) ## Run every gate that guards a merge
 	@echo ""
 	@echo "gates: ALL PASS"
+
+# Makes `gates`' promise true by construction: every `make <target>` CI runs
+# must be reachable from `gates`, or this fails naming it. The extractor takes
+# `make` only at a command position (start of a run: line or block-scalar body,
+# or after ; & |), never `cmake` or a `make X` mentioned in a comment/name:, and
+# the first token only so a target invoked with args still counts. The closure
+# is walked from `gates` over make's own database, the way ghost-check reads it.
+gates-check: ## Verify `gates` runs every make target CI invokes
+	@ci="$(GATES_CI_FILE)"; \
+	 if [ ! -f "$$ci" ]; then echo "gates-check: no $$ci — skipped"; exit 0; fi; \
+	 db=$$($(_STD_TMP)); trap 'rm -f "$$db"' EXIT; \
+	 $(MAKE) -rpn --no-print-directory .std-db-goal >"$$db" 2>/dev/null; \
+	 ci_targets=$$(sed -E 's/(^|[[:space:]])#.*$$//' "$$ci" \
+	     | grep -hoE '(^[[:space:]]*(- )?run:[[:space:]]*make|^[[:space:]]*make|[;&|][[:space:]]*make)[[:space:]]+[a-zA-Z_][a-zA-Z0-9_-]*' \
+	     | grep -oE 'make[[:space:]]+[a-zA-Z_][a-zA-Z0-9_-]*$$' \
+	     | sed -E 's/make[[:space:]]+//' | sort -u); \
+	 if [ -z "$$ci_targets" ]; then \
+	     echo "ERROR: gates-check matched no 'make <target>' in $$ci —"; \
+	     echo "  the scan found nothing, so it did not run, so it has not passed."; \
+	     exit 1; \
+	 fi; \
+	 closure=" "; frontier="gates"; \
+	 while [ -n "$$frontier" ]; do \
+	     next=""; \
+	     for t in $$frontier; do \
+	         for p in $$(sed -n "s/^$$t:[ ]*//p" "$$db" | sed 's/|.*//'); do \
+	             case "$$closure" in *" $$p "*) ;; \
+	                 *) closure="$$closure$$p "; next="$$next $$p";; esac; \
+	         done; \
+	     done; \
+	     frontier="$$next"; \
+	 done; \
+	 rc=0; \
+	 for t in $$ci_targets; do \
+	     case " $(GATES_PROVISION) " in *" $$t "*) continue;; esac; \
+	     case "$$closure" in *" $$t "*) continue;; esac; \
+	     echo "ERROR: CI runs 'make $$t', but 'make gates' does not"; \
+	     rc=1; \
+	 done; \
+	 if [ $$rc -ne 0 ]; then \
+	     echo ""; \
+	     echo "  'gates' claims to run every merge gate. Add each to GATES_DEPS,"; \
+	     echo "  or to GATES_PROVISION if it is setup rather than a gate."; \
+	     exit 1; \
+	 fi; \
+	 echo "gates-check: gates covers all $$(set -- $$ci_targets; echo $$#) CI make-targets"
 
 # ── HAS_C ────────────────────────────────────────────────────────────────────
 # `release` is RESERVED for the C build type. The release workflow is `ship`
@@ -251,18 +308,26 @@ endif
 # `wheel`, not `build`: in a repo with C the noun `build` is the native build,
 # and one standard target may not mean two things (criterion 9).
 ifeq ($(HAS_PYTHON),1)
-STD_TARGETS += wheel test-python
+STD_TARGETS += wheel
 
 WHEEL_CMD       ?= $(UV) build --wheel
-TEST_PYTHON_CMD ?= $(TEST_CMD)
 
 wheel: ## Build a wheel into dist/
 	$(WHEEL_CMD)
 	@echo ""
 	@ls -lh dist/*.whl
 
+# `test-python` only where it is NOT already `test`: in a Python-only repo
+# (HAS_C off) TEST_CMD == TEST_PYTHON_CMD, so the two run the identical command
+# and `make help` advertises both. It earns its place only alongside a C `test`
+# (ctest), where it names the distinct Python suite.
+ifeq ($(HAS_C),1)
+STD_TARGETS += test-python
+TEST_PYTHON_CMD ?= $(TEST_CMD)
+
 test-python: ## Run the Python test suite
 	$(TEST_PYTHON_CMD)
+endif
 endif
 
 # ── HAS_RUST ─────────────────────────────────────────────────────────────────
@@ -661,10 +726,11 @@ help: ## Show this message
 	@echo ""
 	@echo "  $(notdir $(CURDIR)) — make targets"
 	@echo ""
-	@for t in $(ALL_TARGETS); do \
-	    $(_STD_DESC); \
-	    printf '  %-20s %s\n' "$$t" "$$d"; \
-	done
+	@w=0; for t in $(ALL_TARGETS); do [ $${#t} -gt $$w ] && w=$${#t}; done; \
+	 for t in $(ALL_TARGETS); do \
+	     $(_STD_DESC); \
+	     printf '  %-*s  %s\n' "$$w" "$$t" "$$d"; \
+	 done
 	@echo ""
 
 # ── local.mk ─────────────────────────────────────────────────────────────────

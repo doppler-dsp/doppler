@@ -19,10 +19,8 @@ docker run --rm -it ghcr.io/doppler-dsp/doppler-sdk:latest
 # --8<-- [end:sdk]
 
 # --8<-- [start:downstream]
-# The iqtools showcase — a full downstream project, pre-built and green. Built
-# from this checkout (not published); the build runs iqtools' whole suite.
-make docker-downstream
-docker run --rm -it doppler-downstream-jm:dev
+# The iqtools showcase — a full downstream project, shipped pre-built and green.
+docker run --rm -it ghcr.io/doppler-dsp/doppler-downstream-jm:latest
 # --8<-- [end:downstream]
 
 # --8<-- [start:build-local]

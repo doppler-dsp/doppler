@@ -4,13 +4,13 @@ One image per thing you'd actually do with doppler — **use** it, **build on**
 it, or **deploy** its streaming services. Every docker build is driven through
 the Makefile (the single driver — never a raw `docker build`):
 
-| Image                         | For                                            | Dockerfile                                         | Built by                 | Published                         |
-| ----------------------------- | ---------------------------------------------- | -------------------------------------------------- | ------------------------ | --------------------------------- |
-| **`doppler`**                 | *using* doppler — CLIs + ~70 demos             | `Dockerfile.cli`                                   | release                  | `ghcr.io/doppler-dsp/doppler`     |
-| **`doppler-sdk`**             | *building on* doppler — your own C/jm project  | `Dockerfile.examples` (`--target sdk`)             | `make docker-sdk`        | `ghcr.io/doppler-dsp/doppler-sdk` |
-| **`doppler-downstream-jm`**   | the flagship worked example, pre-built + green | `Dockerfile.examples` (`--target downstream-jm`)   | `make docker-downstream` | local (CI-smoked)                 |
-| **`doppler-stream-services`** | the `docker-compose` streaming pipeline        | `Dockerfile.examples` (`--target stream-services`) | `make docker-stream`     | local (via compose)               |
-| **`stream_tool`**             | the k8s produce/consume deploy binary          | `Dockerfile`                                       | `deploy/` k8s flow       | in-cluster                        |
+| Image                         | For                                            | Dockerfile                                         | Built by                           | Published                                   |
+| ----------------------------- | ---------------------------------------------- | -------------------------------------------------- | ---------------------------------- | ------------------------------------------- |
+| **`doppler`**                 | *using* doppler — CLIs + ~70 demos             | `Dockerfile.cli`                                   | release                            | `ghcr.io/doppler-dsp/doppler`               |
+| **`doppler-sdk`**             | *building on* doppler — your own C/jm project  | `Dockerfile.examples` (`--target sdk`)             | `make docker-sdk`                  | `ghcr.io/doppler-dsp/doppler-sdk`           |
+| **`doppler-downstream-jm`**   | the flagship worked example, pre-built + green | `Dockerfile.examples` (`--target downstream-jm`)   | release / `make docker-downstream` | `ghcr.io/doppler-dsp/doppler-downstream-jm` |
+| **`doppler-stream-services`** | the `docker-compose` streaming pipeline        | `Dockerfile.examples` (`--target stream-services`) | `make docker-stream`               | local (via compose)                         |
+| **`stream_tool`**             | the k8s produce/consume deploy binary          | `Dockerfile`                                       | `deploy/` k8s flow                 | in-cluster                                  |
 
 `make docker-examples` builds + smokes all three build-on-doppler images.
 

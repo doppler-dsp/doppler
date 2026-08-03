@@ -3,12 +3,12 @@
 doppler ships as a small family of purpose-built images — one per thing you'd
 actually do. Pick by intent:
 
-| Image                                                          | You want to…                                  | Published                                 |
-| -------------------------------------------------------------- | --------------------------------------------- | ----------------------------------------- |
-| [`doppler`](#runtime-try-it)                                   | **use** doppler — run the CLIs and the demos  | `ghcr.io/doppler-dsp/doppler`             |
-| [`doppler-sdk`](#sdk-build-on-doppler)                         | **build on** doppler — your own C/jm project  | `ghcr.io/doppler-dsp/doppler-sdk`         |
-| [`doppler-downstream-jm`](#showcase-a-full-downstream-project) | see a **complete worked** downstream, running | built locally by `make docker-downstream` |
-| [compose services](#streaming-demo-docker-compose)             | run the **streaming** pipeline                | built locally by `docker compose`         |
+| Image                                                          | You want to…                                  | Published                                   |
+| -------------------------------------------------------------- | --------------------------------------------- | ------------------------------------------- |
+| [`doppler`](#runtime-try-it)                                   | **use** doppler — run the CLIs and the demos  | `ghcr.io/doppler-dsp/doppler`               |
+| [`doppler-sdk`](#sdk-build-on-doppler)                         | **build on** doppler — your own C/jm project  | `ghcr.io/doppler-dsp/doppler-sdk`           |
+| [`doppler-downstream-jm`](#showcase-a-full-downstream-project) | see a **complete worked** downstream, running | `ghcr.io/doppler-dsp/doppler-downstream-jm` |
+| [compose services](#streaming-demo-docker-compose)             | run the **streaming** pipeline                | built locally by `docker compose`           |
 
 All published images are multi-arch (`linux/amd64` + `linux/arm64`) and tagged
 `:X.Y.Z` per release plus `:latest`.
@@ -60,9 +60,9 @@ cd examples/consumer && cmake -B build && cmake --build build && ./build/consume
 
 `doppler-downstream-jm` is **iqtools** — a real IQ-capture reader, a C library
 *and* a generated Python package, built on doppler in ~140 lines of C plus a few
-manifest tables. Building the image runs iqtools' whole suite; you land in
-`/iqtools` ready to explore and re-run the jm codegen loop. It's built from the
-checkout rather than published — the build itself is the showcase:
+manifest tables. The image ships it already built with its whole suite green
+(building it runs `make test`); you land in `/iqtools` ready to explore and
+re-run the jm codegen loop:
 
 ```sh
 --8<-- "tests/install/docker-build.sh:downstream"

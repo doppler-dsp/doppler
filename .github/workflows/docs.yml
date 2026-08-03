@@ -55,7 +55,11 @@ jobs:
         run: uv sync --group dev --group docs
 
       - name: Install doxygen
-        run: sudo apt-get install -y --no-install-recommends doxygen graphviz
+        # `make install-docs-deps`, not a raw apt-get: jb.toml's `docs` group is
+        # the single dependency list, shared with ci.yml's doxygen job. The
+        # inline copy had already drifted from it (missing graphviz's companions
+        # / the LaTeX set jb.toml declares).
+        run: make install-docs-deps
 
       - name: Generate C API docs
         # `make gen-c-api`, not an inline copy. This step WAS a fourth

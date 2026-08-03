@@ -396,7 +396,9 @@ LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
                 test-example-downstream-python \
                 test-stubs test-api-docs test-snippets \
                 check-docstring-coverage \
-                abi-check link-check glibc-check specan-check \
+                abi-check link-check consumer-faces-check \
+                glibc-check specan-check \
+                install-docs-deps \
                 wheel-check wheel-smoke release-smoke \
                 bench-interleaved bench-publish bench-docs bench-stream \
                 bench-report \
@@ -406,6 +408,17 @@ LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
 include standard.mk
 
 # ── Everything below is genuinely doppler's own ──────────────────────────────
+
+# The docs system deps (doxygen, graphviz, LaTeX) — the `docs` group in
+# jb.toml. standard.mk's `install-deps` installs only the default groups
+# (runtime, dev) and is vendored, so it cannot take a group; this local target
+# is the one place CI's doxygen job and the Pages docs workflow both reach for
+# the docs group, keeping jb.toml the single dependency list. Bootstraps jbx
+# the same way standard.mk's install-deps does.
+install-docs-deps: ## Install the docs system deps (jb.toml `docs` group)
+	@command -v jbx >/dev/null 2>&1 \
+	    || curl -sSL https://just-buildit.github.io/get-jb.sh | bash
+	PATH="$$HOME/.local/bin:$$PATH" jbx install-deps -g docs
 
 specan: ## Launch the live spectrum analyzer in a browser
 	uv run doppler-specan
@@ -754,6 +767,18 @@ link-check: ## Smoke-test that a downstream links libdoppler.a with only -lm
 	     echo "link-check: FAIL — a downstream cannot link libdoppler.a with -lm"; \
 	     rm -rf "$$t"; exit 1; \
 	 fi
+
+# The three documented consumer faces (bare cc / CMake find_package /
+# pkg-config), built against a fresh install of THIS build tree and asserted
+# to produce identical output. build-three-ways.sh is the SSOT — the docs
+# --8<-- include its command regions, and release-smoke.sh runs the same
+# script against the PUBLISHED tarball. This target gives CI's per-commit path
+# and a local dev the exact same check without waiting for a release.
+consumer-faces-check: build ## Build a consumer via cc/CMake/pkg-config, assert identical output
+	@t=$$(mktemp -d); \
+	 $(CMAKE) --install $(BUILD_DIR) --prefix "$$t/pfx" > /dev/null \
+	 && bash tests/install/stream-consumer/build-three-ways.sh "$$t/pfx"; \
+	 rc=$$?; rm -rf "$$t"; exit $$rc
 
 # The oldest glibc a released .so may reference. Only meaningful against a
 # build made on that glibc — CI runs this in a Debian 10 container, and running

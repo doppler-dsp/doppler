@@ -35,38 +35,13 @@ jobs:
                sed 's/.*"\(.*\)".*/\1/')
           echo "jm_version=${JM}" >> "$GITHUB_OUTPUT"
 
-      - name: Check pyproject.toml matches tag
-        run: |
-          PY=$(grep '^version' pyproject.toml | head -1 | \
-               sed 's/version = "\(.*\)"/\1/')
-          TAG="${{ steps.get.outputs.version }}"
-          if [ "$PY" != "$TAG" ]; then
-            echo "ERROR: pyproject.toml version ($PY) != tag ($TAG)"
-            echo "Run: make bump-version VERSION=$TAG"
-            exit 1
-          fi
-
-      - name: Check Cargo.toml matches tag
-        run: |
-          CARGO=$(grep '^version' ffi/rust/Cargo.toml | head -1 | \
-                  sed 's/version = "\(.*\)"/\1/')
-          TAG="${{ steps.get.outputs.version }}"
-          if [ "$CARGO" != "$TAG" ]; then
-            echo "ERROR: Cargo.toml version ($CARGO) != tag ($TAG)"
-            echo "Run: make bump-version VERSION=$TAG"
-            exit 1
-          fi
-
-      - name: Check CMakeLists.txt matches tag
-        run: |
-          CMAKE=$(grep '^project' CMakeLists.txt | \
-                  sed 's/.*VERSION \([0-9.]*\).*/\1/')
-          TAG="${{ steps.get.outputs.version }}"
-          if [ "$CMAKE" != "$TAG" ]; then
-            echo "ERROR: CMakeLists.txt version ($CMAKE) != tag ($TAG)"
-            echo "Run: make bump-version VERSION=$TAG"
-            exit 1
-          fi
+      # `make version-check` is the SSOT for "the manifests agree": it probes
+      # pyproject.toml, CMakeLists.txt and ffi/rust/Cargo.toml, and fails if any
+      # disagrees with VERSION (the tag) or with each other — the same three
+      # checks this job used to open-code with three grep/sed blocks. On a
+      # mismatch: `make bump-version VERSION=<tag>`.
+      - name: Verify every manifest matches the tag
+        run: make version-check VERSION="${{ steps.get.outputs.version }}"
 
   # ------------------------------------------------------------------
   # Belt-and-suspenders test gate.
@@ -207,13 +182,8 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v4
 
-      - name: Install jbx
-        run: |
-          curl -sSL https://just-buildit.github.io/get-jb.sh | bash
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-
       - name: Install system dependencies
-        run: jbx just-bashit:install-deps -g runtime,dev -s brew
+        run: make install-deps
 
       - name: Build wheel (Python ${{ matrix.python }})
         run: |

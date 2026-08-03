@@ -285,6 +285,11 @@ dp_sub_create("nats://127.0.0.1:4222/iq");
 
 ### Docker Compose
 
+The repo's [`docker-compose.yml`](https://github.com/doppler-dsp/doppler/blob/main/docker-compose.yml)
+runs the full pipeline (see the [Docker guide](../install/docker.md#streaming-demo-docker-compose)).
+Each service uses the lean `stream-services` image, which carries the
+statically-linked streaming binaries on `PATH`:
+
 ```yaml
 services:
   nats:
@@ -293,10 +298,12 @@ services:
     ports:
       - "4222:4222"
   tx:
-    command: /app/transmitter nats://nats:4222/iq cf64
+    build: { context: ., dockerfile: deploy/docker/Dockerfile.examples, target: stream-services }
+    command: transmitter nats://nats:4222/iq cf64
     depends_on: [nats]
   rx:
-    command: /app/receiver nats://nats:4222/iq  # uses Docker DNS
+    image: doppler-stream-services   # reuse tx's built image
+    command: receiver nats://nats:4222/iq  # uses Docker DNS
     depends_on: [nats]
 ```
 

@@ -36,6 +36,15 @@ PYEXT_DIR   ?= src/doppler
 PY_BUILD_DIR ?= $(BUILD_DIR)
 RUST_DIR    ?= ffi/rust
 DOCKER_IMAGE ?= doppler
+# Container images — the Makefile is the single driver for every docker build;
+# CI and release call the docker-* targets, never a raw `docker build` (a stray
+# context or a missing --target silently builds the wrong image). Tag + build
+# args are overridable; JM_VERSION is read from the manifest so the SDK image's
+# jm stays in lock-step with the repo pin.
+DOCKER_TAG          ?= dev
+DOCKER_VERSION      ?= $(shell grep -m1 '^version' pyproject.toml | cut -d'"' -f2)
+JM_VERSION          ?= $(shell grep -m1 '^jm_version' just-makeit.toml | cut -d'"' -f2)
+EXAMPLES_DOCKERFILE := deploy/docker/Dockerfile.examples
 NPROC       ?= $(shell nproc 2>/dev/null || \
                        sysctl -n hw.logicalcpu 2>/dev/null || echo 4)
 CTEST       := ctest
@@ -390,7 +399,9 @@ LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
                 abi-check link-check glibc-check specan-check \
                 wheel-check wheel-smoke release-smoke \
                 bench-interleaved bench-publish bench-docs bench-stream \
-                bench-report
+                bench-report \
+                docker-runtime docker-sdk docker-downstream docker-stream \
+                docker-examples
 
 include standard.mk
 
@@ -872,3 +883,46 @@ bench-stream: ## Transport bench: NATS firehose + status-plane RTT
 
 bench-report: ## Portable-build trend across releases
 	uv run python scripts/bench_report.py
+
+# ── Container images ─────────────────────────────────────────────────────────
+# Three shapes, one job each (see deploy/docker/README.md). Each target builds
+# AND smoke-runs its image, so the target is the whole gate — CI just calls it.
+# Raw `docker build` is never invoked outside these rules; the flags live here.
+
+docker-runtime: ## Build+smoke the runtime "try it" image (needs the wheel on PyPI)
+	docker build -f deploy/docker/Dockerfile.cli \
+	    --build-arg DOPPLER_VERSION=$(DOCKER_VERSION) \
+	    -t $(DOCKER_IMAGE):$(DOCKER_TAG) .
+	docker run --rm $(DOCKER_IMAGE):$(DOCKER_TAG) \
+	    python -c "import doppler; print('doppler', doppler.__version__)"
+
+docker-sdk: ## Build+smoke the SDK / develop image (doppler-sdk)
+	docker build -f $(EXAMPLES_DOCKERFILE) --target sdk \
+	    --build-arg JM_VERSION=$(JM_VERSION) \
+	    -t $(DOCKER_IMAGE)-sdk:$(DOCKER_TAG) .
+# The install is real only if a downstream can find + link it: build the
+# smallest consumer against it, from scratch, and run the result.
+	docker run --rm $(DOCKER_IMAGE)-sdk:$(DOCKER_TAG) bash -c \
+	    'pkg-config --modversion doppler && \
+	     cd examples/consumer && cmake -B build >/dev/null && \
+	     cmake --build build >/dev/null && ./build/consumer_shared'
+
+docker-downstream: ## Build+smoke the iqtools showcase image (doppler-downstream-jm)
+# The build itself runs `make test` inside the image, so a green build IS the
+# smoke; the run only confirms the shipped, pre-built package imports.
+	docker build -f $(EXAMPLES_DOCKERFILE) --target downstream-jm \
+	    --build-arg JM_VERSION=$(JM_VERSION) \
+	    -t $(DOCKER_IMAGE)-downstream-jm:$(DOCKER_TAG) .
+	docker run --rm $(DOCKER_IMAGE)-downstream-jm:$(DOCKER_TAG) \
+	    python3 -c "from iqtools.capture import Capture, RawCapture; \
+	                print('iqtools ok:', Capture.__name__, RawCapture.__name__)"
+
+docker-stream: ## Build+smoke the lean compose streaming-services image
+	docker build -f $(EXAMPLES_DOCKERFILE) --target stream-services \
+	    -t $(DOCKER_IMAGE)-stream-services:$(DOCKER_TAG) .
+	docker run --rm $(DOCKER_IMAGE)-stream-services:$(DOCKER_TAG) sh -c \
+	    'command -v transmitter && command -v receiver && \
+	     command -v spectrum_analyzer'
+
+docker-examples: docker-sdk docker-downstream docker-stream ## Build+smoke all build-on-doppler images
+	@echo "All build-on-doppler images built and smoked."

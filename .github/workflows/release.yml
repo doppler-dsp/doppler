@@ -18,6 +18,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.get.outputs.version }}
+      jm_version: ${{ steps.get.outputs.jm_version }}
     steps:
       - uses: actions/checkout@v4
 
@@ -27,6 +28,12 @@ jobs:
           TAG="${GITHUB_REF_NAME}"          # e.g. v0.2.1
           VERSION="${TAG#v}"                # e.g.   0.2.1
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          # The jm pin the SDK image bakes in — read from the manifest so the
+          # image's just-makeit stays in lock-step with the repo, never a
+          # hardcoded default.
+          JM=$(grep -m1 '^jm_version' just-makeit.toml | \
+               sed 's/.*"\(.*\)".*/\1/')
+          echo "jm_version=${JM}" >> "$GITHUB_OUTPUT"
 
       - name: Check pyproject.toml matches tag
         run: |
@@ -437,7 +444,7 @@ jobs:
   # deploy/docker/Dockerfile.cli.
   # ------------------------------------------------------------------
   publish-container:
-    name: Publish container image
+    name: Publish container images
     needs: [verify-version, publish-python]
     runs-on: ubuntu-latest
     permissions:
@@ -499,6 +506,34 @@ jobs:
           docker run --rm --platform linux/arm64 \
             "ghcr.io/${{ github.repository }}:${{ needs.verify-version.outputs.version }}" \
             python -c "import doppler; print('doppler (arm64)', doppler.__version__)"
+
+      # The SDK image (ghcr.io/doppler-dsp/doppler-sdk) — the "build ON
+      # doppler" artifact: doppler installed to /usr/local + toolchain + uv/jm.
+      # Unlike the runtime image it compiles doppler from source, so its arm64
+      # layer is an EMULATED C build under QEMU (a few minutes; BUILD_PYTHON=OFF
+      # keeps it to the C core, not the full extension tree the pre-v0.32
+      # runtime paid ~19 min for). Version-lock is by source, so no PyPI wait.
+      - name: Build and push the SDK image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/docker/Dockerfile.examples
+          target: sdk
+          platforms: linux/amd64,linux/arm64
+          build-args: |
+            JM_VERSION=${{ needs.verify-version.outputs.jm_version }}
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}-sdk:${{ needs.verify-version.outputs.version }}
+            ghcr.io/${{ github.repository }}-sdk:latest
+
+      - name: Smoke-test the pushed SDK image (both architectures)
+        run: |
+          for arch in amd64 arm64; do
+            docker run --rm --platform "linux/$arch" \
+              "ghcr.io/${{ github.repository }}-sdk:${{ needs.verify-version.outputs.version }}" \
+              sh -c 'echo "doppler-sdk ('"$arch"') installs $(pkg-config --modversion doppler)"'
+          done
 
   # ------------------------------------------------------------------
   # GitHub Release with auto-generated notes

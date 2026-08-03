@@ -172,6 +172,17 @@ jobs:
     name: Build wheels (macOS arm64)
     needs: verify-version
     runs-on: macos-14
+    # Pin the build to arm64-only, min-os 11.0 (the floor for all Apple
+    # Silicon). Some setup-uv Pythons (3.9/3.11/3.12) are universal2 builds
+    # whose sysconfig reports `macosx-10.13-universal2`, so the wheel got that
+    # tag — but cmake produces an arm64-only .so on this runner, and delocate
+    # then fails demanding the absent x86_64 slice. MACOSX_DEPLOYMENT_TARGET
+    # sets the .so's min-os (cmake reads it); _PYTHON_HOST_PLATFORM overrides
+    # sysconfig.get_platform() so the wheel is tagged macosx_11_0_arm64 to
+    # match the binary. Uniform across every matrix Python.
+    env:
+      MACOSX_DEPLOYMENT_TARGET: "11.0"
+      _PYTHON_HOST_PLATFORM: "macosx-11.0-arm64"
     strategy:
       fail-fast: false
       matrix:

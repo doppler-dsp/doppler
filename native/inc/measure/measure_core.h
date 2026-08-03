@@ -82,29 +82,29 @@ measure_resolve_dr (double dynamic_range_db, size_t bits)
  * exponential).  Accuracy fields describe the analysis grid that produced them.
  */
 typedef struct {
-    double snr;               ///< SNR = 10log10(P_fund / P_noise) [dB].
-    double sinad;             ///< SINAD = 10log10(fund/(noise+harm)) [dB].
-    double thd;               ///< THD = 10log10(P_harm / P_fund) [dBc].
-    double thd_pct;           ///< THD = 100 sqrt(P_harm / P_fund) [%].
+    double snr;               ///< SNR = 10log10(P_fund / P_noise) (dB).
+    double sinad;             ///< SINAD = 10log10(fund/(noise+harm)) (dB).
+    double thd;               ///< THD = 10log10(P_harm / P_fund) (dBc).
+    double thd_pct;           ///< THD = 100 sqrt(P_harm / P_fund) (%).
     double thd_n;             ///< THD+N = 10log10((noise+harm)/fund) = -SINAD.
-    double sfdr_dbc;          ///< SFDR: fundamental - worst spur [dBc].
-    double sfdr_dbfs;         ///< SFDR: full scale - worst spur [dBFS].
+    double sfdr_dbc;          ///< SFDR: fundamental - worst spur (dBc).
+    double sfdr_dbfs;         ///< SFDR: full scale - worst spur (dBFS).
     double enob;              ///< ENOB = (SINAD - 1.76)/6.02.
     double enob_fs;           ///< Full-scale-corrected ENOB.
-    double noise_floor_dbfs;  ///< Mean per-bin noise power [dBFS].
-    double fund_freq;         ///< Fundamental frequency [Hz].
-    double fund_dbfs;         ///< Fundamental level [dBFS].
-    double worst_spur_freq;   ///< Worst spur frequency [Hz].
-    double worst_spur_dbc;    ///< Worst spur level vs the fundamental [dBc].
+    double noise_floor_dbfs;  ///< Mean per-bin noise power (dBFS).
+    double fund_freq;         ///< Fundamental frequency (Hz).
+    double fund_dbfs;         ///< Fundamental level (dBFS).
+    double worst_spur_freq;   ///< Worst spur frequency (Hz).
+    double worst_spur_dbc;    ///< Worst spur level vs the fundamental (dBc).
     int    worst_spur_is_harm;///< 1 if the worst spur is a harmonic, else 0.
-    double rbw_hz;            ///< Resolution bandwidth = enbw*fs/n [Hz].
-    double enbw_hz;           ///< Equivalent noise bandwidth [Hz] (= rbw_hz).
-    double bin_hz;            ///< FFT bin spacing = fs/nfft [Hz].
-    size_t lobe_bins;         ///< Window main-lobe half-width L [bins].
+    double rbw_hz;            ///< Resolution bandwidth = enbw*fs/n (Hz).
+    double enbw_hz;           ///< Equivalent noise bandwidth (Hz) (= rbw_hz).
+    double bin_hz;            ///< FFT bin spacing = fs/nfft (Hz).
+    size_t lobe_bins;         ///< Window main-lobe half-width L (bins).
     size_t n_noise_bins;      ///< Number of bins counted as noise.
-    double proc_gain_db;      ///< FFT processing gain = 10log10(nfft/2) [dB].
-    double amp_uncert_db;     ///< Amplitude-read uncertainty bound [dB].
-    double floor_uncert_db;   ///< Noise-floor standard error [dB].
+    double proc_gain_db;      ///< FFT processing gain = 10log10(nfft/2) (dB).
+    double amp_uncert_db;     ///< Amplitude-read uncertainty bound (dB).
+    double floor_uncert_db;   ///< Noise-floor standard error (dB).
 } tone_meas_t;
 
 /**
@@ -113,40 +113,40 @@ typedef struct {
 typedef struct {
     double rms;          ///< Root-mean-square amplitude (DC included).
     double peak;         ///< Peak deviation, max|x - DC|.
-    double crest_db;     ///< Crest factor, 20log10(peak_ac / rms_ac) [dB].
-    double papr_db;      ///< Peak-to-average power ratio (= crest) [dB].
+    double crest_db;     ///< Crest factor, 20log10(peak_ac / rms_ac) (dB).
+    double papr_db;      ///< Peak-to-average power ratio (= crest) (dB).
     double dc_offset;    ///< DC offset, mean(x).
-    double fs_util_pct;  ///< Full-scale use, 100*max|x|/full_scale [%].
+    double fs_util_pct;  ///< Full-scale use, 100*max|x|/full_scale (%).
 } time_stats_t;
 
 /**
  * @brief Two-tone intermodulation result (IMD2/IMD3/TOI).
  */
 typedef struct {
-    double f1;            ///< Lower tone frequency [Hz].
-    double f2;            ///< Upper tone frequency [Hz].
-    double p1_dbfs;       ///< Lower tone level [dBFS].
-    double p2_dbfs;       ///< Upper tone level [dBFS].
-    double imd2_dbc;      ///< 2nd-order product (f2-f1) vs mean tone [dBc].
-    double imd3_dbc;      ///< Worst 3rd-order product vs mean tone [dBc].
-    double imd2_freq;     ///< 2nd-order product frequency [Hz].
-    double imd3_lo_freq;  ///< 3rd-order (2f1-f2) product frequency [Hz].
-    double imd3_hi_freq;  ///< 3rd-order (2f2-f1) product frequency [Hz].
-    double toi_dbfs;      ///< Third-order intercept [dBFS].
-    double soi_dbfs;      ///< Second-order intercept [dBFS].
-    double rbw_hz;        ///< Resolution bandwidth [Hz].
+    double f1;            ///< Lower tone frequency (Hz).
+    double f2;            ///< Upper tone frequency (Hz).
+    double p1_dbfs;       ///< Lower tone level (dBFS).
+    double p2_dbfs;       ///< Upper tone level (dBFS).
+    double imd2_dbc;      ///< 2nd-order product (f2-f1) vs mean tone (dBc).
+    double imd3_dbc;      ///< Worst 3rd-order product vs mean tone (dBc).
+    double imd2_freq;     ///< 2nd-order product frequency (Hz).
+    double imd3_lo_freq;  ///< 3rd-order (2f1-f2) product frequency (Hz).
+    double imd3_hi_freq;  ///< 3rd-order (2f2-f1) product frequency (Hz).
+    double toi_dbfs;      ///< Third-order intercept (dBFS).
+    double soi_dbfs;      ///< Second-order intercept (dBFS).
+    double rbw_hz;        ///< Resolution bandwidth (Hz).
 } imd_meas_t;
 
 /**
  * @brief Noise Power Ratio (notched-noise loading) result.
  */
 typedef struct {
-    double npr_db;            ///< NPR = 10log10(in-band PSD / notch PSD) [dB].
-    double inband_psd_dbfs;   ///< Mean in-band noise power per bin [dBFS].
-    double notch_psd_dbfs;    ///< Mean power folded into the notch [dBFS].
+    double npr_db;            ///< NPR = 10log10(in-band PSD / notch PSD) (dB).
+    double inband_psd_dbfs;   ///< Mean in-band noise power per bin (dBFS).
+    double notch_psd_dbfs;    ///< Mean power folded into the notch (dBFS).
     size_t n_inband_bins;     ///< Bins averaged in the active band.
     size_t n_notch_bins;      ///< Bins averaged inside the notch.
-    double rbw_hz;            ///< Resolution bandwidth [Hz].
+    double rbw_hz;            ///< Resolution bandwidth (Hz).
 } npr_meas_t;
 
 /* ── capture-planning helpers ──────────────────────────────────────────────

@@ -36,7 +36,8 @@ _bind_square_clip(PyObject *self, PyObject *args, PyObject *kwds)
 
 static PyMethodDef util_module_methods[] = {
     {"square_clip", (PyCFunction)(void *)_bind_square_clip, METH_VARARGS | METH_KEYWORDS,
-     "Square-clip a complex sample: clip the real and imaginary parts independently to [-lin, lin] (a square region in the IQ plane).\n"
+     "Square-clip a complex sample: clip the real and imaginary parts\n"
+     "independently to [-lin, lin] (a square region in the IQ plane).\n"
      "\n"
      "Parameters\n"
      "----------\n"

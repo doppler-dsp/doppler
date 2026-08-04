@@ -5,12 +5,16 @@ from numpy.typing import NDArray
 
 @final
 class Resampler:
-    """Create a Resampler with the built-in 4096×19 Kaiser bank. The bank provides ~60 dB alias rejection with 0.4/0.6 pass/stop normalised cutoffs. Pass rate >= 1.0 to interpolate (upsample); pass rate < 1.0 to decimate (downsample). For a custom bank use Resampler_create_custom() instead.
+    """Create a Resampler with the built-in 4096×19 Kaiser bank. The bank
+    provides ~60 dB alias rejection with 0.4/0.6 pass/stop normalised cutoffs.
+    Pass rate >= 1.0 to interpolate (upsample); pass rate < 1.0 to decimate
+    (downsample). For a custom bank use Resampler_create_custom() instead.
 
     Parameters
     ----------
     rate : float, default 0.0
-        Output-to-input sample rate ratio (any positive float). Values >= 1.0 interpolate; values < 1.0 decimate.
+        Output-to-input sample rate ratio (any positive float). Values >= 1.0
+        interpolate; values < 1.0 decimate.
 
     Examples
     --------
@@ -25,8 +29,16 @@ class Resampler:
     """
     def __init__(self, rate: float = ...) -> None: ...
 
-    def execute(self, x: NDArray[np.complex64], out: NDArray[np.complex64] | None = None) -> NDArray[np.complex64]:
-        """Resample a block of CF32 samples at the fixed base rate. Uses the dual-mode polyphase engine: output-driven for rate >= 1 (interpolation), input-driven transposed-form for rate < 1 (decimation). State carries over between calls, so contiguous blocks produce the same result as one large block.
+    def execute(
+        self,
+        x: NDArray[np.complex64],
+        out: NDArray[np.complex64] | None = None,
+    ) -> NDArray[np.complex64]:
+        """Resample a block of CF32 samples at the fixed base rate. Uses the
+        dual-mode polyphase engine: output-driven for rate >= 1
+        (interpolation), input-driven transposed-form for rate < 1
+        (decimation). State carries over between calls, so contiguous blocks
+        produce the same result as one large block.
 
         Parameters
         ----------
@@ -64,8 +76,17 @@ class Resampler:
             Output.
         """
 
-    def execute_ctrl(self, x: NDArray[np.complex64], ctrl: NDArray[np.complex64]) -> NDArray[np.complex64]:
-        """Resample with per-sample additive rate deviations. Effective rate for sample i is base_rate + real(`ctrl[i]`). Uses a unified double-precision accumulator that handles both interpolation and decimation in a single code path — suitable for Doppler-shift simulation and fractional-sample timing correction. ctrl and x must have the same length.
+    def execute_ctrl(
+        self,
+        x: NDArray[np.complex64],
+        ctrl: NDArray[np.complex64],
+    ) -> NDArray[np.complex64]:
+        """Resample with per-sample additive rate deviations. Effective rate
+        for sample i is base_rate + real(`ctrl[i]`). Uses a unified
+        double-precision accumulator that handles both interpolation and
+        decimation in a single code path — suitable for Doppler-shift
+        simulation and fractional-sample timing correction. ctrl and x must
+        have the same length.
 
         Parameters
         ----------
@@ -95,7 +116,10 @@ class Resampler:
         """
 
     def reset(self) -> None:
-        """Zero the delay line and phase accumulator. Rate and polyphase bank are preserved so the resampler can be resumed at the same ratio. Zeroing state eliminates transient artefacts when starting a new signal burst.
+        """Zero the delay line and phase accumulator. Rate and polyphase bank
+        are preserved so the resampler can be resumed at the same ratio.
+        Zeroing state eliminates transient artefacts when starting a new signal
+        burst.
 
         Examples
         --------
@@ -151,8 +175,9 @@ class Resampler:
         """Restore mutable state from a `get_state()` blob.
 
         Overwrites the live state in place; the object keeps the parameters it
-        was constructed with. Length is validated against `state_bytes()` before
-        the blob is handed to the C core, and the core may reject it as well.
+        was constructed with. Length is validated against `state_bytes()`
+        before the blob is handed to the C core, and the core may reject it as
+        well.
 
         Raises ``TypeError`` if *blob* is not bytes, ``ValueError`` if its
         length differs from `state_bytes()` or the core rejects it, and
@@ -166,27 +191,38 @@ class Resampler:
 
     @property
     def rate(self) -> float:
-        """Get / set the output-to-input sample rate ratio. The setter recomputes the phase increment immediately; the delay line and phase accumulator are preserved so in-stream rate changes are glitch-free. Switching sign of (rate - 1) (i.e. crossing the boundary between interp and decim modes) requires a fresh create()."""
+        """Get / set the output-to-input sample rate ratio. The setter
+        recomputes the phase increment immediately; the delay line and phase
+        accumulator are preserved so in-stream rate changes are glitch-free.
+        Switching sign of (rate - 1) (i.e. crossing the boundary between interp
+        and decim modes) requires a fresh create().
+        """
     @rate.setter
     def rate(self, value: float) -> None: ...
 
     @property
     def num_phases(self) -> int:
-        """Number of polyphase branches in the filter bank. Always a power of two. The built-in bank has 4096 phases giving sub-sample timing resolution of 1/4096 of an input sample period."""
+        """Number of polyphase branches in the filter bank. Always a power of
+        two. The built-in bank has 4096 phases giving sub-sample timing
+        resolution of 1/4096 of an input sample period.
+        """
 
     @property
     def num_taps(self) -> int:
-        """Taps per polyphase branch. Total prototype filter length is num_phases * num_taps - 1. The built-in bank uses 19 taps per branch."""
+        """Taps per polyphase branch. Total prototype filter length is
+        num_phases * num_taps - 1. The built-in bank uses 19 taps per branch.
+        """
 
     def destroy(self) -> None:
         """Release the underlying C resources immediately.
 
         Ordinarily unnecessary: the resources are freed when the object is
         garbage-collected. Call this to release them at a definite point
-        instead, or use the object as a context manager, which calls it on exit.
+        instead, or use the object as a context manager, which calls it on
+        exit.
 
-        Idempotent: calling it again on an already-released object does nothing.
-        Every other method raises ``RuntimeError`` once it has run.
+        Idempotent: calling it again on an already-released object does
+        nothing. Every other method raises ``RuntimeError`` once it has run.
         """
 
 
@@ -202,12 +238,17 @@ class Resampler:
             This same object, not a copy.
         """
 
-    def __exit__(self, exc_type: object | None = ..., exc: object | None = ..., tb: object | None = ...) -> None:
+    def __exit__(
+        self,
+        exc_type: object | None = ...,
+        exc: object | None = ...,
+        tb: object | None = ...,
+    ) -> None:
         """Exit a context manager, releasing the Resampler.
 
         Equivalent to calling `destroy()`. Returns ``None``, so an exception
-        raised inside the `with` body propagates normally; this never suppresses
-        one.
+        raised inside the `with` body propagates normally; this never
+        suppresses one.
 
         Parameters
         ----------
@@ -221,12 +262,17 @@ class Resampler:
 
 @final
 class HalfbandDecimator:
-    """Create a HalfbandDecimator with caller-supplied FIR taps. Implements a 2:1 polyphase halfband decimator over CF32 IQ. The caller provides the FIR branch coefficient array h; use ``doppler.resample.kaiser_num_taps(2, atten, pb, sb)`` to size it and scipy or the built-in bank helper to design the prototype. Output length is approximately x_len / 2 per execute() call.
+    """Create a HalfbandDecimator with caller-supplied FIR taps. Implements a
+    2:1 polyphase halfband decimator over CF32 IQ. The caller provides the FIR
+    branch coefficient array h; use ``doppler.resample.kaiser_num_taps(2,
+    atten, pb, sb)`` to size it and scipy or the built-in bank helper to design
+    the prototype. Output length is approximately x_len / 2 per execute() call.
 
     Parameters
     ----------
     h : NDArray[np.float32]
-        Float32 FIR branch coefficients, length num_taps. Must be a symmetric halfband prototype (antisymmetric even-indexed taps zeroed).
+        Float32 FIR branch coefficients, length num_taps. Must be a symmetric
+        halfband prototype (antisymmetric even-indexed taps zeroed).
 
     Examples
     --------
@@ -241,8 +287,16 @@ class HalfbandDecimator:
     """
     def __init__(self, h: NDArray[np.float32]) -> None: ...
 
-    def execute(self, x: NDArray[np.complex64], out: NDArray[np.complex64] | None = None) -> NDArray[np.complex64]:
-        """Decimate x by 2 using the polyphase halfband FIR filter. Processes every second input sample through the FIR branch and passes the other branch through the all-pass (zero-delay) path. State persists between calls — contiguous blocks give identical output to one large block. Output length is floor(x_len / 2).
+    def execute(
+        self,
+        x: NDArray[np.complex64],
+        out: NDArray[np.complex64] | None = None,
+    ) -> NDArray[np.complex64]:
+        """Decimate x by 2 using the polyphase halfband FIR filter. Processes
+        every second input sample through the FIR branch and passes the other
+        branch through the all-pass (zero-delay) path. State persists between
+        calls — contiguous blocks give identical output to one large block.
+        Output length is floor(x_len / 2).
 
         Parameters
         ----------
@@ -283,7 +337,10 @@ class HalfbandDecimator:
         """
 
     def reset(self) -> None:
-        """Zero all delay lines.  Coefficients and num_taps preserved. Call between signal bursts to suppress transient ringing from prior filter state. The next execute() after reset produces the same output as a freshly created decimator fed the same input.
+        """Zero all delay lines. Coefficients and num_taps preserved. Call
+        between signal bursts to suppress transient ringing from prior filter
+        state. The next execute() after reset produces the same output as a
+        freshly created decimator fed the same input.
 
         Examples
         --------
@@ -340,8 +397,9 @@ class HalfbandDecimator:
         """Restore mutable state from a `get_state()` blob.
 
         Overwrites the live state in place; the object keeps the parameters it
-        was constructed with. Length is validated against `state_bytes()` before
-        the blob is handed to the C core, and the core may reject it as well.
+        was constructed with. Length is validated against `state_bytes()`
+        before the blob is handed to the C core, and the core may reject it as
+        well.
 
         Raises ``TypeError`` if *blob* is not bytes, ``ValueError`` if its
         length differs from `state_bytes()` or the core rejects it, and
@@ -355,21 +413,28 @@ class HalfbandDecimator:
 
     @property
     def rate(self) -> float:
-        """Fixed decimation rate — always 0.5. The halfband decimator is structurally 2:1; this property exists for API parity with Resampler and RateConverter."""
+        """Fixed decimation rate — always 0.5. The halfband decimator is
+        structurally 2:1; this property exists for API parity with Resampler
+        and RateConverter.
+        """
 
     @property
     def num_taps(self) -> int:
-        """Number of FIR branch taps as passed to create. The all-pass (even-phase) branch has no taps; only the odd-phase FIR branch has length num_taps. The total prototype length is 2 * num_taps - 1."""
+        """Number of FIR branch taps as passed to create. The all-pass
+        (even-phase) branch has no taps; only the odd-phase FIR branch has
+        length num_taps. The total prototype length is 2 * num_taps - 1.
+        """
 
     def destroy(self) -> None:
         """Release the underlying C resources immediately.
 
         Ordinarily unnecessary: the resources are freed when the object is
         garbage-collected. Call this to release them at a definite point
-        instead, or use the object as a context manager, which calls it on exit.
+        instead, or use the object as a context manager, which calls it on
+        exit.
 
-        Idempotent: calling it again on an already-released object does nothing.
-        Every other method raises ``RuntimeError`` once it has run.
+        Idempotent: calling it again on an already-released object does
+        nothing. Every other method raises ``RuntimeError`` once it has run.
         """
 
 
@@ -386,12 +451,17 @@ class HalfbandDecimator:
             This same object, not a copy.
         """
 
-    def __exit__(self, exc_type: object | None = ..., exc: object | None = ..., tb: object | None = ...) -> None:
+    def __exit__(
+        self,
+        exc_type: object | None = ...,
+        exc: object | None = ...,
+        tb: object | None = ...,
+    ) -> None:
         """Exit a context manager, releasing the HalfbandDecimator.
 
         Equivalent to calling `destroy()`. Returns ``None``, so an exception
-        raised inside the `with` body propagates normally; this never suppresses
-        one.
+        raised inside the `with` body propagates normally; this never
+        suppresses one.
 
         Parameters
         ----------
@@ -405,12 +475,21 @@ class HalfbandDecimator:
 
 @final
 class CIC:
-    """Create a 4-stage, M=1 CIC decimation filter. Allocates the state struct on the heap and pre-computes the normalisation right-shift (CIC_N * log2(R) bits). All integrator and comb accumulators are zeroed; the first output arrives after R input samples. Returns NULL for invalid R or OOM. Input amplitude is bounded: |Re| and |Im| <= 1.0. A component beyond +-1.0 is clipped at the boundary before any filtering; the sample stream gives no sign of it, so check the sticky clipped flag. Unlike doppler's floating-point blocks this one is not scale-free -- scale the input into range first.
+    """Create a 4-stage, M=1 CIC decimation filter. Allocates the state struct
+    on the heap and pre-computes the normalisation right-shift (CIC_N * log2(R)
+    bits). All integrator and comb accumulators are zeroed; the first output
+    arrives after R input samples. Returns NULL for invalid R or OOM. Input
+    amplitude is bounded: |Re| and |Im| <= 1.0. A component beyond +-1.0 is
+    clipped at the boundary before any filtering; the sample stream gives no
+    sign of it, so check the sticky clipped flag. Unlike doppler's
+    floating-point blocks this one is not scale-free -- scale the input into
+    range first.
 
     Parameters
     ----------
     R : int, default 16
-        Decimation ratio.  Must be a power of two in `[2, 4096]`. Returns NULL for R=0, non-power-of-two, or R > 4096.
+        Decimation ratio. Must be a power of two in `[2, 4096]`. Returns NULL
+        for R=0, non-power-of-two, or R > 4096.
 
     Examples
     --------
@@ -423,7 +502,10 @@ class CIC:
     def __init__(self, R: int = ...) -> None: ...
 
     def reset(self) -> None:
-        """Zero all integrator and comb accumulators; preserve R and shift. The first output sample after reset arrives after R more input samples, matching post-create behaviour. Use between signal bursts to eliminate transient artefacts caused by residual pipeline state.
+        """Zero all integrator and comb accumulators; preserve R and shift. The
+        first output sample after reset arrives after R more input samples,
+        matching post-create behaviour. Use between signal bursts to eliminate
+        transient artefacts caused by residual pipeline state.
 
         Examples
         --------
@@ -436,7 +518,11 @@ class CIC:
         """
 
     def reconfigure(self, R: int) -> None:
-        """Change the decimation ratio in place and reset all filter state. Recomputes the normalisation shift (CIC_N * log2(R)) and zeros all accumulators so the filter behaves exactly like a freshly created one with the new R. Silently ignores R values that are not a power-of-two in `[2, 4096]` — the state is left unchanged in that case.
+        """Change the decimation ratio in place and reset all filter state.
+        Recomputes the normalisation shift (CIC_N * log2(R)) and zeros all
+        accumulators so the filter behaves exactly like a freshly created one
+        with the new R. Silently ignores R values that are not a power-of-two
+        in `[2, 4096]` — the state is left unchanged in that case.
 
         Parameters
         ----------
@@ -453,8 +539,18 @@ class CIC:
 
         """
 
-    def decimate(self, x: NDArray[np.complex64], out: NDArray[np.complex64] | None = None) -> NDArray[np.complex64]:
-        """Decimate a block of CF32 samples through the CIC pipeline. Each sample is converted to offset-binary UQ16, pushed through CIC_N integrators (unsigned wrapping), and when the phase counter reaches R the integrated value is passed through CIC_N M=1 comb stages and converted back to CF32.  State persists between calls. Feeding blocks that are multiples of R gives predictable output counts (exactly n_in/R samples per block).
+    def decimate(
+        self,
+        x: NDArray[np.complex64],
+        out: NDArray[np.complex64] | None = None,
+    ) -> NDArray[np.complex64]:
+        """Decimate a block of CF32 samples through the CIC pipeline. Each
+        sample is converted to offset-binary UQ16, pushed through CIC_N
+        integrators (unsigned wrapping), and when the phase counter reaches R
+        the integrated value is passed through CIC_N M=1 comb stages and
+        converted back to CF32. State persists between calls. Feeding blocks
+        that are multiples of R gives predictable output counts (exactly n_in/R
+        samples per block).
 
         Parameters
         ----------
@@ -469,10 +565,10 @@ class CIC:
 
         Notes
         -----
-        **Input amplitude is bounded: |Re| and |Im| <= 1.0.** A component beyond
-        +-1.0 is clipped at the boundary before filtering; the sample stream
-        gives no sign of it, so check the sticky clipped flag. Scale the input
-        into range first; see the file header.
+        **Input amplitude is bounded: |Re| and |Im| <= 1.0.** A component
+        beyond +-1.0 is clipped at the boundary before filtering; the sample
+        stream gives no sign of it, so check the sticky clipped flag. Scale the
+        input into range first; see the file header.
 
         Examples
         --------
@@ -546,8 +642,9 @@ class CIC:
         """Restore mutable state from a `get_state()` blob.
 
         Overwrites the live state in place; the object keeps the parameters it
-        was constructed with. Length is validated against `state_bytes()` before
-        the blob is handed to the C core, and the core may reject it as well.
+        was constructed with. Length is validated against `state_bytes()`
+        before the blob is handed to the C core, and the core may reject it as
+        well.
 
         Raises ``TypeError`` if *blob* is not bytes, ``ValueError`` if its
         length differs from `state_bytes()` or the core rejects it, and
@@ -569,25 +666,32 @@ class CIC:
 
     @property
     def clipped(self) -> bool:
-        """True if any input component has exceeded the +-1.0 bound since the last reset(). Sticky, and free to read: the CIC's boundary comparisons run on every sample anyway, so it records something the sample stream cannot tell you -- a clipped stream still looks entirely plausible (finite, no NaN, merely distorted), so this flag is the only reliable check."""
+        """True if any input component has exceeded the +-1.0 bound since the
+        last reset(). Sticky, and free to read: the CIC's boundary comparisons
+        run on every sample anyway, so it records something the sample stream
+        cannot tell you -- a clipped stream still looks entirely plausible
+        (finite, no NaN, merely distorted), so this flag is the only reliable
+        check.
+        """
 
     def destroy(self) -> None:
         """Release the underlying C resources immediately.
 
         Ordinarily unnecessary: the resources are freed when the object is
         garbage-collected. Call this to release them at a definite point
-        instead, or use the object as a context manager, which calls it on exit.
+        instead, or use the object as a context manager, which calls it on
+        exit.
 
-        Idempotent: calling it again on an already-released object does nothing.
-        Every other method raises ``RuntimeError`` once it has run.
+        Idempotent: calling it again on an already-released object does
+        nothing. Every other method raises ``RuntimeError`` once it has run.
         """
 
 
     def __enter__(self) -> "CIC":
         """Enter a context manager, returning this object.
 
-        Lets a CIC be used in a `with` statement so its C resources are released
-        deterministically on exit rather than at collection time.
+        Lets a CIC be used in a `with` statement so its C resources are
+        released deterministically on exit rather than at collection time.
 
         Returns
         -------
@@ -595,12 +699,17 @@ class CIC:
             This same object, not a copy.
         """
 
-    def __exit__(self, exc_type: object | None = ..., exc: object | None = ..., tb: object | None = ...) -> None:
+    def __exit__(
+        self,
+        exc_type: object | None = ...,
+        exc: object | None = ...,
+        tb: object | None = ...,
+    ) -> None:
         """Exit a context manager, releasing the CIC.
 
         Equivalent to calling `destroy()`. Returns ``None``, so an exception
-        raised inside the `with` body propagates normally; this never suppresses
-        one.
+        raised inside the `with` body propagates normally; this never
+        suppresses one.
 
         Parameters
         ----------
@@ -614,14 +723,20 @@ class CIC:
 
 @final
 class RateConverter:
-    """Create a rate converter for the given output/input rate ratio. Selects the cheapest cascade of CIC, HalfbandDecimator, and/or polyphase Resampler stages at construction time (see file header for the selection table). Setting compensate=1 appends a closed-form Molnar-Vucic CIC droop-compensating FIR after any CIC stage, which improves passband flatness at the cost of one extra FIR stage.
+    """Create a rate converter for the given output/input rate ratio. Selects
+    the cheapest cascade of CIC, HalfbandDecimator, and/or polyphase Resampler
+    stages at construction time (see file header for the selection table).
+    Setting compensate=1 appends a closed-form Molnar-Vucic CIC
+    droop-compensating FIR after any CIC stage, which improves passband
+    flatness at the cost of one extra FIR stage.
 
     Parameters
     ----------
     rate : float, default 1.0
         Output-to-input sample rate ratio. Any positive float.
     compensate : int, default 0
-        Non-zero to append a CIC passband-droop compensating FIR after any CIC stage.
+        Non-zero to append a CIC passband-droop compensating FIR after any CIC
+        stage.
 
     Examples
     --------
@@ -633,8 +748,16 @@ class RateConverter:
     """
     def __init__(self, rate: float = ..., compensate: int = ...) -> None: ...
 
-    def execute(self, x: NDArray[np.complex64], out: NDArray[np.complex64] | None = None) -> NDArray[np.complex64]:
-        """Convert a block of CF32 samples through the cascade. Passes input through each stage in order, ping-ponging between two intermediate buffers. State persists between calls, so contiguous calls on sequential blocks give the same result as one large call. Output length is approximately n_in * rate.
+    def execute(
+        self,
+        x: NDArray[np.complex64],
+        out: NDArray[np.complex64] | None = None,
+    ) -> NDArray[np.complex64]:
+        """Convert a block of CF32 samples through the cascade. Passes input
+        through each stage in order, ping-ponging between two intermediate
+        buffers. State persists between calls, so contiguous calls on
+        sequential blocks give the same result as one large call. Output length
+        is approximately n_in * rate.
 
         Parameters
         ----------
@@ -675,7 +798,11 @@ class RateConverter:
             Output.
         """
 
-    def execute_ctrl(self, x: NDArray[np.complex64], ctrl: float) -> NDArray[np.complex64]:
+    def execute_ctrl(
+        self,
+        x: NDArray[np.complex64],
+        ctrl: float,
+    ) -> NDArray[np.complex64]:
         """Convert a block, steering the cascade's fractional stage by ctrl.
 
         The control-port form of RateConverter_execute(): the fixed integer
@@ -684,15 +811,15 @@ class RateConverter:
         stage's** accumulator (via resamp_execute_ctrl_push) — so its effective
         rate becomes `stage_rate + ctrl` for this call. This exposes the
         fractional tail's control port that RateConverter_execute() hides: a
-        timing/rate-tracking loop can decimate a high input rate cheaply through
-        the HB/CIC stages and then arbitrary-rate + strobe-align in the last
-        stage, updating ctrl per block.
+        timing/rate-tracking loop can decimate a high input rate cheaply
+        through the HB/CIC stages and then arbitrary-rate + strobe-align in the
+        last stage, updating ctrl per block.
 
-        `ctrl` is referenced to the terminal stage's (post-decimation) rate, not
-        the overall rate. It is meaningful only when the cascade actually ends
-        in a Resampler stage; a pure integer HB/CIC cascade has no fractional
-        stage to steer, so this **falls through to RateConverter_execute()**
-        (ctrl ignored).
+        `ctrl` is referenced to the terminal stage's (post-decimation) rate,
+        not the overall rate. It is meaningful only when the cascade actually
+        ends in a Resampler stage; a pure integer HB/CIC cascade has no
+        fractional stage to steer, so this **falls through to
+        RateConverter_execute()** (ctrl ignored).
 
         Parameters
         ----------
@@ -720,16 +847,21 @@ class RateConverter:
 
         """
 
-    def execute_ctrl_push(self, x: complex, ctrl: float) -> NDArray[np.complex64]:
+    def execute_ctrl_push(
+        self,
+        x: complex,
+        ctrl: float,
+    ) -> NDArray[np.complex64]:
         """Push ONE input sample; emit whatever outputs it completes.
 
         The per-input streaming form of RateConverter_execute_ctrl(), and the
-        only form a closed loop can use: a block call must know its whole `ctrl`
-        history up front, whereas a timing loop computes each correction *from*
-        the outputs already emitted. Feeding a stream one sample at a time
-        through this reproduces RateConverter_execute_ctrl() on the same block
-        bit-for-bit when ctrl is held constant (the cascade is block-boundary
-        invariant), so the cheap block form stays correct for open-loop use.
+        only form a closed loop can use: a block call must know its whole
+        `ctrl` history up front, whereas a timing loop computes each correction
+        *from* the outputs already emitted. Feeding a stream one sample at a
+        time through this reproduces RateConverter_execute_ctrl() on the same
+        block bit-for-bit when ctrl is held constant (the cascade is
+        block-boundary invariant), so the cheap block form stays correct for
+        open-loop use.
 
         The integer HB/CIC stages consume the sample and emit at most one
         intermediate sample each; the terminal Resampler stage then emits 0
@@ -762,7 +894,10 @@ class RateConverter:
         """
 
     def reset(self) -> None:
-        """Zero all sub-stage filter memories. Rate, stage count, and stage types are preserved. Processing from a reset state produces the same output as a freshly created converter fed the same input. Use between signal bursts to suppress transient artefacts from prior filter memory.
+        """Zero all sub-stage filter memories. Rate, stage count, and stage
+        types are preserved. Processing from a reset state produces the same
+        output as a freshly created converter fed the same input. Use between
+        signal bursts to suppress transient artefacts from prior filter memory.
 
         Examples
         --------
@@ -782,7 +917,8 @@ class RateConverter:
         construction), so read it from the instance rather than assuming a
         constant.
 
-        Raises ``RuntimeError`` if the RateConverter has already been destroyed.
+        Raises ``RuntimeError`` if the RateConverter has already been
+        destroyed.
 
         Returns
         -------
@@ -801,7 +937,8 @@ class RateConverter:
         implementation detail of the C core and is not a stable format across
         builds.
 
-        Raises ``RuntimeError`` if the RateConverter has already been destroyed.
+        Raises ``RuntimeError`` if the RateConverter has already been
+        destroyed.
 
         Returns
         -------
@@ -813,8 +950,9 @@ class RateConverter:
         """Restore mutable state from a `get_state()` blob.
 
         Overwrites the live state in place; the object keeps the parameters it
-        was constructed with. Length is validated against `state_bytes()` before
-        the blob is handed to the C core, and the core may reject it as well.
+        was constructed with. Length is validated against `state_bytes()`
+        before the blob is handed to the C core, and the core may reject it as
+        well.
 
         Raises ``TypeError`` if *blob* is not bytes, ``ValueError`` if its
         length differs from `state_bytes()` or the core rejects it, and
@@ -828,35 +966,63 @@ class RateConverter:
 
     @property
     def rate(self) -> float:
-        """Get / set the output-to-input sample rate ratio. The setter rebuilds the entire cascade (new stage selection, new sub-objects) and resets all filter memories — equivalent to destroying and recreating with the new rate. Setting rate <= 0 is silently ignored."""
+        """Get / set the output-to-input sample rate ratio. The setter rebuilds
+        the entire cascade (new stage selection, new sub-objects) and resets
+        all filter memories — equivalent to destroying and recreating with the
+        new rate. Setting rate <= 0 is silently ignored.
+        """
     @rate.setter
     def rate(self, value: float) -> None: ...
 
     @property
     def clipped(self) -> bool:
-        """True if any planned CIC stage has clipped its input since the last `reset()`. The cascade inherits the CIC's input bound (`|Re|`, `|Im| <= 1.0`) whenever `stages` names a CIC -- any decimation by 8 or more. The clip is invisible in the samples (finite, no NaN, merely distorted), so this is the only reliable check, and it is free: the boundary comparisons run on every sample regardless. Always False for a cascade with no CIC stage -- those plans are scale-free."""
+        """True if any planned CIC stage has clipped its input since the last
+        `reset()`. The cascade inherits the CIC's input bound (`|Re|`, `|Im| <=
+        1.0`) whenever `stages` names a CIC -- any decimation by 8 or more. The
+        clip is invisible in the samples (finite, no NaN, merely distorted), so
+        this is the only reliable check, and it is free: the boundary
+        comparisons run on every sample regardless. Always False for a cascade
+        with no CIC stage -- those plans are scale-free.
+        """
 
     @property
     def narrow_pulse(self) -> bool:
-        """True when a rectangular pulse was selected with fewer than four output samples per symbol, where its matched filter degenerates to a 2-3 tap sum. Construction also raises a UserWarning; this is the same diagnostic to pull rather than catch. Always False for `pulse="rrc"` and for a plain converter."""
+        """True when a rectangular pulse was selected with fewer than four
+        output samples per symbol, where its matched filter degenerates to a
+        2-3 tap sum. Construction also raises a UserWarning; this is the same
+        diagnostic to pull rather than catch. Always False for `pulse="rrc"`
+        and for a plain converter.
+        """
 
     @property
     def stages(self) -> list[str]:
-        """Stage labels for the planned cascade, e.g. `['CIC(8)', 'Resampler(0.8)']`. A terminal stage carrying a pulse-shaped bank names its pulse: `'Resampler(0.923077,rrc)'`."""
+        """Stage labels for the planned cascade, e.g. `['CIC(8)',
+        'Resampler(0.8)']`. A terminal stage carrying a pulse-shaped bank names
+        its pulse: `'Resampler(0.923077,rrc)'`.
+        """
 
     @property
     def bank_shape(self) -> list[int]:
-        """`[num_phases, num_taps]` of the terminal polyphase stage, or `[]` when the cascade ends in an integer decimator and so has no bank to describe. `num_taps` is the per-output MAC count and, times `num_phases`, the bank's size in floats. With a pulse selected it is set by the terminal stage's rate rather than the input rate -- which is what keeps a matched filter affordable at a high input samples-per-symbol: the same 34 taps per arm at 4 samples/symbol and at 256, where filtering at the input rate would need 4225."""
+        """`[num_phases, num_taps]` of the terminal polyphase stage, or `[]`
+        when the cascade ends in an integer decimator and so has no bank to
+        describe. `num_taps` is the per-output MAC count and, times
+        `num_phases`, the bank's size in floats. With a pulse selected it is
+        set by the terminal stage's rate rather than the input rate -- which is
+        what keeps a matched filter affordable at a high input
+        samples-per-symbol: the same 34 taps per arm at 4 samples/symbol and at
+        256, where filtering at the input rate would need 4225.
+        """
 
     def destroy(self) -> None:
         """Release the underlying C resources immediately.
 
         Ordinarily unnecessary: the resources are freed when the object is
         garbage-collected. Call this to release them at a definite point
-        instead, or use the object as a context manager, which calls it on exit.
+        instead, or use the object as a context manager, which calls it on
+        exit.
 
-        Idempotent: calling it again on an already-released object does nothing.
-        Every other method raises ``RuntimeError`` once it has run.
+        Idempotent: calling it again on an already-released object does
+        nothing. Every other method raises ``RuntimeError`` once it has run.
         """
 
 
@@ -872,12 +1038,17 @@ class RateConverter:
             This same object, not a copy.
         """
 
-    def __exit__(self, exc_type: object | None = ..., exc: object | None = ..., tb: object | None = ...) -> None:
+    def __exit__(
+        self,
+        exc_type: object | None = ...,
+        exc: object | None = ...,
+        tb: object | None = ...,
+    ) -> None:
         """Exit a context manager, releasing the RateConverter.
 
         Equivalent to calling `destroy()`. Returns ``None``, so an exception
-        raised inside the `with` body propagates normally; this never suppresses
-        one.
+        raised inside the `with` body propagates normally; this never
+        suppresses one.
 
         Parameters
         ----------
@@ -891,14 +1062,20 @@ class RateConverter:
 
 @final
 class MatchedRateConverter:
-    """Create a rate converter for the given output/input rate ratio. Selects the cheapest cascade of CIC, HalfbandDecimator, and/or polyphase Resampler stages at construction time (see file header for the selection table). Setting compensate=1 appends a closed-form Molnar-Vucic CIC droop-compensating FIR after any CIC stage, which improves passband flatness at the cost of one extra FIR stage.
+    """Create a rate converter for the given output/input rate ratio. Selects
+    the cheapest cascade of CIC, HalfbandDecimator, and/or polyphase Resampler
+    stages at construction time (see file header for the selection table).
+    Setting compensate=1 appends a closed-form Molnar-Vucic CIC
+    droop-compensating FIR after any CIC stage, which improves passband
+    flatness at the cost of one extra FIR stage.
 
     Parameters
     ----------
     rate : float, default 1.0
         Output-to-input sample rate ratio. Any positive float.
     compensate : int, default 1
-        Non-zero to append a CIC passband-droop compensating FIR after any CIC stage.
+        Non-zero to append a CIC passband-droop compensating FIR after any CIC
+        stage.
     pulse : Literal["iandd", "rrc"], default "rrc"
         pulse constructor parameter.
     beta : float, default 0.35
@@ -918,10 +1095,27 @@ class MatchedRateConverter:
     0.5
 
     """
-    def __init__(self, rate: float = ..., compensate: int = ..., pulse: Literal["iandd", "rrc"] = "rrc", beta: float = ..., span: int = ..., pulse_sps: float = ..., num_phases: int = ...) -> None: ...
+    def __init__(
+        self,
+        rate: float = ...,
+        compensate: int = ...,
+        pulse: Literal["iandd", "rrc"] = "rrc",
+        beta: float = ...,
+        span: int = ...,
+        pulse_sps: float = ...,
+        num_phases: int = ...,
+    ) -> None: ...
 
-    def execute(self, x: NDArray[np.complex64], out: NDArray[np.complex64] | None = None) -> NDArray[np.complex64]:
-        """Convert a block of CF32 samples through the cascade. Passes input through each stage in order, ping-ponging between two intermediate buffers. State persists between calls, so contiguous calls on sequential blocks give the same result as one large call. Output length is approximately n_in * rate.
+    def execute(
+        self,
+        x: NDArray[np.complex64],
+        out: NDArray[np.complex64] | None = None,
+    ) -> NDArray[np.complex64]:
+        """Convert a block of CF32 samples through the cascade. Passes input
+        through each stage in order, ping-ponging between two intermediate
+        buffers. State persists between calls, so contiguous calls on
+        sequential blocks give the same result as one large call. Output length
+        is approximately n_in * rate.
 
         Parameters
         ----------
@@ -962,7 +1156,11 @@ class MatchedRateConverter:
             Output.
         """
 
-    def execute_ctrl(self, x: NDArray[np.complex64], ctrl: float) -> NDArray[np.complex64]:
+    def execute_ctrl(
+        self,
+        x: NDArray[np.complex64],
+        ctrl: float,
+    ) -> NDArray[np.complex64]:
         """Convert a block, steering the cascade's fractional stage by ctrl.
 
         The control-port form of RateConverter_execute(): the fixed integer
@@ -971,15 +1169,15 @@ class MatchedRateConverter:
         stage's** accumulator (via resamp_execute_ctrl_push) — so its effective
         rate becomes `stage_rate + ctrl` for this call. This exposes the
         fractional tail's control port that RateConverter_execute() hides: a
-        timing/rate-tracking loop can decimate a high input rate cheaply through
-        the HB/CIC stages and then arbitrary-rate + strobe-align in the last
-        stage, updating ctrl per block.
+        timing/rate-tracking loop can decimate a high input rate cheaply
+        through the HB/CIC stages and then arbitrary-rate + strobe-align in the
+        last stage, updating ctrl per block.
 
-        `ctrl` is referenced to the terminal stage's (post-decimation) rate, not
-        the overall rate. It is meaningful only when the cascade actually ends
-        in a Resampler stage; a pure integer HB/CIC cascade has no fractional
-        stage to steer, so this **falls through to RateConverter_execute()**
-        (ctrl ignored).
+        `ctrl` is referenced to the terminal stage's (post-decimation) rate,
+        not the overall rate. It is meaningful only when the cascade actually
+        ends in a Resampler stage; a pure integer HB/CIC cascade has no
+        fractional stage to steer, so this **falls through to
+        RateConverter_execute()** (ctrl ignored).
 
         Parameters
         ----------
@@ -1007,16 +1205,21 @@ class MatchedRateConverter:
 
         """
 
-    def execute_ctrl_push(self, x: complex, ctrl: float) -> NDArray[np.complex64]:
+    def execute_ctrl_push(
+        self,
+        x: complex,
+        ctrl: float,
+    ) -> NDArray[np.complex64]:
         """Push ONE input sample; emit whatever outputs it completes.
 
         The per-input streaming form of RateConverter_execute_ctrl(), and the
-        only form a closed loop can use: a block call must know its whole `ctrl`
-        history up front, whereas a timing loop computes each correction *from*
-        the outputs already emitted. Feeding a stream one sample at a time
-        through this reproduces RateConverter_execute_ctrl() on the same block
-        bit-for-bit when ctrl is held constant (the cascade is block-boundary
-        invariant), so the cheap block form stays correct for open-loop use.
+        only form a closed loop can use: a block call must know its whole
+        `ctrl` history up front, whereas a timing loop computes each correction
+        *from* the outputs already emitted. Feeding a stream one sample at a
+        time through this reproduces RateConverter_execute_ctrl() on the same
+        block bit-for-bit when ctrl is held constant (the cascade is
+        block-boundary invariant), so the cheap block form stays correct for
+        open-loop use.
 
         The integer HB/CIC stages consume the sample and emit at most one
         intermediate sample each; the terminal Resampler stage then emits 0
@@ -1049,7 +1252,10 @@ class MatchedRateConverter:
         """
 
     def reset(self) -> None:
-        """Zero all sub-stage filter memories. Rate, stage count, and stage types are preserved. Processing from a reset state produces the same output as a freshly created converter fed the same input. Use between signal bursts to suppress transient artefacts from prior filter memory.
+        """Zero all sub-stage filter memories. Rate, stage count, and stage
+        types are preserved. Processing from a reset state produces the same
+        output as a freshly created converter fed the same input. Use between
+        signal bursts to suppress transient artefacts from prior filter memory.
 
         Examples
         --------
@@ -1102,12 +1308,14 @@ class MatchedRateConverter:
         """Restore mutable state from a `get_state()` blob.
 
         Overwrites the live state in place; the object keeps the parameters it
-        was constructed with. Length is validated against `state_bytes()` before
-        the blob is handed to the C core, and the core may reject it as well.
+        was constructed with. Length is validated against `state_bytes()`
+        before the blob is handed to the C core, and the core may reject it as
+        well.
 
         Raises ``TypeError`` if *blob* is not bytes, ``ValueError`` if its
         length differs from `state_bytes()` or the core rejects it, and
-        ``RuntimeError`` if the MatchedRateConverter has already been destroyed.
+        ``RuntimeError`` if the MatchedRateConverter has already been
+        destroyed.
 
         Parameters
         ----------
@@ -1117,35 +1325,63 @@ class MatchedRateConverter:
 
     @property
     def rate(self) -> float:
-        """Get / set the output-to-input sample rate ratio. The setter rebuilds the entire cascade (new stage selection, new sub-objects) and resets all filter memories — equivalent to destroying and recreating with the new rate. Setting rate <= 0 is silently ignored."""
+        """Get / set the output-to-input sample rate ratio. The setter rebuilds
+        the entire cascade (new stage selection, new sub-objects) and resets
+        all filter memories — equivalent to destroying and recreating with the
+        new rate. Setting rate <= 0 is silently ignored.
+        """
     @rate.setter
     def rate(self, value: float) -> None: ...
 
     @property
     def clipped(self) -> bool:
-        """True if any planned CIC stage has clipped its input since the last `reset()`. The cascade inherits the CIC's input bound (`|Re|`, `|Im| <= 1.0`) whenever `stages` names a CIC -- any decimation by 8 or more. The clip is invisible in the samples (finite, no NaN, merely distorted), so this is the only reliable check, and it is free: the boundary comparisons run on every sample regardless. Always False for a cascade with no CIC stage -- those plans are scale-free."""
+        """True if any planned CIC stage has clipped its input since the last
+        `reset()`. The cascade inherits the CIC's input bound (`|Re|`, `|Im| <=
+        1.0`) whenever `stages` names a CIC -- any decimation by 8 or more. The
+        clip is invisible in the samples (finite, no NaN, merely distorted), so
+        this is the only reliable check, and it is free: the boundary
+        comparisons run on every sample regardless. Always False for a cascade
+        with no CIC stage -- those plans are scale-free.
+        """
 
     @property
     def narrow_pulse(self) -> bool:
-        """True when a rectangular pulse was selected with fewer than four output samples per symbol, where its matched filter degenerates to a 2-3 tap sum. Construction also raises a UserWarning; this is the same diagnostic to pull rather than catch. Always False for `pulse="rrc"` and for a plain converter."""
+        """True when a rectangular pulse was selected with fewer than four
+        output samples per symbol, where its matched filter degenerates to a
+        2-3 tap sum. Construction also raises a UserWarning; this is the same
+        diagnostic to pull rather than catch. Always False for `pulse="rrc"`
+        and for a plain converter.
+        """
 
     @property
     def stages(self) -> list[str]:
-        """Stage labels for the planned cascade, e.g. `['CIC(8)', 'Resampler(0.8)']`. A terminal stage carrying a pulse-shaped bank names its pulse: `'Resampler(0.923077,rrc)'`."""
+        """Stage labels for the planned cascade, e.g. `['CIC(8)',
+        'Resampler(0.8)']`. A terminal stage carrying a pulse-shaped bank names
+        its pulse: `'Resampler(0.923077,rrc)'`.
+        """
 
     @property
     def bank_shape(self) -> list[int]:
-        """`[num_phases, num_taps]` of the terminal polyphase stage, or `[]` when the cascade ends in an integer decimator and so has no bank to describe. `num_taps` is the per-output MAC count and, times `num_phases`, the bank's size in floats. With a pulse selected it is set by the terminal stage's rate rather than the input rate -- which is what keeps a matched filter affordable at a high input samples-per-symbol: the same 34 taps per arm at 4 samples/symbol and at 256, where filtering at the input rate would need 4225."""
+        """`[num_phases, num_taps]` of the terminal polyphase stage, or `[]`
+        when the cascade ends in an integer decimator and so has no bank to
+        describe. `num_taps` is the per-output MAC count and, times
+        `num_phases`, the bank's size in floats. With a pulse selected it is
+        set by the terminal stage's rate rather than the input rate -- which is
+        what keeps a matched filter affordable at a high input
+        samples-per-symbol: the same 34 taps per arm at 4 samples/symbol and at
+        256, where filtering at the input rate would need 4225.
+        """
 
     def destroy(self) -> None:
         """Release the underlying C resources immediately.
 
         Ordinarily unnecessary: the resources are freed when the object is
         garbage-collected. Call this to release them at a definite point
-        instead, or use the object as a context manager, which calls it on exit.
+        instead, or use the object as a context manager, which calls it on
+        exit.
 
-        Idempotent: calling it again on an already-released object does nothing.
-        Every other method raises ``RuntimeError`` once it has run.
+        Idempotent: calling it again on an already-released object does
+        nothing. Every other method raises ``RuntimeError`` once it has run.
         """
 
 
@@ -1162,12 +1398,17 @@ class MatchedRateConverter:
             This same object, not a copy.
         """
 
-    def __exit__(self, exc_type: object | None = ..., exc: object | None = ..., tb: object | None = ...) -> None:
+    def __exit__(
+        self,
+        exc_type: object | None = ...,
+        exc: object | None = ...,
+        tb: object | None = ...,
+    ) -> None:
         """Exit a context manager, releasing the MatchedRateConverter.
 
         Equivalent to calling `destroy()`. Returns ``None``, so an exception
-        raised inside the `with` body propagates normally; this never suppresses
-        one.
+        raised inside the `with` body propagates normally; this never
+        suppresses one.
 
         Parameters
         ----------
@@ -1196,19 +1437,28 @@ class Farrow:
     >>> obj = Farrow(order="cubic")
 
     """
-    def __init__(self, order: Literal["linear", "parabolic", "cubic"] = "cubic") -> None: ...
+    def __init__(
+        self,
+        order: Literal["linear", "parabolic", "cubic"] = "cubic",
+    ) -> None: ...
 
-    def delay(self, x: NDArray[np.complex64], mu: float) -> NDArray[np.complex64]:
-        """Apply a constant fractional delay of `mu` samples to a cf32 block via the Farrow interpolator; output[i] is the input interpolated at i - group_delay + mu. The first group_delay samples are filling-transient.
+    def delay(
+        self,
+        x: NDArray[np.complex64],
+        mu: float,
+    ) -> NDArray[np.complex64]:
+        """Apply a constant fractional delay of `mu` samples to a cf32 block
+        via the Farrow interpolator; output[i] is the input interpolated at i -
+        group_delay + mu. The first group_delay samples are filling-transient.
 
         Pushes each input sample through the delay line and evaluates the
         interpolator at the same fixed offset, so the whole block is delayed by
         a constant, non-integer amount. Output sample i is the input
-        interpolated at `i - group_delay + mu`, i.e. the stream shifted later by
-        `group_delay - mu` samples; the first group_delay outputs are the
-        delay-line filling transient and should be discarded. Because the offset
-        is held constant this is the open-loop use of the interpolator — a
-        timing loop instead steers mu per sample via
+        interpolated at `i - group_delay + mu`, i.e. the stream shifted later
+        by `group_delay - mu` samples; the first group_delay outputs are the
+        delay-line filling transient and should be discarded. Because the
+        offset is held constant this is the open-loop use of the interpolator —
+        a timing loop instead steers mu per sample via
         farrow_push()/farrow_eval().
 
         Parameters
@@ -1302,8 +1552,9 @@ class Farrow:
         """Restore mutable state from a `get_state()` blob.
 
         Overwrites the live state in place; the object keeps the parameters it
-        was constructed with. Length is validated against `state_bytes()` before
-        the blob is handed to the C core, and the core may reject it as well.
+        was constructed with. Length is validated against `state_bytes()`
+        before the blob is handed to the C core, and the core may reject it as
+        well.
 
         Raises ``TypeError`` if *blob* is not bytes, ``ValueError`` if its
         length differs from `state_bytes()` or the core rejects it, and
@@ -1324,10 +1575,11 @@ class Farrow:
 
         Ordinarily unnecessary: the resources are freed when the object is
         garbage-collected. Call this to release them at a definite point
-        instead, or use the object as a context manager, which calls it on exit.
+        instead, or use the object as a context manager, which calls it on
+        exit.
 
-        Idempotent: calling it again on an already-released object does nothing.
-        Every other method raises ``RuntimeError`` once it has run.
+        Idempotent: calling it again on an already-released object does
+        nothing. Every other method raises ``RuntimeError`` once it has run.
         """
 
 
@@ -1343,12 +1595,17 @@ class Farrow:
             This same object, not a copy.
         """
 
-    def __exit__(self, exc_type: object | None = ..., exc: object | None = ..., tb: object | None = ...) -> None:
+    def __exit__(
+        self,
+        exc_type: object | None = ...,
+        exc: object | None = ...,
+        tb: object | None = ...,
+    ) -> None:
         """Exit a context manager, releasing the Farrow.
 
         Equivalent to calling `destroy()`. Returns ``None``, so an exception
-        raised inside the `with` body propagates normally; this never suppresses
-        one.
+        raised inside the `with` body propagates normally; this never
+        suppresses one.
 
         Parameters
         ----------
@@ -1362,12 +1619,17 @@ class Farrow:
 
 @final
 class HalfbandDecimatorQ15:
-    """Allocate and initialise a fixed-point halfband 2:1 decimator. The FIR branch coefficients are supplied as float and converted internally to Q15 with a x0.5 polyphase rate scaling.  The full halfband prototype is sparse (every other tap is zero); supply only the non-zero FIR branch taps, not the full sparse prototype.
+    """Allocate and initialise a fixed-point halfband 2:1 decimator. The FIR
+    branch coefficients are supplied as float and converted internally to Q15
+    with a x0.5 polyphase rate scaling. The full halfband prototype is sparse
+    (every other tap is zero); supply only the non-zero FIR branch taps, not
+    the full sparse prototype.
 
     Parameters
     ----------
     h : NDArray[np.float32]
-        Float FIR branch coefficients of length num_taps. Must be symmetric (`h[k]` == `h[num_taps-1-k]`).
+        Float FIR branch coefficients of length num_taps. Must be symmetric
+        (`h[k]` == `h[num_taps-1-k]`).
 
     Examples
     --------
@@ -1383,8 +1645,17 @@ class HalfbandDecimatorQ15:
     """
     def __init__(self, h: NDArray[np.float32]) -> None: ...
 
-    def execute(self, x: NDArray[np.int16], out: NDArray[np.int16] | None = None) -> NDArray[np.int16]:
-        """Decimate a block of interleaved IQ int16 samples by 2. Input must be interleaved int16_t IQ pairs (I₀ Q₀ I₁ Q₁ …); pass a 1-D array of 2*n_complex elements.  Each pair of complex input samples produces one complex output sample, so an array of length 2N yields at most N output pairs (2N int16 output values).  If n_in is odd the trailing IQ pair is buffered and consumed on the next call.
+    def execute(
+        self,
+        x: NDArray[np.int16],
+        out: NDArray[np.int16] | None = None,
+    ) -> NDArray[np.int16]:
+        """Decimate a block of interleaved IQ int16 samples by 2. Input must be
+        interleaved int16_t IQ pairs (I₀ Q₀ I₁ Q₁ …); pass a 1-D array of
+        2*n_complex elements. Each pair of complex input samples produces one
+        complex output sample, so an array of length 2N yields at most N output
+        pairs (2N int16 output values). If n_in is odd the trailing IQ pair is
+        buffered and consumed on the next call.
 
         Parameters
         ----------
@@ -1434,7 +1705,11 @@ class HalfbandDecimatorQ15:
         """
 
     def reset(self) -> None:
-        """Zero all delay rings and clear the pending-sample flag. After a reset the decimator behaves identically to a freshly constructed instance: the four dual-write delay rings are zeroed and has_pending is cleared, so no partial IQ pair carries over.  Call this between unrelated signal segments to prevent inter-segment leakage.
+        """Zero all delay rings and clear the pending-sample flag. After a
+        reset the decimator behaves identically to a freshly constructed
+        instance: the four dual-write delay rings are zeroed and has_pending is
+        cleared, so no partial IQ pair carries over. Call this between
+        unrelated signal segments to prevent inter-segment leakage.
 
         Examples
         --------
@@ -1492,12 +1767,14 @@ class HalfbandDecimatorQ15:
         """Restore mutable state from a `get_state()` blob.
 
         Overwrites the live state in place; the object keeps the parameters it
-        was constructed with. Length is validated against `state_bytes()` before
-        the blob is handed to the C core, and the core may reject it as well.
+        was constructed with. Length is validated against `state_bytes()`
+        before the blob is handed to the C core, and the core may reject it as
+        well.
 
         Raises ``TypeError`` if *blob* is not bytes, ``ValueError`` if its
         length differs from `state_bytes()` or the core rejects it, and
-        ``RuntimeError`` if the HalfbandDecimatorQ15 has already been destroyed.
+        ``RuntimeError`` if the HalfbandDecimatorQ15 has already been
+        destroyed.
 
         Parameters
         ----------
@@ -1507,21 +1784,29 @@ class HalfbandDecimatorQ15:
 
     @property
     def num_taps(self) -> int:
-        """FIR branch length as supplied to the constructor. This is the count of non-zero symmetric taps in the FIR branch, not the full sparse halfband prototype length.  Useful for introspection when chaining multiple stages with programmatically computed filter banks."""
+        """FIR branch length as supplied to the constructor. This is the count
+        of non-zero symmetric taps in the FIR branch, not the full sparse
+        halfband prototype length. Useful for introspection when chaining
+        multiple stages with programmatically computed filter banks.
+        """
 
     @property
     def rate(self) -> float:
-        """The sample-rate reduction factor; always 0.5 for 2:1 decimation. Exposed as a read-only property so pipelines can query the rate of each stage programmatically without hard-coding the 2:1 assumption."""
+        """The sample-rate reduction factor; always 0.5 for 2:1 decimation.
+        Exposed as a read-only property so pipelines can query the rate of each
+        stage programmatically without hard-coding the 2:1 assumption.
+        """
 
     def destroy(self) -> None:
         """Release the underlying C resources immediately.
 
         Ordinarily unnecessary: the resources are freed when the object is
         garbage-collected. Call this to release them at a definite point
-        instead, or use the object as a context manager, which calls it on exit.
+        instead, or use the object as a context manager, which calls it on
+        exit.
 
-        Idempotent: calling it again on an already-released object does nothing.
-        Every other method raises ``RuntimeError`` once it has run.
+        Idempotent: calling it again on an already-released object does
+        nothing. Every other method raises ``RuntimeError`` once it has run.
         """
 
 
@@ -1538,12 +1823,17 @@ class HalfbandDecimatorQ15:
             This same object, not a copy.
         """
 
-    def __exit__(self, exc_type: object | None = ..., exc: object | None = ..., tb: object | None = ...) -> None:
+    def __exit__(
+        self,
+        exc_type: object | None = ...,
+        exc: object | None = ...,
+        tb: object | None = ...,
+    ) -> None:
         """Exit a context manager, releasing the HalfbandDecimatorQ15.
 
         Equivalent to calling `destroy()`. Returns ``None``, so an exception
-        raised inside the `with` body propagates normally; this never suppresses
-        one.
+        raised inside the `with` body propagates normally; this never
+        suppresses one.
 
         Parameters
         ----------
@@ -1556,7 +1846,13 @@ class HalfbandDecimatorQ15:
         """
 
 def ciccompmf(N: int, R: int, M: int) -> NDArray[np.float64]:
-    """Design a CIC passband-droop compensator FIR filter. Implements the closed-form Bernoulli-series maximally-flat-error method from Molnar & Vucic (IEEE TCAS-II 58(12):926-930, 2011, DOI 10.1109/TCSII.2011.2172522). The compensator runs at the *decimated* (output) rate and should be applied after the CIC stage. DC gain is exactly 1.0. Odd M gives symmetric linear-phase taps; even M gives half-sample-shifted linear-phase taps.
+    """Design a CIC passband-droop compensator FIR filter. Implements the
+    closed-form Bernoulli-series maximally-flat-error method from Molnar &
+    Vucic (IEEE TCAS-II 58(12):926-930, 2011, DOI
+    10.1109/TCSII.2011.2172522). The compensator runs at the *decimated*
+    (output) rate and should be applied after the CIC stage. DC gain is
+    exactly 1.0. Odd M gives symmetric linear-phase taps; even M gives
+    half-sample-shifted linear-phase taps.
 
     Parameters
     ----------
@@ -1585,7 +1881,10 @@ def ciccompmf(N: int, R: int, M: int) -> NDArray[np.float64]:
     """
 
 def kaiser_beta(atten: float) -> float:
-    """Compute the Kaiser window beta parameter from stopband attenuation. Uses the standard Kaiser-Hamming formulae: atten > 50  dB: beta = 0.1102 * (atten - 8.7) 21 <= atten <= 50 dB: beta = 0.5842*(atten-21)^0.4 + 0.07886*(atten-21) atten < 21  dB: beta = 0.0 (rectangular window)
+    """Compute the Kaiser window beta parameter from stopband attenuation.
+    Uses the standard Kaiser-Hamming formulae: atten > 50 dB: beta = 0.1102
+    * (atten - 8.7) 21 <= atten <= 50 dB: beta = 0.5842*(atten-21)^0.4 +
+    0.07886*(atten-21) atten < 21 dB: beta = 0.0 (rectangular window)
 
     Parameters
     ----------
@@ -1607,8 +1906,17 @@ def kaiser_beta(atten: float) -> float:
 
     """
 
-def kaiser_num_taps(num_phases: int, atten: float, pb: float, sb: float) -> int:
-    """Estimate the taps-per-phase count for a polyphase Kaiser FIR bank. Applies the Kaiser length formula to the per-phase normalised prototype (pb/num_phases, sb/num_phases), rounds up to the next odd symmetrical length, then divides by num_phases to give taps per branch. The result is the minimum num_taps argument to pass to Resampler_create_custom().
+def kaiser_num_taps(
+    num_phases: int,
+    atten: float,
+    pb: float,
+    sb: float,
+) -> int:
+    """Estimate the taps-per-phase count for a polyphase Kaiser FIR bank.
+    Applies the Kaiser length formula to the per-phase normalised prototype
+    (pb/num_phases, sb/num_phases), rounds up to the next odd symmetrical
+    length, then divides by num_phases to give taps per branch. The result
+    is the minimum num_taps argument to pass to Resampler_create_custom().
 
     Parameters
     ----------

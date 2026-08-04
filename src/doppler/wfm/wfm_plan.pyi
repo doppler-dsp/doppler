@@ -30,11 +30,12 @@ class Plan:
         """General render: apply a JSON override spec, return a cf32 array.
 
         `overrides_json` is a small JSON object, all keys optional:
-        `{"gains":[dB…], "phases":[rad…], "enable":[bool…], "snr":dB, "seed":u}`
-        (`gains`/`phases`/`enable` are per-source, flat and segment-major,
-        length = wfm_plan_n_sources()). An empty object (or NULL) renders the
-        baseline — bit-identical to `Composer(scene).compose()`. Writes up to
-        `wfm_plan_len(p)` samples to `out`.
+        `{"gains":[dB…], "phases":[rad…], "enable":[bool…], "snr":dB,
+        "seed":u}` (`gains`/`phases`/`enable` are per-source, flat and
+        segment-major, length = wfm_plan_n_sources()). An empty object (or
+        NULL) renders the baseline — bit-identical to
+        `Composer(scene).compose()`. Writes up to `wfm_plan_len(p)` samples to
+        `out`.
 
         Parameters
         ----------
@@ -50,8 +51,9 @@ class Plan:
         """Scalar fast-path for the hot Monte-Carlo/SNR loop (no JSON parse).
 
         `out = Σ gain_k·cache_k + gain(snr)·noise(seed)` per segment/instance;
-        writes up to `wfm_plan_len(p)` samples. Equivalent to `render` with only
-        `{"snr":snr,"seed":seed}` — `seed` is always an explicit override here.
+        writes up to `wfm_plan_len(p)` samples. Equivalent to `render` with
+        only `{"snr":snr,"seed":seed}` — `seed` is always an explicit override
+        here.
 
         Parameters
         ----------
@@ -66,7 +68,8 @@ class Plan:
             Samples actually written for this draw (<= wfm_plan_len(p)).
         """
     def length(self) -> int:
-        """Worst-case materialized length in samples (every ranged gap at its `hi` bound) — the jm binding's out_len_fn / allocation capacity.
+        """Worst-case materialized length in samples (every ranged gap at its
+        `hi` bound) — the jm binding's out_len_fn / allocation capacity.
 
         Returns
         -------
@@ -74,7 +77,8 @@ class Plan:
             Output.
         """
     def n_sources(self) -> int:
-        """Number of cached signal sources across every segment (excludes noise floors); the length of the `gains`/`phases`/`enable` arrays.
+        """Number of cached signal sources across every segment (excludes noise
+        floors); the length of the `gains`/`phases`/`enable` arrays.
 
         Returns
         -------
@@ -85,11 +89,12 @@ class Plan:
         """The noise seed that reproduces a full compose.
 
         The first noisy segment's default seed (its first source's `seed`
-        field). Passing this as `wfm_plan_at`'s seed (with the scene's base SNR)
-        yields the byte-identical output of `wfm_compose` for a single-segment
-        scene; for a multi-segment scene each segment still draws from its own
-        default seed unless overridden. Varying the seed draws independent
-        Monte-Carlo noise (and, for a ranged-gap scene, timing) realizations.
+        field). Passing this as `wfm_plan_at`'s seed (with the scene's base
+        SNR) yields the byte-identical output of `wfm_compose` for a
+        single-segment scene; for a multi-segment scene each segment still
+        draws from its own default seed unless overridden. Varying the seed
+        draws independent Monte-Carlo noise (and, for a ranged-gap scene,
+        timing) realizations.
 
         Returns
         -------
@@ -102,7 +107,8 @@ class Plan:
         Native-endian. The blob embeds the spec JSON, so a restore is
         self-contained. Returns the number of bytes written (==
         wfm_plan_save_bytes(p)) — the actual-length contract a variable-output
-        binding needs, so `save() -> bytes` generates with no hand-written glue.
+        binding needs, so `save() -> bytes` generates with no hand-written
+        glue.
 
         Returns
         -------

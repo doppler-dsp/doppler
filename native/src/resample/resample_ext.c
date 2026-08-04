@@ -77,7 +77,13 @@ _bind_kaiser_num_taps(PyObject *self, PyObject *args, PyObject *kwds)
 
 static PyMethodDef resample_module_methods[] = {
     {"ciccompmf", (PyCFunction)(void *)_bind_ciccompmf, METH_VARARGS | METH_KEYWORDS,
-     "Design a CIC passband-droop compensator FIR filter. Implements the closed-form Bernoulli-series maximally-flat-error method from Molnar & Vucic (IEEE TCAS-II 58(12):926-930, 2011, DOI 10.1109/TCSII.2011.2172522). The compensator runs at the *decimated* (output) rate and should be applied after the CIC stage. DC gain is exactly 1.0. Odd M gives symmetric linear-phase taps; even M gives half-sample-shifted linear-phase taps.\n"
+     "Design a CIC passband-droop compensator FIR filter. Implements the\n"
+     "closed-form Bernoulli-series maximally-flat-error method from Molnar &\n"
+     "Vucic (IEEE TCAS-II 58(12):926-930, 2011, DOI\n"
+     "10.1109/TCSII.2011.2172522). The compensator runs at the *decimated*\n"
+     "(output) rate and should be applied after the CIC stage. DC gain is\n"
+     "exactly 1.0. Odd M gives symmetric linear-phase taps; even M gives\n"
+     "half-sample-shifted linear-phase taps.\n"
      "\n"
      "Parameters\n"
      "----------\n"
@@ -103,7 +109,10 @@ static PyMethodDef resample_module_methods[] = {
      ">>> [round(float(v), 4) for v in h]\n"
      "[0.029, -0.282, 1.5061, -0.282, 0.029]\n"},
     {"kaiser_beta", (PyCFunction)(void *)_bind_kaiser_beta, METH_VARARGS | METH_KEYWORDS,
-     "Compute the Kaiser window beta parameter from stopband attenuation. Uses the standard Kaiser-Hamming formulae: atten > 50  dB: beta = 0.1102 * (atten - 8.7) 21 <= atten <= 50 dB: beta = 0.5842*(atten-21)^0.4 + 0.07886*(atten-21) atten < 21  dB: beta = 0.0 (rectangular window)\n"
+     "Compute the Kaiser window beta parameter from stopband attenuation.\n"
+     "Uses the standard Kaiser-Hamming formulae: atten > 50 dB: beta = 0.1102\n"
+     "* (atten - 8.7) 21 <= atten <= 50 dB: beta = 0.5842*(atten-21)^0.4 +\n"
+     "0.07886*(atten-21) atten < 21 dB: beta = 0.0 (rectangular window)\n"
      "\n"
      "Parameters\n"
      "----------\n"
@@ -123,7 +132,11 @@ static PyMethodDef resample_module_methods[] = {
      ">>> kaiser_beta(20.0)\n"
      "0.0\n"},
     {"kaiser_num_taps", (PyCFunction)(void *)_bind_kaiser_num_taps, METH_VARARGS | METH_KEYWORDS,
-     "Estimate the taps-per-phase count for a polyphase Kaiser FIR bank. Applies the Kaiser length formula to the per-phase normalised prototype (pb/num_phases, sb/num_phases), rounds up to the next odd symmetrical length, then divides by num_phases to give taps per branch. The result is the minimum num_taps argument to pass to Resampler_create_custom().\n"
+     "Estimate the taps-per-phase count for a polyphase Kaiser FIR bank.\n"
+     "Applies the Kaiser length formula to the per-phase normalised prototype\n"
+     "(pb/num_phases, sb/num_phases), rounds up to the next odd symmetrical\n"
+     "length, then divides by num_phases to give taps per branch. The result\n"
+     "is the minimum num_taps argument to pass to Resampler_create_custom().\n"
      "\n"
      "Parameters\n"
      "----------\n"

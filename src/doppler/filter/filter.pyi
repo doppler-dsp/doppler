@@ -5,7 +5,11 @@ from numpy.typing import NDArray
 
 @final
 class FIR:
-    """Create a FIR filter from complex CF32 tap coefficients. Implements a direct-form FIR convolution: `y[n]` = sum_k `h[k]`*`x[n-k]`. The tap array is copied at creation; the caller may free it afterward. Use fir_create_real() instead when all imaginary parts are zero — that path costs 1 FMA/tap versus 2 FMA + permute + mul here.
+    """Create a FIR filter from complex CF32 tap coefficients. Implements a
+    direct-form FIR convolution: `y[n]` = sum_k `h[k]`*`x[n-k]`. The tap array
+    is copied at creation; the caller may free it afterward. Use
+    fir_create_real() instead when all imaginary parts are zero — that path
+    costs 1 FMA/tap versus 2 FMA + permute + mul here.
 
     Parameters
     ----------
@@ -27,7 +31,11 @@ class FIR:
     def __init__(self, taps: NDArray[np.complex64]) -> None: ...
 
     def reset(self) -> None:
-        """Zero the delay line; preserve taps and scratch capacity. After a reset the filter behaves identically to a freshly constructed instance of the same length, without paying the allocation cost again. Call this between unrelated signal segments to prevent inter-segment leakage through the delay line.
+        """Zero the delay line; preserve taps and scratch capacity. After a
+        reset the filter behaves identically to a freshly constructed instance
+        of the same length, without paying the allocation cost again. Call this
+        between unrelated signal segments to prevent inter-segment leakage
+        through the delay line.
 
         Examples
         --------
@@ -44,8 +52,17 @@ class FIR:
 
         """
 
-    def execute(self, x: NDArray[np.complex64], out: NDArray[np.complex64] | None = None) -> NDArray[np.complex64]:
-        """Filter n_in CF32 samples and write the results to out. Each output sample is the inner product of the tap vector with the current delay line.  The delay line is updated with each input sample so state carries over across successive calls — process frames of any size without gaps or overlap.  The scratch buffer is grown lazily on the first call and reused on subsequent calls of the same size.
+    def execute(
+        self,
+        x: NDArray[np.complex64],
+        out: NDArray[np.complex64] | None = None,
+    ) -> NDArray[np.complex64]:
+        """Filter n_in CF32 samples and write the results to out. Each output
+        sample is the inner product of the tap vector with the current delay
+        line. The delay line is updated with each input sample so state carries
+        over across successive calls — process frames of any size without gaps
+        or overlap. The scratch buffer is grown lazily on the first call and
+        reused on subsequent calls of the same size.
 
         Parameters
         ----------
@@ -135,8 +152,9 @@ class FIR:
         """Restore mutable state from a `get_state()` blob.
 
         Overwrites the live state in place; the object keeps the parameters it
-        was constructed with. Length is validated against `state_bytes()` before
-        the blob is handed to the C core, and the core may reject it as well.
+        was constructed with. Length is validated against `state_bytes()`
+        before the blob is handed to the C core, and the core may reject it as
+        well.
 
         Raises ``TypeError`` if *blob* is not bytes, ``ValueError`` if its
         length differs from `state_bytes()` or the core rejects it, and
@@ -150,29 +168,37 @@ class FIR:
 
     @property
     def num_taps(self) -> int:
-        """Number of tap coefficients supplied at creation. This equals the filter group delay plus one, and determines the minimum input block length for which no latency is observable."""
+        """Number of tap coefficients supplied at creation. This equals the
+        filter group delay plus one, and determines the minimum input block
+        length for which no latency is observable.
+        """
 
     @property
     def is_real(self) -> bool:
-        """True when the filter was created with real-valued tap coefficients. Real-tap filters (fir_create_real) use a cheaper inner loop: 1 FMA/tap versus the 2 FMA + lane permute required for complex multiplication. Use this flag to confirm which constructor path was used at runtime."""
+        """True when the filter was created with real-valued tap coefficients.
+        Real-tap filters (fir_create_real) use a cheaper inner loop: 1 FMA/tap
+        versus the 2 FMA + lane permute required for complex multiplication.
+        Use this flag to confirm which constructor path was used at runtime.
+        """
 
     def destroy(self) -> None:
         """Release the underlying C resources immediately.
 
         Ordinarily unnecessary: the resources are freed when the object is
         garbage-collected. Call this to release them at a definite point
-        instead, or use the object as a context manager, which calls it on exit.
+        instead, or use the object as a context manager, which calls it on
+        exit.
 
-        Idempotent: calling it again on an already-released object does nothing.
-        Every other method raises ``RuntimeError`` once it has run.
+        Idempotent: calling it again on an already-released object does
+        nothing. Every other method raises ``RuntimeError`` once it has run.
         """
 
 
     def __enter__(self) -> "FIR":
         """Enter a context manager, returning this object.
 
-        Lets a FIR be used in a `with` statement so its C resources are released
-        deterministically on exit rather than at collection time.
+        Lets a FIR be used in a `with` statement so its C resources are
+        released deterministically on exit rather than at collection time.
 
         Returns
         -------
@@ -180,12 +206,17 @@ class FIR:
             This same object, not a copy.
         """
 
-    def __exit__(self, exc_type: object | None = ..., exc: object | None = ..., tb: object | None = ...) -> None:
+    def __exit__(
+        self,
+        exc_type: object | None = ...,
+        exc: object | None = ...,
+        tb: object | None = ...,
+    ) -> None:
         """Exit a context manager, releasing the FIR.
 
         Equivalent to calling `destroy()`. Returns ``None``, so an exception
-        raised inside the `with` body propagates normally; this never suppresses
-        one.
+        raised inside the `with` body propagates normally; this never
+        suppresses one.
 
         Parameters
         ----------
@@ -221,8 +252,8 @@ class MovingAverage:
     def step(self, x: complex) -> complex:
         """Slide the window by one sample; return the gained moving average.
 
-        O(1): add x, drop the sample leaving the window, return `acc · scale` (=
-        `gain · acc / len`) — one multiply.
+        O(1): add x, drop the sample leaving the window, return `acc · scale`
+        (= `gain · acc / len`) — one multiply.
 
         Parameters
         ----------
@@ -243,14 +274,18 @@ class MovingAverage:
 
         """
 
-    def steps(self, x: NDArray[np.complex64], out: NDArray[np.complex64] | None = None) -> NDArray[np.complex64]:
+    def steps(
+        self,
+        x: NDArray[np.complex64],
+        out: NDArray[np.complex64] | None = None,
+    ) -> NDArray[np.complex64]:
         """Filter a block: write the gained moving average of each sample.
 
         Applies boxcar_step() to each input sample in turn, so the window sum
-        and ring carry across the block exactly as they would sample by sample —
-        a stream can be processed in frames of any size with no seam.
-        Immediately after a reset the first len-1 outputs average over a partial
-        (still filling) window and ramp in.
+        and ring carry across the block exactly as they would sample by sample
+        — a stream can be processed in frames of any size with no seam.
+        Immediately after a reset the first len-1 outputs average over a
+        partial (still filling) window and ramp in.
 
         Parameters
         ----------
@@ -274,13 +309,14 @@ class MovingAverage:
         """
 
     def reset(self) -> None:
-        """Clear the window (zero the ring and the running sum); keep the configured length and gain.
+        """Clear the window (zero the ring and the running sum); keep the
+        configured length and gain.
 
-        Returns the filter to its just-constructed state: the delay ring and the
-        running window sum are zeroed while len and gain are preserved, so the
-        next len-1 outputs ramp in over a partial window exactly as they did on
-        a fresh instance. Call it at a segment boundary so samples from one
-        capture do not average into an unrelated next one.
+        Returns the filter to its just-constructed state: the delay ring and
+        the running window sum are zeroed while len and gain are preserved, so
+        the next len-1 outputs ramp in over a partial window exactly as they
+        did on a fresh instance. Call it at a segment boundary so samples from
+        one capture do not average into an unrelated next one.
 
         Examples
         --------
@@ -302,7 +338,8 @@ class MovingAverage:
         construction), so read it from the instance rather than assuming a
         constant.
 
-        Raises ``RuntimeError`` if the MovingAverage has already been destroyed.
+        Raises ``RuntimeError`` if the MovingAverage has already been
+        destroyed.
 
         Returns
         -------
@@ -321,7 +358,8 @@ class MovingAverage:
         implementation detail of the C core and is not a stable format across
         builds.
 
-        Raises ``RuntimeError`` if the MovingAverage has already been destroyed.
+        Raises ``RuntimeError`` if the MovingAverage has already been
+        destroyed.
 
         Returns
         -------
@@ -333,8 +371,9 @@ class MovingAverage:
         """Restore mutable state from a `get_state()` blob.
 
         Overwrites the live state in place; the object keeps the parameters it
-        was constructed with. Length is validated against `state_bytes()` before
-        the blob is handed to the C core, and the core may reject it as well.
+        was constructed with. Length is validated against `state_bytes()`
+        before the blob is handed to the C core, and the core may reject it as
+        well.
 
         Raises ``TypeError`` if *blob* is not bytes, ``ValueError`` if its
         length differs from `state_bytes()` or the core rejects it, and
@@ -361,10 +400,11 @@ class MovingAverage:
 
         Ordinarily unnecessary: the resources are freed when the object is
         garbage-collected. Call this to release them at a definite point
-        instead, or use the object as a context manager, which calls it on exit.
+        instead, or use the object as a context manager, which calls it on
+        exit.
 
-        Idempotent: calling it again on an already-released object does nothing.
-        Every other method raises ``RuntimeError`` once it has run.
+        Idempotent: calling it again on an already-released object does
+        nothing. Every other method raises ``RuntimeError`` once it has run.
         """
 
 
@@ -380,12 +420,17 @@ class MovingAverage:
             This same object, not a copy.
         """
 
-    def __exit__(self, exc_type: object | None = ..., exc: object | None = ..., tb: object | None = ...) -> None:
+    def __exit__(
+        self,
+        exc_type: object | None = ...,
+        exc: object | None = ...,
+        tb: object | None = ...,
+    ) -> None:
         """Exit a context manager, releasing the MovingAverage.
 
         Equivalent to calling `destroy()`. Returns ``None``, so an exception
-        raised inside the `with` body propagates normally; this never suppresses
-        one.
+        raised inside the `with` body propagates normally; this never
+        suppresses one.
 
         Parameters
         ----------
@@ -397,5 +442,11 @@ class MovingAverage:
             Traceback object, or None. Ignored.
         """
 
-def design_lowpass(fpass: float = 0.4, fstop: float = 0.6, atten_db: float = 60.0) -> NDArray[np.float32]:
-    """Kaiser-windowed-sinc lowpass FIR taps, auto-sized by kaiser_num_taps (Nyquist-normalised fpass/fstop band edges, unit-DC-gain float32 taps)."""
+def design_lowpass(
+    fpass: float = 0.4,
+    fstop: float = 0.6,
+    atten_db: float = 60.0,
+) -> NDArray[np.float32]:
+    """Kaiser-windowed-sinc lowpass FIR taps, auto-sized by kaiser_num_taps
+    (Nyquist-normalised fpass/fstop band edges, unit-DC-gain float32 taps).
+    """

@@ -5,7 +5,10 @@ from numpy.typing import NDArray
 
 @final
 class AccF32:
-    """Single-precision floating-point scalar accumulator. Maintains one running sum (``acc``) that persists across calls to ``step``, ``steps``, ``madd``, ``add2d``, and ``madd2d``. Use ``get`` to read without side-effects or ``dump`` to read and atomically zero in a single call.
+    """Single-precision floating-point scalar accumulator. Maintains one
+    running sum (``acc``) that persists across calls to ``step``, ``steps``,
+    ``madd``, ``add2d``, and ``madd2d``. Use ``get`` to read without
+    side-effects or ``dump`` to read and atomically zero in a single call.
 
     Parameters
     ----------
@@ -29,7 +32,10 @@ class AccF32:
     def __init__(self, acc: float = ...) -> None: ...
 
     def reset(self) -> None:
-        """Zero the accumulator, restoring the same state as a fresh ``AccF32(0.0)`` — regardless of the value supplied to ``acc_f32_create``. Subsequent ``get`` / ``dump`` calls return ``0.0`` until new samples are processed.
+        """Zero the accumulator, restoring the same state as a fresh
+        ``AccF32(0.0)`` — regardless of the value supplied to
+        ``acc_f32_create``. Subsequent ``get`` / ``dump`` calls return ``0.0``
+        until new samples are processed.
 
         Examples
         --------
@@ -43,7 +49,10 @@ class AccF32:
         """
 
     def step(self, x: float) -> None:
-        """Add one sample to the running sum (``acc += x``). This is the hot-path entry point for sample-by-sample processing. For block inputs prefer ``acc_f32_steps`` to amortise call overhead and allow auto-vectorisation.
+        """Add one sample to the running sum (``acc += x``). This is the
+        hot-path entry point for sample-by-sample processing. For block inputs
+        prefer ``acc_f32_steps`` to amortise call overhead and allow
+        auto-vectorisation.
 
         Parameters
         ----------
@@ -61,7 +70,11 @@ class AccF32:
         """
 
     def steps(self, x: NDArray[np.float32]) -> None:
-        """Add all samples in ``input`` to the running sum. Equivalent to calling ``acc_f32_step`` for each element, but SIMD-vectorised on platforms that provide it (AVX-512 / AVX2 / SSE2). The loop uses JM_RESTRICT so the compiler can assume no aliasing between ``state`` and ``input``.
+        """Add all samples in ``input`` to the running sum. Equivalent to
+        calling ``acc_f32_step`` for each element, but SIMD-vectorised on
+        platforms that provide it (AVX-512 / AVX2 / SSE2). The loop uses
+        JM_RESTRICT so the compiler can assume no aliasing between ``state``
+        and ``input``.
 
         Parameters
         ----------
@@ -80,7 +93,10 @@ class AccF32:
         """
 
     def get(self) -> float:
-        """Return the current accumulated sum without resetting state. Identical to reading the ``acc`` property directly; retained as an explicit method so call sites that need the value can be uniform with ``dump`` without a conditional.
+        """Return the current accumulated sum without resetting state.
+        Identical to reading the ``acc`` property directly; retained as an
+        explicit method so call sites that need the value can be uniform with
+        ``dump`` without a conditional.
 
         Returns
         -------
@@ -99,7 +115,10 @@ class AccF32:
         """
 
     def dump(self) -> float:
-        """Return the accumulated sum and atomically reset it to zero. This is the canonical "drain" primitive: read the period total, then start a fresh accumulation interval without a separate ``reset`` call. The zero-reset is unconditional and always writes 0.0f.
+        """Return the accumulated sum and atomically reset it to zero. This is
+        the canonical "drain" primitive: read the period total, then start a
+        fresh accumulation interval without a separate ``reset`` call. The
+        zero-reset is unconditional and always writes 0.0f.
 
         Returns
         -------
@@ -120,7 +139,11 @@ class AccF32:
         """
 
     def madd(self, x: NDArray[np.float32], h: NDArray[np.float32]) -> None:
-        """Dot-product accumulate: ``acc += sum(x[i] * h[i])`` for ``i`` in ``0 .. min(x_len, h_len) - 1``. The shorter of the two arrays limits the iteration count; no out-of-bounds access occurs. Typical use: apply a short FIR weight vector to one block of signal samples and fold the result into a running total.
+        """Dot-product accumulate: ``acc += sum(x[i] * h[i])`` for ``i`` in ``0
+        .. min(x_len, h_len) - 1``. The shorter of the two arrays limits the
+        iteration count; no out-of-bounds access occurs. Typical use: apply a
+        short FIR weight vector to one block of signal samples and fold the
+        result into a running total.
 
         Parameters
         ----------
@@ -143,7 +166,10 @@ class AccF32:
         """
 
     def add2d(self, x: NDArray[np.float32]) -> None:
-        """Sum all elements of a (logically) 2-D float array into the accumulator. The array is treated as a flat C-order buffer of ``x_len`` floats regardless of the original shape; the caller is responsible for passing the total element count.
+        """Sum all elements of a (logically) 2-D float array into the
+        accumulator. The array is treated as a flat C-order buffer of ``x_len``
+        floats regardless of the original shape; the caller is responsible for
+        passing the total element count.
 
         Parameters
         ----------
@@ -163,7 +189,11 @@ class AccF32:
         """
 
     def madd2d(self, x: NDArray[np.float32], h: NDArray[np.float32]) -> None:
-        """Dot-product accumulate over a flat 2-D buffer: ``acc += sum(x[i] * h[i])`` for ``i`` in ``0 .. min(x_len, h_len) - 1``. Combines ``add2d`` and ``madd`` semantics — a 2-D signal array is weighted element-wise by a coefficient buffer and the scalar total is folded into the running sum.
+        """Dot-product accumulate over a flat 2-D buffer: ``acc += sum(x[i] *
+        h[i])`` for ``i`` in ``0 .. min(x_len, h_len) - 1``. Combines ``add2d``
+        and ``madd`` semantics — a 2-D signal array is weighted element-wise by
+        a coefficient buffer and the scalar total is folded into the running
+        sum.
 
         Parameters
         ----------
@@ -224,8 +254,9 @@ class AccF32:
         """Restore mutable state from a `get_state()` blob.
 
         Overwrites the live state in place; the object keeps the parameters it
-        was constructed with. Length is validated against `state_bytes()` before
-        the blob is handed to the C core, and the core may reject it as well.
+        was constructed with. Length is validated against `state_bytes()`
+        before the blob is handed to the C core, and the core may reject it as
+        well.
 
         Raises ``TypeError`` if *blob* is not bytes, ``ValueError`` if its
         length differs from `state_bytes()` or the core rejects it, and
@@ -237,7 +268,9 @@ class AccF32:
             A `get_state()` blob from this type, exactly `state_bytes()` long.
         """
     def get_acc(self) -> float:
-        """Return the current accumulator value without modifying state. Use this when you need to read the running sum mid-accumulation without disturbing it. For a read-and-reset in one call use ``acc_f32_dump``.
+        """Return the current accumulator value without modifying state. Use
+        this when you need to read the running sum mid-accumulation without
+        disturbing it. For a read-and-reset in one call use ``acc_f32_dump``.
 
         Returns
         -------
@@ -257,7 +290,10 @@ class AccF32:
         """
 
     def set_acc(self, value: float) -> None:
-        """Overwrite the accumulator with a new value. Useful for seeding the accumulator to a known baseline before processing a new segment without a full ``reset``; subsequent ``step`` / ``steps`` samples accumulate on top of the seeded value.
+        """Overwrite the accumulator with a new value. Useful for seeding the
+        accumulator to a known baseline before processing a new segment without
+        a full ``reset``; subsequent ``step`` / ``steps`` samples accumulate on
+        top of the seeded value.
 
         Parameters
         ----------
@@ -280,10 +316,11 @@ class AccF32:
 
         Ordinarily unnecessary: the resources are freed when the object is
         garbage-collected. Call this to release them at a definite point
-        instead, or use the object as a context manager, which calls it on exit.
+        instead, or use the object as a context manager, which calls it on
+        exit.
 
-        Idempotent: calling it again on an already-released object does nothing.
-        Every other method raises ``RuntimeError`` once it has run.
+        Idempotent: calling it again on an already-released object does
+        nothing. Every other method raises ``RuntimeError`` once it has run.
         """
 
 
@@ -299,12 +336,17 @@ class AccF32:
             This same object, not a copy.
         """
 
-    def __exit__(self, exc_type: object | None = ..., exc: object | None = ..., tb: object | None = ...) -> None:
+    def __exit__(
+        self,
+        exc_type: object | None = ...,
+        exc: object | None = ...,
+        tb: object | None = ...,
+    ) -> None:
         """Exit a context manager, releasing the AccF32.
 
         Equivalent to calling `destroy()`. Returns ``None``, so an exception
-        raised inside the `with` body propagates normally; this never suppresses
-        one.
+        raised inside the `with` body propagates normally; this never
+        suppresses one.
 
         Parameters
         ----------
@@ -318,7 +360,12 @@ class AccF32:
 
 @final
 class AccCf64:
-    """Double-precision complex scalar accumulator. Maintains one running complex sum (``acc``) across calls to ``step``, ``steps``, ``madd``, ``add2d``, and ``madd2d``. The signal path is double-precision complex (128-bit per sample); coefficient arrays for ``madd``/``madd2d`` are single-precision float to match typical FIR weight storage. Use ``get`` to read without side-effects or ``dump`` to read and zero atomically.
+    """Double-precision complex scalar accumulator. Maintains one running
+    complex sum (``acc``) across calls to ``step``, ``steps``, ``madd``,
+    ``add2d``, and ``madd2d``. The signal path is double-precision complex
+    (128-bit per sample); coefficient arrays for ``madd``/``madd2d`` are
+    single-precision float to match typical FIR weight storage. Use ``get`` to
+    read without side-effects or ``dump`` to read and zero atomically.
 
     Parameters
     ----------
@@ -342,7 +389,11 @@ class AccCf64:
     def __init__(self, acc: complex = ...) -> None: ...
 
     def reset(self) -> None:
-        """Zero the accumulator, restoring the same state as a fresh ``AccCf64(0j)`` — regardless of the value supplied to ``acc_cf64_create``. Both the real and imaginary parts are set to 0.0. Subsequent ``get`` / ``dump`` calls return ``0j`` until new samples are processed.
+        """Zero the accumulator, restoring the same state as a fresh
+        ``AccCf64(0j)`` — regardless of the value supplied to
+        ``acc_cf64_create``. Both the real and imaginary parts are set to 0.0.
+        Subsequent ``get`` / ``dump`` calls return ``0j`` until new samples are
+        processed.
 
         Examples
         --------
@@ -356,7 +407,9 @@ class AccCf64:
         """
 
     def step(self, x: complex) -> None:
-        """Add one complex sample to the running sum (``acc += x``). This is the hot-path entry for sample-by-sample processing. For block inputs prefer ``acc_cf64_steps`` to amortise call overhead.
+        """Add one complex sample to the running sum (``acc += x``). This is
+        the hot-path entry for sample-by-sample processing. For block inputs
+        prefer ``acc_cf64_steps`` to amortise call overhead.
 
         Parameters
         ----------
@@ -374,7 +427,9 @@ class AccCf64:
         """
 
     def steps(self, x: NDArray[np.complex128]) -> None:
-        """Add all samples in ``input`` to the running sum. Equivalent to calling ``acc_cf64_step`` for each element; iterates element-by-element over double-precision complex samples.
+        """Add all samples in ``input`` to the running sum. Equivalent to
+        calling ``acc_cf64_step`` for each element; iterates element-by-element
+        over double-precision complex samples.
 
         Parameters
         ----------
@@ -393,7 +448,10 @@ class AccCf64:
         """
 
     def get(self) -> complex:
-        """Return the current accumulated sum without resetting state. Identical to reading the ``acc`` property directly; retained as an explicit method so call sites that need the value can be uniform with ``dump`` without a conditional.
+        """Return the current accumulated sum without resetting state.
+        Identical to reading the ``acc`` property directly; retained as an
+        explicit method so call sites that need the value can be uniform with
+        ``dump`` without a conditional.
 
         Returns
         -------
@@ -412,7 +470,10 @@ class AccCf64:
         """
 
     def dump(self) -> complex:
-        """Return the accumulated sum and atomically reset it to zero. This is the canonical "drain" primitive: read the period total, then start a fresh accumulation interval without a separate ``reset`` call. Both real and imaginary parts are zeroed unconditionally.
+        """Return the accumulated sum and atomically reset it to zero. This is
+        the canonical "drain" primitive: read the period total, then start a
+        fresh accumulation interval without a separate ``reset`` call. Both
+        real and imaginary parts are zeroed unconditionally.
 
         Returns
         -------
@@ -433,7 +494,11 @@ class AccCf64:
         """
 
     def madd(self, x: NDArray[np.complex128], h: NDArray[np.float32]) -> None:
-        """Dot-product accumulate with complex signal and float weights: ``acc += sum(x[i] * h[i])`` for ``i`` in ``0 .. min(x_len, h_len) - 1``. The signal array ``x`` is double-precision complex; the coefficient array ``h`` is single-precision float (widened to double before multiplication). The shorter of the two arrays limits iteration.
+        """Dot-product accumulate with complex signal and float weights: ``acc
+        += sum(x[i] * h[i])`` for ``i`` in ``0 .. min(x_len, h_len) - 1``. The
+        signal array ``x`` is double-precision complex; the coefficient array
+        ``h`` is single-precision float (widened to double before
+        multiplication). The shorter of the two arrays limits iteration.
 
         Parameters
         ----------
@@ -456,7 +521,10 @@ class AccCf64:
         """
 
     def add2d(self, x: NDArray[np.complex128]) -> None:
-        """Sum all elements of a (logically) 2-D complex array into the accumulator. The array is treated as a flat C-order buffer of ``x_len`` complex128 samples regardless of the original shape; the caller is responsible for passing the total element count.
+        """Sum all elements of a (logically) 2-D complex array into the
+        accumulator. The array is treated as a flat C-order buffer of ``x_len``
+        complex128 samples regardless of the original shape; the caller is
+        responsible for passing the total element count.
 
         Parameters
         ----------
@@ -475,8 +543,16 @@ class AccCf64:
 
         """
 
-    def madd2d(self, x: NDArray[np.complex128], h: NDArray[np.float32]) -> None:
-        """Dot-product accumulate over a flat 2-D complex buffer: ``acc += sum(x[i] * h[i])`` for ``i`` in ``0 .. min(x_len, h_len) - 1``. Combines ``add2d`` and ``madd`` semantics for 2-D data — a complex signal grid is weighted element-wise by a real coefficient buffer and folded into the running sum.
+    def madd2d(
+        self,
+        x: NDArray[np.complex128],
+        h: NDArray[np.float32],
+    ) -> None:
+        """Dot-product accumulate over a flat 2-D complex buffer: ``acc +=
+        sum(x[i] * h[i])`` for ``i`` in ``0 .. min(x_len, h_len) - 1``.
+        Combines ``add2d`` and ``madd`` semantics for 2-D data — a complex
+        signal grid is weighted element-wise by a real coefficient buffer and
+        folded into the running sum.
 
         Parameters
         ----------
@@ -537,8 +613,9 @@ class AccCf64:
         """Restore mutable state from a `get_state()` blob.
 
         Overwrites the live state in place; the object keeps the parameters it
-        was constructed with. Length is validated against `state_bytes()` before
-        the blob is handed to the C core, and the core may reject it as well.
+        was constructed with. Length is validated against `state_bytes()`
+        before the blob is handed to the C core, and the core may reject it as
+        well.
 
         Raises ``TypeError`` if *blob* is not bytes, ``ValueError`` if its
         length differs from `state_bytes()` or the core rejects it, and
@@ -550,7 +627,9 @@ class AccCf64:
             A `get_state()` blob from this type, exactly `state_bytes()` long.
         """
     def get_acc(self) -> complex:
-        """Return the current accumulator value without modifying state. Use this when you need to read the running sum mid-accumulation without disturbing it. For a read-and-reset in one call use ``acc_cf64_dump``.
+        """Return the current accumulator value without modifying state. Use
+        this when you need to read the running sum mid-accumulation without
+        disturbing it. For a read-and-reset in one call use ``acc_cf64_dump``.
 
         Returns
         -------
@@ -570,7 +649,10 @@ class AccCf64:
         """
 
     def set_acc(self, value: complex) -> None:
-        """Overwrite the accumulator with a new complex value. Useful for seeding the accumulator to a known baseline before processing a new segment without a full ``reset``; subsequent ``step`` / ``steps`` samples accumulate on top of the seeded value.
+        """Overwrite the accumulator with a new complex value. Useful for
+        seeding the accumulator to a known baseline before processing a new
+        segment without a full ``reset``; subsequent ``step`` / ``steps``
+        samples accumulate on top of the seeded value.
 
         Parameters
         ----------
@@ -593,10 +675,11 @@ class AccCf64:
 
         Ordinarily unnecessary: the resources are freed when the object is
         garbage-collected. Call this to release them at a definite point
-        instead, or use the object as a context manager, which calls it on exit.
+        instead, or use the object as a context manager, which calls it on
+        exit.
 
-        Idempotent: calling it again on an already-released object does nothing.
-        Every other method raises ``RuntimeError`` once it has run.
+        Idempotent: calling it again on an already-released object does
+        nothing. Every other method raises ``RuntimeError`` once it has run.
         """
 
 
@@ -612,12 +695,17 @@ class AccCf64:
             This same object, not a copy.
         """
 
-    def __exit__(self, exc_type: object | None = ..., exc: object | None = ..., tb: object | None = ...) -> None:
+    def __exit__(
+        self,
+        exc_type: object | None = ...,
+        exc: object | None = ...,
+        tb: object | None = ...,
+    ) -> None:
         """Exit a context manager, releasing the AccCf64.
 
         Equivalent to calling `destroy()`. Returns ``None``, so an exception
-        raised inside the `with` body propagates normally; this never suppresses
-        one.
+        raised inside the `with` body propagates normally; this never
+        suppresses one.
 
         Parameters
         ----------
@@ -636,7 +724,7 @@ class AccTrace:
     Parameters
     ----------
     n : int, default 1024
-        Trace length in bins.  Must be > 0; returns NULL otherwise.
+        Trace length in bins. Must be > 0; returns NULL otherwise.
     mode : Literal["mean", "exp", "maxhold", "minhold"], default "mean"
         Reduction mode index (0=mean, 1=exp, 2=maxhold, 3=minhold).
     alpha : float, default 0.1
@@ -650,7 +738,12 @@ class AccTrace:
     (8, 0)
 
     """
-    def __init__(self, n: int = ..., mode: Literal["mean", "exp", "maxhold", "minhold"] = "mean", alpha: float = ...) -> None: ...
+    def __init__(
+        self,
+        n: int = ...,
+        mode: Literal["mean", "exp", "maxhold", "minhold"] = "mean",
+        alpha: float = ...,
+    ) -> None: ...
 
     def accumulate(self, p: NDArray[np.float32]) -> None:
         """Fold one length-n frame into the running trace.
@@ -687,7 +780,11 @@ class AccTrace:
 
         """
 
-    def value(self, count: int = 1, out: NDArray[np.float32] | None = None) -> NDArray[np.float32]:
+    def value(
+        self,
+        count: int = 1,
+        out: NDArray[np.float32] | None = None,
+    ) -> NDArray[np.float32]:
         """Copy the current averaged trace (None before any accumulate).
 
         Returns
@@ -762,8 +859,9 @@ class AccTrace:
         """Restore mutable state from a `get_state()` blob.
 
         Overwrites the live state in place; the object keeps the parameters it
-        was constructed with. Length is validated against `state_bytes()` before
-        the blob is handed to the C core, and the core may reject it as well.
+        was constructed with. Length is validated against `state_bytes()`
+        before the blob is handed to the C core, and the core may reject it as
+        well.
 
         Raises ``TypeError`` if *blob* is not bytes, ``ValueError`` if its
         length differs from `state_bytes()` or the core rejects it, and
@@ -798,10 +896,11 @@ class AccTrace:
 
         Ordinarily unnecessary: the resources are freed when the object is
         garbage-collected. Call this to release them at a definite point
-        instead, or use the object as a context manager, which calls it on exit.
+        instead, or use the object as a context manager, which calls it on
+        exit.
 
-        Idempotent: calling it again on an already-released object does nothing.
-        Every other method raises ``RuntimeError`` once it has run.
+        Idempotent: calling it again on an already-released object does
+        nothing. Every other method raises ``RuntimeError`` once it has run.
         """
 
 
@@ -817,12 +916,17 @@ class AccTrace:
             This same object, not a copy.
         """
 
-    def __exit__(self, exc_type: object | None = ..., exc: object | None = ..., tb: object | None = ...) -> None:
+    def __exit__(
+        self,
+        exc_type: object | None = ...,
+        exc: object | None = ...,
+        tb: object | None = ...,
+    ) -> None:
         """Exit a context manager, releasing the AccTrace.
 
         Equivalent to calling `destroy()`. Returns ``None``, so an exception
-        raised inside the `with` body propagates normally; this never suppresses
-        one.
+        raised inside the `with` body propagates normally; this never
+        suppresses one.
 
         Parameters
         ----------

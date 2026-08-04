@@ -268,7 +268,10 @@ _bind_noise_floor_db(PyObject *self, PyObject *args, PyObject *kwds)
 
 static PyMethodDef spectral_module_methods[] = {
     {"kaiser_enbw", (PyCFunction)(void *)_bind_kaiser_enbw, METH_VARARGS | METH_KEYWORDS,
-     "Compute the equivalent noise bandwidth of a window in bins. ENBW = N * sum(w²) / (sum(w))² quantifies how many noise bins the window smears into the main lobe.  A rectangular window has ENBW = 1.0; tapered windows are > 1.0.  Works with any window type, not just Kaiser.\n"
+     "Compute the equivalent noise bandwidth of a window in bins. ENBW = N\n"
+     "* sum(w²) / (sum(w))² quantifies how many noise bins the window smears\n"
+     "into the main lobe. A rectangular window has ENBW = 1.0; tapered\n"
+     "windows are > 1.0. Works with any window type, not just Kaiser.\n"
      "\n"
      "Parameters\n"
      "----------\n"
@@ -289,7 +292,11 @@ static PyMethodDef spectral_module_methods[] = {
      ">>> round(kaiser_enbw(w), 4)\n"
      "1.7143\n"},
     {"kaiser_window", (PyCFunction)(void *)_bind_kaiser_window, METH_VARARGS | METH_KEYWORDS,
-     "Fill w with a Kaiser window of shape parameter beta. I0 is computed via the converging power-series expansion.  Increasing beta raises sidelobe attenuation at the cost of a wider main lobe (beta=0 → rectangular, beta≈6 → ~60 dB sidelobe rejection).  The output is normalised so that `w[0]` = `w[N-1]` = I0(0)/I0(beta).\n"
+     "Fill w with a Kaiser window of shape parameter beta. I0 is computed\n"
+     "via the converging power-series expansion. Increasing beta raises\n"
+     "sidelobe attenuation at the cost of a wider main lobe (beta=0 →\n"
+     "rectangular, beta≈6 → ~60 dB sidelobe rejection). The output is\n"
+     "normalised so that `w[0]` = `w[N-1]` = I0(0)/I0(beta).\n"
      "\n"
      "Parameters\n"
      "----------\n"
@@ -313,10 +320,10 @@ static PyMethodDef spectral_module_methods[] = {
      "own peak sidelobe sits at -atten_db: A > 60 dB : beta = 0.12438 * (A +\n"
      "6.3) 13.26 < A <= 60 dB : beta = 0.76609*(A-13.26)^0.4 +\n"
      "0.09834*(A-13.26) A <= 13.26 dB : beta = 0.0 (rectangular, sidelobes ~\n"
-     "-13.3 dB) Picking the smallest beta meeting a dynamic-range target keeps\n"
-     "the main lobe (hence ENBW / resolution bandwidth) as narrow as the\n"
-     "requirement allows — the basis of the measurement suite's auto-window\n"
-     "selection.\n"
+     "-13.3 dB) Picking the smallest beta meeting a dynamic-range target\n"
+     "keeps the main lobe (hence ENBW / resolution bandwidth) as narrow as\n"
+     "the requirement allows — the basis of the measurement suite's\n"
+     "auto-window selection.\n"
      "\n"
      "This differs from doppler.resample.kaiser_beta(), which uses the Kaiser\n"
      "*FIR-filter* formula (A there is a filter stopband ripple, not a window\n"
@@ -340,7 +347,10 @@ static PyMethodDef spectral_module_methods[] = {
      ">>> kaiser_beta_for_sidelobe(10.0)\n"
      "0.0\n"},
     {"hann_window", (PyCFunction)(void *)_bind_hann_window, METH_VARARGS | METH_KEYWORDS,
-     "Fill w with a Hann (raised-cosine) window. Computes w(k) = 0.5*(1 - cos(2π k/(N-1))) for k = 0..N-1.  The window tapers smoothly to zero at both endpoints, providing ~31 dB first-sidelobe rejection.  Takes no shape parameter; use Kaiser for adjustable roll-off.\n"
+     "Fill w with a Hann (raised-cosine) window. Computes w(k) = 0.5*(1 -\n"
+     "cos(2π k/(N-1))) for k = 0..N-1. The window tapers smoothly to zero at\n"
+     "both endpoints, providing ~31 dB first-sidelobe rejection. Takes no\n"
+     "shape parameter; use Kaiser for adjustable roll-off.\n"
      "\n"
      "Parameters\n"
      "----------\n"
@@ -356,7 +366,13 @@ static PyMethodDef spectral_module_methods[] = {
      ">>> [round(v, 4) for v in w.tolist()]\n"
      "[0.0, 0.1883, 0.6113, 0.9505, 0.9505, 0.6113, 0.1883, 0.0]\n"},
     {"blackman_harris_window", (PyCFunction)(void *)_bind_blackman_harris_window, METH_VARARGS | METH_KEYWORDS,
-     "Fill w with a 4-term Blackman-Harris window. Computes the minimum 4-term Blackman-Harris window: w(k) = 0.35875 - 0.48829*cos(2πk/(N-1)) + 0.14128*cos(4πk/(N-1)) - 0.01168*cos(6πk/(N-1)) for k = 0..N-1.  Provides approximately 92 dB first-sidelobe rejection, far deeper than Hann (~31 dB) or Kaiser at β=8 (~80 dB).  Use for quantization and decimation spectra where you need to see low-level artefacts below the noise floor.\n"
+     "Fill w with a 4-term Blackman-Harris window. Computes the minimum\n"
+     "4-term Blackman-Harris window: w(k) = 0.35875 - 0.48829*cos(2πk/(N-1))\n"
+     "+ 0.14128*cos(4πk/(N-1)) - 0.01168*cos(6πk/(N-1)) for k = 0..N-1.\n"
+     "Provides approximately 92 dB first-sidelobe rejection, far deeper than\n"
+     "Hann (~31 dB) or Kaiser at β=8 (~80 dB). Use for quantization and\n"
+     "decimation spectra where you need to see low-level artefacts below the\n"
+     "noise floor.\n"
      "\n"
      "Parameters\n"
      "----------\n"
@@ -372,7 +388,11 @@ static PyMethodDef spectral_module_methods[] = {
      ">>> [round(v, 4) for v in w.tolist()]\n"
      "[0.0001, 0.0334, 0.3328, 0.8894, 0.8894, 0.3328, 0.0334, 0.0001]\n"},
     {"magnitude_db_cf32", (PyCFunction)(void *)_bind_magnitude_db_cf32, METH_VARARGS | METH_KEYWORDS,
-     "Convert a CF32 complex spectrum to F32 dB magnitudes. Computes out(k) = 20*log10(max(|x(k)|, lin_floor)) + offset_db for each bin.  The lin_floor guard prevents log10(0); a value of 1e-12 corresponds to a -240 dB noise floor.  offset_db shifts the entire output for calibration (e.g., normalise to 0 dBFS).\n"
+     "Convert a CF32 complex spectrum to F32 dB magnitudes. Computes\n"
+     "out(k) = 20*log10(max(|x(k)|, lin_floor)) + offset_db for each bin. The\n"
+     "lin_floor guard prevents log10(0); a value of 1e-12 corresponds to a\n"
+     "-240 dB noise floor. offset_db shifts the entire output for calibration\n"
+     "(e.g., normalise to 0 dBFS).\n"
      "\n"
      "Parameters\n"
      "----------\n"
@@ -396,7 +416,11 @@ static PyMethodDef spectral_module_methods[] = {
      ">>> magnitude_db_cf32(x, 1e-12, 0.0).tolist()\n"
      "[0.0, -20.0, -240.0]\n"},
     {"magnitude_db_cf64", (PyCFunction)(void *)_bind_magnitude_db_cf64, METH_VARARGS | METH_KEYWORDS,
-     "Convert a CF64 complex spectrum to F32 dB magnitudes. Double-precision variant of magnitude_db_cf32().  Accepts a CF64 input array and a double lin_floor; output is still F32 because downstream display code typically works in single precision.  The formula and offset_db semantics are identical.\n"
+     "Convert a CF64 complex spectrum to F32 dB magnitudes.\n"
+     "Double-precision variant of magnitude_db_cf32(). Accepts a CF64 input\n"
+     "array and a double lin_floor; output is still F32 because downstream\n"
+     "display code typically works in single precision. The formula and\n"
+     "offset_db semantics are identical.\n"
      "\n"
      "Parameters\n"
      "----------\n"
@@ -420,7 +444,13 @@ static PyMethodDef spectral_module_methods[] = {
      ">>> magnitude_db_cf64(x, 1e-12, 0.0).tolist()\n"
      "[0.0, 20.0]\n"},
     {"find_peaks_f32", (PyCFunction)(void *)_bind_find_peaks_f32, METH_VARARGS | METH_KEYWORDS,
-     "Find up to n_peaks local maxima in a DC-centred F32 dB spectrum. Three-step algorithm: (1) local-max scan — `db[k]` > `db[k-1]` && `db[k]` >= `db[k+1]` with `db[k]` > min_db; (2) parabolic interpolation on each local maximum to produce sub-bin freq_norm accuracy; (3) sort descending and return the top n_peaks.  freq_norm is DC-centred: bin i maps to freq_norm = (i - N/2) / N so DC (bin N/2) → 0.0 and the first negative frequency bin → −0.5.  The spectrum must have at least 3 bins.\n"
+     "Find up to n_peaks local maxima in a DC-centred F32 dB spectrum.\n"
+     "Three-step algorithm: (1) local-max scan — `db[k]` > `db[k-1]` &&\n"
+     "`db[k]` >= `db[k+1]` with `db[k]` > min_db; (2) parabolic interpolation\n"
+     "on each local maximum to produce sub-bin freq_norm accuracy; (3) sort\n"
+     "descending and return the top n_peaks. freq_norm is DC-centred: bin i\n"
+     "maps to freq_norm = (i - N/2) / N so DC (bin N/2) → 0.0 and the first\n"
+     "negative frequency bin → −0.5. The spectrum must have at least 3 bins.\n"
      "\n"
      "Parameters\n"
      "----------\n"

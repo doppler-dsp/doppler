@@ -5,7 +5,11 @@ from numpy.typing import NDArray
 
 @final
 class AccQ15:
-    """Allocate and initialise an AccQ15 accumulator. The accumulator starts at the supplied initial value and may be driven sample-by-sample (step), in bulk (steps), or via multiply-accumulate (madd). The internal register is a 64-bit signed integer so it will not overflow in any realistic DSP workload.
+    """Allocate and initialise an AccQ15 accumulator. The accumulator starts at
+    the supplied initial value and may be driven sample-by-sample (step), in
+    bulk (steps), or via multiply-accumulate (madd). The internal register is a
+    64-bit signed integer so it will not overflow in any realistic DSP
+    workload.
 
     Parameters
     ----------
@@ -23,7 +27,9 @@ class AccQ15:
     def __init__(self, acc: int = ...) -> None: ...
 
     def reset(self) -> None:
-        """Reset the accumulator to zero, mirroring the post-create state. Does not re-initialise to the constructor's acc value — always resets to zero, matching the default initial state for a clean sweep.
+        """Reset the accumulator to zero, mirroring the post-create state. Does
+        not re-initialise to the constructor's acc value — always resets to
+        zero, matching the default initial state for a clean sweep.
 
         Examples
         --------
@@ -37,7 +43,9 @@ class AccQ15:
         """
 
     def step(self, x: int) -> None:
-        """Accumulate one Q15 sample into the running total. The sample is sign-extended to 64 bits before addition, ensuring that negative samples subtract correctly from the accumulator without wrap.
+        """Accumulate one Q15 sample into the running total. The sample is
+        sign-extended to 64 bits before addition, ensuring that negative
+        samples subtract correctly from the accumulator without wrap.
 
         Parameters
         ----------
@@ -56,7 +64,9 @@ class AccQ15:
         """
 
     def steps(self, x: NDArray[np.int16]) -> None:
-        """Accumulate a contiguous block of Q15 samples. Equivalent to calling step() n times but faster for large arrays because the loop can be auto-vectorised by the compiler.
+        """Accumulate a contiguous block of Q15 samples. Equivalent to calling
+        step() n times but faster for large arrays because the loop can be
+        auto-vectorised by the compiler.
 
         Parameters
         ----------
@@ -115,7 +125,8 @@ class AccQ15:
         """
 
     def madd(self, a: NDArray[np.int16], b: NDArray[np.int16]) -> None:
-        """Multiply-accumulate: acc += sum(a[i] * b[i]) for i in [0, len(a)). Uses AVX2 when available.
+        """Multiply-accumulate: acc += sum(a[i] * b[i]) for i in [0, len(a)).
+        Uses AVX2 when available.
 
         Parameters
         ----------
@@ -176,8 +187,9 @@ class AccQ15:
         """Restore mutable state from a `get_state()` blob.
 
         Overwrites the live state in place; the object keeps the parameters it
-        was constructed with. Length is validated against `state_bytes()` before
-        the blob is handed to the C core, and the core may reject it as well.
+        was constructed with. Length is validated against `state_bytes()`
+        before the blob is handed to the C core, and the core may reject it as
+        well.
 
         Raises ``TypeError`` if *blob* is not bytes, ``ValueError`` if its
         length differs from `state_bytes()` or the core rejects it, and
@@ -189,7 +201,9 @@ class AccQ15:
             A `get_state()` blob from this type, exactly `state_bytes()` long.
         """
     def get_acc(self) -> int:
-        """Read the current accumulator value without modifying it. Use this when you need to snapshot the running total mid-stream and continue accumulating afterward.
+        """Read the current accumulator value without modifying it. Use this
+        when you need to snapshot the running total mid-stream and continue
+        accumulating afterward.
 
         Returns
         -------
@@ -210,7 +224,9 @@ class AccQ15:
         """
 
     def set_acc(self, value: int) -> None:
-        """Overwrite the accumulator with a new value. Useful for setting a bias before a new accumulation window, or for restoring a previously checkpointed value.
+        """Overwrite the accumulator with a new value. Useful for setting a
+        bias before a new accumulation window, or for restoring a previously
+        checkpointed value.
 
         Parameters
         ----------
@@ -232,10 +248,11 @@ class AccQ15:
 
         Ordinarily unnecessary: the resources are freed when the object is
         garbage-collected. Call this to release them at a definite point
-        instead, or use the object as a context manager, which calls it on exit.
+        instead, or use the object as a context manager, which calls it on
+        exit.
 
-        Idempotent: calling it again on an already-released object does nothing.
-        Every other method raises ``RuntimeError`` once it has run.
+        Idempotent: calling it again on an already-released object does
+        nothing. Every other method raises ``RuntimeError`` once it has run.
         """
 
 
@@ -251,12 +268,17 @@ class AccQ15:
             This same object, not a copy.
         """
 
-    def __exit__(self, exc_type: object | None = ..., exc: object | None = ..., tb: object | None = ...) -> None:
+    def __exit__(
+        self,
+        exc_type: object | None = ...,
+        exc: object | None = ...,
+        tb: object | None = ...,
+    ) -> None:
         """Exit a context manager, releasing the AccQ15.
 
         Equivalent to calling `destroy()`. Returns ``None``, so an exception
-        raised inside the `with` body propagates normally; this never suppresses
-        one.
+        raised inside the `with` body propagates normally; this never
+        suppresses one.
 
         Parameters
         ----------
@@ -270,7 +292,11 @@ class AccQ15:
 
 @final
 class AccQ8:
-    """Allocate and initialise an AccQ8 accumulator. The accumulator starts at the supplied initial value and accepts Q8 (int8_t) samples via step(), steps(), or madd(). The 32-bit internal register handles up to roughly 16 million max-magnitude samples before wrap — sufficient for all standard DSP block sizes.
+    """Allocate and initialise an AccQ8 accumulator. The accumulator starts at
+    the supplied initial value and accepts Q8 (int8_t) samples via step(),
+    steps(), or madd(). The 32-bit internal register handles up to roughly 16
+    million max-magnitude samples before wrap — sufficient for all standard DSP
+    block sizes.
 
     Parameters
     ----------
@@ -288,7 +314,9 @@ class AccQ8:
     def __init__(self, acc: int = ...) -> None: ...
 
     def reset(self) -> None:
-        """Reset the accumulator to zero, mirroring the post-create state. Always resets to zero regardless of the original constructor value, so it is safe to call at the start of any new accumulation window.
+        """Reset the accumulator to zero, mirroring the post-create state.
+        Always resets to zero regardless of the original constructor value, so
+        it is safe to call at the start of any new accumulation window.
 
         Examples
         --------
@@ -302,7 +330,9 @@ class AccQ8:
         """
 
     def step(self, x: int) -> None:
-        """Accumulate one Q8 sample into the running total. The sample is sign-extended to 32 bits before addition so negative samples correctly subtract from the accumulator.
+        """Accumulate one Q8 sample into the running total. The sample is
+        sign-extended to 32 bits before addition so negative samples correctly
+        subtract from the accumulator.
 
         Parameters
         ----------
@@ -321,7 +351,9 @@ class AccQ8:
         """
 
     def steps(self, x: NDArray[np.int8]) -> None:
-        """Accumulate a contiguous block of Q8 samples. Equivalent to calling step() n times; the single loop is more amenable to auto-vectorisation than repeated method calls.
+        """Accumulate a contiguous block of Q8 samples. Equivalent to calling
+        step() n times; the single loop is more amenable to auto-vectorisation
+        than repeated method calls.
 
         Parameters
         ----------
@@ -441,8 +473,9 @@ class AccQ8:
         """Restore mutable state from a `get_state()` blob.
 
         Overwrites the live state in place; the object keeps the parameters it
-        was constructed with. Length is validated against `state_bytes()` before
-        the blob is handed to the C core, and the core may reject it as well.
+        was constructed with. Length is validated against `state_bytes()`
+        before the blob is handed to the C core, and the core may reject it as
+        well.
 
         Raises ``TypeError`` if *blob* is not bytes, ``ValueError`` if its
         length differs from `state_bytes()` or the core rejects it, and
@@ -454,7 +487,8 @@ class AccQ8:
             A `get_state()` blob from this type, exactly `state_bytes()` long.
         """
     def get_acc(self) -> int:
-        """Read the current accumulator value without modifying it. Permits repeated snapshots of the running sum mid-stream.
+        """Read the current accumulator value without modifying it. Permits
+        repeated snapshots of the running sum mid-stream.
 
         Returns
         -------
@@ -472,7 +506,9 @@ class AccQ8:
         """
 
     def set_acc(self, value: int) -> None:
-        """Overwrite the accumulator with a new value. Useful for applying a bias before a new accumulation window, or for restoring a checkpointed accumulator state.
+        """Overwrite the accumulator with a new value. Useful for applying a
+        bias before a new accumulation window, or for restoring a checkpointed
+        accumulator state.
 
         Parameters
         ----------
@@ -494,10 +530,11 @@ class AccQ8:
 
         Ordinarily unnecessary: the resources are freed when the object is
         garbage-collected. Call this to release them at a definite point
-        instead, or use the object as a context manager, which calls it on exit.
+        instead, or use the object as a context manager, which calls it on
+        exit.
 
-        Idempotent: calling it again on an already-released object does nothing.
-        Every other method raises ``RuntimeError`` once it has run.
+        Idempotent: calling it again on an already-released object does
+        nothing. Every other method raises ``RuntimeError`` once it has run.
         """
 
 
@@ -513,12 +550,17 @@ class AccQ8:
             This same object, not a copy.
         """
 
-    def __exit__(self, exc_type: object | None = ..., exc: object | None = ..., tb: object | None = ...) -> None:
+    def __exit__(
+        self,
+        exc_type: object | None = ...,
+        exc: object | None = ...,
+        tb: object | None = ...,
+    ) -> None:
         """Exit a context manager, releasing the AccQ8.
 
         Equivalent to calling `destroy()`. Returns ``None``, so an exception
-        raised inside the `with` body propagates normally; this never suppresses
-        one.
+        raised inside the `with` body propagates normally; this never
+        suppresses one.
 
         Parameters
         ----------
@@ -583,7 +625,8 @@ def sub_q15(a: NDArray[np.int16], b: NDArray[np.int16]) -> NDArray[np.int16]:
     """
 
 def mul_q15(a: NDArray[np.int16], b: NDArray[np.int16]) -> NDArray[np.int16]:
-    """Elementwise Q15 multiply with round-half-up: out[i] = sat16((a[i]*b[i] + 16384) >> 15).
+    """Elementwise Q15 multiply with round-half-up: out[i] =
+    sat16((a[i]*b[i] + 16384) >> 15).
 
     Parameters
     ----------
@@ -609,7 +652,8 @@ def mul_q15(a: NDArray[np.int16], b: NDArray[np.int16]) -> NDArray[np.int16]:
     """
 
 def dot_q15(a: NDArray[np.int16], b: NDArray[np.int16]) -> int:
-    """Inner product of two Q15 arrays. Returns the raw Q30 accumulation as int64_t. Shift right 15 to get a Q15 scalar.
+    """Inner product of two Q15 arrays. Returns the raw Q30 accumulation as
+    int64_t. Shift right 15 to get a Q15 scalar.
 
     Parameters
     ----------
@@ -635,7 +679,8 @@ def dot_q15(a: NDArray[np.int16], b: NDArray[np.int16]) -> int:
     """
 
 def shl_q15(a: NDArray[np.int16], n: int) -> NDArray[np.int16]:
-    """Elementwise arithmetic left shift of a Q15 array with saturation. Equivalent to multiplying by 2^n in fixed-point.
+    """Elementwise arithmetic left shift of a Q15 array with saturation.
+    Equivalent to multiplying by 2^n in fixed-point.
 
     Parameters
     ----------
@@ -660,7 +705,8 @@ def shl_q15(a: NDArray[np.int16], n: int) -> NDArray[np.int16]:
     """
 
 def shr_q15(a: NDArray[np.int16], n: int) -> NDArray[np.int16]:
-    """Elementwise arithmetic right shift of a Q15 array with round-half-up. Equivalent to dividing by 2^n.
+    """Elementwise arithmetic right shift of a Q15 array with
+    round-half-up. Equivalent to dividing by 2^n.
 
     Parameters
     ----------
@@ -737,7 +783,8 @@ def sub_q8(a: NDArray[np.int8], b: NDArray[np.int8]) -> NDArray[np.int8]:
     """
 
 def mul_q8(a: NDArray[np.int8], b: NDArray[np.int8]) -> NDArray[np.int8]:
-    """Elementwise Q8 multiply with round-half-up: out[i] = sat8((a[i]*b[i] + 64) >> 7).
+    """Elementwise Q8 multiply with round-half-up: out[i] = sat8((a[i]*b[i]
+    + 64) >> 7).
 
     Parameters
     ----------
@@ -763,7 +810,8 @@ def mul_q8(a: NDArray[np.int8], b: NDArray[np.int8]) -> NDArray[np.int8]:
     """
 
 def dot_q8(a: NDArray[np.int8], b: NDArray[np.int8]) -> int:
-    """Inner product of two Q8 arrays. Returns the raw Q14 accumulation as int32_t.
+    """Inner product of two Q8 arrays. Returns the raw Q14 accumulation as
+    int32_t.
 
     Parameters
     ----------
@@ -839,7 +887,8 @@ def shr_q8(a: NDArray[np.int8], n: int) -> NDArray[np.int8]:
     """
 
 def shl_i64(a: NDArray[np.int64], n: int) -> NDArray[np.int64]:
-    """Elementwise logical left shift of an int64_t array. No saturation (caller ensures no overflow).
+    """Elementwise logical left shift of an int64_t array. No saturation
+    (caller ensures no overflow).
 
     Parameters
     ----------
@@ -864,7 +913,8 @@ def shl_i64(a: NDArray[np.int64], n: int) -> NDArray[np.int64]:
     """
 
 def shr_i64(a: NDArray[np.int64], n: int) -> NDArray[np.int64]:
-    """Elementwise arithmetic right shift of an int64_t array with round-half-up. Useful for normalising dot_q15 Q30 results back to Q15.
+    """Elementwise arithmetic right shift of an int64_t array with
+    round-half-up. Useful for normalising dot_q15 Q30 results back to Q15.
 
     Parameters
     ----------

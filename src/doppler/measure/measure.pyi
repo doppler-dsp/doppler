@@ -5,7 +5,8 @@ from numpy.typing import NDArray
 
 @final
 class ToneMetrics(tuple[float, float, float, float, float, float, float, float, float, float, float, float, float, float, int, float, float, float, int, int, float, float, float]):
-    """Single-tone ADC/converter dynamic metrics (SNR, SINAD, THD, SFDR, ENOB) plus the analysis-grid accuracy fields.
+    """Single-tone ADC/converter dynamic metrics (SNR, SINAD, THD, SFDR, ENOB)
+    plus the analysis-grid accuracy fields.
 
     Attributes
     ----------
@@ -239,7 +240,8 @@ class NPRMetrics(tuple[float, float, float, int, int, float]):
 
 @final
 class IMDMetrics(tuple[float, float, float, float, float, float, float, float, float, float, float, float]):
-    """Two-tone intermodulation metrics (IMD2, IMD3, second/third-order intercepts).
+    """Two-tone intermodulation metrics (IMD2, IMD3, second/third-order
+    intercepts).
 
     Attributes
     ----------
@@ -330,11 +332,13 @@ class ToneMeasure:
     n_harmonics : int, default 8
         Harmonics to track (k = 2..n_harmonics).
     full_scale : float, default 1.0
-        Amplitude that equals 0 dBFS (> 0).  Ignored if bits > 0.
+        Amplitude that equals 0 dBFS (> 0). Ignored if bits > 0.
     bits : int, default 0
-        ADC depth: bits>0 sets the 0-dBFS reference to 2^(bits-1) and, unless overridden, the dynamic-range target (6.02*bits + 1.76 + headroom).
+        ADC depth: bits>0 sets the 0-dBFS reference to 2^(bits-1) and, unless
+        overridden, the dynamic-range target (6.02*bits + 1.76 + headroom).
     dynamic_range_db : float, default 0.0
-        Explicit sidelobe/dynamic-range target (dB); used when > 0, else derived from bits (or a deep default when both are 0).
+        Explicit sidelobe/dynamic-range target (dB); used when > 0, else
+        derived from bits (or a deep default when both are 0).
     dc_guard : int, default 0
         Extra bins excluded beyond L around DC.
 
@@ -343,18 +347,35 @@ class ToneMeasure:
     Create with defaults:
 
     >>> from doppler.measure import ToneMeasure
-    >>> obj = ToneMeasure(n=8192, fs=1.0, n_harmonics=8, full_scale=1.0, bits=0, dynamic_range_db=0.0, dc_guard=0)
+    >>> obj = ToneMeasure(
+    ...     n=8192,
+    ...     fs=1.0,
+    ...     n_harmonics=8,
+    ...     full_scale=1.0,
+    ...     bits=0,
+    ...     dynamic_range_db=0.0,
+    ...     dc_guard=0,
+    ... )
 
     """
-    def __init__(self, n: int = ..., fs: float = ..., n_harmonics: int = ..., full_scale: float = ..., bits: int = ..., dynamic_range_db: float = ..., dc_guard: int = ...) -> None: ...
+    def __init__(
+        self,
+        n: int = ...,
+        fs: float = ...,
+        n_harmonics: int = ...,
+        full_scale: float = ...,
+        bits: int = ...,
+        dynamic_range_db: float = ...,
+        dc_guard: int = ...,
+    ) -> None: ...
 
     def reset(self) -> None:
         """Reset the analyser (a no-op: it holds no state between calls).
 
         Every analyze() / analyze_complex() / time_stats() / spectrum_dbfs()
-        call re-windows and re-transforms its own capture from scratch, so there
-        is nothing carried between calls to clear. The method exists only so
-        ToneMeasure honours the same reset() contract as every other doppler
+        call re-windows and re-transforms its own capture from scratch, so
+        there is nothing carried between calls to clear. The method exists only
+        so ToneMeasure honours the same reset() contract as every other doppler
         object, letting a generic pipeline reset each stage uniformly.
 
         Examples
@@ -446,8 +467,13 @@ class ToneMeasure:
 
         """
 
-    def spectrum_dbfs(self, x: NDArray[np.float32], out: NDArray[np.float32] | None = None) -> NDArray[np.float32]:
-        """DC-centred dBFS magnitude spectrum of a capture (length nfft, for plots).
+    def spectrum_dbfs(
+        self,
+        x: NDArray[np.float32],
+        out: NDArray[np.float32] | None = None,
+    ) -> NDArray[np.float32]:
+        """DC-centred dBFS magnitude spectrum of a capture (length nfft, for
+        plots).
 
         The windowed, zero-padded magnitude spectrum behind the metrics, laid
         out DC-centred (fftshifted) and normalised to dBFS so it drops straight
@@ -537,10 +563,11 @@ class ToneMeasure:
 
         Ordinarily unnecessary: the resources are freed when the object is
         garbage-collected. Call this to release them at a definite point
-        instead, or use the object as a context manager, which calls it on exit.
+        instead, or use the object as a context manager, which calls it on
+        exit.
 
-        Idempotent: calling it again on an already-released object does nothing.
-        Every other method raises ``RuntimeError`` once it has run.
+        Idempotent: calling it again on an already-released object does
+        nothing. Every other method raises ``RuntimeError`` once it has run.
         """
 
 
@@ -556,12 +583,17 @@ class ToneMeasure:
             This same object, not a copy.
         """
 
-    def __exit__(self, exc_type: object | None = ..., exc: object | None = ..., tb: object | None = ...) -> None:
+    def __exit__(
+        self,
+        exc_type: object | None = ...,
+        exc: object | None = ...,
+        tb: object | None = ...,
+    ) -> None:
         """Exit a context manager, releasing the ToneMeasure.
 
         Equivalent to calling `destroy()`. Returns ``None``, so an exception
-        raised inside the `with` body propagates normally; this never suppresses
-        one.
+        raised inside the `with` body propagates normally; this never
+        suppresses one.
 
         Parameters
         ----------
@@ -584,21 +616,36 @@ class NPRMeasure:
     fs : float, default 1.0
         Sample rate (Hz, > 0).
     full_scale : float, default 1.0
-        Amplitude that equals 0 dBFS (> 0).  Ignored if bits > 0.
+        Amplitude that equals 0 dBFS (> 0). Ignored if bits > 0.
     bits : int, default 0
-        ADC depth: bits>0 sets the 0-dBFS reference to 2^(bits-1) and, unless overridden, the dynamic-range target.
+        ADC depth: bits>0 sets the 0-dBFS reference to 2^(bits-1) and, unless
+        overridden, the dynamic-range target.
     dynamic_range_db : float, default 0.0
-        Explicit sidelobe/dynamic-range target (dB); used when > 0, else derived from bits.
+        Explicit sidelobe/dynamic-range target (dB); used when > 0, else
+        derived from bits.
 
     Examples
     --------
     Create with defaults:
 
     >>> from doppler.measure import NPRMeasure
-    >>> obj = NPRMeasure(n=8192, fs=1.0, full_scale=1.0, bits=0, dynamic_range_db=0.0)
+    >>> obj = NPRMeasure(
+    ...     n=8192,
+    ...     fs=1.0,
+    ...     full_scale=1.0,
+    ...     bits=0,
+    ...     dynamic_range_db=0.0,
+    ... )
 
     """
-    def __init__(self, n: int = ..., fs: float = ..., full_scale: float = ..., bits: int = ..., dynamic_range_db: float = ...) -> None: ...
+    def __init__(
+        self,
+        n: int = ...,
+        fs: float = ...,
+        full_scale: float = ...,
+        bits: int = ...,
+        dynamic_range_db: float = ...,
+    ) -> None: ...
 
     def reset(self) -> None:
         """Reset the analyser (a no-op: each analyze() call is independent).
@@ -619,8 +666,17 @@ class NPRMeasure:
 
         """
 
-    def analyze(self, x: float, active_lo: float, active_hi: float, notch_lo: float, notch_hi: float, guard_hz: float = 0.0) -> NPRMetrics:
-        """NPR of a notched-noise capture over [active_lo,active_hi] with a notch [notch_lo,notch_hi] (Hz) and guard keep-out.
+    def analyze(
+        self,
+        x: float,
+        active_lo: float,
+        active_hi: float,
+        notch_lo: float,
+        notch_hi: float,
+        guard_hz: float = 0.0,
+    ) -> NPRMetrics:
+        """NPR of a notched-noise capture over [active_lo,active_hi] with a
+        notch [notch_lo,notch_hi] (Hz) and guard keep-out.
 
         Parameters
         ----------
@@ -660,8 +716,13 @@ class NPRMeasure:
 
         """
 
-    def spectrum_dbfs(self, x: NDArray[np.float32], out: NDArray[np.float32] | None = None) -> NDArray[np.float32]:
-        """DC-centred dBFS magnitude spectrum of a capture (length nfft, for plots).
+    def spectrum_dbfs(
+        self,
+        x: NDArray[np.float32],
+        out: NDArray[np.float32] | None = None,
+    ) -> NDArray[np.float32]:
+        """DC-centred dBFS magnitude spectrum of a capture (length nfft, for
+        plots).
 
         The same windowed, zero-padded PSD the NPR metrics are read off, laid
         out DC-centred (fftshifted) and normalised to dBFS for an
@@ -727,10 +788,11 @@ class NPRMeasure:
 
         Ordinarily unnecessary: the resources are freed when the object is
         garbage-collected. Call this to release them at a definite point
-        instead, or use the object as a context manager, which calls it on exit.
+        instead, or use the object as a context manager, which calls it on
+        exit.
 
-        Idempotent: calling it again on an already-released object does nothing.
-        Every other method raises ``RuntimeError`` once it has run.
+        Idempotent: calling it again on an already-released object does
+        nothing. Every other method raises ``RuntimeError`` once it has run.
         """
 
 
@@ -746,12 +808,17 @@ class NPRMeasure:
             This same object, not a copy.
         """
 
-    def __exit__(self, exc_type: object | None = ..., exc: object | None = ..., tb: object | None = ...) -> None:
+    def __exit__(
+        self,
+        exc_type: object | None = ...,
+        exc: object | None = ...,
+        tb: object | None = ...,
+    ) -> None:
         """Exit a context manager, releasing the NPRMeasure.
 
         Equivalent to calling `destroy()`. Returns ``None``, so an exception
-        raised inside the `with` body propagates normally; this never suppresses
-        one.
+        raised inside the `with` body propagates normally; this never
+        suppresses one.
 
         Parameters
         ----------
@@ -774,21 +841,36 @@ class IMDMeasure:
     fs : float, default 1.0
         Sample rate (Hz, > 0).
     full_scale : float, default 1.0
-        Amplitude that equals 0 dBFS (> 0).  Ignored if bits > 0.
+        Amplitude that equals 0 dBFS (> 0). Ignored if bits > 0.
     bits : int, default 0
-        ADC depth: bits>0 sets the 0-dBFS reference to 2^(bits-1) and, unless overridden, the dynamic-range target.
+        ADC depth: bits>0 sets the 0-dBFS reference to 2^(bits-1) and, unless
+        overridden, the dynamic-range target.
     dynamic_range_db : float, default 0.0
-        Explicit sidelobe/dynamic-range target (dB); used when > 0, else derived from bits.
+        Explicit sidelobe/dynamic-range target (dB); used when > 0, else
+        derived from bits.
 
     Examples
     --------
     Create with defaults:
 
     >>> from doppler.measure import IMDMeasure
-    >>> obj = IMDMeasure(n=8192, fs=1.0, full_scale=1.0, bits=0, dynamic_range_db=0.0)
+    >>> obj = IMDMeasure(
+    ...     n=8192,
+    ...     fs=1.0,
+    ...     full_scale=1.0,
+    ...     bits=0,
+    ...     dynamic_range_db=0.0,
+    ... )
 
     """
-    def __init__(self, n: int = ..., fs: float = ..., full_scale: float = ..., bits: int = ..., dynamic_range_db: float = ...) -> None: ...
+    def __init__(
+        self,
+        n: int = ...,
+        fs: float = ...,
+        full_scale: float = ...,
+        bits: int = ...,
+        dynamic_range_db: float = ...,
+    ) -> None: ...
 
     def reset(self) -> None:
         """Reset the analyser (a no-op: each analyze() call is independent).
@@ -837,8 +919,13 @@ class IMDMeasure:
 
         """
 
-    def spectrum_dbfs(self, x: NDArray[np.float32], out: NDArray[np.float32] | None = None) -> NDArray[np.float32]:
-        """DC-centred dBFS magnitude spectrum of a capture (length nfft, for plots).
+    def spectrum_dbfs(
+        self,
+        x: NDArray[np.float32],
+        out: NDArray[np.float32] | None = None,
+    ) -> NDArray[np.float32]:
+        """DC-centred dBFS magnitude spectrum of a capture (length nfft, for
+        plots).
 
         The same windowed, zero-padded PSD the IMD metrics are read off, laid
         out DC-centred (fftshifted) and normalised to dBFS for an
@@ -901,10 +988,11 @@ class IMDMeasure:
 
         Ordinarily unnecessary: the resources are freed when the object is
         garbage-collected. Call this to release them at a definite point
-        instead, or use the object as a context manager, which calls it on exit.
+        instead, or use the object as a context manager, which calls it on
+        exit.
 
-        Idempotent: calling it again on an already-released object does nothing.
-        Every other method raises ``RuntimeError`` once it has run.
+        Idempotent: calling it again on an already-released object does
+        nothing. Every other method raises ``RuntimeError`` once it has run.
         """
 
 
@@ -920,12 +1008,17 @@ class IMDMeasure:
             This same object, not a copy.
         """
 
-    def __exit__(self, exc_type: object | None = ..., exc: object | None = ..., tb: object | None = ...) -> None:
+    def __exit__(
+        self,
+        exc_type: object | None = ...,
+        exc: object | None = ...,
+        tb: object | None = ...,
+    ) -> None:
         """Exit a context manager, releasing the IMDMeasure.
 
         Equivalent to calling `destroy()`. Returns ``None``, so an exception
-        raised inside the `with` body propagates normally; this never suppresses
-        one.
+        raised inside the `with` body propagates normally; this never
+        suppresses one.
 
         Parameters
         ----------
@@ -937,12 +1030,19 @@ class IMDMeasure:
             Traceback object, or None. Ignored.
         """
 
-def measure_min_samples(fs: float, target_rbw: float, bits: int, dynamic_range_db: float, complex_input: int) -> int:
-    """Samples for a target RBW (auto Kaiser from bits/dynamic_range_db; target_rbw<=0 -> span/1000).
+def measure_min_samples(
+    fs: float,
+    target_rbw: float,
+    bits: int,
+    dynamic_range_db: float,
+    complex_input: int,
+) -> int:
+    """Samples for a target RBW (auto Kaiser from bits/dynamic_range_db;
+    target_rbw<=0 -> span/1000).
 
     Plans a capture for the same auto-Kaiser window the measurement objects
-    use: the dynamic-range target (from dynamic_range_db, else bits) selects
-    the Kaiser beta, whose ENBW (measured via kaiser_enbw) sets the
+    use: the dynamic-range target (from dynamic_range_db, else bits)
+    selects the Kaiser beta, whose ENBW (measured via kaiser_enbw) sets the
     bins-per-RBW. RBW = ENBW * fs / n, so n = ceil(ENBW * fs / target_rbw).
 
     Parameters
@@ -998,7 +1098,8 @@ def measure_proc_gain(nfft: int) -> float:
     """
 
 def dp_coherent_freq(fs: float, f_target: float, N: int) -> float:
-    """Nearest leakage-free coherent test frequency (J cycles, J coprime N).
+    """Nearest leakage-free coherent test frequency (J cycles, J coprime
+    N).
 
     Snaps `f_target` to `J * fs / N` where J is the nearest integer cycle
     count that is coprime with N — an integer number of cycles in the

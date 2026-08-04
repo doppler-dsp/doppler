@@ -343,7 +343,7 @@ static PyMethodDef detection_module_methods[] = {
      "--------\n"
      ">>> from doppler.detection import det_pd, det_threshold\n"
      ">>> thr = det_threshold(pfa=1e-6)\n"
-     ">>> round(det_pd(snr=1.613, dwell=8, threshold=thr), 2)  # 8-dwell -> Pd~0.9\n"
+     ">>> round(det_pd(snr=1.613, dwell=8, threshold=thr), 2)  # 8-dwell Pd 0.9\n"
      "0.9\n"
      ">>> round(det_pd(snr=0.0, dwell=8, threshold=thr), 6)    # snr=0 -> Pd=Pfa\n"
      "1e-06\n"},
@@ -429,7 +429,8 @@ static PyMethodDef detection_module_methods[] = {
      ">>> from doppler.detection import det_threshold_noncoherent, det_threshold\n"
      ">>> round(det_threshold_noncoherent(pfa=1e-3, n_noncoh=4), 3)\n"
      "5.111\n"
-     ">>> det_threshold_noncoherent(pfa=1e-6, n_noncoh=1) == det_threshold(pfa=1e-6)\n"
+     ">>> det_threshold_noncoherent(pfa=1e-6, n_noncoh=1) == det_threshold(\n"
+     "...     pfa=1e-6)\n"
      "True\n"},
     {"det_ema_alpha", (PyCFunction)(void *)_bind_det_ema_alpha, METH_VARARGS | METH_KEYWORDS,
      "EMA coefficient for a target estimator SNR (DC level in noise).\n"
@@ -605,10 +606,11 @@ static PyMethodDef detection_module_methods[] = {
      ">>> from doppler.detection import det_threshold_noncoherent\n"
      ">>> eta = det_threshold(pfa=1e-6)\n"
      ">>> det_pd_noncoherent(snr=0.5, n_coh=8, n_noncoh=1, threshold=eta) \\\n"
-     "...     == det_pd(snr=0.5, dwell=8, threshold=eta)        # reduces to coherent\n"
+     "...     == det_pd(snr=0.5, dwell=8, threshold=eta)  # reduces to coherent\n"
      "True\n"
      ">>> eta4 = det_threshold_noncoherent(pfa=1e-3, n_noncoh=4)\n"
-     ">>> round(det_pd_noncoherent(snr=0.3, n_coh=16, n_noncoh=4, threshold=eta4), 2)\n"
+     ">>> round(det_pd_noncoherent(\n"
+     "...     snr=0.3, n_coh=16, n_noncoh=4, threshold=eta4), 2)\n"
      "0.19\n"},
     {"det_n_noncoh", (PyCFunction)(void *)_bind_det_n_noncoh, METH_VARARGS | METH_KEYWORDS,
      "Minimum non-coherent looks achieving Pd >= pd_min at fixed n_coh.\n"

@@ -382,8 +382,12 @@ extern "C"
    * >>> data = (rng.integers(0, 2, 604) * 2 - 1).astype(float)
    * >>> si = np.clip((idx / tsym).astype(int), 0, 603)
    * >>> t = idx / fs
-   * >>> sig = (data[si] * csign[(idx // spc) % sf]           # DSSS chips
-   * ...        * np.exp(1j * 2 * np.pi * 0.5 * 500.0 * t * t))  # 500 Hz/s ramp
+   *
+   * DSSS chips on a carrier sweeping at 500 Hz/s — the ramp the async
+   * receiver has to track:
+   *
+   * >>> sig = (data[si] * csign[(idx // spc) % sf]
+   * ...        * np.exp(1j * 2 * np.pi * 0.5 * 500.0 * t * t))
    * >>> cn0 = 20.0 + 10 * np.log10(sym)         # Es/N0 = 20 dB
    * >>> sigma = np.sqrt(fs / 10 ** (cn0 / 10))
    * >>> pre = 5 * te                            # noise-only lead-in
@@ -391,15 +395,19 @@ extern "C"
    * ...          + 1j * rng.standard_normal(pre + n))
    * >>> x = (np.concatenate([np.zeros(pre), sig]).astype(np.complex64)
    * ...      + noise.astype(np.complex64))
-   * >>> rx = AsyncDsssReceiver(code, chip_rate=chip, symbol_rate=sym,
-   * ...                        spc=spc, cn0_dbhz=cn0, doppler_uncertainty=500.0)
+   * >>> rx = AsyncDsssReceiver(
+   * ...     code, chip_rate=chip, symbol_rate=sym, spc=spc,
+   * ...     cn0_dbhz=cn0, doppler_uncertainty=500.0)
    * >>> syms = [rx.steps(x[p:p + te]) for p in range(0, len(x) - te, te)]
    * >>> syms = np.concatenate([s for s in syms if len(s)])
-   * >>> rx.tracking                       # searched, refined, now tracking
+   * >>> rx.tracking                  # searched, refined, now tracking
    * 1
-   * >>> len(syms) > 300                    # symbols recovered under the ramp
+   * >>> len(syms) > 300              # symbols recovered under the ramp
    * True
-   * >>> bool(np.mean(syms.real**2) > 10 * np.mean(syms.imag**2))  # BPSK on I
+   *
+   * Nearly all the energy lands on I, so the BPSK phase is resolved:
+   *
+   * >>> bool(np.mean(syms.real**2) > 10 * np.mean(syms.imag**2))
    * True
    *
    * @endcode
@@ -432,7 +440,7 @@ extern "C"
    * >>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
    * >>> rx = AsyncDsssReceiver(code, chip_rate=3.069e6, symbol_rate=2700.0,
    * ...                        spc=2, doppler_uncertainty=500.0)
-   * >>> rx.reset()                        # abort any lock, hunt from scratch
+   * >>> rx.reset()                 # abort any lock, hunt from scratch
    * >>> (rx.tracking, rx.refining, rx.chip_phase)   # all cleared
    * (0, 0, 0.0)
    *
@@ -477,8 +485,12 @@ extern "C"
    * >>> data = (rng.integers(0, 2, 604) * 2 - 1).astype(float)
    * >>> si = np.clip((idx / tsym).astype(int), 0, 603)
    * >>> t = idx / fs
-   * >>> sig = (data[si] * csign[(idx // spc) % sf]           # DSSS chips
-   * ...        * np.exp(1j * 2 * np.pi * 0.5 * 500.0 * t * t))  # 500 Hz/s ramp
+   *
+   * DSSS chips on a carrier sweeping at 500 Hz/s — the ramp the async
+   * receiver has to track:
+   *
+   * >>> sig = (data[si] * csign[(idx // spc) % sf]
+   * ...        * np.exp(1j * 2 * np.pi * 0.5 * 500.0 * t * t))
    * >>> cn0 = 20.0 + 10 * np.log10(sym)         # Es/N0 = 20 dB
    * >>> sigma = np.sqrt(fs / 10 ** (cn0 / 10))
    * >>> pre = 5 * te                            # noise-only lead-in
@@ -486,15 +498,19 @@ extern "C"
    * ...          + 1j * rng.standard_normal(pre + n))
    * >>> x = (np.concatenate([np.zeros(pre), sig]).astype(np.complex64)
    * ...      + noise.astype(np.complex64))
-   * >>> rx = AsyncDsssReceiver(code, chip_rate=chip, symbol_rate=sym,
-   * ...                        spc=spc, cn0_dbhz=cn0, doppler_uncertainty=500.0)
+   * >>> rx = AsyncDsssReceiver(
+   * ...     code, chip_rate=chip, symbol_rate=sym, spc=spc,
+   * ...     cn0_dbhz=cn0, doppler_uncertainty=500.0)
    * >>> syms = [rx.steps(x[p:p + te]) for p in range(0, len(x) - te, te)]
    * >>> syms = np.concatenate([s for s in syms if len(s)])
-   * >>> rx.tracking                       # searched, refined, now tracking
+   * >>> rx.tracking                  # searched, refined, now tracking
    * 1
-   * >>> len(syms) > 300                    # symbols recovered under the ramp
+   * >>> len(syms) > 300              # symbols recovered under the ramp
    * True
-   * >>> bool(np.mean(syms.real**2) > 10 * np.mean(syms.imag**2))  # BPSK on I
+   *
+   * Nearly all the energy lands on I, so the BPSK phase is resolved:
+   *
+   * >>> bool(np.mean(syms.real**2) > 10 * np.mean(syms.imag**2))
    * True
    *
    * @endcode
@@ -525,8 +541,8 @@ extern "C"
    * >>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
    * >>> rx = AsyncDsssReceiver(code, chip_rate=3.069e6, symbol_rate=2700.0,
    * ...                        spc=2, doppler_uncertainty=500.0)
-   * >>> rx.configure_search_raw(doppler_bins=1, n_noncoh=16)  # pin the grid
-   * >>> rx.refining                       # still searching, on the pinned grid
+   * >>> rx.configure_search_raw(doppler_bins=1, n_noncoh=16)  # pin it
+   * >>> rx.refining                # still searching, on the pinned grid
    * 0
    *
    * @endcode

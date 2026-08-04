@@ -418,7 +418,8 @@ class NCO:
     def phase(self) -> int:
         """Current phase accumulator value (read/write). Reading returns the
         current integer phase in `[0, 2^32)`. Writing overrides the accumulator
-        directly, allowing arbitrary phase offsets without re-creating the NCO.
+        directly, allowing arbitrary phase offsets without re-creating the
+        NCO.
         """
     @phase.setter
     def phase(self, value: int) -> None: ...
@@ -427,7 +428,8 @@ class NCO:
     def phase_inc(self) -> int:
         """Per-sample phase increment (read-only). Derived from norm_freq as
         floor(frac(norm_freq) × 2^32). Updated automatically whenever norm_freq
-        is written. A freq of 0.25 gives phase_inc = 1073741824 (0x40000000).
+        is written. A freq of 0.25 gives phase_inc = 1073741824
+        (0x40000000).
         """
 
     def destroy(self) -> None:

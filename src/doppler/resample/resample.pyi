@@ -210,7 +210,8 @@ class Resampler:
     @property
     def num_taps(self) -> int:
         """Taps per polyphase branch. Total prototype filter length is
-        num_phases * num_taps - 1. The built-in bank uses 19 taps per branch.
+        num_phases * num_taps - 1. The built-in bank uses 19 taps per
+        branch.
         """
 
     def destroy(self) -> None:

@@ -40,7 +40,8 @@ class StreamSink:
             0 on success, non-zero on a send/allocation error.
         """
     def track_clipping(self, on: int = ...) -> None:
-        """Enable the per-component clip counter (off by default; peak always on).
+        """Enable the per-component clip counter (off by default; peak always
+        on).
 
         Parameters
         ----------

@@ -24,10 +24,15 @@ class InterpolatedTable:
     3
 
     """
-    def __init__(self, table: NDArray[np.complex128], method: Literal["floor", "nearest", "linear"] = "linear") -> None: ...
+    def __init__(
+        self,
+        table: NDArray[np.complex128],
+        method: Literal["floor", "nearest", "linear"] = "linear",
+    ) -> None: ...
 
     def reset(self) -> None:
-        """No-op: InterpolatedTable is purely a function of (table, method, point) with no running state to reset.
+        """No-op: InterpolatedTable is purely a function of (table, method,
+        point) with no running state to reset.
 
         Present only to satisfy the common object interface; each execute()
         depends solely on its inputs, so a call before or after reset() returns
@@ -45,8 +50,13 @@ class InterpolatedTable:
 
         """
 
-    def execute(self, x: NDArray[np.float64], out: NDArray[np.complex128] | None = None) -> NDArray[np.complex128]:
-        """Evaluate the table at each of n_in points via periodic interpolation.
+    def execute(
+        self,
+        x: NDArray[np.float64],
+        out: NDArray[np.complex128] | None = None,
+    ) -> NDArray[np.complex128]:
+        """Evaluate the table at each of n_in points via periodic
+        interpolation.
 
         Each point is wrapped mod the table length (any real value, any sign)
         and evaluated per the configured method:
@@ -77,7 +87,9 @@ class InterpolatedTable:
         """
 
     def execute_max_out(self, n_in: int) -> int:
-        """No fixed cap -- execute()'s output is always sized to exactly match its own input length, so an `out=` buffer only ever needs to be at least that many elements (never a larger, unrelated minimum).
+        """No fixed cap -- execute()'s output is always sized to exactly match
+        its own input length, so an `out=` buffer only ever needs to be at
+        least that many elements (never a larger, unrelated minimum).
 
         Parameters
         ----------
@@ -99,10 +111,11 @@ class InterpolatedTable:
 
         Ordinarily unnecessary: the resources are freed when the object is
         garbage-collected. Call this to release them at a definite point
-        instead, or use the object as a context manager, which calls it on exit.
+        instead, or use the object as a context manager, which calls it on
+        exit.
 
-        Idempotent: calling it again on an already-released object does nothing.
-        Every other method raises ``RuntimeError`` once it has run.
+        Idempotent: calling it again on an already-released object does
+        nothing. Every other method raises ``RuntimeError`` once it has run.
         """
 
 
@@ -119,12 +132,17 @@ class InterpolatedTable:
             This same object, not a copy.
         """
 
-    def __exit__(self, exc_type: object | None = ..., exc: object | None = ..., tb: object | None = ...) -> None:
+    def __exit__(
+        self,
+        exc_type: object | None = ...,
+        exc: object | None = ...,
+        tb: object | None = ...,
+    ) -> None:
         """Exit a context manager, releasing the InterpolatedTable.
 
         Equivalent to calling `destroy()`. Returns ``None``, so an exception
-        raised inside the `with` body propagates normally; this never suppresses
-        one.
+        raised inside the `with` body propagates normally; this never
+        suppresses one.
 
         Parameters
         ----------

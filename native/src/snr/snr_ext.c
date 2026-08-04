@@ -120,7 +120,8 @@ _bind_snr_m2m4_db_series(PyObject *self, PyObject *args, PyObject *kwds)
 
 static PyMethodDef snr_module_methods[] = {
     {"snr_data_aided_db", (PyCFunction)(void *)_bind_snr_data_aided_db, METH_VARARGS | METH_KEYWORDS,
-     "Data-aided Es/N0 (dB): strip the known sign, Es/N0 = a^2 / mean(|z-a|^2).\n"
+     "Data-aided Es/N0 (dB): strip the known sign, Es/N0 = a^2 /\n"
+     "mean(|z-a|^2).\n"
      "\n"
      "Strips the known transmitted sign (``soft[i] * (sign_bits[i] ? -1 :\n"
      "1)``), then Es/N0 = (mean signal amplitude)^2 / (mean residual power).\n"
@@ -139,8 +140,8 @@ static PyMethodDef snr_module_methods[] = {
      "Returns\n"
      "-------\n"
      "float\n"
-     "    Es/N0 in dB over ``min(soft_len, sign_bits_len)`` paired samples, or\n"
-     "    NaN if that count is 0 or the residual power is exactly 0.\n"
+     "    Es/N0 in dB over ``min(soft_len, sign_bits_len)`` paired samples,\n"
+     "    or NaN if that count is 0 or the residual power is exactly 0.\n"
      "\n"
      "Examples\n"
      "--------\n"
@@ -155,7 +156,8 @@ static PyMethodDef snr_module_methods[] = {
      ">>> round(float(snr_data_aided_db(soft, bits)), 1)\n"
      "17.1\n"},
     {"snr_m2m4_db", (PyCFunction)(void *)_bind_snr_m2m4_db, METH_VARARGS | METH_KEYWORDS,
-     "Non-data-aided moment-based (M2M4) Es/N0 (dB) for a constant-modulus signal in AWGN.\n"
+     "Non-data-aided moment-based (M2M4) Es/N0 (dB) for a constant-modulus\n"
+     "signal in AWGN.\n"
      "\n"
      "M2M4 estimator (Pauluzzi & Beaulieu 2000) for a constant-modulus signal\n"
      "(BPSK/QPSK/M-PSK) in circular complex AWGN: no known symbols required.\n"
@@ -163,8 +165,8 @@ static PyMethodDef snr_module_methods[] = {
      "Parameters\n"
      "----------\n"
      "x : NDArray[np.complex64]\n"
-     "    Complex baseband samples (post-carrier-lock; residual phase does not\n"
-     "    bias the moment-based estimate).\n"
+     "    Complex baseband samples (post-carrier-lock; residual phase does\n"
+     "    not bias the moment-based estimate).\n"
      "\n"
      "Returns\n"
      "-------\n"
@@ -186,12 +188,13 @@ static PyMethodDef snr_module_methods[] = {
      ">>> round(float(snr_m2m4_db(x)), 1)\n"
      "17.1\n"},
     {"snr_data_aided_db_series", (PyCFunction)(void *)_bind_snr_data_aided_db_series, METH_VARARGS | METH_KEYWORDS,
-     "Sliding-window data-aided Es/N0 (dB) vs index, for visualizing drift.\n"
+     "Sliding-window data-aided Es/N0 (dB) vs index, for visualizing\n"
+     "drift.\n"
      "\n"
-     "Same estimator as snr_data_aided_db(), applied to a ``[i - window/2, i +\n"
-     "window/2]`` window centered (clamped at the edges) on each output index\n"
-     "-- for visualizing SNR drift vs time/index rather than reading one\n"
-     "block-average scalar.\n"
+     "Same estimator as snr_data_aided_db(), applied to a ``[i - window/2, i\n"
+     "+ window/2]`` window centered (clamped at the edges) on each output\n"
+     "index -- for visualizing SNR drift vs time/index rather than reading\n"
+     "one block-average scalar.\n"
      "\n"
      "Parameters\n"
      "----------\n"
@@ -207,10 +210,12 @@ static PyMethodDef snr_module_methods[] = {
      "NDArray[np.float64]\n"
      "    Output.\n"},
     {"snr_m2m4_db_series", (PyCFunction)(void *)_bind_snr_m2m4_db_series, METH_VARARGS | METH_KEYWORDS,
-     "Sliding-window blind (M2M4) Es/N0 (dB) vs index, for visualizing drift.\n"
+     "Sliding-window blind (M2M4) Es/N0 (dB) vs index, for visualizing\n"
+     "drift.\n"
      "\n"
      "Same estimator as snr_m2m4_db(), applied to a ``[i - window/2, i +\n"
-     "window/2]`` window centered (clamped at the edges) on each output index.\n"
+     "window/2]`` window centered (clamped at the edges) on each output\n"
+     "index.\n"
      "\n"
      "Parameters\n"
      "----------\n"

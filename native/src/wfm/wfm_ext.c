@@ -265,7 +265,8 @@ static PyMethodDef wfm_module_methods[] = {
      ">>> round(float(wfm_ebno_to_snr_db(10.0, 1, 8.0)), 4)\n"
      "0.9691\n"},
     {"mls_poly", (PyCFunction)(void *)_bind_mls_poly, METH_VARARGS | METH_KEYWORDS,
-     "Maximal-length-sequence primitive polynomial for an LFSR of length n.\n"
+     "Maximal-length-sequence primitive polynomial for an LFSR of length\n"
+     "n.\n"
      "\n"
      "Parameters\n"
      "----------\n"
@@ -283,7 +284,9 @@ static PyMethodDef wfm_module_methods[] = {
      ">>> hex(mls_poly(7))\n"
      "'0x41'\n"},
     {"crc16", (PyCFunction)(void *)_bind_crc16, METH_VARARGS | METH_KEYWORDS,
-     "CRC-16-CCITT (poly 0x1021, init 0xFFFF) over an unpacked 0/1 bit array, MSB-first — the DSSS burst frame trailer wfmgen appends and BurstDemod validates.\n"
+     "CRC-16-CCITT (poly 0x1021, init 0xFFFF) over an unpacked 0/1 bit\n"
+     "array, MSB-first — the DSSS burst frame trailer wfmgen appends and\n"
+     "BurstDemod validates.\n"
      "\n"
      "Parameters\n"
      "----------\n"

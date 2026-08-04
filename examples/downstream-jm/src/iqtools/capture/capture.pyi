@@ -45,8 +45,13 @@ class Capture:
     def reset(self) -> None:
         """Reset state to post-create defaults."""
 
-    def read(self, count: int = 1, out: NDArray[np.complex64] | None = None) -> NDArray[np.complex64]:
-        """Read up to `count` samples as unit-scale complex64; an empty array at end of file.
+    def read(
+        self,
+        count: int = 1,
+        out: NDArray[np.complex64] | None = None,
+    ) -> NDArray[np.complex64]:
+        """Read up to `count` samples as unit-scale complex64; an empty array
+        at end of file.
 
         Returns
         -------
@@ -78,11 +83,15 @@ class Capture:
 
     @property
     def fs(self) -> float:
-        """Sample rate in Hz. Read from the file for BLUE/SigMF; supplied by you for a `RawCapture`."""
+        """Sample rate in Hz. Read from the file for BLUE/SigMF; supplied by
+        you for a `RawCapture`.
+        """
 
     @property
     def fc(self) -> float:
-        """Centre frequency in Hz. Read from the file for BLUE/SigMF; supplied by you for a `RawCapture`."""
+        """Centre frequency in Hz. Read from the file for BLUE/SigMF; supplied
+        by you for a `RawCapture`.
+        """
 
     @property
     def num_samples(self) -> int:
@@ -90,17 +99,23 @@ class Capture:
 
     @property
     def metadata_source(self) -> Literal["none", "file", "supplied"]:
-        """Where `fs`/`fc` came from -- `"file"` when the capture declared them (BLUE, SigMF), `"supplied"` when you passed them to `RawCapture`, or `"none"` when neither. This is the property the view exists to make honest: with a plain `Capture` over a headerless file the numbers are defaults, and without this you cannot tell a default from a reading."""
+        """Where `fs`/`fc` came from -- `"file"` when the capture declared them
+        (BLUE, SigMF), `"supplied"` when you passed them to `RawCapture`, or
+        `"none"` when neither. This is the property the view exists to make
+        honest: with a plain `Capture` over a headerless file the numbers are
+        defaults, and without this you cannot tell a default from a reading.
+        """
 
     def destroy(self) -> None:
         """Release the underlying C resources immediately.
 
         Ordinarily unnecessary: the resources are freed when the object is
         garbage-collected. Call this to release them at a definite point
-        instead, or use the object as a context manager, which calls it on exit.
+        instead, or use the object as a context manager, which calls it on
+        exit.
 
-        Idempotent: calling it again on an already-released object does nothing.
-        Every other method raises ``RuntimeError`` once it has run.
+        Idempotent: calling it again on an already-released object does
+        nothing. Every other method raises ``RuntimeError`` once it has run.
         """
 
 
@@ -116,12 +131,17 @@ class Capture:
             This same object, not a copy.
         """
 
-    def __exit__(self, exc_type: object | None = ..., exc: object | None = ..., tb: object | None = ...) -> None:
+    def __exit__(
+        self,
+        exc_type: object | None = ...,
+        exc: object | None = ...,
+        tb: object | None = ...,
+    ) -> None:
         """Exit a context manager, releasing the Capture.
 
         Equivalent to calling `destroy()`. Returns ``None``, so an exception
-        raised inside the `with` body propagates normally; this never suppresses
-        one.
+        raised inside the `with` body propagates normally; this never
+        suppresses one.
 
         Parameters
         ----------
@@ -151,13 +171,25 @@ class RawCapture:
         fc constructor parameter.
 
     """
-    def __init__(self, path: str | os.PathLike, sample_type: Literal["cf32", "cf64", "ci32", "ci16", "ci8"] = "ci16", endian: Literal["le", "be"] = "le", fs: float = ..., fc: float = ...) -> None: ...
+    def __init__(
+        self,
+        path: str | os.PathLike,
+        sample_type: Literal["cf32", "cf64", "ci32", "ci16", "ci8"] = "ci16",
+        endian: Literal["le", "be"] = "le",
+        fs: float = ...,
+        fc: float = ...,
+    ) -> None: ...
 
     def reset(self) -> None:
         """Reset state to post-create defaults."""
 
-    def read(self, count: int = 1, out: NDArray[np.complex64] | None = None) -> NDArray[np.complex64]:
-        """Read up to `count` samples as unit-scale complex64; an empty array at end of file.
+    def read(
+        self,
+        count: int = 1,
+        out: NDArray[np.complex64] | None = None,
+    ) -> NDArray[np.complex64]:
+        """Read up to `count` samples as unit-scale complex64; an empty array
+        at end of file.
 
         Returns
         -------
@@ -189,11 +221,15 @@ class RawCapture:
 
     @property
     def fs(self) -> float:
-        """Sample rate in Hz. Read from the file for BLUE/SigMF; supplied by you for a `RawCapture`."""
+        """Sample rate in Hz. Read from the file for BLUE/SigMF; supplied by
+        you for a `RawCapture`.
+        """
 
     @property
     def fc(self) -> float:
-        """Centre frequency in Hz. Read from the file for BLUE/SigMF; supplied by you for a `RawCapture`."""
+        """Centre frequency in Hz. Read from the file for BLUE/SigMF; supplied
+        by you for a `RawCapture`.
+        """
 
     @property
     def num_samples(self) -> int:
@@ -201,17 +237,23 @@ class RawCapture:
 
     @property
     def metadata_source(self) -> Literal["none", "file", "supplied"]:
-        """Where `fs`/`fc` came from -- `"file"` when the capture declared them (BLUE, SigMF), `"supplied"` when you passed them to `RawCapture`, or `"none"` when neither. This is the property the view exists to make honest: with a plain `Capture` over a headerless file the numbers are defaults, and without this you cannot tell a default from a reading."""
+        """Where `fs`/`fc` came from -- `"file"` when the capture declared them
+        (BLUE, SigMF), `"supplied"` when you passed them to `RawCapture`, or
+        `"none"` when neither. This is the property the view exists to make
+        honest: with a plain `Capture` over a headerless file the numbers are
+        defaults, and without this you cannot tell a default from a reading.
+        """
 
     def destroy(self) -> None:
         """Release the underlying C resources immediately.
 
         Ordinarily unnecessary: the resources are freed when the object is
         garbage-collected. Call this to release them at a definite point
-        instead, or use the object as a context manager, which calls it on exit.
+        instead, or use the object as a context manager, which calls it on
+        exit.
 
-        Idempotent: calling it again on an already-released object does nothing.
-        Every other method raises ``RuntimeError`` once it has run.
+        Idempotent: calling it again on an already-released object does
+        nothing. Every other method raises ``RuntimeError`` once it has run.
         """
 
 
@@ -227,12 +269,17 @@ class RawCapture:
             This same object, not a copy.
         """
 
-    def __exit__(self, exc_type: object | None = ..., exc: object | None = ..., tb: object | None = ...) -> None:
+    def __exit__(
+        self,
+        exc_type: object | None = ...,
+        exc: object | None = ...,
+        tb: object | None = ...,
+    ) -> None:
         """Exit a context manager, releasing the RawCapture.
 
         Equivalent to calling `destroy()`. Returns ``None``, so an exception
-        raised inside the `with` body propagates normally; this never suppresses
-        one.
+        raised inside the `with` body propagates normally; this never
+        suppresses one.
 
         Parameters
         ----------

@@ -5,12 +5,17 @@ from numpy.typing import NDArray
 
 @final
 class DelayCf64:
-    """Create a dual-buffer circular delay line of length num_taps. The internal capacity is rounded up to the next power of two so that modular indexing reduces to a single bitwise AND.  Any window of num_taps consecutive samples is always contiguous in the backing store; no wrap-around copy is ever needed.
+    """Create a dual-buffer circular delay line of length num_taps. The
+    internal capacity is rounded up to the next power of two so that modular
+    indexing reduces to a single bitwise AND. Any window of num_taps
+    consecutive samples is always contiguous in the backing store; no
+    wrap-around copy is ever needed.
 
     Parameters
     ----------
     num_taps : int, default 1
-        Number of delay taps (window length, >= 1). Internally rounded up to the next power of two.
+        Number of delay taps (window length, >= 1). Internally rounded up to
+        the next power of two.
 
     Examples
     --------
@@ -25,7 +30,10 @@ class DelayCf64:
     def __init__(self, num_taps: int = ...) -> None: ...
 
     def reset(self) -> None:
-        """Reset the delay line to its post-create state. Zeroes the entire dual buffer and resets the write pointer to 0, discarding all previously pushed samples.  The num_taps and capacity are preserved; only the sample history is cleared.
+        """Reset the delay line to its post-create state. Zeroes the entire
+        dual buffer and resets the write pointer to 0, discarding all
+        previously pushed samples. The num_taps and capacity are preserved;
+        only the sample history is cleared.
 
         Examples
         --------
@@ -42,7 +50,12 @@ class DelayCf64:
         """
 
     def push(self, x: complex) -> None:
-        """Advance the write pointer and insert a new sample. The head pointer decrements (mod capacity) before the write so that `buf[head]` always holds the most recent sample.  The same value is simultaneously written at `buf[head + capacity]` to keep the mirror half in sync; this ensures any num_taps-length window starting at head is contiguous without an extra copy.
+        """Advance the write pointer and insert a new sample. The head pointer
+        decrements (mod capacity) before the write so that `buf[head]` always
+        holds the most recent sample. The same value is simultaneously written
+        at `buf[head + capacity]` to keep the mirror half in sync; this ensures
+        any num_taps-length window starting at head is contiguous without an
+        extra copy.
 
         Parameters
         ----------
@@ -60,8 +73,17 @@ class DelayCf64:
 
         """
 
-    def ptr(self, count: int = 1, out: NDArray[np.complex128] | None = None) -> NDArray[np.complex128]:
-        """Return a zero-copy view of the n most recent samples. Copies at most min(n, num_taps) samples starting from `buf[head]` into out.  Because the dual-buffer layout guarantees contiguity, this is a single memcpy of up to num_taps elements; no wrap-around logic is needed.  The Python binding returns a NumPy array backed directly by the pre-allocated output buffer (base object is the DelayCf64 itself).
+    def ptr(
+        self,
+        count: int = 1,
+        out: NDArray[np.complex128] | None = None,
+    ) -> NDArray[np.complex128]:
+        """Return a zero-copy view of the n most recent samples. Copies at most
+        min(n, num_taps) samples starting from `buf[head]` into out. Because
+        the dual-buffer layout guarantees contiguity, this is a single memcpy
+        of up to num_taps elements; no wrap-around logic is needed. The Python
+        binding returns a NumPy array backed directly by the pre-allocated
+        output buffer (base object is the DelayCf64 itself).
 
         Returns
         -------
@@ -85,7 +107,8 @@ class DelayCf64:
         """
 
     def ptr_max_out(self, n: int) -> int:
-        """Maximum samples delay_ptr() writes for a request of n. Returns min(n, num_taps) — the tight per-call bound (gh-607).
+        """Maximum samples delay_ptr() writes for a request of n. Returns
+        min(n, num_taps) — the tight per-call bound (gh-607).
 
         Parameters
         ----------
@@ -99,7 +122,11 @@ class DelayCf64:
         """
 
     def push_ptr(self, x: complex) -> NDArray[np.complex128]:
-        """Atomically push a sample and snapshot the current window. Equivalent to calling delay_push() then delay_ptr(num_taps), but avoids the overhead of a second function call.  Always writes exactly num_taps samples to out.  The Python binding returns a NumPy array backed by the pre-allocated push_ptr output buffer.
+        """Atomically push a sample and snapshot the current window. Equivalent
+        to calling delay_push() then delay_ptr(num_taps), but avoids the
+        overhead of a second function call. Always writes exactly num_taps
+        samples to out. The Python binding returns a NumPy array backed by the
+        pre-allocated push_ptr output buffer.
 
         Parameters
         ----------
@@ -123,7 +150,10 @@ class DelayCf64:
         """
 
     def write(self, x: complex) -> None:
-        """Alias for delay_push(); insert a sample without reading back. Provided for API symmetry with write-then-read patterns where the caller wants to decouple sample ingestion from window inspection. Internally delegates to delay_push() with no additional overhead.
+        """Alias for delay_push(); insert a sample without reading back.
+        Provided for API symmetry with write-then-read patterns where the
+        caller wants to decouple sample ingestion from window inspection.
+        Internally delegates to delay_push() with no additional overhead.
 
         Parameters
         ----------
@@ -182,8 +212,9 @@ class DelayCf64:
         """Restore mutable state from a `get_state()` blob.
 
         Overwrites the live state in place; the object keeps the parameters it
-        was constructed with. Length is validated against `state_bytes()` before
-        the blob is handed to the C core, and the core may reject it as well.
+        was constructed with. Length is validated against `state_bytes()`
+        before the blob is handed to the C core, and the core may reject it as
+        well.
 
         Raises ``TypeError`` if *blob* is not bytes, ``ValueError`` if its
         length differs from `state_bytes()` or the core rejects it, and
@@ -208,10 +239,11 @@ class DelayCf64:
 
         Ordinarily unnecessary: the resources are freed when the object is
         garbage-collected. Call this to release them at a definite point
-        instead, or use the object as a context manager, which calls it on exit.
+        instead, or use the object as a context manager, which calls it on
+        exit.
 
-        Idempotent: calling it again on an already-released object does nothing.
-        Every other method raises ``RuntimeError`` once it has run.
+        Idempotent: calling it again on an already-released object does
+        nothing. Every other method raises ``RuntimeError`` once it has run.
         """
 
 
@@ -227,12 +259,17 @@ class DelayCf64:
             This same object, not a copy.
         """
 
-    def __exit__(self, exc_type: object | None = ..., exc: object | None = ..., tb: object | None = ...) -> None:
+    def __exit__(
+        self,
+        exc_type: object | None = ...,
+        exc: object | None = ...,
+        tb: object | None = ...,
+    ) -> None:
         """Exit a context manager, releasing the DelayCf64.
 
         Equivalent to calling `destroy()`. Returns ``None``, so an exception
-        raised inside the `with` body propagates normally; this never suppresses
-        one.
+        raised inside the `with` body propagates normally; this never
+        suppresses one.
 
         Parameters
         ----------

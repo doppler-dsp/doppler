@@ -20,7 +20,11 @@ class SampleClock:
     """
     def __init__(self, fs: float, resync: int = ...) -> None: ...
     def pace(self, count: int) -> float:
-        """Advance by count samples and sleep until that block's deadline (``epoch + n/fs``). Returns the slack in seconds measured before sleeping: ``>= 0`` means early (and it slept that long); ``< 0`` means it arrived late — an underrun, which is counted (and the epoch re-anchored when ``resync`` is set), with no sleep.
+        """Advance by count samples and sleep until that block's deadline
+        (``epoch + n/fs``). Returns the slack in seconds measured before
+        sleeping: ``>= 0`` means early (and it slept that long); ``< 0`` means
+        it arrived late — an underrun, which is counted (and the epoch
+        re-anchored when ``resync`` is set), with no sleep.
 
         Parameters
         ----------
@@ -33,7 +37,10 @@ class SampleClock:
             Output.
         """
     def stamp(self) -> int:
-        """Ideal wall-clock timestamp (ns since the UNIX epoch) of the next sample to be produced — sample index ``n``. Call it before pace() to tag the block you are about to emit, or after to tag the following block. Equivalent to ``dp_sample_clock_stamp_at(c, c->n)``.
+        """Ideal wall-clock timestamp (ns since the UNIX epoch) of the next
+        sample to be produced — sample index ``n``. Call it before pace() to
+        tag the block you are about to emit, or after to tag the following
+        block. Equivalent to ``dp_sample_clock_stamp_at(c, c->n)``.
 
         Returns
         -------
@@ -41,7 +48,13 @@ class SampleClock:
             Output.
         """
     def stamp_at(self, n: int) -> int:
-        """Ideal wall-clock timestamp (ns since the UNIX epoch) of an ARBITRARY sample index n — past, present, or future, not just the clock's own live position. The receive-side counterpart of dp_sample_clock_stamp(): a block emitting several per-record outputs from one buffered input (e.g. several detections spanning different epochs from one streamed message) stamps each at its own historical sample offset instead of reusing the whole buffer's single arrival time.
+        """Ideal wall-clock timestamp (ns since the UNIX epoch) of an ARBITRARY
+        sample index n — past, present, or future, not just the clock's own
+        live position. The receive-side counterpart of dp_sample_clock_stamp():
+        a block emitting several per-record outputs from one buffered input
+        (e.g. several detections spanning different epochs from one streamed
+        message) stamps each at its own historical sample offset instead of
+        reusing the whole buffer's single arrival time.
 
         Parameters
         ----------
@@ -54,7 +67,10 @@ class SampleClock:
             Output.
         """
     def track(self, observed_timestamp_ns: int, n_at_observation: int, tolerance_ns: int) -> int:
-        """Reconcile c's epoch_real_ns against one OBSERVED (timestamp, sample index) pair read off an incoming stream header — the receive-side dual of pace()'s resync: instead of sleeping toward a deadline, this adopts or corrects the epoch from ground truth the sender already stamped.
+        """Reconcile c's epoch_real_ns against one OBSERVED (timestamp, sample
+        index) pair read off an incoming stream header — the receive-side dual
+        of pace()'s resync: instead of sleeping toward a deadline, this adopts
+        or corrects the epoch from ground truth the sender already stamped.
 
         The FIRST call always adopts observed_timestamp_ns as the epoch
         (``has_anchor`` starts false — a fresh clock has no real observation
@@ -90,7 +106,10 @@ class SampleClock:
         """Re-capture both epochs and zero the counters — a fresh clock at n=0.
         """
     def resync(self) -> None:
-        """Re-anchor the pacing epoch to "now" without clearing ``n`` or counters, dropping any accumulated lateness so future blocks pace forward from the present. (pace() does this automatically when ``resync`` is set.)
+        """Re-anchor the pacing epoch to "now" without clearing ``n`` or
+        counters, dropping any accumulated lateness so future blocks pace
+        forward from the present. (pace() does this automatically when
+        ``resync`` is set.)
         """
     @property
     def samples(self) -> int:

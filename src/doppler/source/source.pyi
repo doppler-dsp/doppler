@@ -5,14 +5,21 @@ from numpy.typing import NDArray
 
 @final
 class NCO:
-    """Create an NCO instance. Allocates and initialises the phase accumulator to zero, converts norm_freq to the integer phase_inc = floor(frac(norm_freq) × 2^32), and stores nmax for scaled output.  The NCO is immediately ready to call nco_steps_u32 / nco_steps_u32_scaled / nco_steps_u32_ovf.
+    """Create an NCO instance. Allocates and initialises the phase accumulator
+    to zero, converts norm_freq to the integer phase_inc =
+    floor(frac(norm_freq) × 2^32), and stores nmax for scaled output. The NCO
+    is immediately ready to call nco_steps_u32 / nco_steps_u32_scaled /
+    nco_steps_u32_ovf.
 
     Parameters
     ----------
     norm_freq : float, default 0.0
-        Normalised frequency in cycles per sample. Any real value; only the fractional part matters. Negative values fold correctly (−0.25 → 3×2^30).
+        Normalised frequency in cycles per sample. Any real value; only the
+        fractional part matters. Negative values fold correctly (−0.25 →
+        3×2^30).
     nmax : int, default 0
-        Wrap target for nco_steps_u32_scaled. Pass 0 to return the raw 32-bit accumulator.
+        Wrap target for nco_steps_u32_scaled. Pass 0 to return the raw 32-bit
+        accumulator.
 
     Examples
     --------
@@ -25,7 +32,10 @@ class NCO:
     def __init__(self, norm_freq: float = ..., nmax: int = ...) -> None: ...
 
     def reset(self) -> None:
-        """Zero the phase accumulator. Sets phase to 0 so the next nco_steps_u32 call starts from the beginning of the cycle.  norm_freq, phase_inc, and nmax are unchanged; the NCO is ready to generate samples again immediately.
+        """Zero the phase accumulator. Sets phase to 0 so the next
+        nco_steps_u32 call starts from the beginning of the cycle. norm_freq,
+        phase_inc, and nmax are unchanged; the NCO is ready to generate samples
+        again immediately.
 
         Examples
         --------
@@ -42,8 +52,16 @@ class NCO:
 
         """
 
-    def steps_u32(self, count: int = 1, out: NDArray[np.uint32] | None = None) -> NDArray[np.uint32]:
-        """Advance n samples; write raw uint32 accumulator values. Each element is the phase value BEFORE the increment fires, so `out[0]` is the phase at the moment of the call.  The accumulator wraps silently at 2^32, giving the full-resolution integer ramp that the scaled and carry variants derive from.  Returns n.
+    def steps_u32(
+        self,
+        count: int = 1,
+        out: NDArray[np.uint32] | None = None,
+    ) -> NDArray[np.uint32]:
+        """Advance n samples; write raw uint32 accumulator values. Each element
+        is the phase value BEFORE the increment fires, so `out[0]` is the phase
+        at the moment of the call. The accumulator wraps silently at 2^32,
+        giving the full-resolution integer ramp that the scaled and carry
+        variants derive from. Returns n.
 
         Returns
         -------
@@ -80,8 +98,17 @@ class NCO:
             Output.
         """
 
-    def steps_u32_scaled(self, count: int = 1, out: NDArray[np.uint32] | None = None) -> NDArray[np.uint32]:
-        """Advance n samples; values scaled to `[0, nmax)`. Uses the branchless fixed-point identity `out[i]` = (uint64_t)phase * nmax >> 32 to map the full accumulator range uniformly onto [0, nmax) without a modulo operation.  When nmax == 0 falls back to the raw accumulator (identical to nco_steps_u32).  Useful for polyphase filter bank indexing and direct LUT addressing.  Returns n.
+    def steps_u32_scaled(
+        self,
+        count: int = 1,
+        out: NDArray[np.uint32] | None = None,
+    ) -> NDArray[np.uint32]:
+        """Advance n samples; values scaled to `[0, nmax)`. Uses the branchless
+        fixed-point identity `out[i]` = (uint64_t)phase * nmax >> 32 to map the
+        full accumulator range uniformly onto [0, nmax) without a modulo
+        operation. When nmax == 0 falls back to the raw accumulator (identical
+        to nco_steps_u32). Useful for polyphase filter bank indexing and direct
+        LUT addressing. Returns n.
 
         Returns
         -------
@@ -101,11 +128,12 @@ class NCO:
         """
 
     def steps_u32_scaled_max_out(self, n: int) -> int:
-        """Largest number of samples steps_u32_scaled() can return for n inputs.
+        """Largest number of samples steps_u32_scaled() can return for n
+        inputs.
 
         Size an `out=` buffer with this before calling steps_u32_scaled(), or
-        use it to allocate one up front. The bound is this object's own: what it
-        depends on is a property of the algorithm, so a header block on
+        use it to allocate one up front. The bound is this object's own: what
+        it depends on is a property of the algorithm, so a header block on
         steps_u32_scaled_max_out() replaces this text.
 
         Parameters
@@ -119,8 +147,16 @@ class NCO:
             Upper bound on the output length; the actual call may return fewer.
         """
 
-    def steps_u32_ovf(self, count: int = 1) -> tuple[NDArray[np.uint32], NDArray[np.uint8]]:
-        """Advance n samples; write raw phase values and per-sample carry. Identical to nco_steps_u32 for the phase array, but simultaneously fills a parallel uint8 carry buffer: `out1[i]` is 1 if the add that produced `out[i]`'s post-increment phase wrapped past 2^32, else 0. The carry marks the exact boundary of one input period and is the primitive for polyphase sample-clock and rational resampling engines. Returns n.
+    def steps_u32_ovf(
+        self,
+        count: int = 1,
+    ) -> tuple[NDArray[np.uint32], NDArray[np.uint8]]:
+        """Advance n samples; write raw phase values and per-sample carry.
+        Identical to nco_steps_u32 for the phase array, but simultaneously
+        fills a parallel uint8 carry buffer: `out1[i]` is 1 if the add that
+        produced `out[i]`'s post-increment phase wrapped past 2^32, else 0. The
+        carry marks the exact boundary of one input period and is the primitive
+        for polyphase sample-clock and rational resampling engines. Returns n.
 
         Returns
         -------
@@ -141,8 +177,13 @@ class NCO:
 
         """
 
-    def steps_u32_ctrl(self, ctrl: NDArray[np.float32], out: NDArray[np.uint32] | None = None) -> NDArray[np.uint32]:
-        """Advance ctrl_len samples; raw phase, with a per-sample control offset added on top of the fixed phase_inc (not persisted).
+    def steps_u32_ctrl(
+        self,
+        ctrl: NDArray[np.float32],
+        out: NDArray[np.uint32] | None = None,
+    ) -> NDArray[np.uint32]:
+        """Advance ctrl_len samples; raw phase, with a per-sample control
+        offset added on top of the fixed phase_inc (not persisted).
 
         The NCO **control port** for a tracking loop: ctrl is a per-sample
         frequency control in normalised cycles/sample, added to the centre
@@ -161,8 +202,8 @@ class NCO:
         hot per-epoch tracking loop with no per-call allocation (fill `ctrl` in
         place, reuse the same `out` buffer every call). That buffer must be
         sized to `steps_u32_ctrl_max_out()`, NOT just `len(ctrl)` -- the
-        returned view is still correctly sliced to `len(ctrl)` regardless of the
-        buffer's actual size.
+        returned view is still correctly sliced to `len(ctrl)` regardless of
+        the buffer's actual size.
 
         Parameters
         ----------
@@ -190,7 +231,8 @@ class NCO:
         """
 
     def steps_u32_ctrl_max_out(self, ctrl_len: int) -> int:
-        """Largest number of samples steps_u32_ctrl() can return for ctrl_len inputs.
+        """Largest number of samples steps_u32_ctrl() can return for ctrl_len
+        inputs.
 
         Size an `out=` buffer with this before calling steps_u32_ctrl(), or use
         it to allocate one up front. The bound is this object's own: what it
@@ -208,14 +250,19 @@ class NCO:
             Upper bound on the output length; the actual call may return fewer.
         """
 
-    def steps_u32_scaled_ctrl(self, ctrl: NDArray[np.float32], out: NDArray[np.uint32] | None = None) -> NDArray[np.uint32]:
-        """Advance ctrl_len samples; values scaled to `[0, nmax)`, with a per-sample control offset added on top of phase_inc.
+    def steps_u32_scaled_ctrl(
+        self,
+        ctrl: NDArray[np.float32],
+        out: NDArray[np.uint32] | None = None,
+    ) -> NDArray[np.uint32]:
+        """Advance ctrl_len samples; values scaled to `[0, nmax)`, with a
+        per-sample control offset added on top of phase_inc.
 
         The nco_steps_u32_scaled output mapping (nmax=0 falls back to the raw
         accumulator) driven by the nco_steps_u32_ctrl control port -- every
-        stepper has a matching control-input counterpart, so a tracking loop can
-        drive LUT-indexed output (nmax = table length) exactly as it would raw
-        phase output, without ever touching phase_inc/norm_freq. With every
+        stepper has a matching control-input counterpart, so a tracking loop
+        can drive LUT-indexed output (nmax = table length) exactly as it would
+        raw phase output, without ever touching phase_inc/norm_freq. With every
         `ctrl[i] == 0` this is bit-identical to nco_steps_u32_scaled(). Returns
         ctrl_len.
 
@@ -243,11 +290,12 @@ class NCO:
         """
 
     def steps_u32_scaled_ctrl_max_out(self, ctrl_len: int) -> int:
-        """Largest number of samples steps_u32_scaled_ctrl() can return for ctrl_len inputs.
+        """Largest number of samples steps_u32_scaled_ctrl() can return for
+        ctrl_len inputs.
 
         Size an `out=` buffer with this before calling steps_u32_scaled_ctrl(),
-        or use it to allocate one up front. The bound is this object's own: what
-        it depends on is a property of the algorithm, so a header block on
+        or use it to allocate one up front. The bound is this object's own:
+        what it depends on is a property of the algorithm, so a header block on
         steps_u32_scaled_ctrl_max_out() replaces this text.
 
         Parameters
@@ -261,18 +309,22 @@ class NCO:
             Upper bound on the output length; the actual call may return fewer.
         """
 
-    def steps_u32_ovf_ctrl(self, ctrl: NDArray[np.float32]) -> tuple[NDArray[np.uint32], NDArray[np.uint8]]:
-        """Advance ctrl_len samples; raw phase + per-sample carry, with a per-sample control offset added on top of phase_inc.
+    def steps_u32_ovf_ctrl(
+        self,
+        ctrl: NDArray[np.float32],
+    ) -> tuple[NDArray[np.uint32], NDArray[np.uint8]]:
+        """Advance ctrl_len samples; raw phase + per-sample carry, with a
+        per-sample control offset added on top of phase_inc.
 
         The nco_steps_u32_ovf output mapping (raw phase plus a carry flag
         marking each sample whose advance wrapped past 2^32) driven by the
         nco_steps_u32_ctrl control port -- every stepper has a matching
-        control-input counterpart. The carry reflects THIS sample's true advance
-        (`phase_inc + ctrl_inc`, added as a single 64-bit sum so a wrap is never
-        missed even when the control offset itself is large), not just phase_inc
-        alone -- needed by any consumer (e.g. a coupled carrier/code tracker)
-        that must detect a period boundary while the rate is being actively
-        steered. With every `ctrl[i] == 0` this is bit-identical to
+        control-input counterpart. The carry reflects THIS sample's true
+        advance (`phase_inc + ctrl_inc`, added as a single 64-bit sum so a wrap
+        is never missed even when the control offset itself is large), not just
+        phase_inc alone -- needed by any consumer (e.g. a coupled carrier/code
+        tracker) that must detect a period boundary while the rate is being
+        actively steered. With every `ctrl[i] == 0` this is bit-identical to
         nco_steps_u32_ovf(). Returns ctrl_len.
 
         Parameters
@@ -339,8 +391,9 @@ class NCO:
         """Restore mutable state from a `get_state()` blob.
 
         Overwrites the live state in place; the object keeps the parameters it
-        was constructed with. Length is validated against `state_bytes()` before
-        the blob is handed to the C core, and the core may reject it as well.
+        was constructed with. Length is validated against `state_bytes()`
+        before the blob is handed to the C core, and the core may reject it as
+        well.
 
         Raises ``TypeError`` if *blob* is not bytes, ``ValueError`` if its
         length differs from `state_bytes()` or the core rejects it, and
@@ -354,37 +407,47 @@ class NCO:
 
     @property
     def norm_freq(self) -> float:
-        """Normalised frequency (read/write). Setting norm_freq recomputes phase_inc = floor(frac(v) × 2^32) and takes effect on the next nco_steps_* call; phase is NOT reset."""
+        """Normalised frequency (read/write). Setting norm_freq recomputes
+        phase_inc = floor(frac(v) × 2^32) and takes effect on the next
+        nco_steps_* call; phase is NOT reset.
+        """
     @norm_freq.setter
     def norm_freq(self, value: float) -> None: ...
 
     @property
     def phase(self) -> int:
-        """Current phase accumulator value (read/write). Reading returns the current integer phase in `[0, 2^32)`.  Writing overrides the accumulator directly, allowing arbitrary phase offsets without re-creating the NCO."""
+        """Current phase accumulator value (read/write). Reading returns the
+        current integer phase in `[0, 2^32)`. Writing overrides the accumulator
+        directly, allowing arbitrary phase offsets without re-creating the NCO.
+        """
     @phase.setter
     def phase(self, value: int) -> None: ...
 
     @property
     def phase_inc(self) -> int:
-        """Per-sample phase increment (read-only). Derived from norm_freq as floor(frac(norm_freq) × 2^32).  Updated automatically whenever norm_freq is written.  A freq of 0.25 gives phase_inc = 1073741824 (0x40000000)."""
+        """Per-sample phase increment (read-only). Derived from norm_freq as
+        floor(frac(norm_freq) × 2^32). Updated automatically whenever norm_freq
+        is written. A freq of 0.25 gives phase_inc = 1073741824 (0x40000000).
+        """
 
     def destroy(self) -> None:
         """Release the underlying C resources immediately.
 
         Ordinarily unnecessary: the resources are freed when the object is
         garbage-collected. Call this to release them at a definite point
-        instead, or use the object as a context manager, which calls it on exit.
+        instead, or use the object as a context manager, which calls it on
+        exit.
 
-        Idempotent: calling it again on an already-released object does nothing.
-        Every other method raises ``RuntimeError`` once it has run.
+        Idempotent: calling it again on an already-released object does
+        nothing. Every other method raises ``RuntimeError`` once it has run.
         """
 
 
     def __enter__(self) -> "NCO":
         """Enter a context manager, returning this object.
 
-        Lets a NCO be used in a `with` statement so its C resources are released
-        deterministically on exit rather than at collection time.
+        Lets a NCO be used in a `with` statement so its C resources are
+        released deterministically on exit rather than at collection time.
 
         Returns
         -------
@@ -392,12 +455,17 @@ class NCO:
             This same object, not a copy.
         """
 
-    def __exit__(self, exc_type: object | None = ..., exc: object | None = ..., tb: object | None = ...) -> None:
+    def __exit__(
+        self,
+        exc_type: object | None = ...,
+        exc: object | None = ...,
+        tb: object | None = ...,
+    ) -> None:
         """Exit a context manager, releasing the NCO.
 
         Equivalent to calling `destroy()`. Returns ``None``, so an exception
-        raised inside the `with` body propagates normally; this never suppresses
-        one.
+        raised inside the `with` body propagates normally; this never
+        suppresses one.
 
         Parameters
         ----------
@@ -411,12 +479,16 @@ class NCO:
 
 @final
 class LO:
-    """Create an LO instance. Allocates state, sets phase to 0, and derives phase_inc from norm_freq.  Initialises the shared 65536-entry float LUT on the first call (single-threaded concern: call lo_create() before spawning threads that share LO instances).
+    """Create an LO instance. Allocates state, sets phase to 0, and derives
+    phase_inc from norm_freq. Initialises the shared 65536-entry float LUT on
+    the first call (single-threaded concern: call lo_create() before spawning
+    threads that share LO instances).
 
     Parameters
     ----------
     norm_freq : float, default 0.0
-        Normalised frequency in cycles per sample. Any real value; only the fractional part matters.
+        Normalised frequency in cycles per sample. Any real value; only the
+        fractional part matters.
 
     Examples
     --------
@@ -429,7 +501,8 @@ class LO:
     def __init__(self, norm_freq: float = ...) -> None: ...
 
     def reset(self) -> None:
-        """Zero the phase accumulator. Sets phase to 0 so the next lo_steps call starts at angle 0 (1+0j). norm_freq and phase_inc are unchanged.
+        """Zero the phase accumulator. Sets phase to 0 so the next lo_steps
+        call starts at angle 0 (1+0j). norm_freq and phase_inc are unchanged.
 
         Examples
         --------
@@ -446,8 +519,15 @@ class LO:
 
         """
 
-    def steps(self, count: int = 1, out: NDArray[np.complex64] | None = None) -> NDArray[np.complex64]:
-        """Generate n CF32 phasors at the current norm_freq. Each sample is cos(θ) + j·sin(θ) where θ is the phase BEFORE the accumulator is advanced, giving a unit-magnitude complex sinusoid via the 65536-entry LUT.  SFDR ≈ 96 dBc.  Returns n.
+    def steps(
+        self,
+        count: int = 1,
+        out: NDArray[np.complex64] | None = None,
+    ) -> NDArray[np.complex64]:
+        """Generate n CF32 phasors at the current norm_freq. Each sample is
+        cos(θ) + j·sin(θ) where θ is the phase BEFORE the accumulator is
+        advanced, giving a unit-magnitude complex sinusoid via the 65536-entry
+        LUT. SFDR ≈ 96 dBc. Returns n.
 
         Returns
         -------
@@ -482,8 +562,18 @@ class LO:
             Output.
         """
 
-    def steps_ctrl(self, ctrl: NDArray[np.float32], out: NDArray[np.complex64] | None = None) -> NDArray[np.complex64]:
-        """Generate CF32 phasors with per-sample FM deviation. For each sample i, `ctrl[i]`'s fractional part is converted to a delta phase-increment (delta = floor(frac(`ctrl[i]`) × 2^32)) that is added on top of the base phase_inc for that one step only.  The base norm_freq and phase_inc are NOT modified; the deviation is transient per sample, making this the natural API for FM synthesis and frequency-hopping.  Output length equals ctrl_len.  Returns ctrl_len.
+    def steps_ctrl(
+        self,
+        ctrl: NDArray[np.float32],
+        out: NDArray[np.complex64] | None = None,
+    ) -> NDArray[np.complex64]:
+        """Generate CF32 phasors with per-sample FM deviation. For each sample
+        i, `ctrl[i]`'s fractional part is converted to a delta phase-increment
+        (delta = floor(frac(`ctrl[i]`) × 2^32)) that is added on top of the
+        base phase_inc for that one step only. The base norm_freq and phase_inc
+        are NOT modified; the deviation is transient per sample, making this
+        the natural API for FM synthesis and frequency-hopping. Output length
+        equals ctrl_len. Returns ctrl_len.
 
         Parameters
         ----------
@@ -513,7 +603,8 @@ class LO:
         """
 
     def steps_ctrl_max_out(self, ctrl_len: int) -> int:
-        """Largest number of samples steps_ctrl() can return for ctrl_len inputs.
+        """Largest number of samples steps_ctrl() can return for ctrl_len
+        inputs.
 
         Size an `out=` buffer with this before calling steps_ctrl(), or use it
         to allocate one up front. The bound is this object's own: what it
@@ -570,8 +661,9 @@ class LO:
         """Restore mutable state from a `get_state()` blob.
 
         Overwrites the live state in place; the object keeps the parameters it
-        was constructed with. Length is validated against `state_bytes()` before
-        the blob is handed to the C core, and the core may reject it as well.
+        was constructed with. Length is validated against `state_bytes()`
+        before the blob is handed to the C core, and the core may reject it as
+        well.
 
         Raises ``TypeError`` if *blob* is not bytes, ``ValueError`` if its
         length differs from `state_bytes()` or the core rejects it, and
@@ -585,29 +677,39 @@ class LO:
 
     @property
     def norm_freq(self) -> float:
-        """Normalised frequency (read/write). Setting norm_freq recomputes phase_inc = floor(frac(v) × 2^32) and takes effect on the next lo_steps call; phase is NOT reset."""
+        """Normalised frequency (read/write). Setting norm_freq recomputes
+        phase_inc = floor(frac(v) × 2^32) and takes effect on the next lo_steps
+        call; phase is NOT reset.
+        """
     @norm_freq.setter
     def norm_freq(self, value: float) -> None: ...
 
     @property
     def phase(self) -> int:
-        """Current phase accumulator value (read/write). Returns the current integer phase in `[0, 2^32)`.  Writing overrides the accumulator directly for phase-coherent frequency switching."""
+        """Current phase accumulator value (read/write). Returns the current
+        integer phase in `[0, 2^32)`. Writing overrides the accumulator
+        directly for phase-coherent frequency switching.
+        """
     @phase.setter
     def phase(self, value: int) -> None: ...
 
     @property
     def phase_inc(self) -> int:
-        """Per-sample phase increment (read-only). Derived from norm_freq as floor(frac(norm_freq) × 2^32).  A freq of 0.25 gives phase_inc = 1073741824 (0x40000000)."""
+        """Per-sample phase increment (read-only). Derived from norm_freq as
+        floor(frac(norm_freq) × 2^32). A freq of 0.25 gives phase_inc =
+        1073741824 (0x40000000).
+        """
 
     def destroy(self) -> None:
         """Release the underlying C resources immediately.
 
         Ordinarily unnecessary: the resources are freed when the object is
         garbage-collected. Call this to release them at a definite point
-        instead, or use the object as a context manager, which calls it on exit.
+        instead, or use the object as a context manager, which calls it on
+        exit.
 
-        Idempotent: calling it again on an already-released object does nothing.
-        Every other method raises ``RuntimeError`` once it has run.
+        Idempotent: calling it again on an already-released object does
+        nothing. Every other method raises ``RuntimeError`` once it has run.
         """
 
 
@@ -623,12 +725,17 @@ class LO:
             This same object, not a copy.
         """
 
-    def __exit__(self, exc_type: object | None = ..., exc: object | None = ..., tb: object | None = ...) -> None:
+    def __exit__(
+        self,
+        exc_type: object | None = ...,
+        exc: object | None = ...,
+        tb: object | None = ...,
+    ) -> None:
         """Exit a context manager, releasing the LO.
 
         Equivalent to calling `destroy()`. Returns ``None``, so an exception
-        raised inside the `with` body propagates normally; this never suppresses
-        one.
+        raised inside the `with` body propagates normally; this never
+        suppresses one.
 
         Parameters
         ----------
@@ -642,14 +749,19 @@ class LO:
 
 @final
 class AWGN:
-    """Create an AWGN generator. Allocates state, seeds the xoshiro256++ RNG via SplitMix64, and sets up both the scalar and the AVX2 parallel streams.  The initial seed is stored so awgn_reset() can reproduce the exact same stream.
+    """Create an AWGN generator. Allocates state, seeds the xoshiro256++ RNG
+    via SplitMix64, and sets up both the scalar and the AVX2 parallel streams.
+    The initial seed is stored so awgn_reset() can reproduce the exact same
+    stream.
 
     Parameters
     ----------
     seed : int, default 0
-        64-bit RNG seed.  Two generators with different seeds produce statistically independent noise streams.
+        64-bit RNG seed. Two generators with different seeds produce
+        statistically independent noise streams.
     amplitude : float, default 1.0
-        Per-component (Re, Im) standard deviation.  Must be ≥ 0; total complex power = 2 × amplitude².
+        Per-component (Re, Im) standard deviation. Must be ≥ 0; total complex
+        power = 2 × amplitude².
 
     Examples
     --------
@@ -662,7 +774,10 @@ class AWGN:
     def __init__(self, seed: int = ..., amplitude: float = ...) -> None: ...
 
     def reset(self) -> None:
-        """Reset RNG to the seed supplied at create time. Re-runs the SplitMix64 seeding procedure with the original seed so the next awgn_generate() call produces exactly the same samples as the first call after awgn_create().  amplitude is not changed.
+        """Reset RNG to the seed supplied at create time. Re-runs the
+        SplitMix64 seeding procedure with the original seed so the next
+        awgn_generate() call produces exactly the same samples as the first
+        call after awgn_create(). amplitude is not changed.
 
         Examples
         --------
@@ -677,8 +792,16 @@ class AWGN:
 
         """
 
-    def generate(self, count: int = 1, out: NDArray[np.complex64] | None = None) -> NDArray[np.complex64]:
-        """Generate n complex CF32 AWGN samples. Uses Box-Muller with xoshiro256++ to fill `out` with independent complex Gaussians: Re and Im each have zero mean and standard deviation `amplitude`.  Total complex power = 2 × amplitude². The AVX2 path processes 8 samples in parallel when available.
+    def generate(
+        self,
+        count: int = 1,
+        out: NDArray[np.complex64] | None = None,
+    ) -> NDArray[np.complex64]:
+        """Generate n complex CF32 AWGN samples. Uses Box-Muller with
+        xoshiro256++ to fill `out` with independent complex Gaussians: Re and
+        Im each have zero mean and standard deviation `amplitude`. Total
+        complex power = 2 × amplitude². The AVX2 path processes 8 samples in
+        parallel when available.
 
         Returns
         -------
@@ -721,7 +844,9 @@ class AWGN:
         """
 
     def reseed(self, seed: int) -> None:
-        """Reseed the RNG and reset all xoshiro256++ state. Equivalent to calling awgn_destroy() and awgn_create(seed, amplitude) but reuses the existing allocation.  amplitude is unchanged.
+        """Reseed the RNG and reset all xoshiro256++ state. Equivalent to
+        calling awgn_destroy() and awgn_create(seed, amplitude) but reuses the
+        existing allocation. amplitude is unchanged.
 
         Parameters
         ----------
@@ -781,8 +906,9 @@ class AWGN:
         """Restore mutable state from a `get_state()` blob.
 
         Overwrites the live state in place; the object keeps the parameters it
-        was constructed with. Length is validated against `state_bytes()` before
-        the blob is handed to the C core, and the core may reject it as well.
+        was constructed with. Length is validated against `state_bytes()`
+        before the blob is handed to the C core, and the core may reject it as
+        well.
 
         Raises ``TypeError`` if *blob* is not bytes, ``ValueError`` if its
         length differs from `state_bytes()` or the core rejects it, and
@@ -805,10 +931,11 @@ class AWGN:
 
         Ordinarily unnecessary: the resources are freed when the object is
         garbage-collected. Call this to release them at a definite point
-        instead, or use the object as a context manager, which calls it on exit.
+        instead, or use the object as a context manager, which calls it on
+        exit.
 
-        Idempotent: calling it again on an already-released object does nothing.
-        Every other method raises ``RuntimeError`` once it has run.
+        Idempotent: calling it again on an already-released object does
+        nothing. Every other method raises ``RuntimeError`` once it has run.
         """
 
 
@@ -824,12 +951,17 @@ class AWGN:
             This same object, not a copy.
         """
 
-    def __exit__(self, exc_type: object | None = ..., exc: object | None = ..., tb: object | None = ...) -> None:
+    def __exit__(
+        self,
+        exc_type: object | None = ...,
+        exc: object | None = ...,
+        tb: object | None = ...,
+    ) -> None:
         """Exit a context manager, releasing the AWGN.
 
         Equivalent to calling `destroy()`. Returns ``None``, so an exception
-        raised inside the `with` body propagates normally; this never suppresses
-        one.
+        raised inside the `with` body propagates normally; this never
+        suppresses one.
 
         Parameters
         ----------

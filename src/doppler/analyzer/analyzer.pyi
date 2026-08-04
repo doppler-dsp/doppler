@@ -10,21 +10,25 @@ class Specan:
     Parameters
     ----------
     fs : float
-        Input sample rate (Hz).  Must be > 0.
+        Input sample rate (Hz). Must be > 0.
     span : float
-        Display span (Hz).  Must be > 0.
+        Display span (Hz). Must be > 0.
     rbw : float
-        Resolution bandwidth (Hz).  Must be > 0.
+        Resolution bandwidth (Hz). Must be > 0.
     src_center : float, default 0.0
-        Source center frequency (Hz); the input band is centred here, so the analyzer mixes (center − src_center) to DC.
+        Source center frequency (Hz); the input band is centred here, so the
+        analyzer mixes (center − src_center) to DC.
     center : float, default 0.0
         Desired display center frequency (Hz).
     offset_db : float, default 0.0
-        Additive dB offset on the display spectrum, applied on top of dBFS (e.g. a dBm calibration the application computes from a reference level).
+        Additive dB offset on the display spectrum, applied on top of dBFS
+        (e.g. a dBm calibration the application computes from a reference
+        level).
     full_scale : float, default 1.0
-        Amplitude that reads 0 dBFS (> 0).  Ignored if bits > 0.
+        Amplitude that reads 0 dBFS (> 0). Ignored if bits > 0.
     bits : int, default 0
-        ADC depth: bits>0 sets the 0-dBFS reference to 2^(bits-1) in the shared PSD core (the single source of truth for the dBFS reference).
+        ADC depth: bits>0 sets the 0-dBFS reference to 2^(bits-1) in the shared
+        PSD core (the single source of truth for the dBFS reference).
     window : Literal["hann", "kaiser"], default "kaiser"
         Window index: 0 = Hann, 1 = Kaiser (RBW-trimmable).
     navg : int, default 1
@@ -40,15 +44,32 @@ class Specan:
     True
 
     """
-    def __init__(self, fs: float, span: float, rbw: float, src_center: float = ..., center: float = ..., offset_db: float = ..., full_scale: float = ..., bits: int = ..., window: Literal["hann", "kaiser"] = "kaiser", navg: int = ...) -> None: ...
+    def __init__(
+        self,
+        fs: float,
+        span: float,
+        rbw: float,
+        src_center: float = ...,
+        center: float = ...,
+        offset_db: float = ...,
+        full_scale: float = ...,
+        bits: int = ...,
+        window: Literal["hann", "kaiser"] = "kaiser",
+        navg: int = ...,
+    ) -> None: ...
 
-    def execute(self, x: NDArray[np.complex64], out: NDArray[np.float32] | None = None) -> NDArray[np.float32]:
-        """Mix, decimate, average; return one DC-centred dB display frame, or None.
+    def execute(
+        self,
+        x: NDArray[np.complex64],
+        out: NDArray[np.float32] | None = None,
+    ) -> NDArray[np.float32]:
+        """Mix, decimate, average; return one DC-centred dB display frame, or
+        None.
 
-        Feeds x through the Ddc, buffers the decimated output, and once `n·navg`
-        decimated samples are available windows + FFTs + averages them into a
-        fresh frame, crops the central ±span/2 band and writes it in dB (+
-        ref_db). Returns 0 (writing nothing) until a frame is ready — the
+        Feeds x through the Ddc, buffers the decimated output, and once
+        `n·navg` decimated samples are available windows + FFTs + averages them
+        into a fresh frame, crops the central ±span/2 band and writes it in dB
+        (+ ref_db). Returns 0 (writing nothing) until a frame is ready — the
         binding maps that to Python ``None``.
 
         Parameters
@@ -103,7 +124,8 @@ class Specan:
         """
 
     def reset(self) -> None:
-        """Drop pending samples and the running average; zero LO/filter history.
+        """Drop pending samples and the running average; zero LO/filter
+        history.
         """
 
     def state_bytes(self) -> int:
@@ -145,8 +167,9 @@ class Specan:
         """Restore mutable state from a `get_state()` blob.
 
         Overwrites the live state in place; the object keeps the parameters it
-        was constructed with. Length is validated against `state_bytes()` before
-        the blob is handed to the C core, and the core may reject it as well.
+        was constructed with. Length is validated against `state_bytes()`
+        before the blob is handed to the C core, and the core may reject it as
+        well.
 
         Raises ``TypeError`` if *blob* is not bytes, ``ValueError`` if its
         length differs from `state_bytes()` or the core rejects it, and
@@ -199,10 +222,11 @@ class Specan:
 
         Ordinarily unnecessary: the resources are freed when the object is
         garbage-collected. Call this to release them at a definite point
-        instead, or use the object as a context manager, which calls it on exit.
+        instead, or use the object as a context manager, which calls it on
+        exit.
 
-        Idempotent: calling it again on an already-released object does nothing.
-        Every other method raises ``RuntimeError`` once it has run.
+        Idempotent: calling it again on an already-released object does
+        nothing. Every other method raises ``RuntimeError`` once it has run.
         """
 
 
@@ -218,12 +242,17 @@ class Specan:
             This same object, not a copy.
         """
 
-    def __exit__(self, exc_type: object | None = ..., exc: object | None = ..., tb: object | None = ...) -> None:
+    def __exit__(
+        self,
+        exc_type: object | None = ...,
+        exc: object | None = ...,
+        tb: object | None = ...,
+    ) -> None:
         """Exit a context manager, releasing the Specan.
 
         Equivalent to calling `destroy()`. Returns ``None``, so an exception
-        raised inside the `with` body propagates normally; this never suppresses
-        one.
+        raised inside the `with` body propagates normally; this never
+        suppresses one.
 
         Parameters
         ----------

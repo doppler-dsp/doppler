@@ -26,7 +26,13 @@ class LockDet:
     >>> obj = LockDet(up_thresh=1.0, down_thresh=1.0, n_up=1, n_down=1)
 
     """
-    def __init__(self, up_thresh: float = ..., down_thresh: float = ..., n_up: int = ..., n_down: int = ...) -> None: ...
+    def __init__(
+        self,
+        up_thresh: float = ...,
+        down_thresh: float = ...,
+        n_up: int = ...,
+        n_down: int = ...,
+    ) -> None: ...
 
     def step(self, x: float) -> int:
         """Feed one look of the lock metric; return the current decision.
@@ -34,8 +40,8 @@ class LockDet:
         Unlocked: a hit (`x > up_thresh`) advances the verify run and the
         n_up-th consecutive hit declares lock; any miss resets the run. Locked:
         a miss (`x < down_thresh`) advances the run and the n_down-th
-        consecutive miss drops the lock; any hit (`x >= down_thresh`) resets it.
-        A metric inside the `[down_thresh, up_thresh]` band is sticky — it
+        consecutive miss drops the lock; any hit (`x >= down_thresh`) resets
+        it. A metric inside the `[down_thresh, up_thresh]` band is sticky — it
         neither advances a declare nor a drop.
 
         Parameters
@@ -61,8 +67,15 @@ class LockDet:
 
         """
 
-    def steps(self, x: NDArray[np.float64], out: NDArray[np.int32] | None = None) -> NDArray[np.int32]:
-        """Run a block of lock-metric looks through the detector. Applies lockdet_step() to each look in turn, so the decision flag and the in-flight verify run carry across the block exactly as they would look by look — a signal can be processed in frames of any size with no seam.
+    def steps(
+        self,
+        x: NDArray[np.float64],
+        out: NDArray[np.int32] | None = None,
+    ) -> NDArray[np.int32]:
+        """Run a block of lock-metric looks through the detector. Applies
+        lockdet_step() to each look in turn, so the decision flag and the
+        in-flight verify run carry across the block exactly as they would look
+        by look — a signal can be processed in frames of any size with no seam.
 
         Parameters
         ----------
@@ -85,8 +98,15 @@ class LockDet:
 
         """
 
-    def configure(self, up_thresh: float, down_thresh: float, n_up: int, n_down: int) -> None:
-        """Re-tune thresholds and verify counts; a live lock survives, the in-flight verify run restarts under the new config.
+    def configure(
+        self,
+        up_thresh: float,
+        down_thresh: float,
+        n_up: int,
+        n_down: int,
+    ) -> None:
+        """Re-tune thresholds and verify counts; a live lock survives, the
+        in-flight verify run restarts under the new config.
 
         The current locked flag survives (a live lock is not dropped by a
         re-tune); the in-flight verify counter is cleared so the next run is
@@ -169,8 +189,9 @@ class LockDet:
         """Restore mutable state from a `get_state()` blob.
 
         Overwrites the live state in place; the object keeps the parameters it
-        was constructed with. Length is validated against `state_bytes()` before
-        the blob is handed to the C core, and the core may reject it as well.
+        was constructed with. Length is validated against `state_bytes()`
+        before the blob is handed to the C core, and the core may reject it as
+        well.
 
         Raises ``TypeError`` if *blob* is not bytes, ``ValueError`` if its
         length differs from `state_bytes()` or the core rejects it, and
@@ -204,7 +225,9 @@ class LockDet:
 
     @property
     def cnt(self) -> int:
-        """Running consecutive-look verify counter: hits toward a declare while unlocked, misses toward a drop while locked."""
+        """Running consecutive-look verify counter: hits toward a declare while
+        unlocked, misses toward a drop while locked.
+        """
 
     @property
     def locked(self) -> bool:
@@ -215,10 +238,11 @@ class LockDet:
 
         Ordinarily unnecessary: the resources are freed when the object is
         garbage-collected. Call this to release them at a definite point
-        instead, or use the object as a context manager, which calls it on exit.
+        instead, or use the object as a context manager, which calls it on
+        exit.
 
-        Idempotent: calling it again on an already-released object does nothing.
-        Every other method raises ``RuntimeError`` once it has run.
+        Idempotent: calling it again on an already-released object does
+        nothing. Every other method raises ``RuntimeError`` once it has run.
         """
 
 
@@ -234,12 +258,17 @@ class LockDet:
             This same object, not a copy.
         """
 
-    def __exit__(self, exc_type: object | None = ..., exc: object | None = ..., tb: object | None = ...) -> None:
+    def __exit__(
+        self,
+        exc_type: object | None = ...,
+        exc: object | None = ...,
+        tb: object | None = ...,
+    ) -> None:
         """Exit a context manager, releasing the LockDet.
 
         Equivalent to calling `destroy()`. Returns ``None``, so an exception
-        raised inside the `with` body propagates normally; this never suppresses
-        one.
+        raised inside the `with` body propagates normally; this never
+        suppresses one.
 
         Parameters
         ----------
@@ -268,8 +297,8 @@ def marcum_q(m: int, a: float, b: float) -> float:
 
     Each iteration advances both the Poisson weight and the chi-sum in O(1)
     using the recurrences w_{k+1} = w_k * u/(k+1) and Q_{n+1}(0,b) =
-    Q_n(0,b) + exp(-v)*v^n/n!. Total cost: O(K) where K ~ max(u, M) + safety
-    margin.
+    Q_n(0,b) + exp(-v)*v^n/n!. Total cost: O(K) where K ~ max(u, M) +
+    safety margin.
 
     Special cases:
 
@@ -343,8 +372,8 @@ def det_pd(snr: float, dwell: int, threshold: float) -> float:
     Parameters
     ----------
     snr : float
-        Per-sample amplitude SNR (signal / noise amplitude, linear). snr = 0
-        gives Pd = Pfa.
+        Per-sample amplitude SNR (signal / noise amplitude, linear). snr =
+        0 gives Pd = Pfa.
     dwell : int
         Coherent integration depth; must be >= 1.
     threshold : float
@@ -370,8 +399,8 @@ def det_dwell(snr: float, pd_min: float, pfa: float, max_dwell: int) -> int:
     """Minimum dwell such that Pd >= pd_min for the given SNR and Pfa.
 
     Iterates dwell = 1, 2, ..., max_dwell, computing det_pd() at each step.
-    Returns the first dwell that satisfies the Pd requirement, or -1 if none
-    is found within max_dwell iterations.
+    Returns the first dwell that satisfies the Pd requirement, or -1 if
+    none is found within max_dwell iterations.
 
     Parameters
     ----------
@@ -470,11 +499,12 @@ def det_ema_alpha(snr_in_db: float, snr_out_db: float) -> float:
 
     alpha = 2 * snr_in / (snr_in + snr_out) (SNRs linear)
 
-    Returns 1.0 (no averaging) when snr_out_db <= snr_in_db. Typical inputs:
-    a signal-free power reference |n|^2 is exponential (0 dB per sample); a
-    lock signal at known C/N0 has per-look SNR from its coherent integration
-    (minus squaring loss), and this picks the smoothing bandwidth that makes
-    the lock decision variable meet a chosen decision SNR.
+    Returns 1.0 (no averaging) when snr_out_db <= snr_in_db. Typical
+    inputs: a signal-free power reference |n|^2 is exponential (0 dB per
+    sample); a lock signal at known C/N0 has per-look SNR from its coherent
+    integration (minus squaring loss), and this picks the smoothing
+    bandwidth that makes the lock decision variable meet a chosen decision
+    SNR.
 
     Parameters
     ----------
@@ -576,7 +606,8 @@ def det_verify_delay(p_look: float, n: int) -> float:
     """
 
 def det_threshold_f(pfa: float, n: int) -> float:
-    """Upper quantile of F(n, n) — the exact H0 law for a ratio test whose noise reference is estimated from as many samples as the signal sum.
+    """Upper quantile of F(n, n) — the exact H0 law for a ratio test whose
+    noise reference is estimated from as many samples as the signal sum.
 
     A chi-square threshold (det_threshold_noncoherent) prices a statistic
     normalised by a KNOWN noise power. When the noise power is instead
@@ -584,10 +615,11 @@ def det_threshold_f(pfa: float, n: int) -> float:
     Re^2 against sum Im^2), the ratio's tail fattens to F(n, n) and the
     chi-square gate realizes tens of times the priced pfa (41x at n = 16,
     pfa = 1e-3). This helper returns the exact gate: P(chi2_n / chi2_n > g)
-    = I_{1/(1+g)}(n/2, n/2) = pfa, solved on the regularized incomplete beta
-    — valid for every n >= 1, odd included. As n grows the estimate hardens
-    and g approaches the known-noise value. Threshold a BurstDespreader as
-    `lock_stat > sqrt(stat_n * det_threshold_f(pfa, stat_n))`.
+    = I_{1/(1+g)}(n/2, n/2) = pfa, solved on the regularized incomplete
+    beta — valid for every n >= 1, odd included. As n grows the estimate
+    hardens and g approaches the known-noise value. Threshold a
+    BurstDespreader as `lock_stat > sqrt(stat_n * det_threshold_f(pfa,
+    stat_n))`.
 
     Parameters
     ----------
@@ -613,7 +645,12 @@ def det_threshold_f(pfa: float, n: int) -> float:
 
     """
 
-def det_pd_noncoherent(snr: float, n_coh: int, n_noncoh: int, threshold: float) -> float:
+def det_pd_noncoherent(
+    snr: float,
+    n_coh: int,
+    n_noncoh: int,
+    threshold: float,
+) -> float:
     r"""Detection probability for n_noncoh non-coherent looks.
 
     Computes Pd = Q_{n_noncoh}(a, threshold) with the non-centrality a =
@@ -650,7 +687,13 @@ def det_pd_noncoherent(snr: float, n_coh: int, n_noncoh: int, threshold: float) 
 
     """
 
-def det_n_noncoh(snr: float, n_coh: int, pd_min: float, pfa: float, max_n_noncoh: int) -> int:
+def det_n_noncoh(
+    snr: float,
+    n_coh: int,
+    pd_min: float,
+    pfa: float,
+    max_n_noncoh: int,
+) -> int:
     """Minimum non-coherent looks achieving Pd >= pd_min at fixed n_coh.
 
     Iterates n_noncoh = 1, 2, ..., max_n_noncoh, recomputing the threshold
@@ -710,13 +753,18 @@ def det_threshold_power(pfa: float) -> float:
 
     """
 
-def det_pd_power(snr_power: float, dwell: int, power_threshold: float) -> float:
+def det_pd_power(
+    snr_power: float,
+    dwell: int,
+    power_threshold: float,
+) -> float:
     """Detection probability for the power detector.
 
     Pd = Q_1(sqrt(2·dwell·snr_power), sqrt(2·power_threshold))
 
     The result equals det_pd() at the equivalent amplitude SNR: power SNR
-    `s` corresponds to amplitude SNR `sqrt(s)`, and the Q_1 arguments match.
+    `s` corresponds to amplitude SNR `sqrt(s)`, and the Q_1 arguments
+    match.
 
     Parameters
     ----------
@@ -742,7 +790,12 @@ def det_pd_power(snr_power: float, dwell: int, power_threshold: float) -> float:
 
     """
 
-def det_dwell_power(snr_power: float, pd_min: float, pfa: float, max_dwell: int) -> int:
+def det_dwell_power(
+    snr_power: float,
+    pd_min: float,
+    pfa: float,
+    max_dwell: int,
+) -> int:
     """Minimum dwell such that Pd >= pd_min for the power detector.
 
     Parameters

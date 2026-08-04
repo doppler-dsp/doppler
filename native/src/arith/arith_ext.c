@@ -431,7 +431,8 @@ static PyMethodDef arith_module_methods[] = {
      ">>> sub_q15(a, b).tolist()\n"
      "[50, 0, -32768]\n"},
     {"mul_q15", (PyCFunction)(void *)_bind_mul_q15, METH_VARARGS | METH_KEYWORDS,
-     "Elementwise Q15 multiply with round-half-up: out[i] = sat16((a[i]*b[i] + 16384) >> 15).\n"
+     "Elementwise Q15 multiply with round-half-up: out[i] =\n"
+     "sat16((a[i]*b[i] + 16384) >> 15).\n"
      "\n"
      "Parameters\n"
      "----------\n"
@@ -454,7 +455,8 @@ static PyMethodDef arith_module_methods[] = {
      ">>> mul_q15(a, b).tolist()\n"
      "[8192, -8192, 32766]\n"},
     {"dot_q15", (PyCFunction)(void *)_bind_dot_q15, METH_VARARGS | METH_KEYWORDS,
-     "Inner product of two Q15 arrays. Returns the raw Q30 accumulation as int64_t. Shift right 15 to get a Q15 scalar.\n"
+     "Inner product of two Q15 arrays. Returns the raw Q30 accumulation as\n"
+     "int64_t. Shift right 15 to get a Q15 scalar.\n"
      "\n"
      "Parameters\n"
      "----------\n"
@@ -477,7 +479,8 @@ static PyMethodDef arith_module_methods[] = {
      ">>> dot_q15(a, b)\n"
      "1400\n"},
     {"shl_q15", (PyCFunction)(void *)_bind_shl_q15, METH_VARARGS | METH_KEYWORDS,
-     "Elementwise arithmetic left shift of a Q15 array with saturation. Equivalent to multiplying by 2^n in fixed-point.\n"
+     "Elementwise arithmetic left shift of a Q15 array with saturation.\n"
+     "Equivalent to multiplying by 2^n in fixed-point.\n"
      "\n"
      "Parameters\n"
      "----------\n"
@@ -499,7 +502,8 @@ static PyMethodDef arith_module_methods[] = {
      ">>> shl_q15(a, 1).tolist()\n"
      "[16384, 32767, 32767]\n"},
     {"shr_q15", (PyCFunction)(void *)_bind_shr_q15, METH_VARARGS | METH_KEYWORDS,
-     "Elementwise arithmetic right shift of a Q15 array with round-half-up. Equivalent to dividing by 2^n.\n"
+     "Elementwise arithmetic right shift of a Q15 array with\n"
+     "round-half-up. Equivalent to dividing by 2^n.\n"
      "\n"
      "Parameters\n"
      "----------\n"
@@ -567,7 +571,8 @@ static PyMethodDef arith_module_methods[] = {
      ">>> sub_q8(a, b).tolist()\n"
      "[20, 0, -128]\n"},
     {"mul_q8", (PyCFunction)(void *)_bind_mul_q8, METH_VARARGS | METH_KEYWORDS,
-     "Elementwise Q8 multiply with round-half-up: out[i] = sat8((a[i]*b[i] + 64) >> 7).\n"
+     "Elementwise Q8 multiply with round-half-up: out[i] = sat8((a[i]*b[i]\n"
+     "+ 64) >> 7).\n"
      "\n"
      "Parameters\n"
      "----------\n"
@@ -590,7 +595,8 @@ static PyMethodDef arith_module_methods[] = {
      ">>> mul_q8(a, b).tolist()\n"
      "[32, -32, -32]\n"},
     {"dot_q8", (PyCFunction)(void *)_bind_dot_q8, METH_VARARGS | METH_KEYWORDS,
-     "Inner product of two Q8 arrays. Returns the raw Q14 accumulation as int32_t.\n"
+     "Inner product of two Q8 arrays. Returns the raw Q14 accumulation as\n"
+     "int32_t.\n"
      "\n"
      "Parameters\n"
      "----------\n"
@@ -657,7 +663,8 @@ static PyMethodDef arith_module_methods[] = {
      ">>> shr_q8(a, 2).tolist()\n"
      "[3, 3, 3, -2]\n"},
     {"shl_i64", (PyCFunction)(void *)_bind_shl_i64, METH_VARARGS | METH_KEYWORDS,
-     "Elementwise logical left shift of an int64_t array. No saturation (caller ensures no overflow).\n"
+     "Elementwise logical left shift of an int64_t array. No saturation\n"
+     "(caller ensures no overflow).\n"
      "\n"
      "Parameters\n"
      "----------\n"
@@ -679,7 +686,8 @@ static PyMethodDef arith_module_methods[] = {
      ">>> shl_i64(a, 3).tolist()\n"
      "[800, 1600, -1600]\n"},
     {"shr_i64", (PyCFunction)(void *)_bind_shr_i64, METH_VARARGS | METH_KEYWORDS,
-     "Elementwise arithmetic right shift of an int64_t array with round-half-up. Useful for normalising dot_q15 Q30 results back to Q15.\n"
+     "Elementwise arithmetic right shift of an int64_t array with\n"
+     "round-half-up. Useful for normalising dot_q15 Q30 results back to Q15.\n"
      "\n"
      "Parameters\n"
      "----------\n"

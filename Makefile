@@ -241,6 +241,7 @@ uv run python scripts/gen_doc_versions.py --check
 uv run python scripts/check_version_strings.py
 uv run python scripts/check_doc_targets.py
 uv run python scripts/check_serializable.py
+uv run python scripts/check_doc_face_parity.py
 endef
 
 define DOCS_CHECK_POST_CMDS

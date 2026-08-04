@@ -596,8 +596,7 @@ static PyMethodDef DsssReceiverObj_methods[] = {
     ">>> si = np.clip((idx / tsym).astype(int), 0, 403)\n"
     ">>> spread = data[si] * csign[(idx // spc) % sf]        # DSSS chips\n"
     ">>> sig = spread * np.exp(2j * np.pi * (50.0 / fs) * idx)  # +50 Hz\n"
-    ">>> pre = 3 * te                            # pre-signal noise-only "
-    "lead-in\n"
+    ">>> pre = 3 * te                     # noise-only lead-in, pre-signal\n"
     ">>> sigma = np.sqrt(fs / 10 ** (90.0 / 10))            # ~90 dB-Hz C/N0\n"
     ">>> noise = (sigma / np.sqrt(2)) * (rng.standard_normal(pre + n)\n"
     "...          + 1j * rng.standard_normal(pre + n))\n"
@@ -607,13 +606,14 @@ static PyMethodDef DsssReceiverObj_methods[] = {
     "...                   cn0_dbhz=55.0, doppler_uncertainty=100.0)\n"
     ">>> syms = [rx.steps(x[p:p + te]) for p in range(0, len(x) - te, te)]\n"
     ">>> syms = np.concatenate([s for s in syms if len(s)])\n"
-    ">>> rx.tracking                       # acquired and now demodulating\n"
+    ">>> rx.tracking                  # acquired and now demodulating\n"
     "1\n"
-    ">>> len(syms) > 300                    # a few hundred symbols "
-    "recovered\n"
+    ">>> len(syms) > 300              # a few hundred symbols recovered\n"
     "True\n"
-    ">>> bool(np.mean(syms.real**2) > 10 * np.mean(syms.imag**2))  # BPSK on "
-    "I\n"
+    "\n"
+    "Nearly all the energy lands on I, so the BPSK phase is resolved:\n"
+    "\n"
+    ">>> bool(np.mean(syms.real**2) > 10 * np.mean(syms.imag**2))\n"
     "True\n" },
   { "steps_max_out", (PyCFunction)DsssReceiverObj_steps_max_out, METH_NOARGS,
     "steps_max_out() -> int\n\nMax output length steps() can produce for the "
@@ -646,10 +646,8 @@ static PyMethodDef DsssReceiverObj_methods[] = {
     ">>> from doppler.wfm import Gold\n"
     ">>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)\n"
     ">>> rx = DsssReceiver(code, chip_rate=3.0e6, symbol_rate=2100.0, spc=2)\n"
-    ">>> rx.configure_search_raw(doppler_bins=1, n_noncoh=16)  # pin the "
-    "grid\n"
-    ">>> rx.tracking                       # still searching, on the pinned "
-    "grid\n"
+    ">>> rx.configure_search_raw(doppler_bins=1, n_noncoh=16)  # pin it\n"
+    ">>> rx.tracking                # still searching, on the pinned grid\n"
     "0\n" },
   { "configure_lock_raw",
     (PyCFunction)(void *)DsssReceiverObj_configure_lock_raw,
@@ -688,8 +686,7 @@ static PyMethodDef DsssReceiverObj_methods[] = {
     ">>> rx = DsssReceiver(code, chip_rate=3.0e6, symbol_rate=2100.0, spc=2)\n"
     ">>> rx.configure_lock_raw(up_thresh=0.4, down_thresh=0.2, n_looks=20,\n"
     "...                       alpha=0.1, n_up=5, n_down=3)\n"
-    ">>> rx.tracking                       # a no-op until a hit builds the "
-    "Dll\n"
+    ">>> rx.tracking                # a no-op until a hit builds the Dll\n"
     "0\n" },
   { "configure_chain_raw",
     (PyCFunction)(void *)DsssReceiverObj_configure_chain_raw,
@@ -750,10 +747,8 @@ static PyMethodDef DsssReceiverObj_methods[] = {
     ">>> from doppler.wfm import Gold\n"
     ">>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)\n"
     ">>> rx = DsssReceiver(code, chip_rate=3.0e6, symbol_rate=2100.0, spc=2)\n"
-    ">>> rx.reset()                        # abort any lock, hunt from "
-    "scratch\n"
-    ">>> (rx.tracking, rx.chip_phase)      # back to searching, state "
-    "cleared\n"
+    ">>> rx.reset()                 # abort any lock, hunt from scratch\n"
+    ">>> (rx.tracking, rx.chip_phase)   # back to searching, all cleared\n"
     "(0, 0.0)\n" },
   { "state_bytes", (PyCFunction)DsssReceiverObj_state_bytes, METH_NOARGS,
     "Size in bytes of this object's serialized state.\n"

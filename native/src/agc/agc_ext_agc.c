@@ -526,12 +526,10 @@ static PyMethodDef AGCObj_methods[] = {
     ">>> agc.gain_db           # loop already advanced from 0 dB\n"
     "0.0\n"
     ">>> agc2 = AGC(ref_db=0.0, loop_bw=0.0025, alpha=0.05)\n"
-    ">>> agc2.step(4.0+0.0j)  # 12 dB loud; first sample passes at unity "
-    "gain\n"
+    ">>> agc2.step(4.0+0.0j)  # 12 dB loud; first sample at unity gain\n"
     "(4+0j)\n"
     ">>> round(agc2.gain_db, 6)  # loop starts driving gain negative\n"
-    "-0.024276\n"
-    "\n" },
+    "-0.024276\n" },
   { "steps", (PyCFunction)(void *)AGC_steps, METH_VARARGS | METH_KEYWORDS,
     "steps(x[, out]) -> ndarray\n"
     "\n"
@@ -608,8 +606,7 @@ static PyMethodDef AGCObj_methods[] = {
     ">>> recs = tlm.read()          # one record per decim-chunk update\n"
     ">>> len(recs) == 256 // agc.decim\n"
     "True\n"
-    ">>> bool(recs[\"value\"][-1] > recs[\"value\"][0])  # gain rising toward "
-    "ref\n"
+    ">>> bool(recs[\"value\"][-1] > recs[\"value\"][0])  # gain rises to ref\n"
     "True\n" },
   { "state_bytes", (PyCFunction)AGCObj_state_bytes, METH_NOARGS,
     "Size in bytes of this object's serialized state.\n"

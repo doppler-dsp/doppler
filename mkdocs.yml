@@ -199,6 +199,7 @@ nav:
           - AGC: gallery/agc.md
       - Telemetry:
           - "Many Emitters, One Consumer": gallery/telemetry-fanin.md
+          - "Capturing All Receiver Telemetry": gallery/mpsk-telemetry-capture.md
       - Streaming: examples/streaming.md
       - Fundamentals:
           - FFT: examples/python-fft.md

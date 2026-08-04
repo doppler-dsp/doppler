@@ -56,6 +56,9 @@ The template every public declaration should match:
  * @param bar  What bar means.
  * @return     What comes back, and its units/shape.
  * @code
+ * Describe what you are showing — which can span multiple lines, and
+ * needs no # commenting. A blank ` *` line separates it from the code.
+ *
  * >>> from doppler.mymod import MyObj
  * >>> obj = MyObj(foo=0.5, bar=4)
  * >>> round(obj.method(1.0), 3)
@@ -104,7 +107,8 @@ ______________________________________________________________________
 - **`@code … @endcode`** — a **usage example** a reader learns from, which also
     runs in CI. See [Examples](#doctests-that-run) below. This is the single
     highest-value tag: it becomes the Examples section a user copies from *and*
-    is executed against the real API, so it can never mislead.
+    is executed against the real API, so it can never mislead. Every interior
+    line is on a **column budget** — see below.
 - **`@note` / `@warning` / `@see` / `@retval` / `@pre`** — **write these now.**
     They are dropped from the rendered docstring today and will begin rendering
     into numpy **Notes** / **Warnings** / **See Also** / **Raises** when the
@@ -149,34 +153,111 @@ silently rotted. Documentation first; the test is what stops it drifting.
 - **Small, but never trivial.** One construct + one meaningful call + one
     checked result is ideal; a Monte-Carlo sweep is not. "Small" trims noise,
     it does not mean "omit the part that shows how to use it".
+- **Narrate in prose, not in `#` comments.** A line inside `@code` that is
+    not `>>>`/`...` and not expected output is free-form prose: jm keeps it
+    verbatim and doctest ignores it. Use it to title each logical example set
+    and to say what the reader is about to see. Prose wraps wherever you like;
+    a trailing `#` comment is pinned to its alignment column and can only
+    shrink by shedding meaning — so prose is where the explanation belongs.
+    Keep `#` for a genuinely per-line aside.
 
-Good — constructs the AGC, drives it with a sample, and prints results that
-show both the passthrough and the loop starting to act, so a reader sees the
-call pattern *and* what to expect back:
+!!! danger "A blank line must separate prose from the output above it"
+
+    Doctest ends an expected-output block at the **first blank line**. Prose
+    placed directly under a printed value is swallowed *into* that value, and
+    the example fails:
+
+    ```text
+    >>> 1 + 1
+    2
+    Prose with no blank line above it.   <- becomes expected output; FAILS
+    ```
+
+    Same trap as jm#691. The rule: a blank ` *` line before every prose
+    paragraph, and another after it before the next `>>>`.
+
+Good — show construction and several typical usage patterns *and* what to
+expect back. Title each logical example set, and lean on prose over inline
+comments: why cram a note into a trailing `#` when you can freely title and
+add commentary right in the body? Note too how a long statement splits
+across lines with `...`.
 
 ```text
  * @code
+ * AGC can be driven a sample at a time, or on a whole block.
+ *
+ * >>> import numpy as np
  * >>> from doppler.agc import AGC
  * >>> agc = AGC(ref_db=0.0, loop_bw=0.0025, alpha=0.05)
- * >>> agc.step(1.0+0.0j)            # unity gain at start
+ * >>> agc.step(1.0+0.0j)
  * (1+0j)
- * >>> round(agc.gain_db, 6)         # loop has begun to drive
- * 0.0
+ *
+ * The first sample always passes at unity gain: the loop has not yet
+ * seen the envelope it is there to correct.
+ *
+ * Now drive a block 10 dB above the reference level and watch the loop
+ * converge on the -10 dB of gain that lands it back on ref.
+ *
+ * >>> x = 10 ** (10 / 20) * np.ones(
+ * ...     1000, dtype=np.complex64
+ * ... )
+ * >>> _ = agc.steps(x)
+ * >>> round(agc.gain_db, 1)
+ * -10.0
  * @endcode
 ```
+
+Every line of that block is load-bearing, and each one earns its place:
+the prose carries what four separate `#` comments used to, `>>> _ =` keeps
+the 1000-sample array from being printed as expected output, and `-10.0` is
+**negative** because the loop pulls a hot signal *down* onto the reference —
+a value measured from the real object, not guessed.
+
+______________________________________________________________________
+
+## The `@code` column budget { #code-budget }
+
+An `@code` line is authored inside a C comment, where the visible margin is
+the header's own 79 columns minus the leading `*` decoration. jm strips that
+decoration and re-indents the line to sit inside a docstring — so the budget
+you must actually hit is **`79 - indent`**, measured on the text *after* the
+`*`, and the indent depends on where the surface lands in the stub:
+
+| Surface                                   | Stub indent | Budget per line |
+| ----------------------------------------- | ----------- | --------------- |
+| Class member — method, property, built-in | 8           | **71**          |
+| Module-level function                     | 4           | 75              |
+
+**Author to 71.** Neither number is visible from the header, a surface can
+move between the two, and 71 is safe for both.
+
+The budget covers **every** interior line of the block — prose, `>>>`, `...`,
+and expected output alike. `jm apply` names each site that overflows, with
+the column count and the target; `make drift-check` prints the repo-wide
+total; `make lint-stubs` is the check-only gate on the generated `.pyi`.
+
+jm reports but never repairs, deliberately: these lines are yours, re-wrapping
+a `>>>` changes what runs, and an aligned comment column is a deliberate
+choice. Three ways to land a long line, in the order to reach for them:
+
+1. **Move the note into prose** above the example. Almost always the right
+    answer — it reads better *and* the prose wraps freely.
+1. **`...`-continue the statement.** Safe for any expression; costs a line.
+1. **Trim the trailing `#` comment.** Last, because it is the only one of the
+    three that buys columns by giving up meaning.
 
 ______________________________________________________________________
 
 ## Per-surface guidance
 
-| Python surface                              | Where the doc comes from                                                       | Notes                                                                                                                                                                                                               |
-| ------------------------------------------- | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Class**                                   | `<obj>_create()` block                                                         | `@brief` + `@param` (ctor args) reach it today. Body and `@code` are **not yet** rendered on a class (jm#624) — a synthesised construction demo replaces `@code`; write both anyway (release-stable). No `@return`. |
-| **Method**                                  | `<obj>_<method>()` block                                                       | The full template.                                                                                                                                                                                                  |
-| **Built-ins** `reset`/`step`/`steps`        | `@brief` on that C declaration                                                 | A real sentence, not the scaffold.                                                                                                                                                                                  |
-| **Property** (field)                        | manifest `doc=` today; the struct field's trailing `/**<` **not yet** (jm#671) | See [struct fields](#struct-fields) below.                                                                                                                                                                          |
-| **Module free function**                    | the module-header function block                                               | Same as a method.                                                                                                                                                                                                   |
-| **Module docstring**, **structseq records** | *no header source yet*                                                         | Need new upstream surfaces; not authorable in the header today.                                                                                                                                                     |
+| Python surface                              | Where the doc comes from                                                       | Notes                                                                                                                                                                                                                                                                                                                                                               |
+| ------------------------------------------- | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Class**                                   | `<obj>_create()` block                                                         | Full template, minus `@return` (jm renders the class from the ctor but omits Returns by design). An authored `@code` became the class **Examples** in jm 0.37.1 (gh-624) — including for a ctor jm cannot seed itself, such as one taking a required array or `path`. Without one you get a synthesised construction demo, which teaches nothing; author the block. |
+| **Method**                                  | `<obj>_<method>()` block                                                       | The full template.                                                                                                                                                                                                                                                                                                                                                  |
+| **Built-ins** `reset`/`step`/`steps`        | `@brief` on that C declaration                                                 | A real sentence, not the scaffold.                                                                                                                                                                                                                                                                                                                                  |
+| **Property** (field)                        | manifest `doc=` today; the struct field's trailing `/**<` **not yet** (jm#671) | See [struct fields](#struct-fields) below.                                                                                                                                                                                                                                                                                                                          |
+| **Module free function**                    | the module-header function block                                               | Same as a method.                                                                                                                                                                                                                                                                                                                                                   |
+| **Module docstring**, **structseq records** | *no header source yet*                                                         | Need new upstream surfaces; not authorable in the header today.                                                                                                                                                                                                                                                                                                     |
 
 ______________________________________________________________________
 

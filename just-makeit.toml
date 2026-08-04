@@ -9,6 +9,14 @@ build = "cmake"
 # — see docs). Omitting "windows" drops jm's per-component MinGW DLL-copy
 # boilerplate (jm-gh-213); the drift gate treats its absence as correct.
 platforms = ["linux", "macos"]
+# py_format_command (gh-746): jm runs the project's OWN pinned ruff over the
+# generated .pyi stubs + re-export __init__.py shims, so generated Python comes
+# out in doppler's exact ruff style (quotes/spacing/blank-lines) instead of an
+# island of jm's own layout. Pinned through uv.lock (the same ruff `make lint`
+# uses), so the bytes are stable local<->CI. gh-744 owns the 79-col WIDTH; this
+# is style only — and 0.44.0's docstring-closing-delimiter precondition fix
+# means ruff no longer collapses a summary back over 79.
+py_format_command = ["uv", "run", "--group", "dev", "ruff", "format"]
 # NOT adopting [project] c_style = "clang-format" (gh-265): jm 0.30.1's
 # _cfmt.py walks and reformats ALL of native/inc/** + native/src/** with
 # no exclusion, including the sacred native/inc/** headers that doppler's

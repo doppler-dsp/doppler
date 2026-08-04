@@ -404,7 +404,7 @@ LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
                 docs-relink drift-check changelog-check doxygen-warn-gate \
                 test-examples-c test-examples-python test-example-downstream \
                 test-example-downstream-python \
-                test-stubs test-api-docs test-snippets \
+                test-stubs test-api-docs test-snippets lint-stubs \
                 check-docstring-coverage \
                 abi-check link-check consumer-faces-check \
                 glibc-check specan-check \
@@ -855,6 +855,23 @@ specan-check: ## Fail if specan changed without re-recording its demo frames
 
 test-stubs: ## Doctest every generated .pyi stub
 	uv run python -m pytest --doctest-glob='*.pyi' -q \
+	    $$(find $(PYEXT_DIR) -name '*.pyi')
+
+# 79-col gate for the generated .pyi stubs. They are jm-owned and excluded from
+# the main ruff run (its autofixing rules would rewrite them and drift the
+# manifest gate), so this is a SEPARATE check-only pass: E501 + W505 have no
+# autofix, so they verify the width WITHOUT ever touching the bytes -- the one
+# way to enforce a rule on generated files without drifting them. E501 catches
+# every line (signatures + docstring prose); W505 (doc-line-too-long) is the
+# intent-explicit doc twin, redundant at max-doc-length == line-length == 79 but
+# selected to document purpose. --isolated bypasses pyproject's .pyi exclusion
+# (which force-excludes them). NOT yet wired into `lint`/CI: it is red today
+# because jm emits unwrapped docstring summaries + wide signatures. It goes
+# green once just-makeit wraps generated stubs to 79 (just-makeit#744); wire it
+# into the `lint` prereqs at that point.
+lint-stubs: ## Check generated .pyi stays within 79 cols (check-only; see jm#744)
+	$(RUFF) check --isolated --select E501,W505 --line-length 79 \
+	    --config 'lint.pycodestyle.max-doc-length = 79' \
 	    $$(find $(PYEXT_DIR) -name '*.pyi')
 
 # Docstring-coverage burn-down meter. Scores BOTH doc faces: the .pyi stubs

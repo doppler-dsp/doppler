@@ -710,16 +710,16 @@ class Dll:
     >>> import numpy as np
     >>> from doppler.track import Dll
     >>> rng = np.random.default_rng(1)
-    >>> code = rng.integers(0, 2, 31).astype(np.uint8)   # a 31-chip PN code
-    >>> chip = np.where(code & 1, -1.0, 1.0)              # BPSK spreading code
-    >>> x = np.tile(np.repeat(chip, 2), 60).astype(np.complex64)  # 60 periods
-    >>> d = Dll(code=code, sps=2)                         # 2 samples/chip loop
-    >>> sym = d.steps(x)                                  # one prompt per period
-    >>> sym.shape                                         # 60 despread symbols
+    >>> code = rng.integers(0, 2, 31).astype(np.uint8)  # a 31-chip PN code
+    >>> chip = np.where(code & 1, -1.0, 1.0)    # BPSK spreading code
+    >>> x = np.tile(np.repeat(chip, 2), 60).astype(np.complex64)
+    >>> d = Dll(code=code, sps=2)               # 2 samples/chip loop
+    >>> sym = d.steps(x)                        # one prompt per period
+    >>> sym.shape                               # 60 despread symbols
     (60,)
-    >>> round(float(np.mean(sym.real[-10:])), 1)          # despread to a clean +1
+    >>> round(float(np.mean(sym.real[-10:])), 1)  # despread to a clean +1
     1.0
-    >>> round(d.code_rate, 3)                             # code NCO at nominal rate
+    >>> round(d.code_rate, 3)                   # code NCO at nominal rate
     1.0
 
     """
@@ -784,15 +784,15 @@ class Dll:
         >>> from doppler.track import Dll
         >>> rng = np.random.default_rng(1)
         >>> code = rng.integers(0, 2, 31).astype(np.uint8)
-        >>> chip = np.where(code & 1, -1.0, 1.0)             # BPSK spreading code
-        >>> x = np.tile(np.repeat(chip, 2), 40).astype(np.complex64)  # 40 clean periods
+        >>> chip = np.where(code & 1, -1.0, 1.0)    # BPSK spreading code
+        >>> x = np.tile(np.repeat(chip, 2), 40).astype(np.complex64)
         >>> d = Dll(code=code, sps=2)
-        >>> sym = d.steps(x)                                 # one prompt per code period
+        >>> sym = d.steps(x)                        # one prompt per period
         >>> sym.dtype
         dtype('complex64')
-        >>> round(float(np.mean(sym.real[-10:])), 1)         # despread to a clean +1
+        >>> round(float(np.mean(sym.real[-10:])), 1)  # despread to a clean +1
         1.0
-        >>> round(d.code_rate, 3)                            # locked at the nominal rate
+        >>> round(d.code_rate, 3)                   # locked at nominal rate
         1.0
 
         """
@@ -887,7 +887,7 @@ class Dll:
         >>> rng = np.random.default_rng(1)
         >>> code = rng.integers(0, 2, 31).astype(np.uint8)
         >>> d = Dll(code=code, sps=2, bn=0.01)
-        >>> d.configure(bn=0.02, zeta=0.707)   # widen the loop bandwidth mid-run
+        >>> d.configure(bn=0.02, zeta=0.707)   # widen the bandwidth mid-run
         >>> round(d.bn, 3)
         0.02
 
@@ -924,7 +924,8 @@ class Dll:
         >>> rng = np.random.default_rng(11)
         >>> code = rng.integers(0, 2, 63).astype(np.uint8)
         >>> delta = 5e-4                                   # code-rate Doppler
-        >>> idx = (np.arange(63 * 4 * 300) * (1 + delta) / 4).astype(np.int64) % 63
+        >>> idx = (np.arange(63 * 4 * 300) * (1 + delta) / 4).astype(
+        ...     np.int64) % 63
         >>> x = np.where(code[idx] & 1, -1.0, 1.0).astype(np.complex64)
         >>> plain = Dll(code, sps=4, bn=0.005)
         >>> _ = plain.steps(x)
@@ -1085,14 +1086,16 @@ class Dll:
         >>> import numpy as np
         >>> from doppler.track import Dll
         >>> rng = np.random.default_rng(1)
-        >>> code = rng.integers(0, 2, 63).astype(np.uint8)   # >= 7 chips for a lock
+        >>> # >= 7 chips gives a usable lock statistic
+        >>> code = rng.integers(0, 2, 63).astype(np.uint8)
         >>> chip = np.where(code & 1, -1.0, 1.0)
-        >>> x = np.tile(np.repeat(chip, 4), 400).astype(np.complex64)  # clean signal
+        >>> x = np.tile(np.repeat(chip, 4), 400).astype(np.complex64)
         >>> d = Dll(code, sps=4, bn=0.005)
-        >>> # raw geometry: declare at R>3, drop at R<2.5, 8-look, 2-of-2 hysteresis
+        >>> # raw geometry: declare at R>3, drop at R<2.5, 8-look,
+        >>> # 2-of-2 hysteresis
         >>> d.configure_lock_raw(3.0, 2.5, 8, 1.0 / 1024, 2, 2)
         >>> _ = d.steps(x)
-        >>> d.locked                       # statistic cleared the declare threshold
+        >>> d.locked                       # cleared the declare threshold
         True
         >>> bool(d.lock_stat > 3.0)
         True
@@ -1114,13 +1117,14 @@ class Dll:
         >>> from doppler.track import Dll
         >>> rng = np.random.default_rng(21)
         >>> code = rng.integers(0, 2, 63).astype(np.uint8)
-        >>> idx = (np.arange(63 * 4 * 300) * (1 + 3e-4) / 4).astype(np.int64) % 63
+        >>> idx = (np.arange(63 * 4 * 300) * (1 + 3e-4) / 4).astype(
+        ...     np.int64) % 63
         >>> x = np.where(code[idx] & 1, -1.0, 1.0).astype(np.complex64)
         >>> d = Dll(code, sps=4, bn=0.005)
         >>> _ = d.steps(x)
         >>> first = round(d.code_rate, 6)
-        >>> d.reset()                       # back to the create-time code phase
-        >>> _ = d.steps(x)                  # same input -> same tracked rate
+        >>> d.reset()                     # back to the create-time code phase
+        >>> _ = d.steps(x)                # same input -> same tracked rate
         >>> round(d.code_rate, 6) == first
         True
 

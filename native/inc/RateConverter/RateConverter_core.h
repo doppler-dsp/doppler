@@ -347,12 +347,12 @@ size_t RateConverter_execute_ctrl_push_max_out (RateConverter_state_t *s);
  * @code
  * >>> from doppler.resample import RateConverter
  * >>> import numpy as np
- * >>> rc = RateConverter(rate=0.8, compensate=0)   # ends in Resampler(0.8)
+ * >>> rc = RateConverter(rate=0.8, compensate=0)  # -> Resampler(0.8)
  * >>> x = np.ones(1000, dtype=np.complex64)
- * >>> rc.execute_ctrl(x, 0.0).shape[0]             # base rate: 1000 -> 800
+ * >>> rc.execute_ctrl(x, 0.0).shape[0]    # base rate: 1000 -> 800
  * 800
  * >>> rc2 = RateConverter(rate=0.8, compensate=0)
- * >>> rc2.execute_ctrl(x, 0.05).shape[0]           # +ctrl speeds the tail up
+ * >>> rc2.execute_ctrl(x, 0.05).shape[0]  # +ctrl speeds the tail up
  * 850
  *
  * @endcode
@@ -389,7 +389,7 @@ size_t RateConverter_execute_ctrl (RateConverter_state_t *s,
  * @code
  * >>> from doppler.resample import RateConverter
  * >>> import numpy as np
- * >>> rc = RateConverter(rate=0.8, compensate=0)   # ends in Resampler(0.8)
+ * >>> rc = RateConverter(rate=0.8, compensate=0)  # -> Resampler(0.8)
  * >>> x = (np.arange(10, dtype=np.float32) + 1).astype(np.complex64)
  * >>> # a decimator emits 0 between strobes, 1 on a strobe:
  * >>> [rc.execute_ctrl_push(complex(v), 0.0).shape[0] for v in x]

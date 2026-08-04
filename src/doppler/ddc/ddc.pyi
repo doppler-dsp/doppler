@@ -129,13 +129,13 @@ class DDC:
         --------
         >>> from doppler.ddc import DDC
         >>> import numpy as np
-        >>> ddc = DDC(norm_freq=0.0, rate=0.25)      # LO centred at DC
+        >>> ddc = DDC(norm_freq=0.0, rate=0.25)   # LO centred at DC
         >>> t = np.arange(4096)
         >>> x = np.exp(1j * 2 * np.pi * 0.1 * t).astype(np.complex64)
-        >>> y = ddc.execute_ctrl(x, 0.0, -0.1)       # freq_ctrl steers +0.1 to DC
+        >>> y = ddc.execute_ctrl(x, 0.0, -0.1)    # freq_ctrl steers +0.1 to DC
         >>> y.shape
         (1024,)
-        >>> round(float(abs(y[100:].mean())), 2)     # settled output sits at DC
+        >>> round(float(abs(y[100:].mean())), 2)  # settled output sits at DC
         1.0
 
         """
@@ -470,13 +470,13 @@ class MatchedDDC:
         --------
         >>> from doppler.ddc import DDC
         >>> import numpy as np
-        >>> ddc = DDC(norm_freq=0.0, rate=0.25)      # LO centred at DC
+        >>> ddc = DDC(norm_freq=0.0, rate=0.25)   # LO centred at DC
         >>> t = np.arange(4096)
         >>> x = np.exp(1j * 2 * np.pi * 0.1 * t).astype(np.complex64)
-        >>> y = ddc.execute_ctrl(x, 0.0, -0.1)       # freq_ctrl steers +0.1 to DC
+        >>> y = ddc.execute_ctrl(x, 0.0, -0.1)    # freq_ctrl steers +0.1 to DC
         >>> y.shape
         (1024,)
-        >>> round(float(abs(y[100:].mean())), 2)     # settled output sits at DC
+        >>> round(float(abs(y[100:].mean())), 2)  # settled output sits at DC
         1.0
 
         """
@@ -782,13 +782,13 @@ class Ddcr:
         --------
         >>> from doppler.ddc import Ddcr
         >>> import numpy as np
-        >>> ddcr = Ddcr(norm_freq=-0.5, rate=0.25)   # fine LO 0.2 short of tune
+        >>> ddcr = Ddcr(norm_freq=-0.5, rate=0.25)  # LO 0.2 short of tune
         >>> t = np.arange(4096)
         >>> x = np.cos(2 * np.pi * 0.1 * t).astype(np.float32)
-        >>> y = ddcr.execute_ctrl(x, 0.0, -0.2)      # freq_ctrl completes the tune
+        >>> y = ddcr.execute_ctrl(x, 0.0, -0.2)     # ctrl completes the tune
         >>> y.shape
         (1024,)
-        >>> round(float(abs(y[100:].mean())), 2)     # real tone -> DC, amp 0.5
+        >>> round(float(abs(y[100:].mean())), 2)    # real tone -> DC, amp 0.5
         0.5
 
         """
@@ -828,9 +828,9 @@ class Ddcr:
         >>> ddcr = Ddcr(norm_freq=-0.7, rate=0.25)
         >>> x = np.cos(2 * np.pi * 0.1 * np.arange(128)).astype(np.float32)
         >>> outs = [ddcr.execute_ctrl_push(float(s), 0.0, 0.0) for s in x]
-        >>> int(sum(len(o) for o in outs))   # 128 real inputs, rate 1/4 -> 32
+        >>> int(sum(len(o) for o in outs))  # 128 real inputs, rate 1/4 -> 32
         32
-        >>> [len(o) for o in outs[:4]]        # halfband + decim: 0 until a strobe
+        >>> [len(o) for o in outs[:4]]      # halfband: 0 until a strobe
         [0, 0, 0, 1]
 
         """
@@ -1123,13 +1123,13 @@ class MatchedDdcr:
         --------
         >>> from doppler.ddc import Ddcr
         >>> import numpy as np
-        >>> ddcr = Ddcr(norm_freq=-0.5, rate=0.25)   # fine LO 0.2 short of tune
+        >>> ddcr = Ddcr(norm_freq=-0.5, rate=0.25)  # LO 0.2 short of tune
         >>> t = np.arange(4096)
         >>> x = np.cos(2 * np.pi * 0.1 * t).astype(np.float32)
-        >>> y = ddcr.execute_ctrl(x, 0.0, -0.2)      # freq_ctrl completes the tune
+        >>> y = ddcr.execute_ctrl(x, 0.0, -0.2)     # ctrl completes the tune
         >>> y.shape
         (1024,)
-        >>> round(float(abs(y[100:].mean())), 2)     # real tone -> DC, amp 0.5
+        >>> round(float(abs(y[100:].mean())), 2)    # real tone -> DC, amp 0.5
         0.5
 
         """
@@ -1169,9 +1169,9 @@ class MatchedDdcr:
         >>> ddcr = Ddcr(norm_freq=-0.7, rate=0.25)
         >>> x = np.cos(2 * np.pi * 0.1 * np.arange(128)).astype(np.float32)
         >>> outs = [ddcr.execute_ctrl_push(float(s), 0.0, 0.0) for s in x]
-        >>> int(sum(len(o) for o in outs))   # 128 real inputs, rate 1/4 -> 32
+        >>> int(sum(len(o) for o in outs))  # 128 real inputs, rate 1/4 -> 32
         32
-        >>> [len(o) for o in outs[:4]]        # halfband + decim: 0 until a strobe
+        >>> [len(o) for o in outs[:4]]      # halfband: 0 until a strobe
         [0, 0, 0, 1]
 
         """

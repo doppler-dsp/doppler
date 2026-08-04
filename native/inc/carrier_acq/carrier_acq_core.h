@@ -163,9 +163,10 @@ typedef struct {
  * >>> data = np.repeat(bits, 8)                 # 8 samples/symbol BPSK
  * >>> t = np.arange(len(data))
  * >>> x = (data * np.exp(2j * np.pi * 123.0 * t / 8000.0)).astype(
- * ...     np.complex64)                         # residual carrier at 123 Hz
- * >>> ca = CarrierAcquisition(sample_rate_hz=8000.0, symbol_rate_hz=1000.0,
- * ...                         psd_template=np.array([], dtype=np.float32))
+ * ...     np.complex64)  # residual carrier at 123 Hz
+ * >>> ca = CarrierAcquisition(
+ * ...     sample_rate_hz=8000.0, symbol_rate_hz=1000.0,
+ * ...     psd_template=np.array([], dtype=np.float32))
  * >>> ca.steps(x)                   # fold the stream, testing each block
  * >>> ca.ready                      # detection fired
  * True
@@ -200,9 +201,10 @@ void carrier_acq_destroy(carrier_acq_state_t *state);
  * @code
  * >>> import numpy as np
  * >>> from doppler.acquire import CarrierAcquisition
- * >>> ca = CarrierAcquisition(sample_rate_hz=8000.0, symbol_rate_hz=1000.0,
- * ...                         psd_template=np.array([], dtype=np.float32))
- * >>> ca.steps(np.zeros(2048, dtype=np.complex64))  # accumulate some looks
+ * >>> ca = CarrierAcquisition(
+ * ...     sample_rate_hz=8000.0, symbol_rate_hz=1000.0,
+ * ...     psd_template=np.array([], dtype=np.float32))
+ * >>> ca.steps(np.zeros(2048, dtype=np.complex64))  # accumulate looks
  * >>> ca.n_blocks > 0
  * True
  * >>> ca.reset()                    # discard the running PSD average
@@ -231,9 +233,10 @@ void carrier_acq_reset(carrier_acq_state_t *state);
  * >>> data = np.repeat(bits, 8)                 # 8 samples/symbol BPSK
  * >>> t = np.arange(len(data))
  * >>> x = (data * np.exp(2j * np.pi * 123.0 * t / 8000.0)).astype(
- * ...     np.complex64)                         # residual carrier at 123 Hz
- * >>> ca = CarrierAcquisition(sample_rate_hz=8000.0, symbol_rate_hz=1000.0,
- * ...                         psd_template=np.array([], dtype=np.float32))
+ * ...     np.complex64)  # residual carrier at 123 Hz
+ * >>> ca = CarrierAcquisition(
+ * ...     sample_rate_hz=8000.0, symbol_rate_hz=1000.0,
+ * ...     psd_template=np.array([], dtype=np.float32))
  * >>> ca.steps(x)                   # fold the stream, testing each block
  * >>> ca.ready
  * True

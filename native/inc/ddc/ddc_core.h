@@ -319,13 +319,13 @@ size_t ddc_execute(ddc_state_t *state, const float complex *x, size_t x_len, flo
    * @code
    * >>> from doppler.ddc import DDC
    * >>> import numpy as np
-   * >>> ddc = DDC(norm_freq=0.0, rate=0.25)      # LO centred at DC
+   * >>> ddc = DDC(norm_freq=0.0, rate=0.25)   # LO centred at DC
    * >>> t = np.arange(4096)
    * >>> x = np.exp(1j * 2 * np.pi * 0.1 * t).astype(np.complex64)
-   * >>> y = ddc.execute_ctrl(x, 0.0, -0.1)       # freq_ctrl steers +0.1 to DC
+   * >>> y = ddc.execute_ctrl(x, 0.0, -0.1)    # freq_ctrl steers +0.1 to DC
    * >>> y.shape
    * (1024,)
-   * >>> round(float(abs(y[100:].mean())), 2)     # settled output sits at DC
+   * >>> round(float(abs(y[100:].mean())), 2)  # settled output sits at DC
    * 1.0
    *
    * @endcode

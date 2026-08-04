@@ -330,7 +330,7 @@ void agc_reset(agc_state_t *state);
    * >>> agc.gain_db           # loop already advanced from 0 dB
    * 0.0
    * >>> agc2 = AGC(ref_db=0.0, loop_bw=0.0025, alpha=0.05)
-   * >>> agc2.step(4.0+0.0j)  # 12 dB loud; first sample passes at unity gain
+   * >>> agc2.step(4.0+0.0j)  # 12 dB loud; first sample at unity gain
    * (4+0j)
    * >>> round(agc2.gain_db, 6)  # loop starts driving gain negative
    * -0.024276
@@ -472,7 +472,7 @@ double agc_get_applied_gain_db(const agc_state_t *state);
    * >>> recs = tlm.read()          # one record per decim-chunk update
    * >>> len(recs) == 256 // agc.decim
    * True
-   * >>> bool(recs["value"][-1] > recs["value"][0])  # gain rising toward ref
+   * >>> bool(recs["value"][-1] > recs["value"][0])  # gain rises to ref
    * True
    *
    * @endcode

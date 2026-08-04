@@ -117,7 +117,8 @@ extern "C"
    * ...              if c & 0x8000 else (c << 1) & 0xFFFF)
    * ...     return c
    * >>> crc = crc16(payload)
-   * >>> crc_bits = np.array([(crc >> (15 - j)) & 1 for j in range(16)], np.uint8)
+   * >>> crc_bits = np.array(
+   * ...     [(crc >> (15 - j)) & 1 for j in range(16)], np.uint8)
    * >>> frame = np.concatenate([sync, payload, crc_bits])
    * >>> csign = lambda b: np.where(np.asarray(b) & 1, -1.0, 1.0)
    * >>> chips = ([np.tile(csign(acode), reps)]
@@ -160,7 +161,7 @@ extern "C"
    * >>> from doppler.dsss import BurstDemod
    * >>> dcode = (np.arange(50) & 1).astype(np.uint8)
    * >>> d = BurstDemod(dcode, spc=4, chip_rate=1e6, payload_len=64)
-   * >>> d.reset()               # clears est_ fields + frame_valid, keeps config
+   * >>> d.reset()          # clears est_ + frame_valid, keeps config
    * >>> d.frame_valid
    * 0
    *
@@ -187,8 +188,8 @@ extern "C"
    * >>> from doppler.dsss import BurstDemod
    * >>> dcode = (np.arange(50) & 1).astype(np.uint8)
    * >>> d = BurstDemod(dcode, spc=4, chip_rate=1e6, payload_len=64)
-   * >>> acode = (np.arange(500) & 1).astype(np.uint8)   # unmodulated preamble
-   * >>> d.set_preamble(acode, reps=5)   # 5 repeats drive the (f0, rate) fit
+   * >>> acode = (np.arange(500) & 1).astype(np.uint8)  # unmodulated
+   * >>> d.set_preamble(acode, reps=5)  # 5 reps drive the (f0, rate) fit
    *
    * @endcode
    */
@@ -215,7 +216,7 @@ extern "C"
    * >>> dcode = (np.arange(50) & 1).astype(np.uint8)
    * >>> d = BurstDemod(dcode, spc=4, chip_rate=1e6, payload_len=64)
    * >>> sync = np.array([0, 0, 0, 0, 0, 1, 1, 0, 0, 1, 0, 1, 0], np.uint8)
-   * >>> d.set_sync(sync)   # Barker-13: frame alignment + phase/sign resolution
+   * >>> d.set_sync(sync)   # Barker-13: frame align + phase/sign fix
    *
    * @endcode
    */
@@ -239,7 +240,7 @@ extern "C"
    * >>> from doppler.dsss import BurstDemod
    * >>> dcode = (np.arange(50) & 1).astype(np.uint8)
    * >>> d = BurstDemod(dcode, spc=4, chip_rate=1e6, payload_len=64)
-   * >>> d.set_prior(0.012, start=0)   # coarse Doppler + preamble start from acq
+   * >>> d.set_prior(0.012, start=0)   # coarse Doppler + start, from acq
    *
    * @endcode
    */
@@ -286,7 +287,8 @@ extern "C"
    * ...              if c & 0x8000 else (c << 1) & 0xFFFF)
    * ...     return c
    * >>> crc = crc16(payload)
-   * >>> crc_bits = np.array([(crc >> (15 - j)) & 1 for j in range(16)], np.uint8)
+   * >>> crc_bits = np.array(
+   * ...     [(crc >> (15 - j)) & 1 for j in range(16)], np.uint8)
    * >>> frame = np.concatenate([sync, payload, crc_bits])
    * >>> csign = lambda b: np.where(np.asarray(b) & 1, -1.0, 1.0)
    * >>> chips = ([np.tile(csign(acode), reps)]

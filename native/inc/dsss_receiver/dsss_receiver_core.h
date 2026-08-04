@@ -237,7 +237,7 @@ extern "C"
    * >>> si = np.clip((idx / tsym).astype(int), 0, 403)
    * >>> spread = data[si] * csign[(idx // spc) % sf]        # DSSS chips
    * >>> sig = spread * np.exp(2j * np.pi * (50.0 / fs) * idx)  # +50 Hz
-   * >>> pre = 3 * te                            # pre-signal noise-only lead-in
+   * >>> pre = 3 * te                     # noise-only lead-in, pre-signal
    * >>> sigma = np.sqrt(fs / 10 ** (90.0 / 10))            # ~90 dB-Hz C/N0
    * >>> noise = (sigma / np.sqrt(2)) * (rng.standard_normal(pre + n)
    * ...          + 1j * rng.standard_normal(pre + n))
@@ -247,11 +247,14 @@ extern "C"
    * ...                   cn0_dbhz=55.0, doppler_uncertainty=100.0)
    * >>> syms = [rx.steps(x[p:p + te]) for p in range(0, len(x) - te, te)]
    * >>> syms = np.concatenate([s for s in syms if len(s)])
-   * >>> rx.tracking                       # acquired, now demodulating
+   * >>> rx.tracking                  # acquired, now demodulating
    * 1
-   * >>> len(syms) > 300                    # a few hundred symbols recovered
+   * >>> len(syms) > 300              # a few hundred symbols recovered
    * True
-   * >>> bool(np.mean(syms.real**2) > 10 * np.mean(syms.imag**2))  # BPSK on I
+   *
+   * Nearly all the energy lands on I, so the BPSK phase is resolved:
+   *
+   * >>> bool(np.mean(syms.real**2) > 10 * np.mean(syms.imag**2))
    * True
    *
    * @endcode
@@ -279,8 +282,8 @@ extern "C"
    * >>> from doppler.wfm import Gold
    * >>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
    * >>> rx = DsssReceiver(code, chip_rate=3.0e6, symbol_rate=2100.0, spc=2)
-   * >>> rx.reset()                        # abort any lock, hunt from scratch
-   * >>> (rx.tracking, rx.chip_phase)      # back to searching, state cleared
+   * >>> rx.reset()                 # abort any lock, hunt from scratch
+   * >>> (rx.tracking, rx.chip_phase)   # back to searching, all cleared
    * (0, 0.0)
    *
    * @endcode
@@ -325,7 +328,7 @@ extern "C"
    * >>> si = np.clip((idx / tsym).astype(int), 0, 403)
    * >>> spread = data[si] * csign[(idx // spc) % sf]        # DSSS chips
    * >>> sig = spread * np.exp(2j * np.pi * (50.0 / fs) * idx)  # +50 Hz
-   * >>> pre = 3 * te                            # pre-signal noise-only lead-in
+   * >>> pre = 3 * te                     # noise-only lead-in, pre-signal
    * >>> sigma = np.sqrt(fs / 10 ** (90.0 / 10))            # ~90 dB-Hz C/N0
    * >>> noise = (sigma / np.sqrt(2)) * (rng.standard_normal(pre + n)
    * ...          + 1j * rng.standard_normal(pre + n))
@@ -335,11 +338,14 @@ extern "C"
    * ...                   cn0_dbhz=55.0, doppler_uncertainty=100.0)
    * >>> syms = [rx.steps(x[p:p + te]) for p in range(0, len(x) - te, te)]
    * >>> syms = np.concatenate([s for s in syms if len(s)])
-   * >>> rx.tracking                       # acquired and now demodulating
+   * >>> rx.tracking                  # acquired and now demodulating
    * 1
-   * >>> len(syms) > 300                    # a few hundred symbols recovered
+   * >>> len(syms) > 300              # a few hundred symbols recovered
    * True
-   * >>> bool(np.mean(syms.real**2) > 10 * np.mean(syms.imag**2))  # BPSK on I
+   *
+   * Nearly all the energy lands on I, so the BPSK phase is resolved:
+   *
+   * >>> bool(np.mean(syms.real**2) > 10 * np.mean(syms.imag**2))
    * True
    *
    * @endcode
@@ -371,8 +377,8 @@ extern "C"
    * >>> from doppler.wfm import Gold
    * >>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
    * >>> rx = DsssReceiver(code, chip_rate=3.0e6, symbol_rate=2100.0, spc=2)
-   * >>> rx.configure_search_raw(doppler_bins=1, n_noncoh=16)  # pin the grid
-   * >>> rx.tracking                       # still searching, on the pinned grid
+   * >>> rx.configure_search_raw(doppler_bins=1, n_noncoh=16)  # pin it
+   * >>> rx.tracking                # still searching, on the pinned grid
    * 0
    *
    * @endcode
@@ -409,7 +415,7 @@ extern "C"
    * >>> rx = DsssReceiver(code, chip_rate=3.0e6, symbol_rate=2100.0, spc=2)
    * >>> rx.configure_lock_raw(up_thresh=0.4, down_thresh=0.2, n_looks=20,
    * ...                       alpha=0.1, n_up=5, n_down=3)
-   * >>> rx.tracking                       # a no-op until a hit builds the Dll
+   * >>> rx.tracking                # a no-op until a hit builds the Dll
    * 0
    *
    * @endcode

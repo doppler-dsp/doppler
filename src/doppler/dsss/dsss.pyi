@@ -632,9 +632,9 @@ class BurstDespreader:
         >>> pay = np.concatenate([np.repeat(s * dch, 4) for s in psyms])
         >>> burst = np.concatenate([pre, pay]).astype(np.complex64)
         >>> d = BurstDespreader(data_code, sf=32, sps=4)
-        >>> d.set_acq(acq, 4)                    # 4 preamble reps, pulls loops in
-        >>> out = d.bits(burst)                  # preamble emits nothing
-        >>> out.shape                            # only the payload symbols come out
+        >>> d.set_acq(acq, 4)            # 4 preamble reps, pulls loops in
+        >>> out = d.bits(burst)          # preamble emits nothing
+        >>> out.shape                    # only the payload symbols come out
         (40,)
         >>> e = np.mean(out != pbits)
         >>> round(float(min(e, 1.0 - e)), 4)
@@ -665,8 +665,8 @@ class BurstDespreader:
         ...     [np.repeat(s * chips, 4) for s in syms]).astype(np.complex64)
         >>> d = BurstDespreader(code, sf=31, sps=4)
         >>> first = d.bits(tx)
-        >>> d.reset()                              # re-arm for a new burst
-        >>> np.array_equal(first, d.bits(tx))      # same result as a fresh object
+        >>> d.reset()                          # re-arm for a new burst
+        >>> np.array_equal(first, d.bits(tx))  # same as a fresh object
         True
 
         """
@@ -1780,7 +1780,8 @@ class BurstDemod:
     ...              if c & 0x8000 else (c << 1) & 0xFFFF)
     ...     return c
     >>> crc = crc16(payload)
-    >>> crc_bits = np.array([(crc >> (15 - j)) & 1 for j in range(16)], np.uint8)
+    >>> crc_bits = np.array(
+    ...     [(crc >> (15 - j)) & 1 for j in range(16)], np.uint8)
     >>> frame = np.concatenate([sync, payload, crc_bits])
     >>> csign = lambda b: np.where(np.asarray(b) & 1, -1.0, 1.0)
     >>> chips = ([np.tile(csign(acode), reps)]
@@ -1824,7 +1825,7 @@ class BurstDemod:
         >>> from doppler.dsss import BurstDemod
         >>> dcode = (np.arange(50) & 1).astype(np.uint8)
         >>> d = BurstDemod(dcode, spc=4, chip_rate=1e6, payload_len=64)
-        >>> d.reset()               # clears est_ fields + frame_valid, keeps config
+        >>> d.reset()          # clears est_ + frame_valid, keeps config
         >>> d.frame_valid
         0
 
@@ -1854,8 +1855,8 @@ class BurstDemod:
         >>> from doppler.dsss import BurstDemod
         >>> dcode = (np.arange(50) & 1).astype(np.uint8)
         >>> d = BurstDemod(dcode, spc=4, chip_rate=1e6, payload_len=64)
-        >>> acode = (np.arange(500) & 1).astype(np.uint8)   # unmodulated preamble
-        >>> d.set_preamble(acode, reps=5)   # 5 repeats drive the (f0, rate) fit
+        >>> acode = (np.arange(500) & 1).astype(np.uint8)  # unmodulated
+        >>> d.set_preamble(acode, reps=5)  # 5 reps drive the (f0, rate) fit
 
         """
 
@@ -1881,7 +1882,7 @@ class BurstDemod:
         >>> dcode = (np.arange(50) & 1).astype(np.uint8)
         >>> d = BurstDemod(dcode, spc=4, chip_rate=1e6, payload_len=64)
         >>> sync = np.array([0, 0, 0, 0, 0, 1, 1, 0, 0, 1, 0, 1, 0], np.uint8)
-        >>> d.set_sync(sync)   # Barker-13: frame alignment + phase/sign resolution
+        >>> d.set_sync(sync)   # Barker-13: frame align + phase/sign fix
 
         """
 
@@ -1907,7 +1908,7 @@ class BurstDemod:
         >>> from doppler.dsss import BurstDemod
         >>> dcode = (np.arange(50) & 1).astype(np.uint8)
         >>> d = BurstDemod(dcode, spc=4, chip_rate=1e6, payload_len=64)
-        >>> d.set_prior(0.012, start=0)   # coarse Doppler + preamble start from acq
+        >>> d.set_prior(0.012, start=0)   # coarse Doppler + start, from acq
 
         """
 
@@ -2069,7 +2070,7 @@ class DsssReceiver:
     >>> si = np.clip((idx / tsym).astype(int), 0, 403)
     >>> spread = data[si] * csign[(idx // spc) % sf]        # DSSS chips
     >>> sig = spread * np.exp(2j * np.pi * (50.0 / fs) * idx)  # +50 Hz
-    >>> pre = 3 * te                            # pre-signal noise-only lead-in
+    >>> pre = 3 * te                     # noise-only lead-in, pre-signal
     >>> sigma = np.sqrt(fs / 10 ** (90.0 / 10))            # ~90 dB-Hz C/N0
     >>> noise = (sigma / np.sqrt(2)) * (rng.standard_normal(pre + n)
     ...          + 1j * rng.standard_normal(pre + n))
@@ -2079,11 +2080,14 @@ class DsssReceiver:
     ...                   cn0_dbhz=55.0, doppler_uncertainty=100.0)
     >>> syms = [rx.steps(x[p:p + te]) for p in range(0, len(x) - te, te)]
     >>> syms = np.concatenate([s for s in syms if len(s)])
-    >>> rx.tracking                       # acquired, now demodulating
+    >>> rx.tracking                  # acquired, now demodulating
     1
-    >>> len(syms) > 300                    # a few hundred symbols recovered
+    >>> len(syms) > 300              # a few hundred symbols recovered
     True
-    >>> bool(np.mean(syms.real**2) > 10 * np.mean(syms.imag**2))  # BPSK on I
+
+    Nearly all the energy lands on I, so the BPSK phase is resolved:
+
+    >>> bool(np.mean(syms.real**2) > 10 * np.mean(syms.imag**2))
     True
 
     """
@@ -2157,7 +2161,7 @@ class DsssReceiver:
         >>> si = np.clip((idx / tsym).astype(int), 0, 403)
         >>> spread = data[si] * csign[(idx // spc) % sf]        # DSSS chips
         >>> sig = spread * np.exp(2j * np.pi * (50.0 / fs) * idx)  # +50 Hz
-        >>> pre = 3 * te                            # pre-signal noise-only lead-in
+        >>> pre = 3 * te                     # noise-only lead-in, pre-signal
         >>> sigma = np.sqrt(fs / 10 ** (90.0 / 10))            # ~90 dB-Hz C/N0
         >>> noise = (sigma / np.sqrt(2)) * (rng.standard_normal(pre + n)
         ...          + 1j * rng.standard_normal(pre + n))
@@ -2167,11 +2171,14 @@ class DsssReceiver:
         ...                   cn0_dbhz=55.0, doppler_uncertainty=100.0)
         >>> syms = [rx.steps(x[p:p + te]) for p in range(0, len(x) - te, te)]
         >>> syms = np.concatenate([s for s in syms if len(s)])
-        >>> rx.tracking                       # acquired and now demodulating
+        >>> rx.tracking                  # acquired and now demodulating
         1
-        >>> len(syms) > 300                    # a few hundred symbols recovered
+        >>> len(syms) > 300              # a few hundred symbols recovered
         True
-        >>> bool(np.mean(syms.real**2) > 10 * np.mean(syms.imag**2))  # BPSK on I
+
+        Nearly all the energy lands on I, so the BPSK phase is resolved:
+
+        >>> bool(np.mean(syms.real**2) > 10 * np.mean(syms.imag**2))
         True
 
         """
@@ -2219,8 +2226,8 @@ class DsssReceiver:
         >>> from doppler.wfm import Gold
         >>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
         >>> rx = DsssReceiver(code, chip_rate=3.0e6, symbol_rate=2100.0, spc=2)
-        >>> rx.configure_search_raw(doppler_bins=1, n_noncoh=16)  # pin the grid
-        >>> rx.tracking                       # still searching, on the pinned grid
+        >>> rx.configure_search_raw(doppler_bins=1, n_noncoh=16)  # pin it
+        >>> rx.tracking                # still searching, on the pinned grid
         0
 
         """
@@ -2265,7 +2272,7 @@ class DsssReceiver:
         >>> rx = DsssReceiver(code, chip_rate=3.0e6, symbol_rate=2100.0, spc=2)
         >>> rx.configure_lock_raw(up_thresh=0.4, down_thresh=0.2, n_looks=20,
         ...                       alpha=0.1, n_up=5, n_down=3)
-        >>> rx.tracking                       # a no-op until a hit builds the Dll
+        >>> rx.tracking                # a no-op until a hit builds the Dll
         0
 
         """
@@ -2327,8 +2334,8 @@ class DsssReceiver:
         >>> from doppler.wfm import Gold
         >>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
         >>> rx = DsssReceiver(code, chip_rate=3.0e6, symbol_rate=2100.0, spc=2)
-        >>> rx.reset()                        # abort any lock, hunt from scratch
-        >>> (rx.tracking, rx.chip_phase)      # back to searching, state cleared
+        >>> rx.reset()                 # abort any lock, hunt from scratch
+        >>> (rx.tracking, rx.chip_phase)   # back to searching, all cleared
         (0, 0.0)
 
         """
@@ -2558,8 +2565,12 @@ class AsyncDsssReceiver:
     >>> data = (rng.integers(0, 2, 604) * 2 - 1).astype(float)
     >>> si = np.clip((idx / tsym).astype(int), 0, 603)
     >>> t = idx / fs
-    >>> sig = (data[si] * csign[(idx // spc) % sf]           # DSSS chips
-    ...        * np.exp(1j * 2 * np.pi * 0.5 * 500.0 * t * t))  # 500 Hz/s ramp
+
+    DSSS chips on a carrier sweeping at 500 Hz/s — the ramp the async
+    receiver has to track:
+
+    >>> sig = (data[si] * csign[(idx // spc) % sf]
+    ...        * np.exp(1j * 2 * np.pi * 0.5 * 500.0 * t * t))
     >>> cn0 = 20.0 + 10 * np.log10(sym)         # Es/N0 = 20 dB
     >>> sigma = np.sqrt(fs / 10 ** (cn0 / 10))
     >>> pre = 5 * te                            # noise-only lead-in
@@ -2567,15 +2578,19 @@ class AsyncDsssReceiver:
     ...          + 1j * rng.standard_normal(pre + n))
     >>> x = (np.concatenate([np.zeros(pre), sig]).astype(np.complex64)
     ...      + noise.astype(np.complex64))
-    >>> rx = AsyncDsssReceiver(code, chip_rate=chip, symbol_rate=sym,
-    ...                        spc=spc, cn0_dbhz=cn0, doppler_uncertainty=500.0)
+    >>> rx = AsyncDsssReceiver(
+    ...     code, chip_rate=chip, symbol_rate=sym, spc=spc,
+    ...     cn0_dbhz=cn0, doppler_uncertainty=500.0)
     >>> syms = [rx.steps(x[p:p + te]) for p in range(0, len(x) - te, te)]
     >>> syms = np.concatenate([s for s in syms if len(s)])
-    >>> rx.tracking                       # searched, refined, now tracking
+    >>> rx.tracking                  # searched, refined, now tracking
     1
-    >>> len(syms) > 300                    # symbols recovered under the ramp
+    >>> len(syms) > 300              # symbols recovered under the ramp
     True
-    >>> bool(np.mean(syms.real**2) > 10 * np.mean(syms.imag**2))  # BPSK on I
+
+    Nearly all the energy lands on I, so the BPSK phase is resolved:
+
+    >>> bool(np.mean(syms.real**2) > 10 * np.mean(syms.imag**2))
     True
 
     """
@@ -2657,8 +2672,12 @@ class AsyncDsssReceiver:
         >>> data = (rng.integers(0, 2, 604) * 2 - 1).astype(float)
         >>> si = np.clip((idx / tsym).astype(int), 0, 603)
         >>> t = idx / fs
-        >>> sig = (data[si] * csign[(idx // spc) % sf]           # DSSS chips
-        ...        * np.exp(1j * 2 * np.pi * 0.5 * 500.0 * t * t))  # 500 Hz/s ramp
+
+        DSSS chips on a carrier sweeping at 500 Hz/s — the ramp the async
+        receiver has to track:
+
+        >>> sig = (data[si] * csign[(idx // spc) % sf]
+        ...        * np.exp(1j * 2 * np.pi * 0.5 * 500.0 * t * t))
         >>> cn0 = 20.0 + 10 * np.log10(sym)         # Es/N0 = 20 dB
         >>> sigma = np.sqrt(fs / 10 ** (cn0 / 10))
         >>> pre = 5 * te                            # noise-only lead-in
@@ -2666,15 +2685,19 @@ class AsyncDsssReceiver:
         ...          + 1j * rng.standard_normal(pre + n))
         >>> x = (np.concatenate([np.zeros(pre), sig]).astype(np.complex64)
         ...      + noise.astype(np.complex64))
-        >>> rx = AsyncDsssReceiver(code, chip_rate=chip, symbol_rate=sym,
-        ...                        spc=spc, cn0_dbhz=cn0, doppler_uncertainty=500.0)
+        >>> rx = AsyncDsssReceiver(
+        ...     code, chip_rate=chip, symbol_rate=sym, spc=spc,
+        ...     cn0_dbhz=cn0, doppler_uncertainty=500.0)
         >>> syms = [rx.steps(x[p:p + te]) for p in range(0, len(x) - te, te)]
         >>> syms = np.concatenate([s for s in syms if len(s)])
-        >>> rx.tracking                       # searched, refined, now tracking
+        >>> rx.tracking                  # searched, refined, now tracking
         1
-        >>> len(syms) > 300                    # symbols recovered under the ramp
+        >>> len(syms) > 300              # symbols recovered under the ramp
         True
-        >>> bool(np.mean(syms.real**2) > 10 * np.mean(syms.imag**2))  # BPSK on I
+
+        Nearly all the energy lands on I, so the BPSK phase is resolved:
+
+        >>> bool(np.mean(syms.real**2) > 10 * np.mean(syms.imag**2))
         True
 
         """
@@ -2721,8 +2744,8 @@ class AsyncDsssReceiver:
         >>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
         >>> rx = AsyncDsssReceiver(code, chip_rate=3.069e6, symbol_rate=2700.0,
         ...                        spc=2, doppler_uncertainty=500.0)
-        >>> rx.configure_search_raw(doppler_bins=1, n_noncoh=16)  # pin the grid
-        >>> rx.refining                       # still searching, on the pinned grid
+        >>> rx.configure_search_raw(doppler_bins=1, n_noncoh=16)  # pin it
+        >>> rx.refining                # still searching, on the pinned grid
         0
 
         """
@@ -2816,7 +2839,7 @@ class AsyncDsssReceiver:
         >>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
         >>> rx = AsyncDsssReceiver(code, chip_rate=3.069e6, symbol_rate=2700.0,
         ...                        spc=2, doppler_uncertainty=500.0)
-        >>> rx.reset()                        # abort any lock, hunt from scratch
+        >>> rx.reset()                 # abort any lock, hunt from scratch
         >>> (rx.tracking, rx.refining, rx.chip_phase)   # all cleared
         (0, 0, 0.0)
 

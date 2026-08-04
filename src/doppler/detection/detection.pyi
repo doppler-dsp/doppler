@@ -388,7 +388,7 @@ def det_pd(snr: float, dwell: int, threshold: float) -> float:
     --------
     >>> from doppler.detection import det_pd, det_threshold
     >>> thr = det_threshold(pfa=1e-6)
-    >>> round(det_pd(snr=1.613, dwell=8, threshold=thr), 2)  # 8-dwell -> Pd~0.9
+    >>> round(det_pd(snr=1.613, dwell=8, threshold=thr), 2)  # 8-dwell Pd 0.9
     0.9
     >>> round(det_pd(snr=0.0, dwell=8, threshold=thr), 6)    # snr=0 -> Pd=Pfa
     1e-06
@@ -483,7 +483,8 @@ def det_threshold_noncoherent(pfa: float, n_noncoh: int) -> float:
     >>> from doppler.detection import det_threshold_noncoherent, det_threshold
     >>> round(det_threshold_noncoherent(pfa=1e-3, n_noncoh=4), 3)
     5.111
-    >>> det_threshold_noncoherent(pfa=1e-6, n_noncoh=1) == det_threshold(pfa=1e-6)
+    >>> det_threshold_noncoherent(pfa=1e-6, n_noncoh=1) == det_threshold(
+    ...     pfa=1e-6)
     True
 
     """
@@ -679,10 +680,11 @@ def det_pd_noncoherent(
     >>> from doppler.detection import det_threshold_noncoherent
     >>> eta = det_threshold(pfa=1e-6)
     >>> det_pd_noncoherent(snr=0.5, n_coh=8, n_noncoh=1, threshold=eta) \
-    ...     == det_pd(snr=0.5, dwell=8, threshold=eta)        # reduces to coherent
+    ...     == det_pd(snr=0.5, dwell=8, threshold=eta)  # reduces to coherent
     True
     >>> eta4 = det_threshold_noncoherent(pfa=1e-3, n_noncoh=4)
-    >>> round(det_pd_noncoherent(snr=0.3, n_coh=16, n_noncoh=4, threshold=eta4), 2)
+    >>> round(det_pd_noncoherent(
+    ...     snr=0.3, n_coh=16, n_noncoh=4, threshold=eta4), 2)
     0.19
 
     """

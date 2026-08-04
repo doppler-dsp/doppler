@@ -138,9 +138,9 @@ burst_despreader_state_t *burst_despreader_create(const uint8_t *code, size_t co
  * >>> pay = np.concatenate([np.repeat(s * dch, 4) for s in psyms])
  * >>> burst = np.concatenate([pre, pay]).astype(np.complex64)
  * >>> d = BurstDespreader(data_code, sf=32, sps=4)
- * >>> d.set_acq(acq, 4)                    # 4 preamble reps, pulls loops in
- * >>> out = d.bits(burst)                  # preamble emits nothing
- * >>> out.shape                            # only the payload symbols come out
+ * >>> d.set_acq(acq, 4)            # 4 preamble reps, pulls loops in
+ * >>> out = d.bits(burst)          # preamble emits nothing
+ * >>> out.shape                    # only the payload symbols come out
  * (40,)
  * >>> e = np.mean(out != pbits)
  * >>> round(float(min(e, 1.0 - e)), 4)
@@ -180,8 +180,8 @@ void burst_despreader_destroy(burst_despreader_state_t *state);
  * ...     [np.repeat(s * chips, 4) for s in syms]).astype(np.complex64)
  * >>> d = BurstDespreader(code, sf=31, sps=4)
  * >>> first = d.bits(tx)
- * >>> d.reset()                              # re-arm for a new burst
- * >>> np.array_equal(first, d.bits(tx))      # same result as a fresh object
+ * >>> d.reset()                          # re-arm for a new burst
+ * >>> np.array_equal(first, d.bits(tx))  # same as a fresh object
  * True
  *
  * @endcode

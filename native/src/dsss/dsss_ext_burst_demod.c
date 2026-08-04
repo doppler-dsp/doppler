@@ -445,10 +445,8 @@ static PyMethodDef BurstDemodObj_methods[] = {
     ">>> from doppler.dsss import BurstDemod\n"
     ">>> dcode = (np.arange(50) & 1).astype(np.uint8)\n"
     ">>> d = BurstDemod(dcode, spc=4, chip_rate=1e6, payload_len=64)\n"
-    ">>> acode = (np.arange(500) & 1).astype(np.uint8)   # unmodulated "
-    "preamble\n"
-    ">>> d.set_preamble(acode, reps=5)   # 5 repeats drive the (f0, rate) "
-    "fit\n" },
+    ">>> acode = (np.arange(500) & 1).astype(np.uint8)  # unmodulated\n"
+    ">>> d.set_preamble(acode, reps=5)  # 5 reps drive the (f0, rate) fit\n" },
   { "set_sync", (PyCFunction)(void *)BurstDemodObj_set_sync,
     METH_VARARGS | METH_KEYWORDS,
     "set_sync(sync) -> None\n"
@@ -475,8 +473,7 @@ static PyMethodDef BurstDemodObj_methods[] = {
     ">>> dcode = (np.arange(50) & 1).astype(np.uint8)\n"
     ">>> d = BurstDemod(dcode, spc=4, chip_rate=1e6, payload_len=64)\n"
     ">>> sync = np.array([0, 0, 0, 0, 0, 1, 1, 0, 0, 1, 0, 1, 0], np.uint8)\n"
-    ">>> d.set_sync(sync)   # Barker-13: frame alignment + phase/sign "
-    "resolution\n" },
+    ">>> d.set_sync(sync)   # Barker-13: frame align + phase/sign fix\n" },
   { "set_prior", (PyCFunction)(void *)BurstDemodObj_set_prior,
     METH_VARARGS | METH_KEYWORDS,
     "set_prior(f0_coarse, start) -> None\n"
@@ -502,8 +499,7 @@ static PyMethodDef BurstDemodObj_methods[] = {
     ">>> from doppler.dsss import BurstDemod\n"
     ">>> dcode = (np.arange(50) & 1).astype(np.uint8)\n"
     ">>> d = BurstDemod(dcode, spc=4, chip_rate=1e6, payload_len=64)\n"
-    ">>> d.set_prior(0.012, start=0)   # coarse Doppler + preamble start from "
-    "acq\n" },
+    ">>> d.set_prior(0.012, start=0)   # coarse Doppler + start, from acq\n" },
   { "demod", (PyCFunction)(void *)BurstDemodObj_demod,
     METH_VARARGS | METH_KEYWORDS,
     "demod(x) -> ndarray\n"

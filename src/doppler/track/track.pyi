@@ -371,18 +371,13 @@ class Costas:
 
         """
 
-    def steps_max_out(self, x_len: int) -> int:
-        """Largest number of samples steps() can return for x_len inputs.
+    def steps_max_out(self) -> int:
+        """Largest number of samples steps() can return in the current state.
 
         Size an `out=` buffer with this before calling steps(), or use it to
         allocate one up front. The bound is this object's own: what it depends
         on is a property of the algorithm, so a header block on steps_max_out()
         replaces this text.
-
-        Parameters
-        ----------
-        x_len : int
-            Number of input samples steps() will be given.
 
         Returns
         -------
@@ -797,18 +792,13 @@ class Dll:
 
         """
 
-    def steps_max_out(self, x_len: int) -> int:
-        """Largest number of samples steps() can return for x_len inputs.
+    def steps_max_out(self) -> int:
+        """Largest number of samples steps() can return in the current state.
 
         Size an `out=` buffer with this before calling steps(), or use it to
         allocate one up front. The bound is this object's own: what it depends
         on is a property of the algorithm, so a header block on steps_max_out()
         replaces this text.
-
-        Parameters
-        ----------
-        x_len : int
-            Number of input samples steps() will be given.
 
         Returns
         -------
@@ -1360,18 +1350,13 @@ class SymbolSync:
 
         """
 
-    def steps_max_out(self, x_len: int) -> int:
-        """Largest number of samples steps() can return for x_len inputs.
+    def steps_max_out(self) -> int:
+        """Largest number of samples steps() can return in the current state.
 
         Size an `out=` buffer with this before calling steps(), or use it to
         allocate one up front. The bound is this object's own: what it depends
         on is a property of the algorithm, so a header block on steps_max_out()
         replaces this text.
-
-        Parameters
-        ----------
-        x_len : int
-            Number of input samples steps() will be given.
 
         Returns
         -------
@@ -1846,15 +1831,10 @@ class RateSync:
 
         """
 
-    def steps_max_out(self, x_len: int) -> int:
+    def steps_max_out(self) -> int:
         """Output-buffer hint for the generated binding; 0 means "the input
         length is already a safe bound" — with `sps >= m >= 2` a block can
         never yield more symbols than it has samples (mirrors symsync).
-
-        Parameters
-        ----------
-        x_len : int
-            Input.
 
         Returns
         -------
@@ -2279,18 +2259,13 @@ class CarrierMpsk:
 
         """
 
-    def steps_max_out(self, x_len: int) -> int:
-        """Largest number of samples steps() can return for x_len inputs.
+    def steps_max_out(self) -> int:
+        """Largest number of samples steps() can return in the current state.
 
         Size an `out=` buffer with this before calling steps(), or use it to
         allocate one up front. The bound is this object's own: what it depends
         on is a property of the algorithm, so a header block on steps_max_out()
         replaces this text.
-
-        Parameters
-        ----------
-        x_len : int
-            Number of input samples steps() will be given.
 
         Returns
         -------
@@ -2595,18 +2570,13 @@ class CarrierNda:
 
         """
 
-    def steps_max_out(self, x_len: int) -> int:
-        """Largest number of samples steps() can return for x_len inputs.
+    def steps_max_out(self) -> int:
+        """Largest number of samples steps() can return in the current state.
 
         Size an `out=` buffer with this before calling steps(), or use it to
         allocate one up front. The bound is this object's own: what it depends
         on is a property of the algorithm, so a header block on steps_max_out()
         replaces this text.
-
-        Parameters
-        ----------
-        x_len : int
-            Number of input samples steps() will be given.
 
         Returns
         -------
@@ -3127,18 +3097,13 @@ class MpskReceiver:
 
         """
 
-    def steps_max_out(self, x_len: int) -> int:
-        """Largest number of samples steps() can return for x_len inputs.
+    def steps_max_out(self) -> int:
+        """Largest number of samples steps() can return in the current state.
 
         Size an `out=` buffer with this before calling steps(), or use it to
         allocate one up front. The bound is this object's own: what it depends
         on is a property of the algorithm, so a header block on steps_max_out()
         replaces this text.
-
-        Parameters
-        ----------
-        x_len : int
-            Number of input samples steps() will be given.
 
         Returns
         -------
@@ -3194,18 +3159,13 @@ class MpskReceiver:
 
         """
 
-    def bits_max_out(self, x_len: int) -> int:
-        """Largest number of samples bits() can return for x_len inputs.
+    def bits_max_out(self) -> int:
+        """Largest number of samples bits() can return in the current state.
 
         Size an `out=` buffer with this before calling bits(), or use it to
         allocate one up front. The bound is this object's own: what it depends
         on is a property of the algorithm, so a header block on bits_max_out()
         replaces this text.
-
-        Parameters
-        ----------
-        x_len : int
-            Number of input samples bits() will be given.
 
         Returns
         -------
@@ -3669,18 +3629,13 @@ class MpskReceiverR:
 
         """
 
-    def steps_max_out(self, x_len: int) -> int:
-        """Largest number of samples steps() can return for x_len inputs.
+    def steps_max_out(self) -> int:
+        """Largest number of samples steps() can return in the current state.
 
         Size an `out=` buffer with this before calling steps(), or use it to
         allocate one up front. The bound is this object's own: what it depends
         on is a property of the algorithm, so a header block on steps_max_out()
         replaces this text.
-
-        Parameters
-        ----------
-        x_len : int
-            Number of input samples steps() will be given.
 
         Returns
         -------
@@ -3735,18 +3690,13 @@ class MpskReceiverR:
 
         """
 
-    def bits_max_out(self, x_len: int) -> int:
-        """Largest number of samples bits() can return for x_len inputs.
+    def bits_max_out(self) -> int:
+        """Largest number of samples bits() can return in the current state.
 
         Size an `out=` buffer with this before calling bits(), or use it to
         allocate one up front. The bound is this object's own: what it depends
         on is a property of the algorithm, so a header block on bits_max_out()
         replaces this text.
-
-        Parameters
-        ----------
-        x_len : int
-            Number of input samples bits() will be given.
 
         Returns
         -------

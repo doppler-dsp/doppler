@@ -87,15 +87,10 @@ class InterpolatedTable:
 
         """
 
-    def execute_max_out(self, n_in: int) -> int:
+    def execute_max_out(self) -> int:
         """No fixed cap -- execute()'s output is always sized to exactly match
         its own input length, so an `out=` buffer only ever needs to be at
         least that many elements (never a larger, unrelated minimum).
-
-        Parameters
-        ----------
-        n_in : int
-            Input.
 
         Returns
         -------

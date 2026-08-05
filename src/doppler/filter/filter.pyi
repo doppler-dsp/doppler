@@ -91,7 +91,7 @@ class FIR:
 
         """
 
-    def execute_max_out(self, n_in: int) -> int:
+    def execute_max_out(self) -> int:
         """Always 0 -- FIR is a 1:1 transform, not a bounded-capacity one.
 
         fir_execute() always writes exactly n_in samples; there is no
@@ -101,11 +101,6 @@ class FIR:
         function to report. An `out=` buffer must be sized to exactly
 
         `len(x)`, not to this function's return value.
-
-        Parameters
-        ----------
-        n_in : int
-            Input.
 
         Returns
         -------

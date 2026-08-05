@@ -14,11 +14,11 @@ from numpy.typing import NDArray
 class Plan:
     """Prepare a Plan from a composer spec JSON (Composer.to_json()).
 
-    Parses + resolves the scene, validates scope per segment, then renders
-    and caches each segment's clean signal ON-time at gain 1. Returns NULL
-    on parse failure or an out-of-scope spec (continuous/repeat scene, a
-    ranged on-time, a ranged per-source field, or a non-trailing/multiple
-    noise source within a segment).
+    Parses + resolves the scene, validates scope per segment, then renders and
+    caches each segment's clean signal ON-time at gain 1. Returns NULL on parse
+    failure or an out-of-scope spec (continuous/repeat scene, a ranged on-time,
+    a ranged per-source field, or a non-trailing/multiple noise source within a
+    segment).
 
     Parameters
     ----------

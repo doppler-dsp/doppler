@@ -80,17 +80,12 @@ class NCO:
 
         """
 
-    def steps_u32_max_out(self, n: int) -> int:
+    def steps_u32_max_out(self) -> int:
         """Maximum samples per call (determines pre-allocated buffer size).
 
         The Python extension pre-allocates output buffers of this size at
 
         create time. Requesting more samples per call is undefined behaviour.
-
-        Parameters
-        ----------
-        n : int
-            Input.
 
         Returns
         -------
@@ -127,19 +122,14 @@ class NCO:
 
         """
 
-    def steps_u32_scaled_max_out(self, n: int) -> int:
-        """Largest number of samples steps_u32_scaled() can return for n
-        inputs.
+    def steps_u32_scaled_max_out(self) -> int:
+        """Largest number of samples steps_u32_scaled() can return in the
+        current state.
 
         Size an `out=` buffer with this before calling steps_u32_scaled(), or
         use it to allocate one up front. The bound is this object's own: what
         it depends on is a property of the algorithm, so a header block on
         steps_u32_scaled_max_out() replaces this text.
-
-        Parameters
-        ----------
-        n : int
-            Number of input samples steps_u32_scaled() will be given.
 
         Returns
         -------
@@ -230,19 +220,14 @@ class NCO:
 
         """
 
-    def steps_u32_ctrl_max_out(self, ctrl_len: int) -> int:
-        """Largest number of samples steps_u32_ctrl() can return for ctrl_len
-        inputs.
+    def steps_u32_ctrl_max_out(self) -> int:
+        """Largest number of samples steps_u32_ctrl() can return in the current
+        state.
 
         Size an `out=` buffer with this before calling steps_u32_ctrl(), or use
         it to allocate one up front. The bound is this object's own: what it
         depends on is a property of the algorithm, so a header block on
         steps_u32_ctrl_max_out() replaces this text.
-
-        Parameters
-        ----------
-        ctrl_len : int
-            Number of input samples steps_u32_ctrl() will be given.
 
         Returns
         -------
@@ -289,19 +274,14 @@ class NCO:
 
         """
 
-    def steps_u32_scaled_ctrl_max_out(self, ctrl_len: int) -> int:
-        """Largest number of samples steps_u32_scaled_ctrl() can return for
-        ctrl_len inputs.
+    def steps_u32_scaled_ctrl_max_out(self) -> int:
+        """Largest number of samples steps_u32_scaled_ctrl() can return in the
+        current state.
 
         Size an `out=` buffer with this before calling steps_u32_scaled_ctrl(),
         or use it to allocate one up front. The bound is this object's own:
         what it depends on is a property of the algorithm, so a header block on
         steps_u32_scaled_ctrl_max_out() replaces this text.
-
-        Parameters
-        ----------
-        ctrl_len : int
-            Number of input samples steps_u32_scaled_ctrl() will be given.
 
         Returns
         -------
@@ -550,13 +530,8 @@ class LO:
 
         """
 
-    def steps_max_out(self, n: int) -> int:
+    def steps_max_out(self) -> int:
         """Maximum samples per call (determines pre-allocated buffer size).
-
-        Parameters
-        ----------
-        n : int
-            Input.
 
         Returns
         -------
@@ -604,19 +579,14 @@ class LO:
 
         """
 
-    def steps_ctrl_max_out(self, ctrl_len: int) -> int:
-        """Largest number of samples steps_ctrl() can return for ctrl_len
-        inputs.
+    def steps_ctrl_max_out(self) -> int:
+        """Largest number of samples steps_ctrl() can return in the current
+        state.
 
         Size an `out=` buffer with this before calling steps_ctrl(), or use it
         to allocate one up front. The bound is this object's own: what it
         depends on is a property of the algorithm, so a header block on
         steps_ctrl_max_out() replaces this text.
-
-        Parameters
-        ----------
-        ctrl_len : int
-            Number of input samples steps_ctrl() will be given.
 
         Returns
         -------
@@ -827,17 +797,12 @@ class AWGN:
 
         """
 
-    def generate_max_out(self, n: int) -> int:
+    def generate_max_out(self) -> int:
         """Conservative upper bound on generate() output size.
 
         Returns 65536. The Python extension uses this for the initial
 
         buffer allocation; the buffer grows on demand if n > 65536.
-
-        Parameters
-        ----------
-        n : int
-            Input.
 
         Returns
         -------

@@ -504,13 +504,8 @@ class ToneMeasure:
 
         """
 
-    def spectrum_dbfs_max_out(self, x_len: int) -> int:
+    def spectrum_dbfs_max_out(self) -> int:
         """Capacity (== nfft) of the spectrum_dbfs output buffer.
-
-        Parameters
-        ----------
-        x_len : int
-            Input.
 
         Returns
         -------
@@ -754,13 +749,8 @@ class NPRMeasure:
 
         """
 
-    def spectrum_dbfs_max_out(self, x_len: int) -> int:
+    def spectrum_dbfs_max_out(self) -> int:
         """Capacity (== nfft) of the spectrum_dbfs output buffer.
-
-        Parameters
-        ----------
-        x_len : int
-            Input.
 
         Returns
         -------
@@ -959,13 +949,8 @@ class IMDMeasure:
 
         """
 
-    def spectrum_dbfs_max_out(self, x_len: int) -> int:
+    def spectrum_dbfs_max_out(self) -> int:
         """Capacity (== nfft) of the spectrum_dbfs output buffer.
-
-        Parameters
-        ----------
-        x_len : int
-            Input.
 
         Returns
         -------

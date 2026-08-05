@@ -806,13 +806,8 @@ class AccTrace:
 
         """
 
-    def value_max_out(self, n: int) -> int:
+    def value_max_out(self) -> int:
         """Output capacity hint for value(); equals the trace length n.
-
-        Parameters
-        ----------
-        n : int
-            Input.
 
         Returns
         -------

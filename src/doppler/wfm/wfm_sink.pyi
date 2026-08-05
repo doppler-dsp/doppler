@@ -18,7 +18,8 @@ class StreamSink:
     endpoint : int
         Endpoint, e.g. "nats://127.0.0.1:4222/iq".
     sample_type : str, default ``"cf32"``
-        Wire type (wavegen order): 0 cf32, 1 cf64, 2 ci32, 3 ci16, 4 ci8. Integer types use full-scale ±1.0.
+        Wire type (wavegen order): 0 cf32, 1 cf64, 2 ci32, 3 ci16, 4 ci8.
+        Integer types use full-scale ±1.0.
         One of ``"cf32"``, ``"cf64"``, ``"ci32"``, ``"ci16"``, ``"ci8"``.
     """
     def __init__(self, endpoint: int, sample_type: str = ...) -> None: ...

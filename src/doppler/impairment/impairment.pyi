@@ -78,18 +78,13 @@ class DopplerChannel:
 
         """
 
-    def execute_max_out(self, x_len: int) -> int:
+    def execute_max_out(self) -> int:
         """Upper bound on the output of one execute() call.
 
         Assumes an input of at most `DOPPLER_CHANNEL_MAX_BLOCK` samples — see
         that
 
         macro for why the bound cannot depend on the actual input length.
-
-        Parameters
-        ----------
-        x_len : int
-            Input.
 
         Returns
         -------

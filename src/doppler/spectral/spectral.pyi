@@ -76,13 +76,8 @@ class FFT:
 
         """
 
-    def execute_cf64_max_out(self, n_in: int) -> int:
+    def execute_cf64_max_out(self) -> int:
         """Maximum output samples per execute call (always == n).
-
-        Parameters
-        ----------
-        n_in : int
-            Input.
 
         Returns
         -------
@@ -121,13 +116,8 @@ class FFT:
 
         """
 
-    def execute_cf32_max_out(self, n_in: int) -> int:
+    def execute_cf32_max_out(self) -> int:
         """Maximum output samples for CF32 execute (always == n).
-
-        Parameters
-        ----------
-        n_in : int
-            Input.
 
         Returns
         -------
@@ -167,13 +157,8 @@ class FFT:
 
         """
 
-    def execute_inplace_cf64_max_out(self, n_in: int) -> int:
+    def execute_inplace_cf64_max_out(self) -> int:
         """Maximum output samples for inplace CF64 (always == n).
-
-        Parameters
-        ----------
-        n_in : int
-            Input.
 
         Returns
         -------
@@ -212,13 +197,8 @@ class FFT:
 
         """
 
-    def execute_inplace_cf32_max_out(self, n_in: int) -> int:
+    def execute_inplace_cf32_max_out(self) -> int:
         """Maximum output samples for inplace CF32 (always == n).
-
-        Parameters
-        ----------
-        n_in : int
-            Input.
 
         Returns
         -------
@@ -389,13 +369,8 @@ class FFT2D:
 
         """
 
-    def execute_cf64_max_out(self, n_in: int) -> int:
+    def execute_cf64_max_out(self) -> int:
         """Maximum output samples per execute call (ny * nx).
-
-        Parameters
-        ----------
-        n_in : int
-            Input.
 
         Returns
         -------
@@ -437,13 +412,8 @@ class FFT2D:
 
         """
 
-    def execute_cf32_max_out(self, n_in: int) -> int:
+    def execute_cf32_max_out(self) -> int:
         """Maximum output samples for CF32 execute (ny * nx).
-
-        Parameters
-        ----------
-        n_in : int
-            Input.
 
         Returns
         -------
@@ -483,13 +453,8 @@ class FFT2D:
 
         """
 
-    def execute_inplace_cf64_max_out(self, n_in: int) -> int:
+    def execute_inplace_cf64_max_out(self) -> int:
         """Maximum output samples for inplace CF64 execute (ny * nx).
-
-        Parameters
-        ----------
-        n_in : int
-            Input.
 
         Returns
         -------
@@ -528,13 +493,8 @@ class FFT2D:
 
         """
 
-    def execute_inplace_cf32_max_out(self, n_in: int) -> int:
+    def execute_inplace_cf32_max_out(self) -> int:
         """Maximum output samples for inplace CF32 execute (ny * nx).
-
-        Parameters
-        ----------
-        n_in : int
-            Input.
 
         Returns
         -------
@@ -705,13 +665,8 @@ class Corr:
 
         """
 
-    def execute_max_out(self, n_in: int) -> int:
+    def execute_max_out(self) -> int:
         """Maximum output samples per execute call (== n_out).
-
-        Parameters
-        ----------
-        n_in : int
-            Input.
 
         Returns
         -------
@@ -940,13 +895,8 @@ class Corr2D:
 
         """
 
-    def execute_max_out(self, n_in: int) -> int:
+    def execute_max_out(self) -> int:
         """Maximum output samples per execute call (always == ny*nx).
-
-        Parameters
-        ----------
-        n_in : int
-            Input.
 
         Returns
         -------
@@ -1674,13 +1624,8 @@ class PSD:
             min(n, max_out), or 0 if empty.
         """
 
-    def psd_db_max_out(self, n: int) -> int:
+    def psd_db_max_out(self) -> int:
         """Output capacity hint for psd_db(); equals nfft.
-
-        Parameters
-        ----------
-        n : int
-            Input.
 
         Returns
         -------
@@ -1713,13 +1658,8 @@ class PSD:
 
         """
 
-    def psd_dbhz_max_out(self, n: int) -> int:
+    def psd_dbhz_max_out(self) -> int:
         """Output capacity hint for psd_dbhz(); equals n.
-
-        Parameters
-        ----------
-        n : int
-            Input.
 
         Returns
         -------
@@ -1741,13 +1681,8 @@ class PSD:
             min(nfft, max_out), or 0 if empty.
         """
 
-    def power_twosided_max_out(self, n: int) -> int:
+    def power_twosided_max_out(self) -> int:
         """Output capacity hint for psd_power_twosided(); equals nfft.
-
-        Parameters
-        ----------
-        n : int
-            Input.
 
         Returns
         -------
@@ -1769,13 +1704,8 @@ class PSD:
             min(nfft/2 + 1, max_out), or 0 if empty.
         """
 
-    def power_onesided_max_out(self, n: int) -> int:
+    def power_onesided_max_out(self) -> int:
         """Output capacity hint for psd_power_onesided(); equals nfft/2+1.
-
-        Parameters
-        ----------
-        n : int
-            Input.
 
         Returns
         -------
@@ -1812,13 +1742,8 @@ class PSD:
 
         """
 
-    def band_power_max_out(self, bands_len: int) -> int:
+    def band_power_max_out(self) -> int:
         """Output capacity hint for band_power(); 0 (binding sizes from bands).
-
-        Parameters
-        ----------
-        bands_len : int
-            Input.
 
         Returns
         -------

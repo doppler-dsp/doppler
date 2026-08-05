@@ -361,6 +361,31 @@ t(record) = t0 + n / fs
 - **`t0`** — absolute epoch of sample `n == 0`, belonging to *whatever
     produced the samples*.
 
+> **This already exists — do not build a second one.** That pair, and that
+> computation, are `dp_sample_clock_t` (`native/inc/timing/timing_core.h`),
+> exposed to Python as `wfm.SampleClock`. Its
+> `{ double fs; uint64_t epoch_real_ns; uint64_t n; }` **is** the time base,
+> and `dp_sample_clock_stamp_at(c, n)` **is** this formula — documented as
+> the wall-clock timestamp of an *"ARBITRARY sample index — past, present,
+> or future"*, for the express purpose of letting "a block emitting several
+> per-record outputs from one buffered input stamp each at its own
+> historical sample offset instead of reusing the whole buffer's single
+> arrival time." That is the batch-attribution error described below,
+> already solved and shipped on both faces.
+>
+> **`dp_sample_clock_track(c, observed_timestamp_ns, n_at_observation, tol)`
+> is the replay path** — it "adopts or corrects the epoch from ground truth
+> the sender already stamped", and "the FIRST call always adopts". Anchoring
+> a replayed 2019 capture is a `track()` call, not a new mechanism, and
+> `now` never enters.
+>
+> So telemetry's time base **is a `dp_sample_clock_t`**, carried by
+> reference — never re-declared as a private `fs`/`t0` pair. The API is
+> `capture(…, clock=sample_clock)`, not `capture(…, fs=…, t0=…)`.
+> What is genuinely missing is only the *feed*: J1950 → Unix conversion so a
+> BLUE `timecode` can reach `track()`, and `fs_source`/`t0_source` so a
+> caller can tell "adopted" from "never anchored".
+
 `now` is merely one possible `t0`, correct only for a live capture and
 **never a silent default**. Processing a 2019 file would otherwise stamp its
 telemetry as today — worse than no timestamp, because it looks

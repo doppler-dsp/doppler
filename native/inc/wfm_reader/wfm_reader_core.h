@@ -88,6 +88,41 @@ extern "C"
     WFM_FC_SIGMF          /**< SigMF `captures[0]["core:frequency"]`. */
   } wfm_fc_source_t;
 
+  /** Where `fs` came from, for the same reason ::wfm_fc_source_t exists.
+   *
+   *  `fs == 0.0` is not a rate anyone captured at, so it is less ambiguous
+   *  than `fc == 0.0` — but "which metadata said so" is still the difference
+   *  between a capture that declares its rate and one this library had to
+   *  give up on, and a caller about to build a timeline on it wants to know
+   *  which it has. */
+  typedef enum
+  {
+    WFM_FS_NONE = 0,    /**< nothing carried a rate; `fs` is 0.0. */
+    WFM_FS_BLUE_XDELTA, /**< BLUE type-1000 adjunct `xdelta`, as 1/xdelta. */
+    WFM_FS_SIGMF        /**< SigMF `core:sample_rate`. */
+  } wfm_fs_source_t;
+
+  /** Where the capture's absolute start time came from.
+   *
+   *  This is the `t0` of `t = t0 + n/fs` — the epoch belonging to the DATA,
+   *  which is what makes a replayed capture's telemetry line up with the
+   *  recording rather than with the machine replaying it. Hand it to
+   *  `dp_sample_clock_track()`; the sample clock owns the arithmetic.
+   *
+   *  ::WFM_T0_NONE is the common case and has to stay visible: doppler's own
+   *  BLUE writer leaves the timecode field zero, so a zero there means
+   *  "unset", never 1950-01-01 (see `wfm/wfm_time.h`). A caller that cannot
+   *  tell those apart will confidently date every doppler-written capture to
+   *  1950. */
+  typedef enum
+  {
+    WFM_T0_NONE = 0,     /**< no start time found; `t0_unix_sec` is 0.0. */
+    WFM_T0_BLUE_TIMECODE /**< BLUE header `timecode`, converted from J1950. */
+    /* SigMF `core:datetime` is an ISO 8601 STRING and needs a parser this
+       reader does not have yet; such a capture reports WFM_T0_NONE rather
+       than a guess. */
+  } wfm_t0_source_t;
+
   /** Resolved metadata for an open capture. Fields the file type does not
    *  carry are 0 (`fs`/`fc` for raw/CSV, `num_samples` for a stream). */
   typedef struct
@@ -101,6 +136,9 @@ extern "C"
     size_t num_samples; /**< total complex samples; 0 if unknown. */
     int    fc_source;   /**< wfm_fc_source_t: where `fc` was read from. */
     size_t trailing_bytes; /**< payload bytes past the last whole sample. */
+    int    fs_source;   /**< wfm_fs_source_t: where `fs` was read from. */
+    double t0_unix_sec; /**< capture start, UNIX seconds; 0 if unknown. */
+    int    t0_source;   /**< wfm_t0_source_t: where `t0` was read from. */
   } wfm_reader_info_t;
 
   /**
@@ -307,6 +345,38 @@ void wfm_reader_destroy(wfm_reader_state_t *state);
    * frequency this library could not locate — both report `fc == 0.0`.
    */
 int wfm_reader_get_fc_source(const wfm_reader_state_t *state);
+
+  /**
+   * @brief Which metadata ::wfm_reader_get_fs read the sample rate from.
+   *
+   * A ::wfm_fs_source_t. ::WFM_FS_NONE means nothing carried a rate — raw
+   * and CSV always, and any BLUE header whose `xdelta` is zero.
+   */
+int wfm_reader_get_fs_source(const wfm_reader_state_t *state);
+
+  /**
+   * @brief Capture start time in seconds since the UNIX epoch, or 0.0.
+   *
+   * The `t0` of `t = t0 + n/fs`, belonging to the capture rather than to
+   * whatever is reading it — hand it to `dp_sample_clock_track()` and a
+   * replayed recording's timeline lands where the samples were taken, not
+   * where they were played back.
+   *
+   * **0.0 does not mean 1970.** Check ::wfm_reader_get_t0_source first:
+   * ::WFM_T0_NONE is "not found", which is the usual answer, including for
+   * every capture doppler itself writes.
+   */
+double wfm_reader_get_t0(const wfm_reader_state_t *state);
+
+  /**
+   * @brief Where ::wfm_reader_get_t0 read the capture start time from.
+   *
+   * A ::wfm_t0_source_t. ::WFM_T0_NONE is the common case and the one that
+   * matters: a zero BLUE timecode means the field was never set, not
+   * 1950-01-01, so a caller that skips this check dates every such capture
+   * to 1950.
+   */
+int wfm_reader_get_t0_source(const wfm_reader_state_t *state);
 
   /**
    * @brief Payload bytes left over after the last whole sample.

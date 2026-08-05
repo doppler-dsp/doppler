@@ -7,6 +7,8 @@
  */
 #include "wfm_reader/wfm_reader_core.h"
 
+#include "wfm/wfm_time.h"
+
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -53,6 +55,9 @@ struct wfm_reader_state
   int    fc_source;   /* wfm_fc_source_t: which tag `fc` came from */
   size_t trailing;    /* payload bytes past the last whole sample */
   int    csv_counted; /* CSV num_samples has been scanned for (lazy) */
+  int    fs_source;   /* wfm_fs_source_t: which metadata `fs` came from */
+  double t0_unix_sec; /* capture start, UNIX seconds; 0 if unknown */
+  int    t0_source;   /* wfm_t0_source_t: where `t0` came from */
 };
 
 /* Copy sz bytes of *src into *dst, reversing on big-endian so the host (LE on
@@ -121,6 +126,7 @@ typedef struct
 {
   int    stype, mode, endian, detached;
   double fs;
+  double timecode;   /* BLUE header byte 56: J1950 seconds, 0 = unset */
   double data_start; /* bytes from the start of the DATA file */
   size_t nsamples;
   size_t data_bytes; /* the HCB's data_size, unrounded */
@@ -168,6 +174,7 @@ parse_blue_hcb (const uint8_t h[512], blue_hcb_t *o)
   swab_copy (&ds, h + 32, 8, be);
   swab_copy (&dsz, h + 40, 8, be);
   swab_copy (&xdelta, h + 264, 8, be);
+  swab_copy (&o->timecode, h + 56, 8, be);
   o->stype      = st;
   o->mode       = md;
   o->endian     = be;
@@ -686,6 +693,22 @@ apply_hcb (wfm_reader_state_t *r, const blue_hcb_t *h)
   r->data_bytes  = h->data_bytes;
   r->bounded     = 1;
   r->remaining   = h->nsamples;
+  /* parse_blue_hcb derives fs as 1/xdelta and leaves it 0 when xdelta is 0,
+     so a rate is declared exactly when it is non-zero. */
+  r->fs_source = (h->fs != 0.0) ? WFM_FS_BLUE_XDELTA : WFM_FS_NONE;
+  /* A zero timecode is UNSET, not 1950-01-01 -- doppler's own writer leaves
+     the field zero, so converting it through would date every capture this
+     library produces to 1950. wfm_timecode_is_set is the gate. */
+  if (wfm_timecode_is_set (h->timecode))
+    {
+      r->t0_unix_sec = wfm_j1950_to_unix_sec (h->timecode);
+      r->t0_source   = WFM_T0_BLUE_TIMECODE;
+    }
+  else
+    {
+      r->t0_unix_sec = 0.0;
+      r->t0_source   = WFM_T0_NONE;
+    }
 }
 
 /* Measure the payload bytes that do not complete a sample.
@@ -753,6 +776,13 @@ open_sigmf (wfm_reader_state_t *r, const char *path, const char *meta)
     return -1;
   if (has_fc)
     r->fc_source = WFM_FC_SIGMF;
+  /* `core:sample_rate` is optional, so parse_sigmf_meta leaves fs at 0.0 when
+     it is absent -- non-zero is exactly "the metadata declared one". */
+  r->fs_source = (r->fs != 0.0) ? WFM_FS_SIGMF : WFM_FS_NONE;
+  /* `core:datetime` is an ISO 8601 STRING and this reader has no parser for
+     one, so a SigMF capture reports WFM_T0_NONE rather than a guess. Wiring
+     it up is a parser away, not a redesign. */
+  r->t0_source = WFM_T0_NONE;
   r->file_type = WFM_FT_SIGMF;
   if (r->fp)
     fclose (r->fp);
@@ -936,6 +966,9 @@ wfm_reader_info (const wfm_reader_state_t *r, wfm_reader_info_t *info)
      0 that means "not counted yet" */
   info->num_samples    = wfm_reader_get_num_samples (r);
   info->fc_source      = r->fc_source;
+  info->fs_source      = r->fs_source;
+  info->t0_unix_sec    = r->t0_unix_sec;
+  info->t0_source      = r->t0_source;
   info->trailing_bytes = r->trailing;
 }
 
@@ -1081,6 +1114,24 @@ int
 wfm_reader_get_fc_source (const wfm_reader_state_t *r)
 {
   return r->fc_source;
+}
+
+int
+wfm_reader_get_fs_source (const wfm_reader_state_t *r)
+{
+  return r->fs_source;
+}
+
+double
+wfm_reader_get_t0 (const wfm_reader_state_t *r)
+{
+  return r->t0_unix_sec;
+}
+
+int
+wfm_reader_get_t0_source (const wfm_reader_state_t *r)
+{
+  return r->t0_source;
 }
 
 size_t

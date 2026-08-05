@@ -752,6 +752,63 @@ test_fc_from_keywords (void)
   return 0;
 }
 
+/* fs_source / t0_source: the provenance half of the metadata, and the case
+   that motivated it. doppler's own BLUE writer leaves the timecode field
+   zero, so every capture this library produces reads back t0 == 0.0 -- which
+   converted naively through the J1950 offset is a confident, wrong
+   1950-01-01. WFM_T0_NONE is what makes that distinguishable from a capture
+   that really does declare a start time. */
+static int
+test_fs_and_t0_provenance (void)
+{
+  const char *path     = "dp_reader_prov.blue";
+  float _Complex xs[4] = { 0 };
+
+  FILE *fp = fopen (path, "wb");
+  CHECK (fp, "open for write");
+  wfm_writer_state_t *w
+      = wfm_writer_open (fp, WFM_FT_BLUE, 0, 0, 2.5e6, 0.0, 4);
+  CHECK (w, "writer open");
+  CHECK (wfm_writer_write (w, xs, 4) == 4, "write");
+  CHECK (wfm_writer_close (w) == 0, "close");
+  fclose (fp);
+
+  wfm_reader_state_t *r = wfm_reader_create (path, 0, 0);
+  CHECK (r, "reader open");
+  wfm_reader_info_t info;
+  wfm_reader_info (r, &info);
+
+  /* The rate IS declared, via xdelta, so it is attributable. */
+  CHECK (info.fs == 2.5e6, "fs round-trips");
+  CHECK (info.fs_source == WFM_FS_BLUE_XDELTA, "fs attributed to xdelta");
+  CHECK (wfm_reader_get_fs_source (r) == WFM_FS_BLUE_XDELTA, "fs accessor");
+
+  /* The start time is NOT: doppler never writes one. It must report
+     "unknown" rather than 1950. */
+  CHECK (info.t0_source == WFM_T0_NONE, "t0 unset on a doppler-written BLUE");
+  CHECK (info.t0_unix_sec == 0.0, "t0 is 0.0 when unset");
+  CHECK (wfm_reader_get_t0_source (r) == WFM_T0_NONE, "t0 source accessor");
+  CHECK (wfm_reader_get_t0 (r) == 0.0, "t0 accessor");
+  wfm_reader_destroy (r);
+
+  /* A raw capture carries no metadata at all, so neither is attributable --
+     and fs == 0.0 must be reported as "not found", never as a rate. */
+  const char *rawp = "dp_reader_prov.raw";
+  FILE       *rf   = fopen (rawp, "wb");
+  CHECK (rf, "raw open");
+  fwrite (xs, sizeof xs, 1, rf);
+  fclose (rf);
+  wfm_reader_state_t *rr = wfm_reader_create (rawp, 0, 0);
+  CHECK (rr, "raw reader open");
+  wfm_reader_info (rr, &info);
+  CHECK (info.fs_source == WFM_FS_NONE, "raw declares no rate");
+  CHECK (info.t0_source == WFM_T0_NONE, "raw declares no start time");
+  wfm_reader_destroy (rr);
+  remove (path);
+  remove (rawp);
+  return 0;
+}
+
 /* The writer's two copies must never be readable as disagreeing. */
 static int
 test_fc_write_side (void)
@@ -935,6 +992,8 @@ main (void)
   if (test_detects_by_content_not_extension ())
     return 1;
   if (test_sigmf_pair_from_create ())
+    return 1;
+  if (test_fs_and_t0_provenance ())
     return 1;
   printf ("test_wfm_reader: all passed\n");
   return 0;

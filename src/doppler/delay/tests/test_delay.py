@@ -119,9 +119,19 @@ def test_ptr_out_undersized_raises():
         obj.ptr(out=out)
 
 
-def test_ptr_max_out_matches_num_taps():
+def test_ptr_max_out_is_a_per_call_bound():
+    # gh-761 gave *_max_out the arity its C prototype declares:
+    # delay_ptr_max_out(state, n) is per-call, min(n, num_taps), so it
+    # answers "how much for THIS request" rather than one fixed cap. The
+    # old no-arg spelling returned num_taps whatever you were about to ask
+    # for, which over-sized a small request and told you nothing about a
+    # large one.
     obj = DelayCf64(5)
-    assert obj.ptr_max_out() == 5
+    assert obj.ptr_max_out(5) == 5  # exactly the delay line
+    assert obj.ptr_max_out(2) == 2  # a short request is bounded by itself
+    assert obj.ptr_max_out(99) == 5  # a long one is clamped to num_taps
+    with pytest.raises(TypeError):
+        obj.ptr_max_out()  # the count is required, as the prototype says
 
 
 def test_push_ptr_out_writes_into_callers_buffer():

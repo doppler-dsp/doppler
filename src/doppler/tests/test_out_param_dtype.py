@@ -71,8 +71,12 @@ _Invoke = Callable[[Any, NDArray[Any]], Any]
 # `max(getattr(obj, max_out_attr)(), floor)`: every object publishes a
 # `<method>_max_out()` companion, but it is state-dependent and reads 0 before
 # the first call, so `floor` carries the block length the call itself needs.
-# DelayCf64.ptr is the exact-size case — its max_out IS the required length and
-# the floor is 0, so the same expression sizes it correctly too.
+# DelayCf64.ptr must state its count explicitly. `ptr_max_out(n)` is a
+# per-call bound — `min(n, num_taps)` — so sizing with floor=0 asks "how much
+# for a zero-length request?", gets 0, and then invokes with ptr's own default
+# (0 = all available = num_taps). The two halves have to name the same count,
+# so the case passes 4 to both. Before gh-761 gave max_out its argument this
+# was hidden: the no-arg form returned num_taps regardless of what was asked.
 _CASES: list[tuple[str, Callable[[], Any], _Invoke, Any, str, int]] = [
     (
         "FIR.execute",
@@ -117,10 +121,10 @@ _CASES: list[tuple[str, Callable[[], Any], _Invoke, Any, str, int]] = [
     (
         "DelayCf64.ptr",
         lambda: DelayCf64(4),
-        lambda o, out: o.ptr(out=out),
+        lambda o, out: o.ptr(4, out=out),
         np.complex128,
         "ptr_max_out",
-        0,
+        4,
     ),
     (
         "FFT.execute_cf32",

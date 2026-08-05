@@ -130,7 +130,7 @@ size_t
 cic_decimate_max_out (cic_state_t *state)
 {
   (void)state;
-  return 0;
+  return 0; /* one output per decim >= 1 inputs, so outputs <= inputs */
 }
 
 /* cic_decimate is a static inline defined in cic_core.h. */

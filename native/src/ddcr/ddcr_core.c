@@ -192,7 +192,7 @@ size_t
 ddcr_execute_ctrl_max_out (ddcr_state_t *s)
 {
   (void)s;
-  return 0;
+  return 0; /* as ddcr_execute_max_out: halfband + decim never expands */
 }
 
 size_t

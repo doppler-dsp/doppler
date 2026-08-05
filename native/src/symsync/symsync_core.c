@@ -275,7 +275,7 @@ size_t
 symsync_steps_max_out (symsync_state_t *state)
 {
   (void)state;
-  return 0;
+  return 0; /* one symbol per sps >= 1 inputs, so symbols <= inputs */
 }
 
 size_t

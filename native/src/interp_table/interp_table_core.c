@@ -42,7 +42,7 @@ size_t
 interp_table_execute_max_out (interp_table_state_t *state)
 {
   (void)state;
-  return 0;
+  return 0; /* one value per input point, so outputs == inputs */
 }
 
 /* Wraps a floor'd index into [0, n): fmod() alone can return a negative

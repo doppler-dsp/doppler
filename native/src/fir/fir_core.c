@@ -166,7 +166,7 @@ size_t
 fir_execute_max_out (fir_state_t *state)
 {
   (void)state;
-  return 0;
+  return 0; /* execute() emits one sample per input sample */
 }
 
 /* ── Scratch management ─────────────────────────────────────────────────── */

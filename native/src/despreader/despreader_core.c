@@ -194,7 +194,7 @@ size_t
 despreader_steps_max_out (despreader_state_t *state)
 {
   (void)state;
-  return 0;
+  return 0; /* one prompt per code period, so prompts <= inputs */
 }
 
 size_t
@@ -284,7 +284,7 @@ size_t
 despreader_bits_max_out (despreader_state_t *state)
 {
   (void)state;
-  return 0;
+  return 0; /* one bit per periods_per_bit periods, so bits <= inputs */
 }
 
 size_t

@@ -42,7 +42,7 @@ size_t
 farrow_delay_max_out (farrow_state_t *state)
 {
   (void)state;
-  return 0;
+  return 0; /* delay() emits one sample per input sample */
 }
 
 /* Apply a constant fractional delay of `mu` samples: push each input and

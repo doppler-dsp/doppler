@@ -461,7 +461,7 @@ size_t
 dll_steps_max_out (dll_state_t *state)
 {
   (void)state;
-  return 0;
+  return 0; /* one prompt per code period, so prompts <= inputs */
 }
 
 /* The block kernel with the telemetry decision as a compile-time literal:

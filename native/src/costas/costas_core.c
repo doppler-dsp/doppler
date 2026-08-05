@@ -134,7 +134,7 @@ size_t
 costas_steps_max_out (costas_state_t *state)
 {
   (void)state;
-  return 0;
+  return 0; /* one symbol per tsamps >= 1 inputs, so symbols <= inputs */
 }
 
 size_t

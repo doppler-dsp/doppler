@@ -299,7 +299,7 @@ size_t
 burst_despreader_bits_max_out (burst_despreader_state_t *state)
 {
   (void)state;
-  return 0;
+  return 0; /* one hard bit per code period, so bits <= inputs */
 }
 
 size_t

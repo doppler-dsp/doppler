@@ -80,7 +80,7 @@ size_t
 carrier_mpsk_steps_max_out (carrier_mpsk_state_t *state)
 {
   (void)state;
-  return 0;
+  return 0; /* one symbol per sps inputs, so symbols <= inputs */
 }
 
 size_t

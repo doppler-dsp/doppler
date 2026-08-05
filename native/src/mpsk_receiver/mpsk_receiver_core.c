@@ -457,7 +457,7 @@ size_t
 mpsk_receiver_bits_max_out (mpsk_receiver_state_t *state)
 {
   (void)state;
-  return 0;
+  return 0; /* one bit per symbol, and symbols <= inputs */
 }
 
 size_t

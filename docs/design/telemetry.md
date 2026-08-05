@@ -435,8 +435,17 @@ machine-readable source of truth**: it cannot carry `fc`, datatype,
 endianness or annotations, and the sidecar remains authoritative. Four
 constraints make it safe:
 
-- **No colons.** ISO 8601 extended format is illegal on Windows and FAT and
-    awkward in shells; use basic format, `20260805T041530Z`.
+- **Basic-format UTC, per `just-bashit`'s `iso-8601-basic`.** Extended
+    ISO 8601 is illegal on Windows and FAT and awkward in shells, and the
+    convention already exists rather than needing to be declared here:
+    `src/just_bashit/datetime.sh` generates "path and file-name-friendly
+    characters only", `YYYYMMDDThhmmss[.fff[fff]]Z`. doppler's C side must
+    emit **byte-identical** output (`strftime`, not a reimplementation of the
+    rules) so a name written by a doppler tool and one written by a bash tool
+    sort and parse the same. **Milliseconds are the floor, not the default
+    seconds** — `tnow` is the uniquifier, and two captures written in the same
+    second would collide; that is what the helper's `-m`/`-u`/`-n` precision
+    flags exist for.
 - **A documented number grammar.** Fixed-point, no exponent, stated decimal
     places, so `1754366130.123456secs` round-trips instead of decorating.
 - **Anchored and parsed right-to-left**, so a base name that itself contains

@@ -1529,18 +1529,20 @@ class Farrow:
         """
 
     def delay_max_out(self) -> int:
-        """Output-length bound for ``delay()``. Always 0 — see below.
+        """Extra capacity ``delay()`` needs beyond the input length: none.
 
-        ``delay()`` emits one sample per input sample, so its bound is a
-        property of the block, not of the object — and this accessor sees
-        only the object. It therefore returns 0, which the binding reads
-        as "unknown" and falls back to the input length. Size an ``out=``
-        buffer from ``len(x)``, not from this value.
+        An ``out=`` buffer must hold ``max(delay_max_out(), len(x))``
+        elements. ``delay()`` emits at most one sample per input sample,
+        so it imposes no requirement of its own and this returns 0 —
+        ``len(x)`` alone is the exact bound. A non-zero value here means
+        the opposite: that a method can emit *more* than it is given
+        (``Resampler.execute_ctrl_max_out`` interpolates, ``FFT`` pads to
+        ``n``), which is the only case the accessor exists to cover.
 
         Returns
         -------
         int
-            Always 0.
+            0 — size an ``out=`` buffer from ``len(x)``.
 
         Examples
         --------

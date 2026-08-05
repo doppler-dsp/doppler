@@ -328,6 +328,192 @@ a Python producer can symmetrically publish `read()` output through
 `Publisher(ep, TLM16)`). File dump still falls out of Python for free
 (`recs.tofile(...)`).
 
+## v2 — convenience layer (designed, not yet built)
+
+v1 is powerful and clunky. The clunkiness is structural, not sloppiness:
+`src/doppler/examples/mpsk_telemetry_capture_demo.py` is expert-written and
+still spends more lines on telemetry ceremony than on DSP. The friction,
+measured across the three telemetry examples:
+
+| friction                       | where                                                  | cost                                          |
+| ------------------------------ | ------------------------------------------------------ | --------------------------------------------- |
+| ring size is a guess           | `Telemetry(1 << 14)` in all three                      | silent drops unless you remember to assert    |
+| hand-rolled drain loop         | `set_now` / `steps` / `read` / `concatenate` per block | get the cadence wrong and data is gone        |
+| per-probe filtering reinvented | `recs[recs["probe"] == tlm.probe_id(n)]["value"]`      | **three copies**, one per example             |
+| id→name inversion by hand      | `{v: k for k, v in probes.items()}`                    | every consumer redoes it                      |
+| no time axis                   | plots use `np.arange(v.size)` labelled "symbol index"  | can't plot seconds even though `n` is stamped |
+| capture is not self-describing | `np.save(recs)` / `recs.tobytes()`                     | **probe names live only in the live context** |
+
+The last one is a correctness defect, not an inconvenience: the file the
+example writes cannot be interpreted without the process that wrote it.
+
+### The time base belongs to the DATA, not the process
+
+The central design point, and the one that is easy to get wrong. A record
+carries `n` (sample index) and no time. Time is **derived** from two
+quantities the caller supplies:
+
+```text
+t(record) = t0 + n / fs
+```
+
+- **`fs`** — sample rate; converts index to elapsed seconds.
+- **`t0`** — absolute epoch of sample `n == 0`, belonging to *whatever
+    produced the samples*.
+
+`now` is merely one possible `t0`, correct only for a live capture and
+**never a silent default**. Processing a 2019 file would otherwise stamp its
+telemetry as today — worse than no timestamp, because it looks
+authoritative. This is the same error as stamping wall-clock at `read()`
+time, which attributes a whole drained batch to the drain instant; neither
+is acceptable.
+
+A replay implies a third obligation: the `n` stamped via `set_now` must be
+in the **source's** index space. Start reading at sample 1,000,000 and
+telemetry must say 1,000,000, or the capture will not line up against the
+recording it came from.
+
+Since doppler already parses the source's time base, lift it:
+
+<!-- docs-snippet: skip=proposed v2 API (capture/recording/read_dict do not exist yet), by definition not runnable -->
+
+```python
+r = Reader("capture_2019.tmp")
+tlm = capture(rx=rx, source=r)      # fs from r.fs, t0 from the BLUE timecode
+```
+
+Three honest degradations, each a recorded state in the capture file rather
+than a fabricated number:
+
+| condition                             | consequence                         |
+| ------------------------------------- | ----------------------------------- |
+| `r.fs == 0.0` (raw/CSV carry no rate) | ordinal only, no elapsed seconds    |
+| no timecode in the source             | relative seconds, no absolute epoch |
+| `set_now` never called (`n == 0`)     | ordinal only                        |
+
+**Prerequisite primitive.** BLUE `timecode` is J1950 seconds and nothing in
+the tree converts it — `wfm_reader_core.c` reads it as a raw double and
+passes it through. The converter lives **once**, beside the BLUE code in
+`wfm`; telemetry consumes epochs and must not learn what J1950 is.
+
+**Say where the time base came from.** `fs == 0.0` and `t0 == 0.0` are
+ambiguous exactly as `fc == 0.0` is, and doppler already solved that once:
+`Reader.fc_source` names the metadata the value was read from so a caller
+can tell "genuinely zero" from "not found". `fs` and `t0` need the same
+disambiguation, so a capture records *where* its time base came from rather
+than silently degrading to an ordinal axis.
+
+**Do not invent a sidecar format for raw/CSV.** A metadata-free capture does
+need its rate and epoch to travel by other means, but doppler already reads
+two containers that carry them — a SigMF `.sigmf-data` resolves its
+`.sigmf-meta` (`core:sample_rate`, `core:datetime`), and BLUE resolves a
+detached HEADER — and `Writer` already emits both (`file_type` is
+`raw`/`csv`/`blue`/`sigmf`). A bespoke `_fs_t0.csv` naming convention would
+be a third mechanism for a job two shipped ones do, and a weaker one:
+encoding field order in a filename gives no units, no precision statement,
+no room to grow, and is destroyed by a rename. **Raw is metadata-free by
+definition — the fix is to stop choosing raw when metadata is needed**, not
+to bolt a convention onto it. Where an external tool can only emit raw,
+generate a `.sigmf-meta` beside it.
+
+**Wall-clock-at-write is provenance, not a time base.** Three quantities sit
+close together and must not merge:
+
+| quantity | meaning                              | role                    |
+| -------- | ------------------------------------ | ----------------------- |
+| `t0`     | epoch of sample `n == 0`             | **the time base**       |
+| `fs`     | sample rate                          | index → elapsed seconds |
+| `tnow`   | wall clock when the file was written | **provenance only**     |
+
+A file copied or rewritten last week carries last week's `tnow` while its
+samples are years old — the replay error one step removed. If `tnow` is
+surfaced it is labelled provenance and never falls back into
+`t = t0 + n / fs`.
+
+### The four pieces
+
+**1 — `capture(**objects)` — one command to turn everything on.**
+`set_telemetry` already registers *all* of an object's probes, forwarding to
+children (one attach gets `MpskReceiver`'s 11). The ceremony around it is
+what hurts. The keyword name becomes the prefix, so it stays explicit
+instead of guessed from a class name:
+
+<!-- docs-snippet: skip=proposed v2 API (capture/recording/read_dict do not exist yet), by definition not runnable -->
+
+```python
+tlm = capture(rx=rx, code0=ch, agc=agc)
+```
+
+Ring sizing: a generous default plus **strict overrun** — the recorder
+raises on the first drop. Deriving a size from a duration hint trades one
+guess for two (the event rate depends on symbol rate and decim, which the
+caller rarely knows a priori); growing on demand would break the lock-free
+SPSC invariant and the fixed-capacity VM mirror. Over-allocating a few MB is
+the cheapest of the three.
+
+**2 — `read_dict()` — no struct-array parsing.**
+`{probe_name: values}`, or `{name: (n, values)}` with `index=True` when the
+x-axis is wanted. This retires the `series()` helper each example currently
+rewrites. It lives **in the C extension beside `read()`** — telemetry is a
+hand-owned `no_generate` module, so that is its normal home, and it keeps
+`__init__.py` re-export-only.
+
+**3 — `to_file` — a self-describing TLM16 container, in C.**
+Header + probe registry (name↔id) + time base (`fs`, `t0`, epoch kind) +
+decim + `dropped` + packed 16-byte records. One implementation shared with
+`dp_tlm_sink`, readable from C, with Python `to_file`/`from_file` as thin
+bindings. The record itself does **not** change: 16 bytes is structurally
+two ring slots, and widening it would cost hot-loop bandwidth and break the
+TLM16 wire type.
+
+**4 — `recording()` — the drain stops being the caller's problem.**
+`dp_tlm_recorder_*` in `telemetry_core`, a pthread drain loop following
+`dp_parallel.h`'s precedent for C-level threading, with the Python
+`with tlm.recording() as rec:` as a thin binding. The recorder *is* the
+single consumer, so the SPSC contract holds. Strict-on-drop belongs here:
+the recorder is the one component positioned to notice an overrun when it
+happens rather than at a post-hoc assert.
+
+Together, on the capture demo:
+
+<!-- docs-snippet: skip=proposed v2 API (capture/recording/read_dict do not exist yet), by definition not runnable -->
+
+```python
+tlm = capture(rx=rx, fs=fs, t0=t0)           # attach all 11 probes
+with tlm.recording() as rec:                 # the drain is the recorder's job
+    for i in range(0, iq.size, 256):
+        tlm.set_now(i)                       # the pipeline still owns its clock
+        rx.steps(iq[i : i + 256])
+rec.to_file(path)                            # names + time base travel with it
+
+for ax, (name, (n, v)) in zip(axes, rec.read_dict(index=True).items()):
+    ax.plot(n / fs, v)                       # a real time axis, in seconds
+```
+
+`set_now` stays explicit on purpose — the pipeline owns its sample clock,
+and on replay that line is exactly where the source offset enters.
+
+### Smaller QoL, same wave
+
+- **`set_decim(name, k)`** — per-probe decimation is *already possible* and
+    undocumented: `probe()` is idempotent by name and updates the decimation,
+    so `.e` can be thinned while `.locked` stays at full rate. This is a name
+    for an existing capability, not new machinery.
+- **`stats()`** — one call reconciling `dropped` against per-probe
+    `emitted`, which is a manual cross-check today.
+- **`probe_spec()`** — class-level probe discovery, so what an object *would*
+    register is visible without attaching. Feeds tooling and the docs table.
+
+### Deliberately not doing
+
+- **Widening the record** — breaks the 16-byte/two-slot invariant, ring
+    bandwidth, and TLM16.
+- **Per-record wall clock** — a batch stamped at drain time is a fabricated
+    number (see the time-base section).
+- **Plotting helpers** — demo-tier; belongs in examples, not the library.
+- **Pipeline logic in Python** — the C-first rule is unchanged; every piece
+    above is either presentation (`read_dict`) or a thin binding over C.
+
 ## Future work (deliberately out of v1)
 
 - **Wide records** (`flags`-tagged f64 or vector payloads) if a use case

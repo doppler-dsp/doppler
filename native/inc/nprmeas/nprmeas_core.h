@@ -99,11 +99,12 @@ void nprmeas_reset(nprmeas_state_t *state);
  * >>> n = 1 << 15
  * >>> F = np.fft.rfft(rng.standard_normal(n))
  * >>> f = np.fft.rfftfreq(n)
- * >>> F[(f < 0.05) | (f > 0.45)] = 0                 # band-limit to [0.05,0.45]
+ * >>> F[(f < 0.05) | (f > 0.45)] = 0  # band-limit to [0.05,0.45]
  * >>> F[(f >= 0.20) & (f <= 0.25)] *= 10**(-50/20)   # notch 50 dB deep
  * >>> x = np.fft.irfft(F, n)
  * >>> x = (0.3*x/np.std(x)).astype(np.float32)
- * >>> r = NPRMeasure(n=n, fs=1.0).analyze(x, 0.05, 0.45, 0.20, 0.25, 0.01)
+ * >>> r = NPRMeasure(n=n, fs=1.0).analyze(
+ * ...     x, 0.05, 0.45, 0.20, 0.25, 0.01)
  * >>> 45 < r.npr_db < 55, r.notch_psd_dbfs < r.inband_psd_dbfs
  * (True, True)
  *
@@ -135,11 +136,11 @@ size_t nprmeas_spectrum_dbfs_max_out(nprmeas_state_t *state);
  * >>> from doppler.measure import NPRMeasure
  * >>> import numpy as np
  * >>> rng = np.random.default_rng(0)
- * >>> x = (0.3*rng.standard_normal(8192)).astype(np.float32)   # noise capture
- * >>> s = NPRMeasure(n=8192, fs=1.0).spectrum_dbfs(x)      # DC-centred dBFS
- * >>> s.shape                                              # zero-padded nfft
+ * >>> x = (0.3*rng.standard_normal(8192)).astype(np.float32)  # noise
+ * >>> s = NPRMeasure(n=8192, fs=1.0).spectrum_dbfs(x)  # DC-centred dBFS
+ * >>> s.shape                                          # zero-padded nfft
  * (16384,)
- * >>> round(float(np.median(s)), 0)   # broadband floor, well below 0 dBFS
+ * >>> round(float(np.median(s)), 0)   # broadband floor, below 0 dBFS
  * -48.0
  *
  * @endcode

@@ -175,7 +175,7 @@ extern "C"
    * >>> idx = rng.integers(0, 4, 300)
    * >>> bb = np.repeat(np.exp(2j * np.pi * idx / 4), 32)
    * >>> n = np.arange(bb.size)
-   * >>> x = (0.4 * bb * np.exp(2j * np.pi * 0.25 * n)).real   # real IF, fs/4
+   * >>> x = (0.4 * bb * np.exp(2j * np.pi * 0.25 * n)).real  # IF at fs/4
    * >>> x = np.ascontiguousarray(x.astype(np.float32))
    * >>> rx = MpskReceiverR(m=4, sps=32, m_out=8, init_norm_freq=0.25)
    * >>> first = rx.steps(x)
@@ -238,9 +238,9 @@ extern "C"
    * >>> from doppler.track import MpskReceiverR
    * >>> rng = np.random.default_rng(3)
    * >>> idx = rng.integers(0, 4, 2400)                  # QPSK symbols
-   * >>> bb = np.repeat(np.exp(2j * np.pi * idx / 4), 32)  # 32 samples/symbol
+   * >>> bb = np.repeat(np.exp(2j * np.pi * idx / 4), 32)  # 32 sps
    * >>> n = np.arange(bb.size)
-   * >>> x = (0.4 * bb * np.exp(2j * np.pi * 0.25 * n)).real   # real IF, fs/4
+   * >>> x = (0.4 * bb * np.exp(2j * np.pi * 0.25 * n)).real  # IF at fs/4
    * >>> x = np.ascontiguousarray(x.astype(np.float32))
    * >>> rx = MpskReceiverR(m=4, sps=32, m_out=8, init_norm_freq=0.25)
    * >>> sym = rx.steps(x)
@@ -274,14 +274,15 @@ extern "C"
    * >>> idx = rng.integers(0, 2, 2400)                  # BPSK payload bits
    * >>> bb = np.repeat(np.exp(1j * np.pi * idx), 32)
    * >>> n = np.arange(bb.size)
-   * >>> x = (0.4 * bb * np.exp(2j * np.pi * 0.25 * n)).real   # real IF, fs/4
+   * >>> x = (0.4 * bb * np.exp(2j * np.pi * 0.25 * n)).real  # IF at fs/4
    * >>> x = np.ascontiguousarray(x.astype(np.float32))
    * >>> rx = MpskReceiverR(m=2, sps=32, m_out=8, init_norm_freq=0.25,
    * ...                    bn_carrier=0.005)
    * >>> b = rx.bits(x)                                  # 1 hard bit/symbol
    * >>> b.size
    * 2398
-   * >>> # settled tail matches the payload up to the BPSK inversion ambiguity
+   * >>> # settled tail matches the payload, up to the BPSK
+   * >>> # inversion ambiguity
    * >>> tail = np.mean(b[1500:2300] != idx[1500:2300])
    * >>> round(float(min(tail, 1 - tail)), 3)
    * 0.0
@@ -322,7 +323,7 @@ extern "C"
    * >>> rx = MpskReceiverR(m=4, sps=10, m_out=2, acq_to_track=1)
    * >>> rx.tracking
    * 0
-   * >>> rx.configure_lock(0.9, 0.72, 4, 16)   # tighter declare, faster drop
+   * >>> rx.configure_lock(0.9, 0.72, 4, 16)   # tighter declare, fast drop
    *
    * @endcode
    */

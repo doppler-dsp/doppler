@@ -644,15 +644,11 @@ static PyMethodDef ToneMeasureObj_methods[] = {
     ">>> from doppler.measure import ToneMeasure\n"
     ">>> import numpy as np\n"
     ">>> t = np.arange(4096)\n"
-    ">>> x = np.cos(2*np.pi*300*t/4096).astype(np.float32)   # full-scale "
-    "tone\n"
-    ">>> s = ToneMeasure(n=4096, fs=1.0).spectrum_dbfs(x)   # DC-centred "
-    "spectrum\n"
-    ">>> s.shape                              # zero-padded to next power of "
-    "two\n"
+    ">>> x = np.cos(2*np.pi*300*t/4096).astype(np.float32)  # full-scale\n"
+    ">>> s = ToneMeasure(n=4096, fs=1.0).spectrum_dbfs(x)  # DC-centred dBFS\n"
+    ">>> s.shape                     # zero-padded to next power of two\n"
     "(8192,)\n"
-    ">>> round(float(s.max()), 1)   # split across two real images, ~6 dB "
-    "each\n"
+    ">>> round(float(s.max()), 1)   # two real images, ~6 dB each\n"
     "-6.0\n" },
   { "spectrum_dbfs_max_out", (PyCFunction)ToneMeasureObj_spectrum_dbfs_max_out,
     METH_NOARGS,

@@ -353,14 +353,11 @@ static PyMethodDef IMDMeasureObj_methods[] = {
     ">>> import numpy as np\n"
     ">>> t = np.arange(4096)\n"
     ">>> x = (0.5*np.cos(2*np.pi*200*t/4096)\n"
-    "...      + 0.5*np.cos(2*np.pi*250*t/4096)).astype(np.float32)   # two "
-    "tones\n"
-    ">>> s = IMDMeasure(n=4096, fs=1.0).spectrum_dbfs(x)   # DC-centred "
-    "spectrum\n"
+    "...      + 0.5*np.cos(2*np.pi*250*t/4096)).astype(np.float32)\n"
+    ">>> s = IMDMeasure(n=4096, fs=1.0).spectrum_dbfs(x)  # DC-centred dBFS\n"
     ">>> s.shape\n"
     "(8192,)\n"
-    ">>> round(float(s.max()), 1)   # each half-scale tone splits into two "
-    "images\n"
+    ">>> round(float(s.max()), 1)   # each tone splits into two images\n"
     "-12.0\n" },
   { "spectrum_dbfs_max_out", (PyCFunction)IMDMeasureObj_spectrum_dbfs_max_out,
     METH_NOARGS,

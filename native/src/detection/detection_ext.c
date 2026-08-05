@@ -283,7 +283,7 @@ static PyMethodDef detection_module_methods[] = {
      "Examples\n"
      "--------\n"
      ">>> from doppler.detection import marcum_q\n"
-     ">>> round(marcum_q(m=1, a=0.0, b=1.0), 5)   # P(Rayleigh > 1) = exp(-0.5)\n"
+     ">>> round(marcum_q(m=1, a=0.0, b=1.0), 5)  # P(Rayleigh>1) = exp(-.5)\n"
      "0.60653\n"
      ">>> round(marcum_q(m=1, a=0.0, b=2.0), 5)   # exp(-2)\n"
      "0.13534\n"
@@ -343,9 +343,9 @@ static PyMethodDef detection_module_methods[] = {
      "--------\n"
      ">>> from doppler.detection import det_pd, det_threshold\n"
      ">>> thr = det_threshold(pfa=1e-6)\n"
-     ">>> round(det_pd(snr=1.613, dwell=8, threshold=thr), 2)  # 8-dwell Pd 0.9\n"
+     ">>> round(det_pd(snr=1.613, dwell=8, threshold=thr), 2)  # Pd 0.9\n"
      "0.9\n"
-     ">>> round(det_pd(snr=0.0, dwell=8, threshold=thr), 6)    # snr=0 -> Pd=Pfa\n"
+     ">>> round(det_pd(snr=0.0, dwell=8, threshold=thr), 6)    # Pd = Pfa\n"
      "1e-06\n"},
     {"det_dwell", (PyCFunction)(void *)_bind_det_dwell, METH_VARARGS | METH_KEYWORDS,
      "Minimum dwell such that Pd >= pd_min for the given SNR and Pfa.\n"
@@ -403,7 +403,7 @@ static PyMethodDef detection_module_methods[] = {
      ">>> round(snr, 3)\n"
      "1.613\n"
      ">>> pd = det_pd(snr=snr, dwell=8, threshold=det_threshold(pfa=1e-6))\n"
-     ">>> abs(pd - 0.9) < 1e-9   # det_snr inverts det_pd, to solver tolerance\n"
+     ">>> abs(pd - 0.9) < 1e-9   # det_snr inverts det_pd, to tolerance\n"
      "True\n"},
     {"det_threshold_noncoherent", (PyCFunction)(void *)_bind_det_threshold_noncoherent, METH_VARARGS | METH_KEYWORDS,
      "CFAR threshold eta_nc for a non-coherent detector of n_noncoh looks.\n"
@@ -426,7 +426,8 @@ static PyMethodDef detection_module_methods[] = {
      "\n"
      "Examples\n"
      "--------\n"
-     ">>> from doppler.detection import det_threshold_noncoherent, det_threshold\n"
+     ">>> from doppler.detection import det_threshold_noncoherent\n"
+     ">>> from doppler.detection import det_threshold\n"
      ">>> round(det_threshold_noncoherent(pfa=1e-3, n_noncoh=4), 3)\n"
      "5.111\n"
      ">>> det_threshold_noncoherent(pfa=1e-6, n_noncoh=1) == det_threshold(\n"
@@ -602,11 +603,12 @@ static PyMethodDef detection_module_methods[] = {
      "\n"
      "Examples\n"
      "--------\n"
-     ">>> from doppler.detection import det_pd_noncoherent, det_pd, det_threshold\n"
+     ">>> from doppler.detection import det_pd_noncoherent, det_pd\n"
      ">>> from doppler.detection import det_threshold_noncoherent\n"
+     ">>> from doppler.detection import det_threshold\n"
      ">>> eta = det_threshold(pfa=1e-6)\n"
      ">>> det_pd_noncoherent(snr=0.5, n_coh=8, n_noncoh=1, threshold=eta) \\\n"
-     "...     == det_pd(snr=0.5, dwell=8, threshold=eta)  # reduces to coherent\n"
+     "...     == det_pd(snr=0.5, dwell=8, threshold=eta)  # -> coherent\n"
      "True\n"
      ">>> eta4 = det_threshold_noncoherent(pfa=1e-3, n_noncoh=4)\n"
      ">>> round(det_pd_noncoherent(\n"
@@ -642,7 +644,8 @@ static PyMethodDef detection_module_methods[] = {
      "Examples\n"
      "--------\n"
      ">>> from doppler.detection import det_n_noncoh\n"
-     ">>> det_n_noncoh(snr=2.0, n_coh=16, pd_min=0.9, pfa=1e-3, max_n_noncoh=64)\n"
+     ">>> det_n_noncoh(\n"
+     "...     snr=2.0, n_coh=16, pd_min=0.9, pfa=1e-3, max_n_noncoh=64)\n"
      "1\n"},
     {"det_threshold_power", (PyCFunction)(void *)_bind_det_threshold_power, METH_VARARGS | METH_KEYWORDS,
      "Power threshold p from Pfa for the power detector.\n"
@@ -694,7 +697,8 @@ static PyMethodDef detection_module_methods[] = {
      "--------\n"
      ">>> from doppler.detection import det_pd_power, det_threshold_power\n"
      ">>> thr = det_threshold_power(pfa=1e-6)\n"
-     ">>> round(det_pd_power(snr_power=2.6017, dwell=8, power_threshold=thr), 2)\n"
+     ">>> round(det_pd_power(\n"
+     "...     snr_power=2.6017, dwell=8, power_threshold=thr), 2)\n"
      "0.9\n"},
     {"det_dwell_power", (PyCFunction)(void *)_bind_det_dwell_power, METH_VARARGS | METH_KEYWORDS,
      "Minimum dwell such that Pd >= pd_min for the power detector.\n"
@@ -718,7 +722,8 @@ static PyMethodDef detection_module_methods[] = {
      "Examples\n"
      "--------\n"
      ">>> from doppler.detection import det_dwell_power\n"
-     ">>> det_dwell_power(snr_power=0.25, pd_min=0.9, pfa=1e-6, max_dwell=256)\n"
+     ">>> det_dwell_power(\n"
+     "...     snr_power=0.25, pd_min=0.9, pfa=1e-6, max_dwell=256)\n"
      "84\n"},
     {"det_snr_power", (PyCFunction)(void *)_bind_det_snr_power, METH_VARARGS | METH_KEYWORDS,
      "Minimum per-sample power SNR achieving Pd >= pd_min.\n"

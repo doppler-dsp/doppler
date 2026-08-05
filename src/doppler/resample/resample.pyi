@@ -1481,9 +1481,9 @@ class Farrow:
         >>> from doppler.resample import Farrow
         >>> import numpy as np
         >>> f = Farrow(order="cubic")
-        >>> x = np.arange(8, dtype=np.complex64)   # a ramp: exactly interpolable
-        >>> y = f.delay(x, 0.5)                     # delay by group_delay - 0.5
-        >>> [round(float(v.real), 4) for v in y]    # first 2 are fill transient
+        >>> x = np.arange(8, dtype=np.complex64)   # a ramp: exact interp
+        >>> y = f.delay(x, 0.5)                  # delay group_delay - 0.5
+        >>> [round(float(v.real), 4) for v in y]  # first 2 are transient
         [0.0, -0.0625, 0.4375, 1.5, 2.5, 3.5, 4.5, 5.5]
 
         """
@@ -1504,9 +1504,9 @@ class Farrow:
         >>> import numpy as np
         >>> f = Farrow(order="cubic")
         >>> _ = f.delay(np.ones(8, dtype=np.complex64), 0.25)  # leaves state
-        >>> f.reset()                                          # back to pristine
+        >>> f.reset()                                 # back to pristine
         >>> x = np.arange(8, dtype=np.complex64)
-        >>> f.delay(x, 0.5)[3:].real.tolist()   # steady part == ramp shifted 1.5
+        >>> f.delay(x, 0.5)[3:].real.tolist()   # steady part: ramp - 1.5
         [1.5, 2.5, 3.5, 4.5, 5.5]
 
         """

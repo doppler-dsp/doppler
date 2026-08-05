@@ -397,7 +397,8 @@ extern "C"
    * @code
    * >>> import numpy as np
    * >>> from doppler.track import CarrierNda
-   * >>> c = CarrierNda(bn=0.01, zeta=0.707, init_norm_freq=0.0, sps=8, n=4, m=4)
+   * >>> c = CarrierNda(bn=0.01, zeta=0.707, init_norm_freq=0.0,
+   * ...                sps=8, n=4, m=4)
    * >>> rng = np.random.default_rng(0)
    * >>> k = np.arange(40000)
    * >>> x = (np.exp(2j * np.pi * 0.001 * k) + 0.05 * (
@@ -407,7 +408,7 @@ extern "C"
    * >>> round(c.norm_freq, 4), round(c.lock, 2)   # acquired the carrier
    * (0.001, 0.99)
    * >>> c.reset()
-   * >>> round(c.norm_freq, 4), round(c.lock, 2)   # back to the seed, unlocked
+   * >>> round(c.norm_freq, 4), round(c.lock, 2)   # back to seed, unlocked
    * (0.0, 0.0)
    *
    * @endcode
@@ -464,7 +465,8 @@ extern "C"
    * >>> c.set_telemetry(tlm, "car", decim=8)
    * >>> sorted(tlm.probe_names())
    * ['car.agc.gain_db', 'car.e', 'car.freq', 'car.lock', 'car.locked']
-   * >>> x = np.exp(2j * np.pi * 0.005 * np.arange(4096)).astype(np.complex64)
+   * >>> x = np.exp(2j * np.pi * 0.005 * np.arange(4096)).astype(
+   * ...     np.complex64)
    * >>> _ = c.steps(x)
    * >>> recs = tlm.read()
    * >>> len(recs[recs["probe"] == tlm.probe_id("car.e")]) == 4096 // 8
@@ -559,7 +561,8 @@ extern "C"
    * @code
    * >>> import numpy as np
    * >>> from doppler.track import CarrierNda
-   * >>> c = CarrierNda(bn=0.01, zeta=0.707, init_norm_freq=0.0, sps=8, n=4, m=4)
+   * >>> c = CarrierNda(bn=0.01, zeta=0.707, init_norm_freq=0.0,
+   * ...                sps=8, n=4, m=4)
    * >>> rng = np.random.default_rng(0)
    * >>> k = np.arange(40000)
    * >>> x = (np.exp(2j * np.pi * 0.001 * k) + 0.05 * (

@@ -672,8 +672,8 @@ static PyMethodDef BerMeterObj_methods[] = {
     ">>> import numpy as np\n"
     ">>> from doppler.ber import BerMeter\n"
     ">>> met = BerMeter(m=4)\n"
-    ">>> truth = np.array([0, 3, 1, 2, 2, 0], dtype=np.uint8)  # indices, "
-    "0..3\n"
+    ">>> truth = np.array(\n"
+    "...     [0, 3, 1, 2, 2, 0], dtype=np.uint8)  # indices, 0..3\n"
     ">>> met.set_truth(truth)\n"
     "0\n" },
   { "align", (PyCFunction)(void *)BerMeterObj_align,
@@ -736,8 +736,7 @@ static PyMethodDef BerMeterObj_methods[] = {
     "0\n"
     ">>> met.align(rx, n_marker=64)     # correlate a 64-symbol marker\n"
     "1\n"
-    ">>> met.lag, met.align_ok          # detected, so score() may be "
-    "trusted\n"
+    ">>> met.lag, met.align_ok          # detected, so score() is valid\n"
     "(0, 1)\n" },
   { "score", (PyCFunction)(void *)BerMeterObj_score,
     METH_VARARGS | METH_KEYWORDS,

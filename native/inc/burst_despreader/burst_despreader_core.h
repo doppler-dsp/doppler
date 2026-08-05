@@ -90,18 +90,18 @@ typedef struct
  * >>> import numpy as np
  * >>> from doppler.dsss import BurstDespreader
  * >>> rng = np.random.default_rng(1)
- * >>> code = rng.integers(0, 2, 31).astype(np.uint8)    # length-31 chip code
- * >>> chips = np.where(code & 1, -1.0, 1.0)             # 0 -> +1, 1 -> -1
+ * >>> code = rng.integers(0, 2, 31).astype(np.uint8)  # length-31 code
+ * >>> chips = np.where(code & 1, -1.0, 1.0)    # 0 -> +1, 1 -> -1
  * >>> bits = rng.integers(0, 2, 30).astype(np.uint8)    # payload bits
  * >>> syms = np.where(bits == 1, -1.0, 1.0)             # BPSK symbols
  * >>> tx = np.concatenate(
  * ...     [np.repeat(s * chips, 4) for s in syms]).astype(np.complex64)
  * >>> b = BurstDespreader(code, sf=31, sps=4)           # 31 chips/symbol
- * >>> sym = b.steps(tx)                                 # one prompt/symbol
+ * >>> sym = b.steps(tx)                        # one prompt/symbol
  * >>> sym.shape
  * (30,)
  * >>> hard = (sym.real < 0).astype(np.uint8)            # BPSK decision
- * >>> float(np.mean(hard != bits))                      # payload recovered
+ * >>> float(np.mean(hard != bits))             # payload recovered
  * 0.0
  *
  * @endcode
@@ -220,18 +220,18 @@ size_t burst_despreader_steps_max_out (burst_despreader_state_t *state);
  * >>> import numpy as np
  * >>> from doppler.dsss import BurstDespreader
  * >>> rng = np.random.default_rng(1)
- * >>> code = rng.integers(0, 2, 31).astype(np.uint8)   # length-31 chip code
+ * >>> code = rng.integers(0, 2, 31).astype(np.uint8)  # length-31 code
  * >>> bits = rng.integers(0, 2, 30).astype(np.uint8)   # payload bits
- * >>> chips = np.where(code & 1, -1.0, 1.0)             # 0 -> +1, 1 -> -1
+ * >>> chips = np.where(code & 1, -1.0, 1.0)    # 0 -> +1, 1 -> -1
  * >>> syms = np.where(bits == 1, -1.0, 1.0)             # BPSK symbols
  * >>> tx = np.concatenate(
  * ...     [np.repeat(s * chips, 4) for s in syms]).astype(np.complex64)
  * >>> d = BurstDespreader(code, sf=31, sps=4)
- * >>> sym = d.steps(tx)                                 # one prompt per symbol
+ * >>> sym = d.steps(tx)                        # one prompt/symbol
  * >>> sym.shape
  * (30,)
  * >>> hard = (sym.real < 0).astype(np.uint8)            # BPSK decision
- * >>> float(np.mean(hard != bits))                      # payload recovered
+ * >>> float(np.mean(hard != bits))             # payload recovered
  * 0.0
  *
  * @endcode
@@ -269,7 +269,7 @@ size_t burst_despreader_bits_max_out (burst_despreader_state_t *state);
  * >>> rec = d.bits(tx)                             # hard 0/1 per symbol
  * >>> rec.shape
  * (30,)
- * >>> e = np.mean(rec != bits)                     # up to a BPSK sign flip
+ * >>> e = np.mean(rec != bits)             # up to a BPSK sign flip
  * >>> round(float(min(e, 1.0 - e)), 4)
  * 0.0
  * >>> round(d.lock_metric, 3)

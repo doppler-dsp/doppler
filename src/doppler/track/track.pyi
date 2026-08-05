@@ -361,10 +361,10 @@ class Costas:
         >>> k = np.arange(len(sig))
         >>> rx = (sig * np.exp(2j * np.pi * 0.003 * k)).astype(np.complex64)
         >>> c = Costas(bn=0.05, zeta=0.707, tsamps=tsamps)
-        >>> sym = c.steps(rx)             # one prompt symbol per tsamps samples
+        >>> sym = c.steps(rx)             # one prompt per tsamps samples
         >>> sym.shape
         (4000,)
-        >>> round(c.norm_freq, 4)         # pulled onto the 0.003 cyc/sample residual
+        >>> round(c.norm_freq, 4)         # pulled onto the 0.003 residual
         0.003
         >>> c.lock_metric > 0.9
         True
@@ -455,8 +455,8 @@ class Costas:
         --------
         >>> from doppler.track import Costas
         >>> c = Costas(bn=0.05, zeta=0.707, init_norm_freq=0.01, tsamps=16)
-        >>> c.configure(0.02, 1.0)                    # narrow the loop, over-damp
-        >>> (round(c.bn, 3), round(c.norm_freq, 3))   # new gains, estimate kept
+        >>> c.configure(0.02, 1.0)              # narrow the loop, over-damp
+        >>> (round(c.bn, 3), round(c.norm_freq, 3))  # new gains, est kept
         (0.02, 0.01)
 
         """
@@ -2577,7 +2577,8 @@ class CarrierNda:
         --------
         >>> import numpy as np
         >>> from doppler.track import CarrierNda
-        >>> c = CarrierNda(bn=0.01, zeta=0.707, init_norm_freq=0.0, sps=8, n=4, m=4)
+        >>> c = CarrierNda(bn=0.01, zeta=0.707, init_norm_freq=0.0,
+        ...                sps=8, n=4, m=4)
         >>> rng = np.random.default_rng(0)
         >>> k = np.arange(40000)
         >>> x = (np.exp(2j * np.pi * 0.001 * k) + 0.05 * (
@@ -2651,7 +2652,8 @@ class CarrierNda:
         >>> c.set_telemetry(tlm, "car", decim=8)
         >>> sorted(tlm.probe_names())
         ['car.agc.gain_db', 'car.e', 'car.freq', 'car.lock', 'car.locked']
-        >>> x = np.exp(2j * np.pi * 0.005 * np.arange(4096)).astype(np.complex64)
+        >>> x = np.exp(2j * np.pi * 0.005 * np.arange(4096)).astype(
+        ...     np.complex64)
         >>> _ = c.steps(x)
         >>> recs = tlm.read()
         >>> len(recs[recs["probe"] == tlm.probe_id("car.e")]) == 4096 // 8
@@ -2725,7 +2727,8 @@ class CarrierNda:
         --------
         >>> import numpy as np
         >>> from doppler.track import CarrierNda
-        >>> c = CarrierNda(bn=0.01, zeta=0.707, init_norm_freq=0.0, sps=8, n=4, m=4)
+        >>> c = CarrierNda(bn=0.01, zeta=0.707, init_norm_freq=0.0,
+        ...                sps=8, n=4, m=4)
         >>> rng = np.random.default_rng(0)
         >>> k = np.arange(40000)
         >>> x = (np.exp(2j * np.pi * 0.001 * k) + 0.05 * (
@@ -2735,7 +2738,7 @@ class CarrierNda:
         >>> round(c.norm_freq, 4), round(c.lock, 2)   # acquired the carrier
         (0.001, 0.99)
         >>> c.reset()
-        >>> round(c.norm_freq, 4), round(c.lock, 2)   # back to the seed, unlocked
+        >>> round(c.norm_freq, 4), round(c.lock, 2)   # back to seed, unlocked
         (0.0, 0.0)
 
         """

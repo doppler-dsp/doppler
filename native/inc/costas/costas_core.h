@@ -296,10 +296,10 @@ size_t costas_steps_max_out(costas_state_t *state);
  * >>> k = np.arange(len(sig))
  * >>> rx = (sig * np.exp(2j * np.pi * 0.003 * k)).astype(np.complex64)
  * >>> c = Costas(bn=0.05, zeta=0.707, tsamps=tsamps)
- * >>> sym = c.steps(rx)             # one prompt symbol per tsamps samples
+ * >>> sym = c.steps(rx)             # one prompt per tsamps samples
  * >>> sym.shape
  * (4000,)
- * >>> round(c.norm_freq, 4)         # pulled onto the 0.003 cyc/sample residual
+ * >>> round(c.norm_freq, 4)         # pulled onto the 0.003 residual
  * 0.003
  * >>> c.lock_metric > 0.9
  * True
@@ -324,8 +324,8 @@ size_t costas_steps(costas_state_t *state, const float complex *x, size_t x_len,
  * @code
  * >>> from doppler.track import Costas
  * >>> c = Costas(bn=0.05, zeta=0.707, init_norm_freq=0.01, tsamps=16)
- * >>> c.configure(0.02, 1.0)                    # narrow the loop, over-damp
- * >>> (round(c.bn, 3), round(c.norm_freq, 3))   # new gains, estimate kept
+ * >>> c.configure(0.02, 1.0)              # narrow the loop, over-damp
+ * >>> (round(c.bn, 3), round(c.norm_freq, 3))  # new gains, est kept
  * (0.02, 0.01)
  *
  * @endcode

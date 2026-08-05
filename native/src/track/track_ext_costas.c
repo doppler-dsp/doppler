@@ -536,12 +536,10 @@ static PyMethodDef CostasObj_methods[] = {
     ">>> k = np.arange(len(sig))\n"
     ">>> rx = (sig * np.exp(2j * np.pi * 0.003 * k)).astype(np.complex64)\n"
     ">>> c = Costas(bn=0.05, zeta=0.707, tsamps=tsamps)\n"
-    ">>> sym = c.steps(rx)             # one prompt symbol per tsamps "
-    "samples\n"
+    ">>> sym = c.steps(rx)             # one prompt per tsamps samples\n"
     ">>> sym.shape\n"
     "(4000,)\n"
-    ">>> round(c.norm_freq, 4)         # pulled onto the 0.003 cyc/sample "
-    "residual\n"
+    ">>> round(c.norm_freq, 4)         # pulled onto the 0.003 residual\n"
     "0.003\n"
     ">>> c.lock_metric > 0.9\n"
     "True\n" },
@@ -612,10 +610,8 @@ static PyMethodDef CostasObj_methods[] = {
     "--------\n"
     ">>> from doppler.track import Costas\n"
     ">>> c = Costas(bn=0.05, zeta=0.707, init_norm_freq=0.01, tsamps=16)\n"
-    ">>> c.configure(0.02, 1.0)                    # narrow the loop, "
-    "over-damp\n"
-    ">>> (round(c.bn, 3), round(c.norm_freq, 3))   # new gains, estimate "
-    "kept\n"
+    ">>> c.configure(0.02, 1.0)              # narrow the loop, over-damp\n"
+    ">>> (round(c.bn, 3), round(c.norm_freq, 3))  # new gains, est kept\n"
     "(0.02, 0.01)\n" },
   { "configure_lock", (PyCFunction)(void *)CostasObj_configure_lock,
     METH_VARARGS | METH_KEYWORDS,

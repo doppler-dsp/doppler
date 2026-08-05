@@ -88,7 +88,8 @@ void imdmeas_reset(imdmeas_state_t *state);
  * >>> from doppler.measure import IMDMeasure
  * >>> import numpy as np
  * >>> t = np.arange(4096)
- * >>> # two equal tones at 200 & 250 cycles + 3rd-order products 40 dB down
+ * >>> # two equal tones at 200 & 250 cycles, plus 3rd-order
+ * >>> # products 40 dB down
  * >>> x = (np.cos(2*np.pi*200*t/4096) + np.cos(2*np.pi*250*t/4096)
  * ...      + 0.01*np.cos(2*np.pi*150*t/4096)
  * ...      + 0.01*np.cos(2*np.pi*300*t/4096)).astype(np.float32)
@@ -123,11 +124,11 @@ size_t imdmeas_spectrum_dbfs_max_out(imdmeas_state_t *state);
  * >>> import numpy as np
  * >>> t = np.arange(4096)
  * >>> x = (0.5*np.cos(2*np.pi*200*t/4096)
- * ...      + 0.5*np.cos(2*np.pi*250*t/4096)).astype(np.float32)   # two tones
- * >>> s = IMDMeasure(n=4096, fs=1.0).spectrum_dbfs(x)   # DC-centred spectrum
+ * ...      + 0.5*np.cos(2*np.pi*250*t/4096)).astype(np.float32)
+ * >>> s = IMDMeasure(n=4096, fs=1.0).spectrum_dbfs(x)  # DC-centred dBFS
  * >>> s.shape
  * (8192,)
- * >>> round(float(s.max()), 1)   # each half-scale tone splits into two images
+ * >>> round(float(s.max()), 1)   # each tone splits into two images
  * -12.0
  *
  * @endcode

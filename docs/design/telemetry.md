@@ -438,6 +438,25 @@ today, and removing footguns is the job.
 
 Two additive mechanisms, neither of which invents a format:
 
+**⚠️ BLOCKED — `fs` cannot express "not declared".** The audit's framing was
+"the ctor already has `fs`, just stop discarding it". That is wrong in one
+load-bearing detail: `objects/wfm_writer.toml` gives `fs` a default of
+**`1e6`**, so a caller who declared nothing and a caller who declared 1 MHz
+arrive identically. Writing `core:sample_rate: 1000000` for a capture whose
+rate nobody stated is the `t0 = now` fabrication in a new costume — asserting
+metadata we do not have, into a file that outlives the process.
+
+No guard fixes this from inside `close()`: skipping when `fs` equals the
+default would drop the rate from a real 1 MHz capture. The sidecar needs the
+writer to know whether `fs` was *given*. Note `fc` already defaults to `0.0`,
+so absence IS expressible there — the asymmetry is the bug.
+
+**Recommended fix, but it is an API decision:** default `fs` to `0.0` too.
+The round-trip is already coherent — the BLUE writer would emit `xdelta = 0`,
+and the reader already reads that back as `fs == 0.0` with
+`fs_source == "none"`. It is a behaviour change for anyone relying on the
+implicit 1 MHz, which is why it is not made unilaterally here.
+
 **1 — Auto-write a `.sigmf-meta` sidecar, on by default for raw/CSV.**
 doppler already reads one (`Reader` resolves `.sigmf-data` → `.sigmf-meta`
 for `core:sample_rate`) and already writes one (`close()` emits it for

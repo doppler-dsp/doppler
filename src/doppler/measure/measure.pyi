@@ -412,7 +412,7 @@ class ToneMeasure:
         >>> r = ToneMeasure(n=n, fs=1.0).analyze(x)
         >>> type(r).__name__
         'ToneMetrics'
-        >>> abs(r.fund_dbfs) < 0.1, round(r.thd, 1)   # 0 dBFS tone, THD -40 dBc
+        >>> abs(r.fund_dbfs) < 0.1, round(r.thd, 1)  # 0 dBFS tone, THD -40
         (True, -40.0)
 
         """
@@ -462,7 +462,7 @@ class ToneMeasure:
         >>> t = np.arange(4096)
         >>> x = (0.8*np.cos(2*np.pi*50*t/4096)).astype(np.float32)
         >>> ts = ToneMeasure(n=4096, fs=1.0).time_stats(x)
-        >>> round(ts.crest_db, 2), round(ts.fs_util_pct, 0)   # sine crest ~3.01 dB
+        >>> round(ts.crest_db, 2), round(ts.fs_util_pct, 0)  # crest ~3.01 dB
         (3.01, 80.0)
 
         """
@@ -495,11 +495,11 @@ class ToneMeasure:
         >>> from doppler.measure import ToneMeasure
         >>> import numpy as np
         >>> t = np.arange(4096)
-        >>> x = np.cos(2*np.pi*300*t/4096).astype(np.float32)   # full-scale tone
-        >>> s = ToneMeasure(n=4096, fs=1.0).spectrum_dbfs(x)   # DC-centred spectrum
-        >>> s.shape                              # zero-padded to next power of two
+        >>> x = np.cos(2*np.pi*300*t/4096).astype(np.float32)  # full-scale
+        >>> s = ToneMeasure(n=4096, fs=1.0).spectrum_dbfs(x)  # DC-centred dBFS
+        >>> s.shape                     # zero-padded to next power of two
         (8192,)
-        >>> round(float(s.max()), 1)   # split across two real images, ~6 dB each
+        >>> round(float(s.max()), 1)   # two real images, ~6 dB each
         -6.0
 
         """
@@ -706,11 +706,12 @@ class NPRMeasure:
         >>> n = 1 << 15
         >>> F = np.fft.rfft(rng.standard_normal(n))
         >>> f = np.fft.rfftfreq(n)
-        >>> F[(f < 0.05) | (f > 0.45)] = 0                 # band-limit to [0.05,0.45]
+        >>> F[(f < 0.05) | (f > 0.45)] = 0  # band-limit to [0.05,0.45]
         >>> F[(f >= 0.20) & (f <= 0.25)] *= 10**(-50/20)   # notch 50 dB deep
         >>> x = np.fft.irfft(F, n)
         >>> x = (0.3*x/np.std(x)).astype(np.float32)
-        >>> r = NPRMeasure(n=n, fs=1.0).analyze(x, 0.05, 0.45, 0.20, 0.25, 0.01)
+        >>> r = NPRMeasure(n=n, fs=1.0).analyze(
+        ...     x, 0.05, 0.45, 0.20, 0.25, 0.01)
         >>> 45 < r.npr_db < 55, r.notch_psd_dbfs < r.inband_psd_dbfs
         (True, True)
 
@@ -744,11 +745,11 @@ class NPRMeasure:
         >>> from doppler.measure import NPRMeasure
         >>> import numpy as np
         >>> rng = np.random.default_rng(0)
-        >>> x = (0.3*rng.standard_normal(8192)).astype(np.float32)   # noise capture
-        >>> s = NPRMeasure(n=8192, fs=1.0).spectrum_dbfs(x)      # DC-centred dBFS
-        >>> s.shape                                              # zero-padded nfft
+        >>> x = (0.3*rng.standard_normal(8192)).astype(np.float32)  # noise
+        >>> s = NPRMeasure(n=8192, fs=1.0).spectrum_dbfs(x)  # DC-centred dBFS
+        >>> s.shape                                          # zero-padded nfft
         (16384,)
-        >>> round(float(np.median(s)), 0)   # broadband floor, well below 0 dBFS
+        >>> round(float(np.median(s)), 0)   # broadband floor, below 0 dBFS
         -48.0
 
         """

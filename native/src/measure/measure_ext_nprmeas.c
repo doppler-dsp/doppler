@@ -377,15 +377,11 @@ static PyMethodDef NPRMeasureObj_methods[] = {
     ">>> from doppler.measure import NPRMeasure\n"
     ">>> import numpy as np\n"
     ">>> rng = np.random.default_rng(0)\n"
-    ">>> x = (0.3*rng.standard_normal(8192)).astype(np.float32)   # noise "
-    "capture\n"
-    ">>> s = NPRMeasure(n=8192, fs=1.0).spectrum_dbfs(x)      # DC-centred "
-    "dBFS\n"
-    ">>> s.shape                                              # zero-padded "
-    "nfft\n"
+    ">>> x = (0.3*rng.standard_normal(8192)).astype(np.float32)  # noise\n"
+    ">>> s = NPRMeasure(n=8192, fs=1.0).spectrum_dbfs(x)  # DC-centred dBFS\n"
+    ">>> s.shape                                          # zero-padded nfft\n"
     "(16384,)\n"
-    ">>> round(float(np.median(s)), 0)   # broadband floor, well below 0 "
-    "dBFS\n"
+    ">>> round(float(np.median(s)), 0)   # broadband floor, below 0 dBFS\n"
     "-48.0\n" },
   { "spectrum_dbfs_max_out", (PyCFunction)NPRMeasureObj_spectrum_dbfs_max_out,
     METH_NOARGS,

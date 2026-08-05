@@ -865,10 +865,11 @@ class Acquisition:
     >>> from doppler.wfm import PN, mls_poly
     >>> code = np.asarray(PN(poly=mls_poly(5), seed=1,
     ...                      length=5).generate(31)).astype(np.uint8)
-    >>> s0 = np.repeat(np.where(code & 1, -1.0, 1.0), 4).astype(np.complex64)
-    >>> burst = np.tile(np.roll(s0, 17), 23).astype(np.complex64)  # phase 17
+    >>> s0 = np.repeat(np.where(code & 1, -1.0, 1.0), 4).astype(
+    ...     np.complex64)
+    >>> burst = np.tile(np.roll(s0, 17), 23).astype(np.complex64)
     >>> a = Acquisition(code, spc=4, chip_rate=1e6, cn0_dbhz=50.0)
-    >>> a.push(burst)[0][:2]      # detects (Doppler-window bin, code phase)
+    >>> a.push(burst)[0][:2]    # detects (Doppler-window bin, code phase)
     (0, 17)
 
     """
@@ -901,10 +902,11 @@ class Acquisition:
         >>> from doppler.wfm import PN, mls_poly
         >>> code = np.asarray(PN(poly=mls_poly(5), seed=1,
         ...                      length=5).generate(31)).astype(np.uint8)
-        >>> s0 = np.repeat(np.where(code & 1, -1.0, 1.0), 4).astype(np.complex64)
+        >>> s0 = np.repeat(np.where(code & 1, -1.0, 1.0), 4).astype(
+        ...     np.complex64)
         >>> burst = np.tile(np.roll(s0, 17), 23).astype(np.complex64)
         >>> a = Acquisition(code, spc=4, chip_rate=1e6, cn0_dbhz=50.0)
-        >>> _ = a.push(burst[:100])   # a partial frame, now buffered mid-stream
+        >>> _ = a.push(burst[:100])   # a partial frame, buffered mid-stream
         >>> a.reset()                 # drop it before it can bias a detection
         >>> a.push(burst)[0][:2]      # (Doppler bin, code phase)
         (0, 17)
@@ -942,7 +944,8 @@ class Acquisition:
         >>> from doppler.wfm import PN, mls_poly
         >>> code = np.asarray(PN(poly=mls_poly(5), seed=1,
         ...                      length=5).generate(31)).astype(np.uint8)
-        >>> s0 = np.repeat(np.where(code & 1, -1.0, 1.0), 4).astype(np.complex64)
+        >>> s0 = np.repeat(np.where(code & 1, -1.0, 1.0), 4).astype(
+        ...     np.complex64)
         >>> a = Acquisition(code, spc=4, chip_rate=1e6, cn0_dbhz=50.0,
         ...                 doppler_uncertainty=40e3)
         >>> fs = 1e6 * 4                    # sample rate = chip_rate * spc
@@ -991,7 +994,8 @@ class Acquisition:
         >>> from doppler.wfm import PN, mls_poly
         >>> code = np.asarray(PN(poly=mls_poly(5), seed=1,
         ...                      length=5).generate(31)).astype(np.uint8)
-        >>> s0 = np.repeat(np.where(code & 1, -1.0, 1.0), 4).astype(np.complex64)
+        >>> s0 = np.repeat(np.where(code & 1, -1.0, 1.0), 4).astype(
+        ...     np.complex64)
         >>> a = Acquisition(code, spc=4, chip_rate=1e6, cn0_dbhz=50.0)
         >>> a.configure_search_raw(doppler_bins=1, n_noncoh=4)  # pin the grid
         >>> a.doppler_bins, a.n_noncoh
@@ -1254,8 +1258,9 @@ class BurstAcquisition:
     >>> from doppler.wfm import PN, mls_poly
     >>> code = np.asarray(PN(poly=mls_poly(5), seed=1,
     ...                      length=5).generate(31)).astype(np.uint8)
-    >>> s0 = np.repeat(np.where(code & 1, -1.0, 1.0), 4).astype(np.complex64)
-    >>> burst = np.tile(np.roll(s0, 17), 24).astype(np.complex64)  # phase 17
+    >>> s0 = np.repeat(np.where(code & 1, -1.0, 1.0), 4).astype(
+    ...     np.complex64)
+    >>> burst = np.tile(np.roll(s0, 17), 24).astype(np.complex64)
     >>> b = BurstAcquisition(code, reps=8, spc=4, chip_rate=1e6,
     ...                      cn0_dbhz=50.0)
     >>> b.push(burst)[0][:2]      # detects (Doppler bin, code phase)
@@ -1290,11 +1295,12 @@ class BurstAcquisition:
         >>> from doppler.wfm import PN, mls_poly
         >>> code = np.asarray(PN(poly=mls_poly(5), seed=1,
         ...                      length=5).generate(31)).astype(np.uint8)
-        >>> s0 = np.repeat(np.where(code & 1, -1.0, 1.0), 4).astype(np.complex64)
+        >>> s0 = np.repeat(np.where(code & 1, -1.0, 1.0), 4).astype(
+        ...     np.complex64)
         >>> burst = np.tile(np.roll(s0, 17), 24).astype(np.complex64)
         >>> b = BurstAcquisition(code, reps=8, spc=4, chip_rate=1e6,
         ...                      cn0_dbhz=50.0)
-        >>> _ = b.push(burst[:100])   # a partial frame, now buffered mid-stream
+        >>> _ = b.push(burst[:100])   # a partial frame, buffered mid-stream
         >>> b.reset()                 # drop it before it can bias a detection
         >>> b.push(burst)[0][:2]      # (Doppler bin, code phase)
         (0, 17)
@@ -1329,7 +1335,8 @@ class BurstAcquisition:
         >>> from doppler.wfm import PN, mls_poly
         >>> code = np.asarray(PN(poly=mls_poly(5), seed=1,
         ...                      length=5).generate(31)).astype(np.uint8)
-        >>> s0 = np.repeat(np.where(code & 1, -1.0, 1.0), 4).astype(np.complex64)
+        >>> s0 = np.repeat(np.where(code & 1, -1.0, 1.0), 4).astype(
+        ...     np.complex64)
         >>> burst = np.tile(np.roll(s0, 17), 24).astype(np.complex64)
         >>> b = BurstAcquisition(code, reps=8, spc=4, chip_rate=1e6,
         ...                      cn0_dbhz=50.0)
@@ -1372,7 +1379,8 @@ class BurstAcquisition:
         >>> from doppler.wfm import PN, mls_poly
         >>> code = np.asarray(PN(poly=mls_poly(5), seed=1,
         ...                      length=5).generate(31)).astype(np.uint8)
-        >>> s0 = np.repeat(np.where(code & 1, -1.0, 1.0), 4).astype(np.complex64)
+        >>> s0 = np.repeat(np.where(code & 1, -1.0, 1.0), 4).astype(
+        ...     np.complex64)
         >>> b = BurstAcquisition(code, reps=8, spc=4, chip_rate=1e6,
         ...                      cn0_dbhz=50.0)
         >>> b.configure_search_raw(doppler_bins=4, n_noncoh=2)  # pin the grid

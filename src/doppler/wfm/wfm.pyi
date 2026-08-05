@@ -95,18 +95,14 @@ class PN:
 
         """
 
-    def generate_max_out(self, n: int) -> int:
-        """Largest number of samples generate() can return for n inputs.
+    def generate_max_out(self) -> int:
+        """Largest number of samples generate() can return in the current
+        state.
 
         Size an `out=` buffer with this before calling generate(), or use it to
         allocate one up front. The bound is this object's own: what it depends
         on is a property of the algorithm, so a header block on
         generate_max_out() replaces this text.
-
-        Parameters
-        ----------
-        n : int
-            Number of input samples generate() will be given.
 
         Returns
         -------
@@ -674,18 +670,14 @@ class Gold:
 
         """
 
-    def generate_max_out(self, n: int) -> int:
-        """Largest number of samples generate() can return for n inputs.
+    def generate_max_out(self) -> int:
+        """Largest number of samples generate() can return in the current
+        state.
 
         Size an `out=` buffer with this before calling generate(), or use it to
         allocate one up front. The bound is this object's own: what it depends
         on is a property of the algorithm, so a header block on
         generate_max_out() replaces this text.
-
-        Parameters
-        ----------
-        n : int
-            Number of input samples generate() will be given.
 
         Returns
         -------

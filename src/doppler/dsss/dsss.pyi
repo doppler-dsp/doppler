@@ -2193,18 +2193,13 @@ class DsssReceiver:
 
         """
 
-    def steps_max_out(self, x_len: int) -> int:
-        """Largest number of samples steps() can return for x_len inputs.
+    def steps_max_out(self) -> int:
+        """Largest number of samples steps() can return in the current state.
 
         Size an `out=` buffer with this before calling steps(), or use it to
         allocate one up front. The bound is this object's own: what it depends
         on is a property of the algorithm, so a header block on steps_max_out()
         replaces this text.
-
-        Parameters
-        ----------
-        x_len : int
-            Number of input samples steps() will be given.
 
         Returns
         -------
@@ -2712,18 +2707,13 @@ class AsyncDsssReceiver:
 
         """
 
-    def steps_max_out(self, x_len: int) -> int:
-        """Largest number of samples steps() can return for x_len inputs.
+    def steps_max_out(self) -> int:
+        """Largest number of samples steps() can return in the current state.
 
         Size an `out=` buffer with this before calling steps(), or use it to
         allocate one up front. The bound is this object's own: what it depends
         on is a property of the algorithm, so a header block on steps_max_out()
         replaces this text.
-
-        Parameters
-        ----------
-        x_len : int
-            Number of input samples steps() will be given.
 
         Returns
         -------

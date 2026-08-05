@@ -66,7 +66,12 @@ class SampleClock:
         int
             Output.
         """
-    def track(self, observed_timestamp_ns: int, n_at_observation: int, tolerance_ns: int) -> int:
+    def track(
+        self,
+        observed_timestamp_ns: int,
+        n_at_observation: int,
+        tolerance_ns: int,
+    ) -> int:
         """Reconcile c's epoch_real_ns against one OBSERVED (timestamp, sample
         index) pair read off an incoming stream header — the receive-side dual
         of pace()'s resync: instead of sleeping toward a deadline, this adopts

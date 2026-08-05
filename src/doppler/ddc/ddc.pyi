@@ -734,14 +734,9 @@ class Ddcr:
 
         """
 
-    def execute_max_out(self, x_len: int) -> int:
+    def execute_max_out(self) -> int:
         """Upper bound on one execute call's output, or 0 to let the caller
         size it from the input block (a decimator never exceeds its input).
-
-        Parameters
-        ----------
-        x_len : int
-            Input.
 
         Returns
         -------
@@ -1075,14 +1070,9 @@ class MatchedDdcr:
 
         """
 
-    def execute_max_out(self, x_len: int) -> int:
+    def execute_max_out(self) -> int:
         """Upper bound on one execute call's output, or 0 to let the caller
         size it from the input block (a decimator never exceeds its input).
-
-        Parameters
-        ----------
-        x_len : int
-            Input.
 
         Returns
         -------

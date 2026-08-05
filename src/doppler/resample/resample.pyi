@@ -62,13 +62,8 @@ class Resampler:
 
         """
 
-    def execute_max_out(self, x_len: int) -> int:
+    def execute_max_out(self) -> int:
         """Always returns RESAMPLER_MAX_OUT.
-
-        Parameters
-        ----------
-        x_len : int
-            Input.
 
         Returns
         -------
@@ -340,13 +335,8 @@ class HalfbandDecimator:
 
         """
 
-    def execute_max_out(self, x_len: int) -> int:
+    def execute_max_out(self) -> int:
         """Always returns HBDECIM_MAX_OUT.
-
-        Parameters
-        ----------
-        x_len : int
-            Input.
 
         Returns
         -------
@@ -601,7 +591,7 @@ class CIC:
 
         """
 
-    def decimate_max_out(self, n_in: int) -> int:
+    def decimate_max_out(self) -> int:
         """Upper bound on decimate output — returns 0 (lazy-alloc signal).
 
         The Python extension allocates n_in elements on the first call.
@@ -609,11 +599,6 @@ class CIC:
         Since n_in >= ceil(n_in/R) = n_out for all R >= 1, the buffer is
 
         always large enough as long as block size stays consistent.
-
-        Parameters
-        ----------
-        n_in : int
-            Input.
 
         Returns
         -------
@@ -798,17 +783,12 @@ class RateConverter:
 
         """
 
-    def execute_max_out(self, x_len: int) -> int:
+    def execute_max_out(self) -> int:
         """Upper bound on execute output for a standard 65536-sample block.
 
         Returns (size_t)(65536 * max(rate, 1.0)) + 2. The Python extension uses
 
         this to pre-allocate the output buffer on the first execute call.
-
-        Parameters
-        ----------
-        x_len : int
-            Input.
 
         Returns
         -------
@@ -1156,17 +1136,12 @@ class MatchedRateConverter:
 
         """
 
-    def execute_max_out(self, x_len: int) -> int:
+    def execute_max_out(self) -> int:
         """Upper bound on execute output for a standard 65536-sample block.
 
         Returns (size_t)(65536 * max(rate, 1.0)) + 2. The Python extension uses
 
         this to pre-allocate the output buffer on the first execute call.
-
-        Parameters
-        ----------
-        x_len : int
-            Input.
 
         Returns
         -------
@@ -1724,18 +1699,13 @@ class HalfbandDecimatorQ15:
 
         """
 
-    def execute_max_out(self, x_len: int) -> int:
+    def execute_max_out(self) -> int:
         """Maximum output samples for a given input length.
 
         Returns 0 to trigger the lazy-alloc path in the Python glue: the
 
         output buffer is sized to n_in on first call (always sufficient for
         2:1).
-
-        Parameters
-        ----------
-        x_len : int
-            Input.
 
         Returns
         -------

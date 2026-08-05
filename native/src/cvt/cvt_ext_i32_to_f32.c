@@ -207,8 +207,7 @@ static PyMethodDef I32ToF32Obj_methods[] = {
     "Examples\n"
     "--------\n"
     ">>> from doppler.cvt import I32ToF32\n"
-    ">>> c = I32ToF32(scale=2147483648.0)  # 2**31: full-range int32 -> [-1, "
-    "1)\n"
+    ">>> c = I32ToF32(scale=2147483648.0)  # 2**31: int32 -> [-1, 1)\n"
     ">>> round(c.step(2**30), 4)            # quarter-scale code -> 0.5\n"
     "0.5\n"
     ">>> round(c.step(-2**31), 4)           # full-negative code -> -1.0\n"
@@ -236,8 +235,8 @@ static PyMethodDef I32ToF32Obj_methods[] = {
     "--------\n"
     ">>> from doppler.cvt import I32ToF32\n"
     ">>> import numpy as np\n"
-    ">>> I32ToF32().steps(np.array([0, 2**30, -2**31], "
-    "dtype=np.int32)).tolist()\n"
+    ">>> I32ToF32().steps(\n"
+    "...     np.array([0, 2**30, -2**31], dtype=np.int32)).tolist()\n"
     "[0.0, 0.5, -1.0]\n"
     "\n" },
 

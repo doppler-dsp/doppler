@@ -178,7 +178,7 @@ static PyMethodDef mpsk_module_methods[] = {
      "--------\n"
      ">>> import numpy as np\n"
      ">>> from doppler.mpsk import mpsk_demap\n"
-     ">>> x = np.array([1+0j, 1j, -1+0j, -1j], dtype=np.complex64)   # 8PSK points\n"
+     ">>> x = np.array([1+0j, 1j, -1+0j, -1j], dtype=np.complex64)  # 8PSK\n"
      ">>> mpsk_demap(x, 8).tolist()   # Gray labels of indices 0, 2, 4, 6\n"
      "[0, 3, 6, 5]\n"},
     {"mpsk_diff_map", (PyCFunction)(void *)_bind_mpsk_diff_map, METH_VARARGS | METH_KEYWORDS,
@@ -211,8 +211,8 @@ static PyMethodDef mpsk_module_methods[] = {
      ">>> pts = mpsk_diff_map(sym, 4)\n"
      ">>> np.array_equal(mpsk_diff_demap(pts, 4), sym)   # exact round-trip\n"
      "True\n"
-     ">>> rot = (pts * np.exp(1j * np.pi / 2)).astype(np.complex64)  # 90 deg slip\n"
-     ">>> np.array_equal(mpsk_diff_demap(rot, 4)[1:], sym[1:])   # rotation-invariant\n"
+     ">>> rot = (pts * np.exp(1j * np.pi / 2)).astype(np.complex64)  # slip\n"
+     ">>> np.array_equal(mpsk_diff_demap(rot, 4)[1:], sym[1:])  # invariant\n"
      "True\n"},
     {"mpsk_diff_demap", (PyCFunction)(void *)_bind_mpsk_diff_demap, METH_VARARGS | METH_KEYWORDS,
      "Differential M-PSK demap: decide from the phase DIFFERENCE.\n"

@@ -92,6 +92,12 @@ dev = [
     "pytest<9; python_version == '3.9'",
     "pytest-benchmark>=5.2.3",
     "pytest-cov>=6.0",
+    # Parallel test execution. The suite is embarrassingly parallel across
+    # module directories; the .pyi doctest gate is parallel across FILES but
+    # never finer — a text-mode .pyi shares one doctest namespace for the
+    # whole file, so splitting inside one would break name bindings that
+    # earlier examples in the same file established.
+    "pytest-xdist>=3.6",
     # scipy / matplotlib follow their own Python floors (used only for tests,
     # benchmarks and the gallery — not shipped to end users).
     "scipy>=1.17.1; python_version >= '3.11'",

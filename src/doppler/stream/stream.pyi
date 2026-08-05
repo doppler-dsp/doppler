@@ -206,7 +206,7 @@ class Publisher:
 
     >>> import numpy as np, time                        # doctest: +SKIP
     >>> from doppler.stream import Subscriber           # doctest: +SKIP
-    >>> pub = Publisher("nats://127.0.0.1:4222/iq", CF64)           # doctest: +SKIP
+    >>> pub = Publisher("nats://127.0.0.1:4222/iq", CF64)  # doctest: +SKIP
     >>> sub = Subscriber("nats://127.0.0.1:4222/iq")        # doctest: +SKIP
     >>> time.sleep(0.1)                                 # doctest: +SKIP
     >>> pub.send(np.array([1+2j, 3+4j],                # doctest: +SKIP
@@ -296,7 +296,7 @@ class Publisher:
         --------
         >>> from doppler.stream import Publisher, CF64  # doctest: +SKIP
         >>> import numpy as np, time                    # doctest: +SKIP
-        >>> pub = Publisher("nats://127.0.0.1:4222/iq", CF64)       # doctest: +SKIP
+        >>> pub = Publisher("nats://127.0.0.1:4222/iq", CF64)  # doctest: +SKIP
         >>> pub.send(np.ones(4, dtype=np.complex128),   # doctest: +SKIP
         ...          sample_rate=int(48000),             # doctest: +SKIP
         ...          center_freq=int(433e6))             # doctest: +SKIP
@@ -861,8 +861,8 @@ class Requester:
 
     >>> import numpy as np, time                            # doctest: +SKIP
     >>> from doppler.stream import Replier                  # doctest: +SKIP
-    >>> rep = Replier("nats://127.0.0.1:4222/ctrl", CF64)                 # doctest: +SKIP
-    >>> req = Requester("nats://127.0.0.1:4222/ctrl", CF64)       # doctest: +SKIP
+    >>> rep = Replier("nats://127.0.0.1:4222/ctrl", CF64)  # doctest: +SKIP
+    >>> req = Requester("nats://127.0.0.1:4222/ctrl", CF64)  # doctest: +SKIP
     >>> time.sleep(0.05)                                    # doctest: +SKIP
     >>> req.send(np.ones(4, dtype=np.complex128),           # doctest: +SKIP
     ...          sample_rate=int(1e6))                      # doctest: +SKIP
@@ -1060,7 +1060,7 @@ class Replier:
 
     >>> from doppler.stream import Requester            # doctest: +SKIP
     >>> import numpy as np, time                        # doctest: +SKIP
-    >>> rep = Replier("nats://127.0.0.1:4222/ctrl", CF64)             # doctest: +SKIP
+    >>> rep = Replier("nats://127.0.0.1:4222/ctrl", CF64)  # doctest: +SKIP
     >>> req = Requester("nats://127.0.0.1:4222/ctrl", CF64)   # doctest: +SKIP
     >>> time.sleep(0.05)                                # doctest: +SKIP
     >>> req.send(np.ones(4, dtype=np.complex128))       # doctest: +SKIP
@@ -1134,7 +1134,7 @@ class Replier:
         Examples
         --------
         >>> from doppler.stream import Replier, CF64    # doctest: +SKIP
-        >>> rep = Replier("nats://127.0.0.1:4222/ctrl", CF64)         # doctest: +SKIP
+        >>> rep = Replier("nats://127.0.0.1:4222/ctrl", CF64)  # doctest: +SKIP
         >>> request, hdr = rep.recv(timeout_ms=5000)    # doctest: +SKIP
         >>> rep.send(request,                           # doctest: +SKIP
         ...          sample_rate=hdr["sample_rate"])    # doctest: +SKIP
@@ -1187,7 +1187,7 @@ class Replier:
         --------
         >>> from doppler.stream import Replier, CF64    # doctest: +SKIP
         >>> import numpy as np                          # doctest: +SKIP
-        >>> rep = Replier("nats://127.0.0.1:4222/ctrl", CF64)         # doctest: +SKIP
+        >>> rep = Replier("nats://127.0.0.1:4222/ctrl", CF64)  # doctest: +SKIP
         >>> request, hdr = rep.recv(timeout_ms=5000)    # doctest: +SKIP
         >>> rep.send(np.zeros_like(request),            # doctest: +SKIP
         ...          sample_rate=hdr["sample_rate"])    # doctest: +SKIP

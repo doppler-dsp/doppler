@@ -212,8 +212,7 @@ static PyMethodDef I16U64ToF32Obj_methods[] = {
     ">>> c = I16U64ToF32(scale=32768.0)\n"
     ">>> round(c.step(16384), 4)         # low-16 Q15 16384 -> 0.5\n"
     "0.5\n"
-    ">>> round(c.step(0x8000), 4)        # 0x8000 reinterpreted as -32768 -> "
-    "-1.0\n"
+    ">>> round(c.step(0x8000), 4)     # 0x8000 read as -32768 -> -1.0\n"
     "-1.0\n"
     "\n" },
   { "steps", (PyCFunction)(void *)I16U64ToF32_steps,

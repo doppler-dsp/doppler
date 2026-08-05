@@ -523,7 +523,8 @@ int wfm_synth_set_dsss_cont(wfm_synth_state_t *state, const uint8_t *code,
  * @code
  * >>> import numpy as np
  * >>> from doppler.wfm import _SynthEngine, rrc_taps
- * >>> s = _SynthEngine(type="symbols", fs=1.0, freq=0.0, snr=100.0, sps=4)
+ * >>> s = _SynthEngine(
+ * ...     type="symbols", fs=1.0, freq=0.0, snr=100.0, sps=4)
  * >>> s.set_symbols(np.array([1+0j, 1j, -1+0j, -1j], np.complex64))
  * >>> s.steps(4)[::4].tolist()   # symbol centres (rect hold)
  * [(1+0j), (1+0j), (1+0j), (1+0j)]

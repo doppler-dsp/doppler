@@ -117,7 +117,7 @@ void f32_to_i16_reset(f32_to_i16_state_t *state);
  * >>> c = F32ToI16(scale=32768.0)   # normalised float -> full-scale Q15
  * >>> c.step(0.5)                    # 0.5 * 32768
  * 16384
- * >>> c.step(2.0)                    # beyond +1.0 -> saturates to int16 max
+ * >>> c.step(2.0)                 # beyond +1.0 -> saturates to max
  * 32767
  * >>> c.clipped                      # sticky flag latched by the clip
  * True
@@ -152,7 +152,7 @@ f32_to_i16_step(f32_to_i16_state_t *state, float x)
  * >>> from doppler.cvt import F32ToI16
  * >>> import numpy as np
  * >>> x = np.array([0.0, 0.5, -1.0, 0.999], dtype=np.float32)
- * >>> F32ToI16().steps(x).tolist()   # default scale=32768 -> full-scale int16
+ * >>> F32ToI16().steps(x).tolist()   # scale=32768 -> full-scale i16
  * [0, 16384, -32768, 32735]
  *
  * @endcode

@@ -310,8 +310,8 @@ static PyMethodDef F32ToI16U64Obj_methods[] = {
     "--------\n"
     ">>> from doppler.cvt import F32ToI16U64\n"
     ">>> import numpy as np\n"
-    ">>> F32ToI16U64().steps(np.array([0.0, 0.5], "
-    "dtype=np.float32)).tolist()\n"
+    ">>> F32ToI16U64().steps(\n"
+    "...     np.array([0.0, 0.5], dtype=np.float32)).tolist()\n"
     "[0, 16384]\n"
     "\n" },
 

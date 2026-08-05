@@ -57,7 +57,7 @@ def mpsk_demap(x: NDArray[np.complex64], m: int = 4) -> NDArray[np.uint8]:
     --------
     >>> import numpy as np
     >>> from doppler.mpsk import mpsk_demap
-    >>> x = np.array([1+0j, 1j, -1+0j, -1j], dtype=np.complex64)   # 8PSK points
+    >>> x = np.array([1+0j, 1j, -1+0j, -1j], dtype=np.complex64)  # 8PSK
     >>> mpsk_demap(x, 8).tolist()   # Gray labels of indices 0, 2, 4, 6
     [0, 3, 6, 5]
 
@@ -93,8 +93,8 @@ def mpsk_diff_map(sym: NDArray[np.uint8], m: int = 4) -> NDArray[np.complex64]:
     >>> pts = mpsk_diff_map(sym, 4)
     >>> np.array_equal(mpsk_diff_demap(pts, 4), sym)   # exact round-trip
     True
-    >>> rot = (pts * np.exp(1j * np.pi / 2)).astype(np.complex64)  # 90 deg slip
-    >>> np.array_equal(mpsk_diff_demap(rot, 4)[1:], sym[1:])   # rotation-invariant
+    >>> rot = (pts * np.exp(1j * np.pi / 2)).astype(np.complex64)  # slip
+    >>> np.array_equal(mpsk_diff_demap(rot, 4)[1:], sym[1:])  # invariant
     True
 
     """

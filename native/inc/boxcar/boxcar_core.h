@@ -26,10 +26,10 @@
  * @code
  * >>> import numpy as np
  * >>> from doppler.filter import MovingAverage
- * >>> ma = MovingAverage(2)                       # 2-sample window, unit gain
+ * >>> ma = MovingAverage(2)              # 2-sample window, unit gain
  * >>> ma.steps(np.ones(3, np.complex64)).real.tolist()
  * [0.5, 1.0, 1.0]
- * >>> ma2 = MovingAverage(2, gain=2.0)            # gain folded into the mean
+ * >>> ma2 = MovingAverage(2, gain=2.0)   # gain folded into the mean
  * >>> ma2.steps(np.ones(3, np.complex64)).real.tolist()
  * [1.0, 2.0, 2.0]
  * @endcode

@@ -235,8 +235,8 @@ static PyMethodDef I16ToF32Obj_methods[] = {
     "--------\n"
     ">>> from doppler.cvt import I16ToF32\n"
     ">>> import numpy as np\n"
-    ">>> I16ToF32().steps(np.array([0, 16384, -32768], "
-    "dtype=np.int16)).tolist()\n"
+    ">>> I16ToF32().steps(\n"
+    "...     np.array([0, 16384, -32768], dtype=np.int16)).tolist()\n"
     "[0.0, 0.5, -1.0]\n"
     "\n" },
 

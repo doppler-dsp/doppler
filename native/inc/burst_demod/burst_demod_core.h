@@ -106,7 +106,8 @@ extern "C"
    * >>> from doppler.dsss import BurstDemod
    * >>> spc, acq_sf, reps, data_sf = 4, 500, 5, 50
    * >>> sync = np.array([0, 0, 0, 0, 0, 1, 1, 0, 0, 1, 0, 1, 0], np.uint8)
-   * >>> acode = ((np.arange(acq_sf) * 2654435761 >> 13) & 1).astype(np.uint8)
+   * >>> acode = ((np.arange(acq_sf) * 2654435761 >> 13) & 1).astype(
+   * ...     np.uint8)
    * >>> dcode = ((np.arange(data_sf) * 40503 >> 7) & 1).astype(np.uint8)
    * >>> payload = ((np.arange(64) * 7 + 3) & 1).astype(np.uint8)
    * >>> def crc16(bits):
@@ -131,7 +132,7 @@ extern "C"
    * >>> d.set_preamble(acode, reps)   # unmodulated (f0, rate) preamble
    * >>> d.set_sync(sync)              # Barker-13 frame-sync word
    * >>> d.set_prior(f0, 0)           # coarse Doppler + preamble start
-   * >>> bits = d.demod(x)           # estimate -> dechirp -> despread -> slice
+   * >>> bits = d.demod(x)      # estimate -> dechirp -> despread -> slice
    * >>> int(d.frame_valid), bool(np.array_equal(bits, payload))
    * (1, True)
    *
@@ -276,7 +277,8 @@ extern "C"
    * >>> from doppler.dsss import BurstDemod
    * >>> spc, acq_sf, reps, data_sf = 4, 500, 5, 50
    * >>> sync = np.array([0, 0, 0, 0, 0, 1, 1, 0, 0, 1, 0, 1, 0], np.uint8)
-   * >>> acode = ((np.arange(acq_sf) * 2654435761 >> 13) & 1).astype(np.uint8)
+   * >>> acode = ((np.arange(acq_sf) * 2654435761 >> 13) & 1).astype(
+   * ...     np.uint8)
    * >>> dcode = ((np.arange(data_sf) * 40503 >> 7) & 1).astype(np.uint8)
    * >>> payload = ((np.arange(64) * 7 + 3) & 1).astype(np.uint8)
    * >>> def crc16(bits):

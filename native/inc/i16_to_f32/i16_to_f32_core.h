@@ -73,7 +73,7 @@ void i16_to_f32_destroy(i16_to_f32_state_t *state);
  * @code
  * >>> from doppler.cvt import I16ToF32
  * >>> c = I16ToF32()
- * >>> c.reset()             # stateless converter -> reset changes nothing
+ * >>> c.reset()           # stateless converter -> reset is a no-op
  * >>> round(c.step(-32768), 4)
  * -1.0
  *
@@ -123,7 +123,8 @@ i16_to_f32_step(const i16_to_f32_state_t *state, int16_t x)
  * @code
  * >>> from doppler.cvt import I16ToF32
  * >>> import numpy as np
- * >>> I16ToF32().steps(np.array([0, 16384, -32768], dtype=np.int16)).tolist()
+ * >>> I16ToF32().steps(
+ * ...     np.array([0, 16384, -32768], dtype=np.int16)).tolist()
  * [0.0, 0.5, -1.0]
  *
  * @endcode

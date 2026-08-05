@@ -307,8 +307,8 @@ static PyMethodDef F32ToUQ15Obj_methods[] = {
     "--------\n"
     ">>> from doppler.cvt import F32ToUQ15\n"
     ">>> import numpy as np\n"
-    ">>> F32ToUQ15().steps(np.array([-1.0, 0.0, 0.999], "
-    "dtype=np.float32)).tolist()\n"
+    ">>> F32ToUQ15().steps(\n"
+    "...     np.array([-1.0, 0.0, 0.999], dtype=np.float32)).tolist()\n"
     "[0, 32768, 65503]\n"
     "\n" },
 

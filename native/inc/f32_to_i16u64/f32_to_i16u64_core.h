@@ -146,7 +146,8 @@ f32_to_i16u64_step(f32_to_i16u64_state_t *state, float x)
  * @code
  * >>> from doppler.cvt import F32ToI16U64
  * >>> import numpy as np
- * >>> F32ToI16U64().steps(np.array([0.0, 0.5], dtype=np.float32)).tolist()
+ * >>> F32ToI16U64().steps(
+ * ...     np.array([0.0, 0.5], dtype=np.float32)).tolist()
  * [0, 16384]
  *
  * @endcode

@@ -227,7 +227,7 @@ extern "C"
    * >>> import numpy as np
    * >>> from doppler.detection import LockDet
    * >>> d = LockDet(up_thresh=1.5, down_thresh=1.2, n_up=2, n_down=2)
-   * >>> x = np.array([2.0, 2.0, 1.0, 2.0])   # declares on the 2nd straight hit
+   * >>> x = np.array([2.0, 2.0, 1.0, 2.0])   # declares on the 2nd hit
    * >>> d.steps(x).tolist()
    * [0, 1, 1, 1]
    *

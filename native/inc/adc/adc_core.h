@@ -117,9 +117,9 @@ void adc_destroy(adc_state_t *state);
  * @code
  * >>> from doppler.cvt import ADC
  * >>> adc = ADC(bits=8, dbfs=0.0, dithering=0)
- * >>> adc.step(9.0)            # beyond full scale -> saturates, latches clip
+ * >>> adc.step(9.0)          # beyond full scale -> saturates, clips
  * 127
- * >>> adc.reset()             # clear clip history and re-seed the dither PRNG
+ * >>> adc.reset()           # clear clips, re-seed the dither PRNG
  * >>> adc.clipped
  * False
  *
@@ -142,7 +142,7 @@ void adc_reset(adc_state_t *state);
  *
  * @code
  * >>> from doppler.cvt import ADC
- * >>> adc = ADC(bits=8, dbfs=0.0, dithering=0)  # 8-bit, full scale at 0 dBFS
+ * >>> adc = ADC(bits=8, dbfs=0.0, dithering=0)  # 8-bit, FS at 0 dBFS
  * >>> adc.step(0.5)            # 0.5 * 128 codes
  * 64
  * >>> adc.step(2.0)            # beyond full scale -> clamps to +127

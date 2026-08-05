@@ -74,7 +74,7 @@ void i8_to_f32_destroy(i8_to_f32_state_t *state);
  * @code
  * >>> from doppler.cvt import I8ToF32
  * >>> c = I8ToF32()
- * >>> c.reset()             # stateless converter -> reset changes nothing
+ * >>> c.reset()           # stateless converter -> reset is a no-op
  * >>> round(c.step(-128), 4)
  * -1.0
  *

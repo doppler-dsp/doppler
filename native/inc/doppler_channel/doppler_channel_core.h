@@ -257,7 +257,7 @@ size_t doppler_channel_execute_max_out(doppler_channel_state_t *state);
  * >>> from doppler.impairment import DopplerChannel
  * >>> ch = DopplerChannel(fs=1e6, carrier_hz=2.5e9, doppler_ppm=20.0)
  * >>> y = ch.execute(np.ones(1000, dtype=np.complex64))
- * >>> y.shape                   # ~ 1000 / (1 + 20e-6): the time-base dilation
+ * >>> y.shape                   # ~ 1000 / (1 + 20e-6): time dilation
  * (999,)
  * >>> round(ch.offset_hz, 1)    # fc * d = 2.5e9 * 20e-6, in Hz
  * 50000.0

@@ -375,7 +375,8 @@ extern "C"
    * >>> b = rx.bits(tx)                                 # 1 hard bit/symbol
    * >>> b.size
    * 2997
-   * >>> # settled tail matches the payload up to the BPSK inversion ambiguity
+   * >>> # settled tail matches the payload, up to the BPSK
+   * >>> # inversion ambiguity
    * >>> tail = np.mean(b[1000:2000] != idx[1000:2000])
    * >>> round(float(min(tail, 1 - tail)), 3)
    * 0.0
@@ -425,7 +426,7 @@ extern "C"
    * >>> rx = MpskReceiver(m=4, sps=4, m_out=2, acq_to_track=1)
    * >>> rx.tracking
    * 0
-   * >>> rx.configure_lock(0.9, 0.72, 4, 16)   # tighter declare, faster drop
+   * >>> rx.configure_lock(0.9, 0.72, 4, 16)   # tighter declare, fast drop
    *
    * @endcode
    */
@@ -455,7 +456,7 @@ extern "C"
    * >>> import numpy as np
    * >>> from doppler.track import MpskReceiver
    * >>> from doppler.telemetry import Telemetry
-   * >>> tlm = Telemetry(1 << 14)   # 11 probes x ~512 symbols, with headroom
+   * >>> tlm = Telemetry(1 << 14)   # 11 probes x ~512 syms + headroom
    * >>> rx = MpskReceiver(m=4, sps=4, m_out=2)
    * >>> rx.set_telemetry(tlm, "rx")
    * >>> len(tlm.probe_names())

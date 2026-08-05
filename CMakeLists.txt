@@ -477,6 +477,17 @@ target_include_directories(test_dp_isotime
 target_compile_options(test_dp_isotime PRIVATE -O2)
 add_test(NAME test_dp_isotime COMMAND test_dp_isotime)
 
+# native/inc/wfm/wfm_time.h is the BLUE timecode <-> UNIX epoch conversion,
+# shared by wfm_reader and wfm_writer (separate components, so header-only)
+# and belonging to no object. Its test is mostly about the judgement around
+# the offset rather than the offset: a zero timecode is UNSET, not 1950, and
+# a pre-1970 capture must refuse rather than wrap into a future timestamp.
+add_executable(test_wfm_time native/tests/test_wfm_time.c)
+target_include_directories(test_wfm_time
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
+target_compile_options(test_wfm_time PRIVATE -O2)
+add_test(NAME test_wfm_time COMMAND test_wfm_time)
+
 # ── Hand-managed modules (not controlled by just-makeit) ─────────────────────
 
 # ── Vendored nats.c (static, PIC) ────────────────────────────────────────────

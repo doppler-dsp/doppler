@@ -439,17 +439,49 @@ constraints make it safe:
     ISO 8601 is illegal on Windows and FAT and awkward in shells, and the
     convention already exists rather than needing to be declared here:
     `src/just_bashit/datetime.sh` generates "path and file-name-friendly
-    characters only", `YYYYMMDDThhmmss[.fff[fff]]Z`. doppler's C side must
-    emit **byte-identical** output (`strftime`, not a reimplementation of the
-    rules) so a name written by a doppler tool and one written by a bash tool
-    sort and parse the same. **Milliseconds are the floor, not the default
-    seconds** — `tnow` is the uniquifier, and two captures written in the same
-    second would collide; that is what the helper's `-m`/`-u`/`-n` precision
-    flags exist for.
+    characters only", `YYYYMMDDThhmmss[.fff[fff]]Z`. **Milliseconds are the
+    floor, not the default seconds** — `tnow` is the uniquifier, and two
+    captures written in the same second would collide; that is what the
+    helper's `-m`/`-u`/`-n` flags exist for.
+
+    **just-bashit is the format specification, not the implementation.**
+    doppler formats in C from `clock_gettime(CLOCK_REALTIME)` + `gmtime_r` +
+    `strftime`. It must *not* shell out to the helper: that would put file
+    naming behind a runtime `bash` + `just-bashit` + `date`/`gdate` lookup on
+    `PATH` — the same resolution-dependent class of bug as a CWD-sensitive
+    formatter command — in a library shipped as a wheel, with a fork/exec per
+    file and the Rust bindings inheriting the dependency. The syscall has no
+    runtime dependency and hands back the nanoseconds the sub-second field
+    needs anyway.
+
+    Code cannot be shared between a bash library and a C one, so the
+    agreement is gated by **committed golden vectors** rather than asserted.
+    Generated from `iso-8601-basic -d 2026-08-05T04:15:30.123456789Z`:
+
+    | precision | expected                     |
+    | --------- | ---------------------------- |
+    | seconds   | `20260805T041530Z`           |
+    | `-m`      | `20260805T041530.123Z`       |
+    | `-u`      | `20260805T041530.123456Z`    |
+    | `-n`      | `20260805T041530.123456789Z` |
+
+    **The fraction truncates; it does not round.** `.999888777` at
+    millisecond precision is `.999`, verified against the helper. A C
+    implementation using `lround (tv_nsec / 1e6)` yields `1.000`, carrying
+    into the seconds field and producing a *different timestamp*
+    (`…31.000Z`); the integer idiom `tv_nsec / 1000000` is correct. A vector
+    at `.999888777` belongs in the test for exactly this reason.
+
+    `CLOCK_REALTIME` can step under NTP, which is acceptable for a
+    uniquifier and is not an ordering guarantee — filenames must not be
+    relied on to sort chronologically.
+
 - **A documented number grammar.** Fixed-point, no exponent, stated decimal
     places, so `1754366130.123456secs` round-trips instead of decorating.
+
 - **Anchored and parsed right-to-left**, so a base name that itself contains
     `_<digits>Hz` cannot make the suffix ambiguous.
+
 - **Lowest-priority on read, and always reported.** If a reader ever derives
     `fs`/`t0` from a filename it must surface that through `fs_source` /
     `t0_source` — otherwise a hand-renamed file silently overrides real

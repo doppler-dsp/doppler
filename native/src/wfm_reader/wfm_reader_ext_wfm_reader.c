@@ -240,6 +240,19 @@ static const char *const _enum_Reader_endian[] = {
   NULL,
 };
 
+static const char *const _enum_Reader_fs_source[] = {
+  "none",
+  "xdelta",
+  "core:sample_rate",
+  NULL,
+};
+
+static const char *const _enum_Reader_t0_source[] = {
+  "none",
+  "timecode",
+  NULL,
+};
+
 static const char *const _enum_Reader_fc_source[] = {
   "none", "FREQ", "RF_FREQ", "CENTER_FREQ", "F_C", "core:frequency", NULL,
 };
@@ -345,6 +358,57 @@ Reader_getprop_fc (ReaderObject *self, void *Py_UNUSED (closure))
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
   return PyFloat_FromDouble (wfm_reader_get_fc (self->handle));
+}
+static PyObject *
+Reader_getprop_fs_source (ReaderObject *self, void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  /* <<IMPLEMENT: return the computed or stored value>> */
+  long _v = (long)(wfm_reader_get_fs_source (self->handle));
+  if (_v < 0 || _v >= 3)
+    {
+      PyErr_Format (PyExc_ValueError,
+                    "fs_source holds out-of-range fs_source value %ld"
+                    " (valid: 0..2)",
+                    _v);
+      return NULL;
+    }
+  return PyUnicode_FromString (_enum_Reader_fs_source[_v]);
+}
+static PyObject *
+Reader_getprop_t0 (ReaderObject *self, void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  /* <<IMPLEMENT: return the computed or stored value>> */
+  return PyFloat_FromDouble (wfm_reader_get_t0 (self->handle));
+}
+static PyObject *
+Reader_getprop_t0_source (ReaderObject *self, void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  /* <<IMPLEMENT: return the computed or stored value>> */
+  long _v = (long)(wfm_reader_get_t0_source (self->handle));
+  if (_v < 0 || _v >= 2)
+    {
+      PyErr_Format (PyExc_ValueError,
+                    "t0_source holds out-of-range t0_source value %ld"
+                    " (valid: 0..1)",
+                    _v);
+      return NULL;
+    }
+  return PyUnicode_FromString (_enum_Reader_t0_source[_v]);
 }
 static PyObject *
 Reader_getprop_num_samples (ReaderObject *self, void *Py_UNUSED (closure))
@@ -777,6 +841,31 @@ static PyGetSetDef Reader_getset[] = {
     "HCB keyword area or the typed extended header. Raw and CSV carry no "
     "metadata at all.\n",
     NULL },
+  { "fs_source", (getter)Reader_getprop_fs_source, NULL,
+    "Which metadata `fs` was read from -- `\"xdelta\"` for BLUE (the "
+    "type-1000 adjunct, as 1/xdelta), `\"core:sample_rate\"` for SigMF, or "
+    "`\"none\"` when nothing carried a rate. Raw and CSV always report "
+    "`\"none\"`: they have nowhere to record one, so whatever rate the "
+    "capture was taken at has to travel with it by other means.\n",
+    NULL },
+  { "t0", (getter)Reader_getprop_t0, NULL,
+    "Capture start time in seconds since the UNIX epoch, or 0.0 when the "
+    "capture does not declare one. **0.0 does not mean 1970** -- read "
+    "`t0_source` alongside it, exactly as with `fc`/`fc_source`. This is the "
+    "`t0` of `t = t0 + n/fs`: hand it to a `SampleClock` via `track()` and a "
+    "replayed capture's timeline lands where the samples were taken, not "
+    "where they are being replayed. BLUE carries it as a J1950 `timecode` in "
+    "the header, converted here to the UNIX epoch.\n",
+    NULL },
+  { "t0_source", (getter)Reader_getprop_t0_source, NULL,
+    "Where `t0` was read from -- `\"timecode\"` for a BLUE header that "
+    "declares one, or `\"none\"`. **`\"none\"` is the common answer and the "
+    "one that matters**: a zero BLUE timecode means the field was never set, "
+    "not 1950-01-01, and doppler's own writer leaves it zero -- so a caller "
+    "that skips this check dates every doppler-written capture to 1950. "
+    "SigMF's `core:datetime` is an ISO 8601 string this reader does not parse "
+    "yet, so a SigMF capture also reports `\"none\"` rather than a guess.\n",
+    NULL },
   { "num_samples", (getter)Reader_getprop_num_samples, NULL,
     "Total samples in the capture, or 0 when the file type cannot say. BLUE "
     "takes it from the header's `data_size`; raw and SigMF divide the file "
@@ -856,7 +945,13 @@ ReaderObj_exit (ReaderObject *self, PyObject *args)
 
 static PyMethodDef ReaderObj_methods[] = {
   { "reset", (PyCFunction)ReaderObj_reset, METH_NOARGS,
-    "Rewind to the first sample of the capture." },
+    "Rewind to the first sample of the capture.\n"
+    "\n"
+    "Seeks back to where the payload starts — 512 bytes into an attached\n"
+    "BLUE file, byte 0 of a `.det` or a raw/SigMF payload — and restores the\n"
+    "remaining-sample count, so the capture reads again from the top. The\n"
+    "file's metadata and decoded keywords are unaffected: they came from the\n"
+    "header and do not change.\n" },
 
   { "read", (PyCFunction)(void *)ReaderObj_read, METH_VARARGS | METH_KEYWORDS,
     "read(count=1) -> ndarray\n"
@@ -899,30 +994,47 @@ static PyMethodDef ReaderObj_methods[] = {
     ">>> r.close()\n"
     ">>> tmp.cleanup()   # directory and contents removed\n" },
   { "read_max_out", (PyCFunction)ReaderObj_read_max_out, METH_VARARGS,
-    "read_max_out(n) -> int\n\nMax output length read() can produce for "
-    "n.\nUse to size the ``out=`` buffer." },
+    "read_max_out(n) -> int\n"
+    "\n"
+    "Maximum samples one read(n) yields: n (fewer at EOF).\n"
+    "\n"
+    "A reader streams, so a read of n produces at most n samples; the\n"
+    "binding\n"
+    "\n"
+    "sizes its buffer to this per-call bound (gh-607) and resizes down to\n"
+    "the\n"
+    "\n"
+    "actual count, never pre-allocating the whole capture.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "n : int\n"
+    "    Input.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "int\n"
+    "    Output.\n" },
   { "close", (PyCFunction)ReaderObj_destroy, METH_NOARGS,
     "Release the underlying C resources immediately.\n"
     "\n"
     "Ordinarily unnecessary: the resources are freed when the object is\n"
     "garbage-collected. Call this to release them at a definite point\n"
-    "instead, or use the object as a context manager, which calls it on "
+    "instead, or use the object as a context manager, which calls it on\n"
     "exit.\n"
     "\n"
-    "Idempotent: calling it again on an already-released object does "
-    "nothing.\n"
-    "Every other method raises ``RuntimeError`` once it has run.\n" },
+    "Idempotent: calling it again on an already-released object does\n"
+    "nothing. Every other method raises ``RuntimeError`` once it has run.\n" },
   { "destroy", (PyCFunction)ReaderObj_destroy, METH_NOARGS,
     "Release the underlying C resources immediately.\n"
     "\n"
     "Ordinarily unnecessary: the resources are freed when the object is\n"
     "garbage-collected. Call this to release them at a definite point\n"
-    "instead, or use the object as a context manager, which calls it on "
+    "instead, or use the object as a context manager, which calls it on\n"
     "exit.\n"
     "\n"
-    "Idempotent: calling it again on an already-released object does "
-    "nothing.\n"
-    "Every other method raises ``RuntimeError`` once it has run.\n" },
+    "Idempotent: calling it again on an already-released object does\n"
+    "nothing. Every other method raises ``RuntimeError`` once it has run.\n" },
   { "__enter__", (PyCFunction)ReaderObj_enter, METH_NOARGS,
     "Enter a context manager, returning this object.\n"
     "\n"
@@ -937,9 +1049,8 @@ static PyMethodDef ReaderObj_methods[] = {
     "Exit a context manager, releasing the WfmReader.\n"
     "\n"
     "Equivalent to calling `close()`. Returns ``None``, so an exception\n"
-    "raised inside the `with` body propagates normally; this never "
-    "suppresses\n"
-    "one.\n"
+    "raised inside the `with` body propagates normally; this never\n"
+    "suppresses one.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -957,7 +1068,62 @@ static PyTypeObject ReaderObjType = {
   .tp_basicsize                           = sizeof (ReaderObject),
   .tp_dealloc                             = (destructor)ReaderObj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,
-  .tp_doc = "Open a capture, auto-detecting its file type from its content.\n",
+  .tp_doc
+  = "Open a capture, auto-detecting its file type from its content.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "path : str | os.PathLike\n"
+    "    file to read -- a `str` or any `os.PathLike` from Python. For a\n"
+    "    DETACHED BLUE capture this is normally the HEADER file -- "
+    "`<base>.tmp`\n"
+    "    or `<base>.prm` per BLUE 3.1.1.4 (this library's own writer emits\n"
+    "    `<base>.hdr`) -- whose HCB `detached` field points at the "
+    "collocated\n"
+    "    `<base>.det` payload; the extension does not decide, `detached` "
+    "does.\n"
+    "    Passing the `<base>.det` directly also works (its header sibling is\n"
+    "    resolved). A SigMF `.sigmf-data` file resolves its `.sigmf-meta`\n"
+    "    sidecar the same way.\n"
+    "sample_type : Literal[\"cf32\", \"cf64\", \"ci32\", \"ci16\", \"ci8\"], "
+    "default \"cf32\"\n"
+    "    the wire sample type, used only as a HINT for the headerless file "
+    "types\n"
+    "    (raw, CSV) -- BLUE and SigMF carry their own and ignore it. "
+    "`\"cf32\"`,\n"
+    "    `\"cf64\"`, `\"ci32\"`, `\"ci16\"` or `\"ci8\"` from Python; the "
+    "matching 0..4\n"
+    "    from C. A wrong hint does not fail; see\n"
+    "    ::wfm_reader_get_trailing_bytes.\n"
+    "endian : Literal[\"le\", \"be\"], default \"le\"\n"
+    "    byte order, likewise a hint that only headerless raw uses; `\"le\"` "
+    "or\n"
+    "    `\"be\"` from Python, 0 or 1 from C.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import pathlib, tempfile\n"
+    ">>> from doppler.wfm import Composer, Reader, Segment, Writer\n"
+    ">>> tmp = tempfile.TemporaryDirectory()\n"
+    ">>> p = pathlib.Path(tmp.name) / \"capture.blue\"\n"
+    ">>> x = Composer([Segment(\"qpsk\", sps=8, "
+    "num_samples=1024)]).compose()\n"
+    ">>> w = Writer(p, file_type=\"blue\", sample_type=\"ci16\", fs=2.4e6)\n"
+    ">>> w.add_keyword(\"NAME\", \"A\", \"demo\")   # tag the header\n"
+    ">>> _ = w.write(x)\n"
+    ">>> w.close()\n"
+    ">>> r = Reader(p)                         # file type auto-detected\n"
+    ">>> r.file_type, r.sample_type, r.fs\n"
+    "('blue', 'ci16', 2400000.0)\n"
+    ">>> r.keywords[\"NAME\"]                    # keyword round-trips\n"
+    "'demo'\n"
+    ">>> total = 0\n"
+    ">>> while len(block := r.read(256)):      # read returns 0 at EOF\n"
+    "...     total += len(block)\n"
+    ">>> total == r.num_samples == 1024\n"
+    "True\n"
+    ">>> r.close()\n"
+    ">>> tmp.cleanup()\n",
   .tp_methods = ReaderObj_methods,
   .tp_getset  = Reader_getset,
   .tp_new     = ReaderObj_new,

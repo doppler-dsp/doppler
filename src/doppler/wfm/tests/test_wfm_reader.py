@@ -348,6 +348,48 @@ def _blue_with_hcb_keyword(path, pair: bytes, *, fs=1e6):
     return path
 
 
+def test_fs_source_attributes_the_rate(tmp_path):
+    """A declared rate is attributable; a raw capture's absence is too."""
+    p = tmp_path / "rate.blue"
+    with Writer(p, file_type="blue", sample_type="cf32", fs=2.5e6) as w:
+        w.write(np.zeros(8, dtype=np.complex64))
+    with Reader(p) as r:
+        assert r.fs == pytest.approx(2.5e6)
+        assert r.fs_source == "xdelta"
+
+    # Raw has nowhere to record a rate, so fs == 0.0 must read as "not
+    # found" rather than as a rate anyone captured at.
+    q = tmp_path / "rate.raw"
+    with Writer(q, file_type="raw", sample_type="cf32", fs=2.5e6) as w:
+        w.write(np.zeros(8, dtype=np.complex64))
+    with Reader(q) as r:
+        assert r.fs == 0.0
+        assert r.fs_source == "none"
+
+
+def test_t0_source_says_none_on_a_doppler_written_capture(tmp_path):
+    """The case this pair exists for.
+
+    doppler's own BLUE writer leaves the timecode field zero, and zero in
+    J1950 is a perfectly plausible 1950-01-01. Without `t0_source` a caller
+    cannot tell "never set" from "set to the epoch", and would date every
+    capture this library writes to 1950.
+    """
+    p = tmp_path / "when.blue"
+    with Writer(p, file_type="blue", sample_type="cf32", fs=1e6) as w:
+        w.write(np.zeros(8, dtype=np.complex64))
+    with Reader(p) as r:
+        assert r.t0_source == "none"
+        assert r.t0 == 0.0  # and 0.0 here means unknown, NOT 1970
+
+    # Raw carries no start time either, by the same reasoning.
+    q = tmp_path / "when.raw"
+    with Writer(q, file_type="raw", sample_type="cf32", fs=1e6) as w:
+        w.write(np.zeros(8, dtype=np.complex64))
+    with Reader(q) as r:
+        assert r.t0_source == "none"
+
+
 def test_fc_round_trips_through_a_blue_capture(tmp_path):
     """What the Writer was handed comes back out."""
     p = tmp_path / "rf.blue"

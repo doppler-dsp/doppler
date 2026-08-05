@@ -195,6 +195,37 @@ class Reader:
         """
 
     @property
+    def fs_source(self) -> Literal["none", "xdelta", "core:sample_rate"]:
+        """Which metadata `fs` was read from -- `"xdelta"` for BLUE (the
+        type-1000 adjunct, as 1/xdelta), `"core:sample_rate"` for SigMF, or
+        `"none"` when nothing carried a rate. Raw and CSV always report
+        `"none"`: they have nowhere to record one, so whatever rate the capture
+        was taken at has to travel with it by other means.
+        """
+
+    @property
+    def t0(self) -> float:
+        """Capture start time in seconds since the UNIX epoch, or 0.0 when the
+        capture does not declare one. **0.0 does not mean 1970** -- read
+        `t0_source` alongside it, exactly as with `fc`/`fc_source`. This is the
+        `t0` of `t = t0 + n/fs`: hand it to a `SampleClock` via `track()` and a
+        replayed capture's timeline lands where the samples were taken, not
+        where they are being replayed. BLUE carries it as a J1950 `timecode` in
+        the header, converted here to the UNIX epoch.
+        """
+
+    @property
+    def t0_source(self) -> Literal["none", "timecode"]:
+        """Where `t0` was read from -- `"timecode"` for a BLUE header that
+        declares one, or `"none"`. **`"none"` is the common answer and the one
+        that matters**: a zero BLUE timecode means the field was never set, not
+        1950-01-01, and doppler's own writer leaves it zero -- so a caller that
+        skips this check dates every doppler-written capture to 1950. SigMF's
+        `core:datetime` is an ISO 8601 string this reader does not parse yet,
+        so a SigMF capture also reports `"none"` rather than a guess.
+        """
+
+    @property
     def num_samples(self) -> int:
         """Total samples in the capture, or 0 when the file type cannot say.
         BLUE takes it from the header's `data_size`; raw and SigMF divide the

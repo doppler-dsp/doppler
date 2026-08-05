@@ -2142,6 +2142,21 @@ values = ["complex", "scalar"]
 name = "fc_source"
 values = ["none", "FREQ", "RF_FREQ", "CENTER_FREQ", "F_C", "core:frequency"]
 
+# Where `fs` came from. Same shape and same reason as fc_source: index 0 is
+# "none", and the rest name the metadata that carried the rate. Order matches
+# wfm_fs_source_t (wfm_reader_core.h).
+[[enum]]
+name = "fs_source"
+values = ["none", "xdelta", "core:sample_rate"]
+
+# Where the capture's start time came from. "none" is the COMMON answer, not
+# an edge case: doppler's own BLUE writer leaves the timecode field zero, so
+# every capture this library writes lands here. Order matches
+# wfm_t0_source_t (wfm_reader_core.h).
+[[enum]]
+name = "t0_source"
+values = ["none", "timecode"]
+
 [[enum]]
 name = "interp_method"
 values = ["floor", "nearest", "linear"]

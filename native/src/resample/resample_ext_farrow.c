@@ -382,11 +382,9 @@ static PyMethodDef FarrowObj_methods[] = {
     ">>> import numpy as np\n"
     ">>> f = Farrow(order=\"cubic\")\n"
     ">>> _ = f.delay(np.ones(8, dtype=np.complex64), 0.25)  # leaves state\n"
-    ">>> f.reset()                                          # back to "
-    "pristine\n"
+    ">>> f.reset()                                 # back to pristine\n"
     ">>> x = np.arange(8, dtype=np.complex64)\n"
-    ">>> f.delay(x, 0.5)[3:].real.tolist()   # steady part == ramp shifted "
-    "1.5\n"
+    ">>> f.delay(x, 0.5)[3:].real.tolist()   # steady part: ramp - 1.5\n"
     "[1.5, 2.5, 3.5, 4.5, 5.5]\n" },
   { "state_bytes", (PyCFunction)FarrowObj_state_bytes, METH_NOARGS,
     "Size in bytes of this object's serialized state.\n"

@@ -141,7 +141,8 @@ class BerMeter:
         >>> import numpy as np
         >>> from doppler.ber import BerMeter
         >>> met = BerMeter(m=4)
-        >>> truth = np.array([0, 3, 1, 2, 2, 0], dtype=np.uint8)  # indices, 0..3
+        >>> truth = np.array(
+        ...     [0, 3, 1, 2, 2, 0], dtype=np.uint8)  # indices, 0..3
         >>> met.set_truth(truth)
         0
 
@@ -211,7 +212,7 @@ class BerMeter:
         0
         >>> met.align(rx, n_marker=64)     # correlate a 64-symbol marker
         1
-        >>> met.lag, met.align_ok          # detected, so score() may be trusted
+        >>> met.lag, met.align_ok          # detected, so score() is valid
         (0, 1)
 
         """
@@ -349,7 +350,7 @@ class BerMeter:
         >>> met.align(rx, n_marker=64)
         1
         >>> _ = met.score(rx, hi=truth.size)
-        >>> r = met.ber()                  # same statistics as ser(), over bits
+        >>> r = met.ber()                  # as ser(), but over bits
         >>> r.errors, r.symbols
         (24, 1472)
         >>> round(r.lo, 4)
@@ -390,7 +391,7 @@ class BerMeter:
         --------
         >>> from doppler.ber import BerMeter
         >>> met = BerMeter(m=4, conf=0.99)
-        >>> ci = met.interval(errors=8, symbols=20000)   # counts from elsewhere
+        >>> ci = met.interval(errors=8, symbols=20000)   # external counts
         >>> round(ci.p_hat, 6), round(ci.lo, 6), round(ci.hi, 6)
         (0.00035, 0.000129, 0.000857)
 

@@ -322,7 +322,7 @@ def marcum_q(m: int, a: float, b: float) -> float:
     Examples
     --------
     >>> from doppler.detection import marcum_q
-    >>> round(marcum_q(m=1, a=0.0, b=1.0), 5)   # P(Rayleigh > 1) = exp(-0.5)
+    >>> round(marcum_q(m=1, a=0.0, b=1.0), 5)  # P(Rayleigh>1) = exp(-.5)
     0.60653
     >>> round(marcum_q(m=1, a=0.0, b=2.0), 5)   # exp(-2)
     0.13534
@@ -388,9 +388,9 @@ def det_pd(snr: float, dwell: int, threshold: float) -> float:
     --------
     >>> from doppler.detection import det_pd, det_threshold
     >>> thr = det_threshold(pfa=1e-6)
-    >>> round(det_pd(snr=1.613, dwell=8, threshold=thr), 2)  # 8-dwell Pd 0.9
+    >>> round(det_pd(snr=1.613, dwell=8, threshold=thr), 2)  # Pd 0.9
     0.9
-    >>> round(det_pd(snr=0.0, dwell=8, threshold=thr), 6)    # snr=0 -> Pd=Pfa
+    >>> round(det_pd(snr=0.0, dwell=8, threshold=thr), 6)    # Pd = Pfa
     1e-06
 
     """
@@ -454,7 +454,7 @@ def det_snr(dwell: int, pd_min: float, pfa: float) -> float:
     >>> round(snr, 3)
     1.613
     >>> pd = det_pd(snr=snr, dwell=8, threshold=det_threshold(pfa=1e-6))
-    >>> abs(pd - 0.9) < 1e-9   # det_snr inverts det_pd, to solver tolerance
+    >>> abs(pd - 0.9) < 1e-9   # det_snr inverts det_pd, to tolerance
     True
 
     """
@@ -480,7 +480,8 @@ def det_threshold_noncoherent(pfa: float, n_noncoh: int) -> float:
 
     Examples
     --------
-    >>> from doppler.detection import det_threshold_noncoherent, det_threshold
+    >>> from doppler.detection import det_threshold_noncoherent
+    >>> from doppler.detection import det_threshold
     >>> round(det_threshold_noncoherent(pfa=1e-3, n_noncoh=4), 3)
     5.111
     >>> det_threshold_noncoherent(pfa=1e-6, n_noncoh=1) == det_threshold(
@@ -676,11 +677,12 @@ def det_pd_noncoherent(
 
     Examples
     --------
-    >>> from doppler.detection import det_pd_noncoherent, det_pd, det_threshold
+    >>> from doppler.detection import det_pd_noncoherent, det_pd
     >>> from doppler.detection import det_threshold_noncoherent
+    >>> from doppler.detection import det_threshold
     >>> eta = det_threshold(pfa=1e-6)
     >>> det_pd_noncoherent(snr=0.5, n_coh=8, n_noncoh=1, threshold=eta) \
-    ...     == det_pd(snr=0.5, dwell=8, threshold=eta)  # reduces to coherent
+    ...     == det_pd(snr=0.5, dwell=8, threshold=eta)  # -> coherent
     True
     >>> eta4 = det_threshold_noncoherent(pfa=1e-3, n_noncoh=4)
     >>> round(det_pd_noncoherent(
@@ -725,7 +727,8 @@ def det_n_noncoh(
     Examples
     --------
     >>> from doppler.detection import det_n_noncoh
-    >>> det_n_noncoh(snr=2.0, n_coh=16, pd_min=0.9, pfa=1e-3, max_n_noncoh=64)
+    >>> det_n_noncoh(
+    ...     snr=2.0, n_coh=16, pd_min=0.9, pfa=1e-3, max_n_noncoh=64)
     1
 
     """
@@ -787,7 +790,8 @@ def det_pd_power(
     --------
     >>> from doppler.detection import det_pd_power, det_threshold_power
     >>> thr = det_threshold_power(pfa=1e-6)
-    >>> round(det_pd_power(snr_power=2.6017, dwell=8, power_threshold=thr), 2)
+    >>> round(det_pd_power(
+    ...     snr_power=2.6017, dwell=8, power_threshold=thr), 2)
     0.9
 
     """
@@ -819,7 +823,8 @@ def det_dwell_power(
     Examples
     --------
     >>> from doppler.detection import det_dwell_power
-    >>> det_dwell_power(snr_power=0.25, pd_min=0.9, pfa=1e-6, max_dwell=256)
+    >>> det_dwell_power(
+    ...     snr_power=0.25, pd_min=0.9, pfa=1e-6, max_dwell=256)
     84
 
     """

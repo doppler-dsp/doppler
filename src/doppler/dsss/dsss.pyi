@@ -65,12 +65,12 @@ class Despreader:
     >>> from doppler.dsss import Despreader
     >>> rng = np.random.default_rng(3)
     >>> code = rng.integers(0, 2, 31).astype(np.uint8)   # one code period
-    >>> chips = np.where(code & 1, -1.0, 1.0)             # 0 -> +1, 1 -> -1
-    >>> bits = rng.integers(0, 2, 40).astype(np.uint8)   # 1 data bit/period
+    >>> chips = np.where(code & 1, -1.0, 1.0)    # 0 -> +1, 1 -> -1
+    >>> bits = rng.integers(0, 2, 40).astype(np.uint8)  # 1 bit/period
     >>> syms = np.where(bits == 1, -1.0, 1.0)
     >>> rx = np.concatenate(
     ...     [s * np.repeat(chips, 4) for s in syms]).astype(np.complex64)
-    >>> d = Despreader(code, sps=4)              # seed a fresh tracking loop
+    >>> d = Despreader(code, sps=4)          # seed a fresh tracking loop
     >>> data = d.bits(rx)                        # hard data bits, 1/period
     >>> e = np.mean(data != bits[:data.size])    # up to a global BPSK flip
     >>> round(float(min(e, 1.0 - e)), 4)
@@ -491,18 +491,18 @@ class BurstDespreader:
     >>> import numpy as np
     >>> from doppler.dsss import BurstDespreader
     >>> rng = np.random.default_rng(1)
-    >>> code = rng.integers(0, 2, 31).astype(np.uint8)    # length-31 chip code
-    >>> chips = np.where(code & 1, -1.0, 1.0)             # 0 -> +1, 1 -> -1
+    >>> code = rng.integers(0, 2, 31).astype(np.uint8)  # length-31 code
+    >>> chips = np.where(code & 1, -1.0, 1.0)    # 0 -> +1, 1 -> -1
     >>> bits = rng.integers(0, 2, 30).astype(np.uint8)    # payload bits
     >>> syms = np.where(bits == 1, -1.0, 1.0)             # BPSK symbols
     >>> tx = np.concatenate(
     ...     [np.repeat(s * chips, 4) for s in syms]).astype(np.complex64)
     >>> b = BurstDespreader(code, sf=31, sps=4)           # 31 chips/symbol
-    >>> sym = b.steps(tx)                                 # one prompt/symbol
+    >>> sym = b.steps(tx)                        # one prompt/symbol
     >>> sym.shape
     (30,)
     >>> hard = (sym.real < 0).astype(np.uint8)            # BPSK decision
-    >>> float(np.mean(hard != bits))                      # payload recovered
+    >>> float(np.mean(hard != bits))             # payload recovered
     0.0
 
     """

@@ -125,15 +125,17 @@ DelayCf64Obj_push (DelayCf64Object *self, PyObject *args, PyObject *kwds)
 }
 
 static PyObject *
-DelayCf64Obj_ptr_max_out (DelayCf64Object *self, PyObject *Py_UNUSED (ignored))
+DelayCf64Obj_ptr_max_out (DelayCf64Object *self, PyObject *args)
 {
   if (!self->handle)
     {
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromSize_t (
-      delay_ptr_max_out (self->handle, self->handle->num_taps));
+  Py_ssize_t n = 0;
+  if (!PyArg_ParseTuple (args, "n", &n))
+    return NULL;
+  return PyLong_FromSize_t (delay_ptr_max_out (self->handle, (size_t)n));
 }
 
 static PyObject *
@@ -539,9 +541,21 @@ static PyMethodDef DelayCf64Obj_methods[] = {
     "    >>> y = obj.ptr(4)\n"
     "    >>> y.dtype\n"
     "    dtype('complex128')\n" },
-  { "ptr_max_out", (PyCFunction)DelayCf64Obj_ptr_max_out, METH_NOARGS,
-    "ptr_max_out() -> int\n\nMax output length ptr() can produce for the "
-    "current state.\nUse to size the ``out=`` buffer." },
+  { "ptr_max_out", (PyCFunction)DelayCf64Obj_ptr_max_out, METH_VARARGS,
+    "ptr_max_out(n) -> int\n"
+    "\n"
+    "Maximum samples delay_ptr() writes for a request of n. Returns\n"
+    "min(n, num_taps) — the tight per-call bound (gh-607).\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "n : int\n"
+    "    Number of samples the matching delay_ptr() call requests.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "int\n"
+    "    min(n, num_taps).\n" },
   { "push_ptr", (PyCFunction)(void *)DelayCf64Obj_push_ptr,
     METH_VARARGS | METH_KEYWORDS,
     "push_ptr(x, out=None) -> ndarray\n"

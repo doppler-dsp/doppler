@@ -454,9 +454,33 @@ constraints make it safe:
     runtime dependency and hands back the nanoseconds the sub-second field
     needs anyway.
 
-    Code cannot be shared between a bash library and a C one, so the
-    agreement is gated by **committed golden vectors** rather than asserted.
-    Generated from `iso-8601-basic -d 2026-08-05T04:15:30.123456789Z`:
+    **The SSOT is the specification, vendored — not either implementation.**
+    Two peer implementations of one primitive must not sit side by side, and
+    golden vectors held in one repo only *detect* drift in one direction
+    rather than preventing it. The obvious fix — have `iso-8601-basic` call
+    the C once it is proven — closes a dependency loop: `iso-8601-basic` is
+    called from just-bashit's `logging.sh` (every log line) and advertised by
+    its installer `get-jb.sh`, while doppler's `jb.toml` sources
+    `just-bashit:install-deps` and `just-bashit:just-makeit`. doppler →
+    just-bashit → doppler means a machine running doppler's own
+    `install-deps` would need doppler already built in order to log the
+    install. A "use the C tool if present, else `date`" fallback is worse
+    still: two runtime paths that disagree depending on what is installed.
+
+    What is actually duplicated is not calendar arithmetic — `date` and
+    `strftime` both delegate that to the same libc — but three facts: the
+    format string `%Y%m%dT%H%M%S`, the truncate-don't-round rule, and the `Z`
+    suffix. That is a specification, and the org already has a proven pattern
+    for a cross-repo spec that cannot be linked: `standard.mk` is canonical
+    at `just-buildit.github.io`, vendored by `curl`, with `standard-check`
+    failing the build when a copy drifts. The timestamp spec plus its golden
+    vectors take the same route — canonical in just-buildit, vendored into
+    both just-bashit and doppler, each gating on drift. One truth, no
+    dependency edge in either direction, and the Rust bindings inherit it
+    without either side calling the other.
+
+    Vectors, generated from
+    `iso-8601-basic -d 2026-08-05T04:15:30.123456789Z`:
 
     | precision | expected                     |
     | --------- | ---------------------------- |

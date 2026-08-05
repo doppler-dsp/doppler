@@ -403,18 +403,55 @@ can tell "genuinely zero" from "not found". `fs` and `t0` need the same
 disambiguation, so a capture records *where* its time base came from rather
 than silently degrading to an ordinal axis.
 
-**Do not invent a sidecar format for raw/CSV.** A metadata-free capture does
-need its rate and epoch to travel by other means, but doppler already reads
-two containers that carry them — a SigMF `.sigmf-data` resolves its
-`.sigmf-meta` (`core:sample_rate`, `core:datetime`), and BLUE resolves a
-detached HEADER — and `Writer` already emits both (`file_type` is
-`raw`/`csv`/`blue`/`sigmf`). A bespoke `_fs_t0.csv` naming convention would
-be a third mechanism for a job two shipped ones do, and a weaker one:
-encoding field order in a filename gives no units, no precision statement,
-no room to grow, and is destroyed by a rename. **Raw is metadata-free by
-definition — the fix is to stop choosing raw when metadata is needed**, not
-to bolt a convention onto it. Where an external tool can only emit raw,
-generate a `.sigmf-meta` beside it.
+### Raw and CSV: stop discarding metadata we already hold
+
+`Writer.__init__` already takes `fs` and `fc` for every file type and then
+**throws them away** for raw and CSV — "raw and CSV have nowhere to put
+them". The user has already supplied the values; the library silently drops
+them and hands back a file nobody can interpret. That is a footgun we ship
+today, and removing footguns is the job.
+
+Two additive mechanisms, neither of which invents a format:
+
+**1 — Auto-write a `.sigmf-meta` sidecar, on by default for raw/CSV.**
+doppler already reads one (`Reader` resolves `.sigmf-data` → `.sigmf-meta`
+for `core:sample_rate`) and already writes one (`close()` emits it for
+`file_type="sigmf"`). Reuse both. Take-it-or-leave-it: a user who doesn't
+know SigMF ignores a small JSON file; a user who does gets a standard
+capture. Write only what is genuinely known from the constructor —
+`core:sample_rate`, `core:frequency`, datatype and endianness. **Do not
+auto-fill `core:datetime` from the clock**: for a transcode or a re-write
+that is wall-clock-as-`t0`, the exact error this section exists to prevent.
+It appears only when a `t0` is supplied. A sidecar beside a `.raw`/`.csv` is
+SigMF-*shaped* rather than conformant (the spec pairs `.sigmf-data`), so it
+is documented as a sidecar, not advertised as a SigMF capture.
+
+**2 — Optional filename metadata, opt-in.**
+`filename_add_meta=True` →
+`<base>_<t0>secs_<fs>Hz_<tnow>.<suffix>`. It survives what a sidecar does
+not — being copied or emailed alone — and is readable at `ls` time by
+someone who will never open a JSON file. It is a **label, never the
+machine-readable source of truth**: it cannot carry `fc`, datatype,
+endianness or annotations, and the sidecar remains authoritative. Four
+constraints make it safe:
+
+- **No colons.** ISO 8601 extended format is illegal on Windows and FAT and
+    awkward in shells; use basic format, `20260805T041530Z`.
+- **A documented number grammar.** Fixed-point, no exponent, stated decimal
+    places, so `1754366130.123456secs` round-trips instead of decorating.
+- **Anchored and parsed right-to-left**, so a base name that itself contains
+    `_<digits>Hz` cannot make the suffix ambiguous.
+- **Lowest-priority on read, and always reported.** If a reader ever derives
+    `fs`/`t0` from a filename it must surface that through `fs_source` /
+    `t0_source` — otherwise a hand-renamed file silently overrides real
+    metadata, which would be a worse footgun than the one being fixed.
+
+Default **on** for the sidecar (purely additive), **off** for the filename:
+rewriting a caller-supplied path can break a downstream glob or a pipeline
+expecting an exact name, so it stays a choice. `tnow`'s job here is
+uniquifying — it stops two captures in one directory from clobbering each
+other — which is its honest role, distinct from both time base and
+provenance.
 
 **Wall-clock-at-write is provenance, not a time base.** Three quantities sit
 close together and must not merge:

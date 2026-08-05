@@ -68,7 +68,7 @@ class F32ToI16:
         >>> c = F32ToI16(scale=32768.0)   # normalised float -> full-scale Q15
         >>> c.step(0.5)                    # 0.5 * 32768
         16384
-        >>> c.step(2.0)                    # beyond +1.0 -> saturates to int16 max
+        >>> c.step(2.0)                 # beyond +1.0 -> saturates to max
         32767
         >>> c.clipped                      # sticky flag latched by the clip
         True
@@ -102,7 +102,7 @@ class F32ToI16:
         >>> from doppler.cvt import F32ToI16
         >>> import numpy as np
         >>> x = np.array([0.0, 0.5, -1.0, 0.999], dtype=np.float32)
-        >>> F32ToI16().steps(x).tolist()   # default scale=32768 -> full-scale int16
+        >>> F32ToI16().steps(x).tolist()   # scale=32768 -> full-scale i16
         [0, 16384, -32768, 32735]
 
         """
@@ -243,7 +243,7 @@ class I16ToF32:
         --------
         >>> from doppler.cvt import I16ToF32
         >>> c = I16ToF32()
-        >>> c.reset()             # stateless converter -> reset changes nothing
+        >>> c.reset()           # stateless converter -> reset is a no-op
         >>> round(c.step(-32768), 4)
         -1.0
 
@@ -302,7 +302,8 @@ class I16ToF32:
         --------
         >>> from doppler.cvt import I16ToF32
         >>> import numpy as np
-        >>> I16ToF32().steps(np.array([0, 16384, -32768], dtype=np.int16)).tolist()
+        >>> I16ToF32().steps(
+        ...     np.array([0, 16384, -32768], dtype=np.int16)).tolist()
         [0.0, 0.5, -1.0]
 
         """
@@ -386,7 +387,7 @@ class I32ToF32:
         --------
         >>> from doppler.cvt import I32ToF32
         >>> c = I32ToF32()
-        >>> c.reset()             # stateless converter -> reset changes nothing
+        >>> c.reset()           # stateless converter -> reset is a no-op
         >>> round(c.step(-2**31), 4)
         -1.0
 
@@ -413,7 +414,7 @@ class I32ToF32:
         Examples
         --------
         >>> from doppler.cvt import I32ToF32
-        >>> c = I32ToF32(scale=2147483648.0)  # 2**31: full-range int32 -> [-1, 1)
+        >>> c = I32ToF32(scale=2147483648.0)  # 2**31: int32 -> [-1, 1)
         >>> round(c.step(2**30), 4)            # quarter-scale code -> 0.5
         0.5
         >>> round(c.step(-2**31), 4)           # full-negative code -> -1.0
@@ -445,7 +446,8 @@ class I32ToF32:
         --------
         >>> from doppler.cvt import I32ToF32
         >>> import numpy as np
-        >>> I32ToF32().steps(np.array([0, 2**30, -2**31], dtype=np.int32)).tolist()
+        >>> I32ToF32().steps(
+        ...     np.array([0, 2**30, -2**31], dtype=np.int32)).tolist()
         [0.0, 0.5, -1.0]
 
         """
@@ -528,7 +530,7 @@ class I8ToF32:
         --------
         >>> from doppler.cvt import I8ToF32
         >>> c = I8ToF32()
-        >>> c.reset()             # stateless converter -> reset changes nothing
+        >>> c.reset()           # stateless converter -> reset is a no-op
         >>> round(c.step(-128), 4)
         -1.0
 
@@ -734,7 +736,8 @@ class F32ToI16U32:
         --------
         >>> from doppler.cvt import F32ToI16U32
         >>> import numpy as np
-        >>> F32ToI16U32().steps(np.array([0.0, 0.5], dtype=np.float32)).tolist()
+        >>> F32ToI16U32().steps(
+        ...     np.array([0.0, 0.5], dtype=np.float32)).tolist()
         [0, 16384]
 
         """
@@ -938,7 +941,8 @@ class F32ToI16U64:
         --------
         >>> from doppler.cvt import F32ToI16U64
         >>> import numpy as np
-        >>> F32ToI16U64().steps(np.array([0.0, 0.5], dtype=np.float32)).tolist()
+        >>> F32ToI16U64().steps(
+        ...     np.array([0.0, 0.5], dtype=np.float32)).tolist()
         [0, 16384]
 
         """
@@ -1078,7 +1082,7 @@ class I16U32ToF32:
         --------
         >>> from doppler.cvt import I16U32ToF32
         >>> c = I16U32ToF32()
-        >>> c.reset()             # stateless converter -> reset changes nothing
+        >>> c.reset()           # stateless converter -> reset is a no-op
         >>> round(c.step(16384), 4)
         0.5
 
@@ -1108,7 +1112,7 @@ class I16U32ToF32:
         >>> c = I16U32ToF32(scale=32768.0)
         >>> round(c.step(16384), 4)         # low-16 Q15 16384 -> 0.5
         0.5
-        >>> round(c.step(0x8000), 4)        # 0x8000 reinterpreted as -32768 -> -1.0
+        >>> round(c.step(0x8000), 4)     # 0x8000 read as -32768 -> -1.0
         -1.0
 
         """
@@ -1220,7 +1224,7 @@ class I16U64ToF32:
         --------
         >>> from doppler.cvt import I16U64ToF32
         >>> c = I16U64ToF32()
-        >>> c.reset()             # stateless converter -> reset changes nothing
+        >>> c.reset()           # stateless converter -> reset is a no-op
         >>> round(c.step(16384), 4)
         0.5
 
@@ -1250,7 +1254,7 @@ class I16U64ToF32:
         >>> c = I16U64ToF32(scale=32768.0)
         >>> round(c.step(16384), 4)         # low-16 Q15 16384 -> 0.5
         0.5
-        >>> round(c.step(0x8000), 4)        # 0x8000 reinterpreted as -32768 -> -1.0
+        >>> round(c.step(0x8000), 4)     # 0x8000 read as -32768 -> -1.0
         -1.0
 
         """
@@ -1364,7 +1368,7 @@ class F32ToUQ15:
         --------
         >>> from doppler.cvt import F32ToUQ15
         >>> c = F32ToUQ15()
-        >>> c.step(2.0)          # out of range -> saturates to 0xFFFF, latches clip
+        >>> c.step(2.0)       # out of range -> saturates 0xFFFF, latches
         65535
         >>> c.reset()            # forget the clip history
         >>> c.clipped
@@ -1428,7 +1432,8 @@ class F32ToUQ15:
         --------
         >>> from doppler.cvt import F32ToUQ15
         >>> import numpy as np
-        >>> F32ToUQ15().steps(np.array([-1.0, 0.0, 0.999], dtype=np.float32)).tolist()
+        >>> F32ToUQ15().steps(
+        ...     np.array([-1.0, 0.0, 0.999], dtype=np.float32)).tolist()
         [0, 32768, 65503]
 
         """
@@ -1569,7 +1574,7 @@ class UQ15ToF32:
         --------
         >>> from doppler.cvt import UQ15ToF32
         >>> c = UQ15ToF32()
-        >>> c.reset()             # stateless converter -> reset changes nothing
+        >>> c.reset()           # stateless converter -> reset is a no-op
         >>> round(c.step(32768), 4)
         0.0
 
@@ -1725,9 +1730,9 @@ class ADC:
         --------
         >>> from doppler.cvt import ADC
         >>> adc = ADC(bits=8, dbfs=0.0, dithering=0)
-        >>> adc.step(9.0)            # beyond full scale -> saturates, latches clip
+        >>> adc.step(9.0)          # beyond full scale -> saturates, clips
         127
-        >>> adc.reset()             # clear clip history and re-seed the dither PRNG
+        >>> adc.reset()           # clear clips, re-seed the dither PRNG
         >>> adc.clipped
         False
 
@@ -1755,7 +1760,7 @@ class ADC:
         Examples
         --------
         >>> from doppler.cvt import ADC
-        >>> adc = ADC(bits=8, dbfs=0.0, dithering=0)  # 8-bit, full scale at 0 dBFS
+        >>> adc = ADC(bits=8, dbfs=0.0, dithering=0)  # 8-bit, FS at 0 dBFS
         >>> adc.step(0.5)            # 0.5 * 128 codes
         64
         >>> adc.step(2.0)            # beyond full scale -> clamps to +127

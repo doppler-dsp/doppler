@@ -93,7 +93,7 @@ typedef struct {
  * dtype('uint8')
  * >>> chips[:15].tolist()   # CCSDS Code #365 worked example
  * [0, 1, 0, 0, 0, 1, 0, 1, 1, 1, 0, 1, 1, 1, 1]
- * >>> int(chips.sum()), int((1 - chips).sum())   # balanced: 512 ones, 511 zeros
+ * >>> int(chips.sum()), int((1 - chips).sum())   # 512 ones, 511 zeros
  * (512, 511)
  * @endcode
  */

@@ -199,7 +199,8 @@ void carrier_mpsk_destroy(carrier_mpsk_state_t *state);
  * >>> from doppler.mpsk import mpsk_map
  * >>> from doppler.track import CarrierMpsk
  * >>> rng = np.random.default_rng(1)
- * >>> sig = np.repeat(mpsk_map(rng.integers(0, 4, 100).astype(np.uint8), 4),
+ * >>> sig = np.repeat(
+ * ...     mpsk_map(rng.integers(0, 4, 100).astype(np.uint8), 4),
  * ...                 16).astype(np.complex64)
  * >>> rx = (sig * np.exp(2j * np.pi * 0.003 * np.arange(len(sig)))
  * ...       ).astype(np.complex64)
@@ -271,7 +272,7 @@ size_t carrier_mpsk_steps_max_out(carrier_mpsk_state_t *state);
  * >>> prompts = c.steps(rx)          # one prompt per symbol
  * >>> prompts.shape
  * (400,)
- * >>> round(c.norm_freq, 4)          # tracked the residual carrier f0=0.002
+ * >>> round(c.norm_freq, 4)       # tracked the residual carrier 0.002
  * 0.002
  * >>> round(c.lock_metric, 2)        # decision-aligned lock metric -> 1
  * 1.0

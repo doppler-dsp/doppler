@@ -79,7 +79,7 @@ void i16u32_to_f32_destroy(i16u32_to_f32_state_t *state);
  * @code
  * >>> from doppler.cvt import I16U32ToF32
  * >>> c = I16U32ToF32()
- * >>> c.reset()             # stateless converter -> reset changes nothing
+ * >>> c.reset()           # stateless converter -> reset is a no-op
  * >>> round(c.step(16384), 4)
  * 0.5
  *
@@ -104,7 +104,7 @@ void i16u32_to_f32_reset(i16u32_to_f32_state_t *state);
  * >>> c = I16U32ToF32(scale=32768.0)
  * >>> round(c.step(16384), 4)         # low-16 Q15 16384 -> 0.5
  * 0.5
- * >>> round(c.step(0x8000), 4)        # 0x8000 reinterpreted as -32768 -> -1.0
+ * >>> round(c.step(0x8000), 4)     # 0x8000 read as -32768 -> -1.0
  * -1.0
  *
  * @endcode

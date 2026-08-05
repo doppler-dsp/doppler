@@ -662,7 +662,7 @@ extern "C"
    * >>> _ = rs.steps(x)              # acquire and lock
    * >>> rs.locked
    * True
-   * >>> rs.configure(0.002, 0.707)   # narrow the loop; the lock is preserved
+   * >>> rs.configure(0.002, 0.707)   # narrow the loop; lock is kept
    * >>> round(rs.bn, 3)
    * 0.002
    * >>> rs.locked

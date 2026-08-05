@@ -382,10 +382,10 @@ extern "C"
    * >>> from doppler.track import SymbolSync
    * >>> ss = SymbolSync(sps=4, bn=0.02, zeta=0.707)
    * >>> x = np.repeat([1.0, -1.0, 1.0, -1.0], 4 * 32).astype(np.complex64)
-   * >>> y = ss.steps(x)                # oversampled -> one sample per symbol
+   * >>> y = ss.steps(x)             # oversampled -> one sample/symbol
    * >>> y.shape[0]
    * 127
-   * >>> sorted(set(np.where(y.real >= 0, 1, -1).tolist()))   # recovered +/-1
+   * >>> sorted(set(np.where(y.real >= 0, 1, -1).tolist()))  # got +/-1
    * [-1, 1]
    * >>> round(ss.rate, 1)              # tracked samples/symbol
    * 4.0
@@ -410,7 +410,7 @@ extern "C"
    * @code
    * >>> from doppler.track import SymbolSync
    * >>> ss = SymbolSync(sps=4, bn=0.01, zeta=0.707)
-   * >>> ss.configure(bn=0.05, zeta=1.0)   # widen and over-damp for acquisition
+   * >>> ss.configure(bn=0.05, zeta=1.0)   # widen + over-damp, to acquire
    * >>> round(ss.bn, 3)
    * 0.05
    *

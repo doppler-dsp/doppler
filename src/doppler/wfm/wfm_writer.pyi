@@ -57,7 +57,7 @@ class Writer:
     1024
     >>> p.exists()
     True
-    >>> with Reader(p) as r:                        # everything round-trips
+    >>> with Reader(p) as r:                    # everything round-trips
     ...     back = r.read(len(x))
     ...     r.fs, r.fc, r.num_samples, r.keywords["COMMENT"]
     (2400000.0, 1200000000.0, 1024, 'demo')

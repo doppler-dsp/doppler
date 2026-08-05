@@ -211,7 +211,7 @@ extern "C"
    * >>> import numpy as np
    * >>> from doppler.spectral import FFT
    * >>> fft = FFT(n=4, sign=-1)
-   * >>> iq = np.full(8, 32768 // 4, dtype=np.int16)   # ~0.25 + 0.25j, full-scale
+   * >>> iq = np.full(8, 32768 // 4, dtype=np.int16)   # ~0.25 + 0.25j
    * >>> np.round(fft.execute_ci16(iq).real, 3).tolist()
    * [1.0, 0.0, 0.0, 0.0]
    * @endcode
@@ -235,7 +235,7 @@ extern "C"
    * >>> import numpy as np
    * >>> from doppler.spectral import FFT
    * >>> fft = FFT(n=4, sign=-1)
-   * >>> iq = np.full(8, 32, dtype=np.int8)            # 0.25 + 0.25j, full-scale
+   * >>> iq = np.full(8, 32, dtype=np.int8)            # 0.25 + 0.25j
    * >>> np.round(fft.execute_ci8(iq).real, 3).tolist()
    * [1.0, 0.0, 0.0, 0.0]
    * @endcode

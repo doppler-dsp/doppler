@@ -171,7 +171,7 @@ extern "C"
    * >>> from doppler.analyzer import Specan
    * >>> import numpy as np
    * >>> sa = Specan(fs=2.048e6, span=200e3, rbw=500.0, navg=1)
-   * >>> sa.execute(np.zeros(64, dtype=np.complex64)) is None  # too few samples
+   * >>> sa.execute(np.zeros(64, dtype=np.complex64)) is None  # too few
    * True
    * >>> frame = sa.execute(np.zeros(65536, dtype=np.complex64))
    * >>> frame.shape, frame.dtype

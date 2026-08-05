@@ -1350,10 +1350,10 @@ class SymbolSync:
         >>> from doppler.track import SymbolSync
         >>> ss = SymbolSync(sps=4, bn=0.02, zeta=0.707)
         >>> x = np.repeat([1.0, -1.0, 1.0, -1.0], 4 * 32).astype(np.complex64)
-        >>> y = ss.steps(x)                # oversampled -> one sample per symbol
+        >>> y = ss.steps(x)             # oversampled -> one sample/symbol
         >>> y.shape[0]
         127
-        >>> sorted(set(np.where(y.real >= 0, 1, -1).tolist()))   # recovered +/-1
+        >>> sorted(set(np.where(y.real >= 0, 1, -1).tolist()))  # got +/-1
         [-1, 1]
         >>> round(ss.rate, 1)              # tracked samples/symbol
         4.0
@@ -1445,7 +1445,7 @@ class SymbolSync:
         --------
         >>> from doppler.track import SymbolSync
         >>> ss = SymbolSync(sps=4, bn=0.01, zeta=0.707)
-        >>> ss.configure(bn=0.05, zeta=1.0)   # widen and over-damp for acquisition
+        >>> ss.configure(bn=0.05, zeta=1.0)   # widen + over-damp, to acquire
         >>> round(ss.bn, 3)
         0.05
 
@@ -1934,7 +1934,7 @@ class RateSync:
         >>> _ = rs.steps(x)              # acquire and lock
         >>> rs.locked
         True
-        >>> rs.configure(0.002, 0.707)   # narrow the loop; the lock is preserved
+        >>> rs.configure(0.002, 0.707)   # narrow the loop; lock is kept
         >>> round(rs.bn, 3)
         0.002
         >>> rs.locked
@@ -2272,7 +2272,7 @@ class CarrierMpsk:
         >>> prompts = c.steps(rx)          # one prompt per symbol
         >>> prompts.shape
         (400,)
-        >>> round(c.norm_freq, 4)          # tracked the residual carrier f0=0.002
+        >>> round(c.norm_freq, 4)       # tracked the residual carrier 0.002
         0.002
         >>> round(c.lock_metric, 2)        # decision-aligned lock metric -> 1
         1.0
@@ -2349,7 +2349,8 @@ class CarrierMpsk:
         >>> from doppler.mpsk import mpsk_map
         >>> from doppler.track import CarrierMpsk
         >>> rng = np.random.default_rng(1)
-        >>> sig = np.repeat(mpsk_map(rng.integers(0, 4, 100).astype(np.uint8), 4),
+        >>> sig = np.repeat(
+        ...     mpsk_map(rng.integers(0, 4, 100).astype(np.uint8), 4),
         ...                 16).astype(np.complex64)
         >>> rx = (sig * np.exp(2j * np.pi * 0.003 * np.arange(len(sig)))
         ...       ).astype(np.complex64)
@@ -3048,7 +3049,7 @@ class MpskReceiver:
         >>> import numpy as np
         >>> from doppler.track import MpskReceiver
         >>> from doppler.telemetry import Telemetry
-        >>> tlm = Telemetry(1 << 14)   # 11 probes x ~512 symbols, with headroom
+        >>> tlm = Telemetry(1 << 14)   # 11 probes x ~512 syms + headroom
         >>> rx = MpskReceiver(m=4, sps=4, m_out=2)
         >>> rx.set_telemetry(tlm, "rx")
         >>> len(tlm.probe_names())
@@ -3185,7 +3186,8 @@ class MpskReceiver:
         >>> b = rx.bits(tx)                                 # 1 hard bit/symbol
         >>> b.size
         2997
-        >>> # settled tail matches the payload up to the BPSK inversion ambiguity
+        >>> # settled tail matches the payload, up to the BPSK
+        >>> # inversion ambiguity
         >>> tail = np.mean(b[1000:2000] != idx[1000:2000])
         >>> round(float(min(tail, 1 - tail)), 3)
         0.0
@@ -3253,7 +3255,7 @@ class MpskReceiver:
         >>> rx = MpskReceiver(m=4, sps=4, m_out=2, acq_to_track=1)
         >>> rx.tracking
         0
-        >>> rx.configure_lock(0.9, 0.72, 4, 16)   # tighter declare, faster drop
+        >>> rx.configure_lock(0.9, 0.72, 4, 16)   # tighter declare, fast drop
 
         """
 

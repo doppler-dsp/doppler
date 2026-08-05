@@ -159,6 +159,23 @@ TEST_FAST_CMD = $(CTEST) --test-dir $(BUILD_DIR) --output-on-failure \
 # their own targets (`test-snippets`, `test-examples-python`), so excluding them
 # here is what makes the suites add up instead of overlapping. PYTEST_ARGS is
 # how CI adds its coverage reporting without changing what runs.
+#
+# The suite is embarrassingly parallel across module directories, and
+# pytest-xdist is in the dev group: `make test PYTEST_ARGS="-n auto"` runs it
+# on every core. Measured on 8 cores: 278s -> 81s (3.4x), identical results
+# (2554 passed, 6 skipped both ways).
+#
+# NOT the default, because it is not a free win: pytest-benchmark disables
+# itself under xdist ("Benchmarks cannot be performed reliably in a
+# parallelized environment"), so `-n auto` silently turns the benchmark tests
+# under src/doppler/*/benchmarks/ into correctness-only runs. Real benchmark
+# numbers come from `make bench-interleaved` regardless — but a gate must not
+# quietly measure less than it appears to, so the flag stays opt-in.
+#
+# Do NOT parallelize `test-stubs`: measured 2.35s -> 2.24s (startup dominates),
+# and a text-mode .pyi shares ONE doctest namespace across the whole file, so
+# any future finer-than-file split would break name bindings that earlier
+# examples in the same file establish.
 PYTEST_ARGS     ?=
 TEST_PYTHON_CMD = uv run pytest src/ -v \
                       -m "not docs_snippets and not examples" $(PYTEST_ARGS)

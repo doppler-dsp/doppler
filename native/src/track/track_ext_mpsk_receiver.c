@@ -708,8 +708,7 @@ static PyMethodDef MpskReceiverObj_methods[] = {
     ">>> import numpy as np\n"
     ">>> from doppler.track import MpskReceiver\n"
     ">>> from doppler.telemetry import Telemetry\n"
-    ">>> tlm = Telemetry(1 << 14)   # 11 probes x ~512 symbols, with "
-    "headroom\n"
+    ">>> tlm = Telemetry(1 << 14)   # 11 probes x ~512 syms + headroom\n"
     ">>> rx = MpskReceiver(m=4, sps=4, m_out=2)\n"
     ">>> rx.set_telemetry(tlm, \"rx\")\n"
     ">>> len(tlm.probe_names())\n"
@@ -823,8 +822,8 @@ static PyMethodDef MpskReceiverObj_methods[] = {
     ">>> b = rx.bits(tx)                                 # 1 hard bit/symbol\n"
     ">>> b.size\n"
     "2997\n"
-    ">>> # settled tail matches the payload up to the BPSK inversion "
-    "ambiguity\n"
+    ">>> # settled tail matches the payload, up to the BPSK\n"
+    ">>> # inversion ambiguity\n"
     ">>> tail = np.mean(b[1000:2000] != idx[1000:2000])\n"
     ">>> round(float(min(tail, 1 - tail)), 3)\n"
     "0.0\n" },
@@ -871,7 +870,7 @@ static PyMethodDef MpskReceiverObj_methods[] = {
     ">>> rx = MpskReceiver(m=4, sps=4, m_out=2, acq_to_track=1)\n"
     ">>> rx.tracking\n"
     "0\n"
-    ">>> rx.configure_lock(0.9, 0.72, 4, 16)   # tighter declare, faster "
+    ">>> rx.configure_lock(0.9, 0.72, 4, 16)   # tighter declare, fast "
     "drop\n" },
   { "reset", (PyCFunction)MpskReceiverObj_reset, METH_NOARGS,
     "reset() -> None\n"

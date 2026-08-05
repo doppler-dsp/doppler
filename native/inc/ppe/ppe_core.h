@@ -92,7 +92,8 @@ extern "C"
    * @code
    * >>> from doppler.dsss import PolynomialPhaseEstimator
    * >>> p = PolynomialPhaseEstimator(max_len=512, max_rate=0.0)
-   * >>> p.reset()   # no-op: a fresh estimate depends only on the next segment
+   * >>> p.reset()   # no-op: an estimate depends only on the next
+   * >>> #           segment
    *
    * @endcode
    */
@@ -122,7 +123,7 @@ extern "C"
    * >>> import numpy as np
    * >>> from doppler.dsss import PolynomialPhaseEstimator
    * >>> m = np.arange(512)
-   * >>> f, r = 0.05, 1e-5                        # true Doppler + chirp rate
+   * >>> f, r = 0.05, 1e-5               # true Doppler + chirp rate
    * >>> x = np.exp(2j*np.pi*(f*m + 0.5*r*m*m)).astype(np.complex64)
    * >>> p = PolynomialPhaseEstimator(max_len=512, max_rate=5e-5)
    * >>> e = p.estimate(x)                        # one-shot coherent search

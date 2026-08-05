@@ -553,12 +553,10 @@ static PyMethodDef SymbolSyncObj_methods[] = {
     ">>> from doppler.track import SymbolSync\n"
     ">>> ss = SymbolSync(sps=4, bn=0.02, zeta=0.707)\n"
     ">>> x = np.repeat([1.0, -1.0, 1.0, -1.0], 4 * 32).astype(np.complex64)\n"
-    ">>> y = ss.steps(x)                # oversampled -> one sample per "
-    "symbol\n"
+    ">>> y = ss.steps(x)             # oversampled -> one sample/symbol\n"
     ">>> y.shape[0]\n"
     "127\n"
-    ">>> sorted(set(np.where(y.real >= 0, 1, -1).tolist()))   # recovered "
-    "+/-1\n"
+    ">>> sorted(set(np.where(y.real >= 0, 1, -1).tolist()))  # got +/-1\n"
     "[-1, 1]\n"
     ">>> round(ss.rate, 1)              # tracked samples/symbol\n"
     "4.0\n" },
@@ -630,8 +628,7 @@ static PyMethodDef SymbolSyncObj_methods[] = {
     "--------\n"
     ">>> from doppler.track import SymbolSync\n"
     ">>> ss = SymbolSync(sps=4, bn=0.01, zeta=0.707)\n"
-    ">>> ss.configure(bn=0.05, zeta=1.0)   # widen and over-damp for "
-    "acquisition\n"
+    ">>> ss.configure(bn=0.05, zeta=1.0)   # widen + over-damp, to acquire\n"
     ">>> round(ss.bn, 3)\n"
     "0.05\n" },
   { "configure_lock", (PyCFunction)(void *)SymbolSyncObj_configure_lock,

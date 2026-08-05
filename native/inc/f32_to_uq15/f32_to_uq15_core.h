@@ -98,7 +98,7 @@ void f32_to_uq15_destroy(f32_to_uq15_state_t *state);
  * @code
  * >>> from doppler.cvt import F32ToUQ15
  * >>> c = F32ToUQ15()
- * >>> c.step(2.0)          # out of range -> saturates to 0xFFFF, latches clip
+ * >>> c.step(2.0)       # out of range -> saturates 0xFFFF, latches
  * 65535
  * >>> c.reset()            # forget the clip history
  * >>> c.clipped
@@ -161,7 +161,8 @@ f32_to_uq15_step(f32_to_uq15_state_t *state, float x)
  * @code
  * >>> from doppler.cvt import F32ToUQ15
  * >>> import numpy as np
- * >>> F32ToUQ15().steps(np.array([-1.0, 0.0, 0.999], dtype=np.float32)).tolist()
+ * >>> F32ToUQ15().steps(
+ * ...     np.array([-1.0, 0.0, 0.999], dtype=np.float32)).tolist()
  * [0, 32768, 65503]
  *
  * @endcode

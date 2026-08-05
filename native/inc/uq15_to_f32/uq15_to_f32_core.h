@@ -80,7 +80,7 @@ void uq15_to_f32_destroy(uq15_to_f32_state_t *state);
  * @code
  * >>> from doppler.cvt import UQ15ToF32
  * >>> c = UQ15ToF32()
- * >>> c.reset()             # stateless converter -> reset changes nothing
+ * >>> c.reset()           # stateless converter -> reset is a no-op
  * >>> round(c.step(32768), 4)
  * 0.0
  *

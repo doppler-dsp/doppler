@@ -76,7 +76,7 @@ void i32_to_f32_destroy(i32_to_f32_state_t *state);
  * @code
  * >>> from doppler.cvt import I32ToF32
  * >>> c = I32ToF32()
- * >>> c.reset()             # stateless converter -> reset changes nothing
+ * >>> c.reset()           # stateless converter -> reset is a no-op
  * >>> round(c.step(-2**31), 4)
  * -1.0
  *
@@ -98,7 +98,7 @@ void i32_to_f32_reset(i32_to_f32_state_t *state);
  *
  * @code
  * >>> from doppler.cvt import I32ToF32
- * >>> c = I32ToF32(scale=2147483648.0)  # 2**31: full-range int32 -> [-1, 1)
+ * >>> c = I32ToF32(scale=2147483648.0)  # 2**31: int32 -> [-1, 1)
  * >>> round(c.step(2**30), 4)            # quarter-scale code -> 0.5
  * 0.5
  * >>> round(c.step(-2**31), 4)           # full-negative code -> -1.0
@@ -126,7 +126,8 @@ i32_to_f32_step(const i32_to_f32_state_t *state, int32_t x)
  * @code
  * >>> from doppler.cvt import I32ToF32
  * >>> import numpy as np
- * >>> I32ToF32().steps(np.array([0, 2**30, -2**31], dtype=np.int32)).tolist()
+ * >>> I32ToF32().steps(
+ * ...     np.array([0, 2**30, -2**31], dtype=np.int32)).tolist()
  * [0.0, 0.5, -1.0]
  *
  * @endcode

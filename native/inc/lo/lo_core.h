@@ -85,7 +85,7 @@ extern "C"
    *                   part only).
    * @code
    * >>> from doppler.source import LO
-   * >>> lo = LO(0.25)            # the Python type uses lo_create internally
+   * >>> lo = LO(0.25)          # the Python type calls lo_create
    * >>> lo.phase_inc
    * 1073741824
    * @endcode

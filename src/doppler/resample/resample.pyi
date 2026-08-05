@@ -133,8 +133,25 @@ class Resampler:
 
         """
 
-    def execute_ctrl_max_out(self, *args: Any, **kwargs: Any) -> Any:
-        """<<MANUAL_STUB>> hand-write this signature/docstring in the .pyi — jm preserves it verbatim on future regens."""
+    def execute_ctrl_max_out(self) -> int:
+        """Max samples ``execute_ctrl()`` can emit, for any input block.
+
+        The bound is the resampler's fixed internal capacity
+        (``RESAMPLER_MAX_OUT``), not a function of the block about to be
+        passed — which is why this accessor takes no argument.
+
+        Returns
+        -------
+        int
+            Capacity, in samples, to allocate for an ``out=`` buffer.
+
+        Examples
+        --------
+        >>> from doppler.resample import Resampler
+        >>> Resampler(rate=2.0).execute_ctrl_max_out()
+        65536
+
+        """
 
     def state_bytes(self) -> int:
         """Size in bytes of this object's serialized state.
@@ -1511,8 +1528,27 @@ class Farrow:
 
         """
 
-    def delay_max_out(self, *args: Any, **kwargs: Any) -> Any:
-        """<<MANUAL_STUB>> hand-write this signature/docstring in the .pyi — jm preserves it verbatim on future regens."""
+    def delay_max_out(self) -> int:
+        """Output-length bound for ``delay()``. Always 0 — see below.
+
+        ``delay()`` emits one sample per input sample, so its bound is a
+        property of the block, not of the object — and this accessor sees
+        only the object. It therefore returns 0, which the binding reads
+        as "unknown" and falls back to the input length. Size an ``out=``
+        buffer from ``len(x)``, not from this value.
+
+        Returns
+        -------
+        int
+            Always 0.
+
+        Examples
+        --------
+        >>> from doppler.resample import Farrow
+        >>> Farrow().delay_max_out()
+        0
+
+        """
 
     def state_bytes(self) -> int:
         """Size in bytes of this object's serialized state.

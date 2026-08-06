@@ -114,8 +114,8 @@ TelemetryObj_read (TelemetryObject *self, PyObject *args, PyObject *kwds)
       return NULL;
     }
   static char       *_kwlist[] = { "n", NULL };
-  unsigned long long n_raw     = 0ULL;
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "K", _kwlist, &n_raw))
+  unsigned long long n_raw     = 0;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|K", _kwlist, &n_raw))
     return NULL;
   size_t n     = (size_t)n_raw;
   size_t _need = dp_tlm_read_max_out (self->handle);

@@ -49,3 +49,8 @@ foreach(t test_telemetry_core test_tlm_capture)
   target_include_directories(${t} PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
   add_test(NAME ${t} COMMAND ${t})
 endforeach()
+# A capture BORROWS the pipeline's dp_sample_clock_t for its sidecar time base
+# (design: the time base belongs to the DATA). telemetry_core reads only the
+# struct, so it needs the header alone -- but the test constructs one, so it
+# needs the implementation.
+target_link_libraries(test_tlm_capture PRIVATE timing_core)

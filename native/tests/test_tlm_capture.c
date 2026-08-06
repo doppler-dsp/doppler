@@ -68,22 +68,37 @@ slurp (const char *path, size_t *len)
   return b;
 }
 
+/* The smallest ring this platform will hand out. buffer.h rounds a sub-page
+   request up to the page minimum, so it is 256 records on a 4 KiB page and
+   1024 on a 16 KiB one (macOS). Several blocks below need a bound that
+   genuinely EXCEEDS the floor to be testing anything at all, so derive it
+   rather than hard-coding a number that is only true on one platform. */
+static size_t
+ring_floor (void)
+{
+  dp_tlm_t *t = dp_tlm_create (1);
+  size_t    n = dp_tlm_capacity (t);
+  dp_tlm_destroy (t);
+  return n;
+}
+
 int
 main (void)
 {
+  const size_t FLOOR = ring_floor ();
   /* ── THE claim: emit the bound every block, forever, and lose nothing ──
      No sleeps, no thread timing, no safety factor -- the ring is sized to
      exactly one block's worth and drained at every boundary, so overflow is
      arithmetically impossible rather than merely unlikely. Shrink the ring
      one record below the bound and this goes red. ─────────────────────────*/
   {
-    /* BLOCK is chosen so the bound (768) EXCEEDS the smallest ring the
-       allocator will hand out (256, the page floor). Anything smaller and the
-       ring is already big enough by accident, and this stops testing the
-       sizing at all -- it would stay green with dp_tlm_resize deleted. */
-    const size_t BLOCK  = 256;
-    const size_t BLOCKS = 200;
-    dp_tlm_t    *t      = dp_tlm_create (256);
+    /* BLOCK is chosen so the bound (3 x FLOOR) EXCEEDS the smallest ring the
+       allocator will hand out. Anything smaller and the ring is already big
+       enough by accident, and this stops testing the sizing at all -- it
+       would stay green with dp_tlm_resize deleted. */
+    const size_t BLOCK  = FLOOR;
+    const size_t BLOCKS = 50;
+    dp_tlm_t    *t      = dp_tlm_create (1);
     int          a      = dp_tlm_probe (t, "a", 1);
     int          b      = dp_tlm_probe (t, "b", 1);
     int          c3     = dp_tlm_probe (t, "c", 1);
@@ -93,7 +108,7 @@ main (void)
     CHECK (bound == 3 * BLOCK);
 
     CHECK (dp_tlm_capacity (t) < bound); /* as handed out: too small */
-    dp_tlm_capture_t *cap = dp_tlm_capture_open (t, BLOCK, NULL, 0.0, 0.0);
+    dp_tlm_capture_t *cap = dp_tlm_capture_open (t, BLOCK, NULL, NULL);
     CHECK (cap != NULL);
     /* Opening GREW the ring to the bound; the caller never picked a number. */
     CHECK (dp_tlm_capacity (t) >= bound);
@@ -142,25 +157,30 @@ main (void)
      block) overflows on block 2. ───────────────────────────────────────────
    */
   {
-    dp_tlm_t *t  = dp_tlm_create (256);
-    int       id = dp_tlm_probe (t, "x", 1);
-    CHECK (dp_tlm_capacity (t) == 256); /* page floor, well under the total */
+    const size_t BLK  = 100;
+    const size_t NBLK = 50;
+    dp_tlm_t    *t    = dp_tlm_create (1);
+    int          id   = dp_tlm_probe (t, "x", 1);
+    /* The point of this block is that the WHOLE run does not fit in the ring,
+       so only a per-block drain can keep it lossless. Assert that rather than
+       a specific capacity -- the floor is platform-dependent. */
+    CHECK (dp_tlm_capacity (t) < BLK * NBLK);
 
-    dp_tlm_capture_t *cap = dp_tlm_capture_open (t, 100, NULL, 0.0, 0.0);
+    dp_tlm_capture_t *cap = dp_tlm_capture_open (t, BLK, NULL, NULL);
     CHECK (cap != NULL);
-    for (int blk = 0; blk < 50; blk++)
+    for (size_t blk = 0; blk < NBLK; blk++)
       {
         dp_tlm_set_now (t, (uint64_t)blk);
-        for (int i = 0; i < 100; i++)
+        for (size_t i = 0; i < BLK; i++)
           dp_tlm_emit (t, id, 1.0);
       }
     CHECK (dp_tlm_capture_close (cap) == DP_OK);
-    CHECK (dp_tlm_capture_count (cap) == 5000);
+    CHECK (dp_tlm_capture_count (cap) == BLK * NBLK);
 
     /* And once closed, set_now goes back to being a bare assignment -- it must
        not keep calling into a finished capture. */
     dp_tlm_set_now (t, 99);
-    CHECK (dp_tlm_capture_count (cap) == 5000);
+    CHECK (dp_tlm_capture_count (cap) == BLK * NBLK);
     dp_tlm_capture_destroy (cap);
     dp_tlm_destroy (t);
   }
@@ -173,7 +193,12 @@ main (void)
     dp_tlm_t   *t    = dp_tlm_create (256);
     int         id   = dp_tlm_probe (t, "f", 1);
 
-    dp_tlm_capture_t *cap = dp_tlm_capture_open (t, 128, path, 1e6, 0.0);
+    /* The time base is BORROWED from the pipeline's clock, never re-declared
+       as a private fs/t0 pair. resync=0 leaves the epoch unset, so the sidecar
+       must state fs and stay silent about the epoch. */
+    dp_sample_clock_t clk;
+    dp_sample_clock_init (&clk, 1e6, 0);
+    dp_tlm_capture_t *cap = dp_tlm_capture_open (t, 128, path, &clk);
     CHECK (cap != NULL);
     const int BLOCKS = 300; /* many stage swaps -> many writer handoffs */
     for (int blk = 0; blk < BLOCKS; blk++)
@@ -221,7 +246,7 @@ main (void)
         /* fs was stated, t0 was not -- an unstated value is OMITTED, never
            fabricated as a plausible-looking zero. */
         CHECK (strstr (js, "\"fs\": 1000000") != NULL);
-        CHECK (strstr (js, "\"t0\"") == NULL);
+        CHECK (strstr (js, "\"epoch_real_ns\"") == NULL);
         free (js);
       }
     dp_tlm_capture_destroy (cap);
@@ -239,7 +264,12 @@ main (void)
     CHECK (dp_tlm_probe (t, "rx.car.freq", 1) == 1);
     CHECK (dp_tlm_probe (t, "rx.sync.mu", 4) == 2);
 
-    dp_tlm_capture_t *cap = dp_tlm_capture_open (t, 16, path, 0.0, 0.0);
+    /* A clock that exists but states NO rate -- raw and CSV sources carry
+       none. "rate unknown" and "exactly 0 Hz" must not be the same bytes, so
+       the key is omitted rather than written as a confident zero. */
+    dp_sample_clock_t clk;
+    dp_sample_clock_init (&clk, 0.0, 0);
+    dp_tlm_capture_t *cap = dp_tlm_capture_open (t, 16, path, &clk);
     dp_tlm_set_now (t, 0);
     dp_tlm_emit (t, 0, 1.0); /* only probe 0 ever fires */
     CHECK (dp_tlm_capture_close (cap) == DP_OK);
@@ -253,8 +283,42 @@ main (void)
         CHECK (strstr (js, "\"rx.car.e\": 0") != NULL);
         CHECK (strstr (js, "\"rx.car.freq\": 1") != NULL);
         CHECK (strstr (js, "\"rx.sync.mu\": 2") != NULL);
+        CHECK (strstr (js, "\"fs\"") == NULL);
         /* An omitted probe would make a record's `probe` field unresolvable,
            so silence about a silent probe is not acceptable. */
+        free (js);
+      }
+    dp_tlm_capture_destroy (cap);
+    dp_tlm_destroy (t);
+    remove (path);
+    remove (meta);
+  }
+
+  /* ── an ANCHORED epoch IS recorded. The other half of the has_anchor gate:
+     without this, "always omit the epoch" would pass every other block. ─── */
+  {
+    const char *path = scratch ("anchored");
+    dp_tlm_t   *t    = dp_tlm_create (1);
+    dp_tlm_probe (t, "a", 1);
+
+    dp_sample_clock_t clk;
+    dp_sample_clock_init (&clk, 1e6, 0);
+    /* Ground truth off a stream header -- the first track() always adopts. */
+    CHECK (dp_sample_clock_track (&clk, 1234567890000000000ull, 0, 1000) != 0);
+    CHECK (clk.has_anchor != 0);
+
+    dp_tlm_capture_t *cap = dp_tlm_capture_open (t, 16, path, &clk);
+    dp_tlm_set_now (t, 0);
+    dp_tlm_emit (t, 0, 1.0);
+    CHECK (dp_tlm_capture_close (cap) == DP_OK);
+
+    char meta[288];
+    snprintf (meta, sizeof meta, "%s-meta", path);
+    char *js = slurp (meta, NULL);
+    CHECK (js != NULL);
+    if (js)
+      {
+        CHECK (strstr (js, "\"epoch_real_ns\": 1234567890000000000") != NULL);
         free (js);
       }
     dp_tlm_capture_destroy (cap);
@@ -266,10 +330,11 @@ main (void)
   /* ── self-heal: probes registered AFTER open raise the bound, and the next
      boundary grows the ring before the wider block can cost a record ────── */
   {
-    dp_tlm_t *t = dp_tlm_create (256);
+    const size_t BLK = FLOOR / 4;
+    dp_tlm_t    *t   = dp_tlm_create (1);
     CHECK (dp_tlm_probe (t, "p0", 1) == 0);
 
-    dp_tlm_capture_t *cap = dp_tlm_capture_open (t, 200, NULL, 0.0, 0.0);
+    dp_tlm_capture_t *cap = dp_tlm_capture_open (t, BLK, NULL, NULL);
     CHECK (cap != NULL);
     size_t cap0 = dp_tlm_capacity (t);
 
@@ -282,17 +347,17 @@ main (void)
       }
     dp_tlm_set_now (t, 0); /* boundary: notices the bound moved, grows */
     CHECK (dp_tlm_capacity (t) > cap0);
-    CHECK (dp_tlm_capacity (t) >= dp_tlm_block_bound (t, 200));
+    CHECK (dp_tlm_capacity (t) >= dp_tlm_block_bound (t, BLK));
 
     for (int blk = 0; blk < 20; blk++)
       {
         dp_tlm_set_now (t, (uint64_t)blk);
-        for (int i = 0; i < 200; i++)
+        for (size_t i = 0; i < BLK; i++)
           for (int p = 0; p < 8; p++)
             dp_tlm_emit (t, p, 1.0);
       }
     CHECK (dp_tlm_capture_close (cap) == DP_OK);
-    CHECK (dp_tlm_capture_count (cap) == 20 * 200 * 8);
+    CHECK (dp_tlm_capture_count (cap) == 20 * BLK * 8);
     dp_tlm_capture_destroy (cap);
     dp_tlm_destroy (t);
   }
@@ -302,32 +367,34 @@ main (void)
      records the boundary exists to collect. ────────────────────────────────
    */
   {
-    dp_tlm_t *t = dp_tlm_create (256);
+    const size_t BLK = FLOOR / 4;
+    dp_tlm_t    *t   = dp_tlm_create (1);
     CHECK (dp_tlm_probe (t, "q0", 1) == 0);
-    dp_tlm_capture_t *cap  = dp_tlm_capture_open (t, 64, NULL, 0.0, 0.0);
+    dp_tlm_capture_t *cap  = dp_tlm_capture_open (t, BLK, NULL, NULL);
     size_t            cap0 = dp_tlm_capacity (t);
 
     dp_tlm_set_now (t, 0);
-    for (int i = 0; i < 64; i++)
+    for (size_t i = 0; i < BLK; i++)
       dp_tlm_emit (t, 0, (double)i); /* in the ring, not yet drained */
 
-    /* Register enough probes that the new bound (8 x 64 = 512) EXCEEDS the
-       current ring -- otherwise the resize is a no-op and this block cannot
-       tell drain-then-grow from grow-then-drain. */
+    /* Register enough probes that the new bound (8 x BLK = 2 x FLOOR) EXCEEDS
+       the current ring -- otherwise the resize is a no-op and this block
+       cannot tell drain-then-grow from grow-then-drain. */
     for (int i = 1; i < 8; i++)
       {
         char nm[8];
         snprintf (nm, sizeof nm, "q%d", i);
         dp_tlm_probe (t, nm, 1);
       }
-    CHECK (dp_tlm_block_bound (t, 64) > cap0);
-    dp_tlm_set_now (t, 64); /* boundary: must drain FIRST, then grow */
+    CHECK (dp_tlm_block_bound (t, BLK) > cap0);
+    dp_tlm_set_now (t, BLK); /* boundary: must drain FIRST, then grow */
     CHECK (dp_tlm_capacity (t) > cap0);
 
     CHECK (dp_tlm_capture_close (cap) == DP_OK);
-    CHECK (dp_tlm_capture_count (cap) == 64); /* not 0 */
+    CHECK (dp_tlm_capture_count (cap) == BLK); /* not 0 */
     const dp_tlm_rec_t *recs = dp_tlm_capture_records (cap);
-    CHECK (recs && recs[0].value == 0.0f && recs[63].value == 63.0f);
+    CHECK (recs && recs[0].value == 0.0f
+           && recs[BLK - 1].value == (float)(BLK - 1));
     dp_tlm_capture_destroy (cap);
     dp_tlm_destroy (t);
   }
@@ -337,7 +404,7 @@ main (void)
   {
     dp_tlm_t *t = dp_tlm_create (256);
     CHECK (dp_tlm_probe (t, "over", 1) == 0);
-    dp_tlm_capture_t *cap = dp_tlm_capture_open (t, 8, NULL, 0.0, 0.0);
+    dp_tlm_capture_t *cap = dp_tlm_capture_open (t, 8, NULL, NULL);
     CHECK (cap != NULL);
 
     /* Declared block = 8, actual step = far more, with no boundary between:
@@ -364,7 +431,7 @@ main (void)
       dp_tlm_emit (t, 0, 1.0); /* no consumer: guaranteed overrun */
     CHECK (dp_tlm_dropped (t) > 0);
 
-    dp_tlm_capture_t *cap = dp_tlm_capture_open (t, 8, NULL, 0.0, 0.0);
+    dp_tlm_capture_t *cap = dp_tlm_capture_open (t, 8, NULL, NULL);
     CHECK (cap != NULL);
     dp_tlm_set_now (t, 0);
     dp_tlm_emit (t, 0, 1.0);
@@ -376,29 +443,29 @@ main (void)
 
   /* ── open() edges ─────────────────────────────────────────────────────── */
   {
-    CHECK (dp_tlm_capture_open (NULL, 16, NULL, 0.0, 0.0) == NULL);
+    CHECK (dp_tlm_capture_open (NULL, 16, NULL, NULL) == NULL);
 
     dp_tlm_t *t = dp_tlm_create (256);
     /* No probes -> no bound -> nothing meaningful to size against. */
-    CHECK (dp_tlm_capture_open (t, 16, NULL, 0.0, 0.0) == NULL);
+    CHECK (dp_tlm_capture_open (t, 16, NULL, NULL) == NULL);
     dp_tlm_probe (t, "z", 1);
     /* A zero block is the one number a caller must actually supply. */
-    CHECK (dp_tlm_capture_open (t, 0, NULL, 0.0, 0.0) == NULL);
+    CHECK (dp_tlm_capture_open (t, 0, NULL, NULL) == NULL);
 
-    dp_tlm_capture_t *cap = dp_tlm_capture_open (t, 16, NULL, 0.0, 0.0);
+    dp_tlm_capture_t *cap = dp_tlm_capture_open (t, 16, NULL, NULL);
     CHECK (cap != NULL);
     /* A second capture would be a second consumer on an SPSC ring: silent
        corruption, not a slow path. Refuse it. */
-    CHECK (dp_tlm_capture_open (t, 16, NULL, 0.0, 0.0) == NULL);
+    CHECK (dp_tlm_capture_open (t, 16, NULL, NULL) == NULL);
     CHECK (dp_tlm_capture_close (cap) == DP_OK);
     /* Once closed the context is free again. */
-    dp_tlm_capture_t *cap2 = dp_tlm_capture_open (t, 16, NULL, 0.0, 0.0);
+    dp_tlm_capture_t *cap2 = dp_tlm_capture_open (t, 16, NULL, NULL);
     CHECK (cap2 != NULL);
     dp_tlm_capture_destroy (cap2);
     dp_tlm_capture_destroy (cap);
 
     /* An unopenable path fails at open, not silently at close. */
-    CHECK (dp_tlm_capture_open (t, 16, "/nonexistent-dir-xyz/f.tlm", 0.0, 0.0)
+    CHECK (dp_tlm_capture_open (t, 16, "/nonexistent-dir-xyz/f.tlm", NULL)
            == NULL);
     CHECK (t->capture == NULL); /* and leaves the context unarmed */
     dp_tlm_destroy (t);
@@ -418,7 +485,7 @@ main (void)
     const char *path = scratch ("destroy_open");
     dp_tlm_t   *t    = dp_tlm_create (256);
     dp_tlm_probe (t, "d", 1);
-    dp_tlm_capture_t *cap = dp_tlm_capture_open (t, 16, path, 0.0, 0.0);
+    dp_tlm_capture_t *cap = dp_tlm_capture_open (t, 16, path, NULL);
     CHECK (cap != NULL);
     dp_tlm_set_now (t, 0);
     dp_tlm_emit (t, 0, 1.0);

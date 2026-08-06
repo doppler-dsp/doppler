@@ -39,7 +39,14 @@ ______________________________________________________________________
     `dp_tlm_rec_t` layout *is* the file (`np.fromfile` reads it directly), with
     a `<path>-meta` JSON sidecar carrying the probe table, the counters, the
     sample clock and the dtype, so a capture is self-describing without any
-    doppler code.
+    doppler code. The time base is **borrowed** from the pipeline's
+    `dp_sample_clock_t` rather than re-declared as a private `fs`/`t0` pair —
+    two copies of a time base drift, and the one written into a file is the
+    copy nobody can correct afterwards. An epoch is recorded only when the
+    clock is genuinely anchored (`has_anchor`), never when it is
+    `dp_sample_clock_init()`'s construction-time capture of "now": stamping a
+    replayed 2019 capture as today is worse than no timestamp, because it
+    looks authoritative.
 
 - **`dp_tlm_capture_close()` fails loudly on a hole.** The invariant makes a
     drop impossible, so a non-zero count means the block contract was broken —

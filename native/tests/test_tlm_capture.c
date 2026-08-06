@@ -1,0 +1,447 @@
+/*
+ * C-level tests for the lossless capture (telemetry/tlm_capture.h).
+ *
+ * The headline test is `saturation`: emit EXACTLY the per-block bound, every
+ * block, for many blocks, and assert nothing is dropped. That is the whole
+ * claim the design makes, so it is the one that must be impossible to pass by
+ * accident -- shrinking the ring one record below the bound turns it red.
+ *
+ * Everything else pins the machinery around it: the boundary reached through
+ * set_now, the ping-pong handoff and its backpressure, the file round-trip and
+ * its sidecar, the self-heal when probes appear late, and the loud failure
+ * when the caller breaks the block contract.
+ */
+#include "telemetry/tlm_capture.h"
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#define CHECK(cond)                                                           \
+  do                                                                          \
+    {                                                                         \
+      if (!(cond))                                                            \
+        {                                                                     \
+          fprintf (stderr, "FAIL %s:%d  %s\n", __FILE__, __LINE__, #cond);    \
+          _fails++;                                                           \
+        }                                                                     \
+    }                                                                         \
+  while (0)
+
+static int _fails = 0;
+
+/* A scratch path in the build tree; every test that writes one removes it
+   first, so a failing earlier block cannot poison a later assertion. */
+static const char *
+scratch (const char *leaf)
+{
+  static char buf[256];
+  snprintf (buf, sizeof buf, "tlm_capture_%s.tlm", leaf);
+  remove (buf);
+  char meta[288];
+  snprintf (meta, sizeof meta, "%s-meta", buf);
+  remove (meta);
+  return buf;
+}
+
+/* Whole-file slurp, for checking the raw records and the JSON sidecar. */
+static char *
+slurp (const char *path, size_t *len)
+{
+  FILE *f = fopen (path, "rb");
+  if (!f)
+    return NULL;
+  fseek (f, 0, SEEK_END);
+  long n = ftell (f);
+  fseek (f, 0, SEEK_SET);
+  char *b = (char *)malloc ((size_t)n + 1);
+  if (!b)
+    {
+      fclose (f);
+      return NULL;
+    }
+  size_t got = fread (b, 1, (size_t)n, f);
+  fclose (f);
+  b[got] = '\0';
+  if (len)
+    *len = got;
+  return b;
+}
+
+int
+main (void)
+{
+  /* ── THE claim: emit the bound every block, forever, and lose nothing ──
+     No sleeps, no thread timing, no safety factor -- the ring is sized to
+     exactly one block's worth and drained at every boundary, so overflow is
+     arithmetically impossible rather than merely unlikely. Shrink the ring
+     one record below the bound and this goes red. ─────────────────────────*/
+  {
+    /* BLOCK is chosen so the bound (768) EXCEEDS the smallest ring the
+       allocator will hand out (256, the page floor). Anything smaller and the
+       ring is already big enough by accident, and this stops testing the
+       sizing at all -- it would stay green with dp_tlm_resize deleted. */
+    const size_t BLOCK  = 256;
+    const size_t BLOCKS = 200;
+    dp_tlm_t    *t      = dp_tlm_create (256);
+    int          a      = dp_tlm_probe (t, "a", 1);
+    int          b      = dp_tlm_probe (t, "b", 1);
+    int          c3     = dp_tlm_probe (t, "c", 1);
+    CHECK (t && a == 0 && b == 1 && c3 == 2);
+
+    size_t bound = dp_tlm_block_bound (t, BLOCK);
+    CHECK (bound == 3 * BLOCK);
+
+    CHECK (dp_tlm_capacity (t) < bound); /* as handed out: too small */
+    dp_tlm_capture_t *cap = dp_tlm_capture_open (t, BLOCK, NULL, 0.0, 0.0);
+    CHECK (cap != NULL);
+    /* Opening GREW the ring to the bound; the caller never picked a number. */
+    CHECK (dp_tlm_capacity (t) >= bound);
+
+    for (size_t blk = 0; blk < BLOCKS; blk++)
+      {
+        dp_tlm_set_now (t, blk * BLOCK); /* boundary: drains the last block */
+        for (size_t i = 0; i < BLOCK; i++)
+          {
+            dp_tlm_emit (t, a, (double)i);
+            dp_tlm_emit (t, b, (double)i);
+            dp_tlm_emit (t, c3, (double)i);
+          }
+      }
+    CHECK (dp_tlm_capture_close (cap) == DP_OK);
+    CHECK (dp_tlm_capture_dropped (cap) == 0);
+    CHECK (dp_tlm_capture_count (cap) == BLOCKS * bound);
+    CHECK (dp_tlm_dropped (t) == 0);
+
+    /* In memory mode the capture IS the emission sequence, contiguous and in
+       order, with no concatenation step for the caller. */
+    const dp_tlm_rec_t *recs = dp_tlm_capture_records (cap);
+    CHECK (recs != NULL);
+    int ok = 1;
+    /* Bound the walk by what was ACTUALLY captured, not by what should have
+       been: a short capture is a failure the CHECKs above already report, and
+       walking to the expected length would turn it into a segfault instead of
+       a diagnosis. */
+    size_t have = dp_tlm_capture_count (cap);
+    for (size_t k = 0; k < have && recs; k++)
+      {
+        size_t blk = k / bound, within = (k % bound) / 3;
+        if (recs[k].n != (uint64_t)(blk * BLOCK)
+            || recs[k].probe != (uint16_t)(k % 3)
+            || recs[k].value != (float)within)
+          ok = 0;
+      }
+    CHECK (ok);
+
+    dp_tlm_capture_destroy (cap);
+    dp_tlm_destroy (t);
+  }
+
+  /* ── set_now IS the boundary: an existing loop becomes lossless with no
+     call-site change at all. Without the delegation the ring (sized to one
+     block) overflows on block 2. ───────────────────────────────────────────
+   */
+  {
+    dp_tlm_t *t  = dp_tlm_create (256);
+    int       id = dp_tlm_probe (t, "x", 1);
+    CHECK (dp_tlm_capacity (t) == 256); /* page floor, well under the total */
+
+    dp_tlm_capture_t *cap = dp_tlm_capture_open (t, 100, NULL, 0.0, 0.0);
+    CHECK (cap != NULL);
+    for (int blk = 0; blk < 50; blk++)
+      {
+        dp_tlm_set_now (t, (uint64_t)blk);
+        for (int i = 0; i < 100; i++)
+          dp_tlm_emit (t, id, 1.0);
+      }
+    CHECK (dp_tlm_capture_close (cap) == DP_OK);
+    CHECK (dp_tlm_capture_count (cap) == 5000);
+
+    /* And once closed, set_now goes back to being a bare assignment -- it must
+       not keep calling into a finished capture. */
+    dp_tlm_set_now (t, 99);
+    CHECK (dp_tlm_capture_count (cap) == 5000);
+    dp_tlm_capture_destroy (cap);
+    dp_tlm_destroy (t);
+  }
+
+  /* ── file mode: the round-trip is byte-exact, and the writer thread's
+     ping-pong never reorders or loses a handoff ────────────────────────────
+   */
+  {
+    const char *path = scratch ("roundtrip");
+    dp_tlm_t   *t    = dp_tlm_create (256);
+    int         id   = dp_tlm_probe (t, "f", 1);
+
+    dp_tlm_capture_t *cap = dp_tlm_capture_open (t, 128, path, 1e6, 0.0);
+    CHECK (cap != NULL);
+    const int BLOCKS = 300; /* many stage swaps -> many writer handoffs */
+    for (int blk = 0; blk < BLOCKS; blk++)
+      {
+        dp_tlm_set_now (t, (uint64_t)blk);
+        for (int i = 0; i < 128; i++)
+          dp_tlm_emit (t, id, (double)(blk * 128 + i));
+      }
+    CHECK (dp_tlm_capture_close (cap) == DP_OK);
+    CHECK (dp_tlm_capture_count (cap) == (size_t)BLOCKS * 128);
+    /* File mode: the file is the capture, so there is nothing in memory. */
+    CHECK (dp_tlm_capture_records (cap) == NULL);
+
+    size_t len  = 0;
+    char  *blob = slurp (path, &len);
+    CHECK (blob != NULL);
+    CHECK (len == (size_t)BLOCKS * 128 * sizeof (dp_tlm_rec_t));
+    const dp_tlm_rec_t *r  = (const dp_tlm_rec_t *)blob;
+    int                 ok = 1;
+    /* Walk what the file actually holds, so a short file is diagnosed by the
+       length CHECK above rather than by reading off the end of the buffer. */
+    size_t nrec = len / sizeof (dp_tlm_rec_t);
+    for (size_t k = 0; k < nrec && blob; k++)
+      if (r[k].n != (uint64_t)(k / 128) || r[k].value != (float)k)
+        ok = 0;
+    CHECK (ok);
+    free (blob);
+
+    /* The sidecar carries what the records cannot. */
+    char meta[288];
+    snprintf (meta, sizeof meta, "%s-meta", path);
+    char *js = slurp (meta, NULL);
+    CHECK (js != NULL);
+    if (js)
+      {
+        CHECK (strstr (js, "\"records\": 38400") != NULL);
+        CHECK (strstr (js, "\"dropped\": 0") != NULL);
+        CHECK (strstr (js, "\"block_samples\": 128") != NULL);
+        CHECK (strstr (js, "\"\\\"f\\\"\"") == NULL); /* no double-escaping */
+        CHECK (strstr (js, "\"f\": 0") != NULL);
+        /* Self-describing: a reader needs no doppler code to parse the file.
+         */
+        CHECK (strstr (js, "\"dtype\"") != NULL);
+        CHECK (strstr (js, "[\"value\", \"<f4\"]") != NULL);
+        /* fs was stated, t0 was not -- an unstated value is OMITTED, never
+           fabricated as a plausible-looking zero. */
+        CHECK (strstr (js, "\"fs\": 1000000") != NULL);
+        CHECK (strstr (js, "\"t0\"") == NULL);
+        free (js);
+      }
+    dp_tlm_capture_destroy (cap);
+    dp_tlm_destroy (t);
+    remove (path);
+    remove (meta);
+  }
+
+  /* ── the sidecar's probe table is COMPLETE: every registered probe, with
+     its id, including one that never emitted ───────────────────────────── */
+  {
+    const char *path = scratch ("probes");
+    dp_tlm_t   *t    = dp_tlm_create (256);
+    CHECK (dp_tlm_probe (t, "rx.car.e", 1) == 0);
+    CHECK (dp_tlm_probe (t, "rx.car.freq", 1) == 1);
+    CHECK (dp_tlm_probe (t, "rx.sync.mu", 4) == 2);
+
+    dp_tlm_capture_t *cap = dp_tlm_capture_open (t, 16, path, 0.0, 0.0);
+    dp_tlm_set_now (t, 0);
+    dp_tlm_emit (t, 0, 1.0); /* only probe 0 ever fires */
+    CHECK (dp_tlm_capture_close (cap) == DP_OK);
+
+    char meta[288];
+    snprintf (meta, sizeof meta, "%s-meta", path);
+    char *js = slurp (meta, NULL);
+    CHECK (js != NULL);
+    if (js)
+      {
+        CHECK (strstr (js, "\"rx.car.e\": 0") != NULL);
+        CHECK (strstr (js, "\"rx.car.freq\": 1") != NULL);
+        CHECK (strstr (js, "\"rx.sync.mu\": 2") != NULL);
+        /* An omitted probe would make a record's `probe` field unresolvable,
+           so silence about a silent probe is not acceptable. */
+        free (js);
+      }
+    dp_tlm_capture_destroy (cap);
+    dp_tlm_destroy (t);
+    remove (path);
+    remove (meta);
+  }
+
+  /* ── self-heal: probes registered AFTER open raise the bound, and the next
+     boundary grows the ring before the wider block can cost a record ────── */
+  {
+    dp_tlm_t *t = dp_tlm_create (256);
+    CHECK (dp_tlm_probe (t, "p0", 1) == 0);
+
+    dp_tlm_capture_t *cap = dp_tlm_capture_open (t, 200, NULL, 0.0, 0.0);
+    CHECK (cap != NULL);
+    size_t cap0 = dp_tlm_capacity (t);
+
+    /* A late attach -- a second instrumented object joining the pipeline. */
+    for (int i = 1; i < 8; i++)
+      {
+        char nm[8];
+        snprintf (nm, sizeof nm, "p%d", i);
+        CHECK (dp_tlm_probe (t, nm, 1) == i);
+      }
+    dp_tlm_set_now (t, 0); /* boundary: notices the bound moved, grows */
+    CHECK (dp_tlm_capacity (t) > cap0);
+    CHECK (dp_tlm_capacity (t) >= dp_tlm_block_bound (t, 200));
+
+    for (int blk = 0; blk < 20; blk++)
+      {
+        dp_tlm_set_now (t, (uint64_t)blk);
+        for (int i = 0; i < 200; i++)
+          for (int p = 0; p < 8; p++)
+            dp_tlm_emit (t, p, 1.0);
+      }
+    CHECK (dp_tlm_capture_close (cap) == DP_OK);
+    CHECK (dp_tlm_capture_count (cap) == 20 * 200 * 8);
+    dp_tlm_capture_destroy (cap);
+    dp_tlm_destroy (t);
+  }
+
+  /* ── growing must not eat what is already in the ring. The resize replaces
+     the ring outright, so doing it BEFORE the drain would discard exactly the
+     records the boundary exists to collect. ────────────────────────────────
+   */
+  {
+    dp_tlm_t *t = dp_tlm_create (256);
+    CHECK (dp_tlm_probe (t, "q0", 1) == 0);
+    dp_tlm_capture_t *cap  = dp_tlm_capture_open (t, 64, NULL, 0.0, 0.0);
+    size_t            cap0 = dp_tlm_capacity (t);
+
+    dp_tlm_set_now (t, 0);
+    for (int i = 0; i < 64; i++)
+      dp_tlm_emit (t, 0, (double)i); /* in the ring, not yet drained */
+
+    /* Register enough probes that the new bound (8 x 64 = 512) EXCEEDS the
+       current ring -- otherwise the resize is a no-op and this block cannot
+       tell drain-then-grow from grow-then-drain. */
+    for (int i = 1; i < 8; i++)
+      {
+        char nm[8];
+        snprintf (nm, sizeof nm, "q%d", i);
+        dp_tlm_probe (t, nm, 1);
+      }
+    CHECK (dp_tlm_block_bound (t, 64) > cap0);
+    dp_tlm_set_now (t, 64); /* boundary: must drain FIRST, then grow */
+    CHECK (dp_tlm_capacity (t) > cap0);
+
+    CHECK (dp_tlm_capture_close (cap) == DP_OK);
+    CHECK (dp_tlm_capture_count (cap) == 64); /* not 0 */
+    const dp_tlm_rec_t *recs = dp_tlm_capture_records (cap);
+    CHECK (recs && recs[0].value == 0.0f && recs[63].value == 63.0f);
+    dp_tlm_capture_destroy (cap);
+    dp_tlm_destroy (t);
+  }
+
+  /* ── breaking the block contract FAILS LOUDLY. A hole is not a smaller
+     capture, it is a wrong one -- close() must refuse to call it fine. ──── */
+  {
+    dp_tlm_t *t = dp_tlm_create (256);
+    CHECK (dp_tlm_probe (t, "over", 1) == 0);
+    dp_tlm_capture_t *cap = dp_tlm_capture_open (t, 8, NULL, 0.0, 0.0);
+    CHECK (cap != NULL);
+
+    /* Declared block = 8, actual step = far more, with no boundary between:
+       the ring was sized for 8 and overflows. */
+    dp_tlm_set_now (t, 0);
+    for (int i = 0; i < 100000; i++)
+      dp_tlm_emit (t, 0, 1.0);
+
+    CHECK (dp_tlm_capture_close (cap) == DP_ERR_INVALID);
+    CHECK (dp_tlm_capture_dropped (cap) > 0);
+    /* close() is idempotent and replays its verdict rather than "succeeding"
+       the second time round. */
+    CHECK (dp_tlm_capture_close (cap) == DP_ERR_INVALID);
+    dp_tlm_capture_destroy (cap);
+    dp_tlm_destroy (t);
+  }
+
+  /* ── dropped is latched PER CAPTURE, not read raw off the monotonic
+     context counter -- otherwise a fresh capture inherits an old hole ───── */
+  {
+    dp_tlm_t *t = dp_tlm_create (256);
+    CHECK (dp_tlm_probe (t, "flood", 1) == 0);
+    for (size_t i = 0; i < dp_tlm_capacity (t) * 4; i++)
+      dp_tlm_emit (t, 0, 1.0); /* no consumer: guaranteed overrun */
+    CHECK (dp_tlm_dropped (t) > 0);
+
+    dp_tlm_capture_t *cap = dp_tlm_capture_open (t, 8, NULL, 0.0, 0.0);
+    CHECK (cap != NULL);
+    dp_tlm_set_now (t, 0);
+    dp_tlm_emit (t, 0, 1.0);
+    CHECK (dp_tlm_capture_close (cap) == DP_OK); /* THIS capture is clean */
+    CHECK (dp_tlm_capture_dropped (cap) == 0);
+    dp_tlm_capture_destroy (cap);
+    dp_tlm_destroy (t);
+  }
+
+  /* ── open() edges ─────────────────────────────────────────────────────── */
+  {
+    CHECK (dp_tlm_capture_open (NULL, 16, NULL, 0.0, 0.0) == NULL);
+
+    dp_tlm_t *t = dp_tlm_create (256);
+    /* No probes -> no bound -> nothing meaningful to size against. */
+    CHECK (dp_tlm_capture_open (t, 16, NULL, 0.0, 0.0) == NULL);
+    dp_tlm_probe (t, "z", 1);
+    /* A zero block is the one number a caller must actually supply. */
+    CHECK (dp_tlm_capture_open (t, 0, NULL, 0.0, 0.0) == NULL);
+
+    dp_tlm_capture_t *cap = dp_tlm_capture_open (t, 16, NULL, 0.0, 0.0);
+    CHECK (cap != NULL);
+    /* A second capture would be a second consumer on an SPSC ring: silent
+       corruption, not a slow path. Refuse it. */
+    CHECK (dp_tlm_capture_open (t, 16, NULL, 0.0, 0.0) == NULL);
+    CHECK (dp_tlm_capture_close (cap) == DP_OK);
+    /* Once closed the context is free again. */
+    dp_tlm_capture_t *cap2 = dp_tlm_capture_open (t, 16, NULL, 0.0, 0.0);
+    CHECK (cap2 != NULL);
+    dp_tlm_capture_destroy (cap2);
+    dp_tlm_capture_destroy (cap);
+
+    /* An unopenable path fails at open, not silently at close. */
+    CHECK (dp_tlm_capture_open (t, 16, "/nonexistent-dir-xyz/f.tlm", 0.0, 0.0)
+           == NULL);
+    CHECK (t->capture == NULL); /* and leaves the context unarmed */
+    dp_tlm_destroy (t);
+  }
+
+  /* ── NULL-safety across the surface ───────────────────────────────────── */
+  {
+    CHECK (dp_tlm_capture_block (NULL) == DP_ERR_INVALID);
+    CHECK (dp_tlm_capture_close (NULL) == DP_ERR_INVALID);
+    CHECK (dp_tlm_capture_count (NULL) == 0);
+    CHECK (dp_tlm_capture_records (NULL) == NULL);
+    CHECK (dp_tlm_capture_dropped (NULL) == 0);
+    dp_tlm_capture_destroy (NULL); /* must not crash */
+
+    /* destroy() on an OPEN capture closes it first rather than leaking the
+       writer thread onto a freed struct. */
+    const char *path = scratch ("destroy_open");
+    dp_tlm_t   *t    = dp_tlm_create (256);
+    dp_tlm_probe (t, "d", 1);
+    dp_tlm_capture_t *cap = dp_tlm_capture_open (t, 16, path, 0.0, 0.0);
+    CHECK (cap != NULL);
+    dp_tlm_set_now (t, 0);
+    dp_tlm_emit (t, 0, 1.0);
+    dp_tlm_capture_destroy (cap);
+    CHECK (t->capture == NULL); /* and un-arms set_now on the way out */
+    dp_tlm_set_now (t, 1);      /* must not touch the freed capture */
+    dp_tlm_destroy (t);
+
+    size_t len  = 0;
+    char  *blob = slurp (path, &len);
+    CHECK (blob && len == sizeof (dp_tlm_rec_t)); /* flushed, not lost */
+    free (blob);
+    remove (path);
+    char meta[288];
+    snprintf (meta, sizeof meta, "%s-meta", path);
+    remove (meta);
+  }
+
+  if (_fails)
+    {
+      fprintf (stderr, "test_tlm_capture FAILED (%d)\n", _fails);
+      return 1;
+    }
+  printf ("test_tlm_capture PASSED\n");
+  return 0;
+}

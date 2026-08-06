@@ -13,6 +13,53 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+### Added
+
+- **Telemetry captures are lossless by construction** (C API;
+    `telemetry/tlm_capture.h`). Dropping was the ring's fallback, and sizing it
+    was a question nobody could answer — too small silently loses data, too big
+    wastes memory, and neither shows up until after the run. It rests on one
+    bound: **no probe emits more than once per input sample**, so a block of
+    `N` inputs emits at most `probe_count * N` records
+    (`dp_tlm_block_bound()`). Size the ring to that, drain it to empty at every
+    block boundary, and the ring *cannot* overflow. That is a proof, not a
+    heuristic — no polling interval, no scheduling assumption, no safety
+    factor. `dp_tlm_capture_open()` does the sizing itself from the probes you
+    attached, so the only number a caller supplies is their own block length.
+
+- **`dp_tlm_set_now()` delegates to an open capture**, and callers already put
+    it at the top of the block loop before stepping — so an existing
+    `set_now / steps / read` loop becomes lossless by opening a capture and
+    changing nothing else. With no capture open it is still a bare assignment.
+
+- **Flat memory on a long capture**, kept deliberately separate from
+    losslessness: the capture ping-pongs two staging buffers so a writer thread
+    drains one while the producer fills the other. If the writer falls behind,
+    the *boundary* blocks — backpressure, never loss. On disk the 16-byte
+    `dp_tlm_rec_t` layout *is* the file (`np.fromfile` reads it directly), with
+    a `<path>-meta` JSON sidecar carrying the probe table, the counters, the
+    sample clock and the dtype, so a capture is self-describing without any
+    doppler code.
+
+- **`dp_tlm_capture_close()` fails loudly on a hole.** The invariant makes a
+    drop impossible, so a non-zero count means the block contract was broken —
+    a capture with a hole is not a smaller capture, it is a wrong one.
+
+- New C surface alongside it: `dp_tlm_avail()`, `dp_tlm_resize()`,
+    `dp_tlm_probe_id_at()`, and `dp_tlm_stats()` returning a by-value
+    `dp_tlm_stats_t`. Plus `bench_telemetry_core` — the first telemetry
+    benchmark in the tree, which is what makes "don't regress the emit path"
+    falsifiable at all. It measures detached / decimated / emit / overrun, and
+    records that the **overrun path is the slowest of the four** (an atomic
+    read-modify-write on the drop counter, against a plain store for a
+    successful write).
+
+### Removed
+
+- `dp_tlm_recorder_*` (never released). A 200 µs polling drain thread traded a
+    sizing guess for a scheduling guess and could not claim losslessness
+    either way; `dp_tlm_capture_*` supersedes it.
+
 ### Changed
 
 - **BREAKING: `wfm.Writer` now requires `fs`.** It used to default to `1e6`,

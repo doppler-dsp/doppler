@@ -6,6 +6,7 @@
  */
 #include "telemetry/telemetry.h"
 
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -85,12 +86,86 @@ dp_tlm_capacity (const dp_tlm_t *t)
   return t ? t->ring->capacity : 0;
 }
 
+int
+dp_tlm_probe_id_at (const dp_tlm_t *t, size_t i)
+{
+  if (!t || i >= t->n_probes)
+    return DP_ERR_INVALID;
+  return (int)i;
+}
+
+size_t
+dp_tlm_block_bound (const dp_tlm_t *t, size_t block_samples)
+{
+  if (!t || block_samples == 0 || t->n_probes == 0)
+    return 0;
+  size_t probes = t->n_probes;
+  /* Saturate rather than wrap: a wrapped bound would size the ring SMALL,
+   * which is the one failure mode this function exists to make impossible. */
+  if (block_samples > SIZE_MAX / probes)
+    return SIZE_MAX;
+  return probes * block_samples;
+}
+
+size_t
+dp_tlm_avail (const dp_tlm_t *t)
+{
+  if (!t)
+    return 0;
+  /* Acquire on head pairs with the producer's release; the tail is
+   * consumer-owned so a relaxed load is enough.  Racing with the producer
+   * can only make the true count larger, never smaller. */
+  return DP_LOAD_ACQ (&t->ring->head) - DP_LOAD_RLX (&t->ring->tail);
+}
+
+int
+dp_tlm_resize (dp_tlm_t *t, size_t records)
+{
+  if (!t)
+    return DP_ERR_INVALID;
+  if (records <= t->ring->capacity)
+    return DP_OK; /* already big enough — the common boundary re-check */
+
+  /* buffer.h demands a power of two (and rounds sub-page requests up to the
+   * page minimum itself, so we need not model the page size here). */
+  size_t want = 1;
+  while (want < records)
+    {
+      if (want > SIZE_MAX / 2)
+        return DP_ERR_INVALID;
+      want *= 2;
+    }
+
+  dp_tlmr_t *fresh = dp_tlmr_create (want);
+  if (!fresh)
+    return DP_ERR_INVALID; /* old ring still intact and still attached */
+  dp_tlmr_destroy (t->ring);
+  t->ring = fresh;
+  return DP_OK;
+}
+
+dp_tlm_stats_t
+dp_tlm_stats (const dp_tlm_t *t)
+{
+  dp_tlm_stats_t s = { 0, 0, 0, 0 };
+  if (!t)
+    return s;
+  for (uint32_t i = 0; i < t->n_probes; i++)
+    s.emitted += t->probes[i].emitted;
+  s.dropped  = dp_tlm_dropped (t);
+  s.capacity = t->ring->capacity;
+  s.probes   = t->n_probes;
+  return s;
+}
+
 size_t
 dp_tlm_read (dp_tlm_t *t, dp_tlm_rec_t *out, size_t max_recs)
 {
   /* Consumer side of the SPSC ring, non-blocking: acquire the head once,
    * copy what's there (contiguous thanks to the VM double-mapping), and
    * release the tail.  Deliberately NOT dp_tlmr_wait — that spins. */
+  if (!t || !out)
+    return 0;
   dp_tlmr_t *ring = t->ring;
   size_t     head = DP_LOAD_ACQ (&ring->head);
   size_t     tail = DP_LOAD_RLX (&ring->tail);

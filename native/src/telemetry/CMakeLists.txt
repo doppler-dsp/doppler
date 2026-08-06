@@ -4,9 +4,12 @@
 # doppler_lib unconditionally — the detached cost is one branch per event.
 
 # OBJECT library — pure C core, no Python dependency.
-add_library(telemetry_core OBJECT telemetry_core.c)
+add_library(telemetry_core OBJECT telemetry_core.c tlm_capture.c)
 target_include_directories(telemetry_core
                            PUBLIC ${CMAKE_SOURCE_DIR}/native/inc)
+# A file-backed capture writes on its own thread so disk latency never lands
+# on the block boundary (dp_parallel.h precedent).
+target_link_libraries(telemetry_core PUBLIC Threads::Threads)
 
 # Fold into the combined lib from here (not the root CMakeLists — the root's
 # component region is jm-managed, and telemetry is no_generate/hand-owned).
@@ -32,9 +35,17 @@ add_custom_command(TARGET telemetry POST_BUILD
     VERBATIM)
 endif()
 
-add_executable(test_telemetry_core
-               ${CMAKE_SOURCE_DIR}/native/tests/test_telemetry_core.c)
-target_link_libraries(test_telemetry_core PRIVATE telemetry_core Threads::Threads)
-target_include_directories(test_telemetry_core
-                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
-add_test(NAME test_telemetry_core COMMAND test_telemetry_core)
+add_executable(bench_telemetry_core
+               ${CMAKE_SOURCE_DIR}/native/benchmarks/bench_telemetry_core.c)
+target_link_libraries(bench_telemetry_core PRIVATE telemetry_core
+                                                   Threads::Threads)
+target_include_directories(bench_telemetry_core
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                   ${CMAKE_SOURCE_DIR}/native/benchmarks)
+
+foreach(t test_telemetry_core test_tlm_capture)
+  add_executable(${t} ${CMAKE_SOURCE_DIR}/native/tests/${t}.c)
+  target_link_libraries(${t} PRIVATE telemetry_core Threads::Threads)
+  target_include_directories(${t} PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
+  add_test(NAME ${t} COMMAND ${t})
+endforeach()

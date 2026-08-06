@@ -139,6 +139,38 @@ main (void)
     DP_TLM (NULL, 0, 2.0);      /* macro form */
   }
 
+  /* ── an id outside probes[] is ignored, not indexed ──────────────── */
+  {
+    /* probes[] is a fixed DP_TLM_MAX_PROBES array, so a negative or
+       past-the-end id used to index out of bounds and write through the
+       result.  Reachable from any binding that passes the caller's id
+       straight through: Telemetry.emit(1000000, 1.0) segfaulted the
+       interpreter.  Each of these must be a silent no-op.
+
+       The bound is the ARRAY's, not the registry's: an in-range but
+       unregistered id still emits (decim 0 never suppresses), because
+       checking n_probes here costs ~16% of the decimated path and the hot
+       loop's caller holds an id dp_tlm_probe() gave it.  Rejecting THAT is
+       the binding's job, where the id is untrusted. */
+    dp_tlm_t *t  = dp_tlm_create (256);
+    int       id = dp_tlm_probe (t, "x", 1);
+
+    dp_tlm_emit (t, -1, 2.0);                /* negative */
+    dp_tlm_emit (t, -1000000, 3.0);          /* very negative */
+    dp_tlm_emit (t, DP_TLM_MAX_PROBES, 4.0); /* one past the array */
+    dp_tlm_emit (t, 1000000, 5.0);           /* far past it */
+
+    dp_tlm_rec_t recs[8];
+    CHECK (dp_tlm_read (t, 8, recs, 8) == 0);
+    CHECK (dp_tlm_stats (t).emitted == 0);
+
+    /* The registered id still works, so the guard is not simply off. */
+    dp_tlm_emit (t, id, 6.0);
+    CHECK (dp_tlm_read (t, 8, recs, 8) == 1);
+    CHECK (recs[0].value == 6.0f);
+    dp_tlm_destroy (t);
+  }
+
   /* ── emit + read round-trip, now stamping, value narrowing ───────── */
   {
     dp_tlm_t *t  = dp_tlm_create (256);

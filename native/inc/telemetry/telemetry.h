@@ -18,6 +18,16 @@
  *     overrun the record is dropped and counted, so a slow (or absent)
  *     reader can never stall the DSP thread.
  *
+ * @section tlm_lossless Drops are preventable, not merely countable
+ * Dropping is the ring's *fallback*, not the intended steady state.  Because
+ * no probe can emit more than once per input sample, a block of @c N inputs
+ * emits at most `dp_tlm_probe_count() * N` records — see dp_tlm_block_bound().
+ * A ring sized to that bound and drained to empty at every block boundary
+ * therefore *cannot* overflow, which is what dp_tlm_capture_open()
+ * (telemetry/tlm_capture.h) sets up for you.  Prefer a capture to a
+ * hand-rolled drain loop: guessing a ring size and hoping the reader keeps up
+ * is the failure mode this bound exists to retire.
+ *
  * @section tlm_threading Threading contract
  * The ring is single-producer / single-consumer:
  *
@@ -100,11 +110,17 @@ typedef struct
   uint64_t emitted;               /**< Records written into the ring.   */
 } dp_tlm_probe_t;
 
+/** Opaque lossless capture (telemetry/tlm_capture.h); see dp_tlm_set_now. */
+typedef struct dp_tlm_capture dp_tlm_capture_t;
+
 /**
  * @brief Telemetry context: probe registry + SPSC record ring.
  *
  * Public (not opaque) because the emit path is inline; treat the fields as
  * read-only outside telemetry_core.c and dp_tlm_emit.
+ *
+ * @c capture is deliberately LAST: the emit hot path touches @c ring, @c now
+ * and @c probes, and appending here leaves their cache layout untouched.
  */
 typedef struct dp_tlm
 {
@@ -112,7 +128,18 @@ typedef struct dp_tlm
   uint64_t       now;     /**< Caller-stamped sample index for records. */
   uint32_t       n_probes;
   dp_tlm_probe_t probes[DP_TLM_MAX_PROBES];
+  /** Open capture that dp_tlm_set_now() drains through; NULL when none. */
+  dp_tlm_capture_t *capture;
 } dp_tlm_t;
+
+/**
+ * @brief Drains the ring into an open capture.  See tlm_capture.h.
+ *
+ * Declared here (not just in tlm_capture.h) so the inline dp_tlm_set_now()
+ * can delegate without telemetry.h depending on the capture header — the
+ * dependency runs the other way.
+ */
+int dp_tlm_capture_block (dp_tlm_capture_t *c);
 
 /**
  * @brief Creates a telemetry context with a ring of @p ring_records slots.
@@ -157,6 +184,82 @@ size_t dp_tlm_probe_count (const dp_tlm_t *t);
 size_t dp_tlm_capacity (const dp_tlm_t *t);
 
 /**
+ * @brief Probe id at registry slot @p i.  Always @p i — ids ARE slots.
+ *
+ * Exists so a `{name: id}` mapping can be built from the plain-C triple
+ * (dp_tlm_probe_count, dp_tlm_probe_name, this) without the caller needing
+ * to know that the identity holds.
+ */
+int dp_tlm_probe_id_at (const dp_tlm_t *t, size_t i);
+
+/**
+ * @brief Records this context can emit while processing @p block_samples
+ *        inputs — the number that makes drops preventable.
+ *
+ * `probe_count * block_samples`, and that is a genuine upper bound rather
+ * than an estimate: **no probe can emit more than once per input sample.**
+ * Verified across every object with a `*_set_telemetry` — the interpolating
+ * ones are not counterexamples, because a cascade that produces several
+ * outputs from one input collapses them into a single `emitted |=` strobe
+ * (ratesync_core.h, mpsk_receiver_core.h), so one input yields at most one
+ * flush.  Each probe belongs to exactly one object, so summing over objects
+ * is just the context-wide probe count.
+ *
+ * Size a ring to this and drain it to empty every block and the ring cannot
+ * overflow — no scheduling assumption, no safety factor.  Registering more
+ * probes raises the bound, which is why a capture re-checks it at each
+ * boundary.
+ *
+ * @return The bound, or 0 for a NULL context / zero block / no probes.
+ *         Saturates at SIZE_MAX rather than wrapping.
+ */
+size_t dp_tlm_block_bound (const dp_tlm_t *t, size_t block_samples);
+
+/**
+ * @brief Records currently readable, without consuming them.
+ *
+ * The consumer-side head/tail snapshot.  Safe to call from the consumer
+ * thread while the producer runs: the true count can only GROW after the
+ * snapshot, so the value is a lower bound and never over-reports.
+ */
+size_t dp_tlm_avail (const dp_tlm_t *t);
+
+/**
+ * @brief Replaces the ring with one holding at least @p records.
+ *
+ * Rounds @p records up to a power of two (buffer.h requires it) and then to
+ * the page minimum.  A no-op returning ::DP_OK when the ring is already big
+ * enough, so it is cheap to call speculatively at every boundary.
+ *
+ * @warning **Destroys whatever the ring holds** and is unsynchronised with
+ * the producer.  Legal only where the producer is quiescent AND the ring has
+ * been drained — i.e. a block boundary.  dp_tlm_capture_block() is the only
+ * caller that needs it; call it yourself only if you own the same guarantee.
+ *
+ * @return ::DP_OK, or ::DP_ERR_INVALID on NULL / allocation failure (in
+ *         which case the existing ring is left intact).
+ */
+int dp_tlm_resize (dp_tlm_t *t, size_t records);
+
+/**
+ * @brief Context-wide counters, snapshotted together.
+ *
+ * A by-value record rather than a dict so the whole thing crosses a language
+ * boundary as one value.  Per-probe detail is not in here on purpose: it is
+ * dp_tlm_probe_name() + dp_tlm_emitted(), which stay the SSOT for it.
+ */
+typedef struct
+{
+  uint64_t dropped;  /**< Records lost to ring overrun (monotonic).      */
+  uint64_t emitted;  /**< Records written, summed over every probe.      */
+  size_t   capacity; /**< Ring capacity in records.                      */
+  size_t   probes;   /**< Registered probes.                             */
+} dp_tlm_stats_t;
+
+/** @brief Snapshots the context's counters.  Zeroed for a NULL context. */
+dp_tlm_stats_t dp_tlm_stats (const dp_tlm_t *t);
+
+/**
  * @brief Drains up to @p max_recs records into @p out.  Non-blocking.
  *
  * Consumer side of the SPSC ring: safe to call from a different thread
@@ -174,17 +277,32 @@ uint64_t dp_tlm_dropped (const dp_tlm_t *t);
 uint64_t dp_tlm_emitted (const dp_tlm_t *t, int id);
 
 /**
- * @brief Stamps the sample index carried by subsequent records.
+ * @brief Stamps the sample index carried by subsequent records, and — when a
+ *        capture is open — closes out the block just finished.
  *
  * Call once per block from whoever owns the pipeline's sample clock
- * (`dp_tlm_set_now (tlm, clk->n)`).  NULL-safe so pipeline glue can call
- * it unconditionally.
+ * (`dp_tlm_set_now (tlm, clk->n)`).  NULL-safe so pipeline glue can call it
+ * unconditionally.
+ *
+ * Callers already place this at the top of the block loop, *before* stepping,
+ * which makes it exactly the boundary a lossless capture needs: delegating
+ * here drains the PREVIOUS block, leaving the ring empty as the next one
+ * starts.  That is the invariant dp_tlm_block_bound() is sized against, so an
+ * existing `set_now / steps / read` loop becomes lossless by opening a
+ * capture and changing nothing else.
+ *
+ * With no capture open the behaviour is byte-identical to a bare assignment.
+ * The delegation is a cold branch on a per-block call, never a per-sample
+ * one, so it is nowhere near the hot loops dp_tlm_emit() cares about.
  */
 static inline void
 dp_tlm_set_now (dp_tlm_t *t, uint64_t n)
 {
-  if (t)
-    t->now = n;
+  if (!t)
+    return;
+  if (t->capture)
+    dp_tlm_capture_block (t->capture);
+  t->now = n;
 }
 
 /**

@@ -308,6 +308,109 @@ main (void)
     dp_tlm_destroy (t);
   }
 
+  /* ── block_bound: the number the whole lossless story rests on ────────── */
+  {
+    dp_tlm_t *t = dp_tlm_create (1 << 12);
+
+    /* No probes registered means no bound to state -- not "zero records". */
+    CHECK (dp_tlm_block_bound (t, 256) == 0);
+
+    CHECK (dp_tlm_probe (t, "a", 1) == 0);
+    CHECK (dp_tlm_block_bound (t, 256) == 256);
+    CHECK (dp_tlm_probe (t, "b", 1) == 1);
+    CHECK (dp_tlm_block_bound (t, 256) == 512);
+
+    /* Decimation must NOT shrink the bound. Probes registered together share
+       a phase, so a decim-D probe still emits its whole burst on the same
+       event -- decim thins the SERIES, never the worst-case block. Dividing
+       here is the tempting bug that would silently under-size the ring. */
+    CHECK (dp_tlm_probe (t, "b", 8) == 1);
+    CHECK (dp_tlm_block_bound (t, 256) == 512);
+
+    /* Degenerate inputs say "no bound" rather than a plausible-looking 0. */
+    CHECK (dp_tlm_block_bound (t, 0) == 0);
+    CHECK (dp_tlm_block_bound (NULL, 256) == 0);
+
+    /* Saturate rather than wrap: a wrapped product would size the ring SMALL,
+       the one failure this function exists to make impossible. */
+    CHECK (dp_tlm_block_bound (t, (size_t)-1) == (size_t)-1);
+
+    /* Ids are slots, and probe_id_at is the accessor that says so. */
+    CHECK (dp_tlm_probe_id_at (t, 0) == 0);
+    CHECK (dp_tlm_probe_id_at (t, 1) == 1);
+    CHECK (dp_tlm_probe_id_at (t, 2) == DP_ERR_INVALID);
+    CHECK (dp_tlm_probe_id_at (NULL, 0) == DP_ERR_INVALID);
+
+    dp_tlm_destroy (t);
+  }
+
+  /* ── avail / resize: the consumer's snapshot and the boundary's grow ──── */
+  {
+    dp_tlm_t *t  = dp_tlm_create (1 << 12);
+    int       id = dp_tlm_probe (t, "x", 1);
+    CHECK (dp_tlm_avail (t) == 0);
+    CHECK (dp_tlm_avail (NULL) == 0);
+    for (int i = 0; i < 5; i++)
+      dp_tlm_emit (t, id, (double)i);
+    CHECK (dp_tlm_avail (t) == 5);
+
+    /* avail() must not consume: reading it twice reads the same 5. */
+    CHECK (dp_tlm_avail (t) == 5);
+    dp_tlm_rec_t got[8];
+    CHECK (dp_tlm_read (t, got, 8) == 5);
+    CHECK (dp_tlm_avail (t) == 0);
+
+    /* Already big enough -> no-op, and cheap enough to call every boundary. */
+    size_t cap0 = dp_tlm_capacity (t);
+    CHECK (dp_tlm_resize (t, cap0 / 2) == DP_OK);
+    CHECK (dp_tlm_capacity (t) == cap0);
+
+    /* Growth rounds a non-power-of-two request UP; buffer.h demands pow2. */
+    CHECK (dp_tlm_resize (t, cap0 + 1) == DP_OK);
+    CHECK (dp_tlm_capacity (t) >= cap0 + 1);
+    size_t cap1 = dp_tlm_capacity (t);
+    CHECK ((cap1 & (cap1 - 1)) == 0);
+
+    CHECK (dp_tlm_resize (NULL, 16) == DP_ERR_INVALID);
+
+    /* The fresh ring is usable, and the probe registry survived the swap. */
+    dp_tlm_emit (t, id, 42.0);
+    CHECK (dp_tlm_read (t, got, 8) == 1 && got[0].value == 42.0f);
+    dp_tlm_destroy (t);
+  }
+
+  /* ── stats: one snapshot, taken together ──────────────────────────────── */
+  {
+    dp_tlm_t *t = dp_tlm_create (1 << 12);
+    int       a = dp_tlm_probe (t, "a", 1);
+    int       b = dp_tlm_probe (t, "b", 1);
+    for (int i = 0; i < 3; i++)
+      dp_tlm_emit (t, a, 1.0);
+    dp_tlm_emit (t, b, 2.0);
+
+    dp_tlm_stats_t s = dp_tlm_stats (t);
+    CHECK (s.probes == 2);
+    CHECK (s.capacity == dp_tlm_capacity (t));
+    CHECK (s.dropped == 0);
+    /* emitted is the SUM across probes, not any single probe's count -- 4,
+       not 3 and not 1. */
+    CHECK (s.emitted == 4);
+
+    dp_tlm_stats_t z = dp_tlm_stats (NULL);
+    CHECK (z.probes == 0 && z.capacity == 0 && z.emitted == 0
+           && z.dropped == 0);
+    dp_tlm_destroy (t);
+  }
+
+  /* ── read() NULL-safety: the one accessor that used to dereference ────── */
+  {
+    dp_tlm_rec_t out[4];
+    CHECK (dp_tlm_read (NULL, out, 4) == 0);
+    dp_tlm_t *t = dp_tlm_create (1 << 12);
+    CHECK (dp_tlm_read (t, NULL, 4) == 0);
+    dp_tlm_destroy (t);
+  }
+
   if (_fails)
     {
       fprintf (stderr, "test_telemetry_core FAILED (%d)\n", _fails);

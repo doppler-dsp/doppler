@@ -1,207 +1,281 @@
 # telemetry/telemetry.pyi — type stubs for the telemetry C extension.
+from typing import final
 import numpy as np
+from numpy.typing import NDArray
 
+@final
+class TelemetryStats(tuple[int, int, int, int]):
+    """Context-wide telemetry counters, snapshotted together. Per-probe detail
+    is probe_names() + emitted(), which stay the SSOT for it.
+
+    Attributes
+    ----------
+    dropped : int
+        Records lost to ring overrun, monotonic over the context's lifetime.
+    emitted : int
+        Records written, summed over every probe.
+    capacity : int
+        Ring capacity in records.
+    probes : int
+        Registered probes.
+    """
+
+    @property
+    def dropped(self) -> int:
+        """Records lost to ring overrun, monotonic over the context's
+        lifetime.
+        """
+
+    @property
+    def emitted(self) -> int:
+        """Records written, summed over every probe."""
+
+    @property
+    def capacity(self) -> int:
+        """Ring capacity in records."""
+
+    @property
+    def probes(self) -> int:
+        """Registered probes."""
+
+@final
 class Telemetry:
-    """Scalar telemetry context: probe registry + lock-free record ring.
-
-    A ``Telemetry`` wraps a C ``dp_tlm_t`` (see
-    ``docs/design/telemetry.md``): a fixed-capacity table of named probes
-    plus a lock-free single-producer / single-consumer ring of 16-byte
-    records.  Instrumented C objects attach to it via their
-    ``set_telemetry`` face and then publish scalars (loop stress, AGC
-    gain, lock metrics) straight from their hot loops — one
-    predicted-not-taken branch per event when detached, one ring write
-    when attached.  The ring drops (and counts) on overrun, so a slow or
-    absent reader can never stall the DSP thread.
-
-    ``probe``/``emit``/``set_now`` are the producer side and must stay on
-    one thread together with every attached object's stepping;
-    ``read``/``dropped`` are the consumer side and may run on a different
-    thread.  Register all probes before the producer starts.
+    """Creates a telemetry context with a ring of ring_records slots.
 
     Parameters
     ----------
-    ring_records : int, optional
-        Requested ring capacity in records (default ``16384``).  Must be
-        a power of two.  The ring's VM mirror is built at page
-        granularity, so a sub-page request (fewer than 256 records on
-        4 KiB pages) is rounded up; read :attr:`capacity` back for the
-        size actually allocated.
+    ring_records : int, default 16384
+        Requested ring capacity in records. MUST be a power of 2. Sub-page
+        requests are rounded up to the page minimum (buffer.h semantics) — read
+        the authoritative value back with dp_tlm_capacity().
 
     Examples
     --------
+    Create with defaults:
+
     >>> from doppler.telemetry import Telemetry
-    >>> tlm = Telemetry(1 << 12)
-    >>> tlm.capacity >= 1 << 12
-    True
-    >>> gid = tlm.probe("agc.gain_db", decim=1)
-    >>> tlm.set_now(1000)
-    >>> tlm.emit(gid, -3.5)
-    >>> recs = tlm.read()
-    >>> (int(recs["n"][0]), float(recs["value"][0]), int(recs["probe"][0]))
-    (1000, -3.5, 0)
-    >>> tlm.dropped
-    0
+    >>> obj = Telemetry(ring_records=16384)
 
     """
+    def __init__(self, ring_records: int = ...) -> None: ...
 
-    capacity: int
-    """Authoritative ring capacity in records (post page rounding)."""
+    def read(self, n: int = 0) -> NDArray[Any]:
+        """Drains records into out. Non-blocking.
 
-    dropped: int
-    """Total records dropped on ring overrun (monotonic)."""
+        Consumer side of the SPSC ring: safe to call from a different thread
+        than the producer. Returns immediately with whatever is available
+        (possibly 0) — never spins.
 
-    probe_count: int
-    """Number of registered probes."""
+        Parameters
+        ----------
+        n : int
+            Records wanted; 0 means "everything available".
 
-    def __init__(self, ring_records: int = 16384) -> None: ...
+        Returns
+        -------
+        NDArray[Any]
+            Number of records copied out.
+        """
+
     def probe(self, name: str, decim: int = 1) -> int:
-        """Register (or re-register) a named probe and return its id.
+        """Registers (or re-registers) a named probe. Setup path, not hot.
 
-        Registration is idempotent by name: re-registering an existing
-        name returns the same id and updates the decimation, so an
-        object can re-attach after a reset without churning ids.  The
-        decimation phase is primed so the first event after registration
-        always emits.  Setup path only — never call while the producer
-        is stepping.
+        Idempotent by name: registering an existing name returns its id and
+        updates decim (re-attach after a reset keeps ids stable). The
+        decimation phase is primed so the FIRST event after registration emits.
 
         Parameters
         ----------
         name : str
-            Dotted probe path, e.g. ``"agc.gain_db"``.  At most 31
-            characters.
-        decim : int, optional
-            Emit every ``decim``-th event (default 1 = every event).
+            Probe name, e.g. "agc.gain_db". Must be shorter than
+            DP_TLM_NAME_MAX.
+        decim : int
+            Emit every decim-th event; >= 1.
 
         Returns
         -------
         int
-            The probe id used in records' ``"probe"`` field.
-
-        Raises
-        ------
-        ValueError
-            Overlong name, ``decim == 0``, or the 64-entry probe table
-            is full.
-
-        Examples
-        --------
-        >>> from doppler.telemetry import Telemetry
-        >>> tlm = Telemetry(1 << 12)
-        >>> tlm.probe("sync.e", decim=4)
-        0
-        >>> tlm.probe("sync.e")  # idempotent: same id
-        0
-        >>> tlm.probe_count
-        1
-
+            Probe id (>= 0), or DP_ERR_INVALID on NULL/overlong name, decim ==
+            0, or a full table.
         """
 
     def probe_id(self, name: str) -> int:
-        """Look up a probe id by name.
+        """Looks up a probe id by name; ::DP_ERR_INVALID if unknown.
 
-        Raises
-        ------
-        KeyError
-            If no probe with this name is registered.
-
-        Examples
-        --------
-        >>> from doppler.telemetry import Telemetry
-        >>> tlm = Telemetry(1 << 12)
-        >>> _ = tlm.probe("agc.gain_db")
-        >>> tlm.probe_id("agc.gain_db")
-        0
-
-        """
-
-    def probe_names(self) -> dict[str, int]:
-        """Return the full ``name -> id`` map for registered probes.
-
-        Examples
-        --------
-        >>> from doppler.telemetry import Telemetry
-        >>> tlm = Telemetry(1 << 12)
-        >>> _ = tlm.probe("agc.gain_db")
-        >>> _ = tlm.probe("sync.e")
-        >>> tlm.probe_names()
-        {'agc.gain_db': 0, 'sync.e': 1}
-
-        """
-
-    def emit(self, probe_id: int, value: float) -> None:
-        """Record one scalar for a probe (producer side).
-
-        For Python-side events and tests; instrumented C objects emit
-        directly from their hot loops.  The value is narrowed to
-        float32; the record is stamped with the current ``set_now``
-        sample index.  Never blocks — on ring overrun the record is
-        dropped and counted in :attr:`dropped`.
-
-        Raises
-        ------
-        ValueError
-            ``probe_id`` is not a registered probe.
-        """
-
-    def set_now(self, n: int) -> None:
-        """Stamp the sample index carried by subsequent records.
-
-        Producer side; call once per block from whoever owns the
-        pipeline's sample clock.  If never called, records carry
-        ``n == 0`` and consumers index by record order.
-        """
-
-    def read(self, max_records: int = -1) -> np.ndarray:
-        """Drain records into a structured array.  Non-blocking.
-
-        Consumer side — may run on a different thread than the
-        producer.  Returns everything available (or up to
-        ``max_records`` if given), possibly empty, in emission order.
+        Parameters
+        ----------
+        name : str
+            Input.
 
         Returns
         -------
-        numpy.ndarray
-            Structured array with dtype
-            ``[("n", "<u8"), ("value", "<f4"), ("probe", "<u2"),
-            ("flags", "<u2")]`` — 16 bytes per row, the exact C record
-            layout.
-
-        Examples
-        --------
-        >>> from doppler.telemetry import Telemetry
-        >>> tlm = Telemetry(1 << 12)
-        >>> eid = tlm.probe("sync.e")
-        >>> for i in range(5):
-        ...     tlm.emit(eid, i / 10)
-        >>> recs = tlm.read()
-        >>> recs.shape, recs.dtype.names
-        ((5,), ('n', 'value', 'probe', 'flags'))
-        >>> [round(float(v), 1) for v in recs["value"]]
-        [0.0, 0.1, 0.2, 0.3, 0.4]
-        >>> tlm.read().shape  # drained: empty now
-        (0,)
-
+        int
+            Output.
         """
 
-    def emitted(self, probe_id: int) -> int:
-        """Records written for this probe (post-decimation, post-drop).
+    def set_decim(self, name: str, decim: int) -> None:
+        """Retunes an EXISTING probe's decimation, by name.
 
-        Reconcile against :attr:`dropped` to account for losses.
+        Distinct from dp_tlm_probe(), which registers on a miss: this refuses
+        an unknown name rather than quietly creating a probe nothing emits to,
+        which is what a typo in a retune call deserves.
+
+        Parameters
+        ----------
+        name : str
+            Input.
+        decim : int
+            Input.
         """
 
-    def destroy(self) -> None:
-        """Free the context now (idempotent).
+    def emit(self, id: int, v: float) -> None:
+        """Records one scalar for probe id. The hot-path primitive.
 
-        Detach any attached C objects first.  Further method calls
-        raise ``RuntimeError``.
+        Detached (t NULL) this is one branch — the entire disabled cost.
+        Attached: bump the probe's decimation phase, and on the decim-th event
+        write one 16-byte record (value narrowed to float, stamped with the
+        context's current now). Never blocks, never allocates; on ring overrun
+        the record is dropped and counted.
+
+        id must come from a successful dp_tlm_probe() on this context — an
+        object's set_telemetry fails the whole attach otherwise.
+
+        Parameters
+        ----------
+        id : int
+            Input.
+        v : float
+            Input.
+        """
+
+    def set_now(self, n: int) -> None:
+        """Stamps the sample index carried by subsequent records, and — when a
+        capture is open — closes out the block just finished.
+
+        Call once per block from whoever owns the pipeline's sample clock
+        (`dp_tlm_set_now (tlm, clk->n)`). NULL-safe so pipeline glue can call
+        it unconditionally.
+
+        Callers already place this at the top of the block loop, *before*
+        stepping, which makes it exactly the boundary a lossless capture needs:
+        delegating here drains the PREVIOUS block, leaving the ring empty as
+        the next one starts. That is the invariant dp_tlm_block_bound() is
+        sized against, so an existing `set_now / steps / read` loop becomes
+        lossless by opening a capture and changing nothing else.
+
+        With no capture open the behaviour is byte-identical to a bare
+        assignment. The delegation is a cold branch on a per-block call, never
+        a per-sample one, so it is nowhere near the hot loops dp_tlm_emit()
+        cares about.
+
+        Parameters
+        ----------
+        n : int
+            Input.
+        """
+
+    def emitted(self, id: int) -> int:
+        """Records written for probe id (post-decimation, post-drop).
+
+        Parameters
+        ----------
+        id : int
+            Input.
+
+        Returns
+        -------
+        int
+            Output.
+        """
+
+    def stats(self) -> TelemetryStats:
+        """Snapshots the context's counters. Zeroed for a NULL context.
+
+        Returns
+        -------
+        TelemetryStats
+            Output.
         """
 
     @property
-    def _capsule(self) -> object:
-        """PyCapsule borrowing the ``dp_tlm_t*`` — the attach point.
+    def probe_names(self) -> dict[str, int]:
+        """Registered probes as `{name: id}`, in registration order. The
+        inverse of `probe_id()`, and what a consumer needs to resolve a
+        record's `probe` field back to a name.
+        """
 
-        Instrumented objects' ``set_telemetry`` bindings take this to
-        attach to the context.  Non-owning: attached objects must not
-        outlive the ``Telemetry``.
+    @property
+    def capacity(self) -> int:
+        """Ring capacity in records, after buffer.h rounds the requested size
+        up to a power of two and the page minimum. Read this rather than
+        assuming the constructor's argument was granted verbatim.
+        """
+
+    @property
+    def dropped(self) -> int:
+        """Records lost to ring overrun over this context's lifetime,
+        monotonic. Non-zero means a hole; prefer a `Capture`, which makes
+        overrun arithmetically impossible rather than merely countable.
+        """
+
+    @property
+    def probe_count(self) -> int:
+        """Number of registered probes."""
+
+    @property
+    def avail(self) -> int:
+        """Records currently readable, without consuming them. A lower bound
+        while a producer is running -- the true count can only grow after the
+        snapshot.
+        """
+
+    @property
+    def _capsule(self) -> Any:
+        """capsule."""
+
+    def destroy(self) -> None:
+        """Release the underlying C resources immediately.
+
+        Ordinarily unnecessary: the resources are freed when the object is
+        garbage-collected. Call this to release them at a definite point
+        instead, or use the object as a context manager, which calls it on
+        exit.
+
+        Idempotent: calling it again on an already-released object does
+        nothing. Every other method raises ``RuntimeError`` once it has run.
+        """
+
+
+    def __enter__(self) -> "Telemetry":
+        """Enter a context manager, returning this object.
+
+        Lets a Telemetry be used in a `with` statement so its C resources are
+        released deterministically on exit rather than at collection time.
+
+        Returns
+        -------
+        Telemetry
+            This same object, not a copy.
+        """
+
+    def __exit__(
+        self,
+        exc_type: object | None = ...,
+        exc: object | None = ...,
+        tb: object | None = ...,
+    ) -> None:
+        """Exit a context manager, releasing the Telemetry.
+
+        Equivalent to calling `destroy()`. Returns ``None``, so an exception
+        raised inside the `with` body propagates normally; this never
+        suppresses one.
+
+        Parameters
+        ----------
+        exc_type : object | None
+            Exception class, or None. Ignored.
+        exc : object | None
+            Exception instance, or None. Ignored.
+        tb : object | None
+            Traceback object, or None. Ignored.
         """

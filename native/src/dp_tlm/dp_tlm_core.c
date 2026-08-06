@@ -173,10 +173,9 @@ dp_tlm_stats (const dp_tlm_t *t)
 }
 
 size_t
-dp_tlm_read_max_out (dp_tlm_t *t, size_t n)
+dp_tlm_read_max_out (dp_tlm_t *t)
 {
-  size_t avail = dp_tlm_avail (t);
-  return (n == 0 || n > avail) ? avail : n;
+  return dp_tlm_avail (t);
 }
 
 size_t
@@ -191,8 +190,7 @@ dp_tlm_read (dp_tlm_t *t, size_t n, dp_tlm_rec_t *out, size_t max_out)
   size_t     head = DP_LOAD_ACQ (&ring->head);
   size_t     tail = DP_LOAD_RLX (&ring->tail);
   size_t     have = head - tail;
-  /* Clamp to BOTH the request and the buffer. n == 0 means "everything",
-   * which is why the two limits cannot collapse into one argument. */
+  /* Clamp to BOTH: n == 0 means "everything", so the two cannot collapse. */
   if (n != 0 && have > n)
     have = n;
   if (have > max_out)

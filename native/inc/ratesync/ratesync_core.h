@@ -101,6 +101,7 @@
 #include "resample/resample_core.h"
 #include "symsync/symsync_core.h" /* gardner_ted / dttl_ted — one TED, reused */
 #include "dp_tlm/dp_tlm_core.h"
+#include "telemetry/telemetry_core.h"
 
 #ifdef __cplusplus
 extern "C"

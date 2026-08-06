@@ -1,3 +1,12 @@
+"""Telemetry: lightweight in-band probes (Telemetry) that record loop internals -- error, control, lock -- to a sink for offline analysis.
+
+Examples
+--------
+>>> from doppler.telemetry import Telemetry
+>>> t = Telemetry()
+>>> t.probe('loop.err')
+0"""
+
 # telemetry/__init__.py — re-export all types from the C extension.
 import os as _os
 import sys as _sys

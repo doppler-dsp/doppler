@@ -14,7 +14,7 @@ serializable = "true"
 # telemetry_core on the collocated object's core/test/bench and the .so
 # (gh-254 additive semantics).
 [[agc.depends_on]]
-name = "telemetry"
+name = "dp_tlm"
 link = true
 
 [[agc.methods]]

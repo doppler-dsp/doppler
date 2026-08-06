@@ -19,7 +19,7 @@ depends_on = [
   { name = "loop_filter", link = true },
   { name = "lockdet", link = true },
   { name = "symsync", link = true },
-  { name = "telemetry", link = true },
+  { name = "dp_tlm", link = true },
 ]
 serializable = "true"
 # A NULL create here means a parameter was out of range, not that the machine

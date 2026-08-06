@@ -25,7 +25,7 @@ depends_on = [
   { name = "nco", link = true },
   { name = "loop_filter", link = true },
   { name = "lockdet", link = true },
-  { name = "telemetry", link = true },
+  { name = "dp_tlm", link = true },
   { name = "agc", link = true },
   { name = "boxcar", link = true },
 ]

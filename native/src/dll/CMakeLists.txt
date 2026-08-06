@@ -7,7 +7,7 @@ target_link_libraries(dll_core PUBLIC
     loop_filter_core
     lockdet_core
     detection_core
-    telemetry_core)
+    dp_tlm_core)
 
 add_executable(test_dll_core
                ${CMAKE_SOURCE_DIR}/native/tests/test_dll_core.c)
@@ -15,7 +15,7 @@ target_link_libraries(test_dll_core
                       PRIVATE dll_core loop_filter_core
     lockdet_core
     detection_core
-    telemetry_core
+    dp_tlm_core
     m)
 target_include_directories(test_dll_core
                            PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
@@ -28,7 +28,7 @@ target_link_libraries(bench_dll_core
                       PRIVATE dll_core loop_filter_core
     lockdet_core
     detection_core
-    telemetry_core
+    dp_tlm_core
     m)
 target_include_directories(
   bench_dll_core PRIVATE ${CMAKE_SOURCE_DIR}/native/inc

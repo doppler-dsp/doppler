@@ -46,6 +46,7 @@
 #include <complex.h>
 #include <math.h>
 #include "detection/detection_core.h"
+#include "telemetry/telemetry_core.h"
 #ifdef __cplusplus
 extern "C" {
 #endif

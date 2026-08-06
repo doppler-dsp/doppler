@@ -1,0 +1,177 @@
+# dp_tlm — telemetry context: probe registry + lock-free SPSC record ring.
+#
+# The COMPONENT is `dp_tlm`, not `telemetry`, and that is the whole reason this
+# module could go declarative. jm derives every C symbol from the component
+# name (`<comp>_create`, `<comp>_<method>`, `<comp>_state_t`) with no override,
+# and doppler's telemetry API has been `dp_tlm_*` since long before jm — so
+# naming the component after the C prefix means not one function is renamed.
+# `class_name` keeps the Python face where callers already expect it:
+# `doppler.telemetry.Telemetry`.
+#
+# The single remaining mismatch is the state struct: jm wants
+# `dp_tlm_state_t`, doppler has `dp_tlm_t`, and that type is in the signature
+# of every instrumented object's `*_set_telemetry`. A one-line alias in
+# dp_tlm_core.h bridges it until just-makeit#797 lands `state_type`.
+
+[dp_tlm]
+class_name = "Telemetry"
+# Opaque handle: the context is heap-allocated by dp_tlm_create and carries no
+# jm-visible state fields. There is no per-sample step — the producer side is
+# the inline dp_tlm_emit in the header, which jm never binds.
+no_state = "true"
+no_step = "true"
+# A telemetry context has nothing to reset: the ring is a hand-off buffer and
+# the probe registry is setup state. An absent method is the honest answer
+# (gh-542) rather than one that raises.
+no_reset = "true"
+arg_type = "float _Complex"
+return_type = "float _Complex"
+
+[[dp_tlm.init_params]]
+name = "ring_records"
+type = "size_t"
+default = "16384"
+
+# A NULL from dp_tlm_create means the size was not a power of two (buffer.h's
+# requirement) far more often than it means OOM, so say that instead of the
+# blanket MemoryError (gh-482).
+create_error = "ValueError"
+create_error_message = "ring_records must be a power of two (and at least the page minimum); read the granted size back from Telemetry.capacity"
+
+# ── methods ─────────────────────────────────────────────────────────────────
+
+# The drain. `record_dtype` is gh-788 gap 1: the returned array's dtype is the
+# C struct's own layout, with offsets from offsetof() and itemsize from
+# sizeof() rather than numpy packing the field list. That distinction is the
+# correctness argument here — dp_tlm_rec_t is {uint64,float,uint16,uint16} = 16
+# bytes in C, and a naively packed descriptor would read every row after the
+# first misaligned.
+[[dp_tlm.methods]]
+name = "read"
+arg_type = "void"
+return_type = "dp_tlm_rec_t"
+variable_output = true
+pass_capacity = true
+record_dtype = "dp_tlm_rec_t"
+# `n` records wanted, 0 = everything available. The default is declared and
+# jm currently DROPS it on a variable_output method (generating "K", not
+# "|K", where a plain method with a default correctly generates "s|k") --
+# filed upstream. Until that lands, `read()` needs its argument.
+params = [{ name = "n", type = "size_t", default = "0" }]
+result_fields = [
+  { name = "n", type = "uint64_t", doc = "Caller-stamped sample index (dp_tlm_set_now)." },
+  { name = "value", type = "float", doc = "The scalar, narrowed to float." },
+  { name = "probe", type = "uint16_t", doc = "Probe id; index into the registry." },
+  { name = "flags", type = "uint16_t", doc = "Reserved; always 0." },
+]
+
+[[dp_tlm.methods]]
+name = "probe"
+arg_type = "void"
+return_type = "int"
+params = [
+  { name = "name", type = "const char *" },
+  { name = "decim", type = "uint32_t", default = "1" },
+]
+
+[[dp_tlm.methods]]
+name = "probe_id"
+arg_type = "void"
+return_type = "int"
+params = [{ name = "name", type = "const char *" }]
+
+[[dp_tlm.methods]]
+name = "set_decim"
+arg_type = "void"
+return_type = "int"
+status_return = true
+params = [
+  { name = "name", type = "const char *" },
+  { name = "decim", type = "uint32_t" },
+]
+
+[[dp_tlm.methods]]
+name = "emit"
+arg_type = "void"
+return_type = "void"
+params = [
+  { name = "id", type = "int32_t" },
+  { name = "v", type = "double" },
+]
+
+[[dp_tlm.methods]]
+name = "set_now"
+arg_type = "void"
+return_type = "void"
+params = [{ name = "n", type = "uint64_t" }]
+
+[[dp_tlm.methods]]
+name = "emitted"
+arg_type = "void"
+return_type = "uint64_t"
+params = [{ name = "id", type = "int" }]
+
+# Counters as one record rather than a nested dict. This shape is why
+# just-makeit#788 gap 3 stopped being a blocker: per-probe detail is
+# recoverable from probe_names() + emitted(), so the map that made stats()
+# un-generatable did not need to be in the return value at all.
+[[dp_tlm.methods]]
+name = "stats"
+arg_type = "void"
+return_type = "dp_tlm_stats_t"
+single = true
+record_name = "TelemetryStats"
+record_doc = "Context-wide telemetry counters, snapshotted together. Per-probe detail is probe_names() + emitted(), which stay the SSOT for it."
+record_module = "doppler.telemetry"
+result_fields = [
+  { name = "dropped", type = "uint64_t", doc = "Records lost to ring overrun, monotonic over the context's lifetime." },
+  { name = "emitted", type = "uint64_t", doc = "Records written, summed over every probe." },
+  { name = "capacity", type = "size_t", doc = "Ring capacity in records." },
+  { name = "probes", type = "size_t", doc = "Registered probes." },
+]
+
+# ── properties ──────────────────────────────────────────────────────────────
+
+# `{name: id}` straight off the plain-C registry triple. No codec: the values
+# are scalars, and the codec machinery exists for variant values only.
+[[dp_tlm.properties]]
+name = "probe_names"
+type = "dict"
+value_type = "int"
+count_fn = "dp_tlm_probe_count"
+key_fn = "dp_tlm_probe_name"
+value_fn = "dp_tlm_probe_id_at"
+doc = "Registered probes as `{name: id}`, in registration order. The inverse of `probe_id()`, and what a consumer needs to resolve a record's `probe` field back to a name."
+
+[[dp_tlm.properties]]
+name = "capacity"
+type = "size_t"
+expr = "dp_tlm_capacity(self->handle)"
+doc = "Ring capacity in records, after buffer.h rounds the requested size up to a power of two and the page minimum. Read this rather than assuming the constructor's argument was granted verbatim."
+
+[[dp_tlm.properties]]
+name = "dropped"
+type = "uint64_t"
+expr = "dp_tlm_dropped(self->handle)"
+doc = "Records lost to ring overrun over this context's lifetime, monotonic. Non-zero means a hole; prefer a `Capture`, which makes overrun arithmetically impossible rather than merely countable."
+
+[[dp_tlm.properties]]
+name = "probe_count"
+type = "size_t"
+expr = "dp_tlm_probe_count(self->handle)"
+doc = "Number of registered probes."
+
+[[dp_tlm.properties]]
+name = "avail"
+type = "size_t"
+expr = "dp_tlm_avail(self->handle)"
+doc = "Records currently readable, without consuming them. A lower bound while a producer is running -- the true count can only grow after the snapshot."
+
+# The producing side of the capsule triangle (gh-788 gap 4). Nine instrumented
+# objects unwrap this exact name in their `set_telemetry`, so the string is
+# load-bearing data rather than cosmetics: change it here and every attach
+# fails its name check.
+[[dp_tlm.properties]]
+name = "_capsule"
+type = "capsule"
+capsule = "doppler.telemetry.dp_tlm"

@@ -1,35 +1,14 @@
-# telemetry — hand-owned (no_generate) module: lightweight scalar telemetry
-# taps (dp_tlm/dp_tlm_core.h + dp_tlm/dp_tlm_core.c).  Pure C99, no deps beyond
-# the header-only SPSC ring (buffer/buffer.h), so the core rides in
-# doppler_lib unconditionally — the detached cost is one branch per event.
+add_library(telemetry_core OBJECT telemetry_core.c)
+target_include_directories(telemetry_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc)
 
-# OBJECT library — pure C core, no Python dependency.
-# Sources moved to the per-component layout jm expects — the object's core is
-# `dp_tlm`, and the capture is its own component. The target name stays
-# `telemetry_core` because nine objects' link lines name it.
-add_library(telemetry_core OBJECT
-    ${CMAKE_SOURCE_DIR}/native/src/dp_tlm/dp_tlm_core.c
-    ${CMAKE_SOURCE_DIR}/native/src/dp_tlm_capture/dp_tlm_capture_core.c)
-target_include_directories(telemetry_core
-                           PUBLIC ${CMAKE_SOURCE_DIR}/native/inc)
-# A file-backed capture writes on its own thread so disk latency never lands
-# on the block boundary (dp_parallel.h precedent).
-target_link_libraries(telemetry_core PUBLIC Threads::Threads)
-
-# Fold into the combined lib from here (not the root CMakeLists — the root's
-# component region is jm-managed, and telemetry is no_generate/hand-owned).
-target_sources(doppler_lib PRIVATE $<TARGET_OBJECTS:telemetry_core>)
-target_sources(doppler_lib_static PRIVATE $<TARGET_OBJECTS:telemetry_core>)
-
-# C-level test — also the only telemetry gate on the macOS C job, which runs
-# without BUILD_PYTHON, so it lives outside any guard.
 if(BUILD_PYTHON)
-# telemetry Python module — hand-written ext over telemetry_core (numpy
-# structured-array read; capsule attach point for instrumented objects).
+# telemetry Python module — aggregates: Telemetry
 Python3_add_library(telemetry MODULE WITH_SOABI telemetry_ext.c)
-target_link_libraries(telemetry PRIVATE telemetry_core Python3::NumPy)
-target_include_directories(telemetry PRIVATE
-    ${CMAKE_SOURCE_DIR}/native/inc)
+target_link_libraries(telemetry PRIVATE
+    telemetry_core
+    dp_tlm_core
+    Python3::NumPy)
+target_include_directories(telemetry PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
 set_target_properties(telemetry PROPERTIES
     LIBRARY_OUTPUT_DIRECTORY "${PYTHON_PACKAGE_DIR}/telemetry"
     RUNTIME_OUTPUT_DIRECTORY "${PYTHON_PACKAGE_DIR}/telemetry")
@@ -37,39 +16,6 @@ add_custom_command(TARGET telemetry POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
         "$<TARGET_FILE:telemetry>"
         "${PYTHON_PACKAGE_DIR}/telemetry/$<TARGET_FILE_NAME:telemetry>"
-    VERBATIM)
+    VERBATIM
+    COMMENT "Copy telemetry extension module")
 endif()
-
-add_executable(bench_telemetry_core
-               ${CMAKE_SOURCE_DIR}/native/benchmarks/bench_telemetry_core.c)
-target_link_libraries(bench_telemetry_core PRIVATE telemetry_core
-                                                   Threads::Threads)
-target_include_directories(bench_telemetry_core
-                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
-                                   ${CMAKE_SOURCE_DIR}/native/benchmarks)
-
-foreach(t test_telemetry_core test_tlm_capture)
-  add_executable(${t} ${CMAKE_SOURCE_DIR}/native/tests/${t}.c)
-  target_link_libraries(${t} PRIVATE telemetry_core Threads::Threads)
-  target_include_directories(${t} PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
-  add_test(NAME ${t} COMMAND ${t})
-endforeach()
-# A capture BORROWS the pipeline's dp_sample_clock_t for its sidecar time base
-# (design: the time base belongs to the DATA). telemetry_core reads only the
-# struct, so it needs the header alone -- but the test constructs one, so it
-# needs the implementation.
-target_link_libraries(test_tlm_capture PRIVATE timing_core)
-
-# The bound is claimed from a code audit of every emit site; this drives a REAL
-# object (carrier_nda -- the only unconditional per-input emitter) and measures
-# what it actually emits, so an edit that broke the audit is caught here rather
-# than by a silent overflow in the field.
-add_executable(test_tlm_bound_real
-               ${CMAKE_SOURCE_DIR}/native/tests/test_tlm_bound_real.c)
-target_link_libraries(test_tlm_bound_real
-                      PRIVATE telemetry_core carrier_nda_core lo_core
-                              loop_filter_core boxcar_core agc_core
-                              lockdet_core Threads::Threads m)
-target_include_directories(test_tlm_bound_real
-                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
-add_test(NAME test_tlm_bound_real COMMAND test_tlm_bound_real)

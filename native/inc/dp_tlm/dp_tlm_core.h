@@ -130,6 +130,17 @@ typedef struct dp_tlm
   dp_tlm_probe_t probes[DP_TLM_MAX_PROBES];
   /** Open capture that dp_tlm_set_now() drains through; NULL when none. */
   dp_tlm_capture_t *capture;
+  /**
+   * Boundary drain, registered by dp_tlm_capture_open().
+   *
+   * A function POINTER rather than a direct call, so this translation unit
+   * never references a capture symbol: the inline dp_tlm_set_now() below is
+   * pulled into every TU that includes this header, and calling
+   * dp_tlm_capture_block() by name would make the capture a link-time
+   * dependency of everything -- an inversion, since the capture depends on
+   * the ring and not the other way round. NULL when no capture is open.
+   */
+  int (*capture_drain) (dp_tlm_capture_t *);
 } dp_tlm_t;
 
 /**
@@ -144,16 +155,6 @@ typedef struct dp_tlm
  * generated binding compiles, and it goes away when jm#797 lands `state_type`.
  */
 typedef dp_tlm_t dp_tlm_state_t;
-
-/**
- * @brief Drains the ring into an open capture.  See
- * dp_tlm_capture/dp_tlm_capture_core.h.
- *
- * Declared here, not only in the capture header, so the inline
- * dp_tlm_set_now() can delegate without this header depending on that one —
- * the dependency runs the other way.
- */
-int dp_tlm_capture_block (dp_tlm_capture_t *c);
 
 /**
  * @brief Creates a telemetry context with a ring of @p ring_records slots.
@@ -286,13 +287,13 @@ typedef struct
 dp_tlm_stats_t dp_tlm_stats (const dp_tlm_t *t);
 
 /**
- * @brief Records dp_tlm_read() would return for a request of @p n.
+ * @brief Upper bound on what dp_tlm_read() can return right now.
  *
- * `min(n, avail)`, or all of `avail` when @p n is 0.  Sizing helper for a
- * caller allocating the destination — and the reason @p n and the buffer's
- * capacity are separate arguments below.
+ * Simply the available count: a caller sizing a destination cannot know the
+ * request will be smaller, and jm's generated binding allocates this much,
+ * reads, then resizes to what actually came back.
  */
-size_t dp_tlm_read_max_out (dp_tlm_t *t, size_t n);
+size_t dp_tlm_read_max_out (dp_tlm_t *t);
 
 /**
  * @brief Drains records into @p out.  Non-blocking.
@@ -306,11 +307,10 @@ size_t dp_tlm_read_max_out (dp_tlm_t *t, size_t n);
  * @param out      Destination.
  * @param max_out  Capacity of @p out, in records.
  *
- * @c n and @c max_out are deliberately distinct: "how many I want" and "how
- * much room I have" are different questions, and a single argument answering
- * both cannot express "give me up to 10, into this 4096-record scratch
- * buffer" without the caller silently under-reading or overrunning.  The read
- * is clamped to the smaller of the two.
+ * @c n and @c max_out are separate because the binding allocates @p out from
+ * dp_tlm_read_max_out() and then resizes to what came back — so the request
+ * and the buffer are genuinely two numbers, and the read is clamped to the
+ * smaller.
  *
  * @return Number of records copied out.
  */
@@ -347,8 +347,8 @@ dp_tlm_set_now (dp_tlm_t *t, uint64_t n)
 {
   if (!t)
     return;
-  if (t->capture)
-    dp_tlm_capture_block (t->capture);
+  if (t->capture_drain)
+    t->capture_drain (t->capture);
   t->now = n;
 }
 

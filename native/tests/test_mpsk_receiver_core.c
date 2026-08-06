@@ -349,14 +349,15 @@ main (void)
         = RX (2, SPS, M_OUT, MPSK_RX_PULSE_IANDD, 0.01, 0, 0.5, 0.0, 100);
     CHECK (tlm != NULL && a != NULL);
     CHECK (mpsk_receiver_set_telemetry (a, tlm, "rx", 1) == DP_OK);
-    CHECK (dp_tlm_lookup (tlm, "rx.lock") == a->l.tlm.id_lock);
-    CHECK (dp_tlm_lookup (tlm, "rx.tracking") == a->l.tlm.id_tracking);
-    CHECK (dp_tlm_lookup (tlm, "rx.car.e") == a->l.tlm.id_e);
-    CHECK (dp_tlm_lookup (tlm, "rx.car.freq") == a->l.tlm.id_freq);
-    CHECK (dp_tlm_lookup (tlm, "rx.car.locked") == a->l.tlm.id_locked);
-    CHECK (dp_tlm_lookup (tlm, "rx.sync.e") == a->l.timing.tlm.id_e);
-    CHECK (dp_tlm_lookup (tlm, "rx.sync.locked") == a->l.timing.tlm.id_locked);
-    CHECK (dp_tlm_lookup (tlm, "rx.sync.mu") == a->l.timing.tlm.id_mu);
+    CHECK (dp_tlm_probe_id (tlm, "rx.lock") == a->l.tlm.id_lock);
+    CHECK (dp_tlm_probe_id (tlm, "rx.tracking") == a->l.tlm.id_tracking);
+    CHECK (dp_tlm_probe_id (tlm, "rx.car.e") == a->l.tlm.id_e);
+    CHECK (dp_tlm_probe_id (tlm, "rx.car.freq") == a->l.tlm.id_freq);
+    CHECK (dp_tlm_probe_id (tlm, "rx.car.locked") == a->l.tlm.id_locked);
+    CHECK (dp_tlm_probe_id (tlm, "rx.sync.e") == a->l.timing.tlm.id_e);
+    CHECK (dp_tlm_probe_id (tlm, "rx.sync.locked")
+           == a->l.timing.tlm.id_locked);
+    CHECK (dp_tlm_probe_id (tlm, "rx.sync.mu") == a->l.timing.tlm.id_mu);
     CHECK (dp_tlm_probe_count (tlm) == 11);
 
     size_t n_sym = mpsk_receiver_steps (a, tx, 512, out, 80);

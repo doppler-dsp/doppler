@@ -40,7 +40,7 @@ dp_tlm_probe (dp_tlm_t *t, const char *name, uint32_t decim)
 {
   if (!t || !name || decim == 0 || strlen (name) >= DP_TLM_NAME_MAX)
     return DP_ERR_INVALID;
-  int id = dp_tlm_lookup (t, name);
+  int id = dp_tlm_probe_id (t, name);
   if (id < 0)
     {
       if (t->n_probes >= DP_TLM_MAX_PROBES)
@@ -56,7 +56,7 @@ dp_tlm_probe (dp_tlm_t *t, const char *name, uint32_t decim)
 }
 
 int
-dp_tlm_lookup (const dp_tlm_t *t, const char *name)
+dp_tlm_probe_id (const dp_tlm_t *t, const char *name)
 {
   if (!t || !name)
     return DP_ERR_INVALID;
@@ -64,6 +64,20 @@ dp_tlm_lookup (const dp_tlm_t *t, const char *name)
     if (strcmp (t->probes[i].name, name) == 0)
       return (int)i;
   return DP_ERR_INVALID;
+}
+
+int
+dp_tlm_set_decim (dp_tlm_t *t, const char *name, uint32_t decim)
+{
+  /* Retune only. dp_tlm_probe() would register a new probe on a miss, so a
+     mistyped name there silently creates a probe no emit site references and
+     the caller sees success. Here a miss is an error. */
+  int id = dp_tlm_probe_id (t, name);
+  if (id < 0 || decim == 0)
+    return DP_ERR_INVALID;
+  t->probes[id].decim = decim;
+  t->probes[id].phase = decim - 1; /* next event emits, as at registration */
+  return DP_OK;
 }
 
 const char *

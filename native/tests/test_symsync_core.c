@@ -279,11 +279,11 @@ main (void)
         = symsync_create (4, 0.01, 0.707, FARROW_CUBIC, SYMSYNC_TED_GARDNER);
     CHECK (tlm != NULL && a != NULL);
     CHECK (symsync_set_telemetry (a, tlm, "sync", 1) == DP_OK);
-    CHECK (dp_tlm_lookup (tlm, "sync.e") == a->tlm.id_e);
-    CHECK (dp_tlm_lookup (tlm, "sync.freq") == a->tlm.id_freq);
-    CHECK (dp_tlm_lookup (tlm, "sync.rate") == a->tlm.id_rate);
-    CHECK (dp_tlm_lookup (tlm, "sync.lock") == a->tlm.id_lock);
-    CHECK (dp_tlm_lookup (tlm, "sync.locked") == a->tlm.id_locked);
+    CHECK (dp_tlm_probe_id (tlm, "sync.e") == a->tlm.id_e);
+    CHECK (dp_tlm_probe_id (tlm, "sync.freq") == a->tlm.id_freq);
+    CHECK (dp_tlm_probe_id (tlm, "sync.rate") == a->tlm.id_rate);
+    CHECK (dp_tlm_probe_id (tlm, "sync.lock") == a->tlm.id_lock);
+    CHECK (dp_tlm_probe_id (tlm, "sync.locked") == a->tlm.id_locked);
 
     size_t n_sym = symsync_steps (a, trx, 512, tsym, 160);
     CHECK (n_sym > 0);

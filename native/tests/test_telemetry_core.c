@@ -103,8 +103,8 @@ main (void)
     CHECK (dp_tlm_probe_count (t) == 2);
     CHECK (t->probes[a].decim == 8);
 
-    CHECK (dp_tlm_lookup (t, "sync.e") == b);
-    CHECK (dp_tlm_lookup (t, "nope") == DP_ERR_INVALID);
+    CHECK (dp_tlm_probe_id (t, "sync.e") == b);
+    CHECK (dp_tlm_probe_id (t, "nope") == DP_ERR_INVALID);
     CHECK (dp_tlm_probe_name (t, b) != NULL);
     CHECK (dp_tlm_probe_name (t, 99) == NULL);
 
@@ -399,6 +399,28 @@ main (void)
     dp_tlm_stats_t z = dp_tlm_stats (NULL);
     CHECK (z.probes == 0 && z.capacity == 0 && z.emitted == 0
            && z.dropped == 0);
+    dp_tlm_destroy (t);
+  }
+
+  /* ── set_decim: retune, never register. A typo here used to create a probe
+     nothing emits to and report success (it was Python composing probe() over
+     a lookup); the C form refuses instead. ─────────────────────────────────*/
+  {
+    dp_tlm_t *t = dp_tlm_create (1 << 12);
+    CHECK (dp_tlm_probe (t, "sd", 4) == 0);
+    CHECK (dp_tlm_set_decim (t, "sd", 2) == DP_OK);
+
+    /* It really retuned, and re-primed the phase so the next event emits. */
+    dp_tlm_rec_t buf[8];
+    for (int i = 0; i < 4; i++)
+      dp_tlm_emit (t, 0, (double)i);
+    CHECK (dp_tlm_read (t, 0, buf, 8) == 2); /* decim 2 over 4 events */
+
+    /* An unknown name is an ERROR, not a silent registration. */
+    CHECK (dp_tlm_set_decim (t, "typo", 2) == DP_ERR_INVALID);
+    CHECK (dp_tlm_probe_count (t) == 1);
+    CHECK (dp_tlm_set_decim (t, "sd", 0) == DP_ERR_INVALID);
+    CHECK (dp_tlm_set_decim (NULL, "sd", 2) == DP_ERR_INVALID);
     dp_tlm_destroy (t);
   }
 

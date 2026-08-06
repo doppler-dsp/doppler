@@ -327,8 +327,8 @@ main (void)
                                                  0.005, 0.0, 0.707, 0.5, 1);
     CHECK (tlm != NULL && ch != NULL);
     CHECK (despreader_set_telemetry (ch, tlm, "ch0", 1) == DP_OK);
-    CHECK (dp_tlm_lookup (tlm, "ch0.car.lock") == ch->car.tlm.id_lock);
-    CHECK (dp_tlm_lookup (tlm, "ch0.code.e") == ch->code.tlm.id_e);
+    CHECK (dp_tlm_probe_id (tlm, "ch0.car.lock") == ch->car.tlm.id_lock);
+    CHECK (dp_tlm_probe_id (tlm, "ch0.code.e") == ch->code.tlm.id_e);
     CHECK (ch->tlm_ctx == tlm && ch->car.tlm.ctx == tlm
            && ch->code.tlm.ctx == tlm);
 

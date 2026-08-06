@@ -29,11 +29,16 @@ def test_create_and_capacity():
 
 
 def test_create_rejects_bad_sizes():
+    # One NULL from dp_tlm_create, so one exception type for all three:
+    # `create_error` (gh-482) names it ValueError, because a rejected size is
+    # what that NULL almost always means. The old binding said MemoryError
+    # for the non-power-of-two case and ValueError for the others, from the
+    # identical C return.
     with pytest.raises(ValueError):
         Telemetry(0)
     with pytest.raises(ValueError):
         Telemetry(-4)
-    with pytest.raises(MemoryError):
+    with pytest.raises(ValueError):
         Telemetry(3)  # not a power of two
 
 
@@ -45,7 +50,11 @@ def test_probe_registry():
     assert tlm.probe("agc.gain_db", decim=8) == a  # idempotent
     assert tlm.probe_count == 2
     assert tlm.probe_id("sync.e") == b
-    assert tlm.probe_names() == {"agc.gain_db": 0, "sync.e": 1}
+    # BREAKING (v0.29.0/v0.30.0 shipped a probe_names() method): the registry
+    # map is a property now. A declarative `type = "dict"` IS a property in
+    # jm — a dict-returning method is not expressible — so this one follows
+    # from the module going manifest-owned.
+    assert tlm.probe_names == {"agc.gain_db": 0, "sync.e": 1}
     with pytest.raises(KeyError):
         tlm.probe_id("nope")
     with pytest.raises(ValueError):
@@ -78,12 +87,14 @@ def test_read_dtype_and_roundtrip():
     assert empty.dtype == REC_DTYPE
 
 
-def test_read_max_records_partial():
+def test_read_partial():
+    # BREAKING: the keyword is `n` (and 0, not -1, means "everything") — the
+    # manifest names the C parameter and the Python keyword with one string.
     tlm = Telemetry(1 << 12)
     pid = tlm.probe("x")
     for i in range(10):
         tlm.emit(pid, float(i))
-    first = tlm.read(max_records=3)
+    first = tlm.read(n=3)
     rest = tlm.read()
     assert first["value"].tolist() == [0.0, 1.0, 2.0]
     assert len(rest) == 7

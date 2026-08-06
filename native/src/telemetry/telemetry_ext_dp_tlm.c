@@ -46,7 +46,10 @@ TelemetryObj_init (TelemetryObject *self, PyObject *args, PyObject *kwds)
   self->handle        = dp_tlm_create (ring_records);
   if (!self->handle)
     {
-      PyErr_SetString (PyExc_MemoryError, "dp_tlm_create returned NULL");
+      PyErr_SetString (PyExc_ValueError,
+                       "ring_records must be a power of two (and at least "
+                       "the page minimum); read the granted size back from "
+                       "Telemetry.capacity");
       return -1;
     }
   return 0;

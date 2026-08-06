@@ -27,16 +27,20 @@ no_reset = "true"
 arg_type = "float _Complex"
 return_type = "float _Complex"
 
+# A NULL from dp_tlm_create means the size was not a power of two (buffer.h's
+# requirement) far more often than it means OOM, so say that instead of the
+# blanket MemoryError (gh-482).
+#
+# These two keys MUST stay above the [[dp_tlm.init_params]] header: TOML binds
+# every key after a table header to that table, so written below they land
+# inside the init-param, where jm never looks for them and says nothing.
+create_error = "ValueError"
+create_error_message = "ring_records must be a power of two (and at least the page minimum); read the granted size back from Telemetry.capacity"
+
 [[dp_tlm.init_params]]
 name = "ring_records"
 type = "size_t"
 default = "16384"
-
-# A NULL from dp_tlm_create means the size was not a power of two (buffer.h's
-# requirement) far more often than it means OOM, so say that instead of the
-# blanket MemoryError (gh-482).
-create_error = "ValueError"
-create_error_message = "ring_records must be a power of two (and at least the page minimum); read the granted size back from Telemetry.capacity"
 
 # ── methods ─────────────────────────────────────────────────────────────────
 
@@ -53,10 +57,10 @@ return_type = "dp_tlm_rec_t"
 variable_output = true
 pass_capacity = true
 record_dtype = "dp_tlm_rec_t"
-# `n` records wanted, 0 = everything available. The default is declared and
-# jm currently DROPS it on a variable_output method (generating "K", not
-# "|K", where a plain method with a default correctly generates "s|k") --
-# filed upstream. Until that lands, `read()` needs its argument.
+# `n` records wanted, 0 = everything available. jm used to DROP the declared
+# default on a variable_output method (generating "K", not "|K", where a plain
+# method with a default correctly generated "s|k") -- fixed upstream in
+# just-makeit#803. The fragment carries that fix by hand until the pin bump.
 params = [{ name = "n", type = "size_t", default = "0" }]
 result_fields = [
   { name = "n", type = "uint64_t", doc = "Caller-stamped sample index (dp_tlm_set_now)." },

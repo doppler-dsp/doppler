@@ -140,6 +140,19 @@ class Telemetry:
         id must come from a successful dp_tlm_probe() on this context — an
         object's set_telemetry fails the whole attach otherwise.
 
+        The bound checked here is the ARRAY's, not the registry's. probes is a
+        fixed DP_TLM_MAX_PROBES array, so the unguarded indexing this used to
+        do turned any out-of-range id into an out-of-bounds write — reachable
+        from a language binding, where the id is whatever the caller passed,
+        and `Telemetry.emit(1000000, 1.0)` segfaulted the interpreter.
+        Comparing against the compile-time constant (unsigned, so a negative id
+        fails it too) needs no memory and measures free. Comparing against
+        n_probes instead would also reject an in-range-but-unregistered id, but
+        it loads a field on the early-return path and cost ~16% of the
+        decimated case (bench_telemetry_core, ABBA-interleaved) — so *that*
+        check belongs at the binding boundary, where the id is untrusted, not
+        in the hot loop, where the caller holds an id dp_tlm_probe() gave it.
+
         Parameters
         ----------
         id : int

@@ -613,6 +613,33 @@ _STD_DESC = d=$$(sed -n "s/^$$t:.*\#\# *//p" $(MAKEFILE_LIST) | head -1); \
                     || d="Run $${t\#lint-} (pre-commit dispatch target)";; \
             esac
 
+# Section for a target, resolved from its name — used only by `help` to
+# group the listing. Mirrors the file's own block structure (Core, then one
+# section per HAS_* feature, in file order), so a reader who already knows
+# the file knows the menu. Anything unmatched (i.e. LOCAL_TARGETS) falls
+# into "Local", the correct home for repo-specific targets.
+_STD_SECTION = case "$$t" in \
+    all|help|setup|clean|test|test-fast|lint|format|install-deps) \
+        tsec="Core";; \
+    lint-*) tsec="Lint";; \
+    test-all|gates|gates-check) tsec="Aggregates";; \
+    build|debug|release|pyext) tsec="C";; \
+    wheel|test-python) tsec="Python";; \
+    test-rust) tsec="Rust";; \
+    docs|docs-serve|docs-check) tsec="Docs";; \
+    doxygen|doxygen-check) tsec="Doxygen";; \
+    bench|bench-save|bench-compare) tsec="Bench";; \
+    coverage|coverage-gate) tsec="Coverage";; \
+    bump-version|version-check|release-branch|tag-release|release-watch \
+        |ship) tsec="Release";; \
+    test-examples) tsec="Examples";; \
+    standard-check|help-check|ghost-check) tsec="Gates";; \
+    *) tsec="Local";; \
+esac
+
+_STD_SECTION_ORDER = Core Lint Aggregates C Python Rust Docs Doxygen Bench \
+                      Coverage Release Examples Gates Local
+
 # Drift. Fetches canonical EVERY time, with no cache: a cache would mean the
 # most likely failure — the fetch failing while the network is fine (CDN
 # outage, bad deploy, a 404 after a rename) — silently degrades into "compared
@@ -723,15 +750,30 @@ ghost-check: ## Verify every .PHONY target has a recipe
 # hand-maintained: a hand-written list is how `make wheel` stayed advertised
 # for as long as it did.
 help: ## Show this message
-	@echo ""
-	@echo "  $(notdir $(CURDIR)) — make targets"
-	@echo ""
-	@w=0; for t in $(ALL_TARGETS); do [ $${#t} -gt $$w ] && w=$${#t}; done; \
-	 for t in $(ALL_TARGETS); do \
-	     $(_STD_DESC); \
-	     printf '  %-*s  %s\n' "$$w" "$$t" "$$d"; \
-	 done
-	@echo ""
+	@if [ -t 1 ]; then \
+	     c_title=$$(printf '\033[1;36m'); c_target=$$(printf '\033[32m'); \
+	     c_reset=$$(printf '\033[0m'); \
+	 else \
+	     c_title=''; c_target=''; c_reset=''; \
+	 fi; \
+	 w=0; for t in $(ALL_TARGETS); do [ $${#t} -gt $$w ] && w=$${#t}; done; \
+	 echo ""; \
+	 echo "$${c_title}$(notdir $(CURDIR)) — make targets$${c_reset}"; \
+	 for s in $(_STD_SECTION_ORDER); do \
+	     ts=""; \
+	     for t in $(ALL_TARGETS); do \
+	         $(_STD_SECTION); \
+	         [ "$$tsec" = "$$s" ] && ts="$$ts $$t"; \
+	     done; \
+	     [ -z "$$ts" ] && continue; \
+	     echo ""; \
+	     echo "$${c_title}$$s:$${c_reset}"; \
+	     for t in $$(printf '%s\n' $$ts | sort); do \
+	         $(_STD_DESC); \
+	         printf "  $${c_target}%-*s$${c_reset}  %s\n" "$$w" "$$t" "$$d"; \
+	     done; \
+	 done; \
+	 echo ""
 
 # ── local.mk ─────────────────────────────────────────────────────────────────
 # May only ADD targets. Redefining a standard one makes it the fork this file

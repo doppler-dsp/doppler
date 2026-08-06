@@ -13,6 +13,30 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+### Changed
+
+- **just-makeit pin 0.46.1 → 0.46.2.** Zero codegen drift: `jm apply`
+    re-renders four binding fragments in jm's K&R and clang-format returns
+    every one of them byte-identical, so only the three pins and `uv.lock`
+    change here.
+
+    The bump carries two fixes doppler filed. **gh-777** — a
+    `PyMethodDef`/`PyGetSetDef` row that is simply *absent* from a sacred
+    fragment is now `stale` rather than `unreconciled`, so `jm status   --check` fails on it and `jm apply` reconciles it. `unreconciled` was
+    always meant for a wrapper *body* that differs (the author's, which no jm
+    command clears); it was also swallowing a missing row, which let a member
+    stay in the `.pyi` while the extension did not define it, indefinitely,
+    with CI green. Measured on this tree, the clean result is unchanged —
+    `2139 match, 72 unreconciled` — so the reclassification only bites where
+    something was already wrong.
+
+    **gh-779** — adding an `enum =` property to an *existing* fragment now
+    brings the enum table's declaration with it. It previously emitted the
+    table's use and not its declaration, so the module did not compile, and
+    the workaround was to delete the fragment and let `jm apply` recreate it.
+    That workaround is retired; it is how `wfm_reader`'s `fs_source` /
+    `t0_source` had to be added.
+
 ## [0.41.0] — 2026-08-03
 
 ### Added

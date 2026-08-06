@@ -403,7 +403,7 @@ main (void)
 
     size_t k = costas_steps (c, rx, L, out, NS);
     CHECK (k == NS);
-    size_t n_rec = dp_tlm_read (tlm, recs, 512);
+    size_t n_rec = dp_tlm_read (tlm, 512, recs, 512);
     CHECK (n_rec == 4 * NS); /* lock + e + freq + locked per symbol */
     /* The last records mirror the tracked state (flush order:
      * lock, e, freq, locked). */
@@ -431,7 +431,7 @@ main (void)
     CHECK (costas_set_telemetry (c, NULL, "car", 1) == DP_OK);
     CHECK (c->tlm.ctx == NULL);
     (void)costas_steps (c, rx, L, out, NS);
-    CHECK (dp_tlm_read (tlm, recs, 512) == 0);
+    CHECK (dp_tlm_read (tlm, 512, recs, 512) == 0);
 
     /* A full probe table fails the attach whole. */
     char pname[DP_TLM_NAME_MAX];

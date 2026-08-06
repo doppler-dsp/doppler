@@ -24,8 +24,8 @@
  * emits at most `dp_tlm_probe_count() * N` records — see dp_tlm_block_bound().
  * A ring sized to that bound and drained to empty at every block boundary
  * therefore *cannot* overflow, which is what dp_tlm_capture_open()
- * (dp_tlm_capture/dp_tlm_capture_core.h) sets up for you.  Prefer a capture to a
- * hand-rolled drain loop: guessing a ring size and hoping the reader keeps up
+ * (dp_tlm_capture/dp_tlm_capture_core.h) sets up for you.  Prefer a capture
+ * to a hand-rolled drain loop: guessing a ring size and hoping the reader keeps up
  * is the failure mode this bound exists to retire.
  *
  * @section tlm_threading Threading contract
@@ -52,7 +52,7 @@
  *   DP_TLM (tlm, id, gain_db);            // in the hot loop, per event
  *   ...
  *   dp_tlm_rec_t recs[512];
- *   size_t n = dp_tlm_read (tlm, recs, 512);   // on the consumer side
+ *   size_t n = dp_tlm_read (tlm, 512, recs, 512);   // on the consumer side
  *   dp_tlm_destroy (tlm);
  * @endcode
  */
@@ -110,7 +110,7 @@ typedef struct
   uint64_t emitted;               /**< Records written into the ring.   */
 } dp_tlm_probe_t;
 
-/** Opaque lossless capture (dp_tlm_capture/dp_tlm_capture_core.h); see dp_tlm_set_now. */
+/** Opaque lossless capture (dp_tlm_capture_core.h); see dp_tlm_set_now. */
 typedef struct dp_tlm_capture dp_tlm_capture_t;
 
 /**
@@ -133,11 +133,25 @@ typedef struct dp_tlm
 } dp_tlm_t;
 
 /**
- * @brief Drains the ring into an open capture.  See tlm_capture.h.
+ * @brief jm's spelling of ::dp_tlm_t.
  *
- * Declared here (not just in tlm_capture.h) so the inline dp_tlm_set_now()
- * can delegate without telemetry.h depending on the capture header — the
- * dependency runs the other way.
+ * jm derives an object's state struct as `<component>_state_t` with no
+ * override (just-makeit#797), and this type predates jm by years — it is in
+ * the signature of every instrumented object's `*_set_telemetry`, so renaming
+ * it is not on the table. An alias costs one line and nothing at runtime.
+ *
+ * Not a second type: `dp_tlm_t` remains the name to write. This exists so the
+ * generated binding compiles, and it goes away when jm#797 lands `state_type`.
+ */
+typedef dp_tlm_t dp_tlm_state_t;
+
+/**
+ * @brief Drains the ring into an open capture.  See
+ * dp_tlm_capture/dp_tlm_capture_core.h.
+ *
+ * Declared here, not only in the capture header, so the inline
+ * dp_tlm_set_now() can delegate without this header depending on that one —
+ * the dependency runs the other way.
  */
 int dp_tlm_capture_block (dp_tlm_capture_t *c);
 
@@ -260,15 +274,36 @@ typedef struct
 dp_tlm_stats_t dp_tlm_stats (const dp_tlm_t *t);
 
 /**
- * @brief Drains up to @p max_recs records into @p out.  Non-blocking.
+ * @brief Records dp_tlm_read() would return for a request of @p n.
  *
- * Consumer side of the SPSC ring: safe to call from a different thread
- * than the producer.  Returns immediately with whatever is available
- * (possibly 0) — never spins.
+ * `min(n, avail)`, or all of `avail` when @p n is 0.  Sizing helper for a
+ * caller allocating the destination — and the reason @p n and the buffer's
+ * capacity are separate arguments below.
+ */
+size_t dp_tlm_read_max_out (dp_tlm_t *t, size_t n);
+
+/**
+ * @brief Drains records into @p out.  Non-blocking.
+ *
+ * Consumer side of the SPSC ring: safe to call from a different thread than
+ * the producer.  Returns immediately with whatever is available (possibly 0)
+ * — never spins.
+ *
+ * @param t        Context.
+ * @param n        Records wanted; 0 means "everything available".
+ * @param out      Destination.
+ * @param max_out  Capacity of @p out, in records.
+ *
+ * @c n and @c max_out are deliberately distinct: "how many I want" and "how
+ * much room I have" are different questions, and a single argument answering
+ * both cannot express "give me up to 10, into this 4096-record scratch
+ * buffer" without the caller silently under-reading or overrunning.  The read
+ * is clamped to the smaller of the two.
  *
  * @return Number of records copied out.
  */
-size_t dp_tlm_read (dp_tlm_t *t, dp_tlm_rec_t *out, size_t max_recs);
+size_t dp_tlm_read (dp_tlm_t *t, size_t n, dp_tlm_rec_t *out,
+                    size_t max_out);
 
 /** @brief Total records dropped on ring overrun (monotonic). */
 uint64_t dp_tlm_dropped (const dp_tlm_t *t);

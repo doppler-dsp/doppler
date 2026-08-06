@@ -362,7 +362,7 @@ main (void)
     size_t n_sym = mpsk_receiver_steps (a, tx, 512, out, 80);
     CHECK (n_sym > 0);
     dp_tlm_rec_t recs[2048];
-    size_t       n_rec = dp_tlm_read (tlm, recs, 2048);
+    size_t       n_rec = dp_tlm_read (tlm, 2048, recs, 2048);
     /* lock + tracking + car(e,freq,locked) + sync(e,ctrl,rate,lock,locked,mu):
      * eleven records per recovered symbol, all flushed at the strobe. The arm
      * AGC is not attached -- it is an internal normaliser on the
@@ -392,14 +392,14 @@ main (void)
     CHECK (mpsk_receiver_set_telemetry (a, NULL, "rx", 1) == DP_OK);
     CHECK (a->l.tlm.ctx == NULL && a->l.timing.tlm.ctx == NULL);
     (void)mpsk_receiver_steps (a, tx, 512, out, 80);
-    CHECK (dp_tlm_read (tlm, recs, 2048) == 0);
+    CHECK (dp_tlm_read (tlm, 2048, recs, 2048) == 0);
 
     /* bits() flushes telemetry too (the guarded in-loop path). */
     CHECK (mpsk_receiver_set_telemetry (a, tlm, "rx2", 1) == DP_OK);
     uint8_t bit_out[128];
     size_t  n_bits = mpsk_receiver_bits (a, tx, 512, bit_out, 128);
     CHECK (n_bits > 0);
-    CHECK (dp_tlm_read (tlm, recs, 2048) > 0);
+    CHECK (dp_tlm_read (tlm, 2048, recs, 2048) > 0);
 
     /* A full probe table fails the attach whole (receiver detached). */
     char pname[DP_TLM_NAME_MAX];

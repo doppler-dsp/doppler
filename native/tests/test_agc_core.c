@@ -259,7 +259,7 @@ main (void)
     for (int i = 0; i < 32; i++)
       (void)agc_step (a, 0.5f + 0.0f * I);
     dp_tlm_rec_t recs[64];
-    size_t       n = dp_tlm_read (tlm, recs, 64);
+    size_t       n = dp_tlm_read (tlm, 64, recs, 64);
     CHECK (n == 32);
     CHECK (recs[n - 1].value == (float)a->gain_db);
 
@@ -291,7 +291,7 @@ main (void)
     CHECK (agc_set_telemetry (a, NULL, "agc", 1) == DP_OK);
     CHECK (a->tlm.ctx == NULL);
     (void)agc_step (a, 0.5f + 0.0f * I);
-    CHECK (dp_tlm_read (tlm, recs, 64) == 0);
+    CHECK (dp_tlm_read (tlm, 64, recs, 64) == 0);
 
     agc_destroy (d);
     agc_destroy (b);

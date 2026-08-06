@@ -385,7 +385,7 @@ drain (dp_tlm_capture_t *c)
           continue;
         }
       size_t got = dp_tlm_read (
-          c->tlm, c->stage[c->active] + c->stage_n[c->active], room);
+          c->tlm, room, c->stage[c->active] + c->stage_n[c->active], room);
       if (got == 0)
         break;
       c->stage_n[c->active] += got;

@@ -159,7 +159,14 @@ dp_tlm_stats (const dp_tlm_t *t)
 }
 
 size_t
-dp_tlm_read (dp_tlm_t *t, dp_tlm_rec_t *out, size_t max_recs)
+dp_tlm_read_max_out (dp_tlm_t *t, size_t n)
+{
+  size_t avail = dp_tlm_avail (t);
+  return (n == 0 || n > avail) ? avail : n;
+}
+
+size_t
+dp_tlm_read (dp_tlm_t *t, size_t n, dp_tlm_rec_t *out, size_t max_out)
 {
   /* Consumer side of the SPSC ring, non-blocking: acquire the head once,
    * copy what's there (contiguous thanks to the VM double-mapping), and
@@ -169,15 +176,19 @@ dp_tlm_read (dp_tlm_t *t, dp_tlm_rec_t *out, size_t max_recs)
   dp_tlmr_t *ring = t->ring;
   size_t     head = DP_LOAD_ACQ (&ring->head);
   size_t     tail = DP_LOAD_RLX (&ring->tail);
-  size_t     n    = head - tail;
-  if (n > max_recs)
-    n = max_recs;
-  if (n == 0)
+  size_t     have = head - tail;
+  /* Clamp to BOTH the request and the buffer. n == 0 means "everything",
+   * which is why the two limits cannot collapse into one argument. */
+  if (n != 0 && have > n)
+    have = n;
+  if (have > max_out)
+    have = max_out;
+  if (have == 0)
     return 0;
   memcpy (out, &ring->data[(tail & ring->mask) * 2],
-          n * sizeof (dp_tlm_rec_t));
-  dp_tlmr_consume (ring, n);
-  return n;
+          have * sizeof (dp_tlm_rec_t));
+  dp_tlmr_consume (ring, have);
+  return have;
 }
 
 uint64_t

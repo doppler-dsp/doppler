@@ -150,14 +150,14 @@ main (void)
     dp_tlm_emit (t, id, -3.25);
 
     dp_tlm_rec_t recs[8];
-    CHECK (dp_tlm_read (t, recs, 8) == 2);
+    CHECK (dp_tlm_read (t, 8, recs, 8) == 2);
     CHECK (recs[0].n == 1000 && recs[0].value == 1.5f);
     CHECK (recs[1].n == 2000 && recs[1].value == -3.25f);
     CHECK (recs[0].probe == (uint16_t)id && recs[0].flags == 0);
     CHECK (dp_tlm_emitted (t, id) == 2);
 
     /* Drained: next read is empty, non-blocking. */
-    CHECK (dp_tlm_read (t, recs, 8) == 0);
+    CHECK (dp_tlm_read (t, 8, recs, 8) == 0);
     dp_tlm_destroy (t);
   }
 
@@ -169,7 +169,7 @@ main (void)
       dp_tlm_emit (t, id, (double)i);
 
     dp_tlm_rec_t recs[8];
-    size_t       n = dp_tlm_read (t, recs, 8);
+    size_t       n = dp_tlm_read (t, 8, recs, 8);
     CHECK (n == 4); /* events 0, 3, 6, 9 */
     CHECK (recs[0].value == 0.0f && recs[1].value == 3.0f
            && recs[2].value == 6.0f && recs[3].value == 9.0f);
@@ -196,7 +196,7 @@ main (void)
             produced++;
           }
         size_t n;
-        while ((n = dp_tlm_read (t, recs, 31)) > 0) /* odd partial size */
+        while ((n = dp_tlm_read (t, 31, recs, 31)) > 0) /* odd partial size */
           for (size_t i = 0; i < n; i++)
             {
               CHECK (recs[i].n == next_expected);
@@ -226,7 +226,7 @@ main (void)
     dp_tlm_rec_t recs[64];
     uint64_t     seen = 0;
     size_t       n;
-    while ((n = dp_tlm_read (t, recs, 64)) > 0)
+    while ((n = dp_tlm_read (t, 64, recs, 64)) > 0)
       {
         for (size_t i = 0; i < n; i++)
           CHECK (recs[i].value == (float)seen + (float)i);
@@ -256,7 +256,7 @@ main (void)
   do                                                                          \
     {                                                                         \
       size_t _n;                                                              \
-      while ((_n = dp_tlm_read (t, recs, 256)) > 0)                           \
+      while ((_n = dp_tlm_read (t, 256, recs, 256)) > 0)                      \
         for (size_t _i = 0; _i < _n; _i++)                                    \
           {                                                                   \
             if (got && recs[_i].n <= last_n)                                  \
@@ -357,7 +357,7 @@ main (void)
     /* avail() must not consume: reading it twice reads the same 5. */
     CHECK (dp_tlm_avail (t) == 5);
     dp_tlm_rec_t got[8];
-    CHECK (dp_tlm_read (t, got, 8) == 5);
+    CHECK (dp_tlm_read (t, 8, got, 8) == 5);
     CHECK (dp_tlm_avail (t) == 0);
 
     /* Already big enough -> no-op, and cheap enough to call every boundary. */
@@ -375,7 +375,7 @@ main (void)
 
     /* The fresh ring is usable, and the probe registry survived the swap. */
     dp_tlm_emit (t, id, 42.0);
-    CHECK (dp_tlm_read (t, got, 8) == 1 && got[0].value == 42.0f);
+    CHECK (dp_tlm_read (t, 8, got, 8) == 1 && got[0].value == 42.0f);
     dp_tlm_destroy (t);
   }
 
@@ -402,12 +402,48 @@ main (void)
     dp_tlm_destroy (t);
   }
 
+  /* ── read(): "how many I want" and "how much room I have" are different
+     questions. Every call site in the tree happens to pass the same value for
+     both, so without this block the split would be free to collapse back into
+     one argument and nothing would notice. ─────────────────────────────────*/
+  {
+    dp_tlm_t    *t  = dp_tlm_create (1 << 12);
+    int          id = dp_tlm_probe (t, "rw", 1);
+    dp_tlm_rec_t buf[64];
+    for (int i = 0; i < 10; i++)
+      dp_tlm_emit (t, id, (double)i);
+
+    /* n == 0 means "everything", regardless of a roomy buffer. */
+    CHECK (dp_tlm_read_max_out (t, 0) == 10);
+    /* A request smaller than what is available wins... */
+    CHECK (dp_tlm_read_max_out (t, 3) == 3);
+    /* ...and a request larger than available is capped by reality, not
+       granted. */
+    CHECK (dp_tlm_read_max_out (t, 999) == 10);
+    CHECK (dp_tlm_read_max_out (NULL, 0) == 0);
+
+    /* Want 3 of 10, into a 64-record buffer: the REQUEST is the limit. */
+    CHECK (dp_tlm_read (t, 3, buf, 64) == 3);
+    CHECK (buf[0].value == 0.0f && buf[2].value == 2.0f);
+
+    /* Want everything, but only 4 records of room: the BUFFER is the limit.
+       Under a single conflated argument this case cannot be expressed. */
+    CHECK (dp_tlm_read (t, 0, buf, 4) == 4);
+    CHECK (buf[0].value == 3.0f);
+
+    /* Want everything, ample room: the remaining 3. */
+    CHECK (dp_tlm_read (t, 0, buf, 64) == 3);
+    CHECK (buf[0].value == 7.0f && buf[2].value == 9.0f);
+    CHECK (dp_tlm_avail (t) == 0);
+    dp_tlm_destroy (t);
+  }
+
   /* ── read() NULL-safety: the one accessor that used to dereference ────── */
   {
     dp_tlm_rec_t out[4];
-    CHECK (dp_tlm_read (NULL, out, 4) == 0);
+    CHECK (dp_tlm_read (NULL, 4, out, 4) == 0);
     dp_tlm_t *t = dp_tlm_create (1 << 12);
-    CHECK (dp_tlm_read (t, NULL, 4) == 0);
+    CHECK (dp_tlm_read (t, 4, NULL, 4) == 0);
     dp_tlm_destroy (t);
   }
 

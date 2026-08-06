@@ -217,7 +217,7 @@ Telemetry_read (TelemetryObject *self, PyObject *args, PyObject *kwds)
     return NULL;
   if (avail)
     {
-      size_t got = dp_tlm_read (self->tlm,
+      size_t got = dp_tlm_read (self->tlm, avail,
                                 (dp_tlm_rec_t *)PyArray_DATA (
                                     (PyArrayObject *)arr),
                                 avail);

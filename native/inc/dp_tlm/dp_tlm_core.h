@@ -185,8 +185,20 @@ void dp_tlm_destroy (dp_tlm_t *t);
  */
 int dp_tlm_probe (dp_tlm_t *t, const char *name, uint32_t decim);
 
-/** @brief Looks up a probe id by name; DP_ERR_INVALID if unknown. */
-int dp_tlm_lookup (const dp_tlm_t *t, const char *name);
+/** @brief Looks up a probe id by name; ::DP_ERR_INVALID if unknown. */
+int dp_tlm_probe_id (const dp_tlm_t *t, const char *name);
+
+/**
+ * @brief Retunes an EXISTING probe's decimation, by name.
+ *
+ * Distinct from dp_tlm_probe(), which registers on a miss: this refuses an
+ * unknown name rather than quietly creating a probe nothing emits to, which
+ * is what a typo in a retune call deserves.
+ *
+ * @return ::DP_OK, or ::DP_ERR_INVALID on NULL, an unknown name, or
+ *         @p decim == 0.
+ */
+int dp_tlm_set_decim (dp_tlm_t *t, const char *name, uint32_t decim);
 
 /** @brief Probe name for @p id, or NULL if out of range. */
 const char *dp_tlm_probe_name (const dp_tlm_t *t, int id);

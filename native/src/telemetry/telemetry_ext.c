@@ -127,7 +127,7 @@ Telemetry_probe_id (TelemetryObject *self, PyObject *args)
     return NULL;
   if (!tlm_alive (self))
     return NULL;
-  int id = dp_tlm_lookup (self->tlm, name);
+  int id = dp_tlm_probe_id (self->tlm, name);
   if (id < 0)
     {
       PyErr_SetString (PyExc_KeyError, name);

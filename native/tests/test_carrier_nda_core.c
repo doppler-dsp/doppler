@@ -395,11 +395,11 @@ main (void)
     carrier_nda_state_t *c   = carrier_nda_create (0.01, 0.707, 0.0, 8, 4, 4);
     CHECK (tlm != NULL && c != NULL);
     CHECK (carrier_nda_set_telemetry (c, tlm, "car", 1) == DP_OK);
-    CHECK (dp_tlm_lookup (tlm, "car.lock") == c->tlm.id_lock);
-    CHECK (dp_tlm_lookup (tlm, "car.e") == c->tlm.id_e);
-    CHECK (dp_tlm_lookup (tlm, "car.freq") == c->tlm.id_freq);
-    CHECK (dp_tlm_lookup (tlm, "car.locked") == c->tlm.id_locked);
-    CHECK (dp_tlm_lookup (tlm, "car.agc.gain_db") == c->agc.tlm.id_gain);
+    CHECK (dp_tlm_probe_id (tlm, "car.lock") == c->tlm.id_lock);
+    CHECK (dp_tlm_probe_id (tlm, "car.e") == c->tlm.id_e);
+    CHECK (dp_tlm_probe_id (tlm, "car.freq") == c->tlm.id_freq);
+    CHECK (dp_tlm_probe_id (tlm, "car.locked") == c->tlm.id_locked);
+    CHECK (dp_tlm_probe_id (tlm, "car.agc.gain_db") == c->agc.tlm.id_gain);
     CHECK (c->agc.tlm.ctx == tlm); /* forwarded attach armed the AGC */
 
     size_t k = carrier_nda_steps (c, rx, N, out, N);
@@ -423,7 +423,7 @@ main (void)
     CHECK (carrier_nda_set_telemetry (d, tlm, "car2", 4) == DP_OK);
     CHECK (carrier_nda_set_state (d, b1) == DP_OK);
     CHECK (d->tlm.ctx == tlm && d->agc.tlm.ctx == tlm);
-    CHECK (d->tlm.id_e == dp_tlm_lookup (tlm, "car2.e"));
+    CHECK (d->tlm.id_e == dp_tlm_probe_id (tlm, "car2.e"));
     carrier_nda_get_state (d, b2);
     CHECK (memcmp (b1, b2, sb) == 0); /* attachment-independent bytes */
     free (b1);

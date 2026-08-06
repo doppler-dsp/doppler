@@ -252,7 +252,7 @@ main (void)
     agc_state_t *a   = agc_create (0.0, 0.0025, 0.05);
     CHECK (tlm != NULL && a != NULL);
     CHECK (agc_set_telemetry (a, tlm, "agc", 1) == DP_OK);
-    CHECK (dp_tlm_lookup (tlm, "agc.gain_db") == a->tlm.id_gain);
+    CHECK (dp_tlm_probe_id (tlm, "agc.gain_db") == a->tlm.id_gain);
 
     /* One record per gain update (default period 1 -> per sample); the
      * last record is the current integrator value exactly. */

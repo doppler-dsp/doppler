@@ -509,10 +509,10 @@ main (void)
     dll_state_t *d   = dll_create (code, 31, 2, 0.0, 0.01, 0.707, 0.5, 1);
     CHECK (tlm != NULL && d != NULL);
     CHECK (dll_set_telemetry (d, tlm, "code", 1) == DP_OK);
-    CHECK (dp_tlm_lookup (tlm, "code.e") == d->tlm.id_e);
-    CHECK (dp_tlm_lookup (tlm, "code.rate") == d->tlm.id_rate);
-    CHECK (dp_tlm_lookup (tlm, "code.lock") == d->tlm.id_lock);
-    CHECK (dp_tlm_lookup (tlm, "code.locked") == d->tlm.id_locked);
+    CHECK (dp_tlm_probe_id (tlm, "code.e") == d->tlm.id_e);
+    CHECK (dp_tlm_probe_id (tlm, "code.rate") == d->tlm.id_rate);
+    CHECK (dp_tlm_probe_id (tlm, "code.lock") == d->tlm.id_lock);
+    CHECK (dp_tlm_probe_id (tlm, "code.locked") == d->tlm.id_locked);
 
     size_t k     = dll_steps (d, rx, L, out, 256);
     size_t n_rec = dp_tlm_read (tlm, 512, recs, 512);
@@ -544,7 +544,7 @@ main (void)
     CHECK (dll_set_telemetry (d3, tlm, "code3", 2) == DP_OK);
     CHECK (dll_set_state (d3, b1) == DP_OK);
     CHECK (d3->tlm.ctx == tlm);
-    CHECK (d3->tlm.id_e == dp_tlm_lookup (tlm, "code3.e"));
+    CHECK (d3->tlm.id_e == dp_tlm_probe_id (tlm, "code3.e"));
     dll_get_state (d3, b2);
     CHECK (memcmp (b1, b2, sb) == 0); /* attachment-independent bytes */
     free (b1);

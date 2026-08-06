@@ -969,8 +969,8 @@ test_sigmf_pair_from_create (void)
   float _Complex xs[4] = { 0 };
   /* A path-opened writer owns BOTH halves; the sidecar carries the datatype,
      so emitting only the samples produces an undecodable capture. */
-  wfm_writer_state_t *w
-      = wfm_writer_create (path, 2e6, WFM_FT_SIGMF, 3, 0, 1.2e9, 4, 0.0, 0.0);
+  wfm_writer_state_t *w = wfm_writer_create (path, 2e6, WFM_FT_SIGMF, 3, 0,
+                                             1.2e9, 4, 0.0, 0.0, true);
   CHECK (w, "writer create");
   CHECK (wfm_writer_write (w, xs, 4) == 4, "write");
   CHECK (wfm_writer_close (w) == 0, "close");
@@ -989,11 +989,11 @@ test_sigmf_pair_from_create (void)
      control proves the refusal is about the extension and not about the path
      being unwritable -- otherwise this pair of checks would pass vacuously. */
   wfm_writer_state_t *ok = wfm_writer_create (
-      "dp_reader_pair.bin", 2e6, WFM_FT_RAW, 3, 0, 0.0, 4, 0.0, 0.0);
+      "dp_reader_pair.bin", 2e6, WFM_FT_RAW, 3, 0, 0.0, 4, 0.0, 0.0, false);
   CHECK (ok != NULL, "the same path is writable as raw");
   CHECK (wfm_writer_close (ok) == 0, "control close");
   CHECK (wfm_writer_create ("dp_reader_pair.bin", 2e6, WFM_FT_SIGMF, 3, 0, 0.0,
-                            4, 0.0, 0.0)
+                            4, 0.0, 0.0, true)
              == NULL,
          "a SigMF path must end in .sigmf-data");
   return 0;

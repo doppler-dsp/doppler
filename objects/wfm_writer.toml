@@ -106,6 +106,18 @@ name = "t0"
 type = "double"
 default = "0.0"
 
+# Raw and CSV take fs/fc/t0 like every other file type and then had nowhere to
+# put them, so they threw them away — the caller's own metadata, discarded by
+# the library that asked for it. The containers have no room; a sidecar is
+# room. On by default because it is purely additive and the values are already
+# in hand; pass false when an extra file beside the capture would break a
+# downstream glob. It never applies to BLUE (whose header carries all three)
+# and cannot switch SigMF's off (there the sidecar IS half the capture).
+[[wfm_writer.init_params]]
+name = "sidecar"
+type = "bool"
+default = "true"
+
 [[wfm_writer.methods]]
 name = "write"
 arg_type = "float _Complex[]"

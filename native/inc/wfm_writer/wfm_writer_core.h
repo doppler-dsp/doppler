@@ -15,6 +15,17 @@
  * owns it — that is the path wfmgen and Composer take, and it is also how
  * they attach their per-segment annotations.
  *
+ * The same mechanism keeps `raw` and `csv` interpretable. Both containers
+ * take `fs`, `fc` and `t0` at construction and have nowhere to store them,
+ * and until now simply discarded them — handing back a file that not even its
+ * author could interpret afterwards. A path-opened raw/CSV writer therefore
+ * gets a `<path>.sigmf-meta` sidecar too (`sidecar=false` opts out). It is
+ * SigMF-SHAPED, not a SigMF capture: the name is appended rather than swapped
+ * so it cannot collide with a real pair's metadata (see wfm_meta_path), and
+ * for CSV `core:datatype` names the value domain the samples were quantised
+ * to rather than a byte layout. BLUE gets none — its header already carries
+ * all three, and a second copy is only somewhere for them to drift.
+ *
  * Axes (orthogonal to the file type):
  *   - sample_type (wavegen order): 0 cf32, 1 cf64, 2 ci32, 3 ci16, 4 ci8.
  *     Integer types quantise full-scale ±1.0 (ci32 2^31-1, ci16 32767, ci8 127).
@@ -214,23 +225,27 @@ double wfm_writer_clip_fraction(const wfm_writer_state_t *w);
  *                    name, and close() writes the sidecar beside it.
  * @param file_type   `"raw"` (headerless interleaved I/Q), `"csv"` (one
  *                    `I,Q` line per sample), `"blue"` (self-describing
- *                    X-Midas/REDHAWK type-1000) or `"sigmf"`. Only BLUE and
- *                    SigMF record `fs`/`fc`; raw and CSV have nowhere to put
- *                    them.
+ *                    X-Midas/REDHAWK type-1000) or `"sigmf"`. BLUE and SigMF
+ *                    record `fs`/`fc`/`t0` in the capture itself; raw and CSV
+ *                    have nowhere to put them and keep them in the
+ *                    `sidecar` instead.
  * @param sample_type wire type: `"cf32"`, `"cf64"`, `"ci32"`, `"ci16"` or
  *                    `"ci8"`. The integer types quantise ±1.0 to full scale
  *                    and can clip -- see track_clipping()/peak_dbfs.
  * @param endian      `"le"` or `"be"`; ignored for CSV, which is text.
  * @param fs          sample rate (Hz), and REQUIRED -- there is no default.
- *                    BLUE stores it as `xdelta = 1/fs`, SigMF as
- *                    `core:sample_rate`. Pass 0.0 to state that the rate is
+ *                    BLUE stores it as `xdelta = 1/fs`, SigMF and the raw/CSV
+ *                    `sidecar` as `core:sample_rate`. Pass 0.0 to say the
+ *                    rate is
  *                    not known: that writes `xdelta = 0` and omits
  *                    `core:sample_rate`, where a defaulted value would have
  *                    written a rate nobody supplied into a file that
  *                    outlives the process.
  * @param fc          centre frequency (Hz). BLUE records it as a `FREQ`
- *                    keyword, SigMF as `captures[0]["core:frequency"]`; raw
- *                    and CSV drop it. 0.0 writes nothing.
+ *                    keyword, SigMF as `captures[0]["core:frequency"]`, raw
+ *                    and CSV in the `sidecar`. 0.0 writes nothing, in every
+ *                    one of them -- absent is how this library says "not
+ *                    stated", which is what `Reader.fc_source` reports back.
  * @param total       expected sample count, for the BLUE header; close()
  *                    patches the real count, so 0 is fine when unknown.
  * @param headroom    dB of output backoff (gain = 10^(-H/20)) applied before
@@ -241,9 +256,26 @@ double wfm_writer_clip_fraction(const wfm_writer_state_t *w);
  *                    where `fs` is required, because a capture with no
  *                    wall-clock anchor is still readable and one with no
  *                    rate is not. BLUE stores it as a J1950 timecode, SigMF
- *                    as `captures[0]["core:datetime"]`; raw and CSV drop it.
+ *                    as `captures[0]["core:datetime"]`, raw and CSV in the
+ *                    `sidecar`.
  *                    0.0 means unset and stays unset -- it is never written
  *                    as 1970. `Reader.t0` / `Reader.t0_source` read it back.
+ * @param sidecar     write a `<path>.sigmf-meta` JSON beside a `"raw"` or
+ *                    `"csv"` capture, recording the `fs`, `fc` and `t0` those
+ *                    containers have nowhere to keep. On by default: the
+ *                    caller already supplied the values at construction, and
+ *                    dropping them on the floor left a file nobody -- its own
+ *                    author included -- could interpret. Only what was
+ *                    actually stated is written; nothing is invented. It is
+ *                    SigMF-SHAPED, not a SigMF capture: the spec pairs
+ *                    `.sigmf-data`, so the name is APPENDED rather than
+ *                    swapped (`cap.raw` -> `cap.raw.sigmf-meta`), which keeps
+ *                    it 1:1 with its data file and unable to collide with a
+ *                    real capture's metadata. Ignored for `"blue"` (its
+ *                    header already carries all three) and for `"sigmf"`,
+ *                    where the sidecar is half the capture and cannot be
+ *                    turned off. Pass false when an extra file beside the
+ *                    capture would break a downstream glob.
  * @return a writer, or NULL if the path cannot be opened for writing (or is
  *         a SigMF path not ending in `.sigmf-data`).
  *
@@ -267,10 +299,19 @@ double wfm_writer_clip_fraction(const wfm_writer_state_t *w);
  * (2400000.0, 1200000000.0, 1024, 'demo')
  * >>> bool(np.array_equal(back, x))
  * True
+ *
+ * A raw capture has nowhere to put `fs`/`fc`, so they go beside it:
+ *
+ * >>> q = pathlib.Path(tmp.name) / "capture.raw"
+ * >>> with Writer(q, fs=2.4e6, fc=1.2e9) as w:
+ * ...     w.write(x)
+ * 1024
+ * >>> (q.parent / "capture.raw.sigmf-meta").exists()
+ * True
  * >>> tmp.cleanup()
  * @endcode
  */
-wfm_writer_state_t *wfm_writer_create(const char *path, double fs, int file_type, int sample_type, int endian, double fc, size_t total, double headroom, double t0);
+wfm_writer_state_t *wfm_writer_create(const char *path, double fs, int file_type, int sample_type, int endian, double fc, size_t total, double headroom, double t0, bool sidecar);
 
 /**
  * @brief Write a complete 512-byte BLUE/Platinum type-1000 Header Control Block.

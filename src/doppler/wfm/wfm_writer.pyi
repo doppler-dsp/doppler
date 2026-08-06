@@ -18,15 +18,17 @@ class Writer:
         close() writes the sidecar beside it.
     fs : float
         sample rate (Hz), and REQUIRED -- there is no default. BLUE stores it
-        as `xdelta = 1/fs`, SigMF as `core:sample_rate`. Pass 0.0 to state that
-        the rate is not known: that writes `xdelta = 0` and omits
-        `core:sample_rate`, where a defaulted value would have written a rate
-        nobody supplied into a file that outlives the process.
+        as `xdelta = 1/fs`, SigMF and the raw/CSV `sidecar` as
+        `core:sample_rate`. Pass 0.0 to say the rate is not known: that writes
+        `xdelta = 0` and omits `core:sample_rate`, where a defaulted value
+        would have written a rate nobody supplied into a file that outlives the
+        process.
     file_type : Literal["raw", "csv", "blue", "sigmf"], default "raw"
         `"raw"` (headerless interleaved I/Q), `"csv"` (one `I,Q` line per
         sample), `"blue"` (self-describing X-Midas/REDHAWK type-1000) or
-        `"sigmf"`. Only BLUE and SigMF record `fs`/`fc`; raw and CSV have
-        nowhere to put them.
+        `"sigmf"`. BLUE and SigMF record `fs`/`fc`/`t0` in the capture itself;
+        raw and CSV have nowhere to put them and keep them in the `sidecar`
+        instead.
     sample_type : Literal["cf32", "cf64", "ci32", "ci16", "ci8"], default "cf32"
         wire type: `"cf32"`, `"cf64"`, `"ci32"`, `"ci16"` or `"ci8"`. The
         integer types quantise ±1.0 to full scale and can clip -- see
@@ -35,8 +37,9 @@ class Writer:
         `"le"` or `"be"`; ignored for CSV, which is text.
     fc : float, default 0.0
         centre frequency (Hz). BLUE records it as a `FREQ` keyword, SigMF as
-        `captures[0]["core:frequency"]`; raw and CSV drop it. 0.0 writes
-        nothing.
+        `captures[0]["core:frequency"]`, raw and CSV in the `sidecar`. 0.0
+        writes nothing, in every one of them -- absent is how this library says
+        "not stated", which is what `Reader.fc_source` reports back.
     total : int, default 0
         expected sample count, for the BLUE header; close() patches the real
         count, so 0 is fine when unknown.
@@ -48,9 +51,23 @@ class Writer:
         capture start, seconds since the UNIX epoch. Optional where `fs` is
         required, because a capture with no wall-clock anchor is still readable
         and one with no rate is not. BLUE stores it as a J1950 timecode, SigMF
-        as `captures[0]["core:datetime"]`; raw and CSV drop it. 0.0 means unset
-        and stays unset -- it is never written as 1970. `Reader.t0` /
-        `Reader.t0_source` read it back.
+        as `captures[0]["core:datetime"]`, raw and CSV in the `sidecar`. 0.0
+        means unset and stays unset -- it is never written as 1970. `Reader.t0`
+        / `Reader.t0_source` read it back.
+    sidecar : bool, default True
+        write a `<path>.sigmf-meta` JSON beside a `"raw"` or `"csv"` capture,
+        recording the `fs`, `fc` and `t0` those containers have nowhere to
+        keep. On by default: the caller already supplied the values at
+        construction, and dropping them on the floor left a file nobody -- its
+        own author included -- could interpret. Only what was actually stated
+        is written; nothing is invented. It is SigMF-SHAPED, not a SigMF
+        capture: the spec pairs `.sigmf-data`, so the name is APPENDED rather
+        than swapped (`cap.raw` -> `cap.raw.sigmf-meta`), which keeps it 1:1
+        with its data file and unable to collide with a real capture's
+        metadata. Ignored for `"blue"` (its header already carries all three)
+        and for `"sigmf"`, where the sidecar is half the capture and cannot be
+        turned off. Pass false when an extra file beside the capture would
+        break a downstream glob.
 
     Examples
     --------
@@ -73,6 +90,15 @@ class Writer:
     (2400000.0, 1200000000.0, 1024, 'demo')
     >>> bool(np.array_equal(back, x))
     True
+
+    A raw capture has nowhere to put `fs`/`fc`, so they go beside it:
+
+    >>> q = pathlib.Path(tmp.name) / "capture.raw"
+    >>> with Writer(q, fs=2.4e6, fc=1.2e9) as w:
+    ...     w.write(x)
+    1024
+    >>> (q.parent / "capture.raw.sigmf-meta").exists()
+    True
     >>> tmp.cleanup()
 
     """
@@ -87,6 +113,7 @@ class Writer:
         total: int = ...,
         headroom: float = ...,
         t0: float = ...,
+        sidecar: bool = ...,
     ) -> None: ...
 
     def write(self, x: NDArray[np.complex64]) -> int:

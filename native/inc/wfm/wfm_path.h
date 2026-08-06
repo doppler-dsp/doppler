@@ -41,4 +41,38 @@ wfm_swap_ext (const char *path, const char *ext, char *out, size_t cap)
   snprintf (out, cap, "%.*s%s", (int)base, path, ext);
 }
 
+/**
+ * @brief Name the `.sigmf-meta` sidecar belonging to the capture at @p path.
+ *
+ * Two derivations, because two different things are being named:
+ *
+ * - `"cap.sigmf-data"` → `"cap.sigmf-meta"` (SWAP). Not a choice: SigMF
+ *   defines a capture as the `<base>.sigmf-data` + `<base>.sigmf-meta` pair,
+ *   and conformant tools find the second half by exactly that name.
+ * - `"cap.raw"` → `"cap.raw.sigmf-meta"` (APPEND). Anything else is not a
+ *   SigMF capture, so no external tool looks for its metadata under any name,
+ *   which leaves the derivation free — and a free choice should be the one
+ *   that cannot collide. Swapping would give `cap.raw` and a genuine
+ *   `cap.sigmf-data` in one directory the SAME sidecar name, so writing one
+ *   capture would silently overwrite the other's metadata. Appending keeps
+ *   the sidecar 1:1 with the file it describes, which is also what makes it
+ *   safe to read back by exact name: wfm_reader_create deliberately does NOT
+ *   sniff for `<base>.sigmf-meta` beside an arbitrary file, because a shared
+ *   base name hijacked two unrelated files the first time that was tried.
+ *
+ * @param path capture (data) path.
+ * @param out  destination buffer; always NUL-terminated, truncated if @p cap
+ *             is too small.
+ * @param cap  bytes available at @p out.
+ */
+static inline void
+wfm_meta_path (const char *path, char *out, size_t cap)
+{
+  size_t n = strlen (path);
+  if (n >= 11 && strcmp (path + n - 11, ".sigmf-data") == 0)
+    wfm_swap_ext (path, ".sigmf-meta", out, cap);
+  else
+    snprintf (out, cap, "%s.sigmf-meta", path);
+}
+
 #endif /* WFM_PATH_H */

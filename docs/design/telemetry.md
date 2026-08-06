@@ -438,37 +438,57 @@ today, and removing footguns is the job.
 
 Two additive mechanisms, neither of which invents a format:
 
-**⚠️ BLOCKED — `fs` cannot express "not declared".** The audit's framing was
-"the ctor already has `fs`, just stop discarding it". That is wrong in one
-load-bearing detail: `objects/wfm_writer.toml` gives `fs` a default of
+**The prerequisite, and how it was resolved.** The audit's framing was "the
+ctor already has `fs`, just stop discarding it". That was wrong in one
+load-bearing detail: `objects/wfm_writer.toml` gave `fs` a default of
 **`1e6`**, so a caller who declared nothing and a caller who declared 1 MHz
-arrive identically. Writing `core:sample_rate: 1000000` for a capture whose
-rate nobody stated is the `t0 = now` fabrication in a new costume — asserting
-metadata we do not have, into a file that outlives the process.
+arrived identically at `close()`. Writing `core:sample_rate: 1000000` for a
+capture whose rate nobody stated is the `t0 = now` fabrication in a new
+costume, and no guard fixes it from inside `close()`: skipping when `fs`
+equals the default would drop the rate from a real 1 MHz capture.
 
-No guard fixes this from inside `close()`: skipping when `fs` equals the
-default would drop the rate from a real 1 MHz capture. The sidecar needs the
-writer to know whether `fs` was *given*. Note `fc` already defaults to `0.0`,
-so absence IS expressible there — the asymmetry is the bug.
-
-**Recommended fix, but it is an API decision:** default `fs` to `0.0` too.
-The round-trip is already coherent — the BLUE writer would emit `xdelta = 0`,
-and the reader already reads that back as `fs == 0.0` with
-`fs_source == "none"`. It is a behaviour change for anyone relying on the
-implicit 1 MHz, which is why it is not made unilaterally here.
+The decisive fact was not which sentinel to pick, but that **the fabrication
+was already shipping** — `wfm_sigmf_meta_json` emitted `core:sample_rate`
+unconditionally, so `Writer(file_type="sigmf")` with no `fs` already wrote a
+confident `1000000` into a real `.sigmf-meta`, and BLUE wrote the matching
+`xdelta`. That turns the question from "break a working API for a nicety"
+into "fix one that lies". `fs` is now **required** (see the CHANGELOG entry),
+`fs = 0.0` states "not known", and every key that was previously written
+unconditionally — `core:sample_rate`, `core:datetime`, and `core:frequency`,
+which the BLUE path had always omitted at zero — is now omitted when unstated.
 
 **1 — Auto-write a `.sigmf-meta` sidecar, on by default for raw/CSV.**
 doppler already reads one (`Reader` resolves `.sigmf-data` → `.sigmf-meta`
 for `core:sample_rate`) and already writes one (`close()` emits it for
-`file_type="sigmf"`). Reuse both. Take-it-or-leave-it: a user who doesn't
-know SigMF ignores a small JSON file; a user who does gets a standard
-capture. Write only what is genuinely known from the constructor —
-`core:sample_rate`, `core:frequency`, datatype and endianness. **Do not
-auto-fill `core:datetime` from the clock**: for a transcode or a re-write
-that is wall-clock-as-`t0`, the exact error this section exists to prevent.
-It appears only when a `t0` is supplied. A sidecar beside a `.raw`/`.csv` is
-SigMF-*shaped* rather than conformant (the spec pairs `.sigmf-data`), so it
-is documented as a sidecar, not advertised as a SigMF capture.
+`file_type="sigmf"`). Both are reused; `write_sigmf_sidecar()` is now driven
+by "does this writer own a path", not by the file type. Only what the
+constructor was actually given is written. **`core:datetime` is never filled
+from the clock**: for a transcode or a re-write that is wall-clock-as-`t0`,
+the exact error this section exists to prevent — it appears only when a `t0`
+is supplied.
+
+A sidecar beside a `.raw`/`.csv` is SigMF-*shaped* rather than conformant
+(the spec pairs `.sigmf-data`), so it is documented as a sidecar and never
+advertised as a SigMF capture. Two consequences of that, both decided by the
+fact that nothing conformant will look for the file anyway:
+
+- **The name is APPENDED, not swapped**: `cap.raw` → `cap.raw.sigmf-meta`.
+    Swapping would give `cap.raw` and a genuine `cap.sigmf-data` in one
+    directory the same sidecar name, so writing one capture would silently
+    retype the other. Appending keeps it 1:1 with its data file — which is
+    also what would make an exact-name probe safe on the read side, where
+    `wfm_reader_create` deliberately refuses to sniff `<base>.sigmf-meta`
+    beside an arbitrary file (it hijacked two unrelated files the first time
+    that was tried). The derivation lives once, in `wfm_meta_path`.
+- **For CSV, `core:datatype` names the value domain** the samples were
+    quantised to, not a byte layout — a text file has no byte layout, but the
+    `ci16` a CSV writer was constructed with really does decide the range its
+    values occupy, and a consumer needs it.
+
+`sidecar=False` opts out (an extra file can break a downstream glob); BLUE
+never participates, since its header already carries all three and a second
+copy is only somewhere for them to drift; SigMF cannot opt out, because there
+the sidecar is half the capture.
 
 **2 — Optional filename metadata, opt-in.**
 `filename_add_meta=True` →

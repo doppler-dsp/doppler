@@ -35,6 +35,12 @@ ______________________________________________________________________
     required in `global`), so an unstated rate is now absent from the
     document rather than emitted as a defaulted number. An absent key says
     "not stated"; a present one is a value a downstream tool will act on.
+    `core:datetime` follows the same rule, and so now does
+    **`core:frequency`**, which was written as a confident `0` — i.e. "this
+    capture sits at baseband" — for every capture that simply never said. The
+    BLUE writer had always omitted its `FREQ` keyword at `fc == 0.0` and the
+    reader's `fc_source` reports `"none"` for an absent one, so the SigMF
+    path was the odd one out rather than this being a new convention.
 
 - **just-makeit pin 0.46.1 → 0.46.2.** Zero codegen drift: `jm apply`
     re-renders four binding fragments in jm's K&R and clang-format returns
@@ -59,6 +65,30 @@ ______________________________________________________________________
     `t0_source` had to be added.
 
 ### Added
+
+- **`raw` and `csv` captures keep their metadata in a sidecar.** Both file
+    types take `fs`, `fc` and `t0` at construction and have nowhere in the
+    container to put them, so they discarded them — the library asked for the
+    caller's metadata and threw it away, leaving a file that not even its
+    author could interpret later. A path-opened writer now emits
+    `<path>.sigmf-meta` beside the capture, carrying exactly what it was
+    told.
+
+    The name is **appended, not swapped** (`cap.raw` → `cap.raw.sigmf-meta`):
+    swapping would make a raw capture and a genuine `cap.sigmf-data` in one
+    directory fight over `cap.sigmf-meta`, so writing one would silently
+    retype the other. The file is SigMF-*shaped* rather than a SigMF capture
+    — the spec pairs `.sigmf-data`, and for CSV `core:datatype` names the
+    value domain the samples were quantised to rather than a byte layout.
+
+    On by default because it is purely additive and the values are already in
+    hand; `sidecar=False` opts out when an extra file would break a
+    downstream glob. `blue` never participates (its header already carries all
+    three, and a second copy is only somewhere for them to drift) and `sigmf`
+    cannot opt out, because there the sidecar is half the capture. A sidecar
+    that cannot be written fails `close()`, on the grounds that landing a
+    capture whose `fs` and `fc` exist nowhere is the outcome the file is
+    written to prevent.
 
 - **`wfm.Writer(..., t0=…)` records the capture start.** UNIX seconds in,
     stored as a J1950 timecode in a BLUE header and as

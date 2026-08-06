@@ -80,6 +80,23 @@ ______________________________________________________________________
 
 ### Added
 
+- **`Telemetry.read_dict()`, `set_decim()` and `stats()`** — the shaping and
+    accounting every consumer of `read()` was rebuilding by hand.
+    `read_dict()` drains exactly as `read()` does and groups by probe
+    **name**: `{name: values}`, or `{name: (n, values)}` with `index=True`,
+    which is what lets a plot carry a real time axis (`n / fs` in seconds)
+    instead of an ordinal. It retires the
+    `recs[recs["probe"] == tlm.probe_id(name)]["value"]` filter and the
+    `{v: k for k, v in probes.items()}` id→name inversion that appeared in
+    all three telemetry examples. Every *registered* probe gets a key —
+    including ones silent in this batch, as an empty array — so the dict's
+    shape does not change from call to call while draining block by block.
+
+    `set_decim(name, decim)` names a capability that already existed but only
+    as a side effect of re-registering a probe, so one noisy series can be
+    thinned while its siblings stay at full rate. `stats()` reconciles
+    per-probe `emitted` against the ring-wide `dropped` in one call.
+
 - **`raw` and `csv` captures keep their metadata in a sidecar.** Both file
     types take `fs`, `fc` and `t0` at construction and have nowhere in the
     container to put them, so they discarded them — the library asked for the

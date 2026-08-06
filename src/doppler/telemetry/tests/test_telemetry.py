@@ -178,3 +178,126 @@ def test_producer_consumer_threads():
     assert len(recs) + tlm.dropped == n_events
     # In-order delivery: stamped sample indices strictly increase.
     assert np.all(np.diff(recs["n"].astype(np.int64)) > 0)
+
+
+# ── read_dict / set_decim / stats ────────────────────────────────────────────
+# The shaping and accounting every consumer of read() was rebuilding by hand.
+
+
+def test_read_dict_groups_by_name_and_keeps_every_probe():
+    """One drain, grouped by name -- and a key per REGISTERED probe, not per
+    probe seen in this batch, so the dict's shape is stable while draining
+    block by block."""
+    tlm = Telemetry(1 << 12)
+    a, b = tlm.probe("loop.e"), tlm.probe("loop.lock")
+    for i in range(4):
+        tlm.emit(a, i / 2)
+
+    d = tlm.read_dict()
+    assert sorted(d) == ["loop.e", "loop.lock"]
+    assert list(d["loop.e"]) == [0.0, 0.5, 1.0, 1.5]
+    assert d["loop.e"].dtype == np.float32
+    assert d["loop.lock"].size == 0  # registered, silent, still a key
+    assert tlm.read().size == 0  # ...and it really drained the ring
+    del b
+
+
+def test_read_dict_index_carries_the_sample_index():
+    """`index=True` is what makes a real time axis possible: the caller
+    divides n by fs and gets seconds, instead of plotting an ordinal."""
+    tlm = Telemetry(1 << 12)
+    e = tlm.probe("sync.e")
+    for blk, n in enumerate((0, 256, 512)):
+        tlm.set_now(n)
+        tlm.emit(e, float(blk))
+
+    n, v = tlm.read_dict(index=True)["sync.e"]
+    assert list(n) == [0, 256, 512]
+    assert list(v) == [0.0, 1.0, 2.0]
+    assert n.dtype == np.uint64 and v.dtype == np.float32
+
+
+def test_read_dict_matches_read_exactly():
+    """It is the same drain, only reshaped -- so it must agree with the
+    hand-rolled filter it replaces, value for value."""
+    tlm = Telemetry(1 << 14)
+    ids = {name: tlm.probe(name) for name in ("a", "b", "c")}
+    rng = np.random.default_rng(3)
+    order = rng.integers(0, 3, 300)
+    for k, which in enumerate(order):
+        tlm.set_now(k)
+        tlm.emit(ids["abc"[which]], float(k))
+
+    tlm2 = Telemetry(1 << 14)  # a second run, drained the OLD way
+    ids2 = {name: tlm2.probe(name) for name in ("a", "b", "c")}
+    for k, which in enumerate(order):
+        tlm2.set_now(k)
+        tlm2.emit(ids2["abc"[which]], float(k))
+    recs = tlm2.read()
+
+    d = tlm.read_dict()
+    for name, pid in ids2.items():
+        assert np.array_equal(d[name], recs[recs["probe"] == pid]["value"])
+
+
+def test_read_dict_max_records_leaves_the_rest():
+    tlm = Telemetry(1 << 12)
+    e = tlm.probe("e")
+    for i in range(10):
+        tlm.emit(e, float(i))
+    assert list(tlm.read_dict(max_records=4)["e"]) == [0.0, 1.0, 2.0, 3.0]
+    assert list(tlm.read_dict()["e"]) == [4.0, 5.0, 6.0, 7.0, 8.0, 9.0]
+
+
+def test_set_decim_thins_one_probe_only():
+    """Per-probe decimation was already possible (probe() is idempotent by
+    name and updates decim) but only as a side effect of 're-registering'.
+    This names it -- and the sibling probe must be untouched."""
+    tlm = Telemetry(1 << 12)
+    e, lk = tlm.probe("sync.e"), tlm.probe("sync.lock")
+    tlm.set_decim("sync.e", 4)
+    for i in range(8):
+        tlm.emit(e, float(i))
+        tlm.emit(lk, 1.0)
+
+    d = tlm.read_dict()
+    assert list(d["sync.e"]) == [0.0, 4.0]  # every 4th
+    assert d["sync.lock"].size == 8  # untouched
+
+
+def test_set_decim_rejects_unknown_and_zero():
+    tlm = Telemetry(1 << 12)
+    tlm.probe("known")
+    with pytest.raises(KeyError):
+        tlm.set_decim("nope", 2)
+    with pytest.raises(ValueError):
+        tlm.set_decim("known", 0)
+
+
+def test_stats_reconciles_emitted_against_dropped():
+    tlm = Telemetry(1 << 12)
+    a, b = tlm.probe("a"), tlm.probe("b")
+    for _i in range(5):
+        tlm.emit(a, 1.0)
+    tlm.emit(b, 2.0)
+
+    s = tlm.stats()
+    assert s["emitted"] == {"a": 5, "b": 1}
+    assert s["dropped"] == 0
+    assert s["probes"] == 2
+    assert s["capacity"] == tlm.capacity
+    del a, b
+
+
+def test_stats_sees_a_real_overrun():
+    """An overrun must show up as dropped, and emitted must count only what
+    actually landed -- that is the whole point of reconciling them."""
+    tlm = Telemetry(8)  # tiny ring, rounded up to the page minimum
+    p = tlm.probe("flood")
+    n = tlm.capacity * 4
+    for i in range(n):
+        tlm.emit(p, float(i))
+
+    s = tlm.stats()
+    assert s["dropped"] > 0
+    assert s["emitted"]["flood"] + s["dropped"] == n

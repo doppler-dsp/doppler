@@ -184,10 +184,105 @@ class Telemetry:
 
         """
 
+    def read_dict(
+        self, index: bool = False, max_records: int = -1
+    ) -> dict[str, np.ndarray] | dict[str, tuple[np.ndarray, np.ndarray]]:
+        """Drain like :meth:`read`, grouped by probe **name**.
+
+        The same single drain and the same SPSC contract; only the shape
+        differs.  This replaces the ``recs[recs["probe"] == tlm.probe_id
+        (name)]["value"]`` filter (plus the ``{v: k for k, v in ...}``
+        id→name inversion beside it) that every consumer was rewriting.
+
+        Parameters
+        ----------
+        index : bool, default False
+            Also return each record's stamped sample index, as
+            ``{name: (n, values)}``.  That is what lets a plot carry a
+            real time axis — ``n / fs`` in seconds — instead of an
+            ordinal.  See :meth:`set_now`, which is what stamps ``n``.
+        max_records : int, default -1
+            Drain at most this many records; -1 takes everything
+            available.
+
+        Returns
+        -------
+        dict
+            ``{name: values}`` (float32), or ``{name: (n, values)}`` with
+            ``index=True`` (uint64, float32).  **Every registered probe
+            gets a key**, including probes with nothing in this batch —
+            an empty array — so the dict's shape does not change from
+            call to call while draining block by block.
+
+        Examples
+        --------
+        >>> from doppler.telemetry import Telemetry
+        >>> tlm = Telemetry(1 << 12)
+        >>> e, lock = tlm.probe("sync.e"), tlm.probe("rx.lock")
+        >>> tlm.set_now(1024)
+        >>> for i in range(3):
+        ...     tlm.emit(e, i / 10)
+        >>> series = tlm.read_dict(index=True)
+        >>> sorted(series)                    # a key per probe, always
+        ['rx.lock', 'sync.e']
+        >>> n, v = series["sync.e"]
+        >>> [round(float(x), 1) for x in v]
+        [0.0, 0.1, 0.2]
+        >>> [int(x) for x in n]               # the stamped sample index
+        [1024, 1024, 1024]
+        >>> series["rx.lock"][1].size          # registered, nothing sent
+        0
+
+        """
+
+    def set_decim(self, name: str, decim: int) -> None:
+        """Emit every ``decim``-th event for one probe.
+
+        Thins one noisy series while its siblings stay at full rate.
+        Raises ``KeyError`` if the probe is not registered, and
+        ``ValueError`` if ``decim`` is 0.
+
+        Examples
+        --------
+        >>> from doppler.telemetry import Telemetry
+        >>> tlm = Telemetry(1 << 12)
+        >>> e = tlm.probe("sync.e")
+        >>> tlm.set_decim("sync.e", 3)
+        >>> for i in range(9):
+        ...     tlm.emit(e, i)
+        >>> [float(v) for v in tlm.read_dict()["sync.e"]]  # every 3rd
+        [0.0, 3.0, 6.0]
+
+        """
+
+    def stats(self) -> dict:
+        """Reconcile what the probes emitted against what was dropped.
+
+        Returns
+        -------
+        dict
+            ``{"emitted": {name: count}, "dropped": int,
+            "capacity": int, "probes": int}``.  ``dropped`` is
+            ring-wide, not per probe: a record lost to overrun no longer
+            knows which probe it came from.
+
+        Examples
+        --------
+        >>> from doppler.telemetry import Telemetry
+        >>> tlm = Telemetry(1 << 12)
+        >>> a = tlm.probe("agc.gain_db")
+        >>> tlm.emit(a, -3.0)
+        >>> s = tlm.stats()
+        >>> s["emitted"], s["dropped"], s["probes"]
+        ({'agc.gain_db': 1}, 0, 1)
+
+        """
+
     def emitted(self, probe_id: int) -> int:
         """Records written for this probe (post-decimation, post-drop).
 
-        Reconcile against :attr:`dropped` to account for losses.
+        Reconcile against :attr:`dropped` to account for losses, or call
+        :meth:`stats` for both at once.
         """
 
     def destroy(self) -> None:

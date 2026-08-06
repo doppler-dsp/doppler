@@ -226,6 +226,182 @@ Telemetry_read (TelemetryObject *self, PyObject *args, PyObject *kwds)
   return arr;
 }
 
+/* Group one drained batch by probe: {name: values} — or {name: (n, values)}
+   with index=True, which is what gives a plot a real x-axis.
+
+   Every consumer of read() was rebuilding this by hand
+   (`recs[recs["probe"] == tlm.probe_id(n)]["value"]` appeared in all three
+   telemetry examples, plus the id->name inversion beside it), so it belongs
+   here once. It reads the ring exactly like read() does — same single drain,
+   same SPSC contract — and only the shaping differs.
+
+   EVERY registered probe gets a key, including probes with nothing in this
+   batch (an empty array). A caller draining block by block would otherwise
+   get a dict whose shape changes every call, which is precisely what makes
+   plotting loops fragile. */
+static PyObject *
+Telemetry_read_dict (TelemetryObject *self, PyObject *args, PyObject *kwds)
+{
+  static char *kwlist[]  = { "index", "max_records", NULL };
+  int          index     = 0;
+  Py_ssize_t max_records = -1; /* -1: everything available */
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|pn", kwlist, &index,
+                                    &max_records))
+    return NULL;
+  if (!tlm_alive (self))
+    return NULL;
+
+  dp_tlmr_t *ring  = self->tlm->ring;
+  size_t     avail = DP_LOAD_ACQ (&ring->head) - DP_LOAD_RLX (&ring->tail);
+  if (max_records >= 0 && avail > (size_t)max_records)
+    avail = (size_t)max_records;
+
+  size_t        n_probes = dp_tlm_probe_count (self->tlm);
+  dp_tlm_rec_t *buf      = NULL;
+  if (avail)
+    {
+      buf = (dp_tlm_rec_t *)malloc (avail * sizeof *buf);
+      if (!buf)
+        return PyErr_NoMemory ();
+      avail = dp_tlm_read (self->tlm, buf, avail);
+    }
+
+  /* One counting pass, so each probe's arrays are allocated exactly once —
+     no per-probe reallocation, and no second drain (the records are gone
+     from the ring after the read above). */
+  size_t *count = (size_t *)calloc (n_probes ? n_probes : 1, sizeof *count);
+  if (!count)
+    {
+      free (buf);
+      return PyErr_NoMemory ();
+    }
+  for (size_t i = 0; i < avail; i++)
+    if (buf[i].probe < n_probes)
+      count[buf[i].probe]++;
+
+  PyObject *d = PyDict_New ();
+  if (!d)
+    goto fail;
+
+  for (size_t p = 0; p < n_probes; p++)
+    {
+      npy_intp  dims[1] = { (npy_intp)count[p] };
+      PyObject *vals    = PyArray_SimpleNew (1, dims, NPY_FLOAT32);
+      PyObject *idxs    = NULL;
+      if (!vals)
+        goto fail;
+      if (index)
+        {
+          idxs = PyArray_SimpleNew (1, dims, NPY_UINT64);
+          if (!idxs)
+            {
+              Py_DECREF (vals);
+              goto fail;
+            }
+        }
+      float    *vp = (float *)PyArray_DATA ((PyArrayObject *)vals);
+      uint64_t *np_
+          = index ? (uint64_t *)PyArray_DATA ((PyArrayObject *)idxs) : NULL;
+      size_t k = 0;
+      for (size_t i = 0; i < avail; i++)
+        if (buf[i].probe == p)
+          {
+            if (np_)
+              np_[k] = buf[i].n;
+            vp[k++] = buf[i].value;
+          }
+
+      PyObject *item = vals;
+      if (index)
+        {
+          item = PyTuple_Pack (2, idxs, vals);
+          Py_DECREF (idxs);
+          Py_DECREF (vals);
+          if (!item)
+            goto fail;
+        }
+      int rc = PyDict_SetItemString (
+          d, dp_tlm_probe_name (self->tlm, (int)p), item);
+      Py_DECREF (item);
+      if (rc < 0)
+        goto fail;
+    }
+  free (count);
+  free (buf);
+  return d;
+
+fail:
+  Py_XDECREF (d);
+  free (count);
+  free (buf);
+  return NULL;
+}
+
+/* Per-probe decimation, by name. The capability already existed -- probe()
+   is idempotent by name and updates decim -- but only as a side effect of
+   "registering" a probe that is already registered, which reads like a
+   mistake at a call site. This is a name for it, so thinning one noisy
+   series while its siblings stay at full rate is something you can say. */
+static PyObject *
+Telemetry_set_decim (TelemetryObject *self, PyObject *args, PyObject *kwds)
+{
+  static char *kwlist[] = { "name", "decim", NULL };
+  const char  *name;
+  unsigned int decim;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "sI", kwlist, &name, &decim))
+    return NULL;
+  if (!tlm_alive (self))
+    return NULL;
+  if (dp_tlm_lookup (self->tlm, name) < 0)
+    {
+      PyErr_SetString (PyExc_KeyError, name);
+      return NULL;
+    }
+  if (dp_tlm_probe (self->tlm, name, (uint32_t)decim) < 0)
+    {
+      PyErr_Format (PyExc_ValueError, "decim must be >= 1 (got %u)", decim);
+      return NULL;
+    }
+  Py_RETURN_NONE;
+}
+
+/* Reconcile what the probes emitted against what the ring dropped -- the
+   cross-check every capture needs and everyone was doing by hand. `dropped`
+   is ring-wide (a dropped record no longer knows which probe it came from),
+   so it is reported once, not per probe. */
+static PyObject *
+Telemetry_stats (TelemetryObject *self, PyObject *Py_UNUSED (ignored))
+{
+  if (!tlm_alive (self))
+    return NULL;
+  PyObject *per = PyDict_New ();
+  if (!per)
+    return NULL;
+  size_t n = dp_tlm_probe_count (self->tlm);
+  for (size_t i = 0; i < n; i++)
+    {
+      PyObject *v
+          = PyLong_FromUnsignedLongLong (dp_tlm_emitted (self->tlm, (int)i));
+      if (!v
+          || PyDict_SetItemString (
+                 per, dp_tlm_probe_name (self->tlm, (int)i), v)
+                 < 0)
+        {
+          Py_XDECREF (v);
+          Py_DECREF (per);
+          return NULL;
+        }
+      Py_DECREF (v);
+    }
+  PyObject *d = Py_BuildValue (
+      "{s:N,s:K,s:n,s:n}", "emitted", per, "dropped",
+      (unsigned long long)dp_tlm_dropped (self->tlm), "capacity",
+      (Py_ssize_t)dp_tlm_capacity (self->tlm), "probes", (Py_ssize_t)n);
+  if (!d)
+    Py_DECREF (per);
+  return d;
+}
+
 static PyObject *
 Telemetry_emitted (TelemetryObject *self, PyObject *args)
 {
@@ -321,6 +497,27 @@ static PyMethodDef Telemetry_methods[] = {
     "Drain up to max_records (default: all available) into a structured\n"
     "array [('n','<u8'),('value','<f4'),('probe','<u2'),('flags','<u2')].\n"
     "Non-blocking; consumer side (may run on another thread)." },
+  { "read_dict", (PyCFunction)Telemetry_read_dict,
+    METH_VARARGS | METH_KEYWORDS,
+    "read_dict(index=False, max_records=-1) -> dict\n\n"
+    "Drain like read(), grouped by probe NAME instead of returning one\n"
+    "structured array: {name: values} as float32, or {name: (n, values)}\n"
+    "with index=True, where n is the stamped sample index — that is what\n"
+    "gives a plot a real time axis (n / fs) instead of an ordinal.\n\n"
+    "Every registered probe gets a key, including ones with nothing in\n"
+    "this batch (an empty array), so the dict's shape does not change\n"
+    "from call to call while draining block by block." },
+  { "set_decim", (PyCFunction)Telemetry_set_decim,
+    METH_VARARGS | METH_KEYWORDS,
+    "set_decim(name, decim) -> None\n\n"
+    "Emit every decim-th event for one probe, leaving its siblings at\n"
+    "full rate.  Raises KeyError if the probe is not registered." },
+  { "stats", (PyCFunction)Telemetry_stats, METH_NOARGS,
+    "stats() -> dict\n\n"
+    "{'emitted': {name: count}, 'dropped': int, 'capacity': int,\n"
+    "'probes': int} — reconciles what each probe emitted against what\n"
+    "the ring dropped.  `dropped` is ring-wide: a dropped record no\n"
+    "longer knows which probe it came from." },
   { "emitted", (PyCFunction)Telemetry_emitted, METH_VARARGS,
     "emitted(probe_id) -> int\n\n"
     "Records written for this probe (post-decimation, post-drop)." },

@@ -59,7 +59,10 @@ struct dp_tlm_capture
   int             quit;
   int             werr; /* first writer error, sticky */
 
-  double fs, t0;
+  /* Borrowed, not copied: the pipeline's clock is the SSOT for the time base,
+     and it may be corrected by dp_sample_clock_track() after we open.  Read
+     at close() so the sidecar records the corrected epoch, not a stale one. */
+  const dp_sample_clock_t *clock;
 
   uint64_t dropped_at_open;
   uint64_t dropped;
@@ -265,11 +268,24 @@ write_sidecar (const dp_tlm_capture_t *c)
   fprintf (f, "  \"dropped\": %llu,\n", (unsigned long long)c->dropped);
   fprintf (f, "  \"capacity\": %zu,\n", st.capacity);
   fprintf (f, "  \"block_samples\": %zu,\n", c->block_samples);
-  /* 0 means "not stated"; emitting it would fabricate a rate nobody gave. */
-  if (c->fs != 0.0)
-    fprintf (f, "  \"fs\": %.17g,\n", c->fs);
-  if (c->t0 != 0.0)
-    fprintf (f, "  \"t0\": %.17g,\n", c->t0);
+  /* The time base, read from the clock NOW so a dp_sample_clock_track()
+     correction that landed mid-capture is what gets recorded.  An absent or
+     unstated value is OMITTED, never written as a plausible-looking zero:
+     "no rate given" and "exactly 0 Hz" must not be the same bytes. */
+  if (c->clock)
+    {
+      if (c->clock->fs != 0.0)
+        fprintf (f, "  \"fs\": %.17g,\n", c->clock->fs);
+      /* Gated on has_anchor, NOT on the epoch being non-zero. dp_sample_clock
+         _init() captures CLOCK_REALTIME at construction, so an unanchored
+         clock always has a plausible-looking epoch -- and it is "now", which
+         for a replayed 2019 capture is worse than no timestamp because it
+         looks authoritative. Only an epoch adopted from ground truth via
+         dp_sample_clock_track() is worth writing down. */
+      if (c->clock->has_anchor)
+        fprintf (f, "  \"epoch_real_ns\": %llu,\n",
+                 (unsigned long long)c->clock->epoch_real_ns);
+    }
   fprintf (f, "  \"dtype\": [[\"n\", \"<u8\"], [\"value\", \"<f4\"],"
               " [\"probe\", \"<u2\"], [\"flags\", \"<u2\"]],\n");
   fprintf (f, "  \"probes\": {");
@@ -288,7 +304,7 @@ write_sidecar (const dp_tlm_capture_t *c)
 
 dp_tlm_capture_t *
 dp_tlm_capture_open (dp_tlm_t *t, size_t block_samples, const char *path,
-                     double fs, double t0)
+                     const dp_sample_clock_t *clock)
 {
   if (!t || block_samples == 0 || t->capture)
     return NULL;
@@ -302,8 +318,7 @@ dp_tlm_capture_open (dp_tlm_t *t, size_t block_samples, const char *path,
   c->tlm           = t;
   c->block_samples = block_samples;
   c->pending       = -1;
-  c->fs            = fs;
-  c->t0            = t0;
+  c->clock         = clock;
 
   if (path)
     {

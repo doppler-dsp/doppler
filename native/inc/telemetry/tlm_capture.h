@@ -43,11 +43,21 @@
  * `fread`.  A `<path>-meta` JSON sidecar carries what the records cannot: the
  * probe table, the counters, and the sample clock.
  *
+ * @section cap_time The time base is borrowed, never re-declared
+ * A record carries @c n and no time; time is `t0 + n / fs`.  That pair, and
+ * that computation, are already ::dp_sample_clock_t — so a capture takes the
+ * clock **by reference** rather than growing a private `fs`/`t0` of its own.
+ * Two copies of a time base drift, and the one in the file is the copy nobody
+ * can correct afterwards.  Passing NULL states "no time base", and the sidecar
+ * then omits the keys rather than fabricating a plausible rate.
+ *
  * @code
  *   rx_set_telemetry (rx, tlm, "rx", 1);   // probes first: they
  *                                          // set the bound
+ *   dp_sample_clock_t clk;
+ *   dp_sample_clock_init (&clk, 1e6, 1);
  *   dp_tlm_capture_t *cap =
- *     dp_tlm_capture_open (tlm, 256, "rx.tlm", 1e6, 0.0);
+ *     dp_tlm_capture_open (tlm, 256, "rx.tlm", &clk);
  *   for (size_t i = 0; i < n; i += 256)
  *     {
  *       dp_tlm_set_now (tlm, i);           // drains the block
@@ -63,6 +73,7 @@
 #define DP_TLM_CAPTURE_H
 
 #include "telemetry/telemetry.h"
+#include "timing/timing_core.h" /* dp_sample_clock_t — the ONE time base */
 
 #ifdef __cplusplus
 extern "C" {
@@ -89,16 +100,18 @@ extern "C" {
  *                      record, and dp_tlm_capture_close() reports it.
  * @param path          Output file.  NULL accumulates in memory instead, for
  *                      dp_tlm_capture_records().  Truncated if it exists.
- * @param fs            Sample rate in Hz for the sidecar; 0 = unknown, and
- *                      the key is omitted rather than fabricated.
- * @param t0            Epoch of sample 0 for the sidecar; 0 = unknown.
- * @return New capture, or NULL on a NULL/zero argument, a context that
- *         already has a capture, an unopenable @p path, or allocation
- *         failure.
+ * @param clock         The pipeline's sample clock, borrowed for the sidecar's
+ *                      time base.  Read at close(), so later `track()`
+ *                      corrections to the epoch are picked up.  Must outlive
+ *                      the capture.  NULL = no time base stated, and the
+ *                      sidecar says so by omission.
+ * @return New capture, or NULL on a NULL/zero @p t / @p block_samples, a
+ *         context that already has a capture, an unopenable @p path, or
+ *         allocation failure.
  */
 dp_tlm_capture_t *dp_tlm_capture_open (dp_tlm_t *t, size_t block_samples,
-                                       const char *path, double fs,
-                                       double t0);
+                                       const char             *path,
+                                       const dp_sample_clock_t *clock);
 
 /**
  * @brief Block boundary: drains the ring to empty.

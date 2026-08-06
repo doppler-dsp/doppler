@@ -55,6 +55,16 @@ jobs:
     # gate that stopped gating without saying so.
     - name: Check ISO 8601 parity with just-bashit
       run: |
+        # macOS ships BSD date, and BOTH sides of this comparison want GNU:
+        # just-bashit's own helper picks `gdate` when it is there, and this
+        # gate needs it to split an instant into the (seconds, nanoseconds)
+        # pair the C API takes. Installing it keeps the check REQUIRED on
+        # every platform doppler ships a wheel for, rather than quietly
+        # Linux-only -- the C side formats through the platform libc's
+        # gmtime_r, so parity on Linux does not prove parity on macOS.
+        if [ "$RUNNER_OS" = "macOS" ]; then
+            brew install coreutils
+        fi
         git clone --depth 1 https://github.com/just-buildit/just-bashit.git \
             "$RUNNER_TEMP/just-bashit"
         make check-isotime-parity ISOTIME_REQUIRE=1 \

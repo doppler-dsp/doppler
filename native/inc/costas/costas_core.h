@@ -39,7 +39,7 @@
 #include "lo/lo_core.h"
 #include "lockdet/lockdet_core.h"
 #include "loop_filter/loop_filter_core.h"
-#include "telemetry/telemetry.h"
+#include "dp_tlm/dp_tlm_core.h"
 #include <math.h>
 #ifdef __cplusplus
 extern "C" {
@@ -398,7 +398,7 @@ int costas_get_locked(const costas_state_t *state);
  * costas_configure_lock). Passing NULL detaches.  Setup path, never hot:
  * call before the producer thread starts stepping; the context is
  * borrowed and must outlive the attachment (SPSC rules in
- * telemetry/telemetry.h).
+ * dp_tlm/dp_tlm_core.h).
  * @param state  Must be non-NULL.
  * @param tlm    Telemetry context to attach, or NULL to detach.
  * @param prefix Probe-name prefix, e.g. "car" or "ch0.car".

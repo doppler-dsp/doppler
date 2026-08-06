@@ -115,7 +115,7 @@ for src, sub in sources.items():
 ```
 
 A C pipeline publishes the same frames without Python in the loop: the
-`dp_tlm_sink_*` helper (`telemetry/tlm_sink.h`, in the optional
+`dp_tlm_sink_*` helper (`stream/tlm_sink.h`, in the optional
 `libdoppler_stream` component) drains a `dp_tlm_t` ring straight to a
 subject on a timer thread. Frames are byte-identical either way, so C
 producers and Python consumers mix freely.

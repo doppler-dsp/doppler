@@ -81,7 +81,7 @@
 #include "clib_common.h"
 #include "jm_perf.h"
 #include "dp_state.h"
-#include "telemetry/telemetry.h"
+#include "dp_tlm/dp_tlm_core.h"
 #include "util/util_core.h"
 #include <math.h>
 
@@ -449,7 +449,7 @@ double agc_get_applied_gain_db(const agc_state_t *state);
    * idempotent (same name -> same probe id).  Setup path, never hot: call
    * before the producer thread starts stepping, and keep every object
    * attached to one context on that one thread (the ring is SPSC — see
-   * telemetry/telemetry.h).  The context is borrowed, not owned: it must
+   * dp_tlm/dp_tlm_core.h).  The context is borrowed, not owned: it must
    * outlive the attachment.
    * @param state  Must be non-NULL.
    * @param tlm    Telemetry context to attach, or NULL to detach.

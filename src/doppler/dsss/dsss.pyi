@@ -164,7 +164,7 @@ class Despreader:
         period (the despreader flushes both loops at its per-period update).
         Passing NULL detaches both loops. Setup path, never hot; the context is
         borrowed and must outlive the attachment (SPSC rules in
-        telemetry/telemetry.h).
+        dp_tlm/dp_tlm_core.h).
 
         Parameters
         ----------

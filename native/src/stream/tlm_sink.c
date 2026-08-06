@@ -4,9 +4,9 @@
  * Thin glue over doppler's dp_pub_* layer: drains a dp_tlm_t ring in
  * batches and publishes each batch as one TLM16 frame. Lives in the
  * optional libdoppler_stream component (links the vendored nats.c);
- * see telemetry/tlm_sink.h for the contract.
+ * see stream/tlm_sink.h for the contract.
  */
-#include "telemetry/tlm_sink.h"
+#include "stream/tlm_sink.h"
 
 #include <stdlib.h>
 

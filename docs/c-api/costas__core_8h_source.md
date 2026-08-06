@@ -18,7 +18,7 @@
 #include "lo/lo_core.h"
 #include "lockdet/lockdet_core.h"
 #include "loop_filter/loop_filter_core.h"
-#include "telemetry/telemetry.h"
+#include "dp_tlm/dp_tlm_core.h"
 #include <math.h>
 #ifdef __cplusplus
 extern "C" {

@@ -19,7 +19,7 @@ _Continuous DSSS despreader — Costas carrier loop + DLL code loop._ [More...](
 * `#include "lo/lo_core.h"`
 * `#include "lockdet/lockdet_core.h"`
 * `#include "loop_filter/loop_filter_core.h"`
-* `#include "telemetry/telemetry.h"`
+* `#include "dp_tlm/dp_tlm_core.h"`
 * `#include <complex.h>`
 
 
@@ -89,7 +89,7 @@ _Continuous DSSS despreader — Costas carrier loop + DLL code loop._ [More...](
 |  void | [**despreader\_set\_bn\_code**](#function-despreader_set_bn_code) ([**despreader\_state\_t**](structdespreader__state__t.md) \* state, double val) <br> |
 |  void | [**despreader\_set\_norm\_freq**](#function-despreader_set_norm_freq) ([**despreader\_state\_t**](structdespreader__state__t.md) \* state, double val) <br> |
 |  int | [**despreader\_set\_state**](#function-despreader_set_state) ([**despreader\_state\_t**](structdespreader__state__t.md) \* state, const void \* blob) <br> |
-|  int | [**despreader\_set\_telemetry**](#function-despreader_set_telemetry) ([**despreader\_state\_t**](structdespreader__state__t.md) \* state, [**dp\_tlm\_t**](telemetry_8h.md#typedef-dp_tlm_t) \* tlm, const char \* prefix, uint32\_t decim) <br>_Attach (or detach) a telemetry context across the despreader. Pure forwarder — the despreader registers no probes of its own: the carrier loop registers "&lt;prefix&gt;.car.lock" / ".e" / ".freq" / ".locked" and the code loop registers "&lt;prefix&gt;.code.e" / ".rate" / ".lock" / ".locked" (the ".locked" pair are the loops' verify-counted lockdet decisions, 0/1) — eight probes, all thinned by_ `decim` _and emitted once per code period (the despreader flushes both loops at its per-period update). Passing NULL detaches both loops. Setup path, never hot; the context is borrowed and must outlive the attachment (SPSC rules in_[_**telemetry/telemetry.h**_](telemetry_8h.md) _)._ |
+|  int | [**despreader\_set\_telemetry**](#function-despreader_set_telemetry) ([**despreader\_state\_t**](structdespreader__state__t.md) \* state, [**dp\_tlm\_t**](telemetry_8h.md#typedef-dp_tlm_t) \* tlm, const char \* prefix, uint32\_t decim) <br>_Attach (or detach) a telemetry context across the despreader. Pure forwarder — the despreader registers no probes of its own: the carrier loop registers "&lt;prefix&gt;.car.lock" / ".e" / ".freq" / ".locked" and the code loop registers "&lt;prefix&gt;.code.e" / ".rate" / ".lock" / ".locked" (the ".locked" pair are the loops' verify-counted lockdet decisions, 0/1) — eight probes, all thinned by_ `decim` _and emitted once per code period (the despreader flushes both loops at its per-period update). Passing NULL detaches both loops. Setup path, never hot; the context is borrowed and must outlive the attachment (SPSC rules in_[_**dp_tlm/dp_tlm_core.h**_](telemetry_8h.md) _)._ |
 |  size\_t | [**despreader\_state\_bytes**](#function-despreader_state_bytes) (const [**despreader\_state\_t**](structdespreader__state__t.md) \* state) <br> |
 |  size\_t | [**despreader\_steps**](#function-despreader_steps) ([**despreader\_state\_t**](structdespreader__state__t.md) \* state, const float complex \* x, size\_t x\_len, float complex \* out, size\_t max\_out) <br> |
 |  size\_t | [**despreader\_steps\_max\_out**](#function-despreader_steps_max_out) ([**despreader\_state\_t**](structdespreader__state__t.md) \* state) <br> |
@@ -655,7 +655,7 @@ int despreader_set_state (
 
 ### function despreader\_set\_telemetry 
 
-_Attach (or detach) a telemetry context across the despreader. Pure forwarder — the despreader registers no probes of its own: the carrier loop registers "&lt;prefix&gt;.car.lock" / ".e" / ".freq" / ".locked" and the code loop registers "&lt;prefix&gt;.code.e" / ".rate" / ".lock" / ".locked" (the ".locked" pair are the loops' verify-counted lockdet decisions, 0/1) — eight probes, all thinned by_ `decim` _and emitted once per code period (the despreader flushes both loops at its per-period update). Passing NULL detaches both loops. Setup path, never hot; the context is borrowed and must outlive the attachment (SPSC rules in_[_**telemetry/telemetry.h**_](telemetry_8h.md) _)._
+_Attach (or detach) a telemetry context across the despreader. Pure forwarder — the despreader registers no probes of its own: the carrier loop registers "&lt;prefix&gt;.car.lock" / ".e" / ".freq" / ".locked" and the code loop registers "&lt;prefix&gt;.code.e" / ".rate" / ".lock" / ".locked" (the ".locked" pair are the loops' verify-counted lockdet decisions, 0/1) — eight probes, all thinned by_ `decim` _and emitted once per code period (the despreader flushes both loops at its per-period update). Passing NULL detaches both loops. Setup path, never hot; the context is borrowed and must outlive the attachment (SPSC rules in_[_**dp_tlm/dp_tlm_core.h**_](telemetry_8h.md) _)._
 ```C++
 int despreader_set_telemetry (
     despreader_state_t * state,

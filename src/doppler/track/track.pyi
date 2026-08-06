@@ -400,7 +400,7 @@ class Costas:
         0/1 — see costas_configure_lock). Passing NULL detaches. Setup path,
         never hot: call before the producer thread starts stepping; the context
         is borrowed and must outlive the attachment (SPSC rules in
-        telemetry/telemetry.h).
+        dp_tlm/dp_tlm_core.h).
 
         Parameters
         ----------
@@ -823,7 +823,7 @@ class Dll:
         sees where the declare/drop rule fired without re-deriving it from the
         statistic). Passing NULL detaches. Setup path, never hot: call before
         the producer thread starts stepping; the context is borrowed and must
-        outlive the attachment (SPSC rules in telemetry/telemetry.h).
+        outlive the attachment (SPSC rules in dp_tlm/dp_tlm_core.h).
 
         Parameters
         ----------
@@ -1380,7 +1380,7 @@ class SymbolSync:
         "<prefix>.locked" (the verify-counted lockdet decision, 0/1). Passing
         NULL detaches. Setup path, never hot: call before the producer thread
         starts stepping; the context is borrowed and must outlive the
-        attachment (SPSC rules in telemetry/telemetry.h).
+        attachment (SPSC rules in dp_tlm/dp_tlm_core.h).
 
         Parameters
         ----------
@@ -1857,7 +1857,7 @@ class RateSync:
         "<prefix>.locked" (0/1) and "<prefix>.mu" (the timing NCO's fractional
         phase — see resamp_get_ctrl_acc()). Passing NULL detaches. Setup path,
         never hot: the context is borrowed and must outlive the attachment
-        (SPSC rules in telemetry/telemetry.h).
+        (SPSC rules in dp_tlm/dp_tlm_core.h).
 
         The three form one readable picture of the loop: `e` is what the
         detector saw, `ctrl` is what the filter did about it, and `mu` is where
@@ -2602,7 +2602,7 @@ class CarrierNda:
         NULL detaches the loop and the embedded AGC. Setup path, never hot:
         call before the producer thread starts stepping; the context is
         borrowed and must outlive the attachment (SPSC rules in
-        telemetry/telemetry.h).
+        dp_tlm/dp_tlm_core.h).
 
         Parameters
         ----------
@@ -3003,7 +3003,7 @@ class MpskReceiver:
         ".locked" / ".mu" -- eleven probes total, all thinned by decim and all
         emitted once per recovered symbol. Passing NULL detaches everything.
         Setup path, never hot; the context is borrowed and must outlive the
-        attachment (SPSC rules in telemetry/telemetry.h).
+        attachment (SPSC rules in dp_tlm/dp_tlm_core.h).
 
         Parameters
         ----------

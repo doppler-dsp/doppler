@@ -534,5 +534,5 @@ Maximum probe-name length including the NUL terminator.
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/telemetry/telemetry.h`
+The documentation for this class was generated from the following file `native/inc/dp_tlm/dp_tlm_core.h`
 

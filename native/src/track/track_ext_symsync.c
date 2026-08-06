@@ -577,7 +577,7 @@ static PyMethodDef SymbolSyncObj_methods[] = {
     "(the verify-counted lockdet decision, 0/1). Passing NULL detaches.  "
     "Setup path, never hot: call before the producer thread starts stepping; "
     "the context is borrowed and must outlive the attachment (SPSC rules in "
-    "telemetry/telemetry.h).\n"
+    "dp_tlm/dp_tlm_core.h).\n"
     "\n"
     "Parameters\n"
     "----------\n"

@@ -16,7 +16,7 @@ ______________________________________________________________________
 ### Added
 
 - **Telemetry captures are lossless by construction** (C API;
-    `telemetry/tlm_capture.h`). Dropping was the ring's fallback, and sizing it
+    `dp_tlm_capture/dp_tlm_capture_core.h`). Dropping was the ring's fallback, and sizing it
     was a question nobody could answer — too small silently loses data, too big
     wastes memory, and neither shows up until after the run. It rests on one
     bound: **no probe emits more than once per input sample**, so a block of
@@ -2150,7 +2150,7 @@ whose status/roadmap sections had fallen behind shipped work:
 ### Added
 
 - **NATS telemetry egress (`tlm_sink` + `TLM16` wire frames)** — the
-    `dp_tlm_sink_*` helper (`telemetry/tlm_sink.h`, in the optional
+    `dp_tlm_sink_*` helper (`stream/tlm_sink.h`, in the optional
     `libdoppler_stream` component) drains a `dp_tlm_t` ring and publishes
     the records on a NATS subject as `TLM16` frames — a new
     `dp_sample_type_t` (appended, wire value 6) whose payload is packed
@@ -2221,7 +2221,7 @@ whose status/roadmap sections had fallen behind shipped work:
     (`FFT.execute_ci16`/`execute_ci8` and the three hand-added `*_max_out`
     siblings) gain `manual_stub = true` manifest presence so the new
     gh-426 DROPPED gate passes.
-- **`dp_tlm` telemetry taps** (`native/inc/telemetry/telemetry.h`) — a
+- **`dp_tlm` telemetry taps** (`native/inc/dp_tlm/dp_tlm_core.h`) — a
     lightweight C99 primitive for observing scalar internals of running DSP
     objects (tracking-loop stress, AGC gain, lock metrics) as time series.
     Detached cost is one predicted-not-taken branch per *event*; attached

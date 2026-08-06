@@ -2,7 +2,7 @@
  * @file tlm_sink.h
  * @brief NATS PUB sink for telemetry records.
  *
- * Drains a dp_tlm_t record ring (telemetry/telemetry.h) to a NATS subject
+ * Drains a dp_tlm_t record ring (dp_tlm/dp_tlm_core.h) to a NATS subject
  * using doppler's `dp_pub_*` wire layer: each pump publishes the available
  * records as TLM16 frames (SIGS header, sample_type = TLM16, num_samples =
  * record count, payload = packed 16-byte dp_tlm_rec_t). A `dp_sub_*`
@@ -39,7 +39,7 @@
 #ifndef TLM_SINK_H
 #define TLM_SINK_H
 
-#include "telemetry/telemetry.h"
+#include "dp_tlm/dp_tlm_core.h"
 
 #ifdef __cplusplus
 extern "C"

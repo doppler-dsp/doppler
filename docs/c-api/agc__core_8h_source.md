@@ -15,7 +15,7 @@
 #include "clib_common.h"
 #include "jm_perf.h"
 #include "dp_state.h"
-#include "telemetry/telemetry.h"
+#include "dp_tlm/dp_tlm_core.h"
 #include "util/util_core.h"
 #include <math.h>
 

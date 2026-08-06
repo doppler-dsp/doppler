@@ -1,7 +1,7 @@
 # Python Telemetry API
 
 Scalar telemetry taps for running DSP objects, backed by `dp_tlm`
-(`native/inc/telemetry/telemetry.h`): a named probe registry plus a
+(`native/inc/dp_tlm/dp_tlm_core.h`): a named probe registry plus a
 lock-free SPSC record ring. Instrumented objects attach a `Telemetry`
 context and publish scalars (loop stress, AGC gain, lock metrics) from
 their hot loops at *event* rate — one predicted-not-taken branch per event
@@ -114,7 +114,7 @@ assert tlm.dropped == 0
 
 Telemetry crosses processes as `TLM16` frames on the NATS wire layer: a
 C pipeline drains its ring with the `dp_tlm_sink_*` helper
-(`telemetry/tlm_sink.h`, in the optional `libdoppler_stream`
+(`stream/tlm_sink.h`, in the optional `libdoppler_stream`
 component), and a Python producer publishes `read()` output directly.
 Either way, `Subscriber.recv()` decodes the frame back into the exact
 `read()` dtype:

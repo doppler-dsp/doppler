@@ -96,7 +96,7 @@ extern "C"
     CF32  = 5, /**< Complex float32: float I/Q   (8 bytes/sample).  */
     TLM16 = 6, /**< 16-byte telemetry records (dp_tlm_rec_t) — not I/Q;
                     num_samples counts records. Published by the
-                    dp_tlm_sink_* helper (telemetry/tlm_sink.h). */
+                    dp_tlm_sink_* helper (stream/tlm_sink.h). */
   } dp_sample_type_t;
 
   /**
@@ -335,10 +335,10 @@ extern "C"
    * @brief Send an array of 16-byte telemetry records via a Publisher.
    *
    * The payload is @p num_records packed dp_tlm_rec_t (see
-   * telemetry/telemetry.h) — the header's num_samples counts records and
+   * dp_tlm/dp_tlm_core.h) — the header's num_samples counts records and
    * sample_type is TLM16. Kept `const void *` so the wire layer stays
    * decoupled from the telemetry component; the dp_tlm_sink_* helper
-   * (telemetry/tlm_sink.h) is the intended caller.
+   * (stream/tlm_sink.h) is the intended caller.
    *
    * @param ctx          Publisher context.
    * @param records      Packed 16-byte records.

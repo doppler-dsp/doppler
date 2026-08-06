@@ -42,7 +42,7 @@
 #include "lockdet/lockdet_core.h"
 #include "loop_filter/loop_filter_core.h"
 #include "nco/nco_core.h"
-#include "telemetry/telemetry.h"
+#include "dp_tlm/dp_tlm_core.h"
 #include <complex.h>
 #include <math.h>
 #include "detection/detection_core.h"
@@ -821,7 +821,7 @@ void dll_tlm_flush(const dll_state_t *s);
  * without re-deriving it from the statistic).  Passing NULL detaches.
  * Setup path, never hot: call before the producer thread starts
  * stepping; the context is borrowed and must outlive the attachment
- * (SPSC rules in telemetry/telemetry.h).
+ * (SPSC rules in dp_tlm/dp_tlm_core.h).
  * @param state  Must be non-NULL.
  * @param tlm    Telemetry context to attach, or NULL to detach.
  * @param prefix Probe-name prefix, e.g. "code" or "ch0.code".

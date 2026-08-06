@@ -1,5 +1,5 @@
 /*
- * telemetry_ext.c — Python C extension for telemetry/telemetry.h
+ * telemetry_ext.c — Python C extension for dp_tlm/dp_tlm_core.h
  *
  * Exposes one type:
  *   doppler.telemetry.Telemetry — a dp_tlm_t context: probe registry +
@@ -29,7 +29,7 @@
 #include <Python.h>
 #include <numpy/arrayobject.h>
 
-#include "telemetry/telemetry.h"
+#include "dp_tlm/dp_tlm_core.h"
 
 #define TLM_CAPSULE_NAME "doppler.telemetry.dp_tlm"
 

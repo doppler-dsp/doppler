@@ -40,7 +40,7 @@
 #include "lo/lo_core.h"
 #include "lockdet/lockdet_core.h"
 #include "loop_filter/loop_filter_core.h"
-#include "telemetry/telemetry.h"
+#include "dp_tlm/dp_tlm_core.h"
 #include <complex.h>
 #ifdef __cplusplus
 extern "C"
@@ -363,7 +363,7 @@ extern "C"
    * emitted once per code period (the despreader flushes both loops at
    * its per-period update). Passing NULL detaches both loops.  Setup
    * path, never hot; the context is borrowed and must outlive the
-   * attachment (SPSC rules in telemetry/telemetry.h).
+   * attachment (SPSC rules in dp_tlm/dp_tlm_core.h).
    * @param state  Must be non-NULL.
    * @param tlm    Telemetry context to attach, or NULL to detach.
    * @param prefix Probe-name prefix, e.g. "ch0".

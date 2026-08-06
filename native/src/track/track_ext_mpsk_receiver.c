@@ -692,7 +692,7 @@ static PyMethodDef MpskReceiverObj_methods[] = {
     "\".lock\" / \".locked\" / \".mu\" -- eleven probes total, all thinned by "
     "decim and all emitted once per recovered symbol.  Passing NULL detaches "
     "everything. Setup path, never hot; the context is borrowed and must "
-    "outlive the attachment (SPSC rules in telemetry/telemetry.h).\n"
+    "outlive the attachment (SPSC rules in dp_tlm/dp_tlm_core.h).\n"
     "\n"
     "Parameters\n"
     "----------\n"

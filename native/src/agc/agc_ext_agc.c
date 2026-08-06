@@ -579,7 +579,7 @@ static PyMethodDef AGCObj_methods[] = {
     "is idempotent (same name -> same probe id).  Setup path, never hot: call "
     "before the producer thread starts stepping, and keep every object "
     "attached to one context on that one thread (the ring is SPSC — see "
-    "telemetry/telemetry.h).  The context is borrowed, not owned: it must "
+    "dp_tlm/dp_tlm_core.h).  The context is borrowed, not owned: it must "
     "outlive the attachment.\n"
     "\n"
     "Parameters\n"

@@ -1,5 +1,5 @@
 /**
- * @file telemetry.h
+ * @file dp_tlm_core.h
  * @brief Lightweight scalar telemetry taps for running DSP objects.
  *
  * A `dp_tlm_t` context lets a hot loop publish named scalar time series
@@ -24,7 +24,7 @@
  * emits at most `dp_tlm_probe_count() * N` records — see dp_tlm_block_bound().
  * A ring sized to that bound and drained to empty at every block boundary
  * therefore *cannot* overflow, which is what dp_tlm_capture_open()
- * (telemetry/tlm_capture.h) sets up for you.  Prefer a capture to a
+ * (dp_tlm_capture/dp_tlm_capture_core.h) sets up for you.  Prefer a capture to a
  * hand-rolled drain loop: guessing a ring size and hoping the reader keeps up
  * is the failure mode this bound exists to retire.
  *
@@ -110,14 +110,14 @@ typedef struct
   uint64_t emitted;               /**< Records written into the ring.   */
 } dp_tlm_probe_t;
 
-/** Opaque lossless capture (telemetry/tlm_capture.h); see dp_tlm_set_now. */
+/** Opaque lossless capture (dp_tlm_capture/dp_tlm_capture_core.h); see dp_tlm_set_now. */
 typedef struct dp_tlm_capture dp_tlm_capture_t;
 
 /**
  * @brief Telemetry context: probe registry + SPSC record ring.
  *
  * Public (not opaque) because the emit path is inline; treat the fields as
- * read-only outside telemetry_core.c and dp_tlm_emit.
+ * read-only outside dp_tlm_core.c and dp_tlm_emit.
  *
  * @c capture is deliberately LAST: the emit hot path touches @c ring, @c now
  * and @c probes, and appending here leaves their cache layout untouched.

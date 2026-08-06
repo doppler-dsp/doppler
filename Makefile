@@ -197,7 +197,8 @@ GATES_PROVISION = install-deps install-docs-deps build pyext
 GATES_DEPS    = lint changelog-check drift-check doxygen-check docs-check \
                 test-all test-stubs test-api-docs test-snippets test-rust \
                 abi-check link-check consumer-faces-check glibc-check \
-                specan-check coverage coverage-gate docker-examples
+                specan-check check-isotime-parity coverage coverage-gate \
+                docker-examples
 
 # ── Build ────────────────────────────────────────────────────────────────────
 CMAKE_FLAGS = -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
@@ -425,7 +426,7 @@ LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
                 test-stubs test-api-docs test-snippets lint-stubs \
                 check-docstring-coverage \
                 abi-check link-check consumer-faces-check \
-                glibc-check specan-check \
+                glibc-check specan-check check-isotime-parity \
                 install-docs-deps \
                 wheel-check wheel-smoke release-smoke \
                 bench-interleaved bench-publish bench-docs bench-stream \
@@ -864,6 +865,22 @@ specan-check: ## Fail if specan changed without re-recording its demo frames
 	     exit 1; \
 	 fi; \
 	 echo "specan-check: OK (specan=$$s frames=$$f)"
+
+# dp_isotime.h follows just-bashit's `iso-8601-basic`; it does not define it.
+# test_dp_isotime.c pins a snapshot of that helper's output, and a snapshot
+# goes stale silently — the committed vectors keep passing while the helper
+# moves on, and doppler keeps emitting a spelling the comment above them
+# says matches. This runs the real helper against the real C, so the
+# agreement is checked rather than claimed.
+#
+# ISOTIME_REQUIRE=1 makes a missing just-bashit an error instead of a skip.
+# CI sets it, because CI clones the reference and an absent one there means
+# the gate silently stopped gating; a developer without the checkout gets the
+# skip and still has the golden vectors.
+ISOTIME_REQUIRE ?= 0
+check-isotime-parity: build ## Check dp_isotime.h against just-bashit
+	@BUILD_DIR=$(BUILD_DIR) bash scripts/check_isotime_parity.sh \
+	    $(if $(filter 1,$(ISOTIME_REQUIRE)),--require,)
 
 # ── The doc gates ────────────────────────────────────────────────────────────
 # These four existed ONLY as inline CI steps, so none could be run locally by

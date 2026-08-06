@@ -48,6 +48,18 @@ jobs:
     - name: Test
       run: make test
 
+    # dp_isotime.h follows just-bashit's `iso-8601-basic` rather than defining
+    # the format itself, so the reference has to be present for the agreement
+    # to be checkable at all. Clone it and set ISOTIME_REQUIRE=1: without the
+    # flag a missing checkout would SKIP, and a gate that skips in CI is a
+    # gate that stopped gating without saying so.
+    - name: Check ISO 8601 parity with just-bashit
+      run: |
+        git clone --depth 1 https://github.com/just-buildit/just-bashit.git \
+            "$RUNNER_TEMP/just-bashit"
+        make check-isotime-parity ISOTIME_REQUIRE=1 \
+            JUST_BASHIT="$RUNNER_TEMP/just-bashit"
+
     - name: Example smoke tests
       run: make test-examples
 

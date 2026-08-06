@@ -1,16 +1,22 @@
 /**
  * @file dp_isotime.h
- * @brief Filename-safe ISO 8601 **basic** timestamps — the one spelling
- * doppler and just-bashit both produce.
+ * @brief ISO 8601 UTC timestamps in both spellings — filename-safe **basic**
+ * for names doppler writes, **extended** for the wire formats that mandate
+ * it.
  *
- * Extended ISO 8601 (`2026-08-05T04:15:30Z`) is what a human reads and what
- * doppler's CLI logs print. It is also illegal in a filename on Windows and
- * FAT, because of the colons, and awkward to quote in a shell. The basic
- * form drops the separators:
+ * Extended ISO 8601 (`2026-08-05T04:15:30Z`) is what a human reads, what
+ * doppler's CLI logs print, and what SigMF's `core:datetime` requires. It is
+ * also illegal in a filename on Windows and FAT, because of the colons, and
+ * awkward to quote in a shell. The basic form drops the separators:
  *
  *     YYYYMMDDThhmmss[.fff[fff[fff]]]Z
  *
- * **This format is not defined here.** It is `just-bashit`'s
+ * Both come out of ::dp_isotime_format_as, one calendar computation and one
+ * truncation rule rendered two ways, because the only thing that differs is
+ * whether `strftime` writes the separators. A second formatter would be a
+ * second place for the truncation rule below to be got wrong.
+ *
+ * **The basic format is not defined here.** It is `just-bashit`'s
  * `iso-8601-basic` (`src/just_bashit/datetime.sh`), whose stated contract is
  * "path and file-name-friendly characters only". doppler formats it in C
  * rather than shelling out — a library shipped as a wheel cannot put its
@@ -60,8 +66,13 @@ extern "C"
 #define DP_ISOTIME_USEC 6u
 #define DP_ISOTIME_NSEC 9u
 
+/** Separator style: `20260805T041530Z`, safe in a filename. */
+#define DP_ISOTIME_BASIC 0
+/** Separator style: `2026-08-05T04:15:30Z`, what SigMF and humans want. */
+#define DP_ISOTIME_EXTENDED 1
+
   /**
-   * Format one instant as a filename-safe basic-format UTC timestamp.
+   * Format one instant as a UTC timestamp in either separator style.
    *
    * @param buf   Destination; receives a NUL-terminated string.
    * @param cap   Size of @p buf; ::DP_ISOTIME_MAX is always enough.
@@ -69,18 +80,21 @@ extern "C"
    * @param nsec  Nanoseconds within that second, `[0, 999999999]`.
    * @param frac  Fractional digits: 0, 3, 6 or 9 (the ::DP_ISOTIME_MSEC
    *              family). Any other value is rejected.
+   * @param style ::DP_ISOTIME_BASIC or ::DP_ISOTIME_EXTENDED.
    * @return Characters written (excluding the NUL), or -1 if @p frac is not
-   * one of the four, @p nsec is out of range, @p buf is too small, or the
-   * instant is not representable as a UTC calendar time.
+   * one of the four, @p style is neither, @p nsec is out of range, @p buf is
+   * too small, or the instant is not representable as a UTC calendar time.
    */
   static inline int
-  dp_isotime_format (char *buf, size_t cap, int64_t sec, uint32_t nsec,
-                     unsigned frac)
+  dp_isotime_format_as (char *buf, size_t cap, int64_t sec, uint32_t nsec,
+                        unsigned frac, int style)
   {
     if (!buf || nsec > 999999999u)
       return -1;
     if (frac != DP_ISOTIME_SEC && frac != DP_ISOTIME_MSEC
         && frac != DP_ISOTIME_USEC && frac != DP_ISOTIME_NSEC)
+      return -1;
+    if (style != DP_ISOTIME_BASIC && style != DP_ISOTIME_EXTENDED)
       return -1;
 
     time_t    t = (time_t) sec;
@@ -88,9 +102,15 @@ extern "C"
     if (!gmtime_r (&t, &tm_utc))
       return -1;
 
-    /* "YYYYMMDDThhmmss" — 15 chars, no separators, so no colons. */
-    char date[16];
-    if (strftime (date, sizeof date, "%Y%m%dT%H%M%S", &tm_utc) == 0)
+    /* Basic "YYYYMMDDThhmmss" is 15 chars and carries no colons; extended
+       "YYYY-MM-DDThh:mm:ss" is 19 and does. Only the separators differ, so
+       the calendar break-down above is done once for both. */
+    char date[24];
+    if (strftime (date, sizeof date,
+                  style == DP_ISOTIME_EXTENDED ? "%Y-%m-%dT%H:%M:%S"
+                                               : "%Y%m%dT%H%M%S",
+                  &tm_utc)
+        == 0)
       return -1;
 
     if (frac == DP_ISOTIME_SEC)
@@ -109,6 +129,28 @@ extern "C"
     int n = snprintf (buf, cap, "%s.%0*luZ", date, (int) frac,
                       (unsigned long) (nsec / scale));
     return (n < 0 || (size_t) n >= cap) ? -1 : n;
+  }
+
+  /**
+   * Format one instant as a filename-safe basic-format UTC timestamp.
+   *
+   * The default spelling: this is the one that goes in a name doppler
+   * writes. ::dp_isotime_format_as with ::DP_ISOTIME_EXTENDED is for the
+   * wire formats that mandate separators.
+   *
+   * @param buf   Destination; receives a NUL-terminated string.
+   * @param cap   Size of @p buf; ::DP_ISOTIME_MAX is always enough.
+   * @param sec   Seconds since the UNIX epoch (UTC).
+   * @param nsec  Nanoseconds within that second, `[0, 999999999]`.
+   * @param frac  Fractional digits, as ::dp_isotime_format_as.
+   * @return As ::dp_isotime_format_as.
+   */
+  static inline int
+  dp_isotime_format (char *buf, size_t cap, int64_t sec, uint32_t nsec,
+                     unsigned frac)
+  {
+    return dp_isotime_format_as (buf, cap, sec, nsec, frac,
+                                 DP_ISOTIME_BASIC);
   }
 
   /**

@@ -24,6 +24,7 @@
 #include "dp_isotime.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 static int _fails = 0;
@@ -52,6 +53,25 @@ expect (int64_t sec, uint32_t nsec, unsigned frac, const char *want)
       fprintf (stderr,
                "FAIL %s  dp_isotime_format(%lld, %u, %u) = \"%s\" (%d), "
                "want \"%s\"\n",
+               __FILE__, (long long)sec, nsec, frac, n < 0 ? "<error>" : buf,
+               n, want);
+      _fails++;
+      return;
+    }
+  CHECK ((size_t)n == strlen (want));
+}
+
+static void
+expect_ext (int64_t sec, uint32_t nsec, unsigned frac, const char *want)
+{
+  char buf[DP_ISOTIME_MAX];
+  int  n = dp_isotime_format_as (buf, sizeof buf, sec, nsec, frac,
+                                 DP_ISOTIME_EXTENDED);
+  if (n < 0 || strcmp (buf, want) != 0)
+    {
+      fprintf (stderr,
+               "FAIL %s  dp_isotime_format_as(%lld, %u, %u, EXTENDED) = "
+               "\"%s\" (%d), want \"%s\"\n",
                __FILE__, (long long)sec, nsec, frac, n < 0 ? "<error>" : buf,
                n, want);
       _fails++;
@@ -140,6 +160,64 @@ test_is_filename_safe (void)
   CHECK (strchr (buf, ' ') == NULL);
 }
 
+/* The extended spelling, which is what SigMF's `core:datetime` takes. Same
+   instant, same truncation, separators added. */
+static void
+test_extended_vectors (void)
+{
+  expect_ext (T_2026, 123456789u, DP_ISOTIME_SEC, "2026-08-05T04:15:30Z");
+  expect_ext (T_2026, 123456789u, DP_ISOTIME_MSEC, "2026-08-05T04:15:30.123Z");
+  expect_ext (T_2026, 123456789u, DP_ISOTIME_NSEC,
+              "2026-08-05T04:15:30.123456789Z");
+  /* The truncation rule is shared, not re-derived per style. */
+  expect_ext (T_2026, 999888777u, DP_ISOTIME_MSEC, "2026-08-05T04:15:30.999Z");
+  expect_ext (-631152000LL, 0u, DP_ISOTIME_SEC, "1950-01-01T00:00:00Z");
+}
+
+/* The two styles must describe the SAME instant: strip the separators from
+   the extended form and the basic form is what is left. This is what makes
+   "one formatter, two renderings" checkable rather than asserted -- a second
+   implementation could drift in the calendar break-down and both sets of
+   golden vectors above would still pass. */
+static void
+test_styles_agree (void)
+{
+  char basic[DP_ISOTIME_MAX], ext[DP_ISOTIME_MAX], stripped[DP_ISOTIME_MAX];
+  CHECK (dp_isotime_format_as (basic, sizeof basic, T_2026, 123456789u,
+                               DP_ISOTIME_USEC, DP_ISOTIME_BASIC)
+         > 0);
+  CHECK (dp_isotime_format_as (ext, sizeof ext, T_2026, 123456789u,
+                               DP_ISOTIME_USEC, DP_ISOTIME_EXTENDED)
+         > 0);
+  size_t k = 0;
+  for (size_t i = 0; ext[i] != '\0'; i++)
+    if (ext[i] != '-' && ext[i] != ':')
+      stripped[k++] = ext[i];
+  stripped[k] = '\0';
+  CHECK (strcmp (stripped, basic) == 0);
+  /* And extended really does carry the separators the basic form drops. */
+  CHECK (strchr (ext, ':') != NULL);
+  CHECK (strchr (basic, ':') == NULL);
+}
+
+static void
+test_rejects_bad_style (void)
+{
+  char buf[DP_ISOTIME_MAX];
+  CHECK (dp_isotime_format_as (buf, sizeof buf, T_2026, 0u, DP_ISOTIME_SEC, 2)
+         < 0);
+  CHECK (dp_isotime_format_as (buf, sizeof buf, T_2026, 0u, DP_ISOTIME_SEC, -1)
+         < 0);
+  /* Extended is 4 chars longer, so a buffer that fits basic may not fit it. */
+  char snug[17]; /* exactly "20260805T041530Z" + NUL */
+  CHECK (dp_isotime_format_as (snug, sizeof snug, T_2026, 0u, DP_ISOTIME_SEC,
+                               DP_ISOTIME_BASIC)
+         == 16);
+  CHECK (dp_isotime_format_as (snug, sizeof snug, T_2026, 0u, DP_ISOTIME_SEC,
+                               DP_ISOTIME_EXTENDED)
+         < 0);
+}
+
 static void
 test_now_is_wellformed (void)
 {
@@ -151,15 +229,48 @@ test_now_is_wellformed (void)
   CHECK (n > 0 && buf[n - 1] == 'Z');
 }
 
-int
-main (void)
+/* `--emit SEC NSEC FRAC` prints one basic-format stamp and exits, so
+   scripts/check_isotime_parity.sh can diff this implementation against
+   just-bashit's `iso-8601-basic` directly. The vectors above are a snapshot
+   of that helper's output; this mode is what proves the snapshot is still
+   what the helper says, instead of asking a human to re-run it by hand. */
+static int
+emit (int argc, char **argv)
 {
+  if (argc != 5)
+    {
+      fprintf (stderr, "usage: %s --emit SEC NSEC FRAC\n", argv[0]);
+      return 2;
+    }
+  long long     sec  = atoll (argv[2]);
+  unsigned long nsec = strtoul (argv[3], NULL, 10);
+  unsigned      frac = (unsigned)strtoul (argv[4], NULL, 10);
+  char          buf[DP_ISOTIME_MAX];
+  if (dp_isotime_format (buf, sizeof buf, (int64_t)sec, (uint32_t)nsec, frac)
+      < 0)
+    {
+      fprintf (stderr, "format failed\n");
+      return 2;
+    }
+  printf ("%s\n", buf);
+  return 0;
+}
+
+int
+main (int argc, char **argv)
+{
+  if (argc > 1 && strcmp (argv[1], "--emit") == 0)
+    return emit (argc, argv);
+
   test_golden_vectors ();
   test_fraction_truncates_never_rounds ();
   test_zero_fraction_pads ();
   test_epoch_and_negative ();
   test_rejects_bad_input ();
   test_is_filename_safe ();
+  test_extended_vectors ();
+  test_styles_agree ();
+  test_rejects_bad_style ();
   test_now_is_wellformed ();
 
   if (_fails)

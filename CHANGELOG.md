@@ -25,10 +25,24 @@ ______________________________________________________________________
     `Writer(path, fs, file_type=…)`; passing `fs=0.0` states "not known"
     explicitly, writing `xdelta = 0` and no `core:sample_rate` at all.
 
-    `write_blue_header()` and `Composer.to_sigmf()` keep an optional `fs`,
-    now defaulting to `0.0` rather than `1e6` — the same end to the
-    fabrication, without forcing a signature reorder on a bare header writer
-    and a rendering step.
+- **BREAKING: `write_blue_header()` now requires `fs` too**, in the second
+    positional slot — `write_blue_header(path, fs, sample_type=…)`, mirroring
+    `Writer`. `xdelta = 1/fs` is most of what a BLUE header *is*, so a
+    detached pair written with a forgotten rate is a real capture on disk
+    carrying none, with nobody ever asked for one. Omitting the key ended the
+    *fabrication*; it did not make anyone answer. Callers already passing
+    `fs=` as a keyword are unaffected. `fs=0.0` still states "not known" and
+    writes `xdelta = 0`.
+
+- **`Composer.to_sigmf()` derives an unstated `fs` from its segments.** It is
+    the one caller that should *not* be asked: a `Composer` already holds a
+    rate per segment, and the annotation edges in the very same document are
+    `±fs/(2·sps)` computed from it — so omitting `core:sample_rate` withheld
+    a rate the document demonstrably knew. It is derived when the segments
+    agree, left unstated when they disagree (no single rate is true of that
+    stream), and an explicit `fs=` always wins, for rendering a scene at a
+    resampled rate. Not breaking: it makes the no-argument call correct where
+    it used to be silent.
 
 - **SigMF metadata omits what it was not told.** `core:sample_rate` is
     optional in SigMF 1.0.0 (only `core:datatype` and `core:version` are

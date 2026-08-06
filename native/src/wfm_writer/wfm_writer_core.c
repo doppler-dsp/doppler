@@ -740,6 +740,32 @@ wfm_sigmf_meta_json (int sample_type, int endian, double fs, double fc,
   if (!root)
     return NULL;
 
+  /* An unstated rate is DERIVED from the segments being serialised, because
+     they already carry one and this same document is already using it: the
+     annotation edges below are ±fs/(2*sps) computed from `s->fs`. Omitting
+     `core:sample_rate` while emitting those edges withheld a rate the
+     document demonstrably knew -- the caller was made to restate, as an
+     argument, a value the scene already holds.
+
+     Only when every segment AGREES. `fs` is per segment, and no single
+     core:sample_rate is true of a stream whose segments disagree, so that
+     case stays unstated rather than picking one.
+
+     An explicit `fs` always wins and is never second-guessed: a caller
+     rendering the scene at a resampled rate is describing the FILE, and the
+     file is what this document annotates. */
+  if (fs == 0.0 && segs && n_segs > 0)
+    {
+      double f = segs[0].fs;
+      for (size_t i = 1; i < n_segs; i++)
+        if (segs[i].fs != f)
+          {
+            f = 0.0;
+            break;
+          }
+      fs = f;
+    }
+
   cJSON *g = cJSON_AddObjectToObject (root, "global");
   char   dt[16];
   sigmf_datatype (sample_type, endian, dt, sizeof dt);

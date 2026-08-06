@@ -366,6 +366,25 @@ check_return = true
 [[module.wfm_writer.functions.params]]
 name = "path"
 type = "path"
+# REQUIRED, exactly as on Writer, and for the stronger version of the same
+# reason: xdelta = 1/fs is most of what a BLUE header IS. A detached pair
+# written with a forgotten fs is a real capture on disk carrying no rate
+# anywhere, and nobody was ever asked for one. Omitting the key removed the
+# FABRICATION (no more invented 1 MHz); it did not make anyone answer, and
+# silence stayed indistinguishable from "unknown".
+#
+# `required` puts fs second, mirroring Writer(path, fs, ...) — one rule
+# across every entry point that writes a rate. jm generates this function's
+# call positionally, so the reorder also moves the injected prototype and the
+# hand-written shim in write_blue_header.c; the FILE-based kernel
+# (wfm_blue_write_hcb) is untouched, and the shim has no other caller.
+# NB a module FUNCTION does not auto-order its params the way an object's
+# init_params do — jm errors unless the required ones are declared first.
+# Pass fs=0.0 to state "not known" — that still writes xdelta 0.
+[[module.wfm_writer.functions.params]]
+name = "fs"
+type = "double"
+required = true
 [[module.wfm_writer.functions.params]]
 name = "sample_type"
 type = "int"
@@ -376,17 +395,6 @@ name = "endian"
 type = "int"
 enum = "endian"
 default = "le"
-# Defaults to 0.0 = "not known", NOT to a rate. Writer makes fs required
-# because a Writer produces a capture that outlives the call; this writes a
-# bare header, often as one step of a caller that already knows what it is
-# doing, so the reorder that `required` would force on the C prototype buys
-# less than it costs. What matters is the same either way: 0.0 writes
-# xdelta 0 — the header's own way of saying the rate is unknown — instead of
-# fabricating 1 MHz, which is what `default = "1e6"` did here.
-[[module.wfm_writer.functions.params]]
-name = "fs"
-type = "double"
-default = "0.0"
 [[module.wfm_writer.functions.params]]
 name = "fc"
 type = "double"
@@ -1036,12 +1044,14 @@ type = "int"
 enum = "endian"
 default = "le"
 
-# Defaults to 0.0 = "not stated", NOT to a rate. This builds the same
-# `global` object Writer does, and `default = "1e6"` fabricated
-# core:sample_rate here in exactly the same way. The document now omits the
-# key when fs is 0.0 (it is optional in SigMF 1.0.0), so the honesty comes
-# from the omit rather than from forcing the caller to answer — a serializer
-# is a rendering step, not the moment a capture is defined.
+# Left OPTIONAL where Writer and write_blue_header require it, because this
+# is the one caller that does not need to be asked: a Composer already HOLDS
+# a rate per segment, and this very document uses it — the annotation edges
+# are ±fs/(2*sps) from `s->fs`. So `wfm_sigmf_meta_json` now DERIVES an
+# unstated rate from the segments (when they agree), and requiring the
+# argument would only make the caller restate what the scene already knows,
+# while still permitting a stated rate that contradicts the edges beside it.
+# An explicit fs overrides, for rendering the scene at a resampled rate.
 [[module.wfm_compose.serializers.params]]
 name = "fs"
 type = "double"

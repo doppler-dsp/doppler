@@ -412,6 +412,58 @@ def test_streamsink_idempotent_close():
     sink.close()  # idempotent
 
 
+def test_write_blue_header_requires_fs(tmp_path):
+    """`xdelta = 1/fs` is most of what a BLUE header is, so the rate is not
+    something you can forget to mention. Same rule as `Writer`, and the same
+    escape: `fs=0.0` states "not known" and writes `xdelta = 0`."""
+    with pytest.raises(TypeError):
+        write_blue_header(tmp_path / "no-fs.hdr")
+
+    p = tmp_path / "unknown.hdr"
+    write_blue_header(p, fs=0.0, total=8)  # stated, and stated as unknown
+    assert struct.unpack_from("<d", p.read_bytes(), 264)[0] == 0.0
+
+
+def test_to_sigmf_states_the_rate_its_annotations_were_built_from(tmp_path):
+    """The document already knew the rate; now it says so.
+
+    A `Composer` carries `fs` per segment and the annotation edges are
+    `±fs/(2·sps)` computed from it -- so a `to_sigmf()` that omitted
+    `core:sample_rate` was withholding a rate it demonstrably had. It is
+    derived rather than required, because requiring it would only make the
+    caller restate what the scene holds (and let the two disagree).
+    """
+    comp = Composer([Segment("qpsk", sps=8, num_samples=4096, fs=6.138e6)])
+    doc = json.loads(comp.to_sigmf())
+    assert doc["global"]["core:sample_rate"] == 6.138e6
+    # ...and it agrees with the edges in the same document, which is the point
+    assert doc["annotations"][0]["core:freq_upper_edge"] == pytest.approx(
+        6.138e6 / (2 * 8)
+    )
+
+
+def test_to_sigmf_explicit_fs_wins(tmp_path):
+    """Rendering the scene at a resampled rate describes the FILE, and the
+    file is what the document annotates -- so a stated rate is never
+    second-guessed."""
+    comp = Composer([Segment("qpsk", sps=8, num_samples=4096, fs=6.138e6)])
+    doc = json.loads(comp.to_sigmf(fs=1e6))
+    assert doc["global"]["core:sample_rate"] == 1e6
+
+
+def test_to_sigmf_leaves_the_rate_unstated_when_segments_disagree(tmp_path):
+    """`fs` is per segment, and no single `core:sample_rate` is true of a
+    stream whose segments disagree -- so it says nothing rather than picking
+    one."""
+    comp = Composer(
+        [
+            Segment("qpsk", sps=8, num_samples=1024, fs=6.138e6),
+            Segment("tone", num_samples=1024, fs=2e6),
+        ]
+    )
+    assert "core:sample_rate" not in json.loads(comp.to_sigmf())["global"]
+
+
 def test_write_blue_header_detached_hcb(tmp_path):
     """write_blue_header lays down a standard detached type-1000 HCB.
 

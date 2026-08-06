@@ -46,6 +46,47 @@ keeps whatever extension you give `-o` (`.blue`/`.prm`/`.tmp`).
 and one annotation per composer segment (frequency edges, label, `wfmgen:*`
 params).
 
+### raw and CSV keep their metadata beside them
+
+`raw` and `csv` have nowhere in the file to record `fs`, `fc` or `t0` — and the
+`Writer` takes all three. It used to discard them, handing back a capture that
+not even its author could interpret an hour later. A path-opened writer now
+writes them to a sidecar instead:
+
+```pycon
+>>> import json, pathlib, tempfile
+>>> import numpy as np
+>>> from doppler.wfm import Writer
+>>> tmp = tempfile.TemporaryDirectory()
+>>> p = pathlib.Path(tmp.name) / "capture.raw"
+>>> with Writer(p, fs=2.4e6, fc=1.2e9) as w:
+...     w.write(np.zeros(64, dtype=np.complex64))
+64
+>>> doc = json.loads((p.parent / "capture.raw.sigmf-meta").read_text())
+>>> doc["global"]["core:sample_rate"], doc["captures"][0]["core:frequency"]
+(2400000, 1200000000)
+>>> tmp.cleanup()
+
+```
+
+Four things to know about it:
+
+- **The name is appended, not swapped** — `capture.raw` →
+    `capture.raw.sigmf-meta`. Swapping would make `capture.raw` and a genuine
+    `capture.sigmf-data` in one directory fight over `capture.sigmf-meta`, so
+    writing one capture would silently retype the other.
+- **It is SigMF-*shaped*, not a SigMF capture.** The spec pairs `.sigmf-data`,
+    so nothing conformant goes looking for this file. For `csv`,
+    `core:datatype` names the value domain the samples were quantised to
+    rather than a byte layout.
+- **Only what you stated is written.** An unspecified `fs`, `fc` or `t0` is an
+    absent key, never a confident zero — the file exists to stop a capture
+    asserting things nobody said.
+- **`sidecar=False` opts out**, for when an extra file beside the capture would
+    break a downstream glob. `blue` never gets one (its header already carries
+    all three); `sigmf` always does and cannot turn it off, because there the
+    sidecar *is* half the capture.
+
 ```sh
 # 16-bit big-endian into a self-describing BLUE file
 wfmgen --type qpsk --count 200000 --sample-type ci16 --endian be \

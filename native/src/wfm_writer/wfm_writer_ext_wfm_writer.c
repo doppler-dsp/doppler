@@ -44,8 +44,8 @@ static int
 WriterObj_init (WriterObject *self, PyObject *args, PyObject *kwds)
 {
   static char *kwlist[]
-      = { "path", "fs",    "file_type", "sample_type", "endian",
-          "fc",   "total", "headroom",  "t0",          NULL };
+      = { "path",  "fs",       "file_type", "sample_type", "endian", "fc",
+          "total", "headroom", "t0",        "sidecar",     NULL };
   PyObject          *path            = NULL; /* fspath -> bytes */
   double             fs              = 0.0;
   const char        *file_type_str   = "raw";
@@ -55,11 +55,12 @@ WriterObj_init (WriterObject *self, PyObject *args, PyObject *kwds)
   unsigned long long total_raw       = 0;
   double             headroom        = 0.0;
   double             t0              = 0.0;
+  int                sidecar_raw     = true;
 
   if (!PyArg_ParseTupleAndKeywords (
-          args, kwds, "O&d|sssdKdd", kwlist, PyUnicode_FSConverter, &path, &fs,
-          &file_type_str, &sample_type_str, &endian_str, &fc, &total_raw,
-          &headroom, &t0))
+          args, kwds, "O&d|sssdKddp", kwlist, PyUnicode_FSConverter, &path,
+          &fs, &file_type_str, &sample_type_str, &endian_str, &fc, &total_raw,
+          &headroom, &t0, &sidecar_raw))
     {
       Py_XDECREF (path);
       return -1;
@@ -115,10 +116,11 @@ WriterObj_init (WriterObject *self, PyObject *args, PyObject *kwds)
       Py_XDECREF (path);
       return -1;
     }
-  size_t total = (size_t)total_raw;
-  self->handle
-      = wfm_writer_create (PyBytes_AS_STRING (path), fs, file_type,
-                           sample_type, endian, fc, total, headroom, t0);
+  size_t total   = (size_t)total_raw;
+  bool   sidecar = (int)sidecar_raw;
+  self->handle   = wfm_writer_create (PyBytes_AS_STRING (path), fs, file_type,
+                                      sample_type, endian, fc, total, headroom,
+                                      t0, sidecar);
   Py_XDECREF (path);
   if (!self->handle)
     {
@@ -517,7 +519,7 @@ static PyMethodDef WriterObj_methods[] = {
     "    >>> from doppler import Writer\n"
     "    >>> obj = Writer(path=..., fs=0.0, file_type=\"raw\", "
     "sample_type=\"cf32\", endian=\"le\", fc=0.0, total=0, headroom=0.0, "
-    "t0=0.0)\n"
+    "t0=0.0, sidecar=True)\n"
     "    >>> obj.track_clipping(0)\n" },
   { "add_keyword", (PyCFunction)(void *)WriterObj_add_keyword,
     METH_VARARGS | METH_KEYWORDS,
@@ -601,15 +603,24 @@ static PyTypeObject WriterObjType = {
     "    a `<base>.sigmf-data` + `<base>.sigmf-meta` pair found by name, and\n"
     "    close() writes the sidecar beside it.\n"
     "fs : float\n"
-    "    sample rate (Hz). BLUE stores it as `xdelta = 1/fs`, SigMF as\n"
-    "    `core:sample_rate`.\n"
+    "    sample rate (Hz), and REQUIRED -- there is no default. BLUE stores "
+    "it\n"
+    "    as `xdelta = 1/fs`, SigMF and the raw/CSV `sidecar` as\n"
+    "    `core:sample_rate`. Pass 0.0 to say the rate is not known: that "
+    "writes\n"
+    "    `xdelta = 0` and omits `core:sample_rate`, where a defaulted value\n"
+    "    would have written a rate nobody supplied into a file that outlives "
+    "the\n"
+    "    process.\n"
     "file_type : Literal[\"raw\", \"csv\", \"blue\", \"sigmf\"], default "
     "\"raw\"\n"
     "    `\"raw\"` (headerless interleaved I/Q), `\"csv\"` (one `I,Q` line "
     "per\n"
     "    sample), `\"blue\"` (self-describing X-Midas/REDHAWK type-1000) or\n"
-    "    `\"sigmf\"`. Only BLUE and SigMF record `fs`/`fc`; raw and CSV have\n"
-    "    nowhere to put them.\n"
+    "    `\"sigmf\"`. BLUE and SigMF record `fs`/`fc`/`t0` in the capture "
+    "itself;\n"
+    "    raw and CSV have nowhere to put them and keep them in the `sidecar`\n"
+    "    instead.\n"
     "sample_type : Literal[\"cf32\", \"cf64\", \"ci32\", \"ci16\", \"ci8\"], "
     "default \"cf32\"\n"
     "    wire type: `\"cf32\"`, `\"cf64\"`, `\"ci32\"`, `\"ci16\"` or "
@@ -621,8 +632,11 @@ static PyTypeObject WriterObjType = {
     "fc : float, default 0.0\n"
     "    centre frequency (Hz). BLUE records it as a `FREQ` keyword, SigMF "
     "as\n"
-    "    `captures[0][\"core:frequency\"]`; raw and CSV drop it. 0.0 writes\n"
-    "    nothing.\n"
+    "    `captures[0][\"core:frequency\"]`, raw and CSV in the `sidecar`. "
+    "0.0\n"
+    "    writes nothing, in every one of them -- absent is how this library "
+    "says\n"
+    "    \"not stated\", which is what `Reader.fc_source` reports back.\n"
     "total : int, default 0\n"
     "    expected sample count, for the BLUE header; close() patches the "
     "real\n"
@@ -633,7 +647,37 @@ static PyTypeObject WriterObjType = {
     "    single scale, so it does not change any power ratio -- only the\n"
     "    absolute level. 0 is a bit-exact no-op.\n"
     "t0 : float, default 0.0\n"
-    "    t0 constructor parameter.\n"
+    "    capture start, seconds since the UNIX epoch. Optional where `fs` is\n"
+    "    required, because a capture with no wall-clock anchor is still "
+    "readable\n"
+    "    and one with no rate is not. BLUE stores it as a J1950 timecode, "
+    "SigMF\n"
+    "    as `captures[0][\"core:datetime\"]`, raw and CSV in the `sidecar`. "
+    "0.0\n"
+    "    means unset and stays unset -- it is never written as 1970. "
+    "`Reader.t0`\n"
+    "    / `Reader.t0_source` read it back.\n"
+    "sidecar : bool, default True\n"
+    "    write a `<path>.sigmf-meta` JSON beside a `\"raw\"` or `\"csv\"` "
+    "capture,\n"
+    "    recording the `fs`, `fc` and `t0` those containers have nowhere to\n"
+    "    keep. On by default: the caller already supplied the values at\n"
+    "    construction, and dropping them on the floor left a file nobody -- "
+    "its\n"
+    "    own author included -- could interpret. Only what was actually "
+    "stated\n"
+    "    is written; nothing is invented. It is SigMF-SHAPED, not a SigMF\n"
+    "    capture: the spec pairs `.sigmf-data`, so the name is APPENDED "
+    "rather\n"
+    "    than swapped (`cap.raw` -> `cap.raw.sigmf-meta`), which keeps it "
+    "1:1\n"
+    "    with its data file and unable to collide with a real capture's\n"
+    "    metadata. Ignored for `\"blue\"` (its header already carries all "
+    "three)\n"
+    "    and for `\"sigmf\"`, where the sidecar is half the capture and "
+    "cannot be\n"
+    "    turned off. Pass false when an extra file beside the capture would\n"
+    "    break a downstream glob.\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -655,6 +699,15 @@ static PyTypeObject WriterObjType = {
     "...     r.fs, r.fc, r.num_samples, r.keywords[\"COMMENT\"]\n"
     "(2400000.0, 1200000000.0, 1024, 'demo')\n"
     ">>> bool(np.array_equal(back, x))\n"
+    "True\n"
+    "\n"
+    "A raw capture has nowhere to put `fs`/`fc`, so they go beside it:\n"
+    "\n"
+    ">>> q = pathlib.Path(tmp.name) / \"capture.raw\"\n"
+    ">>> with Writer(q, fs=2.4e6, fc=1.2e9) as w:\n"
+    "...     w.write(x)\n"
+    "1024\n"
+    ">>> (q.parent / \"capture.raw.sigmf-meta\").exists()\n"
     "True\n"
     ">>> tmp.cleanup()\n",
   .tp_methods = WriterObj_methods,

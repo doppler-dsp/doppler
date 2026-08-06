@@ -62,6 +62,161 @@ test_close_reports_a_failed_flush (void)
   return 0;
 }
 
+/* Read a whole file into @p out (NUL-terminated). Returns 0 if it opened. */
+static int
+slurp_path (const char *path, char *out, size_t cap)
+{
+  FILE *f = fopen (path, "rb");
+  if (!f)
+    return -1;
+  size_t n = fread (out, 1, cap - 1, f);
+  out[n]   = 0;
+  fclose (f);
+  return 0;
+}
+
+static int
+file_exists (const char *path)
+{
+  FILE *f = fopen (path, "rb");
+  if (f)
+    fclose (f);
+  return f != NULL;
+}
+
+/* Clear every path a block will assert about, BEFORE it writes any of them.
+   Half these checks are "this file must NOT exist", and a CHECK that fails
+   leaves its block's remove() calls unreached -- so without this, one genuine
+   failure poisons every later run in the same directory into failing for a
+   reason that has nothing to do with the code. (Found by mutation-testing:
+   a deliberately broken name derivation failed, and the NEXT mutation then
+   reported that same stale failure instead of its own.) */
+static void
+clear (const char *const *paths, size_t n)
+{
+  for (size_t i = 0; i < n; i++)
+    remove (paths[i]);
+}
+
+/* Raw and CSV take fs/fc/t0 and have nowhere to put them, so they used to
+   discard the caller's own metadata and hand back a file nobody could
+   interpret. A path-opened writer now keeps them in a sidecar. */
+static int
+test_raw_csv_sidecar (void)
+{
+  float _Complex xs[2] = { 0.25f + 0.5f * I, -0.25f - 0.5f * I };
+
+  /* raw: everything stated, everything recorded. */
+  {
+    static const char *const mine[]
+        = { "dp_wr_side.raw", "dp_wr_side.raw.sigmf-meta",
+            "dp_wr_side.sigmf-meta" };
+    clear (mine, 3);
+    const char         *path = "dp_wr_side.raw";
+    wfm_writer_state_t *w    = wfm_writer_create (
+        path, 2.4e6, WFM_FT_RAW, 0, 0, 1.2e9, 2, 0.0, 1785903330.0, true);
+    CHECK (w, "raw create");
+    CHECK (wfm_writer_write (w, xs, 2) == 2, "raw write");
+    CHECK (wfm_writer_close (w) == 0, "raw close");
+
+    /* APPENDED, not swapped -- see wfm_meta_path. */
+    char json[4096];
+    CHECK (slurp_path ("dp_wr_side.raw.sigmf-meta", json, sizeof json) == 0,
+           "the sidecar is <path>.sigmf-meta, beside the capture");
+    CHECK (!file_exists ("dp_wr_side.sigmf-meta"),
+           "and NOT <base>.sigmf-meta, which a real pair would own");
+    CHECK (strstr (json, "\"core:sample_rate\":2400000"), "fs recorded");
+    CHECK (strstr (json, "\"core:frequency\":1200000000"), "fc recorded");
+    CHECK (strstr (json, "\"core:datetime\":\"2026-08-05T04:15:30.000000Z\""),
+           "t0 recorded");
+    CHECK (strstr (json, "\"core:datatype\":\"cf32_le\""),
+           "datatype recorded");
+    remove (path);
+    remove ("dp_wr_side.raw.sigmf-meta");
+  }
+
+  /* csv: same sidecar. The datatype names the value domain the samples were
+     quantised to, not a byte layout -- which is one reason this is
+     SigMF-shaped rather than a SigMF capture. */
+  {
+    static const char *const mine[]
+        = { "dp_wr_side.csv", "dp_wr_side.csv.sigmf-meta" };
+    clear (mine, 2);
+    const char         *path = "dp_wr_side.csv";
+    wfm_writer_state_t *w    = wfm_writer_create (path, 1e6, WFM_FT_CSV, 3, 0,
+                                                  0.0, 2, 0.0, 0.0, true);
+    CHECK (w, "csv create");
+    CHECK (wfm_writer_close (w) == 0, "csv close");
+    char json[4096];
+    CHECK (slurp_path ("dp_wr_side.csv.sigmf-meta", json, sizeof json) == 0,
+           "csv gets a sidecar too");
+    CHECK (strstr (json, "\"core:sample_rate\":1000000"), "csv fs recorded");
+    /* Nothing was said about the centre frequency or the capture time, so
+       nothing is claimed about them -- the omit rule reaches the sidecar. */
+    CHECK (strstr (json, "\"core:frequency\"") == NULL,
+           "an unstated fc is omitted, not written as DC");
+    CHECK (strstr (json, "\"core:datetime\"") == NULL,
+           "an unstated t0 is omitted, not written as 1970");
+    remove (path);
+    remove ("dp_wr_side.csv.sigmf-meta");
+  }
+
+  /* opt-out, and the two file types that never take part. */
+  {
+    static const char *const mine[]
+        = { "dp_wr_off.raw", "dp_wr_off.raw.sigmf-meta", "dp_wr_side.blue",
+            "dp_wr_side.blue.sigmf-meta" };
+    clear (mine, 4);
+    wfm_writer_state_t *w = wfm_writer_create (
+        "dp_wr_off.raw", 1e6, WFM_FT_RAW, 0, 0, 1e9, 2, 0.0, 0.0, false);
+    CHECK (w && wfm_writer_close (w) == 0, "raw, sidecar off");
+    CHECK (!file_exists ("dp_wr_off.raw.sigmf-meta"),
+           "sidecar=false writes no sidecar");
+    remove ("dp_wr_off.raw");
+
+    w = wfm_writer_create ("dp_wr_side.blue", 1e6, WFM_FT_BLUE, 0, 0, 1e9, 2,
+                           0.0, 0.0, true);
+    CHECK (w && wfm_writer_close (w) == 0, "blue create/close");
+    CHECK (!file_exists ("dp_wr_side.blue.sigmf-meta"),
+           "BLUE never gets one -- its header already carries fs/fc/t0");
+    remove ("dp_wr_side.blue");
+  }
+
+  /* The reason the name is appended. A raw capture and a real SigMF capture
+     sharing a base name must not share a sidecar: swapping the extension
+     would have `cap.raw` overwrite `cap.sigmf-data`'s metadata, silently
+     retyping someone else's capture. */
+  {
+    static const char *const mine[]
+        = { "dp_wr_clash.sigmf-data", "dp_wr_clash.sigmf-meta",
+            "dp_wr_clash.raw", "dp_wr_clash.raw.sigmf-meta" };
+    clear (mine, 4);
+    wfm_writer_state_t *s
+        = wfm_writer_create ("dp_wr_clash.sigmf-data", 5e6, WFM_FT_SIGMF, 3, 0,
+                             0.0, 2, 0.0, 0.0, true);
+    CHECK (s && wfm_writer_close (s) == 0, "sigmf half of the clash");
+    wfm_writer_state_t *r = wfm_writer_create (
+        "dp_wr_clash.raw", 7e6, WFM_FT_RAW, 0, 0, 0.0, 2, 0.0, 0.0, true);
+    CHECK (r && wfm_writer_close (r) == 0, "raw half of the clash");
+
+    char sj[4096], rj[4096];
+    CHECK (slurp_path ("dp_wr_clash.sigmf-meta", sj, sizeof sj) == 0,
+           "the SigMF pair keeps its own <base>.sigmf-meta");
+    CHECK (slurp_path ("dp_wr_clash.raw.sigmf-meta", rj, sizeof rj) == 0,
+           "the raw capture gets a separate one");
+    CHECK (strstr (sj, "\"core:sample_rate\":5000000")
+               && strstr (sj, "\"core:datatype\":\"ci16_le\""),
+           "the SigMF capture's metadata survived intact");
+    CHECK (strstr (rj, "\"core:sample_rate\":7000000"),
+           "and the raw capture's is its own");
+    remove ("dp_wr_clash.sigmf-data");
+    remove ("dp_wr_clash.sigmf-meta");
+    remove ("dp_wr_clash.raw");
+    remove ("dp_wr_clash.raw.sigmf-meta");
+  }
+  return 0;
+}
+
 int
 main (void)
 {
@@ -390,7 +545,10 @@ main (void)
 
   if (test_close_reports_a_failed_flush ())
     return 1;
-  printf ("test_wfm_writer: OK (raw/endian/csv/blue + sigmf + clip + "
-          "headroom)\n");
+  if (test_raw_csv_sidecar ())
+    return 1;
+  printf (
+      "test_wfm_writer: OK (raw/endian/csv/blue + sigmf + sidecar + clip + "
+      "headroom)\n");
   return 0;
 }

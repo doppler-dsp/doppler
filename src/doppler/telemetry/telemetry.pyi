@@ -1,6 +1,67 @@
 # telemetry/telemetry.pyi — type stubs for the telemetry C extension.
 import numpy as np
 
+def capture(
+    ring: int = 65536,
+    decim: int = 1,
+    clock: object | None = None,
+    **objects: object,
+) -> Telemetry:
+    """Attach telemetry to every object given, and return the context.
+
+    ``set_telemetry`` already registers *all* of an object's probes and
+    forwards to its children -- one attach on an ``MpskReceiver`` gets
+    11. What hurt was the ceremony around it. The **keyword becomes the
+    probe prefix**, so the naming stays explicit rather than guessed
+    from a class name.
+
+    Parameters
+    ----------
+    ring : int, default 65536
+        Ring capacity in records (~1 MiB). Generous on purpose:
+        over-allocating a few MB is cheaper than either of the
+        alternatives -- deriving a size from a duration hint trades one
+        guess for two, and growing on demand would break the lock-free
+        SPSC invariant.
+    decim : int, default 1
+        Emit every ``decim``-th event, on every probe attached here.
+        1 is every event.
+    clock : wfm.SampleClock, optional
+        The pipeline's sample clock. **Not** an ``fs``/``t0`` pair: the
+        time base belongs to the data and already exists as a doppler
+        primitive, so telemetry carries a reference to the clock rather
+        than re-declaring one. Left unset it stays ``None`` -- an
+        ordinal axis, never an invented one.
+    **objects
+        The objects to attach; each keyword becomes that object's probe
+        prefix. ``ring``, ``decim`` and ``clock`` are reserved, so an
+        object named one of those must use :meth:`Telemetry.probe` and
+        ``set_telemetry`` directly.
+
+    Returns
+    -------
+    Telemetry
+        The context, with every object already attached.
+
+    Raises
+    ------
+    TypeError
+        If any object is passed positionally -- the keyword is the
+        prefix, so there is nothing to infer from a bare argument.
+
+    Examples
+    --------
+    >>> from doppler.telemetry import capture
+    >>> from doppler.track import MpskReceiver
+    >>> rx = MpskReceiver(m=4, sps=8, m_out=4)
+    >>> tlm = capture(rx=rx)          # every probe, prefixed "rx."
+    >>> len(tlm.probe_names())
+    11
+    >>> sorted(tlm.probe_names())[:2]
+    ['rx.car.e', 'rx.car.freq']
+
+    """
+
 class Telemetry:
     """Scalar telemetry context: probe registry + lock-free record ring.
 

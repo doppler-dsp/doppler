@@ -80,6 +80,24 @@ ______________________________________________________________________
 
 ### Added
 
+- **`telemetry.capture(**objects)`** — one call to turn everything on.
+    `set_telemetry` already registers *all* of an object's probes and forwards
+    to its children (one attach on an `MpskReceiver` gets 11); the ceremony
+    around it is what hurt. The **keyword becomes the probe prefix**, so the
+    naming stays explicit rather than guessed from a class name:
+
+    ```python
+    tlm = capture(rx=rx, agc=agc)      # "rx.*" and "agc.*"
+    ```
+
+    `ring` (default 65536 records, ~1 MiB) is generous on purpose: deriving a
+    size from a duration hint trades one guess for two, and growing on demand
+    would break the lock-free SPSC invariant. `clock` takes the pipeline's
+    `wfm.SampleClock` — **not** an `fs`/`t0` pair, because the time base
+    belongs to the data and already exists as a doppler primitive; unset it
+    stays `None`, an ordinal axis rather than an invented one. An attach
+    failure names *which* object failed.
+
 - **`Telemetry.read_dict()`, `set_decim()` and `stats()`** — the shaping and
     accounting every consumer of `read()` was rebuilding by hand.
     `read_dict()` drains exactly as `read()` does and groups by probe

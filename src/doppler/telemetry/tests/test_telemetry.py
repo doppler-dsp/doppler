@@ -301,3 +301,91 @@ def test_stats_sees_a_real_overrun():
     s = tlm.stats()
     assert s["dropped"] > 0
     assert s["emitted"]["flood"] + s["dropped"] == n
+
+
+# ── capture(**objects) ───────────────────────────────────────────────────────
+# One call to turn everything on. The keyword IS the prefix, so the naming
+# stays explicit instead of being guessed from a class name.
+
+
+def _rx():
+    from doppler.track import MpskReceiver
+
+    return MpskReceiver(m=4, sps=8, m_out=4)
+
+
+def test_capture_attaches_and_names_by_keyword():
+    from doppler.telemetry import capture
+
+    rx = _rx()
+    tlm = capture(rx=rx)
+    names = tlm.probe_names()
+    # One attach registers the object's own probes AND forwards to its
+    # children -- that is the behaviour capture() is packaging, not adding.
+    assert len(names) == 11
+    assert all(n.startswith("rx.") for n in names)
+    assert "rx.sync.e" in names and "rx.lock" in names
+
+
+def test_capture_prefix_follows_the_keyword_not_the_class():
+    from doppler.telemetry import capture
+
+    tlm = capture(demod=_rx())
+    assert all(n.startswith("demod.") for n in tlm.probe_names())
+
+
+def test_capture_attaches_several_objects():
+    from doppler.telemetry import capture
+
+    tlm = capture(a=_rx(), b=_rx())
+    names = tlm.probe_names()
+    assert len(names) == 22
+    assert sum(n.startswith("a.") for n in names) == 11
+    assert sum(n.startswith("b.") for n in names) == 11
+
+
+def test_capture_settings_are_reserved_keywords():
+    from doppler.telemetry import capture
+
+    tlm = capture(rx=_rx(), ring=1 << 12, decim=4)
+    assert tlm.capacity == 1 << 12
+    assert "ring" not in tlm.probe_names()
+    assert "decim" not in tlm.probe_names()
+
+
+def test_capture_decim_reaches_every_probe():
+    from doppler.telemetry import capture
+
+    tlm = capture(rx=_rx(), decim=5)
+    e = tlm.probe_id("rx.sync.e")
+    for i in range(10):
+        tlm.emit(e, float(i))
+    assert list(tlm.read_dict()["rx.sync.e"]) == [0.0, 5.0]
+
+
+def test_capture_carries_the_pipeline_clock():
+    """A SampleClock, NOT a private fs/t0 pair -- the time base belongs to
+    the data, and doppler already has the primitive."""
+    from doppler.telemetry import capture
+    from doppler.wfm import SampleClock
+
+    clk = SampleClock(fs=1e6)
+    tlm = capture(rx=_rx(), clock=clk)
+    assert tlm.clock is clk
+    assert capture(rx=_rx()).clock is None  # never invented
+
+
+def test_capture_names_the_object_that_failed_to_attach():
+    """With several objects attached, 'set_telemetry failed' alone sends you
+    looking through all of them."""
+    from doppler.telemetry import capture
+
+    with pytest.raises(AttributeError, match="attaching bogus"):
+        capture(rx=_rx(), bogus=object())
+
+
+def test_capture_refuses_positional_objects():
+    from doppler.telemetry import capture
+
+    with pytest.raises(TypeError, match="keyword"):
+        capture(_rx())

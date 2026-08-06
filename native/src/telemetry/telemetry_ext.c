@@ -39,6 +39,14 @@ static PyArray_Descr *tlm_rec_descr = NULL;
 typedef struct
 {
   PyObject_HEAD dp_tlm_t *tlm; /* NULL after destroy() */
+  /* The pipeline's sample clock, when the caller supplied one (capture()'s
+     `clock=`, or assigned later). Borrowed-with-a-reference: telemetry only
+     ever READS fs/epoch off it to turn a record's sample index into a time,
+     and never advances it — the clock belongs to the pipeline that produces
+     the samples, which is the whole point of `t = t0 + n/fs` living with the
+     DATA rather than with the process. NULL when unset, which degrades to an
+     ordinal axis rather than inventing one. */
+  PyObject *clock;
 } TelemetryObject;
 
 static PyObject *
@@ -46,7 +54,10 @@ Telemetry_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
   TelemetryObject *self = (TelemetryObject *)type->tp_alloc (type, 0);
   if (self)
-    self->tlm = NULL;
+    {
+      self->tlm   = NULL;
+      self->clock = NULL;
+    }
   return (PyObject *)self;
 }
 
@@ -81,6 +92,7 @@ Telemetry_dealloc (TelemetryObject *self)
       dp_tlm_destroy (self->tlm);
       self->tlm = NULL;
     }
+  Py_CLEAR (self->clock);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -448,6 +460,32 @@ Telemetry_probe_count (TelemetryObject *self, void *Py_UNUSED (closure))
   return PyLong_FromSize_t (dp_tlm_probe_count (self->tlm));
 }
 
+static PyObject *
+Telemetry_get_clock (TelemetryObject *self, void *Py_UNUSED (closure))
+{
+  PyObject *c = self->clock ? self->clock : Py_None;
+  Py_INCREF (c);
+  return c;
+}
+
+static int
+Telemetry_set_clock (TelemetryObject *self, PyObject *value,
+                     void *Py_UNUSED (closure))
+{
+  if (!value) /* `del tlm.clock` */
+    value = Py_None;
+  PyObject *old = self->clock;
+  if (value == Py_None)
+    self->clock = NULL;
+  else
+    {
+      Py_INCREF (value);
+      self->clock = value;
+    }
+  Py_XDECREF (old);
+  return 0;
+}
+
 /* Non-owning capsule: the Telemetry object keeps ownership, attach glue
  * only borrows the pointer.  Attached objects must not outlive `self`. */
 static PyObject *
@@ -465,6 +503,14 @@ static PyGetSetDef Telemetry_getset[] = {
     "Total records dropped on ring overrun (monotonic).", NULL },
   { "probe_count", (getter)Telemetry_probe_count, NULL,
     "Number of registered probes.", NULL },
+  { "clock", (getter)Telemetry_get_clock, (setter)Telemetry_set_clock,
+    "The pipeline's wfm.SampleClock, or None.\n\n"
+    "Telemetry only READS fs/epoch off it, to turn a record's sample\n"
+    "index into a time; it never advances it. The clock belongs to\n"
+    "whatever produced the samples — which is the point of `t = t0 +\n"
+    "n/fs` travelling with the DATA, not the process. None means an\n"
+    "ordinal axis, never an invented one.",
+    NULL },
   { "_capsule", (getter)Telemetry_capsule, NULL,
     "PyCapsule('" TLM_CAPSULE_NAME "') borrowing the dp_tlm_t* — the "
     "attach point for instrumented objects' set_telemetry().",
@@ -549,11 +595,152 @@ static PyTypeObject TelemetryType = {
  * Module
  * ===================================================================== */
 
+/* capture(**objects) — turn everything on in one call.
+ *
+ * `set_telemetry` already registers ALL of an object's probes and forwards to
+ * its children (one attach on an MpskReceiver gets 11). What hurt was the
+ * ceremony around it: build a context, guess a ring size, attach each object
+ * with a prefix string that repeats the variable's own name, remember decim.
+ *
+ * The KEYWORD becomes the prefix, so the naming stays explicit rather than
+ * guessed from a class name — `capture(rx=rx, agc=agc)` gives "rx.*" and
+ * "agc.*". Three keywords are reserved for the capture's own settings
+ * (`ring`, `decim`, `clock`); an object under one of those names has to be
+ * attached the long way.
+ *
+ * `clock` is a wfm.SampleClock, NOT an fs/t0 pair: the time base belongs to
+ * the DATA and already exists as a doppler primitive, so telemetry carries a
+ * reference to the pipeline's clock rather than re-declaring one.
+ */
+static PyObject *
+tlm_capture (PyObject *mod, PyObject *args, PyObject *kwds)
+{
+  if (PyTuple_GET_SIZE (args) != 0)
+    {
+      PyErr_SetString (PyExc_TypeError,
+                       "capture() takes no positional arguments — each object "
+                       "is passed by keyword, and the keyword becomes its "
+                       "probe prefix: capture(rx=rx, agc=agc)");
+      return NULL;
+    }
+
+  Py_ssize_t ring   = 1 << 16; /* ~1 MiB of records; see the strict-overrun
+                                  note in docs/design/telemetry.md */
+  unsigned int decim = 1;
+  PyObject    *clock = NULL;
+  PyObject    *rest  = kwds ? PyDict_Copy (kwds) : PyDict_New ();
+  if (!rest)
+    return NULL;
+
+  /* Pull the settings out, leaving `rest` as exactly the objects to attach. */
+  struct
+  {
+    const char *name;
+    PyObject  **slot;
+  } opts[] = { { "clock", &clock } };
+  PyObject *v;
+
+  v = PyDict_GetItemString (rest, "ring");
+  if (v)
+    {
+      ring = PyNumber_AsSsize_t (v, PyExc_OverflowError);
+      if (ring == -1 && PyErr_Occurred ())
+        goto fail;
+      if (PyDict_DelItemString (rest, "ring") < 0)
+        goto fail;
+    }
+  v = PyDict_GetItemString (rest, "decim");
+  if (v)
+    {
+      long d = PyLong_AsLong (v);
+      if (d == -1 && PyErr_Occurred ())
+        goto fail;
+      if (d < 1)
+        {
+          PyErr_SetString (PyExc_ValueError, "decim must be >= 1");
+          goto fail;
+        }
+      decim = (unsigned int)d;
+      if (PyDict_DelItemString (rest, "decim") < 0)
+        goto fail;
+    }
+  for (size_t i = 0; i < sizeof opts / sizeof *opts; i++)
+    {
+      v = PyDict_GetItemString (rest, opts[i].name);
+      if (v)
+        {
+          *opts[i].slot = v == Py_None ? NULL : v;
+          if (PyDict_DelItemString (rest, opts[i].name) < 0)
+            goto fail;
+        }
+    }
+
+  PyObject *tlm = PyObject_CallFunction ((PyObject *)&TelemetryType, "n", ring);
+  if (!tlm)
+    goto fail;
+
+  /* Attach in the caller's keyword order, so a failure names the object the
+     caller wrote rather than whichever one a hash order reached first. */
+  PyObject  *key, *obj;
+  Py_ssize_t pos = 0;
+  while (PyDict_Next (rest, &pos, &key, &obj))
+    {
+      PyObject *r = PyObject_CallMethod (obj, "set_telemetry", "OOI", tlm, key,
+                                         decim);
+      if (!r)
+        {
+          /* Say WHICH object failed: with several attached, "set_telemetry
+             failed" alone sends you looking through all of them. */
+          PyObject *t, *e, *tb;
+          PyErr_Fetch (&t, &e, &tb);
+          PyErr_NormalizeException (&t, &e, &tb);
+          PyErr_Format (t ? t : PyExc_RuntimeError,
+                        "capture(): attaching %S failed: %S", key,
+                        e ? e : Py_None);
+          Py_XDECREF (t);
+          Py_XDECREF (e);
+          Py_XDECREF (tb);
+          Py_DECREF (tlm);
+          goto fail;
+        }
+      Py_DECREF (r);
+    }
+
+  if (clock)
+    {
+      Py_INCREF (clock);
+      ((TelemetryObject *)tlm)->clock = clock;
+    }
+  Py_DECREF (rest);
+  return tlm;
+
+fail:
+  Py_DECREF (rest);
+  return NULL;
+}
+
+static PyMethodDef telemetry_functions[] = {
+  { "capture", (PyCFunction)tlm_capture, METH_VARARGS | METH_KEYWORDS,
+    "capture(**objects, ring=65536, decim=1, clock=None) -> Telemetry\n\n"
+    "Attach telemetry to every object given, and return the context.\n"
+    "The KEYWORD becomes the probe prefix, so it stays explicit rather\n"
+    "than guessed from a class name:\n\n"
+    "    tlm = capture(rx=rx, agc=agc)   # 'rx.*' and 'agc.*'\n\n"
+    "One attach registers all of an object's probes and forwards to its\n"
+    "children. `ring`, `decim` and `clock` are reserved keywords — an\n"
+    "object named one of those must be attached with set_telemetry().\n"
+    "`clock` is a wfm.SampleClock: the time base belongs to the data, so\n"
+    "telemetry carries a reference to the pipeline's clock rather than a\n"
+    "private fs/t0 pair." },
+  { NULL },
+};
+
 static PyModuleDef telemetry_module = {
   PyModuleDef_HEAD_INIT,
-  .m_name = "telemetry",
-  .m_doc = "Doppler scalar telemetry bindings.\n\nType: Telemetry.",
-  .m_size = -1,
+  .m_name    = "telemetry",
+  .m_doc     = "Doppler scalar telemetry bindings.\n\nType: Telemetry.",
+  .m_size    = -1,
+  .m_methods = telemetry_functions,
 };
 
 PyMODINIT_FUNC

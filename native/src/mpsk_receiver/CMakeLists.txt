@@ -21,7 +21,7 @@ target_link_libraries(mpsk_receiver_core PUBLIC
     symsync_core
     nco_core
     farrow_core
-    telemetry_core
+    dp_tlm_core
     agc_core
     boxcar_core)
 
@@ -45,7 +45,7 @@ target_link_libraries(test_mpsk_receiver_core
     symsync_core
     nco_core
     farrow_core
-    telemetry_core
+    dp_tlm_core
     agc_core
     boxcar_core
     m)
@@ -74,7 +74,7 @@ target_link_libraries(bench_mpsk_receiver_core
     symsync_core
     nco_core
     farrow_core
-    telemetry_core
+    dp_tlm_core
     agc_core
     boxcar_core
     m)

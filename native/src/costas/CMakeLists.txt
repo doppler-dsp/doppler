@@ -7,7 +7,7 @@ target_link_libraries(costas_core PUBLIC
     lo_core
     lockdet_core
     loop_filter_core
-    telemetry_core)
+    dp_tlm_core)
 
 add_executable(test_costas_core
                ${CMAKE_SOURCE_DIR}/native/tests/test_costas_core.c)
@@ -15,7 +15,7 @@ target_link_libraries(test_costas_core
                       PRIVATE costas_core lo_core
     lockdet_core
     loop_filter_core
-    telemetry_core
+    dp_tlm_core
     m)
 target_include_directories(test_costas_core
                            PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
@@ -28,7 +28,7 @@ target_link_libraries(bench_costas_core
                       PRIVATE costas_core lo_core
     lockdet_core
     loop_filter_core
-    telemetry_core
+    dp_tlm_core
     m)
 target_include_directories(
   bench_costas_core PRIVATE ${CMAKE_SOURCE_DIR}/native/inc

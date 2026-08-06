@@ -42,6 +42,7 @@
 #include "loop_filter/loop_filter_core.h"
 #include "dp_tlm/dp_tlm_core.h"
 #include <complex.h>
+#include "telemetry/telemetry_core.h"
 #ifdef __cplusplus
 extern "C"
 {

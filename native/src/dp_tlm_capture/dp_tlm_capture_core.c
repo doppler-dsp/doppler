@@ -342,6 +342,8 @@ dp_tlm_capture_open (dp_tlm_t *t, size_t block_samples, const char *path,
   /* Latch the monotonic drop count so `dropped` reports THIS capture. */
   c->dropped_at_open = dp_tlm_dropped (t);
   t->capture         = c;
+  /* Register the drain by pointer; see dp_tlm_t.capture_drain. */
+  t->capture_drain = dp_tlm_capture_block;
   return c;
 
 fail_threaded:
@@ -462,7 +464,10 @@ dp_tlm_capture_close (dp_tlm_capture_t *c)
 
   /* Stop delegating before anything else can call in through set_now. */
   if (c->tlm->capture == c)
-    c->tlm->capture = NULL;
+    {
+      c->tlm->capture       = NULL;
+      c->tlm->capture_drain = NULL;
+    }
   c->closed = 1;
 
   /* A hole is a wrong capture, not a small one — say so. */

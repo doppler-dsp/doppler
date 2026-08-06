@@ -414,7 +414,7 @@ main (void)
     dp_tlm_rec_t buf[8];
     for (int i = 0; i < 4; i++)
       dp_tlm_emit (t, 0, (double)i);
-    CHECK (dp_tlm_read (t, 0, buf, 8) == 2); /* decim 2 over 4 events */
+    CHECK (dp_tlm_read (t, 8, buf, 8) == 2); /* decim 2 over 4 events */
 
     /* An unknown name is an ERROR, not a silent registration. */
     CHECK (dp_tlm_set_decim (t, "typo", 2) == DP_ERR_INVALID);
@@ -424,10 +424,7 @@ main (void)
     dp_tlm_destroy (t);
   }
 
-  /* ── read(): "how many I want" and "how much room I have" are different
-     questions. Every call site in the tree happens to pass the same value for
-     both, so without this block the split would be free to collapse back into
-     one argument and nothing would notice. ─────────────────────────────────*/
+  /* ── read(): the buffer is the limit, and reading is destructive ─────── */
   {
     dp_tlm_t    *t  = dp_tlm_create (1 << 12);
     int          id = dp_tlm_probe (t, "rw", 1);
@@ -435,28 +432,20 @@ main (void)
     for (int i = 0; i < 10; i++)
       dp_tlm_emit (t, id, (double)i);
 
-    /* n == 0 means "everything", regardless of a roomy buffer. */
-    CHECK (dp_tlm_read_max_out (t, 0) == 10);
-    /* A request smaller than what is available wins... */
-    CHECK (dp_tlm_read_max_out (t, 3) == 3);
-    /* ...and a request larger than available is capped by reality, not
-       granted. */
-    CHECK (dp_tlm_read_max_out (t, 999) == 10);
-    CHECK (dp_tlm_read_max_out (NULL, 0) == 0);
+    CHECK (dp_tlm_read_max_out (t) == 10);
+    CHECK (dp_tlm_read_max_out (NULL) == 0);
 
-    /* Want 3 of 10, into a 64-record buffer: the REQUEST is the limit. */
-    CHECK (dp_tlm_read (t, 3, buf, 64) == 3);
-    CHECK (buf[0].value == 0.0f && buf[2].value == 2.0f);
+    /* A short buffer takes what fits and leaves the rest -- it does not
+       truncate the ring. */
+    CHECK (dp_tlm_read (t, 4, buf, 4) == 4);
+    CHECK (buf[0].value == 0.0f && buf[3].value == 3.0f);
+    CHECK (dp_tlm_avail (t) == 6);
 
-    /* Want everything, but only 4 records of room: the BUFFER is the limit.
-       Under a single conflated argument this case cannot be expressed. */
-    CHECK (dp_tlm_read (t, 0, buf, 4) == 4);
-    CHECK (buf[0].value == 3.0f);
-
-    /* Want everything, ample room: the remaining 3. */
-    CHECK (dp_tlm_read (t, 0, buf, 64) == 3);
-    CHECK (buf[0].value == 7.0f && buf[2].value == 9.0f);
+    /* An ample buffer takes the remainder, and no more than exists. */
+    CHECK (dp_tlm_read (t, 64, buf, 64) == 6);
+    CHECK (buf[0].value == 4.0f && buf[5].value == 9.0f);
     CHECK (dp_tlm_avail (t) == 0);
+    CHECK (dp_tlm_read (t, 64, buf, 64) == 0);
     dp_tlm_destroy (t);
   }
 

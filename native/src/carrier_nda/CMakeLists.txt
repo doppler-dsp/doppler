@@ -8,7 +8,7 @@ target_link_libraries(carrier_nda_core PUBLIC
     loop_filter_core
     boxcar_core
     agc_core
-    telemetry_core
+    dp_tlm_core
     lockdet_core)
 
 add_executable(test_carrier_nda_core
@@ -18,7 +18,7 @@ target_link_libraries(test_carrier_nda_core
     loop_filter_core
     boxcar_core
     agc_core
-    telemetry_core
+    dp_tlm_core
     lockdet_core
     m)
 target_include_directories(test_carrier_nda_core
@@ -33,7 +33,7 @@ target_link_libraries(bench_carrier_nda_core
     loop_filter_core
     boxcar_core
     agc_core
-    telemetry_core
+    dp_tlm_core
     lockdet_core
     m)
 target_include_directories(

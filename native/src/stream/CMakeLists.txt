@@ -7,9 +7,9 @@
 if(NOT WIN32)
     # tlm_sink.c is the telemetry NATS sink (stream/tlm_sink.h): stream-
     # component code because it publishes through dp_pub_*. Its dp_tlm_read
-    # reference resolves against telemetry_core, which lives in the core lib
+    # reference resolves against dp_tlm_core, which lives in the core lib
     # — consumers link doppler::stream alongside the core; targets here that
-    # embed stream_core_obj directly link telemetry_core explicitly.
+    # embed stream_core_obj directly link dp_tlm_core explicitly.
     add_library(stream_core_obj OBJECT stream_core.c stream_nats.c
         tlm_sink.c)
     target_include_directories(stream_core_obj PUBLIC
@@ -25,7 +25,7 @@ if(NOT WIN32)
         ${CMAKE_SOURCE_DIR}/native/benchmarks/bench_stream.c)
     target_link_libraries(bench_stream PRIVATE
         $<TARGET_OBJECTS:stream_core_obj>
-        telemetry_core
+        dp_tlm_core
         nats_vendor_static
         m pthread)
     target_include_directories(bench_stream PRIVATE
@@ -39,7 +39,7 @@ if(NOT WIN32)
         ${CMAKE_SOURCE_DIR}/native/tests/test_stream_nats_core.c)
     target_link_libraries(test_stream_nats_core PRIVATE
         $<TARGET_OBJECTS:stream_core_obj>
-        telemetry_core
+        dp_tlm_core
         nats_vendor_static
         m pthread)
     target_include_directories(test_stream_nats_core PRIVATE
@@ -54,7 +54,7 @@ if(NOT WIN32)
         ${CMAKE_SOURCE_DIR}/native/tests/test_tlm_sink.c)
     target_link_libraries(test_tlm_sink PRIVATE
         $<TARGET_OBJECTS:stream_core_obj>
-        telemetry_core
+        dp_tlm_core
         nats_vendor_static
         m pthread)
     target_include_directories(test_tlm_sink PRIVATE
@@ -68,7 +68,7 @@ if(BUILD_PYTHON)
     Python3_add_library(stream MODULE WITH_SOABI stream_ext.c)
     target_link_libraries(stream PRIVATE
         $<TARGET_OBJECTS:stream_core_obj>
-        telemetry_core
+        dp_tlm_core
         nats_vendor_static
         Python3::NumPy
         m pthread)

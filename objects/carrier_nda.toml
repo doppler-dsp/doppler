@@ -15,7 +15,7 @@ depends_on = [
   { name = "boxcar", link = true },
   { name = "agc", link = true },
   { name = "lockdet", link = true },
-  { name = "telemetry", link = true },
+  { name = "dp_tlm", link = true },
 ]
 
 [[carrier_nda.init_params]]

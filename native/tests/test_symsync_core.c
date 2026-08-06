@@ -288,7 +288,7 @@ main (void)
     size_t n_sym = symsync_steps (a, trx, 512, tsym, 160);
     CHECK (n_sym > 0);
     dp_tlm_rec_t recs[1024];
-    size_t       n_rec = dp_tlm_read (tlm, recs, 1024);
+    size_t       n_rec = dp_tlm_read (tlm, 1024, recs, 1024);
     CHECK (n_rec == 5 * n_sym); /* e + freq + rate + lock + locked */
     CHECK (recs[n_rec - 1].probe == (uint16_t)a->tlm.id_locked);
     CHECK (recs[n_rec - 1].value == (float)a->lock.locked);
@@ -321,7 +321,7 @@ main (void)
     /* Detach: no further records. */
     CHECK (symsync_set_telemetry (a, NULL, "sync", 1) == DP_OK);
     (void)symsync_steps (a, trx, 512, tsym, 160);
-    CHECK (dp_tlm_read (tlm, recs, 1024) == 0);
+    CHECK (dp_tlm_read (tlm, 1024, recs, 1024) == 0);
 
     symsync_destroy (d);
     symsync_destroy (b);
@@ -346,7 +346,7 @@ main (void)
     /* Attached DTTL block loop. */
     size_t       n_sym = symsync_steps (a, trx2, 64, tsym2, 32);
     dp_tlm_rec_t recs[256];
-    CHECK (dp_tlm_read (tlm, recs, 256) == 5 * n_sym);
+    CHECK (dp_tlm_read (tlm, 256, recs, 256) == 5 * n_sym);
 
     /* Public single-sample step (dispatches + flushes when attached). */
     float complex y;
@@ -355,7 +355,7 @@ main (void)
       if (symsync_step (a, trx2[i], &y))
         n_step_sym++;
     CHECK (n_step_sym > 0);
-    CHECK (dp_tlm_read (tlm, recs, 256) == 5 * n_step_sym);
+    CHECK (dp_tlm_read (tlm, 256, recs, 256) == 5 * n_step_sym);
 
     /* Fill the probe table; a fresh attach must fail whole and leave the
      * object detached. */

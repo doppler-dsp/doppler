@@ -515,7 +515,7 @@ main (void)
     CHECK (dp_tlm_lookup (tlm, "code.locked") == d->tlm.id_locked);
 
     size_t k     = dll_steps (d, rx, L, out, 256);
-    size_t n_rec = dp_tlm_read (tlm, recs, 512);
+    size_t n_rec = dp_tlm_read (tlm, 512, recs, 512);
     CHECK (k > 0 && n_rec == 4 * k); /* e + rate + lock + locked / epoch */
     /* The final epoch's rate/lock/locked records mirror the tracked state
      * (flush order per epoch: e, rate, lock, locked). */
@@ -529,7 +529,7 @@ main (void)
     CHECK (s2 != NULL);
     CHECK (dll_set_telemetry (s2, tlm, "code2", 1) == DP_OK);
     size_t k2 = dll_steps (s2, rx, L, out, 256);
-    size_t n2 = dp_tlm_read (tlm, recs, 512);
+    size_t n2 = dp_tlm_read (tlm, 512, recs, 512);
     CHECK (k2 > 0 && n2 > 0 && n2 % 4 == 0);
     CHECK (n2 <= 4 * (k2 / 2 + 1)); /* one flush per epoch, not per partial */
     dll_destroy (s2);
@@ -555,7 +555,7 @@ main (void)
     CHECK (dll_set_telemetry (d, NULL, "code", 1) == DP_OK);
     CHECK (d->tlm.ctx == NULL);
     (void)dll_steps (d, rx, L, out, 256);
-    CHECK (dp_tlm_read (tlm, recs, 512) == 0);
+    CHECK (dp_tlm_read (tlm, 512, recs, 512) == 0);
 
     /* A full probe table fails the attach whole. */
     char pname[DP_TLM_NAME_MAX];

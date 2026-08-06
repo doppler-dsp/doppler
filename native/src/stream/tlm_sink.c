@@ -44,7 +44,7 @@ dp_tlm_sink_pump (dp_tlm_sink_t *sink, dp_tlm_t *tlm)
   size_t       total = 0;
   for (;;)
     {
-      size_t n = dp_tlm_read (tlm, batch, TLM_SINK_BATCH);
+      size_t n = dp_tlm_read (tlm, TLM_SINK_BATCH, batch, TLM_SINK_BATCH);
       if (n == 0)
         break;
       /* Telemetry carries no sample rate / centre frequency — the records

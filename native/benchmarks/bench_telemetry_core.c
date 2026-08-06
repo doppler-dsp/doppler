@@ -86,7 +86,7 @@ main (void)
   /* warmup */
   for (int i = 0; i < 1024; i++)
     dp_tlm_emit (t, id, (double)i);
-  dp_tlm_read (t, sink, BENCH_N);
+  dp_tlm_read (t, BENCH_N, sink, BENCH_N);
 
 #define ARM(label, setup, body, teardown)                                     \
   do                                                                          \
@@ -112,9 +112,10 @@ main (void)
 
   ARM ("detached", (void)0, dp_tlm_emit (detached, id, (double)i), (void)0);
   ARM ("decimated", dp_tlm_probe (t, "bench.x", 16),
-       dp_tlm_emit (t, id, (double)i), dp_tlm_read (t, sink, BENCH_N));
+       dp_tlm_emit (t, id, (double)i),
+       dp_tlm_read (t, BENCH_N, sink, BENCH_N));
   ARM ("emit", dp_tlm_probe (t, "bench.x", 1), dp_tlm_emit (t, id, (double)i),
-       dp_tlm_read (t, sink, BENCH_N));
+       dp_tlm_read (t, BENCH_N, sink, BENCH_N));
   ARM ("full", (void)0, dp_tlm_emit (t, id, (double)i), (void)0);
 
 #undef ARM

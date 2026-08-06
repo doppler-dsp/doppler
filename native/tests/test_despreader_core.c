@@ -333,20 +333,20 @@ main (void)
            && ch->code.tlm.ctx == tlm);
 
     size_t k     = despreader_steps (ch, rx, L, sym, 64);
-    size_t n_rec = dp_tlm_read (tlm, recs, 512);
+    size_t n_rec = dp_tlm_read (tlm, 512, recs, 512);
     CHECK (k > 0 && n_rec == 8 * k); /* both loops flush per period */
 
     /* bits() flushes telemetry too (the guarded in-loop path). */
     uint8_t bit_out[64];
     (void)despreader_bits (ch, rx, L, bit_out, 64);
-    CHECK (dp_tlm_read (tlm, recs, 512) > 0);
+    CHECK (dp_tlm_read (tlm, 512, recs, 512) > 0);
 
     /* Detach cascades to both children. */
     CHECK (despreader_set_telemetry (ch, NULL, "ch0", 1) == DP_OK);
     CHECK (ch->tlm_ctx == NULL && ch->car.tlm.ctx == NULL
            && ch->code.tlm.ctx == NULL);
     (void)despreader_steps (ch, rx, L, sym, 64);
-    CHECK (dp_tlm_read (tlm, recs, 512) == 0);
+    CHECK (dp_tlm_read (tlm, 512, recs, 512) == 0);
 
     /* Partial registration failure unwinds: leave exactly four free
      * slots — the carrier attach succeeds (4 probes), the code attach

@@ -404,7 +404,7 @@ main (void)
 
     size_t k = carrier_nda_steps (c, rx, N, out, N);
     CHECK (k == N);
-    size_t n_rec = dp_tlm_read (tlm, recs, 8192);
+    size_t n_rec = dp_tlm_read (tlm, 8192, recs, 8192);
     /* four per sample + one AGC record per amortized gain update */
     CHECK (n_rec == 4 * N + N / AGC_DECIM_DEFAULT);
     /* Per-sample emit order is lock, e, freq, locked -- the last record is
@@ -434,7 +434,7 @@ main (void)
     CHECK (carrier_nda_set_telemetry (c, NULL, "car", 1) == DP_OK);
     CHECK (c->tlm.ctx == NULL && c->agc.tlm.ctx == NULL);
     (void)carrier_nda_steps (c, rx, N, out, N);
-    CHECK (dp_tlm_read (tlm, recs, 8192) == 0);
+    CHECK (dp_tlm_read (tlm, 8192, recs, 8192) == 0);
 
     /* A full probe table fails the attach whole (AGC included). */
     char pname[DP_TLM_NAME_MAX];

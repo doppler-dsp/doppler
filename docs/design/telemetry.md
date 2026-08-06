@@ -328,24 +328,74 @@ a Python producer can symmetrically publish `read()` output through
 `Publisher(ep, TLM16)`). File dump still falls out of Python for free
 (`recs.tofile(...)`).
 
-## v2 — convenience layer (designed, not yet built)
+## v2 — convenience layer (C built; Python surface pending)
 
 v1 is powerful and clunky. The clunkiness is structural, not sloppiness:
 `src/doppler/examples/mpsk_telemetry_capture_demo.py` is expert-written and
 still spends more lines on telemetry ceremony than on DSP. The friction,
 measured across the three telemetry examples:
 
-| friction                       | where                                                  | cost                                          |
-| ------------------------------ | ------------------------------------------------------ | --------------------------------------------- |
-| ring size is a guess           | `Telemetry(1 << 14)` in all three                      | silent drops unless you remember to assert    |
-| hand-rolled drain loop         | `set_now` / `steps` / `read` / `concatenate` per block | get the cadence wrong and data is gone        |
-| per-probe filtering reinvented | `recs[recs["probe"] == tlm.probe_id(n)]["value"]`      | **three copies**, one per example             |
-| id→name inversion by hand      | `{v: k for k, v in probes.items()}`                    | every consumer redoes it                      |
-| no time axis                   | plots use `np.arange(v.size)` labelled "symbol index"  | can't plot seconds even though `n` is stamped |
-| capture is not self-describing | `np.save(recs)` / `recs.tobytes()`                     | **probe names live only in the live context** |
+| friction                       | where                                                  | cost                                          | status                            |
+| ------------------------------ | ------------------------------------------------------ | --------------------------------------------- | --------------------------------- |
+| ring size is a guess           | `Telemetry(1 << 14)` in all three                      | silent drops unless you remember to assert    | **fixed** — computed, not guessed |
+| hand-rolled drain loop         | `set_now` / `steps` / `read` / `concatenate` per block | get the cadence wrong and data is gone        | **fixed** — the capture owns it   |
+| capture is not self-describing | `np.save(recs)` / `recs.tobytes()`                     | **probe names live only in the live context** | **fixed** — JSON sidecar          |
+| per-probe filtering reinvented | `recs[recs["probe"] == tlm.probe_id(n)]["value"]`      | **three copies**, one per example             | open (Python surface)             |
+| id→name inversion by hand      | `{v: k for k, v in probes.items()}`                    | every consumer redoes it                      | open (Python surface)             |
+| no time axis                   | plots use `np.arange(v.size)` labelled "symbol index"  | can't plot seconds even though `n` is stamped | sidecar carries it; plotting open |
 
-The last one is a correctness defect, not an inconvenience: the file the
-example writes cannot be interpreted without the process that wrote it.
+### Losslessness is arithmetic, not scheduling
+
+The first two rows are one problem, and it has an exact answer rather than a
+better heuristic. **No probe can emit more than once per input sample** —
+verified across every object with a `*_set_telemetry`, including the
+interpolating ones, which are not counterexamples: `ratesync` and
+`mpsk_receiver` collapse a multi-output cascade into a single `emitted |=`
+strobe, so one input yields at most one flush. Each probe belongs to exactly
+one object, so a whole pipeline is just the context-wide probe count:
+
+```text
+records emitted while processing N input samples  ≤  probe_count × N
+```
+
+That is `dp_tlm_block_bound()`, and it gives the invariant:
+
+> If the ring holds `probe_count × block` and is drained to empty at every
+> block boundary, it **cannot** overflow.
+
+A proof, not a heuristic — no polling interval, no scheduling assumption, no
+safety factor. It is also the fastest arrangement available: one `memcpy` per
+block on the caller's thread, at the moment the producer is between blocks,
+with nothing added to the emit path. And it replaces an unanswerable question
+("how big should my ring be?") with one the caller already knows the answer
+to — their own block length, literally the step in their `range(0, n, 256)`.
+
+An earlier attempt at this was a background drain thread polling every 200 µs.
+It was retired before release, because it cannot make the claim: it trades a
+sizing guess for a scheduling guess, and a burst that overruns between two
+polls is still gone.
+
+**Losslessness and bounded memory are separate problems, kept separate.** The
+sizing above buys the first. The second is bought by handing drained blocks to
+a file — the capture ping-pongs two staging buffers so a writer thread drains
+one while the producer fills the other. If the writer falls behind, the
+*boundary* blocks. That is backpressure; nothing is ever dropped to keep up.
+
+`dp_tlm_set_now()` delegates to an open capture, and callers already put it at
+the top of the block loop before stepping — so an existing loop becomes
+lossless by opening a capture and changing nothing else. See
+`native/inc/telemetry/tlm_capture.h`.
+
+The Python surface (`Telemetry.capture(...)`, per-probe views, a time axis)
+lands with the jm migration rather than as more hand-written binding — see
+[jm#788](https://github.com/just-buildit/just-makeit/issues/788) and
+[jm#790](https://github.com/just-buildit/just-makeit/issues/790).
+
+"Not self-describing" was a correctness defect rather than an inconvenience:
+the file the example wrote could not be interpreted without the process that
+wrote it. A capture now emits a `<path>-meta` JSON sidecar carrying the probe
+table, the counters, the time base and the record dtype — so the file is
+readable by `np.fromfile` and a JSON parser, with no doppler code at all.
 
 ### The time base belongs to the DATA, not the process
 

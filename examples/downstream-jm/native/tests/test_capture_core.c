@@ -55,7 +55,8 @@ write_capture (const char *path, wfm_filetype_t ft)
   for (i = 0; i < NUM_SAMPLES; i++)
     buf[i] = (float)(i % 64) / 128.0f + I * (float)(i % 32) / 128.0f;
 
-  w = wfm_writer_create (path, (int)ft, ST_CI16, ENDIAN_LE, FS, FC, 0, 0.0);
+  w = wfm_writer_create (path, FS, (int)ft, ST_CI16, ENDIAN_LE, FC, 0, 0.0,
+                         0.0);
   if (w == NULL)
     return -1;
 

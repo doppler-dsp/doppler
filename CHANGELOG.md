@@ -15,6 +15,27 @@ ______________________________________________________________________
 
 ### Changed
 
+- **BREAKING: `wfm.Writer` now requires `fs`.** It used to default to `1e6`,
+    which made "nobody stated a rate" and "exactly 1 MHz" the same value — so
+    a capture written without one recorded a confident 1 MHz in its header,
+    in a file that outlives the process. Every container the writer emits
+    needs the rate (BLUE stores `xdelta = 1/fs`, SigMF `core:sample_rate`),
+    the caller knows it at construction, and that is now where it is asked
+    for. `fs` moves to the second positional slot, so
+    `Writer(path, fs, file_type=…)`; passing `fs=0.0` states "not known"
+    explicitly, writing `xdelta = 0` and no `core:sample_rate` at all.
+
+    `write_blue_header()` and `Composer.to_sigmf()` keep an optional `fs`,
+    now defaulting to `0.0` rather than `1e6` — the same end to the
+    fabrication, without forcing a signature reorder on a bare header writer
+    and a rendering step.
+
+- **SigMF metadata omits what it was not told.** `core:sample_rate` is
+    optional in SigMF 1.0.0 (only `core:datatype` and `core:version` are
+    required in `global`), so an unstated rate is now absent from the
+    document rather than emitted as a defaulted number. An absent key says
+    "not stated"; a present one is a value a downstream tool will act on.
+
 - **just-makeit pin 0.46.1 → 0.46.2.** Zero codegen drift: `jm apply`
     re-renders four binding fragments in jm's K&R and clang-format returns
     every one of them byte-identical, so only the three pins and `uv.lock`
@@ -36,6 +57,30 @@ ______________________________________________________________________
     the workaround was to delete the fragment and let `jm apply` recreate it.
     That workaround is retired; it is how `wfm_reader`'s `fs_source` /
     `t0_source` had to be added.
+
+### Added
+
+- **`wfm.Writer(..., t0=…)` records the capture start.** UNIX seconds in,
+    stored as a J1950 timecode in a BLUE header and as
+    `captures[0]["core:datetime"]` in SigMF. This is the write half of
+    `Reader.t0` / `Reader.t0_source`, which until now had nothing in doppler
+    that could produce a reading other than `"none"`. Optional where `fs` is
+    required — a capture with no wall-clock anchor is still readable, one
+    with no rate is not — and `0.0` means unset all the way to disk, never
+    1970\.
+
+- **`dp_isotime.h` formats extended ISO 8601 as well as basic.** SigMF's
+    `core:datetime` mandates the separators that make the basic form
+    filename-safe; both spellings come out of one formatter, so the
+    truncate-never-round rule cannot drift between them.
+
+- **`make check-isotime-parity`** runs just-bashit's `iso-8601-basic` against
+    `dp_isotime.h` over 20 stamps and diffs them. The golden vectors in
+    `test_dp_isotime.c` are a snapshot of that helper's output, and a
+    snapshot goes stale silently; this makes the agreement a fact that is
+    checked rather than a comment. Wired into `gates` and into CI, which sets
+    `ISOTIME_REQUIRE=1` so an absent reference is an error there rather than
+    a skip.
 
 ## [0.41.0] — 2026-08-03
 

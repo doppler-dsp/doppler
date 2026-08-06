@@ -48,6 +48,22 @@ link = true
 name = "path"
 type = "path"
 
+# REQUIRED, and deliberately so — which is why it sits second, ahead of the
+# defaulted params (jm orders required first, and so does Python).
+#
+# Every container this writer emits needs the rate: BLUE stores
+# xdelta = 1/fs, SigMF stores core:sample_rate, and raw/CSV are
+# uninterpretable without one. It used to default to 1e6, which made "nobody
+# said" and "exactly 1 MHz" the same value — so an undeclared capture wrote a
+# confident 1 MHz into a header that outlives the process. No sentinel fixes
+# that on its own: the caller knows the rate at construction, and that is the
+# one moment to ask. Pass fs=0.0 to say "not known" explicitly — it writes
+# xdelta 0 and omits core:sample_rate rather than guessing.
+[[wfm_writer.init_params]]
+name = "fs"
+type = "double"
+required = true
+
 [[wfm_writer.init_params]]
 name = "file_type"
 type = "string_enum:raw,csv,blue,sigmf"
@@ -64,11 +80,6 @@ type = "string_enum:le,be"
 default = "le"
 
 [[wfm_writer.init_params]]
-name = "fs"
-type = "double"
-default = "1e6"
-
-[[wfm_writer.init_params]]
 name = "fc"
 type = "double"
 default = "0.0"
@@ -81,6 +92,17 @@ default = "0"
 
 [[wfm_writer.init_params]]
 name = "headroom"
+type = "double"
+default = "0.0"
+
+# Capture start, UNIX seconds. Optional where fs is required, because the
+# formats disagree about it: BLUE's `timecode` and SigMF's `core:datetime`
+# are both legitimately absent, and a capture with no wall-clock anchor is
+# still a readable capture — one with no rate is not. 0.0 is
+# WFM_TIMECODE_UNSET and stays unset all the way to disk; it is never written
+# as 1970. Reader.t0 / Reader.t0_source are the read half.
+[[wfm_writer.init_params]]
+name = "t0"
 type = "double"
 default = "0.0"
 

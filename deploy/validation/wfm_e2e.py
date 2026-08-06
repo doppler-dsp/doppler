@@ -283,7 +283,7 @@ def _reader_dtypes() -> str:
         with tempfile.TemporaryDirectory() as d:
             p = str(Path(d) / f"c.{st}")
             with w.Writer(
-                p, file_type="raw", sample_type=st, total=len(x)
+                p, fs=1e6, file_type="raw", sample_type=st, total=len(x)
             ) as wr:
                 wr.write(x)
             with w.Reader(p, sample_type=st) as r:

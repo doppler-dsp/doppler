@@ -43,21 +43,23 @@ WriterObj_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 static int
 WriterObj_init (WriterObject *self, PyObject *args, PyObject *kwds)
 {
-  static char *kwlist[] = { "path", "file_type", "sample_type", "endian", "fs",
-                            "fc",   "total",     "headroom",    NULL };
-  PyObject    *path     = NULL; /* fspath -> bytes */
-  const char  *file_type_str   = "raw";
-  const char  *sample_type_str = "cf32";
-  const char  *endian_str      = "le";
-  double       fs              = 1e6;
-  double       fc              = 0.0;
-  unsigned long long total_raw = 0;
-  double             headroom  = 0.0;
+  static char *kwlist[]
+      = { "path", "fs",    "file_type", "sample_type", "endian",
+          "fc",   "total", "headroom",  "t0",          NULL };
+  PyObject          *path            = NULL; /* fspath -> bytes */
+  double             fs              = 0.0;
+  const char        *file_type_str   = "raw";
+  const char        *sample_type_str = "cf32";
+  const char        *endian_str      = "le";
+  double             fc              = 0.0;
+  unsigned long long total_raw       = 0;
+  double             headroom        = 0.0;
+  double             t0              = 0.0;
 
   if (!PyArg_ParseTupleAndKeywords (
-          args, kwds, "O&|sssddKd", kwlist, PyUnicode_FSConverter, &path,
-          &file_type_str, &sample_type_str, &endian_str, &fs, &fc, &total_raw,
-          &headroom))
+          args, kwds, "O&d|sssdKdd", kwlist, PyUnicode_FSConverter, &path, &fs,
+          &file_type_str, &sample_type_str, &endian_str, &fc, &total_raw,
+          &headroom, &t0))
     {
       Py_XDECREF (path);
       return -1;
@@ -115,8 +117,8 @@ WriterObj_init (WriterObject *self, PyObject *args, PyObject *kwds)
     }
   size_t total = (size_t)total_raw;
   self->handle
-      = wfm_writer_create (PyBytes_AS_STRING (path), file_type, sample_type,
-                           endian, fs, fc, total, headroom);
+      = wfm_writer_create (PyBytes_AS_STRING (path), fs, file_type,
+                           sample_type, endian, fc, total, headroom, t0);
   Py_XDECREF (path);
   if (!self->handle)
     {
@@ -464,19 +466,47 @@ static PyMethodDef WriterObj_methods[] = {
     METH_VARARGS | METH_KEYWORDS,
     "write(x) -> int\n"
     "\n"
-    "Convert and write `n` complex samples.\n"
+    "Convert and write a block of samples.\n"
     "\n"
-    "    >>> import numpy as np\n"
-    "    >>> from doppler import Writer\n"
-    "    >>> obj = Writer(..., \"raw\", \"cf32\", \"le\", 1e6, 0.0, 0, 0.0)\n"
-    "    >>> obj.write(np.zeros(4, dtype=np.complex64))\n"
-    "    0\n" },
+    "Takes `complex64` at unit scale and emits it in the writer's wire type.\n"
+    "Call as many times as you like; the capture is the concatenation.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "x : NDArray[np.complex64]\n"
+    "    Input.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "int\n"
+    "    the number of samples that actually landed — equal to what you\n"
+    "    passed on success, fewer if the write was short (a full disk, a\n"
+    "    quota). A short return is the per-block signal; close() reports the\n"
+    "    same failure for the capture as a whole.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import pathlib, tempfile\n"
+    ">>> from doppler.wfm import Composer, Reader, Segment, Writer\n"
+    ">>> tmp = tempfile.TemporaryDirectory()\n"
+    ">>> p = pathlib.Path(tmp.name) / \"capture.blue\"\n"
+    ">>> x = Composer([Segment(\"qpsk\", sps=8, "
+    "num_samples=1024)]).compose()\n"
+    ">>> with Writer(p, file_type=\"blue\", sample_type=\"ci16\",\n"
+    "...             fs=2.4e6, fc=1.2e9) as w:\n"
+    "...     w.write(x)\n"
+    "1024\n"
+    ">>> r = Reader(p)\n"
+    ">>> r.fs, r.fc, r.num_samples\n"
+    "(2400000.0, 1200000000.0, 1024)\n"
+    ">>> r.close()\n"
+    ">>> tmp.cleanup()   # directory and contents removed\n" },
   { "track_clipping", (PyCFunction)(void *)WriterObj_track_clipping,
     METH_VARARGS | METH_KEYWORDS,
     "track_clipping(on) -> None\n"
     "\n"
-    "Enable the per-component clip *counter* (off by default; peak is always "
-    "on).\n"
+    "Enable the per-component clip *counter* (off by default; peak is\n"
+    "always on).\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -485,8 +515,9 @@ static PyMethodDef WriterObj_methods[] = {
     "\n"
     "    >>> import numpy as np\n"
     "    >>> from doppler import Writer\n"
-    "    >>> obj = Writer(path=..., file_type=\"raw\", sample_type=\"cf32\", "
-    "endian=\"le\", fs=1e6, fc=0.0, total=0, headroom=0.0)\n"
+    "    >>> obj = Writer(path=..., fs=0.0, file_type=\"raw\", "
+    "sample_type=\"cf32\", endian=\"le\", fc=0.0, total=0, headroom=0.0, "
+    "t0=0.0)\n"
     "    >>> obj.track_clipping(0)\n" },
   { "add_keyword", (PyCFunction)(void *)WriterObj_add_keyword,
     METH_VARARGS | METH_KEYWORDS,
@@ -496,37 +527,35 @@ static PyMethodDef WriterObj_methods[] = {
     "\n"
     "Ordinarily unnecessary: the resources are freed when the object is\n"
     "garbage-collected. Call this to release them at a definite point\n"
-    "instead, or use the object as a context manager, which calls it on "
+    "instead, or use the object as a context manager, which calls it on\n"
     "exit.\n"
     "\n"
-    "Idempotent: calling it again on an already-released object does "
-    "nothing.\n"
-    "Every other method raises ``RuntimeError`` once it has run.\n"
+    "Idempotent: calling it again on an already-released object does\n"
+    "nothing. Every other method raises ``RuntimeError`` once it has run.\n"
     "\n"
     "Raises\n"
     "------\n"
     "OSError\n"
-    "    If the C destructor reports failure. Raised from an explicit call "
-    "and from ``__exit__`` alike, so a failing teardown propagates out of a "
-    "``with`` block (gh-541).\n" },
+    "    If the C destructor reports failure. Raised from an explicit call\n"
+    "    and from ``__exit__`` alike, so a failing teardown propagates out\n"
+    "    of a ``with`` block (gh-541).\n" },
   { "destroy", (PyCFunction)WriterObj_destroy, METH_NOARGS,
     "Release the underlying C resources immediately.\n"
     "\n"
     "Ordinarily unnecessary: the resources are freed when the object is\n"
     "garbage-collected. Call this to release them at a definite point\n"
-    "instead, or use the object as a context manager, which calls it on "
+    "instead, or use the object as a context manager, which calls it on\n"
     "exit.\n"
     "\n"
-    "Idempotent: calling it again on an already-released object does "
-    "nothing.\n"
-    "Every other method raises ``RuntimeError`` once it has run.\n"
+    "Idempotent: calling it again on an already-released object does\n"
+    "nothing. Every other method raises ``RuntimeError`` once it has run.\n"
     "\n"
     "Raises\n"
     "------\n"
     "OSError\n"
-    "    If the C destructor reports failure. Raised from an explicit call "
-    "and from ``__exit__`` alike, so a failing teardown propagates out of a "
-    "``with`` block (gh-541).\n" },
+    "    If the C destructor reports failure. Raised from an explicit call\n"
+    "    and from ``__exit__`` alike, so a failing teardown propagates out\n"
+    "    of a ``with`` block (gh-541).\n" },
   { "__enter__", (PyCFunction)WriterObj_enter, METH_NOARGS,
     "Enter a context manager, returning this object.\n"
     "\n"
@@ -541,9 +570,8 @@ static PyMethodDef WriterObj_methods[] = {
     "Exit a context manager, releasing the WfmWriter.\n"
     "\n"
     "Equivalent to calling `close()`. Returns ``None``, so an exception\n"
-    "raised inside the `with` body propagates normally; this never "
-    "suppresses\n"
-    "one.\n"
+    "raised inside the `with` body propagates normally; this never\n"
+    "suppresses one.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -561,10 +589,74 @@ static PyTypeObject WriterObjType = {
   .tp_basicsize                           = sizeof (WriterObject),
   .tp_dealloc                             = (destructor)WriterObj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,
-  .tp_doc     = "Path-opening + FILE-owning ctor for the generated `Writer` "
-                "handle (jm kind=\"handle\"): opens `path` (\"wb\"), delegates to "
-                "wfm_writer_open, and marks the FILE owned so wfm_writer_close "
-                "fclose's it. Returns NULL on open failure.\n",
+  .tp_doc
+  = "Open a capture for writing.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "path : str | os.PathLike\n"
+    "    where to write -- a `str` or any `os.PathLike` from Python. For\n"
+    "    `file_type=\"sigmf\"` this MUST end in `.sigmf-data`: a SigMF "
+    "capture is\n"
+    "    a `<base>.sigmf-data` + `<base>.sigmf-meta` pair found by name, and\n"
+    "    close() writes the sidecar beside it.\n"
+    "fs : float\n"
+    "    sample rate (Hz). BLUE stores it as `xdelta = 1/fs`, SigMF as\n"
+    "    `core:sample_rate`.\n"
+    "file_type : Literal[\"raw\", \"csv\", \"blue\", \"sigmf\"], default "
+    "\"raw\"\n"
+    "    `\"raw\"` (headerless interleaved I/Q), `\"csv\"` (one `I,Q` line "
+    "per\n"
+    "    sample), `\"blue\"` (self-describing X-Midas/REDHAWK type-1000) or\n"
+    "    `\"sigmf\"`. Only BLUE and SigMF record `fs`/`fc`; raw and CSV have\n"
+    "    nowhere to put them.\n"
+    "sample_type : Literal[\"cf32\", \"cf64\", \"ci32\", \"ci16\", \"ci8\"], "
+    "default \"cf32\"\n"
+    "    wire type: `\"cf32\"`, `\"cf64\"`, `\"ci32\"`, `\"ci16\"` or "
+    "`\"ci8\"`. The\n"
+    "    integer types quantise ±1.0 to full scale and can clip -- see\n"
+    "    track_clipping()/peak_dbfs.\n"
+    "endian : Literal[\"le\", \"be\"], default \"le\"\n"
+    "    `\"le\"` or `\"be\"`; ignored for CSV, which is text.\n"
+    "fc : float, default 0.0\n"
+    "    centre frequency (Hz). BLUE records it as a `FREQ` keyword, SigMF "
+    "as\n"
+    "    `captures[0][\"core:frequency\"]`; raw and CSV drop it. 0.0 writes\n"
+    "    nothing.\n"
+    "total : int, default 0\n"
+    "    expected sample count, for the BLUE header; close() patches the "
+    "real\n"
+    "    count, so 0 is fine when unknown.\n"
+    "headroom : float, default 0.0\n"
+    "    dB of output backoff (gain = 10^(-H/20)) applied before "
+    "quantisation. A\n"
+    "    single scale, so it does not change any power ratio -- only the\n"
+    "    absolute level. 0 is a bit-exact no-op.\n"
+    "t0 : float, default 0.0\n"
+    "    t0 constructor parameter.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import pathlib, tempfile\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.wfm import Reader, Writer\n"
+    ">>> tmp = tempfile.TemporaryDirectory()\n"
+    ">>> p = pathlib.Path(tmp.name) / \"capture.blue\"\n"
+    ">>> x = np.arange(1024, dtype=np.complex64) / 1024.0\n"
+    ">>> with Writer(p, file_type=\"blue\", sample_type=\"cf32\",\n"
+    "...             fs=2.4e6, fc=1.2e9) as w:\n"
+    "...     w.write(x)                              # samples in\n"
+    "...     w.add_keyword(\"COMMENT\", \"A\", \"demo\")   # tag the header\n"
+    "1024\n"
+    ">>> p.exists()\n"
+    "True\n"
+    ">>> with Reader(p) as r:                    # everything round-trips\n"
+    "...     back = r.read(len(x))\n"
+    "...     r.fs, r.fc, r.num_samples, r.keywords[\"COMMENT\"]\n"
+    "(2400000.0, 1200000000.0, 1024, 'demo')\n"
+    ">>> bool(np.array_equal(back, x))\n"
+    "True\n"
+    ">>> tmp.cleanup()\n",
   .tp_methods = WriterObj_methods,
   .tp_getset  = Writer_getset,
   .tp_new     = WriterObj_new,

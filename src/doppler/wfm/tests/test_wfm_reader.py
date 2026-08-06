@@ -15,6 +15,7 @@ The file-format behaviour (mode parsing, detached captures, keywords) is
 covered in test_compose.py; this file is about the binding.
 """
 
+import json
 import struct
 
 import numpy as np
@@ -186,7 +187,7 @@ def test_header_exposes_the_hcb_under_the_format_s_own_names(tmp_path):
     the file or merely dropped on the way out.
     """
     p = tmp_path / "h.blue"
-    w = Writer(str(p), file_type="blue", sample_type="cf32")
+    w = Writer(str(p), fs=1e6, file_type="blue", sample_type="cf32")
     w.write(np.ones(8, dtype=np.complex64))
     w.close()
 
@@ -226,7 +227,7 @@ def test_keywords_merge_the_hcb_area_and_the_extended_header(tmp_path):
     all three come back from `.keywords`, the numeric one still numeric.
     """
     p = tmp_path / "kw.blue"
-    w = Writer(str(p), file_type="blue", sample_type="cf32")
+    w = Writer(str(p), fs=1e6, file_type="blue", sample_type="cf32")
     w.add_keyword("VER", "A", "1.1")  # standard -> HCB keyword area
     w.add_keyword("NAME", "A", "hello")  # user -> extended header
     w.add_keyword("SRATE", "D", 2.048e6)  # typed -> extended header
@@ -367,13 +368,13 @@ def test_fs_source_attributes_the_rate(tmp_path):
         assert r.fs_source == "none"
 
 
-def test_t0_source_says_none_on_a_doppler_written_capture(tmp_path):
+def test_t0_source_says_none_when_no_start_time_was_given(tmp_path):
     """The case this pair exists for.
 
-    doppler's own BLUE writer leaves the timecode field zero, and zero in
+    A BLUE writer given no `t0` leaves the timecode field zero, and zero in
     J1950 is a perfectly plausible 1950-01-01. Without `t0_source` a caller
     cannot tell "never set" from "set to the epoch", and would date every
-    capture this library writes to 1950.
+    such capture to 1950.
     """
     p = tmp_path / "when.blue"
     with Writer(p, file_type="blue", sample_type="cf32", fs=1e6) as w:
@@ -388,6 +389,94 @@ def test_t0_source_says_none_on_a_doppler_written_capture(tmp_path):
         w.write(np.zeros(8, dtype=np.complex64))
     with Reader(q) as r:
         assert r.t0_source == "none"
+
+
+def test_t0_round_trips_through_a_blue_capture(tmp_path):
+    """The set half: a stated start time survives to disk and back.
+
+    BLUE counts seconds from 1950 and UNIX from 1970, so a writer that
+    dropped the offset would still produce a file that reads back *a* time --
+    twenty years wrong, and only obviously wrong if you look. Comparing
+    against the exact instant handed in is what catches that; asserting
+    merely that a timecode is present would not.
+    """
+    t0 = 1785903330.0  # 2026-08-05T04:15:30Z
+    p = tmp_path / "stamped.blue"
+    with Writer(p, file_type="blue", sample_type="cf32", fs=2.5e6, t0=t0) as w:
+        w.write(np.zeros(8, dtype=np.complex64))
+    with Reader(p) as r:
+        assert r.t0 == pytest.approx(t0, abs=1e-3)
+        assert r.t0_source == "timecode"
+
+
+def test_unstated_rate_is_omitted_from_the_sigmf_sidecar(tmp_path):
+    """fs=0.0 means "not known", and must not become a number on disk.
+
+    core:sample_rate is optional in SigMF 1.0.0, so the honest rendering of
+    an unknown rate is an absent key. Writing the ctor's old 1e6 default
+    instead is what put a confident 1 MHz into captures nobody had given a
+    rate -- and unlike a wrong value in memory, this one outlives the
+    process.
+    """
+    p = tmp_path / "norate.sigmf-data"
+    with Writer(p, file_type="sigmf", sample_type="cf32", fs=0.0) as w:
+        w.write(np.zeros(8, dtype=np.complex64))
+    meta = json.loads((tmp_path / "norate.sigmf-meta").read_text())
+    assert "core:sample_rate" not in meta["global"]
+    assert meta["global"]["core:datatype"] == "cf32_le"  # still valid SigMF
+
+    # The control: a stated rate IS written, so the assertion above cannot
+    # pass on a writer that simply stopped emitting the key.
+    q = tmp_path / "rate.sigmf-data"
+    with Writer(q, file_type="sigmf", sample_type="cf32", fs=2.5e6) as w:
+        w.write(np.zeros(8, dtype=np.complex64))
+    meta = json.loads((tmp_path / "rate.sigmf-meta").read_text())
+    assert meta["global"]["core:sample_rate"] == pytest.approx(2.5e6)
+
+
+def test_t0_becomes_sigmf_core_datetime(tmp_path):
+    """SigMF wants EXTENDED ISO 8601 -- separators and all.
+
+    doppler names files with the basic form (colons are illegal on FAT), so
+    the two spellings coexist; this is the one that must carry separators.
+    """
+    p = tmp_path / "when.sigmf-data"
+    with Writer(
+        p, file_type="sigmf", sample_type="cf32", fs=1e6, t0=1785903330.0
+    ) as w:
+        w.write(np.zeros(8, dtype=np.complex64))
+    meta = json.loads((tmp_path / "when.sigmf-meta").read_text())
+    assert (
+        meta["captures"][0]["core:datetime"] == "2026-08-05T04:15:30.000000Z"
+    )
+
+    # Unset stays absent rather than becoming 1970.
+    q = tmp_path / "nowhen.sigmf-data"
+    with Writer(q, file_type="sigmf", sample_type="cf32", fs=1e6) as w:
+        w.write(np.zeros(8, dtype=np.complex64))
+    meta = json.loads((tmp_path / "nowhen.sigmf-meta").read_text())
+    assert "core:datetime" not in meta["captures"][0]
+
+
+def test_fs_is_required_not_defaulted(tmp_path):
+    """The whole point of the change: you cannot forget to state the rate.
+
+    A default made "nobody said" and "exactly 1 MHz" the same value, so an
+    undeclared capture wrote a confident rate into a header. No sentinel
+    fixes that on its own -- the caller knows the answer at construction, so
+    that is where it is asked for.
+    """
+    with pytest.raises(TypeError, match="fs"):
+        Writer(tmp_path / "nofs.raw")
+
+    # The control: the SAME call with fs supplied must succeed. Without it
+    # the raise above could be about the path, the arity, or anything else,
+    # and the test would keep passing for the wrong reason.
+    with Writer(tmp_path / "withfs.raw", fs=1e6) as w:
+        w.write(np.zeros(4, dtype=np.complex64))
+    assert (tmp_path / "withfs.raw").exists()
+    # And it is a genuine refusal, not a silently-skipped open.
+    assert not (tmp_path / "nofs.raw").exists()
 
 
 def test_fc_round_trips_through_a_blue_capture(tmp_path):
@@ -475,7 +564,7 @@ def test_the_typed_copy_wins_over_the_ascii_mirror(tmp_path):
     """
     p = tmp_path / "both.blue"
     fc = 1234567890.123456
-    with Writer(p, file_type="blue", sample_type="cf32", fc=fc) as w:
+    with Writer(p, fs=1e6, file_type="blue", sample_type="cf32", fc=fc) as w:
         w.write(np.zeros(8, dtype=np.complex64))
     raw = p.read_bytes()
     keylength = struct.unpack_from("<i", raw, 160)[0]
@@ -562,7 +651,7 @@ def test_csv_reports_its_length(tmp_path):
 def test_trailing_bytes_is_zero_when_the_hint_is_right(tmp_path):
     """The baseline the next two tests are measured against."""
     p = tmp_path / "ok.raw"
-    with Writer(p, file_type="raw", sample_type="ci8") as w:
+    with Writer(p, fs=1e6, file_type="raw", sample_type="ci8") as w:
         w.write(np.zeros(5, dtype=np.complex64))
     with Reader(p, sample_type="ci8") as r:
         assert r.trailing_bytes == 0
@@ -574,7 +663,7 @@ def test_trailing_bytes_flags_a_wrong_sample_type_hint(tmp_path):
     wrong one does not fail -- it returns garbage at the wrong stride. The
     leftover bytes are the only signal there is."""
     p = tmp_path / "hint.raw"
-    with Writer(p, file_type="raw", sample_type="ci8") as w:
+    with Writer(p, fs=1e6, file_type="raw", sample_type="ci8") as w:
         w.write(np.zeros(5, dtype=np.complex64))  # 10 bytes on the wire
     with Reader(p, sample_type="cf32") as r:  # would need 8 bytes/sample
         assert r.trailing_bytes == 2
@@ -585,7 +674,7 @@ def test_trailing_bytes_flags_a_capture_cut_mid_sample(tmp_path):
     """The other thing leftover bytes can mean; the reader cannot tell which,
     and says so rather than picking one."""
     p = tmp_path / "cut.raw"
-    with Writer(p, file_type="raw", sample_type="cf32") as w:
+    with Writer(p, fs=1e6, file_type="raw", sample_type="cf32") as w:
         w.write(np.zeros(8, dtype=np.complex64))
     with p.open("r+b") as f:
         f.truncate(p.stat().st_size - 3)

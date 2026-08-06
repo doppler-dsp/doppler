@@ -77,7 +77,7 @@ def test_add_keyword_rejects_non_blue(tmp_path):
     non-BLUE writer.
     """
     with (
-        Writer(tmp_path / "c.raw") as w,  # raw, not blue
+        Writer(tmp_path / "c.raw", fs=1e6) as w,  # raw, not blue
         pytest.raises(ValueError, match="add_keyword failed"),
     ):
         w.add_keyword("X", "D", 1.0)
@@ -91,7 +91,7 @@ def test_add_keyword_type_validation(tmp_path):
     ``unsupported code`` ValueError, and an ``A`` with a non-str value is a
     ``value must be a str`` TypeError.
     """
-    with Writer(tmp_path / "c.blue", file_type="blue") as w:
+    with Writer(tmp_path / "c.blue", fs=1e6, file_type="blue") as w:
         with pytest.raises(TypeError, match="unicode character"):
             w.add_keyword("X", "DD", 1.0)  # 'C' format wants exactly one char
         with pytest.raises(ValueError, match="unsupported code"):
@@ -112,7 +112,7 @@ def test_accepts_pathlike_and_round_trips(tmp_path, scene):
 def test_track_clipping_defaults_to_on(tmp_path, scene):
     """`track_clipping()` takes no argument -- the documented spelling."""
     p = tmp_path / "cap.ci16"
-    with Writer(p, sample_type="ci16") as w:
+    with Writer(p, fs=1e6, sample_type="ci16") as w:
         w.track_clipping()  # no argument
         w.write(scene)
         assert w.clip_fraction == 0.0
@@ -129,7 +129,7 @@ def test_writer_has_no_reset(tmp_path):
     a new capture. (Previously this raised ``NotImplementedError`` from a
     hand-written stub; the stub is gone with the whole method.)
     """
-    with Writer(tmp_path / "c.cf32") as w:
+    with Writer(tmp_path / "c.cf32", fs=1e6) as w:
         assert not hasattr(w, "reset")
         with pytest.raises(AttributeError):
             w.reset()
@@ -137,7 +137,7 @@ def test_writer_has_no_reset(tmp_path):
 
 def test_close_is_idempotent_and_destroy_agrees(tmp_path, scene):
     """`close()` survived the migration and stays idempotent."""
-    w = Writer(tmp_path / "c.cf32")
+    w = Writer(tmp_path / "c.cf32", fs=1e6)
     w.write(scene)
     w.close()
     w.close()  # idempotent
@@ -296,7 +296,9 @@ def test_blue_fc_is_written_to_both_keyword_blocks(tmp_path):
     double precision, so it is the one that survives.
     """
     p = tmp_path / "rf.blue"
-    with Writer(p, file_type="blue", sample_type="cf32", fc=2.4e9) as w:
+    with Writer(
+        p, fs=1e6, file_type="blue", sample_type="cf32", fc=2.4e9
+    ) as w:
         w.write(np.zeros(8, dtype=np.complex64))
     raw = p.read_bytes()
 
@@ -312,7 +314,7 @@ def test_blue_without_fc_adds_no_keyword(tmp_path):
     indistinguishable here -- so nothing is written and the capture stays as
     empty as it was before this feature existed."""
     p = tmp_path / "bb.blue"
-    with Writer(p, file_type="blue", sample_type="cf32") as w:
+    with Writer(p, fs=1e6, file_type="blue", sample_type="cf32") as w:
         w.write(np.zeros(8, dtype=np.complex64))
     assert struct.unpack_from("<i", p.read_bytes(), 160)[0] == 0  # keylength
     with Reader(p) as r:
@@ -327,7 +329,7 @@ def test_fc_survives_a_close_time_hcb_keyword_patch(tmp_path):
     is the path on which it could be silently overwritten away.
     """
     p = tmp_path / "both.blue"
-    w = Writer(p, file_type="blue", sample_type="cf32", fc=915e6)
+    w = Writer(p, fs=1e6, file_type="blue", sample_type="cf32", fc=915e6)
     w.add_keyword("VER", "A", "1.1")  # standard -> the same HCB area
     w.write(np.zeros(8, dtype=np.complex64))
     w.close()

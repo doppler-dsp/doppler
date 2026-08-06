@@ -1071,7 +1071,7 @@ doppler_wfmgen (int   argc, /* NOLINT(readability-function-size) */
       else
         {
           wfm_writer_state_t *w = wfm_writer_open (df, WFM_FT_RAW, sample_type,
-                                                   endian, fs, fc, 0);
+                                                   endian, fs, fc, 0, 0.0);
           size_t              total = 0;
           if (w)
             {
@@ -1099,7 +1099,7 @@ doppler_wfmgen (int   argc, /* NOLINT(readability-function-size) */
           if (hf)
             {
               wfm_blue_write_hcb (hf, sample_type, endian, fs, fc, 0.0, total,
-                                  1);
+                                  1, 0.0);
               (void)fclose (hf);
             }
           else
@@ -1171,7 +1171,7 @@ doppler_wfmgen (int   argc, /* NOLINT(readability-function-size) */
         }
       int                 wft = sigmf ? WFM_FT_RAW : file_type;
       wfm_writer_state_t *w
-          = wfm_writer_open (fp, wft, sample_type, endian, fs, fc, 0);
+          = wfm_writer_open (fp, wft, sample_type, endian, fs, fc, 0, 0.0);
       if (!w)
         {
           (void)fprintf (stderr, "error: cannot open writer\n");
@@ -1200,8 +1200,8 @@ doppler_wfmgen (int   argc, /* NOLINT(readability-function-size) */
 
       if (sigmf && rc == 0)
         {
-          char *meta = wfm_sigmf_meta_json (sample_type, endian, fs, fc, segs,
-                                            n_segs);
+          char *meta = wfm_sigmf_meta_json (sample_type, endian, fs, fc, 0.0,
+                                            segs, n_segs);
           if (meta)
             {
               char  meta_path[1024];

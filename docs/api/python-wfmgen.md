@@ -287,7 +287,7 @@ iq = Composer(timeline).compose()         # one complex64 array
 
 # Or stream block-by-block (an empty block marks the end):
 c = Composer(timeline)
-with Writer("frame.cf32", sample_type="cf32") as w:
+with Writer("frame.cf32", fs=1e6, sample_type="cf32") as w:
     while len(blk := c.execute(4096)):
         w.write(blk)
 with Reader("frame.cf32", sample_type="cf32") as r:  # C reader → complex64

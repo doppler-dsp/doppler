@@ -46,7 +46,8 @@ test_close_reports_a_failed_flush (void)
 
   FILE *ro = fopen (path, "rb"); /* writes on this stream cannot succeed */
   CHECK (ro != NULL, "reopen read-only");
-  wfm_writer_state_t *w = wfm_writer_open (ro, WFM_FT_RAW, 0, 0, 1e6, 0.0, 0);
+  wfm_writer_state_t *w
+      = wfm_writer_open (ro, WFM_FT_RAW, 0, 0, 1e6, 0.0, 0, 0.0);
   if (w)
     {
       float _Complex x[16];
@@ -70,7 +71,8 @@ main (void)
   {
     float _Complex s[2]    = { 1.0f + 2.0f * I, -1.0f - 2.0f * I };
     FILE               *fp = tmpfile ();
-    wfm_writer_state_t *w  = wfm_writer_open (fp, WFM_FT_RAW, 0, 0, 1e6, 0, 2);
+    wfm_writer_state_t *w
+        = wfm_writer_open (fp, WFM_FT_RAW, 0, 0, 1e6, 0, 2, 0.0);
     CHECK (w, "raw open");
     CHECK (wfm_writer_write (w, s, 2) == 2, "raw write");
     CHECK (wfm_writer_close (w) == 0, "raw close");
@@ -88,8 +90,10 @@ main (void)
     float _Complex s[1] = { 0.5f - 0.5f * I };
     uint8_t             le[4], be[4];
     FILE               *fl = tmpfile (), *fb = tmpfile ();
-    wfm_writer_state_t *wl = wfm_writer_open (fl, WFM_FT_RAW, 3, 0, 1e6, 0, 1);
-    wfm_writer_state_t *wb = wfm_writer_open (fb, WFM_FT_RAW, 3, 1, 1e6, 0, 1);
+    wfm_writer_state_t *wl
+        = wfm_writer_open (fl, WFM_FT_RAW, 3, 0, 1e6, 0, 1, 0.0);
+    wfm_writer_state_t *wb
+        = wfm_writer_open (fb, WFM_FT_RAW, 3, 1, 1e6, 0, 1, 0.0);
     wfm_writer_write (wl, s, 1);
     wfm_writer_write (wb, s, 1);
     wfm_writer_close (wl);
@@ -106,7 +110,8 @@ main (void)
   {
     float _Complex s[1]    = { 0.25f + (-0.5f) * I };
     FILE               *fp = tmpfile ();
-    wfm_writer_state_t *w  = wfm_writer_open (fp, WFM_FT_CSV, 0, 0, 1e6, 0, 1);
+    wfm_writer_state_t *w
+        = wfm_writer_open (fp, WFM_FT_CSV, 0, 0, 1e6, 0, 1, 0.0);
     CHECK (wfm_writer_write (w, s, 1) == 1, "csv write");
     wfm_writer_close (w);
     size_t nb = slurp (fp, bytes, sizeof bytes - 1);
@@ -121,7 +126,8 @@ main (void)
     float _Complex s[2] = { 1.0f + 0.0f * I, 0.0f + 1.0f * I };
     FILE *fp            = tmpfile ();
     /* total unknown at open (0) → close must patch it */
-    wfm_writer_state_t *w = wfm_writer_open (fp, WFM_FT_BLUE, 0, 0, 1e6, 0, 0);
+    wfm_writer_state_t *w
+        = wfm_writer_open (fp, WFM_FT_BLUE, 0, 0, 1e6, 0, 0, 0.0);
     CHECK (w, "blue open");
     wfm_writer_write (w, s, 2);
     CHECK (wfm_writer_close (w) == 0, "blue close");
@@ -152,7 +158,7 @@ main (void)
   {
     FILE *fp = tmpfile ();
     /* ci16, 100 samples, detached */
-    CHECK (wfm_blue_write_hcb (fp, 3, 0, 1e6, 0, 0.0, 100, 1) == 0,
+    CHECK (wfm_blue_write_hcb (fp, 3, 0, 1e6, 0, 0.0, 100, 1, 0.0) == 0,
            "detached hcb write");
     size_t nb = slurp (fp, bytes, sizeof bytes);
     CHECK (nb == 512, "detached hcb is header-only (no data)");
@@ -197,7 +203,7 @@ main (void)
         .num_samples = 4096,
         .off_samples = 0 },
     };
-    char *j = wfm_sigmf_meta_json (3, 0, 1e6, 2.4e9, segs, 2);
+    char *j = wfm_sigmf_meta_json (3, 0, 1e6, 2.4e9, 0.0, segs, 2);
     CHECK (j, "sigmf meta");
     CHECK (strstr (j, "\"core:datatype\":\"ci16_le\""), "sigmf datatype");
     CHECK (strstr (j, "\"core:sample_rate\":1000000"), "sigmf rate");
@@ -232,7 +238,7 @@ main (void)
     wfm_segment_t sp = {
       .sources = &prbs, .n_sources = 1, .fs = 6.138e6, .num_samples = 4096
     };
-    char *jp = wfm_sigmf_meta_json (0, 0, 6.138e6, 0, &sp, 1);
+    char *jp = wfm_sigmf_meta_json (0, 0, 6.138e6, 0, 0.0, &sp, 1);
     CHECK (jp && strstr (jp, "\"wfmgen:symbol_rate\":2700"),
            "sigmf continuous prbs symbol_rate");
     CHECK (jp && !strstr (jp, "\"wfmgen:data\""),
@@ -242,7 +248,7 @@ main (void)
     wfm_segment_t sn = {
       .sources = &none, .n_sources = 1, .fs = 6.138e6, .num_samples = 4096
     };
-    char *jn = wfm_sigmf_meta_json (0, 0, 6.138e6, 0, &sn, 1);
+    char *jn = wfm_sigmf_meta_json (0, 0, 6.138e6, 0, 0.0, &sn, 1);
     CHECK (jn && strstr (jn, "\"wfmgen:symbol_rate\":2700")
                && strstr (jn, "\"wfmgen:data\":\"none\""),
            "sigmf code-only symbol_rate + data=none");
@@ -251,7 +257,7 @@ main (void)
     wfm_segment_t sb = {
       .sources = &burst, .n_sources = 1, .fs = 6.138e6, .num_samples = 4096
     };
-    char *jb = wfm_sigmf_meta_json (0, 0, 6.138e6, 0, &sb, 1);
+    char *jb = wfm_sigmf_meta_json (0, 0, 6.138e6, 0, 0.0, &sb, 1);
     CHECK (jb && !strstr (jb, "\"wfmgen:symbol_rate\""),
            "sigmf burst dsss omits symbol_rate");
     free (jb);
@@ -263,7 +269,8 @@ main (void)
        peak = 2.0; 2 of 4 components saturate → fraction 0.5 (ci16). */
     float _Complex s[2]    = { 1.5f + 0.5f * I, -0.5f - 2.0f * I };
     FILE               *fp = tmpfile ();
-    wfm_writer_state_t *w  = wfm_writer_open (fp, WFM_FT_RAW, 3, 0, 1e6, 0, 2);
+    wfm_writer_state_t *w
+        = wfm_writer_open (fp, WFM_FT_RAW, 3, 0, 1e6, 0, 2, 0.0);
     CHECK (w, "clip open");
     wfm_writer_track_clipping (w, 1);
     CHECK (wfm_writer_write (w, s, 2) == 2, "clip write");
@@ -278,7 +285,8 @@ main (void)
   {
     float _Complex s[1]    = { 3.0f + 0.0f * I };
     FILE               *fp = tmpfile ();
-    wfm_writer_state_t *w  = wfm_writer_open (fp, WFM_FT_RAW, 0, 0, 1e6, 0, 1);
+    wfm_writer_state_t *w
+        = wfm_writer_open (fp, WFM_FT_RAW, 0, 0, 1e6, 0, 1, 0.0);
     wfm_writer_track_clipping (w, 1);
     wfm_writer_write (w, s, 1);
     CHECK (wfm_writer_peak (w) == 3.0, "float peak tracked");
@@ -292,7 +300,8 @@ main (void)
   {
     float _Complex s[2]    = { 1.0f + 1.0f * I, -1.0f - 1.0f * I };
     FILE               *fp = tmpfile ();
-    wfm_writer_state_t *w  = wfm_writer_open (fp, WFM_FT_RAW, 3, 0, 1e6, 0, 2);
+    wfm_writer_state_t *w
+        = wfm_writer_open (fp, WFM_FT_RAW, 3, 0, 1e6, 0, 2, 0.0);
     wfm_writer_write (w, s, 2); /* no track_clipping → fraction stays 0 */
     CHECK (wfm_writer_peak (w) == 1.0, "clean peak == 1.0 (no clip)");
     CHECK (wfm_writer_clip_fraction (w) == 0.0, "no opt-in → fraction 0");
@@ -305,8 +314,10 @@ main (void)
     float _Complex s[1] = { 0.8f - 0.3f * I };
     uint8_t             a[4], b[4];
     FILE               *fa = tmpfile (), *fb = tmpfile ();
-    wfm_writer_state_t *wa = wfm_writer_open (fa, WFM_FT_RAW, 3, 0, 1e6, 0, 1);
-    wfm_writer_state_t *wb = wfm_writer_open (fb, WFM_FT_RAW, 3, 0, 1e6, 0, 1);
+    wfm_writer_state_t *wa
+        = wfm_writer_open (fa, WFM_FT_RAW, 3, 0, 1e6, 0, 1, 0.0);
+    wfm_writer_state_t *wb
+        = wfm_writer_open (fb, WFM_FT_RAW, 3, 0, 1e6, 0, 1, 0.0);
     wfm_writer_set_gain (wa, 1.0); /* explicit 1.0 == default (no gain) */
     wfm_writer_write (wa, s, 1);
     wfm_writer_write (wb, s, 1);
@@ -322,7 +333,8 @@ main (void)
   {
     float _Complex s[1]    = { 1.5f + 0.0f * I }; /* clips at unity gain */
     FILE               *fp = tmpfile ();
-    wfm_writer_state_t *w  = wfm_writer_open (fp, WFM_FT_RAW, 3, 0, 1e6, 0, 1);
+    wfm_writer_state_t *w
+        = wfm_writer_open (fp, WFM_FT_RAW, 3, 0, 1e6, 0, 1, 0.0);
     wfm_writer_set_gain (w, 0.5); /* 1.5 * 0.5 = 0.75, fits full-scale */
     wfm_writer_track_clipping (w, 1);
     wfm_writer_write (w, s, 1);
@@ -330,6 +342,50 @@ main (void)
     CHECK (wfm_writer_clip_fraction (w) == 0.0, "headroom cleared the clip");
     wfm_writer_close (w);
     fclose (fp);
+  }
+
+  /* ── SigMF: an UNSTATED rate is omitted, not fabricated. ───────────────
+     core:sample_rate is optional in SigMF 1.0.0 (only core:datatype and
+     core:version are required in `global`), so fs == 0.0 must produce a
+     document with no rate key at all. The alternative -- writing whatever
+     the ctor happened to default to -- is what put a confident 1000000 into
+     captures nobody had given a rate, in a file that outlives the process.
+     An absent key says "not stated"; a present one is a number a downstream
+     tool will act on. ── */
+  {
+    char *j = wfm_sigmf_meta_json (3, 0, 0.0, 2.4e9, 0.0, NULL, 0);
+    CHECK (j, "sigmf meta with no rate");
+    CHECK (strstr (j, "\"core:sample_rate\"") == NULL,
+           "an unstated rate is OMITTED, never defaulted");
+    /* The required members are still there -- omitting the rate must not
+       produce a document that fails validation for a different reason. */
+    CHECK (strstr (j, "\"core:datatype\":\"ci16_le\""), "datatype still set");
+    CHECK (strstr (j, "\"core:version\":\"1.0.0\""), "version still set");
+    free (j);
+    /* The control: the SAME call WITH a rate must emit it, or the check
+       above would also pass on a builder that had stopped writing it. */
+    j = wfm_sigmf_meta_json (3, 0, 2.5e6, 2.4e9, 0.0, NULL, 0);
+    CHECK (j, "sigmf meta with a rate");
+    CHECK (strstr (j, "\"core:sample_rate\":2500000"),
+           "a stated rate IS emitted");
+    free (j);
+  }
+
+  /* ── SigMF: core:datetime follows the same omit-when-unset rule, and is
+     the EXTENDED ISO 8601 spelling the spec requires -- not the
+     filename-safe basic form doppler names files with. ── */
+  {
+    char *j = wfm_sigmf_meta_json (3, 0, 1e6, 0.0, 0.0, NULL, 0);
+    CHECK (j, "sigmf meta, unset t0");
+    CHECK (strstr (j, "\"core:datetime\"") == NULL,
+           "an unset t0 is OMITTED, never rendered as 1970");
+    free (j);
+    /* 2026-08-05T04:15:30Z */
+    j = wfm_sigmf_meta_json (3, 0, 1e6, 0.0, 1785903330.0, NULL, 0);
+    CHECK (j, "sigmf meta, set t0");
+    CHECK (strstr (j, "\"core:datetime\":\"2026-08-05T04:15:30.000000Z\""),
+           "t0 rendered as extended ISO 8601, separators and all");
+    free (j);
   }
 
   if (test_close_reports_a_failed_flush ())

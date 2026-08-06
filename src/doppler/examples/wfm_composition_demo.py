@@ -105,12 +105,12 @@ clip_frac = float(np.mean((np.abs(xs.real) > 1) | (np.abs(xs.imag) > 1)))
 
 # ── the writer does the same bookkeeping for free ────────────────────────────
 # --8<-- [start:writer]
-with Writer("scene.cf32", sample_type="ci16", headroom=4.0) as w:
+with Writer("scene.cf32", fs=1e6, sample_type="ci16", headroom=4.0) as w:
     w.write(x)
     print(f"peak {w.peak_dbfs:+.1f} dBFS, clipped: {w.clipped}")
 
 # Or detect first, then dial in exactly enough headroom:
-with Writer("probe.ci16", sample_type="ci16") as w:
+with Writer("probe.ci16", fs=1e6, sample_type="ci16") as w:
     w.track_clipping()
     w.write(x)
     need = max(0.0, np.ceil(w.peak_dbfs))  # dB to fit under full scale

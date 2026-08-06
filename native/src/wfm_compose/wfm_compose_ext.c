@@ -2655,11 +2655,12 @@ Composer_to_sigmf(ComposerObject *self, PyObject *args, PyObject *kwds)
     }
     const char *sample_type = "cf32";
     const char *endian = "le";
-    double fs = 1e6;
+    double fs = 0.0;
     double fc = 0.0;
-    static char *kwlist[] = {"sample_type", "endian", "fs", "fc", NULL};
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|ssdd", kwlist,
-            &sample_type, &endian, &fs, &fc))
+    double t0 = 0.0;
+    static char *kwlist[] = {"sample_type", "endian", "fs", "fc", "t0", NULL};
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|ssddd", kwlist,
+            &sample_type, &endian, &fs, &fc, &t0))
         return NULL;
     int _e_sample_type = _enum_index(_enum_stype, sample_type);
     if (_e_sample_type < 0) {
@@ -2674,7 +2675,7 @@ Composer_to_sigmf(ComposerObject *self, PyObject *args, PyObject *kwds)
     size_t _n; int _rep = 0, _cont = 0;
     const wfm_segment_t *segs =
         wfm_compose_segments(self->state, &_n, &_rep, &_cont);
-    char *_js = wfm_sigmf_meta_json(_e_sample_type, _e_endian, fs, fc, segs, _n);
+    char *_js = wfm_sigmf_meta_json(_e_sample_type, _e_endian, fs, fc, t0, segs, _n);
     if (!_js) {
         PyErr_SetString(PyExc_RuntimeError, "wfm_sigmf_meta_json failed");
         return NULL;

@@ -16,6 +16,12 @@ class Writer:
         `file_type="sigmf"` this MUST end in `.sigmf-data`: a SigMF capture is
         a `<base>.sigmf-data` + `<base>.sigmf-meta` pair found by name, and
         close() writes the sidecar beside it.
+    fs : float
+        sample rate (Hz), and REQUIRED -- there is no default. BLUE stores it
+        as `xdelta = 1/fs`, SigMF as `core:sample_rate`. Pass 0.0 to state that
+        the rate is not known: that writes `xdelta = 0` and omits
+        `core:sample_rate`, where a defaulted value would have written a rate
+        nobody supplied into a file that outlives the process.
     file_type : Literal["raw", "csv", "blue", "sigmf"], default "raw"
         `"raw"` (headerless interleaved I/Q), `"csv"` (one `I,Q` line per
         sample), `"blue"` (self-describing X-Midas/REDHAWK type-1000) or
@@ -27,9 +33,6 @@ class Writer:
         track_clipping()/peak_dbfs.
     endian : Literal["le", "be"], default "le"
         `"le"` or `"be"`; ignored for CSV, which is text.
-    fs : float, default 1e6
-        sample rate (Hz). BLUE stores it as `xdelta = 1/fs`, SigMF as
-        `core:sample_rate`.
     fc : float, default 0.0
         centre frequency (Hz). BLUE records it as a `FREQ` keyword, SigMF as
         `captures[0]["core:frequency"]`; raw and CSV drop it. 0.0 writes
@@ -41,6 +44,13 @@ class Writer:
         dB of output backoff (gain = 10^(-H/20)) applied before quantisation. A
         single scale, so it does not change any power ratio -- only the
         absolute level. 0 is a bit-exact no-op.
+    t0 : float, default 0.0
+        capture start, seconds since the UNIX epoch. Optional where `fs` is
+        required, because a capture with no wall-clock anchor is still readable
+        and one with no rate is not. BLUE stores it as a J1950 timecode, SigMF
+        as `captures[0]["core:datetime"]`; raw and CSV drop it. 0.0 means unset
+        and stays unset -- it is never written as 1970. `Reader.t0` /
+        `Reader.t0_source` read it back.
 
     Examples
     --------
@@ -69,13 +79,14 @@ class Writer:
     def __init__(
         self,
         path: str | os.PathLike,
+        fs: float,
         file_type: Literal["raw", "csv", "blue", "sigmf"] = "raw",
         sample_type: Literal["cf32", "cf64", "ci32", "ci16", "ci8"] = "cf32",
         endian: Literal["le", "be"] = "le",
-        fs: float = ...,
         fc: float = ...,
         total: int = ...,
         headroom: float = ...,
+        t0: float = ...,
     ) -> None: ...
 
     def write(self, x: NDArray[np.complex64]) -> int:
@@ -241,11 +252,12 @@ def write_blue_header(
     path: str | os.PathLike,
     sample_type: str = 'cf32',
     endian: str = 'le',
-    fs: float = 1e6,
+    fs: float = 0.0,
     fc: float = 0.0,
     data_start: float = 0.0,
     total: int = 0,
     detached: int = 1,
+    t0: float = 0.0,
 ) -> None:
     """Write a standalone BLUE type-1000 HCB header (the detached .hdr): 512
     bytes carrying the BLUE magic, byte order, data_size (total x

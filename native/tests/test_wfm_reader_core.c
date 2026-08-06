@@ -43,7 +43,7 @@ roundtrip (const char *path, int ft, int stype, double fs, double tol)
 
   FILE *fp = fopen (path, "wb");
   CHECK (fp, "open for write");
-  wfm_writer_state_t *w = wfm_writer_open (fp, ft, stype, 0, fs, 0.0, N);
+  wfm_writer_state_t *w = wfm_writer_open (fp, ft, stype, 0, fs, 0.0, N, 0.0);
   CHECK (w, "writer open");
   CHECK (wfm_writer_write (w, x, N) == N, "writer wrote N");
   wfm_writer_close (w);
@@ -52,7 +52,7 @@ roundtrip (const char *path, int ft, int stype, double fs, double tol)
   /* SigMF needs its .sigmf-meta sidecar written separately. */
   if (ft == WFM_FT_SIGMF)
     {
-      char *meta = wfm_sigmf_meta_json (stype, 0, fs, 0.0, NULL, 0);
+      char *meta = wfm_sigmf_meta_json (stype, 0, fs, 0.0, 0.0, NULL, 0);
       CHECK (meta, "sigmf meta json");
       char mpath[1024];
       snprintf (mpath, sizeof mpath, "%.*s.sigmf-meta",
@@ -103,7 +103,8 @@ test_blue_gate (void)
   make_signal (x, 8);
   FILE *fp = fopen (raw, "wb");
   CHECK (fp, "open raw");
-  wfm_writer_state_t *w = wfm_writer_open (fp, WFM_FT_RAW, 0, 0, 1e6, 0.0, 8);
+  wfm_writer_state_t *w
+      = wfm_writer_open (fp, WFM_FT_RAW, 0, 0, 1e6, 0.0, 8, 0.0);
   wfm_writer_write (w, x, 8);
   wfm_writer_close (w);
   fclose (fp);
@@ -156,7 +157,7 @@ test_detached_header_entry (void)
       FILE *hf = fopen (HDR[i], "wb");
       CHECK (hf != NULL, "open detached header");
       /* data_start = 0, detached = 1 -> payload is the collocated .det */
-      CHECK (wfm_blue_write_hcb (hf, 0, 0, 2.4e6, 0.0, 0.0, N, 1) == 0,
+      CHECK (wfm_blue_write_hcb (hf, 0, 0, 2.4e6, 0.0, 0.0, N, 1, 0.0) == 0,
              "write detached HCB");
       fclose (hf);
 
@@ -187,7 +188,7 @@ write_blue_mode (const char *path, char mode, size_t ncomp,
 {
   FILE *fp = fopen (path, "wb");
   CHECK (fp != NULL, "open mode file");
-  CHECK (wfm_blue_write_hcb (fp, 0, 0, 1e6, 0.0, 512.0, n, 0) == 0,
+  CHECK (wfm_blue_write_hcb (fp, 0, 0, 1e6, 0.0, 512.0, n, 0, 0.0) == 0,
          "write HCB");
   /* data_size assumed complex; rewrite it for the real component count. */
   double dsz = (double)(n * ncomp * 4);
@@ -351,7 +352,7 @@ test_keyword_roundtrip (void)
       FILE       *fp   = fopen (path, "wb");
       CHECK (fp != NULL, "open blue");
       wfm_writer_state_t *w
-          = wfm_writer_open (fp, WFM_FT_BLUE, 0, be, 2.4e6, 0.0, N);
+          = wfm_writer_open (fp, WFM_FT_BLUE, 0, be, 2.4e6, 0.0, N, 0.0);
       CHECK (w != NULL, "writer open");
       if (attach_keywords (w))
         return 1;
@@ -380,7 +381,7 @@ test_keyword_roundtrip (void)
   /* detached: keywords are in the .hdr, samples in the .det */
   FILE *hf = fopen ("dp_kw_det.hdr", "wb");
   CHECK (hf != NULL, "open detached header");
-  CHECK (wfm_blue_write_hcb (hf, 0, 0, 2.4e6, 0.0, 0.0, N, 1) == 0,
+  CHECK (wfm_blue_write_hcb (hf, 0, 0, 2.4e6, 0.0, 0.0, N, 1, 0.0) == 0,
          "write detached HCB");
   fclose (hf);
   /* re-open the header as a BLUE writer target purely to attach keywords:
@@ -444,7 +445,7 @@ test_keyword_absent_and_corrupt (void)
   FILE *fp = fopen ("dp_kw_none.blue", "wb");
   CHECK (fp != NULL, "open");
   wfm_writer_state_t *w
-      = wfm_writer_open (fp, WFM_FT_BLUE, 0, 0, 2.4e6, 0.0, N);
+      = wfm_writer_open (fp, WFM_FT_BLUE, 0, 0, 2.4e6, 0.0, N, 0.0);
   wfm_writer_write (w, x, N);
   wfm_writer_close (w);
   fclose (fp);
@@ -456,7 +457,7 @@ test_keyword_absent_and_corrupt (void)
 
   /* claim an extended header that runs off the end of the file */
   fp = fopen ("dp_kw_bad.blue", "wb");
-  w  = wfm_writer_open (fp, WFM_FT_BLUE, 0, 0, 2.4e6, 0.0, N);
+  w  = wfm_writer_open (fp, WFM_FT_BLUE, 0, 0, 2.4e6, 0.0, N, 0.0);
   attach_keywords (w);
   wfm_writer_write (w, x, N);
   wfm_writer_close (w);
@@ -497,7 +498,8 @@ test_reset_rewinds_to_the_first_sample (void)
     {
       FILE *fp = fopen (PATHS[i], "wb");
       CHECK (fp != NULL, "open");
-      wfm_writer_state_t *w = wfm_writer_open (fp, FT[i], 0, 0, 2.4e6, 0.0, N);
+      wfm_writer_state_t *w
+          = wfm_writer_open (fp, FT[i], 0, 0, 2.4e6, 0.0, N, 0.0);
       CHECK (w != NULL, "writer");
       if (FT[i] == WFM_FT_BLUE && attach_keywords (w))
         return 1;
@@ -569,7 +571,8 @@ test_ext_header_at_end_of_attached_file (void)
 
   FILE *fp = fopen ("dp_extend.blue", "wb");
   CHECK (fp, "open for write");
-  wfm_writer_state_t *w = wfm_writer_open (fp, WFM_FT_BLUE, 0, 0, sr, 0.0, n);
+  wfm_writer_state_t *w
+      = wfm_writer_open (fp, WFM_FT_BLUE, 0, 0, sr, 0.0, n, 0.0);
   CHECK (w, "writer open");
   CHECK (wfm_writer_add_keyword (w, "SRATE", 'D', &sr, 1) == 0, "typed kw");
   float _Complex xs[8];
@@ -624,7 +627,8 @@ test_hcb_keyword_area (void)
   int   _fails = 0;
   FILE *fp     = fopen ("dp_hcbkw.blue", "wb");
   CHECK (fp, "open for write");
-  wfm_writer_state_t *w = wfm_writer_open (fp, WFM_FT_BLUE, 0, 0, 1e6, 0.0, 4);
+  wfm_writer_state_t *w
+      = wfm_writer_open (fp, WFM_FT_BLUE, 0, 0, 1e6, 0.0, 4, 0.0);
   CHECK (w, "writer open");
   /* Only the six standard main-header keywords (BLUE 1.1 3.4.1) go to the
      HCB area, and only as ASCII. A user keyword -- even an ASCII one -- goes
@@ -753,11 +757,15 @@ test_fc_from_keywords (void)
 }
 
 /* fs_source / t0_source: the provenance half of the metadata, and the case
-   that motivated it. doppler's own BLUE writer leaves the timecode field
-   zero, so every capture this library produces reads back t0 == 0.0 -- which
-   converted naively through the J1950 offset is a confident, wrong
-   1950-01-01. WFM_T0_NONE is what makes that distinguishable from a capture
-   that really does declare a start time. */
+   that motivated it. A BLUE writer given no t0 leaves the timecode field
+   zero, so the capture reads back t0 == 0.0 -- which converted naively
+   through the J1950 offset is a confident, wrong 1950-01-01. WFM_T0_NONE is
+   what makes that distinguishable from a capture that really does declare a
+   start time.
+
+   This is the UNSET half; test_t0_round_trips_through_blue is the SET half.
+   Both are needed: a writer that always stamped a timecode would make
+   t0_source pointless, and one that never could would make it unreachable. */
 static int
 test_fs_and_t0_provenance (void)
 {
@@ -767,7 +775,7 @@ test_fs_and_t0_provenance (void)
   FILE *fp = fopen (path, "wb");
   CHECK (fp, "open for write");
   wfm_writer_state_t *w
-      = wfm_writer_open (fp, WFM_FT_BLUE, 0, 0, 2.5e6, 0.0, 4);
+      = wfm_writer_open (fp, WFM_FT_BLUE, 0, 0, 2.5e6, 0.0, 4, 0.0);
   CHECK (w, "writer open");
   CHECK (wfm_writer_write (w, xs, 4) == 4, "write");
   CHECK (wfm_writer_close (w) == 0, "close");
@@ -809,6 +817,48 @@ test_fs_and_t0_provenance (void)
   return 0;
 }
 
+/* The SET half: a t0 handed to the writer must survive the round trip
+   through the J1950 timecode field and come back attributed.
+
+   The epoch conversion is the part worth pinning. BLUE counts seconds from
+   1950-01-01 and UNIX from 1970-01-01, so a writer that forgot the offset
+   would still produce a file that reads back *some* time -- 20 years wrong,
+   and only obviously wrong if you look. Comparing against the exact UNIX
+   value the writer was given catches a dropped, doubled or sign-flipped
+   offset, none of which a "is a timecode present" check would notice. */
+static int
+test_t0_round_trips_through_blue (void)
+{
+  const char *path = "dp_reader_t0.blue";
+  /* 2026-08-05T04:15:30Z. A whole second: the field is a double of seconds,
+     so an exact comparison is legitimate here and stays honest about what
+     the format can carry. */
+  const double t0      = 1785903330.0;
+  float _Complex xs[4] = { 0 };
+
+  FILE *fp = fopen (path, "wb");
+  CHECK (fp, "open for write");
+  wfm_writer_state_t *w
+      = wfm_writer_open (fp, WFM_FT_BLUE, 0, 0, 2.5e6, 0.0, 4, t0);
+  CHECK (w, "writer open");
+  CHECK (wfm_writer_write (w, xs, 4) == 4, "write");
+  CHECK (wfm_writer_close (w) == 0, "close");
+  fclose (fp);
+
+  wfm_reader_state_t *r = wfm_reader_create (path, 0, 0);
+  CHECK (r, "reader open");
+  wfm_reader_info_t info;
+  wfm_reader_info (r, &info);
+  CHECK (info.t0_source == WFM_T0_BLUE_TIMECODE, "t0 attributed to timecode");
+  CHECK (info.t0_unix_sec == t0, "t0 round-trips as the SAME unix instant");
+  CHECK (wfm_reader_get_t0 (r) == t0, "t0 accessor agrees");
+  CHECK (wfm_reader_get_t0_source (r) == WFM_T0_BLUE_TIMECODE,
+         "t0 source accessor agrees");
+  wfm_reader_destroy (r);
+  remove (path);
+  return 0;
+}
+
 /* The writer's two copies must never be readable as disagreeing. */
 static int
 test_fc_write_side (void)
@@ -819,7 +869,8 @@ test_fc_write_side (void)
 
   FILE *fp = fopen (path, "wb");
   CHECK (fp, "open for write");
-  wfm_writer_state_t *w = wfm_writer_open (fp, WFM_FT_BLUE, 0, 0, 1e6, fc, 4);
+  wfm_writer_state_t *w
+      = wfm_writer_open (fp, WFM_FT_BLUE, 0, 0, 1e6, fc, 4, 0.0);
   CHECK (w, "writer open");
   /* A standard HCB keyword makes close() rewrite the whole 92-byte area --
      the path on which a frequency written at open could be lost. */
@@ -919,7 +970,7 @@ test_sigmf_pair_from_create (void)
   /* A path-opened writer owns BOTH halves; the sidecar carries the datatype,
      so emitting only the samples produces an undecodable capture. */
   wfm_writer_state_t *w
-      = wfm_writer_create (path, WFM_FT_SIGMF, 3, 0, 2e6, 1.2e9, 4, 0.0);
+      = wfm_writer_create (path, 2e6, WFM_FT_SIGMF, 3, 0, 1.2e9, 4, 0.0, 0.0);
   CHECK (w, "writer create");
   CHECK (wfm_writer_write (w, xs, 4) == 4, "write");
   CHECK (wfm_writer_close (w) == 0, "close");
@@ -937,12 +988,12 @@ test_sigmf_pair_from_create (void)
   /* Both halves are found by NAME, so the name is part of the format. The
      control proves the refusal is about the extension and not about the path
      being unwritable -- otherwise this pair of checks would pass vacuously. */
-  wfm_writer_state_t *ok = wfm_writer_create ("dp_reader_pair.bin", WFM_FT_RAW,
-                                              3, 0, 2e6, 0.0, 4, 0.0);
+  wfm_writer_state_t *ok = wfm_writer_create (
+      "dp_reader_pair.bin", 2e6, WFM_FT_RAW, 3, 0, 0.0, 4, 0.0, 0.0);
   CHECK (ok != NULL, "the same path is writable as raw");
   CHECK (wfm_writer_close (ok) == 0, "control close");
-  CHECK (wfm_writer_create ("dp_reader_pair.bin", WFM_FT_SIGMF, 3, 0, 2e6, 0.0,
-                            4, 0.0)
+  CHECK (wfm_writer_create ("dp_reader_pair.bin", 2e6, WFM_FT_SIGMF, 3, 0, 0.0,
+                            4, 0.0, 0.0)
              == NULL,
          "a SigMF path must end in .sigmf-data");
   return 0;
@@ -992,6 +1043,8 @@ main (void)
   if (test_detects_by_content_not_extension ())
     return 1;
   if (test_sigmf_pair_from_create ())
+    return 1;
+  if (test_t0_round_trips_through_blue ())
     return 1;
   if (test_fs_and_t0_provenance ())
     return 1;

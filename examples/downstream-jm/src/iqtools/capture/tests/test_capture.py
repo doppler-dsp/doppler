@@ -110,7 +110,7 @@ def raw(tmp_path_factory, samples, headroom):
     """A headerless ci16 capture: carries nothing but the samples."""
     path = tmp_path_factory.mktemp("cap") / "capture.raw"
     with Writer(
-        path, file_type="raw", sample_type="ci16", headroom=headroom[0]
+        path, fs=1e6, file_type="raw", sample_type="ci16", headroom=headroom[0]
     ) as w:
         w.write(samples)
         assert w.peak_dbfs <= 0.0

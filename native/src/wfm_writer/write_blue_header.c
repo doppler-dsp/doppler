@@ -19,13 +19,13 @@
 int
 write_blue_header (const char *path, int sample_type, int endian, double fs,
                    double fc, double data_start, size_t total_samples,
-                   int detached)
+                   int detached, double t0)
 {
   FILE *fp = fopen (path, "wb");
   if (!fp)
     return -1;
   int rc = wfm_blue_write_hcb (fp, sample_type, endian, fs, fc, data_start,
-                               total_samples, detached);
+                               total_samples, detached, t0);
   /* Success needs both a full write and a clean close (fclose is where a
      full-disk error finally surfaces); either failing is the nonzero status
      the binding's check_return raises on. */

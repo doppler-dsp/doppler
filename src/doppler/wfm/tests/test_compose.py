@@ -134,7 +134,9 @@ def test_byte_parity_vs_wfmgen(tmp_path, wtype, stype):
         type=wtype, fs=1e6, freq=1e5, num_samples=n, snr=100.0
     ).compose()
     py = tmp_path / "py.iq"
-    with Writer(py, file_type="raw", sample_type=stype, endian="le") as w:
+    with Writer(
+        py, fs=1e6, file_type="raw", sample_type=stype, endian="le"
+    ) as w:
         w.write(x)
     assert _md5(py) == _md5(cli), f"{wtype}/{stype} diverged from wfmgen"
 
@@ -169,7 +171,7 @@ def test_chirp_byte_parity_vs_wfmgen(tmp_path):
         Segment("chirp", fs=1e6, freq=1e5, f_end=3e5, num_samples=n)
     ).compose()
     py = tmp_path / "py.iq"
-    with Writer(py, file_type="raw", sample_type="cf32") as w:
+    with Writer(py, fs=1e6, file_type="raw", sample_type="cf32") as w:
         w.write(x)
     assert _md5(py) == _md5(cli)
 
@@ -264,7 +266,7 @@ def test_writer_readback_roundtrip(tmp_path, stype):
     q-step)."""
     x = Composer(type="tone", freq=1e5, num_samples=1000).compose()
     p = tmp_path / f"cap.{stype}"
-    with Writer(p, sample_type=stype) as w:
+    with Writer(p, fs=1e6, sample_type=stype) as w:
         w.write(x)
     y = _read_all(Reader(str(p), sample_type=stype))
     assert len(y) == len(x)
@@ -929,7 +931,7 @@ def test_reader_blocked_read_matches_read_all(tmp_path):
     """Block-wise read() concatenates to the same array as read_all()."""
     x = Composer(type="bpsk", sps=4, num_samples=3000, seed=2).compose()
     p = tmp_path / "cap.cf32"
-    with Writer(p) as w:
+    with Writer(p, fs=1e6) as w:
         w.write(x)
     whole = _read_all(Reader(str(p)))
     r = Reader(str(p))
@@ -943,7 +945,7 @@ def test_reader_blocked_read_matches_read_all(tmp_path):
 
 def test_reader_idempotent_close(tmp_path):
     p = tmp_path / "cap.cf32"
-    with Writer(p) as w:
+    with Writer(p, fs=1e6) as w:
         w.write(Composer(type="tone", num_samples=64).compose())
     r = Reader(str(p))
     _read_all(r)
@@ -995,7 +997,7 @@ def test_writer_clip_detection(tmp_path):
     """
     # peak magnitude 2.0 (clips in ci16); 2 of 4 components exceed full-scale.
     x = np.array([1.5 + 0.5j, -0.5 - 2.0j], dtype=np.complex64)
-    w = Writer(tmp_path / "clip.ci16", sample_type="ci16")
+    w = Writer(tmp_path / "clip.ci16", fs=1e6, sample_type="ci16")
     w.track_clipping(True)
     w.write(x)
     assert w.clipped
@@ -1006,13 +1008,13 @@ def test_writer_clip_detection(tmp_path):
         _ = w.clipped  # the handle is freed; live stats are no longer readable
 
     # clean at full scale: peak 0 dBFS, no clip.
-    c = Writer(tmp_path / "clean.ci16", sample_type="ci16")
+    c = Writer(tmp_path / "clean.ci16", fs=1e6, sample_type="ci16")
     c.write(np.array([1.0 + 1.0j, -1.0 - 1.0j], dtype=np.complex64))
     assert not c.clipped and abs(c.peak_dbfs) < 1e-4
     c.close()
 
     # float never clips, even past full scale.
-    f = Writer(tmp_path / "x.cf32", sample_type="cf32")
+    f = Writer(tmp_path / "x.cf32", fs=1e6, sample_type="cf32")
     f.write(x)
     assert not f.clipped
     f.close()
@@ -1025,7 +1027,7 @@ def test_writer_headroom(tmp_path):
 
     # 6.0206 dB → gain 0.5
     with Writer(
-        tmp_path / "hr.cf32", sample_type="cf32", headroom=6.0206
+        tmp_path / "hr.cf32", fs=1e6, sample_type="cf32", headroom=6.0206
     ) as w:
         w.write(x)
     assert np.allclose(
@@ -1034,14 +1036,16 @@ def test_writer_headroom(tmp_path):
     )
 
     # 0 dB (default) is verbatim
-    with Writer(tmp_path / "h0.cf32", sample_type="cf32") as w:
+    with Writer(tmp_path / "h0.cf32", fs=1e6, sample_type="cf32") as w:
         w.write(x)
     assert np.allclose(
         _read_all(Reader(str(tmp_path / "h0.cf32"), sample_type="cf32")), x
     )
 
     # enough headroom clears a clip that would saturate at unity gain
-    with Writer(tmp_path / "c.ci16", sample_type="ci16", headroom=12.0) as w:
+    with Writer(
+        tmp_path / "c.ci16", fs=1e6, sample_type="ci16", headroom=12.0
+    ) as w:
         w.track_clipping(True)
         w.write(np.array([1.5 + 0j, -2.0 + 0.3j], dtype=np.complex64))
         assert not w.clipped
@@ -1284,7 +1288,7 @@ def test_bits_byte_parity_vs_wfmgen(tmp_path):
         )
     ).compose()
     py = tmp_path / "py.cf32"
-    with Writer(py, file_type="raw", sample_type="cf32") as w:
+    with Writer(py, fs=1e6, file_type="raw", sample_type="cf32") as w:
         w.write(x)
     assert _md5(py) == _md5(cli)
 
@@ -1372,7 +1376,7 @@ def test_rrc_byte_parity_vs_wfmgen(tmp_path):
         )
     ).compose()
     py = tmp_path / "py.cf32"
-    with Writer(py, file_type="raw", sample_type="cf32") as w:
+    with Writer(py, fs=1e6, file_type="raw", sample_type="cf32") as w:
         w.write(x)
     assert _md5(py) == _md5(cli)
 

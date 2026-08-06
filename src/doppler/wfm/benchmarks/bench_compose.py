@@ -26,7 +26,7 @@ def test_bench_writer(benchmark, samples, tmp_path, file_type, stype):
     p = str(tmp_path / f"b_{file_type}.{stype}")
 
     def write():
-        with Writer(p, file_type=file_type, sample_type=stype) as w:
+        with Writer(p, fs=1e6, file_type=file_type, sample_type=stype) as w:
             w.write(samples)
 
     benchmark(write)
@@ -39,7 +39,7 @@ def test_bench_writer(benchmark, samples, tmp_path, file_type, stype):
 )
 def test_bench_reader(benchmark, samples, tmp_path, file_type, stype):
     p = str(tmp_path / f"b_{file_type}.{stype}")
-    with Writer(p, file_type=file_type, sample_type=stype) as w:
+    with Writer(p, fs=1e6, file_type=file_type, sample_type=stype) as w:
         w.write(samples)
 
     def read():

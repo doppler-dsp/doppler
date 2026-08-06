@@ -33,7 +33,7 @@ bench_cfg (const char *name, const char *path, int ft, int stype,
   /* Write the capture once (kept warm in the page cache). */
   FILE               *fp = fopen (path, "wb");
   wfm_writer_state_t *w
-      = wfm_writer_open (fp, ft, stype, 0, 1e6, 0.0, BENCH_N);
+      = wfm_writer_open (fp, ft, stype, 0, 1e6, 0.0, BENCH_N, 0.0);
   wfm_writer_write (w, x, BENCH_N);
   wfm_writer_close (w);
   fclose (fp);

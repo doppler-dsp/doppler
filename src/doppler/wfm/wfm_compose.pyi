@@ -433,6 +433,7 @@ class Composer:
         endian: str = ...,
         fs: float = ...,
         fc: float = ...,
+        t0: float = ...,
     ) -> str:
         """Serialise as to_sigmf."""
     def close(self) -> None:

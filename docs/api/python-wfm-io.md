@@ -69,7 +69,8 @@ has to be told them. `blue` and `sigmf` are self-describing.
 
 ```python
 # headerless: fs/fc are accepted but cannot be stored
-with Writer(tmp / "capture.raw", file_type="raw", sample_type="ci16") as w:
+with Writer(tmp / "capture.raw", fs=1e6, file_type="raw",
+            sample_type="ci16") as w:
     w.write(x)
 
 # self-describing: fs and fc survive the round trip
@@ -98,7 +99,7 @@ clips. `track_clipping()` turns on the counters, and `clip_fraction` /
 cost when tracking is off:
 
 ```python
-with Writer(tmp / "clip.raw", file_type="raw", sample_type="ci8") as w:
+with Writer(tmp / "clip.raw", fs=1e6, file_type="raw", sample_type="ci8") as w:
     w.track_clipping()
     w.write(x * 4.0)                  # deliberately over full scale
     assert w.clipped and w.clip_fraction > 0.0
@@ -175,7 +176,8 @@ can contradict it — so a non-zero remainder is the only signal that the hint i
 wrong or the capture is truncated:
 
 ```python
-with Writer(tmp / "short.raw", file_type="raw", sample_type="ci8") as w:
+with Writer(tmp / "short.raw", fs=1e6, file_type="raw",
+            sample_type="ci8") as w:
     w.write(x[:5])                             # 5 samples x 2 bytes = 10 bytes
 
 with Reader(tmp / "short.raw", sample_type="cf32") as r:

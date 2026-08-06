@@ -445,7 +445,7 @@ class TestQuantization:
         # Stay inside +/-1 full-scale (unit-magnitude tone -> ~0.7 per comp).
         p = tmp_path / f"cap_{stype}.iq"
         with w.Writer(
-            str(p), file_type="raw", sample_type=stype, total=len(x)
+            str(p), fs=1e6, file_type="raw", sample_type=stype, total=len(x)
         ) as wr:
             wr.write(x)
         with w.Reader(str(p), sample_type=stype) as r:
@@ -459,7 +459,7 @@ class TestQuantization:
         x = w.Synth(type="qpsk", sps=2, snr=100.0).steps(2048)
         p = tmp_path / f"cap_{stype}.iq"
         with w.Writer(
-            str(p), file_type="raw", sample_type=stype, total=len(x)
+            str(p), fs=1e6, file_type="raw", sample_type=stype, total=len(x)
         ) as wr:
             wr.write(x)
         with w.Reader(str(p), sample_type=stype) as r:
@@ -472,7 +472,7 @@ class TestQuantization:
         x = 3.0 * w.Synth(type="tone", freq=10_000.0, snr=100.0).steps(1024)
         p = tmp_path / "clip.iq"
         with w.Writer(
-            str(p), file_type="raw", sample_type="ci16", total=len(x)
+            str(p), fs=1e6, file_type="raw", sample_type="ci16", total=len(x)
         ) as wr:
             wr.track_clipping(1)
             wr.write(x)

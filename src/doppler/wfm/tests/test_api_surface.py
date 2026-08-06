@@ -461,7 +461,7 @@ class TestReaderWriter:
         x = 3.0 * w.Synth(type="tone", freq=1e4, snr=100.0).steps(512)
         p = tmp_path / "clip.iq"
         with w.Writer(
-            str(p), file_type="raw", sample_type="ci16", total=len(x)
+            str(p), fs=1e6, file_type="raw", sample_type="ci16", total=len(x)
         ) as wr:
             wr.track_clipping(1)
             wr.write(x)
@@ -495,7 +495,11 @@ class TestReaderWriter:
         x = w.Synth(type="qpsk", sps=2, snr=100.0).steps(1024)
         p = tmp_path / f"c.{sample_type}"
         with w.Writer(
-            str(p), file_type="raw", sample_type=sample_type, total=len(x)
+            str(p),
+            fs=1e6,
+            file_type="raw",
+            sample_type=sample_type,
+            total=len(x),
         ) as wr:
             wr.write(x)
         with w.Reader(str(p), sample_type=sample_type) as r:

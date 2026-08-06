@@ -145,7 +145,8 @@ sample. For a headerless file type this is the only signal there is:
 
 ```python
 # a ci8 capture, deliberately read back with the wrong hint
-with Writer(tmp / "capture.raw", file_type="raw", sample_type="ci8") as w:
+with Writer(tmp / "capture.raw", fs=1e6, file_type="raw",
+            sample_type="ci8") as w:
     w.write(x[:5])                       # 5 samples, 2 bytes each = 10 bytes
 
 with Reader(tmp / "capture.raw", sample_type="cf32") as r:

@@ -37,7 +37,7 @@ bench_cfg (const char *name, int ft, int stype, const float _Complex *x,
       FILE  *fp  = open_memstream (&buf, &len);
       clock_gettime (CLOCK_MONOTONIC, &t0);
       wfm_writer_state_t *w
-          = wfm_writer_open (fp, ft, stype, 0, 1e6, 0.0, BENCH_N);
+          = wfm_writer_open (fp, ft, stype, 0, 1e6, 0.0, BENCH_N, 0.0);
       wfm_writer_write (w, x, BENCH_N);
       wfm_writer_close (w);
       clock_gettime (CLOCK_MONOTONIC, &t1);

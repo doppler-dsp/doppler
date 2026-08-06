@@ -376,10 +376,17 @@ name = "endian"
 type = "int"
 enum = "endian"
 default = "le"
+# Defaults to 0.0 = "not known", NOT to a rate. Writer makes fs required
+# because a Writer produces a capture that outlives the call; this writes a
+# bare header, often as one step of a caller that already knows what it is
+# doing, so the reorder that `required` would force on the C prototype buys
+# less than it costs. What matters is the same either way: 0.0 writes
+# xdelta 0 — the header's own way of saying the rate is unknown — instead of
+# fabricating 1 MHz, which is what `default = "1e6"` did here.
 [[module.wfm_writer.functions.params]]
 name = "fs"
 type = "double"
-default = "1e6"
+default = "0.0"
 [[module.wfm_writer.functions.params]]
 name = "fc"
 type = "double"
@@ -396,6 +403,13 @@ default = "0"
 name = "detached"
 type = "int"
 default = "1"
+# Capture start, UNIX seconds → the header's J1950 timecode. Unset by
+# default; see objects/wfm_writer.toml's t0 for why this one is optional
+# where fs is not.
+[[module.wfm_writer.functions.params]]
+name = "t0"
+type = "double"
+default = "0.0"
 
 [module.wfm_sink]
 kind            = "handle"
@@ -1022,13 +1036,26 @@ type = "int"
 enum = "endian"
 default = "le"
 
+# Defaults to 0.0 = "not stated", NOT to a rate. This builds the same
+# `global` object Writer does, and `default = "1e6"` fabricated
+# core:sample_rate here in exactly the same way. The document now omits the
+# key when fs is 0.0 (it is optional in SigMF 1.0.0), so the honesty comes
+# from the omit rather than from forcing the caller to answer — a serializer
+# is a rendering step, not the moment a capture is defined.
 [[module.wfm_compose.serializers.params]]
 name = "fs"
 type = "double"
-default = "1e6"
+default = "0.0"
 
 [[module.wfm_compose.serializers.params]]
 name = "fc"
+type = "double"
+default = "0.0"
+
+# Capture start, UNIX seconds → `captures[0]."core:datetime"` (extended ISO
+# 8601). Unset by default, and omitted from the document when unset.
+[[module.wfm_compose.serializers.params]]
+name = "t0"
 type = "double"
 default = "0.0"
 [module.delay]

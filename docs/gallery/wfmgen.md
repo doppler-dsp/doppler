@@ -187,7 +187,7 @@ from doppler.wfm import Composer, Segment, Writer
 
 spec = [Segment("pn", num_samples=127), Segment("qpsk", num_samples=4096,
                                                 off_samples=512)]
-with Writer("frame.cf32", sample_type="cf32") as w:
+with Writer("frame.cf32", fs=1e6, sample_type="cf32") as w:
     w.write(Composer(spec).compose())
 ```
 

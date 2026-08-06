@@ -46,17 +46,18 @@ static PyObject *
 _bind_write_blue_header(PyObject *self, PyObject *args, PyObject *kwds)
 {
     (void)self;
-    static char *_kwlist[] = {"path", "sample_type", "endian", "fs", "fc", "data_start", "total", "detached", NULL};
+    static char *_kwlist[] = {"path", "sample_type", "endian", "fs", "fc", "data_start", "total", "detached", "t0", NULL};
     PyObject *path = NULL;  /* fspath -> bytes */
     const char *sample_type = "cf32";
     const char *endian = "le";
-    double fs = 1e6;
+    double fs = 0.0;
     double fc = 0.0;
     double data_start = 0.0;
     unsigned long long total_raw = 0;
     int detached = 1;
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "O&|ssdddKi",
-            _kwlist, PyUnicode_FSConverter, &path, &sample_type, &endian, &fs, &fc, &data_start, &total_raw, &detached))
+    double t0 = 0.0;
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "O&|ssdddKid",
+            _kwlist, PyUnicode_FSConverter, &path, &sample_type, &endian, &fs, &fc, &data_start, &total_raw, &detached, &t0))
     {
         Py_XDECREF(path);
         return NULL;
@@ -72,7 +73,7 @@ _bind_write_blue_header(PyObject *self, PyObject *args, PyObject *kwds)
         return NULL;
     }
     size_t total = (size_t)total_raw;
-    int _rc = write_blue_header(PyBytes_AS_STRING(path), _arg_sample_type, _arg_endian, fs, fc, data_start, total, detached);
+    int _rc = write_blue_header(PyBytes_AS_STRING(path), _arg_sample_type, _arg_endian, fs, fc, data_start, total, detached, t0);
     Py_XDECREF(path);
     if (_rc != 0) {
         PyErr_Format(PyExc_RuntimeError,

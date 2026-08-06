@@ -24,7 +24,7 @@ def scene():
 def test_write_64k(benchmark, tmp_path, scene, sample_type):
     def _write():
         with Writer(
-            tmp_path / f"b.{sample_type}", sample_type=sample_type
+            tmp_path / f"b.{sample_type}", fs=1e6, sample_type=sample_type
         ) as w:
             return w.write(scene)
 

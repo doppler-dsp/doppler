@@ -54,3 +54,17 @@ endforeach()
 # struct, so it needs the header alone -- but the test constructs one, so it
 # needs the implementation.
 target_link_libraries(test_tlm_capture PRIVATE timing_core)
+
+# The bound is claimed from a code audit of every emit site; this drives a REAL
+# object (carrier_nda -- the only unconditional per-input emitter) and measures
+# what it actually emits, so an edit that broke the audit is caught here rather
+# than by a silent overflow in the field.
+add_executable(test_tlm_bound_real
+               ${CMAKE_SOURCE_DIR}/native/tests/test_tlm_bound_real.c)
+target_link_libraries(test_tlm_bound_real
+                      PRIVATE telemetry_core carrier_nda_core lo_core
+                              loop_filter_core boxcar_core agc_core
+                              lockdet_core Threads::Threads m)
+target_include_directories(test_tlm_bound_real
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
+add_test(NAME test_tlm_bound_real COMMAND test_tlm_bound_real)

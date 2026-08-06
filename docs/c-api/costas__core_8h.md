@@ -16,7 +16,7 @@ _Costas carrier-tracking loop (integer-NCO de-rotation + PI loop)._ [More...](#d
 * `#include "lo/lo_core.h"`
 * `#include "lockdet/lockdet_core.h"`
 * `#include "loop_filter/loop_filter_core.h"`
-* `#include "telemetry/telemetry.h"`
+* `#include "dp_tlm/dp_tlm_core.h"`
 * `#include <math.h>`
 
 
@@ -82,7 +82,7 @@ _Costas carrier-tracking loop (integer-NCO de-rotation + PI loop)._ [More...](#d
 |  void | [**costas\_set\_bn\_fll**](#function-costas_set_bn_fll) ([**costas\_state\_t**](structcostas__state__t.md) \* state, double val) <br> |
 |  void | [**costas\_set\_norm\_freq**](#function-costas_set_norm_freq) ([**costas\_state\_t**](structcostas__state__t.md) \* state, double val) <br> |
 |  int | [**costas\_set\_state**](#function-costas_set_state) ([**costas\_state\_t**](structcostas__state__t.md) \* state, const void \* blob) <br>_Restore state; DP\_OK, or DP\_ERR\_INVALID if the envelope rejects._  |
-|  int | [**costas\_set\_telemetry**](#function-costas_set_telemetry) ([**costas\_state\_t**](structcostas__state__t.md) \* state, [**dp\_tlm\_t**](telemetry_8h.md#typedef-dp_tlm_t) \* tlm, const char \* prefix, uint32\_t decim) <br>_Attach (or detach) a telemetry context and register the carrier loop's probes on it. Registers four probes, emitted once per dumped symbol and further thinned by decim: "&lt;prefix&gt;.lock" (the \|Re P\|/\|P\| lock-metric EMA, 1 = phase-locked), "&lt;prefix&gt;.e" (the PLL discriminator output — the loop stress), "&lt;prefix&gt;.freq" (the tracked NCO frequency, cycles/sample) and "&lt;prefix&gt;.locked" (the verify-counted lock decision, 0/1 — see costas\_configure\_lock). Passing NULL detaches. Setup path, never hot: call before the producer thread starts stepping; the context is borrowed and must outlive the attachment (SPSC rules in_ [_**telemetry/telemetry.h**_](telemetry_8h.md) _)._ |
+|  int | [**costas\_set\_telemetry**](#function-costas_set_telemetry) ([**costas\_state\_t**](structcostas__state__t.md) \* state, [**dp\_tlm\_t**](telemetry_8h.md#typedef-dp_tlm_t) \* tlm, const char \* prefix, uint32\_t decim) <br>_Attach (or detach) a telemetry context and register the carrier loop's probes on it. Registers four probes, emitted once per dumped symbol and further thinned by decim: "&lt;prefix&gt;.lock" (the \|Re P\|/\|P\| lock-metric EMA, 1 = phase-locked), "&lt;prefix&gt;.e" (the PLL discriminator output — the loop stress), "&lt;prefix&gt;.freq" (the tracked NCO frequency, cycles/sample) and "&lt;prefix&gt;.locked" (the verify-counted lock decision, 0/1 — see costas\_configure\_lock). Passing NULL detaches. Setup path, never hot: call before the producer thread starts stepping; the context is borrowed and must outlive the attachment (SPSC rules in_ [_**dp_tlm/dp_tlm_core.h**_](telemetry_8h.md) _)._ |
 |  size\_t | [**costas\_state\_bytes**](#function-costas_state_bytes) (const [**costas\_state\_t**](structcostas__state__t.md) \* state) <br>_Serialized-state byte size._  |
 |  size\_t | [**costas\_steps**](#function-costas_steps) ([**costas\_state\_t**](structcostas__state__t.md) \* state, const float complex \* x, size\_t x\_len, float complex \* out, size\_t max\_out) <br> |
 |  size\_t | [**costas\_steps\_max\_out**](#function-costas_steps_max_out) ([**costas\_state\_t**](structcostas__state__t.md) \* state) <br> |
@@ -538,7 +538,7 @@ int costas_set_state (
 
 ### function costas\_set\_telemetry 
 
-_Attach (or detach) a telemetry context and register the carrier loop's probes on it. Registers four probes, emitted once per dumped symbol and further thinned by decim: "&lt;prefix&gt;.lock" (the \|Re P\|/\|P\| lock-metric EMA, 1 = phase-locked), "&lt;prefix&gt;.e" (the PLL discriminator output — the loop stress), "&lt;prefix&gt;.freq" (the tracked NCO frequency, cycles/sample) and "&lt;prefix&gt;.locked" (the verify-counted lock decision, 0/1 — see costas\_configure\_lock). Passing NULL detaches. Setup path, never hot: call before the producer thread starts stepping; the context is borrowed and must outlive the attachment (SPSC rules in_ [_**telemetry/telemetry.h**_](telemetry_8h.md) _)._
+_Attach (or detach) a telemetry context and register the carrier loop's probes on it. Registers four probes, emitted once per dumped symbol and further thinned by decim: "&lt;prefix&gt;.lock" (the \|Re P\|/\|P\| lock-metric EMA, 1 = phase-locked), "&lt;prefix&gt;.e" (the PLL discriminator output — the loop stress), "&lt;prefix&gt;.freq" (the tracked NCO frequency, cycles/sample) and "&lt;prefix&gt;.locked" (the verify-counted lock decision, 0/1 — see costas\_configure\_lock). Passing NULL detaches. Setup path, never hot: call before the producer thread starts stepping; the context is borrowed and must outlive the attachment (SPSC rules in_ [_**dp_tlm/dp_tlm_core.h**_](telemetry_8h.md) _)._
 ```C++
 int costas_set_telemetry (
     costas_state_t * state,

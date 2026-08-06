@@ -1,6 +1,6 @@
 /*
  * test_tlm_sink.c — telemetry-ring -> NATS round-trip for the dp_tlm_sink_*
- * helper (telemetry/tlm_sink.h): pump publishes TLM16 frames a dp_sub_*
+ * helper (stream/tlm_sink.h): pump publishes TLM16 frames a dp_sub_*
  * receiver decodes back into the exact emitted records.
  *
  * Skips (exit 77, CTest SKIP_RETURN_CODE) rather than fails when no
@@ -8,7 +8,7 @@
  * test against a live broker, like test_stream_nats_core.
  */
 #include "stream/stream.h"
-#include "telemetry/tlm_sink.h"
+#include "stream/tlm_sink.h"
 
 #include <arpa/inet.h>
 #include <netinet/in.h>

@@ -1,8 +1,8 @@
 /*
- * tlm_capture.c — the boundary drain, owned.
+ * dp_tlm_capture_core.c — the boundary drain, owned.
  *
  * Consumer side only.  Nothing here runs on the producer thread and the emit
- * path (inline in telemetry/telemetry.h) is untouched: the whole mechanism is
+ * path (inline in dp_tlm/dp_tlm_core.h) is untouched: the whole mechanism is
  * one memcpy per block, on the caller's thread, at the moment the producer is
  * between blocks.  That placement is what makes the capture lossless — see
  * tlm_capture.h for the bound it rests on.
@@ -12,7 +12,7 @@
  * exactly one producer and exactly one consumer at every instant, which is the
  * SPSC contract it has always had.
  */
-#include "telemetry/tlm_capture.h"
+#include "dp_tlm_capture/dp_tlm_capture_core.h"
 
 #include <pthread.h>
 #include <stdio.h>

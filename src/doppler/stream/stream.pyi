@@ -112,7 +112,7 @@ structured array ``doppler.telemetry.Telemetry.read()`` returns, and
 ``Subscriber.recv()`` decodes the frame back into the same structured
 dtype ``[("n", "<u8"), ("value", "<f4"), ("probe", "<u2"),
 ("flags", "<u2")]``. The C-side producer face is the ``dp_tlm_sink_*``
-helper (``telemetry/tlm_sink.h``) in ``libdoppler_stream``. Wire
+helper (``stream/tlm_sink.h``) in ``libdoppler_stream``. Wire
 value: ``6``.
 
 Examples

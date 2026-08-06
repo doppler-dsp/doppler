@@ -23,7 +23,7 @@ arg_type = "void"
 return_type = "int"
 status_return = true
 params = [
-  { name = "tlm", type = "dp_tlm_t *", capsule = "doppler.telemetry.dp_tlm", header = "telemetry/telemetry.h" },
+  { name = "tlm", type = "dp_tlm_t *", capsule = "doppler.telemetry.dp_tlm", header = "dp_tlm/dp_tlm_core.h" },
   { name = "prefix", type = "const char *" },
   { name = "decim", type = "uint32_t", default = "1" },
 ]

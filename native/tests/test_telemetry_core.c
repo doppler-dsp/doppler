@@ -1,5 +1,5 @@
 /*
- * C-level tests for the telemetry taps (telemetry/telemetry.h).
+ * C-level tests for the telemetry taps (dp_tlm/dp_tlm_core.h).
  *
  * Covers the full contract PR-able without any instrumented object:
  * lifecycle, the probe registry (idempotence, capacity, lookup), the
@@ -10,7 +10,7 @@
  * preserved across restore) exercised on a local mock object.
  */
 #include "dp_state.h"
-#include "telemetry/telemetry.h"
+#include "dp_tlm/dp_tlm_core.h"
 
 #include <pthread.h>
 #include <stdio.h>

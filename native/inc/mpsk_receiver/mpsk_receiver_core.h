@@ -98,7 +98,7 @@
 #include "symsync/symsync_core.h"
 #include "agc/agc_core.h"
 #include "boxcar/boxcar_core.h"
-#include "telemetry/telemetry.h"
+#include "dp_tlm/dp_tlm_core.h"
 #include "ber/ber_core.h"
 #ifdef __cplusplus
 extern "C"
@@ -445,7 +445,7 @@ extern "C"
    * ".locked" / ".mu" -- eleven probes total, all thinned by @p decim and all
    * emitted once per recovered symbol.  Passing NULL detaches everything.
    * Setup path, never hot; the context is borrowed and must outlive the
-   * attachment (SPSC rules in telemetry/telemetry.h).
+   * attachment (SPSC rules in dp_tlm/dp_tlm_core.h).
    * @param state  Must be non-NULL.
    * @param tlm    Telemetry context to attach, or NULL to detach.
    * @param prefix Probe-name prefix, e.g. "rx".

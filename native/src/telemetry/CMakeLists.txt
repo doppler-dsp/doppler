@@ -1,10 +1,15 @@
 # telemetry — hand-owned (no_generate) module: lightweight scalar telemetry
-# taps (telemetry/telemetry.h + telemetry_core.c).  Pure C99, no deps beyond
+# taps (dp_tlm/dp_tlm_core.h + dp_tlm/dp_tlm_core.c).  Pure C99, no deps beyond
 # the header-only SPSC ring (buffer/buffer.h), so the core rides in
 # doppler_lib unconditionally — the detached cost is one branch per event.
 
 # OBJECT library — pure C core, no Python dependency.
-add_library(telemetry_core OBJECT telemetry_core.c tlm_capture.c)
+# Sources moved to the per-component layout jm expects — the object's core is
+# `dp_tlm`, and the capture is its own component. The target name stays
+# `telemetry_core` because nine objects' link lines name it.
+add_library(telemetry_core OBJECT
+    ${CMAKE_SOURCE_DIR}/native/src/dp_tlm/dp_tlm_core.c
+    ${CMAKE_SOURCE_DIR}/native/src/dp_tlm_capture/dp_tlm_capture_core.c)
 target_include_directories(telemetry_core
                            PUBLIC ${CMAKE_SOURCE_DIR}/native/inc)
 # A file-backed capture writes on its own thread so disk latency never lands

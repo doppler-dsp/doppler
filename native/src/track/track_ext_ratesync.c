@@ -593,7 +593,7 @@ static PyMethodDef RateSyncObj_methods[] = {
     "phase — see resamp_get_ctrl_acc()). Passing NULL detaches. Setup path,\n"
     "never hot: the context is borrowed and must outlive the attachment "
     "(SPSC\n"
-    "rules in telemetry/telemetry.h).\n"
+    "rules in dp_tlm/dp_tlm_core.h).\n"
     "\n"
     "The three form one readable picture of the loop: `e` is what the\n"
     "detector saw, `ctrl` is what the filter did about it, and `mu` is where\n"

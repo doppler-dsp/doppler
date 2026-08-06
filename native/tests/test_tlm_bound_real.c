@@ -22,7 +22,7 @@
  * emission count can falsify the audit.
  */
 #include "carrier_nda/carrier_nda_core.h"
-#include "telemetry/tlm_capture.h"
+#include "dp_tlm_capture/dp_tlm_capture_core.h"
 
 #include <complex.h>
 #include <math.h>

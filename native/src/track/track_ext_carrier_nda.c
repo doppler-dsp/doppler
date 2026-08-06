@@ -568,7 +568,7 @@ static PyMethodDef CarrierNdaObj_methods[] = {
     "\"<prefix>.locked\" (the verify-counted lockdet decision, 0/1).  Passing "
     "NULL detaches the loop and the embedded AGC. Setup path, never hot: call "
     "before the producer thread starts stepping; the context is borrowed and "
-    "must outlive the attachment (SPSC rules in telemetry/telemetry.h).\n"
+    "must outlive the attachment (SPSC rules in dp_tlm/dp_tlm_core.h).\n"
     "\n"
     "Parameters\n"
     "----------\n"

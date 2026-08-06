@@ -559,7 +559,7 @@ static PyMethodDef CostasObj_methods[] = {
     "decision, 0/1 — see costas_configure_lock). Passing NULL detaches.  "
     "Setup path, never hot: call before the producer thread starts stepping; "
     "the context is borrowed and must outlive the attachment (SPSC rules in "
-    "telemetry/telemetry.h).\n"
+    "dp_tlm/dp_tlm_core.h).\n"
     "\n"
     "Parameters\n"
     "----------\n"

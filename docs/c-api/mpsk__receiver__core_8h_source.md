@@ -24,7 +24,7 @@
 #include "loop_filter/loop_filter_core.h"
 #include "mpsk/mpsk_core.h"
 #include "symsync/symsync_core.h"
-#include "telemetry/telemetry.h"
+#include "dp_tlm/dp_tlm_core.h"
 #include <complex.h>
 #ifdef __cplusplus
 extern "C"

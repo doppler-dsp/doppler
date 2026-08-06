@@ -1,5 +1,6 @@
 /*
- * C-level tests for the lossless capture (telemetry/tlm_capture.h).
+ * C-level tests for the lossless capture
+ * (dp_tlm_capture/dp_tlm_capture_core.h).
  *
  * The headline test is `saturation`: emit EXACTLY the per-block bound, every
  * block, for many blocks, and assert nothing is dropped. That is the whole
@@ -11,7 +12,7 @@
  * its sidecar, the self-heal when probes appear late, and the loud failure
  * when the caller breaks the block contract.
  */
-#include "telemetry/tlm_capture.h"
+#include "dp_tlm_capture/dp_tlm_capture_core.h"
 
 #include <stdio.h>
 #include <stdlib.h>

@@ -10,7 +10,7 @@
 
 _NATS PUB sink for telemetry records._ [More...](#detailed-description)
 
-* `#include "telemetry/telemetry.h"`
+* `#include "dp_tlm/dp_tlm_core.h"`
 
 
 
@@ -92,7 +92,7 @@ _NATS PUB sink for telemetry records._ [More...](#detailed-description)
 ## Detailed Description
 
 
-Drains a [**dp\_tlm\_t**](telemetry_8h.md#typedef-dp_tlm_t) record ring ([**telemetry/telemetry.h**](telemetry_8h.md)) to a NATS subject using doppler's `dp_pub_*` wire layer: each pump publishes the available records as TLM16 frames (SIGS header, sample\_type = TLM16, num\_samples = record count, payload = packed 16-byte [**dp\_tlm\_rec\_t**](structdp__tlm__rec__t.md)). A `dp_sub_*` receiver on the subject gets the same structured rows the in-process Python `Telemetry.read()` returns.
+Drains a [**dp\_tlm\_t**](telemetry_8h.md#typedef-dp_tlm_t) record ring ([**dp_tlm/dp_tlm_core.h**](telemetry_8h.md)) to a NATS subject using doppler's `dp_pub_*` wire layer: each pump publishes the available records as TLM16 frames (SIGS header, sample\_type = TLM16, num\_samples = record count, payload = packed 16-byte [**dp\_tlm\_rec\_t**](structdp__tlm__rec__t.md)). A `dp_sub_*` receiver on the subject gets the same structured rows the in-process Python `Telemetry.read()` returns.
 
 
 The implementation lives in the optional `libdoppler_stream` component (it publishes through the vendored nats.c client) — link `doppler::stream` alongside the core to use it. Unlike [**wfm\_sink.h**](wfm__sink_8h.md) there is no weak-stub seam: nothing in the core references these symbols, so a consumer that doesn't link the stream component simply doesn't call them.
@@ -277,5 +277,5 @@ uint64_t dp_tlm_sink_sent (
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/telemetry/tlm_sink.h`
+The documentation for this class was generated from the following file `native/inc/stream/tlm_sink.h`
 

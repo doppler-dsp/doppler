@@ -1,8 +1,8 @@
 /**
- * @file tlm_capture.h
+ * @file dp_tlm_capture_core.h
  * @brief Lossless telemetry capture: sized by arithmetic, not by guesswork.
  *
- * The ring (telemetry/telemetry.h) drops on overrun so the DSP thread can
+ * The ring (dp_tlm/dp_tlm_core.h) drops on overrun so the DSP thread can
  * never stall — right for the emit path, useless as an answer to "did I get
  * everything?".  Every capture so far hand-rolled the same loop (`set_now`,
  * step, `read`, append, concatenate) and asked the user to pick a ring size,
@@ -72,7 +72,7 @@
 #ifndef DP_TLM_CAPTURE_H
 #define DP_TLM_CAPTURE_H
 
-#include "telemetry/telemetry.h"
+#include "dp_tlm/dp_tlm_core.h"
 #include "timing/timing_core.h" /* dp_sample_clock_t — the ONE time base */
 
 #ifdef __cplusplus

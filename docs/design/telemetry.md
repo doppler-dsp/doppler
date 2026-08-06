@@ -4,7 +4,7 @@ Doppler's loops already *compute* every diagnostic worth watching — the
 symbol-sync timing error, the Costas lock metric, the DLL code phase, the AGC
 gain — as named fields in their state structs, refreshed every event. What was
 missing is a way to watch them **as time series from a live pipeline** without
-perturbing the signal path. `dp_tlm` (`native/inc/telemetry/telemetry.h`) is
+perturbing the signal path. `dp_tlm` (`native/inc/dp_tlm/dp_tlm_core.h`) is
 that tap: a probe registry plus a lock-free record ring, designed around one
 budget:
 
@@ -82,7 +82,7 @@ Probes are registered at **setup time** — never on the hot path — and named
 with dotted paths so a consumer can build a channel map once:
 
 ```c
-#include <telemetry/telemetry.h>
+#include <dp_tlm/dp_tlm_core.h>
 
 int main(void)
 {
@@ -302,7 +302,7 @@ assert tlm.dropped == 0
 ## Egress — NATS `tlm_sink`
 
 Cross-process consumers read the same records over NATS via the
-`dp_tlm_sink_*` helper (`telemetry/tlm_sink.h`) — the exact `wfm_sink`
+`dp_tlm_sink_*` helper (`stream/tlm_sink.h`) — the exact `wfm_sink`
 split: the implementation lives in the **optional `libdoppler_stream`
 component** (it publishes through the vendored nats.c), and
 `telemetry_core` itself stays dependency-free. Each pump drains the ring
@@ -384,7 +384,7 @@ one while the producer fills the other. If the writer falls behind, the
 `dp_tlm_set_now()` delegates to an open capture, and callers already put it at
 the top of the block loop before stepping — so an existing loop becomes
 lossless by opening a capture and changing nothing else. See
-`native/inc/telemetry/tlm_capture.h`.
+`native/inc/dp_tlm_capture/dp_tlm_capture_core.h`.
 
 The Python surface (`Telemetry.capture(...)`, per-probe views, a time axis)
 lands with the jm migration rather than as more hand-written binding — see

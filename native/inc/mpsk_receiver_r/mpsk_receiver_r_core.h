@@ -75,7 +75,7 @@
 #include "symsync/symsync_core.h"
 #include "agc/agc_core.h"
 #include "boxcar/boxcar_core.h"
-#include "telemetry/telemetry.h"
+#include "dp_tlm/dp_tlm_core.h"
 #include "ber/ber_core.h"
 #ifdef __cplusplus
 extern "C"

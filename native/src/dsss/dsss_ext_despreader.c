@@ -821,7 +821,7 @@ static PyMethodDef DespreaderObj_methods[] = {
     "once per code period (the despreader flushes both loops at its "
     "per-period update). Passing NULL detaches both loops.  Setup path, never "
     "hot; the context is borrowed and must outlive the attachment (SPSC rules "
-    "in telemetry/telemetry.h).\n"
+    "in dp_tlm/dp_tlm_core.h).\n"
     "\n"
     "Parameters\n"
     "----------\n"

@@ -1,10 +1,10 @@
 /*
- * telemetry_core.c — dp_tlm context lifecycle, registry and drain.
+ * dp_tlm_core.c — dp_tlm context lifecycle, registry and drain.
  *
  * Everything here is setup- or consumer-side; the producer hot path
- * (dp_tlm_emit / dp_tlm_set_now) is inline in telemetry/telemetry.h.
+ * (dp_tlm_emit / dp_tlm_set_now) is inline in dp_tlm/dp_tlm_core.h.
  */
-#include "telemetry/telemetry.h"
+#include "dp_tlm/dp_tlm_core.h"
 
 #include <stdint.h>
 #include <stdlib.h>

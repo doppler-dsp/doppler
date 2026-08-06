@@ -65,7 +65,7 @@
 #include "loop_filter/loop_filter_core.h"
 #include "mpsk/mpsk_core.h"
 #include "ratesync/ratesync_core.h" /* ratesync_loop_t — the timing half */
-#include "telemetry/telemetry.h"
+#include "dp_tlm/dp_tlm_core.h"
 #include <complex.h>
 #include <math.h>
 

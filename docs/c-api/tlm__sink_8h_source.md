@@ -12,7 +12,7 @@
 #ifndef TLM_SINK_H
 #define TLM_SINK_H
 
-#include "telemetry/telemetry.h"
+#include "dp_tlm/dp_tlm_core.h"
 
 #ifdef __cplusplus
 extern "C"

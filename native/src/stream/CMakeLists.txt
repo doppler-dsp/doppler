@@ -5,7 +5,7 @@
 # Skipped on Windows: the vendored nats.c build's MinGW support is unverified
 # (kept conservative pending a dedicated Windows-streaming follow-up).
 if(NOT WIN32)
-    # tlm_sink.c is the telemetry NATS sink (telemetry/tlm_sink.h): stream-
+    # tlm_sink.c is the telemetry NATS sink (stream/tlm_sink.h): stream-
     # component code because it publishes through dp_pub_*. Its dp_tlm_read
     # reference resolves against telemetry_core, which lives in the core lib
     # — consumers link doppler::stream alongside the core; targets here that

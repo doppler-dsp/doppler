@@ -543,6 +543,42 @@ main (void)
     free (j);
   }
 
+  /* ── an unstated rate is DERIVED from the segments, which already carry
+     one — the annotation edges in the same document are computed from it ── */
+  {
+    wfm_source_t  q      = { .type = 4, .sps = 8, .seed = 1 };
+    wfm_segment_t two[2] = {
+      { .sources = &q, .n_sources = 1, .fs = 6.138e6, .num_samples = 4096 },
+      { .sources = &q, .n_sources = 1, .fs = 6.138e6, .num_samples = 4096 },
+    };
+    char *j = wfm_sigmf_meta_json (0, 0, 0.0, 0.0, 0.0, two, 2);
+    CHECK (j, "meta with segments and no stated rate");
+    CHECK (strstr (j, "\"core:sample_rate\":6138000"),
+           "the segments' agreed rate is stated, not withheld");
+    free (j);
+
+    /* An explicit rate always wins — rendering at a resampled rate describes
+       the FILE, and the file is what the document annotates. */
+    j = wfm_sigmf_meta_json (0, 0, 1e6, 0.0, 0.0, two, 2);
+    CHECK (j && strstr (j, "\"core:sample_rate\":1000000"),
+           "a stated rate overrides the segments'");
+    free (j);
+
+    /* Segments that disagree: no single core:sample_rate is true of the
+       stream, so it stays unstated rather than picking one. */
+    two[1].fs = 2e6;
+    j         = wfm_sigmf_meta_json (0, 0, 0.0, 0.0, 0.0, two, 2);
+    CHECK (j && strstr (j, "\"core:sample_rate\"") == NULL,
+           "disagreeing segments leave the rate unstated");
+    free (j);
+
+    /* No segments, nothing to derive from -- the Writer sidecar's case. */
+    j = wfm_sigmf_meta_json (0, 0, 0.0, 0.0, 0.0, NULL, 0);
+    CHECK (j && strstr (j, "\"core:sample_rate\"") == NULL,
+           "no segments leaves the rate unstated");
+    free (j);
+  }
+
   if (test_close_reports_a_failed_flush ())
     return 1;
   if (test_raw_csv_sidecar ())

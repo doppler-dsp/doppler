@@ -364,7 +364,15 @@ int wfm_blue_write_hcb(FILE *fp, int sample_type, int endian, double fs,
  * @param sample_type wire type (wavegen order) — with @p endian this becomes
  *                    core:datatype, e.g. `"ci16_le"`.
  * @param endian      0 little, 1 big.
- * @param fs          sample rate (Hz), or 0.0 for "not stated".
+ * @param fs          sample rate (Hz). 0.0 means "not stated by the caller",
+ *                    and is then DERIVED from @p segs when they carry one and
+ *                    agree on it — the annotations below are already computed
+ *                    from each segment's own `fs`, so omitting
+ *                    `core:sample_rate` would withhold a rate this document
+ *                    demonstrably knows. Segments that disagree leave it
+ *                    unstated (no single rate is true of the stream), as does
+ *                    a NULL @p segs. A non-zero @p fs always wins: a caller
+ *                    rendering at a resampled rate is describing the FILE.
  * @param fc          centre frequency (Hz) → `captures[0]["core:frequency"]`.
  * @param t0_unix_sec capture start in UNIX seconds, or ::WFM_TIMECODE_UNSET.
  *                    Rendered as extended ISO 8601 (`core:datetime` requires
@@ -384,7 +392,7 @@ char *wfm_sigmf_meta_json(int sample_type, int endian, double fs, double fc,
 double wfm_writer_get_clip_fraction(const wfm_writer_state_t *state);
 double wfm_writer_get_peak_dbfs(const wfm_writer_state_t *state);
 bool wfm_writer_get_clipped(const wfm_writer_state_t *state);
-int write_blue_header(const char *path, int sample_type, int endian, double fs, double fc, double data_start, size_t total, int detached, double t0);
+int write_blue_header(const char *path, double fs, int sample_type, int endian, double fc, double data_start, size_t total, int detached, double t0);
 #ifdef __cplusplus
 }
 #endif

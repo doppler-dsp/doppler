@@ -70,7 +70,8 @@ from doppler.wfm import Composer, Segment, Writer, write_blue_header
 x = Composer([Segment("qpsk", sps=8, num_samples=1 << 14)]).compose()
 
 # Header carries BLUE magic, byte order, data_size, type-1000 tag, xdelta=1/fs.
-write_blue_header("cap.hdr", sample_type="cf32", fs=1e6, fc=2.4e9,
+# fs is required here for the same reason it is on Writer: it IS the header.
+write_blue_header("cap.hdr", 1e6, sample_type="cf32", fc=2.4e9,
                   total=len(x), detached=True)
 with Writer("cap.det", fs=1e6, file_type="raw", sample_type="cf32") as w:
     w.write(x)                       # raw interleaved I/Q body

@@ -141,8 +141,15 @@ see `native/src/wfm_writer/wfm_writer_core.c`:
 - `core:label` is the source type; the `wfmgen:*` keys carry the generator
     parameters so the capture round-trips to the spec that made it.
 
-`Composer.to_sigmf(sample_type="cf32", endian="le", fs=1e6, fc=0.0)` returns this
+`Composer.to_sigmf(sample_type="cf32", endian="le", fc=0.0)` returns this
 document as a string; pair it with a `Writer(..., file_type="sigmf")` data file.
+
+`fs` is **derived from the segments** when you don't pass one — they already
+carry a rate, and the annotation edges above are computed from it, so the
+document states the rate it was built with instead of staying silent about it.
+Segments that disagree leave `core:sample_rate` out (no single rate is true of
+that stream), and an explicit `fs=` always wins, for rendering a scene at a
+resampled rate.
 
 ______________________________________________________________________
 

@@ -277,9 +277,9 @@ class Writer:
 
 def write_blue_header(
     path: str | os.PathLike,
+    fs: float,
     sample_type: str = 'cf32',
     endian: str = 'le',
-    fs: float = 0.0,
     fc: float = 0.0,
     data_start: float = 0.0,
     total: int = 0,

@@ -485,28 +485,27 @@ main (void)
     lo_destroy (ref);
   }
 
-  /* lo_steps_ctrl: the vectorised body and the scalar tail are ONE
-   * function and must agree bit-for-bit.
+  /* lo_steps_ctrl: feeding one sample at a time must equal a block call,
+   * bit for bit -- the same property resamp's control port relies on.
    *
-   * The AVX-512 body processes 16 lanes at a time; anything shorter than
-   * 16, and the remainder of any longer call, falls to the scalar tail.
-   * Feeding the same ctrl one sample at a time therefore drives the tail
-   * exclusively, and a block call drives the body -- the same
-   * one-at-a-time-equals-block property resamp's control port relies on.
+   * This is a regression guard with history. lo_steps_ctrl used to carry a
+   * hand-written AVX-512 body that processed 16 lanes and left the
+   * remainder to a scalar tail, and the two had drifted: the body derived
+   * ctrl_inc from a FLOAT32 fold (`_mm512_cvtps_epu32` of `frac * 2^32`)
+   * while the tail called the shared double-precision primitive. Two
+   * disagreements at once -- round-to-nearest against the primitive's
+   * truncation, and a float32 ULP of 256 at 2^32, leaving each increment
+   * good to only +-128 units. The body's comment argued the error was
+   * "below one LUT bin", true per sample and beside the point: ctrl_inc
+   * feeds a PREFIX SUM, so it integrates. Over 4096 samples the two paths
+   * diverged by 3673 phase units with 175 outputs differing.
    *
-   * This caught a real divergence: the body derived ctrl_inc from a
-   * FLOAT32 fold (`_mm512_cvtps_epu32` of `frac * 2^32`), while the tail
-   * called the shared double-precision primitive. Two disagreements at
-   * once -- round-to-nearest against the primitive's truncation, and a
-   * float32 ULP of 256 at 2^32, so each lane's increment was good to only
-   * +-128 units. The block comment argued the error was "below one LUT
-   * bin", which is true per sample and irrelevant: ctrl_inc feeds a PREFIX
-   * SUM, so the error integrates over the call rather than staying local.
-   *
-   * NB this test only bites where the body is compiled. The default build
-   * is -march=x86-64-v2, so __AVX512F__ is undefined and both paths are
-   * the same scalar loop; it was verified to fail by building lo_core.c
-   * with -mavx512f. */
+   * The block is gone (it was also 1.3x slower than this scalar loop), so
+   * today both sides of this check run the same code and it cannot fail.
+   * It stays because it is exactly the check that catches a future fast
+   * path whose arithmetic does not match -- including the accumulated
+   * phase, which is where a per-sample error shows up even when every
+   * individual output happens to round alike. */
   {
     enum
     {

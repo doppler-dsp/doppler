@@ -267,118 +267,34 @@ lo_steps (lo_state_t *state, size_t n, float complex *out, size_t max_out)
 /* Execute — with per-sample FM control port                           */
 /* ================================================================== */
 
-#ifdef __AVX512F__
-
 /*
- * AVX-512 path for lo_steps_ctrl.
+ * One implementation, deliberately.
  *
- * Each sample's phase depends on the previous sample's ctrl value:
- *   ph[i] = ph[i-1] + inc + ctrl_inc[i-1]
- * This is a running sum.  Solved with a 4-step log-2 exclusive prefix
- * scan over the 16 per-sample deltas, then a single vector add of the
- * base phase.  LUT gather and IQ interleave are identical to lo_steps.
+ * This function carried a hand-written AVX-512 body beside the scalar
+ * loop: a 4-step log-2 prefix scan over 16 per-sample deltas, then a LUT
+ * gather. It was deleted rather than kept, for two independent reasons.
  *
- * The ctrl -> phase-word conversion is nco_phase_units() by way of
- * nco_norm_to_inc(), per lane, exactly as the scalar tail below does it.
- * Everything after it — the prefix scan, the LUT gather, the interleave —
- * stays vectorised; only the one cast the library is allowed to make is
- * taken out of the vector unit.
+ * It was never faster. Measured over 65536 samples, lo_steps_ctrl runs at
+ * 1015 Msamp/s as this scalar loop at the shipped -march=x86-64-v2
+ * baseline, against 767 for the AVX-512 body -- 1.3x SLOWER hand-written
+ * than compiled. That is the effect the -march policy in CMakeLists.txt
+ * already documents ("forcing 512-bit vectors measured slower than SSE4.2
+ * on complex-float DSP kernels") and caps with -mprefer-vector-width=256,
+ * which constrains auto-vectorization but cannot constrain an explicit
+ * _mm512_* intrinsic. The block was the one thing that policy exists to
+ * prevent, exempted by being hand-written.
  *
- * It used to be a private copy: _mm512_cvtps_epu32 of a FLOAT32 fold,
- * round-to-nearest, annotated as "matching nco_norm_to_inc()'s
- * convention" when that convention is truncation, and citing that
- * function's warning against private copies as the licence to keep one.
- * It disagreed with its own scalar tail twice over — rounding, and a
- * float32 ULP of 256 at 2^32 that left each increment good to only ±128
- * units. The argument for tolerating that was "below one LUT bin, no
- * effect on the top 16 bits", which is true per sample and beside the
- * point: ctrl_inc feeds a PREFIX SUM, so the error integrates. Measured
- * over 4096 samples it moved the accumulated phase by 3673 units and
- * changed 175 outputs outright.
+ * And it had drifted. It derived ctrl_inc from a float32 fold via
+ * _mm512_cvtps_epu32 while this tail called the shared double-precision
+ * nco_norm_to_inc(), so the two halves of ONE function disagreed -- by
+ * 3673 phase units and 175 differing outputs over 4096 samples, because
+ * ctrl_inc feeds a prefix sum and a per-sample error integrates. A second
+ * implementation of a kernel is a second thing to keep correct, and this
+ * one bought nothing to pay for that with.
+ *
+ * The block-equals-one-sample-at-a-time test in test_lo_core.c is what
+ * caught the drift; it now guards against a replacement reintroducing it.
  */
-size_t
-lo_steps_ctrl (lo_state_t *state, const float *ctrl, size_t ctrl_len,
-               float complex *out, size_t max_out)
-{
-  /* Emission stops at the caller's capacity (jm gh-138). */
-  if (ctrl_len > max_out)
-    ctrl_len = max_out;
-  uint32_t ph  = state->phase;
-  uint32_t inc = state->phase_inc;
-
-  static const int32_t perm0_arr[16]
-      = { 0, 1, 2, 3, 16, 17, 18, 19, 4, 5, 6, 7, 20, 21, 22, 23 };
-  static const int32_t perm1_arr[16]
-      = { 8, 9, 10, 11, 24, 25, 26, 27, 12, 13, 14, 15, 28, 29, 30, 31 };
-  __m512i vperm0 = _mm512_loadu_si512 (perm0_arr);
-  __m512i vperm1 = _mm512_loadu_si512 (perm1_arr);
-
-  __m512i vinc  = _mm512_set1_epi32 ((int32_t)inc);
-  __m512i vzero = _mm512_setzero_si512 ();
-  __m512i vmask = _mm512_set1_epi32 (0xFFFF);
-  __m512i vqtr  = _mm512_set1_epi32 (LO_LUT_QTR);
-
-  size_t i = 0;
-  for (; i + 16 <= ctrl_len; i += 16)
-    {
-      /* ctrl_inc[k] through the one shared conversion, per lane, so the
-       * body and the scalar tail cannot disagree. */
-      uint32_t ci[16];
-      for (int k = 0; k < 16; k++)
-        ci[k] = nco_norm_to_inc ((double)ctrl[i + k]);
-      __m512i vci = _mm512_loadu_si512 (ci);
-
-      /* delta[k] = inc + ctrl_inc[k] */
-      __m512i vd = _mm512_add_epi32 (vinc, vci);
-
-      /* Inclusive prefix scan (Hillis-Steele, 4 passes):
-       * after pass p, vs[k] = sum(delta[max(0, k-2^p+1)..k])    */
-      __m512i vs = vd;
-      vs         = _mm512_add_epi32 (vs, _mm512_alignr_epi32 (vs, vzero, 15));
-      vs         = _mm512_add_epi32 (vs, _mm512_alignr_epi32 (vs, vzero, 14));
-      vs         = _mm512_add_epi32 (vs, _mm512_alignr_epi32 (vs, vzero, 12));
-      vs         = _mm512_add_epi32 (vs, _mm512_alignr_epi32 (vs, vzero, 8));
-
-      /* Exclusive scan: shift right 1 element, insert 0 at lane 0.
-       * vpsum[k] = sum(delta[0..k-1])  (== 0 for k=0)           */
-      __m512i vpsum = _mm512_alignr_epi32 (vs, vzero, 15);
-
-      /* Phase for each sample: ph_base + vpsum[k] */
-      __m512i vph = _mm512_add_epi32 (_mm512_set1_epi32 ((int32_t)ph), vpsum);
-
-      __m512i vsin_idx = _mm512_srli_epi32 (vph, 16);
-      __m512i vcos_idx
-          = _mm512_and_epi32 (_mm512_add_epi32 (vsin_idx, vqtr), vmask);
-
-      __m512 vsin = _mm512_i32gather_ps (vsin_idx, lo_sin_lut, 4);
-      __m512 vcos = _mm512_i32gather_ps (vcos_idx, lo_sin_lut, 4);
-
-      __m512 lo_v = _mm512_unpacklo_ps (vcos, vsin);
-      __m512 hi_v = _mm512_unpackhi_ps (vcos, vsin);
-      _mm512_storeu_ps ((float *)(out + i),
-                        _mm512_permutex2var_ps (lo_v, vperm0, hi_v));
-      _mm512_storeu_ps ((float *)(out + i + 8),
-                        _mm512_permutex2var_ps (lo_v, vperm1, hi_v));
-
-      /* Advance base phase by the total of all 16 deltas. */
-      ph += (uint32_t)_mm512_reduce_add_epi32 (vd);
-    }
-
-  /* Scalar tail — the same shared primitive the body above now uses. */
-  for (; i < ctrl_len; i++)
-    {
-      uint32_t ctrl_inc = nco_norm_to_inc ((double)ctrl[i]);
-      uint16_t idx      = (uint16_t)(ph >> (32u - LO_LUT_BITS));
-      out[i] = CMPLXF (lo_sin_lut[(uint16_t)(idx + (uint16_t)LO_LUT_QTR)],
-                       lo_sin_lut[idx]);
-      ph += inc + ctrl_inc;
-    }
-
-  state->phase = ph;
-  return ctrl_len;
-}
-
-#else /* scalar fallback */
 
 size_t
 lo_steps_ctrl (lo_state_t *state, const float *ctrl, size_t ctrl_len,
@@ -400,5 +316,3 @@ lo_steps_ctrl (lo_state_t *state, const float *ctrl, size_t ctrl_len,
   state->phase = ph;
   return ctrl_len;
 }
-
-#endif /* __AVX512F__ */

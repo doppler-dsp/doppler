@@ -313,8 +313,8 @@ where the body compiles: the default build is `-march=x86-64-v2`, so
 `__AVX512F__` is undefined and both paths are the same scalar loop. It was
 verified to fail by building `lo_core.c` with `-mavx512f`.
 
-**The block is a pessimization and should be deleted.** Measured on this host,
-same benchmark, `lo_steps_ctrl` over 65536 samples:
+**The block was a pessimization, and is now deleted.** Measured on this host,
+`lo_steps_ctrl` over 65536 samples:
 
 | build                                              | Msamp/s  |
 | -------------------------------------------------- | -------- |
@@ -332,13 +332,21 @@ constrains auto-vectorization but cannot constrain explicit `_mm512_*`
 intrinsics. The block is the one thing the policy exists to prevent, exempted by
 being hand-written.
 
-Second, the 1015 → 259 drop is **caused by `-march=native`, not by this
-change**: the scalar loop alone falls to 259 Msamp/s under the native flags
-(most likely the LUT lookup auto-vectorising into a `vgather`, which has no
-equivalent at `x86-64-v2` and is slower than scalar loads). Folding the block
-onto the shared primitive makes it pay that same cost, because it now calls
-`nco_norm_to_inc`. Nothing shipped is affected — a distributed wheel builds
-`x86-64-v2` and has always run the scalar fallback.
+Second — and this one outlives the deletion — the 1015 → 259 drop is **caused
+by `-march=native` itself**: the scalar loop alone falls to 259 Msamp/s under
+the native flags, most likely the LUT lookup auto-vectorising into a `vgather`,
+which has no equivalent at `x86-64-v2` and loses to scalar loads. Nothing
+shipped is affected (a wheel builds `x86-64-v2`), but **local benchmark numbers
+taken under `DOPPLER_NATIVE=ON` are not the shipped kernel's numbers** for
+anything LUT-gather shaped, and can be off by ~4×. Worth a sweep of the other
+gather kernels before any of those figures are trusted.
+
+`lo_steps` — the *non*-control twin, which has no float conversion and was not
+touched — keeps its own AVX-512 block. Measured for comparison: 1779 Msamp/s
+with the block against 1790 with it compiled out, both under native flags, and
+1962 as the plain scalar loop at the shipped baseline. So it is within noise of
+the code it replaces and also loses to the baseline. It is not a correctness
+risk, so it is left alone, but there is no evidence it earns its keep either.
 
 Unless stated otherwise every number below is QPSK, `sps = 8`, `m = 8`,
 `num_phases = 32`, `pulse = "rrc"` with `beta = 0.35, span = 8` on both sides,

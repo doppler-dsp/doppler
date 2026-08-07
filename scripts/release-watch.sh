@@ -57,6 +57,39 @@ echo "  run: $RUN  (https://github.com/$REPO/actions/runs/$RUN)"
 # publish) — hence the precise "post-release" exclusion.
 POST='publish|post-release|github release|create github|container|docker|manifest'
 
+# ── The CI-on-the-tagged-commit repair ──────────────────────────────────────
+# release.yml's "Verify CI passed on the tagged commit" job polls for the
+# `CI passed` check on the tag's SHA and refuses to publish unless it is green.
+# When THAT is what failed, rerunning the RELEASE run is useless: the verify job
+# simply re-reads the same completed failure and fails again in under a second,
+# burning the one recovery on something that could never have worked. That is
+# exactly what happened to v0.42.0 — a `setup-uv` manifest fetch timed out in
+# one of six Python jobs, long after every wheel had already built.
+#
+# The repair has to start one run earlier, on CI itself. `wait_ci` tolerates the
+# check-run being ABSENT (jq -> null): rerunning a run withdraws its check until
+# it re-completes, so "absent" means in-flight, not failed.
+ci_run_id() {   # <sha> -> the databaseId of the run that owns `CI passed`
+  gh api "repos/$REPO/commits/$1/check-runs" --paginate \
+    --jq '[.check_runs[] | select(.name=="CI passed")][0].details_url' 2>/dev/null \
+    | sed -n 's#.*/actions/runs/\([0-9]\{1,\}\)/.*#\1#p'
+}
+
+wait_ci() {     # <sha> -> 0 when `CI passed` concludes success, 1 otherwise
+  local sha="$1" line
+  for _ in $(seq 1 80); do   # 80 x 30s = 40 min, above a full CI run
+    line=$(gh api "repos/$REPO/commits/$sha/check-runs" --paginate \
+           --jq '[.check_runs[] | select(.name=="CI passed")][0]
+                 | "\(.status) \(.conclusion // "")"' 2>/dev/null)
+    case "$line" in
+      "completed success") return 0 ;;
+      "completed "*)       return 1 ;;
+    esac
+    sleep 30
+  done
+  return 1
+}
+
 # ── 2. Watch, recovering from one pre-publish flake or hang.
 declare -A SEEN
 while true; do
@@ -78,6 +111,22 @@ while true; do
   if [ "$STATUS" = "completed" ]; then
     [ "$CONCL" = "success" ] && break
     if [ "$RETRIED" = 0 ] && ! published; then
+      # Did the CI-verify gate fail? Then CI is what needs rerunning, not us.
+      if echo "$J" | jq -e '[.jobs[] | select(.conclusion=="failure")
+              | select(.name|test("verify ci passed";"i"))] | length > 0' \
+              >/dev/null 2>&1; then
+        SHA=$(gh run view "$RUN" -R "$REPO" --json headSha --jq .headSha 2>/dev/null)
+        CIRUN=$(ci_run_id "$SHA")
+        if [ -n "$CIRUN" ]; then
+          echo "  CI is red on ${SHA:0:8} — rerunning ITS failed jobs first…"
+          gh run rerun "$CIRUN" -R "$REPO" --failed >/dev/null 2>&1 || true
+          if ! wait_ci "$SHA"; then
+            echo "::error:: CI still red on $SHA — a real failure, not a flake"
+            exit 1
+          fi
+          echo "  CI is green — rerunning the release run…"
+        fi
+      fi
       echo "  run failed before publish (likely a flake) — rerunning failed jobs once…"
       gh run rerun "$RUN" -R "$REPO" --failed >/dev/null 2>&1 || true
       RETRIED=1; sleep 20; continue

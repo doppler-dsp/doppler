@@ -883,7 +883,7 @@ are dimensionless and read identically either way.
 | `acq_to_track` | `1`, always. At the default `m_out = 8` every tap decodes every order both with and without it (§2.2.1); the one measured cost is `lo_arm` trading EVM at equal SER.                                                                          | verify       |
 | `lock_thresh`  | `σ_H0 · η(Pfa)` at a fixed `Pfa = 5e-6`: `0.1132 × 4.4159 = 0.4999`, today's 0.5. The limited statistic reads ~1.0 at lock for **every** M (§2.3), so no per-M correction is carried — that was the `lock_scale` bug, already resolved in §8. | firm         |
 | `warmup_syms`  | `max(1/MPSK_RX_AGC_BW, 5/bn_carrier + 5/bn_timing on the strobe tap)` → 1000 at the defaults, against a shipped 100. The AGC floor is 500 symbols outright (§2.3); the timing term is why §2.4 wants timing settled before handover.          | firm in form |
-| `num_phases`   | `P · m_out = 256` — a fixed timing resolution of 1/256 of a symbol — rounded to a power of two, so **P = 32** at the default `m_out = 8`, against a shipped 1024. Measured rather than modelled; see §9.2.1.                                  | **measured** |
+| `num_phases`   | **P = 64** at the default `m_out = 8` — the measured saturation point on RRC, against a shipped 1024; inert at every value on I&D. See §9.2.1, and note the measurement resolves ~0.15 dB, which bounds how precisely the rule can be stated. | **measured** |
 | `nda_tap`      | Not derivable — see §9.3.                                                                                                                                                                                                                     | open         |
 
 **The rows are not equally well founded.** Five rest on measurements recorded
@@ -916,20 +916,30 @@ resolve. With `pulse = "rrc"` every arm differs and `P` sets real resolution.
 **On RRC the knee sits at 1/256 of a symbol, scaling with `m_out` exactly as
 `1/(P·m_out)` predicts.** EVM reaches within 0.2 dB of its saturated value at:
 
-| `m_out` | knee `P`                                  | `P · m_out` |
-| ------- | ----------------------------------------- | ----------- |
-| 2       | between 64 and 256 (the grid skipped 128) | ~256–512    |
-| 4       | 64                                        | 256         |
-| 8       | 32                                        | 256         |
+| `P` (at `m_out = 8`, five seeds) | 16    | 32    | 64        | 256   |
+| -------------------------------- | ----- | ----- | --------- | ----- |
+| vs saturation (dB)               | +0.95 | +0.22 | **+0.05** | −0.02 |
+| seed-to-seed spread (dB)         | 0.11  | 0.07  | 0.12      | 0.15  |
+
+The seed spread **is** the resolution, ~0.15 dB, so P = 64 is
+indistinguishable from saturated and P = 32 costs a marginal ~0.2 dB barely
+above the noise. A single-seed sweep put `m_out = 4`'s saturation at P = 64
+too, which hints the requirement scales with `m_out` rather than holding
+`P · m_out` constant — two points at this resolution, so a hint, not a law.
 
 **The shipped default buys nothing it costs for.** At `m_out = 8`, P = 1024
-against P = 32 is 0.19 dB of EVM, for 136 KB of bank against 4.2 KB and 16.3 µs
-of construction against ~2 µs.
+against P = 64 is inside the measurement's resolution, for 136 KB of bank
+against 8.5 KB and 16.3 µs of construction against ~2 µs. The argument is cost,
+not quality.
 
-**Caveats, so the numbers are not over-read.** One operating point, one seed
-per cell. The stimulus itself floors at −51 dB EVM, so the saturated values
-(−43.5 dB RRC, −46.8 dB I&D) are not the receiver's true floor — the knee
-*location* is what this sweep resolves, and that is unambiguous. And a first
+**Caveats, so the numbers are not over-read.** One operating point; five
+seeds on the `m_out = 8` RRC row above, one seed everywhere else. Two earlier
+caveats in this paragraph were themselves wrong and are corrected in
+[RateSync Timing Recovery](ratesync-timing.md) §1 and §5: the "−51 dB stimulus
+floor" was an artefact of sampling the transmit stream at a fixed index rather
+than through a matched filter (the path reaches −60 dB), and the claim that
+the knee location is "unambiguous" does not survive a resolution estimate. And
+a first
 attempt imposed the clock offset by running the stimulus through a
 `Resampler`, which read a 22 dB penalty that was entirely the resampler
 mangling a full-band rectangular pulse through a filter designed for

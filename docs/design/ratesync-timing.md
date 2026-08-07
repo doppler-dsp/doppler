@@ -165,7 +165,7 @@ transition-sample detector has run out.
 
 ______________________________________________________________________
 
-## 5. `num_phases` — inert on one pulse, harmful at the top of its range
+## 5. `num_phases` — inert on I&D, and saturating early on RRC
 
 The bank arm is the fractional delay (`arm = ph >> (32 - log2_phases)`,
 nearest-arm truncation, low bits discarded), so `num_phases` reads like a
@@ -191,18 +191,26 @@ across the rectangle's edge, and adjacent arms are literal duplicates. Above
     harmful on I&D; it is simply inert, and the argument against 1024 is cost
     (§8), not quality.
 
-**On RRC every arm differs and the resolution is real.** Per-block, reaching
-within 0.2 dB of saturation:
+**On RRC every arm differs and the resolution is real.** Five seeds at
+`m_out = 8`, per-block, quoted against the saturated value (P = 1024,
+−43.69 dB):
 
-| `m_out` | P4     | P8     | P16    | P32    | P64    | P256   | knee   |
-| ------- | ------ | ------ | ------ | ------ | ------ | ------ | ------ |
-| 4       | −28.47 | −33.27 | −39.63 | −42.68 | −43.58 | −43.74 | P = 64 |
-| 8       | −33.61 | −39.61 | −42.74 | −43.47 | −43.65 | −43.71 | P = 64 |
+| `P`                 | 16    | 32    | 64        | 256   |
+| ------------------- | ----- | ----- | --------- | ----- |
+| vs saturation       | +0.95 | +0.22 | **+0.05** | −0.02 |
+| seed-to-seed spread | 0.11  | 0.07  | 0.12      | 0.15  |
 
-So `P · m_out` lands between 256 and 512 rather than on the single invariant an
-earlier revision claimed, and the "knee" is sensitive to the tolerance chosen:
-at `m_out = 8`, P = 32 is 0.24 dB short of saturation and P = 64 is 0.06 dB
-short. Quote it as a range with a tolerance, not as a constant.
+**The spread is the resolution, and it is ~0.15 dB.** So P = 64 is
+*indistinguishable from saturated*, P = 32 costs a marginal ~0.2 dB that sits
+barely above the noise, and only P = 16 and below are clearly short. An earlier
+revision called P = 64 "0.06 dB short of the knee", which was a single-seed
+number quoted an order of magnitude below what the measurement can resolve.
+
+A single-seed sweep at `m_out = 4` put its knee at P = 64 as well, which would
+make the requirement scale with `m_out` rather than being a constant `P · m_out`
+— but that is two points at 0.15 dB resolution, so it is a hint and not a law.
+**Quote P = 64 at `m_out = 8` as the measured saturation point and leave the
+scaling open.**
 
 ______________________________________________________________________
 

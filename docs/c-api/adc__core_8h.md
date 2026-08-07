@@ -63,10 +63,10 @@ _Signed two's-complement ADC model._ [More...](#detailed-description)
 |  [**adc\_state\_t**](structadc__state__t.md) \* | [**adc\_create**](#function-adc_create) (int bits, float dbfs, int dithering) <br>_Create an ADC instance._  |
 |  void | [**adc\_destroy**](#function-adc_destroy) ([**adc\_state\_t**](structadc__state__t.md) \* state) <br>_Destroy an ADC instance and release all memory._  |
 |  void | [**adc\_get\_state**](#function-adc_get_state) (const [**adc\_state\_t**](structadc__state__t.md) \* state, void \* blob) <br> |
-|  void | [**adc\_reset**](#function-adc_reset) ([**adc\_state\_t**](structadc__state__t.md) \* state) <br>_Reset ADC to its post-create state._  |
+|  void | [**adc\_reset**](#function-adc_reset) ([**adc\_state\_t**](structadc__state__t.md) \* state) <br>_Clear the clip flag and re-seed the dither PRNG for a reproducible run._  |
 |  int | [**adc\_set\_state**](#function-adc_set_state) ([**adc\_state\_t**](structadc__state__t.md) \* state, const void \* blob) <br> |
 |  size\_t | [**adc\_state\_bytes**](#function-adc_state_bytes) (const [**adc\_state\_t**](structadc__state__t.md) \* state) <br> |
-|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) int64\_t | [**adc\_step**](#function-adc_step) ([**adc\_state\_t**](structadc__state__t.md) \* state, float x) <br>_Process one input sample._  |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) int64\_t | [**adc\_step**](#function-adc_step) ([**adc\_state\_t**](structadc__state__t.md) \* state, float x) <br>_Quantise one float sample to a signed N-bit ADC code._  |
 |  void | [**adc\_steps**](#function-adc_steps) ([**adc\_state\_t**](structadc__state__t.md) \* state, const float \* input, int64\_t \* output, size\_t n) <br>_Process a block of float samples to int64._  |
 
 
@@ -252,7 +252,7 @@ void adc_get_state (
 
 ### function adc\_reset 
 
-_Reset ADC to its post-create state._ 
+_Clear the clip flag and re-seed the dither PRNG for a reproducible run._ 
 ```C++
 void adc_reset (
     adc_state_t * state
@@ -261,7 +261,7 @@ void adc_reset (
 
 
 
-Clears the sticky `clipped` flag and re-seeds the xorshift32 PRNG to its initial value so dithered runs are reproducible after reset.
+Zeroes the sticky `clipped` flag and re-seeds the xorshift32 dither PRNG to its fixed initial value, so a dithered capture restarted after reset() is bit-for-bit reproducible. The immutable configuration (bits, scale, clip bounds) is preserved.
 
 
 
@@ -269,9 +269,19 @@ Clears the sticky `clipped` flag and re-seeds the xorshift32 PRNG to its initial
 **Parameters:**
 
 
-* `state` Must be non-NULL. 
+* `state` Must be non-NULL.
 
 
+```C++
+>>> from doppler.cvt import ADC
+>>> adc = ADC(bits=8, dbfs=0.0, dithering=0)
+>>> adc.step(9.0)          # beyond full scale -> saturates, clips
+127
+>>> adc.reset()           # clear clips, re-seed the dither PRNG
+>>> adc.clipped
+False
+```
+ 
 
 
         
@@ -313,7 +323,7 @@ size_t adc_state_bytes (
 
 ### function adc\_step 
 
-_Process one input sample._ 
+_Quantise one float sample to a signed N-bit ADC code._ 
 ```C++
 JM_FORCEINLINE  JM_HOT int64_t adc_step (
     adc_state_t * state,
@@ -323,7 +333,7 @@ JM_FORCEINLINE  JM_HOT int64_t adc_step (
 
 
 
-Multiplies `x` by the pre-computed double-precision `scale`, optionally adds TPDF dither, rounds with `llround`, and clamps to `[clip_min, clip_max]`. Sets the sticky `clipped` flag if clamping occurred.
+Multiplies `x` by the pre-computed double-precision `scale`, optionally adds TPDF dither (when the object was built with dithering enabled), rounds with `llround`, and clamps to the signed integer range `[clip_min, clip_max]`. Latches the sticky `clipped` flag if the sample saturated. A sample at amplitude 10^(dbfs/20) reaches full scale.
 
 
 
@@ -332,16 +342,27 @@ Multiplies `x` by the pre-computed double-precision `scale`, optionally adds TPD
 
 
 * `state` Must be non-NULL. 
-* `x` Normalised float input sample (typically in `[-1, +1]`). 
+* `x` Input sample, normally a normalised float in `[-1, +1]`. 
 
 
 
 **Returns:**
 
-Quantised signed integer in `[-(2^(bits-1)), 2^(bits-1)-1]`. 
+Signed ADC code in `[-(2^(bits-1)), 2^(bits-1)-1]`.
 
 
 
+```C++
+>>> from doppler.cvt import ADC
+>>> adc = ADC(bits=8, dbfs=0.0, dithering=0)  # 8-bit, FS at 0 dBFS
+>>> adc.step(0.5)            # 0.5 * 128 codes
+64
+>>> adc.step(2.0)            # beyond full scale -> clamps to +127
+127
+>>> adc.clipped              # sticky flag latched by the clamp
+True
+```
+ 
 
 
         

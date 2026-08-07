@@ -31,6 +31,7 @@ typedef struct {
   size_t n_out;             
   size_t dwell;             
   size_t count;             
+  float complex *work_trunc;
 } corr_state_t;
 
 corr_state_t *corr_create(const float complex *ref, size_t n, size_t dwell,
@@ -45,7 +46,7 @@ void corr_set_ref(corr_state_t *state, const float complex *ref);
 size_t corr_execute_max_out(corr_state_t *state);
 
 size_t corr_execute(corr_state_t *state, const float complex *in, size_t n_in,
-                    float complex *out);
+                    float complex *out, size_t max_out);
 
 /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
  * running product-spectrum accumulator + frame count;

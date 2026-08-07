@@ -10,7 +10,7 @@
 
 
 
-* `#include <ddc_core.h>`
+* `#include <ddcr_core.h>`
 
 
 
@@ -102,5 +102,5 @@ Total rate; must equal the engine's (layout key).
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/ddc/ddc_core.h`
+The documentation for this class was generated from the following file `native/inc/ddcr/ddcr_core.h`
 

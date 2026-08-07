@@ -19,6 +19,7 @@
 #include "lo/lo_core.h"
 #include "awgn/awgn_core.h"
 #include "pn/pn_core.h"
+#include "resamp/resamp_core.h"
 #include <math.h> /* log10/powf/sqrtf in create_impl */
 #ifdef __cplusplus
 extern "C" {
@@ -35,7 +36,17 @@ enum {
     WFM_SYNTH_SYMBOLS
     = 7,                /* user complex-symbol stream, oversampled + cycled */
     WFM_SYNTH_DSSS = 8, /* two-code DSSS burst: repeated preamble +
-                           spread frame, built by wfm_synth_set_dsss() */
+                           spread frame, built by wfm_synth_set_dsss();
+                           OR a continuous asynchronous stream when a
+                           symbol_rate is supplied (wfm_synth_set_dsss_cont).
+                           The two modes share this one type — a symbol_rate
+                           discriminates, no tenth waveform type. */
+};
+
+enum {
+    WFM_DSSS_DATA_NONE = 0, /* code-only: constant bit 0 -> the pure code    */
+    WFM_DSSS_DATA_BITS = 1, /* a caller payload array, cycled mod n_bits      */
+    WFM_DSSS_DATA_PRBS = 2, /* bits from the seeded PN LFSR (regenerable)     */
 };
 
 /* snr >= this (dB) means "clean": no AWGN is generated at all (the common case
@@ -134,11 +145,119 @@ typedef struct {
     float _Complex * symbols;
     size_t n_symbols;
     size_t sym_read_idx;
-    fir_state_t * fir;
+    /* continuous asynchronous DSSS (type=dsss + symbol_rate > 0):
+       chips_per_symbol == 0 means burst mode (the fields below are unused). */
+    double chips_per_symbol; /* config: chip_rate / symbol_rate (non-integer) */
+    uint8_t * code;          /* config: spreading code (0/1), owned          */
+    size_t n_code;           /* config: spreading code length in chips        */
+    int data_mode;           /* config: WFM_DSSS_DATA_{NONE,BITS,PRBS}        */
+    uint64_t chip_n;         /* running: chips emitted so far                 */
+    uint64_t sym_idx;        /* running: current data-symbol index            */
+    uint8_t cur_data;        /* running: data bit latched for this symbol      */
+    fir_state_t * fir;       /* dense RRC FIR (non-power-of-two sps fallback)  */
+    /* Polyphase RRC pulse shaper: a resamp interpolate-by-sps view over the
+       RRC bank, replacing the dense fir (impulse-train + full FIR) with ~sps×
+       fewer MACs. Built by wfm_synth_set_rrc when sps is a power of two; the
+       dense `fir` is used otherwise. Exactly one of fir/shaper is ever set. */
+    resamp_state_t * shaper;
+    uint8_t primed;          /* running: shaper's sps-sample latency primed     */
     lo_state_t * lo;
     awgn_state_t * awgn;
     pn_state_t * pn;
 } wfm_synth_state_t;
+
+JM_FORCEINLINE float
+wfm_synth_cont_dsss_chip(wfm_synth_state_t *s)
+{
+    uint64_t n   = s->chip_n;
+    uint64_t sym = (uint64_t)((double)n / s->chips_per_symbol);
+    if (n == 0 || sym != s->sym_idx) {
+        s->sym_idx = sym;
+        if (s->data_mode == WFM_DSSS_DATA_PRBS)
+            s->cur_data = s->pn ? pn_step(s->pn) : 0u;
+        else if (s->data_mode == WFM_DSSS_DATA_BITS)
+            s->cur_data = (s->bits && s->n_bits)
+                              ? (uint8_t)(s->bits[sym % s->n_bits] & 1u)
+                              : 0u;
+        else
+            s->cur_data = 0u; /* code-only: the pure code, +code polarity */
+    }
+    uint8_t code_bit = (uint8_t)(s->code[n % s->n_code] & 1u);
+    s->chip_n        = n + 1;
+    return (code_bit ^ s->cur_data) ? -1.0f : 1.0f;
+}
+
+JM_FORCEINLINE float _Complex
+wfm_synth_next_symbol(wfm_synth_state_t *s)
+{
+    const float q = 0.70710678118654752f; /* 1/sqrt(2) — QPSK leg */
+    if (s->wtype == WFM_SYNTH_SYMBOLS) {
+        float _Complex v = 0.0f + 0.0f * I;
+        if (s->symbols && s->n_symbols) {
+            v = s->symbols[s->sym_read_idx];
+            s->sym_read_idx = (s->sym_read_idx + 1) % s->n_symbols;
+        }
+        return v;
+    }
+    if (s->wtype == WFM_SYNTH_BITS || s->wtype == WFM_SYNTH_DSSS) {
+        if (s->chips_per_symbol > 0.0) /* continuous DSSS: lazy chip */
+            return wfm_synth_cont_dsss_chip(s) + 0.0f * I;
+        if (s->bits && s->n_bits) {
+            if (s->bit_mod == 2) { /* qpsk: 2 bits/symbol, Gray-mapped */
+                uint8_t b0     = s->bits[s->bit_idx];
+                uint8_t b1     = s->bits[(s->bit_idx + 1) % s->n_bits];
+                s->bit_idx     = (s->bit_idx + 2) % s->n_bits;
+                return (b0 ? -q : q) + (b1 ? -q : q) * I;
+            }
+            if (s->bit_mod == 1) { /* bpsk: 0->+1, 1->-1 */
+                float re   = s->bits[s->bit_idx] ? -1.0f : 1.0f;
+                s->bit_idx = (s->bit_idx + 1) % s->n_bits;
+                return re + 0.0f * I;
+            }
+            /* none: unmodulated 0/1 amplitude */
+            float re   = s->bits[s->bit_idx] ? 1.0f : 0.0f;
+            s->bit_idx = (s->bit_idx + 1) % s->n_bits;
+            return re + 0.0f * I;
+        }
+        return 0.0f + 0.0f * I;
+    }
+    /* pn / bpsk / qpsk: source symbols from the LFSR */
+    if (s->wtype == WFM_SYNTH_QPSK) {
+        uint8_t b0 = pn_step(s->pn);
+        uint8_t b1 = pn_step(s->pn);
+        return (b0 ? -q : q) + (b1 ? -q : q) * I;
+    }
+    uint8_t b = pn_step(s->pn);
+    return (b ? -1.0f : 1.0f) + 0.0f * I;
+}
+
+JM_FORCEINLINE void
+wfm_synth_shaper_prime(wfm_synth_state_t *s)
+{
+    size_t left = (size_t)s->nsps;
+    while (left) {
+        float _Complex syms[64], scratch[64];
+        size_t pm = left < 64 ? left : 64;
+        size_t need = resamp_interp_inputs_needed(s->shaper, pm);
+        for (size_t k = 0; k < need; k++)
+            syms[k] = wfm_synth_next_symbol(s);
+        resamp_interp_fill(s->shaper, syms, scratch, pm);
+        left -= pm;
+    }
+    s->primed = 1;
+}
+
+JM_FORCEINLINE void
+wfm_synth_shape(wfm_synth_state_t *s, float _Complex *out, size_t m,
+                float _Complex *syms)
+{
+    if (!s->primed)
+        wfm_synth_shaper_prime(s);
+    size_t need = resamp_interp_inputs_needed(s->shaper, m);
+    for (size_t k = 0; k < need; k++)
+        syms[k] = wfm_synth_next_symbol(s);
+    resamp_interp_fill(s->shaper, syms, out, m);
+}
 
 wfm_synth_state_t *wfm_synth_create(int type, double fs, double freq, double snr, int snr_mode, uint32_t seed, int sps, int pn_length, uint64_t pn_poly, int lfsr, double f_end);
 
@@ -152,6 +271,10 @@ int wfm_synth_set_dsss(wfm_synth_state_t *state, const uint8_t *acq_code,
                        const uint8_t *data_code, size_t data_len,
                        const uint8_t *sync, size_t sync_len,
                        const uint8_t *payload, size_t payload_len, int crc);
+
+int wfm_synth_set_dsss_cont(wfm_synth_state_t *state, const uint8_t *code,
+                            size_t code_len, double chips_per_symbol,
+                            int data_mode, const uint8_t *data, size_t n_data);
 
 int wfm_synth_set_symbols(wfm_synth_state_t *state,
                           const float _Complex *symbols, size_t n);
@@ -171,28 +294,42 @@ void wfm_synth_noise_steps(wfm_synth_state_t *state, float complex *output,
 JM_FORCEINLINE JM_HOT float complex
 wfm_synth_step(wfm_synth_state_t *state)
 {
+    /* jm: body sourced from [wfm_synth] impl/impl_file in objects/wfm_synth.toml — edit there, not here; `jm apply` overwrites this. */
     float complex sym;
-    if (state->wtype == WFM_SYNTH_BITS || state->wtype == WFM_SYNTH_DSSS) {
+    if (state->shaper) {
+        /* Polyphase RRC pulse shaping (power-of-two sps). The single shaping
+         * kernel wfm_synth_steps() also drives, one output at a time, so step()
+         * and the block path agree bit-for-bit (the resampler is block-boundary
+         * invariant). Covers every shaped type — the symbol source is dispatched
+         * inside wfm_synth_next_symbol(). */
+        float complex s1[1];
+        wfm_synth_shape(state, &sym, 1, s1);
+    } else if (state->wtype == WFM_SYNTH_BITS || state->wtype == WFM_SYNTH_DSSS) {
         /* User bit pattern, oversampled sps and cycled to fill the request. The
          * symbol latch mirrors the PN path but sources bits from bits[bit_idx]
          * instead of the LFSR; bit_mod picks the mapping. A dsss burst is the
          * same machinery over the chip pattern set_dsss() assembled. */
-        if (state->sym_pos == 0 && state->bits && state->n_bits) {
-            if (state->bit_mod == 2) { /* qpsk: 2 bits/symbol, Gray-mapped */
-                uint8_t b0 = state->bits[state->bit_idx];
-                uint8_t b1 = state->bits[(state->bit_idx + 1) % state->n_bits];
-                const float s = 0.70710678118654752f;
-                state->cur_re = b0 ? -s : s;
-                state->cur_im = b1 ? -s : s;
-                state->bit_idx = (state->bit_idx + 2) % state->n_bits;
-            } else if (state->bit_mod == 1) { /* bpsk: 0->+1, 1->-1 */
-                state->cur_re = state->bits[state->bit_idx] ? -1.0f : 1.0f;
+        if (state->sym_pos == 0) {
+            if (state->chips_per_symbol > 0.0) { /* continuous DSSS: lazy chip */
+                state->cur_re = wfm_synth_cont_dsss_chip(state);
                 state->cur_im = 0.0f;
-                state->bit_idx = (state->bit_idx + 1) % state->n_bits;
-            } else { /* none: unmodulated 0/1 amplitude */
-                state->cur_re = state->bits[state->bit_idx] ? 1.0f : 0.0f;
-                state->cur_im = 0.0f;
-                state->bit_idx = (state->bit_idx + 1) % state->n_bits;
+            } else if (state->bits && state->n_bits) {
+                if (state->bit_mod == 2) { /* qpsk: 2 bits/symbol, Gray-mapped */
+                    uint8_t b0 = state->bits[state->bit_idx];
+                    uint8_t b1 = state->bits[(state->bit_idx + 1) % state->n_bits];
+                    const float s = 0.70710678118654752f;
+                    state->cur_re = b0 ? -s : s;
+                    state->cur_im = b1 ? -s : s;
+                    state->bit_idx = (state->bit_idx + 2) % state->n_bits;
+                } else if (state->bit_mod == 1) { /* bpsk: 0->+1, 1->-1 */
+                    state->cur_re = state->bits[state->bit_idx] ? -1.0f : 1.0f;
+                    state->cur_im = 0.0f;
+                    state->bit_idx = (state->bit_idx + 1) % state->n_bits;
+                } else { /* none: unmodulated 0/1 amplitude */
+                    state->cur_re = state->bits[state->bit_idx] ? 1.0f : 0.0f;
+                    state->cur_im = 0.0f;
+                    state->bit_idx = (state->bit_idx + 1) % state->n_bits;
+                }
             }
         }
         if (state->fir) {
@@ -264,7 +401,7 @@ wfm_synth_step(wfm_synth_state_t *state)
     }
     float complex carrier = 1.0f + 0.0f * I;
     if (state->lo) {
-        lo_steps(state->lo, 1, &carrier);
+        lo_steps(state->lo, 1, &carrier, 1);
     } else if (state->wtype == WFM_SYNTH_CHIRP) {
         /* Sweeping carrier: f(n) = f0 + k*n (normalised cycles/sample), held at
          * f_end once the span is reached. Phase accumulates in cycles, wrapped to
@@ -282,7 +419,7 @@ wfm_synth_step(wfm_synth_state_t *state)
     }
     float complex noise = 0.0f + 0.0f * I;
     if (state->awgn)
-        awgn_generate(state->awgn, 1, &noise);
+        awgn_generate(state->awgn, 1, &noise, 1);
     return sym * carrier + noise;
 }
 
@@ -317,7 +454,7 @@ void wfm_synth_set_cur_im(wfm_synth_state_t *state, float val);
  * composition of optional fir/lo/awgn/pn children (presence-flagged) +
  * running waveform-position scalars; bits/config restored by create. */
 #define WFM_SYNTH_STATE_MAGIC DP_FOURCC ('W','F','M','S')
-#define WFM_SYNTH_STATE_VERSION 1u
+#define WFM_SYNTH_STATE_VERSION 2u /* v2: + continuous-DSSS chip/symbol clocks */
 size_t wfm_synth_state_bytes (const wfm_synth_state_t *state);
 void wfm_synth_get_state (const wfm_synth_state_t *state, void *blob);
 int wfm_synth_set_state (wfm_synth_state_t *state, const void *blob);

@@ -84,6 +84,24 @@ extern "C"
                               float _Complex *out, size_t max_out);
 
   /* ------------------------------------------------------------------
+   * Streaming interpolation (fixed integer rate, output-count driven)
+   * ------------------------------------------------------------------ */
+
+  size_t resamp_interp_inputs_needed (const resamp_state_t *state,
+                                      size_t max_out);
+
+  size_t resamp_interp_fill (resamp_state_t *state, const float _Complex *in,
+                             float _Complex *out, size_t max_out);
+
+  /* ------------------------------------------------------------------
+   * Streaming control port (closed-loop timing / arbitrary rate)
+   * ------------------------------------------------------------------ */
+
+  size_t resamp_execute_ctrl_push (resamp_state_t *state, float _Complex x,
+                                   double ctrl, float _Complex *out,
+                                   size_t max_out);
+
+  /* ------------------------------------------------------------------
    * Properties
    * ------------------------------------------------------------------ */
 
@@ -93,6 +111,8 @@ extern "C"
 
   size_t resamp_get_num_phases (const resamp_state_t *state);
   size_t resamp_get_num_taps (const resamp_state_t *state);
+
+  double resamp_get_ctrl_acc (const resamp_state_t *state);
 
 #ifdef __cplusplus
 }

@@ -100,6 +100,7 @@ double loop_filter_state_t::bn;
 
 
 loop noise bandwidth, normalized cycles/sample. 
+ 
 
 
         
@@ -134,6 +135,7 @@ double loop_filter_state_t::ki;
 
 
 integral gain (derived from bn, zeta, t). 
+ 
 
 
         
@@ -151,6 +153,7 @@ double loop_filter_state_t::kp;
 
 
 proportional gain (derived from bn, zeta, t). 
+ 
 
 
         
@@ -168,6 +171,7 @@ double loop_filter_state_t::t;
 
 
 update period in samples. 
+ 
 
 
         
@@ -185,6 +189,7 @@ double loop_filter_state_t::zeta;
 
 
 damping factor (0.707 = critically damped). 
+ 
 
 
         

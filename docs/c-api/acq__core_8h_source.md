@@ -35,7 +35,8 @@ extern "C"
     float  peak_mag;   
     float  noise_est;  
     float  test_stat;  
-    float cn0_dbhz_est; 
+    float cn0_dbhz_est;        
+    uint64_t samples_consumed; 
   } acq_result_t;
 
   typedef struct
@@ -51,24 +52,33 @@ extern "C"
     float *mag_buf;       
     float *noise_scratch; 
     float *nc_surface;    
-
+    /* Wideband mode only (window_bins > 1) — see the file doc comment.
+     * Independent of corr/slow_fft/yframe/colbuf/colout above (unused, but
+     * left allocated at their trivial coherent_bins=1 size, in this mode). */
+    fft_state_t *wide_fwd; 
+    fft_state_t *wide_inv; 
+    float complex
+        *wide_ref_spec; 
+    float complex
+        *wide_spec; 
+    float complex *wide_prod; 
     size_t
-        doppler_bins; 
+        coherent_bins; 
+    size_t window_bins; 
     size_t code_bins; 
-    size_t n;         
-    size_t sf;        
-    size_t spc;       
-    size_t reps;      
+    size_t n; 
+    size_t frame_n; 
+    size_t sf;      
+    size_t spc;     
+    size_t reps;    
     size_t
         searched_bins; 
     size_t n_noncoh;   
-    size_t max_noncoh; 
     size_t nc_count; 
     size_t ring_cap; 
     size_t noise_lo; 
     size_t noise_hi; 
     det_noise_mode_t noise_mode; 
-
     double chip_rate; 
     double fs;        
     double cn0_dbhz;  
@@ -76,13 +86,10 @@ extern "C"
         doppler_span_hz; 
     double
         doppler_res_hz; 
-    double pfa; 
+    double pfa;         
     double doppler_uncertainty; 
     double symbol_rate; 
-    double epochs_per_symbol; 
-    double doppler_resolution; 
-    double doppler_rate; 
-
+    double epochs_per_symbol;  
     float  threshold; 
     float  eta;       
     float  eta_nc;    
@@ -91,10 +98,8 @@ extern "C"
     double pd_predicted;  
     double straddle_loss; 
     uint8_t underpowered; 
-
     uint64_t
         samples_consumed; 
-
     /* Last-dump bookkeeping (for inspection). */
     size_t peak_row;
     size_t peak_col;
@@ -117,12 +122,18 @@ extern "C"
 #define ACQ_STATE_MAGIC DP_FOURCC ('A', 'C', 'Q', 'R')
 #define ACQ_STATE_VERSION 1u
 
-  acq_state_t *acq_create (const uint8_t *code, size_t code_len, size_t reps,
-                           size_t spc, double chip_rate, double cn0_dbhz,
-                           double doppler_uncertainty, double pfa, double pd,
-                           int noise_mode, size_t max_noncoh,
-                           double symbol_rate, double doppler_resolution,
-                           double doppler_rate);
+#define ACQ_N_NONCOH_SAFETY_CEILING 256u
+
+  acq_state_t *acq_create_burst (const uint8_t *code, size_t code_len,
+                                 size_t reps, size_t spc, double chip_rate,
+                                 double cn0_dbhz, double doppler_uncertainty,
+                                 double pfa, double pd, int noise_mode);
+
+  acq_state_t *acq_create_continuous (const uint8_t *code, size_t code_len,
+                                      size_t spc, double chip_rate,
+                                      double symbol_rate, double cn0_dbhz,
+                                      double doppler_uncertainty, double pfa,
+                                      double pd, int noise_mode);
 
   void acq_destroy (acq_state_t *state);
 
@@ -131,8 +142,30 @@ extern "C"
   int acq_configure_search_raw (acq_state_t *state, size_t doppler_bins,
                                 size_t n_noncoh);
 
-  size_t acq_push (acq_state_t *state, const float complex *in, size_t n_in,
+  size_t acq_push (acq_state_t *state, const float complex *x, size_t n_in,
                    acq_result_t *result, size_t max_results);
+
+  typedef struct
+  {
+    uint64_t samples_consumed; 
+    double
+        chip_phase; 
+    double doppler_hz_est;  
+    double doppler_res_hz;  
+    double cn0_dbhz_est;    
+    float  peak_mag;        
+    float  noise_est;       
+    float  test_stat;       
+  } acq_handoff_t;
+
+  static inline long
+  acq_bin_to_signed (size_t bin, size_t n_bins)
+  {
+    return (bin <= n_bins / 2) ? (long)bin : (long)bin - (long)n_bins;
+  }
+
+  void acq_build_handoff (const acq_state_t *state, const acq_result_t *hit,
+                          size_t code_len, size_t spc, acq_handoff_t *out);
 
   /* ── Serializable state — the elastic / pure-transducer face
    * ─────────────────

@@ -4,7 +4,7 @@
 
 
 
-[**FileList**](files.md) **>** [**inc**](dir_5029b6cdea6e9b25321183da44d91d43.md) **>** [**telemetry**](dir_d4543964ddc0423cd91d16ab74a4089e.md) **>** [**tlm\_sink.h**](tlm__sink_8h.md)
+[**FileList**](files.md) **>** [**inc**](dir_5029b6cdea6e9b25321183da44d91d43.md) **>** [**stream**](dir_21b896cdbc030a0ded493211142b7733.md) **>** [**tlm\_sink.h**](tlm__sink_8h.md)
 
 [Go to the source code of this file](tlm__sink_8h_source.md)
 
@@ -59,7 +59,7 @@ _NATS PUB sink for telemetry records._ [More...](#detailed-description)
 | ---: | :--- |
 |  void | [**dp\_tlm\_sink\_close**](#function-dp_tlm_sink_close) ([**dp\_tlm\_sink\_t**](tlm__sink_8h.md#typedef-dp_tlm_sink_t) \* sink) <br>_Close the sink and destroy the publisher._  |
 |  [**dp\_tlm\_sink\_t**](tlm__sink_8h.md#typedef-dp_tlm_sink_t) \* | [**dp\_tlm\_sink\_open**](#function-dp_tlm_sink_open) (const char \* endpoint) <br>_Open a telemetry sink (PUB) bound to a NATS subject._  |
-|  int | [**dp\_tlm\_sink\_pump**](#function-dp_tlm_sink_pump) ([**dp\_tlm\_sink\_t**](tlm__sink_8h.md#typedef-dp_tlm_sink_t) \* sink, [**dp\_tlm\_t**](telemetry_8h.md#typedef-dp_tlm_t) \* tlm) <br>_Drain every available record from_ `tlm` _and publish them._ |
+|  int | [**dp\_tlm\_sink\_pump**](#function-dp_tlm_sink_pump) ([**dp\_tlm\_sink\_t**](tlm__sink_8h.md#typedef-dp_tlm_sink_t) \* sink, [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* tlm) <br>_Drain every available record from_ `tlm` _and publish them._ |
 |  uint64\_t | [**dp\_tlm\_sink\_sent**](#function-dp_tlm_sink_sent) (const [**dp\_tlm\_sink\_t**](tlm__sink_8h.md#typedef-dp_tlm_sink_t) \* sink) <br>_Total records published since open._  |
 
 
@@ -92,7 +92,7 @@ _NATS PUB sink for telemetry records._ [More...](#detailed-description)
 ## Detailed Description
 
 
-Drains a [**dp\_tlm\_t**](telemetry_8h.md#typedef-dp_tlm_t) record ring ([**dp_tlm/dp_tlm_core.h**](telemetry_8h.md)) to a NATS subject using doppler's `dp_pub_*` wire layer: each pump publishes the available records as TLM16 frames (SIGS header, sample\_type = TLM16, num\_samples = record count, payload = packed 16-byte [**dp\_tlm\_rec\_t**](structdp__tlm__rec__t.md)). A `dp_sub_*` receiver on the subject gets the same structured rows the in-process Python `Telemetry.read()` returns.
+Drains a dp\_tlm\_t record ring ([**dp\_tlm/dp\_tlm\_core.h**](dp__tlm__core_8h.md)) to a NATS subject using doppler's `dp_pub_*` wire layer: each pump publishes the available records as TLM16 frames (SIGS header, sample\_type = TLM16, num\_samples = record count, payload = packed 16-byte [**dp\_tlm\_rec\_t**](structdp__tlm__rec__t.md)). A `dp_sub_*` receiver on the subject gets the same structured rows the in-process Python `Telemetry.read()` returns.
 
 
 The implementation lives in the optional `libdoppler_stream` component (it publishes through the vendored nats.c client) — link `doppler::stream` alongside the core to use it. Unlike [**wfm\_sink.h**](wfm__sink_8h.md) there is no weak-stub seam: nothing in the core references these symbols, so a consumer that doesn't link the stream component simply doesn't call them.
@@ -133,7 +133,7 @@ typedef struct dp_tlm_sink dp_tlm_sink_t;
 
 
 
-Opaque telemetry sink (a [**dp\_pub\_t**](group__types.md#typedef-dp_pub_t) publisher + a sent counter). 
+Opaque telemetry sink (a dp\_pub\_t publisher + a sent counter). 
 
 
         

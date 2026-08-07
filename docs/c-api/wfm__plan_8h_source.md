@@ -29,7 +29,8 @@
  * regenerated noise synth spanning that instance's delay+on+off:
  *
  *     render(θ) = concat over segments, repeat instances of
- *                 [ noise(delay) | Σ_k g_k(θ)·e^{jφ_k(θ)}·cache_k + noise(on) | noise(off) ]
+ *                 [ noise(delay) | Σ_k g_k(θ)·e^{jφ_k(θ)}·cache_k + noise(on)
+ * | noise(off) ]
  *
  * v1 axes (all bit-exact vs a full compose): per-source gain/level, phase,
  * enable/disable, global SNR/noise-floor and Monte-Carlo noise-seed —
@@ -64,9 +65,20 @@
  * (segment 0's sources in scene order, then segment 1's, ...) — length
  * `wfm_plan_n_sources()`.
  *
- * The Plan is a re-creatable derived cache, not evolving state: persist the
- * spec JSON (Composer.to_json()) and rebuild, rather than serializing the
- * multi-MB sample buffers.
+ * The Plan is a re-creatable derived cache, not evolving state. The cheapest,
+ * most portable persistence is therefore the spec JSON (Composer.to_json())
+ * plus a rebuild — KB, and always tracks the current DSP. wfm_plan_save() /
+ * wfm_plan_restore() are the OPTIONAL fast-path alternative: they serialize
+ * the cached sample buffers alongside the embedded spec so a restore SKIPS the
+ * expensive DSP (build_synth) that dominates prepare(). This is a versioned
+ * performance cache, NOT the dp_state.h elastic-state contract — it is gated
+ * by a build-time DSP fingerprint (wfm_plan_dsp_hash.h), and on any mismatch
+ * (different DSP build, or a spec/buffer inconsistency) restore transparently
+ * REBUILDS from the embedded spec rather than reinterpreting stale bytes. So a
+ * restore is never silently wrong: worst case it is as slow as prepare(); best
+ * case (matching build) it is a memcpy. Prefer save/restore only when the DSP
+ * cost is high and the spec-rebuild is undesirable (e.g. fanning one prepared
+ * Plan across many workers); otherwise persist the spec and rebuild.
  */
 #ifndef WFM_PLAN_H
 #define WFM_PLAN_H
@@ -80,23 +92,33 @@ extern "C"
 {
 #endif
 
-typedef struct wfm_plan wfm_plan_t;
+  typedef struct wfm_plan wfm_plan_t;
 
-wfm_plan_t *wfm_plan_prepare(const char *spec_json);
+  wfm_plan_t *wfm_plan_prepare (const char *spec_json);
 
-size_t wfm_plan_len(const wfm_plan_t *p);
+  size_t wfm_plan_len (const wfm_plan_t *p);
 
-size_t wfm_plan_n_sources(const wfm_plan_t *p);
+  size_t wfm_plan_n_sources (const wfm_plan_t *p);
 
-uint64_t wfm_plan_anchor_seed(const wfm_plan_t *p);
+  uint64_t wfm_plan_anchor_seed (const wfm_plan_t *p);
 
-size_t wfm_plan_render(const wfm_plan_t *p, const char *overrides_json,
-                       float _Complex *out);
+  size_t wfm_plan_render (const wfm_plan_t *p, const char *overrides_json,
+                          float _Complex *out);
 
-size_t wfm_plan_at(const wfm_plan_t *p, double snr, uint64_t seed,
-                   float _Complex *out);
+  size_t wfm_plan_at (const wfm_plan_t *p, double snr, uint64_t seed,
+                      float _Complex *out);
 
-void wfm_plan_destroy(wfm_plan_t *p);
+  size_t wfm_plan_save_bytes (const wfm_plan_t *p);
+
+  size_t wfm_plan_save (const wfm_plan_t *p, void *blob);
+
+  wfm_plan_t *wfm_plan_restore (const void *blob, size_t n);
+
+  int wfm_plan_dump (const wfm_plan_t *p, const char *path);
+
+  wfm_plan_t *wfm_plan_load (const char *path);
+
+  void wfm_plan_destroy (wfm_plan_t *p);
 
 #ifdef __cplusplus
 }

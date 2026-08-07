@@ -64,8 +64,8 @@ _NPRMeasure — notched-noise Noise Power Ratio._ [More...](#detailed-descriptio
 |  [**npr\_meas\_t**](structnpr__meas__t.md) | [**nprmeas\_analyze**](#function-nprmeas_analyze) ([**nprmeas\_state\_t**](structnprmeas__state__t.md) \* state, const float \* x, size\_t n\_in, double active\_lo, double active\_hi, double notch\_lo, double notch\_hi, double guard\_hz) <br>_NPR of a notched-noise capture._  |
 |  [**nprmeas\_state\_t**](structnprmeas__state__t.md) \* | [**nprmeas\_create**](#function-nprmeas_create) (size\_t n, double fs, double full\_scale, size\_t bits, double dynamic\_range\_db) <br>_Create an NPRMeasure analyser (auto Kaiser window)._  |
 |  void | [**nprmeas\_destroy**](#function-nprmeas_destroy) ([**nprmeas\_state\_t**](structnprmeas__state__t.md) \* state) <br>_Destroy an NPRMeasure analyser._  |
-|  void | [**nprmeas\_reset**](#function-nprmeas_reset) ([**nprmeas\_state\_t**](structnprmeas__state__t.md) \* state) <br>_Reset (no-op: each analyze() call is independent)._  |
-|  size\_t | [**nprmeas\_spectrum\_dbfs**](#function-nprmeas_spectrum_dbfs) ([**nprmeas\_state\_t**](structnprmeas__state__t.md) \* state, const float \* x, size\_t x\_len, float \* out) <br>_DC-centred dBFS magnitude spectrum of a capture (length nfft). The same averaged PSD the metrics use, for an analyzer-display backdrop._  |
+|  void | [**nprmeas\_reset**](#function-nprmeas_reset) ([**nprmeas\_state\_t**](structnprmeas__state__t.md) \* state) <br>_Reset the analyser (a no-op: each analyze() call is independent)._  |
+|  size\_t | [**nprmeas\_spectrum\_dbfs**](#function-nprmeas_spectrum_dbfs) ([**nprmeas\_state\_t**](structnprmeas__state__t.md) \* state, const float \* x, size\_t x\_len, float \* out, size\_t max\_out) <br>_DC-centred dBFS magnitude spectrum of a capture (length nfft)._  |
 |  size\_t | [**nprmeas\_spectrum\_dbfs\_max\_out**](#function-nprmeas_spectrum_dbfs_max_out) ([**nprmeas\_state\_t**](structnprmeas__state__t.md) \* state) <br>_Capacity (== nfft) of the spectrum\_dbfs output buffer._  |
 
 
@@ -157,11 +157,12 @@ the NPR metric record (by value).
 >>> n = 1 << 15
 >>> F = np.fft.rfft(rng.standard_normal(n))
 >>> f = np.fft.rfftfreq(n)
->>> F[(f < 0.05) | (f > 0.45)] = 0                 # band-limit to [0.05,0.45]
+>>> F[(f < 0.05) | (f > 0.45)] = 0  # band-limit to [0.05,0.45]
 >>> F[(f >= 0.20) & (f <= 0.25)] *= 10**(-50/20)   # notch 50 dB deep
 >>> x = np.fft.irfft(F, n)
 >>> x = (0.3*x/np.std(x)).astype(np.float32)
->>> r = NPRMeasure(n=n, fs=1.0).analyze(x, 0.05, 0.45, 0.20, 0.25, 0.01)
+>>> r = NPRMeasure(n=n, fs=1.0).analyze(
+...     x, 0.05, 0.45, 0.20, 0.25, 0.01)
 >>> 45 < r.npr_db < 55, r.notch_psd_dbfs < r.inband_psd_dbfs
 (True, True)
 ```
@@ -248,7 +249,7 @@ void nprmeas_destroy (
 
 ### function nprmeas\_reset 
 
-_Reset (no-op: each analyze() call is independent)._ 
+_Reset the analyser (a no-op: each analyze() call is independent)._ 
 ```C++
 void nprmeas_reset (
     nprmeas_state_t * state
@@ -257,6 +258,28 @@ void nprmeas_reset (
 
 
 
+Every analyze() / spectrum\_dbfs() call re-windows and re-transforms its own capture from scratch, so nothing is carried between calls to clear. The method exists only so NPRMeasure honours the same reset() contract as every other doppler object, letting a generic pipeline reset each stage uniformly.
+
+
+
+
+**Parameters:**
+
+
+* `state` The analyser (left unchanged).
+
+
+```C++
+>>> from doppler.measure import NPRMeasure
+>>> m = NPRMeasure(n=8192, fs=1.0)
+>>> m.reset()            # stateless: provided only for API uniformity
+>>> m.reset() is None    # returns nothing; safe to call anytime
+True
+```
+ 
+
+
+        
 
 <hr>
 
@@ -264,18 +287,56 @@ void nprmeas_reset (
 
 ### function nprmeas\_spectrum\_dbfs 
 
-_DC-centred dBFS magnitude spectrum of a capture (length nfft). The same averaged PSD the metrics use, for an analyzer-display backdrop._ 
+_DC-centred dBFS magnitude spectrum of a capture (length nfft)._ 
 ```C++
 size_t nprmeas_spectrum_dbfs (
     nprmeas_state_t * state,
     const float * x,
     size_t x_len,
-    float * out
+    float * out,
+    size_t max_out
 ) 
 ```
 
 
 
+The same windowed, zero-padded PSD the NPR metrics are read off, laid out DC-centred (fftshifted) and normalised to dBFS for an analyzer-display backdrop. Use it to see the notch and the active band that analyze() integrates over.
+
+
+
+
+**Parameters:**
+
+
+* `state` The analyser. 
+* `x` Real time-domain capture (length `x_len`). 
+* `x_len` Number of input samples. 
+* `out` Destination buffer (length &gt;= `max_out`). 
+* `max_out` Capacity of `out` (== nfft). 
+
+
+
+**Returns:**
+
+DC-centred dBFS magnitude spectrum, one value per FFT bin (nfft).
+
+
+
+```C++
+>>> from doppler.measure import NPRMeasure
+>>> import numpy as np
+>>> rng = np.random.default_rng(0)
+>>> x = (0.3*rng.standard_normal(8192)).astype(np.float32)  # noise
+>>> s = NPRMeasure(n=8192, fs=1.0).spectrum_dbfs(x)  # DC-centred dBFS
+>>> s.shape                                          # zero-padded nfft
+(16384,)
+>>> round(float(np.median(s)), 0)   # broadband floor, below 0 dBFS
+-48.0
+```
+ 
+
+
+        
 
 <hr>
 

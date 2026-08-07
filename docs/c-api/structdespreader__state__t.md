@@ -47,7 +47,7 @@ _Despreader state._ [More...](#detailed-description)
 |  int | [**have\_prev**](#variable-have_prev)  <br> |
 |  size\_t | [**periods\_per\_bit**](#variable-periods_per_bit)  <br> |
 |  int | [**prev\_sign**](#variable-prev_sign)  <br> |
-|  [**dp\_tlm\_t**](telemetry_8h.md#typedef-dp_tlm_t) \* | [**tlm\_ctx**](#variable-tlm_ctx)  <br> |
+|  [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* | [**tlm\_ctx**](#variable-tlm_ctx)  <br> |
 
 
 
@@ -113,6 +113,7 @@ double despreader_state_t::bit_acc;
 
 
 running sum of Re(prompt) over the bit. 
+ 
 
 
         
@@ -130,6 +131,7 @@ size_t despreader_state_t::bit_phase;
 
 
 detected bit boundary (argmax flip\_hist). 
+ 
 
 
         
@@ -147,6 +149,7 @@ costas_state_t despreader_state_t::car;
 
 
 carrier (Costas/FLL-assisted-PLL) loop. 
+ 
 
 
         
@@ -164,6 +167,7 @@ dll_state_t despreader_state_t::code;
 
 
 code (early/prompt/late DLL) loop. 
+ 
 
 
         
@@ -181,6 +185,7 @@ uint8_t* despreader_state_t::code_copy;
 
 
 owned copy of the spreading code. 
+ 
 
 
         
@@ -198,6 +203,7 @@ size_t despreader_state_t::epoch_count;
 
 
 code periods processed so far. 
+ 
 
 
         
@@ -215,6 +221,7 @@ size_t despreader_state_t::epochs_in_bit;
 
 
 periods accumulated in the current bit. 
+ 
 
 
         
@@ -232,6 +239,7 @@ size_t* despreader_state_t::flip_hist;
 
 
 prompt sign-flip histogram, length np. 
+ 
 
 
         
@@ -249,6 +257,7 @@ int despreader_state_t::have_prev;
 
 
 prev\_sign valid. 
+ 
 
 
         
@@ -266,6 +275,7 @@ size_t despreader_state_t::periods_per_bit;
 
 
 code periods per data bit (&gt;=1). 
+ 
 
 
         
@@ -283,6 +293,7 @@ int despreader_state_t::prev_sign;
 
 
 previous prompt sign (+1/-1). 
+ 
 
 
         
@@ -300,6 +311,7 @@ dp_tlm_t* despreader_state_t::tlm_ctx;
 
 
 telemetry gate: non-NULL when the embedded loops are attached (despreader\_set\_telemetry); the probes live on car.tlm / code.tlm. Not serialized (field-wise triplet skips it). 
+ 
 
 
         

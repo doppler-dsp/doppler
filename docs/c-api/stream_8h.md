@@ -87,6 +87,52 @@ _Streaming API for doppler — PUB/SUB, PUSH/PULL, REQ/REP._ [More...](#detailed
 ## Detailed Description
 
 
+Provides NATS-backed signal streaming using three messaging patterns:
+
+
+
+|Pattern   |Sender function   |Receiver function   |Use case    |
+|-----|-----|-----|-----|
+|PUB/SUB   |dp\_pub\_\*   |dp\_sub\_\*   |Fan-out broadcast    |
+|PUSH/PULL   |dp\_push\_\*   |dp\_pull\_\*   |Pipeline /   |
+
+
+
+load-balance\| \| REQ/REP \| dp\_req\_\* \| dp\_rep\_\* \| Control / metadata \|
+
+
+Requires a running `nats-server` (`nats-server -js` for the PUSH/PULL JetStream work-queue tier). An endpoint is `"nats://host:port[/subject]"`; the subject defaults to `"default"` if omitted.
+
+
+#### Quick start (C)
+
+
+
+
+```C++
+#include "stream/stream.h"
+
+// Transmitter
+dp_pub_t *pub = dp_pub_create("nats://127.0.0.1:4222/iq", CF64);
+double _Complex samples[1024] = { ... };
+dp_pub_send_cf64(pub, samples, 1024, 1e6, 2.4e9);
+dp_pub_destroy(pub);
+
+// Receiver (zero-copy)
+dp_sub_t *sub = dp_sub_create("nats://127.0.0.1:4222/iq");
+dp_msg_t *msg;  dp_header_t hdr;
+dp_sub_recv(sub, &msg, &hdr);
+double _Complex *cf64 = (double _Complex *)dp_msg_data(msg);
+size_t n = dp_msg_num_samples(msg);
+// use cf64[0..n-1] ...
+dp_msg_free(msg);
+dp_sub_destroy(sub);
+```
+ 
+
+
+
+    
 
 ------------------------------
 The documentation for this class was generated from the following file `native/inc/stream/stream.h`

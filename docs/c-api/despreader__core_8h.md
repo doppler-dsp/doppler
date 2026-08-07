@@ -21,6 +21,7 @@ _Continuous DSSS despreader — Costas carrier loop + DLL code loop._ [More...](
 * `#include "loop_filter/loop_filter_core.h"`
 * `#include "dp_tlm/dp_tlm_core.h"`
 * `#include <complex.h>`
+* `#include "telemetry/telemetry_core.h"`
 
 
 
@@ -67,11 +68,11 @@ _Continuous DSSS despreader — Costas carrier loop + DLL code loop._ [More...](
 
 | Type | Name |
 | ---: | :--- |
-|  size\_t | [**despreader\_bits**](#function-despreader_bits) ([**despreader\_state\_t**](structdespreader__state__t.md) \* state, const float complex \* x, size\_t x\_len, uint8\_t \* out, size\_t max\_out) <br> |
+|  size\_t | [**despreader\_bits**](#function-despreader_bits) ([**despreader\_state\_t**](structdespreader__state__t.md) \* state, const float complex \* x, size\_t x\_len, uint8\_t \* out, size\_t max\_out) <br>_Despread a CF32 block and bit-sync the prompts into hard data bits._  |
 |  size\_t | [**despreader\_bits\_max\_out**](#function-despreader_bits_max_out) ([**despreader\_state\_t**](structdespreader__state__t.md) \* state) <br> |
 |  void | [**despreader\_configure\_carrier\_lock**](#function-despreader_configure_carrier_lock) ([**despreader\_state\_t**](structdespreader__state__t.md) \* state, double up\_thresh, double down\_thresh, uint32\_t n\_up, uint32\_t n\_down) <br>_Re-tune the embedded carrier loop's lock detector directly._  |
 |  int | [**despreader\_configure\_code\_lock**](#function-despreader_configure_code_lock) ([**despreader\_state\_t**](structdespreader__state__t.md) \* state, double pfa, size\_t n\_looks, double ref\_snr\_db) <br>_Re-tune the embedded code loop's lock detector._  |
-|  [**despreader\_state\_t**](structdespreader__state__t.md) \* | [**despreader\_create**](#function-despreader_create) (const uint8\_t \* code, size\_t code\_len, size\_t sps, double init\_norm\_freq, double init\_chip, double bn\_carrier, double bn\_code, double bn\_fll, double zeta, double spacing, size\_t periods\_per\_bit) <br>_Create a despreader (COPIES_ `code` _)._ |
+|  [**despreader\_state\_t**](structdespreader__state__t.md) \* | [**despreader\_create**](#function-despreader_create) (const uint8\_t \* code, size\_t code\_len, size\_t sps, double init\_norm\_freq, double init\_chip, double bn\_carrier, double bn\_code, double bn\_fll, double zeta, double spacing, size\_t periods\_per\_bit) <br>_Create a continuous DSSS despreader (COPIES_ `code` _)._ |
 |  void | [**despreader\_destroy**](#function-despreader_destroy) ([**despreader\_state\_t**](structdespreader__state__t.md) \* state) <br>_Destroy a despreader and release all memory._  |
 |  size\_t | [**despreader\_get\_bit\_phase**](#function-despreader_get_bit_phase) (const [**despreader\_state\_t**](structdespreader__state__t.md) \* state) <br> |
 |  double | [**despreader\_get\_bn\_carrier**](#function-despreader_get_bn_carrier) (const [**despreader\_state\_t**](structdespreader__state__t.md) \* state) <br> |
@@ -89,9 +90,9 @@ _Continuous DSSS despreader — Costas carrier loop + DLL code loop._ [More...](
 |  void | [**despreader\_set\_bn\_code**](#function-despreader_set_bn_code) ([**despreader\_state\_t**](structdespreader__state__t.md) \* state, double val) <br> |
 |  void | [**despreader\_set\_norm\_freq**](#function-despreader_set_norm_freq) ([**despreader\_state\_t**](structdespreader__state__t.md) \* state, double val) <br> |
 |  int | [**despreader\_set\_state**](#function-despreader_set_state) ([**despreader\_state\_t**](structdespreader__state__t.md) \* state, const void \* blob) <br> |
-|  int | [**despreader\_set\_telemetry**](#function-despreader_set_telemetry) ([**despreader\_state\_t**](structdespreader__state__t.md) \* state, [**dp\_tlm\_t**](telemetry_8h.md#typedef-dp_tlm_t) \* tlm, const char \* prefix, uint32\_t decim) <br>_Attach (or detach) a telemetry context across the despreader. Pure forwarder — the despreader registers no probes of its own: the carrier loop registers "&lt;prefix&gt;.car.lock" / ".e" / ".freq" / ".locked" and the code loop registers "&lt;prefix&gt;.code.e" / ".rate" / ".lock" / ".locked" (the ".locked" pair are the loops' verify-counted lockdet decisions, 0/1) — eight probes, all thinned by_ `decim` _and emitted once per code period (the despreader flushes both loops at its per-period update). Passing NULL detaches both loops. Setup path, never hot; the context is borrowed and must outlive the attachment (SPSC rules in_[_**dp_tlm/dp_tlm_core.h**_](telemetry_8h.md) _)._ |
+|  int | [**despreader\_set\_telemetry**](#function-despreader_set_telemetry) ([**despreader\_state\_t**](structdespreader__state__t.md) \* state, [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* tlm, const char \* prefix, uint32\_t decim) <br>_Attach (or detach) a telemetry context across the despreader. Pure forwarder — the despreader registers no probes of its own: the carrier loop registers "&lt;prefix&gt;.car.lock" / ".e" / ".freq" / ".locked" and the code loop registers "&lt;prefix&gt;.code.e" / ".rate" / ".lock" / ".locked" (the ".locked" pair are the loops' verify-counted lockdet decisions, 0/1) — eight probes, all thinned by_ `decim` _and emitted once per code period (the despreader flushes both loops at its per-period update). Passing NULL detaches both loops. Setup path, never hot; the context is borrowed and must outlive the attachment (SPSC rules in_[_**dp\_tlm/dp\_tlm\_core.h**_](dp__tlm__core_8h.md) _)._ |
 |  size\_t | [**despreader\_state\_bytes**](#function-despreader_state_bytes) (const [**despreader\_state\_t**](structdespreader__state__t.md) \* state) <br> |
-|  size\_t | [**despreader\_steps**](#function-despreader_steps) ([**despreader\_state\_t**](structdespreader__state__t.md) \* state, const float complex \* x, size\_t x\_len, float complex \* out, size\_t max\_out) <br> |
+|  size\_t | [**despreader\_steps**](#function-despreader_steps) ([**despreader\_state\_t**](structdespreader__state__t.md) \* state, const float complex \* x, size\_t x\_len, float complex \* out, size\_t max\_out) <br>_Track carrier and code and despread a CF32 block, one prompt symbol per code period._  |
 |  size\_t | [**despreader\_steps\_max\_out**](#function-despreader_steps_max_out) ([**despreader\_state\_t**](structdespreader__state__t.md) \* state) <br> |
 
 
@@ -159,6 +160,7 @@ despreader_destroy(ch);
 
 ### function despreader\_bits 
 
+_Despread a CF32 block and bit-sync the prompts into hard data bits._ 
 ```C++
 size_t despreader_bits (
     despreader_state_t * state,
@@ -171,6 +173,48 @@ size_t despreader_bits (
 
 
 
+The same tracking kernel as [**despreader\_steps()**](despreader__core_8h.md#function-despreader_steps), followed by bit synchronisation: the per-period prompts are coherently summed across each detected bit boundary (a data bit spans `periods_per_bit` code periods) and one hard 0/1 bit is emitted per data bit. The bit boundary is estimated on-line from the prompt sign-flip histogram, so the phase is a BPSK ambiguity — a globally inverted decision stream is equally correct.
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `x` Input CF32 samples. 
+* `x_len` Number of input samples. 
+* `out` Output buffer for hard bits, 0/1 (&gt;= `max_out`). 
+* `max_out` Capacity of `out` in bits. 
+
+
+
+**Returns:**
+
+Number of data bits written into `out`. 
+```C++
+>>> import numpy as np
+>>> from doppler.dsss import Despreader
+>>> rng = np.random.default_rng(3)
+>>> code = rng.integers(0, 2, 31).astype(np.uint8)
+>>> chips = np.where(code & 1, -1.0, 1.0)
+>>> bits = rng.integers(0, 2, 40).astype(np.uint8)
+>>> syms = np.where(bits == 1, -1.0, 1.0)
+>>> rx = np.concatenate(
+...     [s * np.repeat(chips, 4) for s in syms]).astype(np.complex64)
+>>> d = Despreader(code=code, sps=4)
+>>> data = d.bits(rx)                       # hard data bits
+>>> e = np.mean(data != bits[:data.size])   # up to a BPSK sign flip
+>>> round(float(min(e, 1.0 - e)), 4)
+0.0
+```
+ 
+
+
+
+
+
+        
 
 <hr>
 
@@ -288,7 +332,7 @@ ValueError: configure_code_lock failed (rc=-4)
 
 ### function despreader\_create 
 
-_Create a despreader (COPIES_ `code` _)._
+_Create a continuous DSSS despreader (COPIES_ `code` _)._
 ```C++
 despreader_state_t * despreader_create (
     const uint8_t * code,
@@ -307,6 +351,26 @@ despreader_state_t * despreader_create (
 
 
 
+A complete tracking despreader for a continuous DSSS-BPSK stream: it composes a Costas carrier loop and an early/prompt/late DLL code loop over a single shared per-sample integrate-and-dump. Seed it from acquisition (the coarse carrier frequency and code phase) and the loops track the residual; steps() emits one prompt symbol per code period, and bits() bit-syncs those prompts into hard data bits (a data bit spans `periods_per_bit` code periods).
+
+
+
+
+**Parameters:**
+
+
+* `code` Spreading code (0/1 chips), one period; copied. 
+* `code_len` Code length (chips per period); &gt;= 1. 
+* `sps` Samples per chip. 
+* `init_norm_freq` Seed carrier frequency, cycles/sample (the acquisition estimate). 
+* `init_chip` Seed code phase, chips (the acquisition estimate). 
+* `bn_carrier` Carrier loop noise bandwidth, normalized to the code-period (symbol) rate. 
+* `bn_code` Code loop noise bandwidth, normalized to the code-period rate. 
+* `bn_fll` Carrier FLL-assist bandwidth (0 = pure PLL); set &gt; 0 for FLL-assisted carrier pull-in. 
+* `zeta` Damping factor shared by both second-order loops. 
+* `spacing` DLL early/late correlator tap offset, chips. 
+* `periods_per_bit` Code periods per data bit (1 = one bit per period). 
+
 
 
 **Returns:**
@@ -319,6 +383,23 @@ Heap-allocated state, or NULL on allocation failure.
 **Note:**
 
 Caller must call [**despreader\_destroy()**](despreader__core_8h.md#function-despreader_destroy) when done. 
+```C++
+>>> import numpy as np
+>>> from doppler.dsss import Despreader
+>>> rng = np.random.default_rng(3)
+>>> code = rng.integers(0, 2, 31).astype(np.uint8)   # one code period
+>>> chips = np.where(code & 1, -1.0, 1.0)    # 0 -> +1, 1 -> -1
+>>> bits = rng.integers(0, 2, 40).astype(np.uint8)  # 1 bit/period
+>>> syms = np.where(bits == 1, -1.0, 1.0)
+>>> rx = np.concatenate(
+...     [s * np.repeat(chips, 4) for s in syms]).astype(np.complex64)
+>>> d = Despreader(code, sps=4)          # seed a fresh tracking loop
+>>> data = d.bits(rx)                        # hard data bits, 1/period
+>>> e = np.mean(data != bits[:data.size])    # up to a global BPSK flip
+>>> round(float(min(e, 1.0 - e)), 4)
+0.0
+```
+ 
 
 
 
@@ -573,12 +654,31 @@ void despreader_reset (
 
 
 
+Restores the carrier NCO to `init_norm_freq` and the code phase to `init_chip`, zeroes the loop-filter accumulators and the bit-sync histogram, and clears the lock detectors — the spreading code and every configured bandwidth are preserved. Use it to re-run the same despreader over an independent stream and get a fresh instance's result.
+
+
 
 
 **Parameters:**
 
 
 * `state` Must be non-NULL. 
+```C++
+>>> import numpy as np
+>>> from doppler.dsss import Despreader
+>>> rng = np.random.default_rng(3)
+>>> code = rng.integers(0, 2, 31).astype(np.uint8)
+>>> chips = np.where(code & 1, -1.0, 1.0)
+>>> syms = np.where(rng.integers(0, 2, 40) == 1, -1.0, 1.0)
+>>> rx = np.concatenate(
+...     [s * np.repeat(chips, 4) for s in syms]).astype(np.complex64)
+>>> d = Despreader(code=code, sps=4)
+>>> first = d.bits(rx)
+>>> d.reset()                          # re-seed to acquisition
+>>> np.array_equal(first, d.bits(rx))  # same result as a fresh object
+True
+```
+ 
 
 
 
@@ -655,7 +755,7 @@ int despreader_set_state (
 
 ### function despreader\_set\_telemetry 
 
-_Attach (or detach) a telemetry context across the despreader. Pure forwarder — the despreader registers no probes of its own: the carrier loop registers "&lt;prefix&gt;.car.lock" / ".e" / ".freq" / ".locked" and the code loop registers "&lt;prefix&gt;.code.e" / ".rate" / ".lock" / ".locked" (the ".locked" pair are the loops' verify-counted lockdet decisions, 0/1) — eight probes, all thinned by_ `decim` _and emitted once per code period (the despreader flushes both loops at its per-period update). Passing NULL detaches both loops. Setup path, never hot; the context is borrowed and must outlive the attachment (SPSC rules in_[_**dp_tlm/dp_tlm_core.h**_](telemetry_8h.md) _)._
+_Attach (or detach) a telemetry context across the despreader. Pure forwarder — the despreader registers no probes of its own: the carrier loop registers "&lt;prefix&gt;.car.lock" / ".e" / ".freq" / ".locked" and the code loop registers "&lt;prefix&gt;.code.e" / ".rate" / ".lock" / ".locked" (the ".locked" pair are the loops' verify-counted lockdet decisions, 0/1) — eight probes, all thinned by_ `decim` _and emitted once per code period (the despreader flushes both loops at its per-period update). Passing NULL detaches both loops. Setup path, never hot; the context is borrowed and must outlive the attachment (SPSC rules in_[_**dp\_tlm/dp\_tlm\_core.h**_](dp__tlm__core_8h.md) _)._
 ```C++
 int despreader_set_telemetry (
     despreader_state_t * state,
@@ -690,7 +790,7 @@ DP\_OK, or DP\_ERR\_INVALID when the probe table cannot take all eight probes (t
 >>> code = (np.arange(31) % 2).astype(np.uint8)
 >>> ch = Despreader(code=code, sps=4)
 >>> ch.set_telemetry(tlm, "ch0")
->>> names = sorted(tlm.probe_names())
+>>> names = sorted(tlm.probe_names)
 >>> names[:4]
 ['ch0.car.e', 'ch0.car.freq', 'ch0.car.lock', 'ch0.car.locked']
 >>> names[4:]
@@ -731,6 +831,7 @@ size_t despreader_state_bytes (
 
 ### function despreader\_steps 
 
+_Track carrier and code and despread a CF32 block, one prompt symbol per code period._ 
 ```C++
 size_t despreader_steps (
     despreader_state_t * state,
@@ -743,6 +844,49 @@ size_t despreader_steps (
 
 
 
+The continuous kernel: per input sample it wipes the carrier (Costas NCO) and correlates the de-rotated sample against the early/prompt/late code taps (DLL); per code period it dumps the prompt integrate-and-dump, updates the code loop on the early/late envelopes and the carrier loop on the same prompt, and emits that prompt. A partial period is carried in state across calls, so a long stream can be fed in blocks. Each emitted symbol's sign is the BPSK decision; its phase and magnitude are the soft information.
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `x` Input CF32 samples. 
+* `x_len` Number of input samples. 
+* `out` Output buffer for prompt symbols (&gt;= `max_out`). 
+* `max_out` Capacity of `out` in symbols. 
+
+
+
+**Returns:**
+
+Number of prompt symbols written into `out`. 
+```C++
+>>> import numpy as np
+>>> from doppler.dsss import Despreader
+>>> rng = np.random.default_rng(3)
+>>> code = rng.integers(0, 2, 31).astype(np.uint8)  # one code period
+>>> chips = np.where(code & 1, -1.0, 1.0)            # 0 -> +1, 1 -> -1
+>>> bits = rng.integers(0, 2, 40).astype(np.uint8)  # 1 bit / period
+>>> syms = np.where(bits == 1, -1.0, 1.0)
+>>> rx = np.concatenate(
+...     [s * np.repeat(chips, 4) for s in syms]).astype(np.complex64)
+>>> d = Despreader(code=code, sps=4)
+>>> prompt = d.steps(rx)                 # one prompt per code period
+>>> hard = (prompt.real < 0).astype(np.uint8)
+>>> e = np.mean(hard != bits[:hard.size])   # payload recovered
+>>> round(float(min(e, 1.0 - e)), 4)
+0.0
+```
+ 
+
+
+
+
+
+        
 
 <hr>
 

@@ -57,7 +57,8 @@ extern "C"
 
   size_t awgn_generate_max_out (awgn_state_t *state);
 
-  size_t awgn_generate (awgn_state_t *state, size_t n, float complex *out);
+  size_t awgn_generate (awgn_state_t *state, size_t n, float complex *out,
+                        size_t max_out);
 
   int awgn (uint64_t seed, float amplitude, size_t n, float complex *out);
 

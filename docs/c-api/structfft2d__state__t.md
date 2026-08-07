@@ -41,6 +41,7 @@
 |  pocketfft\_plan \* | [**plan\_f32**](#variable-plan_f32)  <br> |
 |  pocketfft\_plan \* | [**plan\_f64**](#variable-plan_f64)  <br> |
 |  int | [**sign**](#variable-sign)  <br> |
+|  double complex \* | [**work\_trunc**](#variable-work_trunc)  <br> |
 
 
 
@@ -99,6 +100,7 @@ size_t fft2d_state_t::nx;
 
 
 Column count. 
+ 
 
 
         
@@ -116,6 +118,7 @@ size_t fft2d_state_t::ny;
 
 
 Row count. 
+ 
 
 
         
@@ -167,6 +170,23 @@ int fft2d_state_t::sign;
 
 
 -1 forward, +1 inverse. 
+
+
+        
+
+<hr>
+
+
+
+### variable work\_trunc 
+
+```C++
+double complex* fft2d_state_t::work_trunc;
+```
+
+
+
+Scratch for a short `out`. A pocketfft 2-D plan is fixed at ny\*nx and writes the whole surface, so it cannot be pointed at a smaller buffer; a truncating call transforms here and copies the prefix. Sized for the widest element (CF64) so one buffer serves both plans, and allocated lazily  max\_out is ny\*nx on every sized call, which is everything the Python binding does. 
 
 
         

@@ -86,7 +86,7 @@ extern "C"
     return state->locked;
   }
 
-  void lockdet_steps (lockdet_state_t *state, const double *input, int *output,
+  void lockdet_steps (lockdet_state_t *state, const double *x, int *out,
                       size_t n);
 
 #ifdef __cplusplus

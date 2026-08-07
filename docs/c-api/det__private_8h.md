@@ -88,7 +88,7 @@ _Shared internals for detector\_core.c and detector2d\_core.c._ [More...](#detai
 ## Detailed Description
 
 
-Not part of the public API. Include after the module's own header so that [**det\_noise\_mode\_t**](detector__core_8h.md#enum-det_noise_mode_t) is already defined via the DET\_NOISE\_MODE\_T\_DEFINED guard in [**detector\_core.h**](detector__core_8h.md) / [**detector2d\_core.h**](detector2d__core_8h.md). 
+Not part of the public API. Include after the module's own header so that det\_noise\_mode\_t is already defined via the DET\_NOISE\_MODE\_T\_DEFINED guard in [**detector\_core.h**](detector__core_8h.md) / [**detector2d\_core.h**](detector2d__core_8h.md). 
 
 
     

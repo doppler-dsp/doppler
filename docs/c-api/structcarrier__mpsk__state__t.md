@@ -117,6 +117,7 @@ float complex carrier_mpsk_state_t::acc;
 
 
 running coherent I&D accumulator. 
+ 
 
 
         
@@ -134,6 +135,7 @@ size_t carrier_mpsk_state_t::acc_n;
 
 
 samples accumulated into `acc`. 
+ 
 
 
         
@@ -151,6 +153,7 @@ double carrier_mpsk_state_t::bn;
 
 
 PLL loop noise bandwidth (retained). 
+ 
 
 
         
@@ -168,6 +171,7 @@ double carrier_mpsk_state_t::bn_fll;
 
 
 FLL-assist bandwidth (0 = pure PLL). 
+ 
 
 
         
@@ -202,6 +206,7 @@ double carrier_mpsk_state_t::k_fll;
 
 
 derived FLL gain (per-symbol freq pull). 
+ 
 
 
         
@@ -219,6 +224,7 @@ double carrier_mpsk_state_t::last_error;
 
 
 last PLL discriminator (loop stress). 
+ 
 
 
         
@@ -236,6 +242,7 @@ loop_filter_state_t carrier_mpsk_state_t::lf;
 
 
 2nd-order carrier PI loop (PLL). 
+ 
 
 
         
@@ -253,6 +260,7 @@ double carrier_mpsk_state_t::lock_metric;
 
 
 EMA of Re(P conj a)/\|P\| (1 = locked). 
+ 
 
 
         
@@ -270,6 +278,7 @@ int carrier_mpsk_state_t::m;
 
 
 constellation order M (2, 4, 8). 
+ 
 
 
         
@@ -287,6 +296,7 @@ lo_state_t carrier_mpsk_state_t::nco;
 
 
 integer carrier NCO (uint32 phase). 
+ 
 
 
         
@@ -321,6 +331,7 @@ double carrier_mpsk_state_t::prev_abs;
 
 
 \|previous prompt\| (FLL normalization). 
+ 
 
 
         
@@ -338,6 +349,7 @@ double carrier_mpsk_state_t::seed_norm_freq;
 
 
 create-time carrier freq, for reset. 
+ 
 
 
         
@@ -372,6 +384,7 @@ double carrier_mpsk_state_t::zeta;
 
 
 damping factor (retained). 
+ 
 
 
         

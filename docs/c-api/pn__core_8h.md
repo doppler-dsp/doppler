@@ -39,7 +39,7 @@ _PN component API._ [More...](#detailed-description)
 
 | Type | Name |
 | ---: | :--- |
-| enum  | [**pn\_\_core\_8h\_1aa5aa6f9f85a17c48ca6b7feb11fe83a7**](#enum-pn__core_8h_1aa5aa6f9f85a17c48ca6b7feb11fe83a7)  <br>_PN state._  |
+| enum  | [**pn\_\_core\_8h\_1abc6126af1d45847bc59afa0aa3216b04**](#enum-pn__core_8h_1abc6126af1d45847bc59afa0aa3216b04)  <br>_PN state._  |
 
 
 
@@ -66,7 +66,7 @@ _PN component API._ [More...](#detailed-description)
 | ---: | :--- |
 |  [**pn\_state\_t**](structpn__state__t.md) \* | [**pn\_create**](#function-pn_create) (uint64\_t poly, uint64\_t seed, uint32\_t length, int lfsr) <br>_Allocate and initialise a maximal-length-sequence LFSR. The register is seeded from_ `seed` _and will produce a pseudo-random binary sequence with period 2^length - 1 for any primitive_`poly` _. Both Galois and Fibonacci realizations share the same primitive polynomial and therefore the same period; they differ only in chip ordering/phase._ |
 |  void | [**pn\_destroy**](#function-pn_destroy) ([**pn\_state\_t**](structpn__state__t.md) \* state) <br>_Destroy a pn instance and release all memory. Idempotent when_ `state` _is NULL; safe to call at any point in the lifecycle. After return the pointer is dangling — do not dereference it._ |
-|  size\_t | [**pn\_generate**](#function-pn_generate) ([**pn\_state\_t**](structpn__state__t.md) \* state, size\_t n, uint8\_t \* out) <br>_Generate_ `n` _chips into_`out` _and advance the LFSR by_`n` _positions. Each element of_`out` _is 0 or 1. Requesting more than one MLS period is valid — the sequence simply wraps around. The Python binding returns a zero-copy NumPy uint8 view over a pre-allocated buffer; copy the result before calling generate again if you need a snapshot._ |
+|  size\_t | [**pn\_generate**](#function-pn_generate) ([**pn\_state\_t**](structpn__state__t.md) \* state, size\_t n, uint8\_t \* out, size\_t max\_out) <br>_Generate_ `n` _chips into_`out` _and advance the LFSR by_`n` _positions. Each element of_`out` _is 0 or 1. Requesting more than one MLS period is valid — the sequence simply wraps around. The Python binding returns a zero-copy NumPy uint8 view over a pre-allocated buffer; copy the result before calling generate again if you need a snapshot._ |
 |  size\_t | [**pn\_generate\_max\_out**](#function-pn_generate_max_out) ([**pn\_state\_t**](structpn__state__t.md) \* state) <br> |
 |  void | [**pn\_get\_state**](#function-pn_get_state) (const [**pn\_state\_t**](structpn__state__t.md) \* state, void \* blob) <br>_Serialize the LFSR register into_ `blob` _._ |
 |  void | [**pn\_reset**](#function-pn_reset) ([**pn\_state\_t**](structpn__state__t.md) \* state) <br>_Reset PN to its post-create state. Reloads the LFSR register from the original seed so the sequence restarts from chip 0. Useful for reproducible captures without re-allocating._  |
@@ -128,11 +128,11 @@ pn_destroy(obj);
 
 
 
-### enum pn\_\_core\_8h\_1aa5aa6f9f85a17c48ca6b7feb11fe83a7 
+### enum pn\_\_core\_8h\_1abc6126af1d45847bc59afa0aa3216b04 
 
 _PN state._ 
 ```C++
-enum pn__core_8h_1aa5aa6f9f85a17c48ca6b7feb11fe83a7 {
+enum pn__core_8h_1abc6126af1d45847bc59afa0aa3216b04 {
     PN_GALOIS = 0,
     PN_FIBONACCI = 1
 };
@@ -249,7 +249,8 @@ _Generate_ `n` _chips into_`out` _and advance the LFSR by_`n` _positions. Each e
 size_t pn_generate (
     pn_state_t * state,
     size_t n,
-    uint8_t * out
+    uint8_t * out,
+    size_t max_out
 ) 
 ```
 
@@ -263,12 +264,13 @@ size_t pn_generate (
 * `state` Initialised PN state returned by `pn_create`. 
 * `n` Number of chips to produce. 
 * `out` Output buffer of at least `n` uint8 elements; each element receives 0 or 1. 
+* `max_out` Capacity of `out` in elements. Emission stops there, so the return value is the number actually written. 
 
 
 
 **Returns:**
 
-`n` (the number of chips written; always equal to the request). 
+min(n, max\_out) chips. 
 ```C++
 >>> from doppler.wfm import PN
 >>> import numpy as np

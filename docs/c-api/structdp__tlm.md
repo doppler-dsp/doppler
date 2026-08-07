@@ -10,7 +10,7 @@
 
 _Telemetry context: probe registry + SPSC record ring._ [More...](#detailed-description)
 
-* `#include <telemetry.h>`
+* `#include <dp_tlm_core.h>`
 
 
 
@@ -36,6 +36,8 @@ _Telemetry context: probe registry + SPSC record ring._ [More...](#detailed-desc
 
 | Type | Name |
 | ---: | :--- |
+|  [**dp\_tlm\_capture\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_capture_t) \* | [**capture**](#variable-capture)  <br> |
+|  int(\* | [**capture\_drain**](#variable-capture_drain)  <br> |
 |  uint32\_t | [**n\_probes**](#variable-n_probes)  <br> |
 |  uint64\_t | [**now**](#variable-now)  <br> |
 |  [**dp\_tlm\_probe\_t**](structdp__tlm__probe__t.md) | [**probes**](#variable-probes)  <br> |
@@ -87,12 +89,52 @@ _Telemetry context: probe registry + SPSC record ring._ [More...](#detailed-desc
 ## Detailed Description
 
 
-Public (not opaque) because the emit path is inline; treat the fields as read-only outside telemetry\_core.c and dp\_tlm\_emit. 
+Public (not opaque) because the emit path is inline; treat the fields as read-only outside dp\_tlm\_core.c and dp\_tlm\_emit.
+
+
+`capture` is deliberately LAST: the emit hot path touches `ring`, `now` and `probes`, and appending here leaves their cache layout untouched. 
 
 
     
 ## Public Attributes Documentation
 
+
+
+
+### variable capture 
+
+```C++
+dp_tlm_capture_t* dp_tlm::capture;
+```
+
+
+
+Open capture that dp\_tlm\_set\_now() drains through; NULL when none. 
+
+
+        
+
+<hr>
+
+
+
+### variable capture\_drain 
+
+```C++
+int(* dp_tlm::capture_drain) (dp_tlm_capture_t *);
+```
+
+
+
+Boundary drain, registered by [**dp\_tlm\_capture\_open()**](dp__tlm__capture__core_8h.md#function-dp_tlm_capture_open).
+
+
+A function POINTER rather than a direct call, so this translation unit never references a capture symbol: the inline dp\_tlm\_set\_now() below is pulled into every TU that includes this header, and calling [**dp\_tlm\_capture\_block()**](dp__tlm__capture__core_8h.md#function-dp_tlm_capture_block) by name would make the capture a link-time dependency of everything  an inversion, since the capture depends on the ring and not the other way round. NULL when no capture is open. 
+
+
+        
+
+<hr>
 
 
 
@@ -148,6 +190,7 @@ dp_tlmr_t* dp_tlm::ring;
 
 
 Lock-free SPSC record ring. 
+ 
 
 
         

@@ -9,7 +9,6 @@
 
 ```C++
 
-
 #ifndef DP_STREAM_H
 #define DP_STREAM_H
 
@@ -18,34 +17,30 @@
 #include <stdint.h>
 
 /* CMPLXF/CMPLX/CMPLXL fallbacks and the shared DP_OK/DP_ERR_* error codes
- * live in clib_common.h — the streaming API uses the one doppler-wide scheme. */
+ * live in clib_common.h — the streaming API uses the one doppler-wide scheme.
+ */
 #include "clib_common.h"
-
 
 #ifdef __cplusplus
 extern "C"
 {
 #endif
 
-
 #define DP_VERSION_MAJOR 2 
 #define DP_VERSION_MINOR 0 
 #define DP_VERSION_PATCH 0 
-
-
   /* -------------------------------------------------------------------------
    * Sample types
    * ---------------------------------------------------------------------- */
 
-
   typedef enum
   {
-    CI32 = 0,  
-    CF64 = 1,  
+    CI32  = 0, 
+    CF64  = 1, 
     CF128 = 2, 
-    CI8 = 3,   
-    CI16 = 4,  
-    CF32 = 5,  
+    CI8   = 3, 
+    CI16  = 4, 
+    CF32  = 5, 
     TLM16 = 6, 
   } dp_sample_type_t;
 
@@ -54,7 +49,7 @@ extern "C"
     DP_PROTO_SIGS = 0, 
     DP_PROTO_DIFI = 1, 
   } dp_protocol_t;
- /* end group sampletypes */
+
 
   typedef struct
   {
@@ -66,9 +61,9 @@ extern "C"
     uint32_t flags;       
     uint64_t sequence;    
     uint64_t
-        timestamp_ns;   
-    double sample_rate; 
-    double center_freq; 
+        timestamp_ns; 
+    double   sample_rate; 
+    double   center_freq; 
     uint64_t num_samples; 
     uint64_t reserved[4]; 
   } dp_header_t;
@@ -81,17 +76,15 @@ extern "C"
   typedef struct dp_ctx dp_pull_t;
   typedef struct dp_ctx dp_req_t;
   typedef struct dp_ctx dp_rep_t;
- /* end group types */
+
 
   /* -------------------------------------------------------------------------
    * Error codes
    * ---------------------------------------------------------------------- */
 
-
   /* -------------------------------------------------------------------------
    * dp_msg_t — zero-copy message accessors
    * ---------------------------------------------------------------------- */
-
 
   void *dp_msg_data (dp_msg_t *msg);
 
@@ -104,12 +97,11 @@ extern "C"
   int dp_msg_ack (dp_msg_t *msg);
 
   void dp_msg_free (dp_msg_t *msg);
- /* end group msg */
+
 
   /* -------------------------------------------------------------------------
    * Publisher / Subscriber  (PUB/SUB — fan-out broadcast)
    * ---------------------------------------------------------------------- */
-
 
   dp_pub_t *dp_pub_create (const char *endpoint, dp_sample_type_t sample_type);
 
@@ -125,8 +117,9 @@ extern "C"
                          size_t num_samples, double sample_rate,
                          double center_freq);
 
-  int dp_pub_send_ci8 (dp_pub_t *ctx, const int8_t *samples, size_t num_samples,
-                       double sample_rate, double center_freq);
+  int dp_pub_send_ci8 (dp_pub_t *ctx, const int8_t *samples,
+                       size_t num_samples, double sample_rate,
+                       double center_freq);
 
   int dp_pub_send_ci16 (dp_pub_t *ctx, const int16_t *samples,
                         size_t num_samples, double sample_rate,
@@ -149,14 +142,14 @@ extern "C"
   void dp_sub_set_timeout (dp_sub_t *ctx, int timeout_ms);
 
   void dp_sub_destroy (dp_sub_t *ctx);
- /* end group pubsub */
+
 
   /* -------------------------------------------------------------------------
    * Push / Pull  (PUSH/PULL — pipeline / load-balanced)
    * ---------------------------------------------------------------------- */
 
-
-  dp_push_t *dp_push_create (const char *endpoint, dp_sample_type_t sample_type);
+  dp_push_t *dp_push_create (const char      *endpoint,
+                             dp_sample_type_t sample_type);
 
   dp_pull_t *dp_pull_create (const char *endpoint);
 
@@ -191,12 +184,11 @@ extern "C"
   void dp_push_destroy (dp_push_t *ctx);
 
   void dp_pull_destroy (dp_pull_t *ctx);
- /* end group pipeline */
+
 
   /* -------------------------------------------------------------------------
    * Request / Reply  (REQ/REP — control and metadata)
    * ---------------------------------------------------------------------- */
-
 
   dp_req_t *dp_req_create (const char *endpoint);
 
@@ -223,8 +215,9 @@ extern "C"
   int dp_req_send_cf128 (dp_req_t *ctx, const long double _Complex *samples,
                          size_t num_samples, double sample_rate,
                          double center_freq);
-  int dp_req_send_ci8 (dp_req_t *ctx, const int8_t *samples, size_t num_samples,
-                       double sample_rate, double center_freq);
+  int dp_req_send_ci8 (dp_req_t *ctx, const int8_t *samples,
+                       size_t num_samples, double sample_rate,
+                       double center_freq);
   int dp_req_send_ci16 (dp_req_t *ctx, const int16_t *samples,
                         size_t num_samples, double sample_rate,
                         double center_freq);
@@ -241,8 +234,9 @@ extern "C"
   int dp_rep_send_cf128 (dp_rep_t *ctx, const long double _Complex *samples,
                          size_t num_samples, double sample_rate,
                          double center_freq);
-  int dp_rep_send_ci8 (dp_rep_t *ctx, const int8_t *samples, size_t num_samples,
-                       double sample_rate, double center_freq);
+  int dp_rep_send_ci8 (dp_rep_t *ctx, const int8_t *samples,
+                       size_t num_samples, double sample_rate,
+                       double center_freq);
   int dp_rep_send_ci16 (dp_rep_t *ctx, const int16_t *samples,
                         size_t num_samples, double sample_rate,
                         double center_freq);
@@ -261,12 +255,11 @@ extern "C"
   void dp_req_destroy (dp_req_t *ctx);
 
   void dp_rep_destroy (dp_rep_t *ctx);
- /* end group reqrep */
+
 
   /* -------------------------------------------------------------------------
    * Utilities
    * ---------------------------------------------------------------------- */
-
 
   const char *dp_sample_type_str (dp_sample_type_t type);
 
@@ -274,8 +267,10 @@ extern "C"
 
   uint64_t dp_get_timestamp_ns (void);
 
+  void dp_ctx_set_timestamp_ns (dp_pub_t *ctx, uint64_t timestamp_ns);
+
   const char *dp_strerror (int err);
- /* end group utils */
+
 
 #ifdef __cplusplus
 }

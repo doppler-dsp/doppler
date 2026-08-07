@@ -115,6 +115,7 @@ double specan_state_t::beta;
 
 
 Kaiser beta realising [**rbw**](structspecan__state__t.md#variable-rbw). 
+ 
 
 
         
@@ -132,6 +133,7 @@ double specan_state_t::center;
 
 
 Display center frequency, Hz. 
+ 
 
 
         
@@ -149,6 +151,7 @@ ddc_state_t* specan_state_t::ddc;
 
 
 Tuner + decimator (mix to DC, resample). 
+ 
 
 
         
@@ -183,6 +186,7 @@ size_t specan_state_t::disp_n;
 
 
 Display band length (cropped bins). 
+ 
 
 
         
@@ -200,6 +204,7 @@ double specan_state_t::fs_in;
 
 
 Input sample rate, Hz. 
+ 
 
 
         
@@ -234,6 +239,7 @@ size_t specan_state_t::n;
 
 
 Segment / window length (samples). 
+ 
 
 
         
@@ -251,6 +257,7 @@ size_t specan_state_t::navg;
 
 
 Segments averaged per emitted frame. 
+ 
 
 
         
@@ -268,6 +275,7 @@ size_t specan_state_t::nfft;
 
 
 Zero-padded transform length. 
+ 
 
 
         
@@ -302,6 +310,7 @@ float complex* specan_state_t::pend;
 
 
 Decimated samples awaiting a frame. 
+ 
 
 
         
@@ -319,6 +328,7 @@ size_t specan_state_t::pend_cap;
 
 
 Elements allocated in [**pend**](structspecan__state__t.md#variable-pend). 
+ 
 
 
         
@@ -336,6 +346,7 @@ size_t specan_state_t::pend_len;
 
 
 Valid samples in [**pend**](structspecan__state__t.md#variable-pend). 
+ 
 
 
         
@@ -353,6 +364,7 @@ psd_state_t* specan_state_t::psd;
 
 
 Averaging PSD at the decimated rate. 
+ 
 
 
         
@@ -387,6 +399,7 @@ double specan_state_t::rbw;
 
 
 Requested resolution bandwidth, Hz. 
+ 
 
 
         
@@ -404,6 +417,7 @@ float complex* specan_state_t::scratch;
 
 
 Ddc output scratch, capacity scratch\_cap. 
+ 
 
 
         
@@ -421,6 +435,7 @@ size_t specan_state_t::scratch_cap;
 
 
 Elements allocated in [**scratch**](structspecan__state__t.md#variable-scratch). 
+ 
 
 
         
@@ -438,6 +453,7 @@ double specan_state_t::span;
 
 
 Display span, Hz. 
+ 
 
 
         
@@ -455,6 +471,7 @@ double specan_state_t::src_center;
 
 
 Source center frequency, Hz. 
+ 
 
 
         

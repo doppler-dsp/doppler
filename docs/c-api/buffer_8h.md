@@ -107,11 +107,13 @@ _High-performance x86-64 Circular Buffer for RF Streaming._ [More...](#detailed-
 ## Virtual Memory Buffers
 
 
+
 doppler uses virtual memory mirroring to eliminate the "wrap-around" problem in circular buffers. This allows for zero-copy, branchless access to contiguous blocks of data across the buffer boundary.
 
 
 
 ## Virtual Memory Mirroring
+
 
 
 By mapping the same physical memory to two adjacent virtual addresses (A and A + N), we exploit the CPU's MMU to handle circular indexing at the hardware level.
@@ -121,6 +123,7 @@ By mapping the same physical memory to two adjacent virtual addresses (A and A +
 ## of Two Masking
 
 
+
 We use & mask instead of % capacity. On x86-64, bitwise AND is a single-cycle instruction, whereas integer modulo can take 20-80 cycles.
 
 
@@ -128,11 +131,13 @@ We use & mask instead of % capacity. On x86-64, bitwise AND is a single-cycle in
 ## Sharing
 
 
+
 The head and tail pointers are separated by 64 bytes to prevent the "Ping-Pong" effect where two CPU cores constantly invalidate each other's cache lines when updating indices.
 
 
 
 ## Optimization
+
 
 
 [**DP\_SPIN\_HINT()**](buffer_8h.md#define-dp_spin_hint) is used in the consumer loop to reduce power consumption and prevent the CPU from mispredicting the "loop end" during high-frequency polling. 

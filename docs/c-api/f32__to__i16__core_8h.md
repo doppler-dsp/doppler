@@ -63,10 +63,10 @@ _Scale-and-saturate float-to-int16 converter._ [More...](#detailed-description)
 |  [**f32\_to\_i16\_state\_t**](structf32__to__i16__state__t.md) \* | [**f32\_to\_i16\_create**](#function-f32_to_i16_create) (float scale) <br>_Create a f32\_to\_i16 instance._  |
 |  void | [**f32\_to\_i16\_destroy**](#function-f32_to_i16_destroy) ([**f32\_to\_i16\_state\_t**](structf32__to__i16__state__t.md) \* state) <br>_Destroy a f32\_to\_i16 instance and release all memory._  |
 |  void | [**f32\_to\_i16\_get\_state**](#function-f32_to_i16_get_state) (const [**f32\_to\_i16\_state\_t**](structf32__to__i16__state__t.md) \* state, void \* blob) <br> |
-|  void | [**f32\_to\_i16\_reset**](#function-f32_to_i16_reset) ([**f32\_to\_i16\_state\_t**](structf32__to__i16__state__t.md) \* state) <br>_Reset f32\_to\_i16 to its post-create state._  |
+|  void | [**f32\_to\_i16\_reset**](#function-f32_to_i16_reset) ([**f32\_to\_i16\_state\_t**](structf32__to__i16__state__t.md) \* state) <br>_Clear the sticky clip flag, starting a fresh saturation history._  |
 |  int | [**f32\_to\_i16\_set\_state**](#function-f32_to_i16_set_state) ([**f32\_to\_i16\_state\_t**](structf32__to__i16__state__t.md) \* state, const void \* blob) <br> |
 |  size\_t | [**f32\_to\_i16\_state\_bytes**](#function-f32_to_i16_state_bytes) (const [**f32\_to\_i16\_state\_t**](structf32__to__i16__state__t.md) \* state) <br> |
-|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) int16\_t | [**f32\_to\_i16\_step**](#function-f32_to_i16_step) ([**f32\_to\_i16\_state\_t**](structf32__to__i16__state__t.md) \* state, float x) <br>_Process one input sample._  |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) int16\_t | [**f32\_to\_i16\_step**](#function-f32_to_i16_step) ([**f32\_to\_i16\_state\_t**](structf32__to__i16__state__t.md) \* state, float x) <br>_Scale one float sample by_ `scale` _, round, and saturate to int16._ |
 |  void | [**f32\_to\_i16\_steps**](#function-f32_to_i16_steps) ([**f32\_to\_i16\_state\_t**](structf32__to__i16__state__t.md) \* state, const float \* input, int16\_t \* output, size\_t n) <br>_Process a block of float samples to int16._  |
 
 
@@ -231,7 +231,7 @@ void f32_to_i16_get_state (
 
 ### function f32\_to\_i16\_reset 
 
-_Reset f32\_to\_i16 to its post-create state._ 
+_Clear the sticky clip flag, starting a fresh saturation history._ 
 ```C++
 void f32_to_i16_reset (
     f32_to_i16_state_t * state
@@ -240,7 +240,7 @@ void f32_to_i16_reset (
 
 
 
-Clears the sticky `clipped` flag. The `scale` is preserved.
+Zeroes `clipped` so a subsequent clipped query reflects only samples seen after this call; the immutable `scale` is preserved. Call it at a buffer or segment boundary so a saturation on one block does not leak into the next.
 
 
 
@@ -248,9 +248,19 @@ Clears the sticky `clipped` flag. The `scale` is preserved.
 **Parameters:**
 
 
-* `state` Must be non-NULL. 
+* `state` Must be non-NULL.
 
 
+```C++
+>>> from doppler.cvt import F32ToI16
+>>> c = F32ToI16()
+>>> c.step(9.0)          # out of range -> saturates, latches clipped
+32767
+>>> c.reset()            # forget the clip history
+>>> c.clipped
+False
+```
+ 
 
 
         
@@ -292,7 +302,7 @@ size_t f32_to_i16_state_bytes (
 
 ### function f32\_to\_i16\_step 
 
-_Process one input sample._ 
+_Scale one float sample by_ `scale` _, round, and saturate to int16._
 ```C++
 JM_FORCEINLINE  JM_HOT int16_t f32_to_i16_step (
     f32_to_i16_state_t * state,
@@ -302,7 +312,7 @@ JM_FORCEINLINE  JM_HOT int16_t f32_to_i16_step (
 
 
 
-Computes `round(x * scale)`, saturates to `[-32768, 32767]`, and sets the sticky `clipped` flag if saturation occurred.
+Computes `round(x * scale)`, clamps to the int16 range `[-32768, 32767]`, and latches the sticky `clipped` flag if the scaled value fell outside that range before clamping. At the default scale of 32768 a normalised `[-1, +1]` input maps to the full Q15 code range.
 
 
 
@@ -311,16 +321,27 @@ Computes `round(x * scale)`, saturates to `[-32768, 32767]`, and sets the sticky
 
 
 * `state` Must be non-NULL. 
-* `x` Normalised float input sample. 
+* `x` Input sample, normally a normalised float in `[-1, +1]`. 
 
 
 
 **Returns:**
 
-Saturated int16 output in `[-32768, 32767]`. 
+Saturated int16 code in `[-32768, 32767]`.
 
 
 
+```C++
+>>> from doppler.cvt import F32ToI16
+>>> c = F32ToI16(scale=32768.0)   # normalised float -> full-scale Q15
+>>> c.step(0.5)                    # 0.5 * 32768
+16384
+>>> c.step(2.0)                 # beyond +1.0 -> saturates to max
+32767
+>>> c.clipped                      # sticky flag latched by the clip
+True
+```
+ 
 
 
         
@@ -361,7 +382,7 @@ Applies step() to every element. The `clipped` flag is updated cumulatively acro
 >>> from doppler.cvt import F32ToI16
 >>> import numpy as np
 >>> x = np.array([0.0, 0.5, -1.0, 0.999], dtype=np.float32)
->>> F32ToI16().steps(x).tolist()   # default scale=32768 -> full-scale int16
+>>> F32ToI16().steps(x).tolist()   # scale=32768 -> full-scale i16
 [0, 16384, -32768, 32735]
 ```
  

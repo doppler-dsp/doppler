@@ -27,6 +27,7 @@ extern "C"
     size_t ny;                
     size_t nx;                
     int sign;                 
+    double complex *work_trunc;
   } fft2d_state_t;
 
   fft2d_state_t *fft2d_create (size_t ny, size_t nx, int sign, int nthreads);
@@ -38,24 +39,26 @@ extern "C"
   size_t fft2d_execute_cf64_max_out (fft2d_state_t *state);
 
   size_t fft2d_execute_cf64 (fft2d_state_t *state, const double complex *in,
-                             size_t n_in, double complex *out);
+                             size_t n_in, double complex *out,
+                             size_t max_out);
 
   size_t fft2d_execute_cf32_max_out (fft2d_state_t *state);
 
   size_t fft2d_execute_cf32 (fft2d_state_t *state, const float complex *in,
-                             size_t n_in, float complex *out);
+                             size_t n_in, float complex *out,
+                             size_t max_out);
 
   size_t fft2d_execute_inplace_cf64_max_out (fft2d_state_t *state);
 
   size_t fft2d_execute_inplace_cf64 (fft2d_state_t *state,
                                      const double complex *in, size_t n_in,
-                                     double complex *out);
+                                     double complex *out, size_t max_out);
 
   size_t fft2d_execute_inplace_cf32_max_out (fft2d_state_t *state);
 
   size_t fft2d_execute_inplace_cf32 (fft2d_state_t *state,
                                      const float complex *in, size_t n_in,
-                                     float complex *out);
+                                     float complex *out, size_t max_out);
 
 #ifdef __cplusplus
 }

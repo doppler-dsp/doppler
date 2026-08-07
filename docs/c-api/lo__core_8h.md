@@ -13,7 +13,7 @@ _Local oscillator: NCO + 2^16 sin/cos LUT → CF32 phasors._ [More...](#detailed
 * `#include "clib_common.h"`
 * `#include "dp_state.h"`
 * `#include "jm_perf.h"`
-* `#include <math.h>`
+* `#include "nco/nco_core.h"`
 
 
 
@@ -79,8 +79,8 @@ _Local oscillator: NCO + 2^16 sin/cos LUT → CF32 phasors._ [More...](#detailed
 |  size\_t | [**lo\_state\_bytes**](#function-lo_state_bytes) (const [**lo\_state\_t**](structlo__state__t.md) \* state) <br>_Bytes_ [_**lo\_get\_state()**_](lo__core_8h.md#function-lo_get_state) _writes for_`state` _(envelope + payload)._ |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) float complex | [**lo\_step**](#function-lo_step) ([**lo\_state\_t**](structlo__state__t.md) \* state) <br>_Emit the current CF32 phasor, then advance the accumulator._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) float complex | [**lo\_step\_ctrl**](#function-lo_step_ctrl) ([**lo\_state\_t**](structlo__state__t.md) \* state, double ctrl) <br>_Emit the current CF32 phasor, then advance by phase\_inc + control._  |
-|  size\_t | [**lo\_steps**](#function-lo_steps) ([**lo\_state\_t**](structlo__state__t.md) \* state, size\_t n, float complex \* out) <br>_Generate n CF32 phasors at the current norm\_freq. Each sample is cos(θ) + j·sin(θ) where θ is the phase BEFORE the accumulator is advanced, giving a unit-magnitude complex sinusoid via the 65536-entry LUT. SFDR ≈ 96 dBc. Returns n._  |
-|  size\_t | [**lo\_steps\_ctrl**](#function-lo_steps_ctrl) ([**lo\_state\_t**](structlo__state__t.md) \* state, const float \* ctrl, size\_t ctrl\_len, float complex \* out) <br>_Generate CF32 phasors with per-sample FM deviation. For each sample i,_ `ctrl[i]` _'s fractional part is converted to a delta phase-increment (delta = floor(frac(_`ctrl[i]` _) × 2^32)) that is added on top of the base phase\_inc for that one step only. The base norm\_freq and phase\_inc are NOT modified; the deviation is transient per sample, making this the natural API for FM synthesis and frequency-hopping. Output length equals ctrl\_len. Returns ctrl\_len._ |
+|  size\_t | [**lo\_steps**](#function-lo_steps) ([**lo\_state\_t**](structlo__state__t.md) \* state, size\_t n, float complex \* out, size\_t max\_out) <br>_Generate n CF32 phasors at the current norm\_freq. Each sample is cos(θ) + j·sin(θ) where θ is the phase BEFORE the accumulator is advanced, giving a unit-magnitude complex sinusoid via the 65536-entry LUT. SFDR ≈ 96 dBc. Returns n._  |
+|  size\_t | [**lo\_steps\_ctrl**](#function-lo_steps_ctrl) ([**lo\_state\_t**](structlo__state__t.md) \* state, const float \* ctrl, size\_t ctrl\_len, float complex \* out, size\_t max\_out) <br>_Generate CF32 phasors with per-sample FM deviation. For each sample i,_ `ctrl[i]` _'s fractional part is converted to a delta phase-increment (delta = floor(frac(_`ctrl[i]` _) × 2^32)) that is added on top of the base phase\_inc for that one step only. The base norm\_freq and phase\_inc are NOT modified; the deviation is transient per sample, making this the natural API for FM synthesis and frequency-hopping. Output length equals ctrl\_len. Returns ctrl\_len._ |
 |  size\_t | [**lo\_steps\_ctrl\_max\_out**](#function-lo_steps_ctrl_max_out) ([**lo\_state\_t**](structlo__state__t.md) \* state) <br> |
 |  size\_t | [**lo\_steps\_max\_out**](#function-lo_steps_max_out) ([**lo\_state\_t**](structlo__state__t.md) \* state) <br>_Maximum samples per call (determines pre-allocated buffer size)._  |
 
@@ -142,7 +142,7 @@ Lifecycle: lo\_create → (steps / steps\_ctrl / reset)\* → lo\_destroy
 ```C++
 lo_state_t *lo = lo_create(0.25);
 float complex out[4];
-lo_steps(lo, 4, out);
+lo_steps (lo, 4, out, 4);
 // out ≈ { 1+0j, 0+1j, -1+0j, 0-1j }
 lo_destroy(lo);
 ```
@@ -363,7 +363,7 @@ The by-value counterpart to [**lo\_create()**](lo__core_8h.md#function-lo_create
 * `norm_freq` Normalised frequency in cycles per sample (fractional part only). 
 ```C++
 >>> from doppler.source import LO
->>> lo = LO(0.25)            # the Python type uses lo_create internally
+>>> lo = LO(0.25)          # the Python type calls lo_create
 >>> lo.phase_inc
 1073741824
 ```
@@ -583,7 +583,8 @@ _Generate n CF32 phasors at the current norm\_freq. Each sample is cos(θ) + j·
 size_t lo_steps (
     lo_state_t * state,
     size_t n,
-    float complex * out
+    float complex * out,
+    size_t max_out
 ) 
 ```
 
@@ -597,12 +598,13 @@ size_t lo_steps (
 * `state` LO state returned by [**lo\_create()**](lo__core_8h.md#function-lo_create). 
 * `n` Number of phasors to generate. 
 * `out` Output buffer; must hold at least n float complex values. 
+* `max_out` Capacity of `out` in elements. Emission stops there, so the return value is the number actually written. 
 
 
 
 **Returns:**
 
-n (always). 
+min(n, max\_out) samples. 
 ```C++
 >>> from doppler.source import LO
 >>> lo = LO(0.25)
@@ -634,7 +636,8 @@ size_t lo_steps_ctrl (
     lo_state_t * state,
     const float * ctrl,
     size_t ctrl_len,
-    float complex * out
+    float complex * out,
+    size_t max_out
 ) 
 ```
 
@@ -649,12 +652,13 @@ size_t lo_steps_ctrl (
 * `ctrl` Float32 array of per-sample normalised-frequency deviations. Only the fractional part of each element contributes. 
 * `ctrl_len` Number of elements in ctrl; equals output length. 
 * `out` Output buffer; must hold at least ctrl\_len float complex values. 
+* `max_out` Capacity of `out` in elements. Emission stops there, so the return value is the number actually written. 
 
 
 
 **Returns:**
 
-ctrl\_len (always). 
+min(ctrl\_len, max\_out) samples. 
 ```C++
 >>> import numpy as np
 >>> from doppler.source import LO

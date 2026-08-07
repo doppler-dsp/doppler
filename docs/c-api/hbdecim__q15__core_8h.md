@@ -106,6 +106,48 @@ _Fixed-point halfband 2:1 decimator for interleaved IQ int16 samples._ [More...]
 ## Detailed Description
 
 
+Input: interleaved int16\_t pairs (I₀ Q₀ I₁ Q₁ …) as produced by ADCIQ. Output: decimated 2:1 interleaved int16\_t IQ pairs.
+
+
+### Algorithm
+
+
+
+The halfband filter has the polyphase property: one branch is a pure delay (every other sample passes through unchanged) and the other branch carries the FIR computation. Caller supplies the FIR branch coefficients as float; they are converted to Q15 internally with the standard x0.5 rate scaling.
+
+
+The symmetric-fold optimisation halves the number of multiplications: instead of computing Sum `h[k]`\*`x[n-k]` for all k, the filter computes Sum `h[k]`\*(`x[n-k]` + `x[n-(N-1-k)]`) for k = 0..N/2-1, exploiting `h[k]` = `h[N-1-k]`. The center tap is a single unconditional right-shift (x0.5, baked in as the polyphase rate identity).
+
+
+On AVX2 the inner loop uses \_mm256\_madd\_epi16 to multiply 16 int16\_t coefficient values against 16 int16\_t folded delay-line samples in a single instruction, accumulating into 8 int32\_t lanes. I and Q run as two independent madd chains on the same coefficient vector — free ILP on any superscalar core. The fold uses saturating add (\_mm256\_adds\_epi16) which clips at +-32767; for signals at or below -1 dBFS the saturation never fires. The int32\_t accumulator is reduced to int64\_t before the final round-and-shift to Q15 output.
+
+
+
+### Delay-line layout
+
+
+
+Even- and odd-indexed input samples are demultiplexed into separate I and Q rings (four int16\_t dual-write rings total). The dual-write trick stores each value at position p and p+cap so the FIR inner loop reads a contiguous slice — no modulo arithmetic in the hot path.
+
+
+
+### Lifecycle
+
+
+
+
+```C++
+hbdecim_q15_state_t *r = hbdecim_q15_create(num_taps, h_fir);
+// in:  interleaved int16_t IQ, 2*n_in elements
+// out: interleaved int16_t IQ, 2*n_out elements (n_out <= n_in/2)
+size_t n = hbdecim_q15_execute(r, in, n_in, out, max_out);
+hbdecim_q15_destroy(r);
+```
+ 
+
+
+
+    
 ## Public Functions Documentation
 
 
@@ -213,14 +255,14 @@ size_t hbdecim_q15_execute (
 * `r` Decimator state. 
 * `in` Interleaved int16\_t IQ input array of 2\*n\_in elements (I₀ Q₀ I₁ Q₁ …). 
 * `n_in` Number of complex input pairs (half the int16 element count). 
-* `out` Output buffer; caller must provide space for max\_out int16\_t values. 
-* `max_out` Capacity of out in int16\_t elements (&gt;= n\_in). 
+* `out` Output buffer; caller must provide space for 2\*max\_out int16\_t values (one interleaved I/Q pair per output). 
+* `max_out` Capacity of out in COMPLEX samples  half its int16\_t element count. The loop guards on the complex index, so a value in int16 units would let it write 2x the buffer. 
 
 
 
 **Returns:**
 
-Number of int16\_t values written to out. 
+min(available, max\_out) COMPLEX samples  twice that many int16\_t values. 
 ```C++
 >>> import numpy as np
 >>> from doppler.resample import HalfbandDecimatorQ15

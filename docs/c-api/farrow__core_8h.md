@@ -40,7 +40,7 @@ _Farrow fractional-delay interpolator — linear / parabolic / cubic._ [More...]
 
 | Type | Name |
 | ---: | :--- |
-| enum  | [**farrow\_\_core\_8h\_1afc4a4c5c83f7c538008107b97d30abcd**](#enum-farrow__core_8h_1afc4a4c5c83f7c538008107b97d30abcd)  <br> |
+| enum  | [**farrow\_\_core\_8h\_1a06fc87d81c62e9abb8790b6e5713c55b**](#enum-farrow__core_8h_1a06fc87d81c62e9abb8790b6e5713c55b)  <br> |
 
 
 
@@ -66,7 +66,7 @@ _Farrow fractional-delay interpolator — linear / parabolic / cubic._ [More...]
 | Type | Name |
 | ---: | :--- |
 |  [**farrow\_state\_t**](structfarrow__state__t.md) \* | [**farrow\_create**](#function-farrow_create) (int order) <br>_Create a Farrow interpolator._  |
-|  size\_t | [**farrow\_delay**](#function-farrow_delay) ([**farrow\_state\_t**](structfarrow__state__t.md) \* state, const float complex \* x, size\_t x\_len, double mu, float complex \* out, size\_t max\_out) <br> |
+|  size\_t | [**farrow\_delay**](#function-farrow_delay) ([**farrow\_state\_t**](structfarrow__state__t.md) \* state, const float complex \* x, size\_t x\_len, double mu, float complex \* out, size\_t max\_out) <br>_Apply a constant fractional delay of_ `mu` _samples to a CF32 block._ |
 |  size\_t | [**farrow\_delay\_max\_out**](#function-farrow_delay_max_out) ([**farrow\_state\_t**](structfarrow__state__t.md) \* state) <br> |
 |  void | [**farrow\_destroy**](#function-farrow_destroy) ([**farrow\_state\_t**](structfarrow__state__t.md) \* state) <br>_Destroy a Farrow interpolator._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) float complex | [**farrow\_eval**](#function-farrow_eval) (const [**farrow\_state\_t**](structfarrow__state__t.md) \* s, float mu) <br>_Interpolate at fractional offset_ `mu` _∈_`[0,1)` _between_`d[1]` _and_`d[2]` _._ |
@@ -74,7 +74,7 @@ _Farrow fractional-delay interpolator — linear / parabolic / cubic._ [More...]
 |  void | [**farrow\_get\_state**](#function-farrow_get_state) (const [**farrow\_state\_t**](structfarrow__state__t.md) \* state, void \* blob) <br> |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) void | [**farrow\_init**](#function-farrow_init) ([**farrow\_state\_t**](structfarrow__state__t.md) \* s, int order) <br>_Initialise in place: set order, clear the delay line._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) void | [**farrow\_push**](#function-farrow_push) ([**farrow\_state\_t**](structfarrow__state__t.md) \* s, float complex x) <br>_Push one input sample into the delay line (oldest drops out)._  |
-|  void | [**farrow\_reset**](#function-farrow_reset) ([**farrow\_state\_t**](structfarrow__state__t.md) \* state) <br>_Clear the delay line; keep the order._  |
+|  void | [**farrow\_reset**](#function-farrow_reset) ([**farrow\_state\_t**](structfarrow__state__t.md) \* state) <br>_Clear the interpolator delay line; keep the order._  |
 |  int | [**farrow\_set\_state**](#function-farrow_set_state) ([**farrow\_state\_t**](structfarrow__state__t.md) \* state, const void \* blob) <br> |
 |  size\_t | [**farrow\_state\_bytes**](#function-farrow_state_bytes) (const [**farrow\_state\_t**](structfarrow__state__t.md) \* state) <br> |
 
@@ -140,10 +140,10 @@ float complex y = farrow_eval(&f, 0.3f);   // x interpolated 0.3 past tap[1]
 
 
 
-### enum farrow\_\_core\_8h\_1afc4a4c5c83f7c538008107b97d30abcd 
+### enum farrow\_\_core\_8h\_1a06fc87d81c62e9abb8790b6e5713c55b 
 
 ```C++
-enum farrow__core_8h_1afc4a4c5c83f7c538008107b97d30abcd {
+enum farrow__core_8h_1a06fc87d81c62e9abb8790b6e5713c55b {
     FARROW_LINEAR = 0,
     FARROW_PARABOLIC = 1,
     FARROW_CUBIC = 2
@@ -202,6 +202,7 @@ Caller must call [**farrow\_destroy()**](farrow__core_8h.md#function-farrow_dest
 
 ### function farrow\_delay 
 
+_Apply a constant fractional delay of_ `mu` _samples to a CF32 block._
 ```C++
 size_t farrow_delay (
     farrow_state_t * state,
@@ -215,6 +216,42 @@ size_t farrow_delay (
 
 
 
+Pushes each input sample through the delay line and evaluates the interpolator at the same fixed offset, so the whole block is delayed by a constant, non-integer amount. Output sample i is the input interpolated at `i - group_delay + mu`, i.e. the stream shifted later by `group_delay - mu` samples; the first `group_delay` outputs are the delay-line filling transient and should be discarded. Because the offset is held constant this is the open-loop use of the interpolator — a timing loop instead steers `mu` per sample via [**farrow\_push()**](farrow__core_8h.md#function-farrow_push)/farrow\_eval().
+
+
+
+
+**Parameters:**
+
+
+* `state` Pointer to a valid [**farrow\_state\_t**](structfarrow__state__t.md). 
+* `x` CF32 input samples. 
+* `x_len` Number of input samples. 
+* `mu` Fractional delay in samples; the offset in `[0,1)` into the interpolation interval (values outside extrapolate). 
+* `out` Output buffer; one output per input sample. 
+* `max_out` Capacity of `out` in samples. 
+
+
+
+**Returns:**
+
+CF32 output array, same length as `x`, each sample delayed by `group_delay - mu`.
+
+
+
+```C++
+>>> from doppler.resample import Farrow
+>>> import numpy as np
+>>> f = Farrow(order="cubic")
+>>> x = np.arange(8, dtype=np.complex64)   # a ramp: exact interp
+>>> y = f.delay(x, 0.5)                  # delay group_delay - 0.5
+>>> [round(float(v.real), 4) for v in y]  # first 2 are transient
+[0.0, -0.0625, 0.4375, 1.5, 2.5, 3.5, 4.5, 5.5]
+```
+ 
+
+
+        
 
 <hr>
 
@@ -368,7 +405,7 @@ JM_FORCEINLINE  JM_HOT void farrow_push (
 
 ### function farrow\_reset 
 
-_Clear the delay line; keep the order._ 
+_Clear the interpolator delay line; keep the order._ 
 ```C++
 void farrow_reset (
     farrow_state_t * state
@@ -377,6 +414,31 @@ void farrow_reset (
 
 
 
+Zeroes the 4-tap delay line so the next block starts from a filling transient again, exactly as a freshly created interpolator would. The order (linear / parabolic / cubic) is preserved, so the same object can be reused across independent bursts without rebuilding the polynomial. Call it between unrelated signal segments to stop the tail of one leaking into the head of the next.
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL.
+
+
+```C++
+>>> from doppler.resample import Farrow
+>>> import numpy as np
+>>> f = Farrow(order="cubic")
+>>> _ = f.delay(np.ones(8, dtype=np.complex64), 0.25)  # leaves state
+>>> f.reset()                                 # back to pristine
+>>> x = np.arange(8, dtype=np.complex64)
+>>> f.delay(x, 0.5)[3:].real.tolist()   # steady part: ramp - 1.5
+[1.5, 2.5, 3.5, 4.5, 5.5]
+```
+ 
+
+
+        
 
 <hr>
 

@@ -10,7 +10,7 @@
 
 _One telemetry sample: a probe's scalar value at sample index_ `n` _._[More...](#detailed-description)
 
-* `#include <telemetry.h>`
+* `#include <dp_tlm_core.h>`
 
 
 
@@ -105,6 +105,7 @@ uint16_t dp_tlm_rec_t::flags;
 
 
 Reserved; 0. 
+ 
 
 
         
@@ -139,6 +140,7 @@ uint16_t dp_tlm_rec_t::probe;
 
 
 Probe id (index into the context's table). 
+ 
 
 
         
@@ -156,6 +158,7 @@ float dp_tlm_rec_t::value;
 
 
 The scalar, narrowed to float. 
+ 
 
 
         

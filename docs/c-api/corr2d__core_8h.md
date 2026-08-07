@@ -62,7 +62,7 @@ _2-D FFT-based cross-correlator with coherent integrate-and-dump._ [More...](#de
 | ---: | :--- |
 |  [**corr2d\_state\_t**](structcorr2d__state__t.md) \* | [**corr2d\_create**](#function-corr2d_create) (const float complex \* ref, size\_t ny, size\_t nx, size\_t dwell, int nthreads, size\_t ny\_out, size\_t nx\_out) <br>_Allocate a 2-D FFT correlator with coherent integrate-and-dump. Two-dimensional extension of_ [_**corr\_create()**_](corr__core_8h.md#function-corr_create) _. The reference is a flat row-major ny×nx CF32 array; its conjugate spectrum is pre-computed once so each execute() call costs two 2-D FFTs plus ny\*nx complex multiplies. The Python wrapper requires_`ref` _to be a 2-D ndarray with shape (ny, nx); it passes a flat view to C._ |
 |  void | [**corr2d\_destroy**](#function-corr2d_destroy) ([**corr2d\_state\_t**](structcorr2d__state__t.md) \* state) <br>_Destroy and free a corr2d instance._  |
-|  size\_t | [**corr2d\_execute**](#function-corr2d_execute) ([**corr2d\_state\_t**](structcorr2d__state__t.md) \* state, const float complex \* in, size\_t n\_in, float complex \* out) <br>_Correlate one 2-D frame and optionally dump the coherent accumulator. Runs the 2-D pipeline: FFT2 → pointwise multiply with ref\_spec → accumulate the cross-spectrum; on dump, IFFT2 → normalise (÷ ny\*nx). Accumulating in the frequency domain and inverting once is exactly the per-frame inverse summed, by linearity of the IFFT — valid because the dwell is_ **coherent** _(a complex sum); a non-coherent (magnitude) integration could not defer the inverse. The Python wrapper accepts a (ny, nx) CF32 ndarray; a dump returns a flat length-ny\*nx ndarray, a no-dump returns None._ |
+|  size\_t | [**corr2d\_execute**](#function-corr2d_execute) ([**corr2d\_state\_t**](structcorr2d__state__t.md) \* state, const float complex \* in, size\_t n\_in, float complex \* out, size\_t max\_out) <br>_Correlate one 2-D frame and optionally dump the coherent accumulator. Runs the 2-D pipeline: FFT2 → pointwise multiply with ref\_spec → accumulate the cross-spectrum; on dump, IFFT2 → normalise (÷ ny\*nx). Accumulating in the frequency domain and inverting once is exactly the per-frame inverse summed, by linearity of the IFFT — valid because the dwell is_ **coherent** _(a complex sum); a non-coherent (magnitude) integration could not defer the inverse. The Python wrapper accepts a (ny, nx) CF32 ndarray; a dump returns a flat length-ny\*nx ndarray, a no-dump returns None._ |
 |  size\_t | [**corr2d\_execute\_max\_out**](#function-corr2d_execute_max_out) ([**corr2d\_state\_t**](structcorr2d__state__t.md) \* state) <br>_Maximum output samples per execute call (always == ny\*nx)._  |
 |  void | [**corr2d\_get\_state**](#function-corr2d_get_state) (const [**corr2d\_state\_t**](structcorr2d__state__t.md) \* state, void \* blob) <br> |
 |  void | [**corr2d\_reset**](#function-corr2d_reset) ([**corr2d\_state\_t**](structcorr2d__state__t.md) \* state) <br>_Zero the accumulator and reset the integration counter to 0. Equivalent to starting a fresh dwell cycle without rebuilding FFT plans or recomputing ref\_spec._  |
@@ -115,7 +115,7 @@ Two-dimensional extension of corr\_core: all buffers are ny×nx row-major flat a
 The reference spectrum is pre-computed at create time. The int-dump semantics are identical to the 1-D case: coherently sum `dwell` frames, then dump.
 
 
-**Single-row-reference fast path.** When `ref` is nonzero only in row 0 (the DSSS acquisition/detection shape: a code replica with no Doppler content of its own) and `ny_out` == `ny` (no row-axis interpolation), `ref_spec[u,v]` is independent of `u` — the row axis of the 2-D transform pair cancels to an exact identity (DFT orthogonality: `sum_u exp(2*pi*i*u*(i-i')/ny) = ny` iff `i==i'`, else 0), for _any_ row content. `corr2d_execute` then reduces exactly to `R(i,j) = IFFT_nx(FFT_nx(row_i) · conj(FFT_nx(ref_row0)))(j) / nx`, applied independently per row — so `corr2d_create` detects this shape and runs `ny` independent length-`nx` 1-D FFTs instead of a full `(ny,nx)` 2-D FFT, skipping the row-axis work that would otherwise cancel to a no-op. Any other reference shape, or `ny_out > ny`, uses the general 2-D path unchanged.
+**Single-row-reference fast path.** When `ref` is nonzero only in row 0 (the DSSS acquisition/detection shape: a code replica with no Doppler content of its own) and `ny_out` == `ny` (no row-axis interpolation), `ref_spec[u,v]` is independent of `u` — the row axis of the 2-D transform pair cancels to an exact identity (DFT orthogonality: sum\_u exp(2\*pi\*i\*u\*(i-i)/ny) = ny`iff`i==i'`, else 0), for *any* row content.`corr2d\_execute`then reduces exactly to `R(i,j) = IFFT\_nx(FFT\_nx(row\_i) · conj(FFT\_nx(ref\_row0)))(j) / nx`, applied independently per row — so`corr2d\_create`detects this shape and runs`ny`independent length-`nx`1-D FFTs instead of a full`(ny,nx)` 2-D FFT, skipping the row-axis work that would otherwise cancel to a no-op. Any other reference shape, or`ny\_out &gt; ny`, uses the general 2-D path unchanged.
 
 
 Lifecycle: 
@@ -124,7 +124,7 @@ float complex ref[NY * NX] = { ... };    // row-major 2-D reference
 corr2d_state_t *c = corr2d_create(ref, NY, NX, 4, 1);
 float complex out[NY * NX];
 for (int i = 0; i < 4; i++) {
-    size_t n_out = corr2d_execute(c, frame[i], NY*NX, out);
+    size_t n_out = corr2d_execute(c, frame[i], NY*NX, out, NY*NX);
     if (n_out) process_2d(out, NY, NX);   // fires once, on i == 3
 }
 corr2d_destroy(c);
@@ -228,7 +228,8 @@ size_t corr2d_execute (
     corr2d_state_t * state,
     const float complex * in,
     size_t n_in,
-    float complex * out
+    float complex * out,
+    size_t max_out
 ) 
 ```
 
@@ -243,12 +244,13 @@ size_t corr2d_execute (
 * `in` Input frame, flat row-major CF32, length ny\*nx. 
 * `n_in` Number of input samples; must equal ny\*nx. 
 * `out` Output buffer for the correlation map (CF32, length ny\*nx); written only on a dump call. 
+* `max_out` Capacity of `out` in elements. Emission stops there, so the return value is the number actually written. 
 
 
 
 **Returns:**
 
-ny\*nx on a dump, 0 otherwise (None in Python). 
+ny\*nx on a dump (or max\_out if smaller), 0 otherwise (None in Python). 
 ```C++
 >>> from doppler.spectral import Corr2D
 >>> import numpy as np

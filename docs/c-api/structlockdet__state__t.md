@@ -100,6 +100,7 @@ uint32_t lockdet_state_t::cnt;
 
 
 running consecutive-look verify counter. 
+ 
 
 
         
@@ -117,6 +118,7 @@ double lockdet_state_t::down_thresh;
 
 
 drop side: miss when metric &lt; down\_thresh. 
+ 
 
 
         
@@ -134,6 +136,7 @@ int lockdet_state_t::locked;
 
 
 current decision (1 = locked). 
+ 
 
 
         
@@ -151,6 +154,7 @@ uint32_t lockdet_state_t::n_down;
 
 
 consecutive misses required to drop (&gt;= 1). 
+ 
 
 
         
@@ -185,6 +189,7 @@ double lockdet_state_t::up_thresh;
 
 
 declare side: hit when metric &gt; up\_thresh. 
+ 
 
 
         

@@ -67,7 +67,9 @@
 |  void | [**dp\_sample\_clock\_reset**](#function-dp_sample_clock_reset) ([**dp\_sample\_clock\_t**](structdp__sample__clock__t.md) \* c) <br> |
 |  void | [**dp\_sample\_clock\_resync**](#function-dp_sample_clock_resync) ([**dp\_sample\_clock\_t**](structdp__sample__clock__t.md) \* c) <br> |
 |  uint64\_t | [**dp\_sample\_clock\_stamp**](#function-dp_sample_clock_stamp) (const [**dp\_sample\_clock\_t**](structdp__sample__clock__t.md) \* c) <br> |
+|  uint64\_t | [**dp\_sample\_clock\_stamp\_at**](#function-dp_sample_clock_stamp_at) (const [**dp\_sample\_clock\_t**](structdp__sample__clock__t.md) \* c, uint64\_t n) <br> |
 |  void | [**dp\_sample\_clock\_stats**](#function-dp_sample_clock_stats) (const [**dp\_sample\_clock\_t**](structdp__sample__clock__t.md) \* c, [**dp\_sample\_clock\_t**](structdp__sample__clock__t.md) \* out) <br> |
+|  int | [**dp\_sample\_clock\_track**](#function-dp_sample_clock_track) ([**dp\_sample\_clock\_t**](structdp__sample__clock__t.md) \* c, uint64\_t observed\_timestamp\_ns, uint64\_t n\_at\_observation, uint64\_t tolerance\_ns) <br> |
 
 
 
@@ -267,7 +269,27 @@ uint64_t dp_sample_clock_stamp (
 
 
 
-Ideal wall-clock timestamp (ns since the UNIX epoch) of the next sample to be produced — sample index `n`. Call it before pace() to tag the block you are about to emit, or after to tag the following block. 
+Ideal wall-clock timestamp (ns since the UNIX epoch) of the next sample to be produced — sample index `n`. Call it before pace() to tag the block you are about to emit, or after to tag the following block. Equivalent to `dp_sample_clock_stamp_at(c, c->n)`. 
+
+
+        
+
+<hr>
+
+
+
+### function dp\_sample\_clock\_stamp\_at 
+
+```C++
+uint64_t dp_sample_clock_stamp_at (
+    const dp_sample_clock_t * c,
+    uint64_t n
+) 
+```
+
+
+
+Ideal wall-clock timestamp (ns since the UNIX epoch) of an ARBITRARY sample index `n` — past, present, or future, not just the clock's own live position. The receive-side counterpart of [**dp\_sample\_clock\_stamp()**](timing__core_8h.md#function-dp_sample_clock_stamp): a block emitting several per-record outputs from one buffered input (e.g. several detections spanning different epochs from one streamed message) stamps each at its own historical sample offset instead of reusing the whole buffer's single arrival time. 
 
 
         
@@ -287,6 +309,44 @@ void dp_sample_clock_stats (
 
 
 
+
+<hr>
+
+
+
+### function dp\_sample\_clock\_track 
+
+```C++
+int dp_sample_clock_track (
+    dp_sample_clock_t * c,
+    uint64_t observed_timestamp_ns,
+    uint64_t n_at_observation,
+    uint64_t tolerance_ns
+) 
+```
+
+
+
+Reconcile `c's` epoch\_real\_ns against one OBSERVED (timestamp, sample index) pair read off an incoming stream header — the receive-side dual of pace()'s resync: instead of sleeping toward a deadline, this adopts or corrects the epoch from ground truth the sender already stamped.
+
+
+The FIRST call always adopts `observed_timestamp_ns` as the epoch (`has_anchor` starts false — a fresh clock has no real observation yet, so there is nothing to compare against). Every later call only re-anchors if the discrepancy between the observation and what the clock's current model predicts exceeds `tolerance_ns` (same step-correction semantics as pace()'s own resync, applied to tracking instead of sleeping) — this corrects accumulated epoch OFFSET only, it does not model sample-rate SKEW, exactly like pace()'s resync.
+
+
+Rejects (no-op, returns 0) any observation with `n_at_observation` less than the clock's current `n` outright: a stale, out-of-order, or redelivered header must never walk the epoch backward. Never treat two reconciled observations as literal replay-safe state — always resync from an ARRIVING message, not a cached one.
+
+
+
+
+**Returns:**
+
+Nonzero if this call adopted or re-anchored the epoch; 0 if it was accepted as already consistent, or rejected as stale. 
+
+
+
+
+
+        
 
 <hr>
 

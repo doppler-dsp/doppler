@@ -47,7 +47,7 @@ npr_meas_t nprmeas_analyze(nprmeas_state_t *state, const float *x, size_t n_in,
 size_t nprmeas_spectrum_dbfs_max_out(nprmeas_state_t *state);
 
 size_t nprmeas_spectrum_dbfs(nprmeas_state_t *state, const float *x,
-                             size_t x_len, float *out);
+                             size_t x_len, float *out, size_t max_out);
 
 #ifdef __cplusplus
 }

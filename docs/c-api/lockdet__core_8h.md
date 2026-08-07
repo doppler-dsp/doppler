@@ -64,11 +64,11 @@ _Portable lock detector — level + time hysteresis over any scalar lock metric,
 |  void | [**lockdet\_destroy**](#function-lockdet_destroy) ([**lockdet\_state\_t**](structlockdet__state__t.md) \* state) <br>_Destroy a lockdet instance and release all memory._  |
 |  void | [**lockdet\_get\_state**](#function-lockdet_get_state) (const [**lockdet\_state\_t**](structlockdet__state__t.md) \* state, void \* blob) <br>_Serialize the detector state into_ `blob` _._ |
 |  void | [**lockdet\_init**](#function-lockdet_init) ([**lockdet\_state\_t**](structlockdet__state__t.md) \* state, double up\_thresh, double down\_thresh, uint32\_t n\_up, uint32\_t n\_down) <br>_Initialise a lock detector in place (no allocation)._  |
-|  void | [**lockdet\_reset**](#function-lockdet_reset) ([**lockdet\_state\_t**](structlockdet__state__t.md) \* state) <br>_Drop the lock and clear the verify counter; keep the config._  |
+|  void | [**lockdet\_reset**](#function-lockdet_reset) ([**lockdet\_state\_t**](structlockdet__state__t.md) \* state) <br>_Drop the lock and clear the verify counter; keep the config. Returns the detector to the unlocked state with an empty verify run, as if freshly constructed with the same thresholds. Call it at a segment boundary so a decision made on one capture does not leak into an unrelated next one._  |
 |  int | [**lockdet\_set\_state**](#function-lockdet_set_state) ([**lockdet\_state\_t**](structlockdet__state__t.md) \* state, const void \* blob) <br>_Restore state; DP\_OK, or DP\_ERR\_INVALID if the envelope rejects._  |
 |  size\_t | [**lockdet\_state\_bytes**](#function-lockdet_state_bytes) (const [**lockdet\_state\_t**](structlockdet__state__t.md) \* state) <br>_Serialized-state byte size._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) int | [**lockdet\_step**](#function-lockdet_step) ([**lockdet\_state\_t**](structlockdet__state__t.md) \* state, double x) <br>_Feed one look of the lock metric; return the current decision._  |
-|  void | [**lockdet\_steps**](#function-lockdet_steps) ([**lockdet\_state\_t**](structlockdet__state__t.md) \* state, const double \* input, int \* output, size\_t n) <br>_Run a block of lock-metric looks through the detector._  |
+|  void | [**lockdet\_steps**](#function-lockdet_steps) ([**lockdet\_state\_t**](structlockdet__state__t.md) \* state, const double \* x, int \* out, size\_t n) <br>_Run a block of lock-metric looks through the detector. Applies_ [_**lockdet\_step()**_](lockdet__core_8h.md#function-lockdet_step) _to each look in turn, so the decision flag and the in-flight verify run carry across the block exactly as they would look by look — a signal can be processed in frames of any size with no seam._ |
 
 
 
@@ -167,6 +167,16 @@ The current `locked` flag survives (a live lock is not dropped by a re-tune); th
 * `down_thresh` Drop threshold (miss when metric &lt; down\_thresh). 
 * `n_up` Consecutive hits to declare; clamped to &gt;= 1. 
 * `n_down` Consecutive misses to drop; clamped to &gt;= 1. 
+```C++
+>>> from doppler.detection import LockDet
+>>> d = LockDet(up_thresh=1.5, down_thresh=1.2, n_up=2, n_down=2)
+>>> d.configure(up_thresh=3.0, down_thresh=2.5, n_up=1, n_down=1)
+>>> d.up_thresh          # thresholds re-tuned in place
+3.0
+>>> d.step(4.0)          # a single hit now declares (n_up=1)
+1
+```
+ 
 
 
 
@@ -308,7 +318,7 @@ Stores the thresholds and verify counts (each count clamped to &gt;= 1; a count 
 
 ### function lockdet\_reset 
 
-_Drop the lock and clear the verify counter; keep the config._ 
+_Drop the lock and clear the verify counter; keep the config. Returns the detector to the unlocked state with an empty verify run, as if freshly constructed with the same thresholds. Call it at a segment boundary so a decision made on one capture does not leak into an unrelated next one._ 
 ```C++
 void lockdet_reset (
     lockdet_state_t * state
@@ -323,6 +333,16 @@ void lockdet_reset (
 
 
 * `state` Must be non-NULL. 
+```C++
+>>> from doppler.detection import LockDet
+>>> d = LockDet(up_thresh=1.5, down_thresh=1.2, n_up=1, n_down=1)
+>>> d.step(2.0)          # one hit declares lock (n_up=1)
+1
+>>> d.reset()            # drop it and clear the verify run
+>>> d.locked
+False
+```
+ 
 
 
 
@@ -418,12 +438,12 @@ Decision after this look (1 = locked, 0 = not).
 
 ### function lockdet\_steps 
 
-_Run a block of lock-metric looks through the detector._ 
+_Run a block of lock-metric looks through the detector. Applies_ [_**lockdet\_step()**_](lockdet__core_8h.md#function-lockdet_step) _to each look in turn, so the decision flag and the in-flight verify run carry across the block exactly as they would look by look — a signal can be processed in frames of any size with no seam._
 ```C++
 void lockdet_steps (
     lockdet_state_t * state,
-    const double * input,
-    int * output,
+    const double * x,
+    int * out,
     size_t n
 ) 
 ```
@@ -435,10 +455,19 @@ void lockdet_steps (
 **Parameters:**
 
 
-* `state` Component state (mutated). 
-* `input` Metric array (length &gt;= n). 
-* `output` Decision array, 0/1 per look (length &gt;= n). 
-* `n` Number of looks. 
+* `state` Component state (mutated). Must be non-NULL. 
+* `x` Lock-metric looks, one scalar per look (length &gt;= n). 
+* `out` Per-look decision output, 0 or 1 (length &gt;= n). 
+* `n` Number of looks to process. 
+```C++
+>>> import numpy as np
+>>> from doppler.detection import LockDet
+>>> d = LockDet(up_thresh=1.5, down_thresh=1.2, n_up=2, n_down=2)
+>>> x = np.array([2.0, 2.0, 1.0, 2.0])   # declares on the 2nd hit
+>>> d.steps(x).tolist()
+[0, 1, 1, 1]
+```
+ 
 
 
 

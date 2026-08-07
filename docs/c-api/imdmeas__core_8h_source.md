@@ -46,7 +46,7 @@ imd_meas_t imdmeas_analyze(imdmeas_state_t *state, const float *x, size_t n_in);
 size_t imdmeas_spectrum_dbfs_max_out(imdmeas_state_t *state);
 
 size_t imdmeas_spectrum_dbfs(imdmeas_state_t *state, const float *x,
-                             size_t x_len, float *out);
+                             size_t x_len, float *out, size_t max_out);
 
 #ifdef __cplusplus
 }

@@ -9,7 +9,6 @@
 
 ```C++
 
-
 #ifndef DP_BUFFER_H
 #define DP_BUFFER_H
 
@@ -362,6 +361,14 @@ dp__buf_free (void *addr, size_t bytes, void *handle)
     return &ab->data[(t & ab->mask) * 2];                                     \
   }                                                                           \
                                                                               \
+                                                                         \
+  static inline size_t dp_##name##_available (const dp_##name##_t *ab)        \
+  {                                                                           \
+    size_t h = DP_LOAD_ACQ (&ab->head);                                       \
+    size_t t = DP_LOAD_RLX (&ab->tail);                                       \
+    return h - t;                                                             \
+  }                                                                           \
+                                                                              \
            \
   static inline void dp_##name##_consume (dp_##name##_t *ab, size_t n)        \
   {                                                                           \
@@ -374,7 +381,6 @@ dp__buf_free (void *addr, size_t bytes, void *handle)
 DECLARE_DP_BUFFER (f32, float)  
 DECLARE_DP_BUFFER (f64, double) 
 DECLARE_DP_BUFFER (i16, int16_t) 
-
 #endif /* DP_BUFFER_H */
 ```
 

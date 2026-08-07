@@ -63,10 +63,10 @@ _Scale-and-saturate float-to-UQ15 (offset-binary uint16) converter._ [More...](#
 |  [**f32\_to\_uq15\_state\_t**](structf32__to__uq15__state__t.md) \* | [**f32\_to\_uq15\_create**](#function-f32_to_uq15_create) (float scale) <br>_Create a f32\_to\_uq15 instance._  |
 |  void | [**f32\_to\_uq15\_destroy**](#function-f32_to_uq15_destroy) ([**f32\_to\_uq15\_state\_t**](structf32__to__uq15__state__t.md) \* state) <br>_Destroy a f32\_to\_uq15 instance and release all memory._  |
 |  void | [**f32\_to\_uq15\_get\_state**](#function-f32_to_uq15_get_state) (const [**f32\_to\_uq15\_state\_t**](structf32__to__uq15__state__t.md) \* state, void \* blob) <br> |
-|  void | [**f32\_to\_uq15\_reset**](#function-f32_to_uq15_reset) ([**f32\_to\_uq15\_state\_t**](structf32__to__uq15__state__t.md) \* state) <br>_Reset f32\_to\_uq15 to its post-create state._  |
+|  void | [**f32\_to\_uq15\_reset**](#function-f32_to_uq15_reset) ([**f32\_to\_uq15\_state\_t**](structf32__to__uq15__state__t.md) \* state) <br>_Clear the sticky clip flag, starting a fresh saturation history._  |
 |  int | [**f32\_to\_uq15\_set\_state**](#function-f32_to_uq15_set_state) ([**f32\_to\_uq15\_state\_t**](structf32__to__uq15__state__t.md) \* state, const void \* blob) <br> |
 |  size\_t | [**f32\_to\_uq15\_state\_bytes**](#function-f32_to_uq15_state_bytes) (const [**f32\_to\_uq15\_state\_t**](structf32__to__uq15__state__t.md) \* state) <br> |
-|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) uint16\_t | [**f32\_to\_uq15\_step**](#function-f32_to_uq15_step) ([**f32\_to\_uq15\_state\_t**](structf32__to__uq15__state__t.md) \* state, float x) <br>_Process one input sample._  |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) uint16\_t | [**f32\_to\_uq15\_step**](#function-f32_to_uq15_step) ([**f32\_to\_uq15\_state\_t**](structf32__to__uq15__state__t.md) \* state, float x) <br>_Scale one float sample to an offset-binary UQ15 uint16 code._  |
 |  void | [**f32\_to\_uq15\_steps**](#function-f32_to_uq15_steps) ([**f32\_to\_uq15\_state\_t**](structf32__to__uq15__state__t.md) \* state, const float \* input, uint16\_t \* output, size\_t n) <br>_Process a block of float samples to UQ15 uint16._  |
 
 
@@ -116,7 +116,7 @@ u     = (uint16_t)((int32_t)v_Q15 + 32768)
 
 
 
-This is the unsigned wire format used by some DAC and file-container conventions that cannot represent negative integer values. UQ15ToF32 performs the exact inverse. A sticky `clipped` flag is raised on saturation and cleared only by reset().
+This is the unsigned wire format used by some DAC and file-format conventions that cannot represent negative integer values. UQ15ToF32 performs the exact inverse. A sticky `clipped` flag is raised on saturation and cleared only by reset().
 
 
 Lifecycle: create -&gt; (step / steps / reset)\* -&gt; destroy
@@ -240,7 +240,7 @@ void f32_to_uq15_get_state (
 
 ### function f32\_to\_uq15\_reset 
 
-_Reset f32\_to\_uq15 to its post-create state._ 
+_Clear the sticky clip flag, starting a fresh saturation history._ 
 ```C++
 void f32_to_uq15_reset (
     f32_to_uq15_state_t * state
@@ -249,7 +249,7 @@ void f32_to_uq15_reset (
 
 
 
-Clears the sticky `clipped` flag. The `scale` is preserved.
+Zeroes `clipped` so a subsequent clipped query reflects only samples seen after this call; the immutable `scale` is preserved. Call it at a buffer or segment boundary so a saturation on one block does not leak into the next.
 
 
 
@@ -257,9 +257,19 @@ Clears the sticky `clipped` flag. The `scale` is preserved.
 **Parameters:**
 
 
-* `state` Must be non-NULL. 
+* `state` Must be non-NULL.
 
 
+```C++
+>>> from doppler.cvt import F32ToUQ15
+>>> c = F32ToUQ15()
+>>> c.step(2.0)       # out of range -> saturates 0xFFFF, latches
+65535
+>>> c.reset()            # forget the clip history
+>>> c.clipped
+False
+```
+ 
 
 
         
@@ -301,7 +311,7 @@ size_t f32_to_uq15_state_bytes (
 
 ### function f32\_to\_uq15\_step 
 
-_Process one input sample._ 
+_Scale one float sample to an offset-binary UQ15 uint16 code._ 
 ```C++
 JM_FORCEINLINE  JM_HOT uint16_t f32_to_uq15_step (
     f32_to_uq15_state_t * state,
@@ -311,7 +321,7 @@ JM_FORCEINLINE  JM_HOT uint16_t f32_to_uq15_step (
 
 
 
-Computes `round(x * scale)`, clamps to `[-32768, 32767]`, then adds 32768 to produce the offset-binary uint16 result. Sets `clipped` if saturation occurred before clamping.
+Computes `round(x * scale)`, clamps to `[-32768, 32767]`, then adds the 32768 offset-binary bias so the signed float domain maps onto the full unsigned uint16 range. Latches the sticky `clipped` flag if the scaled value saturated before clamping. Suits DAC and file formats that store only unsigned integers.
 
 
 
@@ -320,16 +330,25 @@ Computes `round(x * scale)`, clamps to `[-32768, 32767]`, then adds 32768 to pro
 
 
 * `state` Must be non-NULL. 
-* `x` Normalised float input sample. 
+* `x` Input sample, normally a normalised float in `[-1, +1]`. 
 
 
 
 **Returns:**
 
-Offset-binary uint16 in `[0, 65535]`: x = -1.0 → 0x0000, x = 0.0 → 0x8000, x ≈ +1.0 → 0xFFFF. 
+Offset-binary uint16 in `[0, 65535]`: -1.0 -&gt; 0, 0.0 -&gt; 32768, +1.0 -&gt; 65535.
 
 
 
+```C++
+>>> from doppler.cvt import F32ToUQ15
+>>> c = F32ToUQ15(scale=32768.0)
+>>> c.step(0.0)          # midscale maps to the offset-binary bias
+32768
+>>> c.step(-1.0)         # full-negative maps to code 0
+0
+```
+ 
 
 
         
@@ -369,7 +388,8 @@ Applies step() to every element. The `clipped` flag is updated cumulatively acro
 ```C++
 >>> from doppler.cvt import F32ToUQ15
 >>> import numpy as np
->>> F32ToUQ15().steps(np.array([-1.0, 0.0, 0.999], dtype=np.float32)).tolist()
+>>> F32ToUQ15().steps(
+...     np.array([-1.0, 0.0, 0.999], dtype=np.float32)).tolist()
 [0, 32768, 65503]
 ```
  

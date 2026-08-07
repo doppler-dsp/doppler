@@ -26,7 +26,8 @@
  * error is per-block jitter bounded by the OS scheduler, which averages out.
  *
  * Pacing is POSIX only (``clock_gettime`` + an absolute-deadline sleep); the
- * build guards this translation unit out on Windows, mirroring the stream sink.
+ * build guards this translation unit out on Windows, mirroring the stream
+ * sink.
  */
 #ifndef DP_TIMING_CORE_H
 #define DP_TIMING_CORE_H
@@ -48,6 +49,7 @@ extern "C"
     uint64_t underruns;     
     uint64_t max_late_ns;   
     int      resync;        
+    int      has_anchor; 
   } dp_sample_clock_t;
 
   uint64_t dp_mono_ns (void);
@@ -60,14 +62,21 @@ extern "C"
 
   uint64_t dp_sample_clock_stamp (const dp_sample_clock_t *c);
 
+  uint64_t dp_sample_clock_stamp_at (const dp_sample_clock_t *c, uint64_t n);
+
+  int dp_sample_clock_track (dp_sample_clock_t *c,
+                             uint64_t           observed_timestamp_ns,
+                             uint64_t n_at_observation, uint64_t tolerance_ns);
+
   void dp_sample_clock_reset (dp_sample_clock_t *c);
 
   void dp_sample_clock_resync (dp_sample_clock_t *c);
 
-  /* A stats snapshot for the generated `SampleClock` handle (jm kind="handle"):
-   * the decoded-getter face wants one call that fills an out-struct, so this
-   * copies the (public) clock struct out. The handle constructs init-in-place
-   * via dp_sample_clock_init above (jm#320 `init_fn`); jm owns that malloc/free. */
+  /* A stats snapshot for the generated `SampleClock` handle (jm
+   * kind="handle"): the decoded-getter face wants one call that fills an
+   * out-struct, so this copies the (public) clock struct out. The handle
+   * constructs init-in-place via dp_sample_clock_init above (jm#320
+   * `init_fn`); jm owns that malloc/free. */
   void dp_sample_clock_stats (const dp_sample_clock_t *c,
                               dp_sample_clock_t       *out);
 

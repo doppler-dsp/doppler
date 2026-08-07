@@ -60,7 +60,7 @@ time_stats_t tonemeas_time_stats(tonemeas_state_t *state, const float *x,
 size_t tonemeas_spectrum_dbfs_max_out(tonemeas_state_t *state);
 
 size_t tonemeas_spectrum_dbfs(tonemeas_state_t *state, const float *x,
-                              size_t x_len, float *out);
+                              size_t x_len, float *out, size_t max_out);
 
 #ifdef __cplusplus
 }

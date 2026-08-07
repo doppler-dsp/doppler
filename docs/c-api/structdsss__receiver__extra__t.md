@@ -37,6 +37,7 @@
 | Type | Name |
 | ---: | :--- |
 |  uint8\_t | [**\_pad**](#variable-_pad)  <br> |
+|  uint64\_t | [**car\_carry\_len**](#variable-car_carry_len)  <br> |
 |  double | [**cn0\_dbhz\_est**](#variable-cn0_dbhz_est)  <br> |
 |  double | [**doppler\_hz\_est**](#variable-doppler_hz_est)  <br> |
 |  uint64\_t | [**n**](#variable-n)  <br> |
@@ -96,6 +97,19 @@
 
 ```C++
 uint8_t dsss_receiver_extra_t::_pad[7];
+```
+
+
+
+
+<hr>
+
+
+
+### variable car\_carry\_len 
+
+```C++
+uint64_t dsss_receiver_extra_t::car_carry_len;
 ```
 
 

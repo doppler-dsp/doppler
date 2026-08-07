@@ -26,6 +26,7 @@ extern "C"
     pocketfft_plan *plan_f32; 
     size_t n;                 
     int sign;                 
+    double complex *work_trunc;
   } fft_state_t;
 
   fft_state_t *fft_create (size_t n, int sign, int nthreads);
@@ -37,23 +38,24 @@ extern "C"
   size_t fft_execute_cf64_max_out (fft_state_t *state);
 
   size_t fft_execute_cf64 (fft_state_t *state, const double complex *in,
-                           size_t n_in, double complex *out);
+                           size_t n_in, double complex *out, size_t max_out);
 
   size_t fft_execute_cf32_max_out (fft_state_t *state);
 
   size_t fft_execute_cf32 (fft_state_t *state, const float complex *in,
-                           size_t n_in, float complex *out);
+                           size_t n_in, float complex *out, size_t max_out);
 
   size_t fft_execute_inplace_cf64_max_out (fft_state_t *state);
 
   size_t fft_execute_inplace_cf64 (fft_state_t *state,
                                    const double complex *in, size_t n_in,
-                                   double complex *out);
+                                   double complex *out, size_t max_out);
 
   size_t fft_execute_inplace_cf32_max_out (fft_state_t *state);
 
   size_t fft_execute_inplace_cf32 (fft_state_t *state, const float complex *in,
-                                   size_t n_in, float complex *out);
+                                   size_t n_in, float complex *out,
+                                   size_t max_out);
 
   size_t fft_execute_ci16_max_out (fft_state_t *state);
 

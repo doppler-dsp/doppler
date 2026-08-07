@@ -71,7 +71,7 @@ _AccTrace — per-bin vector trace accumulator._ [More...](#detailed-description
 |  void | [**acc\_trace\_reset**](#function-acc_trace_reset) ([**acc\_trace\_state\_t**](structacc__trace__state__t.md) \* state) <br>_Discard the running trace; the next accumulate re-seeds it. The mode, alpha, and length are preserved._  |
 |  int | [**acc\_trace\_set\_state**](#function-acc_trace_set_state) ([**acc\_trace\_state\_t**](structacc__trace__state__t.md) \* state, const void \* blob) <br> |
 |  size\_t | [**acc\_trace\_state\_bytes**](#function-acc_trace_state_bytes) (const [**acc\_trace\_state\_t**](structacc__trace__state__t.md) \* state) <br> |
-|  size\_t | [**acc\_trace\_value**](#function-acc_trace_value) ([**acc\_trace\_state\_t**](structacc__trace__state__t.md) \* state, size\_t n, float \* out) <br>_Copy the current averaged trace into_ `out` _. Writes the full length-n trace and returns n. Returns 0 (which the Python wrapper renders as None) before any frame has been accumulated._ |
+|  size\_t | [**acc\_trace\_value**](#function-acc_trace_value) ([**acc\_trace\_state\_t**](structacc__trace__state__t.md) \* state, size\_t n, float \* out, size\_t max\_out) <br>_Return the current reduced trace, one value per bin. Copies the full length-n trace out to the caller and returns the number of samples written; the Python wrapper turns that into a fresh float32 array of the reduced trace (the running mean, EMA, max-hold, or min-hold, per the construction_ `mode` _). Before any frame has been accumulated the trace is empty: the count is 0, which the wrapper renders as_`None` _. Reading is non-destructive — the running trace keeps accumulating across later frames._ |
 |  size\_t | [**acc\_trace\_value\_max\_out**](#function-acc_trace_value_max_out) ([**acc\_trace\_state\_t**](structacc__trace__state__t.md) \* state) <br>_Output capacity hint for value(); equals the trace length n._  |
 
 
@@ -358,12 +358,13 @@ size_t acc_trace_state_bytes (
 
 ### function acc\_trace\_value 
 
-_Copy the current averaged trace into_ `out` _. Writes the full length-n trace and returns n. Returns 0 (which the Python wrapper renders as None) before any frame has been accumulated._
+_Return the current reduced trace, one value per bin. Copies the full length-n trace out to the caller and returns the number of samples written; the Python wrapper turns that into a fresh float32 array of the reduced trace (the running mean, EMA, max-hold, or min-hold, per the construction_ `mode` _). Before any frame has been accumulated the trace is empty: the count is 0, which the wrapper renders as_`None` _. Reading is non-destructive — the running trace keeps accumulating across later frames._
 ```C++
 size_t acc_trace_value (
     acc_trace_state_t * state,
     size_t n,
-    float * out
+    float * out,
+    size_t max_out
 ) 
 ```
 
@@ -377,12 +378,13 @@ size_t acc_trace_value (
 * `state` Must be non-NULL. 
 * `n` Caller buffer capacity (ignored; buffer is pre-sized to n). 
 * `out` Destination, at least n float32 elements. 
+* `max_out` Capacity of `out` in elements. Emission stops there, so the return value is the number actually written. 
 
 
 
 **Returns:**
 
-Number of samples written (n, or 0 if empty).
+min(n, max\_out) samples, or 0 if empty.
 
 
 
@@ -390,9 +392,11 @@ Number of samples written (n, or 0 if empty).
 >>> import numpy as np
 >>> from doppler.accumulator import AccTrace
 >>> acc = AccTrace(n=3, mode="maxhold")
+>>> acc.value() is None            # empty until the first frame
+True
 >>> acc.accumulate(np.array([1, 5, 2], dtype=np.float32))
 >>> acc.accumulate(np.array([4, 3, 6], dtype=np.float32))
->>> acc.value().tolist()
+>>> acc.value().tolist()           # per-bin running maximum
 [4.0, 5.0, 6.0]
 ```
  

@@ -37,6 +37,10 @@ _Composed receiver state._ [More...](#detailed-description)
 | Type | Name |
 | ---: | :--- |
 |  [**acq\_state\_t**](structacq__state__t.md) \* | [**acq**](#variable-acq)  <br> |
+|  [**costas\_state\_t**](structcostas__state__t.md) | [**car**](#variable-car)  <br> |
+|  float complex \* | [**car\_carry\_buf**](#variable-car_carry_buf)  <br> |
+|  size\_t | [**car\_carry\_len**](#variable-car_carry_len)  <br> |
+|  float complex \* | [**car\_wiped\_buf**](#variable-car_wiped_buf)  <br> |
 |  double | [**chip\_rate**](#variable-chip_rate)  <br> |
 |  double | [**cn0\_dbhz\_est**](#variable-cn0_dbhz_est)  <br> |
 |  uint8\_t \* | [**code**](#variable-code)  <br> |
@@ -54,6 +58,7 @@ _Composed receiver state._ [More...](#detailed-description)
 |  size\_t | [**sps**](#variable-sps)  <br> |
 |  double | [**symbol\_rate**](#variable-symbol_rate)  <br> |
 |  int | [**tracking**](#variable-tracking)  <br> |
+|  size\_t | [**tsamps**](#variable-tsamps)  <br> |
 
 
 
@@ -114,6 +119,58 @@ Owns all four children for the object's entire lifetime  `dll`/ `rc`/`rx` are al
 
 ```C++
 acq_state_t* dsss_receiver_state_t::acq;
+```
+
+
+
+
+<hr>
+
+
+
+### variable car 
+
+```C++
+costas_state_t dsss_receiver_state_t::car;
+```
+
+
+
+
+<hr>
+
+
+
+### variable car\_carry\_buf 
+
+```C++
+float complex* dsss_receiver_state_t::car_carry_buf;
+```
+
+
+
+
+<hr>
+
+
+
+### variable car\_carry\_len 
+
+```C++
+size_t dsss_receiver_state_t::car_carry_len;
+```
+
+
+
+
+<hr>
+
+
+
+### variable car\_wiped\_buf 
+
+```C++
+float complex* dsss_receiver_state_t::car_wiped_buf;
 ```
 
 
@@ -244,6 +301,7 @@ int dsss_receiver_state_t::n;
 
 
 MpskReceiver's own carrier-arm count. 
+ 
 
 
         
@@ -287,6 +345,7 @@ uint64_t dsss_receiver_state_t::samples_fed;
 
 
 Running total handed to [**acq\_push()**](acq__core_8h.md#function-acq_push) so far — diffed against acq-&gt;samples\_consumed right after a hit to find the exact unconsumed tail of the current call. 
+ 
 
 
         
@@ -304,6 +363,7 @@ size_t dsss_receiver_state_t::segments;
 
 
 Dll's own tracking parameter. 
+ 
 
 
         
@@ -334,6 +394,7 @@ size_t dsss_receiver_state_t::sps;
 
 
 MpskReceiver's own samples/symbol. 
+ 
 
 
         
@@ -364,6 +425,24 @@ int dsss_receiver_state_t::tracking;
 
 
 0 = searching, 1 = locked and demodulating. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable tsamps 
+
+```C++
+size_t dsss_receiver_state_t::tsamps;
+```
+
+
+
+code\_len\*spc  one code period, samples; the carrier loop's own fixed chunk size. 
 
 
         

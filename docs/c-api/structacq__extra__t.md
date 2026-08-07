@@ -93,7 +93,7 @@ _Per-object extra header for an engine's cross-call state._ [More...](#detailed-
 The state blob is the _only_ thing a fresh engine needs to continue a stream from `(descriptor, state, input)` — it makes the engine a pure transducer for the elastic fan-out (thread / process / pod). Standard bytes interface (see [**dp\_state.h**](dp__state_8h.md)); layout, contiguous and flat:
 
 
-`[  dp_state_hdr_t ] [ acq_extra_t ]` `[ float complex unconsumed[ n_unconsumed ] ]` (partial frame, &lt; n samples) `[ float nc_surface[ n ] ]` (only when n\_noncoh &gt; 1)
+`[  dp_state_hdr_t ] [ acq_extra_t ]` `[ float complex unconsumed[n_unconsumed] ]` (partial frame, &lt; n samples) `[ float nc_surface[n] ]` (only when n\_noncoh &gt; 1)
 
 
 Build the byte buffer with [**acq\_state\_bytes()**](acq__core_8h.md#function-acq_state_bytes); set\_state validates the envelope (magic/version/size) plus n / n\_noncoh below, rejecting a mismatch rather than reinterpreting it. 
@@ -126,7 +126,8 @@ uint16_t acq_extra_t::has_nc;
 
 
 
-1 if `nc_surface[ n ]` follows the samples. 
+1 if `nc_surface[n]` follows the samples. 
+ 
 
 
         
@@ -144,6 +145,7 @@ uint64_t acq_extra_t::n;
 
 
 Frame size; must equal engine's n. 
+ 
 
 
         
@@ -161,6 +163,7 @@ uint32_t acq_extra_t::n_noncoh;
 
 
 Non-coherent looks (consistency). 
+ 
 
 
         
@@ -178,6 +181,7 @@ uint32_t acq_extra_t::n_unconsumed;
 
 
 Partial-frame samples that follow (&lt; n). 
+ 
 
 
         
@@ -195,6 +199,7 @@ uint32_t acq_extra_t::nc_count;
 
 
 Looks accumulated in the current dump. 
+ 
 
 
         
@@ -212,6 +217,7 @@ uint64_t acq_extra_t::samples_consumed;
 
 
 Stream offset framed so far. 
+ 
 
 
         

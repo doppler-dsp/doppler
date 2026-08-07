@@ -130,6 +130,7 @@ double ppe_state_t::drate;
 
 
 chirp-rate grid step. 
+ 
 
 
         
@@ -147,6 +148,7 @@ fft_state_t* ppe_state_t::fft;
 
 
 forward plan, size nfft. 
+ 
 
 
         
@@ -164,6 +166,7 @@ float* ppe_state_t::mag;
 
 
 dB magnitude scratch, nfft. 
+ 
 
 
         
@@ -181,6 +184,7 @@ size_t ppe_state_t::max_len;
 
 
 max input length (sizes the plan/scratch). 
+ 
 
 
         
@@ -198,6 +202,7 @@ double ppe_state_t::max_rate;
 
 
 chirp-rate search half-span (cycles/sample^2). 
+ 
 
 
         
@@ -249,6 +254,7 @@ double* ppe_state_t::rowfrq;
 
 
 per-rate winning frequency, n\_rate. 
+ 
 
 
         
@@ -266,6 +272,7 @@ double* ppe_state_t::rowpk;
 
 
 per-rate winning peak dB, n\_rate. 
+ 
 
 
         
@@ -283,6 +290,7 @@ float complex* ppe_state_t::spec;
 
 
 FFT output, nfft. 
+ 
 
 
         
@@ -300,6 +308,7 @@ float* ppe_state_t::win;
 
 
 window scratch, max\_len. 
+ 
 
 
         

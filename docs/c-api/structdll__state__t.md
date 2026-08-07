@@ -42,10 +42,21 @@ _DLL state._ [More...](#detailed-description)
 |  float complex | [**acc\_p**](#variable-acc_p)  <br> |
 |  double | [**bn**](#variable-bn)  <br> |
 |  double | [**chip\_pos**](#variable-chip_pos)  <br> |
+|  float complex \* | [**chunk\_e**](#variable-chunk_e)  <br> |
+|  float complex \* | [**chunk\_l**](#variable-chunk_l)  <br> |
+|  float complex \* | [**chunk\_p**](#variable-chunk_p)  <br> |
 |  const uint8\_t \* | [**code**](#variable-code)  <br> |
+|  [**nco\_state\_t**](structnco__state__t.md) | [**code\_nco**](#variable-code_nco)  <br> |
 |  double | [**code\_rate**](#variable-code_rate)  <br> |
+|  int | [**have\_prev\_epoch**](#variable-have_prev_epoch)  <br> |
 |  double | [**inv\_sps**](#variable-inv_sps)  <br> |
+|  double | [**inv\_tsamps**](#variable-inv_tsamps)  <br> |
+|  double | [**inv\_tsamps2**](#variable-inv_tsamps2)  <br> |
+|  double | [**inv\_tsamps\_sf**](#variable-inv_tsamps_sf)  <br> |
+|  float complex \* | [**last\_backward\_p**](#variable-last_backward_p)  <br> |
+|  float complex \* | [**last\_e**](#variable-last_e)  <br> |
 |  double | [**last\_error**](#variable-last_error)  <br> |
+|  float complex \* | [**last\_l**](#variable-last_l)  <br> |
 |  [**loop\_filter\_state\_t**](structloop__filter__state__t.md) | [**lf**](#variable-lf)  <br> |
 |  [**lockdet\_state\_t**](structlockdet__state__t.md) | [**lock**](#variable-lock)  <br> |
 |  double | [**lock\_alpha**](#variable-lock_alpha)  <br> |
@@ -58,6 +69,7 @@ _DLL state._ [More...](#detailed-description)
 |  double | [**noise\_guard**](#variable-noise_guard)  <br> |
 |  double | [**off\_chips**](#variable-off_chips)  <br> |
 |  int | [**owns\_code**](#variable-owns_code)  <br> |
+|  double | [**rate\_aid**](#variable-rate_aid)  <br> |
 |  uint32\_t | [**rng**](#variable-rng)  <br> |
 |  double | [**seed\_chip**](#variable-seed_chip)  <br> |
 |  double | [**seg\_chips**](#variable-seg_chips)  <br> |
@@ -67,8 +79,7 @@ _DLL state._ [More...](#detailed-description)
 |  size\_t | [**sf**](#variable-sf)  <br> |
 |  double | [**spacing**](#variable-spacing)  <br> |
 |  size\_t | [**sps**](#variable-sps)  <br> |
-|  double | [**sum\_e**](#variable-sum_e)  <br> |
-|  double | [**sum\_l**](#variable-sum_l)  <br> |
+|  float complex \* | [**sums**](#variable-sums)  <br> |
 |  [**dll\_tlm\_t**](structdll__tlm__t.md) | [**tlm**](#variable-tlm)  <br> |
 |  double | [**zeta**](#variable-zeta)  <br> |
 
@@ -136,6 +147,7 @@ float complex dll_state_t::acc_e;
 
 
 early correlator accumulator. 
+ 
 
 
         
@@ -153,6 +165,7 @@ float complex dll_state_t::acc_l;
 
 
 late correlator accumulator. 
+ 
 
 
         
@@ -170,6 +183,7 @@ float complex dll_state_t::acc_o;
 
 
 offset (noise) correlator accumulator. 
+ 
 
 
         
@@ -187,6 +201,7 @@ float complex dll_state_t::acc_p;
 
 
 prompt correlator accumulator. 
+ 
 
 
         
@@ -204,6 +219,7 @@ double dll_state_t::bn;
 
 
 loop noise bandwidth (retained). 
+ 
 
 
         
@@ -220,7 +236,62 @@ double dll_state_t::chip_pos;
 
 
 
-current prompt code phase, chips. 
+current prompt code phase, chips; DERIVED from code\_nco.phase on every dll\_accumulate, never independently accumulated. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable chunk\_e 
+
+```C++
+float complex* dll_state_t::chunk_e;
+```
+
+
+
+this epoch's per-chunk early sums. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable chunk\_l 
+
+```C++
+float complex* dll_state_t::chunk_l;
+```
+
+
+
+this epoch's per-chunk late sums. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable chunk\_p 
+
+```C++
+float complex* dll_state_t::chunk_p;
+```
+
+
+
+this epoch's per-chunk prompt sums; Python's `partial_sums`. 
+ 
 
 
         
@@ -238,6 +309,24 @@ const uint8_t* dll_state_t::code;
 
 
 spreading code, one period (0/1 chips). 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable code\_nco 
+
+```C++
+nco_state_t dll_state_t::code_nco;
+```
+
+
+
+fixed-point code-phase NCO (phase/phase\_inc). 
 
 
         
@@ -255,6 +344,25 @@ double dll_state_t::code_rate;
 
 
 chips advanced per nominal chip (~1.0). 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable have\_prev\_epoch 
+
+```C++
+int dll_state_t::have_prev_epoch;
+```
+
+
+
+0 until one full epoch has completed. 
+ 
 
 
         
@@ -272,6 +380,96 @@ double dll_state_t::inv_sps;
 
 
 1 / sps (per-sample chip advance scale). 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable inv\_tsamps 
+
+```C++
+double dll_state_t::inv_tsamps;
+```
+
+
+
+1 / (sf\*sps)  the nominal phase\_inc, cycles/sample; precomputed once (sf/sps are create-time invariants) so the tracking loop never divides by tsamps. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable inv\_tsamps2 
+
+```C++
+double dll_state_t::inv_tsamps2;
+```
+
+
+
+1 / (sf\*sps)^2  segments&gt;1's ctrl scale. 
+
+
+        
+
+<hr>
+
+
+
+### variable inv\_tsamps\_sf 
+
+```C++
+double dll_state_t::inv_tsamps_sf;
+```
+
+
+
+1 / (sf\*sps\*sf)  segments&lt;=1's kp\*e/(sf) ctrl term's scale. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable last\_backward\_p 
+
+```C++
+float complex* dll_state_t::last_backward_p;
+```
+
+
+
+prev epoch's reversed-cumsum prompt; Python's `backward_sums`, saved from the PREVIOUS epoch's call. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable last\_e 
+
+```C++
+float complex* dll_state_t::last_e;
+```
+
+
+
+prev epoch's per-chunk early sums. 
+ 
 
 
         
@@ -297,6 +495,24 @@ last discriminator output (loop stress).
 
 
 
+### variable last\_l 
+
+```C++
+float complex* dll_state_t::last_l;
+```
+
+
+
+prev epoch's per-chunk late sums. 
+ 
+
+
+        
+
+<hr>
+
+
+
 ### variable lf 
 
 ```C++
@@ -306,6 +522,7 @@ loop_filter_state_t dll_state_t::lf;
 
 
 2nd-order code PI loop. 
+ 
 
 
         
@@ -323,6 +540,7 @@ lockdet_state_t dll_state_t::lock;
 
 
 decision rule: thresholds + verify counters stepped on R at each N-look decision. 
+ 
 
 
         
@@ -357,6 +575,7 @@ size_t dll_state_t::lock_count;
 
 
 looks accumulated in the current window. 
+ 
 
 
         
@@ -425,6 +644,7 @@ size_t dll_state_t::n_looks;
 
 
 non-coherent integration depth N. 
+ 
 
 
         
@@ -442,6 +662,7 @@ double dll_state_t::noise_ema;
 
 
 EMA of offset power; estimates E\|O\|^2. 
+ 
 
 
         
@@ -459,6 +680,7 @@ double dll_state_t::noise_guard;
 
 
 chips around P/E/L the offset must avoid. 
+ 
 
 
         
@@ -493,6 +715,25 @@ int dll_state_t::owns_code;
 
 
 1 if [**dll\_destroy()**](dll__core_8h.md#function-dll_destroy) frees `code`. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable rate\_aid 
+
+```C++
+double dll_state_t::rate_aid;
+```
+
+
+
+carrier-aiding code-rate deviation (ratio, 0 = off): a fixed fractional bias summed into the sample-and-hold phase\_inc every epoch, on top of the loop's own ctrl. For physically-coupled Doppler, the caller sets this to carrier\_offset/carrier\_freq so the code NCO rides the code-rate dilation the code discriminator alone can't pull in at low SNR. See [**dll\_set\_rate\_aid()**](dll__core_8h.md#function-dll_set_rate_aid). 
+ 
 
 
         
@@ -510,6 +751,7 @@ uint32_t dll_state_t::rng;
 
 
 xorshift32 state for the random offset. 
+ 
 
 
         
@@ -527,6 +769,7 @@ double dll_state_t::seed_chip;
 
 
 create-time code phase, for reset. 
+ 
 
 
         
@@ -560,7 +803,7 @@ size_t dll_state_t::seg_idx;
 
 
 
-current partial index within the epoch. 
+samples integrated into the current chunk. 
 
 
         
@@ -612,6 +855,7 @@ size_t dll_state_t::sf;
 
 
 code length (chips per period). 
+ 
 
 
         
@@ -629,6 +873,7 @@ double dll_state_t::spacing;
 
 
 early/late tap offset, chips (e.g. 0.5). 
+ 
 
 
         
@@ -646,6 +891,7 @@ size_t dll_state_t::sps;
 
 
 samples per chip. 
+ 
 
 
         
@@ -654,32 +900,16 @@ samples per chip.
 
 
 
-### variable sum\_e 
+### variable sums 
 
 ```C++
-double dll_state_t::sum_e;
+float complex* dll_state_t::sums;
 ```
 
 
 
-non-coherent early sum over the epoch. 
-
-
-        
-
-<hr>
-
-
-
-### variable sum\_l 
-
-```C++
-double dll_state_t::sum_l;
-```
-
-
-
-non-coherent late sum over the epoch. 
+this epoch's running cumulative sum of chunk\_p; Python's `partial_sums .cumsum()`. Pure scratch (rebuilt every epoch boundary, never read across calls)  not part of the serialized state. 
+ 
 
 
         
@@ -714,6 +944,7 @@ double dll_state_t::zeta;
 
 
 damping factor (retained). 
+ 
 
 
         

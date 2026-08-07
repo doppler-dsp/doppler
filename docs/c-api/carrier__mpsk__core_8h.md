@@ -63,7 +63,7 @@ _M-PSK carrier-tracking loop (integer-NCO de-rotation + decision PLL)._ [More...
 
 | Type | Name |
 | ---: | :--- |
-|  void | [**carrier\_mpsk\_configure**](#function-carrier_mpsk_configure) ([**carrier\_mpsk\_state\_t**](structcarrier__mpsk__state__t.md) \* state, double bn, double zeta) <br> |
+|  void | [**carrier\_mpsk\_configure**](#function-carrier_mpsk_configure) ([**carrier\_mpsk\_state\_t**](structcarrier__mpsk__state__t.md) \* state, double bn, double zeta) <br>_Recompute the loop gains for a new (bn, zeta); keep the estimate._  |
 |  [**carrier\_mpsk\_state\_t**](structcarrier__mpsk__state__t.md) \* | [**carrier\_mpsk\_create**](#function-carrier_mpsk_create) (double bn, double zeta, double init\_norm\_freq, size\_t tsamps, double bn\_fll, int m) <br>_Create an M-PSK carrier loop instance._  |
 |  void | [**carrier\_mpsk\_destroy**](#function-carrier_mpsk_destroy) ([**carrier\_mpsk\_state\_t**](structcarrier__mpsk__state__t.md) \* state) <br>_Destroy an M-PSK carrier loop instance and release all memory._  |
 |  double | [**carrier\_mpsk\_get\_bn**](#function-carrier_mpsk_get_bn) (const [**carrier\_mpsk\_state\_t**](structcarrier__mpsk__state__t.md) \* state) <br> |
@@ -80,7 +80,7 @@ _M-PSK carrier-tracking loop (integer-NCO de-rotation + decision PLL)._ [More...
 |  void | [**carrier\_mpsk\_set\_norm\_freq**](#function-carrier_mpsk_set_norm_freq) ([**carrier\_mpsk\_state\_t**](structcarrier__mpsk__state__t.md) \* state, double val) <br> |
 |  int | [**carrier\_mpsk\_set\_state**](#function-carrier_mpsk_set_state) ([**carrier\_mpsk\_state\_t**](structcarrier__mpsk__state__t.md) \* state, const void \* blob) <br>_Restore state; DP\_OK, or DP\_ERR\_INVALID if the envelope rejects._  |
 |  size\_t | [**carrier\_mpsk\_state\_bytes**](#function-carrier_mpsk_state_bytes) (const [**carrier\_mpsk\_state\_t**](structcarrier__mpsk__state__t.md) \* state) <br>_Serialized-state byte size._  |
-|  size\_t | [**carrier\_mpsk\_steps**](#function-carrier_mpsk_steps) ([**carrier\_mpsk\_state\_t**](structcarrier__mpsk__state__t.md) \* state, const float complex \* x, size\_t x\_len, float complex \* out, size\_t max\_out) <br> |
+|  size\_t | [**carrier\_mpsk\_steps**](#function-carrier_mpsk_steps) ([**carrier\_mpsk\_state\_t**](structcarrier__mpsk__state__t.md) \* state, const float complex \* x, size\_t x\_len, float complex \* out, size\_t max\_out) <br>_Track the residual carrier over a block, one prompt per symbol._  |
 |  size\_t | [**carrier\_mpsk\_steps\_max\_out**](#function-carrier_mpsk_steps_max_out) ([**carrier\_mpsk\_state\_t**](structcarrier__mpsk__state__t.md) \* state) <br> |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) void | [**carrier\_mpsk\_update**](#function-carrier_mpsk_update) ([**carrier\_mpsk\_state\_t**](structcarrier__mpsk__state__t.md) \* s, float complex P) <br>_Per-symbol carrier update: decision discriminator -&gt; loop -&gt; NCO._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) float complex | [**carrier\_mpsk\_wipeoff**](#function-carrier_mpsk_wipeoff) ([**carrier\_mpsk\_state\_t**](structcarrier__mpsk__state__t.md) \* s, float complex x) <br>_Per-sample carrier wipe-off: de-rotate_ `x` _by the NCO, advance it._ |
@@ -155,6 +155,7 @@ carrier_mpsk_destroy(c);
 
 ### function carrier\_mpsk\_configure 
 
+_Recompute the loop gains for a new (bn, zeta); keep the estimate._ 
 ```C++
 void carrier_mpsk_configure (
     carrier_mpsk_state_t * state,
@@ -165,6 +166,35 @@ void carrier_mpsk_configure (
 
 
 
+Re-derives the proportional/integral gains of the embedded 2nd-order loop filter for the new noise bandwidth and damping, leaving the running frequency and phase estimate (the NCO and the loop integrator) untouched — a live lock survives a re-tune. Use it to widen the loop for fast pull-in and then narrow it for low-jitter tracking, mid-stream.
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `bn` Loop noise bandwidth, normalised to the symbol rate. 
+* `zeta` Damping factor (0.707 = critically damped). 
+```C++
+>>> from doppler.track import CarrierMpsk
+>>> c = CarrierMpsk(bn=0.02, zeta=0.707, init_norm_freq=0.01,
+...                 tsamps=16, bn_fll=0.0, m=4)
+>>> round(c.bn, 3)
+0.02
+>>> c.configure(bn=0.05, zeta=1.0)   # widen the loop mid-stream
+>>> round(c.bn, 3)
+0.05
+>>> round(c.norm_freq, 3)            # frequency estimate preserved
+0.01
+```
+ 
+
+
+
+
+        
 
 <hr>
 
@@ -408,12 +438,35 @@ void carrier_mpsk_reset (
 
 
 
+Returns the NCO to the seed carrier passed at construction, zeroes the integrate-and-dump accumulator, the FLL history, and the lock/error diagnostics, and re-primes the loop integrator to the matching per-symbol frequency — the exact state a fresh [**carrier\_mpsk\_create()**](carrier__mpsk__core_8h.md#function-carrier_mpsk_create) leaves. The tuning (bn, zeta, bn\_fll, tsamps, m) is untouched. Call it at a capture boundary so a lock reached on one segment does not bias an unrelated next one.
+
+
 
 
 **Parameters:**
 
 
 * `state` Must be non-NULL. 
+```C++
+>>> import numpy as np
+>>> from doppler.mpsk import mpsk_map
+>>> from doppler.track import CarrierMpsk
+>>> rng = np.random.default_rng(1)
+>>> sig = np.repeat(
+...     mpsk_map(rng.integers(0, 4, 100).astype(np.uint8), 4),
+...                 16).astype(np.complex64)
+>>> rx = (sig * np.exp(2j * np.pi * 0.003 * np.arange(len(sig)))
+...       ).astype(np.complex64)
+>>> c = CarrierMpsk(bn=0.04, zeta=0.707, init_norm_freq=0.0,
+...                 tsamps=16, bn_fll=0.02, m=4)
+>>> _ = c.steps(rx)
+>>> round(c.norm_freq, 3)   # loop pulled onto the residual carrier
+0.003
+>>> c.reset()               # back to the create-time seed
+>>> round(c.norm_freq, 3)
+0.0
+```
+ 
 
 
 
@@ -507,6 +560,7 @@ size_t carrier_mpsk_state_bytes (
 
 ### function carrier\_mpsk\_steps 
 
+_Track the residual carrier over a block, one prompt per symbol._ 
 ```C++
 size_t carrier_mpsk_steps (
     carrier_mpsk_state_t * state,
@@ -519,6 +573,55 @@ size_t carrier_mpsk_steps (
 
 
 
+The block form of the inline wipeoff/update pair: for each input sample it de-rotates by the carrier NCO and accumulates the coherent integrate-and-dump; every `tsamps` samples it dumps the prompt, runs the decision-directed M-PSK discriminator (slice to the nearest constellation point, error `Im(P conj(ahat))/|P|`, plus the optional cross-product FLL assist), filters the error, and steers the NCO frequency and phase. Exactly one de-rotated prompt is emitted per completed symbol; a trailing partial symbol is carried in the accumulator to the next call, so a stream can be fed in blocks of any length with no seam.
+
+
+The loop locks to one of `m` carrier phases — an M-fold ambiguity on the absolute constellation orientation. Resolve it downstream (differential demapping or a sync word); this call only recovers the carrier and returns the prompts. At `m` = 2 it is exactly the BPSK Costas loop.
+
+
+
+
+**Parameters:**
+
+
+* `state` Carrier loop state (mutated). Must be non-NULL. 
+* `x` Input block, one complex baseband sample per element. 
+* `x_len` Number of input samples. 
+* `out` Prompt output buffer written by the binding. 
+* `max_out` Capacity of `out`, in symbols. 
+
+
+
+**Returns:**
+
+One de-rotated prompt symbol per completed integrate-and-dump period; the count is `x_len / tsamps`. 
+```C++
+>>> import numpy as np
+>>> from doppler.mpsk import mpsk_map
+>>> from doppler.track import CarrierMpsk
+>>> rng = np.random.default_rng(0)
+>>> sps = 16
+>>> labels = rng.integers(0, 4, 400).astype(np.uint8)
+>>> sig = np.repeat(mpsk_map(labels, 4), sps).astype(np.complex64)
+>>> k = np.arange(len(sig))
+>>> rx = (sig * np.exp(2j * np.pi * 0.002 * k)).astype(np.complex64)
+>>> c = CarrierMpsk(bn=0.04, zeta=0.707, init_norm_freq=0.0,
+...                 tsamps=sps, bn_fll=0.02, m=4)
+>>> prompts = c.steps(rx)          # one prompt per symbol
+>>> prompts.shape
+(400,)
+>>> round(c.norm_freq, 4)       # tracked the residual carrier 0.002
+0.002
+>>> round(c.lock_metric, 2)        # decision-aligned lock metric -> 1
+1.0
+```
+ 
+
+
+
+
+
+        
 
 <hr>
 

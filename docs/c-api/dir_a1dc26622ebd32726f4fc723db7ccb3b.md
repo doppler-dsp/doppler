@@ -21,7 +21,8 @@
 
 | Type | Name |
 | ---: | :--- |
-| file | [**mpsk\_receiver\_core.h**](mpsk__receiver__core_8h.md) <br>_Pulse-shaped M-PSK receiver: NDA-acquired carrier + Gardner timing._  |
+| file | [**mpsk\_receiver\_core.h**](mpsk__receiver__core_8h.md) <br>_Pulse-shaped M-PSK receiver: a tuned matched DDC and two loops._  |
+| file | [**mpsk\_rx\_loops.h**](mpsk__rx__loops_8h.md) <br>_The two loops an M-PSK receiver closes, independent of its front end._  |
 
 
 

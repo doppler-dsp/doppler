@@ -64,8 +64,8 @@ _IMDMeasure — two-tone intermodulation (IMD2/IMD3) and intercept._ [More...](#
 |  [**imd\_meas\_t**](structimd__meas__t.md) | [**imdmeas\_analyze**](#function-imdmeas_analyze) ([**imdmeas\_state\_t**](structimdmeas__state__t.md) \* state, const float \* x, size\_t n\_in) <br>_Two-tone IMD/TOI of a real capture (finds the two strongest tones)._  |
 |  [**imdmeas\_state\_t**](structimdmeas__state__t.md) \* | [**imdmeas\_create**](#function-imdmeas_create) (size\_t n, double fs, double full\_scale, size\_t bits, double dynamic\_range\_db) <br>_Create an IMDMeasure analyser (auto Kaiser window)._  |
 |  void | [**imdmeas\_destroy**](#function-imdmeas_destroy) ([**imdmeas\_state\_t**](structimdmeas__state__t.md) \* state) <br>_Destroy an IMDMeasure analyser._  |
-|  void | [**imdmeas\_reset**](#function-imdmeas_reset) ([**imdmeas\_state\_t**](structimdmeas__state__t.md) \* state) <br>_Reset (no-op: each analyze() call is independent)._  |
-|  size\_t | [**imdmeas\_spectrum\_dbfs**](#function-imdmeas_spectrum_dbfs) ([**imdmeas\_state\_t**](structimdmeas__state__t.md) \* state, const float \* x, size\_t x\_len, float \* out) <br>_DC-centred dBFS magnitude spectrum of a capture (length nfft). The same averaged PSD the metrics use, for an analyzer-display backdrop._  |
+|  void | [**imdmeas\_reset**](#function-imdmeas_reset) ([**imdmeas\_state\_t**](structimdmeas__state__t.md) \* state) <br>_Reset the analyser (a no-op: each analyze() call is independent)._  |
+|  size\_t | [**imdmeas\_spectrum\_dbfs**](#function-imdmeas_spectrum_dbfs) ([**imdmeas\_state\_t**](structimdmeas__state__t.md) \* state, const float \* x, size\_t x\_len, float \* out, size\_t max\_out) <br>_DC-centred dBFS magnitude spectrum of a capture (length nfft)._  |
 |  size\_t | [**imdmeas\_spectrum\_dbfs\_max\_out**](#function-imdmeas_spectrum_dbfs_max_out) ([**imdmeas\_state\_t**](structimdmeas__state__t.md) \* state) <br>_Capacity (== nfft) of the spectrum\_dbfs output buffer._  |
 
 
@@ -135,7 +135,8 @@ the IMD metric record (by value; zeroed if no two tones are found).
 >>> from doppler.measure import IMDMeasure
 >>> import numpy as np
 >>> t = np.arange(4096)
->>> # two equal tones at 200 & 250 cycles + 3rd-order products 40 dB down
+>>> # two equal tones at 200 & 250 cycles, plus 3rd-order
+>>> # products 40 dB down
 >>> x = (np.cos(2*np.pi*200*t/4096) + np.cos(2*np.pi*250*t/4096)
 ...      + 0.01*np.cos(2*np.pi*150*t/4096)
 ...      + 0.01*np.cos(2*np.pi*300*t/4096)).astype(np.float32)
@@ -226,7 +227,7 @@ void imdmeas_destroy (
 
 ### function imdmeas\_reset 
 
-_Reset (no-op: each analyze() call is independent)._ 
+_Reset the analyser (a no-op: each analyze() call is independent)._ 
 ```C++
 void imdmeas_reset (
     imdmeas_state_t * state
@@ -235,6 +236,28 @@ void imdmeas_reset (
 
 
 
+Every analyze() / spectrum\_dbfs() call re-windows and re-transforms its own capture from scratch, so nothing is carried between calls to clear. The method exists only so IMDMeasure honours the same reset() contract as every other doppler object, letting a generic pipeline reset each stage uniformly.
+
+
+
+
+**Parameters:**
+
+
+* `state` The analyser (left unchanged).
+
+
+```C++
+>>> from doppler.measure import IMDMeasure
+>>> m = IMDMeasure(n=4096, fs=1.0)
+>>> m.reset()            # stateless: provided only for API uniformity
+>>> m.reset() is None    # returns nothing; safe to call anytime
+True
+```
+ 
+
+
+        
 
 <hr>
 
@@ -242,18 +265,57 @@ void imdmeas_reset (
 
 ### function imdmeas\_spectrum\_dbfs 
 
-_DC-centred dBFS magnitude spectrum of a capture (length nfft). The same averaged PSD the metrics use, for an analyzer-display backdrop._ 
+_DC-centred dBFS magnitude spectrum of a capture (length nfft)._ 
 ```C++
 size_t imdmeas_spectrum_dbfs (
     imdmeas_state_t * state,
     const float * x,
     size_t x_len,
-    float * out
+    float * out,
+    size_t max_out
 ) 
 ```
 
 
 
+The same windowed, zero-padded PSD the IMD metrics are read off, laid out DC-centred (fftshifted) and normalised to dBFS for an analyzer-display backdrop. Use it to see the two fundamentals and the intermodulation products that analyze() integrates.
+
+
+
+
+**Parameters:**
+
+
+* `state` The analyser. 
+* `x` Real time-domain capture (length `x_len`). 
+* `x_len` Number of input samples. 
+* `out` Destination buffer (length &gt;= `max_out`). 
+* `max_out` Capacity of `out` (== nfft). 
+
+
+
+**Returns:**
+
+DC-centred dBFS magnitude spectrum, one value per FFT bin (nfft).
+
+
+
+```C++
+>>> from doppler.measure import IMDMeasure
+>>> import numpy as np
+>>> t = np.arange(4096)
+>>> x = (0.5*np.cos(2*np.pi*200*t/4096)
+...      + 0.5*np.cos(2*np.pi*250*t/4096)).astype(np.float32)
+>>> s = IMDMeasure(n=4096, fs=1.0).spectrum_dbfs(x)  # DC-centred dBFS
+>>> s.shape
+(8192,)
+>>> round(float(s.max()), 1)   # each tone splits into two images
+-12.0
+```
+ 
+
+
+        
 
 <hr>
 

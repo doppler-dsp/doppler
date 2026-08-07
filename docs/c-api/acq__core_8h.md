@@ -8,7 +8,7 @@
 
 [Go to the source code of this file](acq__core_8h_source.md)
 
-_Streaming DSSS burst-acquisition engine._ [More...](#detailed-description)
+_Streaming DSSS acquisition engine — burst and continuous front doors over one shared engine._ [More...](#detailed-description)
 
 * `#include "buffer/buffer.h"`
 * `#include "clib_common.h"`
@@ -39,6 +39,7 @@ _Streaming DSSS burst-acquisition engine._ [More...](#detailed-description)
 | Type | Name |
 | ---: | :--- |
 | struct | [**acq\_extra\_t**](structacq__extra__t.md) <br>_Per-object extra header for an engine's cross-call state._  |
+| struct | [**acq\_handoff\_t**](structacq__handoff__t.md) <br>_Wire-ready hand-off record built from one_ [_**acq\_result\_t**_](structacq__result__t.md) _hit._ |
 | struct | [**acq\_result\_t**](structacq__result__t.md) <br>_One acquisition detection event._  |
 | struct | [**acq\_state\_t**](structacq__state__t.md) <br>_Streaming acquisition-engine state._  |
 
@@ -67,17 +68,24 @@ _Streaming DSSS burst-acquisition engine._ [More...](#detailed-description)
 
 | Type | Name |
 | ---: | :--- |
+|  void | [**acq\_build\_handoff**](#function-acq_build_handoff) (const [**acq\_state\_t**](structacq__state__t.md) \* state, const [**acq\_result\_t**](structacq__result__t.md) \* hit, size\_t code\_len, size\_t spc, [**acq\_handoff\_t**](structacq__handoff__t.md) \* out) <br>_Convert one_ [_**acq\_push()**_](acq__core_8h.md#function-acq_push) _hit into a wire-ready hand-off record._ |
 |  int | [**acq\_configure\_search\_raw**](#function-acq_configure_search_raw) ([**acq\_state\_t**](structacq__state__t.md) \* state, size\_t doppler\_bins, size\_t n\_noncoh) <br>_Pin the search grid directly, bypassing both auto-sizing searches — the advanced escape hatch (mirrors Dll's/Costas's configure\_lock\_raw())._  |
-|  [**acq\_state\_t**](structacq__state__t.md) \* | [**acq\_create**](#function-acq_create) (const uint8\_t \* code, size\_t code\_len, size\_t reps, size\_t spc, double chip\_rate, double cn0\_dbhz, double doppler\_uncertainty, double pfa, double pd, int noise\_mode, size\_t max\_noncoh, double symbol\_rate, double doppler\_resolution, double doppler\_rate) <br>_Create a streaming DSSS acquisition engine._  |
+|  [**acq\_state\_t**](structacq__state__t.md) \* | [**acq\_create\_burst**](#function-acq_create_burst) (const uint8\_t \* code, size\_t code\_len, size\_t reps, size\_t spc, double chip\_rate, double cn0\_dbhz, double doppler\_uncertainty, double pfa, double pd, int noise\_mode) <br>_Create a burst-mode acquisition engine: coherent multi-epoch combining, up to_ `reps` _deep (today's classic behavior)._ |
+|  [**acq\_state\_t**](structacq__state__t.md) \* | [**acq\_create\_continuous**](#function-acq_create_continuous) (const uint8\_t \* code, size\_t code\_len, size\_t spc, double chip\_rate, double symbol\_rate, double cn0\_dbhz, double doppler\_uncertainty, double pfa, double pd, int noise\_mode) <br>_Create a continuous-mode acquisition engine: always wideband window-tiling, never coherent multi-epoch combining._  |
 |  void | [**acq\_destroy**](#function-acq_destroy) ([**acq\_state\_t**](structacq__state__t.md) \* state) <br>_Destroy and free an engine._  |
 |  void | [**acq\_get\_state**](#function-acq_get_state) (const [**acq\_state\_t**](structacq__state__t.md) \* state, void \* blob) <br>_Serialize_ `state's` _cross-call state into_`blob` _(caller-owned,_[_**acq\_state\_bytes()**_](acq__core_8h.md#function-acq_state_bytes) _long). Call between pushes (no partial dump pending)._ |
-|  size\_t | [**acq\_push**](#function-acq_push) ([**acq\_state\_t**](structacq__state__t.md) \* state, const float complex \* in, size\_t n\_in, [**acq\_result\_t**](structacq__result__t.md) \* result, size\_t max\_results) <br>_Stream raw samples; emit one event per CFAR dump above threshold._  |
+|  size\_t | [**acq\_push**](#function-acq_push) ([**acq\_state\_t**](structacq__state__t.md) \* state, const float complex \* x, size\_t n\_in, [**acq\_result\_t**](structacq__result__t.md) \* result, size\_t max\_results) <br>_Stream raw samples; emit one event per CFAR dump above threshold._  |
 |  void | [**acq\_reset**](#function-acq_reset) ([**acq\_state\_t**](structacq__state__t.md) \* state) <br>_Drain the input ring and reset the coherent accumulator._  |
 |  size\_t | [**acq\_run**](#function-acq_run) ([**acq\_state\_t**](structacq__state__t.md) \* state, const void \* state\_in, void \* state\_out, const float complex \* in, size\_t n\_in, [**acq\_result\_t**](structacq__result__t.md) \* result, size\_t max\_results) <br>_Pure run: inject_ `state_in` _, stream_`in` _, emit hits, export_`state_out` _—_`(state_in, input) -> (state_out, output)` _over an engine treated as immutable config + scratch._`state_in` _/_`state_out` _may alias. Either may be NULL (NULL in = fresh; NULL out = discard)._ |
 |  int | [**acq\_set\_state**](#function-acq_set_state) ([**acq\_state\_t**](structacq__state__t.md) \* state, const void \* blob) <br>_Restore cross-call state from_ `blob` _into_`state` _(replacing it)._ |
 |  size\_t | [**acq\_state\_bytes**](#function-acq_state_bytes) (const [**acq\_state\_t**](structacq__state__t.md) \* state) <br>_Byte size of_ `state's` _blob (header + unconsumed + nc)._ |
 
 
+## Public Static Functions
+
+| Type | Name |
+| ---: | :--- |
+|  long | [**acq\_bin\_to\_signed**](#function-acq_bin_to_signed) (size\_t bin, size\_t n\_bins) <br>_Map a reported bin index to its SIGNED frequency index._  |
 
 
 
@@ -107,30 +115,44 @@ _Streaming DSSS burst-acquisition engine._ [More...](#detailed-description)
 
 | Type | Name |
 | ---: | :--- |
+| define  | [**ACQ\_N\_NONCOH\_SAFETY\_CEILING**](acq__core_8h.md#define-acq_n_noncoh_safety_ceiling)  `256u`<br>_Internal safety-valve ceiling on auto-selected non-coherent looks_  _not a public knob (no caller-facing equivalent of the retired_`max_noncoh` _parameter)._ |
 | define  | [**ACQ\_STATE\_MAGIC**](acq__core_8h.md#define-acq_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('A', 'C', 'Q', 'R')`<br> |
 | define  | [**ACQ\_STATE\_VERSION**](acq__core_8h.md#define-acq_state_version)  `1u`<br> |
 
 ## Detailed Description
 
 
-Acquires a direct-sequence spread-spectrum burst — a run of repeated, BPSK-modulated PN-code segments — arriving with an unknown integer code phase and an unknown carrier-frequency (Doppler) offset, buried in AWGN. It jointly estimates the (Doppler bin, code phase) of the burst and declares a detection whenever the CFAR test statistic crosses an automatically configured threshold.
+Acquires a direct-sequence spread-spectrum signal — repeated, BPSK -modulated PN-code segments — arriving with an unknown integer code phase and an unknown carrier-frequency (Doppler) offset, buried in AWGN. It jointly estimates the (Doppler bin, code phase) and declares a detection whenever the CFAR test statistic crosses an automatically configured threshold.
 
 
-Pipeline (owned end to end, one object): push(raw cf32) -&gt; ring buffer -&gt; reframe to (doppler\_bins, code\_bins) -&gt; slow-time Doppler FFT (FFT along the segment axis) -&gt; 2-D code correlation against a single-row PN reference (corr2d) -&gt; argmax + CFAR noise estimate -&gt; threshold gate -&gt; [**acq\_result\_t**](structacq__result__t.md).
+Pipeline (owned end to end, one object): push(raw cf32) -&gt; ring buffer -&gt; reframe to (coherent\_bins, code\_bins) -&gt; slow-time Doppler FFT (FFT along the segment axis) -&gt; 2-D code correlation against a single-row PN reference (corr2d) -&gt; argmax + CFAR noise estimate -&gt; threshold gate -&gt; [**acq\_result\_t**](structacq__result__t.md).
 
 
-The fast-time axis (code\_bins = sf\*spc columns) is the circular code matched filter; the slow-time axis (doppler\_bins rows, one row per code repetition) is the Doppler search. A carrier offset f (cycles/sample) lands the peak at row = round(f\*code\_bins\*doppler\_bins) mod doppler\_bins, column = code phase.
+The fast-time axis (code\_bins = sf\*spc columns) is the circular code matched filter; the slow-time axis (coherent\_bins rows, one row per code repetition) is the coherent Doppler search. A carrier offset f (cycles/sample) lands the peak at row = round(f\*code\_bins\*coherent\_bins) mod coherent\_bins, column = code phase.
 
 
-Physics-only construction: the user gives the PN `code`, the front-end geometry (`reps`, `spc`, `chip_rate`), the sensitivity (`cn0_dbhz`), and the detection targets (`pfa`, `pd`, optional `doppler_uncertainty`). The engine converts C/N0 to a per-sample amplitude SNR (snr = sqrt(10^(cn0\_dbhz/10) / (chip\_rate\*spc))) and picks the _smallest_ coherent depth doppler\_bins in `[1, reps]` whose doppler\_bins\*code\_bins coherent samples meet `pd` (det\_threshold / det\_pd) — minimum latency for a strong signal. A tighter `doppler_uncertainty` shrinks the searched cell count, lowering the Bonferroni threshold (more sensitive). Every reported detection inverts this same relationship to report an estimated C/N0 ([**acq\_result\_t::cn0\_dbhz\_est**](structacq__result__t.md#variable-cn0_dbhz_est)) — a bandwidth/integration-time-independent figure of merit directly comparable to `cn0_dbhz`, unlike a raw per-sample or coherently-integrated ratio (both scale with `spc/ reps and` so aren't portable across configurations).
+**Two mode-fixed public constructors, one shared engine.** A coherent slow-time Doppler FFT can only ever resolve frequency _within_ one native span `chip_rate/(2*sf)` — more coherent depth subdivides that SAME fixed range more finely, it never widens it — and for a continuous (async, data-modulated) signal, a multi-epoch coherent axis wide enough to matter aliases the data's own bit transitions across the whole Doppler-bin axis (a structural mislock, not a graceful SNR loss — see docs/design/dsss-acquisition.md). So the two constructors fix a mode each, never a per-call knob:
+
+
+
+* [**acq\_create\_burst()**](acq__core_8h.md#function-acq_create_burst) — today's classic behavior: the smallest coherent depth `coherent_bins` in `[1, reps]` whose coherent\_bins\*code\_bins coherent samples meet `pd` (det\_threshold / det\_pd) — minimum latency for a strong signal, unmodulated bursts/preambles only. A tighter `doppler_uncertainty` shrinks the searched cell count, lowering the Bonferroni threshold (more sensitive). When `doppler_uncertainty` exceeds the native span, falls back to the wideband window-tiling mechanism below instead (coherent depth structurally can't cover more than one span, regardless of mode).
+* [**acq\_create\_continuous()**](acq__core_8h.md#function-acq_create_continuous) — for a continuous, data-modulated signal: ALWAYS uses the wideband window-tiling mechanism below, unconditionally (never attempts coherent multi-epoch combining, even when `doppler_uncertainty` is narrower than one native span) — closes the aliasing footgun structurally rather than pricing it as a tunable loss. Sensitivity margin comes entirely from auto-selected non-coherent looks.
+
+
+
+
+Both convert C/N0 to a per-sample amplitude SNR (snr = sqrt(10^(cn0\_dbhz/10) / (chip\_rate\*spc))). Every reported detection inverts this same relationship to report an estimated C/N0 ([**acq\_result\_t::cn0\_dbhz\_est**](structacq__result__t.md#variable-cn0_dbhz_est)) — a bandwidth/integration-time-independent figure of merit directly comparable to `cn0_dbhz`, unlike a raw per-sample or coherently-integrated ratio (both scale with `spc/ reps and` so aren't portable across configurations).
+
+
+**Wideband window-tiling mode**: instead of coherent combining, tiles the requested uncertainty with `window_bins = ceil(doppler_uncertainty / (chip_rate/(2*sf)))` parallel frequency-window hypotheses, each one native span wide, searched every epoch from a SINGLE shared forward FFT of that epoch: hypothesis r's spectrum is the shared FFT circularly rolled by r bins (exact — the window spacing IS this code\_bins-point FFT's own bin spacing) against one fixed precomputed replica spectrum, then inverse-FFT'd — `window_bins` inverse FFTs plus the one shared forward FFT per epoch, not `window_bins` independent down-conversions. Empirically the cheaper of the two realizations benchmarked for this (a frequency-bank benchmark): ~1.2x-1.55x faster than an equivalent tuned-mixer bank, measured with real doppler.spectral.FFT. SNR margin in this mode comes entirely from auto-selected non-coherent looks (magnitude-squared accumulation, immune to data-modulation sign flips) rather than coherent depth, sized against an internal safety-valve ceiling rather than a caller-supplied cap (the semi-analytical Pd model this engine sizes against grows unreliable past a few hundred looks — not a public knob to tune around that). `doppler_bin` in [**acq\_result\_t**](structacq__result__t.md) reports the frequency-window index (0 … window\_bins-1, native FFT-bin ordering) instead of a slow-time-FFT row when this mode is active; `doppler_res_hz` still reports the per-window spacing (chip\_rate/sf, unchanged formula at coherent\_bins=1); combining wideband search WITH a coherent depth &gt; 1 per window is not supported (a possible future extension, not needed by any current use case).
 
 
 
 ```C++
 // 31-chip PN, 4x oversample, up to 16 coherent reps; 1 MHz chips, 45 dB-Hz
 uint8_t code[31] = { 0 };   // ... fill with PN chips (0/1) ...
-acq_state_t *a = acq_create(code, 31, 16, 4, 1.0e6, 45.0,
-                            0.0, 1e-3, 0.9, 0, 1, 0.0, 0.0);
+acq_state_t *a = acq_create_burst(code, 31, 16, 4, 1.0e6, 45.0,
+                                  0.0, 1e-3, 0.9, 0);
 acq_result_t hits[64];
 size_t nh = acq_push(a, samples, n_samples, hits, 64);
 for (size_t i = 0; i < nh; i++)
@@ -148,6 +170,51 @@ acq_destroy(a);
 
 
 
+### function acq\_build\_handoff 
+
+_Convert one_ [_**acq\_push()**_](acq__core_8h.md#function-acq_push) _hit into a wire-ready hand-off record._
+```C++
+void acq_build_handoff (
+    const acq_state_t * state,
+    const acq_result_t * hit,
+    size_t code_len,
+    size_t spc,
+    acq_handoff_t * out
+) 
+```
+
+
+
+Two convention inversions live here, ported verbatim from `dsss_receiver_core.c`'s own (pre-existing, now-shared) handoff logic:
+
+
+
+* **Chip phase**: `hit's` `code_phase` is a correlation LAG (0 … code\_bins-1); a code-tracking loop's `init_chip` wants the code's own instantaneous phase instead — the mirror-image inversion `phase = fmod(code_len - code_phase/spc, code_len)`, folded non-negative.
+* **Doppler**: `state` is assumed built via [**acq\_create\_continuous()**](acq__core_8h.md#function-acq_create_continuous) (coherent\_bins pinned at 1, `window_bins` the active mechanism, the only mode this function supports), so `hit`'s `doppler_bin` is a frequency-WINDOW index, mapped to a signed bin by `acq_bin_to_signed()` — the SAME helper the search uses — and scaled by `state->doppler_res_hz`.
+
+
+
+
+
+
+**Parameters:**
+
+
+* `state` The engine `hit` came from (non-NULL, built via [**acq\_create\_continuous()**](acq__core_8h.md#function-acq_create_continuous)). 
+* `hit` One hit from [**acq\_push()**](acq__core_8h.md#function-acq_push) (non-NULL). 
+* `code_len` Spreading-code length (chips) — the same value passed to whichever acq\_create\_\*() built `state`. 
+* `spc` Samples/chip — likewise. 
+* `out` Written on return (non-NULL). 
+
+
+
+
+        
+
+<hr>
+
+
+
 ### function acq\_configure\_search\_raw 
 
 _Pin the search grid directly, bypassing both auto-sizing searches — the advanced escape hatch (mirrors Dll's/Costas's configure\_lock\_raw())._ 
@@ -161,7 +228,7 @@ int acq_configure_search_raw (
 
 
 
-Resizes every buffer/plan that depends on the grid (the slow-time FFT, the code correlator, the reference, and every per-frame scratch buffer), re-derives the threshold ladder for the pinned grid from the same physics [**acq\_create()**](acq__core_8h.md#function-acq_create) used, and clears in-flight accumulation (ring contents, the non-coherent power accumulator, dwell bookkeeping) — call between push() calls, never a substitute for one.
+Resizes every buffer/plan that depends on the grid (the slow-time FFT, the code correlator, the reference, and every per-frame scratch buffer), re-derives the threshold ladder for the pinned grid from the same physics [**acq\_create\_burst()**](acq__core_8h.md#function-acq_create_burst)/acq\_create\_continuous() used, and clears in-flight accumulation (ring contents, the non-coherent power accumulator, dwell bookkeeping) — call between push() calls, never a substitute for one.
 
 
 
@@ -171,13 +238,30 @@ Resizes every buffer/plan that depends on the grid (the slow-time FFT, the code 
 
 * `state` Allocated engine (non-NULL). 
 * `doppler_bins` Coherent depth to pin, in `[1, reps]`. 
-* `n_noncoh` Non-coherent look count to pin, in `[1, max_noncoh]`. 
+* `n_noncoh` Non-coherent look count to pin, in `[1, ACQ_N_NONCOH_SAFETY_CEILING]`. 
 
 
 
 **Returns:**
 
 0 on success, -1 if either argument is out of range or an allocation fails (the engine is left usable at its prior grid on failure). 
+```C++
+>>> import numpy as np
+>>> from doppler.dsss import Acquisition
+>>> from doppler.wfm import PN, mls_poly
+>>> code = np.asarray(PN(poly=mls_poly(5), seed=1,
+...                      length=5).generate(31)).astype(np.uint8)
+>>> s0 = np.repeat(np.where(code & 1, -1.0, 1.0), 4).astype(
+...     np.complex64)
+>>> a = Acquisition(code, spc=4, chip_rate=1e6, cn0_dbhz=50.0)
+>>> a.configure_search_raw(doppler_bins=1, n_noncoh=4)  # pin the grid
+>>> a.doppler_bins, a.n_noncoh
+(1, 4)
+>>> burst = np.tile(np.roll(s0, 17), 4).astype(np.complex64)
+>>> a.push(burst)[0][:2]      # detects at the pinned grid
+(0, 17)
+```
+ 
 
 
 
@@ -189,11 +273,11 @@ Resizes every buffer/plan that depends on the grid (the slow-time FFT, the code 
 
 
 
-### function acq\_create 
+### function acq\_create\_burst 
 
-_Create a streaming DSSS acquisition engine._ 
+_Create a burst-mode acquisition engine: coherent multi-epoch combining, up to_ `reps` _deep (today's classic behavior)._
 ```C++
-acq_state_t * acq_create (
+acq_state_t * acq_create_burst (
     const uint8_t * code,
     size_t code_len,
     size_t reps,
@@ -203,32 +287,16 @@ acq_state_t * acq_create (
     double doppler_uncertainty,
     double pfa,
     double pd,
-    int noise_mode,
-    size_t max_noncoh,
-    double symbol_rate,
-    double doppler_resolution,
-    double doppler_rate
+    int noise_mode
 ) 
 ```
 
 
 
-Builds the single-row oversampled BPSK reference from `code`, infers sf = `code_len`, converts `cn0_dbhz` to a per-sample amplitude SNR (snr = sqrt(10^(cn0\_dbhz/10) / (chip\_rate\*spc))), and auto-configures the search grid.
+Builds the single-row oversampled BPSK reference from `code`, infers sf = `code_len`, converts `cn0_dbhz` to a per-sample amplitude SNR (snr = sqrt(10^(cn0\_dbhz/10) / (chip\_rate\*spc))), and picks the _smallest_ coherent depth `coherent_bins` in `[1, reps]` whose coherent\_bins\*code\_bins coherent samples meet `pd` at the Bonferroni threshold (minimum latency for a strong signal), plus non-coherent looks (up to the internal [**ACQ\_N\_NONCOH\_SAFETY\_CEILING**](acq__core_8h.md#define-acq_n_noncoh_safety_ceiling)) if the coherent depth alone falls short. Intended for an unmodulated burst or preamble window  a continuous, data-modulated signal should use [**acq\_create\_continuous()**](acq__core_8h.md#function-acq_create_continuous) instead (coherent combining under continuous data is a structural aliasing mislock, not a tunable SNR trade-off  see the file doc comment).
 
 
-With `symbol_rate` &lt;= 0 (default; no known continuous data-modulation clock): picks the _smallest_ coherent depth doppler\_bins in `[1, reps]` whose doppler\_bins\*code\_bins coherent samples meet `pd` at the Bonferroni threshold, plus non-coherent looks (up to `max_noncoh`) if the coherent depth alone falls short.
-
-
-With `symbol_rate` &gt; 0: a continuous data-modulated signal makes a data-bit transition landing mid-coherent-epoch split the coherent sum into two oppositely-signed partial segments, a self-cancellation loss the Doppler/code-phase-only model above doesn't know about and can silently under-size for (see docs/gallery/dsss-acq-async-data.md). The engine instead jointly searches doppler\_bins in `[1, reps]` x non-coherent looks in `[1, max_noncoh]`, pricing that loss honestly (semi-analytical: quadrature over the window's phase relative to the symbol clock, crossed with exact enumeration over the data signs the window touches), and picks the grid meeting `pd` with the fewest total epochs, breaking ties toward a smaller coherent depth (which also lowers mislock risk)  unless `doppler_resolution` floors the search (below).
-
-
-A tighter `doppler_uncertainty` narrows the scanned Doppler band, lowering the per-cell threshold (more sensitive), on both paths. Use [**acq\_configure\_search\_raw()**](acq__core_8h.md#function-acq_configure_search_raw) to pin the grid directly instead of relying on either search.
-
-
-`doppler_resolution` &gt; 0 (only meaningful with `symbol_rate` &gt; 0) floors the coherent depth at `ceil(chip_rate / (sf * doppler_resolution))` (clipped to `[1, reps]`) before the joint search runs, and the search then takes the _first_ `(doppler_bins, n_noncoh)` starting from that floor that meets `pd`  trading the fewest-total-epochs guarantee for a guaranteed minimum resolution, and, critically, for search cost: the unfloored joint search is a full `reps x max_noncoh` sweep of the `O(doppler_bins^2)` data-modulation model (`_data_mod_pd`), which the function's own inner comment already flags as assuming a coherent depth "physically small (tens at most)"  fine at the default `reps`, but cubic in `reps` once a caller raises it to reach a fine `doppler_resolution`. Anchoring the sweep at the resolution floor instead of 1 turns that into a handful of evaluations near the floor (first success wins), independent of how large `reps` is.
-
-
-`doppler_rate` &gt; 0 (only meaningful with `symbol_rate` &gt; 0) caps the coherent depth from the other direction: over a `doppler_bins`-epoch coherent window, a nonzero Doppler rate of change shifts the true frequency across the window, smearing the FFT peak once that drift approaches a resolution bin. The largest depth that keeps in-window drift under one bin is `doppler_bins < chip_rate / (sf * sqrt (doppler_rate))`; the joint search (both its floored and unfloored modes) clips its coherent-depth ceiling to this in addition to `reps`, so a caller-raised `doppler_resolution` can never push `doppler_bins` past the point where the signal's own dynamics would invalidate the coherent sum.
+A tighter `doppler_uncertainty` narrows the scanned Doppler band, lowering the per-cell threshold (more sensitive). When `doppler_uncertainty` exceeds the native span `chip_rate/(2*sf)`, falls back to the wideband window-tiling mechanism (see the file doc comment) instead  coherent depth structurally can't cover more than one native span, regardless of `reps`. Use [**acq\_configure\_search\_raw()**](acq__core_8h.md#function-acq_configure_search_raw) to pin the grid directly instead of relying on this auto-sizer.
 
 
 
@@ -242,20 +310,85 @@ A tighter `doppler_uncertainty` narrows the scanned Doppler band, lowering the p
 * `spc` Samples per chip (&gt;= 1). 
 * `chip_rate` Chip rate in Hz (&gt; 0). 
 * `cn0_dbhz` Carrier-to-noise density in dB-Hz (&gt; 0). 
-* `doppler_uncertainty` One-sided Doppler search half-range in Hz; 0 uses the full native span +/- chip\_rate/(2\*sf). Must be &lt;= span. 
+* `doppler_uncertainty` One-sided Doppler search half-range in Hz; 0 uses the full native span +/- chip\_rate/(2\*sf). A value greater than the native span engages wideband mode (see the file doc comment above): coherent\_bins is forced to 1 and the uncertainty is tiled with parallel frequency-window hypotheses instead. 
 * `pfa` Target system (max-of-N) false-alarm probability (0,1). 
 * `pd` Target detection probability (0,1). 
 * `noise_mode` CFAR mode index: 0=mean, 1=median, 2=min, 3=max. 
-* `max_noncoh` Cap on the auto-split non-coherent look count (&gt;= 1; default 1 keeps the engine purely coherent). 
-* `symbol_rate` Continuous data-symbol rate in Hz; &lt;= 0 (default) disables the data-modulation-aware search above. 
-* `doppler_resolution` Desired Doppler-bin resolution in Hz; 0 (default) places no floor on the coherent depth  see above. 
-* `doppler_rate` Expected Doppler rate of change in Hz/s; 0 (default) assumes a static Doppler  see above. 
 
 
 
 **Returns:**
 
 Heap-allocated state, or NULL on bad arguments / allocation failure. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function acq\_create\_continuous 
+
+_Create a continuous-mode acquisition engine: always wideband window-tiling, never coherent multi-epoch combining._ 
+```C++
+acq_state_t * acq_create_continuous (
+    const uint8_t * code,
+    size_t code_len,
+    size_t spc,
+    double chip_rate,
+    double symbol_rate,
+    double cn0_dbhz,
+    double doppler_uncertainty,
+    double pfa,
+    double pd,
+    int noise_mode
+) 
+```
+
+
+
+Builds the single-row oversampled BPSK reference from `code`, infers sf = `code_len`, converts `cn0_dbhz` to a per-sample amplitude SNR, and ALWAYS tiles `window_bins = max(1, ceil(doppler_uncertainty / (chip_rate/(2*sf))))` parallel frequency-window hypotheses (see the file doc comment's "Wideband window-tiling mode")  unconditionally, even when `doppler_uncertainty` is narrower than one native span. `coherent_bins` is pinned to 1 always: a continuous, data-modulated signal's own bit transitions make coherent multi-epoch combining a structural aliasing mislock, not a graceful SNR loss (see docs/design/dsss-acquisition.md), so this engine never attempts it. Sensitivity margin comes entirely from auto-selected non-coherent looks (up to the internal [**ACQ\_N\_NONCOH\_SAFETY\_CEILING**](acq__core_8h.md#define-acq_n_noncoh_safety_ceiling)).
+
+
+
+
+**Parameters:**
+
+
+* `code` PN chips (0/1), length `code_len`. 
+* `code_len` Number of chips supplied (= sf, the spreading factor). 
+* `spc` Samples per chip (&gt;= 1). 
+* `chip_rate` Chip rate in Hz (&gt; 0). 
+* `symbol_rate` Continuous data-symbol rate in Hz; &lt;= 0 means no known clock. Diagnostic only (exposed via [**acq\_state\_t::epochs\_per\_symbol**](structacq__state__t.md#variable-epochs_per_symbol)), doesn't feed sizing: this engine never coherently combines regardless of the data-modulation clock. 
+* `cn0_dbhz` Carrier-to-noise density in dB-Hz (&gt; 0). 
+* `doppler_uncertainty` One-sided Doppler search half-range in Hz; 0 uses the full native span +/- chip\_rate/(2\*sf) (still window-tiled, at window\_bins=1). 
+* `pfa` Target system (max-of-N) false-alarm probability (0,1). 
+* `pd` Target detection probability (0,1). 
+* `noise_mode` CFAR mode index: 0=mean, 1=median, 2=min, 3=max. 
+
+
+
+**Returns:**
+
+Heap-allocated state, or NULL on bad arguments / allocation failure. 
+```C++
+>>> import numpy as np
+>>> from doppler.dsss import Acquisition
+>>> from doppler.wfm import PN, mls_poly
+>>> code = np.asarray(PN(poly=mls_poly(5), seed=1,
+...                      length=5).generate(31)).astype(np.uint8)
+>>> s0 = np.repeat(np.where(code & 1, -1.0, 1.0), 4).astype(
+...     np.complex64)
+>>> burst = np.tile(np.roll(s0, 17), 23).astype(np.complex64)
+>>> a = Acquisition(code, spc=4, chip_rate=1e6, cn0_dbhz=50.0)
+>>> a.push(burst)[0][:2]    # detects (Doppler-window bin, code phase)
+(0, 17)
+```
+ 
 
 
 
@@ -317,7 +450,7 @@ _Stream raw samples; emit one event per CFAR dump above threshold._
 ```C++
 size_t acq_push (
     acq_state_t * state,
-    const float complex * in,
+    const float complex * x,
     size_t n_in,
     acq_result_t * result,
     size_t max_results
@@ -326,7 +459,7 @@ size_t acq_push (
 
 
 
-Buffers `in`, then for every complete frame applies the slow-time Doppler FFT, correlates against the PN reference, dumps the coherent surface (or, when n\_noncoh &gt; 1, accumulates \|·\|² over n\_noncoh looks first), gates the peak on the auto-configured threshold, and appends an [**acq\_result\_t**](structacq__result__t.md).
+Buffers `x`, then for every complete frame applies the slow-time Doppler FFT, correlates against the PN reference, dumps the coherent surface (or, when n\_noncoh &gt; 1, accumulates \|·\|² over n\_noncoh looks first), gates the peak on the auto-configured threshold, and appends an [**acq\_result\_t**](structacq__result__t.md). Each event carries the peak's Doppler bin and code phase (the two search axes), its CFAR statistic, and an estimated C/N0 — see [**acq\_result\_t**](structacq__result__t.md).
 
 
 
@@ -335,7 +468,7 @@ Buffers `in`, then for every complete frame applies the slow-time Doppler FFT, c
 
 
 * `state` Allocated engine (non-NULL). 
-* `in` Raw input, interleaved CF32, `n_in` complex samples. 
+* `x` Raw input, interleaved CF32, `n_in` complex samples. 
 * `n_in` Number of complex input samples. 
 * `result` Output array for detection events. 
 * `max_results` Capacity of `result`. 
@@ -345,6 +478,25 @@ Buffers `in`, then for every complete frame applies the slow-time Doppler FFT, c
 **Returns:**
 
 Number of events written (0 … max\_results). 
+```C++
+>>> import numpy as np
+>>> from doppler.dsss import Acquisition
+>>> from doppler.wfm import PN, mls_poly
+>>> code = np.asarray(PN(poly=mls_poly(5), seed=1,
+...                      length=5).generate(31)).astype(np.uint8)
+>>> s0 = np.repeat(np.where(code & 1, -1.0, 1.0), 4).astype(
+...     np.complex64)
+>>> a = Acquisition(code, spc=4, chip_rate=1e6, cn0_dbhz=50.0,
+...                 doppler_uncertainty=40e3)
+>>> fs = 1e6 * 4                    # sample rate = chip_rate * spc
+>>> t = np.arange(a.code_bins * a.n_noncoh)
+>>> carrier = np.exp(2j * np.pi * (a.doppler_res_hz / fs) * t)
+>>> sig = (np.tile(np.roll(s0, 17), a.n_noncoh)
+...        * carrier).astype(np.complex64)
+>>> a.push(sig)[0][:2]              # (Doppler-window bin, code phase)
+(1, 17)
+```
+ 
 
 
 
@@ -367,12 +519,31 @@ void acq_reset (
 
 
 
+Discards any buffered samples that have not yet completed a frame and clears the non-coherent power accumulator and dwell bookkeeping, so the next push() begins a fresh search from an empty ring. The construction parameters — grid, thresholds, and PN reference — are untouched; only the in-flight streaming state is dropped.
+
+
 
 
 **Parameters:**
 
 
 * `state` Must be non-NULL. 
+```C++
+>>> import numpy as np
+>>> from doppler.dsss import Acquisition
+>>> from doppler.wfm import PN, mls_poly
+>>> code = np.asarray(PN(poly=mls_poly(5), seed=1,
+...                      length=5).generate(31)).astype(np.uint8)
+>>> s0 = np.repeat(np.where(code & 1, -1.0, 1.0), 4).astype(
+...     np.complex64)
+>>> burst = np.tile(np.roll(s0, 17), 23).astype(np.complex64)
+>>> a = Acquisition(code, spc=4, chip_rate=1e6, cn0_dbhz=50.0)
+>>> _ = a.push(burst[:100])   # a partial frame, buffered mid-stream
+>>> a.reset()                 # drop it before it can bias a detection
+>>> a.push(burst)[0][:2]      # (Doppler bin, code phase)
+(0, 17)
+```
+ 
 
 
 
@@ -457,9 +628,71 @@ size_t acq_state_bytes (
 
 
 <hr>
+## Public Static Functions Documentation
+
+
+
+
+### function acq\_bin\_to\_signed 
+
+_Map a reported bin index to its SIGNED frequency index._ 
+```C++
+static inline long acq_bin_to_signed (
+    size_t bin,
+    size_t n_bins
+) 
+```
+
+
+
+The one definition of the FFT-bin convention this engine reports in: `0 = DC`, ascending positive through `n_bins/2`, then wrapping negative. Both the wideband search (which chooses a row's spectral roll) and `acq_build_handoff()` (which converts a hit back to Hz) MUST agree on it, so it lives here once rather than as a formula in each.
+
+
+It did not, once: the search used this form while the handoff used `((bin + n/2) % n) - n/2`, which disagrees at exactly one index — `bin == n_bins/2`, reachable only when `n_bins` is even. The search read that row as `+n/2` and the handoff as `-n/2`, a full-span sign inversion (102 kHz at SPEC.md's geometry) that surfaced as a receiver reporting `tracking == 1` while decoding noise. Auto-sizing now keeps `window_bins` odd (see `_auto_config_continuous`) so no such index exists, and this shared helper keeps the two readings identical regardless.
+
+
+
+
+**Parameters:**
+
+
+* `bin` Reported bin index in `[0, n_bins)`. 
+* `n_bins` Grid size (`window_bins`, or `coherent_bins`). 
+
+
+
+**Returns:**
+
+Signed index in `[-(n_bins/2), +(n_bins/2)]`; multiply by `doppler_res_hz` for Hz. 
+
+
+
+
+
+        
+
+<hr>
 ## Macro Definition Documentation
 
 
+
+
+
+### define ACQ\_N\_NONCOH\_SAFETY\_CEILING 
+
+_Internal safety-valve ceiling on auto-selected non-coherent looks_  _not a public knob (no caller-facing equivalent of the retired_`max_noncoh` _parameter)._
+```C++
+#define ACQ_N_NONCOH_SAFETY_CEILING `256u`
+```
+
+
+
+The semi-analytical Pd model both auto-sizers ascend against turns non-monotonic and unreliable past a few hundred looks (this project's own geometry found ~256 empirically  see docs/design/async-dsss-spec.md). Hitting this ceiling without meeting `pd` leaves [**acq\_state\_t::underpowered**](structacq__state__t.md#variable-underpowered) set, same as any other infeasible operating point  no separate bookkeeping needed. 
+
+
+        
+
+<hr>
 
 
 

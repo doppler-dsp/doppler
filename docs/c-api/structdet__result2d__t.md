@@ -106,6 +106,7 @@ size_t det_result2d_t::col;
 
 
 Column of the correlation peak (0-indexed). 
+ 
 
 
         
@@ -123,6 +124,7 @@ float det_result2d_t::noise_est;
 
 
 Noise estimate aggregated over &#91;noise\_lo, hi&#93;. 
+ 
 
 
         
@@ -140,6 +142,7 @@ float det_result2d_t::peak_mag;
 
 
 max \|R&#91;i,j&#93;\| (linear magnitude). 
+ 
 
 
         
@@ -157,6 +160,7 @@ size_t det_result2d_t::row;
 
 
 Row of the correlation peak (0-indexed). 
+ 
 
 
         
@@ -174,6 +178,7 @@ float det_result2d_t::test_stat;
 
 
 peak\_mag / noise\_est; 0 if noise\_est == 0. 
+ 
 
 
         

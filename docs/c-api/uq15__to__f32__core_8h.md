@@ -60,8 +60,8 @@ _UQ15 (offset-binary uint16) to float converter._ [More...](#detailed-descriptio
 | ---: | :--- |
 |  [**uq15\_to\_f32\_state\_t**](structuq15__to__f32__state__t.md) \* | [**uq15\_to\_f32\_create**](#function-uq15_to_f32_create) (float scale) <br>_Create a uq15\_to\_f32 instance._  |
 |  void | [**uq15\_to\_f32\_destroy**](#function-uq15_to_f32_destroy) ([**uq15\_to\_f32\_state\_t**](structuq15__to__f32__state__t.md) \* state) <br>_Destroy a uq15\_to\_f32 instance and release all memory._  |
-|  void | [**uq15\_to\_f32\_reset**](#function-uq15_to_f32_reset) ([**uq15\_to\_f32\_state\_t**](structuq15__to__f32__state__t.md) \* state) <br>_Reset uq15\_to\_f32 to its post-create state._  |
-|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) float | [**uq15\_to\_f32\_step**](#function-uq15_to_f32_step) (const [**uq15\_to\_f32\_state\_t**](structuq15__to__f32__state__t.md) \* state, uint16\_t x) <br>_Process one input sample._  |
+|  void | [**uq15\_to\_f32\_reset**](#function-uq15_to_f32_reset) ([**uq15\_to\_f32\_state\_t**](structuq15__to__f32__state__t.md) \* state) <br>_No-op reset, provided only for lifecycle symmetry._  |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) float | [**uq15\_to\_f32\_step**](#function-uq15_to_f32_step) (const [**uq15\_to\_f32\_state\_t**](structuq15__to__f32__state__t.md) \* state, uint16\_t x) <br>_Decode one offset-binary UQ15 uint16 code to a normalised float._  |
 |  void | [**uq15\_to\_f32\_steps**](#function-uq15_to_f32_steps) ([**uq15\_to\_f32\_state\_t**](structuq15__to__f32__state__t.md) \* state, const uint16\_t \* input, float \* output, size\_t n) <br>_Process a block of UQ15 samples to float32._  |
 
 
@@ -205,7 +205,7 @@ void uq15_to_f32_destroy (
 
 ### function uq15\_to\_f32\_reset 
 
-_Reset uq15\_to\_f32 to its post-create state._ 
+_No-op reset, provided only for lifecycle symmetry._ 
 ```C++
 void uq15_to_f32_reset (
     uq15_to_f32_state_t * state
@@ -214,7 +214,7 @@ void uq15_to_f32_reset (
 
 
 
-No mutable state exists beyond the immutable `iscale`; reset is a no-op provided for lifecycle symmetry with other converters.
+No mutable state exists beyond the immutable `iscale`, so there is nothing to clear; the method exists so every converter in the module presents the same create / step / reset / destroy lifecycle.
 
 
 
@@ -222,9 +222,17 @@ No mutable state exists beyond the immutable `iscale`; reset is a no-op provided
 **Parameters:**
 
 
-* `state` Must be non-NULL. 
+* `state` Must be non-NULL.
 
 
+```C++
+>>> from doppler.cvt import UQ15ToF32
+>>> c = UQ15ToF32()
+>>> c.reset()           # stateless converter -> reset is a no-op
+>>> round(c.step(32768), 4)
+0.0
+```
+ 
 
 
         
@@ -235,7 +243,7 @@ No mutable state exists beyond the immutable `iscale`; reset is a no-op provided
 
 ### function uq15\_to\_f32\_step 
 
-_Process one input sample._ 
+_Decode one offset-binary UQ15 uint16 code to a normalised float._ 
 ```C++
 JM_FORCEINLINE  JM_HOT float uq15_to_f32_step (
     const uq15_to_f32_state_t * state,
@@ -245,7 +253,7 @@ JM_FORCEINLINE  JM_HOT float uq15_to_f32_step (
 
 
 
-Computes ``((int32\_t)x - 32768) \* iscale. The int32\_t cast prevents signed overflow when `x` is 0 (which yields -32768 after bias removal).
+Computes ``((int32\_t)x - 32768) \* iscale — removes the 32768 offset-binary bias and applies `1/scale`. The int32\_t cast prevents signed overflow when `x` is 0 (which yields -32768 after bias removal). Exact inverse of F32ToUQ15 at the same scale.
 
 
 
@@ -254,16 +262,25 @@ Computes ``((int32\_t)x - 32768) \* iscale. The int32\_t cast prevents signed ov
 
 
 * `state` Must be non-NULL. 
-* `x` UQ15 offset-binary uint16 sample: 0x0000 → -1.0f, 0x8000 → 0.0f, 0xFFFF → +32767/32768. 
+* `x` UQ15 offset-binary uint16 code: 0 -&gt; -1.0, 32768 -&gt; 0.0, 65535 -&gt; +32767/32768. 
 
 
 
 **Returns:**
 
-Decoded float sample in `[-1.0, ~+1.0)`. 
+Normalised float in `[-1.0, ~+1.0)`.
 
 
 
+```C++
+>>> from doppler.cvt import UQ15ToF32
+>>> c = UQ15ToF32(scale=32768.0)
+>>> round(c.step(32768), 4)   # midscale code -> 0.0
+0.0
+>>> round(c.step(0), 4)       # zero code -> -1.0
+-1.0
+```
+ 
 
 
         

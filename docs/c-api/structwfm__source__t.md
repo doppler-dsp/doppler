@@ -38,9 +38,11 @@ _One additive source within a segment: a_ `synth` _config + its level._[More...]
 | ---: | :--- |
 |  uint8\_t \* | [**acq\_code**](#variable-acq_code)  <br> |
 |  size\_t | [**acq\_reps**](#variable-acq_reps)  <br> |
+|  int | [**background**](#variable-background)  <br> |
 |  uint8\_t \* | [**bits**](#variable-bits)  <br> |
 |  int | [**crc**](#variable-crc)  <br> |
 |  uint8\_t \* | [**data\_code**](#variable-data_code)  <br> |
+|  int | [**dsss\_code\_only**](#variable-dsss_code_only)  <br> |
 |  double | [**f\_end**](#variable-f_end)  <br> |
 |  double | [**f\_end\_hi**](#variable-f_end_hi)  <br> |
 |  double | [**freq**](#variable-freq)  <br> |
@@ -65,6 +67,7 @@ _One additive source within a segment: a_ `synth` _config + its level._[More...]
 |  double | [**snr\_hi**](#variable-snr_hi)  <br> |
 |  int | [**snr\_mode**](#variable-snr_mode)  <br> |
 |  int | [**sps**](#variable-sps)  <br> |
+|  double | [**symbol\_rate**](#variable-symbol_rate)  <br> |
 |  float \_Complex \* | [**symbols**](#variable-symbols)  <br> |
 |  uint8\_t \* | [**sync**](#variable-sync)  <br> |
 |  int | [**type**](#variable-type)  <br> |
@@ -153,6 +156,19 @@ size_t wfm_source_t::acq_reps;
 
 
 
+### variable background 
+
+```C++
+int wfm_source_t::background;
+```
+
+
+
+
+<hr>
+
+
+
 ### variable bits 
 
 ```C++
@@ -183,6 +199,19 @@ int wfm_source_t::crc;
 
 ```C++
 uint8_t* wfm_source_t::data_code;
+```
+
+
+
+
+<hr>
+
+
+
+### variable dsss\_code\_only 
+
+```C++
+int wfm_source_t::dsss_code_only;
 ```
 
 
@@ -495,6 +524,19 @@ int wfm_source_t::snr_mode;
 
 ```C++
 int wfm_source_t::sps;
+```
+
+
+
+
+<hr>
+
+
+
+### variable symbol\_rate 
+
+```C++
+double wfm_source_t::symbol_rate;
 ```
 
 

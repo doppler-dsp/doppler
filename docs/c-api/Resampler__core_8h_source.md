@@ -50,14 +50,15 @@ extern "C"
   size_t Resampler_execute_max_out (Resampler_state_t *state);
 
   size_t Resampler_execute (Resampler_state_t *state, const float complex *x,
-                            size_t x_len, float complex *out);
+                            size_t x_len, float complex *out,
+                            size_t max_out);
 
   size_t Resampler_execute_ctrl_max_out (Resampler_state_t *state);
 
   size_t Resampler_execute_ctrl (Resampler_state_t *state,
                                  const float complex *x, size_t x_len,
                                  const float complex *ctrl, size_t ctrl_len,
-                                 float complex *out);
+                                 float complex *out, size_t max_out);
 
   /* ------------------------------------------------------------------ */
   /* Properties                                                          */

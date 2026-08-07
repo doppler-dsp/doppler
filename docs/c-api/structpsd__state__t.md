@@ -109,6 +109,7 @@ acc_trace_state_t* psd_state_t::avg;
 
 
 Per-bin power averager, length nfft. 
+ 
 
 
         
@@ -143,6 +144,7 @@ double psd_state_t::cg;
 
 
 Window coherent gain, sum(w). 
+ 
 
 
         
@@ -160,6 +162,7 @@ float* psd_state_t::dbbuf;
 
 
 dB-trace scratch, length nfft. 
+ 
 
 
         
@@ -177,6 +180,7 @@ double psd_state_t::enbw;
 
 
 Equivalent noise bandwidth, bins. 
+ 
 
 
         
@@ -194,6 +198,7 @@ fft_state_t* psd_state_t::fft;
 
 
 Forward cf32 plan, size nfft. 
+ 
 
 
         
@@ -211,6 +216,7 @@ float complex* psd_state_t::frame;
 
 
 Windowed + zero-padded, length nfft. 
+ 
 
 
         
@@ -228,6 +234,7 @@ double psd_state_t::fs;
 
 
 Sample rate, Hz. 
+ 
 
 
         
@@ -245,6 +252,7 @@ double psd_state_t::full_scale;
 
 
 Amplitude that reads 0 dBFS. 
+ 
 
 
         
@@ -262,6 +270,7 @@ size_t psd_state_t::n;
 
 
 Window / frame length (samples). 
+ 
 
 
         
@@ -279,6 +288,7 @@ size_t psd_state_t::nfft;
 
 
 Zero-padded transform length. 
+ 
 
 
         
@@ -313,6 +323,7 @@ double psd_state_t::s2;
 
 
 Window power, sum(w^2). 
+ 
 
 
         
@@ -330,6 +341,7 @@ float complex* psd_state_t::spec;
 
 
 FFT output scratch, length nfft. 
+ 
 
 
         
@@ -347,6 +359,7 @@ float* psd_state_t::w;
 
 
 Window, length n. 
+ 
 
 
         

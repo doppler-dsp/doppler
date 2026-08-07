@@ -60,17 +60,17 @@ _Per-instance 1-D FFT using pocketfft directly._ [More...](#detailed-description
 | ---: | :--- |
 |  [**fft\_state\_t**](structfft__state__t.md) \* | [**fft\_create**](#function-fft_create) (size\_t n, int sign, int nthreads) <br>_Allocate a reusable 1-D FFT engine for a fixed length and sign. Two pocketfft plans are created at construction time — one for CF64 and one for CF32 — so execute calls carry no plan-setup overhead. The same instance may be called repeatedly for independent input vectors of the same length._ `nthreads` _is accepted for API parity but is ignored; pocketfft plans are single-threaded._ |
 |  void | [**fft\_destroy**](#function-fft_destroy) ([**fft\_state\_t**](structfft__state__t.md) \* state) <br>_Destroy and free an fft instance._  |
-|  size\_t | [**fft\_execute\_cf32**](#function-fft_execute_cf32) ([**fft\_state\_t**](structfft__state__t.md) \* state, const float complex \* in, size\_t n\_in, float complex \* out) <br>_Compute an out-of-place 1-D DFT on a single-precision complex input. Identical to_ [_**fft\_execute\_cf64()**_](fft__core_8h.md#function-fft_execute_cf64) _but operates on float complex (CF32) buffers, halving memory bandwidth relative to the double-precision variant. Output is unnormalised;_`in` _and_`out` _must not alias._ |
+|  size\_t | [**fft\_execute\_cf32**](#function-fft_execute_cf32) ([**fft\_state\_t**](structfft__state__t.md) \* state, const float complex \* in, size\_t n\_in, float complex \* out, size\_t max\_out) <br>_Compute an out-of-place 1-D DFT on a single-precision complex input. Identical to_ [_**fft\_execute\_cf64()**_](fft__core_8h.md#function-fft_execute_cf64) _but operates on float complex (CF32) buffers, halving memory bandwidth relative to the double-precision variant. Output is unnormalised;_`in` _and_`out` _must not alias._ |
 |  size\_t | [**fft\_execute\_cf32\_max\_out**](#function-fft_execute_cf32_max_out) ([**fft\_state\_t**](structfft__state__t.md) \* state) <br>_Maximum output samples for CF32 execute (always == n)._  |
-|  size\_t | [**fft\_execute\_cf64**](#function-fft_execute_cf64) ([**fft\_state\_t**](structfft__state__t.md) \* state, const double complex \* in, size\_t n\_in, double complex \* out) <br>_Compute an out-of-place 1-D DFT on a double-precision complex input. The output is written to a fresh caller-supplied buffer;_ `in` _and_`out` _must not alias. The transform is unnormalised: the inverse DFT (sign=+1) does NOT divide by n. Both buffers must be exactly state-&gt;n elements long._ |
+|  size\_t | [**fft\_execute\_cf64**](#function-fft_execute_cf64) ([**fft\_state\_t**](structfft__state__t.md) \* state, const double complex \* in, size\_t n\_in, double complex \* out, size\_t max\_out) <br>_Compute an out-of-place 1-D DFT on a double-precision complex input. The output is written to a fresh caller-supplied buffer;_ `in` _and_`out` _must not alias. The transform is unnormalised: the inverse DFT (sign=+1) does NOT divide by n. Both buffers must be exactly state-&gt;n elements long._ |
 |  size\_t | [**fft\_execute\_cf64\_max\_out**](#function-fft_execute_cf64_max_out) ([**fft\_state\_t**](structfft__state__t.md) \* state) <br>_Maximum output samples per execute call (always == n)._  |
 |  size\_t | [**fft\_execute\_ci16**](#function-fft_execute_ci16) ([**fft\_state\_t**](structfft__state__t.md) \* state, const int16\_t \* in, size\_t n\_in, float complex \* out) <br>_Compute an out-of-place 1-D DFT directly on integer IQ (ci16)._ `in` _is interleaved int16 I/Q (2 ints per complex sample, length 2\*n); the result is float complex (CF32). The int-&gt;float scale (v/32768, full-scale ±1.0, matching the cvt module) is folded into the transform's input read, so this is a single fused pass — faster than a separate i16\_to\_f32 conversion followed by_[_**fft\_execute\_cf32()**_](fft__core_8h.md#function-fft_execute_cf32) _. Output is unnormalised._ |
 |  size\_t | [**fft\_execute\_ci16\_max\_out**](#function-fft_execute_ci16_max_out) ([**fft\_state\_t**](structfft__state__t.md) \* state) <br>_Maximum output samples for the ci16 execute (always == n)._  |
 |  size\_t | [**fft\_execute\_ci8**](#function-fft_execute_ci8) ([**fft\_state\_t**](structfft__state__t.md) \* state, const int8\_t \* in, size\_t n\_in, float complex \* out) <br>_Compute an out-of-place 1-D DFT directly on integer IQ (ci8). As_ [_**fft\_execute\_ci16()**_](fft__core_8h.md#function-fft_execute_ci16) _but_`in` _is interleaved int8 I/Q (scale v/128)._ |
 |  size\_t | [**fft\_execute\_ci8\_max\_out**](#function-fft_execute_ci8_max_out) ([**fft\_state\_t**](structfft__state__t.md) \* state) <br>_Maximum output samples for the ci8 execute (always == n)._  |
-|  size\_t | [**fft\_execute\_inplace\_cf32**](#function-fft_execute_inplace_cf32) ([**fft\_state\_t**](structfft__state__t.md) \* state, const float complex \* in, size\_t n\_in, float complex \* out) <br>_Copy_ `in` _into_`out` _, then transform_`out` _in-place (CF32). Single-precision variant of_[_**fft\_execute\_inplace\_cf64()**_](fft__core_8h.md#function-fft_execute_inplace_cf64) _. Copies state-&gt;n CF32 samples from_`in` _to_`out` _, then transforms_`out` _with the CF32 pocketfft plan._`in` _is left unmodified._ |
+|  size\_t | [**fft\_execute\_inplace\_cf32**](#function-fft_execute_inplace_cf32) ([**fft\_state\_t**](structfft__state__t.md) \* state, const float complex \* in, size\_t n\_in, float complex \* out, size\_t max\_out) <br>_Copy_ `in` _into_`out` _, then transform_`out` _in-place (CF32). Single-precision variant of_[_**fft\_execute\_inplace\_cf64()**_](fft__core_8h.md#function-fft_execute_inplace_cf64) _. Copies state-&gt;n CF32 samples from_`in` _to_`out` _, then transforms_`out` _with the CF32 pocketfft plan._`in` _is left unmodified._ |
 |  size\_t | [**fft\_execute\_inplace\_cf32\_max\_out**](#function-fft_execute_inplace_cf32_max_out) ([**fft\_state\_t**](structfft__state__t.md) \* state) <br>_Maximum output samples for inplace CF32 (always == n)._  |
-|  size\_t | [**fft\_execute\_inplace\_cf64**](#function-fft_execute_inplace_cf64) ([**fft\_state\_t**](structfft__state__t.md) \* state, const double complex \* in, size\_t n\_in, double complex \* out) <br>_Copy_ `in` _into_`out` _, then transform_`out` _in-place (CF64). The copy step lets callers preserve their input while keeping the output buffer hot in cache. Semantically identical to_[_**fft\_execute\_cf64()**_](fft__core_8h.md#function-fft_execute_cf64) _for separate_`in` _/_`out` _pointers; use this variant when the caller already owns_`out` _and wants the result there without a second allocation._ |
+|  size\_t | [**fft\_execute\_inplace\_cf64**](#function-fft_execute_inplace_cf64) ([**fft\_state\_t**](structfft__state__t.md) \* state, const double complex \* in, size\_t n\_in, double complex \* out, size\_t max\_out) <br>_Copy_ `in` _into_`out` _, then transform_`out` _in-place (CF64). The copy step lets callers preserve their input while keeping the output buffer hot in cache. Semantically identical to_[_**fft\_execute\_cf64()**_](fft__core_8h.md#function-fft_execute_cf64) _for separate_`in` _/_`out` _pointers; use this variant when the caller already owns_`out` _and wants the result there without a second allocation._ |
 |  size\_t | [**fft\_execute\_inplace\_cf64\_max\_out**](#function-fft_execute_inplace_cf64_max_out) ([**fft\_state\_t**](structfft__state__t.md) \* state) <br>_Maximum output samples for inplace CF64 (always == n)._  |
 |  void | [**fft\_reset**](#function-fft_reset) ([**fft\_state\_t**](structfft__state__t.md) \* state) <br>_No-op reset (plans are immutable after creation)._  |
 
@@ -111,7 +111,7 @@ Lifecycle:
 ```C++
 fft_state_t *fft = fft_create(1024, -1, 1);
 double complex out[1024];
-fft_execute_cf64(fft, in, 1024, out);
+fft_execute_cf64(fft, in, 1024, out, 1024);
 fft_destroy(fft);
 ```
  
@@ -207,7 +207,8 @@ size_t fft_execute_cf32 (
     fft_state_t * state,
     const float complex * in,
     size_t n_in,
-    float complex * out
+    float complex * out,
+    size_t max_out
 ) 
 ```
 
@@ -222,12 +223,13 @@ size_t fft_execute_cf32 (
 * `in` Input buffer of length state-&gt;n (CF32, row-major). 
 * `n_in` Number of input samples; must equal state-&gt;n. 
 * `out` Output buffer of length &gt;= state-&gt;n (CF32, caller-allocated). 
+* `max_out` Capacity of `out` in samples. Normally state-&gt;n; if it is smaller the first max\_out bins are written and the rest of the transform is discarded. 
 
 
 
 **Returns:**
 
-n (number of samples written). 
+min(state-&gt;n, max\_out) bins. 
 ```C++
 >>> from doppler.spectral import FFT
 >>> import numpy as np
@@ -272,7 +274,8 @@ size_t fft_execute_cf64 (
     fft_state_t * state,
     const double complex * in,
     size_t n_in,
-    double complex * out
+    double complex * out,
+    size_t max_out
 ) 
 ```
 
@@ -287,12 +290,13 @@ size_t fft_execute_cf64 (
 * `in` Input buffer of length state-&gt;n (CF64, row-major). 
 * `n_in` Number of input samples; must equal state-&gt;n. 
 * `out` Output buffer of length &gt;= state-&gt;n (CF64, caller-allocated). 
+* `max_out` Capacity of `out` in samples. Normally state-&gt;n; if it is smaller the first max\_out bins are written and the rest of the transform is discarded. 
 
 
 
 **Returns:**
 
-n (number of samples written). 
+min(state-&gt;n, max\_out) bins. 
 ```C++
 >>> from doppler.spectral import FFT
 >>> import numpy as np
@@ -362,7 +366,7 @@ n (number of complex samples written).
 >>> import numpy as np
 >>> from doppler.spectral import FFT
 >>> fft = FFT(n=4, sign=-1)
->>> iq = np.full(8, 32768 // 4, dtype=np.int16)   # ~0.25 + 0.25j, full-scale
+>>> iq = np.full(8, 32768 // 4, dtype=np.int16)   # ~0.25 + 0.25j
 >>> np.round(fft.execute_ci16(iq).real, 3).tolist()
 [1.0, 0.0, 0.0, 0.0]
 ```
@@ -427,7 +431,7 @@ n (number of complex samples written).
 >>> import numpy as np
 >>> from doppler.spectral import FFT
 >>> fft = FFT(n=4, sign=-1)
->>> iq = np.full(8, 32, dtype=np.int8)            # 0.25 + 0.25j, full-scale
+>>> iq = np.full(8, 32, dtype=np.int8)            # 0.25 + 0.25j
 >>> np.round(fft.execute_ci8(iq).real, 3).tolist()
 [1.0, 0.0, 0.0, 0.0]
 ```
@@ -467,7 +471,8 @@ size_t fft_execute_inplace_cf32 (
     fft_state_t * state,
     const float complex * in,
     size_t n_in,
-    float complex * out
+    float complex * out,
+    size_t max_out
 ) 
 ```
 
@@ -482,12 +487,13 @@ size_t fft_execute_inplace_cf32 (
 * `in` Source buffer, state-&gt;n CF32 samples; not modified. 
 * `n_in` Number of input samples; must equal state-&gt;n. 
 * `out` Destination buffer, length &gt;= state-&gt;n; must not alias in. 
+* `max_out` Capacity of `out` in samples. Normally state-&gt;n; if it is smaller the copy-and-transform happens in scratch and only the first max\_out bins reach `out`. 
 
 
 
 **Returns:**
 
-n (number of samples written). 
+min(state-&gt;n, max\_out) bins. 
 ```C++
 >>> from doppler.spectral import FFT
 >>> import numpy as np
@@ -532,7 +538,8 @@ size_t fft_execute_inplace_cf64 (
     fft_state_t * state,
     const double complex * in,
     size_t n_in,
-    double complex * out
+    double complex * out,
+    size_t max_out
 ) 
 ```
 
@@ -547,12 +554,13 @@ size_t fft_execute_inplace_cf64 (
 * `in` Source buffer, state-&gt;n CF64 samples; not modified. 
 * `n_in` Number of input samples; must equal state-&gt;n. 
 * `out` Destination buffer, length &gt;= state-&gt;n; must not alias in. 
+* `max_out` Capacity of `out` in samples. Normally state-&gt;n; if it is smaller the copy-and-transform happens in scratch and only the first max\_out bins reach `out`. 
 
 
 
 **Returns:**
 
-n (number of samples written). 
+min(state-&gt;n, max\_out) bins. 
 ```C++
 >>> from doppler.spectral import FFT
 >>> import numpy as np

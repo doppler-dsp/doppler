@@ -16,6 +16,7 @@
 #include "dp_state.h"
 
 #include <complex.h>
+#include <stdbool.h>
 #include <stddef.h>
 #include "resamp/resamp_core.h"
 #include "fir/fir_core.h"
@@ -34,6 +35,13 @@ typedef enum
   RC_STAGE_RESAMP = 2, 
 } rc_stage_t;
 
+typedef enum
+{
+  RC_PULSE_IANDD = 0, 
+  RC_PULSE_RRC   = 1, 
+  RC_PULSE_NONE  = 2, 
+} rc_pulse_t;
+
 typedef struct
 {
   double         rate;                        
@@ -43,9 +51,35 @@ typedef struct
   void          *stage_ptrs[RC_MAX_STAGES];   
   float _Complex *bufs[2];
   size_t          buf_cap;
+  /* Matched-filter configuration (RC_PULSE_NONE = plain Kaiser terminal
+     bank, i.e. everything RateConverter_create() builds).  Kept so
+     RateConverter_set_rate() can re-plan without losing the pulse. */
+  int    pulse;      
+  double beta;       
+  size_t span;       
+  double pulse_sps;  
+  size_t num_phases; 
+  bool narrow_pulse;
 } RateConverter_state_t;
 
 RateConverter_state_t *RateConverter_create (double rate, int compensate);
+
+RateConverter_state_t *
+RateConverter_create_matched (double rate, int compensate, int pulse,
+                              double beta, size_t span, double pulse_sps,
+                              size_t num_phases);
+
+bool RateConverter_get_clipped (const RateConverter_state_t *s);
+
+bool RateConverter_get_narrow_pulse (const RateConverter_state_t *s);
+
+size_t RateConverter_num_stages (const RateConverter_state_t *s);
+const char *RateConverter_stages_value (const RateConverter_state_t *s,
+                                        size_t i);
+
+size_t RateConverter_num_bank_shape (const RateConverter_state_t *s);
+size_t RateConverter_bank_shape_value (const RateConverter_state_t *s,
+                                       size_t i);
 
 void RateConverter_destroy (RateConverter_state_t *s);
 
@@ -68,6 +102,18 @@ size_t RateConverter_execute (RateConverter_state_t *s,
                               float _Complex *out, size_t max_out);
 
 size_t RateConverter_execute_max_out (RateConverter_state_t *s);
+
+size_t RateConverter_execute_ctrl_max_out (RateConverter_state_t *s);
+size_t RateConverter_execute_ctrl_push_max_out (RateConverter_state_t *s);
+
+size_t RateConverter_execute_ctrl (RateConverter_state_t *s,
+                                   const float _Complex *x, size_t n_in,
+                                   double ctrl, float _Complex *out,
+                                   size_t max_out);
+
+size_t RateConverter_execute_ctrl_push (RateConverter_state_t *s,
+                                        float _Complex x, double ctrl,
+                                        float _Complex *out, size_t max_out);
 
 double RateConverter_get_rate (const RateConverter_state_t *s);
 

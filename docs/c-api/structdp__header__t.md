@@ -180,7 +180,7 @@ uint32_t dp_header_t::protocol;
 
 
 
-[**dp\_protocol\_t**](group__types.md#enum-dp_protocol_t) (0 = SIGS, 1 = DIFI). 
+dp\_protocol\_t (0 = SIGS, 1 = DIFI). 
 
 
         
@@ -231,7 +231,7 @@ uint32_t dp_header_t::sample_type;
 
 
 
-Wire sample type ([**dp\_sample\_type\_t**](group__types.md#enum-dp_sample_type_t)). 
+Wire sample type (dp\_sample\_type\_t). 
 
 
         

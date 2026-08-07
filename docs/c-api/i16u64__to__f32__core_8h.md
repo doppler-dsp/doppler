@@ -60,8 +60,8 @@ _Q15-in-uint64 to float converter._ [More...](#detailed-description)
 | ---: | :--- |
 |  [**i16u64\_to\_f32\_state\_t**](structi16u64__to__f32__state__t.md) \* | [**i16u64\_to\_f32\_create**](#function-i16u64_to_f32_create) (float scale) <br>_Create a i16u64\_to\_f32 instance._  |
 |  void | [**i16u64\_to\_f32\_destroy**](#function-i16u64_to_f32_destroy) ([**i16u64\_to\_f32\_state\_t**](structi16u64__to__f32__state__t.md) \* state) <br>_Destroy a i16u64\_to\_f32 instance and release all memory._  |
-|  void | [**i16u64\_to\_f32\_reset**](#function-i16u64_to_f32_reset) ([**i16u64\_to\_f32\_state\_t**](structi16u64__to__f32__state__t.md) \* state) <br>_Reset i16u64\_to\_f32 to its post-create state._  |
-|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) float | [**i16u64\_to\_f32\_step**](#function-i16u64_to_f32_step) (const [**i16u64\_to\_f32\_state\_t**](structi16u64__to__f32__state__t.md) \* state, uint64\_t x) <br>_Process one input sample._  |
+|  void | [**i16u64\_to\_f32\_reset**](#function-i16u64_to_f32_reset) ([**i16u64\_to\_f32\_state\_t**](structi16u64__to__f32__state__t.md) \* state) <br>_No-op reset, provided only for lifecycle symmetry._  |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) float | [**i16u64\_to\_f32\_step**](#function-i16u64_to_f32_step) (const [**i16u64\_to\_f32\_state\_t**](structi16u64__to__f32__state__t.md) \* state, uint64\_t x) <br>_Unpack a Q15 code from a uint64's low 16 bits to a normalised float._  |
 |  void | [**i16u64\_to\_f32\_steps**](#function-i16u64_to_f32_steps) ([**i16u64\_to\_f32\_state\_t**](structi16u64__to__f32__state__t.md) \* state, const uint64\_t \* input, float \* output, size\_t n) <br>_Process a block of Q15-in-uint64 samples to float32._  |
 
 
@@ -201,7 +201,7 @@ void i16u64_to_f32_destroy (
 
 ### function i16u64\_to\_f32\_reset 
 
-_Reset i16u64\_to\_f32 to its post-create state._ 
+_No-op reset, provided only for lifecycle symmetry._ 
 ```C++
 void i16u64_to_f32_reset (
     i16u64_to_f32_state_t * state
@@ -210,7 +210,7 @@ void i16u64_to_f32_reset (
 
 
 
-No mutable state exists beyond the immutable `iscale`; reset is a no-op provided for lifecycle symmetry.
+No mutable state exists beyond the immutable `iscale`, so there is nothing to clear; the method exists so every converter in the module presents the same create / step / reset / destroy lifecycle.
 
 
 
@@ -218,9 +218,17 @@ No mutable state exists beyond the immutable `iscale`; reset is a no-op provided
 **Parameters:**
 
 
-* `state` Must be non-NULL. 
+* `state` Must be non-NULL.
 
 
+```C++
+>>> from doppler.cvt import I16U64ToF32
+>>> c = I16U64ToF32()
+>>> c.reset()           # stateless converter -> reset is a no-op
+>>> round(c.step(16384), 4)
+0.5
+```
+ 
 
 
         
@@ -231,7 +239,7 @@ No mutable state exists beyond the immutable `iscale`; reset is a no-op provided
 
 ### function i16u64\_to\_f32\_step 
 
-_Process one input sample._ 
+_Unpack a Q15 code from a uint64's low 16 bits to a normalised float._ 
 ```C++
 JM_FORCEINLINE  JM_HOT float i16u64_to_f32_step (
     const i16u64_to_f32_state_t * state,
@@ -241,7 +249,7 @@ JM_FORCEINLINE  JM_HOT float i16u64_to_f32_step (
 
 
 
-Masks the lower 16 bits, sign-extends to int16, then multiplies by iscale. Upper 48 bits are ignored.
+Masks off the lower 16 bits, reinterprets them as a signed int16 (two's complement), then multiplies by `iscale` — a single multiply after the extraction. The upper 48 bits (which may carry NCO phase-accumulator headroom) are ignored. Exact inverse of F32ToI16U64 at the same scale.
 
 
 
@@ -250,16 +258,25 @@ Masks the lower 16 bits, sign-extends to int16, then multiplies by iscale. Upper
 
 
 * `state` Must be non-NULL. 
-* `x` uint64 carrying a Q15 sample in its lower 16 bits. 
+* `x` uint64 carrying a Q15 code in its low 16 bits. 
 
 
 
 **Returns:**
 
-Scaled float32 output. 
+Normalised float recovered from the low-16 Q15 code.
 
 
 
+```C++
+>>> from doppler.cvt import I16U64ToF32
+>>> c = I16U64ToF32(scale=32768.0)
+>>> round(c.step(16384), 4)         # low-16 Q15 16384 -> 0.5
+0.5
+>>> round(c.step(0x8000), 4)     # 0x8000 read as -32768 -> -1.0
+-1.0
+```
+ 
 
 
         

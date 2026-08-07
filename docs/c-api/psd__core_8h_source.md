@@ -54,24 +54,28 @@ void psd_accumulate_real(psd_state_t *state, const float *x, size_t x_len);
 
 size_t psd_power_twosided_max_out(psd_state_t *state);
 
-size_t psd_power_twosided(psd_state_t *state, size_t cap, float *out);
+size_t psd_power_twosided(psd_state_t *state, size_t cap, float *out,
+                          size_t max_out);
 
 size_t psd_power_onesided_max_out(psd_state_t *state);
 
-size_t psd_power_onesided(psd_state_t *state, size_t cap, float *out);
+size_t psd_power_onesided(psd_state_t *state, size_t cap, float *out,
+                          size_t max_out);
 
 size_t psd_psd_db_max_out(psd_state_t *state);
 
-size_t psd_psd_db(psd_state_t *state, size_t n, float *out);
+size_t psd_psd_db(psd_state_t *state, size_t n, float *out,
+                  size_t max_out);
 
 size_t psd_psd_dbhz_max_out(psd_state_t *state);
 
-size_t psd_psd_dbhz(psd_state_t *state, size_t n, float *out);
+size_t psd_psd_dbhz(psd_state_t *state, size_t n, float *out,
+                    size_t max_out);
 
 size_t psd_band_power_max_out(psd_state_t *state);
 
 size_t psd_band_power(psd_state_t *state, const double *bands,
-                        size_t bands_len, float *out);
+                        size_t bands_len, float *out, size_t max_out);
 
 double psd_total_band_power(psd_state_t *state, const double *bands,
                               size_t bands_len);

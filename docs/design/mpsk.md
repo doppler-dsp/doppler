@@ -668,11 +668,13 @@ second timing mechanism** — the terminal accumulator alone controls timing, an
 the polyphase arm is that phase's fractional read-out.
 
 `SymbolSync`'s second selectable TED (`ted="dttl"`, a decision-directed sign-sign
-DTTL) is likewise reachable here (`RATESYNC_TED_DTTL`), but the receiver stays
-hardcoded to Gardner: DTTL's hard-decision device is only valid for
-constellations with independent, rectangular I/Q boundaries (BPSK/QPSK), not the
-8PSK this receiver also supports, so exposing it is a follow-up, not a drop-in
-default.
+DTTL) is likewise reachable here (`RATESYNC_TED_DTTL`), and the receiver is
+still hardcoded to Gardner. That is now **decided rather than deferred**:
+[RateSync Timing Recovery](ratesync-timing.md) §4 measures DTTL ahead of
+Gardner wherever it is valid and takes it as the default for BPSK/QPSK, with
+8PSK keeping Gardner because its hard-decision device needs rectangular I/Q
+boundaries. Not yet implemented; the measurements and the decision live
+there.
 
 > *Historical:* the original build reused `track.SymbolSync` (Gardner + Farrow)
 > as a whole, via an added by-value `symsync_init`. `SymbolSync` is unchanged and
@@ -894,57 +896,18 @@ per-M SER at each anchor, `lock_thresh` on an analytic H0 sd confirmed by
 on the fact that nothing anywhere varies it. `num_phases` had nothing behind
 it in either direction, so it was measured; §9.2.1 is that measurement.
 
-#### 9.2.1 The `num_phases` measurement
+#### 9.2.1 `num_phases` is not this object's parameter
 
-Worth recording in full, because the shipped default of 1024 and the first
-proposed replacement (`P ≥ 100/m_out` → 16) were both guesses and both wrong.
+It belongs to the terminal polyphase stage; the receiver only passes it
+through. It is therefore characterised where it lives —
+[RateSync Timing Recovery](ratesync-timing.md) §5, which owns the method, the
+pulse dependence, the seed-to-seed resolution and the traps that produced two
+wrong answers before the right one.
 
-**Method.** QPSK, `sps = 8`, `m_out = 8` unless swept, `bn = 0.01` on both
-loops. The receiver is given an `sps` 1000 ppm off the stimulus so the timing
-loop tracks a genuine rate error and sweeps every arm — a static `sps` parks
-it on one arm and turns quantisation into a fixed bias rather than the jitter
-it is. Es/N0 = 60 dB so quantisation rather than noise sets EVM. Windows from
-`ber_settle_syms` / `ber_evm_db`.
-
-**It is pulse-dependent, which no prior rule captured.** With
-`pulse = "iandd"` the recovered symbols are **bit-identical from P = 2 to
-P = 64**. The I&D pulse response is a rectangle — a 0/1 function — so shifting
-an arm changes a tap only when it moves a sample across the rectangle's edge;
-adjacent arms are literal duplicates and `P` buys nothing until the edges
-resolve. With `pulse = "rrc"` every arm differs and `P` sets real resolution.
-
-**On RRC the knee sits at 1/256 of a symbol, scaling with `m_out` exactly as
-`1/(P·m_out)` predicts.** EVM reaches within 0.2 dB of its saturated value at:
-
-| `P` (at `m_out = 8`, five seeds) | 16    | 32    | 64        | 256   |
-| -------------------------------- | ----- | ----- | --------- | ----- |
-| vs saturation (dB)               | +0.95 | +0.22 | **+0.05** | −0.02 |
-| seed-to-seed spread (dB)         | 0.11  | 0.07  | 0.12      | 0.15  |
-
-The seed spread **is** the resolution, ~0.15 dB, so P = 64 is
-indistinguishable from saturated and P = 32 costs a marginal ~0.2 dB barely
-above the noise. A single-seed sweep put `m_out = 4`'s saturation at P = 64
-too, which hints the requirement scales with `m_out` rather than holding
-`P · m_out` constant — two points at this resolution, so a hint, not a law.
-
-**The shipped default buys nothing it costs for.** At `m_out = 8`, P = 1024
-against P = 64 is inside the measurement's resolution, for 136 KB of bank
-against 8.5 KB and 16.3 µs of construction against ~2 µs. The argument is cost,
-not quality.
-
-**Caveats, so the numbers are not over-read.** One operating point; five
-seeds on the `m_out = 8` RRC row above, one seed everywhere else. Two earlier
-caveats in this paragraph were themselves wrong and are corrected in
-[RateSync Timing Recovery](ratesync-timing.md) §1 and §5: the "−51 dB stimulus
-floor" was an artefact of sampling the transmit stream at a fixed index rather
-than through a matched filter (the path reaches −60 dB), and the claim that
-the knee location is "unambiguous" does not survive a resolution estimate. And
-a first
-attempt imposed the clock offset by running the stimulus through a
-`Resampler`, which read a 22 dB penalty that was entirely the resampler
-mangling a full-band rectangular pulse through a filter designed for
-band-limited input. The offset has to come from a deliberate `sps` mismatch;
-resampling the stimulus measures the resampler.
+The result the row above uses: on RRC, **P = 64 at `m_out = 8`** is the
+measured saturation point, at a measurement resolution of ~0.15 dB; on I&D the
+bank arms are duplicates and `P` is inert at every value. The case against the
+shipped 1024 is bank memory and construction time, not quality.
 
 ### 9.3 Why `nda_tap` is not on that list
 

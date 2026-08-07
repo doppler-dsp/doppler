@@ -150,6 +150,49 @@ extern "C"
     return nco_phase_units (d * 4294967296.0);
   }
 
+  /**
+   * @brief Bound a steered rate to a band about nominal.
+   *
+   * The companion to @ref nco_phase_units, and the reason that one should
+   * almost never be doing real work: a conversion can only ever saturate or
+   * floor an already-insane request, which are both symptoms. Bounding the
+   * REQUEST is the fix, and every steered oscillator in the library forms it
+   * the same way -- nominal x (1 + control) -- so it belongs here rather than
+   * being open-coded per object.
+   *
+   * That saturate-or-floor distinction is not academic. Routing symsync's
+   * timing steer through nco_phase_units() correctly killed an undefined
+   * cast, and turned a negative product into 0 -- a STOPPED timing NCO, which
+   * never strobes again and so can never recover. The undefined cast it
+   * replaced wrapped to a huge increment, slipping a cycle and recovering.
+   * Timing acquisition is non-linear and does reach control < -1, so the
+   * honest conversion was strictly worse than the undefined one until the
+   * command itself was bounded.
+   *
+   * The BAND is the caller's policy, not this function's: it is set by what
+   * the object can physically mean. symsync's [2/3, 2] is its long-standing
+   * rate_est clamp of [0.5, 1.5] x sps, restated -- `inst = sps / (1+control)`
+   * is monotone, so the two are the same constraint seen from either end.
+   *
+   * @param control  Fractional rate deviation; the steer is `1 + control`.
+   * @param lo       Lower bound on the scale (e.g. 2/3 for -33%). Must be > 0
+   *                 for a rate that cannot run backwards.
+   * @param hi       Upper bound on the scale (e.g. 2.0 for +100%).
+   * @return `1 + control` clamped to `[lo, hi]`; NaN gives @p lo.
+   */
+  JM_FORCEINLINE double
+  nco_steer_scale (double control, double lo, double hi)
+  {
+    double scale = 1.0 + control;
+    /* Negated, so NaN lands on lo rather than sailing through -- the same
+       reasoning as nco_phase_units(). */
+    if (!(scale > lo))
+      return lo;
+    if (scale > hi)
+      return hi;
+    return scale;
+  }
+
   /* ==================================================================
    * nco_clock — a 64-bit phase accumulator for TIMING, not synthesis
    * ================================================================== */

@@ -229,11 +229,7 @@ extern "C"
            converting it honestly to 0 instead STOPS the timing NCO dead, so
            it never strobes again and the object never locks. Caught by the
            receiver-lock doc gate, which asserts a cold three-loop lock. */
-        double scale = 1.0 + control;
-        if (scale < 2.0 / 3.0)
-          scale = 2.0 / 3.0;
-        else if (scale > 2.0)
-          scale = 2.0;
+        double scale = nco_steer_scale (control, 2.0 / 3.0, 2.0);
         s->timing.phase_inc = nco_phase_units ((double)s->base_inc * scale);
         s->rate_est += 0.02 * ((double)s->sps / scale - s->rate_est);
         /* Lock statistic: lock_signal = 2*(|on-time|^2-|mid|^2)

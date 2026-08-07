@@ -1010,6 +1010,58 @@ main (void)
       }
   }
 
+  /* ----------------------------------------------------------------
+   * 18. nco_steer_scale — bound the request, so the conversion never
+   *     has to be the one making the decision.
+   * ---------------------------------------------------------------- */
+  {
+    volatile double c;
+    const double    lo = 2.0 / 3.0, hi = 2.0;
+
+    /* Inside the band, it is exactly 1 + control. */
+    c = 0.0;
+    CHECK (nco_steer_scale (c, lo, hi) == 1.0);
+    c = 0.5;
+    CHECK (nco_steer_scale (c, lo, hi) == 1.5);
+    c = -0.25;
+    CHECK (nco_steer_scale (c, lo, hi) == 0.75);
+
+    /* Outside, clamped to the band -- both ends. */
+    c = 5.0;
+    CHECK (nco_steer_scale (c, lo, hi) == hi);
+    c = -0.9;
+    CHECK (nco_steer_scale (c, lo, hi) == lo);
+
+    /* The case that motivated the whole thing: a control below -1 makes
+       the raw scale NEGATIVE, which floors an honest conversion to 0 --
+       a stopped NCO that never strobes again. It must land on lo, which
+       is a slow clock, not a dead one. */
+    c = -1.0;
+    CHECK (nco_steer_scale (c, lo, hi) == lo);
+    c = -2.0;
+    CHECK (nco_steer_scale (c, lo, hi) == lo);
+    c = -1e9;
+    CHECK (nco_steer_scale (c, lo, hi) == lo);
+    CHECK (nco_steer_scale (c, lo, hi) > 0.0); /* never a dead clock */
+
+    /* NaN lands on lo rather than sailing through to the cast. */
+    c = 0.0 / 0.0;
+    CHECK (nco_steer_scale (c, lo, hi) == lo);
+
+    /* Composed with the conversion, the product can neither floor nor
+       saturate for any control at all -- which is the whole point: the
+       conversion becomes a safety net, not the active path. */
+    for (int i = -400; i <= 400; i += 7)
+      {
+        volatile double ctl  = (double)i * 0.05;
+        double          sc   = nco_steer_scale (ctl, lo, hi);
+        uint32_t        base = 1073741824u; /* sps = 4 -> 2^32/4 */
+        uint32_t        inc  = nco_phase_units ((double)base * sc);
+        CHECK (inc > 0u);          /* never stopped   */
+        CHECK (inc < 4294967295u); /* never saturated */
+      }
+  }
+
   if (_fails)
     {
       fprintf (stderr, "test_nco_core FAILED (%d)\n", _fails);

@@ -11,22 +11,7 @@ ______________________________________________________________________
 > **API stability notice** — doppler is pre-1.0. Minor releases may
 > make breaking changes. Check this file before upgrading.
 
-## [Unreleased]
-
-### Changed
-
-- **`telemetry.Capture.close()` says what went wrong.** It reported
-    `ValueError: close failed (rc=-4)` — the canned string jm's
-    `status_return` could only ever raise — while the destructor, reaching the
-    *same* verdict, explained itself in full. A caller learned more from
-    letting the object fall out of scope than from asking it directly. Both
-    now carry the same text, which is the point: they are one condition.
-
-    Needs just-makeit 0.51.0 (gh-823 Ask D), where `status_return` gained
-    `error` / `error_message`. Adopting it also required deleting the sacred
-    fragment and re-applying — jm only ever *adds* missing members, so a
-    changed one stays as written, which is exactly what its new gh-815
-    result-shape warning exists to report.
+## [0.42.0] — 2026-08-07
 
 ### Breaking
 
@@ -109,111 +94,6 @@ ______________________________________________________________________
     records that the **overrun path is the slowest of the four** (an atomic
     read-modify-write on the drop counter, against a plain store for a
     successful write).
-
-### Removed
-
-- `dp_tlm_recorder_*` (never released). A 200 µs polling drain thread traded a
-    sizing guess for a scheduling guess and could not claim losslessness
-    either way; `dp_tlm_capture_*` supersedes it.
-
-### Changed
-
-- **BREAKING: `telemetry.Telemetry` renames four members**, as a consequence
-    of the module becoming fully manifest-owned — its binding is now generated
-    from `objects/dp_tlm.toml` with no hand-written CPython at all, and one
-    manifest string names both the C parameter and the Python keyword.
-
-    | was                     | now           | why                                                                                                        |
-    | ----------------------- | ------------- | ---------------------------------------------------------------------------------------------------------- |
-    | `read(max_records=-1)`  | `read(n=0)`   | one name for the C parameter and the keyword; `0`, not `-1`, means "everything available"                  |
-    | `probe_names()`         | `probe_names` | a declarative `type = "dict"` **is** a property in just-makeit; a dict-returning method is not expressible |
-    | `emit(probe_id, value)` | `emit(id, v)` | as above — the manifest names it once                                                                      |
-    | `emitted(probe_id)`     | `emitted(id)` | as above                                                                                                   |
-
-    Only `probe_names` is a forced change; the other three are the cost of
-    having one name instead of two that can drift. Positional calls to `emit`
-    and `emitted` are unaffected — only keyword callers need to change.
-
-    `Telemetry(0)` and a non-power-of-two size now both raise `ValueError`
-    rather than `ValueError` and `MemoryError` respectively. They were always
-    the same `NULL` from `dp_tlm_create`, and a rejected size is what it
-    almost always means.
-
-- **BREAKING: `ber.BerMeter.set_truth()` returns `None` and raises.** It
-    returned `0` and raised nothing, while its own documentation said
-    *"Raises ValueError if any index is outside 0..m-1"* and its C returns a
-    plain `DP_OK`/`DP_ERR_INVALID` status. The manifest had declared that
-    intent twice, in two spellings that both silently did nothing on a method
-    (`error` before just-makeit gh-805 §B, and `check_return`, which is a
-    `jm function` key). The header's own doctest had recorded the wrong
-    behaviour as expected output, so every face agreed with every other face
-    and all of them disagreed with the manifest. It now raises `ValueError`
-    on an out-of-range symbol index, as advertised.
-
-- **BREAKING: `wfm.Writer` now requires `fs`.** It used to default to `1e6`,
-    which made "nobody stated a rate" and "exactly 1 MHz" the same value — so
-    a capture written without one recorded a confident 1 MHz in its header,
-    in a file that outlives the process. Every container the writer emits
-    needs the rate (BLUE stores `xdelta = 1/fs`, SigMF `core:sample_rate`),
-    the caller knows it at construction, and that is now where it is asked
-    for. `fs` moves to the second positional slot, so
-    `Writer(path, fs, file_type=…)`; passing `fs=0.0` states "not known"
-    explicitly, writing `xdelta = 0` and no `core:sample_rate` at all.
-
-- **BREAKING: `write_blue_header()` now requires `fs` too**, in the second
-    positional slot — `write_blue_header(path, fs, sample_type=…)`, mirroring
-    `Writer`. `xdelta = 1/fs` is most of what a BLUE header *is*, so a
-    detached pair written with a forgotten rate is a real capture on disk
-    carrying none, with nobody ever asked for one. Omitting the key ended the
-    *fabrication*; it did not make anyone answer. Callers already passing
-    `fs=` as a keyword are unaffected. `fs=0.0` still states "not known" and
-    writes `xdelta = 0`.
-
-- **`Composer.to_sigmf()` derives an unstated `fs` from its segments.** It is
-    the one caller that should *not* be asked: a `Composer` already holds a
-    rate per segment, and the annotation edges in the very same document are
-    `±fs/(2·sps)` computed from it — so omitting `core:sample_rate` withheld
-    a rate the document demonstrably knew. It is derived when the segments
-    agree, left unstated when they disagree (no single rate is true of that
-    stream), and an explicit `fs=` always wins, for rendering a scene at a
-    resampled rate. Not breaking: it makes the no-argument call correct where
-    it used to be silent.
-
-- **SigMF metadata omits what it was not told.** `core:sample_rate` is
-    optional in SigMF 1.0.0 (only `core:datatype` and `core:version` are
-    required in `global`), so an unstated rate is now absent from the
-    document rather than emitted as a defaulted number. An absent key says
-    "not stated"; a present one is a value a downstream tool will act on.
-    `core:datetime` follows the same rule, and so now does
-    **`core:frequency`**, which was written as a confident `0` — i.e. "this
-    capture sits at baseband" — for every capture that simply never said. The
-    BLUE writer had always omitted its `FREQ` keyword at `fc == 0.0` and the
-    reader's `fc_source` reports `"none"` for an absent one, so the SigMF
-    path was the odd one out rather than this being a new convention.
-
-- **just-makeit pin 0.46.1 → 0.46.2.** Zero codegen drift: `jm apply`
-    re-renders four binding fragments in jm's K&R and clang-format returns
-    every one of them byte-identical, so only the three pins and `uv.lock`
-    change here.
-
-    The bump carries two fixes doppler filed. **gh-777** — a
-    `PyMethodDef`/`PyGetSetDef` row that is simply *absent* from a sacred
-    fragment is now `stale` rather than `unreconciled`, so `jm status   --check` fails on it and `jm apply` reconciles it. `unreconciled` was
-    always meant for a wrapper *body* that differs (the author's, which no jm
-    command clears); it was also swallowing a missing row, which let a member
-    stay in the `.pyi` while the extension did not define it, indefinitely,
-    with CI green. Measured on this tree, the clean result is unchanged —
-    `2139 match, 72 unreconciled` — so the reclassification only bites where
-    something was already wrong.
-
-    **gh-779** — adding an `enum =` property to an *existing* fragment now
-    brings the enum table's declaration with it. It previously emitted the
-    table's use and not its declaration, so the module did not compile, and
-    the workaround was to delete the fragment and let `jm apply` recreate it.
-    That workaround is retired; it is how `wfm_reader`'s `fs_source` /
-    `t0_source` had to be added.
-
-### Added
 
 - **`raw` and `csv` captures keep their metadata in a sidecar.** Both file
     types take `fs`, `fc` and `t0` at construction and have nowhere in the
@@ -314,6 +194,122 @@ ______________________________________________________________________
     mandatory on the Python face for now. The signature is already the one
     that works once jm allows it, so the fix turns a `TypeError` into a
     working call with nothing to migrate.
+
+### Changed
+
+- **`telemetry.Capture.close()` says what went wrong.** It reported
+    `ValueError: close failed (rc=-4)` — the canned string jm's
+    `status_return` could only ever raise — while the destructor, reaching the
+    *same* verdict, explained itself in full. A caller learned more from
+    letting the object fall out of scope than from asking it directly. Both
+    now carry the same text, which is the point: they are one condition.
+
+    Needs just-makeit 0.51.0 (gh-823 Ask D), where `status_return` gained
+    `error` / `error_message`. Adopting it also required deleting the sacred
+    fragment and re-applying — jm only ever *adds* missing members, so a
+    changed one stays as written, which is exactly what its new gh-815
+    result-shape warning exists to report.
+
+- **BREAKING: `telemetry.Telemetry` renames four members**, as a consequence
+    of the module becoming fully manifest-owned — its binding is now generated
+    from `objects/dp_tlm.toml` with no hand-written CPython at all, and one
+    manifest string names both the C parameter and the Python keyword.
+
+    | was                     | now           | why                                                                                                        |
+    | ----------------------- | ------------- | ---------------------------------------------------------------------------------------------------------- |
+    | `read(max_records=-1)`  | `read(n=0)`   | one name for the C parameter and the keyword; `0`, not `-1`, means "everything available"                  |
+    | `probe_names()`         | `probe_names` | a declarative `type = "dict"` **is** a property in just-makeit; a dict-returning method is not expressible |
+    | `emit(probe_id, value)` | `emit(id, v)` | as above — the manifest names it once                                                                      |
+    | `emitted(probe_id)`     | `emitted(id)` | as above                                                                                                   |
+
+    Only `probe_names` is a forced change; the other three are the cost of
+    having one name instead of two that can drift. Positional calls to `emit`
+    and `emitted` are unaffected — only keyword callers need to change.
+
+    `Telemetry(0)` and a non-power-of-two size now both raise `ValueError`
+    rather than `ValueError` and `MemoryError` respectively. They were always
+    the same `NULL` from `dp_tlm_create`, and a rejected size is what it
+    almost always means.
+
+- **BREAKING: `ber.BerMeter.set_truth()` returns `None` and raises.** It
+    returned `0` and raised nothing, while its own documentation said
+    *"Raises ValueError if any index is outside 0..m-1"* and its C returns a
+    plain `DP_OK`/`DP_ERR_INVALID` status. The manifest had declared that
+    intent twice, in two spellings that both silently did nothing on a method
+    (`error` before just-makeit gh-805 §B, and `check_return`, which is a
+    `jm function` key). The header's own doctest had recorded the wrong
+    behaviour as expected output, so every face agreed with every other face
+    and all of them disagreed with the manifest. It now raises `ValueError`
+    on an out-of-range symbol index, as advertised.
+
+- **BREAKING: `wfm.Writer` now requires `fs`.** It used to default to `1e6`,
+    which made "nobody stated a rate" and "exactly 1 MHz" the same value — so
+    a capture written without one recorded a confident 1 MHz in its header,
+    in a file that outlives the process. Every container the writer emits
+    needs the rate (BLUE stores `xdelta = 1/fs`, SigMF `core:sample_rate`),
+    the caller knows it at construction, and that is now where it is asked
+    for. `fs` moves to the second positional slot, so
+    `Writer(path, fs, file_type=…)`; passing `fs=0.0` states "not known"
+    explicitly, writing `xdelta = 0` and no `core:sample_rate` at all.
+
+- **BREAKING: `write_blue_header()` now requires `fs` too**, in the second
+    positional slot — `write_blue_header(path, fs, sample_type=…)`, mirroring
+    `Writer`. `xdelta = 1/fs` is most of what a BLUE header *is*, so a
+    detached pair written with a forgotten rate is a real capture on disk
+    carrying none, with nobody ever asked for one. Omitting the key ended the
+    *fabrication*; it did not make anyone answer. Callers already passing
+    `fs=` as a keyword are unaffected. `fs=0.0` still states "not known" and
+    writes `xdelta = 0`.
+
+- **`Composer.to_sigmf()` derives an unstated `fs` from its segments.** It is
+    the one caller that should *not* be asked: a `Composer` already holds a
+    rate per segment, and the annotation edges in the very same document are
+    `±fs/(2·sps)` computed from it — so omitting `core:sample_rate` withheld
+    a rate the document demonstrably knew. It is derived when the segments
+    agree, left unstated when they disagree (no single rate is true of that
+    stream), and an explicit `fs=` always wins, for rendering a scene at a
+    resampled rate. Not breaking: it makes the no-argument call correct where
+    it used to be silent.
+
+- **SigMF metadata omits what it was not told.** `core:sample_rate` is
+    optional in SigMF 1.0.0 (only `core:datatype` and `core:version` are
+    required in `global`), so an unstated rate is now absent from the
+    document rather than emitted as a defaulted number. An absent key says
+    "not stated"; a present one is a value a downstream tool will act on.
+    `core:datetime` follows the same rule, and so now does
+    **`core:frequency`**, which was written as a confident `0` — i.e. "this
+    capture sits at baseband" — for every capture that simply never said. The
+    BLUE writer had always omitted its `FREQ` keyword at `fc == 0.0` and the
+    reader's `fc_source` reports `"none"` for an absent one, so the SigMF
+    path was the odd one out rather than this being a new convention.
+
+- **just-makeit pin 0.46.1 → 0.46.2.** Zero codegen drift: `jm apply`
+    re-renders four binding fragments in jm's K&R and clang-format returns
+    every one of them byte-identical, so only the three pins and `uv.lock`
+    change here.
+
+    The bump carries two fixes doppler filed. **gh-777** — a
+    `PyMethodDef`/`PyGetSetDef` row that is simply *absent* from a sacred
+    fragment is now `stale` rather than `unreconciled`, so `jm status   --check` fails on it and `jm apply` reconciles it. `unreconciled` was
+    always meant for a wrapper *body* that differs (the author's, which no jm
+    command clears); it was also swallowing a missing row, which let a member
+    stay in the `.pyi` while the extension did not define it, indefinitely,
+    with CI green. Measured on this tree, the clean result is unchanged —
+    `2139 match, 72 unreconciled` — so the reclassification only bites where
+    something was already wrong.
+
+    **gh-779** — adding an `enum =` property to an *existing* fragment now
+    brings the enum table's declaration with it. It previously emitted the
+    table's use and not its declaration, so the module did not compile, and
+    the workaround was to delete the fragment and let `jm apply` recreate it.
+    That workaround is retired; it is how `wfm_reader`'s `fs_source` /
+    `t0_source` had to be added.
+
+### Removed
+
+- `dp_tlm_recorder_*` (never released). A 200 µs polling drain thread traded a
+    sizing guess for a scheduling guess and could not claim losslessness
+    either way; `dp_tlm_capture_*` supersedes it.
 
 ### Fixed
 
@@ -4415,6 +4411,7 @@ ______________________________________________________________________
 [0.4.1]: https://github.com/doppler-dsp/doppler/compare/v0.4.0...v0.4.1
 [0.40.0]: https://github.com/doppler-dsp/doppler/compare/v0.39.0...v0.40.0
 [0.41.0]: https://github.com/doppler-dsp/doppler/compare/v0.40.0...v0.41.0
+[0.42.0]: https://github.com/doppler-dsp/doppler/compare/v0.41.0...v0.42.0
 [0.5.0]: https://github.com/doppler-dsp/doppler/compare/v0.4.1...v0.5.0
 [0.5.1]: https://github.com/doppler-dsp/doppler/compare/v0.5.0...v0.5.1
 [0.5.2]: https://github.com/doppler-dsp/doppler/compare/v0.5.1...v0.5.2
@@ -4425,4 +4422,3 @@ ______________________________________________________________________
 [0.7.0]: https://github.com/doppler-dsp/doppler/compare/v0.6.0...v0.7.0
 [0.8.0]: https://github.com/doppler-dsp/doppler/compare/v0.7.0...v0.8.0
 [0.9.0]: https://github.com/doppler-dsp/doppler/compare/v0.8.0...v0.9.0
-[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.41.0...HEAD

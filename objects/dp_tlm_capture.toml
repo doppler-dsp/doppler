@@ -22,6 +22,13 @@ no_reset = "true"
 arg_type = "float _Complex"
 return_type = "float _Complex"
 create_fn = "dp_tlm_capture_open_memory"
+# A file-backed capture writes on its own thread so disk latency never lands on
+# the block boundary, so the core and everything linking it need pthreads. This
+# is invisible on a modern glibc (>= 2.34 folds libpthread into libc) and fatal
+# on an older one -- doppler's glibc 2.28 / Debian 10 job is what catches it,
+# and it caught exactly this when the hand-written CMakeLists' Threads::Threads
+# was dropped on the way to being generated.
+extra_link_libs = ["Threads::Threads"]
 
 # A NULL from open() is almost never OOM. It is one of four stated conditions,
 # and "no probes attached" is by far the likeliest — the bound is computed from

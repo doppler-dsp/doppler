@@ -8,6 +8,7 @@ target_link_libraries(telemetry PRIVATE
     telemetry_core
     dp_tlm_core
     dp_tlm_capture_core
+    Threads::Threads
     timing_core
     Python3::NumPy)
 target_include_directories(telemetry PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)

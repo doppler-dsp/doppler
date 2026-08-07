@@ -45,6 +45,56 @@ extern "C"
 #endif
 
   /**
+   * @brief Double -> phase word: the ONLY float-to-integer conversion in
+   *        the phase-accumulator family.
+   *
+   * C99 guarantees the integer half of a phase accumulator outright --
+   * unsigned arithmetic is reduced modulo 2^N for every unsigned type
+   * (6.2.5p9) and `uintN_t` is exactly N bits with no padding (7.20.1.1) --
+   * so wrapping, carry and borrow need no reasoning at any width.
+   * Undefined behaviour can enter at exactly one place: a `double` whose
+   * truncated value the integer type cannot represent (6.3.1.4). That makes
+   * confining the conversion a STRUCTURAL rule rather than a stylistic one.
+   * A second site anywhere forfeits the guarantee no matter how careful this
+   * function is, so every `double`-valued phase quantity -- a folded
+   * frequency, a reciprocal `2^32 / rate`, a steered `inc * (1 + control)`
+   * -- does its arithmetic in `double` and then passes through here.
+   *
+   * Three real sites proved the point before this existed, each computing
+   * its own cast and each undefined at its boundary: `resamp` at
+   * `rate == 1.0` and `symsync` at `sps == 1` both produced **0** on x86
+   * (a phase increment that never advances -- a dead NCO) where arm64
+   * saturates, and `symsync`'s loop steer did not clamp but WRAPPED, so a
+   * control asking to speed up returned roughly a ninth of the correct
+   * increment.
+   *
+   * Behaviour here is total and host-independent: below zero (and NaN,
+   * which the negated comparison rejects rather than passing to the cast)
+   * gives 0; at or above 2^32 saturates to 2^32-1; in between it TRUNCATES
+   * toward zero, so the realised value is at most one step low and never
+   * high -- the convention @ref nco_norm_to_inc documents, now enforced in
+   * one place. Saturation is the honest answer at the limit: a phase word
+   * cannot express more than one cycle per sample, and clamping says so
+   * where a wrap would silently invert the caller's intent.
+   *
+   * @param units  A phase quantity already scaled to phase-word units
+   *               (i.e. cycles x 2^32). Any value, including NaN.
+   * @return `units` truncated into `[0, 2^32)`.
+   */
+  JM_FORCEINLINE uint32_t
+  nco_phase_units (double units)
+  {
+    /* Establish 6.3.1.4's precondition rather than assume it. The negated
+       form is deliberate: every comparison with NaN is false, so `!(u > 0)`
+       rejects NaN where `u < 0.0` would wave it through to the cast. */
+    if (!(units > 0.0))
+      return 0u;
+    if (units >= 4294967296.0)
+      return 4294967295u;
+    return (uint32_t)units;
+  }
+
+  /**
    * @brief Normalised cycles -> uint32 phase delta, the ONE shared
    *        primitive for this conversion.
    *
@@ -90,27 +140,14 @@ extern "C"
   JM_FORCEINLINE uint32_t
   nco_norm_to_inc (double cycles)
   {
-    double d = cycles - floor (cycles); /* fractional cycles, [0, 1] */
     /* The fold is in [0, 1) mathematically but NOT in floating point: for
        any cycles in [-2^-53, 0) the subtraction rounds up to exactly 1.0
-       (`-1e-20 - (-1) == 1.0`). The true fraction is then in (1-2^-53, 1),
-       whose truncation is 2^32-1 -- the same value -1e-16, one representable
-       step away, already returns. Return it explicitly, because letting 1.0
-       reach the cast is the out-of-range float->unsigned conversion (C99
-       6.3.1.4, undefined) that this convention exists to avoid: measured,
-       x86 yields 0 (a FROZEN NCO) where arm64 saturates to 2^32-1, and gcc
-       folds a compile-time constant to 2^32-1 while emitting the freezing
-       instruction for a runtime value. */
-    if (d >= 1.0)
-      return 4294967295u;
-    /* Truncate toward zero: the C99 float->unsigned conversion (6.3.1.4)
-       discards the fractional part, and d < 1 makes d*2^32 strictly < 2^32,
-       so the result is always in [0, 2^32) -- the documented contract, with
-       no host-FP-sensitive rounding. (llround here could round d*2^32 UP to
-       exactly 2^32 for d ~ 0.9999..., and (uint32_t)2^32 == 0 would freeze
-       the NCO -- x86 landed on 2^32-1, arm64 on 2^32, hanging the closed
-       loop on arm64.) */
-    return (uint32_t)(d * 4294967296.0);
+       (`-1e-20 - (-1) == 1.0`), so the product reaches 2^32 and only
+       nco_phase_units() keeps that out of the cast. The true fraction is
+       then in (1 - 2^-53, 1), whose truncation is 2^32-1 -- the same value
+       -1e-16, one representable step away, already returns. */
+    double d = cycles - floor (cycles);
+    return nco_phase_units (d * 4294967296.0);
   }
 
 /**

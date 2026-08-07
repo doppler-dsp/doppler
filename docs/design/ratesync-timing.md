@@ -257,8 +257,17 @@ and everything downstream is integer.** Anywhere a second site does its own
 `double → uint32_t`, the guarantee is gone, and no amount of care at the
 primitive restores it.
 
-doppler does not hold that rule today. Four `norm_freq → phase_inc`
-conversions exist and only the first routes through `nco_norm_to_inc`:
+doppler now holds that rule. `nco_phase_units (double) -> uint32_t` is the
+single conversion, and it is total: below zero — and NaN, which the negated
+comparison rejects rather than passing to the cast — gives 0, at or above 2^32
+saturates to `2^32-1`, and in between it truncates toward zero, so the realised
+value is at most one step low and never high. Saturation is the honest answer
+at the limit: a phase word cannot express more than one cycle per sample, and
+clamping says so where a wrap silently inverts the caller's intent.
+
+Four `norm_freq → phase_inc` conversions existed and only the first routed
+through the primitive. Each is measured below at the boundary that broke it,
+and each of those is now a test that fails if the site is reverted:
 
 | site                           | shape                      | measured at the boundary                                 |
 | ------------------------------ | -------------------------- | -------------------------------------------------------- |
@@ -267,19 +276,34 @@ conversions exist and only the first routes through `nco_norm_to_inc`:
 | `symsync_core.c:148`           | `2^32 / sps`               | `sps = 1.0` → **0**                                      |
 | `symsync_core.h:214`           | `base_inc · (1 + control)` | `control = +0.5` → **536870912** for an exact 4831838208 |
 
-All three unguarded sites are live, not theoretical. `resamp`'s `upsample` flag
-is `rate >= 1.0`, so `rate == 1.0` — the rate `ratesync`'s terminal stage
-actually runs at — takes the divide branch and computes `(uint32_t)2^32`. The
-`symsync` steer is worse than a saturation: at `control = +0.5` the increment
-does not clamp, it **wraps to about a ninth of its correct value**, silently,
-on the active steering path of a closed timing loop.
+None of the three were theoretical. `resamp`'s `upsample` flag is `rate >= 1.0`,
+so `rate == 1.0` — the rate `ratesync`'s terminal stage actually runs at — took
+the divide branch into `(uint32_t)2^32`. `symsync`'s constructor does not reject
+`sps == 1` (it only maps `0 → 1`, which lands on the same value), so a dead
+timing NCO was reachable straight from the public API. And the steer was worse
+than a saturation: it did not clamp, it **wrapped to about a ninth of the
+correct increment**, so a loop asking to speed up got a large slow-down,
+silently, on the active steering path.
 
-The three shapes want one helper, not three fixes: do the arithmetic in
-`double`, then pass through a single guarded `double → phase units` conversion
-that is the only such cast in the codebase, with `nco_norm_to_inc` as one
-caller of it rather than the exception that happens to be correct. That is also
-what retires the duplication CLAUDE.md already records across `nco_core.c`,
-`lo_core.c` and `dll_core.h`.
+Each test needs `volatile` on its inputs to mean anything. With literal
+arguments gcc constant-folds the out-of-range conversion using its own
+saturating rules, and the check passes at `-O2` without the cast ever
+executing — the first version of the `nco_norm_to_inc` test passed for exactly
+that reason before the fix existed.
+
+**Still open: `lo_core.c` keeps a fifth, private copy.** Its AVX-512
+`lo_steps_ctrl` computes `ctrl_inc` with `_mm512_cvtps_epu32` on a **float32**
+fold, while the scalar tail of the same function (and its non-AVX fallback)
+calls `nco_norm_to_inc` on a **double**. The comment at the SIMD site claims it
+rounds *"to match `nco_norm_to_inc()`'s convention"* — but that convention is
+truncation, and the reason it is truncation is the host-determinism this very
+divergence breaks. So the two halves of one function disagree by up to a phase
+unit for small `ctrl`, which is the settled-loop regime. Not undefined (the ISA
+defines the conversion, and out-of-range yields `0xFFFFFFFF`, which now agrees
+with `nco_phase_units`), but untested: there is no scalar/SIMD parity test for
+`lo`, and the block is `#ifdef __AVX512F__`, so a portable build never compiles
+it. Folding it in retires the last of the duplication CLAUDE.md records across
+`nco_core.c`, `lo_core.c` and `dll_core.h`.
 
 Unless stated otherwise every number below is QPSK, `sps = 8`, `m = 8`,
 `num_phases = 32`, `pulse = "rrc"` with `beta = 0.35, span = 8` on both sides,

@@ -210,8 +210,11 @@ extern "C"
         double e       = num / (s->pwr_avg + 1e-6);
         s->last_error  = e;
         double control = loop_filter_step (&s->lf, e);
+        /* Steer through the shared conversion: the product exceeds 2^32
+           for a large positive control, and a bare cast WRAPS -- asking the
+           loop to speed up would return a far smaller increment. */
         s->timing.phase_inc
-            = (uint32_t)((double)s->base_inc * (1.0 + control));
+            = nco_phase_units ((double)s->base_inc * (1.0 + control));
         double inst = (double)s->sps / (1.0 + control);
         double lo_r = 0.5 * (double)s->sps, hi_r = 1.5 * (double)s->sps;
         if (inst < lo_r)

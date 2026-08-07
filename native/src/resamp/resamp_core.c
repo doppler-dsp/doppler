@@ -1,4 +1,5 @@
 #include "resamp/resamp_core.h"
+#include "nco/nco_core.h"
 #include <math.h>
 #include <string.h>
 
@@ -131,9 +132,11 @@ _create_from_bank (size_t num_phases, size_t num_taps, float *bank_owned,
   s->upsample    = (rate >= 1.0);
   s->bank        = bank_owned;
   s->phase       = 0;
-  s->phase_inc   = s->upsample ? (uint32_t)(4294967296.0 / rate)
-                               : (uint32_t)(rate * 4294967296.0);
-  s->ctrl_acc    = 0.0;
+  /* One conversion, via the shared primitive: at rate == 1.0 the divide
+     branch reaches exactly 2^32, which a bare cast leaves undefined. */
+  s->phase_inc = s->upsample ? nco_phase_units (4294967296.0 / rate)
+                             : nco_phase_units (rate * 4294967296.0);
+  s->ctrl_acc  = 0.0;
 
   /* delay line: power-of-2 dual buffer */
   s->delay_cap = 1;
@@ -287,8 +290,8 @@ resamp_set_rate (resamp_state_t *s, double rate)
 {
   s->rate      = rate;
   s->upsample  = (rate >= 1.0);
-  s->phase_inc = s->upsample ? (uint32_t)(4294967296.0 / rate)
-                             : (uint32_t)(rate * 4294967296.0);
+  s->phase_inc = s->upsample ? nco_phase_units (4294967296.0 / rate)
+                             : nco_phase_units (rate * 4294967296.0);
 }
 
 size_t

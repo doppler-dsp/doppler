@@ -513,6 +513,47 @@ main (void)
    * timing loop's ctrl passes through this band routinely.
    * ---------------------------------------------------------------- */
   {
+    /* nco_phase_units is the one conversion; pin its total contract here,
+       because every other site now inherits it. `volatile` throughout for
+       the same constant-folding reason as below. */
+    volatile double u;
+
+    u = -1.0;
+    CHECK (nco_phase_units (u) == 0u);
+    u = -1e-300;
+    CHECK (nco_phase_units (u) == 0u);
+    u = 0.0;
+    CHECK (nco_phase_units (u) == 0u);
+    u = -0.0;
+    CHECK (nco_phase_units (u) == 0u);
+    u = 0.0 / 0.0;
+    CHECK (nco_phase_units (u) == 0u); /* NaN, not a wrap */
+    u = 1.0 / 0.0;
+    CHECK (nco_phase_units (u) == 4294967295u); /* +inf  */
+    u = -1.0 / 0.0;
+    CHECK (nco_phase_units (u) == 0u); /* -inf  */
+
+    /* Saturation at and above one full cycle per sample. */
+    u = 4294967296.0;
+    CHECK (nco_phase_units (u) == 4294967295u);
+    u = 8589934592.0;
+    CHECK (nco_phase_units (u) == 4294967295u);
+    u = 4294967295.5;
+    CHECK (nco_phase_units (u) == 4294967295u);
+
+    /* In range: truncate toward zero, so the value is at most one step low
+       and never high -- the convention the whole family relies on. */
+    u = 0.9;
+    CHECK (nco_phase_units (u) == 0u);
+    u = 1.9;
+    CHECK (nco_phase_units (u) == 1u);
+    u = 2147483648.0;
+    CHECK (nco_phase_units (u) == 2147483648u);
+    u = 4294967294.7;
+    CHECK (nco_phase_units (u) == 4294967294u);
+  }
+
+  {
     /* `volatile` is load-bearing, not decoration. With literal arguments
        the compiler CONSTANT-FOLDS the out-of-range conversion using its
        own saturating rules and the bug vanishes: at -O2 gcc folds these

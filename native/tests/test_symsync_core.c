@@ -442,6 +442,61 @@ main (void)
     free (lsym);
   }
 
+  /* nominal_inc must survive sps == 1.
+   *
+   * nominal_inc computes (uint32_t)(2^32 / sps); at sps == 1 that is the
+   * out-of-range conversion, and x86 yields 0 -- a timing NCO that never
+   * wraps, so the object emits NO strobes at all. create() does not reject
+   * sps == 1 (it only maps 0 -> 1, which lands on the same value), so this
+   * is reachable straight from the public constructor. At sps == 1 every
+   * input is a symbol. */
+  {
+    symsync_state_t *s1
+        = symsync_create (1, 0.01, 0.707, 2, SYMSYNC_TED_GARDNER);
+    CHECK (s1 != NULL);
+    if (s1)
+      {
+        CHECK (s1->base_inc != 0u); /* a zero increment is a dead NCO */
+        enum
+        {
+          N = 256
+        };
+        float complex xin[N], yout[N];
+        for (int i = 0; i < N; i++)
+          xin[i] = (i & 1) ? 1.0f + 0.0f * I : -1.0f + 0.0f * I;
+        size_t got = symsync_steps (s1, xin, N, yout, N);
+        CHECK (got > (size_t)(N / 2)); /* ~one symbol per input at sps=1 */
+        symsync_destroy (s1);
+      }
+  }
+
+  /* The loop steer must saturate, never wrap.
+   *
+   * phase_inc = (uint32_t)(base_inc * (1.0 + control)) overflows whenever
+   * control drives the product past 2^32. That is not a clamp: it WRAPS, so
+   * a large positive control (loop asking to speed up) silently produces a
+   * much SMALLER increment -- at base_inc = 0.75*2^32 and control = +0.5 the
+   * exact 4831838208 became 536870912, about a ninth. Whatever the policy at
+   * the limit, the increment must be monotone in control: asking for more
+   * rate can never yield less. The loop-filter integrator is preset to force
+   * the control, since a TED error large enough is not reproducible. */
+  {
+    symsync_state_t *s2
+        = symsync_create (4, 0.01, 0.707, 2, SYMSYNC_TED_GARDNER);
+    CHECK (s2 != NULL);
+    if (s2)
+      {
+        s2->base_inc = 3221225472u; /* 0.75 * 2^32 */
+        s2->lf.integ = 2.0;         /* drives control strongly positive */
+        float complex xin[16], yout[16];
+        for (int i = 0; i < 16; i++)
+          xin[i] = (i & 2) ? 1.0f + 0.0f * I : -1.0f + 0.0f * I;
+        symsync_steps (s2, xin, 16, yout, 16);
+        CHECK (s2->timing.phase_inc >= s2->base_inc);
+        symsync_destroy (s2);
+      }
+  }
+
   if (_fails)
     {
       fprintf (stderr, "test_symsync_core FAILED (%d)\n", _fails);

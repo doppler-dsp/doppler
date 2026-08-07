@@ -1,7 +1,7 @@
 include = ["objects/*.toml"]
 
 [project]
-jm_version = "0.50.0"
+jm_version = "0.51.0"
 name = "doppler"
 version = "0.1.0"
 build = "cmake"
@@ -91,8 +91,36 @@ c_deps = ["hbdecim", "resamp", "wfmcompose"]
 # forward declaration for it). The gh-133 check now treats `static` as
 # optional before inline/JM_FORCEINLINE, so the existing definition alone
 # satisfies the manifest again.
+# jm 0.51.0 (gh-823 Ask B) added a THIRD constructor-drift axis -- optionality --
+# and made the whole kwargs-drift class fail `jm status --check` rather than
+# qualify the "OK" line. It found three in doppler. One was a real, shipping
+# defect and is FIXED: CarrierAcquisition's published constructor could not be
+# called as documented (see the 0.42.0 CHANGELOG). The two below are the same
+# CLASS of divergence but neither breaks a documented call, so they are exempted
+# here rather than rushed:
+#
+#   resample_ext_Resampler.c -- the binding is a SUPERSET. It still accepts
+#     `bank=` (a real, working custom polyphase bank: passing a non-array gets
+#     "bank must be 2-D float32", not a TypeError) while the manifest and stub
+#     no longer declare it. Calling as documented works; the gap is that a
+#     working parameter is undocumented. Declaring it is doppler#635, and it
+#     wants jm's `optional` array init-param, which is a separate ask.
+#
+#   wfm_ext_wfm_synth.c -- positional ORDER drift on `_SynthEngine`, which is
+#     underscore-private (the public `wfm.Synth` is compose.py's wrapper) and is
+#     only ever constructed with keywords, in tests. Keyword callers bind
+#     correctly, so nothing is currently wrong; a positional caller would bind
+#     silently to the wrong fields, which is why it is tracked rather than
+#     accepted forever.
+#
+# NB `status_allow` matches PATHS, not findings, so each entry also accepts that
+# file's stale/missing classification -- it is broader than the reason it was
+# added for (just-makeit#823). Re-check both on every pin bump; jm lists an
+# allowed kwargs finding under KWARGS with a `~`, so they stay visible.
 status_allow = [
     "zensical.toml",
+    "native/src/resample/resample_ext_Resampler.c",
+    "native/src/wfm/wfm_ext_wfm_synth.c",
 ]
 
 # Benchmark only the 64k block (jm-gh-390). doppler dropped the small-block

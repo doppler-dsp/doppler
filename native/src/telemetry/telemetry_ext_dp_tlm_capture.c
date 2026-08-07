@@ -255,7 +255,8 @@ MemoryCaptureObj_block (MemoryCaptureObject *self,
   int _rc = dp_tlm_capture_block (self->handle);
   if (_rc != 0)
     {
-      PyErr_Format (PyExc_ValueError, "block failed (rc=%d)", _rc);
+      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)", "block failed",
+                    (long long)_rc);
       return NULL;
     }
   Py_RETURN_NONE;
@@ -273,7 +274,12 @@ MemoryCaptureObj_close (MemoryCaptureObject *self,
   int _rc = dp_tlm_capture_close (self->handle);
   if (_rc != 0)
     {
-      PyErr_Format (PyExc_ValueError, "close failed (rc=%d)", _rc);
+      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
+                    "the capture has a hole: records were dropped, which the "
+                    "block bound makes impossible unless a step ran longer "
+                    "than block_samples or no boundary was reached at all — "
+                    "see Capture.dropped",
+                    (long long)_rc);
       return NULL;
     }
   Py_RETURN_NONE;
@@ -449,8 +455,10 @@ static PyMethodDef MemoryCaptureObj_methods[] = {
     ">>> pid = tlm.probe(\"agc.gain_db\")\n"
     ">>> cap = MemoryCapture(tlm, 256, SampleClock(1e6))\n"
     ">>> tlm.emit(pid, 1.5)\n"
-    ">>> cap.block()          # explicit boundary; set_now() does this for "
-    "you\n"
+    "\n"
+    "An explicit boundary; set_now() reaches this for you:\n"
+    "\n"
+    ">>> cap.block()\n"
     ">>> cap.count\n"
     "1\n" },
   { "close", (PyCFunction)MemoryCaptureObj_close, METH_NOARGS,
@@ -485,9 +493,9 @@ static PyMethodDef MemoryCaptureObj_methods[] = {
     ">>> bad = MemoryCapture(tlm2, 8, SampleClock(1e6))\n"
     ">>> for i in range(20000):\n"
     "...     tlm2.emit(p2, float(i))\n"
-    ">>> bad.close()\n"
+    ">>> bad.close()  # doctest: +ELLIPSIS\n"
     "Traceback (most recent call last):\n"
-    "ValueError: close failed (rc=-4)\n" },
+    "ValueError: the capture has a hole: ...\n" },
   { "destroy", (PyCFunction)MemoryCaptureObj_destroy, METH_NOARGS,
     "Release the underlying C resources immediately.\n"
     "\n"
@@ -557,7 +565,30 @@ static PyTypeObject MemoryCaptureObjType = {
     "Read\n"
     "    at close(), so later track() corrections are picked up. Must "
     "outlive\n"
-    "    the capture. Pass None to state that there is no time base.\n",
+    "    the capture. Required: the C API takes NULL here to mean `no time "
+    "base\n"
+    "    stated` and then omits the sidecar keys rather than fabricating a "
+    "rate,\n"
+    "    but a capsule constructor argument cannot yet accept None\n"
+    "    (just-makeit#823), so there is currently no way to say it from "
+    "Python.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.telemetry import Telemetry, MemoryCapture\n"
+    ">>> from doppler.wfm import SampleClock\n"
+    ">>> tlm = Telemetry(1 << 12)\n"
+    ">>> pid = tlm.probe(\"agc.gain_db\")   # probes FIRST: they set the "
+    "bound\n"
+    ">>> cap = MemoryCapture(tlm, 256, SampleClock(1e6))\n"
+    ">>> for blk in range(4):\n"
+    "...     tlm.set_now(blk * 256)       # drains the block just finished\n"
+    "...     tlm.emit(pid, float(blk))\n"
+    ">>> cap.close()                      # raises if anything was lost\n"
+    ">>> [float(v) for v in cap.records()[\"value\"]]\n"
+    "[0.0, 1.0, 2.0, 3.0]\n"
+    ">>> cap.dropped\n"
+    "0\n",
   .tp_methods = MemoryCaptureObj_methods,
   .tp_getset  = MemoryCapture_getset,
   .tp_new     = MemoryCaptureObj_new,

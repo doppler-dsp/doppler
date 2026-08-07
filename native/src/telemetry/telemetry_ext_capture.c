@@ -183,7 +183,8 @@ CaptureObj_block (CaptureObject *self, PyObject *Py_UNUSED (ignored))
   int _rc = dp_tlm_capture_block (self->handle);
   if (_rc != 0)
     {
-      PyErr_Format (PyExc_ValueError, "block failed (rc=%d)", _rc);
+      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)", "block failed",
+                    (long long)_rc);
       return NULL;
     }
   Py_RETURN_NONE;
@@ -200,7 +201,12 @@ CaptureObj_close (CaptureObject *self, PyObject *Py_UNUSED (ignored))
   int _rc = dp_tlm_capture_close (self->handle);
   if (_rc != 0)
     {
-      PyErr_Format (PyExc_ValueError, "close failed (rc=%d)", _rc);
+      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
+                    "the capture has a hole: records were dropped, which the "
+                    "block bound makes impossible unless a step ran longer "
+                    "than block_samples or no boundary was reached at all — "
+                    "see Capture.dropped",
+                    (long long)_rc);
       return NULL;
     }
   Py_RETURN_NONE;
@@ -320,8 +326,10 @@ static PyMethodDef CaptureObj_methods[] = {
     ">>> pid = tlm.probe(\"agc.gain_db\")\n"
     ">>> cap = MemoryCapture(tlm, 256, SampleClock(1e6))\n"
     ">>> tlm.emit(pid, 1.5)\n"
-    ">>> cap.block()          # explicit boundary; set_now() does this for "
-    "you\n"
+    "\n"
+    "An explicit boundary; set_now() reaches this for you:\n"
+    "\n"
+    ">>> cap.block()\n"
     ">>> cap.count\n"
     "1\n" },
   { "close", (PyCFunction)CaptureObj_close, METH_NOARGS,
@@ -356,9 +364,9 @@ static PyMethodDef CaptureObj_methods[] = {
     ">>> bad = MemoryCapture(tlm2, 8, SampleClock(1e6))\n"
     ">>> for i in range(20000):\n"
     "...     tlm2.emit(p2, float(i))\n"
-    ">>> bad.close()\n"
+    ">>> bad.close()  # doctest: +ELLIPSIS\n"
     "Traceback (most recent call last):\n"
-    "ValueError: close failed (rc=-4)\n" },
+    "ValueError: the capture has a hole: ...\n" },
   { "destroy", (PyCFunction)CaptureObj_destroy, METH_NOARGS,
     "Release the underlying C resources immediately.\n"
     "\n"

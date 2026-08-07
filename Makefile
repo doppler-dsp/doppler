@@ -629,10 +629,18 @@ docs-relink: ## Regenerate every generated doc region
 	uv run python scripts/gen_readme.py --write
 	uv run python scripts/gen_install_scripts.py --write
 	uv run python scripts/gen_doc_versions.py --write
+	uv run python scripts/gen_jm_pin.py --write
 
 # The jm manifest drift gate. --no-install-project because the gate only reads
 # the manifest, so there is no reason to build the C extension for it.
 drift-check: ## jm manifest drift gate (CI's 'jm manifest drift')
+# FIRST, and before the sync: the pin states the jm version in three files, and
+# a bump that misses one used to be invisible — jm's gh-183 skew notice is a
+# `warning:` line in a wall of advisory output and does not fail anything
+# (mutation-verified: reverting the downstream pin alone left this target
+# exiting 0). Checking here, ahead of the sync, also stops us installing one jm
+# and gating with a manifest that names another.
+	uv run python scripts/gen_jm_pin.py --check
 	uv sync --group dev --no-install-project
 	uv run just-makeit status --check
 	@echo "── downstream jm example ──"

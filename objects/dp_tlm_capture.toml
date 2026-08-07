@@ -54,12 +54,16 @@ doc = "The LARGEST number of input samples processed between two boundaries — 
 # Borrowed, never copied: two copies of a time base drift, and the one written
 # into a file is the copy nobody can correct afterwards.
 #
-# MANDATORY on the Python face, and that is a jm limitation rather than the
-# design's intent. The C takes NULL to mean "no time base stated", and the
-# sidecar then omits the keys instead of fabricating a rate -- but a gh-790
-# capsule INIT-param rejects Py_None unconditionally, while a gh-432 capsule
-# METHOD param (AGC.set_telemetry(None, ...)) maps it straight to NULL. One
-# concept, two implementations that disagree; filed upstream.
+# NULLABLE as of just-makeit 0.53.0 (gh-805 SS-H): `required` omitted below
+# means Py_None reaches C as NULL, which is what the C has always meant by it
+# -- "no time base stated", after which the sidecar omits the rate and epoch
+# keys instead of fabricating them. gh-790 used to reject None unconditionally
+# while the gh-432 METHOD path mapped it to NULL; honouring `required` on both
+# closed that. Do NOT add `required = true` here: it would restore the refusal.
+#
+# The ARGUMENT is still not omittable -- accepting None and being omittable are
+# different axes, and the stub's `= ...` is a jm-side divergence (just-makeit
+# #845), which is why both entries stay in .init-param-optionality-ignore.
 #
 # Deliberately left as a plain positional rather than routed around (a
 # set_clock() method, or dropping the param): this signature is ALREADY the
@@ -72,7 +76,7 @@ name = "clock"
 type = "const dp_sample_clock_t *"
 capsule = "doppler.wfm.dp_sample_clock"
 header = "timing/timing_core.h"
-doc = "The pipeline's sample clock, borrowed for the sidecar's time base. Read at close(), so later track() corrections are picked up. Must outlive the capture. Required: the C API takes NULL here to mean `no time base stated` and then omits the sidecar keys rather than fabricating a rate, but a capsule constructor argument cannot yet accept None (just-makeit#823), so there is currently no way to say it from Python."
+doc = "The pipeline's sample clock, borrowed for the sidecar's time base. Read at close(), so later track() corrections are picked up. Must outlive the capture. Pass None to state that there is no time base: the sidecar then omits the rate and epoch keys rather than fabricating them into a file that outlives the process. The argument itself is not omittable — say None deliberately."
 
 # ── the file flavour ────────────────────────────────────────────────────────
 #
@@ -101,7 +105,7 @@ init_params = [
   { name = "tlm", type = "dp_tlm_t *", capsule = "doppler.telemetry.dp_tlm", header = "dp_tlm/dp_tlm_core.h", required = true, doc = "Telemetry context to capture. Must outlive the capture." },
   { name = "block_samples", type = "size_t", required = true, doc = "The LARGEST number of input samples processed between two boundaries — the step of your own block loop." },
   { name = "path", type = "path", required = true, doc = "Output file, truncated if it exists. The 16-byte record layout IS the file, so np.fromfile reads it directly; a <path>-meta JSON sidecar carries the probe table, the counters and the time base." },
-  { name = "clock", type = "const dp_sample_clock_t *", capsule = "doppler.wfm.dp_sample_clock", header = "timing/timing_core.h", doc = "The pipeline's sample clock, borrowed for the sidecar's time base. Required — see MemoryCapture; None is not accepted yet (just-makeit#823)." },
+  { name = "clock", type = "const dp_sample_clock_t *", capsule = "doppler.wfm.dp_sample_clock", header = "timing/timing_core.h", doc = "The pipeline's sample clock, borrowed for the sidecar's time base — see MemoryCapture. Pass None to state that there is no time base; the argument itself is not omittable." },
 ]
 
 # ── methods ─────────────────────────────────────────────────────────────────

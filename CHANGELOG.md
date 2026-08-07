@@ -13,6 +13,31 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+### Added
+
+- **`telemetry.Capture` / `MemoryCapture` accept `clock=None`**, which states
+    that there is no time base. The C has always read `NULL` here that way —
+    the sidecar then omits `fs` and `epoch_real_ns` rather than fabricating a
+    rate into a file that outlives the process — and only the Python face could
+    not say it. It now can, and the sidecar is verified to omit both keys when
+    told `None` and to carry them when given a clock.
+
+    The manifest needed no change: just-makeit 0.53.0 (gh-805 §H) honours the
+    `required` key that was already there, and `clock` never set it. **Do not
+    add `required = true` to it** — that now restores the refusal.
+
+    Reaching doppler took deleting the two sacred `_ext` fragments and
+    re-applying: jm only ever *adds* missing members to a sacred fragment, so a
+    changed constructor body stays as written and the fix was stranded upstream
+    until the fragments were refreshed.
+
+    **The argument is still not omittable** — `MemoryCapture(tlm, block)` raises.
+    Accepting `None` and being omittable are different axes; the stub says
+    `clock: Any = ...` and the binding disagrees, which is
+    [just-makeit#845](https://github.com/just-buildit/just-makeit/issues/845)
+    and stays in `scripts/.init-param-optionality-ignore`. A test pins the
+    current behaviour so it fails when that is fixed.
+
 ### Changed
 
 - **just-makeit pin 0.51.0 → 0.52.0.** Zero codegen drift: `jm apply`

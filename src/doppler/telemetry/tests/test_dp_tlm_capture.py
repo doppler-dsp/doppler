@@ -196,3 +196,53 @@ def test_second_capture_on_one_context_is_refused():
         pytest.raises(ValueError),
     ):
         MemoryCapture(tlm, BLOCK, SampleClock(1e6))
+
+
+class TestTheClockIsNullable:
+    """``clock=None`` states that there is no time base, and C means it.
+
+    The C has always taken ``NULL`` here to mean "no time base stated", after
+    which the sidecar omits the rate and epoch rather than fabricating them
+    into a file that outlives the process. Only the binding refused to say it,
+    until just-makeit 0.53.0 honoured ``required`` on a capsule init-param
+    (gh-805 §H). These pin the two halves apart, because they are different
+    axes and only one of them moved.
+    """
+
+    def test_none_is_accepted_and_the_capture_still_works(self):
+        tlm, pid = _tlm()
+        cap = MemoryCapture(tlm, BLOCK, None)
+        tlm.emit(pid, 1.5)
+        cap.close()
+        recs = cap.records()
+        assert len(recs) == 1
+        assert recs[0]["value"] == pytest.approx(1.5)
+
+    def test_a_real_clock_is_still_accepted_both_ways(self):
+        clk = SampleClock(1e6)
+        for arg in (clk, clk._capsule):
+            tlm, _ = _tlm()
+            MemoryCapture(tlm, BLOCK, arg).close()
+
+    def test_the_argument_is_not_omittable(self):
+        # Accepting None and being omittable are different axes. The stub
+        # renders `clock: Any = ...` and the binding requires the argument —
+        # a live divergence carried in scripts/.init-param-optionality-ignore
+        # and filed as just-makeit#845. This test is what tells us when it
+        # is fixed upstream: it will start failing.
+        tlm, _ = _tlm()
+        with pytest.raises(TypeError, match="clock"):
+            MemoryCapture(tlm, BLOCK)
+
+    def test_file_flavour_omits_the_time_base_when_told_none(self, tmp_path):
+        import json
+
+        path = tmp_path / "cap.tlm16"
+        tlm, pid = _tlm()
+        cap = Capture(tlm, BLOCK, path, None)
+        tlm.emit(pid, 2.0)
+        cap.close()
+        meta = json.loads((tmp_path / "cap.tlm16-meta").read_text())
+        # Not fabricated: absent, not a confident zero.
+        assert "fs" not in meta
+        assert "epoch_real_ns" not in meta

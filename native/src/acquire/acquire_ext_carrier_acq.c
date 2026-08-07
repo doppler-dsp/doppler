@@ -38,26 +38,26 @@ static int
 CarrierAcquisitionObj_init (CarrierAcquisitionObject *self, PyObject *args,
                             PyObject *kwds)
 {
-  static char       *kwlist[]         = { "psd_template",
-                                          "sample_rate_hz",
+  static char       *kwlist[]         = { "sample_rate_hz",
                                           "symbol_rate_hz",
                                           "resolution_hz",
                                           "zero_pad",
                                           "window",
                                           "beta",
+                                          "psd_template",
                                           "pfa",
                                           "pd",
                                           "design_snr",
                                           "sequential",
                                           "max_n_blocks",
                                           NULL };
-  PyObject          *psd_template_obj = NULL;
   double             sample_rate_hz   = 0.0;
   double             symbol_rate_hz   = 0.0;
   double             resolution_hz    = 0.0;
   unsigned long long zero_pad_raw     = 4;
   const char        *window_str       = "hann";
   float              beta             = 0.0f;
+  PyObject          *psd_template_obj = NULL;
   double             pfa              = 1e-3;
   double             pd               = 0.9;
   double             design_snr       = 2.0;
@@ -65,9 +65,9 @@ CarrierAcquisitionObj_init (CarrierAcquisitionObject *self, PyObject *args,
   unsigned long long max_n_blocks_raw = 100000;
 
   if (!PyArg_ParseTupleAndKeywords (
-          args, kwds, "O|dddKsfdddpK", kwlist, &psd_template_obj,
-          &sample_rate_hz, &symbol_rate_hz, &resolution_hz, &zero_pad_raw,
-          &window_str, &beta, &pfa, &pd, &design_snr, &sequential_raw,
+          args, kwds, "dd|dKsfOdddpK", kwlist, &sample_rate_hz,
+          &symbol_rate_hz, &resolution_hz, &zero_pad_raw, &window_str, &beta,
+          &psd_template_obj, &pfa, &pd, &design_snr, &sequential_raw,
           &max_n_blocks_raw))
     return -1;
   size_t zero_pad = (size_t)zero_pad_raw;
@@ -88,18 +88,23 @@ CarrierAcquisitionObj_init (CarrierAcquisitionObject *self, PyObject *args,
     }
   bool           sequential       = (int)sequential_raw;
   size_t         max_n_blocks     = (size_t)max_n_blocks_raw;
-  PyArrayObject *psd_template_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      psd_template_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS);
-  if (!psd_template_arr)
+  PyArrayObject *psd_template_arr = NULL;
+  size_t         psd_template_len = 0;
+  if (psd_template_obj && psd_template_obj != Py_None)
     {
-      return -1;
+      psd_template_arr = (PyArrayObject *)PyArray_FROM_OTF (
+          psd_template_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS);
+      if (!psd_template_arr)
+        {
+          return -1;
+        }
+      psd_template_len = (size_t)PyArray_SIZE (psd_template_arr);
     }
-  size_t psd_template_len = (size_t)PyArray_SIZE (psd_template_arr);
-  self->handle            = carrier_acq_create (
+  self->handle = carrier_acq_create (
       sample_rate_hz, symbol_rate_hz, resolution_hz, zero_pad, window, beta,
-      (const float *)PyArray_DATA (psd_template_arr), psd_template_len, pfa,
-      pd, design_snr, sequential, max_n_blocks);
-  Py_DECREF (psd_template_arr);
+      psd_template_arr ? (const float *)PyArray_DATA (psd_template_arr) : NULL,
+      psd_template_len, pfa, pd, design_snr, sequential, max_n_blocks);
+  Py_XDECREF (psd_template_arr);
   if (!self->handle)
     {
       PyErr_SetString (PyExc_MemoryError, "carrier_acq_create returned NULL");
@@ -338,8 +343,8 @@ static PyMethodDef CarrierAcquisitionObj_methods[] = {
     METH_VARARGS | METH_KEYWORDS,
     "steps(x) -> None\n"
     "\n"
-    "Fold raw complex samples into the running PSD average and test for a "
-    "detection; any chunk size across repeated calls (a partial trailing "
+    "Fold raw complex samples into the running PSD average and test for a\n"
+    "detection; any chunk size across repeated calls (a partial trailing\n"
     "block carries to the next call).\n"
     "\n"
     "Parameters\n"
@@ -368,8 +373,8 @@ static PyMethodDef CarrierAcquisitionObj_methods[] = {
   { "reset", (PyCFunction)CarrierAcquisitionObj_reset, METH_NOARGS,
     "reset() -> None\n"
     "\n"
-    "Discard the running PSD average and detection state; counters return to "
-    "zero.\n"
+    "Discard the running PSD average and detection state; counters return\n"
+    "to zero.\n"
     "\n"
     "Use it to reuse one detector across successive captures: after a\n"
     "detection (or a give-up) the running average and counters are cleared,\n"
@@ -425,9 +430,9 @@ static PyMethodDef CarrierAcquisitionObj_methods[] = {
     "Restore mutable state from a `get_state()` blob.\n"
     "\n"
     "Overwrites the live state in place; the object keeps the parameters it\n"
-    "was constructed with. Length is validated against `state_bytes()` "
-    "before\n"
-    "the blob is handed to the C core, and the core may reject it as well.\n"
+    "was constructed with. Length is validated against `state_bytes()`\n"
+    "before the blob is handed to the C core, and the core may reject it as\n"
+    "well.\n"
     "\n"
     "Raises ``TypeError`` if *blob* is not bytes, ``ValueError`` if its\n"
     "length differs from `state_bytes()` or the core rejects it, and\n"
@@ -444,12 +449,11 @@ static PyMethodDef CarrierAcquisitionObj_methods[] = {
     "\n"
     "Ordinarily unnecessary: the resources are freed when the object is\n"
     "garbage-collected. Call this to release them at a definite point\n"
-    "instead, or use the object as a context manager, which calls it on "
+    "instead, or use the object as a context manager, which calls it on\n"
     "exit.\n"
     "\n"
-    "Idempotent: calling it again on an already-released object does "
-    "nothing.\n"
-    "Every other method raises ``RuntimeError`` once it has run.\n" },
+    "Idempotent: calling it again on an already-released object does\n"
+    "nothing. Every other method raises ``RuntimeError`` once it has run.\n" },
   { "__enter__", (PyCFunction)CarrierAcquisitionObj_enter, METH_NOARGS,
     "Enter a context manager, returning this object.\n"
     "\n"
@@ -464,9 +468,8 @@ static PyMethodDef CarrierAcquisitionObj_methods[] = {
     "Exit a context manager, releasing the CarrierAcq.\n"
     "\n"
     "Equivalent to calling `destroy()`. Returns ``None``, so an exception\n"
-    "raised inside the `with` body propagates normally; this never "
-    "suppresses\n"
-    "one.\n"
+    "raised inside the `with` body propagates normally; this never\n"
+    "suppresses one.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -484,7 +487,81 @@ static PyTypeObject CarrierAcquisitionObjType = {
   .tp_basicsize                           = sizeof (CarrierAcquisitionObject),
   .tp_dealloc = (destructor)CarrierAcquisitionObj_dealloc,
   .tp_flags   = Py_TPFLAGS_DEFAULT,
-  .tp_doc     = "Create a carrier_acq instance.\n",
+  .tp_doc
+  = "Create a carrier_acq instance.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "sample_rate_hz : float\n"
+    "    Sample rate of the input stream, Hz (required).\n"
+    "symbol_rate_hz : float\n"
+    "    Symbol rate, Hz -- builds the default template (required).\n"
+    "resolution_hz : float, default 0.0\n"
+    "    Desired FFT frequency resolution, Hz. <= 0.0 is a sentinel meaning\n"
+    "    \"auto\": symbol_rate_hz/10.0.\n"
+    "zero_pad : int, default 4\n"
+    "    PSD zero-pad factor (>= 1); see psd_core.h.\n"
+    "window : Literal[\"hann\", \"kaiser\", \"blackman-harris\"], default "
+    "\"hann\"\n"
+    "    Enum index; 0=hann, 1=kaiser, 2=blackman-harris.\n"
+    "beta : float, default 0.0\n"
+    "    Kaiser beta (ignored for hann/blackman-harris).\n"
+    "psd_template : NDArray[np.float32], default ...\n"
+    "    Known PSD-shape template override, length must equal nfft =\n"
+    "    next_pow2(round(sample_rate_hz /resolution_hz) * zero_pad);\n"
+    "    NULL/length-0 means \"not supplied\" -- the default "
+    "rectangular-pulse\n"
+    "    sinc^2 template (from symbol_rate_hz) is used.\n"
+    "pfa : float, default 1e-3\n"
+    "    Target per-test false-alarm probability.\n"
+    "pd : float, default 0.9\n"
+    "    Target detection probability.\n"
+    "design_snr : float, default 2.0\n"
+    "    Assumed per-sample amplitude SNR used ONLY to precompute "
+    "dwell_target\n"
+    "    via det_n_noncoh(); not a live measurement. An optimistic guess "
+    "only\n"
+    "    affects NON-sequential mode (which trusts this one-shot wait count\n"
+    "    outright) -- sequential mode's own give-up bound is max_n_blocks, "
+    "not\n"
+    "    dwell_target, precisely so a wrong design_snr can't stop it from "
+    "trying\n"
+    "    more blocks once real data shows it needs to.\n"
+    "sequential : bool, default True\n"
+    "    True: test for a detection after EVERY block (the per-block CFAR "
+    "ratio\n"
+    "    threshold -- see _ratio_threshold() in carrier_acq_core.c -- "
+    "tightens\n"
+    "    as more looks accumulate), stopping the moment one fires or\n"
+    "    max_n_blocks is reached. False: accumulate silently and test once, "
+    "at\n"
+    "    dwell_target.\n"
+    "max_n_blocks : int, default 100000\n"
+    "    Sequential mode's own give-up cap (ignored by non-sequential mode,\n"
+    "    which stops at dwell_target instead) -- deliberately a SEPARATE,\n"
+    "    generous bound from dwell_target; capping sequential mode at\n"
+    "    design_snr's own point estimate would defeat the reason to test "
+    "every\n"
+    "    block in the first place.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.acquire import CarrierAcquisition\n"
+    ">>> rng = np.random.default_rng(12345)\n"
+    ">>> bits = np.where(rng.integers(0, 2, 4000), 1.0, -1.0)\n"
+    ">>> data = np.repeat(bits, 8)                 # 8 samples/symbol BPSK\n"
+    ">>> t = np.arange(len(data))\n"
+    ">>> x = (data * np.exp(2j * np.pi * 123.0 * t / 8000.0)).astype(\n"
+    "...     np.complex64)  # residual carrier at 123 Hz\n"
+    ">>> ca = CarrierAcquisition(\n"
+    "...     sample_rate_hz=8000.0, symbol_rate_hz=1000.0,\n"
+    "...     psd_template=np.array([], dtype=np.float32))\n"
+    ">>> ca.steps(x)                   # fold the stream, testing each block\n"
+    ">>> ca.ready                      # detection fired\n"
+    "True\n"
+    ">>> round(ca.residual_hz, 0)      # recovered residual carrier, Hz\n"
+    "123.0\n",
   .tp_methods = CarrierAcquisitionObj_methods,
   .tp_getset  = CarrierAcquisition_getset,
   .tp_new     = CarrierAcquisitionObj_new,

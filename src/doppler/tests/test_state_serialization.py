@@ -461,9 +461,9 @@ CASES: dict[str, tuple[Callable[[], Any], _Feed]] = {
     # genuine in-progress resume, like PSD's/Corr's own entries above.
     "CarrierAcquisition": (
         lambda: CarrierAcquisition(
-            np.array([], dtype=np.float32),
             16000.0,
             1000.0,
+            psd_template=np.array([], dtype=np.float32),
             resolution_hz=1000.0,
             zero_pad=1,
             design_snr=0.1,

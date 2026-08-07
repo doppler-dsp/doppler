@@ -73,8 +73,8 @@ class CarrierAcquisition:
     """
     def __init__(
         self,
-        sample_rate_hz: float = ...,
-        symbol_rate_hz: float = ...,
+        sample_rate_hz: float,
+        symbol_rate_hz: float,
         resolution_hz: float = ...,
         zero_pad: int = ...,
         window: Literal["hann", "kaiser", "blackman-harris"] = "hann",

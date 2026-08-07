@@ -48,10 +48,12 @@ serializable = "true"
 [[carrier_acq.init_params]]
 name = "sample_rate_hz"
 type = "double"
+required = true
 
 [[carrier_acq.init_params]]
 name = "symbol_rate_hz"
 type = "double"
+required = true
 
 # 0.0 is a sentinel meaning "auto": carrier_acq_create() substitutes
 # symbol_rate_hz/10.0 internally (a reasonable default granularity for

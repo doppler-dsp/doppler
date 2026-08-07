@@ -125,5 +125,13 @@ class SampleClock:
     @property
     def max_lateness(self) -> float:
         """max_lateness (float)."""
+    @property
+    def _capsule(self) -> Any:
+        """Borrowed `doppler.wfm.dp_sample_clock` capsule for this handle.
+
+        Pass it (or this object) wherever a `doppler.wfm.dp_sample_clock`
+        capsule is accepted. Non-owning: it does not free the
+        handle, and is only valid while this object is alive
+        and open."""
     def close(self) -> None:
         """Release the handle and free resources."""

@@ -32,3 +32,10 @@ wfm_writer
 # config, restored by re-registering; `now` is borrowed from the pipeline's
 # dp_sample_clock_t, not owned here.
 dp_tlm
+# The capture over that ring — the same argument, plus a stronger one. It owns
+# an open FILE* and a live writer thread (the wfm_reader/wfm_writer case
+# exactly), and its losslessness is a claim about ONE run, from open() to
+# close(): the drop count it renders a verdict on is latched against the
+# context at open. A resumed capture would carry a verdict that means nothing.
+# Capture a new one instead.
+dp_tlm_capture

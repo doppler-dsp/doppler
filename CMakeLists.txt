@@ -274,6 +274,11 @@ target_sources(doppler_lib_static PRIVATE $<TARGET_OBJECTS:specan_core>)
 add_subdirectory(native/src/ddcr)
 target_sources(doppler_lib PRIVATE $<TARGET_OBJECTS:ddcr_core>)
 target_sources(doppler_lib_static PRIVATE $<TARGET_OBJECTS:ddcr_core>)
+add_subdirectory(native/src/dp_tlm_capture)
+target_sources(doppler_lib PRIVATE $<TARGET_OBJECTS:timing_core>)
+target_sources(doppler_lib_static PRIVATE $<TARGET_OBJECTS:timing_core>)
+target_sources(doppler_lib PRIVATE $<TARGET_OBJECTS:dp_tlm_capture_core>)
+target_sources(doppler_lib_static PRIVATE $<TARGET_OBJECTS:dp_tlm_capture_core>)
 add_subdirectory(native/src/dp_tlm)
 target_sources(doppler_lib PRIVATE $<TARGET_OBJECTS:dp_tlm_core>)
 target_sources(doppler_lib_static PRIVATE $<TARGET_OBJECTS:dp_tlm_core>)
@@ -443,8 +448,23 @@ target_sources(doppler_lib_static PRIVATE $<TARGET_OBJECTS:wfm_draw_core>)
 target_sources(doppler_lib PRIVATE $<TARGET_OBJECTS:wfm_reader_core>)
 target_sources(doppler_lib_static PRIVATE $<TARGET_OBJECTS:wfm_reader_core>)
 add_subdirectory(native/src/buffer)
-add_subdirectory(native/src/dp_tlm_capture)
 add_subdirectory(native/src/stream)
+# The capture's block bound is claimed from a code audit of every emit site.
+# This drives a REAL object -- carrier_nda, the only unconditional per-input
+# emitter -- and measures what it actually emits, so the audit is checked
+# rather than believed. It belongs to no single component (it spans dp_tlm,
+# the capture and a whole receiver chain), so jm emits no target for it and it
+# is registered here alongside the other cross-cutting suites. It previously
+# lived in native/src/dp_tlm_capture/CMakeLists.txt, which jm now owns.
+add_executable(test_tlm_bound_real native/tests/test_tlm_bound_real.c)
+target_link_libraries(
+  test_tlm_bound_real
+  PRIVATE dp_tlm_capture_core dp_tlm_core carrier_nda_core lo_core
+          loop_filter_core boxcar_core agc_core lockdet_core Threads::Threads m)
+target_include_directories(test_tlm_bound_real
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
+add_test(NAME test_tlm_bound_real COMMAND test_tlm_bound_real)
+
 # The detection module's free functions (marcum_q, det_* sizing) live in
 # module-level TUs, so jm emits no C test target for them — register the
 # module-level test here (per-object tests are jm-generated in their own

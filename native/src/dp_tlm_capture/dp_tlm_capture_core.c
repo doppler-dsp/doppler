@@ -477,6 +477,16 @@ dp_tlm_capture_close (dp_tlm_capture_t *c)
   return rc;
 }
 
+dp_tlm_capture_t *
+dp_tlm_capture_open_memory (dp_tlm_t *t, size_t block_samples,
+                            const dp_sample_clock_t *clock)
+{
+  /* Memory mode IS open() with no path — a separate entry point rather than a
+     separate implementation, so the two flavours cannot acquire different
+     sizing or latching behaviour. */
+  return dp_tlm_capture_open (t, block_samples, NULL, clock);
+}
+
 size_t
 dp_tlm_capture_count (const dp_tlm_capture_t *c)
 {
@@ -489,19 +499,44 @@ dp_tlm_capture_records (const dp_tlm_capture_t *c)
   return (c && c->acc_n) ? c->acc : NULL;
 }
 
+size_t
+dp_tlm_capture_read_max_out (const dp_tlm_capture_t *c)
+{
+  return c ? c->acc_n : 0;
+}
+
+size_t
+dp_tlm_capture_read (const dp_tlm_capture_t *c, size_t n, dp_tlm_rec_t *out,
+                     size_t max_out)
+{
+  if (!c || !out || !c->acc_n)
+    return 0;
+  /* Clamped to the smaller of the request and the destination, exactly as
+     dp_tlm_read() does — n == 0 means "everything", so it is the request that
+     drops out of the min, not the capacity. */
+  size_t want = (n == 0 || n > c->acc_n) ? c->acc_n : n;
+  if (want > max_out)
+    want = max_out;
+  memcpy (out, c->acc, want * sizeof *out);
+  return want;
+}
+
 uint64_t
 dp_tlm_capture_dropped (const dp_tlm_capture_t *c)
 {
   return c ? c->dropped : 0;
 }
 
-void
+int
 dp_tlm_capture_destroy (dp_tlm_capture_t *c)
 {
   if (!c)
-    return;
-  if (!c->closed)
-    dp_tlm_capture_close (c);
+    return DP_OK;
+  /* The verdict is REPORTED, not discarded: a `with` block's exit and a
+     garbage collection both arrive here, and those are exactly the paths a
+     hole would otherwise slip out through. Freeing happens either way — the
+     return value carries the bad news, it does not withhold the cleanup. */
+  int rc = c->closed ? c->verdict : dp_tlm_capture_close (c);
   if (c->path)
     {
       pthread_cond_destroy (&c->free_cv);
@@ -513,4 +548,5 @@ dp_tlm_capture_destroy (dp_tlm_capture_t *c)
   free (c->acc);
   free (c->path);
   free (c);
+  return rc;
 }

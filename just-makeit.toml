@@ -261,6 +261,12 @@ header          = "timing/timing_core.h"
 package         = "wfm"
 type_name       = "SampleClock"
 init_fn         = "dp_sample_clock_init"
+# gh-794: publish the handle's pointer so a capture can be CONSTRUCTED over
+# this clock (its `clock` init-param is a gh-790 capsule param). A clock is
+# exactly the long-lived borrowed resource that shape exists for -- and the
+# capture must borrow it rather than copy fs/t0, so the two cannot drift.
+# Borrowed, non-owning, NULL destructor; the closed-handle guard still applies.
+capsule         = "doppler.wfm.dp_sample_clock"
 # Empty close_fn: the clock owns no internal resources, so teardown is jm's
 # free(self->h) alone (no <backing>_close finalizer). init_fn makes jm own the
 # malloc/free.
@@ -1340,13 +1346,7 @@ Examples
 0
 
 """
-objects = ["dp_tlm"]
-
-[module.dp_tlm_capture]
-# Hand-owned C component: the lossless capture over a dp_tlm ring. Declared so
-# jm renders its add_subdirectory line into the CMake component region it owns
-# -- a hand-added line there is dropped on the next apply.
-no_generate = "true"
+objects = ["dp_tlm", "dp_tlm_capture"]
 
 [module.stream]
 doc = """

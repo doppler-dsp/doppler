@@ -402,3 +402,390 @@ class Telemetry:
         tb : object | None
             Traceback object, or None. Ignored.
         """
+
+@final
+class MemoryCapture:
+    """Opens a capture that accumulates in memory instead of a file.
+
+    Parameters
+    ----------
+    tlm : Any
+        Telemetry context to capture. Must outlive the capture.
+    block_samples : int
+        The LARGEST number of input samples processed between two boundaries —
+        the step of your own block loop, not a buffer size to tune.
+        Over-stating it costs only memory; under-stating it is the one way to
+        lose a record, and close() reports it.
+    clock : Any
+        The pipeline's sample clock, borrowed for the sidecar's time base. Read
+        at close(), so later track() corrections are picked up. Must outlive
+        the capture. Pass None to state that there is no time base.
+
+    Examples
+    --------
+    >>> from doppler.telemetry import Telemetry, MemoryCapture
+    >>> from doppler.wfm import SampleClock
+    >>> tlm = Telemetry(1 << 12)
+    >>> pid = tlm.probe("agc.gain_db")   # probes FIRST: they set the bound
+    >>> cap = MemoryCapture(tlm, 256, SampleClock(1e6))
+    >>> for blk in range(4):
+    ...     tlm.set_now(blk * 256)       # drains the block just finished
+    ...     tlm.emit(pid, float(blk))
+    >>> cap.close()                      # raises if anything was lost
+    >>> [float(v) for v in cap.records()["value"]]
+    [0.0, 1.0, 2.0, 3.0]
+    >>> cap.dropped
+    0
+
+    """
+    def __init__(
+        self,
+        tlm: Any,
+        block_samples: int,
+        clock: Any = ...,
+    ) -> None: ...
+
+    def records(self, n: int = 0) -> NDArray[Any]:
+        """The accumulated records, contiguous and in emission order.
+
+        Memory mode only (path was NULL) — in file mode the file *is* the
+        capture and this returns NULL. Owned by the capture and invalidated by
+        dp_tlm_capture_destroy(); NULL when nothing was captured, so use
+        dp_tlm_capture_count() to tell empty from absent.
+
+        The Python face binds the COPYING twin, dp_tlm_capture_read(), because
+        a borrowed pointer the capture can free is not something a binding may
+        hand out. This example is duplicated there deliberately: jm derives a
+        method's docstring from the `<component>_<method>` symbol while `fn`
+        chooses the one it calls, so the two must carry the same text or the
+        .pyi and the runtime `__doc__` disagree (checked by
+        scripts/check_doc_face_parity.py).
+
+        Parameters
+        ----------
+        n : int
+            Input.
+
+        Returns
+        -------
+        NDArray[Any]
+            Output.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.telemetry import Telemetry, MemoryCapture
+        >>> from doppler.wfm import SampleClock
+        >>> tlm = Telemetry(1 << 12)
+        >>> pid = tlm.probe("agc.gain_db")
+        >>> cap = MemoryCapture(tlm, 256, SampleClock(1e6))
+        >>> for blk in range(4):
+        ...     tlm.set_now(blk * 256)
+        ...     tlm.emit(pid, float(blk))
+        >>> cap.close()
+        >>> [float(v) for v in cap.records()["value"]]
+        [0.0, 1.0, 2.0, 3.0]
+        >>> cap.records(2).shape             # 0 (the default) means "all"
+        (2,)
+
+        """
+
+    def block(self) -> None:
+        """Block boundary: drains the ring to empty.
+
+        Grows the ring first if probes appeared since the last boundary, which
+        is safe precisely here — the ring is about to be emptied and the
+        producer is between blocks. Then copies everything available into the
+        active staging buffer, handing it to the sink and swapping when it can
+        no longer hold another block.
+
+        **May block** in file mode, if the writer still holds the other buffer.
+        That wait is the backpressure that keeps the capture lossless; it
+        happens at the boundary, never inside the DSP loop.
+
+        Usually reached through dp_tlm_set_now() rather than called directly.
+
+        Examples
+        --------
+        >>> from doppler.telemetry import Telemetry, MemoryCapture
+        >>> from doppler.wfm import SampleClock
+        >>> tlm = Telemetry(1 << 12)
+        >>> pid = tlm.probe("agc.gain_db")
+        >>> cap = MemoryCapture(tlm, 256, SampleClock(1e6))
+        >>> tlm.emit(pid, 1.5)
+        >>> cap.block()          # explicit boundary; set_now() does this for you
+        >>> cap.count
+        1
+
+        """
+
+    def close(self) -> None:
+        """Final boundary, then flush, join, and write the sidecar.
+
+        Sweeps the tail the last block left behind, drains the staging buffers,
+        joins the writer thread, closes the file and writes `<path>-meta`.
+        Idempotent: a second call is a no-op returning the first call's
+        verdict.
+
+        Examples
+        --------
+        >>> from doppler.telemetry import Telemetry, MemoryCapture
+        >>> from doppler.wfm import SampleClock
+        >>> tlm = Telemetry(1 << 12)
+        >>> pid = tlm.probe("agc.gain_db")
+        >>> cap = MemoryCapture(tlm, 256, SampleClock(1e6))
+        >>> for blk in range(4):
+        ...     tlm.set_now(blk * 256)
+        ...     tlm.emit(pid, float(blk))
+        >>> cap.close()          # silent: the block contract was honoured
+        >>> cap.close()          # idempotent, same verdict
+
+        Breaking the contract -- here, never reaching a boundary at all -- is the
+        one way to lose a record, and it is reported rather than absorbed:
+
+        >>> tlm2 = Telemetry(1 << 12)
+        >>> p2 = tlm2.probe("x")
+        >>> bad = MemoryCapture(tlm2, 8, SampleClock(1e6))
+        >>> for i in range(20000):
+        ...     tlm2.emit(p2, float(i))
+        >>> bad.close()
+        Traceback (most recent call last):
+        ValueError: close failed (rc=-4)
+
+        """
+
+    @property
+    def count(self) -> int:
+        """Records captured so far, across memory and file alike."""
+
+    @property
+    def dropped(self) -> int:
+        """Records the ring dropped during THIS capture (latched at open
+        against the context's monotonic counter). Non-zero means a hole.
+        """
+
+    def destroy(self) -> None:
+        """Release the underlying C resources immediately.
+
+        Ordinarily unnecessary: the resources are freed when the object is
+        garbage-collected. Call this to release them at a definite point
+        instead, or use the object as a context manager, which calls it on
+        exit.
+
+        Idempotent: calling it again on an already-released object does
+        nothing. Every other method raises ``RuntimeError`` once it has run.
+
+        Raises
+        ------
+        ValueError
+            If the C destructor reports failure. Raised from an explicit call
+            and from ``__exit__`` alike, so a failing teardown propagates out
+            of a ``with`` block (gh-541).
+        """
+
+
+    def __enter__(self) -> "MemoryCapture":
+        """Enter a context manager, returning this object.
+
+        Lets a MemoryCapture be used in a `with` statement so its C resources
+        are released deterministically on exit rather than at collection time.
+
+        Returns
+        -------
+        MemoryCapture
+            This same object, not a copy.
+        """
+
+    def __exit__(
+        self,
+        exc_type: object | None = ...,
+        exc: object | None = ...,
+        tb: object | None = ...,
+    ) -> None:
+        """Exit a context manager, releasing the MemoryCapture.
+
+        Equivalent to calling `destroy()`. Returns ``None``, so an exception
+        raised inside the `with` body propagates normally; this never
+        suppresses one.
+
+        Parameters
+        ----------
+        exc_type : object | None
+            Exception class, or None. Ignored.
+        exc : object | None
+            Exception instance, or None. Ignored.
+        tb : object | None
+            Traceback object, or None. Ignored.
+        """
+
+@final
+class Capture:
+    """Opens a capture that accumulates in memory instead of a file.
+
+    Parameters
+    ----------
+    tlm : Any
+        Telemetry context to capture. Must outlive the capture.
+    block_samples : int
+        The LARGEST number of input samples processed between two boundaries —
+        the step of your own block loop.
+    path : str | os.PathLike
+        Output file, truncated if it exists. The 16-byte record layout IS the
+        file, so np.fromfile reads it directly; a <path>-meta JSON sidecar
+        carries the probe table, the counters and the time base.
+    clock : Any
+        The pipeline's sample clock, borrowed for the sidecar's time base. Pass
+        None to state that there is no time base.
+
+    Examples
+    --------
+    >>> from doppler.telemetry import Telemetry, MemoryCapture
+    >>> from doppler.wfm import SampleClock
+    >>> tlm = Telemetry(1 << 12)
+    >>> pid = tlm.probe("agc.gain_db")   # probes FIRST: they set the bound
+    >>> cap = MemoryCapture(tlm, 256, SampleClock(1e6))
+    >>> for blk in range(4):
+    ...     tlm.set_now(blk * 256)       # drains the block just finished
+    ...     tlm.emit(pid, float(blk))
+    >>> cap.close()                      # raises if anything was lost
+    >>> [float(v) for v in cap.records()["value"]]
+    [0.0, 1.0, 2.0, 3.0]
+    >>> cap.dropped
+    0
+
+    """
+    def __init__(
+        self,
+        tlm: Any,
+        block_samples: int,
+        path: str | os.PathLike,
+        clock: Any = ...,
+    ) -> None: ...
+
+    def block(self) -> None:
+        """Block boundary: drains the ring to empty.
+
+        Grows the ring first if probes appeared since the last boundary, which
+        is safe precisely here — the ring is about to be emptied and the
+        producer is between blocks. Then copies everything available into the
+        active staging buffer, handing it to the sink and swapping when it can
+        no longer hold another block.
+
+        **May block** in file mode, if the writer still holds the other buffer.
+        That wait is the backpressure that keeps the capture lossless; it
+        happens at the boundary, never inside the DSP loop.
+
+        Usually reached through dp_tlm_set_now() rather than called directly.
+
+        Examples
+        --------
+        >>> from doppler.telemetry import Telemetry, MemoryCapture
+        >>> from doppler.wfm import SampleClock
+        >>> tlm = Telemetry(1 << 12)
+        >>> pid = tlm.probe("agc.gain_db")
+        >>> cap = MemoryCapture(tlm, 256, SampleClock(1e6))
+        >>> tlm.emit(pid, 1.5)
+        >>> cap.block()          # explicit boundary; set_now() does this for you
+        >>> cap.count
+        1
+
+        """
+
+    def close(self) -> None:
+        """Final boundary, then flush, join, and write the sidecar.
+
+        Sweeps the tail the last block left behind, drains the staging buffers,
+        joins the writer thread, closes the file and writes `<path>-meta`.
+        Idempotent: a second call is a no-op returning the first call's
+        verdict.
+
+        Examples
+        --------
+        >>> from doppler.telemetry import Telemetry, MemoryCapture
+        >>> from doppler.wfm import SampleClock
+        >>> tlm = Telemetry(1 << 12)
+        >>> pid = tlm.probe("agc.gain_db")
+        >>> cap = MemoryCapture(tlm, 256, SampleClock(1e6))
+        >>> for blk in range(4):
+        ...     tlm.set_now(blk * 256)
+        ...     tlm.emit(pid, float(blk))
+        >>> cap.close()          # silent: the block contract was honoured
+        >>> cap.close()          # idempotent, same verdict
+
+        Breaking the contract -- here, never reaching a boundary at all -- is the
+        one way to lose a record, and it is reported rather than absorbed:
+
+        >>> tlm2 = Telemetry(1 << 12)
+        >>> p2 = tlm2.probe("x")
+        >>> bad = MemoryCapture(tlm2, 8, SampleClock(1e6))
+        >>> for i in range(20000):
+        ...     tlm2.emit(p2, float(i))
+        >>> bad.close()
+        Traceback (most recent call last):
+        ValueError: close failed (rc=-4)
+
+        """
+
+    @property
+    def count(self) -> int:
+        """Records captured so far, across memory and file alike."""
+
+    @property
+    def dropped(self) -> int:
+        """Records the ring dropped during THIS capture (latched at open
+        against the context's monotonic counter). Non-zero means a hole.
+        """
+
+    def destroy(self) -> None:
+        """Release the underlying C resources immediately.
+
+        Ordinarily unnecessary: the resources are freed when the object is
+        garbage-collected. Call this to release them at a definite point
+        instead, or use the object as a context manager, which calls it on
+        exit.
+
+        Idempotent: calling it again on an already-released object does
+        nothing. Every other method raises ``RuntimeError`` once it has run.
+
+        Raises
+        ------
+        ValueError
+            If the C destructor reports failure. Raised from an explicit call
+            and from ``__exit__`` alike, so a failing teardown propagates out
+            of a ``with`` block (gh-541).
+        """
+
+
+    def __enter__(self) -> "Capture":
+        """Enter a context manager, returning this object.
+
+        Lets a Capture be used in a `with` statement so its C resources are
+        released deterministically on exit rather than at collection time.
+
+        Returns
+        -------
+        Capture
+            This same object, not a copy.
+        """
+
+    def __exit__(
+        self,
+        exc_type: object | None = ...,
+        exc: object | None = ...,
+        tb: object | None = ...,
+    ) -> None:
+        """Exit a context manager, releasing the Capture.
+
+        Equivalent to calling `destroy()`. Returns ``None``, so an exception
+        raised inside the `with` body propagates normally; this never
+        suppresses one.
+
+        Parameters
+        ----------
+        exc_type : object | None
+            Exception class, or None. Ignored.
+        exc : object | None
+            Exception instance, or None. Ignored.
+        tb : object | None
+            Traceback object, or None. Ignored.
+        """

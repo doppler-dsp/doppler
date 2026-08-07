@@ -1,0 +1,176 @@
+# dp_tlm_capture — the lossless capture over a dp_tlm ring.
+#
+# Like dp_tlm, the COMPONENT is named after the C prefix so not one function is
+# renamed; `class_name` puts the Python face where it belongs, next to
+# Telemetry in doppler.telemetry.
+#
+# This is the object that needed both halves of the capsule triangle before it
+# could be declarative at all: its constructor takes a `dp_tlm_t *` from an
+# OBJECT (gh-790) and a `dp_sample_clock_t *` from a kind="handle" module
+# (gh-794). Neither existed when the C was written, which is why the whole
+# component sat hand-owned with no Python face whatsoever.
+
+[dp_tlm_capture]
+class_name = "MemoryCapture"
+# The capture is an opaque heap type with its own open/close lifecycle, and
+# there is no per-sample step: records arrive through the ring, never through
+# this object. Nothing to reset either — a capture is finished, not rewound,
+# and an absent method is the honest answer (gh-542).
+no_state = "true"
+no_step = "true"
+no_reset = "true"
+arg_type = "float _Complex"
+return_type = "float _Complex"
+create_fn = "dp_tlm_capture_open_memory"
+
+# A NULL from open() is almost never OOM. It is one of four stated conditions,
+# and "no probes attached" is by far the likeliest — the bound is computed from
+# the probe table, so attaching the objects AFTER opening yields a bound of
+# zero and a NULL that a blanket MemoryError would misexplain completely.
+create_error = "ValueError"
+create_error_message = "capture could not be opened: attach every probe BEFORE opening (the ring is sized from the probe table, so no probes means no bound), pass a non-zero block_samples, use a context with no capture already open, and — for the file flavour — a writable path"
+
+[[dp_tlm_capture.init_params]]
+name = "tlm"
+type = "dp_tlm_t *"
+capsule = "doppler.telemetry.dp_tlm"
+header = "dp_tlm/dp_tlm_core.h"
+required = true
+doc = "Telemetry context to capture. Must outlive the capture."
+
+[[dp_tlm_capture.init_params]]
+name = "block_samples"
+type = "size_t"
+required = true
+doc = "The LARGEST number of input samples processed between two boundaries — the step of your own block loop, not a buffer size to tune. Over-stating it costs only memory; under-stating it is the one way to lose a record, and close() reports it."
+
+# Borrowed, never copied: two copies of a time base drift, and the one written
+# into a file is the copy nobody can correct afterwards.
+#
+# MANDATORY on the Python face, and that is a jm limitation rather than the
+# design's intent. The C takes NULL to mean "no time base stated", and the
+# sidecar then omits the keys instead of fabricating a rate -- but a gh-790
+# capsule INIT-param rejects Py_None unconditionally, while a gh-432 capsule
+# METHOD param (AGC.set_telemetry(None, ...)) maps it straight to NULL. One
+# concept, two implementations that disagree; filed upstream.
+#
+# Deliberately left as a plain positional rather than routed around (a
+# set_clock() method, or dropping the param): this signature is ALREADY the
+# one that works once jm allows None, so the fix turns a TypeError into a
+# working call with no API change and nothing to migrate. Neither `optional`
+# nor `required` helps -- `optional` is rejected outright on an object
+# carrying views, and `required` only adds a second, louder None guard.
+[[dp_tlm_capture.init_params]]
+name = "clock"
+type = "const dp_sample_clock_t *"
+capsule = "doppler.wfm.dp_sample_clock"
+header = "timing/timing_core.h"
+doc = "The pipeline's sample clock, borrowed for the sidecar's time base. Read at close(), so later track() corrections are picked up. Must outlive the capture. Pass None to state that there is no time base."
+
+# ── the file flavour ────────────────────────────────────────────────────────
+#
+# A difference in CONSTRUCTOR is a flavor (a view); a difference in method
+# SIGNATURE would be a separate type. This is squarely the first: same core,
+# same methods, one extra init-param and one method fewer.
+#
+# The direction is deliberate. A view is the parent MINUS exclusions, never
+# plus, so the flavour that can hand its records back has to be the parent and
+# the one that cannot has to be the view -- which is also the honest reading:
+# redirecting a capture to a file is what TAKES the records away, because then
+# the file is the capture. Excluding records() means calling it here is an
+# AttributeError, rather than an empty array that reads like "nothing was
+# captured".
+#
+# It is not merely a stylistic split either. jm's `path` init-param is an `O&`
+# coerced by PyUnicode_FSConverter whose call expression is
+# PyBytes_AS_STRING(...), which cannot be made optional -- an omitted `O&`
+# leaves the local NULL. So "no file" genuinely cannot be spelled `path=None`
+# on one class.
+[[dp_tlm_capture.views]]
+class_name = "Capture"
+create_fn = "dp_tlm_capture_open"
+exclude_methods = ["records"]
+init_params = [
+  { name = "tlm", type = "dp_tlm_t *", capsule = "doppler.telemetry.dp_tlm", header = "dp_tlm/dp_tlm_core.h", required = true, doc = "Telemetry context to capture. Must outlive the capture." },
+  { name = "block_samples", type = "size_t", required = true, doc = "The LARGEST number of input samples processed between two boundaries — the step of your own block loop." },
+  { name = "path", type = "path", required = true, doc = "Output file, truncated if it exists. The 16-byte record layout IS the file, so np.fromfile reads it directly; a <path>-meta JSON sidecar carries the probe table, the counters and the time base." },
+  { name = "clock", type = "const dp_sample_clock_t *", capsule = "doppler.wfm.dp_sample_clock", header = "timing/timing_core.h", doc = "The pipeline's sample clock, borrowed for the sidecar's time base. Pass None to state that there is no time base." },
+]
+
+# ── methods ─────────────────────────────────────────────────────────────────
+
+# The drain, shaped exactly like Telemetry.read so the two bind identically —
+# record_dtype (gh-788 gap 1) takes the dtype from the C struct's own offsetof
+# and sizeof rather than letting numpy pack the field list, which for
+# {uint64,float,uint16,uint16} = 16 bytes is the difference between reading
+# every row and reading every row after the first misaligned.
+[[dp_tlm_capture.methods]]
+name = "records"
+fn = "dp_tlm_capture_read"
+arg_type = "void"
+return_type = "dp_tlm_rec_t"
+variable_output = true
+pass_capacity = true
+record_dtype = "dp_tlm_rec_t"
+params = [{ name = "n", type = "size_t", default = "0" }]
+result_fields = [
+  { name = "n", type = "uint64_t", doc = "Caller-stamped sample index (Telemetry.set_now)." },
+  { name = "value", type = "float", doc = "The scalar, narrowed to float." },
+  { name = "probe", type = "uint16_t", doc = "Probe id; index into the registry." },
+  { name = "flags", type = "uint16_t", doc = "Reserved; always 0." },
+]
+
+# `status_return`, not `error_negative`: this int carries nothing but status,
+# so "non-zero raises" is exactly right.
+[[dp_tlm_capture.methods]]
+name = "block"
+fn = "dp_tlm_capture_block"
+arg_type = "void"
+return_type = "int"
+status_return = true
+
+# close() is NOT the destructor, and that separation is load-bearing: in memory
+# mode the records are only complete once the final drain has run, so a close
+# that also freed would make them unreadable exactly when they became correct.
+[[dp_tlm_capture.methods]]
+name = "close"
+fn = "dp_tlm_capture_close"
+arg_type = "void"
+return_type = "int"
+status_return = true
+# No `error`/`error_message` here: jm rejects them unless paired with
+# `error_negative`, so a `status_return` method can only ever raise the
+# canned "<name> failed (rc=N)". The destructor CAN say what went wrong
+# (its `returns`/`error` pair), which is why the rich explanation lives
+# there and `with` blocks get it. Filed upstream with the None gap.
+
+# The destructor DOES report the verdict (gh-541, the wfm_writer precedent).
+# `with` exit and garbage collection both land here, and they are precisely the
+# paths a hole would otherwise leave through in silence — which would defeat
+# the reason close() fails loudly at all.
+[dp_tlm_capture.destroy]
+returns = "int"
+error = "ValueError"
+error_message = "the capture has a hole: records were dropped, which the block bound makes impossible unless a step ran longer than block_samples or no boundary was reached at all — see Capture.dropped"
+
+# ── properties ──────────────────────────────────────────────────────────────
+
+[[dp_tlm_capture.properties]]
+name = "count"
+type = "size_t"
+expr = "dp_tlm_capture_count(self->handle)"
+doc = "Records captured so far, across memory and file alike."
+
+[[dp_tlm_capture.properties]]
+name = "dropped"
+type = "uint64_t"
+expr = "dp_tlm_capture_dropped(self->handle)"
+doc = "Records the ring dropped during THIS capture (latched at open against the context's monotonic counter). Non-zero means a hole."
+
+[[dp_tlm_capture.depends_on]]
+name = "dp_tlm"
+link = true
+
+[[dp_tlm_capture.depends_on]]
+name = "timing"
+link = true

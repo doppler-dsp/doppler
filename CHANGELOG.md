@@ -13,6 +13,21 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+### Changed
+
+- **`telemetry.Capture.close()` says what went wrong.** It reported
+    `ValueError: close failed (rc=-4)` — the canned string jm's
+    `status_return` could only ever raise — while the destructor, reaching the
+    *same* verdict, explained itself in full. A caller learned more from
+    letting the object fall out of scope than from asking it directly. Both
+    now carry the same text, which is the point: they are one condition.
+
+    Needs just-makeit 0.51.0 (gh-823 Ask D), where `status_return` gained
+    `error` / `error_message`. Adopting it also required deleting the sacred
+    fragment and re-applying — jm only ever *adds* missing members, so a
+    changed one stays as written, which is exactly what its new gh-815
+    result-shape warning exists to report.
+
 ### Breaking
 
 - **`acquire.CarrierAcquisition`'s constructor takes the two rates first, and

@@ -145,11 +145,14 @@ fn = "dp_tlm_capture_close"
 arg_type = "void"
 return_type = "int"
 status_return = true
-# No `error`/`error_message` here: jm rejects them unless paired with
-# `error_negative`, so a `status_return` method can only ever raise the
-# canned "<name> failed (rc=N)". The destructor CAN say what went wrong
-# (its `returns`/`error` pair), which is why the rich explanation lives
-# there and `with` blocks get it. Filed upstream with the None gap.
+# jm 0.51.0 (gh-823 Ask D) lets `status_return` name its exception and carry a
+# message, which it could not before -- it always raised the canned
+# "close failed (rc=-4)" while the destructor, reaching the SAME verdict, could
+# explain itself. Same text on both, deliberately: they are one condition, and
+# a caller should not learn more from letting the object fall out of scope than
+# from asking.
+error = "ValueError"
+error_message = "the capture has a hole: records were dropped, which the block bound makes impossible unless a step ran longer than block_samples or no boundary was reached at all — see Capture.dropped"
 
 # The destructor DOES report the verdict (gh-541, the wfm_writer precedent).
 # `with` exit and garbage collection both land here, and they are precisely the

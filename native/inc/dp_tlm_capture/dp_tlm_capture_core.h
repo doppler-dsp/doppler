@@ -204,7 +204,10 @@ dp_tlm_capture_t *dp_tlm_capture_open_memory (dp_tlm_t *t,
  * >>> pid = tlm.probe("agc.gain_db")
  * >>> cap = MemoryCapture(tlm, 256, SampleClock(1e6))
  * >>> tlm.emit(pid, 1.5)
- * >>> cap.block()          # explicit boundary; set_now() does this for you
+ *
+ * An explicit boundary; set_now() reaches this for you:
+ *
+ * >>> cap.block()
  * >>> cap.count
  * 1
  *
@@ -247,9 +250,9 @@ int dp_tlm_capture_block (dp_tlm_capture_t *c);
  * >>> bad = MemoryCapture(tlm2, 8, SampleClock(1e6))
  * >>> for i in range(20000):
  * ...     tlm2.emit(p2, float(i))
- * >>> bad.close()
+ * >>> bad.close()  # doctest: +ELLIPSIS
  * Traceback (most recent call last):
- * ValueError: close failed (rc=-4)
+ * ValueError: the capture has a hole: ...
  *
  * @endcode
  */

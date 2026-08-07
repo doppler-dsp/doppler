@@ -20,6 +20,7 @@ _Non-data-aided (NDA) M-th-power carrier-tracking loop._ [More...](#detailed-des
 * `#include "loop_filter/loop_filter_core.h"`
 * `#include "dp_tlm/dp_tlm_core.h"`
 * `#include <math.h>`
+* `#include "telemetry/telemetry_core.h"`
 
 
 
@@ -71,13 +72,14 @@ _Non-data-aided (NDA) M-th-power carrier-tracking loop._ [More...](#detailed-des
 |  void | [**carrier\_nda\_configure\_lock**](#function-carrier_nda_configure_lock) ([**carrier\_nda\_state\_t**](structcarrier__nda__state__t.md) \* state, double up\_thresh, double down\_thresh, uint32\_t n\_up, uint32\_t n\_down) <br>_Re-tune the carrier lock detector's geometry directly._  |
 |  [**carrier\_nda\_state\_t**](structcarrier__nda__state__t.md) \* | [**carrier\_nda\_create**](#function-carrier_nda_create) (double bn, double zeta, double init\_norm\_freq, size\_t sps, int n, int m) <br>_Create an NDA carrier loop instance._  |
 |  void | [**carrier\_nda\_destroy**](#function-carrier_nda_destroy) ([**carrier\_nda\_state\_t**](structcarrier__nda__state__t.md) \* state) <br>_Destroy an NDA carrier loop instance and release all memory._  |
-|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) void | [**carrier\_nda\_disc**](#function-carrier_nda_disc) (float complex z, int m, double scale, double \* pe, double \* lock) <br>_The M-th-power discriminator on an arm sample (raw, no per-dump limit)._  |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) void | [**carrier\_nda\_disc**](#function-carrier_nda_disc) (float complex z, int m, double \* pe, double \* lock) <br>_The M-th-power discriminator on an arm sample (raw, no per-dump limit)._  |
 |  double | [**carrier\_nda\_get\_bn**](#function-carrier_nda_get_bn) (const [**carrier\_nda\_state\_t**](structcarrier__nda__state__t.md) \* state) <br> |
 |  double | [**carrier\_nda\_get\_last\_error**](#function-carrier_nda_get_last_error) (const [**carrier\_nda\_state\_t**](structcarrier__nda__state__t.md) \* state) <br> |
 |  double | [**carrier\_nda\_get\_lock**](#function-carrier_nda_get_lock) (const [**carrier\_nda\_state\_t**](structcarrier__nda__state__t.md) \* state) <br> |
 |  int | [**carrier\_nda\_get\_locked**](#function-carrier_nda_get_locked) (const [**carrier\_nda\_state\_t**](structcarrier__nda__state__t.md) \* state) <br>_Current lock decision (1 = locked, 0 = not), with the configured verify-count / hysteresis rule applied (see carrier\_nda\_configure\_lock)._  |
 |  int | [**carrier\_nda\_get\_m**](#function-carrier_nda_get_m) (const [**carrier\_nda\_state\_t**](structcarrier__nda__state__t.md) \* state) <br> |
 |  int | [**carrier\_nda\_get\_n**](#function-carrier_nda_get_n) (const [**carrier\_nda\_state\_t**](structcarrier__nda__state__t.md) \* state) <br> |
+|  double | [**carrier\_nda\_get\_nco\_freq**](#function-carrier_nda_get_nco_freq) (const [**carrier\_nda\_state\_t**](structcarrier__nda__state__t.md) \* state) <br>_Instantaneous NCO frequency command = centre + full loop-filter output (integ + kp\*e), cycles/sample. Mean rides a ramp with no lag; variance is the loop stress. See the impl for the estimator-vs-command distinction._  |
 |  double | [**carrier\_nda\_get\_norm\_freq**](#function-carrier_nda_get_norm_freq) (const [**carrier\_nda\_state\_t**](structcarrier__nda__state__t.md) \* state) <br> |
 |  size\_t | [**carrier\_nda\_get\_sps**](#function-carrier_nda_get_sps) (const [**carrier\_nda\_state\_t**](structcarrier__nda__state__t.md) \* state) <br> |
 |  void | [**carrier\_nda\_get\_state**](#function-carrier_nda_get_state) (const [**carrier\_nda\_state\_t**](structcarrier__nda__state__t.md) \* state, void \* blob) <br>_Serialize the full loop state into_ `blob` _._ |
@@ -86,10 +88,10 @@ _Non-data-aided (NDA) M-th-power carrier-tracking loop._ [More...](#detailed-des
 |  void | [**carrier\_nda\_set\_bn**](#function-carrier_nda_set_bn) ([**carrier\_nda\_state\_t**](structcarrier__nda__state__t.md) \* state, double val) <br> |
 |  void | [**carrier\_nda\_set\_norm\_freq**](#function-carrier_nda_set_norm_freq) ([**carrier\_nda\_state\_t**](structcarrier__nda__state__t.md) \* state, double val) <br> |
 |  int | [**carrier\_nda\_set\_state**](#function-carrier_nda_set_state) ([**carrier\_nda\_state\_t**](structcarrier__nda__state__t.md) \* state, const void \* blob) <br>_Restore state; DP\_OK, or DP\_ERR\_INVALID if the envelope rejects._  |
-|  int | [**carrier\_nda\_set\_telemetry**](#function-carrier_nda_set_telemetry) ([**carrier\_nda\_state\_t**](structcarrier__nda__state__t.md) \* state, [**dp\_tlm\_t**](telemetry_8h.md#typedef-dp_tlm_t) \* tlm, const char \* prefix, uint32\_t decim) <br>_Attach (or detach) a telemetry context and register the carrier loop's probes on it — including the embedded arm AGC's. Registers four probes of its own, emitted once per input sample (this is a sample-rate loop — use_ `decim` _to thin the stream) plus the embedded AGC's "&lt;prefix&gt;.agc.gain\_db" (emitted at the AGC's own amortized gain-update rate): "&lt;prefix&gt;.lock" (the lock-signal EMA, ~1 when phase-locked), "&lt;prefix&gt;.e" (the M-th-power phase discriminator — the loop stress), "&lt;prefix&gt;.freq" (the tracked carrier frequency, cycles/sample) and "&lt;prefix&gt;.locked" (the verify-counted lockdet decision, 0/1). Passing NULL detaches the loop and the embedded AGC. Setup path, never hot: call before the producer thread starts stepping; the context is borrowed and must outlive the attachment (SPSC rules in_[_**dp_tlm/dp_tlm_core.h**_](telemetry_8h.md) _)._ |
+|  int | [**carrier\_nda\_set\_telemetry**](#function-carrier_nda_set_telemetry) ([**carrier\_nda\_state\_t**](structcarrier__nda__state__t.md) \* state, [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* tlm, const char \* prefix, uint32\_t decim) <br>_Attach (or detach) a telemetry context and register the carrier loop's probes on it — including the embedded arm AGC's. Registers four probes of its own, emitted once per input sample (this is a sample-rate loop — use_ `decim` _to thin the stream) plus the embedded AGC's "&lt;prefix&gt;.agc.gain\_db" (emitted at the AGC's own amortized gain-update rate): "&lt;prefix&gt;.lock" (the lock-signal EMA, ~1 when phase-locked), "&lt;prefix&gt;.e" (the M-th-power phase discriminator — the loop stress), "&lt;prefix&gt;.freq" (the tracked carrier frequency, cycles/sample) and "&lt;prefix&gt;.locked" (the verify-counted lockdet decision, 0/1). Passing NULL detaches the loop and the embedded AGC. Setup path, never hot: call before the producer thread starts stepping; the context is borrowed and must outlive the attachment (SPSC rules in_[_**dp\_tlm/dp\_tlm\_core.h**_](dp__tlm__core_8h.md) _)._ |
 |  size\_t | [**carrier\_nda\_state\_bytes**](#function-carrier_nda_state_bytes) (const [**carrier\_nda\_state\_t**](structcarrier__nda__state__t.md) \* state) <br>_Serialized-state byte size._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) void | [**carrier\_nda\_steer**](#function-carrier_nda_steer) ([**carrier\_nda\_state\_t**](structcarrier__nda__state__t.md) \* s, double pe) <br>_Steer the shared NCO with a phase error through the loop filter._  |
-|  size\_t | [**carrier\_nda\_steps**](#function-carrier_nda_steps) ([**carrier\_nda\_state\_t**](structcarrier__nda__state__t.md) \* state, const float complex \* x, size\_t x\_len, float complex \* out, size\_t max\_out) <br> |
+|  size\_t | [**carrier\_nda\_steps**](#function-carrier_nda_steps) ([**carrier\_nda\_state\_t**](structcarrier__nda__state__t.md) \* state, const float complex \* x, size\_t x\_len, float complex \* out, size\_t max\_out) <br>_De-rotate a cf32 block with the recovered carrier and return the de-rotated stream (one output per input sample)._  |
 |  size\_t | [**carrier\_nda\_steps\_max\_out**](#function-carrier_nda_steps_max_out) ([**carrier\_nda\_state\_t**](structcarrier__nda__state__t.md) \* state) <br> |
 |  void | [**carrier\_nda\_tlm\_flush**](#function-carrier_nda_tlm_flush) (const [**carrier\_nda\_state\_t**](structcarrier__nda__state__t.md) \* s) <br>_Emit the carrier loop's telemetry records for the current sample._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) float complex | [**carrier\_nda\_wipeoff**](#function-carrier_nda_wipeoff) ([**carrier\_nda\_state\_t**](structcarrier__nda__state__t.md) \* s, float complex x) <br>_Per-sample carrier wipe-off: de-rotate_ `x` _by the NCO, advance it._ |
@@ -131,6 +133,7 @@ _Non-data-aided (NDA) M-th-power carrier-tracking loop._ [More...](#detailed-des
 | define  | [**CARRIER\_NDA\_EPS**](carrier__nda__core_8h.md#define-carrier_nda_eps)  `1e-12`<br> |
 | define  | [**CARRIER\_NDA\_INV\_2PI**](carrier__nda__core_8h.md#define-carrier_nda_inv_2pi)  `0.15915494309189535 /\* 1 / (2\*pi) \*/`<br> |
 | define  | [**CARRIER\_NDA\_LOCK\_ALPHA**](carrier__nda__core_8h.md#define-carrier_nda_lock_alpha)  `0.05`<br> |
+| define  | [**CARRIER\_NDA\_LOCK\_NORM\_SD**](carrier__nda__core_8h.md#define-carrier_nda_lock_norm_sd)  `0.11322770341445956`<br> |
 | define  | [**CARRIER\_NDA\_STATE\_MAGIC**](carrier__nda__core_8h.md#define-carrier_nda_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('C', 'N', 'D', 'A')`<br> |
 | define  | [**CARRIER\_NDA\_STATE\_VERSION**](carrier__nda__core_8h.md#define-carrier_nda_state_version)  `4u /\* v4: lockdet decision rule (verify counters) \*/`<br> |
 
@@ -145,7 +148,7 @@ Raising the (unit-normalized) arm sample `z` to the Mth power strips the M-PSK d
 
 The M-th power is computed by **repeated complex squaring** (`z²`→`z⁴`→`z⁸`). Each level yields a phase error and a lock signal:
 * `phase_error` = `Im(z^M)` scaled by `1, ½, ¼` for M = 2, 4, 8 — the scale normalizes the phase-detector gain so the S-curve slope at lock is 2 for every M (one `bn` behaves identically across M).
-* `lock_signal` = `Re(z^M)` (× a per-M `lock_scale`) for M ≤ 4, and a faithful monotone lock detector for M = 8 — ~1 when phase-locked, ~0 with no carrier. Its EMA (`lock`) is the carrier lock metric. See `docs/design/mpsk.md` §2.3 for the derivation.
+* `lock_signal` = `Re((z/|z|)^M)` — the M-th power of a **limited** sample, so it is bounded in ±1 and its H0 variance is 1/2 for **every** M. ~1 when phase-locked, zero-mean with no carrier. That M-independence is what makes one `lock_thresh` mean one Pfa at every order; the threshold chain is derived above `CARRIER_NDA_LOCK_ALPHA`. Its EMA (`lock`) is the carrier lock metric. See `docs/design/mpsk.md` §2.3 for the derivation.
 
 
 
@@ -352,7 +355,6 @@ _The M-th-power discriminator on an arm sample (raw, no per-dump limit)._
 JM_FORCEINLINE void carrier_nda_disc (
     float complex z,
     int m,
-    double scale,
     double * pe,
     double * lock
 ) 
@@ -370,7 +372,6 @@ Runs the repeated-squaring recursion `z²`→`z⁴`→`z⁸` directly on the arm
 
 * `z` Arm moving-average sample (AGC-normalized, ~unit at lock). 
 * `m` Constellation order (2, 4, 8). 
-* `scale` Per-M lock scale (1 / 0.619 / 0.412). 
 * `pe` Receives the phase error. 
 * `lock` Receives the lock signal. 
 
@@ -463,6 +464,22 @@ int carrier_nda_get_m (
 
 ```C++
 int carrier_nda_get_n (
+    const carrier_nda_state_t * state
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function carrier\_nda\_get\_nco\_freq 
+
+_Instantaneous NCO frequency command = centre + full loop-filter output (integ + kp\*e), cycles/sample. Mean rides a ramp with no lag; variance is the loop stress. See the impl for the estimator-vs-command distinction._ 
+```C++
+double carrier_nda_get_nco_freq (
     const carrier_nda_state_t * state
 ) 
 ```
@@ -571,12 +588,33 @@ void carrier_nda_reset (
 
 
 
+Restores the object to its post-create state: the carrier NCO is reset to the seed frequency it was constructed with (init\_norm\_freq) with zero phase, the moving-average arm, AGC, loop-filter integrator and lock EMA are cleared, and the lock detector is dropped. The configured (bn, zeta), the arm geometry (sps, n) and the constellation order m are preserved, so the same object can re-acquire a fresh capture.
+
+
 
 
 **Parameters:**
 
 
 * `state` Must be non-NULL. 
+```C++
+>>> import numpy as np
+>>> from doppler.track import CarrierNda
+>>> c = CarrierNda(bn=0.01, zeta=0.707, init_norm_freq=0.0,
+...                sps=8, n=4, m=4)
+>>> rng = np.random.default_rng(0)
+>>> k = np.arange(40000)
+>>> x = (np.exp(2j * np.pi * 0.001 * k) + 0.05 * (
+...      rng.standard_normal(k.size)
+...      + 1j * rng.standard_normal(k.size))).astype(np.complex64)
+>>> _ = c.steps(x)
+>>> round(c.norm_freq, 4), round(c.lock, 2)   # acquired the carrier
+(0.001, 0.99)
+>>> c.reset()
+>>> round(c.norm_freq, 4), round(c.lock, 2)   # back to seed, unlocked
+(0.0, 0.0)
+```
+ 
 
 
 
@@ -638,7 +676,7 @@ int carrier_nda_set_state (
 
 ### function carrier\_nda\_set\_telemetry 
 
-_Attach (or detach) a telemetry context and register the carrier loop's probes on it — including the embedded arm AGC's. Registers four probes of its own, emitted once per input sample (this is a sample-rate loop — use_ `decim` _to thin the stream) plus the embedded AGC's "&lt;prefix&gt;.agc.gain\_db" (emitted at the AGC's own amortized gain-update rate): "&lt;prefix&gt;.lock" (the lock-signal EMA, ~1 when phase-locked), "&lt;prefix&gt;.e" (the M-th-power phase discriminator — the loop stress), "&lt;prefix&gt;.freq" (the tracked carrier frequency, cycles/sample) and "&lt;prefix&gt;.locked" (the verify-counted lockdet decision, 0/1). Passing NULL detaches the loop and the embedded AGC. Setup path, never hot: call before the producer thread starts stepping; the context is borrowed and must outlive the attachment (SPSC rules in_[_**dp_tlm/dp_tlm_core.h**_](telemetry_8h.md) _)._
+_Attach (or detach) a telemetry context and register the carrier loop's probes on it — including the embedded arm AGC's. Registers four probes of its own, emitted once per input sample (this is a sample-rate loop — use_ `decim` _to thin the stream) plus the embedded AGC's "&lt;prefix&gt;.agc.gain\_db" (emitted at the AGC's own amortized gain-update rate): "&lt;prefix&gt;.lock" (the lock-signal EMA, ~1 when phase-locked), "&lt;prefix&gt;.e" (the M-th-power phase discriminator — the loop stress), "&lt;prefix&gt;.freq" (the tracked carrier frequency, cycles/sample) and "&lt;prefix&gt;.locked" (the verify-counted lockdet decision, 0/1). Passing NULL detaches the loop and the embedded AGC. Setup path, never hot: call before the producer thread starts stepping; the context is borrowed and must outlive the attachment (SPSC rules in_[_**dp\_tlm/dp\_tlm\_core.h**_](dp__tlm__core_8h.md) _)._
 ```C++
 int carrier_nda_set_telemetry (
     carrier_nda_state_t * state,
@@ -672,9 +710,10 @@ DP\_OK, or DP\_ERR\_INVALID when the probe table cannot take all five probes (th
 >>> tlm = Telemetry(1 << 14)
 >>> c = CarrierNda(bn=0.01, sps=8, n=4, m=4)
 >>> c.set_telemetry(tlm, "car", decim=8)
->>> sorted(tlm.probe_names())
+>>> sorted(tlm.probe_names)
 ['car.agc.gain_db', 'car.e', 'car.freq', 'car.lock', 'car.locked']
->>> x = np.exp(2j * np.pi * 0.005 * np.arange(4096)).astype(np.complex64)
+>>> x = np.exp(2j * np.pi * 0.005 * np.arange(4096)).astype(
+...     np.complex64)
 >>> _ = c.steps(x)
 >>> recs = tlm.read()
 >>> len(recs[recs["probe"] == tlm.probe_id("car.e")]) == 4096 // 8
@@ -742,6 +781,7 @@ Filters `pe` and updates the NCO frequency (per sample) + a proportional phase n
 
 ### function carrier\_nda\_steps 
 
+_De-rotate a cf32 block with the recovered carrier and return the de-rotated stream (one output per input sample)._ 
 ```C++
 size_t carrier_nda_steps (
     carrier_nda_state_t * state,
@@ -754,6 +794,50 @@ size_t carrier_nda_steps (
 
 
 
+Runs the non-data-aided carrier loop over the block: each sample is wiped off by the integer-phase NCO, the de-rotated sample slides the I/Q moving-average arm, and the M-th-power discriminator (which strips the M-PSK data modulation) steers the NCO frequency and phase. Because the discriminator is data- and timing-independent, this acquires the carrier with no symbol timing and no data present — a bare carrier, or a modulated carrier before timing lock. It resolves to one of m carrier phases (M-fold ambiguity, resolved downstream). Read norm\_freq for the tracked carrier (cycles/sample) and lock for the carrier lock metric.
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `x` Input samples (average power at or below unity). 
+* `x_len` Number of input samples. 
+* `out` De-rotated samples, one per input. 
+* `max_out` Capacity of `out`. 
+
+
+
+**Returns:**
+
+Number of de-rotated samples written to `out` (equals `x_len`). 
+```C++
+>>> import numpy as np
+>>> from doppler.track import CarrierNda
+>>> c = CarrierNda(bn=0.01, zeta=0.707, init_norm_freq=0.0,
+...                sps=8, n=4, m=4)
+>>> rng = np.random.default_rng(0)
+>>> k = np.arange(40000)
+>>> x = (np.exp(2j * np.pi * 0.001 * k) + 0.05 * (
+...      rng.standard_normal(k.size)
+...      + 1j * rng.standard_normal(k.size))).astype(np.complex64)
+>>> y = c.steps(x)                 # de-rotated toward DC
+>>> y.shape[0]
+40000
+>>> round(c.norm_freq, 4)          # tracked carrier, cycles/sample
+0.001
+>>> c.lock > 0.5                    # carrier lock metric, ~1 at lock
+True
+```
+ 
+
+
+
+
+
+        
 
 <hr>
 
@@ -925,6 +1009,19 @@ The de-rotated sample to feed the moving-average arm.
 
 ```C++
 #define CARRIER_NDA_LOCK_ALPHA `0.05`
+```
+
+
+
+
+<hr>
+
+
+
+### define CARRIER\_NDA\_LOCK\_NORM\_SD 
+
+```C++
+#define CARRIER_NDA_LOCK_NORM_SD `0.11322770341445956`
 ```
 
 

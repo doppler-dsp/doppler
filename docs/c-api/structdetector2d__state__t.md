@@ -120,6 +120,7 @@ int detector2d_state_t::_last_corr_valid;
 
 
 1 after the first dump, else 0. 
+ 
 
 
         
@@ -137,6 +138,7 @@ corr2d_state_t* detector2d_state_t::corr;
 
 
 2-D FFT correlator + int-dump engine. 
+ 
 
 
         
@@ -154,6 +156,7 @@ float* detector2d_state_t::mag_buf;
 
 
 \|out\_buf&#91;k&#93;\|, ny\*nx floats. 
+ 
 
 
         
@@ -171,6 +174,7 @@ size_t detector2d_state_t::n;
 
 
 ny \* nx — total frame length. 
+ 
 
 
         
@@ -201,6 +205,7 @@ size_t detector2d_state_t::noise_hi;
 
 
 Noise bin range upper bound (inclusive). 
+ 
 
 
         
@@ -218,6 +223,7 @@ size_t detector2d_state_t::noise_lo;
 
 
 Noise bin range lower bound (inclusive). 
+ 
 
 
         
@@ -248,6 +254,7 @@ float* detector2d_state_t::noise_scratch;
 
 
 Scratch for median sort. 
+ 
 
 
         
@@ -265,6 +272,7 @@ size_t detector2d_state_t::nx;
 
 
 Number of columns. 
+ 
 
 
         
@@ -282,6 +290,7 @@ size_t detector2d_state_t::ny;
 
 
 Number of rows. 
+ 
 
 
         
@@ -299,6 +308,7 @@ float complex* detector2d_state_t::out_buf;
 
 
 Corr2D output (ny\*nx complex samples). 
+ 
 
 
         
@@ -355,6 +365,7 @@ dp_f32_t* detector2d_state_t::ring;
 
 
 Double-mapped ring buffer (auto-sized). 
+ 
 
 
         
@@ -372,6 +383,7 @@ size_t detector2d_state_t::ring_cap;
 
 
 Ring buffer capacity in complex samples. 
+ 
 
 
         
@@ -402,6 +414,7 @@ float detector2d_state_t::threshold;
 
 
 0 = always fire; &gt;0 = gate on test\_stat. 
+ 
 
 
         

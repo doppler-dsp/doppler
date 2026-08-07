@@ -122,6 +122,7 @@ float det_result_t::noise_est;
 
 
 Noise estimate (aggregated \|R\| in &#91;noise\_lo,hi&#93;). 
+ 
 
 
         
@@ -139,6 +140,7 @@ float det_result_t::peak_mag;
 
 
 max \|R&#91;τ&#93;\| (linear magnitude, not power). 
+ 
 
 
         
@@ -156,6 +158,7 @@ float det_result_t::test_stat;
 
 
 peak\_mag / noise\_est; 0 if noise\_est == 0. 
+ 
 
 
         

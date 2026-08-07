@@ -9,7 +9,6 @@
 
 ```C++
 
-
 #ifndef HBDECIM_R2C_CORE_H
 #define HBDECIM_R2C_CORE_H
 

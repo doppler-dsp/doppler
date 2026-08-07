@@ -108,6 +108,7 @@ float complex boxcar_state_t::acc;
 
 
 running sum over the window. 
+ 
 
 
         
@@ -125,6 +126,7 @@ double boxcar_state_t::gain;
 
 
 output gain applied to the mean. 
+ 
 
 
         
@@ -142,6 +144,7 @@ double boxcar_state_t::inv_len;
 
 
 cached 1 / len. 
+ 
 
 
         
@@ -159,6 +162,7 @@ size_t boxcar_state_t::len;
 
 
 window length (1 .. BOXCAR\_MAX\_LEN). 
+ 
 
 
         
@@ -176,6 +180,7 @@ size_t boxcar_state_t::pos;
 
 
 ring write index (0 .. len-1). 
+ 
 
 
         
@@ -193,6 +198,7 @@ float complex boxcar_state_t::ring[BOXCAR_MAX_LEN];
 
 
 delay line. 
+ 
 
 
         
@@ -210,6 +216,7 @@ float boxcar_state_t::scale;
 
 
 cached (float)(gain / len) — the per-sample applied multiply. 
+ 
 
 
         

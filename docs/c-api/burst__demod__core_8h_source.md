@@ -41,7 +41,6 @@ extern "C"
     size_t   est_segments; 
     double   f0_prior;     
     size_t   start;        
-
     /* ── engine ── */
     ppe_state_t   *ppe;  
     float complex *part; 

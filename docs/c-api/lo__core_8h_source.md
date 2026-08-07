@@ -15,7 +15,7 @@
 #include "clib_common.h"
 #include "dp_state.h"
 #include "jm_perf.h"
-#include <math.h> /* floor() in the lo_step_ctrl control port */
+#include "nco/nco_core.h" /* nco_norm_to_inc() -- the one shared cycles->phase-delta primitive */
 #ifdef __cplusplus
 extern "C"
 {
@@ -59,10 +59,10 @@ extern "C"
     float complex out
         = CMPLXF (lo_sin_lut[(uint16_t)(idx + (uint16_t)LO_LUT_QTR)],
                   lo_sin_lut[idx]);
-    /* Fractional cycle of the control → 32-bit phase units (the LO's own
-     * scaling); floor handles negative corrections by wrapping mod 1 cycle. */
-    double f = ctrl - floor (ctrl);
-    state->phase += state->phase_inc + (uint32_t)(f * 4294967296.0);
+    /* nco_norm_to_inc() is the ONE shared cycles->phase-delta primitive
+     * (rounds, not truncates) -- this used to be a private inline copy
+     * of that exact conversion, still truncating, until consolidated. */
+    state->phase += state->phase_inc + nco_norm_to_inc (ctrl);
     return out;
   }
 
@@ -100,12 +100,13 @@ extern "C"
 
   size_t lo_steps_max_out (lo_state_t *state);
 
-  size_t lo_steps (lo_state_t *state, size_t n, float complex *out);
+  size_t lo_steps (lo_state_t *state, size_t n, float complex *out,
+                   size_t max_out);
 
   size_t lo_steps_ctrl_max_out (lo_state_t *state);
 
   size_t lo_steps_ctrl (lo_state_t *state, const float *ctrl, size_t ctrl_len,
-                        float complex *out);
+                        float complex *out, size_t max_out);
 
 #ifdef __cplusplus
 }

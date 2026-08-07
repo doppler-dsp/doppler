@@ -62,10 +62,15 @@
 |  uint64\_t | [**wfm\_plan\_anchor\_seed**](#function-wfm_plan_anchor_seed) (const [**wfm\_plan\_t**](wfm__plan_8h.md#typedef-wfm_plan_t) \* p) <br>_The noise seed that reproduces a full compose._  |
 |  size\_t | [**wfm\_plan\_at**](#function-wfm_plan_at) (const [**wfm\_plan\_t**](wfm__plan_8h.md#typedef-wfm_plan_t) \* p, double snr, uint64\_t seed, float \_Complex \* out) <br>_Scalar fast-path for the hot Monte-Carlo/SNR loop (no JSON parse)._  |
 |  void | [**wfm\_plan\_destroy**](#function-wfm_plan_destroy) ([**wfm\_plan\_t**](wfm__plan_8h.md#typedef-wfm_plan_t) \* p) <br>_Destroy a Plan and free its caches. NULL is a no-op._  |
+|  int | [**wfm\_plan\_dump**](#function-wfm_plan_dump) (const [**wfm\_plan\_t**](wfm__plan_8h.md#typedef-wfm_plan_t) \* p, const char \* path) <br>_Save a Plan to a file (_ [_**wfm\_plan\_save()**_](wfm__plan_8h.md#function-wfm_plan_save) _bytes at_`path` _)._ |
 |  size\_t | [**wfm\_plan\_len**](#function-wfm_plan_len) (const [**wfm\_plan\_t**](wfm__plan_8h.md#typedef-wfm_plan_t) \* p) <br>_Worst-case materialized length in samples (every ranged gap at its_ `hi` _bound) — the jm binding's out\_len\_fn / allocation capacity._ |
+|  [**wfm\_plan\_t**](wfm__plan_8h.md#typedef-wfm_plan_t) \* | [**wfm\_plan\_load**](#function-wfm_plan_load) (const char \* path) <br>_Load a Plan from a file written by_ [_**wfm\_plan\_dump()**_](wfm__plan_8h.md#function-wfm_plan_dump) _._ |
 |  size\_t | [**wfm\_plan\_n\_sources**](#function-wfm_plan_n_sources) (const [**wfm\_plan\_t**](wfm__plan_8h.md#typedef-wfm_plan_t) \* p) <br>_Number of cached signal sources across every segment (excludes noise floors); the length of the_ `gains` _/_`phases` _/_`enable` _arrays._ |
 |  [**wfm\_plan\_t**](wfm__plan_8h.md#typedef-wfm_plan_t) \* | [**wfm\_plan\_prepare**](#function-wfm_plan_prepare) (const char \* spec\_json) <br>_Prepare a Plan from a composer spec JSON (Composer.to\_json())._  |
 |  size\_t | [**wfm\_plan\_render**](#function-wfm_plan_render) (const [**wfm\_plan\_t**](wfm__plan_8h.md#typedef-wfm_plan_t) \* p, const char \* overrides\_json, float \_Complex \* out) <br>_General render: apply a JSON override spec, return a cf32 array._  |
+|  [**wfm\_plan\_t**](wfm__plan_8h.md#typedef-wfm_plan_t) \* | [**wfm\_plan\_restore**](#function-wfm_plan_restore) (const void \* blob, size\_t n) <br>_Reconstruct a Plan from a blob produced by_ [_**wfm\_plan\_save()**_](wfm__plan_8h.md#function-wfm_plan_save) _._ |
+|  size\_t | [**wfm\_plan\_save**](#function-wfm_plan_save) (const [**wfm\_plan\_t**](wfm__plan_8h.md#typedef-wfm_plan_t) \* p, void \* blob) <br>_Serialize a Plan into_ `blob` _(wfm\_plan\_save\_bytes(p) bytes)._ |
+|  size\_t | [**wfm\_plan\_save\_bytes**](#function-wfm_plan_save_bytes) (const [**wfm\_plan\_t**](wfm__plan_8h.md#typedef-wfm_plan_t) \* p) <br>_Serialized size of a Plan blob (envelope + spec + cached buffers)._  |
 
 
 
@@ -187,6 +192,34 @@ void wfm_plan_destroy (
 
 
 
+### function wfm\_plan\_dump 
+
+_Save a Plan to a file (_ [_**wfm\_plan\_save()**_](wfm__plan_8h.md#function-wfm_plan_save) _bytes at_`path` _)._
+```C++
+int wfm_plan_dump (
+    const wfm_plan_t * p,
+    const char * path
+) 
+```
+
+
+
+
+
+**Returns:**
+
+0 on success, non-zero on an open/write error. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
 ### function wfm\_plan\_len 
 
 _Worst-case materialized length in samples (every ranged gap at its_ `hi` _bound) — the jm binding's out\_len\_fn / allocation capacity._
@@ -198,6 +231,36 @@ size_t wfm_plan_len (
 
 
 
+
+<hr>
+
+
+
+### function wfm\_plan\_load 
+
+_Load a Plan from a file written by_ [_**wfm\_plan\_dump()**_](wfm__plan_8h.md#function-wfm_plan_dump) _._
+```C++
+wfm_plan_t * wfm_plan_load (
+    const char * path
+) 
+```
+
+
+
+Same fingerprint semantics as [**wfm\_plan\_restore()**](wfm__plan_8h.md#function-wfm_plan_restore): a matching build loads the cached buffers, a mismatch rebuilds from the embedded spec.
+
+
+
+
+**Returns:**
+
+Heap Plan (caller [**wfm\_plan\_destroy()**](wfm__plan_8h.md#function-wfm_plan_destroy)s it), or NULL on an open/read error or a malformed/foreign-endian file. 
+
+
+
+
+
+        
 
 <hr>
 
@@ -280,6 +343,86 @@ Samples actually written for this draw (&lt;= wfm\_plan\_len(p)).
 
 
 
+
+
+        
+
+<hr>
+
+
+
+### function wfm\_plan\_restore 
+
+_Reconstruct a Plan from a blob produced by_ [_**wfm\_plan\_save()**_](wfm__plan_8h.md#function-wfm_plan_save) _._
+```C++
+wfm_plan_t * wfm_plan_restore (
+    const void * blob,
+    size_t n
+) 
+```
+
+
+
+If the blob's DSP fingerprint matches this build AND its structure matches the embedded spec, the cached buffers are loaded directly (no DSP). Otherwise the Plan is REBUILT from the embedded spec via the full DSP — same result, just paying prepare()'s cost. Returns NULL only on a malformed/foreign-endian blob or an unparseable/out-of-scope embedded spec (the same cases wfm\_plan\_prepare rejects), never on a mere fingerprint mismatch.
+
+
+
+
+**Parameters:**
+
+
+* `blob` Bytes from [**wfm\_plan\_save()**](wfm__plan_8h.md#function-wfm_plan_save). 
+* `n` Length of `blob` in bytes. 
+
+
+
+**Returns:**
+
+Heap Plan (caller [**wfm\_plan\_destroy()**](wfm__plan_8h.md#function-wfm_plan_destroy)s it), or NULL. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function wfm\_plan\_save 
+
+_Serialize a Plan into_ `blob` _(wfm\_plan\_save\_bytes(p) bytes)._
+```C++
+size_t wfm_plan_save (
+    const wfm_plan_t * p,
+    void * blob
+) 
+```
+
+
+
+Native-endian. The blob embeds the spec JSON, so a restore is self-contained. Returns the number of bytes written (== wfm\_plan\_save\_bytes(p)) — the actual-length contract a variable-output binding needs, so `save() -> bytes` generates with no hand-written glue. 
+
+
+        
+
+<hr>
+
+
+
+### function wfm\_plan\_save\_bytes 
+
+_Serialized size of a Plan blob (envelope + spec + cached buffers)._ 
+```C++
+size_t wfm_plan_save_bytes (
+    const wfm_plan_t * p
+) 
+```
+
+
+
+The number of bytes [**wfm\_plan\_save()**](wfm__plan_8h.md#function-wfm_plan_save) writes: a small envelope with the DSP fingerprint, the embedded spec JSON, and every cached signal buffer. Dominated by the buffers (Σ per-source num\_samples · 8 bytes) — multi-MB for a large scene, which is exactly why the spec-rebuild path is the default. 
 
 
         

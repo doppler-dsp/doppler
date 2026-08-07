@@ -121,6 +121,7 @@ size_t symsync_state_t::avgs;
 
 
 non-coherent block size (looks/decision). 
+ 
 
 
         
@@ -138,6 +139,7 @@ uint32_t symsync_state_t::base_inc;
 
 
 nominal NCO inc (one wrap / symbol). 
+ 
 
 
         
@@ -155,6 +157,7 @@ double symsync_state_t::bn;
 
 
 loop noise bandwidth (retained). 
+ 
 
 
         
@@ -172,6 +175,7 @@ farrow_state_t symsync_state_t::farrow;
 
 
 fractional interpolator. 
+ 
 
 
         
@@ -189,6 +193,7 @@ int symsync_state_t::have_ontime;
 
 
 a previous on-time sample exists. 
+ 
 
 
         
@@ -206,6 +211,7 @@ double symsync_state_t::last_error;
 
 
 last TED timing error. 
+ 
 
 
         
@@ -223,6 +229,7 @@ loop_filter_state_t symsync_state_t::lf;
 
 
 2nd-order timing PI loop. 
+ 
 
 
         
@@ -257,6 +264,7 @@ size_t symsync_state_t::lock_count;
 
 
 looks accumulated in the current block. 
+ 
 
 
         
@@ -274,6 +282,7 @@ double symsync_state_t::lock_stat;
 
 
 last block-averaged lock\_signal = mean(2\*(\|on-time\|^2-\|mid\|^2) /(\|on-time\|^2+\|mid\|^2)) over avgs looks; compare against the configured threshold (see symsync\_configure\_lock). 
+ 
 
 
         
@@ -291,6 +300,7 @@ double symsync_state_t::lock_sum;
 
 
 running sum of lock\_signal over the current avgs-symbol block (mirrors [**dll\_state\_t**](structdll__state__t.md)'s lock\_sum/lock\_count/n\_looks pattern). 
+ 
 
 
         
@@ -308,6 +318,7 @@ float complex symsync_state_t::mid;
 
 
 mid-symbol (transition-gate) sample. 
+ 
 
 
         
@@ -325,6 +336,7 @@ float complex symsync_state_t::prev_ontime;
 
 
 previous on-time interpolant. 
+ 
 
 
         
@@ -342,6 +354,7 @@ double symsync_state_t::pwr_avg;
 
 
 running symbol power (TED normaliser). 
+ 
 
 
         
@@ -359,6 +372,7 @@ double symsync_state_t::rate_est;
 
 
 smoothed tracked samples/symbol. 
+ 
 
 
         
@@ -376,6 +390,7 @@ size_t symsync_state_t::sps;
 
 
 nominal samples per symbol. 
+ 
 
 
         
@@ -393,6 +408,7 @@ int symsync_state_t::ted;
 
 
 SYMSYNC\_TED\_GARDNER / \_DTTL. 
+ 
 
 
         
@@ -410,6 +426,7 @@ nco_state_t symsync_state_t::timing;
 
 
 integer timing NCO (phase/phase\_inc). 
+ 
 
 
         
@@ -427,6 +444,7 @@ symsync_tlm_t symsync_state_t::tlm;
 
 
 live telemetry attachment; zeroed in blobs 
+ 
 
 
         
@@ -444,6 +462,7 @@ double symsync_state_t::zeta;
 
 
 damping factor (retained). 
+ 
 
 
         

@@ -9,7 +9,6 @@
 
 ```C++
 
-
 #ifndef JM_SIMD_H
 #define JM_SIMD_H
 

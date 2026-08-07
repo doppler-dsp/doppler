@@ -23,6 +23,7 @@
 #include "loop_filter/loop_filter_core.h"
 #include "dp_tlm/dp_tlm_core.h"
 #include <complex.h>
+#include "telemetry/telemetry_core.h"
 #ifdef __cplusplus
 extern "C"
 {
@@ -63,9 +64,11 @@ extern "C"
   void despreader_reset (despreader_state_t *state);
 
   size_t despreader_steps_max_out (despreader_state_t *state);
+
   size_t despreader_steps (despreader_state_t *state, const float complex *x,
                            size_t x_len, float complex *out, size_t max_out);
   size_t despreader_bits_max_out (despreader_state_t *state);
+
   size_t despreader_bits (despreader_state_t *state, const float complex *x,
                           size_t x_len, uint8_t *out, size_t max_out);
   double despreader_get_norm_freq (const despreader_state_t *state);

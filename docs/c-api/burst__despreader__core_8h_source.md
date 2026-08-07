@@ -29,28 +29,23 @@ typedef struct
   size_t   tsamps; 
   double   seed_w; 
   double   seed_chip; 
-
   /* ── optional acquisition preamble (distinct acq code) ── */
   uint8_t *acq_code; 
   size_t   acq_sf;   
   size_t   acq_reps; 
   size_t   preamble_left; 
-
   /* ── tracking loops (embedded by value, shared engine) ── */
   loop_filter_state_t lf_car;  
   loop_filter_state_t lf_code; 
-
   /* ── carrier NCO (inline, radians) ── */
   double car_phase; 
   double car_w;     
-
   /* ── code phase / integrate-and-dump ── */
   double        chip_pos;  
   double        code_rate; 
   float complex acc_e;     
   float complex acc_p;     
   float complex acc_l;     
-
   /* ── status read-backs: cumulative over the burst (reset re-arms) ── */
   double lock_metric; 
   double snr_est;     

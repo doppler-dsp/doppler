@@ -18,6 +18,10 @@ extern "C" {
 
 /* ── Components ─────────────────────────────────────────────────────────── */
 
+#include "wfm_reader/wfm_reader_core.h"
+
+#include "wfm_writer/wfm_writer_core.h"
+
 #include "f32_to_i16/f32_to_i16_core.h"
 
 #include "i16_to_f32/i16_to_f32_core.h"
@@ -84,7 +88,13 @@ extern "C" {
 
 #include "imdmeas/imdmeas_core.h"
 
+#include "dp_tlm/dp_tlm_core.h"
+
+#include "dp_tlm_capture/dp_tlm_capture_core.h"
+
 #include "ddc/ddc_core.h"
+
+#include "ddcr/ddcr_core.h"
 
 #include "specan/specan_core.h"
 
@@ -104,9 +114,13 @@ extern "C" {
 
 #include "agc/agc_core.h"
 
+#include "doppler_channel/doppler_channel_core.h"
+
 #include "acc_q15/acc_q15_core.h"
 
 #include "acc_q8/acc_q8_core.h"
+
+#include "interp_table/interp_table_core.h"
 
 #include "loop_filter/loop_filter_core.h"
 
@@ -116,11 +130,15 @@ extern "C" {
 
 #include "symsync/symsync_core.h"
 
+#include "ratesync/ratesync_core.h"
+
 #include "carrier_mpsk/carrier_mpsk_core.h"
 
 #include "carrier_nda/carrier_nda_core.h"
 
 #include "mpsk_receiver/mpsk_receiver_core.h"
+
+#include "mpsk_receiver_r/mpsk_receiver_r_core.h"
 
 #include "despreader/despreader_core.h"
 
@@ -128,11 +146,19 @@ extern "C" {
 
 #include "acq/acq_core.h"
 
+#include "burst_acq/burst_acq_core.h"
+
 #include "ppe/ppe_core.h"
 
 #include "burst_demod/burst_demod_core.h"
 
 #include "dsss_receiver/dsss_receiver_core.h"
+
+#include "async_dsss_receiver/async_dsss_receiver_core.h"
+
+#include "carrier_acq/carrier_acq_core.h"
+
+#include "ber_meter/ber_meter_core.h"
 
 #ifdef __cplusplus
 }

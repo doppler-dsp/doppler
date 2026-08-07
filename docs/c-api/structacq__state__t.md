@@ -39,21 +39,19 @@ _Streaming acquisition-engine state._ [More...](#detailed-description)
 |  double | [**chip\_rate**](#variable-chip_rate)  <br> |
 |  double | [**cn0\_dbhz**](#variable-cn0_dbhz)  <br> |
 |  size\_t | [**code\_bins**](#variable-code_bins)  <br> |
+|  size\_t | [**coherent\_bins**](#variable-coherent_bins)  <br> |
 |  float complex \* | [**colbuf**](#variable-colbuf)  <br> |
 |  float complex \* | [**colout**](#variable-colout)  <br> |
 |  [**corr2d\_state\_t**](structcorr2d__state__t.md) \* | [**corr**](#variable-corr)  <br> |
-|  size\_t | [**doppler\_bins**](#variable-doppler_bins)  <br> |
-|  double | [**doppler\_rate**](#variable-doppler_rate)  <br> |
 |  double | [**doppler\_res\_hz**](#variable-doppler_res_hz)  <br> |
-|  double | [**doppler\_resolution**](#variable-doppler_resolution)  <br> |
 |  double | [**doppler\_span\_hz**](#variable-doppler_span_hz)  <br> |
 |  double | [**doppler\_uncertainty**](#variable-doppler_uncertainty)  <br> |
 |  double | [**epochs\_per\_symbol**](#variable-epochs_per_symbol)  <br> |
 |  float | [**eta**](#variable-eta)  <br> |
 |  float | [**eta\_nc**](#variable-eta_nc)  <br> |
+|  size\_t | [**frame\_n**](#variable-frame_n)  <br> |
 |  double | [**fs**](#variable-fs)  <br> |
 |  float \* | [**mag\_buf**](#variable-mag_buf)  <br> |
-|  size\_t | [**max\_noncoh**](#variable-max_noncoh)  <br> |
 |  size\_t | [**n**](#variable-n)  <br> |
 |  size\_t | [**n\_noncoh**](#variable-n_noncoh)  <br> |
 |  size\_t | [**nc\_count**](#variable-nc_count)  <br> |
@@ -85,6 +83,12 @@ _Streaming acquisition-engine state._ [More...](#detailed-description)
 |  float | [**test\_stat**](#variable-test_stat)  <br> |
 |  float | [**threshold**](#variable-threshold)  <br> |
 |  uint8\_t | [**underpowered**](#variable-underpowered)  <br> |
+|  [**fft\_state\_t**](structfft__state__t.md) \* | [**wide\_fwd**](#variable-wide_fwd)  <br> |
+|  [**fft\_state\_t**](structfft__state__t.md) \* | [**wide\_inv**](#variable-wide_inv)  <br> |
+|  float complex \* | [**wide\_prod**](#variable-wide_prod)  <br> |
+|  float complex \* | [**wide\_ref\_spec**](#variable-wide_ref_spec)  <br> |
+|  float complex \* | [**wide\_spec**](#variable-wide_spec)  <br> |
+|  size\_t | [**window\_bins**](#variable-window_bins)  <br> |
 |  float complex \* | [**yframe**](#variable-yframe)  <br> |
 
 
@@ -133,7 +137,7 @@ _Streaming acquisition-engine state._ [More...](#detailed-description)
 ## Detailed Description
 
 
-Allocate with [**acq\_create()**](acq__core_8h.md#function-acq_create); never stack-allocate. 
+Allocate with [**acq\_create\_burst()**](acq__core_8h.md#function-acq_create_burst) or [**acq\_create\_continuous()**](acq__core_8h.md#function-acq_create_continuous); never stack-allocate. 
 
 
     
@@ -151,6 +155,7 @@ double acq_state_t::chip_rate;
 
 
 Chip rate (Hz). 
+ 
 
 
         
@@ -168,6 +173,7 @@ double acq_state_t::cn0_dbhz;
 
 
 Sensitivity used to size the search (dB-Hz). 
+ 
 
 
         
@@ -185,6 +191,25 @@ size_t acq_state_t::code_bins;
 
 
 One segment in samples = sf\*spc. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable coherent\_bins 
+
+```C++
+size_t acq_state_t::coherent_bins;
+```
+
+
+
+Coherent depth = slow-time FFT length (&lt;= reps). Forced to 1 in wideband mode (window\_bins &gt; 1), and always in [**acq\_create\_continuous()**](acq__core_8h.md#function-acq_create_continuous). 
+ 
 
 
         
@@ -201,7 +226,7 @@ float complex* acq_state_t::colbuf;
 
 
 
-Gathered column scratch (doppler\_bins). 
+Gathered column scratch (coherent\_bins). 
 
 
         
@@ -218,7 +243,8 @@ float complex* acq_state_t::colout;
 
 
 
-FFT'd column scratch (doppler\_bins). 
+FFT'd column scratch (coherent\_bins). 
+ 
 
 
         
@@ -236,40 +262,7 @@ corr2d_state_t* acq_state_t::corr;
 
 
 Single-row-ref correlator (dwell=1). 
-
-
-        
-
-<hr>
-
-
-
-### variable doppler\_bins 
-
-```C++
-size_t acq_state_t::doppler_bins;
-```
-
-
-
-Coherent depth = slow-time FFT length (&lt;= reps). 
-
-
-        
-
-<hr>
-
-
-
-### variable doppler\_rate 
-
-```C++
-double acq_state_t::doppler_rate;
-```
-
-
-
-Expected Doppler rate of change (Hz/s) on the data-modulation search; 0 = static Doppler (no ceiling beyond reps). 
+ 
 
 
         
@@ -286,24 +279,7 @@ double acq_state_t::doppler_res_hz;
 
 
 
-Doppler bin width = chip\_rate/(sf\*doppler\_bins). 
-
-
-        
-
-<hr>
-
-
-
-### variable doppler\_resolution 
-
-```C++
-double acq_state_t::doppler_resolution;
-```
-
-
-
-Desired Doppler-bin resolution (Hz) on the data-modulation search; 0 = no floor (minimize total epochs outright, the legacy joint-search behavior). 
+Doppler bin width = chip\_rate/(sf\*coherent\_bins). 
 
 
         
@@ -338,6 +314,7 @@ double acq_state_t::doppler_uncertainty;
 
 
 One-sided Doppler search half-range (Hz); 0 = full native span. 
+ 
 
 
         
@@ -355,6 +332,7 @@ double acq_state_t::epochs_per_symbol;
 
 
 (chip\_rate/sf)/symbol\_rate; 0 when symbol\_rate &lt;= 0. 
+ 
 
 
         
@@ -372,6 +350,7 @@ float acq_state_t::eta;
 
 
 Raw per-cell Rayleigh amplitude threshold. 
+ 
 
 
         
@@ -389,6 +368,25 @@ float acq_state_t::eta_nc;
 
 
 Non-coherent CFAR threshold (order-N\_nc Marcum). 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable frame\_n 
+
+```C++
+size_t acq_state_t::frame_n;
+```
+
+
+
+Raw samples consumed from the ring per iteration: == n natively; == code\_bins in wideband mode (one epoch's worth — window\_bins hypotheses come from ONE shared epoch, not from consuming more input). 
+ 
 
 
         
@@ -406,6 +404,7 @@ double acq_state_t::fs;
 
 
 Sample rate (Hz) = chip\_rate \* spc. 
+ 
 
 
         
@@ -423,23 +422,7 @@ float* acq_state_t::mag_buf;
 
 
 \|out\_buf\| (n). 
-
-
-        
-
-<hr>
-
-
-
-### variable max\_noncoh 
-
-```C++
-size_t acq_state_t::max_noncoh;
-```
-
-
-
-Cap on the auto-split non-coherent look count. 
+ 
 
 
         
@@ -456,7 +439,7 @@ size_t acq_state_t::n;
 
 
 
-doppler\_bins \* code\_bins — frame size in samples. 
+Output grid size in samples: coherent\_bins \* window\_bins \* code\_bins (one of coherent\_bins/window\_bins is always 1). 
 
 
         
@@ -508,6 +491,7 @@ float* acq_state_t::nc_surface;
 
 
 Non-coherent \|·\|² accumulator (n); NULL unless n\_noncoh &gt; 1. 
+ 
 
 
         
@@ -538,6 +522,7 @@ size_t acq_state_t::noise_hi;
 
 
 Last CFAR reference bin (inclusive). 
+ 
 
 
         
@@ -555,6 +540,7 @@ size_t acq_state_t::noise_lo;
 
 
 First CFAR reference bin (inclusive). 
+ 
 
 
         
@@ -589,6 +575,7 @@ float* acq_state_t::noise_scratch;
 
 
 Scratch for the median sort (n). 
+ 
 
 
         
@@ -605,7 +592,8 @@ float complex* acq_state_t::out_buf;
 
 
 
-corr2d dump output (n). 
+corr2d dump output (n) — also the wideband mode's (window\_bins, code\_bins) grid. 
+ 
 
 
         
@@ -623,6 +611,7 @@ double acq_state_t::pd;
 
 
 Target detection probability. 
+ 
 
 
         
@@ -696,6 +685,7 @@ double acq_state_t::pfa;
 
 
 Target system false-alarm probability (stored for configure\_search\_raw's threshold re-derivation). 
+ 
 
 
         
@@ -713,6 +703,7 @@ double acq_state_t::pfa_cell;
 
 
 Bonferroni per-cell false-alarm probability. 
+ 
 
 
         
@@ -730,6 +721,7 @@ float complex* acq_state_t::ref;
 
 
 Single-row reference (n), owned. 
+ 
 
 
         
@@ -746,7 +738,7 @@ size_t acq_state_t::reps;
 
 
 
-Max coherent code repetitions (the ceiling). 
+Max coherent code repetitions (the ceiling); always 1 for an engine built via [**acq\_create\_continuous()**](acq__core_8h.md#function-acq_create_continuous). 
 
 
         
@@ -764,6 +756,7 @@ dp_f32_t* acq_state_t::ring;
 
 
 Raw cf32 input ring (the only ring). 
+ 
 
 
         
@@ -781,6 +774,7 @@ size_t acq_state_t::ring_cap;
 
 
 Ring capacity in complex samples. 
+ 
 
 
         
@@ -798,6 +792,7 @@ uint64_t acq_state_t::samples_consumed;
 
 
 Total framed samples (the state's offset). 
+ 
 
 
         
@@ -814,7 +809,7 @@ size_t acq_state_t::searched_bins;
 
 
 
-Doppler bins scanned (&lt;= doppler\_bins; du prior). 
+Doppler bins scanned (&lt;= coherent\_bins; du prior). 
 
 
         
@@ -832,6 +827,7 @@ size_t acq_state_t::sf;
 
 
 Chips per PN segment (= len(code)). 
+ 
 
 
         
@@ -848,7 +844,7 @@ fft_state_t* acq_state_t::slow_fft;
 
 
 
-Length-doppler\_bins forward FFT (slow time). 
+Length-coherent\_bins forward FFT (slow time). 
 
 
         
@@ -866,6 +862,7 @@ size_t acq_state_t::spc;
 
 
 Samples per chip (chip-rate oversample factor). 
+ 
 
 
         
@@ -899,7 +896,8 @@ double acq_state_t::symbol_rate;
 
 
 
-Continuous data-symbol rate (Hz); 0 = no known data-modulation clock (legacy sizing). 
+Continuous data-symbol rate (Hz); 0 = no known data-modulation clock. Diagnostic only on an engine built via [**acq\_create\_continuous()**](acq__core_8h.md#function-acq_create_continuous) (which always forces coherent\_bins=1 regardless) — informational, doesn't feed sizing. 
+ 
 
 
         
@@ -930,6 +928,7 @@ float acq_state_t::threshold;
 
 
 CFAR gate on test\_stat (theta); coherent path. 
+ 
 
 
         
@@ -955,6 +954,113 @@ uint8_t acq_state_t::underpowered;
 
 
 
+### variable wide\_fwd 
+
+```C++
+fft_state_t* acq_state_t::wide_fwd;
+```
+
+
+
+Forward FFT, length code\_bins. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable wide\_inv 
+
+```C++
+fft_state_t* acq_state_t::wide_inv;
+```
+
+
+
+Inverse FFT, length code\_bins. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable wide\_prod 
+
+```C++
+float complex* acq_state_t::wide_prod;
+```
+
+
+
+Rolled-spectrum \* wide\_ref\_spec product, length code\_bins; reused per hypothesis. 
+
+
+        
+
+<hr>
+
+
+
+### variable wide\_ref\_spec 
+
+```C++
+float complex* acq_state_t::wide_ref_spec;
+```
+
+
+
+conj(FFT(replica row)), length code\_bins. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable wide\_spec 
+
+```C++
+float complex* acq_state_t::wide_spec;
+```
+
+
+
+FFT(raw epoch), length code\_bins; once/epoch. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable window\_bins 
+
+```C++
+size_t acq_state_t::window_bins;
+```
+
+
+
+Wideband frequency-window hypotheses (1 = disabled/native — see the file doc comment). 
+ 
+
+
+        
+
+<hr>
+
+
+
 ### variable yframe 
 
 ```C++
@@ -964,6 +1070,7 @@ float complex* acq_state_t::yframe;
 
 
 Slow-time-FFT'd frame (n) fed to corr. 
+ 
 
 
         

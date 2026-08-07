@@ -12,72 +12,76 @@
 #ifndef MPSK_RECEIVER_CORE_H
 #define MPSK_RECEIVER_CORE_H
 
-#include "agc/agc_core.h"
-#include "carrier_nda/carrier_nda_core.h"
 #include "clib_common.h"
+#include "ddc/ddc_core.h"
 #include "dp_state.h"
-#include "farrow/farrow_core.h"
-#include "fir/fir_core.h"
 #include "jm_perf.h"
-#include "lo/lo_core.h"
-#include "lockdet/lockdet_core.h"
-#include "loop_filter/loop_filter_core.h"
-#include "mpsk/mpsk_core.h"
-#include "symsync/symsync_core.h"
-#include "dp_tlm/dp_tlm_core.h"
+#include "mpsk_receiver/mpsk_rx_loops.h"
 #include <complex.h>
+#include "ratesync/ratesync_core.h"
+#include "RateConverter/RateConverter_core.h"
+#include "resamp/resamp_core.h"
+#include "hbdecim/hbdecim_core.h"
+#include "cic/cic_core.h"
+#include "fir/fir_core.h"
+#include "resample/resample_core.h"
+#include "lo/lo_core.h"
+#include "nco/nco_core.h"
+#include "loop_filter/loop_filter_core.h"
+#include "lockdet/lockdet_core.h"
+#include "symsync/symsync_core.h"
+#include "agc/agc_core.h"
+#include "boxcar/boxcar_core.h"
+#include "dp_tlm/dp_tlm_core.h"
+#include "ber/ber_core.h"
+#include "telemetry/telemetry_core.h"
 #ifdef __cplusplus
 extern "C"
 {
 #endif
 
-  enum
-  {
-    MPSK_RX_PULSE_IANDD = 0, 
-    MPSK_RX_PULSE_RRC   = 1  
-  };
-
   typedef struct
   {
-    carrier_nda_state_t car;  
-    symsync_state_t     sync; 
-    fir_state_t        *mf;   
-    float              *mf_taps;  
-    int                 m;        
-    size_t              sps;      
-    int                 n;        
-    int                 pulse;    
-    double              rrc_beta; 
-    int                 rrc_span; 
-    int                 acq_to_track; 
-    double              lock_thresh;  
-    size_t          warmup_syms; 
-    lockdet_state_t handover;    
-    int           tracking;      
-    size_t        sym_count;     
-    int           differential;  
-    int           have_prev_idx; 
-    unsigned      prev_idx;      
-    float complex sym_rot;       
-    /* Telemetry attachment (the receiver's own "lock" probe; the timing
-     * probes ride the embedded symsync's attachment via the forwarded
-     * attach). NULL ctx = detached. Never serialized: the hand-written
-     * triplet packs children + running fields only. */
-    dp_tlm_t *tlm_ctx;         
-    int32_t   tlm_id_lock;     
-    int32_t   tlm_id_tracking; 
+    ddc_state_t    *fe; 
+    mpsk_rx_loops_t l;  
+    /* ── config (restored by create(), never packed in a state blob) ── */
+    /* The pulse geometry lives in the front end, which is the only thing
+       that uses it; keeping a second copy here would be a shadow of the
+       cascade's own configuration, free to drift out of step with it. */
+    double centre_freq; 
   } mpsk_receiver_state_t;
 
   mpsk_receiver_state_t *
-  mpsk_receiver_create (int m, size_t sps, int n, int pulse, double rrc_beta,
-                        int rrc_span, double bn_carrier, double zeta,
-                        double bn_timing, int acq_to_track, double lock_thresh,
-                        double init_norm_freq, size_t warmup_syms,
-                        int differential);
+  mpsk_receiver_create (int m, double sps, size_t m_out, int pulse,
+                        double rrc_beta, int rrc_span, double bn_carrier,
+                        double zeta, double bn_timing, int acq_to_track,
+                        double lock_thresh, double init_norm_freq,
+                        size_t warmup_syms, int differential,
+                        size_t num_phases, int nda_tap);
 
   void mpsk_receiver_destroy (mpsk_receiver_state_t *state);
 
   void mpsk_receiver_reset (mpsk_receiver_state_t *state);
+
+  JM_FORCEINLINE JM_HOT int
+  mpsk_receiver_step_ted (mpsk_receiver_state_t *s, float complex x,
+                          float complex *y_out, int ted)
+  {
+    float complex ys[4];
+    float complex zlo;
+    int           n_lo = 0;
+    size_t        n    = ddc_execute_ctrl_push_tap (
+        s->fe, x, s->l.timing.ctrl, s->l.freq_ctrl, ys,
+        sizeof (ys) / sizeof (ys[0]), &zlo, &n_lo);
+    /* The widest NDA tap reads here — ahead of the cascade, so it needs no
+       symbol timing. A no-op for every other tap. */
+    if (n_lo)
+      mpsk_rx_push_lo (&s->l, zlo);
+    int           emitted = 0;
+    for (size_t oi = 0; oi < n; oi++)
+      emitted |= mpsk_rx_take_output (&s->l, ys[oi], y_out, ted);
+    return emitted;
+  }
 
   size_t mpsk_receiver_steps_max_out (mpsk_receiver_state_t *state);
   size_t mpsk_receiver_steps (mpsk_receiver_state_t *state,
@@ -90,8 +94,11 @@ extern "C"
                              uint8_t *out, size_t max_out);
 
   double mpsk_receiver_get_norm_freq (const mpsk_receiver_state_t *state);
+  double mpsk_receiver_get_nco_freq (const mpsk_receiver_state_t *state);
   void mpsk_receiver_set_norm_freq (mpsk_receiver_state_t *state, double val);
   double mpsk_receiver_get_lock (const mpsk_receiver_state_t *state);
+  int mpsk_receiver_get_locked (const mpsk_receiver_state_t *state);
+  double mpsk_receiver_get_last_error (const mpsk_receiver_state_t *state);
 
   void mpsk_receiver_configure_lock (mpsk_receiver_state_t *state,
                                      double up_thresh, double down_thresh,
@@ -102,13 +109,15 @@ extern "C"
   double mpsk_receiver_get_timing_rate (const mpsk_receiver_state_t *state);
   int    mpsk_receiver_get_tracking (const mpsk_receiver_state_t *state);
   int    mpsk_receiver_get_m (const mpsk_receiver_state_t *state);
-  size_t mpsk_receiver_get_sps (const mpsk_receiver_state_t *state);
-  int    mpsk_receiver_get_n (const mpsk_receiver_state_t *state);
+  double mpsk_receiver_get_sps (const mpsk_receiver_state_t *state);
+  size_t mpsk_receiver_get_m_out (const mpsk_receiver_state_t *state);
+  int mpsk_receiver_get_clipped (const mpsk_receiver_state_t *state);
 /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
- * composition: carrier_nda + symsync + matched-filter children +
- * running tracking/handover state; MF taps restored by create. */
+ * composition: the front end's and the loops' self-validating child blobs.
+ * Every scalar this object carries across inputs lives in one of them; the
+ * cascade, its banks and the LO centre are restored by create. */
 #define MPSK_RECEIVER_STATE_MAGIC DP_FOURCC ('M', 'P', 'S', 'K')
-#define MPSK_RECEIVER_STATE_VERSION 4u /* v4: handover lockdet counters */
+#define MPSK_RECEIVER_STATE_VERSION 6u /* v5: rebuilt on the matched DDC */
   size_t mpsk_receiver_state_bytes (const mpsk_receiver_state_t *state);
   void   mpsk_receiver_get_state (const mpsk_receiver_state_t *state,
                                   void                        *blob);

@@ -67,8 +67,8 @@ extern "C"
 
   void boxcar_reset (boxcar_state_t *s);
 
-  void boxcar_steps (boxcar_state_t *s, const float complex *input,
-                     float complex *output, size_t n);
+  void boxcar_steps (boxcar_state_t *s, const float complex *x,
+                     float complex *out, size_t n);
 
   /* ── Serializable state (standard bytes interface; see dp_state.h)
    * ────────── Pointer-free POD struct, so a whole-struct snapshot resumes

@@ -47,8 +47,43 @@
 #define DP_ERR_TIMEOUT (-5) 
 #define DP_ERR_MEMORY (-6)  
 #define DP_ERR_TOO_LARGE (-7) 
-
 #include "jm_perf.h"
+
+/* ------------------------------------------------------------------ */
+/* Trusted allocation                                                  */
+/*                                                                     */
+/* A small, fixed-size, internally-sized allocation with already-      */
+/* validated arguments cannot fail in practice; the only way malloc /  */
+/* a sub-object create() returns NULL is genuine OOM, an unrecoverable  */
+/* condition for a compute kernel. Rather than thread a per-call unwind */
+/* path no test can reach (and that inflates every create() with        */
+/* uncoverable cleanup), route such allocations through these helpers:  */
+/* they abort() immediately on the impossible failure. This is the      */
+/* doppler-wide convention for trusted internal allocations — see the   */
+/* "trust internal guarantees" rule. (Reachable failures — invalid      */
+/* user arguments — still return NULL / DP_ERR_INVALID as before; only  */
+/* the OOM path aborts.)                                                 */
+/* ------------------------------------------------------------------ */
+
+static inline void *
+dp_xnn (void *p)
+{
+  if (!p)
+    abort ();
+  return p;
+}
+
+static inline void *
+dp_xmalloc (size_t n)
+{
+  return dp_xnn (malloc (n));
+}
+
+static inline void *
+dp_xcalloc (size_t nmemb, size_t size)
+{
+  return dp_xnn (calloc (nmemb, size));
+}
 
 #endif /* DOPPLER_CLIB_COMMON_H */
 ```

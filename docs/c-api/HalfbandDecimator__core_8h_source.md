@@ -49,7 +49,7 @@ extern "C"
 
   size_t HalfbandDecimator_execute (HalfbandDecimator_state_t *state,
                                     const float complex *x, size_t x_len,
-                                    float complex *out);
+                                    float complex *out, size_t max_out);
 
   /* ------------------------------------------------------------------ */
   /* Properties                                                          */

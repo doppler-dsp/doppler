@@ -82,11 +82,11 @@ Floating-point complex types use C99 `<complex.h>`:
 
 
 
-|Wire type  |C type  |bytes/sample  |
+|Wire type   |C type   |bytes/sample    |
 |-----|-----|-----|
-|CF32  |`float` \_Complex  |8  |
-|CF64  |`double` \_Complex  |16  |
-|CF128  |`long` double \_Complex  |32  |
+|CF32   |`float` \_Complex   |8    |
+|CF64   |`double` \_Complex   |16    |
+|CF128   |`long` double \_Complex   |32   |
 
 
 
@@ -97,11 +97,11 @@ Integer complex types have no C99 equivalent. They are represented as interleave
 
 
 
-|Wire type  |C element type  |bytes/sample  |array length  |
+|Wire type   |C element type   |bytes/sample   |array length    |
 |-----|-----|-----|-----|
-|CI8  |`int8_t`  |2  |2×n  |
-|CI16  |`int16_t`  |4  |2×n  |
-|CI32  |`int32_t`  |8  |2×n  |
+|CI8   |`int8_t`   |2   |2×n    |
+|CI16   |`int16_t`   |4   |2×n    |
+|CI32   |`int32_t`   |8   |2×n   |
 
 
 

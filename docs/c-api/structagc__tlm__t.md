@@ -37,7 +37,7 @@ _Telemetry attachment: a borrowed context + this object's probe ids. NULL ctx (t
 | Type | Name |
 | ---: | :--- |
 |  int32\_t | [**\_pad**](#variable-_pad)  <br> |
-|  [**dp\_tlm\_t**](telemetry_8h.md#typedef-dp_tlm_t) \* | [**ctx**](#variable-ctx)  <br> |
+|  [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* | [**ctx**](#variable-ctx)  <br> |
 |  int32\_t | [**id\_gain**](#variable-id_gain)  <br> |
 
 

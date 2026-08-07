@@ -46,6 +46,7 @@ _1-D FFT correlator state._ [More...](#detailed-description)
 |  float complex \* | [**ref\_spec**](#variable-ref_spec)  <br> |
 |  float complex \* | [**work\_fft**](#variable-work_fft)  <br> |
 |  float complex \* | [**work\_pad**](#variable-work_pad)  <br> |
+|  float complex \* | [**work\_trunc**](#variable-work_trunc)  <br> |
 
 
 
@@ -111,6 +112,7 @@ float complex* corr_state_t::accum;
 
 
 Coherent product-spectrum accumulator. 
+ 
 
 
         
@@ -162,6 +164,7 @@ fft_state_t* corr_state_t::fwd;
 
 
 Forward plan (sign = -1) at n. 
+ 
 
 
         
@@ -179,6 +182,7 @@ fft_state_t* corr_state_t::inv;
 
 
 Inverse plan (sign = +1) at n\_out. 
+ 
 
 
         
@@ -196,6 +200,7 @@ size_t corr_state_t::n;
 
 
 FFT / reference length (samples). 
+ 
 
 
         
@@ -213,6 +218,7 @@ size_t corr_state_t::n_out;
 
 
 Output length (== n unless decoupled). 
+ 
 
 
         
@@ -230,6 +236,7 @@ float complex* corr_state_t::ref_spec;
 
 
 conj(FFT(ref)), pre-computed at create. 
+ 
 
 
         
@@ -247,6 +254,7 @@ float complex* corr_state_t::work_fft;
 
 
 Scratch: FFT(in) · ref\_spec (product). 
+ 
 
 
         
@@ -264,6 +272,23 @@ float complex* corr_state_t::work_pad;
 
 
 Zero-padded product, n\_out (NULL native). 
+
+
+        
+
+<hr>
+
+
+
+### variable work\_trunc 
+
+```C++
+float complex* corr_state_t::work_trunc;
+```
+
+
+
+Bounce buffer for a dump into an under-sized `out` (jm gh-138). The inverse FFT's plan is fixed at n\_out, so it cannot write a partial surface  a short `out` has to be served by inverting here and copying the prefix. Allocated lazily, because the sized path (everything the Python binding does) never needs it. 
 
 
         

@@ -68,8 +68,8 @@ _ToneMeasure — single-tone ADC/converter spectral measurement._ [More...](#det
 |  [**tone\_meas\_t**](structtone__meas__t.md) | [**tonemeas\_analyze\_complex**](#function-tonemeas_analyze_complex) ([**tonemeas\_state\_t**](structtonemeas__state__t.md) \* state, const float complex \* x, size\_t n\_in) <br>_Analyse a complex baseband capture (two-sided spectrum)._  |
 |  [**tonemeas\_state\_t**](structtonemeas__state__t.md) \* | [**tonemeas\_create**](#function-tonemeas_create) (size\_t n, double fs, size\_t n\_harmonics, double full\_scale, size\_t bits, double dynamic\_range\_db, size\_t dc\_guard) <br>_Create a ToneMeasure analyser (auto Kaiser window)._  |
 |  void | [**tonemeas\_destroy**](#function-tonemeas_destroy) ([**tonemeas\_state\_t**](structtonemeas__state__t.md) \* state) <br>_Destroy a ToneMeasure analyser._  |
-|  void | [**tonemeas\_reset**](#function-tonemeas_reset) ([**tonemeas\_state\_t**](structtonemeas__state__t.md) \* state) <br>_Reset (no-op: the analyser is stateless between calls)._  |
-|  size\_t | [**tonemeas\_spectrum\_dbfs**](#function-tonemeas_spectrum_dbfs) ([**tonemeas\_state\_t**](structtonemeas__state__t.md) \* state, const float \* x, size\_t x\_len, float \* out) <br>_DC-centred dBFS magnitude spectrum of a real capture (length nfft)._  |
+|  void | [**tonemeas\_reset**](#function-tonemeas_reset) ([**tonemeas\_state\_t**](structtonemeas__state__t.md) \* state) <br>_Reset the analyser (a no-op: it holds no state between calls)._  |
+|  size\_t | [**tonemeas\_spectrum\_dbfs**](#function-tonemeas_spectrum_dbfs) ([**tonemeas\_state\_t**](structtonemeas__state__t.md) \* state, const float \* x, size\_t x\_len, float \* out, size\_t max\_out) <br>_DC-centred dBFS magnitude spectrum of a real capture (length nfft)._  |
 |  size\_t | [**tonemeas\_spectrum\_dbfs\_max\_out**](#function-tonemeas_spectrum_dbfs_max_out) ([**tonemeas\_state\_t**](structtonemeas__state__t.md) \* state) <br>_Capacity (== nfft) of the spectrum\_dbfs output buffer._  |
 |  [**time\_stats\_t**](structtime__stats__t.md) | [**tonemeas\_time\_stats**](#function-tonemeas_time_stats) ([**tonemeas\_state\_t**](structtonemeas__state__t.md) \* state, const float \* x, size\_t n\_in) <br>_Time-domain statistics of a real capture._  |
 
@@ -156,7 +156,7 @@ the metric record (by value).
 >>> r = ToneMeasure(n=n, fs=1.0).analyze(x)
 >>> type(r).__name__
 'ToneMetrics'
->>> abs(r.fund_dbfs) < 0.1, round(r.thd, 1)   # 0 dBFS tone, THD -40 dBc
+>>> abs(r.fund_dbfs) < 0.1, round(r.thd, 1)  # 0 dBFS tone, THD -40
 (True, -40.0)
 ```
  
@@ -285,7 +285,7 @@ void tonemeas_destroy (
 
 ### function tonemeas\_reset 
 
-_Reset (no-op: the analyser is stateless between calls)._ 
+_Reset the analyser (a no-op: it holds no state between calls)._ 
 ```C++
 void tonemeas_reset (
     tonemeas_state_t * state
@@ -294,6 +294,28 @@ void tonemeas_reset (
 
 
 
+Every analyze() / analyze\_complex() / time\_stats() / spectrum\_dbfs() call re-windows and re-transforms its own capture from scratch, so there is nothing carried between calls to clear. The method exists only so ToneMeasure honours the same reset() contract as every other doppler object, letting a generic pipeline reset each stage uniformly.
+
+
+
+
+**Parameters:**
+
+
+* `state` The analyser (left unchanged).
+
+
+```C++
+>>> from doppler.measure import ToneMeasure
+>>> m = ToneMeasure(n=4096, fs=1.0)
+>>> m.reset()            # stateless: provided only for API uniformity
+>>> m.reset() is None    # returns nothing; safe to call anytime
+True
+```
+ 
+
+
+        
 
 <hr>
 
@@ -307,20 +329,47 @@ size_t tonemeas_spectrum_dbfs (
     tonemeas_state_t * state,
     const float * x,
     size_t x_len,
-    float * out
+    float * out,
+    size_t max_out
 ) 
 ```
 
 
 
+The windowed, zero-padded magnitude spectrum behind the metrics, laid out DC-centred (fftshifted) and normalised to dBFS so it drops straight under an analyzer trace. Use it to eyeball where the fundamental, harmonics and spurs that analyze() quantifies actually sit.
+
+
+
+
+**Parameters:**
+
+
+* `state` The analyser. 
+* `x` Real time-domain capture (length `x_len`). 
+* `x_len` Number of input samples. 
+* `out` Destination buffer (length &gt;= `max_out`). 
+* `max_out` Capacity of `out` (== nfft). 
+
 
 
 **Returns:**
 
-Number of samples written (nfft). 
+DC-centred dBFS magnitude spectrum, one value per FFT bin (nfft).
 
 
 
+```C++
+>>> from doppler.measure import ToneMeasure
+>>> import numpy as np
+>>> t = np.arange(4096)
+>>> x = np.cos(2*np.pi*300*t/4096).astype(np.float32)  # full-scale
+>>> s = ToneMeasure(n=4096, fs=1.0).spectrum_dbfs(x)  # DC-centred dBFS
+>>> s.shape                     # zero-padded to next power of two
+(8192,)
+>>> round(float(s.max()), 1)   # two real images, ~6 dB each
+-6.0
+```
+ 
 
 
         
@@ -365,7 +414,7 @@ time_stats_t tonemeas_time_stats (
 >>> t = np.arange(4096)
 >>> x = (0.8*np.cos(2*np.pi*50*t/4096)).astype(np.float32)
 >>> ts = ToneMeasure(n=4096, fs=1.0).time_stats(x)
->>> round(ts.crest_db, 2), round(ts.fs_util_pct, 0)   # sine crest ~3.01 dB
+>>> round(ts.crest_db, 2), round(ts.fs_util_pct, 0)  # crest ~3.01 dB
 (3.01, 80.0)
 ```
  

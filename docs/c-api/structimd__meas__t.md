@@ -36,18 +36,18 @@ _Two-tone intermodulation result (IMD2/IMD3/TOI)._
 
 | Type | Name |
 | ---: | :--- |
-|  double | [**f1**](#variable-f1)  <br> |
-|  double | [**f2**](#variable-f2)  <br> |
-|  double | [**imd2\_dbc**](#variable-imd2_dbc)  <br> |
-|  double | [**imd2\_freq**](#variable-imd2_freq)  <br> |
-|  double | [**imd3\_dbc**](#variable-imd3_dbc)  <br> |
-|  double | [**imd3\_hi\_freq**](#variable-imd3_hi_freq)  <br> |
-|  double | [**imd3\_lo\_freq**](#variable-imd3_lo_freq)  <br> |
-|  double | [**p1\_dbfs**](#variable-p1_dbfs)  <br> |
-|  double | [**p2\_dbfs**](#variable-p2_dbfs)  <br> |
-|  double | [**rbw\_hz**](#variable-rbw_hz)  <br> |
-|  double | [**soi\_dbfs**](#variable-soi_dbfs)  <br> |
-|  double | [**toi\_dbfs**](#variable-toi_dbfs)  <br> |
+|  double | [**f1**](#variable-f1)  <br>_Lower tone frequency (Hz)._  |
+|  double | [**f2**](#variable-f2)  <br>_Upper tone frequency (Hz)._  |
+|  double | [**imd2\_dbc**](#variable-imd2_dbc)  <br>_2nd-order product (f2-f1) vs mean tone (dBc)._  |
+|  double | [**imd2\_freq**](#variable-imd2_freq)  <br>_2nd-order product frequency (Hz)._  |
+|  double | [**imd3\_dbc**](#variable-imd3_dbc)  <br>_Worst 3rd-order product vs mean tone (dBc)._  |
+|  double | [**imd3\_hi\_freq**](#variable-imd3_hi_freq)  <br>_3rd-order (2f2-f1) product frequency (Hz)._  |
+|  double | [**imd3\_lo\_freq**](#variable-imd3_lo_freq)  <br>_3rd-order (2f1-f2) product frequency (Hz)._  |
+|  double | [**p1\_dbfs**](#variable-p1_dbfs)  <br>_Lower tone level (dBFS)._  |
+|  double | [**p2\_dbfs**](#variable-p2_dbfs)  <br>_Upper tone level (dBFS)._  |
+|  double | [**rbw\_hz**](#variable-rbw_hz)  <br>_Resolution bandwidth (Hz)._  |
+|  double | [**soi\_dbfs**](#variable-soi_dbfs)  <br>_Second-order intercept (dBFS)._  |
+|  double | [**toi\_dbfs**](#variable-toi_dbfs)  <br>_Third-order intercept (dBFS)._  |
 
 
 
@@ -99,6 +99,7 @@ _Two-tone intermodulation result (IMD2/IMD3/TOI)._
 
 ### variable f1 
 
+_Lower tone frequency (Hz)._ 
 ```C++
 double imd_meas_t::f1;
 ```
@@ -112,6 +113,7 @@ double imd_meas_t::f1;
 
 ### variable f2 
 
+_Upper tone frequency (Hz)._ 
 ```C++
 double imd_meas_t::f2;
 ```
@@ -125,6 +127,7 @@ double imd_meas_t::f2;
 
 ### variable imd2\_dbc 
 
+_2nd-order product (f2-f1) vs mean tone (dBc)._ 
 ```C++
 double imd_meas_t::imd2_dbc;
 ```
@@ -138,6 +141,7 @@ double imd_meas_t::imd2_dbc;
 
 ### variable imd2\_freq 
 
+_2nd-order product frequency (Hz)._ 
 ```C++
 double imd_meas_t::imd2_freq;
 ```
@@ -151,6 +155,7 @@ double imd_meas_t::imd2_freq;
 
 ### variable imd3\_dbc 
 
+_Worst 3rd-order product vs mean tone (dBc)._ 
 ```C++
 double imd_meas_t::imd3_dbc;
 ```
@@ -164,6 +169,7 @@ double imd_meas_t::imd3_dbc;
 
 ### variable imd3\_hi\_freq 
 
+_3rd-order (2f2-f1) product frequency (Hz)._ 
 ```C++
 double imd_meas_t::imd3_hi_freq;
 ```
@@ -177,6 +183,7 @@ double imd_meas_t::imd3_hi_freq;
 
 ### variable imd3\_lo\_freq 
 
+_3rd-order (2f1-f2) product frequency (Hz)._ 
 ```C++
 double imd_meas_t::imd3_lo_freq;
 ```
@@ -190,6 +197,7 @@ double imd_meas_t::imd3_lo_freq;
 
 ### variable p1\_dbfs 
 
+_Lower tone level (dBFS)._ 
 ```C++
 double imd_meas_t::p1_dbfs;
 ```
@@ -203,6 +211,7 @@ double imd_meas_t::p1_dbfs;
 
 ### variable p2\_dbfs 
 
+_Upper tone level (dBFS)._ 
 ```C++
 double imd_meas_t::p2_dbfs;
 ```
@@ -216,6 +225,7 @@ double imd_meas_t::p2_dbfs;
 
 ### variable rbw\_hz 
 
+_Resolution bandwidth (Hz)._ 
 ```C++
 double imd_meas_t::rbw_hz;
 ```
@@ -229,6 +239,7 @@ double imd_meas_t::rbw_hz;
 
 ### variable soi\_dbfs 
 
+_Second-order intercept (dBFS)._ 
 ```C++
 double imd_meas_t::soi_dbfs;
 ```
@@ -242,6 +253,7 @@ double imd_meas_t::soi_dbfs;
 
 ### variable toi\_dbfs 
 
+_Third-order intercept (dBFS)._ 
 ```C++
 double imd_meas_t::toi_dbfs;
 ```

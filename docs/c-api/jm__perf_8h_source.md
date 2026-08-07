@@ -9,7 +9,6 @@
 
 ```C++
 
-
 #ifndef JM_PERF_H
 #define JM_PERF_H
 

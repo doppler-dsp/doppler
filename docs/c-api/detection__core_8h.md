@@ -214,7 +214,8 @@ Minimum dwell &gt;= 1, or -1 if not achievable.
 
 ```C++
 >>> from doppler.detection import det_dwell_power
->>> det_dwell_power(snr_power=0.25, pd_min=0.9, pfa=1e-6, max_dwell=256)
+>>> det_dwell_power(
+...     snr_power=0.25, pd_min=0.9, pfa=1e-6, max_dwell=256)
 84
 ```
  
@@ -320,7 +321,8 @@ Minimum n\_noncoh &gt;= 1, or -1 if not achievable.
 
 ```C++
 >>> from doppler.detection import det_n_noncoh
->>> det_n_noncoh(snr=2.0, n_coh=16, pd_min=0.9, pfa=1e-3, max_n_noncoh=64)
+>>> det_n_noncoh(
+...     snr=2.0, n_coh=16, pd_min=0.9, pfa=1e-3, max_n_noncoh=64)
 1
 ```
  
@@ -371,9 +373,9 @@ Detection probability in &#91;0, 1&#93;.
 ```C++
 >>> from doppler.detection import det_pd, det_threshold
 >>> thr = det_threshold(pfa=1e-6)
->>> round(det_pd(snr=1.613, dwell=8, threshold=thr), 2)  # 8-dwell -> Pd~0.9
+>>> round(det_pd(snr=1.613, dwell=8, threshold=thr), 2)  # Pd 0.9
 0.9
->>> round(det_pd(snr=0.0, dwell=8, threshold=thr), 6)    # snr=0 -> Pd=Pfa
+>>> round(det_pd(snr=0.0, dwell=8, threshold=thr), 6)    # Pd = Pfa
 1e-06
 ```
  
@@ -421,14 +423,16 @@ Detection probability in &#91;0, 1&#93;.
 
 
 ```C++
->>> from doppler.detection import det_pd_noncoherent, det_pd, det_threshold
+>>> from doppler.detection import det_pd_noncoherent, det_pd
 >>> from doppler.detection import det_threshold_noncoherent
+>>> from doppler.detection import det_threshold
 >>> eta = det_threshold(pfa=1e-6)
 >>> det_pd_noncoherent(snr=0.5, n_coh=8, n_noncoh=1, threshold=eta) \
-...     == det_pd(snr=0.5, dwell=8, threshold=eta)        # reduces to coherent
+...     == det_pd(snr=0.5, dwell=8, threshold=eta)  # -> coherent
 True
 >>> eta4 = det_threshold_noncoherent(pfa=1e-3, n_noncoh=4)
->>> round(det_pd_noncoherent(snr=0.3, n_coh=16, n_noncoh=4, threshold=eta4), 2)
+>>> round(det_pd_noncoherent(
+...     snr=0.3, n_coh=16, n_noncoh=4, threshold=eta4), 2)
 0.19
 ```
  
@@ -476,7 +480,8 @@ Detection probability in &#91;0, 1&#93;.
 ```C++
 >>> from doppler.detection import det_pd_power, det_threshold_power
 >>> thr = det_threshold_power(pfa=1e-6)
->>> round(det_pd_power(snr_power=2.6017, dwell=8, power_threshold=thr), 2)
+>>> round(det_pd_power(
+...     snr_power=2.6017, dwell=8, power_threshold=thr), 2)
 0.9
 ```
  The result equals [**det\_pd()**](detection__core_8h.md#function-det_pd) at the equivalent amplitude SNR: power SNR `s` corresponds to amplitude SNR `sqrt(s)`, and the Q\_1 arguments match. 
@@ -526,7 +531,8 @@ Minimum amplitude SNR &gt;= 0.
 >>> snr = det_snr(dwell=8, pd_min=0.9, pfa=1e-6)
 >>> round(snr, 3)
 1.613
->>> det_pd(snr=snr, dwell=8, threshold=det_threshold(pfa=1e-6)) >= 0.9
+>>> pd = det_pd(snr=snr, dwell=8, threshold=det_threshold(pfa=1e-6))
+>>> abs(pd - 0.9) < 1e-9   # det_snr inverts det_pd, to tolerance
 True
 ```
  
@@ -574,8 +580,9 @@ Minimum power SNR &gt;= 0.
 >>> sp = det_snr_power(dwell=8, pd_min=0.9, pfa=1e-6)
 >>> round(sp, 4)
 2.6017
->>> det_pd_power(snr_power=sp, dwell=8,
-...              power_threshold=det_threshold_power(pfa=1e-6)) >= 0.9
+>>> pd = det_pd_power(snr_power=sp, dwell=8,
+...                   power_threshold=det_threshold_power(pfa=1e-6))
+>>> abs(pd - 0.9) < 1e-9   # det_snr_power inverts det_pd_power
 True
 ```
  
@@ -717,10 +724,12 @@ Threshold eta\_nc on the normalized statistic R.
 
 
 ```C++
->>> from doppler.detection import det_threshold_noncoherent, det_threshold
+>>> from doppler.detection import det_threshold_noncoherent
+>>> from doppler.detection import det_threshold
 >>> round(det_threshold_noncoherent(pfa=1e-3, n_noncoh=4), 3)
 5.111
->>> det_threshold_noncoherent(pfa=1e-6, n_noncoh=1) == det_threshold(pfa=1e-6)
+>>> det_threshold_noncoherent(pfa=1e-6, n_noncoh=1) == det_threshold(
+...     pfa=1e-6)
 True
 ```
  
@@ -938,7 +947,7 @@ Q\_M(a, b) in &#91;0, 1&#93;.
 
 ```C++
 >>> from doppler.detection import marcum_q
->>> round(marcum_q(m=1, a=0.0, b=1.0), 5)   # P(Rayleigh > 1) = exp(-0.5)
+>>> round(marcum_q(m=1, a=0.0, b=1.0), 5)  # P(Rayleigh>1) = exp(-.5)
 0.60653
 >>> round(marcum_q(m=1, a=0.0, b=2.0), 5)   # exp(-2)
 0.13534

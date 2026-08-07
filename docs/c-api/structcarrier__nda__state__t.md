@@ -44,7 +44,6 @@ _NDA M-th-power carrier loop state._ [More...](#detailed-description)
 |  double | [**last\_error**](#variable-last_error)  <br> |
 |  [**loop\_filter\_state\_t**](structloop__filter__state__t.md) | [**lf**](#variable-lf)  <br> |
 |  double | [**lock**](#variable-lock)  <br> |
-|  double | [**lock\_scale**](#variable-lock_scale)  <br> |
 |  [**lockdet\_state\_t**](structlockdet__state__t.md) | [**lockdet**](#variable-lockdet)  <br> |
 |  int | [**m**](#variable-m)  <br> |
 |  int | [**n**](#variable-n)  <br> |
@@ -118,6 +117,7 @@ agc_state_t carrier_nda_state_t::agc;
 
 
 per-sample log-domain AGC on the arm sample (normalizes to unit average power). 
+ 
 
 
         
@@ -135,6 +135,7 @@ boxcar_state_t carrier_nda_state_t::arm;
 
 
 I/Q boxcar moving-average arm (sps/n). 
+ 
 
 
         
@@ -169,6 +170,7 @@ double carrier_nda_state_t::bn;
 
 
 PLL loop noise bandwidth (retained). 
+ 
 
 
         
@@ -203,6 +205,7 @@ double carrier_nda_state_t::last_error;
 
 
 last phase discriminator (loop stress). 
+ 
 
 
         
@@ -220,6 +223,7 @@ loop_filter_state_t carrier_nda_state_t::lf;
 
 
 2nd-order carrier PI loop. 
+ 
 
 
         
@@ -237,23 +241,7 @@ double carrier_nda_state_t::lock;
 
 
 EMA of the lock signal (1 = locked). 
-
-
-        
-
-<hr>
-
-
-
-### variable lock\_scale 
-
-```C++
-double carrier_nda_state_t::lock_scale;
-```
-
-
-
-per-M lock-signal scale (1/0.619/0.412). 
+ 
 
 
         
@@ -271,6 +259,7 @@ lockdet_state_t carrier_nda_state_t::lockdet;
 
 
 decision rule: thresholds + verify counters stepped on `lock` each sample (mirrors MpskReceiver's own pre-existing handover step on this same statistic). 
+ 
 
 
         
@@ -288,6 +277,7 @@ int carrier_nda_state_t::m;
 
 
 constellation order M (2, 4, 8). 
+ 
 
 
         
@@ -305,6 +295,7 @@ int carrier_nda_state_t::n;
 
 
 sets the MA window (= a 1/n-symbol box). 
+ 
 
 
         
@@ -322,6 +313,7 @@ lo_state_t carrier_nda_state_t::nco;
 
 
 integer carrier NCO (uint32 phase). 
+ 
 
 
         
@@ -339,6 +331,7 @@ double carrier_nda_state_t::seed_norm_freq;
 
 
 create-time carrier freq, for reset. 
+ 
 
 
         
@@ -356,6 +349,7 @@ size_t carrier_nda_state_t::sps;
 
 
 samples per symbol. 
+ 
 
 
         
@@ -390,6 +384,7 @@ double carrier_nda_state_t::zeta;
 
 
 damping factor (retained). 
+ 
 
 
         

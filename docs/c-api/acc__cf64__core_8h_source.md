@@ -43,7 +43,7 @@ extern "C"
 
   double _Complex acc_cf64_get_acc (const acc_cf64_state_t *state);
 
-  void acc_cf64_set_acc (acc_cf64_state_t *state, double _Complex acc);
+  void acc_cf64_set_acc (acc_cf64_state_t *state, double _Complex value);
 
   double complex acc_cf64_get (acc_cf64_state_t *state);
 

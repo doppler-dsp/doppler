@@ -107,6 +107,7 @@ uint32_t dp_state_hdr_t::_pad;
 
 
 Reserved; 0. 
+ 
 
 
         
@@ -124,6 +125,7 @@ uint32_t dp_state_hdr_t::bytes;
 
 
 Total blob size; equals obj\_state\_bytes(). 
+ 
 
 
         
@@ -141,6 +143,7 @@ uint8_t dp_state_hdr_t::endian;
 
 
 DP\_STATE\_ENDIAN at serialize time. 
+ 
 
 
         
@@ -158,6 +161,7 @@ uint8_t dp_state_hdr_t::flags;
 
 
 Reserved; 0. 
+ 
 
 
         
@@ -175,6 +179,7 @@ uint32_t dp_state_hdr_t::magic;
 
 
 Per-object FourCC type tag (DP\_FOURCC). 
+ 
 
 
         
@@ -192,6 +197,7 @@ uint16_t dp_state_hdr_t::version;
 
 
 Per-object blob format version. 
+ 
 
 
         

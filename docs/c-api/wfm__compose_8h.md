@@ -40,7 +40,7 @@ _Multi-segment waveform composer (Phase B)._ [More...](#detailed-description)
 
 | Type | Name |
 | ---: | :--- |
-| enum  | [**wfm\_\_compose\_8h\_1aaa8203df32d6fa90fd184479af8db90a**](#enum-wfm__compose_8h_1aaa8203df32d6fa90fd184479af8db90a)  <br>_Per-field "draw uniformly each repeat" flags (_ `ranged` _bitmask)._ |
+| enum  | [**wfm\_\_compose\_8h\_1a0411cd49bb5b71852cecd93bcbf0ca2d**](#enum-wfm__compose_8h_1a0411cd49bb5b71852cecd93bcbf0ca2d)  <br>_Per-field "draw uniformly each repeat" flags (_ `ranged` _bitmask)._ |
 | typedef struct wfm\_compose\_state | [**wfm\_compose\_state\_t**](#typedef-wfm_compose_state_t)  <br> |
 | enum  | [**wfm\_seed\_advance\_t**](#enum-wfm_seed_advance_t)  <br>_Per-repeat seed policy for a looped/continuous stream._  |
 
@@ -77,8 +77,9 @@ _Multi-segment waveform composer (Phase B)._ [More...](#detailed-description)
 |  void | [**wfm\_compose\_set\_seed\_advance**](#function-wfm_compose_set_seed_advance) ([**wfm\_compose\_state\_t**](wfm__compose_8h.md#typedef-wfm_compose_state_t) \* state, int mode) <br>_Choose how the seed advances on each repeat of a looped/continuous stream (a_ `wfm_seed_advance_t` _):_ |
 |  size\_t | [**wfm\_compose\_spans**](#function-wfm_compose_spans) (const [**wfm\_segment\_t**](structwfm__segment__t.md) \* segs, size\_t n\_segs, [**wfm\_span\_t**](structwfm__span__t.md) \* out, size\_t cap) <br>_Replay the (epoch 0) instance timeline of a resolved segment list._  |
 |  int | [**wfm\_resolve\_noise**](#function-wfm_resolve_noise) ([**wfm\_segment\_t**](structwfm__segment__t.md) \* segs, size\_t n) <br>_Resolve a segment list's noise model in place (Phase 4b)._  |
-|  double | [**wfm\_snr\_over\_fs**](#function-wfm_snr_over_fs) (int snr\_mode, int type, int sps, size\_t sf, double snr) <br>_SNR (dB) referred to fs, from a source's snr/snr\_mode/sps/type._  |
-|  double | [**wfm\_source\_create\_snr**](#function-wfm_source_create_snr) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src, double snr, int \* snr\_mode) <br>_Resolve a source's (snr, snr\_mode) into the pair to hand to_ `wfm_synth_create()` _._ |
+|  double | [**wfm\_snr\_over\_fs**](#function-wfm_snr_over_fs) (int snr\_mode, int type, int sps, size\_t sf, double sym\_span, double snr) <br>_SNR (dB) referred to fs, from a source's snr/snr\_mode/sps/type._  |
+|  int | [**wfm\_source\_attach\_dsss**](#function-wfm_source_attach_dsss) ([**wfm\_synth\_state\_t**](structwfm__synth__state__t.md) \* syn, const [**wfm\_source\_t**](structwfm__source__t.md) \* src, double fs) <br>_Attach a dsss source's data to a freshly-created synth._  |
+|  double | [**wfm\_source\_create\_snr**](#function-wfm_source_create_snr) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src, double fs, double snr, int \* snr\_mode) <br>_Resolve a source's (snr, snr\_mode) into the pair to hand to_ `wfm_synth_create()` _._ |
 |  double | [**wfm\_spec\_headroom**](#function-wfm_spec_headroom) (const char \* json) <br>_The top-level_ `headroom` _(dB) from a spec JSON, or 0 if absent._ |
 |  char \* | [**wfm\_spec\_template\_json**](#function-wfm_spec_template_json) (void) <br>_A ready-to-edit example spec in the canonical_  _from-file schema._ |
 |  char \* | [**wfm\_spec\_to\_json**](#function-wfm_spec_to_json) (const [**wfm\_segment\_t**](structwfm__segment__t.md) \* segs, size\_t n\_segs, int repeat, int continuous, double headroom) <br>_Serialise a spec to a JSON string (for_  _record)._ |
@@ -144,11 +145,11 @@ wfm_compose_destroy(c);
 
 
 
-### enum wfm\_\_compose\_8h\_1aaa8203df32d6fa90fd184479af8db90a 
+### enum wfm\_\_compose\_8h\_1a0411cd49bb5b71852cecd93bcbf0ca2d 
 
 _Per-field "draw uniformly each repeat" flags (_ `ranged` _bitmask)._
 ```C++
-enum wfm__compose_8h_1aaa8203df32d6fa90fd184479af8db90a {
+enum wfm__compose_8h_1a0411cd49bb5b71852cecd93bcbf0ca2d {
     WFM_RANGE_FREQ = 1u << 0,
     WFM_RANGE_SNR = 1u << 1,
     WFM_RANGE_LEVEL = 1u << 2,
@@ -472,7 +473,7 @@ Set before the first execute(); the first pass is always unchanged. An out-of-ra
 
 
 * `state` Compose state (may be NULL). 
-* `mode` A [**wfm\_seed\_advance\_t**](wfm__compose_8h.md#enum-wfm_seed_advance_t) value. 
+* `mode` A wfm\_seed\_advance\_t value. 
 
 
 
@@ -572,6 +573,7 @@ double wfm_snr_over_fs (
     int type,
     int sps,
     size_t sf,
+    double sym_span,
     double snr
 ) 
 ```
@@ -581,7 +583,7 @@ double wfm_snr_over_fs (
 The single source of truth for the Es/No, Eb/No, and over-fs conventions (`snr_mode` 0 auto / 1 fs / 2 ebno / 3 esno). `wfm_resolve_noise()` uses it to place the shared noise floor at `level(anchor) − wfm_snr_over_fs(anchor)`, and the Plan stimulus engine reuses it to recompute the floor at an arbitrary swept SNR — so both agree to the bit.
 
 
-For `type=dsss` the symbol is the outer _data_ symbol, which spans `sf * sps` samples (sf chips, sps samples per chip): `auto` picks esno, and esno/ebno convert as `snr − 10·log10(sf·sps)` (BPSK payload, so the two coincide). Every other type ignores `sf`.
+For `type=dsss` the symbol is the outer _data_ symbol. For a BURST that spans `sf * sps` samples (sf chips, sps samples per chip). For a CONTINUOUS async stream the data clock is independent of the code, so the span is `fs / symbol_rate` samples — passed as `sym_span` (non-integer), which OVERRIDES the `sf·sps` reconstruction when non-zero. `auto` picks esno, and esno/ebno convert as `snr − 10·log10(span)` (BPSK payload, so the two coincide). Every other type ignores `sf` and `sym_span`.
 
 
 
@@ -592,7 +594,8 @@ For `type=dsss` the symbol is the outer _data_ symbol, which spans `sf * sps` sa
 * `snr_mode` 0 auto, 1 fs, 2 ebno, 3 esno. 
 * `type` A WFM\_SYNTH\_\* waveform type (selects the auto convention). 
 * `sps` Samples per symbol/chip (≥1; &lt;1 treated as 1). 
-* `sf` Spreading factor — chips per data symbol (dsss only; ≥1, &lt;1 treated as 1). 
+* `sf` Spreading factor — chips per data symbol (burst dsss; ≥1, &lt;1 treated as 1). 
+* `sym_span` Continuous-dsss symbol span in samples (`fs/symbol_rate`); 0 = burst/non-dsss, derive from `sf·sps`. 
 * `snr` The declared SNR in dB. 
 
 
@@ -611,20 +614,20 @@ SNR over fs in dB.
 
 
 
-### function wfm\_source\_create\_snr 
+### function wfm\_source\_attach\_dsss 
 
-_Resolve a source's (snr, snr\_mode) into the pair to hand to_ `wfm_synth_create()` _._
+_Attach a dsss source's data to a freshly-created synth._ 
 ```C++
-double wfm_source_create_snr (
+int wfm_source_attach_dsss (
+    wfm_synth_state_t * syn,
     const wfm_source_t * src,
-    double snr,
-    int * snr_mode
+    double fs
 ) 
 ```
 
 
 
-`wfm_synth_create()` runs before a dsss source's codes are attached, so it cannot know the spreading factor its own esno would need. This helper — the one create-time entry point shared by the composer (`wfm_compose_build_synth`) and the standalone-Synth bridge (`wfm_source_to_synth`), so every face agrees to the bit — converts a dsss source's SNR to the over-fs reference (via `wfm_snr_over_fs` with `sf = n_data_code`) and returns `snr_mode=fs`; every other type passes through unchanged.
+The single dsss-attach path, called by BOTH synth-construction faces (`wfm_compose_build_synth` and the standalone `wfm_source_to_synth`), so the two cannot drift on how a dsss stream is configured. Selects on `symbol_rate`: 0 → the burst form (`wfm_synth_set_dsss`); &gt; 0 → the continuous form (`wfm_synth_set_dsss_cont`) with `chips_per_symbol = (fs/sps)/symbol_rate`, taking the data from the payload when one is supplied (`bits`) and otherwise from the seeded PN. A no-op for a non-dsss source.
 
 
 
@@ -632,7 +635,50 @@ double wfm_source_create_snr (
 **Parameters:**
 
 
-* `src` The source (supplies type/sps/snr\_mode/n\_data\_code). 
+* `syn` A synth from [**wfm\_synth\_create()**](wfm__synth__core_8h.md#function-wfm_synth_create) with `wtype == WFM_SYNTH_DSSS`. 
+* `src` The source (codes, payload, symbol\_rate, pn config). 
+* `fs` Segment sample rate (Hz) — the continuous chip rate is fs/sps. 
+
+
+
+**Returns:**
+
+0 on success (or non-dsss no-op); -1 on invalid geometry. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function wfm\_source\_create\_snr 
+
+_Resolve a source's (snr, snr\_mode) into the pair to hand to_ `wfm_synth_create()` _._
+```C++
+double wfm_source_create_snr (
+    const wfm_source_t * src,
+    double fs,
+    double snr,
+    int * snr_mode
+) 
+```
+
+
+
+`wfm_synth_create()` runs before a dsss source's codes are attached, so it cannot know the spreading factor its own esno would need. This helper — the one create-time entry point shared by the composer (`wfm_compose_build_synth`) and the standalone-Synth bridge (`wfm_source_to_synth`), so every face agrees to the bit — converts a dsss source's SNR to the over-fs reference (via `wfm_snr_over_fs`; the burst span is `sf = n_data_code`, a continuous stream uses `fs/symbol_rate`) and returns `snr_mode=fs`; every other type passes through unchanged.
+
+
+
+
+**Parameters:**
+
+
+* `src` The source (supplies type/sps/snr\_mode/n\_data\_code/ symbol\_rate). 
+* `fs` Segment sample rate (Hz) — needed for a continuous dsss source's `fs/symbol_rate` span; ignored otherwise. 
 * `snr` The declared SNR in dB, already ranged-resolved. 
 * `snr_mode` Receives the snr\_mode for create. 
 

@@ -85,8 +85,10 @@ carrier_mpsk_update(carrier_mpsk_state_t *s, float complex P)
     /* per-symbol freq estimate (rad/symbol) -> rad/sample -> cycles/sample */
     double car_w = s->lf.integ / (double)s->tsamps;
     lo_set_norm_freq(&s->nco, car_w / (2.0 * M_PI));
-    /* proportional phase nudge: kp*e radians -> uint32 phase delta */
-    s->nco.phase += (uint32_t)((s->lf.kp * e) / (2.0 * M_PI) * 4294967296.0);
+    /* proportional phase nudge: kp*e radians -> cycles -> uint32 phase
+     * delta, via the one shared primitive (a bare truncating cast here
+     * is UB on a negative value -- see nco_norm_to_inc()'s own doc). */
+    s->nco.phase += nco_norm_to_inc ((s->lf.kp * e) / (2.0 * M_PI));
     /* lock metric: Re(P conj(ahat))/|P| EMA (1 = phase-locked, ~0 = no carrier) */
     double inst = (double)crealf(d) / aP;
     s->lock_metric += CARRIER_MPSK_LOCK_ALPHA * (inst - s->lock_metric);
@@ -109,7 +111,9 @@ void carrier_mpsk_get_state(const carrier_mpsk_state_t *state, void *blob);
 int carrier_mpsk_set_state(carrier_mpsk_state_t *state, const void *blob);
 
 size_t carrier_mpsk_steps_max_out(carrier_mpsk_state_t *state);
+
 size_t carrier_mpsk_steps(carrier_mpsk_state_t *state, const float complex *x, size_t x_len, float complex *out, size_t max_out);
+
 void carrier_mpsk_configure(carrier_mpsk_state_t *state, double bn, double zeta);
 double carrier_mpsk_get_bn(const carrier_mpsk_state_t *state);
 void carrier_mpsk_set_bn(carrier_mpsk_state_t *state, double val);

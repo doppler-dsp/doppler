@@ -60,8 +60,8 @@ extern "C"
     return state->integ + state->kp * x;
   }
 
-  void loop_filter_steps (loop_filter_state_t *state, const double *input,
-                          double *output, size_t n);
+  void loop_filter_steps (loop_filter_state_t *state, const double *x,
+                          double *out, size_t n);
 
 #ifdef __cplusplus
 }

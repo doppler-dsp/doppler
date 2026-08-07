@@ -64,8 +64,8 @@ _Feedforward polynomial-phase estimator (frequency + chirp rate)._ [More...](#de
 | ---: | :--- |
 |  [**ppe\_state\_t**](structppe__state__t.md) \* | [**ppe\_create**](#function-ppe_create) (size\_t max\_len, double max\_rate) <br>_Create a polynomial-phase estimator._  |
 |  void | [**ppe\_destroy**](#function-ppe_destroy) ([**ppe\_state\_t**](structppe__state__t.md) \* state) <br>_Destroy an estimator._  |
-|  [**ppe\_result\_t**](structppe__result__t.md) | [**ppe\_estimate**](#function-ppe_estimate) ([**ppe\_state\_t**](structppe__state__t.md) \* state, const float complex \* in, size\_t n\_in) <br>_Estimate (frequency, chirp rate) of_ `in` _via the coherent surface._ |
-|  void | [**ppe\_reset**](#function-ppe_reset) ([**ppe\_state\_t**](structppe__state__t.md) \* state) <br>_No-op (the estimator carries no running state)._  |
+|  [**ppe\_result\_t**](structppe__result__t.md) | [**ppe\_estimate**](#function-ppe_estimate) ([**ppe\_state\_t**](structppe__state__t.md) \* state, const float complex \* x, size\_t n\_in) <br>_Estimate the normalized frequency and chirp rate of a complex segment via the coherent (chirp-rate x frequency) surface._  |
+|  void | [**ppe\_reset**](#function-ppe_reset) ([**ppe\_state\_t**](structppe__state__t.md) \* state) <br>_Do nothing — the estimator keeps no running state between calls._  |
 
 
 
@@ -186,15 +186,21 @@ void ppe_destroy (
 
 ### function ppe\_estimate 
 
-_Estimate (frequency, chirp rate) of_ `in` _via the coherent surface._
+_Estimate the normalized frequency and chirp rate of a complex segment via the coherent (chirp-rate x frequency) surface._ 
 ```C++
 ppe_result_t ppe_estimate (
     ppe_state_t * state,
-    const float complex * in,
+    const float complex * x,
     size_t n_in
 ) 
 ```
 
+
+
+Runs the full 2-D matched-filter search in one shot: for each chirp-rate hypothesis the segment is dechirped and FFT-ed, and the peak of the resulting surface — refined sub-bin by parabolic interpolation on both axes — gives the estimate. With `max_rate` = 0 the rate axis collapses to a single FFT (pure Doppler) and the returned rate is forced to exactly 0.
+
+
+Feed a segment whose modulation has already been stripped (data-aided by the known symbols, or non-data-aided by the M-th-power trick — remembering that raising to the M-th power scales both returned values by M). The result carries `freq_norm` (cycles/sample), `rate_norm` (cycles/sample^2), and `snr_db` (a rough peak-to-mean confidence).
 
 
 
@@ -202,15 +208,27 @@ ppe_result_t ppe_estimate (
 **Parameters:**
 
 
-* `state` Must be non-NULL. 
-* `in` Complex sequence (modulation already stripped by the caller). 
-* `n_in` Length, in `[4, max_len]`. 
+* `state` Estimator handle; must be non-NULL. 
+* `x` Complex segment (modulation already stripped by the caller). 
+* `n_in` Segment length, in `[4, max_len]`. 
 
 
 
 **Returns:**
 
-The estimate; zeroed if `n_in` is out of range. 
+The estimate; all fields are zeroed if `n_in` is out of range. 
+```C++
+>>> import numpy as np
+>>> from doppler.dsss import PolynomialPhaseEstimator
+>>> m = np.arange(512)
+>>> f, r = 0.05, 1e-5               # true Doppler + chirp rate
+>>> x = np.exp(2j*np.pi*(f*m + 0.5*r*m*m)).astype(np.complex64)
+>>> p = PolynomialPhaseEstimator(max_len=512, max_rate=5e-5)
+>>> e = p.estimate(x)                        # one-shot coherent search
+>>> round(e.freq_norm, 4), round(e.rate_norm, 7)
+(0.0501, 1e-05)
+```
+ 
 
 
 
@@ -224,7 +242,7 @@ The estimate; zeroed if `n_in` is out of range.
 
 ### function ppe\_reset 
 
-_No-op (the estimator carries no running state)._ 
+_Do nothing — the estimator keeps no running state between calls._ 
 ```C++
 void ppe_reset (
     ppe_state_t * state
@@ -233,6 +251,27 @@ void ppe_reset (
 
 
 
+A feedforward analyzer computes each estimate purely from the segment it is handed, so there is nothing to clear. The method exists only to satisfy the common object protocol; calling it is always safe and has no effect.
+
+
+
+
+**Parameters:**
+
+
+* `state` Estimator handle (unused). 
+```C++
+>>> from doppler.dsss import PolynomialPhaseEstimator
+>>> p = PolynomialPhaseEstimator(max_len=512, max_rate=0.0)
+>>> p.reset()   # no-op: an estimate depends only on the next
+>>> #           segment
+```
+ 
+
+
+
+
+        
 
 <hr>
 

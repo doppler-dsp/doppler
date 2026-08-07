@@ -20,6 +20,7 @@
 #include "loop_filter/loop_filter_core.h"
 #include "nco/nco_core.h"
 #include "dp_tlm/dp_tlm_core.h"
+#include "telemetry/telemetry_core.h"
 #ifdef __cplusplus
 extern "C"
 {
@@ -192,8 +193,10 @@ extern "C"
   void symsync_reset (symsync_state_t *state);
 
   size_t symsync_steps_max_out (symsync_state_t *state);
+
   size_t symsync_steps (symsync_state_t *state, const float complex *x,
                         size_t x_len, float complex *out, size_t max_out);
+
   void   symsync_configure (symsync_state_t *state, double bn, double zeta);
   double symsync_get_bn (const symsync_state_t *state);
   void   symsync_set_bn (symsync_state_t *state, double val);

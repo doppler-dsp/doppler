@@ -18,6 +18,7 @@ _SymbolSync component API._ [More...](#detailed-description)
 * `#include "loop_filter/loop_filter_core.h"`
 * `#include "nco/nco_core.h"`
 * `#include "dp_tlm/dp_tlm_core.h"`
+* `#include "telemetry/telemetry_core.h"`
 
 
 
@@ -45,7 +46,7 @@ _SymbolSync component API._ [More...](#detailed-description)
 
 | Type | Name |
 | ---: | :--- |
-| enum  | [**symsync\_\_core\_8h\_1aff70bde6f02f7ccdd0eb1c8f28cbed91**](#enum-symsync__core_8h_1aff70bde6f02f7ccdd0eb1c8f28cbed91)  <br>_Timing-error-detector selection for_ [_**symsync\_state\_t::ted**_](structsymsync__state__t.md#variable-ted) _._ |
+| enum  | [**symsync\_\_core\_8h\_1a726ca809ffd3d67ab4b8476646f26635**](#enum-symsync__core_8h_1a726ca809ffd3d67ab4b8476646f26635)  <br>_Timing-error-detector selection for_ [_**symsync\_state\_t::ted**_](structsymsync__state__t.md#variable-ted) _._ |
 
 
 
@@ -72,7 +73,7 @@ _SymbolSync component API._ [More...](#detailed-description)
 | ---: | :--- |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) double | [**dttl\_ted**](#function-dttl_ted) (float complex mid, float complex y, float complex prev) <br>_Sign-sign DTTL: gate the transition sample by the hard-decision transition on each rail._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) double | [**gardner\_ted**](#function-gardner_ted) (float complex mid, float complex diff) <br>_Gardner timing-error detector: Re{ conj(mid) \* (y - prev) }._  |
-|  void | [**symsync\_configure**](#function-symsync_configure) ([**symsync\_state\_t**](structsymsync__state__t.md) \* state, double bn, double zeta) <br> |
+|  void | [**symsync\_configure**](#function-symsync_configure) ([**symsync\_state\_t**](structsymsync__state__t.md) \* state, double bn, double zeta) <br>_Recompute the loop gains for a new (bn, zeta); preserve the timing estimate._  |
 |  int | [**symsync\_configure\_lock**](#function-symsync_configure_lock) ([**symsync\_state\_t**](structsymsync__state__t.md) \* state, double rolloff, double esno\_min\_db, double pfa, double pd) <br>_Tune the always-on timing-lock detector to a target (pfa, pd) at a given link operating point._  |
 |  void | [**symsync\_configure\_lock\_raw**](#function-symsync_configure_lock_raw) ([**symsync\_state\_t**](structsymsync__state__t.md) \* state, size\_t avgs, double up\_thresh, double down\_thresh, uint32\_t n\_up, uint32\_t n\_down) <br>_Set the lock detector's raw geometry directly._  |
 |  [**symsync\_state\_t**](structsymsync__state__t.md) \* | [**symsync\_create**](#function-symsync_create) (size\_t sps, double bn, double zeta, int order, int ted) <br>_Create a symsync instance._  |
@@ -84,14 +85,14 @@ _SymbolSync component API._ [More...](#detailed-description)
 |  void | [**symsync\_get\_state**](#function-symsync_get_state) (const [**symsync\_state\_t**](structsymsync__state__t.md) \* state, void \* blob) <br> |
 |  double | [**symsync\_get\_timing\_error**](#function-symsync_get_timing_error) (const [**symsync\_state\_t**](structsymsync__state__t.md) \* state) <br> |
 |  void | [**symsync\_init**](#function-symsync_init) ([**symsync\_state\_t**](structsymsync__state__t.md) \* s, size\_t sps, double bn, double zeta, int order, int ted) <br>_Initialise a SymbolSync in place (no allocation)._  |
-|  void | [**symsync\_reset**](#function-symsync_reset) ([**symsync\_state\_t**](structsymsync__state__t.md) \* state) <br>_Reset SymbolSync to its post-create state._  |
+|  void | [**symsync\_reset**](#function-symsync_reset) ([**symsync\_state\_t**](structsymsync__state__t.md) \* state) <br>_Re-seed the timing loop to its nominal rate and zero phase._  |
 |  void | [**symsync\_set\_bn**](#function-symsync_set_bn) ([**symsync\_state\_t**](structsymsync__state__t.md) \* state, double val) <br> |
 |  int | [**symsync\_set\_state**](#function-symsync_set_state) ([**symsync\_state\_t**](structsymsync__state__t.md) \* state, const void \* blob) <br> |
-|  int | [**symsync\_set\_telemetry**](#function-symsync_set_telemetry) ([**symsync\_state\_t**](structsymsync__state__t.md) \* state, [**dp\_tlm\_t**](telemetry_8h.md#typedef-dp_tlm_t) \* tlm, const char \* prefix, uint32\_t decim) <br>_Attach (or detach) a telemetry context and register the timing loop's probes on it. Registers five probes, emitted once per recovered symbol and further thinned by decim: "&lt;prefix&gt;.e" (the normalised TED error — the loop stress), "&lt;prefix&gt;.freq" (the loop-filter control steering the timing NCO, fractional rate offset), "&lt;prefix&gt;.rate" (the smoothed tracked samples/symbol), "&lt;prefix&gt;.lock" (the last block-averaged lock\_signal, held between avgs-look updates) and "&lt;prefix&gt;.locked" (the verify-counted lockdet decision, 0/1). Passing NULL detaches. Setup path, never hot: call before the producer thread starts stepping; the context is borrowed and must outlive the attachment (SPSC rules in_ [_**dp_tlm/dp_tlm_core.h**_](telemetry_8h.md) _)._ |
+|  int | [**symsync\_set\_telemetry**](#function-symsync_set_telemetry) ([**symsync\_state\_t**](structsymsync__state__t.md) \* state, [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* tlm, const char \* prefix, uint32\_t decim) <br>_Attach (or detach) a telemetry context and register the timing loop's probes on it. Registers five probes, emitted once per recovered symbol and further thinned by decim: "&lt;prefix&gt;.e" (the normalised TED error — the loop stress), "&lt;prefix&gt;.freq" (the loop-filter control steering the timing NCO, fractional rate offset), "&lt;prefix&gt;.rate" (the smoothed tracked samples/symbol), "&lt;prefix&gt;.lock" (the last block-averaged lock\_signal, held between avgs-look updates) and "&lt;prefix&gt;.locked" (the verify-counted lockdet decision, 0/1). Passing NULL detaches. Setup path, never hot: call before the producer thread starts stepping; the context is borrowed and must outlive the attachment (SPSC rules in_ [_**dp\_tlm/dp\_tlm\_core.h**_](dp__tlm__core_8h.md) _)._ |
 |  size\_t | [**symsync\_state\_bytes**](#function-symsync_state_bytes) (const [**symsync\_state\_t**](structsymsync__state__t.md) \* state) <br> |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) int | [**symsync\_step**](#function-symsync_step) ([**symsync\_state\_t**](structsymsync__state__t.md) \* s, float complex x, float complex \* y\_out) <br>_Per-sample symbol-timing step (the inline composition API)._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) int | [**symsync\_step\_ted**](#function-symsync_step_ted) ([**symsync\_state\_t**](structsymsync__state__t.md) \* s, float complex x, float complex \* y\_out, int ted) <br>_Per-sample symbol-timing step with the TED selection as a parameter._  |
-|  size\_t | [**symsync\_steps**](#function-symsync_steps) ([**symsync\_state\_t**](structsymsync__state__t.md) \* state, const float complex \* x, size\_t x\_len, float complex \* out, size\_t max\_out) <br> |
+|  size\_t | [**symsync\_steps**](#function-symsync_steps) ([**symsync\_state\_t**](structsymsync__state__t.md) \* state, const float complex \* x, size\_t x\_len, float complex \* out, size\_t max\_out) <br>_Recover symbol timing from an oversampled cf32 baseband block._  |
 |  size\_t | [**symsync\_steps\_max\_out**](#function-symsync_steps_max_out) ([**symsync\_state\_t**](structsymsync__state__t.md) \* state) <br> |
 |  void | [**symsync\_tlm\_flush**](#function-symsync_tlm_flush) (const [**symsync\_state\_t**](structsymsync__state__t.md) \* s) <br>_Emit the timing loop's telemetry records for the symbol just recovered._  |
 
@@ -150,11 +151,11 @@ symsync_destroy(obj);
 
 
 
-### enum symsync\_\_core\_8h\_1aff70bde6f02f7ccdd0eb1c8f28cbed91 
+### enum symsync\_\_core\_8h\_1a726ca809ffd3d67ab4b8476646f26635 
 
 _Timing-error-detector selection for_ [_**symsync\_state\_t::ted**_](structsymsync__state__t.md#variable-ted) _._
 ```C++
-enum symsync__core_8h_1aff70bde6f02f7ccdd0eb1c8f28cbed91 {
+enum symsync__core_8h_1a726ca809ffd3d67ab4b8476646f26635 {
     SYMSYNC_TED_GARDNER = 0,
     SYMSYNC_TED_DTTL = 1
 };
@@ -251,6 +252,7 @@ Raw (pre-AGC-normalized) timing error.
 
 ### function symsync\_configure 
 
+_Recompute the loop gains for a new (bn, zeta); preserve the timing estimate._ 
 ```C++
 void symsync_configure (
     symsync_state_t * state,
@@ -261,6 +263,30 @@ void symsync_configure (
 
 
 
+Retunes the PI timing loop in place: the proportional/integral gains are recomputed from the new noise bandwidth and damping, while the NCO phase, tracked rate and loop-filter integrator carry over — so a locked loop is re-bandwidthed (e.g. narrowed after acquisition) without losing lock.
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `bn` Loop noise bandwidth, normalised to the symbol rate (&gt;= 0). 
+* `zeta` Damping factor (0.707 = critically damped). 
+```C++
+>>> from doppler.track import SymbolSync
+>>> ss = SymbolSync(sps=4, bn=0.01, zeta=0.707)
+>>> ss.configure(bn=0.05, zeta=1.0)   # widen + over-damp, to acquire
+>>> round(ss.bn, 3)
+0.05
+```
+ 
+
+
+
+
+        
 
 <hr>
 
@@ -353,6 +379,16 @@ The escape hatch under [**symsync\_configure\_lock()**](symsync__core_8h.md#func
 * `down_thresh` Drop threshold; choose &lt;= up\_thresh for level hysteresis. 
 * `n_up` Consecutive above-threshold decisions to declare; clamped &gt;= 1. 
 * `n_down` Consecutive below-threshold decisions to drop; clamped &gt;= 1. 
+```C++
+>>> from doppler.track import SymbolSync
+>>> ss = SymbolSync(sps=4, bn=0.01, zeta=0.707)
+>>> ss.configure_lock_raw(64, 0.3, 0.3, 1, 8)   # 64-look block, 8-drop
+>>> ss.locked
+False
+>>> round(ss.lock_stat, 3)
+0.0
+```
+ 
 
 
 
@@ -574,7 +610,7 @@ The by-value counterpart to [**symsync\_create()**](symsync__core_8h.md#function
 
 ### function symsync\_reset 
 
-_Reset SymbolSync to its post-create state._ 
+_Re-seed the timing loop to its nominal rate and zero phase._ 
 ```C++
 void symsync_reset (
     symsync_state_t * state
@@ -583,12 +619,27 @@ void symsync_reset (
 
 
 
+Restores the object to its post-create state: the timing NCO is zeroed to the nominal one-wrap-per-symbol rate, the Farrow history and TED state are cleared, the loop-filter integrator is emptied and the lock detector is dropped. The configured (bn, zeta), TED selection and any lock geometry are preserved, so the same object can be re-run on a fresh stream.
+
+
 
 
 **Parameters:**
 
 
 * `state` Must be non-NULL. 
+```C++
+>>> import numpy as np
+>>> from doppler.track import SymbolSync
+>>> ss = SymbolSync(sps=4, bn=0.02, zeta=0.707)
+>>> _ = ss.steps(np.repeat([1.0, -1.0], 4 * 40).astype(np.complex64))
+>>> ss.reset()
+>>> round(ss.rate, 1)              # back to the nominal sps
+4.0
+>>> round(ss.timing_error, 3)      # loop stress cleared
+0.0
+```
+ 
 
 
 
@@ -633,7 +684,7 @@ int symsync_set_state (
 
 ### function symsync\_set\_telemetry 
 
-_Attach (or detach) a telemetry context and register the timing loop's probes on it. Registers five probes, emitted once per recovered symbol and further thinned by decim: "&lt;prefix&gt;.e" (the normalised TED error — the loop stress), "&lt;prefix&gt;.freq" (the loop-filter control steering the timing NCO, fractional rate offset), "&lt;prefix&gt;.rate" (the smoothed tracked samples/symbol), "&lt;prefix&gt;.lock" (the last block-averaged lock\_signal, held between avgs-look updates) and "&lt;prefix&gt;.locked" (the verify-counted lockdet decision, 0/1). Passing NULL detaches. Setup path, never hot: call before the producer thread starts stepping; the context is borrowed and must outlive the attachment (SPSC rules in_ [_**dp_tlm/dp_tlm_core.h**_](telemetry_8h.md) _)._
+_Attach (or detach) a telemetry context and register the timing loop's probes on it. Registers five probes, emitted once per recovered symbol and further thinned by decim: "&lt;prefix&gt;.e" (the normalised TED error — the loop stress), "&lt;prefix&gt;.freq" (the loop-filter control steering the timing NCO, fractional rate offset), "&lt;prefix&gt;.rate" (the smoothed tracked samples/symbol), "&lt;prefix&gt;.lock" (the last block-averaged lock\_signal, held between avgs-look updates) and "&lt;prefix&gt;.locked" (the verify-counted lockdet decision, 0/1). Passing NULL detaches. Setup path, never hot: call before the producer thread starts stepping; the context is borrowed and must outlive the attachment (SPSC rules in_ [_**dp\_tlm/dp\_tlm\_core.h**_](dp__tlm__core_8h.md) _)._
 ```C++
 int symsync_set_telemetry (
     symsync_state_t * state,
@@ -667,7 +718,7 @@ DP\_OK, or DP\_ERR\_INVALID when the probe table cannot take all five probes (th
 >>> tlm = Telemetry(1 << 12)
 >>> ss = SymbolSync(sps=4, bn=0.01, zeta=0.707)
 >>> ss.set_telemetry(tlm, "sync")
->>> sorted(tlm.probe_names())
+>>> sorted(tlm.probe_names)
 ['sync.e', 'sync.freq', 'sync.lock', 'sync.locked', 'sync.rate']
 >>> x = np.repeat([1 + 1j, -1 - 1j], 4 * 64).astype(np.complex64)
 >>> _ = ss.steps(x)
@@ -791,6 +842,7 @@ Passing a literal `ted` (SYMSYNC\_TED\_GARDNER / SYMSYNC\_TED\_DTTL) lets the fo
 
 ### function symsync\_steps 
 
+_Recover symbol timing from an oversampled cf32 baseband block._ 
 ```C++
 size_t symsync_steps (
     symsync_state_t * state,
@@ -803,6 +855,45 @@ size_t symsync_steps (
 
 
 
+[**symsync\_step()**](symsync__core_8h.md#function-symsync_step) in a loop, with the TED specialised per detector. Each input sample feeds the Farrow interpolator and advances the integer timing NCO; on a mid-symbol crossing the transition-gate interpolant is stored, and on a wrap the on-time interpolant is formed, the selected TED (Gardner or DTTL) measures the timing error, the PI loop steers the NCO rate, and one symbol-rate sample is emitted at the recovered instant. State carries across calls, so contiguous blocks give the same symbols as one large block.
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `x` Oversampled input samples (~sps samples per symbol). 
+* `x_len` Number of input samples. 
+* `out` Recovered symbol-rate samples. 
+* `max_out` Capacity of `out`. 
+
+
+
+**Returns:**
+
+Number of recovered symbols written to `out`. 
+```C++
+>>> import numpy as np
+>>> from doppler.track import SymbolSync
+>>> ss = SymbolSync(sps=4, bn=0.02, zeta=0.707)
+>>> x = np.repeat([1.0, -1.0, 1.0, -1.0], 4 * 32).astype(np.complex64)
+>>> y = ss.steps(x)             # oversampled -> one sample/symbol
+>>> y.shape[0]
+127
+>>> sorted(set(np.where(y.real >= 0, 1, -1).tolist()))  # got +/-1
+[-1, 1]
+>>> round(ss.rate, 1)              # tracked samples/symbol
+4.0
+```
+ 
+
+
+
+
+
+        
 
 <hr>
 

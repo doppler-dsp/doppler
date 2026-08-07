@@ -133,6 +133,7 @@ uint64_t acc_trace_state_t::count;
 
 
 Frames folded in so far. 
+ 
 
 
         
@@ -150,6 +151,7 @@ acc_trace_mode_t acc_trace_state_t::mode;
 
 
 Reduction mode. 
+ 
 
 
         
@@ -167,6 +169,7 @@ size_t acc_trace_state_t::n;
 
 
 Trace length (bins). 
+ 
 
 
         

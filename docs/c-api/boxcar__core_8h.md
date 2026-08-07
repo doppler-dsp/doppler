@@ -64,12 +64,12 @@ _Boxcar (rectangular) moving-average filter — cf32, fixed window._ [More...](#
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) double | [**boxcar\_get\_gain**](#function-boxcar_get_gain) (const [**boxcar\_state\_t**](structboxcar__state__t.md) \* s) <br>_Current output gain._  |
 |  void | [**boxcar\_get\_state**](#function-boxcar_get_state) (const [**boxcar\_state\_t**](structboxcar__state__t.md) \* s, void \* blob) <br>_Serialize the full state into_ `blob` _._ |
 |  void | [**boxcar\_init**](#function-boxcar_init) ([**boxcar\_state\_t**](structboxcar__state__t.md) \* s, size\_t len, double gain) <br>_Initialise a boxcar in place (no allocation)._  |
-|  void | [**boxcar\_reset**](#function-boxcar_reset) ([**boxcar\_state\_t**](structboxcar__state__t.md) \* s) <br>_Clear the window (zero the ring and the running sum); keep config._  |
+|  void | [**boxcar\_reset**](#function-boxcar_reset) ([**boxcar\_state\_t**](structboxcar__state__t.md) \* s) <br>_Clear the window (zero the ring and the running sum); keep the configured length and gain._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) void | [**boxcar\_set\_gain**](#function-boxcar_set_gain) ([**boxcar\_state\_t**](structboxcar__state__t.md) \* s, double gain) <br>_Set the output gain; refresh the cached scale._  |
 |  int | [**boxcar\_set\_state**](#function-boxcar_set_state) ([**boxcar\_state\_t**](structboxcar__state__t.md) \* s, const void \* blob) <br>_Restore state; DP\_OK, or DP\_ERR\_INVALID if the envelope rejects._  |
 |  size\_t | [**boxcar\_state\_bytes**](#function-boxcar_state_bytes) (const [**boxcar\_state\_t**](structboxcar__state__t.md) \* s) <br>_Serialized-state byte size._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) float complex | [**boxcar\_step**](#function-boxcar_step) ([**boxcar\_state\_t**](structboxcar__state__t.md) \* s, float complex x) <br>_Slide the window by one sample; return the gained moving average._  |
-|  void | [**boxcar\_steps**](#function-boxcar_steps) ([**boxcar\_state\_t**](structboxcar__state__t.md) \* s, const float complex \* input, float complex \* output, size\_t n) <br>_Filter a block: write the gained moving average of each sample._  |
+|  void | [**boxcar\_steps**](#function-boxcar_steps) ([**boxcar\_state\_t**](structboxcar__state__t.md) \* s, const float complex \* x, float complex \* out, size\_t n) <br>_Filter a block: write the gained moving average of each sample._  |
 
 
 
@@ -121,10 +121,10 @@ Until the ring fills (the first `len-1` samples after a reset) the ring holds ze
 ```C++
 >>> import numpy as np
 >>> from doppler.filter import MovingAverage
->>> ma = MovingAverage(2)                       # 2-sample window, unit gain
+>>> ma = MovingAverage(2)              # 2-sample window, unit gain
 >>> ma.steps(np.ones(3, np.complex64)).real.tolist()
 [0.5, 1.0, 1.0]
->>> ma2 = MovingAverage(2, gain=2.0)            # gain folded into the mean
+>>> ma2 = MovingAverage(2, gain=2.0)   # gain folded into the mean
 >>> ma2.steps(np.ones(3, np.complex64)).real.tolist()
 [1.0, 2.0, 2.0]
 ```
@@ -259,7 +259,7 @@ void boxcar_init (
 
 
 * `s` State to initialise. Must be non-NULL. 
-* `len` Window length; clamped to `[1,  BOXCAR_MAX_LEN ]`. 
+* `len` Window length; clamped to `[1, BOXCAR_MAX_LEN]`. 
 * `gain` Output gain (folded into the averaging scale). 
 
 
@@ -273,7 +273,7 @@ void boxcar_init (
 
 ### function boxcar\_reset 
 
-_Clear the window (zero the ring and the running sum); keep config._ 
+_Clear the window (zero the ring and the running sum); keep the configured length and gain._ 
 ```C++
 void boxcar_reset (
     boxcar_state_t * s
@@ -282,6 +282,30 @@ void boxcar_reset (
 
 
 
+Returns the filter to its just-constructed state: the delay ring and the running window sum are zeroed while `len` and `gain` are preserved, so the next `len-1` outputs ramp in over a partial window exactly as they did on a fresh instance. Call it at a segment boundary so samples from one capture do not average into an unrelated next one.
+
+
+
+
+**Parameters:**
+
+
+* `s` Boxcar state. Must be non-NULL. 
+```C++
+>>> import numpy as np
+>>> from doppler.filter import MovingAverage
+>>> ma = MovingAverage(2)                         # 2-sample window
+>>> _ = ma.steps(np.ones(4, np.complex64))        # fill the window
+>>> ma.reset()                                    # clear it
+>>> round(ma.step(1 + 0j).real, 4)                # ramps in from empty
+0.5
+```
+ 
+
+
+
+
+        
 
 <hr>
 
@@ -377,6 +401,13 @@ O(1): add `x`, drop the sample leaving the window, return `acc · scale` (= `gai
 **Returns:**
 
 The gained window mean after admitting `x`. 
+```C++
+>>> from doppler.filter import MovingAverage
+>>> ma = MovingAverage(2)   # 2-sample sliding window, unit gain
+>>> [round(ma.step(v).real, 4) for v in (1 + 0j, 3 + 0j, 3 + 0j)]
+[0.5, 2.0, 3.0]
+```
+ 
 
 
 
@@ -394,12 +425,15 @@ _Filter a block: write the gained moving average of each sample._
 ```C++
 void boxcar_steps (
     boxcar_state_t * s,
-    const float complex * input,
-    float complex * output,
+    const float complex * x,
+    float complex * out,
     size_t n
 ) 
 ```
 
+
+
+Applies [**boxcar\_step()**](boxcar__core_8h.md#function-boxcar_step) to each input sample in turn, so the window sum and ring carry across the block exactly as they would sample by sample — a stream can be processed in frames of any size with no seam. Immediately after a reset the first `len-1` outputs average over a partial (still filling) window and ramp in.
 
 
 
@@ -408,9 +442,18 @@ void boxcar_steps (
 
 
 * `s` Boxcar state. Must be non-NULL. 
-* `input` Input samples. 
-* `output` Output (gained window means); may alias `input`. 
+* `x` Input samples. 
+* `out` Output (gained window means); may alias `x`. 
 * `n` Number of samples. 
+```C++
+>>> import numpy as np
+>>> from doppler.filter import MovingAverage
+>>> ma = MovingAverage(3)                          # 3-sample window
+>>> x = np.ones(5, np.complex64)                   # unit step input
+>>> [round(v, 4) for v in ma.steps(x).real.tolist()]
+[0.3333, 0.6667, 1.0, 1.0, 1.0]
+```
+ 
 
 
 

@@ -63,10 +63,10 @@ _Scale-and-saturate float to Q15-in-uint32 converter._ [More...](#detailed-descr
 |  [**f32\_to\_i16u32\_state\_t**](structf32__to__i16u32__state__t.md) \* | [**f32\_to\_i16u32\_create**](#function-f32_to_i16u32_create) (float scale) <br>_Create a f32\_to\_i16u32 instance._  |
 |  void | [**f32\_to\_i16u32\_destroy**](#function-f32_to_i16u32_destroy) ([**f32\_to\_i16u32\_state\_t**](structf32__to__i16u32__state__t.md) \* state) <br>_Destroy a f32\_to\_i16u32 instance and release all memory._  |
 |  void | [**f32\_to\_i16u32\_get\_state**](#function-f32_to_i16u32_get_state) (const [**f32\_to\_i16u32\_state\_t**](structf32__to__i16u32__state__t.md) \* state, void \* blob) <br> |
-|  void | [**f32\_to\_i16u32\_reset**](#function-f32_to_i16u32_reset) ([**f32\_to\_i16u32\_state\_t**](structf32__to__i16u32__state__t.md) \* state) <br>_Reset f32\_to\_i16u32 to its post-create state._  |
+|  void | [**f32\_to\_i16u32\_reset**](#function-f32_to_i16u32_reset) ([**f32\_to\_i16u32\_state\_t**](structf32__to__i16u32__state__t.md) \* state) <br>_Clear the sticky clip flag, starting a fresh saturation history._  |
 |  int | [**f32\_to\_i16u32\_set\_state**](#function-f32_to_i16u32_set_state) ([**f32\_to\_i16u32\_state\_t**](structf32__to__i16u32__state__t.md) \* state, const void \* blob) <br> |
 |  size\_t | [**f32\_to\_i16u32\_state\_bytes**](#function-f32_to_i16u32_state_bytes) (const [**f32\_to\_i16u32\_state\_t**](structf32__to__i16u32__state__t.md) \* state) <br> |
-|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) uint32\_t | [**f32\_to\_i16u32\_step**](#function-f32_to_i16u32_step) ([**f32\_to\_i16u32\_state\_t**](structf32__to__i16u32__state__t.md) \* state, float x) <br>_Process one input sample._  |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) uint32\_t | [**f32\_to\_i16u32\_step**](#function-f32_to_i16u32_step) ([**f32\_to\_i16u32\_state\_t**](structf32__to__i16u32__state__t.md) \* state, float x) <br>_Scale one float sample to a saturated Q15 code packed in a uint32._  |
 |  void | [**f32\_to\_i16u32\_steps**](#function-f32_to_i16u32_steps) ([**f32\_to\_i16u32\_state\_t**](structf32__to__i16u32__state__t.md) \* state, const float \* input, uint32\_t \* output, size\_t n) <br>_Process a block of float samples to Q15-in-uint32._  |
 
 
@@ -230,7 +230,7 @@ void f32_to_i16u32_get_state (
 
 ### function f32\_to\_i16u32\_reset 
 
-_Reset f32\_to\_i16u32 to its post-create state._ 
+_Clear the sticky clip flag, starting a fresh saturation history._ 
 ```C++
 void f32_to_i16u32_reset (
     f32_to_i16u32_state_t * state
@@ -239,7 +239,7 @@ void f32_to_i16u32_reset (
 
 
 
-Clears the sticky `clipped` flag. The `scale` is preserved.
+Zeroes `clipped` so a subsequent clipped query reflects only samples seen after this call; the immutable `scale` is preserved. Call it at a buffer or segment boundary so a saturation on one block does not leak into the next.
 
 
 
@@ -247,9 +247,19 @@ Clears the sticky `clipped` flag. The `scale` is preserved.
 **Parameters:**
 
 
-* `state` Must be non-NULL. 
+* `state` Must be non-NULL.
 
 
+```C++
+>>> from doppler.cvt import F32ToI16U32
+>>> c = F32ToI16U32()
+>>> c.step(5.0)          # out of range -> saturates, latches clipped
+32767
+>>> c.reset()            # forget the clip history
+>>> c.clipped
+False
+```
+ 
 
 
         
@@ -291,7 +301,7 @@ size_t f32_to_i16u32_state_bytes (
 
 ### function f32\_to\_i16u32\_step 
 
-_Process one input sample._ 
+_Scale one float sample to a saturated Q15 code packed in a uint32._ 
 ```C++
 JM_FORCEINLINE  JM_HOT uint32_t f32_to_i16u32_step (
     f32_to_i16u32_state_t * state,
@@ -301,7 +311,7 @@ JM_FORCEINLINE  JM_HOT uint32_t f32_to_i16u32_step (
 
 
 
-Computes `round(x * scale)`, saturates to `[-32768, 32767]`, then zero-extends the int16 bit pattern into the lower 16 bits of a uint32. The `clipped` flag is set if saturation occurred.
+Computes `round(x * scale)`, saturates to `[-32768, 32767]`, then zero-extends the 16-bit two's-complement pattern into the lower 16 bits of a uint32 (upper 16 bits are always zero — headroom for the CIC integrator cascade). Latches the sticky `clipped` flag on saturation.
 
 
 
@@ -310,16 +320,25 @@ Computes `round(x * scale)`, saturates to `[-32768, 32767]`, then zero-extends t
 
 
 * `state` Must be non-NULL. 
-* `x` Normalised float input sample. 
+* `x` Input sample, normally a normalised float in `[-1, +1]`. 
 
 
 
 **Returns:**
 
-Q15 value packed into the lower 16 bits of a uint32. 
+Q15 code in the low 16 bits of a uint32; e.g. -32768 -&gt; 0x8000.
 
 
 
+```C++
+>>> from doppler.cvt import F32ToI16U32
+>>> c = F32ToI16U32(scale=32768.0)
+>>> c.step(0.5)              # 0.5 -> Q15 16384, upper 16 bits zero
+16384
+>>> hex(c.step(-1.0))        # -32768 as an unsigned low-16 pattern
+'0x8000'
+```
+ 
 
 
         
@@ -359,7 +378,8 @@ Applies step() to every element. The `clipped` flag is updated cumulatively acro
 ```C++
 >>> from doppler.cvt import F32ToI16U32
 >>> import numpy as np
->>> F32ToI16U32().steps(np.array([0.0, 0.5], dtype=np.float32)).tolist()
+>>> F32ToI16U32().steps(
+...     np.array([0.0, 0.5], dtype=np.float32)).tolist()
 [0, 16384]
 ```
  

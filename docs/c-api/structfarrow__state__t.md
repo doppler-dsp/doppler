@@ -102,7 +102,8 @@ float complex farrow_state_t::d[4];
 
 
 
-delay line, `d [3]` newest. 
+delay line, `d[3]` newest. 
+ 
 
 
         
@@ -120,6 +121,7 @@ int farrow_state_t::order;
 
 
 FARROW\_LINEAR / \_PARABOLIC / \_CUBIC. 
+ 
 
 
         

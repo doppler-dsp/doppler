@@ -36,12 +36,12 @@ _Noise Power Ratio (notched-noise loading) result._
 
 | Type | Name |
 | ---: | :--- |
-|  double | [**inband\_psd\_dbfs**](#variable-inband_psd_dbfs)  <br> |
-|  size\_t | [**n\_inband\_bins**](#variable-n_inband_bins)  <br> |
-|  size\_t | [**n\_notch\_bins**](#variable-n_notch_bins)  <br> |
-|  double | [**notch\_psd\_dbfs**](#variable-notch_psd_dbfs)  <br> |
-|  double | [**npr\_db**](#variable-npr_db)  <br> |
-|  double | [**rbw\_hz**](#variable-rbw_hz)  <br> |
+|  double | [**inband\_psd\_dbfs**](#variable-inband_psd_dbfs)  <br>_Mean in-band noise power per bin (dBFS)._  |
+|  size\_t | [**n\_inband\_bins**](#variable-n_inband_bins)  <br>_Bins averaged in the active band._  |
+|  size\_t | [**n\_notch\_bins**](#variable-n_notch_bins)  <br>_Bins averaged inside the notch._  |
+|  double | [**notch\_psd\_dbfs**](#variable-notch_psd_dbfs)  <br>_Mean power folded into the notch (dBFS)._  |
+|  double | [**npr\_db**](#variable-npr_db)  <br>_NPR = 10log10(in-band PSD / notch PSD) (dB)._  |
+|  double | [**rbw\_hz**](#variable-rbw_hz)  <br>_Resolution bandwidth (Hz)._  |
 
 
 
@@ -93,6 +93,7 @@ _Noise Power Ratio (notched-noise loading) result._
 
 ### variable inband\_psd\_dbfs 
 
+_Mean in-band noise power per bin (dBFS)._ 
 ```C++
 double npr_meas_t::inband_psd_dbfs;
 ```
@@ -106,6 +107,7 @@ double npr_meas_t::inband_psd_dbfs;
 
 ### variable n\_inband\_bins 
 
+_Bins averaged in the active band._ 
 ```C++
 size_t npr_meas_t::n_inband_bins;
 ```
@@ -119,6 +121,7 @@ size_t npr_meas_t::n_inband_bins;
 
 ### variable n\_notch\_bins 
 
+_Bins averaged inside the notch._ 
 ```C++
 size_t npr_meas_t::n_notch_bins;
 ```
@@ -132,6 +135,7 @@ size_t npr_meas_t::n_notch_bins;
 
 ### variable notch\_psd\_dbfs 
 
+_Mean power folded into the notch (dBFS)._ 
 ```C++
 double npr_meas_t::notch_psd_dbfs;
 ```
@@ -145,6 +149,7 @@ double npr_meas_t::notch_psd_dbfs;
 
 ### variable npr\_db 
 
+_NPR = 10log10(in-band PSD / notch PSD) (dB)._ 
 ```C++
 double npr_meas_t::npr_db;
 ```
@@ -158,6 +163,7 @@ double npr_meas_t::npr_db;
 
 ### variable rbw\_hz 
 
+_Resolution bandwidth (Hz)._ 
 ```C++
 double npr_meas_t::rbw_hz;
 ```

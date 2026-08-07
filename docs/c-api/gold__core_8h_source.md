@@ -64,7 +64,8 @@ gold_step(gold_state_t *state)
 
 size_t gold_generate_max_out(gold_state_t *state);
 
-size_t gold_generate(gold_state_t *state, size_t n, uint8_t *out);
+size_t gold_generate(gold_state_t *state, size_t n, uint8_t *out,
+                     size_t max_out);
 #ifdef __cplusplus
 }
 #endif

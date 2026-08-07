@@ -97,6 +97,7 @@ double ppe_result_t::freq_norm;
 
 
 frequency, cycles/sample, in [-0.5, 0.5). 
+ 
 
 
         
@@ -114,6 +115,7 @@ double ppe_result_t::rate_norm;
 
 
 chirp rate, cycles/sample^2. 
+ 
 
 
         
@@ -131,6 +133,7 @@ double ppe_result_t::snr_db;
 
 
 winning-row peak-to-mean (rough confidence). 
+ 
 
 
         

@@ -118,6 +118,7 @@ uint8_t* burst_demod_state_t::acq_code;
 
 
 owned acq preamble code (0/1), length acq\_sf. 
+ 
 
 
         
@@ -135,6 +136,7 @@ size_t burst_demod_state_t::acq_reps;
 
 
 acq preamble repetitions. 
+ 
 
 
         
@@ -152,6 +154,7 @@ size_t burst_demod_state_t::acq_sf;
 
 
 acq code length (chips). 
+ 
 
 
         
@@ -186,6 +189,7 @@ double burst_demod_state_t::chip_rate;
 
 
 chip rate (Hz). 
+ 
 
 
         
@@ -220,6 +224,7 @@ size_t burst_demod_state_t::data_sf;
 
 
 data spreading factor (chips/symbol). 
+ 
 
 
         
@@ -237,6 +242,7 @@ double burst_demod_state_t::est_freq_hz;
 
 
 estimated residual Doppler (Hz). 
+ 
 
 
         
@@ -254,6 +260,7 @@ double burst_demod_state_t::est_rate_hz;
 
 
 estimated Doppler rate (Hz/s). 
+ 
 
 
         
@@ -271,6 +278,7 @@ size_t burst_demod_state_t::est_segments;
 
 
 partials per acq period for the estimate. 
+ 
 
 
         
@@ -288,6 +296,7 @@ double burst_demod_state_t::est_snr_db;
 
 
 estimator confidence (dB). 
+ 
 
 
         
@@ -305,6 +314,7 @@ double burst_demod_state_t::f0_prior;
 
 
 coarse Doppler prior (cycles/sample). 
+ 
 
 
         
@@ -322,6 +332,7 @@ size_t burst_demod_state_t::frame_offset;
 
 
 symbol offset of the sync word. 
+ 
 
 
         
@@ -339,6 +350,7 @@ int burst_demod_state_t::frame_valid;
 
 
 1 if the CRC-16 trailer matched. 
+ 
 
 
         
@@ -386,6 +398,7 @@ size_t burst_demod_state_t::n_symbols;
 
 
 despread data symbols produced. 
+ 
 
 
         
@@ -420,6 +433,7 @@ size_t burst_demod_state_t::payload_len;
 
 
 payload data symbols (bits). 
+ 
 
 
         
@@ -437,6 +451,7 @@ ppe_state_t* burst_demod_state_t::ppe;
 
 
 feedforward (rate x freq) estimator. 
+ 
 
 
         
@@ -454,6 +469,7 @@ size_t burst_demod_state_t::spc;
 
 
 samples per chip. 
+ 
 
 
         
@@ -471,6 +487,7 @@ size_t burst_demod_state_t::start;
 
 
 preamble start sample in the burst. 
+ 
 
 
         
@@ -488,6 +505,7 @@ int8_t* burst_demod_state_t::sync;
 
 
 owned sync word as +/-1, length sync\_len. 
+ 
 
 
         
@@ -505,6 +523,7 @@ size_t burst_demod_state_t::sync_len;
 
 
 sync word length (symbols). 
+ 
 
 
         

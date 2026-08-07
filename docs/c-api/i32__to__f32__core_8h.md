@@ -60,8 +60,8 @@ _int32-to-float converter with configurable inverse scale._ [More...](#detailed-
 | ---: | :--- |
 |  [**i32\_to\_f32\_state\_t**](structi32__to__f32__state__t.md) \* | [**i32\_to\_f32\_create**](#function-i32_to_f32_create) (float scale) <br>_Create a i32\_to\_f32 instance._  |
 |  void | [**i32\_to\_f32\_destroy**](#function-i32_to_f32_destroy) ([**i32\_to\_f32\_state\_t**](structi32__to__f32__state__t.md) \* state) <br>_Destroy a i32\_to\_f32 instance and release all memory._  |
-|  void | [**i32\_to\_f32\_reset**](#function-i32_to_f32_reset) ([**i32\_to\_f32\_state\_t**](structi32__to__f32__state__t.md) \* state) <br>_Reset I32ToF32 to its post-create state._  |
-|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) float | [**i32\_to\_f32\_step**](#function-i32_to_f32_step) (const [**i32\_to\_f32\_state\_t**](structi32__to__f32__state__t.md) \* state, int32\_t x) <br>_Process one input sample._  |
+|  void | [**i32\_to\_f32\_reset**](#function-i32_to_f32_reset) ([**i32\_to\_f32\_state\_t**](structi32__to__f32__state__t.md) \* state) <br>_No-op reset, provided only for lifecycle symmetry._  |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) float | [**i32\_to\_f32\_step**](#function-i32_to_f32_step) (const [**i32\_to\_f32\_state\_t**](structi32__to__f32__state__t.md) \* state, int32\_t x) <br>_Convert one signed int32 sample to a normalised float via_ `1/scale` _._ |
 |  void | [**i32\_to\_f32\_steps**](#function-i32_to_f32_steps) ([**i32\_to\_f32\_state\_t**](structi32__to__f32__state__t.md) \* state, const int32\_t \* input, float \* output, size\_t n) <br>_Process a block of int32 samples to float32._  |
 
 
@@ -195,7 +195,7 @@ void i32_to_f32_destroy (
 
 ### function i32\_to\_f32\_reset 
 
-_Reset I32ToF32 to its post-create state._ 
+_No-op reset, provided only for lifecycle symmetry._ 
 ```C++
 void i32_to_f32_reset (
     i32_to_f32_state_t * state
@@ -204,7 +204,7 @@ void i32_to_f32_reset (
 
 
 
-No mutable state exists beyond the immutable `iscale`; reset is a no-op provided for lifecycle symmetry with other converters.
+No mutable state exists beyond the immutable `iscale`, so there is nothing to clear; the method exists so every converter in the module presents the same create / step / reset / destroy lifecycle.
 
 
 
@@ -212,9 +212,17 @@ No mutable state exists beyond the immutable `iscale`; reset is a no-op provided
 **Parameters:**
 
 
-* `state` Must be non-NULL. 
+* `state` Must be non-NULL.
 
 
+```C++
+>>> from doppler.cvt import I32ToF32
+>>> c = I32ToF32()
+>>> c.reset()           # stateless converter -> reset is a no-op
+>>> round(c.step(-2**31), 4)
+-1.0
+```
+ 
 
 
         
@@ -225,7 +233,7 @@ No mutable state exists beyond the immutable `iscale`; reset is a no-op provided
 
 ### function i32\_to\_f32\_step 
 
-_Process one input sample._ 
+_Convert one signed int32 sample to a normalised float via_ `1/scale` _._
 ```C++
 JM_FORCEINLINE  JM_HOT float i32_to_f32_step (
     const i32_to_f32_state_t * state,
@@ -235,7 +243,7 @@ JM_FORCEINLINE  JM_HOT float i32_to_f32_step (
 
 
 
-Returns ``(float)x \* iscale.
+Returns ``(float)x \* iscale, a single multiply on the hot path. At the default scale of 2^31 the full int32 range recovers `[-1.0, ~+1.0)`. Note that float32 carries only 23 mantissa bits, so int32 magnitudes beyond 2^24 are rounded to the nearest representable float.
 
 
 
@@ -244,16 +252,25 @@ Returns ``(float)x \* iscale.
 
 
 * `state` Must be non-NULL. 
-* `x` Signed int32 input sample. 
+* `x` Signed int32 code, normally a full-range fixed-point sample. 
 
 
 
 **Returns:**
 
-Scaled float32 output. 
+Normalised float, `x / scale`.
 
 
 
+```C++
+>>> from doppler.cvt import I32ToF32
+>>> c = I32ToF32(scale=2147483648.0)  # 2**31: int32 -> [-1, 1)
+>>> round(c.step(2**30), 4)            # quarter-scale code -> 0.5
+0.5
+>>> round(c.step(-2**31), 4)           # full-negative code -> -1.0
+-1.0
+```
+ 
 
 
         
@@ -293,7 +310,8 @@ Applies step() to every element. Accepts an optional pre-allocated output array;
 ```C++
 >>> from doppler.cvt import I32ToF32
 >>> import numpy as np
->>> I32ToF32().steps(np.array([0, 2**30, -2**31], dtype=np.int32)).tolist()
+>>> I32ToF32().steps(
+...     np.array([0, 2**30, -2**31], dtype=np.int32)).tolist()
 [0.0, 0.5, -1.0]
 ```
  

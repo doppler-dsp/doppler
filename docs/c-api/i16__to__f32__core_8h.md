@@ -60,8 +60,8 @@ _int16-to-float converter with configurable inverse scale._ [More...](#detailed-
 | ---: | :--- |
 |  [**i16\_to\_f32\_state\_t**](structi16__to__f32__state__t.md) \* | [**i16\_to\_f32\_create**](#function-i16_to_f32_create) (float scale) <br>_Create a i16\_to\_f32 instance._  |
 |  void | [**i16\_to\_f32\_destroy**](#function-i16_to_f32_destroy) ([**i16\_to\_f32\_state\_t**](structi16__to__f32__state__t.md) \* state) <br>_Destroy a i16\_to\_f32 instance and release all memory._  |
-|  void | [**i16\_to\_f32\_reset**](#function-i16_to_f32_reset) ([**i16\_to\_f32\_state\_t**](structi16__to__f32__state__t.md) \* state) <br>_Reset i16\_to\_f32 to its post-create state._  |
-|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) float | [**i16\_to\_f32\_step**](#function-i16_to_f32_step) (const [**i16\_to\_f32\_state\_t**](structi16__to__f32__state__t.md) \* state, int16\_t x) <br>_Process one input sample._  |
+|  void | [**i16\_to\_f32\_reset**](#function-i16_to_f32_reset) ([**i16\_to\_f32\_state\_t**](structi16__to__f32__state__t.md) \* state) <br>_No-op reset, provided only for lifecycle symmetry._  |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) float | [**i16\_to\_f32\_step**](#function-i16_to_f32_step) (const [**i16\_to\_f32\_state\_t**](structi16__to__f32__state__t.md) \* state, int16\_t x) <br>_Convert one signed int16 sample to a normalised float via_ `1/scale` _._ |
 |  void | [**i16\_to\_f32\_steps**](#function-i16_to_f32_steps) ([**i16\_to\_f32\_state\_t**](structi16__to__f32__state__t.md) \* state, const int16\_t \* input, float \* output, size\_t n) <br>_Process a block of int16 samples to float32._  |
 
 
@@ -195,7 +195,7 @@ void i16_to_f32_destroy (
 
 ### function i16\_to\_f32\_reset 
 
-_Reset i16\_to\_f32 to its post-create state._ 
+_No-op reset, provided only for lifecycle symmetry._ 
 ```C++
 void i16_to_f32_reset (
     i16_to_f32_state_t * state
@@ -204,7 +204,7 @@ void i16_to_f32_reset (
 
 
 
-This converter has no accumulating state beyond the immutable `iscale` field, so reset is a no-op in practice; it exists for lifecycle symmetry.
+This converter carries no running state beyond the immutable `iscale`, so there is nothing to clear; the method exists so every converter in the module presents the same create / step / reset / destroy lifecycle.
 
 
 
@@ -212,9 +212,17 @@ This converter has no accumulating state beyond the immutable `iscale` field, so
 **Parameters:**
 
 
-* `state` Must be non-NULL. 
+* `state` Must be non-NULL.
 
 
+```C++
+>>> from doppler.cvt import I16ToF32
+>>> c = I16ToF32()
+>>> c.reset()           # stateless converter -> reset is a no-op
+>>> round(c.step(-32768), 4)
+-1.0
+```
+ 
 
 
         
@@ -225,7 +233,7 @@ This converter has no accumulating state beyond the immutable `iscale` field, so
 
 ### function i16\_to\_f32\_step 
 
-_Process one input sample._ 
+_Convert one signed int16 sample to a normalised float via_ `1/scale` _._
 ```C++
 JM_FORCEINLINE  JM_HOT float i16_to_f32_step (
     const i16_to_f32_state_t * state,
@@ -235,7 +243,7 @@ JM_FORCEINLINE  JM_HOT float i16_to_f32_step (
 
 
 
-Returns ``(float)x \* iscale. No saturation or clipping possible — the int16 range maps cleanly to float32.
+Returns ``(float)x \* iscale, a single multiply on the hot path. No saturation or clipping is possible — every int16 code maps cleanly to float32. At the default scale of 32768 the full Q15 range recovers `[-1.0, ~+1.0)`, the exact inverse of F32ToI16.
 
 
 
@@ -244,16 +252,25 @@ Returns ``(float)x \* iscale. No saturation or clipping possible — the int16 r
 
 
 * `state` Must be non-NULL. 
-* `x` Signed int16 input sample. 
+* `x` Signed int16 code, normally a Q15 sample in `[-32768, 32767]`. 
 
 
 
 **Returns:**
 
-Scaled float output. 
+Normalised float, `x / scale`.
 
 
 
+```C++
+>>> from doppler.cvt import I16ToF32
+>>> c = I16ToF32(scale=32768.0)   # Q15 int16 -> normalised float
+>>> round(c.step(16384), 4)        # 16384 / 32768
+0.5
+>>> round(c.step(-32768), 4)       # full-negative code -> -1.0
+-1.0
+```
+ 
 
 
         
@@ -293,7 +310,8 @@ Applies step() to every element. Accepts an optional pre-allocated output array;
 ```C++
 >>> from doppler.cvt import I16ToF32
 >>> import numpy as np
->>> I16ToF32().steps(np.array([0, 16384, -32768], dtype=np.int16)).tolist()
+>>> I16ToF32().steps(
+...     np.array([0, 16384, -32768], dtype=np.int16)).tolist()
 [0.0, 0.5, -1.0]
 ```
  

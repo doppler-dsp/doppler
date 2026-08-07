@@ -69,7 +69,7 @@ _AccCf64 component API._ [More...](#detailed-description)
 |  void | [**acc\_cf64\_madd**](#function-acc_cf64_madd) ([**acc\_cf64\_state\_t**](structacc__cf64__state__t.md) \* state, const double complex \* x, size\_t x\_len, const float \* h, size\_t h\_len) <br>_Dot-product accumulate with complex signal and float weights:_ `acc += sum(x[i] * h[i])` _for_`i` _in_`0 .. min(x_len, h_len) - 1` _. The signal array_`x` _is double-precision complex; the coefficient array_`h` _is single-precision float (widened to double before multiplication). The shorter of the two arrays limits iteration._ |
 |  void | [**acc\_cf64\_madd2d**](#function-acc_cf64_madd2d) ([**acc\_cf64\_state\_t**](structacc__cf64__state__t.md) \* state, const double complex \* x, size\_t x\_len, const float \* h, size\_t h\_len) <br>_Dot-product accumulate over a flat 2-D complex buffer:_ `acc += sum(x[i] * h[i])` _for_`i` _in_`0 .. min(x_len, h_len) - 1` _. Combines_`add2d` _and_`madd` _semantics for 2-D data — a complex signal grid is weighted element-wise by a real coefficient buffer and folded into the running sum._ |
 |  void | [**acc\_cf64\_reset**](#function-acc_cf64_reset) ([**acc\_cf64\_state\_t**](structacc__cf64__state__t.md) \* state) <br>_Zero the accumulator, restoring the same state as a fresh_ `AccCf64(0j)` _— regardless of the value supplied to_`acc_cf64_create` _. Both the real and imaginary parts are set to 0.0. Subsequent_`get` _/_`dump` _calls return_`0j` _until new samples are processed._ |
-|  void | [**acc\_cf64\_set\_acc**](#function-acc_cf64_set_acc) ([**acc\_cf64\_state\_t**](structacc__cf64__state__t.md) \* state, double \_Complex acc) <br>_Overwrite the accumulator with a new complex value. Useful for seeding the accumulator to a known baseline before processing a new segment without a full_ `reset` _._ |
+|  void | [**acc\_cf64\_set\_acc**](#function-acc_cf64_set_acc) ([**acc\_cf64\_state\_t**](structacc__cf64__state__t.md) \* state, double \_Complex value) <br>_Overwrite the accumulator with a new complex value. Useful for seeding the accumulator to a known baseline before processing a new segment without a full_ `reset` _; subsequent_`step` _/_`steps` _samples accumulate on top of the seeded value._ |
 |  int | [**acc\_cf64\_set\_state**](#function-acc_cf64_set_state) ([**acc\_cf64\_state\_t**](structacc__cf64__state__t.md) \* state, const void \* blob) <br> |
 |  size\_t | [**acc\_cf64\_state\_bytes**](#function-acc_cf64_state_bytes) (const [**acc\_cf64\_state\_t**](structacc__cf64__state__t.md) \* state) <br> |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) void | [**acc\_cf64\_step**](#function-acc_cf64_step) ([**acc\_cf64\_state\_t**](structacc__cf64__state__t.md) \* state, double complex x) <br>_Add one complex sample to the running sum (_ `acc += x` _). This is the hot-path entry for sample-by-sample processing. For block inputs prefer_`acc_cf64_steps` _to amortise call overhead._ |
@@ -335,7 +335,9 @@ Current value of `acc` (complex).
 >>> from doppler.accumulator import AccCf64
 >>> obj = AccCf64(0j)
 >>> obj.step(1+2j)
->>> obj.get_acc()
+>>> obj.get_acc()          # non-destructive read
+(1+2j)
+>>> obj.get_acc()          # still there — get_acc never drains
 (1+2j)
 ```
  
@@ -489,11 +491,11 @@ void acc_cf64_reset (
 
 ### function acc\_cf64\_set\_acc 
 
-_Overwrite the accumulator with a new complex value. Useful for seeding the accumulator to a known baseline before processing a new segment without a full_ `reset` _._
+_Overwrite the accumulator with a new complex value. Useful for seeding the accumulator to a known baseline before processing a new segment without a full_ `reset` _; subsequent_`step` _/_`steps` _samples accumulate on top of the seeded value._
 ```C++
 void acc_cf64_set_acc (
     acc_cf64_state_t * state,
-    double _Complex acc
+    double _Complex value
 ) 
 ```
 
@@ -505,13 +507,14 @@ void acc_cf64_set_acc (
 
 
 * `state` Must be non-NULL. 
-* `acc` New accumulator value (complex). 
+* `value` New accumulator value (complex). 
 ```C++
 >>> from doppler.accumulator import AccCf64
 >>> obj = AccCf64(0j)
->>> obj.set_acc(5+6j)
+>>> obj.set_acc(5+6j)      # seed a complex baseline
+>>> obj.step(1+1j)         # later samples fold in on top
 >>> obj.get_acc()
-(5+6j)
+(6+7j)
 ```
  
 

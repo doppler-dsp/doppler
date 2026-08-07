@@ -57,7 +57,7 @@ _Spectral module — public C API._ [More...](#detailed-description)
 
 | Type | Name |
 | ---: | :--- |
-|  void | [**blackman\_harris\_window**](#function-blackman_harris_window) (float \* w, size\_t w\_len) <br>_Fill_ `w` _with a 4-term Blackman-Harris window. Computes the minimum 4-term Blackman-Harris window: w(k) = 0.35875 - 0.48829\*cos(2πk/(N-1))._ |
+|  void | [**blackman\_harris\_window**](#function-blackman_harris_window) (float \* w, size\_t w\_len) <br>_Fill_ `w` _with a 4-term Blackman-Harris window. Computes the minimum 4-term Blackman-Harris window: w(k) = 0.35875 - 0.48829\*cos(2πk/(N-1))_ |
 |  size\_t | [**find\_peaks\_f32**](#function-find_peaks_f32) (const float \* db, size\_t db\_len, size\_t n\_peaks, float min\_db, [**dp\_peak\_t**](structdp__peak__t.md) \* result) <br>_Find up to_ `n_peaks` _local maxima in a DC-centred F32 dB spectrum. Three-step algorithm: (1) local-max scan —_`db[k]` _&gt;_`db[k-1]` _&&_`db[k]` _&gt;=_`db[k+1]` _with_`db[k]` _&gt; min\_db; (2) parabolic interpolation on each local maximum to produce sub-bin freq\_norm accuracy; (3) sort descending and return the top_`n_peaks` _. freq\_norm is DC-centred: bin i maps to freq\_norm = (i - N/2) / N so DC (bin N/2) → 0.0 and the first negative frequency bin → −0.5. The spectrum must have at least 3 bins._ |
 |  void | [**hann\_window**](#function-hann_window) (float \* w, size\_t w\_len) <br>_Fill_ `w` _with a Hann (raised-cosine) window. Computes w(k) = 0.5\*(1 - cos(2π k/(N-1))) for k = 0..N-1. The window tapers smoothly to zero at both endpoints, providing ~31 dB first-sidelobe rejection. Takes no shape parameter; use Kaiser for adjustable roll-off._ |
 |  double | [**kaiser\_beta\_for\_sidelobe**](#function-kaiser_beta_for_sidelobe) (double atten\_db) <br>_Kaiser beta achieving a target_ _window_ _peak-sidelobe attenuation._ |
@@ -109,7 +109,7 @@ Provides windowing (Kaiser, Hann, Blackman-Harris), ENBW computation, magnitude 
 
 ### function blackman\_harris\_window 
 
-_Fill_ `w` _with a 4-term Blackman-Harris window. Computes the minimum 4-term Blackman-Harris window: w(k) = 0.35875 - 0.48829\*cos(2πk/(N-1))._
+_Fill_ `w` _with a 4-term Blackman-Harris window. Computes the minimum 4-term Blackman-Harris window: w(k) = 0.35875 - 0.48829\*cos(2πk/(N-1))_
 ```C++
 void blackman_harris_window (
     float * w,

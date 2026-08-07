@@ -53,6 +53,7 @@ typedef struct {
   size_t n_out;             
   size_t dwell;             
   size_t count;             
+  float complex *work_trunc;
 } corr2d_state_t;
 
 corr2d_state_t *corr2d_create(const float complex *ref, size_t ny, size_t nx,
@@ -68,7 +69,7 @@ int corr2d_set_ref(corr2d_state_t *state, const float complex *ref);
 size_t corr2d_execute_max_out(corr2d_state_t *state);
 
 size_t corr2d_execute(corr2d_state_t *state, const float complex *in,
-                      size_t n_in, float complex *out);
+                      size_t n_in, float complex *out, size_t max_out);
 
 /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
  * running 2-D product-spectrum accumulator + frame count;

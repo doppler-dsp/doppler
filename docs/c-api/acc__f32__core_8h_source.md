@@ -42,7 +42,7 @@ extern "C"
 
   float acc_f32_get_acc (const acc_f32_state_t *state);
 
-  void acc_f32_set_acc (acc_f32_state_t *state, float acc);
+  void acc_f32_set_acc (acc_f32_state_t *state, float value);
 
   float acc_f32_get (acc_f32_state_t *state);
 

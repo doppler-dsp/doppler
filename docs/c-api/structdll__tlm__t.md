@@ -36,7 +36,7 @@ _Telemetry attachment: a borrowed context + this object's probe ids. NULL ctx (t
 
 | Type | Name |
 | ---: | :--- |
-|  [**dp\_tlm\_t**](telemetry_8h.md#typedef-dp_tlm_t) \* | [**ctx**](#variable-ctx)  <br> |
+|  [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* | [**ctx**](#variable-ctx)  <br> |
 |  int32\_t | [**id\_e**](#variable-id_e)  <br> |
 |  int32\_t | [**id\_lock**](#variable-id_lock)  <br> |
 |  int32\_t | [**id\_locked**](#variable-id_locked)  <br> |
@@ -99,6 +99,7 @@ dp_tlm_t* dll_tlm_t::ctx;
 
 
 NULL = detached 
+ 
 
 
         
@@ -116,6 +117,7 @@ int32_t dll_tlm_t::id_e;
 
 
 "&lt;prefix&gt;.e" — E-L discriminator 
+ 
 
 
         
@@ -133,6 +135,7 @@ int32_t dll_tlm_t::id_lock;
 
 
 "&lt;prefix&gt;.lock" — CFAR lock statistic R 
+ 
 
 
         
@@ -167,6 +170,7 @@ int32_t dll_tlm_t::id_rate;
 
 
 "&lt;prefix&gt;.rate" — tracked code rate 
+ 
 
 
         

@@ -30,6 +30,7 @@ typedef struct {
     uint32_t R;               /* decimation ratio (power of two)       */
     uint32_t phase;           /* input sample counter 0..R-1           */
     uint32_t shift;           /* CIC_N * log2(R) — right-shift to norm */
+    uint8_t  clipped;         /* sticky: input exceeded +-1.0          */
 } cic_state_t;
 
 cic_state_t *cic_create(uint32_t R);
@@ -39,13 +40,15 @@ void cic_destroy(cic_state_t *state);
 void cic_reset(cic_state_t *state);
 
 /* Serializable state (reusable elastic-resume convention): the integrator and
- * comb accumulators plus the decimation phase counter — R/shift are config
- * (rebuilt from R on the resumed instance). */
+ * comb accumulators, the decimation phase counter and the sticky clip flag —
+ * R/shift are config (rebuilt from R on the resumed instance).  `clipped` is
+ * running state, not a diagnostic bolted on the side: a resumed stream that
+ * silently forgot it had clipped would answer the question wrongly. */
 
 /* Standard bytes interface (see dp_state.h): [dp_state_hdr_t][integ_re/im,
- * comb_re/im (CIC_N u64 each)][u32 phase]. */
+ * comb_re/im (CIC_N u64 each)][u32 phase][u8 clipped]. */
 #define CIC_STATE_MAGIC DP_FOURCC ('C', 'I', 'C', '_')
-#define CIC_STATE_VERSION 1u
+#define CIC_STATE_VERSION 2u
 
 size_t cic_state_bytes(const cic_state_t *state);
 void cic_get_state(const cic_state_t *state, void *blob);
@@ -55,20 +58,24 @@ size_t cic_decimate_max_out(cic_state_t *state);
 
 JM_FORCEINLINE JM_HOT size_t
 cic_decimate(cic_state_t *state, const float complex *in,
-             size_t n_in, float complex *out)
+             size_t n_in, float complex *out, size_t max_out)
 {
     const uint32_t R     = state->R;
     const uint32_t shift = state->shift;
     size_t n_out = 0;
+    int    clip  = 0;   /* accumulated in a register; folded in once below */
 
     for (size_t i = 0; i < n_in; i++) {
-        /* CF32 → UQ16: saturate to Q15, shift to offset-binary [0, 65535]. */
+        /* CF32 → UQ16: saturate to Q15, shift to offset-binary [0, 65535].
+           The four comparisons run regardless, so noting that one fired
+           costs a register OR — which is the whole reason `clipped` exists
+           rather than a line of documentation asking callers to be careful. */
         float sr = crealf(in[i]) * 32768.0f;
         float si = cimagf(in[i]) * 32768.0f;
-        if (sr >  32767.0f) sr =  32767.0f;
-        if (sr < -32768.0f) sr = -32768.0f;
-        if (si >  32767.0f) si =  32767.0f;
-        if (si < -32768.0f) si = -32768.0f;
+        if (sr >  32767.0f) { sr =  32767.0f; clip = 1; }
+        if (sr < -32768.0f) { sr = -32768.0f; clip = 1; }
+        if (si >  32767.0f) { si =  32767.0f; clip = 1; }
+        if (si < -32768.0f) { si = -32768.0f; clip = 1; }
         uint64_t re = (uint64_t)((int32_t)(int16_t)sr + 32768);
         uint64_t im = (uint64_t)((int32_t)(int16_t)si + 32768);
 
@@ -97,11 +104,19 @@ cic_decimate(cic_state_t *state, const float complex *in,
         t = state->comb_im[2]; state->comb_im[2] = im; im -= t;
         t = state->comb_im[3]; state->comb_im[3] = im; im -= t;
 
+        /* Capacity reached: keep running the filter (the integrator and
+           comb state must stay in step with the input stream) but stop
+           writing.  Guarding the store, not the loop, is the difference
+           between a truncated block and a corrupted filter. */
+        if (n_out >= max_out)
+            continue;
+
         /* UQ16 → CF32: right-shift to normalise, remove offset-binary bias. */
         out[n_out++] = CMPLXF(
             ((float)(uint16_t)(re >> shift) - 32768.0f) * (1.0f / 32768.0f),
             ((float)(uint16_t)(im >> shift) - 32768.0f) * (1.0f / 32768.0f));
     }
+    state->clipped |= (uint8_t)clip;   /* sticky; cleared only by reset() */
     return n_out;
 }
 

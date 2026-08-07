@@ -45,7 +45,8 @@ void acc_trace_accumulate(acc_trace_state_t *state, const float *p,
 
 size_t acc_trace_value_max_out(acc_trace_state_t *state);
 
-size_t acc_trace_value(acc_trace_state_t *state, size_t n, float *out);
+size_t acc_trace_value(acc_trace_state_t *state, size_t n, float *out,
+                       size_t max_out);
 /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
  * Field-wise: pack running trace + fold count; n/mode/alpha restored by create. */
 #define ACC_TRACE_STATE_MAGIC DP_FOURCC ('A','T','R','C')

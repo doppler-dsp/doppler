@@ -8,22 +8,31 @@
 
 [Go to the source code of this file](mpsk__receiver__core_8h_source.md)
 
-_Pulse-shaped M-PSK receiver: NDA-acquired carrier + Gardner timing._ [More...](#detailed-description)
+_Pulse-shaped M-PSK receiver: a tuned matched DDC and two loops._ [More...](#detailed-description)
 
-* `#include "agc/agc_core.h"`
-* `#include "carrier_nda/carrier_nda_core.h"`
 * `#include "clib_common.h"`
+* `#include "ddc/ddc_core.h"`
 * `#include "dp_state.h"`
-* `#include "farrow/farrow_core.h"`
-* `#include "fir/fir_core.h"`
 * `#include "jm_perf.h"`
-* `#include "lo/lo_core.h"`
-* `#include "lockdet/lockdet_core.h"`
-* `#include "loop_filter/loop_filter_core.h"`
-* `#include "mpsk/mpsk_core.h"`
-* `#include "symsync/symsync_core.h"`
-* `#include "dp_tlm/dp_tlm_core.h"`
+* `#include "mpsk_receiver/mpsk_rx_loops.h"`
 * `#include <complex.h>`
+* `#include "ratesync/ratesync_core.h"`
+* `#include "RateConverter/RateConverter_core.h"`
+* `#include "resamp/resamp_core.h"`
+* `#include "hbdecim/hbdecim_core.h"`
+* `#include "cic/cic_core.h"`
+* `#include "fir/fir_core.h"`
+* `#include "resample/resample_core.h"`
+* `#include "lo/lo_core.h"`
+* `#include "nco/nco_core.h"`
+* `#include "loop_filter/loop_filter_core.h"`
+* `#include "lockdet/lockdet_core.h"`
+* `#include "symsync/symsync_core.h"`
+* `#include "agc/agc_core.h"`
+* `#include "boxcar/boxcar_core.h"`
+* `#include "dp_tlm/dp_tlm_core.h"`
+* `#include "ber/ber_core.h"`
+* `#include "telemetry/telemetry_core.h"`
 
 
 
@@ -46,11 +55,6 @@ _Pulse-shaped M-PSK receiver: NDA-acquired carrier + Gardner timing._ [More...](
 | struct | [**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) <br>_M-PSK receiver state._  |
 
 
-## Public Types
-
-| Type | Name |
-| ---: | :--- |
-| enum  | [**mpsk\_\_receiver\_\_core\_8h\_1a4198b91c1537d92fd53077eb3ac4ba36**](#enum-mpsk__receiver__core_8h_1a4198b91c1537d92fd53077eb3ac4ba36)  <br>_Matched-filter pulse shape selector._  |
 
 
 
@@ -78,21 +82,26 @@ _Pulse-shaped M-PSK receiver: NDA-acquired carrier + Gardner timing._ [More...](
 |  size\_t | [**mpsk\_receiver\_bits**](#function-mpsk_receiver_bits) ([**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state, const float complex \* x, size\_t x\_len, uint8\_t \* out, size\_t max\_out) <br>_Demodulate a cf32 block and emit hard Gray-coded bits._  |
 |  size\_t | [**mpsk\_receiver\_bits\_max\_out**](#function-mpsk_receiver_bits_max_out) ([**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state) <br> |
 |  void | [**mpsk\_receiver\_configure\_lock**](#function-mpsk_receiver_configure_lock) ([**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state, double up\_thresh, double down\_thresh, uint32\_t n\_up, uint32\_t n\_down) <br>_Re-tune the acquisition&lt;-&gt;tracking handover detector directly._  |
-|  [**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* | [**mpsk\_receiver\_create**](#function-mpsk_receiver_create) (int m, size\_t sps, int n, int pulse, double rrc\_beta, int rrc\_span, double bn\_carrier, double zeta, double bn\_timing, int acq\_to\_track, double lock\_thresh, double init\_norm\_freq, size\_t warmup\_syms, int differential) <br>_Create an M-PSK receiver._  |
+|  [**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* | [**mpsk\_receiver\_create**](#function-mpsk_receiver_create) (int m, double sps, size\_t m\_out, int pulse, double rrc\_beta, int rrc\_span, double bn\_carrier, double zeta, double bn\_timing, int acq\_to\_track, double lock\_thresh, double init\_norm\_freq, size\_t warmup\_syms, int differential, size\_t num\_phases, int nda\_tap) <br>_Create an M-PSK receiver._  |
 |  void | [**mpsk\_receiver\_destroy**](#function-mpsk_receiver_destroy) ([**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state) <br>_Destroy an M-PSK receiver and release all memory._  |
+|  int | [**mpsk\_receiver\_get\_clipped**](#function-mpsk_receiver_get_clipped) (const [**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state) <br>_Has the cascade's CIC stage clipped its input since the last reset? A CIC bounds its input to +-1.0 and clips silently past that, which costs ~25 dB of EVM behind a perfectly healthy lock._  |
+|  double | [**mpsk\_receiver\_get\_last\_error**](#function-mpsk_receiver_get_last_error) (const [**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state) <br>_Carrier loop phase discriminator (rad) — the residual phase the loop is trying to null; loop stress._  |
 |  double | [**mpsk\_receiver\_get\_lock**](#function-mpsk_receiver_get_lock) (const [**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state) <br> |
+|  int | [**mpsk\_receiver\_get\_locked**](#function-mpsk_receiver_get_locked) (const [**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state) <br>_Binary carrier-lock flag from the loop's hysteretic (up/down verify-counted) lock detector — de-chattered, unlike the raw metric._  |
 |  int | [**mpsk\_receiver\_get\_m**](#function-mpsk_receiver_get_m) (const [**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state) <br> |
-|  int | [**mpsk\_receiver\_get\_n**](#function-mpsk_receiver_get_n) (const [**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state) <br> |
-|  double | [**mpsk\_receiver\_get\_norm\_freq**](#function-mpsk_receiver_get_norm_freq) (const [**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state) <br> |
-|  size\_t | [**mpsk\_receiver\_get\_sps**](#function-mpsk_receiver_get_sps) (const [**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state) <br> |
+|  size\_t | [**mpsk\_receiver\_get\_m\_out**](#function-mpsk_receiver_get_m_out) (const [**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state) <br>_Terminal outputs per symbol (the old_ `n` _, now the cascade's)._ |
+|  double | [**mpsk\_receiver\_get\_nco\_freq**](#function-mpsk_receiver_get_nco_freq) (const [**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state) <br>_Instantaneous NCO frequency command (carrier loop filter output, cycles/sample): mean tracks a ramp with no lag, variance is loop stress._  |
+|  double | [**mpsk\_receiver\_get\_norm\_freq**](#function-mpsk_receiver_get_norm_freq) (const [**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state) <br>_Carrier frequency the receiver is tracking, cycles/sample at the input rate: the create-time centre plus the loop's own estimate._  |
+|  double | [**mpsk\_receiver\_get\_sps**](#function-mpsk_receiver_get_sps) (const [**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state) <br> |
 |  void | [**mpsk\_receiver\_get\_state**](#function-mpsk_receiver_get_state) (const [**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state, void \* blob) <br> |
-|  double | [**mpsk\_receiver\_get\_timing\_rate**](#function-mpsk_receiver_get_timing_rate) (const [**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state) <br> |
+|  double | [**mpsk\_receiver\_get\_timing\_rate**](#function-mpsk_receiver_get_timing_rate) (const [**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state) <br>_Smoothed tracked samples per symbol — departs from the nominal_ `sps` _by exactly the sample-clock offset the timing loop is tracking._ |
 |  int | [**mpsk\_receiver\_get\_tracking**](#function-mpsk_receiver_get_tracking) (const [**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state) <br> |
-|  void | [**mpsk\_receiver\_reset**](#function-mpsk_receiver_reset) ([**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state) <br>_Re-seed the carrier/timing loops to their create-time state._  |
-|  void | [**mpsk\_receiver\_set\_norm\_freq**](#function-mpsk_receiver_set_norm_freq) ([**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state, double val) <br> |
+|  void | [**mpsk\_receiver\_reset**](#function-mpsk_receiver_reset) ([**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state) <br>_Re-seed the front end and both loops to their create-time state._  |
+|  void | [**mpsk\_receiver\_set\_norm\_freq**](#function-mpsk_receiver_set_norm_freq) ([**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state, double val) <br>_Retune to_ `val` _cycles/sample: moves the LO centre there and zeroes the loop's residual estimate, so norm\_freq reads back exactly._ |
 |  int | [**mpsk\_receiver\_set\_state**](#function-mpsk_receiver_set_state) ([**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state, const void \* blob) <br> |
-|  int | [**mpsk\_receiver\_set\_telemetry**](#function-mpsk_receiver_set_telemetry) ([**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state, [**dp\_tlm\_t**](telemetry_8h.md#typedef-dp_tlm_t) \* tlm, const char \* prefix, uint32\_t decim) <br>_Attach (or detach) a telemetry context across the receiver. Registers the receiver's own "&lt;prefix&gt;.lock" probe (the carrier lock EMA) and "&lt;prefix&gt;.tracking" (the two-way handover decision, 0/1 — the lockdet output, so a consumer sees exactly when the carrier was handed to the decision-directed discriminator or dropped back to NDA), then forwards the attach to both embedded loops: the carrier loop registers "&lt;prefix&gt;.car.lock" / ".e" / ".freq" / ".locked" (plus its arm AGC's "&lt;prefix&gt;.car.agc.gain\_db") and the symbol-timing loop registers "&lt;prefix&gt;.sync.e" / ".freq" / ".rate" / ".lock" / ".locked"_  _twelve probes total, all thinned by_`decim` _. Every probe except the AGC's emits once per recovered symbol (the receiver flushes both loops at the symbol strobe, not at the carrier loop's sample rate); the AGC's emits at its own amortized gain-update rate. Passing NULL detaches the receiver and both loops. Setup path, never hot; the context is borrowed and must outlive the attachment (SPSC rules in_[_**dp_tlm/dp_tlm_core.h**_](telemetry_8h.md) _)._ |
+|  int | [**mpsk\_receiver\_set\_telemetry**](#function-mpsk_receiver_set_telemetry) ([**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state, [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* tlm, const char \* prefix, uint32\_t decim) <br>_Attach (or detach) a telemetry context across the receiver. Registers the receiver's own "&lt;prefix&gt;.lock" probe (the carrier lock EMA) and "&lt;prefix&gt;.tracking" (the two-way handover decision, 0/1 — so a consumer sees exactly when the carrier was handed to the decision-directed discriminator or dropped back to NDA), then the carrier loop's "&lt;prefix&gt;.car.e" / ".freq" / ".locked" and the symbol-timing loop's "&lt;prefix&gt;.sync.e" / ".ctrl" / ".rate" / ".lock" / ".locked" / ".mu"_  _eleven probes total, all thinned by_`decim` _and all emitted once per recovered symbol. Passing NULL detaches everything. Setup path, never hot; the context is borrowed and must outlive the attachment (SPSC rules in_[_**dp\_tlm/dp\_tlm\_core.h**_](dp__tlm__core_8h.md) _)._ |
 |  size\_t | [**mpsk\_receiver\_state\_bytes**](#function-mpsk_receiver_state_bytes) (const [**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state) <br> |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) int | [**mpsk\_receiver\_step\_ted**](#function-mpsk_receiver_step_ted) ([**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* s, float complex x, float complex \* y\_out, int ted) <br>_Push one input sample; emit a symbol if it completed one._  |
 |  size\_t | [**mpsk\_receiver\_steps**](#function-mpsk_receiver_steps) ([**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state, const float complex \* x, size\_t x\_len, float complex \* out, size\_t max\_out) <br>_Demodulate a cf32 block and emit the recovered symbols._  |
 |  size\_t | [**mpsk\_receiver\_steps\_max\_out**](#function-mpsk_receiver_steps_max_out) ([**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state) <br> |
 
@@ -127,30 +136,53 @@ _Pulse-shaped M-PSK receiver: NDA-acquired carrier + Gardner timing._ [More...](
 | Type | Name |
 | ---: | :--- |
 | define  | [**MPSK\_RECEIVER\_STATE\_MAGIC**](mpsk__receiver__core_8h.md#define-mpsk_receiver_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('M', 'P', 'S', 'K')`<br> |
-| define  | [**MPSK\_RECEIVER\_STATE\_VERSION**](mpsk__receiver__core_8h.md#define-mpsk_receiver_state_version)  `4u /\* v4: handover lockdet counters \*/`<br> |
+| define  | [**MPSK\_RECEIVER\_STATE\_VERSION**](mpsk__receiver__core_8h.md#define-mpsk_receiver_state_version)  `6u /\* v5: rebuilt on the matched DDC \*/`<br> |
 
 ## Detailed Description
 
 
-A complete per-sample inline modem for a continuous (unspread) M-PSK signal. It composes the project's tracking primitives on one shared sample loop:
+A complete inline modem for a continuous (unspread) M-PSK signal at **any** input rate. It is the top of the polyphase family, and it is composition rather than machinery — it owns no filter, no NCO and no interpolator of its own:
 
 
 
-* [**carrier\_nda\_state\_t**](structcarrier__nda__state__t.md) — per-sample carrier wipe-off with the integer NCO, plus a non-data-aided M-th-power discriminator on an I/Q arm integrate-and-dump (n dumps/symbol). This **acquires the carrier with no symbol timing and no data present** (cold start), which is what lets the receiver pull in before the matched filter / timing loop have settled.
-* a matched filter ([**fir\_state\_t**](structfir__state__t.md), owned) on the de-rotated stream: either an **integrate-and-dump boxcar** (`MPSK_RX_PULSE_IANDD`, default) or a **root-raised-cosine** (`MPSK_RX_PULSE_RRC`) for band-limited links.
-* [**symsync\_state\_t**](structsymsync__state__t.md) — a carrier-blind Gardner symbol-timing loop on the matched-filter output, emitting one symbol per recovered symbol period.
-
-
-
-
-Carrier recovery follows the project rule: **predetection de-rotation** (per-sample wipe, always) and **postdetection discrimination**. Two discriminators steer one shared NCO:
-* **acquisition** — the NDA M-th-power error, n times/symbol, with no data or timing required (`tracking == 0`).
-* **tracking** — once `acq_to_track` is enabled and the loop has locked, a decision-directed error `e = Im(y·conj(â))/|y|` on the recovered symbols (lower jitter, naturally lower loop bandwidth at symbol rate). The same NCO/loop filter carries the frequency estimate across the switch. The handover is **opt-in** (`acq_to_track`, default off — the receiver then stays in robust NDA tracking the whole time) and **two-way**: an embedded lock detector ([**lockdet\_core.h**](lockdet__core_8h.md)) steps on the carrier lock metric once per recovered symbol, declaring tracking after a verify count of consecutive above-threshold symbols and — on a sustained lock loss — dropping back to the NDA acquisition steer, which re-pulls the carrier with no data/timing assumptions. The shared NCO carries the frequency estimate through both directions, so a drop-back is a discriminator swap, not a re-acquisition from cold.
+```C++
+x ──> MatchedDDC ──────────────────────────────> y ──> loops ──> symbols
+       LO mix · CIC/HB cascade · matched filter        │
+         ^                            ^                │
+         └── freq_ctrl ── carrier ────┴── rate_ctrl ───┘
+```
 
 
 
 
-The loop locks to one of M phases — an **M-fold ambiguity** on absolute phase. Resolve it with differential demapping (`bits(..., differential=1)`) or a sync word downstream. A DSSS-MPSK receiver is `Dll(segments) -> MpskReceiver`: despread to symbol-rate soft chips, then this modem.
+* [**ddc\_state\_t**](ddc__core_8h.md#typedef-ddc_state_t) (the matched flavor) mixes, decimates and matched-filters in the dot products it was already doing. Its terminal polyphase stage IS the matched filter, and the arm that stage selects IS the fractional symbol-timing delay.
+* [**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) closes a symbol-timing loop on the cascade's `rate_ctrl` port and a carrier loop on the LO's `freq_ctrl` port. The timing half is [**ratesync\_loop\_t**](structratesync__loop__t.md) — literally RateSync's loop, not a copy of it.
+
+
+
+
+Carrier recovery follows the project rule, now structurally rather than by convention: **predetection de-rotation** happens in the LO at the front of the chain, and **postdetection discrimination** on the matched-filtered symbols at the end of it. Two discriminators steer the one LO:
+* **acquisition** — the NDA M-th-power error on every terminal output, needing no data and no symbol timing (`tracking == 0`).
+* **tracking** — a decision-directed error `e = Im(y·conj(â))/|y|` on the recovered symbols (lower jitter, at the symbol rate). The handover is opt-in (`acq_to_track`) and two-way, and the shared loop filter carries the frequency estimate across it in both directions, so a drop-back is a discriminator swap rather than a cold re-acquisition. See [**mpsk\_rx\_loops.h**](mpsk__rx__loops_8h.md) for why the two discriminators run at different rates and how the estimate survives the change.
+
+
+
+
+### What the cascade buys
+
+
+
+`sps` is a **double**, and the front end plans itself. At `sps = 8` the plan is a halfband or two and a terminal stage; at `sps = 256` it is a CIC followed by the same terminal stage, so the matched filter costs the same bank either way (~34 taps/arm at both ends of a 64x span of input rates, against the 4225 taps/arm a single-stage design would need). An irrational `sps` — a free-running ADC clock against the symbol clock — is no harder than an integer one, because the terminal accumulator is a double and the loop only has to steer the strobe.
+
+
+The M-fold phase ambiguity is unchanged: resolve it with differential demapping (`bits(..., differential=1)`) or a sync word downstream. The real-input twin lives in [**mpsk\_receiver\_r/mpsk\_receiver\_r\_core.h**](mpsk__receiver__r__core_8h.md); a DSSS-MPSK receiver is still `Dll(segments) -> MpskReceiver`.
+
+
+
+
+**Warning:**
+
+**This object's outputs are not bit-identical to releases before the cascade rebuild.** The matched filter became a polyphase bank instead of a dense FIR and the interpolator became a bank arm instead of a Farrow, so symbols move at the float level. `bn_carrier` also changed units: it is now normalised to the **symbol rate**, like `bn_timing`, rather than to the input sample rate — at the old default `sps = 8` the same number is now an 8x wider loop. Detection performance is unchanged (the fused matched filter measures on the Es/N0 bound); exact-output pins are not.
 
 
 Lifecycle: `mpsk_receiver_create -> (steps / bits / reset)* -> _destroy`.
@@ -159,37 +191,19 @@ Lifecycle: `mpsk_receiver_create -> (steps / bits / reset)* -> _destroy`.
 
 ```C++
 // QPSK, 8 samples/symbol, I&D matched filter, NDA acquisition
-mpsk_receiver_state_t *rx = mpsk_receiver_create(
-    4, 8, 4, MPSK_RX_PULSE_IANDD, 0.35, 8,
-    0.01, 0.707, 0.01, 0, 0.5, 0.0, 100, 0);
+mpsk_receiver_state_t *rx = mpsk_receiver_create (
+    4, 8.0, 4, MPSK_RX_PULSE_IANDD, 0.35, 8,
+    0.01, 0.707, 0.01, 0, 0.5, 0.0, 100, 0, 1024);
 float complex sym[256];
-size_t k = mpsk_receiver_steps(rx, rx_in, rx_len, sym, 256);
-double f = mpsk_receiver_get_norm_freq(rx);  // tracked residual carrier
-mpsk_receiver_destroy(rx);
+size_t k = mpsk_receiver_steps (rx, rx_in, rx_len, sym, 256);
+double f = mpsk_receiver_get_norm_freq (rx);  // tracked residual carrier
+mpsk_receiver_destroy (rx);
 ```
  
 
 
+
     
-## Public Types Documentation
-
-
-
-
-### enum mpsk\_\_receiver\_\_core\_8h\_1a4198b91c1537d92fd53077eb3ac4ba36 
-
-_Matched-filter pulse shape selector._ 
-```C++
-enum mpsk__receiver__core_8h_1a4198b91c1537d92fd53077eb3ac4ba36 {
-    MPSK_RX_PULSE_IANDD = 0,
-    MPSK_RX_PULSE_RRC = 1
-};
-```
-
-
-
-
-<hr>
 ## Public Functions Documentation
 
 
@@ -229,6 +243,23 @@ Like [**mpsk\_receiver\_steps()**](mpsk__receiver__core_8h.md#function-mpsk_rece
 **Returns:**
 
 Number of bits written. 
+```C++
+>>> import numpy as np
+>>> from doppler.track import MpskReceiver
+>>> rng = np.random.default_rng(3)
+>>> idx = rng.integers(0, 2, 3000)                  # BPSK payload bits
+>>> tx = np.repeat(np.exp(1j * np.pi * idx), 8).astype(np.complex64)
+>>> rx = MpskReceiver(m=2, sps=8, m_out=4, bn_carrier=0.005)
+>>> b = rx.bits(tx)                                 # 1 hard bit/symbol
+>>> b.size
+2997
+>>> # settled tail matches the payload, up to the BPSK
+>>> # inversion ambiguity
+>>> tail = np.mean(b[1000:2000] != idx[1000:2000])
+>>> round(float(min(tail, 1 - tail)), 3)
+0.0
+```
+ 
 
 
 
@@ -270,7 +301,7 @@ void mpsk_receiver_configure_lock (
 
 
 
-Full lockdet control over `handover`, mirroring [**costas\_configure\_lock()**](costas__core_8h.md#function-costas_configure_lock): a split declare/drop threshold pair on the carrier lock EMA (level hysteresis) and both verify counts (time hysteresis). Previously only settable at construction (`lock_thresh`, with `MPSK_RX_HANDOVER_DOWN`/ `_N_UP`/`_N_DOWN` fixed compile-time constants)  this is the post-construction re-tune Dll and Costas both already have. A live handover survives the re-tune; the in-flight verify run restarts.
+Full lockdet control over the handover, mirroring [**costas\_configure\_lock()**](costas__core_8h.md#function-costas_configure_lock): a split declare/drop threshold pair on the carrier lock EMA (level hysteresis) and both verify counts (time hysteresis). A live handover survives the re-tune; the in-flight verify run restarts.
 
 
 
@@ -285,10 +316,10 @@ Full lockdet control over `handover`, mirroring [**costas\_configure\_lock()**](
 * `n_down` Consecutive below-threshold symbols to fall back to NDA acquisition; clamped &gt;= 1. 
 ```C++
 >>> from doppler.track import MpskReceiver
->>> rx = MpskReceiver(m=4, sps=4, acq_to_track=1)
+>>> rx = MpskReceiver(m=4, sps=4, m_out=2, acq_to_track=1)
 >>> rx.tracking
 0
->>> rx.configure_lock(0.9, 0.72, 4, 16)   # tighter declare, faster drop
+>>> rx.configure_lock(0.9, 0.72, 4, 16)   # tighter declare, fast drop
 ```
  
 
@@ -307,8 +338,8 @@ _Create an M-PSK receiver._
 ```C++
 mpsk_receiver_state_t * mpsk_receiver_create (
     int m,
-    size_t sps,
-    int n,
+    double sps,
+    size_t m_out,
     int pulse,
     double rrc_beta,
     int rrc_span,
@@ -319,7 +350,9 @@ mpsk_receiver_state_t * mpsk_receiver_create (
     double lock_thresh,
     double init_norm_freq,
     size_t warmup_syms,
-    int differential
+    int differential,
+    size_t num_phases,
+    int nda_tap
 ) 
 ```
 
@@ -331,19 +364,26 @@ mpsk_receiver_state_t * mpsk_receiver_create (
 
 
 * `m` Constellation order M, 2/4/8 (default 4 = QPSK). 
-* `sps` Samples per symbol (default 8). 
-* `n` Carrier arm dumps per symbol (default 4; sps % n == 0). 
+* `sps` Samples per symbol; any double &gt;= `m_out` (8.0 by default, but 17.33389 is equally valid). 
+* `m_out` Terminal outputs per symbol: even, 2..8 (default 8). Gardner needs the half-symbol gate. The default is 8 for two reasons. The matched filter: the rectangle is one symbol wide, so its filter is an m\_out-tap sum spanning it, and a smaller m\_out samples the same integral more coarsely. Measured on QPSK at sps = 8 against EVM\_dB = -(Es/N0)\_dB, at 18 dB Es/N0: 0.41 dB off the bound at 8, 3.11 dB at 4. And the M-th-power discriminator: `z^M` auto-convolves the spectrum M times, spreading energy over ~`M*Rs`, and whatever exceeds the update rate folds back onto itself. A clean strobe raises to a constant with nothing to fold, but every departure from clean (ISI, timing error, noise) is splattered M-fold and aliased — so the nonlinearity's tolerance for a coarse matched filter COLLAPSES as M grows. The first reason is M-independent; the second is not. Measured (halving m\_out from 8 to 4, each M at its own SER=1e-3 anchor): BPSK 1.7 dB, QPSK 1.6 dB, **8PSK 3.0 dB** — the last also sitting 0.87 dB from the fully-scattered EVM floor, i.e. barely distinguishable from noise. **So m\_out = 8 is not optional at M = 8.** At `MPSK_RX_NDA_TAP_MF_ALL`, where the M-th power runs on the oversampled pulse rather than the strobe, the requirement is the blunt `m_out >= M`; since m\_out maxes at 8, 8PSK there is exactly critically sampled. **Never pair 2 with MPSK\_RX\_PULSE\_IANDD** — the filter degenerates to a two-tap sum, the eye barely opens and acquisition itself fails about half the time. Replaces the old `n` (NDA arm dumps/symbol), which the cascade's own outputs now serve. 
 * `pulse` Matched-filter shape (default MPSK\_RX\_PULSE\_IANDD). 
 * `rrc_beta` RRC roll-off in `[0, 1]` (default 0.35; RRC only). 
 * `rrc_span` RRC one-sided span in symbols (default 8; RRC only). 
-* `bn_carrier` Carrier loop noise bandwidth (default 0.01). 
+* `bn_carrier` Carrier loop noise bandwidth, **normalised to the symbol rate** (default 0.01). A carrier loop here closes around the matched filter, so its dead time is that filter's group delay — keep it a small fraction of the symbol rate, as a real receiver does. 
 * `zeta` Damping factor for both loops (default 0.707). 
-* `bn_timing` Symbol-timing loop noise bandwidth (default 0.01). 
+* `bn_timing` Symbol-timing loop noise bandwidth, normalised to the symbol rate (default 0.01). 
 * `acq_to_track` Enable the two-way NDA&lt;-&gt;decision-directed handover (default 0). 
-* `lock_thresh` Handover declare threshold on the carrier lock metric (default 0.5); the drop threshold sits at 0.8x for level hysteresis, and both directions are verify-counted (8 symbols up / 32 down). 
-* `init_norm_freq` Seed carrier frequency, cycles/sample (default 0.0). 
+* `lock_thresh` Handover declare threshold on the carrier lock metric (default 0.5); the drop threshold sits at 0.8x for level hysteresis, and both directions are verify-counted (8 symbols up / 32 down). The metric is `Re((z/|z|)^M)` smoothed by an EMA, whose noise-only sd is 0.1132 for **every** M, so the threshold is `0.5 / 0.1132` = 4.42 noise sigmas — a per-look false-alarm probability of 5e-6. Pick a value by dividing your Pfa's z-score into 0.1132 rather than by feel; see [**carrier\_nda\_core.h**](carrier__nda__core_8h.md) for the derivation and the measured verification. 
+* `init_norm_freq` Seed carrier frequency, cycles/sample at the input rate (default 0.0). This is the centre the LO is tuned to; the loop tracks the residual around it. 
 * `warmup_syms` Symbols before the acq-to-track switch is allowed (default 100). 
 * `differential` bits(): differential (rotation-invariant) demap (default 0 = coherent). 
+* `num_phases` Terminal-stage bank arms; a power of two (default 1024). Sets the timing resolution to `1/num_phases` of an output period. 
+* `nda_tap` MPSK\_RX\_NDA\_TAP\_\* — where the NDA carrier discriminator reads, which sets its pull-in range and whether it needs symbol timing at all. An M-th-power detector updating at rate `F` can only observe `|df| < F/(2M)`, so the tap point IS the range:
+  * `MPSK_RX_NDA_TAP_STROBE` (0, default) — the on-time strobe, at `Rs`. Cleanest input, narrowest range, and the ONLY tap whose input quality depends on the timing loop — it steers from the first strobe regardless, so pick another tap if the carrier must acquire first.
+  * `MPSK_RX_NDA_TAP_MF_ALL` (1) — every terminal output, at `m_out*Rs`. No timing dependence, paid for with the ISI the between-symbol outputs carry (worst at 8PSK, where the decision margin is smallest).
+  * `MPSK_RX_NDA_TAP_LO_ARM` (2) — ahead of the cascade, through a free-running half-symbol boxcar at the LO rate. Widest range and fully timing-independent, but unmatched, so it pays squaring loss; it does NOT work at 8PSK (the 8th-power gain over a boxcar arm collapses). Measured unaided, QPSK at `sps = 8, m_out = 8`, each at its own best `bn_carrier`: `0.050*Rs` (strobe), `0.033*Rs` (mf\_all), `0.090*Rs` (lo\_arm). Fixed at construction — nothing switches underneath the caller. Note `df = k*F/M` is a stable FALSE lock at every tap, reporting a healthy lock statistic that no self-referenced metric can flag. For more range than any tap gives, put a coarse frequency estimate in front and pass it as `init_norm_freq`. 
+
+
 
 
 
@@ -395,10 +435,58 @@ void mpsk_receiver_destroy (
 
 
 
+### function mpsk\_receiver\_get\_clipped 
+
+_Has the cascade's CIC stage clipped its input since the last reset? A CIC bounds its input to +-1.0 and clips silently past that, which costs ~25 dB of EVM behind a perfectly healthy lock._ 
+```C++
+int mpsk_receiver_get_clipped (
+    const mpsk_receiver_state_t * state
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function mpsk\_receiver\_get\_last\_error 
+
+_Carrier loop phase discriminator (rad) — the residual phase the loop is trying to null; loop stress._ 
+```C++
+double mpsk_receiver_get_last_error (
+    const mpsk_receiver_state_t * state
+) 
+```
+
+
+
+
+<hr>
+
+
+
 ### function mpsk\_receiver\_get\_lock 
 
 ```C++
 double mpsk_receiver_get_lock (
+    const mpsk_receiver_state_t * state
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function mpsk\_receiver\_get\_locked 
+
+_Binary carrier-lock flag from the loop's hysteretic (up/down verify-counted) lock detector — de-chattered, unlike the raw metric._ 
+```C++
+int mpsk_receiver_get_locked (
     const mpsk_receiver_state_t * state
 ) 
 ```
@@ -425,10 +513,27 @@ int mpsk_receiver_get_m (
 
 
 
-### function mpsk\_receiver\_get\_n 
+### function mpsk\_receiver\_get\_m\_out 
 
+_Terminal outputs per symbol (the old_ `n` _, now the cascade's)._
 ```C++
-int mpsk_receiver_get_n (
+size_t mpsk_receiver_get_m_out (
+    const mpsk_receiver_state_t * state
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function mpsk\_receiver\_get\_nco\_freq 
+
+_Instantaneous NCO frequency command (carrier loop filter output, cycles/sample): mean tracks a ramp with no lag, variance is loop stress._ 
+```C++
+double mpsk_receiver_get_nco_freq (
     const mpsk_receiver_state_t * state
 ) 
 ```
@@ -442,6 +547,7 @@ int mpsk_receiver_get_n (
 
 ### function mpsk\_receiver\_get\_norm\_freq 
 
+_Carrier frequency the receiver is tracking, cycles/sample at the input rate: the create-time centre plus the loop's own estimate._ 
 ```C++
 double mpsk_receiver_get_norm_freq (
     const mpsk_receiver_state_t * state
@@ -458,7 +564,7 @@ double mpsk_receiver_get_norm_freq (
 ### function mpsk\_receiver\_get\_sps 
 
 ```C++
-size_t mpsk_receiver_get_sps (
+double mpsk_receiver_get_sps (
     const mpsk_receiver_state_t * state
 ) 
 ```
@@ -488,6 +594,7 @@ void mpsk_receiver_get_state (
 
 ### function mpsk\_receiver\_get\_timing\_rate 
 
+_Smoothed tracked samples per symbol — departs from the nominal_ `sps` _by exactly the sample-clock offset the timing loop is tracking._
 ```C++
 double mpsk_receiver_get_timing_rate (
     const mpsk_receiver_state_t * state
@@ -518,7 +625,7 @@ int mpsk_receiver_get_tracking (
 
 ### function mpsk\_receiver\_reset 
 
-_Re-seed the carrier/timing loops to their create-time state._ 
+_Re-seed the front end and both loops to their create-time state._ 
 ```C++
 void mpsk_receiver_reset (
     mpsk_receiver_state_t * state
@@ -527,12 +634,29 @@ void mpsk_receiver_reset (
 
 
 
+Clears the cascade's filter memory, the carrier and timing NCOs, the loop-filter integrators and the lock detectors, and returns the carrier estimate to `init_norm_freq`. The configuration (order, rate, pulse, bandwidths) is untouched, so the same input fed twice around a reset reproduces the same output bit-for-bit.
+
+
 
 
 **Parameters:**
 
 
 * `state` Must be non-NULL. 
+```C++
+>>> import numpy as np
+>>> from doppler.track import MpskReceiver
+>>> rng = np.random.default_rng(0)
+>>> idx = rng.integers(0, 4, 300)
+>>> tx = np.repeat(np.exp(1j * (2 * np.pi * idx / 4 + np.pi / 4)), 8)
+>>> tx = tx.astype(np.complex64)
+>>> rx = MpskReceiver(m=4, sps=8, m_out=4)
+>>> first = rx.steps(tx)
+>>> rx.reset()                                # back to the cold state
+>>> np.array_equal(first, rx.steps(tx))       # same input, same output
+True
+```
+ 
 
 
 
@@ -545,6 +669,7 @@ void mpsk_receiver_reset (
 
 ### function mpsk\_receiver\_set\_norm\_freq 
 
+_Retune to_ `val` _cycles/sample: moves the LO centre there and zeroes the loop's residual estimate, so norm\_freq reads back exactly._
 ```C++
 void mpsk_receiver_set_norm_freq (
     mpsk_receiver_state_t * state,
@@ -577,7 +702,7 @@ int mpsk_receiver_set_state (
 
 ### function mpsk\_receiver\_set\_telemetry 
 
-_Attach (or detach) a telemetry context across the receiver. Registers the receiver's own "&lt;prefix&gt;.lock" probe (the carrier lock EMA) and "&lt;prefix&gt;.tracking" (the two-way handover decision, 0/1 — the lockdet output, so a consumer sees exactly when the carrier was handed to the decision-directed discriminator or dropped back to NDA), then forwards the attach to both embedded loops: the carrier loop registers "&lt;prefix&gt;.car.lock" / ".e" / ".freq" / ".locked" (plus its arm AGC's "&lt;prefix&gt;.car.agc.gain\_db") and the symbol-timing loop registers "&lt;prefix&gt;.sync.e" / ".freq" / ".rate" / ".lock" / ".locked"_  _twelve probes total, all thinned by_`decim` _. Every probe except the AGC's emits once per recovered symbol (the receiver flushes both loops at the symbol strobe, not at the carrier loop's sample rate); the AGC's emits at its own amortized gain-update rate. Passing NULL detaches the receiver and both loops. Setup path, never hot; the context is borrowed and must outlive the attachment (SPSC rules in_[_**dp_tlm/dp_tlm_core.h**_](telemetry_8h.md) _)._
+_Attach (or detach) a telemetry context across the receiver. Registers the receiver's own "&lt;prefix&gt;.lock" probe (the carrier lock EMA) and "&lt;prefix&gt;.tracking" (the two-way handover decision, 0/1 — so a consumer sees exactly when the carrier was handed to the decision-directed discriminator or dropped back to NDA), then the carrier loop's "&lt;prefix&gt;.car.e" / ".freq" / ".locked" and the symbol-timing loop's "&lt;prefix&gt;.sync.e" / ".ctrl" / ".rate" / ".lock" / ".locked" / ".mu"_  _eleven probes total, all thinned by_`decim` _and all emitted once per recovered symbol. Passing NULL detaches everything. Setup path, never hot; the context is borrowed and must outlive the attachment (SPSC rules in_[_**dp\_tlm/dp\_tlm\_core.h**_](dp__tlm__core_8h.md) _)._
 ```C++
 int mpsk_receiver_set_telemetry (
     mpsk_receiver_state_t * state,
@@ -603,21 +728,23 @@ int mpsk_receiver_set_telemetry (
 
 **Returns:**
 
-DP\_OK, or DP\_ERR\_INVALID when the probe table cannot take the twelve probes (the attach fails whole; everything detached). 
+DP\_OK, or DP\_ERR\_INVALID when the probe table cannot take the eleven probes (the attach fails whole; everything detached). 
 ```C++
 >>> import numpy as np
 >>> from doppler.track import MpskReceiver
 >>> from doppler.telemetry import Telemetry
->>> tlm = Telemetry(1 << 12)
->>> rx = MpskReceiver(m=4, sps=4)
+>>> tlm = Telemetry(1 << 14)   # 11 probes x ~512 syms + headroom
+>>> rx = MpskReceiver(m=4, sps=4, m_out=2)
 >>> rx.set_telemetry(tlm, "rx")
->>> len(tlm.probe_names())
-12
+>>> len(tlm.probe_names)
+11
 >>> rng = np.random.default_rng(7)
 >>> syms = (1 - 2 * rng.integers(0, 2, 512)).astype(np.complex64)
 >>> x = np.repeat(syms, 4)
 >>> _ = rx.steps(x)
->>> recs = tlm.read()   # eleven records per emitted symbol + AGC
+>>> recs = tlm.read()
+>>> tlm.dropped        # size the ring, or the counts below diverge
+0
 >>> n_sync = len(recs[recs["probe"] == tlm.probe_id("rx.sync.e")])
 >>> n_car = len(recs[recs["probe"] == tlm.probe_id("rx.car.e")])
 >>> n_sync > 0 and n_sync == n_car
@@ -650,6 +777,49 @@ size_t mpsk_receiver_state_bytes (
 
 
 
+### function mpsk\_receiver\_step\_ted 
+
+_Push one input sample; emit a symbol if it completed one._ 
+```C++
+JM_FORCEINLINE  JM_HOT int mpsk_receiver_step_ted (
+    mpsk_receiver_state_t * s,
+    float complex x,
+    float complex * y_out,
+    int ted
+) 
+```
+
+
+
+The composition API: mixes, decimates and matched-filters `x` through the front end at the loops' current control values, then folds every output it produced into both loops. The cascade rate is `m_out/sps <= 1`, so one input can complete at most two output periods and therefore at most one on-time strobe.
+
+
+
+
+**Parameters:**
+
+
+* `s` State. Must be non-NULL. 
+* `x` One input sample. 
+* `y_out` Receives the symbol when the return is 1. 
+* `ted` RATESYNC\_TED\_GARDNER or RATESYNC\_TED\_DTTL — pass a literal for a specialised (branch-free) instantiation. 
+
+
+
+**Returns:**
+
+1 if a symbol was emitted (into `y_out`), 0 otherwise. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
 ### function mpsk\_receiver\_steps 
 
 _Demodulate a cf32 block and emit the recovered symbols._ 
@@ -665,7 +835,7 @@ size_t mpsk_receiver_steps (
 
 
 
-Runs the per-sample loop (carrier wipe-off + NDA arm + matched filter + Gardner timing) over `x` and writes one cf32 symbol per recovered symbol period. Fewer outputs than inputs (~ x\_len / sps). Read norm\_freq for the tracked carrier and lock for the carrier lock metric.
+Runs the per-sample loop (mix + cascade + matched filter, then the carrier and timing loops) over `x` and writes one cf32 symbol per recovered symbol period — roughly `x_len / sps` outputs. Read norm\_freq for the tracked carrier and lock for the carrier lock metric.
 
 
 
@@ -684,6 +854,21 @@ Runs the per-sample loop (carrier wipe-off + NDA arm + matched filter + Gardner 
 **Returns:**
 
 Number of symbols written. 
+```C++
+>>> import numpy as np
+>>> from doppler.track import MpskReceiver
+>>> rng = np.random.default_rng(0)
+>>> idx = rng.integers(0, 4, 3000)                  # QPSK symbols
+>>> tx = np.repeat(np.exp(1j * (2 * np.pi * idx / 4 + np.pi / 4)), 8)
+>>> tx = tx.astype(np.complex64)                    # 8 samples/symbol
+>>> rx = MpskReceiver(m=4, sps=8, m_out=4, bn_carrier=0.02)
+>>> sym = rx.steps(tx)                              # blind NDA acquire
+>>> sym.size                                        # ~ x_len / sps
+2997
+>>> round(rx.lock, 2)                               # carrier locked
+0.91
+```
+ 
 
 
 
@@ -729,7 +914,7 @@ size_t mpsk_receiver_steps_max_out (
 ### define MPSK\_RECEIVER\_STATE\_VERSION 
 
 ```C++
-#define MPSK_RECEIVER_STATE_VERSION `4u /* v4: handover lockdet counters */`
+#define MPSK_RECEIVER_STATE_VERSION `6u /* v5: rebuilt on the matched DDC */`
 ```
 
 

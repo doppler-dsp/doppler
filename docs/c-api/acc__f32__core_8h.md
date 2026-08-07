@@ -69,7 +69,7 @@ _AccF32 component API._ [More...](#detailed-description)
 |  void | [**acc\_f32\_madd**](#function-acc_f32_madd) ([**acc\_f32\_state\_t**](structacc__f32__state__t.md) \* state, const float \* x, size\_t x\_len, const float \* h, size\_t h\_len) <br>_Dot-product accumulate:_ `acc += sum(x[i] * h[i])` _for_`i` _in_`0 .. min(x_len, h_len) - 1` _. The shorter of the two arrays limits the iteration count; no out-of-bounds access occurs. Typical use: apply a short FIR weight vector to one block of signal samples and fold the result into a running total._ |
 |  void | [**acc\_f32\_madd2d**](#function-acc_f32_madd2d) ([**acc\_f32\_state\_t**](structacc__f32__state__t.md) \* state, const float \* x, size\_t x\_len, const float \* h, size\_t h\_len) <br>_Dot-product accumulate over a flat 2-D buffer:_ `acc += sum(x[i] * h[i])` _for_`i` _in_`0 .. min(x_len, h_len) - 1` _. Combines_`add2d` _and_`madd` _semantics — a 2-D signal array is weighted element-wise by a coefficient buffer and the scalar total is folded into the running sum._ |
 |  void | [**acc\_f32\_reset**](#function-acc_f32_reset) ([**acc\_f32\_state\_t**](structacc__f32__state__t.md) \* state) <br>_Zero the accumulator, restoring the same state as a fresh_ `AccF32(0.0)` _— regardless of the value supplied to_`acc_f32_create` _. Subsequent_`get` _/_`dump` _calls return_`0.0` _until new samples are processed._ |
-|  void | [**acc\_f32\_set\_acc**](#function-acc_f32_set_acc) ([**acc\_f32\_state\_t**](structacc__f32__state__t.md) \* state, float acc) <br>_Overwrite the accumulator with a new value. Useful for seeding the accumulator to a known baseline before processing a new segment without a full_ `reset` _._ |
+|  void | [**acc\_f32\_set\_acc**](#function-acc_f32_set_acc) ([**acc\_f32\_state\_t**](structacc__f32__state__t.md) \* state, float value) <br>_Overwrite the accumulator with a new value. Useful for seeding the accumulator to a known baseline before processing a new segment without a full_ `reset` _; subsequent_`step` _/_`steps` _samples accumulate on top of the seeded value._ |
 |  int | [**acc\_f32\_set\_state**](#function-acc_f32_set_state) ([**acc\_f32\_state\_t**](structacc__f32__state__t.md) \* state, const void \* blob) <br> |
 |  size\_t | [**acc\_f32\_state\_bytes**](#function-acc_f32_state_bytes) (const [**acc\_f32\_state\_t**](structacc__f32__state__t.md) \* state) <br> |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) void | [**acc\_f32\_step**](#function-acc_f32_step) ([**acc\_f32\_state\_t**](structacc__f32__state__t.md) \* state, float x) <br>_Add one sample to the running sum (_ `acc += x` _). This is the hot-path entry point for sample-by-sample processing. For block inputs prefer_`acc_f32_steps` _to amortise call overhead and allow auto-vectorisation._ |
@@ -335,7 +335,9 @@ Current value of `acc` (float).
 >>> from doppler.accumulator import AccF32
 >>> obj = AccF32(0.0)
 >>> obj.step(4.0)
->>> obj.get_acc()
+>>> obj.get_acc()          # non-destructive read
+4.0
+>>> obj.get_acc()          # still there — get_acc never drains
 4.0
 ```
  
@@ -489,11 +491,11 @@ void acc_f32_reset (
 
 ### function acc\_f32\_set\_acc 
 
-_Overwrite the accumulator with a new value. Useful for seeding the accumulator to a known baseline before processing a new segment without a full_ `reset` _._
+_Overwrite the accumulator with a new value. Useful for seeding the accumulator to a known baseline before processing a new segment without a full_ `reset` _; subsequent_`step` _/_`steps` _samples accumulate on top of the seeded value._
 ```C++
 void acc_f32_set_acc (
     acc_f32_state_t * state,
-    float acc
+    float value
 ) 
 ```
 
@@ -505,13 +507,14 @@ void acc_f32_set_acc (
 
 
 * `state` Must be non-NULL. 
-* `acc` New accumulator value. 
+* `value` New accumulator value. 
 ```C++
 >>> from doppler.accumulator import AccF32
 >>> obj = AccF32(0.0)
->>> obj.set_acc(10.0)
+>>> obj.set_acc(10.0)      # seed a running baseline
+>>> obj.step(2.5)          # later samples fold in on top
 >>> obj.get_acc()
-10.0
+12.5
 ```
  
 

@@ -73,7 +73,7 @@ _BurstDespreader component API._ [More...](#detailed-description)
 |  double | [**burst\_despreader\_get\_snr\_est**](#function-burst_despreader_get_snr_est) (const [**burst\_despreader\_state\_t**](structburst__despreader__state__t.md) \* state) <br>_Post-despread SNR estimate over the burst, accumulate-then-ratio: (sum Re^2 - sum Im^2) / sum Im^2, clamped &gt;= 0. For BPSK the signal lives in Re and the noise splits evenly, so this estimates A^2/sigma^2 (per-component) directly — unlike a per-symbol Re^2/Im^2 ratio, whose heavy-tailed reciprocal chi-square makes the estimate biased high with enormous variance. This is the EFFECTIVE post-loop SNR: residual tracking-loop phase jitter rotates signal energy into Im, so the estimate sits below the AWGN-only value by the jitter term (converging as bn -&gt; 0) — the quantity that actually predicts demodulation performance._  |
 |  size\_t | [**burst\_despreader\_get\_stat\_n**](#function-burst_despreader_get_stat_n) (const [**burst\_despreader\_state\_t**](structburst__despreader__state__t.md) \* state) <br>_Number of prompts folded into the burst statistics so far._  |
 |  void | [**burst\_despreader\_get\_state**](#function-burst_despreader_get_state) (const [**burst\_despreader\_state\_t**](structburst__despreader__state__t.md) \* state, void \* blob) <br> |
-|  void | [**burst\_despreader\_reset**](#function-burst_despreader_reset) ([**burst\_despreader\_state\_t**](structburst__despreader__state__t.md) \* state) <br>_Reset BurstDespreader to its post-create state._  |
+|  void | [**burst\_despreader\_reset**](#function-burst_despreader_reset) ([**burst\_despreader\_state\_t**](structburst__despreader__state__t.md) \* state) <br>_Re-seed the loops to the create-time phase/frequency and re-arm the burst statistics; preserve config._  |
 |  void | [**burst\_despreader\_set\_acq**](#function-burst_despreader_set_acq) ([**burst\_despreader\_state\_t**](structburst__despreader__state__t.md) \* state, const uint8\_t \* acq\_code, size\_t acq\_code\_len, size\_t acq\_reps) <br>_Enable preamble-aided pull-in with a distinct acquisition code._  |
 |  void | [**burst\_despreader\_set\_bn\_carrier**](#function-burst_despreader_set_bn_carrier) ([**burst\_despreader\_state\_t**](structburst__despreader__state__t.md) \* state, double val) <br>_Set the carrier loop bandwidth (recomputes the loop gains)._  |
 |  void | [**burst\_despreader\_set\_bn\_code**](#function-burst_despreader_set_bn_code) ([**burst\_despreader\_state\_t**](structburst__despreader__state__t.md) \* state, double val) <br>_Set the code loop bandwidth (recomputes the loop gains)._  |
@@ -170,7 +170,28 @@ Same streaming kernel as [**burst\_despreader\_steps()**](burst__despreader__cor
 
 **Returns:**
 
-Number of bits written. 
+Number of hard bits written into `out`. 
+```C++
+>>> import numpy as np
+>>> from doppler.dsss import BurstDespreader
+>>> rng = np.random.default_rng(1)
+>>> code = rng.integers(0, 2, 31).astype(np.uint8)
+>>> bits = rng.integers(0, 2, 30).astype(np.uint8)
+>>> chips = np.where(code & 1, -1.0, 1.0)
+>>> syms = np.where(bits == 1, -1.0, 1.0)
+>>> tx = np.concatenate(
+...     [np.repeat(s * chips, 4) for s in syms]).astype(np.complex64)
+>>> d = BurstDespreader(code, sf=31, sps=4)
+>>> rec = d.bits(tx)                             # hard 0/1 per symbol
+>>> rec.shape
+(30,)
+>>> e = np.mean(rec != bits)             # up to a BPSK sign flip
+>>> round(float(min(e, 1.0 - e)), 4)
+0.0
+>>> round(d.lock_metric, 3)
+1.0
+```
+ 
 
 
 
@@ -242,6 +263,25 @@ Heap-allocated state, or NULL on allocation failure.
 **Note:**
 
 Caller must call [**burst\_despreader\_destroy()**](burst__despreader__core_8h.md#function-burst_despreader_destroy) when done. 
+```C++
+>>> import numpy as np
+>>> from doppler.dsss import BurstDespreader
+>>> rng = np.random.default_rng(1)
+>>> code = rng.integers(0, 2, 31).astype(np.uint8)  # length-31 code
+>>> chips = np.where(code & 1, -1.0, 1.0)    # 0 -> +1, 1 -> -1
+>>> bits = rng.integers(0, 2, 30).astype(np.uint8)    # payload bits
+>>> syms = np.where(bits == 1, -1.0, 1.0)             # BPSK symbols
+>>> tx = np.concatenate(
+...     [np.repeat(s * chips, 4) for s in syms]).astype(np.complex64)
+>>> b = BurstDespreader(code, sf=31, sps=4)           # 31 chips/symbol
+>>> sym = b.steps(tx)                        # one prompt/symbol
+>>> sym.shape
+(30,)
+>>> hard = (sym.real < 0).astype(np.uint8)            # BPSK decision
+>>> float(np.mean(hard != bits))             # payload recovered
+0.0
+```
+ 
 
 
 
@@ -453,7 +493,7 @@ void burst_despreader_get_state (
 
 ### function burst\_despreader\_reset 
 
-_Reset BurstDespreader to its post-create state._ 
+_Re-seed the loops to the create-time phase/frequency and re-arm the burst statistics; preserve config._ 
 ```C++
 void burst_despreader_reset (
     burst_despreader_state_t * state
@@ -462,12 +502,31 @@ void burst_despreader_reset (
 
 
 
+Restores the carrier NCO to the seed frequency and the code phase to the seed chip, zeroes the loop accumulators, and clears the cumulative burst read-backs (lock\_metric / snr\_est / lock\_stat / stat\_n) — the spreading code and bandwidths are kept. Call it between bursts so each burst's statistics start clean; a prior [**burst\_despreader\_set\_acq()**](burst__despreader__core_8h.md#function-burst_despreader_set_acq) preamble is also re-armed.
+
+
 
 
 **Parameters:**
 
 
 * `state` Must be non-NULL. 
+```C++
+>>> import numpy as np
+>>> from doppler.dsss import BurstDespreader
+>>> rng = np.random.default_rng(1)
+>>> code = rng.integers(0, 2, 31).astype(np.uint8)
+>>> chips = np.where(code & 1, -1.0, 1.0)
+>>> syms = np.where(rng.integers(0, 2, 30) == 1, -1.0, 1.0)
+>>> tx = np.concatenate(
+...     [np.repeat(s * chips, 4) for s in syms]).astype(np.complex64)
+>>> d = BurstDespreader(code, sf=31, sps=4)
+>>> first = d.bits(tx)
+>>> d.reset()                          # re-arm for a new burst
+>>> np.array_equal(first, d.bits(tx))  # same as a fresh object
+True
+```
+ 
 
 
 
@@ -504,6 +563,29 @@ Track `acq_reps` periods of `acq_code` coherently (the unmodulated, repeated acq
 * `acq_code` Acquisition code (0/1), length acq\_code\_len; copied. 
 * `acq_code_len` Acquisition code length in chips. 
 * `acq_reps` Number of acq-code periods in the preamble. 
+```C++
+>>> import numpy as np
+>>> from doppler.dsss import BurstDespreader
+>>> rng = np.random.default_rng(5)
+>>> acq = rng.integers(0, 2, 128).astype(np.uint8)    # long acq code
+>>> data_code = rng.integers(0, 2, 32).astype(np.uint8)
+>>> pbits = rng.integers(0, 2, 40).astype(np.uint8)
+>>> asig = np.where(acq & 1, -1.0, 1.0)
+>>> dch = np.where(data_code & 1, -1.0, 1.0)
+>>> psyms = np.where(pbits == 1, -1.0, 1.0)
+>>> pre = np.concatenate([np.repeat(asig, 4) for _ in range(4)])
+>>> pay = np.concatenate([np.repeat(s * dch, 4) for s in psyms])
+>>> burst = np.concatenate([pre, pay]).astype(np.complex64)
+>>> d = BurstDespreader(data_code, sf=32, sps=4)
+>>> d.set_acq(acq, 4)            # 4 preamble reps, pulls loops in
+>>> out = d.bits(burst)          # preamble emits nothing
+>>> out.shape                    # only the payload symbols come out
+(40,)
+>>> e = np.mean(out != pbits)
+>>> round(float(min(e, 1.0 - e)), 4)
+0.0
+```
+ 
 
 
 
@@ -629,17 +711,27 @@ Streams: a partial symbol is carried in state across calls. Each emitted symbol 
 
 **Returns:**
 
-Number of symbols written.
+Number of prompt symbols written into `out`.
 
 
 
 ```C++
-// seed from acquisition (norm_freq cyc/sample, chip phase in chips):
-burst_despreader_state_t *d = burst_despreader_create(code, n, 32, 2, f0, chip, .05, .01);
-float complex sym[256];
-size_t k = burst_despreader_steps(d, rx, rx_len, sym, 256);
-// hard bit of sym[i] = crealf(sym[i]) >= 0
-burst_despreader_destroy(d);
+>>> import numpy as np
+>>> from doppler.dsss import BurstDespreader
+>>> rng = np.random.default_rng(1)
+>>> code = rng.integers(0, 2, 31).astype(np.uint8)  # length-31 code
+>>> bits = rng.integers(0, 2, 30).astype(np.uint8)   # payload bits
+>>> chips = np.where(code & 1, -1.0, 1.0)    # 0 -> +1, 1 -> -1
+>>> syms = np.where(bits == 1, -1.0, 1.0)             # BPSK symbols
+>>> tx = np.concatenate(
+...     [np.repeat(s * chips, 4) for s in syms]).astype(np.complex64)
+>>> d = BurstDespreader(code, sf=31, sps=4)
+>>> sym = d.steps(tx)                        # one prompt/symbol
+>>> sym.shape
+(30,)
+>>> hard = (sym.real < 0).astype(np.uint8)            # BPSK decision
+>>> float(np.mean(hard != bits))             # payload recovered
+0.0
 ```
  
 

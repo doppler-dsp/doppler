@@ -37,6 +37,7 @@ _CIC filter state._ [More...](#detailed-description)
 | Type | Name |
 | ---: | :--- |
 |  uint32\_t | [**R**](#variable-r)  <br> |
+|  uint8\_t | [**clipped**](#variable-clipped)  <br> |
 |  uint64\_t | [**comb\_im**](#variable-comb_im)  <br> |
 |  uint64\_t | [**comb\_re**](#variable-comb_re)  <br> |
 |  uint64\_t | [**integ\_im**](#variable-integ_im)  <br> |
@@ -103,6 +104,19 @@ Allocate with [**cic\_create()**](cic__core_8h.md#function-cic_create); free wit
 
 ```C++
 uint32_t cic_state_t::R;
+```
+
+
+
+
+<hr>
+
+
+
+### variable clipped 
+
+```C++
+uint8_t cic_state_t::clipped;
 ```
 
 

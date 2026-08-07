@@ -53,7 +53,7 @@ _Resample module — public C API._
 | Type | Name |
 | ---: | :--- |
 |  void | [**ciccompmf**](#function-ciccompmf) (double \* out, uint32\_t N, uint32\_t R, uint32\_t M) <br>_Design a CIC passband-droop compensator FIR filter. Implements the closed-form Bernoulli-series maximally-flat-error method from Molnar & Vucic (IEEE TCAS-II 58(12):926-930, 2011, DOI 10.1109/TCSII.2011.2172522). The compensator runs at the_ _decimated_ _(output) rate and should be applied after the CIC stage. DC gain is exactly 1.0. Odd M gives symmetric linear-phase taps; even M gives half-sample-shifted linear-phase taps._ |
-|  double | [**kaiser\_beta**](#function-kaiser_beta) (double atten) <br>_Compute the Kaiser window beta parameter from stopband attenuation. Uses the standard Kaiser-Hamming formulae: atten &gt; 50 dB: beta = 0.1102 \* (atten - 8.7) 21 &lt;= atten &lt;= 50 dB: beta = 0.5842\*(atten-21)^0.4 + 0.07886\*(atten-21) atten &lt; 21 dB: beta = 0.0 (rectangular window)._  |
+|  double | [**kaiser\_beta**](#function-kaiser_beta) (double atten) <br>_Compute the Kaiser window beta parameter from stopband attenuation. Uses the standard Kaiser-Hamming formulae: atten &gt; 50 dB: beta = 0.1102 \* (atten - 8.7) 21 &lt;= atten &lt;= 50 dB: beta = 0.5842\*(atten-21)^0.4 + 0.07886\*(atten-21) atten &lt; 21 dB: beta = 0.0 (rectangular window)_  |
 |  int | [**kaiser\_num\_taps**](#function-kaiser_num_taps) (int num\_phases, double atten, double pb, double sb) <br>_Estimate the taps-per-phase count for a polyphase Kaiser FIR bank. Applies the Kaiser length formula to the per-phase normalised prototype (pb/num\_phases, sb/num\_phases), rounds up to the next odd symmetrical length, then divides by num\_phases to give taps per branch. The result is the minimum num\_taps argument to pass to_ [_**Resampler\_create\_custom()**_](Resampler__core_8h.md#function-resampler_create_custom) _._ |
 
 
@@ -133,7 +133,7 @@ void ciccompmf (
 
 ### function kaiser\_beta 
 
-_Compute the Kaiser window beta parameter from stopband attenuation. Uses the standard Kaiser-Hamming formulae: atten &gt; 50 dB: beta = 0.1102 \* (atten - 8.7) 21 &lt;= atten &lt;= 50 dB: beta = 0.5842\*(atten-21)^0.4 + 0.07886\*(atten-21) atten &lt; 21 dB: beta = 0.0 (rectangular window)._ 
+_Compute the Kaiser window beta parameter from stopband attenuation. Uses the standard Kaiser-Hamming formulae: atten &gt; 50 dB: beta = 0.1102 \* (atten - 8.7) 21 &lt;= atten &lt;= 50 dB: beta = 0.5842\*(atten-21)^0.4 + 0.07886\*(atten-21) atten &lt; 21 dB: beta = 0.0 (rectangular window)_ 
 ```C++
 double kaiser_beta (
     double atten

@@ -193,7 +193,7 @@ On success, `*msg` is set to a message handle whose data buffer is valid until [
 
 **Returns:**
 
-DP\_OK on success, DP\_ERR\_TIMEOUT on timeout, negative on error.    
+DP\_OK on success, DP\_ERR\_TIMEOUT on timeout, negative on error.   
 
 
 
@@ -334,7 +334,7 @@ int dp_push_send_cf128 (
 
 **Returns:**
 
-DP\_OK (0) on success, negative error code on failure.    
+DP\_OK (0) on success, negative error code on failure.   
 
 
 
@@ -376,7 +376,7 @@ int dp_push_send_cf32 (
 
 **Returns:**
 
-DP\_OK (0) on success, negative error code on failure.    
+DP\_OK (0) on success, negative error code on failure.   
 
 
 
@@ -418,7 +418,7 @@ int dp_push_send_cf64 (
 
 **Returns:**
 
-DP\_OK (0) on success, negative error code on failure.    
+DP\_OK (0) on success, negative error code on failure.   
 
 
 
@@ -460,7 +460,7 @@ int dp_push_send_ci16 (
 
 **Returns:**
 
-DP\_OK (0) on success, negative error code on failure.    
+DP\_OK (0) on success, negative error code on failure.   
 
 
 
@@ -502,7 +502,7 @@ int dp_push_send_ci32 (
 
 **Returns:**
 
-DP\_OK (0) on success, negative error code on failure.    
+DP\_OK (0) on success, negative error code on failure.   
 
 
 
@@ -544,7 +544,7 @@ int dp_push_send_ci8 (
 
 **Returns:**
 
-DP\_OK (0) on success, negative error code on failure.    
+DP\_OK (0) on success, negative error code on failure.   
 
 
 

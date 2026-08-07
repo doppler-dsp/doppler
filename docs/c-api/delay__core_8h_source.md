@@ -37,18 +37,17 @@ void delay_reset(delay_state_t *state);
 
 void delay_push(delay_state_t *state, double complex x);
 
-size_t delay_ptr_max_out(delay_state_t *state);
+size_t delay_ptr_max_out(delay_state_t *state, size_t n);
 
-size_t delay_ptr(delay_state_t *state, size_t n, double complex *out);
+size_t delay_ptr(delay_state_t *state, size_t n, double complex *out, size_t max_out);
 
 size_t delay_push_ptr_max_out(delay_state_t *state);
 
-  size_t delay_push_ptr (delay_state_t *state, double complex x,
-                         double complex *out);
+size_t delay_push_ptr(delay_state_t *state, double complex x,
+                      double complex *out, size_t max_out);
 
 void delay_write(delay_state_t *state, double complex x);
 
-size_t delay_push_ptr(delay_state_t *state, double complex x, double complex *out);
 /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
  * Field-wise: pack running ring buffer + head; capacity/mask/num_taps restored by create. */
 #define DELAY_STATE_MAGIC DP_FOURCC ('D','L','A','Y')

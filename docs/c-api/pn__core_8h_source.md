@@ -73,7 +73,8 @@ pn_step(pn_state_t *state)
 
 size_t pn_generate_max_out(pn_state_t *state);
 
-size_t pn_generate(pn_state_t *state, size_t n, uint8_t *out);
+size_t pn_generate(pn_state_t *state, size_t n, uint8_t *out,
+                   size_t max_out);
 #ifdef __cplusplus
 }
 #endif

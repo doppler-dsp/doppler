@@ -55,6 +55,13 @@
 
 
 
+## Public Static Functions
+
+| Type | Name |
+| ---: | :--- |
+|  void \* | [**dp\_xcalloc**](#function-dp_xcalloc) (size\_t nmemb, size\_t size) <br> |
+|  void \* | [**dp\_xmalloc**](#function-dp_xmalloc) (size\_t n) <br> |
+|  void \* | [**dp\_xnn**](#function-dp_xnn) (void \* p) <br> |
 
 
 
@@ -94,6 +101,66 @@
 | define  | [**DP\_ERR\_TOO\_LARGE**](clib__common_8h.md#define-dp_err_too_large)  `(-7)`<br> |
 | define  | [**DP\_OK**](clib__common_8h.md#define-dp_ok)  `0`<br> |
 
+## Public Static Functions Documentation
+
+
+
+
+### function dp\_xcalloc 
+
+```C++
+static inline void * dp_xcalloc (
+    size_t nmemb,
+    size_t size
+) 
+```
+
+
+
+calloc that aborts on OOM (zero-initialised trusted allocation). 
+
+
+        
+
+<hr>
+
+
+
+### function dp\_xmalloc 
+
+```C++
+static inline void * dp_xmalloc (
+    size_t n
+) 
+```
+
+
+
+malloc that aborts on OOM (for a trusted internal allocation). 
+
+
+        
+
+<hr>
+
+
+
+### function dp\_xnn 
+
+```C++
+static inline void * dp_xnn (
+    void * p
+) 
+```
+
+
+
+Assert a just-constructed object / allocation is non-NULL, aborting with a diagnostic on the impossible OOM. The single check point: a sub-object create() returns NULL only on OOM once its arguments are validated, so wrap the call — `x = dp_xnn (foo_create (...))` — instead of checking-and-unwinding at every call site. (Classic GNU `xmalloc`.) 
+
+
+        
+
+<hr>
 ## Macro Definition Documentation
 
 

@@ -10,7 +10,7 @@
 
 _Per-probe registry entry: name, decimation and accounting._ [More...](#detailed-description)
 
-* `#include <telemetry.h>`
+* `#include <dp_tlm_core.h>`
 
 
 
@@ -122,6 +122,7 @@ uint64_t dp_tlm_probe_t::emitted;
 
 
 Records written into the ring. 
+ 
 
 
         
@@ -139,6 +140,7 @@ char dp_tlm_probe_t::name[DP_TLM_NAME_MAX];
 
 
 e.g. "agc.gain\_db". 
+ 
 
 
         
@@ -156,6 +158,7 @@ uint32_t dp_tlm_probe_t::phase;
 
 
 Producer-owned event counter. 
+ 
 
 
         

@@ -41,6 +41,10 @@ typedef struct {
     uint64_t pn_poly;  /* 0 → MLS poly for the length */
     int lfsr;          /* 0 galois, 1 fibonacci */
     double level;      /* source level in dBFS (≤0); 0 = unit power, no gain */
+    int background;    /* 1 = static background: prepare() folds a contiguous
+                          prefix of background sources into ONE pre-summed Plan
+                          cache slot (scaled/rotated/dropped as a unit), instead
+                          of caching each individually. Ignored by compose().  */
     double f_end;      /* chirp end frequency (Hz); ignored by other types */
     uint8_t *bits;     /* type=bits: pattern (0/1), owned; NULL otherwise */
     size_t n_bits;     /* type=bits: pattern length */
@@ -65,6 +69,16 @@ typedef struct {
     uint8_t *sync;       /* frame-sync word bits (0/1), owned; NULL = none */
     size_t n_sync;       /* sync word length in bits */
     int crc;             /* frame trailer: 0 none, 1 crc16 (dp_crc16.h) */
+    /* type=dsss, CONTINUOUS mode: a data-symbol rate independent of the code
+       epoch rate selects the continuous form (wfm_synth_set_dsss_cont) over
+       the burst form above -- one waveform type, one discriminator, rather
+       than a tenth entry in five hand-maintained name tables. 0 = burst.
+       The frame fields (acq_code/sync/crc/bits) are meaningless when this is
+       set and are rejected by the caller rather than silently ignored. */
+    double symbol_rate;  /* Hz; > 0 selects continuous async DSSS */
+    int dsss_code_only;  /* continuous dsss: 1 = code-only (--data none), no
+                            data modulation; 0 = data-modulated (payload if
+                            supplied, else the seeded PN). Ignored for burst. */
 } wfm_source_t;
 
 typedef struct {
@@ -113,10 +127,14 @@ size_t wfm_compose_spans(const wfm_segment_t *segs, size_t n_segs,
 
 int wfm_resolve_noise(wfm_segment_t *segs, size_t n);
 
-double wfm_snr_over_fs(int snr_mode, int type, int sps, size_t sf, double snr);
+double wfm_snr_over_fs(int snr_mode, int type, int sps, size_t sf,
+                       double sym_span, double snr);
 
-double wfm_source_create_snr(const wfm_source_t *src, double snr,
+double wfm_source_create_snr(const wfm_source_t *src, double fs, double snr,
                              int *snr_mode);
+
+int wfm_source_attach_dsss(wfm_synth_state_t *syn, const wfm_source_t *src,
+                           double fs);
 
 wfm_synth_state_t *wfm_compose_build_synth(const wfm_source_t *src, double fs,
                                            size_t on_len, double freq,

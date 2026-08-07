@@ -117,6 +117,7 @@ float complex costas_state_t::acc;
 
 
 running coherent I&D accumulator. 
+ 
 
 
         
@@ -134,6 +135,7 @@ size_t costas_state_t::acc_n;
 
 
 samples accumulated into `acc`. 
+ 
 
 
         
@@ -151,6 +153,7 @@ double costas_state_t::bn;
 
 
 PLL loop noise bandwidth (retained). 
+ 
 
 
         
@@ -168,6 +171,7 @@ double costas_state_t::bn_fll;
 
 
 FLL-assist bandwidth (0 = pure PLL). 
+ 
 
 
         
@@ -202,6 +206,7 @@ double costas_state_t::k_fll;
 
 
 derived FLL gain (per-symbol freq pull). 
+ 
 
 
         
@@ -219,6 +224,7 @@ double costas_state_t::last_error;
 
 
 last PLL discriminator (loop stress). 
+ 
 
 
         
@@ -236,6 +242,7 @@ loop_filter_state_t costas_state_t::lf;
 
 
 2nd-order carrier PI loop (PLL). 
+ 
 
 
         
@@ -254,6 +261,7 @@ lockdet_state_t costas_state_t::lock;
 
 decision rule on lock\_metric: thresholds
 * verify counters, stepped per symbol. 
+ 
 
 
 
@@ -273,6 +281,7 @@ double costas_state_t::lock_metric;
 
 
 EMA of \|Re P\|/\|P\| (1 = locked). 
+ 
 
 
         
@@ -290,6 +299,7 @@ lo_state_t costas_state_t::nco;
 
 
 integer carrier NCO (uint32 phase). 
+ 
 
 
         
@@ -307,6 +317,7 @@ float complex costas_state_t::prev;
 
 
 previous symbol's prompt (FLL cross). 
+ 
 
 
         
@@ -324,6 +335,7 @@ double costas_state_t::seed_norm_freq;
 
 
 create-time carrier freq, for reset. 
+ 
 
 
         
@@ -375,6 +387,7 @@ double costas_state_t::zeta;
 
 
 damping factor (retained). 
+ 
 
 
         

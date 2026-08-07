@@ -126,6 +126,7 @@ float complex burst_despreader_state_t::acc_e;
 
 
 early correlator accumulator. 
+ 
 
 
         
@@ -143,6 +144,7 @@ float complex burst_despreader_state_t::acc_l;
 
 
 late correlator accumulator. 
+ 
 
 
         
@@ -160,6 +162,7 @@ float complex burst_despreader_state_t::acc_p;
 
 
 prompt correlator accumulator. 
+ 
 
 
         
@@ -177,6 +180,7 @@ uint8_t* burst_despreader_state_t::acq_code;
 
 
 owned acq code, NULL if payload-only. 
+ 
 
 
         
@@ -194,6 +198,7 @@ size_t burst_despreader_state_t::acq_reps;
 
 
 preamble periods to track before payload. 
+ 
 
 
         
@@ -211,6 +216,7 @@ size_t burst_despreader_state_t::acq_sf;
 
 
 acq code length, chips/period. 
+ 
 
 
         
@@ -228,6 +234,7 @@ double burst_despreader_state_t::car_phase;
 
 
 current carrier phase, radians. 
+ 
 
 
         
@@ -245,6 +252,7 @@ double burst_despreader_state_t::car_w;
 
 
 current carrier angular freq, rad/sample. 
+ 
 
 
         
@@ -279,6 +287,7 @@ uint8_t* burst_despreader_state_t::code;
 
 
 owned spreading code, 0/1, length sf. 
+ 
 
 
         
@@ -296,6 +305,7 @@ double burst_despreader_state_t::code_rate;
 
 
 chips advanced per nominal chip (~1.0). 
+ 
 
 
         
@@ -313,6 +323,7 @@ loop_filter_state_t burst_despreader_state_t::lf_car;
 
 
 carrier (Costas) loop. 
+ 
 
 
         
@@ -330,6 +341,7 @@ loop_filter_state_t burst_despreader_state_t::lf_code;
 
 
 code (DLL) loop. 
+ 
 
 
         
@@ -347,6 +359,7 @@ double burst_despreader_state_t::lock_metric;
 
 
 mean of \|Re P\|/\|P\| over the burst (~1 locked, ~2/pi with no carrier). 
+ 
 
 
         
@@ -364,6 +377,7 @@ size_t burst_despreader_state_t::preamble_left;
 
 
 preamble periods still to consume. 
+ 
 
 
         
@@ -381,6 +395,7 @@ double burst_despreader_state_t::seed_chip;
 
 
 create-time code phase, chips, for reset. 
+ 
 
 
         
@@ -415,6 +430,7 @@ size_t burst_despreader_state_t::sf;
 
 
 spreading factor = code length, chips/symbol. 
+ 
 
 
         
@@ -449,6 +465,7 @@ size_t burst_despreader_state_t::sps;
 
 
 samples per chip (&gt;= 2). 
+ 
 
 
         
@@ -466,6 +483,7 @@ size_t burst_despreader_state_t::stat_n;
 
 
 prompts folded into the burst statistics. 
+ 
 
 
         
@@ -483,6 +501,7 @@ double burst_despreader_state_t::sum_im2;
 
 
 running sum of Im(P)^2. 
+ 
 
 
         
@@ -500,6 +519,7 @@ double burst_despreader_state_t::sum_lock;
 
 
 running sum of \|Re P\|/\|P\|. 
+ 
 
 
         
@@ -517,6 +537,7 @@ double burst_despreader_state_t::sum_re2;
 
 
 running sum of Re(P)^2. 
+ 
 
 
         
@@ -534,6 +555,7 @@ size_t burst_despreader_state_t::tsamps;
 
 
 sf\*sps, symbol period in samples. 
+ 
 
 
         

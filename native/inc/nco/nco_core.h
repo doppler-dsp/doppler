@@ -150,6 +150,178 @@ extern "C"
     return nco_phase_units (d * 4294967296.0);
   }
 
+  /* ==================================================================
+   * nco_clock — a 64-bit phase accumulator for TIMING, not synthesis
+   * ================================================================== */
+
+  /**
+   * @brief A sample clock: when is the next output due, and where in the
+   *        period are we?
+   *
+   * Distinct from @ref nco_state_t in role, not just in width. An
+   * `nco_state_t` produces a PHASE to synthesise from -- a LUT index, a
+   * carrier angle -- and 32 bits of it is far below the noise of anything
+   * downstream. An `nco_clock_t` produces an EVENT: the strobe that says an
+   * output period completed. Nothing averages a strobe away, so the clock
+   * needs rate resolution the synthesis phase does not.
+   *
+   * Why 64 bits is the answer and 32 is not. `nco_norm_to_inc` truncates by
+   * design, so a 32-bit increment is at most one 2^-32 step low. A resampler
+   * is handed an EXACTLY RATIONAL rate (`m_out/sps`), which lands the wrap
+   * precisely on the boundary every period: at `rate = 12/13` the ideal
+   * increment is 3964585196.31, truncation is 0.31 units short per step, and
+   * 13 steps land 4 units short of exactly 12 cycles. The wrap is missed and
+   * the strobe never recovers its place -- 13000 inputs emit 11999 outputs
+   * where a double accumulator emits 12000. One lost output permanently
+   * shifts the strobe parity, which is a link-grade failure, not a rounding
+   * nit.
+   *
+   * At 64 bits the same rate's realised error falls from 7.16e-11 to
+   * 5.12e-17 cycles/sample. Note the ceiling that number reveals: 5.12e-17
+   * IS the `double`'s own representation error for 12/13, so the increment
+   * quantisation has vanished entirely beneath the API. The clock carries 53
+   * bits of usable rate resolution, not 64, and going wider buys nothing
+   * while `norm_freq` is a `double`.
+   *
+   * The word is deliberately NOT wired into `nco_state_t`: `symsync` and
+   * `dll` embed that struct by value and serialize it, and neither needs the
+   * extra bits.
+   */
+  typedef struct
+  {
+    /* Plain comments, not `/**<` doxygen: jm harvests a field's doxygen
+       into the .pyi docstring of every same-named property in the project,
+       so documenting `norm_freq` here silently rewrote Costas's,
+       CarrierMpsk's, CarrierNda's and Despreader's. nco_state_t above is
+       plain for the same reason. */
+    uint64_t phase;     /* current accumulator value, [0, 2^64)        */
+    uint64_t phase_inc; /* advance per input = frac(norm_freq) x 2^64  */
+    double   norm_freq; /* SIGNED rate in cycles/input, kept pre-fold  */
+  } nco_clock_t;
+
+  /**
+   * @brief Double -> 64-bit phase word: the clock's one float conversion.
+   *
+   * The 64-bit twin of @ref nco_phase_units, and the same total contract:
+   * below zero and NaN give 0, at or above 2^64 saturates, in between it
+   * truncates toward zero. See that function for why confining the cast is
+   * structural rather than stylistic.
+   *
+   * The in-range proof is tighter here and worth stating. A `double` names
+   * every integer below 2^32 exactly, so the 32-bit version's margin is
+   * exact; below 2^64 it does not, and the spacing near the top is 2^11.
+   * The bound still holds -- the largest `double` under 1.0 times 2^64 is
+   * exactly 2^64 - 2048, representable and safely under -- but it is a
+   * 2048-unit margin, not an exact one, so the guard carries the weight.
+   */
+  JM_FORCEINLINE uint64_t
+  nco_clock_units (double units)
+  {
+    /* Negated form rejects NaN; see nco_phase_units(). */
+    if (!(units > 0.0))
+      return 0u;
+    if (units >= 18446744073709551616.0)
+      return 18446744073709551615u;
+    return (uint64_t)units;
+  }
+
+  /** @brief Normalised cycles -> 64-bit phase delta (folds, then converts). */
+  JM_FORCEINLINE uint64_t
+  nco_clock_norm_to_inc (double cycles)
+  {
+    /* The fold rounds up to exactly 1.0 for cycles in [-2^-53, 0); the
+       conversion clamps it, exactly as nco_norm_to_inc() does at 32 bits. */
+    double d = cycles - floor (cycles);
+    return nco_clock_units (d * 18446744073709551616.0);
+  }
+
+  /** @brief Start a clock at phase 0 running at @p norm_freq cycles/input. */
+  JM_FORCEINLINE void
+  nco_clock_init (nco_clock_t *c, double norm_freq)
+  {
+    c->phase     = 0u;
+    c->norm_freq = norm_freq;
+    c->phase_inc = nco_clock_norm_to_inc (norm_freq);
+  }
+
+  /** @brief Retune without restarting: phase is deliberately preserved, so a
+   *         rate change mid-stream does not move the sampling instant. */
+  JM_FORCEINLINE void
+  nco_clock_set_rate (nco_clock_t *c, double norm_freq)
+  {
+    c->norm_freq = norm_freq;
+    c->phase_inc = nco_clock_norm_to_inc (norm_freq);
+  }
+
+  /**
+   * @brief Advance one input; report whether a period boundary was crossed.
+   *
+   * The 64-bit form of @ref nco_step_u32_ovf_ctrl, with the same signed
+   * rule and for the same reason: the fold destroys direction, so the
+   * composite advance `norm_freq + ctrl` is formed in cycles BEFORE
+   * anything is folded, and its sign decides whether a crossing is a carry
+   * (one EXTRA output due) or a borrow (one FEWER). Keying off @p ctrl's
+   * sign is wrong in reverse -- the composite can run forward while the
+   * control is negative. `|delta| >= 1` crosses every input regardless of
+   * where the fraction lands, which covers both the interpolating case and
+   * the exactly-unity rate a terminal resampler stage sits on.
+   *
+   * @param c      Clock state. Must be non-NULL.
+   * @param ctrl   Per-input rate deviation, added to the base rate.
+   * @param event  Out-param: 1 if this input crossed a period boundary.
+   * @return Phase BEFORE the advance (the caller compares it against
+   *         `c->phase` when it needs the crossing count, not just the flag).
+   */
+  JM_FORCEINLINE JM_HOT uint64_t
+  nco_clock_tick (nco_clock_t *c, double ctrl, uint8_t *event)
+  {
+    uint64_t ph    = c->phase;
+    uint64_t nph   = ph + c->phase_inc + nco_clock_norm_to_inc (ctrl);
+    double   delta = c->norm_freq + ctrl; /* signed, pre-fold */
+
+    c->phase = nph;
+    if (delta > 0.0)
+      *event = (uint8_t)(nph < ph || delta >= 1.0);
+    else if (delta < 0.0)
+      *event = (uint8_t)(nph > ph || delta <= -1.0);
+    else
+      *event = 0u;
+    return ph;
+  }
+
+  /**
+   * @brief Advance by an explicit increment; report the wrap.
+   *
+   * The output-driven counterpart to @ref nco_clock_tick. An interpolator
+   * ticks once per OUTPUT and pulls an input when the phase wraps, so its
+   * increment is the RECIPROCAL rate (inputs consumed per output) and is
+   * supplied by the caller rather than derived from `norm_freq`; the wrap
+   * means "fetch the next input", not "an output is due".
+   *
+   * @return 1 if the add wrapped past 2^64, else 0.
+   */
+  JM_FORCEINLINE JM_HOT uint8_t
+  nco_clock_advance (nco_clock_t *c, uint64_t inc)
+  {
+    uint64_t ph = c->phase;
+    c->phase    = ph + inc;
+    return (uint8_t)(c->phase < ph);
+  }
+
+  /**
+   * @brief Top @p bits of the phase: where in the period the clock stands.
+   *
+   * A uint64 word cannot leave [0, 1), so this is in `[0, 2^bits)` by
+   * construction -- which is the whole point for a polyphase caller, whose
+   * arm index can then never need a range check. @p bits of 0 gives 0
+   * rather than an undefined 64-bit shift.
+   */
+  JM_FORCEINLINE size_t
+  nco_clock_frac (const nco_clock_t *c, unsigned bits)
+  {
+    return bits ? (size_t)(c->phase >> (64u - bits)) : (size_t)0;
+  }
+
 /**
  * @brief Wrapping add with carry detection.
  *

@@ -34,6 +34,117 @@
     }                                                                         \
   while (0)
 
+/* ==================================================================
+ * Independent oracle for the control port's carry/borrow semantics.
+ *
+ * The property under test is not "does the flag look right" but "does
+ * the flag COUNT the period boundaries the composite rate actually
+ * crosses". So the expected count is computed from exact real
+ * arithmetic in long double, with no phase word and no fold anywhere --
+ * a model that shares no code with the thing it checks. Anything that
+ * mirrored the implementation's own integer steps would be tautological.
+ *
+ * Sign matters: a forward crossing is +1 (an extra output is due) and a
+ * backward one is -1 (one fewer), so a control that slews out and back
+ * must net to zero rather than accumulating |events|.
+ * ================================================================== */
+static long
+crossings_oracle (double base, const double *ctrl, size_t n)
+{
+  long double acc = 0.0L;
+  long        c   = 0;
+  for (size_t i = 0; i < n; i++)
+    {
+      acc += (long double)base + (long double)ctrl[i];
+      while (acc >= 1.0L)
+        {
+          acc -= 1.0L;
+          c++;
+        }
+      while (acc < 0.0L)
+        {
+          acc += 1.0L;
+          c--;
+        }
+    }
+  return c;
+}
+
+/* Signed event count from the 32-bit control stepper. The flag is
+   unsigned, so the direction comes from the composite rate -- which is
+   exactly the contract a consumer implements. */
+static long
+events_u32 (double base, const double *ctrl, size_t n)
+{
+  nco_state_t *s = nco_create (base, 0);
+  long         c = 0;
+  for (size_t i = 0; i < n; i++)
+    {
+      uint8_t e;
+      nco_step_u32_ovf_ctrl (s, ctrl[i], &e);
+      double d = base + ctrl[i];
+      if (e)
+        c += (d > 0.0) ? 1 : ((d < 0.0) ? -1 : 0);
+    }
+  nco_destroy (s);
+  return c;
+}
+
+/* The same, for the 64-bit timing clock. */
+static long
+events_clock (double base, const double *ctrl, size_t n)
+{
+  nco_clock_t k;
+  nco_clock_init (&k, base);
+  long c = 0;
+  for (size_t i = 0; i < n; i++)
+    {
+      uint8_t e;
+      nco_clock_tick (&k, ctrl[i], &e);
+      double d = base + ctrl[i];
+      if (e)
+        c += (d > 0.0) ? 1 : ((d < 0.0) ? -1 : 0);
+    }
+  return c;
+}
+
+#define SLEW_N 4096
+static double slew_buf[SLEW_N];
+
+/* Fill a control record. `shape` selects the trajectory; every one of
+   them is chosen to drive the composite through a boundary that the
+   sign rule has to get right. */
+static void
+fill_ctrl (int shape, double amp, double bias, double base)
+{
+  for (int i = 0; i < SLEW_N; i++)
+    {
+      double t = (double)i / (double)SLEW_N;
+      switch (shape)
+        {
+        case 0: /* constant */
+          slew_buf[i] = bias;
+          break;
+        case 1: /* symmetric slew out and back -- must net to zero */
+          slew_buf[i] = bias + amp * sin (2.0 * M_PI * t);
+          break;
+        case 2: /* linear ramp through zero and out the far side */
+          slew_buf[i] = bias + amp * (2.0 * t - 1.0);
+          break;
+        case 3: /* ramp that drags the composite through DC */
+          slew_buf[i] = -base + amp * (2.0 * t - 1.0);
+          break;
+        case 4: /* alternating sign, every sample */
+          slew_buf[i] = bias + ((i & 1) ? amp : -amp);
+          break;
+        default: /* slam: long quiet, then a hard excursion and back */
+          slew_buf[i]
+              = bias + ((i > SLEW_N / 2 && i < SLEW_N / 2 + 64) ? amp : 0.0);
+          break;
+        }
+    }
+}
+
 int
 main (void)
 {
@@ -591,6 +702,312 @@ main (void)
     nco_step_u32_ovf_ctrl (tiny, v, &tc);
     CHECK (nco_get_phase (tiny) == 4294967295u);
     nco_destroy (tiny);
+  }
+
+  /* ----------------------------------------------------------------
+   * 14. The control port counts boundaries, at both widths and both
+   *     signs, under slewing control.
+   *
+   * The NCO is the foundation every rate-bearing object in the library
+   * stands on, so this is the exhaustive pass: a matrix of base rates
+   * crossed with control trajectories, each checked against the exact
+   * real-arithmetic oracle above rather than against a remembered
+   * answer.
+   *
+   * Two families are covered together because they must agree on
+   * semantics and differ only in resolution: the 32-bit
+   * nco_step_u32_ovf_ctrl and the 64-bit nco_clock_tick.
+   *
+   * TOLERANCE IS NOT SLOP, it is the truncation floor, and BOTH widths
+   * have one. Both fold-and-truncate, so the realised rate is at most
+   * one phase step low per sample and the record's accumulated deficit
+   * can defer exactly one crossing past the end. A first draft of this
+   * test demanded the 64-bit clock be EXACT and it failed on three
+   * cells -- correctly: an exactly-cancelling +-d pair cannot round
+   * trip through a truncating accumulator at any width, so the count
+   * sits one below the real answer indefinitely. +-1 per record is the
+   * honest bound for both.
+   *
+   * Which means a count over a short record does NOT demonstrate what
+   * the 64-bit word buys. Section 17 measures that directly, as phase
+   * error, where the two differ by 2^32.
+   *
+   * Restricted to |composite| < 1 by construction: the flag is one bit,
+   * so it saturates when a single sample crosses more than one
+   * boundary. That case is asserted separately below as "always
+   * events", which is its actual contract.
+   * ---------------------------------------------------------------- */
+  {
+    static const double bases[]
+        = { 0.0,  0.05, 0.1, 0.25, 0.5, 12.0 / 13.0, 0.923076923076923,
+            0.75, 0.9,  0.99 };
+    static const char *shape_name[]
+        = { "const",           "sine-out-and-back", "ramp-through-zero",
+            "ramp-through-DC", "alternating",       "slam" };
+
+    for (size_t b = 0; b < sizeof bases / sizeof bases[0]; b++)
+      {
+        double base = bases[b];
+        for (int shape = 0; shape < 6; shape++)
+          {
+            /* Amplitude kept inside the |composite| < 1 band the flag
+               can represent, and deliberately taken to both signs. */
+            double amp = (base < 0.5) ? base * 0.9 + 0.04 : (1.0 - base) * 0.9;
+            double bias = 0.0;
+            if (amp <= 0.0)
+              amp = 0.01;
+            fill_ctrl (shape, amp, bias, base);
+
+            long want = crossings_oracle (base, slew_buf, SLEW_N);
+            long g32  = events_u32 (base, slew_buf, SLEW_N);
+            long g64  = events_clock (base, slew_buf, SLEW_N);
+
+            if (labs (g32 - want) > 1 || labs (g64 - want) > 1)
+              fprintf (
+                  stderr,
+                  "  base=%.9f shape=%-18s oracle=%ld u32=%ld clock=%ld\n",
+                  base, shape_name[shape], want, g32, g64);
+            CHECK (labs (g32 - want) <= 1); /* truncation floor, both  */
+            CHECK (labs (g64 - want) <= 1); /* widths; see section 17   */
+          }
+      }
+  }
+
+  /* ----------------------------------------------------------------
+   * 15. Control-port edge cases the sign rule has to get exactly right
+   * ---------------------------------------------------------------- */
+  {
+    /* A composite of exactly zero is free-running: no event, ever. The
+       32-bit intrinsic-style "did the unsigned add carry" test cannot
+       express this -- 0 + 0 never carries either, so it agrees here by
+       luck; the case that separates them is unity, below. */
+    {
+      nco_state_t *s = nco_create (0.25, 0);
+      nco_clock_t  k;
+      nco_clock_init (&k, 0.25);
+      for (int i = 0; i < 64; i++)
+        {
+          uint8_t e32, e64;
+          nco_step_u32_ovf_ctrl (s, -0.25, &e32);
+          nco_clock_tick (&k, -0.25, &e64);
+          CHECK (e32 == 0);
+          CHECK (e64 == 0);
+        }
+      /* and the phase must not have moved */
+      CHECK (nco_get_phase (s) == 0u);
+      CHECK (k.phase == 0u);
+      nco_destroy (s);
+    }
+
+    /* A composite of exactly 1.0 completes a period every single sample
+       even though the FRACTIONAL advance is zero -- the case a
+       resampler's terminal stage sits on, and the one an unsigned-carry
+       test gets wrong (it adds 0 + 0 and never fires). */
+    {
+      nco_state_t *s = nco_create (1.0, 0);
+      nco_clock_t  k;
+      nco_clock_init (&k, 1.0);
+      for (int i = 0; i < 64; i++)
+        {
+          uint8_t e32, e64;
+          nco_step_u32_ovf_ctrl (s, 0.0, &e32);
+          nco_clock_tick (&k, 0.0, &e64);
+          CHECK (e32 == 1);
+          CHECK (e64 == 1);
+        }
+      nco_destroy (s);
+    }
+
+    /* |composite| >= 1 events on every sample, both signs: the flag
+       saturates rather than under-reporting. */
+    {
+      static const double d[] = { 1.0, 1.5, 2.0, 8.0, -1.0, -1.5, -2.0, -8.0 };
+      for (size_t i = 0; i < sizeof d / sizeof d[0]; i++)
+        {
+          nco_state_t *s = nco_create (d[i], 0);
+          nco_clock_t  k;
+          nco_clock_init (&k, d[i]);
+          for (int j = 0; j < 16; j++)
+            {
+              uint8_t e32, e64;
+              nco_step_u32_ovf_ctrl (s, 0.0, &e32);
+              nco_clock_tick (&k, 0.0, &e64);
+              CHECK (e32 == 1);
+              CHECK (e64 == 1);
+            }
+          nco_destroy (s);
+        }
+    }
+
+    /* The composite's sign decides, NOT the control's. Steering a
+       0.5 cyc/sample carrier by -1e-4 leaves a legitimate +0.4999
+       forward rate; a ctrl-keyed rule would call every crossing a
+       borrow and err by -200%. */
+    {
+      for (int i = 0; i < SLEW_N; i++)
+        slew_buf[i] = -1e-4;
+      long want = crossings_oracle (0.5, slew_buf, SLEW_N);
+      CHECK (want > 0); /* the record really does run forward */
+      CHECK (labs (events_u32 (0.5, slew_buf, SLEW_N) - want) <= 1);
+      CHECK (events_clock (0.5, slew_buf, SLEW_N) == want);
+    }
+
+    /* Its mirror: a positive control that leaves the composite running
+       backward. */
+    {
+      for (int i = 0; i < SLEW_N; i++)
+        slew_buf[i] = 0.25;
+      long want = crossings_oracle (-0.5, slew_buf, SLEW_N);
+      CHECK (want < 0); /* genuinely retreating */
+      CHECK (labs (events_u32 (-0.5, slew_buf, SLEW_N) - want) <= 1);
+      CHECK (events_clock (-0.5, slew_buf, SLEW_N) == want);
+    }
+
+    /* A symmetric excursion must NET TO ZERO, not accumulate |events|:
+       the borrows on the way back have to cancel the carries out. */
+    {
+      fill_ctrl (1, 0.4, 0.0, 0.0); /* base 0, pure +-0.4 sine */
+      long want = crossings_oracle (0.0, slew_buf, SLEW_N);
+      CHECK (want == 0); /* the oracle agrees it is a closed excursion */
+      CHECK (labs (events_u32 (0.0, slew_buf, SLEW_N)) <= 1);
+      CHECK (labs (events_clock (0.0, slew_buf, SLEW_N)) <= 1);
+    }
+  }
+
+  /* ----------------------------------------------------------------
+   * 16. nco_clock_units / nco_clock_norm_to_inc — the 64-bit twin of
+   *     the conversion contract pinned in section 12.
+   * ---------------------------------------------------------------- */
+  {
+    volatile double u; /* defeats constant folding; see section 12 */
+
+    u = -1.0;
+    CHECK (nco_clock_units (u) == 0u);
+    u = 0.0;
+    CHECK (nco_clock_units (u) == 0u);
+    u = -0.0;
+    CHECK (nco_clock_units (u) == 0u);
+    u = 0.0 / 0.0;
+    CHECK (nco_clock_units (u) == 0u); /* NaN   */
+    u = -1.0 / 0.0;
+    CHECK (nco_clock_units (u) == 0u); /* -inf  */
+    u = 1.0 / 0.0;
+    CHECK (nco_clock_units (u) == 18446744073709551615u);
+    u = 18446744073709551616.0; /* 2^64 */
+    CHECK (nco_clock_units (u) == 18446744073709551615u);
+    u = 36893488147419103232.0; /* 2^65 */
+    CHECK (nco_clock_units (u) == 18446744073709551615u);
+    u = 9223372036854775808.0; /* 2^63 */
+    CHECK (nco_clock_units (u) == 9223372036854775808u);
+
+    /* The fold's 1.0 case, which is what the guard exists for. */
+    volatile double c;
+    c = -1e-20;
+    CHECK (nco_clock_norm_to_inc (c) == 18446744073709551615u);
+    c = -5e-17;
+    CHECK (nco_clock_norm_to_inc (c) == 18446744073709551615u);
+    c = 0.0;
+    CHECK (nco_clock_norm_to_inc (c) == 0u);
+    c = 1.0;
+    CHECK (nco_clock_norm_to_inc (c) == 0u); /* frac(1) == 0 */
+    c = 0.5;
+    CHECK (nco_clock_norm_to_inc (c) == 9223372036854775808u);
+    c = -0.5;
+    CHECK (nco_clock_norm_to_inc (c) == 9223372036854775808u);
+    c = 0.25;
+    CHECK (nco_clock_norm_to_inc (c) == 4611686018427387904u);
+    c = -0.25;
+    CHECK (nco_clock_norm_to_inc (c) == 13835058055282163712u);
+
+    /* Monotone in the fraction, and never above the true value. */
+    for (int i = 1; i < 64; i++)
+      {
+        double   f0 = (double)(i - 1) / 64.0, f1 = (double)i / 64.0;
+        uint64_t a = nco_clock_norm_to_inc (f0),
+                 b = nco_clock_norm_to_inc (f1);
+        CHECK (a < b);
+        CHECK ((long double)b <= (long double)f1 * 18446744073709551616.0L);
+      }
+
+    /* nco_clock_frac: top bits, total at bits == 0. */
+    nco_clock_t k;
+    nco_clock_init (&k, 0.0);
+    k.phase = 18446744073709551615u; /* just under a full period */
+    CHECK (nco_clock_frac (&k, 10) == 1023u);
+    CHECK (nco_clock_frac (&k, 1) == 1u);
+    CHECK (nco_clock_frac (&k, 0) == 0u);
+    k.phase = 0u;
+    CHECK (nco_clock_frac (&k, 10) == 0u);
+
+    /* nco_clock_advance: reports the wrap, and only the wrap. */
+    k.phase         = 0u;
+    uint8_t wrapped = nco_clock_advance (&k, 9223372036854775808u); /* +1/2 */
+    CHECK (wrapped == 0 && k.phase == 9223372036854775808u);
+    wrapped = nco_clock_advance (&k, 9223372036854775808u);
+    CHECK (wrapped == 1 && k.phase == 0u);
+    wrapped = nco_clock_advance (&k, 0u);
+    CHECK (wrapped == 0 && k.phase == 0u);
+  }
+
+  /* ----------------------------------------------------------------
+   * 17. What the 64-bit word actually buys: PHASE error, not count
+   *
+   * A crossing count over a short record cannot separate the widths --
+   * both sit within one of the truth (section 14). The property that
+   * does separate them is the realised rate, and it shows up as the
+   * phase error accumulated over a long constant-rate run:
+   *
+   *     |phase(N) - frac(N * rate)|  ~  N * 2^-W
+   *
+   * because truncation biases each step low by up to one word step.
+   * That is the whole argument for the timing clock: a resampler is
+   * handed an exactly rational rate like m/sps, which puts the wrap
+   * precisely ON the boundary every period, so a phase deficit does not
+   * average out -- it defers a strobe and permanently shifts the
+   * parity. This asserts the two floors are what they should be, and it
+   * is the regression that fires if anyone narrows the clock back to 32
+   * bits.
+   * ---------------------------------------------------------------- */
+  {
+    static const double rates[]
+        = { 12.0 / 13.0, 0.1, 0.3333333333333333, 0.7, 0.9999 };
+    for (size_t r = 0; r < sizeof rates / sizeof rates[0]; r++)
+      {
+        const long N    = 100000;
+        double     rate = rates[r];
+
+        nco_state_t *s32 = nco_create (rate, 0);
+        nco_clock_t  k64;
+        nco_clock_init (&k64, rate);
+        for (long i = 0; i < N; i++)
+          {
+            uint8_t e;
+            nco_step_u32_ovf_ctrl (s32, 0.0, &e);
+            nco_clock_tick (&k64, 0.0, &e);
+          }
+
+        /* Exact expected fraction, computed without either accumulator. */
+        long double exact = (long double)rate * (long double)N;
+        exact -= floorl (exact);
+
+        long double got32 = (long double)nco_get_phase (s32) / 4294967296.0L;
+        long double got64 = (long double)k64.phase / 18446744073709551616.0L;
+        long double e32   = fabsl (got32 - exact);
+        long double e64   = fabsl (got64 - exact);
+        if (e32 > 0.5L)
+          e32 = 1.0L - e32; /* circular */
+        if (e64 > 0.5L)
+          e64 = 1.0L - e64;
+
+        /* The 32-bit floor is real and about N*2^-32 = 2.3e-5 here. */
+        CHECK (e32 < 1e-3L);
+        /* The 64-bit floor is about N*2^-64 = 5e-15; demand four orders
+           of magnitude better than the 32-bit word can ever manage. */
+        CHECK (e64 < 1e-9L);
+        if (!(e64 < 1e-9L) || !(e32 < 1e-3L))
+          fprintf (stderr, "  rate=%.17g  phase err: u32=%.3Le  clock=%.3Le\n",
+                   rate, e32, e64);
+      }
   }
 
   if (_fails)

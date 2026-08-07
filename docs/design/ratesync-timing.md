@@ -136,8 +136,8 @@ Replacing the `double` accumulator with the shared NCO is the right move, but
 it cannot be done first: **`nco_step_u32_ovf_ctrl`'s carry is itself wrong for
 a negative control.**
 
-`nco_norm_to_inc` folds bipolar to unipolar by construction —
-`d = cycles - floor (cycles)` (`nco_core.h:93`), documented as *"Negative
+The shared fold takes bipolar to unipolar by construction —
+`d = norm - floor (norm)` (`nco_core.h`, `nco_norm_fold_`), documented as *"Negative
 values fold correctly (e.g. -0.25 -> 3x2^30)"*. The modulo **value** arithmetic
 is exact and every consumer of `phase` is fine. But the sign is gone before the
 add, so the 64-bit sum's bit 32 sets on nearly every step:
@@ -170,7 +170,7 @@ formed **before** the fold:
 
 ```text
 delta = base + ctrl                  /* signed cycles, pre-fold */
-inc   = nco_norm_to_inc (|delta|)
+inc   = nco_norm_freq_to_inc (|delta|)
 delta > 0 && u(k) <= u(k-1)  -> carry   : one EXTRA output / load
 delta < 0 && u(k) >= u(k-1)  -> borrow  : one FEWER
 delta == 0                   -> no event (the free-running case)
@@ -240,7 +240,7 @@ remains, and §1.5 for the boundary that is the actual risk surface.
 
 **The user-visible consequence is correct, not a regression.**
 `RateConverter(rate=0.8)` over 1000 inputs emits **799**: `0.8` is not
-representable in a 32-bit phase word and `nco_norm_to_inc` truncates, so the
+representable in a 32-bit phase word and `nco_norm_freq_to_inc` truncates, so the
 realised rate sits a hair below the requested one — identically on every host,
 which is the property the convention exists to provide. The `double`
 accumulator's 800 came from rate resolution the phase word does not have, and
@@ -274,12 +274,12 @@ Four `norm_freq → phase_inc` conversions existed and only the first routed
 through the primitive. Each is measured below at the boundary that broke it,
 and each of those is now a test that fails if the site is reverted:
 
-| site                           | shape                      | measured at the boundary                                 |
-| ------------------------------ | -------------------------- | -------------------------------------------------------- |
-| `nco_core.h` `nco_norm_to_inc` | `frac(cycles) · 2^32`      | guarded — returns `2^32-1`                               |
-| `resamp_core.c:134`, `:290`    | `2^32 / rate`              | `rate = 1.0` → **0**                                     |
-| `symsync_core.c:148`           | `2^32 / sps`               | `sps = 1.0` → **0**                                      |
-| `symsync_core.h:214`           | `base_inc · (1 + control)` | `control = +0.5` → **536870912** for an exact 4831838208 |
+| site                          | shape                      | measured at the boundary                                 |
+| ----------------------------- | -------------------------- | -------------------------------------------------------- |
+| `nco_core.h` `nco_norm_fold_` | `frac(norm) · 2^32`        | guarded — returns `2^32-1`                               |
+| `resamp_core.c:134`, `:290`   | `2^32 / rate`              | `rate = 1.0` → **0**                                     |
+| `symsync_core.c:148`          | `2^32 / sps`               | `sps = 1.0` → **0**                                      |
+| `symsync_core.h:214`          | `base_inc · (1 + control)` | `control = +0.5` → **536870912** for an exact 4831838208 |
 
 None of the three were theoretical. `resamp`'s `upsample` flag is `rate >= 1.0`,
 so `rate == 1.0` — the rate `ratesync`'s terminal stage actually runs at — took
@@ -293,7 +293,7 @@ silently, on the active steering path.
 Each test needs `volatile` on its inputs to mean anything. With literal
 arguments gcc constant-folds the out-of-range conversion using its own
 saturating rules, and the check passes at `-O2` without the cast ever
-executing — the first version of the `nco_norm_to_inc` test passed for exactly
+executing — the first version of the fold's own test passed for exactly
 that reason before the fix existed.
 
 **`lo_core.c` held a fifth, private copy — folded in, and it should not have

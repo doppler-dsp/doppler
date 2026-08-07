@@ -52,7 +52,7 @@ lo_init (lo_state_t *state, double norm_freq)
 {
   lut_init ();
   state->phase     = 0;
-  state->phase_inc = nco_norm_to_inc (norm_freq);
+  state->phase_inc = nco_norm_freq_to_inc (norm_freq);
   state->norm_freq = norm_freq;
 }
 
@@ -91,7 +91,7 @@ lo_get_norm_freq (const lo_state_t *state)
 void
 lo_set_norm_freq (lo_state_t *state, double norm_freq)
 {
-  state->phase_inc = nco_norm_to_inc (norm_freq);
+  state->phase_inc = nco_norm_freq_to_inc (norm_freq);
   state->norm_freq = norm_freq;
 }
 
@@ -239,7 +239,7 @@ lo_steps (lo_state_t *state, size_t n, float complex *out, size_t max_out)
  *
  * And it had drifted. It derived ctrl_inc from a float32 fold via
  * _mm512_cvtps_epu32 while this tail called the shared double-precision
- * nco_norm_to_inc(), so the two halves of ONE function disagreed -- by
+ * nco_norm_freq_to_inc(), so the two halves of ONE function disagreed -- by
  * 3673 phase units and 175 differing outputs over 4096 samples, because
  * ctrl_inc feeds a prefix sum and a per-sample error integrates. A second
  * implementation of a kernel is a second thing to keep correct, and this
@@ -260,7 +260,7 @@ lo_steps_ctrl (lo_state_t *state, const float *ctrl, size_t ctrl_len,
   uint32_t inc = state->phase_inc;
   for (size_t i = 0; i < ctrl_len; i++)
     {
-      uint32_t ctrl_inc = nco_norm_to_inc ((double)ctrl[i]);
+      uint32_t ctrl_inc = nco_norm_freq_to_inc ((double)ctrl[i]);
       uint16_t idx      = (uint16_t)(ph >> (32u - LO_LUT_BITS));
       out[i] = CMPLXF (lo_sin_lut[(uint16_t)(idx + (uint16_t)LO_LUT_QTR)],
                        lo_sin_lut[idx]);

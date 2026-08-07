@@ -19,7 +19,7 @@ nco_create (double norm_freq, uint32_t nmax)
   if (!state)
     return NULL;
   state->phase     = 0;
-  state->phase_inc = nco_norm_to_inc (norm_freq);
+  state->phase_inc = nco_norm_freq_to_inc (norm_freq);
   state->norm_freq = norm_freq;
   state->nmax      = nmax;
   return state;
@@ -81,7 +81,7 @@ nco_get_norm_freq (const nco_state_t *state)
 void
 nco_set_norm_freq (nco_state_t *state, double norm_freq)
 {
-  state->phase_inc = nco_norm_to_inc (norm_freq);
+  state->phase_inc = nco_norm_freq_to_inc (norm_freq);
   state->norm_freq = norm_freq;
 }
 

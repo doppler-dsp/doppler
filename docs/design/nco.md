@@ -28,11 +28,17 @@ matter how careful the first one is.
 So there is one, in `native/inc/nco/nco_core.h`, and everything else is
 integer:
 
-| primitive                          | what it does                                                 |
-| ---------------------------------- | ------------------------------------------------------------ |
-| `nco_phase_units(units)`           | the cast: `<0` or NaN → 0, `≥2^32` → `2^32-1`, else truncate |
-| `nco_norm_to_inc(norm_freq)`       | fold to `[0,1)` then convert                                 |
-| `nco_steer_scale(control, lo, hi)` | bound `1 + control` to a band *before* converting            |
+| primitive                            | what it does                                                 |
+| ------------------------------------ | ------------------------------------------------------------ |
+| `nco_phase_units(units)`             | the cast: `<0` or NaN → 0, `≥2^32` → `2^32-1`, else truncate |
+| `nco_norm_fold_(norm)`               | fold to `[0,1)` then convert — the shared body               |
+| `nco_norm_freq_to_inc(norm_freq)`    | its **frequency** face: cycles/sample → a phase increment    |
+| `nco_norm_phase_to_word(norm_phase)` | its **phase** face: cycles → a phase word                    |
+| `nco_steer_scale(control, lo, hi)`   | bound `1 + control` to a band *before* converting            |
+
+The two faces are one body under two names, so a call site declares which
+dimension it holds instead of leaving it to be inferred from what the result
+is assigned to; §2a is why that distinction is load-bearing.
 
 `nco_steer_scale` is the companion, and the reason the cast should almost
 never be the thing making a decision: a conversion can only saturate or floor
@@ -48,7 +54,7 @@ flowchart TB
     subgraph SSOT["nco_core.h — the ONLY double to integer conversion"]
         direction TB
         STEER["nco_steer_scale(control, lo, hi)<br/>clamp(1 + control, lo, hi)"]
-        FOLD["nco_norm_to_inc(norm_freq)<br/>d = norm_freq - floor(norm_freq)"]
+        FOLD["nco_norm_fold_(norm)<br/>d = norm - floor(norm)<br/>faces: _freq_to_inc / _phase_to_word"]
         CONV["nco_phase_units(units)<br/>below 0, or NaN, gives 0<br/>at or above 2^32 saturates<br/>otherwise TRUNCATES"]
         STEER -. "x base_inc" .-> CONV
         FOLD -. "x 2^32" .-> CONV
@@ -110,8 +116,8 @@ So the dual use is not an oddity in one corner: three call sites convert a
 **phase**, two of them the proportional path of a carrier loop, where a
 per-symbol nudge in radians becomes a phase-word offset. `cycles` is the only
 word that covers both, which is why it is the parameter name — but it leaves
-each call site's dimension unstated, and `nco_norm_to_inc` says "inc" for
-three callers that assign the result straight to `.phase`.
+each call site's dimension unstated, and the old single name `nco_norm_to_inc`
+said "inc" for three callers that assign the result straight to `.phase`.
 
 The library also already *has* the second concept without a name for it:
 `resamp_get_ctrl_acc()` is documented as "the control accumulator's fractional
@@ -121,9 +127,16 @@ phase, in \[0, 1)", and `dll`'s `chip_pos` is the same shape.
 normalised to whatever the context's full scale is** — the sample rate for a
 frequency, one period for a phase. That both convert by the identical fold and
 scale is not a coincidence to paper over; it is the reason one implementation
-serves both, and two named faces over it would let each call site declare
-which it means. Not yet done: 15 call sites plus tests, and no consumer of the
-symbol outside `native/`.
+serves both.
+
+So there are two `JM_FORCEINLINE` faces over the one shared
+`nco_norm_fold_` — `nco_norm_freq_to_inc(norm_freq)` and
+`nco_norm_phase_to_word(norm_phase)` — and every call site picks one. Nothing
+about the arithmetic changed; what changed is that the dimension is now
+written down at the point of use rather than inferrable only from the
+assignment target. A test pins the two faces to the same answer
+(`test_nco_core.c` §13), because the value of one body is lost the moment a
+future edit gives one face its own convention.
 
 Throughout this page the quantity is a normalised **frequency** in cycles per
 sample unless it says otherwise.
@@ -132,7 +145,7 @@ ______________________________________________________________________
 
 ## 3. The event is signed, and the sign is taken before the fold
 
-`nco_norm_to_inc` folds bipolar to unipolar by construction: `-0.25` and
+The fold takes bipolar to unipolar by construction: `-0.25` and
 `+0.75` produce the same phase word. The modulo *value* is exact either way
 and every consumer of `phase` is fine — but the direction is gone, and a raw
 "did the unsigned add carry" test then fires on nearly every step of a
@@ -200,7 +213,7 @@ being a safety net.
 !!! warning "Still unbounded: `Dll`"
 
     `dll_core.h:441` and `dll_core.c:678` both form
-    `nco_norm_to_inc(inv_tsamps × (1 + rate_aid) + ctrl)` with no band — two
+    `nco_norm_freq_to_inc(inv_tsamps × (1 + rate_aid) + ctrl)` with no band — two
     copies of the same expression. It fails *differently* from symsync: the
     fold means a negative code rate becomes a near-full-rate **forward** one
     rather than a dead clock, so it is silently wrong rather than stuck. No

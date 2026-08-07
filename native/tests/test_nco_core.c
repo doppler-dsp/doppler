@@ -23,7 +23,7 @@
  * is structural rather than stylistic):
  *
  *  12. nco_phase_units — the one conversion's total contract
- *  13. nco_norm_to_inc — the fold must never hand the cast a 1.0
+ *  13. nco_norm_fold_ — the fold must never hand the cast a 1.0
  *  14. The control port COUNTS boundaries, at both widths and both
  *      signs, under slewing control, against an independent oracle
  *  15. Control-port edge cases the sign rule has to get exactly right
@@ -428,7 +428,7 @@ main (void)
        composite, so it must match the SAME plain-NCO reference in
        carry as well as phase.
 
-       nco_norm_to_inc folds bipolar to unipolar (-0.25 -> 3x2^30), so
+       the fold takes bipolar to unipolar (-0.25 -> 3x2^30), so
        the modulo phase is exact either way -- but the sign is gone
        before the add, and 2^31 + 3x2^30 sets bit 32 on EVERY step.
        A carry consumer therefore sees 8 wraps where the composite
@@ -602,7 +602,7 @@ main (void)
   }
 
   /* ----------------------------------------------------------------
-   * 13. nco_norm_to_inc — the fold must never hand the cast a 1.0
+   * 13. nco_norm_fold_ — the fold must never hand the cast a 1.0
    *
    * The documented contract is a truncated fraction in [0, 2^32), and
    * the stated reason for truncating rather than rounding is
@@ -679,23 +679,23 @@ main (void)
     /* Just outside the band: already correct, and the value every case
        below must agree with. */
     v = -1e-16;
-    CHECK (nco_norm_to_inc (v) == 4294967295u);
+    CHECK (nco_norm_freq_to_inc (v) == 4294967295u);
     v = -1e-15;
-    CHECK (nco_norm_to_inc (v) == 4294967295u);
+    CHECK (nco_norm_freq_to_inc (v) == 4294967295u);
 
     /* Inside the band, where the fold rounds up to 1.0. */
     v = -5e-17;
-    CHECK (nco_norm_to_inc (v) == 4294967295u);
+    CHECK (nco_norm_freq_to_inc (v) == 4294967295u);
     v = -1e-20;
-    CHECK (nco_norm_to_inc (v) == 4294967295u);
+    CHECK (nco_norm_freq_to_inc (v) == 4294967295u);
     v = -1e-30;
-    CHECK (nco_norm_to_inc (v) == 4294967295u);
+    CHECK (nco_norm_freq_to_inc (v) == 4294967295u);
 
     /* Exact zero is genuinely zero advance -- not the same case. */
     v = 0.0;
-    CHECK (nco_norm_to_inc (v) == 0u);
+    CHECK (nco_norm_freq_to_inc (v) == 0u);
     v = -0.0;
-    CHECK (nco_norm_to_inc (v) == 0u);
+    CHECK (nco_norm_freq_to_inc (v) == 0u);
 
     /* A control that small is a stopped NCO, not a frozen one: the
        phase must still retreat one unit per step, not stick. */
@@ -705,6 +705,21 @@ main (void)
     nco_step_u32_ovf_ctrl (tiny, v, &tc);
     CHECK (nco_get_phase (tiny) == 4294967295u);
     nco_destroy (tiny);
+
+    /* The two faces are ONE body. They exist to let a call site declare
+       whether it holds a rate or an angle, NOT to convert differently --
+       the moment they disagree, the library has two conventions again
+       and the drift this file documents is back. Values chosen where
+       truncate and round-to-nearest differ, so re-rounding one face
+       breaks this rather than passing vacuously. */
+    v = 0.1;
+    CHECK (nco_norm_freq_to_inc (v) == nco_norm_phase_to_word (v));
+    v = 51.0 / 21.0e6;
+    CHECK (nco_norm_freq_to_inc (v) == nco_norm_phase_to_word (v));
+    v = -0.3;
+    CHECK (nco_norm_freq_to_inc (v) == nco_norm_phase_to_word (v));
+    v = -1e-20;
+    CHECK (nco_norm_freq_to_inc (v) == nco_norm_phase_to_word (v));
   }
 
   /* ----------------------------------------------------------------

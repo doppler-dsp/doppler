@@ -360,8 +360,9 @@ size_t RateConverter_execute_ctrl_push_max_out (RateConverter_state_t *s);
  * 799 and 849 rather than the round 800 and 850 are the correct,
  * deterministic answers, not off-by-ones to be fixed. Neither 0.8 nor 0.85
  * is representable in a 32-bit phase word,
- * and nco_norm_to_inc() truncates by convention, so the realised rate is a
- * hair BELOW 0.8 (never above) and 1000 inputs complete 799 periods. That
+ * and nco_norm_freq_to_inc() truncates by convention, so the realised
+ * rate is a hair BELOW 0.8 (never above) and 1000 inputs complete 799
+ * periods. That
  * is reproducible on every host, which is the property the convention
  * exists to provide. An earlier double-precision accumulator returned the
  * ideal rational 800 because it carried rate resolution the phase word does

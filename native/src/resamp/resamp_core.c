@@ -141,7 +141,7 @@ _create_from_bank (size_t num_phases, size_t num_taps, float *bank_owned,
      allocates) exactly as symsync and dll do. */
   s->ctrl_nco.phase     = 0;
   s->ctrl_nco.norm_freq = rate;
-  s->ctrl_nco.phase_inc = nco_norm_to_inc (rate);
+  s->ctrl_nco.phase_inc = nco_norm_freq_to_inc (rate);
   s->ctrl_nco.nmax      = 0;
 
   /* delay line: power-of-2 dual buffer */
@@ -301,7 +301,7 @@ resamp_set_rate (resamp_state_t *s, double rate)
   /* Retune the ctrl accumulator too; its phase is deliberately kept, so a
      rate change mid-stream does not restart the sampling instant. */
   s->ctrl_nco.norm_freq = rate;
-  s->ctrl_nco.phase_inc = nco_norm_to_inc (rate);
+  s->ctrl_nco.phase_inc = nco_norm_freq_to_inc (rate);
 }
 
 size_t

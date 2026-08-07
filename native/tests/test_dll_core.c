@@ -140,10 +140,10 @@ main (void)
    * aiding config, set only by dll_set_rate_aid) was the one field   *
    * the zero-against-garbage block missed: on a clean stack it read  *
    * 0 (Linux), but a NaN there (0xFF-filled stack, seen on macOS)    *
-   * made phase_inc = nco_norm_to_inc(inv_tsamps*(1+NaN)+ctrl) cast   *
-   * to 0, freezing the code NCO permanently (validate_dll_jitter     *
-   * #82). Poison the whole struct, init, and assert the loop still   *
-   * steers a live, wrapping NCO.                                     *
+   * made phase_inc = nco_norm_freq_to_inc(inv_tsamps*(1+NaN)+ctrl)   *
+   * cast to 0, freezing the code NCO permanently                     *
+   * (validate_dll_jitter #82). Poison the whole struct, init, and    *
+   * assert the loop still steers a live, wrapping NCO.               *
    * ---------------------------------------------------------------- */
   {
     uint8_t code[31];

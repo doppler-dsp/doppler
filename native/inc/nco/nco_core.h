@@ -10,8 +10,18 @@
  * ## 1. The float boundary — the ONLY double->integer conversion
  *
  *   nco_phase_units   double -> uint32 phase word, total and saturating
- *   nco_norm_to_inc   fold cycles into [0, 1), then convert
+ *   nco_norm_fold_    fold a normalised quantity into [0, 1), then convert
  *   nco_steer_scale   bound `1 + control` to a band, BEFORE converting
+ *
+ * The fold is unit-free, so it serves two dimensions, and each call site
+ * says which through the face it calls rather than leaving it to be
+ * inferred from what the result is assigned to:
+ *
+ *   nco_norm_freq_to_inc    cycles per sample -> a phase INCREMENT
+ *   nco_norm_phase_to_word  cycles, absolute  -> a phase WORD
+ *
+ * "norm" is normalised to whatever the context's full scale is -- the
+ * sample rate for a frequency, one period for a phase.
  *
  * C99 guarantees the integer half: unsigned arithmetic is reduced modulo
  * 2^32 for every unsigned type (6.2.5p9) and uint32_t is exactly 32 bits
@@ -106,7 +116,7 @@ extern "C"
    * which the negated comparison rejects rather than passing to the cast)
    * gives 0; at or above 2^32 saturates to 2^32-1; in between it TRUNCATES
    * toward zero, so the realised value is at most one step low and never
-   * high -- the convention @ref nco_norm_to_inc documents, now enforced in
+   * high -- the convention @ref nco_norm_fold_ documents, now enforced in
    * one place. Saturation is the honest answer at the limit: a phase word
    * cannot express more than one cycle per sample, and clamping says so
    * where a wrap would silently invert the caller's intent.
@@ -129,16 +139,26 @@ extern "C"
   }
 
   /**
-   * @brief Normalised cycles -> uint32 phase delta, the ONE shared
-   *        primitive for this conversion.
+   * @brief Fold a normalised quantity into `[0, 1)` and scale it to a
+   *        32-bit phase word -- the ONE shared body behind both faces.
    *
-   * Floor-normalises @p cycles into `[0, 1)` before scaling and
+   * Call @ref nco_norm_freq_to_inc or @ref nco_norm_phase_to_word
+   * instead of this: they are this function, and picking one is how a
+   * call site states which dimension it holds. The conversion itself is
+   * unit-free -- fold modulo one, scale by 2^32 -- so it cannot tell a
+   * frequency (cycles per SAMPLE, landing on `phase_inc`) from a phase
+   * (cycles, absolute, landing on `phase`), and both are live: three
+   * sites in the library convert an absolute angle, two of them the
+   * proportional path of a carrier loop turning `kp*e` radians into a
+   * phase-word nudge.
+   *
+   * Floor-normalises @p norm into `[0, 1)` before scaling and
    * TRUNCATES toward zero (the bare C99 float->unsigned cast, 6.3.1.4)
    * to an integer phase step -- deliberately NOT `llround`. Every
    * caller that needs this conversion (`nco_create`/`nco_set_norm_freq`,
    * `LO`'s own phase accumulator, `Dll`'s code-phase NCO steering) MUST
-   * call this inline function rather than growing its own private copy
-   * -- duplicated copies of this exact formula have already drifted
+   * go through one of the two faces rather than growing its own private
+   * copy -- duplicated copies of this exact formula have already drifted
    * once (one truncated while a sibling copy rounded) before being
    * consolidated here on the truncating convention.
    *
@@ -189,22 +209,66 @@ extern "C"
    * is unaffected. The realised frequency is at most one step LOW,
    * never high.
    *
-   * @param cycles  Any real number of cycles; only the fractional part
-   *                matters. Negative values fold correctly (e.g. -0.25
-   *                -> 3x2^30).
-   * @return Phase delta in `[0, 2^32)`.
+   * @param norm  Any real normalised quantity; only the fractional part
+   *              matters. Negative values fold correctly (e.g. -0.25
+   *              -> 3x2^30).
+   * @return Phase word in `[0, 2^32)`.
    */
   JM_FORCEINLINE uint32_t
-  nco_norm_to_inc (double cycles)
+  nco_norm_fold_ (double norm)
   {
     /* The fold is in [0, 1) mathematically but NOT in floating point: for
-       any cycles in [-2^-53, 0) the subtraction rounds up to exactly 1.0
+       any norm in [-2^-53, 0) the subtraction rounds up to exactly 1.0
        (`-1e-20 - (-1) == 1.0`), so the product reaches 2^32 and only
        nco_phase_units() keeps that out of the cast. The true fraction is
        then in (1 - 2^-53, 1), whose truncation is 2^32-1 -- the same value
        -1e-16, one representable step away, already returns. */
-    double d = cycles - floor (cycles);
+    double d = norm - floor (norm);
     return nco_phase_units (d * 4294967296.0);
+  }
+
+  /**
+   * @brief Normalised FREQUENCY -> per-sample phase increment.
+   *
+   * @p norm_freq is in cycles per SAMPLE, normalised to the sample rate;
+   * the result belongs in `phase_inc` (or is added to one, as the `ctrl`
+   * ports do). The conversion is @ref nco_norm_fold_ -- see it for the
+   * fold, the truncating convention and why this is the only
+   * double->integer boundary in the family.
+   *
+   * @param norm_freq  Cycles per sample; any sign, any magnitude (only
+   *                   the fractional part survives the fold).
+   * @return Phase increment in `[0, 2^32)`.
+   */
+  JM_FORCEINLINE uint32_t
+  nco_norm_freq_to_inc (double norm_freq)
+  {
+    return nco_norm_fold_ (norm_freq);
+  }
+
+  /**
+   * @brief Normalised PHASE -> absolute phase word.
+   *
+   * @p norm_phase is an angle in cycles, normalised to one period -- a
+   * carrier loop's `kp*e / 2pi` proportional nudge, a code loop's
+   * `seed_chip / sf` starting offset. The result is a position on the
+   * accumulator, not a rate: it belongs in `phase`, or is added to one.
+   * The conversion is @ref nco_norm_fold_.
+   *
+   * The fold is exact in value but destroys the SIGN (-0.25 and +0.75 are
+   * the same word), which is exactly right here -- a phase is modular, so
+   * a negative angle IS the positive one that lands in the same place, and
+   * adding the word to `phase` retreats by wrapping. A caller needing
+   * DIRECTION (carry versus borrow) must form the signed quantity before
+   * this call; see @ref nco_step_u32_ovf_ctrl.
+   *
+   * @param norm_phase  Cycles; any sign, any magnitude.
+   * @return Phase word in `[0, 2^32)`.
+   */
+  JM_FORCEINLINE uint32_t
+  nco_norm_phase_to_word (double norm_phase)
+  {
+    return nco_norm_fold_ (norm_phase);
   }
 
   /**
@@ -292,7 +356,7 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
    * call overhead -- the canonical primitive every batch stepper below
    * and every OTHER module embedding an nco_state_t by value should
    * compose, rather than reimplementing this advance inline (see
-   * nco_norm_to_inc()'s own doc comment on why duplicated copies of
+   * nco_norm_fold_()'s own doc comment on why duplicated copies of
    * this exact class of arithmetic have already drifted once).
    *
    * @param state  NCO state.  Must be non-NULL.
@@ -353,7 +417,7 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
   nco_step_u32_ctrl (nco_state_t *state, double ctrl)
   {
     uint32_t ph = state->phase;
-    state->phase = ph + state->phase_inc + nco_norm_to_inc (ctrl);
+    state->phase = ph + state->phase_inc + nco_norm_freq_to_inc (ctrl);
     return ph;
   }
 
@@ -370,7 +434,7 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
   {
     uint32_t ph   = state->phase;
     uint32_t nmax = state->nmax;
-    state->phase  = ph + state->phase_inc + nco_norm_to_inc (ctrl);
+    state->phase  = ph + state->phase_inc + nco_norm_freq_to_inc (ctrl);
     return nmax == 0 ? ph : (uint32_t)(((uint64_t)ph * nmax) >> 32);
   }
 
@@ -386,7 +450,7 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
    * consumer knows the sign of its own control, so one boolean carries
    * both senses.
    *
-   * **The sign must be taken before the fold.** nco_norm_to_inc() folds
+   * **The sign must be taken before the fold.** nco_norm_fold_() folds
    * bipolar to unipolar by construction (-0.25 -> 3x2^30), which keeps
    * the modulo phase exact but destroys the direction: retreating by
    * 0.25 cycles is indistinguishable, in the accumulator, from
@@ -423,7 +487,7 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
     uint32_t ph    = state->phase;
     /* Wrapping u32 add: bit-for-bit the modulo advance the 64-bit sum
        used to produce -- only the event derivation below changes. */
-    uint32_t nph   = ph + state->phase_inc + nco_norm_to_inc (ctrl);
+    uint32_t nph   = ph + state->phase_inc + nco_norm_freq_to_inc (ctrl);
     double   delta = state->norm_freq + ctrl; /* signed, pre-fold */
 
     state->phase = nph;

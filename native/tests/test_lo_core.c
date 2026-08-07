@@ -419,12 +419,13 @@ main (void)
     const double fs      = 21.0e6;
     const double step_hz = fs / 4294967296.0; /* one quantization step */
 
-    /* nco_norm_to_inc truncates toward zero (the natural C99 float->unsigned
-     * conversion), NOT round-to-nearest: the increment is then deterministic
-     * across hosts (llround's rounding is host-FP-sensitive and could
-     * overshoot to 2^32==0, freezing the closed-loop code NCO on arm64 -- see
-     * nco_norm_to_inc). Truncation always floors, so the realised frequency is
-     * at most one quantization step LOW, never high. */
+    /* nco_norm_freq_to_inc truncates toward zero (the natural C99
+     * float->unsigned conversion), NOT round-to-nearest: the increment is
+     * then deterministic across hosts (llround's rounding is host-FP-
+     * sensitive and could overshoot to 2^32==0, freezing the closed-loop
+     * code NCO on arm64 -- see nco_norm_fold_). Truncation always floors,
+     * so the realised frequency is at most one quantization step LOW,
+     * never high. */
 
     /* freq=50 Hz: fractional remainder ~0.11, truncates to 10226. */
     lo_state_t *lo50 = lo_create (50.0 / fs);

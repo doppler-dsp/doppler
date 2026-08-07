@@ -736,9 +736,16 @@ ______________________________________________________________________
     every call site that needed a meaningful threshold multiplied the scale
     back in by hand. Squaring-loss equations corrected and Yuen-grounded
     (§2.3).
-- **Arm normalization** — *resolved.* Internal `agc_core` AGC (bandwidth locked
-    to `0.01·bn`, decimated loop-filter command via `gain_update_period`) + 10 dB
-    square clip, not a per-sample limiter (§2.3).
+- **Arm normalization** — *resolved.* Internal `agc_core` AGC + 10 dB square
+    clip, not a per-sample limiter, with the loop-filter command decimated via
+    `gain_update_period` (§2.3). The **bandwidth rule differs by object, and
+    both are current**: `CarrierNda` locks its arm AGC to `0.01·bn`
+    (`CARRIER_NDA_AGC_BW_RATIO`), the per-sample convention its own boxcar arm
+    still runs on, while `MpskReceiver` uses the absolute
+    `MPSK_RX_AGC_BW = 0.002` — because its discriminator runs at the *symbol*
+    rate, where a proportional rule spans thousands of symbols and never
+    settles (§2.3). Reading the `0.01·bn` rule as the receiver's is a mistake
+    this bullet used to invite by naming only one of the two.
 - **Naming** — `CarrierNda` / flat vs a `Carrier.*` namespace (deferred).
 - **Handover threshold** — *resolved, shipped.* `mpsk_receiver_configure_lock()`
     exposes it as a real config call: a `lockdet_state_t handover` gate plus
@@ -793,3 +800,60 @@ ______________________________________________________________________
     rotation-blind, meaning a healthy M2M4 beside a collapsed EVM says "the
     amplitudes are fine, the phase is not" — which no error rate could have told
     us.
+
+______________________________________________________________________
+
+## 9. Parameter surface — which knobs are design axes
+
+**Proposed; none of this is implemented.** `mpsk_receiver_create` takes
+sixteen parameters. Most are not design axes — they are a constant, a
+false-alarm probability, or a settling time, and the receiver already holds
+everything needed to derive them. A caller supplying them by hand is being
+asked to re-derive what the object knows. This section records which is
+which and the rule for each, so the surface can shrink to the signal
+description (`m`, `sps`, `pulse`, `rrc_beta`, `rrc_span`, `differential`),
+the two loop bandwidths, and `init_norm_freq`.
+
+| Param          | Rule                                                                                                                                                                                                                                          | Status                                                                 |
+| -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| `m_out`        | `min(8, 2·floor(sps/2))`. The real twin needs `min(8, 2·floor(sps/4))`, since its cascade sits behind the halfband (§1.2). `iandd` under 4 keeps the existing `narrow_pulse` warning (§4) rather than becoming a rejection.                   | firm                                                                   |
+| `zeta`         | `1/√2` — a constant, not a computation. Nothing else in the receiver moves the optimal damping, and both loops already share one value.                                                                                                       | firm                                                                   |
+| `acq_to_track` | `1`, always. At the default `m_out = 8` every tap decodes every order both with and without it (§2.2.1); the one measured cost is `lo_arm` trading EVM at equal SER.                                                                          | verify                                                                 |
+| `lock_thresh`  | `σ_H0 · η(Pfa)` at a fixed `Pfa = 5e-6`: `0.1132 × 4.4159 = 0.4999`, today's 0.5. The limited statistic reads ~1.0 at lock for **every** M (§2.3), so no per-M correction is carried — that was the `lock_scale` bug, already resolved in §8. | firm                                                                   |
+| `warmup_syms`  | `max(1/MPSK_RX_AGC_BW, 5/bn_carrier + 5/bn_timing on the strobe tap)` → 1000 at the defaults, against a shipped 100. The AGC floor is 500 symbols outright (§2.3); the timing term is why §2.4 wants timing settled before handover.          | firm in form                                                           |
+| `num_phases`   | Timing quantisation is `1/(P·m_out)` symbols; budgeting its EVM contribution at −40 dB gives `P ≥ 100/m_out` → 16 at the default, against a shipped 1024.                                                                                     | **TBD** — needs a measured EVM-vs-`P` sweep; nothing here defends 1024 |
+| `nda_tap`      | Not derivable — see §9.1.                                                                                                                                                                                                                     | open                                                                   |
+
+### 9.1 Why `nda_tap` is not on that list
+
+Two reasons, and the second is the one that bites.
+
+**It is a declared design axis.** §2.2.1 makes the tap a construction
+parameter precisely *because* it is a real trade rather than an
+implementation detail, and §2.2 records the one attempt to resolve the same
+coupling inside the receiver — gating the strobe steer on timing lock —
+being implemented, measured across a 24-cell sweep, and then removed as a
+default: it changed exactly one cell, and it hid a trade the caller could
+neither see nor override.
+
+**A frequency-uncertainty input would not replace it.** The obvious
+substitution is to take the carrier uncertainty the caller genuinely knows
+and pick the narrowest tap covering it. But §2.2.1's pull-in table is
+measured with each tap *at its own best* `bn_carrier`; at a **fixed**
+`bn_carrier` all three taps measure the same `0.01·Rs`. The tap only buys
+range if the receiver sets `bn_carrier` as well — and `bn_carrier` is one of
+the parameters this design deliberately leaves with the caller. Deriving the
+tap from an uncertainty means deriving both, as one joint decision, which is
+a larger change than the other six rows put together.
+
+Two consequences worth stating even if `nda_tap` never moves:
+
+- **`m_out` moves the pull-in range**, so deriving it from `sps` moves a
+    number the caller never touched — `strobe` goes `0.010·Rs → 0.050·Rs`
+    between `m_out = 4` and 8. A receiver at `sps = 4` then gets a 5× narrower
+    unaided capture than one at `sps = 8`, for no reason visible at the call
+    site. Whatever else is decided, that belongs in the `sps` docs.
+- **`mf_all` is dominated wherever `m_out` derives to 8** (`sps ≥ 8`): it
+    captures `0.033·Rs` against `strobe`'s `0.050` and `lo_arm`'s `0.090`, so
+    at the derived `m_out` it is never the right pick and the axis is
+    effectively two taps wide.

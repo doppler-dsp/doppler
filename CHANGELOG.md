@@ -76,6 +76,15 @@ ______________________________________________________________________
     `scripts/check_version_strings.py` never covered this — it guards
     *doppler's* release version against being hand-typed into docs.
 
+### Docs
+
+- **`MPSK_RX_AGC_SEED_SAMPS`' comment named the wrong `warmup_syms` default.**
+    It read 30; `objects/mpsk_receiver.toml` has said 100 for as long as the
+    parameter has existed. The seeding argument the comment makes is unaffected
+    either way — 8 averaged samples clear both numbers comfortably — but a
+    reader checking the claim against the manifest would have found it did not
+    hold.
+
 ## [0.42.0] — 2026-08-07
 
 ### Breaking

@@ -67,6 +67,17 @@ dp_tlm_probe_id (const dp_tlm_t *t, const char *name)
 }
 
 int
+dp_tlm_emit_checked (dp_tlm_t *t, int32_t id, double v)
+{
+  /* The registry bound, which the inline emit deliberately does not pay for.
+     Unsigned compare, so a negative id fails it too. */
+  if (!t || (uint32_t)id >= t->n_probes)
+    return DP_ERR_INVALID;
+  dp_tlm_emit (t, id, v);
+  return DP_OK;
+}
+
+int
 dp_tlm_set_decim (dp_tlm_t *t, const char *name, uint32_t decim)
 {
   /* Retune only. dp_tlm_probe() would register a new probe on a miss, so a

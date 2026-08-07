@@ -169,8 +169,16 @@ TelemetryObj_probe (TelemetryObject *self, PyObject *args, PyObject *kwds)
                                     &decim_raw))
     return NULL;
   uint32_t decim = (uint32_t)decim_raw;
-  int      y     = dp_tlm_probe (self->handle, name, decim);
-  return PyLong_FromLong ((long)y);
+  int      _rc   = dp_tlm_probe (self->handle, name, decim);
+  if (_rc < 0)
+    {
+      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
+                    "probe: name is NULL or too long, decim is 0, or the "
+                    "table is full",
+                    (long long)_rc);
+      return NULL;
+    }
+  return PyLong_FromLong ((long)_rc);
 }
 
 static PyObject *
@@ -185,8 +193,14 @@ TelemetryObj_probe_id (TelemetryObject *self, PyObject *args, PyObject *kwds)
   const char  *name      = NULL;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "s", _kwlist, &name))
     return NULL;
-  int y = dp_tlm_probe_id (self->handle, name);
-  return PyLong_FromLong ((long)y);
+  int _rc = dp_tlm_probe_id (self->handle, name);
+  if (_rc < 0)
+    {
+      PyErr_Format (PyExc_KeyError, "%s (rc=%lld)", "no probe by that name",
+                    (long long)_rc);
+      return NULL;
+    }
+  return PyLong_FromLong ((long)_rc);
 }
 
 static PyObject *
@@ -226,8 +240,13 @@ TelemetryObj_emit (TelemetryObject *self, PyObject *args, PyObject *kwds)
   double       v         = 0.0;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "ld", _kwlist, &id_raw, &v))
     return NULL;
-  int32_t id = (int32_t)id_raw;
-  dp_tlm_emit (self->handle, id, v);
+  int32_t id  = (int32_t)id_raw;
+  int     _rc = dp_tlm_emit_checked (self->handle, id, v);
+  if (_rc != 0)
+    {
+      PyErr_Format (PyExc_ValueError, "emit failed (rc=%d)", _rc);
+      return NULL;
+    }
   Py_RETURN_NONE;
 }
 
@@ -578,43 +597,37 @@ static PyMethodDef TelemetryObj_methods[] = {
     "    0\n" },
   { "emit", (PyCFunction)(void *)TelemetryObj_emit,
     METH_VARARGS | METH_KEYWORDS,
-    "emit(id, v) -> None\n"
+    "emit(id, v) -> int\n"
     "\n"
-    "Records one scalar for probe id. The hot-path primitive.\n"
+    "Validating dp_tlm_emit(): refuses an id the registry never issued.\n"
     "\n"
-    "Detached (t NULL) this is one branch — the entire disabled cost.\n"
-    "Attached: bump the probe's decimation phase, and on the decim-th event\n"
-    "write one 16-byte record (value narrowed to float, stamped with the\n"
-    "context's current now). Never blocks, never allocates; on ring overrun\n"
-    "the record is dropped and counted.\n"
+    "The out-of-line twin of the inline hot-path emit, for callers whose id\n"
+    "did not come from dp_tlm_probe() on this context — in practice, a\n"
+    "language binding, where the id is whatever the caller passed.\n"
+    "dp_tlm_emit() checks only the ARRAY bound (see its docs: checking\n"
+    "n_probes there costs ~16% of the decimated path), so an in-range but\n"
+    "unregistered id reaches it and emits a record against a probe nobody\n"
+    "registered. Here that is an error.\n"
     "\n"
-    "id must come from a successful dp_tlm_probe() on this context — an\n"
-    "object's set_telemetry fails the whole attach otherwise.\n"
-    "\n"
-    "The bound checked here is the ARRAY's, not the registry's. probes is a\n"
-    "fixed DP_TLM_MAX_PROBES array, so the unguarded indexing this used to\n"
-    "do turned any out-of-range id into an out-of-bounds write — reachable\n"
-    "from a language binding, where the id is whatever the caller passed,\n"
-    "and `Telemetry.emit(1000000, 1.0)` segfaulted the interpreter.\n"
-    "Comparing against the compile-time constant (unsigned, so a negative id\n"
-    "fails it too) needs no memory and measures free. Comparing against\n"
-    "n_probes instead would also reject an in-range-but-unregistered id, but\n"
-    "it loads a field on the early-return path and cost ~16% of the\n"
-    "decimated case (bench_telemetry_core, ABBA-interleaved) — so *that*\n"
-    "check belongs at the binding boundary, where the id is untrusted, not\n"
-    "in the hot loop, where the caller holds an id dp_tlm_probe() gave it.\n"
+    "C hot loops keep calling dp_tlm_emit() directly and pay nothing for\n"
+    "this.\n"
     "\n"
     "Parameters\n"
     "----------\n"
     "id : int\n"
-    "    Input.\n"
+    "    Probe id from dp_tlm_probe() on THIS context.\n"
     "v : float\n"
-    "    Input.\n"
+    "    The scalar, narrowed to float by the ring record.\n"
     "\n"
-    "    >>> import numpy as np\n"
-    "    >>> from doppler import Telemetry\n"
-    "    >>> obj = Telemetry(ring_records=16384)\n"
-    "    >>> obj.emit(0, 0.0)\n" },
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.telemetry import Telemetry\n"
+    ">>> tlm = Telemetry(1 << 12)\n"
+    ">>> pid = tlm.probe(\"rx.snr_db\")\n"
+    ">>> tlm.emit(pid, 12.5)          # registered: recorded\n"
+    ">>> tlm.emit(pid + 1, 1.0)       # never registered: refused\n"
+    "Traceback (most recent call last):\n"
+    "ValueError: emit failed (rc=-4)\n" },
   { "set_now", (PyCFunction)(void *)TelemetryObj_set_now,
     METH_VARARGS | METH_KEYWORDS,
     "set_now(n) -> None\n"

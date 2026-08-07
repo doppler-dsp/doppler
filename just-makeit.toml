@@ -1339,6 +1339,12 @@ Examples
 """
 objects = ["dp_tlm"]
 
+[module.dp_tlm_capture]
+# Hand-owned C component: the lossless capture over a dp_tlm ring. Declared so
+# jm renders its add_subdirectory line into the CMake component region it owns
+# -- a hand-added line there is dropped on the next apply.
+no_generate = "true"
+
 [module.stream]
 doc = """
 Streaming transport: NATS-backed publish/subscribe, push/pull, and request/reply of IQ sample blocks with a shared wire header, for multi-process pipelines.

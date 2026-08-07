@@ -98,11 +98,28 @@ packages = [
     "pkg-config",
 ]
 
+# Consumed by `make install-docs-deps`, which docs.yml and ci.yml's doxygen job
+# both run — so anything here is paid for twice per PR.
+#
+# NO LaTeX, deliberately. `texlive-base`, `texlive-latex-extra` and `dvipng`
+# were here and pulled 22 of 48 packages and the bulk of a 116 MB download,
+# for a step that took 66-75s and was the longest in the docs build. Nothing
+# reached any of it:
+#
+#   * `GENERATE_LATEX = NO` in the Doxyfile, so no LaTeX output is produced;
+#   * there is not one `\f$` formula under native/inc/, which is the OTHER
+#     reason doxygen shells out to latex and dvipng;
+#   * doppler's own tooling already proves it. `gen-c-api`'s pinned image is
+#     `--no-install-recommends doxygen graphviz`, and that image generates the
+#     whole of docs/c-api/; `doxygen-check` runs the zero-warning gate with
+#     `doxygen make` alone.
+#
+# If a `\f$` formula is ever added, doxygen cannot render it and says so, and
+# the zero-warning `doxygen-check` gate turns red — so this cannot rot
+# silently. Re-add the LaTeX set THEN, with that failure in hand, rather than
+# speculatively.
 [docs.apt]
 packages = [
     "doxygen",
     "graphviz",
-    "texlive-base",
-    "texlive-latex-extra",
-    "dvipng",
 ]

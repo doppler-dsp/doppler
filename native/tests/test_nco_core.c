@@ -3,13 +3,14 @@
  * @brief Unit tests for the NCO pure phase-accumulator.
  *
  * Tests:
- *   1. Lifecycle  — create / reset / destroy
- *   2. Zero freq  — phase_inc = 0, all outputs are 0
+ *   1. Lifecycle — create / reset / destroy
+ *   2. Zero freq — phase_inc = 0, all outputs are 0
  *   3. Quarter-rate — phase_inc = 0x40000000, 4-sample sequence
  *   4. Phase continuity — two consecutive blocks share state
- *   5. nmax scaling — steps_u32_scaled maps [0, 2^32) → [0, nmax)
+ *   5. nmax scaling — steps_u32_scaled maps [0, 2^32) -> [0, nmax)
  *   6. Overflow flag — carry fires exactly once per full cycle
  *   7. Property accessors — get/set norm_freq, phase, phase_inc
+ *      (+ serializable state, and pass_capacity/max_out, unnumbered)
  *   8. ctrl-port FM shift — steps_u32_ctrl deviates phase per sample
  *      without touching phase_inc/norm_freq (mirrors lo_steps_ctrl)
  *   9. steps_u32_scaled_ctrl — nmax scaling + ctrl port combined
@@ -17,6 +18,24 @@
  *      including a ctrl large enough to force >1 wrap in one sample
  *  11. Single-sample primitives (nco_step_u32*) — every batch stepper
  *      is exactly a loop over its single-sample counterpart
+ *
+ * The float boundary and the timing clock (see nco_core.h's own header
+ * for why these are one file's worth of concern):
+ *
+ *  12. nco_phase_units — the one conversion's total contract
+ *  13. nco_norm_to_inc — the fold must never hand the cast a 1.0
+ *  14. The control port COUNTS boundaries, at both widths and both
+ *      signs, under slewing control, against an independent oracle
+ *  15. Control-port edge cases the sign rule has to get exactly right
+ *  16. nco_clock_units / nco_clock_norm_to_inc — the 64-bit twin of 12
+ *  17. What the 64-bit word actually buys: PHASE error, not count
+ *  18. nco_steer_scale — bound the request, so the conversion never
+ *      has to be the one making the decision
+ *
+ * Several of these use `volatile` inputs deliberately: with literal
+ * arguments the compiler CONSTANT-FOLDS an out-of-range float->integer
+ * conversion using its own saturating rules, and the check passes at -O2
+ * without the cast ever executing.
  */
 #include "nco/nco_core.h"
 #include <math.h>
@@ -623,10 +642,14 @@ main (void)
    * -1e-16 already returns, one representable step away. A settled
    * timing loop's ctrl passes through this band routinely.
    * ---------------------------------------------------------------- */
+  /* ----------------------------------------------------------------
+   * 12. nco_phase_units — the one conversion's total contract
+   *
+   * Pinned here because every other conversion site in the library now
+   * inherits it. `volatile` throughout for the constant-folding reason
+   * section 13 explains.
+   * ---------------------------------------------------------------- */
   {
-    /* nco_phase_units is the one conversion; pin its total contract here,
-       because every other site now inherits it. `volatile` throughout for
-       the same constant-folding reason as below. */
     volatile double u;
 
     u = -1.0;

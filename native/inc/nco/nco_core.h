@@ -1,27 +1,66 @@
 /**
  * @file nco_core.h
- * @brief Pure 32-bit phase-accumulator NCO.
+ * @brief Phase-accumulator NCOs, and the one float->integer boundary they
+ *        all share.
  *
- * Implements a numerically-controlled oscillator whose 32-bit phase
- * register advances by phase_inc every sample and wraps naturally at
- * 2^32, giving exact integer arithmetic with no floating-point drift.
- * Three output mappings expose different views of the accumulator:
+ * Three layers, and the order matters: everything below the first one is
+ * exact integer arithmetic that C99 defines outright, so all the care lives
+ * at the top.
  *
- *   nco_steps_u32        raw accumulator value  `[0, 2^32)`
- *   nco_steps_u32_scaled (uint64)phase * nmax >> 32  →  [0, nmax)
- *   nco_steps_u32_ovf    raw phase + per-sample carry flag
+ * ## 1. The float boundary — the ONLY double->integer conversion
  *
- * nmax=0 in nco_steps_u32_scaled is treated identically to
- * nco_steps_u32 (returns raw accumulator unchanged).
+ *   nco_phase_units      double -> uint32 phase word, total and saturating
+ *   nco_clock_units      the 64-bit twin
+ *   nco_norm_to_inc      fold cycles into [0, 1), then convert (32-bit)
+ *   nco_clock_norm_to_inc  the 64-bit twin
+ *   nco_steer_scale      bound `1 + control` to a band, BEFORE converting
  *
- * Normalised-frequency → phase_inc conversion:
- *   phase_inc = floor((norm_freq mod 1.0) × 2^32)
+ * C99 guarantees the integer half: unsigned arithmetic is reduced modulo
+ * 2^N for every unsigned type (6.2.5p9) and uintN_t is exactly N bits with
+ * no padding (7.20.1.1), so wrapping, carry and borrow need no reasoning at
+ * either width. Undefined behaviour can enter at exactly one place -- a
+ * double whose truncated value the integer type cannot represent (6.3.1.4)
+ * -- which makes confining that cast a STRUCTURAL rule, not a stylistic
+ * one. A second conversion site anywhere forfeits the guarantee no matter
+ * how careful these are, so every double-valued phase quantity does its
+ * arithmetic in double and then passes through here.
  *
- * Negative frequencies fold correctly: −0.25 → phase_inc = 3×2^30.
+ * nco_steer_scale() is the companion, and the reason the conversions should
+ * almost never be the ones making a decision: a conversion can only
+ * saturate or floor a request that is already insane, and both are
+ * symptoms. Bounding the request is the fix.
  *
- * reset() zeroes phase only; norm_freq and nmax are unchanged.
+ * Fold, then convert, is exact in VALUE but destroys the SIGN -- -0.25 and
+ * +0.75 are the same phase word. Anything that needs direction (carry vs
+ * borrow) must therefore form the signed quantity BEFORE folding.
  *
- * Lifecycle: nco_create → (steps / reset)* → nco_destroy
+ * ## 2. nco_state_t — a 32-bit NCO for SYNTHESIS
+ *
+ * A phase register advancing by phase_inc every sample, wrapping naturally
+ * at 2^32. What you synthesise from: a LUT index, a carrier angle. Three
+ * output mappings, each with a matching per-sample control-port variant
+ * (`_ctrl`) and a single-sample primitive (nco_step_u32*):
+ *
+ *   nco_steps_u32        raw accumulator value  [0, 2^32)
+ *   nco_steps_u32_scaled (uint64)phase * nmax >> 32  ->  [0, nmax)
+ *   nco_steps_u32_ovf    raw phase + a per-sample cycle-boundary flag
+ *
+ * nmax = 0 in the scaled form is identical to the raw form. reset() zeroes
+ * phase only; norm_freq and nmax are unchanged. Serializable via the
+ * standard bytes interface (dp_state.h).
+ *
+ * ## 3. nco_clock_t — a 64-bit accumulator for TIMING
+ *
+ * Distinct in ROLE, not merely in width. Where nco_state_t yields a phase
+ * to synthesise from, nco_clock_t yields an EVENT: the strobe saying an
+ * output period completed. Nothing averages a strobe away, so a clock needs
+ * rate resolution a synthesis phase does not -- a resampler is handed an
+ * exactly rational rate like m/sps, which lands the wrap precisely on the
+ * boundary every period, and 32 bits loses a strobe there permanently.
+ * See nco_clock_t for the measured argument.
+ *
+ * Lifecycle: nco_create -> (steps / reset)* -> nco_destroy. The clock is a
+ * by-value struct (nco_clock_init), embedded by its owner.
  *
  * @code
  * nco_state_t *nco = nco_create(0.25, 0);

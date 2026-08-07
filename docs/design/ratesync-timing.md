@@ -243,6 +243,44 @@ properties are wanted, and the options are not equivalent:
 Do not swap `resamp` onto the 32-bit NCO to close §1.2; that trades a 0.126 rad
 instrument-grade glitch for a link-grade strobe slip.
 
+### 1.5 One float→integer conversion, or none of the guarantees hold
+
+C99 guarantees the *integer* half outright: unsigned arithmetic is reduced
+modulo 2^N for every unsigned type (6.2.5p9), and `uintN_t` is exactly N bits
+with no padding (7.20.1.1). A phase accumulator is therefore fully defined at
+any width — 32 or 64 — and needs no reasoning at all.
+
+Undefined behaviour can enter at exactly one place: a `double` converted to an
+integer type that cannot represent the truncated value (6.3.1.4). So the rule
+is structural rather than stylistic — **the conversion happens in one function,
+and everything downstream is integer.** Anywhere a second site does its own
+`double → uint32_t`, the guarantee is gone, and no amount of care at the
+primitive restores it.
+
+doppler does not hold that rule today. Four `norm_freq → phase_inc`
+conversions exist and only the first routes through `nco_norm_to_inc`:
+
+| site                           | shape                      | measured at the boundary                                 |
+| ------------------------------ | -------------------------- | -------------------------------------------------------- |
+| `nco_core.h` `nco_norm_to_inc` | `frac(cycles) · 2^32`      | guarded — returns `2^32-1`                               |
+| `resamp_core.c:134`, `:290`    | `2^32 / rate`              | `rate = 1.0` → **0**                                     |
+| `symsync_core.c:148`           | `2^32 / sps`               | `sps = 1.0` → **0**                                      |
+| `symsync_core.h:214`           | `base_inc · (1 + control)` | `control = +0.5` → **536870912** for an exact 4831838208 |
+
+All three unguarded sites are live, not theoretical. `resamp`'s `upsample` flag
+is `rate >= 1.0`, so `rate == 1.0` — the rate `ratesync`'s terminal stage
+actually runs at — takes the divide branch and computes `(uint32_t)2^32`. The
+`symsync` steer is worse than a saturation: at `control = +0.5` the increment
+does not clamp, it **wraps to about a ninth of its correct value**, silently,
+on the active steering path of a closed timing loop.
+
+The three shapes want one helper, not three fixes: do the arithmetic in
+`double`, then pass through a single guarded `double → phase units` conversion
+that is the only such cast in the codebase, with `nco_norm_to_inc` as one
+caller of it rather than the exception that happens to be correct. That is also
+what retires the duplication CLAUDE.md already records across `nco_core.c`,
+`lo_core.c` and `dll_core.h`.
+
 Unless stated otherwise every number below is QPSK, `sps = 8`, `m = 8`,
 `num_phases = 32`, `pulse = "rrc"` with `beta = 0.35, span = 8` on both sides,
 Es/N0 = 60 dB so that quantisation and ISI rather than noise set the result,

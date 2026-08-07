@@ -601,12 +601,12 @@ on its own for any M-PSK / unmodulated carrier:
 - **Config:** `m` (2/4/8), `sps`, `n` (default 4), `bn`, `zeta`, seed
     `init_norm_freq`. All params default + keyword-capable (no forced positionals).
 
-Working name **`track.CarrierNda`** (non-data-aided). Naming review: there are
-now three carrier loops — `Costas` (BPSK decision-directed), `CarrierMpsk`
-(M-PSK decision-directed), `CarrierNda` (M-PSK non-data-aided). This revives the
-earlier `track.Carrier.*` namespace idea; deferred (the jm-owned `__init__.py`
-makes a nested namespace a drift / `.so`-is-the-API concern) — flat names
-for now.
+Shipped as **`track.CarrierNda`** (non-data-aided). There are three carrier
+loops now — `Costas` (BPSK decision-directed), `CarrierMpsk` (M-PSK
+decision-directed) and `CarrierNda` (M-PSK non-data-aided) — which revived the
+earlier `track.Carrier.*` namespace idea. Still deferred: the jm-owned
+`__init__.py` makes a nested namespace a drift / `.so`-is-the-API concern, so
+the names stay flat.
 
 **Since the rebuild, `MpskReceiver` no longer embeds `CarrierNda` as a whole.**
 It cannot: `CarrierNda` owns an NCO and a boxcar arm, and the receiver's NCO is
@@ -705,23 +705,15 @@ Gardner+Farrow loop, and a dense `fir` matched filter.
 
 ______________________________________________________________________
 
-## 7. Build plan (sequential, each rock-solid first) — **complete**
+## 7. Build plan — **complete**
 
-Steps 1–3 shipped as written; step 4 is the rebuild this document now describes.
-
-1. **`track.CarrierNda`** — the NDA M-th-power carrier loop primitive (§3).
-    Validate: open-loop S-curve `phase_error(φ)` = the period-`2π/M` sawtooth per
-    M; `lock_signal` vs phase/SNR; cold-start frequency pull-in on an *unmodulated*
-    carrier and on modulated data with **no timing**; jitter vs bn. Gallery.
-1. **`fir_step` + `symsync_init`** — the additive inline composition APIs (tiny,
-    byte-identical to the block paths; their own parity tests).
-1. **`track.MpskReceiver`** — the composition (§1). Validate end-to-end BER vs
-    Es/N0 per M within ~1–2 dB of the MPSK bound, with a carrier offset + timing
-    offset + pulse shaping; opt-in auto-handover engages and holds; I&D and RRC
-    modes; reset-reproducible; block-size invariant (independent output per call,
-    the gh-219 rule). DSSS-MPSK example chaining `Dll(segments) → MpskReceiver`.
-    Gallery: constellation pull-in (cloud → M clusters), carrier + timing locks,
-    BER table.
+`CarrierNda` (§3), the `fir_step` / `symsync_init` inline composition APIs, and
+`MpskReceiver` itself all shipped in that order, and the engine rebuild (§1.1)
+followed. The acceptance criteria this section used to enumerate are no longer
+a plan: they are the tests, in `native/tests/test_mpsk_receiver_core.c` and
+`src/doppler/track/tests/`, and the gallery pages named at the top of this
+document. Read those for what is actually guaranteed — a plan describes what
+someone intended, and only the tests describe what holds.
 
 ______________________________________________________________________
 
@@ -884,28 +876,65 @@ Rules below are written in `sps` because that is today's parameter; under
 §9.1 only `m_out`'s changes shape, to `min(8, 2·floor(fs/(2·Rs)))`. The rest
 are dimensionless and read identically either way.
 
-| Param          | Rule                                                                                                                                                                                                                                          | Status                                                                 |
-| -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
-| `m_out`        | `min(8, 2·floor(sps/2))`. The real twin needs `min(8, 2·floor(sps/4))`, since its cascade sits behind the halfband (§1.2). `iandd` under 4 keeps the existing `narrow_pulse` warning (§4) rather than becoming a rejection.                   | firm                                                                   |
-| `zeta`         | `1/√2` — a constant, not a computation. Nothing else in the receiver moves the optimal damping, and both loops already share one value.                                                                                                       | firm                                                                   |
-| `acq_to_track` | `1`, always. At the default `m_out = 8` every tap decodes every order both with and without it (§2.2.1); the one measured cost is `lo_arm` trading EVM at equal SER.                                                                          | verify                                                                 |
-| `lock_thresh`  | `σ_H0 · η(Pfa)` at a fixed `Pfa = 5e-6`: `0.1132 × 4.4159 = 0.4999`, today's 0.5. The limited statistic reads ~1.0 at lock for **every** M (§2.3), so no per-M correction is carried — that was the `lock_scale` bug, already resolved in §8. | firm                                                                   |
-| `warmup_syms`  | `max(1/MPSK_RX_AGC_BW, 5/bn_carrier + 5/bn_timing on the strobe tap)` → 1000 at the defaults, against a shipped 100. The AGC floor is 500 symbols outright (§2.3); the timing term is why §2.4 wants timing settled before handover.          | firm in form                                                           |
-| `num_phases`   | Timing quantisation is `1/(P·m_out)` symbols; budgeting its EVM contribution at −40 dB gives `P ≥ 100/m_out` → 16 at the default, against a shipped 1024.                                                                                     | **TBD** — needs a measured EVM-vs-`P` sweep; nothing here defends 1024 |
-| `nda_tap`      | Not derivable — see §9.3.                                                                                                                                                                                                                     | open                                                                   |
+| Param          | Rule                                                                                                                                                                                                                                          | Status       |
+| -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------ |
+| `m_out`        | `min(8, 2·floor(sps/2))`. The real twin needs `min(8, 2·floor(sps/4))`, since its cascade sits behind the halfband (§1.2). `iandd` under 4 keeps the existing `narrow_pulse` warning (§4) rather than becoming a rejection.                   | firm         |
+| `zeta`         | `1/√2` — a constant, not a computation. Nothing else in the receiver moves the optimal damping, and both loops already share one value.                                                                                                       | firm         |
+| `acq_to_track` | `1`, always. At the default `m_out = 8` every tap decodes every order both with and without it (§2.2.1); the one measured cost is `lo_arm` trading EVM at equal SER.                                                                          | verify       |
+| `lock_thresh`  | `σ_H0 · η(Pfa)` at a fixed `Pfa = 5e-6`: `0.1132 × 4.4159 = 0.4999`, today's 0.5. The limited statistic reads ~1.0 at lock for **every** M (§2.3), so no per-M correction is carried — that was the `lock_scale` bug, already resolved in §8. | firm         |
+| `warmup_syms`  | `max(1/MPSK_RX_AGC_BW, 5/bn_carrier + 5/bn_timing on the strobe tap)` → 1000 at the defaults, against a shipped 100. The AGC floor is 500 symbols outright (§2.3); the timing term is why §2.4 wants timing settled before handover.          | firm in form |
+| `num_phases`   | `P · m_out = 256` — a fixed timing resolution of 1/256 of a symbol — rounded to a power of two, so **P = 32** at the default `m_out = 8`, against a shipped 1024. Measured rather than modelled; see §9.2.1.                                  | **measured** |
+| `nda_tap`      | Not derivable — see §9.3.                                                                                                                                                                                                                     | open         |
 
-**The rows are not equally well founded, and the weakest one is worth naming.**
-Five rest on measurements recorded elsewhere in this document — `m_out` on EVM
-against the coherent bound and per-M SER at each anchor, `lock_thresh` on an
-analytic H0 sd confirmed by 0/100 false declares at every M, `acq_to_track` on
-§2.2.1's tap × order table, `warmup_syms` on a stated settling rule plus a
-measured AGC floor, and `zeta` on the fact that nothing anywhere varies it.
-`num_phases` rests on **nothing in either direction**: neither the shipped
-1024 nor the proposed 16 has a measurement behind it. It is the one row that
-should be settled by experiment before it is written down as a rule, and it is
-also the only row with a performance argument attached — the bank is
-`P × ntaps × 4` bytes, so the difference is 139 KB against 2 KB, and the same
-factor in create-time tap generation.
+**The rows are not equally well founded.** Five rest on measurements recorded
+elsewhere in this document — `m_out` on EVM against the coherent bound and
+per-M SER at each anchor, `lock_thresh` on an analytic H0 sd confirmed by
+0/100 false declares at every M, `acq_to_track` on §2.2.1's tap × order table,
+`warmup_syms` on a stated settling rule plus a measured AGC floor, and `zeta`
+on the fact that nothing anywhere varies it. `num_phases` had nothing behind
+it in either direction, so it was measured; §9.2.1 is that measurement.
+
+#### 9.2.1 The `num_phases` measurement
+
+Worth recording in full, because the shipped default of 1024 and the first
+proposed replacement (`P ≥ 100/m_out` → 16) were both guesses and both wrong.
+
+**Method.** QPSK, `sps = 8`, `m_out = 8` unless swept, `bn = 0.01` on both
+loops. The receiver is given an `sps` 1000 ppm off the stimulus so the timing
+loop tracks a genuine rate error and sweeps every arm — a static `sps` parks
+it on one arm and turns quantisation into a fixed bias rather than the jitter
+it is. Es/N0 = 60 dB so quantisation rather than noise sets EVM. Windows from
+`ber_settle_syms` / `ber_evm_db`.
+
+**It is pulse-dependent, which no prior rule captured.** With
+`pulse = "iandd"` the recovered symbols are **bit-identical from P = 2 to
+P = 64**. The I&D pulse response is a rectangle — a 0/1 function — so shifting
+an arm changes a tap only when it moves a sample across the rectangle's edge;
+adjacent arms are literal duplicates and `P` buys nothing until the edges
+resolve. With `pulse = "rrc"` every arm differs and `P` sets real resolution.
+
+**On RRC the knee sits at 1/256 of a symbol, scaling with `m_out` exactly as
+`1/(P·m_out)` predicts.** EVM reaches within 0.2 dB of its saturated value at:
+
+| `m_out` | knee `P`                                  | `P · m_out` |
+| ------- | ----------------------------------------- | ----------- |
+| 2       | between 64 and 256 (the grid skipped 128) | ~256–512    |
+| 4       | 64                                        | 256         |
+| 8       | 32                                        | 256         |
+
+**The shipped default buys nothing it costs for.** At `m_out = 8`, P = 1024
+against P = 32 is 0.19 dB of EVM, for 136 KB of bank against 4.2 KB and 16.3 µs
+of construction against ~2 µs.
+
+**Caveats, so the numbers are not over-read.** One operating point, one seed
+per cell. The stimulus itself floors at −51 dB EVM, so the saturated values
+(−43.5 dB RRC, −46.8 dB I&D) are not the receiver's true floor — the knee
+*location* is what this sweep resolves, and that is unambiguous. And a first
+attempt imposed the clock offset by running the stimulus through a
+`Resampler`, which read a 22 dB penalty that was entirely the resampler
+mangling a full-band rectangular pulse through a filter designed for
+band-limited input. The offset has to come from a deliberate `sps` mismatch;
+resampling the stimulus measures the resampler.
 
 ### 9.3 Why `nda_tap` is not on that list
 

@@ -1,0 +1,29 @@
+# Keep the Actions pins from going stale again.
+#
+# They had drifted three to five majors before anyone looked, and the cost was
+# not the versions themselves — almost every major in that gap was "now runs on
+# Node 24" — but that the drift was invisible until GitHub started printing a
+# deprecation notice on every run. A weekly PR makes it a diff instead.
+#
+# Only `github-actions` is watched here. Python dependencies are pinned by
+# `uv.lock` and the jm pin lives in three places that must move together, so
+# both are deliberately a human's job.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    # One PR for everything, not fourteen. These move together in practice —
+    # a Node runtime bump lands across the whole ecosystem within weeks — and
+    # reviewing them as a set is the only way to see that shape.
+    groups:
+      actions:
+        patterns:
+          - "*"
+    commit-message:
+      prefix: chore
+      include: scope
+    labels:
+      - dependencies
+    open-pull-requests-limit: 3

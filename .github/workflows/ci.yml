@@ -15,9 +15,6 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-
 jobs:
   # ------------------------------------------------------------------
   # Native C build + CTest on Ubuntu and macOS
@@ -34,7 +31,7 @@ jobs:
         os: [ubuntu-22.04, ubuntu-24.04, macos-latest]
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7.0.1
 
     # `make install-deps` is the one dep command a developer also runs: it
     # self-bootstraps jbx and installs jb.toml's runtime+dev groups, auto-
@@ -117,13 +114,13 @@ jobs:
         python-version: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7.0.1
 
     - name: Install system dependencies
       run: make install-deps
 
     - name: Install uv + Python + package deps
-      uses: astral-sh/setup-uv@v4
+      uses: astral-sh/setup-uv@v9.0.0
       with:
         python-version: ${{ matrix.python-version }}
 
@@ -194,7 +191,7 @@ jobs:
       run: make test-examples-python
 
     - name: Upload coverage report
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7.0.1
       if: matrix.python-version == '3.12'
       with:
         name: coverage-report
@@ -210,7 +207,7 @@ jobs:
     container: debian:buster-slim
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7.0.1
 
     - name: Install build deps + cmake ≥ 3.16
       run: |
@@ -251,7 +248,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7.0.1
 
     - name: Install doxygen + LaTeX
       run: make install-docs-deps
@@ -275,7 +272,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7.0.1
       with:
         fetch-depth: 0
 
@@ -292,10 +289,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7.0.1
 
     - name: Install uv
-      uses: astral-sh/setup-uv@v4
+      uses: astral-sh/setup-uv@v9.0.0
       with:
         python-version: '3.12'
 
@@ -324,7 +321,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7.0.1
 
     - name: Build + smoke the build-on-doppler images
       run: make docker-examples
@@ -352,7 +349,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7.0.1
 
     # uv, not bare setup-python: the hooks now DISPATCH into the Makefile
     # (`make -s lint-ruff`), which invokes `$(DEV_RUN) <tool>` so the version
@@ -361,7 +358,7 @@ jobs:
     # local cache and a fresh runner holding different mdformat plugins and
     # disagreeing about the same file.
     - name: Install uv
-      uses: astral-sh/setup-uv@v4
+      uses: astral-sh/setup-uv@v9.0.0
       with:
         python-version: '3.12'
 
@@ -379,10 +376,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7.0.1
 
     - name: Install uv
-      uses: astral-sh/setup-uv@v4
+      uses: astral-sh/setup-uv@v9.0.0
 
     - name: Check manifest drift
       # --refresh: ignore setup-uv's cached PyPI index so a just-published jm
@@ -404,7 +401,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7.0.1
       with:
         # Full history so the patch gate can diff against origin/main.
         fetch-depth: 0
@@ -417,7 +414,7 @@ jobs:
         sudo apt-get install -y clang llvm
 
     - name: Install uv + Python + package deps
-      uses: astral-sh/setup-uv@v4
+      uses: astral-sh/setup-uv@v9.0.0
       with:
         python-version: '3.13'
 
@@ -454,7 +451,7 @@ jobs:
 
     - name: Upload coverage report
       if: always()
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7.0.1
       with:
         name: coverage-report
         path: |

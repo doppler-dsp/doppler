@@ -250,7 +250,7 @@ jobs:
     steps:
     - uses: actions/checkout@v7.0.1
 
-    - name: Install doxygen + LaTeX
+    - name: Install doxygen
       run: make install-docs-deps
 
     - name: Run doxygen (zero warnings)

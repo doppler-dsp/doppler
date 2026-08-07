@@ -278,14 +278,23 @@ lo_steps (lo_state_t *state, size_t n, float complex *out, size_t max_out)
  * scan over the 16 per-sample deltas, then a single vector add of the
  * base phase.  LUT gather and IQ interleave are identical to lo_steps.
  *
- * Precision: ctrl_inc uses float32 (multiply by 2^32).  The ULP at
- * 2^32 in float32 is 2^8 = 256, so ctrl_inc is accurate to ±128 in
- * its lowest 8 bits — below one LUT bin (2^16 counts).  No effect on
- * the top 16 bits that drive the LUT.  Rounds to nearest (matching
- * nco_norm_to_inc()'s convention, not a truncating cast) via
- * _mm512_cvtps_epu32 — see nco_norm_to_inc()'s own doc comment on why
- * a duplicated truncating copy of this conversion is a standing bug,
- * not a style choice.
+ * The ctrl -> phase-word conversion is nco_phase_units() by way of
+ * nco_norm_to_inc(), per lane, exactly as the scalar tail below does it.
+ * Everything after it — the prefix scan, the LUT gather, the interleave —
+ * stays vectorised; only the one cast the library is allowed to make is
+ * taken out of the vector unit.
+ *
+ * It used to be a private copy: _mm512_cvtps_epu32 of a FLOAT32 fold,
+ * round-to-nearest, annotated as "matching nco_norm_to_inc()'s
+ * convention" when that convention is truncation, and citing that
+ * function's warning against private copies as the licence to keep one.
+ * It disagreed with its own scalar tail twice over — rounding, and a
+ * float32 ULP of 256 at 2^32 that left each increment good to only ±128
+ * units. The argument for tolerating that was "below one LUT bin, no
+ * effect on the top 16 bits", which is true per sample and beside the
+ * point: ctrl_inc feeds a PREFIX SUM, so the error integrates. Measured
+ * over 4096 samples it moved the accumulated phase by 3673 units and
+ * changed 175 outputs outright.
  */
 size_t
 lo_steps_ctrl (lo_state_t *state, const float *ctrl, size_t ctrl_len,
@@ -308,18 +317,16 @@ lo_steps_ctrl (lo_state_t *state, const float *ctrl, size_t ctrl_len,
   __m512i vzero = _mm512_setzero_si512 ();
   __m512i vmask = _mm512_set1_epi32 (0xFFFF);
   __m512i vqtr  = _mm512_set1_epi32 (LO_LUT_QTR);
-  __m512  v2p32 = _mm512_set1_ps (4294967296.0f);
 
   size_t i = 0;
   for (; i + 16 <= ctrl_len; i += 16)
     {
-      /* Load 16 ctrl floats; use fractional part = ctrl - floor(ctrl). */
-      __m512 vc    = _mm512_loadu_ps (ctrl + i);
-      __m512 vfrac = _mm512_sub_ps (vc, _mm512_floor_ps (vc));
-
-      /* ctrl_inc[k] = round(frac[k] * 2^32) -- round-to-nearest, not
-       * truncating, to match nco_norm_to_inc()'s convention. */
-      __m512i vci = _mm512_cvtps_epu32 (_mm512_mul_ps (vfrac, v2p32));
+      /* ctrl_inc[k] through the one shared conversion, per lane, so the
+       * body and the scalar tail cannot disagree. */
+      uint32_t ci[16];
+      for (int k = 0; k < 16; k++)
+        ci[k] = nco_norm_to_inc ((double)ctrl[i + k]);
+      __m512i vci = _mm512_loadu_si512 (ci);
 
       /* delta[k] = inc + ctrl_inc[k] */
       __m512i vd = _mm512_add_epi32 (vinc, vci);
@@ -357,9 +364,7 @@ lo_steps_ctrl (lo_state_t *state, const float *ctrl, size_t ctrl_len,
       ph += (uint32_t)_mm512_reduce_add_epi32 (vd);
     }
 
-  /* Scalar tail — the shared double-precision primitive, not a
-   * private copy (nco_norm_to_inc() already floor-normalizes and
-   * rounds to nearest). */
+  /* Scalar tail — the same shared primitive the body above now uses. */
   for (; i < ctrl_len; i++)
     {
       uint32_t ctrl_inc = nco_norm_to_inc ((double)ctrl[i]);

@@ -291,19 +291,54 @@ saturating rules, and the check passes at `-O2` without the cast ever
 executing — the first version of the `nco_norm_to_inc` test passed for exactly
 that reason before the fix existed.
 
-**Still open: `lo_core.c` keeps a fifth, private copy.** Its AVX-512
-`lo_steps_ctrl` computes `ctrl_inc` with `_mm512_cvtps_epu32` on a **float32**
-fold, while the scalar tail of the same function (and its non-AVX fallback)
-calls `nco_norm_to_inc` on a **double**. The comment at the SIMD site claims it
-rounds *"to match `nco_norm_to_inc()`'s convention"* — but that convention is
-truncation, and the reason it is truncation is the host-determinism this very
-divergence breaks. So the two halves of one function disagree by up to a phase
-unit for small `ctrl`, which is the settled-loop regime. Not undefined (the ISA
-defines the conversion, and out-of-range yields `0xFFFFFFFF`, which now agrees
-with `nco_phase_units`), but untested: there is no scalar/SIMD parity test for
-`lo`, and the block is `#ifdef __AVX512F__`, so a portable build never compiles
-it. Folding it in retires the last of the duplication CLAUDE.md records across
-`nco_core.c`, `lo_core.c` and `dll_core.h`.
+**`lo_core.c` held a fifth, private copy — folded in, and it should not have
+existed at all.** Its AVX-512 `lo_steps_ctrl` derived `ctrl_inc` with
+`_mm512_cvtps_epu32` on a **float32** fold, while the scalar tail of the same
+function called `nco_norm_to_inc` on a **double**. Two disagreements at once:
+round-to-nearest against the primitive's truncation, and a float32 ULP of 256
+at 2^32, leaving each increment good to only ±128 units. The comment claimed
+the rounding was *"matching `nco_norm_to_inc()`'s convention"* — that convention
+is truncation, and truncation is chosen precisely for the host-determinism the
+divergence broke — and it cited that function's warning against private copies
+as the licence to keep one.
+
+Its defence was that ±128 is *"below one LUT bin, no effect on the top 16
+bits"*. True per sample, and beside the point: `ctrl_inc` feeds a **prefix
+sum**, so the error integrates. Measured over 4096 samples, the block call and
+the same `ctrl` fed one sample at a time (which takes the scalar tail) diverged
+by **3673 phase units** and **175 of 4096 outputs differed**, worst
+|err| 9.6e−05. Both are now bit-identical, pinned by a one-at-a-time-equals-block
+test — the same property `resamp`'s control port relies on. That test only bites
+where the body compiles: the default build is `-march=x86-64-v2`, so
+`__AVX512F__` is undefined and both paths are the same scalar loop. It was
+verified to fail by building `lo_core.c` with `-mavx512f`.
+
+**The block is a pessimization and should be deleted.** Measured on this host,
+same benchmark, `lo_steps_ctrl` over 65536 samples:
+
+| build                                              | Msamp/s  |
+| -------------------------------------------------- | -------- |
+| scalar loop, shipped baseline (`-march=x86-64-v2`) | **1015** |
+| AVX-512 block, old private float32 cast            | 767      |
+| AVX-512 block, shared primitive (correct)          | 260      |
+| scalar loop, AVX-512 block compiled out, `native`  | 259      |
+
+Two separate things. First, the hand-written 512-bit kernel **never won**: even
+in its incorrect, cheap-cast form it is 1.3× *slower* than the plain scalar loop
+at the shipped baseline. That is exactly the effect `CMakeLists.txt` already
+documents — *"forcing 512-bit vectors measured slower than SSE4.2 on
+complex-float DSP kernels"* — and caps with `-mprefer-vector-width=256`, which
+constrains auto-vectorization but cannot constrain explicit `_mm512_*`
+intrinsics. The block is the one thing the policy exists to prevent, exempted by
+being hand-written.
+
+Second, the 1015 → 259 drop is **caused by `-march=native`, not by this
+change**: the scalar loop alone falls to 259 Msamp/s under the native flags
+(most likely the LUT lookup auto-vectorising into a `vgather`, which has no
+equivalent at `x86-64-v2` and is slower than scalar loads). Folding the block
+onto the shared primitive makes it pay that same cost, because it now calls
+`nco_norm_to_inc`. Nothing shipped is affected — a distributed wheel builds
+`x86-64-v2` and has always run the scalar fallback.
 
 Unless stated otherwise every number below is QPSK, `sps = 8`, `m = 8`,
 `num_phases = 32`, `pulse = "rrc"` with `beta = 0.35, span = 8` on both sides,

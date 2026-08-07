@@ -485,6 +485,61 @@ main (void)
     lo_destroy (ref);
   }
 
+  /* lo_steps_ctrl: the vectorised body and the scalar tail are ONE
+   * function and must agree bit-for-bit.
+   *
+   * The AVX-512 body processes 16 lanes at a time; anything shorter than
+   * 16, and the remainder of any longer call, falls to the scalar tail.
+   * Feeding the same ctrl one sample at a time therefore drives the tail
+   * exclusively, and a block call drives the body -- the same
+   * one-at-a-time-equals-block property resamp's control port relies on.
+   *
+   * This caught a real divergence: the body derived ctrl_inc from a
+   * FLOAT32 fold (`_mm512_cvtps_epu32` of `frac * 2^32`), while the tail
+   * called the shared double-precision primitive. Two disagreements at
+   * once -- round-to-nearest against the primitive's truncation, and a
+   * float32 ULP of 256 at 2^32, so each lane's increment was good to only
+   * +-128 units. The block comment argued the error was "below one LUT
+   * bin", which is true per sample and irrelevant: ctrl_inc feeds a PREFIX
+   * SUM, so the error integrates over the call rather than staying local.
+   *
+   * NB this test only bites where the body is compiled. The default build
+   * is -march=x86-64-v2, so __AVX512F__ is undefined and both paths are
+   * the same scalar loop; it was verified to fail by building lo_core.c
+   * with -mavx512f. */
+  {
+    enum
+    {
+      N = 61
+    }; /* not a multiple of 16: exercises body AND tail */
+    float         ctrl[N];
+    float complex blk[N], one[N];
+    for (int i = 0; i < N; i++)
+      /* Both signs, and magnitudes down to where a float32 conversion
+         loses its low bits entirely. */
+      ctrl[i] = (float)(0.013 * sin (0.21 * i) - 1e-7 * (i & 7));
+
+    lo_state_t *lb  = lo_create (0.037);
+    lo_state_t *lo1 = lo_create (0.037);
+    CHECK (lb && lo1);
+    if (lb && lo1)
+      {
+        CHECK (lo_steps_ctrl (lb, ctrl, N, blk, N) == (size_t)N);
+        for (int i = 0; i < N; i++)
+          CHECK (lo_steps_ctrl (lo1, ctrl + i, 1, one + i, 1) == 1);
+        for (int i = 0; i < N; i++)
+          {
+            CHECK (crealf (blk[i]) == crealf (one[i]));
+            CHECK (cimagf (blk[i]) == cimagf (one[i]));
+          }
+        /* And the accumulated phase, which is where an integrated
+           per-sample error shows up even if every output rounded alike. */
+        CHECK (lo_get_phase (lb) == lo_get_phase (lo1));
+        lo_destroy (lb);
+        lo_destroy (lo1);
+      }
+  }
+
   if (_fails)
     {
       fprintf (stderr, "test_lo_core FAILED (%d)\n", _fails);

@@ -505,11 +505,85 @@ main (void)
     remove (meta);
   }
 
+  /* ── the copy-out drain (dp_tlm_capture_read) ──────────────────────────
+     The zero-copy dp_tlm_capture_records() cannot be handed to a binding --
+     it would be a pointer the capture frees underneath the caller -- so the
+     copying twin is what the Python face binds. Same records, same order;
+     that equivalence is the thing to pin. */
+  {
+    dp_tlm_t         *t  = dp_tlm_create (1 << 12);
+    int               id = dp_tlm_probe (t, "x", 1);
+    dp_tlm_capture_t *c  = dp_tlm_capture_open_memory (t, 8, NULL);
+    CHECK (c != NULL);
+
+    for (int b = 0; b < 5; b++)
+      {
+        dp_tlm_set_now (t, (uint64_t)b * 8);
+        dp_tlm_emit (t, id, (double)b);
+      }
+    CHECK (dp_tlm_capture_close (c) == DP_OK);
+    CHECK (dp_tlm_capture_count (c) == 5);
+    CHECK (dp_tlm_capture_read_max_out (c) == 5);
+
+    dp_tlm_rec_t got[8];
+    /* n == 0 means "everything accumulated". */
+    CHECK (dp_tlm_capture_read (c, 0, got, 8) == 5);
+    const dp_tlm_rec_t *view = dp_tlm_capture_records (c);
+    CHECK (view != NULL);
+    CHECK (memcmp (got, view, 5 * sizeof *got) == 0);
+    for (int b = 0; b < 5; b++)
+      {
+        CHECK (got[b].n == (uint64_t)b * 8);
+        CHECK (got[b].value == (float)b);
+      }
+
+    /* Clamped to the smaller of the request and the destination -- both
+       directions, since either alone would look correct on the other's
+       test. */
+    CHECK (dp_tlm_capture_read (c, 3, got, 8) == 3);
+    CHECK (dp_tlm_capture_read (c, 0, got, 2) == 2);
+    CHECK (dp_tlm_capture_read (NULL, 0, got, 8) == 0);
+
+    CHECK (dp_tlm_capture_destroy (c) == DP_OK);
+    dp_tlm_destroy (t);
+  }
+
+  /* ── destroy REPORTS the verdict, it does not swallow it ───────────────
+     A `with` block's exit and a garbage collection both land on destroy, so
+     a hole that only close() could report would be unreachable from
+     idiomatic Python. Both arms matter: a clean capture must stay quiet, or
+     the loud one is just noise. */
+  {
+    dp_tlm_t         *t  = dp_tlm_create (1 << 12);
+    int               id = dp_tlm_probe (t, "x", 1);
+    dp_tlm_capture_t *c  = dp_tlm_capture_open_memory (t, 8, NULL);
+    for (int b = 0; b < 4; b++)
+      {
+        dp_tlm_set_now (t, (uint64_t)b * 8);
+        dp_tlm_emit (t, id, (double)b);
+      }
+    CHECK (dp_tlm_capture_destroy (c) == DP_OK); /* clean: silent */
+    dp_tlm_destroy (t);
+  }
+  {
+    dp_tlm_t         *t  = dp_tlm_create (1 << 12);
+    int               id = dp_tlm_probe (t, "x", 1);
+    dp_tlm_capture_t *c  = dp_tlm_capture_open_memory (t, 8, NULL);
+    /* Break the block contract: no boundary at all, far past the bound. */
+    for (int i = 0; i < 20000; i++)
+      dp_tlm_emit (t, id, (double)i);
+    CHECK (dp_tlm_dropped (t) > 0);
+    /* Destroying WITHOUT closing first must still surface the hole. */
+    CHECK (dp_tlm_capture_destroy (c) == DP_ERR_INVALID);
+    dp_tlm_destroy (t);
+  }
+  CHECK (dp_tlm_capture_destroy (NULL) == DP_OK); /* NULL-safe, and quiet */
+
   if (_fails)
     {
-      fprintf (stderr, "test_tlm_capture FAILED (%d)\n", _fails);
+      fprintf (stderr, "test_dp_tlm_capture_core FAILED (%d)\n", _fails);
       return 1;
     }
-  printf ("test_tlm_capture PASSED\n");
+  printf ("test_dp_tlm_capture_core PASSED\n");
   return 0;
 }

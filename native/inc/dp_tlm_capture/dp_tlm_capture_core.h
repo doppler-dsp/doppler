@@ -108,10 +108,76 @@ extern "C" {
  * @return New capture, or NULL on a NULL/zero @p t / @p block_samples, a
  *         context that already has a capture, an unopenable @p path, or
  *         allocation failure.
+ *
+ * @code
+ * >>> import os, tempfile
+ * >>> from doppler.telemetry import Telemetry, Capture
+ * >>> from doppler.wfm import SampleClock
+ * >>> tlm = Telemetry(1 << 12)
+ * >>> pid = tlm.probe("agc.gain_db")   # probes FIRST: they set the bound
+ * >>> path = os.path.join(tempfile.mkdtemp(), "rx.tlm")
+ * >>> with Capture(tlm, 256, path, SampleClock(1e6)) as cap:
+ * ...     for blk in range(4):
+ * ...         tlm.set_now(blk * 256)   # drains the block just finished
+ * ...         tlm.emit(pid, float(blk))
+ * >>> os.path.exists(path + "-meta")   # the sidecar, written at close
+ * True
+ *
+ * The 16-byte record layout IS the file, so nothing doppler-specific is
+ * needed to read it back:
+ *
+ * >>> import numpy as np
+ * >>> dt = np.dtype({"names": ["n", "value", "probe", "flags"],
+ * ...                "formats": ["<u8", "<f4", "<u2", "<u2"],
+ * ...                "offsets": [0, 8, 12, 14], "itemsize": 16})
+ * >>> [float(v) for v in np.fromfile(path, dtype=dt)["value"]]
+ * [0.0, 1.0, 2.0, 3.0]
+ *
+ * @endcode
  */
 dp_tlm_capture_t *dp_tlm_capture_open (dp_tlm_t *t, size_t block_samples,
                                        const char             *path,
                                        const dp_sample_clock_t *clock);
+
+/**
+ * @brief Opens a capture that accumulates in memory instead of a file.
+ *
+ * Identical to dp_tlm_capture_open() with a NULL @p path, and exists as its
+ * own entry point because "no file" is a *different constructor*, not a
+ * degenerate path string: the two flavours differ in what they can answer
+ * afterwards.  A memory capture can hand back its records
+ * (dp_tlm_capture_read()); a file capture cannot, because the file IS the
+ * capture.  Splitting the constructors lets each Python flavour carry only
+ * the methods that mean something for it, rather than one class with an
+ * accessor that returns nothing half the time.
+ *
+ * @param t             Context to capture.  Must outlive the capture.
+ * @param block_samples The largest number of input samples between two
+ *                      boundaries — see dp_tlm_capture_open().
+ * @param clock         Borrowed sample clock, or NULL for no time base.
+ * @return New capture, or NULL on the same conditions as
+ *         dp_tlm_capture_open() minus the file ones.
+ *
+ * @code
+ * >>> from doppler.telemetry import Telemetry, MemoryCapture
+ * >>> from doppler.wfm import SampleClock
+ * >>> tlm = Telemetry(1 << 12)
+ * >>> pid = tlm.probe("agc.gain_db")   # probes FIRST: they set the bound
+ * >>> cap = MemoryCapture(tlm, 256, SampleClock(1e6))
+ * >>> for blk in range(4):
+ * ...     tlm.set_now(blk * 256)       # drains the block just finished
+ * ...     tlm.emit(pid, float(blk))
+ * >>> cap.close()                      # raises if anything was lost
+ * >>> [float(v) for v in cap.records()["value"]]
+ * [0.0, 1.0, 2.0, 3.0]
+ * >>> cap.dropped
+ * 0
+ *
+ * @endcode
+ */
+dp_tlm_capture_t *dp_tlm_capture_open_memory (dp_tlm_t *t,
+                                              size_t     block_samples,
+                                              const dp_sample_clock_t *clock);
 
 /**
  * @brief Block boundary: drains the ring to empty.
@@ -130,6 +196,19 @@ dp_tlm_capture_t *dp_tlm_capture_open (dp_tlm_t *t, size_t block_samples,
  *
  * @return ::DP_OK, ::DP_ERR_INVALID on NULL / a closed capture, ::DP_ERR_MEMORY
  *         if a buffer could not grow, or ::DP_ERR_SEND if the writer failed.
+ *
+ * @code
+ * >>> from doppler.telemetry import Telemetry, MemoryCapture
+ * >>> from doppler.wfm import SampleClock
+ * >>> tlm = Telemetry(1 << 12)
+ * >>> pid = tlm.probe("agc.gain_db")
+ * >>> cap = MemoryCapture(tlm, 256, SampleClock(1e6))
+ * >>> tlm.emit(pid, 1.5)
+ * >>> cap.block()          # explicit boundary; set_now() does this for you
+ * >>> cap.count
+ * 1
+ *
+ * @endcode
  */
 int dp_tlm_capture_block (dp_tlm_capture_t *c);
 
@@ -147,6 +226,32 @@ int dp_tlm_capture_block (dp_tlm_capture_t *c);
  *         hole in it.  A capture with a hole is not a smaller capture, it is a
  *         wrong one, so this fails loudly rather than returning quietly.
  *         ::DP_ERR_SEND on a write failure.
+ *
+ * @code
+ * >>> from doppler.telemetry import Telemetry, MemoryCapture
+ * >>> from doppler.wfm import SampleClock
+ * >>> tlm = Telemetry(1 << 12)
+ * >>> pid = tlm.probe("agc.gain_db")
+ * >>> cap = MemoryCapture(tlm, 256, SampleClock(1e6))
+ * >>> for blk in range(4):
+ * ...     tlm.set_now(blk * 256)
+ * ...     tlm.emit(pid, float(blk))
+ * >>> cap.close()          # silent: the block contract was honoured
+ * >>> cap.close()          # idempotent, same verdict
+ *
+ * Breaking the contract -- here, never reaching a boundary at all -- is the
+ * one way to lose a record, and it is reported rather than absorbed:
+ *
+ * >>> tlm2 = Telemetry(1 << 12)
+ * >>> p2 = tlm2.probe("x")
+ * >>> bad = MemoryCapture(tlm2, 8, SampleClock(1e6))
+ * >>> for i in range(20000):
+ * ...     tlm2.emit(p2, float(i))
+ * >>> bad.close()
+ * Traceback (most recent call last):
+ * ValueError: close failed (rc=-4)
+ *
+ * @endcode
  */
 int dp_tlm_capture_close (dp_tlm_capture_t *c);
 
@@ -160,8 +265,80 @@ size_t dp_tlm_capture_count (const dp_tlm_capture_t *c);
  * capture and this returns NULL.  Owned by the capture and invalidated by
  * dp_tlm_capture_destroy(); NULL when nothing was captured, so use
  * dp_tlm_capture_count() to tell empty from absent.
+ *
+ * The Python face binds the COPYING twin, dp_tlm_capture_read(), because a
+ * borrowed pointer the capture can free is not something a binding may hand
+ * out. This example is duplicated there deliberately: jm derives a method's
+ * docstring from the `<component>_<method>` symbol while `fn` chooses the one
+ * it calls, so the two must carry the same text or the .pyi and the runtime
+ * `__doc__` disagree (checked by scripts/check_doc_face_parity.py).
+ *
+ * @code
+ * >>> import numpy as np
+ * >>> from doppler.telemetry import Telemetry, MemoryCapture
+ * >>> from doppler.wfm import SampleClock
+ * >>> tlm = Telemetry(1 << 12)
+ * >>> pid = tlm.probe("agc.gain_db")
+ * >>> cap = MemoryCapture(tlm, 256, SampleClock(1e6))
+ * >>> for blk in range(4):
+ * ...     tlm.set_now(blk * 256)
+ * ...     tlm.emit(pid, float(blk))
+ * >>> cap.close()
+ * >>> [float(v) for v in cap.records()["value"]]
+ * [0.0, 1.0, 2.0, 3.0]
+ * >>> cap.records(2).shape             # 0 (the default) means "all"
+ * (2,)
+ *
+ * @endcode
  */
 const dp_tlm_rec_t *dp_tlm_capture_records (const dp_tlm_capture_t *c);
+
+/**
+ * @brief Upper bound on what dp_tlm_capture_read() can return right now.
+ *
+ * The accumulated count: a caller sizing a destination cannot know its own
+ * request will be smaller, and the generated binding allocates this much,
+ * reads, then resizes to what actually came back.
+ */
+size_t dp_tlm_capture_read_max_out (const dp_tlm_capture_t *c);
+
+/**
+ * @brief Copies accumulated records out.  Memory mode only.
+ *
+ * The copying twin of dp_tlm_capture_records(): same records, same order, but
+ * into caller memory rather than a borrowed pointer.  Both exist because they
+ * serve opposite callers — a C consumer wants the zero-copy view, and a
+ * binding must not hand out a pointer the capture can free underneath it.
+ *
+ * Deliberately the same shape as dp_tlm_read(), so the two drains bind
+ * identically and neither needs a second convention invented for it.
+ *
+ * @param c        Capture.  A file-mode capture holds no records and yields 0.
+ * @param n        Records wanted; 0 means "everything accumulated".
+ * @param out      Destination.
+ * @param max_out  Capacity of @p out, in records.
+ * @return Number of records copied out.
+ *
+ * @code
+ * >>> import numpy as np
+ * >>> from doppler.telemetry import Telemetry, MemoryCapture
+ * >>> from doppler.wfm import SampleClock
+ * >>> tlm = Telemetry(1 << 12)
+ * >>> pid = tlm.probe("agc.gain_db")
+ * >>> cap = MemoryCapture(tlm, 256, SampleClock(1e6))
+ * >>> for blk in range(4):
+ * ...     tlm.set_now(blk * 256)
+ * ...     tlm.emit(pid, float(blk))
+ * >>> cap.close()
+ * >>> [float(v) for v in cap.records()["value"]]
+ * [0.0, 1.0, 2.0, 3.0]
+ * >>> cap.records(2).shape             # 0 (the default) means "all"
+ * (2,)
+ *
+ * @endcode
+ */
+size_t dp_tlm_capture_read (const dp_tlm_capture_t *c, size_t n,
+                            dp_tlm_rec_t *out, size_t max_out);
 
 /**
  * @brief Records the ring dropped during this capture.
@@ -172,8 +349,31 @@ const dp_tlm_rec_t *dp_tlm_capture_records (const dp_tlm_capture_t *c);
  */
 uint64_t dp_tlm_capture_dropped (const dp_tlm_capture_t *c);
 
-/** @brief Closes if still open, then frees.  NULL-safe. */
-void dp_tlm_capture_destroy (dp_tlm_capture_t *c);
+/**
+ * @brief Closes if still open, then frees.  NULL-safe.
+ *
+ * Returns the close verdict rather than discarding it.  That is the whole
+ * point: a `with` block's exit and a garbage collection both land here, and a
+ * capture with a hole reporting nothing on the way out would defeat
+ * dp_tlm_capture_close()'s reason for existing.  The state is released
+ * whatever the verdict says — this never leaks on the error path.
+ *
+ * @return dp_tlm_capture_close()'s result, or ::DP_OK for a NULL or
+ *         already-closed capture (nothing was left to go wrong).
+ */
+int dp_tlm_capture_destroy (dp_tlm_capture_t *c);
+
+/**
+ * @brief jm's spelling of ::dp_tlm_capture_t.
+ *
+ * Same bridge dp_tlm_core.h carries, for the same reason: jm derives an
+ * object's state struct as `<component>_state_t` with no override
+ * (just-makeit#797), and this type predates jm.  It is in the signature of
+ * every function above and in dp_tlm_t's own `capture` member, so renaming it
+ * is not on the table.  An alias costs one line and nothing at runtime, and
+ * goes away when jm#797 lands `state_type`.
+ */
+typedef dp_tlm_capture_t dp_tlm_capture_state_t;
 
 #ifdef __cplusplus
 }

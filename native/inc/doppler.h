@@ -87,6 +87,8 @@ extern "C" {
 
 #include "dp_tlm/dp_tlm_core.h"
 
+#include "dp_tlm_capture/dp_tlm_capture_core.h"
+
 #include "ddc/ddc_core.h"
 
 #include "ddcr/ddcr_core.h"

@@ -1,7 +1,7 @@
 /*
  * telemetry_ext.c — Python extension module telemetry
  *
- * Objects: Telemetry
+ * Objects: Telemetry, MemoryCapture, Capture
  * GENERATED — do not hand-edit. Patches belong in the _ext_<obj>.c fragments.
  */
 
@@ -13,6 +13,8 @@
 
 
 #include "telemetry_ext_dp_tlm.c"
+#include "telemetry_ext_dp_tlm_capture.c"
+#include "telemetry_ext_capture.c"
 
 /* ======================================================== */
 /* Module                                                    */
@@ -38,11 +40,21 @@ PyInit_telemetry(void)
 {
     import_array();
     if (PyType_Ready(&TelemetryObjType) < 0) return NULL;
+    if (PyType_Ready(&MemoryCaptureObjType) < 0) return NULL;
+    if (PyType_Ready(&CaptureObjType) < 0) return NULL;
     PyObject *m = PyModule_Create(&telemetry_moduledef);
     if (!m) return NULL;
     Py_INCREF(&TelemetryObjType);
     if (PyModule_AddObject(m, "Telemetry", (PyObject *)&TelemetryObjType) < 0) {
         Py_DECREF(&TelemetryObjType); Py_DECREF(m); return NULL;
+    }
+    Py_INCREF(&MemoryCaptureObjType);
+    if (PyModule_AddObject(m, "MemoryCapture", (PyObject *)&MemoryCaptureObjType) < 0) {
+        Py_DECREF(&MemoryCaptureObjType); Py_DECREF(m); return NULL;
+    }
+    Py_INCREF(&CaptureObjType);
+    if (PyModule_AddObject(m, "Capture", (PyObject *)&CaptureObjType) < 0) {
+        Py_DECREF(&CaptureObjType); Py_DECREF(m); return NULL;
     }
     return m;
 }

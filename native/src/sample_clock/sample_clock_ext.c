@@ -190,10 +190,27 @@ SampleClock_get_max_lateness(SampleClockObject *self, void *closure)
     return PyFloat_FromDouble(tmp.max_late_ns * 1e-9);
 }
 
+static PyObject *
+SampleClock_get__capsule(SampleClockObject *self, void *Py_UNUSED(closure))
+{
+    if (self->closed) {
+        PyErr_SetString(PyExc_RuntimeError, "SampleClock is closed");
+        return NULL;
+    }
+    /* Borrowed: NULL destructor, so the capsule never
+       frees a pointer SampleClock still owns. */
+    return PyCapsule_New((void *)(self->h),
+                         "doppler.wfm.dp_sample_clock", NULL);
+}
 static PyGetSetDef SampleClock_getset[] = {
     {"samples", (getter)SampleClock_get_samples, NULL, NULL, NULL},
     {"underruns", (getter)SampleClock_get_underruns, NULL, NULL, NULL},
     {"max_lateness", (getter)SampleClock_get_max_lateness, NULL, NULL, NULL},
+    {"_capsule", (getter)SampleClock_get__capsule, NULL,
+     "Borrowed doppler.wfm.dp_sample_clock capsule for this handle.\n\n"
+     "Non-owning: the capsule does not free the handle, and\n"
+     "is only valid while this object is alive and open.",
+     NULL},
     {NULL, NULL, NULL, NULL, NULL}
 };
 

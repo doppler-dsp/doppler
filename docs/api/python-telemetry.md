@@ -37,6 +37,91 @@ two; a sub-page request is rounded up, so read the real size back from
 `[("n", "<u8"), ("value", "<f4"), ("probe", "<u2"), ("flags", "<u2")]` —
 16 bytes per row, the exact C record layout.
 
+## `Capture` and `MemoryCapture` — losslessness you can prove
+
+`read()` drains whatever is *currently* in the ring, and the ring drops on
+overrun so the DSP thread can never stall. That is right for the emit path
+and useless as an answer to "did I get everything?". A capture answers it,
+and does so by arithmetic rather than by a ring size you were asked to
+guess:
+
+> No probe emits more than once per input sample, so a block of `N` inputs
+> emits at most `probe_count * N` records. Size the ring to that bound and
+> drain it to empty at every block boundary, and it **cannot** overflow.
+
+`set_now()` already sits at the top of your block loop, so an existing
+`set_now / steps / read` loop becomes lossless by opening a capture and
+changing nothing else.
+
+| Constructor                                | Where the records go                               |
+| ------------------------------------------ | -------------------------------------------------- |
+| `MemoryCapture(tlm, block_samples, clock)` | Accumulated in memory; read back with `.records()` |
+| `Capture(tlm, block_samples, path, clock)` | Straight to `path`; the file **is** the capture    |
+
+| Member         | Purpose                                                                 |
+| -------------- | ----------------------------------------------------------------------- |
+| `records(n=0)` | The captured records as a structured array (`MemoryCapture` only)       |
+| `block()`      | Explicit boundary; `set_now()` does this for you                        |
+| `close()`      | Final drain and verdict — **raises if anything was dropped**            |
+| `count`        | Records captured so far                                                 |
+| `dropped`      | Records lost by *this* capture (latched at open); non-zero means a hole |
+
+`block_samples` is the largest number of input samples between two
+boundaries — the step of your own block loop, not a buffer size to tune.
+Over-stating it costs only memory; under-stating it is the one way to lose
+a record.
+
+Three things are worth knowing before you use it:
+
+- **Attach every probe first.** The ring is sized from the probe table, so
+    opening before anything is registered gives a bound of zero and a
+    `ValueError` that says so.
+- **A hole raises, on every exit path.** `close()` reports the verdict and
+    so does the destructor, which means a `with` block raises rather than
+    swallowing a corrupt capture. A capture with a hole is not a smaller
+    capture, it is a wrong one.
+- **`Capture` has no `records()`.** In file mode the file is the capture;
+    an `AttributeError` says that, where an empty array would read as
+    "nothing was captured".
+
+A file capture writes raw 16-byte records with no framing, so `np.fromfile`
+reads it directly, plus a `<path>-meta` JSON sidecar carrying the probe
+table, the counters and the time base. The time base is **borrowed** from
+the pipeline's `wfm.SampleClock` rather than restated — two copies of a
+time base drift, and the one written into a file is the copy nobody can
+correct afterwards.
+
+```python
+import numpy as np
+
+from doppler.agc import AGC
+from doppler.telemetry import MemoryCapture, Telemetry
+from doppler.wfm import SampleClock
+
+BLOCK = 4096
+x = (0.05 * np.ones(8 * BLOCK)).astype(np.complex64)
+
+tlm = Telemetry(1 << 12)
+agc = AGC()
+agc.set_telemetry(tlm, "agc", 1)  # probes first: they set the bound
+
+with MemoryCapture(tlm, BLOCK, SampleClock(1e6)) as cap:
+    for i in range(0, len(x), BLOCK):
+        tlm.set_now(i)  # drains the block just finished
+        agc.steps(x[i : i + BLOCK])
+    cap.close()  # raises if anything was lost
+    # Read inside the block: leaving it frees the capture, and touching it
+    # afterwards is a RuntimeError rather than a stale answer.
+    recs, dropped = cap.records(), cap.dropped
+
+# Every gain update the AGC made, none missing, each with the sample index
+# it happened at — which is what "lossless" buys over a polled read().
+assert dropped == 0
+assert len(recs) > 0
+print(f"{len(recs)} records, gain {recs['value'][0]:.1f} -> "
+      f"{recs['value'][-1]:.1f} dB")
+```
+
 ## Instrumented objects
 
 Every tracking loop (and the AGC) exposes

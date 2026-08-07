@@ -212,6 +212,60 @@ ______________________________________________________________________
     `ISOTIME_REQUIRE=1` so an absent reference is an error there rather than
     a skip.
 
+- **The lossless capture has a Python face: `telemetry.Capture` and
+    `telemetry.MemoryCapture`.** The C has existed since the capture landed;
+    what did not exist was any way to reach it from Python, because its
+    constructor takes a `dp_tlm_t *` from an OBJECT and a `dp_sample_clock_t *`
+    from a `kind="handle"` module — and neither capsule direction was
+    expressible until just-makeit gh-790 and gh-794. Both have now shipped, so
+    the whole component is declarative: **no hand-written CPython, nothing in
+    `status_allow`.** `wfm.SampleClock` publishes its pointer as a capsule for
+    the first time (gh-794), which is what a capture borrows.
+
+    ```python
+    with MemoryCapture(tlm, BLOCK, SampleClock(1e6)) as cap:
+        for i in range(0, len(x), BLOCK):
+            tlm.set_now(i)          # drains the block just finished
+            agc.steps(x[i : i + BLOCK])
+        cap.close()                 # raises if anything was lost
+        recs = cap.records()
+    ```
+
+    **Two flavours, because a capture that writes a file cannot hand its
+    records back — the file IS the capture.** `MemoryCapture` accumulates and
+    answers `records()`; `Capture(…, path, …)` writes raw 16-byte records that
+    `np.fromfile` reads directly, plus the `<path>-meta` sidecar, and has no
+    `records()` at all. `AttributeError` is the honest answer there; an empty
+    array would read as "nothing was captured", which is a different and wrong
+    statement. (It is also the only shape available: a jm `path` init-param is
+    an `O&` whose call expression is `PyBytes_AS_STRING(...)`, so `path=None`
+    cannot be spelled on one class.)
+
+    **A hole raises on every exit path, including `with`.** That is the point
+    of the component — the block bound makes a drop arithmetically impossible,
+    so a non-zero count means the contract was broken and the capture is not a
+    smaller capture but a wrong one. `dp_tlm_capture_destroy()` therefore
+    widened from `void` to `int` and reports `close()`'s verdict (the
+    `wfm_writer` gh-541 precedent), because `with`-exit and garbage collection
+    both land there and would otherwise swallow it. Mutation-tested in both
+    directions: making the destructor discard the verdict turns exactly one
+    test red, and a clean capture stays silent.
+
+    New C alongside it: `dp_tlm_capture_open_memory()` (the memory
+    constructor, so the two flavours differ in constructor rather than in a
+    sentinel), and `dp_tlm_capture_read()` / `_read_max_out()` — the copying
+    twin of `dp_tlm_capture_records()`, since a borrowed pointer the capture
+    can free is not something a binding may hand out. Shaped exactly like
+    `dp_tlm_read()` so the two drains bind identically.
+
+    **Known limitation:** the C takes a NULL clock to mean "no time base
+    stated" and the sidecar then omits the keys rather than fabricating a
+    rate, but a gh-790 capsule *init*-param rejects `None` unconditionally,
+    while a gh-432 capsule *method* param maps it to NULL. So `clock` is
+    mandatory on the Python face for now. The signature is already the one
+    that works once jm allows it, so the fix turns a `TypeError` into a
+    working call with nothing to migrate.
+
 ### Fixed
 
 - **The telemetry benchmark was being built from a stub that measured

@@ -8,8 +8,8 @@ stage steered by `ratesync_loop_t` — measured on its own, with no carrier loop
 anywhere in the path. This is the pair `track.RateSync` exposes directly and
 that `track.MpskReceiver` embeds.
 
-Related: [MPSK Receiver](mpsk.md) (the object that embeds this pair, and whose
-carrier loop §1 attributes 12.2 dB to), [Timing Lock
+Related: [MPSK Receiver](mpsk.md) (the object that embeds this pair; §1
+measures how much its carrier loop costs, which is ~0.1 dB), [Timing Lock
 Detector](timing_lock_detector.md) (the lock statistic, a separate concern from
 the recovery quality measured here), [Continuously Variable
 Resampler](RESAMPLER.md) (the bank and accumulator underneath).
@@ -24,53 +24,47 @@ separates them. Gardner's TED is carrier-blind (`|·|²`), so the timing pair
 runs perfectly well with no carrier recovery at all, which makes the
 separation trivial to arrange and worth arranging first:
 
-Measured with an **exact `sps`** (see §1.1 for why that qualifier is
-load-bearing), on a clean rectangular stream, and stable across measurement
-windows:
+Measured as a **median over 500-symbol blocks** (§7 explains why the block
+size is load-bearing), on a clean rectangular stream at Es/N0 = 60 dB:
 
-| path                                    | \[2000, 10000) | \[10000, 20000) |
-| --------------------------------------- | -------------- | --------------- |
-| coherent bound                          | −60.00 dB      | −60.00 dB       |
-| **matched filter + timing, standalone** | −60.00 dB      | −60.03 dB       |
-| the same input through `MpskReceiver`   | −47.80 dB      | −47.77 dB       |
+| path                                                           | median block EVM |
+| -------------------------------------------------------------- | ---------------- |
+| coherent bound                                                 | −60.00 dB        |
+| matched filter + timing, standalone                            | −60.03 dB        |
+| the same input through `MpskReceiver`                          | −59.95 dB        |
+| `MpskReceiver` with the carrier loop frozen (`bn_carrier = 0`) | −60.03 dB        |
 
-The timing pair is *exact* — at the bound, in both windows — and the
-**12.2 dB** gap belongs to the carrier loop. That is worth establishing before
-any effort goes into the matched filter, because it says the matched filter
-was not the problem in this configuration.
+**Every path is at the bound.** On a clean rectangular stream the matched
+filter, the timing loop and the carrier loop together cost about 0.1 dB, and
+there is nothing to attribute to any of them.
 
-The symbol path is identical on both sides, which is what makes the comparison
-fair: `mpsk_rx_take_output` emits the strobe straight out of
-`ratesync_loop_take_output` — the arm-filtered sample, not anything taken from
-the de-rotator — multiplied by a fixed `sym_rot`, and EVM estimates
-constellation rotation from the data so that multiply is free. The only
-difference between the two rows is the LO de-rotation applied upstream of the
-cascade, and therefore the carrier loop's phase jitter riding on it.
+The symbol path explains the frozen-loop row exactly. `mpsk_rx_take_output`
+emits the strobe straight out of `ratesync_loop_take_output` — the arm-filtered
+sample, not anything taken from the de-rotator — times a fixed `sym_rot`. With
+`bn_carrier = 0` and a zero seed the LO is a unit multiply, so the receiver
+reduces to precisely the standalone pair; the two symbol streams agree to
+2.5e−07, which is float32 rounding.
 
 (The floor is real, not a clamp: `ber_evm_db` returns −280 dB on an
 algebraically perfect stream and tracks injected noise to within 0.1 dB.)
 
-### 1.1 Under a constant rate error the standalone path drifts
+!!! danger "This section previously reported 12.2 dB, and a §1.1 reported a 14 dB drift. Both were measurement artifacts."
 
-The same comparison with a 1000 ppm sample-clock offset does not hold still:
+    `ber_evm_db` fits **one** constellation rotation across whatever window it
+    is given. The carrier loop has a slow residual phase walk — roughly 35–45°
+    over 30 000 symbols, a residual of ~4e−6 cycles/symbol — which is invisible
+    within a block and inflates any long-window aggregate. An 8000-symbol
+    window read −47.80 dB on a stream whose per-block median is −59.95.
 
-| window (symbols) | \[2000, 10000) | \[10000, 20000) | \[20000, 29000) |
-| ---------------- | -------------- | --------------- | --------------- |
-| RateSync alone   | −60.00 dB      | −53.84 dB       | **−45.96 dB**   |
-| `MpskReceiver`   | −46.84 dB      | −48.69 dB       | −48.27 dB       |
+    The retracted §1.1 was the same mechanism seen from the other side:
+    standalone windows late in a rate-error record read −45.96 dB against a
+    per-block median of −60.03, which looked like a timing loop degrading as a
+    constant offset accumulated. Nothing was degrading. The rotation fit was.
 
-The receiver is stationary; **the standalone timing path degrades monotonically
-by 14 dB over 30 000 symbols**, and in the final window it is worse than the
-receiver, which reverses the sign of the comparison. The offset is *constant*,
-so a settled loop should be stationary — with an exact `sps` it is (§1). Which
-means the 12.2 dB attribution above is only quotable on the exact-`sps`
-measurement, and any single-window number taken under a rate error is a
-statement about that window and not about the receiver.
-
-**Open, and the most interesting result here.** Something accumulates while the
-loop holds a steady-state rate correction. It has not been localised, and it is
-the item most likely to matter, because a real link always has a clock offset —
-the exact-`sps` case is the artificial one.
+    Both numbers were quoted here as headline results, and both were wrong for
+    the same reason: a long EVM window cannot separate a slowly rotating
+    constellation from a noisy one. Everything in §§2–6 was re-measured
+    per-block afterwards; what survived is marked as such.
 
 Unless stated otherwise every number below is QPSK, `sps = 8`, `m = 8`,
 `num_phases = 32`, `pulse = "rrc"` with `beta = 0.35, span = 8` on both sides,
@@ -109,6 +103,10 @@ information carried there vanishes with the excess bandwidth.
     variance, not an offset. An early reading of this as a large static bias
     came from sampling `timing_error` once instead of over a window (§7).
 
+**Re-measured per-block and unchanged** (−32.61 / −43.47 / −58.00 dB at
+`bn = 0.01`): this is per-symbol jitter, not slow drift, so the §1 artifact
+does not touch it.
+
 Note that the timing-error std barely moves with loop bandwidth (0.1425 at
 `bn = 0.02` against 0.1372 at `bn = 0.002`) while EVM improves 9 dB across the
 same range. That is consistent: the std being measured is the TED's own
@@ -122,6 +120,9 @@ ______________________________________________________________________
 | `bn` | 0.020     | 0.010     | 0.005     | 0.002     |
 | ---- | --------- | --------- | --------- | --------- |
 | EVM  | −38.14 dB | −43.50 dB | −47.18 dB | −47.70 dB |
+
+**Re-measured per-block and unchanged** (−38.17 / −43.47 / −47.20 dB, within
+0.03 dB of the row above).
 
 Monotone and saturating around −47.7 dB. At the default `beta = 0.35`,
 narrowing `bn_timing` from 0.01 to 0.005 buys **3.7 dB** and costs only
@@ -139,6 +140,10 @@ ______________________________________________________________________
 | 0.15   | −32.47 dB | −41.05 dB | **8.6 dB**     |
 | 0.35   | −43.60 dB | −47.62 dB | **4.0 dB**     |
 | 1.00   | −58.06 dB | −58.19 dB | 0.1 dB         |
+
+**Re-measured per-block and unchanged** (Gardner/DTTL −32.61/−41.08 at
+`beta = 0.15` and −43.47/−47.62 at 0.35 — the advantage holds at 8.5 and
+4.2 dB). The decision below rests on the re-measured numbers.
 
 The advantage is largest exactly where Gardner is weakest and vanishes at full
 excess bandwidth, which is the same excess-bandwidth story from the other
@@ -166,28 +171,38 @@ The bank arm is the fractional delay (`arm = ph >> (32 - log2_phases)`,
 nearest-arm truncation, low bits discarded), so `num_phases` reads like a
 straightforward resolution knob. It is not.
 
-**On I&D it is inert below 128 and actively harmful above.** Standalone, on a
+**On I&D it is inert across its whole range.** Per-block, standalone, on a
 clean rectangular stream:
 
-| `P` | 2         | 8         | 32        | 128       | 1024      |
-| --- | --------- | --------- | --------- | --------- | --------- |
-| EVM | −60.00 dB | −60.00 dB | −60.00 dB | −47.81 dB | −45.49 dB |
+| `P` | 2         | 32        | 128       | 1024      |
+| --- | --------- | --------- | --------- | --------- |
+| EVM | −60.04 dB | −60.04 dB | −59.98 dB | −59.94 dB |
 
-The recovered symbols are **bit-identical** from P = 2 to P = 64. The I&D
-pulse response is a rectangle — a 0/1 function — so shifting an arm changes a
-tap only when it moves a sample across the rectangle's edge, and adjacent arms
-are literal duplicates. Above that the edge sampling differs arm to arm, the
-effective filter gain varies with the arm, and the result is worse than the
-coarsest setting: **the shipped default of 1024 is 14.5 dB worse than 32
-here.** (The mechanism above 128 is inferred from the bank construction and
-has not been measured directly.)
+Every setting is at the bound. Stronger than that, the recovered symbols are
+**bit-identical** from P = 2 to P = 64: the I&D pulse response is a rectangle —
+a 0/1 function — so shifting an arm changes a tap only when it moves a sample
+across the rectangle's edge, and adjacent arms are literal duplicates. Above
+128 the streams do differ, but by an amount that never reaches the bound.
 
-**On RRC every arm differs and the knee is at 1/256 of a symbol.** EVM reaches
-within 0.2 dB of saturation at `P · m_out = 256` — P = 32, 64 and ~128–256 at
-`m_out` = 8, 4 and 2 respectively, scaling exactly as `1/(P·m_out)` predicts.
+!!! warning "An earlier revision claimed P = 1024 was 14.5 dB worse than P = 32 here"
 
-`P = 32` at the default `m_out = 8` therefore satisfies both pulses at once:
-it is the RRC knee and it is below the I&D degradation onset.
+    It was measured on 8000-symbol windows and was entirely the rotation-fit
+    artifact of §1. Per-block the whole range is flat. `num_phases` is not
+    harmful on I&D; it is simply inert, and the argument against 1024 is cost
+    (§8), not quality.
+
+**On RRC every arm differs and the resolution is real.** Per-block, reaching
+within 0.2 dB of saturation:
+
+| `m_out` | P4     | P8     | P16    | P32    | P64    | P256   | knee   |
+| ------- | ------ | ------ | ------ | ------ | ------ | ------ | ------ |
+| 4       | −28.47 | −33.27 | −39.63 | −42.68 | −43.58 | −43.74 | P = 64 |
+| 8       | −33.61 | −39.61 | −42.74 | −43.47 | −43.65 | −43.71 | P = 64 |
+
+So `P · m_out` lands between 256 and 512 rather than on the single invariant an
+earlier revision claimed, and the "knee" is sensitive to the tolerance chosen:
+at `m_out = 8`, P = 32 is 0.24 dB short of saturation and P = 64 is 0.06 dB
+short. Quote it as a range with a tolerance, not as a constant.
 
 ______________________________________________________________________
 
@@ -203,6 +218,8 @@ normalised `fpass/fstop`, no resampling anywhere):
 | ------------ | --------- | --------- | --------- | --------- |
 | EVM          | −60.00 dB | −39.91 dB | −30.62 dB | −24.24 dB |
 | timing error | −6.9e−4   | −6.5e−3   | −1.2e−2   | −4.1e−2   |
+
+**Re-measured per-block and unchanged** (−60.04 / −30.63 / −24.24 dB).
 
 The loss is entirely in this pair — the same sweep through the full receiver
 reads −39.87 / −30.50 / −24.18 dB — and it costs *timing accuracy* as well as
@@ -224,9 +241,19 @@ ______________________________________________________________________
 
 ## 7. Measuring this without fooling yourself
 
-Four traps, all of which produced a confident wrong answer during this
-characterisation before being caught.
+Five traps, all of which produced a confident wrong answer during this
+characterisation before being caught. The first is the one that invalidated
+published results twice.
 
+- **A long EVM window cannot separate slow rotation from noise.** `ber_evm_db`
+    fits ONE constellation rotation across the window it is given, so any slowly
+    varying phase — a carrier loop's residual walk, a timing loop's accumulating
+    offset — is charged to EVM as though it were per-symbol error. This produced
+    both a fictitious 12.2 dB carrier-loop cost and a fictitious 14 dB timing
+    drift (§1). **Report a median over short blocks** (500 symbols here) and use
+    the long window only when the quantity under test is genuinely stationary.
+    Where the two disagree, the difference is drift and should be measured and
+    named as drift, not folded into an EVM number.
 - **Do not impose the sample-clock offset by resampling the stimulus.**
     Running a rectangular stream through a `Resampler` to add a rate error
     reads a 22 dB penalty that is entirely the resampler shaping a full-band
@@ -267,17 +294,20 @@ ______________________________________________________________________
 
 - **DTTL default for BPSK/QPSK, Gardner for 8PSK** — decided (§4), not
     implemented.
-- **`num_phases` should not default to 1024** — measured (§5). `P = 32` at
-    `m_out = 8` is better on both pulses, and materially better on I&D. Behaviour
-    change; not taken.
+- **`num_phases` = 1024 buys nothing measurable** (§5) — inert on I&D, and
+    within 0.06 dB of saturation at P = 64 on RRC. The argument against it is
+    memory and construction cost, not quality; an earlier revision claimed a
+    quality penalty and was wrong. Behaviour change; not taken.
 - **`bn_timing` default sits 3.7 dB short of its knee** at the default beta
     (§3). Costs settling time to close. Not taken.
-- **The standalone path drifts under a constant rate error** (§1.1) — open,
-    unlocalised, and the item most likely to matter, since every real link has a
-    clock offset. 14 dB over 30 000 symbols where the receiver is stationary.
 - **The I&D pulse model versus a real bandlimited rectangle** (§6) — open, and
     the one item here that is a design question rather than a default.
-- **Every number here is one seed at one operating point.** The eliminations in
-    §2 are robust because each moved a control across a wide range; the
-    absolute floors are not multi-seed and should not be quoted as
-    specifications.
+- **The carrier loop's residual phase walk** — ~35–45° over 30 000 symbols on a
+    zero-offset input (§1). It costs ~0.1 dB per block and is invisible to
+    detection, so it is a curiosity rather than a defect, but it is what made
+    the long-window measurements lie and it has not been explained.
+- **Every number here is one seed at one operating point**, re-measured
+    per-block after the §1 retraction. The eliminations in §2 and the TED
+    comparison in §4 are robust — each moved a control across a wide range and
+    survived the re-measurement unchanged. The absolute floors are not
+    multi-seed and should not be quoted as specifications.

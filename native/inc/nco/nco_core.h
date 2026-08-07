@@ -189,11 +189,14 @@ extern "C"
    */
   typedef struct
   {
-    /* Plain comments, not `/**<` doxygen: jm harvests a field's doxygen
-       into the .pyi docstring of every same-named property in the project,
-       so documenting `norm_freq` here silently rewrote Costas's,
+    /* These are plain comments rather than doxygen member comments, and
+       deliberately so: jm harvests a field's doxygen into the .pyi
+       docstring of EVERY same-named property in the project, so
+       documenting norm_freq here silently rewrote Costas's,
        CarrierMpsk's, CarrierNda's and Despreader's. nco_state_t above is
-       plain for the same reason. */
+       plain for the same reason. (Nor can that form even be named in
+       prose here -- its opening delimiter starts a nested comment that
+       doxygen never closes, which is a whole-file parse failure.) */
     uint64_t phase;     /* current accumulator value, [0, 2^64)        */
     uint64_t phase_inc; /* advance per input = frac(norm_freq) x 2^64  */
     double   norm_freq; /* SIGNED rate in cycles/input, kept pre-fold  */

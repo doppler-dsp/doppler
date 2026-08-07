@@ -144,23 +144,46 @@ extern "C"
    *
    * A 32-bit phase word can only ever represent frequency in fs/2^32
    * steps (a one-time, unavoidable quantization -- no fixed-width
-   * accumulator can be exact except at those specific levels).
-   * Truncation biases every phase advance low by up to a full step,
-   * but it is the correct convention for a phase-accumulator NCO for
-   * two reasons that outweigh the centered residual `llround` would
-   * give:
-   *   1. **Host-determinism.** A bare truncating cast is bit-identical
-   *      on every host; `llround` is round-to-nearest, whose result at
-   *      a boundary is FP-sensitive, so a closed-loop DLL fed a rounded
-   *      increment converged differently on x86 vs arm64 (the loop got
-   *      a slightly different step per epoch and diverged only on
-   *      arm64). The increment feeds tracking loops, so it MUST be
-   *      reproducible across platforms.
-   *   2. **No 2^32 overflow.** `d < 1` makes `d*2^32` strictly `< 2^32`,
-   *      so the cast lands in `[0, 2^32)` with no clamp. `llround` could
-   *      round `d*2^32` UP to exactly `2^32` for `d ~ 0.9999...`, and
-   *      `(uint32_t)2^32 == 0` freezes the NCO (x86 landed on 2^32-1,
-   *      arm64 on 2^32 -- an arm64-only hang).
+   * accumulator can be exact except at those specific levels). Note the
+   * accumulator truncating is inherent, but quantizing phase_inc ONCE at
+   * setup is a separate choice, and it is made for reproducibility rather
+   * than accuracy.
+   *
+   * **Truncation is the only quantization with no tie to break and
+   * nothing to contract.** That, and not a general claim about rounding
+   * being sloppy, is why it is the convention here. doppler compiles with
+   * `-ffast-math` project-wide (CMakeLists.txt), under which the tie
+   * behaviour of any rounding form is at the compiler's discretion.
+   * Disassembled at the project's own flags:
+   *
+   *     (uint32_t)(d*2^32)        v2: mulsd, cvttsd2si    v3: vmulsd
+   *     (uint32_t)(d*2^32 + 0.5)  v2: mulsd, addsd        v3: vfmadd132sd
+   *     (uint32_t)llround(d*2^32) v2: mulsd, addsd        v3: vmulsd, vaddsd
+   *
+   * The `+ 0.5` form CONTRACTS into a single fused multiply-add on any
+   * target with baseline FMA -- arm64, and x86-64-v3 -- while staying a
+   * separate multiply-then-add on the x86-64-v2 baseline doppler ships.
+   * One rounding versus two, disagreeing at exact ties: a live
+   * x86-vs-arm64 divergence at this project's exact target configuration.
+   * `llround` is not even a libm call under these flags; the compiler
+   * rewrites it into that same shape, differently again at each ISA
+   * level. The increment feeds closed tracking loops, so a constant that
+   * differs by host is precisely the reproducibility problem. If the
+   * half-LSB were ever worth having, it would have to be rounded in
+   * INTEGER arithmetic, where no compiler flag can reinterpret it.
+   *
+   * A rounding form can also reach exactly 2^32 (verified: `llround` of
+   * `nextafter(1,0) * 2^32` is 2^32 on the nose), which as a bare cast is
+   * the undefined conversion that once froze this NCO on arm64. That is
+   * no longer an argument against rounding -- @ref nco_phase_units
+   * saturates, so the value cannot reach a cast at all -- but it is why
+   * the guard has to exist regardless of which convention is chosen.
+   *
+   * Historical note, since the prose predates the evidence: this function
+   * was born truncating (84c46503) and `llround` was never live in it, so
+   * the earlier text here described a recollection rather than a fix this
+   * file ever made. The mechanism above is checkable instead.
+   *
    * The residual is a small constant bias a carrier/code loop nulls
    * out anyway (a floor the integrator absorbs), so downstream tracking
    * is unaffected. The realised frequency is at most one step LOW,

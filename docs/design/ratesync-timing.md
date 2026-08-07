@@ -187,61 +187,66 @@ both signs, that rule closes to the truncation floor (≤0.03%) in every cell.
 confirm it fails before touching `nco_core.h`. Only then does `resamp` adopt the
 primitive and delete its `double`.
 
-### 1.4 The NCO half is done; the resampler half needs 32 more phase bits
+### 1.4 The fix was the resampler's loop structure, not more phase bits
 
-The carry rule above is **implemented and gated** (`nco_core.h`, plus the
+**This section previously concluded that the resampler needed a 64-bit phase
+word. That was wrong, and the reasoning is kept because the error is
+instructive.**
+
+The carry rule of §1.3 is implemented and gated (`nco_core.h`, plus the
 negative-ctrl mirror of the `+0.25` case in `test_nco_core.c`, which fails on
 6 of 8 carries without it). Measured over 10000 steps, every rate in §1.3's
-table now lands on the truncation floor: `0.1/−0.05` → 499, `0.25/−0.20` → 499,
-`0.0/−1e−4` → 2.
+table lands on the truncation floor.
 
-**The `resamp` adoption does not follow from it, and is not merely deferred —
-it regresses `test_ratesync_core` (7/8 locked, worst EVM −6.8 dB against a
-−34 dB limit).** Built it, measured it, reverted it. The cause is not the carry
-rule and not the arm: with the same `ctrl` sequence the emitted counts match
-exactly, and the arms agree to within one arm at `rate = 1.0`. It is the
-**phase word's rate resolution**.
+The first `resamp` adoption regressed `test_ratesync_core` (7/8 locked, worst
+EVM −6.8 dB against a −34 dB limit), and I attributed that to the truncation
+floor at `rate = 12/13` — the increment is 0.31 units short per step, so 13
+steps land 4 short of 12 cycles and one strobe is lost. A 64-bit clock was
+built on that diagnosis.
 
-`nco_norm_to_inc` truncates by design (`nco_core.h:93` — host-determinism, and
-the arm64 `2^32 → 0` freeze), so the realised rate is at most one 2^-32 step
-low. The planner hands the terminal stage an *exactly rational* rate, and at
-`rate = 12/13` the ideal increment is `3964585196.31`: truncation is 0.31 units
-short per step, so 13 steps land **4 units short of exactly 12 cycles**. The
-wrap the `double` caught on the boundary is missed, and the strobe never
-recovers its place: 13000 inputs emit **11999** outputs where the `double`
-emits 12000, and the deficit then stays at **exactly 1** through 13000000
-inputs — a one-time loss, not an accumulating one. That is precisely the
-failure `ratesync_core.h:568` warns about: it *"permanently shifts the strobe
-parity and leaves the loop sliding"*. The damage is the shift, not the count.
+**It was the wrong cause.** Both adoption attempts carried a separate defect:
+at `n ≥ 2` outputs from one `dl_push` the kernel emitted the *same sample*
+repeatedly, and a duplicated symbol mid-acquisition slips the loop outright (3
+of 8 initial phases). With the 64-bit clock in place `ratesync` still failed
+until that was fixed — so the width never entered into it. Two further
+measurements finished the argument:
 
-So the `double` is not simply wrong here — it buys rate resolution the 32-bit
-word does not have, at the cost of the `u ≥ 1` excursion §1.2 traced. Both
-properties are wanted, and the options are not equivalent:
+- Crippling the clock to 32-bit resolution and running everything failed
+    **only the assertion written to justify it**. `ratesync`, both MPSK
+    receivers, DSSS and every doc fence passed.
+- At `12/13` the deficit is one output, transient: 13000 inputs lose 1, 13e6
+    lose 1, and by 1.4e9 the accumulator has **caught back up**. Not the
+    permanent parity shift claimed above.
 
-- **A 64-bit phase word for the timing NCO.** Measured at `12/13`: the realised
-    rate error falls from **7.16e−11** to **5.12e−17** cycles/sample, one strobe
-    slipping every 1.95e16 inputs instead of 1.4e10 — and the arm stays in
-    `[0, 1)` by construction, so §1.2's clamp still disappears. Note the ceiling:
-    5.12e−17 **is** the `double`'s own representation error for `12/13`, so the
-    increment quantisation has vanished entirely beneath the API. You get 53
-    bits of rate resolution, not 64, and going wider than 64 buys nothing while
-    `norm_freq` is a `double`. It is a new primitive: `nco_state_t` is 32-bit and
-    the code/carrier NCOs that share it have no need for the extra bits.
-    C99 guarantees `uint64_t` exactly as it guarantees `uint32_t` — modular
-    wraparound for every unsigned type (6.2.5p9), exact width and no padding
-    (7.20.1.1) — so nothing in the accumulator arithmetic gets weaker. What gets
-    harder is the *proof at the float boundary*: a `double` names every integer
-    below 2^32 exactly but not below 2^64, so the margin at the cast narrows
-    from exact to 2048 units (measured: the largest `double` below 1.0 times
-    2^64 is 2^64 − 2048). See §1.5 — that boundary is the whole risk surface,
-    and widening the word does not change it either way.
-- **Compensating the sub-LSB residual** is a second accumulator beside the
-    resampler's, which is the one thing the timing model forbids outright.
-- **Rounding instead of truncating** does not help — at `12/13` the residual is
-    0.31 and rounds the same way, and it reopens the arm64 boundary.
+`12/13` — the rate the whole argument rested on — is *exact* at 32 bits.
 
-Do not swap `resamp` onto the 32-bit NCO to close §1.2; that trades a 0.126 rad
-instrument-grade glitch for a link-grade strobe slip.
+**What actually fixed it** is §1.2's real lesson: an interpolator and a
+decimator are duals and want opposite loops. An interpolator is output-driven
+and pulls an input on overflow (increment `1/delta`); a decimator accumulates
+per input and dumps an output on overflow (increment `delta`). Either way the
+accumulator advances by `min(delta, 1/delta) ≤ 1`, which is why **no clamp is
+needed**: a phase word holding a quantity that never reaches a full period
+cannot leave `[0, 1)`. The clamp §1.2 traced was never a hard problem — it was
+the interpolator run on the decimator's loop.
+
+Dispatch is on the BASE rate. Dispatching on the composite removes the last
+saturation and is worse (7 C tests, every receiver closing a timing loop): the
+two accumulators coincide only *at* `delta == 1`, and timing acquisition is
+non-linear and slams the composite from ~1 to ~1.9 in one sample, so the
+switch lands far from where the representations agree.
+
+`nco_clock_t` is removed. See [The NCO](nco.md) for the accumulator that
+remains, and §1.5 for the boundary that is the actual risk surface.
+
+**The user-visible consequence is correct, not a regression.**
+`RateConverter(rate=0.8)` over 1000 inputs emits **799**: `0.8` is not
+representable in a 32-bit phase word and `nco_norm_to_inc` truncates, so the
+realised rate sits a hair below the requested one — identically on every host,
+which is the property the convention exists to provide. The `double`
+accumulator's 800 came from rate resolution the phase word does not have, and
+letting the polyphase arm leave `[0, 1)` as a result is the defect that
+retired it. A predictable NCO is the goal; a round number in a docstring is
+not.
 
 ### 1.5 One float→integer conversion, or none of the guarantees hold
 

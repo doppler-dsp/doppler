@@ -72,7 +72,7 @@ name = "clock"
 type = "const dp_sample_clock_t *"
 capsule = "doppler.wfm.dp_sample_clock"
 header = "timing/timing_core.h"
-doc = "The pipeline's sample clock, borrowed for the sidecar's time base. Read at close(), so later track() corrections are picked up. Must outlive the capture. Pass None to state that there is no time base."
+doc = "The pipeline's sample clock, borrowed for the sidecar's time base. Read at close(), so later track() corrections are picked up. Must outlive the capture. Required: the C API takes NULL here to mean `no time base stated` and then omits the sidecar keys rather than fabricating a rate, but a capsule constructor argument cannot yet accept None (just-makeit#823), so there is currently no way to say it from Python."
 
 # ── the file flavour ────────────────────────────────────────────────────────
 #
@@ -101,7 +101,7 @@ init_params = [
   { name = "tlm", type = "dp_tlm_t *", capsule = "doppler.telemetry.dp_tlm", header = "dp_tlm/dp_tlm_core.h", required = true, doc = "Telemetry context to capture. Must outlive the capture." },
   { name = "block_samples", type = "size_t", required = true, doc = "The LARGEST number of input samples processed between two boundaries — the step of your own block loop." },
   { name = "path", type = "path", required = true, doc = "Output file, truncated if it exists. The 16-byte record layout IS the file, so np.fromfile reads it directly; a <path>-meta JSON sidecar carries the probe table, the counters and the time base." },
-  { name = "clock", type = "const dp_sample_clock_t *", capsule = "doppler.wfm.dp_sample_clock", header = "timing/timing_core.h", doc = "The pipeline's sample clock, borrowed for the sidecar's time base. Pass None to state that there is no time base." },
+  { name = "clock", type = "const dp_sample_clock_t *", capsule = "doppler.wfm.dp_sample_clock", header = "timing/timing_core.h", doc = "The pipeline's sample clock, borrowed for the sidecar's time base. Required — see MemoryCapture; None is not accepted yet (just-makeit#823)." },
 ]
 
 # ── methods ─────────────────────────────────────────────────────────────────

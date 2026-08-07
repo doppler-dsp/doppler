@@ -25,3 +25,10 @@ interp_table
 # checkpoint/pod boundary. No dp_state triplet; resume by re-opening the path.
 wfm_reader
 wfm_writer
+# Observation sink, not a signal-path stage: nothing downstream depends on
+# restoring it, so a resumed pipeline is bit-identical either way. Its ring is
+# a live cross-thread SPSC handle in the same sense the readers' FILE* is —
+# meaningless across a checkpoint/pod boundary. The probe table is setup-time
+# config, restored by re-registering; `now` is borrowed from the pipeline's
+# dp_sample_clock_t, not owned here.
+dp_tlm

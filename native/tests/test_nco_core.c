@@ -288,8 +288,10 @@ main (void)
    * 10. steps_u32_ovf_ctrl — carry detection + ctrl port combined
    *
    * A constant ctrl of 0.25 at norm_freq=0.0 must match plain
-   * steps_u32_ovf at norm_freq=0.25 (phase AND carry). Separately, a
-   * ctrl large enough that phase_inc + ctrl_inc alone would overflow a
+   * steps_u32_ovf at norm_freq=0.25 (phase AND carry), and its mirror
+   * image -- a constant ctrl of -0.25 at norm_freq=0.5 -- must match
+   * the SAME reference, again in phase AND carry. Separately, a ctrl
+   * large enough that phase_inc + ctrl_inc alone would overflow a
    * plain uint32 add must still report the correct single-wrap carry
    * (the 64-bit-sum path, not a naive uint32 add).
    * ---------------------------------------------------------------- */
@@ -310,6 +312,35 @@ main (void)
       }
     nco_destroy (nco_ctrl);
     nco_destroy (nco_ref);
+
+    /* The negative-control mirror of the case above: norm_freq=0.5
+       steered by a constant ctrl of -0.25 is the same 0.25 cyc/sample
+       composite, so it must match the SAME plain-NCO reference in
+       carry as well as phase.
+
+       nco_norm_to_inc folds bipolar to unipolar (-0.25 -> 3x2^30), so
+       the modulo phase is exact either way -- but the sign is gone
+       before the add, and 2^31 + 3x2^30 sets bit 32 on EVERY step.
+       A carry consumer therefore sees 8 wraps where the composite
+       advance produces 2. The carry must follow the sign of the
+       composite (base + ctrl, formed BEFORE the fold), not the bare
+       64-bit sum. */
+    nco_state_t *nco_neg    = nco_create (0.5, 0);
+    nco_state_t *nco_negref = nco_create (0.25, 0);
+    float        neg_ctrl[8];
+    for (int i = 0; i < 8; i++)
+      neg_ctrl[i] = -0.25f;
+    uint32_t ph_neg[8], ph_negref[8];
+    uint8_t  ov_neg[8], ov_negref[8];
+    nco_steps_u32_ovf_ctrl (nco_neg, neg_ctrl, 8, ph_neg, ov_neg, 8);
+    nco_steps_u32_ovf (nco_negref, 8, ph_negref, ov_negref, 8);
+    for (int i = 0; i < 8; i++)
+      {
+        CHECK (ph_neg[i] == ph_negref[i]);
+        CHECK (ov_neg[i] == ov_negref[i]);
+      }
+    nco_destroy (nco_neg);
+    nco_destroy (nco_negref);
 
     /* norm_freq=0.9, ctrl=0.9 -> phase_inc + ctrl_inc sums to just
        under 2 full cycles (>2^32 as a plain uint32 add would silently

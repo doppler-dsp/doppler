@@ -296,16 +296,20 @@ class NCO:
         """Advance ctrl_len samples; raw phase + per-sample carry, with a
         per-sample control offset added on top of phase_inc.
 
-        The nco_steps_u32_ovf output mapping (raw phase plus a carry flag
-        marking each sample whose advance wrapped past 2^32) driven by the
+        The nco_steps_u32_ovf output mapping (raw phase plus a flag marking
+        each sample whose advance crossed a cycle boundary) driven by the
         nco_steps_u32_ctrl control port -- every stepper has a matching
-        control-input counterpart. The carry reflects THIS sample's true
-        advance (`phase_inc + ctrl_inc`, added as a single 64-bit sum so a wrap
-        is never missed even when the control offset itself is large), not just
-        phase_inc alone -- needed by any consumer (e.g. a coupled carrier/code
-        tracker) that must detect a period boundary while the rate is being
-        actively steered. With every `ctrl[i] == 0` this is bit-identical to
-        nco_steps_u32_ovf(). Returns ctrl_len.
+        control-input counterpart. The flag reflects THIS sample's true SIGNED
+        advance (`norm_freq + ctrl`, formed in cycles before either term is
+        folded into the accumulator), not just phase_inc alone -- needed by any
+        consumer (e.g. a coupled carrier/code tracker, or a resampler asking
+        "does this input produce an output") that must detect a period boundary
+        while the rate is being actively steered. A forward crossing is a carry
+        (one EXTRA output/load), a backward one a borrow (one FEWER); see
+        nco_step_u32_ovf_ctrl for why the sign cannot be recovered after the
+        fold, nor taken from `ctrl` alone. With every `ctrl[i] == 0` and
+        `norm_freq` in [0, 1) this is bit-identical to nco_steps_u32_ovf().
+        Returns ctrl_len.
 
         Parameters
         ----------

@@ -226,25 +226,64 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
   }
 
   /**
-   * @brief Emit the current raw phase and this step's carry, then advance
-   *        by phase_inc + ctrl.
-   * Single-sample form of nco_steps_u32_ovf_ctrl(). The carry reflects
-   * THIS step's true advance (phase_inc + ctrl), computed as one 64-bit
-   * sum so a wrap is never missed even when ctrl itself is large.
+   * @brief Emit the current raw phase and this step's cycle-boundary
+   *        event, then advance by phase_inc + ctrl.
+   *
+   * Single-sample form of nco_steps_u32_ovf_ctrl(). The event flags
+   * THIS step's true advance crossing a full-cycle boundary, in the
+   * direction the composite rate is going: a **carry** when the phase
+   * runs forward past 2^32 (one EXTRA output/load for the consumer),
+   * a **borrow** when it runs backward past 0 (one FEWER). A steered
+   * consumer knows the sign of its own control, so one boolean carries
+   * both senses.
+   *
+   * **The sign must be taken before the fold.** nco_norm_to_inc() folds
+   * bipolar to unipolar by construction (-0.25 -> 3x2^30), which keeps
+   * the modulo phase exact but destroys the direction: retreating by
+   * 0.25 cycles is indistinguishable, in the accumulator, from
+   * advancing by 0.75, and the bare 64-bit sum's bit 32 then sets on
+   * nearly every step (norm_freq=0.5 steered by ctrl=-0.25 is a
+   * 0.25 cyc/sample composite -- 2 boundary crossings in 8 steps --
+   * yet reports 8). So the signed advance is formed as
+   * `delta = norm_freq + ctrl` in cycles, ahead of any folding.
+   *
+   * Keying off the sign of @p ctrl alone would be wrong for the same
+   * reason in reverse: the composite can run forward while the control
+   * is negative (norm_freq=0.5, ctrl=-1e-4 is a legitimate +0.4999
+   * step). Only the composite's sign decides.
+   *
+   * Given that sign, the event is the accumulator's own wrap -- forward
+   * `phase_new < phase_old`, backward `phase_new > phase_old` -- plus
+   * the whole-cycle term: |delta| >= 1 crosses a boundary every step
+   * regardless of where the fractional part lands, which is both the
+   * multi-wrap case (0.9 + 0.9) and the exactly-unity case a resampler
+   * running at rate 1.0 sits on (fractional advance 0, one output per
+   * input). `delta == 0` is free-running and never events.
+   *
    * @param state  NCO state.  Must be non-NULL.
    * @param ctrl   Per-sample normalised-frequency control offset.
-   * @param carry  Out-param: set to 1 if this step's advance wrapped past
-   *               2^32, else 0. Must be non-NULL.
+   * @param carry  Out-param: set to 1 if this step's advance crossed a
+   *               cycle boundary (carry if the composite rate is
+   *               positive, borrow if negative), else 0. Must be
+   *               non-NULL.
    * @return Phase value BEFORE the increment.
    */
   JM_FORCEINLINE JM_HOT uint32_t
   nco_step_u32_ovf_ctrl (nco_state_t *state, double ctrl, uint8_t *carry)
   {
-    uint32_t ph  = state->phase;
-    uint64_t sum = (uint64_t)ph + (uint64_t)state->phase_inc
-                   + (uint64_t)nco_norm_to_inc (ctrl);
-    *carry        = (uint8_t)((sum >> 32) != 0);
-    state->phase  = (uint32_t)sum;
+    uint32_t ph    = state->phase;
+    /* Wrapping u32 add: bit-for-bit the modulo advance the 64-bit sum
+       used to produce -- only the event derivation below changes. */
+    uint32_t nph   = ph + state->phase_inc + nco_norm_to_inc (ctrl);
+    double   delta = state->norm_freq + ctrl; /* signed, pre-fold */
+
+    state->phase = nph;
+    if (delta > 0.0)
+      *carry = (uint8_t)(nph < ph || delta >= 1.0);
+    else if (delta < 0.0)
+      *carry = (uint8_t)(nph > ph || delta <= -1.0);
+    else
+      *carry = 0;
     return ph;
   }
 
@@ -560,17 +599,20 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
    * @brief Advance ctrl_len samples; raw phase + per-sample carry, with a
    *        per-sample control offset added on top of phase_inc.
    *
-   * The @ref nco_steps_u32_ovf output mapping (raw phase plus a carry
-   * flag marking each sample whose advance wrapped past 2^32) driven by
-   * the @ref nco_steps_u32_ctrl control port -- every stepper has a
-   * matching control-input counterpart. The carry reflects THIS
-   * sample's true advance (`phase_inc + ctrl_inc`, added as a single
-   * 64-bit sum so a wrap is never missed even when the control offset
-   * itself is large), not just phase_inc alone -- needed by any
-   * consumer (e.g. a coupled carrier/code tracker) that must detect a
-   * period boundary while the rate is being actively steered. With
-   * every `ctrl[i] == 0` this is bit-identical to nco_steps_u32_ovf().
-   * Returns ctrl_len.
+   * The @ref nco_steps_u32_ovf output mapping (raw phase plus a flag
+   * marking each sample whose advance crossed a cycle boundary) driven
+   * by the @ref nco_steps_u32_ctrl control port -- every stepper has a
+   * matching control-input counterpart. The flag reflects THIS sample's
+   * true SIGNED advance (`norm_freq + ctrl`, formed in cycles before
+   * either term is folded into the accumulator), not just phase_inc
+   * alone -- needed by any consumer (e.g. a coupled carrier/code
+   * tracker, or a resampler asking "does this input produce an output")
+   * that must detect a period boundary while the rate is being actively
+   * steered. A forward crossing is a carry (one EXTRA output/load), a
+   * backward one a borrow (one FEWER); see @ref nco_step_u32_ovf_ctrl
+   * for why the sign cannot be recovered after the fold, nor taken from
+   * `ctrl` alone. With every `ctrl[i] == 0` and `norm_freq` in [0, 1)
+   * this is bit-identical to nco_steps_u32_ovf(). Returns ctrl_len.
    *
    * @param state     NCO state returned by nco_create().
    * @param ctrl      Float32 array of per-sample normalised-frequency
@@ -579,8 +621,9 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
    * @param ctrl_len  Number of elements in ctrl; equals output length.
    * @param out       Phase output buffer; must hold at least ctrl_len
    *                  uint32_t values.
-   * @param out1      Carry output buffer; must hold at least ctrl_len
-   *                  uint8_t values.
+   * @param out1      Cycle-boundary event buffer (carry when the
+   *                  composite rate is positive, borrow when negative);
+   *                  must hold at least ctrl_len uint8_t values.
    * @param max_out Capacity of @p out and @p out1 in elements (both receive
    *                the same count). Emission stops there, so the return
    *                value is the number actually written.

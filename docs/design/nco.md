@@ -97,21 +97,36 @@ library says `norm_freq` — `nco_create(norm_freq)`, `nco_set_norm_freq()`,
 the Python property. That is not quite a mistake, but it is worth being
 precise about, because the two are not the same dimension.
 
-What the conversion *does* is unit-free: it takes an angle in **cycles**,
+What the conversion *does* is unit-free: it takes a **normalised** quantity,
 folds it modulo one, and scales it to a phase word. What varies is what the
-caller means by that angle:
+caller normalised *by*:
 
-| caller                                             | passes                                           | result is used as     |
-| -------------------------------------------------- | ------------------------------------------------ | --------------------- |
-| `nco`, `lo`, `resamp`, `symsync`, the `ctrl` ports | cycles **per sample** — a normalised *frequency* | a phase **increment** |
-| `dll_core.c:57`                                    | cycles, absolute (`seed_chip / sf`)              | a phase **position**  |
+| normalised by                           | is a      | call sites                                                                                                       | result lands on |
+| --------------------------------------- | --------- | ---------------------------------------------------------------------------------------------------------------- | --------------- |
+| the sample rate — cycles **per sample** | frequency | `nco`, `lo` (×3), `resamp` (×2), `dll` (×3), the `ctrl` ports                                                    | `phase_inc`     |
+| one period — cycles, absolute           | phase     | `costas:176`, `carrier_mpsk:160` (the loops' proportional path, `kp·e / 2π`), `dll_core.c:57` (`seed_chip / sf`) | `phase`         |
 
-So `cycles` is the only word that covers both, which is why it is the
-parameter name — but it leaves the common case dimensionally vague, and
-`nco_norm_to_inc` says "inc" while one caller assigns the result straight to
-`.phase`. Throughout this page the quantity is a **normalised frequency in
-cycles per sample** unless it says otherwise; that is the word the public API
-exposes, and it is what all but one call site means.
+So the dual use is not an oddity in one corner: three call sites convert a
+**phase**, two of them the proportional path of a carrier loop, where a
+per-symbol nudge in radians becomes a phase-word offset. `cycles` is the only
+word that covers both, which is why it is the parameter name — but it leaves
+each call site's dimension unstated, and `nco_norm_to_inc` says "inc" for
+three callers that assign the result straight to `.phase`.
+
+The library also already *has* the second concept without a name for it:
+`resamp_get_ctrl_acc()` is documented as "the control accumulator's fractional
+phase, in \[0, 1)", and `dll`'s `chip_pos` is the same shape.
+
+**The naming that fits is `norm_freq` and `norm_phase`, with "norm" meaning
+normalised to whatever the context's full scale is** — the sample rate for a
+frequency, one period for a phase. That both convert by the identical fold and
+scale is not a coincidence to paper over; it is the reason one implementation
+serves both, and two named faces over it would let each call site declare
+which it means. Not yet done: 15 call sites plus tests, and no consumer of the
+symbol outside `native/`.
+
+Throughout this page the quantity is a normalised **frequency** in cycles per
+sample unless it says otherwise.
 
 ______________________________________________________________________
 

@@ -69,6 +69,38 @@ ______________________________________________________________________
 
 ### Changed
 
+- **BREAKING: `telemetry.Telemetry` renames four members**, as a consequence
+    of the module becoming fully manifest-owned — its binding is now generated
+    from `objects/dp_tlm.toml` with no hand-written CPython at all, and one
+    manifest string names both the C parameter and the Python keyword.
+
+    | was                     | now           | why                                                                                                        |
+    | ----------------------- | ------------- | ---------------------------------------------------------------------------------------------------------- |
+    | `read(max_records=-1)`  | `read(n=0)`   | one name for the C parameter and the keyword; `0`, not `-1`, means "everything available"                  |
+    | `probe_names()`         | `probe_names` | a declarative `type = "dict"` **is** a property in just-makeit; a dict-returning method is not expressible |
+    | `emit(probe_id, value)` | `emit(id, v)` | as above — the manifest names it once                                                                      |
+    | `emitted(probe_id)`     | `emitted(id)` | as above                                                                                                   |
+
+    Only `probe_names` is a forced change; the other three are the cost of
+    having one name instead of two that can drift. Positional calls to `emit`
+    and `emitted` are unaffected — only keyword callers need to change.
+
+    `Telemetry(0)` and a non-power-of-two size now both raise `ValueError`
+    rather than `ValueError` and `MemoryError` respectively. They were always
+    the same `NULL` from `dp_tlm_create`, and a rejected size is what it
+    almost always means.
+
+- **BREAKING: `ber.BerMeter.set_truth()` returns `None` and raises.** It
+    returned `0` and raised nothing, while its own documentation said
+    *"Raises ValueError if any index is outside 0..m-1"* and its C returns a
+    plain `DP_OK`/`DP_ERR_INVALID` status. The manifest had declared that
+    intent twice, in two spellings that both silently did nothing on a method
+    (`error` before just-makeit gh-805 §B, and `check_return`, which is a
+    `jm function` key). The header's own doctest had recorded the wrong
+    behaviour as expected output, so every face agreed with every other face
+    and all of them disagreed with the manifest. It now raises `ValueError`
+    on an out-of-range symbol index, as advertised.
+
 - **BREAKING: `wfm.Writer` now requires `fs`.** It used to default to `1e6`,
     which made "nobody stated a rate" and "exactly 1 MHz" the same value — so
     a capture written without one recorded a confident 1 MHz in its header,

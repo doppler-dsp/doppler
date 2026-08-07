@@ -28,7 +28,7 @@ doppler.snr stub=3 runtime=5
 doppler.source stub=13 runtime=39
 doppler.spectral stub=65 runtime=103
 doppler.stream stub=7 runtime=34
-doppler.telemetry stub=7 runtime=9
+doppler.telemetry stub=0 runtime=9
 doppler.track stub=12 runtime=100
 doppler.util stub=1 runtime=2
 doppler.wfm stub=72 runtime=96

@@ -75,6 +75,22 @@ class Telemetry:
         -------
         NDArray[Any]
             Number of records copied out.
+
+        Examples
+        --------
+        >>> from doppler.telemetry import Telemetry
+        >>> tlm = Telemetry(1 << 12)
+        >>> eid = tlm.probe("sync.e")
+        >>> for i in range(5):
+        ...     tlm.emit(eid, i / 10)
+        >>> recs = tlm.read(2)          # take two
+        >>> recs.shape, recs.dtype.names
+        ((2,), ('n', 'value', 'probe', 'flags'))
+        >>> tlm.read().shape            # 0 means "everything left"
+        (3,)
+        >>> tlm.read().shape            # drained
+        (0,)
+
         """
 
     def probe(self, name: str, decim: int = 1) -> int:
@@ -97,6 +113,18 @@ class Telemetry:
         int
             Probe id (>= 0), or DP_ERR_INVALID on NULL/overlong name, decim ==
             0, or a full table.
+
+        Examples
+        --------
+        >>> from doppler.telemetry import Telemetry
+        >>> tlm = Telemetry(1 << 12)
+        >>> tlm.probe("sync.e", decim=4)
+        0
+        >>> tlm.probe("sync.e")     # same name: same id, decim retuned
+        0
+        >>> tlm.probe_count
+        1
+
         """
 
     def probe_id(self, name: str) -> int:
@@ -105,12 +133,24 @@ class Telemetry:
         Parameters
         ----------
         name : str
-            Input.
+            Probe name as passed to dp_tlm_probe().
 
         Returns
         -------
         int
-            Output.
+            Probe id (>= 0), or ::DP_ERR_INVALID if no such probe.
+
+        Examples
+        --------
+        >>> from doppler.telemetry import Telemetry
+        >>> tlm = Telemetry(1 << 12)
+        >>> _ = tlm.probe("agc.gain_db")
+        >>> tlm.probe_id("agc.gain_db")
+        0
+        >>> tlm.probe_id("never.registered")
+        Traceback (most recent call last):
+        KeyError: 'no probe by that name (rc=-4)'
+
         """
 
     def set_decim(self, name: str, decim: int) -> None:
@@ -123,9 +163,20 @@ class Telemetry:
         Parameters
         ----------
         name : str
-            Input.
+            Name of an ALREADY registered probe.
         decim : int
-            Input.
+            Emit every decim-th event; >= 1.
+
+        Examples
+        --------
+        >>> from doppler.telemetry import Telemetry
+        >>> tlm = Telemetry(1 << 12)
+        >>> _ = tlm.probe("sync.e", decim=1)
+        >>> tlm.set_decim("sync.e", 8)      # retune the existing probe
+        >>> tlm.set_decim("typo.e", 8)      # refused, not silently created
+        Traceback (most recent call last):
+        ValueError: set_decim failed (rc=-4)
+
         """
 
     def emit(self, id: int, v: float) -> None:
@@ -156,9 +207,28 @@ class Telemetry:
         Parameters
         ----------
         id : int
-            Input.
+            Probe id from dp_tlm_probe() on THIS context.
         v : float
-            Input.
+            The scalar, narrowed to float by the ring record. The Python face
+            binds dp_tlm_emit_checked() instead, which additionally refuses an
+            id the registry never issued — see its docs for why the hot path
+            does not.
+
+        Examples
+        --------
+        >>> from doppler.telemetry import Telemetry
+        >>> tlm = Telemetry(1 << 12)
+        >>> pid = tlm.probe("rx.snr_db")
+        >>> tlm.emit(pid, 12.5)
+        >>> float(tlm.read()[0]["value"])
+        12.5
+
+        An id the registry never issued is refused, not written:
+
+        >>> tlm.emit(pid + 1, 1.0)
+        Traceback (most recent call last):
+        ValueError: emit failed (rc=-4)
+
         """
 
     def set_now(self, n: int) -> None:
@@ -184,21 +254,49 @@ class Telemetry:
         Parameters
         ----------
         n : int
-            Input.
+            Sample index stamped into every subsequent record.
+
+        Examples
+        --------
+        >>> from doppler.telemetry import Telemetry
+        >>> tlm = Telemetry(1 << 12)
+        >>> pid = tlm.probe("agc.gain_db")
+        >>> tlm.set_now(1000)           # top of the block, before stepping
+        >>> tlm.emit(pid, -3.5)
+        >>> rec = tlm.read()[0]
+        >>> int(rec["n"]), float(rec["value"])
+        (1000, -3.5)
+
         """
 
     def emitted(self, id: int) -> int:
         """Records written for probe id (post-decimation, post-drop).
 
+        Reconcile against dp_tlm_dropped() to account for losses: what a probe
+        emitted is what reached the ring, not what the call sites offered it.
+
         Parameters
         ----------
         id : int
-            Input.
+            Probe id from dp_tlm_probe().
 
         Returns
         -------
         int
-            Output.
+            Records written for that probe, 0 for an unknown id.
+
+        Examples
+        --------
+        >>> from doppler.telemetry import Telemetry
+        >>> tlm = Telemetry(1 << 12)
+        >>> eid = tlm.probe("sync.e", decim=2)
+        >>> for i in range(4):
+        ...     tlm.emit(eid, i / 10)
+        >>> tlm.emitted(eid)            # decim=2: half the events
+        2
+        >>> tlm.dropped
+        0
+
         """
 
     def stats(self) -> TelemetryStats:
@@ -207,7 +305,19 @@ class Telemetry:
         Returns
         -------
         TelemetryStats
-            Output.
+            The four counters as one ::dp_tlm_stats_t value.
+
+        Examples
+        --------
+        >>> from doppler.telemetry import Telemetry
+        >>> tlm = Telemetry(1 << 12)
+        >>> pid = tlm.probe("agc.gain_db")
+        >>> tlm.emit(pid, -3.5)
+        >>> tlm.stats()
+        doppler.telemetry.TelemetryStats(dropped=0, emitted=1, capacity=4096, probes=1)
+        >>> tlm.stats().emitted
+        1
+
         """
 
     @property

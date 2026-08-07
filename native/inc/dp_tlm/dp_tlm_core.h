@@ -183,10 +183,40 @@ void dp_tlm_destroy (dp_tlm_t *t);
  * @param decim Emit every decim-th event; >= 1.
  * @return Probe id (>= 0), or DP_ERR_INVALID on NULL/overlong name,
  *         decim == 0, or a full table.
+ *
+ * @code
+ * >>> from doppler.telemetry import Telemetry
+ * >>> tlm = Telemetry(1 << 12)
+ * >>> tlm.probe("sync.e", decim=4)
+ * 0
+ * >>> tlm.probe("sync.e")     # same name: same id, decim retuned
+ * 0
+ * >>> tlm.probe_count
+ * 1
+ *
+ * @endcode
  */
 int dp_tlm_probe (dp_tlm_t *t, const char *name, uint32_t decim);
 
-/** @brief Looks up a probe id by name; ::DP_ERR_INVALID if unknown. */
+/**
+ * @brief Looks up a probe id by name; ::DP_ERR_INVALID if unknown.
+ *
+ * @param t    Context.
+ * @param name Probe name as passed to dp_tlm_probe().
+ * @return Probe id (>= 0), or ::DP_ERR_INVALID if no such probe.
+ *
+ * @code
+ * >>> from doppler.telemetry import Telemetry
+ * >>> tlm = Telemetry(1 << 12)
+ * >>> _ = tlm.probe("agc.gain_db")
+ * >>> tlm.probe_id("agc.gain_db")
+ * 0
+ * >>> tlm.probe_id("never.registered")
+ * Traceback (most recent call last):
+ * KeyError: 'no probe by that name (rc=-4)'
+ *
+ * @endcode
+ */
 int dp_tlm_probe_id (const dp_tlm_t *t, const char *name);
 
 /**
@@ -211,8 +241,13 @@ int dp_tlm_probe_id (const dp_tlm_t *t, const char *name);
  * >>> from doppler.telemetry import Telemetry
  * >>> tlm = Telemetry(1 << 12)
  * >>> pid = tlm.probe("rx.snr_db")
- * >>> tlm.emit(pid, 12.5)          # registered: recorded
- * >>> tlm.emit(pid + 1, 1.0)       # never registered: refused
+ * >>> tlm.emit(pid, 12.5)
+ * >>> float(tlm.read()[0]["value"])
+ * 12.5
+ *
+ * An id the registry never issued is refused, not written:
+ *
+ * >>> tlm.emit(pid + 1, 1.0)
  * Traceback (most recent call last):
  * ValueError: emit failed (rc=-4)
  *
@@ -227,8 +262,22 @@ int dp_tlm_emit_checked (dp_tlm_t *t, int32_t id, double v);
  * unknown name rather than quietly creating a probe nothing emits to, which
  * is what a typo in a retune call deserves.
  *
+ * @param t     Context.
+ * @param name  Name of an ALREADY registered probe.
+ * @param decim Emit every decim-th event; >= 1.
  * @return ::DP_OK, or ::DP_ERR_INVALID on NULL, an unknown name, or
  *         @p decim == 0.
+ *
+ * @code
+ * >>> from doppler.telemetry import Telemetry
+ * >>> tlm = Telemetry(1 << 12)
+ * >>> _ = tlm.probe("sync.e", decim=1)
+ * >>> tlm.set_decim("sync.e", 8)      # retune the existing probe
+ * >>> tlm.set_decim("typo.e", 8)      # refused, not silently created
+ * Traceback (most recent call last):
+ * ValueError: set_decim failed (rc=-4)
+ *
+ * @endcode
  */
 int dp_tlm_set_decim (dp_tlm_t *t, const char *name, uint32_t decim);
 
@@ -314,7 +363,24 @@ typedef struct
   size_t   probes;   /**< Registered probes.                             */
 } dp_tlm_stats_t;
 
-/** @brief Snapshots the context's counters.  Zeroed for a NULL context. */
+/**
+ * @brief Snapshots the context's counters.  Zeroed for a NULL context.
+ *
+ * @param t Context, or NULL for an all-zero record.
+ * @return The four counters as one ::dp_tlm_stats_t value.
+ *
+ * @code
+ * >>> from doppler.telemetry import Telemetry
+ * >>> tlm = Telemetry(1 << 12)
+ * >>> pid = tlm.probe("agc.gain_db")
+ * >>> tlm.emit(pid, -3.5)
+ * >>> tlm.stats()
+ * doppler.telemetry.TelemetryStats(dropped=0, emitted=1, capacity=4096, probes=1)
+ * >>> tlm.stats().emitted
+ * 1
+ *
+ * @endcode
+ */
 dp_tlm_stats_t dp_tlm_stats (const dp_tlm_t *t);
 
 /**
@@ -344,6 +410,22 @@ size_t dp_tlm_read_max_out (dp_tlm_t *t);
  * smaller.
  *
  * @return Number of records copied out.
+ *
+ * @code
+ * >>> from doppler.telemetry import Telemetry
+ * >>> tlm = Telemetry(1 << 12)
+ * >>> eid = tlm.probe("sync.e")
+ * >>> for i in range(5):
+ * ...     tlm.emit(eid, i / 10)
+ * >>> recs = tlm.read(2)          # take two
+ * >>> recs.shape, recs.dtype.names
+ * ((2,), ('n', 'value', 'probe', 'flags'))
+ * >>> tlm.read().shape            # 0 means "everything left"
+ * (3,)
+ * >>> tlm.read().shape            # drained
+ * (0,)
+ *
+ * @endcode
  */
 size_t dp_tlm_read (dp_tlm_t *t, size_t n, dp_tlm_rec_t *out,
                     size_t max_out);
@@ -351,7 +433,29 @@ size_t dp_tlm_read (dp_tlm_t *t, size_t n, dp_tlm_rec_t *out,
 /** @brief Total records dropped on ring overrun (monotonic). */
 uint64_t dp_tlm_dropped (const dp_tlm_t *t);
 
-/** @brief Records written for probe @p id (post-decimation, post-drop). */
+/**
+ * @brief Records written for probe @p id (post-decimation, post-drop).
+ *
+ * Reconcile against dp_tlm_dropped() to account for losses: what a probe
+ * emitted is what reached the ring, not what the call sites offered it.
+ *
+ * @param t  Context.
+ * @param id Probe id from dp_tlm_probe().
+ * @return Records written for that probe, 0 for an unknown id.
+ *
+ * @code
+ * >>> from doppler.telemetry import Telemetry
+ * >>> tlm = Telemetry(1 << 12)
+ * >>> eid = tlm.probe("sync.e", decim=2)
+ * >>> for i in range(4):
+ * ...     tlm.emit(eid, i / 10)
+ * >>> tlm.emitted(eid)            # decim=2: half the events
+ * 2
+ * >>> tlm.dropped
+ * 0
+ *
+ * @endcode
+ */
 uint64_t dp_tlm_emitted (const dp_tlm_t *t, int id);
 
 /**
@@ -372,6 +476,21 @@ uint64_t dp_tlm_emitted (const dp_tlm_t *t, int id);
  * With no capture open the behaviour is byte-identical to a bare assignment.
  * The delegation is a cold branch on a per-block call, never a per-sample
  * one, so it is nowhere near the hot loops dp_tlm_emit() cares about.
+ *
+ * @param t Context; NULL is a no-op.
+ * @param n Sample index stamped into every subsequent record.
+ *
+ * @code
+ * >>> from doppler.telemetry import Telemetry
+ * >>> tlm = Telemetry(1 << 12)
+ * >>> pid = tlm.probe("agc.gain_db")
+ * >>> tlm.set_now(1000)           # top of the block, before stepping
+ * >>> tlm.emit(pid, -3.5)
+ * >>> rec = tlm.read()[0]
+ * >>> int(rec["n"]), float(rec["value"])
+ * (1000, -3.5)
+ *
+ * @endcode
  */
 static inline void
 dp_tlm_set_now (dp_tlm_t *t, uint64_t n)
@@ -407,6 +526,30 @@ dp_tlm_set_now (dp_tlm_t *t, uint64_t n)
  * (bench_telemetry_core, ABBA-interleaved) — so *that* check belongs at the
  * binding boundary, where the id is untrusted, not in the hot loop, where the
  * caller holds an id dp_tlm_probe() gave it.
+ *
+ * @param t  Context; NULL is a no-op (the detached case).
+ * @param id Probe id from dp_tlm_probe() on THIS context.
+ * @param v  The scalar, narrowed to float by the ring record.
+ *
+ * The Python face binds dp_tlm_emit_checked() instead, which additionally
+ * refuses an id the registry never issued — see its docs for why the hot
+ * path does not.
+ *
+ * @code
+ * >>> from doppler.telemetry import Telemetry
+ * >>> tlm = Telemetry(1 << 12)
+ * >>> pid = tlm.probe("rx.snr_db")
+ * >>> tlm.emit(pid, 12.5)
+ * >>> float(tlm.read()[0]["value"])
+ * 12.5
+ *
+ * An id the registry never issued is refused, not written:
+ *
+ * >>> tlm.emit(pid + 1, 1.0)
+ * Traceback (most recent call last):
+ * ValueError: emit failed (rc=-4)
+ *
+ * @endcode
  */
 JM_FORCEINLINE void
 dp_tlm_emit (dp_tlm_t *t, int32_t id, double v)

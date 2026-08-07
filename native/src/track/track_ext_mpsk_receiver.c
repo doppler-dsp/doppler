@@ -711,7 +711,7 @@ static PyMethodDef MpskReceiverObj_methods[] = {
     ">>> tlm = Telemetry(1 << 14)   # 11 probes x ~512 syms + headroom\n"
     ">>> rx = MpskReceiver(m=4, sps=4, m_out=2)\n"
     ">>> rx.set_telemetry(tlm, \"rx\")\n"
-    ">>> len(tlm.probe_names())\n"
+    ">>> len(tlm.probe_names)\n"
     "11\n"
     ">>> rng = np.random.default_rng(7)\n"
     ">>> syms = (1 - 2 * rng.integers(0, 2, 512)).astype(np.complex64)\n"

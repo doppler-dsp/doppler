@@ -111,9 +111,9 @@ def main(out_path="telemetry_fanin_demo.png"):
     agc = AGC(ref_db=0.0, loop_bw=0.0025, alpha=0.05)
     agc.set_telemetry(tlm, "agc")
 
-    n_probes = len(tlm.probe_names())
+    n_probes = len(tlm.probe_names)
     print(f"one ring, three emitters, {n_probes} probes:")
-    for name, pid in sorted(tlm.probe_names().items()):
+    for name, pid in sorted(tlm.probe_names.items()):
         print(f"  {pid:3d}  {name}")
 
     # ── per-emitter input streams (same length, shared sample clock) ─
@@ -165,7 +165,7 @@ def main(out_path="telemetry_fanin_demo.png"):
     per_emitter = {
         p: int(
             np.sum(
-                [len(series(n)) for n in tlm.probe_names() if n.startswith(p)]
+                [len(series(n)) for n in tlm.probe_names if n.startswith(p)]
             )
         )
         for p in ("rx.", "code0.", "agc.")

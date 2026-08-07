@@ -838,7 +838,7 @@ void dll_tlm_flush(const dll_state_t *s);
  * >>> code = np.zeros(31, dtype=np.uint8)
  * >>> d = Dll(code=code, sps=2)
  * >>> d.set_telemetry(tlm, "code")
- * >>> sorted(tlm.probe_names())
+ * >>> sorted(tlm.probe_names)
  * ['code.e', 'code.lock', 'code.locked', 'code.rate']
  * >>> x = np.ones(31 * 2 * 50, dtype=np.complex64)
  * >>> _ = d.steps(x)

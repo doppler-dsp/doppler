@@ -460,7 +460,7 @@ extern "C"
    * >>> tlm = Telemetry(1 << 14)   # 11 probes x ~512 syms + headroom
    * >>> rx = MpskReceiver(m=4, sps=4, m_out=2)
    * >>> rx.set_telemetry(tlm, "rx")
-   * >>> len(tlm.probe_names())
+   * >>> len(tlm.probe_names)
    * 11
    * >>> rng = np.random.default_rng(7)
    * >>> syms = (1 - 2 * rng.integers(0, 2, 512)).astype(np.complex64)

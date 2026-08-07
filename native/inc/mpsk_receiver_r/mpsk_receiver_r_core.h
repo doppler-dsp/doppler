@@ -355,7 +355,7 @@ extern "C"
    * >>> tlm = Telemetry(1 << 14)
    * >>> rx = MpskReceiverR(m=4, sps=10, m_out=2, init_norm_freq=0.25)
    * >>> rx.set_telemetry(tlm, "rx")
-   * >>> len(tlm.probe_names())
+   * >>> len(tlm.probe_names)
    * 11
    * >>> rng = np.random.default_rng(7)
    * >>> idx = rng.integers(0, 4, 512)

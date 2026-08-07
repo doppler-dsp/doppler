@@ -351,7 +351,7 @@ def demod(x, g, real, telemetry=True):
     probes = {}
     if tlm is not None:
         rec = tlm.read()
-        names = tlm.probe_names()
+        names = tlm.probe_names
         probes = {
             k.removeprefix("rx."): rec[rec["probe"] == pid]["value"].astype(
                 float

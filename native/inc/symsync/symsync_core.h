@@ -550,7 +550,7 @@ extern "C"
    * >>> tlm = Telemetry(1 << 12)
    * >>> ss = SymbolSync(sps=4, bn=0.01, zeta=0.707)
    * >>> ss.set_telemetry(tlm, "sync")
-   * >>> sorted(tlm.probe_names())
+   * >>> sorted(tlm.probe_names)
    * ['sync.e', 'sync.freq', 'sync.lock', 'sync.locked', 'sync.rate']
    * >>> x = np.repeat([1 + 1j, -1 - 1j], 4 * 64).astype(np.complex64)
    * >>> _ = ss.steps(x)

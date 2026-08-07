@@ -414,7 +414,7 @@ int costas_get_locked(const costas_state_t *state);
  * >>> tlm = Telemetry(1 << 12)
  * >>> c = Costas(bn=0.05, zeta=0.707, tsamps=64)
  * >>> c.set_telemetry(tlm, "car")
- * >>> sorted(tlm.probe_names())
+ * >>> sorted(tlm.probe_names)
  * ['car.e', 'car.freq', 'car.lock', 'car.locked']
  * >>> x = np.ones(64 * 100, dtype=np.complex64)
  * >>> _ = c.steps(x)

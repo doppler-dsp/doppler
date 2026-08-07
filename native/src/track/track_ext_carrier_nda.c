@@ -587,7 +587,7 @@ static PyMethodDef CarrierNdaObj_methods[] = {
     ">>> tlm = Telemetry(1 << 14)\n"
     ">>> c = CarrierNda(bn=0.01, sps=8, n=4, m=4)\n"
     ">>> c.set_telemetry(tlm, \"car\", decim=8)\n"
-    ">>> sorted(tlm.probe_names())\n"
+    ">>> sorted(tlm.probe_names)\n"
     "['car.agc.gain_db', 'car.e', 'car.freq', 'car.lock', 'car.locked']\n"
     ">>> x = np.exp(2j * np.pi * 0.005 * np.arange(4096)).astype(\n"
     "...     np.complex64)\n"

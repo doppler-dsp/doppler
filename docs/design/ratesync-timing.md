@@ -187,6 +187,49 @@ both signs, that rule closes to the truncation floor (≤0.03%) in every cell.
 confirm it fails before touching `nco_core.h`. Only then does `resamp` adopt the
 primitive and delete its `double`.
 
+### 1.4 The NCO half is done; the resampler half needs 32 more phase bits
+
+The carry rule above is **implemented and gated** (`nco_core.h`, plus the
+negative-ctrl mirror of the `+0.25` case in `test_nco_core.c`, which fails on
+6 of 8 carries without it). Measured over 10000 steps, every rate in §1.3's
+table now lands on the truncation floor: `0.1/−0.05` → 499, `0.25/−0.20` → 499,
+`0.0/−1e−4` → 2.
+
+**The `resamp` adoption does not follow from it, and is not merely deferred —
+it regresses `test_ratesync_core` (7/8 locked, worst EVM −6.8 dB against a
+−34 dB limit).** Built it, measured it, reverted it. The cause is not the carry
+rule and not the arm: with the same `ctrl` sequence the emitted counts match
+exactly, and the arms agree to within one arm at `rate = 1.0`. It is the
+**phase word's rate resolution**.
+
+`nco_norm_to_inc` truncates by design (`nco_core.h:93` — host-determinism, and
+the arm64 `2^32 → 0` freeze), so the realised rate is at most one 2^-32 step
+low. The planner hands the terminal stage an *exactly rational* rate, and at
+`rate = 12/13` the ideal increment is `3964585196.31`: truncation is 0.31 units
+short per step, so 13 steps land **4 units short of exactly 12 cycles**. The
+wrap that the `double` accumulator caught on the boundary is missed, forever,
+once per period — 13000 inputs emit **11999** outputs where the `double` emits
+12000\. One lost output is exactly the failure `ratesync_core.h:568` already
+warns about: it *"permanently shifts the strobe parity and leaves the loop
+sliding"*.
+
+So the `double` is not simply wrong here — it buys rate resolution the 32-bit
+word does not have, at the cost of the `u ≥ 1` excursion §1.2 traced. Both
+properties are wanted, and the options are not equivalent:
+
+- **A 64-bit phase word for the timing NCO.** The deficit falls by 2^32 — one
+    lost output every ~10^19 inputs — and the arm stays in `[0, 1)` by
+    construction, so §1.2's clamp still disappears. This is the only option that
+    keeps both properties, and it is a new primitive: `nco_state_t` is 32-bit,
+    and the code/carrier NCOs that share it have no need for the extra bits.
+- **Compensating the sub-LSB residual** is a second accumulator beside the
+    resampler's, which is the one thing the timing model forbids outright.
+- **Rounding instead of truncating** does not help — at `12/13` the residual is
+    0.31 and rounds the same way, and it reopens the arm64 boundary.
+
+Do not swap `resamp` onto the 32-bit NCO to close §1.2; that trades a 0.126 rad
+instrument-grade glitch for a link-grade strobe slip.
+
 Unless stated otherwise every number below is QPSK, `sps = 8`, `m = 8`,
 `num_phases = 32`, `pulse = "rrc"` with `beta = 0.35, span = 8` on both sides,
 Es/N0 = 60 dB so that quantisation and ISI rather than noise set the result,

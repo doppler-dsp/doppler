@@ -101,7 +101,6 @@ class BerMeter:
         >>> rx = np.exp(1j * ang).astype(np.complex64)
         >>> met = BerMeter(m=4)
         >>> met.set_truth(truth)
-        0
         >>> met.align(rx, n_marker=64)
         1
         >>> met.score(rx, hi=truth.size)
@@ -114,7 +113,7 @@ class BerMeter:
 
         """
 
-    def set_truth(self, truth: NDArray[np.uint8]) -> int:
+    def set_truth(self, truth: NDArray[np.uint8]) -> None:
         """Install the transmitted symbol INDICES (0..m-1, not Gray labels)
         this meter scores against. Copied, so the caller's buffer need not
         outlive the call, and reused across every burst. Raises ValueError if
@@ -131,11 +130,6 @@ class BerMeter:
         truth : NDArray[np.uint8]
             Transmitted symbol indices, each in `0..m-1`.
 
-        Returns
-        -------
-        int
-            DP_OK, or DP_ERR_INVALID if any index is outside `0..m-1`.
-
         Examples
         --------
         >>> import numpy as np
@@ -144,7 +138,9 @@ class BerMeter:
         >>> truth = np.array(
         ...     [0, 3, 1, 2, 2, 0], dtype=np.uint8)  # indices, 0..3
         >>> met.set_truth(truth)
-        0
+        >>> met.set_truth(np.array([9], dtype=np.uint8))  # 9 is not in 0..3
+        Traceback (most recent call last):
+        ValueError: set_truth failed (rc=-4)
 
         """
 
@@ -209,7 +205,6 @@ class BerMeter:
         >>> rx = np.exp(1j * ang).astype(np.complex64)
         >>> met = BerMeter(m=4)
         >>> met.set_truth(truth)
-        0
         >>> met.align(rx, n_marker=64)     # correlate a 64-symbol marker
         1
         >>> met.lag, met.align_ok          # detected, so score() is valid
@@ -265,7 +260,6 @@ class BerMeter:
         >>> rx = np.exp(1j * ang).astype(np.complex64)
         >>> met = BerMeter(m=4)
         >>> met.set_truth(truth)
-        0
         >>> met.align(rx, n_marker=64)
         1
         >>> met.score(rx, hi=truth.size)   # the 64 marker symbols are excluded
@@ -308,7 +302,6 @@ class BerMeter:
         >>> rx[200:260:5] *= -1            # corrupt 12 symbols (pi rotation)
         >>> met = BerMeter(m=4)
         >>> met.set_truth(truth)
-        0
         >>> met.align(rx, n_marker=64)
         1
         >>> _ = met.score(rx, hi=truth.size)
@@ -346,7 +339,6 @@ class BerMeter:
         >>> rx[200:260:5] *= -1            # corrupt 12 symbols
         >>> met = BerMeter(m=4)
         >>> met.set_truth(truth)
-        0
         >>> met.align(rx, n_marker=64)
         1
         >>> _ = met.score(rx, hi=truth.size)

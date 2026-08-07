@@ -46,8 +46,15 @@ name = "set_truth"
 doc = "Install the transmitted symbol INDICES (0..m-1, not Gray labels) this meter scores against. Copied, so the caller's buffer need not outlive the call, and reused across every burst. Raises ValueError if any index is outside 0..m-1."
 arg_type = "void"
 return_type = "int"
-error = "ValueError"
-check_return = true
+# `status_return`, not `check_return` + `error`: both of those were dead here.
+# `check_return` is a `jm function` key with no meaning on a method, and
+# `error` did nothing on a method until just-makeit#805 §B (where it names the
+# exception `error_negative` raises — a different shape, since this returns a
+# pure DP_OK/DP_ERR_INVALID status with no value to hand back). So the method
+# has been returning 0 to Python and raising nothing, while the `doc` below
+# and the C contract both said it raises. jm 0.49's validation is what
+# surfaced it: `error` without `error_negative` is now refused outright.
+status_return = true
 params = [{ name = "truth", type = "uint8_t[]" }]
 
 [[ber_meter.methods]]

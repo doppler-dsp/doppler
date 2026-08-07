@@ -13,6 +13,40 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+### Breaking
+
+- **`acquire.CarrierAcquisition`'s constructor takes the two rates first, and
+    requires them.** The published signature had not been callable as
+    documented for months: the `.pyi` advertised
+    `CarrierAcquisition(sample_rate_hz, symbol_rate_hz, ..., psd_template=...)`,
+    while the compiled extension required `psd_template` **first** and let both
+    rates default to `0.0` — which reaches `carrier_acq_create()` as an invalid
+    rate and surfaces as a bare `MemoryError`. Following the documentation
+    raised `TypeError: function missing required argument 'psd_template'`, and
+    a type checker endorsed the failing call, because the stub is all it can
+    see.
+
+    The cause was a stale sacred fragment. The manifest moved `psd_template`
+    and gave it a default; the `.pyi` regenerated from the manifest and the
+    hand-owned binding could not, so the two faces drifted apart and stayed
+    that way. jm reported it on every `jm apply`, by name — inside a block of a
+    dozen warnings about fragments that were fine, which is why it survived.
+    `scripts/check_init_param_optionality.py` now gates exactly this, and
+    reported its own exemption as stale the moment the fix landed.
+
+    The manifest's signature wins, because it is the one the docs, the stub and
+    the examples all describe:
+
+    ```python
+    CarrierAcquisition(sample_rate_hz, symbol_rate_hz, ..., psd_template=...)
+    ```
+
+    Both rates are now `required` rather than defaulted, so omitting one raises
+    a `TypeError` naming it instead of constructing an object that fails
+    opaquely. **Callers passing the template positionally must move it to
+    `psd_template=`;** every in-tree caller was updated. Keyword callers, which
+    is what the docs have always shown, are unaffected.
+
 ### Added
 
 - **Telemetry captures are lossless by construction** (C API;

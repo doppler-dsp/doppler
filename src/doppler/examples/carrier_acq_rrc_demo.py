@@ -111,7 +111,9 @@ def rrc_template_for(nfft: int) -> np.ndarray:
 
 # --8<-- [start:compare]
 def estimate(x: np.ndarray, template: np.ndarray) -> CarrierAcquisition:
-    ca = CarrierAcquisition(template, SAMPLE_RATE_HZ, SYM_RATE_HZ, **CA_KWARGS)
+    ca = CarrierAcquisition(
+        SAMPLE_RATE_HZ, SYM_RATE_HZ, psd_template=template, **CA_KWARGS
+    )
     ca.steps(x)
     return ca
 
@@ -120,7 +122,7 @@ def run_condition(esn0_db: float):
     """Estimate the residual with both the default (wrong-shape) and the
     RRC-matched template, at one Es/N0. Returns a dict of results."""
     x = make_signal(esn0_db)
-    probe = CarrierAcquisition(NO_TEMPLATE, SAMPLE_RATE_HZ, SYM_RATE_HZ)
+    probe = CarrierAcquisition(SAMPLE_RATE_HZ, SYM_RATE_HZ)
     template = rrc_template_for(probe.nfft)
 
     default = estimate(x, NO_TEMPLATE)

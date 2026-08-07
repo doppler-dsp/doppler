@@ -4,30 +4,6 @@
 # `Class.param`, and check_init_param_optionality.py reports an entry that has
 # stopped diverging, so this list cannot quietly outlive its reason.
 #
-# NOT a jm bug, and NOT upstream-blocked: doppler's own stale sacred fragment.
-# `acquire_ext_carrier_acq.c` was written when psd_template came first and had
-# no default. The manifest later moved it and gave it `default = "[]"`, the
-# .pyi followed, and a sacred fragment's constructor is never rewritten -- so
-# the stub advertises `psd_template=` as omittable over a binding that still
-# demands it first. jm reports this on every `jm apply`, by name, as
-# kwargs-drift; it is a warning in a list of warnings, which is exactly how it
-# survived (see just-makeit#823, where the ask is to GATE what is already
-# detected).
-#
-# Deleting the fragment and re-applying fixes it outright and loses no members
-# -- verified. It is parked rather than done because it changes the
-# constructor's POSITIONAL order (psd_template stops being argument 1), and
-# doppler's own tests and examples call it positionally in the old order. That
-# is a public API break either way round, so it needs its own change:
-#
-#   (a) regenerate + update the call sites -- honest, breaks positional callers
-#   (b) reconcile the MANIFEST to the shipped binding (psd_template first, no
-#       default) -- non-breaking, and arguably truer: every caller already
-#       passes it, spelling "not supplied" as an empty array
-#
-# Recommend (b). Delete this line with whichever lands.
-CarrierAcquisition.psd_template
-
 # just-makeit#823 Ask C, a different mechanism reaching the same symptom. A
 # capsule init-param (gh-790) rejects Py_None unconditionally, so its binding
 # has no `|` at all, while the stub still renders it `= ...`. A capsule METHOD

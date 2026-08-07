@@ -9,7 +9,7 @@ anywhere in the path. This is the pair `track.RateSync` exposes directly and
 that `track.MpskReceiver` embeds.
 
 Related: [MPSK Receiver](mpsk.md) (the object that embeds this pair, and whose
-carrier loop §1 attributes 13 dB to), [Timing Lock
+carrier loop §1 attributes 12.2 dB to), [Timing Lock
 Detector](timing_lock_detector.md) (the lock statistic, a separate concern from
 the recovery quality measured here), [Continuously Variable
 Resampler](RESAMPLER.md) (the bank and accumulator underneath).
@@ -24,19 +24,53 @@ separates them. Gardner's TED is carrier-blind (`|·|²`), so the timing pair
 runs perfectly well with no carrier recovery at all, which makes the
 separation trivial to arrange and worth arranging first:
 
-| path                                    | EVM at Es/N0 = 60 dB         |
-| --------------------------------------- | ---------------------------- |
-| coherent bound                          | −60.00 dB                    |
-| **matched filter + timing, standalone** | **−60.00 dB — at the bound** |
-| the same input through `MpskReceiver`   | −46.84 dB                    |
+Measured with an **exact `sps`** (see §1.1 for why that qualifier is
+load-bearing), on a clean rectangular stream, and stable across measurement
+windows:
 
-On a clean rectangular stream the timing pair is *exact*, and the entire
-13.2 dB gap belongs to the carrier loop. That result is worth having before
-any effort is spent on the matched filter, because it says the matched filter
-was never the problem in that configuration.
+| path                                    | \[2000, 10000) | \[10000, 20000) |
+| --------------------------------------- | -------------- | --------------- |
+| coherent bound                          | −60.00 dB      | −60.00 dB       |
+| **matched filter + timing, standalone** | −60.00 dB      | −60.03 dB       |
+| the same input through `MpskReceiver`   | −47.80 dB      | −47.77 dB       |
+
+The timing pair is *exact* — at the bound, in both windows — and the
+**12.2 dB** gap belongs to the carrier loop. That is worth establishing before
+any effort goes into the matched filter, because it says the matched filter
+was not the problem in this configuration.
+
+The symbol path is identical on both sides, which is what makes the comparison
+fair: `mpsk_rx_take_output` emits the strobe straight out of
+`ratesync_loop_take_output` — the arm-filtered sample, not anything taken from
+the de-rotator — multiplied by a fixed `sym_rot`, and EVM estimates
+constellation rotation from the data so that multiply is free. The only
+difference between the two rows is the LO de-rotation applied upstream of the
+cascade, and therefore the carrier loop's phase jitter riding on it.
 
 (The floor is real, not a clamp: `ber_evm_db` returns −280 dB on an
 algebraically perfect stream and tracks injected noise to within 0.1 dB.)
+
+### 1.1 Under a constant rate error the standalone path drifts
+
+The same comparison with a 1000 ppm sample-clock offset does not hold still:
+
+| window (symbols) | \[2000, 10000) | \[10000, 20000) | \[20000, 29000) |
+| ---------------- | -------------- | --------------- | --------------- |
+| RateSync alone   | −60.00 dB      | −53.84 dB       | **−45.96 dB**   |
+| `MpskReceiver`   | −46.84 dB      | −48.69 dB       | −48.27 dB       |
+
+The receiver is stationary; **the standalone timing path degrades monotonically
+by 14 dB over 30 000 symbols**, and in the final window it is worse than the
+receiver, which reverses the sign of the comparison. The offset is *constant*,
+so a settled loop should be stationary — with an exact `sps` it is (§1). Which
+means the 12.2 dB attribution above is only quotable on the exact-`sps`
+measurement, and any single-window number taken under a rate error is a
+statement about that window and not about the receiver.
+
+**Open, and the most interesting result here.** Something accumulates while the
+loop holds a steady-state rate correction. It has not been localised, and it is
+the item most likely to matter, because a real link always has a clock offset —
+the exact-`sps` case is the artificial one.
 
 Unless stated otherwise every number below is QPSK, `sps = 8`, `m = 8`,
 `num_phases = 32`, `pulse = "rrc"` with `beta = 0.35, span = 8` on both sides,
@@ -198,9 +232,16 @@ characterisation before being caught.
     reads a 22 dB penalty that is entirely the resampler shaping a full-band
     pulse. Impose the offset by constructing the receiver with an `sps` that
     differs from the stimulus.
-- **Do not measure with an exact `sps` either.** A static rate parks the timing
-    loop on one bank arm, turning arm quantisation into a fixed bias rather
-    than the jitter it is, and hides every effect in §5.
+- **Choose the `sps` offset per question, and always state the window.** The
+    two options are not interchangeable and neither is safe by default. An
+    exact `sps` parks the timing loop on one bank arm, turning arm quantisation
+    into a fixed bias rather than the jitter it is, and hides every effect in
+    §5 — but it is stationary, so it is the only basis for an absolute floor or
+    an attribution. A rate error exercises the arms, but the standalone path
+    then drifts by 14 dB over 30 000 symbols (§1.1), so a single window under a
+    rate error says nothing about any other window. Use a rate error for
+    arm-sensitivity questions, an exact `sps` for floors, and report the window
+    either way.
 - **`timing_error` is one instantaneous TED sample, not a statistic.** Read it
     over a settled tail. A single sample read −0.276 where the mean is
     −1.2e−3, which reads as a large static bias that does not exist.
@@ -231,6 +272,9 @@ ______________________________________________________________________
     change; not taken.
 - **`bn_timing` default sits 3.7 dB short of its knee** at the default beta
     (§3). Costs settling time to close. Not taken.
+- **The standalone path drifts under a constant rate error** (§1.1) — open,
+    unlocalised, and the item most likely to matter, since every real link has a
+    clock offset. 14 dB over 30 000 symbols where the receiver is stationary.
 - **The I&D pulse model versus a real bandlimited rectangle** (§6) — open, and
     the one item here that is a design question rather than a default.
 - **Every number here is one seed at one operating point.** The eliminations in

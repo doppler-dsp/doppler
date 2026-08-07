@@ -24,6 +24,10 @@ no_step = "true"
 # the probe registry is setup state. An absent method is the honest answer
 # (gh-542) rather than one that raises.
 no_reset = "true"
+# The ring itself is lock-free atomics, but its C test drives the SPSC hand-off
+# across REAL threads -- which is the only way to test it -- so the test target
+# needs pthreads on any libc that still separates them (glibc < 2.34).
+extra_link_libs = ["Threads::Threads"]
 arg_type = "float _Complex"
 return_type = "float _Complex"
 

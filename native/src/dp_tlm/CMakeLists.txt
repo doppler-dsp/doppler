@@ -3,11 +3,14 @@ add_library(dp_tlm_core OBJECT dp_tlm_core.c)
 target_include_directories(
   dp_tlm_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc
                             ${CMAKE_SOURCE_DIR}/native/inc/dp_tlm)
+target_link_libraries(dp_tlm_core PUBLIC
+    Threads::Threads)
 
 add_executable(test_dp_tlm_core
                ${CMAKE_SOURCE_DIR}/native/tests/test_dp_tlm_core.c)
 target_link_libraries(test_dp_tlm_core
-                      PRIVATE dp_tlm_core m)
+                      PRIVATE dp_tlm_core Threads::Threads
+    m)
 target_include_directories(test_dp_tlm_core
                            PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
 add_test(NAME test_dp_tlm_core COMMAND test_dp_tlm_core)
@@ -16,7 +19,8 @@ add_executable(
   bench_dp_tlm_core
   ${CMAKE_SOURCE_DIR}/native/benchmarks/bench_dp_tlm_core.c)
 target_link_libraries(bench_dp_tlm_core
-                      PRIVATE dp_tlm_core m)
+                      PRIVATE dp_tlm_core Threads::Threads
+    m)
 target_include_directories(
   bench_dp_tlm_core PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
                                    ${CMAKE_SOURCE_DIR}/native/benchmarks)

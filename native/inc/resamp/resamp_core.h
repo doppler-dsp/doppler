@@ -41,6 +41,7 @@
 
 #include "clib_common.h"
 #include "dp_state.h"
+#include "nco/nco_core.h"
 
 #ifdef __cplusplus
 extern "C"
@@ -71,8 +72,10 @@ extern "C"
     float _Complex *decim_iad; /* integrate-and-dump: num_taps   */
     float _Complex *decim_tfd; /* transposed delay line: num_taps-1 */
 
-    /* execute_ctrl state: double-precision fractional accumulator */
-    double ctrl_acc;
+    /* execute_ctrl state: the timing clock (nco_core.h). A 64-bit phase
+       word cannot leave [0, 1), so the polyphase arm it selects is in
+       range by construction -- see resamp_execute_ctrl_push(). */
+    nco_clock_t ctrl_clk;
   } resamp_state_t;
 
   /* ------------------------------------------------------------------
@@ -97,9 +100,13 @@ extern "C"
   /* Serializable state (standard bytes interface; see dp_state.h): after the
    * envelope, the polyphase phase, the fractional ctrl accumulator, the
    * delay-line write head, and the three delay buffers (delay_buf, decim_iad,
-   * decim_tfd).  Rate, bank, phase increment and sizes are config. */
+   * decim_tfd).  Rate, bank, phase increment and sizes are config.
+   *
+   * VERSION 2: the ctrl accumulator is the timing clock's uint64 phase word,
+   * not a float64 in [0, 1) -- a different width and encoding, so a v1 blob
+   * is rejected by the envelope rather than misread. */
 #define RESAMP_STATE_MAGIC DP_FOURCC ('R', 'S', 'M', 'P')
-#define RESAMP_STATE_VERSION 1u
+#define RESAMP_STATE_VERSION 2u
 
   /** @brief Bytes resamp_get_state() writes for @p state (envelope + payload). */
   size_t resamp_state_bytes (const resamp_state_t *state);

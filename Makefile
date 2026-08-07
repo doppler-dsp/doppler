@@ -275,6 +275,30 @@ DOXYGEN_VERSION ?= 1.9.8
 DOXYGEN_IMAGE   ?= ubuntu:24.04
 DOXYGEN_CMD      = doxygen Doxyfile
 
+# The same pin, applied to GENERATION rather than checking (gen-c-api).
+#
+# doxygen versions disagree about output, not just about warnings, so
+# regenerating docs/c-api with a local doxygen writes a diff CI would never
+# produce. Measured: local 1.15.0 against CI's 1.9.8 turned a nine-line content
+# change into 164 modified / 88 added / 6 deleted files, with nothing to
+# distinguish the real change from the version churn.
+#
+# Only the doxygen BINARY needs pinning — mkdoxy and mkdocs come from uv.lock,
+# so they are already identical here and in CI. That is why this shims one
+# executable onto PATH instead of re-entering the whole target in a container:
+# no uv, no network sync, no root-owned output tree.
+#
+# The image is built once and cached (a 3-line Dockerfile over DOXYGEN_IMAGE);
+# its doxygen is verified to BE the pinned version at build time, so an
+# upstream apt bump fails loudly here rather than silently changing output.
+# The mount uses the same absolute path inside and out, so any absolute path
+# mkdoxy hands to doxygen resolves identically on both sides. `docker run -i`
+# is load-bearing, not hygiene: mkdoxy invokes `doxygen -` and pipes the whole
+# generated config on STDIN (mkdoxy/doxyrun.py `run`), so without it doxygen
+# reads an empty config, emits no XML, and the failure surfaces later as a
+# missing index.xml — after the recipe has already wiped docs/c-api.
+DOXYGEN_PIN_IMAGE ?= doppler-doxygen:$(DOXYGEN_VERSION)
+
 define DOXYGEN_CHECK_CMD
 @have=$$(doxygen --version 2>/dev/null | cut -d' ' -f1); \
 if [ "$$have" = "$(DOXYGEN_VERSION)" ]; then \
@@ -419,6 +443,7 @@ endef
 # gates cover them: criterion 2 is "help lists EVERY target", not "every
 # standard target" — a local target help omits is exactly as invisible.
 LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
+                gen-c-api-run doxygen-pin-image \
                 package-c sdist \
                 docs-relink drift-check changelog-check doxygen-warn-gate \
                 test-examples-c test-examples-python test-example-downstream \
@@ -515,7 +540,39 @@ blazing: ## Clean + Release + -march=native (max speed; never packaged)
 		$(CMAKE_ARGS)
 	$(CMAKE) --build $(BUILD_DIR) --parallel $(NPROC)
 
-gen-c-api: ## Regenerate docs/c-api/ from the headers (mkdoxy)
+doxygen-pin-image: ## Build/cache the pinned-doxygen image gen-c-api shims in
+	@docker image inspect $(DOXYGEN_PIN_IMAGE) >/dev/null 2>&1 && exit 0; \
+	 echo "doxygen-pin-image: building $(DOXYGEN_PIN_IMAGE) from $(DOXYGEN_IMAGE)"; \
+	 printf 'FROM %s\nRUN apt-get update -qq \
+	   && apt-get install -y -qq --no-install-recommends doxygen graphviz \
+	   && rm -rf /var/lib/apt/lists/*\n' '$(DOXYGEN_IMAGE)' \
+	   | docker build -q -t $(DOXYGEN_PIN_IMAGE) - >/dev/null; \
+	 got=$$(docker run --rm $(DOXYGEN_PIN_IMAGE) doxygen --version | cut -d' ' -f1); \
+	 if [ "$$got" != "$(DOXYGEN_VERSION)" ]; then \
+	   echo "doxygen-pin-image: $(DOXYGEN_IMAGE) now ships doxygen $$got, not $(DOXYGEN_VERSION)."; \
+	   echo "  CI installs doxygen from the same base, so CI has moved too — update"; \
+	   echo "  DOXYGEN_VERSION (and re-check the c-api diff) rather than pinning around it."; \
+	   docker image rm -f $(DOXYGEN_PIN_IMAGE) >/dev/null 2>&1; exit 1; \
+	 fi; \
+	 echo "doxygen-pin-image: $(DOXYGEN_PIN_IMAGE) ready (doxygen $$got)"
+
+gen-c-api: ## Regenerate docs/c-api/ from the headers (mkdoxy, CI's doxygen)
+	@have=$$(doxygen --version 2>/dev/null | cut -d' ' -f1); \
+	 if [ "$$have" = "$(DOXYGEN_VERSION)" ]; then \
+	   echo "gen-c-api: local doxygen $$have matches CI's — running natively"; \
+	   $(MAKE) -s gen-c-api-run; \
+	 else \
+	   echo "gen-c-api: local $${have:-none} != CI's $(DOXYGEN_VERSION) — shimming $(DOXYGEN_PIN_IMAGE)"; \
+	   $(MAKE) -s doxygen-pin-image; \
+	   shim=$$(mktemp -d); \
+	   printf '#!/bin/sh\nexec docker run --rm -i -u %s:%s -v "%s":"%s" -w "$$PWD" %s doxygen "$$@"\n' \
+	     "$$(id -u)" "$$(id -g)" "$(CURDIR)" "$(CURDIR)" "$(DOXYGEN_PIN_IMAGE)" > $$shim/doxygen; \
+	   chmod +x $$shim/doxygen; \
+	   PATH="$$shim:$$PATH" $(MAKE) -s gen-c-api-run; rc=$$?; \
+	   rm -rf $$shim; exit $$rc; \
+	 fi
+
+gen-c-api-run: ## gen-c-api proper (re-entered with CI's doxygen on PATH)
 	rm -rf docs/c-api .mkdoxy .capi-site
 	uv run --group docs mkdocs build -f mkdocs-capi.yml
 	cp -r .mkdoxy/doppler/c-api docs/c-api

@@ -273,6 +273,13 @@ extern "C"
    */
   size_t despreader_bits (despreader_state_t *state, const float complex *x,
                           size_t x_len, uint8_t *out, size_t max_out);
+  /** @brief Tracked carrier frequency, cycles/sample (read/write). Delegates
+   * to the embedded Costas carrier loop, so it carries that object's meaning
+   * exactly: the SMOOTHED, integrator-only estimate, lagging a frequency ramp
+   * by the constant Type-II ramp error. The rate it is referenced to is the
+   * despreader's INPUT rate, not the chip or symbol rate. Writing retunes the
+   * carrier loop and clears its filter so it re-acquires from the new centre;
+   * the code loop is untouched. */
   double despreader_get_norm_freq (const despreader_state_t *state);
   void   despreader_set_norm_freq (despreader_state_t *state, double val);
   double despreader_get_code_phase (const despreader_state_t *state);

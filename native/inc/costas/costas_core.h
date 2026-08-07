@@ -334,6 +334,16 @@ size_t costas_steps(costas_state_t *state, const float complex *x, size_t x_len,
 void costas_configure(costas_state_t *state, double bn, double zeta);
 double costas_get_bn(const costas_state_t *state);
 void costas_set_bn(costas_state_t *state, double val);
+/** @brief Tracked carrier frequency, cycles/sample (read/write). The loop's
+ * SMOOTHED estimate: the NCO frequency register, which holds the loop
+ * filter's integrator and is rewritten every symbol. Under a frequency ramp
+ * it lags the true carrier by the constant Type-II ramp error, because the
+ * proportional path acts on PHASE rather than frequency and so is absent
+ * here; costas_get_nco_freq() is the no-lag counterpart that adds it back.
+ * Read this to ask what frequency the loop has settled on, that one to ask
+ * what it is commanding right now. Writing retunes: the value becomes the new
+ * centre AND the reset seed, and the loop filter is cleared, so the loop
+ * re-acquires from there rather than slewing across from its old estimate. */
 double costas_get_norm_freq(const costas_state_t *state);
 /** @brief Effective NCO frequency command (loop-filter output = integrator +
  * proportional), cycles/sample. Mean rides a ramp with no lag, unlike the

@@ -369,7 +369,14 @@ class Despreader:
 
     @property
     def norm_freq(self) -> float:
-        """Norm freq."""
+        """Tracked carrier frequency, cycles/sample (read/write). Delegates to
+        the embedded Costas carrier loop, so it carries that object's meaning
+        exactly: the SMOOTHED, integrator-only estimate, lagging a frequency
+        ramp by the constant Type-II ramp error. The rate it is referenced to
+        is the despreader's INPUT rate, not the chip or symbol rate. Writing
+        retunes the carrier loop and clears its filter so it re-acquires from
+        the new centre; the code loop is untouched.
+        """
     @norm_freq.setter
     def norm_freq(self, value: float) -> None: ...
 

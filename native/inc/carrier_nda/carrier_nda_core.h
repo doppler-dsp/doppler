@@ -581,6 +581,16 @@ extern "C"
    */
   size_t carrier_nda_steps (carrier_nda_state_t *state, const float complex *x,
                             size_t x_len, float complex *out, size_t max_out);
+  /** @brief Tracked carrier frequency, cycles/sample (read/write). The
+   * non-data-aided loop's SMOOTHED estimate, formed as the NCO centre plus
+   * the loop filter's integrated frequency correction (the loop gains carry
+   * the rad-to-cycle scale, so the integrator is already in cycles/sample).
+   * Integrator-only by construction: under a frequency ramp it lags the true
+   * carrier by the constant Type-II ramp error, and the standing phase error
+   * lives in the omitted proportional path -- carrier_nda_get_nco_freq() is
+   * the command that rides a ramp with no lag. Writing retunes: the value
+   * becomes the new centre AND the reset seed, and the loop filter is
+   * cleared, so the loop re-acquires from there. */
   double carrier_nda_get_norm_freq (const carrier_nda_state_t *state);
   /** @brief Instantaneous NCO frequency command = centre + full loop-filter
    * output (integ + kp*e), cycles/sample. Mean rides a ramp with no lag;

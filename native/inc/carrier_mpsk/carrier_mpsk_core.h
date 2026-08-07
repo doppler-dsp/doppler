@@ -310,6 +310,14 @@ size_t carrier_mpsk_steps(carrier_mpsk_state_t *state, const float complex *x, s
 void carrier_mpsk_configure(carrier_mpsk_state_t *state, double bn, double zeta);
 double carrier_mpsk_get_bn(const carrier_mpsk_state_t *state);
 void carrier_mpsk_set_bn(carrier_mpsk_state_t *state, double val);
+/** @brief Tracked carrier frequency, cycles/sample (read/write). The
+ * decision-directed loop's SMOOTHED estimate: the NCO frequency register,
+ * which holds the loop filter's integrator (rad/symbol, rescaled to
+ * cycles/sample) and is rewritten every symbol. The proportional path acts on
+ * phase rather than frequency, so it does not appear here and the reading
+ * lags a frequency ramp by the constant Type-II ramp error. Writing retunes:
+ * the value becomes the new centre AND the reset seed, and the loop filter is
+ * cleared, so the loop re-acquires from there. */
 double carrier_mpsk_get_norm_freq(const carrier_mpsk_state_t *state);
 void carrier_mpsk_set_norm_freq(carrier_mpsk_state_t *state, double val);
 double carrier_mpsk_get_lock_metric(const carrier_mpsk_state_t *state);

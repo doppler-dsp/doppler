@@ -601,7 +601,18 @@ class Costas:
 
     @property
     def norm_freq(self) -> float:
-        """Norm freq."""
+        """Tracked carrier frequency, cycles/sample (read/write). The loop's
+        SMOOTHED estimate: the NCO frequency register, which holds the loop
+        filter's integrator and is rewritten every symbol. Under a frequency
+        ramp it lags the true carrier by the constant Type-II ramp error,
+        because the proportional path acts on PHASE rather than frequency and
+        so is absent here; costas_get_nco_freq() is the no-lag counterpart that
+        adds it back. Read this to ask what frequency the loop has settled on,
+        that one to ask what it is commanding right now. Writing retunes: the
+        value becomes the new centre AND the reset seed, and the loop filter is
+        cleared, so the loop re-acquires from there rather than slewing across
+        from its old estimate.
+        """
     @norm_freq.setter
     def norm_freq(self, value: float) -> None: ...
 
@@ -2401,7 +2412,15 @@ class CarrierMpsk:
 
     @property
     def norm_freq(self) -> float:
-        """Norm freq."""
+        """Tracked carrier frequency, cycles/sample (read/write). The
+        decision-directed loop's SMOOTHED estimate: the NCO frequency register,
+        which holds the loop filter's integrator (rad/symbol, rescaled to
+        cycles/sample) and is rewritten every symbol. The proportional path
+        acts on phase rather than frequency, so it does not appear here and the
+        reading lags a frequency ramp by the constant Type-II ramp error.
+        Writing retunes: the value becomes the new centre AND the reset seed,
+        and the loop filter is cleared, so the loop re-acquires from there.
+        """
     @norm_freq.setter
     def norm_freq(self, value: float) -> None: ...
 
@@ -2769,7 +2788,18 @@ class CarrierNda:
 
     @property
     def norm_freq(self) -> float:
-        """Norm freq."""
+        """Tracked carrier frequency, cycles/sample (read/write). The
+        non-data-aided loop's SMOOTHED estimate, formed as the NCO centre plus
+        the loop filter's integrated frequency correction (the loop gains carry
+        the rad-to-cycle scale, so the integrator is already in cycles/sample).
+        Integrator-only by construction: under a frequency ramp it lags the
+        true carrier by the constant Type-II ramp error, and the standing phase
+        error lives in the omitted proportional path --
+        carrier_nda_get_nco_freq() is the command that rides a ramp with no
+        lag. Writing retunes: the value becomes the new centre AND the reset
+        seed, and the loop filter is cleared, so the loop re-acquires from
+        there.
+        """
     @norm_freq.setter
     def norm_freq(self, value: float) -> None: ...
 

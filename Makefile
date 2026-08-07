@@ -445,7 +445,7 @@ endef
 # standard target" — a local target help omits is exactly as invisible.
 LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
                 gen-c-api-run doxygen-pin-image \
-                package-c sdist \
+                package-c sdist release-notes \
                 docs-relink drift-check changelog-check doxygen-warn-gate \
                 test-examples-c test-examples-python test-example-downstream \
                 test-example-downstream-python \
@@ -619,6 +619,17 @@ sdist: ## Build a source distribution into dist/
 	$(UV) build --sdist
 	@echo ""
 	@ls -lh dist/*.tar.gz
+
+# The ONE definition of the GitHub Release body — release.yml's github-release
+# job pipes this into `body_path` rather than carrying its own copy of the
+# Install template. Run it locally to see exactly what a tag will publish,
+# WITHOUT cutting a release; it fails when the version has no CHANGELOG
+# section, which is what an unpromoted [Unreleased] heading looks like.
+release-notes: ## VERSION=x.y.z — print the GitHub Release body
+ifndef VERSION
+	@echo "usage: make release-notes VERSION=<x.y.z>"; exit 1
+endif
+	@scripts/release-notes.sh "$(VERSION)"
 
 # Regenerates every generated doc region: the "## Related pages" blocks on
 # docs/api/*.md, README.md's synced body from docs/index.md, the per-distro

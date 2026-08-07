@@ -419,10 +419,10 @@ class MemoryCapture:
     clock : Any
         The pipeline's sample clock, borrowed for the sidecar's time base. Read
         at close(), so later track() corrections are picked up. Must outlive
-        the capture. Required: the C API takes NULL here to mean `no time base
-        stated` and then omits the sidecar keys rather than fabricating a rate,
-        but a capsule constructor argument cannot yet accept None
-        (just-makeit#823), so there is currently no way to say it from Python.
+        the capture. Pass None to state that there is no time base: the sidecar
+        then omits the rate and epoch keys rather than fabricating them into a
+        file that outlives the process. The argument itself is not omittable —
+        say None deliberately.
 
     Examples
     --------
@@ -640,9 +640,9 @@ class Capture:
         file, so np.fromfile reads it directly; a <path>-meta JSON sidecar
         carries the probe table, the counters and the time base.
     clock : Any
-        The pipeline's sample clock, borrowed for the sidecar's time base.
-        Required — see MemoryCapture; None is not accepted yet
-        (just-makeit#823).
+        The pipeline's sample clock, borrowed for the sidecar's time base — see
+        MemoryCapture. Pass None to state that there is no time base; the
+        argument itself is not omittable.
 
     Examples
     --------

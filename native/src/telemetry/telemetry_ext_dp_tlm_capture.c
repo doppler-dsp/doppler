@@ -94,39 +94,34 @@ MemoryCaptureObj_init (MemoryCaptureObject *self, PyObject *args,
   Py_XSETREF (self->_tlm_owner, tlm_obj);
   size_t                   block_samples = (size_t)block_samples_raw;
   const dp_sample_clock_t *clock         = NULL;
-  if (clock_obj == Py_None || clock_obj == NULL)
+  if (clock_obj != Py_None)
     {
-      PyErr_SetString (
-          PyExc_TypeError,
-          "clock is required and cannot be None;"
-          " pass the doppler.wfm.dp_sample_clock capsule or an object"
-          " exposing it as ._capsule");
-      return -1;
-    }
-  PyObject *clock_cap = clock_obj;
-  Py_INCREF (clock_cap);
-  if (!PyCapsule_CheckExact (clock_cap))
-    {
-      Py_DECREF (clock_cap);
-      clock_cap = PyObject_GetAttrString (clock_obj, "_capsule");
-      if (!clock_cap)
+      PyObject *clock_cap = clock_obj;
+      Py_INCREF (clock_cap);
+      if (!PyCapsule_CheckExact (clock_cap))
         {
-          if (!PyErr_ExceptionMatches (PyExc_AttributeError))
-            return -1;
-          PyErr_Clear ();
-          PyErr_Format (PyExc_TypeError,
-                        "clock must be the doppler.wfm.dp_sample_clock capsule"
-                        " or an object exposing it as ._capsule,"
-                        " not %s",
-                        Py_TYPE (clock_obj)->tp_name);
-          return -1;
+          Py_DECREF (clock_cap);
+          clock_cap = PyObject_GetAttrString (clock_obj, "_capsule");
+          if (!clock_cap)
+            {
+              if (!PyErr_ExceptionMatches (PyExc_AttributeError))
+                return -1;
+              PyErr_Clear ();
+              PyErr_Format (
+                  PyExc_TypeError,
+                  "clock must be the doppler.wfm.dp_sample_clock capsule"
+                  " or an object exposing it as ._capsule,"
+                  " not %s",
+                  Py_TYPE (clock_obj)->tp_name);
+              return -1;
+            }
         }
+      clock = (const dp_sample_clock_t *)PyCapsule_GetPointer (
+          clock_cap, "doppler.wfm.dp_sample_clock");
+      Py_DECREF (clock_cap);
+      if (!clock)
+        return -1;
     }
-  clock = (const dp_sample_clock_t *)PyCapsule_GetPointer (
-      clock_cap, "doppler.wfm.dp_sample_clock");
-  Py_DECREF (clock_cap);
-  if (!clock)
-    return -1;
   Py_INCREF (clock_obj);
   Py_XSETREF (self->_clock_owner, clock_obj);
   self->handle = dp_tlm_capture_open_memory (tlm, block_samples, clock);

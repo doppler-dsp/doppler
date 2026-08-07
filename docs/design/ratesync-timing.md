@@ -341,12 +341,21 @@ taken under `DOPPLER_NATIVE=ON` are not the shipped kernel's numbers** for
 anything LUT-gather shaped, and can be off by ~4×. Worth a sweep of the other
 gather kernels before any of those figures are trusted.
 
-`lo_steps` — the *non*-control twin, which has no float conversion and was not
-touched — keeps its own AVX-512 block. Measured for comparison: 1779 Msamp/s
-with the block against 1790 with it compiled out, both under native flags, and
-1962 as the plain scalar loop at the shipped baseline. So it is within noise of
-the code it replaces and also loses to the baseline. It is not a correctness
-risk, so it is left alone, but there is no evidence it earns its keep either.
+`lo_steps` — the *non*-control twin — carried its own AVX-512 block and is now
+deleted too, but for a weaker reason, and an earlier draft of this section
+overstated it. Re-measured with each object built at its own flags (the first
+pass compared a `-U__AVX512F__` build and a stale object, and read low): the
+block at `-march=native` gives 1967–2066 Msamp/s, the scalar loop at the same
+flags 1985–2046, and the scalar loop at the shipped baseline 2003–2025. Four
+configurations, one number — **exactly break-even**. Unlike `lo_steps_ctrl`,
+that block was also correct and genuinely covered (test 8 compares a 257-sample
+block against `lo_step()`, well past the 16-lane body). So its removal is a
+maintenance decision — 65 lines of intrinsics for no measurable effect — not a
+speedup, and it will not show up in a benchmark.
+
+The `lo_steps_ctrl` gap, by contrast, is real and one-sided: 767.1–767.6
+Msamp/s for the block against 984–1019 for the scalar loop at the shipped
+baseline, spreads of 0.07% and 3.5% with no overlap.
 
 Unless stated otherwise every number below is QPSK, `sps = 8`, `m = 8`,
 `num_phases = 32`, `pulse = "rrc"` with `beta = 0.35, span = 8` on both sides,

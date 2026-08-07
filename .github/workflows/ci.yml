@@ -120,12 +120,10 @@ jobs:
       run: make install-deps
 
     - name: Install uv + Python + package deps
-      uses: astral-sh/setup-uv@v9.0.0
+      uses: ./.github/actions/setup-uv
       with:
         python-version: ${{ matrix.python-version }}
-
-    - name: Install Python dev deps
-      run: uv sync --group dev
+        sync: --group dev
 
     - name: Start NATS JetStream broker (for nats:// stream tests)
       # The stream suite's nats:// tests self-skip when 127.0.0.1:4222 is
@@ -292,12 +290,10 @@ jobs:
     - uses: actions/checkout@v7.0.1
 
     - name: Install uv
-      uses: astral-sh/setup-uv@v9.0.0
+      uses: ./.github/actions/setup-uv
       with:
         python-version: '3.12'
-
-    - name: Install dev deps
-      run: uv sync --group dev --group docs
+        sync: --group dev --group docs
 
     - name: Docs gate
       # Every gate the local `make docs-check` runs, in one step. The target
@@ -358,12 +354,10 @@ jobs:
     # local cache and a fresh runner holding different mdformat plugins and
     # disagreeing about the same file.
     - name: Install uv
-      uses: astral-sh/setup-uv@v9.0.0
+      uses: ./.github/actions/setup-uv
       with:
         python-version: '3.12'
-
-    - name: Install dev deps
-      run: uv sync --group dev --no-install-project
+        sync: --group dev --no-install-project
 
     # `make lint` and nothing else: it runs the standard's three consistency
     # gates (standard drift, help completeness, no ghost targets) and then the
@@ -379,7 +373,7 @@ jobs:
     - uses: actions/checkout@v7.0.1
 
     - name: Install uv
-      uses: astral-sh/setup-uv@v9.0.0
+      uses: ./.github/actions/setup-uv
 
     - name: Check manifest drift
       # --refresh: ignore setup-uv's cached PyPI index so a just-published jm
@@ -414,12 +408,10 @@ jobs:
         sudo apt-get install -y clang llvm
 
     - name: Install uv + Python + package deps
-      uses: astral-sh/setup-uv@v9.0.0
+      uses: ./.github/actions/setup-uv
       with:
         python-version: '3.13'
-
-    - name: Install Python dev deps
-      run: uv sync --group dev
+        sync: --group dev
 
     - name: Start NATS JetStream broker (covers the nats:// stream path)
       # The stream suite's nats:// tests self-skip when 127.0.0.1:4222 is

@@ -1,0 +1,67 @@
+name: Install uv + Python + deps
+description: >
+  One home for how doppler bootstraps uv in CI — the Makefile-is-SSOT rule
+  applied to the one layer that necessarily runs before make exists.
+
+# Why this action exists at all, rather than eleven copies of `astral-sh/setup-uv`:
+#
+# 1. RETRY. setup-uv resolves its own version over the network on EVERY run.
+#    That is not avoidable by pinning: `downloadVersion()` calls
+#    `getArtifact()` unconditionally, so an exact `version:` still fetches
+#    https://raw.githubusercontent.com/astral-sh/versions/main/v1/uv.ndjson.
+#    On 2026-08-07 that fetch timed out in ONE of six Python jobs, which
+#    reddened `CI passed` on an already-tagged commit and stopped the v0.42.0
+#    release after every wheel had already built. A raw.githubusercontent.com
+#    timeout is not a doppler failure and must not be able to sink a release,
+#    so the first attempt is allowed to fail and is retried once.
+#
+# 2. ONE SPELLING of `uv sync`. The five call sites had drifted into four
+#    different spellings of the same bootstrap. The dependency GROUPS are a
+#    per-job choice and stay at the call site; the invocation is fixed here,
+#    so a change to how deps are installed happens in one place.
+#
+# Deliberately NOT pinning uv's version: it buys reproducibility but, per the
+# unconditional manifest fetch above, buys nothing against the flake. Pinning
+# is worth doing on its own merits — see the follow-up issue — but it is a
+# separate decision from this one, and bundling them would misattribute the fix.
+
+inputs:
+  python-version:
+    description: >
+      Python version for setup-uv to install. Empty (the default) installs uv
+      alone, for jobs whose make target brings its own interpreter — the drift
+      gate is the one such job today.
+    required: false
+    default: ''
+  sync:
+    description: >
+      Dependency-group flags for `uv sync` (e.g. "--group dev --group docs").
+      Empty (the default) skips the sync entirely, for jobs that only need uv
+      itself.
+    required: false
+    default: ''
+
+runs:
+  using: composite
+  steps:
+    # `continue-on-error` makes this attempt advisory: a failure is recorded in
+    # `outcome` but does not fail the job, which is what lets the retry below
+    # decide. `outcome` is the pre-continue-on-error result; `conclusion` would
+    # always read `success` here and must not be tested instead.
+    - name: Install uv + Python ${{ inputs.python-version }} (attempt 1)
+      id: attempt1
+      uses: astral-sh/setup-uv@v9.0.0
+      continue-on-error: true
+      with:
+        python-version: ${{ inputs.python-version }}
+
+    - name: Install uv + Python ${{ inputs.python-version }} (retry)
+      if: steps.attempt1.outcome == 'failure'
+      uses: astral-sh/setup-uv@v9.0.0
+      with:
+        python-version: ${{ inputs.python-version }}
+
+    - name: Install Python deps (${{ inputs.sync }})
+      if: inputs.sync != ''
+      shell: bash
+      run: uv sync ${{ inputs.sync }}

@@ -1,7 +1,7 @@
 include = ["objects/*.toml"]
 
 [project]
-jm_version = "0.49.0"
+jm_version = "0.50.0"
 name = "doppler"
 version = "0.1.0"
 build = "cmake"
@@ -373,18 +373,21 @@ type = "path"
 # FABRICATION (no more invented 1 MHz); it did not make anyone answer, and
 # silence stayed indistinguishable from "unknown".
 #
-# `required` puts fs second, mirroring Writer(path, fs, ...) — one rule
-# across every entry point that writes a rate. jm generates this function's
-# call positionally, so the reorder also moves the injected prototype and the
-# hand-written shim in write_blue_header.c; the FILE-based kernel
-# (wfm_blue_write_hcb) is untouched, and the shim has no other caller.
-# NB a module FUNCTION does not auto-order its params the way an object's
-# init_params do — jm errors unless the required ones are declared first.
+# fs is second, mirroring Writer(path, fs, ...) — one rule across every entry
+# point that writes a rate. jm generates this function's call positionally, so
+# the position also fixes the injected prototype and the hand-written shim in
+# write_blue_header.c; the FILE-based kernel (wfm_blue_write_hcb) is untouched,
+# and the shim has no other caller.
+#
+# What makes it mandatory is having NO `default`, and nothing else. A module
+# FUNCTION does not auto-order its params the way an object's init_params do
+# (jm errors unless the undefaulted ones come first), and `required` is an
+# init_param key that jm does not read here at all — it sat on this param
+# doing nothing until jm 0.50.0's gh-816 check said so out loud.
 # Pass fs=0.0 to state "not known" — that still writes xdelta 0.
 [[module.wfm_writer.functions.params]]
 name = "fs"
 type = "double"
-required = true
 [[module.wfm_writer.functions.params]]
 name = "sample_type"
 type = "int"

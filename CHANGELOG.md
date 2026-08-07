@@ -54,7 +54,7 @@ ______________________________________________________________________
 
 - New C surface alongside it: `dp_tlm_avail()`, `dp_tlm_resize()`,
     `dp_tlm_probe_id_at()`, and `dp_tlm_stats()` returning a by-value
-    `dp_tlm_stats_t`. Plus `bench_telemetry_core` — the first telemetry
+    `dp_tlm_stats_t`. Plus `bench_dp_tlm_core` — the first telemetry
     benchmark in the tree, which is what makes "don't regress the emit path"
     falsifiable at all. It measures detached / decimated / emit / overrun, and
     records that the **overrun path is the slowest of the four** (an atomic
@@ -211,6 +211,25 @@ ______________________________________________________________________
     checked rather than a comment. Wired into `gates` and into CI, which sets
     `ISOTIME_REQUIRE=1` so an absent reference is an error there rather than
     a skip.
+
+### Fixed
+
+- **The telemetry benchmark was being built from a stub that measured
+    nothing.** Renaming the component to `dp_tlm` made `jm apply` scaffold a
+    fresh `bench_dp_tlm_core.c` ("no step() to benchmark"), and the CMake
+    target it generated alongside built *that* — so the real four-arm
+    benchmark sat in the tree orphaned, compiled by no target and run by
+    nothing, while `bench_dp_tlm_core` reported an empty `benchmarks[]` JSON.
+    A benchmark that measures nothing is worse than an absent one: it is
+    green, it is wired into the tooling, and "don't regress the emit path"
+    quietly stops being falsifiable.
+
+    The real benchmark now IS `bench_dp_tlm_core.c` — one file, named after
+    the component like `test_dp_tlm_core.c`, so the file jm scaffolds and the
+    file carrying the measurements cannot diverge again. Filed upstream as
+    [just-makeit#806](https://github.com/just-buildit/just-makeit/issues/806),
+    since a generated stub silently displacing a real benchmark is jm's to
+    stop, not each project's to notice.
 
 ## [0.41.0] — 2026-08-03
 

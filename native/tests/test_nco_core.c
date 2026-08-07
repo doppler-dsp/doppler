@@ -19,17 +19,15 @@
  *  11. Single-sample primitives (nco_step_u32*) — every batch stepper
  *      is exactly a loop over its single-sample counterpart
  *
- * The float boundary and the timing clock (see nco_core.h's own header
- * for why these are one file's worth of concern):
+ * The float boundary (see nco_core.h's own header for why confining it
+ * is structural rather than stylistic):
  *
  *  12. nco_phase_units — the one conversion's total contract
  *  13. nco_norm_to_inc — the fold must never hand the cast a 1.0
  *  14. The control port COUNTS boundaries, at both widths and both
  *      signs, under slewing control, against an independent oracle
  *  15. Control-port edge cases the sign rule has to get exactly right
- *  16. nco_clock_units / nco_clock_norm_to_inc — the 64-bit twin of 12
- *  17. What the 64-bit word actually buys: PHASE error, not count
- *  18. nco_steer_scale — bound the request, so the conversion never
+ *  16. nco_steer_scale — bound the request, so the conversion never
  *      has to be the one making the decision
  *
  * Several of these use `volatile` inputs deliberately: with literal
@@ -106,24 +104,6 @@ events_u32 (double base, const double *ctrl, size_t n)
         c += (d > 0.0) ? 1 : ((d < 0.0) ? -1 : 0);
     }
   nco_destroy (s);
-  return c;
-}
-
-/* The same, for the 64-bit timing clock. */
-static long
-events_clock (double base, const double *ctrl, size_t n)
-{
-  nco_clock_t k;
-  nco_clock_init (&k, base);
-  long c = 0;
-  for (size_t i = 0; i < n; i++)
-    {
-      uint8_t e;
-      nco_clock_tick (&k, ctrl[i], &e);
-      double d = base + ctrl[i];
-      if (e)
-        c += (d > 0.0) ? 1 : ((d < 0.0) ? -1 : 0);
-    }
   return c;
 }
 
@@ -737,23 +717,15 @@ main (void)
    * real-arithmetic oracle above rather than against a remembered
    * answer.
    *
-   * Two families are covered together because they must agree on
-   * semantics and differ only in resolution: the 32-bit
-   * nco_step_u32_ovf_ctrl and the 64-bit nco_clock_tick.
-   *
-   * TOLERANCE IS NOT SLOP, it is the truncation floor, and BOTH widths
-   * have one. Both fold-and-truncate, so the realised rate is at most
-   * one phase step low per sample and the record's accumulated deficit
-   * can defer exactly one crossing past the end. A first draft of this
-   * test demanded the 64-bit clock be EXACT and it failed on three
-   * cells -- correctly: an exactly-cancelling +-d pair cannot round
-   * trip through a truncating accumulator at any width, so the count
-   * sits one below the real answer indefinitely. +-1 per record is the
-   * honest bound for both.
-   *
-   * Which means a count over a short record does NOT demonstrate what
-   * the 64-bit word buys. Section 17 measures that directly, as phase
-   * error, where the two differ by 2^32.
+   * TOLERANCE IS NOT SLOP, it is the truncation floor. The fold
+   * truncates, so the realised rate is at most one phase step low per
+   * sample and the record's accumulated deficit can defer exactly one
+   * crossing past the end. An exactly-cancelling +-d pair cannot round
+   * trip through a truncating accumulator at all, so the count sits one
+   * below the real answer indefinitely. +-1 per record is the honest
+   * bound, and a tighter one is not achievable at any width -- a 64-bit
+   * accumulator was built, measured, and removed on exactly that
+   * finding.
    *
    * Restricted to |composite| < 1 by construction: the flag is one bit,
    * so it saturates when a single sample crosses more than one
@@ -782,16 +754,12 @@ main (void)
             fill_ctrl (shape, amp, bias, base);
 
             long want = crossings_oracle (base, slew_buf, SLEW_N);
-            long g32  = events_u32 (base, slew_buf, SLEW_N);
-            long g64  = events_clock (base, slew_buf, SLEW_N);
+            long got  = events_u32 (base, slew_buf, SLEW_N);
 
-            if (labs (g32 - want) > 1 || labs (g64 - want) > 1)
-              fprintf (
-                  stderr,
-                  "  base=%.9f shape=%-18s oracle=%ld u32=%ld clock=%ld\n",
-                  base, shape_name[shape], want, g32, g64);
-            CHECK (labs (g32 - want) <= 1); /* truncation floor, both  */
-            CHECK (labs (g64 - want) <= 1); /* widths; see section 17   */
+            if (labs (got - want) > 1)
+              fprintf (stderr, "  base=%.9f shape=%-18s oracle=%ld got=%ld\n",
+                       base, shape_name[shape], want, got);
+            CHECK (labs (got - want) <= 1); /* the truncation floor */
           }
       }
   }
@@ -806,19 +774,14 @@ main (void)
        luck; the case that separates them is unity, below. */
     {
       nco_state_t *s = nco_create (0.25, 0);
-      nco_clock_t  k;
-      nco_clock_init (&k, 0.25);
       for (int i = 0; i < 64; i++)
         {
-          uint8_t e32, e64;
+          uint8_t e32;
           nco_step_u32_ovf_ctrl (s, -0.25, &e32);
-          nco_clock_tick (&k, -0.25, &e64);
           CHECK (e32 == 0);
-          CHECK (e64 == 0);
         }
       /* and the phase must not have moved */
       CHECK (nco_get_phase (s) == 0u);
-      CHECK (k.phase == 0u);
       nco_destroy (s);
     }
 
@@ -828,15 +791,11 @@ main (void)
        test gets wrong (it adds 0 + 0 and never fires). */
     {
       nco_state_t *s = nco_create (1.0, 0);
-      nco_clock_t  k;
-      nco_clock_init (&k, 1.0);
       for (int i = 0; i < 64; i++)
         {
-          uint8_t e32, e64;
+          uint8_t e32;
           nco_step_u32_ovf_ctrl (s, 0.0, &e32);
-          nco_clock_tick (&k, 0.0, &e64);
           CHECK (e32 == 1);
-          CHECK (e64 == 1);
         }
       nco_destroy (s);
     }
@@ -848,15 +807,11 @@ main (void)
       for (size_t i = 0; i < sizeof d / sizeof d[0]; i++)
         {
           nco_state_t *s = nco_create (d[i], 0);
-          nco_clock_t  k;
-          nco_clock_init (&k, d[i]);
           for (int j = 0; j < 16; j++)
             {
-              uint8_t e32, e64;
+              uint8_t e32;
               nco_step_u32_ovf_ctrl (s, 0.0, &e32);
-              nco_clock_tick (&k, 0.0, &e64);
               CHECK (e32 == 1);
-              CHECK (e64 == 1);
             }
           nco_destroy (s);
         }
@@ -872,7 +827,6 @@ main (void)
       long want = crossings_oracle (0.5, slew_buf, SLEW_N);
       CHECK (want > 0); /* the record really does run forward */
       CHECK (labs (events_u32 (0.5, slew_buf, SLEW_N) - want) <= 1);
-      CHECK (events_clock (0.5, slew_buf, SLEW_N) == want);
     }
 
     /* Its mirror: a positive control that leaves the composite running
@@ -883,7 +837,6 @@ main (void)
       long want = crossings_oracle (-0.5, slew_buf, SLEW_N);
       CHECK (want < 0); /* genuinely retreating */
       CHECK (labs (events_u32 (-0.5, slew_buf, SLEW_N) - want) <= 1);
-      CHECK (events_clock (-0.5, slew_buf, SLEW_N) == want);
     }
 
     /* A symmetric excursion must NET TO ZERO, not accumulate |events|:
@@ -893,148 +846,11 @@ main (void)
       long want = crossings_oracle (0.0, slew_buf, SLEW_N);
       CHECK (want == 0); /* the oracle agrees it is a closed excursion */
       CHECK (labs (events_u32 (0.0, slew_buf, SLEW_N)) <= 1);
-      CHECK (labs (events_clock (0.0, slew_buf, SLEW_N)) <= 1);
     }
   }
 
   /* ----------------------------------------------------------------
-   * 16. nco_clock_units / nco_clock_norm_to_inc — the 64-bit twin of
-   *     the conversion contract pinned in section 12.
-   * ---------------------------------------------------------------- */
-  {
-    volatile double u; /* defeats constant folding; see section 12 */
-
-    u = -1.0;
-    CHECK (nco_clock_units (u) == 0u);
-    u = 0.0;
-    CHECK (nco_clock_units (u) == 0u);
-    u = -0.0;
-    CHECK (nco_clock_units (u) == 0u);
-    u = 0.0 / 0.0;
-    CHECK (nco_clock_units (u) == 0u); /* NaN   */
-    u = -1.0 / 0.0;
-    CHECK (nco_clock_units (u) == 0u); /* -inf  */
-    u = 1.0 / 0.0;
-    CHECK (nco_clock_units (u) == 18446744073709551615u);
-    u = 18446744073709551616.0; /* 2^64 */
-    CHECK (nco_clock_units (u) == 18446744073709551615u);
-    u = 36893488147419103232.0; /* 2^65 */
-    CHECK (nco_clock_units (u) == 18446744073709551615u);
-    u = 9223372036854775808.0; /* 2^63 */
-    CHECK (nco_clock_units (u) == 9223372036854775808u);
-
-    /* The fold's 1.0 case, which is what the guard exists for. */
-    volatile double c;
-    c = -1e-20;
-    CHECK (nco_clock_norm_to_inc (c) == 18446744073709551615u);
-    c = -5e-17;
-    CHECK (nco_clock_norm_to_inc (c) == 18446744073709551615u);
-    c = 0.0;
-    CHECK (nco_clock_norm_to_inc (c) == 0u);
-    c = 1.0;
-    CHECK (nco_clock_norm_to_inc (c) == 0u); /* frac(1) == 0 */
-    c = 0.5;
-    CHECK (nco_clock_norm_to_inc (c) == 9223372036854775808u);
-    c = -0.5;
-    CHECK (nco_clock_norm_to_inc (c) == 9223372036854775808u);
-    c = 0.25;
-    CHECK (nco_clock_norm_to_inc (c) == 4611686018427387904u);
-    c = -0.25;
-    CHECK (nco_clock_norm_to_inc (c) == 13835058055282163712u);
-
-    /* Monotone in the fraction, and never above the true value. */
-    for (int i = 1; i < 64; i++)
-      {
-        double   f0 = (double)(i - 1) / 64.0, f1 = (double)i / 64.0;
-        uint64_t a = nco_clock_norm_to_inc (f0),
-                 b = nco_clock_norm_to_inc (f1);
-        CHECK (a < b);
-        CHECK ((long double)b <= (long double)f1 * 18446744073709551616.0L);
-      }
-
-    /* nco_clock_frac: top bits, total at bits == 0. */
-    nco_clock_t k;
-    nco_clock_init (&k, 0.0);
-    k.phase = 18446744073709551615u; /* just under a full period */
-    CHECK (nco_clock_frac (&k, 10) == 1023u);
-    CHECK (nco_clock_frac (&k, 1) == 1u);
-    CHECK (nco_clock_frac (&k, 0) == 0u);
-    k.phase = 0u;
-    CHECK (nco_clock_frac (&k, 10) == 0u);
-
-    /* nco_clock_advance: reports the wrap, and only the wrap. */
-    k.phase         = 0u;
-    uint8_t wrapped = nco_clock_advance (&k, 9223372036854775808u); /* +1/2 */
-    CHECK (wrapped == 0 && k.phase == 9223372036854775808u);
-    wrapped = nco_clock_advance (&k, 9223372036854775808u);
-    CHECK (wrapped == 1 && k.phase == 0u);
-    wrapped = nco_clock_advance (&k, 0u);
-    CHECK (wrapped == 0 && k.phase == 0u);
-  }
-
-  /* ----------------------------------------------------------------
-   * 17. What the 64-bit word actually buys: PHASE error, not count
-   *
-   * A crossing count over a short record cannot separate the widths --
-   * both sit within one of the truth (section 14). The property that
-   * does separate them is the realised rate, and it shows up as the
-   * phase error accumulated over a long constant-rate run:
-   *
-   *     |phase(N) - frac(N * rate)|  ~  N * 2^-W
-   *
-   * because truncation biases each step low by up to one word step.
-   * That is the whole argument for the timing clock: a resampler is
-   * handed an exactly rational rate like m/sps, which puts the wrap
-   * precisely ON the boundary every period, so a phase deficit does not
-   * average out -- it defers a strobe and permanently shifts the
-   * parity. This asserts the two floors are what they should be, and it
-   * is the regression that fires if anyone narrows the clock back to 32
-   * bits.
-   * ---------------------------------------------------------------- */
-  {
-    static const double rates[]
-        = { 12.0 / 13.0, 0.1, 0.3333333333333333, 0.7, 0.9999 };
-    for (size_t r = 0; r < sizeof rates / sizeof rates[0]; r++)
-      {
-        const long N    = 100000;
-        double     rate = rates[r];
-
-        nco_state_t *s32 = nco_create (rate, 0);
-        nco_clock_t  k64;
-        nco_clock_init (&k64, rate);
-        for (long i = 0; i < N; i++)
-          {
-            uint8_t e;
-            nco_step_u32_ovf_ctrl (s32, 0.0, &e);
-            nco_clock_tick (&k64, 0.0, &e);
-          }
-
-        /* Exact expected fraction, computed without either accumulator. */
-        long double exact = (long double)rate * (long double)N;
-        exact -= floorl (exact);
-
-        long double got32 = (long double)nco_get_phase (s32) / 4294967296.0L;
-        long double got64 = (long double)k64.phase / 18446744073709551616.0L;
-        long double e32   = fabsl (got32 - exact);
-        long double e64   = fabsl (got64 - exact);
-        if (e32 > 0.5L)
-          e32 = 1.0L - e32; /* circular */
-        if (e64 > 0.5L)
-          e64 = 1.0L - e64;
-
-        /* The 32-bit floor is real and about N*2^-32 = 2.3e-5 here. */
-        CHECK (e32 < 1e-3L);
-        /* The 64-bit floor is about N*2^-64 = 5e-15; demand four orders
-           of magnitude better than the 32-bit word can ever manage. */
-        CHECK (e64 < 1e-9L);
-        if (!(e64 < 1e-9L) || !(e32 < 1e-3L))
-          fprintf (stderr, "  rate=%.17g  phase err: u32=%.3Le  clock=%.3Le\n",
-                   rate, e32, e64);
-      }
-  }
-
-  /* ----------------------------------------------------------------
-   * 18. nco_steer_scale — bound the request, so the conversion never
+   * 16. nco_steer_scale — bound the request, so the conversion never
    *     has to be the one making the decision.
    * ---------------------------------------------------------------- */
   {

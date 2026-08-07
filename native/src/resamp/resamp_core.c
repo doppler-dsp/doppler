@@ -136,9 +136,13 @@ _create_from_bank (size_t num_phases, size_t num_taps, float *bank_owned,
      branch reaches exactly 2^32, which a bare cast leaves undefined. */
   s->phase_inc = s->upsample ? nco_phase_units (4294967296.0 / rate)
                              : nco_phase_units (rate * 4294967296.0);
-  /* The ctrl port's timing clock runs at the base rate; ctrl steers it
-     per input. */
-  nco_clock_init (&s->ctrl_clk, rate);
+  /* The ctrl port's accumulator runs at the base rate; ctrl steers it per
+     input. Embedded by value, so it is initialised field-wise (nco_create
+     allocates) exactly as symsync and dll do. */
+  s->ctrl_nco.phase     = 0;
+  s->ctrl_nco.norm_freq = rate;
+  s->ctrl_nco.phase_inc = nco_norm_to_inc (rate);
+  s->ctrl_nco.nmax      = 0;
 
   /* delay line: power-of-2 dual buffer */
   s->delay_cap = 1;
@@ -220,7 +224,7 @@ void
 resamp_reset (resamp_state_t *s)
 {
   s->phase          = 0;
-  s->ctrl_clk.phase = 0;
+  s->ctrl_nco.phase = 0;
   s->delay_head     = 0;
   memset (s->delay_buf, 0, 2 * s->delay_cap * sizeof (float _Complex));
   memset (s->decim_iad, 0, s->num_taps * sizeof (float _Complex));
@@ -229,14 +233,14 @@ resamp_reset (resamp_state_t *s)
 }
 
 /* ── Serializable state — standard envelope (see dp_state.h) ─────────────────
- * Order: phase, delay_head, ctrl clock phase, then delay_buf (2*delay_cap),
+ * Order: phase, delay_head, ctrl phase, then delay_buf (2*delay_cap),
  * decim_iad (num_taps), decim_tfd (num_taps-1 when num_taps>1). */
 
 size_t
 resamp_state_bytes (const resamp_state_t *s)
 {
   size_t b = sizeof (dp_state_hdr_t) + sizeof (uint32_t) + sizeof (size_t)
-             + sizeof (uint64_t) + 2 * s->delay_cap * sizeof (float _Complex)
+             + sizeof (uint32_t) + 2 * s->delay_cap * sizeof (float _Complex)
              + s->num_taps * sizeof (float _Complex);
   if (s->num_taps > 1)
     b += (s->num_taps - 1) * sizeof (float _Complex);
@@ -251,7 +255,7 @@ resamp_get_state (const resamp_state_t *s, void *blob)
             resamp_state_bytes (s));
   dp_w_u32 (&w, s->phase);
   dp_w_bytes (&w, &s->delay_head, sizeof (size_t));
-  dp_w_u64 (&w, s->ctrl_clk.phase);
+  dp_w_u32 (&w, s->ctrl_nco.phase);
   dp_w_cf32 (&w, s->delay_buf, 2 * s->delay_cap);
   dp_w_cf32 (&w, s->decim_iad, s->num_taps);
   if (s->num_taps > 1)
@@ -269,7 +273,7 @@ resamp_set_state (resamp_state_t *s, const void *blob)
   r.off         = sizeof (dp_state_hdr_t);
   s->phase      = dp_r_u32 (&r);
   dp_r_bytes (&r, &s->delay_head, sizeof (size_t));
-  s->ctrl_clk.phase = dp_r_u64 (&r);
+  s->ctrl_nco.phase = dp_r_u32 (&r);
   dp_r_cf32 (&r, s->delay_buf, 2 * s->delay_cap);
   dp_r_cf32 (&r, s->decim_iad, s->num_taps);
   if (s->num_taps > 1)
@@ -294,9 +298,10 @@ resamp_set_rate (resamp_state_t *s, double rate)
   s->upsample  = (rate >= 1.0);
   s->phase_inc = s->upsample ? nco_phase_units (4294967296.0 / rate)
                              : nco_phase_units (rate * 4294967296.0);
-  /* Retune the ctrl clock too; its phase is deliberately kept, so a rate
-     change mid-stream does not restart the sampling instant. */
-  nco_clock_set_rate (&s->ctrl_clk, rate);
+  /* Retune the ctrl accumulator too; its phase is deliberately kept, so a
+     rate change mid-stream does not restart the sampling instant. */
+  s->ctrl_nco.norm_freq = rate;
+  s->ctrl_nco.phase_inc = nco_norm_to_inc (rate);
 }
 
 size_t
@@ -314,9 +319,9 @@ resamp_get_num_taps (const resamp_state_t *s)
 double
 resamp_get_ctrl_acc (const resamp_state_t *s)
 {
-  /* The 64-bit phase word as a fraction of a cycle: exactly in [0, 1),
-     which is what this accessor has always promised. */
-  return (double)s->ctrl_clk.phase / 18446744073709551616.0;
+  /* The phase word as a fraction of a cycle: exactly in [0, 1), which is
+     what this accessor has always promised. */
+  return (double)s->ctrl_nco.phase / 4294967296.0;
 }
 
 /* ------------------------------------------------------------------ */
@@ -572,14 +577,16 @@ resamp_execute_ctrl_push (resamp_state_t *s, float _Complex x, double ctrl,
          A composite steered down to <= 1 clamps the reciprocal at one full
          period, which degrades to one output per input rather than
          over-producing: a rate floor, not a fault. */
-      uint64_t inc = nco_clock_units (18446744073709551616.0 / delta);
+      uint32_t inc = nco_phase_units (4294967296.0 / delta);
       size_t   n   = 0;
       while (n < max_out)
         {
-          size_t arm = nco_clock_frac (&s->ctrl_clk, s->log2_phases);
-          out[n++]   = dot_cf32 (dl_ptr (s), &s->bank[arm * s->num_taps],
-                                 s->num_taps);
-          if (nco_clock_advance (&s->ctrl_clk, inc))
+          out[n++] = dot_cf32 (dl_ptr (s), get_branch (s, s->ctrl_nco.phase),
+                               s->num_taps);
+          uint32_t nph;
+          uint8_t  ovf      = NCO_ADD_OVF (s->ctrl_nco.phase, inc, &nph);
+          s->ctrl_nco.phase = nph;
+          if (ovf)
             break; /* overflow: this input is spent, fetch the next */
         }
       return n;
@@ -590,11 +597,11 @@ resamp_execute_ctrl_push (resamp_state_t *s, float _Complex x, double ctrl,
      event flag IS the emit decision -- a carry means a period completed, a
      borrow (negative composite) means it un-completed one. */
   uint8_t  strobe;
-  uint64_t ph_before = nco_clock_tick (&s->ctrl_clk, ctrl, &strobe);
+  uint32_t ph_before = nco_step_u32_ovf_ctrl (&s->ctrl_nco, ctrl, &strobe);
   size_t   n         = 0;
 
   if (delta >= 1.0)
-    n = (size_t)delta + (s->ctrl_clk.phase < ph_before ? 1u : 0u);
+    n = (size_t)delta + (s->ctrl_nco.phase < ph_before ? 1u : 0u);
   else if (delta > 0.0)
     n = strobe ? 1u : 0u;
   if (n > max_out)
@@ -606,9 +613,8 @@ resamp_execute_ctrl_push (resamp_state_t *s, float _Complex x, double ctrl,
     {
       if (n)
         {
-          size_t arm = nco_clock_frac (&s->ctrl_clk, s->log2_phases);
-          out[0]     = dot_cf32 (dl_ptr (s), &s->bank[arm * s->num_taps],
-                                 s->num_taps);
+          out[0] = dot_cf32 (dl_ptr (s), get_branch (s, s->ctrl_nco.phase),
+                             s->num_taps);
         }
       return n;
     }
@@ -620,7 +626,7 @@ resamp_execute_ctrl_push (resamp_state_t *s, float _Complex x, double ctrl,
      this call no longer holds), so the earlier arms are SATURATED at the
      end of the period.
 
-     That is the same discipline as nco_clock_units() saturating at 2^64,
+     That is the same discipline as nco_phase_units() saturating at 2^32,
      not the section 1.2 defect: there the double accumulator let the arm
      exceed a period for ordinary steady-state rates, and the structure
      above has removed that entirely. What is left is a genuinely
@@ -628,7 +634,7 @@ resamp_execute_ctrl_push (resamp_state_t *s, float _Complex x, double ctrl,
      answer -- a wrap would invert the loop's intent, and emitting one
      sample n times slips it outright (measured: 3 of 8 initial phases in
      test_ratesync_core). */
-  double frac = (double)s->ctrl_clk.phase / 18446744073709551616.0;
+  double frac = (double)s->ctrl_nco.phase / 4294967296.0;
   for (size_t oi = 0; oi < n; oi++)
     {
       double over = frac + (double)(n - 1 - oi);

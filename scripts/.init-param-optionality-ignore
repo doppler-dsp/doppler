@@ -1,0 +1,32 @@
+# Constructor arguments the .pyi marks omittable that the binding requires, and
+# that doppler cannot fix on its own. Both faces are jm-generated, so there is
+# no local change that makes them agree — only the upstream one. Each entry is
+# `Class.param`, and check_init_param_optionality.py reports an entry that has
+# stopped diverging, so this list cannot quietly outlive its reason.
+#
+# just-makeit#823 Ask A. Reproduced upstream: the trigger is an array
+# init-param whose default is the EMPTY array literal. The stub generator reads
+# `default = "[]"` as "has a default" and emits `= ...`; the format-string
+# builder reads it as falsy and hoists the param in front of the `|`. A
+# non-empty default agrees on both faces (and is silently ignored on both).
+#
+# Empty-means-not-supplied is the point of psd_template — carrier_acq_create()
+# derives the rectangular-pulse sinc^2 template from symbol_rate_hz when none
+# is given — so this is the natural way to declare it, not an odd one.
+# Remove this line when the pin carries the fix; the gate will then require it.
+CarrierAcquisition.psd_template
+
+# just-makeit#823 Ask C, a different mechanism reaching the same symptom. A
+# capsule init-param (gh-790) rejects Py_None unconditionally, so its binding
+# has no `|` at all, while the stub still renders it `= ...`. A capsule METHOD
+# param (gh-432) already maps None -> NULL, so the two capsule paths disagree.
+#
+# The C means something by NULL here: "no time base stated", after which the
+# capture's sidecar omits the keys rather than fabricating a sample rate into a
+# file that outlives the process. Python cannot say it yet. The docstrings say
+# so plainly rather than promising a None that raises.
+#
+# Remove BOTH when the pin carries Ask C; no signature changes, the TypeError
+# simply becomes a working call.
+MemoryCapture.clock
+Capture.clock

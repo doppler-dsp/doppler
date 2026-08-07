@@ -260,6 +260,7 @@ uv run python scripts/check_version_strings.py
 uv run python scripts/check_doc_targets.py
 uv run python scripts/check_serializable.py
 uv run python scripts/check_doc_face_parity.py
+uv run python scripts/check_init_param_optionality.py
 endef
 
 define DOCS_CHECK_POST_CMDS

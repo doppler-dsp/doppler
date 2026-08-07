@@ -42,19 +42,43 @@ house idiom used by [Doc Examples](doc-examples.md) and `check_api_docs.py`
 — **discovered, not registered** — so a new page is covered the moment it
 exists, with no opt-in list to remember.
 
-| Check                    | Script                             | What it needs from you                                |
-| ------------------------ | ---------------------------------- | ----------------------------------------------------- |
-| API docs coverage        | `scripts/check_api_docs.py`        | Every public symbol named somewhere under `docs/api/` |
-| Nav-index coverage       | `scripts/check_nav_index.py`       | Every page linked from its section's `index.md`       |
-| Related-pages generation | `scripts/gen_related_pages.py`     | Nothing — see below                                   |
-| README sync              | `scripts/gen_readme.py`            | Nothing — see below                                   |
-| Install-script sync      | `scripts/gen_install_scripts.py`   | Nothing — edit `jb.toml`, run `make docs-relink`      |
-| Version strings          | `scripts/check_version_strings.py` | Never hand-type the current release version in prose  |
-| Site internal links      | `scripts/check_site_links.py`      | Internal links/anchors resolve in the built site      |
-| Strict build             | `zensical build --strict`          | Zero build warnings (bad refs, includes)              |
+| Check                    | Script                                    | What it needs from you                                |
+| ------------------------ | ----------------------------------------- | ----------------------------------------------------- |
+| API docs coverage        | `scripts/check_api_docs.py`               | Every public symbol named somewhere under `docs/api/` |
+| Nav-index coverage       | `scripts/check_nav_index.py`              | Every page linked from its section's `index.md`       |
+| Related-pages generation | `scripts/gen_related_pages.py`            | Nothing — see below                                   |
+| README sync              | `scripts/gen_readme.py`                   | Nothing — see below                                   |
+| Install-script sync      | `scripts/gen_install_scripts.py`          | Nothing — edit `jb.toml`, run `make docs-relink`      |
+| Version strings          | `scripts/check_version_strings.py`        | Never hand-type the current release version in prose  |
+| Site internal links      | `scripts/check_site_links.py`             | Internal links/anchors resolve in the built site      |
+| Strict build             | `zensical build --strict`                 | Zero build warnings (bad refs, includes)              |
+| Init-param optionality   | `scripts/check_init_param_optionality.py` | A published constructor signature is callable         |
 
 (The three fence gates and the example gate live in the `python-tests`
 job — see [Doc Examples](doc-examples.md) for the whole testing story.)
+
+## Init-param optionality (`check_init_param_optionality.py`)
+
+A constructor argument must be optional on both faces or neither. jm can render
+a stub parameter as `x: T = ...` — omittable — while the generated
+`PyArg_ParseTupleAndKeywords` format string places it before the `|` and
+requires it. Nothing else catches that: the stub parses, the extension
+compiles, the tests pass because they pass every argument, and the only symptom
+is that following the published signature raises `TypeError`. A type checker
+blesses the failing call, because the stub is all it can see.
+
+The check parses the committed `.pyi` and the committed `_ext_*.c` — no import
+and no construction, so classes whose constructors need live resources are
+covered like the rest. It matches on **names via the `kwlist`**, never on
+position: stub order and binding order can differ (jm reports that separately
+as kwargs-drift), and comparing positionally names the wrong parameter.
+
+Accepted divergences live in `scripts/.init-param-optionality-ignore` as
+`Class.param`, with the reason. Both faces are jm-generated, so the entries
+there are upstream-blocked rather than deferred work — and the check reports an
+entry that has *stopped* diverging, so the list cannot outlive its reason.
+
+Run it locally: `python scripts/check_init_param_optionality.py`.
 
 ## Nav-index coverage (`check_nav_index.py`)
 

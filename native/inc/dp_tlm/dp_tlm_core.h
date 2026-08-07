@@ -190,6 +190,37 @@ int dp_tlm_probe (dp_tlm_t *t, const char *name, uint32_t decim);
 int dp_tlm_probe_id (const dp_tlm_t *t, const char *name);
 
 /**
+ * @brief Validating dp_tlm_emit(): refuses an id the registry never issued.
+ *
+ * The out-of-line twin of the inline hot-path emit, for callers whose id did
+ * not come from dp_tlm_probe() on this context — in practice, a language
+ * binding, where the id is whatever the caller passed.  dp_tlm_emit() checks
+ * only the ARRAY bound (see its docs: checking @c n_probes there costs ~16% of
+ * the decimated path), so an in-range but unregistered id reaches it and emits
+ * a record against a probe nobody registered.  Here that is an error.
+ *
+ * C hot loops keep calling dp_tlm_emit() directly and pay nothing for this.
+ *
+ * @param t  Context.  NULL is rejected.
+ * @param id Probe id from dp_tlm_probe() on THIS context.
+ * @param v  The scalar, narrowed to float by the ring record.
+ * @return ::DP_OK, or ::DP_ERR_INVALID on a NULL context or an id outside
+ *         the registry.
+ *
+ * @code
+ * >>> from doppler.telemetry import Telemetry
+ * >>> tlm = Telemetry(1 << 12)
+ * >>> pid = tlm.probe("rx.snr_db")
+ * >>> tlm.emit(pid, 12.5)          # registered: recorded
+ * >>> tlm.emit(pid + 1, 1.0)       # never registered: refused
+ * Traceback (most recent call last):
+ * ValueError: emit failed (rc=-4)
+ *
+ * @endcode
+ */
+int dp_tlm_emit_checked (dp_tlm_t *t, int32_t id, double v);
+
+/**
  * @brief Retunes an EXISTING probe's decimation, by name.
  *
  * Distinct from dp_tlm_probe(), which registers on a miss: this refuses an

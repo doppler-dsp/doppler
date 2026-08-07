@@ -69,19 +69,31 @@ result_fields = [
   { name = "flags", type = "uint16_t", doc = "Reserved; always 0." },
 ]
 
+# `error_negative` (just-makeit#805 §B): the int IS the probe id on success,
+# so `status_return` cannot express this — "non-zero raises" would reject every
+# successful call but id 0. Without it the C sentinel reaches Python as a
+# plain `-4`, shaped exactly like an id, and the caller emits into it forever.
 [[dp_tlm.methods]]
 name = "probe"
 arg_type = "void"
 return_type = "int"
+error_negative = true
+error = "ValueError"
+error_message = "probe: name is NULL or too long, decim is 0, or the table is full"
 params = [
   { name = "name", type = "const char *" },
   { name = "decim", type = "uint32_t", default = "1" },
 ]
 
+# KeyError, not ValueError: this method's only failure IS "no such name", and
+# a registry lookup that misses is what KeyError means in Python.
 [[dp_tlm.methods]]
 name = "probe_id"
 arg_type = "void"
 return_type = "int"
+error_negative = true
+error = "KeyError"
+error_message = "no probe by that name"
 params = [{ name = "name", type = "const char *" }]
 
 [[dp_tlm.methods]]
@@ -94,10 +106,22 @@ params = [
   { name = "decim", type = "uint32_t" },
 ]
 
+# `fn` (just-makeit#805 §A2) binds the VALIDATING twin, not the hot-path
+# inline. `dp_tlm_emit` is JM_FORCEINLINE and checks only the array bound —
+# checking the registry there costs ~16% of the decimated path — so an
+# in-range but unregistered id would emit a record against a probe nobody
+# registered. A binding passes whatever the caller typed, so it must not call
+# that one. The right C API is both functions; the right binding is the
+# checked one, under the plain Python name.
+#
+# `status_return` (not `error_negative`): dp_tlm_emit_checked returns DP_OK or
+# DP_ERR_INVALID and has no value to hand back, so the whole int IS the status.
 [[dp_tlm.methods]]
 name = "emit"
+fn = "dp_tlm_emit_checked"
 arg_type = "void"
-return_type = "void"
+return_type = "int"
+status_return = true
 params = [
   { name = "id", type = "int32_t" },
   { name = "v", type = "double" },

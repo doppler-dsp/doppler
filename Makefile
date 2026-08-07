@@ -579,7 +579,11 @@ gen-c-api-run: ## gen-c-api proper (re-entered with CI's doxygen on PATH)
 	# index.md is a hand-written landing page mkdoxy doesn't emit — restore it
 	# after the regen wipes it (matches the CI docs.yml step).
 	git checkout -- docs/c-api/index.md
-	rm -rf .mkdoxy .capi-site
+	# `latex/` too: the repo's Doxyfile sets GENERATE_LATEX = NO, but mkdoxy
+	# builds its OWN config dict and does not, so every run drops an untracked
+	# latex/ in the repo root. Cleaned here rather than gitignored — it is
+	# output of this target, and nothing else in the tree wants that name.
+	rm -rf .mkdoxy .capi-site latex
 
 # PEP 517 build hook for just-buildit. It sets JUST_BUILDIT_OUTPUT_DIR and
 # JUST_BUILDIT_PYTHON before calling this target; the package tree is copied

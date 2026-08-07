@@ -255,6 +255,7 @@ nav:
       - Measurement Suite: design/measurement-suite.md
       - State Serialization: design/state-serialization.md
       - Telemetry: design/telemetry.md
+      - The NCO: design/nco.md
       - DSSS Acquisition: design/dsss-acquisition.md
       - Async DSSS Receiver Spec: design/async-dsss-spec.md
       - Async Symbol Despreader: design/async-symbol-despreader.md

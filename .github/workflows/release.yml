@@ -584,33 +584,33 @@ jobs:
           merge-multiple: true
           path: dist/
 
+      - name: Build the release body from the CHANGELOG
+        # `make release-notes`, not an inline template. The body is the Install
+        # instructions PLUS this version's CHANGELOG section, so the curated
+        # Breaking/Added/Changed prose is actually published rather than merely
+        # linked. It was linked-only until now — the body ended "See
+        # CHANGELOG.md for details", so the part written with care never
+        # reached the page a consumer lands on.
+        #
+        # The target exits non-zero when the version has no section, which is
+        # exactly what an unpromoted [Unreleased] heading looks like. Failing
+        # the release beats publishing a page whose notes are silently empty,
+        # and `make release-notes VERSION=x.y.z` shows the same output locally
+        # before a tag is ever cut.
+        run: |
+          make -s release-notes \
+            VERSION="${{ needs.verify-version.outputs.version }}" \
+            > "${RUNNER_TEMP}/release-notes.md"
+          echo "release body: $(wc -l < "${RUNNER_TEMP}/release-notes.md") lines"
+
       - name: Create release
         uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
           files: dist/*
-          body: |
-            ## Install
-
-            **Python:**
-            ```sh
-            pip install doppler-dsp==${{ needs.verify-version.outputs.version }}
-            pip install "doppler-dsp[cli]==${{ needs.verify-version.outputs.version }}"
-            pip install "doppler-dsp[specan]==${{ needs.verify-version.outputs.version }}"
-            ```
-
-            **C library:** download the pre-built tarballs from the assets below.
-
-            **Container** (`linux/amd64` + `linux/arm64`, `cli`/`specan-web`
-            extras pre-installed):
-            ```sh
-            docker pull ghcr.io/${{ github.repository }}:${{ needs.verify-version.outputs.version }}
-            docker run --rm ghcr.io/${{ github.repository }}:${{ needs.verify-version.outputs.version }} doppler --help
-            docker run --rm ghcr.io/${{ github.repository }}:${{ needs.verify-version.outputs.version }} wfmgen --help
-            ```
-            See [Docker](https://doppler-dsp.github.io/doppler/install/docker/#published-container) for details.
-
-            See [CHANGELOG.md](CHANGELOG.md) for details.
+          # body_path takes precedence over body; the action then APPENDS its
+          # own auto-generated "What's Changed" PR list after this text.
+          body_path: ${{ runner.temp }}/release-notes.md
 
   # ------------------------------------------------------------------
   # Post-release smoke test: download the just-published C-library

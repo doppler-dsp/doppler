@@ -50,21 +50,142 @@ algebraically perfect stream and tracks injected noise to within 0.1 dB.)
 
 !!! danger "This section previously reported 12.2 dB, and a §1.1 reported a 14 dB drift. Both were measurement artifacts."
 
-    `ber_evm_db` fits **one** constellation rotation across whatever window it
-    is given. The carrier loop has a slow residual phase walk — roughly 35–45°
-    over 30 000 symbols, a residual of ~4e−6 cycles/symbol — which is invisible
-    within a block and inflates any long-window aggregate. An 8000-symbol
-    window read −47.80 dB on a stream whose per-block median is −59.95.
+    `ber_evm_db` fits **one** constellation rotation and scale across whatever
+    window it is given, so a handful of corrupted symbols dominate a long
+    aggregate while leaving a per-block median untouched. An 8000-symbol window
+    read −47.80 dB on a stream whose per-block median is −59.95, and **two
+    symbols out of those 8000 carried 93.8% of the window's error power**.
 
-    The retracted §1.1 was the same mechanism seen from the other side:
-    standalone windows late in a rate-error record read −45.96 dB against a
-    per-block median of −60.03, which looked like a timing loop degrading as a
-    constant offset accumulated. Nothing was degrading. The rotation fit was.
+    The retracted §1.1 was the same effect: standalone windows late in a
+    rate-error record read −45.96 dB against a per-block median of −60.03,
+    which looked like a timing loop degrading as a constant offset
+    accumulated. Nothing was degrading.
 
-    Both numbers were quoted here as headline results, and both were wrong for
-    the same reason: a long EVM window cannot separate a slowly rotating
-    constellation from a noisy one. Everything in §§2–6 was re-measured
-    per-block afterwards; what survived is marked as such.
+    Two intermediate explanations were also wrong and are recorded because each
+    survived a round of measurement: a "slow residual phase walk" (steady-state
+    rotation drift is 0.00° across 5 seeds, 3 Es/N0 and 4 loop bandwidths, at
+    0.001°/block), and an acquisition transient (real, but over by symbol ~1000,
+    and it does not explain windows starting at 20 000). §1.2 is the mechanism
+    that does.
+
+### 1.2 The glitches are `mu` wraps, and the carrier loop is a victim
+
+What inflates those windows is sparse, discrete corruption: 13 bad symbols in
+28 000, each 1–3 symbols long at |e| ≈ 0.25, against a per-symbol floor of
+0.0008. Telemetry at `decim = 1` locates every one of them.
+
+**All 13 sit at or adjacent to a wrap of `sync.mu`** — the fractional timing
+phase crossing the 0/1 arm boundary. The sequence is the same each time:
+
+| symbol | `sync.mu`     | `sync.e`    | `sync.rate` | `car.e` | `lock`   |
+| ------ | ------------- | ----------- | ----------- | ------- | -------- |
+| 8608   | 0.9997        | +0.0024     | 7.999895    | −0.0018 | 0.999994 |
+| 8609   | 0.0003 ⟵ wrap | −0.0003     | 7.999895    | +0.0003 | 0.999994 |
+| 8610   | 0.0003        | **−0.2535** | 8.000607    | −0.0006 | 0.999994 |
+| 8611   | 0.9396        | −0.0016     | 8.000611    | −0.0005 | 0.999994 |
+
+The wrap lands at N, the corrupted symbol and a TED spike **543×** the baseline
+`|sync.e|` land at N+1, and the timing rate steps by ~8e−4. Both discriminators
+then react — `car.e` also spikes, up to 165× baseline — because both are
+reading the same corrupted symbol.
+
+**That is why the carrier loop is not the cause.** It reacts to the glitch
+rather than producing it; `car.freq` and `lock` never move (0.000000 and
+0.999994 throughout). Its bandwidth changes the glitch *count* (1 frozen, 7 at
+`bn_carrier` 0.005, 13 at 0.01, 14 at 0.02) only because its perturbations
+carry `mu` across the boundary more often. The one glitch that survives with
+the loop frozen is also present in standalone `RateSync`.
+
+**A wrap is necessary but not sufficient: only 7 of 18 wraps corrupt a
+symbol.** The trigger is the *double-emit* wrap specifically, and it is now
+diagnosed down to one line pair in `resamp_execute_ctrl_push`
+(`native/src/resamp/resamp_core.c:560-567`).
+
+The terminal stage runs at `rate = m_out/sps = 1.0`, so `acc` gains ~1.0 per
+input and `mu` is the slow remainder. When `mu` nears 1, that push makes
+`acc >= 2.0` and the `while (acc >= 1.0)` loop runs **twice off a single
+`dl_push`** — the second output interpolates a delay line that never advanced.
+Worse, the first of the two computes its arm while `acc` is *still* ≥ 1.0:
+
+```text
+562:  acc -= 1.0;                                   acc = 1.000200
+563:  size_t arm = (size_t)(acc * num_phases);      raw arm = 4096.8
+564:  if (arm >= s->num_phases)                     of a 4096-arm bank
+565:    arm = s->num_phases - 1;                    -> clamped to 4095
+```
+
+Reproduced exactly: at `ctrl = +2e-4` the clamp fires on pushes 5000 and 10000
+and nowhere else. **`u` is `[0,1)` by definition**, so line 563 is reading an
+out-of-range phase and line 564 is converting a violated invariant into a
+plausible wrong output rather than a fault. A negative `ctrl` shows the mirror
+image — pushes that emit *zero* outputs, no clamp, same 0.126 rad step.
+
+The root cause is that the accumulator is a hand-rolled `double` rather than
+the shared NCO (`native/inc/nco/nco_core.h`), which is what makes `u >= 1`
+representable at all; a uint32 phase word cannot leave `[0,1)`, so the clamp
+would be unnecessary by construction. See §1.3 — the fix does not start here.
+
+**Perspective before anyone optimises it.** |e| ≈ 0.25 is about 1σ of the noise
+at 12 dB Es/N0, so these are invisible to detection at any realistic operating
+point. They are only measurable at 60 dB, and they matter here because they
+mislead a long-window EVM — an instrument-grade defect, not a link-grade one.
+
+### 1.3 The first fix is in the NCO, not the resampler
+
+Replacing the `double` accumulator with the shared NCO is the right move, but
+it cannot be done first: **`nco_step_u32_ovf_ctrl`'s carry is itself wrong for
+a negative control.**
+
+`nco_norm_to_inc` folds bipolar to unipolar by construction —
+`d = cycles - floor (cycles)` (`nco_core.h:93`), documented as *"Negative
+values fold correctly (e.g. -0.25 -> 3x2^30)"*. The modulo **value** arithmetic
+is exact and every consumer of `phase` is fine. But the sign is gone before the
+add, so the 64-bit sum's bit 32 sets on nearly every step:
+
+| `norm_freq` | `ctrl` | true advance | carries reported | true wraps |
+| ----------- | ------ | ------------ | ---------------- | ---------- |
+| 0.1         | 0.0    | 0.1000       | 999              | 1000       |
+| 0.1         | −0.05  | 0.0500       | **10000**        | 500        |
+| 0.25        | −0.20  | 0.0500       | **10000**        | 500        |
+| 0.0         | −1e−4  | −0.0001      | **9998**         | 1          |
+
+Only a consumer of `carry` sees this, which is why it survived: `dll_core.h:316`
+uses the **no-ctrl** `nco_step_u32_ovf` (no fold, true carry) and is unaffected.
+The exposed path is `nco_steps_u32_ovf_ctrl` (`nco_core.c:224`), reaching Python
+as `NCO.steps_u32_ovf`.
+
+**The tests pin nothing wrong — they never go there.** Every `ctrl` value in
+`native/tests/test_nco_core.c` is non-negative (`0.25f`, `0.9f`, `0.05f*i`), so
+this is a coverage gap rather than a bug asserted as behaviour. The two existing
+cases stay valid under any fix: `ctrl = +0.25` at `norm_freq = 0` must equal
+`norm_freq = 0.25` in phase *and* carry (line 296), and `0.9 + 0.9` exercises
+the 64-bit-sum path so the sum cannot wrap before reaching phase (line 314).
+
+**The rule needs a sign, and it must be the sign of the composite.** Carry alone
+is wrong for a negative advance; keying off `ctrl < 0` is also wrong, because
+the composite can be positive while the control is negative — measured at
+`R = 0.5, ctrl = −1e−4`, where the base and folded control sum to a legitimate
++0.4999 step and a `ctrl`-keyed rule errs by −200%. The signed advance has to be
+formed **before** the fold:
+
+```text
+delta = base + ctrl                  /* signed cycles, pre-fold */
+inc   = nco_norm_to_inc (|delta|)
+delta > 0 && u(k) <= u(k-1)  -> carry   : one EXTRA output / load
+delta < 0 && u(k) >= u(k-1)  -> borrow  : one FEWER
+delta == 0                   -> no event (the free-running case)
+```
+
+The `delta == 0` row is why the intrinsic cannot serve here at all:
+`__builtin_add_overflow` is unsigned-carry-only, so it has no borrow, and at
+`rate = 1.0` it adds `0 + 0` and never fires — while `u(k) <= u(k-1)` correctly
+registers one output per input. Modelled across `R ∈ [0.25, 8]` with `ctrl` of
+both signs, that rule closes to the truncation floor (≤0.03%) in every cell.
+
+**Order of work:** write the failing NCO test first — `ctrl = −0.25` at
+`norm_freq = 0.5` must match `norm_freq = 0.25` in carry as well as phase — and
+confirm it fails before touching `nco_core.h`. Only then does `resamp` adopt the
+primitive and delete its `double`.
 
 Unless stated otherwise every number below is QPSK, `sps = 8`, `m = 8`,
 `num_phases = 32`, `pulse = "rrc"` with `beta = 0.35, span = 8` on both sides,

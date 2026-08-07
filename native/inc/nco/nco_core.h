@@ -90,7 +90,19 @@ extern "C"
   JM_FORCEINLINE uint32_t
   nco_norm_to_inc (double cycles)
   {
-    double d = cycles - floor (cycles); /* fractional cycles, [0, 1) */
+    double d = cycles - floor (cycles); /* fractional cycles, [0, 1] */
+    /* The fold is in [0, 1) mathematically but NOT in floating point: for
+       any cycles in [-2^-53, 0) the subtraction rounds up to exactly 1.0
+       (`-1e-20 - (-1) == 1.0`). The true fraction is then in (1-2^-53, 1),
+       whose truncation is 2^32-1 -- the same value -1e-16, one representable
+       step away, already returns. Return it explicitly, because letting 1.0
+       reach the cast is the out-of-range float->unsigned conversion (C99
+       6.3.1.4, undefined) that this convention exists to avoid: measured,
+       x86 yields 0 (a FROZEN NCO) where arm64 saturates to 2^32-1, and gcc
+       folds a compile-time constant to 2^32-1 while emitting the freezing
+       instruction for a runtime value. */
+    if (d >= 1.0)
+      return 4294967295u;
     /* Truncate toward zero: the C99 float->unsigned conversion (6.3.1.4)
        discards the fractional part, and d < 1 makes d*2^32 strictly < 2^32,
        so the result is always in [0, 2^32) -- the documented contract, with

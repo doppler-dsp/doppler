@@ -207,21 +207,34 @@ the arm64 `2^32 → 0` freeze), so the realised rate is at most one 2^-32 step
 low. The planner hands the terminal stage an *exactly rational* rate, and at
 `rate = 12/13` the ideal increment is `3964585196.31`: truncation is 0.31 units
 short per step, so 13 steps land **4 units short of exactly 12 cycles**. The
-wrap that the `double` accumulator caught on the boundary is missed, forever,
-once per period — 13000 inputs emit **11999** outputs where the `double` emits
-12000\. One lost output is exactly the failure `ratesync_core.h:568` already
-warns about: it *"permanently shifts the strobe parity and leaves the loop
-sliding"*.
+wrap the `double` caught on the boundary is missed, and the strobe never
+recovers its place: 13000 inputs emit **11999** outputs where the `double`
+emits 12000, and the deficit then stays at **exactly 1** through 13000000
+inputs — a one-time loss, not an accumulating one. That is precisely the
+failure `ratesync_core.h:568` warns about: it *"permanently shifts the strobe
+parity and leaves the loop sliding"*. The damage is the shift, not the count.
 
 So the `double` is not simply wrong here — it buys rate resolution the 32-bit
 word does not have, at the cost of the `u ≥ 1` excursion §1.2 traced. Both
 properties are wanted, and the options are not equivalent:
 
-- **A 64-bit phase word for the timing NCO.** The deficit falls by 2^32 — one
-    lost output every ~10^19 inputs — and the arm stays in `[0, 1)` by
-    construction, so §1.2's clamp still disappears. This is the only option that
-    keeps both properties, and it is a new primitive: `nco_state_t` is 32-bit,
-    and the code/carrier NCOs that share it have no need for the extra bits.
+- **A 64-bit phase word for the timing NCO.** Measured at `12/13`: the realised
+    rate error falls from **7.16e−11** to **5.12e−17** cycles/sample, one strobe
+    slipping every 1.95e16 inputs instead of 1.4e10 — and the arm stays in
+    `[0, 1)` by construction, so §1.2's clamp still disappears. Note the ceiling:
+    5.12e−17 **is** the `double`'s own representation error for `12/13`, so the
+    increment quantisation has vanished entirely beneath the API. You get 53
+    bits of rate resolution, not 64, and going wider than 64 buys nothing while
+    `norm_freq` is a `double`. It is a new primitive: `nco_state_t` is 32-bit and
+    the code/carrier NCOs that share it have no need for the extra bits.
+    C99 guarantees `uint64_t` exactly as it guarantees `uint32_t` — modular
+    wraparound for every unsigned type (6.2.5p9), exact width and no padding
+    (7.20.1.1) — so nothing in the accumulator arithmetic gets weaker. What gets
+    harder is the *proof at the float boundary*: a `double` names every integer
+    below 2^32 exactly but not below 2^64, so the margin at the cast narrows
+    from exact to 2048 units (measured: the largest `double` below 1.0 times
+    2^64 is 2^64 − 2048). See §1.5 — that boundary is the whole risk surface,
+    and widening the word does not change it either way.
 - **Compensating the sub-LSB residual** is a second accumulator beside the
     resampler's, which is the one thing the timing model forbids outright.
 - **Rounding instead of truncating** does not help — at `12/13` the residual is

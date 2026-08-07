@@ -491,6 +491,67 @@ main (void)
     nco_destroy (ref);
   }
 
+  /* ----------------------------------------------------------------
+   * 13. nco_norm_to_inc — the fold must never hand the cast a 1.0
+   *
+   * The documented contract is a truncated fraction in [0, 2^32), and
+   * the stated reason for truncating rather than rounding is
+   * HOST-DETERMINISM: "a bare truncating cast is bit-identical on every
+   * host". The proof offered is `d < 1 makes d*2^32 strictly < 2^32`.
+   *
+   * That proof holds for the real fold and NOT for the floating-point
+   * one. `cycles - floor (cycles)` is mathematically in [0, 1), but for
+   * any cycles in [-2^-53, 0) the subtraction ROUNDS to exactly 1.0 --
+   * and (uint32_t)(1.0 * 2^32) is the out-of-range float->unsigned
+   * conversion (C99 6.3.1.4) the header itself warns freezes the NCO.
+   * x86 yields 0 here, arm64 saturates to 2^32-1: the one property the
+   * convention exists to provide is the one that breaks.
+   *
+   * The true fraction of a tiny negative is in (1 - 2^-53, 1), so the
+   * truncated answer is 2^32-1 for every one of these -- the same value
+   * -1e-16 already returns, one representable step away. A settled
+   * timing loop's ctrl passes through this band routinely.
+   * ---------------------------------------------------------------- */
+  {
+    /* `volatile` is load-bearing, not decoration. With literal arguments
+       the compiler CONSTANT-FOLDS the out-of-range conversion using its
+       own saturating rules and the bug vanishes: at -O2 gcc folds these
+       to 2^32-1 and the test passes without exercising the cast at all.
+       Routing each value through a volatile forces the real runtime
+       instruction, which is what a control arriving from a loop is. */
+    volatile double v;
+
+    /* Just outside the band: already correct, and the value every case
+       below must agree with. */
+    v = -1e-16;
+    CHECK (nco_norm_to_inc (v) == 4294967295u);
+    v = -1e-15;
+    CHECK (nco_norm_to_inc (v) == 4294967295u);
+
+    /* Inside the band, where the fold rounds up to 1.0. */
+    v = -5e-17;
+    CHECK (nco_norm_to_inc (v) == 4294967295u);
+    v = -1e-20;
+    CHECK (nco_norm_to_inc (v) == 4294967295u);
+    v = -1e-30;
+    CHECK (nco_norm_to_inc (v) == 4294967295u);
+
+    /* Exact zero is genuinely zero advance -- not the same case. */
+    v = 0.0;
+    CHECK (nco_norm_to_inc (v) == 0u);
+    v = -0.0;
+    CHECK (nco_norm_to_inc (v) == 0u);
+
+    /* A control that small is a stopped NCO, not a frozen one: the
+       phase must still retreat one unit per step, not stick. */
+    nco_state_t *tiny = nco_create (0.0, 0);
+    uint8_t      tc;
+    v = -1e-20;
+    nco_step_u32_ovf_ctrl (tiny, v, &tc);
+    CHECK (nco_get_phase (tiny) == 4294967295u);
+    nco_destroy (tiny);
+  }
+
   if (_fails)
     {
       fprintf (stderr, "test_nco_core FAILED (%d)\n", _fails);

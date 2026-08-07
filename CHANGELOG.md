@@ -11,6 +11,46 @@ ______________________________________________________________________
 > **API stability notice** — doppler is pre-1.0. Minor releases may
 > make breaking changes. Check this file before upgrading.
 
+## [Unreleased]
+
+### Changed
+
+- **just-makeit pin 0.51.0 → 0.52.0.** Zero codegen drift: `jm apply`
+    re-renders six binding fragments in jm's K&R and clang-format returns every
+    one of them byte-identical, so only the pins and `uv.lock` change here.
+
+    The bump carries **gh-806**, which doppler filed after being bitten by it
+    twice in one component. Renaming a component moves its manifest section and
+    native directories, but its C test and benchmark keep their old filenames —
+    so `jm apply` materialises scaffolds under the new names and re-renders the
+    CMake that builds *those*, leaving the author's real files on disk compiled
+    by nothing. The scaffold passes. `ctest` prints "100% tests passed" with the
+    real suite missing from the denominator. jm now reports `UNBUILT` (a
+    `test_*_core.c` / `bench_*_core.c` no build file compiles) and gates on it
+    unconditionally, because a finding that did not fail the gate would
+    reproduce the exact silence it exists to break. **doppler is clean on it** —
+    the two displaced files were re-homed when Capture went declarative.
+
+    Also `UNPARSEABLE` (gh-785): a `.pyi` that does not parse has no members for
+    jm to find, so a render used to replace every hand-owned one in silence.
+    doppler has none.
+
+- **The just-makeit pin now has one source of truth.** It is stated in three
+    files — `just-makeit.toml`, `pyproject.toml`'s dev group, and
+    `examples/downstream-jm/just-makeit.toml` — and nothing checked that they
+    agreed. Mutation-verified: reverting the downstream pin alone left
+    `make drift-check` exiting **0**, because jm's version-skew notice is a
+    `warning:` line in a wall of advisory output and fails nothing. So a bump
+    that missed a site shipped green, and `drift-check`'s own comment claiming
+    the example "cannot silently document a jm version doppler is not on" was
+    an intent rather than a mechanism.
+
+    `scripts/gen_jm_pin.py` derives the other two from `just-makeit.toml` and
+    gates the agreement; it runs first in `drift-check`, ahead of the sync, so
+    one jm cannot be installed while the manifest names another.
+    `scripts/check_version_strings.py` never covered this — it guards
+    *doppler's* release version against being hand-typed into docs.
+
 ## [0.42.0] — 2026-08-07
 
 ### Breaking

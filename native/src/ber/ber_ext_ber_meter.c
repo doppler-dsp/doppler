@@ -87,9 +87,14 @@ BerMeterObj_set_truth (BerMeterObject *self, PyObject *args, PyObject *kwds)
     }
   const uint8_t *truth     = (const uint8_t *)PyArray_DATA (truth_arr);
   size_t         truth_len = (size_t)PyArray_SIZE (truth_arr);
-  int            y = ber_meter_set_truth (self->handle, truth, truth_len);
+  int            _rc = ber_meter_set_truth (self->handle, truth, truth_len);
   Py_DECREF (truth_arr);
-  return PyLong_FromLong ((long)y);
+  if (_rc != 0)
+    {
+      PyErr_Format (PyExc_ValueError, "set_truth failed (rc=%d)", _rc);
+      return NULL;
+    }
+  Py_RETURN_NONE;
 }
 
 static PyObject *
@@ -160,11 +165,20 @@ BerMeterObj_score (BerMeterObject *self, PyObject *args, PyObject *kwds)
 }
 
 static PyStructSequence_Field BerMeterObj_ser_fields[] = {
-  { "p_hat", NULL }, { "lo", NULL },     { "hi", NULL },      { "rel", NULL },
-  { "conf", NULL },  { "errors", NULL }, { "symbols", NULL }, { NULL, NULL },
+  { "p_hat", "Unbiased point estimate `(r-1)/(N-1)`." },
+  { "lo", "Lower confidence limit." },
+  { "hi", "Upper confidence limit." },
+  { "rel", "Relative standard error `1/sqrt(r)`." },
+  { "conf", "Two-sided confidence level." },
+  { "errors", "Symbol errors counted." },
+  { "symbols", "Symbols scored." },
+  { NULL, NULL },
 };
 static PyStructSequence_Desc BerMeterObj_ser_desc
-    = { "doppler.ber.BerInterval", NULL, BerMeterObj_ser_fields, 7 };
+    = { "doppler.ber.BerInterval",
+        "Error-rate point estimate with a Gamma/chi-square confidence "
+        "interval. Assert on `lo`, never `p_hat`.",
+        BerMeterObj_ser_fields, 7 };
 static PyTypeObject *BerMeterObj_ser_type = NULL;
 
 static PyObject *
@@ -198,11 +212,20 @@ BerMeterObj_ser (BerMeterObject *self, PyObject *args)
 }
 
 static PyStructSequence_Field BerMeterObj_ber_fields[] = {
-  { "p_hat", NULL }, { "lo", NULL },     { "hi", NULL },      { "rel", NULL },
-  { "conf", NULL },  { "errors", NULL }, { "symbols", NULL }, { NULL, NULL },
+  { "p_hat", "Unbiased point estimate `(r-1)/(N-1)`." },
+  { "lo", "Lower confidence limit." },
+  { "hi", "Upper confidence limit." },
+  { "rel", "Relative standard error `1/sqrt(r)`." },
+  { "conf", "Two-sided confidence level." },
+  { "errors", "Symbol errors counted." },
+  { "symbols", "Symbols scored." },
+  { NULL, NULL },
 };
 static PyStructSequence_Desc BerMeterObj_ber_desc
-    = { "doppler.ber.BerInterval", NULL, BerMeterObj_ber_fields, 7 };
+    = { "doppler.ber.BerInterval",
+        "Error-rate point estimate with a Gamma/chi-square confidence "
+        "interval. Assert on `lo`, never `p_hat`.",
+        BerMeterObj_ber_fields, 7 };
 static PyTypeObject *BerMeterObj_ber_type = NULL;
 
 static PyObject *
@@ -236,11 +259,20 @@ BerMeterObj_ber (BerMeterObject *self, PyObject *args)
 }
 
 static PyStructSequence_Field BerMeterObj_interval_fields[] = {
-  { "p_hat", NULL }, { "lo", NULL },     { "hi", NULL },      { "rel", NULL },
-  { "conf", NULL },  { "errors", NULL }, { "symbols", NULL }, { NULL, NULL },
+  { "p_hat", "Unbiased point estimate `(r-1)/(N-1)`." },
+  { "lo", "Lower confidence limit." },
+  { "hi", "Upper confidence limit." },
+  { "rel", "Relative standard error `1/sqrt(r)`." },
+  { "conf", "Two-sided confidence level." },
+  { "errors", "Symbol errors counted." },
+  { "symbols", "Symbols scored." },
+  { NULL, NULL },
 };
 static PyStructSequence_Desc BerMeterObj_interval_desc
-    = { "doppler.ber.BerInterval", NULL, BerMeterObj_interval_fields, 7 };
+    = { "doppler.ber.BerInterval",
+        "Error-rate point estimate with a Gamma/chi-square confidence "
+        "interval. Assert on `lo`, never `p_hat`.",
+        BerMeterObj_interval_fields, 7 };
 static PyTypeObject *BerMeterObj_interval_type = NULL;
 
 static PyObject *
@@ -251,18 +283,22 @@ BerMeterObj_interval (BerMeterObject *self, PyObject *args, PyObject *kwds)
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  size_t       errors    = 0;
-  size_t       symbols   = 0;
-  static char *_kwlist[] = { "errors", "symbols", NULL };
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "KK", _kwlist, &errors,
-                                    &symbols))
+  static char       *_kwlist[]   = { "errors", "symbols", NULL };
+  unsigned long long errors_raw  = 0ULL;
+  unsigned long long symbols_raw = 0ULL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "KK", _kwlist, &errors_raw,
+                                    &symbols_raw))
     return NULL;
+  size_t errors  = (size_t)errors_raw;
+  size_t symbols = (size_t)symbols_raw;
   if (!BerMeterObj_interval_type)
     {
       BerMeterObj_interval_type
           = PyStructSequence_NewType (&BerMeterObj_interval_desc);
       if (!BerMeterObj_interval_type)
-        return NULL;
+        {
+          return NULL;
+        }
     }
   ber_interval_t _r = ber_meter_interval (self->handle, errors, symbols);
   PyObject      *_o = PyStructSequence_New (BerMeterObj_interval_type);
@@ -640,16 +676,42 @@ BerMeterObj_exit (BerMeterObject *self, PyObject *args)
 
 static PyMethodDef BerMeterObj_methods[] = {
   { "reset", (PyCFunction)BerMeterObj_reset, METH_NOARGS,
-    "Zero the running counters; keep the configuration and the truth." },
+    "Zero the running counters; keep the configuration and the truth.\n"
+    "\n"
+    "Returns the meter to a fresh count while preserving m, the error\n"
+    "target, the confidence level and the installed truth sequence, so one\n"
+    "meter can measure independent captures back to back without\n"
+    "reinstalling truth. The last detected alignment is left untouched; call\n"
+    "align() again for the next capture before scoring it.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.ber import BerMeter\n"
+    ">>> rng = np.random.default_rng(0)\n"
+    ">>> truth = rng.integers(0, 4, size=400).astype(np.uint8)\n"
+    ">>> ang = 2 * np.pi * truth / 4 + np.pi / 4\n"
+    ">>> rx = np.exp(1j * ang).astype(np.complex64)\n"
+    ">>> met = BerMeter(m=4)\n"
+    ">>> met.set_truth(truth)\n"
+    ">>> met.align(rx, n_marker=64)\n"
+    "1\n"
+    ">>> met.score(rx, hi=truth.size)\n"
+    "336\n"
+    ">>> met.symbols\n"
+    "336\n"
+    ">>> met.reset()               # reuse the meter for the next capture\n"
+    ">>> (met.errors, met.symbols)\n"
+    "(0, 0)\n" },
 
   { "set_truth", (PyCFunction)(void *)BerMeterObj_set_truth,
     METH_VARARGS | METH_KEYWORDS,
     "set_truth(truth) -> int\n"
     "\n"
-    "Install the transmitted symbol INDICES (0..m-1, not Gray labels) this "
-    "meter scores against. Copied, so the caller's buffer need not outlive "
-    "the call, and reused across every burst. Raises ValueError if any index "
-    "is outside 0..m-1.\n"
+    "Install the transmitted symbol INDICES (0..m-1, not Gray labels)\n"
+    "this meter scores against. Copied, so the caller's buffer need not\n"
+    "outlive the call, and reused across every burst. Raises ValueError if\n"
+    "any index is outside 0..m-1.\n"
     "\n"
     "Copied, so the caller's buffer need not outlive the call, and reused\n"
     "across every burst. Values are symbol INDICES in `0..m-1` (not Gray\n"
@@ -662,11 +724,6 @@ static PyMethodDef BerMeterObj_methods[] = {
     "truth : NDArray[np.uint8]\n"
     "    Transmitted symbol indices, each in `0..m-1`.\n"
     "\n"
-    "Returns\n"
-    "-------\n"
-    "int\n"
-    "    DP_OK, or DP_ERR_INVALID if any index is outside `0..m-1`.\n"
-    "\n"
     "Examples\n"
     "--------\n"
     ">>> import numpy as np\n"
@@ -675,26 +732,27 @@ static PyMethodDef BerMeterObj_methods[] = {
     ">>> truth = np.array(\n"
     "...     [0, 3, 1, 2, 2, 0], dtype=np.uint8)  # indices, 0..3\n"
     ">>> met.set_truth(truth)\n"
-    "0\n" },
+    ">>> met.set_truth(np.array([9], dtype=np.uint8))  # 9 is not in 0..3\n"
+    "Traceback (most recent call last):\n"
+    "ValueError: set_truth failed (rc=-4)\n" },
   { "align", (PyCFunction)(void *)BerMeterObj_align,
     METH_VARARGS | METH_KEYWORDS,
     "align(rx, t0, n_marker, period, lag_span, pfa) -> int\n"
     "\n"
-    "Detect where the recovered symbols sit against truth, returning a "
-    "BerAlign. The alignment is DETECTED by correlating a known marker -- "
-    "truth[t0 : t0+n_marker], optionally repeating every `period` symbols -- "
-    "and gated by a false-alarm probability, NOT searched by minimising the "
-    "error count. That distinction is the whole point: a min-over-(lag, "
-    "rotation) search is an optimisation over the answer, and it both "
-    "false-passes on a lucky alignment and false-floors when the true lag "
-    "falls outside the span. A marker too short to identify an alignment "
-    "returns ok=False rather than a plausible wrong lag. Repeats are combined "
-    "non-coherently, which raises the processing gain and exposes cycle "
-    "slips.\n"
+    "Detect where the recovered symbols sit against truth, returning a\n"
+    "BerAlign. The alignment is DETECTED by correlating a known marker --\n"
+    "truth[t0 : t0+n_marker], optionally repeating every `period` symbols --\n"
+    "and gated by a false-alarm probability, NOT searched by minimising the\n"
+    "error count. That distinction is the whole point: a min-over-(lag,\n"
+    "rotation) search is an optimisation over the answer, and it both\n"
+    "false-passes on a lucky alignment and false-floors when the true lag\n"
+    "falls outside the span. A marker too short to identify an alignment\n"
+    "returns ok=False rather than a plausible wrong lag. Repeats are\n"
+    "combined non-coherently, which raises the processing gain and exposes\n"
+    "cycle slips.\n"
     "\n"
-    "Correlates the known marker `truth[t0 .. t0 + n_marker)` against rx "
-    "over\n"
-    "a span of lags, gates the peak with a false-alarm probability, and\n"
+    "Correlates the known marker `truth[t0 .. t0 + n_marker)` against rx\n"
+    "over a span of lags, gates the peak with a false-alarm probability, and\n"
     "stores the winning lag, absolute carrier phase and marker geometry on\n"
     "the meter so score() later uses exactly this detection — never a lag\n"
     "searched to minimise the error count. The peak's phase is the ABSOLUTE\n"
@@ -733,7 +791,6 @@ static PyMethodDef BerMeterObj_methods[] = {
     ">>> rx = np.exp(1j * ang).astype(np.complex64)\n"
     ">>> met = BerMeter(m=4)\n"
     ">>> met.set_truth(truth)\n"
-    "0\n"
     ">>> met.align(rx, n_marker=64)     # correlate a 64-symbol marker\n"
     "1\n"
     ">>> met.lag, met.align_ok          # detected, so score() is valid\n"
@@ -742,25 +799,22 @@ static PyMethodDef BerMeterObj_methods[] = {
     METH_VARARGS | METH_KEYWORDS,
     "score(rx, lo, hi) -> int\n"
     "\n"
-    "Score rx[lo:hi] against the truth and accumulate; returns the symbols "
-    "scored. Uses the supplied alignment VERBATIM -- no lag search, no "
-    "rotation search, no minimisation of any kind over the answer. Uses the "
-    "alignment align() last detected, together with the marker geometry that "
-    "found it, so a measurement cannot be handed an alignment belonging to a "
-    "different burst. Symbols covered by a marker occurrence are excluded, as "
-    "are any whose truth index falls outside the installed sequence; both "
-    "land in `skipped`.\n"
+    "Score rx[lo:hi] against the truth and accumulate; returns the\n"
+    "symbols scored. Uses the supplied alignment VERBATIM -- no lag search,\n"
+    "no rotation search, no minimisation of any kind over the answer. Uses\n"
+    "the alignment align() last detected, together with the marker geometry\n"
+    "that found it, so a measurement cannot be handed an alignment belonging\n"
+    "to a different burst. Symbols covered by a marker occurrence are\n"
+    "excluded, as are any whose truth index falls outside the installed\n"
+    "sequence; both land in `skipped`.\n"
     "\n"
     "Demodulates each symbol in the window under the alignment the last\n"
     "align() detected — its lag and absolute phase — and tallies symbol and\n"
-    "Gray-coded bit errors against the installed truth. The alignment is "
-    "used\n"
-    "VERBATIM: no lag search, no rotation search, no minimisation of any "
-    "kind\n"
-    "over the answer. Symbols covered by a marker occurrence are excluded, "
-    "as\n"
-    "are any whose truth index falls outside the installed sequence; both\n"
-    "land in skipped.\n"
+    "Gray-coded bit errors against the installed truth. The alignment is\n"
+    "used VERBATIM: no lag search, no rotation search, no minimisation of\n"
+    "any kind over the answer. Symbols covered by a marker occurrence are\n"
+    "excluded, as are any whose truth index falls outside the installed\n"
+    "sequence; both land in skipped.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -769,9 +823,8 @@ static PyMethodDef BerMeterObj_methods[] = {
     "lo : int\n"
     "    First symbol index to score (inclusive).\n"
     "hi : int\n"
-    "    One past the last symbol index to score; clamped to rx_len. `hi = "
-    "0`\n"
-    "    scores nothing, so pass the window's true end.\n"
+    "    One past the last symbol index to score; clamped to rx_len. `hi =\n"
+    "    0` scores nothing, so pass the window's true end.\n"
     "\n"
     "Returns\n"
     "-------\n"
@@ -788,7 +841,6 @@ static PyMethodDef BerMeterObj_methods[] = {
     ">>> rx = np.exp(1j * ang).astype(np.complex64)\n"
     ">>> met = BerMeter(m=4)\n"
     ">>> met.set_truth(truth)\n"
-    "0\n"
     ">>> met.align(rx, n_marker=64)\n"
     "1\n"
     ">>> met.score(rx, hi=truth.size)   # the 64 marker symbols are excluded\n"
@@ -840,9 +892,9 @@ static PyMethodDef BerMeterObj_methods[] = {
     "Restore mutable state from a `get_state()` blob.\n"
     "\n"
     "Overwrites the live state in place; the object keeps the parameters it\n"
-    "was constructed with. Length is validated against `state_bytes()` "
-    "before\n"
-    "the blob is handed to the C core, and the core may reject it as well.\n"
+    "was constructed with. Length is validated against `state_bytes()`\n"
+    "before the blob is handed to the C core, and the core may reject it as\n"
+    "well.\n"
     "\n"
     "Raises ``TypeError`` if *blob* is not bytes, ``ValueError`` if its\n"
     "length differs from `state_bytes()` or the core rejects it, and\n"
@@ -858,12 +910,11 @@ static PyMethodDef BerMeterObj_methods[] = {
     "\n"
     "Ordinarily unnecessary: the resources are freed when the object is\n"
     "garbage-collected. Call this to release them at a definite point\n"
-    "instead, or use the object as a context manager, which calls it on "
+    "instead, or use the object as a context manager, which calls it on\n"
     "exit.\n"
     "\n"
-    "Idempotent: calling it again on an already-released object does "
-    "nothing.\n"
-    "Every other method raises ``RuntimeError`` once it has run.\n" },
+    "Idempotent: calling it again on an already-released object does\n"
+    "nothing. Every other method raises ``RuntimeError`` once it has run.\n" },
   { "__enter__", (PyCFunction)BerMeterObj_enter, METH_NOARGS,
     "Enter a context manager, returning this object.\n"
     "\n"
@@ -878,9 +929,8 @@ static PyMethodDef BerMeterObj_methods[] = {
     "Exit a context manager, releasing the BerMeter.\n"
     "\n"
     "Equivalent to calling `destroy()`. Returns ``None``, so an exception\n"
-    "raised inside the `with` body propagates normally; this never "
-    "suppresses\n"
-    "one.\n"
+    "raised inside the `with` body propagates normally; this never\n"
+    "suppresses one.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -898,7 +948,23 @@ static PyTypeObject BerMeterObjType = {
   .tp_basicsize                           = sizeof (BerMeterObject),
   .tp_dealloc                             = (destructor)BerMeterObj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,
-  .tp_doc = "Create a meter for constellation m stopping at target_errors.\n",
+  .tp_doc = "Create a meter for constellation m stopping at target_errors.\n"
+            "\n"
+            "Parameters\n"
+            "----------\n"
+            "m : int, default 4\n"
+            "    Constellation order (2, 4, 8).\n"
+            "target_errors : int, default 200\n"
+            "    Inverse-binomial stop condition; 0 selects 200.\n"
+            "conf : float, default 0.99\n"
+            "    Two-sided confidence level; 0 selects 0.99.\n"
+            "\n"
+            "Examples\n"
+            "--------\n"
+            "Create with defaults:\n"
+            "\n"
+            ">>> from doppler import BerMeter\n"
+            ">>> obj = BerMeter(m=4, target_errors=200, conf=0.99)\n",
   .tp_methods = BerMeterObj_methods,
   .tp_getset  = BerMeter_getset,
   .tp_new     = BerMeterObj_new,

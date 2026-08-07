@@ -164,7 +164,6 @@ extern "C"
    * >>> rx = np.exp(1j * ang).astype(np.complex64)
    * >>> met = BerMeter(m=4)
    * >>> met.set_truth(truth)
-   * 0
    * >>> met.align(rx, n_marker=64)
    * 1
    * >>> met.score(rx, hi=truth.size)
@@ -198,7 +197,9 @@ extern "C"
    * >>> truth = np.array(
    * ...     [0, 3, 1, 2, 2, 0], dtype=np.uint8)  # indices, 0..3
    * >>> met.set_truth(truth)
-   * 0
+   * >>> met.set_truth(np.array([9], dtype=np.uint8))  # 9 is not in 0..3
+   * Traceback (most recent call last):
+   * ValueError: set_truth failed (rc=-4)
    *
    * @endcode
    */
@@ -256,7 +257,6 @@ extern "C"
    * >>> rx = np.exp(1j * ang).astype(np.complex64)
    * >>> met = BerMeter(m=4)
    * >>> met.set_truth(truth)
-   * 0
    * >>> met.align(rx, n_marker=64)     # correlate a 64-symbol marker
    * 1
    * >>> met.lag, met.align_ok          # detected, so score() is valid
@@ -294,7 +294,6 @@ extern "C"
    * >>> rx = np.exp(1j * ang).astype(np.complex64)
    * >>> met = BerMeter(m=4)
    * >>> met.set_truth(truth)
-   * 0
    * >>> met.align(rx, n_marker=64)
    * 1
    * >>> met.score(rx, hi=truth.size)   # the 64 marker symbols are excluded
@@ -373,7 +372,6 @@ extern "C"
    * >>> rx[200:260:5] *= -1            # corrupt 12 symbols (pi rotation)
    * >>> met = BerMeter(m=4)
    * >>> met.set_truth(truth)
-   * 0
    * >>> met.align(rx, n_marker=64)
    * 1
    * >>> _ = met.score(rx, hi=truth.size)
@@ -408,7 +406,6 @@ extern "C"
    * >>> rx[200:260:5] *= -1            # corrupt 12 symbols
    * >>> met = BerMeter(m=4)
    * >>> met.set_truth(truth)
-   * 0
    * >>> met.align(rx, n_marker=64)
    * 1
    * >>> _ = met.score(rx, hi=truth.size)

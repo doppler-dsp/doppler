@@ -653,7 +653,7 @@ static PyMethodDef DllObj_methods[] = {
     ">>> code = np.zeros(31, dtype=np.uint8)\n"
     ">>> d = Dll(code=code, sps=2)\n"
     ">>> d.set_telemetry(tlm, \"code\")\n"
-    ">>> sorted(tlm.probe_names())\n"
+    ">>> sorted(tlm.probe_names)\n"
     "['code.e', 'code.lock', 'code.locked', 'code.rate']\n"
     ">>> x = np.ones(31 * 2 * 50, dtype=np.complex64)\n"
     ">>> _ = d.steps(x)\n"

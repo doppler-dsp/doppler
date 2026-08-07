@@ -596,7 +596,7 @@ static PyMethodDef SymbolSyncObj_methods[] = {
     ">>> tlm = Telemetry(1 << 12)\n"
     ">>> ss = SymbolSync(sps=4, bn=0.01, zeta=0.707)\n"
     ">>> ss.set_telemetry(tlm, \"sync\")\n"
-    ">>> sorted(tlm.probe_names())\n"
+    ">>> sorted(tlm.probe_names)\n"
     "['sync.e', 'sync.freq', 'sync.lock', 'sync.locked', 'sync.rate']\n"
     ">>> x = np.repeat([1 + 1j, -1 - 1j], 4 * 64).astype(np.complex64)\n"
     ">>> _ = ss.steps(x)\n"

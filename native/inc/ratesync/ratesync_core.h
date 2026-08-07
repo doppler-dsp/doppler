@@ -769,7 +769,7 @@ extern "C"
    * >>> rs.set_telemetry(tlm, "sync")   # register the six timing probes
    * >>> tlm.probe_count
    * 6
-   * >>> "sync.rate" in tlm.probe_names()   # tracked samples/symbol
+   * >>> "sync.rate" in tlm.probe_names   # tracked samples/symbol
    * True
    *
    * @endcode

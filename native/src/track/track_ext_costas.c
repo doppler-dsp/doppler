@@ -578,7 +578,7 @@ static PyMethodDef CostasObj_methods[] = {
     ">>> tlm = Telemetry(1 << 12)\n"
     ">>> c = Costas(bn=0.05, zeta=0.707, tsamps=64)\n"
     ">>> c.set_telemetry(tlm, \"car\")\n"
-    ">>> sorted(tlm.probe_names())\n"
+    ">>> sorted(tlm.probe_names)\n"
     "['car.e', 'car.freq', 'car.lock', 'car.locked']\n"
     ">>> x = np.ones(64 * 100, dtype=np.complex64)\n"
     ">>> _ = c.steps(x)\n"

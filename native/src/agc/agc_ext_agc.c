@@ -599,7 +599,7 @@ static PyMethodDef AGCObj_methods[] = {
     ">>> tlm = Telemetry(1 << 12)\n"
     ">>> agc = AGC(ref_db=0.0, loop_bw=0.0025, alpha=0.05)\n"
     ">>> agc.set_telemetry(tlm, \"agc\")\n"
-    ">>> tlm.probe_names()\n"
+    ">>> tlm.probe_names\n"
     "{'agc.gain_db': 0}\n"
     ">>> x = (0.5 + 0j) * np.ones(256, dtype=np.complex64)\n"
     ">>> _ = agc.steps(x)\n"

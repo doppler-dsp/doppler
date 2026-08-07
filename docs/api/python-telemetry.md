@@ -20,18 +20,18 @@ ______________________________________________________________________
 two; a sub-page request is rounded up, so read the real size back from
 `.capacity`.
 
-| Member                    | Purpose                                                     |
-| ------------------------- | ----------------------------------------------------------- |
-| `probe(name, decim=1)`    | Register (idempotent by name); emit every `decim`-th event  |
-| `probe_id(name)`          | Name → id (`KeyError` if unknown)                           |
-| `probe_names()`           | Full `name -> id` map                                       |
-| `emit(probe_id, value)`   | Producer-side record (Python events / tests)                |
-| `set_now(n)`              | Stamp the sample index carried by subsequent records        |
-| `read(max_records=-1)`    | Drain into a structured array — non-blocking, consumer side |
-| `emitted(probe_id)`       | Records written for one probe (post-decimation, post-drop)  |
-| `dropped`                 | Ring-overrun count (monotonic)                              |
-| `capacity`, `probe_count` | Introspection                                               |
-| `_capsule`                | The `dp_tlm_t *` attach point for instrumented objects      |
+| Member                    | Purpose                                                                                     |
+| ------------------------- | ------------------------------------------------------------------------------------------- |
+| `probe(name, decim=1)`    | Register (idempotent by name); emit every `decim`-th event                                  |
+| `probe_id(name)`          | Name → id (`KeyError` if unknown)                                                           |
+| `probe_names`             | Full `name -> id` map (a **property**, not a call)                                          |
+| `emit(id, v)`             | Producer-side record (Python events / tests)                                                |
+| `set_now(n)`              | Stamp the sample index carried by subsequent records                                        |
+| `read(n=0)`               | Drain into a structured array — `0` means everything available; non-blocking, consumer side |
+| `emitted(id)`             | Records written for one probe (post-decimation, post-drop)                                  |
+| `dropped`                 | Ring-overrun count (monotonic)                                                              |
+| `capacity`, `probe_count` | Introspection                                                                               |
+| `_capsule`                | The `dp_tlm_t *` attach point for instrumented objects                                      |
 
 `read()` returns a NumPy structured array with dtype
 `[("n", "<u8"), ("value", "<f4"), ("probe", "<u2"), ("flags", "<u2")]` —

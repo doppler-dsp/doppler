@@ -181,7 +181,7 @@ class AGC:
         >>> tlm = Telemetry(1 << 12)
         >>> agc = AGC(ref_db=0.0, loop_bw=0.0025, alpha=0.05)
         >>> agc.set_telemetry(tlm, "agc")
-        >>> tlm.probe_names()
+        >>> tlm.probe_names
         {'agc.gain_db': 0}
         >>> x = (0.5 + 0j) * np.ones(256, dtype=np.complex64)
         >>> _ = agc.steps(x)

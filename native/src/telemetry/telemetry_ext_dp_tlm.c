@@ -275,7 +275,7 @@ static PyStructSequence_Field TelemetryObj_stats_fields[] = {
 static PyStructSequence_Desc TelemetryObj_stats_desc
     = { "doppler.telemetry.TelemetryStats",
         "Context-wide telemetry counters, snapshotted together. Per-probe "
-        "detail is probe_names() + emitted(), which stay the SSOT for it.",
+        "detail is probe_names + emitted(), which stay the SSOT for it.",
         TelemetryObj_stats_fields, 4 };
 static PyTypeObject *TelemetryObj_stats_type = NULL;
 

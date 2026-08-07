@@ -618,7 +618,7 @@ static PyMethodDef RateSyncObj_methods[] = {
     ">>> rs.set_telemetry(tlm, \"sync\")   # register the six timing probes\n"
     ">>> tlm.probe_count\n"
     "6\n"
-    ">>> \"sync.rate\" in tlm.probe_names()   # tracked samples/symbol\n"
+    ">>> \"sync.rate\" in tlm.probe_names   # tracked samples/symbol\n"
     "True\n" },
   { "configure", (PyCFunction)(void *)RateSyncObj_configure,
     METH_VARARGS | METH_KEYWORDS,

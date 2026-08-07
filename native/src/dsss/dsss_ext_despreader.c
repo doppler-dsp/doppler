@@ -841,7 +841,7 @@ static PyMethodDef DespreaderObj_methods[] = {
     ">>> code = (np.arange(31) % 2).astype(np.uint8)\n"
     ">>> ch = Despreader(code=code, sps=4)\n"
     ">>> ch.set_telemetry(tlm, \"ch0\")\n"
-    ">>> names = sorted(tlm.probe_names())\n"
+    ">>> names = sorted(tlm.probe_names)\n"
     ">>> names[:4]\n"
     "['ch0.car.e', 'ch0.car.freq', 'ch0.car.lock', 'ch0.car.locked']\n"
     ">>> names[4:]\n"

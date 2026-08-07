@@ -419,7 +419,7 @@ class Costas:
         >>> tlm = Telemetry(1 << 12)
         >>> c = Costas(bn=0.05, zeta=0.707, tsamps=64)
         >>> c.set_telemetry(tlm, "car")
-        >>> sorted(tlm.probe_names())
+        >>> sorted(tlm.probe_names)
         ['car.e', 'car.freq', 'car.lock', 'car.locked']
         >>> x = np.ones(64 * 100, dtype=np.complex64)
         >>> _ = c.steps(x)
@@ -843,7 +843,7 @@ class Dll:
         >>> code = np.zeros(31, dtype=np.uint8)
         >>> d = Dll(code=code, sps=2)
         >>> d.set_telemetry(tlm, "code")
-        >>> sorted(tlm.probe_names())
+        >>> sorted(tlm.probe_names)
         ['code.e', 'code.lock', 'code.locked', 'code.rate']
         >>> x = np.ones(31 * 2 * 50, dtype=np.complex64)
         >>> _ = d.steps(x)
@@ -1399,7 +1399,7 @@ class SymbolSync:
         >>> tlm = Telemetry(1 << 12)
         >>> ss = SymbolSync(sps=4, bn=0.01, zeta=0.707)
         >>> ss.set_telemetry(tlm, "sync")
-        >>> sorted(tlm.probe_names())
+        >>> sorted(tlm.probe_names)
         ['sync.e', 'sync.freq', 'sync.lock', 'sync.locked', 'sync.rate']
         >>> x = np.repeat([1 + 1j, -1 - 1j], 4 * 64).astype(np.complex64)
         >>> _ = ss.steps(x)
@@ -1882,7 +1882,7 @@ class RateSync:
         >>> rs.set_telemetry(tlm, "sync")   # register the six timing probes
         >>> tlm.probe_count
         6
-        >>> "sync.rate" in tlm.probe_names()   # tracked samples/symbol
+        >>> "sync.rate" in tlm.probe_names   # tracked samples/symbol
         True
 
         """
@@ -2621,7 +2621,7 @@ class CarrierNda:
         >>> tlm = Telemetry(1 << 14)
         >>> c = CarrierNda(bn=0.01, sps=8, n=4, m=4)
         >>> c.set_telemetry(tlm, "car", decim=8)
-        >>> sorted(tlm.probe_names())
+        >>> sorted(tlm.probe_names)
         ['car.agc.gain_db', 'car.e', 'car.freq', 'car.lock', 'car.locked']
         >>> x = np.exp(2j * np.pi * 0.005 * np.arange(4096)).astype(
         ...     np.complex64)
@@ -3022,7 +3022,7 @@ class MpskReceiver:
         >>> tlm = Telemetry(1 << 14)   # 11 probes x ~512 syms + headroom
         >>> rx = MpskReceiver(m=4, sps=4, m_out=2)
         >>> rx.set_telemetry(tlm, "rx")
-        >>> len(tlm.probe_names())
+        >>> len(tlm.probe_names)
         11
         >>> rng = np.random.default_rng(7)
         >>> syms = (1 - 2 * rng.integers(0, 2, 512)).astype(np.complex64)
@@ -3551,7 +3551,7 @@ class MpskReceiverR:
         >>> tlm = Telemetry(1 << 14)
         >>> rx = MpskReceiverR(m=4, sps=10, m_out=2, init_norm_freq=0.25)
         >>> rx.set_telemetry(tlm, "rx")
-        >>> len(tlm.probe_names())
+        >>> len(tlm.probe_names)
         11
         >>> rng = np.random.default_rng(7)
         >>> idx = rng.integers(0, 4, 512)

@@ -184,7 +184,7 @@ class Despreader:
         >>> code = (np.arange(31) % 2).astype(np.uint8)
         >>> ch = Despreader(code=code, sps=4)
         >>> ch.set_telemetry(tlm, "ch0")
-        >>> names = sorted(tlm.probe_names())
+        >>> names = sorted(tlm.probe_names)
         >>> names[:4]
         ['ch0.car.e', 'ch0.car.freq', 'ch0.car.lock', 'ch0.car.locked']
         >>> names[4:]

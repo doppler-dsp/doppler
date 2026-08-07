@@ -6,7 +6,7 @@ from numpy.typing import NDArray
 @final
 class TelemetryStats(tuple[int, int, int, int]):
     """Context-wide telemetry counters, snapshotted together. Per-probe detail
-    is probe_names() + emitted(), which stay the SSOT for it.
+    is probe_names + emitted(), which stay the SSOT for it.
 
     Attributes
     ----------

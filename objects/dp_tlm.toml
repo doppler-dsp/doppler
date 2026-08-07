@@ -117,7 +117,7 @@ params = [{ name = "id", type = "int" }]
 
 # Counters as one record rather than a nested dict. This shape is why
 # just-makeit#788 gap 3 stopped being a blocker: per-probe detail is
-# recoverable from probe_names() + emitted(), so the map that made stats()
+# recoverable from probe_names + emitted(), so the map that made stats()
 # un-generatable did not need to be in the return value at all.
 [[dp_tlm.methods]]
 name = "stats"
@@ -125,7 +125,7 @@ arg_type = "void"
 return_type = "dp_tlm_stats_t"
 single = true
 record_name = "TelemetryStats"
-record_doc = "Context-wide telemetry counters, snapshotted together. Per-probe detail is probe_names() + emitted(), which stay the SSOT for it."
+record_doc = "Context-wide telemetry counters, snapshotted together. Per-probe detail is probe_names + emitted(), which stay the SSOT for it."
 record_module = "doppler.telemetry"
 result_fields = [
   { name = "dropped", type = "uint64_t", doc = "Records lost to ring overrun, monotonic over the context's lifetime." },

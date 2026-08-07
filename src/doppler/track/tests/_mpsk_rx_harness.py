@@ -230,7 +230,7 @@ def demod(
     rx.set_telemetry(tlm, "rx")
     y = rx.steps(x)
     rec = tlm.read()
-    names = tlm.probe_names()
+    names = tlm.probe_names
     probes = {
         n.removeprefix("rx."): rec[rec["probe"] == pid]["value"].astype(float)
         for n, pid in names.items()

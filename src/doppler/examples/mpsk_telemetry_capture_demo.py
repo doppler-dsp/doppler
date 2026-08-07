@@ -48,7 +48,7 @@ iq = (
 
 # ONE ring; attach the receiver at decim=1 = EVERY event on EVERY probe. The
 # attach registers the receiver's own probes AND forwards to its child loops,
-# so probe_names() below is the full set of "all available telemetry".
+# so probe_names below is the full set of "all available telemetry".
 tlm = Telemetry(1 << 14)
 rx = MpskReceiver(
     m=4,
@@ -62,7 +62,7 @@ rx = MpskReceiver(
     warmup_syms=200,
 )
 rx.set_telemetry(tlm, "rx", 1)
-probes = tlm.probe_names()  # name -> id: the full registered set
+probes = tlm.probe_names  # name -> id: the full registered set
 
 # Produce block by block on one thread; the single consumer drains every block.
 chunks = []

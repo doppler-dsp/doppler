@@ -463,12 +463,6 @@ extern "C"
         return 0;
       }
 
-    double num;
-    if (ted == RATESYNC_TED_DTTL)
-      num = dttl_ted (mid, on, s->prev_on);
-    else
-      num = gardner_ted (mid, on - s->prev_on);
-
     double on_pwr
         = (double)(crealf (on) * crealf (on) + cimagf (on) * cimagf (on));
     double mid_pwr
@@ -487,8 +481,14 @@ extern "C"
     else
       s->pwr_avg += 0.01 * (ref - s->pwr_avg);
 
-    double e      = num / (s->pwr_avg + RATESYNC_LOCK_EPS);
-    s->last_error = e;
+    /* The detector normalises itself (symsync_core.h's TED block explains
+       why one shared normaliser cannot serve both); the guard stays here,
+       with the EMA it protects. */
+    double pwr_ref = s->pwr_avg + RATESYNC_LOCK_EPS;
+    double e       = (ted == RATESYNC_TED_DTTL)
+                         ? dttl_ted (mid, on, s->prev_on, pwr_ref)
+                         : gardner_ted (mid, on - s->prev_on, pwr_ref);
+    s->last_error  = e;
 
     /* loop_filter_step returns a correction in symbols per symbol; `ctrl` is
        a rate deviation the TERMINAL stage adds to its accumulator once per

@@ -95,28 +95,70 @@ extern "C"
     symsync_tlm_t tlm; /**< live telemetry attachment; zeroed in blobs      */
   } symsync_state_t;
 
+  /* ── Timing-error detectors ──────────────────────────────────────────
+   *
+   * **Every TED normalises itself, and the normaliser is part of the
+   * detector, not of the loop around it.** A TED's raw output scales with
+   * the signal, so a loop reading it directly has a gain that moves with the
+   * input level -- and `bn` stops meaning a bandwidth. The fix is the one
+   * carrier_nda_disc already applies on the carrier side (its M-dependent
+   * scale exists so the S-curve slope is 2 for every M): each detector
+   * divides by whatever power of the amplitude its own numerator carries, so
+   * every TED hands the loop filter the SAME S-curve slope and one `bn`
+   * means one thing whichever detector is selected.
+   *
+   * That is not a style preference. The two numerators here have DIFFERENT
+   * degrees in the amplitude:
+   *
+   *     gardner:  mid . (on - prev)          -- QUADRATIC (two signal terms)
+   *     dttl:     mid . (sign(on) - sign(prev))  -- LINEAR (one signal term,
+   *                                                 one +-2 sign difference)
+   *
+   * so no single normaliser applied outside can serve both. Dividing both by
+   * a power reference -- which is what the two call sites used to do -- makes
+   * Gardner dimensionless and leaves DTTL scaled by `1/A`. Measured on
+   * MpskReceiverR at BPSK, `TX_AMP = 0.5`: DTTL's mean |e| was 28.0 against
+   * Gardner's 1.19, the loop ran ~24x hot, and the receiver emitted **5
+   * symbols out of 5998** at every `nda_tap`. Normalised here instead, the
+   * same geometry recovers all 5998 and beats Gardner by 0.4-0.6 dB EVM.
+   *
+   * `pwr_ref` is the caller's running power reference, ALREADY floored away
+   * from zero -- the loops each maintain their own EMA with their own guard,
+   * and re-guarding here would silently override it. Its exact definition
+   * still differs between the two call sites (`|on|^2` in symsync,
+   * `|on|^2 + |mid|^2` in ratesync); that is worth a factor of ~1.22 in the
+   * slope match below and is a separate, pre-existing inconsistency.
+   * validate_symsync_ted_scurve measures the slopes and pins them equal.
+   */
+
   /**
-   * @brief Gardner timing-error detector: Re{ conj(mid) * (y - prev) }.
+   * @brief Gardner timing-error detector: Re{ conj(mid) * (y - prev) },
+   *        normalised by the power reference.
    *
    * Blind (non-data-aided): correlates the transition-gate sample against the
    * on-time step, so it locks for any constellation but pays a
    * non-transition-symbol self-noise cost. @see dttl_ted for the
    * decision-directed alternative.
    *
-   * @param mid   Mid-symbol (transition-gate) interpolant.
-   * @param diff  `on_time[k] - on_time[k-1]`.
-   * @return Raw (pre-AGC-normalized) timing error.
+   * The numerator is quadratic in the signal amplitude, so the POWER
+   * reference is what makes it dimensionless -- see the block above.
+   *
+   * @param mid      Mid-symbol (transition-gate) interpolant.
+   * @param diff     `on_time[k] - on_time[k-1]`.
+   * @param pwr_ref  Running power reference, strictly positive.
+   * @return Normalised timing error (dimensionless).
    */
   JM_FORCEINLINE double
-  gardner_ted (float complex mid, float complex diff)
+  gardner_ted (float complex mid, float complex diff, double pwr_ref)
   {
     return (double)(crealf (mid) * crealf (diff)
-                    + cimagf (mid) * cimagf (diff));
+                    + cimagf (mid) * cimagf (diff))
+           / pwr_ref;
   }
 
   /**
    * @brief Sign-sign DTTL: gate the transition sample by the hard-decision
-   * transition on each rail.
+   * transition on each rail, normalised by the power reference.
    *
    * Decision-directed (M.K. Simon's Data Transition Tracking Loop, digital
    * point-sample reduction): zero unless a rail's hard decision actually
@@ -127,19 +169,44 @@ extern "C"
    * matches gardner_ted's convention so both TEDs share one loop-filter
    * polarity.
    *
-   * @param mid   Mid-symbol (transition-gate) interpolant.
-   * @param y     `on_time[k]`.
-   * @param prev  `on_time[k-1]`.
-   * @return Raw (pre-AGC-normalized) timing error.
+   * **The normaliser is `2*sqrt(pwr_ref)`, not `pwr_ref`**, and both parts of
+   * that carry weight:
+   *
+   *   - `sqrt`, because only ONE factor here carries the signal (the gate
+   *     sample); the other is a hard-decision difference of fixed size. So the
+   *     AMPLITUDE is the right reference, and dividing by power instead leaves
+   *     the loop gain proportional to `1/A` -- the defect the block above
+   *     records.
+   *   - the `2`, because `si`/`sq` take values in {-2, 0, +2}: halving them
+   *     turns the difference into a unit "this rail flipped" indicator, which
+   *     is the scale at which the S-curve slope lands on Gardner's.
+   *
+   * Measured by validate_symsync_ted_scurve, DTTL slope against Gardner's:
+   * **0.84 at BPSK and 1.19 at QPSK**, flat across a 8x amplitude sweep. The
+   * residual spread is not sloppiness in the constant -- it is real. DTTL's
+   * slope depends on how the constellation splits energy across the I/Q rails
+   * (BPSK drives one, QPSK two) and on the transition density, neither of
+   * which the detector can see, so unlike carrier_nda_disc's closed-form
+   * `{1, 1/2, 1/4}` there is no exact per-M scale to apply. One constant
+   * lands both valid orders inside +-20% of Gardner, and that is the
+   * guarantee this offers.
+   *
+   * @param mid      Mid-symbol (transition-gate) interpolant.
+   * @param y        `on_time[k]`.
+   * @param prev     `on_time[k-1]`.
+   * @param pwr_ref  Running power reference, strictly positive.
+   * @return Normalised timing error (dimensionless).
    */
   JM_FORCEINLINE double
-  dttl_ted (float complex mid, float complex y, float complex prev)
+  dttl_ted (float complex mid, float complex y, float complex prev,
+            double pwr_ref)
   {
     double si = (crealf (y) >= 0.0f ? 1.0 : -1.0)
                 - (crealf (prev) >= 0.0f ? 1.0 : -1.0);
     double sq = (cimagf (y) >= 0.0f ? 1.0 : -1.0)
                 - (cimagf (prev) >= 0.0f ? 1.0 : -1.0);
-    return (double)crealf (mid) * si + (double)cimagf (mid) * sq;
+    return ((double)crealf (mid) * si + (double)cimagf (mid) * sq)
+           / (2.0 * sqrt (pwr_ref));
   }
 
   /**
@@ -196,18 +263,18 @@ extern "C"
     int           emit = 0;
     if (s->have_ontime)
       {
-        double num;
-        if (ted == SYMSYNC_TED_DTTL)
-          num = dttl_ted (s->mid, y, s->prev_ontime);
-        else
-          {
-            float complex diff = y - s->prev_ontime;
-            num                = gardner_ted (s->mid, diff);
-          }
         double inst_pwr
             = (double)(crealf (y) * crealf (y) + cimagf (y) * cimagf (y));
         s->pwr_avg += 0.01 * (inst_pwr - s->pwr_avg);
-        double e       = num / (s->pwr_avg + 1e-6);
+        /* The guard stays HERE, with the EMA it protects: the detector is
+           handed a reference already floored away from zero, so it never
+           second-guesses a caller's seeding policy. 1e-6, not ratesync's
+           1e-12, because this loop's pwr_avg starts at literally zero (there
+           is no first-strobe seed on this path). */
+        double pwr_ref = s->pwr_avg + 1e-6;
+        double e = (ted == SYMSYNC_TED_DTTL)
+                       ? dttl_ted (s->mid, y, s->prev_ontime, pwr_ref)
+                       : gardner_ted (s->mid, y - s->prev_ontime, pwr_ref);
         s->last_error  = e;
         double control = loop_filter_step (&s->lf, e);
         s->timing.phase_inc

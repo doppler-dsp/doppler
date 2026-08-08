@@ -78,6 +78,29 @@ ______________________________________________________________________
 
 ### Fixed
 
+- **Each timing detector normalises itself; DTTL's loop gain carried a
+    residual `1/A`.** Both call sites (`symsync`, `ratesync`) divided *both*
+    TEDs by a power reference applied outside the detector. That is correct for
+    Gardner, whose numerator `mid.(on - prev)` is quadratic in the signal
+    amplitude, and wrong for DTTL, whose numerator
+    `mid.(sign(on) - sign(prev))` is linear — one factor is a hard-decision
+    difference of fixed size ±2. So DTTL's loop gain scaled with `1/A` and `bn`
+    stopped meaning a bandwidth.
+
+    `gardner_ted` now divides by `pwr_ref` and `dttl_ted` by
+    `2*sqrt(pwr_ref)`, each inside the detector. **Gardner is bit-identical** —
+    the division only moved. The loops keep their own EMA, their own epsilon,
+    and pass an already-guarded reference, so the detector never overrides a
+    caller's seeding policy.
+
+    `validate_symsync_ted_scurve` is the new gate: an open-loop S-curve over a
+    triangular-autocorrelation I&D model, pinning the two slopes to within ±20%
+    across an 8× amplitude sweep. **The sweep is the test** — sabotaged back to
+    the power normaliser the ratio reads 1.389 / 2.778 / 11.112 at amplitude
+    1.0 / 0.5 / 0.125, and 1.389 *passes*. A unit-amplitude measurement cannot
+    see this defect, which is how it survived characterisation on a standalone
+    stream while being fatal at the 0.5 a CIC-bounded receiver runs at.
+
 - **`Capture` / `MemoryCapture` publish the constructor they actually have.**
     The stubs rendered `clock: Any = ...` for an argument the binding has
     always required, so a type checker blessed `MemoryCapture(tlm, block)` and

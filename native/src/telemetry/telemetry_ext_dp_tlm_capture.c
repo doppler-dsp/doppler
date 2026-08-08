@@ -11,6 +11,7 @@
 /* ======================================================== */
 
 #include "dp_tlm_capture/dp_tlm_capture_core.h"
+#include "tlm_read_dict.h"
 
 typedef struct
 {
@@ -191,6 +192,11 @@ done:
   return out;
 }
 
+/* Hand-written, sharing tlm_read_dict.h with Telemetry.read_dict(); only the
+   record SOURCE differs. Here it is the capture's own accumulator, borrowed
+   and only read — every array handed back is a fresh numpy allocation — and
+   unlike the ring drain this does NOT consume, exactly as records() does not.
+ */
 static PyObject *
 MemoryCaptureObj_read_dict (MemoryCaptureObject *self, PyObject *args,
                             PyObject *kwds)
@@ -215,69 +221,12 @@ MemoryCaptureObj_read_dict (MemoryCaptureObject *self, PyObject *args,
       return NULL;
     }
 
-  float    *values[DP_TLM_MAX_PROBES];
-  uint64_t *index[DP_TLM_MAX_PROBES];
-  size_t    caps[DP_TLM_MAX_PROBES];
-  size_t    nprobes = dp_tlm_probe_count (tlm);
-
-  /* Borrowed, and only READ from here: every buffer handed back below is a
-     fresh numpy array, so nothing the capture can free escapes. Unlike
-     Telemetry.read_dict this does not consume — records() does not either. */
   const dp_tlm_rec_t *recs  = dp_tlm_capture_records (self->handle);
   size_t              n_out = dp_tlm_capture_count (self->handle);
   if (n_raw != 0 && n_out > (size_t)n_raw)
     n_out = (size_t)n_raw;
-  dp_tlm_demux_counts (recs, n_out, caps, nprobes);
 
-  PyObject *out = PyDict_New ();
-  if (!out)
-    return NULL;
-
-  for (size_t i = 0; i < nprobes; i++)
-    {
-      const char *name = dp_tlm_probe_name (tlm, i);
-      if (!name)
-        {
-          PyErr_Format (PyExc_RuntimeError,
-                        "read_dict: dp_tlm_probe_name returned NULL at %zu",
-                        i);
-          goto fail;
-        }
-      npy_intp  dim = (npy_intp)caps[i];
-      PyObject *v   = PyArray_SimpleNew (1, &dim, NPY_FLOAT);
-      if (!v)
-        goto fail;
-      values[i] = (float *)PyArray_DATA ((PyArrayObject *)v);
-      index[i]  = NULL;
-
-      PyObject *entry = v;
-      if (with_idx)
-        {
-          PyObject *nn = PyArray_SimpleNew (1, &dim, NPY_UINT64);
-          if (!nn)
-            {
-              Py_DECREF (v);
-              goto fail;
-            }
-          index[i] = (uint64_t *)PyArray_DATA ((PyArrayObject *)nn);
-          entry    = PyTuple_Pack (2, nn, v);
-          Py_DECREF (nn);
-          Py_DECREF (v);
-          if (!entry)
-            goto fail;
-        }
-      int rc = PyDict_SetItemString (out, name, entry);
-      Py_DECREF (entry);
-      if (rc < 0)
-        goto fail;
-    }
-
-  dp_tlm_demux (recs, n_out, values, with_idx ? index : NULL, caps, nprobes);
-  return out;
-
-fail:
-  Py_DECREF (out);
-  return NULL;
+  return tlm_build_read_dict (tlm, recs, n_out, with_idx);
 }
 
 static PyObject *

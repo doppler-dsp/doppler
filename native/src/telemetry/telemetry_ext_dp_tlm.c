@@ -10,6 +10,7 @@
 /* ======================================================== */
 
 #include "dp_tlm/dp_tlm_core.h"
+#include "tlm_read_dict.h"
 
 typedef struct
 {
@@ -154,12 +155,11 @@ TelemetryObj_read (TelemetryObject *self, PyObject *args, PyObject *kwds)
   return arr0;
 }
 
-/* Hand-written, and jm cannot generate it: the return is a dict whose KEYS
-   come from the probe registry and whose VALUES are numpy arrays of
-   data-dependent length — a shape with no manifest spelling (jm's `dict`
-   property binds scalar values). The regrouping itself is NOT here: that is
-   dp_tlm_demux() in dp_tlm_core.c, so a C consumer gets the same split.
-   This is the marshalling only. */
+/* Hand-written: the return is a dict whose KEYS come from the probe registry
+   and whose VALUES are numpy arrays of data-dependent length — a shape with no
+   manifest spelling. The marshalling is shared with MemoryCapture.read_dict()
+   in tlm_read_dict.h; only the record SOURCE differs, and for this face that
+   is a drain of the ring. */
 static PyObject *
 TelemetryObj_read_dict (TelemetryObject *self, PyObject *args, PyObject *kwds)
 {
@@ -175,14 +175,9 @@ TelemetryObj_read_dict (TelemetryObject *self, PyObject *args, PyObject *kwds)
                                     &with_idx))
     return NULL;
 
-  float        *values[DP_TLM_MAX_PROBES];
-  uint64_t     *index[DP_TLM_MAX_PROBES];
-  size_t        caps[DP_TLM_MAX_PROBES];
-  size_t        nprobes = dp_tlm_probe_count (self->handle);
-  size_t        cap     = dp_tlm_read_max_out (self->handle);
-  dp_tlm_rec_t *recs    = NULL;
-  size_t        n_out   = 0;
-
+  size_t        cap   = dp_tlm_read_max_out (self->handle);
+  dp_tlm_rec_t *recs  = NULL;
+  size_t        n_out = 0;
   if (cap > 0)
     {
       recs = (dp_tlm_rec_t *)PyMem_Malloc (cap * sizeof *recs);
@@ -190,68 +185,10 @@ TelemetryObj_read_dict (TelemetryObject *self, PyObject *args, PyObject *kwds)
         return PyErr_NoMemory ();
       n_out = dp_tlm_read (self->handle, (size_t)n_raw, recs, cap);
     }
-  dp_tlm_demux_counts (recs, n_out, caps, nprobes);
 
-  PyObject *out = PyDict_New ();
-  if (!out)
-    {
-      PyMem_Free (recs);
-      return NULL;
-    }
-
-  /* Every REGISTERED probe gets a key, including one that emitted nothing
-     this drain: a caller plotting per probe wants a stable key set, and an
-     absent key would read as "no such probe" rather than "nothing yet". */
-  for (size_t i = 0; i < nprobes; i++)
-    {
-      const char *name = dp_tlm_probe_name (self->handle, i);
-      if (!name)
-        {
-          PyErr_Format (PyExc_RuntimeError,
-                        "read_dict: dp_tlm_probe_name returned NULL at %zu",
-                        i);
-          goto fail;
-        }
-      npy_intp  dim = (npy_intp)caps[i];
-      PyObject *v   = PyArray_SimpleNew (1, &dim, NPY_FLOAT);
-      if (!v)
-        goto fail;
-      values[i] = (float *)PyArray_DATA ((PyArrayObject *)v);
-      index[i]  = NULL;
-
-      PyObject *entry = v; /* borrowed into `entry`; `v` still owns it */
-      if (with_idx)
-        {
-          PyObject *nn = PyArray_SimpleNew (1, &dim, NPY_UINT64);
-          if (!nn)
-            {
-              Py_DECREF (v);
-              goto fail;
-            }
-          index[i] = (uint64_t *)PyArray_DATA ((PyArrayObject *)nn);
-          /* (n, values) — index first, so `for name, (n, v) in ...` reads
-             in the same order as a plot's (x, y). */
-          entry = PyTuple_Pack (2, nn, v);
-          Py_DECREF (nn);
-          Py_DECREF (v);
-          if (!entry)
-            goto fail;
-        }
-      int rc = PyDict_SetItemString (out, name, entry);
-      Py_DECREF (entry);
-      if (rc < 0)
-        goto fail;
-    }
-
-  /* The dict owns every buffer above, so the pointers stay valid here. */
-  dp_tlm_demux (recs, n_out, values, with_idx ? index : NULL, caps, nprobes);
+  PyObject *out = tlm_build_read_dict (self->handle, recs, n_out, with_idx);
   PyMem_Free (recs);
   return out;
-
-fail:
-  PyMem_Free (recs);
-  Py_DECREF (out);
-  return NULL;
 }
 
 static PyObject *

@@ -291,8 +291,8 @@ extern "C"
    * command itself was bounded.
    *
    * The BAND is the caller's policy, not this function's: it is set by what
-   * the object can physically mean. symsync's [2/3, 2] is its long-standing
-   * rate_est clamp of [0.5, 1.5] x sps, restated -- `inst = sps / (1+control)`
+   * the object can physically mean. symsync's `[2/3, 2]` is its long-standing
+   * rate_est clamp of `[0.5, 1.5]` x sps, restated -- `inst = sps/(1+control)`
    * is monotone, so the two are the same constraint seen from either end.
    *
    * @param control  Fractional rate deviation; the steer is `1 + control`.

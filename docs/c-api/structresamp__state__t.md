@@ -37,7 +37,7 @@
 | Type | Name |
 | ---: | :--- |
 |  float \* | [**bank**](#variable-bank)  <br> |
-|  double | [**ctrl\_acc**](#variable-ctrl_acc)  <br> |
+|  [**nco\_state\_t**](structnco__state__t.md) | [**ctrl\_nco**](#variable-ctrl_nco)  <br> |
 |  float \_Complex \* | [**decim\_iad**](#variable-decim_iad)  <br> |
 |  float \_Complex \* | [**decim\_tfd**](#variable-decim_tfd)  <br> |
 |  float \_Complex \* | [**delay\_buf**](#variable-delay_buf)  <br> |
@@ -113,10 +113,10 @@ float* resamp_state_t::bank;
 
 
 
-### variable ctrl\_acc 
+### variable ctrl\_nco 
 
 ```C++
-double resamp_state_t::ctrl_acc;
+nco_state_t resamp_state_t::ctrl_nco;
 ```
 
 

@@ -133,11 +133,13 @@ dll_replica(const dll_state_t *s, double c)
     return (float)((1.0 - mu) * v0 + mu * v1);
 }
 
-/* Cycles -> u32 phase delta: nco_norm_to_inc() (native/inc/nco/nco_core.h)
- * is the ONE shared primitive for this conversion -- do not grow a
- * private copy here (a prior copy of this exact formula existed under
- * the name dll_cycles_to_phase_delta() and has been consolidated away;
- * see nco_norm_to_inc()'s own doc comment for why duplicates of this
+/* Normalised -> u32 phase word: nco_norm_freq_to_inc() /
+ * nco_norm_phase_to_word() (native/inc/nco/nco_core.h) are the ONE shared
+ * primitive for this conversion, under two names so the call site says
+ * whether it holds a rate or an angle -- do not grow a private copy here
+ * (a prior copy of this exact formula existed under the name
+ * dll_cycles_to_phase_delta() and has been consolidated away; see
+ * nco_norm_fold_()'s own doc comment for why duplicates of this
  * conversion keep drifting). */
 
 void dll_init(dll_state_t *s, const uint8_t *code, size_t code_len, size_t sps,
@@ -186,6 +188,12 @@ void dll_lock_look(dll_state_t *s, double norm);
 
 void dll_lock_epoch(dll_state_t *s);
 
+JM_FORCEINLINE JM_HOT uint32_t
+dll_steer_inc(const dll_state_t *s, double ctrl)
+{
+    return nco_norm_freq_to_inc(s->inv_tsamps * (1.0 + s->rate_aid) + ctrl);
+}
+
 JM_FORCEINLINE JM_HOT void
 dll_update(dll_state_t *s)
 {
@@ -212,8 +220,7 @@ dll_update(dll_state_t *s)
     /* rate_aid (0 = off): a fixed carrier-aiding rate bias, scaled by the
        nominal per-sample rate so it sums into the sample-and-hold phase_inc
        as a continuous adjustment across the epoch, not a phase pulse. */
-    s->code_nco.phase_inc
-        = nco_norm_to_inc(s->inv_tsamps * (1.0 + s->rate_aid) + ctrl);
+    s->code_nco.phase_inc = dll_steer_inc(s, ctrl);
 }
 
 dll_state_t *dll_create(const uint8_t *code, size_t code_len, size_t sps, double init_chip, double bn, double zeta, double spacing, size_t segments);

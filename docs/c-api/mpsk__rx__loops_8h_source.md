@@ -54,7 +54,7 @@ extern "C"
 /* Usable samples averaged to seed the arm AGC's gain (see mpsk_rx_disc).
  * One sample is a draw from a random variable and at MPSK_RX_AGC_BW a wrong
  * seed does not recover inside a short burst; a handful removes that
- * variance. Kept well under the default warmup_syms (30) so seeding always
+ * variance. Kept well under the default warmup_syms (100) so seeding always
  * finishes before the handover can fire. */
 #define MPSK_RX_AGC_SEED_SAMPS 8
 

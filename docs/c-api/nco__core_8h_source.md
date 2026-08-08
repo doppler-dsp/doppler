@@ -22,17 +22,54 @@ extern "C"
 #endif
 
   JM_FORCEINLINE uint32_t
-  nco_norm_to_inc (double cycles)
+  nco_phase_units (double units)
   {
-    double d = cycles - floor (cycles); /* fractional cycles, [0, 1) */
-    /* Truncate toward zero: the C99 float->unsigned conversion (6.3.1.4)
-       discards the fractional part, and d < 1 makes d*2^32 strictly < 2^32,
-       so the result is always in [0, 2^32) -- the documented contract, with
-       no host-FP-sensitive rounding. (llround here could round d*2^32 UP to
-       exactly 2^32 for d ~ 0.9999..., and (uint32_t)2^32 == 0 would freeze
-       the NCO -- x86 landed on 2^32-1, arm64 on 2^32, hanging the closed
-       loop on arm64.) */
-    return (uint32_t)(d * 4294967296.0);
+    /* Establish 6.3.1.4's precondition rather than assume it. The negated
+       form is deliberate: every comparison with NaN is false, so `!(u > 0)`
+       rejects NaN where `u < 0.0` would wave it through to the cast. */
+    if (!(units > 0.0))
+      return 0u;
+    if (units >= 4294967296.0)
+      return 4294967295u;
+    return (uint32_t)units;
+  }
+
+  JM_FORCEINLINE uint32_t
+  nco_norm_fold_ (double norm)
+  {
+    /* The fold is in [0, 1) mathematically but NOT in floating point: for
+       any norm in [-2^-53, 0) the subtraction rounds up to exactly 1.0
+       (`-1e-20 - (-1) == 1.0`), so the product reaches 2^32 and only
+       nco_phase_units() keeps that out of the cast. The true fraction is
+       then in (1 - 2^-53, 1), whose truncation is 2^32-1 -- the same value
+       -1e-16, one representable step away, already returns. */
+    double d = norm - floor (norm);
+    return nco_phase_units (d * 4294967296.0);
+  }
+
+  JM_FORCEINLINE uint32_t
+  nco_norm_freq_to_inc (double norm_freq)
+  {
+    return nco_norm_fold_ (norm_freq);
+  }
+
+  JM_FORCEINLINE uint32_t
+  nco_norm_phase_to_word (double norm_phase)
+  {
+    return nco_norm_fold_ (norm_phase);
+  }
+
+  JM_FORCEINLINE double
+  nco_steer_scale (double control, double lo, double hi)
+  {
+    double scale = 1.0 + control;
+    /* Negated, so NaN lands on lo rather than sailing through -- the same
+       reasoning as nco_phase_units(). */
+    if (!(scale > lo))
+      return lo;
+    if (scale > hi)
+      return hi;
+    return scale;
   }
 
 #if defined(__GNUC__) || defined(__clang__)
@@ -86,7 +123,7 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
   nco_step_u32_ctrl (nco_state_t *state, double ctrl)
   {
     uint32_t ph = state->phase;
-    state->phase = ph + state->phase_inc + nco_norm_to_inc (ctrl);
+    state->phase = ph + state->phase_inc + nco_norm_freq_to_inc (ctrl);
     return ph;
   }
 
@@ -95,18 +132,26 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
   {
     uint32_t ph   = state->phase;
     uint32_t nmax = state->nmax;
-    state->phase  = ph + state->phase_inc + nco_norm_to_inc (ctrl);
+    state->phase  = ph + state->phase_inc + nco_norm_freq_to_inc (ctrl);
     return nmax == 0 ? ph : (uint32_t)(((uint64_t)ph * nmax) >> 32);
   }
 
   JM_FORCEINLINE JM_HOT uint32_t
   nco_step_u32_ovf_ctrl (nco_state_t *state, double ctrl, uint8_t *carry)
   {
-    uint32_t ph  = state->phase;
-    uint64_t sum = (uint64_t)ph + (uint64_t)state->phase_inc
-                   + (uint64_t)nco_norm_to_inc (ctrl);
-    *carry        = (uint8_t)((sum >> 32) != 0);
-    state->phase  = (uint32_t)sum;
+    uint32_t ph    = state->phase;
+    /* Wrapping u32 add: bit-for-bit the modulo advance the 64-bit sum
+       used to produce -- only the event derivation below changes. */
+    uint32_t nph   = ph + state->phase_inc + nco_norm_freq_to_inc (ctrl);
+    double   delta = state->norm_freq + ctrl; /* signed, pre-fold */
+
+    state->phase = nph;
+    if (delta > 0.0)
+      *carry = (uint8_t)(nph < ph || delta >= 1.0);
+    else if (delta < 0.0)
+      *carry = (uint8_t)(nph > ph || delta <= -1.0);
+    else
+      *carry = 0;
     return ph;
   }
 

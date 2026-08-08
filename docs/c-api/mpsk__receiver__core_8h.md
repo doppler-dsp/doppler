@@ -866,7 +866,7 @@ Number of symbols written.
 >>> sym.size                                        # ~ x_len / sps
 2997
 >>> round(rx.lock, 2)                               # carrier locked
-0.91
+0.94
 ```
  
 

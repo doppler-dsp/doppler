@@ -353,6 +353,20 @@ size_t dp_tlm_capture_read (const dp_tlm_capture_t *c, size_t n,
 uint64_t dp_tlm_capture_dropped (const dp_tlm_capture_t *c);
 
 /**
+ * @brief The context this capture drains, borrowed.
+ *
+ * A capture's records carry probe *ids*; turning those back into names needs
+ * the registry, which lives on the context.  Exposing the borrow is what lets
+ * a consumer name what it captured without being handed the context
+ * separately and having to keep the two associated by hand.
+ *
+ * Borrowed, not owned: the context outlives the capture by construction (it
+ * is what the capture was opened on), and destroying the capture does not
+ * touch it.
+ */
+dp_tlm_t *dp_tlm_capture_context (const dp_tlm_capture_t *c);
+
+/**
  * @brief Closes if still open, then frees.  NULL-safe.
  *
  * Returns the close verdict rather than discarding it.  That is the whole

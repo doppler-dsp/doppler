@@ -76,6 +76,39 @@ ______________________________________________________________________
     `scripts/check_version_strings.py` never covered this — it guards
     *doppler's* release version against being hand-typed into docs.
 
+### Fixed
+
+- **`Capture` / `MemoryCapture` publish the constructor they actually have.**
+    The stubs rendered `clock: Any = ...` for an argument the binding has
+    always required, so a type checker blessed `MemoryCapture(tlm, block)` and
+    the call raised `TypeError` at runtime. They now render
+    `clock: object | None` — a required positional — and `tlm: object` in place
+    of `tlm: Any`.
+
+    Nothing about the behaviour changed; only its published description caught
+    up, which is why the test asserting the argument is not omittable stayed
+    green across the fix. The two axes were always separate: `clock=None` being
+    *accepted* (0.53.0, above) and `clock` being *omittable* are different
+    questions, and only the first was ever in play.
+
+    Carried by the **just-makeit pin 0.53.0 → 0.53.1** (gh-845): jm's
+    module-aggregated `.pyi` producer decided "required positional" from the
+    manifest's `required` flag, which gh-805 §H had set `False` for every
+    capsule — so the standalone producer was fixed and the aggregated one was
+    not. It now tests capsule-ness directly. Unlike §H, this one arrives on a
+    plain pin bump, because a stub is regenerated wholesale while a sacred
+    fragment's existing member body is not.
+
+    With it, `scripts/.init-param-optionality-ignore` is **empty** — the gate
+    reported both entries as no longer diverging and refused to pass until they
+    were deleted, which is the behaviour that list was built to have.
+
+    The pin also carries **gh-844**: five hand-rolled TOML escapers at three
+    levels of completeness, three of which emitted strings `tomllib` refuses
+    (a lone `CR`, `U+007F`), now routed through one implementation — and
+    `jm`'s `_dump` no longer returns a manifest whose self-check failed to
+    parse, which is how three escaping bugs survived three releases.
+
 ## [0.42.0] — 2026-08-07
 
 ### Breaking

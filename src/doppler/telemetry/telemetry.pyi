@@ -443,9 +443,9 @@ class MemoryCapture:
     """
     def __init__(
         self,
-        tlm: Any,
+        tlm: object,
         block_samples: int,
-        clock: Any = ...,
+        clock: object | None,
     ) -> None: ...
 
     def records(self, n: int = 0) -> NDArray[Any]:
@@ -663,10 +663,10 @@ class Capture:
     """
     def __init__(
         self,
-        tlm: Any,
+        tlm: object,
         block_samples: int,
         path: str | os.PathLike,
-        clock: Any = ...,
+        clock: object | None,
     ) -> None: ...
 
     def block(self) -> None:

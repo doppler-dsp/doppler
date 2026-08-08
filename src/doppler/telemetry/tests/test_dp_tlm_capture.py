@@ -225,11 +225,14 @@ class TestTheClockIsNullable:
             MemoryCapture(tlm, BLOCK, arg).close()
 
     def test_the_argument_is_not_omittable(self):
-        # Accepting None and being omittable are different axes. The stub
-        # renders `clock: Any = ...` and the binding requires the argument —
-        # a live divergence carried in scripts/.init-param-optionality-ignore
-        # and filed as just-makeit#845. This test is what tells us when it
-        # is fixed upstream: it will start failing.
+        # Accepting None and being omittable are different axes, and only the
+        # first ever moved. just-makeit#845 (0.53.1) resolved the divergence
+        # from the STUB side: the .pyi used to render `clock: Any = ...` for
+        # an argument the binding requires, and now renders
+        # `clock: object | None` — a required positional. So this stayed green
+        # across the fix, which is the point: the behaviour never changed, only
+        # its published description caught up. The entry it justified is gone
+        # from scripts/.init-param-optionality-ignore.
         tlm, _ = _tlm()
         with pytest.raises(TypeError, match="clock"):
             MemoryCapture(tlm, BLOCK)

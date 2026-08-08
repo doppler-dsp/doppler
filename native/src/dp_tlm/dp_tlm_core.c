@@ -214,6 +214,56 @@ dp_tlm_read (dp_tlm_t *t, size_t n, dp_tlm_rec_t *out, size_t max_out)
   return have;
 }
 
+void
+dp_tlm_demux_counts (const dp_tlm_rec_t *recs, size_t n, size_t *counts,
+                     size_t ncounts)
+{
+  if (!counts || ncounts == 0)
+    return;
+  memset (counts, 0, ncounts * sizeof *counts);
+  if (!recs)
+    return;
+  for (size_t i = 0; i < n; i++)
+    {
+      /* Ids ARE registry slots, so this indexes rather than searches. An id
+       * past the caller's table is another context's probe, not an error. */
+      size_t id = recs[i].probe;
+      if (id < ncounts)
+        counts[id]++;
+    }
+}
+
+void
+dp_tlm_demux (const dp_tlm_rec_t *recs, size_t n, float *const *values,
+              uint64_t *const *index, const size_t *caps, size_t nbuf)
+{
+  size_t written[DP_TLM_MAX_PROBES];
+
+  if (!recs || !caps || nbuf == 0)
+    return;
+  if (nbuf > DP_TLM_MAX_PROBES)
+    nbuf = DP_TLM_MAX_PROBES;
+  memset (written, 0, nbuf * sizeof *written);
+
+  /* One pass over the records, not one pass per probe: each record is placed
+   * where it belongs as it is read, so the split is O(n). */
+  for (size_t i = 0; i < n; i++)
+    {
+      size_t id = recs[i].probe;
+      if (id >= nbuf)
+        continue;
+      size_t w = written[id];
+      /* A buffer sized from a stale count truncates; it never overruns. */
+      if (w >= caps[id])
+        continue;
+      if (values && values[id])
+        values[id][w] = recs[i].value;
+      if (index && index[id])
+        index[id][w] = recs[i].n;
+      written[id] = w + 1;
+    }
+}
+
 uint64_t
 dp_tlm_dropped (const dp_tlm_t *t)
 {

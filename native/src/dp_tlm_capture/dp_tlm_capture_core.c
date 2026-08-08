@@ -527,6 +527,12 @@ dp_tlm_capture_dropped (const dp_tlm_capture_t *c)
   return c ? c->dropped : 0;
 }
 
+dp_tlm_t *
+dp_tlm_capture_context (const dp_tlm_capture_t *c)
+{
+  return c ? c->tlm : NULL;
+}
+
 int
 dp_tlm_capture_destroy (dp_tlm_capture_t *c)
 {

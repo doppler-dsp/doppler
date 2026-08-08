@@ -430,6 +430,70 @@ size_t dp_tlm_read_max_out (dp_tlm_t *t);
 size_t dp_tlm_read (dp_tlm_t *t, size_t n, dp_tlm_rec_t *out,
                     size_t max_out);
 
+/**
+ * @brief Counts each probe's records in @p recs, in ONE pass.
+ *
+ * Sizing half of the demux.  Probe ids are registry slots
+ * (dp_tlm_probe_id_at()), so @p counts is indexed directly by id and needs
+ * no map: `counts[id]` is that probe's record count.  Ids at or beyond
+ * @p ncounts are skipped rather than treated as an error — a caller sizing
+ * from dp_tlm_probe_count() is asking about the probes it knows, and a blob
+ * from another context may legitimately carry more.
+ *
+ * Takes a plain array, not a context, so it serves dp_tlm_read()'s output,
+ * dp_tlm_capture_records(), and a `.tlm16` file read straight off disk.
+ *
+ * @param recs    Records to scan; may be NULL when @p n is 0.
+ * @param n       Records in @p recs.
+ * @param counts  Destination, zeroed by this call, indexed by probe id.
+ * @param ncounts Entries in @p counts.
+ *
+ * @code
+ * dp_tlm_rec_t recs[3] = { { 0, 1.0f, 0, 0 },
+ *                          { 1, 2.0f, 1, 0 },
+ *                          { 2, 3.0f, 0, 0 } };
+ * size_t counts[2];
+ * dp_tlm_demux_counts (recs, 3, counts, 2);
+ * // counts[0] == 2, counts[1] == 1
+ * @endcode
+ */
+void dp_tlm_demux_counts (const dp_tlm_rec_t *recs, size_t n, size_t *counts,
+                          size_t ncounts);
+
+/**
+ * @brief Splits @p recs into per-probe value (and sample-index) buffers.
+ *
+ * Fill half of the demux, also ONE pass: every record is placed on the visit
+ * that reads it, so the whole split is O(n) rather than O(n * probes) — the
+ * reason this is not just a filter called once per probe.
+ *
+ * @p values and @p index are arrays of @p nbuf destination pointers indexed
+ * by probe id, exactly as dp_tlm_demux_counts() indexes @p counts, so the
+ * counting pass sizes the buffers this pass fills.  A NULL entry in either
+ * table skips that probe's component; @p index may itself be NULL when only
+ * the values are wanted.  Writes stop at each probe's capacity, so a buffer
+ * sized from a stale count truncates rather than overruns.
+ *
+ * @param recs   Records to split; borrowed, only read.
+ * @param n      Records in @p recs.
+ * @param values Per-probe `float` destinations, indexed by id; may be NULL.
+ * @param index  Per-probe `uint64_t` sample-index destinations; may be NULL.
+ * @param caps   Per-probe capacities in records, indexed by id.
+ * @param nbuf   Entries in @p values, @p index and @p caps.
+ *
+ * @code
+ * float v0[2], v1[1];
+ * uint64_t n0[2], n1[1];
+ * float *values[2]    = { v0, v1 };
+ * uint64_t *index[2]  = { n0, n1 };
+ * size_t caps[2]      = { 2, 1 };
+ * dp_tlm_demux (recs, 3, values, index, caps, 2);
+ * // v0 == { 1.0f, 3.0f }, n0 == { 0, 2 }, v1 == { 2.0f }, n1 == { 1 }
+ * @endcode
+ */
+void dp_tlm_demux (const dp_tlm_rec_t *recs, size_t n, float *const *values,
+                   uint64_t *const *index, const size_t *caps, size_t nbuf);
+
 /** @brief Total records dropped on ring overrun (monotonic). */
 uint64_t dp_tlm_dropped (const dp_tlm_t *t);
 

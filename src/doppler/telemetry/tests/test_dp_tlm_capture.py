@@ -225,11 +225,14 @@ class TestTheClockIsNullable:
             MemoryCapture(tlm, BLOCK, arg).close()
 
     def test_the_argument_is_not_omittable(self):
-        # Accepting None and being omittable are different axes. The stub
-        # renders `clock: Any = ...` and the binding requires the argument —
-        # a live divergence carried in scripts/.init-param-optionality-ignore
-        # and filed as just-makeit#845. This test is what tells us when it
-        # is fixed upstream: it will start failing.
+        # Accepting None and being omittable are different axes, and only the
+        # first ever moved. just-makeit#845 (0.53.1) resolved the divergence
+        # from the STUB side: the .pyi used to render `clock: Any = ...` for
+        # an argument the binding requires, and now renders
+        # `clock: object | None` — a required positional. So this stayed green
+        # across the fix, which is the point: the behaviour never changed, only
+        # its published description caught up. The entry it justified is gone
+        # from scripts/.init-param-optionality-ignore.
         tlm, _ = _tlm()
         with pytest.raises(TypeError, match="clock"):
             MemoryCapture(tlm, BLOCK)
@@ -246,3 +249,134 @@ class TestTheClockIsNullable:
         # Not fabricated: absent, not a confident zero.
         assert "fs" not in meta
         assert "epoch_real_ns" not in meta
+
+
+class TestReadDict:
+    """The capture's records, grouped by probe name.
+
+    The split itself is C (``dp_tlm_demux``); what is checked here is that the
+    capture resolves ids against the context it was opened on, and that —
+    unlike ``Telemetry.read_dict`` — reading does not consume.
+    """
+
+    def test_groups_the_capture_by_name(self):
+        tlm = Telemetry(1 << 12)
+        a = tlm.probe("rx.a")
+        b = tlm.probe("rx.b")
+        with MemoryCapture(tlm, BLOCK, SampleClock(1e6)) as cap:
+            for i in range(4):
+                tlm.set_now(i * BLOCK)
+                tlm.emit(a, float(i))
+                tlm.emit(b, float(-i))
+            cap.close()
+            d = cap.read_dict()
+
+        assert sorted(d) == ["rx.a", "rx.b"]
+        assert [float(v) for v in d["rx.a"]] == [0.0, 1.0, 2.0, 3.0]
+        assert [float(v) for v in d["rx.b"]] == [0.0, -1.0, -2.0, -3.0]
+
+    def test_index_gives_the_boundary_stamp(self):
+        """`n` is what makes a real time axis possible: seconds = n / fs."""
+        tlm = Telemetry(1 << 12)
+        p = tlm.probe("rx.x")
+        with MemoryCapture(tlm, BLOCK, SampleClock(1e6)) as cap:
+            for i in range(3):
+                tlm.set_now(i * BLOCK)
+                tlm.emit(p, float(i))
+            cap.close()
+            n, v = cap.read_dict(index=True)["rx.x"]
+
+        assert [int(x) for x in n] == [0, BLOCK, 2 * BLOCK]
+        assert [float(x) for x in v] == [0.0, 1.0, 2.0]
+
+    def test_it_does_not_consume(self):
+        """records() is re-readable, and so is this: the same data."""
+        tlm = Telemetry(1 << 12)
+        p = tlm.probe("rx.x")
+        with MemoryCapture(tlm, BLOCK, SampleClock(1e6)) as cap:
+            _run(tlm, p, cap, blocks=3)
+            cap.close()
+            assert cap.read_dict()["rx.x"].size == 3
+            assert cap.read_dict()["rx.x"].size == 3
+            assert cap.records().size == 3
+
+    def test_n_takes_from_the_front(self):
+        tlm = Telemetry(1 << 12)
+        p = tlm.probe("rx.x")
+        with MemoryCapture(tlm, BLOCK, SampleClock(1e6)) as cap:
+            _run(tlm, p, cap, blocks=5)
+            cap.close()
+            assert cap.read_dict(2)["rx.x"].size == 2
+            assert cap.read_dict()["rx.x"].size == 5
+
+    def test_a_silent_probe_still_gets_a_key(self):
+        tlm = Telemetry(1 << 12)
+        p = tlm.probe("rx.loud")
+        tlm.probe("rx.quiet")
+        with MemoryCapture(tlm, BLOCK, SampleClock(1e6)) as cap:
+            _run(tlm, p, cap, blocks=2)
+            cap.close()
+            d = cap.read_dict()
+
+        assert sorted(d) == ["rx.loud", "rx.quiet"]
+        assert d["rx.quiet"].size == 0
+
+    def test_the_file_flavour_has_no_read_dict(self):
+        """It follows records(): the file IS the capture, nothing to group."""
+        assert not hasattr(Capture, "read_dict")
+        assert hasattr(MemoryCapture, "read_dict")
+
+
+class TestExitFinalizesRatherThanFrees:
+    """`with` exit runs close(), not destroy() — gh-805 §H.
+
+    A capture's records and its drop verdict only become valid once the tail
+    is drained, so freeing at block exit discarded the object at exactly the
+    moment it became worth reading. `exit = "close"` splits the two: the
+    block finalizes, `tp_dealloc` still frees exactly once.
+    """
+
+    def test_records_survive_the_block(self):
+        tlm, pid = _tlm()
+        with MemoryCapture(tlm, BLOCK, SampleClock(1e6)) as cap:
+            _run(tlm, pid, cap, blocks=4)
+        # No explicit close(), and read AFTER the block — both were impossible
+        # while __exit__ freed.
+        assert cap.records().size == 4
+        assert cap.read_dict()["bench.x"].size == 4
+        assert cap.count == 4
+        assert cap.dropped == 0
+
+    def test_the_verdict_still_raises_on_exit(self):
+        """Splitting the calls must not cost the loud failure."""
+        tlm, pid = _tlm()
+        with (
+            pytest.raises(ValueError, match="hole"),
+            MemoryCapture(tlm, 8, SampleClock(1e6)),
+        ):
+            _make_a_hole(tlm, pid)
+
+    def test_an_explicit_close_is_still_fine(self):
+        """close() is idempotent, so the old shape keeps working."""
+        tlm, pid = _tlm()
+        with MemoryCapture(tlm, BLOCK, SampleClock(1e6)) as cap:
+            _run(tlm, pid, cap, blocks=3)
+            cap.close()
+        assert cap.records().size == 3
+
+    def test_every_teardown_path_reports_the_same_verdict(self):
+        """close(), destroy() and `with` exit are one condition, three routes.
+
+        The teardown states no error of its own and inherits the finalizer's,
+        so a caller learns exactly as much from letting the object fall out of
+        scope as from asking.
+        """
+        for teardown in (
+            lambda c: c.close(),
+            lambda c: c.destroy(),
+        ):
+            tlm, pid = _tlm()
+            cap = MemoryCapture(tlm, 8, SampleClock(1e6))
+            _make_a_hole(tlm, pid)
+            with pytest.raises(ValueError, match="block bound"):
+                teardown(cap)

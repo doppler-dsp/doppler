@@ -328,21 +328,23 @@ a Python producer can symmetrically publish `read()` output through
 `Publisher(ep, TLM16)`). File dump still falls out of Python for free
 (`recs.tofile(...)`).
 
-## v2 — convenience layer (C built; Python surface pending)
+## v2 — convenience layer (SHIPPED)
 
-v1 is powerful and clunky. The clunkiness is structural, not sloppiness:
-`src/doppler/examples/mpsk_telemetry_capture_demo.py` is expert-written and
-still spends more lines on telemetry ceremony than on DSP. The friction,
-measured across the three telemetry examples:
+v1 was powerful and clunky, structurally rather than sloppily:
+`src/doppler/examples/mpsk_telemetry_capture_demo.py` was expert-written and
+still spent more lines on telemetry ceremony than on DSP. That demo is the
+measuring instrument for this whole section, so it was rewritten around the
+shipped surface — every row below is now demonstrated there, not merely
+available. The friction, as measured across the three telemetry examples:
 
-| friction                       | where                                                  | cost                                          | status                            |
-| ------------------------------ | ------------------------------------------------------ | --------------------------------------------- | --------------------------------- |
-| ring size is a guess           | `Telemetry(1 << 14)` in all three                      | silent drops unless you remember to assert    | **fixed** — computed, not guessed |
-| hand-rolled drain loop         | `set_now` / `steps` / `read` / `concatenate` per block | get the cadence wrong and data is gone        | **fixed** — the capture owns it   |
-| capture is not self-describing | `np.save(recs)` / `recs.tobytes()`                     | **probe names live only in the live context** | **fixed** — JSON sidecar          |
-| per-probe filtering reinvented | `recs[recs["probe"] == tlm.probe_id(n)]["value"]`      | **three copies**, one per example             | open (Python surface)             |
-| id→name inversion by hand      | `{v: k for k, v in probes.items()}`                    | every consumer redoes it                      | open (Python surface)             |
-| no time axis                   | plots use `np.arange(v.size)` labelled "symbol index"  | can't plot seconds even though `n` is stamped | sidecar carries it; plotting open |
+| friction                       | where                                                  | cost                                          | status                              |
+| ------------------------------ | ------------------------------------------------------ | --------------------------------------------- | ----------------------------------- |
+| ring size is a guess           | `Telemetry(1 << 14)` in all three                      | silent drops unless you remember to assert    | **fixed** — computed, not guessed   |
+| hand-rolled drain loop         | `set_now` / `steps` / `read` / `concatenate` per block | get the cadence wrong and data is gone        | **fixed** — the capture owns it     |
+| capture is not self-describing | `np.save(recs)` / `recs.tobytes()`                     | **probe names live only in the live context** | **fixed** — JSON sidecar            |
+| per-probe filtering reinvented | `recs[recs["probe"] == tlm.probe_id(n)]["value"]`      | **three copies**, one per example             | **fixed** — `read_dict()`           |
+| id→name inversion by hand      | `{v: k for k, v in probes.items()}`                    | every consumer redoes it                      | **fixed** — keys ARE the names      |
+| no time axis                   | plots use `np.arange(v.size)` labelled "symbol index"  | can't plot seconds even though `n` is stamped | **fixed** — `read_dict(index=True)` |
 
 ### Losslessness is arithmetic, not scheduling
 
@@ -681,6 +683,20 @@ make five spellings of "format a timestamp" in one repo, so the display
 helper is consolidated in the same pass.
 
 ### The four pieces
+
+**Status.** Three of the four are done, and one dissolved. `read_dict()`
+shipped as described. `recording()` was **superseded** before it was built:
+the boundary drain below is a proof where a polling thread was a heuristic,
+so `Capture`/`MemoryCapture` own the drain instead. `to_file` shipped in a
+different shape — raw records plus a `<path>-meta` JSON sidecar rather than
+one framed container, which keeps `np.fromfile` working with no reader
+library. And **`capture(**objects)` is not being built**: doppler is
+C-first, and there is no C face for it to bind. Every instrumented object's
+attach takes its own concrete state type (`mpsk_receiver_state_t *`,
+`symsync_state_t *`, …) — they share a shape, not a type — so an attach
+list would be a `void *` vtable invented to serve a Python sketch, and the
+per-object attach is already bound as `rx.set_telemetry(tlm, "rx", 1)`.
+The sketch below is kept as the design record that led there.
 
 **1 — `capture(**objects)` — one command to turn everything on.**
 `set_telemetry` already registers *all* of an object's probes, forwarding to

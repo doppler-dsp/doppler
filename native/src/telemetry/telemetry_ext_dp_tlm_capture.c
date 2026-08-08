@@ -11,6 +11,7 @@
 /* ======================================================== */
 
 #include "dp_tlm_capture/dp_tlm_capture_core.h"
+#include "tlm_read_dict.h"
 
 typedef struct
 {
@@ -191,6 +192,43 @@ done:
   return out;
 }
 
+/* Hand-written, sharing tlm_read_dict.h with Telemetry.read_dict(); only the
+   record SOURCE differs. Here it is the capture's own accumulator, borrowed
+   and only read — every array handed back is a fresh numpy allocation — and
+   unlike the ring drain this does NOT consume, exactly as records() does not.
+ */
+static PyObject *
+MemoryCaptureObj_read_dict (MemoryCaptureObject *self, PyObject *args,
+                            PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char       *_kwlist[] = { "n", "index", NULL };
+  unsigned long long n_raw     = 0;
+  int                with_idx  = 0;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|Kp", _kwlist, &n_raw,
+                                    &with_idx))
+    return NULL;
+
+  /* The context carries the registry the ids resolve against. */
+  dp_tlm_t *tlm = dp_tlm_capture_context (self->handle);
+  if (!tlm)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "read_dict: no context");
+      return NULL;
+    }
+
+  const dp_tlm_rec_t *recs  = dp_tlm_capture_records (self->handle);
+  size_t              n_out = dp_tlm_capture_count (self->handle);
+  if (n_raw != 0 && n_out > (size_t)n_raw)
+    n_out = (size_t)n_raw;
+
+  return tlm_build_read_dict (tlm, recs, n_out, with_idx);
+}
+
 static PyObject *
 MemoryCaptureObj_records (MemoryCaptureObject *self, PyObject *args,
                           PyObject *kwds)
@@ -350,28 +388,69 @@ static PyObject *
 MemoryCaptureObj_exit (MemoryCaptureObject *self, PyObject *args)
 {
   (void)args;
-  if (self->handle)
+  if (!self->handle)
+    Py_RETURN_NONE;
+  /* gh-805 §H: the handle deliberately SURVIVES this call —
+     finalize is not free, and the captured results only become
+     valid once it has run. The free stays in tp_dealloc. */
+  int _rc = dp_tlm_capture_close (self->handle);
+  if (_rc != 0)
     {
-      int rc = dp_tlm_capture_destroy (self->handle);
-      /* gh-541: clear the handle before reporting, so a second
-         call is a no-op rather than a double free — the state is
-         released whatever the status says. */
-      self->handle = NULL;
-      if (rc != 0)
-        {
-          PyErr_SetString (PyExc_ValueError,
-                           "the capture has a hole: records were dropped, "
-                           "which the block bound makes impossible unless a "
-                           "step ran longer than block_samples or no "
-                           "boundary was reached at all — see "
-                           "Capture.dropped");
-          return NULL;
-        }
+      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
+                    "the capture has a hole: records were dropped, which the "
+                    "block bound makes impossible unless a step ran longer "
+                    "than block_samples or no boundary was reached at all — "
+                    "see Capture.dropped",
+                    (long long)_rc);
+      return NULL;
     }
   Py_RETURN_NONE;
 }
 
 static PyMethodDef MemoryCaptureObj_methods[] = {
+
+  { "read_dict", (PyCFunction)(void *)MemoryCaptureObj_read_dict,
+    METH_VARARGS | METH_KEYWORDS,
+    "read_dict(n=0, index=False) -> dict\n"
+    "\n"
+    "The captured records, grouped by probe name.\n"
+    "\n"
+    "records() hands back one structured array carrying every probe\n"
+    "interleaved; this splits it, so a consumer never writes the\n"
+    "`recs[recs[\"probe\"] == id][\"value\"]` filter or the id-to-name\n"
+    "inversion by hand. Every REGISTERED probe gets a key, including one\n"
+    "that captured nothing, so the key set is stable.\n"
+    "\n"
+    "Like records(), this does NOT consume — call it as often as you like.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "n : int, optional\n"
+    "    Records to take from the front; 0 (the default) means all.\n"
+    "index : bool, optional\n"
+    "    When True each value is ``(n, values)`` — the sample indices\n"
+    "    alongside the values, so a real time axis is ``n / fs``.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "dict\n"
+    "    ``{probe_name: values}``, or ``{probe_name: (n, values)}`` when\n"
+    "    `index` is True.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.telemetry import MemoryCapture, Telemetry\n"
+    ">>> tlm = Telemetry(1 << 12)\n"
+    ">>> eid = tlm.probe(\"sync.e\")\n"
+    ">>> with MemoryCapture(tlm, 64, None) as cap:\n"
+    "...     tlm.set_now(0)\n"
+    "...     tlm.emit(eid, 0.25)\n"
+    "...     tlm.set_now(64)\n"
+    ">>> n, v = cap.read_dict(index=True)[\"sync.e\"]\n"
+    ">>> v\n"
+    "array([0.25], dtype=float32)\n"
+    ">>> n\n"
+    "array([0], dtype=uint64)\n" },
 
   { "records", (PyCFunction)(void *)MemoryCaptureObj_records,
     METH_VARARGS | METH_KEYWORDS,

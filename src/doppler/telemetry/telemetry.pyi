@@ -403,6 +403,59 @@ class Telemetry:
             Traceback object, or None. Ignored.
         """
 
+    # jm:hand
+    def read_dict(
+        self, n: int = 0, index: bool = False
+    ) -> dict[
+        str,
+        NDArray[np.float32] | tuple[NDArray[np.uint64], NDArray[np.float32]],
+    ]:
+        """Drains like read(), but grouped by probe name.
+
+        The same records read() returns, split per probe so a consumer never
+        writes the ``recs[recs["probe"] == tlm.probe_id(name)]["value"]``
+        filter or the id-to-name inversion by hand. Every REGISTERED probe
+        gets a key, including one that emitted nothing this drain, so the key
+        set is stable across calls.
+
+        Consuming: this DRAINS the ring, exactly as read() does. Calling both
+        in one loop splits the records between them.
+
+        Parameters
+        ----------
+        n : int, optional
+            Records wanted; 0 (the default) means everything available.
+        index : bool, optional
+            When True each value is ``(n, values)`` — the sample indices
+            alongside the values, so a real time axis is ``n / fs``. When
+            False (the default) each value is just the values array.
+
+        Returns
+        -------
+        dict
+            ``{probe_name: values}``, or ``{probe_name: (n, values)}`` when
+            `index` is True.
+
+        Examples
+        --------
+        >>> from doppler.telemetry import Telemetry
+        >>> tlm = Telemetry(1 << 12)
+        >>> eid = tlm.probe("sync.e")
+        >>> lid = tlm.probe("sync.lock")
+        >>> tlm.set_now(7)
+        >>> tlm.emit(eid, 0.5)
+        >>> tlm.emit(lid, 1.0)
+        >>> d = tlm.read_dict()
+        >>> sorted(d)
+        ['sync.e', 'sync.lock']
+        >>> d["sync.e"]
+        array([0.5], dtype=float32)
+        >>> n, v = tlm.read_dict(index=True)["sync.e"]
+        >>> n.size          # drained by the call above
+        0
+
+        """
+
 @final
 class MemoryCapture:
     """Opens a capture that accumulates in memory instead of a file.
@@ -443,9 +496,9 @@ class MemoryCapture:
     """
     def __init__(
         self,
-        tlm: Any,
+        tlm: object,
         block_samples: int,
-        clock: Any = ...,
+        clock: object | None,
     ) -> None: ...
 
     def records(self, n: int = 0) -> NDArray[Any]:
@@ -594,7 +647,7 @@ class MemoryCapture:
         """Enter a context manager, returning this object.
 
         Lets a MemoryCapture be used in a `with` statement so its C resources
-        are released deterministically on exit rather than at collection time.
+        are finalized deterministically on exit rather than at collection time.
 
         Returns
         -------
@@ -608,11 +661,15 @@ class MemoryCapture:
         exc: object | None = ...,
         tb: object | None = ...,
     ) -> None:
-        """Exit a context manager, releasing the MemoryCapture.
+        """Exit a context manager, finalizing the MemoryCapture.
 
-        Equivalent to calling `destroy()`. Returns ``None``, so an exception
-        raised inside the `with` body propagates normally; this never
-        suppresses one.
+        Equivalent to calling `close()`. The MemoryCapture is **not** released
+        here: it stays usable, which is what makes results gathered during the
+        `with` body readable after it. The memory is freed when the object is
+        collected.
+
+        Returns ``None``, so an exception raised inside the `with` body
+        propagates normally; this never suppresses one.
 
         Parameters
         ----------
@@ -622,6 +679,54 @@ class MemoryCapture:
             Exception instance, or None. Ignored.
         tb : object | None
             Traceback object, or None. Ignored.
+        """
+
+    # jm:hand
+    def read_dict(
+        self, n: int = 0, index: bool = False
+    ) -> dict[
+        str,
+        NDArray[np.float32] | tuple[NDArray[np.uint64], NDArray[np.float32]],
+    ]:
+        """The captured records, grouped by probe name.
+
+        records() hands back one structured array carrying every probe
+        interleaved; this splits it, so a consumer never writes the
+        ``recs[recs["probe"] == id]["value"]`` filter or the id-to-name
+        inversion by hand. Every REGISTERED probe gets a key, including one
+        that captured nothing, so the key set is stable.
+
+        Like records(), this does NOT consume — call it as often as you like.
+
+        Parameters
+        ----------
+        n : int, optional
+            Records to take from the front; 0 (the default) means all.
+        index : bool, optional
+            When True each value is ``(n, values)`` — the sample indices
+            alongside the values, so a real time axis is ``n / fs``.
+
+        Returns
+        -------
+        dict
+            ``{probe_name: values}``, or ``{probe_name: (n, values)}`` when
+            `index` is True.
+
+        Examples
+        --------
+        >>> from doppler.telemetry import MemoryCapture, Telemetry
+        >>> tlm = Telemetry(1 << 12)
+        >>> eid = tlm.probe("sync.e")
+        >>> with MemoryCapture(tlm, 64, None) as cap:
+        ...     tlm.set_now(0)
+        ...     tlm.emit(eid, 0.25)
+        ...     tlm.set_now(64)
+        >>> n, v = cap.read_dict(index=True)["sync.e"]
+        >>> v
+        array([0.25], dtype=float32)
+        >>> n
+        array([0], dtype=uint64)
+
         """
 
 @final
@@ -663,10 +768,10 @@ class Capture:
     """
     def __init__(
         self,
-        tlm: Any,
+        tlm: object,
         block_samples: int,
         path: str | os.PathLike,
-        clock: Any = ...,
+        clock: object | None,
     ) -> None: ...
 
     def block(self) -> None:
@@ -770,7 +875,7 @@ class Capture:
         """Enter a context manager, returning this object.
 
         Lets a Capture be used in a `with` statement so its C resources are
-        released deterministically on exit rather than at collection time.
+        finalized deterministically on exit rather than at collection time.
 
         Returns
         -------
@@ -784,11 +889,15 @@ class Capture:
         exc: object | None = ...,
         tb: object | None = ...,
     ) -> None:
-        """Exit a context manager, releasing the Capture.
+        """Exit a context manager, finalizing the Capture.
 
-        Equivalent to calling `destroy()`. Returns ``None``, so an exception
-        raised inside the `with` body propagates normally; this never
-        suppresses one.
+        Equivalent to calling `close()`. The Capture is **not** released here:
+        it stays usable, which is what makes results gathered during the `with`
+        body readable after it. The memory is freed when the object is
+        collected.
+
+        Returns ``None``, so an exception raised inside the `with` body
+        propagates normally; this never suppresses one.
 
         Parameters
         ----------

@@ -490,6 +490,67 @@ main (void)
     dp_tlm_destroy (t);
   }
 
+  /* ── demux: counts size what the fill writes ──────────────────────────── */
+  {
+    /* Interleaved on purpose: a per-probe filter and a one-pass demux agree
+     * on contiguous input, so only interleaving can tell them apart. */
+    dp_tlm_rec_t recs[6]
+        = { { 10, 1.0f, 0, 0 }, { 11, 2.0f, 1, 0 }, { 12, 3.0f, 0, 0 },
+            { 13, 4.0f, 2, 0 }, { 14, 5.0f, 1, 0 }, { 15, 6.0f, 0, 0 } };
+    size_t counts[3];
+
+    dp_tlm_demux_counts (recs, 6, counts, 3);
+    CHECK (counts[0] == 3 && counts[1] == 2 && counts[2] == 1);
+
+    float     v0[3], v1[2], v2[1];
+    uint64_t  n0[3], n1[2], n2[1];
+    float    *values[3] = { v0, v1, v2 };
+    uint64_t *index[3]  = { n0, n1, n2 };
+    size_t    caps[3]   = { 3, 2, 1 };
+
+    dp_tlm_demux (recs, 6, values, index, caps, 3);
+    /* FIFO order preserved within each probe, values paired to their n. */
+    CHECK (v0[0] == 1.0f && v0[1] == 3.0f && v0[2] == 6.0f);
+    CHECK (n0[0] == 10 && n0[1] == 12 && n0[2] == 15);
+    CHECK (v1[0] == 2.0f && v1[1] == 5.0f);
+    CHECK (n1[0] == 11 && n1[1] == 14);
+    CHECK (v2[0] == 4.0f && n2[0] == 13);
+
+    /* index = NULL is values-only, not a crash. */
+    float  v0b[3], v1b[2], v2b[1];
+    float *vonly[3] = { v0b, v1b, v2b };
+    dp_tlm_demux (recs, 6, vonly, NULL, caps, 3);
+    CHECK (v0b[0] == 1.0f && v0b[2] == 6.0f);
+
+    /* A stale (too-small) count truncates rather than overrunning: cap
+     * probe 0 at one record and the second and third must not be written. */
+    float  guard[3]    = { -1.0f, -1.0f, -1.0f };
+    float *one[3]      = { guard, NULL, NULL };
+    size_t smallcap[3] = { 1, 0, 0 };
+    dp_tlm_demux (recs, 6, one, NULL, smallcap, 3);
+    CHECK (guard[0] == 1.0f && guard[1] == -1.0f && guard[2] == -1.0f);
+
+    /* Ids past the caller's table belong to another context: skipped, and
+     * they must not shift anyone else's placement. */
+    dp_tlm_rec_t alien[3]
+        = { { 20, 7.0f, 0, 0 }, { 21, 8.0f, 9, 0 }, { 22, 9.0f, 0, 0 } };
+    size_t c1[1];
+    dp_tlm_demux_counts (alien, 3, c1, 1);
+    CHECK (c1[0] == 2);
+    float  va[2]     = { -1.0f, -1.0f };
+    float *valien[1] = { va };
+    size_t capa[1]   = { 2 };
+    dp_tlm_demux (alien, 3, valien, NULL, capa, 1);
+    CHECK (va[0] == 7.0f && va[1] == 9.0f);
+
+    /* NULL-safety on both halves. */
+    dp_tlm_demux_counts (NULL, 4, counts, 3);
+    CHECK (counts[0] == 0 && counts[1] == 0 && counts[2] == 0);
+    dp_tlm_demux_counts (recs, 6, NULL, 3);
+    dp_tlm_demux (NULL, 6, values, index, caps, 3);
+    dp_tlm_demux (recs, 6, values, index, NULL, 3);
+  }
+
   if (_fails)
     {
       fprintf (stderr, "test_dp_tlm_core FAILED (%d)\n", _fails);

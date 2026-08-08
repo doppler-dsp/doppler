@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Assert the two doc faces agree on their ``Examples`` sections.
+"""Assert the two doc faces agree, section by section.
 
 doppler documents a Python surface exactly once, in a C header's Doxygen
 ``@code`` block, and ``jm apply`` renders it onto **two** faces: the ``.pyi``
@@ -19,12 +19,27 @@ still matches. That is exactly what the 71-column ``@code`` sweep hit: 45
 divergent lines across 7 fragments, found by hand rather than by CI.
 
 This checker closes that hole. For every method in every sacred fragment it
-extracts the ``Examples`` block from the C string literal, finds the same
-method in the module's ``.pyi``, and compares. A mismatch means the header
-was edited and only one face followed; the fix is to update the fragment's
-literal (fragments are hand-owned — jm will not do it for you).
+extracts each compared section from the C string literal, finds the same
+method in the module's ``.pyi``, and compares.
 
-Comparison is on the *content* of the Examples block, whitespace-normalised
+Two sections are compared, and they fail for opposite reasons — the message
+says which, because the fix differs:
+
+``Examples``
+    Authored once in a header ``@code``. A mismatch means the header was
+    edited and only the stub followed; the fragment is hand-owned, so the fix
+    is to update its string literal and clang-format it.
+
+``Raises``
+    Rendered by jm from the manifest's ``error``/``error_message`` — or, with
+    ``exit`` (gh-805 §H), the finalizer's inherited pair. **Both** faces are
+    generated, so a difference is a codegen bug and hand-patching the two into
+    agreement would only hide it. Report it instead. This is not theoretical:
+    a teardown inheriting its finalizer's error reached the raise and the
+    runtime ``__doc__`` as ``ValueError`` while the stub said ``RuntimeError``,
+    and nothing noticed until it was read by hand.
+
+Comparison is on the *content* of each section, whitespace-normalised
 per line, because the two faces legitimately differ in framing: the stub
 indents 8 columns inside a class body, while the C literal is flush and is
 split across adjacent string tokens wherever clang-format needed to fit 79
@@ -50,6 +65,12 @@ import ast
 import pathlib
 import re
 import sys
+
+# The numpy sections compared across the two faces. Both are rendered by jm
+# from ONE input onto two faces, so either can move on one face alone:
+# `Examples` from a header's @code block, `Raises` from the manifest's
+# `error`/`error_message` (or, with `exit`, the finalizer's inherited pair).
+SECTIONS = ("Examples", "Raises")
 
 REPO = pathlib.Path(__file__).resolve().parent.parent
 NATIVE_SRC = REPO / "native" / "src"
@@ -82,17 +103,22 @@ def c_literal_text(body: str) -> str:
     return joined.replace('\\"', '"').replace("\\n", "\n")
 
 
-def examples_block(doc: str) -> list[str] | None:
-    """Return the numpy ``Examples`` body of *doc*, or None if it has none.
+def section_block(doc: str, section: str) -> list[str] | None:
+    """Return the numpy *section* body of *doc*, or None if it has none.
 
     The block runs from the ``--------`` underline to the end of the
     docstring or to the next numpy section header (a line whose successor is
     a run of dashes). Lines are stripped so an indent difference between the
     two faces is not read as a divergence.
+
+    Section-agnostic because the divergence it catches is not: `Examples`
+    comes from a header's ``@code`` and `Raises` from the manifest, but both
+    are rendered by jm onto two faces from one input, and either can move on
+    one face alone.
     """
     lines = doc.split("\n")
     for i, ln in enumerate(lines):
-        if ln.strip() != "Examples":
+        if ln.strip() != section:
             continue
         if i + 1 >= len(lines) or set(lines[i + 1].strip()) != {"-"}:
             continue
@@ -109,20 +135,22 @@ def examples_block(doc: str) -> list[str] | None:
 
 
 def fragment_methods(path: pathlib.Path) -> tuple[str | None, dict]:
-    """``(class_name, {method: examples})`` for one sacred fragment."""
+    """``(class_name, {(method, section): body})`` for one sacred fragment."""
     text = path.read_text()
     m = _TP_NAME.search(text)
     cls = m.group("cls") if m else None
     found = {}
     for row in _METHOD_ROW.finditer(text):
-        ex = examples_block(c_literal_text(row.group("body")))
-        if ex is not None:
-            found[row.group("name")] = ex
+        doc = c_literal_text(row.group("body"))
+        for section in SECTIONS:
+            body = section_block(doc, section)
+            if body is not None:
+                found[(row.group("name"), section)] = body
     return cls, found
 
 
 def stub_methods(path: pathlib.Path) -> dict:
-    """``{(class, method): examples}`` for one ``.pyi``.
+    """``{(class, method, section): body}`` for one ``.pyi``.
 
     Parsed with ``ast`` rather than by regex: a stub is valid Python, and the
     docstring is exactly ``ast.get_docstring`` of the function node.
@@ -138,9 +166,10 @@ def stub_methods(path: pathlib.Path) -> dict:
             doc = ast.get_docstring(member, clean=False)
             if not doc:
                 continue
-            ex = examples_block(doc)
-            if ex is not None:
-                out[(node.name, member.name)] = ex
+            for section in SECTIONS:
+                body = section_block(doc, section)
+                if body is not None:
+                    out[(node.name, member.name, section)] = body
     return out
 
 
@@ -166,19 +195,21 @@ def main() -> int:
         if cls is None:
             continue
         rel = frag.relative_to(REPO)
-        for name, runtime_ex in sorted(methods.items()):
-            stub_ex = stubs.get((cls, name))
+        for (name, section), runtime_ex in sorted(methods.items()):
+            stub_ex = stubs.get((cls, name, section))
             if stub_ex is None:
-                unmatched.append(f"{rel}: {cls}.{name}")
+                unmatched.append(f"{rel}: {cls}.{name} ({section})")
                 continue
             compared += 1
             if stub_ex != runtime_ex:
-                bad.append((str(rel), cls, name, stub_ex, runtime_ex))
+                bad.append(
+                    (str(rel), cls, f"{name} [{section}]", stub_ex, runtime_ex)
+                )
             elif args.verbose:
-                print(f"  ok  {cls}.{name}")
+                print(f"  ok  {cls}.{name} ({section})")
 
     for rel, cls, name, stub_ex, runtime_ex in bad:
-        print(f"\n{rel}: {cls}.{name} — Examples differ between faces")
+        print(f"\n{rel}: {cls}.{name} — differs between faces")
         only_stub = [ln for ln in stub_ex if ln not in runtime_ex]
         only_rt = [ln for ln in runtime_ex if ln not in stub_ex]
         for ln in only_stub:
@@ -195,9 +226,13 @@ def main() -> int:
         print(
             f"\nDoc face parity: FAIL — {len(bad)} of {compared} methods "
             f"diverge between the .pyi and the runtime __doc__.\n"
-            "The header was edited but only the stub followed. A sacred "
-            "_ext_<obj>.c fragment is hand-owned: update its string literal "
-            "to match, then clang-format it."
+            "One input, two faces, and only one of them moved.\n"
+            "  Examples: the header's @code was edited and the sacred "
+            "_ext_<obj>.c fragment did not follow — it is hand-owned, so "
+            "update its string literal and clang-format it.\n"
+            "  Raises: both faces are jm's, from the manifest, so a "
+            "difference here is a CODEGEN bug, not something to hand-patch "
+            "into agreement. Report it."
         )
         return 1
 

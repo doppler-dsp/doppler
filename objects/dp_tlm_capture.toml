@@ -158,6 +158,17 @@ status_return = true
 error = "ValueError"
 error_message = "the capture has a hole: records were dropped, which the block bound makes impossible unless a step ran longer than block_samples or no boundary was reached at all — see Capture.dropped"
 
+# NOT YET `exit = "close"` (gh-805 §H). The key is right and this object is its
+# worked example, but `jm apply` still cannot render it for a MODULE object.
+# gh-856 wired the SOURCE manifest's method list into the standalone replay
+# (_apply.py:347) and not into the module-object loop (_apply.py:385), which
+# reaches _object.run via **_object_kwargs and never sets declared_methods --
+# so it falls back to the half-built temp cfg, resolves against nothing, and
+# apply dies with "exit 'close' is not a declared method. Declared: none."
+# dp_tlm_capture is a module object, so it takes the unwired path.
+#
+# Adopt when that lands, and delete the duplicated error/error_message below at
+# the same time -- the teardown inherits the finalizer's once the calls split.
 # The destructor DOES report the verdict (gh-541, the wfm_writer precedent).
 # `with` exit and garbage collection both land here, and they are precisely the
 # paths a hole would otherwise leave through in silence — which would defeat

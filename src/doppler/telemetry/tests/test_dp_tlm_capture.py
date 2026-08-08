@@ -325,3 +325,58 @@ class TestReadDict:
         """It follows records(): the file IS the capture, nothing to group."""
         assert not hasattr(Capture, "read_dict")
         assert hasattr(MemoryCapture, "read_dict")
+
+
+class TestExitFinalizesRatherThanFrees:
+    """`with` exit runs close(), not destroy() — gh-805 §H.
+
+    A capture's records and its drop verdict only become valid once the tail
+    is drained, so freeing at block exit discarded the object at exactly the
+    moment it became worth reading. `exit = "close"` splits the two: the
+    block finalizes, `tp_dealloc` still frees exactly once.
+    """
+
+    def test_records_survive_the_block(self):
+        tlm, pid = _tlm()
+        with MemoryCapture(tlm, BLOCK, SampleClock(1e6)) as cap:
+            _run(tlm, pid, cap, blocks=4)
+        # No explicit close(), and read AFTER the block — both were impossible
+        # while __exit__ freed.
+        assert cap.records().size == 4
+        assert cap.read_dict()["bench.x"].size == 4
+        assert cap.count == 4
+        assert cap.dropped == 0
+
+    def test_the_verdict_still_raises_on_exit(self):
+        """Splitting the calls must not cost the loud failure."""
+        tlm, pid = _tlm()
+        with (
+            pytest.raises(ValueError, match="hole"),
+            MemoryCapture(tlm, 8, SampleClock(1e6)),
+        ):
+            _make_a_hole(tlm, pid)
+
+    def test_an_explicit_close_is_still_fine(self):
+        """close() is idempotent, so the old shape keeps working."""
+        tlm, pid = _tlm()
+        with MemoryCapture(tlm, BLOCK, SampleClock(1e6)) as cap:
+            _run(tlm, pid, cap, blocks=3)
+            cap.close()
+        assert cap.records().size == 3
+
+    def test_every_teardown_path_reports_the_same_verdict(self):
+        """close(), destroy() and `with` exit are one condition, three routes.
+
+        The teardown states no error of its own and inherits the finalizer's,
+        so a caller learns exactly as much from letting the object fall out of
+        scope as from asking.
+        """
+        for teardown in (
+            lambda c: c.close(),
+            lambda c: c.destroy(),
+        ):
+            tlm, pid = _tlm()
+            cap = MemoryCapture(tlm, 8, SampleClock(1e6))
+            _make_a_hole(tlm, pid)
+            with pytest.raises(ValueError, match="block bound"):
+                teardown(cap)

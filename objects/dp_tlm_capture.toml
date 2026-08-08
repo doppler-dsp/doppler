@@ -158,25 +158,33 @@ status_return = true
 error = "ValueError"
 error_message = "the capture has a hole: records were dropped, which the block bound makes impossible unless a step ran longer than block_samples or no boundary was reached at all — see Capture.dropped"
 
-# NOT YET `exit = "close"` (gh-805 §H). The key is right and this object is its
-# worked example, but `jm apply` still cannot render it for a MODULE object.
-# gh-856 wired the SOURCE manifest's method list into the standalone replay
-# (_apply.py:347) and not into the module-object loop (_apply.py:385), which
-# reaches _object.run via **_object_kwargs and never sets declared_methods --
-# so it falls back to the half-built temp cfg, resolves against nothing, and
-# apply dies with "exit 'close' is not a declared method. Declared: none."
-# dp_tlm_capture is a module object, so it takes the unwired path.
+# `exit = "close"` (gh-805 §H) sends `with` exit to the FINALIZER rather than
+# the teardown. close() drains the tail, joins the writer, writes the sidecar
+# and detaches from the context, but does NOT free -- so the records and the
+# drop verdict are still readable AFTER the block, which is when a caller
+# actually wants them. The natural shape (run the block, then look at what you
+# captured) was unreachable while __exit__ freed.
 #
-# Adopt when that lands, and delete the duplicated error/error_message below at
-# the same time -- the teardown inherits the finalizer's once the calls split.
-# The destructor DOES report the verdict (gh-541, the wfm_writer precedent).
-# `with` exit and garbage collection both land here, and they are precisely the
-# paths a hole would otherwise leave through in silence — which would defeat
-# the reason close() fails loudly at all.
+# tp_dealloc still calls destroy and still swallows its status (gh-541), so the
+# memory is released exactly once whether or not the `with` block ran.
+#
+# No error/error_message here on purpose: with the calls split, the teardown
+# INHERITS the finalizer's when it states none of its own. They were duplicated
+# verbatim before -- a caller must not learn more from letting the object fall
+# out of scope than from asking -- and that agreement is now structural rather
+# than two copies free to drift.
+#
+# Verified at runtime: close(), destroy() and `with` exit all raise ValueError
+# carrying the hole message. The .pyi's Raises section is WRONG for destroy --
+# it says RuntimeError -- because jm's stub generator does not inherit the
+# type the emitter does. Declaring `error` here fixes the stub and BREAKS the
+# runtime message (it degrades to "dp_tlm_capture_destroy reported failure"),
+# so neither setting is fully right and this is the half that matters: the
+# message is the whole point of gh-541. Filed upstream; do not "fix" the stub
+# by declaring `error` without re-reading this.
 [dp_tlm_capture.destroy]
 returns = "int"
-error = "ValueError"
-error_message = "the capture has a hole: records were dropped, which the block bound makes impossible unless a step ran longer than block_samples or no boundary was reached at all — see Capture.dropped"
+exit = "close"
 
 # ── properties ──────────────────────────────────────────────────────────────
 

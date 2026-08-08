@@ -636,7 +636,7 @@ class MemoryCapture:
 
         Raises
         ------
-        ValueError
+        RuntimeError
             If the C destructor reports failure. Raised from an explicit call
             and from ``__exit__`` alike, so a failing teardown propagates out
             of a ``with`` block (gh-541).
@@ -717,9 +717,7 @@ class MemoryCapture:
         ...     tlm.set_now(0)
         ...     tlm.emit(eid, 0.25)
         ...     tlm.set_now(64)
-        ...     cap.close()
-        ...     d = cap.read_dict(index=True)
-        >>> n, v = d["sync.e"]
+        >>> n, v = cap.read_dict(index=True)["sync.e"]
         >>> v
         array([0.25], dtype=float32)
         >>> n
@@ -862,7 +860,7 @@ class Capture:
 
         Raises
         ------
-        ValueError
+        RuntimeError
             If the C destructor reports failure. Raised from an explicit call
             and from ``__exit__`` alike, so a failing teardown propagates out
             of a ``with`` block (gh-541).

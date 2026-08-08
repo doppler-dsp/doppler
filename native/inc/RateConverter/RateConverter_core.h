@@ -349,13 +349,26 @@ size_t RateConverter_execute_ctrl_push_max_out (RateConverter_state_t *s);
  * >>> import numpy as np
  * >>> rc = RateConverter(rate=0.8, compensate=0)  # -> Resampler(0.8)
  * >>> x = np.ones(1000, dtype=np.complex64)
- * >>> rc.execute_ctrl(x, 0.0).shape[0]    # base rate: 1000 -> 800
- * 800
+ * >>> rc.execute_ctrl(x, 0.0).shape[0]    # 799, not 800 -- see below
+ * 799
  * >>> rc2 = RateConverter(rate=0.8, compensate=0)
  * >>> rc2.execute_ctrl(x, 0.05).shape[0]  # +ctrl speeds the tail up
- * 850
+ * 849
  *
  * @endcode
+ *
+ * 799 and 849 rather than the round 800 and 850 are the correct,
+ * deterministic answers, not off-by-ones to be fixed. Neither 0.8 nor 0.85
+ * is representable in a 32-bit phase word,
+ * and nco_norm_freq_to_inc() truncates by convention, so the realised
+ * rate is a hair BELOW 0.8 (never above) and 1000 inputs complete 799
+ * periods. That
+ * is reproducible on every host, which is the property the convention
+ * exists to provide. An earlier double-precision accumulator returned the
+ * ideal rational 800 because it carried rate resolution the phase word does
+ * not -- and the arm it selected could leave [0, 1) as a result, which is
+ * the defect that retired it. Chasing the round number back with a rounded
+ * increment would trade a predictable NCO for a prettier docstring.
  */
 size_t RateConverter_execute_ctrl (RateConverter_state_t *s,
                                    const float _Complex *x, size_t n_in,
@@ -393,7 +406,7 @@ size_t RateConverter_execute_ctrl (RateConverter_state_t *s,
  * >>> x = (np.arange(10, dtype=np.float32) + 1).astype(np.complex64)
  * >>> # a decimator emits 0 between strobes, 1 on a strobe:
  * >>> [rc.execute_ctrl_push(complex(v), 0.0).shape[0] for v in x]
- * [0, 1, 1, 1, 1, 0, 1, 1, 1, 1]
+ * [0, 1, 1, 1, 0, 1, 1, 1, 1, 0]
  *
  * @endcode
  */

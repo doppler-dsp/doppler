@@ -419,12 +419,13 @@ main (void)
     const double fs      = 21.0e6;
     const double step_hz = fs / 4294967296.0; /* one quantization step */
 
-    /* nco_norm_to_inc truncates toward zero (the natural C99 float->unsigned
-     * conversion), NOT round-to-nearest: the increment is then deterministic
-     * across hosts (llround's rounding is host-FP-sensitive and could
-     * overshoot to 2^32==0, freezing the closed-loop code NCO on arm64 -- see
-     * nco_norm_to_inc). Truncation always floors, so the realised frequency is
-     * at most one quantization step LOW, never high. */
+    /* nco_norm_freq_to_inc truncates toward zero (the natural C99
+     * float->unsigned conversion), NOT round-to-nearest: the increment is
+     * then deterministic across hosts (llround's rounding is host-FP-
+     * sensitive and could overshoot to 2^32==0, freezing the closed-loop
+     * code NCO on arm64 -- see nco_norm_fold_). Truncation always floors,
+     * so the realised frequency is at most one quantization step LOW,
+     * never high. */
 
     /* freq=50 Hz: fractional remainder ~0.11, truncates to 10226. */
     lo_state_t *lo50 = lo_create (50.0 / fs);
@@ -483,6 +484,60 @@ main (void)
 
     lo_destroy (lo);
     lo_destroy (ref);
+  }
+
+  /* lo_steps_ctrl: feeding one sample at a time must equal a block call,
+   * bit for bit -- the same property resamp's control port relies on.
+   *
+   * This is a regression guard with history. lo_steps_ctrl used to carry a
+   * hand-written AVX-512 body that processed 16 lanes and left the
+   * remainder to a scalar tail, and the two had drifted: the body derived
+   * ctrl_inc from a FLOAT32 fold (`_mm512_cvtps_epu32` of `frac * 2^32`)
+   * while the tail called the shared double-precision primitive. Two
+   * disagreements at once -- round-to-nearest against the primitive's
+   * truncation, and a float32 ULP of 256 at 2^32, leaving each increment
+   * good to only +-128 units. The body's comment argued the error was
+   * "below one LUT bin", true per sample and beside the point: ctrl_inc
+   * feeds a PREFIX SUM, so it integrates. Over 4096 samples the two paths
+   * diverged by 3673 phase units with 175 outputs differing.
+   *
+   * The block is gone (it was also 1.3x slower than this scalar loop), so
+   * today both sides of this check run the same code and it cannot fail.
+   * It stays because it is exactly the check that catches a future fast
+   * path whose arithmetic does not match -- including the accumulated
+   * phase, which is where a per-sample error shows up even when every
+   * individual output happens to round alike. */
+  {
+    enum
+    {
+      N = 61
+    }; /* not a multiple of 16: exercises body AND tail */
+    float         ctrl[N];
+    float complex blk[N], one[N];
+    for (int i = 0; i < N; i++)
+      /* Both signs, and magnitudes down to where a float32 conversion
+         loses its low bits entirely. */
+      ctrl[i] = (float)(0.013 * sin (0.21 * i) - 1e-7 * (i & 7));
+
+    lo_state_t *lb  = lo_create (0.037);
+    lo_state_t *lo1 = lo_create (0.037);
+    CHECK (lb && lo1);
+    if (lb && lo1)
+      {
+        CHECK (lo_steps_ctrl (lb, ctrl, N, blk, N) == (size_t)N);
+        for (int i = 0; i < N; i++)
+          CHECK (lo_steps_ctrl (lo1, ctrl + i, 1, one + i, 1) == 1);
+        for (int i = 0; i < N; i++)
+          {
+            CHECK (crealf (blk[i]) == crealf (one[i]));
+            CHECK (cimagf (blk[i]) == cimagf (one[i]));
+          }
+        /* And the accumulated phase, which is where an integrated
+           per-sample error shows up even if every output rounded alike. */
+        CHECK (lo_get_phase (lb) == lo_get_phase (lo1));
+        lo_destroy (lb);
+        lo_destroy (lo1);
+      }
   }
 
   if (_fails)

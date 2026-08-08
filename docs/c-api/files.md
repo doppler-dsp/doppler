@@ -165,7 +165,7 @@ Here is a list of all files with brief descriptions:
         * **dir** [**mpsk\_receiver\_r**](dir_2235ea4ae040991d93c0b2870a03660e.md)     
             * **file** [**mpsk\_receiver\_r\_core.h**](mpsk__receiver__r__core_8h.md) _Real-input M-PSK receiver: the complex twin behind an R2C front end._     
         * **dir** [**nco**](dir_2f9ed967bc16fefd26d0244d883adb58.md)     
-            * **file** [**nco\_core.h**](nco__core_8h.md) _Pure 32-bit phase-accumulator NCO._     
+            * **file** [**nco\_core.h**](nco__core_8h.md) _Phase-accumulator NCO, and the one float-&gt;integer boundary everything that steers one has to pass through._     
         * **dir** [**nprmeas**](dir_2ffe7a00bca5d7665b823d0b8c1040c3.md)     
             * **file** [**nprmeas\_core.h**](nprmeas__core_8h.md) _NPRMeasure — notched-noise Noise Power Ratio._     
         * **dir** [**pn**](dir_70aeca018f85f00e17d8853ee6bd0cbb.md)     

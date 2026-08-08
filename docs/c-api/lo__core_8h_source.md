@@ -15,7 +15,8 @@
 #include "clib_common.h"
 #include "dp_state.h"
 #include "jm_perf.h"
-#include "nco/nco_core.h" /* nco_norm_to_inc() -- the one shared cycles->phase-delta primitive */
+#include "nco/nco_core.h" /* nco_norm_freq_to_inc() -- the one shared
+                             normalised->phase-word primitive */
 #ifdef __cplusplus
 extern "C"
 {
@@ -59,10 +60,11 @@ extern "C"
     float complex out
         = CMPLXF (lo_sin_lut[(uint16_t)(idx + (uint16_t)LO_LUT_QTR)],
                   lo_sin_lut[idx]);
-    /* nco_norm_to_inc() is the ONE shared cycles->phase-delta primitive
-     * (rounds, not truncates) -- this used to be a private inline copy
-     * of that exact conversion, still truncating, until consolidated. */
-    state->phase += state->phase_inc + nco_norm_to_inc (ctrl);
+    /* ctrl is a FREQUENCY (cycles per sample), so it converts through
+     * the frequency face of the one shared normalised->phase-word
+     * primitive -- this used to be a private inline copy of that exact
+     * conversion until it was consolidated away. */
+    state->phase += state->phase_inc + nco_norm_freq_to_inc (ctrl);
     return out;
   }
 

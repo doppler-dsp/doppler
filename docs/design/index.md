@@ -17,6 +17,11 @@ instead.)
 - [Asynchronous Symbol Despreader](async-symbol-despreader.md) — despreading when the data-symbol rate is asynchronous to the code-epoch rate
 - [Asynchronous Data on a Repeating PN Code](async-despreader-working-design.md) — the working design behind the async despreader, assuming at most one data transition per code epoch
 - [Timing Lock Detector](timing_lock_detector.md) — SymbolSync's Gardner/DTTL lock statistic and sizing formula
+- [The NCO](nco.md) — the one 32-bit phase accumulator every rate in the
+    library stands on: the single float-to-integer boundary, who reaches it
+    and by what arithmetic, the signed carry/borrow rule, and why it
+    truncates
+- [RateSync Timing Recovery](ratesync-timing.md) — what sets recovered-symbol quality in the matched-filter + timing pair, measured with no carrier loop: TED gain vs excess bandwidth, the `num_phases` knee, and why DTTL becomes the BPSK/QPSK default
 - [MPSK Receiver](mpsk.md) — streaming M-PSK receiver architecture and carrier-recovery design
 - [Corr2D Interpolated Inverse](corr2d-interpolated-inverse.md) — decoupled, pffft-friendly inverse FFT size + free sub-bin interpolation
 - [Spectral & Measurement API Map](spectral-api-map.md) — module dependency graph

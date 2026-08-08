@@ -210,15 +210,28 @@ extern "C"
         double e       = num / (s->pwr_avg + 1e-6);
         s->last_error  = e;
         double control = loop_filter_step (&s->lf, e);
-        s->timing.phase_inc
-            = (uint32_t)((double)s->base_inc * (1.0 + control));
-        double inst = (double)s->sps / (1.0 + control);
-        double lo_r = 0.5 * (double)s->sps, hi_r = 1.5 * (double)s->sps;
-        if (inst < lo_r)
-          inst = lo_r;
-        else if (inst > hi_r)
-          inst = hi_r;
-        s->rate_est += 0.02 * (inst - s->rate_est);
+        /* ONE steer band, applied to the NCO register and not merely to
+           the number reported out.
+
+           The band is not new: rate_est has always been clamped to
+           [0.5*sps, 1.5*sps] samples/symbol, and since
+           inst = sps / (1 + control) is monotone in control, that is
+           exactly `1 + control` in [2/3, 2]. Clamping the scale first
+           yields an identical rate_est and additionally bounds the thing
+           that actually steers the loop, so the two can no longer disagree.
+
+           Bounding it here is what makes the conversion below a safety net
+           rather than the active path -- for sps >= 2 the product stays
+           under 2^32 and above zero, so it neither saturates nor floors.
+           Both of those matter: a bare cast of a NEGATIVE product (control
+           < -1, which a cold acquisition does reach) is undefined and used
+           to wrap to a huge increment, which slipped a cycle and recovered;
+           converting it honestly to 0 instead STOPS the timing NCO dead, so
+           it never strobes again and the object never locks. Caught by the
+           receiver-lock doc gate, which asserts a cold three-loop lock. */
+        double scale = nco_steer_scale (control, 2.0 / 3.0, 2.0);
+        s->timing.phase_inc = nco_phase_units ((double)s->base_inc * scale);
+        s->rate_est += 0.02 * ((double)s->sps / scale - s->rate_est);
         /* Lock statistic: lock_signal = 2*(|on-time|^2-|mid|^2)
          * /(|on-time|^2+|mid|^2), a Gardner-style eye-opening ratio (the
          * on-time sample vs. the mid-symbol/transition-gate sample already

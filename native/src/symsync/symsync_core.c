@@ -145,7 +145,11 @@ static uint32_t
 nominal_inc (size_t sps)
 {
   double s = (double)(sps ? sps : 1);
-  return (uint32_t)(4294967296.0 / s);
+  /* sps == 1 makes this exactly 2^32 -- one wrap per input, the most a
+     phase word can express. Route it through the shared conversion so the
+     limit saturates instead of being undefined (a bare cast yields 0 on
+     x86: a timing NCO that never wraps and therefore never strobes). */
+  return nco_phase_units (4294967296.0 / s);
 }
 
 static void

@@ -97,6 +97,7 @@ _Delay-lock loop (DLL) — non-coherent early/prompt/late code tracking._ [More.
 |  int | [**dll\_set\_state**](#function-dll_set_state) ([**dll\_state\_t**](structdll__state__t.md) \* state, const void \* blob) <br> |
 |  int | [**dll\_set\_telemetry**](#function-dll_set_telemetry) ([**dll\_state\_t**](structdll__state__t.md) \* state, [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* tlm, const char \* prefix, uint32\_t decim) <br>_Attach (or detach) a telemetry context and register the code loop's probes on it. Registers four probes, emitted once per code epoch (period) and further thinned by decim: "&lt;prefix&gt;.e" (the early-minus-late envelope discriminator — the loop stress), "&lt;prefix&gt;.rate" (the tracked code rate, chips advanced per nominal chip, ~1.0 at lock), "&lt;prefix&gt;.lock" (the CFAR lock statistic R; compare against the configured threshold) and "&lt;prefix&gt;.locked" (the verify-counted lock decision, 0/1 — the lockdet output, so a consumer sees where the declare/drop rule fired without re-deriving it from the statistic). Passing NULL detaches. Setup path, never hot: call before the producer thread starts stepping; the context is borrowed and must outlive the attachment (SPSC rules in_ [_**dp\_tlm/dp\_tlm\_core.h**_](dp__tlm__core_8h.md) _)._ |
 |  size\_t | [**dll\_state\_bytes**](#function-dll_state_bytes) (const [**dll\_state\_t**](structdll__state__t.md) \* state) <br> |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) uint32\_t | [**dll\_steer\_inc**](#function-dll_steer_inc) (const [**dll\_state\_t**](structdll__state__t.md) \* s, double ctrl) <br>_The one place dll steers its code NCO._  |
 |  size\_t | [**dll\_steps**](#function-dll_steps) ([**dll\_state\_t**](structdll__state__t.md) \* state, const float complex \* x, size\_t x\_len, float complex \* out, size\_t max\_out) <br>_Correlate a carrier-wiped block against the local code and steer the code NCO once per code period._  |
 |  size\_t | [**dll\_steps\_max\_out**](#function-dll_steps_max_out) ([**dll\_state\_t**](structdll__state__t.md) \* state) <br> |
 |  void | [**dll\_tlm\_flush**](#function-dll_tlm_flush) (const [**dll\_state\_t**](structdll__state__t.md) \* s) <br>_Emit the code loop's telemetry records for the epoch just closed._  |
@@ -972,7 +973,7 @@ void dll_set_rate_aid (
 
 
 
-A fixed fractional rate bias summed into the sample-and-hold `phase_inc` on top of the loop's own control every epoch  for physically-coupled Doppler, `carrier_offset_hz / carrier_freq_hz`, so the code NCO rides the code-rate dilation the discriminator alone can't pull in at low SNR. Applied continuously across the epoch (via `phase_inc`), not as a phase pulse. Also nudges the current `phase_inc` so the aid takes effect before the first period update. `code_rate` stays the loop's own observable and is unaffected.
+A fixed fractional rate bias summed into the sample-and-hold `phase_inc` on top of the loop's own control every epoch  for physically-coupled Doppler, `carrier_offset_hz / carrier_freq_hz`, so the code NCO rides the code-rate dilation the discriminator alone can't pull in at low SNR. Applied continuously across the epoch (via `phase_inc`), not as a phase pulse. It does NOT touch the current `phase_inc`, deliberately: this is safe to call every period for continuous aiding without clobbering the loop's own steering, and the cost is that a fresh DLL drifts for at most one (sub-chip) period before the first update applies the aid. `code_rate` stays the loop's own observable and is unaffected.
 
 
 
@@ -1095,6 +1096,48 @@ size_t dll_state_bytes (
 
 
 
+
+<hr>
+
+
+
+### function dll\_steer\_inc 
+
+_The one place dll steers its code NCO._ 
+```C++
+JM_FORCEINLINE  JM_HOT uint32_t dll_steer_inc (
+    const dll_state_t * s,
+    double ctrl
+) 
+```
+
+
+
+Both steer sites  [**dll\_update()**](dll__core_8h.md#function-dll_update) below (segments == 1) and dll\_steps\_impl()'s segments&gt;1 branch (dll\_core.c)  form the identical `inv_tsamps x (1 + rate_aid) + ctrl`, and each builds `ctrl` its own way. They call this rather than writing the expression twice.
+
+
+There is deliberately no band on the result. `ctrl` is a normalised frequency and it converts exactly like every other one in the library  lo's and nco's ctrl ports, resamp's rate  through the shared fold, which is total and defined for any input. symsync is banded because it had an observed unrecoverable failure (a floored steer stops a timing NCO for good) AND an already-declared sane range to restate; dll has neither, and inventing a band would be inventing policy. Measured: the loop's own control never leaves +-0.2% of nominal, unlocked in pure noise included.
+
+
+
+
+**Parameters:**
+
+
+* `s` DLL state. Must be non-NULL. 
+* `ctrl` Pure control deviation in cycles/sample  the loop's own correction, with no nominal rate in it. 
+
+
+
+**Returns:**
+
+Phase increment for `code_nco.phase_inc`. 
+
+
+
+
+
+        
 
 <hr>
 

@@ -61,7 +61,8 @@ def test_one_prompt_per_period():
     sym = d.steps(rx)
     assert sym.dtype == np.complex64
     # One prompt per code epoch. The epoch NCO increment truncates toward
-    # zero (nco_norm_to_inc, ~0.22 LSB/sample low at norm_freq=1/(SF*SPS)),
+    # zero (nco_norm_freq_to_inc, ~0.22 LSB/sample low at
+    # norm_freq=1/(SF*SPS)),
     # so for an input landing exactly on the nper-th epoch boundary the
     # final wrap can fall a sub-LSB fraction past the end -> nper-1, not a
     # fixed nper. Assert the rate, not the knife-edge boundary (any

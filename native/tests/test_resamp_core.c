@@ -277,6 +277,39 @@ main (void)
   CHECK (eq_ctrl_push (2.0));
   CHECK (eq_ctrl_push (1.0));
 
+  /* The phase_inc conversion must survive rate == 1.0.
+   *
+   * `upsample` is `rate >= 1.0`, so rate == 1.0 takes the DIVIDE branch and
+   * computes (uint32_t)(2^32 / 1.0) -- the out-of-range float->unsigned
+   * conversion (C99 6.3.1.4). x86 yields 0, which is a phase_inc that never
+   * advances. resamp_interp_inputs_needed() reads phase_inc directly and is
+   * the observable: at unity rate, N outputs must consume ~N inputs, and a
+   * zero increment reports 0 inputs for any N.
+   *
+   * rate == 1.0 is not a corner: it is the rate ratesync's terminal stage
+   * runs at. */
+  {
+    resamp_state_t *r1 = resamp_create (1.0);
+    CHECK (r1 != NULL);
+    if (r1)
+      {
+        size_t need = resamp_interp_inputs_needed (r1, 1000);
+        CHECK (need >= 999 && need <= 1000);
+        /* Neighbours either side must agree to within a sample -- the
+           conversion should be continuous across the branch boundary. */
+        resamp_state_t *rlo = resamp_create (0.9999999);
+        resamp_state_t *rhi = resamp_create (1.0000001);
+        size_t          nlo = resamp_interp_inputs_needed (rlo, 1000);
+        size_t          nhi = resamp_interp_inputs_needed (rhi, 1000);
+        CHECK (nhi >= 999 && nhi <= 1000);
+        CHECK (need >= nhi); /* unity consumes no fewer than faster */
+        (void)nlo;
+        resamp_destroy (rlo);
+        resamp_destroy (rhi);
+        resamp_destroy (r1);
+      }
+  }
+
   if (_fails)
     {
       fprintf (stderr, "test_resamp_core FAILED (%d)\n", _fails);

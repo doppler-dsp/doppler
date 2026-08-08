@@ -1,4 +1,5 @@
 #include "resamp/resamp_core.h"
+#include "nco/nco_core.h"
 #include <math.h>
 #include <string.h>
 
@@ -131,9 +132,17 @@ _create_from_bank (size_t num_phases, size_t num_taps, float *bank_owned,
   s->upsample    = (rate >= 1.0);
   s->bank        = bank_owned;
   s->phase       = 0;
-  s->phase_inc   = s->upsample ? (uint32_t)(4294967296.0 / rate)
-                               : (uint32_t)(rate * 4294967296.0);
-  s->ctrl_acc    = 0.0;
+  /* One conversion, via the shared primitive: at rate == 1.0 the divide
+     branch reaches exactly 2^32, which a bare cast leaves undefined. */
+  s->phase_inc = s->upsample ? nco_phase_units (4294967296.0 / rate)
+                             : nco_phase_units (rate * 4294967296.0);
+  /* The ctrl port's accumulator runs at the base rate; ctrl steers it per
+     input. Embedded by value, so it is initialised field-wise (nco_create
+     allocates) exactly as symsync and dll do. */
+  s->ctrl_nco.phase     = 0;
+  s->ctrl_nco.norm_freq = rate;
+  s->ctrl_nco.phase_inc = nco_norm_freq_to_inc (rate);
+  s->ctrl_nco.nmax      = 0;
 
   /* delay line: power-of-2 dual buffer */
   s->delay_cap = 1;
@@ -214,9 +223,9 @@ resamp_destroy (resamp_state_t *s)
 void
 resamp_reset (resamp_state_t *s)
 {
-  s->phase      = 0;
-  s->ctrl_acc   = 0.0;
-  s->delay_head = 0;
+  s->phase          = 0;
+  s->ctrl_nco.phase = 0;
+  s->delay_head     = 0;
   memset (s->delay_buf, 0, 2 * s->delay_cap * sizeof (float _Complex));
   memset (s->decim_iad, 0, s->num_taps * sizeof (float _Complex));
   if (s->num_taps > 1)
@@ -224,14 +233,14 @@ resamp_reset (resamp_state_t *s)
 }
 
 /* ── Serializable state — standard envelope (see dp_state.h) ─────────────────
- * Order: phase, delay_head, ctrl_acc, then delay_buf (2*delay_cap),
+ * Order: phase, delay_head, ctrl phase, then delay_buf (2*delay_cap),
  * decim_iad (num_taps), decim_tfd (num_taps-1 when num_taps>1). */
 
 size_t
 resamp_state_bytes (const resamp_state_t *s)
 {
   size_t b = sizeof (dp_state_hdr_t) + sizeof (uint32_t) + sizeof (size_t)
-             + sizeof (double) + 2 * s->delay_cap * sizeof (float _Complex)
+             + sizeof (uint32_t) + 2 * s->delay_cap * sizeof (float _Complex)
              + s->num_taps * sizeof (float _Complex);
   if (s->num_taps > 1)
     b += (s->num_taps - 1) * sizeof (float _Complex);
@@ -246,7 +255,7 @@ resamp_get_state (const resamp_state_t *s, void *blob)
             resamp_state_bytes (s));
   dp_w_u32 (&w, s->phase);
   dp_w_bytes (&w, &s->delay_head, sizeof (size_t));
-  dp_w_f64 (&w, s->ctrl_acc);
+  dp_w_u32 (&w, s->ctrl_nco.phase);
   dp_w_cf32 (&w, s->delay_buf, 2 * s->delay_cap);
   dp_w_cf32 (&w, s->decim_iad, s->num_taps);
   if (s->num_taps > 1)
@@ -264,7 +273,7 @@ resamp_set_state (resamp_state_t *s, const void *blob)
   r.off         = sizeof (dp_state_hdr_t);
   s->phase      = dp_r_u32 (&r);
   dp_r_bytes (&r, &s->delay_head, sizeof (size_t));
-  s->ctrl_acc = dp_r_f64 (&r);
+  s->ctrl_nco.phase = dp_r_u32 (&r);
   dp_r_cf32 (&r, s->delay_buf, 2 * s->delay_cap);
   dp_r_cf32 (&r, s->decim_iad, s->num_taps);
   if (s->num_taps > 1)
@@ -287,8 +296,12 @@ resamp_set_rate (resamp_state_t *s, double rate)
 {
   s->rate      = rate;
   s->upsample  = (rate >= 1.0);
-  s->phase_inc = s->upsample ? (uint32_t)(4294967296.0 / rate)
-                             : (uint32_t)(rate * 4294967296.0);
+  s->phase_inc = s->upsample ? nco_phase_units (4294967296.0 / rate)
+                             : nco_phase_units (rate * 4294967296.0);
+  /* Retune the ctrl accumulator too; its phase is deliberately kept, so a
+     rate change mid-stream does not restart the sampling instant. */
+  s->ctrl_nco.norm_freq = rate;
+  s->ctrl_nco.phase_inc = nco_norm_freq_to_inc (rate);
 }
 
 size_t
@@ -306,7 +319,9 @@ resamp_get_num_taps (const resamp_state_t *s)
 double
 resamp_get_ctrl_acc (const resamp_state_t *s)
 {
-  return s->ctrl_acc;
+  /* The phase word as a fraction of a cycle: exactly in [0, 1), which is
+     what this accessor has always promised. */
+  return (double)s->ctrl_nco.phase / 4294967296.0;
 }
 
 /* ------------------------------------------------------------------ */
@@ -514,58 +529,132 @@ resamp_execute (resamp_state_t *s, const float _Complex *in, size_t num_in,
  * Only the real part of ctrl[] is used.
  */
 
-size_t
-resamp_execute_ctrl (resamp_state_t *s, const float _Complex *in,
-                     const float _Complex *ctrl, size_t num_in,
-                     float _Complex *out, size_t max_out)
-{
-  size_t oi  = 0;
-  double acc = s->ctrl_acc;
-
-  for (size_t xi = 0; xi < num_in && oi < max_out; xi++)
-    {
-      dl_push (s, in[xi]);
-      acc += s->rate + (double)crealf (ctrl[xi]);
-
-      while (acc >= 1.0 && oi < max_out)
-        {
-          acc -= 1.0;
-          size_t arm = (size_t)(acc * (double)s->num_phases);
-          if (arm >= s->num_phases)
-            arm = s->num_phases - 1;
-          out[oi++] = dot_cf32 (dl_ptr (s), &s->bank[arm * s->num_taps],
-                                s->num_taps);
-        }
-    }
-  s->ctrl_acc = acc;
-  return oi;
-}
-
 /* ------------------------------------------------------------------ */
 /* execute_ctrl_push — single-input streaming form of execute_ctrl    */
-/* One iteration of the block loop's outer body, so feeding a stream   */
-/* one sample at a time matches the block call bit-for-bit, but with   */
-/* the rate deviation free to depend on outputs already emitted.       */
+/* The block form below is a loop over this, so the two cannot drift.  */
 /* ------------------------------------------------------------------ */
 
 size_t
 resamp_execute_ctrl_push (resamp_state_t *s, float _Complex x, double ctrl,
                           float _Complex *out, size_t max_out)
 {
-  size_t oi  = 0;
-  double acc = s->ctrl_acc;
-
   dl_push (s, x);
-  acc += s->rate + ctrl;
-  while (acc >= 1.0 && oi < max_out)
+  double delta = s->rate + ctrl; /* composite rate, signed, pre-fold */
+
+  /* The two directions are duals and want opposite loops -- the same split
+     resamp_execute() already makes between interp_execute() and
+     decim_execute():
+
+       interpolating   an output is due at every tick; the INPUT is pulled
+                       on overflow, so the increment is 1/delta
+       decimating      the accumulator gains delta every input; the OUTPUT
+                       is dumped on overflow
+
+     The accumulator therefore advances by min(delta, 1/delta), which is
+     <= 1 on both sides of unity. That is why no clamp is needed on either
+     steady-state path: a phase word holding a quantity that never reaches
+     a full period cannot leave [0, 1), so the arm cannot leave
+     [0, num_phases). The clamp this function used to carry (design note
+     section 1.2) was not a hard problem -- it was the interpolator run on
+     the decimator's loop, where the arm genuinely could exceed a period.
+
+     Dispatch on the BASE rate -- what kind of stage this is -- not on the
+     composite. Dispatching on the composite was tried and is worse (7 C
+     tests, every receiver that closes a timing loop): the two accumulators
+     coincide only AT delta == 1, so carrying the phase across a switch is
+     continuous only if delta crosses unity slowly. It does not. Timing
+     acquisition is non-linear and slips cycles to catch up, slamming the
+     composite from ~1 to ~1.9 in a single sample, so the switch lands far
+     from where the representations agree and the carried phase is
+     garbage. */
+  if (s->rate > 1.0)
     {
-      acc -= 1.0;
-      size_t arm = (size_t)(acc * (double)s->num_phases);
+      /* INTERPOLATING: output-driven. Each output reads its own fractional
+         phase -- the position between input samples -- and the increment
+         is the reciprocal, inputs consumed per output. No clamp, and no
+         two outputs sharing a sample.
+
+         A composite steered down to <= 1 clamps the reciprocal at one full
+         period, which degrades to one output per input rather than
+         over-producing: a rate floor, not a fault. */
+      uint32_t inc = nco_phase_units (4294967296.0 / delta);
+      size_t   n   = 0;
+      while (n < max_out)
+        {
+          out[n++] = dot_cf32 (dl_ptr (s), get_branch (s, s->ctrl_nco.phase),
+                               s->num_taps);
+          uint32_t nph;
+          uint8_t  ovf      = NCO_ADD_OVF (s->ctrl_nco.phase, inc, &nph);
+          s->ctrl_nco.phase = nph;
+          if (ovf)
+            break; /* overflow: this input is spent, fetch the next */
+        }
+      return n;
+    }
+
+  /* DECIMATING or unity: input-driven. The accumulator gains the composite
+     rate every input and dumps an output when it crosses a period, so the
+     event flag IS the emit decision -- a carry means a period completed, a
+     borrow (negative composite) means it un-completed one. */
+  uint8_t  strobe;
+  uint32_t ph_before = nco_step_u32_ovf_ctrl (&s->ctrl_nco, ctrl, &strobe);
+  size_t   n         = 0;
+
+  if (delta >= 1.0)
+    n = (size_t)delta + (s->ctrl_nco.phase < ph_before ? 1u : 0u);
+  else if (delta > 0.0)
+    n = strobe ? 1u : 0u;
+  if (n > max_out)
+    n = max_out;
+
+  /* The steady state: at most one output per input, arm straight off the
+     clock, in [0, num_phases) by construction. No clamp on this path. */
+  if (n <= 1)
+    {
+      if (n)
+        {
+          out[0] = dot_cf32 (dl_ptr (s), get_branch (s, s->ctrl_nco.phase),
+                             s->num_taps);
+        }
+      return n;
+    }
+
+  /* n >= 2 on a stage whose base rate is <= 1: the timing loop has slammed
+     the composite above unity to slip a cycle and catch up -- the
+     non-linear part of acquisition, not a steady state. One dl_push cannot
+     serve two output instants (the earlier one needed a delay-line state
+     this call no longer holds), so the earlier arms are SATURATED at the
+     end of the period.
+
+     That is the same discipline as nco_phase_units() saturating at 2^32,
+     not the section 1.2 defect: there the double accumulator let the arm
+     exceed a period for ordinary steady-state rates, and the structure
+     above has removed that entirely. What is left is a genuinely
+     over-range request during a slew, where saturating is the honest
+     answer -- a wrap would invert the loop's intent, and emitting one
+     sample n times slips it outright (measured: 3 of 8 initial phases in
+     test_ratesync_core). */
+  double frac = (double)s->ctrl_nco.phase / 4294967296.0;
+  for (size_t oi = 0; oi < n; oi++)
+    {
+      double over = frac + (double)(n - 1 - oi);
+      size_t arm  = (size_t)(over * (double)s->num_phases);
       if (arm >= s->num_phases)
-        arm = s->num_phases - 1;
-      out[oi++]
+        arm = s->num_phases - 1; /* saturate: see above */
+      out[oi]
           = dot_cf32 (dl_ptr (s), &s->bank[arm * s->num_taps], s->num_taps);
     }
-  s->ctrl_acc = acc;
+  return n;
+}
+
+size_t
+resamp_execute_ctrl (resamp_state_t *s, const float _Complex *in,
+                     const float _Complex *ctrl, size_t num_in,
+                     float _Complex *out, size_t max_out)
+{
+  size_t oi = 0;
+  for (size_t xi = 0; xi < num_in && oi < max_out; xi++)
+    oi += resamp_execute_ctrl_push (s, in[xi], (double)crealf (ctrl[xi]),
+                                    out + oi, max_out - oi);
   return oi;
 }

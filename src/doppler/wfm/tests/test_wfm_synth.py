@@ -366,7 +366,8 @@ def test_bits_array_input():
 def test_carrier_freq_truncates_toward_zero():
     """The carrier's actual frequency is the *truncated* 32-bit phase-word
     approximation of the requested frequency (native/inc/nco/nco_core.h's
-    nco_norm_to_inc, the one shared LO/NCO primitive), rounded toward zero
+    nco_norm_freq_to_inc, the one shared LO/NCO primitive), rounded toward
+    zero
     -- not to nearest. freq=51 Hz at fs=21e6 is a case where truncation and
     round-to-nearest differ (freq=50 Hz at the same fs does not -- see
     native/tests/test_lo_core.c's own cases for both): the truncated

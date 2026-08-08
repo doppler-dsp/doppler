@@ -12,6 +12,7 @@ _Continuously-variable polyphase resampler for CF32 IQ._ [More...](#detailed-des
 
 * `#include "clib_common.h"`
 * `#include "dp_state.h"`
+* `#include "nco/nco_core.h"`
 
 
 
@@ -107,7 +108,7 @@ _Continuously-variable polyphase resampler for CF32 IQ._ [More...](#detailed-des
 | Type | Name |
 | ---: | :--- |
 | define  | [**RESAMP\_STATE\_MAGIC**](resamp__core_8h.md#define-resamp_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('R', 'S', 'M', 'P')`<br> |
-| define  | [**RESAMP\_STATE\_VERSION**](resamp__core_8h.md#define-resamp_state_version)  `1u`<br> |
+| define  | [**RESAMP\_STATE\_VERSION**](resamp__core_8h.md#define-resamp_state_version)  `2u`<br> |
 
 ## Detailed Description
 
@@ -613,7 +614,7 @@ size_t resamp_state_bytes (
 ### define RESAMP\_STATE\_VERSION 
 
 ```C++
-#define RESAMP_STATE_VERSION `1u`
+#define RESAMP_STATE_VERSION `2u`
 ```
 
 

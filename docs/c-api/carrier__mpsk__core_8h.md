@@ -71,7 +71,7 @@ _M-PSK carrier-tracking loop (integer-NCO de-rotation + decision PLL)._ [More...
 |  double | [**carrier\_mpsk\_get\_last\_error**](#function-carrier_mpsk_get_last_error) (const [**carrier\_mpsk\_state\_t**](structcarrier__mpsk__state__t.md) \* state) <br> |
 |  double | [**carrier\_mpsk\_get\_lock\_metric**](#function-carrier_mpsk_get_lock_metric) (const [**carrier\_mpsk\_state\_t**](structcarrier__mpsk__state__t.md) \* state) <br> |
 |  int | [**carrier\_mpsk\_get\_m**](#function-carrier_mpsk_get_m) (const [**carrier\_mpsk\_state\_t**](structcarrier__mpsk__state__t.md) \* state) <br> |
-|  double | [**carrier\_mpsk\_get\_norm\_freq**](#function-carrier_mpsk_get_norm_freq) (const [**carrier\_mpsk\_state\_t**](structcarrier__mpsk__state__t.md) \* state) <br> |
+|  double | [**carrier\_mpsk\_get\_norm\_freq**](#function-carrier_mpsk_get_norm_freq) (const [**carrier\_mpsk\_state\_t**](structcarrier__mpsk__state__t.md) \* state) <br>_Tracked carrier frequency, cycles/sample (read/write). The decision-directed loop's SMOOTHED estimate: the NCO frequency register, which holds the loop filter's integrator (rad/symbol, rescaled to cycles/sample) and is rewritten every symbol. The proportional path acts on phase rather than frequency, so it does not appear here and the reading lags a frequency ramp by the constant Type-II ramp error. Writing retunes: the value becomes the new centre AND the reset seed, and the loop filter is cleared, so the loop re-acquires from there._  |
 |  void | [**carrier\_mpsk\_get\_state**](#function-carrier_mpsk_get_state) (const [**carrier\_mpsk\_state\_t**](structcarrier__mpsk__state__t.md) \* state, void \* blob) <br>_Serialize the full loop state into_ `blob` _._ |
 |  void | [**carrier\_mpsk\_init**](#function-carrier_mpsk_init) ([**carrier\_mpsk\_state\_t**](structcarrier__mpsk__state__t.md) \* s, double bn, double zeta, double init\_norm\_freq, size\_t tsamps, double bn\_fll, int m) <br>_Initialise an M-PSK carrier loop in place (no allocation)._  |
 |  void | [**carrier\_mpsk\_reset**](#function-carrier_mpsk_reset) ([**carrier\_mpsk\_state\_t**](structcarrier__mpsk__state__t.md) \* state) <br>_Re-seed the loop to its create-time frequency/phase; keep config._  |
@@ -355,6 +355,7 @@ int carrier_mpsk_get_m (
 
 ### function carrier\_mpsk\_get\_norm\_freq 
 
+_Tracked carrier frequency, cycles/sample (read/write). The decision-directed loop's SMOOTHED estimate: the NCO frequency register, which holds the loop filter's integrator (rad/symbol, rescaled to cycles/sample) and is rewritten every symbol. The proportional path acts on phase rather than frequency, so it does not appear here and the reading lags a frequency ramp by the constant Type-II ramp error. Writing retunes: the value becomes the new centre AND the reset seed, and the loop filter is cleared, so the loop re-acquires from there._ 
 ```C++
 double carrier_mpsk_get_norm_freq (
     const carrier_mpsk_state_t * state

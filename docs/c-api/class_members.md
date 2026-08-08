@@ -117,7 +117,7 @@
 * **car\_lf** ([**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md))
 * **car\_lock** ([**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md))
 * **cg** ([**psd\_state\_t**](structpsd__state__t.md))
-* **ctrl\_acc** ([**resamp\_state\_t**](structresamp__state__t.md))
+* **ctrl\_nco** ([**resamp\_state\_t**](structresamp__state__t.md))
 * **center** ([**specan\_state\_t**](structspecan__state__t.md))
 * **crest\_db** ([**time\_stats\_t**](structtime__stats__t.md))
 * **crc** ([**wfm\_source\_t**](structwfm__source__t.md))

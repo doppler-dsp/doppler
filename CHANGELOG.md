@@ -76,6 +76,87 @@ ______________________________________________________________________
     `scripts/check_version_strings.py` never covered this — it guards
     *doppler's* release version against being hand-typed into docs.
 
+### Fixed
+
+- **The NCO's cycle-boundary flag was wrong for any negative control.**
+    `nco_step_u32_ovf_ctrl`/`nco_steps_u32_ovf_ctrl` (Python
+    `NCO.steps_u32_ovf_ctrl`) folded the control bipolar → unipolar before the
+    add, so the sign was gone and bit 32 of the sum set on nearly every step:
+    at `norm_freq = 0.1, ctrl = -0.05`, **10 000 carries reported against 500
+    true wraps**. Phase values were always correct, which is why it survived.
+    The advance is now formed signed (`delta = norm_freq + ctrl`) *before* any
+    fold, and the event takes its direction from that composite — a forward
+    crossing is a carry (one extra output due), a backward one a borrow. Keying
+    off the control's sign alone is wrong in the mirror direction, since the
+    composite can run forward while the control is negative.
+
+- **Three `double` → phase-word conversions were undefined at their own
+    boundaries.** `resamp` at `rate == 1.0` and `symsync` at `sps == 1` both
+    produced **0** on x86 — a phase increment that never advances, i.e. a dead
+    NCO — where arm64 saturates; `symsync`'s loop steer did not clamp but
+    *wrapped*, returning roughly a ninth of the correct increment for a control
+    asking to speed up. All three now pass through one total, saturating
+    conversion (below).
+
+- **`symsync`'s steer was bounded only where it was reported, not where it
+    steered.** `rate_est` had always been clamped, but the NCO was commanded
+    with an unbounded product two lines earlier.
+
+- **`lo_steps_ctrl`'s AVX-512 block had drifted from the scalar tail of its own
+    function** — it derived the control increment from a float32 fold while the
+    tail used the shared double-precision primitive, so the two halves of one
+    function disagreed by 3673 phase units over 4096 samples. Both AVX-512
+    blocks in `lo_core.c` are now deleted; the scalar loops measured faster, and
+    `lo_core` has no intrinsics left.
+
+### Changed
+
+- **There is now exactly one `double` → integer conversion in the
+    phase-accumulator family**, `nco_phase_units()`, and it is total: below zero
+    (and NaN) gives 0, at or above 2^32 saturates to 2^32-1, otherwise it
+    truncates. C99 gives the integer half of a phase accumulator away free
+    (6.2.5p9 modular wrap, 7.20.1.1 exact width), so undefined behaviour can
+    only enter at 6.3.1.4 — which makes confining the cast **structural rather
+    than stylistic**. Five private copies of this conversion existed across
+    `nco`, `lo`, `dll`, `resamp` and `symsync`; all are folded in, four were
+    live bugs, and each is pinned by a test that fails if it is reverted.
+
+    Companion: `nco_steer_scale(control, lo, hi)` bounds a steered rate
+    *before* converting, because a conversion can only saturate or floor a
+    request that is already insane — both are symptoms, and bounding the
+    request is the fix. The band stays caller policy; `symsync` restates its
+    long-standing `rate_est` clamp, and `dll` deliberately declares none.
+
+- **The shared conversion now has two named faces**, so a call site states its
+    dimension instead of leaving it to be inferred from the assignment target:
+    `nco_norm_freq_to_inc(norm_freq)` for cycles **per sample** (14 sites,
+    landing on `phase_inc`) and `nco_norm_phase_to_word(norm_phase)` for cycles
+    **absolute** (3 sites, landing on `phase` — the `costas`/`carrier_mpsk`
+    proportional path and `dll`'s seed offset). One shared body, so they cannot
+    diverge; a test pins them equal on values where truncate and round differ.
+
+- **`resamp`'s control port runs on the shared NCO** instead of a private
+    `double` accumulator. **This changes the serialized state blob** —
+    `RESAMP_STATE_VERSION` 1 → 2, with the control accumulator now a `uint32`
+    phase word rather than an `f64`. Old blobs are rejected by the envelope, as
+    designed.
+
+- **`RateConverter(rate=0.8)` emits 799 outputs per 1000 inputs, not 800**, and
+    that is the correct answer rather than an off-by-one: 0.8 is not
+    representable in a 32-bit phase word and the conversion truncates by
+    convention, so the realised rate is a hair below the requested one —
+    identically on every host, which is the property the convention exists to
+    provide. The doctests state 799/849 rather than chasing the round number.
+
+### Docs
+
+- **`MPSK_RX_AGC_SEED_SAMPS`' comment named the wrong `warmup_syms` default.**
+    It read 30; `objects/mpsk_receiver.toml` has said 100 for as long as the
+    parameter has existed. The seeding argument the comment makes is unaffected
+    either way — 8 averaged samples clear both numbers comfortably — but a
+    reader checking the claim against the manifest would have found it did not
+    hold.
+
 ## [0.42.0] — 2026-08-07
 
 ### Breaking

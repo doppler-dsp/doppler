@@ -171,9 +171,10 @@ costas_update(costas_state_t *s, float complex P)
     double car_w = s->lf.integ / (double)s->tsamps;
     lo_set_norm_freq(&s->nco, car_w / (2.0 * M_PI));
     /* proportional phase nudge: kp*e radians -> cycles -> uint32 phase
-     * delta, via the one shared primitive (a bare truncating cast here
-     * is UB on a negative value -- see nco_norm_to_inc()'s own doc). */
-    s->nco.phase += nco_norm_to_inc ((s->lf.kp * e) / (2.0 * M_PI));
+     * word, via the PHASE face of the one shared primitive -- this is an
+     * absolute angle, not a rate (a bare truncating cast here would be UB
+     * on a negative value; see nco_norm_fold_()'s own doc). */
+    s->nco.phase += nco_norm_phase_to_word ((s->lf.kp * e) / (2.0 * M_PI));
     /* lock metric: |Re|/|P| EMA (1 = phase-locked BPSK, ~0 = no carrier) */
     double inst = (double)(fabsf(reP) / aP);
     s->lock_metric += COSTAS_LOCK_ALPHA * (inst - s->lock_metric);
@@ -334,6 +335,16 @@ size_t costas_steps(costas_state_t *state, const float complex *x, size_t x_len,
 void costas_configure(costas_state_t *state, double bn, double zeta);
 double costas_get_bn(const costas_state_t *state);
 void costas_set_bn(costas_state_t *state, double val);
+/** @brief Tracked carrier frequency, cycles/sample (read/write). The loop's
+ * SMOOTHED estimate: the NCO frequency register, which holds the loop
+ * filter's integrator and is rewritten every symbol. Under a frequency ramp
+ * it lags the true carrier by the constant Type-II ramp error, because the
+ * proportional path acts on PHASE rather than frequency and so is absent
+ * here; costas_get_nco_freq() is the no-lag counterpart that adds it back.
+ * Read this to ask what frequency the loop has settled on, that one to ask
+ * what it is commanding right now. Writing retunes: the value becomes the new
+ * centre AND the reset seed, and the loop filter is cleared, so the loop
+ * re-acquires from there rather than slewing across from its old estimate. */
 double costas_get_norm_freq(const costas_state_t *state);
 /** @brief Effective NCO frequency command (loop-filter output = integrator +
  * proportional), cycles/sample. Mean rides a ramp with no lag, unlike the

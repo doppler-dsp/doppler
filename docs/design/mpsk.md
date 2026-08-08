@@ -601,12 +601,12 @@ on its own for any M-PSK / unmodulated carrier:
 - **Config:** `m` (2/4/8), `sps`, `n` (default 4), `bn`, `zeta`, seed
     `init_norm_freq`. All params default + keyword-capable (no forced positionals).
 
-Working name **`track.CarrierNda`** (non-data-aided). Naming review: there are
-now three carrier loops — `Costas` (BPSK decision-directed), `CarrierMpsk`
-(M-PSK decision-directed), `CarrierNda` (M-PSK non-data-aided). This revives the
-earlier `track.Carrier.*` namespace idea; deferred (the jm-owned `__init__.py`
-makes a nested namespace a drift / `.so`-is-the-API concern) — flat names
-for now.
+Shipped as **`track.CarrierNda`** (non-data-aided). There are three carrier
+loops now — `Costas` (BPSK decision-directed), `CarrierMpsk` (M-PSK
+decision-directed) and `CarrierNda` (M-PSK non-data-aided) — which revived the
+earlier `track.Carrier.*` namespace idea. Still deferred: the jm-owned
+`__init__.py` makes a nested namespace a drift / `.so`-is-the-API concern, so
+the names stay flat.
 
 **Since the rebuild, `MpskReceiver` no longer embeds `CarrierNda` as a whole.**
 It cannot: `CarrierNda` owns an NCO and a boxcar arm, and the receiver's NCO is
@@ -668,11 +668,13 @@ second timing mechanism** — the terminal accumulator alone controls timing, an
 the polyphase arm is that phase's fractional read-out.
 
 `SymbolSync`'s second selectable TED (`ted="dttl"`, a decision-directed sign-sign
-DTTL) is likewise reachable here (`RATESYNC_TED_DTTL`), but the receiver stays
-hardcoded to Gardner: DTTL's hard-decision device is only valid for
-constellations with independent, rectangular I/Q boundaries (BPSK/QPSK), not the
-8PSK this receiver also supports, so exposing it is a follow-up, not a drop-in
-default.
+DTTL) is likewise reachable here (`RATESYNC_TED_DTTL`), and the receiver is
+still hardcoded to Gardner. That is now **decided rather than deferred**:
+[RateSync Timing Recovery](ratesync-timing.md) §4 measures DTTL ahead of
+Gardner wherever it is valid and takes it as the default for BPSK/QPSK, with
+8PSK keeping Gardner because its hard-decision device needs rectangular I/Q
+boundaries. Not yet implemented; the measurements and the decision live
+there.
 
 > *Historical:* the original build reused `track.SymbolSync` (Gardner + Farrow)
 > as a whole, via an added by-value `symsync_init`. `SymbolSync` is unchanged and
@@ -705,23 +707,15 @@ Gardner+Farrow loop, and a dense `fir` matched filter.
 
 ______________________________________________________________________
 
-## 7. Build plan (sequential, each rock-solid first) — **complete**
+## 7. Build plan — **complete**
 
-Steps 1–3 shipped as written; step 4 is the rebuild this document now describes.
-
-1. **`track.CarrierNda`** — the NDA M-th-power carrier loop primitive (§3).
-    Validate: open-loop S-curve `phase_error(φ)` = the period-`2π/M` sawtooth per
-    M; `lock_signal` vs phase/SNR; cold-start frequency pull-in on an *unmodulated*
-    carrier and on modulated data with **no timing**; jitter vs bn. Gallery.
-1. **`fir_step` + `symsync_init`** — the additive inline composition APIs (tiny,
-    byte-identical to the block paths; their own parity tests).
-1. **`track.MpskReceiver`** — the composition (§1). Validate end-to-end BER vs
-    Es/N0 per M within ~1–2 dB of the MPSK bound, with a carrier offset + timing
-    offset + pulse shaping; opt-in auto-handover engages and holds; I&D and RRC
-    modes; reset-reproducible; block-size invariant (independent output per call,
-    the gh-219 rule). DSSS-MPSK example chaining `Dll(segments) → MpskReceiver`.
-    Gallery: constellation pull-in (cloud → M clusters), carrier + timing locks,
-    BER table.
+`CarrierNda` (§3), the `fir_step` / `symsync_init` inline composition APIs, and
+`MpskReceiver` itself all shipped in that order, and the engine rebuild (§1.1)
+followed. The acceptance criteria this section used to enumerate are no longer
+a plan: they are the tests, in `native/tests/test_mpsk_receiver_core.c` and
+`src/doppler/track/tests/`, and the gallery pages named at the top of this
+document. Read those for what is actually guaranteed — a plan describes what
+someone intended, and only the tests describe what holds.
 
 ______________________________________________________________________
 
@@ -736,9 +730,16 @@ ______________________________________________________________________
     every call site that needed a meaningful threshold multiplied the scale
     back in by hand. Squaring-loss equations corrected and Yuen-grounded
     (§2.3).
-- **Arm normalization** — *resolved.* Internal `agc_core` AGC (bandwidth locked
-    to `0.01·bn`, decimated loop-filter command via `gain_update_period`) + 10 dB
-    square clip, not a per-sample limiter (§2.3).
+- **Arm normalization** — *resolved.* Internal `agc_core` AGC + 10 dB square
+    clip, not a per-sample limiter, with the loop-filter command decimated via
+    `gain_update_period` (§2.3). The **bandwidth rule differs by object, and
+    both are current**: `CarrierNda` locks its arm AGC to `0.01·bn`
+    (`CARRIER_NDA_AGC_BW_RATIO`), the per-sample convention its own boxcar arm
+    still runs on, while `MpskReceiver` uses the absolute
+    `MPSK_RX_AGC_BW = 0.002` — because its discriminator runs at the *symbol*
+    rate, where a proportional rule spans thousands of symbols and never
+    settles (§2.3). Reading the `0.01·bn` rule as the receiver's is a mistake
+    this bullet used to invite by naming only one of the two.
 - **Naming** — `CarrierNda` / flat vs a `Carrier.*` namespace (deferred).
 - **Handover threshold** — *resolved, shipped.* `mpsk_receiver_configure_lock()`
     exposes it as a real config call: a `lockdet_state_t handover` gate plus
@@ -793,3 +794,188 @@ ______________________________________________________________________
     rotation-blind, meaning a healthy M2M4 beside a collapsed EVM says "the
     amplitudes are fine, the phase is not" — which no error rate could have told
     us.
+
+______________________________________________________________________
+
+## 9. Parameter surface — which knobs are design axes
+
+**Proposed; none of this is implemented, and none of it is decided.**
+`mpsk_receiver_create` takes sixteen parameters. Most are not design axes —
+they are a constant, a false-alarm probability, or a settling time, and the
+receiver already holds everything needed to derive them. A caller supplying
+them by hand is being asked to re-derive what the object knows.
+
+There are three separable proposals here, and each can land without the
+others:
+
+1. **§9.1** — say the rates physically (`sample_rate_hz`, `symbol_rate_hz`,
+    `carrier_hz`) instead of as the ratio `sps` and a normalised frequency.
+1. **§9.2** — derive the six parameters that are not design axes, leaving the
+    surface at the signal description, the two loop bandwidths, and the
+    carrier seed.
+1. **§9.4** — make the readbacks speak the same language as the constructor.
+
+§9.3 records the one parameter, `nda_tap`, that resists all three.
+
+### 9.1 Physical units — the rates and the carrier
+
+`sps` is a ratio the caller computes and the object then un-computes. A
+floating-point samples-per-symbol is a poor thing to ask anyone for, and a
+worse thing to ask someone who is not a modem engineer: `17.33389` is a
+perfectly valid value here (§1.1), which makes the parameter look like a
+mistake precisely when it is correct. The proposal is `sample_rate_hz` +
+`symbol_rate_hz`, with `init_norm_freq` becoming `carrier_hz`.
+
+This receiver is the outlier in its own library:
+
+| object               | spells its rates                    |
+| -------------------- | ----------------------------------- |
+| `CarrierAcquisition` | `sample_rate_hz` / `symbol_rate_hz` |
+| `AsyncDsssReceiver`  | `chip_rate` / `symbol_rate`         |
+| `BurstDemod`         | `chip_rate` / `carrier_hz`          |
+| **`MpskReceiver`**   | **`sps` / `init_norm_freq`**        |
+
+**The float does not disappear, it moves.** `sps = fs/Rs` stays a double
+internally — that is what makes an irrational samples-per-symbol work at all,
+and it is load-bearing (§1.1). What changes is that nobody types it. The
+capability becomes more reachable, not less.
+
+**Where the units stop, and why.** `bn_carrier` and `bn_timing` stay
+normalised to the symbol rate. §1.1 moved them *to* that normalisation
+deliberately, and it is the property that makes one setting mean one loop at
+every rate; in Hz, a caller who retunes `symbol_rate_hz` would silently
+change the loop's relative bandwidth. So the constructor is mixed-unit **on
+purpose** — rates and carrier physical, bandwidths dimensionless — and §9.4
+closes that gap on the readback side instead, where it costs nothing.
+
+**What the combination makes checkable.** Three guards cannot be stated while
+the object knows only a ratio, and all three are things a non-expert gets
+wrong:
+
+- `|carrier_hz| < sample_rate_hz/2` — plain Nyquist. As a normalised
+    frequency this was implicit in the number `0.5` and went unvalidated.
+- `sample_rate_hz >= m_out · symbol_rate_hz` replaces `sps >= m_out`, so the
+    rejection message stops naming `m_out` — which under §9.2 the caller no
+    longer supplies — and becomes "sample_rate_hz must be at least 8×
+    symbol_rate_hz".
+- The real twin's usable IF band (≈ `0.06…0.44·fs`) can be checked against
+    the **occupied** band rather than the centre. A rectangular pulse spans
+    `carrier_hz ± symbol_rate_hz` to its first null, so a centre comfortably
+    inside the band can still put its skirt on the fold — the failure already
+    pinned by `test_usable_band_is_the_input_constraint`. The information was
+    always there; what the combination adds is the ability to *say* it in the
+    caller's own units.
+
+**Cost, measured rather than estimated.** 90 files reference these types: 40
+Python and documentation call sites pass `sps=`, 21 C call sites call a
+`*_create`, and 20 of the 90 are generated `docs/c-api` pages that regenerate
+rather than being edited. This is a public API break, the second deliberate
+one after the engine rebuild (§1.1).
+
+### 9.2 The six derivable parameters
+
+Rules below are written in `sps` because that is today's parameter; under
+§9.1 only `m_out`'s changes shape, to `min(8, 2·floor(fs/(2·Rs)))`. The rest
+are dimensionless and read identically either way.
+
+| Param          | Rule                                                                                                                                                                                                                                          | Status       |
+| -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------ |
+| `m_out`        | `min(8, 2·floor(sps/2))`. The real twin needs `min(8, 2·floor(sps/4))`, since its cascade sits behind the halfband (§1.2). `iandd` under 4 keeps the existing `narrow_pulse` warning (§4) rather than becoming a rejection.                   | firm         |
+| `zeta`         | `1/√2` — a constant, not a computation. Nothing else in the receiver moves the optimal damping, and both loops already share one value.                                                                                                       | firm         |
+| `acq_to_track` | `1`, always. At the default `m_out = 8` every tap decodes every order both with and without it (§2.2.1); the one measured cost is `lo_arm` trading EVM at equal SER.                                                                          | verify       |
+| `lock_thresh`  | `σ_H0 · η(Pfa)` at a fixed `Pfa = 5e-6`: `0.1132 × 4.4159 = 0.4999`, today's 0.5. The limited statistic reads ~1.0 at lock for **every** M (§2.3), so no per-M correction is carried — that was the `lock_scale` bug, already resolved in §8. | firm         |
+| `warmup_syms`  | `max(1/MPSK_RX_AGC_BW, 5/bn_carrier + 5/bn_timing on the strobe tap)` → 1000 at the defaults, against a shipped 100. The AGC floor is 500 symbols outright (§2.3); the timing term is why §2.4 wants timing settled before handover.          | firm in form |
+| `num_phases`   | **P = 64** at the default `m_out = 8` — the measured saturation point on RRC, against a shipped 1024; inert at every value on I&D. See §9.2.1, and note the measurement resolves ~0.15 dB, which bounds how precisely the rule can be stated. | **measured** |
+| `nda_tap`      | Not derivable — see §9.3.                                                                                                                                                                                                                     | open         |
+
+**The rows are not equally well founded.** Five rest on measurements recorded
+elsewhere in this document — `m_out` on EVM against the coherent bound and
+per-M SER at each anchor, `lock_thresh` on an analytic H0 sd confirmed by
+0/100 false declares at every M, `acq_to_track` on §2.2.1's tap × order table,
+`warmup_syms` on a stated settling rule plus a measured AGC floor, and `zeta`
+on the fact that nothing anywhere varies it. `num_phases` had nothing behind
+it in either direction, so it was measured; §9.2.1 is that measurement.
+
+#### 9.2.1 `num_phases` is not this object's parameter
+
+It belongs to the terminal polyphase stage; the receiver only passes it
+through. It is therefore characterised where it lives —
+[RateSync Timing Recovery](ratesync-timing.md) §5, which owns the method, the
+pulse dependence, the seed-to-seed resolution and the traps that produced two
+wrong answers before the right one.
+
+The result the row above uses: on RRC, **P = 64 at `m_out = 8`** is the
+measured saturation point, at a measurement resolution of ~0.15 dB; on I&D the
+bank arms are duplicates and `P` is inert at every value. The case against the
+shipped 1024 is bank memory and construction time, not quality.
+
+### 9.3 Why `nda_tap` is not on that list
+
+Two reasons, and the second is the one that bites.
+
+**It is a declared design axis.** §2.2.1 makes the tap a construction
+parameter precisely *because* it is a real trade rather than an
+implementation detail, and §2.2 records the one attempt to resolve the same
+coupling inside the receiver — gating the strobe steer on timing lock —
+being implemented, measured across a 24-cell sweep, and then removed as a
+default: it changed exactly one cell, and it hid a trade the caller could
+neither see nor override.
+
+**A frequency-uncertainty input would not replace it.** The obvious
+substitution is to take the carrier uncertainty the caller genuinely knows
+and pick the narrowest tap covering it — and under §9.1 that uncertainty is
+naturally in Hz, which is the form it would have to take. But §2.2.1's
+pull-in table is measured with each tap *at its own best* `bn_carrier`; at a
+**fixed** `bn_carrier` all three taps measure the same `0.01·Rs`. The tap
+only buys range if the receiver sets `bn_carrier` as well — and `bn_carrier`
+is one of the parameters this design deliberately leaves with the caller
+(§9.1). Deriving the tap from an uncertainty means deriving both, as one
+joint decision, which is a larger change than the other six rows put
+together.
+
+Note what §9.1 *does* settle here. The objection above has two halves — the
+receiver cannot choose the tap, and deriving `m_out` moves the capture range
+invisibly — and the second half dissolves once the object knows an absolute
+symbol rate. The pull-in numbers are already fractions of `Rs`, so they
+become computable in Hz and reportable; the receiver does not choose the tap,
+it says what the chosen tap can catch (§9.4).
+
+Two consequences worth stating even if `nda_tap` never moves:
+
+- **`m_out` moves the pull-in range**, so deriving it moves a number the
+    caller never touched — `strobe` goes `0.010·Rs → 0.050·Rs` between
+    `m_out = 4` and 8. A receiver at four samples per symbol then gets a 5×
+    narrower unaided capture than one at eight, for no reason visible at the
+    call site. That is an argument for the `capture_hz` readback in §9.4, not
+    against deriving `m_out`.
+- **`mf_all` is dominated wherever `m_out` derives to 8**: it captures
+    `0.033·Rs` against `strobe`'s `0.050` and `lo_arm`'s `0.090`, so at the
+    derived `m_out` it is never the right pick and the axis is effectively two
+    taps wide.
+
+### 9.4 Readbacks — the back door speaks the same language
+
+Two readbacks are already inconsistent with §9.1, and one is missing
+entirely. None of this depends on the constructor changing; the third item is
+worth having either way.
+
+- **`timing_rate` returns smoothed tracked samples per symbol** — a float
+    near the nominal, departing from it by exactly the sample-clock offset the
+    timing loop is tracking. That is the same floating-point
+    samples-per-symbol §9.1 removes from the constructor, left sitting on the
+    readback. Its natural faces are the tracked `symbol_rate_hz`, or the clock
+    offset in **ppm**, which is what a reader of this number actually wants.
+- **`norm_freq` reads back in cycles/sample.** If the seed is `carrier_hz`
+    then the tracked carrier should be Hz too, or the object takes one unit
+    and returns another.
+- **Nothing reports what the receiver can catch.** §2.2.1's pull-in range is
+    a property of `(nda_tap, m_out, m)` and a fraction of `Rs`, so with an
+    absolute symbol rate in scope it is computable — a read-only `capture_hz`.
+    This follows the rule that a condition the code already computes should be
+    exposed as a value rather than described in prose, and it is what makes a
+    derived `m_out` honest (§9.3).
+
+`bn_carrier` and `bn_timing` can gain the same treatment for free: reporting
+`bn · symbol_rate_hz` alongside the dimensionless setting closes §9.1's
+mixed-unit gap on the diagnostic side, without touching the input contract
+that §1.1 established.

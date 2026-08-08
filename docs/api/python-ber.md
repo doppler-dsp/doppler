@@ -108,5 +108,6 @@ ______________________________________________________________________
 <!-- related-pages:start -->
 
 **Gallery** — [Measuring an Error Rate, Defensibly](../gallery/ber-awgn.md), [Gallery](../gallery/index.md)
+**Design** — [RateSync Timing Recovery](../design/ratesync-timing.md)
 
 <!-- related-pages:end -->

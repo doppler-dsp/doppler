@@ -82,7 +82,7 @@ _Continuous DSSS despreader — Costas carrier loop + DLL code loop._ [More...](
 |  double | [**despreader\_get\_code\_phase**](#function-despreader_get_code_phase) (const [**despreader\_state\_t**](structdespreader__state__t.md) \* state) <br> |
 |  double | [**despreader\_get\_code\_rate**](#function-despreader_get_code_rate) (const [**despreader\_state\_t**](structdespreader__state__t.md) \* state) <br> |
 |  double | [**despreader\_get\_lock\_metric**](#function-despreader_get_lock_metric) (const [**despreader\_state\_t**](structdespreader__state__t.md) \* state) <br> |
-|  double | [**despreader\_get\_norm\_freq**](#function-despreader_get_norm_freq) (const [**despreader\_state\_t**](structdespreader__state__t.md) \* state) <br> |
+|  double | [**despreader\_get\_norm\_freq**](#function-despreader_get_norm_freq) (const [**despreader\_state\_t**](structdespreader__state__t.md) \* state) <br>_Tracked carrier frequency, cycles/sample (read/write). Delegates to the embedded Costas carrier loop, so it carries that object's meaning exactly: the SMOOTHED, integrator-only estimate, lagging a frequency ramp by the constant Type-II ramp error. The rate it is referenced to is the despreader's INPUT rate, not the chip or symbol rate. Writing retunes the carrier loop and clears its filter so it re-acquires from the new centre; the code loop is untouched._  |
 |  void | [**despreader\_get\_state**](#function-despreader_get_state) (const [**despreader\_state\_t**](structdespreader__state__t.md) \* state, void \* blob) <br> |
 |  void | [**despreader\_init**](#function-despreader_init) ([**despreader\_state\_t**](structdespreader__state__t.md) \* ch, const uint8\_t \* code, size\_t code\_len, size\_t sps, double init\_norm\_freq, double init\_chip, double bn\_carrier, double bn\_code, double bn\_fll, double zeta, double spacing, size\_t periods\_per\_bit) <br>_Initialise a despreader in place; BORROWS_ `code` _._ |
 |  void | [**despreader\_reset**](#function-despreader_reset) ([**despreader\_state\_t**](structdespreader__state__t.md) \* state) <br>_Re-seed both loops to the create-time frequency/phase; keep config._  |
@@ -562,6 +562,7 @@ double despreader_get_lock_metric (
 
 ### function despreader\_get\_norm\_freq 
 
+_Tracked carrier frequency, cycles/sample (read/write). Delegates to the embedded Costas carrier loop, so it carries that object's meaning exactly: the SMOOTHED, integrator-only estimate, lagging a frequency ramp by the constant Type-II ramp error. The rate it is referenced to is the despreader's INPUT rate, not the chip or symbol rate. Writing retunes the carrier loop and clears its filter so it re-acquires from the new centre; the code loop is untouched._ 
 ```C++
 double despreader_get_norm_freq (
     const despreader_state_t * state

@@ -98,9 +98,10 @@ costas_update(costas_state_t *s, float complex P)
     double car_w = s->lf.integ / (double)s->tsamps;
     lo_set_norm_freq(&s->nco, car_w / (2.0 * M_PI));
     /* proportional phase nudge: kp*e radians -> cycles -> uint32 phase
-     * delta, via the one shared primitive (a bare truncating cast here
-     * is UB on a negative value -- see nco_norm_to_inc()'s own doc). */
-    s->nco.phase += nco_norm_to_inc ((s->lf.kp * e) / (2.0 * M_PI));
+     * word, via the PHASE face of the one shared primitive -- this is an
+     * absolute angle, not a rate (a bare truncating cast here would be UB
+     * on a negative value; see nco_norm_fold_()'s own doc). */
+    s->nco.phase += nco_norm_phase_to_word ((s->lf.kp * e) / (2.0 * M_PI));
     /* lock metric: |Re|/|P| EMA (1 = phase-locked BPSK, ~0 = no carrier) */
     double inst = (double)(fabsf(reP) / aP);
     s->lock_metric += COSTAS_LOCK_ALPHA * (inst - s->lock_metric);

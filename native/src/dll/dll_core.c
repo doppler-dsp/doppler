@@ -674,9 +674,10 @@ dll_steps_impl (dll_state_t *state, const float complex *x, size_t x_len,
               state->code_rate = 1.0 + lf_out * state->inv_tsamps;
               /* rate_aid (0 = off): the carrier-aiding rate bias, scaled by
                  the nominal per-sample rate so it rides the sample-and-hold
-                 phase_inc continuously across the epoch (see dll_update()). */
-              state->code_nco.phase_inc = nco_norm_freq_to_inc (
-                  state->inv_tsamps * (1.0 + state->rate_aid) + ctrl);
+                 phase_inc continuously across the epoch (see dll_update()).
+                 The second of the two steer sites -- the reason
+                 dll_steer_inc() exists rather than the expression twice. */
+              state->code_nco.phase_inc = dll_steer_inc (state, ctrl);
 
               /* Output: this epoch's own natural chunk sums, normalized by
                  the clean power reference found above -- never the

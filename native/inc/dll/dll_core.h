@@ -371,6 +371,34 @@ void dll_lock_look(dll_state_t *s, double norm);
 void dll_lock_epoch(dll_state_t *s);
 
 /**
+ * @brief The one place dll steers its code NCO.
+ *
+ * Both steer sites -- dll_update() below (segments == 1) and
+ * dll_steps_impl()'s segments>1 branch (dll_core.c) -- form the identical
+ * `inv_tsamps x (1 + rate_aid) + ctrl`, and each builds @p ctrl its own way.
+ * They call this rather than writing the expression twice.
+ *
+ * There is deliberately no band on the result. @p ctrl is a normalised
+ * frequency and it converts exactly like every other one in the library --
+ * lo's and nco's ctrl ports, resamp's rate -- through the shared fold, which
+ * is total and defined for any input. symsync is banded because it had an
+ * observed unrecoverable failure (a floored steer stops a timing NCO for
+ * good) AND an already-declared sane range to restate; dll has neither, and
+ * inventing a band would be inventing policy. Measured: the loop's own
+ * control never leaves +-0.2% of nominal, unlocked in pure noise included.
+ *
+ * @param s     DLL state.  Must be non-NULL.
+ * @param ctrl  Pure control deviation in cycles/sample -- the loop's own
+ *              correction, with no nominal rate in it.
+ * @return Phase increment for `code_nco.phase_inc`.
+ */
+JM_FORCEINLINE JM_HOT uint32_t
+dll_steer_inc(const dll_state_t *s, double ctrl)
+{
+    return nco_norm_freq_to_inc(s->inv_tsamps * (1.0 + s->rate_aid) + ctrl);
+}
+
+/**
  * @brief Per-period code discriminator + loop update + NCO steer.
  *
  * Runs the power-domain non-coherent early-minus-late discriminator
@@ -439,8 +467,7 @@ dll_update(dll_state_t *s)
     /* rate_aid (0 = off): a fixed carrier-aiding rate bias, scaled by the
        nominal per-sample rate so it sums into the sample-and-hold phase_inc
        as a continuous adjustment across the epoch, not a phase pulse. */
-    s->code_nco.phase_inc
-        = nco_norm_freq_to_inc(s->inv_tsamps * (1.0 + s->rate_aid) + ctrl);
+    s->code_nco.phase_inc = dll_steer_inc(s, ctrl);
 }
 
 /**
@@ -636,9 +663,11 @@ void dll_set_bn(dll_state_t *state, double val);
  * Doppler, `carrier_offset_hz / carrier_freq_hz`, so the code NCO rides the
  * code-rate dilation the discriminator alone can't pull in at low SNR.
  * Applied continuously across the epoch (via `phase_inc`), not as a phase
- * pulse. Also nudges the current `phase_inc` so the aid takes effect before
- * the first period update. `code_rate` stays the loop's own observable and
- * is unaffected.
+ * pulse. It does NOT touch the current `phase_inc`, deliberately: this is
+ * safe to call every period for continuous aiding without clobbering the
+ * loop's own steering, and the cost is that a fresh DLL drifts for at most
+ * one (sub-chip) period before the first update applies the aid.
+ * `code_rate` stays the loop's own observable and is unaffected.
  *
  * @param state     DLL state. Must be non-NULL.
  * @param rate_aid  Fractional code-rate deviation (e.g. 8e-6). 0 disables.

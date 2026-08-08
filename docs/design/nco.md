@@ -210,15 +210,43 @@ physically mean), and `nco_steer_scale` is the shared mechanism. With the band
 applied, the product cannot floor or saturate, and the conversion goes back to
 being a safety net.
 
-!!! warning "Still unbounded: `Dll`"
+### `Dll` — why it is *not* banded
 
-    `dll_core.h:441` and `dll_core.c:678` both form
-    `nco_norm_freq_to_inc(inv_tsamps × (1 + rate_aid) + ctrl)` with no band — two
-    copies of the same expression. It fails *differently* from symsync: the
-    fold means a negative code rate becomes a near-full-rate **forward** one
-    rather than a dead clock, so it is silently wrong rather than stuck. No
-    band is declared anywhere for it, so choosing one is policy rather than
-    restatement.
+The obvious next question is why `dll` does not get the same treatment. It
+forms `nco_norm_freq_to_inc(inv_tsamps × (1 + rate_aid) + ctrl)`, and `ctrl`
+comes from a loop filter just like symsync's does.
+
+The answer is that symsync's band was a **restatement**, not an invention. It
+had an unrecoverable failure (a floored steer stops a timing NCO for good, and
+a stopped strobe never recovers) *and* an already-declared sane range —
+`rate_est`'s clamp — that it simply was not applying to the NCO. dll has
+neither. Its `ctrl` is a normalised frequency that converts exactly like every
+other one in the library — `lo`'s and `nco`'s ctrl ports, `resamp`'s rate —
+through a fold that is total and defined for any input, and its wrap detection
+is `nco_step_u32_ovf`, the plain unsigned-carry form, because its `phase_inc`
+is a stored `uint32_t` and the sign is gone by construction. That is the
+ordinary contract, not a defect.
+
+The measurement says the same thing. Over 600 periods at SF=63, SPS=4,
+bn=0.005, the loop's own control never leaves ±0.2% of nominal — and the worst
+case there is *unlocked in pure noise*, not a hard signal:
+
+| scenario            | `code_rate` min | max      |
+| ------------------- | --------------- | -------- |
+| nominal, clean      | 1.000000        | 1.000000 |
+| ±1e-2 rate error    | 0.998816        | 1.000303 |
+| Es/N0 = −10 dB      | 0.999925        | 1.000089 |
+| pure noise (−30 dB) | 0.998358        | 1.000447 |
+
+Any band wide enough not to clip real aiding would sit two orders of magnitude
+away from anything the loop does, which makes it a number chosen to look
+reasonable rather than one the object means. `rate_aid` — the caller's
+`carrier_offset_hz / carrier_freq_hz` — is stored unvalidated, and that is the
+caller's contract to keep, the same as any other normalised frequency handed
+to the library.
+
+What the two sites *did* share was the expression itself, in two copies. They
+now both call `dll_steer_inc(s, ctrl)`.
 
 ______________________________________________________________________
 

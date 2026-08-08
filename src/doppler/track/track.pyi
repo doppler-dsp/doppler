@@ -909,9 +909,12 @@ class Dll:
         physically-coupled Doppler, `carrier_offset_hz / carrier_freq_hz`, so
         the code NCO rides the code-rate dilation the discriminator alone can't
         pull in at low SNR. Applied continuously across the epoch (via
-        `phase_inc`), not as a phase pulse. Also nudges the current `phase_inc`
-        so the aid takes effect before the first period update. `code_rate`
-        stays the loop's own observable and is unaffected.
+        `phase_inc`), not as a phase pulse. It does NOT touch the current
+        `phase_inc`, deliberately: this is safe to call every period for
+        continuous aiding without clobbering the loop's own steering, and the
+        cost is that a fresh DLL drifts for at most one (sub-chip) period
+        before the first update applies the aid. `code_rate` stays the loop's
+        own observable and is unaffected.
 
         Parameters
         ----------

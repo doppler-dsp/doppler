@@ -4,24 +4,14 @@
 # `Class.param`, and check_init_param_optionality.py reports an entry that has
 # stopped diverging, so this list cannot quietly outlive its reason.
 #
-# just-makeit#845. NOT the same reason these were first listed, and the
-# original exit condition was wrong, so it is written out here.
+# EMPTY as of just-makeit 0.53.1. `MemoryCapture.clock` and `Capture.clock`
+# were the last two, and the fix arrived on the STUB side, not the binding:
+# gh-845 made the module-aggregated .pyi producer test capsule-ness directly
+# instead of inferring it from the manifest's `required` flag, so the stub now
+# renders `clock: object | None` — a required positional, which is what the
+# binding has always demanded. The argument is still not omittable, and that
+# is now stated honestly on both faces rather than being a divergence.
 #
-# They went on the list for #823 Ask C / #805 SS-H: a capsule init-param
-# rejected Py_None unconditionally, so `Capture(clock=None)` raised while the
-# stub rendered `= ...`. The note said "remove both when the pin carries Ask C;
-# the TypeError simply becomes a working call."
-#
-# 0.53.0 carries it and `clock=None` now works -- verified, and the C has
-# always taken NULL to mean "no time base stated". But **omitting** the
-# argument still raises `missing required argument 'clock'`, and the stub still
-# says `= ...`. Accepting None and being omittable are different axes (jm's own
-# 0.53.0 notes say so); only the first was fixed. So the divergence these
-# entries describe is unchanged and they stay.
-#
-# Remove them when the STUB stops advertising a default the binding does not
-# honour -- just-makeit#845, which also reports a worse sibling: when a capsule
-# param is declared before a defaulted one, the stub and kwlist disagree on
-# ORDER too. doppler is not exposed to that half; ours is declared last.
-MemoryCapture.clock
-Capture.clock
+# Worth keeping in mind if this list ever refills: the two axes are separate.
+# `clock=None` being ACCEPTED (gh-805 §H, 0.53.0) and `clock` being OMITTABLE
+# are different questions, and only the first was ever in play here.

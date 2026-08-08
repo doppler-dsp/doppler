@@ -77,15 +77,16 @@ rx.set_telemetry(tlm, "rx", 1)
 
 # The capture owns the drain. `set_now(i)` marks the boundary and drains the
 # block just finished; no ring size to guess, no read()/concatenate loop, and
-# no post-hoc assert standing in for a guarantee.
+# no post-hoc assert standing in for a guarantee. Leaving the block finalizes
+# and RAISES if a record was lost — so reaching the next line is itself the
+# losslessness proof — but it does not free, so the capture is still readable.
 with MemoryCapture(tlm, BLOCK, SampleClock(FS)) as cap:
     for i in range(0, iq.size, BLOCK):
         tlm.set_now(i)
         rx.steps(iq[i : i + BLOCK])
-    cap.close()  # final drain — and it RAISES if a record was lost, so
-    #              reaching the next line is itself the losslessness proof
-    series = cap.read_dict(index=True)  # {name: (sample_index, values)}
-    recs = cap.records()  # the same data, still 16-byte wire records
+
+series = cap.read_dict(index=True)  # {name: (sample_index, values)}
+recs = cap.records()  # the same data, still 16-byte wire records
 
 # The 16-byte record layout IS the capture format: .tofile() writes exactly
 # the TLM16 payload tlm_sink frames onto the wire.

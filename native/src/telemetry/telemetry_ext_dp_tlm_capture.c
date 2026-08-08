@@ -388,23 +388,21 @@ static PyObject *
 MemoryCaptureObj_exit (MemoryCaptureObject *self, PyObject *args)
 {
   (void)args;
-  if (self->handle)
+  if (!self->handle)
+    Py_RETURN_NONE;
+  /* gh-805 §H: the handle deliberately SURVIVES this call —
+     finalize is not free, and the captured results only become
+     valid once it has run. The free stays in tp_dealloc. */
+  int _rc = dp_tlm_capture_close (self->handle);
+  if (_rc != 0)
     {
-      int rc = dp_tlm_capture_destroy (self->handle);
-      /* gh-541: clear the handle before reporting, so a second
-         call is a no-op rather than a double free — the state is
-         released whatever the status says. */
-      self->handle = NULL;
-      if (rc != 0)
-        {
-          PyErr_SetString (PyExc_ValueError,
-                           "the capture has a hole: records were dropped, "
-                           "which the block bound makes impossible unless a "
-                           "step ran longer than block_samples or no "
-                           "boundary was reached at all — see "
-                           "Capture.dropped");
-          return NULL;
-        }
+      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
+                    "the capture has a hole: records were dropped, which the "
+                    "block bound makes impossible unless a step ran longer "
+                    "than block_samples or no boundary was reached at all — "
+                    "see Capture.dropped",
+                    (long long)_rc);
+      return NULL;
     }
   Py_RETURN_NONE;
 }
@@ -448,9 +446,7 @@ static PyMethodDef MemoryCaptureObj_methods[] = {
     "...     tlm.set_now(0)\n"
     "...     tlm.emit(eid, 0.25)\n"
     "...     tlm.set_now(64)\n"
-    "...     cap.close()\n"
-    "...     d = cap.read_dict(index=True)\n"
-    ">>> n, v = d[\"sync.e\"]\n"
+    ">>> n, v = cap.read_dict(index=True)[\"sync.e\"]\n"
     ">>> v\n"
     "array([0.25], dtype=float32)\n"
     ">>> n\n"

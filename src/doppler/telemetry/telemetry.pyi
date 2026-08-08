@@ -636,7 +636,7 @@ class MemoryCapture:
 
         Raises
         ------
-        RuntimeError
+        ValueError
             If the C destructor reports failure. Raised from an explicit call
             and from ``__exit__`` alike, so a failing teardown propagates out
             of a ``with`` block (gh-541).
@@ -647,7 +647,7 @@ class MemoryCapture:
         """Enter a context manager, returning this object.
 
         Lets a MemoryCapture be used in a `with` statement so its C resources
-        are released deterministically on exit rather than at collection time.
+        are finalized deterministically on exit rather than at collection time.
 
         Returns
         -------
@@ -661,11 +661,15 @@ class MemoryCapture:
         exc: object | None = ...,
         tb: object | None = ...,
     ) -> None:
-        """Exit a context manager, releasing the MemoryCapture.
+        """Exit a context manager, finalizing the MemoryCapture.
 
-        Equivalent to calling `destroy()`. Returns ``None``, so an exception
-        raised inside the `with` body propagates normally; this never
-        suppresses one.
+        Equivalent to calling `close()`. The MemoryCapture is **not** released
+        here: it stays usable, which is what makes results gathered during the
+        `with` body readable after it. The memory is freed when the object is
+        collected.
+
+        Returns ``None``, so an exception raised inside the `with` body
+        propagates normally; this never suppresses one.
 
         Parameters
         ----------
@@ -860,7 +864,7 @@ class Capture:
 
         Raises
         ------
-        RuntimeError
+        ValueError
             If the C destructor reports failure. Raised from an explicit call
             and from ``__exit__`` alike, so a failing teardown propagates out
             of a ``with`` block (gh-541).
@@ -871,7 +875,7 @@ class Capture:
         """Enter a context manager, returning this object.
 
         Lets a Capture be used in a `with` statement so its C resources are
-        released deterministically on exit rather than at collection time.
+        finalized deterministically on exit rather than at collection time.
 
         Returns
         -------
@@ -885,11 +889,15 @@ class Capture:
         exc: object | None = ...,
         tb: object | None = ...,
     ) -> None:
-        """Exit a context manager, releasing the Capture.
+        """Exit a context manager, finalizing the Capture.
 
-        Equivalent to calling `destroy()`. Returns ``None``, so an exception
-        raised inside the `with` body propagates normally; this never
-        suppresses one.
+        Equivalent to calling `close()`. The Capture is **not** released here:
+        it stays usable, which is what makes results gathered during the `with`
+        body readable after it. The memory is freed when the object is
+        collected.
+
+        Returns ``None``, so an exception raised inside the `with` body
+        propagates normally; this never suppresses one.
 
         Parameters
         ----------

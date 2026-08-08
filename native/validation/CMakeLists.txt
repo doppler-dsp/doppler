@@ -113,6 +113,18 @@ target_compile_options(validate_mpsk_receiver_r_ber PRIVATE -O3 -funroll-loops)
 add_test(NAME validate_mpsk_receiver_r_ber
          COMMAND validate_mpsk_receiver_r_ber --check)
 
+# The TED S-curves are pure header functions, so this one needs no core at
+# all beyond libm -- but it links doppler_lib_static like its siblings so the
+# harness set stays uniform.
+add_executable(validate_symsync_ted_scurve
+               ${CMAKE_CURRENT_SOURCE_DIR}/symsync_ted_scurve.c)
+target_include_directories(validate_symsync_ted_scurve
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
+target_link_libraries(validate_symsync_ted_scurve PRIVATE doppler_lib_static m)
+target_compile_options(validate_symsync_ted_scurve PRIVATE -O3)
+add_test(NAME validate_symsync_ted_scurve
+         COMMAND validate_symsync_ted_scurve --check)
+
 add_executable(validate_symsync_lock
                ${CMAKE_CURRENT_SOURCE_DIR}/symsync_lock.c)
 target_include_directories(validate_symsync_lock

@@ -441,6 +441,31 @@ ______________________________________________________________________
 `beta = 0.15` and −43.47/−47.62 at 0.35 — the advantage holds at 8.5 and
 4.2 dB). The decision below rests on the re-measured numbers.
 
+!!! warning "These rows predate `dttl_ted` self-normalising — read them as amplitude-specific"
+
+    Both passes above were taken while **both** TEDs were normalised by a
+    power reference applied outside the detector. That is correct for
+    Gardner, whose numerator is quadratic in the signal amplitude, and wrong
+    for DTTL, whose numerator is linear — so DTTL's loop gain carried a
+    residual `1/A`, and every number in this table is a measurement at
+    whatever amplitude that harness happened to use.
+
+    Fixed 2026-08-08: each detector now normalises itself (`gardner_ted` by
+    `pwr_ref`, `dttl_ted` by `2*sqrt(pwr_ref)`), and
+    `validate_symsync_ted_scurve` pins the two S-curve slopes to within ±20%
+    across an 8× amplitude sweep — the same guarantee `carrier_nda_disc`
+    already gives across M. **Gardner is bit-identical**, so the Gardner
+    column and every Gardner-vs-Gardner comparison in this note stand; the
+    DTTL column needs re-measuring before the advantage figures are quoted
+    again.
+
+    How much this mattered depends entirely on amplitude, which is why it
+    survived here: sabotaged back to the power normaliser, the slope-ratio
+    gate reads 1.389 / 2.778 / 11.112 at amplitude 1.0 / 0.5 / 0.125, and
+    **1.389 passes**. A standalone stream near unit amplitude cannot see the
+    defect. `MpskReceiverR` runs at 0.5 (a CIC bounds its input to ±1), where
+    the timing loop ran ~24× hot and recovered 5 symbols out of 5998.
+
 The advantage is largest exactly where Gardner is weakest and vanishes at full
 excess bandwidth, which is the same excess-bandwidth story from the other
 side: a decision-directed detector still has timing information where a
@@ -458,6 +483,15 @@ transition-sample detector has run out.
     Not yet implemented. `MpskReceiver` passes `RATESYNC_TED_GARDNER` as a
     literal so the TED specialises branch-free, so the change is a per-M
     selection at construction, not a runtime switch.
+
+    **It was also blocked, and is not any more.** Selecting DTTL for BPSK on
+    `MpskReceiverR` under the old normalisation produced 5 recovered symbols
+    out of 5998 at every `nda_tap` — the loop never closed, so the "decision"
+    above could not have been implemented as written. With the detector
+    normalising itself, the same BPSK case recovers all 5998 and reads
+    **−18.4 dB EVM against Gardner's −17.9** (M2M4 16.2 vs 15.6 dB), which is
+    the first end-to-end evidence for this decision through a receiver rather
+    than a standalone `RateSync`.
 
 ______________________________________________________________________
 

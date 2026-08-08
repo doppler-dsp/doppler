@@ -78,6 +78,34 @@ ______________________________________________________________________
 
 ### Fixed
 
+- **`ted="dttl"` ran the timing loop with a gain proportional to `1/A`.** Both
+    call sites divided *both* timing-error detectors by a power reference
+    applied outside the detector. That is correct for Gardner, whose numerator
+    `mid . (on - prev)` is quadratic in the signal amplitude, and wrong for
+    DTTL, whose numerator `mid . (sign(on) - sign(prev))` is linear — so DTTL's
+    loop gain moved with the input level and `bn` stopped meaning a bandwidth.
+
+    Measured on `MpskReceiverR` at BPSK (`TX_AMP = 0.5`, the amplitude a
+    CIC-bounded front end runs at): DTTL's mean `|e|` was **28.0 against
+    Gardner's 1.19**, the loop ran ~24× hot and never closed, and the receiver
+    recovered **5 symbols out of 5998** at every `nda_tap`. With the detector
+    normalised the same case recovers all 5998 and reads **−18.4 dB EVM against
+    Gardner's −17.9** (blind M2M4 agrees: 16.2 vs 15.6 dB).
+
+    **Each detector now normalises itself** — `gardner_ted` by `pwr_ref`,
+    `dttl_ted` by `2*sqrt(pwr_ref)` — so every TED hands the loop filter the
+    same S-curve slope, the guarantee `carrier_nda_disc` already gives across
+    M. The loops keep their own running reference and their own guard and pass
+    it in. **Gardner is bit-identical**; only DTTL's gain moves.
+
+    New gate `validate_symsync_ted_scurve` pins the two slopes to within ±20%
+    across an 8× amplitude sweep (measured 0.84 at BPSK, 1.19 at QPSK). The
+    sweep is the test: sabotaged back to the power normaliser the ratio reads
+    1.389 / 2.778 / 11.112 at amplitude 1.0 / 0.5 / 0.125 — and **1.389
+    passes**, which is exactly how the defect survived being characterised on a
+    unit-amplitude standalone `RateSync` stream. `docs/design/ratesync-timing.md`
+    §4's DTTL column is flagged as amplitude-specific and needs re-measuring.
+
 - **The NCO's cycle-boundary flag was wrong for any negative control.**
     `nco_step_u32_ovf_ctrl`/`nco_steps_u32_ovf_ctrl` (Python
     `NCO.steps_u32_ovf_ctrl`) folded the control bipolar → unipolar before the

@@ -474,6 +474,8 @@ void dp_tlm_demux_counts (const dp_tlm_rec_t *recs, size_t n, size_t *counts,
  * the values are wanted.  Writes stop at each probe's capacity, so a buffer
  * sized from a stale count truncates rather than overruns.
  *
+ * @param recs   Records to split; borrowed, only read.
+ * @param n      Records in @p recs.
  * @param values Per-probe `float` destinations, indexed by id; may be NULL.
  * @param index  Per-probe `uint64_t` sample-index destinations; may be NULL.
  * @param caps   Per-probe capacities in records, indexed by id.

@@ -154,6 +154,106 @@ TelemetryObj_read (TelemetryObject *self, PyObject *args, PyObject *kwds)
   return arr0;
 }
 
+/* Hand-written, and jm cannot generate it: the return is a dict whose KEYS
+   come from the probe registry and whose VALUES are numpy arrays of
+   data-dependent length — a shape with no manifest spelling (jm's `dict`
+   property binds scalar values). The regrouping itself is NOT here: that is
+   dp_tlm_demux() in dp_tlm_core.c, so a C consumer gets the same split.
+   This is the marshalling only. */
+static PyObject *
+TelemetryObj_read_dict (TelemetryObject *self, PyObject *args, PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char       *_kwlist[] = { "n", "index", NULL };
+  unsigned long long n_raw     = 0;
+  int                with_idx  = 0;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|Kp", _kwlist, &n_raw,
+                                    &with_idx))
+    return NULL;
+
+  float        *values[DP_TLM_MAX_PROBES];
+  uint64_t     *index[DP_TLM_MAX_PROBES];
+  size_t        caps[DP_TLM_MAX_PROBES];
+  size_t        nprobes = dp_tlm_probe_count (self->handle);
+  size_t        cap     = dp_tlm_read_max_out (self->handle);
+  dp_tlm_rec_t *recs    = NULL;
+  size_t        n_out   = 0;
+
+  if (cap > 0)
+    {
+      recs = (dp_tlm_rec_t *)PyMem_Malloc (cap * sizeof *recs);
+      if (!recs)
+        return PyErr_NoMemory ();
+      n_out = dp_tlm_read (self->handle, (size_t)n_raw, recs, cap);
+    }
+  dp_tlm_demux_counts (recs, n_out, caps, nprobes);
+
+  PyObject *out = PyDict_New ();
+  if (!out)
+    {
+      PyMem_Free (recs);
+      return NULL;
+    }
+
+  /* Every REGISTERED probe gets a key, including one that emitted nothing
+     this drain: a caller plotting per probe wants a stable key set, and an
+     absent key would read as "no such probe" rather than "nothing yet". */
+  for (size_t i = 0; i < nprobes; i++)
+    {
+      const char *name = dp_tlm_probe_name (self->handle, i);
+      if (!name)
+        {
+          PyErr_Format (PyExc_RuntimeError,
+                        "read_dict: dp_tlm_probe_name returned NULL at %zu",
+                        i);
+          goto fail;
+        }
+      npy_intp  dim = (npy_intp)caps[i];
+      PyObject *v   = PyArray_SimpleNew (1, &dim, NPY_FLOAT);
+      if (!v)
+        goto fail;
+      values[i] = (float *)PyArray_DATA ((PyArrayObject *)v);
+      index[i]  = NULL;
+
+      PyObject *entry = v; /* borrowed into `entry`; `v` still owns it */
+      if (with_idx)
+        {
+          PyObject *nn = PyArray_SimpleNew (1, &dim, NPY_UINT64);
+          if (!nn)
+            {
+              Py_DECREF (v);
+              goto fail;
+            }
+          index[i] = (uint64_t *)PyArray_DATA ((PyArrayObject *)nn);
+          /* (n, values) — index first, so `for name, (n, v) in ...` reads
+             in the same order as a plot's (x, y). */
+          entry = PyTuple_Pack (2, nn, v);
+          Py_DECREF (nn);
+          Py_DECREF (v);
+          if (!entry)
+            goto fail;
+        }
+      int rc = PyDict_SetItemString (out, name, entry);
+      Py_DECREF (entry);
+      if (rc < 0)
+        goto fail;
+    }
+
+  /* The dict owns every buffer above, so the pointers stay valid here. */
+  dp_tlm_demux (recs, n_out, values, with_idx ? index : NULL, caps, nprobes);
+  PyMem_Free (recs);
+  return out;
+
+fail:
+  PyMem_Free (recs);
+  Py_DECREF (out);
+  return NULL;
+}
+
 static PyObject *
 TelemetryObj_probe (TelemetryObject *self, PyObject *args, PyObject *kwds)
 {
@@ -485,6 +585,54 @@ TelemetryObj_exit (TelemetryObject *self, PyObject *args)
 }
 
 static PyMethodDef TelemetryObj_methods[] = {
+
+  { "read_dict", (PyCFunction)(void *)TelemetryObj_read_dict,
+    METH_VARARGS | METH_KEYWORDS,
+    "read_dict(n=0, index=False) -> dict\n"
+    "\n"
+    "Drains like read(), but grouped by probe name.\n"
+    "\n"
+    "The same records read() returns, split per probe so a consumer never\n"
+    "writes the `recs[recs[\"probe\"] == tlm.probe_id(name)][\"value\"]`\n"
+    "filter or the id-to-name inversion by hand. Every REGISTERED probe\n"
+    "gets a key, including one that emitted nothing this drain, so the key\n"
+    "set is stable across calls.\n"
+    "\n"
+    "Consuming: this DRAINS the ring, exactly as read() does. Calling both\n"
+    "in one loop splits the records between them.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "n : int, optional\n"
+    "    Records wanted; 0 (the default) means everything available.\n"
+    "index : bool, optional\n"
+    "    When True each value is ``(n, values)`` — the sample indices\n"
+    "    alongside the values, so a real time axis is ``n / fs``. When\n"
+    "    False (the default) each value is just the values array.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "dict\n"
+    "    ``{probe_name: values}``, or ``{probe_name: (n, values)}`` when\n"
+    "    `index` is True.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.telemetry import Telemetry\n"
+    ">>> tlm = Telemetry(1 << 12)\n"
+    ">>> eid = tlm.probe(\"sync.e\")\n"
+    ">>> lid = tlm.probe(\"sync.lock\")\n"
+    ">>> tlm.set_now(7)\n"
+    ">>> tlm.emit(eid, 0.5)\n"
+    ">>> tlm.emit(lid, 1.0)\n"
+    ">>> d = tlm.read_dict()\n"
+    ">>> sorted(d)\n"
+    "['sync.e', 'sync.lock']\n"
+    ">>> d[\"sync.e\"]\n"
+    "array([0.5], dtype=float32)\n"
+    ">>> n, v = tlm.read_dict(index=True)[\"sync.e\"]\n"
+    ">>> n.size          # drained by the call above\n"
+    "0\n" },
 
   { "read", (PyCFunction)(void *)TelemetryObj_read,
     METH_VARARGS | METH_KEYWORDS,

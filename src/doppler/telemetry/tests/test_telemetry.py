@@ -189,3 +189,99 @@ def test_producer_consumer_threads():
     assert len(recs) + tlm.dropped == n_events
     # In-order delivery: stamped sample indices strictly increase.
     assert np.all(np.diff(recs["n"].astype(np.int64)) > 0)
+
+
+class TestReadDict:
+    """Grouping by probe name — the split that every consumer used to write.
+
+    The regrouping itself is C (``dp_tlm_demux``, proven in
+    ``native/tests/test_dp_tlm_core.c``); what is checked here is the
+    marshalling the binding adds: the key set, the two value shapes, and that
+    it drains exactly as ``read()`` does.
+    """
+
+    def test_groups_by_name_and_matches_read(self):
+        tlm = Telemetry(1 << 12)
+        e = tlm.probe("sync.e")
+        lock = tlm.probe("sync.lock")
+        tlm.set_now(7)
+        tlm.emit(e, 0.5)
+        tlm.emit(lock, 1.0)
+        tlm.set_now(9)
+        tlm.emit(e, 0.25)
+
+        d = tlm.read_dict()
+        assert sorted(d) == ["sync.e", "sync.lock"]
+        assert [float(v) for v in d["sync.e"]] == [0.5, 0.25]
+        assert [float(v) for v in d["sync.lock"]] == [1.0]
+        assert d["sync.e"].dtype == np.float32
+
+    def test_every_registered_probe_gets_a_key(self):
+        """A silent probe is an empty array, not a missing key.
+
+        An absent key reads as "no such probe", which is a different and
+        wrong statement — and it would break a plotting loop on the first
+        block where a probe happened not to fire.
+        """
+        tlm = Telemetry(1 << 12)
+        e = tlm.probe("sync.e")
+        tlm.probe("sync.lock")  # registered, never emitted
+        tlm.emit(e, 1.0)
+
+        d = tlm.read_dict()
+        assert sorted(d) == ["sync.e", "sync.lock"]
+        assert d["sync.lock"].size == 0
+
+    def test_index_pairs_sample_numbers_with_values(self):
+        tlm = Telemetry(1 << 12)
+        e = tlm.probe("sync.e")
+        tlm.set_now(100)
+        tlm.emit(e, 1.0)
+        tlm.set_now(200)
+        tlm.emit(e, 2.0)
+
+        n, v = tlm.read_dict(index=True)["sync.e"]
+        assert [int(x) for x in n] == [100, 200]
+        assert [float(x) for x in v] == [1.0, 2.0]
+        assert n.dtype == np.uint64
+
+    def test_it_drains_like_read(self):
+        tlm = Telemetry(1 << 12)
+        e = tlm.probe("sync.e")
+        tlm.emit(e, 1.0)
+
+        assert tlm.read_dict()["sync.e"].size == 1
+        assert tlm.read_dict()["sync.e"].size == 0  # consumed
+        assert tlm.read().size == 0
+
+    def test_n_limits_the_drain(self):
+        tlm = Telemetry(1 << 12)
+        e = tlm.probe("sync.e")
+        for i in range(5):
+            tlm.emit(e, float(i))
+
+        assert tlm.read_dict(2)["sync.e"].size == 2
+        assert tlm.read_dict()["sync.e"].size == 3  # the remainder
+
+    def test_interleaved_probes_keep_their_own_order(self):
+        """The property a per-probe filter and a one-pass demux differ on."""
+        tlm = Telemetry(1 << 12)
+        a = tlm.probe("a")
+        b = tlm.probe("b")
+        for i in range(4):
+            tlm.emit(a, float(i))
+            tlm.emit(b, float(-i))
+
+        d = tlm.read_dict()
+        assert [float(v) for v in d["a"]] == [0.0, 1.0, 2.0, 3.0]
+        assert [float(v) for v in d["b"]] == [0.0, -1.0, -2.0, -3.0]
+
+    def test_no_probes_is_an_empty_dict(self):
+        assert Telemetry(1 << 12).read_dict() == {}
+
+    def test_destroyed_context_raises(self):
+        tlm = Telemetry(1 << 12)
+        tlm.probe("x")
+        tlm.destroy()
+        with pytest.raises(RuntimeError, match="destroyed"):
+            tlm.read_dict()

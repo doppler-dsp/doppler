@@ -192,6 +192,95 @@ done:
 }
 
 static PyObject *
+MemoryCaptureObj_read_dict (MemoryCaptureObject *self, PyObject *args,
+                            PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char       *_kwlist[] = { "n", "index", NULL };
+  unsigned long long n_raw     = 0;
+  int                with_idx  = 0;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|Kp", _kwlist, &n_raw,
+                                    &with_idx))
+    return NULL;
+
+  /* The context carries the registry the ids resolve against. */
+  dp_tlm_t *tlm = dp_tlm_capture_context (self->handle);
+  if (!tlm)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "read_dict: no context");
+      return NULL;
+    }
+
+  float    *values[DP_TLM_MAX_PROBES];
+  uint64_t *index[DP_TLM_MAX_PROBES];
+  size_t    caps[DP_TLM_MAX_PROBES];
+  size_t    nprobes = dp_tlm_probe_count (tlm);
+
+  /* Borrowed, and only READ from here: every buffer handed back below is a
+     fresh numpy array, so nothing the capture can free escapes. Unlike
+     Telemetry.read_dict this does not consume — records() does not either. */
+  const dp_tlm_rec_t *recs  = dp_tlm_capture_records (self->handle);
+  size_t              n_out = dp_tlm_capture_count (self->handle);
+  if (n_raw != 0 && n_out > (size_t)n_raw)
+    n_out = (size_t)n_raw;
+  dp_tlm_demux_counts (recs, n_out, caps, nprobes);
+
+  PyObject *out = PyDict_New ();
+  if (!out)
+    return NULL;
+
+  for (size_t i = 0; i < nprobes; i++)
+    {
+      const char *name = dp_tlm_probe_name (tlm, i);
+      if (!name)
+        {
+          PyErr_Format (PyExc_RuntimeError,
+                        "read_dict: dp_tlm_probe_name returned NULL at %zu",
+                        i);
+          goto fail;
+        }
+      npy_intp  dim = (npy_intp)caps[i];
+      PyObject *v   = PyArray_SimpleNew (1, &dim, NPY_FLOAT);
+      if (!v)
+        goto fail;
+      values[i] = (float *)PyArray_DATA ((PyArrayObject *)v);
+      index[i]  = NULL;
+
+      PyObject *entry = v;
+      if (with_idx)
+        {
+          PyObject *nn = PyArray_SimpleNew (1, &dim, NPY_UINT64);
+          if (!nn)
+            {
+              Py_DECREF (v);
+              goto fail;
+            }
+          index[i] = (uint64_t *)PyArray_DATA ((PyArrayObject *)nn);
+          entry    = PyTuple_Pack (2, nn, v);
+          Py_DECREF (nn);
+          Py_DECREF (v);
+          if (!entry)
+            goto fail;
+        }
+      int rc = PyDict_SetItemString (out, name, entry);
+      Py_DECREF (entry);
+      if (rc < 0)
+        goto fail;
+    }
+
+  dp_tlm_demux (recs, n_out, values, with_idx ? index : NULL, caps, nprobes);
+  return out;
+
+fail:
+  Py_DECREF (out);
+  return NULL;
+}
+
+static PyObject *
 MemoryCaptureObj_records (MemoryCaptureObject *self, PyObject *args,
                           PyObject *kwds)
 {
@@ -372,6 +461,51 @@ MemoryCaptureObj_exit (MemoryCaptureObject *self, PyObject *args)
 }
 
 static PyMethodDef MemoryCaptureObj_methods[] = {
+
+  { "read_dict", (PyCFunction)(void *)MemoryCaptureObj_read_dict,
+    METH_VARARGS | METH_KEYWORDS,
+    "read_dict(n=0, index=False) -> dict\n"
+    "\n"
+    "The captured records, grouped by probe name.\n"
+    "\n"
+    "records() hands back one structured array carrying every probe\n"
+    "interleaved; this splits it, so a consumer never writes the\n"
+    "`recs[recs[\"probe\"] == id][\"value\"]` filter or the id-to-name\n"
+    "inversion by hand. Every REGISTERED probe gets a key, including one\n"
+    "that captured nothing, so the key set is stable.\n"
+    "\n"
+    "Like records(), this does NOT consume — call it as often as you like.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "n : int, optional\n"
+    "    Records to take from the front; 0 (the default) means all.\n"
+    "index : bool, optional\n"
+    "    When True each value is ``(n, values)`` — the sample indices\n"
+    "    alongside the values, so a real time axis is ``n / fs``.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "dict\n"
+    "    ``{probe_name: values}``, or ``{probe_name: (n, values)}`` when\n"
+    "    `index` is True.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.telemetry import MemoryCapture, Telemetry\n"
+    ">>> tlm = Telemetry(1 << 12)\n"
+    ">>> eid = tlm.probe(\"sync.e\")\n"
+    ">>> with MemoryCapture(tlm, 64, None) as cap:\n"
+    "...     tlm.set_now(0)\n"
+    "...     tlm.emit(eid, 0.25)\n"
+    "...     tlm.set_now(64)\n"
+    "...     cap.close()\n"
+    "...     d = cap.read_dict(index=True)\n"
+    ">>> n, v = d[\"sync.e\"]\n"
+    ">>> v\n"
+    "array([0.25], dtype=float32)\n"
+    ">>> n\n"
+    "array([0], dtype=uint64)\n" },
 
   { "records", (PyCFunction)(void *)MemoryCaptureObj_records,
     METH_VARARGS | METH_KEYWORDS,

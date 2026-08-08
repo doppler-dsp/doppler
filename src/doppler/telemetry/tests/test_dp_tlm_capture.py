@@ -249,3 +249,79 @@ class TestTheClockIsNullable:
         # Not fabricated: absent, not a confident zero.
         assert "fs" not in meta
         assert "epoch_real_ns" not in meta
+
+
+class TestReadDict:
+    """The capture's records, grouped by probe name.
+
+    The split itself is C (``dp_tlm_demux``); what is checked here is that the
+    capture resolves ids against the context it was opened on, and that —
+    unlike ``Telemetry.read_dict`` — reading does not consume.
+    """
+
+    def test_groups_the_capture_by_name(self):
+        tlm = Telemetry(1 << 12)
+        a = tlm.probe("rx.a")
+        b = tlm.probe("rx.b")
+        with MemoryCapture(tlm, BLOCK, SampleClock(1e6)) as cap:
+            for i in range(4):
+                tlm.set_now(i * BLOCK)
+                tlm.emit(a, float(i))
+                tlm.emit(b, float(-i))
+            cap.close()
+            d = cap.read_dict()
+
+        assert sorted(d) == ["rx.a", "rx.b"]
+        assert [float(v) for v in d["rx.a"]] == [0.0, 1.0, 2.0, 3.0]
+        assert [float(v) for v in d["rx.b"]] == [0.0, -1.0, -2.0, -3.0]
+
+    def test_index_gives_the_boundary_stamp(self):
+        """`n` is what makes a real time axis possible: seconds = n / fs."""
+        tlm = Telemetry(1 << 12)
+        p = tlm.probe("rx.x")
+        with MemoryCapture(tlm, BLOCK, SampleClock(1e6)) as cap:
+            for i in range(3):
+                tlm.set_now(i * BLOCK)
+                tlm.emit(p, float(i))
+            cap.close()
+            n, v = cap.read_dict(index=True)["rx.x"]
+
+        assert [int(x) for x in n] == [0, BLOCK, 2 * BLOCK]
+        assert [float(x) for x in v] == [0.0, 1.0, 2.0]
+
+    def test_it_does_not_consume(self):
+        """records() is re-readable, and so is this: the same data."""
+        tlm = Telemetry(1 << 12)
+        p = tlm.probe("rx.x")
+        with MemoryCapture(tlm, BLOCK, SampleClock(1e6)) as cap:
+            _run(tlm, p, cap, blocks=3)
+            cap.close()
+            assert cap.read_dict()["rx.x"].size == 3
+            assert cap.read_dict()["rx.x"].size == 3
+            assert cap.records().size == 3
+
+    def test_n_takes_from_the_front(self):
+        tlm = Telemetry(1 << 12)
+        p = tlm.probe("rx.x")
+        with MemoryCapture(tlm, BLOCK, SampleClock(1e6)) as cap:
+            _run(tlm, p, cap, blocks=5)
+            cap.close()
+            assert cap.read_dict(2)["rx.x"].size == 2
+            assert cap.read_dict()["rx.x"].size == 5
+
+    def test_a_silent_probe_still_gets_a_key(self):
+        tlm = Telemetry(1 << 12)
+        p = tlm.probe("rx.loud")
+        tlm.probe("rx.quiet")
+        with MemoryCapture(tlm, BLOCK, SampleClock(1e6)) as cap:
+            _run(tlm, p, cap, blocks=2)
+            cap.close()
+            d = cap.read_dict()
+
+        assert sorted(d) == ["rx.loud", "rx.quiet"]
+        assert d["rx.quiet"].size == 0
+
+    def test_the_file_flavour_has_no_read_dict(self):
+        """It follows records(): the file IS the capture, nothing to group."""
+        assert not hasattr(Capture, "read_dict")
+        assert hasattr(MemoryCapture, "read_dict")

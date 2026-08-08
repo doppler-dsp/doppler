@@ -6,6 +6,9 @@ target_include_directories(
 target_link_libraries(mpsk_receiver_r_core PUBLIC
     wfm_dsp_core
     ber_core
+    ber_meter_core
+    detection_core
+    snr_core
     ddcr_core
     lo_core
     RateConverter_core
@@ -32,6 +35,9 @@ add_executable(test_mpsk_receiver_r_core
 target_link_libraries(test_mpsk_receiver_r_core
                       PRIVATE mpsk_receiver_r_core wfm_dsp_core
     ber_core
+    ber_meter_core
+    detection_core
+    snr_core
     ddcr_core
     lo_core
     RateConverter_core
@@ -63,6 +69,9 @@ add_executable(
 target_link_libraries(bench_mpsk_receiver_r_core
                       PRIVATE mpsk_receiver_r_core wfm_dsp_core
     ber_core
+    ber_meter_core
+    detection_core
+    snr_core
     ddcr_core
     lo_core
     RateConverter_core

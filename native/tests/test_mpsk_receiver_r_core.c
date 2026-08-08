@@ -26,6 +26,7 @@
  * +-1.0 and clips silently past it, costing ~25 dB of EVM that no lock metric
  * reveals. See mpsk_receiver_r_get_clipped().
  */
+#include "dp_ber_test.h" /* dp_ber_settle — the window policy, once */
 #include "dp_state_test.h"
 #include "dp_sym_test.h"
 #include "mpsk_receiver_r/mpsk_receiver_r_core.h"
@@ -134,17 +135,22 @@ decide (float complex y, int m, double phi0)
   return (int)((k % m + m) % m);
 }
 
-/* Symbol error rate over a SETTLED window, tolerant of the unknown M-fold
- * rotation and of a symbol lag (the cascade's group delay is not a round
- * number of symbols). `settle` comes from dp_test_settle_syms(), never from a
- * fraction of the record -- see that helper for what a fraction costs. */
+/* Symbol error rate over an EXPLICIT settled window `[lo, hi)`, tolerant of
+ * the unknown M-fold rotation and of a symbol lag (the cascade's group delay
+ * is not a round number of symbols).
+ *
+ * The window is explicit because the SER, the EVM and the M2M4 estimate must
+ * all be scored on the SAME symbols -- three numbers taken over three windows
+ * eventually disagree, and the disagreement reads as a receiver defect rather
+ * than the harness bug it is (dp_sym_test.h says this at length). Where the
+ * window may START is dp_ber_settle()'s business, never a fraction of the
+ * record. */
 static double
-tail_ser (const float complex *out, size_t nout, const int *idx, int m,
-          double phi0, size_t settle)
+win_ser (const float complex *out, const int *idx, int m, double phi0,
+         size_t lo, size_t hi)
 {
-  if (settle + 400 >= nout)
-    return 1.0; /* record too short to hold a settled window */
-  size_t lo = settle, hi = nout - nout / 8;
+  if (hi <= lo || hi - lo < 400)
+    return 1.0; /* no settled window to judge */
   double best = 1.0;
   for (int lag = -60; lag <= 60; lag++)
     {
@@ -184,6 +190,42 @@ RXR (int m, double sps, size_t m_out, int pulse, double bn_carrier,
                                  MPSK_RX_NUM_PHASES, MPSK_RX_NDA_TAP_STROBE);
 }
 
+/* Demodulate a whole record while sampling the receiver's OWN lock indicators
+ * once per recovered symbol.
+ *
+ * This is `mpsk_receiver_r_steps()` with the flags kept: the block API steps
+ * exactly this way internally and only exposes each indicator's FINAL value,
+ * which is no use to a settling gate that needs to know WHEN each one
+ * declared. The timing detector has no object-level getter at all, so the
+ * embedded loop is read directly -- a test in this repo may, and the
+ * alternative is dp_ber_settle()'s documented NULL case, which drops the
+ * `5/bn_timing` term back onto the analytic budget alone.
+ *
+ * The TED comes from the receiver's own loop rather than a literal, so this
+ * runs whatever the receiver was constructed with. That costs the branch-free
+ * specialisation the literal buys and is right anyway: a harness that
+ * hardcodes a detector measures that detector, not the receiver under test. */
+static size_t
+run_capture (mpsk_receiver_r_state_t *rx, const float *x, size_t x_len,
+             float complex *out, unsigned char *lk_t, unsigned char *lk_c,
+             unsigned char *trk, size_t max_out)
+{
+  size_t n = 0;
+  for (size_t i = 0; i < x_len; i++)
+    {
+      float complex y;
+      if (!mpsk_receiver_r_step_ted (rx, x[i], &y, rx->l.timing.ted)
+          || n >= max_out)
+        continue;
+      out[n]  = y;
+      lk_t[n] = (unsigned char)rx->l.timing.lock.locked;
+      lk_c[n] = (unsigned char)mpsk_receiver_r_get_locked (rx);
+      trk[n]  = (unsigned char)mpsk_receiver_r_get_tracking (rx);
+      n++;
+    }
+  return n;
+}
+
 int
 main (void)
 {
@@ -191,7 +233,11 @@ main (void)
   float         *tx     = malloc (NSAMP * sizeof (*tx));
   int           *idx    = malloc (NSYM * sizeof (int));
   float complex *out    = malloc (NSYM * sizeof (*out));
-  if (!tx || !idx || !out)
+  /* Per-recovered-symbol lock indicators; see run_capture(). */
+  unsigned char *lk_t = malloc (NSYM);
+  unsigned char *lk_c = malloc (NSYM);
+  unsigned char *trk  = malloc (NSYM);
+  if (!tx || !idx || !out || !lk_t || !lk_c || !trk)
     return 1;
 
   /* ---------------------------------------------------------------- *
@@ -255,9 +301,26 @@ main (void)
           continue;
         make_mpsk_real (tx, idx, m, SPS, NSYM, FC_CENTRE, 30.0,
                         7u + (uint32_t)mi, phi0_for (m));
-        size_t k      = mpsk_receiver_r_steps (rx, tx, NSAMP, out, NSYM);
-        size_t settle = dp_test_settle_syms (0.01, 0.005);
-        double ser    = tail_ser (out, k, idx, m, phi0_for (m), settle);
+        size_t k = run_capture (rx, tx, NSAMP, out, lk_t, lk_c, trk, NSYM);
+
+        /* The window START is the receiver's own answer, not an analytic
+           guess: max(budget, timing lock, carrier lock, handover + budget).
+           The two sources are fallible in the SAME direction -- the budget is
+           optimistic where a geometry converges slowly for reasons bandwidth
+           does not capture, and a lock indicator is optimistic because a
+           detector declares on a statistic crossing a threshold rather than on
+           a settled loop -- so whichever settles last decides. A handover
+           settles last of all and contributes its instant PLUS the budget
+           again, because the decision-directed loop then runs its own
+           transient. The handover argument is therefore NULL wherever
+           acq_to_track is off; a pure-NDA receiver never publishes one, and
+           passing an all-zero flag array would read as "never locked". */
+        int    ok     = 0;
+        size_t settle = dp_ber_settle (0.01, 0.005, lk_t, lk_c,
+                                       (m == 8) ? trk : NULL, k, &ok);
+        size_t hi     = k - k / 8;
+        CHECK (ok); /* a -1 lock means there is no steady state to measure */
+        double ser = win_ser (out, idx, m, phi0_for (m), settle, hi);
         CHECK (ser < 0.01);
         /* The lock EMA's noise-only sd is CARRIER_NDA_LOCK_NORM_SD (0.1132) at
            every m, so state the threshold in sigmas: 0.5 is 4.42 sigma, i.e.
@@ -282,17 +345,36 @@ main (void)
            Note how little room there is at M = 8: 5.3 dB between a healthy
            receiver and pure noise. The self-referenced EVM cannot carry this
            verdict alone at high M, which is why `ser < 0.01` above is the
-           primary check and this is corroboration. */
-        if (k > settle)
-          {
-            double evm = dp_test_evm_db_hard_m (out + settle, k - settle, m);
-            double flr = dp_test_evm_scatter_floor_db (m);
-            printf ("  M=%d: evm=%6.1f dB (scatter floor %5.1f, "
-                    "margin %4.1f dB)\n",
-                    m, evm, flr, flr - evm);
-            CHECK (evm < -16.0);
-            CHECK (evm < flr - 3.0);
-          }
+           primary check and this is corroboration.
+
+           M2M4 is the THIRD reading, and it is here because two truth-free
+           numbers that cannot fail the same way are what localise a fault: the
+           EVM is a self-referenced residual and M2M4 is a blind moment ratio,
+           so agreement is evidence and DISAGREEMENT names which of the two is
+           lying. It is reported, not asserted -- its own bias at low M is
+           larger than any threshold worth writing here. */
+        {
+          double evm = dp_test_evm_db_hard_range (out, settle, hi, m);
+          double flr = dp_test_evm_scatter_floor_db (m);
+          double m24 = dp_test_m2m4_snr_db_range (out, settle, hi);
+          /* Printed unconditionally, including when the window is empty:
+             "no valid window" is itself the measurement in that case, and a
+             report that vanishes exactly when the test fails is the one
+             report that cannot diagnose anything. */
+          printf ("  M=%d: locks t=%ld c=%ld h=%ld -> window [%zu, %zu) of "
+                  "%zu\n"
+                  "        ser=%.2e  evm=%6.1f dB (floor %5.1f, margin %4.1f)"
+                  "  m2m4=%5.1f dB  lock=%.3f\n",
+                  m, dp_ber_lock_symbol (lk_t, k, 200, 0.9),
+                  dp_ber_lock_symbol (lk_c, k, 200, 0.9),
+                  dp_ber_lock_symbol (trk, k, 200, 0.9), settle, hi, k, ser,
+                  evm, flr, flr - evm, m24, mpsk_receiver_r_get_lock (rx));
+          if (hi > settle)
+            {
+              CHECK (evm < -16.0);
+              CHECK (evm < flr - 3.0);
+            }
+        }
         CHECK (mpsk_receiver_r_get_clipped (rx) == 0);
         mpsk_receiver_r_destroy (rx);
       }
@@ -340,8 +422,8 @@ main (void)
                         phi0_for (4));
         size_t k = mpsk_receiver_r_steps (rx, tx, NSAMP, out, NSYM);
         CHECK (mpsk_receiver_r_get_tracking (rx) == 1);
-        double ser = tail_ser (out, k, idx, 4, phi0_for (4),
-                               dp_test_settle_syms (0.01, 0.01));
+        double ser = win_ser (out, idx, 4, phi0_for (4),
+                              dp_test_settle_syms (0.01, 0.01), k - k / 8);
         CHECK (ser < 0.01);
         mpsk_receiver_r_destroy (rx);
       }
@@ -506,6 +588,9 @@ main (void)
   free (tx);
   free (idx);
   free (out);
+  free (lk_t);
+  free (lk_c);
+  free (trk);
   if (_fails)
     {
       fprintf (stderr, "test_mpsk_receiver_r_core FAILED (%d)\n", _fails);

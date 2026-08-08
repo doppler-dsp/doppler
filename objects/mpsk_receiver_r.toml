@@ -13,6 +13,17 @@ class_name = "MpskReceiverR"
 # OBJECT lib, not a jm component, so it rides extra_link_libs.
 depends_on = [
     { name = "ber" }, # dp_sym_test.h delegates here
+  # dp_ber_test.h's dp_ber_settle() owns the window policy the every-M test
+  # now uses (max of the analytic budget and the receiver's own lock
+  # instants), and dp_sym_test.h's M2M4 cross-check delegates to snr_core's
+  # canonical estimator. Both are test-only, so neither takes link=true --
+  # they ride the object's own core/test/bench line, not the .so.
+  # detection rides along because link=true is not transitive and
+  # ber_meter_core's exact confidence interval calls det_threshold*(): the
+  # same trio test_dp_ber links.
+  { name = "ber_meter" },
+  { name = "detection" },
+  { name = "snr" },
   { name = "ddcr", link = true },
   { name = "ddc", link = true },
   { name = "hbdecim_r2c", link = true },

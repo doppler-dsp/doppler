@@ -17,6 +17,97 @@
 
 #define ALMOST_EQ(a, b, tol) (fabsf ((float)(a) - (float)(b)) <= (float)(tol))
 
+/* ── The two resampling gates ────────────────────────────────────────────
+ *
+ * They are BOTH needed, and mutation testing shows why: their sensitivities
+ * are disjoint.
+ *
+ *   tone purity      catches the ACCUMULATOR.  Blind to any fixed LTI
+ *                    response -- a constant delay, a ripple, a whole filter.
+ *   R == 1 all-pass  catches the boundary, the bank origin and the arm
+ *                    family.  Blind to the accumulator, because at unity
+ *                    1/R == R and the interpolator's and decimator's
+ *                    recurrences are the same one.
+ *
+ * That second blindness is not a curiosity, it is the history: running the
+ * decimator's accumulator on the interpolator's structure cost 55-60 dB at
+ * every non-unity rate and every unity-rate test in the suite still passed.
+ * Never accept a unity-rate result as evidence about the accumulator.
+ */
+
+enum
+{
+  GATE_N    = 2048, /* inputs per probe */
+  GATE_SKIP = 64    /* filter transient discarded before projecting */
+};
+
+/* Run `rate` over a tone, through either entry point, into `y`. */
+static size_t
+gate_run (double rate, double f0, int use_ctrl, float _Complex *y, size_t cap)
+{
+  resamp_state_t *r = resamp_create (rate);
+  if (!r)
+    return 0;
+  size_t t = 0;
+  for (size_t i = 0; i < (size_t)GATE_N; i++)
+    {
+      double ph        = 2.0 * M_PI * f0 * (double)i;
+      float _Complex x = CMPLXF ((float)cos (ph), (float)sin (ph));
+      float _Complex b[32];
+      size_t g;
+      if (use_ctrl)
+        g = resamp_execute_ctrl_push (r, x, 0.0, b, 32);
+      else
+        g = resamp_execute (r, &x, 1, b, 32);
+      for (size_t j = 0; j < g && t < cap; j++)
+        y[t++] = b[j];
+    }
+  resamp_destroy (r);
+  return t;
+}
+
+/* Least-squares projection onto the tone the output must be. */
+/* `m0` is the ABSOLUTE output index of y[0].  It must be carried, not
+ * assumed zero: the discarded transient would otherwise appear as an extra
+ * GATE_SKIP samples of delay in any phase comparison across frequency. */
+static double _Complex gate_project (const float _Complex *y, size_t n,
+                                     double f_out, size_t m0)
+{
+  double _Complex num = 0.0, den = 0.0;
+  for (size_t m = 0; m < n; m++)
+    {
+      double _Complex ref = cexp (I * 2.0 * M_PI * f_out * (double)(m0 + m));
+      num += (double _Complex)y[m] * conj (ref);
+      den += ref * conj (ref);
+    }
+  return num / den;
+}
+
+/* A resampled pure tone must still be a pure tone.  Residual, in dB.
+ * Needs no timing convention, so it cannot beg the question a comparison
+ * against a reference implementation would. */
+static double
+gate_tone_evm_db (double rate, int use_ctrl)
+{
+  static float _Complex y[8 * GATE_N];
+  const double f0 = 0.05;
+  size_t       t  = gate_run (rate, f0, use_ctrl, y, sizeof y / sizeof y[0]);
+  if (t <= (size_t)GATE_SKIP + 64)
+    return 0.0; /* nothing produced: caller's count check will catch it */
+  double _Complex a
+      = gate_project (y + GATE_SKIP, t - GATE_SKIP, f0 / rate, GATE_SKIP);
+  double err = 0.0, sig = 0.0;
+  for (size_t m = GATE_SKIP; m < t; m++)
+    {
+      double _Complex ref
+          = a * cexp (I * 2.0 * M_PI * (f0 / rate) * (double)m);
+      double _Complex e = (double _Complex)y[m] - ref;
+      err += creal (e * conj (e));
+      sig += creal (ref * conj (ref));
+    }
+  return 10.0 * log10 (err / sig);
+}
+
 /* Serializable-state round-trip: split a stream at `cut`, hand the resampler's
  * state to a fresh instance (same rate), and resume — the concatenated output
  * must equal an uninterrupted run bit-for-bit.  Returns 1 on success. */
@@ -191,25 +282,84 @@ main (void)
 
   resamp_destroy (r);
 
-  /* ---- unity-rate pass-through ---- */
-  r = resamp_create (1.0);
-  CHECK (r != NULL);
-  if (!r)
-    return 1;
-
+  /* Buffers shared by the count checks and the execute_ctrl check below. */
   static const size_t N = 64;
+  size_t              n;
   float _Complex in[64], out[64];
-  for (size_t i = 0; i < N; i++)
-    in[i] = CMPLXF ((float)i, -(float)i);
 
-  size_t n = resamp_execute (r, in, N, out, N);
-  CHECK (n == N);
-  for (size_t i = 0; i < N; i++)
+  /* ---- R == 1 is a ONE-ARM ALL-PASS, not a pass-through ----
+     Every sample gets filtered; there is no short-circuit.  At unity the
+     step is one whole period, which is 0 in a phase word, so the
+     accumulator never advances, ONE arm is used forever, and the path is
+     that arm: a pure delay.
+
+     The invariant is flat |H| and CONSTANT group delay -- not out == in,
+     which is what the deleted memcpy used to provide and what this test
+     used to assert.  Constancy is asserted against the MEAN rather than a
+     literal, because the nominal legitimately differs by one sample
+     between the two entry points: the block form emits before it loads,
+     the push form is handed its input first.  Both are self-consistent;
+     only a frequency-DEPENDENT delay would be a defect.
+
+     Group delay by adjacent-frequency phase differencing, so there is
+     nothing to unwrap.  Thresholds come from the bank's own design (a 60 dB
+     Kaiser ripples ~1e-3), not an arbitrary epsilon; a wrong accumulator
+     gives a 0.1-0.5 sample sawtooth, two orders clear. */
+  for (int use_ctrl = 0; use_ctrl < 2; use_ctrl++)
     {
-      CHECK (ALMOST_EQ (crealf (out[i]), (float)i, 1e-4f));
-      CHECK (ALMOST_EQ (cimagf (out[i]), -(float)i, 1e-4f));
+      static float _Complex y[8 * GATE_N];
+      const double df = 0.005;
+      double       dly[8], worst_h = 0.0, mean = 0.0;
+      for (int k = 0; k < 8; k++)
+        {
+          double f = 0.04 * (k + 1);
+          double _Complex h[2];
+          for (int s = 0; s < 2; s++)
+            {
+              double fs = f + (s ? df / 2 : -df / 2);
+              size_t t
+                  = gate_run (1.0, fs, use_ctrl, y, sizeof y / sizeof y[0]);
+              CHECK (t == (size_t)GATE_N); /* unity is 1:1, every sample */
+              h[s]
+                  = gate_project (y + GATE_SKIP, t - GATE_SKIP, fs, GATE_SKIP);
+            }
+          double m = 0.5 * (cabs (h[0]) + cabs (h[1]));
+          if (fabs (m - 1.0) > worst_h)
+            worst_h = fabs (m - 1.0);
+          dly[k] = -carg (h[1] * conj (h[0])) / (2.0 * M_PI * df);
+          mean += dly[k] / 8.0;
+        }
+      double spread = 0.0;
+      for (int k = 0; k < 8; k++)
+        if (fabs (dly[k] - mean) > spread)
+          spread = fabs (dly[k] - mean);
+      fprintf (stderr,
+               "  R==1 all-pass %s: |H| dev %.3e, delay %.4f +/- %.3e\n",
+               use_ctrl ? "ctrl" : "free", worst_h, mean, spread);
+      CHECK (worst_h < 5e-3); /* all-pass */
+      CHECK (spread < 2e-2);  /* PURE delay: no frequency dependence */
+      CHECK (mean > 8.0 && mean < 12.0); /* and it is the filter's own */
     }
-  resamp_destroy (r);
+
+  /* ---- a resampled pure tone must still be a pure tone ----
+     THE gate for the accumulator.  Running the decimator's accumulator on
+     the interpolator's structure reads -12 to -17 dB here; the correct rule
+     reads -70 to -75.  The bound sits between them with an order of margin
+     on both sides.  Exact rates (0.5, 1.0) need no interpolation at all and
+     land near -145, so they are covered by the same bound. */
+  {
+    static const double gate_rates[]
+        = { 0.5, 0.6, 0.8, 0.95, 1.0, 1.05, 1.25, 1.5, 2.0, 3.0 };
+    for (size_t k = 0; k < sizeof gate_rates / sizeof gate_rates[0]; k++)
+      for (int use_ctrl = 0; use_ctrl < 2; use_ctrl++)
+        {
+          double evm = gate_tone_evm_db (gate_rates[k], use_ctrl);
+          if (!(evm < -60.0))
+            fprintf (stderr, "  tone purity rate=%.2f %s: %.1f dB\n",
+                     gate_rates[k], use_ctrl ? "ctrl" : "free", evm);
+          CHECK (evm < -60.0);
+        }
+  }
 
   /* ---- 2x decimation: output count ---- */
   r = resamp_create (0.5);

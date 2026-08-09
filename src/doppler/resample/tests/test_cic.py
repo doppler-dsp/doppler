@@ -222,23 +222,30 @@ class TestSpectralQuality:
 # ------------------------------------------------------------------ #
 
 
-def test_input_beyond_unity_is_clipped_silently():
-    # The CIC is the one block in doppler that is NOT scale-free: its input
-    # is bounded to |Re|, |Im| <= 1.0 and anything past that is clipped
-    # before filtering. No exception, no NaN -- just a plausible-looking
-    # wrong answer, which is exactly why it is documented so loudly.
+# The encoder reserves PAPR headroom above unit amplitude, so full scale is
+# this, not 1.0 -- see docs/design/cic.md. A pulse-shaped stream peaks well
+# above its symbol amplitude (1.582x for RRC), and budgeting that here is what
+# lets a caller present a signal at its natural level.
+_CIC_HEADROOM = 2.0
+
+
+def test_input_beyond_full_scale_is_clipped_silently():
+    # The CIC is the one block in doppler that is NOT scale-free: its input is
+    # bounded and anything past that is clipped before filtering. No
+    # exception, no NaN -- just a plausible-looking wrong answer, which is
+    # exactly why it is documented so loudly.
     cic = CIC(R=16)
-    for amp in (0.5, 1.0):
+    for amp in (0.5, 1.0, _CIC_HEADROOM):
         y = CIC(R=16).decimate(np.full(256, amp, dtype=np.complex64))
         assert y[-1].real == pytest.approx(amp, rel=1e-3)
-    for amp in (2.0, 10.0, 1e6):
+    for amp in (10.0, 1e6):
         y = CIC(R=16).decimate(np.full(256, amp, dtype=np.complex64))
         assert np.isfinite(y[-1].real)
-        assert y[-1].real == pytest.approx(1.0, rel=1e-3)
+        assert y[-1].real == pytest.approx(_CIC_HEADROOM, rel=1e-3)
     # Clipping is per component and symmetric.
     y = cic.decimate(np.full(256, -5.0 + 5.0j, dtype=np.complex64))
-    assert y[-1].real == pytest.approx(-1.0, rel=1e-3)
-    assert y[-1].imag == pytest.approx(1.0, rel=1e-3)
+    assert y[-1].real == pytest.approx(-_CIC_HEADROOM, rel=1e-3)
+    assert y[-1].imag == pytest.approx(_CIC_HEADROOM, rel=1e-3)
 
 
 def test_clipped_flag_is_sticky_and_free():
@@ -249,6 +256,8 @@ def test_clipped_flag_is_sticky_and_free():
     c.decimate(np.full(256, 0.9, dtype=np.complex64))
     assert c.clipped is False
     c.decimate(np.full(256, 1.5, dtype=np.complex64))
+    assert c.clipped is False  # inside the PAPR headroom
+    c.decimate(np.full(256, 1.05 * _CIC_HEADROOM, dtype=np.complex64))
     assert c.clipped is True
     # Sticky: a later in-range block does not clear it...
     c.decimate(np.full(256, 0.1, dtype=np.complex64))
@@ -258,7 +267,18 @@ def test_clipped_flag_is_sticky_and_free():
     assert c.clipped is False
 
 
-@pytest.mark.parametrize("bad", [2.0 + 0j, -2.0 + 0j, 0 + 2.0j, 0 - 2.0j])
+# Past the bound, not exactly on it: the Q15 range is asymmetric by one LSB
+# (-32768 is representable, +32768 is not), so a probe sitting exactly at
+# +/-_CIC_HEADROOM clips on the positive rail only.
+@pytest.mark.parametrize(
+    "bad",
+    [
+        1.05 * _CIC_HEADROOM + 0j,
+        -1.05 * _CIC_HEADROOM + 0j,
+        0 + 1.05 * _CIC_HEADROOM * 1j,
+        0 - 1.05 * _CIC_HEADROOM * 1j,
+    ],
+)
 def test_clipped_catches_every_component_and_sign(bad):
     c = CIC(R=16)
     c.decimate(np.full(256, bad, dtype=np.complex64))

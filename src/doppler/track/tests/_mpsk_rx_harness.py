@@ -80,8 +80,15 @@ _CI_METER = BerMeter(m=2, target_errors=1, conf=0.99)
 #: The default-bandwidth budget, for tests that do not retune the loops.
 SETTLE_SYMS = settle_floor()
 
-#: Amplitude, comfortably inside the cascade's +-1.0 CIC input bound.
-AMPL = 0.4
+#: The timing loop's CONTRACTED symbol amplitude.
+#:
+#: The TED normalises by its own slope alone, so amplitude is the caller's to
+#: supply (docs/design/mpsk.md 5.1): unit amplitude drives the loop at exactly
+#: the bandwidth `bn` names, and anything smaller under-drives it by A^2 --
+#: 0.4 was 6.25x low. These symbols are rectangular, so the stream's peak IS
+#: its symbol amplitude and this sits well inside the CIC's input bound, which
+#: now budgets PAPR headroom above unity anyway (docs/design/cic.md).
+AMPL = 1.0
 
 
 def make_signal(sps, nsym, *, real, m=4, fc=IF_FS4, esn0_db=None, seed=3):

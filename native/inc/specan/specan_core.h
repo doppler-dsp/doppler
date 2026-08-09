@@ -58,6 +58,8 @@
 #include "acc_trace/acc_trace_core.h"
 #include "fft/fft_core.h"
 #include "spectral/spectral_core.h"
+#include "agc/agc_core.h"
+#include "dp_tlm/dp_tlm_core.h"
 
 #ifdef __cplusplus
 extern "C"

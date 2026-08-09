@@ -14,6 +14,8 @@ target_link_libraries(mpsk_receiver_r_core PUBLIC
     cic_core
     fir_core
     resample_core
+    agc_core
+    dp_tlm_core
     hbdecim_r2c_core
     ddc_core
     mpsk_receiver_core
@@ -23,8 +25,6 @@ target_link_libraries(mpsk_receiver_r_core PUBLIC
     symsync_core
     nco_core
     farrow_core
-    dp_tlm_core
-    agc_core
     boxcar_core)
 
 add_executable(test_mpsk_receiver_r_core
@@ -40,6 +40,8 @@ target_link_libraries(test_mpsk_receiver_r_core
     cic_core
     fir_core
     resample_core
+    agc_core
+    dp_tlm_core
     hbdecim_r2c_core
     ddc_core
     mpsk_receiver_core
@@ -49,8 +51,6 @@ target_link_libraries(test_mpsk_receiver_r_core
     symsync_core
     nco_core
     farrow_core
-    dp_tlm_core
-    agc_core
     boxcar_core
     m)
 target_include_directories(test_mpsk_receiver_r_core
@@ -71,6 +71,8 @@ target_link_libraries(bench_mpsk_receiver_r_core
     cic_core
     fir_core
     resample_core
+    agc_core
+    dp_tlm_core
     hbdecim_r2c_core
     ddc_core
     mpsk_receiver_core
@@ -80,8 +82,6 @@ target_link_libraries(bench_mpsk_receiver_r_core
     symsync_core
     nco_core
     farrow_core
-    dp_tlm_core
-    agc_core
     boxcar_core
     m)
 target_include_directories(

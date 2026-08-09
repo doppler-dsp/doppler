@@ -45,6 +45,8 @@
 #include <stddef.h>
 #include "resamp/resamp_core.h"
 #include "fir/fir_core.h"
+#include "agc/agc_core.h"
+#include "dp_tlm/dp_tlm_core.h"
 
 #ifdef __cplusplus
 extern "C"
@@ -105,6 +107,15 @@ typedef struct
       samples per symbol, where its matched filter degenerates to a 2-3 tap
       sum.  Read by the binding, which turns it into a UserWarning. */
   bool narrow_pulse;
+  /* ── Pre-terminal AGC (NULL = off, which is the default and what every
+     constructor builds).  See RateConverter_enable_agc(). ─────────────── */
+  agc_state_t *agc;          /**< NULL when off — one branch per sample  */
+  double       bank_sps;     /**< symbol period on the terminal's grid   */
+  double       bank_e0;      /**< sum h(t)^2 on that grid; the bank's
+                                  own normaliser, and the AGC's reference */
+  double       agc_ref_db;   /**< derived: 10*log10(bank_e0 / bank_sps)  */
+  double       agc_bn_sym;   /**< requested bandwidth, cycles/SYMBOL     */
+  double       agc_alpha;    /**< detector EMA coefficient               */
 } RateConverter_state_t;
 
 /**
@@ -272,6 +283,102 @@ size_t RateConverter_num_bank_shape (const RateConverter_state_t *s);
 size_t RateConverter_bank_shape_value (const RateConverter_state_t *s,
                                        size_t i);
 
+/**
+ * @brief Level the stream feeding the terminal (matched) stage.
+ *
+ * Wedges an AGC into the cascade immediately BEFORE the terminal polyphase
+ * stage — after every integer decimation, ahead of the matched filter and the
+ * timing element. Off until this is called, and off is what both constructors
+ * build, so a plain cascade is untouched and RateConverter_gain() still reads
+ * exactly 1.0.
+ *
+ * @par Why here and not somewhere else
+ * The consumer is a timing-error detector. A TED's raw output is the timing
+ * error multiplied by three things it did not choose — the signal amplitude,
+ * the transition density, and the detector's own slope — and only the last is
+ * the detector's to divide out (symsync_ted_slope(), which is computed at
+ * construct FOR A UNIT-AMPLITUDE SYMBOL STREAM). Amplitude enters as `A^2`
+ * for Gardner and `A^1` for DTTL, so a 4x level error is a 16x loop-gain
+ * error. Levelling it is this object's job because this object owns the bank
+ * that sets what "unit amplitude" means.
+ *
+ * The tap is pre-terminal rather than post because the terminal stage's
+ * OUTPUT rate is the one a timing loop is actively steering, and an AGC whose
+ * bandwidth is quoted in cycles per sample of a stream another loop is
+ * stretching is coupled to that loop. The pre-terminal rate is fixed.
+ *
+ * @par The reference level is derived, not chosen
+ * The AGC sets average POWER; the TED wants unit symbol AMPLITUDE. The bridge
+ * is the pulse's own energy on its own tap grid — `bank_e0 = sum h(t)^2`, the
+ * quantity the bank is already normalised by — so for i.i.d. unit-power
+ * symbols at `bank_sps` samples per symbol the pre-terminal average power is
+ * `bank_e0 / bank_sps` and that is the reference. No caller supplies a level;
+ * read it back with RateConverter_agc_ref_db().
+ *
+ * @note This levels signal PLUS noise, so at finite Es/N0 the symbols land
+ * slightly low — about 0.95x amplitude at 10 dB Es/N0, i.e. 0.91x Gardner
+ * loop gain. That is a fact of the measurement, not an error to estimate
+ * away: an AGC that tried to exclude noise would be estimating the very
+ * quantity the receiver is trying to measure.
+ *
+ * @par Bandwidth
+ * @p bn_sym is in cycles per SYMBOL, matching every other loop bandwidth in
+ * this family, and is converted to the AGC's own per-sample units with the
+ * one number that describes its position (`bn_sym / bank_sps`). It must stay
+ * well below the bandwidth of every loop downstream — an AGC divides out the
+ * amplitude those loops' discriminators are built around, so one running near
+ * a loop's bandwidth corrects the excursions that loop is itself producing.
+ * See mpsk_rx_agc_bn() for the ratio a composing receiver uses.
+ *
+ * The loop starts at unity gain and walks to the level; there is no seed and
+ * no sample is treated specially at the start. A seed is a STEP in gain, and
+ * one taken off a signal that has not arrived is a shock the loops downstream
+ * cannot absorb -- see _agc_tap() for the measurement that settled this. So
+ * @p bn_sym also sets how fast a level error is corrected, and a very slow
+ * AGC leaves the early symbols under- or over-driven for a loop time
+ * constant.
+ *
+ * @param s        Must be non-NULL, and must be a MATCHED cascade
+ *                 (RateConverter_create_matched()) — a plain one has no pulse
+ *                 and therefore no reference to derive.
+ * @param bn_sym   AGC loop noise bandwidth in cycles/symbol; > 0.
+ * @param alpha    Power-detector EMA coefficient, in (0, 1].
+ * @return DP_OK, or DP_ERR_INVALID for a plain cascade or a bad parameter
+ *         (the converter is left exactly as it was, AGC still off).
+ *
+ * @code
+ * RateConverter_state_t *rc =
+ *     RateConverter_create_matched (2.0 / 8.0, 1, RC_PULSE_RRC, 0.35, 8,
+ *                                   2.0, 1024);
+ * RateConverter_enable_agc (rc, 1e-4, 0.01);
+ * printf ("%.2f dB\n", RateConverter_agc_ref_db (rc));
+ * RateConverter_destroy (rc);
+ * @endcode
+ */
+int RateConverter_enable_agc (RateConverter_state_t *s, double bn_sym,
+                              double alpha);
+
+/**
+ * @brief The pre-terminal AGC's reference level, in dB.
+ *
+ * `10*log10(bank_e0 / bank_sps)` — the average power a unit-amplitude symbol
+ * stream has where the AGC sits, derived from the terminal bank's own pulse
+ * energy. Defined for any MATCHED cascade whether or not the AGC is enabled,
+ * because it describes the bank rather than the loop; 0.0 for a plain one.
+ */
+double RateConverter_agc_ref_db (const RateConverter_state_t *s);
+
+/**
+ * @brief Gain the pre-terminal AGC last applied, in dB; 0.0 when off.
+ *
+ * The cascade's time-varying gain, kept deliberately separate from
+ * RateConverter_gain(): that function reports the response computed from the
+ * stages' own COEFFICIENTS, and an AGC has none. A caller asking "what did
+ * this cascade do to my amplitude" with the AGC on wants both, and they
+ * multiply.
+ */
+double RateConverter_agc_gain_db (const RateConverter_state_t *s);
+
 /** @brief Free all resources.  NULL is a no-op. */
 void RateConverter_destroy (RateConverter_state_t *s);
 
@@ -296,9 +403,13 @@ void RateConverter_reset (RateConverter_state_t *s);
  * envelope followed by the concatenated mutable state of the active cascade
  * stages (HB / CIC[+comp FIR] / Resampler), in cascade order — each a
  * self-contained sub-blob with its own leaf envelope.  The stage plan is config
- * (rebuilt from rate), so a same-rate RateConverter round-trips exactly. */
+ * (rebuilt from rate), so a same-rate RateConverter round-trips exactly.
+ * v2: an enabled pre-terminal AGC appends its seed scalars and its own
+ * sub-blob after the stages. A converter with the AGC off writes exactly the
+ * bytes v1 did — but the version still moves, because nothing in the blob
+ * distinguishes an AGC-off v2 from a v1, and the size check alone cannot. */
 #define RC_STATE_MAGIC DP_FOURCC ('R', 'C', 'V', 'T')
-#define RC_STATE_VERSION 1u
+#define RC_STATE_VERSION 2u
 
 /** @brief Bytes RateConverter_get_state() writes for @p s (envelope + stages). */
 size_t RateConverter_state_bytes (const RateConverter_state_t *s);

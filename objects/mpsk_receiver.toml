@@ -34,7 +34,7 @@ serializable = "true"
 # A NULL create here means a parameter was out of range, not that the machine
 # ran out of memory (gh-482). Say so.
 create_error = "ValueError"
-create_error_message = "MpskReceiver: invalid parameter (need m in {2,4,8}, sps >= m_out, m_out even in [2, 8], 0 <= rrc_beta <= 1, rrc_span >= 1, num_phases a power of two >= 2, bn >= 0, zeta > 0)"
+create_error_message = "MpskReceiver: invalid parameter (need m in {2,4,8}, sps >= m_out, m_out even in [2, 8], 0 <= rrc_beta <= 1, rrc_span >= 1, num_phases a power of two >= 2, bn >= 0, zeta > 0, 0 < bn_agc_ratio < 1)"
 
 [[mpsk_receiver.init_params]]
 name = "m"
@@ -120,12 +120,29 @@ type = "string_enum:strobe,mf_all,lo_arm"
 default = "strobe"
 doc = "Where the NDA carrier discriminator reads from, which sets its pull-in range and whether it needs symbol timing at all. An M-th-power detector updating at rate F can only see |df| < F/(2M), so the tap point IS the range. `strobe` (default) reads the on-time strobe at the symbol rate Rs: the cleanest input, the narrowest range (Rs/(2M)), and the only tap whose input quality depends on the timing loop -- it steers from its first strobe whether or not timing has declared, so when the carrier must acquire before timing does, that is a reason to pick another tap rather than something the receiver resolves for you. `mf_all` reads every terminal output at m_out*Rs -- m_out times the range and no timing dependence, paid for with the ISI the between-symbol outputs carry, which hurts most where the decision margin is smallest (8PSK). `lo_arm` reads ahead of the cascade through a free-running half-symbol boxcar at the LO rate -- the widest range and fully timing-independent, but unmatched, so it pays squaring loss. Fixed at construction: nothing switches underneath you. If you need more range than any tap gives, put a coarse frequency estimate in front and pass it as init_norm_freq."
 
+[[mpsk_receiver.init_params]]
+name = "agc"
+type = "int"
+default = "1"
+doc = "Level the front-end cascade so the timing detector's construct-time slope means what it says. The TED normalises by its OWN slope and nothing else, and that slope is computed for a UNIT-amplitude symbol stream -- amplitude enters the raw error as A^2 (Gardner) or A^1 (DTTL), so a 4x level error is a 16x loop-gain error. With this on, an AGC sits inside the cascade just before the matched filter and drives the average power to the level a unit-amplitude symbol stream would have there, derived from the matched filter's own pulse energy rather than configured. On by default because the alternative is a receiver whose loop gain depends on how loud the input happened to be. Set 0 to reproduce the un-levelled behaviour exactly, which is the handle for attributing any measurement that moves. This is the receiver's ONLY AGC -- the carrier discriminator normalises by its own |z|^M and needs none. Read the applied gain back with `agc_gain_db`."
+
+[[mpsk_receiver.init_params]]
+name = "bn_agc_ratio"
+type = "double"
+default = "0.01"
+doc = "The one AGC's noise bandwidth as a fraction of the SLOWEST loop it feeds -- min(bn_carrier, bn_timing), not the carrier's alone, since the AGC feeds the timing loop directly. Must be in (0, 1) and construction refuses otherwise, because an AGC at or above the bandwidth of a loop it feeds corrects the excursions that loop is itself producing and the two integrate against each other; the signal LEVEL is a slow property of the channel, not a disturbance to reject at loop speed. Exposed rather than fixed because the right separation depends on how fast the channel's level moves against how fast its phase and timing do, which is a property of the link. The cold start is not the loop's job either way -- the AGC seeds its gain from a direct measurement -- so slow is cheap here."
+
+[[mpsk_receiver.properties]]
+name = "agc_gain_db"
+type = "double"
+doc = "Gain the front-end AGC is applying, in dB; 0.0 when `agc=0`. The diagnostic for a level problem: a receiver that will not lock with a healthy `lock` statistic, or one whose timing loop behaves differently at two input levels, is asking about this number. It settles at -10*log10(P_in / P_ref), where P_ref is the power a unit-amplitude symbol stream has where the AGC sits, so a reading far from 0 dB says the input is far from the level the cascade was built for -- which is fine, and is what the AGC is for, but is worth knowing. Distinct from the cascade's filter response, which stays unity; the two multiply."
+
 # Telemetry attach (jm gh-432; mirrors objects/agc.toml): registers the
 # receiver's "<prefix>.lock" + "<prefix>.tracking" probes (the latter is
 # the two-way handover lockdet decision, 0/1) and forwards to both embedded
-# loops — "<prefix>.car.lock/.e/.freq/.locked" + "<prefix>.car.agc.gain_db"
-# (carrier) and "<prefix>.sync.e/.freq/.rate/.lock/.locked" (timing) —
-# twelve probes per attach. None detaches everything; the int status
+# loops — "<prefix>.car.lock/.e/.freq/.locked" (carrier) and
+# "<prefix>.sync.e/.freq/.rate/.lock/.locked" (timing) — eleven probes per
+# attach (the carrier AGC's gain probe went with the carrier AGC). None detaches everything; the int status
 # binds -> None / ValueError.
 [[mpsk_receiver.methods]]
 name = "set_telemetry"

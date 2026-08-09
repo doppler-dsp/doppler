@@ -295,7 +295,7 @@ _pulse_support (int pulse, size_t span)
 static float *
 _build_bank (int pulse, double beta, double sps, size_t span,
              size_t num_phases, const double *comp, size_t n_comp,
-             size_t *out_ntaps)
+             size_t *out_ntaps, double *out_e0)
 {
   double support = _pulse_support (pulse, span);
   /* Cover the full pulse for EVERY arm: the last arm lags the window by one
@@ -367,6 +367,12 @@ _build_bank (int pulse, double beta, double sps, size_t span,
     bank[i] *= g;
 
   *out_ntaps = nt;
+  /* The same energy backs the pre-terminal AGC's reference level: for i.i.d.
+     unit-power symbols the average power of the pulse train on this grid is
+     e0/sps.  One number, two uses — the bank's normaliser and the level that
+     makes a unit-amplitude symbol arrive as one.  See
+     RateConverter_enable_agc(). */
+  *out_e0 = e0;
   return bank;
 }
 
@@ -594,13 +600,21 @@ _build_stages (RateConverter_state_t *s, const rc_plan_entry_t *plan, int n)
              output samples per symbol, at this stage's rate. */
           double bank_sps = s->pulse_sps / plan[i].resamp_rate;
           size_t ntaps    = 0;
-          float *bank
-              = _build_bank (s->pulse, s->beta, bank_sps, s->span,
-                             s->num_phases, compp, _RC_COMP_NTAPS, &ntaps);
+          double e0       = 0.0;
+          float *bank     = _build_bank (s->pulse, s->beta, bank_sps, s->span,
+                                         s->num_phases, compp, _RC_COMP_NTAPS,
+                                         &ntaps, &e0);
           if (!bank)
             goto fail;
-          obj = resamp_create_custom (s->num_phases, ntaps, bank,
-                                      plan[i].resamp_rate);
+          /* Everything the pre-terminal AGC needs to place itself, recorded
+             whether or not one is ever enabled: they describe the bank. */
+          s->bank_sps   = bank_sps;
+          s->bank_e0    = e0;
+          s->agc_ref_db = (e0 > 0.0 && bank_sps > 0.0)
+                              ? 10.0 * log10 (e0 / bank_sps)
+                              : 0.0;
+          obj           = resamp_create_custom (s->num_phases, ntaps, bank,
+                                                plan[i].resamp_rate);
           free (bank);
           if (!obj)
             goto fail;
@@ -670,6 +684,74 @@ fail:
     }
   s->n_stages = 0;
   return 0;
+}
+
+/* ------------------------------------------------------------------ */
+/* Pre-terminal AGC                                                    */
+/*                                                                     */
+/* Off unless RateConverter_enable_agc() asked for it. The reference    */
+/* and the seed length come from the bank (recorded in _build_stages),  */
+/* so a rebuild re-derives both rather than carrying stale numbers.     */
+/* ------------------------------------------------------------------ */
+
+/* (Re)build the AGC against the CURRENT bank. Returns 1 on success, 0 on a
+   bad configuration or OOM; leaves the converter AGC-less either way. */
+static int
+_agc_build (RateConverter_state_t *s)
+{
+  agc_destroy (s->agc);
+  s->agc = NULL;
+
+  if (!(s->agc_bn_sym > 0.0) || !(s->agc_alpha > 0.0) || !(s->agc_alpha <= 1.0)
+      || !(s->bank_sps > 0.0))
+    return 0;
+
+  /* bn_sym is cycles per SYMBOL; the AGC works in cycles per sample of the
+     stream it sits in, and bank_sps is exactly that stream's samples per
+     symbol. One conversion, no reference to the input rate or the decimation
+     in front — those are already behind us at this point in the cascade. */
+  double loop_bw = s->agc_bn_sym / s->bank_sps;
+  s->agc         = agc_create (s->agc_ref_db, loop_bw, s->agc_alpha);
+  if (!s->agc)
+    return 0;
+  /* Amortise the transcendentals the way every other AGC here does; the
+     detector and the gain-apply still run every sample, so this does not
+     decimate the level trajectory. */
+  s->agc->gain_update_period = AGC_DECIM_DEFAULT;
+  return 1;
+}
+
+/* The tap itself: gain one sample. Called from BOTH the block and the push
+   path so the two stay bit-identical -- agc_steps() would be faster in the
+   block form and is documented as not bit-identical to the per-sample loop,
+   which test_matched_push_equals_block pins.
+
+   Every sample is gained, and NOTHING is special-cased at the start. There is
+   deliberately no seed here, and that is a measured choice rather than an
+   omission: a seed is a STEP change in gain, and a step taken off a signal
+   that has not arrived yet is a shock the loops downstream cannot absorb.
+   Measured on an RRC-shaped burst whose transmit filter opens with ~30
+   samples of fill (|x| ~ 0.01 against a settled 0.35), a 4-symbol prefix
+   average latched roughly 40 dB of gain; the timing integrator wound past
+   pull-in during the correction and never came back, so the receiver emitted
+   ONE symbol out of 6000 -- at every AGC bandwidth tried, including ones fast
+   enough to reach the right gain almost immediately. The gain was correct and
+   the receiver was still dead, which is what identifies the transient rather
+   than the level as the thing that did the damage.
+
+   Without the seed the loop walks from unity at its own bandwidth. That is a
+   ramp, not a step, and the loops follow it: the same case recovers 5983
+   symbols at lock 0.999. The cost is that a level error takes a loop time
+   constant to correct instead of a few samples -- measured across a 24 dB
+   input range, carrier lock declares at symbol 102 / 96 / 111 rather than the
+   98 / 98 / 98 a (working) seed gives, against 97 / 90 / 274 with no AGC at
+   all. Buying back that last spread wants a seed that cannot fire on silence
+   -- an asymmetric attack/release, or a max-of-block-means estimate -- not
+   the prefix average. */
+JM_FORCEINLINE float _Complex _agc_tap (RateConverter_state_t *s,
+                                        float _Complex v)
+{
+  return s->agc ? agc_step (s->agc, v) : v;
 }
 
 /* ------------------------------------------------------------------ */
@@ -744,6 +826,42 @@ RateConverter_create_matched (double rate, int compensate, int pulse,
   return s;
 }
 
+int
+RateConverter_enable_agc (RateConverter_state_t *s, double bn_sym,
+                          double alpha)
+{
+  /* A plain cascade has no pulse, so `bank_e0 / bank_sps` describes nothing
+     and there is no reference to derive. Refused rather than guessed. */
+  if (s->pulse == RC_PULSE_NONE)
+    return DP_ERR_INVALID;
+  /* Written as !(x > y) so a NaN is rejected, not accepted. */
+  if (!(bn_sym > 0.0) || !(alpha > 0.0) || !(alpha <= 1.0))
+    return DP_ERR_INVALID;
+
+  double keep_bn = s->agc_bn_sym, keep_a = s->agc_alpha;
+  s->agc_bn_sym = bn_sym;
+  s->agc_alpha  = alpha;
+  if (!_agc_build (s))
+    {
+      s->agc_bn_sym = keep_bn;
+      s->agc_alpha  = keep_a;
+      return DP_ERR_INVALID;
+    }
+  return DP_OK;
+}
+
+double
+RateConverter_agc_ref_db (const RateConverter_state_t *s)
+{
+  return s->agc_ref_db;
+}
+
+double
+RateConverter_agc_gain_db (const RateConverter_state_t *s)
+{
+  return s->agc ? agc_get_applied_gain_db (s->agc) : 0.0;
+}
+
 bool
 RateConverter_get_clipped (const RateConverter_state_t *s)
 {
@@ -760,6 +878,7 @@ RateConverter_destroy (RateConverter_state_t *s)
   if (!s)
     return;
   _destroy_all_stages (s);
+  agc_destroy (s->agc);
   free (s);
 }
 
@@ -768,10 +887,21 @@ RateConverter_reset (RateConverter_state_t *s)
 {
   for (int i = 0; i < s->n_stages; i++)
     _stage_reset (s->stage_types[i], s->stage_ptrs[i]);
+  if (s->agc)
+    {
+      /* Back to unity with the detector at the reference. */
+      agc_reset (s->agc);
+    }
 }
 
 /* ── Serializable state — concatenate the active stages in cascade order ────
  */
+
+/* Seeding scalars an enabled AGC carries ahead of its own sub-blob: the
+   running mean and the counter. Both are live ONLY during the seed window,
+   which is exactly why they need packing — a blob taken mid-seed must resume
+   mid-seed, and a round-trip that splits after it cannot see them. */
+#define _RC_AGC_SCALARS (sizeof (double) + sizeof (uint32_t))
 
 size_t
 RateConverter_state_bytes (const RateConverter_state_t *s)
@@ -779,6 +909,8 @@ RateConverter_state_bytes (const RateConverter_state_t *s)
   size_t b = sizeof (dp_state_hdr_t);
   for (int i = 0; i < s->n_stages; i++)
     b += _stage_state_bytes (s->stage_types[i], s->stage_ptrs[i]);
+  if (s->agc)
+    b += agc_state_bytes (s->agc);
   return b;
 }
 
@@ -791,6 +923,8 @@ RateConverter_get_state (const RateConverter_state_t *s, void *blob)
   char *p = (char *)blob + sizeof (dp_state_hdr_t);
   for (int i = 0; i < s->n_stages; i++)
     p = _stage_get_state (s->stage_types[i], s->stage_ptrs[i], p);
+  if (s->agc)
+    agc_get_state (s->agc, p);
 }
 
 int
@@ -803,6 +937,8 @@ RateConverter_set_state (RateConverter_state_t *s, const void *blob)
   const char *p = (const char *)blob + sizeof (dp_state_hdr_t);
   for (int i = 0; i < s->n_stages; i++)
     p = _stage_set_state (s->stage_types[i], s->stage_ptrs[i], p);
+  if (s->agc)
+    return agc_set_state (s->agc, p);
   return DP_OK;
 }
 
@@ -863,12 +999,19 @@ RateConverter_execute (RateConverter_state_t *s, const float _Complex *in,
 /* Run a resamp stage with a constant rate deviation on every input — the
  * scalar control-port form, built on the per-input streaming push. */
 static size_t
-_resamp_exec_ctrl (resamp_state_t *r, const float _Complex *in, size_t n_in,
-                   double ctrl, float _Complex *out, size_t max_out)
+_resamp_exec_ctrl (RateConverter_state_t *s, resamp_state_t *r,
+                   const float _Complex *in, size_t n_in, double ctrl,
+                   float _Complex *out, size_t max_out)
 {
   size_t oi = 0;
   for (size_t i = 0; i < n_in && oi < max_out; i++)
-    oi += resamp_execute_ctrl_push (r, in[i], ctrl, out + oi, max_out - oi);
+    {
+      /* The AGC tap sits here — between the last integer stage and the
+         terminal one — and the input block is const, so gaining it in place
+         is not an option. Per-sample is what the push path does anyway. */
+      float _Complex v = _agc_tap (s, in[i]);
+      oi += resamp_execute_ctrl_push (r, v, ctrl, out + oi, max_out - oi);
+    }
   return oi;
 }
 
@@ -904,7 +1047,7 @@ RateConverter_execute_ctrl (RateConverter_state_t *s, const float _Complex *x,
     }
 
   if (s->n_stages == 1)
-    return _resamp_exec_ctrl ((resamp_state_t *)s->stage_ptrs[0], x, n_in,
+    return _resamp_exec_ctrl (s, (resamp_state_t *)s->stage_ptrs[0], x, n_in,
                               ctrl, out, max_out);
 
   /* Upstream integer stages run plain; the terminal Resampler is steered. */
@@ -919,7 +1062,7 @@ RateConverter_execute_ctrl (RateConverter_state_t *s, const float _Complex *x,
       src = dst;
       ping ^= 1;
     }
-  return _resamp_exec_ctrl ((resamp_state_t *)s->stage_ptrs[last], src, n,
+  return _resamp_exec_ctrl (s, (resamp_state_t *)s->stage_ptrs[last], src, n,
                             ctrl, out, max_out);
 }
 
@@ -950,6 +1093,9 @@ RateConverter_execute_ctrl_push (RateConverter_state_t *s, float _Complex x,
   if (s->stage_types[last] != RC_STAGE_RESAMP)
     return _stage_exec (s->stage_types[last], s->stage_ptrs[last], &cur, 1,
                         out, max_out);
+  /* Same tap, same arithmetic, same order as the block form above — which is
+     what keeps push == block bit-for-bit with the AGC on. */
+  cur = _agc_tap (s, cur);
   return resamp_execute_ctrl_push ((resamp_state_t *)s->stage_ptrs[last], cur,
                                    ctrl, out, max_out);
 }
@@ -987,7 +1133,15 @@ RateConverter_set_rate (RateConverter_state_t *s, double rate)
   s->rate = rate;
 
   if (!_build_stages (s, plan, n))
-    s->n_stages = 0;
+    {
+      s->n_stages = 0;
+      return;
+    }
+  /* The new plan means a new terminal bank, so the AGC's reference and seed
+     length are stale — re-derive rather than carry them. An enabled AGC
+     survives a rate change the way the pulse does. */
+  if (s->agc)
+    (void)_agc_build (s);
 }
 
 bool

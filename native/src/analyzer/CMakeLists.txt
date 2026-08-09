@@ -12,6 +12,8 @@ target_link_libraries(analyzer PRIVATE
     RateConverter_core
     resamp_core
     fir_core
+    agc_core
+    dp_tlm_core
     hbdecim_core
     hbdecim_r2c_core
     cic_core

@@ -10,12 +10,13 @@ target_link_libraries(ratesync_core PUBLIC
     cic_core
     fir_core
     resample_core
+    agc_core
+    dp_tlm_core
     loop_filter_core
     lockdet_core
     symsync_core
     nco_core
-    farrow_core
-    dp_tlm_core)
+    farrow_core)
 
 add_executable(test_ratesync_core
                ${CMAKE_SOURCE_DIR}/native/tests/test_ratesync_core.c)
@@ -26,12 +27,13 @@ target_link_libraries(test_ratesync_core
     cic_core
     fir_core
     resample_core
+    agc_core
+    dp_tlm_core
     loop_filter_core
     lockdet_core
     symsync_core
     nco_core
     farrow_core
-    dp_tlm_core
     m)
 target_include_directories(test_ratesync_core
                            PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
@@ -47,12 +49,13 @@ target_link_libraries(bench_ratesync_core
     cic_core
     fir_core
     resample_core
+    agc_core
+    dp_tlm_core
     loop_filter_core
     lockdet_core
     symsync_core
     nco_core
     farrow_core
-    dp_tlm_core
     m)
 target_include_directories(
   bench_ratesync_core PRIVATE ${CMAKE_SOURCE_DIR}/native/inc

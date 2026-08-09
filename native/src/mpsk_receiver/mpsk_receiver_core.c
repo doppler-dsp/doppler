@@ -23,33 +23,6 @@
  * The loops, front-end agnostic
  * ================================================================== */
 
-/* Arm AGC in front of the M-th-power discriminator. The discriminator's gain
- * goes as |z|^m, so the loop gain is only amplitude-invariant if the sample
- * feeding it sits at unit average power. Same constants and the same reasoning
- * as carrier_nda's own arm (carrier_nda_core.h): the AGC must stay ~100x
- * slower than the carrier loop so it tracks the overall signal level and never
- * the carrier dynamics or the within-symbol pulse envelope, and the 10 dB
- * square clip bounds the peak constructive-ISI samples that would otherwise
- * dominate the |z|^m weighting. It runs once per terminal output, which is
- * this loop's update rate, so no decimation is wanted. */
-static void
-seed_agc (mpsk_rx_loops_t *l)
-{
-  l->car_agc.ref_db             = CARRIER_NDA_AGC_REF_DB;
-  l->car_agc.loop_bw            = MPSK_RX_AGC_BW;
-  l->car_agc.alpha              = CARRIER_NDA_AGC_ALPHA;
-  l->car_agc.decim              = AGC_DECIM_DEFAULT;
-  l->car_agc.clip_db            = CARRIER_NDA_AGC_CLIP_DB;
-  l->car_agc.gain_db            = 0.0;
-  l->car_agc.p_avg              = 1.0; /* 10^(ref_db/10) for ref_db = 0 */
-  l->car_agc.g_last             = 1.0;
-  l->car_agc.gain_update_period = AGC_DECIM_DEFAULT;
-  l->car_agc.gain_phase         = 0;
-  l->car_agc.clip_lin = (float)agc_exp10_ (l->car_agc.clip_db * 0.05);
-  l->agc_seeded       = 0; /* counts the strobes averaged to set the level;
-                              see mpsk_rx_disc's seeding block */
-}
-
 /* Configure the carrier PI loop. Both discriminators fire once per recovered
    symbol, so the update period is one symbol and bn_carrier is normalised to
    the symbol rate — the same convention the timing loop uses, which is what
@@ -76,17 +49,18 @@ config_carrier (mpsk_rx_loops_t *l)
 void
 mpsk_rx_loops_init (mpsk_rx_loops_t *l, int m, double sps, double lo_sps,
                     size_t m_out, double bn_carrier, double zeta,
-                    double bn_timing, int ted, int acq_to_track,
-                    double lock_thresh, size_t warmup_syms, int differential,
-                    int nda_tap)
+                    double bn_timing, double bn_agc_ratio, int ted,
+                    int acq_to_track, double lock_thresh, size_t warmup_syms,
+                    int differential, int nda_tap)
 {
-  l->m          = m;
-  l->sps        = sps;
-  l->lo_sps     = lo_sps;
-  l->m_out      = m_out;
-  l->bn_carrier = bn_carrier;
-  l->zeta       = zeta;
-  l->nda_tap    = nda_tap;
+  l->m            = m;
+  l->sps          = sps;
+  l->lo_sps       = lo_sps;
+  l->m_out        = m_out;
+  l->bn_carrier   = bn_carrier;
+  l->bn_agc_ratio = bn_agc_ratio;
+  l->zeta         = zeta;
+  l->nda_tap      = nda_tap;
   /* Only the strobe tap reads an output the timing loop had to nominate; the
      other two are timing-independent by construction. */
   l->tap_timed = (nda_tap == MPSK_RX_NDA_TAP_STROBE);
@@ -112,7 +86,6 @@ mpsk_rx_loops_init (mpsk_rx_loops_t *l, int m, double sps, double lo_sps,
   l->sym_rot = (float complex) (cos (mpsk_phi0 (m)) + sin (mpsk_phi0 (m)) * I);
 
   memset (&l->tlm, 0, sizeof l->tlm);
-  memset (&l->car_agc.tlm, 0, sizeof l->car_agc.tlm);
 
   ratesync_loop_init (&l->timing, sps, m_out, bn_timing, zeta, ted);
 
@@ -133,7 +106,6 @@ mpsk_rx_loops_reset (mpsk_rx_loops_t *l)
 {
   ratesync_loop_reset (&l->timing);
   loop_filter_reset (&l->car_lf);
-  seed_agc (l);
   l->freq_ctrl     = 0.0;
   l->car_error     = 0.0;
   l->lock          = 0.0;
@@ -264,8 +236,7 @@ mpsk_rx_loops_state_bytes (const mpsk_rx_loops_t *l)
          + _MRX_U64S * sizeof (uint64_t)
          + 4 * sizeof (uint32_t) /* handover + car_lock cnt/locked */
          + ratesync_loop_state_bytes (&l->timing)
-         + loop_filter_state_bytes (&l->car_lf) + agc_state_bytes (&l->car_agc)
-         + boxcar_state_bytes (&l->arm);
+         + loop_filter_state_bytes (&l->car_lf) + boxcar_state_bytes (&l->arm);
 }
 
 void
@@ -278,12 +249,8 @@ mpsk_rx_loops_get_state (const mpsk_rx_loops_t *l, void *blob)
   dp_w_f64 (&w, l->car_error);
   dp_w_f64 (&w, l->lock);
   dp_w_u64 (&w, (uint64_t)l->sym_count);
-  /* agc_seeded is a COUNTER (0..MPSK_RX_AGC_SEED_SAMPS), not a flag: it rides
-     in bits 8..15 so the blob size stays put. See the v3 note on
-     MPSK_RX_LOOPS_STATE_VERSION. */
-  dp_w_u64 (&w,
-            (uint64_t)((l->tracking ? 1u : 0u) | (l->have_prev_idx ? 2u : 0u))
-                | (((uint64_t)l->agc_seeded & 0xFFu) << 8));
+  dp_w_u64 (
+      &w, (uint64_t)((l->tracking ? 1u : 0u) | (l->have_prev_idx ? 2u : 0u)));
   dp_w_u64 (&w, (uint64_t)l->prev_idx);
   dp_w_u32 (&w, l->handover.cnt);
   dp_w_u32 (&w, (uint32_t)l->handover.locked);
@@ -295,8 +262,6 @@ mpsk_rx_loops_get_state (const mpsk_rx_loops_t *l, void *blob)
   p += ratesync_loop_state_bytes (&l->timing);
   loop_filter_get_state (&l->car_lf, p);
   p += loop_filter_state_bytes (&l->car_lf);
-  agc_get_state (&l->car_agc, p);
-  p += agc_state_bytes (&l->car_agc);
   boxcar_get_state (&l->arm, p);
 }
 
@@ -319,7 +284,6 @@ mpsk_rx_loops_set_state (mpsk_rx_loops_t *l, const void *blob)
   l->prev_idx      = (unsigned)dp_r_u64 (&r);
   l->tracking      = (flags & 1u) ? 1 : 0;
   l->have_prev_idx = (flags & 2u) ? 1 : 0;
-  l->agc_seeded    = (int)((flags >> 8) & 0xFFu);
 
   l->handover.cnt    = dp_r_u32 (&r);
   l->handover.locked = (int)dp_r_u32 (&r);
@@ -335,10 +299,6 @@ mpsk_rx_loops_set_state (mpsk_rx_loops_t *l, const void *blob)
   if (rc != DP_OK)
     return rc;
   p += loop_filter_state_bytes (&l->car_lf);
-  rc = agc_set_state (&l->car_agc, p);
-  if (rc != DP_OK)
-    return rc;
-  p += agc_state_bytes (&l->car_agc);
   return boxcar_set_state (&l->arm, p);
 }
 
@@ -352,7 +312,7 @@ mpsk_receiver_create (int m, double sps, size_t m_out, int pulse,
                       double zeta, double bn_timing, int acq_to_track,
                       double lock_thresh, double init_norm_freq,
                       size_t warmup_syms, int differential, size_t num_phases,
-                      int nda_tap)
+                      int nda_tap, int agc, double bn_agc_ratio)
 {
   if (m != 2 && m != 4 && m != 8)
     return NULL; /* only BPSK / QPSK / 8PSK */
@@ -364,7 +324,12 @@ mpsk_receiver_create (int m, double sps, size_t m_out, int pulse,
       || rrc_span < 1 || !(bn_carrier >= 0.0) || !(bn_timing >= 0.0)
       || !(zeta > 0.0) || num_phases < 2u
       || (num_phases & (num_phases - 1u)) != 0u
-      || nda_tap < MPSK_RX_NDA_TAP_STROBE || nda_tap > MPSK_RX_NDA_TAP_LO_ARM)
+      || nda_tap < MPSK_RX_NDA_TAP_STROBE
+      || nda_tap > MPSK_RX_NDA_TAP_LO_ARM
+      /* An AGC at or above the bandwidth of a loop it feeds corrects the
+         excursions that loop is producing; the two then integrate against
+         each other. The invariant is structural rather than advisory. */
+      || !(bn_agc_ratio > 0.0) || !(bn_agc_ratio < 1.0))
     return NULL;
 
   mpsk_receiver_state_t *rx = calloc (1, sizeof (*rx));
@@ -389,10 +354,25 @@ mpsk_receiver_create (int m, double sps, size_t m_out, int pulse,
      per symbol. (The real-input twin's halfband decimates first, which is why
      lo_sps is a parameter rather than an assumption.) */
   mpsk_rx_loops_init (&rx->l, m, sps, sps, m_out, bn_carrier, zeta, bn_timing,
-                      RATESYNC_TED_GARDNER, acq_to_track, lock_thresh,
-                      warmup_syms, differential, nda_tap);
+                      bn_agc_ratio, RATESYNC_TED_GARDNER, acq_to_track,
+                      lock_thresh, warmup_syms, differential, nda_tap);
   ratesync_loop_bind_cascade (&rx->l.timing, rx->fe->rc);
+
+  /* The front end levels itself so the TED's construct-time slope means what
+     it says. A zero loop bandwidth leaves nothing to be slower than, so the
+     derived AGC bandwidth is zero and enable_agc declines -- the receiver is
+     then simply un-levelled, which is the honest reading of bn = 0. */
+  if (agc)
+    (void)RateConverter_enable_agc (
+        rx->fe->rc, mpsk_rx_agc_bn (bn_carrier, bn_timing, bn_agc_ratio),
+        CARRIER_NDA_AGC_ALPHA);
   return rx;
+}
+
+double
+mpsk_receiver_get_agc_gain_db (const mpsk_receiver_state_t *state)
+{
+  return RateConverter_agc_gain_db (state->fe->rc);
 }
 
 void

@@ -16,6 +16,8 @@ target_link_libraries(resample PRIVATE
     hbdecim_r2c_core
     resamp_core
     fir_core
+    agc_core
+    dp_tlm_core
     m
     Python3::NumPy)
 target_include_directories(resample PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)

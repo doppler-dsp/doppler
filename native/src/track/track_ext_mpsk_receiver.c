@@ -41,7 +41,7 @@ MpskReceiverObj_init (MpskReceiverObject *self, PyObject *args, PyObject *kwds)
           "rrc_beta",    "rrc_span",     "bn_carrier",  "zeta",
           "bn_timing",   "acq_to_track", "lock_thresh", "init_norm_freq",
           "warmup_syms", "differential", "num_phases",  "nda_tap",
-          NULL };
+          "agc",         "bn_agc_ratio", NULL };
   int                m               = 4;
   double             sps             = 8.0;
   unsigned long long m_out_raw       = 8;
@@ -58,12 +58,14 @@ MpskReceiverObj_init (MpskReceiverObject *self, PyObject *args, PyObject *kwds)
   int                differential    = 0;
   unsigned long long num_phases_raw  = 1024;
   const char        *nda_tap_str     = "strobe";
+  int                agc             = 1;
+  double             bn_agc_ratio    = 0.01;
 
   if (!PyArg_ParseTupleAndKeywords (
-          args, kwds, "|idKsdidddiddKiKs", kwlist, &m, &sps, &m_out_raw,
+          args, kwds, "|idKsdidddiddKiKsid", kwlist, &m, &sps, &m_out_raw,
           &pulse_str, &rrc_beta, &rrc_span, &bn_carrier, &zeta, &bn_timing,
           &acq_to_track, &lock_thresh, &init_norm_freq, &warmup_syms_raw,
-          &differential, &num_phases_raw, &nda_tap_str))
+          &differential, &num_phases_raw, &nda_tap_str, &agc, &bn_agc_ratio))
     return -1;
   size_t m_out = (size_t)m_out_raw;
   int    pulse = 0;
@@ -98,7 +100,7 @@ MpskReceiverObj_init (MpskReceiverObject *self, PyObject *args, PyObject *kwds)
   self->handle = mpsk_receiver_create (
       m, sps, m_out, pulse, rrc_beta, rrc_span, bn_carrier, zeta, bn_timing,
       acq_to_track, lock_thresh, init_norm_freq, warmup_syms, differential,
-      num_phases, nda_tap);
+      num_phases, nda_tap, agc, bn_agc_ratio);
   if (!self->handle)
     {
       PyErr_SetString (PyExc_ValueError,
@@ -615,6 +617,19 @@ MpskReceiver_getprop_clipped (MpskReceiverObject *self,
   return PyLong_FromLong ((long)mpsk_receiver_get_clipped (self->handle));
 }
 
+static PyObject *
+MpskReceiver_getprop_agc_gain_db (MpskReceiverObject *self,
+                                  void               *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  /* <<IMPLEMENT: return the computed or stored value>> */
+  return PyFloat_FromDouble (mpsk_receiver_get_agc_gain_db (self->handle));
+}
+
 static PyGetSetDef MpskReceiver_getset[] = {
   { "norm_freq", (getter)MpskReceiver_getprop_norm_freq,
     (setter)MpskReceiver_setprop_norm_freq,
@@ -641,6 +656,17 @@ static PyGetSetDef MpskReceiver_getset[] = {
     "-- the output stays finite and plausible, merely distorted, at a cost of "
     "~25 dB of EVM that no lock metric reveals. Always 0 for a plan with no "
     "CIC stage.\n",
+    NULL },
+  { "agc_gain_db", (getter)MpskReceiver_getprop_agc_gain_db, NULL,
+    "Gain the front-end AGC is applying, in dB; 0.0 when `agc=0`. The "
+    "diagnostic for a level problem: a receiver that will not lock with a "
+    "healthy `lock` statistic, or one whose timing loop behaves differently "
+    "at two input levels, is asking about this number. It settles at "
+    "-10*log10(P_in / P_ref), where P_ref is the power a unit-amplitude "
+    "symbol stream has where the AGC sits, so a reading far from 0 dB says "
+    "the input is far from the level the cascade was built for -- which is "
+    "fine, and is what the AGC is for, but is worth knowing. Distinct from "
+    "the cascade's filter response, which stays unity; the two multiply.\n",
     NULL },
   { NULL }
 };

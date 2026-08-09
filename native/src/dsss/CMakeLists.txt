@@ -29,6 +29,7 @@ target_link_libraries(dsss PRIVATE
     RateConverter_core
     resamp_core
     fir_core
+    agc_core
     mpsk_receiver_core
     ddc_core
     hbdecim_core
@@ -39,7 +40,6 @@ target_link_libraries(dsss PRIVATE
     symsync_core
     nco_core
     farrow_core
-    agc_core
     boxcar_core
     gold_core
     snr_core

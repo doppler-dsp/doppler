@@ -12,6 +12,8 @@ target_link_libraries(ddc_core PUBLIC
     cic_core
     fir_core
     resample_core
+    agc_core
+    dp_tlm_core
     hbdecim_r2c_core)
 
 add_executable(test_ddc_core
@@ -25,6 +27,8 @@ target_link_libraries(test_ddc_core
     cic_core
     fir_core
     resample_core
+    agc_core
+    dp_tlm_core
     hbdecim_r2c_core
     m)
 target_include_directories(test_ddc_core
@@ -43,6 +47,8 @@ target_link_libraries(bench_ddc_core
     cic_core
     fir_core
     resample_core
+    agc_core
+    dp_tlm_core
     hbdecim_r2c_core
     m)
 target_include_directories(
@@ -58,6 +64,8 @@ target_link_libraries(ddc PRIVATE
     RateConverter_core
     resamp_core
     fir_core
+    agc_core
+    dp_tlm_core
     hbdecim_core
     hbdecim_r2c_core
     cic_core

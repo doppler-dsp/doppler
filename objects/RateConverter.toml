@@ -9,7 +9,7 @@ serializable = "true"
 # A NULL create means a parameter was out of range, not OOM (gh-482).
 create_error = "ValueError"
 create_error_message = "RateConverter: invalid parameter (need rate > 0, 0 <= beta <= 1, span >= 1, pulse_sps > 0, num_phases a power of two >= 2)"
-depends_on = [{ name = "resamp", link = true }, "hbdecim_core", "cic_core", { name = "fir", link = true }, "resample_core"]
+depends_on = [{ name = "resamp", link = true }, "hbdecim_core", "cic_core", { name = "fir", link = true }, "resample_core", { name = "agc", link = true }, { name = "dp_tlm", link = true }]
 
 [[RateConverter.init_params]]
 name = "rate"

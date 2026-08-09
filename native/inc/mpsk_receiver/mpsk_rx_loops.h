@@ -85,24 +85,46 @@ extern "C"
 /* Numerical guard on the symbol magnitude in the decision discriminator. */
 #define MPSK_RX_EPS 1e-12
 
-/* Arm-AGC bandwidth, per SYMBOL. carrier_nda ties its own AGC to
- * 0.01*bn_carrier, but that ratio was chosen for a loop updating every input
- * SAMPLE; with both loops here referenced to the symbol rate the same
- * expression is a time constant of thousands of symbols, which never
- * converges over a realistic burst. The AGC still has to stay slower than the
- * carrier loop -- it must track the signal level and never the carrier
- * dynamics or the within-symbol pulse envelope -- so it gets its own constant,
- * a few times below the usable bn_carrier range, and the first-strobe seed in
- * mpsk_rx_take_output() carries the cold start it is now too slow to handle.
- */
-#define MPSK_RX_AGC_BW 0.002
-
-/* Usable samples averaged to seed the arm AGC's gain (see mpsk_rx_disc).
- * One sample is a draw from a random variable and at MPSK_RX_AGC_BW a wrong
- * seed does not recover inside a short burst; a handful removes that
- * variance. Kept well under the default warmup_syms (30) so seeding always
- * finishes before the handover can fire. */
-#define MPSK_RX_AGC_SEED_SAMPS 8
+/* THE RECEIVER HAS EXACTLY ONE AGC, and it is the front-end cascade's
+ * (RateConverter_enable_agc). There is no AGC on the carrier loop, because
+ * carrier_nda_disc() normalises by its OWN amplitude law |z|^M -- the same
+ * rule the timing detector follows with its own slope. A detector that
+ * divides out what it contributed does not need a loop upstream manufacturing
+ * the condition it assumed, and one AGC per detector is how you end up with
+ * level loops in series, correcting each other's excursions.
+ *
+ * `bn_agc_ratio` sets that one AGC's bandwidth as a fraction of the SLOWEST
+ * loop it feeds -- the minimum of bn_carrier and bn_timing, not the carrier's
+ * alone, since the cascade AGC feeds the timing loop directly.
+ * CARRIER_NDA_AGC_BW_RATIO (0.01) is the default. The RATIO, not the number,
+ * is the part that is not negotiable: let an AGC approach the bandwidth of a
+ * loop it feeds and it starts correcting the excursions that loop is itself
+ * producing, and the two integrate against each other. The level is a slow
+ * property of the channel, not a disturbance to reject at loop speed.
+ *
+ * It is a construction parameter rather than a constant because the right
+ * separation depends on how fast the channel's LEVEL moves against how fast
+ * its phase and timing do -- a property of the link, not of this code. It is
+ * validated to (0, 1) at construction: at 1 the AGC is exactly as fast as the
+ * loop it feeds and past that it is faster, so construction refuses rather
+ * than warns. mpsk_rx_agc_bn() is the one place that computes it, and
+ * test_agc_is_slower_than_both_loops pins it.
+ *
+ * The ratio was abandoned here once, on an argument neither half of which
+ * survives. "Never converges over a realistic burst" is a cold-START
+ * complaint about a loop that now starts at unity and walks -- a ramp the
+ * loops downstream can follow, where a seeded STEP taken off a signal that
+ * has not arrived is a shock they cannot (see _agc_tap() in
+ * RateConverter_core.c for that measurement). And it sized a CONTINUOUS
+ * receiver's loop against a burst budget; this object is continuous by
+ * design, and a receiver built for bursts would take feed-forward estimates
+ * rather than lean on loops at all. */
+  JM_FORCEINLINE double
+  mpsk_rx_agc_bn (double bn_carrier, double bn_timing, double ratio)
+  {
+    double slowest = bn_carrier < bn_timing ? bn_carrier : bn_timing;
+    return ratio * slowest;
+  }
 
 /* Default matched-filter bank arms — the timing resolution is 1/this of an
  * output period. What a composing C caller (the DSSS receivers) passes when it
@@ -210,8 +232,6 @@ extern "C"
 
     /* ── carrier loop ────────────────────────────────────────────────── */
     loop_filter_state_t car_lf;  /**< 2nd-order carrier PI loop.          */
-    agc_state_t         car_agc; /**< unit-power normaliser feeding the
-                                      M-th-power discriminator.           */
     double freq_ctrl;   /**< carrier command now applied, cycles/sample at
                              the LO's own rate.                           */
     double freq_scale;  /**< loop-filter output -> freq_ctrl; rad/symbol
@@ -219,7 +239,6 @@ extern "C"
     double car_error;   /**< last carrier phase discriminator (stress).   */
     double lock;        /**< EMA of the carrier lock signal.              */
     lockdet_state_t car_lock;   /**< de-chattered binary carrier lock.    */
-    int             agc_seeded; /**< arm AGC has taken its first level.   */
     boxcar_state_t  arm;        /**< free-running arm filter; LO_ARM only. */
 
     /* ── config (restored by the owner's create(), never packed) ─────── */
@@ -228,6 +247,8 @@ extern "C"
     double lo_sps;     /**< samples per symbol at the LO's own rate.     */
     size_t m_out;      /**< terminal outputs per symbol.                 */
     double bn_carrier; /**< carrier loop noise bandwidth (per symbol).   */
+    double bn_agc_ratio; /**< AGC bandwidth as a fraction of the slowest
+                              loop; see mpsk_rx_agc_bn().                 */
     double zeta;       /**< damping factor for both loops.               */
     int    nda_tap;    /**< MPSK_RX_NDA_TAP_* — where the NDA disc reads. */
     int    tap_timed;  /**< tap depends on symbol timing (STROBE only).  */
@@ -279,10 +300,14 @@ extern "C"
    * @param nda_tap       MPSK_RX_NDA_TAP_* — where the NDA discriminator
    *                      reads, which sets its pull-in range and whether it
    *                      depends on symbol timing at all.
+   * @param bn_agc_ratio  Scales the front end's AGC off the SLOWEST of the
+   *                      two loop bandwidths; must be in (0, 1). See
+   *                      mpsk_rx_agc_bn().
    */
   void mpsk_rx_loops_init (mpsk_rx_loops_t *l, int m, double sps,
                            double lo_sps, size_t m_out, double bn_carrier,
-                           double zeta, double bn_timing, int ted,
+                           double zeta, double bn_timing, double bn_agc_ratio,
+                           int ted,
                            int acq_to_track, double lock_thresh,
                            size_t warmup_syms, int differential, int nda_tap);
 
@@ -361,62 +386,12 @@ extern "C"
   JM_FORCEINLINE JM_HOT void
   mpsk_rx_disc (mpsk_rx_loops_t *l, float complex z)
   {
-    /* Seed the AGC from the first usable sample rather than letting it walk
-       there. Its bandwidth is deliberately ~100x below the carrier loop's so
-       it tracks the signal level and never the carrier dynamics — a time
-       constant of thousands of symbols, which is right for tracking drift and
-       useless for a cold start. The cold error is not small: a matched-filter
-       bank is unit-ENERGY, so its output sits ~sqrt(pulse_sps) above the
-       constellation it came from, and since the discriminator's gain goes as
-       |z|^m the loop would run 16x hot at QPSK and 256x at 8PSK (measured lock
-       statistics of 5.2 and 26.4 against ceilings of 0.62 and 0.41).
-
-       Seeding off a sample that is not yet a symbol is the same bug from the
-       other end: the gain can latch far too LOW just as easily. Measured on a
-       single-sample seed taken during acquisition: `lock` = 4.9e-19, a
-       denormal, on a receiver decoding every bit correctly, so the handover
-       never fired. The averaging below is what defends against this — nothing
-       waits for symbol timing here (see the strobe tap in
-       mpsk_rx_take_output), so the seed samples ARE acquisition samples.
-
-       Average the first MPSK_RX_AGC_SEED_SAMPS usable samples instead of
-       taking ONE. A single sample is a sample of a random variable: a strobe
-       that straddles a transition, or an early one taken while a composing
-       front end is still settling, latches a gain that is simply wrong, and
-       at this bandwidth "wrong" is not self-correcting — the time constant is
-       ~1/MPSK_RX_AGC_BW = 500 symbols, so a burst shorter than that never
-       recovers. Measured in the DSSS stress sweep, which runs 700-symbol
-       bursts: two trials in twelve latched off a bad first sample and stayed
-       there, reporting `lock` = 5.59 and 0.18 against BPSK's ceiling of ~1.0
-       (i.e. ~5.6x hot and ~5x cold) with BER 0.235 and 0.043. Averaging a
-       handful of samples costs nothing and removes the variance that made it
-       a coin flip.
-
-       `agc_seeded` doubles as the counter (it is the only state this needs,
-       so the serialized layout does not change: same field, same type, and a
-       value below the target simply means "still averaging"). */
-    if (l->agc_seeded < MPSK_RX_AGC_SEED_SAMPS)
-      {
-        double p0 = (double)(crealf (z) * crealf (z) + cimagf (z) * cimagf (z));
-        if (p0 > 0.0)
-          {
-            /* Exact arithmetic mean of the usable samples seen so far. */
-            int k = l->agc_seeded;
-            l->car_agc.p_avg
-                = (k == 0) ? p0
-                           : l->car_agc.p_avg + (p0 - l->car_agc.p_avg) / (k + 1);
-            l->car_agc.gain_db
-                = l->car_agc.ref_db - 10.0 * log10 (l->car_agc.p_avg);
-            l->car_agc.g_last
-                = (float)agc_exp10_ (l->car_agc.gain_db * 0.05);
-          }
-        /* Advance even on a zero sample, so a pathological all-zero prefix
-           cannot hold the loop in "seeding" forever. */
-        l->agc_seeded++;
-      }
-
+    /* No AGC here, and none is wanted: carrier_nda_disc() normalises by its
+       own |z|^M, so the discriminator is amplitude-blind on both outputs.
+       The receiver's one AGC lives in the front-end cascade, where it serves
+       the signal path rather than a detector. */
     double pe, lk;
-    carrier_nda_disc (agc_step (&l->car_agc, z), l->m, &pe, &lk);
+    carrier_nda_disc (z, l->m, &pe, &lk);
     l->lock += CARRIER_NDA_LOCK_ALPHA * (lk - l->lock);
     (void)lockdet_step (&l->car_lock, l->lock);
     if (!l->tracking)
@@ -575,8 +550,17 @@ extern "C"
  * SIZE is unchanged — the counter reuses spare bits of an existing u64 — so
  * only the version distinguishes them, and it must, since a v2 blob's bit 2
  * read as a count would resume a seeded receiver mid-seeding and corrupt its
- * gain. Rejected rather than reinterpreted, per the envelope rule. */
-#define MPSK_RX_LOOPS_STATE_VERSION 3u
+ * gain. Rejected rather than reinterpreted, per the envelope rule.
+ * v4: the seed's running mean (`agc_seed_pwr`) is packed. v3 accumulated it
+ * in `car_agc.p_avg`, which is the DETECTOR's average of OUTPUT power — so
+ * the loop filter was handed an error equal to the whole seeded gain and
+ * integrated it (measured: 13.4 dB of further excursion on a 4x-hot input).
+ * The mean now has its own field, p_avg is seeded to the reference, and the
+ * blob grows by one double.
+ * v5: the carrier AGC is GONE -- carrier_nda_disc() normalises by its own
+ * |z|^M, so the receiver has exactly one AGC and it lives in the front-end
+ * cascade. The blob loses that AGC's sub-blob and both seed scalars. */
+#define MPSK_RX_LOOPS_STATE_VERSION 5u
 
   /** @brief Bytes mpsk_rx_loops_get_state() writes. */
   size_t mpsk_rx_loops_state_bytes (const mpsk_rx_loops_t *l);

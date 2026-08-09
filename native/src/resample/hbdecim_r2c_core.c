@@ -94,7 +94,14 @@ static inline float _Complex r2_compute_output (
       ri = -ri;
       rq = -rq;
     }
-  return CMPLXF (ri, rq);
+  /* x2 for the ANALYTIC-SIGNAL convention: the analytic signal of
+     A*cos(w n) is A*e^{jwn}, amplitude A. Splitting the halfband's two
+     branches across I and Q puts half the amplitude on each rail, so the
+     complex magnitude comes out at A/2 without this -- 6 dB the real path
+     loses and nothing downstream restores, which a timing detector's A^2
+     slope then turns into a 4x under-driven loop. The complex sibling
+     (hbdecim_dc_gain(): 2*sum(h) + 0.5) is unity; this now matches it. */
+  return CMPLXF (2.0f * ri, 2.0f * rq);
 }
 
 hbdecim_r2c_state_t *

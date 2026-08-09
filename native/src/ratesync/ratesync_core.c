@@ -51,6 +51,13 @@ ratesync_loop_init (ratesync_loop_t *l, double sps, size_t m, double bn,
   l->term_rate  = 0.0;
   l->prime_taps = 0;
   l->term       = NULL;
+  /* Unity until a cascade is bound: with no pulse there is no computable
+     detector slope, and the loop then behaves as an un-normalised one. Set
+     here rather than in reset() because it is CONFIGURATION — reset re-seeds
+     the running state and keeps the geometry, exactly as term_rate and
+     prime_taps do. Putting it in reset() clobbered it on every reset, which
+     test_reset caught as a run/re-run mismatch. */
+  l->ted_scale = 1.0;
   /* Loop update period is one symbol: the TED fires once per on-time strobe,
      and bn is normalised to the symbol rate. */
   loop_filter_init (&l->lf, bn, zeta, 1.0);
@@ -93,6 +100,19 @@ ratesync_loop_bind_cascade (ratesync_loop_t             *l,
       term_rate = resamp_get_rate (term);
     }
   ratesync_loop_set_cascade (l, term_rate, ntaps);
+
+  /* The detector's own contribution, from the pulse the cascade already
+     holds — the same walk, so no caller learns a new call and MpskReceiver
+     gets it by construction. A plain cascade has no matched pulse and so no
+     computable slope; leave the scale at unity and let the loop behave as it
+     always did there. */
+  if (rc->pulse != RC_PULSE_NONE)
+    {
+      double k = symsync_ted_slope (l->ted, rc->pulse, rc->beta, rc->span);
+      if (k > 0.0)
+        l->ted_scale = 1.0 / k;
+    }
+
   /* AFTER set_cascade, which clears it: keep the stage itself for the `mu`
      probe. The loop steers this accumulator, so its phase is the loop's own
      output, but the cascade does not report it any other way. */
@@ -105,8 +125,6 @@ ratesync_loop_reset (ratesync_loop_t *l)
   loop_filter_reset (&l->lf);
   l->ctrl       = 0.0;
   l->last_error = 0.0;
-  l->pwr_avg    = 0.0;
-  l->pwr_seeded = 0;
   l->rate_est   = l->sps;
   l->have_prev  = 0;
   l->out_count  = 0;
@@ -212,9 +230,9 @@ ratesync_loop_set_telemetry (ratesync_loop_t *l, dp_tlm_t *tlm,
 
 /* Scalars packed between the envelope and the child. */
 #define _RS_DOUBLES                                                           \
-  6                /* ctrl,last_error,pwr_avg,rate_est,lock_sum,lock_stat     \
+  5                /* ctrl, last_error, rate_est, lock_sum, lock_stat         \
                     */
-#define _RS_U64S 4 /* pwr_seeded|have_prev, prime_left, out_count, ring_n */
+#define _RS_U64S 4 /* have_prev, prime_left, out_count, ring_n           */
 
 size_t
 ratesync_loop_state_bytes (const ratesync_loop_t *l)
@@ -235,12 +253,10 @@ ratesync_loop_get_state (const ratesync_loop_t *l, void *blob)
   dp_w_hdr (&w, RATESYNC_LOOP_STATE_MAGIC, RATESYNC_LOOP_STATE_VERSION, total);
   dp_w_f64 (&w, l->ctrl);
   dp_w_f64 (&w, l->last_error);
-  dp_w_f64 (&w, l->pwr_avg);
   dp_w_f64 (&w, l->rate_est);
   dp_w_f64 (&w, l->lock_sum);
   dp_w_f64 (&w, l->lock_stat);
-  dp_w_u64 (&w,
-            (uint64_t)((l->pwr_seeded ? 1u : 0u) | (l->have_prev ? 2u : 0u)));
+  dp_w_u64 (&w, (uint64_t)(l->have_prev ? 1u : 0u));
   dp_w_u64 (&w, (uint64_t)l->prime_left);
   dp_w_u64 (&w, (uint64_t)l->out_count);
   dp_w_u64 (&w, (uint64_t)l->ring_n);
@@ -261,21 +277,18 @@ ratesync_loop_set_state (ratesync_loop_t *l, const void *blob)
   if (rc != DP_OK)
     return rc;
 
-  dp_reader_t r  = dp_reader_init (blob, total);
-  r.off          = sizeof (dp_state_hdr_t);
-  l->ctrl        = dp_r_f64 (&r);
-  l->last_error  = dp_r_f64 (&r);
-  l->pwr_avg     = dp_r_f64 (&r);
-  l->rate_est    = dp_r_f64 (&r);
-  l->lock_sum    = dp_r_f64 (&r);
-  l->lock_stat   = dp_r_f64 (&r);
-  uint64_t flags = dp_r_u64 (&r);
-  l->pwr_seeded  = (flags & 1u) ? 1 : 0;
-  l->have_prev   = (flags & 2u) ? 1 : 0;
-  l->prime_left  = (size_t)dp_r_u64 (&r);
-  l->out_count   = (size_t)dp_r_u64 (&r);
-  l->ring_n      = (size_t)dp_r_u64 (&r);
-  l->lock_count  = (size_t)dp_r_u64 (&r);
+  dp_reader_t r = dp_reader_init (blob, total);
+  r.off         = sizeof (dp_state_hdr_t);
+  l->ctrl       = dp_r_f64 (&r);
+  l->last_error = dp_r_f64 (&r);
+  l->rate_est   = dp_r_f64 (&r);
+  l->lock_sum   = dp_r_f64 (&r);
+  l->lock_stat  = dp_r_f64 (&r);
+  l->have_prev  = (dp_r_u64 (&r) & 1u) ? 1 : 0;
+  l->prime_left = (size_t)dp_r_u64 (&r);
+  l->out_count  = (size_t)dp_r_u64 (&r);
+  l->ring_n     = (size_t)dp_r_u64 (&r);
+  l->lock_count = (size_t)dp_r_u64 (&r);
   dp_r_bytes (&r, l->ring, sizeof (l->ring));
   dp_r_bytes (&r, &l->prev_on, sizeof (l->prev_on));
   l->lock.cnt    = dp_r_u32 (&r);

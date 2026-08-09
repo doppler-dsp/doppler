@@ -75,6 +75,48 @@ wfm_rrc_h(double t, double beta)
 }
 
 /**
+ * @brief The MATCHED pair's composite pulse: `rrc * rrc`, in closed form.
+ *
+ * A root-raised cosine convolved with itself is a raised cosine, so the pulse
+ * a matched receiver actually sees needs no convolution and no table — which
+ * is what lets a constructor evaluate it. Normalised to `g(0) = 1`, the level
+ * a unity-gain matched cascade delivers (see RateConverter_gain()), so `g(t)`
+ * IS the recovered symbol amplitude at timing offset `t`.
+ *
+ * Nyquist by construction: `g(k) = 0` at every non-zero integer `k`, which is
+ * why a timing error and not an amplitude error is what inter-symbol
+ * interference looks like here.
+ *
+ * The removable singularity at `t = ±1/(2β)` is handled by its closed-form
+ * limit; `t = 0` needs none (the sinc limit is taken explicitly).
+ *
+ * @param t     time in SYMBOL periods (T = 1), relative to the pulse centre.
+ * @param beta  roll-off in `[0, 1]`.
+ * @return      `g(t)`, with `g(0) = 1`.
+ *
+ * @code
+ * printf ("%.4f %.6f\n", wfm_rc_h (0.0, 0.35), wfm_rc_h (1.0, 0.35));
+ * // 1.0000 0.000000
+ * @endcode
+ */
+static inline double
+wfm_rc_h(double t, double beta)
+{
+    if (fabs(t) < 1e-9)
+        return 1.0;
+    if (beta > 0.0 && fabs(fabs(t) - 1.0 / (2.0 * beta)) < 1e-9)
+    {
+        /* limit at t = ±1/(2β): cos(πβt) → -πβε and the denominator → -4βε,
+           so their ratio → π/4 and g → sinc(1/(2β)) * π/4. */
+        return (beta / 2.0) * sin(M_PI / (2.0 * beta));
+    }
+    double pt   = M_PI * t;
+    double sinc = sin(pt) / pt;
+    double den  = 1.0 - (2.0 * beta * t) * (2.0 * beta * t);
+    return sinc * cos(M_PI * beta * t) / den;
+}
+
+/**
  * @brief Fill `taps` with a unit-energy root-raised-cosine impulse response.
  *
  * Length is `wfm_rrc_ntaps(sps, span)`; the response is symmetric about the

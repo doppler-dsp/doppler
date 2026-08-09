@@ -132,6 +132,57 @@ extern "C"
    * @param prev  `on_time[k-1]`.
    * @return Raw (pre-AGC-normalized) timing error.
    */
+  /** @brief Pulse code for symsync_ted_slope(); values match rc_pulse_t. */
+  enum
+  {
+    SYMSYNC_PULSE_IANDD = 0, /**< rectangular / NRZ.                      */
+    SYMSYNC_PULSE_RRC   = 1  /**< root-raised cosine, roll-off `beta`.    */
+  };
+
+  /**
+   * @brief The detector's OWN contribution to the loop gain: `|dS/dtau|` at
+   *        the lock point, for a unit-amplitude symbol stream.
+   *
+   * A TED's raw output is a timing error multiplied by three things it did
+   * not choose — the signal amplitude, the transition density, and the
+   * detector's own slope against this pulse. Only the last belongs to the
+   * detector, and only it can be computed rather than estimated: the matched
+   * pair's composite is a raised cosine in closed form (wfm_rc_h()), so for
+   * i.i.d. symbols
+   *
+   *     Gardner:  S(tau) = sum_k g(tau-1/2-k) * [g(tau-k) - g(tau-1-k)]
+   *     DTTL:     S(tau) = g(tau-1/2) - g(tau+1/2)
+   *
+   * and the answer is a construct-time number. Amplitude does NOT appear:
+   * it enters as `A^2` (Gardner) or `A^1` (DTTL) and is the AGC's business,
+   * not the detector's — a unity-gain matched cascade delivers the symbol
+   * amplitude it was sent (RateConverter_gain()). Transition density is left
+   * alone, because it is data.
+   *
+   * Divide a raw TED output by this and the result has unit slope per symbol
+   * of timing error, so a loop bandwidth means the same thing at every
+   * roll-off. It does NOT today: measured through a real matched cascade, the
+   * shipped normalisation's slope varies 10.6x between beta 0.1 and 0.9, so
+   * `bn` silently means something an order of magnitude different at the two
+   * ends of the supported range.
+   *
+   * Caller multiplies by the reciprocal — see ratesync_loop_t::ted_scale.
+   * Never call this on a hot path; it is a construct-time quantity.
+   *
+   * @param ted   SYMSYNC_TED_GARDNER or SYMSYNC_TED_DTTL.
+   * @param pulse SYMSYNC_PULSE_RRC or SYMSYNC_PULSE_IANDD.
+   * @param beta  RRC roll-off; ignored for the rectangle.
+   * @param span  one-sided pulse span in symbols; sets the summation range.
+   * @return      `|dS/dtau|` at the lock point, unit amplitude. Positive.
+   *
+   * @code
+   * double k = symsync_ted_slope (SYMSYNC_TED_GARDNER, SYMSYNC_PULSE_RRC,
+   *                               0.35, 8);
+   * printf ("%.3f\n", k);   // 1.077
+   * @endcode
+   */
+  double symsync_ted_slope (int ted, int pulse, double beta, size_t span);
+
   JM_FORCEINLINE double
   dttl_ted (float complex mid, float complex y, float complex prev)
   {

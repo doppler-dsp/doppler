@@ -178,7 +178,7 @@ RX (int m, double sps, size_t m_out, int pulse, double bn_carrier,
   return mpsk_receiver_create (
       m, sps, m_out, pulse, 0.35, 8, bn_carrier, 0.707, 0.01, acq_to_track,
       lock_thresh, init_norm_freq, warmup_syms, 0, MPSK_RX_NUM_PHASES,
-      MPSK_RX_NDA_TAP_STROBE, 1, CARRIER_NDA_AGC_BW_RATIO);
+      MPSK_RX_NDA_TAP_STROBE, 1, MPSK_RX_AGC_BW_RATIO);
 }
 
 int
@@ -461,7 +461,7 @@ main (void)
         mpsk_receiver_state_t *rx = mpsk_receiver_create (
             4, SPS, M_OUT, MPSK_RX_PULSE_IANDD, 0.35, 8, bn_c, 0.707, bn_t, 0,
             0.5, 0.0, 100, 0, MPSK_RX_NUM_PHASES, MPSK_RX_NDA_TAP_STROBE, 1,
-            CARRIER_NDA_AGC_BW_RATIO);
+            MPSK_RX_AGC_BW_RATIO);
         CHECK (rx != NULL);
         if (!rx)
           continue;
@@ -471,7 +471,7 @@ main (void)
         CHECK (bn_agc < bn_c && bn_agc < bn_t);
         /* And it is the ratio, off the slowest — not merely "smaller". */
         double slowest = bn_c < bn_t ? bn_c : bn_t;
-        CHECK (fabs (bn_agc - CARRIER_NDA_AGC_BW_RATIO * slowest)
+        CHECK (fabs (bn_agc - MPSK_RX_AGC_BW_RATIO * slowest)
                < 1e-15 * slowest + 1e-18);
         mpsk_receiver_destroy (rx);
       }
@@ -562,7 +562,7 @@ main (void)
             mpsk_receiver_state_t *rx = mpsk_receiver_create (
                 4, SPS, M_OUT, MPSK_RX_PULSE_IANDD, 0.35, 8, 0.01, 0.707, 0.01,
                 0, 0.5, 0.0, 100, 0, MPSK_RX_NUM_PHASES,
-                MPSK_RX_NDA_TAP_STROBE, use_agc, CARRIER_NDA_AGC_BW_RATIO);
+                MPSK_RX_NDA_TAP_STROBE, use_agc, MPSK_RX_AGC_BW_RATIO);
             CHECK (rx != NULL);
             if (rx)
               {

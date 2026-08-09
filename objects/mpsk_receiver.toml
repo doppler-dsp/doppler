@@ -129,7 +129,7 @@ doc = "Level the front-end cascade so the timing detector's construct-time slope
 [[mpsk_receiver.init_params]]
 name = "bn_agc_ratio"
 type = "double"
-default = "0.01"
+default = "0.05"
 doc = "The one AGC's noise bandwidth as a fraction of the SLOWEST loop it feeds -- min(bn_carrier, bn_timing), not the carrier's alone, since the AGC feeds the timing loop directly. Must be in (0, 1) and construction refuses otherwise, because an AGC at or above the bandwidth of a loop it feeds corrects the excursions that loop is itself producing and the two integrate against each other; the signal LEVEL is a slow property of the channel, not a disturbance to reject at loop speed. Exposed rather than fixed because the right separation depends on how fast the channel's level moves against how fast its phase and timing do, which is a property of the link. The cold start is not the loop's job either way -- the AGC seeds its gain from a direct measurement -- so slow is cheap here."
 
 [[mpsk_receiver.properties]]

@@ -20,7 +20,7 @@ main (void)
 {
   mpsk_receiver_r_state_t *obj = mpsk_receiver_r_create (
       4, 16.0, 4, 0, 0.35, 8, 0.01, 0.707, 0.01, 0, 0.5, 0.0, 100, 0, 1024,
-      MPSK_RX_NDA_TAP_STROBE);
+      MPSK_RX_NDA_TAP_STROBE, 1, MPSK_RX_AGC_BW_RATIO);
   struct timespec t0, t1;
   jm_bench_t      _bench = { 0 };
 

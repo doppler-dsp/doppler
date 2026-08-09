@@ -178,10 +178,10 @@ RXR (int m, double sps, size_t m_out, int pulse, double bn_carrier,
      int acq_to_track, double lock_thresh, double init_norm_freq,
      size_t warmup_syms)
 {
-  return mpsk_receiver_r_create (m, sps, m_out, pulse, 0.35, 8, bn_carrier,
-                                 0.707, 0.01, acq_to_track, lock_thresh,
-                                 init_norm_freq, warmup_syms, 0,
-                                 MPSK_RX_NUM_PHASES, MPSK_RX_NDA_TAP_STROBE);
+  return mpsk_receiver_r_create (
+      m, sps, m_out, pulse, 0.35, 8, bn_carrier, 0.707, 0.01, acq_to_track,
+      lock_thresh, init_norm_freq, warmup_syms, 0, MPSK_RX_NUM_PHASES,
+      MPSK_RX_NDA_TAP_STROBE, 1, MPSK_RX_AGC_BW_RATIO);
 }
 
 int
@@ -506,6 +506,73 @@ main (void)
   free (tx);
   free (idx);
   free (out);
+  /* The real twin's front-end AGC: level-invariant, and slower than both
+   * loops. The complex twin's gates in test_mpsk_receiver_core.c carry the
+   * reasoning; this pins that the wedge actually reached THIS type, which has
+   * its own constructor, its own cascade (behind the R2C halfband) and its
+   * own binding. Nothing about the complex twin's gates would fail if the R
+   * twin's `agc` parameter were quietly ignored. */
+  {
+    static const double amps[]  = { 0.25, 1.0, 4.0 };
+    double              gain[3] = { 0, 0, 0 };
+    size_t              nsym[3] = { 0, 0, 0 };
+    float              *rtx     = malloc (NSAMP * sizeof (*rtx));
+    int                *ridx    = malloc (NSYM * sizeof (int));
+    float complex      *rout    = malloc (NSYM * sizeof (*rout));
+    CHECK (rtx && ridx && rout);
+    for (size_t a = 0; a < 3 && rtx && ridx && rout; a++)
+      {
+        make_mpsk_real (rtx, ridx, 4, SPS, NSYM, FC_CENTRE, 30.0, 5u,
+                        phi0_for (4));
+        for (size_t i = 0; i < NSAMP; i++)
+          rtx[i] *= (float)amps[a];
+
+        mpsk_receiver_r_state_t *rx = RXR (4, SPS, M_OUT, MPSK_RX_PULSE_IANDD,
+                                           0.01, 0, 0.5, FC_CENTRE, 100);
+        CHECK (rx != NULL);
+        if (rx)
+          {
+            size_t k = mpsk_receiver_r_steps (rx, rtx, NSAMP, rout, NSYM);
+            CHECK (k > 0);
+            gain[a] = mpsk_receiver_r_get_agc_gain_db (rx);
+            nsym[a] = k;
+            mpsk_receiver_r_destroy (rx);
+          }
+
+        /* agc=0 is the bisect handle here too: no gain, ever. */
+        mpsk_receiver_r_state_t *off = mpsk_receiver_r_create (
+            4, SPS, M_OUT, MPSK_RX_PULSE_IANDD, 0.35, 8, 0.01, 0.707, 0.01, 0,
+            0.5, FC_CENTRE, 100, 0, MPSK_RX_NUM_PHASES, MPSK_RX_NDA_TAP_STROBE,
+            0, MPSK_RX_AGC_BW_RATIO);
+        CHECK (off != NULL);
+        if (off)
+          {
+            (void)mpsk_receiver_r_steps (off, rtx, NSAMP, rout, NSYM);
+            CHECK (mpsk_receiver_r_get_agc_gain_db (off) == 0.0);
+            mpsk_receiver_r_destroy (off);
+          }
+      }
+    CHECK (nsym[0] == nsym[1] && nsym[1] == nsym[2]);
+    /* Non-vacuous: the gain tracked the input across the full 24 dB. */
+    CHECK (gain[0] - gain[1] > 10.0 && gain[1] - gain[2] > 10.0);
+
+    /* The ratio is refused at or above 1, where the AGC would be as fast as
+       the loop it feeds. */
+    CHECK (mpsk_receiver_r_create (4, SPS, M_OUT, MPSK_RX_PULSE_IANDD, 0.35, 8,
+                                   0.01, 0.707, 0.01, 0, 0.5, FC_CENTRE, 100,
+                                   0, MPSK_RX_NUM_PHASES,
+                                   MPSK_RX_NDA_TAP_STROBE, 1, 1.0)
+           == NULL);
+    CHECK (mpsk_receiver_r_create (4, SPS, M_OUT, MPSK_RX_PULSE_IANDD, 0.35, 8,
+                                   0.01, 0.707, 0.01, 0, 0.5, FC_CENTRE, 100,
+                                   0, MPSK_RX_NUM_PHASES,
+                                   MPSK_RX_NDA_TAP_STROBE, 1, 0.0)
+           == NULL);
+    free (rtx);
+    free (ridx);
+    free (rout);
+  }
+
   if (_fails)
     {
       fprintf (stderr, "test_mpsk_receiver_r_core FAILED (%d)\n", _fails);

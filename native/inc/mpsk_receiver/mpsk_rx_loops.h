@@ -96,7 +96,7 @@ extern "C"
  * `bn_agc_ratio` sets that one AGC's bandwidth as a fraction of the SLOWEST
  * loop it feeds -- the minimum of bn_carrier and bn_timing, not the carrier's
  * alone, since the cascade AGC feeds the timing loop directly.
- * CARRIER_NDA_AGC_BW_RATIO (0.01) is the default. The RATIO, not the number,
+ * MPSK_RX_AGC_BW_RATIO is the default. The RATIO, not the number,
  * is the part that is not negotiable: let an AGC approach the bandwidth of a
  * loop it feeds and it starts correcting the excursions that loop is itself
  * producing, and the two integrate against each other. The level is a slow
@@ -119,6 +119,21 @@ extern "C"
  * receiver's loop against a burst budget; this object is continuous by
  * design, and a receiver built for bursts would take feed-forward estimates
  * rather than lean on loops at all. */
+/* Default `bn_agc_ratio`: 20x slower than the slowest loop the AGC feeds.
+ *
+ * Not carrier_nda's 0.01, and the difference is measured rather than
+ * stylistic. That AGC sat directly on a discriminator input and only ever had
+ * to track drift; this one has to CORRECT a cold level, and at 0.01 it cannot
+ * do so inside a realistic burst -- a 40 dB correction takes ~1/(4*bn_agc)
+ * = 2500 symbols, so a 4000-symbol record still shows EVM tracking input
+ * level. Measured across two decades of input level (EVM spread, complex /
+ * real): 4.70 / 4.39 dB at 0.01, 0.17 / 0.06 dB at 0.05, 0.13 / 0.03 at 0.2.
+ * 0.05 is the first value that is flat, and it is still 20x below the loops
+ * it feeds, which is what the separation is actually for.
+ *
+ * Raising it further buys nothing measurable and spends stability margin. */
+#define MPSK_RX_AGC_BW_RATIO 0.05
+
   JM_FORCEINLINE double
   mpsk_rx_agc_bn (double bn_carrier, double bn_timing, double ratio)
   {

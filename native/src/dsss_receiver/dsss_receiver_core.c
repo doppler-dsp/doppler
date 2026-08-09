@@ -113,7 +113,7 @@ _build_chain (double chip_rate, double symbol_rate, const uint8_t *code,
   mpsk_receiver_state_t *rx = dp_xnn (mpsk_receiver_create (
       m, (double)sps, (size_t)n, MPSK_RX_PULSE_IANDD, 0.35, 8, 0.01, 0.707,
       0.005, 1, 0.3, 0.0, 30, differential, MPSK_RX_NUM_PHASES,
-      MPSK_RX_NDA_TAP_STROBE, 1, CARRIER_NDA_AGC_BW_RATIO));
+      MPSK_RX_NDA_TAP_STROBE, 1, MPSK_RX_AGC_BW_RATIO));
 
   /* Pre-despread carrier loop: seeded in cycles/sample at the FRONT-END
    * rate (chip_rate*spc) -- the stage that actually owns removing the

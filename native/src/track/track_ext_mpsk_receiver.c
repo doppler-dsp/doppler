@@ -59,7 +59,7 @@ MpskReceiverObj_init (MpskReceiverObject *self, PyObject *args, PyObject *kwds)
   unsigned long long num_phases_raw  = 1024;
   const char        *nda_tap_str     = "strobe";
   int                agc             = 1;
-  double             bn_agc_ratio    = 0.01;
+  double             bn_agc_ratio    = 0.05;
 
   if (!PyArg_ParseTupleAndKeywords (
           args, kwds, "|idKsdidddiddKiKsid", kwlist, &m, &sps, &m_out_raw,

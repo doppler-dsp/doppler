@@ -42,7 +42,7 @@ MpskReceiverRObj_init (MpskReceiverRObject *self, PyObject *args,
           "rrc_beta",    "rrc_span",     "bn_carrier",  "zeta",
           "bn_timing",   "acq_to_track", "lock_thresh", "init_norm_freq",
           "warmup_syms", "differential", "num_phases",  "nda_tap",
-          NULL };
+          "agc",         "bn_agc_ratio", NULL };
   int                m               = 4;
   double             sps             = 32.0;
   unsigned long long m_out_raw       = 8;
@@ -59,12 +59,14 @@ MpskReceiverRObj_init (MpskReceiverRObject *self, PyObject *args,
   int                differential    = 0;
   unsigned long long num_phases_raw  = 1024;
   const char        *nda_tap_str     = "strobe";
+  int                agc             = 1;
+  double             bn_agc_ratio    = 0.05;
 
   if (!PyArg_ParseTupleAndKeywords (
-          args, kwds, "|idKsdidddiddKiKs", kwlist, &m, &sps, &m_out_raw,
+          args, kwds, "|idKsdidddiddKiKsid", kwlist, &m, &sps, &m_out_raw,
           &pulse_str, &rrc_beta, &rrc_span, &bn_carrier, &zeta, &bn_timing,
           &acq_to_track, &lock_thresh, &init_norm_freq, &warmup_syms_raw,
-          &differential, &num_phases_raw, &nda_tap_str))
+          &differential, &num_phases_raw, &nda_tap_str, &agc, &bn_agc_ratio))
     return -1;
   size_t m_out = (size_t)m_out_raw;
   int    pulse = 0;
@@ -99,7 +101,7 @@ MpskReceiverRObj_init (MpskReceiverRObject *self, PyObject *args,
   self->handle = mpsk_receiver_r_create (
       m, sps, m_out, pulse, rrc_beta, rrc_span, bn_carrier, zeta, bn_timing,
       acq_to_track, lock_thresh, init_norm_freq, warmup_syms, differential,
-      num_phases, nda_tap);
+      num_phases, nda_tap, agc, bn_agc_ratio);
   if (!self->handle)
     {
       PyErr_SetString (PyExc_ValueError,
@@ -620,30 +622,55 @@ MpskReceiverR_getprop_clipped (MpskReceiverRObject *self,
   return PyLong_FromLong ((long)mpsk_receiver_r_get_clipped (self->handle));
 }
 
-static PyGetSetDef MpskReceiverR_getset[]
-    = { { "norm_freq", (getter)MpskReceiverR_getprop_norm_freq,
-          (setter)MpskReceiverR_setprop_norm_freq,
-          "Tracked carrier, cycles/sample at the REAL input rate.\n", NULL },
-        { "lock", (getter)MpskReceiverR_getprop_lock, NULL,
-          "EMA of the carrier lock signal.\n", NULL },
-        { "timing_rate", (getter)MpskReceiverR_getprop_timing_rate, NULL,
-          "Timing rate.\n", NULL },
-        { "tracking", (getter)MpskReceiverR_getprop_tracking, NULL,
-          "0 = NDA acquire, 1 = decision.\n", NULL },
-        { "m", (getter)MpskReceiverR_getprop_m, NULL,
-          "constellation order M (2, 4, 8).\n", NULL },
-        { "sps", (getter)MpskReceiverR_getprop_sps, NULL,
-          "samples per symbol at the receiver's input.\n", NULL },
-        { "m_out", (getter)MpskReceiverR_getprop_m_out, NULL,
-          "terminal outputs per symbol.\n", NULL },
-        { "clipped", (getter)MpskReceiverR_getprop_clipped, NULL,
-          "Has the cascade's CIC stage clipped its input since the last "
-          "reset? A CIC bounds its input to |Re|, |Im| <= 1.0 and clips "
-          "silently past that -- the output stays finite and plausible, "
-          "merely distorted, at a cost of ~25 dB of EVM that no lock metric "
-          "reveals. Always 0 for a plan with no CIC stage.\n",
-          NULL },
-        { NULL } };
+static PyObject *
+MpskReceiverR_getprop_agc_gain_db (MpskReceiverRObject *self,
+                                   void                *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  /* <<IMPLEMENT: return the computed or stored value>> */
+  return PyFloat_FromDouble (mpsk_receiver_r_get_agc_gain_db (self->handle));
+}
+
+static PyGetSetDef MpskReceiverR_getset[] = {
+  { "norm_freq", (getter)MpskReceiverR_getprop_norm_freq,
+    (setter)MpskReceiverR_setprop_norm_freq,
+    "Tracked carrier, cycles/sample at the REAL input rate.\n", NULL },
+  { "lock", (getter)MpskReceiverR_getprop_lock, NULL,
+    "EMA of the carrier lock signal.\n", NULL },
+  { "timing_rate", (getter)MpskReceiverR_getprop_timing_rate, NULL,
+    "Timing rate.\n", NULL },
+  { "tracking", (getter)MpskReceiverR_getprop_tracking, NULL,
+    "0 = NDA acquire, 1 = decision.\n", NULL },
+  { "m", (getter)MpskReceiverR_getprop_m, NULL,
+    "constellation order M (2, 4, 8).\n", NULL },
+  { "sps", (getter)MpskReceiverR_getprop_sps, NULL,
+    "samples per symbol at the receiver's input.\n", NULL },
+  { "m_out", (getter)MpskReceiverR_getprop_m_out, NULL,
+    "terminal outputs per symbol.\n", NULL },
+  { "clipped", (getter)MpskReceiverR_getprop_clipped, NULL,
+    "Has the cascade's CIC stage clipped its input since the last "
+    "reset? A CIC bounds its input to |Re|, |Im| <= 1.0 and clips "
+    "silently past that -- the output stays finite and plausible, "
+    "merely distorted, at a cost of ~25 dB of EVM that no lock metric "
+    "reveals. Always 0 for a plan with no CIC stage.\n",
+    NULL },
+  { "agc_gain_db", (getter)MpskReceiverR_getprop_agc_gain_db, NULL,
+    "Gain the front-end AGC is applying, in dB; 0.0 when `agc=0`. The "
+    "diagnostic for a level problem: a receiver that will not lock with a "
+    "healthy `lock` statistic, or one whose timing loop behaves differently "
+    "at two input levels, is asking about this number. It settles at "
+    "-10*log10(P_in / P_ref), where P_ref is the power a unit-amplitude "
+    "symbol stream has where the AGC sits, so a reading far from 0 dB says "
+    "the input is far from the level the cascade was built for -- which is "
+    "fine, and is what the AGC is for, but is worth knowing. Distinct from "
+    "the cascade's filter response, which stays unity; the two multiply.\n",
+    NULL },
+  { NULL }
+};
 
 static PyObject *
 MpskReceiverRObj_destroy (MpskReceiverRObject *self,

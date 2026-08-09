@@ -78,6 +78,21 @@ ______________________________________________________________________
 
 ### Fixed
 
+- **A single-phase polyphase bank selects arm 0 instead of shifting by 32.**
+    `get_branch` computed `ph >> (32 - log2_phases)`; a one-arm bank makes
+    that a 32-bit shift of a `uint32_t`, which is undefined (C99 6.5.7p3).
+    x86 masks the count to 5 bits, so it evaluated to `ph` itself and indexed
+    `bank[ph * num_taps]` — a read far outside a two-float bank. A one-phase
+    bank has exactly one arm, so the phase selects nothing.
+
+    Reachable but masked: the only single-phase user is `wfm_synth`'s
+    polyphase RRC shaper at `sps == 1`, whose rate is then exactly 1.0 — and
+    the `phase_inc` conversion at that rate was **itself** undefined, yielding
+    0 on x86, which pinned the phase at 0 and made the bad shift harmless.
+    **The two defects have to be fixed together**: repairing either alone
+    turns a silently dead waveform into a segfault. This is the half that
+    goes first.
+
 - **`Capture` / `MemoryCapture` publish the constructor they actually have.**
     The stubs rendered `clock: Any = ...` for an argument the binding has
     always required, so a type checker blessed `MemoryCapture(tlm, block)` and

@@ -163,16 +163,17 @@ mpsk_ber_burst (const mpsk_ber_cfg_t *c, double esn0_db, uint32_t seed,
   double sigma = c->real ? MPSK_BER_AMP * sqrt (c->sps / (4.0 * esn0))
                          : MPSK_BER_AMP * sqrt (c->sps / (2.0 * esn0));
 
-  void *rx
-      = c->real ? (void *)mpsk_receiver_r_create (
-                      c->m, c->sps, c->m_out, MPSK_RX_PULSE_IANDD, 0.35, 8,
-                      c->bn_carrier, 0.707, c->bn_timing, c->acq_to_track, 0.3,
-                      c->fc - c->foff, 300, 0, MPSK_RX_NUM_PHASES, c->nda_tap)
-                : (void *)mpsk_receiver_create (
-                      c->m, c->sps, c->m_out, MPSK_RX_PULSE_IANDD, 0.35, 8,
-                      c->bn_carrier, 0.707, c->bn_timing, c->acq_to_track, 0.3,
-                      c->fc - c->foff, 300, 0, MPSK_RX_NUM_PHASES, c->nda_tap,
-                      1, CARRIER_NDA_AGC_BW_RATIO);
+  void *rx = c->real
+                 ? (void *)mpsk_receiver_r_create (
+                       c->m, c->sps, c->m_out, MPSK_RX_PULSE_IANDD, 0.35, 8,
+                       c->bn_carrier, 0.707, c->bn_timing, c->acq_to_track,
+                       0.3, c->fc - c->foff, 300, 0, MPSK_RX_NUM_PHASES,
+                       c->nda_tap, 1, MPSK_RX_AGC_BW_RATIO)
+                 : (void *)mpsk_receiver_create (
+                       c->m, c->sps, c->m_out, MPSK_RX_PULSE_IANDD, 0.35, 8,
+                       c->bn_carrier, 0.707, c->bn_timing, c->acq_to_track,
+                       0.3, c->fc - c->foff, 300, 0, MPSK_RX_NUM_PHASES,
+                       c->nda_tap, 1, MPSK_RX_AGC_BW_RATIO);
   if (!rx)
     return 0;
 

@@ -2956,7 +2956,7 @@ class MpskReceiver:
         attributing any measurement that moves. This is the receiver's ONLY AGC
         -- the carrier discriminator normalises by its own |z|^M and needs
         none. Read the applied gain back with `agc_gain_db`.
-    bn_agc_ratio : float, default 0.01
+    bn_agc_ratio : float, default 0.05
         The one AGC's noise bandwidth as a fraction of the SLOWEST loop it
         feeds -- min(bn_carrier, bn_timing), not the carrier's alone, since the
         AGC feeds the timing loop directly. Must be in (0, 1) and construction
@@ -2993,7 +2993,7 @@ class MpskReceiver:
     ...     num_phases=1024,
     ...     nda_tap="strobe",
     ...     agc=1,
-    ...     bn_agc_ratio=0.01,
+    ...     bn_agc_ratio=0.05,
     ... )
 
     """
@@ -3516,6 +3516,36 @@ class MpskReceiverR:
         but unmatched, so it pays squaring loss. Fixed at construction: nothing
         switches underneath you. If you need more range than any tap gives, put
         a coarse frequency estimate in front and pass it as init_norm_freq.
+    agc : int, default 1
+        Level the front-end cascade so the timing detector's construct-time
+        slope means what it says. The TED normalises by its OWN slope and
+        nothing else, and that slope is computed for a UNIT-amplitude symbol
+        stream -- amplitude enters the raw error as A^2 (Gardner) or A^1
+        (DTTL), so a 4x level error is a 16x loop-gain error. With this on, an
+        AGC sits inside the cascade just before the matched filter and drives
+        the average power to the level a unit-amplitude symbol stream would
+        have there, derived from the matched filter's own pulse energy rather
+        than configured. On by default because the alternative is a receiver
+        whose loop gain depends on how loud the input happened to be. Set 0 to
+        reproduce the un-levelled behaviour exactly, which is the handle for
+        attributing any measurement that moves. This is the receiver's ONLY AGC
+        -- the carrier discriminator normalises by its own |z|^M and needs
+        none. Read the applied gain back with `agc_gain_db`. On this twin the
+        AGC sits behind the R2C halfband, so it levels the analytic signal at
+        the intermediate rate rather than the real input.
+    bn_agc_ratio : float, default 0.05
+        The one AGC's noise bandwidth as a fraction of the SLOWEST loop it
+        feeds -- min(bn_carrier, bn_timing), not the carrier's alone, since the
+        AGC feeds the timing loop directly. Must be in (0, 1) and construction
+        refuses otherwise, because an AGC at or above the bandwidth of a loop
+        it feeds corrects the excursions that loop is itself producing and the
+        two integrate against each other; the signal LEVEL is a slow property
+        of the channel, not a disturbance to reject at loop speed. Exposed
+        rather than fixed because the right separation depends on how fast the
+        channel's level moves against how fast its phase and timing do, which
+        is a property of the link. The cold start is not the loop's job either
+        way -- the AGC seeds its gain from a direct measurement -- so slow is
+        cheap here.
 
     Examples
     --------
@@ -3539,6 +3569,8 @@ class MpskReceiverR:
     ...     differential=0,
     ...     num_phases=1024,
     ...     nda_tap="strobe",
+    ...     agc=1,
+    ...     bn_agc_ratio=0.05,
     ... )
 
     """
@@ -3560,6 +3592,8 @@ class MpskReceiverR:
         differential: int = ...,
         num_phases: int = ...,
         nda_tap: Literal["strobe", "mf_all", "lo_arm"] = "strobe",
+        agc: int = ...,
+        bn_agc_ratio: float = ...,
     ) -> None: ...
 
     def set_telemetry(
@@ -3876,6 +3910,19 @@ class MpskReceiverR:
         ----------
         blob : bytes
             A `get_state()` blob from this type, exactly `state_bytes()` long.
+        """
+
+    @property
+    def agc_gain_db(self) -> float:
+        """Gain the front-end AGC is applying, in dB; 0.0 when `agc=0`. The
+        diagnostic for a level problem: a receiver that will not lock with a
+        healthy `lock` statistic, or one whose timing loop behaves differently
+        at two input levels, is asking about this number. It settles at
+        -10*log10(P_in / P_ref), where P_ref is the power a unit-amplitude
+        symbol stream has where the AGC sits, so a reading far from 0 dB says
+        the input is far from the level the cascade was built for -- which is
+        fine, and is what the AGC is for, but is worth knowing. Distinct from
+        the cascade's filter response, which stays unity; the two multiply.
         """
 
     @property

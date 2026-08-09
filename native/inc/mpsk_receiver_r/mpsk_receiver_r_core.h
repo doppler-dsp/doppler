@@ -154,7 +154,22 @@ extern "C"
                           double zeta, double bn_timing, int acq_to_track,
                           double lock_thresh, double init_norm_freq,
                           size_t warmup_syms, int differential,
-                          size_t num_phases, int nda_tap);
+                          size_t num_phases, int nda_tap, int agc,
+                          double bn_agc_ratio);
+
+  /**
+   * @brief Gain the front end's AGC is applying, in dB; 0.0 when @c agc = 0.
+   *
+   * The twin of mpsk_receiver_get_agc_gain_db(), and the same diagnostic: a
+   * receiver that will not lock with a healthy `lock` statistic, or one whose
+   * timing loop behaves differently at two input levels, is asking about this
+   * number. Note the AGC sits inside the cascade BEHIND the R2C halfband, so
+   * it levels the analytic signal at the intermediate rate, not the real
+   * input -- which is what makes its reference the same derived
+   * `bank_e0 / bank_sps` the complex twin uses.
+   */
+  double
+  mpsk_receiver_r_get_agc_gain_db (const mpsk_receiver_r_state_t *state);
 
   /** @brief Destroy and release all memory. @param state May be NULL. */
   void mpsk_receiver_r_destroy (mpsk_receiver_r_state_t *state);

@@ -69,7 +69,7 @@
  * mpsk_receiver_state_t *rx = mpsk_receiver_create (
  *     4, 8.0, 4, MPSK_RX_PULSE_IANDD, 0.35, 8,
  *     0.01, 0.707, 0.01, 0, 0.5, 0.0, 100, 0, 1024,
- *     MPSK_RX_NDA_TAP_STROBE, 1, CARRIER_NDA_AGC_BW_RATIO);
+ *     MPSK_RX_NDA_TAP_STROBE, 1, MPSK_RX_AGC_BW_RATIO);
  * float complex sym[256];
  * size_t k = mpsk_receiver_steps (rx, rx_in, rx_len, sym, 256);
  * double f = mpsk_receiver_get_norm_freq (rx);  // tracked residual carrier

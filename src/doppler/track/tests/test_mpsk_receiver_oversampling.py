@@ -88,11 +88,6 @@ RATIOS = [
 
 PATHS = [("R", True), ("C", False)]
 
-#: Highest oversampling at which the REAL twin's timing loop acquires under
-#: noise. The complex path has no such limit since the cascade AGC landed;
-#: MpskReceiverR has not been given the same wedge yet.
-_AWGN_MAX_SPS_REAL = 64
-
 #: The AWGN cases settle later than the noiseless ones and need the room: the
 #: complex path settles at ~3900 symbols against the real path's 2000.
 _AWGN_NSYM = 12000
@@ -179,36 +174,17 @@ def test_evm_lands_on_the_coherent_bound(
     those two conventions honest against each other.
     """
     esn0 = 12.0
-    if real and sps > _AWGN_MAX_SPS_REAL:
-        # A MARKER, not pytest.xfail(): the imperative form never runs the
-        # body, so it could not notice this starting to pass. strict=True
-        # turns an unexpected pass RED, which is what makes this a gate on
-        # the fix rather than a note about it -- and it did exactly that for
-        # the complex path (see below).
-        request.node.add_marker(
-            pytest.mark.xfail(
-                strict=True,
-                reason=(
-                    f"MpskReceiverR at sps={sps}: the real twin has no "
-                    "front-end AGC yet. Its complex sibling did until the "
-                    "AGC landed inside the cascade, and this same marker is "
-                    "what caught the fix. The twin needs the same wedge "
-                    "through ddcr -- filed separately, deliberately out of "
-                    "scope for the change that fixed the complex path."
-                ),
-            )
-        )
-    # sps=512 and sps=2048 were strict-xfail on BOTH paths until the front-end
-    # AGC landed, and the marker called the fix correctly
-    # landed, and the marker called the fix correctly: the level was being set
-    # where the signal's share of a unit-power composite still depended on the
-    # input oversampling (A^2 drive 0.76 at sps=20, 0.50 at 64, 0.11 at 512,
-    # 0.03 at 2048), and a TED's slope goes as A^2. The AGC now sits inside
-    # the cascade AFTER the decimation, where the noise has been filtered to
-    # the terminal rate, so the level no longer moves with sps -- and the
-    # carrier discriminator normalises by its own |z|^M rather than leaning on
-    # an AGC downstream of the timing strobe. Every ratio now runs unmarked;
-    # strict=True is what made this turn red the moment it started passing.
+    # sps=512 and sps=2048 were strict-xfail here on BOTH paths until the
+    # front-end AGC landed, and the marker called the fix exactly: the level
+    # was being set where the signal's share of a unit-power composite still
+    # depended on the input oversampling (A^2 drive 0.76 at sps=20, 0.50 at
+    # 64, 0.11 at 512, 0.03 at 2048), and a TED's slope goes as A^2. The AGC
+    # now sits inside the cascade AFTER the decimation, where the noise has
+    # been filtered to the terminal rate, so the level no longer moves with
+    # sps -- and the carrier discriminator normalises by its own |z|^M instead
+    # of leaning on an AGC downstream of the timing strobe. Every ratio runs
+    # unmarked on both paths; strict=True is what turned this red the moment
+    # it started passing, which is what it was for.
     r = _measure(real, sps, m_out, bn, max(nsym, _AWGN_NSYM), esn0_db=esn0)
     assert r is not None, f"{path} at sps={sps}: no settled window under AWGN"
     assert -esn0 - 1.0 < r["evm"] < -esn0 + 3.5, (

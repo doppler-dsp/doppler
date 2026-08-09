@@ -17,7 +17,8 @@ mpsk_receiver_r_create (int m, double sps, size_t m_out, int pulse,
                         double zeta, double bn_timing, int acq_to_track,
                         double lock_thresh, double init_norm_freq,
                         size_t warmup_syms, int differential,
-                        size_t num_phases, int nda_tap)
+                        size_t num_phases, int nda_tap, int agc,
+                        double bn_agc_ratio)
 {
   if (m != 2 && m != 4 && m != 8)
     return NULL;
@@ -31,7 +32,11 @@ mpsk_receiver_r_create (int m, double sps, size_t m_out, int pulse,
       || !(rrc_beta <= 1.0) || rrc_span < 1 || !(bn_carrier >= 0.0)
       || !(bn_timing >= 0.0) || !(zeta > 0.0) || num_phases < 2u
       || (num_phases & (num_phases - 1u)) != 0u
-      || nda_tap < MPSK_RX_NDA_TAP_STROBE || nda_tap > MPSK_RX_NDA_TAP_LO_ARM)
+      || nda_tap < MPSK_RX_NDA_TAP_STROBE
+      || nda_tap > MPSK_RX_NDA_TAP_LO_ARM
+      /* An AGC at or above the bandwidth of a loop it feeds corrects the
+         excursions that loop is producing; refused, not warned about. */
+      || !(bn_agc_ratio > 0.0) || !(bn_agc_ratio < 1.0))
     return NULL;
 
   mpsk_receiver_r_state_t *rx = calloc (1, sizeof (*rx));
@@ -57,15 +62,28 @@ mpsk_receiver_r_create (int m, double sps, size_t m_out, int pulse,
   /* lo_sps = sps/2: the halfband decimates 2:1 before the mix, so the LO sees
      half as many samples per symbol as the input does. This is the whole
      reason mpsk_rx_loops_init takes lo_sps separately from sps. */
-  /* No cascade AGC on this twin yet -- and none is needed for the carrier
-     discriminator, which normalises by its own |z|^M. The R-twin wedge is
-     filed separately. */
   mpsk_rx_loops_init (&rx->l, m, sps, 0.5 * sps, m_out, bn_carrier, zeta,
-                      bn_timing, CARRIER_NDA_AGC_BW_RATIO,
-                      RATESYNC_TED_GARDNER, acq_to_track, lock_thresh,
-                      warmup_syms, differential, nda_tap);
+                      bn_timing, bn_agc_ratio, RATESYNC_TED_GARDNER,
+                      acq_to_track, lock_thresh, warmup_syms, differential,
+                      nda_tap);
   ratesync_loop_bind_cascade (&rx->l.timing, rx->fe->rc);
+
+  /* The same wedge the complex twin gets, in the same place: inside the
+     cascade, before the terminal matched stage. The R2C halfband ahead of it
+     means the AGC sees the analytic signal at the intermediate rate, which is
+     also where the noise has already been filtered -- so the level it sets no
+     longer depends on how far the front end oversamples. */
+  if (agc)
+    (void)RateConverter_enable_agc (
+        rx->fe->rc, mpsk_rx_agc_bn (bn_carrier, bn_timing, bn_agc_ratio),
+        CARRIER_NDA_AGC_ALPHA);
   return rx;
+}
+
+double
+mpsk_receiver_r_get_agc_gain_db (const mpsk_receiver_r_state_t *state)
+{
+  return RateConverter_agc_gain_db (state->fe->rc);
 }
 
 void

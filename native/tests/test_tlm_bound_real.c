@@ -74,10 +74,10 @@ main (void)
   CHECK (carrier_nda_set_telemetry (c, t, "car", 1) == DP_OK);
 
   size_t probes = dp_tlm_probe_count (t);
-  /* 4 of its own + 1 forwarded to the embedded AGC. If this number moves, the
-     bound moves with it -- which is the point of deriving it rather than
-     hard-coding 5. */
-  CHECK (probes == 5);
+  /* 4, all its own. Was 5 until gh-657 retired the embedded arm AGC and with
+     it the forwarded "car.agc.gain_db". If this number moves, the bound moves
+     with it -- which is the point of deriving it rather than hard-coding. */
+  CHECK (probes == 4);
 
   size_t bound = dp_tlm_block_bound (t, BLOCK);
   CHECK (bound == probes * BLOCK);
@@ -126,21 +126,25 @@ main (void)
   CHECK (dp_tlm_dropped (t) == 0);
 
   /* Tightness, which is what makes the inequality above mean something. The
-     audit predicts this object emits 4 probes per input UNCONDITIONALLY plus
-     the embedded AGC's gain every AGC_DECIM_DEFAULT (8) inputs -- 4.125 per
-     input, or 2112 records for a 512-sample block. The measurement agrees to
-     the record, so the bound is not merely satisfied, it is understood.
+     audit predicts this object emits 4 probes per input UNCONDITIONALLY and
+     nothing else -- 2048 records for a 512-sample block, which is the bound
+     exactly. The measurement agrees to the record, so the bound is not merely
+     satisfied, it is understood.
+
+     It used to predict 4.125 per input: 4 unconditional plus the embedded arm
+     AGC's gain every AGC_DECIM_DEFAULT (8) inputs. gh-657 removed that AGC,
+     which is precisely the kind of density change this equality exists to
+     make someone look at -- it went red, and the audit was updated rather
+     than the assertion relaxed.
 
      Two assertions, doing different jobs. The floor catches the ratio
      collapsing -- a silent object satisfies `worst <= bound` while proving
      nothing at all. The equality pins the prediction itself, and it is
-     deliberately brittle: if the AGC's default update period changes, this
-     goes red, and that is the correct outcome. The emission density really
-     did move, and someone should look rather than let the audit quietly
-     drift out of date again. */
+     deliberately brittle: if this object's emission density moves again, this
+     goes red, and that is the correct outcome. */
   CHECK (total > 0);
   CHECK (worst > bound / 2);
-  CHECK (worst == 4 * BLOCK + BLOCK / 8); /* the audit's exact prediction */
+  CHECK (worst == 4 * BLOCK); /* the audit's exact prediction */
 
   dp_tlm_capture_destroy (cap);
   dp_tlm_destroy (t);

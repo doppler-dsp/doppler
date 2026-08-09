@@ -602,11 +602,11 @@ buried in the receiver) — a complete non-data-aided carrier-recovery loop usab
 on its own for any M-PSK / unmodulated carrier:
 
 - **Owns** an integer `lo` NCO + a `loop_filter` (by value), the I/Q arm
-    **boxcar moving average** (embedded `boxcar` primitive) + its **per-sample
-    AGC** (embedded `agc` — now redundant, see the AGC note at the end of this
-    section), and the M-th-power discriminator + lock signal.
+    **boxcar moving average** (embedded `boxcar` primitive), and the
+    M-th-power discriminator + lock signal. **No AGC** — see the AGC note at
+    the end of this section.
 - **Per sample:** wipe-off (inline `*_wipeoff`), slide the boxcar arm one sample,
-    AGC-normalize, run the discriminator, filter, steer the NCO — **one update
+    run the discriminator, filter, steer the NCO — **one update
     per input sample** (no dumping). Inline composition API (`*_wipeoff` /
     `*_arm_step`) mirrors `lo_step` / `dll_accumulate` / `symsync_step`.
 - **Exposes** `norm_freq`, `lock_signal`/lock metric, `m`, `n` (boxcar window
@@ -665,10 +665,19 @@ ______________________________________________________________________
 > **timing** detector: a TED normalizes by its own slope, and that slope is
 > computed for a unit-amplitude symbol stream.
 >
-> The standalone `CarrierNda` object still embeds its own arm AGC. It shares
-> the now-normalized discriminator, so that AGC no longer has a detector to
-> serve and is a candidate for removal on its own terms — filed separately
-> rather than folded into a receiver change.
+> The standalone `CarrierNda` object embedded its own arm AGC until
+> [#657](https://github.com/doppler-dsp/doppler/issues/657), which removed it
+> on the same argument: it shared the now-normalized discriminator, so it had
+> no detector left to serve. Removing it also exposed — and fixed — a range
+> bug the AGC had been hiding. Dividing by `|z|^M` at the END means forming
+> `|z|^M` explicitly, and at M = 8 that overflows float in both directions:
+> the detector returned exactly zero below `|z| = 0.032` (the epsilon guard,
+> applied to `|z|^8`) and NaN above `|z| = 1e5`. With `|z| ≈ 1` manufactured
+> upstream neither end was reachable. The divide is now hoisted to the first
+> squaring — `(Re(z²), Im(z²))/|z|²` *is* the unit vector `(z/|z|)²`, and
+> every later squaring of a unit vector stays one — so nothing in the
+> detector ever forms `|z|^M`, the guard means the same thing at every M, and
+> the outputs are scale-invariant from 1e-5 to 1e15.
 >
 > **The timing detector is not amplitude-invariant either, and this paragraph
 > used to claim the receiver needed no AGC on the strength of the carrier path
@@ -819,8 +828,9 @@ ______________________________________________________________________
 
 ## 8. Resolved / open review points
 
-- **NDA discriminator form** — *resolved.* Raw M-th-power via repeated squaring
-    (§2.3) on an AGC-normalized arm, with the lock signal left UNSCALED so it
+- **NDA discriminator form** — *resolved.* M-th-power via repeated squaring of
+    the unit-magnitude arm sample (§2.3) — self-normalizing, so no AGC in
+    front of it — with the lock signal left UNSCALED so it
     reads ~1.0 at lock for every M. It used to carry a per-M `lock_scale` of
     1 / 0.619 / 0.412, which made the statistic's ceiling M-dependent and the
     default handover threshold of 0.5 **unreachable at 8PSK** (ceiling 0.412):
@@ -828,9 +838,13 @@ ______________________________________________________________________
     every call site that needed a meaningful threshold multiplied the scale
     back in by hand. Squaring-loss equations corrected and Yuen-grounded
     (§2.3).
-- **Arm normalization** — *resolved.* Internal `agc_core` AGC (bandwidth locked
-    to `0.01·bn`, decimated loop-filter command via `gain_update_period`) + 10 dB
-    square clip, not a per-sample limiter (§2.3).
+- **Arm normalization** — *resolved, twice.* It was an internal `agc_core` AGC
+    (bandwidth locked to `0.01·bn`, decimated loop-filter command via
+    `gain_update_period`) plus a 10 dB square clip. Since
+    [#657](https://github.com/doppler-dsp/doppler/issues/657) there is no arm
+    AGC and no clip: the discriminator normalizes by its own `|z|^M`, which
+    removes the constructive-ISI peaks the clip used to bound approximately
+    (§2.3).
 - **Naming** — `CarrierNda` / flat vs a `Carrier.*` namespace (deferred).
 - **Handover threshold** — *resolved, shipped.* `mpsk_receiver_configure_lock()`
     exposes it as a real config call: a `lockdet_state_t handover` gate plus

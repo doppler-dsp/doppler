@@ -431,7 +431,7 @@ RELEASE_WATCH_CMD = @REPO=doppler-dsp/doppler scripts/release-watch.sh \
                         "$(VERSION)"
 
 # ── Clean ────────────────────────────────────────────────────────────────────
-CLEAN_PATHS = $(BUILD_DIR) $(PY_BUILD_DIR) docs/doxygen/ site/ \
+CLEAN_PATHS = $(BUILD_DIR) $(PY_BUILD_DIR) $(UBSAN_DIR) docs/doxygen/ site/ \
               *.png bench_*.json zensical.toml __pycache__
 
 define CLEAN_CMD
@@ -450,6 +450,7 @@ LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
                 test-examples-c test-examples-python test-example-downstream \
                 test-example-downstream-python \
                 test-stubs test-api-docs test-snippets lint-stubs \
+                test-ubsan \
                 check-docstring-coverage \
                 abi-check link-check consumer-faces-check \
                 glibc-check specan-check check-isotime-parity \
@@ -530,6 +531,45 @@ gallery: ## Run the plot examples and copy their PNGs to docs/assets/
 	@mv -f agc_convergence.png ber_awgn_demo.png cic_demo_spectrum.png corr_demo.png detection_curves.png detection_sim.png detection2d_demo.png lockdet_demo.png telemetry_fanin_demo.png mpsk_telemetry_capture_demo.png rate_converter_demo.png ratesync_demo.png ddc_fn_demo.png ddc_fn_scaling.png adc_demo.png hbdecim_q15_demo.png wfmgen_demo.png symbols_demo.png wfm_composition_demo.png wcdma_carriers_demo.png plan_demo.png plan_background_demo.png crowded_band_demo.png measure_demo.png measure_imd_npr_demo.png wfm_write_demo.png doppler_channel_demo.png wfm_io_demo.png dsss_burst_pipeline_demo.png async_dsss_receiver_spec_demo.png dsss_receiver_demo.png carrier_acq_rrc_demo.png mpsk_receiver_demo.png mpsk_receiver_performance_demo.png docs/assets/
 	@rm -f burst.blue
 	@echo "Gallery plots written to docs/assets/."
+
+# ── Undefined behaviour ──────────────────────────────────────────────────────
+# The C suite, rebuilt under UBSan, with `halt_on_error=1` so a report is a
+# FAILURE and not a line in a log nobody reads.
+#
+# This exists because the behavioural suite structurally cannot cover this
+# class. An out-of-range float->integer conversion is undefined, and on
+# x86-64 it happens to yield 0 -- which is frequently the right answer, so
+# every test stays green while the program is wrong by the standard and would
+# behave differently on another target. Three instances of exactly that have
+# already landed in this tree (symsync's nominal_inc, resamp's phase_inc at
+# rate 1, get_branch's `ph >> 32`), and two of them CANCELLED, which is how
+# `Synth(sps=1)` became a silently dead waveform instead of a crash. A gate
+# that only runs the program cannot see any of it; this one can.
+#
+# `alignment` is excluded, and that is a RATCHET, not an exemption: 821
+# reports today, every one `member access within misaligned address`, from
+# casting a byte cursor to a struct pointer in dp_tlm, buffer and dp_state.
+# Fixing them is its own change. The exclusion may only ever shrink -- if you
+# find yourself adding a second `-fno-sanitize=`, fix the code instead.
+UBSAN_DIR    ?= build-ubsan
+UBSAN_OFF    ?= alignment
+UBSAN_FLAGS   = -fsanitize=undefined,float-cast-overflow \
+                -fno-sanitize=$(UBSAN_OFF) -fno-omit-frame-pointer -g
+# halt_on_error is the whole point: without it UBSan prints and carries on,
+# the suite passes, and the gate is decorative.
+UBSAN_OPTS    = halt_on_error=1:print_stacktrace=1:abort_on_error=1
+
+test-ubsan: ## Run the C suite under UBSan; any undefined behaviour fails
+	$(CMAKE) -B $(UBSAN_DIR) -S . \
+		-DCMAKE_BUILD_TYPE=Debug \
+		-DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+		"-DCMAKE_C_FLAGS=$(UBSAN_FLAGS)" \
+		"-DCMAKE_EXE_LINKER_FLAGS=-fsanitize=undefined" \
+		"-DCMAKE_SHARED_LINKER_FLAGS=-fsanitize=undefined" \
+		$(CMAKE_ARGS)
+	$(CMAKE) --build $(UBSAN_DIR) --parallel $(NPROC)
+	UBSAN_OPTIONS=$(UBSAN_OPTS) \
+		$(CTEST) --test-dir $(UBSAN_DIR) --output-on-failure
 
 blazing: ## Clean + Release + -march=native (max speed; never packaged)
 	@$(MAKE) --no-print-directory clean

@@ -134,6 +134,18 @@ extern "C"
  * Raising it further buys nothing measurable and spends stability margin. */
 #define MPSK_RX_AGC_BW_RATIO 0.05
 
+/* Power-detector EMA coefficient for that one AGC (agc_core's `alpha`): how
+ * hard |y|^2 is smoothed before the dB loop filter sees it. Distinct from the
+ * loop bandwidth above -- alpha sets what the AGC BELIEVES the level is,
+ * bn_agc sets how fast it acts on that belief.
+ *
+ * This lived in carrier_nda as CARRIER_NDA_AGC_ALPHA until gh-657 retired
+ * that object's arm AGC; both receivers were reaching across to a carrier
+ * loop's private constant for a cascade AGC's detector, which outlived the
+ * reason. The value is unchanged, so the receivers are bit-identical across
+ * that move. */
+#define MPSK_RX_AGC_ALPHA 0.01
+
   JM_FORCEINLINE double
   mpsk_rx_agc_bn (double bn_carrier, double bn_timing, double ratio)
   {

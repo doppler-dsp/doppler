@@ -6,14 +6,13 @@ no_state = "true"
 no_step = "true"
 class_name = "CarrierNda"
 serializable = "true"
-# agc gained link=true with the telemetry attach: agc_set_telemetry is the
-# first EXTERN agc symbol this core references (agc_step is header-inline),
-# so the standalone C test/bench and the .so now need agc_core linked.
+# `agc` was here for one extern symbol, agc_set_telemetry, forwarded to the
+# embedded arm AGC (agc_step being header-inline). gh-657 retired that AGC, so
+# this core references no agc symbol at all and the dep goes with it.
 depends_on = [
   { name = "lo", link = true },
   { name = "loop_filter", link = true },
   { name = "boxcar", link = true },
-  { name = "agc", link = true },
   { name = "lockdet", link = true },
   { name = "dp_tlm", link = true },
 ]
@@ -60,10 +59,10 @@ params = [{ name = "x", type = "float _Complex[]" }]
 
 # Telemetry attach (jm gh-432; mirrors objects/symsync.toml): registers
 # "<prefix>.lock" / "<prefix>.e" / "<prefix>.freq" / "<prefix>.locked"
-# (the last is the verify-counted lockdet decision, 0/1) plus the embedded
-# arm AGC's "<prefix>.agc.gain_db". This is a sample-rate loop — the probes
-# emit once per input sample; decim is the throttle. None detaches
-# everything; the int status binds -> None with ValueError on failure.
+# (the last is the verify-counted lockdet decision, 0/1). This is a
+# sample-rate loop — the probes emit once per input sample; decim is the
+# throttle. None detaches; the int status binds -> None with ValueError on
+# failure.
 [[carrier_nda.methods]]
 name = "set_telemetry"
 arg_type = "void"

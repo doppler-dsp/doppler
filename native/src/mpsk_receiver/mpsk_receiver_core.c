@@ -365,7 +365,7 @@ mpsk_receiver_create (int m, double sps, size_t m_out, int pulse,
   if (agc)
     (void)RateConverter_enable_agc (
         rx->fe->rc, mpsk_rx_agc_bn (bn_carrier, bn_timing, bn_agc_ratio),
-        CARRIER_NDA_AGC_ALPHA);
+        MPSK_RX_AGC_ALPHA);
   return rx;
 }
 

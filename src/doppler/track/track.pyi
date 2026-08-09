@@ -2591,18 +2591,15 @@ class CarrierNda:
         decim: int = 1,
     ) -> None:
         """Attach (or detach) a telemetry context and register the carrier
-        loop's probes on it — including the embedded arm AGC's. Registers four
-        probes of its own, emitted once per input sample (this is a sample-rate
-        loop — use decim to thin the stream) plus the embedded AGC's
-        "<prefix>.agc.gain_db" (emitted at the AGC's own amortized gain-update
-        rate): "<prefix>.lock" (the lock-signal EMA, ~1 when phase-locked),
+        loop's probes on it. Registers four probes, emitted once per input
+        sample (this is a sample-rate loop — use decim to thin the stream):
+        "<prefix>.lock" (the lock-signal EMA, ~1 when phase-locked),
         "<prefix>.e" (the M-th-power phase discriminator — the loop stress),
         "<prefix>.freq" (the tracked carrier frequency, cycles/sample) and
         "<prefix>.locked" (the verify-counted lockdet decision, 0/1). Passing
-        NULL detaches the loop and the embedded AGC. Setup path, never hot:
-        call before the producer thread starts stepping; the context is
-        borrowed and must outlive the attachment (SPSC rules in
-        dp_tlm/dp_tlm_core.h).
+        NULL detaches. Setup path, never hot: call before the producer thread
+        starts stepping; the context is borrowed and must outlive the
+        attachment (SPSC rules in dp_tlm/dp_tlm_core.h).
 
         Parameters
         ----------
@@ -2622,7 +2619,7 @@ class CarrierNda:
         >>> c = CarrierNda(bn=0.01, sps=8, n=4, m=4)
         >>> c.set_telemetry(tlm, "car", decim=8)
         >>> sorted(tlm.probe_names)
-        ['car.agc.gain_db', 'car.e', 'car.freq', 'car.lock', 'car.locked']
+        ['car.e', 'car.freq', 'car.lock', 'car.locked']
         >>> x = np.exp(2j * np.pi * 0.005 * np.arange(4096)).astype(
         ...     np.complex64)
         >>> _ = c.steps(x)
@@ -2689,7 +2686,7 @@ class CarrierNda:
 
         Restores the object to its post-create state: the carrier NCO is reset
         to the seed frequency it was constructed with (init_norm_freq) with
-        zero phase, the moving-average arm, AGC, loop-filter integrator and
+        zero phase, the moving-average arm, the loop-filter integrator and the
         lock EMA are cleared, and the lock detector is dropped. The configured
         (bn, zeta), the arm geometry (sps, n) and the constellation order m are
         preserved, so the same object can re-acquire a fresh capture.

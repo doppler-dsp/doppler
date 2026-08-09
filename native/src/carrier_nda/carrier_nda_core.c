@@ -41,35 +41,15 @@ seed (carrier_nda_state_t *s, double init_norm_freq)
                                         from zero; the NCO control port adds it
                                         on top of the centre each sample.      */
   s->ctl_cyc = 0.0;
-  /* The boxcar arm starts at unit gain (the AGC drives it from here);
-   * boxcar_init clears its whole fixed ring, so the pointer-free POD snapshot
-   * is deterministic regardless of allocation — MpskReceiver embeds this by
-   * value, with no calloc. */
+  /* The boxcar arm starts at unit gain; boxcar_init clears its whole fixed
+   * ring, so the pointer-free POD snapshot is deterministic regardless of
+   * allocation — which is what carrier_nda_init exists for: an embedder can
+   * hold this by value, with no calloc, and still get identical state bytes.
+   */
   boxcar_init (&s->arm, s->arm_len, 1.0);
   s->lock       = 0.0;
   s->last_error = 0.0;
   lockdet_reset (&s->lockdet); /* drop the lock; keep the configured rule */
-  /* Embed the log-domain AGC by value (no agc_create): config + reset its loop
-   * memory to the post-create condition (gain 0 dB, p_avg pre-seeded to the
-   * unit reference power so the first on-target dump produces no transient).
-   */
-  s->agc.ref_db  = CARRIER_NDA_AGC_REF_DB;
-  s->agc.loop_bw = CARRIER_NDA_AGC_BW_RATIO * s->bn;
-  s->agc.alpha   = CARRIER_NDA_AGC_ALPHA;
-  s->agc.decim   = AGC_DECIM_DEFAULT;
-  s->agc.clip_db = CARRIER_NDA_AGC_CLIP_DB;
-  s->agc.gain_db = 0.0;
-  s->agc.p_avg   = 1.0; /* 10^(ref_db/10) for ref_db = 0 */
-  s->agc.g_last  = 1.0;
-  /* Decimate the AGC's loop-filter command: agc_step applies the gain and
-   * folds power every sample, but refreshes the dB command (the exp10/log10)
-   * once per AGC_DECIM_DEFAULT samples — amortising the transcendentals on
-   * this sample-rate carrier loop. The AGC is ~100x slower than the carrier
-   * loop, so an 8-sample gain hold is negligible. gain_phase/clip_lin are set
-   * by the agc_reset-equivalent below. */
-  s->agc.gain_update_period = AGC_DECIM_DEFAULT;
-  s->agc.gain_phase         = 0;
-  s->agc.clip_lin           = (float)agc_exp10_ (s->agc.clip_db * 0.05);
 }
 
 /* Configure the carrier PI loop for the current (bn, zeta) and scale its gains
@@ -105,13 +85,11 @@ carrier_nda_init (carrier_nda_state_t *s, double bn, double zeta,
   s->bn             = bn;
   s->zeta           = zeta;
   s->seed_norm_freq = init_norm_freq;
-  /* In-place (stack/by-value-embedded) init: start detached — both this
-   * loop's attachment and the embedded arm AGC's (seed() configures the
-   * AGC field-by-field and deliberately never touches agc.tlm, so a
-   * reset keeps a live attachment; that leaves init responsible for the
-   * initial zero). carrier_nda_create's calloc gets this for free. */
+  /* In-place (stack/by-value-embedded) init: start detached. seed() is the
+   * reset path and deliberately never touches `tlm`, so a reset keeps a live
+   * attachment; that leaves init responsible for the initial zero.
+   * carrier_nda_create's calloc gets this for free. */
   memset (&s->tlm, 0, sizeof s->tlm);
-  memset (&s->agc.tlm, 0, sizeof s->agc.tlm);
   config_loop (s);
   lockdet_init (&s->lockdet, CARRIER_NDA_LOCK_DEFAULT_UP,
                 CARRIER_NDA_LOCK_DEFAULT_DOWN, CARRIER_NDA_LOCK_DEFAULT_N_UP,
@@ -153,10 +131,9 @@ int
 carrier_nda_set_telemetry (carrier_nda_state_t *state, dp_tlm_t *tlm,
                            const char *prefix, uint32_t decim)
 {
-  if (!tlm) /* detach the loop AND the embedded arm AGC */
+  if (!tlm)
     {
       state->tlm.ctx = NULL;
-      (void)agc_set_telemetry (&state->agc, NULL, prefix, decim);
       return DP_OK;
     }
   const char *p = prefix ? prefix : "car";
@@ -171,14 +148,6 @@ carrier_nda_set_telemetry (carrier_nda_state_t *state, dp_tlm_t *tlm,
   int id_locked = dp_tlm_probe (tlm, name, decim);
   if (id_lock < 0 || id_e < 0 || id_freq < 0 || id_locked < 0)
     return DP_ERR_INVALID; /* table full / bad prefix: attach fails whole */
-  /* Forward to the embedded arm AGC under "<prefix>.agc"; if ITS
-   * registration fails the whole attach fails and this loop stays
-   * detached too (nothing registered above carries state — probe
-   * registration is idempotent by name). */
-  (void)snprintf (name, sizeof (name), "%s.agc", p);
-  int rc = agc_set_telemetry (&state->agc, tlm, name, decim);
-  if (rc != DP_OK)
-    return rc;
   state->tlm.id_lock   = id_lock;
   state->tlm.id_e      = id_e;
   state->tlm.id_freq   = id_freq;
@@ -199,10 +168,7 @@ carrier_nda_tlm_flush (const carrier_nda_state_t *s)
 }
 
 /* Serializable state — pointer-free POD whole-struct snapshot, with the
- * telemetry attachments zeroed in blobs and kept live across restore.
- * Hand-written (not DP_DEFINE_POD_STATE_TLM) because the snapshot spans TWO
- * attachments: this loop's own `tlm` and the by-value-embedded arm AGC's
- * `agc.tlm` — the macro zeroes/preserves a single named member. */
+ * telemetry attachment zeroed in blobs and kept live across restore. */
 size_t
 carrier_nda_state_bytes (const carrier_nda_state_t *s)
 {
@@ -215,7 +181,6 @@ carrier_nda_get_state (const carrier_nda_state_t *s, void *blob)
 {
   carrier_nda_state_t c = *s;
   memset (&c.tlm, 0, sizeof c.tlm);
-  memset (&c.agc.tlm, 0, sizeof c.agc.tlm);
   dp_writer_t w = dp_writer_init (blob, carrier_nda_state_bytes (s));
   dp_w_hdr (&w, CARRIER_NDA_STATE_MAGIC, CARRIER_NDA_STATE_VERSION,
             carrier_nda_state_bytes (s));
@@ -234,9 +199,8 @@ carrier_nda_set_state (carrier_nda_state_t *s, const void *blob)
   dp_reader_t         r = dp_reader_init (blob, carrier_nda_state_bytes (s));
   r.off                 = sizeof (dp_state_hdr_t);
   dp_r_bytes (&r, &c, sizeof c);
-  c.tlm     = s->tlm; /* keep the live attachments */
-  c.agc.tlm = s->agc.tlm;
-  *s        = c;
+  c.tlm = s->tlm; /* keep the live attachment */
+  *s    = c;
   return DP_OK;
 }
 
@@ -353,9 +317,6 @@ carrier_nda_set_bn (carrier_nda_state_t *state, double val)
 {
   state->bn = val;
   config_loop (state);
-  /* Keep the arm AGC locked to a fixed fraction of the carrier loop bandwidth
-   * so it stays 100x slower than the loop at the new bn (see header). */
-  state->agc.loop_bw = CARRIER_NDA_AGC_BW_RATIO * val;
 }
 
 int

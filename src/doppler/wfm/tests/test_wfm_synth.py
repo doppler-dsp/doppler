@@ -606,3 +606,40 @@ def test_chirp_freq_is_f_start_alias():
     a = Synth(type="chirp", freq=1e5, f_end=2e5, fs=1e6).steps(1024)
     b = Synth(type="chirp", f_start=1e5, f_end=2e5, fs=1e6).steps(1024)
     assert np.array_equal(a, b)
+
+
+@pytest.mark.parametrize("sps", [1, 2, 4, 8])
+def test_rrc_shaper_lives_at_every_power_of_two_sps(sps: int) -> None:
+    """The polyphase RRC shaper must produce a real waveform at sps == 1.
+
+    ``sps == 1`` is a power of two, so ``set_rrc`` takes the polyphase
+    branch and builds the shaper at ``rate = sps = 1.0``. Two undefined
+    conversions used to meet there and cancel: ``phase_inc`` came from
+    ``(uint32_t)(2^32 / 1.0)`` (C99 6.3.1.4, 0 on x86) and ``get_branch``
+    shifted a ``uint32_t`` by 32 (6.5.7p3). A zero increment pinned the
+    phase at 0, which made the bad shift select arm 0, and the shaper
+    silently emitted a DEAD waveform -- all zeros, one distinct sample --
+    while every other sps was correct.
+
+    Fixing either alone is worse than fixing neither: a live phase with
+    the bad shift indexes far outside a one-arm bank and segfaults. So
+    this pins the OUTPUT, not the increment, and it is parametrized
+    across sps because the defect was invisible at every value but one.
+    """
+    s = Synth(
+        type="bpsk",
+        sps=sps,
+        pulse="rrc",
+        rrc_beta=0.35,
+        rrc_span=8,
+        symbols=256,
+        seed=7,
+    )
+    y = np.asarray(s.steps(256))
+
+    assert len(y) == 256
+    assert not np.allclose(y, 0.0), f"dead waveform at sps={sps}"
+    # A shaped BPSK stream is near unit power and takes many distinct
+    # values; a stalled delay line yields exactly one.
+    assert len(np.unique(np.round(y, 6))) > 64
+    assert 0.5 < np.sqrt((abs(y) ** 2).mean()) < 1.5

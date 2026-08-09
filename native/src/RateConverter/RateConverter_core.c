@@ -747,7 +747,7 @@ _agc_build (RateConverter_state_t *s)
    98 / 98 / 98 a (working) seed gives, against 97 / 90 / 274 with no AGC at
    all. Buying back that last spread wants a seed that cannot fire on silence
    -- an asymmetric attack/release, or a max-of-block-means estimate -- not
-   the prefix average. */
+   the prefix average. Tracked as gh-658. */
 JM_FORCEINLINE float _Complex _agc_tap (RateConverter_state_t *s,
                                         float _Complex v)
 {

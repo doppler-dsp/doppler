@@ -310,6 +310,46 @@ main (void)
       }
   }
 
+  /* A SINGLE-PHASE bank must select arm 0, not shift by 32.
+   *
+   * num_phases == 1 gives log2_phases == 0, so get_branch()'s
+   * `ph >> (32 - log2_phases)` is a 32-bit shift of a uint32_t -- undefined
+   * (C99 6.5.7p3). x86 masks the count to 5 bits, so it returns `ph` itself
+   * and indexes bank[ph * num_taps]: a wild read gigabytes past a one-arm
+   * bank. Any non-zero phase reaches it, so rate 2.0 (phase_inc = 2^31) is
+   * enough -- no other defect required.
+   *
+   * The real user is wfm_synth's polyphase RRC shaper at sps == 1. There the
+   * rate is exactly 1.0, whose own phase_inc conversion was also undefined
+   * and yielded 0, pinning `ph` at 0 and hiding this. Fixing either alone
+   * turns a silently dead waveform into a segfault, which is why this is
+   * pinned independently of that conversion.
+   *
+   * With one arm and taps {1, 0} the output is just the newest sample. */
+  {
+    const float     bank1[2] = { 1.0f, 0.0f };
+    resamp_state_t *r1       = resamp_create_custom (1, 2, bank1, 2.0);
+    CHECK (r1 != NULL);
+    if (r1)
+      {
+        CHECK (r1->num_phases == 1);
+        float _Complex in[4] = { 1.0f + 0.0f * I, 2.0f + 0.0f * I,
+                                 3.0f + 0.0f * I, 4.0f + 0.0f * I };
+        float _Complex out[8];
+        size_t used = resamp_interp_fill (r1, in, out, 8);
+        CHECK (used <= 4);
+        for (size_t i = 0; i < 8; i++)
+          {
+            /* Every output must be a real dot product over the delay line,
+               not whatever lay past the end of a one-arm bank. */
+            CHECK (isfinite (crealf (out[i])));
+            CHECK (isfinite (cimagf (out[i])));
+            CHECK (fabsf (crealf (out[i])) <= 4.0f);
+          }
+        resamp_destroy (r1);
+      }
+  }
+
   if (_fails)
     {
       fprintf (stderr, "test_resamp_core FAILED (%d)\n", _fails);

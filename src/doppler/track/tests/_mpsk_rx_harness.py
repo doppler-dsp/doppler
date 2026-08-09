@@ -80,15 +80,35 @@ _CI_METER = BerMeter(m=2, target_errors=1, conf=0.99)
 #: The default-bandwidth budget, for tests that do not retune the loops.
 SETTLE_SYMS = settle_floor()
 
-#: The timing loop's CONTRACTED symbol amplitude.
-#:
-#: The TED normalises by its own slope alone, so amplitude is the caller's to
-#: supply (docs/design/mpsk.md 5.1): unit amplitude drives the loop at exactly
-#: the bandwidth `bn` names, and anything smaller under-drives it by A^2 --
-#: 0.4 was 6.25x low. These symbols are rectangular, so the stream's peak IS
-#: its symbol amplitude and this sits well inside the CIC's input bound, which
-#: now budgets PAPR headroom above unity anyway (docs/design/cic.md).
+#: Nominal symbol amplitude before the AGC normalisation below.
 AMPL = 1.0
+
+
+def agc(x):
+    """Normalise to unit AVERAGE POWER, which is what an AGC does.
+
+    An AGC is a receiver component and it belongs up the chain, not inside a
+    timing detector — the TED normalises by its own slope and nothing else
+    (docs/design/mpsk.md 5.1), so the level it sees is whatever arrives. This
+    is where that level is set, once, for every stimulus in this harness.
+
+    **Average power, not peak and not symbol amplitude.** On the noiseless
+    rectangular stream those coincide — unit average power IS unit symbol
+    amplitude — but under noise they do not, and average power is the one an
+    AGC can actually measure. The consequence is physical rather than a
+    defect: at a fixed Es/N0 the per-sample noise grows with oversampling, so
+    the signal's share of a unit-power composite shrinks and the loop gain
+    drops with it. That is what a real receiver experiences at low
+    per-sample SNR.
+
+    **Peaks are allowed to clip.** High PAPR is inevitable on some signals,
+    and a converter with a bounded input will occasionally saturate on it;
+    designing the level around the worst peak instead of the average would
+    throw away the range the signal actually uses. The CIC budgets headroom
+    for the typical case (docs/design/cic.md) and takes the rare peak.
+    """
+    p = float(np.mean(np.abs(x) ** 2))
+    return x if p <= 0.0 else x / np.sqrt(p)
 
 
 def make_signal(sps, nsym, *, real, m=4, fc=IF_FS4, esn0_db=None, seed=3):
@@ -131,7 +151,7 @@ def make_signal(sps, nsym, *, real, m=4, fc=IF_FS4, esn0_db=None, seed=3):
             es = AMPL * AMPL * sps / 2.0
             var = es / (2.0 * 10 ** (esn0_db / 10.0))
             x = x + rng.standard_normal(x.size) * np.sqrt(var)
-        return np.ascontiguousarray(x.astype(np.float32)), idx
+        return np.ascontiguousarray(agc(x).astype(np.float32)), idx
 
     x = z.astype(np.complex128)
     if esn0_db is not None:
@@ -140,7 +160,7 @@ def make_signal(sps, nsym, *, real, m=4, fc=IF_FS4, esn0_db=None, seed=3):
         x = x + (
             rng.standard_normal(x.size) + 1j * rng.standard_normal(x.size)
         ) * np.sqrt(var / 2)
-    return np.ascontiguousarray(x.astype(np.complex64)), idx
+    return np.ascontiguousarray(agc(x).astype(np.complex64)), idx
 
 
 def evm_scatter_floor_db(m):

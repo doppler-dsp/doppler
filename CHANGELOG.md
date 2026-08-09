@@ -101,6 +101,79 @@ ______________________________________________________________________
     `nco_step_u32_ovf_ctrl`'s carry is still wrong for a negative control and
     carries an `@warning`; it is fixed separately.
 
+- **The timing detector normalises by its own slope, computed at
+    construction, instead of by a running power average.** A TED's raw output
+    is the timing error times three things it did not choose — the signal
+    amplitude, the transition density, and its own slope against the pulse —
+    and only the last belongs to the detector. Dividing by an average of
+    `|on|² + |mid|²` got all three wrong. It is an `A²` quantity, so it suited
+    Gardner's amplitude law and left DTTL's loop gain proportional to `1/A`
+    (a 4× swing over a 4× level change, in the detector BPSK and QPSK
+    select). It normalises amplitude rather than slope, so the normalised
+    slope varied **10.6×** between roll-off 0.1 and 0.9 — `bn = 0.01` meant
+    something an order of magnitude different at the two ends of the
+    supported range. And being an average it lagged: seeded on the first
+    post-prime strobe, which lands in the cascade's amplitude ramp, it ran
+    the loop at thousands of times its designed gain through exactly the
+    interval that decides acquisition.
+
+    The matched pair's composite is a raised cosine in closed form
+    (`wfm_rc_h()`), so the slope is a construct-time number:
+    `symsync_ted_slope()` evaluates `|dS/dτ|` at the lock point and the loop
+    stores its **reciprocal**, so the hot path is one multiply — a divide and
+    a running average per symbol both became construct-time work. Validated
+    against the slope measured open-loop through a real cascade: Gardner
+    within 1.3–8.6% across roll-off 0.1…0.9, DTTL within 0.2%.
+
+    Removing the lag removes the acquisition defect it caused: on a fine
+    sweep of initial timing offsets at `sps = 4`, a 0.3-symbol-wide band that
+    took **7000–25403 symbols** to recover now acquires in **133–266** at
+    every offset, and the peak normalised error falls from **38 to 0.13**.
+
+    **Amplitude is now an upstream AGC's job, by contract** — a unity-gain
+    matched cascade returns the symbol amplitude it was sent, so the detector
+    needs no level estimate. Feed it something else and the loop is
+    under-driven by `A²`. `RATESYNC_LOOP_STATE_VERSION` 1 → 2 (`pwr_avg` and
+    `pwr_seeded` are gone from the blob). `SymbolSync` keeps its own
+    normaliser: `symsync_create()` takes no pulse, so it cannot compute a
+    slope yet.
+
+- **`RateConverter` was inventing gain, and now states its own.** The matched
+    terminal bank was scaled to unit **energy**, so a correlator returns
+    `A·‖h‖` for a symbol of amplitude `A` — and `‖h‖` is an accident of `sps`,
+    roll-off and pulse. Measured against a transmitted 0.2500, the recovered
+    amplitude ran **0.2284 to 0.3537** (−9% to +41%). Scaling by the pulse's
+    own energy `E = Σh(t)²` returns `A·E/E = A` exactly, for any
+    configuration: now **0.2482–0.2501**, worst case 0.7%, across `sps` 4→64,
+    roll-off 0.2→0.5, compensated or not. With droop compensation folded in
+    the reference stays the *undistorted* pulse, because the compensator is
+    built as the CIC droop's inverse.
+
+    Nothing could have caught it: every EVM assertion fits the gain and
+    divides it out, and the timing loop normalised by power, so a cascade
+    with 3 dB of invented gain passed every existing test.
+
+    So the object now **calculates** its gain rather than being measured for
+    it — `RateConverter_gain()` multiplies what each stage reports from its
+    own coefficients (`hbdecim_dc_gain`, `cic_dc_gain`, `fir_dc_gain`,
+    `resamp_dc_gain`), tracking the measured value to 3.4e-4 at every rate in
+    the plan space. Two gates replace a ±15% DC check that covered only
+    `compensate = 0`. The probe is a tone at 1/512 of the output rate, not
+    DC, because a CIC's DC output is insensitive to its own normalisation
+    shift — the offset-binary conversion removes a bias derived from that
+    same shift, so halving it doubles the filter's real gain while a DC probe
+    still reads 1.000.
+
+- **The matched bank's polyphase arm is a lag in input intervals.** It swept
+    `+u/pulse_sps` symbols — a lead measured in *output* periods, which is
+    what the superseded accumulator published. Derived from the
+    matched-filter identity against the interpolating control port, which
+    emits before it loads, the arm is `−u/sps + C`: a lag of one input
+    interval per turn of the phase word. The output rate now appears nowhere
+    in the bank, which is the check on the derivation — a polyphase arm is a
+    fraction of an input interval and nothing else. Matched EVM on
+    `CIC(8) + Resampler(0.923)` goes from −10.1 dB to better than −45 dB.
+
 - **A single-phase polyphase bank selects arm 0 instead of shifting by 32.**
     `get_branch` computed `ph >> (32 - log2_phases)`; a one-arm bank makes
     that a 32-bit shift of a `uint32_t`, which is undefined (C99 6.5.7p3).

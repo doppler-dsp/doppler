@@ -209,7 +209,7 @@ _build_track_chain (async_dsss_receiver_state_t *s, double chip_phase,
   mpsk_receiver_state_t *rx = dp_xnn (mpsk_receiver_create (
       s->m, (double)sps, (size_t)n, MPSK_RX_PULSE_IANDD, 0.35, 8, 0.01, 0.707,
       0.005, 1, 0.3, 0.0, 30, s->differential, MPSK_RX_NUM_PHASES,
-      MPSK_RX_NDA_TAP_STROBE));
+      MPSK_RX_NDA_TAP_STROBE, 1, CARRIER_NDA_AGC_BW_RATIO));
 
   /* Per-CODE-PERIOD cadence (tsamps = one whole period), matching
    * dsss_receiver_core.c's own mechanism -- NOT once per dll_steps()

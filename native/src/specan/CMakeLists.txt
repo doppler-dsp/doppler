@@ -13,6 +13,8 @@ target_link_libraries(specan_core PUBLIC
     cic_core
     fir_core
     resample_core
+    agc_core
+    dp_tlm_core
     psd_core
     fft_core
     spectral_core
@@ -30,6 +32,8 @@ target_link_libraries(test_specan_core
     cic_core
     fir_core
     resample_core
+    agc_core
+    dp_tlm_core
     psd_core
     fft_core
     spectral_core
@@ -52,6 +56,8 @@ target_link_libraries(bench_specan_core
     cic_core
     fir_core
     resample_core
+    agc_core
+    dp_tlm_core
     psd_core
     fft_core
     spectral_core

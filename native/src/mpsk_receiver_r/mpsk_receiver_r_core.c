@@ -57,9 +57,13 @@ mpsk_receiver_r_create (int m, double sps, size_t m_out, int pulse,
   /* lo_sps = sps/2: the halfband decimates 2:1 before the mix, so the LO sees
      half as many samples per symbol as the input does. This is the whole
      reason mpsk_rx_loops_init takes lo_sps separately from sps. */
+  /* No cascade AGC on this twin yet -- and none is needed for the carrier
+     discriminator, which normalises by its own |z|^M. The R-twin wedge is
+     filed separately. */
   mpsk_rx_loops_init (&rx->l, m, sps, 0.5 * sps, m_out, bn_carrier, zeta,
-                      bn_timing, RATESYNC_TED_GARDNER, acq_to_track,
-                      lock_thresh, warmup_syms, differential, nda_tap);
+                      bn_timing, CARRIER_NDA_AGC_BW_RATIO,
+                      RATESYNC_TED_GARDNER, acq_to_track, lock_thresh,
+                      warmup_syms, differential, nda_tap);
   ratesync_loop_bind_cascade (&rx->l.timing, rx->fe->rc);
   return rx;
 }

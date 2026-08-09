@@ -174,10 +174,11 @@ RX (int m, double sps, size_t m_out, int pulse, double bn_carrier,
     int acq_to_track, double lock_thresh, double init_norm_freq,
     size_t warmup_syms)
 {
-  return mpsk_receiver_create (m, sps, m_out, pulse, 0.35, 8, bn_carrier,
-                               0.707, 0.01, acq_to_track, lock_thresh,
-                               init_norm_freq, warmup_syms, 0,
-                               MPSK_RX_NUM_PHASES, MPSK_RX_NDA_TAP_STROBE);
+  /* The shipped defaults: the front-end AGC on, at the default ratio. */
+  return mpsk_receiver_create (
+      m, sps, m_out, pulse, 0.35, 8, bn_carrier, 0.707, 0.01, acq_to_track,
+      lock_thresh, init_norm_freq, warmup_syms, 0, MPSK_RX_NUM_PHASES,
+      MPSK_RX_NDA_TAP_STROBE, 1, CARRIER_NDA_AGC_BW_RATIO);
 }
 
 int
@@ -433,6 +434,164 @@ main (void)
     mpsk_receiver_destroy (b);
     mpsk_receiver_destroy (a);
     dp_tlm_destroy (tlm);
+  }
+
+  /* 9. The one AGC is slower than every loop it feeds, at any configuration.
+   *
+   * Not a style rule: an AGC divides out the amplitude the discriminators are
+   * built around, so one running near a loop's bandwidth corrects excursions
+   * that loop is itself producing and the two integrate against each other.
+   * The MINIMUM of the two bandwidths is the load-bearing part — a receiver
+   * with bn_timing far below bn_carrier is exactly the case a carrier-only
+   * ratio gets wrong. */
+  {
+    const double bns[][2] = {
+      { 0.01, 0.01 },  /* the defaults                             */
+      { 0.05, 0.001 }, /* timing far slower — the case that bites  */
+      /* Sharp: a carrier-only ratio gives 0.01*0.05 = 5e-4, which is FASTER
+         than this bn_timing — so the `< both` check below is the thing that
+         fires, not merely the exact-value one. */
+      { 0.05, 0.0004 },
+      { 0.001, 0.05 }, /* carrier far slower                       */
+      { 0.02, 0.02 },
+    };
+    for (size_t i = 0; i < sizeof (bns) / sizeof (bns[0]); i++)
+      {
+        double                 bn_c = bns[i][0], bn_t = bns[i][1];
+        mpsk_receiver_state_t *rx = mpsk_receiver_create (
+            4, SPS, M_OUT, MPSK_RX_PULSE_IANDD, 0.35, 8, bn_c, 0.707, bn_t, 0,
+            0.5, 0.0, 100, 0, MPSK_RX_NUM_PHASES, MPSK_RX_NDA_TAP_STROBE, 1,
+            CARRIER_NDA_AGC_BW_RATIO);
+        CHECK (rx != NULL);
+        if (!rx)
+          continue;
+        /* The receiver's ONE AGC, in the front-end cascade; bn is per symbol
+           on both sides of the comparison. */
+        double bn_agc = rx->fe->rc->agc_bn_sym;
+        CHECK (bn_agc < bn_c && bn_agc < bn_t);
+        /* And it is the ratio, off the slowest — not merely "smaller". */
+        double slowest = bn_c < bn_t ? bn_c : bn_t;
+        CHECK (fabs (bn_agc - CARRIER_NDA_AGC_BW_RATIO * slowest)
+               < 1e-15 * slowest + 1e-18);
+        mpsk_receiver_destroy (rx);
+      }
+  }
+
+  /* 10. A blob taken while the front-end AGC is still converging resumes
+   * with that convergence intact.
+   *
+   * The AGC's gain integrator and detector EMA only look different from
+   * their settled values while the loop is walking, so a split at n/2 --
+   * what every other round-trip here does -- would resume a converged loop
+   * and prove very little. This one cuts early, and reaches that state
+   * through the whole nesting: receiver -> ddc -> RateConverter -> agc. */
+  {
+    /* Own buffers: tx/idx/out above are already freed by this point. */
+    float complex *stx  = malloc (NSAMP * sizeof (*stx));
+    int           *sidx = malloc (NSYM * sizeof (int));
+    make_mpsk (stx, sidx, 4, 0.0, 30.0, 11u);
+    float complex         *tx = stx; /* keep the body reading naturally */
+    mpsk_receiver_state_t *a
+        = RX (4, SPS, M_OUT, MPSK_RX_PULSE_IANDD, 0.01, 0, 0.5, 0.0, 100);
+    CHECK (a != NULL);
+    if (a)
+      {
+        /* Enough input for the loop to move off unity, nowhere near
+         * enough for it to settle. */
+        float complex y[512];
+        size_t        n_pre = (size_t)SPS * 200u;
+        (void)mpsk_receiver_steps (a, tx, n_pre, y, 512);
+        CHECK (a->fe->rc->agc != NULL);
+        /* Non-vacuous: the gain is genuinely mid-flight at the split. */
+        CHECK (mpsk_receiver_get_agc_gain_db (a) != 0.0);
+
+        size_t   nb   = mpsk_receiver_state_bytes (a);
+        uint8_t *blob = malloc (nb);
+        mpsk_receiver_get_state (a, blob);
+
+        mpsk_receiver_state_t *b
+            = RX (4, SPS, M_OUT, MPSK_RX_PULSE_IANDD, 0.01, 0, 0.5, 0.0, 100);
+        CHECK (b != NULL && mpsk_receiver_set_state (b, blob) == DP_OK);
+
+        /* Resume both on the same remainder; every symbol must match bit for
+         * bit, which it cannot if the in-flight seed mean was lost. */
+        float complex ya[512], yb[512];
+        size_t        na
+            = mpsk_receiver_steps (a, tx + n_pre, NSAMP - n_pre, ya, 512);
+        size_t nc
+            = mpsk_receiver_steps (b, tx + n_pre, NSAMP - n_pre, yb, 512);
+        CHECK (na == nc && na > 0);
+        int same = 1;
+        for (size_t i = 0; i < na && i < nc; i++)
+          if (memcmp (&ya[i], &yb[i], sizeof ya[i]) != 0)
+            same = 0;
+        CHECK (same);
+
+        free (blob);
+        mpsk_receiver_destroy (b);
+        mpsk_receiver_destroy (a);
+      }
+    free (stx);
+    free (sidx);
+  }
+
+  /* 11. The receiver is LEVEL-INVARIANT with the AGC on, and demonstrably
+   * not without it. This is the whole point of the change, so it is asserted
+   * on the thing a user cares about (does it acquire) rather than on a gain.
+   *
+   * Both halves matter. The `agc=1` half is the claim; the `agc=0` half keeps
+   * it honest -- if the receiver were level-invariant anyway (say the
+   * discriminator's own |z|^M normalisation were carrying it), the first
+   * assertion would pass for a reason that has nothing to do with the AGC,
+   * and this gate would be measuring nothing. */
+  {
+    static const double amps[]  = { 0.25, 1.0, 4.0 };
+    double              gain[3] = { 0, 0, 0 };
+    size_t              nsym[3] = { 0, 0, 0 };
+    for (int use_agc = 1; use_agc >= 0; use_agc--)
+      {
+        for (size_t a = 0; a < 3; a++)
+          {
+            float complex *sx = malloc (NSAMP * sizeof (*sx));
+            int           *si = malloc (NSYM * sizeof (int));
+            float complex *so = malloc (NSYM * sizeof (*so));
+            make_mpsk (sx, si, 4, 0.0, 20.0, 3u);
+            for (size_t i = 0; i < NSAMP; i++)
+              sx[i] *= (float)amps[a];
+
+            mpsk_receiver_state_t *rx = mpsk_receiver_create (
+                4, SPS, M_OUT, MPSK_RX_PULSE_IANDD, 0.35, 8, 0.01, 0.707, 0.01,
+                0, 0.5, 0.0, 100, 0, MPSK_RX_NUM_PHASES,
+                MPSK_RX_NDA_TAP_STROBE, use_agc, CARRIER_NDA_AGC_BW_RATIO);
+            CHECK (rx != NULL);
+            if (rx)
+              {
+                size_t n = mpsk_receiver_steps (rx, sx, NSAMP, so, NSYM);
+                CHECK (n > 0);
+                if (use_agc)
+                  {
+                    gain[a] = mpsk_receiver_get_agc_gain_db (rx);
+                    nsym[a] = n;
+                    /* SER 0 at every level, not merely "it ran". */
+                    CHECK (tail_ser (so, n, si, 4, phi0_for (4), 400) == 0.0);
+                  }
+                else
+                  {
+                    /* agc=0 is the bisect handle: no gain, ever. */
+                    CHECK (mpsk_receiver_get_agc_gain_db (rx) == 0.0);
+                  }
+                mpsk_receiver_destroy (rx);
+              }
+            free (sx);
+            free (si);
+            free (so);
+          }
+      }
+    /* Same symbol count at every level -- the receiver did the same work. */
+    CHECK (nsym[0] == nsym[1] && nsym[1] == nsym[2]);
+    /* And the AGC is what made the levels agree: its gain tracked the input
+       across the full 24 dB, which is the non-vacuous half. */
+    CHECK (gain[0] - gain[1] > 10.0 && gain[1] - gain[2] > 10.0);
   }
 
   if (_fails)

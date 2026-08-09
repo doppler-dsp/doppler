@@ -24,11 +24,11 @@ target_link_libraries(track PRIVATE
     RateConverter_core
     resamp_core
     fir_core
+    agc_core
     hbdecim_core
     cic_core
     resample_core
     boxcar_core
-    agc_core
     wfm_dsp_core
     ddc_core
     hbdecim_r2c_core

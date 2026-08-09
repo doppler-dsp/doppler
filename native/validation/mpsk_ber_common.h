@@ -171,7 +171,8 @@ mpsk_ber_burst (const mpsk_ber_cfg_t *c, double esn0_db, uint32_t seed,
                 : (void *)mpsk_receiver_create (
                       c->m, c->sps, c->m_out, MPSK_RX_PULSE_IANDD, 0.35, 8,
                       c->bn_carrier, 0.707, c->bn_timing, c->acq_to_track, 0.3,
-                      c->fc - c->foff, 300, 0, MPSK_RX_NUM_PHASES, c->nda_tap);
+                      c->fc - c->foff, 300, 0, MPSK_RX_NUM_PHASES, c->nda_tap,
+                      1, CARRIER_NDA_AGC_BW_RATIO);
   if (!rx)
     return 0;
 

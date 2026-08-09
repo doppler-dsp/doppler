@@ -226,7 +226,16 @@ extern "C"
      * latency for speed (keep well below 1/(4*loop_bw), like decim). */
     size_t gain_update_period;
     double gain_db; /* loop-filter integrator: current gain, dB        */
-    double p_avg;   /* power-detector EMA: averaged output power, lin  */
+    /* Power-detector EMA of OUTPUT power, linear. Anything setting this by
+       hand must use the REFERENCE power, not a measured input power: the loop
+       filter's error is (ref_db - 10log10(p_avg)), so seeding it with an
+       input measurement hands the loop an error equal to the whole gain and
+       it integrates it. Measured on this object at loop_bw 0.002 / alpha
+       0.01, a 4x-hot input drove the gain a further 13.4 dB past its correct
+       value before recovering (+2.4 dB at 0.25x). agc_create()/agc_reset()
+       already do the right thing; this note is for anyone tempted to
+       shortcut them. */
+    double p_avg;
     double g_last;  /* current linear gain held across the period      */
     size_t gain_phase; /* agc_step() position in the update period     */
     float  clip_lin;   /* cached 10^(clip_db/20), refreshed per period */

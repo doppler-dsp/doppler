@@ -20,6 +20,12 @@ depends_on = [
   { name = "cic", link = true },
   { name = "fir", link = true },
   { name = "resample", link = true },
+  # RateConverter's pre-terminal AGC and the telemetry context it
+  # attaches to -- transitive through RateConverter, which jm's
+  # depends_on linking does not follow (see the note in
+  # objects/dsss_receiver.toml).
+  { name = "agc", link = true },
+  { name = "dp_tlm", link = true },
 ]
 
 # close() is the name this type has always had; destroy() stays as an alias

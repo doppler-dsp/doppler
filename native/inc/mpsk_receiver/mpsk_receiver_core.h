@@ -68,7 +68,8 @@
  * // QPSK, 8 samples/symbol, I&D matched filter, NDA acquisition
  * mpsk_receiver_state_t *rx = mpsk_receiver_create (
  *     4, 8.0, 4, MPSK_RX_PULSE_IANDD, 0.35, 8,
- *     0.01, 0.707, 0.01, 0, 0.5, 0.0, 100, 0, 1024);
+ *     0.01, 0.707, 0.01, 0, 0.5, 0.0, 100, 0, 1024,
+ *     MPSK_RX_NDA_TAP_STROBE, 1, CARRIER_NDA_AGC_BW_RATIO);
  * float complex sym[256];
  * size_t k = mpsk_receiver_steps (rx, rx_in, rx_len, sym, 256);
  * double f = mpsk_receiver_get_norm_freq (rx);  // tracked residual carrier
@@ -243,7 +244,25 @@ extern "C"
                         double zeta, double bn_timing, int acq_to_track,
                         double lock_thresh, double init_norm_freq,
                         size_t warmup_syms, int differential,
-                        size_t num_phases, int nda_tap);
+                        size_t num_phases, int nda_tap, int agc,
+                        double bn_agc_ratio);
+
+  /**
+   * @brief Gain the front end's AGC is applying, in dB; 0.0 when @c agc = 0.
+   *
+   * The cascade's own level correction, read back rather than inferred. This
+   * is the diagnostic for a level problem: a receiver that will not lock with
+   * a healthy `lock` statistic, or one whose timing loop behaves differently
+   * at two input levels, is asking about this number. It settles at
+   * `-10*log10(P_in / P_ref)` where `P_ref` is the power a unit-amplitude
+   * symbol stream has where the AGC sits, so a reading far from 0 dB says the
+   * input is far from the level the cascade was built for -- which is fine,
+   * and is exactly what the AGC is for, but is worth knowing.
+   *
+   * Separate from the cascade's filter response (RateConverter_gain()), which
+   * is computed from coefficients and stays 1.0; the two multiply.
+   */
+  double mpsk_receiver_get_agc_gain_db (const mpsk_receiver_state_t *state);
 
   /**
    * @brief Destroy an M-PSK receiver and release all memory.

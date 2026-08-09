@@ -862,8 +862,14 @@ test_plain_cascade_is_unity_gain (void)
 /* Best |LS gain| of y against the known symbols, over strobe alignment —
  * the very quantity _mf_evm() forms and then divides out, which is why no
  * EVM assertion here can see a gain error. */
+/* Correlate the recovered stream against the transmitted bits from symbol
+ * `first' on. `first' matters once an AGC is in the cascade: a converter
+ * starts from silence, so the opening symbols carry the signal-off-to-on
+ * transient and the loop walking out of whatever the seed measured there.
+ * That transient is real and is not gated away, so a gate that wants the
+ * SETTLED gain has to say where settled begins. */
 static double
-_mf_gain_at (const float _Complex *y, size_t ny)
+_mf_gain_from (const float _Complex *y, size_t ny, int first)
 {
   double best = 0.0;
   for (int par = 0; par < 2; par++)
@@ -871,7 +877,7 @@ _mf_gain_at (const float _Complex *y, size_t ny)
       {
         double num = 0.0;
         int    cnt = 0;
-        for (int k = 40; k < _MF_NSYM - 40; k++)
+        for (int k = first; k < _MF_NSYM - 40; k++)
           {
             size_t i = (size_t)(lag + par + 2 * k);
             if (i >= ny)
@@ -886,6 +892,12 @@ _mf_gain_at (const float _Complex *y, size_t ny)
           best = g;
       }
   return best;
+}
+
+static double
+_mf_gain_at (const float _Complex *y, size_t ny)
+{
+  return _mf_gain_from (y, ny, 40);
 }
 
 /* Recovered symbol amplitude, maximised over transmit timing phase: the
@@ -953,6 +965,127 @@ test_matched_cascade_returns_the_symbol_amplitude (void)
       }
 }
 
+/* Recovered symbol amplitude with the transmit level scaled by `scale' and
+ * the pre-terminal AGC optionally enabled. sps = 4 with no compensation
+ * plans a pure halfband cascade — deliberately: a CIC stage bounds its input
+ * to +-1.0 and clips silently, which would confound a LEVEL sweep with a
+ * clipping artefact. Halfband plans are scale-free, so what this measures is
+ * the AGC and nothing else. */
+static double
+_mf_amp_scaled (double scale, int use_agc)
+{
+  const double sps = 4.0, beta = _MF_BETA;
+  double       best = 0.0;
+  for (int j = 0; j < 16; j++)
+    {
+      size_t          n;
+      float _Complex *x = _mf_tx_beta (sps, beta, j / 16.0, &n);
+      float _Complex *y = calloc (n, sizeof *y);
+      if (x && y)
+        {
+          for (size_t i = 0; i < n; i++)
+            x[i] *= (float)scale;
+          RateConverter_state_t *rc = RateConverter_create_matched (
+              2.0 / sps, 0, RC_PULSE_RRC, beta, _MF_SPAN, 2.0, 1024);
+          if (rc)
+            {
+              /* bn_sym here is about the MEASUREMENT, not the design: the
+                 record is 500 symbols, so the loop has to settle inside it
+                 for a settled-gain assertion to mean anything. What is under
+                 test is that the level it settles to does not depend on the
+                 level that arrived. */
+              if (use_agc)
+                CHECK (RateConverter_enable_agc (rc, 0.05, 0.05) == DP_OK);
+              size_t ny = RateConverter_execute (rc, x, n, y, n);
+              /* Settled window: past the turn-on transient either way. */
+              double g = _mf_gain_from (y, ny, use_agc ? 250 : 40);
+              if (fabs (g) > fabs (best))
+                best = g;
+              RateConverter_destroy (rc);
+            }
+        }
+      free (x);
+      free (y);
+    }
+  return best;
+}
+
+static void
+test_agc_is_off_unless_asked_and_needs_a_pulse (void)
+{
+  /* Off is what every constructor builds, and the unity-gain contract is
+     what proves the wedge did not leak into the default path. */
+  RateConverter_state_t *plain = RateConverter_create (1.0 / 12.0, 1);
+  CHECK (plain != NULL);
+  if (plain)
+    {
+      /* Same tolerance the unity-gain gate above uses: the planner lands
+         the rate to within a fraction of a percent, not to the bit. */
+      CHECK (fabs (RateConverter_gain (plain) - 1.0) < 1e-2);
+      CHECK (RateConverter_agc_gain_db (plain) == 0.0);
+      /* A plain cascade has no pulse, so `bank_e0 / bank_sps` describes
+         nothing — refused rather than given a guessed reference.
+           Two independent mechanisms enforce this (the contract check in
+         enable_agc and the bank_sps precondition in _agc_build, which
+         set_rate needs anyway), so this pins the BEHAVIOUR and deleting
+         either one alone will not turn it red. That is the intent. */
+      CHECK (RateConverter_enable_agc (plain, 1e-3, 0.05) == DP_ERR_INVALID);
+      CHECK (RateConverter_agc_gain_db (plain) == 0.0);
+      RateConverter_destroy (plain);
+    }
+
+  RateConverter_state_t *mf = RateConverter_create_matched (
+      0.5, 0, RC_PULSE_RRC, _MF_BETA, _MF_SPAN, 2.0, 1024);
+  CHECK (mf != NULL);
+  if (mf)
+    {
+      CHECK (RateConverter_agc_gain_db (mf) == 0.0); /* off until asked */
+      /* The reference describes the BANK, so it is defined either way. */
+      CHECK (RateConverter_agc_ref_db (mf) != 0.0);
+      /* Bad parameters leave it off rather than half-configured. */
+      CHECK (RateConverter_enable_agc (mf, 0.0, 0.05) == DP_ERR_INVALID);
+      CHECK (RateConverter_enable_agc (mf, 1e-3, 0.0) == DP_ERR_INVALID);
+      CHECK (RateConverter_enable_agc (mf, 1e-3, 2.0) == DP_ERR_INVALID);
+      CHECK (RateConverter_agc_gain_db (mf) == 0.0);
+      CHECK (RateConverter_enable_agc (mf, 1e-3, 0.05) == DP_OK);
+      RateConverter_destroy (mf);
+    }
+}
+
+static void
+test_agc_delivers_unit_symbol_amplitude (void)
+{
+  /* The point of the wedge. symsync_ted_slope() is computed at construct FOR
+     A UNIT-AMPLITUDE SYMBOL STREAM, and amplitude enters a TED's raw error as
+     A^2 (Gardner) or A^1 (DTTL) — so a level error IS a loop-gain error, 16x
+     for a 4x level at Gardner. With the AGC on, the cascade delivers unit
+     symbol amplitude whatever arrived, which is what makes that construct-
+     time constant honest.
+       Without it, the output tracks the input exactly (the cascade is
+     unity-gain at the symbol level, which is the correct behaviour for a
+     converter and precisely why something else has to do the levelling). */
+  static const double scales[] = { 0.25, 1.0, 4.0 };
+  for (size_t i = 0; i < sizeof scales / sizeof *scales; i++)
+    {
+      double off = _mf_amp_scaled (scales[i], 0);
+      double on  = _mf_amp_scaled (scales[i], 1);
+
+      /* AGC off: amplitude in, amplitude out — the level survives. */
+      double want_off = scales[i] * _MF_TX_AMP;
+      int    ok_off   = fabs (fabs (off) - want_off) < 0.02 * want_off;
+      CHECK (ok_off);
+
+      /* AGC on: unity, whatever went in. 3% covers the residual the loop
+         leaves after the seed plus the pulse-energy approximation. */
+      int ok_on = fabs (fabs (on) - 1.0) < 0.03;
+      CHECK (ok_on);
+      if (!ok_off || !ok_on)
+        fprintf (stderr,
+                 "  agc scale=%.2f: off %.4f (want %.4f), on %.4f (want 1)\n",
+                 scales[i], off, want_off, on);
+    }
+}
+
 static void
 test_matched_recovers_symbols (void)
 {
@@ -995,6 +1128,18 @@ test_matched_push_equals_block (void)
       RateConverter_state_t *c = RateConverter_create_matched (
           2.0 / sps[s], 1, RC_PULSE_RRC, _MF_BETA, _MF_SPAN, 2.0, 1024);
       CHECK (a && b && c);
+      /* The AGC is ON for this comparison, which is the whole reason its tap
+         is per-sample in BOTH paths. agc_steps() would vectorise the block
+         form and is documented as NOT bit-identical to the per-sample loop,
+         so taking it would break this equality -- and with it the guarantee
+         that the closed-loop (push) and open-loop (block) paths are the same
+         filter. */
+      if (a && b && c)
+        {
+          CHECK (RateConverter_enable_agc (a, 1e-3, 0.05) == DP_OK);
+          CHECK (RateConverter_enable_agc (b, 1e-3, 0.05) == DP_OK);
+          CHECK (RateConverter_enable_agc (c, 1e-3, 0.05) == DP_OK);
+        }
       if (a && b && c)
         {
           size_t ny = RateConverter_execute_ctrl (a, x, n, 0.0, y, n);
@@ -1080,6 +1225,72 @@ test_matched_state_roundtrip (void)
 }
 
 static void
+test_agc_state_roundtrip_mid_convergence (void)
+{
+  /* Split while the AGC is still SEEDING. The seed's running mean and its two
+     counters are live only inside that window, so a round-trip that splits
+     after it cannot see them — and every other round-trip in this file
+     splits at n/2, long past it. Cut at a handful of pre-terminal samples
+     instead, which is where the state actually exists. */
+  const double    sps = 4.0;
+  size_t          n;
+  float _Complex *x = _mf_tx_beta (sps, _MF_BETA, 0.0, &n);
+  float _Complex *y = calloc (n, sizeof *y);
+  float _Complex *z = calloc (n, sizeof *z);
+  CHECK (x && y && z);
+  if (!x || !y || !z)
+    {
+      free (x);
+      free (y);
+      free (z);
+      return;
+    }
+
+  RateConverter_state_t *a = RateConverter_create_matched (
+      2.0 / sps, 0, RC_PULSE_RRC, _MF_BETA, _MF_SPAN, 2.0, 1024);
+  RateConverter_state_t *b = RateConverter_create_matched (
+      2.0 / sps, 0, RC_PULSE_RRC, _MF_BETA, _MF_SPAN, 2.0, 1024);
+  CHECK (a && b);
+  if (a && b)
+    {
+      CHECK (RateConverter_enable_agc (a, 1e-3, 0.05) == DP_OK);
+      CHECK (RateConverter_enable_agc (b, 1e-3, 0.05) == DP_OK);
+
+      /* A short prefix: long enough that the loop has moved off unity,
+         short enough that it is nowhere near settled. */
+      size_t cut = n / 20;
+      RateConverter_execute (a, x, cut, y, n);
+      /* Non-vacuous: the gain really is mid-flight at the split. */
+      double g_cut = RateConverter_agc_gain_db (a);
+      CHECK (g_cut != 0.0);
+      CHECK (fabs (g_cut) < 20.0);
+
+      size_t nb = RateConverter_state_bytes (a);
+      void  *bl = malloc (nb);
+      CHECK (bl != NULL);
+      if (bl)
+        {
+          RateConverter_get_state (a, bl);
+          CHECK (RateConverter_set_state (b, bl) == DP_OK);
+          size_t na   = RateConverter_execute (a, x + cut, n - cut, y, n);
+          size_t nz   = RateConverter_execute (b, x + cut, n - cut, z, n);
+          int    same = (na == nz && na > 0);
+          for (size_t i = 0; same && i < nz; i++)
+            same = (y[i] == z[i]);
+          CHECK (same);
+          ((char *)bl)[0] ^= 0xFF;
+          CHECK (RateConverter_set_state (b, bl) == DP_ERR_INVALID);
+          free (bl);
+        }
+    }
+  RateConverter_destroy (a);
+  RateConverter_destroy (b);
+  free (x);
+  free (y);
+  free (z);
+}
+
+static void
 test_matched_set_rate_keeps_pulse (void)
 {
   /* set_rate() re-plans; the pulse is configuration, not part of the plan,
@@ -1121,6 +1332,9 @@ main (void)
   test_matched_recovers_symbols ();
   test_matched_cascade_returns_the_symbol_amplitude ();
   test_matched_push_equals_block ();
+  test_agc_is_off_unless_asked_and_needs_a_pulse ();
+  test_agc_delivers_unit_symbol_amplitude ();
+  test_agc_state_roundtrip_mid_convergence ();
   test_matched_state_roundtrip ();
   test_matched_set_rate_keeps_pulse ();
 

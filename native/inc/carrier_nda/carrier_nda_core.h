@@ -215,12 +215,29 @@ extern "C"
   JM_FORCEINLINE void
   carrier_nda_disc (float complex z, int m, double *pe, double *lock)
   {
-    /* The cascade runs in float: the input is a float complex AGC-normalized
-     * to |z|~1 (clip caps it at ~3.16), so even z^8 is O(1)-O(1e4) and float's
-     * ~1e-7 relative error is far below what the loop tolerates. Keeping it in
-     * float avoids the float->double conversions on this loop-carried critical
-     * path; only the two outputs (which feed the double loop filter) promote.
-     */
+    /* BOTH outputs normalise by the detector's OWN amplitude law, |z|^M.
+     *
+     * A discriminator's raw output is the phase error multiplied by things it
+     * did not choose, and amplitude is the largest of them: Im(z^M) scales as
+     * A^M, so a 2x level error is 4x loop gain at BPSK and 256x at 8PSK. Only
+     * the detector can divide that out, and it can do it exactly -- |z|^M is a
+     * power of p for every M supported here, so it costs one divide and no
+     * sqrt. This is the same rule the timing detector follows (a TED
+     * normalises by its own slope, symsync_ted_slope()), applied to its
+     * sibling.
+     *
+     * At |z| = 1 this is identical to the un-normalised form, so the S-curve
+     * slope -- and with it the meaning of bn -- is unchanged from when an
+     * upstream AGC was manufacturing that condition. What changes is that it
+     * no longer HAS to be manufactured: an AGC ahead of this detector existed
+     * only to make |z| = 1 true, and a receiver now needs exactly one AGC,
+     * for its own signal path, not one per detector.
+     *
+     * The cascade runs in float: even z^8 of a normally-scaled input is
+     * O(1)-O(1e4) and float's ~1e-7 relative error is far below what the loop
+     * tolerates. Keeping it in float avoids the float->double conversions on
+     * this loop-carried critical path; only the two outputs (which feed the
+     * double loop filter) promote. */
     float i  = crealf (z);    /* raw I (AGC-normalized upstream) */
     float q  = cimagf (z);    /* raw Q                          */
     float p  = i * i + q * q; /* |z|^2                          */
@@ -231,19 +248,23 @@ extern "C"
      * every M we support, so limiting costs one divide and no sqrt. */
     if (m == 2)
       {
-        *pe   = be;
-        *lock = (p > CARRIER_NDA_EPS) ? bl / p : 0.0; /* Re((z/|z|)^2) */
+        int ok = p > CARRIER_NDA_EPS;
+        *pe    = ok ? be / p : 0.0;                    /* Im((z/|z|)^2) */
+        *lock  = ok ? bl / p : 0.0;                    /* Re((z/|z|)^2) */
         return;
       }
     float ql = bl * bl - be * be; /* Re(z^4)        */
     float qe = be * bl;           /* Im(z^4) / 2    */
     if (m == 4)
       {
-        *pe   = qe;
-        *lock = (p > CARRIER_NDA_EPS) ? ql / (p * p) : 0.0; /* Re((z/|z|)^4) */
+        int   ok = p > CARRIER_NDA_EPS;
+        float p2 = p * p; /* |z|^4 */
+        *pe      = ok ? qe / p2 : 0.0;                 /* Im((z/|z|)^4) / 2 */
+        *lock    = ok ? ql / p2 : 0.0;                 /* Re((z/|z|)^4)     */
         return;
       }
-    *pe = qe * ql; /* Im(z^8) / 4                             */
+    /* Im(z^8)/4, normalised below by |z|^8 alongside the lock statistic. */
+    float pe8 = qe * ql;
     /* Re(z^8) = Re(z^4)^2 - Im(z^4)^2, and `qe` is HALF of Im(z^4) -- that
      * half being the deliberate {1, 1/2, 1/4} phase-error scaling which
      * equalises the S-curve slope across M. So reconstructing Re(z^8) from it
@@ -257,6 +278,7 @@ extern "C"
      * corrupted only the noise-only tail, i.e. exactly the false-alarm
      * behaviour a lock detector is thresholded on. */
     float p4 = p * p * p * p; /* |z|^8 */
+    *pe      = (p4 > CARRIER_NDA_EPS) ? pe8 / p4 : 0.0;
     *lock    = (p4 > CARRIER_NDA_EPS) ? (ql * ql - 4.0f * qe * qe) / p4
                                       : 0.0; /* Re((z/|z|)^8) */
   }

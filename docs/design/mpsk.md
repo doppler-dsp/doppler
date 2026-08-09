@@ -1,8 +1,8 @@
 # MPSK Receiver
 
 **Status:** implemented — `track.CarrierNda` (#276) + `track.MpskReceiver`
-shipped; the NDA carrier loop reworked to a raw M-th-power discriminator + AGC
-(§2.3); **the receiver's engine rebuilt on the matched DDC cascade (§1.1)**, and
+shipped; the NDA carrier loop's discriminator normalized by its own `|z|^M`,
+retiring the AGC that existed to make `|z| = 1` true (§2.3); **the receiver's engine rebuilt on the matched DDC cascade (§1.1)**, and
 a real-input twin `track.MpskReceiverR` added alongside it.
 **Scope:** a streaming **M-PSK receiver** (`track.MpskReceiver` for complex
 baseband, `track.MpskReceiverR` for a real IF, M = BPSK / QPSK / 8PSK) that
@@ -85,12 +85,12 @@ matched filter at `sps = 256` needs ~4225 taps per arm.
 
 Rebuilding on the matched DDC replaces all four pieces with one cascade:
 
-| Was                               | Is now                                      |
-| --------------------------------- | ------------------------------------------- |
-| per-sample integer-NCO wipe-off   | the DDC's LO, driven by `freq_ctrl`         |
-| separate boxcar arm + its own AGC | the terminal stage's own outputs            |
-| dense matched-filter FIR          | the terminal polyphase stage's bank         |
-| `symsync` Gardner + Farrow        | `ratesync_loop_t` on `rate_ctrl`, bank arms |
+| Was                               | Is now                                                              |
+| --------------------------------- | ------------------------------------------------------------------- |
+| per-sample integer-NCO wipe-off   | the DDC's LO, driven by `freq_ctrl`                                 |
+| separate boxcar arm + its own AGC | the terminal stage's own outputs, and no AGC on the detector at all |
+| dense matched-filter FIR          | the terminal polyphase stage's bank                                 |
+| `symsync` Gardner + Farrow        | `ratesync_loop_t` on `rate_ctrl`, bank arms                         |
 
 The payoff is that `sps` becomes a **double** and the front end plans itself: at
 `sps = 8` the plan is a halfband or two plus a terminal stage; at `sps = 256` it
@@ -239,10 +239,13 @@ discriminator swap with no rate change to reconcile.
         behaviour depend on a second loop's lock detector. If cold acquisition
         fails at `m_out=4`, reach for `nda_tap="mf_all"` or `"lo_arm"`.
 
-    The AGC seed mattered as much as the steer: seeded off a pre-lock strobe the
-    gain latches on a non-symbol and can land far too **low** as easily as too
-    high — measured `lock` = 4.9e-19, a denormal, on a receiver decoding every
-    bit correctly, so the handover never fired.
+    The AGC seed mattered as much as the steer, back when this loop had an AGC
+    of its own: seeded off a pre-lock strobe the gain latched on a non-symbol
+    and could land far too **low** as easily as too high — measured `lock` =
+    4.9e-19, a denormal, on a receiver decoding every bit correctly, so the
+    handover never fired. The discriminator normalizes by its own `|z|^M` now
+    and has no AGC to mis-seed (§2.3); the front-end cascade's AGC seeds
+    against the signal, not a strobe.
 
 ### 2.2.1 `nda_tap` — the discriminator's tap point IS the pull-in range
 
@@ -358,49 +361,55 @@ identically across M, and the lock signal is left **unscaled** so that it reads
 ~1.0 at lock for every M -- which is what actually makes the handover threshold
 M-independent.
 
-**Normalization — an AGC, not a per-sample limiter.** The discriminator input
-`z` is driven to unit average power by an embedded log-domain AGC (`agc_core`)
-before the discriminator, with a 10 dB square clip on the AGC output. This is
-deliberate. The discriminator is the **raw** M-th-power form `Im(z^M)` (the
-"conventional Costas" / linear-arm form), which is optimal for a
-constant-modulus signal — the DSSS target. A per-sample unit-magnitude
-normalization `z/|z|` is Yuen's "polarity-type" hard limiter, the *worst*
-nonlinearity (≈2.5–4 dB extra squaring loss, and non-monotone in SNR). The AGC
-provides amplitude invariance (so the loop gain does not scale with input level)
-*without* the limiter's penalty; the clip bounds the peak (constructive-ISI)
-samples that would otherwise dominate the `|z|^M` weighting. **Input average
-power is required to be at or below unity** — the normal convention for
-captured/scaled baseband (and the DSSS despreader's known correlation gain).
+**Normalization — the detector divides out its own amplitude law.** Both
+outputs are normalized by `|z|^M`: the lock signal has always been
+`Re((z/|z|)^M)`, and the phase error is now `Im((z/|z|)^M)` to match. This is
+the same rule the timing detector follows — a TED normalizes by its own slope
+(`symsync_ted_slope()`) — applied to its sibling. A discriminator's raw output
+is the phase error multiplied by things it did not choose, and amplitude is the
+largest of them: `Im(z^M)` scales as `A^M`, so a 2× level error is 4× loop gain
+at BPSK and **256×** at 8PSK. `|z|^M` is a power of `p = |z|^2` for every
+supported `M`, so dividing it out costs one divide and no `sqrt`.
 
-!!! warning "Since the rebuild the AGC is seeded, and its bandwidth is absolute"
+**This is why the receiver has exactly one AGC.** There used to be a second,
+embedded ahead of this discriminator, whose entire job was to make `|z| = 1`
+true so that the raw form would behave. With the detector normalizing itself
+that condition no longer has to be manufactured, and the receiver's one AGC —
+in the front-end cascade — serves the *signal path* instead of a detector. Two
+level loops in series, each correcting the other's excursions, is what having
+one per detector gets you. At `|z| = 1` the two forms are identical, so the
+S-curve slope, and with it the meaning of `bn`, is unchanged from before.
 
-    Two things about this AGC changed with the engine, and both were real bugs
-    before they were fixed:
+!!! note "The classic objection, and where it actually applies"
 
-    - **It is seeded from the first strobe.** The bank is unit-*energy*, so its
-        output sits roughly `√(pulse_sps)` above the constellation the AGC expects.
-        Left to converge from a cold gain, the loop ran 16× hot at QPSK and 256× at
-        8PSK — the measured lock statistic reached 5.2 and 26.4 (in the units of the
-        time, against ceilings of 0.62 and 0.41), which was the fingerprint to
-        recognise: a lock metric far above a real lock's value meant a gain fault,
-        not a good lock.
+    A per-sample magnitude normalization is Yuen's "polarity-type" hard
+    limiter, and the textbook result is that it costs 2.5–4 dB of extra
+    squaring loss over the linear-arm form. That result is real, and it is
+    **below this receiver's operating point**. Measured directly on the two
+    detectors fed identical unit-average-power samples — loop SNR
+    (`slope² / var(e)` at lock, 4×10⁵ samples per point), normalized minus raw:
 
-        **That fingerprint no longer exists, and this is what limiting the lock
-        signal cost.** `Re((z/|z|)^M)` is amplitude-blind by construction and
-        bounded in ±1, so a hot AGC cannot inflate it and a reading of 5.2 is now
-        unreachable. The diagnostic was real and is gone; the bug it pointed at is
-        fixed and pinned by the seeding test, so nothing regresses silently, but a
-        *future* gain fault will have to be caught by the AGC's own gain rather
-        than by this statistic. Retires the "above-ceiling lock statistic is a free
-        diagnostic" idea in §6.
+    | Es/N0 |   M=2 |       M=4 |       M=8 |
+    | ----: | ----: | --------: | --------: |
+    |  0 dB | −0.63 |     −2.08 |     −2.17 |
+    |  3 dB | −0.37 |     +0.16 |     −4.70 |
+    |  6 dB | −0.04 | **+1.35** |     +0.88 |
+    | 10 dB | +0.04 | **+1.22** | **+3.47** |
+    | 15 dB | −0.00 |     +0.51 | **+2.52** |
+    | 20 dB | −0.00 |     +0.16 |     +1.03 |
 
-    - **Its bandwidth is `MPSK_RX_AGC_BW = 0.002` outright**, not `0.01·bn`. The
-        old proportional rule was a *per-sample* convention; on a discriminator now
-        running at the symbol rate it spans thousands of symbols and never settles.
+    The penalty exists, at 0–3 dB Es/N0 — where 8PSK's loop SNR is −20 dB and
+    the link cannot be closed regardless. From ~6 dB up, which includes every
+    SER=1e-3 anchor, normalizing is equal or **better**, and the advantage
+    grows with `M`. The reason is the same one that used to justify a 10 dB
+    square clip on the AGC output: constructive-ISI peaks dominate the `|z|^M`
+    weighting, and the clip bounded them approximately. Normalizing removes
+    them exactly, and the clip goes with the AGC that carried it.
 
-    The AGC still absorbs residual/slow variation only: a cold input >~10 dB above
-    unity remains out of spec (clip on → false lock, clip off → `|z|^M` gain
-    blow-up).
+    Input scaling is no longer a precondition of this detector at all. The
+    front-end AGC still levels the signal path, because the **timing** detector
+    needs unit symbol amplitude for its construct-time slope to mean what it
+    says.
 
 ```python
 # osr = sample_rate // symbol_rate   # input oversampling, typ. 4
@@ -566,9 +575,13 @@ Es/N0 = 10 / 20 dB, raw → limited: BPSK 5.70/6.21 → 7.95/8.75, QPSK
 ever cleared a 1e-3 Pfa, so for M ≥ 4 there was no Pfa-derived threshold
 available at all.
 
-Only the **lock** path is limited. The `phase_error` keeps its raw `|z|^M`
-weighting, which is the natural matched weighting on a pulse-shaped signal and
-must not be flattened (see the AGC note in §2.3).
+**Both** paths are now normalized by `|z|^M` — the phase error as well as the
+lock statistic. The older reasoning here was that the phase error should keep
+its raw `|z|^M` weighting as "the natural matched weighting on a pulse-shaped
+signal", and measurement does not support it: that weighting is dominated by
+constructive-ISI peaks, and removing it is worth +1.2 dB of loop SNR at QPSK
+and +3.5 dB at 8PSK at 10 dB Es/N0. See §2.3 for the full sweep, including the
+low-Es/N0 regime where the old form does win.
 
 ### 2.4 Opt-in auto-handover
 
@@ -590,7 +603,8 @@ on its own for any M-PSK / unmodulated carrier:
 
 - **Owns** an integer `lo` NCO + a `loop_filter` (by value), the I/Q arm
     **boxcar moving average** (embedded `boxcar` primitive) + its **per-sample
-    AGC** (embedded `agc`), and the M-th-power discriminator + lock signal.
+    AGC** (embedded `agc` — now redundant, see the AGC note at the end of this
+    section), and the M-th-power discriminator + lock signal.
 - **Per sample:** wipe-off (inline `*_wipeoff`), slide the boxcar arm one sample,
     AGC-normalize, run the discriminator, filter, steer the NCO — **one update
     per input sample** (no dumping). Inline composition API (`*_wipeoff` /
@@ -642,13 +656,19 @@ ______________________________________________________________________
 > matched-filter FIR owned by pointer. `fir_step` still exists and is still the
 > right primitive for a per-sample FIR; this receiver no longer needs one.
 
-> **AGC: the carrier path needs none, the timing path does.** The
-> decision-directed *carrier tracking* path is genuinely amplitude-invariant —
+> **AGC: no carrier path needs one; the timing path does.** The
+> decision-directed *carrier tracking* path was always amplitude-invariant —
 > the nearest-point slice and the `|y|`-normalized discriminator both ignore
-> scale. The carrier *acquisition* path is not, so `CarrierNda` carries its
-> **own** internal arm AGC that normalizes the arm sample to unit power before
-> the detector (§2.3); that AGC is internal to the acquisition loop, not a
-> receiver component or a config param.
+> scale — and the *acquisition* path is now too, since `carrier_nda_disc()`
+> normalizes both of its outputs by `|z|^M` (§2.3). `MpskReceiver` therefore
+> carries exactly one AGC, in the front-end cascade, and it is there for the
+> **timing** detector: a TED normalizes by its own slope, and that slope is
+> computed for a unit-amplitude symbol stream.
+>
+> The standalone `CarrierNda` object still embeds its own arm AGC. It shares
+> the now-normalized discriminator, so that AGC no longer has a detector to
+> serve and is a candidate for removal on its own terms — filed separately
+> rather than folded into a receiver change.
 >
 > **The timing detector is not amplitude-invariant either, and this paragraph
 > used to claim the receiver needed no AGC on the strength of the carrier path

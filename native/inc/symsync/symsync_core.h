@@ -103,9 +103,18 @@ extern "C"
    * non-transition-symbol self-noise cost. @see dttl_ted for the
    * decision-directed alternative.
    *
+   * @note **Contract: unit amplitude in.** This is a raw numerator and it
+   * carries the signal amplitude — `A^2` here, since both factors are signal
+   * — which it deliberately does not divide out. What makes `bn` mean one
+   * bandwidth is dividing by the detector's OWN slope,
+   * @ref symsync_ted_slope, and that is a construct-time constant computed
+   * at `A = 1`; feed this anything else and the loop gain is off by `A^2`.
+   * Levelling the symbols is the one upstream AGC's job — there is
+   * deliberately no level loop in here, and there used to be.
+   *
    * @param mid   Mid-symbol (transition-gate) interpolant.
    * @param diff  `on_time[k] - on_time[k-1]`.
-   * @return Raw (pre-AGC-normalized) timing error.
+   * @return Raw, un-normalized timing error. @see symsync_ted_slope
    */
   JM_FORCEINLINE double
   gardner_ted (float complex mid, float complex diff)
@@ -114,24 +123,6 @@ extern "C"
                     + cimagf (mid) * cimagf (diff));
   }
 
-  /**
-   * @brief Sign-sign DTTL: gate the transition sample by the hard-decision
-   * transition on each rail.
-   *
-   * Decision-directed (M.K. Simon's Data Transition Tracking Loop, digital
-   * point-sample reduction): zero unless a rail's hard decision actually
-   * flips between `on_time[k-1]` and `on_time[k]`, in which case the error is
-   * the transition-gate sample's value on that rail. Valid only for
-   * constellations with independent, rectangular I/Q decision boundaries
-   * (BPSK, QPSK/OQPSK) -- not 8PSK/QAM. Diff order (current minus previous)
-   * matches gardner_ted's convention so both TEDs share one loop-filter
-   * polarity.
-   *
-   * @param mid   Mid-symbol (transition-gate) interpolant.
-   * @param y     `on_time[k]`.
-   * @param prev  `on_time[k-1]`.
-   * @return Raw (pre-AGC-normalized) timing error.
-   */
   /** @brief Pulse code for symsync_ted_slope(); values match rc_pulse_t. */
   enum
   {
@@ -183,6 +174,35 @@ extern "C"
    */
   double symsync_ted_slope (int ted, int pulse, double beta, size_t span);
 
+  /**
+   * @brief Sign-sign DTTL: gate the transition sample by the hard-decision
+   * transition on each rail.
+   *
+   * Decision-directed (M.K. Simon's Data Transition Tracking Loop, digital
+   * point-sample reduction): zero unless a rail's hard decision actually
+   * flips between `on_time[k-1]` and `on_time[k]`, in which case the error is
+   * the transition-gate sample's value on that rail. Valid only for
+   * constellations with independent, rectangular I/Q decision boundaries
+   * (BPSK, QPSK/OQPSK) -- not 8PSK/QAM. Diff order (current minus previous)
+   * matches gardner_ted's convention so both TEDs share one loop-filter
+   * polarity.
+   *
+   * @note **Contract: unit amplitude in.** This is a raw numerator and it
+   * carries the signal amplitude — `A^1` here, not `A^2` as in
+   * @ref gardner_ted, because the transition term is a hard decision of
+   * fixed size and only `mid` is signal. That difference in degree is why no
+   * single normaliser applied outside can serve both detectors, and why each
+   * divides by its own slope instead: @ref symsync_ted_slope, a
+   * construct-time constant computed at `A = 1`. Feed this anything else and
+   * the loop gain is off by `A`. Levelling the symbols is the one upstream
+   * AGC's job — there is deliberately no level loop in here, and there used
+   * to be.
+   *
+   * @param mid   Mid-symbol (transition-gate) interpolant.
+   * @param y     `on_time[k]`.
+   * @param prev  `on_time[k-1]`.
+   * @return Raw, un-normalized timing error. @see symsync_ted_slope
+   */
   JM_FORCEINLINE double
   dttl_ted (float complex mid, float complex y, float complex prev)
   {

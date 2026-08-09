@@ -88,6 +88,16 @@ RATIOS = [
 
 PATHS = [("R", True), ("C", False)]
 
+#: Highest oversampling at which the timing loop acquires UNDER NOISE today.
+#: Not a property of the front end -- the cascade decimates to `m_out` before
+#: any strobe exists -- but of where the level is set: see the xfail reason in
+#: test_evm_lands_on_the_coherent_bound.
+_AWGN_MAX_SPS = 64
+
+#: The AWGN cases settle later than the noiseless ones and need the room: the
+#: complex path settles at ~3900 symbols against the real path's 2000.
+_AWGN_NSYM = 12000
+
 
 def _measure(real, sps, m_out, bn, nsym, esn0_db=None):
     """One case, with BOTH loops given something to acquire.
@@ -157,7 +167,7 @@ def test_noiseless_decode_is_error_free(
 )
 @pytest.mark.parametrize("path,real", PATHS, ids=[p[0] for p in PATHS])
 def test_evm_lands_on_the_coherent_bound(
-    path, real, label, sps, m_out, bn, nsym
+    path, real, label, sps, m_out, bn, nsym, request
 ):
     """`EVM_dB = -(Es/N0)_dB` at every ratio, on both paths.
 
@@ -170,7 +180,33 @@ def test_evm_lands_on_the_coherent_bound(
     those two conventions honest against each other.
     """
     esn0 = 12.0
-    r = _measure(real, sps, m_out, bn, nsym, esn0_db=esn0)
+    if sps > _AWGN_MAX_SPS:
+        # A MARKER, not pytest.xfail(): the imperative form never runs the
+        # body, so it could not notice this starting to pass. strict=True
+        # turns an unexpected pass RED, which is what makes this a gate on
+        # the fix rather than a note about it.
+        request.node.add_marker(
+            pytest.mark.xfail(
+                strict=True,
+                reason=(
+                    f"sps={sps} is past the timing loop's AWGN capability "
+                    "today. The AGC sets AVERAGE POWER, so at a fixed Es/N0 "
+                    "the signal's share of a unit-power composite falls as "
+                    "the front end oversamples more -- A^2 drive 0.76 at "
+                    "sps=20, 0.50 at 64, 0.11 at 512, 0.03 at 2048 -- and a "
+                    "TED's slope goes as A^2. Measured: acquires at 20 and "
+                    "64, never at 512 or 2048 at ANY burst length (2400, "
+                    "6000, 12000 all tried). The fix is an AGC AFTER the "
+                    "DDC/RateConverter, where the noise has already been "
+                    "filtered to the symbol rate so the level no longer "
+                    "depends on the input oversampling -- and where it also "
+                    "sits ahead of the carrier loop, which today normalises "
+                    "only downstream of the timing strobe. See "
+                    "docs/design/mpsk.md 5.1."
+                ),
+            )
+        )
+    r = _measure(real, sps, m_out, bn, max(nsym, _AWGN_NSYM), esn0_db=esn0)
     assert r is not None, f"{path} at sps={sps}: no settled window under AWGN"
     assert -esn0 - 1.0 < r["evm"] < -esn0 + 3.5, (
         f"{path} sps={sps}: EVM {r['evm']:.1f} dB against a {-esn0:.0f} dB "

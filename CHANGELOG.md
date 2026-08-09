@@ -78,6 +78,29 @@ ______________________________________________________________________
 
 ### Fixed
 
+- **One `double` → phase-word conversion, with two named faces over it.**
+    The conversion every rate-bearing object depends on existed in private
+    copies at each call site, each computing its own cast and each undefined
+    at its own boundary. `nco_phase_units()` is now the one place: total and
+    saturating — below zero (and NaN) gives 0, at or above 2^32 saturates to
+    2^32−1, in between it truncates toward zero. C99 gives the integer half
+    of a phase accumulator away free (6.2.5p9, 7.20.1.1), so undefined
+    behaviour can only enter at 6.3.1.4, which makes confining the cast
+    structural rather than stylistic.
+
+    Two faces share one body, so a call site declares its dimension instead
+    of leaving it inferable from the assignment target:
+    `nco_norm_freq_to_inc` (cycles per sample → a phase **increment**, 14
+    sites) and `nco_norm_phase_to_word` (cycles, absolute → a phase **word**,
+    3 sites). The old `nco_norm_to_inc` is gone.
+
+    This is also the `rate == 1.0` fix: `(uint32_t)(2^32 / 1.0)` is the
+    out-of-range conversion and yields 0 on x86 — an increment that never
+    advances. **`Synth(sps=1, pulse="rrc")` emitted an all-zero waveform**
+    (rms 0.0, one distinct sample) while sps 2/4/8 were correct.
+    `nco_step_u32_ovf_ctrl`'s carry is still wrong for a negative control and
+    carries an `@warning`; it is fixed separately.
+
 - **A single-phase polyphase bank selects arm 0 instead of shifting by 32.**
     `get_branch` computed `ph >> (32 - log2_phases)`; a one-arm bank makes
     that a 32-bit shift of a `uint32_t`, which is undefined (C99 6.5.7p3).

@@ -252,18 +252,37 @@ _pulse_support (int pulse, size_t span)
  * `sps' is the symbol period measured in the terminal stage's INPUT samples
  * — that is the grid the taps live on, and it is what makes this bank small:
  * the integer stages have already done the bulk decimation, so sps is ~2
- * whatever the input rate was.  `pulse_sps' is the same period counted in
- * OUTPUT samples, so one output period is `1/pulse_sps' symbols — the span an
- * arm sweeps, because the accumulator's fractional remainder (which selects
- * the arm) is measured in output periods.
+ * whatever the input rate was.  It is the ONLY rate this bank knows: the
+ * output rate never appears, because a polyphase arm is a fraction of an
+ * INPUT interval and nothing else.
  *
- * Layout is `bank[p][t] = h(-t/sps + support + (p/num_phases)/pulse_sps)':
- * arm p moves the sampling instant in the SAME direction crossing an
- * accumulator boundary moves it.  Getting that backwards makes the arm and the
- * accumulator fight and the effective sampling instant becomes a
- * one-output-period sawtooth (it still "works", it just jitters), which is why
- * this must match the unified accumulator path — see
- * resamp_execute_ctrl_push().
+ * Layout is `bank[p][t] = h(-t/sps - (p/num_phases)/sps)', derived rather
+ * than fitted.  With `h' symmetric and the delay line newest-first (tap t
+ * multiplies x[n-t]),
+ *
+ *     y(tau) = sum_m x[m] h(tau - m/sps) = sum_t x[n-t] h(-t/sps + (n/sps -
+ * tau))
+ *
+ * so `support + arm_p' must equal `(n - tau)/sps', the newest LOADED sample's
+ * distance behind the wanted instant.  The accumulator
+ * (resamp_execute_ctrl_push) emits before it loads, so at output k exactly
+ * `L_k = floor(k*T_in)' inputs are in the line, the newest is `n = L_k - 1',
+ * and the phase word carries `u_k = k*T_in - L_k' — the fraction of an input
+ * interval by which the instant sits AHEAD of that newest sample.  Hence
+ *
+ *     (n - tau)/sps = -(1 + u_k + tau_0)/sps    =>    arm_p = -u_k/sps + C
+ *
+ * The arm is a LAG, one input interval per full turn of the phase word, and
+ * `C' is a pure group delay: `C = 0' puts arm 0 at the un-displaced pulse,
+ * which is what the R == 1 cascades (phase pinned at 0, arm 0 forever) are
+ * already measured against.
+ *
+ * The direction is the load-bearing part.  Getting it backwards makes the arm
+ * and the accumulator fight, and the effective sampling instant becomes a
+ * sawtooth (it still "works", it just jitters): the previous layout swept
+ * `+u/pulse_sps' symbols, i.e. `+u/R' taps where the derivation wants `-u',
+ * so at R = 0.923 the instant swung by 2.08 taps — a whole symbol — and
+ * matched EVM fell to -10 dB.  See resamp_execute_ctrl_push().
  *
  * When `comp' is non-NULL the CIC droop compensator is folded in by convolving
  * every arm with it.  This is exact, not an approximation: ciccompmf's taps
@@ -274,15 +293,16 @@ _pulse_support (int pulse, size_t span)
  * Returns a malloc'd num_phases x (*out_ntaps) bank, or NULL on OOM.
  */
 static float *
-_build_bank (int pulse, double beta, double sps, double pulse_sps, size_t span,
+_build_bank (int pulse, double beta, double sps, size_t span,
              size_t num_phases, const double *comp, size_t n_comp,
              size_t *out_ntaps)
 {
   double support = _pulse_support (pulse, span);
-  /* Cover the full pulse for EVERY arm: the last arm displaces the window by
-     one whole output period (1/pulse_sps symbols), so the tap count has to
-     carry that on top of the two-sided support. */
-  size_t raw = (size_t)ceil ((2.0 * support + 1.0 / pulse_sps) * sps) + 1u;
+  /* Cover the full pulse for EVERY arm: the last arm lags the window by one
+     whole INPUT interval (1/sps symbols), so the tap count has to carry that
+     on top of the two-sided support.  A lag wants the room at the far end of
+     the window, which is exactly where extending `raw' puts it. */
+  size_t raw = (size_t)ceil ((2.0 * support + 1.0 / sps) * sps) + 1u;
   size_t nt  = comp ? raw + n_comp - 1u : raw;
 
   float *bank = (float *)calloc (num_phases * nt, sizeof (float));
@@ -291,7 +311,12 @@ _build_bank (int pulse, double beta, double sps, double pulse_sps, size_t span,
 
   for (size_t p = 0; p < num_phases; p++)
     {
-      double arm = (double)p / (double)num_phases / pulse_sps;
+      /* A LAG of p/num_phases of one input interval — see the derivation
+         above.  The phase word runs forward, so the sampling instant moves
+         AHEAD of the newest loaded sample and the filter must reach less far
+         back: the family descends, exactly as resamp's default Kaiser bank
+         does (arm p peaks at tap (halflen - p)/num_phases). */
+      double arm = -(double)p / (double)num_phases / sps;
       float *row = bank + p * nt;
       for (size_t t = 0; t < raw; t++)
         {
@@ -547,9 +572,9 @@ _build_stages (RateConverter_state_t *s, const rc_plan_entry_t *plan, int n)
              output samples per symbol, at this stage's rate. */
           double bank_sps = s->pulse_sps / plan[i].resamp_rate;
           size_t ntaps    = 0;
-          float *bank = _build_bank (s->pulse, s->beta, bank_sps, s->pulse_sps,
-                                     s->span, s->num_phases, compp,
-                                     _RC_COMP_NTAPS, &ntaps);
+          float *bank
+              = _build_bank (s->pulse, s->beta, bank_sps, s->span,
+                             s->num_phases, compp, _RC_COMP_NTAPS, &ntaps);
           if (!bank)
             goto fail;
           obj = resamp_create_custom (s->num_phases, ntaps, bank,

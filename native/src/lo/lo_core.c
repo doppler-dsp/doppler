@@ -56,7 +56,7 @@ lo_init (lo_state_t *state, double norm_freq)
 {
   lut_init ();
   state->phase     = 0;
-  state->phase_inc = nco_norm_to_inc (norm_freq);
+  state->phase_inc = nco_norm_freq_to_inc (norm_freq);
   state->norm_freq = norm_freq;
 }
 
@@ -95,7 +95,7 @@ lo_get_norm_freq (const lo_state_t *state)
 void
 lo_set_norm_freq (lo_state_t *state, double norm_freq)
 {
-  state->phase_inc = nco_norm_to_inc (norm_freq);
+  state->phase_inc = nco_norm_freq_to_inc (norm_freq);
   state->norm_freq = norm_freq;
 }
 
@@ -282,8 +282,8 @@ lo_steps (lo_state_t *state, size_t n, float complex *out, size_t max_out)
  * 2^32 in float32 is 2^8 = 256, so ctrl_inc is accurate to ±128 in
  * its lowest 8 bits — below one LUT bin (2^16 counts).  No effect on
  * the top 16 bits that drive the LUT.  Rounds to nearest (matching
- * nco_norm_to_inc()'s convention, not a truncating cast) via
- * _mm512_cvtps_epu32 — see nco_norm_to_inc()'s own doc comment on why
+ * nco_norm_freq_to_inc()'s convention, not a truncating cast) via
+ * _mm512_cvtps_epu32 — see nco_norm_freq_to_inc()'s own doc comment on why
  * a duplicated truncating copy of this conversion is a standing bug,
  * not a style choice.
  */
@@ -318,7 +318,7 @@ lo_steps_ctrl (lo_state_t *state, const float *ctrl, size_t ctrl_len,
       __m512 vfrac = _mm512_sub_ps (vc, _mm512_floor_ps (vc));
 
       /* ctrl_inc[k] = round(frac[k] * 2^32) -- round-to-nearest, not
-       * truncating, to match nco_norm_to_inc()'s convention. */
+       * truncating, to match nco_norm_freq_to_inc()'s convention. */
       __m512i vci = _mm512_cvtps_epu32 (_mm512_mul_ps (vfrac, v2p32));
 
       /* delta[k] = inc + ctrl_inc[k] */
@@ -358,11 +358,11 @@ lo_steps_ctrl (lo_state_t *state, const float *ctrl, size_t ctrl_len,
     }
 
   /* Scalar tail — the shared double-precision primitive, not a
-   * private copy (nco_norm_to_inc() already floor-normalizes and
+   * private copy (nco_norm_freq_to_inc() already floor-normalizes and
    * rounds to nearest). */
   for (; i < ctrl_len; i++)
     {
-      uint32_t ctrl_inc = nco_norm_to_inc ((double)ctrl[i]);
+      uint32_t ctrl_inc = nco_norm_freq_to_inc ((double)ctrl[i]);
       uint16_t idx      = (uint16_t)(ph >> (32u - LO_LUT_BITS));
       out[i] = CMPLXF (lo_sin_lut[(uint16_t)(idx + (uint16_t)LO_LUT_QTR)],
                        lo_sin_lut[idx]);
@@ -386,7 +386,7 @@ lo_steps_ctrl (lo_state_t *state, const float *ctrl, size_t ctrl_len,
   uint32_t inc = state->phase_inc;
   for (size_t i = 0; i < ctrl_len; i++)
     {
-      uint32_t ctrl_inc = nco_norm_to_inc ((double)ctrl[i]);
+      uint32_t ctrl_inc = nco_norm_freq_to_inc ((double)ctrl[i]);
       uint16_t idx      = (uint16_t)(ph >> (32u - LO_LUT_BITS));
       out[i] = CMPLXF (lo_sin_lut[(uint16_t)(idx + (uint16_t)LO_LUT_QTR)],
                        lo_sin_lut[idx]);

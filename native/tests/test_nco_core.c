@@ -17,6 +17,12 @@
  *      including a ctrl large enough to force >1 wrap in one sample
  *  11. Single-sample primitives (nco_step_u32*) — every batch stepper
  *      is exactly a loop over its single-sample counterpart
+ *
+ * The float boundary (see nco_core.h's own header for why confining it
+ * is structural rather than stylistic):
+ *
+ *  12. nco_phase_units — the one conversion's total contract
+ *  13. nco_norm_fold_ — the fold must never hand the cast a 1.0
  */
 #include "nco/nco_core.h"
 #include <math.h>
@@ -458,6 +464,127 @@ main (void)
 
     nco_destroy (nco);
     nco_destroy (ref);
+  }
+
+  /* ----------------------------------------------------------------
+   * 13. nco_norm_fold_ — the fold must never hand the cast a 1.0
+   *
+   * The documented contract is a truncated fraction in [0, 2^32), and
+   * the stated reason for truncating rather than rounding is
+   * HOST-DETERMINISM: "a bare truncating cast is bit-identical on every
+   * host". The proof offered is `d < 1 makes d*2^32 strictly < 2^32`.
+   *
+   * That proof holds for the real fold and NOT for the floating-point
+   * one. `cycles - floor (cycles)` is mathematically in [0, 1), but for
+   * any cycles in [-2^-53, 0) the subtraction ROUNDS to exactly 1.0 --
+   * and (uint32_t)(1.0 * 2^32) is the out-of-range float->unsigned
+   * conversion (C99 6.3.1.4) the header itself warns freezes the NCO.
+   * x86 yields 0 here, arm64 saturates to 2^32-1: the one property the
+   * convention exists to provide is the one that breaks.
+   *
+   * The true fraction of a tiny negative is in (1 - 2^-53, 1), so the
+   * truncated answer is 2^32-1 for every one of these -- the same value
+   * -1e-16 already returns, one representable step away. A settled
+   * timing loop's ctrl passes through this band routinely.
+   * ---------------------------------------------------------------- */
+  /* ----------------------------------------------------------------
+   * 12. nco_phase_units — the one conversion's total contract
+   *
+   * Pinned here because every other conversion site in the library now
+   * inherits it. `volatile` throughout for the constant-folding reason
+   * section 13 explains.
+   * ---------------------------------------------------------------- */
+  {
+    volatile double u;
+
+    u = -1.0;
+    CHECK (nco_phase_units (u) == 0u);
+    u = -1e-300;
+    CHECK (nco_phase_units (u) == 0u);
+    u = 0.0;
+    CHECK (nco_phase_units (u) == 0u);
+    u = -0.0;
+    CHECK (nco_phase_units (u) == 0u);
+    u = 0.0 / 0.0;
+    CHECK (nco_phase_units (u) == 0u); /* NaN, not a wrap */
+    u = 1.0 / 0.0;
+    CHECK (nco_phase_units (u) == 4294967295u); /* +inf  */
+    u = -1.0 / 0.0;
+    CHECK (nco_phase_units (u) == 0u); /* -inf  */
+
+    /* Saturation at and above one full cycle per sample. */
+    u = 4294967296.0;
+    CHECK (nco_phase_units (u) == 4294967295u);
+    u = 8589934592.0;
+    CHECK (nco_phase_units (u) == 4294967295u);
+    u = 4294967295.5;
+    CHECK (nco_phase_units (u) == 4294967295u);
+
+    /* In range: truncate toward zero, so the value is at most one step low
+       and never high -- the convention the whole family relies on. */
+    u = 0.9;
+    CHECK (nco_phase_units (u) == 0u);
+    u = 1.9;
+    CHECK (nco_phase_units (u) == 1u);
+    u = 2147483648.0;
+    CHECK (nco_phase_units (u) == 2147483648u);
+    u = 4294967294.7;
+    CHECK (nco_phase_units (u) == 4294967294u);
+  }
+
+  {
+    /* `volatile` is load-bearing, not decoration. With literal arguments
+       the compiler CONSTANT-FOLDS the out-of-range conversion using its
+       own saturating rules and the bug vanishes: at -O2 gcc folds these
+       to 2^32-1 and the test passes without exercising the cast at all.
+       Routing each value through a volatile forces the real runtime
+       instruction, which is what a control arriving from a loop is. */
+    volatile double v;
+
+    /* Just outside the band: already correct, and the value every case
+       below must agree with. */
+    v = -1e-16;
+    CHECK (nco_norm_freq_to_inc (v) == 4294967295u);
+    v = -1e-15;
+    CHECK (nco_norm_freq_to_inc (v) == 4294967295u);
+
+    /* Inside the band, where the fold rounds up to 1.0. */
+    v = -5e-17;
+    CHECK (nco_norm_freq_to_inc (v) == 4294967295u);
+    v = -1e-20;
+    CHECK (nco_norm_freq_to_inc (v) == 4294967295u);
+    v = -1e-30;
+    CHECK (nco_norm_freq_to_inc (v) == 4294967295u);
+
+    /* Exact zero is genuinely zero advance -- not the same case. */
+    v = 0.0;
+    CHECK (nco_norm_freq_to_inc (v) == 0u);
+    v = -0.0;
+    CHECK (nco_norm_freq_to_inc (v) == 0u);
+
+    /* A control that small is a stopped NCO, not a frozen one: the
+       phase must still retreat one unit per step, not stick. */
+    nco_state_t *tiny = nco_create (0.0, 0);
+    uint8_t      tc;
+    v = -1e-20;
+    nco_step_u32_ovf_ctrl (tiny, v, &tc);
+    CHECK (nco_get_phase (tiny) == 4294967295u);
+    nco_destroy (tiny);
+
+    /* The two faces are ONE body. They exist to let a call site declare
+       whether it holds a rate or an angle, NOT to convert differently --
+       the moment they disagree, the library has two conventions again
+       and the drift this file documents is back. Values chosen where
+       truncate and round-to-nearest differ, so re-rounding one face
+       breaks this rather than passing vacuously. */
+    v = 0.1;
+    CHECK (nco_norm_freq_to_inc (v) == nco_norm_phase_to_word (v));
+    v = 51.0 / 21.0e6;
+    CHECK (nco_norm_freq_to_inc (v) == nco_norm_phase_to_word (v));
+    v = -0.3;
+    CHECK (nco_norm_freq_to_inc (v) == nco_norm_phase_to_word (v));
+    v = -1e-20;
+    CHECK (nco_norm_freq_to_inc (v) == nco_norm_phase_to_word (v));
   }
 
   if (_fails)

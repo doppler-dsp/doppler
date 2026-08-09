@@ -372,6 +372,11 @@ main (void)
     cic_state_t  *obj = cic_create (16);
     float complex in[64];
     CHECK (obj->clipped == 0);
+    /* The bound is CIC_PAPR_HEADROOM, not 1.0: the encoder reserves that
+       headroom precisely so a unit-amplitude signal's peaks fit (an RRC
+       stream peaks at 1.582x its symbol amplitude). 1.5 is now IN range —
+       it used to clip, and a caller who backed off to avoid that was giving
+       away 4 dB nothing restored. */
     for (size_t i = 0; i < 64; i++)
       in[i] = 0.9f + 0.9f * I;
     float complex out[8];
@@ -380,6 +385,11 @@ main (void)
 
     for (size_t i = 0; i < 64; i++)
       in[i] = 1.5f + 0.0f * I;
+    cic_decimate (obj, in, 64, out, 8);
+    CHECK (obj->clipped == 0); /* inside the PAPR headroom */
+
+    for (size_t i = 0; i < 64; i++)
+      in[i] = 1.05f * CIC_PAPR_HEADROOM + 0.0f * I;
     cic_decimate (obj, in, 64, out, 8);
     CHECK (obj->clipped == 1);
 
@@ -392,7 +402,8 @@ main (void)
     CHECK (obj->clipped == 0); /* cleared only by reset() */
 
     /* every component and sign is caught */
-    const float complex bad[4] = { 2.0f, -2.0f, 2.0f * I, -2.0f * I };
+    const float         B      = 1.05f * CIC_PAPR_HEADROOM;
+    const float complex bad[4] = { B, -B, B * I, -B * I };
     for (size_t k = 0; k < 4; k++)
       {
         cic_reset (obj);

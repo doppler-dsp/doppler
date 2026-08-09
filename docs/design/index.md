@@ -9,6 +9,7 @@ instead.)
 - [API Taxonomy](api-taxonomy.md) — the DSP building-block hierarchy and its
     naming axis, plus concrete rename proposals
 - [Quantization](QUANTIZATION.md) — fixed-point pipeline design
+- [CIC Decimator](cic.md) — the fixed-point input budget: DC gain and PAPR headroom
 - [Measurement Suite](measurement-suite.md) — tone, NPR, and IMD metric internals
 - [State Serialization](state-serialization.md) — the standard bytes interface for bit-exact checkpoint/resume
 - [Telemetry](telemetry.md) — zero-cost scalar taps (loop stress, AGC gain) for running pipelines

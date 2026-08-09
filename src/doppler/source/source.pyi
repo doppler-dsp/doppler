@@ -318,6 +318,10 @@ class NCO:
         tuple[NDArray[np.uint32], NDArray[np.uint8]]
             min(ctrl_len, max_out) samples.
 
+        Warnings
+        --------
+        The carry is wrong for a negative control -- see nco_step_u32_ovf_ctrl.
+
         Examples
         --------
         >>> from doppler.source import NCO

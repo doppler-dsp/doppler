@@ -22,10 +22,31 @@ Idea 1 below is a tried, shipped, and retired approach, not an untried one.
 
 ## Interpolator (r = Fout/Fin ≥ 1, output-driven)
 
-- NCO frequency = 1/r (overflows once per input sample consumed)
+- NCO step = 1/r of a period per output tick
 - Every output tick: select polyphase branch from NCO phase,
     dot-product with delay line, emit one output sample
-- On NCO overflow: push next input sample into delay line
+- **Emit first, then load when the accumulator fails to advance:**
+    `u(k) <= u(k-1)`, not a carry-out
+
+!!! warning "The load test is `<=`, and that is the whole `r == 1` story"
+
+    A step of one full period per tick is `2^32`, which **is zero** in the
+    phase word — so at `r == 1` the accumulator never moves, a carry-out
+    never fires, and a `<` test loads nothing. Equality is what decodes "a
+    full period elapsed": one input loads per output, one arm is used
+    forever, and `r == 1` falls out of the general rule as a single all-pass
+    filter rather than needing a `memcpy` special case.
+
+    Thirty-two bits are *sufficient* precisely because of this. `u(k) <= u(k-1)` is an exact integer comparison, so nothing is lost at the
+    boundary and widening the accumulator would be avoiding the rule instead
+    of using it.
+
+    The ordering matters as much as the test. Nothing enters an
+    interpolator's delay line without a load request: a tick emits, the
+    accumulator fails to advance, and only *then* is an input consumed.
+    Pushing on entry is an unrequested load and shows up as exactly one
+    sample of group-delay difference between the block and per-sample entry
+    points.
 
 ```
                                   ┌────────────────────────────┐
@@ -45,11 +66,20 @@ x[n] ──► push ──► [ delay line, N taps ] ──dot(ptr, h)──► 
 
 **Per output tick:**
 
-1. Advance NCO → `(phase, overflow)`
 1. Look up branch: `h = bank[phase >> (32 − log₂L)]`
-1. Compute: `y[k] = Σ delay[j] · h[j]`, j = 0 … N−1
-1. Emit `y[k]`
-1. If overflow: `delay.push(x[next])`; advance input pointer
+1. Compute and emit: `y[k] = Σ delay[j] · h[j]`, j = 0 … N−1
+1. Advance the accumulator: `u ← u + inc`
+1. If `u <= u_prev`: `delay.push(x[next])`; advance input pointer
+
+**Arm direction.** The phase word runs forward, so the sampling instant moves
+*ahead* of the newest loaded sample and the filter must reach *less* far back:
+arm `p` is a **lag** of `p/L` of one input interval, and the family descends.
+The default Kaiser bank has this by construction (arm `p` peaks at tap
+`(halflen − p)/L`); a hand-built bank — a matched pulse bank, say — has to be
+laid out the same way or the arm and the accumulator fight, and the effective
+sampling instant becomes a sawtooth that still "works" and merely jitters. See
+`_build_bank()` in `RateConverter_core.c` for the derivation from the
+matched-filter identity.
 
 ## Decimator (r = Fout/Fin < 1, input-driven, transposed form)
 

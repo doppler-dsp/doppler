@@ -642,13 +642,25 @@ ______________________________________________________________________
 > matched-filter FIR owned by pointer. `fir_step` still exists and is still the
 > right primitive for a per-sample FIR; this receiver no longer needs one.
 
-> **No receiver-level AGC.** The decision-directed *tracking* path is already
-> amplitude-invariant — the nearest-point slice and the `|y|`-normalized
-> discriminator both ignore scale — so no front-end AGC is added here. The
-> *acquisition* path is different: the raw M-th-power NDA discriminator is not
-> amplitude-invariant, so `CarrierNda` carries its **own** internal arm AGC that
-> normalizes the arm sample to unit power before the detector (§2.3). That AGC is
-> internal to the acquisition loop, not a receiver component or a config param.
+> **AGC: the carrier path needs none, the timing path does.** The
+> decision-directed *carrier tracking* path is genuinely amplitude-invariant —
+> the nearest-point slice and the `|y|`-normalized discriminator both ignore
+> scale. The carrier *acquisition* path is not, so `CarrierNda` carries its
+> **own** internal arm AGC that normalizes the arm sample to unit power before
+> the detector (§2.3); that AGC is internal to the acquisition loop, not a
+> receiver component or a config param.
+>
+> **The timing detector is not amplitude-invariant either, and this paragraph
+> used to claim the receiver needed no AGC on the strength of the carrier path
+> alone.** A TED's slope carries the signal amplitude by construction —
+> `A²` for Gardner, `A¹` for DTTL — and that was masked by a running power
+> average inside the detector, which has since been removed for the reasons in
+> §5.1. So the timing loop now states a **level contract** instead: symbols
+> arrive at unit amplitude, which a unity-gain matched cascade preserves
+> (`RateConverter_gain()`), and levelling them is an AGC's job upstream. Feed
+> it something else and the loop is simply under-driven by `A²` — at an input
+> amplitude of 0.25 that is 16×, which is exactly what the C tests, which
+> carry no AGC, currently show.
 
 ______________________________________________________________________
 
@@ -673,6 +685,66 @@ hardcoded to Gardner: DTTL's hard-decision device is only valid for
 constellations with independent, rectangular I/Q boundaries (BPSK/QPSK), not the
 8PSK this receiver also supports, so exposing it is a follow-up, not a drop-in
 default.
+
+### 5.1 The TED's only normalisation is its own slope
+
+A timing detector's raw output is the timing error multiplied by three things
+the detector did not choose:
+
+| factor                                     | whose business            | how it is handled                      |
+| ------------------------------------------ | ------------------------- | -------------------------------------- |
+| signal amplitude                           | the **AGC**'s, upstream   | a level contract (§4), not an estimate |
+| transition density                         | **nobody's** — it is data | left alone                             |
+| the detector's own slope against the pulse | the **detector**'s        | computed at construction               |
+
+Only the third belongs inside the TED, and it is the only one that can be
+*computed* rather than estimated. The matched pair's composite is a raised
+cosine in closed form (`wfm_rc_h()`), so for i.i.d. symbols the mean detector
+output is a construct-time expression:
+
+```text
+Gardner:  S(tau) = sum_k g(tau-1/2-k) * [ g(tau-k) - g(tau-1-k) ]
+DTTL:     S(tau) = g(tau-1/2) - g(tau+1/2)
+```
+
+`symsync_ted_slope()` evaluates `|dS/dtau|` at the lock point and the loop
+stores its **reciprocal**, so the hot path is one multiply — a divide *and* a
+running average per symbol both became construct-time work. Validated against
+the slope measured open-loop through a real HB + matched cascade: Gardner
+within 1.3–8.6% across roll-off 0.1…0.9 (worst at 0.1, where the ideal
+composite diverges most from the truncated pulse), DTTL within **0.2%**. The
+rectangle falls out at its analytic values, Gardner 1.4997 and DTTL 2.0000.
+
+!!! danger "What this replaced was wrong in three separate ways"
+
+    The shipped code divided by a 1%-per-symbol average of `|on|² + |mid|²`.
+
+    **It is an `A²` quantity, and only one of the two detectors has an `A²`
+    law.** Gardner's amplitude axis came out right; DTTL's loop gain was left
+    proportional to `1/A` — a 4× swing over a 4× level change, in the detector
+    BPSK and QPSK select.
+
+    **It normalises the wrong term.** Amplitude is not the detector's
+    contribution; its slope is. Measured through the cascade, the normalised
+    slope varied **10.6×** between roll-off 0.1 and 0.9, so `bn = 0.01` meant
+    something an order of magnitude different at the two ends of the supported
+    range — silently, because nothing reads a loop bandwidth back.
+
+    **Being an average, it lagged.** Seeded on the first post-prime strobe —
+    which lands in the cascade's amplitude ramp, orders of magnitude below
+    steady state — it ran the loop at thousands of times its designed gain
+    through exactly the interval that decides acquisition. That wound the
+    integrator past pull-in: on a fine sweep of initial timing offsets at
+    `sps = 4`, a 0.3-symbol-wide band took **7000–25403 symbols** to recover.
+    With the lag gone the same band acquires in **133–266** at every offset,
+    and the peak normalised error falls from **38 to 0.13** — a detector whose
+    own range is about ±1.
+
+**`SymbolSync` keeps its own normaliser for now.** `symsync_create()` takes no
+pulse, so it cannot compute a slope; `symsync_ted_slope()` is declared where
+both detectors live, ready for it.
+
+______________________________________________________________________
 
 > *Historical:* the original build reused `track.SymbolSync` (Gardner + Farrow)
 > as a whole, via an added by-value `symsync_init`. `SymbolSync` is unchanged and

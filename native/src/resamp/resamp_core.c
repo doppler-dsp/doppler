@@ -364,7 +364,20 @@ dl_ptr (const resamp_state_t *s)
 static inline const float *
 get_branch (const resamp_state_t *s, uint32_t ph)
 {
-  size_t arm = ph >> (32u - s->log2_phases);
+  /* num_phases == 1 gives log2_phases == 0, and `ph >> 32` on a uint32_t is
+     UNDEFINED (C99 6.5.7p3) -- x86 masks the count to 5 bits, so it
+     evaluates to `ph` itself and indexes bank[ph * num_taps], a wild read
+     far outside a one-arm bank. A single-phase bank has exactly one arm, so
+     the phase selects nothing and the answer is 0 by construction.
+
+     This was reachable but masked: the only single-phase user is
+     wfm_synth's polyphase RRC shaper at sps == 1, whose rate is then
+     exactly 1.0 -- and the phase_inc conversion at that rate was ITSELF
+     undefined, yielding 0 on x86, which pinned `ph` at 0 and made the bad
+     shift return a harmless 0. One undefined conversion was hiding the
+     other, so fixing either alone turns a silently dead waveform into a
+     segfault. */
+  size_t arm = s->log2_phases ? (size_t)(ph >> (32u - s->log2_phases)) : 0u;
   return &s->bank[arm * s->num_taps];
 }
 

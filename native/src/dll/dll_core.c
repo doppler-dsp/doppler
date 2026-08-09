@@ -54,9 +54,9 @@ draw_offset (dll_state_t *s)
 static void
 seed (dll_state_t *s)
 {
-  s->code_nco.phase = nco_norm_to_inc (s->seed_chip / (double)s->sf);
+  s->code_nco.phase = nco_norm_phase_to_word (s->seed_chip / (double)s->sf);
   s->code_nco.phase_inc
-      = nco_norm_to_inc (1.0 / ((double)s->sf * (double)s->sps));
+      = nco_norm_freq_to_inc (1.0 / ((double)s->sf * (double)s->sps));
   s->code_nco.norm_freq = 1.0 / ((double)s->sf * (double)s->sps);
   s->code_nco.nmax      = 0;
   s->chip_pos           = s->seed_chip;
@@ -190,7 +190,8 @@ dll_init (dll_state_t *s, const uint8_t *code, size_t code_len, size_t sps,
      lock-detector config), so it is NOT zeroed there. dll_create() gets it
      zeroed free via calloc, but this in-place init of a caller-owned
      (possibly stack) struct MUST zero it explicitly -- otherwise it starts as
-     stack garbage and feeds phase_inc = nco_norm_to_inc(inv_tsamps*(1+garbage)
+     stack garbage and feeds phase_inc =
+     nco_norm_freq_to_inc(inv_tsamps*(1+garbage)
      + ctrl) every epoch. Benign when the stack happens to hold 0 (Linux); a
      garbage/NaN value on another host (macOS/arm64) makes the argument
      degenerate and (uint32_t)-casts to 0, freezing the code NCO -- the loop
@@ -674,7 +675,7 @@ dll_steps_impl (dll_state_t *state, const float complex *x, size_t x_len,
               /* rate_aid (0 = off): the carrier-aiding rate bias, scaled by
                  the nominal per-sample rate so it rides the sample-and-hold
                  phase_inc continuously across the epoch (see dll_update()). */
-              state->code_nco.phase_inc = nco_norm_to_inc (
+              state->code_nco.phase_inc = nco_norm_freq_to_inc (
                   state->inv_tsamps * (1.0 + state->rate_aid) + ctrl);
 
               /* Output: this epoch's own natural chunk sums, normalized by

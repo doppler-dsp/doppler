@@ -156,8 +156,8 @@ carrier_mpsk_update(carrier_mpsk_state_t *s, float complex P)
     lo_set_norm_freq(&s->nco, car_w / (2.0 * M_PI));
     /* proportional phase nudge: kp*e radians -> cycles -> uint32 phase
      * delta, via the one shared primitive (a bare truncating cast here
-     * is UB on a negative value -- see nco_norm_to_inc()'s own doc). */
-    s->nco.phase += nco_norm_to_inc ((s->lf.kp * e) / (2.0 * M_PI));
+     * is UB on a negative value -- see nco_norm_freq_to_inc()'s own doc). */
+    s->nco.phase += nco_norm_phase_to_word ((s->lf.kp * e) / (2.0 * M_PI));
     /* lock metric: Re(P conj(ahat))/|P| EMA (1 = phase-locked, ~0 = no carrier) */
     double inst = (double)crealf(d) / aP;
     s->lock_metric += CARRIER_MPSK_LOCK_ALPHA * (inst - s->lock_metric);

@@ -223,11 +223,11 @@ dll_replica(const dll_state_t *s, double c)
     return (float)((1.0 - mu) * v0 + mu * v1);
 }
 
-/* Cycles -> u32 phase delta: nco_norm_to_inc() (native/inc/nco/nco_core.h)
+/* Cycles -> u32 phase delta: nco_norm_freq_to_inc() (native/inc/nco/nco_core.h)
  * is the ONE shared primitive for this conversion -- do not grow a
  * private copy here (a prior copy of this exact formula existed under
  * the name dll_cycles_to_phase_delta() and has been consolidated away;
- * see nco_norm_to_inc()'s own doc comment for why duplicates of this
+ * see nco_norm_freq_to_inc()'s own doc comment for why duplicates of this
  * conversion keep drifting). */
 
 /**
@@ -438,7 +438,7 @@ dll_update(dll_state_t *s)
        nominal per-sample rate so it sums into the sample-and-hold phase_inc
        as a continuous adjustment across the epoch, not a phase pulse. */
     s->code_nco.phase_inc
-        = nco_norm_to_inc(s->inv_tsamps * (1.0 + s->rate_aid) + ctrl);
+        = nco_norm_freq_to_inc(s->inv_tsamps * (1.0 + s->rate_aid) + ctrl);
 }
 
 /**

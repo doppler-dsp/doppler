@@ -184,8 +184,8 @@ def test_recovers_near_the_noise_floor():
     # a legitimate implementation-level change can nudge the exact BER
     # count here; 0.10 still sits nowhere near the 0.5 floor this test
     # actually guards against. Two precedents: Costas's proportional
-    # phase-kick rounding via nco_norm_to_inc() instead of a bare
-    # truncating cast (UB on a negative value); and dll_core.c's
+    # phase-kick converting via nco_norm_phase_to_word() instead of a
+    # bare truncating cast (UB on a negative value); and dll_core.c's
     # segments>1 lookback-window search dropping an undocumented
     # DLL_LOOKBACK_MARGIN that had no basis in the validated reference
     # design (despreader_coupled.py's own find_max_power() is a plain

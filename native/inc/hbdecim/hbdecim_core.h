@@ -121,6 +121,26 @@ extern "C"
   /** Returns the FIR branch length passed to hbdecim_create. */
   size_t hbdecim_get_num_taps (const hbdecim_state_t *r);
 
+  /**
+   * @brief The filter's response to a constant input, from its own taps.
+   *
+   * A halfband decimator sums a symmetric FIR branch (each stored tap
+   * multiplies TWO delay-line samples) and a half-weight delay branch, so at
+   * DC the answer is `2*sum(h) + 0.5`. Computed, not measured: a caller — or
+   * a gate — can ask what gain the object contributes without running a
+   * signal through it.
+   *
+   * @param r State. Must be non-NULL.
+   * @return The DC gain. 1.0 for a correctly normalised halfband.
+   *
+   * @code
+   * hbdecim_state_t *d = hbdecim_create (ntaps, h);
+   * printf ("%.4f\n", hbdecim_dc_gain (d));  // 1.0000
+   * hbdecim_destroy (d);
+   * @endcode
+   */
+  double hbdecim_dc_gain (const hbdecim_state_t *r);
+
 #ifdef __cplusplus
 }
 #endif

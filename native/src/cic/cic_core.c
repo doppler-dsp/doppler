@@ -22,6 +22,8 @@
 
 #include "cic/cic_core.h"
 
+#include <math.h>
+
 #include <string.h>
 
 /* ── internal helpers ──────────────────────────────────────────────────── */
@@ -125,6 +127,13 @@ cic_set_state (cic_state_t *state, const void *blob)
 }
 
 /* ── decimate ──────────────────────────────────────────────────────────── */
+
+double
+cic_dc_gain (const cic_state_t *state)
+{
+  return pow ((double)state->R, (double)CIC_N)
+         / ldexp (1.0, (int)state->shift);
+}
 
 size_t
 cic_decimate_max_out (cic_state_t *state)

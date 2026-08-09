@@ -202,6 +202,18 @@ hbdecim_get_rate (const hbdecim_state_t *r)
   return 0.5;
 }
 
+double
+hbdecim_dc_gain (const hbdecim_state_t *r)
+{
+  /* Mirrors compute_output() with every input sample equal to 1: each of the
+     num_taps/2 stored coefficients is applied to a symmetric PAIR, and the
+     delay branch contributes its explicit 0.5. */
+  double sum = 0.0;
+  for (size_t k = 0; k < r->num_taps / 2; k++)
+    sum += 2.0 * (double)r->h[k];
+  return sum + 0.5;
+}
+
 size_t
 hbdecim_get_num_taps (const hbdecim_state_t *r)
 {

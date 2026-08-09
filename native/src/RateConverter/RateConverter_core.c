@@ -333,14 +333,36 @@ _build_bank (int pulse, double beta, double sps, size_t span,
         }
     }
 
-  /* ONE common scale across all arms, taken from arm 0.  Normalising each arm
-     to unit energy independently would make the cascade's gain a function of
-     the timing phase — a gain ripple synchronous with the very quantity a
-     downstream loop is trying to estimate. */
+  /* ONE common scale across all arms, and it is the PULSE's own energy on
+     this tap grid -- not the bank row's.  A matched filter's job is to return
+     the symbol amplitude that was sent, so the cascade adds no gain of its
+     own: with bank = h/E and E = sum h(t)^2, a symbol A*h arriving gives
+     sum (A*h)*(h/E) = A, exactly, for any pulse, any sps and any beta.
+     Scaling by 1/sqrt(E) -- unit ENERGY, which is what this did -- returns
+     A*||h|| instead, and ||h|| is an accident of the configuration: measured
+     against a transmitted 0.2500 it gave 0.2284 to 0.3537 across sps 4..64
+     and beta 0.2..0.5.  Nothing caught it because every consumer downstream
+     either fits the gain and divides it out (the EVM harnesses) or
+     normalises by power (the timing loop).
+
+     The reference stays the UNDISTORTED pulse when droop compensation is
+     folded in.  What arrives at the terminal stage is then (cic_droop * h)
+     and the row is (comp * h), so the peak is sum (comp*h)*(droop*h), and
+     comp is built as droop's inverse -- so the sum is again sum h*h.
+     Measured: normalising on the folded row's energy undershoots 28%, on its
+     correlation with the pulse overshoots 2x, on the pulse's own energy it is
+     unity to 0.7% at every point in the space.
+
+     Normalising each arm independently would instead make the gain a
+     function of the timing phase -- a ripple synchronous with the very
+     quantity a downstream loop is trying to estimate. */
   double e0 = 0.0;
-  for (size_t t = 0; t < nt; t++)
-    e0 += (double)bank[t] * (double)bank[t];
-  float g = (float)(e0 > 0.0 ? 1.0 / sqrt (e0) : 1.0);
+  for (size_t t = 0; t < raw; t++)
+    {
+      double hp = _pulse_h (pulse, -(double)t / sps + support, beta);
+      e0 += hp * hp;
+    }
+  float g = (float)(e0 > 0.0 ? 1.0 / e0 : 1.0);
   for (size_t i = 0; i < num_phases * nt; i++)
     bank[i] *= g;
 
@@ -972,6 +994,31 @@ bool
 RateConverter_get_narrow_pulse (const RateConverter_state_t *s)
 {
   return s->narrow_pulse;
+}
+
+double
+RateConverter_gain (const RateConverter_state_t *s)
+{
+  double g = 1.0;
+  for (int i = 0; i < s->n_stages; i++)
+    switch (s->stage_types[i])
+      {
+      case RC_STAGE_HB:
+        g *= hbdecim_dc_gain ((const hbdecim_state_t *)s->stage_ptrs[i]);
+        break;
+      case RC_STAGE_CIC:
+        {
+          const rc_cic_stage_t *cs = (const rc_cic_stage_t *)s->stage_ptrs[i];
+          g *= cic_dc_gain (cs->cic);
+          if (cs->fir)
+            g *= fir_dc_gain (cs->fir);
+        }
+        break;
+      case RC_STAGE_RESAMP:
+        g *= resamp_dc_gain ((const resamp_state_t *)s->stage_ptrs[i]);
+        break;
+      }
+  return g;
 }
 
 size_t

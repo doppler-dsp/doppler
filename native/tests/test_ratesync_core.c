@@ -63,9 +63,16 @@ _symbols (int *out, size_t n, unsigned seed)
 }
 
 /* Analytic RRC-shaped BPSK at `sps` samples/symbol with timing offset `tau`
- * symbols.  Amplitude stays well inside the CIC's +-1.0 input bound —
- * overdriving it clips, which costs 25 dB for reasons that have nothing to do
- * with timing (see cic_core.h). */
+ * symbols, at the loop's CONTRACTED symbol amplitude of 1.0.
+ *
+ * The TED normalises by its own slope alone (ratesync_core.h), so amplitude
+ * is the caller's to supply: a unit-amplitude symbol stream drives the loop
+ * at exactly the bandwidth `bn` names, and anything smaller under-drives it
+ * by A^2. The stream peaks at 1.582x its symbol amplitude — a pulse property
+ * — which the CIC's input encoding now budgets for explicitly
+ * (CIC_PAPR_HEADROOM), so this no longer has to be backed off to avoid
+ * clipping the way it used to. `clipped == 0` is asserted below and is the
+ * live check on that. */
 static float complex *
 _tx (double sps, double tau, size_t *n_out)
 {
@@ -89,7 +96,7 @@ _tx (double sps, double tau, size_t *n_out)
             continue;
           a += sy[k] * wfm_rrc_h (t, _BETA);
         }
-      x[i] = (float)(0.25 * a);
+      x[i] = (float)(1.0 * a);
     }
   free (sy);
   *n_out = n;

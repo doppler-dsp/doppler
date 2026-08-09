@@ -146,6 +146,30 @@ void cic_reset(cic_state_t *state);
 #define CIC_STATE_MAGIC DP_FOURCC ('C', 'I', 'C', '_')
 #define CIC_STATE_VERSION 2u
 
+/**
+ * @brief Peak-to-average headroom the input encoding reserves, as a voltage
+ *        ratio (2.0 = 6 dB).
+ *
+ * A fixed-point CIC has TWO input-budget terms, and only one of them is the
+ * accumulator's. The **DC gain** `R^N` is budgeted there — 16-bit input plus
+ * 48 bits of pipeline gain fills the 64-bit accumulator exactly at R = 4096.
+ * The **PAPR** is budgeted here, at the encoder, because a signal's peak is
+ * not its symbol amplitude: a root-raised-cosine symbol stream peaks at
+ * **1.582x** its symbol amplitude (measured, and a pulse property — identical
+ * at every samples-per-symbol).
+ *
+ * Encoding at full scale therefore clipped any signal presented at its
+ * natural amplitude, and the caller had to back off by the PAPR — 4 dB that
+ * nothing downstream restored, leaving a timing loop under-driven by the
+ * square of it, 2.5x. Reserving the headroom here instead lets a unit-
+ * amplitude signal through unclipped and costs 2 dB of quantisation SNR
+ * against a caller who backs off perfectly, which no caller did.
+ *
+ * This changes only the encode/decode scale PAIR, never the normalising
+ * shift, so the DC gain stays exactly one — see cic_dc_gain().
+ */
+#define CIC_PAPR_HEADROOM 2.0f
+
 /** @brief Bytes cic_get_state() writes (envelope + payload). */
 size_t cic_state_bytes(const cic_state_t *state);
 /** @brief Serialize the integrator/comb/phase state into @p blob. */
@@ -235,8 +259,8 @@ cic_decimate(cic_state_t *state, const float complex *in,
            The four comparisons run regardless, so noting that one fired
            costs a register OR — which is the whole reason `clipped` exists
            rather than a line of documentation asking callers to be careful. */
-        float sr = crealf(in[i]) * 32768.0f;
-        float si = cimagf(in[i]) * 32768.0f;
+        float sr = crealf(in[i]) * (32768.0f / CIC_PAPR_HEADROOM);
+        float si = cimagf(in[i]) * (32768.0f / CIC_PAPR_HEADROOM);
         if (sr >  32767.0f) { sr =  32767.0f; clip = 1; }
         if (sr < -32768.0f) { sr = -32768.0f; clip = 1; }
         if (si >  32767.0f) { si =  32767.0f; clip = 1; }
@@ -276,10 +300,14 @@ cic_decimate(cic_state_t *state, const float complex *in,
         if (n_out >= max_out)
             continue;
 
-        /* UQ16 → CF32: right-shift to normalise, remove offset-binary bias. */
+        /* UQ16 → CF32: right-shift to normalise, remove offset-binary bias,
+           and undo the encoder's PAPR headroom. The offset is NOT scaled by
+           it — it is the offset-binary midpoint, not signal. */
         out[n_out++] = CMPLXF(
-            ((float)(uint16_t)(re >> shift) - 32768.0f) * (1.0f / 32768.0f),
-            ((float)(uint16_t)(im >> shift) - 32768.0f) * (1.0f / 32768.0f));
+            ((float)(uint16_t)(re >> shift) - 32768.0f)
+                * (CIC_PAPR_HEADROOM / 32768.0f),
+            ((float)(uint16_t)(im >> shift) - 32768.0f)
+                * (CIC_PAPR_HEADROOM / 32768.0f));
     }
     state->clipped |= (uint8_t)clip;   /* sticky; cleared only by reset() */
     return n_out;

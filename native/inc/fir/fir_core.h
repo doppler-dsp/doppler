@@ -208,6 +208,27 @@ extern "C"
   int fir_get_is_real (const fir_state_t *state);
 
   /**
+   * @brief The filter's response to a constant input: the sum of its taps.
+   *
+   * Computed from the stored coefficients, so a caller — or a gate — can ask
+   * what gain this filter contributes without running a signal through it. A
+   * complex-tap filter's DC response is itself complex; this returns its real
+   * part, which is the whole answer for the real-tap case that unity-gain
+   * questions are usually about.
+   *
+   * @param state State. Must be non-NULL.
+   * @return Sum of the taps (real part for a complex-tap filter).
+   *
+   * @code
+   * float h[3] = { 0.25f, 0.5f, 0.25f };
+   * fir_state_t *f = fir_create_real (h, 3);
+   * printf ("%.4f\n", fir_dc_gain (f));   // 1.0000
+   * fir_destroy (f);
+   * @endcode
+   */
+  double fir_dc_gain (const fir_state_t *state);
+
+  /**
    * @brief Always 0 -- FIR is a 1:1 transform, not a bounded-capacity one.
    *
    * fir_execute() always writes exactly n_in samples; there is no

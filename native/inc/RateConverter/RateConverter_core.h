@@ -223,6 +223,36 @@ bool RateConverter_get_narrow_pulse (const RateConverter_state_t *s);
 
 /** @brief Number of planned cascade stages (backs the `stages` property). */
 size_t RateConverter_num_stages (const RateConverter_state_t *s);
+
+/**
+ * @brief The cascade's response to a constant input, from its stages' own
+ *        coefficients — computed, never measured.
+ *
+ * Each stage answers for itself (hbdecim_dc_gain(), cic_dc_gain() times
+ * fir_dc_gain() for a compensated CIC, resamp_dc_gain()) and this is their
+ * product. So the number tracks whatever the stages actually hold: if a
+ * filter's normalisation drifts, this moves with it, and a gate comparing it
+ * against a measured DC probe catches the drift from either side.
+ *
+ * **A plain cascade is unity** — a rate conversion that adds gain of its own
+ * is a defect, and `RateConverter_create()` returns 1.0 here at every rate.
+ *
+ * **A matched cascade is not, and should not be.** Its terminal stage is a
+ * matched filter, which is deliberately not flat; the invariant that holds
+ * there is at the SYMBOL level (a symbol of amplitude A in, amplitude A out),
+ * not at DC. This function still reports that cascade's true DC gain, which
+ * is the pulse's `sum(h)/sum(h^2)`.
+ *
+ * @param s State. Must be non-NULL.
+ * @return The DC gain of the whole cascade.
+ *
+ * @code
+ * RateConverter_state_t *rc = RateConverter_create (1.0 / 12.0, 1);
+ * printf ("%.4f\n", RateConverter_gain (rc));   // 1.0000
+ * RateConverter_destroy (rc);
+ * @endcode
+ */
+double RateConverter_gain (const RateConverter_state_t *s);
 /**
  * @brief Label of stage @p i, e.g. "CIC(8)+FIR" or "Resampler(0.923,rrc)".
  *

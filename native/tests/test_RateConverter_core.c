@@ -44,15 +44,6 @@ _near (double a, double b, double tol)
   return fabs (a - b) <= tol;
 }
 
-static float
-_mean_amp (const float complex *v, size_t n)
-{
-  double s = 0.0;
-  for (size_t i = 0; i < n; i++)
-    s += cabsf (v[i]);
-  return (n > 0) ? (float)(s / n) : 0.0f;
-}
-
 static float complex *
 _dc_block (size_t n)
 {
@@ -223,59 +214,6 @@ test_output_length (void)
 }
 
 /* ------------------------------------------------------------------ */
-
-static void
-test_dc_gain (void)
-{
-  static const double rates[] = {
-    2.0,        /* interpolation */
-    1.0,        /* passthrough Resampler */
-    0.5,        /* HB x1 */
-    0.25,       /* HB x2 */
-    0.125,      /* CIC(8) */
-    1.0 / 12.0, /* CIC + Resampler */
-    1.0 / 3.0,  /* Resampler (2<=D<8, non-int) */
-  };
-  const size_t n_rates = sizeof (rates) / sizeof (rates[0]);
-
-  enum
-  {
-    N_IN  = 65536,
-    N_OUT = 65536 * 4
-  };
-  float complex *in  = _dc_block (N_IN);
-  float complex *out = malloc (N_OUT * sizeof (float complex));
-  CHECK (in && out);
-
-  for (size_t r = 0; r < n_rates; r++)
-    {
-      RateConverter_state_t *rc = RateConverter_create (rates[r], 0);
-      CHECK (rc != NULL);
-      if (!rc)
-        continue;
-
-      /* Warm up one block, then measure the next. */
-      size_t out_cap = (rates[r] > 1.0) ? (size_t)(N_IN * rates[r] + 4) : N_IN;
-      RateConverter_execute (rc, in, N_IN, out, out_cap);
-      size_t n2 = RateConverter_execute (rc, in, N_IN, out, out_cap);
-
-      if (n2 > 0)
-        {
-          float amp = _mean_amp (out, n2);
-          int   ok  = (amp > 0.85f && amp < 1.15f);
-          if (!ok)
-            {
-              fprintf (stderr, "FAIL dc_gain rate=%.6g amp=%.4f n_out=%zu\n",
-                       rates[r], amp, n2);
-              _fails++;
-            }
-        }
-      RateConverter_destroy (rc);
-    }
-
-  free (in);
-  free (out);
-}
 
 /* ------------------------------------------------------------------ */
 
@@ -553,6 +491,8 @@ test_execute_ctrl (void)
 #define _MF_BETA 0.35
 #define _MF_SPAN 8
 #define _MF_NSYM 500
+/* Transmitted symbol amplitude: what a unity-gain matched cascade returns. */
+#define _MF_TX_AMP 0.25
 
 /* Deterministic +-1 BPSK. */
 static int
@@ -567,7 +507,7 @@ _mf_bit (int k)
  * stage quantizes at its boundary, so overdriving it clips and the measured
  * EVM collapses for reasons unrelated to the matched filter. */
 static float _Complex *
-_mf_tx (double sps, double phi, size_t *n_out)
+_mf_tx_beta (double sps, double beta, double phi, size_t *n_out)
 {
   size_t          n = (size_t)(_MF_NSYM * sps) + 64;
   float _Complex *x = calloc (n, sizeof *x);
@@ -581,12 +521,18 @@ _mf_tx (double sps, double phi, size_t *n_out)
           double t = ((double)i - (k + _MF_SPAN) * sps) / sps - phi;
           if (fabs (t) > _MF_SPAN)
             continue;
-          a += _mf_bit (k) * wfm_rrc_h (t, _MF_BETA);
+          a += _mf_bit (k) * wfm_rrc_h (t, beta);
         }
-      x[i] = (float)(0.25 * a);
+      x[i] = (float)(_MF_TX_AMP * a);
     }
   *n_out = n;
   return x;
+}
+
+static float _Complex *
+_mf_tx (double sps, double phi, size_t *n_out)
+{
+  return _mf_tx_beta (sps, _MF_BETA, phi, n_out);
 }
 
 /* Best EVM over strobe alignment: open loop, the cascade's own strobe phase
@@ -813,6 +759,200 @@ test_matched_droop_folds_into_bank (void)
              no_comp);
 }
 
+/* ------------------------------------------------------------------ */
+/* Unity gain — the cascade must remove every gain it introduces, and  */
+/* must be able to SAY what it introduced without being measured.      */
+/* ------------------------------------------------------------------ */
+
+/* The cascade's realised gain, end to end, from a complex tone at 1/512 of
+ * the output rate — the mean |.| of a pure complex tone IS its amplitude, so
+ * no phase reference is needed.
+ *
+ * A tone rather than DC, and the mutation test is why: a CIC's DC output is
+ * insensitive to its own normalisation shift, because the offset-binary
+ * conversion removes a bias derived from that same shift. Halving the shift
+ * doubles the filter's gain on everything that matters and leaves a DC probe
+ * reading exactly 1.000 — measured. At 1/512 the droop is below 1e-4, so the
+ * tone reads the same as DC on a healthy cascade (verified at every rate
+ * here) while still seeing a scaling error DC cannot. */
+static double
+_gain_measured (double rate, int compensate)
+{
+  enum
+  {
+    N_IN = 32768
+  };
+  RateConverter_state_t *rc = RateConverter_create (rate, compensate);
+  if (!rc)
+    return 0.0 / 0.0;
+  size_t          cap = (size_t)(N_IN * (rate > 1.0 ? rate : 1.0)) + 64;
+  float _Complex *in  = malloc (N_IN * sizeof *in);
+  float _Complex *out = malloc (cap * sizeof *out);
+  double          g   = 0.0 / 0.0;
+  if (in && out)
+    {
+      double f = rate / 512.0;
+      for (size_t i = 0; i < N_IN; i++)
+        in[i] = (float _Complex)cexp (I * 2.0 * M_PI * f * (double)i);
+      RateConverter_execute (rc, in, N_IN, out, cap);
+      size_t n = RateConverter_execute (rc, in, N_IN, out, cap);
+      if (n)
+        {
+          double s    = 0.0;
+          size_t skip = n / 8; /* drop the block edge */
+          for (size_t i = skip; i < n; i++)
+            s += cabs (out[i]);
+          g = (n > skip) ? s / (double)(n - skip) : 0.0 / 0.0;
+        }
+    }
+  free (in);
+  free (out);
+  RateConverter_destroy (rc);
+  return g;
+}
+
+static void
+test_plain_cascade_is_unity_gain (void)
+{
+  /* A rate conversion that changes the signal LEVEL is a defect: every
+     stage here is normalised (halfband 2*sum(h)+0.5, CIC's R^N removed by
+     its shift, the resampler's arm sum), so their product is one at every
+     rate the planner can produce.
+       Bounds are the bank designs', not arbitrary: a 60 dB Kaiser has ~1e-3
+     of passband ripple, and the realised numbers sit at 5.9e-4 (calculated)
+     and 3.4e-4 (calculated vs measured), so 2e-3 and 1e-3 keep ~3x margin
+     over the design and would still catch any real normalisation error.
+       This replaces a +-15% DC check that covered only compensate=0 and
+     would have passed a cascade with 7 dB of invented gain. */
+  static const double rates[] = {
+    2.0,
+    1.5,
+    1.0,
+    0.5,
+    0.25,
+    1.0 / 3.0,
+    0.4,
+    0.125,
+    1.0 / 12.0,
+    1.0 / 32.0,
+    2.0 / 17.333333333,
+    2.0 / 64.0,
+  };
+  for (size_t r = 0; r < sizeof rates / sizeof *rates; r++)
+    for (int comp = 0; comp < 2; comp++)
+      {
+        RateConverter_state_t *rc = RateConverter_create (rates[r], comp);
+        CHECK (rc != NULL);
+        if (!rc)
+          continue;
+        double calc = RateConverter_gain (rc);
+        double meas = _gain_measured (rates[r], comp);
+        RateConverter_destroy (rc);
+
+        int ok = fabs (calc - 1.0) < 2e-3 && fabs (meas - calc) < 1e-3;
+        CHECK (ok);
+        if (!ok)
+          fprintf (stderr,
+                   "  gain rate=%.6g comp=%d: calculated %.6f, measured "
+                   "%.6f\n",
+                   rates[r], comp, calc, meas);
+      }
+}
+
+/* Best |LS gain| of y against the known symbols, over strobe alignment —
+ * the very quantity _mf_evm() forms and then divides out, which is why no
+ * EVM assertion here can see a gain error. */
+static double
+_mf_gain_at (const float _Complex *y, size_t ny)
+{
+  double best = 0.0;
+  for (int par = 0; par < 2; par++)
+    for (int lag = 0; lag < 140; lag++)
+      {
+        double num = 0.0;
+        int    cnt = 0;
+        for (int k = 40; k < _MF_NSYM - 40; k++)
+          {
+            size_t i = (size_t)(lag + par + 2 * k);
+            if (i >= ny)
+              break;
+            num += _mf_bit (k) * creal (y[i]);
+            cnt++;
+          }
+        if (cnt < 100)
+          continue;
+        double g = num / (double)cnt;
+        if (fabs (g) > fabs (best))
+          best = g;
+      }
+  return best;
+}
+
+/* Recovered symbol amplitude, maximised over transmit timing phase: the
+ * cascade runs open loop, so without the sweep this reads the composite
+ * pulse at a residual timing offset rather than the gain. */
+static double
+_mf_recovered_amp (double sps, double beta, int compensate)
+{
+  double best = 0.0;
+  for (int j = 0; j < 16; j++)
+    {
+      size_t          n;
+      float _Complex *x = _mf_tx_beta (sps, beta, j / 16.0, &n);
+      float _Complex *y = calloc (n, sizeof *y);
+      if (x && y)
+        {
+          RateConverter_state_t *rc = RateConverter_create_matched (
+              2.0 / sps, compensate, RC_PULSE_RRC, beta, _MF_SPAN, 2.0, 1024);
+          if (rc)
+            {
+              size_t ny = RateConverter_execute (rc, x, n, y, n);
+              double g  = _mf_gain_at (y, ny);
+              if (fabs (g) > fabs (best))
+                best = g;
+              RateConverter_destroy (rc);
+            }
+        }
+      free (x);
+      free (y);
+    }
+  return best;
+}
+
+static void
+test_matched_cascade_returns_the_symbol_amplitude (void)
+{
+  /* The matched cascade's unity is at the SYMBOL level, not at DC — its
+     terminal stage is a matched filter and is deliberately not flat. Send
+     +-A and A must come back, at every sps, every beta, compensated or not.
+       That holds by construction once the bank is scaled by the PULSE's own
+     energy E = sum h(t)^2: a symbol A*h correlated against h/E returns
+     A*E/E = A. Scaling by 1/sqrt(E) — unit energy — returns A*||h||
+     instead, which is an accident of sps and beta: measured 0.2284 to
+     0.3537 against a transmitted 0.2500, i.e. -9% to +41%.
+       Nothing else in this file can catch that. Every EVM assertion here
+     fits the gain and divides it out, and the timing loop downstream
+     normalises by power, so a cascade with 3 dB of invented gain passes all
+     of them. */
+  static const double sps[]  = { 4.0, 8.0, 17.333333333, 64.0 };
+  static const double beta[] = { 0.2, 0.35, 0.5 };
+  for (size_t s = 0; s < sizeof sps / sizeof *sps; s++)
+    for (size_t b = 0; b < sizeof beta / sizeof *beta; b++)
+      {
+        int    comp = (sps[s] > 8.0); /* the CIC plans need the fold */
+        double amp  = _mf_recovered_amp (sps[s], beta[b], comp);
+        /* 2% — three times the worst realised error (0.7%), and far inside
+           the +41% the unit-energy scaling produced. */
+        int ok = fabs (fabs (amp) - _MF_TX_AMP) < 0.02 * _MF_TX_AMP;
+        CHECK (ok);
+        if (!ok)
+          fprintf (stderr,
+                   "  matched gain sps=%.4g beta=%.2f comp=%d: sent %.4f, "
+                   "recovered %.4f\n",
+                   sps[s], beta[b], comp, _MF_TX_AMP, amp);
+      }
+}
+
 static void
 test_matched_recovers_symbols (void)
 {
@@ -967,7 +1107,7 @@ main (void)
   test_invalid_rate ();
   test_stage_labels ();
   test_output_length ();
-  test_dc_gain ();
+  test_plain_cascade_is_unity_gain ();
   test_set_rate ();
   test_reset_reproducible ();
   test_execute_max_out ();
@@ -979,6 +1119,7 @@ main (void)
   test_matched_bank_is_constant_in_input_rate ();
   test_matched_droop_folds_into_bank ();
   test_matched_recovers_symbols ();
+  test_matched_cascade_returns_the_symbol_amplitude ();
   test_matched_push_equals_block ();
   test_matched_state_roundtrip ();
   test_matched_set_rate_keeps_pulse ();

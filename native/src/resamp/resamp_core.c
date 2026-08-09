@@ -352,6 +352,15 @@ resamp_get_num_taps (const resamp_state_t *s)
 }
 
 double
+resamp_dc_gain (const resamp_state_t *s)
+{
+  double sum = 0.0;
+  for (size_t t = 0; t < s->num_taps; t++)
+    sum += (double)s->bank[t];
+  return sum;
+}
+
+double
 resamp_get_ctrl_acc (const resamp_state_t *s)
 {
   /* The phase word as a fraction of one input interval: in [0, 1) by

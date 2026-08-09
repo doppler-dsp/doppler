@@ -164,6 +164,26 @@ int cic_set_state(cic_state_t *state, const void *blob);
 size_t cic_decimate_max_out(cic_state_t *state);
 
 /**
+ * @brief The filter's response to a constant input, from its own geometry.
+ *
+ * A CIC's pipeline gain is `R^N`, and this implementation removes it with a
+ * right-shift of `N*log2(R)` bits, so the DC gain is `R^N / 2^shift` — one
+ * exactly, whenever the shift matches R. Computed from `R` and the stored
+ * shift rather than measured, so a mismatch between the two is visible
+ * without running a signal through the filter.
+ *
+ * @param state State. Must be non-NULL.
+ * @return The DC gain. 1.0 for every power-of-two R the filter accepts.
+ *
+ * @code
+ * cic_state_t *c = cic_create (32);
+ * printf ("%.4f\n", cic_dc_gain (c));   // 1.0000
+ * cic_destroy (c);
+ * @endcode
+ */
+double cic_dc_gain(const cic_state_t *state);
+
+/**
  * @brief Decimate a block of CF32 samples through the CIC pipeline.
  * Each sample is converted to offset-binary UQ16, pushed through
  * CIC_N integrators (unsigned wrapping), and when the phase counter

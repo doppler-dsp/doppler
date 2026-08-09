@@ -280,6 +280,32 @@ extern "C"
    */
   double resamp_get_ctrl_acc (const resamp_state_t *state);
 
+  /**
+   * @brief The resampler's response to a constant input, from its own bank.
+   *
+   * Every arm of a polyphase bank is the same filter at a different
+   * fractional delay, so they share one DC gain and arm 0 answers for all of
+   * them: the sum of its taps. Computed, not measured — a caller (or a gate)
+   * can ask what gain this stage contributes without running a signal
+   * through it.
+   *
+   * The decimating path pre-scales by `rate` and integrates over the whole
+   * bank between outputs, which cancels: `rate` inputs' worth of taps per
+   * output, so the tap sum is the answer on both paths.
+   *
+   * @param state State. Must be non-NULL.
+   * @return The DC gain. 1.0 for the default Kaiser bank; a matched pulse
+   *         bank is a matched filter, not a flat one, so its DC gain is the
+   *         pulse's own `sum(h)/sum(h^2)` and is not expected to be 1.
+   *
+   * @code
+   * resamp_state_t *r = resamp_create (0.5);
+   * printf ("%.3f\n", resamp_dc_gain (r));   // 1.000
+   * resamp_destroy (r);
+   * @endcode
+   */
+  double resamp_dc_gain (const resamp_state_t *state);
+
 #ifdef __cplusplus
 }
 #endif

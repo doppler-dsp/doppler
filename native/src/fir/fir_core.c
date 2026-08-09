@@ -155,6 +155,16 @@ fir_get_num_taps (const fir_state_t *state)
   return state->num_taps;
 }
 
+double
+fir_dc_gain (const fir_state_t *state)
+{
+  double sum = 0.0;
+  for (size_t i = 0; i < state->num_taps; i++)
+    sum += state->rtaps ? (double)state->rtaps[i]
+                        : (double)crealf (state->taps[i]);
+  return sum;
+}
+
 int
 fir_get_is_real (const fir_state_t *state)
 {

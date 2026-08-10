@@ -113,7 +113,7 @@ SYNC_CMD   = $(UV) sync
 # way `make format` runs it. That is what closes the "same command, different
 # environment" class of drift: the tool comes from `--group dev` and uv.lock
 # owns the version, so there is no `additional_dependencies` left to drift.
-LINT_TOOLS   = ruff ruff-format mdformat
+LINT_TOOLS   = ruff ruff-format mdformat phase-conversion
 FORMAT_TOOLS = ruff-format ruff mdformat
 
 # ruff reads its own excludes from pyproject's [tool.ruff] extend-exclude
@@ -129,11 +129,21 @@ RUFF_PATHS = .
 # tables on every regen -> spurious diffs); docs/**/archive/ are frozen
 # snapshots (and one trips a plugin render-consistency bug across mdformat-gfm
 # versions); examples/*/docs/ is the docs stub `jm new` scaffolds for a nested
-# jm project, which `jm apply` recreates. vendor/ is not ours.
-MD_EXCLUDE_RE = ^(vendor/|docs/c-api/|docs/benchmarks\.md$$|docs/.*/archive/|examples/[^/]+/docs/)
+# jm project, which `jm apply` recreates; src/doppler/tests/validation/ holds
+# each object's results.md, written by that folder's own validate.py, so
+# reformatting it would drift against the next regeneration. vendor/ is not
+# ours.
+MD_EXCLUDE_RE = ^(vendor/|docs/c-api/|docs/benchmarks\.md$$|docs/.*/archive/|examples/[^/]+/docs/|src/doppler/tests/validation/)
 
 LINT_ruff        = $(RUFF) check --fix --unsafe-fixes $(RUFF_PATHS)
 LINT_ruff-format = $(RUFF) format $(RUFF_PATHS)
+
+# Check-only, so it is in LINT_TOOLS but deliberately NOT in FORMAT_TOOLS.
+# nco_core.h calls confining the double->phase-word conversion "a STRUCTURAL
+# rule rather than a stylistic one", and records that duplicated copies have
+# already drifted once (one truncated while a sibling rounded). A rule with
+# no gate behind it is how that happened; this is the gate.
+LINT_phase-conversion = $(UV) run python scripts/check_phase_conversion_sites.py
 
 # mdformat needs Python >=3.10 (see pyproject's dev group, where it carries a
 # marker). On a 3.9 dev env it is simply absent, so skip with a notice rather

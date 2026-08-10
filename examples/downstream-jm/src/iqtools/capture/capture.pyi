@@ -39,6 +39,12 @@ class Capture:
     path : str | os.PathLike
         path constructor parameter (required).
 
+    Raises
+    ------
+    ValueError
+        If construction fails. The exception message is ``cannot open capture:
+        no such file, or an unrecognised file type``.
+
     """
     def __init__(self, path: str | os.PathLike) -> None: ...
 
@@ -169,6 +175,12 @@ class RawCapture:
         fs constructor parameter.
     fc : float, default 0.0
         fc constructor parameter.
+
+    Raises
+    ------
+    ValueError
+        If construction fails. The exception message is ``cannot open capture:
+        no such file, or an unrecognised file type``.
 
     """
     def __init__(

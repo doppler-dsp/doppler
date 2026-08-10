@@ -423,7 +423,19 @@ static PyTypeObject CaptureObjType = {
   .tp_basicsize                           = sizeof (CaptureObject),
   .tp_dealloc                             = (destructor)CaptureObj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,
-  .tp_doc                                 = "Capture type.\n",
+  .tp_doc                                 = "Capture component.\n"
+                                            "\n"
+                                            "Parameters\n"
+                                            "----------\n"
+                                            "path : str | os.PathLike\n"
+                                            "    path constructor parameter (required).\n"
+                                            "\n"
+                                            "Raises\n"
+                                            "------\n"
+                                            "ValueError\n"
+                                            "    If construction fails. The exception message is ``cannot "
+                                            "open capture:\n"
+                                            "    no such file, or an unrecognised file type``.\n",
   .tp_methods                             = CaptureObj_methods,
   .tp_getset                              = Capture_getset,
   .tp_new                                 = CaptureObj_new,

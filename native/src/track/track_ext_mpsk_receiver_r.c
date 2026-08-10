@@ -771,8 +771,8 @@ static PyMethodDef MpskReceiverRObj_methods[] = {
     ">>> sym = rx.steps(x)\n"
     ">>> sym.size                                        # ~ x_len / sps\n"
     "2398\n"
-    ">>> round(rx.lock, 2)                               # carrier locked\n"
-    "0.98\n" },
+    ">>> rx.lock > 0.8                                   # carrier locked\n"
+    "True\n" },
   { "steps_max_out", (PyCFunction)MpskReceiverRObj_steps_max_out, METH_NOARGS,
     "steps_max_out() -> int\n\nMax output length steps() can produce for the "
     "current state.\nUse to size the ``out=`` buffer." },

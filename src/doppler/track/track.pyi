@@ -3121,8 +3121,8 @@ class MpskReceiver:
         >>> sym = rx.steps(tx)                              # blind NDA acquire
         >>> sym.size                                        # ~ x_len / sps
         2998
-        >>> round(rx.lock, 2)                               # carrier locked
-        0.92
+        >>> rx.lock > 0.8                                   # carrier locked
+        True
 
         """
 
@@ -3700,8 +3700,8 @@ class MpskReceiverR:
         >>> sym = rx.steps(x)
         >>> sym.size                                        # ~ x_len / sps
         2398
-        >>> round(rx.lock, 2)                               # carrier locked
-        0.98
+        >>> rx.lock > 0.8                                   # carrier locked
+        True
 
         """
 

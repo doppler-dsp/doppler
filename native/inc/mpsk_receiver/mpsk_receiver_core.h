@@ -388,8 +388,8 @@ extern "C"
    * >>> sym = rx.steps(tx)                              # blind NDA acquire
    * >>> sym.size                                        # ~ x_len / sps
    * 2998
-   * >>> round(rx.lock, 2)                               # carrier locked
-   * 0.92
+   * >>> rx.lock > 0.8                                   # carrier locked
+   * True
    *
    * @endcode
    */

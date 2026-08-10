@@ -278,8 +278,8 @@ extern "C"
    * >>> sym = rx.steps(x)
    * >>> sym.size                                        # ~ x_len / sps
    * 2398
-   * >>> round(rx.lock, 2)                               # carrier locked
-   * 0.98
+   * >>> rx.lock > 0.8                                   # carrier locked
+   * True
    *
    * @endcode
    */

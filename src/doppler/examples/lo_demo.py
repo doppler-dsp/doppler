@@ -19,7 +19,7 @@ assert np.allclose(iq[:4], iq[4:], atol=1e-4), (
 )
 
 # FM control port
-ctrl = (0.002 * np.sin(2 * np.pi * 0.01 * np.arange(1024))).astype(np.float32)
+ctrl = (0.002 * np.sin(2 * np.pi * 0.01 * np.arange(1024))).astype(np.float64)
 lo2 = LO(0.1)
 iq2 = lo2.steps_ctrl(ctrl)
 assert iq2.dtype == np.complex64

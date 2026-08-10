@@ -59,9 +59,12 @@ extern "C"
     float complex out
         = CMPLXF (lo_sin_lut[(uint16_t)(idx + (uint16_t)LO_LUT_QTR)],
                   lo_sin_lut[idx]);
-    /* nco_norm_freq_to_inc() is the ONE shared cycles->phase-delta primitive
-     * (rounds, not truncates) -- this used to be a private inline copy
-     * of that exact conversion, still truncating, until consolidated. */
+    /* nco_norm_freq_to_inc() is the ONE shared cycles->phase-delta
+     * primitive, and it TRUNCATES -- see nco_core.h for why rounding would
+     * make the increment differ by host. This comment claimed the opposite
+     * ("rounds, not truncates") from the consolidation until an audit
+     * caught it; test_lo_core.c section 21 now pins truncation on this
+     * path, so the prose cannot drift away from the code again. */
     state->phase += state->phase_inc + nco_norm_freq_to_inc (ctrl);
     return out;
   }
@@ -105,7 +108,7 @@ extern "C"
 
   size_t lo_steps_ctrl_max_out (lo_state_t *state);
 
-  size_t lo_steps_ctrl (lo_state_t *state, const float *ctrl, size_t ctrl_len,
+  size_t lo_steps_ctrl (lo_state_t *state, const double *ctrl, size_t ctrl_len,
                         float complex *out, size_t max_out);
 
 #ifdef __cplusplus

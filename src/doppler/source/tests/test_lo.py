@@ -94,7 +94,7 @@ def test_steps_ctrl_constant_shift():
     """Constant ctrl = 0.25 with base norm_freq=0 equals LO at 0.25."""
     lo_ctrl = LO(0.0)
     lo_ref = LO(0.25)
-    ctrl = np.full(8, 0.25, dtype=np.float32)
+    ctrl = np.full(8, 0.25, dtype=np.float64)
     out_ctrl = lo_ctrl.steps_ctrl(ctrl)
     out_ref = lo_ref.steps(8)
     np.testing.assert_allclose(out_ctrl.real, out_ref.real, atol=TOL)
@@ -104,7 +104,7 @@ def test_steps_ctrl_constant_shift():
 def test_steps_ctrl_no_base_mutation():
     """steps_ctrl must not modify the base norm_freq."""
     lo = LO(0.0)
-    ctrl = np.full(8, 0.25, dtype=np.float32)
+    ctrl = np.full(8, 0.25, dtype=np.float64)
     lo.steps_ctrl(ctrl)
     assert lo.norm_freq == 0.0
 
@@ -112,7 +112,7 @@ def test_steps_ctrl_no_base_mutation():
 def test_steps_ctrl_output_length():
     """Output length equals len(ctrl)."""
     lo = LO(0.1)
-    ctrl = np.zeros(16, dtype=np.float32)
+    ctrl = np.zeros(16, dtype=np.float64)
     out = lo.steps_ctrl(ctrl)
     assert len(out) == 16
     assert out.dtype == np.complex64
@@ -272,7 +272,7 @@ def test_steps_ctrl_large_n():
     """steps_ctrl sizes its buffer to the control-array length, not a fixed
     cap."""
     n = 200_000
-    ctrl = np.zeros(n, dtype=np.float32)
+    ctrl = np.zeros(n, dtype=np.float64)
     y = LO(norm_freq=0.1).steps_ctrl(ctrl)
     assert y.shape == (n,)
     assert np.allclose(np.abs(y), 1.0, atol=TOL)
@@ -280,7 +280,7 @@ def test_steps_ctrl_large_n():
 
 def test_steps_ctrl_out_writes_into_callers_buffer():
     lo = LO(norm_freq=0.1)
-    ctrl = np.zeros(64, dtype=np.float32)
+    ctrl = np.zeros(64, dtype=np.float64)
     out = np.zeros(max(lo.steps_ctrl_max_out(), len(ctrl)), dtype=np.complex64)
     y = lo.steps_ctrl(ctrl, out=out)
     assert np.shares_memory(y, out)
@@ -312,8 +312,8 @@ def test_steps_no_aliasing_across_calls():
 
 def test_steps_ctrl_no_aliasing_across_calls():
     lo = LO(norm_freq=0.0)
-    ctrl1 = np.full(4, 0.25, dtype=np.float32)
-    ctrl2 = np.full(4, 0.5, dtype=np.float32)
+    ctrl1 = np.full(4, 0.25, dtype=np.float64)
+    ctrl2 = np.full(4, 0.5, dtype=np.float64)
     first = lo.steps_ctrl(ctrl1)
     first_snapshot = first.copy()
     _ = lo.steps_ctrl(ctrl2)

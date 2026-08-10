@@ -109,7 +109,7 @@ LOObj_steps (LOObject *self, PyObject *args, PyObject *kwds)
         }
       size_t _cap     = (size_t)PyArray_SIZE (out_arr);
       size_t _omax    = lo_steps_max_out (self->handle);
-      size_t _min_cap = _omax > (size_t)n ? _omax : ((size_t)n);
+      size_t _min_cap = _omax;
       if (_cap < _min_cap)
         {
           PyErr_Format (PyExc_ValueError, "out has %zu elements, need >= %zu",
@@ -132,6 +132,13 @@ LOObj_steps (LOObject *self, PyObject *args, PyObject *kwds)
     }
   size_t _need = (size_t)n;
   size_t _cap  = lo_steps_max_out (self->handle);
+  /* HAND-RESTORED -- just-buildit/just-makeit#920. Under pass_capacity,
+     0.55.2 emits `(void)_need;` here and allocates max_out() regardless of
+     the request: silent truncation above it, a 256 KB malloc per call below
+     it. jm emitted these two lines until recently and 34 other fragments in
+     this tree still carry them. Delete this comment and the two lines when
+     920 ships; test_nco.py/test_lo.py's #116 large-n tests go red if the
+     behaviour is lost again, so this cannot regress silently. */
   if (!_cap || _cap < _need)
     _cap = _need;
   npy_intp  _adim = (npy_intp)_cap;
@@ -184,7 +191,7 @@ LOObj_steps_ctrl (LOObject *self, PyObject *args, PyObject *kwds)
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|O", _kwlist, &ctrl_obj,
                                     &out_obj))
     return NULL;
-  ctrl_arr = (PyArrayObject *)PyArray_FROM_OTF (ctrl_obj, NPY_FLOAT,
+  ctrl_arr = (PyArrayObject *)PyArray_FROM_OTF (ctrl_obj, NPY_DOUBLE,
                                                 NPY_ARRAY_C_CONTIGUOUS);
   if (!ctrl_arr)
     return NULL;
@@ -213,9 +220,7 @@ LOObj_steps_ctrl (LOObject *self, PyObject *args, PyObject *kwds)
         }
       size_t _cap     = (size_t)PyArray_SIZE (out_arr);
       size_t _omax    = lo_steps_ctrl_max_out (self->handle);
-      size_t _min_cap = _omax > (size_t)PyArray_SIZE (ctrl_arr)
-                            ? _omax
-                            : ((size_t)PyArray_SIZE (ctrl_arr));
+      size_t _min_cap = _omax;
       if (_cap < _min_cap)
         {
           PyErr_Format (PyExc_ValueError, "out has %zu elements, need >= %zu",
@@ -225,7 +230,7 @@ LOObj_steps_ctrl (LOObject *self, PyObject *args, PyObject *kwds)
           return NULL;
         }
       size_t n_out = lo_steps_ctrl (
-          self->handle, (const float *)PyArray_DATA (ctrl_arr),
+          self->handle, (const double *)PyArray_DATA (ctrl_arr),
           (size_t)PyArray_SIZE (ctrl_arr),
           (float complex *)PyArray_DATA (out_arr), _cap);
       Py_DECREF (ctrl_arr);
@@ -242,6 +247,13 @@ LOObj_steps_ctrl (LOObject *self, PyObject *args, PyObject *kwds)
     }
   size_t _need = (size_t)PyArray_SIZE (ctrl_arr);
   size_t _cap  = lo_steps_ctrl_max_out (self->handle);
+  /* HAND-RESTORED -- just-buildit/just-makeit#920. Under pass_capacity,
+     0.55.2 emits `(void)_need;` here and allocates max_out() regardless of
+     the request: silent truncation above it, a 256 KB malloc per call below
+     it. jm emitted these two lines until recently and 34 other fragments in
+     this tree still carry them. Delete this comment and the two lines when
+     920 ships; test_nco.py/test_lo.py's #116 large-n tests go red if the
+     behaviour is lost again, so this cannot regress silently. */
   if (!_cap || _cap < _need)
     _cap = _need;
   npy_intp  _adim = (npy_intp)_cap;
@@ -253,7 +265,7 @@ LOObj_steps_ctrl (LOObject *self, PyObject *args, PyObject *kwds)
     }
   float complex *_d0 = (float complex *)PyArray_DATA ((PyArrayObject *)arr0);
   size_t         n_out
-      = lo_steps_ctrl (self->handle, (const float *)PyArray_DATA (ctrl_arr),
+      = lo_steps_ctrl (self->handle, (const double *)PyArray_DATA (ctrl_arr),
                        (size_t)PyArray_SIZE (ctrl_arr), _d0, _cap);
   Py_DECREF (ctrl_arr);
   if ((size_t)n_out == _cap)
@@ -440,43 +452,74 @@ LOObj_exit (LOObject *self, PyObject *args)
 
 static PyMethodDef LOObj_methods[] = {
   { "reset", (PyCFunction)LOObj_reset, METH_NOARGS,
-    "Zero the phase accumulator. Sets phase to 0 so the next lo_steps call "
-    "starts at angle 0 (1+0j). norm_freq and phase_inc are unchanged." },
+    "Zero the phase accumulator. Sets phase to 0 so the next lo_steps\n"
+    "call starts at angle 0 (1+0j). norm_freq and phase_inc are unchanged.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.source import LO\n"
+    ">>> lo = LO(0.25)\n"
+    ">>> _ = lo.steps(2)\n"
+    ">>> lo.phase\n"
+    "2147483648\n"
+    ">>> lo.reset()\n"
+    ">>> lo.phase\n"
+    "0\n"
+    ">>> lo.norm_freq\n"
+    "0.25\n" },
 
   { "steps", (PyCFunction)(void *)LOObj_steps, METH_VARARGS | METH_KEYWORDS,
-    "steps(n=1) -> ndarray\n"
+    "steps(count=1) -> ndarray\n"
     "\n"
-    "Generate n CF32 phasors at the current norm_freq. Each sample is cos(θ) "
-    "+ j·sin(θ) where θ is the phase BEFORE the accumulator is advanced, "
-    "giving a unit-magnitude complex sinusoid via the 65536-entry LUT.  SFDR "
-    "≈ 96 dBc.  Returns n.\n"
+    "Generate n CF32 phasors at the current norm_freq. Each sample is\n"
+    "cos(θ) + j·sin(θ) where θ is the phase BEFORE the accumulator is\n"
+    "advanced, giving a unit-magnitude complex sinusoid via the 65536-entry\n"
+    "LUT. SFDR is ≥ 90 dBc at any frequency and ~96 dBc at a typical one —\n"
+    "see the file header for why those are two different numbers. Returns n.\n"
     "\n"
-    "    >>> import numpy as np\n"
-    "    >>> from doppler import LO\n"
-    "    >>> obj = LO(0.0)\n"
-    "    >>> y = obj.steps(4)\n"
-    "    >>> y.dtype\n"
-    "    dtype('complex64')\n" },
+    "Returns\n"
+    "-------\n"
+    "NDArray[np.complex64]\n"
+    "    min(n, max_out) samples.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.source import LO\n"
+    ">>> lo = LO(0.25)\n"
+    ">>> out = lo.steps(4)\n"
+    ">>> out.dtype\n"
+    "dtype('complex64')\n"
+    ">>> out.shape\n"
+    "(4,)\n"
+    ">>> [round(float(abs(c)), 4) for c in out]\n"
+    "[1.0, 1.0, 1.0, 1.0]\n" },
   { "steps_max_out", (PyCFunction)LOObj_steps_max_out, METH_NOARGS,
-    "steps_max_out() -> int\n\nMax output length steps() can produce for the "
-    "current state.\nUse to size the ``out=`` buffer." },
+    "steps_max_out() -> int\n"
+    "\n"
+    "Maximum samples per call (determines pre-allocated buffer size).\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "int\n"
+    "    Output.\n" },
   { "steps_ctrl", (PyCFunction)(void *)LOObj_steps_ctrl,
     METH_VARARGS | METH_KEYWORDS,
     "steps_ctrl(ctrl) -> ndarray\n"
     "\n"
-    "Generate CF32 phasors with per-sample FM deviation. For each sample i, "
-    "`ctrl[i]`'s fractional part is converted to a delta phase-increment "
-    "(delta = floor(frac(`ctrl[i]`) × 2^32)) that is added on top of the base "
-    "phase_inc for that one step only.  The base norm_freq and phase_inc are "
-    "NOT modified; the deviation is transient per sample, making this the "
-    "natural API for FM synthesis and frequency-hopping.  Output length "
-    "equals ctrl_len.  Returns ctrl_len.\n"
+    "Generate CF32 phasors with per-sample FM deviation. For each sample\n"
+    "i, `ctrl[i]`'s fractional part is converted to a delta phase-increment\n"
+    "(delta = floor(frac(`ctrl[i]`) × 2^32)) that is added on top of the\n"
+    "base phase_inc for that one step only. The base norm_freq and phase_inc\n"
+    "are NOT modified; the deviation is transient per sample, making this\n"
+    "the natural API for FM synthesis and frequency-hopping. Output length\n"
+    "equals ctrl_len. Returns ctrl_len.\n"
     "\n"
     "Parameters\n"
     "----------\n"
-    "ctrl : NDArray[np.float32]\n"
-    "    Float32 array of per-sample normalised-frequency deviations. Only\n"
-    "    the fractional part of each element contributes.\n"
+    "ctrl : NDArray[np.float64]\n"
+    "    Per-sample normalised-frequency deviations in `double`. Only the\n"
+    "    fractional part of each element contributes. See\n"
+    "    nco_steps_u32_ctrl() on why the port is `double` and not float32.\n"
     "\n"
     "Returns\n"
     "-------\n"
@@ -488,7 +531,7 @@ static PyMethodDef LOObj_methods[] = {
     ">>> import numpy as np\n"
     ">>> from doppler.source import LO\n"
     ">>> lo = LO(0.25)\n"
-    ">>> ctrl = np.zeros(4, dtype=np.float32)\n"
+    ">>> ctrl = np.zeros(4, dtype=np.float64)\n"
     ">>> out = lo.steps_ctrl(ctrl)\n"
     ">>> out.dtype\n"
     "dtype('complex64')\n"
@@ -497,8 +540,21 @@ static PyMethodDef LOObj_methods[] = {
     ">>> [round(float(abs(c)), 4) for c in out]\n"
     "[1.0, 1.0, 1.0, 1.0]\n" },
   { "steps_ctrl_max_out", (PyCFunction)LOObj_steps_ctrl_max_out, METH_NOARGS,
-    "steps_ctrl_max_out() -> int\n\nMax output length steps_ctrl() can "
-    "produce for the current state.\nUse to size the ``out=`` buffer." },
+    "steps_ctrl_max_out() -> int\n"
+    "\n"
+    "Largest number of samples steps_ctrl() can return in the current\n"
+    "state.\n"
+    "\n"
+    "Size an `out=` buffer with this before calling steps_ctrl(), or use it\n"
+    "to allocate one up front. The bound is this object's own: what it\n"
+    "depends on is a property of the algorithm, so a header block on\n"
+    "steps_ctrl_max_out() replaces this text.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "int\n"
+    "    Upper bound on the output length; the actual call may return "
+    "fewer.\n" },
   { "state_bytes", (PyCFunction)LOObj_state_bytes, METH_NOARGS,
     "Size in bytes of this object's serialized state.\n"
     "\n"
@@ -552,12 +608,11 @@ static PyMethodDef LOObj_methods[] = {
     "\n"
     "Ordinarily unnecessary: the resources are freed when the object is\n"
     "garbage-collected. Call this to release them at a definite point\n"
-    "instead, or use the object as a context manager, which calls it on "
+    "instead, or use the object as a context manager, which calls it on\n"
     "exit.\n"
     "\n"
-    "Idempotent: calling it again on an already-released object does "
-    "nothing.\n"
-    "Every other method raises ``RuntimeError`` once it has run.\n" },
+    "Idempotent: calling it again on an already-released object does\n"
+    "nothing. Every other method raises ``RuntimeError`` once it has run.\n" },
   { "__enter__", (PyCFunction)LOObj_enter, METH_NOARGS,
     "Enter a context manager, returning this object.\n"
     "\n"
@@ -592,10 +647,25 @@ static PyTypeObject LOObjType = {
   .tp_dealloc                             = (destructor)LOObj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,
   .tp_doc
-  = "Create an LO instance. Allocates state, sets phase to 0, and derives "
-    "phase_inc from norm_freq.  Initialises the shared 65536-entry float LUT "
-    "on the first call (single-threaded concern: call lo_create() before "
-    "spawning threads that share LO instances).\n",
+  = "Create an LO instance. Allocates state, sets phase to 0, and derives\n"
+    "phase_inc from norm_freq. Initialises the shared 65536-entry float LUT "
+    "on\n"
+    "the first call (single-threaded concern: call lo_create() before "
+    "spawning\n"
+    "threads that share LO instances).\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "norm_freq : float, default 0.0\n"
+    "    Normalised frequency in cycles per sample. Any real value; only the\n"
+    "    fractional part matters.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.source import LO\n"
+    ">>> lo = LO(norm_freq=0.25)\n"
+    ">>> lo.phase_inc\n"
+    "1073741824\n",
   .tp_methods = LOObj_methods,
   .tp_getset  = LO_getset,
   .tp_new     = LOObj_new,

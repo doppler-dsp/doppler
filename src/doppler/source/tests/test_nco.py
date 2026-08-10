@@ -200,7 +200,7 @@ def test_steps_u32_ctrl_constant_shift():
     """Constant ctrl=0.25 with base norm_freq=0 equals NCO at 0.25."""
     nco_ctrl = NCO(norm_freq=0.0, nmax=0)
     nco_ref = NCO(norm_freq=0.25, nmax=0)
-    ctrl = np.full(8, 0.25, dtype=np.float32)
+    ctrl = np.full(8, 0.25, dtype=np.float64)
     out_ctrl = nco_ctrl.steps_u32_ctrl(ctrl)
     out_ref = nco_ref.steps_u32(8)
     np.testing.assert_array_equal(out_ctrl, out_ref)
@@ -209,7 +209,7 @@ def test_steps_u32_ctrl_constant_shift():
 def test_steps_u32_ctrl_no_base_mutation():
     """steps_u32_ctrl must not modify the base norm_freq/phase_inc."""
     nco = NCO(norm_freq=0.0, nmax=0)
-    ctrl = np.full(8, 0.25, dtype=np.float32)
+    ctrl = np.full(8, 0.25, dtype=np.float64)
     nco.steps_u32_ctrl(ctrl)
     assert nco.norm_freq == 0.0
     assert nco.phase_inc == 0
@@ -217,7 +217,7 @@ def test_steps_u32_ctrl_no_base_mutation():
 
 def test_steps_u32_ctrl_output_length():
     nco = NCO(norm_freq=0.1, nmax=0)
-    ctrl = np.zeros(16, dtype=np.float32)
+    ctrl = np.zeros(16, dtype=np.float64)
     out = nco.steps_u32_ctrl(ctrl)
     assert out.shape == (16,)
     assert out.dtype == np.uint32
@@ -234,7 +234,7 @@ def test_steps_u32_ctrl_no_leak_in_tight_loop():
     Confirmed leaking ~12 KB/call before the fix; assert well under
     that over a loop long enough to make a regression obvious."""
     nco = NCO(norm_freq=1.0 / 2046, nmax=0)
-    ctrl = np.full(2046, 1e-7, dtype=np.float32)
+    ctrl = np.full(2046, 1e-7, dtype=np.float64)
     for _ in range(2000):
         _ = nco.steps_u32_ctrl(ctrl)
     start_kb = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss

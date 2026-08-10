@@ -338,7 +338,7 @@ main (void)
     nco_state_t *nco_ctrl = nco_create (0.0, 0);
     nco_state_t *nco_ref  = nco_create (0.25, 0);
 
-    float ctrl[8];
+    double ctrl[8];
     for (int i = 0; i < 8; i++)
       ctrl[i] = 0.25f;
 
@@ -368,7 +368,7 @@ main (void)
     nco_state_t *nco_ctrl = nco_create (0.0, 4);
     nco_state_t *nco_ref  = nco_create (0.25, 4);
 
-    float ctrl[8];
+    double ctrl[8];
     for (int i = 0; i < 8; i++)
       ctrl[i] = 0.25f;
 
@@ -408,7 +408,7 @@ main (void)
   {
     nco_state_t *nco_ctrl = nco_create (0.0, 0);
     nco_state_t *nco_ref  = nco_create (0.25, 0);
-    float        ctrl[8];
+    double       ctrl[8];
     for (int i = 0; i < 8; i++)
       ctrl[i] = 0.25f;
     uint32_t ph_ctrl[8], ph_ref[8];
@@ -431,9 +431,9 @@ main (void)
        step at combined rate 1.8 cyc/sample is the same as ANY single
        step whose total advance exceeds one full cycle. */
     nco_state_t *nco_big = nco_create (0.9, 0);
-    float        big_ctrl[4];
+    double       big_ctrl[4];
     for (int i = 0; i < 4; i++)
-      big_ctrl[i] = 0.9f;
+      big_ctrl[i] = 0.9;
     uint32_t ph_big[4];
     uint8_t  ov_big[4];
     nco_steps_u32_ovf_ctrl (nco_big, big_ctrl, 4, ph_big, ov_big, 4);
@@ -489,9 +489,9 @@ main (void)
   {
     nco_state_t *batch  = nco_create (0.0, 0);
     nco_state_t *single = nco_create (0.0, 0);
-    float        ctrl[8];
+    double       ctrl[8];
     for (int i = 0; i < 8; i++)
-      ctrl[i] = 0.05f * (float)i;
+      ctrl[i] = 0.05 * (double)i;
     uint32_t bout[8];
     CHECK (nco_steps_u32_ctrl_max_out (batch) >= 8);
     nco_steps_u32_ctrl (batch, ctrl, 8, bout, 8);
@@ -503,9 +503,9 @@ main (void)
   {
     nco_state_t *batch  = nco_create (0.0, 6);
     nco_state_t *single = nco_create (0.0, 6);
-    float        ctrl[8];
+    double       ctrl[8];
     for (int i = 0; i < 8; i++)
-      ctrl[i] = 0.05f * (float)i;
+      ctrl[i] = 0.05 * (double)i;
     uint32_t bout[8];
     CHECK (nco_steps_u32_scaled_ctrl_max_out (batch) >= 8);
     nco_steps_u32_scaled_ctrl (batch, ctrl, 8, bout, 8);
@@ -517,9 +517,9 @@ main (void)
   {
     nco_state_t *batch  = nco_create (0.0, 0);
     nco_state_t *single = nco_create (0.0, 0);
-    float        ctrl[8];
+    double       ctrl[8];
     for (int i = 0; i < 8; i++)
-      ctrl[i] = 0.05f * (float)i;
+      ctrl[i] = 0.05 * (double)i;
     uint32_t bout[8];
     uint8_t  bov[8];
     CHECK (nco_steps_u32_ovf_ctrl_max_out (batch) >= 8);
@@ -563,7 +563,7 @@ main (void)
     CHECK (nco_steps_u32_ovf (nco, 16, out, carry, 4) == 4);
 
     /* Control-port forms: ctrl_len is the request, max_out the capacity. */
-    const float ctrl[8] = { 0, 0, 0, 0, 0, 0, 0, 0 };
+    const double ctrl[8] = { 0, 0, 0, 0, 0, 0, 0, 0 };
     CHECK (nco_steps_u32_ctrl (nco, ctrl, 8, out, 3) == 3);
     CHECK (nco_steps_u32_scaled_ctrl (nco, ctrl, 8, out, 3) == 3);
     CHECK (nco_steps_u32_ovf_ctrl (nco, ctrl, 8, out, carry, 3) == 3);

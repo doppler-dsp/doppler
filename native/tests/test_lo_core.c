@@ -133,7 +133,7 @@ main (void)
     lo_state_t *lo_ctrl = lo_create (0.0);
     lo_state_t *lo_ref  = lo_create (0.25);
 
-    float ctrl[8];
+    double ctrl[8];
     for (int i = 0; i < 8; i++)
       ctrl[i] = 0.25f;
 
@@ -473,7 +473,7 @@ main (void)
 
     /* The control-port form clamps on the same rule: ctrl_len is the
      * request, max_out the capacity, and the shorter one wins. */
-    const float   ctrl[8] = { 0, 0, 0, 0, 0, 0, 0, 0 };
+    const double  ctrl[8] = { 0, 0, 0, 0, 0, 0, 0, 0 };
     float complex cout[8];
     for (int i = 0; i < 8; i++)
       cout[i] = 42.0f + 42.0f * I;
@@ -606,10 +606,10 @@ main (void)
    * ---------------------------------------------------------------- */
   {
     const size_t  N = 133;
-    float         ctrl[133];
+    double        ctrl[133];
     float complex blk[133], one[133];
     for (size_t i = 0; i < N; i++)
-      ctrl[i] = (float)(0.03 * sin (0.11 * (double)i) - 0.007 * (double)i);
+      ctrl[i] = 0.03 * sin (0.11 * (double)i) - 0.007 * (double)i;
 
     lo_state_t *bs = lo_create (0.077);
     lo_state_t  ss;
@@ -758,7 +758,7 @@ main (void)
 
     /* and the block control port agrees with both */
     lo_state_t   *bsteer = lo_create (0.0);
-    const float   c1[1]  = { (float)f51 };
+    const double  c1[1]  = { f51 };
     float complex o1[1];
     lo_steps_ctrl (bsteer, c1, 1, o1, 1);
     /* float32 rounds the REQUEST before the fold ever sees it, so the

@@ -25,7 +25,7 @@ def test_bench_steps_64k(benchmark, obj):
 
 
 def test_bench_steps_ctrl_64k(benchmark, obj):
-    ctrl = np.zeros(BLOCK_64K, dtype=np.float32)
+    ctrl = np.zeros(BLOCK_64K, dtype=np.float64)
     benchmark(obj.steps_ctrl, ctrl)
     if benchmark.stats:
         benchmark.extra_info["MSa_s"] = (

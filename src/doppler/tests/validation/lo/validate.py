@@ -1032,15 +1032,19 @@ def review(d: Data) -> None:
     )
     R.find(
         "F4",
-        "GAP",
-        f"both max_out doc lines are stale. lo_core.h calls "
-        f"steps_max_out() 'maximum samples per call' and lo_core.c says "
+        "FIXED",
+        f"both max_out doc lines were stale. lo_core.h called "
+        f"steps_max_out() 'maximum samples per call' and lo_core.c said "
         f"'calling with n > 65536 overflows the buffer and is undefined "
         f"behaviour'. Measured: steps({d.big_n}) returns {d.big_n} correct "
         f"samples and steps_ctrl the same — pass_capacity (jm gh-138) made "
         f"the caller's capacity the bound and the Python binding grows its "
-        f"buffer. 65536 is a pre-allocation hint; the sentences describe "
-        f"the pre-gh-138 contract.",
+        f"buffer, so 65536 is a pre-allocation hint and both sentences "
+        f"described the pre-gh-138 contract. FIXED in both files — and "
+        f"checking the sibling found the IDENTICAL pair in "
+        f"nco_core.{{h,c}}, four copies of one false claim, all four now "
+        f"corrected (see the NCO report's F9, and its new §17 pinning the "
+        f"behaviour on each of the three NCO output mappings).",
     )
     R.find(
         "F5",

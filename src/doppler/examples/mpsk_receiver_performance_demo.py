@@ -14,9 +14,15 @@ picked geometry.
 That choice is the point. A fixed grid measures the geometries you thought of,
 and it is exactly how a real outlier hid here for weeks: at `sps = 10` with
 `m_out = 4` and an IF at 0.10 the occupied band reaches DC, where the real
-front end's image rejection collapses, and EVM falls to -4 dB. A grid of
-"reasonable" cases never drew it. Random draws over the documented input
-domain do, and they either show a clean distribution or hand you the outlier.
+front end's image rejection collapses. A grid of "reasonable" cases never drew
+it. Random draws over the documented input domain do, and they either show a
+clean distribution or hand you the outlier.
+
+That particular case is no longer an outlier -- the R2C halfband was returning
+half the amplitude the analytic-signal convention requires, so the real path
+ran 6 dB down and the timing loop 4x under-driven, and the -4 dB this used to
+report was the under-drive rather than the placement. It now measures -20 dB
+with zero SER. The DRAW is what mattered, and it still is.
 
 The committed gallery figure is **three panels** -- does it meet the bound
 (`evm`, `ber`) and how long does it take (`lock`). Five more exist and are
@@ -94,9 +100,22 @@ from doppler.track import MpskReceiver, MpskReceiverR
 
 #: Ddcr's design centre: its R2C halfband bakes in a +fs/4 shift.
 IF_FS4 = 0.25
-#: Usable IF band for the real path, measured on the front end alone: image
-#: rejection is past -100 dB inside this and collapses to -7 dB at 0.01.
-IF_BAND = (0.06, 0.44)
+#: The real path's placement tolerance is GEOMETRIC, not a fixed band: the
+#: leaked image is the signal's own conjugate, at `[-fc-B, -fc+B]` for a wanted
+#: band `[fc-B, fc+B]`, so the two overlap exactly when `B > fc`. With `B` the
+#: pulse's half-width (`1/sps` to the first null) the tolerance is
+#:
+#:     1/sps < fc < 0.5 - 1/sps
+#:
+#: which is why this is applied per-draw below rather than as a constant here.
+#: The fixed `(0.06, 0.44)` this replaced was the range over which the FRONT
+#: END's rejection is deep; it is sound but over-conservative at high
+#: oversampling, forbidding fc in [0.05, 0.11] at sps = 20 where the receiver
+#: measures better than -18 dB with zero SER. See docs/design/mpsk.md 1.3.
+#:
+#: Draws stay a margin inside the limit, because sitting exactly on it costs a
+#: few dB and this sweep characterises the receiver, not the edge.
+IF_EDGE_MARGIN = 1.25
 
 #: Es/N0 sweep. Starts at 4 dB: below that a receiver is not being
 #: characterised, it is being asked to work outside its operating range, and
@@ -258,11 +277,11 @@ def draw_geometry(rng, real):
     bn_timing = float(10 ** rng.uniform(np.log10(0.002), np.log10(BN_MAX)))
     bn_carrier = float(10 ** rng.uniform(np.log10(0.002), np.log10(BN_MAX)))
 
-    # IF placement: keep the pulse's occupied band (fc +- 1/sps) inside the
-    # front end's usable range, which is what the real path actually requires.
+    # IF placement: the occupied band (fc +- 1/sps) must not overrun DC or
+    # Nyquist -- the real path's actual constraint. See IF_EDGE_MARGIN.
     if real:
-        half = 1.0 / sps
-        lo_f, hi_f = IF_BAND[0] + half, IF_BAND[1] - half
+        half = IF_EDGE_MARGIN / sps
+        lo_f, hi_f = half, 0.5 - half
         fc = float(rng.uniform(lo_f, hi_f)) if hi_f > lo_f else IF_FS4
     else:
         fc = float(rng.uniform(0.05, 0.45))

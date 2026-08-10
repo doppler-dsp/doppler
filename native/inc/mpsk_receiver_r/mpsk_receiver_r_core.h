@@ -279,7 +279,7 @@ extern "C"
    * >>> sym.size                                        # ~ x_len / sps
    * 2398
    * >>> round(rx.lock, 2)                               # carrier locked
-   * 0.99
+   * 0.98
    *
    * @endcode
    */

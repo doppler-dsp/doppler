@@ -415,8 +415,8 @@ static PyMethodDef DopplerChannelObj_methods[] = {
     ">>> from doppler.impairment import DopplerChannel\n"
     ">>> ch = DopplerChannel(fs=1e6, carrier_hz=2.5e9, doppler_ppm=20.0)\n"
     ">>> y = ch.execute(np.ones(1000, dtype=np.complex64))\n"
-    ">>> y.shape                   # ~ 1000 / (1 + 20e-6): time dilation\n"
-    "(999,)\n"
+    ">>> y.shape                   # 20 ppm is 0.02 samples over this block\n"
+    "(1000,)\n"
     ">>> round(ch.offset_hz, 1)    # fc * d = 2.5e9 * 20e-6, in Hz\n"
     "50000.0\n" },
   { "execute_max_out", (PyCFunction)DopplerChannelObj_execute_max_out,
@@ -439,8 +439,8 @@ static PyMethodDef DopplerChannelObj_methods[] = {
     ">>> from doppler.impairment import DopplerChannel\n"
     ">>> ch = DopplerChannel(fs=1e6, carrier_hz=2.5e9, doppler_ppm=20.0)\n"
     ">>> _ = ch.execute(np.ones(1000, dtype=np.complex64))\n"
-    ">>> round(ch.elapsed_s, 6)    # receive time consumed: 999 / 1e6\n"
-    "0.000999\n"
+    ">>> round(ch.elapsed_s, 6)    # receive time consumed: 1000 / 1e6\n"
+    "0.001\n"
     ">>> ch.reset()                # both sample clocks back to zero\n"
     ">>> ch.elapsed_s\n"
     "0.0\n" },

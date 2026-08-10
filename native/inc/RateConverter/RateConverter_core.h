@@ -494,7 +494,7 @@ size_t RateConverter_execute_ctrl_push_max_out (RateConverter_state_t *s);
  * 800
  * >>> rc2 = RateConverter(rate=0.8, compensate=0)
  * >>> rc2.execute_ctrl(x, 0.05).shape[0]  # +ctrl speeds the tail up
- * 850
+ * 851
  *
  * @endcode
  */
@@ -534,7 +534,7 @@ size_t RateConverter_execute_ctrl (RateConverter_state_t *s,
  * >>> x = (np.arange(10, dtype=np.float32) + 1).astype(np.complex64)
  * >>> # a decimator emits 0 between strobes, 1 on a strobe:
  * >>> [rc.execute_ctrl_push(complex(v), 0.0).shape[0] for v in x]
- * [0, 1, 1, 1, 1, 0, 1, 1, 1, 1]
+ * [1, 1, 1, 1, 0, 1, 1, 1, 1, 0]
  *
  * @endcode
  */

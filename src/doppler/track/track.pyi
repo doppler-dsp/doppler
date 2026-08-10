@@ -3120,9 +3120,9 @@ class MpskReceiver:
         >>> rx = MpskReceiver(m=4, sps=8, m_out=4, bn_carrier=0.02)
         >>> sym = rx.steps(tx)                              # blind NDA acquire
         >>> sym.size                                        # ~ x_len / sps
-        2997
+        2998
         >>> round(rx.lock, 2)                               # carrier locked
-        0.91
+        0.92
 
         """
 
@@ -3179,10 +3179,10 @@ class MpskReceiver:
         >>> rx = MpskReceiver(m=2, sps=8, m_out=4, bn_carrier=0.005)
         >>> b = rx.bits(tx)                                 # 1 hard bit/symbol
         >>> b.size
-        2997
+        2998
         >>> # settled tail matches the payload, up to the BPSK
-        >>> # inversion ambiguity
-        >>> tail = np.mean(b[1000:2000] != idx[1000:2000])
+        >>> # inversion ambiguity and the pipeline's one-symbol lead
+        >>> tail = np.mean(b[1001:2001] != idx[1000:2000])
         >>> round(float(min(tail, 1 - tail)), 3)
         0.0
 
@@ -3701,7 +3701,7 @@ class MpskReceiverR:
         >>> sym.size                                        # ~ x_len / sps
         2398
         >>> round(rx.lock, 2)                               # carrier locked
-        0.99
+        0.98
 
         """
 

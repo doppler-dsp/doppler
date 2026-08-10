@@ -513,7 +513,8 @@ class LO:
         """Generate n CF32 phasors at the current norm_freq. Each sample is
         cos(θ) + j·sin(θ) where θ is the phase BEFORE the accumulator is
         advanced, giving a unit-magnitude complex sinusoid via the 65536-entry
-        LUT. SFDR ≈ 96 dBc. Returns n.
+        LUT. SFDR is ≥ 90 dBc at any frequency and ~96 dBc at a typical one —
+        see the file header for why those are two different numbers. Returns n.
 
         Returns
         -------

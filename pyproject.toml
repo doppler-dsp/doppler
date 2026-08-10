@@ -135,6 +135,22 @@ dev = [
     # absent. The CI lint job runs a modern Python, so markdown is still
     # enforced — it just is not enforced twice on an interpreter that cannot
     # install the formatter.
+    # clang-format and clang-tidy were the last carve-out from the rule
+    # above ("not Python project dependencies"), and that carve-out is what
+    # produced two SSOTs for one tool: .pre-commit-config.yaml pinned
+    # clang-format through mirrors-clang-format's `rev:` while nothing pinned
+    # it for anyone else, so `make`, a bare shell and the hook could each get
+    # a different binary. jm gh-745 was filed on that exact symptom from this
+    # repo — 21.1.8 locally against 22.1.8 in CI, "identical input, different
+    # output, and a `jm status --check` that flips red across machines on a
+    # project nobody touched".
+    #
+    # 22.1.8 matches the `rev:` it replaces, so adopting this reformats
+    # nothing. clang-tidy had no pin at ALL (a bare `entry: clang-tidy`) and
+    # is not even installed on some dev boxes, which makes it a gate that
+    # cannot run rather than one that passes.
+    "clang-format==22.1.8",
+    "clang-tidy==22.1.8",
     "ruff==0.15.21",
     "mdformat==1.0.0; python_version >= '3.10'",
     "mdformat-gfm==1.0.0; python_version >= '3.10'",

@@ -29,6 +29,13 @@ class Reader:
         byte order, likewise a hint that only headerless raw uses; `"le"` or
         `"be"` from Python, 0 or 1 from C.
 
+    Raises
+    ------
+    ValueError
+        If construction fails. The exception message is ``cannot open capture:
+        no such file, unrecognised file type, or an unsupported BLUE format
+        mode (only S and C are supported)``.
+
     Examples
     --------
     >>> import pathlib, tempfile

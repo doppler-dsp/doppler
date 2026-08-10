@@ -69,6 +69,15 @@ class Writer:
         turned off. Pass false when an extra file beside the capture would
         break a downstream glob.
 
+    Raises
+    ------
+    OSError
+        If construction fails. The exception message is ``cannot open the
+        capture for writing: check the path, the directory, and permissions --
+        and note that file_type="sigmf" requires a path ending in .sigmf-data,
+        since a SigMF capture is a <base>.sigmf-data + <base>.sigmf-meta pair
+        found by name``.
+
     Examples
     --------
     >>> import pathlib, tempfile
@@ -273,6 +282,13 @@ class Writer:
             Exception instance, or None. Ignored.
         tb : object | None
             Traceback object, or None. Ignored.
+
+        Raises
+        ------
+        OSError
+            If the C destructor reports failure. Raised from an explicit call
+            and from ``__exit__`` alike, so a failing teardown propagates out
+            of a ``with`` block (gh-541).
         """
 
 def write_blue_header(

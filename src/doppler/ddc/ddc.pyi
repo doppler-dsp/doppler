@@ -19,6 +19,13 @@ class DDC:
         Output rate / input rate. Must be > 0. Values >= 1 are up-sampling;
         typical use is decimation (0 < rate < 1).
 
+    Raises
+    ------
+    ValueError
+        If construction fails. The exception message is ``DDC: invalid
+        parameter (need rate > 0, 0 <= beta <= 1, span >= 1, pulse_sps > 0,
+        num_phases a power of two >= 2)``.
+
     Examples
     --------
     >>> from doppler.ddc import DDC
@@ -350,6 +357,13 @@ class MatchedDDC:
         pulse_sps constructor parameter.
     num_phases : int, default 1024
         num_phases constructor parameter.
+
+    Raises
+    ------
+    ValueError
+        If construction fails. The exception message is ``DDC: invalid
+        parameter (need rate > 0, 0 <= beta <= 1, span >= 1, pulse_sps > 0,
+        num_phases a power of two >= 2)``.
 
     Examples
     --------
@@ -687,6 +701,13 @@ class Ddcr:
         Total output/input rate. Must be in (0, 0.5) because the halfband
         pre-decimates by 2.
 
+    Raises
+    ------
+    ValueError
+        If construction fails. The exception message is ``Ddcr: invalid
+        parameter (need 0 < rate < 0.5, 0 <= beta <= 1, span >= 1, pulse_sps >
+        0, num_phases a power of two >= 2)``.
+
     Examples
     --------
     >>> from doppler.ddc import Ddcr
@@ -1013,6 +1034,13 @@ class MatchedDdcr:
         pulse_sps constructor parameter.
     num_phases : int, default 1024
         num_phases constructor parameter.
+
+    Raises
+    ------
+    ValueError
+        If construction fails. The exception message is ``Ddcr: invalid
+        parameter (need 0 < rate < 0.5, 0 <= beta <= 1, span >= 1, pulse_sps >
+        0, num_phases a power of two >= 2)``.
 
     Examples
     --------

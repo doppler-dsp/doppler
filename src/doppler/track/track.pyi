@@ -411,6 +411,12 @@ class Costas:
         decim : int
             Emit every decim-th symbol; >= 1.
 
+        Raises
+        ------
+        ValueError
+            If the C call returns a non-zero status. The exception message is
+            ``set_telemetry failed``, with the return code appended (gh-869).
+
         Examples
         --------
         >>> import numpy as np
@@ -834,6 +840,12 @@ class Dll:
         decim : int
             Emit every decim-th epoch; >= 1.
 
+        Raises
+        ------
+        ValueError
+            If the C call returns a non-zero status. The exception message is
+            ``set_telemetry failed``, with the return code appended (gh-869).
+
         Examples
         --------
         >>> import numpy as np
@@ -1007,6 +1019,12 @@ class Dll:
         ref_snr_db : float
             Noise-reference estimator SNR in dB (> 0), or 0 to derive from
             n_looks as above.
+
+        Raises
+        ------
+        ValueError
+            If the C call returns a non-zero status. The exception message is
+            ``configure_lock failed``, with the return code appended (gh-869).
 
         Examples
         --------
@@ -1391,6 +1409,12 @@ class SymbolSync:
         decim : int
             Emit every decim-th symbol; >= 1.
 
+        Raises
+        ------
+        ValueError
+            If the C call returns a non-zero status. The exception message is
+            ``set_telemetry failed``, with the return code appended (gh-869).
+
         Examples
         --------
         >>> import numpy as np
@@ -1496,6 +1520,12 @@ class SymbolSync:
         pd : float
             Target detection probability per decision, in (0, 1); must exceed
             pfa.
+
+        Raises
+        ------
+        ValueError
+            If the C call returns a non-zero status. The exception message is
+            ``configure_lock failed``, with the return code appended (gh-869).
 
         Examples
         --------
@@ -1755,6 +1785,13 @@ class RateSync:
         lower self-noise near lock but degrades faster at low SNR. BPSK/QPSK
         only -- invalid for 8PSK/QAM).
 
+    Raises
+    ------
+    ValueError
+        If construction fails. The exception message is ``RateSync: invalid
+        parameter (need sps >= m, 0 <= beta <= 1, span >= 1, m even in [2, 8],
+        num_phases a power of two >= 2, bn >= 0, zeta > 0)``.
+
     Examples
     --------
     Create with defaults:
@@ -1872,6 +1909,12 @@ class RateSync:
             Probe-name prefix, e.g. "sync".
         decim : int
             Emit every decim-th symbol; >= 1.
+
+        Raises
+        ------
+        ValueError
+            If the C call returns a non-zero status. The exception message is
+            ``set_telemetry failed``, with the return code appended (gh-869).
 
         Examples
         --------
@@ -2613,6 +2656,12 @@ class CarrierNda:
         decim : int
             Emit every decim-th sample; >= 1.
 
+        Raises
+        ------
+        ValueError
+            If the C call returns a non-zero status. The exception message is
+            ``set_telemetry failed``, with the return code appended (gh-869).
+
         Examples
         --------
         >>> import numpy as np
@@ -2942,6 +2991,14 @@ class MpskReceiver:
         switches underneath you. If you need more range than any tap gives, put
         a coarse frequency estimate in front and pass it as init_norm_freq.
 
+    Raises
+    ------
+    ValueError
+        If construction fails. The exception message is ``MpskReceiver: invalid
+        parameter (need m in {2,4,8}, sps >= m_out, m_out even in [2, 8], 0 <=
+        rrc_beta <= 1, rrc_span >= 1, num_phases a power of two >= 2, bn >= 0,
+        zeta > 0)``.
+
     Examples
     --------
     Create with defaults:
@@ -3013,6 +3070,12 @@ class MpskReceiver:
             Probe-name prefix, e.g. "rx".
         decim : int
             Emit every decim-th symbol; >= 1.
+
+        Raises
+        ------
+        ValueError
+            If the C call returns a non-zero status. The exception message is
+            ``set_telemetry failed``, with the return code appended (gh-869).
 
         Examples
         --------
@@ -3472,6 +3535,14 @@ class MpskReceiverR:
         switches underneath you. If you need more range than any tap gives, put
         a coarse frequency estimate in front and pass it as init_norm_freq.
 
+    Raises
+    ------
+    ValueError
+        If construction fails. The exception message is ``MpskReceiverR:
+        invalid parameter (need m in {2,4,8}, sps > 2*m_out, m_out even in [2,
+        8], 0 <= rrc_beta <= 1, rrc_span >= 1, num_phases a power of two >= 2,
+        bn >= 0, zeta > 0)``.
+
     Examples
     --------
     Create with defaults:
@@ -3542,6 +3613,12 @@ class MpskReceiverR:
             Probe-name prefix, e.g. "rx".
         decim : int
             Emit every decim-th symbol; >= 1.
+
+        Raises
+        ------
+        ValueError
+            If the C call returns a non-zero status. The exception message is
+            ``set_telemetry failed``, with the return code appended (gh-869).
 
         Examples
         --------

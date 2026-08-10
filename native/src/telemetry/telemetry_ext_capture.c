@@ -323,7 +323,7 @@ static PyMethodDef CaptureObj_methods[] = {
     ">>> cap.count\n"
     "1\n" },
   { "close", (PyCFunction)CaptureObj_close, METH_NOARGS,
-    "close() -> int\n"
+    "close() -> None\n"
     "\n"
     "Final boundary, then flush, join, and write the sidecar.\n"
     "\n"
@@ -331,6 +331,15 @@ static PyMethodDef CaptureObj_methods[] = {
     "joins the writer thread, closes the file and writes `<path>-meta`.\n"
     "Idempotent: a second call is a no-op returning the first call's\n"
     "verdict.\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If the C call returns a non-zero status. The exception message is\n"
+    "    ``the capture has a hole: records were dropped, which the block\n"
+    "    bound makes impossible unless a step ran longer than block_samples\n"
+    "    or no boundary was reached at all — see Capture.dropped``, with the\n"
+    "    return code appended (gh-869).\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -377,19 +386,23 @@ static PyMethodDef CaptureObj_methods[] = {
   { "__enter__", (PyCFunction)CaptureObj_enter, METH_NOARGS,
     "Enter a context manager, returning this object.\n"
     "\n"
-    "Lets a DpTlmCapture be used in a `with` statement so its C resources\n"
-    "are released deterministically on exit rather than at collection time.\n"
+    "Lets a MemoryCapture be used in a `with` statement so its C resources\n"
+    "are finalized deterministically on exit rather than at collection time.\n"
     "\n"
     "Returns\n"
     "-------\n"
-    "DpTlmCapture\n"
+    "MemoryCapture\n"
     "    This same object, not a copy.\n" },
   { "__exit__", (PyCFunction)CaptureObj_exit, METH_VARARGS,
-    "Exit a context manager, releasing the DpTlmCapture.\n"
+    "Exit a context manager, finalizing the MemoryCapture.\n"
     "\n"
-    "Equivalent to calling `destroy()`. Returns ``None``, so an exception\n"
-    "raised inside the `with` body propagates normally; this never\n"
-    "suppresses one.\n"
+    "Equivalent to calling `close()`. The MemoryCapture is **not** released\n"
+    "here: it stays usable, which is what makes results gathered during the\n"
+    "`with` body readable after it. The memory is freed when the object is\n"
+    "collected.\n"
+    "\n"
+    "Returns ``None``, so an exception raised inside the `with` body\n"
+    "propagates normally; this never suppresses one.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -398,7 +411,14 @@ static PyMethodDef CaptureObj_methods[] = {
     "exc : object | None\n"
     "    Exception instance, or None. Ignored.\n"
     "tb : object | None\n"
-    "    Traceback object, or None. Ignored.\n" },
+    "    Traceback object, or None. Ignored.\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If ``close()`` reports failure. ``__exit__`` calls it and raises\n"
+    "    what it raises, so a failed finalize propagates out of the ``with``\n"
+    "    block (gh-805 §H).\n" },
   { NULL }
 };
 

@@ -741,6 +741,13 @@ class RateConverter:
         Non-zero to append a CIC passband-droop compensating FIR after any CIC
         stage.
 
+    Raises
+    ------
+    ValueError
+        If construction fails. The exception message is ``RateConverter:
+        invalid parameter (need rate > 0, 0 <= beta <= 1, span >= 1, pulse_sps
+        > 0, num_phases a power of two >= 2)``.
+
     Examples
     --------
     >>> from doppler.resample import RateConverter
@@ -1084,6 +1091,13 @@ class MatchedRateConverter:
         pulse_sps constructor parameter.
     num_phases : int, default 1024
         num_phases constructor parameter.
+
+    Raises
+    ------
+    ValueError
+        If construction fails. The exception message is ``RateConverter:
+        invalid parameter (need rate > 0, 0 <= beta <= 1, span >= 1, pulse_sps
+        > 0, num_phases a power of two >= 2)``.
 
     Examples
     --------

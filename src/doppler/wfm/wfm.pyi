@@ -327,7 +327,7 @@ class _SynthEngine:
 
         """
 
-    def steps(self, n: int) -> NDArray[np.complex64]:
+    def steps(self, n: int = 1) -> NDArray[np.complex64]:
         """Generate a block of output samples. Calls wfm_synth_step() in a
         tight loop, writing each cf32 sample into ``output``. The Python
         binding returns a freshly allocated NumPy complex64 array; ownership is

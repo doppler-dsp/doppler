@@ -99,6 +99,32 @@ ______________________________________________________________________
 
 ### Fixed
 
+- **`LO` documents an SFDR *bound*, not just the typical figure.** The header
+    said "~96 dBc" with no qualification, and a design sizing a spur budget
+    would have taken that as the guarantee. It is not: the spur level is set
+    by the LOW 16 bits of `phase_inc` — the remainder the LUT index discards —
+    not by the frequency. Three regimes, measured: a remainder of zero
+    truncates nothing and is spur-free to ~146 dBc; a generic remainder gives
+    96.32–96.33 dBc across 400 random rates; and a HALF-bin remainder
+    (`0x8000`) makes the error alternate with period 2, concentrating all of
+    it into one spur at **92.40 dBc** — the classical `6.02·B − 3.92`
+    phase-truncation bound, and 3.6 dB below what a caller would have
+    budgeted. That set is not exotic: every increment congruent to `0x8000`
+    mod 2^16 is in it.
+
+    `lo_core.h` now states all three regimes and the real guarantee,
+    **SFDR ≥ 90 dBc at any frequency** (2.4 dB of margin on the measured
+    worst case, which held across 8 carrier positions × 2 capture lengths).
+    The bound is gated rather than merely documented —
+    `test_lo.py::test_sfdr_worst_case_meets_the_documented_bound` measures the
+    worst remainder and pins it to the theory bound; dropping the phase index
+    to 14 bits takes it to 84.06 dBc and turns the gate red.
+
+    No behaviour changed: this is what the LO has always done, now stated
+    correctly. Full characterisation, including the closed-loop cost of the
+    LUT (half a phase bin, and no bandwidth):
+    `src/doppler/tests/validation/lo/results.md`.
+
 - **One `double` → phase-word conversion, with two named faces over it.**
     The conversion every rate-bearing object depends on existed in private
     copies at each call site, each computing its own cast and each undefined

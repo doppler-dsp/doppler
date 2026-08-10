@@ -407,9 +407,10 @@ S-curve slope, and with it the meaning of `bn`, is unchanged from before.
     them exactly, and the clip goes with the AGC that carried it.
 
     Input scaling is no longer a precondition of this detector at all. The
-    front-end AGC still levels the signal path, because the **timing** detector
-    needs unit symbol amplitude for its construct-time slope to mean what it
-    says.
+    front-end AGC still levels the signal path — which both loops run on, so
+    it remains inside this one too — because the **timing** detector needs
+    unit symbol amplitude for its construct-time slope to mean what it says.
+    This detector is indifferent to the level, not to the AGC.
 
 ```python
 # osr = sample_rate // symbol_rate   # input oversampling, typ. 4
@@ -656,14 +657,24 @@ ______________________________________________________________________
 > matched-filter FIR owned by pointer. `fir_step` still exists and is still the
 > right primitive for a per-sample FIR; this receiver no longer needs one.
 
-> **AGC: no carrier path needs one; the timing path does.** The
-> decision-directed *carrier tracking* path was always amplitude-invariant —
-> the nearest-point slice and the `|y|`-normalized discriminator both ignore
-> scale — and the *acquisition* path is now too, since `carrier_nda_disc()`
-> normalizes both of its outputs by `|z|^M` (§2.3). `MpskReceiver` therefore
-> carries exactly one AGC, in the front-end cascade, and it is there for the
-> **timing** detector: a TED normalizes by its own slope, and that slope is
-> computed for a unit-amplitude symbol stream.
+> **AGC: one, in the cascade, inside both loops.** It levels the *signal
+> path*, and carrier and timing both run on that path — so the AGC is a
+> dynamic element of **both** control loops, and that is why its bandwidth is
+> sized against the slower of the two (`min(bn_carrier, bn_timing)`) rather
+> than against either alone. Serving both is not the same as being needed by
+> both *detectors*, and the distinction is worth keeping straight:
+>
+> - The **timing** detector depends on the level outright. A TED normalizes
+>     by its own slope, and that slope is computed for a unit-amplitude symbol
+>     stream — so a level error is a loop-gain error, `A²` for Gardner.
+> - The **carrier** detector does not. The decision-directed tracking path was
+>     always amplitude-invariant — the nearest-point slice and the
+>     `|y|`-normalized discriminator both ignore scale — and the acquisition
+>     path is now too, since `carrier_nda_disc()` normalizes both of its
+>     outputs by `|z|^M` (§2.3). It is immune to the level, but not to the
+>     AGC's transient, which is upstream of it either way.
+>
+> What the receiver does *not* have is a second AGC in front of a detector.
 >
 > The standalone `CarrierNda` object embedded its own arm AGC until
 > [#657](https://github.com/doppler-dsp/doppler/issues/657), which removed it

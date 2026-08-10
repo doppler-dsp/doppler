@@ -148,9 +148,13 @@ extern "C"
    *                        the front-end cascade, before the terminal
    *                        matched stage — the same placement and the same
    *                        reason as the complex twin
-   *                        (@ref mpsk_receiver_create): it serves the TIMING
-   *                        detector, whose slope is computed at construction
-   *                        for a unit-amplitude symbol stream. Pass 0 and
+   *                        (@ref mpsk_receiver_create): it serves BOTH
+   *                        loops, since carrier and timing both run on its
+   *                        output. The timing detector is the one whose
+   *                        gain depends on the level (its slope is a
+   *                        construct-time constant for a unit-amplitude
+   *                        stream); the carrier detector normalises itself
+   *                        but still sees the AGC's transient. Pass 0 and
    *                        the timing loop is under-driven by `A^2`.
    * @param bn_agc_ratio   That AGC's bandwidth as a fraction of the SLOWEST
    *                        loop it feeds, `min(bn_carrier, bn_timing)` — see

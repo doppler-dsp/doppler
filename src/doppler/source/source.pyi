@@ -203,10 +203,17 @@ class NCO:
         allocating a fresh one. This used to claim it was "essential for a hot
         per-epoch tracking loop"; measured, it is worth 0-25% below 8192
         samples and nothing at or above it, so reach for it only if a profile
-        says so. The buffer must be sized to `steps_u32_ctrl_max_out()`, NOT
-        just `len(ctrl)` -- which is itself a cost, since a 64-sample call then
-        needs a 65536-element buffer (just-buildit/just-makeit#920); the
-        returned view is correctly sliced to `len(ctrl)` regardless.
+        says so.
+
+        The buffer must be sized to `steps_u32_ctrl_max_out()`, NOT just
+        `len(ctrl)` -- so a 64-sample call still needs a 65536-element buffer,
+        which is most of what makes `out=` poor value here. That is this
+        header's doing, not the binding's: `*_max_out(state)` takes only the
+        state, so it is a bound over ALL calls and cannot say what THIS one
+        needs. A generated binding may accept a request-sized buffer only where
+        the bound is declared per-call (a `max_out(state, n)` prototype). The
+        returned view is correctly sliced to `len(ctrl)` regardless of the
+        buffer's size.
 
         Parameters
         ----------

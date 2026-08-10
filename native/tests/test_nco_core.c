@@ -1027,6 +1027,83 @@ main (void)
       }
   }
 
+  /* ----------------------------------------------------------------
+   * C29. The FOLD is total too, and it answers 0 where the raw cast
+   *      saturates -- because they are asked different questions.
+   *
+   * Section 12 pins nco_phase_units across its whole domain, including
+   * saturation at and above 2^32. Nothing pinned nco_norm_fold_ there,
+   * and the difference between the two looks like a divergence until you
+   * notice the units: nco_phase_units takes a quantity ALREADY scaled to
+   * phase-word units, so "infinitely many phase units" saturates and
+   * that is the honest answer. nco_norm_fold_ takes a NORMALISED rate,
+   * and an infinite rate has no fractional part at all, so there is no
+   * phase word that represents it -- 0, a stopped oscillator, is the
+   * honest answer there.
+   *
+   * Infinity is not even a special case in the fold: 1.0, 2^32 and 1e300
+   * all land on 0 by the same rule, since their fractional part is
+   * exactly zero. It is the documented "only the fractional part
+   * matters" applied at the top of the range, exactly as a sub-LSB rate
+   * is that rule applied at the bottom.
+   *
+   * Both are asserted side by side so the pair is pinned as intended
+   * rather than rediscovered as a defect.
+   *
+   * `volatile` for the same reason section 12 needs it: with literal
+   * arguments the compiler constant-folds these conversions using its
+   * own rules and the runtime instruction is never exercised.
+   * ---------------------------------------------------------------- */
+  {
+    volatile double v;
+
+    /* Non-finite: no representable rate, so the oscillator stops. */
+    v = INFINITY;
+    CHECK (nco_norm_freq_to_inc (v) == 0u);
+    CHECK (nco_phase_units (v) == 4294967295u); /* different question */
+    v = -INFINITY;
+    CHECK (nco_norm_freq_to_inc (v) == 0u);
+    CHECK (nco_phase_units (v) == 0u);
+    v = NAN;
+    CHECK (nco_norm_freq_to_inc (v) == 0u);
+    CHECK (nco_phase_units (v) == 0u);
+
+    /* Huge but finite: the fractional part is exactly 0 well before
+       infinity, so these stop for the ordinary reason, not a special
+       case. */
+    v = 1e300;
+    CHECK (nco_norm_freq_to_inc (v) == 0u);
+    v = -1e300;
+    CHECK (nco_norm_freq_to_inc (v) == 0u);
+    v = 4294967296.0;
+    CHECK (nco_norm_freq_to_inc (v) == 0u);
+
+    /* Whole cycles per sample alias to DC, which is the same rule again
+       and the case a caller is most likely to hit by accident. */
+    v = 1.0;
+    CHECK (nco_norm_freq_to_inc (v) == 0u);
+    v = -1.0;
+    CHECK (nco_norm_freq_to_inc (v) == 0u);
+    v = 2.0;
+    CHECK (nco_norm_freq_to_inc (v) == 0u);
+
+    /* The two named faces are one body: they must agree on every one of
+       these, or the fold has grown a per-face convention. */
+    const double xs[] = { INFINITY, -INFINITY, NAN,  1e300, -1e300,
+                          1.0,      -1.0,      0.25, -0.25, -1e-20 };
+    for (unsigned i = 0; i < sizeof xs / sizeof *xs; i++)
+      {
+        v = xs[i];
+        CHECK (nco_norm_freq_to_inc (v) == nco_norm_phase_to_word (v));
+      }
+
+    /* And the steer companion, which bounds the request before any of
+       the above can be reached: an insane control lands on the band, not
+       on a stopped oscillator. */
+    CHECK (nco_steer_scale (INFINITY, 2.0 / 3.0, 2.0) == 2.0);
+    CHECK (nco_steer_scale (NAN, 2.0 / 3.0, 2.0) == 2.0 / 3.0);
+  }
+
   if (_fails)
     {
       fprintf (stderr, "test_nco_core FAILED (%d)\n", _fails);

@@ -430,9 +430,57 @@ its sane range and applied it only to the number it reported, two lines after
 commanding the NCO with an unbounded one.
 
 That is the general shape: **the band is object policy** — what the object can
-physically mean — and `nco_steer_scale` is the shared mechanism. With the band
+physically mean — and `nco_steer_scale` is the shared mechanism. With a band
 applied, the product cannot floor or saturate, and the conversion goes back to
 being a safety net.
+
+**Not yet adopted, and deliberately so.** `nco_steer_scale` has no production
+caller: it is the header inline plus `test_nco_core.c` §16. symsync still
+steers unbounded. The primitive exists because the diagnosis is settled; the
+adoption is not, because of the constraint below.
+
+### A band must not cost the loop its cycle slip
+
+A steer band is not free, and the failure it introduces is the mirror of the
+one it fixes. A floored steer **stops** the oscillator; too tight a band
+**sticks** it at the rail. Both end with a loop that cannot get where it needs
+to be, and the second is easier to ship because it looks like it is working.
+
+What makes the difference is slipping. A timing or carrier loop resolves an
+error larger than its detector's pull-in range by slipping a whole cycle and
+carrying on — the phase runs away, wraps, and comes back on the other side.
+That is a *recovery path*, not a failure, and it has one prerequisite: the
+oscillator has to still be moving. A stopped one cannot slip, so it cannot
+recover, and in a strobe-driven loop it cannot even be told to: the loop is
+updated once per strobe, so no strobe means no update means the command that
+would restart it never arrives. Measured directly — a steer railed to
+`lo = 0` emits **0** strobes over 20000 inputs and stays there, where
+`lo = 0.05` still emits 249 and `lo = 2/3` emits 3333.
+
+So the lower bound is the load-bearing half of the band, and it must be
+strictly positive. `nco_steer_scale`'s own doc says `lo` "must be > 0 for a
+rate that cannot run backwards"; the deeper reason is that a positive floor is
+what preserves the slip.
+
+There is a second, subtler reason to be careful, and it is why symsync's band
+cannot simply be lifted from `rate_est`'s reporting clamp. Measured with an
+ideal wrapped detector, closing the loop around this NCO and demanding rates
+it cannot have — down to `0.1x` nominal and through zero to `-1x` — the
+control never leaves `[0.66, 1.0]` and the band is **never reached**. The
+reason is the slip itself: a wrapped detector's error cannot exceed half a
+cycle, so every slip reverses the sign the integrator is accumulating and
+windup never happens. A loop that can slip does not ask for an impossible
+rate.
+
+Which means the band only ever engages for a discriminator non-linear enough
+to *prevent* the slip — symsync's Gardner/DTTL during acquisition, reporting
+the wrong branch outside its pull-in range, which is exactly where "timing
+acquisition is non-linear and does reach control < -1" comes from. That is a
+real regime and worth bounding. But it also means a band chosen tight enough
+to engage is, by construction, being applied to the case where slipping was
+the way out. The band has to be wide enough that the loop still slips its way
+back, and narrow enough to keep the conversion out of the decision. Picking
+it is a per-object measurement, not a restatement of a reporting clamp.
 
 ### `Dll` — why it is *not* banded
 

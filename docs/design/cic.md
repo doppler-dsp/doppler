@@ -97,6 +97,8 @@ detector's slope goes as $A^2$, so 0.632 amplitude is a loop running at
 
 The fix is to budget it where it belongs:
 
+<!-- docs-snippet: skip=one #define quoted from cic_core.h, not a compilable program -->
+
 ```c
 #define CIC_PAPR_HEADROOM 2.0f   /* 6 dB, voltage ratio */
 ```

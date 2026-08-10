@@ -86,16 +86,24 @@ extern "C"
 #define MPSK_RX_EPS 1e-12
 
 /* THE RECEIVER HAS EXACTLY ONE AGC, and it is the front-end cascade's
- * (RateConverter_enable_agc). There is no AGC on the carrier loop, because
- * carrier_nda_disc() normalises by its OWN amplitude law |z|^M -- the same
- * rule the timing detector follows with its own slope. A detector that
+ * (RateConverter_enable_agc). One, not none and not one per detector: it
+ * levels the SIGNAL PATH, and both loops run on that path, so it sits inside
+ * BOTH of them. There is no SECOND AGC in front of either detector, because
+ * each divides out its own contribution -- carrier_nda_disc() by its own
+ * amplitude law |z|^M, the timing detector by its own slope. A detector that
  * divides out what it contributed does not need a loop upstream manufacturing
  * the condition it assumed, and one AGC per detector is how you end up with
  * level loops in series, correcting each other's excursions.
  *
+ * The two detectors depend on the level differently, and only one of them
+ * depends on it at all: the TED's slope is a construct-time constant for a
+ * unit-amplitude stream, so a level error is a loop-gain error outright,
+ * while the carrier discriminator is scale-invariant and sees only the AGC's
+ * dynamics. Serving both is why the bandwidth is sized against both.
+ *
  * `bn_agc_ratio` sets that one AGC's bandwidth as a fraction of the SLOWEST
- * loop it feeds -- the minimum of bn_carrier and bn_timing, not the carrier's
- * alone, since the cascade AGC feeds the timing loop directly.
+ * loop it feeds -- the minimum of bn_carrier and bn_timing, not either one
+ * alone, because the AGC is a shared element of both control loops.
  * MPSK_RX_AGC_BW_RATIO is the default. The RATIO, not the number,
  * is the part that is not negotiable: let an AGC approach the bandwidth of a
  * loop it feeds and it starts correcting the excursions that loop is itself

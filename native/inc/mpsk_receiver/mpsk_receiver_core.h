@@ -236,13 +236,20 @@ extern "C"
    *                        and pass it as @p init_norm_freq.
    * @param agc            Non-zero (default) puts the receiver's ONE AGC in
    *                        the front-end cascade, immediately before the
-   *                        terminal matched stage. It is there for the
-   *                        TIMING detector, which normalises by a slope
-   *                        computed at construction for a unit-amplitude
-   *                        symbol stream (@ref symsync_ted_slope) — no
-   *                        carrier path needs it, since
-   *                        @ref carrier_nda_disc normalises by its own
-   *                        `|z|^M`. Pass 0 and the receiver is simply
+   *                        terminal matched stage. **It serves BOTH loops**
+   *                        — carrier and timing both run on its output, so
+   *                        it is a dynamic element inside both, which is
+   *                        why @ref mpsk_rx_agc_bn sizes it against the
+   *                        SLOWER of the two rather than against timing
+   *                        alone. What differs is only why the level
+   *                        matters to each: the timing detector normalises
+   *                        by a slope computed at construction for a
+   *                        unit-amplitude stream (@ref symsync_ted_slope),
+   *                        so a level error is a loop-gain error there
+   *                        directly; the carrier detector normalises by its
+   *                        own `|z|^M` (@ref carrier_nda_disc), so it is
+   *                        immune to the level itself but still sees the
+   *                        AGC's transient. Pass 0 and the receiver is
    *                        un-levelled: the timing loop is under-driven by
    *                        `A^2`, which at an input amplitude of 0.25 is
    *                        16x. The reference is derived from the bank's own

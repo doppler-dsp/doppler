@@ -179,9 +179,9 @@ int main(void) {
 int main(void) {
     lo_state_t *lo = lo_create(0.1);   // base freq f_n = 0.1
 
-    float ctrl[1024];
+    double ctrl[1024];
     for (int i = 0; i < 1024; i++)
-        ctrl[i] = 0.002f * sinf(2.0f * (float)M_PI * 0.01f * i);
+        ctrl[i] = 0.002 * sin(2.0 * M_PI * 0.01 * i);
 
     float complex out[1024];
     lo_steps_ctrl(lo, ctrl, 1024, out, 1024);

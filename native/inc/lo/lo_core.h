@@ -172,9 +172,12 @@ extern "C"
     float complex out
         = CMPLXF (lo_sin_lut[(uint16_t)(idx + (uint16_t)LO_LUT_QTR)],
                   lo_sin_lut[idx]);
-    /* nco_norm_freq_to_inc() is the ONE shared cycles->phase-delta primitive
-     * (rounds, not truncates) -- this used to be a private inline copy
-     * of that exact conversion, still truncating, until consolidated. */
+    /* nco_norm_freq_to_inc() is the ONE shared cycles->phase-delta
+     * primitive, and it TRUNCATES -- see nco_core.h for why rounding would
+     * make the increment differ by host. This comment claimed the opposite
+     * ("rounds, not truncates") from the consolidation until an audit
+     * caught it; test_lo_core.c section 21 now pins truncation on this
+     * path, so the prose cannot drift away from the code again. */
     state->phase += state->phase_inc + nco_norm_freq_to_inc (ctrl);
     return out;
   }
@@ -340,9 +343,10 @@ extern "C"
    * ctrl_len.
    *
    * @param state     LO state returned by lo_create().
-   * @param ctrl      Float32 array of per-sample normalised-frequency
-   *                  deviations.  Only the fractional part of each element
-   *                  contributes.
+   * @param ctrl      Per-sample normalised-frequency deviations in
+   *                  `double`.  Only the fractional part of each element
+   *                  contributes.  See nco_steps_u32_ctrl() on why the
+   *                  port is `double` and not float32.
    * @param ctrl_len  Number of elements in ctrl; equals output length.
    * @param out       Output buffer; must hold at least ctrl_len float complex
    *                  values.
@@ -353,7 +357,7 @@ extern "C"
    * >>> import numpy as np
    * >>> from doppler.source import LO
    * >>> lo = LO(0.25)
-   * >>> ctrl = np.zeros(4, dtype=np.float32)
+   * >>> ctrl = np.zeros(4, dtype=np.float64)
    * >>> out = lo.steps_ctrl(ctrl)
    * >>> out.dtype
    * dtype('complex64')
@@ -363,7 +367,7 @@ extern "C"
    * [1.0, 1.0, 1.0, 1.0]
    * @endcode
    */
-  size_t lo_steps_ctrl (lo_state_t *state, const float *ctrl, size_t ctrl_len,
+  size_t lo_steps_ctrl (lo_state_t *state, const double *ctrl, size_t ctrl_len,
                         float complex *out, size_t max_out);
 
 #ifdef __cplusplus

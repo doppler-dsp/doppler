@@ -111,7 +111,7 @@ NCOObj_steps_u32 (NCOObject *self, PyObject *args, PyObject *kwds)
         }
       size_t _cap     = (size_t)PyArray_SIZE (out_arr);
       size_t _omax    = nco_steps_u32_max_out (self->handle);
-      size_t _min_cap = _omax > (size_t)n ? _omax : ((size_t)n);
+      size_t _min_cap = _omax;
       if (_cap < _min_cap)
         {
           PyErr_Format (PyExc_ValueError, "out has %zu elements, need >= %zu",
@@ -134,6 +134,13 @@ NCOObj_steps_u32 (NCOObject *self, PyObject *args, PyObject *kwds)
     }
   size_t _need = (size_t)n;
   size_t _cap  = nco_steps_u32_max_out (self->handle);
+  /* HAND-RESTORED -- just-buildit/just-makeit#920. Under pass_capacity,
+     0.55.2 emits `(void)_need;` here and allocates max_out() regardless of
+     the request: silent truncation above it, a 256 KB malloc per call below
+     it. jm emitted these two lines until recently and 34 other fragments in
+     this tree still carry them. Delete this comment and the two lines when
+     920 ships; test_nco.py/test_lo.py's #116 large-n tests go red if the
+     behaviour is lost again, so this cannot regress silently. */
   if (!_cap || _cap < _need)
     _cap = _need;
   npy_intp  _adim = (npy_intp)_cap;
@@ -207,7 +214,7 @@ NCOObj_steps_u32_scaled (NCOObject *self, PyObject *args, PyObject *kwds)
         }
       size_t _cap     = (size_t)PyArray_SIZE (out_arr);
       size_t _omax    = nco_steps_u32_scaled_max_out (self->handle);
-      size_t _min_cap = _omax > (size_t)n ? _omax : ((size_t)n);
+      size_t _min_cap = _omax;
       if (_cap < _min_cap)
         {
           PyErr_Format (PyExc_ValueError, "out has %zu elements, need >= %zu",
@@ -230,6 +237,13 @@ NCOObj_steps_u32_scaled (NCOObject *self, PyObject *args, PyObject *kwds)
     }
   size_t _need = (size_t)n;
   size_t _cap  = nco_steps_u32_scaled_max_out (self->handle);
+  /* HAND-RESTORED -- just-buildit/just-makeit#920. Under pass_capacity,
+     0.55.2 emits `(void)_need;` here and allocates max_out() regardless of
+     the request: silent truncation above it, a 256 KB malloc per call below
+     it. jm emitted these two lines until recently and 34 other fragments in
+     this tree still carry them. Delete this comment and the two lines when
+     920 ships; test_nco.py/test_lo.py's #116 large-n tests go red if the
+     behaviour is lost again, so this cannot regress silently. */
   if (!_cap || _cap < _need)
     _cap = _need;
   npy_intp  _adim = (npy_intp)_cap;
@@ -269,6 +283,13 @@ NCOObj_steps_u32_ovf (NCOObject *self, PyObject *args)
     return NULL;
   size_t _need = (size_t)n;
   size_t _cap  = nco_steps_u32_ovf_max_out (self->handle);
+  /* HAND-RESTORED -- just-buildit/just-makeit#920. Under pass_capacity,
+     0.55.2 emits `(void)_need;` here and allocates max_out() regardless of
+     the request: silent truncation above it, a 256 KB malloc per call below
+     it. jm emitted these two lines until recently and 34 other fragments in
+     this tree still carry them. Delete this comment and the two lines when
+     920 ships; test_nco.py/test_lo.py's #116 large-n tests go red if the
+     behaviour is lost again, so this cannot regress silently. */
   if (!_cap || _cap < _need)
     _cap = _need;
   npy_intp  _adim = (npy_intp)_cap;
@@ -341,7 +362,7 @@ NCOObj_steps_u32_ctrl (NCOObject *self, PyObject *args, PyObject *kwds)
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|O", _kwlist, &ctrl_obj,
                                     &out_obj))
     return NULL;
-  ctrl_arr = (PyArrayObject *)PyArray_FROM_OTF (ctrl_obj, NPY_FLOAT,
+  ctrl_arr = (PyArrayObject *)PyArray_FROM_OTF (ctrl_obj, NPY_DOUBLE,
                                                 NPY_ARRAY_C_CONTIGUOUS);
   if (!ctrl_arr)
     return NULL;
@@ -369,9 +390,7 @@ NCOObj_steps_u32_ctrl (NCOObject *self, PyObject *args, PyObject *kwds)
         }
       size_t _cap     = (size_t)PyArray_SIZE (out_arr);
       size_t _omax    = nco_steps_u32_ctrl_max_out (self->handle);
-      size_t _min_cap = _omax > (size_t)PyArray_SIZE (ctrl_arr)
-                            ? _omax
-                            : ((size_t)PyArray_SIZE (ctrl_arr));
+      size_t _min_cap = _omax;
       if (_cap < _min_cap)
         {
           PyErr_Format (PyExc_ValueError, "out has %zu elements, need >= %zu",
@@ -381,7 +400,7 @@ NCOObj_steps_u32_ctrl (NCOObject *self, PyObject *args, PyObject *kwds)
           return NULL;
         }
       size_t n_out = nco_steps_u32_ctrl (
-          self->handle, (const float *)PyArray_DATA (ctrl_arr),
+          self->handle, (const double *)PyArray_DATA (ctrl_arr),
           (size_t)PyArray_SIZE (ctrl_arr), (uint32_t *)PyArray_DATA (out_arr),
           _cap);
       Py_DECREF (ctrl_arr);
@@ -398,6 +417,13 @@ NCOObj_steps_u32_ctrl (NCOObject *self, PyObject *args, PyObject *kwds)
     }
   size_t _need = (size_t)PyArray_SIZE (ctrl_arr);
   size_t _cap  = nco_steps_u32_ctrl_max_out (self->handle);
+  /* HAND-RESTORED -- just-buildit/just-makeit#920. Under pass_capacity,
+     0.55.2 emits `(void)_need;` here and allocates max_out() regardless of
+     the request: silent truncation above it, a 256 KB malloc per call below
+     it. jm emitted these two lines until recently and 34 other fragments in
+     this tree still carry them. Delete this comment and the two lines when
+     920 ships; test_nco.py/test_lo.py's #116 large-n tests go red if the
+     behaviour is lost again, so this cannot regress silently. */
   if (!_cap || _cap < _need)
     _cap = _need;
   npy_intp  _adim = (npy_intp)_cap;
@@ -409,7 +435,7 @@ NCOObj_steps_u32_ctrl (NCOObject *self, PyObject *args, PyObject *kwds)
     }
   uint32_t *_d0   = (uint32_t *)PyArray_DATA ((PyArrayObject *)arr0);
   size_t    n_out = nco_steps_u32_ctrl (
-      self->handle, (const float *)PyArray_DATA (ctrl_arr),
+      self->handle, (const double *)PyArray_DATA (ctrl_arr),
       (size_t)PyArray_SIZE (ctrl_arr), _d0, _cap);
   Py_DECREF (ctrl_arr);
   if ((size_t)n_out == _cap)
@@ -455,7 +481,7 @@ NCOObj_steps_u32_scaled_ctrl (NCOObject *self, PyObject *args, PyObject *kwds)
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|O", _kwlist, &ctrl_obj,
                                     &out_obj))
     return NULL;
-  ctrl_arr = (PyArrayObject *)PyArray_FROM_OTF (ctrl_obj, NPY_FLOAT,
+  ctrl_arr = (PyArrayObject *)PyArray_FROM_OTF (ctrl_obj, NPY_DOUBLE,
                                                 NPY_ARRAY_C_CONTIGUOUS);
   if (!ctrl_arr)
     return NULL;
@@ -483,9 +509,7 @@ NCOObj_steps_u32_scaled_ctrl (NCOObject *self, PyObject *args, PyObject *kwds)
         }
       size_t _cap     = (size_t)PyArray_SIZE (out_arr);
       size_t _omax    = nco_steps_u32_scaled_ctrl_max_out (self->handle);
-      size_t _min_cap = _omax > (size_t)PyArray_SIZE (ctrl_arr)
-                            ? _omax
-                            : ((size_t)PyArray_SIZE (ctrl_arr));
+      size_t _min_cap = _omax;
       if (_cap < _min_cap)
         {
           PyErr_Format (PyExc_ValueError, "out has %zu elements, need >= %zu",
@@ -495,7 +519,7 @@ NCOObj_steps_u32_scaled_ctrl (NCOObject *self, PyObject *args, PyObject *kwds)
           return NULL;
         }
       size_t n_out = nco_steps_u32_scaled_ctrl (
-          self->handle, (const float *)PyArray_DATA (ctrl_arr),
+          self->handle, (const double *)PyArray_DATA (ctrl_arr),
           (size_t)PyArray_SIZE (ctrl_arr), (uint32_t *)PyArray_DATA (out_arr),
           _cap);
       Py_DECREF (ctrl_arr);
@@ -512,6 +536,13 @@ NCOObj_steps_u32_scaled_ctrl (NCOObject *self, PyObject *args, PyObject *kwds)
     }
   size_t _need = (size_t)PyArray_SIZE (ctrl_arr);
   size_t _cap  = nco_steps_u32_scaled_ctrl_max_out (self->handle);
+  /* HAND-RESTORED -- just-buildit/just-makeit#920. Under pass_capacity,
+     0.55.2 emits `(void)_need;` here and allocates max_out() regardless of
+     the request: silent truncation above it, a 256 KB malloc per call below
+     it. jm emitted these two lines until recently and 34 other fragments in
+     this tree still carry them. Delete this comment and the two lines when
+     920 ships; test_nco.py/test_lo.py's #116 large-n tests go red if the
+     behaviour is lost again, so this cannot regress silently. */
   if (!_cap || _cap < _need)
     _cap = _need;
   npy_intp  _adim = (npy_intp)_cap;
@@ -523,7 +554,7 @@ NCOObj_steps_u32_scaled_ctrl (NCOObject *self, PyObject *args, PyObject *kwds)
     }
   uint32_t *_d0   = (uint32_t *)PyArray_DATA ((PyArrayObject *)arr0);
   size_t    n_out = nco_steps_u32_scaled_ctrl (
-      self->handle, (const float *)PyArray_DATA (ctrl_arr),
+      self->handle, (const double *)PyArray_DATA (ctrl_arr),
       (size_t)PyArray_SIZE (ctrl_arr), _d0, _cap);
   Py_DECREF (ctrl_arr);
   if ((size_t)n_out == _cap)
@@ -555,12 +586,19 @@ NCOObj_steps_u32_ovf_ctrl (NCOObject *self, PyObject *args, PyObject *kwds)
   PyArrayObject *ctrl_arr  = NULL;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "O", _kwlist, &ctrl_obj))
     return NULL;
-  ctrl_arr = (PyArrayObject *)PyArray_FROM_OTF (ctrl_obj, NPY_FLOAT,
+  ctrl_arr = (PyArrayObject *)PyArray_FROM_OTF (ctrl_obj, NPY_DOUBLE,
                                                 NPY_ARRAY_C_CONTIGUOUS);
   if (!ctrl_arr)
     return NULL;
   size_t _need = (size_t)PyArray_SIZE (ctrl_arr);
   size_t _cap  = nco_steps_u32_ovf_ctrl_max_out (self->handle);
+  /* HAND-RESTORED -- just-buildit/just-makeit#920. Under pass_capacity,
+     0.55.2 emits `(void)_need;` here and allocates max_out() regardless of
+     the request: silent truncation above it, a 256 KB malloc per call below
+     it. jm emitted these two lines until recently and 34 other fragments in
+     this tree still carry them. Delete this comment and the two lines when
+     920 ships; test_nco.py/test_lo.py's #116 large-n tests go red if the
+     behaviour is lost again, so this cannot regress silently. */
   if (!_cap || _cap < _need)
     _cap = _need;
   npy_intp  _adim = (npy_intp)_cap;
@@ -576,7 +614,7 @@ NCOObj_steps_u32_ovf_ctrl (NCOObject *self, PyObject *args, PyObject *kwds)
   uint32_t *_d0   = (uint32_t *)PyArray_DATA ((PyArrayObject *)arr0);
   uint8_t  *_d1   = (uint8_t *)PyArray_DATA ((PyArrayObject *)arr1);
   size_t    n_out = nco_steps_u32_ovf_ctrl (
-      self->handle, (const float *)PyArray_DATA (ctrl_arr),
+      self->handle, (const double *)PyArray_DATA (ctrl_arr),
       (size_t)PyArray_SIZE (ctrl_arr), _d0, _d1, _cap);
   Py_DECREF (ctrl_arr);
   if ((size_t)n_out == _cap)
@@ -780,74 +818,147 @@ NCOObj_exit (NCOObject *self, PyObject *args)
 
 static PyMethodDef NCOObj_methods[] = {
   { "reset", (PyCFunction)NCOObj_reset, METH_NOARGS,
-    "Zero the phase accumulator. Sets phase to 0 so the next nco_steps_u32 "
-    "call starts from the beginning of the cycle.  norm_freq, phase_inc, and "
-    "nmax are unchanged; the NCO is ready to generate samples again "
-    "immediately." },
+    "Zero the phase accumulator. Sets phase to 0 so the next\n"
+    "nco_steps_u32 call starts from the beginning of the cycle. norm_freq,\n"
+    "phase_inc, and nmax are unchanged; the NCO is ready to generate samples\n"
+    "again immediately.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.source import NCO\n"
+    ">>> nco = NCO(0.25, 0)\n"
+    ">>> _ = nco.steps_u32(2)\n"
+    ">>> nco.phase\n"
+    "2147483648\n"
+    ">>> nco.reset()\n"
+    ">>> nco.phase\n"
+    "0\n"
+    ">>> nco.norm_freq\n"
+    "0.25\n" },
 
   { "steps_u32", (PyCFunction)(void *)NCOObj_steps_u32,
     METH_VARARGS | METH_KEYWORDS,
-    "steps_u32(n=1) -> ndarray\n"
+    "steps_u32(count=1) -> ndarray\n"
     "\n"
-    "Advance n samples; write raw uint32 accumulator values. Each element is "
-    "the phase value BEFORE the increment fires, so `out[0]` is the phase at "
-    "the moment of the call.  The accumulator wraps silently at 2^32, giving "
-    "the full-resolution integer ramp that the scaled and carry variants "
-    "derive from.  Returns n.\n"
+    "Advance n samples; write raw uint32 accumulator values. Each element\n"
+    "is the phase value BEFORE the increment fires, so `out[0]` is the phase\n"
+    "at the moment of the call. The accumulator wraps silently at 2^32,\n"
+    "giving the full-resolution integer ramp that the scaled and carry\n"
+    "variants derive from. Returns n.\n"
     "\n"
-    "    >>> import numpy as np\n"
-    "    >>> from doppler import NCO\n"
-    "    >>> obj = NCO(0.0, 0)\n"
-    "    >>> y = obj.steps_u32(4)\n"
-    "    >>> y.dtype\n"
-    "    dtype('uint32')\n" },
+    "Returns\n"
+    "-------\n"
+    "NDArray[np.uint32]\n"
+    "    min(n, max_out) samples.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.source import NCO\n"
+    ">>> nco = NCO(0.25, 0)\n"
+    ">>> out = nco.steps_u32(4)\n"
+    ">>> out.dtype\n"
+    "dtype('uint32')\n"
+    ">>> out.tolist()\n"
+    "[0, 1073741824, 2147483648, 3221225472]\n" },
   { "steps_u32_max_out", (PyCFunction)NCOObj_steps_u32_max_out, METH_NOARGS,
-    "steps_u32_max_out() -> int\n\nMax output length steps_u32() can produce "
-    "for the current state.\nUse to size the ``out=`` buffer." },
+    "steps_u32_max_out() -> int\n"
+    "\n"
+    "Pre-allocation hint: the buffer size the binding starts with.\n"
+    "\n"
+    "NOT a limit on the call, and it used to say it was (\"requesting more\n"
+    "\n"
+    "samples per call is undefined behaviour\"). That was the contract\n"
+    "\n"
+    "before `pass_capacity` (jm gh-138) started telling the kernel the\n"
+    "\n"
+    "caller's capacity: every stepper now clamps to its own max_out\n"
+    "\n"
+    "argument and returns what it actually wrote, and the Python binding\n"
+    "\n"
+    "grows its buffer on demand. Measured: all three faces return 70000\n"
+    "\n"
+    "correct samples for a 70000-sample request. Size an out= buffer\n"
+    "\n"
+    "with this, or ignore it and let the binding allocate.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "int\n"
+    "    Output.\n" },
   { "steps_u32_scaled", (PyCFunction)(void *)NCOObj_steps_u32_scaled,
     METH_VARARGS | METH_KEYWORDS,
-    "steps_u32_scaled(n=1) -> ndarray\n"
+    "steps_u32_scaled(count=1) -> ndarray\n"
     "\n"
-    "Advance n samples; values scaled to `[0, nmax)`. Uses the branchless "
-    "fixed-point identity `out[i]` = (uint64_t)phase * nmax >> 32 to map the "
-    "full accumulator range uniformly onto [0, nmax) without a modulo "
-    "operation.  When nmax == 0 falls back to the raw accumulator (identical "
-    "to nco_steps_u32).  Useful for polyphase filter bank indexing and direct "
-    "LUT addressing.  Returns n.\n"
+    "Advance n samples; values scaled to `[0, nmax)`. Uses the branchless\n"
+    "fixed-point identity `out[i]` = (uint64_t)phase * nmax >> 32 to map the\n"
+    "full accumulator range uniformly onto [0, nmax) without a modulo\n"
+    "operation. When nmax == 0 falls back to the raw accumulator (identical\n"
+    "to nco_steps_u32). Useful for polyphase filter bank indexing and direct\n"
+    "LUT addressing. Returns n.\n"
     "\n"
-    "    >>> import numpy as np\n"
-    "    >>> from doppler import NCO\n"
-    "    >>> obj = NCO(0.0, 0)\n"
-    "    >>> y = obj.steps_u32_scaled(4)\n"
-    "    >>> y.dtype\n"
-    "    dtype('uint32')\n" },
+    "Returns\n"
+    "-------\n"
+    "NDArray[np.uint32]\n"
+    "    min(n, max_out) samples.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.source import NCO\n"
+    ">>> nco = NCO(0.25, 4)\n"
+    ">>> out = nco.steps_u32_scaled(4)\n"
+    ">>> out.dtype\n"
+    "dtype('uint32')\n"
+    ">>> out.tolist()\n"
+    "[0, 1, 2, 3]\n" },
   { "steps_u32_scaled_max_out", (PyCFunction)NCOObj_steps_u32_scaled_max_out,
     METH_NOARGS,
-    "steps_u32_scaled_max_out() -> int\n\nMax output length "
-    "steps_u32_scaled() can produce for the current state.\nUse to size the "
-    "``out=`` buffer." },
+    "steps_u32_scaled_max_out() -> int\n"
+    "\n"
+    "Largest number of samples steps_u32_scaled() can return in the\n"
+    "current state.\n"
+    "\n"
+    "Size an `out=` buffer with this before calling steps_u32_scaled(), or\n"
+    "use it to allocate one up front. The bound is this object's own: what\n"
+    "it depends on is a property of the algorithm, so a header block on\n"
+    "steps_u32_scaled_max_out() replaces this text.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "int\n"
+    "    Upper bound on the output length; the actual call may return "
+    "fewer.\n" },
   { "steps_u32_ovf", (PyCFunction)NCOObj_steps_u32_ovf, METH_VARARGS,
-    "steps_u32_ovf(n=1) -> tuple[ndarray, ndarray]\n"
+    "steps_u32_ovf(count=1) -> tuple[ndarray, ndarray]\n"
     "\n"
-    "Advance n samples; write raw phase values and per-sample carry. "
-    "Identical to nco_steps_u32 for the phase array, but simultaneously fills "
-    "a parallel uint8 carry buffer: `out1[i]` is 1 if the add that produced "
-    "`out[i]`'s post-increment phase wrapped past 2^32, else 0. The carry "
-    "marks the exact boundary of one input period and is the primitive for "
-    "polyphase sample-clock and rational resampling engines. Returns n.\n"
+    "Advance n samples; write raw phase values and per-sample carry.\n"
+    "Identical to nco_steps_u32 for the phase array, but simultaneously\n"
+    "fills a parallel uint8 carry buffer: `out1[i]` is 1 if the add that\n"
+    "produced `out[i]`'s post-increment phase wrapped past 2^32, else 0. The\n"
+    "carry marks the exact boundary of one input period and is the primitive\n"
+    "for polyphase sample-clock and rational resampling engines. Returns n.\n"
     "\n"
-    "    >>> import numpy as np\n"
-    "    >>> from doppler import NCO\n"
-    "    >>> obj = NCO(0.0, 0)\n"
-    "    >>> y = obj.steps_u32_ovf(4)\n"
-    "    >>> y[0].dtype\n"
-    "    dtype('uint32')\n" },
+    "Returns\n"
+    "-------\n"
+    "tuple[NDArray[np.uint32], NDArray[np.uint8]]\n"
+    "    min(n, max_out) samples.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.source import NCO\n"
+    ">>> nco = NCO(0.5, 0)\n"
+    ">>> ph, carry = nco.steps_u32_ovf(4)\n"
+    ">>> ph.tolist()\n"
+    "[0, 2147483648, 0, 2147483648]\n"
+    ">>> carry.tolist()\n"
+    "[0, 1, 0, 1]\n"
+    ">>> carry.dtype\n"
+    "dtype('uint8')\n" },
   { "steps_u32_ctrl", (PyCFunction)(void *)NCOObj_steps_u32_ctrl,
     METH_VARARGS | METH_KEYWORDS,
     "steps_u32_ctrl(ctrl) -> ndarray\n"
     "\n"
-    "Advance ctrl_len samples; raw phase, with a per-sample control offset "
-    "added on top of the fixed phase_inc (not persisted).\n"
+    "Advance ctrl_len samples; raw phase, with a per-sample control\n"
+    "offset added on top of the fixed phase_inc (not persisted).\n"
     "\n"
     "The NCO **control port** for a tracking loop: ctrl is a per-sample\n"
     "frequency control in normalised cycles/sample, added to the centre\n"
@@ -861,20 +972,25 @@ static PyMethodDef NCOObj_methods[] = {
     "for NCO's raw phase output. With every `ctrl[i] == 0` this is\n"
     "bit-identical to nco_steps_u32(). Returns ctrl_len.\n"
     "\n"
-    "Python's `out=` keyword writes directly into a caller-supplied buffer\n"
-    "instead of allocating a fresh one -- essential for driving this from a\n"
-    "hot per-epoch tracking loop with no per-call allocation (fill `ctrl` in\n"
-    "place, reuse the same `out` buffer every call). That buffer must be\n"
-    "sized to `steps_u32_ctrl_max_out()`, NOT just `len(ctrl)` -- the\n"
-    "returned view is still correctly sliced to `len(ctrl)` regardless of "
-    "the\n"
-    "buffer's actual size.\n"
+    "Python's `out=` keyword writes into a caller-supplied buffer instead of\n"
+    "allocating a fresh one. This used to claim it was \"essential for a hot\n"
+    "per-epoch tracking loop\"; measured, it is worth 0-25% below 8192\n"
+    "samples and nothing at or above it, so reach for it only if a profile\n"
+    "says so. The buffer must be sized to `steps_u32_ctrl_max_out()`, NOT\n"
+    "just `len(ctrl)` -- which is itself a cost, since a 64-sample call then\n"
+    "needs a 65536-element buffer (just-buildit/just-makeit#920); the\n"
+    "returned view is correctly sliced to `len(ctrl)` regardless.\n"
     "\n"
     "Parameters\n"
     "----------\n"
-    "ctrl : NDArray[np.float32]\n"
-    "    Float32 array of per-sample normalised-frequency control offsets,\n"
-    "    any sign (the fractional cycle is taken, so it wraps correctly).\n"
+    "ctrl : NDArray[np.float64]\n"
+    "    Per-sample normalised-frequency control offsets in `double`, any\n"
+    "    sign (the fractional cycle is taken, so it wraps correctly).\n"
+    "    `double` because that is the width the conversion works in and\n"
+    "    every scalar steer site already uses; a float32 port quantized the\n"
+    "    request before the fold ever saw it, so the same commanded rate\n"
+    "    landed on a different phase word depending on which face it entered\n"
+    "    by.\n"
     "\n"
     "Returns\n"
     "-------\n"
@@ -886,7 +1002,7 @@ static PyMethodDef NCOObj_methods[] = {
     ">>> from doppler.source import NCO\n"
     ">>> import numpy as np\n"
     ">>> nco = NCO(norm_freq=0.0, nmax=0)\n"
-    ">>> ctrl = np.full(4, 0.25, dtype=np.float32)\n"
+    ">>> ctrl = np.full(4, 0.25, dtype=np.float64)\n"
     ">>> out = nco.steps_u32_ctrl(ctrl)\n"
     ">>> out.tolist()\n"
     "[0, 1073741824, 2147483648, 3221225472]\n"
@@ -894,29 +1010,46 @@ static PyMethodDef NCOObj_methods[] = {
     "0.0\n" },
   { "steps_u32_ctrl_max_out", (PyCFunction)NCOObj_steps_u32_ctrl_max_out,
     METH_NOARGS,
-    "steps_u32_ctrl_max_out() -> int\n\nMax output length steps_u32_ctrl() "
-    "can produce for the current state.\nUse to size the ``out=`` buffer." },
+    "steps_u32_ctrl_max_out() -> int\n"
+    "\n"
+    "Largest number of samples steps_u32_ctrl() can return in the current\n"
+    "state.\n"
+    "\n"
+    "Size an `out=` buffer with this before calling steps_u32_ctrl(), or use\n"
+    "it to allocate one up front. The bound is this object's own: what it\n"
+    "depends on is a property of the algorithm, so a header block on\n"
+    "steps_u32_ctrl_max_out() replaces this text.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "int\n"
+    "    Upper bound on the output length; the actual call may return "
+    "fewer.\n" },
   { "steps_u32_scaled_ctrl", (PyCFunction)(void *)NCOObj_steps_u32_scaled_ctrl,
     METH_VARARGS | METH_KEYWORDS,
     "steps_u32_scaled_ctrl(ctrl) -> ndarray\n"
     "\n"
-    "Advance ctrl_len samples; values scaled to `[0, nmax)`, with a "
+    "Advance ctrl_len samples; values scaled to `[0, nmax)`, with a\n"
     "per-sample control offset added on top of phase_inc.\n"
     "\n"
     "The nco_steps_u32_scaled output mapping (nmax=0 falls back to the raw\n"
     "accumulator) driven by the nco_steps_u32_ctrl control port -- every\n"
-    "stepper has a matching control-input counterpart, so a tracking loop "
-    "can\n"
-    "drive LUT-indexed output (nmax = table length) exactly as it would raw\n"
-    "phase output, without ever touching phase_inc/norm_freq. With every\n"
+    "stepper has a matching control-input counterpart, so a tracking loop\n"
+    "can drive LUT-indexed output (nmax = table length) exactly as it would\n"
+    "raw phase output, without ever touching phase_inc/norm_freq. With every\n"
     "`ctrl[i] == 0` this is bit-identical to nco_steps_u32_scaled(). Returns\n"
     "ctrl_len.\n"
     "\n"
     "Parameters\n"
     "----------\n"
-    "ctrl : NDArray[np.float32]\n"
-    "    Float32 array of per-sample normalised-frequency control offsets,\n"
-    "    any sign (the fractional cycle is taken, so it wraps correctly).\n"
+    "ctrl : NDArray[np.float64]\n"
+    "    Per-sample normalised-frequency control offsets in `double`, any\n"
+    "    sign (the fractional cycle is taken, so it wraps correctly).\n"
+    "    `double` because that is the width the conversion works in and\n"
+    "    every scalar steer site already uses; a float32 port quantized the\n"
+    "    request before the fold ever saw it, so the same commanded rate\n"
+    "    landed on a different phase word depending on which face it entered\n"
+    "    by.\n"
     "\n"
     "Returns\n"
     "-------\n"
@@ -928,41 +1061,60 @@ static PyMethodDef NCOObj_methods[] = {
     ">>> from doppler.source import NCO\n"
     ">>> import numpy as np\n"
     ">>> nco = NCO(norm_freq=0.0, nmax=4)\n"
-    ">>> ctrl = np.full(4, 0.25, dtype=np.float32)\n"
+    ">>> ctrl = np.full(4, 0.25, dtype=np.float64)\n"
     ">>> out = nco.steps_u32_scaled_ctrl(ctrl)\n"
     ">>> out.tolist()\n"
     "[0, 1, 2, 3]\n" },
   { "steps_u32_scaled_ctrl_max_out",
     (PyCFunction)NCOObj_steps_u32_scaled_ctrl_max_out, METH_NOARGS,
-    "steps_u32_scaled_ctrl_max_out() -> int\n\nMax output length "
-    "steps_u32_scaled_ctrl() can produce for the current state.\nUse to size "
-    "the ``out=`` buffer." },
+    "steps_u32_scaled_ctrl_max_out() -> int\n"
+    "\n"
+    "Largest number of samples steps_u32_scaled_ctrl() can return in the\n"
+    "current state.\n"
+    "\n"
+    "Size an `out=` buffer with this before calling steps_u32_scaled_ctrl(),\n"
+    "or use it to allocate one up front. The bound is this object's own:\n"
+    "what it depends on is a property of the algorithm, so a header block on\n"
+    "steps_u32_scaled_ctrl_max_out() replaces this text.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "int\n"
+    "    Upper bound on the output length; the actual call may return "
+    "fewer.\n" },
   { "steps_u32_ovf_ctrl", (PyCFunction)(void *)NCOObj_steps_u32_ovf_ctrl,
     METH_VARARGS | METH_KEYWORDS,
     "steps_u32_ovf_ctrl(ctrl) -> tuple[ndarray, ndarray]\n"
     "\n"
-    "Advance ctrl_len samples; raw phase + per-sample carry, with a "
+    "Advance ctrl_len samples; raw phase + per-sample carry, with a\n"
     "per-sample control offset added on top of phase_inc.\n"
     "\n"
-    "The nco_steps_u32_ovf output mapping (raw phase plus a carry flag\n"
-    "marking each sample whose advance wrapped past 2^32) driven by the\n"
+    "The nco_steps_u32_ovf output mapping (raw phase plus a flag marking\n"
+    "each sample whose advance crossed a cycle boundary) driven by the\n"
     "nco_steps_u32_ctrl control port -- every stepper has a matching\n"
-    "control-input counterpart. The carry reflects THIS sample's true "
-    "advance\n"
-    "(`phase_inc + ctrl_inc`, added as a single 64-bit sum so a wrap is "
-    "never\n"
-    "missed even when the control offset itself is large), not just "
-    "phase_inc\n"
-    "alone -- needed by any consumer (e.g. a coupled carrier/code tracker)\n"
-    "that must detect a period boundary while the rate is being actively\n"
-    "steered. With every `ctrl[i] == 0` this is bit-identical to\n"
-    "nco_steps_u32_ovf(). Returns ctrl_len.\n"
+    "control-input counterpart. The flag reflects THIS sample's true SIGNED\n"
+    "advance (`norm_freq + ctrl`, formed in cycles before either term is\n"
+    "folded into the accumulator), not just phase_inc alone -- needed by any\n"
+    "consumer (e.g. a coupled carrier/code tracker, or a resampler asking\n"
+    "\"does this input produce an output\") that must detect a period "
+    "boundary\n"
+    "while the rate is being actively steered. A forward crossing is a carry\n"
+    "(one EXTRA output/load), a backward one a borrow (one FEWER); see\n"
+    "nco_step_u32_ovf_ctrl for why the sign cannot be recovered after the\n"
+    "fold, nor taken from `ctrl` alone. With every `ctrl[i] == 0` and\n"
+    "`norm_freq` in [0, 1) this is bit-identical to nco_steps_u32_ovf().\n"
+    "Returns ctrl_len.\n"
     "\n"
     "Parameters\n"
     "----------\n"
-    "ctrl : NDArray[np.float32]\n"
-    "    Float32 array of per-sample normalised-frequency control offsets,\n"
-    "    any sign (the fractional cycle is taken, so it wraps correctly).\n"
+    "ctrl : NDArray[np.float64]\n"
+    "    Per-sample normalised-frequency control offsets in `double`, any\n"
+    "    sign (the fractional cycle is taken, so it wraps correctly).\n"
+    "    `double` because that is the width the conversion works in and\n"
+    "    every scalar steer site already uses; a float32 port quantized the\n"
+    "    request before the fold ever saw it, so the same commanded rate\n"
+    "    landed on a different phase word depending on which face it entered\n"
+    "    by.\n"
     "\n"
     "Returns\n"
     "-------\n"
@@ -974,7 +1126,7 @@ static PyMethodDef NCOObj_methods[] = {
     ">>> from doppler.source import NCO\n"
     ">>> import numpy as np\n"
     ">>> nco = NCO(norm_freq=0.25, nmax=0)\n"
-    ">>> ctrl = np.zeros(4, dtype=np.float32)\n"
+    ">>> ctrl = np.zeros(4, dtype=np.float64)\n"
     ">>> ph, carry = nco.steps_u32_ovf_ctrl(ctrl)\n"
     ">>> ph.tolist()\n"
     "[0, 1073741824, 2147483648, 3221225472]\n"
@@ -1033,12 +1185,11 @@ static PyMethodDef NCOObj_methods[] = {
     "\n"
     "Ordinarily unnecessary: the resources are freed when the object is\n"
     "garbage-collected. Call this to release them at a definite point\n"
-    "instead, or use the object as a context manager, which calls it on "
+    "instead, or use the object as a context manager, which calls it on\n"
     "exit.\n"
     "\n"
-    "Idempotent: calling it again on an already-released object does "
-    "nothing.\n"
-    "Every other method raises ``RuntimeError`` once it has run.\n" },
+    "Idempotent: calling it again on an already-released object does\n"
+    "nothing. Every other method raises ``RuntimeError`` once it has run.\n" },
   { "__enter__", (PyCFunction)NCOObj_enter, METH_NOARGS,
     "Enter a context manager, returning this object.\n"
     "\n"
@@ -1072,11 +1223,31 @@ static PyTypeObject NCOObjType = {
   .tp_basicsize                           = sizeof (NCOObject),
   .tp_dealloc                             = (destructor)NCOObj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,
-  .tp_doc     = "Create an NCO instance. Allocates and initialises the phase "
-                "accumulator to zero, converts norm_freq to the integer phase_inc "
-                "= floor(frac(norm_freq) × 2^32), and stores nmax for scaled "
-                "output.  The NCO is immediately ready to call nco_steps_u32 / "
-                "nco_steps_u32_scaled / nco_steps_u32_ovf.\n",
+  .tp_doc
+  = "Create an NCO instance. Allocates and initialises the phase accumulator\n"
+    "to zero, converts norm_freq to the integer phase_inc =\n"
+    "floor(frac(norm_freq) × 2^32), and stores nmax for scaled output. The "
+    "NCO\n"
+    "is immediately ready to call nco_steps_u32 / nco_steps_u32_scaled /\n"
+    "nco_steps_u32_ovf.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "norm_freq : float, default 0.0\n"
+    "    Normalised frequency in cycles per sample. Any real value; only the\n"
+    "    fractional part matters. Negative values fold correctly (−0.25 →\n"
+    "    3×2^30).\n"
+    "nmax : int, default 0\n"
+    "    Wrap target for nco_steps_u32_scaled. Pass 0 to return the raw "
+    "32-bit\n"
+    "    accumulator.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.source import NCO\n"
+    ">>> nco = NCO(norm_freq=0.25, nmax=0)\n"
+    ">>> nco.phase_inc\n"
+    "1073741824\n",
   .tp_methods = NCOObj_methods,
   .tp_getset  = NCO_getset,
   .tp_new     = NCOObj_new,

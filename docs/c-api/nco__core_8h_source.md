@@ -202,19 +202,19 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
 
   size_t nco_steps_u32_ctrl_max_out (nco_state_t *state);
 
-  size_t nco_steps_u32_ctrl (nco_state_t *state, const float *ctrl,
+  size_t nco_steps_u32_ctrl (nco_state_t *state, const double *ctrl,
                              size_t ctrl_len, uint32_t *out,
                              size_t max_out);
 
   size_t nco_steps_u32_scaled_ctrl_max_out (nco_state_t *state);
 
-  size_t nco_steps_u32_scaled_ctrl (nco_state_t *state, const float *ctrl,
+  size_t nco_steps_u32_scaled_ctrl (nco_state_t *state, const double *ctrl,
                                     size_t ctrl_len, uint32_t *out,
                                     size_t max_out);
 
   size_t nco_steps_u32_ovf_ctrl_max_out (nco_state_t *state);
 
-  size_t nco_steps_u32_ovf_ctrl (nco_state_t *state, const float *ctrl,
+  size_t nco_steps_u32_ovf_ctrl (nco_state_t *state, const double *ctrl,
                                  size_t ctrl_len, uint32_t *out,
                                  uint8_t *out1, size_t max_out);
 

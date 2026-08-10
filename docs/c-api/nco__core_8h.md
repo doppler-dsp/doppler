@@ -83,15 +83,15 @@ _Phase-accumulator NCO, and the one float-&gt;integer boundary everything that s
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) uint32\_t | [**nco\_step\_u32\_scaled**](#function-nco_step_u32_scaled) ([**nco\_state\_t**](structnco__state__t.md) \* state) <br>_Emit the current phase scaled to_ `[0, nmax)` _, then advance. Single-sample form of_[_**nco\_steps\_u32\_scaled()**_](nco__core_8h.md#function-nco_steps_u32_scaled) __ _see that function's doc comment for the scaling identity and the nmax==0 special case._ |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) uint32\_t | [**nco\_step\_u32\_scaled\_ctrl**](#function-nco_step_u32_scaled_ctrl) ([**nco\_state\_t**](structnco__state__t.md) \* state, double ctrl) <br>_Emit the current phase scaled to_ `[0, nmax)` _, then advance by phase\_inc + ctrl. Single-sample form of_[_**nco\_steps\_u32\_scaled\_ctrl()**_](nco__core_8h.md#function-nco_steps_u32_scaled_ctrl) _._ |
 |  size\_t | [**nco\_steps\_u32**](#function-nco_steps_u32) ([**nco\_state\_t**](structnco__state__t.md) \* state, size\_t n, uint32\_t \* out, size\_t max\_out) <br>_Advance n samples; write raw uint32 accumulator values. Each element is the phase value BEFORE the increment fires, so_ `out[0]` _is the phase at the moment of the call. The accumulator wraps silently at 2^32, giving the full-resolution integer ramp that the scaled and carry variants derive from. Returns n._ |
-|  size\_t | [**nco\_steps\_u32\_ctrl**](#function-nco_steps_u32_ctrl) ([**nco\_state\_t**](structnco__state__t.md) \* state, const float \* ctrl, size\_t ctrl\_len, uint32\_t \* out, size\_t max\_out) <br>_Advance ctrl\_len samples; raw phase, with a per-sample control offset added on top of the fixed phase\_inc (not persisted)._  |
+|  size\_t | [**nco\_steps\_u32\_ctrl**](#function-nco_steps_u32_ctrl) ([**nco\_state\_t**](structnco__state__t.md) \* state, const double \* ctrl, size\_t ctrl\_len, uint32\_t \* out, size\_t max\_out) <br>_Advance ctrl\_len samples; raw phase, with a per-sample control offset added on top of the fixed phase\_inc (not persisted)._  |
 |  size\_t | [**nco\_steps\_u32\_ctrl\_max\_out**](#function-nco_steps_u32_ctrl_max_out) ([**nco\_state\_t**](structnco__state__t.md) \* state) <br> |
 |  size\_t | [**nco\_steps\_u32\_max\_out**](#function-nco_steps_u32_max_out) ([**nco\_state\_t**](structnco__state__t.md) \* state) <br>_Pre-allocation hint: the buffer size the binding starts with._  |
 |  size\_t | [**nco\_steps\_u32\_ovf**](#function-nco_steps_u32_ovf) ([**nco\_state\_t**](structnco__state__t.md) \* state, size\_t n, uint32\_t \* out, uint8\_t \* out1, size\_t max\_out) <br>_Advance n samples; write raw phase values and per-sample carry. Identical to nco\_steps\_u32 for the phase array, but simultaneously fills a parallel uint8 carry buffer:_ `out1[i]` _is 1 if the add that produced_`out[i]` _'s post-increment phase wrapped past 2^32, else 0. The carry marks the exact boundary of one input period and is the primitive for polyphase sample-clock and rational resampling engines. Returns n._ |
-|  size\_t | [**nco\_steps\_u32\_ovf\_ctrl**](#function-nco_steps_u32_ovf_ctrl) ([**nco\_state\_t**](structnco__state__t.md) \* state, const float \* ctrl, size\_t ctrl\_len, uint32\_t \* out, uint8\_t \* out1, size\_t max\_out) <br>_Advance ctrl\_len samples; raw phase + per-sample carry, with a per-sample control offset added on top of phase\_inc._  |
+|  size\_t | [**nco\_steps\_u32\_ovf\_ctrl**](#function-nco_steps_u32_ovf_ctrl) ([**nco\_state\_t**](structnco__state__t.md) \* state, const double \* ctrl, size\_t ctrl\_len, uint32\_t \* out, uint8\_t \* out1, size\_t max\_out) <br>_Advance ctrl\_len samples; raw phase + per-sample carry, with a per-sample control offset added on top of phase\_inc._  |
 |  size\_t | [**nco\_steps\_u32\_ovf\_ctrl\_max\_out**](#function-nco_steps_u32_ovf_ctrl_max_out) ([**nco\_state\_t**](structnco__state__t.md) \* state) <br> |
 |  size\_t | [**nco\_steps\_u32\_ovf\_max\_out**](#function-nco_steps_u32_ovf_max_out) ([**nco\_state\_t**](structnco__state__t.md) \* state) <br> |
 |  size\_t | [**nco\_steps\_u32\_scaled**](#function-nco_steps_u32_scaled) ([**nco\_state\_t**](structnco__state__t.md) \* state, size\_t n, uint32\_t \* out, size\_t max\_out) <br>_Advance n samples; values scaled to_ `[0, nmax)` _. Uses the branchless fixed-point identity_`out[i]` _= (uint64\_t)phase \* nmax &gt;&gt; 32 to map the full accumulator range uniformly onto [0, nmax) without a modulo operation. When nmax == 0 falls back to the raw accumulator (identical to nco\_steps\_u32). Useful for polyphase filter bank indexing and direct LUT addressing. Returns n._ |
-|  size\_t | [**nco\_steps\_u32\_scaled\_ctrl**](#function-nco_steps_u32_scaled_ctrl) ([**nco\_state\_t**](structnco__state__t.md) \* state, const float \* ctrl, size\_t ctrl\_len, uint32\_t \* out, size\_t max\_out) <br>_Advance ctrl\_len samples; values scaled to_ `[0, nmax)` _, with a per-sample control offset added on top of phase\_inc._ |
+|  size\_t | [**nco\_steps\_u32\_scaled\_ctrl**](#function-nco_steps_u32_scaled_ctrl) ([**nco\_state\_t**](structnco__state__t.md) \* state, const double \* ctrl, size\_t ctrl\_len, uint32\_t \* out, size\_t max\_out) <br>_Advance ctrl\_len samples; values scaled to_ `[0, nmax)` _, with a per-sample control offset added on top of phase\_inc._ |
 |  size\_t | [**nco\_steps\_u32\_scaled\_ctrl\_max\_out**](#function-nco_steps_u32_scaled_ctrl_max_out) ([**nco\_state\_t**](structnco__state__t.md) \* state) <br> |
 |  size\_t | [**nco\_steps\_u32\_scaled\_max\_out**](#function-nco_steps_u32_scaled_max_out) ([**nco\_state\_t**](structnco__state__t.md) \* state) <br> |
 
@@ -978,7 +978,7 @@ _Advance ctrl\_len samples; raw phase, with a per-sample control offset added on
 ```C++
 size_t nco_steps_u32_ctrl (
     nco_state_t * state,
-    const float * ctrl,
+    const double * ctrl,
     size_t ctrl_len,
     uint32_t * out,
     size_t max_out
@@ -990,7 +990,8 @@ size_t nco_steps_u32_ctrl (
 The NCO **control port** for a tracking loop: `ctrl` is a per-sample frequency control in normalised cycles/sample, added to the centre increment `phase_inc` for that step only. `phase_inc` / `norm_freq` are NEVER modified by this call  only the running `phase` advances, by `phase_inc + ctrl_inc` each sample  so a loop filter can drive the NCO with its full per-sample output (integrator + proportional term) without the caller ever touching the NCO's own configured rate. Mirrors `lo_step_ctrl`/`lo_steps_ctrl` ([**native/inc/lo/lo\_core.h**](lo__core_8h.md)), which does this for the CF32 phasor output; this is the same control-port pattern for NCO's raw phase output. With every `ctrl[i] == 0` this is bit-identical to [**nco\_steps\_u32()**](nco__core_8h.md#function-nco_steps_u32). Returns ctrl\_len.
 
 
-Python's `out=` keyword writes directly into a caller-supplied buffer instead of allocating a fresh one  essential for driving this from a hot per-epoch tracking loop with no per-call allocation (fill `ctrl` in place, reuse the same `out` buffer every call). That buffer must be sized to `steps_u32_ctrl_max_out()`, NOT just `len(ctrl)`  the returned view is still correctly sliced to `len(ctrl)` regardless of the buffer's actual size.
+Python's `out=` keyword writes into a caller-supplied buffer instead of allocating a fresh one. This used to claim it was "essential for
+a hot per-epoch tracking loop"; measured, it is worth 0-25% below 8192 samples and nothing at or above it, so reach for it only if a profile says so. The buffer must be sized to `steps_u32_ctrl_max_out()`, NOT just `len(ctrl)`  which is itself a cost, since a 64-sample call then needs a 65536-element buffer (just-buildit/just-makeit#920); the returned view is correctly sliced to `len(ctrl)` regardless.
 
 
 
@@ -999,7 +1000,7 @@ Python's `out=` keyword writes directly into a caller-supplied buffer instead of
 
 
 * `state` NCO state returned by [**nco\_create()**](nco__core_8h.md#function-nco_create). 
-* `ctrl` Float32 array of per-sample normalised-frequency control offsets, any sign (the fractional cycle is taken, so it wraps correctly). 
+* `ctrl` Per-sample normalised-frequency control offsets in `double`, any sign (the fractional cycle is taken, so it wraps correctly). `double` because that is the width the conversion works in and every scalar steer site already uses; a float32 port quantized the request before the fold ever saw it, so the same commanded rate landed on a different phase word depending on which face it entered by. 
 * `ctrl_len` Number of elements in ctrl; equals output length. 
 * `out` Output buffer; must hold at least ctrl\_len uint32\_t values. 
 * `max_out` Capacity of `out` in elements. Emission stops there, so the return value is the number actually written. 
@@ -1013,7 +1014,7 @@ min(ctrl\_len, max\_out) samples.
 >>> from doppler.source import NCO
 >>> import numpy as np
 >>> nco = NCO(norm_freq=0.0, nmax=0)
->>> ctrl = np.full(4, 0.25, dtype=np.float32)
+>>> ctrl = np.full(4, 0.25, dtype=np.float64)
 >>> out = nco.steps_u32_ctrl(ctrl)
 >>> out.tolist()
 [0, 1073741824, 2147483648, 3221225472]
@@ -1128,7 +1129,7 @@ _Advance ctrl\_len samples; raw phase + per-sample carry, with a per-sample cont
 ```C++
 size_t nco_steps_u32_ovf_ctrl (
     nco_state_t * state,
-    const float * ctrl,
+    const double * ctrl,
     size_t ctrl_len,
     uint32_t * out,
     uint8_t * out1,
@@ -1147,7 +1148,7 @@ The [**nco\_steps\_u32\_ovf**](nco__core_8h.md#function-nco_steps_u32_ovf) outpu
 
 
 * `state` NCO state returned by [**nco\_create()**](nco__core_8h.md#function-nco_create). 
-* `ctrl` Float32 array of per-sample normalised-frequency control offsets, any sign (the fractional cycle is taken, so it wraps correctly). 
+* `ctrl` Per-sample normalised-frequency control offsets in `double`, any sign (the fractional cycle is taken, so it wraps correctly). `double` because that is the width the conversion works in and every scalar steer site already uses; a float32 port quantized the request before the fold ever saw it, so the same commanded rate landed on a different phase word depending on which face it entered by. 
 * `ctrl_len` Number of elements in ctrl; equals output length. 
 * `out` Phase output buffer; must hold at least ctrl\_len uint32\_t values. 
 * `out1` Cycle-boundary event buffer (carry when the composite rate is positive, borrow when negative); must hold at least ctrl\_len uint8\_t values. 
@@ -1162,7 +1163,7 @@ min(ctrl\_len, max\_out) samples.
 >>> from doppler.source import NCO
 >>> import numpy as np
 >>> nco = NCO(norm_freq=0.25, nmax=0)
->>> ctrl = np.zeros(4, dtype=np.float32)
+>>> ctrl = np.zeros(4, dtype=np.float64)
 >>> ph, carry = nco.steps_u32_ovf_ctrl(ctrl)
 >>> ph.tolist()
 [0, 1073741824, 2147483648, 3221225472]
@@ -1267,7 +1268,7 @@ _Advance ctrl\_len samples; values scaled to_ `[0, nmax)` _, with a per-sample c
 ```C++
 size_t nco_steps_u32_scaled_ctrl (
     nco_state_t * state,
-    const float * ctrl,
+    const double * ctrl,
     size_t ctrl_len,
     uint32_t * out,
     size_t max_out
@@ -1285,7 +1286,7 @@ The [**nco\_steps\_u32\_scaled**](nco__core_8h.md#function-nco_steps_u32_scaled)
 
 
 * `state` NCO state returned by [**nco\_create()**](nco__core_8h.md#function-nco_create). 
-* `ctrl` Float32 array of per-sample normalised-frequency control offsets, any sign (the fractional cycle is taken, so it wraps correctly). 
+* `ctrl` Per-sample normalised-frequency control offsets in `double`, any sign (the fractional cycle is taken, so it wraps correctly). `double` because that is the width the conversion works in and every scalar steer site already uses; a float32 port quantized the request before the fold ever saw it, so the same commanded rate landed on a different phase word depending on which face it entered by. 
 * `ctrl_len` Number of elements in ctrl; equals output length. 
 * `out` Output buffer; must hold at least ctrl\_len uint32\_t values. 
 * `max_out` Capacity of `out` in elements. Emission stops there, so the return value is the number actually written. 
@@ -1299,7 +1300,7 @@ min(ctrl\_len, max\_out) samples.
 >>> from doppler.source import NCO
 >>> import numpy as np
 >>> nco = NCO(norm_freq=0.0, nmax=4)
->>> ctrl = np.full(4, 0.25, dtype=np.float32)
+>>> ctrl = np.full(4, 0.25, dtype=np.float64)
 >>> out = nco.steps_u32_scaled_ctrl(ctrl)
 >>> out.tolist()
 [0, 1, 2, 3]

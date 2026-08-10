@@ -53,7 +53,7 @@ variable_output = true
 # Kernel is told its write limit (jm gh-138): an under-reporting
 # max_out truncates the emission instead of overrunning `out`.
 pass_capacity = true
-params = [{ name = "ctrl", type = "float[]" }]
+params = [{ name = "ctrl", type = "double[]" }]
 
 [[nco.methods]]
 name = "steps_u32_scaled_ctrl"
@@ -63,7 +63,7 @@ variable_output = true
 # Kernel is told its write limit (jm gh-138): an under-reporting
 # max_out truncates the emission instead of overrunning `out`.
 pass_capacity = true
-params = [{ name = "ctrl", type = "float[]" }]
+params = [{ name = "ctrl", type = "double[]" }]
 
 [[nco.methods]]
 name = "steps_u32_ovf_ctrl"
@@ -74,7 +74,7 @@ variable_output = true
 # max_out truncates the emission instead of overrunning `out`.
 pass_capacity = true
 multi_output = ["uint8_t"]
-params = [{ name = "ctrl", type = "float[]" }]
+params = [{ name = "ctrl", type = "double[]" }]
 
 [[nco.properties]]
 name = "norm_freq"

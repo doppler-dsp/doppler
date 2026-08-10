@@ -65,9 +65,9 @@ main (void)
   printf ("%-6s  %9s  %9s  %9s\n", "sample", "I", "Q", "f_inst");
   printf ("------  ---------  ---------  ---------\n");
 
-  float ctrl[N_FM];
+  double ctrl[N_FM];
   for (int i = 0; i < N_FM; i++)
-    ctrl[i] = FM_DEV * sinf (2.0f * (float)M_PI * FM_RATE * (float)i);
+    ctrl[i] = FM_DEV * sin (2.0 * M_PI * FM_RATE * (double)i);
 
   lo_state_t *fm = lo_create (0.1);
   float _Complex fmo[N_FM];
@@ -75,7 +75,7 @@ main (void)
 
   for (int i = 0; i < N_FM; i++)
     printf ("%-6d  %+9.6f  %+9.6f  %+9.6f\n", i, (double)crealf (fmo[i]),
-            (double)cimagf (fmo[i]), (double)(0.1f + ctrl[i]));
+            (double)cimagf (fmo[i]), 0.1 + ctrl[i]);
 
   lo_destroy (fm);
 

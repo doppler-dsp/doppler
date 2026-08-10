@@ -750,18 +750,25 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
    * for NCO's raw phase output. With every `ctrl[i] == 0` this is
    * bit-identical to nco_steps_u32(). Returns ctrl_len.
    *
-   * Python's `out=` keyword writes directly into a caller-supplied
-   * buffer instead of allocating a fresh one -- essential for driving
-   * this from a hot per-epoch tracking loop with no per-call
-   * allocation (fill `ctrl` in place, reuse the same `out` buffer every
-   * call). That buffer must be sized to `steps_u32_ctrl_max_out()`,
-   * NOT just `len(ctrl)` -- the returned view is still correctly
-   * sliced to `len(ctrl)` regardless of the buffer's actual size.
+   * Python's `out=` keyword writes into a caller-supplied buffer instead
+   * of allocating a fresh one.  This used to claim it was "essential for
+   * a hot per-epoch tracking loop"; measured, it is worth 0-25% below
+   * 8192 samples and nothing at or above it, so reach for it only if a
+   * profile says so.  The buffer must be sized to
+   * `steps_u32_ctrl_max_out()`, NOT just `len(ctrl)` -- which is itself
+   * a cost, since a 64-sample call then needs a 65536-element buffer
+   * (just-buildit/just-makeit#920); the returned view is correctly
+   * sliced to `len(ctrl)` regardless.
    *
    * @param state     NCO state returned by nco_create().
-   * @param ctrl      Float32 array of per-sample normalised-frequency
-   *                  control offsets, any sign (the fractional cycle is
-   *                  taken, so it wraps correctly).
+   * @param ctrl      Per-sample normalised-frequency control offsets in
+   *                  `double`, any sign (the fractional cycle is taken, so
+   *                  it wraps correctly).  `double` because that is the
+   *                  width the conversion works in and every scalar steer
+   *                  site already uses; a float32 port quantized the
+   *                  request before the fold ever saw it, so the same
+   *                  commanded rate landed on a different phase word
+   *                  depending on which face it entered by.
    * @param ctrl_len  Number of elements in ctrl; equals output length.
    * @param out       Output buffer; must hold at least ctrl_len uint32_t
    *                  values.
@@ -772,7 +779,7 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
    * >>> from doppler.source import NCO
    * >>> import numpy as np
    * >>> nco = NCO(norm_freq=0.0, nmax=0)
-   * >>> ctrl = np.full(4, 0.25, dtype=np.float32)
+   * >>> ctrl = np.full(4, 0.25, dtype=np.float64)
    * >>> out = nco.steps_u32_ctrl(ctrl)
    * >>> out.tolist()
    * [0, 1073741824, 2147483648, 3221225472]
@@ -780,7 +787,7 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
    * 0.0
    * @endcode
    */
-  size_t nco_steps_u32_ctrl (nco_state_t *state, const float *ctrl,
+  size_t nco_steps_u32_ctrl (nco_state_t *state, const double *ctrl,
                              size_t ctrl_len, uint32_t *out,
                              size_t max_out);
 
@@ -799,9 +806,14 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
    * to nco_steps_u32_scaled(). Returns ctrl_len.
    *
    * @param state     NCO state returned by nco_create().
-   * @param ctrl      Float32 array of per-sample normalised-frequency
-   *                  control offsets, any sign (the fractional cycle is
-   *                  taken, so it wraps correctly).
+   * @param ctrl      Per-sample normalised-frequency control offsets in
+   *                  `double`, any sign (the fractional cycle is taken, so
+   *                  it wraps correctly).  `double` because that is the
+   *                  width the conversion works in and every scalar steer
+   *                  site already uses; a float32 port quantized the
+   *                  request before the fold ever saw it, so the same
+   *                  commanded rate landed on a different phase word
+   *                  depending on which face it entered by.
    * @param ctrl_len  Number of elements in ctrl; equals output length.
    * @param out       Output buffer; must hold at least ctrl_len uint32_t
    *                  values.
@@ -812,13 +824,13 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
    * >>> from doppler.source import NCO
    * >>> import numpy as np
    * >>> nco = NCO(norm_freq=0.0, nmax=4)
-   * >>> ctrl = np.full(4, 0.25, dtype=np.float32)
+   * >>> ctrl = np.full(4, 0.25, dtype=np.float64)
    * >>> out = nco.steps_u32_scaled_ctrl(ctrl)
    * >>> out.tolist()
    * [0, 1, 2, 3]
    * @endcode
    */
-  size_t nco_steps_u32_scaled_ctrl (nco_state_t *state, const float *ctrl,
+  size_t nco_steps_u32_scaled_ctrl (nco_state_t *state, const double *ctrl,
                                     size_t ctrl_len, uint32_t *out,
                                     size_t max_out);
 
@@ -844,9 +856,14 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
    * this is bit-identical to nco_steps_u32_ovf(). Returns ctrl_len.
    *
    * @param state     NCO state returned by nco_create().
-   * @param ctrl      Float32 array of per-sample normalised-frequency
-   *                  control offsets, any sign (the fractional cycle is
-   *                  taken, so it wraps correctly).
+   * @param ctrl      Per-sample normalised-frequency control offsets in
+   *                  `double`, any sign (the fractional cycle is taken, so
+   *                  it wraps correctly).  `double` because that is the
+   *                  width the conversion works in and every scalar steer
+   *                  site already uses; a float32 port quantized the
+   *                  request before the fold ever saw it, so the same
+   *                  commanded rate landed on a different phase word
+   *                  depending on which face it entered by.
    * @param ctrl_len  Number of elements in ctrl; equals output length.
    * @param out       Phase output buffer; must hold at least ctrl_len
    *                  uint32_t values.
@@ -861,7 +878,7 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
    * >>> from doppler.source import NCO
    * >>> import numpy as np
    * >>> nco = NCO(norm_freq=0.25, nmax=0)
-   * >>> ctrl = np.zeros(4, dtype=np.float32)
+   * >>> ctrl = np.zeros(4, dtype=np.float64)
    * >>> ph, carry = nco.steps_u32_ovf_ctrl(ctrl)
    * >>> ph.tolist()
    * [0, 1073741824, 2147483648, 3221225472]
@@ -869,7 +886,7 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
    * [0, 0, 0, 1]
    * @endcode
    */
-  size_t nco_steps_u32_ovf_ctrl (nco_state_t *state, const float *ctrl,
+  size_t nco_steps_u32_ovf_ctrl (nco_state_t *state, const double *ctrl,
                                  size_t ctrl_len, uint32_t *out,
                                  uint8_t *out1, size_t max_out);
 

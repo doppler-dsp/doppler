@@ -11,6 +11,7 @@
  *
  *   nco_phase_units   double -> uint32 phase word, total and saturating
  *   nco_norm_fold_    fold a normalised quantity into [0, 1), then convert
+ *   nco_steer_scale   bound `1 + control` to a band, BEFORE converting
  *
  * The fold is unit-free, so it serves two dimensions, and each call site
  * says which through the face it calls rather than leaving it to be
@@ -32,11 +33,14 @@
  * no matter how careful this one is, so every double-valued phase quantity
  * does its arithmetic in double and then passes through here.
  *
+ * nco_steer_scale() is the companion, and the reason the conversion should
+ * almost never be the one making a decision: a conversion can only
+ * saturate or floor a request that is already insane, and both are
+ * symptoms. Bounding the request is the fix.
+ *
  * Fold, then convert, is exact in VALUE but destroys the SIGN -- -0.25 and
  * +0.75 are the same phase word. Anything that needs direction (carry vs
  * borrow) must therefore form the signed quantity BEFORE folding.
- * nco_step_u32_ovf_ctrl() does NOT yet do that and its carry is wrong for
- * a negative control; see its own @warning.
  *
  * ## 2. nco_state_t — the 32-bit phase accumulator
  *
@@ -277,6 +281,49 @@ extern "C"
     return nco_norm_fold_ (norm_phase);
   }
 
+  /**
+   * @brief Bound a steered rate to a band about nominal.
+   *
+   * The companion to @ref nco_phase_units, and the reason that one should
+   * almost never be doing real work: a conversion can only ever saturate or
+   * floor an already-insane request, which are both symptoms. Bounding the
+   * REQUEST is the fix, and every steered oscillator in the library forms it
+   * the same way -- nominal x (1 + control) -- so it belongs here rather than
+   * being open-coded per object.
+   *
+   * That saturate-or-floor distinction is not academic. Routing symsync's
+   * timing steer through nco_phase_units() correctly killed an undefined
+   * cast, and turned a negative product into 0 -- a STOPPED timing NCO, which
+   * never strobes again and so can never recover. The undefined cast it
+   * replaced wrapped to a huge increment, slipping a cycle and recovering.
+   * Timing acquisition is non-linear and does reach control < -1, so the
+   * honest conversion was strictly worse than the undefined one until the
+   * command itself was bounded.
+   *
+   * The BAND is the caller's policy, not this function's: it is set by what
+   * the object can physically mean. symsync's `[2/3, 2]` is its long-standing
+   * rate_est clamp of `[0.5, 1.5]` x sps, restated -- `inst = sps/(1+control)`
+   * is monotone, so the two are the same constraint seen from either end.
+   *
+   * @param control  Fractional rate deviation; the steer is `1 + control`.
+   * @param lo       Lower bound on the scale (e.g. 2/3 for -33%). Must be > 0
+   *                 for a rate that cannot run backwards.
+   * @param hi       Upper bound on the scale (e.g. 2.0 for +100%).
+   * @return `1 + control` clamped to `[lo, hi]`; NaN gives @p lo.
+   */
+  JM_FORCEINLINE double
+  nco_steer_scale (double control, double lo, double hi)
+  {
+    double scale = 1.0 + control;
+    /* Negated, so NaN lands on lo rather than sailing through -- the same
+       reasoning as nco_phase_units(). */
+    if (!(scale > lo))
+      return lo;
+    if (scale > hi)
+      return hi;
+    return scale;
+  }
+
 /**
  * @brief Wrapping add with carry detection.
  *
@@ -402,33 +449,64 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
   }
 
   /**
-   * @brief Emit the current raw phase and this step's carry, then advance
-   *        by phase_inc + ctrl.
-   * Single-sample form of nco_steps_u32_ovf_ctrl(). The carry reflects
-   * THIS step's true advance (phase_inc + ctrl), computed as one 64-bit
-   * sum so a wrap is never missed even when ctrl itself is large.
+   * @brief Emit the current raw phase and this step's cycle-boundary
+   *        event, then advance by phase_inc + ctrl.
    *
-   * @warning The carry is WRONG for a negative @p ctrl: nco_norm_fold_()
-   * folds bipolar to unipolar by construction, so the sign is gone before
-   * the add and bit 32 sets on nearly every step. The phase VALUE stays
-   * exact, which is why it survives. Fixed separately -- this function is
-   * left as-is here so the conversion consolidation carries no behaviour
-   * change of its own.
+   * Single-sample form of nco_steps_u32_ovf_ctrl(). The event flags
+   * THIS step's true advance crossing a full-cycle boundary, in the
+   * direction the composite rate is going: a **carry** when the phase
+   * runs forward past 2^32 (one EXTRA output/load for the consumer),
+   * a **borrow** when it runs backward past 0 (one FEWER). A steered
+   * consumer knows the sign of its own control, so one boolean carries
+   * both senses.
+   *
+   * **The sign must be taken before the fold.** nco_norm_fold_() folds
+   * bipolar to unipolar by construction (-0.25 -> 3x2^30), which keeps
+   * the modulo phase exact but destroys the direction: retreating by
+   * 0.25 cycles is indistinguishable, in the accumulator, from
+   * advancing by 0.75, and the bare 64-bit sum's bit 32 then sets on
+   * nearly every step (norm_freq=0.5 steered by ctrl=-0.25 is a
+   * 0.25 cyc/sample composite -- 2 boundary crossings in 8 steps --
+   * yet reports 8). So the signed advance is formed as
+   * `delta = norm_freq + ctrl` in cycles, ahead of any folding.
+   *
+   * Keying off the sign of @p ctrl alone would be wrong for the same
+   * reason in reverse: the composite can run forward while the control
+   * is negative (norm_freq=0.5, ctrl=-1e-4 is a legitimate +0.4999
+   * step). Only the composite's sign decides.
+   *
+   * Given that sign, the event is the accumulator's own wrap -- forward
+   * `phase_new < phase_old`, backward `phase_new > phase_old` -- plus
+   * the whole-cycle term: |delta| >= 1 crosses a boundary every step
+   * regardless of where the fractional part lands, which is both the
+   * multi-wrap case (0.9 + 0.9) and the exactly-unity case a resampler
+   * running at rate 1.0 sits on (fractional advance 0, one output per
+   * input). `delta == 0` is free-running and never events.
    *
    * @param state  NCO state.  Must be non-NULL.
    * @param ctrl   Per-sample normalised-frequency control offset.
-   * @param carry  Out-param: set to 1 if this step's advance wrapped past
-   *               2^32, else 0. Must be non-NULL.
+   * @param carry  Out-param: set to 1 if this step's advance crossed a
+   *               cycle boundary (carry if the composite rate is
+   *               positive, borrow if negative), else 0. Must be
+   *               non-NULL.
    * @return Phase value BEFORE the increment.
    */
   JM_FORCEINLINE JM_HOT uint32_t
   nco_step_u32_ovf_ctrl (nco_state_t *state, double ctrl, uint8_t *carry)
   {
-    uint32_t ph  = state->phase;
-    uint64_t sum = (uint64_t)ph + (uint64_t)state->phase_inc
-                   + (uint64_t)nco_norm_freq_to_inc (ctrl);
-    *carry       = (uint8_t)((sum >> 32) != 0);
-    state->phase = (uint32_t)sum;
+    uint32_t ph = state->phase;
+    /* Wrapping u32 add: bit-for-bit the modulo advance the 64-bit sum
+       used to produce -- only the event derivation below changes. */
+    uint32_t nph   = ph + state->phase_inc + nco_norm_freq_to_inc (ctrl);
+    double   delta = state->norm_freq + ctrl; /* signed, pre-fold */
+
+    state->phase = nph;
+    if (delta > 0.0)
+      *carry = (uint8_t)(nph < ph || delta >= 1.0);
+    else if (delta < 0.0)
+      *carry = (uint8_t)(nph > ph || delta <= -1.0);
+    else
+      *carry = 0;
     return ph;
   }
 
@@ -744,20 +822,20 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
    * @brief Advance ctrl_len samples; raw phase + per-sample carry, with a
    *        per-sample control offset added on top of phase_inc.
    *
-   * The @ref nco_steps_u32_ovf output mapping (raw phase plus a carry
-   * flag marking each sample whose advance wrapped past 2^32) driven by
-   * the @ref nco_steps_u32_ctrl control port -- every stepper has a
-   * matching control-input counterpart. The carry reflects THIS
-   * sample's true advance (`phase_inc + ctrl_inc`, added as a single
-   * 64-bit sum so a wrap is never missed even when the control offset
-   * itself is large), not just phase_inc alone -- needed by any
-   * consumer (e.g. a coupled carrier/code tracker) that must detect a
-   * period boundary while the rate is being actively steered. With
-   * every `ctrl[i] == 0` this is bit-identical to nco_steps_u32_ovf().
-   * Returns ctrl_len.
-   *
-   * @warning The carry is wrong for a negative control -- see
-   * @ref nco_step_u32_ovf_ctrl.
+   * The @ref nco_steps_u32_ovf output mapping (raw phase plus a flag
+   * marking each sample whose advance crossed a cycle boundary) driven
+   * by the @ref nco_steps_u32_ctrl control port -- every stepper has a
+   * matching control-input counterpart. The flag reflects THIS sample's
+   * true SIGNED advance (`norm_freq + ctrl`, formed in cycles before
+   * either term is folded into the accumulator), not just phase_inc
+   * alone -- needed by any consumer (e.g. a coupled carrier/code
+   * tracker, or a resampler asking "does this input produce an output")
+   * that must detect a period boundary while the rate is being actively
+   * steered. A forward crossing is a carry (one EXTRA output/load), a
+   * backward one a borrow (one FEWER); see @ref nco_step_u32_ovf_ctrl
+   * for why the sign cannot be recovered after the fold, nor taken from
+   * `ctrl` alone. With every `ctrl[i] == 0` and `norm_freq` in [0, 1)
+   * this is bit-identical to nco_steps_u32_ovf(). Returns ctrl_len.
    *
    * @param state     NCO state returned by nco_create().
    * @param ctrl      Float32 array of per-sample normalised-frequency

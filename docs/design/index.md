@@ -8,6 +8,9 @@ instead.)
 
 - [API Taxonomy](api-taxonomy.md) — the DSP building-block hierarchy and its
     naming axis, plus concrete rename proposals
+- [The NCO](nco.md) — the 32-bit phase accumulator every rate in the
+    library stands on: why an integer register instead of a double, the
+    one float boundary, and how carrier and timing read the same thing
 - [Quantization](QUANTIZATION.md) — fixed-point pipeline design
 - [CIC Decimator](cic.md) — the fixed-point input budget: DC gain and PAPR headroom
 - [Measurement Suite](measurement-suite.md) — tone, NPR, and IMD metric internals

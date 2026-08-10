@@ -115,7 +115,7 @@ ______________________________________________________________________
 
 **Gallery** — [AWGN Generator](../gallery/awgn.md), [Measuring an Error Rate, Defensibly](../gallery/ber-awgn.md), [Carrier Loop Stress](../gallery/costas.md), [Gallery](../gallery/index.md)
 **Guides** — [Waveform Generator — `wfmgen`](../guide/wfmgen/index.md), [Recipes](../guide/wfmgen/recipes.md), [Scenes — multi-segment specs](../guide/wfmgen/scenes.md)
-**Design** — [Design — pure-functional acquisition kernel (elastic fleet)](../design/acq-fn.md), [API taxonomy: the DSP building-block hierarchy and its naming axis](../design/api-taxonomy.md), [Spectral & Measurement API Map](../design/spectral-api-map.md), [State Serialization — the standard bytes interface](../design/state-serialization.md)
+**Design** — [Design — pure-functional acquisition kernel (elastic fleet)](../design/acq-fn.md), [API taxonomy: the DSP building-block hierarchy and its naming axis](../design/api-taxonomy.md), [Design](../design/index.md), [The NCO](../design/nco.md), [Spectral & Measurement API Map](../design/spectral-api-map.md), [State Serialization — the standard bytes interface](../design/state-serialization.md)
 **Contributing** — [Doc examples — every snippet is tested](../dev/doc-examples.md)
 
 <!-- related-pages:end -->

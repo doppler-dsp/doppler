@@ -404,12 +404,12 @@ class Telemetry:
     def __enter__(self) -> "Telemetry":
         """Enter a context manager, returning this object.
 
-        Lets a DpTlm be used in a `with` statement so its C resources are
+        Lets a Telemetry be used in a `with` statement so its C resources are
         released deterministically on exit rather than at collection time.
 
         Returns
         -------
-        DpTlm
+        Telemetry
             This same object, not a copy.
         """
 
@@ -419,7 +419,7 @@ class Telemetry:
         exc: object | None = ...,
         tb: object | None = ...,
     ) -> None:
-        """Exit a context manager, releasing the DpTlm.
+        """Exit a context manager, releasing the Telemetry.
 
         Equivalent to calling `destroy()`. Returns ``None``, so an exception
         raised inside the `with` body propagates normally; this never
@@ -702,12 +702,12 @@ class MemoryCapture:
     def __enter__(self) -> "MemoryCapture":
         """Enter a context manager, returning this object.
 
-        Lets a DpTlmCapture be used in a `with` statement so its C resources
+        Lets a MemoryCapture be used in a `with` statement so its C resources
         are finalized deterministically on exit rather than at collection time.
 
         Returns
         -------
-        DpTlmCapture
+        MemoryCapture
             This same object, not a copy.
         """
 
@@ -717,9 +717,9 @@ class MemoryCapture:
         exc: object | None = ...,
         tb: object | None = ...,
     ) -> None:
-        """Exit a context manager, finalizing the DpTlmCapture.
+        """Exit a context manager, finalizing the MemoryCapture.
 
-        Equivalent to calling `close()`. The DpTlmCapture is **not** released
+        Equivalent to calling `close()`. The MemoryCapture is **not** released
         here: it stays usable, which is what makes results gathered during the
         `with` body readable after it. The memory is freed when the object is
         collected.
@@ -961,13 +961,12 @@ class Capture:
     def __enter__(self) -> "Capture":
         """Enter a context manager, returning this object.
 
-        Lets a DpTlmCaptureViewCapture be used in a `with` statement so its C
-        resources are finalized deterministically on exit rather than at
-        collection time.
+        Lets a Capture be used in a `with` statement so its C resources are
+        finalized deterministically on exit rather than at collection time.
 
         Returns
         -------
-        DpTlmCaptureViewCapture
+        Capture
             This same object, not a copy.
         """
 
@@ -977,12 +976,12 @@ class Capture:
         exc: object | None = ...,
         tb: object | None = ...,
     ) -> None:
-        """Exit a context manager, finalizing the DpTlmCaptureViewCapture.
+        """Exit a context manager, finalizing the Capture.
 
-        Equivalent to calling `close()`. The DpTlmCaptureViewCapture is **not**
-        released here: it stays usable, which is what makes results gathered
-        during the `with` body readable after it. The memory is freed when the
-        object is collected.
+        Equivalent to calling `close()`. The Capture is **not** released here:
+        it stays usable, which is what makes results gathered during the `with`
+        body readable after it. The memory is freed when the object is
+        collected.
 
         Returns ``None``, so an exception raised inside the `with` body
         propagates normally; this never suppresses one.

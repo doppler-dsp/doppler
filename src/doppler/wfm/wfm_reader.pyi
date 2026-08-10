@@ -314,12 +314,12 @@ class Reader:
     def __enter__(self) -> "Reader":
         """Enter a context manager, returning this object.
 
-        Lets a WfmReader be used in a `with` statement so its C resources are
+        Lets a Reader be used in a `with` statement so its C resources are
         released deterministically on exit rather than at collection time.
 
         Returns
         -------
-        WfmReader
+        Reader
             This same object, not a copy.
         """
 
@@ -329,7 +329,7 @@ class Reader:
         exc: object | None = ...,
         tb: object | None = ...,
     ) -> None:
-        """Exit a context manager, releasing the WfmReader.
+        """Exit a context manager, releasing the Reader.
 
         Equivalent to calling `close()`. Returns ``None``, so an exception
         raised inside the `with` body propagates normally; this never

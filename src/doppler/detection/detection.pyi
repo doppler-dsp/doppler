@@ -249,12 +249,12 @@ class LockDet:
     def __enter__(self) -> "LockDet":
         """Enter a context manager, returning this object.
 
-        Lets a Lockdet be used in a `with` statement so its C resources are
+        Lets a LockDet be used in a `with` statement so its C resources are
         released deterministically on exit rather than at collection time.
 
         Returns
         -------
-        Lockdet
+        LockDet
             This same object, not a copy.
         """
 
@@ -264,7 +264,7 @@ class LockDet:
         exc: object | None = ...,
         tb: object | None = ...,
     ) -> None:
-        """Exit a context manager, releasing the Lockdet.
+        """Exit a context manager, releasing the LockDet.
 
         Equivalent to calling `destroy()`. Returns ``None``, so an exception
         raised inside the `with` body propagates normally; this never

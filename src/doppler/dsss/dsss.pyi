@@ -1221,12 +1221,12 @@ class Acquisition:
     def __enter__(self) -> "Acquisition":
         """Enter a context manager, returning this object.
 
-        Lets a Acq be used in a `with` statement so its C resources are
+        Lets a Acquisition be used in a `with` statement so its C resources are
         released deterministically on exit rather than at collection time.
 
         Returns
         -------
-        Acq
+        Acquisition
             This same object, not a copy.
         """
 
@@ -1236,7 +1236,7 @@ class Acquisition:
         exc: object | None = ...,
         tb: object | None = ...,
     ) -> None:
-        """Exit a context manager, releasing the Acq.
+        """Exit a context manager, releasing the Acquisition.
 
         Equivalent to calling `destroy()`. Returns ``None``, so an exception
         raised inside the `with` body propagates normally; this never
@@ -1607,12 +1607,13 @@ class BurstAcquisition:
     def __enter__(self) -> "BurstAcquisition":
         """Enter a context manager, returning this object.
 
-        Lets a BurstAcq be used in a `with` statement so its C resources are
-        released deterministically on exit rather than at collection time.
+        Lets a BurstAcquisition be used in a `with` statement so its C
+        resources are released deterministically on exit rather than at
+        collection time.
 
         Returns
         -------
-        BurstAcq
+        BurstAcquisition
             This same object, not a copy.
         """
 
@@ -1622,7 +1623,7 @@ class BurstAcquisition:
         exc: object | None = ...,
         tb: object | None = ...,
     ) -> None:
-        """Exit a context manager, releasing the BurstAcq.
+        """Exit a context manager, releasing the BurstAcquisition.
 
         Equivalent to calling `destroy()`. Returns ``None``, so an exception
         raised inside the `with` body propagates normally; this never
@@ -1749,12 +1750,13 @@ class PolynomialPhaseEstimator:
     def __enter__(self) -> "PolynomialPhaseEstimator":
         """Enter a context manager, returning this object.
 
-        Lets a Ppe be used in a `with` statement so its C resources are
-        released deterministically on exit rather than at collection time.
+        Lets a PolynomialPhaseEstimator be used in a `with` statement so its C
+        resources are released deterministically on exit rather than at
+        collection time.
 
         Returns
         -------
-        Ppe
+        PolynomialPhaseEstimator
             This same object, not a copy.
         """
 
@@ -1764,7 +1766,7 @@ class PolynomialPhaseEstimator:
         exc: object | None = ...,
         tb: object | None = ...,
     ) -> None:
-        """Exit a context manager, releasing the Ppe.
+        """Exit a context manager, releasing the PolynomialPhaseEstimator.
 
         Equivalent to calling `destroy()`. Returns ``None``, so an exception
         raised inside the `with` body propagates normally; this never

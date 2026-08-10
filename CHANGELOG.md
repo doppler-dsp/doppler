@@ -40,6 +40,27 @@ ______________________________________________________________________
 
 ### Changed
 
+- **just-makeit pin 0.55.1 → 0.55.2.** Both fixes in it were surfaced by
+    doppler's own 0.55.1 bump, and both are docs/formatting only — no
+    signature, no behaviour, and every non-whitespace line in the 85 changed
+    generated files falls inside a comment or a docstring.
+
+    **gh-917** retires this repo's most recent standing workaround: `c_style`
+    now reaches a member reconciled in place, so `jm apply` no longer leaves a
+    fragment holding two C styles at once and `make lint-clang-format` is no
+    longer a required follow-up. Two independent causes, either sufficient on
+    its own — jm's formatter glob predated gh-729's per-object
+    `<module>_ext_<obj>.c` fragments and never matched them, and `apply`
+    formatted only the throwaway scaffold it diffs against while the
+    member-level reconciliation wrote the real tree afterwards. Verified on
+    adoption: `make lint-clang-format` changes nothing after `jm apply`.
+
+    **gh-915** makes generated prose name the class you can actually import.
+    An object overriding its Python class name (`--class-name DDC`) got the
+    class right and every sentence *about* it wrong, so `class DDC:` carried
+    "Lets a `Ddc` be used in a `with` statement" and a `Returns` annotation
+    naming a type that does not exist.
+
 - **just-makeit pin 0.51.0 → 0.52.0.** Zero codegen drift: `jm apply`
     re-renders six binding fragments in jm's K&R and clang-format returns every
     one of them byte-identical, so only the pins and `uv.lock` change here.

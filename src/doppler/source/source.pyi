@@ -432,12 +432,12 @@ class NCO:
     def __enter__(self) -> "NCO":
         """Enter a context manager, returning this object.
 
-        Lets a Nco be used in a `with` statement so its C resources are
+        Lets a NCO be used in a `with` statement so its C resources are
         released deterministically on exit rather than at collection time.
 
         Returns
         -------
-        Nco
+        NCO
             This same object, not a copy.
         """
 
@@ -447,7 +447,7 @@ class NCO:
         exc: object | None = ...,
         tb: object | None = ...,
     ) -> None:
-        """Exit a context manager, releasing the Nco.
+        """Exit a context manager, releasing the NCO.
 
         Equivalent to calling `destroy()`. Returns ``None``, so an exception
         raised inside the `with` body propagates normally; this never
@@ -692,12 +692,12 @@ class LO:
     def __enter__(self) -> "LO":
         """Enter a context manager, returning this object.
 
-        Lets a Lo be used in a `with` statement so its C resources are released
+        Lets a LO be used in a `with` statement so its C resources are released
         deterministically on exit rather than at collection time.
 
         Returns
         -------
-        Lo
+        LO
             This same object, not a copy.
         """
 
@@ -707,7 +707,7 @@ class LO:
         exc: object | None = ...,
         tb: object | None = ...,
     ) -> None:
-        """Exit a context manager, releasing the Lo.
+        """Exit a context manager, releasing the LO.
 
         Equivalent to calling `destroy()`. Returns ``None``, so an exception
         raised inside the `with` body propagates normally; this never
@@ -913,12 +913,12 @@ class AWGN:
     def __enter__(self) -> "AWGN":
         """Enter a context manager, returning this object.
 
-        Lets a Awgn be used in a `with` statement so its C resources are
+        Lets a AWGN be used in a `with` statement so its C resources are
         released deterministically on exit rather than at collection time.
 
         Returns
         -------
-        Awgn
+        AWGN
             This same object, not a copy.
         """
 
@@ -928,7 +928,7 @@ class AWGN:
         exc: object | None = ...,
         tb: object | None = ...,
     ) -> None:
-        """Exit a context manager, releasing the Awgn.
+        """Exit a context manager, releasing the AWGN.
 
         Equivalent to calling `destroy()`. Returns ``None``, so an exception
         raised inside the `with` body propagates normally; this never

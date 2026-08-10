@@ -321,12 +321,12 @@ class AGC:
     def __enter__(self) -> "AGC":
         """Enter a context manager, returning this object.
 
-        Lets a Agc be used in a `with` statement so its C resources are
+        Lets a AGC be used in a `with` statement so its C resources are
         released deterministically on exit rather than at collection time.
 
         Returns
         -------
-        Agc
+        AGC
             This same object, not a copy.
         """
 
@@ -336,7 +336,7 @@ class AGC:
         exc: object | None = ...,
         tb: object | None = ...,
     ) -> None:
-        """Exit a context manager, releasing the Agc.
+        """Exit a context manager, releasing the AGC.
 
         Equivalent to calling `destroy()`. Returns ``None``, so an exception
         raised inside the `with` body propagates normally; this never

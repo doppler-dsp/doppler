@@ -250,12 +250,13 @@ class CarrierAcquisition:
     def __enter__(self) -> "CarrierAcquisition":
         """Enter a context manager, returning this object.
 
-        Lets a CarrierAcq be used in a `with` statement so its C resources are
-        released deterministically on exit rather than at collection time.
+        Lets a CarrierAcquisition be used in a `with` statement so its C
+        resources are released deterministically on exit rather than at
+        collection time.
 
         Returns
         -------
-        CarrierAcq
+        CarrierAcquisition
             This same object, not a copy.
         """
 
@@ -265,7 +266,7 @@ class CarrierAcquisition:
         exc: object | None = ...,
         tb: object | None = ...,
     ) -> None:
-        """Exit a context manager, releasing the CarrierAcq.
+        """Exit a context manager, releasing the CarrierAcquisition.
 
         Equivalent to calling `destroy()`. Returns ``None``, so an exception
         raised inside the `with` body propagates normally; this never

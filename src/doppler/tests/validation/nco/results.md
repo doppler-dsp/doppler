@@ -133,7 +133,25 @@ The float32 quantum at `0.25` is `2.98e-08` (29.8 ppb). The measured contiguous 
 
 ![dead zone](ctrl_dead_zone.png)
 
-### 2.8 Not reachable from Python
+### 2.9 The closed-loop limit — a trivial linear loop
+
+Everything above characterises the NCO open-loop. This closes the simplest possible loop around it: **subtraction** as the phase detector, a `LoopFilter` on the error, its control driving the NCO's ctrl port. No discriminator shape, no gain to normalise, no noise — the error IS the input phase minus the NCO phase.
+
+That is the point. A real detector reports the error through some S-curve with finite slope, self-noise and a pull-in range; this one reports it exactly. So the numbers below are the **limit on closed-loop behaviour** — the best any loop built on this NCO can do, and the reference a real detector's performance is a deduction from.
+
+`bn = 0.01`, `zeta = 0.707`, one update per sample, disturbance at sample 500. The classic settling estimate for a second-order loop is `5/bn` = 500 samples. Error wrapped to `[-0.5, 0.5)`, so the detector is linear while the error stays inside half a cycle.
+
+| drive | peak |error| (cyc) | settle (samples after disturbance) | residual |error| (cyc) | final control (cyc/sample) |
+|---|---|---|---|---|
+| +0.25 cycle step | 0.25000 | 273 | 0.00e+00 | 2.2671e-10 |
+| -0.25 cycle step | 0.25000 | 273 | 0.00e+00 | 6.0455e-12 |
+| ramp, 0.001 cyc/sample | 0.02451 | 408 | 1.15e-10 | 1.0000e-03 |
+
+Both steps settle identically, which is the symmetry a linear loop must have. On the ramp the loop filter's output converges on the applied frequency offset itself — `1.000000e-03` against `0.001` — which is the type-2 integrator absorbing a constant frequency error and leaving no steady-state phase error behind. A type-1 loop would sit at a fixed offset instead.
+
+![linear loop](linear_loop.png)
+
+### 2.10 Not reachable from Python
 
 *(section 11)* The bindings expose the batch `steps_u32*` forms but not the single-sample `nco_step_u32*` primitives, so the claim that each batch stepper is exactly a loop over its single-sample counterpart cannot be checked here. It remains `test_nco_core.c`'s alone — reported, not silently skipped.
 
@@ -170,10 +188,15 @@ Claims a caller may rely on. A failure here is a regression, not a new finding.
 | PASS | at an irrational rate the strobe dithers between two adjacent intervals [8, 9] whose mean is 1/norm_freq |
 | PASS | scaled output never leaves [0, nmax) |
 | PASS | under a NEGATIVE control the event fires at the intended |ctrl| rate, not the folded 1-|ctrl| — the composite's sign decides |
+| PASS | a phase step settles inside the 5/bn estimate (273 and 273 samples against 500) |
+| PASS | the loop is symmetric in sign: +step and -step settle identically |
+| PASS | a phase step leaves NO steady-state error (residual 0.0e+00 cycles) |
+| PASS | a frequency ramp leaves NO steady-state PHASE error (residual 1.2e-10 cycles) — the type-2 integrator absorbs it |
+| PASS | on a ramp the loop filter's output converges on the applied frequency offset itself (1.000000e-03 vs 0.001) |
 
 
 ## 5. Summary
 
 - **8 findings**, 4 of them gaps or confirmed defects: F2, F3, F4, F5
-- **12/12 limits** hold
+- **17/17 limits** hold
 - Raw sweeps: `data/frequency_sweep.csv`, `data/ctrl_sweep.csv`

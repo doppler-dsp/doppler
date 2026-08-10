@@ -63,6 +63,15 @@ repos:
         pass_filenames: false
         types: [markdown]
 
+      # The double->phase-word conversion has ONE home (nco_core.h). Fires on
+      # any C change, since a private copy can appear in any module.
+      - id: phase-conversion
+        name: phase-conversion sites
+        entry: make -s lint-phase-conversion
+        language: system
+        pass_filenames: false
+        types_or: [c]
+
   - repo: https://github.com/pre-commit/mirrors-clang-format
     rev: v22.1.8
     hooks:

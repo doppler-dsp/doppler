@@ -82,8 +82,9 @@ _Pulse-shaped M-PSK receiver: a tuned matched DDC and two loops._ [More...](#det
 |  size\_t | [**mpsk\_receiver\_bits**](#function-mpsk_receiver_bits) ([**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state, const float complex \* x, size\_t x\_len, uint8\_t \* out, size\_t max\_out) <br>_Demodulate a cf32 block and emit hard Gray-coded bits._  |
 |  size\_t | [**mpsk\_receiver\_bits\_max\_out**](#function-mpsk_receiver_bits_max_out) ([**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state) <br> |
 |  void | [**mpsk\_receiver\_configure\_lock**](#function-mpsk_receiver_configure_lock) ([**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state, double up\_thresh, double down\_thresh, uint32\_t n\_up, uint32\_t n\_down) <br>_Re-tune the acquisition&lt;-&gt;tracking handover detector directly._  |
-|  [**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* | [**mpsk\_receiver\_create**](#function-mpsk_receiver_create) (int m, double sps, size\_t m\_out, int pulse, double rrc\_beta, int rrc\_span, double bn\_carrier, double zeta, double bn\_timing, int acq\_to\_track, double lock\_thresh, double init\_norm\_freq, size\_t warmup\_syms, int differential, size\_t num\_phases, int nda\_tap) <br>_Create an M-PSK receiver._  |
+|  [**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* | [**mpsk\_receiver\_create**](#function-mpsk_receiver_create) (int m, double sps, size\_t m\_out, int pulse, double rrc\_beta, int rrc\_span, double bn\_carrier, double zeta, double bn\_timing, int acq\_to\_track, double lock\_thresh, double init\_norm\_freq, size\_t warmup\_syms, int differential, size\_t num\_phases, int nda\_tap, int agc, double bn\_agc\_ratio) <br>_Create an M-PSK receiver._  |
 |  void | [**mpsk\_receiver\_destroy**](#function-mpsk_receiver_destroy) ([**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state) <br>_Destroy an M-PSK receiver and release all memory._  |
+|  double | [**mpsk\_receiver\_get\_agc\_gain\_db**](#function-mpsk_receiver_get_agc_gain_db) (const [**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state) <br>_Gain the front end's AGC is applying, in dB; 0.0 when_ `agc` _= 0._ |
 |  int | [**mpsk\_receiver\_get\_clipped**](#function-mpsk_receiver_get_clipped) (const [**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state) <br>_Has the cascade's CIC stage clipped its input since the last reset? A CIC bounds its input to +-1.0 and clips silently past that, which costs ~25 dB of EVM behind a perfectly healthy lock._  |
 |  double | [**mpsk\_receiver\_get\_last\_error**](#function-mpsk_receiver_get_last_error) (const [**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state) <br>_Carrier loop phase discriminator (rad) — the residual phase the loop is trying to null; loop stress._  |
 |  double | [**mpsk\_receiver\_get\_lock**](#function-mpsk_receiver_get_lock) (const [**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state) <br> |
@@ -193,7 +194,8 @@ Lifecycle: `mpsk_receiver_create -> (steps / bits / reset)* -> _destroy`.
 // QPSK, 8 samples/symbol, I&D matched filter, NDA acquisition
 mpsk_receiver_state_t *rx = mpsk_receiver_create (
     4, 8.0, 4, MPSK_RX_PULSE_IANDD, 0.35, 8,
-    0.01, 0.707, 0.01, 0, 0.5, 0.0, 100, 0, 1024);
+    0.01, 0.707, 0.01, 0, 0.5, 0.0, 100, 0, 1024,
+    MPSK_RX_NDA_TAP_STROBE, 1, MPSK_RX_AGC_BW_RATIO);
 float complex sym[256];
 size_t k = mpsk_receiver_steps (rx, rx_in, rx_len, sym, 256);
 double f = mpsk_receiver_get_norm_freq (rx);  // tracked residual carrier
@@ -252,10 +254,10 @@ Number of bits written.
 >>> rx = MpskReceiver(m=2, sps=8, m_out=4, bn_carrier=0.005)
 >>> b = rx.bits(tx)                                 # 1 hard bit/symbol
 >>> b.size
-2997
+2998
 >>> # settled tail matches the payload, up to the BPSK
->>> # inversion ambiguity
->>> tail = np.mean(b[1000:2000] != idx[1000:2000])
+>>> # inversion ambiguity and the pipeline's one-symbol lead
+>>> tail = np.mean(b[1001:2001] != idx[1000:2000])
 >>> round(float(min(tail, 1 - tail)), 3)
 0.0
 ```
@@ -352,7 +354,9 @@ mpsk_receiver_state_t * mpsk_receiver_create (
     size_t warmup_syms,
     int differential,
     size_t num_phases,
-    int nda_tap
+    int nda_tap,
+    int agc,
+    double bn_agc_ratio
 ) 
 ```
 
@@ -384,6 +388,8 @@ mpsk_receiver_state_t * mpsk_receiver_create (
   * `MPSK_RX_NDA_TAP_LO_ARM` (2) — ahead of the cascade, through a free-running half-symbol boxcar at the LO rate. Widest range and fully timing-independent, but unmatched, so it pays squaring loss; it does NOT work at 8PSK (the 8th-power gain over a boxcar arm collapses). Measured unaided, QPSK at `sps = 8, m_out = 8`, each at its own best `bn_carrier`: `0.050*Rs` (strobe), `0.033*Rs` (mf\_all), `0.090*Rs` (lo\_arm). Fixed at construction — nothing switches underneath the caller. Note `df = k*F/M` is a stable FALSE lock at every tap, reporting a healthy lock statistic that no self-referenced metric can flag. For more range than any tap gives, put a coarse frequency estimate in front and pass it as `init_norm_freq`. 
 
 
+* `agc` Non-zero (default) puts the receiver's ONE AGC in the front-end cascade, immediately before the terminal matched stage. **It serves BOTH loops** — carrier and timing both run on its output, so it is a dynamic element inside both, which is why [**mpsk\_rx\_agc\_bn**](mpsk__rx__loops_8h.md#function-mpsk_rx_agc_bn) sizes it against the SLOWER of the two rather than against timing alone. What differs is only why the level matters to each: the timing detector normalises by a slope computed at construction for a unit-amplitude stream ([**symsync\_ted\_slope**](symsync__core_8h.md#function-symsync_ted_slope)), so a level error is a loop-gain error there directly; the carrier detector normalises by its own `|z|^M` ([**carrier\_nda\_disc**](carrier__nda__core_8h.md#function-carrier_nda_disc)), so it is immune to the level itself but still sees the AGC's transient. Pass 0 and the receiver is un-levelled: the timing loop is under-driven by `A^2`, which at an input amplitude of 0.25 is 16x. The reference is derived from the bank's own pulse energy, not chosen. 
+* `bn_agc_ratio` That AGC's bandwidth as a fraction of the SLOWEST loop it feeds, `min(bn_carrier, bn_timing)` — see [**mpsk\_rx\_agc\_bn**](mpsk__rx__loops_8h.md#function-mpsk_rx_agc_bn). Must be in (0, 1); construction refuses 1 or above rather than warning, because at 1 the AGC is exactly as fast as a loop it feeds and past that it is faster, and two level-correcting loops at the same speed integrate against each other. `MPSK_RX_AGC_BW_RATIO` (0.05) is the default. 
 
 
 
@@ -427,6 +433,29 @@ void mpsk_receiver_destroy (
 * `state` May be NULL. 
 
 
+
+
+        
+
+<hr>
+
+
+
+### function mpsk\_receiver\_get\_agc\_gain\_db 
+
+_Gain the front end's AGC is applying, in dB; 0.0 when_ `agc` _= 0._
+```C++
+double mpsk_receiver_get_agc_gain_db (
+    const mpsk_receiver_state_t * state
+) 
+```
+
+
+
+The cascade's own level correction, read back rather than inferred. This is the diagnostic for a level problem: a receiver that will not lock with a healthy `lock` statistic, or one whose timing loop behaves differently at two input levels, is asking about this number. It settles at `-10*log10(P_in / P_ref)` where `P_ref` is the power a unit-amplitude symbol stream has where the AGC sits, so a reading far from 0 dB says the input is far from the level the cascade was built for  which is fine, and is exactly what the AGC is for, but is worth knowing.
+
+
+Separate from the cascade's filter response ([**RateConverter\_gain()**](RateConverter__core_8h.md#function-rateconverter_gain)), which is computed from coefficients and stays 1.0; the two multiply. 
 
 
         
@@ -864,9 +893,9 @@ Number of symbols written.
 >>> rx = MpskReceiver(m=4, sps=8, m_out=4, bn_carrier=0.02)
 >>> sym = rx.steps(tx)                              # blind NDA acquire
 >>> sym.size                                        # ~ x_len / sps
-2997
->>> round(rx.lock, 2)                               # carrier locked
-0.91
+2998
+>>> rx.lock > 0.8                                   # carrier locked
+True
 ```
  
 

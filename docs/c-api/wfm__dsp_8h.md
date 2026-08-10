@@ -67,6 +67,7 @@ _DSSS spreading + root-raised-cosine pulse shaping (Phase B)._ [More...](#detail
 | Type | Name |
 | ---: | :--- |
 |  size\_t | [**wfm\_cont\_dsss\_nchips**](#function-wfm_cont_dsss_nchips) (size\_t n\_chips) <br>_Chip count for_ `wfm_cont_dsss_chips` _: exactly_`n_chips` _._ |
+|  double | [**wfm\_rc\_h**](#function-wfm_rc_h) (double t, double beta) <br>_The MATCHED pair's composite pulse:_ `rrc * rrc` _, in closed form._ |
 |  size\_t | [**wfm\_rrc\_bank\_ntaps**](#function-wfm_rrc_bank_ntaps) (int span) <br>_Number of taps per phase in a_ `wfm_rrc_polyphase_bank` _:_`2*span + 1` _._ |
 |  double | [**wfm\_rrc\_h**](#function-wfm_rrc_h) (double t, double beta) <br>_Analytic root-raised-cosine impulse response at one instant._  |
 |  size\_t | [**wfm\_rrc\_ntaps**](#function-wfm_rrc_ntaps) (int sps, int span) <br>_Number of taps a_ `wfm_rrc_taps` _call produces:_`2*span*sps + 1` _._ |
@@ -458,6 +459,56 @@ static inline size_t wfm_cont_dsss_nchips (
 
 
 Trivial, but present so the two continuous entry points mirror the burst pair (`wfm_frame_dsss_nchips` / `wfm_frame_dsss_chips`) and callers size their buffer through a named function rather than an open-coded expression. 
+
+
+        
+
+<hr>
+
+
+
+### function wfm\_rc\_h 
+
+_The MATCHED pair's composite pulse:_ `rrc * rrc` _, in closed form._
+```C++
+static inline double wfm_rc_h (
+    double t,
+    double beta
+) 
+```
+
+
+
+A root-raised cosine convolved with itself is a raised cosine, so the pulse a matched receiver actually sees needs no convolution and no table — which is what lets a constructor evaluate it. Normalised to `g(0) = 1`, the level a unity-gain matched cascade delivers (see [**RateConverter\_gain()**](RateConverter__core_8h.md#function-rateconverter_gain)), so `g(t)` IS the recovered symbol amplitude at timing offset `t`.
+
+
+Nyquist by construction: `g(k) = 0` at every non-zero integer `k`, which is why a timing error and not an amplitude error is what inter-symbol interference looks like here.
+
+
+The removable singularity at `t = ±1/(2β)` is handled by its closed-form limit; `t = 0` needs none (the sinc limit is taken explicitly).
+
+
+
+
+**Parameters:**
+
+
+* `t` time in SYMBOL periods (T = 1), relative to the pulse centre. 
+* `beta` roll-off in `[0, 1]`. 
+
+
+
+**Returns:**
+
+`g(t)`, with `g(0) = 1`.
+
+
+
+```C++
+printf ("%.4f %.6f\n", wfm_rc_h (0.0, 0.35), wfm_rc_h (1.0, 0.35));
+// 1.0000 0.000000
+```
+ 
 
 
         

@@ -36,7 +36,6 @@ _NDA M-th-power carrier loop state._ [More...](#detailed-description)
 
 | Type | Name |
 | ---: | :--- |
-|  [**agc\_state\_t**](structagc__state__t.md) | [**agc**](#variable-agc)  <br> |
 |  [**boxcar\_state\_t**](structboxcar__state__t.md) | [**arm**](#variable-arm)  <br> |
 |  size\_t | [**arm\_len**](#variable-arm_len)  <br> |
 |  double | [**bn**](#variable-bn)  <br> |
@@ -105,24 +104,6 @@ Allocate with [**carrier\_nda\_create()**](carrier__nda__core_8h.md#function-car
     
 ## Public Attributes Documentation
 
-
-
-
-### variable agc 
-
-```C++
-agc_state_t carrier_nda_state_t::agc;
-```
-
-
-
-per-sample log-domain AGC on the arm sample (normalizes to unit average power). 
- 
-
-
-        
-
-<hr>
 
 
 

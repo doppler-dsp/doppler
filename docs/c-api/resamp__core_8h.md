@@ -60,6 +60,7 @@ _Continuously-variable polyphase resampler for CF32 IQ._ [More...](#detailed-des
 | ---: | :--- |
 |  [**resamp\_state\_t**](structresamp__state__t.md) \* | [**resamp\_create**](#function-resamp_create) (double rate) <br> |
 |  [**resamp\_state\_t**](structresamp__state__t.md) \* | [**resamp\_create\_custom**](#function-resamp_create_custom) (size\_t num\_phases, size\_t num\_taps, const float \* bank, double rate) <br> |
+|  double | [**resamp\_dc\_gain**](#function-resamp_dc_gain) (const [**resamp\_state\_t**](structresamp__state__t.md) \* state) <br>_The resampler's response to a constant input, from its own bank._  |
 |  void | [**resamp\_destroy**](#function-resamp_destroy) ([**resamp\_state\_t**](structresamp__state__t.md) \* state) <br> |
 |  size\_t | [**resamp\_execute**](#function-resamp_execute) ([**resamp\_state\_t**](structresamp__state__t.md) \* state, const float \_Complex \* in, size\_t num\_in, float \_Complex \* out, size\_t max\_out) <br>_Resample a block of CF32 samples (fixed rate)._  |
 |  size\_t | [**resamp\_execute\_ctrl**](#function-resamp_execute_ctrl) ([**resamp\_state\_t**](structresamp__state__t.md) \* state, const float \_Complex \* in, const float \_Complex \* ctrl, size\_t num\_in, float \_Complex \* out, size\_t max\_out) <br>_Resample with per-sample additive rate deviation._  |
@@ -106,8 +107,9 @@ _Continuously-variable polyphase resampler for CF32 IQ._ [More...](#detailed-des
 
 | Type | Name |
 | ---: | :--- |
+| define  | [**RESAMP\_CTRL\_RATE\_MIN**](resamp__core_8h.md#define-resamp_ctrl_rate_min)  `1e-6`<br> |
 | define  | [**RESAMP\_STATE\_MAGIC**](resamp__core_8h.md#define-resamp_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('R', 'S', 'M', 'P')`<br> |
-| define  | [**RESAMP\_STATE\_VERSION**](resamp__core_8h.md#define-resamp_state_version)  `1u`<br> |
+| define  | [**RESAMP\_STATE\_VERSION**](resamp__core_8h.md#define-resamp_state_version)  `2u`<br> |
 
 ## Detailed Description
 
@@ -180,6 +182,52 @@ resamp_state_t * resamp_create_custom (
 
 
 User-supplied bank, shape num\_phases × num\_taps, row-major. num\_phases must be a power of two. 
+
+
+        
+
+<hr>
+
+
+
+### function resamp\_dc\_gain 
+
+_The resampler's response to a constant input, from its own bank._ 
+```C++
+double resamp_dc_gain (
+    const resamp_state_t * state
+) 
+```
+
+
+
+Every arm of a polyphase bank is the same filter at a different fractional delay, so they share one DC gain and arm 0 answers for all of them: the sum of its taps. Computed, not measured — a caller (or a gate) can ask what gain this stage contributes without running a signal through it.
+
+
+The decimating path pre-scales by `rate` and integrates over the whole bank between outputs, which cancels: `rate` inputs' worth of taps per output, so the tap sum is the answer on both paths.
+
+
+
+
+**Parameters:**
+
+
+* `state` State. Must be non-NULL. 
+
+
+
+**Returns:**
+
+The DC gain. 1.0 for the default Kaiser bank; a matched pulse bank is a matched filter, not a flat one, so its DC gain is the pulse's own `sum(h)/sum(h^2)` and is not expected to be 1.
+
+
+
+```C++
+resamp_state_t *r = resamp_create (0.5);
+printf ("%.3f\n", resamp_dc_gain (r));   // 1.000
+resamp_destroy (r);
+```
+ 
 
 
         
@@ -597,6 +645,19 @@ size_t resamp_state_bytes (
 
 
 
+### define RESAMP\_CTRL\_RATE\_MIN 
+
+```C++
+#define RESAMP_CTRL_RATE_MIN `1e-6`
+```
+
+
+
+
+<hr>
+
+
+
 ### define RESAMP\_STATE\_MAGIC 
 
 ```C++
@@ -613,7 +674,7 @@ size_t resamp_state_bytes (
 ### define RESAMP\_STATE\_VERSION 
 
 ```C++
-#define RESAMP_STATE_VERSION `1u`
+#define RESAMP_STATE_VERSION `2u`
 ```
 
 

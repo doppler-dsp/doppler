@@ -37,10 +37,9 @@ _The receiver's loops: timing, carrier, handover, demapper._
 | Type | Name |
 | ---: | :--- |
 |  int | [**acq\_to\_track**](#variable-acq_to_track)  <br> |
-|  int | [**agc\_seeded**](#variable-agc_seeded)  <br> |
 |  [**boxcar\_state\_t**](structboxcar__state__t.md) | [**arm**](#variable-arm)  <br> |
+|  double | [**bn\_agc\_ratio**](#variable-bn_agc_ratio)  <br> |
 |  double | [**bn\_carrier**](#variable-bn_carrier)  <br> |
-|  [**agc\_state\_t**](structagc__state__t.md) | [**car\_agc**](#variable-car_agc)  <br> |
 |  double | [**car\_error**](#variable-car_error)  <br> |
 |  [**loop\_filter\_state\_t**](structloop__filter__state__t.md) | [**car\_lf**](#variable-car_lf)  <br> |
 |  [**lockdet\_state\_t**](structlockdet__state__t.md) | [**car\_lock**](#variable-car_lock)  <br> |
@@ -131,24 +130,6 @@ opt-in two-way handover.
 
 
 
-### variable agc\_seeded 
-
-```C++
-int mpsk_rx_loops_t::agc_seeded;
-```
-
-
-
-arm AGC has taken its first level. 
- 
-
-
-        
-
-<hr>
-
-
-
 ### variable arm 
 
 ```C++
@@ -166,15 +147,15 @@ free-running arm filter; LO\_ARM only.
 
 
 
-### variable bn\_carrier 
+### variable bn\_agc\_ratio 
 
 ```C++
-double mpsk_rx_loops_t::bn_carrier;
+double mpsk_rx_loops_t::bn_agc_ratio;
 ```
 
 
 
-carrier loop noise bandwidth (per symbol). 
+AGC bandwidth as a fraction of the slowest loop; see [**mpsk\_rx\_agc\_bn()**](mpsk__rx__loops_8h.md#function-mpsk_rx_agc_bn). 
  
 
 
@@ -184,15 +165,15 @@ carrier loop noise bandwidth (per symbol).
 
 
 
-### variable car\_agc 
+### variable bn\_carrier 
 
 ```C++
-agc_state_t mpsk_rx_loops_t::car_agc;
+double mpsk_rx_loops_t::bn_carrier;
 ```
 
 
 
-unit-power normaliser feeding the M-th-power discriminator. 
+carrier loop noise bandwidth (per symbol). 
  
 
 

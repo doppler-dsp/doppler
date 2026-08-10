@@ -20,6 +20,8 @@
 #include <stddef.h>
 #include "resamp/resamp_core.h"
 #include "fir/fir_core.h"
+#include "agc/agc_core.h"
+#include "dp_tlm/dp_tlm_core.h"
 
 #ifdef __cplusplus
 extern "C"
@@ -60,6 +62,14 @@ typedef struct
   double pulse_sps;  
   size_t num_phases; 
   bool narrow_pulse;
+  /* ── Pre-terminal AGC (NULL = off, which is the default and what every
+     constructor builds).  See RateConverter_enable_agc(). ─────────────── */
+  agc_state_t *agc;          
+  double       bank_sps;     
+  double       bank_e0;      
+  double       agc_ref_db;   
+  double       agc_bn_sym;   
+  double       agc_alpha;    
 } RateConverter_state_t;
 
 RateConverter_state_t *RateConverter_create (double rate, int compensate);
@@ -74,12 +84,21 @@ bool RateConverter_get_clipped (const RateConverter_state_t *s);
 bool RateConverter_get_narrow_pulse (const RateConverter_state_t *s);
 
 size_t RateConverter_num_stages (const RateConverter_state_t *s);
+
+double RateConverter_gain (const RateConverter_state_t *s);
 const char *RateConverter_stages_value (const RateConverter_state_t *s,
                                         size_t i);
 
 size_t RateConverter_num_bank_shape (const RateConverter_state_t *s);
 size_t RateConverter_bank_shape_value (const RateConverter_state_t *s,
                                        size_t i);
+
+int RateConverter_enable_agc (RateConverter_state_t *s, double bn_sym,
+                              double alpha);
+
+double RateConverter_agc_ref_db (const RateConverter_state_t *s);
+
+double RateConverter_agc_gain_db (const RateConverter_state_t *s);
 
 void RateConverter_destroy (RateConverter_state_t *s);
 
@@ -89,9 +108,13 @@ void RateConverter_reset (RateConverter_state_t *s);
  * envelope followed by the concatenated mutable state of the active cascade
  * stages (HB / CIC[+comp FIR] / Resampler), in cascade order — each a
  * self-contained sub-blob with its own leaf envelope.  The stage plan is config
- * (rebuilt from rate), so a same-rate RateConverter round-trips exactly. */
+ * (rebuilt from rate), so a same-rate RateConverter round-trips exactly.
+ * v2: an enabled pre-terminal AGC appends its seed scalars and its own
+ * sub-blob after the stages. A converter with the AGC off writes exactly the
+ * bytes v1 did — but the version still moves, because nothing in the blob
+ * distinguishes an AGC-off v2 from a v1, and the size check alone cannot. */
 #define RC_STATE_MAGIC DP_FOURCC ('R', 'C', 'V', 'T')
-#define RC_STATE_VERSION 1u
+#define RC_STATE_VERSION 2u
 
 size_t RateConverter_state_bytes (const RateConverter_state_t *s);
 void RateConverter_get_state (const RateConverter_state_t *s, void *blob);

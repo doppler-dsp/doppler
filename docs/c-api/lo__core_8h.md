@@ -79,7 +79,7 @@ _Local oscillator: NCO + 2^16 sin/cos LUT → CF32 phasors._ [More...](#detailed
 |  size\_t | [**lo\_state\_bytes**](#function-lo_state_bytes) (const [**lo\_state\_t**](structlo__state__t.md) \* state) <br>_Bytes_ [_**lo\_get\_state()**_](lo__core_8h.md#function-lo_get_state) _writes for_`state` _(envelope + payload)._ |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) float complex | [**lo\_step**](#function-lo_step) ([**lo\_state\_t**](structlo__state__t.md) \* state) <br>_Emit the current CF32 phasor, then advance the accumulator._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) float complex | [**lo\_step\_ctrl**](#function-lo_step_ctrl) ([**lo\_state\_t**](structlo__state__t.md) \* state, double ctrl) <br>_Emit the current CF32 phasor, then advance by phase\_inc + control._  |
-|  size\_t | [**lo\_steps**](#function-lo_steps) ([**lo\_state\_t**](structlo__state__t.md) \* state, size\_t n, float complex \* out, size\_t max\_out) <br>_Generate n CF32 phasors at the current norm\_freq. Each sample is cos(θ) + j·sin(θ) where θ is the phase BEFORE the accumulator is advanced, giving a unit-magnitude complex sinusoid via the 65536-entry LUT. SFDR ≈ 96 dBc. Returns n._  |
+|  size\_t | [**lo\_steps**](#function-lo_steps) ([**lo\_state\_t**](structlo__state__t.md) \* state, size\_t n, float complex \* out, size\_t max\_out) <br>_Generate n CF32 phasors at the current norm\_freq. Each sample is cos(θ) + j·sin(θ) where θ is the phase BEFORE the accumulator is advanced, giving a unit-magnitude complex sinusoid via the 65536-entry LUT. SFDR is ≥ 90 dBc at any frequency and ~96 dBc at a typical one — see the file header for why those are two different numbers. Returns n._  |
 |  size\_t | [**lo\_steps\_ctrl**](#function-lo_steps_ctrl) ([**lo\_state\_t**](structlo__state__t.md) \* state, const float \* ctrl, size\_t ctrl\_len, float complex \* out, size\_t max\_out) <br>_Generate CF32 phasors with per-sample FM deviation. For each sample i,_ `ctrl[i]` _'s fractional part is converted to a delta phase-increment (delta = floor(frac(_`ctrl[i]` _) × 2^32)) that is added on top of the base phase\_inc for that one step only. The base norm\_freq and phase\_inc are NOT modified; the deviation is transient per sample, making this the natural API for FM synthesis and frequency-hopping. Output length equals ctrl\_len. Returns ctrl\_len._ |
 |  size\_t | [**lo\_steps\_ctrl\_max\_out**](#function-lo_steps_ctrl_max_out) ([**lo\_state\_t**](structlo__state__t.md) \* state) <br> |
 |  size\_t | [**lo\_steps\_max\_out**](#function-lo_steps_max_out) ([**lo\_state\_t**](structlo__state__t.md) \* state) <br>_Maximum samples per call (determines pre-allocated buffer size)._  |
@@ -129,7 +129,23 @@ Wraps the integer NCO in a CF32 phasor generator. The 32-bit phase accumulator d
 idx = phase &gt;&gt; 16 out(i) = cos(θ) + j·sin(θ) = lut((idx + LUT\_QTR) & 0xFFFF) + j·lut(idx)
 
 
-Output is emitted BEFORE the phase is incremented (same convention as NCO). The 16-bit phase truncation gives ~96 dBc SFDR.
+Output is emitted BEFORE the phase is incremented (same convention as NCO).
+
+
+### Spurious content — what the 16-bit index costs
+
+
+
+The index keeps the top 16 bits of a 32-bit phase, so unless the increment is a whole number of LUT bins there is a per-sample phase error, and that error is periodic: its period is set by the LOW 16 bits of phase\_inc, NOT by the frequency. Three regimes, measured (see src/doppler/tests/validation/lo/results.md, which regenerates them):
+
+
+phase\_inc & 0xFFFF == 0 no truncation at all; spur-free to the float32 floor, ~146 dBc a generic remainder ~96 dBc, flat  400 random rates span 96.32 to 96.33 dBc remainder == 0x8000 (half a 92.4 dBc: the error alternates with bin), and small-denominator period 2 and all of it lands in one remainders near it spur. This is the classical 6.02\*B - 3.92 phase-truncation bound.
+
+
+**The guarantee is SFDR &gt;= 90 dBc at any frequency** (worst measured 92.40, over 8 carrier positions x 2 capture lengths). The familiar ~96 dBc is the TYPICAL figure, not a bound  a design sizing its spur budget must use 90.
+
+
+Amplitude quantization is not a contributor: the table is float32, so \|phasor\| - 1 stays under 6e-08, four orders below the half-bin phase error of 0.5/65536 cycles.
 
 
 The shared LUT is initialised lazily on the first [**lo\_create()**](lo__core_8h.md#function-lo_create) call.
@@ -147,6 +163,7 @@ lo_steps (lo, 4, out, 4);
 lo_destroy(lo);
 ```
  
+
 
 
     
@@ -578,7 +595,7 @@ float complex s = lo_step_ctrl (&lo, 0.01);  // step at +0.01 cyc/sample
 
 ### function lo\_steps 
 
-_Generate n CF32 phasors at the current norm\_freq. Each sample is cos(θ) + j·sin(θ) where θ is the phase BEFORE the accumulator is advanced, giving a unit-magnitude complex sinusoid via the 65536-entry LUT. SFDR ≈ 96 dBc. Returns n._ 
+_Generate n CF32 phasors at the current norm\_freq. Each sample is cos(θ) + j·sin(θ) where θ is the phase BEFORE the accumulator is advanced, giving a unit-magnitude complex sinusoid via the 65536-entry LUT. SFDR is ≥ 90 dBc at any frequency and ~96 dBc at a typical one — see the file header for why those are two different numbers. Returns n._ 
 ```C++
 size_t lo_steps (
     lo_state_t * state,

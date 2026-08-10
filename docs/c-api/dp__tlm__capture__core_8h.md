@@ -60,6 +60,7 @@ _Lossless telemetry capture: sized by arithmetic, not by guesswork._ [More...](#
 | ---: | :--- |
 |  int | [**dp\_tlm\_capture\_block**](#function-dp_tlm_capture_block) ([**dp\_tlm\_capture\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_capture_t) \* c) <br>_Block boundary: drains the ring to empty._  |
 |  int | [**dp\_tlm\_capture\_close**](#function-dp_tlm_capture_close) ([**dp\_tlm\_capture\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_capture_t) \* c) <br>_Final boundary, then flush, join, and write the sidecar._  |
+|  [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* | [**dp\_tlm\_capture\_context**](#function-dp_tlm_capture_context) (const [**dp\_tlm\_capture\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_capture_t) \* c) <br>_The context this capture drains, borrowed._  |
 |  size\_t | [**dp\_tlm\_capture\_count**](#function-dp_tlm_capture_count) (const [**dp\_tlm\_capture\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_capture_t) \* c) <br>_Records captured so far, across memory and file alike._  |
 |  int | [**dp\_tlm\_capture\_destroy**](#function-dp_tlm_capture_destroy) ([**dp\_tlm\_capture\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_capture_t) \* c) <br>_Closes if still open, then frees. NULL-safe._  |
 |  uint64\_t | [**dp\_tlm\_capture\_dropped**](#function-dp_tlm_capture_dropped) (const [**dp\_tlm\_capture\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_capture_t) \* c) <br>_Records the ring dropped during this capture._  |
@@ -222,7 +223,10 @@ Usually reached through dp\_tlm\_set\_now() rather than called directly.
 >>> pid = tlm.probe("agc.gain_db")
 >>> cap = MemoryCapture(tlm, 256, SampleClock(1e6))
 >>> tlm.emit(pid, 1.5)
->>> cap.block()          # explicit boundary; set_now() does this for you
+
+An explicit boundary; set_now() reaches this for you:
+
+>>> cap.block()
 >>> cap.count
 1
 ```
@@ -277,11 +281,34 @@ one way to lose a record, and it is reported rather than absorbed:
 >>> bad = MemoryCapture(tlm2, 8, SampleClock(1e6))
 >>> for i in range(20000):
 ...     tlm2.emit(p2, float(i))
->>> bad.close()
+>>> bad.close()  # doctest: +ELLIPSIS
 Traceback (most recent call last):
-ValueError: close failed (rc=-4)
+ValueError: the capture has a hole: ...
 ```
  
+
+
+        
+
+<hr>
+
+
+
+### function dp\_tlm\_capture\_context 
+
+_The context this capture drains, borrowed._ 
+```C++
+dp_tlm_t * dp_tlm_capture_context (
+    const dp_tlm_capture_t * c
+) 
+```
+
+
+
+A capture's records carry probe _ids_; turning those back into names needs the registry, which lives on the context. Exposing the borrow is what lets a consumer name what it captured without being handed the context separately and having to keep the two associated by hand.
+
+
+Borrowed, not owned: the context outlives the capture by construction (it is what the capture was opened on), and destroying the capture does not touch it. 
 
 
         

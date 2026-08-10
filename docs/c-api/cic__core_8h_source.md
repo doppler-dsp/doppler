@@ -50,11 +50,15 @@ void cic_reset(cic_state_t *state);
 #define CIC_STATE_MAGIC DP_FOURCC ('C', 'I', 'C', '_')
 #define CIC_STATE_VERSION 2u
 
+#define CIC_PAPR_HEADROOM 2.0f
+
 size_t cic_state_bytes(const cic_state_t *state);
 void cic_get_state(const cic_state_t *state, void *blob);
 int cic_set_state(cic_state_t *state, const void *blob);
 
 size_t cic_decimate_max_out(cic_state_t *state);
+
+double cic_dc_gain(const cic_state_t *state);
 
 JM_FORCEINLINE JM_HOT size_t
 cic_decimate(cic_state_t *state, const float complex *in,
@@ -70,8 +74,8 @@ cic_decimate(cic_state_t *state, const float complex *in,
            The four comparisons run regardless, so noting that one fired
            costs a register OR — which is the whole reason `clipped` exists
            rather than a line of documentation asking callers to be careful. */
-        float sr = crealf(in[i]) * 32768.0f;
-        float si = cimagf(in[i]) * 32768.0f;
+        float sr = crealf(in[i]) * (32768.0f / CIC_PAPR_HEADROOM);
+        float si = cimagf(in[i]) * (32768.0f / CIC_PAPR_HEADROOM);
         if (sr >  32767.0f) { sr =  32767.0f; clip = 1; }
         if (sr < -32768.0f) { sr = -32768.0f; clip = 1; }
         if (si >  32767.0f) { si =  32767.0f; clip = 1; }
@@ -111,10 +115,14 @@ cic_decimate(cic_state_t *state, const float complex *in,
         if (n_out >= max_out)
             continue;
 
-        /* UQ16 → CF32: right-shift to normalise, remove offset-binary bias. */
+        /* UQ16 → CF32: right-shift to normalise, remove offset-binary bias,
+           and undo the encoder's PAPR headroom. The offset is NOT scaled by
+           it — it is the offset-binary midpoint, not signal. */
         out[n_out++] = CMPLXF(
-            ((float)(uint16_t)(re >> shift) - 32768.0f) * (1.0f / 32768.0f),
-            ((float)(uint16_t)(im >> shift) - 32768.0f) * (1.0f / 32768.0f));
+            ((float)(uint16_t)(re >> shift) - 32768.0f)
+                * (CIC_PAPR_HEADROOM / 32768.0f),
+            ((float)(uint16_t)(im >> shift) - 32768.0f)
+                * (CIC_PAPR_HEADROOM / 32768.0f));
     }
     state->clipped |= (uint8_t)clip;   /* sticky; cleared only by reset() */
     return n_out;

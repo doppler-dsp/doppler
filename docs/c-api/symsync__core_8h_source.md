@@ -78,6 +78,14 @@ extern "C"
                     + cimagf (mid) * cimagf (diff));
   }
 
+  enum
+  {
+    SYMSYNC_PULSE_IANDD = 0, 
+    SYMSYNC_PULSE_RRC   = 1  
+  };
+
+  double symsync_ted_slope (int ted, int pulse, double beta, size_t span);
+
   JM_FORCEINLINE double
   dttl_ted (float complex mid, float complex y, float complex prev)
   {

@@ -276,8 +276,8 @@ Samples written to `out`.
 >>> from doppler.impairment import DopplerChannel
 >>> ch = DopplerChannel(fs=1e6, carrier_hz=2.5e9, doppler_ppm=20.0)
 >>> y = ch.execute(np.ones(1000, dtype=np.complex64))
->>> y.shape                   # ~ 1000 / (1 + 20e-6): time dilation
-(999,)
+>>> y.shape                   # 20 ppm is 0.02 samples over this block
+(1000,)
 >>> round(ch.offset_hz, 1)    # fc * d = 2.5e9 * 20e-6, in Hz
 50000.0
 ```
@@ -387,8 +387,8 @@ Zeroes both sample clocks (so `elapsed_s` and the carrier phase restart at zero)
 >>> from doppler.impairment import DopplerChannel
 >>> ch = DopplerChannel(fs=1e6, carrier_hz=2.5e9, doppler_ppm=20.0)
 >>> _ = ch.execute(np.ones(1000, dtype=np.complex64))
->>> round(ch.elapsed_s, 6)    # receive time consumed: 999 / 1e6
-0.000999
+>>> round(ch.elapsed_s, 6)    # receive time consumed: 1000 / 1e6
+0.001
 >>> ch.reset()                # both sample clocks back to zero
 >>> ch.elapsed_s
 0.0

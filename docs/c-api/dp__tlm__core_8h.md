@@ -74,6 +74,8 @@ _Lightweight scalar telemetry taps for running DSP objects._ [More...](#detailed
 |  size\_t | [**dp\_tlm\_block\_bound**](#function-dp_tlm_block_bound) (const [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* t, size\_t block\_samples) <br>_Records this context can emit while processing_ `block_samples` _inputs — the number that makes drops preventable._ |
 |  size\_t | [**dp\_tlm\_capacity**](#function-dp_tlm_capacity) (const [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* t) <br>_Authoritative ring capacity in records (post page rounding)._  |
 |  [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* | [**dp\_tlm\_create**](#function-dp_tlm_create) (size\_t ring\_records) <br>_Creates a telemetry context with a ring of_ `ring_records` _slots._ |
+|  void | [**dp\_tlm\_demux**](#function-dp_tlm_demux) (const [**dp\_tlm\_rec\_t**](structdp__tlm__rec__t.md) \* recs, size\_t n, float \*const \* values, uint64\_t \*const \* index, const size\_t \* caps, size\_t nbuf) <br>_Splits_ `recs` _into per-probe value (and sample-index) buffers._ |
+|  void | [**dp\_tlm\_demux\_counts**](#function-dp_tlm_demux_counts) (const [**dp\_tlm\_rec\_t**](structdp__tlm__rec__t.md) \* recs, size\_t n, size\_t \* counts, size\_t ncounts) <br>_Counts each probe's records in_ `recs` _, in ONE pass._ |
 |  void | [**dp\_tlm\_destroy**](#function-dp_tlm_destroy) ([**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* t) <br>_Destroys a context. NULL-safe. Detach all objects first._  |
 |  uint64\_t | [**dp\_tlm\_dropped**](#function-dp_tlm_dropped) (const [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* t) <br>_Total records dropped on ring overrun (monotonic)._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) void | [**dp\_tlm\_emit**](#function-dp_tlm_emit) ([**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* t, int32\_t id, double v) <br>_Records one scalar for probe_ `id` _. The hot-path primitive._ |
@@ -364,6 +366,107 @@ New context, or NULL on invalid size / allocation failure.
 
 
 
+
+
+        
+
+<hr>
+
+
+
+### function dp\_tlm\_demux 
+
+_Splits_ `recs` _into per-probe value (and sample-index) buffers._
+```C++
+void dp_tlm_demux (
+    const dp_tlm_rec_t * recs,
+    size_t n,
+    float *const * values,
+    uint64_t *const * index,
+    const size_t * caps,
+    size_t nbuf
+) 
+```
+
+
+
+Fill half of the demux, also ONE pass: every record is placed on the visit that reads it, so the whole split is O(n) rather than O(n \* probes) — the reason this is not just a filter called once per probe.
+
+
+`values` and `index` are arrays of `nbuf` destination pointers indexed by probe id, exactly as [**dp\_tlm\_demux\_counts()**](dp__tlm__core_8h.md#function-dp_tlm_demux_counts) indexes `counts`, so the counting pass sizes the buffers this pass fills. A NULL entry in either table skips that probe's component; `index` may itself be NULL when only the values are wanted. Writes stop at each probe's capacity, so a buffer sized from a stale count truncates rather than overruns.
+
+
+
+
+**Parameters:**
+
+
+* `recs` Records to split; borrowed, only read. 
+* `n` Records in `recs`. 
+* `values` Per-probe `float` destinations, indexed by id; may be NULL. 
+* `index` Per-probe `uint64_t` sample-index destinations; may be NULL. 
+* `caps` Per-probe capacities in records, indexed by id. 
+* `nbuf` Entries in `values`, `index` and `caps`.
+
+
+```C++
+float v0[2], v1[1];
+uint64_t n0[2], n1[1];
+float *values[2]    = { v0, v1 };
+uint64_t *index[2]  = { n0, n1 };
+size_t caps[2]      = { 2, 1 };
+dp_tlm_demux (recs, 3, values, index, caps, 2);
+// v0 == { 1.0f, 3.0f }, n0 == { 0, 2 }, v1 == { 2.0f }, n1 == { 1 }
+```
+ 
+
+
+        
+
+<hr>
+
+
+
+### function dp\_tlm\_demux\_counts 
+
+_Counts each probe's records in_ `recs` _, in ONE pass._
+```C++
+void dp_tlm_demux_counts (
+    const dp_tlm_rec_t * recs,
+    size_t n,
+    size_t * counts,
+    size_t ncounts
+) 
+```
+
+
+
+Sizing half of the demux. Probe ids are registry slots ([**dp\_tlm\_probe\_id\_at()**](dp__tlm__core_8h.md#function-dp_tlm_probe_id_at)), so `counts` is indexed directly by id and needs no map: `counts[id]` is that probe's record count. Ids at or beyond `ncounts` are skipped rather than treated as an error — a caller sizing from [**dp\_tlm\_probe\_count()**](dp__tlm__core_8h.md#function-dp_tlm_probe_count) is asking about the probes it knows, and a blob from another context may legitimately carry more.
+
+
+Takes a plain array, not a context, so it serves [**dp\_tlm\_read()**](dp__tlm__core_8h.md#function-dp_tlm_read)'s output, [**dp\_tlm\_capture\_records()**](dp__tlm__capture__core_8h.md#function-dp_tlm_capture_records), and a `.tlm16` file read straight off disk.
+
+
+
+
+**Parameters:**
+
+
+* `recs` Records to scan; may be NULL when `n` is 0. 
+* `n` Records in `recs`. 
+* `counts` Destination, zeroed by this call, indexed by probe id. 
+* `ncounts` Entries in `counts`.
+
+
+```C++
+dp_tlm_rec_t recs[3] = { { 0, 1.0f, 0, 0 },
+                         { 1, 2.0f, 1, 0 },
+                         { 2, 3.0f, 0, 0 } };
+size_t counts[2];
+dp_tlm_demux_counts (recs, 3, counts, 2);
+// counts[0] == 2, counts[1] == 1
+```
+ 
 
 
         

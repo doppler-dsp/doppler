@@ -37,7 +37,9 @@
 | Type | Name |
 | ---: | :--- |
 |  float \* | [**bank**](#variable-bank)  <br> |
-|  double | [**ctrl\_acc**](#variable-ctrl_acc)  <br> |
+|  uint32\_t | [**ctrl\_ahead**](#variable-ctrl_ahead)  <br> |
+|  uint32\_t | [**ctrl\_debt**](#variable-ctrl_debt)  <br> |
+|  uint32\_t | [**ctrl\_phase**](#variable-ctrl_phase)  <br> |
 |  float \_Complex \* | [**decim\_iad**](#variable-decim_iad)  <br> |
 |  float \_Complex \* | [**decim\_tfd**](#variable-decim_tfd)  <br> |
 |  float \_Complex \* | [**delay\_buf**](#variable-delay_buf)  <br> |
@@ -113,10 +115,36 @@ float* resamp_state_t::bank;
 
 
 
-### variable ctrl\_acc 
+### variable ctrl\_ahead 
 
 ```C++
-double resamp_state_t::ctrl_acc;
+uint32_t resamp_state_t::ctrl_ahead;
+```
+
+
+
+
+<hr>
+
+
+
+### variable ctrl\_debt 
+
+```C++
+uint32_t resamp_state_t::ctrl_debt;
+```
+
+
+
+
+<hr>
+
+
+
+### variable ctrl\_phase 
+
+```C++
+uint32_t resamp_state_t::ctrl_phase;
 ```
 
 

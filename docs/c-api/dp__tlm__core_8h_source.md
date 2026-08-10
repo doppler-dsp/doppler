@@ -102,6 +102,12 @@ size_t dp_tlm_read_max_out (dp_tlm_t *t);
 size_t dp_tlm_read (dp_tlm_t *t, size_t n, dp_tlm_rec_t *out,
                     size_t max_out);
 
+void dp_tlm_demux_counts (const dp_tlm_rec_t *recs, size_t n, size_t *counts,
+                          size_t ncounts);
+
+void dp_tlm_demux (const dp_tlm_rec_t *recs, size_t n, float *const *values,
+                   uint64_t *const *index, const size_t *caps, size_t nbuf);
+
 uint64_t dp_tlm_dropped (const dp_tlm_t *t);
 
 uint64_t dp_tlm_emitted (const dp_tlm_t *t, int id);

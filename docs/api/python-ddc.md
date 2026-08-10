@@ -504,6 +504,6 @@ ddc_destroy(ddc);
 
 **Gallery** — [Ddcr — Real Passband to Baseband](../gallery/ddc-fn.md), [Gallery](../gallery/index.md), [M-PSK Receiver — Pull-in, Lock, and BER](../gallery/mpsk-receiver.md)
 **Guides** — [Power Spectra & Measurements](../guide/spectral-psd.md), [Checkpoint & Resume](../guide/state-serialization.md)
-**Design** — [Design — pure-functional acquisition kernel (elastic fleet)](../design/acq-fn.md), [API taxonomy: the DSP building-block hierarchy and its naming axis](../design/api-taxonomy.md), [MPSK Receiver](../design/mpsk.md), [The NCO](../design/nco.md), [State Serialization — the standard bytes interface](../design/state-serialization.md)
+**Design** — [Design — pure-functional acquisition kernel (elastic fleet)](../design/acq-fn.md), [API taxonomy: the DSP building-block hierarchy and its naming axis](../design/api-taxonomy.md), [MPSK Receiver](../design/mpsk.md), [The NCO](../design/nco.md), [Symbol Timing on a Rate Cascade](../design/ratesync-timing.md), [State Serialization — the standard bytes interface](../design/state-serialization.md)
 
 <!-- related-pages:end -->

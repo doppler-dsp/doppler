@@ -485,6 +485,292 @@ main (void)
     lo_destroy (ref);
   }
 
+  /* ----------------------------------------------------------------
+   * 16. lo_step_ctrl — the control port.
+   *
+   * The header documents a full contract for this inline (added on top
+   * of phase_inc for this step only, not persisted, any sign, folds
+   * modulo one cycle, bit-identical to lo_step at ctrl == 0) and not
+   * one clause of it was exercised anywhere: no test in this file, and
+   * no binding, so no Python test either.  Each CHECK below is one
+   * sentence of that contract.
+   * ---------------------------------------------------------------- */
+  {
+    const size_t N = 129;
+
+    /* (a) ctrl == 0 is bit-identical to lo_step(). */
+    lo_state_t plain, zeroed;
+    lo_init (&plain, 0.0713);
+    lo_init (&zeroed, 0.0713);
+    int exact = 1;
+    for (size_t i = 0; i < N; i++)
+      {
+        float complex p = lo_step (&plain);
+        float complex z = lo_step_ctrl (&zeroed, 0.0);
+        if (crealf (p) != crealf (z) || cimagf (p) != cimagf (z))
+          exact = 0;
+      }
+    CHECK (exact);
+    CHECK (lo_get_phase (&plain) == lo_get_phase (&zeroed));
+
+    /* (b) A constant control is the same oscillator as the equivalent
+     * base rate: base 0, ctrl 0.25 == a 0.25 LO, bit-for-bit. */
+    lo_state_t    driven;
+    lo_state_t   *ref = lo_create (0.25);
+    float complex a[64], b[64];
+    lo_init (&driven, 0.0);
+    lo_steps (ref, 64, a, 64);
+    for (int i = 0; i < 64; i++)
+      b[i] = lo_step_ctrl (&driven, 0.25);
+    exact = 1;
+    for (int i = 0; i < 64; i++)
+      if (crealf (a[i]) != crealf (b[i]) || cimagf (a[i]) != cimagf (b[i]))
+        exact = 0;
+    CHECK (exact);
+    lo_destroy (ref);
+
+    /* (c) A NEGATIVE control composes modularly.  The fold takes -0.25
+     * to +0.75, which is the same phase-word delta: base 0.5 steered by
+     * -0.25 must BE a 0.25 oscillator.  (Unlike nco's carry flag, the LO
+     * has no direction to lose here — only the modular phase is
+     * observable, so the fold is exactly right.) */
+    lo_state_t  down;
+    lo_state_t *quarter = lo_create (0.25);
+    lo_init (&down, 0.5);
+    lo_steps (quarter, 64, a, 64);
+    for (int i = 0; i < 64; i++)
+      b[i] = lo_step_ctrl (&down, -0.25);
+    exact = 1;
+    for (int i = 0; i < 64; i++)
+      if (crealf (a[i]) != crealf (b[i]) || cimagf (a[i]) != cimagf (b[i]))
+        exact = 0;
+    CHECK (exact);
+    CHECK (lo_get_phase (&down) == lo_get_phase (quarter));
+    lo_destroy (quarter);
+
+    /* (d) Only the fractional cycle survives: 1.25 == 0.25, -1.75 ==
+     * 0.25.  The header says "the fractional cycle is taken, so it wraps
+     * correctly" for any sign and any magnitude. */
+    lo_state_t f0, f1, f2;
+    lo_init (&f0, 0.0);
+    lo_init (&f1, 0.0);
+    lo_init (&f2, 0.0);
+    /* 13 steps, not a multiple of 4: at 16 steps a quarter-rate phase is
+     * back at exactly 0, so a STOPPED oscillator would compare equal and
+     * the fold claim would pass vacuously.  The guard below pins that
+     * precondition rather than trusting the count. */
+    for (int i = 0; i < 13; i++)
+      {
+        (void)lo_step_ctrl (&f0, 0.25);
+        (void)lo_step_ctrl (&f1, 1.25);
+        (void)lo_step_ctrl (&f2, -1.75);
+      }
+    CHECK (lo_get_phase (&f0) != 0u); /* not the vacuous comparison */
+    CHECK (lo_get_phase (&f1) == lo_get_phase (&f0));
+    CHECK (lo_get_phase (&f2) == lo_get_phase (&f0));
+
+    /* (e) The control is transient: it never lands in phase_inc or
+     * norm_freq, so the step AFTER a steered one advances by the centre
+     * increment alone. */
+    lo_state_t keep;
+    lo_init (&keep, 0.1);
+    uint32_t inc0 = lo_get_phase_inc (&keep);
+    (void)lo_step_ctrl (&keep, 0.37);
+    CHECK (lo_get_phase_inc (&keep) == inc0);
+    CHECK (lo_get_norm_freq (&keep) == 0.1);
+    uint32_t ph_after_steer = lo_get_phase (&keep);
+    (void)lo_step_ctrl (&keep, 0.0);
+    CHECK (lo_get_phase (&keep) == ph_after_steer + inc0);
+
+    /* (f) Emit BEFORE increment, on the steered path too: seeded at an
+     * arbitrary phase word, the first sample is the LUT at THAT word. */
+    lo_state_t seeded;
+    lo_init (&seeded, 0.1);
+    lo_set_phase (&seeded, 0x9ABC0000u);
+    uint16_t      widx = (uint16_t)(0x9ABC0000u >> 16);
+    float complex s0   = lo_step_ctrl (&seeded, 0.42);
+    CHECK (crealf (s0) == lo_sin_lut[(uint16_t)(widx + (uint16_t)LO_LUT_QTR)]);
+    CHECK (cimagf (s0) == lo_sin_lut[widx]);
+  }
+
+  /* ----------------------------------------------------------------
+   * 17. lo_steps_ctrl is exactly a loop over lo_step_ctrl.
+   *
+   * Section 8 pins that equivalence for the free-running pair; the
+   * steered pair had no such check, and it is the pair where the two
+   * implementations genuinely differ (one folds a double per sample, the
+   * other a float widened to double -- and on an AVX-512 host the block
+   * form takes an entirely separate vector path).  Driven with a control
+   * that changes sign and exceeds one cycle, so the fold is exercised
+   * per sample rather than held constant.
+   * ---------------------------------------------------------------- */
+  {
+    const size_t  N = 133;
+    float         ctrl[133];
+    float complex blk[133], one[133];
+    for (size_t i = 0; i < N; i++)
+      ctrl[i] = (float)(0.03 * sin (0.11 * (double)i) - 0.007 * (double)i);
+
+    lo_state_t *bs = lo_create (0.077);
+    lo_state_t  ss;
+    lo_init (&ss, 0.077);
+    CHECK (lo_steps_ctrl (bs, ctrl, N, blk, N) == N);
+    for (size_t i = 0; i < N; i++)
+      one[i] = lo_step_ctrl (&ss, (double)ctrl[i]);
+
+    int exact = 1;
+    for (size_t i = 0; i < N; i++)
+      if (crealf (blk[i]) != crealf (one[i])
+          || cimagf (blk[i]) != cimagf (one[i]))
+        exact = 0;
+    CHECK (exact);
+    CHECK (lo_get_phase (bs) == lo_get_phase (&ss));
+    /* the block form must not persist the control either */
+    CHECK (lo_get_phase_inc (bs) == lo_get_phase_inc (&ss));
+    CHECK (lo_get_norm_freq (bs) == 0.077);
+    lo_destroy (bs);
+  }
+
+  /* ----------------------------------------------------------------
+   * 18. lo_destroy(NULL) is a no-op.
+   *
+   * "May be NULL (no-op)" is a documented promise a caller writing an
+   * error path relies on; nothing checked it.
+   * ---------------------------------------------------------------- */
+  {
+    lo_destroy (NULL);
+    CHECK (1); /* reached: the call above did not fault */
+  }
+
+  /* ----------------------------------------------------------------
+   * 19. max_out is the real bound; LO_MAX_OUT is advisory.
+   *
+   * lo_core.c still says "calling with n > 65536 overflows the buffer
+   * and is undefined behaviour", which was true before pass_capacity
+   * (jm gh-138) gave the kernel the caller's capacity.  It is now the
+   * Python extension's PRE-ALLOCATION size, not a limit on the C API: a
+   * C caller supplying a larger buffer and a matching max_out gets every
+   * sample it asked for.  Pinned so the stale sentence cannot quietly
+   * become true again.
+   * ---------------------------------------------------------------- */
+  {
+    CHECK (lo_steps_max_out (NULL) == 65536u);
+    CHECK (lo_steps_ctrl_max_out (NULL) == 65536u);
+
+    const size_t   BIG = 70000;
+    float complex *big = malloc (BIG * sizeof *big);
+    CHECK (big != NULL);
+    if (big)
+      {
+        lo_state_t *lo = lo_create (0.013);
+        CHECK (lo_steps (lo, BIG, big, BIG) == BIG);
+        /* every sample really was written: the phase advanced by all of
+         * them, and the tail is on the unit circle rather than zeroed */
+        lo_state_t *chk = lo_create (0.013);
+        CHECK (
+            lo_get_phase (lo)
+            == (uint32_t)((uint64_t)lo_get_phase_inc (chk) * (uint64_t)BIG));
+        float m2 = crealf (big[BIG - 1]) * crealf (big[BIG - 1])
+                   + cimagf (big[BIG - 1]) * cimagf (big[BIG - 1]);
+        CHECK (near (m2, 1.0f));
+        lo_destroy (lo);
+        lo_destroy (chk);
+        free (big);
+      }
+  }
+
+  /* ----------------------------------------------------------------
+   * 20. The LUT itself, as a law rather than four literals.
+   *
+   * Sections 3 and 6 check magnitude and quadrature at quarter-rate,
+   * where every LUT entry involved is exactly 0 or +-1 -- the four
+   * points that cannot detect a wrong table.  These bound the error
+   * across all 65536 entries, and the sin->cos quarter-cycle offset the
+   * file comment claims, at every index.
+   * ---------------------------------------------------------------- */
+  {
+    lo_state_t warm; /* forces lut_init() before reading the table */
+    lo_init (&warm, 0.0);
+
+    float worst_sin = 0.0f, worst_cos = 0.0f;
+    for (unsigned i = 0; i < LO_LUT_SIZE; i++)
+      {
+        double th = 2.0 * M_PI * (double)i / (double)LO_LUT_SIZE;
+        float  es = fabsf (lo_sin_lut[i] - (float)sin (th));
+        float  ec = fabsf (lo_sin_lut[(uint16_t)(i + (uint16_t)LO_LUT_QTR)]
+                           - (float)cos (th));
+        if (es > worst_sin)
+          worst_sin = es;
+        if (ec > worst_cos)
+          worst_cos = ec;
+      }
+    CHECK (worst_sin < 1e-6f); /* the table IS sin, everywhere      */
+    CHECK (worst_cos < 1e-6f); /* +QTR IS cos, at every index       */
+
+    /* Unit magnitude over a full sweep of the phase range, not just the
+     * four exact points: an odd increment coprime with 2^32 visits every
+     * LUT bin over a long enough run. */
+    lo_state_t   *sweep = lo_create (0.10000000017);
+    float complex buf[4096];
+    float         worst_m = 0.0f;
+    for (int blk = 0; blk < 64; blk++)
+      {
+        lo_steps (sweep, 4096, buf, 4096);
+        for (int i = 0; i < 4096; i++)
+          {
+            float m2 = crealf (buf[i]) * crealf (buf[i])
+                       + cimagf (buf[i]) * cimagf (buf[i]);
+            if (fabsf (m2 - 1.0f) > worst_m)
+              worst_m = fabsf (m2 - 1.0f);
+          }
+      }
+    CHECK (worst_m < 1e-5f);
+    lo_destroy (sweep);
+  }
+
+  /* ----------------------------------------------------------------
+   * 21. The control port TRUNCATES, like every other face of the
+   *     conversion.
+   *
+   * Section 15 pins truncation on the CONFIGURE path (lo_create /
+   * lo_set_norm_freq).  The control port is the other way into the same
+   * accumulator, and the header comment beside lo_step_ctrl asserts the
+   * opposite -- that nco_norm_freq_to_inc() "rounds, not truncates".
+   * nco_core.h documents truncation, and section 15 measures it, so the
+   * two faces are pinned against each other here: the SAME requested
+   * frequency must produce the SAME phase word whichever way it enters.
+   *
+   * 51/21e6 is the section-15 case whose exact increment has fractional
+   * remainder ~0.635 -- truncation gives 10430, round-to-nearest 10431 --
+   * so this CHECK distinguishes the two conventions rather than landing
+   * on a value they share.
+   * ---------------------------------------------------------------- */
+  {
+    const double f51 = 51.0 / 21.0e6;
+
+    lo_state_t *cfg = lo_create (f51);
+    CHECK (lo_get_phase_inc (cfg) == 10430u); /* configure path */
+
+    lo_state_t steer;
+    lo_init (&steer, 0.0);
+    (void)lo_step_ctrl (&steer, f51);
+    CHECK (lo_get_phase (&steer) == 10430u); /* control path, same word */
+
+    /* and the block control port agrees with both */
+    lo_state_t   *bsteer = lo_create (0.0);
+    const float   c1[1]  = { (float)f51 };
+    float complex o1[1];
+    lo_steps_ctrl (bsteer, c1, 1, o1, 1);
+    /* float32 rounds the REQUEST before the fold ever sees it, so the
+     * two differ by the float32 representation error, not by the
+     * conversion's rounding mode -- a few counts, never a whole step. */
+    CHECK (lo_get_phase (bsteer) <= 10430u + 4u);
+    CHECK (lo_get_phase (bsteer) + 4u >= 10430u);
+
+    lo_destroy (cfg);
+    lo_destroy (bsteer);
+  }
+
   if (_fails)
     {
       fprintf (stderr, "test_lo_core FAILED (%d)\n", _fails);

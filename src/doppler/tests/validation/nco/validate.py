@@ -27,20 +27,12 @@ from pathlib import Path
 import numpy as np
 
 from doppler.source import NCO
-from doppler.track import LoopFilter
+from doppler.tests.validation._common import linear_loop as ll
 
 HERE = Path(__file__).parent
 DATA = HERE / "data"
 LSB = 2.0**-32
 W = 1 << 32
-
-# The closed-loop reference (section 2.9).
-LOOP_N = 4000
-LOOP_BN = 0.01
-LOOP_ZETA = 0.707
-LOOP_K0 = 500  # sample at which the disturbance arrives
-LOOP_STEP = 0.25  # cycles
-LOOP_RAMP = 1e-3  # cycles/sample of frequency offset
 
 
 # ───────────────────────────────────────────────────────────── report
@@ -84,66 +76,6 @@ def signed(adv: int) -> int:
     return adv - W if adv > (W >> 1) else adv
 
 
-def wrap_cycles(c):
-    """Wrap cycles to [-0.5, 0.5) -- linear while |error| < half a cycle."""
-    return c - np.floor(c + 0.5)
-
-
-def linear_loop(phase_in: np.ndarray) -> tuple[np.ndarray, ...]:
-    """The trivial phase-domain loop: subtract, filter, steer the NCO.
-
-    The phase error IS the input minus the NCO phase -- no discriminator
-    shape, no gain to normalise, no noise. That is deliberate: it makes
-    this the LIMIT on closed-loop behaviour, since any real detector can
-    only do worse than one that reports the error exactly.
-
-    Returns
-    -------
-    tuple of ndarray
-        ``(error, control, nco_phase)``, all in cycles (control in
-        cycles/sample), one element per input sample.
-    """
-    lf = LoopFilter(bn=LOOP_BN, zeta=LOOP_ZETA, t=1.0)
-    nco = NCO(0.0, 0)
-    n = phase_in.size
-    err = np.empty(n)
-    ctl = np.empty(n)
-    pha = np.empty(n)
-    one = np.zeros(1, dtype=np.float32)
-    for k in range(n):
-        pha[k] = nco.phase / float(W)
-        err[k] = wrap_cycles(phase_in[k] - pha[k])
-        ctl[k] = lf.step(float(err[k]))
-        one[0] = ctl[k]
-        nco.steps_u32_ctrl(one)
-    return err, ctl, pha
-
-
-def loop_drives() -> dict[str, np.ndarray]:
-    """Input-phase records: a step of each sign, and a frequency ramp."""
-    k = np.arange(LOOP_N)
-    up = np.zeros(LOOP_N)
-    up[LOOP_K0:] = LOOP_STEP
-    dn = np.zeros(LOOP_N)
-    dn[LOOP_K0:] = -LOOP_STEP
-    rm = np.zeros(LOOP_N)
-    rm[LOOP_K0:] = LOOP_RAMP * (k[LOOP_K0:] - LOOP_K0)
-    return {
-        f"+{LOOP_STEP} cycle step": up,
-        f"-{LOOP_STEP} cycle step": dn,
-        f"ramp, {LOOP_RAMP:g} cyc/sample": rm,
-    }
-
-
-def loop_settle(err: np.ndarray) -> tuple[float, int, float]:
-    """Peak |error|, settling sample after K0, and residual |error|."""
-    seg = err[LOOP_K0:]
-    peak = float(np.abs(seg).max())
-    over = np.flatnonzero(np.abs(seg) > 0.01 * peak)
-    settle = int(over[-1]) if over.size else 0
-    return peak, settle, float(np.abs(err[-200:]).max())
-
-
 @dataclass
 class Data:
     freqs: np.ndarray
@@ -160,7 +92,7 @@ class Data:
     dead_span: np.ndarray
     dead_adv: np.ndarray
     carry_neg: list[tuple[float, float, float]]
-    loop: dict[str, tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]]
+    loop: dict[str, ll.LoopRun]
 
 
 # ═════════════════════════════════════════════════ 1. OBJECT SUMMARY
@@ -508,28 +440,26 @@ def characterise() -> Data:
     )
     R.md()
     R.md(
-        f"`bn = {LOOP_BN}`, `zeta = {LOOP_ZETA}`, one update per sample, "
-        f"disturbance at sample {LOOP_K0}. The classic settling estimate "
-        f"for a second-order loop is `5/bn` = {5 / LOOP_BN:.0f} samples. "
+        f"`bn = {ll.BN}`, `zeta = {ll.ZETA}`, one update per sample, "
+        f"disturbance at sample {ll.K0}. The classic settling estimate "
+        f"for a second-order loop is `5/bn` = {5 / ll.BN:.0f} samples. "
         f"Error wrapped to `[-0.5, 0.5)`, so the detector is linear while "
         f"the error stays inside half a cycle."
     )
     R.md()
-    loop: dict[str, tuple[np.ndarray, ...]] = {}
+    loop: dict[str, ll.LoopRun] = {}
     rows = []
-    for name, pin in loop_drives().items():
-        # NOT `err` -- that name holds the frequency-error sweep above,
-        # and shadowing it here would return the wrong array in Data.
-        lerr, lctl, lpha = linear_loop(pin)
-        loop[name] = (pin, lerr, lctl, lpha)
-        peak, settle, resid = loop_settle(lerr)
+    for name, pin in ll.standard_drives().items():
+        r = ll.run(pin, name=name)
+        loop[name] = r
+        s_ = ll.settle(r)
         rows.append(
             [
                 name,
-                f"{peak:.5f}",
-                f"{settle}",
-                f"{resid:.2e}",
-                f"{lctl[-1]:.4e}",
+                f"{s_.peak:.5f}",
+                f"{s_.samples}",
+                f"{s_.residual:.2e}",
+                f"{r.control[-1]:.4e}",
             ]
         )
     R.table(
@@ -542,14 +472,15 @@ def characterise() -> Data:
         ],
         rows,
     )
+    ramp_name = f"ramp, {ll.RAMP:g} cyc/sample"
     R.md(
         f"Both steps settle identically, which is the symmetry a linear "
         f"loop must have. On the ramp the loop filter's output converges "
         f"on the applied frequency offset itself — "
-        f"`{loop[f'ramp, {LOOP_RAMP:g} cyc/sample'][2][-1]:.6e}` against "
-        f"`{LOOP_RAMP:g}` — which is the type-2 integrator absorbing a "
-        f"constant frequency error and leaving no steady-state phase "
-        f"error behind. A type-1 loop would sit at a fixed offset instead."
+        f"`{loop[ramp_name].control[-1]:.6e}` against `{ll.RAMP:g}` — "
+        f"which is the type-2 integrator absorbing a constant frequency "
+        f"error and leaving no steady-state phase error behind. A type-1 "
+        f"loop would sit at a fixed offset instead."
     )
     R.md()
     R.md(f"![linear loop]({'linear_loop.png'})")
@@ -771,36 +702,36 @@ def limits(d: Data) -> None:
     )
 
     # --- the closed-loop limit -------------------------------------------
-    up = d.loop[f"+{LOOP_STEP} cycle step"]
-    dn = d.loop[f"-{LOOP_STEP} cycle step"]
-    rm = d.loop[f"ramp, {LOOP_RAMP:g} cyc/sample"]
-    s_up = loop_settle(up[1])
-    s_dn = loop_settle(dn[1])
-    s_rm = loop_settle(rm[1])
+    up = d.loop[f"+{ll.STEP:g} cycle step"]
+    dn = d.loop[f"-{ll.STEP:g} cycle step"]
+    rm = d.loop[f"ramp, {ll.RAMP:g} cyc/sample"]
+    s_up, s_dn, s_rm = ll.settle(up), ll.settle(dn), ll.settle(rm)
 
     R.limit(
-        s_up[1] < 5.0 / LOOP_BN and s_dn[1] < 5.0 / LOOP_BN,
+        s_up.samples < 5.0 / ll.BN and s_dn.samples < 5.0 / ll.BN,
         f"a phase step settles inside the 5/bn estimate "
-        f"({s_up[1]} and {s_dn[1]} samples against {5 / LOOP_BN:.0f})",
+        f"({s_up.samples} and {s_dn.samples} samples against "
+        f"{5 / ll.BN:.0f})",
     )
     R.limit(
-        s_up[1] == s_dn[1] and abs(s_up[0] - s_dn[0]) < 1e-9,
+        s_up.samples == s_dn.samples and abs(s_up.peak - s_dn.peak) < 1e-9,
         "the loop is symmetric in sign: +step and -step settle identically",
     )
     R.limit(
-        s_up[2] < 1e-6 and s_dn[2] < 1e-6,
+        s_up.residual < 1e-6 and s_dn.residual < 1e-6,
         f"a phase step leaves NO steady-state error "
-        f"(residual {max(s_up[2], s_dn[2]):.1e} cycles)",
+        f"(residual {max(s_up.residual, s_dn.residual):.1e} cycles)",
     )
     R.limit(
-        s_rm[2] < 1e-6,
+        s_rm.residual < 1e-6,
         f"a frequency ramp leaves NO steady-state PHASE error "
-        f"(residual {s_rm[2]:.1e} cycles) — the type-2 integrator absorbs it",
+        f"(residual {s_rm.residual:.1e} cycles) — the type-2 integrator "
+        f"absorbs it",
     )
     R.limit(
-        abs(rm[2][-1] - LOOP_RAMP) < 1e-6,
+        abs(rm.control[-1] - ll.RAMP) < 1e-6,
         f"on a ramp the loop filter's output converges on the applied "
-        f"frequency offset itself ({rm[2][-1]:.6e} vs {LOOP_RAMP:g})",
+        f"frequency offset itself ({rm.control[-1]:.6e} vs {ll.RAMP:g})",
     )
 
     R.md()
@@ -878,74 +809,6 @@ def plots(d: Data) -> None:
     plt.close(fig)
 
 
-def plot_loop(d: Data) -> None:
-    """Loop input, loop-filter output and NCO phase, one column per drive."""
-    import matplotlib
-
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
-
-    names = list(d.loop)
-    fig, axes = plt.subplots(3, len(names), figsize=(15, 9), sharex=True)
-    k = np.arange(LOOP_N)
-
-    for j, name in enumerate(names):
-        pin, lerr, lctl, lpha = d.loop[name]
-
-        ax = axes[0][j]
-        ax.plot(k, pin, lw=1.4, label="input phase")
-        # The NCO phase is modular; unwrap it so a ramp reads as a ramp
-        # rather than a sawtooth against the input.
-        ax.plot(
-            k,
-            np.unwrap(lpha * 2 * np.pi) / (2 * np.pi),
-            lw=1.2,
-            ls="--",
-            label="NCO phase (unwrapped)",
-        )
-        ax.axvline(LOOP_K0, color="0.6", lw=0.8)
-        ax.set_title(name)
-        if j == 0:
-            ax.set_ylabel("phase (cycles)")
-        ax.grid(True, alpha=0.3)
-        ax.legend(fontsize=7, loc="best")
-
-        ax = axes[1][j]
-        ax.plot(k, lerr, lw=1.3, color="tab:red")
-        ax.axhline(0.0, color="0.6", lw=0.8)
-        ax.axvline(LOOP_K0, color="0.6", lw=0.8)
-        if j == 0:
-            ax.set_ylabel("loop input\n= phase error (cycles)")
-        ax.grid(True, alpha=0.3)
-
-        ax = axes[2][j]
-        ax.plot(k, lctl, lw=1.3, color="tab:green")
-        ax.axhline(0.0, color="0.6", lw=0.8)
-        ax.axvline(LOOP_K0, color="0.6", lw=0.8)
-        if "ramp" in name:
-            ax.axhline(
-                LOOP_RAMP,
-                color="tab:orange",
-                ls=":",
-                lw=1.2,
-                label=f"applied offset {LOOP_RAMP:g}",
-            )
-            ax.legend(fontsize=7, loc="best")
-        if j == 0:
-            ax.set_ylabel("loop filter output\n(cycles/sample)")
-        ax.set_xlabel("sample")
-        ax.grid(True, alpha=0.3)
-
-    fig.suptitle(
-        f"The closed-loop limit: subtraction -> loop filter -> NCO "
-        f"(bn = {LOOP_BN}, zeta = {LOOP_ZETA})",
-        fontsize=13,
-    )
-    fig.tight_layout()
-    fig.savefig(HERE / "linear_loop.png", dpi=110)
-    plt.close(fig)
-
-
 def main() -> int:
     DATA.mkdir(parents=True, exist_ok=True)
     section_summary()
@@ -953,7 +816,7 @@ def main() -> int:
     review(d)
     limits(d)
     plots(d)
-    plot_loop(d)
+    ll.plot(d.loop, HERE / "linear_loop.png")
 
     gaps = [f for f in R.findings if f[1] in ("GAP", "CONFIRMED")]
     npass = sum(1 for ok, _ in R.limits if ok)

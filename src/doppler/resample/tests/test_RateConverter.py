@@ -555,14 +555,16 @@ def test_input_bound_applies_exactly_when_a_cic_is_planned(rate, has_cic):
     # scale-free, so the docs' rule has to be the code's rule.
     assert any("CIC" in s for s in RateConverter(rate=rate).stages) is has_cic
 
-    # Drive it 4x past full scale and see whether the gain holds.
+    # Drive it 4x past the bound and see whether the gain holds.
     y = RateConverter(rate=rate).execute(
-        np.full(8192, 4.0, dtype=np.complex64)
+        np.full(8192, 8.0, dtype=np.complex64)
     )
-    gain = float(y[-1].real) / 4.0
+    gain = float(y[-1].real) / 8.0
     if has_cic:
-        # Clipped at the boundary: unity-amplitude out for a 4x input.
-        assert float(y[-1].real) == pytest.approx(1.0, rel=1e-2)
+        # Clipped at the boundary, which is CIC_PAPR_HEADROOM (2.0, 6 dB
+        # above unity) rather than 1.0 -- that headroom is the whole point
+        # of the encode scale being 32768/CIC_PAPR_HEADROOM.
+        assert float(y[-1].real) == pytest.approx(2.0, rel=1e-2)
         assert gain == pytest.approx(0.25, rel=1e-2)
     else:
         assert gain == pytest.approx(1.0, rel=1e-2)
@@ -575,7 +577,8 @@ def test_input_bound_is_silent_not_an_error():
         np.full(8192, 50.0, dtype=np.complex64)
     )
     assert np.all(np.isfinite(y))
-    assert abs(float(y[-1].real) - 1.0) < 0.01
+    # Saturates at the CIC_PAPR_HEADROOM bound (2.0), not at unity.
+    assert abs(float(y[-1].real) - 2.0) < 0.01
 
 
 def test_clipped_reports_the_bound_the_cascade_hides():

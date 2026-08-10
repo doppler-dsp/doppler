@@ -17,13 +17,14 @@
  *   otherwise (2 <= D < 8, non-int) `[Resampler(rate)]`
  *
  * **INPUT AMPLITUDE IS BOUNDED whenever the plan contains a CIC stage** —
- * that is, any decimation by 8 or more: |Re| and |Im| <= 1.0, clipped beyond
- * that, before any filtering.  `stages` is how you tell: a plan naming
- * `CIC(...)` is not scale-free, every other plan is.  This is the one
- * property of this object a caller cannot infer from an output that is finite
- * and looks plausible — an overdriven RRC-BPSK waveform (peak 1.29)
- * matched-filters to -25 dB EVM where the same waveform scaled to peak 0.32
- * reaches -50 dB.
+ * that is, any decimation by 8 or more: |Re| and |Im| <= 2.0, clipped beyond
+ * that, before any filtering.  The bound is `CIC_PAPR_HEADROOM` (6 dB above
+ * unity), which is there so a pulse-shaped waveform's PEAKS have somewhere to
+ * sit above its unit average; see cic_core.h.  `stages` is how you tell: a
+ * plan naming `CIC(...)` is not scale-free, every other plan is.  This is the
+ * one property of this object a caller cannot infer from an output that is
+ * finite and looks plausible — an overdriven RRC-BPSK waveform matched-filters
+ * to -25 dB EVM where the same waveform well inside the bound reaches -50 dB.
  *
  * Lifecycle:
  * @code

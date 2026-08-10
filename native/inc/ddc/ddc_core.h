@@ -427,7 +427,8 @@ size_t ddc_execute(ddc_state_t *state, const float complex *x, size_t x_len, flo
    * @brief Has the cascade's CIC clipped its input since the last reset?
    *
    * Forwarded from RateConverter_get_clipped(): a CIC bounds its input to
-   * `|Re|, |Im| <= 1.0` and clips silently past it — the output stays finite
+   * `|Re|, |Im| <= 2.0` (`CIC_PAPR_HEADROOM`, 6 dB above unity — see
+   * cic_core.h) and clips silently past it — the output stays finite
    * and plausible, merely distorted, at a cost of ~25 dB of EVM that no
    * downstream metric attributes to the front end. Sticky until ddc_reset();
    * always false for a plan with no CIC stage, which is the honest answer since

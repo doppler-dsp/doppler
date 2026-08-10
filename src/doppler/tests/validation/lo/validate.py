@@ -117,9 +117,9 @@ def advance(norm_freq: float, ctrl_val: float) -> int:
     *steady* per-step advance and not an artefact of the starting phase.
     """
     a = LO(norm_freq)
-    a.steps_ctrl(np.full(2, ctrl_val, dtype=np.float32))
+    a.steps_ctrl(np.full(2, ctrl_val, dtype=np.float64))
     b = LO(norm_freq)
-    b.steps_ctrl(np.full(1, ctrl_val, dtype=np.float32))
+    b.steps_ctrl(np.full(1, ctrl_val, dtype=np.float64))
     return int((a.phase - b.phase) % W)
 
 
@@ -426,7 +426,7 @@ def characterise() -> Data:
     la.steps(4096)
     nb.steps_u32(4096)
     free_same = la.phase == nb.phase
-    csweep = np.linspace(-1.5, 1.5, 401).astype(np.float32)
+    csweep = np.linspace(-1.5, 1.5, 401).astype(np.float64)
     lc, nc = LO(0.077), NCO(0.077, 0)
     lc.steps_ctrl(csweep)
     nc.steps_u32_ctrl(csweep)
@@ -693,16 +693,19 @@ def characterise() -> Data:
     R.md(
         f"The same requested `0.1` reaches the accumulator by two paths and "
         f"lands on **two different words**: configured (double) gives "
-        f"`{inc_cfg}`, the ctrl port (float32) gives `{adv_ctrl}`, a delta "
-        f"of `{adv_ctrl - inc_cfg}`. `float32(0.1)` is "
-        f"`{np.float32(0.1):.17g}` against `{0.1:.17g}`. This is the NCO's "
-        f"F2 verbatim — the LO inherits the port and the gap with it, and "
-        f"`lo_core.h` does not mention the resolution either."
+        f"`{inc_cfg}` and the ctrl port gives `{adv_ctrl}`, a delta of "
+        f"`{adv_ctrl - inc_cfg}`. The port used to be float32 while the "
+        f"configured rate was double, so the same request landed 7 words "
+        f"apart depending on which face it entered by — the NCO's F2 "
+        f"verbatim, inherited along with the port. Both are `double` now "
+        f"(**F5**), which also makes `lo_steps_ctrl` agree with the "
+        f"inline `lo_step_ctrl` that always took one."
     )
     R.md()
 
     f = 0.25
-    quantum = float(np.spacing(np.float32(f)))
+    # With a double port the floor is the PHASE WORD's LSB.
+    quantum = LSB
     dead_span = np.linspace(-f - 4 * quantum, -f + 4 * quantum, 1601)
     dead_adv = np.array([advance(f, c) for c in dead_span], dtype=np.int64)
     best = run = lo_i = hi_i = start = 0
@@ -727,11 +730,11 @@ def characterise() -> Data:
         ],
     )
     R.md(
-        f"The float32 quantum at `{f}` is `{quantum:.4g}` "
-        f"({quantum * 1e9:.1f} ppb). The measured contiguous zero-advance "
-        f"run is `{plateau:.4g}` ({plateau * 1e9:.1f} ppb) over "
-        f"{best}/{dead_span.size} scanned controls — again the NCO's "
-        f"finding, reached through the LO's own port."
+        f"The phase-word LSB is `{quantum:.4g}` ({quantum * 1e9:.3f} ppb) "
+        f"and the measured contiguous zero-advance run is `{plateau:.4g}` "
+        f"({plateau * 1e9:.3f} ppb) over {best}/{dead_span.size} scanned "
+        f"controls — one LSB, the floor. On the float32 port it was "
+        f"22.4 ppb, 96x wider (**F6**)."
     )
     R.md()
     R.md(f"![ctrl law]({'ctrl_law.png'})")
@@ -750,7 +753,7 @@ def characterise() -> Data:
     )
     R.md()
     n = 1 << 14
-    ramp = np.linspace(0.02, 0.30, n).astype(np.float32)
+    ramp = np.linspace(0.02, 0.30, n).astype(np.float64)
     y = LO(0.0).steps_ctrl(ramp)
     inst = (
         np.angle(y[1:].astype(np.complex128) * np.conj(y[:-1])) / (2 * np.pi)
@@ -760,8 +763,8 @@ def characterise() -> Data:
     hop_n = 1 << 12
     hop_ctrl = np.concatenate(
         [
-            np.full(hop_n // 2, 0.05, dtype=np.float32),
-            np.full(hop_n // 2, 0.31, dtype=np.float32),
+            np.full(hop_n // 2, 0.05, dtype=np.float64),
+            np.full(hop_n // 2, 0.31, dtype=np.float64),
         ]
     )
     yh = LO(0.0).steps_ctrl(hop_ctrl)
@@ -1006,8 +1009,8 @@ def review(d: Data) -> None:
     )
     R.find(
         "F2",
-        "CONFIRMED",
-        "the comment beside lo_step_ctrl says nco_norm_freq_to_inc "
+        "FIXED",
+        "the comment beside lo_step_ctrl said nco_norm_freq_to_inc "
         "'rounds, not truncates'. It truncates, deliberately, and "
         "nco_core.h spends four paragraphs on why (a rounding form "
         "contracts to an FMA on arm64 and x86-64-v3 but not on the "
@@ -1016,13 +1019,14 @@ def review(d: Data) -> None:
         "configure path; the new §21 pins it on the control path too, so "
         "the comment is now contradicted by a test rather than by "
         "reading. Stale prose left behind when the private copy was "
-        "consolidated away — the sentence describes what the deleted copy "
-        "did.",
+        "consolidated away — the sentence described what the deleted copy "
+        "did. The comment now states truncation and points at nco_core.h "
+        "for why; §21 is what stops it drifting again.",
     )
     R.find(
         "F3",
-        "CONFIRMED",
-        "lo_core.c's two `#ifdef __AVX512F__` blocks are dead in every "
+        "FIXED",
+        "lo_core.c's two `#ifdef __AVX512F__` blocks were dead in every "
         "configuration doppler ships, and divergent where they are not. "
         "CMakeLists.txt targets -march=x86-64-v2 by default, so "
         "__AVX512F__ is undefined and the scalar fallbacks are what every "
@@ -1032,8 +1036,12 @@ def review(d: Data) -> None:
         "_mm512_cvtps_epu32 while the compiled scalar truncates in "
         "double — the same object, two phase increments, chosen by CPU. "
         "Already recorded as a KNOWN VIOLATION in "
-        "scripts/.phase-conversion-allow; this report adds that it is "
-        "also unreachable, so no gate can catch the divergence.",
+        "scripts/.phase-conversion-allow; this report added that it was "
+        "also unreachable, so no gate could ever catch the divergence. "
+        "Both blocks are now DELETED and the scalar fallbacks — the only "
+        "code any shipped build ever ran — are the implementation. That "
+        "retires the allowlist entry too, so the ratchet shrank from 8 "
+        "occurrences to 7.",
     )
     R.find(
         "F4",
@@ -1053,22 +1061,26 @@ def review(d: Data) -> None:
     )
     R.find(
         "F5",
-        "GAP",
-        f"the ctrl port is float32 while the configured rate is double, so "
-        f"one requested 0.1 lands on two different phase words (delta "
-        f"{advance(0.0, 0.1) - LO(0.1).phase_inc}). Inherited from the NCO "
-        f"(its F2) along with the port itself; lo_core.h does not mention "
-        f"the resolution either, and the LO is the face a carrier loop "
-        f"actually steers.",
+        "FIXED",
+        f"the ctrl port was float32 while the configured rate was double, "
+        f"so one requested 0.1 landed on two different phase words (delta "
+        f"7) — inherited from the NCO (its F2) along with the port itself, "
+        f"and the LO is the face a carrier loop actually steers. "
+        f"lo_steps_ctrl now takes `double`, the width the conversion works "
+        f"in and the one lo_step_ctrl always used, so the block and inline "
+        f"faces of the same control port finally agree. Measured: delta is "
+        f"now {advance(0.0, 0.1) - LO(0.1).phase_inc}.",
     )
     R.find(
         "F6",
-        "GAP",
-        f"a ctrl cancelling phase_inc stops the LO over a PLATEAU "
-        f"{d.plateau * 1e9:.0f} ppb wide (one float32 quantum), not a knife "
-        f"edge — the NCO's F3, reached through the LO's own port. A "
-        f"carrier loop settling near -phase_inc parks in a dead zone it "
-        f"cannot steer out of by fractions.",
+        "BY DESIGN",
+        f"a ctrl cancelling phase_inc stops the LO over a plateau rather "
+        f"than at a knife edge, and always will: below one phase-word LSB "
+        f"the conversion truncates to zero. What was a defect is how wide "
+        f"— 22.4 ppb, one float32 quantum, the port's precision rather "
+        f"than the accumulator's. With F5 landed it measures "
+        f"{d.plateau * 1e9:.3f} ppb against an LSB of {LSB * 1e9:.3f} ppb: "
+        f"96x narrower and now at the floor.",
     )
     R.find(
         "F7",
@@ -1217,7 +1229,7 @@ def limits(d: Data) -> None:
         (lo_k.norm_freq, lo_k.phase_inc) == before,
         "ctrl never modifies norm_freq or phase_inc",
     )
-    folded = np.mod(d.ctrls.astype(np.float32).astype(np.float64), 1.0)
+    folded = np.mod(d.ctrls, 1.0)
     pred = np.floor(folded * WF).astype(np.int64) % W
     agree = int(np.sum(np.abs(d.adv - pred) <= 1))
     R.limit(
@@ -1227,8 +1239,9 @@ def limits(d: Data) -> None:
     )
     R.limit(
         0.2 * d.quantum <= d.plateau <= 3.0 * d.quantum,
-        f"the ctrl dead zone is one float32 quantum wide "
-        f"({d.plateau * 1e9:.1f} ppb) — bounded, not unbounded",
+        f"the ctrl dead zone is one PHASE-WORD LSB wide "
+        f"({d.plateau * 1e9:.3f} ppb) — the quantization floor, not the "
+        f"port's precision",
     )
     R.limit(
         d.chirp_dev < 4.0 * (0.5 / LUT_SIZE),
@@ -1445,8 +1458,7 @@ def plots(d: Data) -> None:
     a2.set_xlabel("ctrl offset from -norm_freq (ppb), norm_freq = 0.25")
     a2.set_ylabel("signed advance (phase words, symlog)")
     a2.set_title(
-        f"The dead zone is one float32 quantum "
-        f"({d.quantum * 1e9:.0f} ppb) wide"
+        f"The dead zone is one phase-word LSB ({d.quantum * 1e9:.3f} ppb) wide"
     )
     a2.grid(True, alpha=0.3)
     a2.legend(fontsize=9)
@@ -1477,9 +1489,13 @@ def main() -> int:
     R.md()
     R.md("## 5. Summary")
     R.md()
+    # No trailing space when the list is empty: the end-of-line hook would
+    # strip it and the next regeneration would put it back, which is the
+    # generator-vs-formatter loop the rstrip below already guards against.
+    gap_tail = f": {', '.join(g[0] for g in gaps)}" if gaps else " — none left"
     R.md(
         f"- **{len(R.findings)} findings**, {len(gaps)} of them gaps or "
-        f"confirmed defects: {', '.join(g[0] for g in gaps)}\n"
+        f"confirmed defects{gap_tail}\n"
         f"- **{npass}/{len(R.limits)} limits** hold\n"
         f"- 6 new sections in `test_lo_core.c` (§16–§21), each proven by "
         f"sabotage\n"

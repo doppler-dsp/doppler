@@ -138,7 +138,7 @@ def run(
     err = np.empty(n)
     ctl = np.empty(n)
     pha = np.empty(n)
-    one = np.zeros(1, dtype=np.float32)
+    one = np.zeros(1, dtype=np.float64)
     for k in range(n):
         pha[k] = nco.phase / W
         err[k] = detector(float(drive[k]), float(pha[k]))

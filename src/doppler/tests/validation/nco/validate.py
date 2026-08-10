@@ -68,7 +68,7 @@ R = Report()
 # ──────────────────────────────────────────────────────── measurement
 def advance(norm_freq: float, ctrl_val: float, n: int = 6) -> int:
     nco = NCO(norm_freq, 0)
-    ph = nco.steps_u32_ctrl(np.full(n, ctrl_val, dtype=np.float32))
+    ph = nco.steps_u32_ctrl(np.full(n, ctrl_val, dtype=np.float64))
     return int(np.diff(ph.astype(np.int64))[0] % W)
 
 
@@ -390,7 +390,7 @@ def characterise() -> Data:
     )
     R.md()
     nco = NCO(0.6, 0)
-    _, c2 = nco.steps_u32_ovf_ctrl(np.full(16, 0.7, dtype=np.float32))
+    _, c2 = nco.steps_u32_ovf_ctrl(np.full(16, 0.7, dtype=np.float64))
     R.md(
         f"Driven at 1.30 cycles/sample (`norm_freq` 0.6 + `ctrl` 0.7) the "
         f"flag reports `{int(c2.sum())}/16` with distinct values "
@@ -416,7 +416,7 @@ def characterise() -> Data:
     rows = []
     for cv in (-0.1, -0.25, -0.4, -0.01):
         _, cc = NCO(0.0, 0).steps_u32_ovf_ctrl(
-            np.full(1 << 14, cv, dtype=np.float32)
+            np.full(1 << 14, cv, dtype=np.float64)
         )
         seen = float(cc.mean())
         intended, folded = abs(cv), 1.0 - abs(cv)
@@ -514,18 +514,25 @@ def characterise() -> Data:
     inc_cfg = NCO(0.1, 0).phase_inc
     adv_ctrl = advance(0.0, 0.1)
     R.md(
-        f"The same requested `0.1` reaches the accumulator by two paths and "
-        f"lands on **two different words**: configured (double) gives "
-        f"`{inc_cfg}`, the ctrl port (float32) gives `{adv_ctrl}`, a delta "
-        f"of `{adv_ctrl - inc_cfg}`. `float32(0.1)` is "
-        f"`{np.float32(0.1):.17g}` against `{0.1:.17g}`."
+        f"The same requested `0.1` reaches the accumulator by two paths — "
+        f"configured, and through the control port — and lands on the SAME "
+        f"word: `{inc_cfg}` both ways, delta `{adv_ctrl - inc_cfg}`. It did "
+        f"not used to. The port was float32 while the configured rate was "
+        f"double, so `float32(0.1)` = `{np.float32(0.1):.17g}` against "
+        f"`{0.1:.17g}` quantized the request before the fold ever saw it "
+        f"and the two paths differed by 7 phase words. The port is now "
+        f"`double`, the width the conversion works in and the one every "
+        f"scalar steer site already used (**F2**)."
     )
     R.md()
     R.md(f"![ctrl law]({'ctrl_law.png'})")
     R.md()
 
     f = 0.25
-    quantum = float(np.spacing(np.float32(f)))
+    # The relevant quantum is no longer the port's: with a double port the
+    # narrowest distinguishable control step is the PHASE WORD's own LSB,
+    # which is the floor no port precision can beat.
+    quantum = LSB
     dead_span = np.linspace(-f - 4 * quantum, -f + 4 * quantum, 1601)
     dead_adv = np.array([advance(f, c) for c in dead_span], dtype=np.int64)
     best = run = lo = hi = start = 0
@@ -548,10 +555,13 @@ def characterise() -> Data:
     ]
     R.table(["ctrl", "signed advance (phase words)"], rows)
     R.md(
-        f"The float32 quantum at `{f}` is `{quantum:.4g}` "
-        f"({quantum * 1e9:.1f} ppb). The measured contiguous zero-advance "
-        f"run is `{plateau:.4g}` ({plateau * 1e9:.1f} ppb) over "
-        f"{best}/{dead_span.size} scanned controls."
+        f"The phase-word LSB is `{quantum:.4g}` ({quantum * 1e9:.3f} ppb) "
+        f"and the measured contiguous zero-advance run is `{plateau:.4g}` "
+        f"({plateau * 1e9:.3f} ppb) over {best}/{dead_span.size} scanned "
+        f"controls — one LSB, which is the floor: below one LSB the "
+        f"conversion truncates to zero whatever the port's precision. On "
+        f"the float32 port this plateau was 22.4 ppb, 96x wider, and that "
+        f"excess was the port's and not the accumulator's (**F3**)."
     )
     R.md()
     R.md(f"![dead zone]({'ctrl_dead_zone.png'})")
@@ -631,7 +641,7 @@ def characterise() -> Data:
     big_n = 70000
     got = NCO(0.013, 0).steps_u32(big_n)
     got_s = NCO(0.013, 1000).steps_u32_scaled(big_n)
-    got_c = NCO(0.013, 0).steps_u32_ctrl(np.zeros(big_n, dtype=np.float32))
+    got_c = NCO(0.013, 0).steps_u32_ctrl(np.zeros(big_n, dtype=np.float64))
     inc13 = NCO(0.013, 0).phase_inc
     R.table(
         ["probe", "measured"],
@@ -705,19 +715,35 @@ def review(d: Data) -> None:
     )
     R.find(
         "F2",
-        "GAP",
-        f"the ctrl port is float32 while the configured rate is double, so "
-        f"one requested 0.1 lands on two different phase words (delta "
-        f"{advance(0.0, 0.1) - NCO(0.1, 0).phase_inc}). Nothing documents "
-        f"which resolution a tracking loop is steering at.",
+        "FIXED",
+        f"the ctrl port was float32 while the configured rate was double, "
+        f"so one requested 0.1 landed on two different phase words (delta "
+        f"7) depending on which face it entered by, and nothing documented "
+        f"which resolution a tracking loop was steering at. The port is "
+        f"now `double` on all four narrowing signatures — "
+        f"nco_steps_u32_ctrl, _scaled_ctrl, _ovf_ctrl and lo_steps_ctrl — "
+        f"which is the width the conversion works in and the one every "
+        f"scalar steer site (nco_step_u32*_ctrl, lo_step_ctrl, symsync, "
+        f"dll) already used, so this removed an inconsistency rather than "
+        f"introducing a width. Measured: delta is now "
+        f"{advance(0.0, 0.1) - NCO(0.1, 0).phase_inc}. No production C "
+        f"called the narrowing forms — only the generated bindings and the "
+        f"C tests — and the binding still accepts a float32 array by "
+        f"casting, so no caller breaks.",
     )
     R.find(
         "F3",
-        "GAP",
-        f"a ctrl cancelling phase_inc stops the NCO over a PLATEAU "
-        f"{d.plateau * 1e9:.0f} ppb wide (one float32 quantum), not a knife "
-        f"edge. A loop settling near -phase_inc parks in a dead zone it "
-        f"cannot steer out of by fractions.",
+        "BY DESIGN",
+        f"a ctrl cancelling phase_inc stops the NCO over a plateau rather "
+        f"than at a knife edge, and it always will: below one phase-word "
+        f"LSB the conversion truncates to zero, so a dead zone one LSB "
+        f"wide is the quantization floor, not a defect. What WAS a defect "
+        f"is how wide it used to be — 22.4 ppb, one float32 quantum, set "
+        f"by the port rather than by the accumulator. With the port "
+        f"widened (F2) it measures {d.plateau * 1e9:.3f} ppb against an LSB "
+        f"of {LSB * 1e9:.3f} ppb: 96x narrower and now at the floor. A loop "
+        f"settling near -phase_inc still parks, but within one LSB of the "
+        f"rate it was asked for.",
     )
     R.find(
         "F4",
@@ -737,11 +763,21 @@ def review(d: Data) -> None:
     bad = [k for k, v in surprising.items() if NCO(v, 0).phase_inc == 0]
     R.find(
         "F5",
-        "GAP",
-        f"{len(bad)} nonsense frequency requests ({', '.join(bad)}) produce "
-        f"a silently stopped oscillator that create() reports as success — "
-        f"distinct from 0.0/-0.0/1.0/2.0, which are stopped correctly (DC, "
-        f"and whole cycles aliasing to DC).",
+        "BY DESIGN",
+        f"{len(bad)} frequency requests ({', '.join(bad)}) produce a stopped "
+        f"oscillator, and this was originally filed as a gap on the grounds "
+        f"that create() reports success. That was a misreading, and the "
+        f"sub-LSB case shows why: a rate below one LSB is not nonsense, it "
+        f"is a perfectly ordinary request the phase word cannot represent, "
+        f"and truncating it to 0 IS the law this object already documents — "
+        f"at most one step low, never high. It is the bottom of the range "
+        f"behaving exactly like the rest of it. NaN and +-inf reach the same "
+        f"0 by the conversion's deliberate totality: nco_phase_units rejects "
+        f"them with a negated comparison rather than passing them to the "
+        f"cast, so every input has a defined answer and no caller has to "
+        f"pre-validate. Grouping a representable-but-tiny rate with a "
+        f"non-number was the error in the original finding, not the "
+        f"behaviour.",
     )
     R.find(
         "F6",
@@ -840,7 +876,7 @@ def limits(d: Data) -> None:
         all(
             np.array_equal(
                 NCO(f, 0).steps_u32(8),
-                NCO(f, 0).steps_u32_ctrl(np.zeros(8, dtype=np.float32)),
+                NCO(f, 0).steps_u32_ctrl(np.zeros(8, dtype=np.float64)),
             )
             for f in (0.0, 0.1, 0.25)
         ),
@@ -848,12 +884,12 @@ def limits(d: Data) -> None:
     )
     n = NCO(0.1, 0)
     before = (n.norm_freq, n.phase_inc)
-    n.steps_u32_ctrl(np.full(64, -0.7, dtype=np.float32))
+    n.steps_u32_ctrl(np.full(64, -0.7, dtype=np.float64))
     R.limit(
         (n.norm_freq, n.phase_inc) == before,
         "ctrl never modifies norm_freq or phase_inc",
     )
-    folded = np.mod(d.ctrls.astype(np.float32).astype(np.float64), 1.0)
+    folded = np.mod(d.ctrls, 1.0)
     pred = np.floor(folded * W).astype(np.int64) % W
     agree = int(np.sum(np.abs(d.adv - pred) <= 1))
     R.limit(
@@ -863,8 +899,9 @@ def limits(d: Data) -> None:
     )
     R.limit(
         0.2 * d.quantum <= d.plateau <= 3.0 * d.quantum,
-        f"the ctrl dead zone is one float32 quantum wide "
-        f"({d.plateau * 1e9:.1f} ppb) — bounded, not unbounded",
+        f"the ctrl dead zone is one PHASE-WORD LSB wide "
+        f"({d.plateau * 1e9:.3f} ppb) — the quantization floor, not the "
+        f"port's precision",
     )
     u = np.unique(d.tick_iv)
     R.limit(
@@ -923,7 +960,7 @@ def limits(d: Data) -> None:
     )
 
     big_n = 70000
-    z = np.zeros(big_n, dtype=np.float32)
+    z = np.zeros(big_n, dtype=np.float64)
     R.limit(
         NCO(0.013, 0).steps_u32(big_n).shape[0] == big_n
         and NCO(0.013, 1000).steps_u32_scaled(big_n).shape[0] == big_n
@@ -997,8 +1034,7 @@ def plots(d: Data) -> None:
     ax.set_xlabel("ctrl offset from -norm_freq (ppb), norm_freq = 0.25")
     ax.set_ylabel("signed advance (phase words, symlog)")
     ax.set_title(
-        f"The dead zone is one float32 quantum "
-        f"({d.quantum * 1e9:.0f} ppb) wide"
+        f"The dead zone is one phase-word LSB ({d.quantum * 1e9:.3f} ppb) wide"
     )
     ax.grid(True, alpha=0.3)
     ax.legend(fontsize=9)
@@ -1021,9 +1057,13 @@ def main() -> int:
     R.md()
     R.md("## 5. Summary")
     R.md()
+    # No trailing space when the list is empty: the end-of-line hook would
+    # strip it and the next regeneration would put it back, which is the
+    # generator-vs-formatter loop the rstrip below already guards against.
+    gap_tail = f": {', '.join(g[0] for g in gaps)}" if gaps else " — none left"
     R.md(
         f"- **{len(R.findings)} findings**, {len(gaps)} of them gaps or "
-        f"confirmed defects: {', '.join(g[0] for g in gaps)}\n"
+        f"confirmed defects{gap_tail}\n"
         f"- **{npass}/{len(R.limits)} limits** hold\n"
         f"- Raw sweeps: `data/frequency_sweep.csv`, `data/ctrl_sweep.csv`"
     )

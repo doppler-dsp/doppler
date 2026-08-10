@@ -21,6 +21,7 @@ instead.)
 - [Asynchronous Symbol Despreader](async-symbol-despreader.md) — despreading when the data-symbol rate is asynchronous to the code-epoch rate
 - [Asynchronous Data on a Repeating PN Code](async-despreader-working-design.md) — the working design behind the async despreader, assuming at most one data transition per code epoch
 - [Timing Lock Detector](timing_lock_detector.md) — SymbolSync's Gardner/DTTL lock statistic and sizing formula
+- [Symbol Timing on a Rate Cascade](ratesync-timing.md) — RateSync: why the matched filter and the interpolator are one dot product, why `ctrl` is referenced to the terminal stage's rate, and why the T/2 parity resolves itself
 - [MPSK Receiver](mpsk.md) — streaming M-PSK receiver architecture and carrier-recovery design
 - [Corr2D Interpolated Inverse](corr2d-interpolated-inverse.md) — decoupled, pffft-friendly inverse FFT size + free sub-bin interpolation
 - [Spectral & Measurement API Map](spectral-api-map.md) — module dependency graph

@@ -10,10 +10,17 @@
  *   - step() == steps() bit-exact, and block-boundary invariance
  *   - reset() restores post-create behaviour
  *   - State round-trip mid-stream, blob equality, and envelope reject
+ *
+ * Sections numbered below (§8 onward) were added by the validation campaign,
+ * which enumerated ratesync_core.h's prose claims and asked of each whether
+ * anything ran it. Each was proven by sabotage before being trusted. The claim
+ * numbers (C8, C24, ...) index the table in
+ * src/doppler/track/tests/validation/ratesync/results.md.
  */
 
 #include "ratesync/ratesync_core.h"
 
+#include "dp_sym_test.h" /* EVM / M2M4 / settling — the shared primitives */
 #include "wfm/wfm_dsp.h"
 
 #include <complex.h>
@@ -74,7 +81,7 @@ _symbols (int *out, size_t n, unsigned seed)
  * clipping the way it used to. `clipped == 0` is asserted below and is the
  * live check on that. */
 static float complex *
-_tx (double sps, double tau, size_t *n_out)
+_tx_amp (double sps, double tau, double amp, size_t *n_out)
 {
   size_t         n  = (size_t)(_NSYM * sps) + 64;
   float complex *x  = calloc (n, sizeof *x);
@@ -96,38 +103,69 @@ _tx (double sps, double tau, size_t *n_out)
             continue;
           a += sy[k] * wfm_rrc_h (t, _BETA);
         }
-      x[i] = (float)(1.0 * a);
+      x[i] = (float)(amp * a);
     }
   free (sy);
   *n_out = n;
   return x;
 }
 
-/* Steady-state EVM in dB against the LS-scaled hard decision, over the final
- * quarter only.  A window containing an acquisition cycle slip reads ~20 dB
- * worse with a perfectly healthy eye, so measure where the loop has settled
- * and let lock_stat make the lock decision. */
-static double
-_evm_db (const float complex *y, size_t n)
+static float complex *
+_tx (double sps, double tau, size_t *n_out)
 {
-  if (n < 400)
-    return 0.0;
-  size_t               off = 3 * n / 4, cnt = n - off;
-  const float complex *v   = y + off;
-  double               num = 0.0;
-  for (size_t i = 0; i < cnt; i++)
-    num += (crealf (v[i]) >= 0.0f ? 1.0 : -1.0) * (double)crealf (v[i]);
-  double g = num / (double)cnt;
-  if (g == 0.0)
-    return 0.0;
-  double e = 0.0;
-  for (size_t i = 0; i < cnt; i++)
+  return _tx_amp (sps, tau, 1.0, n_out);
+}
+
+/* Rectangular NRZ at `sps` samples/symbol — the pulse RATESYNC_PULSE_IANDD is
+ * matched to, and the stream the m >= 4 guidance is stated against. */
+static float complex *
+_tx_nrz (double sps, size_t *n_out)
+{
+  size_t         n  = (size_t)(_NSYM * sps) + 64;
+  float complex *x  = calloc (n, sizeof *x);
+  int           *sy = malloc (_NSYM * sizeof *sy);
+  if (!x || !sy)
     {
-      double d
-          = (double)crealf (v[i]) - g * (crealf (v[i]) >= 0.0f ? 1.0 : -1.0);
-      e += d * d + (double)cimagf (v[i]) * (double)cimagf (v[i]);
+      free (x);
+      free (sy);
+      return NULL;
     }
-  return 20.0 * log10 (sqrt (e / (g * g * (double)cnt)));
+  _symbols (sy, _NSYM, 7u);
+  for (size_t i = 0; i < n; i++)
+    {
+      size_t k = (size_t)((double)i / sps);
+      x[i]     = (float)(k < (size_t)_NSYM ? sy[k] : 0);
+    }
+  free (sy);
+  *n_out = n;
+  return x;
+}
+
+/* Steady-state EVM in dB, from the library's own primitive.
+ *
+ * This used to be a private least-squares EVM over "the final quarter". Both
+ * halves of that were a reimplementation: `ber_evm_db` (via dp_sym_test.h) is
+ * the canonical self-referenced EVM, and `ber_settle_syms` is the canonical
+ * answer to where a steady-state window may START. A window pinned to a
+ * FRACTION of the record is the documented way a receiver test measures the
+ * acquisition transient and reports it as steady state — the more so here,
+ * where the record length varies with sps and the loop's settling does not.
+ *
+ * One loop is running, so the budget is ber_settle_syms(bn, 0) = 2*(5/bn)
+ * symbols; the carrier argument is 0 because RateSync recovers timing only. */
+static size_t
+_settle (double bn)
+{
+  return dp_test_settle_syms (bn, 0.0);
+}
+
+static double
+_evm_db_bn (const float complex *y, size_t n, double bn)
+{
+  size_t lo = _settle (bn);
+  if (n < lo + 100)
+    return 0.0; /* nothing settled to measure */
+  return dp_test_evm_db_hard_range (y, lo, n, 2);
 }
 
 /* ------------------------------------------------------------------ */
@@ -248,7 +286,7 @@ _lock_sweep (double sps, double evm_max_db, const char *label)
       if (s)
         {
           size_t ns = ratesync_steps (s, x, n, y, n);
-          double ev = _evm_db (y, ns);
+          double ev = _evm_db_bn (y, ns, 0.01);
           if (ev > worst)
             worst = ev;
           /* lock_stat, not EVM, is the lock decision: a single acquisition
@@ -483,6 +521,785 @@ test_state_roundtrip (void)
   free (b);
 }
 
+/* ── §8 — the prime countdown, and where its length comes from ───────────
+ *
+ * C8: "the loop stays open until the cascade is primed ... ratesync_create()
+ * computes the prime length from the terminal bank's own geometry."
+ * C25: "the loop discards `prime_taps + 1` outputs."
+ * C20: `term` is NULL when the geometry was bound by hand.
+ *
+ * Nothing ran any of the three. The prime length is not a free parameter —
+ * it is the terminal bank's tap count, read off the stage — so both halves
+ * are asserted here rather than the countdown alone. */
+static void
+test_prime_geometry (void)
+{
+  const double sps[] = { 4.0, 17.333333333, 64.0 };
+  for (size_t i = 0; i < 3; i++)
+    {
+      ratesync_state_t *s
+          = ratesync_create (sps[i], RATESYNC_PULSE_RRC, _BETA, _SPAN, 2, 1024,
+                             0.01, 0.707, RATESYNC_TED_GARDNER);
+      CHECK (s != NULL);
+      if (!s)
+        continue;
+      int    last = s->mf->n_stages - 1;
+      size_t taps = resamp_get_num_taps (
+          (const resamp_state_t *)s->mf->stage_ptrs[last]);
+      /* The prime length IS the terminal bank's geometry, not a constant. */
+      CHECK (s->loop.prime_taps == taps);
+      CHECK (taps > 0);
+      CHECK (s->loop.prime_left == taps + 1u);
+      /* A cascade-bound loop keeps the stage for the `mu` probe. */
+      CHECK (s->loop.term == (const resamp_state_t *)s->mf->stage_ptrs[last]);
+      /* reset() re-arms the countdown along with the delay lines. */
+      float complex y;
+      for (size_t k = 0; k < 64; k++)
+        (void)ratesync_step (s, 0.1f, &y);
+      CHECK (s->loop.prime_left < taps + 1u); /* it really counted down */
+      ratesync_reset (s);
+      CHECK (s->loop.prime_left == taps + 1u);
+      ratesync_destroy (s);
+    }
+
+  /* Geometry given by hand: prime_left follows the stated tap count, and the
+     telemetry pointer is dropped so the probe cannot report another object's
+     phase. */
+  ratesync_loop_t l;
+  ratesync_loop_init (&l, 8.0, 2, 0.01, 0.707, RATESYNC_TED_GARDNER);
+  CHECK (l.term == NULL); /* nothing bound yet */
+  CHECK (l.ted_scale == 1.0);
+  ratesync_loop_set_cascade (&l, 0.5, 99);
+  CHECK (l.term_rate == 0.5);
+  CHECK (l.prime_taps == 99);
+  CHECK (l.prime_left == 100);
+  CHECK (l.term == NULL);
+}
+
+/* ── §9 — one input can complete TWO terminal outputs ────────────────────
+ *
+ * C48: the `ys[4]` buffer in ratesync_step_ted() exists because "one input
+ * can complete MORE THAN ONE output period ... asking for only one silently
+ * DROPS the second". Nothing demonstrated that it ever happens, so nothing
+ * would notice the buffer being narrowed back to one.
+ *
+ * It happens on exactly the cascades whose terminal rate is 1.0 — an integer
+ * sps — which is why the same assertion is made at 17.333 (terminal rate
+ * 0.923), where it must NOT happen. */
+static void
+test_two_outputs_per_input (void)
+{
+  const double sps[]      = { 4.0, 17.333333333, 64.0 };
+  const int    expect_two = 1; /* index 0 and 2 have terminal rate 1.0 */
+  for (size_t i = 0; i < 3; i++)
+    {
+      size_t         n;
+      float complex *x = _tx (sps[i], 0.3, &n);
+      CHECK (x != NULL);
+      if (!x)
+        continue;
+      ratesync_state_t *s
+          = ratesync_create (sps[i], RATESYNC_PULSE_RRC, _BETA, _SPAN, 2, 1024,
+                             0.01, 0.707, RATESYNC_TED_GARDNER);
+      CHECK (s != NULL);
+      if (s)
+        {
+          size_t doubles = 0, most = 0;
+          for (size_t k = 0; k < n; k++)
+            {
+              float complex ys[4];
+              size_t        got = RateConverter_execute_ctrl_push (
+                  s->mf, x[k], s->loop.ctrl, ys, 4);
+              if (got > most)
+                most = got;
+              if (got >= 2)
+                doubles++;
+              for (size_t oi = 0; oi < got; oi++)
+                {
+                  float complex yo;
+                  (void)ratesync_loop_take_output (&s->loop, ys[oi], &yo,
+                                                   RATESYNC_TED_GARDNER);
+                }
+            }
+          /* Never more than two: the cascade rate is m/sps <= 1. */
+          CHECK (most <= 2);
+          if (s->loop.term_rate >= 1.0)
+            {
+              CHECK (doubles > 0); /* the buffer is load-bearing here */
+              if (!doubles)
+                fprintf (stderr,
+                         "  sps=%g: terminal rate %.4f never emitted two\n",
+                         sps[i], s->loop.term_rate);
+            }
+          else
+            CHECK (doubles == 0);
+          ratesync_destroy (s);
+        }
+      free (x);
+    }
+  (void)expect_two;
+}
+
+/* ── §10 — the DTTL detector ─────────────────────────────────────────────
+ *
+ * C42: `ted` selects RATESYNC_TED_GARDNER or RATESYNC_TED_DTTL. Every test
+ * above passes GARDNER, so half the documented detector surface — including
+ * its own construct-time slope, which differs from Gardner's — was executed
+ * by nothing. */
+static void
+test_dttl_detector (void)
+{
+  const double sps[]   = { 4.0, 17.333333333, 64.0 };
+  double       g_scale = 0.0, d_scale = 0.0;
+  for (size_t i = 0; i < 3; i++)
+    {
+      size_t         n;
+      float complex *x = _tx (sps[i], 0.3, &n);
+      float complex *y = calloc (n, sizeof *y);
+      CHECK (x && y);
+      if (!x || !y)
+        {
+          free (x);
+          free (y);
+          continue;
+        }
+      float complex *yg = calloc (n, sizeof *yg);
+      CHECK (yg != NULL);
+      ratesync_state_t *d
+          = ratesync_create (sps[i], RATESYNC_PULSE_RRC, _BETA, _SPAN, 2, 1024,
+                             0.01, 0.707, RATESYNC_TED_DTTL);
+      ratesync_state_t *g
+          = ratesync_create (sps[i], RATESYNC_PULSE_RRC, _BETA, _SPAN, 2, 1024,
+                             0.01, 0.707, RATESYNC_TED_GARDNER);
+      CHECK (d && g && yg);
+      if (d && g && yg)
+        {
+          size_t ns = ratesync_steps (d, x, n, y, n);
+          double ev = _evm_db_bn (y, ns, 0.01);
+          CHECK (ratesync_get_lock_stat (d) > 0.55);
+          CHECK (ev < -35.0);
+          if (!(ratesync_get_lock_stat (d) > 0.55) || !(ev < -35.0))
+            fprintf (stderr, "  DTTL sps=%g: lock %.3f EVM %.1f dB\n", sps[i],
+                     ratesync_get_lock_stat (d), ev);
+          /* The two detectors have different slopes against the same pulse,
+             so the construct-time reciprocal must differ between them. */
+          d_scale = d->loop.ted_scale;
+          g_scale = g->loop.ted_scale;
+          CHECK (d_scale > 0.0 && g_scale > 0.0);
+          CHECK (d_scale != g_scale);
+
+          size_t ng = ratesync_steps (g, x, n, yg, n);
+          CHECK (ng > 0 && ns > 0);
+          /* Gardner locks on this stream too, so "the DTTL run locks well"
+             is vacuous as a check on the DISPATCH. Comparing the two whole
+             runs is not enough either: the loops also differ by ted_scale,
+             so a dispatch that silently collapsed to Gardner would STILL
+             produce a different trajectory and pass. Isolate the
+             discriminator instead — two loops identical in every respect,
+             including ted_scale, fed identical outputs, differing only in
+             the `ted` literal passed to take_output. */
+          ratesync_loop_t p, q;
+          ratesync_loop_init (&p, sps[i], 2, 0.01, 0.707,
+                              RATESYNC_TED_GARDNER);
+          ratesync_loop_init (&q, sps[i], 2, 0.01, 0.707,
+                              RATESYNC_TED_GARDNER);
+          ratesync_loop_bind_cascade (&p, d->mf);
+          ratesync_loop_bind_cascade (&q, d->mf);
+          CHECK (p.ted_scale == q.ted_scale);
+          int differed = 0;
+          for (size_t k = 0; k < 64; k++)
+            {
+              /* A deterministic non-trivial complex sequence: both
+                 detectors see exactly these outputs. */
+              float complex v = (float)cos (0.7 * (double)k)
+                                + (float)sin (0.31 * (double)k + 0.4) * I;
+              float complex yp, yq;
+              int rp = ratesync_loop_take_output (&p, v, &yp,
+                                                  RATESYNC_TED_GARDNER);
+              int rq
+                  = ratesync_loop_take_output (&q, v, &yq, RATESYNC_TED_DTTL);
+              CHECK (rp
+                     == rq); /* the strobe cadence is detector-independent */
+              if (rp && p.last_error != q.last_error)
+                differed = 1;
+            }
+          CHECK (differed);
+          if (!differed)
+            fprintf (stderr,
+                     "  sps=%g: GARDNER and DTTL produced the SAME error — "
+                     "the take_output dispatch is not reaching both bodies\n",
+                     sps[i]);
+        }
+      ratesync_destroy (d);
+      ratesync_destroy (g);
+      free (x);
+      free (y);
+      free (yg);
+    }
+}
+
+/* ── §11 — the timing loop holds no cascade ──────────────────────────────
+ *
+ * C18: "it never touches the cascade, so a receiver that owns its cascade
+ * inside a DDC drives this with exactly the same call RateSync makes ... the
+ * two are not peers that can drift apart."
+ *
+ * The strongest form of that claim is bit-exactness: drive a hand-owned
+ * RateConverter through ratesync_loop_init/bind_cascade/take_output and the
+ * symbols must equal RateSync's own, sample for sample. If the object ever
+ * grows a second copy of the loop, this is what turns red. */
+static void
+test_loop_without_the_object (void)
+{
+  const double   sps = 17.333333333;
+  size_t         n;
+  float complex *x = _tx (sps, 0.3, &n);
+  float complex *a = calloc (n, sizeof *a);
+  float complex *b = calloc (n, sizeof *b);
+  CHECK (x && a && b);
+  if (!x || !a || !b)
+    {
+      free (x);
+      free (a);
+      free (b);
+      return;
+    }
+
+  ratesync_state_t *s
+      = ratesync_create (sps, RATESYNC_PULSE_RRC, _BETA, _SPAN, 2, 1024, 0.01,
+                         0.707, RATESYNC_TED_GARDNER);
+  CHECK (s != NULL);
+  size_t na = s ? ratesync_steps (s, x, n, a, n) : 0;
+
+  /* The same cascade RateSync builds, owned here instead. */
+  RateConverter_state_t *rc = RateConverter_create_matched (
+      2.0 / sps, 1, RC_PULSE_RRC, _BETA, _SPAN, 2.0, 1024);
+  CHECK (rc != NULL);
+  ratesync_loop_t l;
+  ratesync_loop_init (&l, sps, 2, 0.01, 0.707, RATESYNC_TED_GARDNER);
+  ratesync_loop_bind_cascade (&l, rc);
+  /* bind_cascade reads the geometry off the stage rather than being told. */
+  CHECK (
+      l.term_rate
+      == resamp_get_rate ((resamp_state_t *)rc->stage_ptrs[rc->n_stages - 1]));
+  CHECK (l.prime_taps > 0 && l.prime_left == l.prime_taps + 1u);
+  CHECK (l.term != NULL);
+
+  size_t nb = 0;
+  if (rc)
+    for (size_t k = 0; k < n; k++)
+      {
+        float complex ys[4];
+        size_t got = RateConverter_execute_ctrl_push (rc, x[k], l.ctrl, ys, 4);
+        for (size_t oi = 0; oi < got; oi++)
+          if (ratesync_loop_take_output (&l, ys[oi], &b[nb],
+                                         RATESYNC_TED_GARDNER))
+            nb++;
+      }
+  CHECK (na > 0 && na == nb);
+  CHECK (na && memcmp (a, b, na * sizeof (float complex)) == 0);
+  if (s)
+    {
+      CHECK (l.lock_stat == ratesync_get_lock_stat (s));
+      CHECK (l.rate_est == ratesync_get_rate (s));
+    }
+
+  RateConverter_destroy (rc);
+  ratesync_destroy (s);
+  free (x);
+  free (a);
+  free (b);
+}
+
+/* ── §12 — `ctrl` is referenced to the TERMINAL stage's rate ─────────────
+ *
+ * C24: referencing it to the cascade rate instead "would under-drive the loop
+ * by exactly that factor (32x at sps=64 behind a CIC(32), which is why it
+ * could barely track)".
+ *
+ * test_owns_a_matched_cascade checks that term_rate EQUALS the terminal
+ * stage's rate, which pins the wiring but says nothing about the consequence.
+ * This measures the consequence, by binding the wrong scale on purpose. */
+static void
+test_ctrl_scale_is_the_terminal_rate (void)
+{
+  const double   sps = 64.0; /* CIC(32) + Resampler(1.0): a 32x decimation */
+  size_t         n;
+  float complex *x = _tx (sps, 0.3, &n);
+  float complex *y = calloc (n, sizeof *y);
+  CHECK (x && y);
+  if (!x || !y)
+    {
+      free (x);
+      free (y);
+      return;
+    }
+  double lock[2] = { 0.0, 0.0 }, evm[2] = { 0.0, 0.0 };
+  for (int wrong = 0; wrong < 2; wrong++)
+    {
+      RateConverter_state_t *rc = RateConverter_create_matched (
+          2.0 / sps, 1, RC_PULSE_RRC, _BETA, _SPAN, 2.0, 1024);
+      CHECK (rc != NULL);
+      if (!rc)
+        continue;
+      ratesync_loop_t l;
+      ratesync_loop_init (&l, sps, 2, 0.01, 0.707, RATESYNC_TED_GARDNER);
+      ratesync_loop_bind_cascade (&l, rc);
+      if (wrong) /* the cascade rate, m/sps — 32x too small */
+        ratesync_loop_set_cascade (&l, 2.0 / sps, l.prime_taps);
+      size_t ns = 0;
+      for (size_t k = 0; k < n; k++)
+        {
+          float complex ys[4];
+          size_t        got
+              = RateConverter_execute_ctrl_push (rc, x[k], l.ctrl, ys, 4);
+          for (size_t oi = 0; oi < got; oi++)
+            if (ratesync_loop_take_output (&l, ys[oi], &y[ns],
+                                           RATESYNC_TED_GARDNER))
+              ns++;
+        }
+      lock[wrong] = l.lock_stat;
+      evm[wrong]  = _evm_db_bn (y, ns, 0.01);
+      RateConverter_destroy (rc);
+    }
+  CHECK (lock[0] > 0.55); /* terminal rate: locks and demodulates */
+  CHECK (evm[0] < -30.0);
+  CHECK (evm[1] > -25.0); /* cascade rate: 32x under-driven, tracks badly */
+  CHECK (evm[1] - evm[0] > 10.0); /* and the gap is large, not marginal */
+  /* NB the lock statistic does NOT separate these: given a long enough
+     stream the under-driven loop crawls into a nominally open eye
+     (lock_stat ~0.59 here) while demodulating 18 dB worse. `locked` is
+     therefore not a check on this misconfiguration — the EVM is. */
+  if (!(evm[1] > -25.0) || !(evm[1] - evm[0] > 10.0))
+    fprintf (stderr,
+             "  ctrl scale: terminal lock %.3f EVM %.1f; cascade lock %.3f "
+             "EVM %.1f\n",
+             lock[0], evm[0], lock[1], evm[1]);
+  free (x);
+  free (y);
+}
+
+/* ── §13 — `clipped` reports over-drive, and only where a CIC exists ─────
+ *
+ * C36: "Over-driving ... IS reported, by ratesync_get_clipped(): a CIC bounds
+ * its input to +-1.0."
+ * C57: "Always 0 when the plan has no CIC stage."
+ *
+ * The lock sweep asserts clipped == 0 on a stream that does not over-drive,
+ * which passes whether or not the flag can ever fire. Both directions are
+ * needed for that assertion to mean anything. */
+static void
+test_clipped_reports_overdrive (void)
+{
+  /* sps = 4 plans HalfbandDecimator + Resampler — no CIC anywhere. */
+  const double sps[]     = { 4.0, 17.333333333, 64.0 };
+  const int    has_cic[] = { 0, 1, 1 };
+  for (size_t i = 0; i < 3; i++)
+    for (int over = 0; over < 2; over++)
+      {
+        size_t         n;
+        float complex *x = _tx_amp (sps[i], 0.2, over ? 4.0 : 1.0, &n);
+        float complex *y = calloc (n, sizeof *y);
+        CHECK (x && y);
+        if (!x || !y)
+          {
+            free (x);
+            free (y);
+            continue;
+          }
+        ratesync_state_t *s
+            = ratesync_create (sps[i], RATESYNC_PULSE_RRC, _BETA, _SPAN, 2,
+                               1024, 0.01, 0.707, RATESYNC_TED_GARDNER);
+        CHECK (s != NULL);
+        if (s)
+          {
+            (void)ratesync_steps (s, x, n, y, n);
+            int c = ratesync_get_clipped (s);
+            /* Unit amplitude never clips on any plan — the pulse's 1.582x
+               PAPR is inside the CIC's budgeted headroom. */
+            int want = over && has_cic[i];
+            CHECK (c == want);
+            if (c != want)
+              fprintf (stderr, "  clipped: sps=%g over=%d got %d want %d\n",
+                       sps[i], over, c, want);
+            /* reset() clears the flag along with everything else. */
+            if (c)
+              {
+                ratesync_reset (s);
+                CHECK (ratesync_get_clipped (s) == 0);
+              }
+            ratesync_destroy (s);
+          }
+        free (x);
+        free (y);
+      }
+}
+
+/* ── §14 — use m >= 4 with RATESYNC_PULSE_IANDD ──────────────────────────
+ *
+ * C39: "at m = 2 its matched filter is a two-tap sum and the eye barely
+ * opens". A guidance sentence with a measurement behind it and no test: the
+ * only thing that would catch the rectangle's m = 2 case regressing further,
+ * or the guidance becoming unnecessary, is this. */
+static void
+test_iandd_needs_m4 (void)
+{
+  double lock[5] = { 0 };
+  for (size_t m = 2; m <= 4; m += 2)
+    {
+      size_t         n;
+      float complex *x = _tx_nrz (4.0, &n);
+      float complex *y = calloc (n, sizeof *y);
+      CHECK (x && y);
+      if (!x || !y)
+        {
+          free (x);
+          free (y);
+          continue;
+        }
+      ratesync_state_t *s
+          = ratesync_create (4.0, RATESYNC_PULSE_IANDD, 0.0, 1, m, 1024, 0.01,
+                             0.707, RATESYNC_TED_GARDNER);
+      CHECK (s != NULL);
+      if (s)
+        {
+          (void)ratesync_steps (s, x, n, y, n);
+          lock[m] = ratesync_get_lock_stat (s);
+          if (m == 4)
+            {
+              CHECK (lock[m] > 0.55);
+              CHECK (ratesync_get_locked (s) == 1);
+            }
+          else
+            {
+              /* Below the 0.311 declare threshold: the eye never opens, and
+                 the detector correctly declines to call it a lock. */
+              CHECK (lock[m] < 0.311);
+              CHECK (ratesync_get_locked (s) == 0);
+            }
+          ratesync_destroy (s);
+        }
+      free (x);
+      free (y);
+    }
+  CHECK (lock[4] - lock[2] > 0.4); /* the gap is the reason for the rule */
+  if (!(lock[4] - lock[2] > 0.4))
+    fprintf (stderr, "  IANDD: lock_stat m=2 %.3f, m=4 %.3f\n", lock[2],
+             lock[4]);
+}
+
+/* ── §15 — the loop's own state triplet ──────────────────────────────────
+ *
+ * C32: the loop is "nested by every owner", so it has a self-validating
+ * envelope of its own (RSLP / v2). test_state_roundtrip exercises it only
+ * through the whole object, which cannot tell a working child envelope from
+ * one the parent happens to be covering.
+ *
+ * Run at BOTH strobe parities. The blob has to carry `out_count` because a
+ * resumed instance that forgot which terminal output was on-time would
+ * restart the parity search — but with m = 2 a lost count still lands on the
+ * right parity half the time, so a single cut point tests that at a coin
+ * flip. Sabotaging the packed field left a one-cut version of this section
+ * green; covering both parities is what makes it a gate. */
+static void
+_loop_state_roundtrip_at_parity (int parity)
+{
+  const double   sps = 17.333333333;
+  size_t         n;
+  float complex *x = _tx (sps, 0.25, &n);
+  float complex *a = calloc (n, sizeof *a);
+  float complex *b = calloc (n, sizeof *b);
+  CHECK (x && a && b);
+  if (!x || !a || !b)
+    {
+      free (x);
+      free (a);
+      free (b);
+      return;
+    }
+
+  RateConverter_state_t *rc1 = RateConverter_create_matched (
+      2.0 / sps, 1, RC_PULSE_RRC, _BETA, _SPAN, 2.0, 1024);
+  RateConverter_state_t *rc2 = RateConverter_create_matched (
+      2.0 / sps, 1, RC_PULSE_RRC, _BETA, _SPAN, 2.0, 1024);
+  ratesync_loop_t l1, l2;
+  ratesync_loop_init (&l1, sps, 2, 0.01, 0.707, RATESYNC_TED_GARDNER);
+  ratesync_loop_init (&l2, sps, 2, 0.01, 0.707, RATESYNC_TED_GARDNER);
+  CHECK (rc1 && rc2);
+  if (rc1 && rc2)
+    {
+      ratesync_loop_bind_cascade (&l1, rc1);
+      ratesync_loop_bind_cascade (&l2, rc2);
+
+      /* Advance to the half-way mark, then on to the next input at which the
+         strobe phase has the requested parity. */
+      size_t cut = 0, na = 0;
+      for (size_t k = 0; k < n; k++)
+        {
+          if (k >= n / 2 && (int)(l1.out_count & 1u) == parity)
+            {
+              cut = k;
+              break;
+            }
+          float complex ys[4];
+          size_t        got
+              = RateConverter_execute_ctrl_push (rc1, x[k], l1.ctrl, ys, 4);
+          for (size_t oi = 0; oi < got; oi++)
+            if (ratesync_loop_take_output (&l1, ys[oi], &a[na],
+                                           RATESYNC_TED_GARDNER))
+              na++;
+        }
+      CHECK (cut > 0);
+      CHECK ((int)(l1.out_count & 1u) == parity);
+
+      size_t sb   = ratesync_loop_state_bytes (&l1);
+      void  *blob = malloc (sb);
+      CHECK (blob != NULL);
+      if (blob)
+        {
+          ratesync_loop_get_state (&l1, blob);
+          CHECK (ratesync_loop_set_state (&l2, blob) == DP_OK);
+          void *blob2 = malloc (sb);
+          CHECK (blob2 != NULL);
+          if (blob2)
+            {
+              ratesync_loop_get_state (&l2, blob2);
+              CHECK (memcmp (blob, blob2, sb) == 0);
+              free (blob2);
+            }
+          /* The cascade is the loop's peer, not its child: carry it across
+             by hand so the resumed pair is genuinely identical. */
+          size_t rb    = RateConverter_state_bytes (rc1);
+          void  *rblob = malloc (rb);
+          CHECK (rblob != NULL);
+          if (rblob)
+            {
+              RateConverter_get_state (rc1, rblob);
+              CHECK (RateConverter_set_state (rc2, rblob) == DP_OK);
+              free (rblob);
+            }
+
+          size_t ka = na, kb = na;
+          for (size_t k = cut; k < n; k++)
+            {
+              float complex ys[4];
+              size_t got = RateConverter_execute_ctrl_push (rc1, x[k], l1.ctrl,
+                                                            ys, 4);
+              for (size_t oi = 0; oi < got; oi++)
+                if (ratesync_loop_take_output (&l1, ys[oi], &a[ka],
+                                               RATESYNC_TED_GARDNER))
+                  ka++;
+              got = RateConverter_execute_ctrl_push (rc2, x[k], l2.ctrl, ys,
+                                                     4);
+              for (size_t oi = 0; oi < got; oi++)
+                if (ratesync_loop_take_output (&l2, ys[oi], &b[kb],
+                                               RATESYNC_TED_GARDNER))
+                  kb++;
+            }
+          CHECK (ka == kb && ka > na);
+          CHECK (memcmp (a + na, b + na, (ka - na) * sizeof (float complex))
+                 == 0);
+          if (ka != kb
+              || memcmp (a + na, b + na, (ka - na) * sizeof (float complex))
+                     != 0)
+            fprintf (stderr, "  loop blob: parity %d resumed %zu vs %zu\n",
+                     parity, ka - na, kb - na);
+
+          /* Its own envelope rejects, independently of the parent's. */
+          ((char *)blob)[0] ^= (char)0xFF;
+          CHECK (ratesync_loop_set_state (&l2, blob) == DP_ERR_INVALID);
+          free (blob);
+        }
+    }
+  RateConverter_destroy (rc1);
+  RateConverter_destroy (rc2);
+  free (x);
+  free (a);
+  free (b);
+}
+
+static void
+test_loop_state_roundtrip (void)
+{
+  _loop_state_roundtrip_at_parity (0);
+  _loop_state_roundtrip_at_parity (1);
+}
+
+/* ── §16 — a telemetry attach fails WHOLE ────────────────────────────────
+ *
+ * C30: "@return DP_OK, or DP_ERR_INVALID when the probe table cannot take all
+ * six probes (the attach fails whole; the object stays detached)."
+ *
+ * The Python doctest pins the success path. The failure path is the one that
+ * matters: a partial attach would leave emit sites firing on ids that were
+ * never registered. */
+static void
+test_telemetry_attach_is_atomic (void)
+{
+  ratesync_state_t *s
+      = ratesync_create (8.0, RATESYNC_PULSE_RRC, _BETA, _SPAN, 2, 1024, 0.01,
+                         0.707, RATESYNC_TED_GARDNER);
+  dp_tlm_t *t = dp_tlm_create (1 << 12);
+  CHECK (s && t);
+  if (s && t)
+    {
+      CHECK (ratesync_set_telemetry (s, t, "ok", 1) == DP_OK);
+      CHECK (dp_tlm_probe_count (t) == 6);
+      CHECK (s->loop.tlm.ctx == t);
+
+      /* NULL detaches, and detaching cannot fail. */
+      CHECK (ratesync_set_telemetry (s, NULL, NULL, 1) == DP_OK);
+      CHECK (s->loop.tlm.ctx == NULL);
+
+      /* Fill the table so that fewer than six slots remain, then attach from
+         the DETACHED state: the object must still be detached afterwards.
+         Starting from an attached state would pass whether or not the
+         partial registration went live, since ctx would equal `t` either
+         way — which is the whole point of setting ctx last. */
+      char nm[32];
+      while (dp_tlm_probe_count (t) < DP_TLM_MAX_PROBES - 2)
+        {
+          (void)snprintf (nm, sizeof nm, "filler.%zu", dp_tlm_probe_count (t));
+          CHECK (dp_tlm_probe (t, nm, 1) >= 0);
+        }
+      CHECK (ratesync_set_telemetry (s, t, "nope", 1) == DP_ERR_INVALID);
+      CHECK (s->loop.tlm.ctx == NULL); /* the attach failed WHOLE */
+    }
+  dp_tlm_destroy (t);
+  ratesync_destroy (s);
+}
+
+/* ── §17 — retune keeps the lock; a lock retune drops it ─────────────────
+ *
+ * C28: ratesync_configure "preserves the integrator (and so the lock)".
+ * C29/C58: configure_lock_raw "clears the in-flight block sum and drops the
+ * lock", and avgs is "clamped >= 1".
+ *
+ * Both are pinned by .pyi doctests on the Python face only. A doctest is not
+ * a gate a C-side regression would ever reach. */
+static void
+test_configure_semantics (void)
+{
+  size_t         n;
+  float complex *x = _tx (8.0, 0.2, &n);
+  float complex *y = calloc (n, sizeof *y);
+  CHECK (x && y);
+  if (!x || !y)
+    {
+      free (x);
+      free (y);
+      return;
+    }
+  ratesync_state_t *s
+      = ratesync_create (8.0, RATESYNC_PULSE_RRC, _BETA, _SPAN, 2, 1024, 0.01,
+                         0.707, RATESYNC_TED_GARDNER);
+  CHECK (s != NULL);
+  if (s)
+    {
+      (void)ratesync_steps (s, x, n, y, n);
+      CHECK (ratesync_get_locked (s) == 1);
+      double integ = s->loop.lf.integ, rate = ratesync_get_rate (s);
+
+      ratesync_configure (s, 0.002, 0.707);
+      CHECK (ratesync_get_bn (s) == 0.002);
+      CHECK (s->loop.lf.integ == integ); /* the rate memory survives */
+      CHECK (ratesync_get_rate (s) == rate);
+      CHECK (ratesync_get_locked (s) == 1); /* and so does the lock */
+
+      /* An invalid retune is ignored rather than applied destructively. */
+      ratesync_configure (s, -1.0, 0.707);
+      CHECK (ratesync_get_bn (s) == 0.002);
+      ratesync_configure (s, 0.002, 0.0);
+      CHECK (ratesync_get_bn (s) == 0.002);
+
+      /* set_bn is the property face of the same call. */
+      ratesync_set_bn (s, 0.004);
+      CHECK (ratesync_get_bn (s) == 0.004);
+      CHECK (ratesync_get_locked (s) == 1);
+
+      /* A lock retune drops the decision and the in-flight block. */
+      ratesync_configure_lock_raw (s, 0, 0.5, 0.4, 2, 4);
+      CHECK (s->loop.avgs == 1); /* clamped up from 0 */
+      CHECK (ratesync_get_locked (s) == 0);
+      CHECK (ratesync_get_lock_stat (s) == 0.0);
+      CHECK (s->loop.lock_count == 0);
+      /* but not the timing estimate */
+      CHECK (ratesync_get_rate (s) == rate);
+      ratesync_destroy (s);
+    }
+  free (x);
+  free (y);
+}
+
+/* ── §18 — max_out caps the block, and the hint is 0 ─────────────────────
+ *
+ * C50: "0 means 'the input length is already a safe bound'". Nothing checked
+ * either the hint or that `steps` honours a capacity smaller than it. */
+static void
+test_max_out (void)
+{
+  size_t         n;
+  float complex *x = _tx (4.0, 0.2, &n);
+  float complex *y = calloc (n, sizeof *y);
+  CHECK (x && y);
+  if (!x || !y)
+    {
+      free (x);
+      free (y);
+      return;
+    }
+  ratesync_state_t *s
+      = ratesync_create (4.0, RATESYNC_PULSE_RRC, _BETA, _SPAN, 2, 1024, 0.01,
+                         0.707, RATESYNC_TED_GARDNER);
+  CHECK (s != NULL);
+  if (s)
+    {
+      CHECK (ratesync_steps_max_out (s) == 0);
+      size_t full = ratesync_steps (s, x, n, y, n);
+      CHECK (full > 0);
+      CHECK (full <= n); /* symbols can never exceed inputs: sps >= m >= 2 */
+      ratesync_reset (s);
+      CHECK (ratesync_steps (s, x, n, y, 10) == 10);
+      ratesync_reset (s);
+      CHECK (ratesync_steps (s, x, n, y, 0) == 0);
+      ratesync_destroy (s);
+    }
+  free (x);
+  free (y);
+}
+
+/* ── §19 — sps == m is the boundary, and it is inclusive ─────────────────
+ *
+ * C37: "any double >= m ... The bound is `m`, not 2, because the terminal
+ * stage must not be asked to interpolate: rate = m/sps <= 1." The rejection
+ * side is pinned at sps = 1.5; the accepted edge is not, so a bound that
+ * silently became exclusive would pass. */
+static void
+test_sps_equals_m_boundary (void)
+{
+  ratesync_state_t *s
+      = ratesync_create (2.0, RATESYNC_PULSE_RRC, _BETA, _SPAN, 2, 1024, 0.01,
+                         0.707, RATESYNC_TED_GARDNER);
+  CHECK (s != NULL); /* rate = m/sps = 1.0 exactly: allowed */
+  if (s)
+    {
+      CHECK (s->loop.term_rate <= 1.0);
+      ratesync_destroy (s);
+    }
+  /* One ulp below is not. */
+  CHECK (ratesync_create (1.999, RATESYNC_PULSE_RRC, _BETA, _SPAN, 2, 1024,
+                          0.01, 0.707, RATESYNC_TED_GARDNER)
+         == NULL);
+  /* The same edge at the other supported m. */
+  s = ratesync_create (8.0, RATESYNC_PULSE_RRC, _BETA, _SPAN, 8, 1024, 0.01,
+                       0.707, RATESYNC_TED_GARDNER);
+  CHECK (s != NULL);
+  ratesync_destroy (s);
+  CHECK (ratesync_create (7.999, RATESYNC_PULSE_RRC, _BETA, _SPAN, 8, 1024,
+                          0.01, 0.707, RATESYNC_TED_GARDNER)
+         == NULL);
+}
+
 int
 main (void)
 {
@@ -493,6 +1310,18 @@ main (void)
   test_step_equals_steps ();
   test_reset ();
   test_state_roundtrip ();
+  test_prime_geometry ();
+  test_two_outputs_per_input ();
+  test_dttl_detector ();
+  test_loop_without_the_object ();
+  test_ctrl_scale_is_the_terminal_rate ();
+  test_clipped_reports_overdrive ();
+  test_iandd_needs_m4 ();
+  test_loop_state_roundtrip ();
+  test_telemetry_attach_is_atomic ();
+  test_configure_semantics ();
+  test_max_out ();
+  test_sps_equals_m_boundary ();
 
   if (_fails)
     {

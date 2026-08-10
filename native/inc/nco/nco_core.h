@@ -219,6 +219,23 @@ extern "C"
    * is unaffected. The realised frequency is at most one step LOW,
    * never high.
    *
+   * **Total, and it answers 0 where @ref nco_phase_units saturates.**
+   * That looks like a divergence and is not: the two take different
+   * units. `nco_phase_units` is handed a quantity ALREADY in phase-word
+   * units, so infinitely many of them saturate, which is the honest
+   * answer for a phase word. This function is handed a normalised RATE,
+   * and an infinite rate has no fractional part, so no phase word
+   * represents it -- 0, a stopped oscillator, is the honest answer here.
+   *
+   * Infinity is not even a special case. `1.0`, `2^32` and `1e300` all
+   * give 0 by the same rule, their fractional part being exactly zero,
+   * and NaN gives 0 because @ref nco_phase_units rejects it. It is
+   * "only the fractional part matters" applied at the top of the range,
+   * exactly as a sub-LSB rate is that rule applied at the bottom. Both
+   * ends are pinned in `test_nco_core.c` (§C29 and §13), side by side
+   * with the saturating case so the pair reads as intended rather than
+   * being rediscovered as a defect.
+   *
    * @param norm  Any real normalised quantity; only the fractional part
    *              matters. Negative values fold correctly (e.g. -0.25
    *              -> 3x2^30).
@@ -754,11 +771,17 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
    * of allocating a fresh one.  This used to claim it was "essential for
    * a hot per-epoch tracking loop"; measured, it is worth 0-25% below
    * 8192 samples and nothing at or above it, so reach for it only if a
-   * profile says so.  The buffer must be sized to
-   * `steps_u32_ctrl_max_out()`, NOT just `len(ctrl)` -- which is itself
-   * a cost, since a 64-sample call then needs a 65536-element buffer
-   * (just-buildit/just-makeit#920); the returned view is correctly
-   * sliced to `len(ctrl)` regardless.
+   * profile says so.
+   *
+   * The buffer must be sized to `steps_u32_ctrl_max_out()`, NOT just
+   * `len(ctrl)` -- so a 64-sample call still needs a 65536-element
+   * buffer, which is most of what makes `out=` poor value here.  That is
+   * this header's doing, not the binding's: `*_max_out(state)` takes only
+   * the state, so it is a bound over ALL calls and cannot say what THIS
+   * one needs.  A generated binding may accept a request-sized buffer
+   * only where the bound is declared per-call (a `max_out(state, n)`
+   * prototype).  The returned view is correctly sliced to `len(ctrl)`
+   * regardless of the buffer's size.
    *
    * @param state     NCO state returned by nco_create().
    * @param ctrl      Per-sample normalised-frequency control offsets in

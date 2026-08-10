@@ -201,6 +201,12 @@ CLAIM_MAP: list[tuple[str, str, str]] = [
         "test_nco.py",
     ),
     (
+        "C29",
+        "the fold is TOTAL over non-finite and huge-finite input, and "
+        "answers 0 where the raw cast saturates",
+        "§C29 NEW",
+    ),
+    (
         "C28",
         "resamp lands the conversion boundary modularly in its own "
         "_step_inc — do not consolidate it back",
@@ -747,12 +753,25 @@ def review(d: Data) -> None:
     )
     R.find(
         "F4",
-        "GAP",
-        f"the two faces of the conversion diverge at infinity: "
-        f"nco_phase_units(+inf) is pinned at 4294967295 (saturate), but the "
-        f"object folds first, fmod(inf,1.0) is NaN, and NCO(inf).phase_inc "
-        f"is {NCO(float('inf'), 0).phase_inc} (stopped). Only the "
-        f"primitive's side is asserted anywhere.",
+        "BY DESIGN",
+        f"filed as 'the two faces diverge at infinity': nco_phase_units "
+        f"(+inf) saturates to 4294967295 while NCO(inf).phase_inc is "
+        f"{NCO(float('inf'), 0).phase_inc}. Measured, that framing was "
+        f"wrong twice over. The two NAMED faces — freq_to_inc and "
+        f"phase_to_word — agree everywhere, being one body; the difference "
+        f"is between the raw cast and the fold, and they take different "
+        f"UNITS. nco_phase_units is handed a quantity already in "
+        f"phase-word units, so infinitely many saturate; the fold is "
+        f"handed a normalised rate, and an infinite rate has no fractional "
+        f"part, so no phase word represents it and 0 is the honest answer. "
+        f"Nor is infinity special: 1.0, 2^32 and 1e300 all give 0 by the "
+        f"same rule. It is 'only the fractional part matters' at the top "
+        f"of the range, exactly as F5's sub-LSB case is that rule at the "
+        f"bottom. What WAS real is that only the cast's side was asserted "
+        f"— test_nco_core.c §C29 now pins the fold across the non-finite "
+        f"and huge-finite range, pins the two named faces to each other "
+        f"there, and asserts the saturating case beside it so the pair "
+        f"reads as intended; nco_norm_fold_'s doxygen says the same.",
     )
     surprising = {
         "NaN": float("nan"),
@@ -807,7 +826,20 @@ def review(d: Data) -> None:
     R.find(
         "F8",
         "C-ONLY",
-        "nco_steer_scale landed alongside the signed rule — bound the "
+        "nco_steer_scale exists but has NO PRODUCTION CALLER — it is the "
+        "header inline plus test_nco_core.c §16, and symsync, the object "
+        "it was written for, still steers unbounded. Adoption is held "
+        "deliberately: a band that engages is a band applied to the case "
+        "where cycle slipping was the recovery path, and too tight a floor "
+        "sticks the loop at the rail instead of stopping it — the same "
+        "outcome, harder to spot. Measured here: closing an ideal loop "
+        "around this NCO and demanding rates it cannot have (0.1x nominal, "
+        "through zero to -1x) never drives the control below 0.66, because "
+        "a wrapped detector's slip reverses the integrator before it can "
+        "wind up. A loop that can slip never asks for an impossible rate, "
+        "so the band only engages where the discriminator is non-linear "
+        "enough to prevent the slip. See docs/design/nco.md §8. "
+        "Originally recorded as: bound the "
         "REQUEST so the conversion is a safety net rather than the active "
         "path. It is a header inline with no binding, so this report "
         "cannot exercise it; test_nco_core.c §16 does, including the case "

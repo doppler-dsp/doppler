@@ -193,24 +193,41 @@ TEST_FAST_CMD = $(CTEST) --test-dir $(BUILD_DIR) --output-on-failure \
 # how CI adds its coverage reporting without changing what runs.
 #
 # The suite is embarrassingly parallel across module directories, and
-# pytest-xdist is in the dev group: `make test PYTEST_ARGS="-n auto"` runs it
-# on every core. Measured on 8 cores: 278s -> 81s (3.4x), identical results
-# (2554 passed, 6 skipped both ways).
+# pytest-xdist is in the dev group, so `make test-python` runs it on every
+# core. Override with `PYTEST_ARGS="-n 0"` to force serial.
 #
-# NOT the default, because it is not a free win: pytest-benchmark disables
+# It is ON by default, in a way that costs nothing: pytest-benchmark disables
 # itself under xdist ("Benchmarks cannot be performed reliably in a
-# parallelized environment"), so `-n auto` silently turns the benchmark tests
-# under src/doppler/*/benchmarks/ into correctness-only runs. Real benchmark
-# numbers come from `make bench-interleaved` regardless — but a gate must not
-# quietly measure less than it appears to, so the flag stays opt-in.
+# parallelized environment"), so a blanket `-n auto` would silently turn the
+# benchmark tests under src/doppler/*/benchmarks/ into correctness-only runs —
+# and a gate must not quietly measure less than it appears to. So the run is
+# SPLIT: everything except those directories goes through xdist, and they get
+# a second, serial pass. Nothing is downgraded and nothing is skipped.
+#
+# Measured on 8 cores: 274s all-serial -> 178s, as 60s for the parallel bulk
+# (2493 tests) plus 117s for the serial benchmark pass (133 tests). Same
+# 2626 passed / 6 skipped either way. The benchmark pass now dominates and is
+# irreducible by parallelism BY DEFINITION -- pytest-benchmark needs a quiet
+# machine, and min_rounds x max_time puts a floor of ~1s on each of its tests.
 #
 # Do NOT parallelize `test-stubs`: measured 2.35s -> 2.24s (startup dominates),
 # and a text-mode .pyi shares ONE doctest namespace across the whole file, so
 # any future finer-than-file split would break name bindings that earlier
 # examples in the same file establish.
 PYTEST_ARGS     ?=
-TEST_PYTHON_CMD = uv run pytest src/ -v \
-                      -m "not docs_snippets and not examples" $(PYTEST_ARGS)
+PYTEST_SELECT   = -m "not docs_snippets and not examples"
+# Every src/doppler/<mod>/benchmarks directory, derived not listed.
+PYTEST_BENCH_DIRS = $(wildcard src/doppler/*/benchmarks)
+# TWO passes, and the split is the whole point (see the note above): the bulk
+# runs under xdist, and the benchmark tests run SERIALLY afterwards so
+# pytest-benchmark still measures instead of disabling itself. `--cov-append`
+# on the second pass is what keeps CI's single coverage report complete: pass
+# one erases and writes, pass two appends, so the report emitted at the end of
+# pass two carries both.
+TEST_PYTHON_CMD = uv run pytest src/ -v $(PYTEST_SELECT) \
+                      --ignore-glob='*/benchmarks/*' -n auto $(PYTEST_ARGS) \
+                  && uv run pytest $(PYTEST_BENCH_DIRS) -v $(PYTEST_SELECT) \
+                      --cov-append $(PYTEST_ARGS)
 TEST_RUST_CMD   = cargo test --manifest-path $(RUST_DIR)/Cargo.toml
 
 # Fail-closed: every src/doppler/examples/*.py (plus the standalone example) is

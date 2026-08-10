@@ -1710,12 +1710,12 @@ class SymbolSync:
     def __enter__(self) -> "SymbolSync":
         """Enter a context manager, returning this object.
 
-        Lets a Symsync be used in a `with` statement so its C resources are
+        Lets a SymbolSync be used in a `with` statement so its C resources are
         released deterministically on exit rather than at collection time.
 
         Returns
         -------
-        Symsync
+        SymbolSync
             This same object, not a copy.
         """
 
@@ -1725,7 +1725,7 @@ class SymbolSync:
         exc: object | None = ...,
         tb: object | None = ...,
     ) -> None:
-        """Exit a context manager, releasing the Symsync.
+        """Exit a context manager, releasing the SymbolSync.
 
         Equivalent to calling `destroy()`. Returns ``None``, so an exception
         raised inside the `with` body propagates normally; this never
@@ -2163,12 +2163,12 @@ class RateSync:
     def __enter__(self) -> "RateSync":
         """Enter a context manager, returning this object.
 
-        Lets a Ratesync be used in a `with` statement so its C resources are
+        Lets a RateSync be used in a `with` statement so its C resources are
         released deterministically on exit rather than at collection time.
 
         Returns
         -------
-        Ratesync
+        RateSync
             This same object, not a copy.
         """
 
@@ -2178,7 +2178,7 @@ class RateSync:
         exc: object | None = ...,
         tb: object | None = ...,
     ) -> None:
-        """Exit a context manager, releasing the Ratesync.
+        """Exit a context manager, releasing the RateSync.
 
         Equivalent to calling `destroy()`. Returns ``None``, so an exception
         raised inside the `with` body propagates normally; this never

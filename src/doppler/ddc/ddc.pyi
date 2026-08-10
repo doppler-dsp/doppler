@@ -301,12 +301,12 @@ class DDC:
     def __enter__(self) -> "DDC":
         """Enter a context manager, returning this object.
 
-        Lets a Ddc be used in a `with` statement so its C resources are
+        Lets a DDC be used in a `with` statement so its C resources are
         released deterministically on exit rather than at collection time.
 
         Returns
         -------
-        Ddc
+        DDC
             This same object, not a copy.
         """
 
@@ -316,7 +316,7 @@ class DDC:
         exc: object | None = ...,
         tb: object | None = ...,
     ) -> None:
-        """Exit a context manager, releasing the Ddc.
+        """Exit a context manager, releasing the DDC.
 
         Equivalent to calling `destroy()`. Returns ``None``, so an exception
         raised inside the `with` body propagates normally; this never
@@ -649,13 +649,12 @@ class MatchedDDC:
     def __enter__(self) -> "MatchedDDC":
         """Enter a context manager, returning this object.
 
-        Lets a DdcViewMatchedddc be used in a `with` statement so its C
-        resources are released deterministically on exit rather than at
-        collection time.
+        Lets a MatchedDDC be used in a `with` statement so its C resources are
+        released deterministically on exit rather than at collection time.
 
         Returns
         -------
-        DdcViewMatchedddc
+        MatchedDDC
             This same object, not a copy.
         """
 
@@ -665,7 +664,7 @@ class MatchedDDC:
         exc: object | None = ...,
         tb: object | None = ...,
     ) -> None:
-        """Exit a context manager, releasing the DdcViewMatchedddc.
+        """Exit a context manager, releasing the MatchedDDC.
 
         Equivalent to calling `destroy()`. Returns ``None``, so an exception
         raised inside the `with` body propagates normally; this never
@@ -1317,13 +1316,12 @@ class MatchedDdcr:
     def __enter__(self) -> "MatchedDdcr":
         """Enter a context manager, returning this object.
 
-        Lets a DdcrViewMatchedddcr be used in a `with` statement so its C
-        resources are released deterministically on exit rather than at
-        collection time.
+        Lets a MatchedDdcr be used in a `with` statement so its C resources are
+        released deterministically on exit rather than at collection time.
 
         Returns
         -------
-        DdcrViewMatchedddcr
+        MatchedDdcr
             This same object, not a copy.
         """
 
@@ -1333,7 +1331,7 @@ class MatchedDdcr:
         exc: object | None = ...,
         tb: object | None = ...,
     ) -> None:
-        """Exit a context manager, releasing the DdcrViewMatchedddcr.
+        """Exit a context manager, releasing the MatchedDdcr.
 
         Equivalent to calling `close()`. Returns ``None``, so an exception
         raised inside the `with` body propagates normally; this never

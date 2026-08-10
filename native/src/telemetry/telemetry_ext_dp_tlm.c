@@ -836,15 +836,15 @@ static PyMethodDef TelemetryObj_methods[] = {
   { "__enter__", (PyCFunction)TelemetryObj_enter, METH_NOARGS,
     "Enter a context manager, returning this object.\n"
     "\n"
-    "Lets a DpTlm be used in a `with` statement so its C resources are\n"
+    "Lets a Telemetry be used in a `with` statement so its C resources are\n"
     "released deterministically on exit rather than at collection time.\n"
     "\n"
     "Returns\n"
     "-------\n"
-    "DpTlm\n"
+    "Telemetry\n"
     "    This same object, not a copy.\n" },
   { "__exit__", (PyCFunction)TelemetryObj_exit, METH_VARARGS,
-    "Exit a context manager, releasing the DpTlm.\n"
+    "Exit a context manager, releasing the Telemetry.\n"
     "\n"
     "Equivalent to calling `destroy()`. Returns ``None``, so an exception\n"
     "raised inside the `with` body propagates normally; this never\n"

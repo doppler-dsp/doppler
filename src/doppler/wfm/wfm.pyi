@@ -179,12 +179,12 @@ class PN:
     def __enter__(self) -> "PN":
         """Enter a context manager, returning this object.
 
-        Lets a Pn be used in a `with` statement so its C resources are released
+        Lets a PN be used in a `with` statement so its C resources are released
         deterministically on exit rather than at collection time.
 
         Returns
         -------
-        Pn
+        PN
             This same object, not a copy.
         """
 
@@ -194,7 +194,7 @@ class PN:
         exc: object | None = ...,
         tb: object | None = ...,
     ) -> None:
-        """Exit a context manager, releasing the Pn.
+        """Exit a context manager, releasing the PN.
 
         Equivalent to calling `destroy()`. Returns ``None``, so an exception
         raised inside the `with` body propagates normally; this never
@@ -534,12 +534,12 @@ class _SynthEngine:
     def __enter__(self) -> "_SynthEngine":
         """Enter a context manager, returning this object.
 
-        Lets a WfmSynth be used in a `with` statement so its C resources are
-        released deterministically on exit rather than at collection time.
+        Lets a _SynthEngine be used in a `with` statement so its C resources
+        are released deterministically on exit rather than at collection time.
 
         Returns
         -------
-        WfmSynth
+        _SynthEngine
             This same object, not a copy.
         """
 
@@ -549,7 +549,7 @@ class _SynthEngine:
         exc: object | None = ...,
         tb: object | None = ...,
     ) -> None:
-        """Exit a context manager, releasing the WfmSynth.
+        """Exit a context manager, releasing the _SynthEngine.
 
         Equivalent to calling `destroy()`. Returns ``None``, so an exception
         raised inside the `with` body propagates normally; this never

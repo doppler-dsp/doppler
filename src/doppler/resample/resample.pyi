@@ -693,12 +693,12 @@ class CIC:
     def __enter__(self) -> "CIC":
         """Enter a context manager, returning this object.
 
-        Lets a Cic be used in a `with` statement so its C resources are
+        Lets a CIC be used in a `with` statement so its C resources are
         released deterministically on exit rather than at collection time.
 
         Returns
         -------
-        Cic
+        CIC
             This same object, not a copy.
         """
 
@@ -708,7 +708,7 @@ class CIC:
         exc: object | None = ...,
         tb: object | None = ...,
     ) -> None:
-        """Exit a context manager, releasing the Cic.
+        """Exit a context manager, releasing the CIC.
 
         Equivalent to calling `destroy()`. Returns ``None``, so an exception
         raised inside the `with` body propagates normally; this never
@@ -1395,13 +1395,13 @@ class MatchedRateConverter:
     def __enter__(self) -> "MatchedRateConverter":
         """Enter a context manager, returning this object.
 
-        Lets a RateConverterViewMatchedrateconverter be used in a `with`
-        statement so its C resources are released deterministically on exit
-        rather than at collection time.
+        Lets a MatchedRateConverter be used in a `with` statement so its C
+        resources are released deterministically on exit rather than at
+        collection time.
 
         Returns
         -------
-        RateConverterViewMatchedrateconverter
+        MatchedRateConverter
             This same object, not a copy.
         """
 
@@ -1411,8 +1411,7 @@ class MatchedRateConverter:
         exc: object | None = ...,
         tb: object | None = ...,
     ) -> None:
-        """Exit a context manager, releasing the
-        RateConverterViewMatchedrateconverter.
+        """Exit a context manager, releasing the MatchedRateConverter.
 
         Equivalent to calling `destroy()`. Returns ``None``, so an exception
         raised inside the `with` body propagates normally; this never
@@ -1837,12 +1836,13 @@ class HalfbandDecimatorQ15:
     def __enter__(self) -> "HalfbandDecimatorQ15":
         """Enter a context manager, returning this object.
 
-        Lets a HbdecimQ15 be used in a `with` statement so its C resources are
-        released deterministically on exit rather than at collection time.
+        Lets a HalfbandDecimatorQ15 be used in a `with` statement so its C
+        resources are released deterministically on exit rather than at
+        collection time.
 
         Returns
         -------
-        HbdecimQ15
+        HalfbandDecimatorQ15
             This same object, not a copy.
         """
 
@@ -1852,7 +1852,7 @@ class HalfbandDecimatorQ15:
         exc: object | None = ...,
         tb: object | None = ...,
     ) -> None:
-        """Exit a context manager, releasing the HbdecimQ15.
+        """Exit a context manager, releasing the HalfbandDecimatorQ15.
 
         Equivalent to calling `destroy()`. Returns ``None``, so an exception
         raised inside the `with` body propagates normally; this never

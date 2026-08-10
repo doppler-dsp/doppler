@@ -253,12 +253,12 @@ class Writer:
     def __enter__(self) -> "Writer":
         """Enter a context manager, returning this object.
 
-        Lets a WfmWriter be used in a `with` statement so its C resources are
+        Lets a Writer be used in a `with` statement so its C resources are
         released deterministically on exit rather than at collection time.
 
         Returns
         -------
-        WfmWriter
+        Writer
             This same object, not a copy.
         """
 
@@ -268,7 +268,7 @@ class Writer:
         exc: object | None = ...,
         tb: object | None = ...,
     ) -> None:
-        """Exit a context manager, releasing the WfmWriter.
+        """Exit a context manager, releasing the Writer.
 
         Equivalent to calling `close()`. Returns ``None``, so an exception
         raised inside the `with` body propagates normally; this never

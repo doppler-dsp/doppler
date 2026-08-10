@@ -386,17 +386,17 @@ static PyMethodDef CaptureObj_methods[] = {
   { "__enter__", (PyCFunction)CaptureObj_enter, METH_NOARGS,
     "Enter a context manager, returning this object.\n"
     "\n"
-    "Lets a DpTlmCapture be used in a `with` statement so its C resources\n"
+    "Lets a MemoryCapture be used in a `with` statement so its C resources\n"
     "are finalized deterministically on exit rather than at collection time.\n"
     "\n"
     "Returns\n"
     "-------\n"
-    "DpTlmCapture\n"
+    "MemoryCapture\n"
     "    This same object, not a copy.\n" },
   { "__exit__", (PyCFunction)CaptureObj_exit, METH_VARARGS,
-    "Exit a context manager, finalizing the DpTlmCapture.\n"
+    "Exit a context manager, finalizing the MemoryCapture.\n"
     "\n"
-    "Equivalent to calling `close()`. The DpTlmCapture is **not** released\n"
+    "Equivalent to calling `close()`. The MemoryCapture is **not** released\n"
     "here: it stays usable, which is what makes results gathered during the\n"
     "`with` body readable after it. The memory is freed when the object is\n"
     "collected.\n"

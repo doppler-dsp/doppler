@@ -292,10 +292,15 @@ def section_summary() -> None:
     )
     R.md(
         "> **There is no `docs/design/lo.md`.** The LO's rationale lives "
-        "entirely in the header; the conversion's rationale lives in "
-        "`nco_core.h`, whose own design page is still stranded in PR #647 "
-        "(see the NCO report's provenance note). Nothing was moved or "
-        "restated here to paper over that."
+        "in the header, and the accumulator underneath it is the NCO's "
+        "bit-for-bit (2.2), so the theory of operation it inherits is "
+        "[`docs/design/nco.md`](../../../../../docs/design/nco.md) — which "
+        "covers the phase accumulator, the one float boundary and the "
+        "control port, and names the LUT as the only thing the LO adds. "
+        "What is genuinely LO-specific and undocumented in prose is that "
+        "table: its spurious content, measured in 2.4, and its "
+        "closed-loop cost, measured in 2.9. Nothing was restated here to "
+        "paper over the gap."
     )
     R.md()
     R.md("### What this report adds")

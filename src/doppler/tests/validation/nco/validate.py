@@ -297,13 +297,15 @@ def section_summary() -> None:
     )
     R.md()
     R.md(
-        "> **Note on provenance.** `docs/design/nco.md` does not exist on "
-        "this branch — it is a residual still stranded in PR #647, so the "
-        "link above dangles. The signed carry/borrow rule and test "
-        "sections §14–16 from that same PR **have** now landed here (see "
-        "**F7**), applied by hand rather than cherry-picked because a "
-        "later commit reshaped the same function and main carries a "
-        "`resamp` paragraph #647 predates."
+        "> **Note on provenance.** The three residuals stranded in PR #647 "
+        "have now all landed here off main rather than by rebasing it: "
+        "the signed carry/borrow rule and test sections §14–16 (see "
+        "**F7**), `nco_steer_scale` (**F8**), and `docs/design/nco.md`, "
+        "which was rewritten rather than cherry-picked — a later commit "
+        "reshaped the same function, `resamp` has since adopted the "
+        "interpolating rule that changed how it lands the conversion, and "
+        "the evidence layer this report is did not exist when that draft "
+        "was written."
     )
     R.md()
 

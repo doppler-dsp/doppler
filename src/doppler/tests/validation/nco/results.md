@@ -143,16 +143,16 @@ Across the range (full sweep in `data/frequency_sweep.csv`):
 | ctrl | advance (phase words) | as cycles/sample |
 |---|---|---|
 | 0.25 | 1073741824 | 0.250000 |
-| 0.1 | 429496736 | 0.100000 |
+| 0.1 | 429496729 | 0.100000 |
 | 1e-09 | 4 | 0.000000 |
 | 0 | 0 | 0.000000 |
 | -1e-09 | 4294967291 | 1.000000 |
-| -0.1 | 3865470560 | 0.900000 |
+| -0.1 | 3865470566 | 0.900000 |
 | 1 | 0 | 0.000000 |
 | 1.5 | 2147483648 | 0.500000 |
 | -1.5 | 2147483648 | 0.500000 |
 
-The same requested `0.1` reaches the accumulator by two paths and lands on **two different words**: configured (double) gives `429496729`, the ctrl port (float32) gives `429496736`, a delta of `7`. `float32(0.1)` is `0.10000000149011612` against `0.10000000000000001`.
+The same requested `0.1` reaches the accumulator by two paths — configured, and through the control port — and lands on the SAME word: `429496729` both ways, delta `0`. It did not used to. The port was float32 while the configured rate was double, so `float32(0.1)` = `0.10000000149011612` against `0.10000000000000001` quantized the request before the fold ever saw it and the two paths differed by 7 phase words. The port is now `double`, the width the conversion works in and the one every scalar steer site already used (**F2**).
 
 ![ctrl law](ctrl_law.png)
 
@@ -160,13 +160,13 @@ The same requested `0.1` reaches the accumulator by two paths and lands on **two
 
 | ctrl | signed advance (phase words) |
 |---|---|
-| -0.250000100000 | -384 |
-| -0.250000010000 | 0 |
+| -0.250000100000 | -430 |
+| -0.250000010000 | -43 |
 | -0.250000000000 | 0 |
-| -0.249999990000 | 64 |
-| -0.249999900000 | 448 |
+| -0.249999990000 | 42 |
+| -0.249999900000 | 429 |
 
-The float32 quantum at `0.25` is `2.98e-08` (29.8 ppb). The measured contiguous zero-advance run is `2.235e-08` (22.4 ppb) over 151/1601 scanned controls.
+The phase-word LSB is `2.328e-10` (0.233 ppb) and the measured contiguous zero-advance run is `2.317e-10` (0.232 ppb) over 200/1601 scanned controls — one LSB, which is the floor: below one LSB the conversion truncates to zero whatever the port's precision. On the float32 port this plateau was 22.4 ppb, 96x wider, and that excess was the port's and not the accumulator's (**F3**).
 
 ![dead zone](ctrl_dead_zone.png)
 
@@ -212,10 +212,10 @@ Every face returns the whole request, 4464 samples past the advertised maximum, 
 | finding | verdict | detail |
 |---|---|---|
 | F1 | BY DESIGN | the frequency error is one-sided and tracks the 1/phase_inc envelope. Correct — but the consequence is unstated: 194700 ppm at the bottom of the range against 0.000 ppm at the top. Same conversion, five orders of magnitude apart in cost, and a code NCO lives at the expensive end. |
-| F2 | GAP | the ctrl port is float32 while the configured rate is double, so one requested 0.1 lands on two different phase words (delta 7). Nothing documents which resolution a tracking loop is steering at. |
-| F3 | GAP | a ctrl cancelling phase_inc stops the NCO over a PLATEAU 22 ppb wide (one float32 quantum), not a knife edge. A loop settling near -phase_inc parks in a dead zone it cannot steer out of by fractions. |
+| F2 | FIXED | the ctrl port was float32 while the configured rate was double, so one requested 0.1 landed on two different phase words (delta 7) depending on which face it entered by, and nothing documented which resolution a tracking loop was steering at. The port is now `double` on all four narrowing signatures — nco_steps_u32_ctrl, _scaled_ctrl, _ovf_ctrl and lo_steps_ctrl — which is the width the conversion works in and the one every scalar steer site (nco_step_u32*_ctrl, lo_step_ctrl, symsync, dll) already used, so this removed an inconsistency rather than introducing a width. Measured: delta is now 0. No production C called the narrowing forms — only the generated bindings and the C tests — and the binding still accepts a float32 array by casting, so no caller breaks. |
+| F3 | BY DESIGN | a ctrl cancelling phase_inc stops the NCO over a plateau rather than at a knife edge, and it always will: below one phase-word LSB the conversion truncates to zero, so a dead zone one LSB wide is the quantization floor, not a defect. What WAS a defect is how wide it used to be — 22.4 ppb, one float32 quantum, set by the port rather than by the accumulator. With the port widened (F2) it measures 0.232 ppb against an LSB of 0.233 ppb: 96x narrower and now at the floor. A loop settling near -phase_inc still parks, but within one LSB of the rate it was asked for. |
 | F4 | GAP | the two faces of the conversion diverge at infinity: nco_phase_units(+inf) is pinned at 4294967295 (saturate), but the object folds first, fmod(inf,1.0) is NaN, and NCO(inf).phase_inc is 0 (stopped). Only the primitive's side is asserted anywhere. |
-| F5 | GAP | 4 nonsense frequency requests (NaN, +inf, -inf, sub-LSB) produce a silently stopped oscillator that create() reports as success — distinct from 0.0/-0.0/1.0/2.0, which are stopped correctly (DC, and whole cycles aliasing to DC). |
+| F5 | BY DESIGN | 4 frequency requests (NaN, +inf, -inf, sub-LSB) produce a stopped oscillator, and this was originally filed as a gap on the grounds that create() reports success. That was a misreading, and the sub-LSB case shows why: a rate below one LSB is not nonsense, it is a perfectly ordinary request the phase word cannot represent, and truncating it to 0 IS the law this object already documents — at most one step low, never high. It is the bottom of the range behaving exactly like the rest of it. NaN and +-inf reach the same 0 by the conversion's deliberate totality: nco_phase_units rejects them with a negated comparison rather than passing them to the cast, so every input has a defined answer and no caller has to pre-validate. Grouping a representable-but-tiny rate with a non-number was the error in the original finding, not the behaviour. |
 | F6 | BY DESIGN | the carry is a flag, not a counter: at 1.30 cycles/sample it reports 16/16 and cannot say 'two wraps'. Correct for a strobe, and the reason a resampler keeps its own accounting. |
 | F7 | FIXED | the control port's event is now signed by the COMPOSITE rate, formed as `norm_freq + ctrl` in cycles before either term is folded. Under a negative control the flag now fires at the intended rate — at ctrl=-0.01, 0.0100 against an intended 0.0100 — where the old bare-carry test fired at the folded rate 0.9900. Not a discovery: this was already fixed and documented in PR #647 and the conversion consolidation landed on main without it. Applied here by hand (a later commit reshaped the same function, and main carries a `resamp` paragraph #647 predates), together with that PR's §14-16 — an independent long-double oracle over 10 base rates x 6 control trajectories, both signs. Reverting the rule now produces 279 failures. |
 | F8 | C-ONLY | nco_steer_scale landed alongside the signed rule — bound the REQUEST so the conversion is a safety net rather than the active path. It is a header inline with no binding, so this report cannot exercise it; test_nco_core.c §16 does, including the case that motivated it (a control below -1 makes the raw scale negative, which an honest conversion floors to 0 — a stopped NCO that never strobes again). |
@@ -236,7 +236,7 @@ Claims a caller may rely on. A failure here is a regression, not a new finding.
 | PASS | ctrl == 0 is bit-identical to no ctrl at all |
 | PASS | ctrl never modifies norm_freq or phase_inc |
 | PASS | ctrl folds modulo one cycle exactly, both signs (1201/1201 controls) |
-| PASS | the ctrl dead zone is one float32 quantum wide (22.4 ppb) — bounded, not unbounded |
+| PASS | the ctrl dead zone is one PHASE-WORD LSB wide (0.232 ppb) — the quantization floor, not the port's precision |
 | PASS | at an irrational rate the strobe dithers between two adjacent intervals [8, 9] whose mean is 1/norm_freq |
 | PASS | scaled output never leaves [0, nmax) |
 | PASS | under a NEGATIVE control the event fires at the intended |ctrl| rate, not the folded 1-|ctrl| — the composite's sign decides |
@@ -250,6 +250,6 @@ Claims a caller may rely on. A failure here is a regression, not a new finding.
 
 ## 5. Summary
 
-- **9 findings**, 4 of them gaps or confirmed defects: F2, F3, F4, F5
+- **9 findings**, 1 of them gaps or confirmed defects: F4
 - **18/18 limits** hold
 - Raw sweeps: `data/frequency_sweep.csv`, `data/ctrl_sweep.csv`

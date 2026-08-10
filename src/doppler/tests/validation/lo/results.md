@@ -90,7 +90,7 @@ The LO is not a second oscillator — it is `nco_state_t`'s arithmetic with a LU
 |---|---|
 | `phase_inc` over 13 probe frequencies (incl. NaN, +-inf, sub-LSB, negative) | identical: True |
 | phase after 4096 free-running samples at 0.123456789 | identical: True (`2916315136`) |
-| phase after a 401-point control sweep over [-1.5, 1.5] | identical: True (`3766686001`) |
+| phase after a 401-point control sweep over [-1.5, 1.5] | identical: True (`3766685809`) |
 
 ### 2.3 The LUT itself — angle and amplitude
 *(section 6, and the new section 20)*
@@ -166,28 +166,28 @@ Across the range (full sweep in `data/frequency_sweep.csv`) the realised frequen
 | ctrl | advance (phase words) | as cycles/sample |
 |---|---|---|
 | 0.25 | 1073741824 | 0.250000 |
-| 0.1 | 429496736 | 0.100000 |
+| 0.1 | 429496729 | 0.100000 |
 | 1e-09 | 4 | 0.000000 |
 | 0 | 0 | 0.000000 |
 | -1e-09 | 4294967291 | 1.000000 |
-| -0.1 | 3865470560 | 0.900000 |
+| -0.1 | 3865470566 | 0.900000 |
 | 1 | 0 | 0.000000 |
 | 1.5 | 2147483648 | 0.500000 |
 | -1.5 | 2147483648 | 0.500000 |
 
-The same requested `0.1` reaches the accumulator by two paths and lands on **two different words**: configured (double) gives `429496729`, the ctrl port (float32) gives `429496736`, a delta of `7`. `float32(0.1)` is `0.10000000149011612` against `0.10000000000000001`. This is the NCO's F2 verbatim — the LO inherits the port and the gap with it, and `lo_core.h` does not mention the resolution either.
+The same requested `0.1` reaches the accumulator by two paths and lands on **two different words**: configured (double) gives `429496729` and the ctrl port gives `429496729`, a delta of `0`. The port used to be float32 while the configured rate was double, so the same request landed 7 words apart depending on which face it entered by — the NCO's F2 verbatim, inherited along with the port. Both are `double` now (**F5**), which also makes `lo_steps_ctrl` agree with the inline `lo_step_ctrl` that always took one.
 
 ### 2.7 A control that cancels `phase_inc`
 
 | ctrl | signed advance (phase words) |
 |---|---|
-| -0.250000100000 | -384 |
-| -0.250000010000 | 0 |
+| -0.250000100000 | -430 |
+| -0.250000010000 | -43 |
 | -0.250000000000 | 0 |
-| -0.249999990000 | 64 |
-| -0.249999900000 | 448 |
+| -0.249999990000 | 42 |
+| -0.249999900000 | 429 |
 
-The float32 quantum at `0.25` is `2.98e-08` (29.8 ppb). The measured contiguous zero-advance run is `2.235e-08` (22.4 ppb) over 151/1601 scanned controls — again the NCO's finding, reached through the LO's own port.
+The phase-word LSB is `2.328e-10` (0.233 ppb) and the measured contiguous zero-advance run is `2.317e-10` (0.232 ppb) over 200/1601 scanned controls — one LSB, the floor. On the float32 port it was 22.4 ppb, 96x wider (**F6**).
 
 ![ctrl law](ctrl_law.png)
 
@@ -197,7 +197,7 @@ The header calls `steps_ctrl` *"the natural API for FM synthesis and frequency-h
 
 | stimulus | measured |
 |---|---|
-| linear chirp, ctrl 0.02 -> 0.30 over 16384 samples | max |instantaneous freq - commanded| = 1.516e-05 cycles/sample |
+| linear chirp, ctrl 0.02 -> 0.30 over 16384 samples | max |instantaneous freq - commanded| = 1.515e-05 cycles/sample |
 | hard hop, ctrl 0.05 -> 0.31 at the midpoint | 0.050003 before, 0.309998 after; the sample BEFORE the hop is still at the old rate (|err| 3.03e-06) — the change takes effect on the step it is commanded, with no phase discontinuity |
 
 The chirp tracks the command to 2.0x the half-LUT-bin phase quantum, which is the resolution the LUT can express at all — the control port is not the limit here, the table is.
@@ -217,9 +217,9 @@ The difference between the two columns is therefore **the LUT's entire contribut
 |---|---|---|---|---|
 | +0.25 cycle step | 273 | 273 | 0.00e+00 | 1.39e-08 |
 | -0.25 cycle step | 273 | 273 | 0.00e+00 | 9.75e-18 |
-| ramp, 0.001 cyc/sample | 408 | 408 | 1.15e-10 | 7.69e-06 |
+| ramp, 0.001 cyc/sample | 408 | 408 | 1.15e-10 | 7.71e-06 |
 
-Settling is **identical** in every drive — the LUT costs no bandwidth. What it costs is a floor: on the ramp, where the loop parks between LUT bins rather than on one, the residual through the LO's own face is `7.689e-06` cycles against the ideal detector's `1.2e-10`. Half a LUT bin is `0.5/65536 = 7.629e-06` cycles. The measured floor is 1.008x that — the quantization of the phase index, and nothing else, is the steady-state error of a carrier loop built on this LO.
+Settling is **identical** in every drive — the LUT costs no bandwidth. What it costs is a floor: on the ramp, where the loop parks between LUT bins rather than on one, the residual through the LO's own face is `7.705e-06` cycles against the ideal detector's `1.2e-10`. Half a LUT bin is `0.5/65536 = 7.629e-06` cycles. The measured floor is 1.010x that — the quantization of the phase index, and nothing else, is the steady-state error of a carrier loop built on this LO.
 
 ![linear loop](linear_loop.png)
 
@@ -247,13 +247,13 @@ The bindings expose `steps`/`steps_ctrl` and the properties, but the **entire in
 | finding | verdict | detail |
 |---|---|---|
 | F1 | FIXED | the '~96 dBc SFDR' claim was the TYPICAL value stated as though it were a bound. Measured: 96.32-96.33 dBc over 400 random frequencies, but 92.41 dBc at a half-bin fractional increment (phase_inc & 0xFFFF == 32768), which is the classical 6.02B-3.92 = 92.40 dBc phase-truncation bound — 3.6 dB below the figure a caller would have budgeted from, and the worst set is not exotic: every increment congruent to 0x8000 mod 2^16 is in it. In the other direction the claim was equally silent about 146 dBc when the increment is a whole number of LUT bins. FIXED: lo_core.h now documents all three regimes and states the real guarantee, **SFDR >= 90 dBc at any frequency** (2.41 dB of margin on the measured worst case). The bound is gated, not just documented: test_lo.py::test_sfdr_worst_case_meets_the_documented_bound measures the 0x8000 remainder in the Python suite and pins it to the theory bound, and a sabotage that drops the phase index to 14 bits takes it to 84.06 dBc and turns the gate red. |
-| F2 | CONFIRMED | the comment beside lo_step_ctrl says nco_norm_freq_to_inc 'rounds, not truncates'. It truncates, deliberately, and nco_core.h spends four paragraphs on why (a rounding form contracts to an FMA on arm64 and x86-64-v3 but not on the x86-64-v2 baseline doppler ships, so the increment would differ by host). test_lo_core.c §15 already measured truncation on the configure path; the new §21 pins it on the control path too, so the comment is now contradicted by a test rather than by reading. Stale prose left behind when the private copy was consolidated away — the sentence describes what the deleted copy did. |
-| F3 | CONFIRMED | lo_core.c's two `#ifdef __AVX512F__` blocks are dead in every configuration doppler ships, and divergent where they are not. CMakeLists.txt targets -march=x86-64-v2 by default, so __AVX512F__ is undefined and the scalar fallbacks are what every wheel, every CI job and this report exercise; the vector path becomes live only under DOPPLER_NATIVE=ON on an AVX-512 host. There it computes round(frac x 2^32) in float32 via _mm512_cvtps_epu32 while the compiled scalar truncates in double — the same object, two phase increments, chosen by CPU. Already recorded as a KNOWN VIOLATION in scripts/.phase-conversion-allow; this report adds that it is also unreachable, so no gate can catch the divergence. |
+| F2 | FIXED | the comment beside lo_step_ctrl said nco_norm_freq_to_inc 'rounds, not truncates'. It truncates, deliberately, and nco_core.h spends four paragraphs on why (a rounding form contracts to an FMA on arm64 and x86-64-v3 but not on the x86-64-v2 baseline doppler ships, so the increment would differ by host). test_lo_core.c §15 already measured truncation on the configure path; the new §21 pins it on the control path too, so the comment is now contradicted by a test rather than by reading. Stale prose left behind when the private copy was consolidated away — the sentence described what the deleted copy did. The comment now states truncation and points at nco_core.h for why; §21 is what stops it drifting again. |
+| F3 | FIXED | lo_core.c's two `#ifdef __AVX512F__` blocks were dead in every configuration doppler ships, and divergent where they are not. CMakeLists.txt targets -march=x86-64-v2 by default, so __AVX512F__ is undefined and the scalar fallbacks are what every wheel, every CI job and this report exercise; the vector path becomes live only under DOPPLER_NATIVE=ON on an AVX-512 host. There it computes round(frac x 2^32) in float32 via _mm512_cvtps_epu32 while the compiled scalar truncates in double — the same object, two phase increments, chosen by CPU. Already recorded as a KNOWN VIOLATION in scripts/.phase-conversion-allow; this report added that it was also unreachable, so no gate could ever catch the divergence. Both blocks are now DELETED and the scalar fallbacks — the only code any shipped build ever ran — are the implementation. That retires the allowlist entry too, so the ratchet shrank from 8 occurrences to 7. |
 | F4 | FIXED | both max_out doc lines were stale. lo_core.h called steps_max_out() 'maximum samples per call' and lo_core.c said 'calling with n > 65536 overflows the buffer and is undefined behaviour'. Measured: steps(70000) returns 70000 correct samples and steps_ctrl the same — pass_capacity (jm gh-138) made the caller's capacity the bound and the Python binding grows its buffer, so 65536 is a pre-allocation hint and both sentences described the pre-gh-138 contract. FIXED in both files — and checking the sibling found the IDENTICAL pair in nco_core.{h,c}, four copies of one false claim, all four now corrected (see the NCO report's F9, and its new §17 pinning the behaviour on each of the three NCO output mappings). |
-| F5 | GAP | the ctrl port is float32 while the configured rate is double, so one requested 0.1 lands on two different phase words (delta 7). Inherited from the NCO (its F2) along with the port itself; lo_core.h does not mention the resolution either, and the LO is the face a carrier loop actually steers. |
-| F6 | GAP | a ctrl cancelling phase_inc stops the LO over a PLATEAU 22 ppb wide (one float32 quantum), not a knife edge — the NCO's F3, reached through the LO's own port. A carrier loop settling near -phase_inc parks in a dead zone it cannot steer out of by fractions. |
+| F5 | FIXED | the ctrl port was float32 while the configured rate was double, so one requested 0.1 landed on two different phase words (delta 7) — inherited from the NCO (its F2) along with the port itself, and the LO is the face a carrier loop actually steers. lo_steps_ctrl now takes `double`, the width the conversion works in and the one lo_step_ctrl always used, so the block and inline faces of the same control port finally agree. Measured: delta is now 0. |
+| F6 | BY DESIGN | a ctrl cancelling phase_inc stops the LO over a plateau rather than at a knife edge, and always will: below one phase-word LSB the conversion truncates to zero. What was a defect is how wide — 22.4 ppb, one float32 quantum, the port's precision rather than the accumulator's. With F5 landed it measures 0.232 ppb against an LSB of 0.233 ppb: 96x narrower and now at the floor. |
 | F7 | BY DESIGN | the LO is the NCO accumulator plus a LUT, and that is measured, not assumed: phase_inc agrees over 13 probe frequencies (including NaN, +-inf, sub-LSB and negative), the free-running phase agrees after 4096 samples, and the phase agrees after a 401-point control sweep spanning [-1.5, 1.5]. This is what lets the report inherit the NCO's conversion findings instead of re-deriving them, and what would make a future divergence visible. |
-| F8 | BY DESIGN | the LUT costs half a phase bin in a closed carrier loop, and no bandwidth. Same loop, same filter, same drives: settling is identical through the ideal detector and through the LO's own emitted phasor, while the steady-state residual on a frequency ramp rises from 1.2e-10 to 7.689e-06 cycles — 1.008x the half-bin quantum 7.629e-06 (a whisker over, from the detector's own arctan). Quantified here for the first time; the header gives the spur figure but never the loop-facing one. |
+| F8 | BY DESIGN | the LUT costs half a phase bin in a closed carrier loop, and no bandwidth. Same loop, same filter, same drives: settling is identical through the ideal detector and through the LO's own emitted phasor, while the steady-state residual on a frequency ramp rises from 1.2e-10 to 7.705e-06 cycles — 1.010x the half-bin quantum 7.629e-06 (a whisker over, from the detector's own arctan). Quantified here for the first time; the header gives the spur figure but never the loop-facing one. |
 | F9 | C-ONLY | the whole inline composition API — lo_init, lo_step, lo_step_ctrl, lo_sin_lut — has no binding, and lo_step_ctrl had no test either: a documented control port with a five-clause contract (added on top of phase_inc, not persisted, any sign, folds modulo one cycle, bit-identical to lo_step at ctrl == 0) and zero coverage on either side. This audit added §16, §17 and §21 to test_lo_core.c and proved each by sabotage; the LUT extern needed no binding, since 2.3 reads all 65536 entries through steps(). |
 
 ## 4. Limits — the certified envelope
@@ -278,7 +278,7 @@ Claims a caller may rely on. A failure here is a regression, not a new finding.
 | PASS | ctrl == 0 is bit-identical to no ctrl at all |
 | PASS | ctrl never modifies norm_freq or phase_inc |
 | PASS | ctrl folds modulo one cycle exactly, both signs (1201/1201 controls) |
-| PASS | the ctrl dead zone is one float32 quantum wide (22.4 ppb) — bounded, not unbounded |
+| PASS | the ctrl dead zone is one PHASE-WORD LSB wide (0.232 ppb) — the quantization floor, not the port's precision |
 | PASS | a commanded chirp is realised to within a few LUT bins (1.52e-05 cycles/sample, half-bin is 7.63e-06) |
 | PASS | a frequency hop takes effect on the step it is commanded (0.05000 -> 0.31000 against 0.05 -> 0.31) |
 | PASS | reset() zeroes phase and leaves norm_freq/phase_inc untouched |
@@ -287,13 +287,13 @@ Claims a caller may rely on. A failure here is a regression, not a new finding.
 | PASS | the LUT costs no loop bandwidth: settling through the LO's own emitted phasor equals settling through the ideal detector, on every drive |
 | PASS | a phase step settles inside the 5/bn estimate (273 and 273 samples against 500) |
 | PASS | the loop is symmetric in sign: +step and -step settle identically |
-| PASS | the LUT's closed-loop steady-state cost is HALF a LUT bin to within 5% (7.689e-06 against 7.629e-06 cycles, 1.008x) — the detector's own arctan puts it a whisker above, so half a bin is the scale, not a strict ceiling |
-| PASS | on a ramp the loop filter's output converges on the applied frequency offset itself (1.000186e-03 vs 0.001) |
+| PASS | the LUT's closed-loop steady-state cost is HALF a LUT bin to within 5% (7.705e-06 against 7.629e-06 cycles, 1.010x) — the detector's own arctan puts it a whisker above, so half a bin is the scale, not a strict ceiling |
+| PASS | on a ramp the loop filter's output converges on the applied frequency offset itself (1.000191e-03 vs 0.001) |
 
 
 ## 5. Summary
 
-- **9 findings**, 4 of them gaps or confirmed defects: F2, F3, F5, F6
+- **9 findings**, 0 of them gaps or confirmed defects — none left
 - **26/26 limits** hold
 - 6 new sections in `test_lo_core.c` (§16–§21), each proven by sabotage
 - Raw sweeps: `data/sfdr_sweep.csv`, `data/sfdr_rational.csv`, `data/frequency_sweep.csv`, `data/ctrl_sweep.csv`

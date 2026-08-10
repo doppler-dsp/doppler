@@ -78,6 +78,8 @@ extern "C"
 
   int fir_get_is_real (const fir_state_t *state);
 
+  double fir_dc_gain (const fir_state_t *state);
+
   size_t fir_execute_max_out (fir_state_t *state);
 
   size_t fir_execute (fir_state_t *state, const float complex *in, size_t n_in,

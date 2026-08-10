@@ -57,7 +57,10 @@ extern "C"
                         double zeta, double bn_timing, int acq_to_track,
                         double lock_thresh, double init_norm_freq,
                         size_t warmup_syms, int differential,
-                        size_t num_phases, int nda_tap);
+                        size_t num_phases, int nda_tap, int agc,
+                        double bn_agc_ratio);
+
+  double mpsk_receiver_get_agc_gain_db (const mpsk_receiver_state_t *state);
 
   void mpsk_receiver_destroy (mpsk_receiver_state_t *state);
 

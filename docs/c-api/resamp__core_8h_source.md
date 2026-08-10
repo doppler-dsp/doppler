@@ -44,8 +44,23 @@ extern "C"
     float _Complex *decim_iad; /* integrate-and-dump: num_taps   */
     float _Complex *decim_tfd; /* transposed delay line: num_taps-1 */
 
-    /* execute_ctrl state: double-precision fractional accumulator */
-    double ctrl_acc;
+    /* execute_ctrl state: the INTERPOLATOR's accumulator.  ctrl_phase is
+       the position within the current input interval -- a uint32 fraction
+       of one interval, which is exactly what a polyphase arm indexes.
+       ctrl_debt is the whole intervals still owed before the next output
+       may fire; it is non-zero only when the steered rate drops below
+       unity, where one output spans more than one input. */
+    uint32_t ctrl_phase;
+    /* Inputs the accumulator has REQUESTED and not yet been given.  No
+       sample enters the delay line without one of these: the push form
+       holds the offered sample until a tick asks for it, exactly as the
+       block form only ever loads inside its load branch. */
+    uint32_t ctrl_debt;
+    /* Inputs given WITHOUT a request, because max_out ended the call before
+       a tick could ask.  The caller's sample has to go somewhere -- the API
+       has no way to decline it -- so it is loaded and remembered here, and
+       the next request is satisfied from it instead of from a new sample. */
+    uint32_t ctrl_ahead;
   } resamp_state_t;
 
   /* ------------------------------------------------------------------
@@ -64,9 +79,19 @@ extern "C"
   /* Serializable state (standard bytes interface; see dp_state.h): after the
    * envelope, the polyphase phase, the fractional ctrl accumulator, the
    * delay-line write head, and the three delay buffers (delay_buf, decim_iad,
-   * decim_tfd).  Rate, bank, phase increment and sizes are config. */
+   * decim_tfd).  Rate, bank, phase increment and sizes are config.
+   *
+   * VERSION 2: the ctrl accumulator is a uint32 phase word plus a uint32
+   * load debt, not a float64 in [0, 1) -- a different width and encoding,
+   * so a v1 blob is rejected by the envelope rather than misread. */
+  /* Floor on the composite rate `rate + ctrl`.  Not a policy about what the
+   * bank filters well -- it is what keeps the reciprocal in
+   * resamp_execute_ctrl_push() defined.  Small enough that no real steer
+   * reaches it. */
+#define RESAMP_CTRL_RATE_MIN 1e-6
+
 #define RESAMP_STATE_MAGIC DP_FOURCC ('R', 'S', 'M', 'P')
-#define RESAMP_STATE_VERSION 1u
+#define RESAMP_STATE_VERSION 2u
 
   size_t resamp_state_bytes (const resamp_state_t *state);
   void resamp_get_state (const resamp_state_t *state, void *blob);
@@ -113,6 +138,8 @@ extern "C"
   size_t resamp_get_num_taps (const resamp_state_t *state);
 
   double resamp_get_ctrl_acc (const resamp_state_t *state);
+
+  double resamp_dc_gain (const resamp_state_t *state);
 
 #ifdef __cplusplus
 }

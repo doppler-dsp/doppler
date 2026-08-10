@@ -36,6 +36,12 @@ _Cascade state_  _owns all sub-stage C objects._[More...](#detailed-description)
 
 | Type | Name |
 | ---: | :--- |
+|  [**agc\_state\_t**](structagc__state__t.md) \* | [**agc**](#variable-agc)  <br> |
+|  double | [**agc\_alpha**](#variable-agc_alpha)  <br> |
+|  double | [**agc\_bn\_sym**](#variable-agc_bn_sym)  <br> |
+|  double | [**agc\_ref\_db**](#variable-agc_ref_db)  <br> |
+|  double | [**bank\_e0**](#variable-bank_e0)  <br> |
+|  double | [**bank\_sps**](#variable-bank_sps)  <br> |
 |  double | [**beta**](#variable-beta)  <br> |
 |  size\_t | [**buf\_cap**](#variable-buf_cap)  <br> |
 |  float \_Complex \* | [**bufs**](#variable-bufs)  <br> |
@@ -102,6 +108,113 @@ Do not initialise directly; use [**RateConverter\_create()**](RateConverter__cor
     
 ## Public Attributes Documentation
 
+
+
+
+### variable agc 
+
+```C++
+agc_state_t* RateConverter_state_t::agc;
+```
+
+
+
+NULL when off — one branch per sample 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable agc\_alpha 
+
+```C++
+double RateConverter_state_t::agc_alpha;
+```
+
+
+
+detector EMA coefficient 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable agc\_bn\_sym 
+
+```C++
+double RateConverter_state_t::agc_bn_sym;
+```
+
+
+
+requested bandwidth, cycles/SYMBOL 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable agc\_ref\_db 
+
+```C++
+double RateConverter_state_t::agc_ref_db;
+```
+
+
+
+derived: 10\*log10(bank\_e0 / bank\_sps) 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable bank\_e0 
+
+```C++
+double RateConverter_state_t::bank_e0;
+```
+
+
+
+sum h(t)^2 on that grid; the bank's own normaliser, and the AGC's reference 
+
+
+        
+
+<hr>
+
+
+
+### variable bank\_sps 
+
+```C++
+double RateConverter_state_t::bank_sps;
+```
+
+
+
+symbol period on the terminal's grid 
+ 
+
+
+        
+
+<hr>
 
 
 

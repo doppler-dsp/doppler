@@ -49,6 +49,23 @@ wfm_rrc_h(double t, double beta)
     return num / den;
 }
 
+static inline double
+wfm_rc_h(double t, double beta)
+{
+    if (fabs(t) < 1e-9)
+        return 1.0;
+    if (beta > 0.0 && fabs(fabs(t) - 1.0 / (2.0 * beta)) < 1e-9)
+    {
+        /* limit at t = ±1/(2β): cos(πβt) → -πβε and the denominator → -4βε,
+           so their ratio → π/4 and g → sinc(1/(2β)) * π/4. */
+        return (beta / 2.0) * sin(M_PI / (2.0 * beta));
+    }
+    double pt   = M_PI * t;
+    double sinc = sin(pt) / pt;
+    double den  = 1.0 - (2.0 * beta * t) * (2.0 * beta * t);
+    return sinc * cos(M_PI * beta * t) / den;
+}
+
 void wfm_rrc_taps(double beta, int sps, int span, float *taps);
 
 static inline size_t

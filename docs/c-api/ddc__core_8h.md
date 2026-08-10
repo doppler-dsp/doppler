@@ -20,6 +20,8 @@ _Digital Down-Converter — composes LO + RateConverter cascade._ [More...](#det
 * `#include "cic/cic_core.h"`
 * `#include "fir/fir_core.h"`
 * `#include "resample/resample_core.h"`
+* `#include "agc/agc_core.h"`
+* `#include "dp_tlm/dp_tlm_core.h"`
 
 
 
@@ -685,7 +687,7 @@ bool ddc_get_clipped (
 
 
 
-Forwarded from [**RateConverter\_get\_clipped()**](RateConverter__core_8h.md#function-rateconverter_get_clipped): a CIC bounds its input to `|Re|, |Im| <= 1.0` and clips silently past it — the output stays finite and plausible, merely distorted, at a cost of ~25 dB of EVM that no downstream metric attributes to the front end. Sticky until [**ddc\_reset()**](ddc__core_8h.md#function-ddc_reset); always false for a plan with no CIC stage, which is the honest answer since those plans are scale-free. 
+Forwarded from [**RateConverter\_get\_clipped()**](RateConverter__core_8h.md#function-rateconverter_get_clipped): a CIC bounds its input to `|Re|, |Im| <= 2.0` (`CIC_PAPR_HEADROOM`, 6 dB above unity — see [**cic\_core.h**](cic__core_8h.md)) and clips silently past it — the output stays finite and plausible, merely distorted, at a cost of ~25 dB of EVM that no downstream metric attributes to the front end. Sticky until [**ddc\_reset()**](ddc__core_8h.md#function-ddc_reset); always false for a plan with no CIC stage, which is the honest answer since those plans are scale-free. 
 
 
         

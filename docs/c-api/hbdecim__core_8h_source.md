@@ -68,6 +68,8 @@ extern "C"
 
   size_t hbdecim_get_num_taps (const hbdecim_state_t *r);
 
+  double hbdecim_dc_gain (const hbdecim_state_t *r);
+
 #ifdef __cplusplus
 }
 #endif

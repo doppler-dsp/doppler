@@ -21,6 +21,8 @@ _Real-input Digital Down-Converter — halfband R2C + LO + cascade._ [More...](#
 * `#include "cic/cic_core.h"`
 * `#include "fir/fir_core.h"`
 * `#include "resample/resample_core.h"`
+* `#include "agc/agc_core.h"`
+* `#include "dp_tlm/dp_tlm_core.h"`
 
 
 
@@ -371,8 +373,8 @@ Number of output samples written (C-only).
 (1024,)
 >>> y.dtype
 dtype('complex64')
->>> round(float(abs(y[500])), 2)   # one-sided cosine amplitude ≈ 0.5
-0.5
+>>> round(float(abs(y[500])), 2)   # analytic signal of a unit cosine
+1.0
 ```
  
 
@@ -433,8 +435,8 @@ Number of output samples written.
 >>> y = ddcr.execute_ctrl(x, 0.0, -0.2)     # ctrl completes the tune
 >>> y.shape
 (1024,)
->>> round(float(abs(y[100:].mean())), 2)    # real tone -> DC, amp 0.5
-0.5
+>>> round(float(abs(y[100:].mean())), 2)    # real tone -> DC, amp 1.0
+1.0
 ```
  
 

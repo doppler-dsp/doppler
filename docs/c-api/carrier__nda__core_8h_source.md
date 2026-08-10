@@ -12,7 +12,6 @@
 #ifndef CARRIER_NDA_CORE_H
 #define CARRIER_NDA_CORE_H
 
-#include "agc/agc_core.h"
 #include "boxcar/boxcar_core.h"
 #include "clib_common.h"
 #include "dp_state.h"
@@ -34,11 +33,12 @@ extern "C"
 #define CARRIER_NDA_INV_2PI 0.15915494309189535 /* 1 / (2*pi) */
 /* ── The lock statistic, and where its threshold comes from ──────────────
  *
- * `lock_signal = Re((z/|z|)^M)` -- the M-th power of a LIMITED sample. The
- * limiter is on this path only; the phase error keeps the raw |z|^M weighting,
- * which is deliberate (it is the natural matched weighting on a pulse-shaped
- * signal, and flattening it corrupts the phase estimate). Limiting the lock
- * signal is what makes it a detector you can put a number on:
+ * `lock_signal = Re((z/|z|)^M)` -- the M-th power of a LIMITED sample. Both
+ * outputs are limited now (the phase error kept the raw |z|^M weighting until
+ * the detector was made to normalise by its own amplitude law), but the two
+ * paths wanted it for different reasons: the phase error to keep the loop
+ * gain out of the input's hands, the lock signal to be a detector you can put
+ * a number on:
  *
  *   - **Bounded.** Each look is Re(e^{j M theta}) in [-1, 1], so the EMA is too.
  *     The raw form is unbounded and, at M = 8, |z|^8 on Gaussian noise gives it
@@ -74,24 +74,6 @@ extern "C"
  * sqrt(Var_look * alpha/(2-alpha)) with Var_look = 1/2 exactly, for every M.
  * A threshold of `eta * this` has per-look Pfa = Q(eta). */
 #define CARRIER_NDA_LOCK_NORM_SD 0.11322770341445956
-/* Arm AGC (the embedded log-domain agc_core primitive) — drives the
- * phase-detector input to unit average power so the loop gain is amplitude-
- * invariant. The AGC runs once per moving-average output and MUST stay slow
- * relative to the carrier loop: its bandwidth is locked to a fixed fraction of
- * the carrier loop bandwidth (agc.loop_bw = CARRIER_NDA_AGC_BW_RATIO * bn), so
- * it is always 100× slower and tracks only the overall signal level — never
- * the carrier dynamics or the within-symbol pulse (RRC) envelope. Flattening
- * the envelope would destroy the raw M-th-power discriminator's natural |z|^M
- * weighting and corrupt the phase estimate on pulse-shaped signals. */
-#define CARRIER_NDA_AGC_REF_DB 0.0
-#define CARRIER_NDA_AGC_BW_RATIO 0.01
-#define CARRIER_NDA_AGC_ALPHA 0.01
-/* Saturated-amplifier soft clip: the AGC's square clip set 10 dB above the
- * unit level. Bounds the peak (constructive-ISI) arm samples that would
- * otherwise dominate the |z|^M weighting, while constant-modulus samples sit
- * below it and pass through unclipped (keeping the raw-arm squaring-loss
- * advantage). */
-#define CARRIER_NDA_AGC_CLIP_DB 10.0
 
   typedef struct
   {
@@ -116,7 +98,6 @@ extern "C"
     boxcar_state_t arm;      
     double         lock;     
     double         last_error; 
-    agc_state_t    agc;        
     double          ctl_cyc; 
     lockdet_state_t lockdet; 
     carrier_nda_tlm_t tlm;   
@@ -126,50 +107,87 @@ extern "C"
   JM_FORCEINLINE void
   carrier_nda_disc (float complex z, int m, double *pe, double *lock)
   {
-    /* The cascade runs in float: the input is a float complex AGC-normalized
-     * to |z|~1 (clip caps it at ~3.16), so even z^8 is O(1)-O(1e4) and float's
-     * ~1e-7 relative error is far below what the loop tolerates. Keeping it in
-     * float avoids the float->double conversions on this loop-carried critical
-     * path; only the two outputs (which feed the double loop filter) promote.
-     */
-    float i  = crealf (z);    /* raw I (AGC-normalized upstream) */
-    float q  = cimagf (z);    /* raw Q                          */
-    float p  = i * i + q * q; /* |z|^2                          */
-    float bl = i * i - q * q; /* Re(z^2) */
-    float be = 2.0f * i * q;  /* Im(z^2) */
-    /* The LOCK signal is limited, the PHASE ERROR is not -- see the two
-     * paragraphs below carrier_nda_lock_norm_sd. |z|^M is a power of p for
-     * every M we support, so limiting costs one divide and no sqrt. */
-    if (m == 2)
+    /* BOTH outputs normalise by the detector's OWN amplitude law, |z|^M.
+     *
+     * A discriminator's raw output is the phase error multiplied by things it
+     * did not choose, and amplitude is the largest of them: Im(z^M) scales as
+     * A^M, so a 2x level error is 4x loop gain at BPSK and 256x at 8PSK. Only
+     * the detector can divide that out, and it can do it exactly -- |z|^M is a
+     * power of p for every M supported here, so it costs one divide and no
+     * sqrt. This is the same rule the timing detector follows (a TED
+     * normalises by its own slope, symsync_ted_slope()), applied to its
+     * sibling.
+     *
+     * At |z| = 1 this is identical to the un-normalised form, so the S-curve
+     * slope -- and with it the meaning of bn -- is unchanged from when an
+     * upstream AGC was manufacturing that condition. What changes is that it
+     * no longer HAS to be manufactured: an AGC ahead of this detector existed
+     * only to make |z| = 1 true, and a receiver now needs exactly one AGC,
+     * for its own signal path, not one per detector.
+     *
+     * DIVIDE ONCE, AT THE FIRST SQUARING -- not once per M at the end. The
+     * pair (Re(z^2), Im(z^2))/p IS the unit vector (z/|z|)^2, and every later
+     * squaring of a unit vector is a unit vector, so after that one divide
+     * nothing in this function ever exceeds 1 in magnitude. Dividing at the
+     * end instead means forming |z|^M explicitly, and BOTH ends of that
+     * overflow the float range the AGC used to keep us away from: measured on
+     * the |z|^8 form, M = 8 returned exactly 0 below |z| = 0.032 (the eps
+     * guard, applied to |z|^8, trips at 1e-12^(1/8)) and NaN at |z| = 1e5
+     * (|z|^8 = 1e40 > FLT_MAX, then inf/inf) -- and a NaN here poisons the
+     * loop filter and the NCO permanently. With the divide hoisted, the guard
+     * is on p alone and means the same thing at every M, and the outputs are
+     * scale-invariant from 1e-5 to 1e15 (max 4.6e-7 relative). At |z| = 1 the
+     * two forms agree to 1.8e-7 over a full phase sweep, so the S-curve slope
+     * -- and with it the meaning of bn -- is unchanged either way.
+     *
+     * The cascade runs in float: the unit-magnitude intermediates are all
+     * O(1) and float's ~1e-7 relative error is far below what the loop
+     * tolerates. Keeping it in float avoids the float->double conversions on
+     * this loop-carried critical path; only the two outputs (which feed the
+     * double loop filter) promote. */
+    float i = crealf (z);    /* raw I, any scale */
+    float q = cimagf (z);    /* raw Q            */
+    float p = i * i + q * q; /* |z|^2            */
+    /* Written !(p > eps) so a NaN input yields zero rather than a NaN error
+       fed to the loop filter. */
+    if (!(p > CARRIER_NDA_EPS))
       {
-        *pe   = be;
-        *lock = (p > CARRIER_NDA_EPS) ? bl / p : 0.0; /* Re((z/|z|)^2) */
+        *pe = *lock = 0.0;
         return;
       }
-    float ql = bl * bl - be * be; /* Re(z^4)        */
-    float qe = be * bl;           /* Im(z^4) / 2    */
+    float rp = 1.0f / p;
+    float bl = (i * i - q * q) * rp; /* Re((z/|z|)^2) */
+    float be = (2.0f * i * q) * rp;  /* Im((z/|z|)^2) */
+    if (m == 2)
+      {
+        *pe   = be; /* Im((z/|z|)^2) */
+        *lock = bl; /* Re((z/|z|)^2) */
+        return;
+      }
+    float ql = bl * bl - be * be; /* Re((z/|z|)^4)     */
+    float qe = be * bl;           /* Im((z/|z|)^4) / 2 */
     if (m == 4)
       {
         *pe   = qe;
-        *lock = (p > CARRIER_NDA_EPS) ? ql / (p * p) : 0.0; /* Re((z/|z|)^4) */
+        *lock = ql;
         return;
       }
-    *pe = qe * ql; /* Im(z^8) / 4                             */
-    /* Re(z^8) = Re(z^4)^2 - Im(z^4)^2, and `qe` is HALF of Im(z^4) -- that
+    /* Im((z/|z|)^8) / 4. */
+    float pe8 = qe * ql;
+    /* Re(u^8) = Re(u^4)^2 - Im(u^4)^2, and `qe` is HALF of Im(u^4) -- that
      * half being the deliberate {1, 1/2, 1/4} phase-error scaling which
-     * equalises the S-curve slope across M. So reconstructing Re(z^8) from it
-     * needs the 2 squared back: ql*ql - (2*qe)^2. Without the 4 the statistic is
-     * Re(z^4)^2 - Im(z^4)^2/4, which is NOT Re(z^8) and, unlike it, is not
-     * zero-mean on noise -- E[Re(z^4)^2] = E[Im(z^4)^2] for circular noise, so
-     * the shortfall leaves a positive residual of (3/4)E[Im(z^4)^2]. Measured
+     * equalises the S-curve slope across M. So reconstructing Re(u^8) from it
+     * needs the 2 squared back: ql*ql - (2*qe)^2. Without the 4 the statistic
+     * is Re(u^4)^2 - Im(u^4)^2/4, which is NOT Re(u^8) and, unlike it, is not
+     * zero-mean on noise -- E[Re(u^4)^2] = E[Im(u^4)^2] for circular noise, so
+     * the shortfall leaves a positive residual of (3/4)E[Im(u^4)^2]. Measured
      * on unit-power complex Gaussian noise, 4e5 samples: mean +8.94 without
      * the 4, -0.11 with it (and bit-identical to Re(z^8) computed directly).
      * The value AT LOCK is +1.0000 either way, which is why this hid: it
      * corrupted only the noise-only tail, i.e. exactly the false-alarm
      * behaviour a lock detector is thresholded on. */
-    float p4 = p * p * p * p; /* |z|^8 */
-    *lock    = (p4 > CARRIER_NDA_EPS) ? (ql * ql - 4.0f * qe * qe) / p4
-                                      : 0.0; /* Re((z/|z|)^8) */
+    *pe   = pe8;                      /* Im((z/|z|)^8) / 4 */
+    *lock = ql * ql - 4.0f * qe * qe; /* Re((z/|z|)^8)     */
   }
 
   void carrier_nda_init (carrier_nda_state_t *s, double bn, double zeta,
@@ -189,21 +207,11 @@ extern "C"
                         double *lock)
   {
     /* Slide the boxcar moving average by one sample (unit gain — pure I/Q
-     * average), then normalize that window sample to unit average power with
-     * the embedded AGC so the loop gain is amplitude-invariant (the role the
-     * old per-sample |z| divide served, now as a slow feedback loop). agc_step
-     * is the exact per-sample AGC — gain-apply, power detector, dB loop filter
-     * and square clip in one call. The arm is in the *fast* carrier loop, so
-     * the AGC runs per sample (no decimation, no block latency in the feedback
-     * path); its own slowness (loop_bw = 0.01*bn, ~100x below the carrier
-     * loop) is what keeps it tracking the overall level only — never the
-     * carrier dynamics or the within-symbol pulse envelope. The square clip
-     * (clip_db) saturates the peak (constructive-ISI) samples while
-     * constant-modulus samples pass through, so the raw M-th-power
-     * discriminator keeps its squaring-loss advantage. */
-    float complex y  = boxcar_step (&s->arm, d);
-    float complex zn = agc_step (&s->agc, y);
-    carrier_nda_disc (zn, s->m, pe, lock);
+     * average) and discriminate it directly. There is no AGC on this path and
+     * none is wanted: carrier_nda_disc normalises by its own amplitude law,
+     * so the loop gain is already amplitude-invariant and a second level loop
+     * in series would only add its own transient to correct. */
+    carrier_nda_disc (boxcar_step (&s->arm, d), s->m, pe, lock);
     return 1;
   }
 
@@ -249,7 +257,8 @@ extern "C"
  */
 #define CARRIER_NDA_STATE_MAGIC DP_FOURCC ('C', 'N', 'D', 'A')
 #define CARRIER_NDA_STATE_VERSION                                             \
-  4u /* v4: lockdet decision rule (verify counters) */
+  5u /* v5: the arm AGC is gone -- carrier_nda_disc normalises by its own    \
+        |z|^M, so nothing upstream has to manufacture |z| = 1 (gh-657) */
 
   size_t carrier_nda_state_bytes (const carrier_nda_state_t *state);
   void carrier_nda_get_state (const carrier_nda_state_t *state, void *blob);

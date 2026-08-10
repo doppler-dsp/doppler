@@ -59,6 +59,7 @@ _Halfband 2:1 decimator for CF32 IQ samples._ [More...](#detailed-description)
 | Type | Name |
 | ---: | :--- |
 |  [**hbdecim\_state\_t**](structhbdecim__state__t.md) \* | [**hbdecim\_create**](#function-hbdecim_create) (size\_t num\_taps, const float \* h) <br>_Allocate and initialise a halfband 2:1 decimator._  |
+|  double | [**hbdecim\_dc\_gain**](#function-hbdecim_dc_gain) (const [**hbdecim\_state\_t**](structhbdecim__state__t.md) \* r) <br>_The filter's response to a constant input, from its own taps._  |
 |  void | [**hbdecim\_destroy**](#function-hbdecim_destroy) ([**hbdecim\_state\_t**](structhbdecim__state__t.md) \* r) <br> |
 |  size\_t | [**hbdecim\_execute**](#function-hbdecim_execute) ([**hbdecim\_state\_t**](structhbdecim__state__t.md) \* r, const float \_Complex \* in, size\_t num\_in, float \_Complex \* out, size\_t max\_out) <br>_Decimate a block of CF32 samples by 2._  |
 |  size\_t | [**hbdecim\_get\_num\_taps**](#function-hbdecim_get_num_taps) (const [**hbdecim\_state\_t**](structhbdecim__state__t.md) \* r) <br> |
@@ -164,6 +165,49 @@ Non-NULL on success, NULL on invalid args or OOM.
 
 
 
+
+
+        
+
+<hr>
+
+
+
+### function hbdecim\_dc\_gain 
+
+_The filter's response to a constant input, from its own taps._ 
+```C++
+double hbdecim_dc_gain (
+    const hbdecim_state_t * r
+) 
+```
+
+
+
+A halfband decimator sums a symmetric FIR branch (each stored tap multiplies TWO delay-line samples) and a half-weight delay branch, so at DC the answer is `2*sum(h) + 0.5`. Computed, not measured: a caller — or a gate — can ask what gain the object contributes without running a signal through it.
+
+
+
+
+**Parameters:**
+
+
+* `r` State. Must be non-NULL. 
+
+
+
+**Returns:**
+
+The DC gain. 1.0 for a correctly normalised halfband.
+
+
+
+```C++
+hbdecim_state_t *d = hbdecim_create (ntaps, h);
+printf ("%.4f\n", hbdecim_dc_gain (d));  // 1.0000
+hbdecim_destroy (d);
+```
+ 
 
 
         

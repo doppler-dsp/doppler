@@ -45,8 +45,8 @@ _Synth component API._ [More...](#detailed-description)
 
 | Type | Name |
 | ---: | :--- |
+| enum  | [**wfm\_\_synth\_\_core\_8h\_1a385c44f6fb256e5716a2302a5b940388**](#enum-wfm__synth__core_8h_1a385c44f6fb256e5716a2302a5b940388)  <br> |
 | enum  | [**wfm\_\_synth\_\_core\_8h\_1ab04a0655cd1e3bcac5e8f48c18df1a57**](#enum-wfm__synth__core_8h_1ab04a0655cd1e3bcac5e8f48c18df1a57)  <br> |
-| enum  | [**wfm\_\_synth\_\_core\_8h\_1abed82baf7f470b522273a3e37c24c600**](#enum-wfm__synth__core_8h_1abed82baf7f470b522273a3e37c24c600)  <br> |
 
 
 
@@ -158,10 +158,10 @@ wfm_synth_destroy(obj);
 
 
 
-### enum wfm\_\_synth\_\_core\_8h\_1ab04a0655cd1e3bcac5e8f48c18df1a57 
+### enum wfm\_\_synth\_\_core\_8h\_1a385c44f6fb256e5716a2302a5b940388 
 
 ```C++
-enum wfm__synth__core_8h_1ab04a0655cd1e3bcac5e8f48c18df1a57 {
+enum wfm__synth__core_8h_1a385c44f6fb256e5716a2302a5b940388 {
     WFM_DSSS_DATA_NONE = 0,
     WFM_DSSS_DATA_BITS = 1,
     WFM_DSSS_DATA_PRBS = 2
@@ -179,10 +179,10 @@ Continuous-DSSS data-symbol source (wfm\_synth\_set\_dsss\_cont's data\_mode).
 
 
 
-### enum wfm\_\_synth\_\_core\_8h\_1abed82baf7f470b522273a3e37c24c600 
+### enum wfm\_\_synth\_\_core\_8h\_1ab04a0655cd1e3bcac5e8f48c18df1a57 
 
 ```C++
-enum wfm__synth__core_8h_1abed82baf7f470b522273a3e37c24c600 {
+enum wfm__synth__core_8h_1ab04a0655cd1e3bcac5e8f48c18df1a57 {
     WFM_SYNTH_TONE = 0,
     WFM_SYNTH_NOISE = 1,
     WFM_SYNTH_PN = 2,

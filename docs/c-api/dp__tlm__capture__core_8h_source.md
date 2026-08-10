@@ -45,6 +45,8 @@ size_t dp_tlm_capture_read (const dp_tlm_capture_t *c, size_t n,
 
 uint64_t dp_tlm_capture_dropped (const dp_tlm_capture_t *c);
 
+dp_tlm_t *dp_tlm_capture_context (const dp_tlm_capture_t *c);
+
 int dp_tlm_capture_destroy (dp_tlm_capture_t *c);
 
 typedef dp_tlm_capture_t dp_tlm_capture_state_t;

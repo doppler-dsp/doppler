@@ -145,7 +145,7 @@ length is already a safe bound" — with_ `sps >= m >= 2` _a block can never yie
 | ---: | :--- |
 | define  | [**RATESYNC\_LOCK\_EPS**](ratesync__core_8h.md#define-ratesync_lock_eps)  `1e-12`<br> |
 | define  | [**RATESYNC\_LOOP\_STATE\_MAGIC**](ratesync__core_8h.md#define-ratesync_loop_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('R', 'S', 'L', 'P')`<br> |
-| define  | [**RATESYNC\_LOOP\_STATE\_VERSION**](ratesync__core_8h.md#define-ratesync_loop_state_version)  `1u`<br> |
+| define  | [**RATESYNC\_LOOP\_STATE\_VERSION**](ratesync__core_8h.md#define-ratesync_loop_state_version)  `/* multi line expression */`<br> |
 | define  | [**RATESYNC\_MAX\_M**](ratesync__core_8h.md#define-ratesync_max_m)  `8`<br> |
 | define  | [**RATESYNC\_STATE\_MAGIC**](ratesync__core_8h.md#define-ratesync_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('R', 'A', 'T', 'S')`<br> |
 | define  | [**RATESYNC\_STATE\_VERSION**](ratesync__core_8h.md#define-ratesync_state_version)  `2u /\* v2: running state moved into the loop \*/`<br> |
@@ -394,6 +394,17 @@ ratesync_state_t * ratesync_create (
 
 
 Builds a `RateConverter(rate = m/sps, pulse, ..., pulse_sps = m)` with CIC droop compensation on — folded into the bank, so it costs six taps per arm and no extra stage, and is worth ~28 dB of EVM on any cascade that plans a CIC. See [**RateConverter\_create\_matched()**](RateConverter__core_8h.md#function-rateconverter_create_matched).
+
+
+
+
+**
+**
+
+Present **unit-amplitude symbols**. This object carries no AGC, and that is deliberate: a receiver composing it already levels in its own front-end cascade ([**RateConverter\_enable\_agc()**](RateConverter__core_8h.md#function-rateconverter_enable_agc), one per receiver), so an AGC here would be a second one integrating against the first. The level to hit is not a tuned number — the TED normalises by its own construct-time slope, and that slope is computed for the reference the bank already defines, `10*log10(bank_e0 / bank_sps)`, which is ~0 dB because the bank normalises by its own pulse energy. See [**RateConverter\_agc\_ref\_db()**](RateConverter__core_8h.md#function-rateconverter_agc_ref_db), which is defined for any matched cascade whether or not an AGC is enabled.
+
+
+Under-driving costs EVM with nothing to reveal it: at `sps = 17.333`, quarter-amplitude input measures -21.6 dB EVM against -37.0 dB at unit amplitude — 15 dB — with `lock_stat` 0.70 either way, because the loop really does lock and only the demodulation degrades. Over-driving is the other end of the same axis and IS reported, by [**ratesync\_get\_clipped()**](ratesync__core_8h.md#function-ratesync_get_clipped): a CIC bounds its input to +-1.0. There is no under-drive twin of that flag — tracked as gh-661.
 
 
 
@@ -1273,7 +1284,7 @@ size_t ratesync_steps_max_out (
 ### define RATESYNC\_LOOP\_STATE\_VERSION 
 
 ```C++
-#define RATESYNC_LOOP_STATE_VERSION `1u`
+#define RATESYNC_LOOP_STATE_VERSION `/* multi line expression */`
 ```
 
 

@@ -51,13 +51,12 @@ _The symbol-timing loop, independent of what feeds it._ [More...](#detailed-desc
 |  float complex | [**prev\_on**](#variable-prev_on)  <br> |
 |  size\_t | [**prime\_left**](#variable-prime_left)  <br> |
 |  size\_t | [**prime\_taps**](#variable-prime_taps)  <br> |
-|  double | [**pwr\_avg**](#variable-pwr_avg)  <br> |
-|  int | [**pwr\_seeded**](#variable-pwr_seeded)  <br> |
 |  double | [**rate\_est**](#variable-rate_est)  <br> |
 |  float complex | [**ring**](#variable-ring)  <br> |
 |  size\_t | [**ring\_n**](#variable-ring_n)  <br> |
 |  double | [**sps**](#variable-sps)  <br> |
 |  int | [**ted**](#variable-ted)  <br> |
+|  double | [**ted\_scale**](#variable-ted_scale)  <br> |
 |  const [**resamp\_state\_t**](structresamp__state__t.md) \* | [**term**](#variable-term)  <br> |
 |  double | [**term\_rate**](#variable-term_rate)  <br> |
 |  [**ratesync\_tlm\_t**](structratesync__tlm__t.md) | [**tlm**](#variable-tlm)  <br> |
@@ -394,42 +393,6 @@ terminal bank taps; sets the prime length.
 
 
 
-### variable pwr\_avg 
-
-```C++
-double ratesync_loop_t::pwr_avg;
-```
-
-
-
-running \|on\|^2+\|mid\|^2 (the TED normaliser). 
- 
-
-
-        
-
-<hr>
-
-
-
-### variable pwr\_seeded 
-
-```C++
-int ratesync_loop_t::pwr_seeded;
-```
-
-
-
-pwr\_avg has taken its first value. 
- 
-
-
-        
-
-<hr>
-
-
-
 ### variable rate\_est 
 
 ```C++
@@ -506,6 +469,23 @@ int ratesync_loop_t::ted;
 
 RATESYNC\_TED\_GARDNER / \_DTTL. 
  
+
+
+        
+
+<hr>
+
+
+
+### variable ted\_scale 
+
+```C++
+double ratesync_loop_t::ted_scale;
+```
+
+
+
+Reciprocal of the detector's own slope against this pulse ([**symsync\_ted\_slope()**](symsync__core_8h.md#function-symsync_ted_slope)), computed once by [**ratesync\_loop\_bind\_cascade()**](ratesync__core_8h.md#function-ratesync_loop_bind_cascade). The hot path MULTIPLIES by it: a divide, and the running power estimate it would have divided by, are both construct-time work masquerading as per-symbol work. 
 
 
         

@@ -46,6 +46,7 @@ _SymbolSync component API._ [More...](#detailed-description)
 
 | Type | Name |
 | ---: | :--- |
+| enum  | [**symsync\_\_core\_8h\_1a0411cd49bb5b71852cecd93bcbf0ca2d**](#enum-symsync__core_8h_1a0411cd49bb5b71852cecd93bcbf0ca2d)  <br>_Pulse code for_ [_**symsync\_ted\_slope()**_](symsync__core_8h.md#function-symsync_ted_slope) _; values match rc\_pulse\_t._ |
 | enum  | [**symsync\_\_core\_8h\_1a726ca809ffd3d67ab4b8476646f26635**](#enum-symsync__core_8h_1a726ca809ffd3d67ab4b8476646f26635)  <br>_Timing-error-detector selection for_ [_**symsync\_state\_t::ted**_](structsymsync__state__t.md#variable-ted) _._ |
 
 
@@ -94,6 +95,7 @@ _SymbolSync component API._ [More...](#detailed-description)
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) int | [**symsync\_step\_ted**](#function-symsync_step_ted) ([**symsync\_state\_t**](structsymsync__state__t.md) \* s, float complex x, float complex \* y\_out, int ted) <br>_Per-sample symbol-timing step with the TED selection as a parameter._  |
 |  size\_t | [**symsync\_steps**](#function-symsync_steps) ([**symsync\_state\_t**](structsymsync__state__t.md) \* state, const float complex \* x, size\_t x\_len, float complex \* out, size\_t max\_out) <br>_Recover symbol timing from an oversampled cf32 baseband block._  |
 |  size\_t | [**symsync\_steps\_max\_out**](#function-symsync_steps_max_out) ([**symsync\_state\_t**](structsymsync__state__t.md) \* state) <br> |
+|  double | [**symsync\_ted\_slope**](#function-symsync_ted_slope) (int ted, int pulse, double beta, size\_t span) <br>_The detector's OWN contribution to the loop gain:_ `|dS/dtau|` _at the lock point, for a unit-amplitude symbol stream._ |
 |  void | [**symsync\_tlm\_flush**](#function-symsync_tlm_flush) (const [**symsync\_state\_t**](structsymsync__state__t.md) \* s) <br>_Emit the timing loop's telemetry records for the symbol just recovered._  |
 
 
@@ -151,6 +153,23 @@ symsync_destroy(obj);
 
 
 
+### enum symsync\_\_core\_8h\_1a0411cd49bb5b71852cecd93bcbf0ca2d 
+
+_Pulse code for_ [_**symsync\_ted\_slope()**_](symsync__core_8h.md#function-symsync_ted_slope) _; values match rc\_pulse\_t._
+```C++
+enum symsync__core_8h_1a0411cd49bb5b71852cecd93bcbf0ca2d {
+    SYMSYNC_PULSE_IANDD = 0,
+    SYMSYNC_PULSE_RRC = 1
+};
+```
+
+
+
+
+<hr>
+
+
+
 ### enum symsync\_\_core\_8h\_1a726ca809ffd3d67ab4b8476646f26635 
 
 _Timing-error-detector selection for_ [_**symsync\_state\_t::ted**_](structsymsync__state__t.md#variable-ted) _._
@@ -188,6 +207,13 @@ Decision-directed (M.K. Simon's Data Transition Tracking Loop, digital point-sam
 
 
 
+**Note:**
+
+**Contract: unit amplitude in.** This is a raw numerator and it carries the signal amplitude — `A^1` here, not `A^2` as in [**gardner\_ted**](symsync__core_8h.md#function-gardner_ted), because the transition term is a hard decision of fixed size and only `mid` is signal. That difference in degree is why no single normaliser applied outside can serve both detectors, and why each divides by its own slope instead: [**symsync\_ted\_slope**](symsync__core_8h.md#function-symsync_ted_slope), a construct-time constant computed at `A = 1`. Feed this anything else and the loop gain is off by `A`. Levelling the symbols is the one upstream AGC's job — there is deliberately no level loop in here, and there used to be.
+
+
+
+
 **Parameters:**
 
 
@@ -199,9 +225,12 @@ Decision-directed (M.K. Simon's Data Transition Tracking Loop, digital point-sam
 
 **Returns:**
 
-Raw (pre-AGC-normalized) timing error. 
+Raw, un-normalized timing error. 
 
 
+
+
+**See also:** [**symsync\_ted\_slope**](symsync__core_8h.md#function-symsync_ted_slope) 
 
 
 
@@ -228,6 +257,13 @@ Blind (non-data-aided): correlates the transition-gate sample against the on-tim
 **See also:** [**dttl\_ted**](symsync__core_8h.md#function-dttl_ted) for the decision-directed alternative.
 
 
+**Note:**
+
+**Contract: unit amplitude in.** This is a raw numerator and it carries the signal amplitude — `A^2` here, since both factors are signal — which it deliberately does not divide out. What makes `bn` mean one bandwidth is dividing by the detector's OWN slope, [**symsync\_ted\_slope**](symsync__core_8h.md#function-symsync_ted_slope), and that is a construct-time constant computed at `A = 1`; feed this anything else and the loop gain is off by `A^2`. Levelling the symbols is the one upstream AGC's job — there is deliberately no level loop in here, and there used to be.
+
+
+
+
 **Parameters:**
 
 
@@ -238,9 +274,12 @@ Blind (non-data-aided): correlates the transition-gate sample against the on-tim
 
 **Returns:**
 
-Raw (pre-AGC-normalized) timing error. 
+Raw, un-normalized timing error. 
 
 
+
+
+**See also:** [**symsync\_ted\_slope**](symsync__core_8h.md#function-symsync_ted_slope) 
 
 
 
@@ -909,6 +948,61 @@ size_t symsync_steps_max_out (
 
 
 
+
+<hr>
+
+
+
+### function symsync\_ted\_slope 
+
+_The detector's OWN contribution to the loop gain:_ `|dS/dtau|` _at the lock point, for a unit-amplitude symbol stream._
+```C++
+double symsync_ted_slope (
+    int ted,
+    int pulse,
+    double beta,
+    size_t span
+) 
+```
+
+
+
+A TED's raw output is a timing error multiplied by three things it did not choose — the signal amplitude, the transition density, and the detector's own slope against this pulse. Only the last belongs to the detector, and only it can be computed rather than estimated: the matched pair's composite is a raised cosine in closed form (wfm\_rc\_h()), so for i.i.d. symbols  and the answer is a construct-time number. Amplitude does NOT appear: it enters as `A^2` (Gardner) or `A^1` (DTTL) and is the AGC's business, not the detector's — a unity-gain matched cascade delivers the symbol amplitude it was sent ([**RateConverter\_gain()**](RateConverter__core_8h.md#function-rateconverter_gain)). Transition density is left alone, because it is data.
+
+
+Divide a raw TED output by this and the result has unit slope per symbol of timing error, so a loop bandwidth means the same thing at every roll-off. It does NOT today: measured through a real matched cascade, the shipped normalisation's slope varies 10.6x between beta 0.1 and 0.9, so `bn` silently means something an order of magnitude different at the two ends of the supported range.
+
+
+Caller multiplies by the reciprocal — see [**ratesync\_loop\_t::ted\_scale**](structratesync__loop__t.md#variable-ted_scale). Never call this on a hot path; it is a construct-time quantity.
+
+
+
+
+**Parameters:**
+
+
+* `ted` SYMSYNC\_TED\_GARDNER or SYMSYNC\_TED\_DTTL. 
+* `pulse` SYMSYNC\_PULSE\_RRC or SYMSYNC\_PULSE\_IANDD. 
+* `beta` RRC roll-off; ignored for the rectangle. 
+* `span` one-sided pulse span in symbols; sets the summation range. 
+
+
+
+**Returns:**
+
+`|dS/dtau|` at the lock point, unit amplitude. Positive.
+
+
+
+```C++
+double k = symsync_ted_slope (SYMSYNC_TED_GARDNER, SYMSYNC_PULSE_RRC,
+                              0.35, 8);
+printf ("%.3f\n", k);   // 1.077
+```
+ 
+
+
+        
 
 <hr>
 

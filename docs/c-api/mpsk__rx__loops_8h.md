@@ -75,11 +75,12 @@ _The two loops an M-PSK receiver closes, independent of its front end._ [More...
 
 | Type | Name |
 | ---: | :--- |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) double | [**mpsk\_rx\_agc\_bn**](#function-mpsk_rx_agc_bn) (double bn\_carrier, double bn\_timing, double ratio) <br> |
 |  void | [**mpsk\_rx\_configure\_lock**](#function-mpsk_rx_configure_lock) ([**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l, double up\_thresh, double down\_thresh, uint32\_t n\_up, uint32\_t n\_down) <br>_Re-tune the handover detector; see_ [_**mpsk\_receiver\_configure\_lock()**_](mpsk__receiver__core_8h.md#function-mpsk_receiver_configure_lock) _, which forwards here. A live handover survives; the verify run restarts._ |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) void | [**mpsk\_rx\_disc**](#function-mpsk_rx_disc) ([**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l, float complex z) <br>_Run the NDA discriminator on one tapped sample._  |
 |  double | [**mpsk\_rx\_freq\_est**](#function-mpsk_rx_freq_est) (const [**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l) <br>_Tracked carrier offset in cycles/sample at the LO's rate — the loop's own estimate, excluding the front end's configured centre._  |
 |  void | [**mpsk\_rx\_loops\_get\_state**](#function-mpsk_rx_loops_get_state) (const [**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l, void \* blob) <br>_Serialize the loops' mutable state into_ `blob` _._ |
-|  void | [**mpsk\_rx\_loops\_init**](#function-mpsk_rx_loops_init) ([**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l, int m, double sps, double lo\_sps, size\_t m\_out, double bn\_carrier, double zeta, double bn\_timing, int ted, int acq\_to\_track, double lock\_thresh, size\_t warmup\_syms, int differential, int nda\_tap) <br>_Initialise the loops in place (no allocation)._  |
+|  void | [**mpsk\_rx\_loops\_init**](#function-mpsk_rx_loops_init) ([**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l, int m, double sps, double lo\_sps, size\_t m\_out, double bn\_carrier, double zeta, double bn\_timing, double bn\_agc\_ratio, int ted, int acq\_to\_track, double lock\_thresh, size\_t warmup\_syms, int differential, int nda\_tap) <br>_Initialise the loops in place (no allocation)._  |
 |  void | [**mpsk\_rx\_loops\_reset**](#function-mpsk_rx_loops_reset) ([**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l) <br>_Re-seed both loops to their post-init state; keep configuration._  |
 |  int | [**mpsk\_rx\_loops\_set\_state**](#function-mpsk_rx_loops_set_state) ([**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l, const void \* blob) <br>_Restore the loops' mutable state from_ `blob` _._ |
 |  size\_t | [**mpsk\_rx\_loops\_state\_bytes**](#function-mpsk_rx_loops_state_bytes) (const [**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l) <br>_Bytes_ [_**mpsk\_rx\_loops\_get\_state()**_](mpsk__rx__loops_8h.md#function-mpsk_rx_loops_get_state) _writes._ |
@@ -122,15 +123,15 @@ _The two loops an M-PSK receiver closes, independent of its front end._ [More...
 
 | Type | Name |
 | ---: | :--- |
-| define  | [**MPSK\_RX\_AGC\_BW**](mpsk__rx__loops_8h.md#define-mpsk_rx_agc_bw)  `0.002`<br> |
-| define  | [**MPSK\_RX\_AGC\_SEED\_SAMPS**](mpsk__rx__loops_8h.md#define-mpsk_rx_agc_seed_samps)  `8`<br> |
+| define  | [**MPSK\_RX\_AGC\_ALPHA**](mpsk__rx__loops_8h.md#define-mpsk_rx_agc_alpha)  `0.01`<br> |
+| define  | [**MPSK\_RX\_AGC\_BW\_RATIO**](mpsk__rx__loops_8h.md#define-mpsk_rx_agc_bw_ratio)  `0.05`<br> |
 | define  | [**MPSK\_RX\_ARM\_DIV**](mpsk__rx__loops_8h.md#define-mpsk_rx_arm_div)  `2u`<br> |
 | define  | [**MPSK\_RX\_EPS**](mpsk__rx__loops_8h.md#define-mpsk_rx_eps)  `1e-12`<br> |
 | define  | [**MPSK\_RX\_HANDOVER\_DOWN**](mpsk__rx__loops_8h.md#define-mpsk_rx_handover_down)  `0.8`<br> |
 | define  | [**MPSK\_RX\_HANDOVER\_N\_DOWN**](mpsk__rx__loops_8h.md#define-mpsk_rx_handover_n_down)  `32u`<br> |
 | define  | [**MPSK\_RX\_HANDOVER\_N\_UP**](mpsk__rx__loops_8h.md#define-mpsk_rx_handover_n_up)  `8u`<br> |
 | define  | [**MPSK\_RX\_LOOPS\_STATE\_MAGIC**](mpsk__rx__loops_8h.md#define-mpsk_rx_loops_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('M', 'R', 'X', 'L')`<br> |
-| define  | [**MPSK\_RX\_LOOPS\_STATE\_VERSION**](mpsk__rx__loops_8h.md#define-mpsk_rx_loops_state_version)  `3u`<br> |
+| define  | [**MPSK\_RX\_LOOPS\_STATE\_VERSION**](mpsk__rx__loops_8h.md#define-mpsk_rx_loops_state_version)  `5u`<br> |
 | define  | [**MPSK\_RX\_M\_OUT\_DEFAULT**](mpsk__rx__loops_8h.md#define-mpsk_rx_m_out_default)  `8`<br> |
 | define  | [**MPSK\_RX\_NUM\_PHASES**](mpsk__rx__loops_8h.md#define-mpsk_rx_num_phases)  `1024u`<br> |
 
@@ -241,6 +242,23 @@ enum mpsk__rx__loops_8h_1adf764cbdea00d65edcd07bb9953ad2b7 {
 
 
 
+### function mpsk\_rx\_agc\_bn 
+
+```C++
+JM_FORCEINLINE double mpsk_rx_agc_bn (
+    double bn_carrier,
+    double bn_timing,
+    double ratio
+) 
+```
+
+
+
+
+<hr>
+
+
+
 ### function mpsk\_rx\_configure\_lock 
 
 _Re-tune the handover detector; see_ [_**mpsk\_receiver\_configure\_lock()**_](mpsk__receiver__core_8h.md#function-mpsk_receiver_configure_lock) _, which forwards here. A live handover survives; the verify run restarts._
@@ -342,6 +360,7 @@ void mpsk_rx_loops_init (
     double bn_carrier,
     double zeta,
     double bn_timing,
+    double bn_agc_ratio,
     int ted,
     int acq_to_track,
     double lock_thresh,
@@ -372,6 +391,7 @@ void mpsk_rx_loops_init (
 * `warmup_syms` Symbols before the handover is allowed. 
 * `differential` bits(): differential (rotation-invariant) demap. 
 * `nda_tap` MPSK\_RX\_NDA\_TAP\_\* — where the NDA discriminator reads, which sets its pull-in range and whether it depends on symbol timing at all. 
+* `bn_agc_ratio` Scales the front end's AGC off the SLOWEST of the two loop bandwidths; must be in (0, 1). See [**mpsk\_rx\_agc\_bn()**](mpsk__rx__loops_8h.md#function-mpsk_rx_agc_bn). 
 
 
 
@@ -642,10 +662,10 @@ The tap's whole point, as one number: it is both the factor by which the discrim
 
 
 
-### define MPSK\_RX\_AGC\_BW 
+### define MPSK\_RX\_AGC\_ALPHA 
 
 ```C++
-#define MPSK_RX_AGC_BW `0.002`
+#define MPSK_RX_AGC_ALPHA `0.01`
 ```
 
 
@@ -655,10 +675,10 @@ The tap's whole point, as one number: it is both the factor by which the discrim
 
 
 
-### define MPSK\_RX\_AGC\_SEED\_SAMPS 
+### define MPSK\_RX\_AGC\_BW\_RATIO 
 
 ```C++
-#define MPSK_RX_AGC_SEED_SAMPS `8`
+#define MPSK_RX_AGC_BW_RATIO `0.05`
 ```
 
 
@@ -749,7 +769,7 @@ The tap's whole point, as one number: it is both the factor by which the discrim
 ### define MPSK\_RX\_LOOPS\_STATE\_VERSION 
 
 ```C++
-#define MPSK_RX_LOOPS_STATE_VERSION `3u`
+#define MPSK_RX_LOOPS_STATE_VERSION `5u`
 ```
 
 

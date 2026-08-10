@@ -96,6 +96,119 @@ class Data:
 
 
 # ═════════════════════════════════════════════════ 1. OBJECT SUMMARY
+# Every prose claim nco_core.h makes, against test_nco_core.c. The `C`
+# numbers are the labels the C file already uses on the two sections
+# written against a claim rather than against a function (C3, C18) --
+# they referenced a list that existed only in someone's head until this
+# table wrote it down.
+CLAIM_MAP: list[tuple[str, str, str]] = [
+    (
+        "C1",
+        "nco_phase_units is the ONLY double->integer conversion in the family",
+        "§12, + the `phase-conversion sites` lint gate",
+    ),
+    (
+        "C2",
+        "two named faces over one unit-free fold (freq->inc, phase->word)",
+        "§13",
+    ),
+    (
+        "C3",
+        "the realised value is at most one step LOW, never high",
+        "§C3, swept against a long-double oracle",
+    ),
+    (
+        "C4",
+        "total: below zero and NaN give 0; at or above 2^32 saturates",
+        "§12",
+    ),
+    ("C5", "the fold is exact in value but destroys the SIGN", "§13 §15"),
+    (
+        "C6",
+        "three output mappings, each with a _ctrl variant and a "
+        "single-sample primitive",
+        "§3 §5 §6 §8 §9 §10",
+    ),
+    (
+        "C7",
+        "the _ovf event is signed by the COMPOSITE rate, not the raw carry",
+        "§10 §14 §15",
+    ),
+    ("C8", "nmax == 0 in the scaled form is identical to the raw form", "§5"),
+    ("C9", "reset() zeroes phase only; norm_freq and nmax unchanged", "§C18"),
+    (
+        "C10",
+        "serializable via the standard bytes interface",
+        "§ state round-trip + the Python matrix",
+    ),
+    ("C11", "lifecycle: create -> (steps / reset)* -> destroy", "§1"),
+    (
+        "C12",
+        "owners embed the struct by value and set the fields directly",
+        "C-only, by construction",
+    ),
+    ("C13", "phase_inc = floor(frac(norm_freq) x 2^32)", "§3 §7 §12"),
+    ("C14", "nco_step_u32 emits the phase BEFORE the increment", "§3 §11"),
+    ("C15", "scaled = (uint64)phase * nmax >> 32", "§5 §9"),
+    (
+        "C16",
+        "each batch stepper is exactly a loop over its single-sample "
+        "primitive",
+        "§11",
+    ),
+    (
+        "C17",
+        "truncation, deliberately NOT llround (the FMA-contraction argument)",
+        "§12 §C3",
+    ),
+    (
+        "C18",
+        "the fold never hands the cast a 1.0, even for a tiny negative",
+        "§13",
+    ),
+    ("C19", "negative norm_freq folds correctly (-0.25 -> 3x2^30)", "§12"),
+    (
+        "C20",
+        "nco_steer_scale clamps 1+control to [lo, hi]; NaN gives lo",
+        "§16",
+    ),
+    (
+        "C21",
+        "ctrl never modifies phase_inc or norm_freq; ctrl == 0 is "
+        "bit-identical",
+        "§8 §9 §10",
+    ),
+    ("C22", "create() returns NULL on allocation failure", "unreachable"),
+    ("C23", "destroy() may be NULL (no-op)", "**absent**"),
+    (
+        "C24",
+        "setting norm_freq recomputes phase_inc and does NOT reset phase",
+        "§7",
+    ),
+    (
+        "C25",
+        "steps return min(n, max_out); emission stops at capacity",
+        "§17 NEW",
+    ),
+    (
+        "C26",
+        "steps_u32_max_out is the maximum samples per call",
+        "§17 NEW — WAS FALSE, header fixed",
+    ),
+    (
+        "C27",
+        "the Python out= buffer must be sized to max_out, not len(ctrl)",
+        "test_nco.py",
+    ),
+    (
+        "C28",
+        "resamp lands the conversion boundary modularly in its own "
+        "_step_inc — do not consolidate it back",
+        "allowlisted in scripts/.phase-conversion-allow",
+    ),
+]
+
+
 def section_summary() -> None:
     R.md("# NCO — validation report")
     R.md()
@@ -158,6 +271,29 @@ def section_summary() -> None:
         "below characterise the laws, review what they mean, and pin the "
         "envelope. Section numbers track `test_nco_core.c`'s own numbering "
         "so the two read side by side."
+    )
+    R.md()
+    R.md("### Claim coverage — every prose claim in the header")
+    R.md()
+    R.md(
+        "The campaign's order is header first: enumerate what the header "
+        "asserts, then ask of each whether it is pinned, pinned only at "
+        "literals, or absent. `test_nco_core.c` already labels two of its "
+        "sections against claim numbers (`C3`, `C18`) — this is the list "
+        "they were referring to, which until now existed nowhere. `NEW` "
+        "marks a section added by this audit and proven by sabotage."
+    )
+    R.md()
+    R.table(
+        ["#", "claim in `nco_core.h`", "covered by"],
+        [[t, c, w] for t, c, w in CLAIM_MAP],
+    )
+    R.md(
+        "One claim is still **absent**: `destroy()` accepting NULL. It is "
+        "one line of C and no Python can reach it, so it is recorded "
+        "rather than gated — the LO's §18 does pin the same promise for "
+        "its own destroy, so the pattern exists to copy when this is worth "
+        "closing."
     )
     R.md()
     R.md(
@@ -486,6 +622,39 @@ def characterise() -> Data:
     R.md(f"![linear loop]({'linear_loop.png'})")
     R.md()
 
+    # --- 2.9b: max_out ---------------------------------------------------
+    R.md("### 2.9b `max_out` is advisory on every face")
+    R.md("*(the new section 17)*")
+    R.md()
+    big_n = 70000
+    got = NCO(0.013, 0).steps_u32(big_n)
+    got_s = NCO(0.013, 1000).steps_u32_scaled(big_n)
+    got_c = NCO(0.013, 0).steps_u32_ctrl(np.zeros(big_n, dtype=np.float32))
+    inc13 = NCO(0.013, 0).phase_inc
+    R.table(
+        ["probe", "measured"],
+        [
+            ["`steps_u32_max_out()`", NCO(0.0, 0).steps_u32_max_out()],
+            [f"`steps_u32({big_n})` returns", got.shape[0]],
+            [f"`steps_u32_scaled({big_n})` returns", got_s.shape[0]],
+            [f"`steps_u32_ctrl(zeros({big_n}))` returns", got_c.shape[0]],
+            [
+                "last sample of the oversized call is exact",
+                int(got[-1]) == (inc13 * (big_n - 1)) % W,
+            ],
+            [
+                "scaled output still inside [0, nmax)",
+                bool(got_s.max() < 1000),
+            ],
+        ],
+    )
+    R.md(
+        f"Every face returns the whole request, {big_n - 65536} samples "
+        f"past the advertised maximum, and the last one is exact. The "
+        f"header said the opposite until this audit — see **F9**."
+    )
+    R.md()
+
     R.md("### 2.10 Not reachable from Python")
     R.md()
     R.md(
@@ -607,6 +776,23 @@ def review(d: Data) -> None:
         "that motivated it (a control below -1 makes the raw scale "
         "negative, which an honest conversion floors to 0 — a stopped NCO "
         "that never strobes again).",
+    )
+    R.find(
+        "F9",
+        "FIXED",
+        "nco_core.h claimed steps_u32_max_out() was the 'maximum samples "
+        "per call' and that 'requesting more samples per call is undefined "
+        "behaviour'; nco_core.c said a request past 65536 'overflows the "
+        "buffer'. Both described the contract from before pass_capacity "
+        "(jm gh-138) handed the kernel the caller's capacity. Measured: "
+        "all three faces return 70000 correct samples for a 70000-sample "
+        "request. Found by fixing the IDENTICAL pair of sentences in "
+        "lo_core.{h,c} and then checking the sibling — four copies of one "
+        "false claim, which is the documentation form of the duplicate "
+        "that drifts. All four now corrected, and test_nco_core.c §17 "
+        "pins the behaviour on each of the three output mappings "
+        "separately, since each has its own kernel and could regain a "
+        "private ceiling independently.",
     )
     R.md()
     R.table(
@@ -732,6 +918,16 @@ def limits(d: Data) -> None:
         abs(rm.control[-1] - ll.RAMP) < 1e-6,
         f"on a ramp the loop filter's output converges on the applied "
         f"frequency offset itself ({rm.control[-1]:.6e} vs {ll.RAMP:g})",
+    )
+
+    big_n = 70000
+    z = np.zeros(big_n, dtype=np.float32)
+    R.limit(
+        NCO(0.013, 0).steps_u32(big_n).shape[0] == big_n
+        and NCO(0.013, 1000).steps_u32_scaled(big_n).shape[0] == big_n
+        and NCO(0.013, 0).steps_u32_ctrl(z).shape[0] == big_n,
+        f"max_out is advisory: all three faces return every one of "
+        f"{big_n} samples requested, past the advertised 65536",
     )
 
     R.md()

@@ -20,6 +20,43 @@ The one-line orientation, so this page stands alone: the design is stratified in
 
 A unit test pins points; it cannot state a **law**. `nco_core.h` claims in prose that the frequency error is "at most one step low and never high" — nothing checks that as a property. Sections below characterise the laws, review what they mean, and pin the envelope. Section numbers track `test_nco_core.c`'s own numbering so the two read side by side.
 
+### Claim coverage — every prose claim in the header
+
+The campaign's order is header first: enumerate what the header asserts, then ask of each whether it is pinned, pinned only at literals, or absent. `test_nco_core.c` already labels two of its sections against claim numbers (`C3`, `C18`) — this is the list they were referring to, which until now existed nowhere. `NEW` marks a section added by this audit and proven by sabotage.
+
+| # | claim in `nco_core.h` | covered by |
+|---|---|---|
+| C1 | nco_phase_units is the ONLY double->integer conversion in the family | §12, + the `phase-conversion sites` lint gate |
+| C2 | two named faces over one unit-free fold (freq->inc, phase->word) | §13 |
+| C3 | the realised value is at most one step LOW, never high | §C3, swept against a long-double oracle |
+| C4 | total: below zero and NaN give 0; at or above 2^32 saturates | §12 |
+| C5 | the fold is exact in value but destroys the SIGN | §13 §15 |
+| C6 | three output mappings, each with a _ctrl variant and a single-sample primitive | §3 §5 §6 §8 §9 §10 |
+| C7 | the _ovf event is signed by the COMPOSITE rate, not the raw carry | §10 §14 §15 |
+| C8 | nmax == 0 in the scaled form is identical to the raw form | §5 |
+| C9 | reset() zeroes phase only; norm_freq and nmax unchanged | §C18 |
+| C10 | serializable via the standard bytes interface | § state round-trip + the Python matrix |
+| C11 | lifecycle: create -> (steps / reset)* -> destroy | §1 |
+| C12 | owners embed the struct by value and set the fields directly | C-only, by construction |
+| C13 | phase_inc = floor(frac(norm_freq) x 2^32) | §3 §7 §12 |
+| C14 | nco_step_u32 emits the phase BEFORE the increment | §3 §11 |
+| C15 | scaled = (uint64)phase * nmax >> 32 | §5 §9 |
+| C16 | each batch stepper is exactly a loop over its single-sample primitive | §11 |
+| C17 | truncation, deliberately NOT llround (the FMA-contraction argument) | §12 §C3 |
+| C18 | the fold never hands the cast a 1.0, even for a tiny negative | §13 |
+| C19 | negative norm_freq folds correctly (-0.25 -> 3x2^30) | §12 |
+| C20 | nco_steer_scale clamps 1+control to [lo, hi]; NaN gives lo | §16 |
+| C21 | ctrl never modifies phase_inc or norm_freq; ctrl == 0 is bit-identical | §8 §9 §10 |
+| C22 | create() returns NULL on allocation failure | unreachable |
+| C23 | destroy() may be NULL (no-op) | **absent** |
+| C24 | setting norm_freq recomputes phase_inc and does NOT reset phase | §7 |
+| C25 | steps return min(n, max_out); emission stops at capacity | §17 NEW |
+| C26 | steps_u32_max_out is the maximum samples per call | §17 NEW — WAS FALSE, header fixed |
+| C27 | the Python out= buffer must be sized to max_out, not len(ctrl) | test_nco.py |
+| C28 | resamp lands the conversion boundary modularly in its own _step_inc — do not consolidate it back | allowlisted in scripts/.phase-conversion-allow |
+
+One claim is still **absent**: `destroy()` accepting NULL. It is one line of C and no Python can reach it, so it is recorded rather than gated — the LO's §18 does pin the same promise for its own destroy, so the pattern exists to copy when this is worth closing.
+
 > **Note on provenance.** `docs/design/nco.md` does not exist on this branch — it is a residual still stranded in PR #647, so the link above dangles. The signed carry/borrow rule and test sections §14–16 from that same PR **have** now landed here (see **F7**), applied by hand rather than cherry-picked because a later commit reshaped the same function and main carries a `resamp` paragraph #647 predates.
 
 ## 2. Characterisation
@@ -151,6 +188,20 @@ Both steps settle identically, which is the symmetry a linear loop must have. On
 
 ![linear loop](linear_loop.png)
 
+### 2.9b `max_out` is advisory on every face
+*(the new section 17)*
+
+| probe | measured |
+|---|---|
+| `steps_u32_max_out()` | 65536 |
+| `steps_u32(70000)` returns | 70000 |
+| `steps_u32_scaled(70000)` returns | 70000 |
+| `steps_u32_ctrl(zeros(70000))` returns | 70000 |
+| last sample of the oversized call is exact | True |
+| scaled output still inside [0, nmax) | True |
+
+Every face returns the whole request, 4464 samples past the advertised maximum, and the last one is exact. The header said the opposite until this audit — see **F9**.
+
 ### 2.10 Not reachable from Python
 
 *(section 11)* The bindings expose the batch `steps_u32*` forms but not the single-sample `nco_step_u32*` primitives, so the claim that each batch stepper is exactly a loop over its single-sample counterpart cannot be checked here. It remains `test_nco_core.c`'s alone — reported, not silently skipped.
@@ -168,6 +219,7 @@ Both steps settle identically, which is the symmetry a linear loop must have. On
 | F6 | BY DESIGN | the carry is a flag, not a counter: at 1.30 cycles/sample it reports 16/16 and cannot say 'two wraps'. Correct for a strobe, and the reason a resampler keeps its own accounting. |
 | F7 | FIXED | the control port's event is now signed by the COMPOSITE rate, formed as `norm_freq + ctrl` in cycles before either term is folded. Under a negative control the flag now fires at the intended rate — at ctrl=-0.01, 0.0100 against an intended 0.0100 — where the old bare-carry test fired at the folded rate 0.9900. Not a discovery: this was already fixed and documented in PR #647 and the conversion consolidation landed on main without it. Applied here by hand (a later commit reshaped the same function, and main carries a `resamp` paragraph #647 predates), together with that PR's §14-16 — an independent long-double oracle over 10 base rates x 6 control trajectories, both signs. Reverting the rule now produces 279 failures. |
 | F8 | C-ONLY | nco_steer_scale landed alongside the signed rule — bound the REQUEST so the conversion is a safety net rather than the active path. It is a header inline with no binding, so this report cannot exercise it; test_nco_core.c §16 does, including the case that motivated it (a control below -1 makes the raw scale negative, which an honest conversion floors to 0 — a stopped NCO that never strobes again). |
+| F9 | FIXED | nco_core.h claimed steps_u32_max_out() was the 'maximum samples per call' and that 'requesting more samples per call is undefined behaviour'; nco_core.c said a request past 65536 'overflows the buffer'. Both described the contract from before pass_capacity (jm gh-138) handed the kernel the caller's capacity. Measured: all three faces return 70000 correct samples for a 70000-sample request. Found by fixing the IDENTICAL pair of sentences in lo_core.{h,c} and then checking the sibling — four copies of one false claim, which is the documentation form of the duplicate that drifts. All four now corrected, and test_nco_core.c §17 pins the behaviour on each of the three output mappings separately, since each has its own kernel and could regain a private ceiling independently. |
 
 ## 4. Limits — the certified envelope
 
@@ -193,10 +245,11 @@ Claims a caller may rely on. A failure here is a regression, not a new finding.
 | PASS | a phase step leaves NO steady-state error (residual 0.0e+00 cycles) |
 | PASS | a frequency ramp leaves NO steady-state PHASE error (residual 1.2e-10 cycles) — the type-2 integrator absorbs it |
 | PASS | on a ramp the loop filter's output converges on the applied frequency offset itself (1.000000e-03 vs 0.001) |
+| PASS | max_out is advisory: all three faces return every one of 70000 samples requested, past the advertised 65536 |
 
 
 ## 5. Summary
 
-- **8 findings**, 4 of them gaps or confirmed defects: F2, F3, F4, F5
-- **17/17 limits** hold
+- **9 findings**, 4 of them gaps or confirmed defects: F2, F3, F4, F5
+- **18/18 limits** hold
 - Raw sweeps: `data/frequency_sweep.csv`, `data/ctrl_sweep.csv`

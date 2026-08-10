@@ -19,7 +19,7 @@
  * increment is a whole number of LUT bins there is a per-sample phase
  * error, and that error is periodic: its period is set by the LOW 16
  * bits of phase_inc, NOT by the frequency. Three regimes, measured (see
- * src/doppler/tests/validation/lo/results.md, which regenerates them):
+ * src/doppler/source/tests/validation/lo/results.md, which regenerates them):
  *
  *   phase_inc & 0xFFFF == 0        no truncation at all; spur-free to the
  *                                  float32 floor, ~146 dBc

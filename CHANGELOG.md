@@ -143,7 +143,7 @@ ______________________________________________________________________
     No behaviour changed: this is what the LO has always done, now stated
     correctly. Full characterisation, including the closed-loop cost of the
     LUT (half a phase bin, and no bandwidth):
-    `src/doppler/tests/validation/lo/results.md`.
+    `src/doppler/source/tests/validation/lo/results.md`.
 
 - **One `double` → phase-word conversion, with two named faces over it.**
     The conversion every rate-bearing object depends on existed in private

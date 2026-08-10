@@ -152,7 +152,7 @@ def test_quarter_rate_quadrature():
 # what stops it drifting back.
 #
 # Full characterisation, including the sweep these two points were
-# chosen from: src/doppler/tests/validation/lo/results.md.
+# chosen from: src/doppler/source/tests/validation/lo/results.md.
 
 SFDR_BOUND_DBC = 90.0
 

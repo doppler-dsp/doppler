@@ -136,7 +136,7 @@ Output is emitted BEFORE the phase is incremented (same convention as NCO).
 
 
 
-The index keeps the top 16 bits of a 32-bit phase, so unless the increment is a whole number of LUT bins there is a per-sample phase error, and that error is periodic: its period is set by the LOW 16 bits of phase\_inc, NOT by the frequency. Three regimes, measured (see src/doppler/tests/validation/lo/results.md, which regenerates them):
+The index keeps the top 16 bits of a 32-bit phase, so unless the increment is a whole number of LUT bins there is a per-sample phase error, and that error is periodic: its period is set by the LOW 16 bits of phase\_inc, NOT by the frequency. Three regimes, measured (see src/doppler/source/tests/validation/lo/results.md, which regenerates them):
 
 
 phase\_inc & 0xFFFF == 0 no truncation at all; spur-free to the float32 floor, ~146 dBc a generic remainder ~96 dBc, flat  400 random rates span 96.32 to 96.33 dBc remainder == 0x8000 (half a 92.4 dBc: the error alternates with bin), and small-denominator period 2 and all of it lands in one remainders near it spur. This is the classical 6.02\*B - 3.92 phase-truncation bound.

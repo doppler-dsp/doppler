@@ -120,12 +120,30 @@ _kaiser_num_taps (size_t num_phases, double atten, double pb, double sb)
 /* This is a RESAMPLING rule, not a phase-accumulator one, which is why */
 /* it lives here instead of borrowing an NCO conversion.  The boundary  */
 /* is the difference: an NCO phase must stay inside one period, so its  */
-/* conversion SATURATES.  A resampler step of one whole period per tick */
-/* is perfectly ordinary -- it is rate == 1 -- and in a phase word that */
-/* is 0.  Saturating would make unity advance by 2^32-1 and emit two    */
-/* outputs per input; the bare cast it replaces was undefined there and */
-/* yielded 0 by accident, which is why unity needed a memcpy            */
-/* short-circuit to look correct.                                       */
+/* conversion SATURATES (nco_phase_units).  A resampler step of one     */
+/* whole period per tick is not a limit case -- it IS rate == 1 -- and  */
+/* in a phase word that is 0.                                           */
+/*                                                                      */
+/* Under the interpolator's rule (emit every tick, load when the        */
+/* accumulator fails to advance) 0 is exactly right: u never changes,   */
+/* so `u(k) <= u(k-1)` holds every tick, one input is consumed per      */
+/* output, and the phase stays pinned to ONE arm -- so the path is that */
+/* arm's filter.  test_resamp_core's R == 1 case owns that statement    */
+/* and measures it.  Nothing is being resampled at rate 1, so a phase   */
+/* that never advances is the correct answer, not a tolerated one.      */
+/*                                                                      */
+/* Saturating here is wrong but undramatic, and the number matters      */
+/* because an earlier version of this comment guessed it: measured      */
+/* through this path, inc = 2^32-1 emits 4097 outputs for 4096 inputs   */
+/* (1.000244) where 0 emits exactly 4096.  A slow drift, not the "two   */
+/* outputs per input" previously claimed here.                          */
+/*                                                                      */
+/* The all-zero `Synth(sps=1)` waveform that the conversion             */
+/* consolidation fixed belongs to the OLDER rule, where emission was    */
+/* gated on the phase advancing and 0 therefore emitted nothing at all  */
+/* -- which is also why unity needed a memcpy short-circuit to look     */
+/* correct.  Saturating restored output under that rule.  This rule     */
+/* makes 0 correct outright, and the short-circuit is gone.             */
 /*                                                                      */
 /* Thirty-two bits are sufficient precisely because the load test is    */
 /* `u(k) <= u(k-1)` and not a carry-out: equality is what carries the   */

@@ -108,6 +108,16 @@ extern "C"
    * control asking to speed up returned roughly a ninth of the correct
    * increment.
    *
+   * `resamp` is no longer one of those sites, and the reason is worth
+   * stating so it is not "consolidated" back: under the interpolating
+   * rule it adopted afterwards, outputs are emitted every tick and the
+   * phase word only decides when to LOAD, so a step of one whole period
+   * per tick -- rate 1 -- is an ordinary operating point whose exact
+   * encoding is 0, not a limit to be clamped. It therefore lands that
+   * boundary MODULARLY, in its own `_step_inc`; see the comment there.
+   * Saturation below remains right for a phase ACCUMULATOR, which is
+   * what this function converts for.
+   *
    * Behaviour here is total and host-independent: below zero (and NaN,
    * which the negated comparison rejects rather than passing to the cast)
    * gives 0; at or above 2^32 saturates to 2^32-1; in between it TRUNCATES

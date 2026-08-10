@@ -101,6 +101,19 @@ ______________________________________________________________________
     `nco_step_u32_ovf_ctrl`'s carry is still wrong for a negative control and
     carries an `@warning`; it is fixed separately.
 
+    **Read this together with the interpolator's rule below, which lands the
+    same boundary the other way.** Both are in this release and they are not
+    in conflict: they are one value under two rules. Here, emission is gated
+    on the phase advancing, so an increment of 0 emits nothing and saturating
+    to 2^32−1 is what restores output. Under the interpolating rule outputs
+    are emitted every tick and the phase word only decides when to *load*, so
+    at rate 1 an increment of 0 is exactly right — one input per output, the
+    phase pinned to one arm, and the signal filtered by that arm. `resamp`
+    therefore lands the boundary modularly in its own `_step_inc` rather than
+    through `nco_phase_units()`, which keeps saturating for phase
+    accumulators, where a value beyond one cycle per sample is genuinely a
+    limit.
+
 - **The timing detector normalises by its own slope, computed at
     construction, instead of by a running power average.** A TED's raw output
     is the timing error times three things it did not choose — the signal

@@ -111,7 +111,7 @@ NCOObj_steps_u32 (NCOObject *self, PyObject *args, PyObject *kwds)
         }
       size_t _cap     = (size_t)PyArray_SIZE (out_arr);
       size_t _omax    = nco_steps_u32_max_out (self->handle);
-      size_t _min_cap = _omax;
+      size_t _min_cap = _omax > (size_t)n ? _omax : ((size_t)n);
       if (_cap < _min_cap)
         {
           PyErr_Format (PyExc_ValueError, "out has %zu elements, need >= %zu",
@@ -134,13 +134,6 @@ NCOObj_steps_u32 (NCOObject *self, PyObject *args, PyObject *kwds)
     }
   size_t _need = (size_t)n;
   size_t _cap  = nco_steps_u32_max_out (self->handle);
-  /* HAND-RESTORED -- just-buildit/just-makeit#920. Under pass_capacity,
-     0.55.2 emits `(void)_need;` here and allocates max_out() regardless of
-     the request: silent truncation above it, a 256 KB malloc per call below
-     it. jm emitted these two lines until recently and 34 other fragments in
-     this tree still carry them. Delete this comment and the two lines when
-     920 ships; test_nco.py/test_lo.py's #116 large-n tests go red if the
-     behaviour is lost again, so this cannot regress silently. */
   if (!_cap || _cap < _need)
     _cap = _need;
   npy_intp  _adim = (npy_intp)_cap;
@@ -214,7 +207,7 @@ NCOObj_steps_u32_scaled (NCOObject *self, PyObject *args, PyObject *kwds)
         }
       size_t _cap     = (size_t)PyArray_SIZE (out_arr);
       size_t _omax    = nco_steps_u32_scaled_max_out (self->handle);
-      size_t _min_cap = _omax;
+      size_t _min_cap = _omax > (size_t)n ? _omax : ((size_t)n);
       if (_cap < _min_cap)
         {
           PyErr_Format (PyExc_ValueError, "out has %zu elements, need >= %zu",
@@ -237,13 +230,6 @@ NCOObj_steps_u32_scaled (NCOObject *self, PyObject *args, PyObject *kwds)
     }
   size_t _need = (size_t)n;
   size_t _cap  = nco_steps_u32_scaled_max_out (self->handle);
-  /* HAND-RESTORED -- just-buildit/just-makeit#920. Under pass_capacity,
-     0.55.2 emits `(void)_need;` here and allocates max_out() regardless of
-     the request: silent truncation above it, a 256 KB malloc per call below
-     it. jm emitted these two lines until recently and 34 other fragments in
-     this tree still carry them. Delete this comment and the two lines when
-     920 ships; test_nco.py/test_lo.py's #116 large-n tests go red if the
-     behaviour is lost again, so this cannot regress silently. */
   if (!_cap || _cap < _need)
     _cap = _need;
   npy_intp  _adim = (npy_intp)_cap;
@@ -283,13 +269,6 @@ NCOObj_steps_u32_ovf (NCOObject *self, PyObject *args)
     return NULL;
   size_t _need = (size_t)n;
   size_t _cap  = nco_steps_u32_ovf_max_out (self->handle);
-  /* HAND-RESTORED -- just-buildit/just-makeit#920. Under pass_capacity,
-     0.55.2 emits `(void)_need;` here and allocates max_out() regardless of
-     the request: silent truncation above it, a 256 KB malloc per call below
-     it. jm emitted these two lines until recently and 34 other fragments in
-     this tree still carry them. Delete this comment and the two lines when
-     920 ships; test_nco.py/test_lo.py's #116 large-n tests go red if the
-     behaviour is lost again, so this cannot regress silently. */
   if (!_cap || _cap < _need)
     _cap = _need;
   npy_intp  _adim = (npy_intp)_cap;
@@ -390,7 +369,9 @@ NCOObj_steps_u32_ctrl (NCOObject *self, PyObject *args, PyObject *kwds)
         }
       size_t _cap     = (size_t)PyArray_SIZE (out_arr);
       size_t _omax    = nco_steps_u32_ctrl_max_out (self->handle);
-      size_t _min_cap = _omax;
+      size_t _min_cap = _omax > (size_t)PyArray_SIZE (ctrl_arr)
+                            ? _omax
+                            : ((size_t)PyArray_SIZE (ctrl_arr));
       if (_cap < _min_cap)
         {
           PyErr_Format (PyExc_ValueError, "out has %zu elements, need >= %zu",
@@ -417,13 +398,6 @@ NCOObj_steps_u32_ctrl (NCOObject *self, PyObject *args, PyObject *kwds)
     }
   size_t _need = (size_t)PyArray_SIZE (ctrl_arr);
   size_t _cap  = nco_steps_u32_ctrl_max_out (self->handle);
-  /* HAND-RESTORED -- just-buildit/just-makeit#920. Under pass_capacity,
-     0.55.2 emits `(void)_need;` here and allocates max_out() regardless of
-     the request: silent truncation above it, a 256 KB malloc per call below
-     it. jm emitted these two lines until recently and 34 other fragments in
-     this tree still carry them. Delete this comment and the two lines when
-     920 ships; test_nco.py/test_lo.py's #116 large-n tests go red if the
-     behaviour is lost again, so this cannot regress silently. */
   if (!_cap || _cap < _need)
     _cap = _need;
   npy_intp  _adim = (npy_intp)_cap;
@@ -509,7 +483,9 @@ NCOObj_steps_u32_scaled_ctrl (NCOObject *self, PyObject *args, PyObject *kwds)
         }
       size_t _cap     = (size_t)PyArray_SIZE (out_arr);
       size_t _omax    = nco_steps_u32_scaled_ctrl_max_out (self->handle);
-      size_t _min_cap = _omax;
+      size_t _min_cap = _omax > (size_t)PyArray_SIZE (ctrl_arr)
+                            ? _omax
+                            : ((size_t)PyArray_SIZE (ctrl_arr));
       if (_cap < _min_cap)
         {
           PyErr_Format (PyExc_ValueError, "out has %zu elements, need >= %zu",
@@ -536,13 +512,6 @@ NCOObj_steps_u32_scaled_ctrl (NCOObject *self, PyObject *args, PyObject *kwds)
     }
   size_t _need = (size_t)PyArray_SIZE (ctrl_arr);
   size_t _cap  = nco_steps_u32_scaled_ctrl_max_out (self->handle);
-  /* HAND-RESTORED -- just-buildit/just-makeit#920. Under pass_capacity,
-     0.55.2 emits `(void)_need;` here and allocates max_out() regardless of
-     the request: silent truncation above it, a 256 KB malloc per call below
-     it. jm emitted these two lines until recently and 34 other fragments in
-     this tree still carry them. Delete this comment and the two lines when
-     920 ships; test_nco.py/test_lo.py's #116 large-n tests go red if the
-     behaviour is lost again, so this cannot regress silently. */
   if (!_cap || _cap < _need)
     _cap = _need;
   npy_intp  _adim = (npy_intp)_cap;
@@ -592,13 +561,6 @@ NCOObj_steps_u32_ovf_ctrl (NCOObject *self, PyObject *args, PyObject *kwds)
     return NULL;
   size_t _need = (size_t)PyArray_SIZE (ctrl_arr);
   size_t _cap  = nco_steps_u32_ovf_ctrl_max_out (self->handle);
-  /* HAND-RESTORED -- just-buildit/just-makeit#920. Under pass_capacity,
-     0.55.2 emits `(void)_need;` here and allocates max_out() regardless of
-     the request: silent truncation above it, a 256 KB malloc per call below
-     it. jm emitted these two lines until recently and 34 other fragments in
-     this tree still carry them. Delete this comment and the two lines when
-     920 ships; test_nco.py/test_lo.py's #116 large-n tests go red if the
-     behaviour is lost again, so this cannot regress silently. */
   if (!_cap || _cap < _need)
     _cap = _need;
   npy_intp  _adim = (npy_intp)_cap;
@@ -976,10 +938,17 @@ static PyMethodDef NCOObj_methods[] = {
     "allocating a fresh one. This used to claim it was \"essential for a hot\n"
     "per-epoch tracking loop\"; measured, it is worth 0-25% below 8192\n"
     "samples and nothing at or above it, so reach for it only if a profile\n"
-    "says so. The buffer must be sized to `steps_u32_ctrl_max_out()`, NOT\n"
-    "just `len(ctrl)` -- which is itself a cost, since a 64-sample call then\n"
-    "needs a 65536-element buffer (just-buildit/just-makeit#920); the\n"
-    "returned view is correctly sliced to `len(ctrl)` regardless.\n"
+    "says so.\n"
+    "\n"
+    "The buffer must be sized to `steps_u32_ctrl_max_out()`, NOT just\n"
+    "`len(ctrl)` -- so a 64-sample call still needs a 65536-element buffer,\n"
+    "which is most of what makes `out=` poor value here. That is this\n"
+    "header's doing, not the binding's: `*_max_out(state)` takes only the\n"
+    "state, so it is a bound over ALL calls and cannot say what THIS one\n"
+    "needs. A generated binding may accept a request-sized buffer only where\n"
+    "the bound is declared per-call (a `max_out(state, n)` prototype). The\n"
+    "returned view is correctly sliced to `len(ctrl)` regardless of the\n"
+    "buffer's size.\n"
     "\n"
     "Parameters\n"
     "----------\n"

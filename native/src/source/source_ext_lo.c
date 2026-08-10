@@ -109,7 +109,7 @@ LOObj_steps (LOObject *self, PyObject *args, PyObject *kwds)
         }
       size_t _cap     = (size_t)PyArray_SIZE (out_arr);
       size_t _omax    = lo_steps_max_out (self->handle);
-      size_t _min_cap = _omax;
+      size_t _min_cap = _omax > (size_t)n ? _omax : ((size_t)n);
       if (_cap < _min_cap)
         {
           PyErr_Format (PyExc_ValueError, "out has %zu elements, need >= %zu",
@@ -132,13 +132,6 @@ LOObj_steps (LOObject *self, PyObject *args, PyObject *kwds)
     }
   size_t _need = (size_t)n;
   size_t _cap  = lo_steps_max_out (self->handle);
-  /* HAND-RESTORED -- just-buildit/just-makeit#920. Under pass_capacity,
-     0.55.2 emits `(void)_need;` here and allocates max_out() regardless of
-     the request: silent truncation above it, a 256 KB malloc per call below
-     it. jm emitted these two lines until recently and 34 other fragments in
-     this tree still carry them. Delete this comment and the two lines when
-     920 ships; test_nco.py/test_lo.py's #116 large-n tests go red if the
-     behaviour is lost again, so this cannot regress silently. */
   if (!_cap || _cap < _need)
     _cap = _need;
   npy_intp  _adim = (npy_intp)_cap;
@@ -220,7 +213,9 @@ LOObj_steps_ctrl (LOObject *self, PyObject *args, PyObject *kwds)
         }
       size_t _cap     = (size_t)PyArray_SIZE (out_arr);
       size_t _omax    = lo_steps_ctrl_max_out (self->handle);
-      size_t _min_cap = _omax;
+      size_t _min_cap = _omax > (size_t)PyArray_SIZE (ctrl_arr)
+                            ? _omax
+                            : ((size_t)PyArray_SIZE (ctrl_arr));
       if (_cap < _min_cap)
         {
           PyErr_Format (PyExc_ValueError, "out has %zu elements, need >= %zu",
@@ -247,13 +242,6 @@ LOObj_steps_ctrl (LOObject *self, PyObject *args, PyObject *kwds)
     }
   size_t _need = (size_t)PyArray_SIZE (ctrl_arr);
   size_t _cap  = lo_steps_ctrl_max_out (self->handle);
-  /* HAND-RESTORED -- just-buildit/just-makeit#920. Under pass_capacity,
-     0.55.2 emits `(void)_need;` here and allocates max_out() regardless of
-     the request: silent truncation above it, a 256 KB malloc per call below
-     it. jm emitted these two lines until recently and 34 other fragments in
-     this tree still carry them. Delete this comment and the two lines when
-     920 ships; test_nco.py/test_lo.py's #116 large-n tests go red if the
-     behaviour is lost again, so this cannot regress silently. */
   if (!_cap || _cap < _need)
     _cap = _need;
   npy_intp  _adim = (npy_intp)_cap;

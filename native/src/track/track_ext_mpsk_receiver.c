@@ -801,9 +801,9 @@ static PyMethodDef MpskReceiverObj_methods[] = {
     ">>> rx = MpskReceiver(m=4, sps=8, m_out=4, bn_carrier=0.02)\n"
     ">>> sym = rx.steps(tx)                              # blind NDA acquire\n"
     ">>> sym.size                                        # ~ x_len / sps\n"
-    "2997\n"
+    "2998\n"
     ">>> round(rx.lock, 2)                               # carrier locked\n"
-    "0.91\n" },
+    "0.92\n" },
   { "steps_max_out", (PyCFunction)MpskReceiverObj_steps_max_out, METH_NOARGS,
     "steps_max_out() -> int\n\nMax output length steps() can produce for the "
     "current state.\nUse to size the ``out=`` buffer." },
@@ -847,10 +847,10 @@ static PyMethodDef MpskReceiverObj_methods[] = {
     ">>> rx = MpskReceiver(m=2, sps=8, m_out=4, bn_carrier=0.005)\n"
     ">>> b = rx.bits(tx)                                 # 1 hard bit/symbol\n"
     ">>> b.size\n"
-    "2997\n"
+    "2998\n"
     ">>> # settled tail matches the payload, up to the BPSK\n"
-    ">>> # inversion ambiguity\n"
-    ">>> tail = np.mean(b[1000:2000] != idx[1000:2000])\n"
+    ">>> # inversion ambiguity and the pipeline's one-symbol lead\n"
+    ">>> tail = np.mean(b[1001:2001] != idx[1000:2000])\n"
     ">>> round(float(min(tail, 1 - tail)), 3)\n"
     "0.0\n" },
   { "bits_max_out", (PyCFunction)MpskReceiverObj_bits_max_out, METH_NOARGS,

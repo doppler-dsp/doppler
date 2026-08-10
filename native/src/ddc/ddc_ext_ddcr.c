@@ -491,8 +491,8 @@ static PyMethodDef DdcrObj_methods[] = {
     "(1024,)\n"
     ">>> y.dtype\n"
     "dtype('complex64')\n"
-    ">>> round(float(abs(y[500])), 2)   # one-sided cosine amplitude ≈ 0.5\n"
-    "0.5\n" },
+    ">>> round(float(abs(y[500])), 2)   # analytic signal of a unit cosine\n"
+    "1.0\n" },
   { "execute_max_out", (PyCFunction)DdcrObj_execute_max_out, METH_NOARGS,
     "execute_max_out() -> int\n\nMax output length execute() can produce for "
     "the current state.\nUse to size the ``out=`` buffer." },

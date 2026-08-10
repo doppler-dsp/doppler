@@ -19,8 +19,17 @@ clock offsets, the absolute level, and the data. That is the point:
     documented input domain either show you a clean distribution or hand you the
     outlier — and that is exactly how a real one hid here for weeks: at
     `sps = 10` with `m_out = 4` and an IF at 0.10, the occupied band reaches DC,
-    where the real front end's image rejection collapses, and EVM falls to
-    −4 dB. No grid of "reasonable" cases drew it.
+    where the real front end's image rejection collapses. No grid of
+    "reasonable" cases drew it.
+
+    That case has since been traced and fixed — the R2C halfband returned half
+    the amplitude the analytic-signal convention requires, so the real path ran
+    6 dB down and the timing loop 4× under-driven, and the −4 dB was the
+    under-drive rather than the placement. It now measures −20 dB with zero
+    SER, and the placement tolerance is documented as the geometric rule it
+    always was (`1/sps < fc < 0.5 − 1/sps`; see the
+    [design note](../design/mpsk.md)). The draw is what found it, and that is
+    the part worth keeping.
 
 ## The measurement rules the panels obey
 

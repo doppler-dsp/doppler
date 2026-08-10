@@ -42,10 +42,18 @@ from doppler.ber import (
 from doppler.telemetry import Telemetry
 from doppler.track import MpskReceiver, MpskReceiverR
 
-#: Ddcr's design centre. The R2C halfband bakes in a +fs/4 shift, and its
-#: image rejection is >100 dB across roughly 0.06..0.44 but collapses at the
-#: band edges (-7 dB at 0.01), so a real-IF signal belongs near fs/4. This is
-#: also the realistic case: 40 MSa/s with a 10 MHz IF is exactly fs/4.
+#: Ddcr's design centre, and the placement the real path exists to serve. An
+#: R2C halfband is the cheapest real-to-complex converter there is, it bakes in
+#: the fs/4 shift for free (the rotation is 1, j, -1, -j: sign flips and rail
+#: swaps) and it decimates by two in the same pass -- all three are the same
+#: fact, and all three are a statement about fs/4. It is also the realistic
+#: case: 40 MSa/s with a 10 MHz IF is exactly fs/4.
+#:
+#: Off-centre is a TOLERANCE, not a band. The halfband's image rejection does
+#: collapse at the edges (-6.5 dB at 0.01, -13.7 at 0.02, past -60 dB across
+#: the middle, symmetric about fs/4), but what that costs a signal is set by
+#: whether its OCCUPIED band overruns DC or Nyquist, not by where its centre
+#: sits: `1/sps < fc < 0.5 - 1/sps`. See docs/design/mpsk.md section 1.3.
 IF_FS4 = 0.25
 
 #: Both loop bandwidths, stated explicitly rather than left to the constructor

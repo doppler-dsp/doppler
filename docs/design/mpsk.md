@@ -138,6 +138,93 @@ intermediate rate is **half** as many cycles/sample at the input rate. That also
 sets its one extra constraint: `sps > 2·m_out`, because the cascade behind the
 halfband runs at twice the overall rate.
 
+### 1.3 The real path is for an IF **at fs/4** — and why that is the whole design
+
+`MpskReceiverR` exists to decimate a **real IF sitting at or near `fs/4`**
+efficiently. That is not a restriction bolted on afterwards; it is what the
+architecture is:
+
+- an R2C halfband is the cheapest real→complex converter there is — half its
+    taps are zero and the other branch is a pure delay;
+- it bakes in an `fs/4` shift for free, because at `fs/4` the rotation
+    sequence is `1, j, -1, -j`, which is sign flips and rail swaps rather than
+    multiplies;
+- and it decimates by two in the same pass, because a real signal occupying
+    one Nyquist half needs only half the rate once it is complex.
+
+All three are the *same* fact. Put the IF at `fs/4` and the front end is nearly
+free. **That is the supported placement**; everything below is the tolerance
+around it, not an advertised operating band.
+
+#### The tolerance is geometric, and it is about OVERRUN, not distance
+
+The halfband's image rejection is deep across the middle of the band and
+collapses at the edges — measured on the front end alone, with a real tone in
+and the wanted/image ratio out:
+
+| input `f` | 0.01    | 0.02  | 0.04  | 0.06  | 0.10  | 0.44  | 0.46  | 0.49 |
+| --------- | ------- | ----- | ----- | ----- | ----- | ----- | ----- | ---- |
+| rejection | −6.5 dB | −13.7 | −34.1 | −61.3 | −66.2 | −61.3 | −34.1 | −6.5 |
+
+Symmetric about `fs/4`, as the structure requires.
+
+What that costs a *signal* is not set by where its centre sits but by whether
+its **occupied band overruns DC or Nyquist**. For a real IF at `f_c` with
+occupied half-width `B` (`B = 1/sps` to the first null of a rectangular pulse),
+the leaked image is the signal's own conjugate and occupies `[−f_c−B, −f_c+B]`.
+It overlaps the wanted band `[f_c−B, f_c+B]` exactly when
+
+$$-f_c + B > f_c - B \quad\Longleftrightarrow\quad B > f_c$$
+
+so the tolerance is
+
+$$\frac{1}{\mathrm{sps}} \;<\; f_c \;<\; 0.5 - \frac{1}{\mathrm{sps}}$$
+
+with no fixed frequency in it at all. **Touching DC is free; overrunning it is
+what costs.** Measured over 12 trials per row (`sps` = 10, 12, 16, 20 × three
+symbol seeds), placement expressed as overrun past that limit in units of `B`:
+
+| placement                              | EVM range        | worst SER | failed to lock |
+| -------------------------------------- | ---------------- | --------- | -------------- |
+| `f_c = fs/4` (the design centre)       | −18.9 … −24.9 dB | 0         | 0/12           |
+| exactly at the limit (band touches DC) | −17.2 … −20.1 dB | 0         | 0/12           |
+| 0.2 B past                             | −14.1 … −16.4 dB | 0         | 0/12           |
+| 0.4 B past                             | −12.4 … −14.4 dB | 0         | 0/12           |
+| 0.6 B past                             | −9.6 … −10.6 dB  | 1.4e−2    | 9/12           |
+| 0.7 B past                             | —                | —         | **12/12**      |
+
+Symmetric on the Nyquist side. Two things to read off it. EVM degrades
+**gracefully and monotonically**, so any EVM threshold on this axis is a
+judgement about where "degraded" starts; the **error rate** is what actually
+breaks, and it breaks where the geometry says. And the margin is not tight:
+half a null-width of overrun is still error-free, which is why touching DC at
+the design's own `B = f_c` is comfortable rather than marginal.
+
+#### Why this was previously written down as a fixed band
+
+An earlier statement of this constraint was `0.06 < f_c < 0.44` — the frequency
+range over which the *front end's* rejection is deep, with the pulse's
+half-width subtracted at the point of use. That is a sound conservative rule and
+it is over-conservative at high oversampling: at `sps = 20` it forbids
+`f_c ∈ [0.05, 0.11]`, which measures −18.8 to −20.5 dB with zero SER.
+
+It also carried a severity that no longer holds. The same note recorded that an
+occupied band reaching DC drops EVM to **−4 dB**; it now costs **2.7 dB**. The
+difference is not the front end — image rejection is a ratio and is unchanged,
+which the table above re-confirms. It is that the R2C halfband returned *half*
+the amplitude the analytic-signal convention requires, so the real path ran 6 dB
+down; a timing detector's slope goes as `A²`, which reached the loop as a 4×
+under-drive, and the harness added another 2.5× on top of that. The old
+figure measured an under-driven receiver failing at a marginal placement, not
+the placement itself.
+
+The tell is that the penalty used to be **bimodal** — ~18 dB on most seeds and
+~2.6 dB on the rest, depending on which rotation the carrier loop happened to
+settle into. With the loop correctly driven the measurement is deterministic to
+a few tenths of a dB, and the seed-averaging that finding required is no longer
+needed. A measurement that needs a median over seeds to be stable is usually
+telling you something about the loop, not about the axis being swept.
+
 ______________________________________________________________________
 
 ## 2. Carrier recovery — the design that's easy to get wrong

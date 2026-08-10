@@ -19,6 +19,13 @@ class DDC:
         Output rate / input rate. Must be > 0. Values >= 1 are up-sampling;
         typical use is decimation (0 < rate < 1).
 
+    Raises
+    ------
+    ValueError
+        If construction fails. The exception message is ``DDC: invalid
+        parameter (need rate > 0, 0 <= beta <= 1, span >= 1, pulse_sps > 0,
+        num_phases a power of two >= 2)``.
+
     Examples
     --------
     >>> from doppler.ddc import DDC
@@ -294,12 +301,12 @@ class DDC:
     def __enter__(self) -> "DDC":
         """Enter a context manager, returning this object.
 
-        Lets a DDC be used in a `with` statement so its C resources are
+        Lets a Ddc be used in a `with` statement so its C resources are
         released deterministically on exit rather than at collection time.
 
         Returns
         -------
-        DDC
+        Ddc
             This same object, not a copy.
         """
 
@@ -309,7 +316,7 @@ class DDC:
         exc: object | None = ...,
         tb: object | None = ...,
     ) -> None:
-        """Exit a context manager, releasing the DDC.
+        """Exit a context manager, releasing the Ddc.
 
         Equivalent to calling `destroy()`. Returns ``None``, so an exception
         raised inside the `with` body propagates normally; this never
@@ -350,6 +357,13 @@ class MatchedDDC:
         pulse_sps constructor parameter.
     num_phases : int, default 1024
         num_phases constructor parameter.
+
+    Raises
+    ------
+    ValueError
+        If construction fails. The exception message is ``DDC: invalid
+        parameter (need rate > 0, 0 <= beta <= 1, span >= 1, pulse_sps > 0,
+        num_phases a power of two >= 2)``.
 
     Examples
     --------
@@ -635,12 +649,13 @@ class MatchedDDC:
     def __enter__(self) -> "MatchedDDC":
         """Enter a context manager, returning this object.
 
-        Lets a MatchedDDC be used in a `with` statement so its C resources are
-        released deterministically on exit rather than at collection time.
+        Lets a DdcViewMatchedddc be used in a `with` statement so its C
+        resources are released deterministically on exit rather than at
+        collection time.
 
         Returns
         -------
-        MatchedDDC
+        DdcViewMatchedddc
             This same object, not a copy.
         """
 
@@ -650,7 +665,7 @@ class MatchedDDC:
         exc: object | None = ...,
         tb: object | None = ...,
     ) -> None:
-        """Exit a context manager, releasing the MatchedDDC.
+        """Exit a context manager, releasing the DdcViewMatchedddc.
 
         Equivalent to calling `destroy()`. Returns ``None``, so an exception
         raised inside the `with` body propagates normally; this never
@@ -686,6 +701,13 @@ class Ddcr:
     rate : float, default 0.25
         Total output/input rate. Must be in (0, 0.5) because the halfband
         pre-decimates by 2.
+
+    Raises
+    ------
+    ValueError
+        If construction fails. The exception message is ``Ddcr: invalid
+        parameter (need 0 < rate < 0.5, 0 <= beta <= 1, span >= 1, pulse_sps >
+        0, num_phases a power of two >= 2)``.
 
     Examples
     --------
@@ -1014,6 +1036,13 @@ class MatchedDdcr:
     num_phases : int, default 1024
         num_phases constructor parameter.
 
+    Raises
+    ------
+    ValueError
+        If construction fails. The exception message is ``Ddcr: invalid
+        parameter (need 0 < rate < 0.5, 0 <= beta <= 1, span >= 1, pulse_sps >
+        0, num_phases a power of two >= 2)``.
+
     Examples
     --------
     >>> from doppler.ddc import Ddcr
@@ -1288,12 +1317,13 @@ class MatchedDdcr:
     def __enter__(self) -> "MatchedDdcr":
         """Enter a context manager, returning this object.
 
-        Lets a MatchedDdcr be used in a `with` statement so its C resources are
-        released deterministically on exit rather than at collection time.
+        Lets a DdcrViewMatchedddcr be used in a `with` statement so its C
+        resources are released deterministically on exit rather than at
+        collection time.
 
         Returns
         -------
-        MatchedDdcr
+        DdcrViewMatchedddcr
             This same object, not a copy.
         """
 
@@ -1303,7 +1333,7 @@ class MatchedDdcr:
         exc: object | None = ...,
         tb: object | None = ...,
     ) -> None:
-        """Exit a context manager, releasing the MatchedDdcr.
+        """Exit a context manager, releasing the DdcrViewMatchedddcr.
 
         Equivalent to calling `close()`. Returns ``None``, so an exception
         raised inside the `with` body propagates normally; this never

@@ -39,6 +39,12 @@ class Capture:
     path : str | os.PathLike
         path constructor parameter (required).
 
+    Raises
+    ------
+    ValueError
+        If construction fails. The exception message is ``cannot open capture:
+        no such file, or an unrecognised file type``.
+
     """
     def __init__(self, path: str | os.PathLike) -> None: ...
 
@@ -170,6 +176,12 @@ class RawCapture:
     fc : float, default 0.0
         fc constructor parameter.
 
+    Raises
+    ------
+    ValueError
+        If construction fails. The exception message is ``cannot open capture:
+        no such file, or an unrecognised file type``.
+
     """
     def __init__(
         self,
@@ -260,12 +272,13 @@ class RawCapture:
     def __enter__(self) -> "RawCapture":
         """Enter a context manager, returning this object.
 
-        Lets a RawCapture be used in a `with` statement so its C resources are
-        released deterministically on exit rather than at collection time.
+        Lets a CaptureViewRawcapture be used in a `with` statement so its C
+        resources are released deterministically on exit rather than at
+        collection time.
 
         Returns
         -------
-        RawCapture
+        CaptureViewRawcapture
             This same object, not a copy.
         """
 
@@ -275,7 +288,7 @@ class RawCapture:
         exc: object | None = ...,
         tb: object | None = ...,
     ) -> None:
-        """Exit a context manager, releasing the RawCapture.
+        """Exit a context manager, releasing the CaptureViewRawcapture.
 
         Equivalent to calling `destroy()`. Returns ``None``, so an exception
         raised inside the `with` body propagates normally; this never

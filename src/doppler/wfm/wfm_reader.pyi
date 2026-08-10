@@ -29,6 +29,13 @@ class Reader:
         byte order, likewise a hint that only headerless raw uses; `"le"` or
         `"be"` from Python, 0 or 1 from C.
 
+    Raises
+    ------
+    ValueError
+        If construction fails. The exception message is ``cannot open capture:
+        no such file, unrecognised file type, or an unsupported BLUE format
+        mode (only S and C are supported)``.
+
     Examples
     --------
     >>> import pathlib, tempfile
@@ -307,12 +314,12 @@ class Reader:
     def __enter__(self) -> "Reader":
         """Enter a context manager, returning this object.
 
-        Lets a Reader be used in a `with` statement so its C resources are
+        Lets a WfmReader be used in a `with` statement so its C resources are
         released deterministically on exit rather than at collection time.
 
         Returns
         -------
-        Reader
+        WfmReader
             This same object, not a copy.
         """
 
@@ -322,7 +329,7 @@ class Reader:
         exc: object | None = ...,
         tb: object | None = ...,
     ) -> None:
-        """Exit a context manager, releasing the Reader.
+        """Exit a context manager, releasing the WfmReader.
 
         Equivalent to calling `close()`. Returns ``None``, so an exception
         raised inside the `with` body propagates normally; this never

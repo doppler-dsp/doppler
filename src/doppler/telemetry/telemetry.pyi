@@ -49,6 +49,13 @@ class Telemetry:
         requests are rounded up to the page minimum (buffer.h semantics) — read
         the authoritative value back with dp_tlm_capacity().
 
+    Raises
+    ------
+    ValueError
+        If construction fails. The exception message is ``ring_records must be
+        a power of two (and at least the page minimum); read the granted size
+        back from Telemetry.capacity``.
+
     Examples
     --------
     Create with defaults:
@@ -114,6 +121,13 @@ class Telemetry:
             Probe id (>= 0), or DP_ERR_INVALID on NULL/overlong name, decim ==
             0, or a full table.
 
+        Raises
+        ------
+        ValueError
+            If the C call returns a negative value. The exception message is
+            ``probe: name is NULL or too long, decim is 0, or the table is
+            full``, with the return code appended (gh-869).
+
         Examples
         --------
         >>> from doppler.telemetry import Telemetry
@@ -139,6 +153,12 @@ class Telemetry:
         -------
         int
             Probe id (>= 0), or ::DP_ERR_INVALID if no such probe.
+
+        Raises
+        ------
+        KeyError
+            If the C call returns a negative value. The exception message is
+            ``no probe by that name``, with the return code appended (gh-869).
 
         Examples
         --------
@@ -166,6 +186,12 @@ class Telemetry:
             Name of an ALREADY registered probe.
         decim : int
             Emit every decim-th event; >= 1.
+
+        Raises
+        ------
+        ValueError
+            If the C call returns a non-zero status. The exception message is
+            ``set_decim failed``, with the return code appended (gh-869).
 
         Examples
         --------
@@ -213,6 +239,12 @@ class Telemetry:
             binds dp_tlm_emit_checked() instead, which additionally refuses an
             id the registry never issued — see its docs for why the hot path
             does not.
+
+        Raises
+        ------
+        ValueError
+            If the C call returns a non-zero status. The exception message is
+            ``emit failed``, with the return code appended (gh-869).
 
         Examples
         --------
@@ -372,12 +404,12 @@ class Telemetry:
     def __enter__(self) -> "Telemetry":
         """Enter a context manager, returning this object.
 
-        Lets a Telemetry be used in a `with` statement so its C resources are
+        Lets a DpTlm be used in a `with` statement so its C resources are
         released deterministically on exit rather than at collection time.
 
         Returns
         -------
-        Telemetry
+        DpTlm
             This same object, not a copy.
         """
 
@@ -387,7 +419,7 @@ class Telemetry:
         exc: object | None = ...,
         tb: object | None = ...,
     ) -> None:
-        """Exit a context manager, releasing the Telemetry.
+        """Exit a context manager, releasing the DpTlm.
 
         Equivalent to calling `destroy()`. Returns ``None``, so an exception
         raised inside the `with` body propagates normally; this never
@@ -477,6 +509,15 @@ class MemoryCapture:
         file that outlives the process. The argument itself is not omittable —
         say None deliberately.
 
+    Raises
+    ------
+    ValueError
+        If construction fails. The exception message is ``capture could not be
+        opened: attach every probe BEFORE opening (the ring is sized from the
+        probe table, so no probes means no bound), pass a non-zero
+        block_samples, use a context with no capture already open, and — for
+        the file flavour — a writable path``.
+
     Examples
     --------
     >>> from doppler.telemetry import Telemetry, MemoryCapture
@@ -561,6 +602,12 @@ class MemoryCapture:
 
         Usually reached through dp_tlm_set_now() rather than called directly.
 
+        Raises
+        ------
+        ValueError
+            If the C call returns a non-zero status. The exception message is
+            ``block failed``, with the return code appended (gh-869).
+
         Examples
         --------
         >>> from doppler.telemetry import Telemetry, MemoryCapture
@@ -585,6 +632,15 @@ class MemoryCapture:
         joins the writer thread, closes the file and writes `<path>-meta`.
         Idempotent: a second call is a no-op returning the first call's
         verdict.
+
+        Raises
+        ------
+        ValueError
+            If the C call returns a non-zero status. The exception message is
+            ``the capture has a hole: records were dropped, which the block
+            bound makes impossible unless a step ran longer than block_samples
+            or no boundary was reached at all — see Capture.dropped``, with the
+            return code appended (gh-869).
 
         Examples
         --------
@@ -646,12 +702,12 @@ class MemoryCapture:
     def __enter__(self) -> "MemoryCapture":
         """Enter a context manager, returning this object.
 
-        Lets a MemoryCapture be used in a `with` statement so its C resources
+        Lets a DpTlmCapture be used in a `with` statement so its C resources
         are finalized deterministically on exit rather than at collection time.
 
         Returns
         -------
-        MemoryCapture
+        DpTlmCapture
             This same object, not a copy.
         """
 
@@ -661,9 +717,9 @@ class MemoryCapture:
         exc: object | None = ...,
         tb: object | None = ...,
     ) -> None:
-        """Exit a context manager, finalizing the MemoryCapture.
+        """Exit a context manager, finalizing the DpTlmCapture.
 
-        Equivalent to calling `close()`. The MemoryCapture is **not** released
+        Equivalent to calling `close()`. The DpTlmCapture is **not** released
         here: it stays usable, which is what makes results gathered during the
         `with` body readable after it. The memory is freed when the object is
         collected.
@@ -679,6 +735,13 @@ class MemoryCapture:
             Exception instance, or None. Ignored.
         tb : object | None
             Traceback object, or None. Ignored.
+
+        Raises
+        ------
+        ValueError
+            If ``close()`` reports failure. ``__exit__`` calls it and raises
+            what it raises, so a failed finalize propagates out of the ``with``
+            block (gh-805 §H).
         """
 
     # jm:hand
@@ -749,6 +812,15 @@ class Capture:
         MemoryCapture. Pass None to state that there is no time base; the
         argument itself is not omittable.
 
+    Raises
+    ------
+    ValueError
+        If construction fails. The exception message is ``capture could not be
+        opened: attach every probe BEFORE opening (the ring is sized from the
+        probe table, so no probes means no bound), pass a non-zero
+        block_samples, use a context with no capture already open, and — for
+        the file flavour — a writable path``.
+
     Examples
     --------
     >>> from doppler.telemetry import Telemetry, MemoryCapture
@@ -789,6 +861,12 @@ class Capture:
 
         Usually reached through dp_tlm_set_now() rather than called directly.
 
+        Raises
+        ------
+        ValueError
+            If the C call returns a non-zero status. The exception message is
+            ``block failed``, with the return code appended (gh-869).
+
         Examples
         --------
         >>> from doppler.telemetry import Telemetry, MemoryCapture
@@ -813,6 +891,15 @@ class Capture:
         joins the writer thread, closes the file and writes `<path>-meta`.
         Idempotent: a second call is a no-op returning the first call's
         verdict.
+
+        Raises
+        ------
+        ValueError
+            If the C call returns a non-zero status. The exception message is
+            ``the capture has a hole: records were dropped, which the block
+            bound makes impossible unless a step ran longer than block_samples
+            or no boundary was reached at all — see Capture.dropped``, with the
+            return code appended (gh-869).
 
         Examples
         --------
@@ -874,12 +961,13 @@ class Capture:
     def __enter__(self) -> "Capture":
         """Enter a context manager, returning this object.
 
-        Lets a Capture be used in a `with` statement so its C resources are
-        finalized deterministically on exit rather than at collection time.
+        Lets a DpTlmCaptureViewCapture be used in a `with` statement so its C
+        resources are finalized deterministically on exit rather than at
+        collection time.
 
         Returns
         -------
-        Capture
+        DpTlmCaptureViewCapture
             This same object, not a copy.
         """
 
@@ -889,12 +977,12 @@ class Capture:
         exc: object | None = ...,
         tb: object | None = ...,
     ) -> None:
-        """Exit a context manager, finalizing the Capture.
+        """Exit a context manager, finalizing the DpTlmCaptureViewCapture.
 
-        Equivalent to calling `close()`. The Capture is **not** released here:
-        it stays usable, which is what makes results gathered during the `with`
-        body readable after it. The memory is freed when the object is
-        collected.
+        Equivalent to calling `close()`. The DpTlmCaptureViewCapture is **not**
+        released here: it stays usable, which is what makes results gathered
+        during the `with` body readable after it. The memory is freed when the
+        object is collected.
 
         Returns ``None``, so an exception raised inside the `with` body
         propagates normally; this never suppresses one.
@@ -907,4 +995,11 @@ class Capture:
             Exception instance, or None. Ignored.
         tb : object | None
             Traceback object, or None. Ignored.
+
+        Raises
+        ------
+        ValueError
+            If ``close()`` reports failure. ``__exit__`` calls it and raises
+            what it raises, so a failed finalize propagates out of the ``with``
+            block (gh-805 §H).
         """

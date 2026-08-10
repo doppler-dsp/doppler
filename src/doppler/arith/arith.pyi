@@ -24,7 +24,7 @@ class AccQ15:
     100
 
     """
-    def __init__(self, acc: int = ...) -> None: ...
+    def __init__(self, acc: int = 0) -> None: ...
 
     def reset(self) -> None:
         """Reset the accumulator to zero, mirroring the post-create state. Does
@@ -311,7 +311,7 @@ class AccQ8:
     10
 
     """
-    def __init__(self, acc: int = ...) -> None: ...
+    def __init__(self, acc: int = 0) -> None: ...
 
     def reset(self) -> None:
         """Reset the accumulator to zero, mirroring the post-create state.

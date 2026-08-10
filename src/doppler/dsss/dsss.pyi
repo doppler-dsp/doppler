@@ -175,6 +175,12 @@ class Despreader:
         decim : int
             Emit every decim-th code period; >= 1.
 
+        Raises
+        ------
+        ValueError
+            If the C call returns a non-zero status. The exception message is
+            ``set_telemetry failed``, with the return code appended (gh-869).
+
         Examples
         --------
         >>> import numpy as np
@@ -269,6 +275,13 @@ class Despreader:
         ref_snr_db : float
             Noise-reference estimator SNR in dB (> 0), or 0 to derive from
             n_looks (see dll_configure_lock()).
+
+        Raises
+        ------
+        ValueError
+            If the C call returns a non-zero status. The exception message is
+            ``configure_code_lock failed``, with the return code appended
+            (gh-869).
 
         Examples
         --------
@@ -858,6 +871,13 @@ class Acquisition:
     noise_mode : Literal["mean", "median", "min", "max"], default "mean"
         CFAR mode index: 0=mean, 1=median, 2=min, 3=max.
 
+    Warns
+    -----
+    UserWarning
+        Emitted after construction when ``underpowered`` holds: ``Acquisition
+        is under-powered: pd_predicted < pd at this cn0_dbhz. Raise cn0_dbhz or
+        narrow doppler_uncertainty.``.
+
     Examples
     --------
     >>> import numpy as np
@@ -986,6 +1006,13 @@ class Acquisition:
         n_noncoh : int
             Non-coherent look count to pin, in `[1,
             ACQ_N_NONCOH_SAFETY_CEILING]`.
+
+        Raises
+        ------
+        ValueError
+            If the C call returns a non-zero status. The exception message is
+            ``configure_search_raw failed``, with the return code appended
+            (gh-869).
 
         Examples
         --------
@@ -1194,12 +1221,12 @@ class Acquisition:
     def __enter__(self) -> "Acquisition":
         """Enter a context manager, returning this object.
 
-        Lets a Acquisition be used in a `with` statement so its C resources are
+        Lets a Acq be used in a `with` statement so its C resources are
         released deterministically on exit rather than at collection time.
 
         Returns
         -------
-        Acquisition
+        Acq
             This same object, not a copy.
         """
 
@@ -1209,7 +1236,7 @@ class Acquisition:
         exc: object | None = ...,
         tb: object | None = ...,
     ) -> None:
-        """Exit a context manager, releasing the Acquisition.
+        """Exit a context manager, releasing the Acq.
 
         Equivalent to calling `destroy()`. Returns ``None``, so an exception
         raised inside the `with` body propagates normally; this never
@@ -1371,6 +1398,13 @@ class BurstAcquisition:
         n_noncoh : int
             Non-coherent look count to pin, in `[1,
             ACQ_N_NONCOH_SAFETY_CEILING]`.
+
+        Raises
+        ------
+        ValueError
+            If the C call returns a non-zero status. The exception message is
+            ``configure_search_raw failed``, with the return code appended
+            (gh-869).
 
         Examples
         --------
@@ -1573,13 +1607,12 @@ class BurstAcquisition:
     def __enter__(self) -> "BurstAcquisition":
         """Enter a context manager, returning this object.
 
-        Lets a BurstAcquisition be used in a `with` statement so its C
-        resources are released deterministically on exit rather than at
-        collection time.
+        Lets a BurstAcq be used in a `with` statement so its C resources are
+        released deterministically on exit rather than at collection time.
 
         Returns
         -------
-        BurstAcquisition
+        BurstAcq
             This same object, not a copy.
         """
 
@@ -1589,7 +1622,7 @@ class BurstAcquisition:
         exc: object | None = ...,
         tb: object | None = ...,
     ) -> None:
-        """Exit a context manager, releasing the BurstAcquisition.
+        """Exit a context manager, releasing the BurstAcq.
 
         Equivalent to calling `destroy()`. Returns ``None``, so an exception
         raised inside the `with` body propagates normally; this never
@@ -1716,13 +1749,12 @@ class PolynomialPhaseEstimator:
     def __enter__(self) -> "PolynomialPhaseEstimator":
         """Enter a context manager, returning this object.
 
-        Lets a PolynomialPhaseEstimator be used in a `with` statement so its C
-        resources are released deterministically on exit rather than at
-        collection time.
+        Lets a Ppe be used in a `with` statement so its C resources are
+        released deterministically on exit rather than at collection time.
 
         Returns
         -------
-        PolynomialPhaseEstimator
+        Ppe
             This same object, not a copy.
         """
 
@@ -1732,7 +1764,7 @@ class PolynomialPhaseEstimator:
         exc: object | None = ...,
         tb: object | None = ...,
     ) -> None:
-        """Exit a context manager, releasing the PolynomialPhaseEstimator.
+        """Exit a context manager, releasing the Ppe.
 
         Equivalent to calling `destroy()`. Returns ``None``, so an exception
         raised inside the `with` body propagates normally; this never
@@ -2224,6 +2256,13 @@ class DsssReceiver:
             buys sensitivity at the cost of dwell, replacing the auto-sized
             count.
 
+        Raises
+        ------
+        ValueError
+            If the C call returns a non-zero status. The exception message is
+            ``configure_search_raw failed``, with the return code appended
+            (gh-869).
+
         Examples
         --------
         >>> import numpy as np
@@ -2313,6 +2352,13 @@ class DsssReceiver:
             MpskReceiver samples per symbol (the resample target).
         n : int
             MpskReceiver's carrier-arm count; must divide sps.
+
+        Raises
+        ------
+        ValueError
+            If the C call returns a non-zero status. The exception message is
+            ``configure_chain_raw failed``, with the return code appended
+            (gh-869).
 
         Examples
         --------
@@ -2736,6 +2782,13 @@ class AsyncDsssReceiver:
             buys sensitivity at the cost of dwell, replacing the auto-sized
             count.
 
+        Raises
+        ------
+        ValueError
+            If the C call returns a non-zero status. The exception message is
+            ``configure_search_raw failed``, with the return code appended
+            (gh-869).
+
         Examples
         --------
         >>> import numpy as np
@@ -2811,6 +2864,13 @@ class AsyncDsssReceiver:
             MpskReceiver samples per symbol (the resample target).
         n : int
             MpskReceiver's carrier-arm count; must divide sps.
+
+        Raises
+        ------
+        ValueError
+            If the C call returns a non-zero status. The exception message is
+            ``configure_chain_raw failed``, with the return code appended
+            (gh-869).
 
         Examples
         --------

@@ -1,7 +1,7 @@
 include = ["objects/*.toml"]
 
 [project]
-jm_version = "0.54.3"
+jm_version = "0.55.1"
 name = "doppler"
 version = "0.1.0"
 build = "cmake"
@@ -9,6 +9,22 @@ build = "cmake"
 # — see docs). Omitting "windows" drops jm's per-component MinGW DLL-copy
 # boilerplate (jm-gh-213); the drift gate treats its absence as correct.
 platforms = ["linux", "macos"]
+# c_style / c_format_command (gh-265, gh-745): jm formats the C it generates
+# with the project's OWN pinned clang-format, so its render and the committed
+# bytes agree instead of differing by style forever.
+#
+# jm emits K&R 4-space; doppler is GNU 2-space. Without this, every `jm apply`
+# was followed by a manual clang-format pass that made the fragments differ
+# from a full render permanently -- which is most of what UNRECONCILED has
+# been counting. The argv form routes through uv so the binary is the one in
+# uv.lock, not whatever is on PATH: gh-745 was filed from this repo on 21.1.8
+# locally against 22.1.8 in CI, identical input giving different output and a
+# `status --check` that flipped red across machines.
+#
+# jm appends `-i --style=file --fallback-style=LLVM`, so the committed
+# .clang-format decides the layout -- there is no second style definition.
+c_style = "clang-format"
+c_format_command = ["uv", "run", "--group", "dev", "clang-format"]
 # py_format_command (gh-746): jm runs the project's OWN pinned ruff over the
 # generated .pyi stubs + re-export __init__.py shims, so generated Python comes
 # out in doppler's exact ruff style (quotes/spacing/blank-lines) instead of an

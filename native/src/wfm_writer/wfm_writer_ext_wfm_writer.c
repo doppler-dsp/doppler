@@ -515,6 +515,8 @@ static PyMethodDef WriterObj_methods[] = {
     "on : int\n"
     "    Input.\n"
     "\n"
+    "Examples\n"
+    "--------\n"
     "    >>> import numpy as np\n"
     "    >>> from doppler import Writer\n"
     "    >>> obj = Writer(path=..., fs=0.0, file_type=\"raw\", "
@@ -582,7 +584,14 @@ static PyMethodDef WriterObj_methods[] = {
     "exc : object | None\n"
     "    Exception instance, or None. Ignored.\n"
     "tb : object | None\n"
-    "    Traceback object, or None. Ignored.\n" },
+    "    Traceback object, or None. Ignored.\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "OSError\n"
+    "    If the C destructor reports failure. Raised from an explicit call\n"
+    "    and from ``__exit__`` alike, so a failing teardown propagates out\n"
+    "    of a ``with`` block (gh-541).\n" },
   { NULL }
 };
 

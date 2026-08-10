@@ -67,6 +67,12 @@ class BerMeter:
     conf : float, default 0.99
         Two-sided confidence level; 0 selects 0.99.
 
+    Raises
+    ------
+    ValueError
+        If construction fails. The exception message is ``m must be 2, 4 or 8
+        and conf must lie in (0, 1)``.
+
     Examples
     --------
     Create with defaults:
@@ -129,6 +135,12 @@ class BerMeter:
         ----------
         truth : NDArray[np.uint8]
             Transmitted symbol indices, each in `0..m-1`.
+
+        Raises
+        ------
+        ValueError
+            If the C call returns a non-zero status. The exception message is
+            ``set_truth failed``, with the return code appended (gh-869).
 
         Examples
         --------

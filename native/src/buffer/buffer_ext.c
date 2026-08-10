@@ -36,8 +36,8 @@
 
 typedef struct
 {
-  PyObject_HEAD dp_f32_t *buf; /* NULL after destroy() */
-  npy_intp wait_n;           /* samples currently outstanding */
+  PyObject_HEAD dp_f32_t *buf;    /* NULL after destroy() */
+  npy_intp                wait_n; /* samples currently outstanding */
 } F32BufferObject;
 
 static PyObject *
@@ -46,7 +46,7 @@ F32Buffer_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
   F32BufferObject *self = (F32BufferObject *)type->tp_alloc (type, 0);
   if (self)
     {
-      self->buf = NULL;
+      self->buf    = NULL;
       self->wait_n = 0;
     }
   return (PyObject *)self;
@@ -106,7 +106,7 @@ F32Buffer_write (F32BufferObject *self, PyObject *args)
     }
 
   npy_intp n = PyArray_SIZE (arr);
-  bool ok
+  bool     ok
       = dp_f32_write (self->buf, (const float *)PyArray_DATA (arr), (size_t)n);
   return PyBool_FromLong (ok ? 1 : 0);
 }
@@ -125,11 +125,12 @@ F32Buffer_wait (F32BufferObject *self, PyObject *args)
     }
 
   float *ptr;
-  Py_BEGIN_ALLOW_THREADS ptr = dp_f32_wait (self->buf, (size_t)n);
+  Py_BEGIN_ALLOW_THREADS
+    ptr = dp_f32_wait (self->buf, (size_t)n);
   Py_END_ALLOW_THREADS
 
-      /* Reinterpret float* IQ pairs as complex64 */
-      npy_intp dims[1] = { n };
+  /* Reinterpret float* IQ pairs as complex64 */
+  npy_intp  dims[1] = { n };
   PyObject *arr
       = PyArray_SimpleNewFromData (1, dims, NPY_COMPLEX64, (void *)ptr);
   if (!arr)
@@ -188,7 +189,8 @@ static PyGetSetDef F32Buffer_getset[] = {
     "Buffer capacity in complex samples.", NULL },
   { "available", (getter)F32Buffer_available, NULL,
     "Samples written but not yet consumed -- the largest n that wait()\n"
-    "will return for without spinning.", NULL },
+    "will return for without spinning.",
+    NULL },
   { "dropped", (getter)F32Buffer_dropped, NULL,
     "Samples dropped due to buffer overrun.", NULL },
   { NULL },
@@ -211,17 +213,17 @@ static PyMethodDef F32Buffer_methods[] = {
 
 static PyTypeObject F32BufferType = {
   PyVarObject_HEAD_INIT (NULL, 0).tp_name = "buffer.F32Buffer",
-  .tp_basicsize = sizeof (F32BufferObject),
-  .tp_dealloc = (destructor)F32Buffer_dealloc,
-  .tp_flags = Py_TPFLAGS_DEFAULT,
-  .tp_doc = "F32Buffer(n_samples)\n\n"
-            "Double-mapped SPSC circular buffer for complex64 samples.\n"
-            "n_samples must be a power of 2; a sub-page request is rounded\n"
-            "up to one page, so read the real size from `.capacity`.",
-  .tp_methods = F32Buffer_methods,
-  .tp_getset = F32Buffer_getset,
-  .tp_init = (initproc)F32Buffer_init,
-  .tp_new = F32Buffer_new,
+  .tp_basicsize                           = sizeof (F32BufferObject),
+  .tp_dealloc                             = (destructor)F32Buffer_dealloc,
+  .tp_flags                               = Py_TPFLAGS_DEFAULT,
+  .tp_doc                                 = "F32Buffer(n_samples)\n\n"
+                                            "Double-mapped SPSC circular buffer for complex64 samples.\n"
+                                            "n_samples must be a power of 2; a sub-page request is rounded\n"
+                                            "up to one page, so read the real size from `.capacity`.",
+  .tp_methods                             = F32Buffer_methods,
+  .tp_getset                              = F32Buffer_getset,
+  .tp_init                                = (initproc)F32Buffer_init,
+  .tp_new                                 = F32Buffer_new,
 };
 
 /* =====================================================================
@@ -231,7 +233,7 @@ static PyTypeObject F32BufferType = {
 typedef struct
 {
   PyObject_HEAD dp_f64_t *buf;
-  npy_intp wait_n;
+  npy_intp                wait_n;
 } F64BufferObject;
 
 static PyObject *
@@ -240,7 +242,7 @@ F64Buffer_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
   F64BufferObject *self = (F64BufferObject *)type->tp_alloc (type, 0);
   if (self)
     {
-      self->buf = NULL;
+      self->buf    = NULL;
       self->wait_n = 0;
     }
   return (PyObject *)self;
@@ -299,9 +301,9 @@ F64Buffer_write (F64BufferObject *self, PyObject *args)
       return NULL;
     }
 
-  npy_intp n = PyArray_SIZE (arr);
-  bool ok = dp_f64_write (self->buf, (const double *)PyArray_DATA (arr),
-                          (size_t)n);
+  npy_intp n  = PyArray_SIZE (arr);
+  bool     ok = dp_f64_write (self->buf, (const double *)PyArray_DATA (arr),
+                              (size_t)n);
   return PyBool_FromLong (ok ? 1 : 0);
 }
 
@@ -318,10 +320,11 @@ F64Buffer_wait (F64BufferObject *self, PyObject *args)
     }
 
   double *ptr;
-  Py_BEGIN_ALLOW_THREADS ptr = dp_f64_wait (self->buf, (size_t)n);
+  Py_BEGIN_ALLOW_THREADS
+    ptr = dp_f64_wait (self->buf, (size_t)n);
   Py_END_ALLOW_THREADS
 
-      npy_intp dims[1] = { n };
+  npy_intp  dims[1] = { n };
   PyObject *arr
       = PyArray_SimpleNewFromData (1, dims, NPY_COMPLEX128, (void *)ptr);
   if (!arr)
@@ -380,7 +383,8 @@ static PyGetSetDef F64Buffer_getset[] = {
     "Buffer capacity in complex samples.", NULL },
   { "available", (getter)F64Buffer_available, NULL,
     "Samples written but not yet consumed -- the largest n that wait()\n"
-    "will return for without spinning.", NULL },
+    "will return for without spinning.",
+    NULL },
   { "dropped", (getter)F64Buffer_dropped, NULL,
     "Samples dropped due to buffer overrun.", NULL },
   { NULL },
@@ -402,17 +406,17 @@ static PyMethodDef F64Buffer_methods[] = {
 
 static PyTypeObject F64BufferType = {
   PyVarObject_HEAD_INIT (NULL, 0).tp_name = "buffer.F64Buffer",
-  .tp_basicsize = sizeof (F64BufferObject),
-  .tp_dealloc = (destructor)F64Buffer_dealloc,
-  .tp_flags = Py_TPFLAGS_DEFAULT,
-  .tp_doc = "F64Buffer(n_samples)\n\n"
-            "Double-mapped SPSC circular buffer for complex128 samples.\n"
-            "n_samples must be a power of 2; a sub-page request is rounded\n"
-            "up to one page, so read the real size from `.capacity`.",
-  .tp_methods = F64Buffer_methods,
-  .tp_getset = F64Buffer_getset,
-  .tp_init = (initproc)F64Buffer_init,
-  .tp_new = F64Buffer_new,
+  .tp_basicsize                           = sizeof (F64BufferObject),
+  .tp_dealloc                             = (destructor)F64Buffer_dealloc,
+  .tp_flags                               = Py_TPFLAGS_DEFAULT,
+  .tp_doc                                 = "F64Buffer(n_samples)\n\n"
+                                            "Double-mapped SPSC circular buffer for complex128 samples.\n"
+                                            "n_samples must be a power of 2; a sub-page request is rounded\n"
+                                            "up to one page, so read the real size from `.capacity`.",
+  .tp_methods                             = F64Buffer_methods,
+  .tp_getset                              = F64Buffer_getset,
+  .tp_init                                = (initproc)F64Buffer_init,
+  .tp_new                                 = F64Buffer_new,
 };
 
 /* =====================================================================
@@ -425,7 +429,7 @@ static PyTypeObject F64BufferType = {
 typedef struct
 {
   PyObject_HEAD dp_i16_t *buf;
-  npy_intp wait_n;
+  npy_intp                wait_n;
 } I16BufferObject;
 
 static PyObject *
@@ -434,7 +438,7 @@ I16Buffer_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
   I16BufferObject *self = (I16BufferObject *)type->tp_alloc (type, 0);
   if (self)
     {
-      self->buf = NULL;
+      self->buf    = NULL;
       self->wait_n = 0;
     }
   return (PyObject *)self;
@@ -521,11 +525,12 @@ I16Buffer_wait (I16BufferObject *self, PyObject *args)
     }
 
   int16_t *ptr;
-  Py_BEGIN_ALLOW_THREADS ptr = dp_i16_wait (self->buf, (size_t)n);
+  Py_BEGIN_ALLOW_THREADS
+    ptr = dp_i16_wait (self->buf, (size_t)n);
   Py_END_ALLOW_THREADS
 
-      /* Shape (n, 2) int16: column 0 = I, column 1 = Q */
-      npy_intp dims[2] = { n, 2 };
+  /* Shape (n, 2) int16: column 0 = I, column 1 = Q */
+  npy_intp  dims[2] = { n, 2 };
   PyObject *arr = PyArray_SimpleNewFromData (2, dims, NPY_INT16, (void *)ptr);
   if (!arr)
     return NULL;
@@ -583,7 +588,8 @@ static PyGetSetDef I16Buffer_getset[] = {
     "Buffer capacity in IQ sample pairs.", NULL },
   { "available", (getter)I16Buffer_available, NULL,
     "Samples written but not yet consumed -- the largest n that wait()\n"
-    "will return for without spinning.", NULL },
+    "will return for without spinning.",
+    NULL },
   { "dropped", (getter)I16Buffer_dropped, NULL,
     "Sample pairs dropped due to buffer overrun.", NULL },
   { NULL },
@@ -606,18 +612,18 @@ static PyMethodDef I16Buffer_methods[] = {
 
 static PyTypeObject I16BufferType = {
   PyVarObject_HEAD_INIT (NULL, 0).tp_name = "buffer.I16Buffer",
-  .tp_basicsize = sizeof (I16BufferObject),
-  .tp_dealloc = (destructor)I16Buffer_dealloc,
-  .tp_flags = Py_TPFLAGS_DEFAULT,
-  .tp_doc = "I16Buffer(n_samples)\n\n"
-            "Double-mapped SPSC circular buffer for int16 IQ samples.\n"
-            "wait(n) returns an (n, 2) int16 array (col 0=I, col 1=Q).\n"
-            "n_samples must be a power of 2; a sub-page request is rounded\n"
-            "up to one page, so read the real size from `.capacity`.",
-  .tp_methods = I16Buffer_methods,
-  .tp_getset = I16Buffer_getset,
-  .tp_init = (initproc)I16Buffer_init,
-  .tp_new = I16Buffer_new,
+  .tp_basicsize                           = sizeof (I16BufferObject),
+  .tp_dealloc                             = (destructor)I16Buffer_dealloc,
+  .tp_flags                               = Py_TPFLAGS_DEFAULT,
+  .tp_doc                                 = "I16Buffer(n_samples)\n\n"
+                                            "Double-mapped SPSC circular buffer for int16 IQ samples.\n"
+                                            "wait(n) returns an (n, 2) int16 array (col 0=I, col 1=Q).\n"
+                                            "n_samples must be a power of 2; a sub-page request is rounded\n"
+                                            "up to one page, so read the real size from `.capacity`.",
+  .tp_methods                             = I16Buffer_methods,
+  .tp_getset                              = I16Buffer_getset,
+  .tp_init                                = (initproc)I16Buffer_init,
+  .tp_new                                 = I16Buffer_new,
 };
 
 /* =====================================================================
@@ -627,9 +633,9 @@ static PyTypeObject I16BufferType = {
 static PyModuleDef buffer_module = {
   PyModuleDef_HEAD_INIT,
   .m_name = "buffer",
-  .m_doc = "Doppler double-mapped circular buffer bindings.\n\n"
-           "Types: F32Buffer (complex64), F64Buffer (complex128), "
-           "I16Buffer (int16 IQ).",
+  .m_doc  = "Doppler double-mapped circular buffer bindings.\n\n"
+            "Types: F32Buffer (complex64), F64Buffer (complex128), "
+            "I16Buffer (int16 IQ).",
   .m_size = -1,
 };
 

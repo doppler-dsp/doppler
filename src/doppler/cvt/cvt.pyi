@@ -815,12 +815,12 @@ class F32ToI16U32:
     def __enter__(self) -> "F32ToI16U32":
         """Enter a context manager, returning this object.
 
-        Lets a F32ToI16U32 be used in a `with` statement so its C resources are
+        Lets a F32ToI16u32 be used in a `with` statement so its C resources are
         released deterministically on exit rather than at collection time.
 
         Returns
         -------
-        F32ToI16U32
+        F32ToI16u32
             This same object, not a copy.
         """
 
@@ -830,7 +830,7 @@ class F32ToI16U32:
         exc: object | None = ...,
         tb: object | None = ...,
     ) -> None:
-        """Exit a context manager, releasing the F32ToI16U32.
+        """Exit a context manager, releasing the F32ToI16u32.
 
         Equivalent to calling `destroy()`. Returns ``None``, so an exception
         raised inside the `with` body propagates normally; this never
@@ -1020,12 +1020,12 @@ class F32ToI16U64:
     def __enter__(self) -> "F32ToI16U64":
         """Enter a context manager, returning this object.
 
-        Lets a F32ToI16U64 be used in a `with` statement so its C resources are
+        Lets a F32ToI16u64 be used in a `with` statement so its C resources are
         released deterministically on exit rather than at collection time.
 
         Returns
         -------
-        F32ToI16U64
+        F32ToI16u64
             This same object, not a copy.
         """
 
@@ -1035,7 +1035,7 @@ class F32ToI16U64:
         exc: object | None = ...,
         tb: object | None = ...,
     ) -> None:
-        """Exit a context manager, releasing the F32ToI16U64.
+        """Exit a context manager, releasing the F32ToI16u64.
 
         Equivalent to calling `destroy()`. Returns ``None``, so an exception
         raised inside the `with` body propagates normally; this never
@@ -1162,12 +1162,12 @@ class I16U32ToF32:
     def __enter__(self) -> "I16U32ToF32":
         """Enter a context manager, returning this object.
 
-        Lets a I16U32ToF32 be used in a `with` statement so its C resources are
+        Lets a I16u32ToF32 be used in a `with` statement so its C resources are
         released deterministically on exit rather than at collection time.
 
         Returns
         -------
-        I16U32ToF32
+        I16u32ToF32
             This same object, not a copy.
         """
 
@@ -1177,7 +1177,7 @@ class I16U32ToF32:
         exc: object | None = ...,
         tb: object | None = ...,
     ) -> None:
-        """Exit a context manager, releasing the I16U32ToF32.
+        """Exit a context manager, releasing the I16u32ToF32.
 
         Equivalent to calling `destroy()`. Returns ``None``, so an exception
         raised inside the `with` body propagates normally; this never
@@ -1304,12 +1304,12 @@ class I16U64ToF32:
     def __enter__(self) -> "I16U64ToF32":
         """Enter a context manager, returning this object.
 
-        Lets a I16U64ToF32 be used in a `with` statement so its C resources are
+        Lets a I16u64ToF32 be used in a `with` statement so its C resources are
         released deterministically on exit rather than at collection time.
 
         Returns
         -------
-        I16U64ToF32
+        I16u64ToF32
             This same object, not a copy.
         """
 
@@ -1319,7 +1319,7 @@ class I16U64ToF32:
         exc: object | None = ...,
         tb: object | None = ...,
     ) -> None:
-        """Exit a context manager, releasing the I16U64ToF32.
+        """Exit a context manager, releasing the I16u64ToF32.
 
         Equivalent to calling `destroy()`. Returns ``None``, so an exception
         raised inside the `with` body propagates normally; this never
@@ -1511,12 +1511,12 @@ class F32ToUQ15:
     def __enter__(self) -> "F32ToUQ15":
         """Enter a context manager, returning this object.
 
-        Lets a F32ToUQ15 be used in a `with` statement so its C resources are
+        Lets a F32ToUq15 be used in a `with` statement so its C resources are
         released deterministically on exit rather than at collection time.
 
         Returns
         -------
-        F32ToUQ15
+        F32ToUq15
             This same object, not a copy.
         """
 
@@ -1526,7 +1526,7 @@ class F32ToUQ15:
         exc: object | None = ...,
         tb: object | None = ...,
     ) -> None:
-        """Exit a context manager, releasing the F32ToUQ15.
+        """Exit a context manager, releasing the F32ToUq15.
 
         Equivalent to calling `destroy()`. Returns ``None``, so an exception
         raised inside the `with` body propagates normally; this never
@@ -1656,12 +1656,12 @@ class UQ15ToF32:
     def __enter__(self) -> "UQ15ToF32":
         """Enter a context manager, returning this object.
 
-        Lets a UQ15ToF32 be used in a `with` statement so its C resources are
+        Lets a Uq15ToF32 be used in a `with` statement so its C resources are
         released deterministically on exit rather than at collection time.
 
         Returns
         -------
-        UQ15ToF32
+        Uq15ToF32
             This same object, not a copy.
         """
 
@@ -1671,7 +1671,7 @@ class UQ15ToF32:
         exc: object | None = ...,
         tb: object | None = ...,
     ) -> None:
-        """Exit a context manager, releasing the UQ15ToF32.
+        """Exit a context manager, releasing the Uq15ToF32.
 
         Equivalent to calling `destroy()`. Returns ``None``, so an exception
         raised inside the `with` body propagates normally; this never
@@ -1885,12 +1885,12 @@ class ADC:
     def __enter__(self) -> "ADC":
         """Enter a context manager, returning this object.
 
-        Lets a ADC be used in a `with` statement so its C resources are
+        Lets a Adc be used in a `with` statement so its C resources are
         released deterministically on exit rather than at collection time.
 
         Returns
         -------
-        ADC
+        Adc
             This same object, not a copy.
         """
 
@@ -1900,7 +1900,7 @@ class ADC:
         exc: object | None = ...,
         tb: object | None = ...,
     ) -> None:
-        """Exit a context manager, releasing the ADC.
+        """Exit a context manager, releasing the Adc.
 
         Equivalent to calling `destroy()`. Returns ``None``, so an exception
         raised inside the `with` body propagates normally; this never

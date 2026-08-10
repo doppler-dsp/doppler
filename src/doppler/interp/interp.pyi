@@ -118,13 +118,12 @@ class InterpolatedTable:
     def __enter__(self) -> "InterpolatedTable":
         """Enter a context manager, returning this object.
 
-        Lets a InterpolatedTable be used in a `with` statement so its C
-        resources are released deterministically on exit rather than at
-        collection time.
+        Lets a InterpTable be used in a `with` statement so its C resources are
+        released deterministically on exit rather than at collection time.
 
         Returns
         -------
-        InterpolatedTable
+        InterpTable
             This same object, not a copy.
         """
 
@@ -134,7 +133,7 @@ class InterpolatedTable:
         exc: object | None = ...,
         tb: object | None = ...,
     ) -> None:
-        """Exit a context manager, releasing the InterpolatedTable.
+        """Exit a context manager, releasing the InterpTable.
 
         Equivalent to calling `destroy()`. Returns ``None``, so an exception
         raised inside the `with` body propagates normally; this never

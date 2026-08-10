@@ -144,6 +144,18 @@ extern "C"
    *                        complex twin does — a real IF must be tuned near,
    *                        so @p init_norm_freq is the centre and a tap buys
    *                        pull-in *around* it, not from nothing.
+   * @param agc            Non-zero (default) puts this receiver's ONE AGC in
+   *                        the front-end cascade, before the terminal
+   *                        matched stage — the same placement and the same
+   *                        reason as the complex twin
+   *                        (@ref mpsk_receiver_create): it serves the TIMING
+   *                        detector, whose slope is computed at construction
+   *                        for a unit-amplitude symbol stream. Pass 0 and
+   *                        the timing loop is under-driven by `A^2`.
+   * @param bn_agc_ratio   That AGC's bandwidth as a fraction of the SLOWEST
+   *                        loop it feeds, `min(bn_carrier, bn_timing)` — see
+   *                        @ref mpsk_rx_agc_bn. In (0, 1), refused at 1 or
+   *                        above; `MPSK_RX_AGC_BW_RATIO` (0.05) by default.
    * @return Heap-allocated state, or NULL on invalid args / allocation
    *         failure.
    * @note Caller must call mpsk_receiver_r_destroy() when done.

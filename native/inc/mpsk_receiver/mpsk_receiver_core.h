@@ -234,6 +234,28 @@ extern "C"
    *                        metric can flag. For more range than any tap
    *                        gives, put a coarse frequency estimate in front
    *                        and pass it as @p init_norm_freq.
+   * @param agc            Non-zero (default) puts the receiver's ONE AGC in
+   *                        the front-end cascade, immediately before the
+   *                        terminal matched stage. It is there for the
+   *                        TIMING detector, which normalises by a slope
+   *                        computed at construction for a unit-amplitude
+   *                        symbol stream (@ref symsync_ted_slope) — no
+   *                        carrier path needs it, since
+   *                        @ref carrier_nda_disc normalises by its own
+   *                        `|z|^M`. Pass 0 and the receiver is simply
+   *                        un-levelled: the timing loop is under-driven by
+   *                        `A^2`, which at an input amplitude of 0.25 is
+   *                        16x. The reference is derived from the bank's own
+   *                        pulse energy, not chosen.
+   * @param bn_agc_ratio   That AGC's bandwidth as a fraction of the SLOWEST
+   *                        loop it feeds, `min(bn_carrier, bn_timing)` — see
+   *                        @ref mpsk_rx_agc_bn. Must be in (0, 1);
+   *                        construction refuses 1 or above rather than
+   *                        warning, because at 1 the AGC is exactly as fast
+   *                        as a loop it feeds and past that it is faster,
+   *                        and two level-correcting loops at the same speed
+   *                        integrate against each other.
+   *                        `MPSK_RX_AGC_BW_RATIO` (0.05) is the default.
    * @return Heap-allocated state, or NULL on invalid args / allocation
    * failure.
    * @note Caller must call mpsk_receiver_destroy() when done.

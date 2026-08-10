@@ -206,10 +206,26 @@ def test_tracks_an_unknown_clock_offset(actual):
 
 def test_arbitrary_non_integer_sps():
     # sps need not be an integer, or a ratio of small integers.
-    x, _ = _tx(17.333333333, 0.37)
+    #
+    # amp=1.0 is the CONTRACT, not a tuned value. RateSync is a timing block,
+    # not a receiver: it carries no AGC, deliberately, because every receiver
+    # composing it already levels in its own front-end cascade and a second
+    # one inside the timing block would be two AGCs integrating against each
+    # other. So the caller owns the level, and the level the TED's
+    # construct-time slope was computed for is unit-amplitude symbols --
+    # `ref_db = 10*log10(bank_e0 / bank_sps)` is ~0 dB precisely because the
+    # bank normalises by its own pulse energy.
+    #
+    # Presenting anything else costs EVM with nothing to reveal it: measured
+    # on this case, amp=0.25 gives -21.6 dB against -37.0 dB at unit
+    # amplitude -- 15 dB gone with lock_stat 0.70 either way and
+    # clipped=False, because clipping is the OVER-drive failure and there is
+    # no under-drive twin. Tracked as gh-661.
+    x, _ = _tx(17.333333333, 0.37, amp=1.0)
     rs = RateSync(sps=17.333333333, pulse="rrc", bn=0.01)
     y = rs.steps(x)
     assert rs.lock_stat > 0.55
+    assert not rs.clipped, "unit amplitude must not overdrive the CIC"
     assert _evm_db(y) < -32.0
     assert len(y) == pytest.approx(NSYM, rel=0.02)
 

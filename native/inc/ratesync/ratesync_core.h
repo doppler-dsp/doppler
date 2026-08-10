@@ -354,6 +354,26 @@ extern "C"
    * and no extra stage, and is worth ~28 dB of EVM on any cascade that plans a
    * CIC. See RateConverter_create_matched().
    *
+   * @par The caller owns the input level
+   * Present **unit-amplitude symbols**. This object carries no AGC, and that
+   * is deliberate: a receiver composing it already levels in its own
+   * front-end cascade (RateConverter_enable_agc(), one per receiver), so an
+   * AGC here would be a second one integrating against the first. The level
+   * to hit is not a tuned number — the TED normalises by its own
+   * construct-time slope, and that slope is computed for the reference the
+   * bank already defines, `10*log10(bank_e0 / bank_sps)`, which is ~0 dB
+   * because the bank normalises by its own pulse energy. See
+   * RateConverter_agc_ref_db(), which is defined for any matched cascade
+   * whether or not an AGC is enabled.
+   *
+   * Under-driving costs EVM with nothing to reveal it: at `sps = 17.333`,
+   * quarter-amplitude input measures -21.6 dB EVM against -37.0 dB at unit
+   * amplitude — 15 dB — with `lock_stat` 0.70 either way, because the loop
+   * really does lock and only the demodulation degrades. Over-driving is the
+   * other end of the same axis and IS reported, by ratesync_get_clipped():
+   * a CIC bounds its input to +-1.0. There is no under-drive twin of that
+   * flag — tracked as gh-661.
+   *
    * @param sps         Nominal samples per symbol; any double >= @p m
    *                    (17.33389 is as valid as 4). The bound is `m`, not 2,
    *                    because the terminal stage must not be asked to

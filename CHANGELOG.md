@@ -99,6 +99,26 @@ ______________________________________________________________________
 
 ### Fixed
 
+- **`max_out` is a pre-allocation hint, and four doc comments said it was a
+    limit.** `nco_core.h` and `lo_core.h` both called `*_max_out()` the
+    "maximum samples per call", and `nco_core.c`/`lo_core.c` both said a
+    request past 65536 "overflows the buffer and is undefined behaviour". All
+    four described the contract from before `pass_capacity` (jm gh-138) began
+    telling each kernel the caller's capacity: every generator now clamps to
+    its own `max_out` argument and returns what it wrote, and the Python
+    binding grows its buffer on demand.
+
+    Measured, not reasoned: a 70000-sample request returns 70000 correct
+    samples on `lo.steps`, `lo.steps_ctrl`, `nco.steps_u32`,
+    `nco.steps_u32_scaled` and `nco.steps_u32_ctrl` alike.
+
+    The LO copies were found first and the NCO ones only because the sibling
+    was then checked — one false sentence duplicated four times, which is the
+    documentation form of the duplicate-that-drifts. `test_nco_core.c` §17
+    pins the behaviour on each of the three NCO output mappings separately,
+    since each has its own kernel and could regain a private ceiling
+    independently; `test_lo_core.c` §19 does the same for the LO.
+
 - **`LO` documents an SFDR *bound*, not just the typical figure.** The header
     said "~96 dBc" with no qualification, and a design sizing a spur budget
     would have taken that as the guarantee. It is not: the spur level is set

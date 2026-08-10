@@ -81,11 +81,23 @@ class NCO:
         """
 
     def steps_u32_max_out(self) -> int:
-        """Maximum samples per call (determines pre-allocated buffer size).
+        """Pre-allocation hint: the buffer size the binding starts with.
 
-        The Python extension pre-allocates output buffers of this size at
+        NOT a limit on the call, and it used to say it was ("requesting more
 
-        create time. Requesting more samples per call is undefined behaviour.
+        samples per call is undefined behaviour"). That was the contract
+
+        before `pass_capacity` (jm gh-138) started telling the kernel the
+
+        caller's capacity: every stepper now clamps to its own max_out
+
+        argument and returns what it actually wrote, and the Python binding
+
+        grows its buffer on demand. Measured: all three faces return 70000
+
+        correct samples for a 70000-sample request. Size an out= buffer
+
+        with this, or ignore it and let the binding allocate.
 
         Returns
         -------

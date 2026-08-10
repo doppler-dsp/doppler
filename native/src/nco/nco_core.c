@@ -108,9 +108,12 @@ nco_get_phase_inc (const nco_state_t *state)
 /* ================================================================== */
 
 /*
- * Pre-allocated buffer size for all generator methods.  The Python
- * extension allocates output buffers of this size at create time; calling
- * with n > 65536 overflows the buffer and is undefined behaviour.
+ * Pre-allocated buffer size for all generator methods: what the Python
+ * binding allocates at create time, NOT a ceiling on the call.  Since
+ * pass_capacity (jm gh-138) every generator here is told the caller's
+ * capacity and clamps to it, and the binding grows its buffer on demand,
+ * so a larger request is served rather than overrunning anything.  This
+ * comment claimed the opposite until it was measured.
  */
 #define NCO_MAX_OUT 65536u
 

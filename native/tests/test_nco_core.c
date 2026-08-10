@@ -978,6 +978,55 @@ main (void)
       }
   }
 
+  /* ----------------------------------------------------------------
+   * 17. max_out is the bound; NCO_MAX_OUT is a pre-allocation hint.
+   *
+   * nco_core.h said "requesting more samples per call is undefined
+   * behaviour" and nco_core.c said a request past 65536 "overflows the
+   * buffer". Both described the contract from before pass_capacity
+   * (jm gh-138) handed the kernel the caller's capacity, and both were
+   * still there long after it stopped being true -- the identical pair
+   * of sentences sat in lo_core.{h,c} too, which is how this was found:
+   * fixing one copy and not its sibling is the drift the no-duplicate
+   * rule exists to prevent.
+   *
+   * Pinned on all three output mappings, since each has its own kernel
+   * and could regain a private ceiling independently.
+   * ---------------------------------------------------------------- */
+  {
+    CHECK (nco_steps_u32_max_out (NULL) == 65536u);
+    CHECK (nco_steps_u32_scaled_max_out (NULL) == 65536u);
+    CHECK (nco_steps_u32_ovf_max_out (NULL) == 65536u);
+
+    const size_t BIG  = 70000;
+    uint32_t    *big  = malloc (BIG * sizeof *big);
+    uint8_t     *flag = malloc (BIG * sizeof *flag);
+    CHECK (big != NULL && flag != NULL);
+    if (big && flag)
+      {
+        nco_state_t *raw = nco_create (0.013, 0);
+        CHECK (nco_steps_u32 (raw, BIG, big, BIG) == BIG);
+        /* every sample really was written: the accumulator is exactly
+         * predictable, so the last one proves the whole run */
+        uint32_t inc = nco_get_phase_inc (raw);
+        CHECK (big[BIG - 1] == (uint32_t)((uint64_t)inc * (BIG - 1)));
+        CHECK (nco_get_phase (raw) == (uint32_t)((uint64_t)inc * BIG));
+        nco_destroy (raw);
+
+        nco_state_t *sc = nco_create (0.013, 1000);
+        CHECK (nco_steps_u32_scaled (sc, BIG, big, BIG) == BIG);
+        CHECK (big[BIG - 1] < 1000u);
+        nco_destroy (sc);
+
+        nco_state_t *ov = nco_create (0.013, 0);
+        CHECK (nco_steps_u32_ovf (ov, BIG, big, flag, BIG) == BIG);
+        nco_destroy (ov);
+
+        free (big);
+        free (flag);
+      }
+  }
+
   if (_fails)
     {
       fprintf (stderr, "test_nco_core FAILED (%d)\n", _fails);

@@ -85,7 +85,7 @@ _Phase-accumulator NCO, and the one float-&gt;integer boundary everything that s
 |  size\_t | [**nco\_steps\_u32**](#function-nco_steps_u32) ([**nco\_state\_t**](structnco__state__t.md) \* state, size\_t n, uint32\_t \* out, size\_t max\_out) <br>_Advance n samples; write raw uint32 accumulator values. Each element is the phase value BEFORE the increment fires, so_ `out[0]` _is the phase at the moment of the call. The accumulator wraps silently at 2^32, giving the full-resolution integer ramp that the scaled and carry variants derive from. Returns n._ |
 |  size\_t | [**nco\_steps\_u32\_ctrl**](#function-nco_steps_u32_ctrl) ([**nco\_state\_t**](structnco__state__t.md) \* state, const float \* ctrl, size\_t ctrl\_len, uint32\_t \* out, size\_t max\_out) <br>_Advance ctrl\_len samples; raw phase, with a per-sample control offset added on top of the fixed phase\_inc (not persisted)._  |
 |  size\_t | [**nco\_steps\_u32\_ctrl\_max\_out**](#function-nco_steps_u32_ctrl_max_out) ([**nco\_state\_t**](structnco__state__t.md) \* state) <br> |
-|  size\_t | [**nco\_steps\_u32\_max\_out**](#function-nco_steps_u32_max_out) ([**nco\_state\_t**](structnco__state__t.md) \* state) <br>_Maximum samples per call (determines pre-allocated buffer size)._  |
+|  size\_t | [**nco\_steps\_u32\_max\_out**](#function-nco_steps_u32_max_out) ([**nco\_state\_t**](structnco__state__t.md) \* state) <br>_Pre-allocation hint: the buffer size the binding starts with._  |
 |  size\_t | [**nco\_steps\_u32\_ovf**](#function-nco_steps_u32_ovf) ([**nco\_state\_t**](structnco__state__t.md) \* state, size\_t n, uint32\_t \* out, uint8\_t \* out1, size\_t max\_out) <br>_Advance n samples; write raw phase values and per-sample carry. Identical to nco\_steps\_u32 for the phase array, but simultaneously fills a parallel uint8 carry buffer:_ `out1[i]` _is 1 if the add that produced_`out[i]` _'s post-increment phase wrapped past 2^32, else 0. The carry marks the exact boundary of one input period and is the primitive for polyphase sample-clock and rational resampling engines. Returns n._ |
 |  size\_t | [**nco\_steps\_u32\_ovf\_ctrl**](#function-nco_steps_u32_ovf_ctrl) ([**nco\_state\_t**](structnco__state__t.md) \* state, const float \* ctrl, size\_t ctrl\_len, uint32\_t \* out, uint8\_t \* out1, size\_t max\_out) <br>_Advance ctrl\_len samples; raw phase + per-sample carry, with a per-sample control offset added on top of phase\_inc._  |
 |  size\_t | [**nco\_steps\_u32\_ovf\_ctrl\_max\_out**](#function-nco_steps_u32_ovf_ctrl_max_out) ([**nco\_state\_t**](structnco__state__t.md) \* state) <br> |
@@ -1049,7 +1049,7 @@ size_t nco_steps_u32_ctrl_max_out (
 
 ### function nco\_steps\_u32\_max\_out 
 
-_Maximum samples per call (determines pre-allocated buffer size)._ 
+_Pre-allocation hint: the buffer size the binding starts with._ 
 ```C++
 size_t nco_steps_u32_max_out (
     nco_state_t * state
@@ -1058,7 +1058,8 @@ size_t nco_steps_u32_max_out (
 
 
 
-The Python extension pre-allocates output buffers of this size at create time. Requesting more samples per call is undefined behaviour. 
+NOT a limit on the call, and it used to say it was ("requesting more
+samples per call is undefined behaviour"). That was the contract before `pass_capacity` (jm gh-138) started telling the kernel the caller's capacity: every stepper now clamps to its own `max_out` argument and returns what it actually wrote, and the Python binding grows its buffer on demand. Measured: all three faces return 70000 correct samples for a 70000-sample request. Size an `out=` buffer with this, or ignore it and let the binding allocate. 
 
 
         

@@ -629,10 +629,16 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
   /* ---- Block generators ---- */
 
   /**
-   * @brief Maximum samples per call (determines pre-allocated buffer size).
+   * @brief Pre-allocation hint: the buffer size the binding starts with.
    *
-   * The Python extension pre-allocates output buffers of this size at
-   * create time.  Requesting more samples per call is undefined behaviour.
+   * NOT a limit on the call, and it used to say it was ("requesting more
+   * samples per call is undefined behaviour").  That was the contract
+   * before `pass_capacity` (jm gh-138) started telling the kernel the
+   * caller's capacity: every stepper now clamps to its own @c max_out
+   * argument and returns what it actually wrote, and the Python binding
+   * grows its buffer on demand.  Measured: all three faces return 70000
+   * correct samples for a 70000-sample request.  Size an @c out= buffer
+   * with this, or ignore it and let the binding allocate.
    */
   size_t nco_steps_u32_max_out (nco_state_t *state);
 

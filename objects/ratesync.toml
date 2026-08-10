@@ -10,6 +10,7 @@ class_name = "RateSync"
 # object has to name every core its own dependency drags in. RateConverter is
 # a cascade of five.
 depends_on = [
+  { name = "ber" }, # dp_sym_test.h delegates here
   { name = "RateConverter", link = true },
   { name = "resamp", link = true },
   { name = "hbdecim", link = true },

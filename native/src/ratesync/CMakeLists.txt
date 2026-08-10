@@ -4,6 +4,7 @@ target_include_directories(
   ratesync_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc
                             ${CMAKE_SOURCE_DIR}/native/inc/ratesync)
 target_link_libraries(ratesync_core PUBLIC
+    ber_core
     RateConverter_core
     resamp_core
     hbdecim_core
@@ -21,7 +22,8 @@ target_link_libraries(ratesync_core PUBLIC
 add_executable(test_ratesync_core
                ${CMAKE_SOURCE_DIR}/native/tests/test_ratesync_core.c)
 target_link_libraries(test_ratesync_core
-                      PRIVATE ratesync_core RateConverter_core
+                      PRIVATE ratesync_core ber_core
+    RateConverter_core
     resamp_core
     hbdecim_core
     cic_core
@@ -43,7 +45,8 @@ add_executable(
   bench_ratesync_core
   ${CMAKE_SOURCE_DIR}/native/benchmarks/bench_ratesync_core.c)
 target_link_libraries(bench_ratesync_core
-                      PRIVATE ratesync_core RateConverter_core
+                      PRIVATE ratesync_core ber_core
+    RateConverter_core
     resamp_core
     hbdecim_core
     cic_core

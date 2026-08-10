@@ -15,6 +15,41 @@ ______________________________________________________________________
 
 ### Added
 
+- **RateSync is certified under the object-validation campaign.** It owns
+    `src/doppler/track/tests/validation/ratesync/`, and `track` gains the
+    `test_validation_limits.py` gate the campaign requires, so its 23-claim
+    envelope is now asserted by pytest rather than only written down. The
+    design rationale it assumes is written off main as
+    `docs/design/ratesync-timing.md` — the last residual stranded in the
+    abandoned PR #647, rewritten rather than cherry-picked because the TED
+    normaliser has since become a construct-time constant (loop state v2) and
+    the draft's central argument no longer describes the code.
+
+    The order was header first: 40 prose claims enumerated from
+    `ratesync_core.h`, each mapped to `test_ratesync_core.c` as pinned,
+    pinned-only-at-literals, or absent. **Twelve new C sections (§8–§19)**
+    cover the absent ones — the prime countdown and where its length comes
+    from, that one input really can complete two terminal outputs, the DTTL
+    detector (previously executed by nothing), the timing loop driven over a
+    hand-owned cascade, the `ctrl`-referenced-to-terminal-rate consequence,
+    `clipped` in both directions, the `m >= 4` rectangle rule, the loop's own
+    state envelope, atomic telemetry attach, `configure` semantics, `max_out`,
+    and the `sps == m` edge.
+
+    Every one was proved by sabotaging the implementation and watching it go
+    red. **Two of the thirteen sabotages initially stayed GREEN** and the
+    sections were rewritten until they failed: the DTTL section passed because
+    the two detectors also differ by `ted_scale`, so a dispatch collapsing to
+    Gardner still diverged (it now isolates the discriminator with `ted_scale`
+    held equal), and the loop-state section passed because with `m = 2` a lost
+    strobe phase lands on the right parity half the time (it now runs at both
+    parities).
+
+    Measured for the first time: the TED S-curve carries **exactly two zeros
+    per symbol with opposite slope**, confirming the header's T/2 parity
+    argument, and its normalised slope at lock is **1.015**, confirming the
+    construct-time `ted_scale`.
+
 - **`telemetry.Capture` / `MemoryCapture` accept `clock=None`**, which states
     that there is no time base. The C has always read `NULL` here that way —
     the sidecar then omits `fs` and `epoch_real_ns` rather than fabricating a

@@ -87,15 +87,39 @@ class TestUnityRate:
         y = r.execute(x)
         assert len(y) == 64
 
-    def test_pass_through_values(self):
+    def test_unity_is_a_one_arm_all_pass(self):
+        """R == 1 filters through one pinned arm; it is not a copy.
+
+        At unity the step is one whole period, which is 0 in a phase word,
+        so the accumulator never advances and ONE arm is selected forever.
+        Every sample still goes through that arm's filter -- there is no
+        short-circuit -- so the invariant is a FLAT magnitude response with
+        a constant group delay, not ``out == in``.  ``out == in`` is what
+        the deleted memcpy used to provide, and what this test used to
+        assert; test_resamp_core.c's R == 1 case is the C twin of this.
+        """
+        n = 4096
+        k = np.arange(n)
+        for f in (0.01, 0.05, 0.11, 0.2):
+            r = Resampler(1.0)
+            x = np.exp(2j * np.pi * f * k).astype(np.complex64)
+            y = r.execute(x)
+            # Settled portion only: skip the filter's fill.
+            mag = np.abs(y[64:])
+            assert abs(float(mag.mean()) - 1.0) < 0.02, (
+                f"f={f}: mean |y| = {mag.mean():.4f}, expected ~1 (all-pass)"
+            )
+            # Flat in |H| means the envelope does not wobble either.
+            assert float(mag.std()) < 0.02, (
+                f"f={f}: |y| std {mag.std():.4f} -- not a flat response"
+            )
+        # A pure delay, and NOT a copy: the ramp comes out filtered.
         r = Resampler(1.0)
         x = _ramp(64)
         y = r.execute(x)
-        np.testing.assert_allclose(
-            y.real, x.real, atol=1e-4, err_msg="real part mismatch"
-        )
-        np.testing.assert_allclose(
-            y.imag, x.imag, atol=1e-4, err_msg="imag part mismatch"
+        assert not np.allclose(y.real, x.real, atol=1e-4), (
+            "unity rate returned its input unchanged -- the memcpy "
+            "short-circuit is back, and with it the untested filter path"
         )
 
     def test_output_dtype(self):

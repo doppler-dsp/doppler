@@ -280,11 +280,13 @@ class TestHalfbandDecimatorR2C:
         f_out_expected = 0.10
         bins, db = _spectrum_db(y_last)
         amp = _peak_near(bins, db, f_out_expected, tol=0.05)
-        # A real cosine has power split between ±f; only the positive
-        # sideband (at f_in - fs/4 = 0.05) passes the R2C filter, so
-        # the output is half amplitude = −6.02 dB.  Allow ±1 dB.
-        assert abs(amp - (-6.02)) < 1.0, (
-            f"f_in={f_in}: amplitude {amp:+.2f} dB, expected ~-6.02 dB"
+        # A real cosine has power split between ±f, and only the positive
+        # sideband (at f_in - fs/4 = 0.05) passes the R2C filter -- but the
+        # analytic-signal convention DOUBLES it, so `Re{y}` reconstructs the
+        # input rather than half of it.  Amplitude is therefore preserved:
+        # 0 dB, not the -6.02 dB the half-convention gave.  Allow ±1 dB.
+        assert abs(amp - 0.0) < 1.0, (
+            f"f_in={f_in}: amplitude {amp:+.2f} dB, expected ~0 dB"
         )
 
     # ---- context manager -------------------------------------------- #

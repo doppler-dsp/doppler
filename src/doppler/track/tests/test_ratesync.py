@@ -234,16 +234,38 @@ def test_iandd_pulse_locks_on_rectangular_symbols():
 def test_iandd_at_m2_is_documented_as_too_coarse():
     # Pin the stated reason for the m >= 4 guidance so the doc cannot quietly
     # drift from the behaviour.
+    #
+    # The reason is an EVM argument, and mpsk_receiver_create()'s own m_out
+    # documentation makes it in those terms: the rectangle is one symbol
+    # wide, so its matched filter is an m_out-tap sum spanning it, and a
+    # smaller m_out samples the same integral more coarsely.
+    #
+    # This used to be asserted on `lock_stat < 0.3`, and that proxy is gone:
+    # since the TED normalises by its own construct-time slope rather than
+    # by a running power average, the timing loop locks perfectly well at
+    # m_out = 2 (measured lock_stat 0.94, ABOVE m_out = 4's 0.88) while
+    # still costing ~8 dB of EVM against m_out = 8. That is not a broken
+    # lock detector -- the loop really does lock -- it is the reminder that
+    # locking and demodulating well are different claims, and only the
+    # second one is what the m >= 4 guidance is about.
     sps = 8.0
     syms = np.where(
         np.random.default_rng(3).integers(0, 2, NSYM) > 0, 1.0, -1.0
     )
     x = (0.25 * np.repeat(syms, int(sps))).astype(np.complex64)
-    coarse = RateSync(sps=sps, pulse="iandd", m=2, bn=0.01)
-    coarse.steps(x)
-    fine = RateSync(sps=sps, pulse="iandd", m=4, bn=0.01)
-    fine.steps(x)
-    assert coarse.lock_stat < 0.3 < fine.lock_stat
+
+    evm = {}
+    for m_out in (2, 4, 8):
+        rs = RateSync(sps=sps, pulse="iandd", m=m_out, bn=0.01)
+        evm[m_out] = _evm_db(rs.steps(x))
+
+    # Coarser is monotonically worse (EVM in dB, so larger is worse) ...
+    assert evm[2] > evm[4] > evm[8], f"not monotone in m_out: {evm}"
+    # ... and m_out = 2 is worse by enough to justify the guidance.
+    assert evm[2] - evm[8] > 5.0, (
+        f"m_out=2 costs only {evm[2] - evm[8]:.1f} dB against m_out=8; "
+        f"the m >= 4 guidance no longer has its stated basis: {evm}"
+    )
 
 
 # ------------------------------------------------------------------ #

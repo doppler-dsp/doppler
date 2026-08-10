@@ -315,7 +315,12 @@ def test_bits_differential_rotation_invariant(m):
     rb = rx.bits(tx)
     assert set(np.unique(rb)).issubset({0, 1})
     best = 1.0
-    for lag in range(0, 6):
+    # NEGATIVE lags are in the sweep because the interpolator's rule (emit
+    # every tick, load on u(k) <= u(k-1)) made the block path emit before it
+    # loads, so the recovered stream LEADS the payload by a symbol. The
+    # sweep was range(0, 6) and could not express that, which read as a
+    # coin-flip BER rather than as an alignment miss.
+    for lag in range(-3, 6):
         a = rb[1000 * bps : 2000 * bps]
         b = txbits[(1000 + lag) * bps : (2000 + lag) * bps]
         if a.size == b.size:

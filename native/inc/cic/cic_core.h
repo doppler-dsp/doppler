@@ -2,14 +2,21 @@
  * @file cic_core.h
  * @brief CIC decimation filter — 4-stage, M=1, UQ16 integer pipeline.
  *
- * **INPUT AMPLITUDE IS BOUNDED: |Re| and |Im| <= 1.0.** A component beyond
- * +-1.0 is CLIPPED at the boundary, before any filtering happens.  Unlike the
+ * **INPUT AMPLITUDE IS BOUNDED: |Re| and |Im| <= 2.0.** A component beyond
+ * that is CLIPPED at the boundary, before any filtering happens.  Unlike the
  * library's floating-point blocks this one is not scale-free — it is the one
  * place where turning the input gain up changes the answer — and the clip is
  * silent in the sample stream: no error, no NaN, just a degraded output that
- * looks plausible.  Measured cost: an RRC-BPSK waveform at peak 1.29
- * matched-filters to -25 dB EVM where the same waveform at peak 0.32 reaches
- * -50 dB.
+ * looks plausible.  Measured cost: an RRC-BPSK waveform driven into the clip
+ * matched-filters to -25 dB EVM where the same waveform well inside it
+ * reaches -50 dB.
+ *
+ * The bound is `CIC_PAPR_HEADROOM` (2.0, i.e. 6 dB) and not 1.0 because that
+ * headroom is exactly what it buys: the encode scale is
+ * `32768 / CIC_PAPR_HEADROOM`, so full scale sits 6 dB above unity amplitude
+ * and a signal whose PEAKS exceed its unit average — every pulse-shaped
+ * waveform — has somewhere to put them.  Budgeting the DC gain alone left
+ * the peaks clipping against a bound the average never approached.
  *
  * **So check @c clipped** — a sticky flag raised by any saturating component
  * and cleared only by cic_reset(), following the same convention as the

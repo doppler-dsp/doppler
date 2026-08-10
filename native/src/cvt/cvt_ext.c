@@ -1,109 +1,160 @@
 /*
  * cvt_ext.c — Python extension module cvt
  *
- * Objects: F32ToI16, I16ToF32, I32ToF32, I8ToF32, F32ToI16U32, F32ToI16U64, I16U32ToF32, I16U64ToF32, F32ToUQ15, UQ15ToF32, ADC
- * GENERATED — do not hand-edit. Patches belong in the _ext_<obj>.c fragments.
+ * Objects: F32ToI16, I16ToF32, I32ToF32, I8ToF32, F32ToI16U32, F32ToI16U64,
+ * I16U32ToF32, I16U64ToF32, F32ToUQ15, UQ15ToF32, ADC GENERATED — do not
+ * hand-edit. Patches belong in the _ext_<obj>.c fragments.
  */
 
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
 #define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
-#include <numpy/arrayobject.h>
 #include <complex.h>
+#include <numpy/arrayobject.h>
 
-
+#include "cvt_ext_adc.c"
 #include "cvt_ext_f32_to_i16.c"
-#include "cvt_ext_i16_to_f32.c"
-#include "cvt_ext_i32_to_f32.c"
-#include "cvt_ext_i8_to_f32.c"
 #include "cvt_ext_f32_to_i16u32.c"
 #include "cvt_ext_f32_to_i16u64.c"
+#include "cvt_ext_f32_to_uq15.c"
+#include "cvt_ext_i16_to_f32.c"
 #include "cvt_ext_i16u32_to_f32.c"
 #include "cvt_ext_i16u64_to_f32.c"
-#include "cvt_ext_f32_to_uq15.c"
+#include "cvt_ext_i32_to_f32.c"
+#include "cvt_ext_i8_to_f32.c"
 #include "cvt_ext_uq15_to_f32.c"
-#include "cvt_ext_adc.c"
 
 /* ======================================================== */
 /* Module                                                    */
 /* ======================================================== */
 
 static PyModuleDef cvt_moduledef = {
-    PyModuleDef_HEAD_INIT,
-    .m_name    = "cvt",
-    .m_doc     = "Sample-format conversion: vectorized converters between float32 IQ and fixed-point integer formats (int8/16/32, unsigned Q15), plus a scaling ADC front end.\n"
-     "\n"
-     "Examples\n"
-     "--------\n"
-     ">>> import numpy as np\n"
-     ">>> from doppler.cvt import F32ToI16, I16ToF32\n"
-     ">>> x = np.array([0.5, -0.25], np.float32)\n"
-     ">>> I16ToF32().steps(F32ToI16().steps(x)).round(3).tolist()\n"
-     "[0.5, -0.25]\n",
-    .m_size    = -1,
-    .m_methods = NULL,
+  PyModuleDef_HEAD_INIT,
+  .m_name = "cvt",
+  .m_doc  = "Sample-format conversion: vectorized converters between float32 "
+            "IQ and fixed-point integer formats (int8/16/32, unsigned Q15), "
+            "plus a scaling ADC front end.\n"
+            "\n"
+            "Examples\n"
+            "--------\n"
+            ">>> import numpy as np\n"
+            ">>> from doppler.cvt import F32ToI16, I16ToF32\n"
+            ">>> x = np.array([0.5, -0.25], np.float32)\n"
+            ">>> I16ToF32().steps(F32ToI16().steps(x)).round(3).tolist()\n"
+            "[0.5, -0.25]\n",
+  .m_size = -1,
+  .m_methods = NULL,
 };
 
 PyMODINIT_FUNC
-PyInit_cvt(void)
+PyInit_cvt (void)
 {
-    import_array();
-    if (PyType_Ready(&F32ToI16ObjType) < 0) return NULL;
-    if (PyType_Ready(&I16ToF32ObjType) < 0) return NULL;
-    if (PyType_Ready(&I32ToF32ObjType) < 0) return NULL;
-    if (PyType_Ready(&I8ToF32ObjType) < 0) return NULL;
-    if (PyType_Ready(&F32ToI16U32ObjType) < 0) return NULL;
-    if (PyType_Ready(&F32ToI16U64ObjType) < 0) return NULL;
-    if (PyType_Ready(&I16U32ToF32ObjType) < 0) return NULL;
-    if (PyType_Ready(&I16U64ToF32ObjType) < 0) return NULL;
-    if (PyType_Ready(&F32ToUQ15ObjType) < 0) return NULL;
-    if (PyType_Ready(&UQ15ToF32ObjType) < 0) return NULL;
-    if (PyType_Ready(&ADCObjType) < 0) return NULL;
-    PyObject *m = PyModule_Create(&cvt_moduledef);
-    if (!m) return NULL;
-    Py_INCREF(&F32ToI16ObjType);
-    if (PyModule_AddObject(m, "F32ToI16", (PyObject *)&F32ToI16ObjType) < 0) {
-        Py_DECREF(&F32ToI16ObjType); Py_DECREF(m); return NULL;
+  import_array ();
+  if (PyType_Ready (&F32ToI16ObjType) < 0)
+    return NULL;
+  if (PyType_Ready (&I16ToF32ObjType) < 0)
+    return NULL;
+  if (PyType_Ready (&I32ToF32ObjType) < 0)
+    return NULL;
+  if (PyType_Ready (&I8ToF32ObjType) < 0)
+    return NULL;
+  if (PyType_Ready (&F32ToI16U32ObjType) < 0)
+    return NULL;
+  if (PyType_Ready (&F32ToI16U64ObjType) < 0)
+    return NULL;
+  if (PyType_Ready (&I16U32ToF32ObjType) < 0)
+    return NULL;
+  if (PyType_Ready (&I16U64ToF32ObjType) < 0)
+    return NULL;
+  if (PyType_Ready (&F32ToUQ15ObjType) < 0)
+    return NULL;
+  if (PyType_Ready (&UQ15ToF32ObjType) < 0)
+    return NULL;
+  if (PyType_Ready (&ADCObjType) < 0)
+    return NULL;
+  PyObject *m = PyModule_Create (&cvt_moduledef);
+  if (!m)
+    return NULL;
+  Py_INCREF (&F32ToI16ObjType);
+  if (PyModule_AddObject (m, "F32ToI16", (PyObject *)&F32ToI16ObjType) < 0)
+    {
+      Py_DECREF (&F32ToI16ObjType);
+      Py_DECREF (m);
+      return NULL;
     }
-    Py_INCREF(&I16ToF32ObjType);
-    if (PyModule_AddObject(m, "I16ToF32", (PyObject *)&I16ToF32ObjType) < 0) {
-        Py_DECREF(&I16ToF32ObjType); Py_DECREF(m); return NULL;
+  Py_INCREF (&I16ToF32ObjType);
+  if (PyModule_AddObject (m, "I16ToF32", (PyObject *)&I16ToF32ObjType) < 0)
+    {
+      Py_DECREF (&I16ToF32ObjType);
+      Py_DECREF (m);
+      return NULL;
     }
-    Py_INCREF(&I32ToF32ObjType);
-    if (PyModule_AddObject(m, "I32ToF32", (PyObject *)&I32ToF32ObjType) < 0) {
-        Py_DECREF(&I32ToF32ObjType); Py_DECREF(m); return NULL;
+  Py_INCREF (&I32ToF32ObjType);
+  if (PyModule_AddObject (m, "I32ToF32", (PyObject *)&I32ToF32ObjType) < 0)
+    {
+      Py_DECREF (&I32ToF32ObjType);
+      Py_DECREF (m);
+      return NULL;
     }
-    Py_INCREF(&I8ToF32ObjType);
-    if (PyModule_AddObject(m, "I8ToF32", (PyObject *)&I8ToF32ObjType) < 0) {
-        Py_DECREF(&I8ToF32ObjType); Py_DECREF(m); return NULL;
+  Py_INCREF (&I8ToF32ObjType);
+  if (PyModule_AddObject (m, "I8ToF32", (PyObject *)&I8ToF32ObjType) < 0)
+    {
+      Py_DECREF (&I8ToF32ObjType);
+      Py_DECREF (m);
+      return NULL;
     }
-    Py_INCREF(&F32ToI16U32ObjType);
-    if (PyModule_AddObject(m, "F32ToI16U32", (PyObject *)&F32ToI16U32ObjType) < 0) {
-        Py_DECREF(&F32ToI16U32ObjType); Py_DECREF(m); return NULL;
+  Py_INCREF (&F32ToI16U32ObjType);
+  if (PyModule_AddObject (m, "F32ToI16U32", (PyObject *)&F32ToI16U32ObjType)
+      < 0)
+    {
+      Py_DECREF (&F32ToI16U32ObjType);
+      Py_DECREF (m);
+      return NULL;
     }
-    Py_INCREF(&F32ToI16U64ObjType);
-    if (PyModule_AddObject(m, "F32ToI16U64", (PyObject *)&F32ToI16U64ObjType) < 0) {
-        Py_DECREF(&F32ToI16U64ObjType); Py_DECREF(m); return NULL;
+  Py_INCREF (&F32ToI16U64ObjType);
+  if (PyModule_AddObject (m, "F32ToI16U64", (PyObject *)&F32ToI16U64ObjType)
+      < 0)
+    {
+      Py_DECREF (&F32ToI16U64ObjType);
+      Py_DECREF (m);
+      return NULL;
     }
-    Py_INCREF(&I16U32ToF32ObjType);
-    if (PyModule_AddObject(m, "I16U32ToF32", (PyObject *)&I16U32ToF32ObjType) < 0) {
-        Py_DECREF(&I16U32ToF32ObjType); Py_DECREF(m); return NULL;
+  Py_INCREF (&I16U32ToF32ObjType);
+  if (PyModule_AddObject (m, "I16U32ToF32", (PyObject *)&I16U32ToF32ObjType)
+      < 0)
+    {
+      Py_DECREF (&I16U32ToF32ObjType);
+      Py_DECREF (m);
+      return NULL;
     }
-    Py_INCREF(&I16U64ToF32ObjType);
-    if (PyModule_AddObject(m, "I16U64ToF32", (PyObject *)&I16U64ToF32ObjType) < 0) {
-        Py_DECREF(&I16U64ToF32ObjType); Py_DECREF(m); return NULL;
+  Py_INCREF (&I16U64ToF32ObjType);
+  if (PyModule_AddObject (m, "I16U64ToF32", (PyObject *)&I16U64ToF32ObjType)
+      < 0)
+    {
+      Py_DECREF (&I16U64ToF32ObjType);
+      Py_DECREF (m);
+      return NULL;
     }
-    Py_INCREF(&F32ToUQ15ObjType);
-    if (PyModule_AddObject(m, "F32ToUQ15", (PyObject *)&F32ToUQ15ObjType) < 0) {
-        Py_DECREF(&F32ToUQ15ObjType); Py_DECREF(m); return NULL;
+  Py_INCREF (&F32ToUQ15ObjType);
+  if (PyModule_AddObject (m, "F32ToUQ15", (PyObject *)&F32ToUQ15ObjType) < 0)
+    {
+      Py_DECREF (&F32ToUQ15ObjType);
+      Py_DECREF (m);
+      return NULL;
     }
-    Py_INCREF(&UQ15ToF32ObjType);
-    if (PyModule_AddObject(m, "UQ15ToF32", (PyObject *)&UQ15ToF32ObjType) < 0) {
-        Py_DECREF(&UQ15ToF32ObjType); Py_DECREF(m); return NULL;
+  Py_INCREF (&UQ15ToF32ObjType);
+  if (PyModule_AddObject (m, "UQ15ToF32", (PyObject *)&UQ15ToF32ObjType) < 0)
+    {
+      Py_DECREF (&UQ15ToF32ObjType);
+      Py_DECREF (m);
+      return NULL;
     }
-    Py_INCREF(&ADCObjType);
-    if (PyModule_AddObject(m, "ADC", (PyObject *)&ADCObjType) < 0) {
-        Py_DECREF(&ADCObjType); Py_DECREF(m); return NULL;
+  Py_INCREF (&ADCObjType);
+  if (PyModule_AddObject (m, "ADC", (PyObject *)&ADCObjType) < 0)
+    {
+      Py_DECREF (&ADCObjType);
+      Py_DECREF (m);
+      return NULL;
     }
-    return m;
+  return m;
 }

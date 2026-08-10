@@ -569,12 +569,12 @@ class ToneMeasure:
     def __enter__(self) -> "ToneMeasure":
         """Enter a context manager, returning this object.
 
-        Lets a ToneMeasure be used in a `with` statement so its C resources are
+        Lets a Tonemeas be used in a `with` statement so its C resources are
         released deterministically on exit rather than at collection time.
 
         Returns
         -------
-        ToneMeasure
+        Tonemeas
             This same object, not a copy.
         """
 
@@ -584,7 +584,7 @@ class ToneMeasure:
         exc: object | None = ...,
         tb: object | None = ...,
     ) -> None:
-        """Exit a context manager, releasing the ToneMeasure.
+        """Exit a context manager, releasing the Tonemeas.
 
         Equivalent to calling `destroy()`. Returns ``None``, so an exception
         raised inside the `with` body propagates normally; this never
@@ -790,12 +790,12 @@ class NPRMeasure:
     def __enter__(self) -> "NPRMeasure":
         """Enter a context manager, returning this object.
 
-        Lets a NPRMeasure be used in a `with` statement so its C resources are
+        Lets a Nprmeas be used in a `with` statement so its C resources are
         released deterministically on exit rather than at collection time.
 
         Returns
         -------
-        NPRMeasure
+        Nprmeas
             This same object, not a copy.
         """
 
@@ -805,7 +805,7 @@ class NPRMeasure:
         exc: object | None = ...,
         tb: object | None = ...,
     ) -> None:
-        """Exit a context manager, releasing the NPRMeasure.
+        """Exit a context manager, releasing the Nprmeas.
 
         Equivalent to calling `destroy()`. Returns ``None``, so an exception
         raised inside the `with` body propagates normally; this never
@@ -986,12 +986,12 @@ class IMDMeasure:
     def __enter__(self) -> "IMDMeasure":
         """Enter a context manager, returning this object.
 
-        Lets a IMDMeasure be used in a `with` statement so its C resources are
+        Lets a Imdmeas be used in a `with` statement so its C resources are
         released deterministically on exit rather than at collection time.
 
         Returns
         -------
-        IMDMeasure
+        Imdmeas
             This same object, not a copy.
         """
 
@@ -1001,7 +1001,7 @@ class IMDMeasure:
         exc: object | None = ...,
         tb: object | None = ...,
     ) -> None:
-        """Exit a context manager, releasing the IMDMeasure.
+        """Exit a context manager, releasing the Imdmeas.
 
         Equivalent to calling `destroy()`. Returns ``None``, so an exception
         raised inside the `with` body propagates normally; this never

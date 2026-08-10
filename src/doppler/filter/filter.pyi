@@ -192,12 +192,12 @@ class FIR:
     def __enter__(self) -> "FIR":
         """Enter a context manager, returning this object.
 
-        Lets a FIR be used in a `with` statement so its C resources are
+        Lets a Fir be used in a `with` statement so its C resources are
         released deterministically on exit rather than at collection time.
 
         Returns
         -------
-        FIR
+        Fir
             This same object, not a copy.
         """
 
@@ -207,7 +207,7 @@ class FIR:
         exc: object | None = ...,
         tb: object | None = ...,
     ) -> None:
-        """Exit a context manager, releasing the FIR.
+        """Exit a context manager, releasing the Fir.
 
         Equivalent to calling `destroy()`. Returns ``None``, so an exception
         raised inside the `with` body propagates normally; this never
@@ -406,12 +406,12 @@ class MovingAverage:
     def __enter__(self) -> "MovingAverage":
         """Enter a context manager, returning this object.
 
-        Lets a MovingAverage be used in a `with` statement so its C resources
-        are released deterministically on exit rather than at collection time.
+        Lets a Boxcar be used in a `with` statement so its C resources are
+        released deterministically on exit rather than at collection time.
 
         Returns
         -------
-        MovingAverage
+        Boxcar
             This same object, not a copy.
         """
 
@@ -421,7 +421,7 @@ class MovingAverage:
         exc: object | None = ...,
         tb: object | None = ...,
     ) -> None:
-        """Exit a context manager, releasing the MovingAverage.
+        """Exit a context manager, releasing the Boxcar.
 
         Equivalent to calling `destroy()`. Returns ``None``, so an exception
         raised inside the `with` body propagates normally; this never

@@ -296,16 +296,20 @@ class NCO:
         """Advance ctrl_len samples; raw phase + per-sample carry, with a
         per-sample control offset added on top of phase_inc.
 
-        The nco_steps_u32_ovf output mapping (raw phase plus a carry flag
-        marking each sample whose advance wrapped past 2^32) driven by the
+        The nco_steps_u32_ovf output mapping (raw phase plus a flag marking
+        each sample whose advance crossed a cycle boundary) driven by the
         nco_steps_u32_ctrl control port -- every stepper has a matching
-        control-input counterpart. The carry reflects THIS sample's true
-        advance (`phase_inc + ctrl_inc`, added as a single 64-bit sum so a wrap
-        is never missed even when the control offset itself is large), not just
-        phase_inc alone -- needed by any consumer (e.g. a coupled carrier/code
-        tracker) that must detect a period boundary while the rate is being
-        actively steered. With every `ctrl[i] == 0` this is bit-identical to
-        nco_steps_u32_ovf(). Returns ctrl_len.
+        control-input counterpart. The flag reflects THIS sample's true SIGNED
+        advance (`norm_freq + ctrl`, formed in cycles before either term is
+        folded into the accumulator), not just phase_inc alone -- needed by any
+        consumer (e.g. a coupled carrier/code tracker, or a resampler asking
+        "does this input produce an output") that must detect a period boundary
+        while the rate is being actively steered. A forward crossing is a carry
+        (one EXTRA output/load), a backward one a borrow (one FEWER); see
+        nco_step_u32_ovf_ctrl for why the sign cannot be recovered after the
+        fold, nor taken from `ctrl` alone. With every `ctrl[i] == 0` and
+        `norm_freq` in [0, 1) this is bit-identical to nco_steps_u32_ovf().
+        Returns ctrl_len.
 
         Parameters
         ----------
@@ -317,10 +321,6 @@ class NCO:
         -------
         tuple[NDArray[np.uint32], NDArray[np.uint8]]
             min(ctrl_len, max_out) samples.
-
-        Warnings
-        --------
-        The carry is wrong for a negative control -- see nco_step_u32_ovf_ctrl.
 
         Examples
         --------
@@ -432,12 +432,12 @@ class NCO:
     def __enter__(self) -> "NCO":
         """Enter a context manager, returning this object.
 
-        Lets a NCO be used in a `with` statement so its C resources are
+        Lets a Nco be used in a `with` statement so its C resources are
         released deterministically on exit rather than at collection time.
 
         Returns
         -------
-        NCO
+        Nco
             This same object, not a copy.
         """
 
@@ -447,7 +447,7 @@ class NCO:
         exc: object | None = ...,
         tb: object | None = ...,
     ) -> None:
-        """Exit a context manager, releasing the NCO.
+        """Exit a context manager, releasing the Nco.
 
         Equivalent to calling `destroy()`. Returns ``None``, so an exception
         raised inside the `with` body propagates normally; this never
@@ -692,12 +692,12 @@ class LO:
     def __enter__(self) -> "LO":
         """Enter a context manager, returning this object.
 
-        Lets a LO be used in a `with` statement so its C resources are released
+        Lets a Lo be used in a `with` statement so its C resources are released
         deterministically on exit rather than at collection time.
 
         Returns
         -------
-        LO
+        Lo
             This same object, not a copy.
         """
 
@@ -707,7 +707,7 @@ class LO:
         exc: object | None = ...,
         tb: object | None = ...,
     ) -> None:
-        """Exit a context manager, releasing the LO.
+        """Exit a context manager, releasing the Lo.
 
         Equivalent to calling `destroy()`. Returns ``None``, so an exception
         raised inside the `with` body propagates normally; this never
@@ -913,12 +913,12 @@ class AWGN:
     def __enter__(self) -> "AWGN":
         """Enter a context manager, returning this object.
 
-        Lets a AWGN be used in a `with` statement so its C resources are
+        Lets a Awgn be used in a `with` statement so its C resources are
         released deterministically on exit rather than at collection time.
 
         Returns
         -------
-        AWGN
+        Awgn
             This same object, not a copy.
         """
 
@@ -928,7 +928,7 @@ class AWGN:
         exc: object | None = ...,
         tb: object | None = ...,
     ) -> None:
-        """Exit a context manager, releasing the AWGN.
+        """Exit a context manager, releasing the Awgn.
 
         Equivalent to calling `destroy()`. Returns ``None``, so an exception
         raised inside the `with` body propagates normally; this never

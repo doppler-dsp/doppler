@@ -494,6 +494,8 @@ static PyMethodDef SpecanObj_methods[] = {
     "center : float\n"
     "    New display center frequency (Hz).\n"
     "\n"
+    "Examples\n"
+    "--------\n"
     "    >>> import numpy as np\n"
     "    >>> from doppler import Specan\n"
     "    >>> obj = Specan(fs=2.048e6, span=200e3, rbw=500.0, src_center=0.0, "

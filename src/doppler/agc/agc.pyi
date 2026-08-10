@@ -173,6 +173,12 @@ class AGC:
         decim : int
             Emit every decim-th gain update; >= 1.
 
+        Raises
+        ------
+        ValueError
+            If the C call returns a non-zero status. The exception message is
+            ``set_telemetry failed``, with the return code appended (gh-869).
+
         Examples
         --------
         >>> import numpy as np
@@ -315,12 +321,12 @@ class AGC:
     def __enter__(self) -> "AGC":
         """Enter a context manager, returning this object.
 
-        Lets a AGC be used in a `with` statement so its C resources are
+        Lets a Agc be used in a `with` statement so its C resources are
         released deterministically on exit rather than at collection time.
 
         Returns
         -------
-        AGC
+        Agc
             This same object, not a copy.
         """
 
@@ -330,7 +336,7 @@ class AGC:
         exc: object | None = ...,
         tb: object | None = ...,
     ) -> None:
-        """Exit a context manager, releasing the AGC.
+        """Exit a context manager, releasing the Agc.
 
         Equivalent to calling `destroy()`. Returns ``None``, so an exception
         raised inside the `with` body propagates normally; this never

@@ -14,8 +14,8 @@
 #include <Python.h>
 #include <numpy/arrayobject.h>
 
-#include "stream/stream.h"
 #include "dp_tlm/dp_tlm_core.h" /* dp_tlm_rec_t (TLM16 frames) */
+#include "stream/stream.h"
 
 /* =========================================================================
  * dpMsgObject — prevents premature dp_msg_free via NumPy base object

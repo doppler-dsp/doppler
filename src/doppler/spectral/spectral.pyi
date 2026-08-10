@@ -258,12 +258,12 @@ class FFT:
     def __enter__(self) -> "FFT":
         """Enter a context manager, returning this object.
 
-        Lets a FFT be used in a `with` statement so its C resources are
+        Lets a Fft be used in a `with` statement so its C resources are
         released deterministically on exit rather than at collection time.
 
         Returns
         -------
-        FFT
+        Fft
             This same object, not a copy.
         """
 
@@ -273,7 +273,7 @@ class FFT:
         exc: object | None = ...,
         tb: object | None = ...,
     ) -> None:
-        """Exit a context manager, releasing the FFT.
+        """Exit a context manager, releasing the Fft.
 
         Equivalent to calling `destroy()`. Returns ``None``, so an exception
         raised inside the `with` body propagates normally; this never
@@ -530,12 +530,12 @@ class FFT2D:
     def __enter__(self) -> "FFT2D":
         """Enter a context manager, returning this object.
 
-        Lets a FFT2D be used in a `with` statement so its C resources are
+        Lets a Fft2d be used in a `with` statement so its C resources are
         released deterministically on exit rather than at collection time.
 
         Returns
         -------
-        FFT2D
+        Fft2d
             This same object, not a copy.
         """
 
@@ -545,7 +545,7 @@ class FFT2D:
         exc: object | None = ...,
         tb: object | None = ...,
     ) -> None:
-        """Exit a context manager, releasing the FFT2D.
+        """Exit a context manager, releasing the Fft2d.
 
         Equivalent to calling `destroy()`. Returns ``None``, so an exception
         raised inside the `with` body propagates normally; this never
@@ -1001,12 +1001,12 @@ class Corr2D:
     def __enter__(self) -> "Corr2D":
         """Enter a context manager, returning this object.
 
-        Lets a Corr2D be used in a `with` statement so its C resources are
+        Lets a Corr2d be used in a `with` statement so its C resources are
         released deterministically on exit rather than at collection time.
 
         Returns
         -------
-        Corr2D
+        Corr2d
             This same object, not a copy.
         """
 
@@ -1016,7 +1016,7 @@ class Corr2D:
         exc: object | None = ...,
         tb: object | None = ...,
     ) -> None:
-        """Exit a context manager, releasing the Corr2D.
+        """Exit a context manager, releasing the Corr2d.
 
         Equivalent to calling `destroy()`. Returns ``None``, so an exception
         raised inside the `with` body propagates normally; this never
@@ -1241,12 +1241,12 @@ class CorrDetector:
     def __enter__(self) -> "CorrDetector":
         """Enter a context manager, returning this object.
 
-        Lets a CorrDetector be used in a `with` statement so its C resources
-        are released deterministically on exit rather than at collection time.
+        Lets a Detector be used in a `with` statement so its C resources are
+        released deterministically on exit rather than at collection time.
 
         Returns
         -------
-        CorrDetector
+        Detector
             This same object, not a copy.
         """
 
@@ -1256,7 +1256,7 @@ class CorrDetector:
         exc: object | None = ...,
         tb: object | None = ...,
     ) -> None:
-        """Exit a context manager, releasing the CorrDetector.
+        """Exit a context manager, releasing the Detector.
 
         Equivalent to calling `destroy()`. Returns ``None``, so an exception
         raised inside the `with` body propagates normally; this never
@@ -1488,12 +1488,12 @@ class CorrDetector2D:
     def __enter__(self) -> "CorrDetector2D":
         """Enter a context manager, returning this object.
 
-        Lets a CorrDetector2D be used in a `with` statement so its C resources
-        are released deterministically on exit rather than at collection time.
+        Lets a Detector2d be used in a `with` statement so its C resources are
+        released deterministically on exit rather than at collection time.
 
         Returns
         -------
-        CorrDetector2D
+        Detector2d
             This same object, not a copy.
         """
 
@@ -1503,7 +1503,7 @@ class CorrDetector2D:
         exc: object | None = ...,
         tb: object | None = ...,
     ) -> None:
-        """Exit a context manager, releasing the CorrDetector2D.
+        """Exit a context manager, releasing the Detector2d.
 
         Equivalent to calling `destroy()`. Returns ``None``, so an exception
         raised inside the `with` body propagates normally; this never
@@ -1923,12 +1923,12 @@ class PSD:
     def __enter__(self) -> "PSD":
         """Enter a context manager, returning this object.
 
-        Lets a PSD be used in a `with` statement so its C resources are
+        Lets a Psd be used in a `with` statement so its C resources are
         released deterministically on exit rather than at collection time.
 
         Returns
         -------
-        PSD
+        Psd
             This same object, not a copy.
         """
 
@@ -1938,7 +1938,7 @@ class PSD:
         exc: object | None = ...,
         tb: object | None = ...,
     ) -> None:
-        """Exit a context manager, releasing the PSD.
+        """Exit a context manager, releasing the Psd.
 
         Equivalent to calling `destroy()`. Returns ``None``, so an exception
         raised inside the `with` body propagates normally; this never

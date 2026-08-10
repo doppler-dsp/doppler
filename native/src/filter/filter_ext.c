@@ -8,73 +8,93 @@
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
 #define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
-#include <numpy/arrayobject.h>
 #include <complex.h>
+#include <numpy/arrayobject.h>
 
 #include "filter/filter_core.h"
 
-#include "filter_ext_fir.c"
 #include "filter_ext_boxcar.c"
+#include "filter_ext_fir.c"
 
 static PyObject *
-_bind_design_lowpass(PyObject *self, PyObject *args, PyObject *kwds)
+_bind_design_lowpass (PyObject *self, PyObject *args, PyObject *kwds)
 {
-    (void)self;
-    static char *_kwlist[] = {"fpass", "fstop", "atten_db", NULL};
-    double fpass = 0.4;
-    double fstop = 0.6;
-    double atten_db = 60.0;
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|ddd",
-            _kwlist, &fpass, &fstop, &atten_db))
-        return NULL;
-    npy_intp _dim = (npy_intp)(kaiser_num_taps(1, atten_db, fpass / 2.0, fstop / 2.0) | 1);
-    PyObject *_out = PyArray_EMPTY(1, &_dim, NPY_FLOAT, 0);
-    if (!_out) { return NULL; }
-    design_lowpass(fpass, fstop, atten_db, (float *)PyArray_DATA((PyArrayObject *)_out));
-    return _out;
+  (void)self;
+  static char *_kwlist[] = { "fpass", "fstop", "atten_db", NULL };
+  double       fpass     = 0.4;
+  double       fstop     = 0.6;
+  double       atten_db  = 60.0;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|ddd", _kwlist, &fpass,
+                                    &fstop, &atten_db))
+    return NULL;
+  npy_intp _dim
+      = (npy_intp)(kaiser_num_taps (1, atten_db, fpass / 2.0, fstop / 2.0)
+                   | 1);
+  PyObject *_out = PyArray_EMPTY (1, &_dim, NPY_FLOAT, 0);
+  if (!_out)
+    {
+      return NULL;
+    }
+  design_lowpass (fpass, fstop, atten_db,
+                  (float *)PyArray_DATA ((PyArrayObject *)_out));
+  return _out;
 }
-
 
 /* ======================================================== */
 /* Module                                                    */
 /* ======================================================== */
 
-static PyMethodDef filter_module_methods[] = {
-    {"design_lowpass", (PyCFunction)(void *)_bind_design_lowpass, METH_VARARGS | METH_KEYWORDS,
-     "Kaiser-windowed-sinc lowpass FIR taps, auto-sized by kaiser_num_taps (Nyquist-normalised fpass/fstop band edges, unit-DC-gain float32 taps).\n"},
-    {NULL, NULL, 0, NULL}
-};
+static PyMethodDef filter_module_methods[]
+    = { { "design_lowpass", (PyCFunction)(void *)_bind_design_lowpass,
+          METH_VARARGS | METH_KEYWORDS,
+          "Kaiser-windowed-sinc lowpass FIR taps, auto-sized by "
+          "kaiser_num_taps (Nyquist-normalised fpass/fstop band edges, "
+          "unit-DC-gain float32 taps).\n" },
+        { NULL, NULL, 0, NULL } };
 
 static PyModuleDef filter_moduledef = {
-    PyModuleDef_HEAD_INIT,
-    .m_name    = "filter",
-    .m_doc     = "FIR filtering: a direct-form complex or real FIR (FIR) and an O(1) boxcar moving average (MovingAverage).\n"
-     "\n"
-     "Examples\n"
-     "--------\n"
-     ">>> import numpy as np\n"
-     ">>> from doppler.filter import MovingAverage\n"
-     ">>> MovingAverage(2).steps(np.ones(3, np.complex64)).real.tolist()\n"
-     "[0.5, 1.0, 1.0]\n",
-    .m_size    = -1,
-    .m_methods = filter_module_methods,
+  PyModuleDef_HEAD_INIT,
+  .m_name = "filter",
+  .m_doc
+  = "FIR filtering: a direct-form complex or real FIR (FIR) and an O(1) "
+    "boxcar moving average (MovingAverage).\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.filter import MovingAverage\n"
+    ">>> MovingAverage(2).steps(np.ones(3, np.complex64)).real.tolist()\n"
+    "[0.5, 1.0, 1.0]\n",
+  .m_size    = -1,
+  .m_methods = filter_module_methods,
 };
 
 PyMODINIT_FUNC
-PyInit_filter(void)
+PyInit_filter (void)
 {
-    import_array();
-    if (PyType_Ready(&FIRObjType) < 0) return NULL;
-    if (PyType_Ready(&MovingAverageObjType) < 0) return NULL;
-    PyObject *m = PyModule_Create(&filter_moduledef);
-    if (!m) return NULL;
-    Py_INCREF(&FIRObjType);
-    if (PyModule_AddObject(m, "FIR", (PyObject *)&FIRObjType) < 0) {
-        Py_DECREF(&FIRObjType); Py_DECREF(m); return NULL;
+  import_array ();
+  if (PyType_Ready (&FIRObjType) < 0)
+    return NULL;
+  if (PyType_Ready (&MovingAverageObjType) < 0)
+    return NULL;
+  PyObject *m = PyModule_Create (&filter_moduledef);
+  if (!m)
+    return NULL;
+  Py_INCREF (&FIRObjType);
+  if (PyModule_AddObject (m, "FIR", (PyObject *)&FIRObjType) < 0)
+    {
+      Py_DECREF (&FIRObjType);
+      Py_DECREF (m);
+      return NULL;
     }
-    Py_INCREF(&MovingAverageObjType);
-    if (PyModule_AddObject(m, "MovingAverage", (PyObject *)&MovingAverageObjType) < 0) {
-        Py_DECREF(&MovingAverageObjType); Py_DECREF(m); return NULL;
+  Py_INCREF (&MovingAverageObjType);
+  if (PyModule_AddObject (m, "MovingAverage",
+                          (PyObject *)&MovingAverageObjType)
+      < 0)
+    {
+      Py_DECREF (&MovingAverageObjType);
+      Py_DECREF (m);
+      return NULL;
     }
-    return m;
+  return m;
 }

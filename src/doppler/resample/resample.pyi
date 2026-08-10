@@ -693,12 +693,12 @@ class CIC:
     def __enter__(self) -> "CIC":
         """Enter a context manager, returning this object.
 
-        Lets a CIC be used in a `with` statement so its C resources are
+        Lets a Cic be used in a `with` statement so its C resources are
         released deterministically on exit rather than at collection time.
 
         Returns
         -------
-        CIC
+        Cic
             This same object, not a copy.
         """
 
@@ -708,7 +708,7 @@ class CIC:
         exc: object | None = ...,
         tb: object | None = ...,
     ) -> None:
-        """Exit a context manager, releasing the CIC.
+        """Exit a context manager, releasing the Cic.
 
         Equivalent to calling `destroy()`. Returns ``None``, so an exception
         raised inside the `with` body propagates normally; this never
@@ -740,6 +740,13 @@ class RateConverter:
     compensate : int, default 0
         Non-zero to append a CIC passband-droop compensating FIR after any CIC
         stage.
+
+    Raises
+    ------
+    ValueError
+        If construction fails. The exception message is ``RateConverter:
+        invalid parameter (need rate > 0, 0 <= beta <= 1, span >= 1, pulse_sps
+        > 0, num_phases a power of two >= 2)``.
 
     Examples
     --------
@@ -1085,6 +1092,13 @@ class MatchedRateConverter:
     num_phases : int, default 1024
         num_phases constructor parameter.
 
+    Raises
+    ------
+    ValueError
+        If construction fails. The exception message is ``RateConverter:
+        invalid parameter (need rate > 0, 0 <= beta <= 1, span >= 1, pulse_sps
+        > 0, num_phases a power of two >= 2)``.
+
     Examples
     --------
     >>> from doppler.resample import RateConverter
@@ -1381,13 +1395,13 @@ class MatchedRateConverter:
     def __enter__(self) -> "MatchedRateConverter":
         """Enter a context manager, returning this object.
 
-        Lets a MatchedRateConverter be used in a `with` statement so its C
-        resources are released deterministically on exit rather than at
-        collection time.
+        Lets a RateConverterViewMatchedrateconverter be used in a `with`
+        statement so its C resources are released deterministically on exit
+        rather than at collection time.
 
         Returns
         -------
-        MatchedRateConverter
+        RateConverterViewMatchedrateconverter
             This same object, not a copy.
         """
 
@@ -1397,7 +1411,8 @@ class MatchedRateConverter:
         exc: object | None = ...,
         tb: object | None = ...,
     ) -> None:
-        """Exit a context manager, releasing the MatchedRateConverter.
+        """Exit a context manager, releasing the
+        RateConverterViewMatchedrateconverter.
 
         Equivalent to calling `destroy()`. Returns ``None``, so an exception
         raised inside the `with` body propagates normally; this never
@@ -1822,13 +1837,12 @@ class HalfbandDecimatorQ15:
     def __enter__(self) -> "HalfbandDecimatorQ15":
         """Enter a context manager, returning this object.
 
-        Lets a HalfbandDecimatorQ15 be used in a `with` statement so its C
-        resources are released deterministically on exit rather than at
-        collection time.
+        Lets a HbdecimQ15 be used in a `with` statement so its C resources are
+        released deterministically on exit rather than at collection time.
 
         Returns
         -------
-        HalfbandDecimatorQ15
+        HbdecimQ15
             This same object, not a copy.
         """
 
@@ -1838,7 +1852,7 @@ class HalfbandDecimatorQ15:
         exc: object | None = ...,
         tb: object | None = ...,
     ) -> None:
-        """Exit a context manager, releasing the HalfbandDecimatorQ15.
+        """Exit a context manager, releasing the HbdecimQ15.
 
         Equivalent to calling `destroy()`. Returns ``None``, so an exception
         raised inside the `with` body propagates normally; this never

@@ -250,12 +250,12 @@ class DelayCf64:
     def __enter__(self) -> "DelayCf64":
         """Enter a context manager, returning this object.
 
-        Lets a DelayCf64 be used in a `with` statement so its C resources are
+        Lets a Delay be used in a `with` statement so its C resources are
         released deterministically on exit rather than at collection time.
 
         Returns
         -------
-        DelayCf64
+        Delay
             This same object, not a copy.
         """
 
@@ -265,7 +265,7 @@ class DelayCf64:
         exc: object | None = ...,
         tb: object | None = ...,
     ) -> None:
-        """Exit a context manager, releasing the DelayCf64.
+        """Exit a context manager, releasing the Delay.
 
         Equivalent to calling `destroy()`. Returns ``None``, so an exception
         raised inside the `with` body propagates normally; this never

@@ -179,12 +179,12 @@ class PN:
     def __enter__(self) -> "PN":
         """Enter a context manager, returning this object.
 
-        Lets a PN be used in a `with` statement so its C resources are released
+        Lets a Pn be used in a `with` statement so its C resources are released
         deterministically on exit rather than at collection time.
 
         Returns
         -------
-        PN
+        Pn
             This same object, not a copy.
         """
 
@@ -194,7 +194,7 @@ class PN:
         exc: object | None = ...,
         tb: object | None = ...,
     ) -> None:
-        """Exit a context manager, releasing the PN.
+        """Exit a context manager, releasing the Pn.
 
         Equivalent to calling `destroy()`. Returns ``None``, so an exception
         raised inside the `with` body propagates normally; this never
@@ -327,7 +327,7 @@ class _SynthEngine:
 
         """
 
-    def steps(self, n: int) -> NDArray[np.complex64]:
+    def steps(self, n: int = 1) -> NDArray[np.complex64]:
         """Generate a block of output samples. Calls wfm_synth_step() in a
         tight loop, writing each cf32 sample into ``output``. The Python
         binding returns a freshly allocated NumPy complex64 array; ownership is
@@ -534,12 +534,12 @@ class _SynthEngine:
     def __enter__(self) -> "_SynthEngine":
         """Enter a context manager, returning this object.
 
-        Lets a _SynthEngine be used in a `with` statement so its C resources
-        are released deterministically on exit rather than at collection time.
+        Lets a WfmSynth be used in a `with` statement so its C resources are
+        released deterministically on exit rather than at collection time.
 
         Returns
         -------
-        _SynthEngine
+        WfmSynth
             This same object, not a copy.
         """
 
@@ -549,7 +549,7 @@ class _SynthEngine:
         exc: object | None = ...,
         tb: object | None = ...,
     ) -> None:
-        """Exit a context manager, releasing the _SynthEngine.
+        """Exit a context manager, releasing the WfmSynth.
 
         Equivalent to calling `destroy()`. Returns ``None``, so an exception
         raised inside the `with` body propagates normally; this never

@@ -29,7 +29,7 @@ class AccF32:
     0.0
 
     """
-    def __init__(self, acc: float = ...) -> None: ...
+    def __init__(self, acc: float = 0.0) -> None: ...
 
     def reset(self) -> None:
         """Zero the accumulator, restoring the same state as a fresh
@@ -386,7 +386,7 @@ class AccCf64:
     0j
 
     """
-    def __init__(self, acc: complex = ...) -> None: ...
+    def __init__(self, acc: complex = 0j) -> None: ...
 
     def reset(self) -> None:
         """Zero the accumulator, restoring the same state as a fresh

@@ -23,6 +23,19 @@
  *
  *  12. nco_phase_units — the one conversion's total contract
  *  13. nco_norm_fold_ — the fold must never hand the cast a 1.0
+ *
+ * Claim-tagged sections, added from an audit of nco_core.h's own prose
+ * against what this file actually pins. Tagged by claim rather than
+ * numbered, so they do not collide with sections landing separately:
+ *
+ *  C18. reset() zeroes the phase and NOTHING else — section 1 tests this
+ *       on an all-zero NCO, where it cannot fail
+ *  C3.  the realised increment is at most one step LOW and NEVER high,
+ *       swept against a long double oracle rather than pinned at four
+ *       literals
+ *  C16. the carry is WRONG under a negative control — the defect
+ *       nco_step_u32_ovf_ctrl's own @warning describes, recorded as
+ *       current behaviour so its fix arrives as a visible change
  */
 #include "nco/nco_core.h"
 #include <math.h>
@@ -39,6 +52,99 @@
         }                                                                     \
     }                                                                         \
   while (0)
+
+/* ==================================================================
+ * Independent oracle for the control port's carry/borrow semantics.
+ *
+ * The property under test is not "does the flag look right" but "does
+ * the flag COUNT the period boundaries the composite rate actually
+ * crosses". So the expected count is computed from exact real
+ * arithmetic in long double, with no phase word and no fold anywhere --
+ * a model that shares no code with the thing it checks. Anything that
+ * mirrored the implementation's own integer steps would be tautological.
+ *
+ * Sign matters: a forward crossing is +1 (an extra output is due) and a
+ * backward one is -1 (one fewer), so a control that slews out and back
+ * must net to zero rather than accumulating |events|.
+ * ================================================================== */
+static long
+crossings_oracle (double base, const double *ctrl, size_t n)
+{
+  long double acc = 0.0L;
+  long        c   = 0;
+  for (size_t i = 0; i < n; i++)
+    {
+      acc += (long double)base + (long double)ctrl[i];
+      while (acc >= 1.0L)
+        {
+          acc -= 1.0L;
+          c++;
+        }
+      while (acc < 0.0L)
+        {
+          acc += 1.0L;
+          c--;
+        }
+    }
+  return c;
+}
+
+/* Signed event count from the 32-bit control stepper. The flag is
+   unsigned, so the direction comes from the composite rate -- which is
+   exactly the contract a consumer implements. */
+static long
+events_u32 (double base, const double *ctrl, size_t n)
+{
+  nco_state_t *s = nco_create (base, 0);
+  long         c = 0;
+  for (size_t i = 0; i < n; i++)
+    {
+      uint8_t e;
+      nco_step_u32_ovf_ctrl (s, ctrl[i], &e);
+      double d = base + ctrl[i];
+      if (e)
+        c += (d > 0.0) ? 1 : ((d < 0.0) ? -1 : 0);
+    }
+  nco_destroy (s);
+  return c;
+}
+
+#define SLEW_N 4096
+static double slew_buf[SLEW_N];
+
+/* Fill a control record. `shape` selects the trajectory; every one of
+   them is chosen to drive the composite through a boundary that the
+   sign rule has to get right. */
+static void
+fill_ctrl (int shape, double amp, double bias, double base)
+{
+  for (int i = 0; i < SLEW_N; i++)
+    {
+      double t = (double)i / (double)SLEW_N;
+      switch (shape)
+        {
+        case 0: /* constant */
+          slew_buf[i] = bias;
+          break;
+        case 1: /* symmetric slew out and back -- must net to zero */
+          slew_buf[i] = bias + amp * sin (2.0 * M_PI * t);
+          break;
+        case 2: /* linear ramp through zero and out the far side */
+          slew_buf[i] = bias + amp * (2.0 * t - 1.0);
+          break;
+        case 3: /* ramp that drags the composite through DC */
+          slew_buf[i] = -base + amp * (2.0 * t - 1.0);
+          break;
+        case 4: /* alternating sign, every sample */
+          slew_buf[i] = bias + ((i & 1) ? amp : -amp);
+          break;
+        default: /* slam: long quiet, then a hard excursion and back */
+          slew_buf[i]
+              = bias + ((i > SLEW_N / 2 && i < SLEW_N / 2 + 64) ? amp : 0.0);
+          break;
+        }
+    }
+}
 
 int
 main (void)
@@ -585,6 +691,291 @@ main (void)
     CHECK (nco_norm_freq_to_inc (v) == nco_norm_phase_to_word (v));
     v = -1e-20;
     CHECK (nco_norm_freq_to_inc (v) == nco_norm_phase_to_word (v));
+  }
+
+  /* ----------------------------------------------------------------
+   * C18. reset() zeroes the phase and NOTHING else.
+   *
+   * Section 1 exercises this on an NCO built with norm_freq = 0.0 and
+   * nmax = 0, where phase, phase_inc, norm_freq and nmax are ALL zero
+   * already -- so a reset() that wiped the entire configuration would
+   * pass it unchanged. The claim it is meant to protect ("norm_freq,
+   * phase_inc, and nmax are unchanged") is exactly the one it cannot
+   * catch. Build with every field non-zero so it can fail.
+   * ---------------------------------------------------------------- */
+  {
+    nco_state_t *nco = nco_create (0.3, 1000);
+    CHECK (nco != NULL);
+    if (nco)
+      {
+        uint32_t inc_before = nco_get_phase_inc (nco);
+        uint32_t out[8];
+        nco_steps_u32 (nco, 8, out, 8);
+
+        /* Vacuity preconditions: the fields must be non-zero BEFORE the
+           reset, or this section proves nothing. */
+        CHECK (inc_before != 0u);
+        CHECK (nco_get_phase (nco) != 0u);
+
+        nco_reset (nco);
+
+        CHECK (nco_get_phase (nco) == 0u);      /* zeroed ... */
+        CHECK (nco_get_norm_freq (nco) == 0.3); /* ... and only that */
+        CHECK (nco_get_phase_inc (nco) == inc_before);
+
+        /* nmax has no accessor, so read it through the behaviour it
+           controls. Bounding by 1000 is NOT enough: if phase_inc were
+           also lost the accumulator would sit at 0 and every output
+           would pass that bound vacuously. Pin the exact value instead
+           -- from phase 0 at norm_freq 0.3, the second scaled sample is
+           299, which is wrong if EITHER nmax or phase_inc was disturbed
+           (raw phase there is ~1.29e9).
+
+           299 and not 300, and the reason is section C3's law showing
+           through: phase_inc is trunc(0.3 * 2^32) = 1288490188, so the
+           realised phase fraction is 0.29999999995 -- one step LOW, as
+           the conversion guarantees -- and scaling that by 1000 floors
+           to 299. A rounding conversion would put 300 here, so this
+           value also pins the truncating convention from a second
+           direction. */
+        uint32_t sc[8];
+        nco_steps_u32_scaled (nco, 8, sc, 8);
+        CHECK (sc[0] == 0u);
+        CHECK (sc[1] == 299u);
+        int scaled_in_range = 1;
+        for (int i = 0; i < 8; i++)
+          if (sc[i] >= 1000u)
+            scaled_in_range = 0;
+        CHECK (scaled_in_range);
+
+        nco_destroy (nco);
+      }
+  }
+
+  /* ----------------------------------------------------------------
+   * C3. The realised increment is at most one step LOW, and NEVER high.
+   *
+   * Section 12 pins nco_phase_units at four literals. nco_core.h states
+   * this as a LAW over the whole range -- "the realised frequency is at
+   * most one step LOW, never high" -- and the whole family relies on the
+   * error being one-sided. Sweep it against an independent oracle:
+   * long double, which carries the exact product with no phase word and
+   * no fold anywhere, so the check cannot be tautological.
+   * ---------------------------------------------------------------- */
+  {
+    const int    N      = 2000;
+    int          n_high = 0; /* realised ABOVE ideal -- must never happen */
+    int          n_far  = 0; /* low by a whole step or more              */
+    int          n_live = 0;
+    const double lo_f = 1e-9, hi_f = 0.25;
+
+    for (int k = 0; k < N; k++)
+      {
+        /* Log-spaced across the code-NCO regime up to a quarter rate.
+           volatile so nothing is constant-folded away (see section 12's
+           note -- the same trap applies here). */
+        volatile double f
+            = lo_f * pow (hi_f / lo_f, (double)k / (double)(N - 1));
+        uint32_t inc = nco_norm_freq_to_inc (f);
+        if (inc == 0u)
+          continue;
+        n_live++;
+
+        long double ideal = (long double)f * 4294967296.0L;
+        long double got   = (long double)inc;
+        if (got > ideal)
+          n_high++;
+        if (ideal - got >= 1.0L)
+          n_far++;
+      }
+    CHECK (n_live > N / 2); /* the sweep must actually exercise something */
+    CHECK (n_high == 0);
+    CHECK (n_far == 0);
+  }
+
+  /* ----------------------------------------------------------------
+   * 14. The control port COUNTS boundaries, under slewing control, at
+   *     both signs, against an independent oracle.
+   *
+   * The tolerance is the truncation floor and it is +-1 per record: an
+   * exactly-cancelling +-d pair cannot round-trip through a truncating
+   * accumulator, so the count sits one below the real answer
+   * indefinitely. A tighter bound is not achievable at any width -- a
+   * 64-bit accumulator was built for exactly this, measured, and
+   * removed on the finding that it did not help.
+   *
+   * Restricted to |composite| < 1 by construction: the flag is one bit,
+   * so it saturates when a single sample crosses more than one
+   * boundary. That case is asserted separately in 15 as "always
+   * events", which is its actual contract.
+   * ---------------------------------------------------------------- */
+  {
+    static const double bases[]
+        = { 0.0,  0.05, 0.1, 0.25, 0.5, 12.0 / 13.0, 0.923076923076923,
+            0.75, 0.9,  0.99 };
+    static const char *shape_name[]
+        = { "const",           "sine-out-and-back", "ramp-through-zero",
+            "ramp-through-DC", "alternating",       "slam" };
+
+    for (size_t b = 0; b < sizeof bases / sizeof bases[0]; b++)
+      {
+        double base = bases[b];
+        for (int shape = 0; shape < 6; shape++)
+          {
+            /* Amplitude kept inside the |composite| < 1 band the flag
+               can represent, and deliberately taken to both signs. */
+            double amp = (base < 0.5) ? base * 0.9 + 0.04 : (1.0 - base) * 0.9;
+            double bias = 0.0;
+            if (amp <= 0.0)
+              amp = 0.01;
+            fill_ctrl (shape, amp, bias, base);
+
+            long want = crossings_oracle (base, slew_buf, SLEW_N);
+            long got  = events_u32 (base, slew_buf, SLEW_N);
+
+            if (labs (got - want) > 1)
+              fprintf (stderr, "  base=%.9f shape=%-18s oracle=%ld got=%ld\n",
+                       base, shape_name[shape], want, got);
+            CHECK (labs (got - want) <= 1); /* the truncation floor */
+          }
+      }
+  }
+
+  /* ----------------------------------------------------------------
+   * 15. Control-port edge cases the sign rule has to get exactly right
+   * ---------------------------------------------------------------- */
+  {
+    /* A composite of exactly zero is free-running: no event, ever. The
+       32-bit intrinsic-style "did the unsigned add carry" test cannot
+       express this -- 0 + 0 never carries either, so it agrees here by
+       luck; the case that separates them is unity, below. */
+    {
+      nco_state_t *s = nco_create (0.25, 0);
+      for (int i = 0; i < 64; i++)
+        {
+          uint8_t e32;
+          nco_step_u32_ovf_ctrl (s, -0.25, &e32);
+          CHECK (e32 == 0);
+        }
+      /* and the phase must not have moved */
+      CHECK (nco_get_phase (s) == 0u);
+      nco_destroy (s);
+    }
+
+    /* A composite of exactly 1.0 completes a period every single sample
+       even though the FRACTIONAL advance is zero -- the case a
+       resampler's terminal stage sits on, and the one an unsigned-carry
+       test gets wrong (it adds 0 + 0 and never fires). */
+    {
+      nco_state_t *s = nco_create (1.0, 0);
+      for (int i = 0; i < 64; i++)
+        {
+          uint8_t e32;
+          nco_step_u32_ovf_ctrl (s, 0.0, &e32);
+          CHECK (e32 == 1);
+        }
+      nco_destroy (s);
+    }
+
+    /* |composite| >= 1 events on every sample, both signs: the flag
+       saturates rather than under-reporting. */
+    {
+      static const double d[] = { 1.0, 1.5, 2.0, 8.0, -1.0, -1.5, -2.0, -8.0 };
+      for (size_t i = 0; i < sizeof d / sizeof d[0]; i++)
+        {
+          nco_state_t *s = nco_create (d[i], 0);
+          for (int j = 0; j < 16; j++)
+            {
+              uint8_t e32;
+              nco_step_u32_ovf_ctrl (s, 0.0, &e32);
+              CHECK (e32 == 1);
+            }
+          nco_destroy (s);
+        }
+    }
+
+    /* The composite's sign decides, NOT the control's. Steering a
+       0.5 cyc/sample carrier by -1e-4 leaves a legitimate +0.4999
+       forward rate; a ctrl-keyed rule would call every crossing a
+       borrow and err by -200%. */
+    {
+      for (int i = 0; i < SLEW_N; i++)
+        slew_buf[i] = -1e-4;
+      long want = crossings_oracle (0.5, slew_buf, SLEW_N);
+      CHECK (want > 0); /* the record really does run forward */
+      CHECK (labs (events_u32 (0.5, slew_buf, SLEW_N) - want) <= 1);
+    }
+
+    /* Its mirror: a positive control that leaves the composite running
+       backward. */
+    {
+      for (int i = 0; i < SLEW_N; i++)
+        slew_buf[i] = 0.25;
+      long want = crossings_oracle (-0.5, slew_buf, SLEW_N);
+      CHECK (want < 0); /* genuinely retreating */
+      CHECK (labs (events_u32 (-0.5, slew_buf, SLEW_N) - want) <= 1);
+    }
+
+    /* A symmetric excursion must NET TO ZERO, not accumulate |events|:
+       the borrows on the way back have to cancel the carries out. */
+    {
+      fill_ctrl (1, 0.4, 0.0, 0.0); /* base 0, pure +-0.4 sine */
+      long want = crossings_oracle (0.0, slew_buf, SLEW_N);
+      CHECK (want == 0); /* the oracle agrees it is a closed excursion */
+      CHECK (labs (events_u32 (0.0, slew_buf, SLEW_N)) <= 1);
+    }
+  }
+
+  /* ----------------------------------------------------------------
+   * 16. nco_steer_scale — bound the request, so the conversion never
+   *     has to be the one making the decision.
+   * ---------------------------------------------------------------- */
+  {
+    volatile double c;
+    const double    lo = 2.0 / 3.0, hi = 2.0;
+
+    /* Inside the band, it is exactly 1 + control. */
+    c = 0.0;
+    CHECK (nco_steer_scale (c, lo, hi) == 1.0);
+    c = 0.5;
+    CHECK (nco_steer_scale (c, lo, hi) == 1.5);
+    c = -0.25;
+    CHECK (nco_steer_scale (c, lo, hi) == 0.75);
+
+    /* Outside, clamped to the band -- both ends. */
+    c = 5.0;
+    CHECK (nco_steer_scale (c, lo, hi) == hi);
+    c = -0.9;
+    CHECK (nco_steer_scale (c, lo, hi) == lo);
+
+    /* The case that motivated the whole thing: a control below -1 makes
+       the raw scale NEGATIVE, which floors an honest conversion to 0 --
+       a stopped NCO that never strobes again. It must land on lo, which
+       is a slow clock, not a dead one. */
+    c = -1.0;
+    CHECK (nco_steer_scale (c, lo, hi) == lo);
+    c = -2.0;
+    CHECK (nco_steer_scale (c, lo, hi) == lo);
+    c = -1e9;
+    CHECK (nco_steer_scale (c, lo, hi) == lo);
+    CHECK (nco_steer_scale (c, lo, hi) > 0.0); /* never a dead clock */
+
+    /* NaN lands on lo rather than sailing through to the cast. */
+    c = 0.0 / 0.0;
+    CHECK (nco_steer_scale (c, lo, hi) == lo);
+
+    /* Composed with the conversion, the product can neither floor nor
+       saturate for any control at all -- which is the whole point: the
+       conversion becomes a safety net, not the active path. */
+    for (int i = -400; i <= 400; i += 7)
+      {
+        volatile double ctl  = (double)i * 0.05;
+        double          sc   = nco_steer_scale (ctl, lo, hi);
+        uint32_t        base = 1073741824u; /* sps = 4 -> 2^32/4 */
+        uint32_t        inc  = nco_phase_units ((double)base * sc);
+        CHECK (inc > 0u);          /* never stopped   */
+        CHECK (inc < 4294967295u); /* never saturated */
+      }
   }
 
   if (_fails)

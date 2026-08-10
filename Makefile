@@ -133,11 +133,11 @@ RUFF_PATHS = .
 # tables on every regen -> spurious diffs); docs/**/archive/ are frozen
 # snapshots (and one trips a plugin render-consistency bug across mdformat-gfm
 # versions); examples/*/docs/ is the docs stub `jm new` scaffolds for a nested
-# jm project, which `jm apply` recreates; src/doppler/tests/validation/ holds
+# jm project, which `jm apply` recreates; src/doppler/.*/tests/validation/ holds
 # each object's results.md, written by that folder's own validate.py, so
 # reformatting it would drift against the next regeneration. vendor/ is not
 # ours.
-MD_EXCLUDE_RE = ^(vendor/|docs/c-api/|docs/benchmarks\.md$$|docs/.*/archive/|examples/[^/]+/docs/|src/doppler/tests/validation/)
+MD_EXCLUDE_RE = ^(vendor/|docs/c-api/|docs/benchmarks\.md$$|docs/.*/archive/|examples/[^/]+/docs/|src/doppler/.*/tests/validation/)
 
 LINT_ruff        = $(RUFF) check --fix --unsafe-fixes $(RUFF_PATHS)
 LINT_ruff-format = $(RUFF) format $(RUFF_PATHS)
@@ -227,6 +227,7 @@ TEST_ALL_DEPS = test test-examples test-python test-examples-python
 # gating (install the deps, build the tree), not gates themselves.
 GATES_PROVISION = install-deps install-docs-deps build pyext
 GATES_DEPS    = lint changelog-check drift-check doxygen-check docs-check \
+                validate-check \
                 test-all test-stubs test-api-docs test-snippets test-rust \
                 abi-check link-check consumer-faces-check glibc-check \
                 specan-check check-isotime-parity coverage coverage-gate \
@@ -479,6 +480,7 @@ LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
                 gen-c-api-run doxygen-pin-image \
                 package-c sdist release-notes \
                 docs-relink docs-drift-check drift-check changelog-check \
+                validate validate-check \
                 doxygen-warn-gate \
                 test-examples-c test-examples-python test-example-downstream \
                 test-example-downstream-python \
@@ -723,6 +725,35 @@ docs-drift-check: ## Check the generated doc regions are up to date
 	uv run python scripts/gen_related_pages.py --check
 	uv run python scripts/gen_readme.py --check
 	uv run python scripts/gen_install_scripts.py --check
+
+# Every object certified under the validation campaign owns
+# src/doppler/<module>/tests/validation/<object>/, and `results.md` there is
+# GENERATED -- so it gets the same treatment as every other generated region:
+# a --check that fails when the committed file no longer matches what the
+# code produces. Discovered, not registered, so a new object is gated the
+# moment its folder exists.
+#
+# NB this is the REPORT's staleness only. The limits inside it are asserted
+# by src/doppler/<module>/tests/test_validation_limits.py, which runs in the
+# ordinary pytest suite -- the two gates answer different questions and both
+# are needed.
+VALIDATORS = $(shell find src/doppler -path '*/tests/validation/*/validate.py' | sort)
+
+validate: ## Regenerate every object's validation report and plots
+	@for v in $(VALIDATORS); do \
+	    echo "=== $$v ==="; \
+	    uv run python $$v || exit 1; \
+	 done
+
+validate-check: ## Fail if any validation report is stale (CI gate)
+	@fail=0; \
+	 for v in $(VALIDATORS); do \
+	     uv run python $$v --check > /dev/null || { \
+	         echo "validate-check: STALE — $$v"; fail=1; }; \
+	 done; \
+	 if [ "$$fail" = 0 ]; then \
+	     echo "validate-check: OK — $(words $(VALIDATORS)) report(s) up to date"; \
+	 else echo "validate-check: run 'make validate'"; exit 1; fi
 
 # The jm manifest drift gate. --no-install-project because the gate only reads
 # the manifest, so there is no reason to build the C extension for it.

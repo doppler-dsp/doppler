@@ -19,13 +19,13 @@ the C ought to do. The one deliberate exception is the closed-loop
 *oracle* — an ideal reference phasor — which has to be independent of the
 thing it is judging.
 
-Run:  uv run python src/doppler/tests/validation/lo/validate.py
+Run:  make validate
 """
 
 from __future__ import annotations
 
 import sys
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from math import gcd
 from pathlib import Path
 
@@ -34,7 +34,8 @@ import numpy as np
 from doppler.measure import ToneMeasure
 from doppler.source import LO, NCO
 from doppler.spectral import FFT, kaiser_beta_for_sidelobe, kaiser_window
-from doppler.tests.validation._common import linear_loop as ll
+from doppler.tests import loop_reference as ll
+from doppler.tests._validation_common import Report, cli
 
 HERE = Path(__file__).parent
 DATA = HERE / "data"
@@ -68,33 +69,6 @@ SFDR_TYPICAL_THEORY = 6.02 * LUT_BITS
 SFDR_BOUND_DBC = 90.0
 
 
-# ───────────────────────────────────────────────────────────── report
-@dataclass
-class Report:
-    lines: list[str] = field(default_factory=list)
-    findings: list[tuple[str, str, str]] = field(default_factory=list)
-    limits: list[tuple[bool, str]] = field(default_factory=list)
-
-    def md(self, text: str = "") -> None:
-        self.lines.append(text)
-
-    def table(self, header: list[str], rows: list[list[str]]) -> None:
-        self.md("| " + " | ".join(header) + " |")
-        self.md("|" + "|".join("---" for _ in header) + "|")
-        for r in rows:
-            self.md("| " + " | ".join(str(c) for c in r) + " |")
-        self.md()
-
-    def find(self, tag: str, verdict: str, text: str) -> None:
-        self.findings.append((tag, verdict, text))
-        print(f"  [{verdict:^10}] {tag}: {text[:96]}")
-
-    def limit(self, ok: bool, claim: str) -> bool:
-        self.limits.append((bool(ok), claim))
-        print(f"  [{'PASS' if ok else 'FAIL':^10}] {claim[:96]}")
-        return bool(ok)
-
-
 R = Report()
 TM = ToneMeasure(n=NFFT, fs=1.0, dynamic_range_db=SIDELOBE_DB)
 
@@ -121,6 +95,23 @@ def advance(norm_freq: float, ctrl_val: float) -> int:
     b = LO(norm_freq)
     b.steps_ctrl(np.full(1, ctrl_val, dtype=np.float64))
     return int((a.phase - b.phase) % W)
+
+
+def _csv(path, cols, header: str) -> None:
+    """Write one raw sweep, unless this run is measurement-only.
+
+    The CSVs exist so any number in the report can be re-derived without
+    re-running the measurement; a limits-only run (the pytest path) has
+    no report to support and must not write into the repo.
+    """
+    if R.write:
+        np.savetxt(
+            path,
+            np.column_stack(cols),
+            delimiter=",",
+            header=header,
+            comments="",
+        )
 
 
 def signed(adv: int) -> int:
@@ -270,21 +261,21 @@ def section_summary() -> None:
         [
             [
                 "[`native/inc/lo/lo_core.h`]"
-                "(../../../../../native/inc/lo/lo_core.h)",
+                "(../../../../../../native/inc/lo/lo_core.h)",
                 "the contract: the LUT geometry, the emit-before-increment "
                 "convention, the SFDR claim, the inline composition API and "
                 "the control port",
             ],
             [
                 "[`native/inc/nco/nco_core.h`]"
-                "(../../../../../native/inc/nco/nco_core.h)",
+                "(../../../../../../native/inc/nco/nco_core.h)",
                 "the conversion: `nco_norm_freq_to_inc` is the one "
                 "double→integer boundary, and the LO calls it for both its "
                 "configured rate and its control port",
             ],
             [
                 "[`native/tests/test_lo_core.c`]"
-                "(../../../../../native/tests/test_lo_core.c)",
+                "(../../../../../../native/tests/test_lo_core.c)",
                 "the gate: point assertions, plus the six sections this "
                 "audit added (§16–§21)",
             ],
@@ -294,7 +285,7 @@ def section_summary() -> None:
         "> **There is no `docs/design/lo.md`.** The LO's rationale lives "
         "in the header, and the accumulator underneath it is the NCO's "
         "bit-for-bit (2.2), so the theory of operation it inherits is "
-        "[`docs/design/nco.md`](../../../../../docs/design/nco.md) — which "
+        "[`docs/design/nco.md`](../../../../../../docs/design/nco.md) — which "
         "covers the phase accumulator, the one float boundary and the "
         "control port, and names the LUT as the only thing the LO adds. "
         "What is genuinely LO-specific and undocumented in prose is that "
@@ -548,19 +539,11 @@ def characterise() -> Data:
             )
         ).sfdr_dbc
     )
-    np.savetxt(
-        DATA / "sfdr_sweep.csv",
-        np.column_stack([sf_freqs, sf_rand]),
-        delimiter=",",
-        header="norm_freq,sfdr_dbc",
-        comments="",
-    )
-    np.savetxt(
+    _csv(DATA / "sfdr_sweep.csv", [sf_freqs, sf_rand], "norm_freq,sfdr_dbc")
+    _csv(
         DATA / "sfdr_rational.csv",
-        np.array([[n, d, low, s] for n, d, low, s in sf_rational]),
-        delimiter=",",
-        header="num,den,phase_inc_low16,sfdr_dbc",
-        comments="",
+        list(zip(*sf_rational)),
+        "num,den,phase_inc_low16,sfdr_dbc",
     )
     R.table(
         ["case", "SFDR (dBc)"],
@@ -653,12 +636,10 @@ def characterise() -> Data:
     live = inc > 0
     err = (inc / WF - freqs) / freqs * 1e6
     bound = np.where(live, 1e6 / np.maximum(inc, 1), np.inf)
-    np.savetxt(
+    _csv(
         DATA / "frequency_sweep.csv",
-        np.column_stack([freqs, inc, err, -bound]),
-        delimiter=",",
-        header="norm_freq,phase_inc,err_ppm,bound_ppm",
-        comments="",
+        [freqs, inc, err, -bound],
+        "norm_freq,phase_inc,err_ppm,bound_ppm",
     )
     R.md(
         f"Across the range (full sweep in `data/frequency_sweep.csv`) the "
@@ -681,13 +662,7 @@ def characterise() -> Data:
 
     ctrls = np.linspace(-1.5, 1.5, 1201)
     adv = np.array([advance(0.0, c) for c in ctrls], dtype=np.int64)
-    np.savetxt(
-        DATA / "ctrl_sweep.csv",
-        np.column_stack([ctrls, adv]),
-        delimiter=",",
-        header="ctrl,advance",
-        comments="",
-    )
+    _csv(DATA / "ctrl_sweep.csv", [ctrls, adv], "ctrl,advance")
     inc_cfg = LO(0.1).phase_inc
     adv_ctrl = advance(0.0, 0.1)
     R.md(
@@ -1467,57 +1442,41 @@ def plots(d: Data) -> None:
     plt.close(fig)
 
 
-def main() -> int:
-    DATA.mkdir(parents=True, exist_ok=True)
+def build(write: bool = True) -> Report:
+    """Measure, review and assert; emit the report only when asked.
+
+    ``write=False`` is the pytest path: every measurement still runs, so
+    every limit is genuinely exercised, but nothing is written into the
+    repo. See ``doppler/tests/_validation_common.py``.
+    """
+    global R
+    R = Report(write=write)
+    if write:
+        DATA.mkdir(parents=True, exist_ok=True)
     section_summary()
     d = characterise()
     review(d)
     limits(d)
-    plots(d)
-    ll.plot(
-        d.loop_lo,
-        HERE / "linear_loop.png",
-        title=(
-            f"Closed loop through the LO's OWN emitted phasor: "
-            f"angle(ref x conj(y))/2pi -> LoopFilter -> LO ctrl port "
-            f"(bn = {ll.BN}, zeta = {ll.ZETA})"
-        ),
+    if write:
+        plots(d)
+        ll.plot(
+            d.loop_lo,
+            HERE / "linear_loop.png",
+            title=(
+                f"Closed loop through the LO's OWN emitted phasor: "
+                f"angle(ref x conj(y))/2pi -> LoopFilter -> LO ctrl port "
+                f"(bn = {ll.BN}, zeta = {ll.ZETA})"
+            ),
+        )
+    R.summary(
+        "\n- 6 new sections in `test_lo_core.c` (§16–§21), each proven by "
+        "sabotage"
+        "\n- Raw sweeps: `data/sfdr_sweep.csv`, `data/sfdr_rational.csv`, "
+        "`data/frequency_sweep.csv`, `data/ctrl_sweep.csv`"
     )
-
-    gaps = [f for f in R.findings if f[1] in ("GAP", "CONFIRMED")]
-    npass = sum(1 for ok, _ in R.limits if ok)
-    R.md()
-    R.md("## 5. Summary")
-    R.md()
-    # No trailing space when the list is empty: the end-of-line hook would
-    # strip it and the next regeneration would put it back, which is the
-    # generator-vs-formatter loop the rstrip below already guards against.
-    gap_tail = f": {', '.join(g[0] for g in gaps)}" if gaps else " — none left"
-    R.md(
-        f"- **{len(R.findings)} findings**, {len(gaps)} of them gaps or "
-        f"confirmed defects{gap_tail}\n"
-        f"- **{npass}/{len(R.limits)} limits** hold\n"
-        f"- 6 new sections in `test_lo_core.c` (§16–§21), each proven by "
-        f"sabotage\n"
-        f"- Raw sweeps: `data/sfdr_sweep.csv`, `data/sfdr_rational.csv`, "
-        f"`data/frequency_sweep.csv`, `data/ctrl_sweep.csv`"
-    )
-    R.md()
-    # rstrip so the file ends in exactly one newline: R.md() with no
-    # argument emits a blank separator line, and a trailing one would
-    # otherwise leave two -- which the end-of-file-fixer hook rewrites,
-    # putting the generator and the formatter in a loop.
-    (HERE / "results.md").write_text("\n".join(R.lines).rstrip("\n") + "\n")
-
-    print(f"\n{'━' * 70}")
-    print(
-        f"  {len(R.findings)} findings ({len(gaps)} gaps/defects), "
-        f"{npass}/{len(R.limits)} limits held"
-    )
-    print(f"  wrote {HERE / 'results.md'}")
-    print(f"{'━' * 70}")
-    return 0 if npass == len(R.limits) else 1
+    R.emit(HERE / "results.md")
+    return R
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(cli(build, HERE))

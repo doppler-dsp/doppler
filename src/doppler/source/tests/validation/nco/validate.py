@@ -15,51 +15,25 @@ Three phases, in order:
 Every number is measured from the C through its own binding. Nothing here
 models what the C ought to do.
 
-Run:  uv run python src/doppler/tests/validation/nco/validate.py
+Run:  make validate
 """
 
 from __future__ import annotations
 
 import sys
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
 
 from doppler.source import NCO
-from doppler.tests.validation._common import linear_loop as ll
+from doppler.tests import loop_reference as ll
+from doppler.tests._validation_common import Report, cli
 
 HERE = Path(__file__).parent
 DATA = HERE / "data"
 LSB = 2.0**-32
 W = 1 << 32
-
-
-# ───────────────────────────────────────────────────────────── report
-@dataclass
-class Report:
-    lines: list[str] = field(default_factory=list)
-    findings: list[tuple[str, str, str]] = field(default_factory=list)
-    limits: list[tuple[bool, str]] = field(default_factory=list)
-
-    def md(self, text: str = "") -> None:
-        self.lines.append(text)
-
-    def table(self, header: list[str], rows: list[list[str]]) -> None:
-        self.md("| " + " | ".join(header) + " |")
-        self.md("|" + "|".join("---" for _ in header) + "|")
-        for r in rows:
-            self.md("| " + " | ".join(str(c) for c in r) + " |")
-        self.md()
-
-    def find(self, tag: str, verdict: str, text: str) -> None:
-        self.findings.append((tag, verdict, text))
-        print(f"  [{verdict:^10}] {tag}: {text[:96]}")
-
-    def limit(self, ok: bool, claim: str) -> bool:
-        self.limits.append((bool(ok), claim))
-        print(f"  [{'PASS' if ok else 'FAIL':^10}] {claim[:96]}")
-        return bool(ok)
 
 
 R = Report()
@@ -70,6 +44,23 @@ def advance(norm_freq: float, ctrl_val: float, n: int = 6) -> int:
     nco = NCO(norm_freq, 0)
     ph = nco.steps_u32_ctrl(np.full(n, ctrl_val, dtype=np.float64))
     return int(np.diff(ph.astype(np.int64))[0] % W)
+
+
+def _csv(path, cols, header: str) -> None:
+    """Write one raw sweep, unless this run is measurement-only.
+
+    The CSVs exist so any number in the report can be re-derived without
+    re-running the measurement; a limits-only run (the pytest path) has
+    no report to support and must not write into the repo.
+    """
+    if R.write:
+        np.savetxt(
+            path,
+            np.column_stack(cols),
+            delimiter=",",
+            header=header,
+            comments="",
+        )
 
 
 def signed(adv: int) -> int:
@@ -240,19 +231,19 @@ def section_summary() -> None:
         ["source", "holds"],
         [
             [
-                "[`docs/design/nco.md`](../../../../../docs/design/nco.md)",
+                "[`docs/design/nco.md`](../../../../../../docs/design/nco.md)",
                 "the rationale: why one conversion site, why truncation, "
                 "why the event is signed, what was tried and removed",
             ],
             [
                 "[`native/inc/nco/nco_core.h`]"
-                "(../../../../../native/inc/nco/nco_core.h)",
+                "(../../../../../../native/inc/nco/nco_core.h)",
                 "the contract: the two layers, the two faces over one fold, "
                 "the three output mappings and their `_ctrl` variants",
             ],
             [
                 "[`native/tests/test_nco_core.c`]"
-                "(../../../../../native/tests/test_nco_core.c)",
+                "(../../../../../../native/tests/test_nco_core.c)",
                 "the gate: point assertions, with `volatile` where "
                 "constant-folding would hide the bug",
             ],
@@ -472,12 +463,10 @@ def characterise() -> Data:
     live = inc > 0
     err = (inc / W - freqs) / freqs * 1e6
     bound = np.where(live, 1e6 / np.maximum(inc, 1), np.inf)
-    np.savetxt(
+    _csv(
         DATA / "frequency_sweep.csv",
-        np.column_stack([freqs, inc, err, -bound]),
-        delimiter=",",
-        header="norm_freq,phase_inc,err_ppm,bound_ppm",
-        comments="",
+        [freqs, inc, err, -bound],
+        "norm_freq,phase_inc,err_ppm,bound_ppm",
     )
     R.md("Across the range (full sweep in `data/frequency_sweep.csv`):")
     R.md()
@@ -510,13 +499,7 @@ def characterise() -> Data:
 
     ctrls = np.linspace(-1.5, 1.5, 1201)
     adv = np.array([advance(0.0, c) for c in ctrls], dtype=np.int64)
-    np.savetxt(
-        DATA / "ctrl_sweep.csv",
-        np.column_stack([ctrls, adv]),
-        delimiter=",",
-        header="ctrl,advance",
-        comments="",
-    )
+    _csv(DATA / "ctrl_sweep.csv", [ctrls, adv], "ctrl,advance")
     inc_cfg = NCO(0.1, 0).phase_inc
     adv_ctrl = advance(0.0, 0.1)
     R.md(
@@ -1075,46 +1058,30 @@ def plots(d: Data) -> None:
     plt.close(fig)
 
 
-def main() -> int:
-    DATA.mkdir(parents=True, exist_ok=True)
+def build(write: bool = True) -> Report:
+    """Measure, review and assert; emit the report only when asked.
+
+    ``write=False`` is the pytest path: every measurement still runs, so
+    every limit is genuinely exercised, but nothing is written into the
+    repo. See ``doppler/tests/_validation_common.py``.
+    """
+    global R
+    R = Report(write=write)
+    if write:
+        DATA.mkdir(parents=True, exist_ok=True)
     section_summary()
     d = characterise()
     review(d)
     limits(d)
-    plots(d)
-    ll.plot(d.loop, HERE / "linear_loop.png")
-
-    gaps = [f for f in R.findings if f[1] in ("GAP", "CONFIRMED")]
-    npass = sum(1 for ok, _ in R.limits if ok)
-    R.md()
-    R.md("## 5. Summary")
-    R.md()
-    # No trailing space when the list is empty: the end-of-line hook would
-    # strip it and the next regeneration would put it back, which is the
-    # generator-vs-formatter loop the rstrip below already guards against.
-    gap_tail = f": {', '.join(g[0] for g in gaps)}" if gaps else " — none left"
-    R.md(
-        f"- **{len(R.findings)} findings**, {len(gaps)} of them gaps or "
-        f"confirmed defects{gap_tail}\n"
-        f"- **{npass}/{len(R.limits)} limits** hold\n"
-        f"- Raw sweeps: `data/frequency_sweep.csv`, `data/ctrl_sweep.csv`"
+    if write:
+        plots(d)
+        ll.plot(d.loop, HERE / "linear_loop.png")
+    R.summary(
+        "\n- Raw sweeps: `data/frequency_sweep.csv`, `data/ctrl_sweep.csv`"
     )
-    R.md()
-    # rstrip so the file ends in exactly one newline: R.md() with no
-    # argument emits a blank separator line, and a trailing one would
-    # otherwise leave two -- which the end-of-file-fixer hook rewrites,
-    # putting the generator and the formatter in a loop.
-    (HERE / "results.md").write_text("\n".join(R.lines).rstrip("\n") + "\n")
-
-    print(f"\n{'━' * 70}")
-    print(
-        f"  {len(R.findings)} findings ({len(gaps)} gaps/defects), "
-        f"{npass}/{len(R.limits)} limits held"
-    )
-    print(f"  wrote {HERE / 'results.md'}")
-    print(f"{'━' * 70}")
-    return 0 if npass == len(R.limits) else 1
+    R.emit(HERE / "results.md")
+    return R
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(cli(build, HERE))

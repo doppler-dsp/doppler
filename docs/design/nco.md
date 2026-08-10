@@ -8,7 +8,7 @@ rather than incidental.
 
 The contract itself — what each function promises, argument by argument —
 lives in `native/inc/nco/nco_core.h`, and the measured envelope lives in
-`src/doppler/tests/validation/nco/results.md`. This page does not restate
+`src/doppler/source/tests/validation/nco/results.md`. This page does not restate
 either; it explains the reasoning they assume.
 
 Related: [Continuously Variable Resampler](RESAMPLER.md),
@@ -129,11 +129,11 @@ the accumulator composable in two ways that matter:
 
 The accumulator is one thing; what a caller wants read off it is not.
 
-| mapping                | expression                   | answers                                          |
-| ---------------------- | ---------------------------- | ------------------------------------------------ |
-| `nco_steps_u32`        | the phase word itself        | *where in the cycle am I* — full 32-bit position |
-| `nco_steps_u32_scaled` | `(uint64)phase * nmax >> 32` | *which of `nmax` slots am I in*                  |
-| `nco_steps_u32_ovf`    | phase, plus a boundary flag  | *did a period just complete*                     |
+| mapping                | expression                   | answers                                                                        |
+| ---------------------- | ---------------------------- | ------------------------------------------------------------------------------ |
+| `nco_steps_u32`        | the phase word itself        | *where in the cycle am I* — full 32-bit position                               |
+| `nco_steps_u32_scaled` | `(uint64)phase * nmax >> 32` | *which of `nmax` slots am I in* — the polyphase arm, i.e. μ quantised (§2.5.1) |
+| `nco_steps_u32_ovf`    | phase, plus a boundary flag  | *did a period just complete*                                                   |
 
 The scaled form is a fixed-point multiply, not a division or a modulo:
 `(phase * nmax) >> 32` is exactly `floor(phase / 2^32 * nmax)`, which maps the
@@ -142,19 +142,66 @@ or not. That is how a polyphase resampler picks its arm and how a table-driven
 generator picks its entry, with no branch and no divide in the hot loop.
 `nmax = 0` means "don't scale" and returns the raw form.
 
-### 2.5 Position versus event — the distinction to hold on to
+### 2.5 Position, event, and the excess phase
 
-Those three mappings collapse into two *kinds* of reading, and the difference
-decides how careful each has to be:
+Those three mappings collapse into three *kinds* of reading, and the
+difference decides how careful each has to be:
 
 - **As a position.** `phase` is a number to synthesise from — a LUT index for
-    `LO`, a polyphase arm for `Resamp`. An error here is a phase error, it is
-    small and bounded, and everything downstream averages over it. 32 bits is
-    far below the noise of anything real.
+    `LO`. An error here is a phase error, it is small and bounded, and
+    everything downstream averages over it. 32 bits is far below the noise of
+    anything real.
 - **As an event.** The `_ovf` flag says a cycle boundary was crossed. Nothing
     averages a strobe away: a missed strobe is a missed symbol, a spurious one
     is a duplicated sample. This reading has to be *right*, not merely close,
     which is why §6 exists.
+- **As the excess phase at the event — μ.** The one that is easy to miss, and
+    the reason a resampler works at all.
+
+### 2.5.1 μ: the boundary did not land on a sample, and the accumulator says where
+
+A cycle boundary almost never coincides with an input sample. The accumulator
+steps by `phase_inc` per sample and wraps *between* two of them, so at the
+strobe the register does not read zero — it holds the **excess phase**, the
+amount by which the step overshot the boundary.
+
+That residue is not leftover; it is the measurement. Expressed as a fraction
+of one input interval it is
+
+```text
+mu = phase / 2^32        in [0, 1)
+```
+
+— the fractional instant, between the two input samples that straddle the
+boundary, at which the period actually completed. `resamp_get_ctrl_acc()`
+returns exactly this and documents it as "the phase word as a fraction of one
+input interval".
+
+**This is what the third output mapping is for.** Quantising μ to `P`
+polyphase arms is `floor(mu · P)`, which is precisely
+`nco_steps_u32_scaled` with `nmax = P` — and in `resamp`'s hot loop, the same
+thing as a shift:
+
+```text
+arm = phase >> (32 - log2(P))
+```
+
+The accumulator is in `[0, 2^32)` by construction, so the arm is in `[0, P)`
+by construction too — `resamp` notes that no clamp is reachable, and the
+saturating guard it used to carry was a symptom of feeding it the wrong
+accumulator, not of a range needing protection.
+
+Why it matters: without μ a resampler could only place outputs *on* input
+samples — nearest-neighbour, with a timing error of up to half a sample and
+the spectral damage that implies. μ is what turns the strobe into a
+fractional-delay instant, and the polyphase bank is just a set of
+pre-computed fractional-delay filters indexed by it. The same residue is what
+a symbol synchroniser hands its interpolator.
+
+So the event and the excess are two halves of one answer: `_ovf` says *that* a
+period completed, and the phase left in the register says *where*. A design
+that reads only the flag has thrown away the sub-sample information the
+accumulator already computed for free.
 
 ### 2.6 The control port, and why the loop never touches the accumulator
 
@@ -198,6 +245,9 @@ flowchart TB
     SYNTH --> LO["LO<br/>phase >> 16 indexes a 2^16 sin LUT"]
     LO --> CAR["Costas · CarrierMpsk · CarrierNda<br/>carrier recovery"]
     LO --> DDCN["DDC · Ddcr<br/>frequency translation"]
+
+    ACC ==> MU{{"read as the EXCESS at the event (mu)"}}
+    MU --> RES["Resamp<br/>arm = phase >> (32 - log2 P)"]
 
     STROBE --> SYMS["SymSync<br/>base inc = 2^32 / sps"]
     STROBE --> DLL["Dll<br/>code phase, chip clock"]
@@ -575,7 +625,7 @@ ______________________________________________________________________
 
 ## 11. What it costs, measured
 
-The numbers live in `src/doppler/tests/validation/nco/results.md`, regenerated
+The numbers live in `src/doppler/source/tests/validation/nco/results.md`, regenerated
 by the `validate.py` beside it. The short version, so this page is not the
 last word on questions it raises:
 
@@ -593,7 +643,7 @@ last word on questions it raises:
     frequency ramp leaves none either — the type-2 integrator absorbing the
     constant bias of §2.2, exactly as designed.
 
-`LO`'s own report (`src/doppler/tests/validation/lo/results.md`) adds what the
+`LO`'s own report (`src/doppler/source/tests/validation/lo/results.md`) adds what the
 sine table costs on top, including spurious content: bounded at 90 dBc,
 typically 96, and set by the low 16 bits of `phase_inc` rather than by the
 frequency.

@@ -1,0 +1,38 @@
+# Allowlist for scripts/check_stimulus_sources.py -- a RATCHET.
+#
+# One private stimulus or measurement per line, outside the sanctioned home
+# (the library: wfmgen for signal, ber for metrics), each with a reason.
+#
+# THIS LIST MAY ONLY SHRINK. Adding an entry means a new private copy of
+# something doppler already ships -- and a private copy does not just
+# duplicate code, it invents a CONVENTION (a level, a window, a scale),
+# which is the part that goes wrong silently.
+#
+# Format:  <marker>::<path>::<normalised source line> | reason
+#
+# ── SAFE: an independent ORACLE ───────────────────────────────────────
+# A theory test compares a MEASURED curve against an analytic model. The
+# model has to be derived independently or the comparison is circular --
+# the same carve-out .phase-conversion-allow makes for oracles. These are
+# not copies the rule is about.
+
+pulse::src/doppler/examples/symsync_theory_demo.py::def _rc(t): | SAFE: independent ORACLE, the published twin of test_theory_symsync's reference. Same argument: the page's whole point is measurement against an analytic model derived independently.
+pulse::src/doppler/track/tests/test_theory_symsync.py::def _rc(t): | SAFE: independent ORACLE. _reference_scurve() builds the analytic Gardner S-curve that SymbolSync's MEASURED one is correlated against (>0.99). Generating the reference with the library would make the test partly circular -- an oracle that cannot express the pulse cannot check the pulse.
+
+# ── KNOWN VIOLATIONS: recorded as debt, NOT endorsed ──────────────────
+# Each is a private copy of something the library already provides. They
+# are listed so the gate can stop NEW ones appearing while these are
+# outstanding; the ratchet's whole purpose is that removing them is the
+# only permitted direction. Do not add to this section.
+
+pulse::src/doppler/ddc/tests/test_ddc.py::def _rrc_bpsk( | VIOLATION. Private RRC-BPSK stimulus; wfmgen generates this. Also the C twin of this suite (dp_mf_test.h::mf_tx) hard-codes amplitude 0.25, so the two paths do not even agree on level.
+pulse::src/doppler/examples/carrier_acq_rrc_demo.py::def rrc_template_for(nfft: int) -> np.ndarray: | VIOLATION (borderline). Builds |H(f)|^2 as CarrierAcquisition's matched TEMPLATE -- configuration of the detector rather than an independent check, so it should derive from rrc_taps rather than restate the response. Lowest priority of these.
+pulse::src/doppler/examples/ratesync_demo.py::def rrc_h(t, beta=BETA): | VIOLATION. Private analytic RRC in a doppler EXAMPLE -- the worst place for it, since an example is what a reader copies. Synth(pulse='rrc', rrc_beta=, rrc_span=) is the one-liner.
+level::src/doppler/examples/ratesync_demo.py::x *= 0.25 / np.max(np.abs(x)) # headroom for the CIC's +-1.0 bound | VIOLATION, and the one that cost a session. Peak backoff to 0.25 means symbols reach RateSync at ~0.158 (RRC PAPR ~1.582) against a contract in unit symbol amplitude -- ~40x of Gardner loop gain, and the demo fails its own lock_stat assertion with nothing pointing at the level. The comment blames the CIC's +-1.0 bound, which 6c612d3e budgeted for explicitly. Use Synth's level/snr/snr_mode.
+evm::src/doppler/examples/ratesync_demo.py::def _evm_db(y): | VIOLATION. Private EVM beside a private evm_floor_db(); ber_evm_db over a ber_settle_syms window is the canonical pair, and it is what the C suite now uses.
+pulse::src/doppler/examples/wcdma_carriers_demo.py::def rrc_carrier(fc, level, seed, n): | VIOLATION. Builds a shaped carrier by hand; Synth/Composer compose exactly this, with the level conventions attached.
+pulse::src/doppler/resample/tests/test_RateConverter.py::def _rrc_h(t: np.ndarray, beta: float) -> np.ndarray: | VIOLATION. A private analytic RRC plus a private RRC-BPSK builder -- the third and fourth copies of the same pulse in the Python layer.
+pulse::src/doppler/resample/tests/test_RateConverter.py::def _rrc_bpsk(sps: float, phi: float, seed: int = 7) -> tuple: | VIOLATION. A private analytic RRC plus a private RRC-BPSK builder -- the third and fourth copies of the same pulse in the Python layer.
+pulse::src/doppler/track/tests/test_ratesync.py::def _rrc_h(t: np.ndarray, beta: float = BETA) -> np.ndarray: | VIOLATION. Private analytic RRC. The C side of this exact object was moved onto the shared primitives on 2026-08-10; the Python side was not.
+evm::src/doppler/track/tests/test_ratesync.py::def _evm_db(y: np.ndarray) -> float: | VIOLATION. Private EVM. Same object, same day, same fix available: doppler.ber.ber_evm_db.
+pulse::src/doppler/track/tests/test_symsync.py::def _rc(t, beta, T): | VIOLATION (review). A raised cosine taking (t, beta, T) -- unlike its theory sibling this is the FUNCTIONAL suite, so it is most likely stimulus rather than an oracle. Confirm which before removing; if it is an oracle, move it to the SAFE section with that reason.

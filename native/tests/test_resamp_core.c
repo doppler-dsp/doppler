@@ -22,6 +22,7 @@
  *   §17b The same bank anti-imaging: the artifact floor for R >= 1
  *   §18 execute_ctrl rides the interpolator at EVERY rate
  *   §19 Only the real part of `ctrl` is used
+ *   §20 interp_inputs_needed is exact at every rate, not just integer ones
  *
  * Sections numbered §10 onward were added by the validation campaign, which
  * enumerated resamp_core.h's prose claims and asked of each whether anything
@@ -910,6 +911,89 @@ ctrl_rides_interpolator (double rate)
   return !same && resid < -60.0;
 }
 
+/* ── §20 — `interp_inputs_needed` is exact, and more broadly than claimed ─
+ *
+ * The streaming contract: a caller asks how many inputs a fill of `max_out`
+ * outputs will consume, generates exactly that many, and calls
+ * resamp_interp_fill. Over- or under-production is a desync, so "exact" is
+ * the whole value of the function.
+ *
+ * §7 already pins it at ONE point — a custom power-of-two bank at
+ * `rate == num_phases`, which is the integer interpolation factor the header
+ * scopes the guarantee to:
+ *
+ *   "For an integer interpolation factor ... this is exact, so a caller can
+ *    generate precisely this many inputs — no over- or under-production."
+ *
+ * Measured, it is exact far outside that scope: every rate tried, fractional
+ * included, mid-stream, for arbitrary `max_out`. That follows from the
+ * construction — the prediction and the fill run the SAME recurrence on the
+ * same phase_inc, so they cannot disagree — and it means a caller may rely
+ * on the streaming contract at any rate, which the header currently tells
+ * them not to.
+ *
+ * Which is also why the prediction-vs-fill comparison alone is worth little:
+ * it is a consistency test between two users of one recurrence, structurally
+ * blind to any defect they share (a wrong phase_inc moves both). So the
+ * external truth is asserted alongside it — the inputs consumed across the
+ * whole run must satisfy the counting law, `inputs ~= outputs / rate`,
+ * which depends on phase_inc being RIGHT rather than merely used twice. */
+static int
+inputs_needed_is_exact (double rate)
+{
+  enum
+  {
+    CALLS = 200,
+    NIN   = 1 << 16,
+    CAP   = 4096
+  };
+  static float _Complex in[NIN], out[CAP];
+  for (size_t i = 0; i < NIN; i++)
+    in[i] = CMPLXF (1.0f, 0.0f);
+
+  resamp_state_t *r = resamp_create (rate);
+  if (!r)
+    return 0;
+
+  unsigned seed   = 20250811u;
+  size_t   tot_in = 0, tot_out = 0;
+  int      ok = 1;
+  for (int k = 0; k < CALLS && ok; k++)
+    {
+      /* Varied, and never the same twice: a fixed max_out would only ever
+         exercise one phase alignment. */
+      size_t m    = 1 + (size_t)(rand_r (&seed) % (CAP - 1));
+      size_t need = resamp_interp_inputs_needed (r, m);
+      if (need > NIN)
+        break;
+      size_t got = resamp_interp_fill (r, in, out, m);
+      if (got != need)
+        {
+          fprintf (stderr,
+                   "  §20 rate=%.3f call %d: predicted %zu inputs, "
+                   "consumed %zu\n",
+                   rate, k, need, got);
+          ok = 0;
+        }
+      tot_in += got;
+      tot_out += m;
+    }
+  resamp_destroy (r);
+  if (!ok)
+    return 0;
+
+  /* The external truth: phase_inc has to be the right number, not just the
+     same number in two places. One output period is 1/rate inputs, and the
+     accumulated total may lag by at most the final partial period. */
+  double expect = (double)tot_out / rate;
+  double err    = fabs ((double)tot_in - expect);
+  fprintf (stderr,
+           "  §20 rate=%.3f: %zu outputs consumed %zu inputs, law says "
+           "%.1f (err %.1f)\n",
+           rate, tot_out, tot_in, expect, err);
+  return err <= 2.0;
+}
+
 /* ── §19 — only the real part of `ctrl` is used ──────────────────────────
  *
  * "ctrl is treated as real-valued; only the real part of each element is
@@ -1446,6 +1530,16 @@ main (void)
   /* ── §19 — the ctrl port's imaginary half is discarded ──────────────── */
   CHECK (ctrl_imag_is_ignored (1.0));
   CHECK (ctrl_imag_is_ignored (0.7));
+
+  /* ── §20 — the streaming contract holds at every rate ───────────────
+     Fractional rates included, which is where the header's "integer
+     interpolation factor" scoping says not to rely on it. */
+  CHECK (inputs_needed_is_exact (1.0));
+  CHECK (inputs_needed_is_exact (1.5));
+  CHECK (inputs_needed_is_exact (2.0));
+  CHECK (inputs_needed_is_exact (2.5));
+  CHECK (inputs_needed_is_exact (3.7));
+  CHECK (inputs_needed_is_exact (7.3));
 
   if (_fails)
     {

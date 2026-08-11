@@ -19,6 +19,7 @@
  *   §15 set_rate preserves the accumulator and the delay line
  *   §16 reset zeroes every accumulator and every delay buffer
  *   §17 The bank's advertised 60 dB stopband and 0.4/0.6 cutoffs
+ *   §17b The same bank anti-imaging: the artifact floor for R >= 1
  *   §18 execute_ctrl rides the interpolator at EVERY rate
  *   §19 Only the real part of `ctrl` is used
  *
@@ -695,12 +696,6 @@ lifecycle_rejects (void)
  * 0.10/0.15 at R = 0.25. A rule read as "the bank's own grid, scaled by
  * rate" happens to agree numerically and explains nothing.
  *
- * NOT covered here: the R >= 1 face. Interpolating, the lower rate is the
- * INPUT, so the same bank is an anti-IMAGING filter normalised to fs_in —
- * and its stopband lives above fs_in/2, where no input tone can probe it.
- * Proving it needs an image-rejection measurement on the output spectrum
- * rather than this response sweep. Recorded as a gap, not skipped quietly.
- *
  * Measured by driving a pure tone through and reading the settled output
  * magnitude — a response measurement, needing no reference filter. */
 static double
@@ -731,6 +726,75 @@ band_response_db (double rate, double f0)
     acc += (double)cabsf (out[k]);
   double mag = acc / (double)cnt;
   return 20.0 * log10 (mag + 1e-20);
+}
+
+/* ── §17b — the same bank's OTHER face: anti-imaging, R >= 1 ─────────────
+ *
+ * Interpolating, the lower of the two rates is the INPUT, so the same 60 dB
+ * stopband is normalised to fs_in and does an anti-imaging job. That face
+ * looked unprobeable at first — its stopband lives above fs_in/2, where no
+ * input tone can reach — but it does not need a swept response at all,
+ * because the structure MANUFACTURES its own probe: interpolation replicates
+ * the input spectrum at every multiple of fs_in, and the stopband's whole
+ * purpose is to suppress those replicas. So measure the artifact floor.
+ *
+ * For a complex input tone at f0 (units of fs_in), the replicas land at
+ * f0 + k for k = 1..R-1, which in units of fs_out is (f0 + k) / R. Each is
+ * projected out individually rather than lumped into one residual: the
+ * point is to attribute the artifact to imaging, and an aggregate number
+ * cannot tell an image from broadband distortion.
+ *
+ * Integer R only. At a fractional rate the replicas are not stationary in
+ * the output grid, so a fixed-frequency projection would measure the drift
+ * rather than the rejection. */
+static double
+worst_image_db (double rate, double f0)
+{
+  enum
+  {
+    NIN = 4096,
+    CAP = 65536
+  };
+  static float _Complex in[NIN], out[CAP];
+  int R = (int)(rate + 0.5);
+  if (fabs (rate - (double)R) > 1e-12 || R < 2)
+    return 1.0; /* impossible value: caller's check will fail */
+
+  resamp_state_t *r = resamp_create (rate);
+  if (!r)
+    return 1.0;
+  for (size_t i = 0; i < NIN; i++)
+    {
+      double ph = 2.0 * M_PI * f0 * (double)i;
+      in[i]     = CMPLXF ((float)cos (ph), (float)sin (ph));
+    }
+  size_t n = resamp_execute (r, in, NIN, out, CAP);
+  resamp_destroy (r);
+  if (n < (size_t)GATE_SKIP + 256)
+    return 1.0;
+
+  const float _Complex *y = out + GATE_SKIP;
+  size_t                m = n - GATE_SKIP;
+
+  /* The fundamental sets the reference amplitude. */
+  double fund = cabs (gate_project (y, m, f0 / rate, GATE_SKIP));
+  if (fund <= 0.0)
+    return 1.0;
+
+  double worst = -999.0;
+  for (int k = 1; k < R; k++)
+    {
+      /* Replica k, folded into [-0.5, 0.5) of fs_out. */
+      double fi = (f0 + (double)k) / rate;
+      fi -= floor (fi);
+      if (fi >= 0.5)
+        fi -= 1.0;
+      double img = cabs (gate_project (y, m, fi, GATE_SKIP));
+      double db  = 20.0 * log10 (img / fund + 1e-30);
+      if (db > worst)
+        worst = db;
+    }
+  return worst;
 }
 
 /* ── §18 — execute_ctrl rides the INTERPOLATOR at every rate ─────────────
@@ -1296,6 +1360,26 @@ main (void)
         CHECK (fabs (pb_edge) < 1.0); /* at the advertised edge    */
         CHECK (sb_edge < -60.0);      /* the advertised rejection  */
         CHECK (sb_deep < -60.0);      /* and it stays down         */
+      }
+  }
+
+  /* ── §17b — the same 60 dB, on the interpolating face ───────────────
+     The structure makes its own probe: every image the interpolator
+     manufactures at a multiple of fs_in is a sample of the stopband. */
+  {
+    const double rates[3] = { 2.0, 4.0, 8.0 };
+    for (int i = 0; i < 3; i++)
+      {
+        /* Two tones: one well inside the passband, one near its edge,
+           which is where the images sit closest to the transition. */
+        double lo = worst_image_db (rates[i], 0.05);
+        double hi = worst_image_db (rates[i], 0.35);
+        fprintf (stderr,
+                 "  §17b rate=%.0f: worst image %.1f dB (f0 .05), "
+                 "%.1f dB (f0 .35)\n",
+                 rates[i], lo, hi);
+        CHECK (lo < -60.0);
+        CHECK (hi < -60.0);
       }
   }
 

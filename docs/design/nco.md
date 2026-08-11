@@ -304,6 +304,7 @@ integer:
 | primitive                            | what it does                                                 |
 | ------------------------------------ | ------------------------------------------------------------ |
 | `nco_phase_units(units)`             | the cast: `<0` or NaN → 0, `≥2^32` → `2^32-1`, else truncate |
+| `nco_phase_units_mod(units)`         | the same cast, **modular** at the top: `2^32` → `0` (§9)     |
 | `nco_norm_fold_(norm)`               | fold to `[0,1)` then convert — the shared body               |
 | `nco_norm_freq_to_inc(norm_freq)`    | its **frequency** face: cycles/sample → a phase increment    |
 | `nco_norm_phase_to_word(norm_phase)` | its **phase** face: cycles → a phase word                    |
@@ -318,7 +319,7 @@ intent.
 `nco_steer_scale` is the companion, and the reason the cast should almost
 never be the thing making a decision: a conversion can only saturate or floor
 a request that is already insane, and both are symptoms. Bounding the request
-is the fix (§6).
+is the fix (§8).
 
 A rule that is only written down is not a rule, so `scripts/.phase-conversion-allow`
 is a ratchet: the lint gate fails on any new occurrence of the 2^32 scaling
@@ -562,11 +563,10 @@ rather than one the object means.
 
 ______________________________________________________________________
 
-## 9. Where the boundary is landed modularly instead — `resamp`
+## 9. Two boundary conventions, one home — `resamp`
 
-`resamp` used to hold private copies of the conversion. It no longer does —
-but it did **not** move onto `nco_phase_units`, and the reason matters enough
-that the header says "do not consolidate it back".
+`resamp` needs the *other* answer at the top of the range, and that is a
+difference in **behaviour**, not a licence to own a second conversion.
 
 Under the **interpolating** rule `resamp` adopted, an output is emitted on
 every tick and the phase word only decides when to *load* the next input. A
@@ -574,16 +574,30 @@ step of one whole period per tick — `rate == 1` — is therefore an ordinary
 operating point, not a limit, and its exact encoding is `0`: a full period
 elapsed, which is precisely what the accumulator wrapping to zero says.
 
-`nco_phase_units` would clamp that to `2^32-1`. That is the right answer for a
-phase **accumulator**, where exceeding one cycle per sample is meaningless, and
-the wrong one for a **period counter**, where the wrap *is* the meaning. So
-`_step_inc` converts through `int64_t`, which represents 2^32 exactly, making
-the conversion defined over the whole range and the narrowing modular by
-construction; NaN and negatives are rejected first, leaving only the boundary
-it actually wants.
+`nco_phase_units` clamps that to `2^32-1`. That is the right answer for a
+phase **accumulator**, where exceeding one cycle per sample is meaningless,
+and the wrong one for a **period counter**, where the wrap *is* the meaning.
+So the family exposes both faces: `nco_phase_units_mod` is the modular one,
+and `_step_inc` computes the *arithmetic* that is resamp's — which
+reciprocal, which branch — then hands the narrowing to it.
 
-That entry sits in the allowlist's SAFE section with the reasoning attached —
-the difference between a documented exception and an erosion.
+**This page argued the opposite until the argument cost something.** It said
+resamp should keep the modular cast in its own `_step_inc` precisely so it
+could not be consolidated back, and it was right about the behaviour and
+wrong about the home. A file that already owned "the conversion" locally grew
+a **second** one beside it — `resamp_execute_ctrl_push`'s
+`(uint32_t)(frac * 2^32 + 0.5)`, whose rounding carries past 2^32 into the
+undefined cast. That stalled the interpolator for a rate deviation in
+`(0, 1.16e-10]`, and since zero Doppler *is* rate 1.0, a geometry ramping
+through closest approach crosses it — which is how it took a receiver's lock.
+One private exception is what made a second one look ordinary.
+
+What remains in the allowlist is the *arithmetic*, annotated as not a
+conversion at all: the multiply runs in double exactly as `nco_core.h`
+prescribes, and the cast belongs to `nco_phase_units_mod`. The literal
+`4294967296.0` is left spelled out on purpose — the gate's detector **is**
+that literal, so hiding it behind a named constant would let a future
+`(uint32_t)(x * SCALE)` through.
 
 ______________________________________________________________________
 
@@ -633,11 +647,15 @@ last word on questions it raises:
     negligible at a carrier rate, ~194700 ppm at the bottom of the range. A code
     NCO lives at the expensive end.
 - The usable floor is exactly one LSB, `2.33e-10` cycles/sample.
-- The `ctrl` port is float32 while the configured rate is double, so the same
-    requested `0.1` reaches the accumulator as two different phase words
-    depending on which way it came in; and a control that cancels `phase_inc`
-    stops the oscillator over a plateau one float32 quantum wide rather than at
-    a knife edge. Both are recorded as gaps.
+- A control that cancels `phase_inc` stops the oscillator over a **plateau**
+    rather than at a knife edge, and the plateau is one phase-word LSB wide:
+    `2.317e-10` measured against an LSB of `2.328e-10`. That is the floor
+    doing its job, not slack — a steer finer than one LSB cannot move an
+    integer accumulator, and §7 is why that is the right trade.
+- The `ctrl` port **was** float32 while the configured rate was double, so
+    the same requested `0.1` reached the accumulator as two different phase
+    words depending on which face it entered by. Fixed: all four narrowing
+    signatures take `double`, and the measured delta is now `0`.
 - Closed-loop, with an ideal detector: a phase step settles well inside the
     `5/bn` estimate, symmetrically in sign, with no steady-state error, and a
     frequency ramp leaves none either — the type-2 integrator absorbing the

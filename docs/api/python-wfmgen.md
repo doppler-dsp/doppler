@@ -318,6 +318,15 @@ The `StreamSink` is POSIX-only. DSP helpers `rrc_taps(beta, sps, span)` and
 `dsss_spread(syms, code, sf)` expose the pulse-shaping and spreading
 primitives.
 
+**Taps or pulse?** `rrc_taps` returns taps on an integer sample grid, which is
+what a filter needs. `rrc_h(t, beta)` and `rc_h(t, beta)` evaluate the same
+pulses *analytically* at arbitrary times in symbol periods — use those when a
+stimulus has no grid to sample, which is any non-integer samples-per-symbol or
+any fractional timing offset. `rrc_h` is the root raised cosine, the transmit
+half of a matched-filter pair; `rc_h` is the full raised cosine, already the
+Nyquist response that pair produces, so it models the matched-filter *output*
+directly (a timing-detector S-curve reference, say).
+
 `SampleClock` (POSIX) paces and timestamps a stream against an ideal `fs`-Hz
 clock — the same C core behind the `wfmgen --realtime` CLI flag. Use it to
 throttle a producer to real time and to tag blocks with their ideal timestamp:
@@ -362,6 +371,10 @@ class above. `write_blue_header` (detached BLUE headers) is on [Python: Capture
 I/O](python-wfm-io.md#module-level-helpers).
 
 ::: doppler.wfm.rrc_taps
+
+::: doppler.wfm.rrc_h
+
+::: doppler.wfm.rc_h
 
 ::: doppler.wfm.dsss_spread
 

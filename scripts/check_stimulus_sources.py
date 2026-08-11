@@ -45,6 +45,7 @@ Exit 0 when the set of occurrences matches the allowlist exactly.
 
 from __future__ import annotations
 
+import ast
 import re
 import sys
 from pathlib import Path
@@ -105,6 +106,95 @@ MARKERS: dict[str, tuple[re.Pattern[str], str]] = {
 }
 
 
+#: marker -> the primitives that ARE the sanctioned home. A function whose
+#: body reaches one of these is a wrapper around the library, not a second
+#: copy of it, however its name reads.
+CANONICAL: dict[str, set[str]] = {
+    "pulse": {
+        "rrc_taps",
+        "wfm_rrc_h",
+        "wfm_rc_h",
+        "wfm_rrc_taps",
+        "wfm_rrc_polyphase_bank",
+        "wfm_synth_set_rrc",
+        "Synth",
+        "Composer",
+    },
+    "evm": {
+        "ber_evm_db",
+        "dp_test_evm_db_hard",
+        "dp_test_evm_db_hard_range",
+    },
+}
+
+
+def delegating_defs(src: str) -> set[tuple[str, int]]:
+    """`(marker, def-lineno)` for every function that reaches the library.
+
+    The gate matches a function by NAME, which cannot tell a private
+    reimplementation from a correctly-written wrapper. `validate.py`'s
+    `evm_db()` is `ber_evm_db()` over a `ber_settle_syms()` window with a
+    raise instead of the primitive's 0.0-dB "no lock" sentinel; its
+    `rrc_bpsk()` reaches `rrc_taps` through two local helpers. Both are the
+    behaviour this gate exists to encourage, and allowlisting them would put
+    the best code in the tree on a debt list.
+
+    Delegation is followed TRANSITIVELY through module-level functions,
+    because the good factoring is exactly the one that hides the primitive a
+    level or two down (`rrc_bpsk` -> `shaped_stream` -> `analytic_rrc` ->
+    `rrc_taps`). A one-level check would report that chain as private and
+    push the author toward inlining, which is the wrong lesson.
+    """
+    try:
+        tree = ast.parse(src)
+    except SyntaxError:  # not our file to judge
+        return set()
+
+    funcs = {
+        n.name: n
+        for n in ast.walk(tree)
+        if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
+    }
+
+    def identifiers(node: ast.AST) -> set[str]:
+        """Names the code actually REFERENCES.
+
+        Read from the AST, never from the source text: a regex over the
+        segment also matches prose, so a private implementation whose
+        docstring merely mentions `rrc_taps` would exempt itself. That is
+        not hypothetical -- it is what the mutation test caught when this
+        function was first written the easy way.
+        """
+        out: set[str] = set()
+        for sub in ast.walk(node):
+            if isinstance(sub, ast.Name):
+                out.add(sub.id)
+            elif isinstance(sub, ast.Attribute):
+                out.add(sub.attr)
+        return out
+
+    words = {name: identifiers(node) for name, node in funcs.items()}
+
+    def reaches(name: str, marker: str, seen: set[str]) -> bool:
+        if name in seen:
+            return False
+        seen.add(name)
+        used = words.get(name, set())
+        if CANONICAL[marker] & used:
+            return True
+        return any(
+            reaches(callee, marker, seen)
+            for callee in (used & set(funcs)) - {name}
+        )
+
+    return {
+        (marker, node.lineno)
+        for name, node in funcs.items()
+        for marker in CANONICAL
+        if reaches(name, marker, set())
+    }
+
+
 def occurrences() -> list[tuple[str, str, int, str]]:
     """Every (marker, file, line-no, line) in the consuming layers."""
     found: list[tuple[str, str, int, str]] = []
@@ -116,12 +206,17 @@ def occurrences() -> list[tuple[str, str, int, str]]:
             if path.suffix not in SUFFIXES or "__pycache__" in path.parts:
                 continue
             rel = path.relative_to(ROOT).as_posix()
-            for n, line in enumerate(
-                path.read_text(errors="replace").splitlines(), 1
-            ):
+            text = path.read_text(errors="replace")
+            delegating = (
+                delegating_defs(text) if path.suffix == ".py" else set()
+            )
+            for n, line in enumerate(text.splitlines(), 1):
                 for marker, (rx, _) in MARKERS.items():
-                    if rx.search(line):
-                        found.append((marker, rel, n, line.strip()))
+                    if not rx.search(line):
+                        continue
+                    if (marker, n) in delegating:
+                        continue
+                    found.append((marker, rel, n, line.strip()))
     return found
 
 

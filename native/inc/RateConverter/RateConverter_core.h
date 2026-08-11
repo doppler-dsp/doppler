@@ -117,6 +117,18 @@ typedef struct
   double       agc_ref_db;   /**< derived: 10*log10(bank_e0 / bank_sps)  */
   double       agc_bn_sym;   /**< requested bandwidth, cycles/SYMBOL     */
   double       agc_alpha;    /**< detector EMA coefficient               */
+  /** The telemetry attachment as REQUESTED, not as currently applied.
+      Held here rather than only on the AGC because the AGC is destroyed and
+      rebuilt whenever the plan changes (_agc_build), and may not exist yet
+      when the attach arrives; keeping the request lets every rebuild re-apply
+      it. Never packed into a state blob — telemetry is observation.
+      See RateConverter_set_telemetry(). */
+  struct
+  {
+    dp_tlm_t *ctx;                   /**< NULL = detached              */
+    char      prefix[DP_TLM_NAME_MAX]; /**< as passed by the caller    */
+    uint32_t  decim;                 /**< as passed by the caller      */
+  } agc_tlm_req;
 } RateConverter_state_t;
 
 /**
@@ -379,6 +391,62 @@ double RateConverter_agc_ref_db (const RateConverter_state_t *s);
  * multiply.
  */
 double RateConverter_agc_gain_db (const RateConverter_state_t *s);
+
+/**
+ * @brief Attach (or detach) a telemetry context on the pre-terminal AGC.
+ *
+ * The cascade has no loop of its own to report — the stages are fixed
+ * filters — so this forwards to the one child that does: the pre-terminal
+ * AGC, under @p prefix verbatim. It registers that child's probes
+ * ("<prefix>.gain_db" and "<prefix>.level_db"; see agc_set_telemetry()) and
+ * nothing else, which is why the prefix is not extended with a component
+ * name — there is no second thing here to disambiguate it from.
+ *
+ * A composing object forwards its own prefix down: an `mpsk_receiver`
+ * attached as "rx" passes "rx.agc", and the receiver's gain trajectory joins
+ * its carrier and timing probes on one context.
+ *
+ * With the AGC off (a plain cascade, or a matched one where
+ * RateConverter_enable_agc() was never called) there is nothing to instrument
+ * and this is a successful no-op — DP_OK with no probes registered. That is
+ * deliberate: whether the AGC exists is the composing receiver's
+ * construction-time choice (`agc = 0`), and a caller attaching telemetry
+ * should not have to know which way that went to avoid an error.
+ *
+ * The attachment is remembered as a REQUEST, so it survives the AGC being
+ * rebuilt by a rate change and is applied to an AGC enabled after the fact.
+ * One consequence of that: an attach made before the AGC exists reports DP_OK
+ * here, and if the probe table has filled by the time the AGC is built the
+ * probes are dropped without failing the build — signal processing does not
+ * fail because observation could not be set up. Attach after construction
+ * (which is what every composing object here does) and the return value
+ * covers it; otherwise check the context's probe names.
+ *
+ * Setup path, never hot: call before the producer thread starts; the context
+ * is borrowed and must outlive the attachment (SPSC rules in
+ * dp_tlm/dp_tlm_core.h). Passing NULL detaches.
+ *
+ * @param s      Must be non-NULL.
+ * @param tlm    Telemetry context to attach, or NULL to detach.
+ * @param prefix Probe-name prefix, e.g. "agc" or "rx.agc".
+ * @param decim  Emit every decim-th gain update; >= 1.
+ * @return DP_OK — including when no AGC is enabled — or DP_ERR_INVALID when
+ *         the probe table cannot take the AGC's probes (the attach fails
+ *         whole; the AGC stays detached).
+ *
+ * @code
+ * RateConverter_state_t *rc =
+ *     RateConverter_create_matched (2.0 / 8.0, 1, RC_PULSE_RRC, 0.35, 8,
+ *                                   2.0, 1024);
+ * RateConverter_enable_agc (rc, 1e-4, 0.01);
+ * dp_tlm_t *tlm = dp_tlm_create (1 << 12);
+ * RateConverter_set_telemetry (rc, tlm, "agc", 1);
+ * RateConverter_destroy (rc);
+ * dp_tlm_destroy (tlm);
+ * @endcode
+ */
+int RateConverter_set_telemetry (RateConverter_state_t *s, dp_tlm_t *tlm,
+                                 const char *prefix, uint32_t decim);
 
 /** @brief Free all resources.  NULL is a no-op. */
 void RateConverter_destroy (RateConverter_state_t *s);

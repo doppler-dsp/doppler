@@ -442,6 +442,25 @@ extern "C"
    */
   bool ddcr_get_clipped (const ddcr_state_t *s);
 
+  /**
+   * @brief Attach (or detach) a telemetry context on the cascade's AGC.
+   *
+   * The twin of ddc_set_telemetry(), forwarded to the same
+   * RateConverter_set_telemetry() over the same cascade: the R2C front end and
+   * the fixed stages have no loop to report, so the one instrumented child is
+   * the pre-terminal AGC ("<prefix>.gain_db" and "<prefix>.level_db"). DP_OK
+   * with no probes when the cascade has no AGC enabled.
+   *
+   * @param s      Must be non-NULL.
+   * @param tlm    Telemetry context to attach, or NULL to detach.
+   * @param prefix Probe-name prefix, e.g. "rx.agc".
+   * @param decim  Emit every decim-th gain update; >= 1.
+   * @return DP_OK, or DP_ERR_INVALID when the probe table cannot take the
+   *         AGC's probes (the attach fails whole).
+   */
+  int ddcr_set_telemetry (ddcr_state_t *s, dp_tlm_t *tlm, const char *prefix,
+                          uint32_t decim);
+
 
 #ifdef __cplusplus
 }

@@ -222,7 +222,20 @@ int
 mpsk_receiver_r_set_telemetry (mpsk_receiver_r_state_t *state, dp_tlm_t *tlm,
                                const char *prefix, uint32_t decim)
 {
-  return mpsk_rx_set_telemetry (&state->l, tlm, prefix, decim);
+  int rc = mpsk_rx_set_telemetry (&state->l, tlm, prefix, decim);
+  if (rc != DP_OK)
+    return rc;
+  /* Same third loop, same prefix, same reason as the complex twin -- see
+     mpsk_receiver_set_telemetry(). */
+  char name[DP_TLM_NAME_MAX];
+  (void)snprintf (name, sizeof (name), "%s.agc", prefix ? prefix : "rx");
+  int rc_agc = ddcr_set_telemetry (state->fe, tlm, name, decim);
+  if (rc_agc != DP_OK) /* fails whole: undo the loops we just attached */
+    {
+      (void)mpsk_rx_set_telemetry (&state->l, NULL, prefix, decim);
+      return rc_agc;
+    }
+  return DP_OK;
 }
 
 double

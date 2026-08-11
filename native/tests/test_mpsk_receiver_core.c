@@ -359,7 +359,14 @@ main (void)
     CHECK (dp_tlm_probe_id (tlm, "rx.sync.locked")
            == a->l.timing.tlm.id_locked);
     CHECK (dp_tlm_probe_id (tlm, "rx.sync.mu") == a->l.timing.tlm.id_mu);
-    CHECK (dp_tlm_probe_count (tlm) == 11);
+    /* The front end's AGC is the third loop, forwarded under "rx.agc". It was
+       the only one of the three emitting nothing, which made its settling the
+       one thing a caller had to infer -- and by mpsk_rx_agc_bn() it is the
+       SLOWEST of the three, so it is what sets the receiver's warmup. */
+    int id_agc_gain = dp_tlm_probe_id (tlm, "rx.agc.gain_db");
+    int id_agc_lvl  = dp_tlm_probe_id (tlm, "rx.agc.level_db");
+    CHECK (id_agc_gain >= 0 && id_agc_lvl >= 0);
+    CHECK (dp_tlm_probe_count (tlm) == 13);
 
     size_t n_sym = mpsk_receiver_steps (a, tx, 512, out, 80);
     CHECK (n_sym > 0);
@@ -368,8 +375,19 @@ main (void)
     /* lock + tracking + car(e,freq,locked) + sync(e,ctrl,rate,lock,locked,mu):
      * eleven records per recovered symbol, all flushed at the strobe. The arm
      * AGC is not attached -- it is an internal normaliser on the
-     * discriminator's input, not a receiver diagnostic. */
-    CHECK (n_rec == 11 * n_sym);
+     * discriminator's input, not a receiver diagnostic. The FRONT-END AGC is,
+     * and it is deliberately NOT on the symbol grid: it sits pre-terminal in
+     * the cascade and emits per gain-update event, so its two probes
+     * contribute a count of their own. */
+    size_t n_agc = 0;
+    for (size_t i = 0; i < n_rec; i++)
+      if (recs[i].probe == (uint16_t)id_agc_gain
+          || recs[i].probe == (uint16_t)id_agc_lvl)
+        n_agc++;
+    CHECK (n_agc > 0);          /* the forward actually reaches the AGC */
+    CHECK (n_agc % 2 == 0);     /* both probes emit together, always    */
+    CHECK (n_agc / 2 != n_sym); /* a cascade grid, not the symbol grid  */
+    CHECK (n_rec == 11 * n_sym + n_agc);
 
     /* `mu` is the timing NCO's phase, so it is a FRACTION: every record must
        land in [0, 1) whatever the loop is doing, and it must actually vary
@@ -430,6 +448,43 @@ main (void)
     CHECK (mpsk_receiver_set_telemetry (b, tlm2, "uw", 1) == DP_ERR_INVALID);
     CHECK (b->l.tlm.ctx == NULL && b->l.timing.tlm.ctx == NULL);
     dp_tlm_destroy (tlm2);
+
+    /* The unwind one step further out: leave exactly ELEVEN slots, so both
+       loops attach and only the AGC forward cannot. "Fails whole" has to mean
+       the loops are rolled back too, or a caller who checked the return value
+       would still be quietly emitting eleven of thirteen probes. */
+    dp_tlm_t *tlm3 = dp_tlm_create (256);
+    CHECK (tlm3 != NULL);
+    for (size_t i = 0;
+         dp_tlm_probe_count (tlm3) < (size_t)(DP_TLM_MAX_PROBES - 11); i++)
+      {
+        (void)snprintf (pname, sizeof (pname), "fill%zu", i);
+        (void)dp_tlm_probe (tlm3, pname, 1);
+      }
+    CHECK (mpsk_receiver_set_telemetry (b, tlm3, "uw2", 1) == DP_ERR_INVALID);
+    CHECK (b->l.tlm.ctx == NULL && b->l.timing.tlm.ctx == NULL);
+    /* And nothing emits: the rollback is real, not just a flag. */
+    (void)mpsk_receiver_steps (b, tx, 512, out, 80);
+    CHECK (dp_tlm_read (tlm3, 2048, recs, 2048) == 0);
+    dp_tlm_destroy (tlm3);
+
+    /* With agc = 0 there is no third loop to attach: eleven probes, and the
+       attach still succeeds -- a caller should not have to know how the
+       receiver was constructed to avoid an error. */
+    mpsk_receiver_state_t *noagc = mpsk_receiver_create (
+        2, SPS, M_OUT, MPSK_RX_PULSE_IANDD, 0.35, 8, 0.01, 0.707, 0.01, 0, 0.5,
+        0.0, 100, 0, MPSK_RX_NUM_PHASES, MPSK_RX_NDA_TAP_STROBE, 0,
+        MPSK_RX_AGC_BW_RATIO);
+    dp_tlm_t *tlm4 = dp_tlm_create (4096);
+    CHECK (noagc != NULL && tlm4 != NULL);
+    if (noagc && tlm4)
+      {
+        CHECK (mpsk_receiver_set_telemetry (noagc, tlm4, "rx", 1) == DP_OK);
+        CHECK (dp_tlm_probe_count (tlm4) == 11);
+        CHECK (dp_tlm_probe_id (tlm4, "rx.agc.gain_db") < 0);
+      }
+    dp_tlm_destroy (tlm4);
+    mpsk_receiver_destroy (noagc);
 
     mpsk_receiver_destroy (b);
     mpsk_receiver_destroy (a);

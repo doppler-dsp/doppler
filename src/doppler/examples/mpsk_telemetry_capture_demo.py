@@ -8,11 +8,16 @@ cadence: the capture sizes the ring from the probe count and the block, and
 ``set_now()`` drains at every boundary, so **a drop is impossible rather than
 merely unlikely** — and `close()` raises if one happened anyway.
 
-The receiver forwards to its child loops, so one attach registers all 11
-probes — its own carrier set (``rx.lock``/``rx.tracking``/``rx.car.*``) plus
-the symbol-timing loop (``rx.sync.*``). `read_dict` hands them back split by
-name with their sample indices, so the figure plots real **seconds** and no
-line of this file filters by probe id or inverts an id-to-name map.
+The receiver forwards to its child loops, so one attach registers all 13
+probes — its own carrier set (``rx.lock``/``rx.tracking``/``rx.car.*``), the
+symbol-timing loop (``rx.sync.*``), and the front-end AGC (``rx.agc.*``).
+The AGC pair does not share the others' grid: it is tapped pre-terminal,
+ahead of the stage the timing loop steers, and emits once per gain update
+rather than once per recovered symbol. That is what makes `read_dict`
+handing back sample **indices** load-bearing here rather than a
+convenience — the figure plots real seconds, so probes counted on two
+different grids still share one axis, and no line of this file filters by
+probe id or inverts an id-to-name map.
 
 The stored bytes are still the on-wire format: a record is the 16-byte C
 ``dp_tlm_rec_t`` (``n:u8, value:f4, probe:u2, flags:u2``), so ``.tofile()``

@@ -1053,6 +1053,103 @@ test_agc_is_off_unless_asked_and_needs_a_pulse (void)
 }
 
 static void
+test_agc_telemetry_forwards_and_survives_a_replan (void)
+{
+  /* The cascade has no loop of its own to report, so set_telemetry exists
+     only to reach the one child that does. Three properties, and the third is
+     the one that is easy to get wrong. */
+
+  /* 1. No AGC is not an error -- whether this cascade has one is the
+        composing receiver's construction-time choice, and a caller attaching
+        telemetry should not have to know which way that went. DP_OK, and
+        nothing registered, so a reader sees an honest empty probe set. */
+  {
+    dp_tlm_t              *t     = dp_tlm_create (256);
+    RateConverter_state_t *plain = RateConverter_create (1.0 / 12.0, 1);
+    CHECK (t != NULL && plain != NULL);
+    if (t && plain)
+      {
+        CHECK (RateConverter_set_telemetry (plain, t, "agc", 1) == DP_OK);
+        CHECK (dp_tlm_probe_count (t) == 0);
+        RateConverter_destroy (plain);
+      }
+    dp_tlm_destroy (t);
+  }
+
+  /* 2. With an AGC, both of its probes land under the prefix VERBATIM (no
+        component name appended -- there is nothing here to disambiguate it
+        from), and running the cascade actually fills them. */
+  {
+    dp_tlm_t              *t  = dp_tlm_create (1 << 12);
+    RateConverter_state_t *mf = RateConverter_create_matched (
+        0.5, 0, RC_PULSE_RRC, _MF_BETA, _MF_SPAN, 2.0, 1024);
+    CHECK (t != NULL && mf != NULL);
+    if (t && mf)
+      {
+        CHECK (RateConverter_enable_agc (mf, 1e-3, 0.05) == DP_OK);
+        CHECK (RateConverter_set_telemetry (mf, t, "rx.agc", 1) == DP_OK);
+        CHECK (dp_tlm_probe_count (t) == 2);
+        CHECK (dp_tlm_probe_id (t, "rx.agc.gain_db") >= 0);
+        CHECK (dp_tlm_probe_id (t, "rx.agc.level_db") >= 0);
+
+        float _Complex in[512], out[1024];
+        for (int i = 0; i < 512; i++)
+          in[i] = 0.5f + 0.0f * I;
+        (void)RateConverter_execute (mf, in, 512, out, 1024);
+        dp_tlm_rec_t r[64];
+        CHECK (dp_tlm_read (t, 64, r, 64) > 0);
+
+        /* 3. THE ONE THAT BITES: _agc_build() destroys and rebuilds the AGC
+              on a re-plan, and the AGC is documented to survive a rate change
+              "the way the pulse does". Its instrumentation has to survive
+              too, or a rate change silently stops the gain trajectory being
+              recorded -- with no error anywhere to say so. Re-attaching by
+              name is idempotent, so the ids a reader already holds stay
+              valid and the table does not grow. */
+        int id_gain = dp_tlm_probe_id (t, "rx.agc.gain_db");
+        RateConverter_set_rate (mf, 0.25);
+        CHECK (dp_tlm_probe_count (t) == 2); /* no leaked duplicates */
+        CHECK (dp_tlm_probe_id (t, "rx.agc.gain_db") == id_gain);
+        while (dp_tlm_read (t, 64, r, 64) > 0)
+          ; /* drain */
+        (void)RateConverter_execute (mf, in, 512, out, 1024);
+        CHECK (dp_tlm_read (t, 64, r, 64) > 0); /* still emitting */
+
+        /* Detach reaches the child too, and stays detached across a re-plan
+           (the request is dropped, not merely unapplied). */
+        CHECK (RateConverter_set_telemetry (mf, NULL, "rx.agc", 1) == DP_OK);
+        RateConverter_set_rate (mf, 0.5);
+        while (dp_tlm_read (t, 64, r, 64) > 0)
+          ;
+        (void)RateConverter_execute (mf, in, 512, out, 1024);
+        CHECK (dp_tlm_read (t, 64, r, 64) == 0);
+
+        RateConverter_destroy (mf);
+      }
+    dp_tlm_destroy (t);
+  }
+
+  /* 4. Attach BEFORE the AGC exists: the request is remembered and applied
+        when enable_agc builds it. Documented on RateConverter_set_telemetry()
+        as the ordering that returns DP_OK without registering yet. */
+  {
+    dp_tlm_t              *t  = dp_tlm_create (256);
+    RateConverter_state_t *mf = RateConverter_create_matched (
+        0.5, 0, RC_PULSE_RRC, _MF_BETA, _MF_SPAN, 2.0, 1024);
+    CHECK (t != NULL && mf != NULL);
+    if (t && mf)
+      {
+        CHECK (RateConverter_set_telemetry (mf, t, "agc", 1) == DP_OK);
+        CHECK (dp_tlm_probe_count (t) == 0); /* nothing to register yet */
+        CHECK (RateConverter_enable_agc (mf, 1e-3, 0.05) == DP_OK);
+        CHECK (dp_tlm_probe_count (t) == 2); /* applied on build */
+        RateConverter_destroy (mf);
+      }
+    dp_tlm_destroy (t);
+  }
+}
+
+static void
 test_agc_delivers_unit_symbol_amplitude (void)
 {
   /* The point of the wedge. symsync_ted_slope() is computed at construct FOR
@@ -1333,6 +1430,7 @@ main (void)
   test_matched_cascade_returns_the_symbol_amplitude ();
   test_matched_push_equals_block ();
   test_agc_is_off_unless_asked_and_needs_a_pulse ();
+  test_agc_telemetry_forwards_and_survives_a_replan ();
   test_agc_delivers_unit_symbol_amplitude ();
   test_agc_state_roundtrip_mid_convergence ();
   test_matched_state_roundtrip ();

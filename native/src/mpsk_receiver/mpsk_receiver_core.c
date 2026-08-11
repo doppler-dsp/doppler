@@ -514,7 +514,23 @@ int
 mpsk_receiver_set_telemetry (mpsk_receiver_state_t *state, dp_tlm_t *tlm,
                              const char *prefix, uint32_t decim)
 {
-  return mpsk_rx_set_telemetry (&state->l, tlm, prefix, decim);
+  int rc = mpsk_rx_set_telemetry (&state->l, tlm, prefix, decim);
+  if (rc != DP_OK)
+    return rc;
+  /* The front end's AGC under "<prefix>.agc". It is the third loop in this
+     receiver and was the only one emitting nothing, which made its settling
+     the one thing a caller had to infer rather than read -- see
+     mpsk_rx_agc_bn() for why that loop is the slowest of the three and so
+     the one that sets how long the receiver takes to become usable. */
+  char name[DP_TLM_NAME_MAX];
+  (void)snprintf (name, sizeof (name), "%s.agc", prefix ? prefix : "rx");
+  int rc_agc = ddc_set_telemetry (state->fe, tlm, name, decim);
+  if (rc_agc != DP_OK) /* fails whole: undo the loops we just attached */
+    {
+      (void)mpsk_rx_set_telemetry (&state->l, NULL, prefix, decim);
+      return rc_agc;
+    }
+  return DP_OK;
 }
 
 double

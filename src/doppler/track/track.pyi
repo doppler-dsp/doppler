@@ -3086,8 +3086,23 @@ class MpskReceiver:
         decision-directed discriminator or dropped back to NDA), then the
         carrier loop's "<prefix>.car.e" / ".freq" / ".locked" and the
         symbol-timing loop's "<prefix>.sync.e" / ".ctrl" / ".rate" / ".lock" /
-        ".locked" / ".mu" -- eleven probes total, all thinned by decim and all
-        emitted once per recovered symbol. Passing NULL detaches everything.
+        ".locked" / ".mu" -- eleven probes emitted once per recovered symbol --
+        then the front end's AGC under "<prefix>.agc" ("<prefix>.agc.gain_db"
+        and "<prefix>.agc.level_db"; see agc_set_telemetry()). Thirteen probes
+        total, all thinned by decim. Passing NULL detaches everything.
+
+        Instrumenting it matters because it is the SLOWEST of the receiver's
+        three loops by construction -- mpsk_rx_agc_bn() derives its bandwidth
+        as a fraction of the slowest loop it feeds -- so it, not the carrier or
+        timing loop, is what sets how long this receiver takes to become
+        usable. Its settling was previously the one thing a caller had to
+        infer; the zero-referenced "<prefix>.agc.level_db" is what makes it
+        measurable.
+
+        With agc = 0 at construction there is no AGC to attach and the two
+        probes are simply absent (eleven, not thirteen); this still returns
+        DP_OK.
+
         Setup path, never hot; the context is borrowed and must outlive the
         attachment (SPSC rules in dp_tlm/dp_tlm_core.h).
 
@@ -3098,7 +3113,8 @@ class MpskReceiver:
         prefix : str
             Probe-name prefix, e.g. "rx".
         decim : int
-            Emit every decim-th symbol; >= 1.
+            Emit every decim-th symbol (every decim-th gain update for the two
+            AGC probes); >= 1.
 
         Raises
         ------
@@ -3106,16 +3122,29 @@ class MpskReceiver:
             If the C call returns a non-zero status. The exception message is
             ``set_telemetry failed``, with the return code appended (gh-869).
 
+        Warnings
+        --------
+        The two AGC probes are NOT at the symbol rate the other eleven are.
+        That AGC sits pre-terminal in the cascade (RateConverter's tap, ahead
+        of the stage the timing loop steers) and emits once per gain-update
+        event, i.e. every AGC_DECIM_DEFAULT samples of that fixed-rate stream
+        -- so it reports on a grid that depends on the planned cascade, not on
+        recovered symbols, and a run yields a different number of AGC records
+        than carrier records. Compare the two by TIME, never by record index.
+        This is deliberate: the AGC's bandwidth is quoted in the pre-terminal
+        stream's units precisely so it is not coupled to the loop that is
+        stretching the symbol grid (see RateConverter_enable_agc()).
+
         Examples
         --------
         >>> import numpy as np
         >>> from doppler.track import MpskReceiver
         >>> from doppler.telemetry import Telemetry
-        >>> tlm = Telemetry(1 << 14)   # 11 probes x ~512 syms + headroom
+        >>> tlm = Telemetry(1 << 14)   # 13 probes x ~512 syms + headroom
         >>> rx = MpskReceiver(m=4, sps=4, m_out=2)
         >>> rx.set_telemetry(tlm, "rx")
         >>> len(tlm.probe_names)
-        11
+        13
         >>> rng = np.random.default_rng(7)
         >>> syms = (1 - 2 * rng.integers(0, 2, 512)).astype(np.complex64)
         >>> x = np.repeat(syms, 4)
@@ -3126,6 +3155,9 @@ class MpskReceiver:
         >>> n_sync = len(recs[recs["probe"] == tlm.probe_id("rx.sync.e")])
         >>> n_car = len(recs[recs["probe"] == tlm.probe_id("rx.car.e")])
         >>> n_sync > 0 and n_sync == n_car
+        True
+        >>> n_agc = len(recs[recs["probe"] == tlm.probe_id("rx.agc.gain_db")])
+        >>> n_agc > 0 and n_agc != n_sync   # cascade grid, not symbol grid
         True
 
         """
@@ -3672,14 +3704,15 @@ class MpskReceiverR:
     ) -> None:
         """Attach (or detach) a telemetry context across the receiver.
 
-        Registers the same eleven probes as mpsk_receiver_set_telemetry(),
-        whose contract it shares: the receiver's own "<prefix>.lock" and
-        "<prefix>.tracking", the carrier loop's "<prefix>.car.e" / ".freq" /
-        ".locked", and the symbol-timing loop's "<prefix>.sync.e" / ".ctrl" /
-        ".rate" / ".lock" / ".locked" / ".mu" — all thinned by decim and
-        emitted once per recovered symbol. Passing NULL detaches everything.
-        Setup path, never hot; the context is borrowed and must outlive the
-        attachment.
+        Registers the same thirteen probes as mpsk_receiver_set_telemetry(),
+        whose contract it shares in full: the receiver's own "<prefix>.lock"
+        and "<prefix>.tracking", the carrier loop's "<prefix>.car.e" / ".freq"
+        / ".locked", and the symbol-timing loop's "<prefix>.sync.e" / ".ctrl" /
+        ".rate" / ".lock" / ".locked" / ".mu" — eleven emitted once per
+        recovered symbol — then the front end's AGC under "<prefix>.agc"
+        (".gain_db" and ".level_db"), forwarded through ddcr_set_telemetry().
+        All thinned by decim. Passing NULL detaches everything. Setup path,
+        never hot; the context is borrowed and must outlive the attachment.
 
         Parameters
         ----------
@@ -3688,13 +3721,22 @@ class MpskReceiverR:
         prefix : str
             Probe-name prefix, e.g. "rx".
         decim : int
-            Emit every decim-th symbol; >= 1.
+            Emit every decim-th symbol (every decim-th gain update for the two
+            AGC probes); >= 1.
 
         Raises
         ------
         ValueError
             If the C call returns a non-zero status. The exception message is
             ``set_telemetry failed``, with the return code appended (gh-869).
+
+        Warnings
+        --------
+        As on the complex twin, the two AGC probes are on the cascade's
+        pre-terminal grid rather than the symbol grid, so their record count
+        differs from the other eleven — compare by time, not by index. See
+        mpsk_receiver_set_telemetry() for why, and for why that AGC is the loop
+        that sets the receiver's warmup.
 
         Examples
         --------
@@ -3705,7 +3747,7 @@ class MpskReceiverR:
         >>> rx = MpskReceiverR(m=4, sps=10, m_out=2, init_norm_freq=0.25)
         >>> rx.set_telemetry(tlm, "rx")
         >>> len(tlm.probe_names)
-        11
+        13
         >>> rng = np.random.default_rng(7)
         >>> idx = rng.integers(0, 4, 512)
         >>> bb = np.repeat(np.exp(2j * np.pi * idx / 4), 10)
@@ -3719,6 +3761,9 @@ class MpskReceiverR:
         >>> n_sync = len(recs[recs["probe"] == tlm.probe_id("rx.sync.e")])
         >>> n_car = len(recs[recs["probe"] == tlm.probe_id("rx.car.e")])
         >>> n_sync > 0 and n_sync == n_car
+        True
+        >>> n_agc = len(recs[recs["probe"] == tlm.probe_id("rx.agc.gain_db")])
+        >>> n_agc > 0 and n_agc != n_sync   # cascade grid, not symbol grid
         True
 
         """

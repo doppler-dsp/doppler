@@ -437,6 +437,25 @@ size_t ddc_execute(ddc_state_t *state, const float complex *x, size_t x_len, flo
 bool ddc_get_clipped(const ddc_state_t *state);
 
   /**
+   * @brief Attach (or detach) a telemetry context on the cascade's AGC.
+   *
+   * Forwarded verbatim to RateConverter_set_telemetry(): the mixer and the
+   * fixed stages have no loop to report, so the one instrumented child is the
+   * cascade's pre-terminal AGC ("<prefix>.gain_db" and "<prefix>.level_db").
+   * DP_OK with no probes when the cascade has no AGC enabled. Setup path,
+   * never hot; the context is borrowed and must outlive the attachment.
+   *
+   * @param state  Must be non-NULL.
+   * @param tlm    Telemetry context to attach, or NULL to detach.
+   * @param prefix Probe-name prefix, e.g. "rx.agc".
+   * @param decim  Emit every decim-th gain update; >= 1.
+   * @return DP_OK, or DP_ERR_INVALID when the probe table cannot take the
+   *         AGC's probes (the attach fails whole).
+   */
+  int ddc_set_telemetry (ddc_state_t *state, dp_tlm_t *tlm, const char *prefix,
+                         uint32_t decim);
+
+  /**
    * @brief Maximum output samples one execute() of x_len inputs can produce.
    *
    * A DDC decimates (or passes at unity), so the output never exceeds the

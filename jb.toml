@@ -41,6 +41,21 @@ config = "just-makeit.toml"
 #     stays out of jb.toml's dev group". That distinction does not survive
 #     `gates` running `coverage`: it made this file no longer the one place a
 #     consumer reads from, which is the exact invariant stated above.
+#   * compiler-rt -- and this one is NOT implied by clang, which is why the
+#     entry above was not enough on its own. `coverage` compiles with
+#     -fprofile-instr-generate, whose runtime lives in libclang_rt.profile.a,
+#     and the clang package does not depend on it (verified here:
+#     `apt-cache depends clang-21` lists no compiler-rt). So clang alone
+#     compiles every object and dies at the FIRST LINK with "cannot find
+#     .../libclang_rt.profile.a" -- which reads like a broken toolchain
+#     rather than a missing package, and cost a gates run to diagnose.
+#     The apt name is version-agnostic on purpose: `libclang-rt-21-dev`
+#     would pin the clang major and break on the next release, the way
+#     every other entry in this file avoids doing.
+#
+#     Only the apt name is verified on a real box (this one). pacman, dnf
+#     and zypper take each distro's conventional `compiler-rt`; correct
+#     them on first use there rather than trusting this line.
 #
 # All of it is excluded from the build-from-source docs projection
 # (gen_install_scripts.py's DOCS_EXCLUDE), alongside the `rust` entry that was
@@ -75,6 +90,7 @@ packages = [
     "cargo",
     "clang",
     "llvm",
+    "libclang-rt-dev",
 ]
 
 [dev.pacman]
@@ -88,6 +104,7 @@ packages = [
     "patchelf",
     "clang",
     "llvm",
+    "compiler-rt",
 ]
 
 # python/numpy: the docs' build-from-source path needs a NumPy-equipped
@@ -120,6 +137,7 @@ packages = [
     "cargo",
     "clang",
     "llvm",
+    "compiler-rt",
 ]
 
 [dev.zypper]
@@ -134,6 +152,7 @@ packages = [
     "cargo",
     "clang",
     "llvm",
+    "compiler-rt",
 ]
 
 [dev.msys2]

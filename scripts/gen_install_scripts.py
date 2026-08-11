@@ -21,9 +21,11 @@ Two dev packages are deliberately excluded from the docs projection
 * ``rust``/``cargo`` -- only ``make test-rust`` needs a Rust toolchain
   (and ``make coverage``, which merges the Rust ``.profraw``); the
   build-from-source walkthrough doesn't run the Rust FFI tests.
-* ``clang``/``llvm`` -- only ``make coverage`` needs them, for the
-  dedicated clang-instrumented tree and ``llvm-profdata``/``llvm-cov``.
-  The walkthrough builds with the platform compiler and never asks for a
+* ``clang``/``llvm``/``libclang-rt-dev``/``compiler-rt`` -- only
+  ``make coverage`` needs them, for the dedicated clang-instrumented tree,
+  ``llvm-profdata``/``llvm-cov``, and the ``-fprofile-instr-generate``
+  runtime (which clang does NOT pull in on its own -- see jb.toml). The
+  walkthrough builds with the platform compiler and never asks for a
   coverage report.
 
 Usage
@@ -46,7 +48,17 @@ OUT_DIR = ROOT / "tests" / "install"
 
 # Packages present in jb.toml's dev groups that the build-from-source
 # docs deliberately don't show -- see the module docstring for why each.
-DOCS_EXCLUDE = frozenset({"patchelf", "rust", "cargo", "clang", "llvm"})
+DOCS_EXCLUDE = frozenset(
+    {
+        "patchelf",
+        "rust",
+        "cargo",
+        "clang",
+        "llvm",
+        "libclang-rt-dev",
+        "compiler-rt",
+    }
+)
 
 # manager -> (script filename, audience comment, install-command prefix).
 # msys2 is absent on purpose: doppler doesn't target Windows natively;

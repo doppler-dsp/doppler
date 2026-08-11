@@ -738,26 +738,63 @@ band_response_db (double rate, double f0)
  * the input spectrum at every multiple of fs_in, and the stopband's whole
  * purpose is to suppress those replicas. So measure the artifact floor.
  *
- * For a complex input tone at f0 (units of fs_in), the replicas land at
- * f0 + k for k = 1..R-1, which in units of fs_out is (f0 + k) / R. Each is
- * projected out individually rather than lumped into one residual: the
- * point is to attribute the artifact to imaging, and an aggregate number
- * cannot tell an image from broadband distortion.
+ * The measurement is the SPECTRAL FLOOR across the whole rejection band,
+ * not the level at a few predicted image frequencies. Naming the images
+ * works only at integer R: at a fractional rate they are not stationary in
+ * the output grid, so a fixed-frequency projection reads their drift rather
+ * than the rejection. A resampler exists to do fractional rates, so a test
+ * that cannot reach them certifies the easy half. **Any artifact anywhere
+ * in the band, above -60 dBc, fails** — which is a floor scan, and does not
+ * care what produced the artifact or whether it sits still.
  *
- * Integer R only. At a fractional rate the replicas are not stationary in
- * the output grid, so a fixed-frequency projection would measure the drift
- * rather than the rejection. */
+ * The band follows from §17's fs_in normalisation: interpolating, the bank
+ * passes to 0.4 and stops from 0.6 of fs_in, so in fs_out units everything
+ * from 0.6/R up to Nyquist is rejection band.
+ *
+ * Two mechanics the number depends on, both chosen rather than inherited:
+ *
+ *   WINDOW. The fundamental sits at 0 dBc in the same record, and a
+ *   rectangular window's sidelobes decay far too slowly to read a -60 dB
+ *   floor beside it — the leakage would BE the measurement. A 4-term
+ *   Blackman-Harris (-92 dB sidelobes) leaves the headroom.
+ *
+ *   GRID. Stepped at 2 DFT bins. BH's main lobe is ~8 bins wide, so a tone
+ *   anywhere in the band lands within 1 bin of a grid point and reads back
+ *   under a dB low; a sparser grid would let an image hide between samples,
+ *   which is the one way a floor scan can lie.
+ *
+ * Evaluated by a recursive phasor rather than calling cexp per sample per
+ * bin: same arithmetic, and it keeps the scan inside a unit test's budget.
+ * File-scope rather than nested — a nested function is a GNU extension and
+ * this suite also builds under clang for `make coverage`. */
 static double
-worst_image_db (double rate, double f0)
+dft_bin_mag (const double _Complex *yw, size_t m, double f)
+{
+  double _Complex rot = cexp (-I * 2.0 * M_PI * f);
+  double _Complex ph = 1.0, acc = 0.0;
+  for (size_t i = 0; i < m; i++)
+    {
+      acc += yw[i] * ph;
+      ph *= rot;
+    }
+  return cabs (acc);
+}
+
+static double
+image_floor_db (double rate, double f0)
 {
   enum
   {
-    NIN = 4096,
-    CAP = 65536
+    NIN  = 4096,
+    CAP  = 65536,
+    NUSE = 4096 /* windowed record actually scanned */
   };
   static float _Complex in[NIN], out[CAP];
-  int R = (int)(rate + 0.5);
-  if (fabs (rate - (double)R) > 1e-12 || R < 2)
+  static double _Complex yw[NUSE];
+
+  /* Below 1.2 the rejection band 0.6/R .. 0.5 is empty; 1.5 keeps a
+     usable width. */
+  if (rate < 1.5)
     return 1.0; /* impossible value: caller's check will fail */
 
   resamp_state_t *r = resamp_create (rate);
@@ -770,30 +807,39 @@ worst_image_db (double rate, double f0)
     }
   size_t n = resamp_execute (r, in, NIN, out, CAP);
   resamp_destroy (r);
-  if (n < (size_t)GATE_SKIP + 256)
+  if (n < (size_t)GATE_SKIP + 1024)
     return 1.0;
 
-  const float _Complex *y = out + GATE_SKIP;
-  size_t                m = n - GATE_SKIP;
+  size_t m = n - GATE_SKIP;
+  if (m > (size_t)NUSE)
+    m = NUSE;
 
-  /* The fundamental sets the reference amplitude. */
-  double fund = cabs (gate_project (y, m, f0 / rate, GATE_SKIP));
+  /* 4-term Blackman-Harris, applied once. */
+  {
+    static const double a0 = 0.35875, a1 = 0.48829, a2 = 0.14128, a3 = 0.01168;
+    for (size_t i = 0; i < m; i++)
+      {
+        double t = 2.0 * M_PI * (double)i / (double)(m - 1);
+        double w = a0 - a1 * cos (t) + a2 * cos (2.0 * t) - a3 * cos (3.0 * t);
+        yw[i]    = (double _Complex)out[GATE_SKIP + i] * w;
+      }
+  }
+
+  double fund = dft_bin_mag (yw, m, f0 / rate);
   if (fund <= 0.0)
     return 1.0;
 
-  double worst = -999.0;
-  for (int k = 1; k < R; k++)
-    {
-      /* Replica k, folded into [-0.5, 0.5) of fs_out. */
-      double fi = (f0 + (double)k) / rate;
-      fi -= floor (fi);
-      if (fi >= 0.5)
-        fi -= 1.0;
-      double img = cabs (gate_project (y, m, fi, GATE_SKIP));
-      double db  = 20.0 * log10 (img / fund + 1e-30);
-      if (db > worst)
-        worst = db;
-    }
+  const double lo    = 0.6 / rate;
+  const double step  = 2.0 / (double)m; /* 2 DFT bins */
+  double       worst = -999.0;
+  for (double f = lo; f <= 0.5; f += step)
+    for (int sign = 0; sign < 2; sign++)
+      {
+        double db
+            = 20.0 * log10 (dft_bin_mag (yw, m, sign ? -f : f) / fund + 1e-30);
+        if (db > worst)
+          worst = db;
+      }
   return worst;
 }
 
@@ -1364,19 +1410,24 @@ main (void)
   }
 
   /* ── §17b — the same 60 dB, on the interpolating face ───────────────
-     The structure makes its own probe: every image the interpolator
-     manufactures at a multiple of fs_in is a sample of the stopband. */
+     The structure makes its own probe: interpolation replicates the input
+     spectrum at every multiple of fs_in, so the rejection band is full of
+     samples of the stopband. Scanned, not sampled at named frequencies --
+     ANY artifact above -60 dBc anywhere in the band fails.
+
+     FRACTIONAL rates are the point of the scan: at 2.5 and 3.7 the images
+     do not sit still in the output grid, so nothing here could name them.
+     Two tones each -- one mid-band, one near the passband edge, where the
+     images crowd the transition and the measurement is tightest. */
   {
-    const double rates[3] = { 2.0, 4.0, 8.0 };
-    for (int i = 0; i < 3; i++)
+    const double rates[5] = { 1.5, 2.0, 2.5, 3.7, 8.0 };
+    for (int i = 0; i < 5; i++)
       {
-        /* Two tones: one well inside the passband, one near its edge,
-           which is where the images sit closest to the transition. */
-        double lo = worst_image_db (rates[i], 0.05);
-        double hi = worst_image_db (rates[i], 0.35);
+        double lo = image_floor_db (rates[i], 0.05);
+        double hi = image_floor_db (rates[i], 0.35);
         fprintf (stderr,
-                 "  §17b rate=%.0f: worst image %.1f dB (f0 .05), "
-                 "%.1f dB (f0 .35)\n",
+                 "  §17b rate=%.1f: image floor %.1f dBc (f0 .05), "
+                 "%.1f dBc (f0 .35)\n",
                  rates[i], lo, hi);
         CHECK (lo < -60.0);
         CHECK (hi < -60.0);

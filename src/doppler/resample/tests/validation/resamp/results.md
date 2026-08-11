@@ -149,6 +149,7 @@ A rate deviation is real, but the block port's `ctrl` is typed `complex64`. A wi
 | `resamp_dc_gain` | arm 0's tap sum answers for every arm | §13 |
 | `resamp_set_rate` | retune preserves the accumulator and the delay line | §15 |
 | `resamp_execute_ctrl_push` | single-input streaming form, `double` control | §8, §10-§12 |
+| `resamp_interp_inputs_needed` | the streaming contract: exactly this many inputs, no over- or under-production | §7, §20 |
 
 
 ## 3. Review
@@ -163,6 +164,7 @@ A rate deviation is real, but the block port's `ctrl` is typed `complex64`. A wi
 | F5 | BY DESIGN | `execute` and `execute_ctrl` differ below unity by GROUP DELAY, not quality (§2. |
 | F6 | BY DESIGN | The -6 dB at the output Nyquist (§2. |
 | F7 | FIXED | The unity window. |
+| F9 | GAP | `resamp_interp_inputs_needed`'s docblock UNDERSTATES its own guarantee. |
 | F8 | GAP | `resamp_dc_gain` names arm 0's tap sum, but the realised DC gain at a non-unity rate is the arm average (§2. |
 
 
@@ -174,6 +176,6 @@ Claims a caller may rely on. A failure here is a regression, not a new finding �
 
 ## 5. Summary
 
-- **8 findings**, 5 of them gaps or confirmed defects: F1, F2, F3, F4, F8
+- **9 findings**, 6 of them gaps or confirmed defects: F1, F2, F3, F4, F9, F8
 - **11/11 limits** hold
 - Raw sweeps: `data/tone_purity.csv`, `data/decim_band.csv`, `data/image_floor.csv`, `data/unity_seam.csv`

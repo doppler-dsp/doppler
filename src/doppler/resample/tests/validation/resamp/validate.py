@@ -546,6 +546,12 @@ def characterise() -> Data:
                 "single-input streaming form, `double` control",
                 "§8, §10-§12",
             ],
+            [
+                "`resamp_interp_inputs_needed`",
+                "the streaming contract: exactly this many inputs, no over- "
+                "or under-production",
+                "§7, §20",
+            ],
         ],
     )
     R.md()
@@ -631,6 +637,22 @@ def review(d: Data) -> None:
         "closest approach crosses it. §2.7 is the regression evidence; "
         "the conversion is now confined and gated by "
         "`make lint-phase-conversion`.",
+    )
+    R.find(
+        "F9",
+        "GAP",
+        "`resamp_interp_inputs_needed`'s docblock UNDERSTATES its own "
+        "guarantee. It scopes exactness to an integer interpolation factor "
+        "-- 'for an integer interpolation factor ... this is exact, so a "
+        "caller can generate precisely this many inputs' -- but the "
+        "prediction and the fill run the same recurrence on the same "
+        "phase_inc, so they cannot disagree at any rate. Measured exact "
+        "across 1800 mid-stream calls at nine rates with randomised "
+        "`max_out`, worst deviation zero (C §20). A caller reading the "
+        "header is told not to rely on the streaming contract at a "
+        "fractional rate, when they can. Understating a guarantee is a "
+        "milder defect than overstating one, but it is the same kind: the "
+        "header is not what the code does.",
     )
     R.find(
         "F8",

@@ -25,6 +25,36 @@ config = "just-makeit.toml"
 # once confirmed dead — zero references to fftw3.h/fftw_* anywhere in
 # native/ or CMakeLists.txt.)
 
+# A dev group has to provision what `make gates` runs, because `gates` is the
+# claim that a dev box checks what CI checks (see the Makefile's own comment on
+# GATES_DEPS). Two of those gates needed a toolchain no list here carried, so
+# the documented Ubuntu path installed its deps and then died at `test-rust`
+# with `cargo: command not found`, and again at `coverage` with clang missing:
+#
+#   * a Rust toolchain -- `make test-rust` builds ffi/rust, and `coverage`
+#     merges its .profraw with the C and Python ones. [dev.pacman] already
+#     listed `rust`; every other manager was simply missing it.
+#   * clang + the matching llvm tools (llvm-profdata / llvm-cov) -- `coverage`
+#     builds a dedicated clang-instrumented tree, so gcc cannot answer for it.
+#     ci.yml carried these as an inline `sudo apt-get install -y clang llvm`
+#     with a comment calling them "coverage tooling, not build deps, so it
+#     stays out of jb.toml's dev group". That distinction does not survive
+#     `gates` running `coverage`: it made this file no longer the one place a
+#     consumer reads from, which is the exact invariant stated above.
+#
+# All of it is excluded from the build-from-source docs projection
+# (gen_install_scripts.py's DOCS_EXCLUDE), alongside the `rust` entry that was
+# already excluded there -- the walkthrough builds the library, it does not run
+# the Rust FFI tests or a coverage report.
+#
+# One cosmetic side effect on WSL2, recorded so the next person does not chase
+# it: `llvm` ships /usr/lib/binfmt.d/llvm-*-runtime.binfmt.conf, so installing
+# it restarts systemd-binfmt, which fails there with "Failed to flush
+# binfmt_misc rules: Read-only file system" -- WSL mounts
+# /proc/sys/fs/binfmt_misc/status read-only. The registration itself succeeds
+# (WSLInterop and the new entry are both present afterwards) and Windows
+# interop keeps working; only the unit's exit status is red.
+
 # patchelf is only exercised when `pip install .`/`python -m build` runs the
 # full wheel build+repair path (auditwheel) from a bare Linux image, as
 # opposed to `make build`/`make pyext`'s local cmake+extension loop, which
@@ -42,6 +72,9 @@ packages = [
     "python3-dev",
     "python3-numpy",
     "patchelf",
+    "cargo",
+    "clang",
+    "llvm",
 ]
 
 [dev.pacman]
@@ -53,17 +86,26 @@ packages = [
     "python-numpy",
     "rust",
     "patchelf",
+    "clang",
+    "llvm",
 ]
 
 # python/numpy: the docs' build-from-source path needs a NumPy-equipped
 # Python; CI runners and dev machines that already manage Python another
 # way just get a no-op (brew skips what's installed).
+#
+# rust, but not clang/llvm: `make test-rust` runs on macOS in CI, so a macOS
+# dev needs the toolchain to reproduce it. `coverage` does not -- it is a
+# Linux-only job (ubuntu-latest), and macOS clang arrives with Xcode rather
+# than from a formula, so listing llvm here would buy a large build nothing
+# reaches.
 [dev.brew]
 packages = [
     "cmake",
     "pkg-config",
     "python",
     "numpy",
+    "rust",
 ]
 
 [dev.dnf]
@@ -75,6 +117,9 @@ packages = [
     "python3-devel",
     "python3-numpy",
     "patchelf",
+    "cargo",
+    "clang",
+    "llvm",
 ]
 
 [dev.zypper]
@@ -86,6 +131,9 @@ packages = [
     "python3-devel",
     "python3-numpy",
     "patchelf",
+    "cargo",
+    "clang",
+    "llvm",
 ]
 
 [dev.msys2]

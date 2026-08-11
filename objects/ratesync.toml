@@ -21,6 +21,7 @@ depends_on = [
   { name = "lockdet", link = true },
   { name = "symsync", link = true },
   { name = "dp_tlm", link = true },
+  { name = "pn" }, # dp_tx_test.h's MLS symbol source delegates here
 ]
 serializable = "true"
 # A NULL create here means a parameter was out of range, not that the machine

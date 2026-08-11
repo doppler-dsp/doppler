@@ -21,7 +21,7 @@
 #include "ratesync/ratesync_core.h"
 
 #include "dp_sym_test.h" /* EVM / M2M4 / settling — the shared primitives */
-#include "wfm/wfm_dsp.h"
+#include "dp_tx_test.h"  /* the shaped symbol stream — the shared stimulus */
 
 #include <complex.h>
 #include <math.h>
@@ -46,70 +46,42 @@ static int _fails = 0;
 #define _SPAN 8
 #define _NSYM 3000
 
-/* Deterministic +-1 BPSK from an ITERATED xorshift32.
+/* This object's stimulus, stated once as a deviation from the shared
+ * conventions in dp_tx_test.h. Everything the wrappers below do NOT set --
+ * the timing origin, the MLS symbol source, the meaning of `tau` -- is the
+ * shared convention, which is the point of taking them from there.
  *
- * A one-shot LCG of the symbol index (x = k*A + C) looks random per sample but
- * is strongly periodic across consecutive k -- it produced the run pattern
- * "---+++----+++---+++" here. That is fine for measuring a filter, and it was
- * fine in the Layer 1 tests, but it starves a Gardner detector: the TED only
- * learns from symbol TRANSITIONS, so a pattern with few independent ones
- * leaves the eye statistic near zero and the loop unable to declare lock even
- * while its output EVM is excellent. Generate the symbol sequence once, with a
- * real PRNG, and index it. */
-static void
-_symbols (int *out, size_t n, unsigned seed)
+ * The one convention worth restating is the AMPLITUDE. The TED normalises by
+ * its own slope alone (ratesync_core.h), so amplitude is the caller's to
+ * supply: a unit-amplitude symbol stream drives the loop at exactly the
+ * bandwidth `bn` names, and anything smaller under-drives it by A^2. The
+ * stream peaks at 1.582x its symbol amplitude — a pulse property — which the
+ * CIC's input encoding budgets for explicitly (CIC_PAPR_HEADROOM), so this
+ * does not have to be backed off to avoid clipping the way it used to.
+ * `clipped == 0` is asserted below and is the live check on that. */
+static dp_tx_cfg_t
+_tx_cfg (double sps, double tau)
 {
-  unsigned st = seed ? seed : 1u;
-  for (size_t k = 0; k < n; k++)
-    {
-      st ^= st << 13;
-      st ^= st >> 17;
-      st ^= st << 5;
-      out[k] = (st & 1u) ? 1 : -1;
-    }
+  dp_tx_cfg_t c = dp_tx_defaults ();
+  c.sps         = sps;
+  c.beta        = _BETA;
+  c.span        = _SPAN;
+  c.tau         = tau;
+  c.nsym        = _NSYM;
+  return c;
 }
 
-/* Analytic RRC-shaped BPSK at `sps` samples/symbol with timing offset `tau`
- * symbols, at the loop's CONTRACTED symbol amplitude of 1.0.
- *
- * The TED normalises by its own slope alone (ratesync_core.h), so amplitude
- * is the caller's to supply: a unit-amplitude symbol stream drives the loop
- * at exactly the bandwidth `bn` names, and anything smaller under-drives it
- * by A^2. The stream peaks at 1.582x its symbol amplitude — a pulse property
- * — which the CIC's input encoding now budgets for explicitly
- * (CIC_PAPR_HEADROOM), so this no longer has to be backed off to avoid
- * clipping the way it used to. `clipped == 0` is asserted below and is the
- * live check on that. */
+/* RRC-shaped BPSK at `sps` samples/symbol, timing offset `tau` symbols, at a
+ * STATED symbol amplitude. */
 static float complex *
 _tx_amp (double sps, double tau, double amp, size_t *n_out)
 {
-  size_t         n  = (size_t)(_NSYM * sps) + 64;
-  float complex *x  = calloc (n, sizeof *x);
-  int           *sy = malloc (_NSYM * sizeof *sy);
-  if (!x || !sy)
-    {
-      free (x);
-      free (sy);
-      return NULL;
-    }
-  _symbols (sy, _NSYM, 7u);
-  for (size_t i = 0; i < n; i++)
-    {
-      double a = 0.0;
-      for (int k = 0; k < _NSYM; k++)
-        {
-          double t = ((double)i - (k + _SPAN) * sps) / sps - tau;
-          if (fabs (t) > _SPAN)
-            continue;
-          a += sy[k] * wfm_rrc_h (t, _BETA);
-        }
-      x[i] = (float)(amp * a);
-    }
-  free (sy);
-  *n_out = n;
-  return x;
+  dp_tx_cfg_t c = _tx_cfg (sps, tau);
+  c.amp         = amp;
+  return dp_tx_make (&c, NULL, n_out);
 }
 
+/* The same at the loop's CONTRACTED symbol amplitude of 1.0. */
 static float complex *
 _tx (double sps, double tau, size_t *n_out)
 {
@@ -121,24 +93,9 @@ _tx (double sps, double tau, size_t *n_out)
 static float complex *
 _tx_nrz (double sps, size_t *n_out)
 {
-  size_t         n  = (size_t)(_NSYM * sps) + 64;
-  float complex *x  = calloc (n, sizeof *x);
-  int           *sy = malloc (_NSYM * sizeof *sy);
-  if (!x || !sy)
-    {
-      free (x);
-      free (sy);
-      return NULL;
-    }
-  _symbols (sy, _NSYM, 7u);
-  for (size_t i = 0; i < n; i++)
-    {
-      size_t k = (size_t)((double)i / sps);
-      x[i]     = (float)(k < (size_t)_NSYM ? sy[k] : 0);
-    }
-  free (sy);
-  *n_out = n;
-  return x;
+  dp_tx_cfg_t c = _tx_cfg (sps, 0.0);
+  c.pulse       = DP_TX_NRZ;
+  return dp_tx_make (&c, NULL, n_out);
 }
 
 /* Steady-state EVM in dB, from the library's own primitive.

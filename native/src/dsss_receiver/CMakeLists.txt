@@ -31,6 +31,7 @@ target_link_libraries(dsss_receiver_core PUBLIC
     symsync_core
     nco_core
     farrow_core
+    pn_core
     boxcar_core
     snr_core)
 
@@ -64,6 +65,7 @@ target_link_libraries(test_dsss_receiver_core
     symsync_core
     nco_core
     farrow_core
+    pn_core
     boxcar_core
     snr_core
     m)
@@ -102,6 +104,7 @@ target_link_libraries(bench_dsss_receiver_core
     symsync_core
     nco_core
     farrow_core
+    pn_core
     boxcar_core
     snr_core
     m)

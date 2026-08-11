@@ -6,6 +6,7 @@ import numpy as np
 import pytest
 
 from doppler.resample import MatchedRateConverter, RateConverter, rate_convert
+from doppler.wfm import rrc_h
 
 
 def _dc(n: int) -> np.ndarray:
@@ -292,27 +293,6 @@ _MF_SPAN = 8
 _MF_NSYM = 500
 
 
-def _rrc_h(t: np.ndarray, beta: float) -> np.ndarray:
-    """Analytic RRC, vectorised, with both removable singularities."""
-    t = np.asarray(t, dtype=np.float64)
-    out = np.empty_like(t)
-    zero = np.abs(t) < 1e-9
-    sing = beta > 0 and np.isclose(np.abs(t), 1 / (4 * beta), atol=1e-9)
-    gen = ~(zero | sing)
-    out[zero] = 1 - beta + 4 * beta / math.pi
-    if np.any(sing):
-        a = math.pi / (4 * beta)
-        out[sing] = (beta / math.sqrt(2)) * (
-            (1 + 2 / math.pi) * math.sin(a) + (1 - 2 / math.pi) * math.cos(a)
-        )
-    tg = t[gen]
-    pt = math.pi * tg
-    num = np.sin(pt * (1 - beta)) + 4 * beta * tg * np.cos(pt * (1 + beta))
-    den = pt * (1 - (4 * beta * tg) ** 2)
-    out[gen] = num / den
-    return out
-
-
 def _rrc_bpsk(sps: float, phi: float, seed: int = 7) -> tuple:
     """RRC-shaped BPSK plus the symbols that made it.
 
@@ -329,7 +309,7 @@ def _rrc_bpsk(sps: float, phi: float, seed: int = 7) -> tuple:
     for k, a in enumerate(syms):
         t = (idx - (k + _MF_SPAN) * sps) / sps - phi
         near = np.abs(t) <= _MF_SPAN
-        x[near] += a * _rrc_h(t[near], _MF_BETA)
+        x[near] += a * rrc_h(t[near], _MF_BETA)
     return (0.25 * x).astype(np.complex64), syms
 
 

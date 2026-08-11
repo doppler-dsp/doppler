@@ -1,50 +1,36 @@
 """Tests for the C-backed doppler.track.RateSync class."""
 
-import math
-
 import numpy as np
 import pytest
 
+from doppler.ber import ber_evm_db, ber_settle_syms
 from doppler.resample import MatchedRateConverter
 from doppler.track import RateSync
+from doppler.wfm import rrc_h
 
 BETA = 0.35
 SPAN = 8
 NSYM = 3000
 
 
-def _rrc_h(t: np.ndarray, beta: float = BETA) -> np.ndarray:
-    t = np.asarray(t, dtype=np.float64)
-    out = np.empty_like(t)
-    zero = np.abs(t) < 1e-9
-    sing = (
-        np.isclose(np.abs(t), 1 / (4 * beta), atol=1e-9)
-        if beta > 0
-        else np.zeros_like(t, dtype=bool)
-    )
-    gen = ~(zero | sing)
-    out[zero] = 1 - beta + 4 * beta / math.pi
-    if np.any(sing):
-        a = math.pi / (4 * beta)
-        out[sing] = (beta / math.sqrt(2)) * (
-            (1 + 2 / math.pi) * math.sin(a) + (1 - 2 / math.pi) * math.cos(a)
-        )
-    tg = t[gen]
-    pt = math.pi * tg
-    num = np.sin(pt * (1 - beta)) + 4 * beta * tg * np.cos(pt * (1 + beta))
-    den = pt * (1 - (4 * beta * tg) ** 2)
-    out[gen] = num / den
-    return out
-
-
 def _tx(
-    sps: float, tau: float, nsym: int = NSYM, seed: int = 7, amp: float = 0.25
+    sps: float, tau: float, nsym: int = NSYM, seed: int = 7, amp: float = 1.0
 ):
     """RRC-shaped BPSK at `sps` samples/symbol, timing offset `tau` symbols.
 
-    ``amp`` keeps the signal well inside the CIC's +-1.0 input bound. An
-    overdriven front end costs ~25 dB of EVM with a perfectly healthy lock,
-    which no timing metric reveals -- that is what ``clipped`` is for.
+    ``amp`` is the CONTRACTED unit symbol amplitude, matching the C twin
+    (`native/tests/test_ratesync_core.c` via `dp_tx_test.h`). It used to
+    default to 0.25 "well inside the CIC's +-1.0 input bound", and both
+    halves of that were wrong: the bound is 2.0 (``CIC_PAPR_HEADROOM``
+    reserves exactly the 6 dB an RRC's 1.582 peak needs, so unit amplitude
+    fits), and a quarter-amplitude stream drives a Gardner TED at ``A^2``
+    -- a sixteenth of the loop gain ``bn`` names.
+
+    That is not a small mismeasurement, because it makes the SETTLING
+    BUDGET wrong too: `ber_settle_syms(bn)` assumes the loop runs at `bn`,
+    so at 0.25 the real budget is 16x longer than the record these tests
+    use. The old "final quarter" EVM window hid it by starting at 75% of
+    the record; the canonical window does not, which is how this surfaced.
     """
     syms = np.where(
         np.random.default_rng(seed).integers(0, 2, nsym) > 0, 1.0, -1.0
@@ -55,27 +41,31 @@ def _tx(
     for k, a in enumerate(syms):
         t = (idx - (k + SPAN) * sps) / sps - tau
         near = np.abs(t) <= SPAN
-        x[near] += a * _rrc_h(t[near])
+        x[near] += a * rrc_h(t[near], BETA)
     return (amp * x).astype(np.complex64), syms
 
 
-def _evm_db(y: np.ndarray) -> float:
-    """Steady-state EVM against the LS-scaled hard decision, final quarter.
+def _evm_db(y: np.ndarray, bn: float = 0.01) -> float:
+    """Steady-state EVM (dB), from the library's own primitives.
+
+    `ber_evm_db` is the canonical self-referenced EVM and `ber_settle_syms`
+    is the canonical answer to where a settled window may START. Both were
+    hand-written here: a least-squares EVM over "the final quarter". A
+    window pinned to a FRACTION of the record is the documented way a
+    receiver test measures the acquisition transient and reports it as
+    steady state -- and the fraction stops meaning the same thing the
+    moment a caller passes a different `nsym`, which these tests do.
 
     A window containing an acquisition cycle slip reads ~20 dB worse with a
-    perfectly open eye, so measure where the loop has settled and let
-    ``lock_stat`` make the lock decision.
+    perfectly open eye, so let ``lock_stat`` make the lock decision.
+    Returns 0.0 dB (the primitive's "no lock" answer) when the record is
+    too short to contain a settled window.
     """
-    y = np.asarray(y)[3 * len(y) // 4 :]
-    if len(y) < 100:
+    y = np.asarray(y)
+    lo = int(ber_settle_syms(bn, 0.0))
+    if y.size < lo + 100:
         return 0.0
-    d = np.where(y.real >= 0, 1.0, -1.0)
-    g = float(np.dot(d, y.real) / len(d))
-    if g == 0.0:
-        return 0.0
-    return 20 * math.log10(
-        float(np.linalg.norm(y - g * d) / (abs(g) * math.sqrt(len(d))))
-    )
+    return float(ber_evm_db(y, lo, y.size, 2))
 
 
 # ------------------------------------------------------------------ #
@@ -167,31 +157,44 @@ def test_locks_from_every_initial_offset(sps):
 
 
 def test_worst_case_acquisition_is_slow_but_converges():
-    # Starting exactly ON the unstable T/2 equilibrium is the worst case: the
-    # detector has almost no error there, so the loop is repelled only slowly.
-    # It does converge -- ~2500 symbols at bn=0.01 -- and this pins that
-    # number so a regression in acquisition time cannot hide behind a
-    # steady-state EVM measured at the very end.
+    """The T/2 equilibrium is the worst start, and the loop still settles
+    inside the library's own budget.
+
+    Starting exactly ON the unstable half-symbol equilibrium is the worst
+    case: the detector has almost no error there, so the loop is repelled
+    only slowly. The point of the test is that a regression in acquisition
+    TIME cannot hide behind a steady-state EVM measured at the very end.
+
+    What it pins is `ber_settle_syms(bn)` -- the library's own answer for
+    where steady state may start -- rather than a hand-counted symbol
+    number. Measured at unit amplitude (bn = 0.01, budget 1000 symbols):
+    quarters read -17.8 / -36.5 / -36.0 / -36.1 dB, and a 500-symbol window
+    is already below -30 dB by ~400 symbols, so the budget is conservative
+    and the loop beats it by 2.5x.
+
+    This test used to pin "~2500 symbols", which was an artifact of a
+    quarter-amplitude stimulus: a Gardner TED's slope goes as A^2, so the
+    loop ran at a sixteenth of the bandwidth `bn` named and genuinely was
+    that slow. Driving it at the contracted amplitude made acquisition ~4x
+    faster and the old bound unsatisfiable in the correct direction --
+    the first quarter is no longer bad enough to read "still acquiring"
+    against -15 dB.
+    """
+    bn = 0.01
     x, _ = _tx(4.0, 0.0, nsym=8000)
-    rs = RateSync(sps=4.0, pulse="rrc", m=2, bn=0.01)
+    rs = RateSync(sps=4.0, pulse="rrc", m=2, bn=bn)
     y = np.asarray(rs.steps(x))
     q = len(y) // 4
-    quarters = []
-    for i in range(4):
-        seg = y[i * q : (i + 1) * q]
-        d = np.where(seg.real >= 0, 1.0, -1.0)
-        g = float(np.dot(d, seg.real) / len(d))
-        quarters.append(
-            20
-            * math.log10(
-                float(
-                    np.linalg.norm(seg - g * d) / (abs(g) * math.sqrt(len(d)))
-                )
-            )
-        )
-    assert quarters[0] > -15.0  # still acquiring
-    assert quarters[2] < -30.0  # settled by the halfway point
-    assert quarters[3] < -30.0
+    quarters = [ber_evm_db(y, i * q, (i + 1) * q, 2) for i in range(4)]
+
+    # The transient is real and must still be visible, or this test would
+    # pass on a loop that never had to acquire at all.
+    assert quarters[0] > -25.0, f"no acquisition transient: {quarters}"
+    # Settled by the library's budget, and STAYING settled.
+    settle = int(ber_settle_syms(bn, 0.0))
+    assert ber_evm_db(y, settle, len(y), 2) < -30.0, f"{quarters}"
+    for i in (1, 2, 3):
+        assert quarters[i] < -30.0, f"quarter {i} of {quarters}"
 
 
 @pytest.mark.parametrize("actual", [8.0, 8.008, 7.992])

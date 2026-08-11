@@ -8,6 +8,7 @@ import numpy as np
 import pytest
 
 from doppler.ddc import DDC, MatchedDDC
+from doppler.wfm import rrc_h
 
 N = 4096
 
@@ -211,7 +212,19 @@ def _rrc_bpsk(
 ) -> tuple[np.ndarray, np.ndarray]:
     """RRC-shaped BPSK on a carrier, plus the symbols that made it.
 
-    Amplitude 0.25 keeps a CIC plan inside its +-1.0 input bound.
+    The pulse is `doppler.wfm.rrc_h`, the library's analytic root-raised
+    cosine, not a transcription of it. The transcription this replaced
+    handled the removable singularity at ``t = 0`` but not the one at
+    ``t = +-1/(4*beta)``, where it silently wrote 0.0 instead of the limit
+    -- wrong by the full tap value at four points of every pulse.
+
+    Amplitude 0.25 is inherited and is NOT the object's contract: the CIC's
+    input bound is 2.0 (``CIC_PAPR_HEADROOM`` reserves the 6 dB an RRC's
+    1.582 peak needs), and the C twin of this suite hard-codes the same
+    0.25, so the two paths agree with each other and with nothing else.
+    This suite measures matched-filter EVM open loop, where amplitude costs
+    only quantisation SNR rather than loop gain, so it is left alone here
+    and belongs to the level pass.
     """
     rng = np.random.default_rng(seed)
     bits = rng.integers(0, 2, n_sym) * 2 - 1
@@ -220,15 +233,7 @@ def _rrc_bpsk(
     t = (i[:, None] - (np.arange(n_sym) + span) * sps) / sps
     h = np.zeros_like(t)
     m = np.abs(t) <= span
-    tt = t[m]
-    # Root-raised-cosine impulse response (t in symbols).
-    num = np.sin(np.pi * tt * (1 - beta)) + 4 * beta * tt * np.cos(
-        np.pi * tt * (1 + beta)
-    )
-    den = np.pi * tt * (1 - (4 * beta * tt) ** 2)
-    h[m] = np.where(np.abs(den) < 1e-12, 0.0, num / np.where(den == 0, 1, den))
-    # Removable singularities at t = 0 and t = +-1/(4 beta).
-    h[m & (np.abs(t) < 1e-9)] = 1 - beta + 4 * beta / np.pi
+    h[m] = rrc_h(t[m], beta)
     a = h @ bits
     x = (0.25 * a * np.exp(2j * np.pi * fc * i)).astype(np.complex64)
     return x, bits

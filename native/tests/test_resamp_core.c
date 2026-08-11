@@ -18,6 +18,9 @@
  *   §14 resamp_destroy(NULL) is a no-op; create_custom rejects
  *   §15 set_rate preserves the accumulator and the delay line
  *   §16 reset zeroes every accumulator and every delay buffer
+ *   §17 The bank's advertised 60 dB stopband and 0.4/0.6 cutoffs
+ *   §18 execute_ctrl rides the interpolator at EVERY rate
+ *   §19 Only the real part of `ctrl` is used
  *
  * Sections numbered §10 onward were added by the validation campaign, which
  * enumerated resamp_core.h's prose claims and asked of each whether anything
@@ -671,6 +674,184 @@ lifecycle_rejects (void)
   return ok;
 }
 
+/* ── §17 — the bank's own claim: 60 dB, 0.4/0.6 pass/stop ───────────────
+ *
+ * `resamp_core.h` advertises the built-in bank twice — "Built-in 4096x19
+ * Kaiser bank (60 dB, 0.4/0.6 pass/stop)" — and nothing ran either number.
+ * It is the claim a decimating caller leans on hardest: below unity every
+ * input above the output Nyquist folds back into the band, and the stopband
+ * is the only thing keeping it out.
+ *
+ * The cutoffs are normalised to **fs_out**, not fs_in, and for R < 1 that
+ * is the whole content of the claim: the filter's job is to protect the
+ * LOWER of the two rates, which when decimating is the output. So a
+ * passband edge quoted as 0.4 sits at 0.4 * fs_out — i.e. at 0.4 * R in
+ * input-normalised terms, which is the frequency this test has to sweep
+ * because the input grid is what a caller feeds.
+ *
+ * Getting that backwards produces the same two numbers at one rate and the
+ * wrong ones everywhere else, which is why both rates below are swept: 0.4
+ * and 0.6 of fs_out land at 0.20/0.30 of fs_in at R = 0.5, and at
+ * 0.10/0.15 at R = 0.25. A rule read as "the bank's own grid, scaled by
+ * rate" happens to agree numerically and explains nothing.
+ *
+ * NOT covered here: the R >= 1 face. Interpolating, the lower rate is the
+ * INPUT, so the same bank is an anti-IMAGING filter normalised to fs_in —
+ * and its stopband lives above fs_in/2, where no input tone can probe it.
+ * Proving it needs an image-rejection measurement on the output spectrum
+ * rather than this response sweep. Recorded as a gap, not skipped quietly.
+ *
+ * Measured by driving a pure tone through and reading the settled output
+ * magnitude — a response measurement, needing no reference filter. */
+static double
+band_response_db (double rate, double f0)
+{
+  enum
+  {
+    NIN = 4096,
+    CAP = 16384
+  };
+  static float _Complex in[NIN], out[CAP];
+  resamp_state_t *r = resamp_create (rate);
+  if (!r)
+    return 1.0; /* impossible value: caller's check will fail */
+  for (size_t i = 0; i < NIN; i++)
+    {
+      double ph = 2.0 * M_PI * f0 * (double)i;
+      in[i]     = CMPLXF ((float)cos (ph), (float)sin (ph));
+    }
+  size_t n = resamp_execute (r, in, NIN, out, CAP);
+  resamp_destroy (r);
+  if (n < 128)
+    return 1.0;
+  /* Settled half only, so the filter's startup is not read as response. */
+  double acc = 0.0;
+  size_t cnt = 0;
+  for (size_t k = n / 2; k < n; k++, cnt++)
+    acc += (double)cabsf (out[k]);
+  double mag = acc / (double)cnt;
+  return 20.0 * log10 (mag + 1e-20);
+}
+
+/* ── §18 — execute_ctrl rides the INTERPOLATOR at every rate ─────────────
+ *
+ * The header's most load-bearing structural sentence, and the one whose
+ * violation cost 55-60 dB at every non-unity rate: "resamp_execute_ctrl —
+ * unified, and it rides the INTERPOLATOR at every rate."
+ *
+ * `execute` dispatches on rate and uses the TRANSPOSED decimator below
+ * unity. So the sentence has an observable consequence in both directions,
+ * and asserting only one of them proves nothing:
+ *
+ *   rate >= 1  both are the interpolator -> bit-for-bit identical
+ *   rate <  1  different structures      -> must DIFFER
+ *
+ * The inequality alone would be satisfied by any corruption, so it is
+ * paired with a tone-purity floor: execute_ctrl must differ from `execute`
+ * AND still be a correct resampler. That pairing is the test — a defect
+ * that made it agree below unity, and a defect that made it garbage, are
+ * caught by different halves. */
+static int
+ctrl_rides_interpolator (double rate)
+{
+  enum
+  {
+    NIN = 2048,
+    CAP = 8192
+  };
+  static float _Complex in[NIN], zero[NIN], a[CAP], b[CAP];
+  const double f0 = 0.05;
+  for (size_t i = 0; i < NIN; i++)
+    {
+      double ph = 2.0 * M_PI * f0 * (double)i;
+      in[i]     = CMPLXF ((float)cos (ph), (float)sin (ph));
+      zero[i]   = CMPLXF (0.0f, 0.0f);
+    }
+
+  resamp_state_t *r1 = resamp_create (rate);
+  resamp_state_t *r2 = resamp_create (rate);
+  if (!r1 || !r2)
+    return 0;
+  size_t na = resamp_execute (r1, in, NIN, a, CAP);
+  size_t nb = resamp_execute_ctrl (r2, in, zero, NIN, b, CAP);
+  resamp_destroy (r1);
+  resamp_destroy (r2);
+
+  int same = (na == nb);
+  for (size_t i = 0; i < na && i < nb && same; i++)
+    if (a[i] != b[i])
+      same = 0;
+
+  if (rate >= 1.0)
+    {
+      if (!same)
+        fprintf (stderr,
+                 "  §18 rate=%.3f: ctrl path differs from execute at or "
+                 "above unity (na %zu, nb %zu)\n",
+                 rate, na, nb);
+      return same;
+    }
+
+  /* Below unity the two structures must NOT coincide — and the ctrl path
+     must still be a resampler, not merely different. */
+  double resid = gate_tone_evm_db (rate, 1);
+  fprintf (stderr, "  §18 rate=%.3f: differs=%d, ctrl residual %.1f dB\n",
+           rate, !same, resid);
+  return !same && resid < -60.0;
+}
+
+/* ── §19 — only the real part of `ctrl` is used ──────────────────────────
+ *
+ * "ctrl is treated as real-valued; only the real part of each element is
+ * used" — an explicit header sentence with nothing behind it. It is worth a
+ * test rather than a shrug because the parameter's TYPE says otherwise: the
+ * block port takes `const float _Complex *` while its own streaming twin
+ * takes a plain `double`, so the only thing telling a caller that half of
+ * every element is discarded is this sentence. */
+static int
+ctrl_imag_is_ignored (double rate)
+{
+  enum
+  {
+    NIN = 2048,
+    CAP = 8192
+  };
+  static float _Complex in[NIN], c_re[NIN], c_im[NIN], a[CAP], b[CAP];
+  for (size_t i = 0; i < NIN; i++)
+    {
+      double ph = 2.0 * M_PI * 0.05 * (double)i;
+      in[i]     = CMPLXF ((float)cos (ph), (float)sin (ph));
+      c_re[i]   = CMPLXF (0.01f, 0.0f);
+      /* A wildly out-of-range imaginary part: if it reached the rate at
+         all, the output count could not survive it. */
+      c_im[i] = CMPLXF (0.01f, -7.5f);
+    }
+  resamp_state_t *r1 = resamp_create (rate);
+  resamp_state_t *r2 = resamp_create (rate);
+  if (!r1 || !r2)
+    return 0;
+  size_t na = resamp_execute_ctrl (r1, in, c_re, NIN, a, CAP);
+  size_t nb = resamp_execute_ctrl (r2, in, c_im, NIN, b, CAP);
+  resamp_destroy (r1);
+  resamp_destroy (r2);
+
+  if (na != nb)
+    {
+      fprintf (stderr,
+               "  §19 rate=%.3f: imag changed the count (%zu vs %zu)\n", rate,
+               na, nb);
+      return 0;
+    }
+  for (size_t i = 0; i < na; i++)
+    if (a[i] != b[i])
+      {
+        fprintf (stderr, "  §19 rate=%.3f: imag changed output[%zu]\n", rate,
+                 i);
+        return 0;
+      }
+  return na > 0;
+}
+
 /* ── §15 — set_rate preserves the accumulator and the delay line ─────────
  *
  * The header promises "Accumulator phase and delay line are preserved"; the
@@ -1089,6 +1270,47 @@ main (void)
   /* ── §15 / §16 — the two promises the old literals could not see ────── */
   CHECK (set_rate_preserves_state ());
   CHECK (reset_zeroes_state ());
+
+  /* ── §17 — the bank's advertised 60 dB / 0.4-0.6 pass-stop ──────────
+     The cutoffs are normalised to fs_out, so a frequency quoted as `f` of
+     fs_out is sought at `f * rate` of fs_in — which is the grid a caller
+     feeds. Swept at TWO rates: one rate cannot tell the rule from a pair
+     of literals that happen to hold there. */
+  {
+    const double rates[2] = { 0.5, 0.25 };
+    for (int i = 0; i < 2; i++)
+      {
+        double rate = rates[i];
+        /* `of_out(f)` — f as a fraction of fs_out, expressed on fs_in. */
+#define of_out(f) ((f) * rate)
+        double pb_in   = band_response_db (rate, of_out (0.2));
+        double pb_edge = band_response_db (rate, of_out (0.4));
+        double sb_edge = band_response_db (rate, of_out (0.6));
+        double sb_deep = band_response_db (rate, of_out (0.9));
+#undef of_out
+        fprintf (stderr,
+                 "  §17 rate=%.2f: fs_out 0.2/0.4 -> %.2f/%.2f dB, "
+                 "0.6/0.9 -> %.1f/%.1f dB\n",
+                 rate, pb_in, pb_edge, sb_edge, sb_deep);
+        CHECK (fabs (pb_in) < 0.5);   /* well inside the passband  */
+        CHECK (fabs (pb_edge) < 1.0); /* at the advertised edge    */
+        CHECK (sb_edge < -60.0);      /* the advertised rejection  */
+        CHECK (sb_deep < -60.0);      /* and it stays down         */
+      }
+  }
+
+  /* ── §18 — execute_ctrl rides the interpolator at EVERY rate ────────
+     Both directions: identical to `execute` at or above unity, and
+     necessarily different below it, where `execute` is the transposed
+     decimator. */
+  CHECK (ctrl_rides_interpolator (2.0));
+  CHECK (ctrl_rides_interpolator (1.0));
+  CHECK (ctrl_rides_interpolator (0.7));
+  CHECK (ctrl_rides_interpolator (0.5));
+
+  /* ── §19 — the ctrl port's imaginary half is discarded ──────────────── */
+  CHECK (ctrl_imag_is_ignored (1.0));
+  CHECK (ctrl_imag_is_ignored (0.7));
 
   if (_fails)
     {

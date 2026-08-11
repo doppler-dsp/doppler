@@ -35,6 +35,22 @@ extern "C"
   }
 
   JM_FORCEINLINE uint32_t
+  nco_phase_units_mod (double units)
+  {
+    if (!(units > 0.0))
+      return 0u;
+    if (units < 4294967296.0)
+      return (uint32_t)units;
+    return (uint32_t)fmod (units, 4294967296.0);
+  }
+
+  JM_FORCEINLINE double
+  nco_word_to_norm (uint32_t word)
+  {
+    return (double)word / 4294967296.0;
+  }
+
+  JM_FORCEINLINE uint32_t
   nco_norm_fold_ (double norm)
   {
     /* The fold is in [0, 1) mathematically but NOT in floating point: for

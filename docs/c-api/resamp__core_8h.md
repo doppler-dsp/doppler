@@ -63,7 +63,7 @@ _Continuously-variable polyphase resampler for CF32 IQ._ [More...](#detailed-des
 |  double | [**resamp\_dc\_gain**](#function-resamp_dc_gain) (const [**resamp\_state\_t**](structresamp__state__t.md) \* state) <br>_The resampler's response to a constant input, from its own bank._  |
 |  void | [**resamp\_destroy**](#function-resamp_destroy) ([**resamp\_state\_t**](structresamp__state__t.md) \* state) <br> |
 |  size\_t | [**resamp\_execute**](#function-resamp_execute) ([**resamp\_state\_t**](structresamp__state__t.md) \* state, const float \_Complex \* in, size\_t num\_in, float \_Complex \* out, size\_t max\_out) <br>_Resample a block of CF32 samples (fixed rate)._  |
-|  size\_t | [**resamp\_execute\_ctrl**](#function-resamp_execute_ctrl) ([**resamp\_state\_t**](structresamp__state__t.md) \* state, const float \_Complex \* in, const float \_Complex \* ctrl, size\_t num\_in, float \_Complex \* out, size\_t max\_out) <br>_Resample with per-sample additive rate deviation._  |
+|  size\_t | [**resamp\_execute\_ctrl**](#function-resamp_execute_ctrl) ([**resamp\_state\_t**](structresamp__state__t.md) \* state, const float \_Complex \* in, const double \* ctrl, size\_t num\_in, float \_Complex \* out, size\_t max\_out) <br>_Resample with per-sample additive rate deviation._  |
 |  size\_t | [**resamp\_execute\_ctrl\_push**](#function-resamp_execute_ctrl_push) ([**resamp\_state\_t**](structresamp__state__t.md) \* state, float \_Complex x, double ctrl, float \_Complex \* out, size\_t max\_out) <br>_Push one input at an instantaneous rate deviation; emit any outputs._  |
 |  double | [**resamp\_get\_ctrl\_acc**](#function-resamp_get_ctrl_acc) (const [**resamp\_state\_t**](structresamp__state__t.md) \* state) <br>_The control accumulator's fractional phase, in [0, 1)._  |
 |  size\_t | [**resamp\_get\_num\_phases**](#function-resamp_get_num_phases) (const [**resamp\_state\_t**](structresamp__state__t.md) \* state) <br> |
@@ -124,7 +124,12 @@ resamp\_execute — dual-mode:
 
 
 
-resamp\_execute\_ctrl — unified input-driven with a double-precision accumulator that handles all rates and per-sample deviations. Each input advances the accumulator by (rate + ctrl(i)); every time the accumulator crosses 1.0 an output is emitted.
+resamp\_execute\_ctrl — unified, and it rides the INTERPOLATOR at every rate: emit at every tick, and load an input when the accumulator fails to advance (`u(k) <= u(k-1)`). The steered rate `rate + ctrl(i)` sets the step; whole input intervals per output are owed as `ctrl_debt` and the fractional remainder selects the arm.
+
+
+This paragraph used to describe the other structure — "each input
+    advances the accumulator by (rate + ctrl(i)); every time the
+    accumulator crosses 1.0 an output is emitted" — which is the DECIMATOR's recurrence, exact only at rate 1 where the two coincide. Running it here cost 55-60 dB of tone purity at every other rate. The description is kept accurate rather than deleted because it is the mental model under which someone writes a private `(uint32_t) (frac * 2^32 + 0.5)` and believes it correct; one did, and it stalled the interpolator for composite rates just above unity.
 
 
 Phase accumulator (execute): upper log2(num\_phases) bits of the 32-bit NCO word index the polyphase bank — nearest-neighbor, no interpolation between branches.
@@ -205,6 +210,9 @@ Every arm of a polyphase bank is the same filter at a different fractional delay
 
 
 The decimating path pre-scales by `rate` and integrates over the whole bank between outputs, which cancels: `rate` inputs' worth of taps per output, so the tap sum is the answer on both paths.
+
+
+ARM 0's gain, which is the realised gain only where arm 0 is the arm being used — at rate 1, where the fraction is zero and one arm is selected forever. A non-unity rate visits every arm, so what a caller measures is the arm AVERAGE: 1.000586 computed against 1.000293 at rate 0.5 and 2, and 1.000249 at 0.25 and 4. The 3.4e-4 spread is the bank's arm-to-arm ripple and of no practical consequence, but this returns the computed number, not the one a measurement will find. Pinned by test\_resamp\_core.c §13, which checks both.
 
 
 
@@ -304,7 +312,7 @@ _Resample with per-sample additive rate deviation._
 size_t resamp_execute_ctrl (
     resamp_state_t * state,
     const float _Complex * in,
-    const float _Complex * ctrl,
+    const double * ctrl,
     size_t num_in,
     float _Complex * out,
     size_t max_out
@@ -313,7 +321,7 @@ size_t resamp_execute_ctrl (
 
 
 
-rate\_i = base\_rate + crealf(ctrl(i)). ctrl is treated as real-valued; only the real part of each element is used.
+rate\_i = base\_rate + `ctrl[i]`. The control is real-valued and double-precision, matching [**resamp\_execute\_ctrl\_push()**](resamp__core_8h.md#function-resamp_execute_ctrl_push)'s scalar `ctrl` and the `double` the base rate itself is configured in.
 
 
 Output buffer: allocate ceil(num\_in × (rate + max\_ctrl)) samples.
@@ -326,7 +334,7 @@ Output buffer: allocate ceil(num\_in × (rate + max\_ctrl)) samples.
 
 * `state` Must be non-NULL. 
 * `in` Input CF32 samples (length num\_in). 
-* `ctrl` Rate deviations, parallel to in (float \_Complex, real part only, length num\_in). 
+* `ctrl` Rate deviations, parallel to in (length num\_in). 
 * `num_in` Number of input samples (= length of ctrl). 
 * `out` Output buffer. 
 * `max_out` Capacity of out in samples. 
@@ -362,7 +370,16 @@ size_t resamp_execute_ctrl_push (
 
 
 
-The single-input streaming form of [**resamp\_execute\_ctrl()**](resamp__core_8h.md#function-resamp_execute_ctrl): pushes `x` into the delay line, advances the double-precision accumulator by `rate + ctrl`, and emits every output whose accumulator period completes (0 for a decimator between strobes, 1 typically, or several for an interpolator) at the polyphase arm the fractional remainder selects. Feeding a stream of `(x, ctrl)` through this one input at a time reproduces [**resamp\_execute\_ctrl()**](resamp__core_8h.md#function-resamp_execute_ctrl) on the same `(in, ctrl[])` bit-for-bit — but, unlike the block form's precomputed `ctrl[]`, `ctrl` here can depend on the outputs already emitted. That closes the loop: a timing-recovery or rate-tracking loop reads each emitted output, computes its correction, and feeds it back as the next call's `ctrl` to steer the strobe. This is the per-output feedback a matched-filter timing loop (track.RrcSync) needs and the block `execute_ctrl` cannot provide.
+The single-input streaming form of [**resamp\_execute\_ctrl()**](resamp__core_8h.md#function-resamp_execute_ctrl): OFFERS `x` to the delay line, advances the accumulator by `rate + ctrl`, and emits every output whose period completes (0 for a decimator between strobes, 1 typically, or several for an interpolator) at the polyphase arm the fractional remainder selects.
+
+
+**The scalar and block forms are INDISTINGUISHABLE.** Feeding a stream one sample at a time through here yields the same outputs, in the same number, bit-for-bit, as one [**resamp\_execute\_ctrl()**](resamp__core_8h.md#function-resamp_execute_ctrl) over the same `(in, ctrl[])`. Not "close" and not "one sample of delay apart": the same. A caller chooses between them for control flow — the block form when `ctrl[]` is known in advance, this one when each correction depends on the outputs already emitted — never for a difference in what comes out.
+
+
+That is what "offers" buys, and why `x` is NOT pushed on entry: nothing enters an interpolator's delay line without a load REQUEST — a tick emits, the accumulator fails to advance, and only then is an input consumed. `x` is held until a tick asks. Pushing on entry is an unrequested load, and it is precisely what broke the invariant, costing exactly one sample of group delay against the block form. Fixed, and gated: `eq_ctrl_push` in test\_resamp\_core.c asserts bit-exact equality across decimating, unity-neighbourhood and interpolating rates, at zero and at both signs of steer.
+
+
+`ctrl_ahead` covers the one case the API cannot decline — `max_out` ending the call before any tick could ask for the offered sample. Feeding a stream of `(x, ctrl)` through this one input at a time reproduces [**resamp\_execute\_ctrl()**](resamp__core_8h.md#function-resamp_execute_ctrl) on the same `(in, ctrl[])` bit-for-bit — but, unlike the block form's precomputed `ctrl[]`, `ctrl` here can depend on the outputs already emitted. That closes the loop: a timing-recovery or rate-tracking loop reads each emitted output, computes its correction, and feeds it back as the next call's `ctrl` to steer the strobe. This is the per-output feedback a matched-filter timing loop (track.RateSync) needs and the block `execute_ctrl` cannot provide.
 
 
 
@@ -403,10 +420,16 @@ double resamp_get_ctrl_acc (
 
 
 
-This is the timing NCO's state, and observing it is the only way to see what a closed timing loop is actually doing to the sampling instant: the arm the last output read is `floor(mu * num_phases)`, so `mu` IS the fractional delay applied to the stream, in output periods. A steady `mu` means the loop has settled on a sampling phase; a `mu` that slews and wraps means a residual RATE error the loop has not absorbed, and one cycle of wrap is one output period of slip.
+This is the timing NCO's state, and observing it is the only way to see what a closed timing loop is actually doing to the sampling instant. `mu` IS the fractional delay applied to the stream, and `floor(mu * num_phases)` is the polyphase arm the **next** output will read — the accumulator advances after the emit, so on return it already describes the output still to come. That holds at EVERY rate, because the control port rides the interpolating structure at every rate (see resamp\_execute\_ctrl); it is not a peculiarity of a decimating stage.
 
 
-Reported after the last output this stage emitted, which for a decimating terminal stage (`rate <= 1`) is the phase the next output will read from. 
+A steady `mu` means the loop has settled on a sampling phase. A `mu` that slews and wraps means a residual RATE error the loop has not absorbed, and one cycle of wrap is one INPUT interval of slip — an output period only at rate 1, where the two coincide.
+
+
+Reports the CONTROL accumulator, so it stays 0.0 for a caller driving this object through [**resamp\_execute()**](resamp__core_8h.md#function-resamp_execute): the free-running phase is a separate accumulator with no accessor.
+
+
+Pinned by test\_resamp\_core.c §10 (the arm, read off the output at four rates), §11 (the wrap's unit, against the counting law) and §12. 
 
 
         
@@ -532,7 +555,17 @@ size_t resamp_interp_inputs_needed (
 
 
 
-The exact number of delay-line pushes producing `max_out` outputs from the current phase: `((uint64_t)phase + max_out * phase_inc) >> 32`. For an integer interpolation factor (phase\_inc = 2^32 / rate divides evenly, i.e. a power-of-two `num_phases` bank at rate == num\_phases) this is exact, so a caller can generate precisely this many inputs — no over- or under-production. Meaningful only for an upsampling resampler (rate &gt;= 1).
+The exact number of delay-line pushes producing `max_out` outputs from the current phase: `((uint64_t)phase + max_out * phase_inc) >> 32`.
+
+
+Exact at EVERY rate, not only at an integer interpolation factor, and a caller may rely on it: generate precisely this many inputs, hand them to [**resamp\_interp\_fill()**](resamp__core_8h.md#function-resamp_interp_fill), and there is no over- or under-production. The guarantee is structural rather than numeric — this closed form and the fill loop advance the same accumulator by the same `phase_inc`, so they cannot disagree whatever the rate, and mid-stream phase is carried in the formula. Measured across 1800 mid-stream calls at nine rates with randomised `max_out`, worst deviation zero (test\_resamp\_core.c §20).
+
+
+(This paragraph used to scope the promise to "an integer interpolation
+factor". That is where phase\_inc divides evenly and therefore represents the rate exactly — a real property, but a different one: the prediction matches the fill because both USE phase\_inc, not because it is exact.)
+
+
+Meaningful only for an upsampling resampler (rate &gt;= 1) — the prediction still matches what [**resamp\_interp\_fill()**](resamp__core_8h.md#function-resamp_interp_fill) consumes below unity, but that entry point interpolates, so a decimating caller wants [**resamp\_execute()**](resamp__core_8h.md#function-resamp_execute).
 
 
 

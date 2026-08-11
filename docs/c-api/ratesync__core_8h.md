@@ -24,6 +24,8 @@ _RateSync — symbol-timing recovery on a matched-filter rate cascade._ [More...
 * `#include "symsync/symsync_core.h"`
 * `#include "dp_tlm/dp_tlm_core.h"`
 * `#include "telemetry/telemetry_core.h"`
+* `#include "ber/ber_core.h"`
+* `#include "pn/pn_core.h"`
 
 
 

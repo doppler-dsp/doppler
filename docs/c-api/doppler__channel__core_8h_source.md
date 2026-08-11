@@ -41,7 +41,7 @@ typedef struct {
     uint64_t n_in;  /* input samples consumed                    */
     uint64_t n_out; /* output samples produced                   */
 
-    float _Complex *ctrl; /* per-sample rate deviation scratch         */
+    double *ctrl;         /* per-sample rate deviation scratch         */
     size_t ctrl_cap;
 } doppler_channel_state_t;
 

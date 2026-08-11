@@ -70,6 +70,7 @@ _Phase-accumulator NCO, and the one float-&gt;integer boundary everything that s
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) uint32\_t | [**nco\_norm\_freq\_to\_inc**](#function-nco_norm_freq_to_inc) (double norm\_freq) <br>_Normalised FREQUENCY -&gt; per-sample phase increment._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) uint32\_t | [**nco\_norm\_phase\_to\_word**](#function-nco_norm_phase_to_word) (double norm\_phase) <br>_Normalised PHASE -&gt; absolute phase word._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) uint32\_t | [**nco\_phase\_units**](#function-nco_phase_units) (double units) <br>_Double -&gt; phase word: the ONLY float-to-integer conversion in the phase-accumulator family._  |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) uint32\_t | [**nco\_phase\_units\_mod**](#function-nco_phase_units_mod) (double units) <br>_Total, MODULAR double -&gt; phase word: one whole period is 0._  |
 |  void | [**nco\_reset**](#function-nco_reset) ([**nco\_state\_t**](structnco__state__t.md) \* state) <br>_Zero the phase accumulator. Sets phase to 0 so the next nco\_steps\_u32 call starts from the beginning of the cycle. norm\_freq, phase\_inc, and nmax are unchanged; the NCO is ready to generate samples again immediately._  |
 |  void | [**nco\_set\_norm\_freq**](#function-nco_set_norm_freq) ([**nco\_state\_t**](structnco__state__t.md) \* state, double norm\_freq) <br> |
 |  void | [**nco\_set\_phase**](#function-nco_set_phase) ([**nco\_state\_t**](structnco__state__t.md) \* state, uint32\_t phase) <br> |
@@ -94,6 +95,7 @@ _Phase-accumulator NCO, and the one float-&gt;integer boundary everything that s
 |  size\_t | [**nco\_steps\_u32\_scaled\_ctrl**](#function-nco_steps_u32_scaled_ctrl) ([**nco\_state\_t**](structnco__state__t.md) \* state, const double \* ctrl, size\_t ctrl\_len, uint32\_t \* out, size\_t max\_out) <br>_Advance ctrl\_len samples; values scaled to_ `[0, nmax)` _, with a per-sample control offset added on top of phase\_inc._ |
 |  size\_t | [**nco\_steps\_u32\_scaled\_ctrl\_max\_out**](#function-nco_steps_u32_scaled_ctrl_max_out) ([**nco\_state\_t**](structnco__state__t.md) \* state) <br> |
 |  size\_t | [**nco\_steps\_u32\_scaled\_max\_out**](#function-nco_steps_u32_scaled_max_out) ([**nco\_state\_t**](structnco__state__t.md) \* state) <br> |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) double | [**nco\_word\_to\_norm**](#function-nco_word_to_norm) (uint32\_t word) <br>_The INVERSE: a phase word back to normalised cycles in [0, 1)._  |
 
 
 ## Public Static Functions
@@ -525,7 +527,10 @@ C99 guarantees the integer half of a phase accumulator outright  unsigned arithm
 Three real sites proved the point before this existed, each computing its own cast and each undefined at its boundary: `resamp` at `rate == 1.0` and `symsync` at `sps == 1` both produced **0** on x86 (a phase increment that never advances  a dead NCO) where arm64 saturates, and `symsync`'s loop steer did not clamp but WRAPPED, so a control asking to speed up returned roughly a ninth of the correct increment.
 
 
-`resamp` is no longer one of those sites, and the reason is worth stating so it is not "consolidated" back: under the interpolating rule it adopted afterwards, outputs are emitted every tick and the phase word only decides when to LOAD, so a step of one whole period per tick  rate 1  is an ordinary operating point whose exact encoding is 0, not a limit to be clamped. It therefore lands that boundary MODULARLY, in its own `_step_inc`; see the comment there. Saturation below remains right for a phase ACCUMULATOR, which is what this function converts for.
+`resamp` needs the OTHER answer at that boundary, and it gets it from [**nco\_phase\_units\_mod**](nco__core_8h.md#function-nco_phase_units_mod) rather than from a private cast. Under the interpolating rule, outputs are emitted every tick and the phase word only decides when to LOAD, so a step of one whole period per tick  rate 1  is an ordinary operating point whose exact encoding is 0, not a limit to be clamped. Saturation here remains right for a phase ACCUMULATOR, which is what this function converts for.
+
+
+Two behaviours, ONE home. This paragraph used to argue the opposite  that resamp should keep the modular cast "in its own `\_step\_inc`" so it would not be consolidated back  and it was right about the BEHAVIOUR and wrong about the HOME. The faces above already show one fold serving two dimensions; one cast can likewise serve two boundary conventions. The cost of the private home was not hypothetical: a file that already owned "the conversion" locally grew a SECOND one beside it  `resamp_execute_ctrl_push`'s `(uint32_t)(frac * 2^32 + 0.5)`  whose rounding could carry past 2^32 into the undefined cast, stalling the interpolator for any composite rate in (1.0, 1.0 + 1.16e-10]. A Doppler ramp crosses that window at closest approach, and it cost a receiver its lock there.
 
 
 Behaviour here is total and host-independent: below zero (and NaN, which the negated comparison rejects rather than passing to the cast) gives 0; at or above 2^32 saturates to 2^32-1; in between it TRUNCATES toward zero, so the realised value is at most one step low and never high  the convention [**nco\_norm\_fold\_**](nco__core_8h.md#function-nco_norm_fold_) documents, now enforced in one place. Saturation is the honest answer at the limit: a phase word cannot express more than one cycle per sample, and clamping says so where a wrap would silently invert the caller's intent.
@@ -543,6 +548,59 @@ Behaviour here is total and host-independent: below zero (and NaN, which the neg
 **Returns:**
 
 `units` truncated into `[0, 2^32)`. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function nco\_phase\_units\_mod 
+
+_Total, MODULAR double -&gt; phase word: one whole period is 0._ 
+```C++
+JM_FORCEINLINE uint32_t nco_phase_units_mod (
+    double units
+) 
+```
+
+
+
+The resampling twin of [**nco\_phase\_units**](nco__core_8h.md#function-nco_phase_units). Same single float boundary, opposite answer at the top of the range, and the choice belongs to the CALLER's dimension rather than to the value:
+
+
+
+* A phase ACCUMULATOR cannot express more than one cycle per sample, so asking for more is out of range and [**nco\_phase\_units**](nco__core_8h.md#function-nco_phase_units) clamps  saying so, where a wrap would silently invert the intent.
+* A resampling STEP of one whole period per tick is not out of range at all: it is rate 1, an ordinary operating point, and its exact encoding is 0. Under the interpolator's rule (emit every tick, load when the accumulator fails to advance) a step of 0 means the accumulator never advances, so `u(k) <= u(k-1)` holds every tick, one input is consumed per output, and one arm serves throughout  which is precisely what rate 1 should do.
+
+
+
+
+Clamping that case instead is wrong but undramatic, and the measured number is worth keeping because a comment once guessed it: 2^32-1 emits 4097 outputs for 4096 inputs (1.000244) where 0 emits exactly
+* A slow drift, not a doubling.
+
+
+
+
+Total for every double. NaN and anything &lt;= 0 give 0 (the negated comparison is what rejects NaN, as above). Below 2^32 the bare cast is defined and truncates toward zero. At or above 2^32 the value is reduced modulo one period first  `fmod` is exact, so the reduction introduces no error of its own, and it keeps the face total instead of trading one undefined cast for an assumed range. Callers converting a rate reciprocal reach it well inside 2^32 anyway; the reduction is there so no caller has to prove that before calling.
+
+
+
+
+**Parameters:**
+
+
+* `units` A step already scaled to phase-word units (cycles x 2^32). Any value, including NaN. 
+
+
+
+**Returns:**
+
+`units` reduced modulo 2^32 and truncated toward zero. 
 
 
 
@@ -1351,6 +1409,46 @@ size_t nco_steps_u32_scaled_max_out (
 
 
 
+
+<hr>
+
+
+
+### function nco\_word\_to\_norm 
+
+_The INVERSE: a phase word back to normalised cycles in [0, 1)._ 
+```C++
+JM_FORCEINLINE double nco_word_to_norm (
+    uint32_t word
+) 
+```
+
+
+
+uint32 -&gt; double is exact and total  every phase word is representable, so unlike the forward direction there is no boundary, no undefined case and nothing to decide. It lives here anyway, for the duller reason: `word / 2^32` was written out at four sites, and a scale factor spelled by hand four times is a scale factor that can be mistyped in one of them. The forward faces are confined because they can trap; this one is shared because it is duplication.
+
+
+Read it back in whatever unit the caller's full scale is  multiply by `sf` for chips, by a symbol period for symbols. Callers doing that are exactly the ones this saves from restating 2^32.
+
+
+
+
+**Parameters:**
+
+
+* `word` Any phase word. 
+
+
+
+**Returns:**
+
+`word / 2^32`, in `[0, 1)`. 
+
+
+
+
+
+        
 
 <hr>
 ## Public Static Functions Documentation

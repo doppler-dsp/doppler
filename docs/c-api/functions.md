@@ -990,6 +990,7 @@
 * **nco\_norm\_freq\_to\_inc** ([**nco\_core.h**](nco__core_8h.md))
 * **nco\_norm\_phase\_to\_word** ([**nco\_core.h**](nco__core_8h.md))
 * **nco\_phase\_units** ([**nco\_core.h**](nco__core_8h.md))
+* **nco\_phase\_units\_mod** ([**nco\_core.h**](nco__core_8h.md))
 * **nco\_reset** ([**nco\_core.h**](nco__core_8h.md))
 * **nco\_set\_norm\_freq** ([**nco\_core.h**](nco__core_8h.md))
 * **nco\_set\_phase** ([**nco\_core.h**](nco__core_8h.md))
@@ -1014,6 +1015,7 @@
 * **nco\_steps\_u32\_scaled\_ctrl** ([**nco\_core.h**](nco__core_8h.md))
 * **nco\_steps\_u32\_scaled\_ctrl\_max\_out** ([**nco\_core.h**](nco__core_8h.md))
 * **nco\_steps\_u32\_scaled\_max\_out** ([**nco\_core.h**](nco__core_8h.md))
+* **nco\_word\_to\_norm** ([**nco\_core.h**](nco__core_8h.md))
 * **nprmeas\_analyze** ([**nprmeas\_core.h**](nprmeas__core_8h.md))
 * **nprmeas\_create** ([**nprmeas\_core.h**](nprmeas__core_8h.md))
 * **nprmeas\_destroy** ([**nprmeas\_core.h**](nprmeas__core_8h.md))
@@ -1109,6 +1111,7 @@
 * **Resampler\_execute\_ctrl** ([**Resampler\_core.h**](Resampler__core_8h.md))
 * **Resampler\_execute\_ctrl\_max\_out** ([**Resampler\_core.h**](Resampler__core_8h.md))
 * **Resampler\_execute\_max\_out** ([**Resampler\_core.h**](Resampler__core_8h.md))
+* **Resampler\_get\_ctrl\_acc** ([**Resampler\_core.h**](Resampler__core_8h.md))
 * **Resampler\_get\_num\_phases** ([**Resampler\_core.h**](Resampler__core_8h.md))
 * **Resampler\_get\_num\_taps** ([**Resampler\_core.h**](Resampler__core_8h.md))
 * **Resampler\_get\_rate** ([**Resampler\_core.h**](Resampler__core_8h.md))
@@ -1168,6 +1171,8 @@
 * **resamp\_set\_rate** ([**resamp\_core.h**](resamp__core_8h.md))
 * **resamp\_set\_state** ([**resamp\_core.h**](resamp__core_8h.md))
 * **resamp\_state\_bytes** ([**resamp\_core.h**](resamp__core_8h.md))
+* **rc\_h** ([**wfm\_core.h**](wfm__core_8h.md))
+* **rrc\_h** ([**wfm\_core.h**](wfm__core_8h.md))
 * **rrc\_taps** ([**wfm\_core.h**](wfm__core_8h.md))
 
 

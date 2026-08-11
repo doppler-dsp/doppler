@@ -165,7 +165,7 @@ extern "C"
   /**
    * @brief Resample with per-sample additive rate deviation.
    *
-   * rate_i = base_rate + ctrl[i].  The control is real-valued and
+   * rate_i = base_rate + `ctrl[i]`.    The control is real-valued and
    * double-precision, matching resamp_execute_ctrl_push()'s scalar `ctrl`
    * and the `double` the base rate itself is configured in.
    *

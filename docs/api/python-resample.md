@@ -237,8 +237,7 @@ Per-sample rate deviation via `execute_ctrl`:
 
 ```python
 doppler_correction = np.linspace(-1.0, 1.0, 4096)  # per-sample deviation
-ctrl = np.zeros(4096, dtype=np.complex64)  # deviation in norm_freq units
-ctrl.real = 1e-4 * doppler_correction
+ctrl = 1e-4 * doppler_correction  # real float64, in rate units
 y = r.execute_ctrl(x, ctrl)
 ```
 

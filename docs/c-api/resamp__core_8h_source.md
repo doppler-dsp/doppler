@@ -105,7 +105,7 @@ extern "C"
                          size_t num_in, float _Complex *out, size_t max_out);
 
   size_t resamp_execute_ctrl (resamp_state_t *state, const float _Complex *in,
-                              const float _Complex *ctrl, size_t num_in,
+                              const double *ctrl, size_t num_in,
                               float _Complex *out, size_t max_out);
 
   /* ------------------------------------------------------------------

@@ -37,7 +37,7 @@ _DopplerChannel state._ [More...](#detailed-description)
 | Type | Name |
 | ---: | :--- |
 |  double | [**carrier\_hz**](#variable-carrier_hz)  <br> |
-|  float \_Complex \* | [**ctrl**](#variable-ctrl)  <br> |
+|  double \* | [**ctrl**](#variable-ctrl)  <br> |
 |  size\_t | [**ctrl\_cap**](#variable-ctrl_cap)  <br> |
 |  double | [**doppler\_ppm**](#variable-doppler_ppm)  <br> |
 |  double | [**doppler\_rate\_ppm\_s**](#variable-doppler_rate_ppm_s)  <br> |
@@ -117,7 +117,7 @@ double doppler_channel_state_t::carrier_hz;
 ### variable ctrl 
 
 ```C++
-float _Complex* doppler_channel_state_t::ctrl;
+double* doppler_channel_state_t::ctrl;
 ```
 
 

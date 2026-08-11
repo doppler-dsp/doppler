@@ -8,7 +8,7 @@ re-derived without re-running the measurement.
 Three phases, in order: **characterise -> review -> limits**.
 
 This is a C library, so nothing here is where a claim is first tested.
-``native/tests/test_resamp_core.c`` §1-§19 is the evidence; this file
+``native/tests/test_resamp_core.c`` §1-§20 is the evidence; this file
 characterises the same properties **through the Python binding**, which is
 a genuinely different surface — it certifies that the binding delivers what
 the C proves, and produces the plots the C cannot. Every section names the
@@ -168,7 +168,7 @@ def section_summary() -> None:
     R.md()
     R.md("- `native/inc/resamp/resamp_core.h` — the SSOT for every claim")
     R.md(
-        "- `native/tests/test_resamp_core.c` — §1-§19, where every claim "
+        "- `native/tests/test_resamp_core.c` — §1-§20, where every claim "
         "below is actually certified"
     )
     R.md("- [Resampler design](../../../../../../docs/design/RESAMPLER.md)")
@@ -639,6 +639,15 @@ def review(d: Data) -> None:
         "`make lint-phase-conversion`.",
     )
     R.find(
+        "F8",
+        "GAP",
+        "`resamp_dc_gain` names arm 0's tap sum, but the realised DC gain "
+        "at a non-unity rate is the arm average (§2.3): 1.000586 computed "
+        "against 1.000249-1.000293 measured. The spread is 3.4e-4 and of "
+        "no practical consequence; it is a naming claim, not a numeric "
+        "one.",
+    )
+    R.find(
         "F9",
         "GAP",
         "`resamp_interp_inputs_needed`'s docblock UNDERSTATES its own "
@@ -653,15 +662,6 @@ def review(d: Data) -> None:
         "fractional rate, when they can. Understating a guarantee is a "
         "milder defect than overstating one, but it is the same kind: the "
         "header is not what the code does.",
-    )
-    R.find(
-        "F8",
-        "GAP",
-        "`resamp_dc_gain` names arm 0's tap sum, but the realised DC gain "
-        "at a non-unity rate is the arm average (§2.3): 1.000586 computed "
-        "against 1.000249-1.000293 measured. The spread is 3.4e-4 and of "
-        "no practical consequence; it is a naming claim, not a numeric "
-        "one.",
     )
     R.md()
     R.table(

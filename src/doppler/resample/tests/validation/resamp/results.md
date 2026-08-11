@@ -9,7 +9,7 @@ A polyphase resampler with a **dual-mode engine**: output-driven for `rate >= 1`
 Design and API, not restated here:
 
 - `native/inc/resamp/resamp_core.h` — the SSOT for every claim
-- `native/tests/test_resamp_core.c` — §1-§19, where every claim below is actually certified
+- `native/tests/test_resamp_core.c` — §1-§20, where every claim below is actually certified
 - [Resampler design](../../../../../../docs/design/RESAMPLER.md)
 - `doppler.resample.Resampler` — the Python face measured here
 
@@ -164,8 +164,8 @@ A rate deviation is real, but the block port's `ctrl` is typed `complex64`. A wi
 | F5 | BY DESIGN | `execute` and `execute_ctrl` differ below unity by GROUP DELAY, not quality (§2. |
 | F6 | BY DESIGN | The -6 dB at the output Nyquist (§2. |
 | F7 | FIXED | The unity window. |
-| F9 | GAP | `resamp_interp_inputs_needed`'s docblock UNDERSTATES its own guarantee. |
 | F8 | GAP | `resamp_dc_gain` names arm 0's tap sum, but the realised DC gain at a non-unity rate is the arm average (§2. |
+| F9 | GAP | `resamp_interp_inputs_needed`'s docblock UNDERSTATES its own guarantee. |
 
 
 ## 4. Limits
@@ -176,6 +176,6 @@ Claims a caller may rely on. A failure here is a regression, not a new finding �
 
 ## 5. Summary
 
-- **9 findings**, 6 of them gaps or confirmed defects: F1, F2, F3, F4, F9, F8
+- **9 findings**, 6 of them gaps or confirmed defects: F1, F2, F3, F4, F8, F9
 - **11/11 limits** hold
 - Raw sweeps: `data/tone_purity.csv`, `data/decim_band.csv`, `data/image_floor.csv`, `data/unity_seam.csv`

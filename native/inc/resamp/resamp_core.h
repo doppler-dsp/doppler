@@ -15,10 +15,21 @@
  *       to produce one output.  Bank coefficients are pre-scaled by
  *       rate so the passband gain is unity.
  *
- *   resamp_execute_ctrl — unified input-driven with a double-precision
- *     accumulator that handles all rates and per-sample deviations.
- *     Each input advances the accumulator by (rate + ctrl(i)); every
- *     time the accumulator crosses 1.0 an output is emitted.
+ *   resamp_execute_ctrl — unified, and it rides the INTERPOLATOR at every
+ *     rate: emit at every tick, and load an input when the accumulator
+ *     fails to advance (`u(k) <= u(k-1)`). The steered rate `rate +
+ *     ctrl(i)` sets the step; whole input intervals per output are owed
+ *     as `ctrl_debt` and the fractional remainder selects the arm.
+ *
+ *     This paragraph used to describe the other structure — "each input
+ *     advances the accumulator by (rate + ctrl(i)); every time the
+ *     accumulator crosses 1.0 an output is emitted" — which is the
+ *     DECIMATOR's recurrence, exact only at rate 1 where the two coincide.
+ *     Running it here cost 55-60 dB of tone purity at every other rate.
+ *     The description is kept accurate rather than deleted because it is
+ *     the mental model under which someone writes a private `(uint32_t)
+ *     (frac * 2^32 + 0.5)` and believes it correct; one did, and it
+ *     stalled the interpolator for composite rates just above unity.
  *
  * Phase accumulator (execute): upper log2(num_phases) bits of the
  * 32-bit NCO word index the polyphase bank — nearest-neighbor,
@@ -225,18 +236,40 @@ extern "C"
   /**
    * @brief Push one input at an instantaneous rate deviation; emit any outputs.
    *
-   * The single-input streaming form of resamp_execute_ctrl(): pushes @p x into
-   * the delay line, advances the double-precision accumulator by
-   * `rate + ctrl`, and emits every output whose accumulator period completes
-   * (0 for a decimator between strobes, 1 typically, or several for an
-   * interpolator) at the polyphase arm the fractional remainder selects.
+   * The single-input streaming form of resamp_execute_ctrl(): OFFERS @p x to
+   * the delay line, advances the accumulator by `rate + ctrl`, and emits
+   * every output whose period completes (0 for a decimator between strobes,
+   * 1 typically, or several for an interpolator) at the polyphase arm the
+   * fractional remainder selects.
+   *
+   * **The scalar and block forms are INDISTINGUISHABLE.** Feeding a stream
+   * one sample at a time through here yields the same outputs, in the same
+   * number, bit-for-bit, as one resamp_execute_ctrl() over the same
+   * `(in, ctrl[])`. Not "close" and not "one sample of delay apart": the
+   * same. A caller chooses between them for control flow — the block form
+   * when `ctrl[]` is known in advance, this one when each correction
+   * depends on the outputs already emitted — never for a difference in what
+   * comes out.
+   *
+   * That is what "offers" buys, and why @p x is NOT pushed on entry:
+   * nothing enters an interpolator's delay line without a load REQUEST — a
+   * tick emits, the accumulator fails to advance, and only then is an input
+   * consumed. @p x is held until a tick asks. Pushing on entry is an
+   * unrequested load, and it is precisely what broke the invariant, costing
+   * exactly one sample of group delay against the block form. Fixed, and
+   * gated: `eq_ctrl_push` in test_resamp_core.c asserts bit-exact equality
+   * across decimating, unity-neighbourhood and interpolating rates, at zero
+   * and at both signs of steer.
+   *
+   * `ctrl_ahead` covers the one case the API cannot decline — @p max_out
+   * ending the call before any tick could ask for the offered sample.
    * Feeding a stream of `(x, ctrl)` through this one input at a time reproduces
    * resamp_execute_ctrl() on the same `(in, ctrl[])` bit-for-bit — but, unlike
    * the block form's precomputed `ctrl[]`, `ctrl` here can depend on the
    * outputs already emitted. That closes the loop: a timing-recovery or
    * rate-tracking loop reads each emitted output, computes its correction, and
    * feeds it back as the next call's @p ctrl to steer the strobe. This is the
-   * per-output feedback a matched-filter timing loop (track.RrcSync) needs and
+   * per-output feedback a matched-filter timing loop (track.RateSync) needs and
    * the block `execute_ctrl` cannot provide.
    *
    * @param state    Must be non-NULL.

@@ -17,11 +17,10 @@
 native/inc/adc/adc_core.h::* (1.0 / 4294967296.0); | inverse: scales a u32 down to the unit interval
 native/inc/dll/dll_core.h::return ((double)mid / 4294967296.0) * (double)s->sf; | inverse: phase word -> chips
 native/inc/dll/dll_core.h::s->chip_pos = ((double)s->code_nco.phase / 4294967296.0) * sfd; | inverse: phase word -> chips
-native/src/resamp/resamp_core.c::return (double)s->ctrl_phase / 4294967296.0; | inverse: phase word -> cycles
 
 # ── SAFE: deliberate, guarded, and documented ─────────────────────────
 
-native/src/resamp/resamp_core.c::double q = upsample ? 4294967296.0 / rate : rate * 4294967296.0; | _step_inc: rejects NaN/negatives, then converts through int64_t which represents 2^32 exactly, so the conversion is defined over the whole range and the narrowing is modular. nco_core.h documents why resamp deliberately lands this boundary modularly rather than saturating, and says not to consolidate it back.
+native/src/resamp/resamp_core.c::double q = upsample ? 4294967296.0 / rate : rate * 4294967296.0; | NOT a conversion: the arithmetic is resamp's (which reciprocal, which branch) and runs in double, exactly as nco_core.h prescribes; the cast is nco_phase_units_mod's. The literal is deliberately left spelled out rather than hidden behind a named constant -- this gate's detector IS that literal, so a macro would let a future `(uint32_t)(x * SCALE)` past it.
 
 # ── KNOWN VIOLATIONS: recorded as debt, NOT endorsed ──────────────────
 # Each of these is a private copy of the conversion. They are listed so
@@ -30,5 +29,3 @@ native/src/resamp/resamp_core.c::double q = upsample ? 4294967296.0 / rate : rat
 # direction. Do not add to this section.
 
 native/src/symsync/symsync_core.c::return (uint32_t)(4294967296.0 / s); | VIOLATION. Bare cast: at sps == 1 this is (uint32_t)4294967296.0, a value uint32_t cannot represent -- undefined per C99 6.3.1.4. nco_core.h cites this exact site as one of the three that motivated confining the conversion ("symsync at sps == 1 produced 0 on x86 ... where arm64 saturates"), but the cast was never routed through nco_phase_units(). The `sps ? sps : 1` guard against zero substitutes precisely the triggering value.
-
-native/src/resamp/resamp_core.c::uint32_t frac = (uint32_t)((t_in - whole) * 4294967296.0 + 0.5); | VIOLATION. The +0.5 rounding form can exceed the type: (t_in - whole) reaches 1 - 2^-53, so the product reaches 2^32 - 2^-21 and +0.5 carries it past 2^32 -- the undefined conversion again. Also the exact form nco_norm_fold_ argues against on reproducibility grounds, since it contracts to a single FMA on arm64 and x86-64-v3 but not on the x86-64-v2 baseline doppler ships.

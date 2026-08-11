@@ -159,13 +159,13 @@ A rate deviation is real, but the block port's `ctrl` is typed `complex64`. A wi
 |---|---|---|
 | F1 | GAP | The control port's only observable has no Python binding. |
 | F2 | GAP | The block control port is typed `complex64` while its own streaming twin takes a `double`. |
-| F3 | GAP | `resamp_get_ctrl_acc`'s docblock describes the wrong structure. |
-| F4 | GAP | The same docblock states the slip unit as output periods: 'one cycle of wrap is one output period of slip'. |
+| F3 | FIXED | `resamp_get_ctrl_acc`'s docblock described the wrong structure. |
+| F4 | FIXED | The same docblock stated the slip unit as output periods: 'one cycle of wrap is one output period of slip'. |
 | F5 | BY DESIGN | `execute` and `execute_ctrl` differ below unity by GROUP DELAY, not quality (§2. |
 | F6 | BY DESIGN | The -6 dB at the output Nyquist (§2. |
 | F7 | FIXED | The unity window. |
-| F8 | GAP | `resamp_dc_gain` names arm 0's tap sum, but the realised DC gain at a non-unity rate is the arm average (§2. |
-| F9 | GAP | `resamp_interp_inputs_needed`'s docblock UNDERSTATES its own guarantee. |
+| F8 | FIXED | `resamp_dc_gain` named arm 0's tap sum without saying so, but the realised DC gain at a non-unity rate is the arm average (§2. |
+| F9 | FIXED | `resamp_interp_inputs_needed`'s docblock UNDERSTATED its own guarantee. |
 
 
 ## 4. Limits
@@ -176,6 +176,6 @@ Claims a caller may rely on. A failure here is a regression, not a new finding �
 
 ## 5. Summary
 
-- **9 findings**, 6 of them gaps or confirmed defects: F1, F2, F3, F4, F8, F9
+- **9 findings**, 2 of them gaps or confirmed defects: F1, F2
 - **11/11 limits** hold
 - Raw sweeps: `data/tone_purity.csv`, `data/decim_band.csv`, `data/image_floor.csv`, `data/unity_seam.csv`

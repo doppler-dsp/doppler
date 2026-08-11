@@ -191,11 +191,25 @@ extern "C"
    * @brief Input samples an interpolating fill of @p max_out outputs consumes.
    *
    * The exact number of delay-line pushes producing @p max_out outputs from
-   * the current phase: `((uint64_t)phase + max_out * phase_inc) >> 32`. For an
-   * integer interpolation factor (phase_inc = 2^32 / rate divides evenly, i.e.
-   * a power-of-two `num_phases` bank at rate == num_phases) this is exact, so a
-   * caller can generate precisely this many inputs — no over- or
-   * under-production. Meaningful only for an upsampling resampler (rate >= 1).
+   * the current phase: `((uint64_t)phase + max_out * phase_inc) >> 32`.
+   *
+   * Exact at EVERY rate, not only at an integer interpolation factor, and a
+   * caller may rely on it: generate precisely this many inputs, hand them to
+   * resamp_interp_fill(), and there is no over- or under-production. The
+   * guarantee is structural rather than numeric — this closed form and the
+   * fill loop advance the same accumulator by the same `phase_inc`, so they
+   * cannot disagree whatever the rate, and mid-stream phase is carried in
+   * the formula. Measured across 1800 mid-stream calls at nine rates with
+   * randomised @p max_out, worst deviation zero (test_resamp_core.c §20).
+   *
+   * (This paragraph used to scope the promise to "an integer interpolation
+   * factor". That is where phase_inc divides evenly and therefore represents
+   * the rate exactly — a real property, but a different one: the prediction
+   * matches the fill because both USE phase_inc, not because it is exact.)
+   *
+   * Meaningful only for an upsampling resampler (rate >= 1) — the prediction
+   * still matches what resamp_interp_fill() consumes below unity, but that
+   * entry point interpolates, so a decimating caller wants resamp_execute().
    *
    * @param state    Must be non-NULL, upsampling.
    * @param max_out  Number of outputs the following resamp_interp_fill() call
@@ -301,15 +315,25 @@ extern "C"
   /** @brief The control accumulator's fractional phase, in [0, 1).
    *
    *  This is the timing NCO's state, and observing it is the only way to see
-   *  what a closed timing loop is actually doing to the sampling instant: the
-   *  arm the last output read is `floor(mu * num_phases)`, so `mu` IS the
-   *  fractional delay applied to the stream, in output periods. A steady `mu`
-   *  means the loop has settled on a sampling phase; a `mu` that slews and
-   *  wraps means a residual RATE error the loop has not absorbed, and one
-   *  cycle of wrap is one output period of slip.
+   *  what a closed timing loop is actually doing to the sampling instant.
+   *  `mu` IS the fractional delay applied to the stream, and
+   *  `floor(mu * num_phases)` is the polyphase arm the **next** output will
+   *  read — the accumulator advances after the emit, so on return it already
+   *  describes the output still to come. That holds at EVERY rate, because
+   *  the control port rides the interpolating structure at every rate (see
+   *  resamp_execute_ctrl); it is not a peculiarity of a decimating stage.
    *
-   *  Reported after the last output this stage emitted, which for a decimating
-   *  terminal stage (`rate <= 1`) is the phase the next output will read from.
+   *  A steady `mu` means the loop has settled on a sampling phase. A `mu`
+   *  that slews and wraps means a residual RATE error the loop has not
+   *  absorbed, and one cycle of wrap is one INPUT interval of slip — an
+   *  output period only at rate 1, where the two coincide.
+   *
+   *  Reports the CONTROL accumulator, so it stays 0.0 for a caller driving
+   *  this object through resamp_execute(): the free-running phase is a
+   *  separate accumulator with no accessor.
+   *
+   *  Pinned by test_resamp_core.c §10 (the arm, read off the output at four
+   *  rates), §11 (the wrap's unit, against the counting law) and §12.
    */
   double resamp_get_ctrl_acc (const resamp_state_t *state);
 
@@ -325,6 +349,15 @@ extern "C"
    * The decimating path pre-scales by `rate` and integrates over the whole
    * bank between outputs, which cancels: `rate` inputs' worth of taps per
    * output, so the tap sum is the answer on both paths.
+   *
+   * ARM 0's gain, which is the realised gain only where arm 0 is the arm
+   * being used — at rate 1, where the fraction is zero and one arm is
+   * selected forever. A non-unity rate visits every arm, so what a caller
+   * measures is the arm AVERAGE: 1.000586 computed against 1.000293 at
+   * rate 0.5 and 2, and 1.000249 at 0.25 and 4. The 3.4e-4 spread is the
+   * bank's arm-to-arm ripple and of no practical consequence, but this
+   * returns the computed number, not the one a measurement will find.
+   * Pinned by test_resamp_core.c §13, which checks both.
    *
    * @param state State. Must be non-NULL.
    * @return The DC gain. 1.0 for the default Kaiser bank; a matched pulse

@@ -266,8 +266,9 @@ def section_summary() -> None:
         'claims in prose that the frequency error is "at most one step low '
         'and never high" — nothing checks that as a property. Sections '
         "below characterise the laws, review what they mean, and pin the "
-        "envelope. Section numbers track `test_nco_core.c`'s own numbering "
-        "so the two read side by side."
+        "envelope. The numbering is this report's own — several sections "
+        "merge more than one of `test_nco_core.c`'s, so the two do not "
+        "line up one-for-one."
     )
     R.md()
     R.md("### Claim coverage — every prose claim in the header")
@@ -557,7 +558,7 @@ def characterise() -> Data:
     R.md()
 
     # --- 2.9: the closed-loop limit --------------------------------------
-    R.md("### 2.9 The closed-loop limit — a trivial linear loop")
+    R.md("### 2.8 The closed-loop limit — a trivial linear loop")
     R.md()
     R.md(
         "Everything above characterises the NCO open-loop. This closes the "
@@ -624,7 +625,7 @@ def characterise() -> Data:
     R.md()
 
     # --- 2.9b: max_out ---------------------------------------------------
-    R.md("### 2.9b `max_out` is advisory on every face")
+    R.md("### 2.9 `max_out` is advisory on every face")
     R.md("*(the new section 17)*")
     R.md()
     big_n = 70000

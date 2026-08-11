@@ -18,7 +18,7 @@ The one-line orientation, so this page stands alone: the design is stratified in
 
 ### What this report adds
 
-A unit test pins points; it cannot state a **law**. `nco_core.h` claims in prose that the frequency error is "at most one step low and never high" — nothing checks that as a property. Sections below characterise the laws, review what they mean, and pin the envelope. Section numbers track `test_nco_core.c`'s own numbering so the two read side by side.
+A unit test pins points; it cannot state a **law**. `nco_core.h` claims in prose that the frequency error is "at most one step low and never high" — nothing checks that as a property. Sections below characterise the laws, review what they mean, and pin the envelope. The numbering is this report's own — several sections merge more than one of `test_nco_core.c`'s, so the two do not line up one-for-one.
 
 ### Claim coverage — every prose claim in the header
 
@@ -171,7 +171,7 @@ The phase-word LSB is `2.328e-10` (0.233 ppb) and the measured contiguous zero-a
 
 ![dead zone](ctrl_dead_zone.png)
 
-### 2.9 The closed-loop limit — a trivial linear loop
+### 2.8 The closed-loop limit — a trivial linear loop
 
 Everything above characterises the NCO open-loop. This closes the simplest possible loop around it: **subtraction** as the phase detector, a `LoopFilter` on the error, its control driving the NCO's ctrl port. No discriminator shape, no gain to normalise, no noise — the error IS the input phase minus the NCO phase.
 
@@ -189,7 +189,7 @@ Both steps settle identically, which is the symmetry a linear loop must have. On
 
 ![linear loop](linear_loop.png)
 
-### 2.9b `max_out` is advisory on every face
+### 2.9 `max_out` is advisory on every face
 *(the new section 17)*
 
 | probe | measured |

@@ -24,6 +24,7 @@ through it in one afternoon and were caught by hand.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
@@ -170,6 +171,50 @@ class Report:
         )
         self.md()
 
+    def _self_check(self, text: str) -> list[str]:
+        """Internal inconsistencies a staleness gate cannot see.
+
+        `make validate-check` proves `results.md` matches what
+        `validate.py` renders. It cannot say whether what is rendered is
+        COHERENT — so a report can point at a section that does not
+        exist, skip a number, or ship a sentence truncated mid-reference,
+        and stay green forever because the generator reproduces it
+        faithfully every time. All three shipped before this existed.
+
+        Checked here rather than in a separate script so it is
+        registration-free: every object's `build()` renders through this
+        method, so a new object is covered the moment it exists, and
+        `make validate`, `make validate-check` and the per-module limits
+        test all enforce it without any of them naming it.
+        """
+        problems: list[str] = []
+        heads = set(re.findall(r"^#{2,3} (\d+(?:\.\d+)?)\s", text, re.M))
+
+        for ref in sorted(set(re.findall(r"§(\d+\.\d+)", text))):
+            if ref not in heads:
+                problems.append(
+                    f"§{ref} is referenced but no such section exists "
+                    f"(have: {', '.join(sorted(heads))})"
+                )
+
+        subs = sorted(
+            (h for h in heads if h.startswith("2.")),
+            key=lambda h: int(h.split(".")[1]),
+        )
+        nums = [int(h.split(".")[1]) for h in subs]
+        if nums and nums != list(range(1, len(nums) + 1)):
+            problems.append(
+                f"section 2 numbering is not sequential: {', '.join(subs)}"
+            )
+
+        # `txt.split(".")[0]` truncation cuts at the first period, so a
+        # sentence containing a decimal ends mid-reference.
+        for cell in re.findall(r"\|[^|\n]*?\(§?\d+\.\s*\|", text):
+            problems.append(
+                f"table cell truncated mid-reference: {cell.strip()[:70]}"
+            )
+        return problems
+
     def render(self) -> str:
         """The report as one string, ending in exactly one newline.
 
@@ -177,8 +222,20 @@ class Report:
         separator, and a trailing one would leave two newlines, which the
         end-of-file-fixer rewrites — putting the generator and the
         formatter in a loop.
+
+        Raises
+        ------
+        ValueError
+            If the report contradicts itself — see `_self_check`.
         """
-        return "\n".join(self.lines).rstrip("\n") + "\n"
+        text = "\n".join(self.lines).rstrip("\n") + "\n"
+        problems = self._self_check(text)
+        if problems:
+            raise ValueError(
+                "the report is internally inconsistent:\n  - "
+                + "\n  - ".join(problems)
+            )
+        return text
 
     def emit(self, path: Path) -> None:
         """Write the report, unless this run is measurement-only."""

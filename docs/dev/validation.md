@@ -120,8 +120,12 @@ second caller appears, not in anticipation of one.
     **not** restate them. If this section starts writing design rationale,
     that content belongs in `docs/design/`.
 1. **Characterisation** — measured behaviour, tables and plots, **no
-    verdicts**. Section numbers track the C test file's own numbering so the
-    two read side by side. Claims unreachable from Python are reported as
+    verdicts**. Name the C section each part tracks in its heading (resamp
+    does: `### 2.4 Decimating: the stopband … (C §17)`) so the two read side
+    by side. The report's own numbering stays sequential regardless — it is
+    not a mirror of the C file's, because a report section routinely merges
+    several C ones, and nco's claim that it *was* a mirror is what let a gap
+    at §2.8 sit unnoticed. Claims unreachable from Python are reported as
     **C-ONLY** with the C section that covers them, never silently skipped.
 1. **Review** — findings with verdicts: `BY DESIGN`, `GAP`, `CONFIRMED`,
     `FIXED`, `C-ONLY`.
@@ -175,6 +179,18 @@ the moment its folder exists** — there is no registration step to forget.
 - `results.md` is **generated**. It is excluded from mdformat, and
     `validate.py` rstrips to exactly one trailing newline so the
     end-of-file-fixer and the generator cannot fight each other.
+- **The report self-checks as it renders.** `Report.render()` refuses to
+    emit a document that contradicts itself: a `§N.M` reference with no such
+    section, section-2 numbering with a gap, or a table cell truncated
+    mid-reference. All three shipped before the check existed, and
+    `make validate-check` stayed green through every one of them — it proves
+    `results.md` matches what the generator renders, which says nothing
+    about whether what is rendered is coherent. Registration-free: every
+    object renders through the same method.
+- **Render findings in full.** `R.find()`'s text is the argument for a
+    verdict, and the report is where it belongs. Truncating to a first
+    sentence (`txt.split(".")[0]`) both hides the reasoning and cuts any
+    sentence containing a decimal mid-reference.
 - **Emit `![...](plot.png)` from the section, never from `plots()`.**
     `plots()` runs only when `write=True`, so markdown emitted there is
     absent from the `--check` render — and `make validate-check` is then

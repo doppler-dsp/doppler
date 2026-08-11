@@ -401,11 +401,13 @@ jobs:
         fetch-depth: 0
 
     - name: Install system deps
-      run: |
-        make install-deps
-        # clang + the matching llvm tools (llvm-profdata / llvm-cov) — coverage
-        # tooling, not build deps, so it stays out of jb.toml's dev group.
-        sudo apt-get install -y clang llvm
+      # clang + the matching llvm tools (llvm-profdata / llvm-cov) used to be
+      # an inline `sudo apt-get install -y clang llvm` here, on the grounds
+      # that they were coverage tooling rather than build deps. They are in
+      # jb.toml's dev group now: `make gates` runs `coverage`, so a box that
+      # cannot install them cannot run the gate set, and a second dependency
+      # list outside jb.toml is the thing that file exists to prevent.
+      run: make install-deps
 
     - name: Install uv + Python + package deps
       uses: ./.github/actions/setup-uv

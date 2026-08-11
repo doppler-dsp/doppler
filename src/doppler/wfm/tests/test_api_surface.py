@@ -59,6 +59,8 @@ COVERAGE: dict[str, str] = {
     "mls_poly": "TestModuleFunctions",
     "crc16": "TestModuleFunctions",
     "rrc_taps": "TestModuleFunctions",
+    "rrc_h": "TestModuleFunctions",
+    "rc_h": "TestModuleFunctions",
     "dsss_spread": "TestModuleFunctions",
     "write_blue_header": "TestModuleFunctions",
     # stimulus engine (component cache) — dedicated suite in test_plan.py
@@ -285,6 +287,34 @@ class TestModuleFunctions:
     def test_rrc_taps(self) -> None:
         h = w.rrc_taps(0.35, 8, 8)
         assert len(h) == 2 * 8 * 8 + 1
+
+    def test_rrc_h(self) -> None:
+        """Analytic pulse at arbitrary t, checked against closed form.
+
+        The peak of a root raised cosine is `1 - beta + 4*beta/pi`, so this
+        pins the value rather than merely the shape. The grid cross-check is
+        the identity that matters to callers: `rrc_taps` is unit-ENERGY over
+        its own sample grid, so its peak falls as `1/sqrt(sps)` while the
+        analytic pulse's does not -- the two agree only after scaling by
+        `sqrt(sps)`, and a harness that mixes them without it under-drives
+        by ~20 dB.
+        """
+        beta, sps, span = 0.35, 4, 8
+        assert w.rrc_h(np.array([0.0]), beta)[0] == pytest.approx(
+            1.0 - beta + 4.0 * beta / np.pi
+        )
+        taps = w.rrc_taps(beta, sps, span)
+        t = (np.arange(len(taps)) - (len(taps) - 1) / 2) / sps
+        assert np.allclose(taps * np.sqrt(sps), w.rrc_h(t, beta), atol=1e-4)
+        # beta outside [0, 1] is refused, not extrapolated (see rrc_h.c).
+        assert w.rrc_h(np.array([0.0]), 2.0)[0] == 0.0
+
+    def test_rc_h(self) -> None:
+        """Full raised cosine: unit peak, and Nyquist zeros at every t = k."""
+        assert w.rc_h(np.array([0.0]), 0.35)[0] == pytest.approx(1.0)
+        zeros = w.rc_h(np.array([1.0, 2.0, 3.0]), 0.35)
+        assert np.allclose(zeros, 0.0, atol=1e-12)
+        assert w.rc_h(np.array([0.0]), -0.5)[0] == 0.0
 
     def test_dsss_spread(self) -> None:
         syms = np.array([1, -1, 1], np.complex64)

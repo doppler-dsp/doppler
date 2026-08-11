@@ -939,6 +939,23 @@ def crc16(bits: NDArray[np.uint8]) -> int:
 
     """
 
+def rrc_h(t: NDArray[np.float64], beta: float) -> NDArray[np.float64]:
+    """Analytic root-raised-cosine pulse at arbitrary (non-grid) times `t`, in
+    symbol periods. The transmit half of a matched-filter pair. Use this, not a
+    transcription of the formula, whenever a stimulus needs the pulse off the
+    integer sample grid — a non-integer samples-per-symbol or a fractional
+    timing offset has no grid to sample. `rrc_taps` remains the right call for
+    filter taps.
+    """
+
+def rc_h(t: NDArray[np.float64], beta: float) -> NDArray[np.float64]:
+    """Analytic full raised-cosine pulse at arbitrary (non-grid) times `t`, in
+    symbol periods. Already the Nyquist response a matched TX/RX pair produces,
+    so this is what models the matched-filter OUTPUT directly — a
+    timing-detector S-curve reference, or a receiver test with its front end
+    collapsed away.
+    """
+
 def rrc_taps(beta: float, sps: int, span: int) -> NDArray[np.float32]:
     """Root-raised-cosine pulse-shaping taps (2*span*sps+1 unit-energy cf32
     taps).

@@ -138,6 +138,64 @@ _bind_crc16 (PyObject *self, PyObject *args, PyObject *kwds)
 }
 
 static PyObject *
+_bind_rrc_h (PyObject *self, PyObject *args, PyObject *kwds)
+{
+  (void)self;
+  static char *_kwlist[] = { "t", "beta", NULL };
+  PyObject    *t_obj     = NULL;
+  double       beta      = 0.0;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "Od", _kwlist, &t_obj, &beta))
+    return NULL;
+  PyArrayObject *t_arr = (PyArrayObject *)PyArray_FROM_OTF (
+      t_obj, NPY_DOUBLE, NPY_ARRAY_C_CONTIGUOUS);
+  if (!t_arr)
+    {
+      return NULL;
+    }
+  const double *t     = (const double *)PyArray_DATA (t_arr);
+  size_t        t_len = (size_t)PyArray_SIZE (t_arr);
+  npy_intp      _dim  = (npy_intp)t_len;
+  PyObject     *_out  = PyArray_EMPTY (1, &_dim, NPY_DOUBLE, 0);
+  if (!_out)
+    {
+      Py_DECREF (t_arr);
+      return NULL;
+    }
+  rrc_h (t, t_len, (double *)PyArray_DATA ((PyArrayObject *)_out), beta);
+  Py_DECREF (t_arr);
+  return _out;
+}
+
+static PyObject *
+_bind_rc_h (PyObject *self, PyObject *args, PyObject *kwds)
+{
+  (void)self;
+  static char *_kwlist[] = { "t", "beta", NULL };
+  PyObject    *t_obj     = NULL;
+  double       beta      = 0.0;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "Od", _kwlist, &t_obj, &beta))
+    return NULL;
+  PyArrayObject *t_arr = (PyArrayObject *)PyArray_FROM_OTF (
+      t_obj, NPY_DOUBLE, NPY_ARRAY_C_CONTIGUOUS);
+  if (!t_arr)
+    {
+      return NULL;
+    }
+  const double *t     = (const double *)PyArray_DATA (t_arr);
+  size_t        t_len = (size_t)PyArray_SIZE (t_arr);
+  npy_intp      _dim  = (npy_intp)t_len;
+  PyObject     *_out  = PyArray_EMPTY (1, &_dim, NPY_DOUBLE, 0);
+  if (!_out)
+    {
+      Py_DECREF (t_arr);
+      return NULL;
+    }
+  rc_h (t, t_len, (double *)PyArray_DATA ((PyArrayObject *)_out), beta);
+  Py_DECREF (t_arr);
+  return _out;
+}
+
+static PyObject *
 _bind_rrc_taps (PyObject *self, PyObject *args, PyObject *kwds)
 {
   (void)self;
@@ -343,6 +401,19 @@ static PyMethodDef wfm_module_methods[] = {
     ">>> ascii_bits = np.unpackbits(np.frombuffer(b\"123456789\", np.uint8))\n"
     ">>> hex(crc16(ascii_bits))   # the standard CCITT check vector\n"
     "'0x29b1'\n" },
+  { "rrc_h", (PyCFunction)(void *)_bind_rrc_h, METH_VARARGS | METH_KEYWORDS,
+    "Analytic root-raised-cosine pulse at arbitrary (non-grid) times `t`, in "
+    "symbol periods. The transmit half of a matched-filter pair. Use this, "
+    "not a transcription of the formula, whenever a stimulus needs the pulse "
+    "off the integer sample grid — a non-integer samples-per-symbol or a "
+    "fractional timing offset has no grid to sample. `rrc_taps` remains the "
+    "right call for filter taps.\n" },
+  { "rc_h", (PyCFunction)(void *)_bind_rc_h, METH_VARARGS | METH_KEYWORDS,
+    "Analytic full raised-cosine pulse at arbitrary (non-grid) times `t`, in "
+    "symbol periods. Already the Nyquist response a matched TX/RX pair "
+    "produces, so this is what models the matched-filter OUTPUT directly — a "
+    "timing-detector S-curve reference, or a receiver test with its front end "
+    "collapsed away.\n" },
   { "rrc_taps", (PyCFunction)(void *)_bind_rrc_taps,
     METH_VARARGS | METH_KEYWORDS,
     "Root-raised-cosine pulse-shaping taps (2*span*sps+1 unit-energy cf32 "

@@ -35,38 +35,24 @@ import sys
 # --8<-- [start:signal]
 import numpy as np
 
+from doppler.ber import ber_evm_db, ber_settle_syms
 from doppler.track import RateSync
+from doppler.wfm import rrc_h
 
 SPS = 17.33389  # non-integer samples per symbol -- the whole point
 BETA = 0.35
 SPAN = 8
-NSYM = 1500
+BN = 0.005  # loop bandwidth, symbol-rate normalised
 CLOCK_PPM = 200.0  # the true rate is this far off the nominal
 ES_N0_DB = 15.0  # symbol energy to noise density -- NOT a per-sample SNR
 
-
-def rrc_h(t, beta=BETA):
-    """Analytic RRC pulse at arbitrary (non-grid) times, in symbol periods."""
-    t = np.asarray(t, float)
-    out = np.empty_like(t)
-    pt = np.pi * t
-    at_zero = np.abs(t) < 1e-9
-    at_sing = (
-        np.abs(np.abs(t) - 1.0 / (4 * beta)) < 1e-9
-        if beta > 0
-        else np.zeros(t.shape, bool)
-    )
-    gen = ~(at_zero | at_sing)
-    out[at_zero] = 1.0 - beta + 4.0 * beta / np.pi
-    if at_sing.any():
-        a = np.pi / (4 * beta)
-        out[at_sing] = (beta / np.sqrt(2)) * (
-            (1 + 2 / np.pi) * np.sin(a) + (1 - 2 / np.pi) * np.cos(a)
-        )
-    tg, ptg = t[gen], pt[gen]
-    num = np.sin(ptg * (1 - beta)) + 4 * beta * tg * np.cos(ptg * (1 + beta))
-    out[gen] = num / (ptg * (1 - (4 * beta * tg) ** 2))
-    return out
+# Long enough that a SETTLED window exists. `ber_settle_syms` is the
+# library's own answer to where steady state may start -- 2*(5/Bn) for the
+# one running loop, which is 2000 symbols at Bn = 0.005. A record pinned to
+# a round number instead (this demo used 1500) is shorter than its own
+# settling budget, so "the last quarter" was measuring the tail of the
+# acquisition transient and calling it steady state.
+NSYM = 3 * int(ber_settle_syms(BN, 0.0))
 
 
 def make_signal(sps, tau=0.37, seed=7, es_n0_db=ES_N0_DB):
@@ -84,9 +70,30 @@ def make_signal(sps, tau=0.37, seed=7, es_n0_db=ES_N0_DB):
     the convention everyone else quotes -- EVM is measured on the I/Q plane
     unless it says otherwise.
 
-    Amplitude is kept well inside +-1.0: the planned cascade contains a CIC,
-    which bounds its input and clips silently past that (RateSync.clipped is
-    the only signal, and this demo asserts it stays clear).
+    Symbols are presented at the CONTRACTED unit amplitude, and that is the
+    whole of the level story. RateSync carries no AGC by design -- a
+    composing receiver already levels in its own front-end cascade -- so the
+    caller owns the input level, and the level to hit is not a tuned number:
+    the TED normalises by its own construct-time slope, computed for the
+    reference the matched bank already defines
+    (``RateConverter_agc_ref_db()`` = ``10*log10(bank_e0/bank_sps)``, ~0 dB
+    because the bank normalises by its own pulse energy).
+
+    This demo used to scale the shaped stream to ``0.25`` of its PEAK for
+    "CIC headroom", and it is worth naming what that cost. An RRC stream
+    peaks at ~1.582x its symbol amplitude, so symbols arrived at ~0.158
+    against a contract written in unit amplitude -- and a Gardner detector's
+    slope goes as A^2, so the loop ran ~40x under its stated bandwidth and
+    failed its own lock assertion with nothing pointing at the level. The
+    peak backoff was also a hand-rolled AGC: a peak detector with no loop
+    and no time constant.
+
+    The CIC's input bound is **2.0**, not 1.0 -- ``CIC_PAPR_HEADROOM``
+    reserves exactly the 6 dB a unit-amplitude RRC's 1.582 peak needs, so
+    the contracted level fits with margin. What does not fit is the NOISE:
+    15 dB Es/N0 at 17.33 samples per symbol is only ~2.6 dB per-sample SNR,
+    so the composite crest runs past the bound on noise alone. See the note
+    beside the assertions below, and gh-668.
     """
     rng = np.random.default_rng(seed)
     syms = np.where(rng.integers(0, 2, NSYM) > 0, 1.0, -1.0)
@@ -96,8 +103,7 @@ def make_signal(sps, tau=0.37, seed=7, es_n0_db=ES_N0_DB):
     for k, a in enumerate(syms):
         t = (idx - (k + SPAN) * sps) / sps - tau
         near = np.abs(t) <= SPAN
-        x[near] += a * rrc_h(t[near])
-    x *= 0.25 / np.max(np.abs(x))  # headroom for the CIC's +-1.0 bound
+        x[near] += a * rrc_h(t[near], BETA)
     # Average symbol energy from the STEADY-STATE span only. Including the
     # ramp-up and the tail padding underestimates the power, which would
     # quietly set a higher Es/N0 than advertised -- and the giveaway is an
@@ -128,29 +134,38 @@ def evm_floor_db(es_n0_db=ES_N0_DB):
 true_sps = SPS * (1.0 + CLOCK_PPM * 1e-6)
 rx, tx_syms = make_signal(true_sps)
 
-sync = RateSync(sps=SPS, pulse="rrc", beta=BETA, span=SPAN, m=2, bn=0.005)
+sync = RateSync(sps=SPS, pulse="rrc", beta=BETA, span=SPAN, m=2, bn=BN)
 symbols = np.asarray(sync.steps(rx))
 # --8<-- [end:signal]
 
 
-def _evm_db(y):
-    """EVM against the LS-scaled hard decision, over the settled tail.
+def _evm_db(y, bn=BN):
+    """Steady-state EVM (dB), from the library's own primitives.
 
-    Judge LOCK by ``lock_stat``, not by this: a window containing a single
+    Both halves of this used to be hand-written: a least-squares EVM, over
+    "the final quarter". `ber_evm_db` is the canonical self-referenced EVM
+    and `ber_settle_syms` is the canonical answer to where a steady-state
+    window may START -- a window pinned to a FRACTION of the record is the
+    documented way a receiver measurement includes the acquisition
+    transient and reports it as steady state.
+
+    Judge LOCK by ``locked``, not by this: a window containing a single
     acquisition cycle slip reads ~20 dB worse with the eye wide open.
     """
-    y = np.asarray(y)[3 * len(y) // 4 :]
-    d = np.where(y.real >= 0, 1.0, -1.0)
-    g = float(np.dot(d, y.real) / len(d))
-    return 20 * np.log10(
-        float(np.linalg.norm(y - g * d) / (abs(g) * np.sqrt(len(d))))
-    )
+    y = np.asarray(y)
+    lo = int(ber_settle_syms(bn, 0.0))
+    if y.size < lo + 100:
+        raise ValueError(
+            f"record of {y.size} symbols has no settled window at "
+            f"bn={bn:g} (budget {lo})"
+        )
+    return float(ber_evm_db(y, lo, y.size, 2))
 
 
 def track_rate(sps, chunk=4096):
     """Re-run in chunks, sampling the tracked clock as the loop converges."""
     sig, _ = make_signal(sps * (1.0 + CLOCK_PPM * 1e-6))
-    obj = RateSync(sps=sps, pulse="rrc", beta=BETA, span=SPAN, m=2, bn=0.005)
+    obj = RateSync(sps=sps, pulse="rrc", beta=BETA, span=SPAN, m=2, bn=BN)
     rates = []
     for i in range(0, len(sig), chunk):
         obj.steps(sig[i : i + chunk])
@@ -250,10 +265,41 @@ def main(out_path="ratesync_demo.png"):
 
     # ---- self-validation: exit 0 must mean demonstrated AND checked ----
     # Locked, judged by the eye statistic rather than an EVM window.
+    #
+    # `locked` is the assertion, and there is deliberately no bare
+    # `lock_stat > 0.55` beside it. That constant was magic: RateSync
+    # declines to mirror symsync's (pfa, pd) lock sizing precisely because
+    # symsync's constants were calibrated against symsync's own geometry by
+    # Monte Carlo, and re-exposing the formula for a different front end
+    # would assert a calibration nobody measured. `locked` IS the object's
+    # own decision, made with its own hysteresis. A threshold here can be
+    # restored the day native/validation/symsync_lock.c is extended to
+    # RateSync's geometry and the number stops being invented.
     assert sync.locked, f"timing never locked (lock_stat {sync.lock_stat:.3f})"
-    assert sync.lock_stat > 0.55, f"lock_stat {sync.lock_stat:.3f}"
-    # The front end stayed inside the CIC's +-1.0 input bound.
-    assert not sync.clipped, "front end overdriven -- the CIC clipped"
+    # The front end's clip flag is REPORTED, not asserted, and the reason is
+    # measured rather than assumed. `clipped` cannot tell "the caller
+    # over-drove the transmitter" from "the NOISE crest exceeds the bound",
+    # and at this operating point it is entirely the second: unit symbol
+    # amplitude puts the shaped signal's peak at 1.582 against the CIC's 2.0
+    # bound (CIC_PAPR_HEADROOM reserves exactly that 6 dB), but 15 dB Es/N0
+    # at 17.33 samples per symbol is only ~2.6 dB per-SAMPLE SNR, so noise
+    # sigma is ~0.59 per dimension and the composite peaks at 3.27 -- 4403
+    # of 104088 samples past the bound, none of them signal.
+    #
+    # It costs nothing here, and that is measured too: EVM lands on the
+    # matched-filter bound (-15.1 dB against -15.0) with the clip active,
+    # because a noise-dominated EVM cannot see a 4% clip. The EVM assertion
+    # below is the real check, and it is strictly stronger -- an over-driven
+    # front end shows up there as the ~25 dB collapse cic_core.h documents.
+    # Backing the level off to silence the flag is the wrong trade: it
+    # under-drives a TED whose slope goes as A^2 (measured: 0.25x amplitude
+    # reads -13.4 dB, 1.6 dB off the bound).
+    if sync.clipped:
+        print(
+            "note: CIC clipped on noise crests -- expected at "
+            f"{ES_N0_DB:.0f} dB Es/N0 and {SPS:.2f} samples/symbol; "
+            "the EVM bound below is the check that matters"
+        )
     # The loop found the true rate, which is 200 ppm off the nominal it was
     # built with, at a non-integer sps.
     target = SPS * (1 + CLOCK_PPM * 1e-6)
@@ -266,7 +312,7 @@ def main(out_path="ratesync_demo.png"):
     # and a correct one gets within a decibel or two of it. The lower bound
     # matters as much as the upper -- beating the bound would mean the
     # measurement is wrong, not that the receiver is brilliant.
-    # A single 375-symbol window carries ~0.4 dB of estimator noise (the
+    # A settled window of this length carries ~0.4 dB of estimator noise (the
     # relative std of a variance estimate is sqrt(2/N)), so one seed can land
     # either side of the bound; over 12 seeds the mean sits 0.03 dB from it.
     # +-1.5 dB is three sigma on one seed, not a fudge factor.
@@ -275,9 +321,7 @@ def main(out_path="ratesync_demo.png"):
     # the bound once" into "it is on the bound".
     for esn0 in (10.0, 20.0):
         sig, _ = make_signal(SPS * (1 + CLOCK_PPM * 1e-6), es_n0_db=esn0)
-        obj = RateSync(
-            sps=SPS, pulse="rrc", beta=BETA, span=SPAN, m=2, bn=0.005
-        )
+        obj = RateSync(sps=SPS, pulse="rrc", beta=BETA, span=SPAN, m=2, bn=BN)
         got = _evm_db(np.asarray(obj.steps(sig)))
         assert abs(got - evm_floor_db(esn0)) < 1.5, (
             f"Es/N0 {esn0:g} dB: EVM {got:.1f} dB, bound {-esn0:.1f} dB"

@@ -21,7 +21,6 @@
  *   §17 The bank's advertised 60 dB stopband and 0.4/0.6 cutoffs
  *   §17b The same bank anti-imaging: the artifact floor for R >= 1
  *   §18 execute_ctrl rides the interpolator at EVERY rate
- *   §19 Only the real part of `ctrl` is used
  *   §20 interp_inputs_needed is exact at every rate, not just integer ones
  *
  * Sections numbered §10 onward were added by the validation campaign, which
@@ -294,7 +293,8 @@ ctrl_near_unity_consumes_input (void)
   static const double dev[] = { 0.0,     2.3e-16, 1.0e-12, 1.0e-11,  5.0e-11,
                                 1.0e-10, 1.0e-9,  1.0e-6,  -1.0e-10, -1.0e-6 };
 
-  float _Complex in[L], ctrl[L], out[CAP];
+  float _Complex in[L], out[CAP];
+  double ctrl[L];
   for (size_t i = 0; i < (size_t)L; i++)
     {
       double ph = 2.0 * M_PI * 0.037 * (double)i;
@@ -305,7 +305,7 @@ ctrl_near_unity_consumes_input (void)
   for (size_t k = 0; k < sizeof dev / sizeof dev[0]; k++)
     {
       for (size_t i = 0; i < (size_t)L; i++)
-        ctrl[i] = CMPLXF ((float)dev[k], 0.0f);
+        ctrl[i] = dev[k];
 
       resamp_state_t *r = resamp_create (1.0);
       if (!r)
@@ -352,13 +352,14 @@ eq_ctrl_push (double rate)
     L   = 400,
     CAP = 1024
   };
-  float _Complex in[L], ctrl[L], out_ref[CAP], out_push[CAP];
+  float _Complex in[L], out_ref[CAP], out_push[CAP];
+  double ctrl[L];
   for (size_t i = 0; i < (size_t)L; i++)
     {
       double ph = 2.0 * M_PI * 0.023 * (double)i;
       in[i]     = CMPLXF ((float)cos (ph), (float)sin (ph));
       /* a slowly-varying rate deviation, both signs */
-      ctrl[i] = CMPLXF ((float)(0.01 * sin (0.05 * (double)i)), 0.0f);
+      ctrl[i] = 0.01 * sin (0.05 * (double)i);
     }
 
   resamp_state_t *rb   = resamp_create (rate);
@@ -368,8 +369,8 @@ eq_ctrl_push (double rate)
   resamp_state_t *rp = resamp_create (rate);
   size_t          np = 0;
   for (size_t i = 0; i < (size_t)L && np < CAP; i++)
-    np += resamp_execute_ctrl_push (rp, in[i], (double)crealf (ctrl[i]),
-                                    out_push + np, CAP - np);
+    np += resamp_execute_ctrl_push (rp, in[i], ctrl[i], out_push + np,
+                                    CAP - np);
   resamp_destroy (rp);
 
   int ok = (np == nref);
@@ -870,13 +871,14 @@ ctrl_rides_interpolator (double rate)
     NIN = 2048,
     CAP = 8192
   };
-  static float _Complex in[NIN], zero[NIN], a[CAP], b[CAP];
-  const double f0 = 0.05;
+  static float _Complex in[NIN], a[CAP], b[CAP];
+  static double zero[NIN];
+  const double  f0 = 0.05;
   for (size_t i = 0; i < NIN; i++)
     {
       double ph = 2.0 * M_PI * f0 * (double)i;
       in[i]     = CMPLXF ((float)cos (ph), (float)sin (ph));
-      zero[i]   = CMPLXF (0.0f, 0.0f);
+      zero[i]   = 0.0;
     }
 
   resamp_state_t *r1 = resamp_create (rate);
@@ -992,58 +994,6 @@ inputs_needed_is_exact (double rate)
            "%.1f (err %.1f)\n",
            rate, tot_out, tot_in, expect, err);
   return err <= 2.0;
-}
-
-/* ── §19 — only the real part of `ctrl` is used ──────────────────────────
- *
- * "ctrl is treated as real-valued; only the real part of each element is
- * used" — an explicit header sentence with nothing behind it. It is worth a
- * test rather than a shrug because the parameter's TYPE says otherwise: the
- * block port takes `const float _Complex *` while its own streaming twin
- * takes a plain `double`, so the only thing telling a caller that half of
- * every element is discarded is this sentence. */
-static int
-ctrl_imag_is_ignored (double rate)
-{
-  enum
-  {
-    NIN = 2048,
-    CAP = 8192
-  };
-  static float _Complex in[NIN], c_re[NIN], c_im[NIN], a[CAP], b[CAP];
-  for (size_t i = 0; i < NIN; i++)
-    {
-      double ph = 2.0 * M_PI * 0.05 * (double)i;
-      in[i]     = CMPLXF ((float)cos (ph), (float)sin (ph));
-      c_re[i]   = CMPLXF (0.01f, 0.0f);
-      /* A wildly out-of-range imaginary part: if it reached the rate at
-         all, the output count could not survive it. */
-      c_im[i] = CMPLXF (0.01f, -7.5f);
-    }
-  resamp_state_t *r1 = resamp_create (rate);
-  resamp_state_t *r2 = resamp_create (rate);
-  if (!r1 || !r2)
-    return 0;
-  size_t na = resamp_execute_ctrl (r1, in, c_re, NIN, a, CAP);
-  size_t nb = resamp_execute_ctrl (r2, in, c_im, NIN, b, CAP);
-  resamp_destroy (r1);
-  resamp_destroy (r2);
-
-  if (na != nb)
-    {
-      fprintf (stderr,
-               "  §19 rate=%.3f: imag changed the count (%zu vs %zu)\n", rate,
-               na, nb);
-      return 0;
-    }
-  for (size_t i = 0; i < na; i++)
-    if (a[i] != b[i])
-      {
-        fprintf (stderr, "  §19 rate=%.3f: imag changed output[%zu]\n", rate,
-                 i);
-        return 0;
-      }
-  return na > 0;
 }
 
 /* ── §15 — set_rate preserves the accumulator and the delay line ─────────
@@ -1276,11 +1226,11 @@ main (void)
   if (!r)
     return 1;
 
-  float _Complex ctrl[64];
+  double ctrl[64];
   for (size_t i = 0; i < N; i++)
     {
       in[i]   = CMPLXF (1.0f, 0.0f);
-      ctrl[i] = CMPLXF (0.0f, 0.0f);
+      ctrl[i] = 0.0;
     }
   n = resamp_execute_ctrl (r, in, ctrl, N, out, N);
   CHECK (n == N);
@@ -1527,9 +1477,9 @@ main (void)
   CHECK (ctrl_rides_interpolator (0.7));
   CHECK (ctrl_rides_interpolator (0.5));
 
-  /* ── §19 — the ctrl port's imaginary half is discarded ──────────────── */
-  CHECK (ctrl_imag_is_ignored (1.0));
-  CHECK (ctrl_imag_is_ignored (0.7));
+  /* §19 retired: it pinned "only the real part of `ctrl` is used", and the
+     port is a `double` now, so there is no imaginary half to discard. The
+     claim it guarded no longer exists rather than having gone untested. */
 
   /* ── §20 — the streaming contract holds at every rate ───────────────
      Fractional rates included, which is where the header's "integer

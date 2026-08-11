@@ -27,7 +27,7 @@ name = "execute_ctrl"
 arg_type = "void"
 return_type = "float _Complex"
 variable_output = true
-params = [{name = "x", type = "float _Complex[]"}, {name = "ctrl", type = "float _Complex[]"}]
+params = [{name = "x", type = "float _Complex[]"}, {name = "ctrl", type = "double[]"}]
 # Kernel is told its write limit (jm gh-138): an under-reporting
 # max_out truncates the emission instead of overrunning `out`.
 pass_capacity = true
@@ -41,6 +41,10 @@ return_type = "void"
 name = "rate"
 type = "double"
 writable = true
+
+[[Resampler.properties]]
+name = "ctrl_acc"
+type = "double"
 
 [[Resampler.properties]]
 name = "num_phases"

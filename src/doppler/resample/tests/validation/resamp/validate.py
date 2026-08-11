@@ -140,7 +140,12 @@ class Data:
     struct: list[tuple[float, bool, int, float, float]] = field(
         default_factory=list
     )
-    imag_ignored: bool = False
+    mu_fresh: float = 0.0
+    mu_steered: float = 0.0
+    mu_settled: float = 0.0
+    mu_fixed: float = 0.0
+    ctrl_accepts: list[str] = field(default_factory=list)
+    ctrl_rejects: list[str] = field(default_factory=list)
     roundtrip: list[tuple[float, bool]] = field(default_factory=list)
 
 
@@ -399,9 +404,7 @@ def characterise() -> Data:
         f0 = 0.05
         x = tone(NIN, f0)
         a = Resampler(rate=rate).execute(x)
-        b = Resampler(rate=rate).execute_ctrl(
-            x, np.zeros(NIN, dtype=np.complex64)
-        )
+        b = Resampler(rate=rate).execute_ctrl(x, np.zeros(NIN))
         n = min(len(a), len(b))
         same = bool(np.array_equal(a[:n], b[:n]))
         m = np.arange(SKIP, n)
@@ -447,7 +450,7 @@ def characterise() -> Data:
     )
     R.md()
     for delta in (-1e-6, -1e-9, -1e-10, 0.0, 1e-10, 1e-9, 1e-6):
-        c = np.full(NIN, delta, dtype=np.complex64)
+        c = np.full(NIN, delta)
         y = Resampler(rate=1.0).execute_ctrl(tone(NIN, 0.05), c)
         d.seam_delta.append(delta)
         d.seam_n.append(len(y))
@@ -474,25 +477,81 @@ def characterise() -> Data:
     R.md("![unity seam](unity_seam.png)")
     R.md()
 
-    # ── C §19 ─────────────────────────────────────────────────────
-    R.md("### 2.8 The control port's imaginary half (C §19)")
+    # ── the widened control port ──────────────────────────────────
+    R.md("### 2.8 The control port takes a real `double`")
     R.md()
     x = tone(NIN, 0.05)
-    c_re = np.full(NIN, 0.01, dtype=np.complex64)
-    c_im = (np.full(NIN, 0.01) - 7.5j * np.ones(NIN)).astype(np.complex64)
-    a = Resampler(rate=1.0).execute_ctrl(x, c_re)
-    b = Resampler(rate=1.0).execute_ctrl(x, c_im)
-    d.imag_ignored = bool(np.array_equal(a, b))
+    accepted, rejected = [], []
+    for label, c in (
+        ("float64", np.full(NIN, 0.01)),
+        ("float32", np.full(NIN, 0.01, dtype=np.float32)),
+        ("Python list", [0.01] * NIN),
+        ("complex64", np.full(NIN, 0.01, dtype=np.complex64)),
+    ):
+        try:
+            Resampler(rate=1.0).execute_ctrl(x, c)
+            accepted.append(label)
+        except TypeError:
+            rejected.append(label)
+    d.ctrl_accepts = list(accepted)
+    d.ctrl_rejects = list(rejected)
+    R.table(
+        ["ctrl dtype", "accepted"],
+        [
+            [lbl, "yes" if lbl in accepted else "**TypeError**"]
+            for lbl in ("float64", "float32", "Python list", "complex64")
+        ],
+    )
     R.md(
-        f"A rate deviation is real, but the block port's `ctrl` is typed "
-        f"`complex64`. A wildly out-of-range imaginary part changes "
-        f"nothing (identical output: **{d.imag_ignored}**) — it is read "
-        f"and discarded, with no error and no warning."
+        "A rate deviation is real and the port now says so — `double`, "
+        "matching `execute_ctrl_push`'s scalar and the `double` the base "
+        "rate is configured in. It was `complex64`, so half of every "
+        "element was read and discarded with no error and no warning "
+        "(F2). Anything numpy can safely widen to float64 is accepted; "
+        "**`complex64` is now a `TypeError`**, because discarding an "
+        "imaginary part is exactly the silent narrowing this removed and "
+        "numpy will not make that cast on a caller's behalf."
+    )
+    R.md()
+
+    # ── the newly bound observable ────────────────────────────────
+    R.md("### 2.9 The control accumulator is observable (C §10-§12)")
+    R.md()
+    fresh = Resampler(rate=1.0)
+    d.mu_fresh = float(fresh.ctrl_acc)
+    steered = Resampler(rate=1.0)
+    steered.execute_ctrl(tone(NIN, 0.05), np.full(NIN, 0.01))
+    d.mu_steered = float(steered.ctrl_acc)
+    settled = Resampler(rate=0.5)
+    settled.execute_ctrl(tone(NIN, 0.05), np.zeros(NIN))
+    d.mu_settled = float(settled.ctrl_acc)
+    fixed = Resampler(rate=0.5)
+    fixed.execute(tone(NIN, 0.05))
+    d.mu_fixed = float(fixed.ctrl_acc)
+    R.table(
+        ["state", "`ctrl_acc`"],
+        [
+            ["fresh", f"{d.mu_fresh:.6f}"],
+            ["steered off-rate (ctrl = 0.01)", f"{d.mu_steered:.6f}"],
+            ["settled at an exact rate (ctrl = 0)", f"{d.mu_settled:.6f}"],
+            ["driven through `execute()` instead", f"{d.mu_fixed:.6f}"],
+        ],
+    )
+    R.md(
+        "`mu` is the fractional delay applied to the stream and "
+        "`floor(mu * num_phases)` is the arm the NEXT output reads. A "
+        "steady value means the loop has settled on a sampling phase; one "
+        "that slews and wraps means a residual RATE error, one input "
+        "interval per wrap. The last row is the trap the property's own "
+        "docstring warns about: this reports the CONTROL accumulator, so "
+        "it stays 0.0 for a caller driving the object through `execute()`, "
+        "whose free-running phase is a different accumulator with no "
+        "accessor."
     )
     R.md()
 
     # ── C §6 ──────────────────────────────────────────────────────
-    R.md("### 2.9 Serialized state round-trip (C §6)")
+    R.md("### 2.10 Serialized state round-trip (C §6)")
     R.md()
     for rate in (0.5, 0.7, 2.0):
         x = tone(NIN, 0.05)
@@ -513,24 +572,18 @@ def characterise() -> Data:
     R.md()
 
     # ── C-ONLY ────────────────────────────────────────────────────
-    R.md("### 2.10 Claims the binding cannot reach (C-ONLY)")
+    R.md("### 2.11 Claims the binding cannot reach (C-ONLY)")
     R.md()
     R.md(
-        "`Resampler` binds `execute`, `execute_ctrl`, `rate`, "
+        "`Resampler` binds `execute`, `execute_ctrl`, `rate`, `ctrl_acc`, "
         "`num_phases`, `num_taps`, `reset` and the state triplet. Four "
-        "public C entry points have no binding at all, so their claims "
-        "are certified by the C suite alone:"
+        "public C entry points still have no binding, so their claims are "
+        "certified by the C suite alone:"
     )
     R.md()
     R.table(
         ["C entry point", "claim", "C evidence"],
         [
-            [
-                "`resamp_get_ctrl_acc`",
-                "`mu` in [0,1); names the NEXT output's arm; steady = "
-                "settled, slewing = residual rate error",
-                "§10-§12",
-            ],
             [
                 "`resamp_dc_gain`",
                 "arm 0's tap sum answers for every arm",
@@ -565,25 +618,33 @@ def review(d: Data) -> None:
 
     R.find(
         "F1",
-        "GAP",
-        "The control port's only observable has no Python binding. "
+        "FIXED",
+        "The control port's only observable had no Python binding. "
         "`resamp_get_ctrl_acc` is, in the header's words, 'the only way "
         "to see what a closed timing loop is actually doing to the "
-        "sampling instant' — and `Resampler` does not expose it. A Python "
-        "caller steering through `execute_ctrl` cannot tell a settled "
-        "loop from a slewing one, which is the single diagnostic the C "
-        "API offers for the failure mode that cost a receiver its lock.",
+        "sampling instant', and `Resampler` did not expose it — so a "
+        "Python caller steering through `execute_ctrl` could not tell a "
+        "settled loop from a slewing one, the single diagnostic the C API "
+        "offers for the failure that cost a receiver its lock. Now bound "
+        "as the read-only `Resampler.ctrl_acc` (2.9). The free-running "
+        "phase used by `execute()` is still a separate accumulator with "
+        "no accessor, and the property's docstring says so rather than "
+        "leaving a caller to discover a permanent 0.0.",
     )
     R.find(
         "F2",
-        "GAP",
-        "The block control port is typed `complex64` while its own "
-        "streaming twin takes a `double`. `resamp_execute_ctrl` declares "
-        "`const float _Complex *ctrl`; `resamp_execute_ctrl_push` "
-        "declares `double ctrl`. A rate deviation is real, so half of "
-        "every ctrl array is read and discarded (§2.8, and C §19). `nco` "
-        "and `lo` had exactly this narrowing fixed and now declare "
-        "`double[]`; resamp's block port is the last one left.",
+        "FIXED",
+        "The block control port was typed `complex64` while its own "
+        "streaming twin took a `double`, so half of every ctrl array was "
+        "read and discarded silently. Now `double[]` on both faces, "
+        "matching `nco` and `lo`, which had the same narrowing fixed. The "
+        "one behaviour change worth knowing is on the Python face: "
+        "`complex64` is now a TypeError rather than a silent truncation, "
+        "because numpy will not safe-cast complex to float. Anything real "
+        "still works, float32 and plain lists included (2.8). The "
+        "production caller was `doppler_channel`, which computed its "
+        "Doppler dilation in double and cast it down to reach this port; "
+        "that cast is gone.",
     )
     R.find(
         "F3",
@@ -748,9 +809,24 @@ def limits(d: Data) -> None:
         f"{max(p for _, _, p in tiny):.1f} dB",
     )
     R.limit(
-        d.imag_ignored,
-        "`execute_ctrl` uses only the real part of `ctrl` (F2 is the "
-        "type, not the behaviour)",
+        {"float64", "float32", "Python list"} <= set(d.ctrl_accepts),
+        "`execute_ctrl` accepts any real control numpy can widen to "
+        "float64 — float32 and a plain list included",
+    )
+    R.limit(
+        d.ctrl_rejects == ["complex64"],
+        "...and rejects a complex control outright rather than silently "
+        "discarding its imaginary half",
+    )
+    R.limit(
+        d.mu_fresh == 0.0 and 0.0 < d.mu_steered < 1.0,
+        f"`ctrl_acc` is observable from Python and lives in [0, 1): 0.0 "
+        f"fresh, {d.mu_steered:.4f} under a steer",
+    )
+    R.limit(
+        d.mu_fixed == 0.0,
+        "`ctrl_acc` reports the CONTROL accumulator, so it stays 0.0 for "
+        "a caller driving the object through `execute()`",
     )
     R.limit(
         all(ok for _, ok in d.roundtrip),

@@ -216,14 +216,14 @@ class TestExecuteCtrl:
     def test_unity_rate_zero_ctrl_count(self):
         r = Resampler(1.0)
         x = _ones(64)
-        ctrl = np.zeros(64, dtype=np.complex64)
+        ctrl = np.zeros(64, dtype=np.float64)
         y = r.execute_ctrl(x, ctrl)
         assert len(y) == 64
 
     def test_ctrl_too_short_raises(self):
         r = Resampler(1.0)
         x = _ones(64)
-        ctrl = np.zeros(32, dtype=np.complex64)
+        ctrl = np.zeros(32, dtype=np.float64)
         with pytest.raises(ValueError):
             r.execute_ctrl(x, ctrl)
 
@@ -231,7 +231,7 @@ class TestExecuteCtrl:
         r_base = Resampler(1.0)
         r_ctrl = Resampler(1.0)
         x = _ones(128)
-        ctrl = np.full(128, 0.5, dtype=np.complex64)
+        ctrl = np.full(128, 0.5, dtype=np.float64)
         y_base = r_base.execute(x)
         y_ctrl = r_ctrl.execute_ctrl(x, ctrl)
         assert len(y_ctrl) > len(y_base)
@@ -246,7 +246,7 @@ class TestExecuteCtrl:
     def test_decimation_with_ctrl(self):
         r = Resampler(0.5)
         x = _ones(128)
-        ctrl = np.zeros(128, dtype=np.complex64)
+        ctrl = np.zeros(128, dtype=np.float64)
         y = r.execute_ctrl(x, ctrl)
         assert 56 <= len(y) <= 64
 
@@ -267,7 +267,7 @@ class TestOutParam:
     def test_execute_ctrl_out_writes_into_callers_buffer(self):
         r = Resampler(1.0)
         x = _ones(64)
-        ctrl = np.zeros(64, dtype=np.complex64)
+        ctrl = np.zeros(64, dtype=np.float64)
         out = np.zeros(
             max(r.execute_ctrl_max_out(), len(x)), dtype=np.complex64
         )
@@ -277,7 +277,7 @@ class TestOutParam:
     def test_execute_ctrl_out_undersized_raises(self):
         r = Resampler(1.0)
         x = _ones(64)
-        ctrl = np.zeros(64, dtype=np.complex64)
+        ctrl = np.zeros(64, dtype=np.float64)
         with pytest.raises(ValueError):
             r.execute_ctrl(x, ctrl, out=np.zeros(1, dtype=np.complex64))
 
@@ -311,7 +311,7 @@ class TestOutParam:
     def test_execute_ctrl_out_unconvertible_raises(self):
         r = Resampler(1.0)
         x = _ones(64)
-        ctrl = np.zeros(64, dtype=np.complex64)
+        ctrl = np.zeros(64, dtype=np.float64)
         with pytest.raises((TypeError, ValueError)):
             r.execute_ctrl(x, ctrl, out="not an array")
 

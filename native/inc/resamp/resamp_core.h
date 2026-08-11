@@ -165,22 +165,22 @@ extern "C"
   /**
    * @brief Resample with per-sample additive rate deviation.
    *
-   * rate_i = base_rate + crealf(ctrl(i)).  ctrl is treated as
-   * real-valued; only the real part of each element is used.
+   * rate_i = base_rate + ctrl[i].  The control is real-valued and
+   * double-precision, matching resamp_execute_ctrl_push()'s scalar `ctrl`
+   * and the `double` the base rate itself is configured in.
    *
    * Output buffer: allocate ceil(num_in × (rate + max_ctrl)) samples.
    *
    * @param state    Must be non-NULL.
    * @param in       Input CF32 samples (length num_in).
-   * @param ctrl     Rate deviations, parallel to in (float _Complex,
-   *                 real part only, length num_in).
+   * @param ctrl     Rate deviations, parallel to in (length num_in).
    * @param num_in   Number of input samples (= length of ctrl).
    * @param out      Output buffer.
    * @param max_out  Capacity of out in samples.
    * @return Number of output samples written.
    */
   size_t resamp_execute_ctrl (resamp_state_t *state, const float _Complex *in,
-                              const float _Complex *ctrl, size_t num_in,
+                              const double *ctrl, size_t num_in,
                               float _Complex *out, size_t max_out);
 
   /* ------------------------------------------------------------------

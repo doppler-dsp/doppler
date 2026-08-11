@@ -175,6 +175,11 @@ the moment its folder exists** — there is no registration step to forget.
 - `results.md` is **generated**. It is excluded from mdformat, and
     `validate.py` rstrips to exactly one trailing newline so the
     end-of-file-fixer and the generator cannot fight each other.
+- **Emit `![...](plot.png)` from the section, never from `plots()`.**
+    `plots()` runs only when `write=True`, so markdown emitted there is
+    absent from the `--check` render — and `make validate-check` is then
+    permanently stale with a diff that looks like drift and is really a
+    missing section. `plots()` draws files; the section owns the reference.
 - A failing **limit** is a regression. A new problem found while
     characterising is a **finding**, and goes in section 3 with a verdict.
 - Findings that will not be fixed in the same pass get **filed as issues**

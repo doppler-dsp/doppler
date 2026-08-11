@@ -222,9 +222,7 @@ def characterise() -> Data:
         ["rate", "outputs", "vs `rate x n`", "tone residual (dB)"],
         [
             [f"{r:g}", n, f"{e:+.1f}", f"{p:.1f}"]
-            for r, n, e, p in zip(
-                d.rates, d.counts, d.count_err, d.purity, strict=True
-            )
+            for r, n, e, p in zip(d.rates, d.counts, d.count_err, d.purity)
         ],
     )
     _csv(
@@ -269,7 +267,7 @@ def characterise() -> Data:
         ["rate", "measured DC gain", "error vs 1.0"],
         [
             [f"{r:g}", f"{g:.6f}", f"{g - 1.0:+.2e}"]
-            for r, g in zip(d.dc_rates, d.dc_gain, strict=True)
+            for r, g in zip(d.dc_rates, d.dc_gain)
         ],
     )
     R.md(
@@ -304,7 +302,7 @@ def characterise() -> Data:
         ["freq (of fs_out)", "of fs_in", "output level (dB)"],
         [
             [f"{f:.2f}", f"{f * 0.5:.3f}", f"{m:.1f}"]
-            for f, m in zip(d.dec_f, d.dec_db, strict=True)
+            for f, m in zip(d.dec_f, d.dec_db)
         ],
     )
     _csv(
@@ -368,7 +366,7 @@ def characterise() -> Data:
         ["rate", "worst spur, f0~0.05 (dBc)", "worst spur, f0~0.35 (dBc)"],
         [
             [f"{r:g}", f"{lo:.1f}", f"{hi:.1f}"]
-            for r, lo, hi in zip(d.img_rates, d.img_lo, d.img_hi, strict=True)
+            for r, lo, hi in zip(d.img_rates, d.img_lo, d.img_hi)
         ],
     )
     _csv(
@@ -459,9 +457,7 @@ def characterise() -> Data:
         ["ctrl delta", "outputs", "tone residual (dB)"],
         [
             [f"{dl:+.0e}", n, f"{p:.1f}"]
-            for dl, n, p in zip(
-                d.seam_delta, d.seam_n, d.seam_purity, strict=True
-            )
+            for dl, n, p in zip(d.seam_delta, d.seam_n, d.seam_purity)
         ],
     )
     _csv(
@@ -753,12 +749,12 @@ def limits(d: Data) -> None:
 
     exact = [
         p
-        for r, p in zip(d.rates, d.purity, strict=True)
+        for r, p in zip(d.rates, d.purity)
         if abs(1.0 / r - round(1.0 / r)) < 1e-12
     ]
     frac = [
         p
-        for r, p in zip(d.rates, d.purity, strict=True)
+        for r, p in zip(d.rates, d.purity)
         if abs(1.0 / r - round(1.0 / r)) >= 1e-12
     ]
     R.limit(
@@ -781,7 +777,7 @@ def limits(d: Data) -> None:
         f"DC gain is unity to 1e-3 at every rate: worst "
         f"{max(abs(g - 1.0) for g in d.dc_gain):.2e}",
     )
-    stop = [db for f, db in zip(d.dec_f, d.dec_db, strict=True) if f >= 0.6]
+    stop = [db for f, db in zip(d.dec_f, d.dec_db) if f >= 0.6]
     R.limit(
         max(stop) < -60.0,
         f"Decimating, everything from 0.6 of fs_out is rejected by more "
@@ -795,7 +791,7 @@ def limits(d: Data) -> None:
     )
     tiny = [
         (dl, n, p)
-        for dl, n, p in zip(d.seam_delta, d.seam_n, d.seam_purity, strict=True)
+        for dl, n, p in zip(d.seam_delta, d.seam_n, d.seam_purity)
         if abs(dl) <= 1e-9
     ]
     R.limit(

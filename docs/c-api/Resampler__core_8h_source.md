@@ -57,7 +57,7 @@ extern "C"
 
   size_t Resampler_execute_ctrl (Resampler_state_t *state,
                                  const float complex *x, size_t x_len,
-                                 const float complex *ctrl, size_t ctrl_len,
+                                 const double *ctrl, size_t ctrl_len,
                                  float complex *out, size_t max_out);
 
   /* ------------------------------------------------------------------ */
@@ -66,6 +66,8 @@ extern "C"
 
   double Resampler_get_rate (const Resampler_state_t *state);
   void Resampler_set_rate (Resampler_state_t *state, double rate);
+
+  double Resampler_get_ctrl_acc (const Resampler_state_t *state);
 
   size_t Resampler_get_num_phases (const Resampler_state_t *state);
 

@@ -61,10 +61,11 @@ _Continuously-variable polyphase resampler, CF32 IQ._ [More...](#detailed-descri
 |  [**Resampler\_state\_t**](Resampler__core_8h.md#typedef-resampler_state_t) \* | [**Resampler\_create\_custom**](#function-resampler_create_custom) (size\_t num\_phases, size\_t num\_taps, const float \* bank, double rate) <br>_Create a Resampler with a user-supplied polyphase bank._  |
 |  void | [**Resampler\_destroy**](#function-resampler_destroy) ([**Resampler\_state\_t**](Resampler__core_8h.md#typedef-resampler_state_t) \* state) <br> |
 |  size\_t | [**Resampler\_execute**](#function-resampler_execute) ([**Resampler\_state\_t**](Resampler__core_8h.md#typedef-resampler_state_t) \* state, const float complex \* x, size\_t x\_len, float complex \* out, size\_t max\_out) <br>_Resample a block of CF32 samples at the fixed base rate. Uses the dual-mode polyphase engine: output-driven for rate &gt;= 1 (interpolation), input-driven transposed-form for rate &lt; 1 (decimation). State carries over between calls, so contiguous blocks produce the same result as one large block._  |
-|  size\_t | [**Resampler\_execute\_ctrl**](#function-resampler_execute_ctrl) ([**Resampler\_state\_t**](Resampler__core_8h.md#typedef-resampler_state_t) \* state, const float complex \* x, size\_t x\_len, const float complex \* ctrl, size\_t ctrl\_len, float complex \* out, size\_t max\_out) <br>_Resample with per-sample additive rate deviations. Effective rate for sample i is base\_rate + real(_ `ctrl[i]` _). Uses a unified double-precision accumulator that handles both interpolation and decimation in a single code path — suitable for Doppler-shift simulation and fractional-sample timing correction. ctrl and x must have the same length._ |
+|  size\_t | [**Resampler\_execute\_ctrl**](#function-resampler_execute_ctrl) ([**Resampler\_state\_t**](Resampler__core_8h.md#typedef-resampler_state_t) \* state, const float complex \* x, size\_t x\_len, const double \* ctrl, size\_t ctrl\_len, float complex \* out, size\_t max\_out) <br>_Resample with per-sample additive rate deviations. Effective rate for sample i is base\_rate +_ `ctrl[i]` _. Uses a unified double-precision accumulator that handles both interpolation and decimation in a single code path — suitable for Doppler-shift simulation and fractional-sample timing correction. ctrl and x must have the same length._ |
 |  size\_t | [**Resampler\_execute\_ctrl\_max\_out**](#function-resampler_execute_ctrl_max_out) ([**Resampler\_state\_t**](Resampler__core_8h.md#typedef-resampler_state_t) \* state) <br> |
 |  size\_t | [**Resampler\_execute\_max\_out**](#function-resampler_execute_max_out) ([**Resampler\_state\_t**](Resampler__core_8h.md#typedef-resampler_state_t) \* state) <br> |
-|  size\_t | [**Resampler\_get\_num\_phases**](#function-resampler_get_num_phases) (const [**Resampler\_state\_t**](Resampler__core_8h.md#typedef-resampler_state_t) \* state) <br>_Number of polyphase branches in the filter bank. Always a power of two. The built-in bank has 4096 phases giving sub-sample timing resolution of 1/4096 of an input sample period._  |
+|  double | [**Resampler\_get\_ctrl\_acc**](#function-resampler_get_ctrl_acc) (const [**Resampler\_state\_t**](Resampler__core_8h.md#typedef-resampler_state_t) \* state) <br>_Number of polyphase branches in the filter bank. Always a power of two. The built-in bank has 4096 phases giving sub-sample timing resolution of 1/4096 of an input sample period._  |
+|  size\_t | [**Resampler\_get\_num\_phases**](#function-resampler_get_num_phases) (const [**Resampler\_state\_t**](Resampler__core_8h.md#typedef-resampler_state_t) \* state) <br> |
 |  size\_t | [**Resampler\_get\_num\_taps**](#function-resampler_get_num_taps) (const [**Resampler\_state\_t**](Resampler__core_8h.md#typedef-resampler_state_t) \* state) <br>_Taps per polyphase branch. Total prototype filter length is num\_phases \* num\_taps - 1. The built-in bank uses 19 taps per branch._  |
 |  double | [**Resampler\_get\_rate**](#function-resampler_get_rate) (const [**Resampler\_state\_t**](Resampler__core_8h.md#typedef-resampler_state_t) \* state) <br>_Get / set the output-to-input sample rate ratio. The setter recomputes the phase increment immediately; the delay line and phase accumulator are preserved so in-stream rate changes are glitch-free. Switching sign of (rate - 1) (i.e. crossing the boundary between interp and decim modes) requires a fresh create()._  |
 |  void | [**Resampler\_get\_state**](#function-resampler_get_state) (const [**Resampler\_state\_t**](Resampler__core_8h.md#typedef-resampler_state_t) \* state, void \* blob) <br>_Serialize the resampler's phase + delay-line state into_ `blob` _._ |
@@ -301,13 +302,13 @@ CF32 output array; length is approximately x\_len \* rate, capped at max\_out.
 
 ### function Resampler\_execute\_ctrl 
 
-_Resample with per-sample additive rate deviations. Effective rate for sample i is base\_rate + real(_ `ctrl[i]` _). Uses a unified double-precision accumulator that handles both interpolation and decimation in a single code path — suitable for Doppler-shift simulation and fractional-sample timing correction. ctrl and x must have the same length._
+_Resample with per-sample additive rate deviations. Effective rate for sample i is base\_rate +_ `ctrl[i]` _. Uses a unified double-precision accumulator that handles both interpolation and decimation in a single code path — suitable for Doppler-shift simulation and fractional-sample timing correction. ctrl and x must have the same length._
 ```C++
 size_t Resampler_execute_ctrl (
     Resampler_state_t * state,
     const float complex * x,
     size_t x_len,
-    const float complex * ctrl,
+    const double * ctrl,
     size_t ctrl_len,
     float complex * out,
     size_t max_out
@@ -324,7 +325,7 @@ size_t Resampler_execute_ctrl (
 * `state` Pointer to a valid Resampler\_state\_t. 
 * `x` CF32 input samples. 
 * `x_len` Number of input samples. 
-* `ctrl` CF32 array, same length as x; only the real part is used as a per-sample rate addend. 
+* `ctrl` Real float64 array, same length as x; the per-sample rate addend. Anything numpy can safely widen to float64 is accepted (float32, a plain list); a complex array is refused rather than truncated. 
 * `ctrl_len` Number of control samples; must equal x\_len. 
 * `out` Output buffer; must hold at least RESAMPLER\_MAX\_OUT samples. 
 * `max_out` Capacity of `out` in elements. Emission stops there, so the return value is the number actually written. 
@@ -342,7 +343,7 @@ CF32 output array; length depends on accumulated rate deviations, capped at max\
 >>> import numpy as np
 >>> r = Resampler(rate=1.0)
 >>> x = np.zeros(64, dtype=np.complex64)
->>> ctrl = np.zeros(64, dtype=np.complex64)
+>>> ctrl = np.zeros(64)
 >>> y = r.execute_ctrl(x, ctrl)
 >>> y.shape, y.dtype
 ((64,), dtype('complex64'))
@@ -394,11 +395,11 @@ Always returns RESAMPLER\_MAX\_OUT.
 
 
 
-### function Resampler\_get\_num\_phases 
+### function Resampler\_get\_ctrl\_acc 
 
 _Number of polyphase branches in the filter bank. Always a power of two. The built-in bank has 4096 phases giving sub-sample timing resolution of 1/4096 of an input sample period._ 
 ```C++
-size_t Resampler_get_num_phases (
+double Resampler_get_ctrl_acc (
     const Resampler_state_t * state
 ) 
 ```
@@ -411,10 +412,43 @@ size_t Resampler_get_num_phases (
 >>> Resampler(rate=1.0).num_phases
 4096
 ```
+
+
+
+The control accumulator's fractional phase, in [0, 1).
+
+
+The timing NCO's state, and the only way to see what a closed timing loop is doing to the sampling instant. `floor(mu * num_phases)` is the polyphase arm the NEXT output will read; a steady value means the loop has settled on a sampling phase, while one that slews and wraps means a residual RATE error it has not absorbed, one input interval per wrap.
+
+
+Reports the CONTROL accumulator, so it stays 0.0 unless you are driving this object through execute\_ctrl(): the free-running phase used by execute() is a separate accumulator with no accessor.
+
+
+
+```C++
+>>> from doppler.resample import Resampler
+>>> Resampler(rate=1.0).ctrl_acc
+0.0
+```
  
 
 
         
+
+<hr>
+
+
+
+### function Resampler\_get\_num\_phases 
+
+```C++
+size_t Resampler_get_num_phases (
+    const Resampler_state_t * state
+) 
+```
+
+
+
 
 <hr>
 

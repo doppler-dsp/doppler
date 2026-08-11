@@ -413,7 +413,40 @@ COV_PATCH_MIN ?= 90
 # but the report attributes only to the `.so`, whose copy is never executed.
 COV_IGNORE    ?= (^|/)(vendor|build|build-cov|native/src/app)/|_ext(_[a-z0-9_]+)?\.c$$|/(tests|benchmarks)/
 
+# Preflight: can this toolchain link an instrumented binary at all? Without
+# it the build compiles every object and dies at the FIRST LINK with "cannot
+# find .../libclang_rt.profile.a", which reads like a broken toolchain rather
+# than a missing package -- it cost a full gates run to diagnose.
+#
+# DERIVED rather than listed in jb.toml's dev group, because whether `clang`
+# already carries its profile runtime is a property of the distro RELEASE and
+# one package list cannot express it: Ubuntu 22.04 ships it inside clang's own
+# packages and has no libclang-rt package at all (naming one fails apt
+# outright), while 26.04 splits it into libclang-rt-21-dev that `clang` does
+# not depend on. See the note in jb.toml.
 define COVERAGE_CMD
+@printf 'int main(void){return 0;}\n' > $(COV_DIR)-probe.c 2>/dev/null \
+    || { mkdir -p $(dir $(COV_DIR)) ; \
+         printf 'int main(void){return 0;}\n' > $(COV_DIR)-probe.c ; }
+@clang -fprofile-instr-generate -fcoverage-mapping \
+     $(COV_DIR)-probe.c -o $(COV_DIR)-probe 2>/dev/null \
+  || { v=$$(clang --version | head -1 | tr -dc '0-9. ' \
+              | tr ' ' '\n' | grep -m1 '[0-9]' | cut -d. -f1); \
+       echo ""; \
+       echo "coverage: clang cannot link -fprofile-instr-generate here."; \
+       echo "  The profile runtime (libclang_rt.profile.a) is missing, and"; \
+       echo "  clang does not depend on it where it ships separately."; \
+       echo ""; \
+       echo "  Ubuntu/Debian 24.04+ :  sudo apt-get install libclang-rt-$$v-dev"; \
+       echo "  Arch                 :  pacman -S compiler-rt"; \
+       echo "  Fedora               :  dnf install compiler-rt"; \
+       echo "  openSUSE             :  zypper install llvm-compiler-rt"; \
+       echo ""; \
+       echo "  Not in jb.toml's dev group on purpose: 22.04 has no such"; \
+       echo "  package at all and naming one fails apt outright. See jb.toml."; \
+       echo ""; \
+       rm -f $(COV_DIR)-probe.c $(COV_DIR)-probe; exit 1; }
+@rm -f $(COV_DIR)-probe.c $(COV_DIR)-probe
 $(CMAKE) -B $(COV_DIR) -S . \
     -DCMAKE_BUILD_TYPE=Debug \
     -DCMAKE_C_COMPILER=clang \

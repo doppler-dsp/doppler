@@ -436,9 +436,28 @@ cd $(COV_DIR) && LLVM_PROFILE_FILE="$(CURDIR)/$(COV_DIR)/prof/c-%p-%m.profraw" \
 -DOPPLER_BUILD_DIR="$(CURDIR)/$(COV_DIR)" \
     LLVM_PROFILE_FILE="$(CURDIR)/$(COV_DIR)/prof/rs-%p-%m.profraw" \
     cargo test --manifest-path $(RUST_DIR)/Cargo.toml
+# -failure-mode=all, because a partial .profraw here is EXPECTED, not damage.
+# Two tests spawn a child that imports the instrumented extension and is then
+# terminated rather than allowed to exit -- test_server_ws.py kills the server
+# it started, test_missing_extras.py runs a module that is supposed to fail.
+# A killed process never runs the profile runtime's flush, so it leaves its
+# mmap'd counter pages behind as 4096-byte files with an unfinished header.
+# That is not fixable at the test end: you cannot ask a process you had to
+# kill to write a clean profile first.
+#
+# llvm-profdata's DEFAULT failure mode is `any`, which discards the entire
+# report over any single unreadable input -- measured here as 12 such files
+# against 166 good ones, and the whole of `coverage` failing with "error: no
+# profile can be merged". `all` merges everything readable and only fails when
+# nothing is, which is the honest reading of a directory that is expected to
+# contain both.
+#
+# This does not hide a real loss of data: if profiles genuinely stopped being
+# written, the numbers collapse and `coverage-gate`'s threshold fails, which
+# is the gate that exists for exactly that.
 @objs="$(COV_DIR)/libdoppler.so $$(ls $(COV_DIR)/pkg/doppler/*/*.so \
     2>/dev/null | sed 's/^/-object /' | tr '\n' ' ')"; \
-$(LLVM_PROFDATA) merge -sparse $(COV_DIR)/prof/*.profraw \
+$(LLVM_PROFDATA) merge -sparse -failure-mode=all $(COV_DIR)/prof/*.profraw \
     -o $(COV_DIR)/doppler.profdata; \
 $(LLVM_COV) report $$objs -instr-profile=$(COV_DIR)/doppler.profdata \
     -ignore-filename-regex='$(COV_IGNORE)'; \

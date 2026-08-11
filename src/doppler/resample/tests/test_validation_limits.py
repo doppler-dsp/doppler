@@ -27,7 +27,7 @@ module's extension to run any object's limits.
 
 **resamp's limits are the binding's, not the algorithm's.** doppler is a
 C library, so every claim here is certified in `native/tests/
-test_resamp_core.c` §1-§19 first; the report measures the same properties
+test_resamp_core.c` §1-§20 first; the report measures the same properties
 through `doppler.resample.Resampler` to prove the binding delivers them.
 See `docs/dev/validation.md` for the order and why it is not negotiable.
 """

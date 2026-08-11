@@ -71,8 +71,8 @@ Resampler_execute_ctrl_max_out (Resampler_state_t *state)
 
 size_t
 Resampler_execute_ctrl (Resampler_state_t *state, const float complex *x,
-                        size_t x_len, const float complex *ctrl,
-                        size_t ctrl_len, float complex *out, size_t max_out)
+                        size_t x_len, const double *ctrl, size_t ctrl_len,
+                        float complex *out, size_t max_out)
 {
   size_t n = x_len < ctrl_len ? x_len : ctrl_len;
   /* The leaf already clamps; hand it the caller's real capacity instead
@@ -90,6 +90,12 @@ void
 Resampler_set_rate (Resampler_state_t *state, double rate)
 {
   resamp_set_rate (state, rate);
+}
+
+double
+Resampler_get_ctrl_acc (const Resampler_state_t *state)
+{
+  return resamp_get_ctrl_acc (state);
 }
 
 size_t

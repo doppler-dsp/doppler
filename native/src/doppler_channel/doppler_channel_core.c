@@ -109,9 +109,8 @@ doppler_channel_execute (doppler_channel_state_t *state,
       double base = doppler_channel_ratio (state, 0.0);
       for (size_t i = 0; i < m; i++)
         {
-          double t = (double)(state->n_in + i) / state->fs;
-          state->ctrl[i]
-              = (float complex) (doppler_channel_ratio (state, t) - base);
+          double t       = (double)(state->n_in + i) / state->fs;
+          state->ctrl[i] = doppler_channel_ratio (state, t) - base;
         }
 
       size_t got = resamp_execute_ctrl (state->rs, x + off, state->ctrl, m,

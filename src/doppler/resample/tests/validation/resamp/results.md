@@ -126,11 +126,29 @@ Zero Doppler **is** rate 1.0, so a closing-then-opening geometry ramps the contr
 
 ![unity seam](unity_seam.png)
 
-### 2.8 The control port's imaginary half (C §19)
+### 2.8 The control port takes a real `double`
 
-A rate deviation is real, but the block port's `ctrl` is typed `complex64`. A wildly out-of-range imaginary part changes nothing (identical output: **True**) — it is read and discarded, with no error and no warning.
+| ctrl dtype | accepted |
+|---|---|
+| float64 | yes |
+| float32 | yes |
+| Python list | yes |
+| complex64 | **TypeError** |
 
-### 2.9 Serialized state round-trip (C §6)
+A rate deviation is real and the port now says so — `double`, matching `execute_ctrl_push`'s scalar and the `double` the base rate is configured in. It was `complex64`, so half of every element was read and discarded with no error and no warning (F2). Anything numpy can safely widen to float64 is accepted; **`complex64` is now a `TypeError`**, because discarding an imaginary part is exactly the silent narrowing this removed and numpy will not make that cast on a caller's behalf.
+
+### 2.9 The control accumulator is observable (C §10-§12)
+
+| state | `ctrl_acc` |
+|---|---|
+| fresh | 0.000000 |
+| steered off-rate (ctrl = 0.01) | 0.039604 |
+| settled at an exact rate (ctrl = 0) | 0.000000 |
+| driven through `execute()` instead | 0.000000 |
+
+`mu` is the fractional delay applied to the stream and `floor(mu * num_phases)` is the arm the NEXT output reads. A steady value means the loop has settled on a sampling phase; one that slews and wraps means a residual RATE error, one input interval per wrap. The last row is the trap the property's own docstring warns about: this reports the CONTROL accumulator, so it stays 0.0 for a caller driving the object through `execute()`, whose free-running phase is a different accumulator with no accessor.
+
+### 2.10 Serialized state round-trip (C §6)
 
 | rate | resumes bit-exactly |
 |---|---|
@@ -139,13 +157,12 @@ A rate deviation is real, but the block port's `ctrl` is typed `complex64`. A wi
 | 2 | yes |
 
 
-### 2.10 Claims the binding cannot reach (C-ONLY)
+### 2.11 Claims the binding cannot reach (C-ONLY)
 
-`Resampler` binds `execute`, `execute_ctrl`, `rate`, `num_phases`, `num_taps`, `reset` and the state triplet. Four public C entry points have no binding at all, so their claims are certified by the C suite alone:
+`Resampler` binds `execute`, `execute_ctrl`, `rate`, `ctrl_acc`, `num_phases`, `num_taps`, `reset` and the state triplet. Four public C entry points still have no binding, so their claims are certified by the C suite alone:
 
 | C entry point | claim | C evidence |
 |---|---|---|
-| `resamp_get_ctrl_acc` | `mu` in [0,1); names the NEXT output's arm; steady = settled, slewing = residual rate error | §10-§12 |
 | `resamp_dc_gain` | arm 0's tap sum answers for every arm | §13 |
 | `resamp_set_rate` | retune preserves the accumulator and the delay line | §15 |
 | `resamp_execute_ctrl_push` | single-input streaming form, `double` control | §8, §10-§12 |
@@ -157,8 +174,8 @@ A rate deviation is real, but the block port's `ctrl` is typed `complex64`. A wi
 
 | tag | verdict | summary |
 |---|---|---|
-| F1 | GAP | The control port's only observable has no Python binding. |
-| F2 | GAP | The block control port is typed `complex64` while its own streaming twin takes a `double`. |
+| F1 | FIXED | The control port's only observable had no Python binding. |
+| F2 | FIXED | The block control port was typed `complex64` while its own streaming twin took a `double`, so half of every ctrl array was read and discarded silently. |
 | F3 | FIXED | `resamp_get_ctrl_acc`'s docblock described the wrong structure. |
 | F4 | FIXED | The same docblock stated the slip unit as output periods: 'one cycle of wrap is one output period of slip'. |
 | F5 | BY DESIGN | `execute` and `execute_ctrl` differ below unity by GROUP DELAY, not quality (§2. |
@@ -176,6 +193,6 @@ Claims a caller may rely on. A failure here is a regression, not a new finding �
 
 ## 5. Summary
 
-- **9 findings**, 2 of them gaps or confirmed defects: F1, F2
-- **11/11 limits** hold
+- **9 findings**, 0 of them gaps or confirmed defects — none left
+- **14/14 limits** hold
 - Raw sweeps: `data/tone_purity.csv`, `data/decim_band.csv`, `data/image_floor.csv`, `data/unity_seam.csv`

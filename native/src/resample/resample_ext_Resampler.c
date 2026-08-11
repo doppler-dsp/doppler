@@ -233,7 +233,7 @@ ResamplerObj_execute_ctrl (ResamplerObject *self, PyObject *args,
                                              NPY_ARRAY_C_CONTIGUOUS);
   if (!x_arr)
     return NULL;
-  ctrl_arr = (PyArrayObject *)PyArray_FROM_OTF (ctrl_obj, NPY_COMPLEX64,
+  ctrl_arr = (PyArrayObject *)PyArray_FROM_OTF (ctrl_obj, NPY_DOUBLE,
                                                 NPY_ARRAY_C_CONTIGUOUS);
   if (!ctrl_arr)
     {
@@ -289,7 +289,7 @@ ResamplerObj_execute_ctrl (ResamplerObject *self, PyObject *args,
         }
       size_t n_out = Resampler_execute_ctrl (
           self->handle, (const float complex *)PyArray_DATA (x_arr), _n_in,
-          (const float complex *)PyArray_DATA (ctrl_arr),
+          (const double *)PyArray_DATA (ctrl_arr),
           (size_t)PyArray_SIZE (ctrl_arr),
           (float complex *)PyArray_DATA (out_arr), _cap);
       Py_DECREF (x_arr);
@@ -326,8 +326,7 @@ ResamplerObj_execute_ctrl (ResamplerObject *self, PyObject *args,
     }
   size_t n_out = Resampler_execute_ctrl (
       self->handle, (const float complex *)PyArray_DATA (x_arr),
-      (size_t)PyArray_SIZE (x_arr),
-      (const float complex *)PyArray_DATA (ctrl_arr),
+      (size_t)PyArray_SIZE (x_arr), (const double *)PyArray_DATA (ctrl_arr),
       (size_t)PyArray_SIZE (ctrl_arr), self->_execute_ctrl_buf,
       self->_execute_ctrl_buf_cap);
   npy_intp  dim = (npy_intp)n_out;
@@ -404,6 +403,18 @@ Resampler_getprop_num_taps (ResamplerObject *self, void *Py_UNUSED (closure))
       (unsigned long long)Resampler_get_num_taps (self->handle));
 }
 
+static PyObject *
+Resampler_getprop_ctrl_acc (ResamplerObject *self, void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  /* <<IMPLEMENT: return the computed or stored value>> */
+  return PyFloat_FromDouble (Resampler_get_ctrl_acc (self->handle));
+}
+
 static PyGetSetDef Resampler_getset[] = {
   { "rate", (getter)Resampler_getprop_rate, (setter)Resampler_setprop_rate,
     "Get / set the output-to-input sample rate ratio. The setter recomputes "
@@ -421,6 +432,8 @@ static PyGetSetDef Resampler_getset[] = {
     "Taps per polyphase branch. Total prototype filter length is num_phases * "
     "num_taps - 1. The built-in bank uses 19 taps per branch.\n",
     NULL },
+  { "ctrl_acc", (getter)Resampler_getprop_ctrl_acc, NULL,
+    "The control accumulator's fractional phase, in [0, 1).\n", NULL },
   { NULL }
 };
 

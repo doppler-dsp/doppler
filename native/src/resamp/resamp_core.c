@@ -700,17 +700,17 @@ resamp_execute_ctrl_push (resamp_state_t *s, float _Complex x, double ctrl,
 
 /* ------------------------------------------------------------------ */
 /* execute_ctrl — the block form, a loop over the push form            */
-/* so the two cannot drift.  Only crealf(ctrl[i]) is used.             */
+/* so the two cannot drift.  ctrl is real double, as the push form takes. */
 /* ------------------------------------------------------------------ */
 
 size_t
 resamp_execute_ctrl (resamp_state_t *s, const float _Complex *in,
-                     const float _Complex *ctrl, size_t num_in,
-                     float _Complex *out, size_t max_out)
+                     const double *ctrl, size_t num_in, float _Complex *out,
+                     size_t max_out)
 {
   size_t oi = 0;
   for (size_t xi = 0; xi < num_in && oi < max_out; xi++)
-    oi += resamp_execute_ctrl_push (s, in[xi], (double)crealf (ctrl[xi]),
-                                    out + oi, max_out - oi);
+    oi += resamp_execute_ctrl_push (s, in[xi], ctrl[xi], out + oi,
+                                    max_out - oi);
   return oi;
 }

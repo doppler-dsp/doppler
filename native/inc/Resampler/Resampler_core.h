@@ -142,7 +142,7 @@ extern "C"
 
   /**
    * @brief Resample with per-sample additive rate deviations.
-   * Effective rate for sample i is base_rate + real(`ctrl[i]`).
+   * Effective rate for sample i is base_rate + `ctrl[i]`.
    * Uses a unified double-precision accumulator that handles both
    * interpolation and decimation in a single code path — suitable for
    * Doppler-shift simulation and fractional-sample timing correction.
@@ -151,8 +151,10 @@ extern "C"
    * @param state     Pointer to a valid Resampler_state_t.
    * @param x         CF32 input samples.
    * @param x_len     Number of input samples.
-   * @param ctrl      CF32 array, same length as x; only the real part is
-   *                  used as a per-sample rate addend.
+   * @param ctrl      Real float64 array, same length as x; the per-sample
+   *                  rate addend. Anything numpy can safely widen to
+   *                  float64 is accepted (float32, a plain list); a
+   *                  complex array is refused rather than truncated.
    * @param ctrl_len  Number of control samples; must equal x_len.
    * @param out       Output buffer; must hold at least RESAMPLER_MAX_OUT samples.
    * @param max_out Capacity of @p out in elements. Emission stops there, so
@@ -165,7 +167,7 @@ extern "C"
    * >>> import numpy as np
    * >>> r = Resampler(rate=1.0)
    * >>> x = np.zeros(64, dtype=np.complex64)
-   * >>> ctrl = np.zeros(64, dtype=np.complex64)
+   * >>> ctrl = np.zeros(64)
    * >>> y = r.execute_ctrl(x, ctrl)
    * >>> y.shape, y.dtype
    * ((64,), dtype('complex64'))
@@ -173,7 +175,7 @@ extern "C"
    */
   size_t Resampler_execute_ctrl (Resampler_state_t *state,
                                  const float complex *x, size_t x_len,
-                                 const float complex *ctrl, size_t ctrl_len,
+                                 const double *ctrl, size_t ctrl_len,
                                  float complex *out, size_t max_out);
 
   /* ------------------------------------------------------------------ */
@@ -211,6 +213,27 @@ extern "C"
    * 4096
    * @endcode
    */
+  /**
+   * @brief The control accumulator's fractional phase, in [0, 1).
+   *
+   * The timing NCO's state, and the only way to see what a closed timing
+   * loop is doing to the sampling instant. `floor(mu * num_phases)` is the
+   * polyphase arm the NEXT output will read; a steady value means the loop
+   * has settled on a sampling phase, while one that slews and wraps means
+   * a residual RATE error it has not absorbed, one input interval per wrap.
+   *
+   * Reports the CONTROL accumulator, so it stays 0.0 unless you are driving
+   * this object through execute_ctrl(): the free-running phase used by
+   * execute() is a separate accumulator with no accessor.
+   *
+   * @code
+   * >>> from doppler.resample import Resampler
+   * >>> Resampler(rate=1.0).ctrl_acc
+   * 0.0
+   * @endcode
+   */
+  double Resampler_get_ctrl_acc (const Resampler_state_t *state);
+
   size_t Resampler_get_num_phases (const Resampler_state_t *state);
 
   /**

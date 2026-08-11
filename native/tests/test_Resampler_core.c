@@ -108,9 +108,9 @@ main (void)
     /* Zero capacity emits nothing at all. */
     CHECK (Resampler_execute (r, in, 64, out, 0) == 0);
 
-    float complex ctrl[64];
+    double ctrl[64];
     for (int i = 0; i < 64; i++)
-      ctrl[i] = 0.0f + 0.0f * I;
+      ctrl[i] = 0.0;
     CHECK (Resampler_execute_ctrl (r, in, 64, ctrl, 64, out, 3) <= 3);
     Resampler_destroy (r);
   }

@@ -74,22 +74,22 @@ class Resampler:
     def execute_ctrl(
         self,
         x: NDArray[np.complex64],
-        ctrl: NDArray[np.complex64],
+        ctrl: NDArray[np.float64],
     ) -> NDArray[np.complex64]:
         """Resample with per-sample additive rate deviations. Effective rate
-        for sample i is base_rate + real(`ctrl[i]`). Uses a unified
-        double-precision accumulator that handles both interpolation and
-        decimation in a single code path — suitable for Doppler-shift
-        simulation and fractional-sample timing correction. ctrl and x must
-        have the same length.
+        for sample i is base_rate + `ctrl[i]`. Uses a unified double-precision
+        accumulator that handles both interpolation and decimation in a single
+        code path — suitable for Doppler-shift simulation and fractional-sample
+        timing correction. ctrl and x must have the same length.
 
         Parameters
         ----------
         x : NDArray[np.complex64]
             CF32 input samples.
-        ctrl : NDArray[np.complex64]
-            CF32 array, same length as x; only the real part is used as a
-            per-sample rate addend.
+        ctrl : NDArray[np.float64]
+            Real float64 array, same length as x; the per-sample rate addend.
+            Anything numpy can safely widen to float64 is accepted (float32, a
+            plain list); a complex array is refused rather than truncated.
 
         Returns
         -------
@@ -103,7 +103,7 @@ class Resampler:
         >>> import numpy as np
         >>> r = Resampler(rate=1.0)
         >>> x = np.zeros(64, dtype=np.complex64)
-        >>> ctrl = np.zeros(64, dtype=np.complex64)
+        >>> ctrl = np.zeros(64)
         >>> y = r.execute_ctrl(x, ctrl)
         >>> y.shape, y.dtype
         ((64,), dtype('complex64'))
@@ -213,11 +213,12 @@ class Resampler:
     def rate(self, value: float) -> None: ...
 
     @property
+    def ctrl_acc(self) -> float:
+        """The control accumulator's fractional phase, in [0, 1)."""
+
+    @property
     def num_phases(self) -> int:
-        """Number of polyphase branches in the filter bank. Always a power of
-        two. The built-in bank has 4096 phases giving sub-sample timing
-        resolution of 1/4096 of an input sample period.
-        """
+        """Num phases."""
 
     @property
     def num_taps(self) -> int:

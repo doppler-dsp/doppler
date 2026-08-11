@@ -15,7 +15,7 @@ Design and API, not restated here:
 
 Built-in bank: **4096 phases x 19 taps** (Kaiser, 60 dB, 0.4/0.6 normalised pass/stop).
 
-**This report does not test the algorithm.** doppler is a C library and its claims are certified in C; every section here names the C section it tracks and measures the same property through the binding, which is what proves the binding delivers it. Where the binding cannot reach a claim at all, §2.9 says so instead of quietly omitting it.
+**This report does not test the algorithm.** doppler is a C library and its claims are certified in C; every section here names the C section it tracks and measures the same property through the binding, which is what proves the binding delivers it. Where the binding cannot reach a claim at all, §2.11 says so instead of quietly omitting it.
 
 ## 2. Characterisation
 
@@ -172,17 +172,17 @@ A rate deviation is real and the port now says so — `double`, matching `execut
 ## 3. Review
 
 
-| tag | verdict | summary |
+| tag | verdict | finding |
 |---|---|---|
-| F1 | FIXED | The control port's only observable had no Python binding. |
-| F2 | FIXED | The block control port was typed `complex64` while its own streaming twin took a `double`, so half of every ctrl array was read and discarded silently. |
-| F3 | FIXED | `resamp_get_ctrl_acc`'s docblock described the wrong structure. |
-| F4 | FIXED | The same docblock stated the slip unit as output periods: 'one cycle of wrap is one output period of slip'. |
-| F5 | BY DESIGN | `execute` and `execute_ctrl` differ below unity by GROUP DELAY, not quality (§2. |
-| F6 | BY DESIGN | The -6 dB at the output Nyquist (§2. |
-| F7 | FIXED | The unity window. |
-| F8 | FIXED | `resamp_dc_gain` named arm 0's tap sum without saying so, but the realised DC gain at a non-unity rate is the arm average (§2. |
-| F9 | FIXED | `resamp_interp_inputs_needed`'s docblock UNDERSTATED its own guarantee. |
+| F1 | FIXED | The control port's only observable had no Python binding. `resamp_get_ctrl_acc` is, in the header's words, 'the only way to see what a closed timing loop is actually doing to the sampling instant', and `Resampler` did not expose it — so a Python caller steering through `execute_ctrl` could not tell a settled loop from a slewing one, the single diagnostic the C API offers for the failure that cost a receiver its lock. Now bound as the read-only `Resampler.ctrl_acc` (2.9). The free-running phase used by `execute()` is still a separate accumulator with no accessor, and the property's docstring says so rather than leaving a caller to discover a permanent 0.0. |
+| F2 | FIXED | The block control port was typed `complex64` while its own streaming twin took a `double`, so half of every ctrl array was read and discarded silently. Now `double[]` on both faces, matching `nco` and `lo`, which had the same narrowing fixed. The one behaviour change worth knowing is on the Python face: `complex64` is now a TypeError rather than a silent truncation, because numpy will not safe-cast complex to float. Anything real still works, float32 and plain lists included (2.8). The production caller was `doppler_channel`, which computed its Doppler dilation in double and cast it down to reach this port; that cast is gone. |
+| F3 | FIXED | `resamp_get_ctrl_acc`'s docblock described the wrong structure. It said `mu` named 'the arm the last output read' and closed by conceding the opposite reading as a peculiarity of a decimating terminal stage. That phrasing belongs to the transposed `rate < 1` form, where the delay line holds output samples and the arm is selected before the advance — but this accessor reports `ctrl_phase`, and the control port rides the interpolating structure at every rate. So the exception's rate-dependence is spurious and 'the NEXT output's arm' holds throughout (C §10, at 0.7, 0.923, 1.3 and 2.5). Corrected in theheader, which now states the NEXT-output reading, says it holds atevery rate and why, and drops the spurious `rate <= 1` carve-out. |
+| F4 | FIXED | The same docblock stated the slip unit as output periods: 'one cycle of wrap is one output period of slip'. A wrap buys one **input** interval (C §11, measured against the counting law at rates 0.7 and 0.3). The two coincide only at unity, which is presumably where the sentence was checked. Corrected in the header. |
+| F5 | BY DESIGN | `execute` and `execute_ctrl` differ below unity by GROUP DELAY, not quality (§2.6). The raw difference is order unity against a unit-amplitude signal, which reads like a defect until both are projected and each is a clean tone. They are the documented dual-mode engine working as specified, and are not interchangeable sample-for-sample below unity — a distinction invisible from the Python signatures, which differ only by an extra argument. |
+| F6 | BY DESIGN | The -6 dB at the output Nyquist (§2.4) is the folding rule at its own edge, not a stopband failure: the passband and its first image meet there and each contributes half. |
+| F7 | FIXED | The unity window. A private `(uint32_t)(frac * 2^32 + 0.5)` in `resamp_execute_ctrl_push` rounded past 2^32 into the undefined cast, stalling the interpolator for a deviation in (0, 1.16e-10]. Zero Doppler is rate 1.0, so a ramp through closest approach crosses it. §2.7 is the regression evidence; the conversion is now confined and gated by `make lint-phase-conversion`. |
+| F8 | FIXED | `resamp_dc_gain` named arm 0's tap sum without saying so, but the realised DC gain at a non-unity rate is the arm average (§2.3): 1.000586 computed against 1.000249-1.000293 measured. The spread is 3.4e-4 and of no practical consequence; it is a naming claim, not a numeric one. Corrected in the header, which now names it as ARM 0's gain and tabulates the measured arm average beside it. |
+| F9 | FIXED | `resamp_interp_inputs_needed`'s docblock UNDERSTATED its own guarantee. It scopes exactness to an integer interpolation factor -- 'for an integer interpolation factor ... this is exact, so a caller can generate precisely this many inputs' -- but the prediction and the fill run the same recurrence on the same phase_inc, so they cannot disagree at any rate. Measured exact across 1800 mid-stream calls at nine rates with randomised `max_out`, worst deviation zero (C §20). A caller reading the header is told not to rely on the streaming contract at a fractional rate, when they can. Understating a guarantee is a milder defect than overstating one, but it is the same kind: the header is not what the code does. Corrected in the header, which nowstates the guarantee holds at every rate, explains that it isstructural rather than numeric, and keeps the old integer-factorreading as the different (real) property it actually is. |
 
 
 ## 4. Limits

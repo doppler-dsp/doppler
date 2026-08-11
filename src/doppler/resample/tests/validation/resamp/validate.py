@@ -189,7 +189,7 @@ def section_summary() -> None:
         "library and its claims are certified in C; every section here "
         "names the C section it tracks and measures the same property "
         "through the binding, which is what proves the binding delivers "
-        "it. Where the binding cannot reach a claim at all, §2.9 says so "
+        "it. Where the binding cannot reach a claim at all, §2.11 says so "
         "instead of quietly omitting it."
     )
     R.md()
@@ -650,7 +650,7 @@ def review(d: Data) -> None:
         "F3",
         "FIXED",
         "`resamp_get_ctrl_acc`'s docblock described the wrong structure. "
-        "It says `mu` names 'the arm the last output read' and closes by "
+        "It said `mu` named 'the arm the last output read' and closed by "
         "conceding the opposite reading as a peculiarity of a decimating "
         "terminal stage. That phrasing belongs to the transposed "
         "`rate < 1` form, where the delay line holds output samples and "
@@ -733,8 +733,8 @@ def review(d: Data) -> None:
     )
     R.md()
     R.table(
-        ["tag", "verdict", "summary"],
-        [[t, v, txt.split(".")[0] + "."] for t, v, txt in R.findings],
+        ["tag", "verdict", "finding"],
+        [[t, v, x] for t, v, x in R.findings],
     )
     R.md()
 

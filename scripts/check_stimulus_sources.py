@@ -112,13 +112,32 @@ MARKERS: dict[str, tuple[re.Pattern[str], str]] = {
 CANONICAL: dict[str, set[str]] = {
     "pulse": {
         "rrc_taps",
+        # The Python face of the analytic pulses. Omitting these was a real
+        # hole for one commit: the gate told callers to use the library and
+        # then reported the ones that did.
+        "rrc_h",
+        "rc_h",
         "wfm_rrc_h",
         "wfm_rc_h",
         "wfm_rrc_taps",
         "wfm_rrc_polyphase_bank",
         "wfm_synth_set_rrc",
+        # The generator itself, and the module-level factories that return
+        # one. `qpsk(pulse="rrc", ...)` IS wfmgen; a harness calling it is
+        # doing exactly what this gate asks for. Names like `noise`, `pn`
+        # and `bits` are ordinary words, which is why a bare identifier is
+        # not enough -- see `_doppler_imports` below.
         "Synth",
         "Composer",
+        "Segment",
+        "Timeline",
+        "tone",
+        "noise",
+        "pn",
+        "bpsk",
+        "qpsk",
+        "chirp",
+        "bits",
     },
     "evm": {
         "ber_evm_db",
@@ -150,6 +169,18 @@ def delegating_defs(src: str) -> set[tuple[str, int]]:
     except SyntaxError:  # not our file to judge
         return set()
 
+    # Names this module actually imported FROM doppler. A canonical name only
+    # counts as delegation if it came from the library, because several of
+    # them are ordinary words: a private pulse with a local called `noise`
+    # must not exempt itself, and `bits`/`pn`/`tone` are the same hazard.
+    doppler_imports: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom) and (node.module or "").startswith(
+            "doppler"
+        ):
+            for alias in node.names:
+                doppler_imports.add(alias.asname or alias.name)
+
     funcs = {
         n.name: n
         for n in ast.walk(tree)
@@ -180,7 +211,7 @@ def delegating_defs(src: str) -> set[tuple[str, int]]:
             return False
         seen.add(name)
         used = words.get(name, set())
-        if CANONICAL[marker] & used:
+        if CANONICAL[marker] & used & doppler_imports:
             return True
         return any(
             reaches(callee, marker, seen)

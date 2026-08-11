@@ -32,10 +32,4 @@ pulse::src/doppler/track/tests/test_theory_symsync.py::def _rc(t): | SAFE: indep
 # outstanding; the ratchet's whole purpose is that removing them is the
 # only permitted direction. Do not add to this section.
 
-pulse::src/doppler/ddc/tests/test_ddc.py::def _rrc_bpsk( | VIOLATION. Private RRC-BPSK stimulus; wfmgen generates this. Also the C twin of this suite (dp_mf_test.h::mf_tx) hard-codes amplitude 0.25, so the two paths do not even agree on level.
-pulse::src/doppler/examples/wcdma_carriers_demo.py::def rrc_carrier(fc, level, seed, n): | VIOLATION. Builds a shaped carrier by hand; Synth/Composer compose exactly this, with the level conventions attached.
-pulse::src/doppler/resample/tests/test_RateConverter.py::def _rrc_h(t: np.ndarray, beta: float) -> np.ndarray: | VIOLATION. A private analytic RRC plus a private RRC-BPSK builder -- the third and fourth copies of the same pulse in the Python layer.
-pulse::src/doppler/resample/tests/test_RateConverter.py::def _rrc_bpsk(sps: float, phi: float, seed: int = 7) -> tuple: | VIOLATION. A private analytic RRC plus a private RRC-BPSK builder -- the third and fourth copies of the same pulse in the Python layer.
-pulse::src/doppler/track/tests/test_ratesync.py::def _rrc_h(t: np.ndarray, beta: float = BETA) -> np.ndarray: | VIOLATION. Private analytic RRC. The C side of this exact object was moved onto the shared primitives on 2026-08-10; the Python side was not.
-evm::src/doppler/track/tests/test_ratesync.py::def _evm_db(y: np.ndarray) -> float: | VIOLATION. Private EVM. Same object, same day, same fix available: doppler.ber.ber_evm_db.
 pulse::src/doppler/track/tests/test_symsync.py::def _rc(t, beta, T): | VIOLATION (review). A raised cosine taking (t, beta, T) -- unlike its theory sibling this is the FUNCTIONAL suite, so it is most likely stimulus rather than an oracle. Confirm which before removing; if it is an oracle, move it to the SAFE section with that reason.

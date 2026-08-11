@@ -72,6 +72,16 @@ repos:
         pass_filenames: false
         types_or: [c]
 
+      # Stimulus and metrics come from the library (wfmgen, ber), not from a
+      # private copy in a test or example. Fires on C and Python, since the
+      # consuming layers span both.
+      - id: stimulus-sources
+        name: stimulus sources
+        entry: make -s lint-stimulus-sources
+        language: system
+        pass_filenames: false
+        types_or: [c, python]
+
       # Was `repo: https://github.com/pre-commit/mirrors-clang-format` with its
       # own `rev:`. That was a SECOND pin for one tool — the hook resolved
       # 22.1.8 while `make` and a bare shell resolved whatever the box had, and

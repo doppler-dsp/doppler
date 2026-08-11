@@ -117,7 +117,8 @@ SYNC_CMD   = $(UV) sync
 # way `make format` runs it. That is what closes the "same command, different
 # environment" class of drift: the tool comes from `--group dev` and uv.lock
 # owns the version, so there is no `additional_dependencies` left to drift.
-LINT_TOOLS   = ruff ruff-format mdformat clang-format phase-conversion
+LINT_TOOLS   = ruff ruff-format mdformat clang-format phase-conversion \
+               stimulus-sources
 FORMAT_TOOLS = ruff-format ruff mdformat clang-format
 
 # ruff reads its own excludes from pyproject's [tool.ruff] extend-exclude
@@ -166,6 +167,14 @@ LINT_clang-tidy   = @$(C_FILES) | xargs -r $(CLANG_TIDY) -p $(BUILD_DIR) --quiet
 # already drifted once (one truncated while a sibling rounded). A rule with
 # no gate behind it is how that happened; this is the gate.
 LINT_phase-conversion = $(UV) run python scripts/check_phase_conversion_sites.py
+
+# Stimulus and its measurement have ONE home, and it is the library: wfmgen
+# (wfm_synth_*/Synth) generates signal, ber_* measures it. A private copy in a
+# test, harness or example does not merely duplicate code -- it invents a
+# CONVENTION, and the convention is what goes wrong silently. Measured: a
+# 0.25-of-peak backoff in ratesync_demo under-drove RateSync ~40x in loop gain
+# and failed its own lock assertion with nothing pointing at the level.
+LINT_stimulus-sources = $(UV) run python scripts/check_stimulus_sources.py
 
 # mdformat needs Python >=3.10 (see pyproject's dev group, where it carries a
 # marker). On a 3.9 dev env it is simply absent, so skip with a notice rather

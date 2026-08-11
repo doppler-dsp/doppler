@@ -1,8 +1,48 @@
+/*
+ * test_resamp_core.c — C-level unit tests for the polyphase resampler.
+ *
+ * Tests cover:
+ *   §1  Lifecycle and properties (create, rate, num_phases, num_taps)
+ *   §2  set_rate and reset read back (literals only — see §15, §16)
+ *   §3  R == 1 is a one-arm all-pass: flat |H|, constant group delay
+ *   §4  A resampled pure tone is still a pure tone, 10 rates × both paths
+ *   §5  Output counts for 2× decimation, 2× interpolation, unity ctrl
+ *   §6  Serializable state round-trip, decimating / interpolating / fractional
+ *   §7  resamp_interp_fill == resamp_execute, and block-boundary invariance
+ *   §8  execute_ctrl_push == execute_ctrl, incl. unity's neighbours
+ *   §9  A single-phase bank selects arm 0; phase_inc survives rate 1.0
+ *   §10 The ctrl accumulator names the arm the NEXT output reads
+ *   §11 One wrap of `mu` buys one INPUT interval, not one output period
+ *   §12 `mu` is steady at an exact rate, slewing at a rate error
+ *   §13 resamp_dc_gain is the bank's own gain, computed, on both paths
+ *   §14 resamp_destroy(NULL) is a no-op; create_custom rejects
+ *   §15 set_rate preserves the accumulator and the delay line
+ *   §16 reset zeroes every accumulator and every delay buffer
+ *
+ * Sections numbered §10 onward were added by the validation campaign, which
+ * enumerated resamp_core.h's prose claims and asked of each whether anything
+ * ran it. Three public entry points had ZERO mentions in this file
+ * (resamp_get_ctrl_acc, resamp_dc_gain, resamp_destroy(NULL)) and two more
+ * were pinned only at their literals — the comment claimed more than the
+ * assertion did, which is prose wearing a test's clothes. Each new section was
+ * proven by sabotage before being trusted.
+ *
+ * §10-§12 measure the control accumulator against an EXTERNAL truth, never
+ * against the other entry point. That is deliberate: §8 is a consistency test,
+ * structurally blind to any defect both paths share, and it passed throughout
+ * the period the ctrl accumulator was running the decimator's recurrence on
+ * the interpolator's structure.
+ */
+
 #include "resamp/resamp_impl.h"
 #include <complex.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
+
+/* File-scope so the §10+ section functions can CHECK for themselves rather
+   than funnelling a bool back through main(). */
+static int _fails = 0;
 
 #define CHECK(cond)                                                           \
   do                                                                          \
@@ -335,11 +375,397 @@ eq_ctrl_push (double rate)
   return ok;
 }
 
+/* ── §10 — `mu` is in [0, 1), and it names the arm the NEXT output reads ──
+ *
+ * resamp_get_ctrl_acc() is the control port's only observable, and before the
+ * validation campaign nothing ran it: zero mentions in this file. The header
+ * claims the value is in [0, 1) and that it identifies a polyphase arm as
+ * floor(mu * num_phases).
+ *
+ * The arm is made OBSERVABLE rather than inferred. A one-tap bank whose arm p
+ * holds the single tap (p + 1) turns the dot product into
+ * `delay[0] * (arm + 1)`, so a constant unit input makes every output the gain
+ * of the arm that produced it — the index is read off the output, with no
+ * reference implementation and no timing convention to beg the question.
+ *
+ * WHICH output mu names is the substance, and it is where the header was
+ * wrong. The accumulator advances AFTER the emit (resamp_core.c: the dot
+ * product reads get_branch(s, ctrl_phase), and only then does ctrl_phase +=
+ * frac), so on return mu names the arm the NEXT output will read. The header
+ * said "the arm the last output read", and conceded the true reading in its
+ * next paragraph as though it were a peculiarity of a decimating terminal
+ * stage. It holds at every rate, which is what the sweep below covers. */
+static int
+ctrl_acc_names_next_arm (double rate)
+{
+  enum
+  {
+    P     = 16,
+    CALLS = 400
+  };
+  float bank[P];
+  for (int p = 0; p < P; p++)
+    bank[p] = (float)(p + 1);
+
+  resamp_state_t *r = resamp_create_custom (P, 1, bank, rate);
+  if (!r)
+    return 0;
+
+  int ok        = 1;
+  int predicted = -1; /* the arm floor(mu * P) said would come next */
+  for (int k = 0; k < CALLS; k++)
+    {
+      float _Complex o[8];
+      size_t g = resamp_execute_ctrl_push (r, CMPLXF (1.0f, 0.0f), 0.0, o, 8);
+      if (g && predicted >= 0)
+        {
+          int arm = (int)lrintf (crealf (o[0])) - 1;
+          if (arm != predicted)
+            {
+              fprintf (stderr,
+                       "  §10 rate=%.3f call %d: arm %d, mu predicted %d\n",
+                       rate, k, arm, predicted);
+              ok = 0;
+            }
+        }
+      double mu = resamp_get_ctrl_acc (r);
+      if (!(mu >= 0.0 && mu < 1.0))
+        {
+          fprintf (stderr, "  §10 rate=%.3f: mu %.17g outside [0,1)\n", rate,
+                   mu);
+          ok = 0;
+        }
+      predicted = (int)floor (mu * (double)P);
+    }
+  resamp_destroy (r);
+  return ok;
+}
+
+/* ── §11 — a wrap of `mu` is one INPUT interval, not one output period ───
+ *
+ * The counting law, and it holds independently of the bank, the tone and the
+ * filtering: every output owes floor(1/rate) whole input intervals, plus one
+ * more each time the fractional accumulator wraps. The push form consumes
+ * exactly one input per call, so
+ *
+ *     calls == outputs * floor(1/rate) + wraps - debt still outstanding
+ *
+ * with the outstanding debt bounded by one output's worth. That fixes what a
+ * wrap COSTS, which the header stated in a unit it cannot mean: a wrap buys
+ * one extra INPUT interval, and an output period is 1/rate of them, so the
+ * two coincide only at unity.
+ *
+ * Decimating rates only. Above unity an emit is followed by at most one
+ * consumption, so a call can wrap at most once and the identity degenerates
+ * into `calls == wraps`, which would pass against almost anything. */
+static int
+ctrl_wrap_is_one_input (double rate)
+{
+  enum
+  {
+    CALLS = 4000
+  };
+  if (rate >= 1.0)
+    return 0;
+  resamp_state_t *r = resamp_create (rate);
+  if (!r)
+    return 0;
+
+  size_t outs = 0, wraps = 0;
+  double prev = resamp_get_ctrl_acc (r);
+  for (int k = 0; k < CALLS; k++)
+    {
+      float _Complex o[8];
+      outs += resamp_execute_ctrl_push (r, CMPLXF (1.0f, 0.0f), 0.0, o, 8);
+      double mu = resamp_get_ctrl_acc (r);
+      if (mu < prev)
+        wraps++;
+      prev = mu;
+    }
+  resamp_destroy (r);
+
+  size_t skip    = (size_t)floor (1.0 / rate);
+  long   created = (long)(outs * skip + wraps);
+  long   left    = created - (long)CALLS;
+  fprintf (stderr,
+           "  §11 rate=%.3f: %zu outs, %zu wraps, skip %zu, debt left %ld\n",
+           rate, outs, wraps, skip, left);
+  return left >= 0 && left <= (long)skip + 1;
+}
+
+/* ── §12 — a steady `mu` is a settled loop, a slewing one is rate error ──
+ *
+ * Both halves of the header's diagnostic claim, made quantitative.
+ *
+ * STEADY: where the input interval is a whole number of samples the fraction
+ * is exactly zero — the conversion folds into [0, 1) and truncates, so a
+ * 1/rate of 2.0 becomes the phase word 0, not 2^32. mu must then be
+ * bit-exactly 0.0 forever, not merely small, which is a far tighter statement
+ * than "settled" and the reason this is asserted with ==.
+ *
+ * An assertion that a number STAYS zero is satisfied by an accessor that can
+ * only ever return zero, so this one carries its vacuity precondition with it:
+ * the second half steers the same rate off-exact and requires mu to move. A
+ * `resamp_get_ctrl_acc` hard-wired to 0.0 takes §10, §11 and the slew case
+ * below red, and without these four lines would have left this one GREEN —
+ * measured, by doing exactly that.
+ *
+ * SLEWING: a rate a hair off one of those settles nothing. mu advances by
+ * frac(1/rate) per output and wraps every 1/frac of them, so the wrap COUNT
+ * is predicted rather than merely observed to be non-zero. */
+static int
+ctrl_acc_steady_at_exact_rate (double rate)
+{
+  resamp_state_t *r = resamp_create (rate);
+  if (!r)
+    return 0;
+  int ok = 1;
+  for (int k = 0; k < 2000; k++)
+    {
+      float _Complex o[8];
+      resamp_execute_ctrl_push (r, CMPLXF (1.0f, 0.0f), 0.0, o, 8);
+      if (resamp_get_ctrl_acc (r) != 0.0)
+        {
+          fprintf (stderr, "  §12 rate=%.3f: mu drifted to %.17g at %d\n",
+                   rate, resamp_get_ctrl_acc (r), k);
+          ok = 0;
+          break;
+        }
+    }
+
+  /* The precondition: mu is observable at this rate, so the zero above is
+     the loop being settled and not the accessor being dead. */
+  int moved = 0;
+  for (int k = 0; k < 2000 && !moved; k++)
+    {
+      float _Complex o[8];
+      resamp_execute_ctrl_push (r, CMPLXF (1.0f, 0.0f), 0.01, o, 8);
+      moved = resamp_get_ctrl_acc (r) != 0.0;
+    }
+  if (!moved)
+    {
+      fprintf (stderr,
+               "  §12 rate=%.3f: mu never moved under a steer — the "
+               "zero above is vacuous\n",
+               rate);
+      ok = 0;
+    }
+
+  resamp_destroy (r);
+  return ok;
+}
+
+static int
+ctrl_acc_slews_at_rate_error (double rate)
+{
+  enum
+  {
+    CALLS = 8000
+  };
+  resamp_state_t *r = resamp_create (rate);
+  if (!r)
+    return 0;
+
+  size_t outs = 0, wraps = 0;
+  double prev = resamp_get_ctrl_acc (r);
+  for (int k = 0; k < CALLS; k++)
+    {
+      float _Complex o[8];
+      outs += resamp_execute_ctrl_push (r, CMPLXF (1.0f, 0.0f), 0.0, o, 8);
+      double mu = resamp_get_ctrl_acc (r);
+      if (mu < prev)
+        wraps++;
+      prev = mu;
+    }
+  resamp_destroy (r);
+
+  double t_in     = 1.0 / rate;
+  double expected = (double)outs * (t_in - floor (t_in));
+  fprintf (stderr, "  §12 rate=%.4f: %zu wraps, predicted %.2f\n", rate, wraps,
+           expected);
+  return fabs ((double)wraps - expected) <= 1.0;
+}
+
+/* ── §13 — `resamp_dc_gain` is the bank's own gain, on BOTH paths ────────
+ *
+ * Three claims in one docblock, none of them run before now:
+ *   (a) the default Kaiser bank's DC gain is 1.0 — the header's own @code
+ *       block prints "1.000", so that doctest is a claim about this function;
+ *   (b) arm 0 answers for every arm, because a polyphase bank's arms are one
+ *       filter at different fractional delays and so share a DC gain;
+ *   (c) it is COMPUTED, not measured — so a measurement has to agree with it,
+ *       on the decimating path too, where the `rate` pre-scale and the
+ *       integrate-and-dump over the whole bank are claimed to cancel.
+ *
+ * (b) is what justifies reading only arm 0, and it is precisely the claim a
+ * measurement of arm 0 can never catch. */
+static double
+dc_gain_worst_arm_deviation (void)
+{
+  resamp_state_t *r = resamp_create (0.5);
+  if (!r)
+    return -1.0;
+  double g0    = resamp_dc_gain (r);
+  double worst = 0.0;
+  for (size_t p = 0; p < r->num_phases; p++)
+    {
+      double s = 0.0;
+      for (size_t t = 0; t < r->num_taps; t++)
+        s += (double)r->bank[p * r->num_taps + t];
+      if (fabs (s - g0) > worst)
+        worst = fabs (s - g0);
+    }
+  resamp_destroy (r);
+  return worst;
+}
+
+/* Measured DC response: a constant input through resamp_execute, settled. */
+static double
+dc_gain_measured (double rate)
+{
+  enum
+  {
+    NIN = 4096,
+    CAP = 16384
+  };
+  static float _Complex in[NIN], out[CAP];
+  resamp_state_t *r = resamp_create (rate);
+  if (!r)
+    return 0.0;
+  for (size_t i = 0; i < NIN; i++)
+    in[i] = CMPLXF (1.0f, 0.0f);
+  size_t n = resamp_execute (r, in, NIN, out, CAP);
+  resamp_destroy (r);
+  if (n < 128)
+    return 0.0;
+  double acc = 0.0;
+  size_t cnt = 0;
+  for (size_t k = n / 2; k < n; k++, cnt++) /* skip the startup transient */
+    acc += (double)crealf (out[k]);
+  return acc / (double)cnt;
+}
+
+/* ── §14 — resamp_destroy(NULL) is a no-op, and create_custom rejects ────
+ *
+ * "NULL is a no-op" is a header sentence nothing executed. The custom
+ * constructor's guards are in the same position: each is a documented
+ * rejection with no test behind it. */
+static int
+lifecycle_rejects (void)
+{
+  const float ok_bank[4] = { 1.0f, 0.0f, 1.0f, 0.0f };
+  int         ok         = 1;
+
+  resamp_destroy (NULL); /* must simply return */
+
+  if (resamp_create_custom (0, 2, ok_bank, 1.0) != NULL)
+    ok = 0; /* num_phases == 0 */
+  if (resamp_create_custom (2, 0, ok_bank, 1.0) != NULL)
+    ok = 0; /* num_taps == 0   */
+  if (resamp_create_custom (2, 2, NULL, 1.0) != NULL)
+    ok = 0; /* no bank         */
+  if (resamp_create_custom (2, 2, ok_bank, 0.0) != NULL)
+    ok = 0; /* rate == 0       */
+  if (resamp_create_custom (2, 2, ok_bank, -1.0) != NULL)
+    ok = 0; /* rate < 0        */
+  return ok;
+}
+
+/* ── §15 — set_rate preserves the accumulator and the delay line ─────────
+ *
+ * The header promises "Accumulator phase and delay line are preserved"; the
+ * test carrying that sentence asserted only that get_rate() read back. A
+ * retune mid-stream is exactly when the promise matters — a cleared
+ * accumulator is a timing jump and a cleared delay line is a transient,
+ * neither of which get_rate() can see. */
+static int
+set_rate_preserves_state (void)
+{
+  resamp_state_t *r = resamp_create (2.0);
+  if (!r)
+    return 0;
+
+  /* Drive it until every preserved field is non-trivial. */
+  for (int k = 0; k < 37; k++)
+    {
+      float _Complex o[8];
+      resamp_execute_ctrl_push (r, CMPLXF ((float)(k + 1), -1.0f), 0.03, o, 8);
+    }
+
+  uint32_t phase = r->phase, cph = r->ctrl_phase, cdebt = r->ctrl_debt;
+  uint32_t cahead = r->ctrl_ahead, inc0 = r->phase_inc;
+  size_t   head = r->delay_head, ncopy = 2 * r->delay_cap;
+  float   *bank = r->bank;
+  float _Complex snap[128];
+  if (ncopy > 128)
+    ncopy = 128;
+  for (size_t i = 0; i < ncopy; i++)
+    snap[i] = r->delay_buf[i];
+
+  resamp_set_rate (r, 3.0);
+
+  int ok = resamp_get_rate (r) == 3.0 && r->phase_inc != inc0
+           && r->phase == phase && r->ctrl_phase == cph
+           && r->ctrl_debt == cdebt && r->ctrl_ahead == cahead
+           && r->delay_head == head && r->bank == bank;
+  for (size_t i = 0; i < ncopy; i++)
+    if (r->delay_buf[i] != snap[i])
+      ok = 0;
+  resamp_destroy (r);
+  return ok;
+}
+
+/* ── §16 — reset zeroes every accumulator and every delay buffer ─────────
+ *
+ * Same shape as §15 and the same gap: the header promises "Zero phase
+ * accumulator, ctrl accumulator, and delay line. Rate and bank are
+ * preserved", and the test asserted only that the rate survived — so a reset
+ * that zeroed nothing at all passed it. Both halves are checked here, and so
+ * is the vacuity precondition: a reset test proves nothing if the state was
+ * already zero when it ran. */
+static int
+reset_zeroes_state (void)
+{
+  resamp_state_t *r = resamp_create (0.7);
+  if (!r)
+    return 0;
+
+  for (int k = 0; k < 53; k++)
+    {
+      float _Complex o[8];
+      resamp_execute_ctrl_push (r, CMPLXF ((float)(k + 1), 0.5f), -0.02, o, 8);
+      float _Complex x = CMPLXF (1.0f, (float)k);
+      resamp_execute (r, &x, 1, o, 8);
+    }
+
+  /* The vacuity precondition: there is something here to zero. */
+  int dirty = r->phase || r->ctrl_phase || r->ctrl_debt || r->delay_head;
+  for (size_t i = 0; i < 2 * r->delay_cap; i++)
+    if (r->delay_buf[i] != 0.0f)
+      dirty = 1;
+  double gain0 = resamp_dc_gain (r);
+
+  resamp_reset (r);
+
+  int ok = dirty && r->phase == 0 && r->ctrl_phase == 0 && r->ctrl_debt == 0
+           && r->ctrl_ahead == 0 && r->delay_head == 0
+           && resamp_get_rate (r) == 0.7 && resamp_dc_gain (r) == gain0;
+  for (size_t i = 0; i < 2 * r->delay_cap; i++)
+    if (r->delay_buf[i] != 0.0f)
+      ok = 0;
+  for (size_t i = 0; i < r->num_taps; i++)
+    if (r->decim_iad[i] != 0.0f)
+      ok = 0;
+  for (size_t i = 0; i + 1 < r->num_taps; i++)
+    if (r->decim_tfd[i] != 0.0f)
+      ok = 0;
+  resamp_destroy (r);
+  return ok;
+}
+
 int
 main (void)
 {
-  int _fails = 0;
-
   /* ---- create / destroy ---- */
   resamp_state_t *r = resamp_create (1.0);
   CHECK (r != NULL);
@@ -593,6 +1019,76 @@ main (void)
         resamp_destroy (r1);
       }
   }
+
+  /* ── §10 — the control accumulator names the NEXT output's arm ──────── */
+  CHECK (ctrl_acc_names_next_arm (0.7));
+  CHECK (ctrl_acc_names_next_arm (0.923));
+  CHECK (ctrl_acc_names_next_arm (1.3));
+  CHECK (ctrl_acc_names_next_arm (2.5));
+
+  /* ── §11 — one wrap buys one INPUT interval ─────────────────────────── */
+  CHECK (ctrl_wrap_is_one_input (0.7));
+  CHECK (ctrl_wrap_is_one_input (0.3));
+
+  /* ── §12 — steady where the interval is whole, slewing where it is not ─
+     0.5, 1.0 and 0.25 all give an integer 1/rate, so the fraction is exactly
+     zero. 0.499 is 0.5 with a residual rate error a loop would have to
+     absorb, and its wrap count is predicted rather than merely non-zero. */
+  CHECK (ctrl_acc_steady_at_exact_rate (0.5));
+  CHECK (ctrl_acc_steady_at_exact_rate (1.0));
+  CHECK (ctrl_acc_steady_at_exact_rate (0.25));
+  CHECK (ctrl_acc_slews_at_rate_error (0.499));
+
+  /* ── §13 — dc_gain is computed, and a measurement must agree ────────── */
+  {
+    resamp_state_t *rg = resamp_create (0.5);
+    CHECK (rg != NULL);
+    if (rg)
+      {
+        double g = resamp_dc_gain (rg);
+        fprintf (stderr, "  §13 default Kaiser dc_gain %.6f\n", g);
+        CHECK (fabs (g - 1.0) < 1e-3); /* the header's @code says 1.000 */
+        resamp_destroy (rg);
+      }
+
+    double worst = dc_gain_worst_arm_deviation ();
+    fprintf (stderr, "  §13 worst arm deviation from arm 0: %.3e\n", worst);
+    CHECK (worst >= 0.0 && worst < 1e-3); /* arm 0 answers for all of them */
+
+    /* Computed vs measured, on the interpolating and the decimating path —
+       the latter is where the `rate` pre-scale has to cancel. */
+    for (int i = 0; i < 2; i++)
+      {
+        double          rate = i ? 0.5 : 2.0;
+        resamp_state_t *rr   = resamp_create (rate);
+        CHECK (rr != NULL);
+        if (!rr)
+          continue;
+        double want = resamp_dc_gain (rr);
+        resamp_destroy (rr);
+        double got = dc_gain_measured (rate);
+        fprintf (stderr, "  §13 rate %.2f: computed %.6f, measured %.6f\n",
+                 rate, want, got);
+        CHECK (fabs (got - want) < 5e-3);
+      }
+
+    /* A custom bank answers with its own tap sum, not with 1.0. */
+    const float b2[8] = { 0.75f, 1.25f, 0.5f, 1.5f, 0.25f, 1.75f, 1.0f, 1.0f };
+    resamp_state_t *rc = resamp_create_custom (4, 2, b2, 1.0);
+    CHECK (rc != NULL);
+    if (rc)
+      {
+        CHECK (resamp_dc_gain (rc) == 2.0);
+        resamp_destroy (rc);
+      }
+  }
+
+  /* ── §14 — destroy(NULL) is a no-op; create_custom rejects ──────────── */
+  CHECK (lifecycle_rejects ());
+
+  /* ── §15 / §16 — the two promises the old literals could not see ────── */
+  CHECK (set_rate_preserves_state ());
+  CHECK (reset_zeroes_state ());
 
   if (_fails)
     {
